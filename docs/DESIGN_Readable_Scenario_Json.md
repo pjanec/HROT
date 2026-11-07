@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — ✅ Q1–Q4 approved as leaned (R-4159)
+build-state: BUILT — CE-4295 (P-1 of the mission plan handoff); §4 is the as-built
 updated: 2026-11-07 (first version — the user: "Storing JSON strings inside a JSON string type seems weird … it reads very badly by human because it's double quoted")
-current-answer: §1 measured · §2 the design · §3 questions
+current-answer: §2 the design · §4 AS-BUILT (what was built, the inventory, the deviations)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -97,3 +97,21 @@ graph TD
 | **Q2** | the existing 117 files | **rewrite them once** (load + save, one commit) so the repo reads well now | migrate on next save: files would stay escaped for months |
 | **Q3** | the debug API / MCP output of the same types | **objects there too** (they are serialized with the same converter) — easier to read; the MCP reads both | strings only in the API: two shapes for one field |
 | **Q4** | where it is built | a small backend item, before the mission plan editor's M5 (its conditions then land readable from the start) | — |
+
+## 4. As built *(2026-11-07, backend, CE-4295)* — matches §2; three deviations, each argued
+
+| part | where |
+|---|---|
+| `JsonTextAttribute` + `JsonTextConverter` (`IsStructured`, and the tree helpers `TextOf(JsonNode)` / `NodeOf(string)`) | `FDP/Engine/Fdp.Core/Serialization/Converters/JsonTextConverter.cs` |
+| `[JsonText]` on `SavedBrainSlot.Params`, `DomainMissionTask.BehaviorParams`, `DomainMissionTrigger.Params` | `Fdp.Toolkits/Behavior/Components/` |
+| the JSON-TREE readers of these fields, routed to `TextOf` / `NodeOf` (one reader for the tree form) | `ScenarioSaveCore.RebindBlob` (keeps each value in its own form), `ScenarioBehaviorSlots.Enumerate`, `DebugApiService.Missions` (Q3: objects out, both forms in), `Hrot.Tools.ContentMigrate` (an object site is migrated as an object) |
+| the one-time rewrite, and the SAME rule for every generator | `scripts/scenario_json_readable.py` (`readable(text)` — only the params string tokens change, every other byte kept; `--check`); called by `scenario_builder.write`, `gen-showcase-crossfire/bridgehead`, `perf-stress` |
+| rails | `Hrot.SimHost.Tests/ReadableScenarioJsonTests` — a round trip per marked field through `DefaultRelaxed` AND `HrotJsonOptions`; scalars / empty / invalid stay strings; old file vs new file through the production `MissionPlanTranslator` and `BrainSnapshotTranslator`; the shipped corpus carries no escaped params |
+
+**Inventory (Q1), measured on the files:** in `scenarios/` + `recipes/scenarios/` the only JSON-holding strings under these keys are `entities/*/Behavior.Params` (585), `entities/*/Sop.Params` (239), `MissionPlan.PlanData.tasks[].behaviorParams` (100) and `.Tasks[].BehaviorParams` (5) — every one a marked field. Trigger `params` are scalars or empty today (stay strings). ⚠ Found and NOT marked: `assets/behaviors/**` (`Blackboard.Variables[].DefaultValueJson` 16, `PinDefaults`, `ParamsDefaultJson`, `Fields[].DefaultJson`) — the behaviour ASSET formats, not scenario files; the behaviors lane's call (note sent).
+
+| deviation | why |
+|---|---|
+| **only an object / array is written as itself; a scalar stays a string** (§2 said "the JSON value it contains") | a trigger's `"40"` written as `40` would change the field's JSON type for no readability gain, and `"null"` / `"true"` would be ambiguous; the class diagram already said *object / array* |
+| **written VERBATIM** (`WriteRawValue`), not re-formatted | string → object → string gives back the SAME text, so a load-save round trip leaves the in-memory string (and anything hashed from it) unchanged |
+| **the rewrite is a token-level text pass, not a load + save through the engine** (§2 Q2 said "by loading and saving") | a load + save re-formats every other part of 129 files; the text pass changes only the params tokens, and checks that each rewritten file parses to the same tree (`_canon`) |

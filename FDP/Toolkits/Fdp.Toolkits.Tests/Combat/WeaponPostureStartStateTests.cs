@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(WeaponPostureKind.Aimed, fresh.GetComponentRO<WeaponPosture>(rifleBack).Kind);
             Assert.Equal(enemyBack, fresh.GetComponentRO<WeaponPosture>(rifleBack).Target);   // the link, remapped to the loaded unit
             Assert.False(watchBack.IsNull);
-            Assert.Equal(new Vector3(10f, 20f, 1f), fresh.GetComponentRO<WeaponPosture>(watchBack).Point);
+            Assert.Equal(new Vector3(10f, 20f, 1f), fresh.GetComponentRO<WeaponPosture>(watchBack).Point.AsVector3);
         }
 
         /// <summary>⭐ The four attributes on the brain's node: posture, a point (one axis per record), a unit by network id (an unknown one refused),
@@ -87,11 +87,11 @@ namespace Fdp.Toolkit.Tests.Combat
 
             Apply(AttributeIds.WeaponAimPoint, AttributeValue.FromDouble(12.5), sub: 0);
             Apply(AttributeIds.WeaponAimPoint, AttributeValue.FromDouble(-3.0), sub: 1);
-            Assert.Equal(new Vector3(12.5f, -3f, 0f), repo.GetComponentRO<WeaponPosture>(man).Point);
+            Assert.Equal(new Vector3(12.5f, -3f, 0f), repo.GetComponentRO<WeaponPosture>(man).Point.AsVector3);
 
             Apply(AttributeIds.WeaponAimTarget, AttributeValue.FromDouble(42));
             Assert.Equal(target, repo.GetComponentRO<WeaponPosture>(man).Target);
-            Assert.Equal(Vector3.Zero, repo.GetComponentRO<WeaponPosture>(man).Point);   // a unit, not a point
+            Assert.Equal(Vector3.Zero, repo.GetComponentRO<WeaponPosture>(man).Point.AsVector3);   // a unit, not a point
             Apply(AttributeIds.WeaponAimTarget, AttributeValue.FromDouble(999));   // ⛔ no such unit
             Assert.Equal(target, repo.GetComponentRO<WeaponPosture>(man).Target);
 

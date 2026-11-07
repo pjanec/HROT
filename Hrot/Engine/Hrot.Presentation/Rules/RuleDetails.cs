@@ -174,6 +174,7 @@ public sealed class RuleDetails
         var s = row.Status;
         bool trigger = s.Role == ObjectiveRole.Trigger && !row.Authored;
         bool acting = trigger && s.State == ObjectiveState.Active && s.TriggerState == TriggerState.Acting;
+        _stepCtx.Refs = _world() is { } rw ? AuthoredRules.ScopeOf(rw) : null;   // ⭐ CE-4307 — the Do rows name their links as the List does
         _stepCtx.RunningStep = trigger ? s.StepCur : 0;
         _stepCtx.StepCount = trigger ? s.StepCount : 0;
         _stepCtx.FailedReason = trigger && s.StepCur > 0 && !acting ? (s.Reason.ToString() is { Length: > 0 } r ? r : "a step failed") : null;   // a failed step keeps its index (the owner zeroes it on the next transition)

@@ -226,7 +226,7 @@ namespace Fdp.Toolkits.Tests.Scenario
             Assert.True(ParamBinder.ApplyBindings(e, src));
 
             Assert.Equal(2, e["EntityInfo"]!["ForceId"]!.GetValue<int>());
-            var blob = JsonNode.Parse(e["Behavior"]!["Params"]!.GetValue<string>())!;
+            var blob = JsonNode.Parse(Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(e["Behavior"]!["Params"])!)!;
             Assert.Equal(7.5, blob["Speed"]!.GetValue<double>());
             Assert.Equal("^area", blob["Area"]!.GetValue<string>());       // the ① binding beside it is untouched
             Assert.NotNull(e["ParamBindings"]);                             // SR-168

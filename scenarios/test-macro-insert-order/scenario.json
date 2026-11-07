@@ -67,7 +67,7 @@
    "Behavior": {
     "Name": "Trigger",
     "Origin": "Superior",
-    "Params": "{\"common\": {\"title\": \"Reinforce and attack\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 3}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"forces/red-qrf\", \"at\": \"@Drop\", \"heading\": 0, \"params\": {\"side\": \"Hostile\"}}}, {\"act\": \"Order\", \"args\": {\"target\": \"@RedQRF\", \"behavior\": \"PlatoonAttack\", \"params\": {\"Position\": [150, 160, 0], \"SearchRadius\": 30, \"Preset\": \"AttackPosition\", \"Speed\": 3}}}]}"
+    "Params": {"common": {"title": "Reinforce and attack"}, "when": {"$type": "ScenarioTime", "fromSeconds": 3}, "do": [{"act": "InsertMacro", "args": {"macro": "forces/red-qrf", "at": "@Drop", "heading": 0, "params": {"side": "Hostile"}}}, {"act": "Order", "args": {"target": "@RedQRF", "behavior": "PlatoonAttack", "params": {"Position": [150, 160, 0], "SearchRadius": 30, "Preset": "AttackPosition", "Speed": 3}}}]}
    }
   }
  }

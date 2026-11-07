@@ -40,12 +40,12 @@
    },
    "Behavior": {
     "Name": "FireAtPoint",
-    "Params": "{\"x\":105,\"y\":104,\"z\":6,\"mount\":32,\"rounds\":1,\"cooldownSeconds\":5}",
+    "Params": {"x":105,"y":104,"z":6,"mount":32,"rounds":1,"cooldownSeconds":5},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    },
    "IsEmbarkedTag": {
@@ -83,12 +83,12 @@
    },
    "Behavior": {
     "Name": "FireAtPoint",
-    "Params": "{\"x\":95,\"y\":92,\"z\":0,\"mount\":32,\"rounds\":1,\"cooldownSeconds\":5}",
+    "Params": {"x":95,"y":92,"z":0,"mount":32,"rounds":1,"cooldownSeconds":5},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    },
    "IsEmbarkedTag": {
@@ -126,12 +126,12 @@
    },
    "Behavior": {
     "Name": "HoldStance",
-    "Params": "{\"stance\":\"Standing\"}",
+    "Params": {"stance":"Standing"},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   },
@@ -165,12 +165,12 @@
    },
    "Behavior": {
     "Name": "HoldStance",
-    "Params": "{\"stance\":\"Standing\"}",
+    "Params": {"stance":"Standing"},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   },
@@ -204,12 +204,12 @@
    },
    "Behavior": {
     "Name": "HoldStance",
-    "Params": "{\"stance\":\"Standing\"}",
+    "Params": {"stance":"Standing"},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   },

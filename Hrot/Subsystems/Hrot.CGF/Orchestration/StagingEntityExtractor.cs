@@ -462,6 +462,11 @@ namespace Hrot.CGF.Orchestration
                         foreach (var task in plan.Plan.Tasks)
                         {
                             task.BehaviorParams = behaviorRemapper.ResolveJson(task.BehaviorName, task.BehaviorParams, refScope) ?? task.BehaviorParams;
+                            // ⭐ CE-4301 (G2) — the task's then / give-up conditions name entities too
+                            if (task.Triggers != null)
+                                foreach (var t in task.Triggers)
+                                    if (t.Type is Fdp.Toolkit.Behavior.Systems.MissionConditionTypes.Then or Fdp.Toolkit.Behavior.Systems.MissionConditionTypes.GiveUp)
+                                        t.Params = ScenarioBehaviorRemapper.ResolveConditionJson(t.Params, refScope) ?? t.Params;
                         }
                     }
                     // ⭐ CE-1057 — a unit's saved AI (CE-3042) carries each slot's params as a JSON string too, so the type

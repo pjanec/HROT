@@ -52,6 +52,9 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <see cref="TacticalOrderMapper.IIntentClearProvider"/> (today: the mission plan) in the same system call, so an
         /// immediate order cannot be undone by a plan resuming at its next phase.</summary>
         public bool ClearsPriorIntent;
+
+        /// <summary>⭐ CE-4306 (edit framework F5) — the id a station's <c>EditOp.Command</c> minted for this order (<see cref="System.Guid.Empty"/> = nobody asked: the AI's own orders). Crosses the wire and rides onto the <see cref="AssignBehaviorEvent"/>; the brain's owner answers accepted / refused under it.</summary>
+        public System.Guid RequestId;
     }
 
     /// <summary>⭐ <c>CE-3167</c> — what an <see cref="AssignTacticalIntentEvent"/> asks for (a byte on the wire).</summary>

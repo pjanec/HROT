@@ -60,12 +60,19 @@ namespace Fdp.Toolkit.Behavior
         /// </exception>
         public void Register<TDto>(string behaviorId)
             where TDto : new()   // CE-2023 ③ — a struct contract too ("S8n")
+            => Register(behaviorId, typeof(TDto));
+
+        /// <summary>⭐ <c>CE-4298</c> (mission plan G1) — <see cref="Register{TDto}"/> for a contract known only at run time: an ORDER's DTO
+        /// under its intent id <c>Order.&lt;Kind&gt;</c> (the host reads the order registry, which this assembly cannot see), so an order
+        /// task's references are resolved on load like a behaviour's.</summary>
+        public void Register(string behaviorId, Type contract)
         {
+            if (contract is null) throw new ArgumentNullException(nameof(contract));
             if (_registry.ContainsKey(behaviorId))
                 throw new InvalidOperationException(
                     $"ScenarioBehaviorRemapper: behaviorId '{behaviorId}' is already registered.");
 
-            _registry[behaviorId] = typeof(TDto);
+            _registry[behaviorId] = contract;
         }
 
         /// <summary>
@@ -92,6 +99,14 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public string? ResolveJson(string behaviorId, string? json, IRefScope scope)
             => ContractOf(behaviorId) is { } contract ? EntityRefRemap.WalkJson(contract, json, new RefResolve(scope)) : json;
+
+        /// <summary>⭐⭐ <c>CE-4301</c> (mission plan G2, §5.7) — RESOLVES every authored reference (<c>"@Key"</c> / a GUID) inside a mission task's
+        /// CONDITION (a <c>Then</c> / <c>GiveUp</c> entry's JSON) — the contract is the condition language itself (<c>SearchPredicateDto</c>, walked
+        /// polymorphically by the one walker). ⛔ Before it the pass walked the task's params only, so a condition naming another unit kept a
+        /// reference to nobody. A key that names nothing throws — the load fails loudly.</summary>
+        public static string? ResolveConditionJson(string? json, IRefScope scope)
+            => string.IsNullOrWhiteSpace(json) ? json
+             : EntityRefRemap.WalkJson(typeof(Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto), json, new RefResolve(scope));
 
         /// <summary>⭐ Macros S3a ④ — any walker operation (<see cref="Fdp.Toolkit.Scenario.ParamBind"/>, <see cref="Relocation"/>) over
         /// <paramref name="behaviorId"/>'s params contract in <paramref name="json"/>. Unknown behaviour: <paramref name="json"/> unchanged.</summary>

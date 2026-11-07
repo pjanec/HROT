@@ -225,7 +225,10 @@ public sealed class EditorProcess : IAsyncDisposable
             try
             {
                 var status = await Client.GetStatusAsync().ConfigureAwait(false);
-                if (status.Ok && status.Data is not null)
+                // ⭐ CE-4316 (found running the Preview rails) — "serves /status" is not "can be driven": the world-changing routes refuse
+                //   with 409 "the cluster is not operable yet" until the first cluster state reaches the node. Ready = canOperate when the
+                //   status says it (an older editor that does not report it is ready on /status alone).
+                if (status.Ok && status.Data is not null && status.Field("canOperate")?.GetValue<bool>() != false)
                     return;
             }
             catch (McpRequestException ex)

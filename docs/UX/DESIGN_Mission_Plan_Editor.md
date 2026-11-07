@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — ✅ E1–E9 + §5.9 approved 2026-11-07 (R-4161); dispatched in HANDOFF_Coordinator_To_Lanes_Mission_Plan.md (CE-4298…CE-4304) · §5 ✅ D1–D9 (D3 / D4 as revised) + §5.7 APPROVED 2026-11-07 (R-4160); the remaining detail in §5.8 · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
+build-state: BUILDING — M1 runtime BUILT (P-2, CE-4298; §5.10 as-built) · ✅ E1–E9 + §5.9 approved 2026-11-07 (R-4161); dispatched in HANDOFF_Coordinator_To_Lanes_Mission_Plan.md (CE-4298…CE-4304) · §5 ✅ D1–D9 (D3 / D4 as revised) + §5.7 APPROVED 2026-11-07 (R-4160); the remaining detail in §5.8 · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
 updated: 2026-11-07 (E9: the Wait task — a plan that waits before its first task) · 2026-11-07 (E4 / E5 revised by the user: ONE Tasks lane for all units; the WHO chip defaults to 'this unit'; §5.9 the sequencing rule, measured) · 2026-11-07 (§5.8 the remaining detail E1–E8 — E1: a Live edit restarts the plan today) · 2026-11-07 (§5.7 entity references: the GUID / @Key rule exists (S9′); two load-path gaps G1, G2 named) · 2026-11-07 (§5.7 storage and compatibility, measured; one unmeasured gate for M5) · 2026-11-07 (D3 / D4 revised by the user's question: every then / give-up is ONE shared condition; old trigger types translated on compile) · 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
-current-answer: ⭐ §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions
+current-answer: ⭐ §5.10 the M1 runtime AS BUILT (read with §5) · §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions
 stale-below: nothing
 known-rot: §3 M5's "a task-owned rule evaluated by the rules runner" is SUPERSEDED by §5 D3 (one Condition trigger, the one compiler); §2.2's PhaseBegins leaf and OperationPhase class by §5 D5 / D6 (a phase IS a trigger)
 known-conflict: the code calls a plan's task slot a "phase" (MissionPlanQueue.Phases); this design uses "phase" for the MILITARY phase of an operation (§2.4) — Q6 renames the code's word
@@ -369,3 +369,85 @@ fresh world (new network ids) and still points at the same three entities — an
 | **storage** | none new — the existing task shape with an empty name; old files unchanged |
 | **in the editor** | *+ Add task* offers **Wait** first; its row reads *"Wait — until <condition>"*; the *then* is required — a Wait has no behaviour to finish, so an empty one (= *when done*) would end at once; the editor refuses it and the load warns, naming the task |
 | **rejected** | a *Hold* as the first task (the earlier lean): it ORDERS the unit to hold, replacing what it would otherwise do · a separate plan-level "start when": a second gate shape for what a task already is |
+
+### 5.10 M1 runtime — AS BUILT *(2026-11-07, backend, P-2 / CE-4298)* — matches §5.3 / §5.4 with four deviations, each argued
+
+| part | where |
+|---|---|
+| **§5.9** no condition = *when done*, decided ONCE | `MissionTriggerHelper.ResolveTrigger` (empty ⇒ `BehaviorFinished`); the three editor defaults (`MissionPanel`, the debug API, `NedSimHostMissionSender`) write nothing; the rail flipped to `…NoTriggerMeansWhenDone` |
+| **D1** `Order.<Kind>` accepted | `MissionControlExecutionSystem.ResolveBehaviorId` — a declared order's stored id is 0 without the warning (an undeclared one still warns, now naming it) |
+| **D2** ONE start path | `MissionTaskStart.ByName` (beside `ActiveMissionPlan`) — the ONE answer both read: a task of a NAMED plan is started by the adapter, by name; the director only advances it (no `AssignBehaviorHashEvent`, no second clear) |
+| **E9** the Wait task | `MissionAdapterSystem` — an empty name starts nothing; mid-plan it clears the plan's behaviour (Superior) so the SOP takes over; at the plan's start nothing is cleared |
+| **G1** an order task's params resolved on load | `CgfBehaviorSetup.CreateBehaviorRemapper` registers every order's DTO under `Order.<Kind>` (`ScenarioBehaviorRemapper.Register(id, Type)`) — the one remapper factory, so every host has it |
+| **D3 / D4** then and give-up are conditions | `PlanConditionCache` (new, beside the director): per entity and slot, compiled once from a `Then` / `GiveUp` entry (`ConditionCache.Get`) or from the old type (`PlanConditionCache.Translate`); the director asks give-up first (⇒ Failed), then *then*. Entry types `Then` / `GiveUp` accepted by `ResolveTrigger` (one then, at most one give-up, each a parseable condition; the slot kind `MissionTrigger.Condition`) |
+| **D6** the `TaskFinished` leaf | `TaskFinishedPredicateDto { Unit, Task }` + its compiler arm (no Unit = the asked entity; Task 0 = its current task) — built here because *when done* needs it (deviation ①) |
+| the ONE compiled-condition cache | `Fdp.Toolkit.ReplayBrowser.Search.ConditionCache` — moved down from `Hrot.AI.Behaviors.TriggerWhen`, which now delegates (a rule's `when` and a task's *then* share one compiler and one cache) |
+| rails | `MissionAdapterSystemTests.CE4298_*` (three bare tasks one by one, each started once by name; a Wait-first plan; then + give-up; 0 B per steady frame) · `CgfBehaviorSetupTests.CE4298_AnOrderTasksParams_…` · `EntityMissionIngressTranslatorTests` (flipped) |
+
+| deviation | why |
+|---|---|
+| ① *when done* = **`TaskFinished` (this unit, its current task)**, not `TransientEvent BehaviorFinishedEvent` (§5.2 D3, §5.6) | the director ignores a REACTION's or a POSSESSION's end (`BehaviorOriginRank.Pauses`, CE-2078 / CE-3172) — a plain event match would advance the plan when a reaction ends. The director records the TASK's outcome before it asks, so the leaf is the old trigger exactly, and allocation-free |
+| ② the old `UnderAttack` is translated to **`TargetMemory.Count > 0`**, not `InputAbove UnderFire` | a translation keeps an old file's MEANING: `UnderAttack` was "knows an enemy" (`TargetMemory`), not "under fire". The picker's *under fire* preset (§5.6) stays `InputAbove UnderFire` for new plans. (No scenario uses `UnderAttack`.) |
+| ③ the old `HealthCritical X` is **`Health.Max > 0` AND NOT `HealthFraction > X`** | the old trigger never fired without a `Health`; `None(InputAbove …)` alone would fire at once there. `PlanConditionCache` registers the standard inputs once so a node with no utility system still reads `HealthFraction` |
+| ④ a RAW queue (no `ActiveMissionPlan` beside it — the FDP examples, hand-built queues) is still started by the director by its stored id | it has no name to start by, and no adapter runs there (the examples compose the director alone). `MissionTaskStart.ByName` makes the two paths DISJOINT by construction, so no task is ever started twice |
+
+⏳ Not in M1: the load warning for a Wait with no *then* (the editor refuses it, P-7); E1 progress carry-over (P-4).
+
+**M1b (P-3, CE-4299) as built:** D7 exactly — 16 slots (`MissionPlanQueue.MaxTasks`, the one size the two inline buffers read); the six Roslyn renames (the names above in §5.10 are now `TaskElapsedSeconds`, `CurrentTask`, …). One consequence found: `MissionProgressWire.ProgressOf` packed 8 outcomes × 8 bits into a `ulong` — now 2 bits each.
+
+**M4 runtime (P-4, CE-4300) as built:** E1 exactly as §5.8 says, in `MissionControlExecutionSystem.CarryProgress` (by `TaskId`; "unchanged" = same name, params and condition entries). ⭐ One thing E1 needed that §5.8 did not name: the ADAPTER decided "already started" by the slot INDEX, so a task kept running but moved by an insert would have been restarted; it now keys on the task (id, name, params — the index only for an id-less task). E7 and E8 need no code of their own: both commit plan + 1 with the version, and E1 keeps the progress. D9's version precondition was already there (B-6); the two-station rail pins it.
+
+**M5 runtime (P-5, CE-4301) as built:** D6's leaf was built in P-2 (§5.10). G2 as §5.7 says — each `Then` / `GiveUp` entry walked with the contract `SearchPredicateDto` (`ScenarioBehaviorRemapper.ResolveConditionJson`). ⚠ §5.7's premise *"the walker already handles the polymorphic tree"* was only HALF true: members typed as a polymorphic node were dispatched (SR-164), but a polymorphic ROOT was planned as its abstract base and walked nothing — fixed in `EntityRefRemap.WalkJson` (one place, every caller).
+
+**M6 runtime (P-6, CE-4302) as built:** E3 exactly — `common.phase` (byte, 0 = none) on `ObjectiveCommon` + `ObjectiveCommonBlock`, projected by `ObjectiveRules.Display` onto `ObjectiveStatus.Phase` and replicated (`EntityObjectiveStatus.Phase`). *Begin now* needs no new code (`RuleRequest.Fire` through `RuleCommands.Control`, origin Instructor). *when Phase N begins* = `PlanConditionCache.PhaseBegins(trigger)` — the §5.6 row, as a preset beside the others.
+
+### 5.11 P-7 (M2 + M4 UI) — the build plan *(ui, `2026-11-07`; claimed in `STATUS_Editing_UX_Build_Ui.md`)*
+
+INVENTORY (graph `search_graph .*(OrdersTab|MissionPanel|MissionPlan).*` Class + grep `new MissionPanel`): no Orders tab exists; **three**
+`MissionPanel` instances (710 lines, `Hrot.Presentation/Panels/MissionPanel.cs`) — the editor's Mission window (`EditorSubsystem.cs:1866`,
+registered `:4931`), the editor-only Details view **Mission** (`ScenarioMissionView`, `details.mission`, `EditorSubsystem.cs:3250`) and CGF's
+Mission window (`CgfSubsystem.cs:1102`, `:1327`). They all read and write through ONE facade, `IMissionEditorService`
+(`GetMissionSnapshot` · `CommitMissionAsync(plan, baseVersion)` · `SendControlCommandAsync(Jump / Abort)` · `GetAvailableBehaviorChoices`),
+implemented by `ScenarioMissionService` — ⇒ the tab reuses it; nothing new on the write path.
+
+```mermaid
+classDiagram
+  direction LR
+  class IMissionEditorService { <<existing facade>> GetMissionSnapshot · CommitMissionAsync · SendControlCommandAsync }
+  class EntityDetailsBundle { <<existing>> + Missions : Func~IMissionEditorService?~ }
+  class OrdersTab { <<NEW · Hrot.Editor.AiShared.Shell · details.orders>> rows = sentences · progress · Jump / Stop · + Add task · Commit }
+  class OrdersPlanModel { <<NEW, headless>> draft plan · base version · RowsOf(plan, queue) · Add / Remove / Move · ThenOf / GiveUpOf }
+  class OrderForm { <<existing>> the order DTO form (OrderMenu.OfferedFor) }
+  class ConditionEditor { <<existing, U-15>> context Mission task (E5: WHO = this unit) }
+  class MissionPanel { <<RETIRED — three instances>> }
+  EntityDetailsBundle --> OrdersTab : registers (every host)
+  OrdersTab --> OrdersPlanModel
+  OrdersPlanModel --> IMissionEditorService
+  OrdersTab ..> OrderForm : a task's order
+  OrdersTab ..> ConditionEditor : then / give up
+```
+*What it shows: one tab on the ONE Details bundle replaces three panels on two hosts, and it writes through the facade they already share —
+so P-7 adds a surface and deletes three, without a new write path.*
+
+| slice | what | acceptance |
+|---|---|---|
+| **7a** | `OrdersPlanModel` (headless) + `OrdersTab` READ: one row per task as a sentence (*"Move to Bridge, then when there"*, a Wait reads *"Wait — until …"*), the running task marked from `MissionPlanQueue` (`CurrentTask`, `Outcomes`), Jump / Stop; offered when ONE selected unit has a plan or can take one (E6: a group shows its commander's) | the model's rows rail; the tab registered on Editor, CGF (the bundle's forwarding rail) |
+| **7b** | EDIT: *+ Add task* (Wait first, E9; orders from `OrderMenu.OfferedFor`; behaviours), the order form, the *then* picker §5.6 (presets → `{type: Then, params}`), *give up after* (D4), remove / reorder; a Wait with no *then* refused; nothing written for *when done* (P-2) | the stored JSON per preset (§5.6 table) rail; side-by-side with `mission-plan-editor.svg` + `mission-plan-detail-visual.svg` |
+| **7c** | D9: Edit mode = one `EditHistory` step per action; Live = **Commit** with the base version, Conflict → *Reload* / *Overwrite*; `TaskId` kept across edits (P-4) | the two-station conflict rail; an edit of task 4 while task 2 runs leaves task 2 running |
+| **7d** | retire the three `MissionPanel` instances (+ `MissionPanelWindow`, `ScenarioMissionView`); re-home `MissionPanelTests` / `MissionPanelRegistryTests` claims onto the model | the window-set rail per host (Mission window gone, Orders tab present) |
+
+**7a + 7b as built (ui, `2026-11-07`):** `Hrot.Editor.AiShared.Shell` — `OrdersPlanModel` (rows as sentences, the queue's states), `OrdersPlanEdits`
+(new Wait / order / behaviour, the *then* presets, give up, move, `RefusalOf`, `Copy`) and `OrdersTab` (`details.orders`; a draft per unit,
+↑ ↓ ✕, *+ Add task* — Wait first, then `OrderMenu.OfferedFor(dis)`, then the facade's behaviours — Apply = the whole plan with its base version
+through `IMissionEditorService.CommitMissionAsync`, settled on the UI thread; Revert; Jump / Stop when nothing is pending). Offered to a unit with
+a plan or one that can be ordered. ⭐ Two measured deviations, both argued:
+
+| | as built | why |
+|---|---|---|
+| ① | *after N* is a NEW catalogue fact **`task-time`** (`FactCatalogue`, Mission context only, world-only) whose leaf is byte-identical to `PlanConditionCache.Translate(TimerElapsed, N)` (railed) | one vocabulary: the condition editor, the summary and the picker read it; the runtime's translation and the authored preset are one condition |
+| ② | the presets are read back by `FactCatalogue.Recognise` on the leaf (a one-child `None` = negated), NOT `RowProjection.FromDto` | `FromDto` reads an UNWRAPPED leaf as a row only for a world fact; a task's facts (*under fire*, *strength*) are about the unit itself, stored unwrapped (E5) — so they would read back as Custom |
+
+✅ **7b rest (ui, `2026-11-07`):** a task's own FIELDS through the ONE params form (`BehaviorParamsEditor` + `BehaviorParamsForm.DrawFields`, the
+host's map pick) — an order's type is its DTO from the ONE order registry (`OrderMenu.TryGetByName`, the lookup G1 resolves by), a behaviour's the
+host's `ParamsTypeOf` (new `EntityDetailsHostServices.ParamsTypeOf`, passed by Editor and CGF over their registries); *Advanced condition…* = the
+ONE `ConditionEditor` in the Mission context, opened on the task's current condition (`OrdersPlanEdits.ConditionOf`).

@@ -40,12 +40,12 @@
    },
    "Behavior": {
     "Name": "FireAtPoint",
-    "Params": "{\"x\":110,\"y\":35,\"z\":0,\"mount\":1,\"rounds\":1,\"cooldownSeconds\":2}",
+    "Params": {"x":110,"y":35,"z":0,"mount":1,"rounds":1,"cooldownSeconds":2},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   },
@@ -80,12 +80,12 @@
    },
    "Behavior": {
     "Name": "HoldStance",
-    "Params": "{\"stance\":\"Standing\"}",
+    "Params": {"stance":"Standing"},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   },
@@ -120,12 +120,12 @@
    },
    "Behavior": {
     "Name": "HoldStance",
-    "Params": "{\"stance\":\"Prone\"}",
+    "Params": {"stance":"Prone"},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   }

@@ -265,8 +265,22 @@ namespace Fdp.Toolkit.Replication
         public static string? WalkJson(Type contractType, string? json, LeafApplier applier)
         {
             if (contractType == null) throw new ArgumentNullException(nameof(contractType));
+            if (contractType.IsAbstract || contractType.IsInterface) return WalkPolymorphicRoot(contractType, json, applier);
             var plan = LeafOf(contractType) == null ? PlanOf(contractType) : null;
             return plan is null ? json : WalkJson(json, plan, applier);
+        }
+
+        /// <summary>⭐ <c>CE-4301</c> — a ROOT declared as an abstract / polymorphic type (a mission task's condition: <c>SearchPredicateDto</c>) is
+        /// walked by its RUNTIME type's plan, as a member of that type already is (SR-164). ⛔ It was planned as the abstract base — no members ⇒
+        /// the walk saw nothing and every reference inside stayed unresolved.</summary>
+        private static string? WalkPolymorphicRoot(Type declared, string? json, LeafApplier applier)
+        {
+            if (string.IsNullOrEmpty(json)) return json;
+            JsonNode? root;
+            try { root = JsonNode.Parse(json); }
+            catch (JsonException) { return json; }
+            if (root is not JsonObject obj || RuntimeTypeOf(declared, obj) is not { } runtime || PlanOf(runtime) is not { } plan) return json;
+            return WalkObject(obj, plan, applier) ? root.ToJsonString(_options) : json;
         }
 
         private static string? WalkJson(string? json, Plan plan, LeafApplier applier)

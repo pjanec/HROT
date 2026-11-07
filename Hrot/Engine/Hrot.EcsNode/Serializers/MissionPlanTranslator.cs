@@ -115,14 +115,14 @@ namespace Hrot.SimHost.Serializers
                 // Force a clean slate. Never restore execution progress from disk.
                 //CurrentPhase        = (byte)(obj["CurrentPhase"]?.GetValue<int>() ?? 0),
                 //PhaseElapsedSeconds = obj["PhaseElapsedSeconds"]?.GetValue<float>() ?? 0f,
-                CurrentPhase        = 0, 
-                PhaseElapsedSeconds = 0f,
+                CurrentTask        = 0, 
+                TaskElapsedSeconds = 0f,
 
-                PhaseCount          = (byte)Math.Min(domainPlan.Tasks.Count, MissionPlanQueue.MaxPhases),
+                TaskCount          = (byte)Math.Min(domainPlan.Tasks.Count, MissionPlanQueue.MaxTasks),
             };
 
-            Span<MissionPhase> phases = queue.Phases;
-            for (int i = 0; i < queue.PhaseCount; i++)
+            Span<MissionTaskSlot> phases = queue.Tasks;
+            for (int i = 0; i < queue.TaskCount; i++)
             {
                 var task = domainPlan.Tasks[i];
                 _registry.TryGetId(task.BehaviorName, out int behaviorId);
@@ -138,7 +138,7 @@ namespace Hrot.SimHost.Serializers
                 { throw new Hrot.Core.Mission.MissionPlanException($"scenario entity #{entity.Index}: {ex.Message}"); }
                 var (trigger, triggerParam) = resolved;
 
-                phases[i] = new MissionPhase
+                phases[i] = new MissionTaskSlot
                 {
                     BehaviorId   = behaviorId,
                     Trigger      = trigger,

@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "FireAndMovement",
-        "Params": "{\"Objective\": [200, 285, 0], \"RushMetres\": 15, \"ArrivalRadius\": 25}",
+        "Params": {"Objective": [200, 285, 0], "RushMetres": 15, "ArrivalRadius": 25},
         "Origin": "Superior"
       }
     },
@@ -265,12 +265,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [195, 285, 0], \"ArrivalRadius\": 3}, \"Stay\": true}",
+        "Params": {"Advance": {"Objective": [195, 285, 0], "ArrivalRadius": 3}, "Stay": true},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -304,12 +304,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [205, 285, 0], \"ArrivalRadius\": 3}, \"Stay\": true}",
+        "Params": {"Advance": {"Objective": [205, 285, 0], "ArrivalRadius": 3}, "Stay": true},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

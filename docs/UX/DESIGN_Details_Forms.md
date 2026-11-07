@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Struct_Editor.md — the one value library; a form row's value is its leaf (S10 keeps forms as FormDecl)
   - DESIGN_Replay_Browser_UX.md — the Replay Browser's layout docks Details right
   - DESIGN_Show_On_Map.md — the ⌖ at the end of every row whose type has a place on the map (read-only rows too)
   - ../designs/replay-browser-2/DESIGN.md — the replay browser; §2.4: it composes this design's EntityDetailsBundle, so the forms show there read-only (R-4148)

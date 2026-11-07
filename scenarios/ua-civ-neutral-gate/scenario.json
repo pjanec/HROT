@@ -46,7 +46,7 @@
               "taskId": "c1030000-0000-4000-8000-000000000101",
               "executingEngine": "",
               "behaviorName": "CombatPosture",
-              "behaviorParams": "{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "behaviorParams": {"advance":{"Objective":[325,300,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -58,7 +58,7 @@
               "taskId": "c1030000-0000-4000-8000-000000000102",
               "executingEngine": "",
               "behaviorName": "Sentry",
-              "behaviorParams": "{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":145}",
+              "behaviorParams": {"Count":1,"MinDanger":0.5,"LiveOnly":false,"WithinMetres":145},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -70,7 +70,7 @@
               "taskId": "c1030000-0000-4000-8000-000000000103",
               "executingEngine": "",
               "behaviorName": "CombatPosture",
-              "behaviorParams": "{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "behaviorParams": {"advance":{"Objective":[325,300,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -83,7 +83,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -117,12 +117,12 @@
       },
       "Behavior": {
         "Name": "Idle",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -156,7 +156,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -190,7 +190,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

@@ -6,6 +6,7 @@ current-answer: §9 the P4 AS BUILT · §8 the P3 AS BUILT · §7 the P2 AS BUIL
 stale-below: nothing
 known-rot: none
 related-designs:
+  - docs/UX/DESIGN_Scenario_Presets.md — §5a: the Parameters section becomes the preset editor (one table, the value column follows the preset combo)
   - docs/DESIGN_Scenario_Macros.md — OWNS the macro model: §5.1 the three binding homes (SR-159…SR-166), §5.1.3 the binder as built, SR-39a the instance in Details, §14 SR-173 the macros/ layout; this doc owns only the EDITOR surfaces over it
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — §6 CE-4206: the reference leaves (EntityLink/PointLink/AreaLink, Exact · Key); MA-2 adds the Param form to the same leaf drawer
   - docs/DESIGN_Entity_Hierarchy_Views.md — the Scenario view (macro entities under their instance); the instance is selected there and edited here

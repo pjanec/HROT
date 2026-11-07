@@ -252,9 +252,10 @@ public sealed class ParamsMigrator
     private static double Num(JsonObject o, string k)
         => o.FirstOrDefault(p => p.Key.Equals(k, StringComparison.OrdinalIgnoreCase)).Value is JsonValue v && v.TryGetValue(out double d) ? d : 0;
 
-    /// <summary>Writes <paramref name="json"/> as a JSON string token in the escaping style of <paramref name="rawToken"/> (<c>"</c> or <c>\"</c>).</summary>
+    /// <summary>Writes <paramref name="json"/> in the form of <paramref name="rawToken"/>: as itself when that was an object / array (CE-4295), else as a JSON string token in the escaping style of <paramref name="rawToken"/> (<c>"</c> or <c>\"</c>).</summary>
     private static string EncodeLike(string rawToken, string json)
     {
+        if (rawToken.Length > 0 && rawToken[0] is '{' or '[') return json;   // ⭐ CE-4295 — an object site stays an object
         string relaxed = JsonSerializer.Serialize(json, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
         return rawToken.Contains("\\u0022", StringComparison.Ordinal) ? relaxed.Replace("\\\"", "\\u0022") : relaxed;
     }
@@ -366,6 +367,15 @@ public sealed class ParamsMigrator
             {
                 switch (reader.TokenType)
                 {
+                    case JsonTokenType.StartObject or JsonTokenType.StartArray when property != null && frames.Count > 0 && ParamsKeys.Contains(property):
+                    {
+                        // ⭐ CE-4295 — params written as the object they are ([JsonText]): the site is the object's raw text
+                        int start = (int)reader.TokenStartIndex;
+                        reader.Skip();
+                        int length = (int)reader.BytesConsumed - start;
+                        frames.Peek().Params.Add((Encoding.UTF8.GetString(bytes, start, length), start, length));
+                        property = null; break;
+                    }
                     case JsonTokenType.StartObject: frames.Push((null, new())); property = null; break;
                     case JsonTokenType.EndObject:
                         var f = frames.Pop();

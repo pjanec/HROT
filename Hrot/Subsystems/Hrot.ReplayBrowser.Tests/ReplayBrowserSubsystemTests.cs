@@ -259,6 +259,43 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         }
     }
 
+    /// <summary>⭐⭐ <c>CE-4323</c> (scenario lifecycle LC-19) — the Replay Browser's <i>File ▸ Open Exercise Recording…</i> is the EDITOR'S picker
+    /// (<c>RecordingPickerLauncher</c>): it lists the exercises on this host's disk by scenario / start / length, and a pick opens that exercise
+    /// through the host's ONE opener (<c>ReplayBrowserControl.Open</c> — recorded in <c>RecordingOpens</c>). ⛔ Before: only <i>Load .fdp…</i>
+    /// over GUID-named per-node folders. ✅ Red-proof: the item not registered ⇒ the menu assert red.</summary>
+    [Fact]
+    public void CE4323_OpenExerciseRecording_IsTheEditorsPicker_AndAPickOpensThroughTheOneOpener()
+    {
+        string root = Path.Combine(_tempDir, "staging");
+        var exercise = Guid.NewGuid();
+        RecordNode(root, exercise, 1, startSeconds: 1.0);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.RecordingsRoot = root;
+        _subsystem.Pickers = new NodeEditor.UI.Picker.PickerRegistry { Recent = new NodeEditor.UI.Picker.RecentStore() };
+
+        var wm = new WindowManager(new IconAtlas(IntPtr.Zero, 1, 1));
+        _subsystem.RegisterWindowsCore(wm,
+            new Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel(null, () => 0, new StubExportService(), new StubFileDialogService(),
+                new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(), new InspectorState()),
+            new Fdp.Presentation.Panels.EntityInspectorPanel(), new Fdp.Presentation.Panels.ReplayBrowser.ComponentDiffPanel(),
+            new Fdp.Presentation.Panels.EventBrowserPanel(new StubHistoryService()),
+            new Fdp.Presentation.Panels.ReplayBrowser.ReplaySearchPanel(new NopPanelEditService(), new NopPanelSearchService(), _ => { }, _ => { }, (_, _) => { }));
+
+        var node = wm.GlobalMenu.Root;
+        foreach (var part in Hrot.Editor.AiShared.Scenarios.FileMenuLayout.OpenExerciseRecording.Split('/'))
+            Assert.True(node.Children.TryGetValue(part, out node!), $"no menu node '{part}'");
+        var click = node.ResolveBinding("ReplayBrowser")?.OnClick;
+        Assert.NotNull(click);
+
+        var entry = Assert.Single(_subsystem.RecordingPicker!.BuildEntries());
+        Assert.Equal(exercise, ((Fdp.Toolkit.Orchestration.ExerciseInventoryItem)entry.Tag!).ExerciseId);
+
+        click!();                                                         // File ▸ Open Exercise Recording… opens the picker
+        Assert.True(_subsystem.Pickers.ConfirmEntry(Hrot.Editor.AiShared.Browser.AssetRecents.RecordingKey(exercise)));
+        Assert.Contains(_subsystem.RecordingOpens, t => t.Contains(exercise.ToString(), StringComparison.OrdinalIgnoreCase));
+    }
+
     // ── U-obs-5 follow-up: FederationWindow — the composition-root registration rail ──────
 
     /// <summary>

@@ -35,3 +35,27 @@
 | B-16 | ⏳ | — | seats H2–H4 (after B-11) |
 | B-17 | ⏳ | — | map interaction P1, P2, P4–P6 |
 | U-23/24/25 rest | ✅ (worker; finished and committed by Opus after the worker was stopped) | (this commit) | combined rows · carry mode + Damage rows · Knows about seeds only (R-4157) · named-point list. Gates: Fdp.Presentation.Tests Form* 33/33 · Hrot.Presentation.Tests (NamedPointGizmo, MenuOrders, PickBroker, EntityList …) 40/40 · AiShared TheUnitFormDraws/LabelFirstForms/Details 96/97 — the 1 red `CE1150_TheBundle_BuildsThePanelWithTheComponentsView…` is PRE-EXISTING (red with this work stashed, at `6b012f9fb`), open. Red-proofs: carry mode, Damage refusal, SubIndex write, combined rows, Knows-about-seeds, the named-point list pick |
+
+## Third handoff — [Today's rulings](HANDOFF_Coordinator_To_Ui_Todays_Rulings.md) (dispatched `b3c6c99a`; started `428f681b5`)
+
+| # | item | state | sha | notes |
+|---|---|---|---|---|
+| 1 | A3 corrections (R-4162) | ✅ (Save in Preview: backend) | (this commit) | Rotate Edit + Live; *Save selection as macro…* Edit only; goldens regenerated (only those rows moved). Save measured: Edit writes, Live checkpoints, a recording refuses ✅; ⚠ Preview refuses instead of checkpointing — [NOTE_Ui_To_Backend_Preview_Checkpoint](NOTE_Ui_To_Backend_Preview_Checkpoint.md) |
+| 2 | P-7 (CE-4303) Orders tab | 🔨 7a ✅ · 7b ✅ (incl. the task's fields + *Advanced condition…*) · 7c (Edit-mode undo, Conflict → Reload / Overwrite) – 7d (retire the 3 MissionPanels) next | `c7139739e` (plan, design §5.11) · (this commit) 7a | ⭐ **7a:** `Hrot.Editor.AiShared.Shell.OrdersPlanModel` (a plan as sentences, the queue's state) + `OrdersTab` (`details.orders`, rank 32, Jump / Stop) on the ONE Details bundle via `EntityDetailsHostServices.Missions` — passed by Editor and CGF. ⭐ **7b:** edits in the tab — `OrdersPlanEdits` (Wait first, orders, behaviours, *then* presets as ONE condition each, *when done* writes nothing, give up, reorder keeping ids, an empty Wait refused), Apply = whole plan + base version; new catalogue fact `task-time` (= the runtime's own `TimerElapsed` translation). As-built: Mission plan §5.11. The three `MissionPanel`s still edit until 7d |
+| 3 | A4 selection rules | ⏳ | — | |
+| 4 | B-16 seats H2–H4 | ⏳ | — | |
+| 5 | B-10 rest K2, K3, K7 | ⏳ | — | |
+| 6 | CE-4305 server seat config | ⏳ | — | only if backend has not claimed it |
+| 7 | P-8 (CE-4304) | ⏳ | — | after backend P-5 / P-6 |
+
+## Fourth handoff — [Lifecycle fixes](HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md) (dispatched `f523103e`; ui started at `f1e4c8048`)
+
+| # | id | state | sha | notes |
+|---|---|---|---|---|
+| L-1 | CE-4315 | ✅ DONE | (this commit) | the Preview note *"Preview — changes are thrown away on Stop"* (`RunNoteStatusBarSection.PreviewText`); a Save in Preview refused with that same reason (`RunModeChoice.TryCheckpointInsteadOfSave`). R-4166 corrects R-4162 (a checkpoint is Live only) ⇒ the Preview-checkpoint note to backend WITHDRAWN. Gate: Presentation.Tests CE4097/CE4250/TheOneTimeFacade/RunModeChoice 117/117 (+2 skip) |
+| L-2 | CE-4320 | ✅ DONE (bundle `8913e8048` + the Player) | (this commit) | `RulesBundle.WatchTheRun` — a frame overlay registered by the bundle (every composing host: Editor, CGF; not a recording): Mission summary opens on Edit/Preview → **Live** and on Running → **Ended**, never on first sight, 0 B per frame (railed). CE-4240's editor-only code deleted. Red-proved (the Live-start test dropped). ⭐ **The Player (LC-18):** the SAME bundle in its trainee set (`RulesHostServices.TraineeOnly`) — the Trainee debrief alone (no rules, no summaries, no editing), opened when the exercise ENDS; composed by `PlayerSubsystem.RegisterWindows` (railed on the constructed Player). Red-proved (the trainee branch dropped). Fidelity: no new visual — L-2 only decides WHEN existing windows open. Gates: AiShared TheRulesBundle 9/9, hosts 14/14 |
+| L-10 | CE-4317 | started (ui) | — | the Run setup on the mode menu, Preview AND Live |
+| L-11 | CE-4319 | ✅ DONE | (this commit) | ▶ in the colour of the mode a press plays — `MainToolbarTimeControlSection.PlayColour(mode, armed)` from the ONE indicator table (Edit: the armed mode; a run: its own — DAR amber), `TransportIcons.DrawTransportButton(…, playTint)`. Fidelity: the real frame rendered and read (`ColourIconsFrameRail.L11_…`, `play-colours.png`: green / violet / blue); red-proved (the tint dropped ⇒ red). Gates: MainToolbarTimeControl 82/82, ColourIconsFrameRail 5/5 (xvfb) |
+| L-12 | CE-4311 | ✅ DONE | (this commit) | `Hrot.UI.Common.Map2D.EmptyScenarioHintLayer` — *"Empty scenario — right-click the map ▸ Add Entity"* in the map's centre while a terrain is loaded, the station edits (`StationMode`) and no `EntityInfo` exists; added in `MapInteractionPack` beside the framing ⇒ every map host. 0 B per steady check (railed). ⚠ Deviation: LC-1's *"or press A"* left out — no A key is bound (it comes with the keymap, B-10). Red-proved. Gate: Presentation.Tests EmptyScenarioHint/TerrainFraming/MapInteractionPack 18/18 |
+| L-13 | CE-4313 | started (ui) | — | ORBAT: New group here, the Commander row, the drop says what it does |
+| L-14 | CE-4314 | started (ui) | — | Copy plan / Paste plan (after P-7) |

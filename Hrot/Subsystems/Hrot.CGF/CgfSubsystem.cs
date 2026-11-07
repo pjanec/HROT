@@ -1368,7 +1368,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 if (_context?.World is not { } w || _selectionState?.PrimarySelected is not { } sel || !w.IsAlive(sel) || !w.HasComponent<NetworkIdentity>(sel)) return null;
                 return (w.GetComponentRO<NetworkIdentity>(sel).Value, w.HasComponent<EntityInfo>(sel) ? w.GetComponentRO<EntityInfo>(sel).ForceId : ForceId.Neutral);
             },
-            GamePaletteEnabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_context?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette)));
+            GamePaletteEnabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_context?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette),
+            Actions: () => HostActions));   // ⭐ CE-4308 — the map menu's rule entries
         _rulesWindow = rules.Rules; _rulesBundle = rules;
         Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
@@ -1685,7 +1686,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     OpenRule:    OpenRuleInRulesView,                 // ⭐ U-18 / RX1 — CGF has the Rules window now: the Objectives tab opens a rule in it (RV-7)
                     SelectNetworkEntity: n => SelectNetworkEntity(n),   // ⭐ the host's ONE selection by network id
                     Rules:       () => _rulesWindow,                  // ⭐ U-18 / RX2 — the rule's detail in Details
-                    Pick:        () => _cgfPickBroker)),               // ⭐ U-23 / D4 — Put aboard… picks on the map
+                    Pick:        () => _cgfPickBroker,                 // ⭐ U-23 / D4 — Put aboard… picks on the map
+                    Missions:    () => _missionService,                // ⭐ P-7 / 7a — the Orders tab over the one mission facade
+                    ParamsTypeOf: name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry))),   // ⭐ P-7 7b — a task's fields
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

@@ -336,13 +336,13 @@ namespace Fdp.Toolkit.Scenario.Tests
             var entity = _repo.CreateEntity();
             var queue  = new MissionPlanQueue
             {
-                CurrentPhase        = 1,
-                PhaseCount          = 2,
-                PhaseElapsedSeconds = 3.14f,
+                CurrentTask        = 1,
+                TaskCount          = 2,
+                TaskElapsedSeconds = 3.14f,
             };
-            Span<MissionPhase> phases = queue.Phases;
-            phases[0] = new MissionPhase { BehaviorId = 42, Trigger = MissionTrigger.BehaviorFinished, TriggerParam = 0f };
-            phases[1] = new MissionPhase { BehaviorId = 99, Trigger = MissionTrigger.TimerElapsed,      TriggerParam = 5f };
+            Span<MissionTaskSlot> phases = queue.Tasks;
+            phases[0] = new MissionTaskSlot { BehaviorId = 42, Trigger = MissionTrigger.BehaviorFinished, TriggerParam = 0f };
+            phases[1] = new MissionTaskSlot { BehaviorId = 99, Trigger = MissionTrigger.TimerElapsed,      TriggerParam = 5f };
             _repo.SetComponent(entity, queue);
 
             var dom = serializer.Serialize(_repo, new ScenarioHeader(SubsystemType));
@@ -356,10 +356,10 @@ namespace Fdp.Toolkit.Scenario.Tests
 
             Entity freshEntity = GetSingleEntity(freshRepo);
             var restored = freshRepo.GetComponent<MissionPlanQueue>(freshEntity);
-            Assert.Equal(1,    restored.CurrentPhase);
-            Assert.Equal(2,    restored.PhaseCount);
-            Assert.Equal(3.14f, restored.PhaseElapsedSeconds, precision: 5);
-            Span<MissionPhase> rPhases = restored.Phases;
+            Assert.Equal(1,    restored.CurrentTask);
+            Assert.Equal(2,    restored.TaskCount);
+            Assert.Equal(3.14f, restored.TaskElapsedSeconds, precision: 5);
+            Span<MissionTaskSlot> rPhases = restored.Tasks;
             Assert.Equal(42,                           rPhases[0].BehaviorId);
             Assert.Equal(MissionTrigger.BehaviorFinished, rPhases[0].Trigger);
             Assert.Equal(99,                           rPhases[1].BehaviorId);

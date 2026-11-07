@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Core.Serialization.Converters;
 
 namespace Fdp.Toolkit.Behavior.Components
 {
@@ -12,7 +13,7 @@ namespace Fdp.Toolkit.Behavior.Components
     public class DomainMissionTrigger
     {
         public string Type   { get; set; } = string.Empty;
-        public string Params { get; set; } = string.Empty;
+        [JsonText] public string Params { get; set; } = string.Empty;   // ⭐ CE-4295 — written as the object it holds
     }
 
     /// <summary>
@@ -24,7 +25,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public Guid   TaskId          { get; set; }
         public string ExecutingEngine { get; set; } = string.Empty;
         public string BehaviorName      { get; set; } = string.Empty;
-        public string BehaviorParams  { get; set; } = string.Empty;
+        [JsonText] public string BehaviorParams  { get; set; } = string.Empty;   // ⭐ CE-4295 — written as the object it holds
         public List<DomainMissionTrigger> Triggers { get; set; } = new();
     }
 
@@ -35,6 +36,21 @@ namespace Fdp.Toolkit.Behavior.Components
     {
         public Guid                    ActiveTaskId { get; set; }
         public List<DomainMissionTask> Tasks        { get; set; } = new();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4298</c> (mission plan D2, R-4160) — WHO starts a task: ONE answer, read by the director and the adapter alike, so the two
+    /// can never both start one (the double start: the director by stored id, the adapter by name — an order's stored id is 0, so an
+    /// <c>Order.*</c> task began with an Idle frame). A task of a NAMED plan (an <see cref="ActiveMissionPlan"/> holds it) is started by the
+    /// adapter, by name, through the tactical intent; a RAW queue (no plan beside it — an example, a hand-built queue) has only its stored
+    /// id, so the director starts it. 📄 <c>docs/UX/DESIGN_Mission_Plan_Editor.md</c> §5.2 D2.
+    /// </summary>
+    public static class MissionTaskStart
+    {
+        /// <summary>Is task <paramref name="index"/> of <paramref name="entity"/>'s plan started by NAME (the adapter), not by its stored id?</summary>
+        public static bool ByName(Fdp.Core.EntityRepository repo, Fdp.Core.Entity entity, int index)
+            => repo.HasManagedComponent<ActiveMissionPlan>(entity)
+               && ((Fdp.ModuleHost.Abstractions.ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity) is { Plan.Tasks: { } tasks } && index < tasks.Count;
     }
 
     /// <summary>

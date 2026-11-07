@@ -139,7 +139,7 @@ public sealed class BehaviorParamsSweepTests
         // the pre-fix selection-mean: the string params written as "^title" / "^by"
         var dom = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(root, "macros", "evaluation", "selection-mean", "scenario.json")))!;
         var entity = (JsonObject)((JsonObject)dom["entities"]!).First().Value!;
-        var p = (JsonObject)JsonNode.Parse(entity["Behavior"]!["Params"]!.GetValue<string>())!;
+        var p = (JsonObject)JsonNode.Parse(Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(entity["Behavior"]!["Params"])!)!;
         p["common"]!["title"] = "^title";
         p["by"] = "^by";
         entity["Behavior"]!["Params"] = p.ToJsonString();

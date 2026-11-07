@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "UrbanMovement",
-        "Params": "{\"Legs\": [[200, 190, 0], [200, 120, 0]], \"Speed\": 1.5, \"Spacing\": 30}",
+        "Params": {"Legs": [[200, 190, 0], [200, 120, 0]], "Speed": 1.5, "Spacing": 30},
         "Origin": "Superior"
       }
     },

@@ -34,5 +34,7 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <summary>⭐ <c>CE-1250</c> (BV-12) — for a reaction: the change in the unit's senses it answers (0 = not given). Only recorded —
         /// the brain journal's start entry carries it ("started TakeCover after NearMiss"); nothing decides on it.</summary>
         public Fdp.Toolkit.Perception.Events.SensorChange Cause;
+        /// <summary>⭐ CE-4306 (edit framework F5) — the order's request id (<see cref="System.Guid.Empty"/> = nobody asked); the gate (<c>BehaviorIngressSystem</c>) answers Applied / Refused under it.</summary>
+        public System.Guid RequestId;
     }
 }

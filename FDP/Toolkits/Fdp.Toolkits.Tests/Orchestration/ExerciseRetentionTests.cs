@@ -98,5 +98,23 @@ namespace Fdp.Toolkits.Tests.Orchestration
             Assert.Equal(7, ExerciseRetention.ResolveKeep("/srv/fdp", null, Env(new() { [ExerciseRetention.KeepVariable] = "7" }), tempPath));
             Assert.Null(ExerciseRetention.ResolveKeep(Path.Combine(tempPath, "FDP_Temp"), 0, none, tempPath));
         }
+
+        /// <summary>⭐⭐ <c>CE-4324</c> (lifecycle LC-21) — recordings default to a FIXED data folder beside the scenarios, not TEMP: with no
+        /// <c>FDP_STAGING_ROOT</c> a dev build's root is <c>&lt;repo&gt;/data</c> (git-ignored), never under the temp folder; that folder is still
+        /// pruned like a scratch root (dev runs are test output — CE-3218's 18 GB); an operator's chosen root keeps everything.
+        /// ✅ Red-proof: the old temp default ⇒ the first asserts red.</summary>
+        [Fact]
+        public void CE4324_TheDefaultRoot_IsTheDataFolderBesideTheScenarios_NotTemp_AndStillPrunedInADevTree()
+        {
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FDP_STAGING_ROOT"))) return;   // a run that chose its root
+            var tree = ContentLayout.TryFindSourceTree();
+            Assert.NotNull(tree);
+            string root = OrchestrationConstants.ResolveStagingRoot();
+            Assert.Equal(Path.Combine(tree!, OrchestrationConstants.DataDirectoryName), root);
+            Assert.True(Directory.Exists(ContentLayout.Scenarios(tree!)));                                   // beside the scenarios
+            Assert.False(Path.GetFullPath(root).StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.Ordinal));
+            Assert.Equal(ExerciseRetention.ScratchDefaultKeep, ExerciseRetention.ResolveKeep(root, null, Env(new()), Path.GetTempPath()));
+            Assert.Null(ExerciseRetention.ResolveKeep(root, null, Env(new() { ["FDP_STAGING_ROOT"] = root }), Path.GetTempPath()));
+        }
     }
 }

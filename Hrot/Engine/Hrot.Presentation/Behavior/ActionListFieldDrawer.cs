@@ -48,6 +48,26 @@ public static class ActionListEdit
         return l;
     }
 
+    /// <summary>⭐ CE-4307 (RX5) — an <c>Order</c> step's ORDER KIND: its <c>behavior</c> arg as <c>Order.&lt;kind&gt;</c> (the receiver's class picks the behaviour),
+    /// other args kept; null = the step's current kind, or null when it names a behaviour (Advanced) or nothing.</summary>
+    public static string? OrderKindOf(ActionStep step)
+    {
+        if (step.Args?["behavior"] is not System.Text.Json.Nodes.JsonValue v || !v.TryGetValue<string>(out var b)) return null;
+        string prefix = Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix;
+        return b.StartsWith(prefix, StringComparison.Ordinal) ? b.Substring(prefix.Length) : null;
+    }
+
+    /// <summary>⭐ CE-4307 — the list with Order step <paramref name="index"/> set to order kind <paramref name="kind"/> (the other args kept).</summary>
+    public static List<ActionStep> WithOrderKind(IReadOnlyList<ActionStep> list, int index, string kind)
+    {
+        var args = list[index].Args?.DeepClone() as JsonObject ?? new JsonObject();
+        args["behavior"] = Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix + kind;
+        return WithArgs(list, index, args);
+    }
+
+    /// <summary>Whether <paramref name="act"/> is the <c>Order</c> verb (short or full name).</summary>
+    public static bool IsOrder(string act) => act == "Order" || act.EndsWith(".Order", StringComparison.Ordinal);
+
     /// <summary>The list with step <paramref name="index"/>'s args replaced (act and bindings kept).</summary>
     public static List<ActionStep> WithArgs(IReadOnlyList<ActionStep> list, int index, JsonObject args)
     {
@@ -98,6 +118,8 @@ public sealed class ActionListContext
     /// <summary>The nested args forms' pick context (an entity / place field of a step).</summary>
     public IMapPickContext? Picks { get; set; }
     /// <summary>The running step, 1-based (<c>ObjectiveStatus.StepCur</c> while Acting); 0 = none.</summary>
+    /// <summary>⭐ CE-4307 (RX5) — the names a step's links read as (null = keys / ids only).</summary>
+    public Fdp.Toolkit.Scenario.LiveRefScope? Refs { get; set; }
     public int RunningStep { get; set; }
     /// <summary>The list's length as the run saw it (<c>StepCount</c>).</summary>
     public int StepCount { get; set; }
@@ -134,6 +156,7 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
         public IEditSession? Session;
         public string? Committed;               // the session's value as JSON when last opened / committed
         public string? Problem;
+        public string Sentence = "";            // ⭐ CE-4307 (RX5) — the step as words (ActionSentence), built once when the row opens
     }
 
     private readonly IComponentEditService _service;
@@ -194,9 +217,9 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
             bool marked = _ctx.RunningStep == i + 1;
             DrawMarker(marked, marked && _ctx.FailedReason != null);
             ImGui.SameLine();
-            ImGui.TextUnformatted($"{i + 1}.  {row.Act}");
-            if (row.Entry != null && ImGui.IsItemHovered()) ImGui.SetTooltip(row.Entry.Fqn);
-            ImGui.SameLine(0f, 24f);
+            // ⭐ CE-4307 — the buttons first, at a fixed place: the step's sentence can be long and would push them off the panel
+            ImGui.TextUnformatted(Number(i));
+            ImGui.SameLine();
             if (i == 0) ImGui.BeginDisabled();
             if (ImGui.SmallButton("^")) up = i;
             UpRects.Add((ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
@@ -210,11 +233,19 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
             if (ImGui.SmallButton("x")) delete = i;
             RemoveRects.Add((ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Remove this step");
+            ImGui.SameLine(0f, 12f);
+            ImGui.TextWrapped(row.Sentence);   // ⭐ CE-4307 (RX5) — the step as words (ActionSentence)
+            if (row.Entry != null && ImGui.IsItemHovered()) ImGui.SetTooltip(row.Entry.Fqn);
             if (marked && _ctx.FailedReason != null) ImGui.TextColored(new Vector4(0.9f, 0.4f, 0.35f, 1f), "failed: " + _ctx.FailedReason);
             if (_ctx.Preview != null && IsInsertMacro(list[i])) DrawPreviewBar(list[i], noted);   // ⭐ CE-4244
             if (_ctx.NoteOf?.Invoke(list[i]) is { } note) { ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]); ImGui.TextWrapped(note); ImGui.PopStyleColor(); noted.Add($"{i + 1}. {note}"); }   // ⭐ CE-4241
-            shown.Add((marked ? "> " : "") + $"{i + 1}. {row.Act}" + (row.Problem != null ? $" ({row.Problem})" : ""));
+            shown.Add((marked ? "> " : "") + $"{i + 1}. {row.Sentence}" + (row.Problem != null ? $" ({row.Problem})" : ""));
 
+            if (row.Problem == null && ActionListEdit.IsOrder(row.Act) && DrawOrderKind(list[i]) is { } kind)   // ⭐ CE-4307 (RX5) — Order by order KIND
+            {
+                list = ActionListEdit.WithOrderKind(list, i, kind);
+                changed = true;
+            }
             if (row.Problem != null) ImGui.TextColored(new Vector4(0.9f, 0.7f, 0.3f, 1f), row.Problem);
             else if (row.Session is { } session)
             {
@@ -249,6 +280,27 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
         if (changed) value = list;
         return changed;
     }
+
+    /// <summary>⭐ CE-4307 (RX5, DESIGN_Rule_Editor_UX §2.4) — the order kinds as the mission plan offers them (<c>OrderMenu.Orders</c>, the ONE list); a behaviour
+    /// name stays writable in the form's own field below (Advanced). Returns the kind picked this frame, or null.</summary>
+    private static string? DrawOrderKind(ActionStep step)
+    {
+        string? current = ActionListEdit.OrderKindOf(step);
+        string? picked = null;
+        ImGui.SetNextItemWidth(220f);
+        if (ImGui.BeginCombo("order##kind", current != null ? StructEdit.Core.Attributes.DisplayNames.Humanize(current) : "(a behaviour - Advanced)"))
+        {
+            foreach (var o in Hrot.Common.Orders.OrderMenu.Orders)
+                if (ImGui.Selectable(StructEdit.Core.Attributes.DisplayNames.Humanize(o.Name), string.Equals(o.Name, current, StringComparison.OrdinalIgnoreCase))) picked = o.Name;
+            ImGui.EndCombo();
+        }
+        return picked;
+    }
+
+    private static readonly string[] Numbers = BuildNumbers(64);
+    private static string[] BuildNumbers(int n) { var a = new string[n]; for (int k = 0; k < n; k++) a[k] = (k + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) + "."; return a; }
+    /// <summary>"n." without a per-frame allocation (R-2084).</summary>
+    private static string Number(int i) => i < Numbers.Length ? Numbers[i] : (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) + ".";
 
     private static bool IsInsertMacro(ActionStep step) => step.Act == "InsertMacro" || step.Act.EndsWith(".InsertMacro", StringComparison.Ordinal);
 
@@ -294,6 +346,8 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
     private Row Open(string act, string argsJson)
     {
         var row = new Row { Act = act, ArgsJson = argsJson, Entry = ActionListEdit.EntryOf(act) };
+        try { row.Sentence = Hrot.UI.Common.Rules.ActionSentence.Of(new ActionStep { Act = act, Args = System.Text.Json.Nodes.JsonNode.Parse(argsJson) as System.Text.Json.Nodes.JsonObject }, _ctx.Refs); }
+        catch (System.Text.Json.JsonException) { row.Sentence = act; }
         if (row.Entry == null) { row.Problem = $"unknown action '{act}'"; return row; }
         if (row.Entry.Refusal != null) { row.Problem = row.Entry.Refusal; return row; }
         try

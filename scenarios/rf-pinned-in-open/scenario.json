@@ -34,7 +34,7 @@
       "Behavior": {
         "Name": "SquadDefend",
         "Origin": "Superior",
-        "Params": "{\"Position\": [120, 157, 0], \"SearchRadius\": 8, \"Speed\": 2, \"Posts\": [{\"point\": [121.1, 153.6, 0], \"watchTowards\": [121.1, 104, 0], \"window\": true}]}"
+        "Params": {"Position": [120, 157, 0], "SearchRadius": 8, "Speed": 2, "Posts": [{"point": [121.1, 153.6, 0], "watchTowards": [121.1, 104, 0], "window": true}]}
       }
     },
     "a1020006-0000-4000-8000-000000000002": {
@@ -94,7 +94,7 @@
       "Behavior": {
         "Name": "BoundingOverwatch",
         "Origin": "Superior",
-        "Params": "{\"Objective\": [120.5, 150, 0], \"BoundMetres\": 30}"
+        "Params": {"Objective": [120.5, 150, 0], "BoundMetres": 30}
       }
     },
     "a1020006-0000-4000-8000-000000000004": {

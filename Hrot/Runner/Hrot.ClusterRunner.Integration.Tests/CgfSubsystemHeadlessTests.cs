@@ -635,7 +635,7 @@ public sealed class CgfSubsystemHeadlessTests
             if (w.HasComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(e))
             {
                 var q = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(e);
-                parts.Add($"mission={q.CurrentPhase}/{q.PhaseCount} halted={q.Halted}");
+                parts.Add($"mission={q.CurrentTask}/{q.TaskCount} halted={q.Halted}");
             }
             if (w.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(e))
             {

@@ -838,6 +838,63 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(8, RootParamsAccess.InputBytes(def));
         }
 
+        // ── CE-4306 (edit framework F5) — an order answers ACCEPTED / refused under its request id ───────────────
+
+        private static void AssignWithId(EntityRepository world, BehaviorIngressSystem sys, Entity e, string name, BehaviorOrigin origin, Guid id)
+        {
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = name, JsonParams = "", Origin = origin, RequestId = id });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+        }
+
+        /// <summary>F5 — a unit running an Operator-origin behaviour refuses a Superior order that carries an id: the log holds Refused with the gate's words.
+        /// ✅ Red-proof: the <c>InteractionOutcomes.Refused</c> after <c>Admit</c> removed ⇒ no outcome ⇒ red.</summary>
+        [Fact]
+        public void F5_ARefusedOrder_AnswersRefused_WithTheGatesWords()
+        {
+            var (world, sys, e) = CreateGateFixture();
+            Assign(world, sys, e, "GatePatrol", BehaviorOrigin.Operator);
+            var id = Guid.NewGuid();
+            AssignWithId(world, sys, e, "GateCover", BehaviorOrigin.Superior, id);
+
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(world).TryGet(id, out var o));
+            Assert.Equal((Fdp.Toolkit.Replication.Edits.EditStatus.Refused, "a higher-ranked order is running"), (o.Status, o.Reason));
+            Assert.Equal(GatePatrolId, world.GetComponent<BehaviorState>(e).ActiveBehaviorHash);   // and nothing changed
+            world.Dispose();
+        }
+
+        /// <summary>F5 — an admitted order answers Applied; an unknown behaviour name answers Refused naming it; no id ⇒ nothing is logged.
+        /// ✅ Red-proof: the Applied report removed ⇒ the first assert reddens; the unknown-name report removed ⇒ the second.</summary>
+        [Fact]
+        public void F5_AnAdmittedOrder_AnswersApplied_AnUnknownNameRefused_AndNoIdNothing()
+        {
+            var (world, sys, e) = CreateGateFixture();
+            var ok = Guid.NewGuid();
+            AssignWithId(world, sys, e, "GatePatrol", BehaviorOrigin.Operator, ok);
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(world).TryGet(ok, out var applied));
+            Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Applied, applied.Status);
+
+            var typo = Guid.NewGuid();
+            AssignWithId(world, sys, e, "NoSuchBehaviour", BehaviorOrigin.Operator, typo);
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(world).TryGet(typo, out var refused));
+            Assert.Equal((Fdp.Toolkit.Replication.Edits.EditStatus.Refused, "no behaviour named NoSuchBehaviour on this node"), (refused.Status, refused.Reason));
+
+            int before = Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(world).Count;
+            AssignWithId(world, sys, e, "GateCover", BehaviorOrigin.Operator, Guid.Empty);          // admitted, but nobody asked
+            AssignWithId(world, sys, e, "GatePatrol", BehaviorOrigin.Sop, Guid.Empty);              // refused, but nobody asked
+            Assert.Equal(before, Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(world).Count);
+            world.Dispose();
+        }
+
+        /// <summary>The words: every <c>BrainRefusal</c> has its text, an unknown one says "refused".</summary>
+        [Fact]
+        public void F5_EveryRefusalHasItsWords()
+        {
+            Assert.Equal("a more urgent reaction is running", Fdp.Toolkit.Behavior.Diagnostics.BrainRefusalText.Of(Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.LowerUrgency));
+            Assert.Equal("it is the unit's SOP", Fdp.Toolkit.Behavior.Diagnostics.BrainRefusalText.Of(Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.IsTheSop));
+            Assert.Equal("refused", Fdp.Toolkit.Behavior.Diagnostics.BrainRefusalText.Of(Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.Unspecified));
+        }
+
 #pragma warning disable CS0649   // layout-only fixture
         private struct PaddedInputs { public int Threshold; public bool FlagA; public bool FlagB; }
 #pragma warning restore CS0649

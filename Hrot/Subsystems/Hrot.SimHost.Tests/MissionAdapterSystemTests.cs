@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -31,9 +33,9 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
 
             // Add the struct components
-            var queue = new MissionPlanQueue { PhaseCount = 1, CurrentPhase = 0 };
-            Span<MissionPhase> phases = queue.Phases;
-            phases[0] = new MissionPhase { BehaviorId = 0 };
+            var queue = new MissionPlanQueue { TaskCount = 1, CurrentTask = 0 };
+            Span<MissionTaskSlot> phases = queue.Tasks;
+            phases[0] = new MissionTaskSlot { BehaviorId = 0 };
             repo.AddComponent(entity, queue);
 
             repo.AddComponent(entity, new BehaviorState());
@@ -92,7 +94,7 @@ namespace Hrot.SimHost.Tests
         {
             using var repo = CreateWorld();
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new MissionPlanQueue { PhaseCount = (byte)phaseCount, CurrentPhase = (byte)currentPhase });
+            repo.AddComponent(entity, new MissionPlanQueue { TaskCount = (byte)phaseCount, CurrentTask = (byte)currentPhase });
             repo.AddComponent(entity, new BehaviorState());
 
             new MissionAdapterSystem().Execute(repo, 0.016f);
@@ -142,5 +144,156 @@ namespace Hrot.SimHost.Tests
             var back = repo.GetComponent<Hrot.CGF.Components.MissionAdapterState>(e);
             Assert.Equal(((byte)3, 7u), (back.LastPhase, back.LastPlanVersion));
         }
-}
+
+        // ── ⭐⭐ CE-4298 — mission plan M1 (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.2 D2, §5.9, E9): ONE start path; no condition = when done;
+        //    the Wait task. The director and the adapter run together, as the CGF pack composes them. ───────────────────────────────────────────
+
+        private static Entity PlanOf(EntityRepository repo, params (string Name, List<DomainMissionTrigger>? Triggers)[] tasks)
+        {
+            var entity = repo.CreateEntity();
+            var queue = new MissionPlanQueue { TaskCount = (byte)tasks.Length, CurrentTask = 0 };
+            Span<MissionTaskSlot> phases = queue.Tasks;
+            var domain = new List<DomainMissionTask>();
+            for (int i = 0; i < tasks.Length; i++)
+            {
+                var hrot = tasks[i].Triggers?.ConvertAll(t => new Hrot.Core.Mission.MissionTrigger { Type = t.Type, Params = t.Params });
+                var (kind, param) = Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger(hrot, tasks[i].Name);
+                phases[i] = new MissionTaskSlot { BehaviorId = 0, Trigger = kind, TriggerParam = param };
+                domain.Add(new DomainMissionTask { TaskId = System.Guid.NewGuid(), BehaviorName = tasks[i].Name, BehaviorParams = "{}", Triggers = tasks[i].Triggers ?? new() });
+            }
+            repo.AddComponent(entity, queue);
+            repo.AddComponent(entity, new BehaviorState());
+            repo.SetManagedComponent(entity, new ActiveMissionPlan { Plan = new DomainMissionPlan { Tasks = domain } });
+            return entity;
+        }
+
+        /// <summary>One frame of the CGF order (director, then adapter); returns what was published.</summary>
+        private static (List<string> Intents, int Assigns, int Clears) Frame(EntityRepository repo, Fdp.Toolkit.Behavior.Systems.MissionDirectorSystem director,
+            MissionAdapterSystem adapter, float dt = 0.1f, BehaviorFinishedEvent? finished = null)
+        {
+            if (finished is { } f) { repo.Bus.Publish(f); }
+            repo.Bus.SwapBuffers();
+            director.Execute(repo, dt);
+            adapter.Execute(repo, dt);
+            repo.Bus.SwapBuffers();
+            var intents = new List<string>();
+            foreach (var e in repo.Bus.ReadManaged<AssignTacticalIntentEvent>()) intents.Add(e.IntentId);
+            int assigns = 0, clears = 0;
+            foreach (var _ in repo.Bus.Read<AssignBehaviorHashEvent>()) assigns++;
+            foreach (var _ in repo.Bus.Read<ClearBehaviorEvent>()) clears++;
+            return (intents, assigns, clears);
+        }
+
+        private static BehaviorFinishedEvent Done(Entity e)
+            => new() { Entity = e, Result = Fbt.NodeStatus.Success, Origin = BehaviorOrigin.Superior };
+
+        [Fact]
+        public void CE4298_ThreeBareTasks_RunOneByOne_EachStartedOnce_ByName_NeverByTheDirector()
+        {
+            using var repo = CreateWorld();
+            var director = new Fdp.Toolkit.Behavior.Systems.MissionDirectorSystem();
+            var adapter = new MissionAdapterSystem();
+            var e = PlanOf(repo, ("Order.Move", null), ("Order.Hold", null), ("WanderMilitary", null));
+
+            var f0 = Frame(repo, director, adapter);
+            Assert.Equal(new[] { "Order.Move" }, f0.Intents);
+            Assert.Equal(0, f0.Assigns);                                   // ⭐ D2 — no Idle frame: the director never assigns a named task
+            Assert.Empty(Frame(repo, director, adapter).Intents);         // a bare task does not end by itself (when done)
+            Assert.Empty(Frame(repo, director, adapter, dt: 600f).Intents);   // ⭐ §5.9 — no condition is NOT "after some time"
+
+            var f1 = Frame(repo, director, adapter, finished: Done(e));
+            Assert.Equal(new[] { "Order.Hold" }, f1.Intents);
+            Assert.Equal(0, f1.Assigns);
+            var f2 = Frame(repo, director, adapter, finished: Done(e));
+            Assert.Equal(new[] { "WanderMilitary" }, f2.Intents);
+            var f3 = Frame(repo, director, adapter, finished: Done(e));
+            Assert.Empty(f3.Intents);
+            Assert.Equal(1, f3.Clears);                                    // the plan ran out: ONE clear (the adapter's), not two
+            Assert.Equal(3, repo.GetComponentRO<MissionPlanQueue>(e).CurrentTask);
+        }
+
+        [Fact]
+        public void CE4298_AWaitFirstPlan_StartsNothing_UntilItsThen_AndAMidPlanWaitClearsThePlansBehaviour()
+        {
+            using var repo = CreateWorld();
+            var director = new Fdp.Toolkit.Behavior.Systems.MissionDirectorSystem();
+            var adapter = new MissionAdapterSystem();
+            var after1s = new List<DomainMissionTrigger> { new() { Type = "TimerElapsed", Params = "1" } };
+            var e = PlanOf(repo, ("", after1s), ("Order.Move", null), ("", after1s), ("Order.Hold", null));
+
+            var w = Frame(repo, director, adapter, dt: 0.5f);
+            Assert.Empty(w.Intents);
+            Assert.Equal(0, w.Clears);                                     // at the start nothing was ordered: the SOP keeps running, nothing cleared
+            Assert.Equal(new[] { "Order.Move" }, Frame(repo, director, adapter, dt: 0.6f).Intents);   // its then (after 1 s) holds
+
+            var mid = Frame(repo, director, adapter, finished: Done(e));  // Move done -> the second Wait
+            Assert.Empty(mid.Intents);
+            Assert.Equal(1, mid.Clears);                                   // ⭐ E9 — the plan's previous behaviour is cleared: the SOP takes over
+            Assert.Equal(new[] { "Order.Hold" }, Frame(repo, director, adapter, dt: 1.1f).Intents);
+        }
+
+        [Fact]
+        public void CE4298_AThenCondition_AndAGiveUp_AreConditions_GiveUpEndsTheTaskFailed()
+        {
+            using var repo = CreateWorld();
+            var director = new Fdp.Toolkit.Behavior.Systems.MissionDirectorSystem();
+            var adapter = new MissionAdapterSystem();
+            string after(double s) => Fdp.Toolkit.ReplayBrowser.Search.ConditionCache.ToJson(
+                Fdp.Toolkit.Behavior.Systems.PlanConditionCache.Translate(MissionTrigger.TimerElapsed, (float)s));
+            var e = PlanOf(repo,
+                ("Order.Move", new List<DomainMissionTrigger> { new() { Type = "Then", Params = after(100) }, new() { Type = "GiveUp", Params = after(2) } }),
+                ("Order.Hold", new List<DomainMissionTrigger> { new() { Type = "Then", Params = after(1) } }));
+
+            Frame(repo, director, adapter, dt: 1f);
+            Assert.Equal(new[] { "Order.Hold" }, Frame(repo, director, adapter, dt: 1.5f).Intents);   // gave up at 2 s, long before its then
+            var q = repo.GetComponentRO<MissionPlanQueue>(e);
+            Assert.Equal(MissionPhaseOutcome.Failed, q.Outcomes[0]);
+            Assert.Equal(0f, (float)q.TaskElapsedSeconds, 3);
+        }
+
+        [Fact]
+        public void CE4298_ASteadyFrame_AllocatesNothing()
+        {
+            using var repo = CreateWorld();
+            var director = new Fdp.Toolkit.Behavior.Systems.MissionDirectorSystem();
+            var adapter = new MissionAdapterSystem();
+            PlanOf(repo, ("Order.Move", new List<DomainMissionTrigger> { new() { Type = "TimerElapsed", Params = "1000" } }), ("Order.Hold", null));
+            for (int i = 0; i < 3; i++) { repo.Bus.SwapBuffers(); director.Execute(repo, 0.1f); adapter.Execute(repo, 0.1f); }   // warm: compiled, started
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) { repo.Bus.SwapBuffers(); director.Execute(repo, 0.1f); adapter.Execute(repo, 0.1f); }
+            Assert.Equal(0, System.GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        /// <summary>⭐⭐ <c>CE-4302</c> — mission plan D5 / M6 acceptance: a phase (a trigger marked <c>common.phase</c>) begun — it FIRED, as the instructor's
+        /// <i>Begin now</i> (<c>RuleRequest.Fire</c>) makes it — releases two units' waiting tasks the same frame; before it, both hold their SOP.
+        /// The phase number travels from the authored block to the replicated status.</summary>
+        [Fact]
+        public void CE4302_APhaseBegun_ReleasesTwoUnitsWaitingTasks()
+        {
+            using var repo = CreateWorld();
+            repo.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var director = new Fdp.Toolkit.Behavior.Systems.MissionDirectorSystem();
+            var adapter = new MissionAdapterSystem();
+
+            var block = Fdp.Toolkit.ScenarioRules.ObjectiveCommonBlock.From(new Fdp.Toolkit.ScenarioRules.ObjectiveCommon { Title = "Phase 2 - assault", Phase = 2 });
+            var status = new Fdp.Toolkit.ScenarioRules.ObjectiveStatus();
+            Fdp.Toolkit.ScenarioRules.ObjectiveRules.Display(ref status, in block, "Trigger", Fdp.Toolkit.ScenarioRules.ObjectiveRole.Trigger);
+            Assert.Equal(2, status.Phase);
+            var phase = repo.CreateEntity();
+            repo.AddComponent(phase, new Fdp.Toolkit.Replication.Components.NetworkIdentity(900));
+            repo.AddComponent(phase, status);
+
+            string begins = Fdp.Toolkit.ReplayBrowser.Search.ConditionCache.ToJson(
+                Fdp.Toolkit.Behavior.Systems.PlanConditionCache.PhaseBegins(new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(900))));
+            List<DomainMissionTrigger> Wait() => new() { new() { Type = "Then", Params = begins } };
+            PlanOf(repo, ("", Wait()), ("Order.Move", null));
+            PlanOf(repo, ("", Wait()), ("Order.Attack", null));
+
+            for (int i = 0; i < 3; i++) Assert.Empty(Frame(repo, director, adapter).Intents);   // the phase has not begun
+            repo.GetComponentRW<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>(phase).FireCount = 1;   // it fires (Begin now)
+            var f = Frame(repo, director, adapter);
+            Assert.Equal(new[] { "Order.Attack", "Order.Move" }, f.Intents.OrderBy(x => x, StringComparer.Ordinal).ToArray());
+        }
+    }
 }

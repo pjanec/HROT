@@ -242,7 +242,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
             ? cgfWorld.GetComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity).Mode.ToString()
             : "no-component";
         string planPhase = cgfWorld.HasComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(entity)
-            ? $"phase={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(entity).CurrentPhase} count={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(entity).PhaseCount}"
+            ? $"phase={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(entity).CurrentTask} count={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(entity).TaskCount}"
             : "no-component";
         string loco = cgfWorld.HasComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity)
             ? $"action={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity).ActiveAction} status={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity).Status} dispId={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity).DispatchedInstanceId} actId={cgfWorld.GetComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(entity).ActionInstanceId}"

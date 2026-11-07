@@ -209,6 +209,19 @@ only shortcuts that fill its rows.*
 | `SetReporting` | **Set reporting** of *[unit]* … *(Expert)* |
 | ⭐ NEW | **Begin phase** *[P]* (Mission Plan Editor Q4: phases begin on events) |
 
+**As-built — RX5** *(behaviors, `2026-11-07`, CE-4307)*: ⭐ ONE step renderer, `ActionSentence.Parts` (`Hrot.Presentation/Rules`), called by the List
+line (`RuleSentence`) and by the Do tab's row headings (`ActionListFieldDrawer`, built once per row — 0 B on a steady frame), so the two say the same.
+It hydrates the step's args into the catalogue entry's own `ParamsType` and reads fields by NAME (the presentation never references the verbs'
+assembly); names come from the one `LiveRefScope` the List uses (`AuthoredRules.ScopeOf`). The words follow the mockup (*Message Blue: "Phase 2"* ·
+*Bring in red-qrf at @Drop* · *Order Alpha 1-1 to Move* · *End the exercise — Friend wins* · *Take 1 from …* · *Activate …* · *Jump / Stop …'s plan* ·
+*Set the skill of …*); an act it does not know reads as its humanised name. ⭐ **Order by order kind:** the `Order` step's `behavior` may be
+`Order.<kind>` — the Do tab offers the kinds from `OrderMenu.Orders` (the ONE list the mission plan uses) in an *order* combo above the form, the
+behaviour name stays writable in the form (Advanced); at run time the verb resolves the kind by the target's class (`OrderResolver`, the receiver's
+own answer), sends the intent `Order.<kind>` as before and waits for the behaviour that class resolves to; a kind no class fulfils fails at once
+with the resolver's reason. ⭐ **Begin phase** (built once backend's P-6, CE-4302, landed): a `BeginPhase` verb `{target}` fires a PHASE trigger (`common.phase` > 0) through the ONE control path the instructor's *Begin now* uses (`RuleCommands.Control`, `RuleRequest.Fire`, new origin `RuleOrigin.Rule`, journalled as *"Fire by Rule"*); it reads *Begin Phase 2*; a trigger that is no phase fails with the reason. Rail `ScenarioRulesTests.BeginPhase_FiresThePhaseTrigger_…`. ⚠ *Message* uses the short form
+of the mockup (*Message Blue: …*), not the table's *Send a message … to …* — the mockup is the acceptance spec (R-4165).
+Rails: `RuleEditorR5bTests.ADoStep_ReadsAsASentence_…`, `TheListLine_SaysWhatEachStepDoes`, `AnOrderStep_IsSetByOrderKind_…`; `RulesWindowFrameRail` (the List line, the Do rows).
+
 ### 2.5 Reachable from where the author is
 
 | from | entry |
@@ -222,6 +235,33 @@ only shortcuts that fill its rows.*
 **The gallery** (as the Add Entity picker): *Objectives* (Take and hold an area · Reach an area · Destroy · Protect · Survive), *Phases and
 timing* (Begin phase when … · End the exercise when …), *Reinforcements* (Bring in … when …), *Messages* (Brief Blue when …), *Scoring*
 (measures — hit ratio, report latency … — a separate group, for exercise designers). Each opens pre-filled in Details.
+
+**As-built — RX6** *(behaviors, `2026-11-07`, CE-4308)*:
+
+```mermaid
+sequenceDiagram
+  participant M as map menu (unit / area, Edit mode)
+  participant H as HostActions (the host's registry)
+  participant B as RulesBundle (every host)
+  participant W as RulesWindow
+  participant G as RuleGallery (pure)
+  participant C as EntityCreation (the ONE path)
+  M->>H: AddRuleAboutUnit (545) / AddRuleForArea (546)
+  H->>B: the handler the bundle bound at construction
+  B->>W: IsOpen, OpenGallery(subject or area)
+  W->>G: For(context, search)
+  W->>C: AddFromGallery → CreateRule(TKB, kind, ParamsJson)
+  C-->>W: the new row appears → selected, its tab opened
+```
+
+*What the picture shows that prose hid:* the map never knows the Rules window — the menu row is a catalogue DECLARATION (`RuleMenuActions`, beside
+`MapMenuActions`; Action Catalogue Q4) and the BINDING is the rules bundle's, so every host that composes the bundle has it and a host that does not
+greys the row (A2). **+ Add** opens the same gallery (the mockup's groups and labels, `RuleGallery.All`; an area adds *When someone enters this
+area…* first, its *when* built with the condition editor's own row — *any of Blue side is inside the area*); the engine's kinds stay under
+*More… (every kind)* — nothing removed. A unit becomes the rule's `common.subject` (and *Destroy / Protect / Survive*'s target); *Begin a phase when …*
+takes the next phase number (CE-4302). ⚠ *Survive* = *Protect* of the unit itself (no separate kind exists). ⏭ **Not here:** the mission task's
+*New rule…* (ui's Orders tab, P-7 7c) and the timeline's *Add rule at this moment…* (ui's A6 timeline targets) — both call `RulesWindow.OpenGallery`.
+Rails: `RuleEditorR5cTests.CE4308_*`, `TheRulesBundleTests.CE4308_*`; the menu goldens gained the two rows.
 
 ### 2.6 Where it runs
 

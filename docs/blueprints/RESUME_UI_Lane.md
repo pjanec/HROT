@@ -173,6 +173,22 @@ related-designs:
   Nothing was deleted.
 -->
 
+## ⭐⭐⭐ SESSION 2026-11-07 (b) — TODAY'S RULINGS HANDOFF *(state at `ui@cdaa914c3`, pushed, tree clean)*
+
+🔒 User: *"Merge coordinator and follow the handoff HANDOFF_Coordinator_To_Ui_Todays_Rulings.md"* — merged `coordinator@29a9bd83b` + `backend@add7d4c20`,
+started `428f681b5`. ⭐ The live per-item state is the **"Third handoff"** table in [STATUS_Editing_UX_Build_Ui.md](batches/STATUS_Editing_UX_Build_Ui.md);
+the order is the [handoff](batches/HANDOFF_Coordinator_To_Ui_Todays_Rulings.md) (scope frozen at `b3c6c99a`).
+
+| # | item | state |
+|---|---|---|
+| 1 | A3 corrections (R-4162) | ✅ `177de710b` — Rotate Edit + Live, *Save selection as macro…* Edit only, goldens regenerated. ⚠ Save in **Preview** still refuses instead of checkpointing — REQUEST to backend: [NOTE_Ui_To_Backend_Preview_Checkpoint](batches/NOTE_Ui_To_Backend_Preview_Checkpoint.md) |
+| 2 | P-7 (CE-4303) the Orders tab | 🔨 CLAIMED · plan `c7139739e` ([Mission plan §5.11](../UX/DESIGN_Mission_Plan_Editor.md), slices 7a–7d) · ✅ **7a** `cdaa914c3` (read-only tab: `OrdersPlanModel` + `OrdersTab`, `details.orders`, via `EntityDetailsHostServices.Missions`, Editor + CGF). ⏭ **7b** = editing (+ Add task with Wait first, the order form, the *then* picker §5.6 as presets → `{type: Then, params}`, give up, remove / reorder) |
+| 3–7 | A4 selection rules · B-16 seats H2–H4 · B-10 K2 / K3 / K7 · CE-4305 (only if backend has not claimed it) · P-8 (after backend P-5 / P-6) | ⏳ not started |
+
+Facts learned: every map host offers orders (`MapInteractionPack.cs:364`), so a world with no `StationMode` falls back to **Live** — a rail that
+needs Edit must install it (`World(mode: …)` in `TheMenusAreGoldenTests`). `CE1150_TheBundle…` is GREEN again after the coordinator merge.
+
+
 ## ⭐⭐⭐ SESSION 2026-11-07 (b) — B-10 KEYS + B-11 ACTION CATALOGUE *(state at `ui@7ce4a4458` + this doc commit, pushed, tree clean)*
 
 🔒 User: *"Update from your branch and continue from the resumption doc"* · *"All pauses lifted. Do the complex stuff yourself, as claude.md

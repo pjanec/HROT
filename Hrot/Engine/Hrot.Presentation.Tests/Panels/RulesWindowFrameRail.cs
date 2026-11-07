@@ -271,6 +271,36 @@ public sealed class RulesWindowFrameRail : IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-4308 (RX6) fidelity (docs/UX/rule-list-visual.svg, "New rule — choose a starting point") — <b>+ Add</b> opens the GALLERY in a real frame: the mockup's groups and
+    /// starting points, a search, the engine's kinds under <i>More…</i>; a unit's menu opens it with the unit filled in. Renders <c>rules-gallery.png</c> under <c>HROT_RAIL_SHOTS</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE4308_TheGalleryFrame_ShowsTheMockupsStartingPoints()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var e = _world.CreateEntity();
+        _world.AddComponent(e, new NetworkIdentity(30));
+        _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "WeightedMean", JsonParams = """{"common":{"title":"Mission"}}""", InstanceId = 1 });
+        var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null, (x, n, j) => true, new Hrot.Presentation.Edits.EditHistory(), _ => Array.Empty<RuleJournalEntry>(),
+            CreateRule: (tkb, kind, json) => true);
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_gallery", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 0d, editor: svc);
+        using var frame = UiFrameHarness.Begin(900, 640);
+        Action draw = () =>
+        {
+            ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(900, 640));
+            ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+            window.DrawContent();
+            ImGui.End();
+        };
+        for (int i = 0; i < 3; i++) frame.Step(draw);
+        window.OpenGallery(subjectNetworkId: 30);
+        for (int i = 0; i < 4; i++) frame.Step(draw);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 }) frame.Screenshot(ShotPath("rules-gallery.png"));
+        Assert.Equal(RuleGallery.All.Select(t => t.Label), window.GalleryRows);                       // every starting point drawn, in the mockup's order
+        Assert.Equal(30, window.GalleryContext.Subject.Ref.NetworkId);                                  // the unit is filled in while it is open
+    }
+
+    /// <summary>
     /// ⭐ U-18 fidelity (docs/UX/rule-list-visual.svg, R-4138 / R-4146) — the List view reads like its mockup: a coloured KIND glyph first (trigger bolt amber · objective bullseye green · measure flag amber), the group as the shared header bar,
     /// <i>required</i> muted on the right, the incomplete ✖ on the RIGHT of the text, the Font Awesome arrow (the font has no U+2192). 🔴 Red-proof (compiles): <c>KindGlyph</c> giving a trigger the objective's glyph ⇒ red.
     /// </summary>
@@ -309,7 +339,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.True(marks[22].Incomplete); Assert.False(marks[20].Incomplete);
         Assert.True(marks[22].MarkX > marks[22].TextX + 100f, "the incomplete mark sits on the RIGHT of the text");
         Assert.Equal(0f, marks[20].MarkX);                                                                                      // a complete rule draws no mark
-        Assert.Contains("for 30 s → Message", window.ListRows[0]);                                                              // the text keeps the arrow; the frame draws the Font Awesome one
+        Assert.Contains("for 30 s → Message everyone: \"Phase 2\"", window.ListRows[0]);   // ⭐ CE-4307 — the step as a sentence                                                              // the text keeps the arrow; the frame draws the Font Awesome one
     }
 
     /// <summary>
@@ -480,7 +510,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Step(null, 5);
         var ed = window.Probe.Editor!;
         Assert.True(ed.Editable, ed.ReadOnlyReason);
-        Assert.Equal(new[] { "1. Message", "> 2. Message", "3. Message" }, ed.Steps);                       // the running step is marked
+        Assert.Equal(new[] { "1. Message everyone: \"one\"", "> 2. Message everyone: \"two\"", "3. Message everyone: \"three\"" }, ed.Steps);                       // the running step is marked
         Assert.Equal("step 2 / 3", ed.StepMarker);
         Assert.True(window.Details.Steps.Probe.AddEnabled);
         frame.Screenshot(ShotPath("rules-7-do.png"));

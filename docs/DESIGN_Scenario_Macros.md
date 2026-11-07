@@ -2,7 +2,7 @@
 state: LIVE
 build-state: ⭐ S3a DISPATCHED to backend 2026-11-02 (user: "ok lets delegate the scenario macros feature to the backend" — the hold is lifted; HANDOFF_Coordinator_To_Backend_Scenario_Macros_S3a.md) · §14 (SR-167…SR-176) ✅ accepted 2026-11-02 — READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §15.4 the S3a debt as built (A1–A7) · §14 is fully ACCEPTED (2026-11-02): §14.4 preview SR-189, existing entities SR-190, transient look SR-191, member lines SR-192 · §14.3 placement as a solver query + many instances SR-184…SR-188 · §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183 ✅) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §17.1 the VariantForms holder (DESIGN 2026-11-07, CE-3374) · §15.4 the S3a debt as built (A1–A7) · §14 is fully ACCEPTED (2026-11-02): §14.4 preview SR-189, existing entities SR-190, transient look SR-191, member lines SR-192 · §14.3 placement as a solver query + many instances SR-184…SR-188 · §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183 ✅) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -12,6 +12,7 @@ known-rot: ⚠ the moved rows keep their ORIGINAL section references (§8.0, §9
   numbers; §13 maps each to its section here (the rules doc's stubs forward them too). Every related design links back (2026-11-01).
 known-conflict: none
 related-designs:
+  - docs/UX/DESIGN_Scenario_Presets.md — OWNS scenario presets, CanSave and the preview with a preset; §17.1 here OWNS the variant holder it relies on
   - docs/DESIGN_Scenario_Rules.md — the RULES (objectives, triggers, the director, evaluation): the first USER of macros (`InsertMacro`, a director IS a macro — SR-99, a macro insertion reports its own completion — SR-96, bindings in a `do` entry — SR-94); still OWNS §9.8 relocation + the reference / place / orientation types until slice S0 lands, and the objective rows of its §8 / §9 (§11 here)
   - docs/DESIGN_Scenario_Entity_Keys.md — CE-4153 rev 2: STABLE entity GUIDs, derived for macro-made entities — the cross-scope reference (SR-62); its S9 (internal refs of saved components as GUIDs) is S3's prerequisite
   - docs/EXPLAINER_Scenario_Evaluation_And_Direction.md — §5 explains this design for a reader who does not know the code: how a macro works, is authored in the editor and is presented
@@ -1172,3 +1173,46 @@ RUNTIME needs the run's variant in the verb (it is readable from the resident ar
 and drops `Presence` (they are authoring forms the extracted world does not hold) — the run-setup / authoring slice needs a `NoReplay` holder for them ·
 the amplifier is written on the node that runs the verb (the World Environment's owner, the Brain today — the other verbs' rule) · a step's own `Bind`
 (§16.2) would let the director bind its `do` args too.
+
+### 17.1 ⭐⭐ The variant forms survive an edit load — **the `VariantForms` holder** *(DESIGN `2026-11-07`, backend — CE-3374; user: *"we need to design and fix the gap first"*)*
+
+🔒 User, `2026-11-07`, on the gap §17 names (*"an EDIT load followed by a save … drops `Presence`"*): *"Accept it, we need to design and fix the
+gap first."* The consumer: [`docs/UX/DESIGN_Scenario_Presets.md`](UX/DESIGN_Scenario_Presets.md) — a world is saveable only when its variant forms survive.
+
+**INVENTORY** *(`2026-11-07`: read `ScenarioVariants.Apply` `FDP/Toolkits/Fdp.Toolkits/Scenario/ScenarioVariants.cs:146-195` — it STRIPS
+`Presence`, turns `Positions` into the chosen `SimTransform`, and a one-of-N `MacroInstance.Macro` into the chosen name, **at variant 0 too**;
+`ScenarioLoadStep.cs:182-199` — it runs on every load that `Uses` variants, edit loads included; `ParamBindingsTranslator.cs` — the precedent:
+a managed `NoReplay` authoring component saved by its own `IEntityScenarioTranslator`; grep `Presence|Positions` over `Fdp.Toolkits/Scenario`
+— no other reader. Graph: `search_graph .*Variant.* Class` → **0** (⚠ the index also returned 0 for `.*RunSetup.*`, a class grep sees — the index is stale for these files; grep is the answer here); ⚠ coverage unchecked — `check_index_coverage` is not in the CLI)*
+
+```mermaid
+classDiagram
+    direction LR
+    class ScenarioVariants { <<existing>> Apply(dom, variant, salt) — strips the forms (unchanged) · NEW: first copies them into VariantForms }
+    class VariantForms { <<NEW, managed record, NoReplay>> double? Presence · JsonArray? Positions · int PositionChosen · JsonArray? MacroChoices · int MacroChosen · int Variant }
+    class VariantFormsTranslator { <<NEW, IEntityScenarioTranslator>> Extract — writes Presence / Positions / the Macro list back · Inject — reads the component }
+    class ParamBindings { <<existing, SR-168>> the PRECEDENT: an authoring form kept on the entity }
+    class ScenarioSaveCore { <<existing>> save = every translator's Extract }
+    ScenarioVariants --> VariantForms : puts it on the entity JSON, once
+    VariantFormsTranslator --> VariantForms
+    ScenarioSaveCore --> VariantFormsTranslator
+    VariantForms ..> ParamBindings : same rule (NoReplay, saved, never recorded)
+```
+*What the picture shows that prose hid: the forms are not re-derived at save — they are COPIED at the one place that strips them, so no second
+reader of `Presence` / `Positions` appears.*
+
+| ⭐ rule | |
+|---|---|
+| ⭐⭐ the holder is written by `Apply` on every load, any variant, before it strips | ⛔ one writer; ⭐ `Variant` records which variant built the world |
+| ⭐⭐ a save writes the forms back as AUTHORED: `Presence` as is; `Positions` with the CHOSEN entry replaced by the entity's current place (a move in Edit moves the chosen place); the `Macro` list with the CHOSEN entry replaced by the current macro (a *Change…* changes the chosen one) | ⭐ variant 0 chooses the FIRST entry — so an edit at variant 0 edits the authored first place / first macro |
+| ⭐⭐ **a world built with `Variant ≠ 0` is NOT saveable** — an entity whose `Presence` roll failed was never created, so the file would lose it | ⭐ the presets design's `CanSave` reads `VariantForms.Variant` (any entity) — ⛔ no second flag |
+| ⭐ `NoReplay` (SR-165's rule) | never recorded, never in a checkpoint — it costs nothing in replay |
+
+| measure before building | why |
+|---|---|
+| **M1** — the `MacroInstance` translator writes `Macro` as a string: the holder's list must win on save, in one translator order | two writers of one key otherwise |
+| **M2** — the rail SR-168 names (*"load a scenario with params → save → every binding still there"*) — grep found no end-to-end rail | the presets design relies on it; write it with this item if it is missing |
+| **M3** — a macro FILE opened in the editor goes through the same `Apply` | then it is covered by construction |
+
+Rails (to write): edit-load a scenario with `Presence` / `Positions` / a one-of-N → save → the file holds all three as authored; move the
+entity → the chosen place moves; load with `$variant: 3` → `CanSave` false, naming the variant.

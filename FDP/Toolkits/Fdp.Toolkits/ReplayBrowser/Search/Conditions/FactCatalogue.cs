@@ -125,6 +125,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search.Conditions
                     v = new FactValues(Number: lo);
                     return true;
                 }));
+            // ⭐ P-7 / CE-4303 (Mission plan §5.6 "after N min") — how long the unit's CURRENT task has run: the SAME shape the runtime translates an old
+            //   TimerElapsed entry into (PlanConditionCache.Translate), so an authored and a translated "after N" are one condition. Mission tasks only.
+            Add(new FactEntry("task-time", "kind/time", ConditionContexts.Mission, true,
+                (v, neg) => (neg ? "the task has not run for " : "the task has run for ") + DurationWords(v.Number),
+                v => Match(typeof(Fdp.Toolkit.Behavior.Components.MissionPlanQueue), TaskTimePath, v.Number, double.MaxValue),
+                (SearchPredicateDto d, out FactValues v) =>
+                {
+                    v = default;
+                    if (!IsMatch(d, typeof(Fdp.Toolkit.Behavior.Components.MissionPlanQueue), TaskTimePath, out double lo, out double hi) || hi != double.MaxValue) return false;
+                    v = new FactValues(Number: lo);
+                    return true;
+                }));
             Add(new FactEntry("time", "kind/time", ConditionContexts.Everywhere, true,
                 (v, neg) => (neg ? "it is not " : "it is ") + TimeWords(v.Number, v.Number2),
                 v => new ScenarioTimePredicateDto { FromSeconds = v.Number, ToSeconds = v.Number2 },
@@ -150,6 +162,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search.Conditions
                 }));
 
         /// <summary>The ONE shape a "field equals / is at least" fact uses: <c>PropertyMatch(Equals, Numeric[lo, hi])</c> (as the rules' own When does).</summary>
+        /// <summary>The field "the task has run for" reads (<c>MissionPlanQueue.TaskElapsedSeconds.Seconds</c>).</summary>
+        public const string TaskTimePath = nameof(Fdp.Toolkit.Behavior.Components.MissionPlanQueue.TaskElapsedSeconds) + "." + nameof(SimDuration.Seconds);
+
+        private static string DurationWords(double seconds)
+            => seconds >= 60 && seconds % 60 == 0 ? $"{Num(seconds / 60)} min" : $"{Num(seconds)} s";
+
         internal static PropertyMatchDto Match(Type component, string path, double lo, double hi)
             => new() { ComponentType = component, PropertyPath = path, Operator = SearchOperator.Equals, Predicate = new NumericPredicateDto { MinValue = lo, MaxValue = hi } };
 

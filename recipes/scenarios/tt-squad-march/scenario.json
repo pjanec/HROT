@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "SquadMarch",
-        "Params": "{\"Objective\":[340,300,0],\"Shape\":1}",
+        "Params": {"Objective":[340,300,0],"Shape":1},
         "Origin": "Superior"
       }
     },

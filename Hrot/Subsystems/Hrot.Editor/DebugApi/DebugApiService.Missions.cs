@@ -64,9 +64,10 @@ namespace Hrot.Editor.DebugApi
         /// <summary>
         /// <c>POST /missions/{networkId}/task {behavior, params?, triggers?}</c> — append one mission task
         /// naming <paramref name="behavior"/> with <paramref name="paramsNode"/> as its param JSON, then
-        /// commit the whole plan. Mirrors <c>MissionPanel.HandleAddTask</c>: a fresh <see cref="Guid"/>
-        /// task id, an empty executing engine, and a default <c>BehaviorFinished</c> trigger when none is
-        /// given. Runs on the main thread; the returned task must be awaited off it.
+        /// commit the whole plan with its version (a stale one is a Conflict). Mirrors <c>MissionPanel.HandleAddTask</c>: a fresh <see cref="Guid"/>
+        /// task id, an empty executing engine, and no trigger when none is given (the runtime reads that as <i>when done</i>, CE-4298).
+        /// ⭐ <c>CE-4300</c> (mission plan E8 / E7) — the commit keeps the plan's progress by task id (E1): the running task goes on and a
+        /// finished plan makes the new task current. Runs on the main thread; the returned task must be awaited off it.
         /// </summary>
         /// <returns>
         /// <c>commit</c> — the in-flight commit task, or <see langword="null"/> when <c>error</c> is set;
@@ -189,13 +190,12 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>
         /// Builds the task's trigger list from an optional <c>triggers</c> array of <c>{ type, params? }</c>.
-        /// Defaults to a single <c>BehaviorFinished</c> trigger (as <c>MissionPanel.HandleAddTask</c> does)
-        /// so a new task is well-formed and can transition; an explicit empty array leaves it untriggered.
+        /// ⭐ <c>CE-4298</c> — absent or empty ⇒ an empty list: the runtime reads it as <i>when done</i> (mission plan §5.9; one owner of the default).
         /// </summary>
         private static List<MissionTrigger> BuildTriggers(JsonNode? triggersNode)
         {
             if (triggersNode is not JsonArray arr)
-                return new List<MissionTrigger> { new MissionTrigger { Type = "BehaviorFinished" } };
+                return new List<MissionTrigger>();
 
             var triggers = new List<MissionTrigger>(arr.Count);
             foreach (var item in arr)
@@ -206,7 +206,7 @@ namespace Hrot.Editor.DebugApi
                 triggers.Add(new MissionTrigger
                 {
                     Type   = type!,
-                    Params = item["params"]?.ToJsonString() ?? item["params"]?.GetValue<string>() ?? string.Empty,
+                    Params = Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(item["params"]) ?? string.Empty,   // ⭐ CE-4295 — a string or an object, both read
                 });
             }
             return triggers;
@@ -226,14 +226,14 @@ namespace Hrot.Editor.DebugApi
                             triggers.Add(new JsonObject
                             {
                                 ["type"]   = trig.Type,
-                                ["params"] = trig.Params,
+                                ["params"] = Fdp.Core.Serialization.Converters.JsonTextConverter.NodeOf(trig.Params),
                             });
 
                     tasks.Add(new JsonObject
                     {
                         ["taskId"]          = t.TaskId.ToString("D"),
                         ["behaviorId"]      = t.BehaviorId,
-                        ["behaviorParams"]  = t.BehaviorParams,
+                        ["behaviorParams"]  = Fdp.Core.Serialization.Converters.JsonTextConverter.NodeOf(t.BehaviorParams),   // ⭐ CE-4295 (Q3) — the object it holds, as in the scenario file
                         ["executingEngine"] = t.ExecutingEngine,
                         ["state"]           = t.State.ToString(),
                         ["triggers"]        = triggers,

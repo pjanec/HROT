@@ -46,7 +46,7 @@
               "taskId": "c2380006-0000-4000-8000-000000000910",
               "executingEngine": "",
               "behaviorName": "Sentry",
-              "behaviorParams": "{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":145}",
+              "behaviorParams": {"Count":1,"MinDanger":0.5,"LiveOnly":false,"WithinMetres":145},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -59,7 +59,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -93,7 +93,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -127,7 +127,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -161,7 +161,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -195,7 +195,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -229,7 +229,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -263,7 +263,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -297,7 +297,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -331,7 +331,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -365,7 +365,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -399,7 +399,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -448,7 +448,7 @@
               "taskId": "c2380006-0000-4000-8000-000000000901",
               "executingEngine": "",
               "behaviorName": "CivilianHsm",
-              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
               "triggers": [
                 {
                   "type": "TimerElapsed",
@@ -460,7 +460,7 @@
               "taskId": "c2380006-0000-4000-8000-000000000902",
               "executingEngine": "",
               "behaviorName": "MoveToLocation",
-              "behaviorParams": "{\"speed\":1.4,\"arrivalRadius\":1,\"target\":[201,200.5,0]}",
+              "behaviorParams": {"speed":1.4,"arrivalRadius":1,"target":[201,200.5,0]},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -472,7 +472,7 @@
               "taskId": "c2380006-0000-4000-8000-000000000903",
               "executingEngine": "",
               "behaviorName": "DetonateCharge",
-              "behaviorParams": "{\"Seconds\":1}",
+              "behaviorParams": {"Seconds":1},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -484,7 +484,7 @@
               "taskId": "c2380006-0000-4000-8000-000000000904",
               "executingEngine": "",
               "behaviorName": "CivilianHsm",
-              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
               "triggers": [
                 {
                   "type": "BehaviorFinished",

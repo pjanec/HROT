@@ -28,6 +28,7 @@ namespace Fdp.Toolkits.Tests.ReplayBrowser.Search
             "side" => new[] { new FactValues(Side: ForceId.Hostile) },
             "objective-state" => new[] { new FactValues(State: (int)ObjectiveState.Achieved) },
             "fired" => new[] { new FactValues(Number: 3) },
+            "task-time" => new[] { new FactValues(Number: 300) },   // ⭐ P-7 — "the task has run for 5 min" (Mission context)
             "time" => new[] { new FactValues(Number: 60, Number2: double.MaxValue), new FactValues(Number: 0, Number2: 150), new FactValues(Number: 60, Number2: 150) },
             _ => new[] { default(FactValues) },
         };

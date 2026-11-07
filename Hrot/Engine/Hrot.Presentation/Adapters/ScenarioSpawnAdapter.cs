@@ -37,6 +37,8 @@ namespace Hrot.UI.Common.Adapters
     {
         private readonly EntityCreation     _creation;
         private readonly Func<string>?      _nameResolver;
+        /// <summary>⭐ CE-4312 — the numbered names handed out by recent placements (a placement's entities are created a frame later).</summary>
+        private readonly System.Collections.Generic.List<string> _handedOut = new();
         private readonly JsonAttributeCompiler? _jsonCompiler;
         private readonly ITkbDatabase?      _tkbDb;
         private readonly GlobalGizmoManager? _globalGizmoManager;
@@ -231,6 +233,18 @@ namespace Hrot.UI.Common.Adapters
                         var ctx = new ListPatchContext(cmd.InitialComponents);
                         _jsonCompiler.Compile(cmd.InitialAttributesJson, ctx);
                         cmd.InitialComponents = ctx.FlushComponents();
+                    }
+
+                    // ⭐⭐ CE-4312 (lifecycle LC-2) — a unit still carrying its TYPE's bare name is NUMBERED, unique in the scenario ("Rifleman 3");
+                    //   a resolver's or the JSON's own name is kept. The names handed out this placement count until they are in the world.
+                    int infoAt = cmd.InitialComponents.FindIndex(c => c is EntityInfo);
+                    if (infoAt >= 0 && cmd.InitialComponents[infoAt] is EntityInfo info && info.Name.ToString() == defaultName)
+                    {
+                        string numbered = Hrot.Common.EntityCreation.EntityNames.Next(_creation.World, defaultName, _handedOut);
+                        _handedOut.Add(numbered);
+                        if (_handedOut.Count > 256) _handedOut.RemoveAt(0);
+                        info.Name = new Fdp.Core.FixedString64(numbered);
+                        cmd.InitialComponents[infoAt] = info;
                     }
 
                     Request(cmd);

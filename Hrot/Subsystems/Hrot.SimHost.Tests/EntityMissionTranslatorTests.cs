@@ -99,7 +99,7 @@ namespace Hrot.SimHost.Tests
                 "MissionPlanQueue must be present after ApplyToEntity.");
 
             var queue = ((ISimulationView)world).GetComponentRO<MissionPlanQueue>(entity);
-            Assert.Equal(mission.Plan.Tasks.Count, queue.PhaseCount);
+            Assert.Equal(mission.Plan.Tasks.Count, queue.TaskCount);
         }
 
         /// <summary>
@@ -132,7 +132,7 @@ namespace Hrot.SimHost.Tests
             var entity = world.CreateEntity();
 
             // Seed the component (represents a prior ingress sample).
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
             Assert.True(world.HasComponent<MissionPlanQueue>(entity));
 
             // Simulate the command-buffer playback that would result from
@@ -204,7 +204,7 @@ namespace Hrot.SimHost.Tests
 
             world.AddComponent(entity, new NetworkIdentity(42));
             world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1)); // HasAuthority = true
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
@@ -226,7 +226,7 @@ namespace Hrot.SimHost.Tests
 
             world.AddComponent(entity, new NetworkIdentity(10));
             world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1)); // HasAuthority = false
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
@@ -252,7 +252,7 @@ namespace Hrot.SimHost.Tests
 
             world.AddComponent(entity, new NetworkIdentity(7));
             world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
@@ -279,7 +279,7 @@ namespace Hrot.SimHost.Tests
 
             world.AddComponent(entity, new NetworkIdentity(5));
             world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
             using var participant = new DdsParticipant();
@@ -288,7 +288,7 @@ namespace Hrot.SimHost.Tests
             translator.ScanAndPublish(world);
 
             // Mutate the component â€” this advances GlobalVersion and marks the table dirty.
-            world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
+            world.SetComponent(entity, new MissionPlanQueue { TaskCount = 1 });
 
             var ex = Record.Exception(() => translator.ScanAndPublish(world));
             Assert.Null(ex);
@@ -322,15 +322,15 @@ namespace Hrot.SimHost.Tests
 
         private static MissionPlanQueue Queue(byte phaseCount, byte current, byte halted = 0, params MissionPhaseOutcome[] outcomes)
         {
-            var q = new MissionPlanQueue { PhaseCount = phaseCount, CurrentPhase = current, Halted = halted };
+            var q = new MissionPlanQueue { TaskCount = phaseCount, CurrentTask = current, Halted = halted };
             for (int i = 0; i < outcomes.Length; i++) q.Outcomes[i] = outcomes[i];
             return q;
         }
 
         private static eTaskState[] States(in MissionPlanQueue q)
         {
-            var s = new eTaskState[q.PhaseCount];
-            for (int i = 0; i < q.PhaseCount; i++) s[i] = Hrot.Map.Common.Replication.MissionProgressWire.StateOf(in q, i);
+            var s = new eTaskState[q.TaskCount];
+            for (int i = 0; i < q.TaskCount; i++) s[i] = Hrot.Map.Common.Replication.MissionProgressWire.StateOf(in q, i);
             return s;
         }
 
@@ -363,10 +363,10 @@ namespace Hrot.SimHost.Tests
             if (halted != 0) outcomes[current] = MissionPhaseOutcome.Failed;
             var sent = Queue(count, current, halted, outcomes);
 
-            var received = new MissionPlanQueue { PhaseCount = count };
+            var received = new MissionPlanQueue { TaskCount = count };
             Hrot.Map.Common.Replication.MissionProgressWire.Decode(States(sent), ref received);
 
-            Assert.Equal(sent.CurrentPhase, received.CurrentPhase);
+            Assert.Equal(sent.CurrentTask, received.CurrentTask);
             Assert.Equal(sent.Halted, received.Halted);
             for (int i = 0; i < count; i++) Assert.Equal(sent.Outcomes[i], received.Outcomes[i]);
         }
@@ -392,7 +392,7 @@ namespace Hrot.SimHost.Tests
             translator.ApplyToEntity(entity, mission, world);
 
             var q = ((ISimulationView)world).GetComponentRO<MissionPlanQueue>(entity);
-            Assert.Equal(1, q.CurrentPhase);
+            Assert.Equal(1, q.CurrentTask);
             Assert.Equal(1, q.Halted);
             Assert.Equal(MissionPhaseOutcome.Done, q.Outcomes[0]);
             Assert.Equal(MissionPhaseOutcome.Failed, q.Outcomes[1]);

@@ -1090,7 +1090,32 @@ namespace Hrot.Editor.DebugApi
             //    roster. ⚠ In --mode all it reads the master through the dispatcher; in the editor it reads the
             //    local controller. Never throws (both arms end in `?? false`), so no TryRead.
             ["isAwaitingStepAcks"] = IsAwaitingStepAcks,
+            // ⭐ CE-4316 — Run to …: whether a run is going on and what the last one did ("reached 2:00", "the condition held at 1:12")
+            ["runTo"] = RunToControl is { } rt ? new JsonObject { ["running"] = rt.IsRunning, ["status"] = rt.Status, ["step"] = rt.Step, ["turbo"] = rt.IsTurbo } : null,
         };
+
+        /// <summary>⭐ CE-4316 — the host's Run to … (the editor passes its own; null on a host without one).</summary>
+        internal Hrot.UI.Common.RunMode.RunToController? RunToControl { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ CE-4316 — <c>POST /sim/run-to {seconds?, condition?, cancel?}</c> (main thread): starts the ACK-gated stepped run to sim time
+        /// <paramref name="seconds"/> and / or until <paramref name="conditionJson"/> holds (the condition language's JSON, e.g. a phase begins —
+        /// <c>PlanConditionCache.PhaseBegins</c>), or cancels the one going on. Answers at once; <c>GET /sim/state</c>'s <c>runTo</c> says when it stopped.
+        /// </summary>
+        public JsonNode RunTo(double? seconds, string? conditionJson, bool cancel, float? step = null)
+        {
+            var rt = RunToControl ?? throw new InvalidOperationException("this host has no Run to … (the editor's Preview only).");
+            if (cancel) { rt.Cancel(); return GetSimState(); }
+            Func<EntityRepository, Entity, bool>? until = null;
+            if (!string.IsNullOrWhiteSpace(conditionJson))
+            {
+                try { until = Fdp.Toolkit.ReplayBrowser.Search.ConditionCache.Get(conditionJson); }
+                catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException)
+                { throw new ArgumentException($"condition is not a condition: {ex.Message}"); }
+            }
+            if (!rt.Start(seconds, until, step)) throw new ArgumentException(rt.Status);
+            return GetSimState();
+        }
 
         /// <summary><c>POST /sim/play</c> — explicit resume; idempotent (never blind-toggles) (main thread).</summary>
         public JsonNode Play()

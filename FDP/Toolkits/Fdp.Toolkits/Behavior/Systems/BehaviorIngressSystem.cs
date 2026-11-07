@@ -10,6 +10,7 @@ using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 
 using Fdp.Toolkit.Behavior.Diagnostics;
+using Fdp.Toolkit.Replication.Edits;
 
 namespace Fdp.Toolkit.Behavior.Systems
 {
@@ -113,18 +114,23 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
 
                 // DEBT-006: use stable int ID from registry — no GetHashCode().
-                if (!_registry.TryGetId(evt.BehaviorName, out int behaviorId)) continue;
-                if (!_registry.TryGetDefinition(behaviorId, out var def)) continue;
+                if (!_registry.TryGetId(evt.BehaviorName, out int behaviorId) || !_registry.TryGetDefinition(behaviorId, out var def))
+                {
+                    InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, $"no behaviour named {evt.BehaviorName} on this node");   // ⭐ CE-4306 (F5)
+                    continue;
+                }
+                _lastRefusal = BrainRefusal.Unspecified;
 
                 // ⭐ CE-3034 — THE ONE GATE (R-188): a lower origin cannot replace a higher one.
                 // ⭐ CE-2078 — and a reaction (R-199) pauses the task it replaces.
                 int replaced = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;   // ⭐ CE-1249 — for the journal
-                if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause, behaviorId)) continue;
+                if (!Admit(repo, evt.Entity, evt.Origin, evt.Urgency, out bool pause, behaviorId)) { InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, BrainRefusalText.Of(_lastRefusal)); continue; }
                 var paused = pause ? PauseRecord(repo, evt.Entity, behaviorId, def) : null;
-                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency, paused)) continue;
+                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams, evt.Origin, evt.Urgency, paused)) { InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, BrainRefusalText.Of(_lastRefusal)); continue; }
                 JournalStarted(repo, evt.Entity, behaviorId, replaced, evt.Origin, evt.Urgency, pause, (byte)evt.Cause);
                 AfterAdmitted(repo, evt.Entity, evt.Origin, paused);
                 _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
+                InteractionOutcomes.Applied(repo, evt.RequestId, evt.Entity);   // ⭐ CE-4306 (F5): the order was accepted
             }
 
             // ── ClearBehaviorEvent handler ────────────────────────────────────────────────
@@ -235,6 +241,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!isTheTask) return true;
                 pause = false;
                 RefusedCount++;
+                _lastRefusal = BrainRefusal.SameAsTask;
                 BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
                     urgency: (byte)urgency, cause: (byte)BrainRefusal.SameAsTask);   // ⭐ CE-1249 (BV-13)
                 Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
@@ -242,8 +249,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                 return false;
             }
             RefusedCount++;
+            _lastRefusal = RefusalOf(repo, entity, origin, urgency, running);
             BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
-                urgency: (byte)urgency, cause: (byte)RefusalOf(repo, entity, origin, urgency, running));   // ⭐ CE-1249 (BV-13)
+                urgency: (byte)urgency, cause: (byte)_lastRefusal);   // ⭐ CE-1249 (BV-13)
             if (origin == BehaviorOrigin.Sop) WakeSop(repo, entity);   // ⭐ CE-3035 / R-195 — a refused SOP assignment wakes it
             Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
                 "[BehaviorIngress] refused {0} assignment for entity #{1}: it runs behaviour {2} at {3}.",
@@ -545,7 +553,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!repo.IsComponentTypeRegistered<MissionPlanQueue>() || !repo.HasComponent<MissionPlanQueue>(entity)
                 || !repo.HasManagedComponent<ActiveMissionPlan>(entity))
                 return "{}";
-            int phase = repo.GetComponentRO<MissionPlanQueue>(entity).CurrentPhase;
+            int phase = repo.GetComponentRO<MissionPlanQueue>(entity).CurrentTask;
             var tasks = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity)?.Plan?.Tasks;
             if (tasks == null || phase >= tasks.Count) return "{}";
             var task = tasks[phase];
@@ -595,6 +603,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (IsTheSop(repo, entity, behaviorId))
             {
                 RefusedCount++;
+                _lastRefusal = BrainRefusal.IsTheSop;
                 BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
                     cause: (byte)BrainRefusal.IsTheSop);   // ⭐ CE-1249
                 Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(
@@ -603,6 +612,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
             if (!ParseIntoShadow(repo, entity, def, json, out int rootBytes, out Span<byte> shadow))
             {
+                _lastRefusal = BrainRefusal.ParseFailed;
                 BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
                     cause: (byte)BrainRefusal.ParseFailed);   // ⭐ CE-1249
                 return false;
@@ -1225,6 +1235,9 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         /// <summary>Entities started BY NAME in the current <c>Execute</c> → the behaviour started (<c>CE-451</c>).</summary>
         private readonly Dictionary<int, int> _startedByNameThisFrame = new();
+
+        /// <summary>⭐ CE-4306 (F5) — why the last <see cref="Admit"/> / <see cref="Start"/> said no, for the order's refusal text (<see cref="BrainRefusalText"/>). Set where they return false; reset per assignment.</summary>
+        private BrainRefusal _lastRefusal;
 
         /// <summary>
         /// 🔴🔴🔴 <b><c>E-cap</c> — A BEHAVIOUR WITH NO MANIFEST STILL NEEDS A STORE.</b>

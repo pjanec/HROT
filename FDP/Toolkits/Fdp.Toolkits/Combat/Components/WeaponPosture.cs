@@ -29,8 +29,9 @@ namespace Fdp.Toolkit.Combat.Components
         public WeaponPostureKind Kind;
         /// <summary>What it is aimed at; <see cref="Entity.Null"/> = <see cref="Point"/> (or nothing when not aimed).</summary>
         public Entity Target;
-        /// <summary>The aim point when there is no target entity (world metres).</summary>
-        public Vector3 Point;
+        /// <summary>The aim point when there is no target entity — a WORLD place (S0: a saved place says so by its type; it was a bare
+        /// <c>Vector3</c> until the component became saved, R-4137 / CE-4301 gate).</summary>
+        public WorldPoint Point;
         /// <summary>Seconds with no weapon action running — the Brain's own clock for lowering the weapon; never sent.</summary>
         public SimDuration IdleSeconds;
         /// <summary>⭐ ui handoff P4 (DESIGN_Weapon_Layers W-13e) — the mount the weapon brain is firing / about to fire: the unit's mount

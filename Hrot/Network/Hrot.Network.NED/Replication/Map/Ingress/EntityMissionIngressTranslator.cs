@@ -150,18 +150,18 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             var queue = new MissionPlanQueue
             {
-                CurrentPhase = 0,
-                PhaseElapsedSeconds = 0f
+                CurrentTask = 0,
+                TaskElapsedSeconds = 0f
             };
 
             var tasks = mission.Plan.Tasks ?? new List<MissionTask>();
-            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxPhases);
+            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxTasks);
 
-            if (tasks.Count > MissionPlanQueue.MaxPhases)
+            if (tasks.Count > MissionPlanQueue.MaxTasks)
             {
                 FdpLog<EntityMissionIngressTranslator>.Warn(
                     "[MissionTranslator] Mission has {0} tasks; truncating to {1}.",
-                    tasks.Count, MissionPlanQueue.MaxPhases);
+                    tasks.Count, MissionPlanQueue.MaxTasks);
             }
 
             for (int i = 0; i < count; i++)
@@ -170,7 +170,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers, task.TaskId.ToString());
 
-                queue.Phases[i] = new MissionPhase
+                queue.Tasks[i] = new MissionTaskSlot
                 {
                     BehaviorId = behaviorId,
                     Trigger = trigger,
@@ -178,7 +178,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 };
             }
 
-            queue.PhaseCount = (byte)count;
+            queue.TaskCount = (byte)count;
 
             // ⭐ CE-483 (egress half, W3): restore the progress the owner sent — the outcomes, the current phase and the
             //   halt. ⛔ Was `CurrentPhase = 0` with every task state dropped: a replica showed phase 0, and a node that later

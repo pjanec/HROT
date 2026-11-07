@@ -19,7 +19,7 @@
        "taskId": "ede78c84-e735-4e83-aa44-32f2210aa284",
        "executingEngine": "",
        "behaviorName": "PlatoonHillAttack",
-       "behaviorParams": "{\"firingLineStart\":[579.69,444.5,0],\"firingLineEnd\":[582.26,504.5,0],\"baselineStart\":[523,401,0],\"baselineEnd\":[532,548,0],\"tankSpacing\":20,\"targetAreaNetworkId\":\"5525100c-8237-4b0a-ab47-be43a2b30dce\"}",
+       "behaviorParams": {"firingLineStart":[579.69,444.5,0],"firingLineEnd":[582.26,504.5,0],"baselineStart":[523,401,0],"baselineEnd":[532,548,0],"tankSpacing":20,"targetAreaNetworkId":"5525100c-8237-4b0a-ab47-be43a2b30dce"},
        "triggers": [
         {
          "type": "BehaviorFinished",

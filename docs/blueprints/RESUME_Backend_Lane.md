@@ -1,9 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-current-answer: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+current-answer: ⭐⭐⭐ §SCENARIO PRESETS + THE SHARED FIELD EDITOR (2026-11-07, LATEST) below — CE-3374 next. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
+  - docs/DESIGN_Struct_Editor.md — the one struct-editor library (✅ APPROVED 2026-11-07: S1–S12, §8 the ONE widget kit K1–K6, §9 the inspector)
+  - docs/UX/DESIGN_Scenario_Presets.md — the CURRENT programme: scenario presets (D1–D12 approved), CE-3375
+  - docs/DESIGN_Field_Declaration_Editor.md — §6 the shared field editor (designed, confirm with the user)
   - docs/SHOWCASE_Scenarios.md — §1.7 / §2.8 Bridgehead and Crossfire v1 AS BUILT (this lane, 2026-11-02)
   - docs/DESIGN_Scenario_Rules.md — §00.12 S6 the game profile v1 (this lane)
   - docs/DESIGN_Replay_Time_Axis_And_Review.md — the NEXT build (handoff HANDOFF_Backend_Replay_Review_Build.md): sim axis, During Action Review, §12 the wire
@@ -16,6 +19,60 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
+
+## ⭐⭐⭐ SCENARIO PRESETS + THE SHARED FIELD EDITOR (`2026-11-07`, LATEST) — start here
+
+**Where it stands:** L-7 *Run to …* BUILT (turbo + per-run step); then, with the user in chat, three DESIGNS — nothing of them is built yet.
+
+| what | state | doc |
+|---|---|---|
+| **L-7 CE-4316** *Run to …* | ✅ BUILT: turbo on the networkless editor node (`RunToController` + `EditorSubsystem.TurboStep`, the ONE documented clock exception), the step a per-run setting (0, 1/6] s; real editor **0.9× at 1/60, 1.9× at 1/20** (`ead190b51`, `53a86be87`) | `DESIGN_Time_Architecture.md` §20 · lifecycle §2.8 |
+| **CE-3374** — the variant gap: an edit load + save LOSES `Presence` / `Positions` / one-of-N | 📐 DESIGNED, ✅ approved (*"Accept it, we need to design and fix the gap first"*) — ⏭ **BUILD THIS FIRST** | `DESIGN_Scenario_Macros.md` §17.1 (the `VariantForms` holder, M1–M3 to measure) |
+| **CE-3375** — scenario presets (named run setups in `header.presets`; preview with a preset; `CanSave` + reason; eye replaces ◐; pen only when Save is on; split ▶) | 📐 DESIGNED, ✅ **D1–D12 APPROVED** (*"Approved."*) — backend half after CE-3374; ui's half via the note | `docs/UX/DESIGN_Scenario_Presets.md` + `scenario-presets-visual.svg` |
+| **the shared field editor** — one table, Define / Fill modes, substructures + lists as rows, semantic types with ⌖ show + ⊕ pick, types as coloured text, blackboard = the same table (no bytes / budget), hosts differ only by settings | 📐 DESIGNED with the user, D1–D11 (*"Looks great"*). ⭐ **OPEN: D0 (§6.0) — merge into StructEdit** (a declared-shape document builder + Define columns in `ComponentEditDrawer`; `VariablesPanelControl` shrinks to a host adapter) — the user asked *"shouldn't we … extend the struct edit … one solution … defining and filling?"*; lean MERGE, **awaiting the user's answer** | `DESIGN_Field_Declaration_Editor.md` §6.0 + §6 + `field-editor-visual.svg` |
+| ⭐⭐ **THE STRUCT EDITOR** — one library that DEFINES and FILLS every type (the user: *"merge this into one highly capable and nicely looking structure editor"*): `TypeEditor<T>` (shape · draw · format · PARSE · VALIDATE · default · map — one registration per type, replacing two registries), list operations + six list forms, per-field errors, default / changed in the table, the entity chip for EntityRef, Define via a declared-shape builder | 📐 DESIGNED `2026-11-07` — ✅ **S1–S12 + K1–K6 APPROVED** (*"Apprived."*); the entity inspector is a host (§9); measured by three sweeps + a scratch render of today's look (not committed) | `docs/DESIGN_Struct_Editor.md` + `struct-editor-visual.svg` (+ `field-editor-visual.svg` for Define) |
+| **CE-3376** — parameter ASSETS (a params type defined as JSON, not C#) | 📋 RECORDED only — ⛔ for the user + coordinator, not this lane | tracker row |
+
+⏭ **Next session, in order:**
+1. **CE-3374** — first the missing end-to-end rail (load a scenario with params → save → every binding still there; SR-168 says so, no rail found), then M1–M3, then `VariantForms` + its translator + rails (§17.1).
+2. **CE-3375 backend half** — `ScenarioPreset` / `PresetVariant` in `Fdp.Toolkit.Scenario`, `header.presets` read / write, `IRunScenarioControl.OpenForEdit(name, args)`, `SaveGate.CanSave` + reason, HTTP. Measure first: whether `ScenarioDescription.ArgsOf(world)` can name the loaded preset.
+3. The struct editor is APPROVED — build in `DESIGN_Struct_Editor.md` §7 order, starting with §8's step 0 (the widget kit), after CE-3374 / CE-3375 or as the user prioritises. Measured already: `ComponentEditDrawer` draws rows into a HOST's table (so extra columns are possible); `IEditDocumentBuilder` is pluggable (one builder today, reflection). Still to measure: an `EditNode` with a JSON-backed binding and no owning C# object.
+
+📨 **Notes:** ⭐ to the coordinator — `batches/NOTE_Backend_To_Coordinator_Presets_And_Struct_Editor.md` (every item CE-3374…CE-3394 with its design, ruling R-3078…R-3082 and dependency graph; the user hands lane assignment to the coordinator — ⛔ do not start building until they assign) · to ui — `batches/NOTE_Backend_To_Ui_Scenario_Presets.md` (CE-4317 / LC-11 superseded by D8; ui builds the preset editor, load dialog, split ▶, icons). From ui (answered by the presets design) — `NOTE_Ui_To_Backend_Preview_Run_Setup.md`.
+⚠ **Open, not chased:** CE-3156 — after Stop Preview the clock reads 3.3 s, not 0 (`PreviewLifecycleRails.Exiting_preview_returns_the_clock_to_where_the_preview_started` red alone) · `origin/behaviors` + `origin/ui` are ahead (22 / 25 commits at 2026-11-07) and NOT merged here — merge at the start of the next session · the `design-digest.py --check` gate fails on other lanes' docs (pre-existing).
+
+## ⭐⭐⭐ LIFECYCLE FIXES (`2026-11-07`) — user: *"The handoff: HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md. Merge coordinator first, then follow the handoff."*
+
+📄 [handoff](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md) (frozen at `f523103e`) · [status rows](batches/STATUS_Editing_UX_Build_Backend.md) (§Lifecycle fixes) · [design](../UX/DESIGN_Scenario_Lifecycle_Review.md) §2.7 + the LC-2 note
+
+| item | sha | what |
+|---|---|---|
+| L-8 CE-4324 | `251bf7836` | `ResolveStagingRoot`: `FDP_STAGING_ROOT` · else `<repo>/data` (dev, git-ignored) · else `%LOCALAPPDATA%/HROT/data`; retention still prunes the dev `data/` |
+| L-9 CE-4323 | `37076d028` | Replay Browser `File ▸ Open Exercise Recording…` = the editor's `RecordingPickerLauncher` over its disk inventory, its one opener |
+| L-6 CE-4318 | `683149039` | `ScenarioProblems.Collect` (5 kinds); the WINDOW + toolbar count are ui's (unclaimed) |
+| L-4 CE-4312 | `b728fb8ac` | `EntityNames.Next` — placed units numbered by type, unique in the scenario |
+| L-7 CE-4316 | `2462e37c9` | ⏭ SKIPPED — [QUESTION](batches/NOTE_Backend_To_Coordinator_Run_To_Question.md): how fast *Run to* goes is a clock decision on every node; lean A (ACK-gated stepped run + frame cap lifted) |
+
+⏭ **Next:** the user's answer on L-7 → build it (+ a cluster rail, row 8). L-3 / L-5 are unclaimed but are behaviors' (rules / run modes) — left for that lane.
+⚠ **Not merged:** `origin/behaviors` conflicts with `ui` in `TheRulesBundleTests.cs` (theirs, not mine) — only ui + coordinator merged.
+⚠ **Pre-existing reds:** ReplayBrowser.Tests 4 (window / catalogue counts stale since ui's additions).
+
+## ⭐⭐⭐ MISSION PLAN (`2026-11-07`, later) — user: *"Merge coordinator and follow HANDOFF_Coordinator_To_Lanes_Mission_Plan.md"*
+
+📄 [handoff](batches/HANDOFF_Coordinator_To_Lanes_Mission_Plan.md) (frozen at `9f2cd761`) · [status rows P-1…P-6](batches/STATUS_Editing_UX_Build_Backend.md) · design [§5.10 as-built](../UX/DESIGN_Mission_Plan_Editor.md) · [readable JSON §4](../DESIGN_Readable_Scenario_Json.md)
+
+| item | sha | what |
+|---|---|---|
+| P-1 CE-4295 | `2b50f0b92` | `[JsonText]` / `JsonTextConverter` (Fdp.Core); 129 scenario + recipe files rewritten (`scripts/scenario_json_readable.py`, also in every generator); tree readers use `JsonTextConverter.TextOf` / `NodeOf` |
+| P-2 CE-4298 | `15267294b` | no condition = when done; `MissionTaskStart.ByName` (one start path); Wait task; G1 (orders in the remapper); `PlanConditionCache` + `TaskFinished` leaf; `ConditionCache` (Fdp.Toolkits) is THE compiled-condition cache (`TriggerWhen` delegates) |
+| P-3 CE-4299 | `dfed12228` | 16 slots; Roslyn renames Phase→Task (`MissionTaskSlot`, `Tasks`, `TaskCount`, `CurrentTask`, `MaxTasks`, `TaskElapsedSeconds`) — done over STDIO (`scratchpad/rs/cli.py` pattern, CLAUDE.md ②a) |
+| P-4 CE-4300 | `3c80cb963` | E1 `CarryProgress` by task id; adapter keys on the task, not the index |
+| P-5 CE-4301 | `cb42c87a9` | G2 `ResolveConditionJson`; ⚠ fixed `EntityRefRemap.WalkJson` (a polymorphic ROOT was never dispatched); `WeaponPosture.Point` → `WorldPoint` (S0 rail, my B-5 red) |
+| P-6 CE-4302 | `c33666773` | `common.phase` → status → wire; `PlanConditionCache.PhaseBegins` |
+
+⏭ **Next:** nothing of backend's in this handoff. P-7 is CLAIMED by ui (its build plan is design §5.11); P-8 is ui's. ⏳ Left open: the load WARNING for a Wait task with no *then* (the editor refuses it in P-7).
+⚠ **Pre-existing reds (unchanged by this work):** SimHost 6 (`TheDescriptorMapIsWired`, `CE1159` weather demo, `CE4208`, `NodeRolePersistenceRails`, `CE1431`, `CE3345`); Editor `TriggerAdvertisesItsAuthoredKeys`; SimHost.Integration `EntityMission_MovesEntity` (same "moved 0.0m" at `2b50f0b92`, measured in a clean worktree). `CivilianHsmTests.CE2322` flaked once.
+⚠ **Traps met:** P-1 + P-2 in one tree ⇒ split by saving P-2 as a patch, revert, gate, commit, re-apply; a reflection lookup `GetMethod("Register")` broke when an overload was added (`BehaviorSchemaDiscovery` now calls the overload); after a lane merge, `dotnet restore` the test project first (the editor test project had no assets).
 
 ## ⭐⭐ EDITING-UX BUILD (`2026-11-07`) — user: *"Merge coordinator. Follow its handoff Editing_UX_Build. Work autonomously overnight, use warm sonnet where suitable."* · then *"Once you finish a task, pls stop and write a resumption document."*
 

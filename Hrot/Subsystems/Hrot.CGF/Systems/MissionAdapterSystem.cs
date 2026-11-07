@@ -61,16 +61,16 @@ namespace Hrot.CGF.Systems
                 //   first frame — wiping the template's default behaviour (CE-3047) and a scenario-restored order alike (the
                 //   ingress takes the same frame's assigns BEFORE its clears). ⭐ A plan that ran out still clears (PhaseCount > 0);
                 //   an abort publishes its own clear (MissionControlExecutionSystem CMD_ABORT_ALL).
-                if (queue.PhaseCount == 0) continue;
+                if (queue.TaskCount == 0) continue;
 
                 // Detect exhaustion: publish ClearBehaviorEvent once, then cache so that
                 // re-committing the same mission from phase 0 is correctly detected.
-                if (queue.CurrentPhase >= queue.PhaseCount)
+                if (queue.CurrentTask >= queue.TaskCount)
                 {
-                    if (adapterState.LastPhase != queue.CurrentPhase)
+                    if (adapterState.LastPhase != queue.CurrentTask)
                     {
                         repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior });   // ⭐ CE-3034 — a mission plan (R-193)
-                        adapterState.LastPhase = queue.CurrentPhase;
+                        adapterState.LastPhase = queue.CurrentTask;
                         adapterState.LastPlanVersion = 0;
                     }
                     continue;
@@ -85,29 +85,46 @@ namespace Hrot.CGF.Systems
                     continue;
                 }
 
-                Span<MissionPhase> phases = queue.Phases;
-                var phase = phases[queue.CurrentPhase];
+                Span<MissionTaskSlot> phases = queue.Tasks;
+                var phase = phases[queue.CurrentTask];
 
                 string jsonParams = "{}";
-                if (activePlan?.Plan?.Tasks != null && queue.CurrentPhase < activePlan.Plan.Tasks.Count)
+                if (MissionTaskStart.ByName(repo, entity, queue.CurrentTask))   // ⭐ CE-4298 (D2) — the ONE answer the director reads too
                 {
-                    var task = activePlan.Plan.Tasks[queue.CurrentPhase];
+                    var task = activePlan!.Plan.Tasks[queue.CurrentTask];
                     jsonParams = task.BehaviorParams ?? "{}";
 
                     // ⭐ CE-4043 — a STABLE hash: string.GetHashCode() is randomised per process, so this component differed in every
                     //   process (measured by the scenario verifier, CE-4042: LastPlanVersion 83239098 · 2673561298 · 1681038897 in three
                     //   runs of ua-civ-routine-alarm). The engine's one string hash (UtilityIdHash, through In.Fnv1a32).
-                    uint currentDefHash = Fdp.Toolkit.Utility.In.Fnv1a32(jsonParams) ^ (uint)phase.BehaviorId;
+                    // ⭐ CE-4300 (E1) — the TASK's identity is in the hash (its id, name, params), and the index is NOT compared: a Live edit that
+                    //   keeps the running task but moves it (an insert before it) must not restart it. A different task at the same index differs.
+                    uint currentDefHash = Fdp.Toolkit.Utility.In.Fnv1a32(jsonParams) ^ (uint)phase.BehaviorId
+                                        ^ Fdp.Toolkit.Utility.In.Fnv1a32(task.BehaviorName ?? string.Empty) * 31u
+                                        ^ (task.TaskId != Guid.Empty ? (uint)task.TaskId.GetHashCode()            // Guid's hash is its bytes: stable across processes
+                                                                     : 0x9E3779B9u * (uint)(queue.CurrentTask + 1));   // no id: the index tells two equal tasks apart
 
                     // Skip if nothing changed
-                    if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
+                    if (adapterState.LastPhase != byte.MaxValue && adapterState.LastPhase < queue.TaskCount && adapterState.LastPlanVersion == currentDefHash)
+                    {
+                        adapterState.LastPhase = queue.CurrentTask;
                         continue;
+                    }
 
-                    adapterState.LastPhase = queue.CurrentPhase;
+                    bool startedBefore = adapterState.LastPhase != byte.MaxValue;
+                    adapterState.LastPhase = queue.CurrentTask;
                     adapterState.LastPlanVersion = currentDefHash;
 
+                    // ⭐⭐ CE-4298 (mission plan E9, §5.9) — a WAIT task (no order, no behaviour) starts nothing: the unit does its own standing
+                    //   behaviour (its SOP). Mid-plan, the plan's previous behaviour is CLEARED (origin Superior) so the SOP takes over again; at
+                    //   the plan's start nothing was ordered, so nothing is cleared (a clear there would wipe a restored order, CE-3042).
+                    if (string.IsNullOrWhiteSpace(task.BehaviorName))
+                    {
+                        if (startedBefore)
+                            repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior });
+                    }
                     // Publish generic tactical intent; TacticalIntentResolutionSystem resolves it.
-                    if (!string.IsNullOrWhiteSpace(task.BehaviorName))
+                    else
                     {
                         repo.Bus.PublishManaged(new AssignTacticalIntentEvent
                         {
@@ -123,10 +140,10 @@ namespace Hrot.CGF.Systems
                     uint currentDefHash = (uint)phase.BehaviorId;
 
                     // Skip if nothing changed
-                    if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
+                    if (adapterState.LastPhase == queue.CurrentTask && adapterState.LastPlanVersion == currentDefHash)
                         continue;
 
-                    adapterState.LastPhase = queue.CurrentPhase;
+                    adapterState.LastPhase = queue.CurrentTask;
                     adapterState.LastPlanVersion = currentDefHash;
                 }
             }

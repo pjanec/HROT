@@ -223,12 +223,12 @@ namespace Hrot.SimHost.Tests
                 {
                     var b = kv.Value!["Behavior"]!; string kind = b["Name"]!.GetValue<string>();
                     if (kind is not ("HitRatio" or "Count" or "ReportLatency")) continue;
-                    var common = JsonNode.Parse(b["Params"]!.GetValue<string>())!["common"]!;
+                    var common = JsonNode.Parse(Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(b["Params"])!)!["common"]!;
                     Assert.False(string.IsNullOrEmpty(common["group"]?.GetValue<string>()), kind);
                     Assert.NotNull(common["parent"]);
                 }
             }
-            Assert.Contains("reports", Behaviours(slJson).Select(kv => kv.Value!["Behavior"]!["Params"]!.GetValue<string>()).Where(p => p.Contains("\"what\"")).Single(p => p.Contains("reports")));
+            Assert.Contains("reports", Behaviours(slJson).Select(kv => Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(kv.Value!["Behavior"]!["Params"])!).Where(p => p.Contains("\"what\"")).Single(p => p.Contains("reports")));
             var nested = Behaviours(slJson).Select(kv => kv.Value!["Behavior"]!).Single(b => b["Name"]!.GetValue<string>() == "MemberEvaluation");
 
             var w = EvalWorld(files);
@@ -242,7 +242,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new[] { EvalFolder + "Default", EvalFolder + "SquadLeader" }, w.Created.Select(MacroOf).Where(m => m != MeanMacro).OrderBy(m => m, StringComparer.Ordinal).ToArray());   // ⭐ S4 ①: …and the means (the file library ships that macro)
 
             // the macro's nested evaluation as the expander would have bound it: subject = the leader
-            string bound = nested["Params"]!.GetValue<string>().Replace("^subject", GuidOf(w, leader).ToString("D"));
+            string bound = Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(nested["Params"])!.Replace("^subject", GuidOf(w, leader).ToString("D"));
             var pj = JsonNode.Parse(bound)!;
             Assert.Equal("macros/evaluation/infantry", pj["library"]!.GetValue<string>());
             var inner = w.Objective("MemberEvaluation", $"{{\"common\":{{\"title\":\"Squad's men\",\"subject\":{w.Net(leader)}}},\"library\":\"{pj["library"]!.GetValue<string>()}\"}}");
@@ -454,7 +454,7 @@ namespace Hrot.SimHost.Tests
             var ents = JsonNode.Parse(json)!["entities"]!.AsObject();
             var b = Assert.Single(ents).Value!["Behavior"]!;
             Assert.Equal("SelectionMean", b["Name"]!.GetValue<string>());
-            var pj = JsonNode.Parse(b["Params"]!.GetValue<string>())!;
+            var pj = JsonNode.Parse(Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(b["Params"])!)!;
             Assert.Equal(("role", "member", "^scope", "^parent"), (pj["by"]!.GetValue<string>(), pj["key"]!.GetValue<string>(), pj["scope"]!.GetValue<string>(), pj["common"]!["parent"]!.GetValue<string>()));
             Assert.False(pj["common"]!["scored"]!.GetValue<bool>());
         }

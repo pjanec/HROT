@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "AirPlatformStrike",
-        "Params": "{\"Location\":[600,300,0],\"Target\":\"a2173500-0000-4000-8000-000000000002\"}",
+        "Params": {"Location":[600,300,0],"Target":"a2173500-0000-4000-8000-000000000002"},
         "Origin": "Superior"
       }
     },

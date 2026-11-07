@@ -1419,6 +1419,43 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "run_to",
+    "group": "D — Sim / preview / time",
+    "summary": "Run to … in Preview: step the cluster as fast as it steps until a sim time or a condition holds, then stay paused there.",
+    "http": {
+      "method": "POST",
+      "path": "/sim/run-to"
+    },
+    "params": [
+      {
+        "name": "seconds",
+        "type": "number",
+        "required": false,
+        "description": "Stop at this sim time (seconds since the start); must be ahead of the clock"
+      },
+      {
+        "name": "condition",
+        "type": "object",
+        "required": false,
+        "description": "Stop when this condition (the condition language, as a rule's when) holds — e.g. a phase begins"
+      },
+      {
+        "name": "cancel",
+        "type": "boolean",
+        "required": false,
+        "description": "Stop the run going on, where it is"
+      }
+    ],
+    "returns": "the sim state, with runTo {running, status}; poll get_sim_state until runTo.running is false.",
+    "notes": [
+      "Preview only. The ACK-gated stepped run (deterministic, 1/60 s per step, one step per frame) with the window's frame cap lifted — CE-4316, lifecycle LC-10, option A.",
+      "Answers at once; the run goes on across frames. GET /sim/state's runTo.status says why it stopped (reached · the condition held · left Preview · stopped)."
+    ],
+    "hint": "One of seconds / condition. Example: run_to({seconds:600}) · run_to({condition:{...a condition...}}) · run_to({cancel:true})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_sim_state",
     "group": "D — Sim / preview / time",
     "summary": "Current sim state: isPaused, inPreview, totalTime, timeScale.",

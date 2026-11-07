@@ -42,7 +42,7 @@
    },
    "Behavior": {
     "Name": "SquadMarch",
-    "Params": "{\"Objective\": [125, 95, 0], \"Shape\": 1, \"MaxLagMetres\": 40, \"ArrivalRadius\": 12}",
+    "Params": {"Objective": [125, 95, 0], "Shape": 1, "MaxLagMetres": 40, "ArrivalRadius": 12},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -546,7 +546,7 @@
    },
    "Behavior": {
     "Name": "PlatoonDefend",
-    "Params": "{\"Position\": [198, 182, 0], \"Left\": 135, \"Right\": 225, \"MaxRange\": 160, \"Speed\": 2, \"Squads\": [{\"Squad\": 1, \"Point\": [165, 160, 0], \"SearchRadius\": 10}, {\"Squad\": 2, \"Point\": [230, 204, 0], \"SearchRadius\": 10}]}",
+    "Params": {"Position": [198, 182, 0], "Left": 135, "Right": 225, "MaxRange": 160, "Speed": 2, "Squads": [{"Squad": 1, "Point": [165, 160, 0], "SearchRadius": 10}, {"Squad": 2, "Point": [230, 204, 0], "SearchRadius": 10}]},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -961,7 +961,7 @@
    },
    "Behavior": {
     "Name": "CivilianHsm",
-    "Params": "{\"WanderRadius\": 6, \"PauseMinSeconds\": 10, \"PauseMaxSeconds\": 30}",
+    "Params": {"WanderRadius": 6, "PauseMinSeconds": 10, "PauseMaxSeconds": 30},
     "Origin": "Superior"
    },
    "Presence": 0.7
@@ -993,7 +993,7 @@
    },
    "Behavior": {
     "Name": "CivilianHsm",
-    "Params": "{\"WanderRadius\": 6, \"PauseMinSeconds\": 10, \"PauseMaxSeconds\": 30}",
+    "Params": {"WanderRadius": 6, "PauseMinSeconds": 10, "PauseMaxSeconds": 30},
     "Origin": "Superior"
    },
    "Presence": 0.7
@@ -1025,7 +1025,7 @@
    },
    "Behavior": {
     "Name": "CivilianHsm",
-    "Params": "{\"WanderRadius\": 6, \"PauseMinSeconds\": 10, \"PauseMaxSeconds\": 30}",
+    "Params": {"WanderRadius": 6, "PauseMinSeconds": 10, "PauseMaxSeconds": 30},
     "Origin": "Superior"
    },
    "Presence": 0.7
@@ -1057,7 +1057,7 @@
    },
    "Behavior": {
     "Name": "CivilianHsm",
-    "Params": "{\"WanderRadius\": 6, \"PauseMinSeconds\": 10, \"PauseMaxSeconds\": 30}",
+    "Params": {"WanderRadius": 6, "PauseMinSeconds": 10, "PauseMaxSeconds": 30},
     "Origin": "Superior"
    },
    "Presence": 0.7
@@ -1089,7 +1089,7 @@
    },
    "Behavior": {
     "Name": "CivilianHsm",
-    "Params": "{\"WanderRadius\": 6, \"PauseMinSeconds\": 10, \"PauseMaxSeconds\": 30}",
+    "Params": {"WanderRadius": 6, "PauseMinSeconds": 10, "PauseMaxSeconds": 30},
     "Origin": "Superior"
    },
    "Presence": 0.7
@@ -1121,7 +1121,7 @@
    },
    "Behavior": {
     "Name": "CivilianHsm",
-    "Params": "{\"WanderRadius\": 6, \"PauseMinSeconds\": 10, \"PauseMaxSeconds\": 30}",
+    "Params": {"WanderRadius": 6, "PauseMinSeconds": 10, "PauseMaxSeconds": 30},
     "Origin": "Superior"
    },
    "Presence": 0.7
@@ -1136,7 +1136,7 @@
    },
    "Behavior": {
     "Name": "WeightedMean",
-    "Params": "{\"common\": {\"title\": \"Bridgehead\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"passScore\": 0.6}",
+    "Params": {"common": {"title": "Bridgehead", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "passScore": 0.6},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -1153,7 +1153,7 @@
    },
    "Behavior": {
     "Name": "WeightedMean",
-    "Params": "{\"common\": {\"title\": \"Mission\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000034\", \"weight\": 0.4}, \"passScore\": 0.6}",
+    "Params": {"common": {"title": "Mission", "subject": "b41d6e00-0000-4000-8000-000000000001", "parent": "b41d6e00-0000-4000-8000-000000000034", "weight": 0.4}, "passScore": 0.6},
     "Origin": "Superior"
    }
   },
@@ -1167,7 +1167,7 @@
    },
    "Behavior": {
     "Name": "WeightedMean",
-    "Params": "{\"common\": {\"title\": \"Conduct\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000034\", \"weight\": 0.3, \"required\": true}, \"passScore\": 0.6}",
+    "Params": {"common": {"title": "Conduct", "subject": "b41d6e00-0000-4000-8000-000000000001", "parent": "b41d6e00-0000-4000-8000-000000000034", "weight": 0.3, "required": true}, "passScore": 0.6},
     "Origin": "Superior"
    }
   },
@@ -1181,7 +1181,7 @@
    },
    "Behavior": {
     "Name": "ReachArea",
-    "Params": "{\"common\": {\"title\": \"Reach phase line RED\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000035\", \"deadlineSeconds\": 900, \"weight\": 1}, \"area\": {\"circle\": {\"center\": [125, 95, 0], \"radius\": 40}}, \"minMen\": 4}",
+    "Params": {"common": {"title": "Reach phase line RED", "subject": "b41d6e00-0000-4000-8000-000000000001", "parent": "b41d6e00-0000-4000-8000-000000000035", "deadlineSeconds": 900, "weight": 1}, "area": {"circle": {"center": [125, 95, 0], "radius": 40}}, "minMen": 4},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -1198,7 +1198,7 @@
    },
    "Behavior": {
     "Name": "ClearAreaObjective",
-    "Params": "{\"common\": {\"title\": \"Clear the crossroads\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000035\", \"required\": true, \"startActive\": false, \"weight\": 1}, \"area\": {\"circle\": {\"center\": [198, 182, 0], \"radius\": 42}}, \"enemySide\": \"Hostile\", \"maxEnemy\": 0, \"forSeconds\": 30}",
+    "Params": {"common": {"title": "Clear the crossroads", "subject": "b41d6e00-0000-4000-8000-000000000001", "parent": "b41d6e00-0000-4000-8000-000000000035", "required": true, "startActive": false, "weight": 1}, "area": {"circle": {"center": [198, 182, 0], "radius": 42}}, "enemySide": "Hostile", "maxEnemy": 0, "forSeconds": 30},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -1215,7 +1215,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Hold the crossroads\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000035\", \"required\": true, \"startActive\": false, \"weight\": 1}, \"area\": {\"circle\": {\"center\": [198, 182, 0], \"radius\": 42}}, \"minMen\": 6, \"maxEnemy\": 0, \"holdSeconds\": 600}",
+    "Params": {"common": {"title": "Hold the crossroads", "subject": "b41d6e00-0000-4000-8000-000000000001", "parent": "b41d6e00-0000-4000-8000-000000000035", "required": true, "startActive": false, "weight": 1}, "area": {"circle": {"center": [198, 182, 0], "radius": 42}}, "minMen": 6, "maxEnemy": 0, "holdSeconds": 600},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -1232,7 +1232,7 @@
    },
    "Behavior": {
     "Name": "NoHarm",
-    "Params": "{\"common\": {\"title\": \"No harm to civilians\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000036\", \"required\": true}, \"protected\": \"Neutral\", \"maxCount\": 0}",
+    "Params": {"common": {"title": "No harm to civilians", "subject": "b41d6e00-0000-4000-8000-000000000001", "parent": "b41d6e00-0000-4000-8000-000000000036", "required": true}, "protected": "Neutral", "maxCount": 0},
     "Origin": "Superior"
    }
   },
@@ -1246,7 +1246,7 @@
    },
    "Behavior": {
     "Name": "NoHarm",
-    "Params": "{\"common\": {\"title\": \"No fratricide\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000036\", \"required\": true}, \"protected\": \"Friend\", \"maxCount\": 0}",
+    "Params": {"common": {"title": "No fratricide", "subject": "b41d6e00-0000-4000-8000-000000000001", "parent": "b41d6e00-0000-4000-8000-000000000036", "required": true}, "protected": "Friend", "maxCount": 0},
     "Origin": "Superior"
    }
   },
@@ -1260,7 +1260,7 @@
    },
    "Behavior": {
     "Name": "MemberEvaluation",
-    "Params": "{\"common\": {\"title\": \"Members\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000034\", \"weight\": 0.3}, \"library\": \"macros/evaluation/infantry\"}",
+    "Params": {"common": {"title": "Members", "subject": "b41d6e00-0000-4000-8000-000000000001", "parent": "b41d6e00-0000-4000-8000-000000000034", "weight": 0.3}, "library": "macros/evaluation/infantry"},
     "Origin": "Superior"
    }
   },
@@ -1274,7 +1274,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Briefing\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 5}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Seize the crossroads, hold it, set up a checkpoint. Civilians in the village.\", \"seconds\": 12}}]}",
+    "Params": {"common": {"title": "Briefing", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 5}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Seize the crossroads, hold it, set up a checkpoint. Civilians in the village.", "seconds": 12}}]},
     "Origin": "Superior"
    }
   },
@@ -1288,7 +1288,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Phase 2 starts\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"b41d6e00-0000-4000-8000-000000000037\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"State\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"b41d6e00-0000-4000-8000-000000000038\", \"active\": true}}, {\"act\": \"Order\", \"args\": {\"target\": \"b41d6e00-0000-4000-8000-000000000001\", \"behavior\": \"PlatoonAttack\", \"params\": {\"Position\": [198, 182, 0], \"SearchRadius\": 35, \"Preset\": \"AttackPosition\", \"Speed\": 2}}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Phase line RED - assault the crossroads\", \"seconds\": 8}}]}",
+    "Params": {"common": {"title": "Phase 2 starts", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "b41d6e00-0000-4000-8000-000000000037", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "State", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "SetObjectiveActive", "args": {"target": "b41d6e00-0000-4000-8000-000000000038", "active": true}}, {"act": "Order", "args": {"target": "b41d6e00-0000-4000-8000-000000000001", "behavior": "PlatoonAttack", "params": {"Position": [198, 182, 0], "SearchRadius": 35, "Preset": "AttackPosition", "Speed": 2}}}, {"act": "Message", "args": {"toKind": "All", "text": "Phase line RED - assault the crossroads", "seconds": 8}}]},
     "Origin": "Superior"
    }
   },
@@ -1302,7 +1302,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Phase 3 starts\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"b41d6e00-0000-4000-8000-000000000038\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"State\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"b41d6e00-0000-4000-8000-000000000039\", \"active\": true}}, {\"act\": \"Order\", \"args\": {\"target\": \"b41d6e00-0000-4000-8000-000000000001\", \"behavior\": \"PlatoonDefend\", \"params\": {\"Position\": [198, 182, 0], \"Left\": 45, \"Right\": 315, \"MaxRange\": 150, \"Speed\": 2}}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Crossroads clear - hold and set up a checkpoint\", \"seconds\": 8}}]}",
+    "Params": {"common": {"title": "Phase 3 starts", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "b41d6e00-0000-4000-8000-000000000038", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "State", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "SetObjectiveActive", "args": {"target": "b41d6e00-0000-4000-8000-000000000039", "active": true}}, {"act": "Order", "args": {"target": "b41d6e00-0000-4000-8000-000000000001", "behavior": "PlatoonDefend", "params": {"Position": [198, 182, 0], "Left": 45, "Right": 315, "MaxRange": 150, "Speed": 2}}}, {"act": "Message", "args": {"toKind": "All", "text": "Crossroads clear - hold and set up a checkpoint", "seconds": 8}}]},
     "Origin": "Superior"
    }
   },
@@ -1316,7 +1316,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Counter-attack\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"b41d6e00-0000-4000-8000-000000000039\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"State\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"forces/red-qrf\", \"at\": \"@QrfFrom\", \"heading\": 0, \"params\": {\"side\": \"Hostile\"}}}, {\"act\": \"Order\", \"args\": {\"target\": \"@RedQRF\", \"behavior\": \"PlatoonAttack\", \"params\": {\"Position\": [198, 182, 0], \"SearchRadius\": 35, \"Preset\": \"AttackPosition\", \"Speed\": 3}}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Enemy moving towards you\", \"seconds\": 8}}], \"delay\": 120}",
+    "Params": {"common": {"title": "Counter-attack", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "b41d6e00-0000-4000-8000-000000000039", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "State", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "InsertMacro", "args": {"macro": "forces/red-qrf", "at": "@QrfFrom", "heading": 0, "params": {"side": "Hostile"}}}, {"act": "Order", "args": {"target": "@RedQRF", "behavior": "PlatoonAttack", "params": {"Position": [198, 182, 0], "SearchRadius": 35, "Preset": "AttackPosition", "Speed": 3}}}, {"act": "Message", "args": {"toKind": "All", "text": "Enemy moving towards you", "seconds": 8}}], "delay": 120},
     "Origin": "Superior"
    }
   },
@@ -1330,7 +1330,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Checkpoint inject\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"b41d6e00-0000-4000-8000-000000000039\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"State\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"inject/civilian-car\", \"at\": [8, 190, 0], \"heading\": 90}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Vehicle approaching the checkpoint fast\", \"seconds\": 8}}], \"delay\": 180}",
+    "Params": {"common": {"title": "Checkpoint inject", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "b41d6e00-0000-4000-8000-000000000039", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "State", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "InsertMacro", "args": {"macro": "inject/civilian-car", "at": [8, 190, 0], "heading": 90}}, {"act": "Message", "args": {"toKind": "All", "text": "Vehicle approaching the checkpoint fast", "seconds": 8}}], "delay": 180},
     "Origin": "Superior"
    }
   },
@@ -1344,7 +1344,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Ease off\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"b41d6e00-0000-4000-8000-000000000034\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Score\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1, \"maxValue\": 0.3499}}}, {\"$type\": \"ScenarioTime\", \"fromSeconds\": 1200}]}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": -1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"Instructor\", \"text\": \"Red eased\", \"seconds\": 8}}], \"holdFor\": 120, \"repeat\": true, \"cooldown\": 600, \"maxFires\": 2}",
+    "Params": {"common": {"title": "Ease off", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "when": {"$type": "Compound", "operator": "And", "conditions": [{"$type": "OnEntity", "ref": "b41d6e00-0000-4000-8000-000000000034", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Score", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -1, "maxValue": 0.3499}}}, {"$type": "ScenarioTime", "fromSeconds": 1200}]}, "do": [{"act": "SetSkillAmplifier", "args": {"side": "Hostile", "tiers": -1}}, {"act": "Message", "args": {"toKind": "Instructor", "text": "Red eased", "seconds": 8}}], "holdFor": 120, "repeat": true, "cooldown": 600, "maxFires": 2},
     "Origin": "Superior"
    }
   },
@@ -1358,7 +1358,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Push harder\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"b41d6e00-0000-4000-8000-000000000034\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Score\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 0.8001, \"maxValue\": 1}}}, {\"$type\": \"ScenarioTime\", \"fromSeconds\": 0, \"toSeconds\": 1500}]}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"Instructor\", \"text\": \"Red pushed harder\", \"seconds\": 8}}], \"holdFor\": 60}",
+    "Params": {"common": {"title": "Push harder", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "when": {"$type": "Compound", "operator": "And", "conditions": [{"$type": "OnEntity", "ref": "b41d6e00-0000-4000-8000-000000000034", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Score", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 0.8001, "maxValue": 1}}}, {"$type": "ScenarioTime", "fromSeconds": 0, "toSeconds": 1500}]}, "do": [{"act": "SetSkillAmplifier", "args": {"side": "Hostile", "tiers": 1}}, {"act": "Message", "args": {"toKind": "Instructor", "text": "Red pushed harder", "seconds": 8}}], "holdFor": 60},
     "Origin": "Superior"
    }
   },
@@ -1372,7 +1372,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"End\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"Or\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"b41d6e00-0000-4000-8000-000000000039\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"State\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, {\"$type\": \"ScenarioTime\", \"fromSeconds\": 2700}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Exercise complete\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"the crossroads is held, or 45 min\"}}]}",
+    "Params": {"common": {"title": "End", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "when": {"$type": "Compound", "operator": "Or", "conditions": [{"$type": "OnEntity", "ref": "b41d6e00-0000-4000-8000-000000000039", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "State", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, {"$type": "ScenarioTime", "fromSeconds": 2700}]}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Exercise complete", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "the crossroads is held, or 45 min"}}]},
     "Origin": "Superior"
    }
   },
@@ -1386,7 +1386,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Instructor end\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 1000000000.0}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"The instructor ended the exercise\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Instructor ended\"}}]}",
+    "Params": {"common": {"title": "Instructor end", "subject": "b41d6e00-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 1000000000.0}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "The instructor ended the exercise", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "Instructor ended"}}]},
     "Origin": "Superior"
    },
    "RefKey": {

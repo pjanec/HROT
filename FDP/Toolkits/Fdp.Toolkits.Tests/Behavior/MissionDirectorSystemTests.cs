@@ -75,14 +75,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = _world.CreateEntity();
 
             var queue = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0] = new MissionPhase
+            queue.TaskCount = 2;
+            queue.Tasks[0] = new MissionTaskSlot
             {
                 BehaviorId   = docA,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = phase0Duration,
             };
-            queue.Phases[1] = new MissionPhase
+            queue.Tasks[1] = new MissionTaskSlot
             {
                 BehaviorId   = docB,
                 Trigger      = MissionTrigger.TimerElapsed,
@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             ref var queue   = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var     behavior = _world.GetComponent<BehaviorState>(entity);
 
-            Assert.Equal(1, queue.CurrentPhase);
+            Assert.Equal(1, queue.CurrentTask);
             Assert.Equal(DocB, behavior.ActiveBehaviorHash);
         }
 
@@ -143,7 +143,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             ref var queue   = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var     behavior = _world.GetComponent<BehaviorState>(entity);
 
-            Assert.Equal(0, queue.CurrentPhase);
+            Assert.Equal(0, queue.CurrentTask);
             Assert.Equal(DocA, behavior.ActiveBehaviorHash);
         }
 
@@ -167,14 +167,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = _world.CreateEntity();
 
             var queue = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0] = new MissionPhase
+            queue.TaskCount = 2;
+            queue.Tasks[0] = new MissionTaskSlot
             {
                 BehaviorId   = DocA,
                 Trigger      = MissionTrigger.ReachedDestination,
                 TriggerParam = 0f,
             };
-            queue.Phases[1] = new MissionPhase
+            queue.Tasks[1] = new MissionTaskSlot
             {
                 BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
@@ -189,7 +189,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _sys.Execute(_world, Dt60Hz);
 
             ref var q1 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            Assert.Equal(0, q1.CurrentPhase);
+            Assert.Equal(0, q1.CurrentTask);
 
             // Publish BehaviorFinishedEvent so the ReachedDestination path fires.
             PublishBehaviorFinished(entity);
@@ -203,7 +203,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             ref var q2      = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var     behavior = _world.GetComponent<BehaviorState>(entity);
 
-            Assert.Equal(1, q2.CurrentPhase);
+            Assert.Equal(1, q2.CurrentTask);
             Assert.Equal(DocB, behavior.ActiveBehaviorHash);
         }
 #pragma warning restore CS0618
@@ -227,14 +227,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = _world.CreateEntity();
 
             var queue = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0] = new MissionPhase
+            queue.TaskCount = 2;
+            queue.Tasks[0] = new MissionTaskSlot
             {
                 BehaviorId   = DocA,
                 Trigger      = MissionTrigger.TimerElapsed,
                 TriggerParam = 0.5f,   // fires after 1 tick (dt=1.0 ≥ 0.5)
             };
-            queue.Phases[1] = new MissionPhase
+            queue.Tasks[1] = new MissionTaskSlot
             {
                 BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
@@ -246,19 +246,19 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Tick 1 — Phase 0 fires, advances to Phase 1.
             _sys.Execute(_world, 1.0f);
             ref var q1 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            Assert.Equal(1, q1.CurrentPhase);
+            Assert.Equal(1, q1.CurrentTask);
 
             // Tick 2 — Phase 1 fires, advances CurrentPhase to 2 (== PhaseCount → mission complete).
             _sys.Execute(_world, 1.0f);
             ref var q2 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            Assert.Equal(2, q2.CurrentPhase);
+            Assert.Equal(2, q2.CurrentTask);
 
             // Tick 3 — CurrentPhase (2) >= PhaseCount (2): system must skip silently, no crash.
             var exception = Record.Exception(() => _sys.Execute(_world, 1.0f));
             Assert.Null(exception);
 
             ref var q3 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            Assert.Equal(2, q3.CurrentPhase);   // unchanged
+            Assert.Equal(2, q3.CurrentTask);   // unchanged
         }
 
         // ── Test 5 ─────────────────────────────────────────────────────────────
@@ -278,14 +278,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = _world.CreateEntity();
 
             var queue = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0] = new MissionPhase
+            queue.TaskCount = 2;
+            queue.Tasks[0] = new MissionTaskSlot
             {
                 BehaviorId   = DocA,
                 Trigger      = MissionTrigger.HealthCritical,
                 TriggerParam = 0.10f,   // 10 % threshold
             };
-            queue.Phases[1] = new MissionPhase
+            queue.Tasks[1] = new MissionTaskSlot
             {
                 BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
@@ -302,7 +302,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             ref var q  = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var behavior = _world.GetComponent<BehaviorState>(entity);
 
-            Assert.Equal(1, q.CurrentPhase);
+            Assert.Equal(1, q.CurrentTask);
             Assert.Equal(DocB, behavior.ActiveBehaviorHash);
         }
 
@@ -323,14 +323,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = _world.CreateEntity();
 
             var queue = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0] = new MissionPhase
+            queue.TaskCount = 2;
+            queue.Tasks[0] = new MissionTaskSlot
             {
                 BehaviorId   = DocA,
                 Trigger      = MissionTrigger.HealthCritical,
                 TriggerParam = 0.10f,
             };
-            queue.Phases[1] = new MissionPhase
+            queue.Tasks[1] = new MissionTaskSlot
             {
                 BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
@@ -346,7 +346,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             ref var q  = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var behavior = _world.GetComponent<BehaviorState>(entity);
 
-            Assert.Equal(0, q.CurrentPhase);
+            Assert.Equal(0, q.CurrentTask);
             Assert.Equal(DocA, behavior.ActiveBehaviorHash);
         }
 
@@ -364,8 +364,8 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var entity = _world.CreateEntity();
             var queue  = new MissionPlanQueue();
-            queue.PhaseCount = 1;
-            queue.Phases[0]  = new MissionPhase
+            queue.TaskCount = 1;
+            queue.Tasks[0]  = new MissionTaskSlot
             {
                 BehaviorId   = docId,
                 Trigger      = MissionTrigger.BehaviorFinished,
@@ -387,7 +387,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _sys.Execute(_world, Dt60Hz);
 
             var q = _world.GetComponent<MissionPlanQueue>(entity);
-            Assert.Equal(1, q.CurrentPhase); // advanced past the only phase
+            Assert.Equal(1, q.CurrentTask); // advanced past the only phase
 
             // Plan exhausted → ClearBehaviorEvent must be on write buffer.
             _world.Bus.SwapBuffers();
@@ -408,7 +408,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.Bus.SwapBuffers();
             _sys.Execute(_world, Dt60Hz);
 
-            Assert.Equal(0, _world.GetComponent<MissionPlanQueue>(entity).CurrentPhase);
+            Assert.Equal(0, _world.GetComponent<MissionPlanQueue>(entity).CurrentTask);
         }
 
         [Fact]
@@ -419,9 +419,9 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var entity = _world.CreateEntity();
             var queue  = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0]  = new MissionPhase { BehaviorId = DocA, Trigger = MissionTrigger.BehaviorFinished };
-            queue.Phases[1]  = new MissionPhase { BehaviorId = DocB, Trigger = MissionTrigger.TimerElapsed, TriggerParam = 1000f };
+            queue.TaskCount = 2;
+            queue.Tasks[0]  = new MissionTaskSlot { BehaviorId = DocA, Trigger = MissionTrigger.BehaviorFinished };
+            queue.Tasks[1]  = new MissionTaskSlot { BehaviorId = DocB, Trigger = MissionTrigger.TimerElapsed, TriggerParam = 1000f };
             _world.AddComponent(entity, queue);
             _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = DocA, InstanceId = 0 });
 
@@ -456,7 +456,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _sys.Execute(_world, Dt60Hz);
 
             var q = _world.GetComponent<MissionPlanQueue>(entityA);
-            Assert.Equal(0, q.CurrentPhase); // no advance
+            Assert.Equal(0, q.CurrentTask); // no advance
         }
 
         [Fact]
@@ -524,14 +524,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             var entity = _world.CreateEntity();
 
             var queue = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0] = new MissionPhase
+            queue.TaskCount = 2;
+            queue.Tasks[0] = new MissionTaskSlot
             {
                 BehaviorId   = DocA,
                 Trigger      = MissionTrigger.HealthCritical,
                 TriggerParam = 0.25f,   // 25 % threshold
             };
-            queue.Phases[1] = new MissionPhase
+            queue.Tasks[1] = new MissionTaskSlot
             {
                 BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
@@ -546,7 +546,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             FlushBehaviorEvents();
 
             ref var q = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            Assert.Equal(1, q.CurrentPhase);
+            Assert.Equal(1, q.CurrentTask);
         }
 
         // ── BS1-T022: ReachedDestination delegates to BehaviorFinished path ──────────────────
@@ -567,14 +567,14 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var entity = _world.CreateEntity();
             var queue  = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0] = new MissionPhase
+            queue.TaskCount = 2;
+            queue.Tasks[0] = new MissionTaskSlot
             {
                 BehaviorId   = DocA,
                 Trigger      = MissionTrigger.ReachedDestination,
                 TriggerParam = 0f,
             };
-            queue.Phases[1] = new MissionPhase
+            queue.Tasks[1] = new MissionTaskSlot
             {
                 BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
@@ -587,7 +587,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // First tick: no BehaviorFinishedEvent — phase must NOT advance.
             _sys.Execute(_world, Dt60Hz);
             ref var q0 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
-            Assert.Equal(0, q0.CurrentPhase);
+            Assert.Equal(0, q0.CurrentTask);
 
             // Publish BehaviorFinishedEvent and run — phase must advance.
             PublishBehaviorFinished(entity);
@@ -597,7 +597,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             ref var q1      = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var     behavior = _world.GetComponent<BehaviorState>(entity);
 
-            Assert.Equal(1, q1.CurrentPhase);
+            Assert.Equal(1, q1.CurrentTask);
             Assert.Equal(DocB, behavior.ActiveBehaviorHash);
         }
 #pragma warning restore CS0618
@@ -618,14 +618,14 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var entity = _world.CreateEntity();
             var queue  = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0] = new MissionPhase
+            queue.TaskCount = 2;
+            queue.Tasks[0] = new MissionTaskSlot
             {
                 BehaviorId   = DocA,
                 Trigger      = MissionTrigger.ReachedDestination,
                 TriggerParam = 0f,
             };
-            queue.Phases[1] = new MissionPhase
+            queue.Tasks[1] = new MissionTaskSlot
             {
                 BehaviorId   = DocB,
                 Trigger      = MissionTrigger.TimerElapsed,
@@ -642,7 +642,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             ref var q       = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var     behavior = _world.GetComponent<BehaviorState>(entity);
 
-            Assert.Equal(0, q.CurrentPhase);
+            Assert.Equal(0, q.CurrentTask);
             Assert.Equal(DocA, behavior.ActiveBehaviorHash);
         }
 #pragma warning restore CS0618
@@ -654,9 +654,9 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var entity = _world.CreateEntity();
             var queue  = new MissionPlanQueue();
-            queue.PhaseCount = 2;
-            queue.Phases[0]  = new MissionPhase { BehaviorId = docA, Trigger = MissionTrigger.BehaviorFinished };
-            queue.Phases[1]  = new MissionPhase { BehaviorId = docB, Trigger = MissionTrigger.BehaviorFinished };
+            queue.TaskCount = 2;
+            queue.Tasks[0]  = new MissionTaskSlot { BehaviorId = docA, Trigger = MissionTrigger.BehaviorFinished };
+            queue.Tasks[1]  = new MissionTaskSlot { BehaviorId = docB, Trigger = MissionTrigger.BehaviorFinished };
             _world.AddComponent(entity, queue);
             _world.AddComponent(entity, new BehaviorState { ActiveBehaviorHash = docA, InstanceId = 1 });
             return entity;
@@ -676,7 +676,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             PublishBehaviorFinished(e, NodeStatus.Success);
             _sys.Execute(_world, Dt60Hz);
             var q = _world.GetComponent<MissionPlanQueue>(e);
-            Assert.Equal(1, q.CurrentPhase);
+            Assert.Equal(1, q.CurrentTask);
             Assert.Equal(MissionPhaseOutcome.Done, OutcomeOf(q, 0));
             Assert.Equal(0, q.Halted);
         }
@@ -690,7 +690,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             PublishBehaviorFinished(e, NodeStatus.Failure);
             _sys.Execute(_world, Dt60Hz);
             var q = _world.GetComponent<MissionPlanQueue>(e);
-            Assert.Equal(1, q.CurrentPhase);
+            Assert.Equal(1, q.CurrentTask);
             Assert.Equal(MissionPhaseOutcome.Failed, OutcomeOf(q, 0));
             Assert.Equal(0, q.Halted);
         }
@@ -707,7 +707,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _sys.Execute(_world, Dt60Hz);
 
             var q = _world.GetComponent<MissionPlanQueue>(e);
-            Assert.Equal(0, q.CurrentPhase);                                  // not advanced
+            Assert.Equal(0, q.CurrentTask);                                  // not advanced
             Assert.Equal(MissionPhaseOutcome.Failed, OutcomeOf(q, 0));
             Assert.Equal(1, q.Halted);
             _world.Bus.SwapBuffers();
@@ -717,7 +717,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Halted means halted: a later ordinary end does not move it either.
             PublishBehaviorFinished(e, NodeStatus.Success);
             _sys.Execute(_world, Dt60Hz);
-            Assert.Equal(0, _world.GetComponent<MissionPlanQueue>(e).CurrentPhase);
+            Assert.Equal(0, _world.GetComponent<MissionPlanQueue>(e).CurrentTask);
         }
 
         /// <summary>The outcome is DERIVED from Result + FaultCode, so the two can never disagree.</summary>

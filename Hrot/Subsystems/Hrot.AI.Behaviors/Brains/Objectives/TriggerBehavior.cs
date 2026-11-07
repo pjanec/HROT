@@ -26,28 +26,14 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     /// </summary>
     public static class TriggerWhen
     {
-        internal static readonly IPredicateCompiler Compiler = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
-        private static readonly ConcurrentDictionary<string, Func<EntityRepository, Entity, bool>> ByContent = new();
-        private static readonly ConditionalWeakTable<string, Func<EntityRepository, Entity, bool>> ByReference = new();
+        /// <summary>⭐ CE-4298 — THE compiler, now <see cref="ConditionCache.Compiler"/> (shared with the mission plan's conditions).</summary>
+        internal static IPredicateCompiler Compiler => ConditionCache.Compiler;
 
-        /// <summary>The LEVEL predicate of <paramref name="json"/> (compiled once). ⛔ Throws when the JSON is not a predicate or does not compile.</summary>
-        public static Func<EntityRepository, Entity, bool> Get(string json)
-        {
-            if (ByReference.TryGetValue(json, out var hit)) return hit;
-            var f = ByContent.GetOrAdd(json, Compile);
-            ByReference.AddOrUpdate(json, f);
-            return f;
-        }
-
-        private static Func<EntityRepository, Entity, bool> Compile(string json)
-        {
-            var dto = JsonSerializer.Deserialize<SearchPredicateDto>(json, BehaviorParams.JsonOptions)
-                      ?? throw new InvalidOperationException("the condition is empty");
-            return Compiler.CompileLevelPredicate(dto);
-        }
+        /// <summary>The LEVEL predicate of <paramref name="json"/> (compiled once) — ⭐ CE-4298: <see cref="ConditionCache.Get"/>, the ONE cache. ⛔ Throws when the JSON is not a predicate or does not compile.</summary>
+        public static Func<EntityRepository, Entity, bool> Get(string json) => ConditionCache.Get(json);
 
         /// <summary>The canonical JSON of an authored condition (what <see cref="ActionArgs"/> item 0 holds).</summary>
-        public static string ToJson(SearchPredicateDto when) => JsonSerializer.Serialize(when, BehaviorParams.JsonOptions);
+        public static string ToJson(SearchPredicateDto when) => ConditionCache.ToJson(when);
     }
 
     /// <summary>

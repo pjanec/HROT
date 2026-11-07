@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "SquadMarch",
-        "Params": "{\"Objective\": [200, 150, 0], \"Shape\": 1, \"MaxLagMetres\": 50, \"ArrivalRadius\": 10}",
+        "Params": {"Objective": [200, 150, 0], "Shape": 1, "MaxLagMetres": 50, "ArrivalRadius": 10},
         "Origin": "Superior"
       }
     },

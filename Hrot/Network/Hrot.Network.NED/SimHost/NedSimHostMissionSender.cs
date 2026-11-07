@@ -48,10 +48,7 @@ internal sealed class NedSimHostMissionSender : ISimHostMissionSender
                             ExecutingEngine = "CGFX",
                             BehaviorId      = "MoveToLocation",
                             BehaviorParams  = paramsJson,
-                            Triggers        = new List<MissionTrigger>
-                            {
-                                new MissionTrigger { Type = "BehaviorFinished" },
-                            },
+                            Triggers        = new List<MissionTrigger>(),   // ⭐ CE-4298 — no condition = when done (MissionTriggerHelper)
                             State = eTaskState.TASK_PLANNED,
                         }
                     },

@@ -34,6 +34,7 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         Raylib_cs.Raylib.InitWindow(width, height, title);
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(targetFps);
+        Hrot.UI.Common.RunMode.FramePacing.Register(Raylib_cs.Raylib.SetTargetFPS, targetFps);   // ⭐ CE-4316 — Run to … lifts the cap here
         TrySetWindowIcon();
         TryApplyTaskbarIcons();
     }

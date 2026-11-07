@@ -128,11 +128,12 @@ namespace Hrot.Map.Common.Tests
         }
 
         [Fact]
-        public void ResolveTrigger_EmptyBehaviorFinished_IsFine_AndNoTriggerHoldsForever()
+        public void ResolveTrigger_EmptyBehaviorFinished_IsFine_AndNoTriggerMeansWhenDone()   // ⭐ CE-4298 — flipped (mission plan §5.9): was …NoTriggerHoldsForever
         {
             var (t, p) = MissionTriggerHelper.ResolveTrigger(new List<DdsMissionTrigger> { new DdsMissionTrigger { Type = "BehaviorFinished", Params = "" } }, "t");
             Assert.Equal((EcsMissionTrigger.BehaviorFinished, 0f), (t, p));
-            Assert.Equal((EcsMissionTrigger.TimerElapsed, float.MaxValue), MissionTriggerHelper.ResolveTrigger(null, "t"));
+            Assert.Equal((EcsMissionTrigger.BehaviorFinished, 0f), MissionTriggerHelper.ResolveTrigger(null, "t"));
+            Assert.Equal((EcsMissionTrigger.BehaviorFinished, 0f), MissionTriggerHelper.ResolveTrigger(new List<DdsMissionTrigger>(), "t"));
         }
     }
 }

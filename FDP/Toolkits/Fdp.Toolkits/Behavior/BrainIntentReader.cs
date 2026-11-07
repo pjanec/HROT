@@ -106,7 +106,7 @@ namespace Fdp.Toolkit.Behavior
         {
             if (!repo.IsComponentTypeRegistered<MissionPlanQueue>() || !repo.HasComponent<MissionPlanQueue>(entity)) return false;
             ref readonly var queue = ref repo.GetComponentRO<MissionPlanQueue>(entity);
-            return queue.PhaseCount > 0 && queue.CurrentPhase < queue.PhaseCount;
+            return queue.TaskCount > 0 && queue.CurrentTask < queue.TaskCount;
         }
 
         /// <summary>Two slots run the same thing: same name, same params, same origin.</summary>
