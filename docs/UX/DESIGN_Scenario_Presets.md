@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN
-updated: 2026-11-07 (backend — written with the user in chat; decisions D1–D12 carry leans, the user approves)
+build-state: READY-TO-BUILD (CE-3374 first, then CE-3375)
+updated: 2026-11-07 (backend — ✅ D1–D12 APPROVED by the user: "Approved.")
 current-answer: the whole file — §1 the model, §2 the states, §3 the sequences, §4 who calls what, §5 the surfaces (mockup), §6 the decisions, §7 the work
 stale-below: nothing
 known-rot: none
@@ -168,7 +168,18 @@ a preset; ⛔ never the mode (AQ108 R1). The ▶ tooltip names both: *"▶ Previ
 only when Save is on**, the **eye** steady for a loaded eye preset, the eye **blinking** while any Preview runs. Save is greyed with its reason in
 every state where it is off.
 
-## 6. Decisions — each with a lean; the user approves
+### 5d. ⚠ Found — TWO "defaults + overrides" forms already exist; the preset editor must not be a third *(`2026-11-07`)*
+
+| form | where | look |
+|---|---|---|
+| `ParamArgsTable` (`Hrot.Editor.AiShared/Scenarios/ParamArgsTable.cs`) | the macro instance's args, the load dialog's Run setup, the declaration table's default cell | default greyed (alpha 0.55) until overridden; a *reset* button |
+| `ParamsDefaultsForm` / `ParamsDefaultsModel` (`Hrot.Presentation/Behavior/ParamsDefaultsForm.cs`) | a BTree / HSM / Blueprint asset's params defaults (`VariablesPanelControl.cs:276`, `BlueprintMyBlueprintWindow.cs:716`) | the DTO's fields; `*` + *Reset* on an override |
+
+⭐ Both are "a value = a default + this owner's overrides, reset per field", over the same StructEdit leaves — one concept, two forms, two looks.
+⇒ the preset value column uses ONE of them, and the other folds into it (ui; a tracker row when the presets are built). ⭐ Lean: `ParamArgsTable`'s
+row model (it already serves three hosts and the declaration table), with the DTO's fields as its rows for a behaviour asset.
+
+## 6. Decisions — ✅ ALL APPROVED (user, `2026-11-07`: *"Approved."*)
 
 | # | question | ⭐ lean | why / rejected |
 |---|---|---|---|
