@@ -75,6 +75,44 @@ public sealed class TheUnitFormDrawsTests
         Assert.All(HrotForms.Shape.Fields, f => Assert.False(f.Attribute != null && f.Definition == null));   // every field names a vocabulary attribute
     }
 
+    /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §3) — the Unit form's start-state rows in a real frame: <i>Weapon</i> (posture) and <i>In hand</i> read the
+    /// saved <c>WeaponPosture</c> (B-5 S2), <i>Aboard</i> lists the vehicle and the seat's role. 🔴 Red-proof (compiles): <c>FillAboard</c> returning nothing ⇒ red.</summary>
+    [SkippableFact]
+    public void U24_S5_TheUnitForm_ShowsTheWeaponStateAndWhereHeRides()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+        var bmp = world.CreateEntity();
+        world.AddComponent(bmp, new EntityInfo { Name = new FixedString64("BMP 1") });
+        var seats = new Fdp.Toolkit.Behavior.Components.CarrierSeats { SeatCount = 4 };
+        seats.Roles[0] = Fdp.Toolkit.Behavior.Components.SeatRole.Driver;
+        world.AddComponent(bmp, seats);
+        var man = world.CreateEntity();
+        world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
+        world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready, HeldItem = Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars });
+        world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = bmp, Seat = 0 });
+
+        HrotForms.EnsureRegistered();
+        var view = new FormView();
+        using var frame = UiFrameHarness.Begin(700, 420);
+        frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 320));
+            ImGui.Begin("Details##unit-s5");
+            view.Draw(HrotForms.Unit, world, new[] { man }, editable: true);
+            ImGui.End();
+        });
+        Assert.Contains("Weapon = Ready", view.Rows);
+        Assert.Contains("In hand = Binoculars", view.Rows);
+        Assert.Equal(new[] { "Driver", "BMP 1" }, view.ListRows);
+        Assert.NotNull(HrotForms.Unit.Fields.First(f => f.Label == "Weapon").Definition);   // the row writes a vocabulary attribute (Weapon.Posture)
+        Assert.NotNull(HrotForms.Unit.Fields.First(f => f.Label == "In hand").Definition);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-s5.png"));
+    }
+
     /// <summary>⭐ U-23 part 5 — the Unit form's <b>Playable</b> toggle is the ONE make-playable op (it replaced the Playable tab where the form is offered):
     /// on adds the component with the unit's side and name, off removes it. 🔴 Red-proof (compiles): the field's <c>Apply</c> removed ⇒ read-only ⇒ nothing written ⇒ red.</summary>
     [Fact]

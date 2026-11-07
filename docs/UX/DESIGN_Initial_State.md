@@ -190,6 +190,16 @@ tune it. That conflicts with R-4119 (gated by the entity, not the node) and with
 
 Rails: `PassengerBufferTranslatorTests.S1_*`, `PersonCarrierTests.S1_*`, `WeaponPostureStartStateTests.S2_*`, `TheFourRoutingTablesAgreeTests` (the four rows).
 
+### 4.2 ⭐ AS-BUILT — S5, first part *(ui, `2026-11-07`, U-24)*
+
+| row | as built | ⏳ not yet |
+|---|---|---|
+| **Weapon** | `HrotForms.Unit` choice *At ease · Ready · Aimed* → attribute `Weapon.Posture` (70), read from the saved `WeaponPosture.Kind` | *aimed at* (a point or a unit, picked → `Weapon.AimPoint.*` / `Weapon.AimTarget`) |
+| **In hand** | choice *Nothing · Weapon · Throwable · Phone · Binoculars* → `Weapon.HeldItem` (73; the owner refuses an item he does not have) | — |
+| **Aboard** | a `FormList` (the Crew &amp; cargo shape, Details Forms §4.0a part 4): the seat's role + the vehicle; *Take off* / *Board…* → `EmbarkOrders` (the one embark path) | the seat chooser (*Board…* names the seat); **Carried by** / **Carries**, **Knows about**, **Damage**, the Brain tab's **Character** (S6) |
+
+Rail `TheUnitFormDrawsTests.U24_S5_…` (a real frame).
+
 ## 5. Questions — ✅ all nine APPROVED (R-4137, user `2026-11-06`: *"Approved."*)
 
 | # | question | lean | rejected |
