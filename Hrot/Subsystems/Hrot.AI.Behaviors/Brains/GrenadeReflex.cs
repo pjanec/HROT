@@ -179,8 +179,8 @@ namespace Hrot.AI.Behaviors.Brains
         [StructLayout(LayoutKind.Sequential)]
         public struct EvadeGrenadeState
         {
+            public double Started;   // ⚠ first, as before SV-1 (sequential layout: the order is the byte layout)
             public SimInstant BurstAt, AskedAt, ThrownAt, StepUntil;
-            public double Started;
             /// <summary>When the grenade was no longer where it lay (it burst, or a man took it).</summary>
             public SimInstant GoneAt;
             /// <summary>What he does now (a throw back can fall back to Prone).</summary>
