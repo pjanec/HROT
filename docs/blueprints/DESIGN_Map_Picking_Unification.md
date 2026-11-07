@@ -7,6 +7,7 @@ stale-below: nothing yet.
 known-rot: §2's BehaviorUiCompiler box and its sequence participant are DELETED (CE-1023, 2026-10-12) — the mission panel draws THE one params form (BehaviorParamsForm + ComponentEditDrawer) through a ScopedMapPickContext($.tasks[i]) over the same broker, so the paths and the broker are unchanged; see ../DESIGN_Sensors_And_Doctrine.md §7.6b.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Struct_Editor.md — §5: EntityRef draws the EntityLink chip; the reference leaves become TypeEditor registrations
   - ../DESIGN_Scenario_Rules.md — SR-133 / SR-134 / SR-138 / SR-140 / SR-141 own the authored reference TYPES; §6 here owns their FORMS in the editor (CE-4206)
   - ../DESIGN_Scenario_Entity_Keys.md — EntityGuid (S1) and the GUID file form (S9′) that §6 F3's pick writes
   - ../DESIGN_Scenario_Rules.md — §9.8 SR-125 (draft 2026-11-01) proposes WorldPoint: ONE place type replacing PickableGeoPoint, point Vector3 fields and lat/lon pairs — still picked by its TYPE (P5), also relocated and resolvable from @Key / GUID
