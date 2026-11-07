@@ -308,3 +308,15 @@ sequenceDiagram
 
 *Rejected:* **hand-placed separators as declarations** — the group rule reproduces all four menus · **one declaration per order** — the
 vocabulary is hot-reloaded data · **the composer in Presentation with a callback from Common** — a second path for one menu.
+
+### 6a. ⭐ A1 as built *(ui, `2026-11-07`)*
+
+| | as built |
+|---|---|
+| homes | `Hrot.Common/Actions/`: `ActionCatalogue.cs` (`ActionDecl`, `ActionCatalogue.Shared`, `ActionContext`, `UnitFacts`, `MenuComposer`), `MapMenuActions.cs` (today's items + `ContextFor` + the cache), and ⚠ ONE ENUM PER FILE — `ActionGroup.cs`, `ActionTarget.cs`, `EditingMode.cs`, `EmbarkOffer.cs`: the CycloneDDS code generator writes one IDL per source file and IDL enumerators share one scope (`ActionGroup.Edit` vs `EditingMode.Edit` failed the build) |
+| `MenuJsonFor` | one line: `MapMenuActions.JsonFor(view, entity)`; `ContextMenuProjectorGizmo.OrderItem` forwards to `MapMenuActions.OrderItem` |
+| deleted | `SharedContextMenuPopulator`, `MapContextActionController`, `IEntityActionController` |
+| ⏭ still derived | an order's letter (its first letter) — A3 / K5 declare it |
+
+**Rails:** `TheMenusAreGoldenTests` (24 cases, byte-identical before and after — captured at `f768aa019`, the commit before the refactor) ·
+`TheActionCatalogueComposesMenusTests` (a duplicate declaration throws; separators only between non-empty groups).
