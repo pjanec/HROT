@@ -1685,7 +1685,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     OpenRule:    OpenRuleInRulesView,                 // ⭐ U-18 / RX1 — CGF has the Rules window now: the Objectives tab opens a rule in it (RV-7)
                     SelectNetworkEntity: n => SelectNetworkEntity(n),   // ⭐ the host's ONE selection by network id
                     Rules:       () => _rulesWindow,                  // ⭐ U-18 / RX2 — the rule's detail in Details
-                    Pick:        () => _cgfPickBroker)),               // ⭐ U-23 / D4 — Put aboard… picks on the map
+                    Pick:        () => _cgfPickBroker,                 // ⭐ U-23 / D4 — Put aboard… picks on the map
+                    Missions:    () => _missionService)),              // ⭐ P-7 / 7a — the Orders tab over the one mission facade
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

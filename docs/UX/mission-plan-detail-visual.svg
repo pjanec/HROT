@@ -90,8 +90,8 @@
 <text x='1206' y='236' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>waiting</text>
 <text x='648' y='262' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A phase IS a trigger (D5): begins = fires; Begin now = Fire (instructor, Live);</text>
 <text x='648' y='276' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>'no later than' = its when OR scenario time ≥ H+20.</text>
-<text x='20' y='612' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>C · The Timeline's Tasks group — every unit's plan against the phases (the synchronisation matrix)</text>
-<line x1='635.0' y1='608' x2='1220' y2='608' stroke='#4A4A55' stroke-width='1'/>
+<text x='20' y='612' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>C · The Timeline's Tasks group — ONE lane for all units, bars for the selection (E4)</text>
+<line x1='539.2' y1='608' x2='1220' y2='608' stroke='#4A4A55' stroke-width='1'/>
 <rect x='20' y='628' width='1200' height='260' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <rect x='20' y='628' width='1200' height='20' fill='#294A7A' rx='0' opacity='1'/>
 <text x='28' y='642' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Event Timeline</text>
@@ -112,40 +112,31 @@
 <path d='M28 685 l10 0 -5 6 z' fill='#FFFFFF'/>
 <path d='M512 352Q511 326 496 296Q480 266 461 239Q441 213 427 197Q421 190 413 192H320Q306 192 297 183Q288 174 288 160Q288 146 297 137Q306 128 320 128H416Q457 127 484 100Q511 73 512 32Q511 -9 484 -36Q457 -63 416 -64H140Q153 -49 170 -27Q179 -15 189 0H416Q430 0 439 9Q448 18 448 32Q448 46 439 55Q430 64 416 64H320Q279 65 252 92Q225 119 224 160Q225 201 252 228Q279 255 320 256H360Q344 280 332 305Q321 330 320 352Q321 393 348 420Q375 447 416 448Q457 447 484 420Q511 393 512 352ZM117 -41Q111 -48 107 -52L105 -54Q95 -61 85 -52Q72 -38 52 -13Q32 12 16 41Q1 70 0 96Q1 137 28 164Q55 191 96 192Q137 191 164 164Q191 137 192 96Q191 73 179 47Q166 22 149 -2Q132 -24 118 -40L117 -41ZM128 96Q128 110 119 119Q110 128 96 128Q82 128 73 119Q64 110 64 96Q64 82 73 73Q82 64 96 64Q110 64 119 73Q128 82 128 96ZM416 320Q430 320 439 329Q448 338 448 352Q448 366 439 375Q430 384 416 384Q402 384 393 375Q384 366 384 352Q384 338 393 329Q402 320 416 320Z' fill='#5BD06A' fill-opacity='1' transform='translate(43,693.2060546875) scale(0.0244140625,-0.0244140625)'/>
 <text x='62' y='694' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Tasks</text>
-<text x='44' y='722' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1</text>
-<rect x='171.0' y='710' width='204.8' height='18' fill='#5BD06A' rx='3' opacity='0.35'/>
-<rect x='171.0' y='710' width='3' height='18' fill='#5BD06A' rx='0' opacity='1'/>
-<text x='178.0' y='723' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Move</text>
-<rect x='377.8' y='710' width='273.7333333333333' height='18' fill='#F2C033' rx='3' opacity='0.35'/>
-<rect x='377.8' y='710' width='3' height='18' fill='#F2C033' rx='0' opacity='1'/>
-<text x='384.8' y='723' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hold</text>
-<rect x='653.5333333333333' y='710' width='273.73333333333335' height='18' fill='#E65555' rx='3' opacity='0.35'/>
-<rect x='653.5333333333333' y='710' width='3' height='18' fill='#E65555' rx='0' opacity='1'/>
-<text x='660.5333333333333' y='723' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Attack OBJ</text>
-<text x='44' y='748' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-2</text>
-<rect x='171.0' y='736' width='239.26666666666665' height='18' fill='#5BD06A' rx='3' opacity='0.35'/>
-<rect x='171.0' y='736' width='3' height='18' fill='#5BD06A' rx='0' opacity='1'/>
-<text x='178.0' y='749' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Move</text>
-<rect x='412.26666666666665' y='736' width='239.26666666666665' height='18' fill='#F2C033' rx='3' opacity='0.35'/>
-<rect x='412.26666666666665' y='736' width='3' height='18' fill='#F2C033' rx='0' opacity='1'/>
-<text x='419.26666666666665' y='749' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hold</text>
-<rect x='653.5333333333333' y='736' width='342.66666666666674' height='18' fill='#E65555' rx='3' opacity='0.35'/>
-<rect x='653.5333333333333' y='736' width='3' height='18' fill='#E65555' rx='0' opacity='1'/>
-<text x='660.5333333333333' y='749' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Attack OBJ</text>
-<text x='44' y='774' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bravo 1-1</text>
-<rect x='171.0' y='762' width='308.2' height='18' fill='#5BD06A' rx='3' opacity='0.35'/>
-<rect x='171.0' y='762' width='3' height='18' fill='#5BD06A' rx='0' opacity='1'/>
-<text x='178.0' y='775' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Move</text>
-<rect x='481.2' y='762' width='515.0' height='18' fill='#5AA9FF' rx='3' opacity='0.35'/>
-<rect x='481.2' y='762' width='3' height='18' fill='#5AA9FF' rx='0' opacity='1'/>
-<text x='488.2' y='775' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Overwatch</text>
-<text x='44' y='800' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Mortar sec.</text>
-<rect x='274.4' y='788' width='377.1333333333333' height='18' fill='#A0A0AA' rx='3' opacity='0.35'/>
-<rect x='274.4' y='788' width='3' height='18' fill='#A0A0AA' rx='0' opacity='1'/>
-<text x='281.4' y='801' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Prepare</text>
-<rect x='653.5333333333333' y='788' width='135.86666666666667' height='18' fill='#F29B38' rx='3' opacity='0.35'/>
-<rect x='653.5333333333333' y='788' width='3' height='18' fill='#F29B38' rx='0' opacity='1'/>
-<text x='660.5333333333333' y='801' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Fire at OBJ</text>
+<text x='44' y='722' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>all units</text>
+<rect x='170' y='710' width='1034' height='18' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5AA9FF' fill-opacity='1' transform='translate(165.0,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5AA9FF' fill-opacity='1' transform='translate(178.78666666666666,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5AA9FF' fill-opacity='1' transform='translate(206.36,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5AA9FF' fill-opacity='1' transform='translate(268.4,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM369 239 241 111 369 239 241 111Q224 97 207 111L143 175Q129 192 143 209Q160 223 177 209L224 162L335 273Q352 287 369 273Q383 256 369 239Z' fill='#5BD06A' fill-opacity='1' transform='translate(371.8,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM369 239 241 111 369 239 241 111Q224 97 207 111L143 175Q129 192 143 209Q160 223 177 209L224 162L335 273Q352 287 369 273Q383 256 369 239Z' fill='#5BD06A' fill-opacity='1' transform='translate(406.26666666666665,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM369 239 241 111 369 239 241 111Q224 97 207 111L143 175Q129 192 143 209Q160 223 177 209L224 162L335 273Q352 287 369 273Q383 256 369 239Z' fill='#5BD06A' fill-opacity='1' transform='translate(475.2,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M343 297Q352 307 352 320Q352 333 343 343Q333 352 320 352Q307 352 297 343L192 237L87 343Q77 352 64 352Q51 352 41 343Q32 333 32 320Q32 307 41 297L147 192L41 87Q32 77 32 64Q32 51 41 41Q51 32 64 32Q77 32 87 41L192 147L297 41Q307 32 320 32Q333 32 343 41Q352 51 352 64Q352 77 343 87L237 192L343 297Z' fill='#E65555' fill-opacity='1' transform='translate(561.3666666666667,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5AA9FF' fill-opacity='1' transform='translate(647.5333333333333,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5AA9FF' fill-opacity='1' transform='translate(654.4266666666666,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5AA9FF' fill-opacity='1' transform='translate(661.3199999999999,721.96484375) scale(0.01953125,-0.01953125)'/>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM369 239 241 111 369 239 241 111Q224 97 207 111L143 175Q129 192 143 209Q160 223 177 209L224 162L335 273Q352 287 369 273Q383 256 369 239Z' fill='#5BD06A' fill-opacity='1' transform='translate(785.4,721.96484375) scale(0.01953125,-0.01953125)'/>
+<text x='576.3666666666667' y='742' fill='#E65555' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bravo 1-1 · task 2 Overwatch · Failed (gave up after 10 min)</text>
+<text x='44' y='770' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1 ▸</text>
+<rect x='171.0' y='758' width='204.8' height='18' fill='#5BD06A' rx='3' opacity='0.35'/>
+<rect x='171.0' y='758' width='3' height='18' fill='#5BD06A' rx='0' opacity='1'/>
+<text x='178.0' y='771' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Move</text>
+<rect x='377.8' y='758' width='273.7333333333333' height='18' fill='#F2C033' rx='3' opacity='0.35'/>
+<rect x='377.8' y='758' width='3' height='18' fill='#F2C033' rx='0' opacity='1'/>
+<text x='384.8' y='771' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hold</text>
+<rect x='653.5333333333333' y='758' width='273.73333333333335' height='18' fill='#E65555' rx='3' opacity='0.35'/>
+<rect x='653.5333333333333' y='758' width='3' height='18' fill='#E65555' rx='0' opacity='1'/>
+<text x='660.5333333333333' y='771' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Attack OBJ</text>
 <line x1='170.0' y1='678' x2='170.0' y2='878' stroke='#B07CF0' stroke-width='1.5' stroke-dasharray='5 3'/>
 <path d='M64 416Q64 430 55 439Q46 448 32 448Q18 448 9 439Q0 430 0 416V384V80V-32Q0 -46 9 -55Q18 -64 32 -64Q46 -64 55 -55Q64 -46 64 -32V96L128 112Q192 127 251 99Q320 65 393 91L427 104Q447 113 448 134V382Q447 400 433 408Q420 417 403 410L394 405Q358 387 320 387Q282 387 247 405Q192 431 133 417L64 400V416Z' fill='#B07CF0' fill-opacity='1' transform='translate(174.0,823.861328125) scale(0.021484375,-0.021484375)'/>
 <text x='190.0' y='824' fill='#B07CF0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Phase 1 Approach</text>
@@ -153,8 +144,25 @@
 <path d='M64 416Q64 430 55 439Q46 448 32 448Q18 448 9 439Q0 430 0 416V384V80V-32Q0 -46 9 -55Q18 -64 32 -64Q46 -64 55 -55Q64 -46 64 -32V96L128 112Q192 127 251 99Q320 65 393 91L427 104Q447 113 448 134V382Q447 400 433 408Q420 417 403 410L394 405Q358 387 320 387Q282 387 247 405Q192 431 133 417L64 400V416Z' fill='#B07CF0' fill-opacity='1' transform='translate(656.5333333333333,823.861328125) scale(0.021484375,-0.021484375)'/>
 <text x='672.5333333333333' y='824' fill='#B07CF0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Phase 2 Assault</text>
 <line x1='755.9333333333333' y1='658' x2='755.9333333333333' y2='878' stroke='#E65555' stroke-width='1.5'/>
-<text x='20' y='910' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>One lane per unit with a plan; a bar per task, coloured by its order; the phase triggers' fire times are the violet columns — tasks that wait</text>
-<text x='20' y='924' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>for a phase start on its line. In Live the playhead (red) moves; in Edit, planned tasks have no times yet and the group shows their order only.</text>
+<text x='20' y='910' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ONE Tasks lane for every unit (E4, R-4161 — thousands of units stay one row): a marker per task start / Done / Failed, hover names unit and task;</text>
+<text x='20' y='924' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>it follows the timeline's entity filter. The SELECTED unit also shows its own tasks as bars. Phase triggers' fire times are the violet columns; the playhead is red.</text>
+<text x='640' y='362' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>D · Advanced condition… — WHO is 'this unit' by default, never an empty field (E5)</text>
+<line x1='1145.3' y1='358' x2='1220' y2='358' stroke='#4A4A55' stroke-width='1'/>
+<rect x='640' y='378' width='580' height='120' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='378' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='648' y='392' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Condition — Alpha 1-1, task 2 Hold, then …</text>
+<text x='656' y='422' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>WHO</text>
+<rect x='700' y='408' width='95.0' height='20' fill='#1D2F48' rx='3' opacity='1'/>
+<path d='M224 192Q259 192 288 209Q317 226 335 256Q352 286 352 320Q352 354 335 384Q317 414 288 431Q259 448 224 448Q189 448 160 431Q131 414 113 384Q96 354 96 320Q96 286 113 256Q131 226 160 209Q189 192 224 192ZM178 144Q103 142 52 92Q2 41 0 -34Q0 -47 9 -55Q17 -64 30 -64H418Q431 -64 439 -55Q448 -47 448 -34Q446 41 396 92Q345 142 270 144H178Z' fill='#5AA9FF' fill-opacity='1' transform='translate(705,422.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='721' y='422.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>this unit</text>
+<path d='M783.0 416 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<text x='807.0' y='422' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>IS</text>
+<rect x='829.0' y='408' width='104.80000000000001' height='20' fill='#1D2F48' rx='3' opacity='1'/>
+<path d='M159 443Q173 454 187 442Q228 404 265 358Q281 381 302 401Q316 413 330 401Q356 376 377 345Q399 315 414 283Q430 252 439 223Q448 194 448 171Q447 107 418 54Q388 1 337 -31Q287 -63 224 -64Q161 -63 110 -31Q60 1 30 54Q1 107 0 171Q2 231 45 303Q88 376 159 443ZM226 32Q263 32 295 53Q326 76 334 114Q341 151 323 187Q313 201 300 189L275 160Q262 149 250 161Q237 177 219 200Q201 223 187 240Q175 252 163 241Q137 209 125 186Q112 163 112 141Q113 89 145 61Q177 32 226 32Z' fill='#F29B38' fill-opacity='1' transform='translate(834.0,422.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='850.0' y='422.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>under fire</text>
+<path d='M921.8 416 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<text x='656' y='452' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The chip is a real choice: another unit, a rule or a phase; stored with no OnEntity wrapper.</text>
+<text x='656' y='466' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A Wait task (E9) has no order: its 'then' is required; an empty 'then' elsewhere means 'when done'.</text>
 <rect x='360' y='300' width='230' height='268' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
 <text x='370' y='319' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>then …</text>
 <path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM369 239 241 111 369 239 241 111Q224 97 207 111L143 175Q129 192 143 209Q160 223 177 209L224 162L335 273Q352 287 369 273Q383 256 369 239Z' fill='#5BD06A' fill-opacity='1' transform='translate(370,341.2060546875) scale(0.0244140625,-0.0244140625)'/>
