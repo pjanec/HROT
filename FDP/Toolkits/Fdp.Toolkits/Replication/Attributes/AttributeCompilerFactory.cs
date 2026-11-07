@@ -214,6 +214,20 @@ public static class AttributeCompilerFactory
                 "Weapon.AimTarget",
                 (ref Fdp.Toolkit.Combat.Components.WeaponPosture c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => { r.Skip(); },
                 kind: KindOf("Weapon.AimTarget"))
+            // ⭐ Initial state S5 — the damage per part on a creation request (the live write, with its body / capability judgement, is the binary handler's)
+            .RegisterValuePath<Fdp.Toolkit.Physics.BodyParts.PartDamage>(
+                "Damage.Part.*",
+                (ref Fdp.Toolkit.Physics.BodyParts.PartDamage c, scoped ReadOnlySpan<int> idx, ref Utf8JsonReader r) =>
+                {
+                    double v = r.GetDouble();
+                    if (idx.Length > 0) FormAttributes.SetPartLevel(ref c, idx[0], v);
+                },
+                kind: KindOf("Damage.Part.*"))
+            // ⚠ the mobility kill needs the unit's TYPE (its Mobility zones): a creation request has no world to judge in — consumed and ignored; the binary handler applies it on a live unit
+            .RegisterValuePath<Fdp.Toolkit.Physics.BodyParts.PartDamage>(
+                "Damage.MobilityKill",
+                (ref Fdp.Toolkit.Physics.BodyParts.PartDamage c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => { r.Skip(); },
+                kind: KindOf("Damage.MobilityKill"))
             // ⭐ Initial state S6 — the AI character settings (a negative value resets); FormAttributes holds the value logic
             .RegisterValuePath<Fdp.Toolkit.Behavior.Components.CombatProficiency>(
                 "Proficiency",

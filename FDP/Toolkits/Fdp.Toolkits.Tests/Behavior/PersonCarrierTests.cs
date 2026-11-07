@@ -218,6 +218,52 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
+        /// ⭐ Initial state S5 (docs/UX/DESIGN_Initial_State.md §3 "Carried by … as", §4.1; ui NOTE_Ui_To_Backend_Carry_Mode_And_Damage ①) — the
+        /// SAME embark, asked for a man already carried by that soldier with another way of carrying, re-carries him in his seat: carried ⇒
+        /// dragged ⇒ stretcher (a fit second man takes the rear) ⇒ carried (the second man lets go and gets his hands back). A plain repeat
+        /// (no way named) changes nothing; a stretcher with nobody, or a second man for a one-man carry, is refused and leaves him as he was;
+        /// <see cref="Embarkation.CanEmbark"/> predicts each answer without writing. ✅ Red-proof: TryEmbark ignoring the re-carry (answering
+        /// AlreadyAboard as before) ⇒ he stays Carried ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S5_AManAlreadyCarried_IsReCarried_InTheWayAsked_ByTheSameEmbark()
+        {
+            var carrier = Soldier(100f);
+            var casualty = Soldier(20f);
+            var helper = Soldier(100f, new Vector3(1.5f, 0f, 0f));
+            CarryMode ModeNow() => _world.GetComponentRO<IsEmbarkedTag>(casualty).Mode;
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Carried));
+            Assert.Equal(EmbarkResult.AlreadyAboard, Embarkation.TryEmbark(_world, casualty, carrier));            // a plain repeat: nothing
+            Assert.Equal(CarryMode.Carried, ModeNow());
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.CanEmbark(_world, casualty, carrier, mode: CarryMode.Dragged));
+            Assert.Equal(CarryMode.Carried, ModeNow());                                                             // a prediction writes nothing
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Dragged));
+            Assert.Equal(CarryMode.Dragged, ModeNow());
+            Assert.Equal(CarryMode.Dragged, _world.GetComponentRO<PassengerBuffer>(carrier).ModeOf(0));
+            Assert.Equal(EmbarkResult.AlreadyAboard, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Dragged));
+
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Stretcher));            // nobody at the rear
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Dragged, assistant: helper));   // one-man
+            Assert.Equal(CarryMode.Dragged, ModeNow());
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Stretcher, assistant: helper));
+            Assert.Equal(CarryMode.Stretcher, ModeNow());
+            Assert.Equal(helper, _world.GetComponentRO<PassengerBuffer>(carrier).Assistant);
+            Assert.Equal(carrier, _world.GetComponentRO<IsAssistingTag>(helper).Carrier);
+            Assert.Equal((ActorCapabilities)0, Caps(helper) & MoveAndFire);
+            Assert.Equal(1, _world.GetComponentRO<PassengerBuffer>(carrier).Count);                                 // the same seat, not a second
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Carried));
+            Assert.Equal(CarryMode.Carried, ModeNow());
+            Assert.True(_world.GetComponentRO<PassengerBuffer>(carrier).Assistant.IsNull);
+            Assert.False(_world.HasComponent<IsAssistingTag>(helper));
+            Assert.Equal(MoveAndFire, Caps(helper) & MoveAndFire);                                                 // his hands are back
+            Assert.Equal(ActorCapabilities.CanMove, Caps(carrier) & MoveAndFire);                                   // still carrying: no fire
+        }
+
+        /// <summary>
         /// ⭐ Initial state S1 (docs/UX/DESIGN_Initial_State.md §2.2, R-4137) — a scenario load boards the SAVED seat with the SAVED mode and second
         /// man: a stretcher casualty comes back on the stretcher with his rear handle, not seated / carried. A stretcher whose second man is gone
         /// comes back carried; a seated mode on a person is carried. ✅ Red-proof: TryEmbarkAt ignoring the mode ⇒ Carried ⇒ red.

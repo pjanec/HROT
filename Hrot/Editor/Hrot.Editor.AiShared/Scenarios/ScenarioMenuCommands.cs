@@ -123,6 +123,8 @@ public static class ScenarioMenuCommands
     /// Seam that opens the scenario Save-As dialog and invokes the callback with the chosen name.
     /// Nullable for the same reason as <paramref name="openPicker"/>.
     /// </param>
+    /// <param name="openSaveAsRecipeDialog">⭐ B-9 N3 — the Save-As browser for <i>Save Scenario as Recipe…</i>: its request comes from <c>RecipeFiles.AsScenarioRecipeRequest</c> so Replace? is asked about the RECIPE.
+    /// The callback gets the chosen scenario-style name, which this command maps to <c>recipes/scenarios/&lt;name&gt;</c>. Null ⇒ the plain <paramref name="openSaveAsDialog"/> (asks about a scenario of that name).</param>
     /// <param name="showMigrationHistory">
     /// Seam that surfaces the migration sidecar list. When null the command is still registered but its
     /// handler only reads the sidecars.
@@ -155,7 +157,8 @@ public static class ScenarioMenuCommands
         Func<string?>?                                            checkpointDisabledReason = null,
         Action<Action<string>>?                                    openCheckpointPicker = null,
         Func<bool>?                                               documentToSave       = null,
-        Action?                                                   openNewScenario      = null)
+        Action?                                                   openNewScenario      = null,
+        Action<Action<string>>?                                    openSaveAsRecipeDialog = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -258,7 +261,7 @@ public static class ScenarioMenuCommands
             SaveAsRecipeId, "Save Scenario as Recipe…", FileMenuLayout.SaveScenarioAsRecipe,
             "Save the scenario as a recipe New Scenario offers",
             isEnabled: () => openSaveAsDialog != null,
-            handler: _ => openSaveAsDialog?.Invoke(name => session.SaveAs(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName(name))),
+            handler: _ => (openSaveAsRecipeDialog ?? openSaveAsDialog)?.Invoke(name => session.SaveAs(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName(name))),
             dynamicDisplayName: openSaveAsDialog != null
                 ? () => string.IsNullOrWhiteSpace(session.LoadedScenarioName) ? "Save Scenario as Recipe…" : SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName) + " as Recipe…"
                 : Unavailable("Save Scenario as Recipe…", false, NoSaveAsReason));

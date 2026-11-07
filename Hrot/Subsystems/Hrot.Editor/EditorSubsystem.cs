@@ -2759,7 +2759,7 @@ namespace Hrot.Editor
         }
 
         /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
-        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName);   // ⭐ CE-4210 MA-6 — "Macro: <path>"
+        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName, _world is { } w ? Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w) : null);   // ⭐ CE-4210 MA-6 — "Macro: <path>" · N4 the terrain
 
         /// <inheritdoc/>
         /// <remarks>
@@ -3881,7 +3881,8 @@ namespace Hrot.Editor
 
             // BATCH-43 (MTB2-T8b): scenario Save-As → SaveAsBrowserDialog (same browser as New + doc Save-As).
             // ⭐ CE-4097 — the optional `onNamed` is the run choice's "Save as… and go live": called with the saved name once the save was published
-            Action<Action<string>?> openScenarioSaveAsThen = onNamed =>
+            // ⭐ B-9 N3 — `asRecipe`: the same browser over the RECIPE catalog (Replace? asks about recipes/scenarios/<name>), saved under that recipe name
+            Action<Action<string>?, bool> openScenarioSaveAsCore = (onNamed, asRecipe) =>
             {
                 if (_editorLogic == null || _newAssetServices == null) return;
 
@@ -3897,6 +3898,7 @@ namespace Hrot.Editor
                 var req = BuildSaveAsRequest(
                     Hrot.Editor.AiShared.AssetKind.Scenario, "Save Scenario As",
                     initialName, "", "Save", fp);
+                if (asRecipe) req = Hrot.Editor.AiShared.Recipes.RecipeFiles.AsScenarioRecipeRequest(req);
 
                 _saveAsBrowser?.Open(req, result =>
                 {
@@ -3908,11 +3910,19 @@ namespace Hrot.Editor
                         ? result.Name
                         : dest + "/" + result.Name;
 
+                    if (asRecipe)
+                    {
+                        var recipeName = Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName(fullName);
+                        _editorLogic?.SaveScenarioAs(recipeName);
+                        _saveAllStatus = $"[OK] Saved scenario as recipe '{recipeName}'.";
+                        return;
+                    }
                     _editorLogic?.SaveScenarioAs(fullName);
                     _saveAllStatus = $"[OK] Saved scenario as '{fullName}'.";
                     onNamed?.Invoke(fullName);
                 });
             };
+            Action<Action<string>?> openScenarioSaveAsThen = onNamed => openScenarioSaveAsCore(onNamed, false);
             Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
             if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
 
@@ -3923,6 +3933,7 @@ namespace Hrot.Editor
                 saveBTree:         saveBTreeDelegate,
                 saveHsm:           saveHsmDelegate,
                 saveScenario:      null, // Scenario saved via IEditorLogic, not file delegate
+                openSaveAsBrowser: (req, onChosen) => _saveAsBrowser?.Open(req, onChosen),   // ⭐ B-9 N3 — "Save … as Recipe…" asks Replace? through the same browser (assigned later, hence the lambda)
                 requestSaveAs:     doc =>
                 {
                     // BATCH-43 (MTB2-T8b): open the SaveAsBrowserDialog;
@@ -3950,6 +3961,7 @@ namespace Hrot.Editor
 
                         dialog.Name = result.Name;
                         dialog.FolderPicker.SelectedRelPath = result.DestinationPath;
+                        dialog.Overwrite = result.Overwrite;   // ⭐ B-9 N3 — the browser already asked Replace?
                         var r = dialog.Confirm();
                         _saveAllStatus = r.IsSuccess
                             ? $"[OK] Saved as '{result.Name}'."
@@ -4259,6 +4271,7 @@ namespace Hrot.Editor
                     assetPickerLauncher?.Open(kinds, callback);
                 },
                 openSaveAsDialog:     cb => openScenarioSaveAs(),
+                openSaveAsRecipeDialog: cb => openScenarioSaveAsCore(null, true),   // ⭐ B-9 N3 — the callback is ignored like openSaveAsDialog's: the core saves under the recipe name itself
                 showMigrationHistory:  sidecars =>
                 {
                     // Log migration sidecars to the save status line for visibility.

@@ -57,16 +57,60 @@ namespace Fdp.Toolkit.Combat
             // ⭐⭐ CE-3211 (hit location §9 S2-8, R-263 D1) — a vehicle's damaged COMPARTMENT: its running gear or engine over the zone's
             //   threshold is the mobility kill, its turret or gun the firepower kill (derived from the replicated PartDamage, applied here
             //   where the capability bits live, like MobilityKill). Destroyed stays Health ≤ 0, above.
-            if (Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Mobility))
+            if (HitStopsMove(repo, entity, in health))
                 repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities &= ~ActorCapabilities.CanMove;
             if (Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Firepower))
                 repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities &= ~ActorCapabilities.CanShoot;
-            if (health.Current >= health.Max) return;
-            if (!repo.IsComponentTypeRegistered<MobilityKill>() || !repo.HasComponent<MobilityKill>(entity)) return;
+        }
+
+        /// <summary>
+        /// The mobility half of <see cref="ApplyHitCapabilities"/> for a unit still in the fight — the ONE test, shared with
+        /// <see cref="RestoreHitCapabilities"/> so what strips and what gives back cannot disagree: a Mobility-effect compartment over its
+        /// threshold (CE-3211), else the type's <see cref="MobilityKill"/> health fraction (CE-3092).
+        /// </summary>
+        private static bool HitStopsMove(EntityRepository repo, Entity entity, in Health health)
+        {
+            if (Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Mobility)) return true;
+            if (health.Current >= health.Max) return false;
+            if (!repo.IsComponentTypeRegistered<MobilityKill>() || !repo.HasComponent<MobilityKill>(entity)) return false;
             float below = repo.GetComponentRO<MobilityKill>(entity).BelowFraction;
-            if (below <= 0f || health.Current >= health.Max * below) return;
-            ref var caps = ref repo.GetComponentRW<ActorCapabilityState>(entity);
-            caps.Capabilities &= ~ActorCapabilities.CanMove;
+            return below > 0f && health.Current < health.Max * below;
+        }
+
+        /// <summary>
+        /// ⭐ Initial state S5 (docs/UX/DESIGN_Initial_State.md §3, "Damage") — the inverse of <see cref="ApplyHitCapabilities"/> for an authored
+        /// damage that was LOWERED: gives <c>CanMove</c> / <c>CanShoot</c> back when nothing the hit rule knows still takes them away
+        /// (alive, not incapacitated, no Mobility / Firepower compartment wounded, under no <see cref="MobilityKill"/> threshold) AND nothing
+        /// else does: not aboard anything (<c>IsEmbarkedTag</c>, boarding strips both), not assisting a team carry (<c>IsAssistingTag</c>),
+        /// and — for <c>CanShoot</c> only, as <c>Embarkation.Board</c> strips only that — not a person carrying a casualty.
+        /// A bit is granted only when the unit's TYPE grants it (<c>BehaviorProfileDto.CanMove</c> / <c>CanShoot</c>; no type known ⇒ granted).
+        /// Run it BEFORE <see cref="ApplyHitCapabilities"/>, which stays the one that strips.
+        /// </summary>
+        public static void RestoreHitCapabilities(EntityRepository repo, Entity entity, in Health health)
+        {
+            if (!repo.IsComponentTypeRegistered<ActorCapabilityState>() || !repo.HasComponent<ActorCapabilityState>(entity)) return;
+            if (health.Current <= 0f || Injury.StateOf(repo, entity, in health) == InjuryState.Incapacitated) return;
+            if (repo.IsComponentTypeRegistered<IsEmbarkedTag>() && repo.HasComponent<IsEmbarkedTag>(entity)) return;
+            if (repo.IsComponentTypeRegistered<IsAssistingTag>() && repo.HasComponent<IsAssistingTag>(entity)) return;
+
+            var give = ActorCapabilities.None;
+            var granted = TypeGrants(repo, entity);
+            if (!HitStopsMove(repo, entity, in health)) give |= ActorCapabilities.CanMove & granted;
+            if (!Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Firepower) && !Fdp.Toolkit.Behavior.Embarkation.HandsFull(repo, entity))
+                give |= ActorCapabilities.CanShoot & granted;
+            if (give != ActorCapabilities.None) repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities |= give;
+        }
+
+        /// <summary>The capabilities the unit's TYPE grants (its <c>BehaviorProfileDto</c>); everything when the type is unknown here.</summary>
+        private static ActorCapabilities TypeGrants(EntityRepository repo, Entity entity)
+        {
+            const ActorCapabilities both = ActorCapabilities.CanMove | ActorCapabilities.CanShoot;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>() || !repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity)
+                || !repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                || repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is not { } db
+                || !db.TryGetByType(repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity).TkbType, out var template)
+                || template?.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto>() is not { } dto) return both;
+            return (dto.CanMove ? ActorCapabilities.CanMove : 0) | (dto.CanShoot ? ActorCapabilities.CanShoot : 0);
         }
     }
 }

@@ -712,4 +712,16 @@ public sealed class AssetPickerLauncherTests
         Assert.Equal("Combat/mine", EditorWindowTitle.Detail("Combat/mine"));
         Assert.Null(EditorWindowTitle.Detail(null));
     }
+
+    /// <summary>⭐ New scenario N4 (docs/UX/DESIGN_New_Scenario_And_Recipe.md §4) — the title names the terrain the scenario is on, through the ONE rule
+    /// (<c>Hrot.Common.Scenarios.ScenarioWindowTitle</c>, CGF's too); a repeated read returns the same string (0 B a frame). 🔴 Red-proof (compiles):
+    /// the terrain suffix dropped ⇒ red.</summary>
+    [Fact]
+    public void N4_TheWindowTitle_NamesTheTerrain()
+    {
+        Assert.Equal("Combat/mine · on highway-rest", EditorWindowTitle.Detail("Combat/mine", "highway-rest"));
+        Assert.Same(EditorWindowTitle.Detail("Combat/mine", "highway-rest"), EditorWindowTitle.Detail(new string("Combat/mine".ToCharArray()), "highway-rest"));
+        Assert.Equal("Macro: test/fire-team · on berlin", Hrot.Common.Scenarios.ScenarioWindowTitle.Detail("macros/test/fire-team", "berlin"));
+        Assert.Equal("Combat/mine", EditorWindowTitle.Detail("Combat/mine", null));
+    }
 }

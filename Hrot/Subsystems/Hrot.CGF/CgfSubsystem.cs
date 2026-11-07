@@ -79,7 +79,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     Hrot.UI.Common.RunMode.IProvidesRunControls
 {
     /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
-    public string? WindowTitleDetail => _scenarioSession?.LoadedScenarioName;
+    /// ⭐ The ONE title rule (<see cref="Hrot.Common.Scenarios.ScenarioWindowTitle"/>, shared with the editor): a macro's path, N4 the terrain.
+    public string? WindowTitleDetail => Hrot.Common.Scenarios.ScenarioWindowTitle.Detail(_scenarioSession?.LoadedScenarioName,
+        _context?.World is { } w ? Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w) : null);
 
     /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised).</summary>
     public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
@@ -2152,7 +2154,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     private void OpenScenarioSaveAsDialog(
         Hrot.Editor.AiShared.Catalog.AssetCatalog catalog,
-        Action<string> onNamed)
+        Action<string> onNamed,
+        bool asRecipe = false)
     {
         if (_saveAsBrowser == null || _scenarioSession == null) return;
 
@@ -2168,6 +2171,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var request = Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.Build(
             catalog, Hrot.Editor.AiShared.AssetKind.Scenario, "Save Scenario As",
             initialName, "", "Save", folderPicker);
+        if (asRecipe) request = Hrot.Editor.AiShared.Recipes.RecipeFiles.AsScenarioRecipeRequest(request);   // ⭐ B-9 N3 — Replace? asks about the recipe
 
         _saveAsBrowser.Open(request, result =>
         {
@@ -2303,6 +2307,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   nothing here either — so this stays null. ⚠ NOT the same thing as the scenario SESSION
             //   seams below, which is what CE-046 supplies.
             saveScenario:  null,
+            openSaveAsBrowser: (req, onChosen) => _saveAsBrowser?.Open(req, onChosen),   // ⭐ B-9 N3 — "Save … as Recipe…" asks Replace? through the browser
             // ⚠ Save-As needs a modal browser this host does not compose. ⛔ It must still be a
             //   NO-OP-WITH-A-REASON rather than a crash: the shared command is registered either way,
             //   and a headless node reaching it says so instead of throwing.
@@ -2472,6 +2477,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     : null,
                 openSaveAsDialog: _saveAsBrowser != null
                     ? onNamed => OpenScenarioSaveAsDialog(catalog, onNamed)
+                    : null,
+                openSaveAsRecipeDialog: _saveAsBrowser != null
+                    ? onNamed => OpenScenarioSaveAsDialog(catalog, onNamed, asRecipe: true)
                     : null,
                 // ⭐ CE-4140 — New Scenario… is new FROM A SCENARIO RECIPE, which needs ScenarioNewAssetService — and this host composes none (WireAssetCreation: it takes an IEditorLogic adapter, CGF has no IEditorLogic).
                 //   Said here, not defaulted: the item is greyed with its reason (ruling 49). ⚠ The day CGF gains the Scenario kind in _newAssetServices it passes () => _newAssetLauncher.Open(AssetKind.Scenario).

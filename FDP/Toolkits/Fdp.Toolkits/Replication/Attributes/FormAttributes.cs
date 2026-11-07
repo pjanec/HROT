@@ -131,6 +131,96 @@ public static class FormAttributes
         t.Set |= bit;
     }
 
+    // ── Damage (Initial state S5) ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Is <paramref name="part"/> a part id a <see cref="Fdp.Toolkit.Physics.BodyParts.PartDamage"/> holds (0..<c>MaxParts</c>-1)?</summary>
+    public static bool IsPartId(int part) => part >= 0 && part < Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts;
+
+    /// <summary>
+    /// ⭐ S5 — one part's damage level: <paramref name="value"/> clamped to 0..255 and rounded. The one logic of the JSON setter, the binary handler and the
+    /// mobility switch. A part id out of range changes nothing. <c>true</c> when the level went DOWN (the caller then gives capabilities back).
+    /// </summary>
+    public static bool SetPartLevel(ref Fdp.Toolkit.Physics.BodyParts.PartDamage d, int part, double value)
+    {
+        if (!IsPartId(part)) return false;
+        byte level = (byte)Math.Clamp(Math.Round(value), 0d, 255d);
+        bool lowered = level < d.LevelOf((byte)part);
+        d.Set((byte)part, level);
+        return lowered;
+    }
+
+    /// <summary>Does <paramref name="body"/> have a zone whose wound effect is Mobility (running gear, engine)?</summary>
+    public static bool HasMobilityZone(Fdp.Toolkit.Physics.BodyParts.ResolvedBody? body)
+    {
+        if (body == null) return false;
+        foreach (var z in body.Zones) if (z.Effect == WoundEffect.Mobility) return true;
+        return false;
+    }
+
+    /// <summary>⭐ S5 — the mobility kill as a switch over <see cref="SetPartLevel"/>: set raises every part of every Mobility zone to at least its wounded
+    /// threshold, clear lowers them to 0. <c>true</c> when any level went down.</summary>
+    public static bool SetMobilityKill(ref Fdp.Toolkit.Physics.BodyParts.PartDamage d, Fdp.Toolkit.Physics.BodyParts.ResolvedBody body, bool kill)
+    {
+        bool lowered = false;
+        foreach (var z in body.Zones)
+        {
+            if (z.Effect != WoundEffect.Mobility) continue;
+            for (int p = 0; p < Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts; p++)
+            {
+                if (!z.Has((byte)p)) continue;
+                double target = kill ? Math.Max(d.LevelOf((byte)p), Math.Clamp(z.WoundedAt, 0, 255)) : 0d;
+                lowered |= SetPartLevel(ref d, p, target);
+            }
+        }
+        return lowered;
+    }
+
+    /// <summary>
+    /// ⭐ S5 — the binary handlers' ONE body for <see cref="AttributeIds.DamagePart"/> / <see cref="AttributeIds.DamageMobilityKill"/>. Refuses (touches nothing, so
+    /// the router reports it unapplied) a part out of range, a unit with no body, a mobility switch on a type with no Mobility zone, and a node that does not own
+    /// the component. A unit with no <c>PartDamage</c> gets one (the body's plan, as <c>HealthApplicationSystem</c> adds it) on the node that applies its Health.
+    /// After the write the unit's capabilities follow at once: a LOWERED damage first gives back what only the damage took
+    /// (<see cref="Fdp.Toolkit.Combat.CombatLife.RestoreHitCapabilities"/>), then the hit rule strips what the damage now takes — also in a paused world.
+    /// </summary>
+    public static void WriteDamage(BinaryPatchContext ctx, ushort attribute, int part, double value)
+    {
+        var repo = ctx.Repo;
+        bool mobility = attribute == AttributeIds.DamageMobilityKill;
+        if (!mobility && !IsPartId(part)) return;
+        if (repo == null)   // creation path: the request carries the level; the body is judged where the unit lives
+        {
+            if (mobility || !ctx.PatchContext.CanWrite<Fdp.Toolkit.Physics.BodyParts.PartDamage>()) return;
+            SetPartLevel(ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(), part, value);
+            return;
+        }
+        var entity = ctx.Entity;
+        if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.BodyParts.PartDamage>()) return;
+        var body = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(repo, entity);
+        if (body == null || (mobility && !HasMobilityZone(body))) return;
+        if (repo.HasComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(entity))
+        {
+            if (!ctx.PatchContext.CanWrite<Fdp.Toolkit.Physics.BodyParts.PartDamage>()) return;
+        }
+        else
+        {
+            if (!Fdp.Toolkit.Combat.HealthOwnership.AppliesHere(repo, entity)) return;   // PartDamage is owned with Health (Brain group)
+            repo.AddComponent(entity, new Fdp.Toolkit.Physics.BodyParts.PartDamage { Plan = body.Plan });
+            repo.SetAuthority<Fdp.Toolkit.Physics.BodyParts.PartDamage>(entity, true);
+        }
+        bool lowered;
+        {
+            ref var d = ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();
+            if (d.Plan == Fdp.Toolkit.Physics.BodyParts.BodyPlan.None) d.Plan = body.Plan;   // added empty by the edit framework
+            lowered = mobility ? SetMobilityKill(ref d, body, value >= 0.5d) : SetPartLevel(ref d, part, value);
+        }
+        if (repo.IsComponentTypeRegistered<Health>() && repo.HasComponent<Health>(entity))
+        {
+            var health = repo.GetComponentRO<Health>(entity);
+            if (lowered) Fdp.Toolkit.Combat.CombatLife.RestoreHitCapabilities(repo, entity, in health);
+            Fdp.Toolkit.Combat.CombatLife.ApplyHitCapabilities(repo, entity, in health);
+        }
+    }
+
     // ── Weapon posture (Initial state S2) ────────────────────────────────────────────────────────────────
 
     /// <summary>A token of enum <typeparamref name="T"/>: a whole number or its name; <c>false</c> for anything the enum does not define.</summary>
