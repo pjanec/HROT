@@ -11,6 +11,9 @@ namespace Fdp.Presentation.Editing
     /// </summary>
     public interface IMapPickContext
     {
+        /// <summary>⭐ U-25 / S4 — the entity-list preset that narrows the list to the scenario's named <b>Points</b> (TKB type 8816): a host's list opener reads <c>tkb:&lt;type&gt;</c> as "only entities of that TKB type".</summary>
+        public const string NamedPointsPreset = "tkb:8816";
+
         /// <summary>Returns <see langword="true"/> if a pick is currently in flight for the given path.</summary>
         bool IsPickPendingFor(string jsonPath);
 

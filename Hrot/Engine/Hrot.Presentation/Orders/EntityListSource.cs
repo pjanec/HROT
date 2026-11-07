@@ -29,15 +29,19 @@ public static class EntityListSource
         if (!world.IsComponentTypeRegistered<NetworkIdentity>()) return list;
         // ⚠ The layer filter reads MapDisplayComponent (assigned by MapLayerAssignmentSystem on every map host); no presets, or a
         //   world without it (a test), is not narrowed — the same rule as CanvasMapPickAdapter's default.
-        IEntityFilter? filter = presets is { Length: > 0 } && world.IsComponentTypeRegistered<MapDisplayComponent>()
-            ? new Hrot.Presentation.Map.HrotEntityFilterFactory(world).CreateFilter(presets ?? Array.Empty<string>())
+        // ⭐ U-25 / S4 — a "tkb:<type>" preset (Fdp.Presentation.Editing.IMapPickContext.NamedPointsPreset) admits only entities of that TKB type (the Points list); the rest are layer names, as before
+        int onlyType = TkbTypeOf(presets, out var layerPresets);
+        IEntityFilter? filter = layerPresets is { Length: > 0 } && world.IsComponentTypeRegistered<MapDisplayComponent>()
+            ? new Hrot.Presentation.Map.HrotEntityFilterFactory(world).CreateFilter(layerPresets)
             : null;
+        bool typed = onlyType > 0 && world.IsComponentTypeRegistered<TkbIdentity>();
         bool info = world.IsComponentTypeRegistered<EntityInfo>();
         foreach (var e in world.Query().With<NetworkIdentity>().Build())
         {
             int id = world.GetComponentRO<NetworkIdentity>(e).Value;
             if (id <= 0 || (exclude != null && exclude.Contains(id))) continue;
             if (filter != null && !filter.IsMatch(e)) continue;
+            if (onlyType > 0 && (!typed || !world.HasComponent<TkbIdentity>(e) || world.GetComponentRO<TkbIdentity>(e).TkbType.Value != onlyType)) continue;
             string idText = "#" + id.ToString(CultureInfo.InvariantCulture);
             string name = idText;
             string category = "Other";
@@ -61,12 +65,29 @@ public static class EntityListSource
         return list;
     }
 
+    /// <summary>The TKB type a <c>tkb:&lt;type&gt;</c> preset names (0 = none), and the remaining layer presets.</summary>
+    internal static int TkbTypeOf(string[]? presets, out string[]? layerPresets)
+    {
+        layerPresets = presets;
+        if (presets == null) return 0;
+        int type = 0, kept = 0;
+        var rest = new string[presets.Length];
+        foreach (var p in presets)
+        {
+            if (p.StartsWith("tkb:", StringComparison.OrdinalIgnoreCase) && int.TryParse(p.AsSpan(4), NumberStyles.Integer, CultureInfo.InvariantCulture, out int t) && t > 0) type = t;
+            else rest[kept++] = p;
+        }
+        if (type == 0) return 0;
+        layerPresets = kept == 0 ? null : rest[..kept];
+        return type;
+    }
+
     /// <summary>The picker request for <see cref="Entries"/> (built lazily, so the list is fresh when it opens).</summary>
     public static PickerRequest Request(EntityRepository world, string[]? presets, ICollection<int>? exclude = null)
         => new()
         {
             ContextKey = ContextKey,
-            Title = presets is { Length: > 0 } ? "Choose: " + string.Join(", ", presets) : "Choose an entity",
+            Title = presets is { Length: > 0 } ? (TkbTypeOf(presets, out _) > 0 && presets.Length == 1 ? "Choose a named point" : "Choose: " + string.Join(", ", presets)) : "Choose an entity",
             ItemsProvider = () => Entries(world, presets, exclude),
             FoldSingleChildFolders = true,
         };

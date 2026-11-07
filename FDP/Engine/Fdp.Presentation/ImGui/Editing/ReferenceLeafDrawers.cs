@@ -447,9 +447,9 @@ public static class ReferenceLeafDrawers
     private static bool DrawWorldPoint(EditNode node, float width, IMapPickContext? ctx)
     {
         bool changed = false;
-        ImGuiApi.SetNextItemWidth(Math.Max(width - (ctx != null ? 90f : 0f), 60f));
+        ImGuiApi.SetNextItemWidth(Math.Max(width - LocationButtons(ctx), 60f));
         var local = node.Binding?.GetBoxed() is WorldPoint wp ? (Vector3)wp : default;
-        if (DrawXyz(ref local, Math.Max(width - (ctx != null ? 90f : 0f), 60f)))
+        if (DrawXyz(ref local, Math.Max(width - LocationButtons(ctx), 60f)))
         {
             node.Binding?.SetBoxed((WorldPoint)local);
             changed = true;
@@ -500,13 +500,27 @@ public static class ReferenceLeafDrawers
         return ctx.TryConsumeEntityPick(node.JsonPath, out picked);
     }
 
+    private static readonly string[] NamedPointPresets = { IMapPickContext.NamedPointsPreset };
+
+    private static float LocationButtons(IMapPickContext? ctx) => ctx == null ? 0f : ctx.CanListEntities ? 150f : 90f;
+
     private static bool DrawLocationPickButton(EditNode node, IMapPickContext ctx, out PointLink location)
     {
         ImGuiApi.SameLine();
         if (ctx.IsPickPendingFor(node.JsonPath))
             ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
-        else if (ImGuiApi.Button($"Pick Map##{node.Id.Value}"))
-            ctx.RequestLocationPick(node.JsonPath);
+        else
+        {
+            if (ImGuiApi.Button($"Pick Map##{node.Id.Value}"))
+                ctx.RequestLocationPick(node.JsonPath);
+            // ⭐ U-25 / S4 — or choose one of the scenario's named POINTS from a list; the broker hands it back through TryConsumeLocationPick as the same PointLink (position + GUID) a map click on the point gives
+            if (ctx.CanListEntities)
+            {
+                ImGuiApi.SameLine();
+                if (ImGuiApi.Button($"List…##pl{node.Id.Value}"))
+                    ctx.RequestEntityListPick(node.JsonPath, NamedPointPresets);
+            }
+        }
         return ctx.TryConsumeLocationPick(node.JsonPath, out location);
     }
 
@@ -665,7 +679,7 @@ public static class ReferenceLeafDrawers
         {
             // today's form: x, y, z + Pick Map — typed coordinates are a literal (no authored reference)
             var local = (Vector3)point.Local;
-            if (DrawXyz(ref local, Math.Max(width - 90f - 190f, 120f)))
+            if (DrawXyz(ref local, Math.Max(width - LocationButtons(ctx) - 190f, 120f)))
             {
                 point = new PointLink(local);
                 changed = true;

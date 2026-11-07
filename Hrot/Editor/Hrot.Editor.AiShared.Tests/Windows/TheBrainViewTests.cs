@@ -308,6 +308,18 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         return enemy;
     }
 
+    /// <summary>⭐ U-24 / S5 (R-4157) — a node that does NOT run the unit's brain has no <c>TargetMemory</c>: the Knows section then says where his memory is (one line) instead of "No contacts in his memory"; where the memory is here it says nothing.
+    /// 🔴 Red-proof (compiles): <c>WhereMemoryIs</c> always null ⇒ red.</summary>
+    [Fact]
+    public void U24_S5_TheKnowsSection_SaysWhereTheMemoryIs_OnANodeWithoutTheBrain()
+    {
+        var (w, e, _, _) = RunningWorld();
+        using var _w = w;
+        Assert.Contains("node that runs his brain", EntityBrainView.WhereMemoryIs(w, e));   // no TargetMemory on this node
+        Contacts(w, e);
+        Assert.Null(EntityBrainView.WhereMemoryIs(w, e));                                    // the memory is here: the contacts are drawn
+    }
+
     /// <summary>⭐ <c>CE-1327</c> — the Knows section's rows come from the unit's memory: the seen rifleman named, the heard gunfire as a
     /// "something" with its radius, freshest first, with distances; the API's brain JSON carries them. ✅ Red-proof: the rows not read
     /// (ContactsOf skipped) ⇒ red.</summary>

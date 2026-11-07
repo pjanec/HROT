@@ -55,17 +55,24 @@ public sealed class FormView
     private string _editText = "";
     private int _selectionStamp;
     private string _expertId = "", _expertGridId = "";
-    private string[] _gridIds = Array.Empty<string>();
+    private string[] _gridIds = Array.Empty<string>(), _pickIds = Array.Empty<string>();
     private string[] _listIds = Array.Empty<string>(), _listGridIds = Array.Empty<string>();
     private string?[] _listProblem = Array.Empty<string?>();
     private readonly List<FormListItem> _items = new();
     private readonly Dictionary<long, (FixedString64 Who, string Shown)> _who = new();   // a row's name, built once per change (0 B steady)
     private readonly List<string> _listRows = new();
+    private readonly List<(int Field, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> _itemRects = new();
+
+    /// <summary>⭐ U-24 / S5 — a rail switch: record each drawn field control's screen rectangle in <see cref="ItemRects"/> (the fidelity rail MEASURES the mockup's alignment; off in the app — nothing is recorded).</summary>
+    public bool CaptureLayout { get; set; }
+    /// <summary>The last frame's field controls, in draw order: the field index and the control's screen rectangle (only while <see cref="CaptureLayout"/>).</summary>
+    public IReadOnlyList<(int Field, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> ItemRects => _itemRects;
 
     /// <summary>Draws <paramref name="decl"/> for <paramref name="selection"/>; <paramref name="editable"/> false ⇒ read-only (the run state / the seat decides — ONE function, §2.4).</summary>
     public void Draw(FormDecl decl, EntityRepository world, IReadOnlyList<Entity> selection, bool editable)
     {
         if (!ReferenceEquals(decl, _decl)) Bind(decl);
+        _itemRects.Clear();
         int stamp = Stamp(selection);
         if (stamp != _selectionStamp) { _selectionStamp = stamp; _editing = -1; foreach (var s in _state) { s.Known = false; s.Tickets.Clear(); s.Refusal = null; s.Problem = null; } }
         Refresh(world, selection);
@@ -80,6 +87,7 @@ public sealed class FormView
             var f = decl.Fields[i];
             if (f.Expert) continue;
             if (!_state[i].Has) { pending = f.Section ?? pending; continue; }
+            if (IsInlineChild(i)) continue;   // drawn on the previous field's row
             string? section = f.Section ?? pending;
             pending = null;
             if (section != null || !open)
@@ -98,7 +106,7 @@ public sealed class FormView
             if (FormGrid.Begin(_expertGridId, decl.Labels, statusSlot: true))
             {
                 for (int i = 0; i < decl.Fields.Count; i++)
-                    if (decl.Fields[i].Expert && _state[i].Has) DrawField(i, world, selection, editable);
+                    if (decl.Fields[i].Expert && _state[i].Has && !IsInlineChild(i)) DrawField(i, world, selection, editable);
                 FormGrid.End();
             }
         }
@@ -179,7 +187,8 @@ public sealed class FormView
         _expertId = decl.Id + "-expert"; _expertGridId = decl.Id + "-x";   // built once per form, never per frame
         _state = new FieldState[decl.Fields.Count];
         for (int i = 0; i < _state.Length; i++) _state[i] = new FieldState { Id = decl.Id + "." + i };
-        _gridIds = new string[decl.Fields.Count];
+        _gridIds = new string[decl.Fields.Count]; _pickIds = new string[decl.Fields.Count];
+        for (int i = 0; i < _pickIds.Length; i++) _pickIds[i] = decl.Id + ".pick" + i;
         for (int i = 0, sec = 0; i < _gridIds.Length; i++) { if (decl.Fields[i].Section != null) sec++; _gridIds[i] = decl.Id + "/s" + sec; }
         _listIds = new string[decl.Lists.Count]; _listProblem = new string?[decl.Lists.Count];
         _listGridIds = new string[decl.Lists.Count];
@@ -210,7 +219,7 @@ public sealed class FormView
             {
                 var e = sel[i];
                 if (!world.IsAlive(e) || (field.Has != null && !field.Has(world, e))) { has = false; break; }   // a row common to ALL the selection only
-                if (field.Kind == FieldKind.Text)
+                if (field.Kind is FieldKind.Text or FieldKind.Pick)
                 {
                     var t = field.ReadText!(world, e);
                     if (!has) text = t; else if (!t.Equals(text)) mixed = true;
@@ -226,7 +235,7 @@ public sealed class FormView
             if (!s.Has) continue;
             if (field.TypeValue != null) RefreshType(field, s, world, sel);
             double max = field.MaxOf != null && sel.Count == 1 && !mixed ? field.MaxOf(world, sel[0]) : double.NaN;
-            if (s.Known && s.Mixed == mixed && (field.Kind == FieldKind.Text ? s.Text.Equals(text) : s.Number == num) && (s.Max == max || (double.IsNaN(s.Max) && double.IsNaN(max)))) continue;
+            if (s.Known && s.Mixed == mixed && (field.Kind is FieldKind.Text or FieldKind.Pick ? s.Text.Equals(text) : s.Number == num) && (s.Max == max || (double.IsNaN(s.Max) && double.IsNaN(max)))) continue;
             s.Known = true; s.Mixed = mixed; s.Number = num; s.Text = text; s.Max = max;
             s.NumberFormat = double.IsNaN(max) ? null : NumberInput.FormatFor(field.Unit) + " / " + max.ToString("0.##", CultureInfo.InvariantCulture).Replace("%", "%%");
             s.Shown = mixed ? "mixed" : Format(field, num, text) + (double.IsNaN(max) ? "" : " / " + max.ToString("0.##", CultureInfo.InvariantCulture));
@@ -248,7 +257,7 @@ public sealed class FormView
     /// <summary>The value as people read it: <c>60 s</c> · <c>62 %</c> · the choice's word · <c>yes / no</c> · the text.</summary>
     public static string Format(FormField field, double number, in FixedString64 text) => field.Kind switch
     {
-        FieldKind.Text => text.ToString(),
+        FieldKind.Text or FieldKind.Pick => text.ToString(),
         FieldKind.Choice => field.Choices != null && (int)number >= 0 && (int)number < field.Choices.Count ? field.Choices[(int)number] : number.ToString(CultureInfo.InvariantCulture),
         FieldKind.Toggle => number != 0 ? "yes" : "no",
         _ => number.ToString("0.##", CultureInfo.InvariantCulture) + (field.Unit == null ? "" : " " + field.Unit),
@@ -256,14 +265,49 @@ public sealed class FormView
 
     // ── one row ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>⭐ U-24 / S5 — is field <paramref name="i"/> drawn on the row of the one before it (<see cref="FormField.Inline"/>, and that one is drawn in the same grid)?</summary>
+    private bool IsInlineChild(int i)
+        => i > 0 && _decl!.Fields[i].Inline && _state[i - 1].Has && _decl.Fields[i - 1].Expert == _decl.Fields[i].Expert;
+
     private void DrawField(int i, EntityRepository world, IReadOnlyList<Entity> sel, bool editable)
     {
         var field = _decl!.Fields[i]; var s = _state[i];
         var rowState = StateOf(s, world, field, editable);
-        FormRow.Begin(s.Id, field.Label, in rowState);
-        ImGui.SetNextItemWidth(-1f);
+        int last = i;
+        while (last + 1 < _state.Length && _state[last + 1].Has && IsInlineChild(last + 1)) last++;
+        if (last > i && Strongest(in rowState) == FormMark.None)   // the row's one mark slot: the first field's, else an inline field's
+            for (int k = i + 1; k <= last; k++) { var r = StateOf(_state[k], world, _decl.Fields[k], editable); if (Strongest(in r) != FormMark.None) { rowState = r; break; } }
+        string label = field.LabelFor != null && sel.Count > 0 ? field.LabelFor(world, sel[0]) : field.Label;
+        FormRow.Begin(s.Id, label, in rowState);
+        if (last > i) ImGui.SetNextItemWidth(Math.Max(60f, ImGui.GetContentRegionAvail().X * InlineShare));
+        else ImGui.SetNextItemWidth(-1f);
+        DrawControl(i, world, sel, editable);
+        for (int k = i + 1; k <= last; k++)
+        {
+            var child = _decl.Fields[k];
+            ImGui.SameLine();
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextDisabled(child.InlineCaption ?? child.Label);
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(-1f);
+            DrawControl(k, world, sel, editable);
+        }
+        var clicked = FormRow.End(in rowState);
+        if (clicked == FormMark.Refused) for (int k = i; k <= last; k++) { _state[k].Refusal = null; _state[k].Tickets.Clear(); }
+        else if (clicked == FormMark.DiffersFromType && editable) Commit(i, world, sel, field.ResetValue, null);   // ⭐ U-24 / S6 — back to the type: the attribute's reset value, never range-checked
+    }
+
+    /// <summary>The share of the control column the first control of an inline row takes (<i>Weapon</i> [Aimed ▾] <i>at</i> [pick]).</summary>
+    private const float InlineShare = 0.42f;
+
+    private static FormMark Strongest(in FormRowState s) => FormRow.Strongest(in s);
+
+    private void DrawControl(int i, EntityRepository world, IReadOnlyList<Entity> sel, bool editable)
+    {
+        var field = _decl!.Fields[i]; var s = _state[i];
         bool ro = field.ReadOnly || !editable;
         if (ro) ImGui.BeginDisabled();
+        ImGui.PushID(i);
         switch (field.Kind)
         {
             case FieldKind.Number: DrawNumber(i, field, s, world, sel); break;
@@ -281,12 +325,34 @@ public sealed class FormView
                 bool b = s.Number != 0;
                 if (ImGui.Checkbox("##b", ref b)) Commit(i, world, sel, b ? 1 : 0, null);
                 break;
+            case FieldKind.Pick: DrawPick(i, field, s, world, sel, editable); break;
         }
+        if (CaptureLayout) _itemRects.Add((i, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+        ImGui.PopID();
         if (ro) ImGui.EndDisabled();
-        var clicked = FormRow.End(in rowState);
-        if (clicked == FormMark.Refused) { s.Refusal = null; s.Tickets.Clear(); }
-        else if (clicked == FormMark.DiffersFromType && editable) Commit(i, world, sel, field.ResetValue, null);   // ⭐ U-24 / S6 — back to the type: the attribute's reset value, never range-checked
     }
+
+    /// <summary>⭐ U-24 / S5 — a picked entity as ONE button: its name (or <i>Pick on map…</i>), a pick through the form's one context, <i>List…</i> where the context offers a list, <i>Clear</i> while one is set.</summary>
+    private void DrawPick(int i, FormField field, FieldState s, EntityRepository world, IReadOnlyList<Entity> sel, bool editable)
+    {
+        string id = _pickIds[i];
+        if (sel.Count != 1 || Pick == null) { ImGui.TextDisabled(s.Mixed ? "mixed" : s.Shown.Length > 0 ? s.Shown : "-"); return; }
+        if (editable && field.PickApply != null && Pick.TryConsumeEntityPick(id, out var picked) && picked.TryResolve(world, out var pickedEntity))
+        {
+            s.Refusal = field.PickApply(world, sel[0], pickedEntity);
+            s.Known = false;
+        }
+        bool set = s.Shown.Length > 0;
+        float avail = ImGui.GetContentRegionAvail().X;
+        float extra = (set && field.Apply != null ? ClearWidth : 0f) + (Pick.CanListEntities ? ListWidth : 0f);
+        if (Pick.IsPickPendingFor(id)) { ImGui.AlignTextToFramePadding(); ImGui.TextDisabled("pick on the map..."); return; }
+        if (ImGui.Button(set ? s.Shown : PickWords, new System.Numerics.Vector2(Math.Max(40f, avail - extra), 0f))) { Pick.RequestEntityPick(id, null); s.Refusal = null; }
+        if (Pick.CanListEntities) { ImGui.SameLine(); if (ImGui.Button("List...")) { Pick.RequestEntityListPick(id, null); s.Refusal = null; } }
+        if (set && field.Apply != null) { ImGui.SameLine(); if (ImGui.Button("Clear")) Commit(i, world, sel, 0, null); }
+    }
+
+    private const string PickWords = "Pick on map...";
+    private const float ClearWidth = 52f, ListWidth = 56f;
 
     private void DrawNumber(int i, FormField field, FieldState s, EntityRepository world, IReadOnlyList<Entity> sel)
     {

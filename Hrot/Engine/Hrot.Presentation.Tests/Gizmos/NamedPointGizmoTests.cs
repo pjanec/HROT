@@ -81,6 +81,41 @@ public sealed class NamedPointGizmoTests : IDisposable
         Assert.Equal(500f, elsewhere.Local.X);
     }
 
+    /// <summary>⭐ U-25 / S4 — a location pick offers <i>List…</i> with the scenario's named POINTS: the list is narrowed to TKB 8816 (the <c>tkb:8816</c> preset — a unit and a deploy role are not offered), and choosing one comes back through
+    /// <c>TryConsumeLocationPick</c> as the SAME <c>PointLink</c> (the point's position + its GUID) a map click on it gives (<c>SnapToNamedPoint</c>); a choice that is not in the world is not consumed.
+    /// 🔴 Red-proof (compiles): the broker not consuming a listed choice as a location ⇒ red.</summary>
+    [Fact]
+    public void U25_ChoosingANamedPointFromTheList_GivesThePointLinkAClickGives()
+    {
+        _repo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+        var g = Guid.NewGuid();
+        var lz = Point(TkbEntityTypes.Point, WorldRotation.Identity, 41);
+        _repo.AddComponent(lz, new Fdp.Toolkit.Scenario.EntityGuid(g));
+        Point(TkbEntityTypes.DeployRole, WorldRotation.Identity, 43);   // a role, not a point
+
+        var entries = Hrot.Presentation.Orders.EntityListSource.Entries(_repo, new[] { Fdp.Presentation.Editing.IMapPickContext.NamedPointsPreset });
+        Assert.Equal(new object?[] { 41 }, entries.Select(e => e.Tag).ToArray());   // only the named Point
+
+        var broker = new Hrot.Presentation.Facades.MapPickBroker(new PointsAt(41)) { References = new Fdp.Toolkit.Scenario.LiveRefScope(_repo) };
+        string[]? asked = null; int choose = 41;
+        broker.EntityList = (presets, chosen) => { asked = presets; chosen(choose); return true; };
+        Assert.True(broker.CanListEntities);
+
+        broker.RequestEntityListPick("$.at", new[] { Fdp.Presentation.Editing.IMapPickContext.NamedPointsPreset });
+        Assert.Equal(new[] { "tkb:8816" }, asked);
+        Assert.False(broker.TryConsumeLocationPick("$.other", out _));   // another field's path is untouched
+        Assert.True(broker.TryConsumeLocationPick("$.at", out var listed));
+        var clicked = broker.SnapToNamedPoint(new WorldPoint(101, 199, 0));
+        Assert.Equal(Fdp.Core.RefSpec.ByExact(g), listed.Spec);
+        Assert.Equal(clicked.Spec, listed.Spec);
+        Assert.Equal(clicked.Local.X, listed.Local.X); Assert.Equal(clicked.Local.Y, listed.Local.Y);   // the SAME PointLink as a click on it
+        Assert.False(broker.TryConsumeLocationPick("$.at", out _));      // consumed once
+
+        choose = 77;   // an entity the world does not have
+        broker.RequestEntityListPick("$.at", null);
+        Assert.False(broker.TryConsumeLocationPick("$.at", out _));
+    }
+
     private sealed class PointsAt : Hrot.UI.Common.Facades.IMapPickService
     {
         public int Net;

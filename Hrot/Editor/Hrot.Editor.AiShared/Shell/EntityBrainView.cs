@@ -535,7 +535,11 @@ public sealed class EntityBrainView : IDetailsViewInstance
         }
 
         if (Section($"Knows ({b.Contacts} identified" + (b.HeardOnly > 0 ? $", {b.HeardOnly} heard only)" : ")"), "knows"))
-            DrawContacts(world, b.ContactRows);
+        {
+            // ⭐ U-24 / S5 (R-4157) — his memory lives on the node that runs his brain; on any other node say so instead of "no contacts"
+            if (WhereMemoryIs(world, unit) is { } where) ImGui.TextDisabled(where);
+            else DrawContacts(world, b.ContactRows);
+        }
 
         // ⭐⭐ CE-1312 (BV-56…BV-58) — a COMMANDER's picture, his units' contacts, and his report / order histories (recorded: they replay)
         if (world is not null && BrainCommandView.Read(world, unit, _behaviorName, (float)NowOf(world)) is { } cmd)
@@ -873,6 +877,10 @@ public sealed class EntityBrainView : IDetailsViewInstance
 
     /// <summary>⭐ <c>CE-1327</c> — the host's camera jump: centre the map (2-D or 3-D) on a sim position. Null on a host with no map.</summary>
     public static Func<EntityRepository, Vector3, bool>? JumpCamera { get; set; }
+
+    /// <summary>⭐ U-24 / S5 (R-4157) — the one line a node WITHOUT the unit's brain shows in place of his contacts (his <see cref="TargetMemory"/> is on the brain's node alone); null where the memory is here.</summary>
+    internal static string? WhereMemoryIs(ISimulationView? view, Entity unit)
+        => view is null || BrainSnapshot.Has<TargetMemory>(view, unit) ? null : "His memory is on the node that runs his brain - his contacts are shown there.";
 
     /// <summary>⭐ <c>CE-1327</c> — the unit's contacts, one row each: who, how it was sensed, how far, how long ago, how fresh, and a button
     /// that brings the map's camera to where he believes it is.</summary>

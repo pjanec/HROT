@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — R1–R3 BUILT (§5 as-built); R4 next
+build-state: BUILT — R1–R4 (§5 as-built)
 updated: 2026-11-07 (R1–R3 as-built folded in, §5; first version — the user: "How can be something built just for an editor when the bootstrap is unified and shared and features are available everywhere by role and suppressed just by feature settings or role settings?" — CE-4292)
 current-answer: §1 what is there · §2 the design (diagrams, as-built) · §3 rules · §4 stages · §5 as-built and deviations
 stale-below: nothing
@@ -139,7 +139,7 @@ exercise sits there) — the dashed edges are deliberate, not a gap.*
 | **R1** ✅ | move `EntityAiEditModel` (+ its `EntityAiDetailsView` if it must travel with it) to `Hrot.Editor.AiShared`; the editor's AI section unchanged | the AI section's own suite green; nothing else moved |
 | **R2** ✅ | `RulesHostServices` + `RuleEditorServicesFactory` (the body of `BuildRuleEditorServices` / `BuildMacroPreviewServices` / `BuildRuleLiveServices`, host pieces passed in, seat-gated) | a rail per seat: Author / Instructor edit, Reviewer / Player / Observer / Side controller get the seat refusal (§5 ①) — `TheRulesBundleTests` |
 | **R3** ✅ | `RulesBundle` registering the five windows; Editor, CGF and the Replay Browser compose it; the hand-written sites deleted | the window-set golden per host: Editor and Replay Browser unchanged; CGF gains Mission summary, Trainee debrief, Game summary, Game master (H5) |
-| **R4** | a CGF live edit end to end | from CGF's Rules window a rule's param changed live reaches the owner and the journal says Applied (`RuleEditorR5bTests` + one cluster rail); a forwarding rail per dependency on CGF |
+| **R4** ✅ (§5 ⑦) | a CGF live edit end to end | from CGF's Rules window a rule's param changed live reaches the owner and the journal says Applied (`RuleEditorR5bTests` + one cluster rail); a forwarding rail per dependency on CGF |
 
 ## 5. As-built (R1–R3, `2026-11-07`) and the deviations
 
@@ -151,6 +151,8 @@ exercise sits there) — the dashed edges are deliberate, not a gap.*
 | ④ | Game master only where the host can create entities (`EntityCreation` passed) and is live | its one-shot actions create a transient trigger entity |
 | ⑤ | the editor composes the bundle **before its headless guard** (`EditorSubsystem.RegisterWindows`, as the breakpoint manager) | so a headless editor has its rules windows too and the composition is railed (`TheRunChoiceIsOnEveryHostTests`) |
 | ⑥ | `EntityAiEditModel` moved file-only (`Hrot.Editor.AiShared/Scenario/`), its namespace kept; `Hrot.Editor.AiShared` gained a reference to `Hrot.AI.Behaviors` (no cycle) | a move, not a rename |
+
+| ⑦ | **R4 as built**: on the constructed CGF, a running trigger in CGF's world is editable from CGF's own Rules window and Apply sends the edit through the ONE write path (`RuleCommands.Edit` → `EditRequests` → the router) — the window reads *"sent - waiting for the owner"* | ⚠ the owner half — `RuleEditSystem` (which `CgfLogicPack` registers) applying it and journalling Applied — is railed where it runs, `ScenarioRulesTests.LiveEdit` (SimHost.Tests), and the content (complete params, Operator) is `RuleEditorR5bTests`'; ⛔ not one process: a composed-but-not-running CGF runs no frame |
 
 Rails: `TheRulesBundleTests` (the seat theory; recording / live / no-creation) · `TheRunChoiceIsOnEveryHostTests` (Editor: five ids + its ONE history
 forwarded; CGF: the four new windows + a forwarding row per capability — picks, pickers, entity creation, Game master).

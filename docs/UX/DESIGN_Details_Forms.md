@@ -354,6 +354,9 @@ weapon per station as its own column, the carry mode (carried / dragged). Rail `
 is two rows here (*Weapon* + the *Aimed at* list, which also needs *Clear*); *Playable ☑ slot [..]* is three rows (toggle, side, slot); *Type* and *Rounds* rows
 not yet (§3 gaps above). Rails render `unit-form.png` / `unit-form-s5.png` / `crew-form.png` under `HROT_RAIL_SHOTS`.
 
+
+**Part 4 of U-24 — the combined rows *(ui, `2026-11-07`)*:** `details-forms-visual.svg` draws *Weapon* [Aimed ▾] *at* [pick] and *Playable* ☑ *slot* [..] on ONE line. New generic seam on `FormField`: **`Inline`** (+ `InlineCaption`) — the field is drawn on the row of the field BEFORE it, after a small disabled caption (*at*, *slot*); the first control takes 42 % of the control column, the inline one the rest; the label, the mark slot and the refusal belong to the row (the first field's mark, else an inline field's). `FormView` knows no field by label: `IsInlineChild(i)` = `Inline` and the previous field is drawn in the same grid (otherwise the field falls back to a row of its own). New `FieldKind.Pick` (+ `PickApply`): an entity chosen through the form's one pick context, drawn as ONE button — the picked one's name or *Pick on map…* — with *List…* where the context offers a list and *Clear* (the field's `Apply`) while one is set; it replaced the Unit form's *Aimed at* `FormList`. Unit form order: *Weapon* · *Aimed at* (inline) · *In hand* …; *Playable* · *Slot* (inline) · *Playable for*. Rail `TheUnitFormDrawsTests.U24_S5_TheCombinedRows_ShareOneLine_Measured` MEASURES the item rectangles through `FormView.CaptureLayout` / `ItemRects` (same Y, the second to the right of the first, the next field on the next row, one control column), red-proved by `IsInlineChild` returning false; `HROT_RAIL_SHOTS` renders `unit-form-inline.png`.
+
 ### 4.1 AS-BUILT — D2 *(B-4, `2026-11-06`)*
 
 | attribute (JSON path) | id | component · handler | applies where | notes / deviations |
