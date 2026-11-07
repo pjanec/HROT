@@ -32,7 +32,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             /// <summary>Working state (recorded): 0 after a claim until the streak is seen below the minimum.</summary>
             public byte Armed; public byte Started;
             /// <summary>P-8b′ — sim time his man was first seen out of the fight while the bounty stood (waiting for the downing event); <c>Waiting</c> says it is set.</summary>
-            public double DownSince; public byte Waiting;
+            public SimInstant DownSince; public byte Waiting;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -66,7 +66,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 else if (wasActive && !(!subject.IsNull && world.IsAlive(subject) && Fdp.Toolkit.Combat.Injury.IsInTheFight(world, subject)))
                 {
                     // ⭐ P-8b′ — his man left the fight: the bounty STANDS until the downing event claims it (above, next ticks) or ClaimWaitSeconds pass
-                    if (b.Waiting == 0) { b.Waiting = 1; b.DownSince = f.Now; }
+                    if (b.Waiting == 0) { b.Waiting = 1; b.DownSince = (SimInstant)f.Now; }
                     if (f.Now - b.DownSince >= ClaimWaitSeconds)
                     {
                         b.Waiting = 0;

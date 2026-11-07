@@ -120,7 +120,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         internal static AreaEffectCloud FromSample(in EntityAreaEffectCloud d) => new()
         {
             Kind = (CloudKind)d.Kind, Radius = d.Radius, Height = d.Height, SightTransmittance = d.SightTransmittance,
-            IrritantSeconds = d.IrritantSeconds, BornAtSimSeconds = d.BornAtSimSeconds, Seconds = d.Seconds,
+            IrritantSeconds = d.IrritantSeconds, BornAtSimSeconds = (SimInstant)d.BornAtSimSeconds, Seconds = d.Seconds,
             SourceNetworkId = d.SourceNetworkId,   // ⭐ CE-3236
             CreatorNetworkId = d.CreatorNetworkId, OriginalCreatorNetworkId = d.OriginalCreatorNetworkId,   // ⭐ CE-4155
         };

@@ -38,24 +38,24 @@ namespace Fdp.Toolkit.Squad
             public readonly Vector3 Point;
             /// <summary>The point came from a cover query.</summary>
             public readonly bool Cover;
-            public readonly double IssuedAt;
+            public readonly SimInstant IssuedAt;
             /// <summary>The entity the order is about (the contact to suppress, the man to carry); Null when none.</summary>
             public readonly Entity Target;
             public Order(Entity member, byte kind, Vector3 point, bool cover, double issuedAt, Entity target = default)
             {
-                Member = member; Kind = kind; Point = point; Cover = cover; IssuedAt = issuedAt; Target = target;
+                Member = member; Kind = kind; Point = point; Cover = cover; IssuedAt = (SimInstant)issuedAt; Target = target;
             }
         }
 
         /// <summary>One phase change.</summary>
         public readonly struct Step
         {
-            public readonly double At;
+            public readonly SimInstant At;
             public readonly ushort Phase;
             /// <summary>A <c>PhaseEventKind</c> value, or <see cref="EventStart"/> / <see cref="EventRetake"/> / <see cref="EventEnd"/> /
             /// <see cref="EventTimeout"/>.</summary>
             public readonly byte Event;
-            public Step(double at, ushort phase, byte evt) { At = at; Phase = phase; Event = evt; }
+            public Step(double at, ushort phase, byte evt) { At = (SimInstant)at; Phase = phase; Event = evt; }
         }
 
         /// <summary>The casualty-care play's state (§7.5).</summary>
@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Squad
         public readonly bool Active;
         public readonly ushort Kind;
         public readonly ushort Phase;
-        public readonly double PhaseSince;
+        public readonly SimInstant PhaseSince;
         public readonly Order[] Orders;
         /// <summary>Oldest first, at most <see cref="HistoryCapacity"/>.</summary>
         public readonly Step[] History;
@@ -91,7 +91,7 @@ namespace Fdp.Toolkit.Squad
         private SquadDrillTrace(bool active, ushort kind, ushort phase, double phaseSince, Order[] orders, Step[] history,
                                 bool hasGates, bool covering, bool set, bool hasCare, CareState care)
         {
-            Active = active; Kind = kind; Phase = phase; PhaseSince = phaseSince; Orders = orders; History = history;
+            Active = active; Kind = kind; Phase = phase; PhaseSince = (SimInstant)phaseSince; Orders = orders; History = history;
             HasGates = hasGates; Covering = covering; Set = set; HasCare = hasCare; Care = care;
         }
 

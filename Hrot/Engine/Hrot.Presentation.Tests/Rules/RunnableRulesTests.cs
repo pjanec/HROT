@@ -260,7 +260,7 @@ public sealed class RunnableRulesTests : IDisposable
     private readonly record struct PlayerMessageLike(int Id, string Kind, int Value, string Text, double At, int Source);
 
     private void Sent(PlayerMessageLike m)
-        => PlayerMessages.In(_world).Record(new PlayerMessageEvent { MessageId = m.Id, ToKind = m.Kind, ToValue = m.Value, Text = m.Text, SentAt = m.At, Source = m.Source });
+        => PlayerMessages.In(_world).Record(new PlayerMessageEvent { MessageId = m.Id, ToKind = m.Kind, ToValue = m.Value, Text = m.Text, SentAt = (SimInstant)m.At, Source = m.Source });
 
     [Fact]
     public void ABriefingToAll_NamesItsRecipientsAndWhen()

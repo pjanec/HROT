@@ -998,7 +998,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             int recorded = RunTokens.Last + 7;
             for (int i = 0; i < 40; i++) RunTokens.Next();   // this process ran on past the recorded frame
             world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 5.0 });
-            world.SetSingletonUnmanaged(new RunTokenMark { Last = recorded, At = 5.0 });
+            world.SetSingletonUnmanaged(new RunTokenMark { Last = recorded, At = (SimInstant)5.0 });
             Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(world);
 
             ingress.Execute(world, 0f);                                     // a paused frame: undecided, the copy kept

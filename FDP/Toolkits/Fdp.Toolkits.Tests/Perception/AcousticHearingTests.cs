@@ -219,7 +219,7 @@ namespace Fdp.Toolkit.Tests.Perception
         {
             using var w = World(house: false);
             var speaker = Man(w, new Vector3(distance, 0f, 0f), side);
-            w.AddComponent(speaker, new Utterance { Kind = kind, Until = 5.0 });
+            w.AddComponent(speaker, new Utterance { Kind = kind, Until = (SimInstant)5.0 });
             Assert.Equal(heard ? 1 : 0, Solve(w, Vector3.Zero, speaker));
         }
 

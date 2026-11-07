@@ -49,7 +49,7 @@ public sealed class PlayerMessagesFrameRail
         map.Register(4242, unit);
         world.SetSingletonManaged(map);
         world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 12.0 });
-        PlayerMessages.In(world).Record(new PlayerMessageEvent { MessageId = 1, ToKind = "Unit", ToValue = 4242, Text = "Hold the bridge - reinforcements in two minutes", Seconds = 6f, SentAt = 10 });
+        PlayerMessages.In(world).Record(new PlayerMessageEvent { MessageId = 1, ToKind = "Unit", ToValue = 4242, Text = "Hold the bridge - reinforcements in two minutes", Seconds = 6f, SentAt = (SimInstant)10 });
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         var canvas = new MapCanvas(input: null);

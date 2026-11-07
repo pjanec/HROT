@@ -111,7 +111,7 @@ namespace Hrot.AI.Behaviors.Brains
             s.LastFireCount       = 0;
             s.PrevFireCount       = 0;
             s.CachedEqsRequestId  = -1;
-            s.EqsRequestTime      = 0f;
+            s.EqsRequestTime      = (SimInstant)0f;
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(self, world, "Calculated slots=" + totalSlots + " spacing=" + spacing.ToString("G6", System.Globalization.CultureInfo.InvariantCulture) + "m.");
             return NodeStatus.Success;
@@ -281,7 +281,7 @@ namespace Hrot.AI.Behaviors.Brains
                 EqsChildSensor.Refresh(world, sensor, config);   // ask again: a new epoch, the old answer cleared
                 s.CachedEqsRequestId = (long)sensor.PackedValue;
             }
-            s.EqsRequestTime = world.SimulationTime;
+            s.EqsRequestTime = (SimInstant)world.SimulationTime;
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(self, world, "Asked the EQS area query. Sensor=" + (sensor.IsNull ? "creating" : sensor.Index.ToString()) + ".");
             return NodeStatus.Success;
@@ -329,13 +329,13 @@ namespace Hrot.AI.Behaviors.Brains
                 // Area cleared: break out of the Repeater so the BTree can finish; the sensor is no longer needed.
                 EqsChildSensor.Destroy(world, sensor);
                 s.CachedEqsRequestId = -1;
-                s.EqsRequestTime     = 0f;
+                s.EqsRequestTime     = (SimInstant)0f;
                 if (BehaviorLog.IsDebugEnabled)
                     BehaviorLog.Debug(self, world, "EQS resolved clear area. targets=0.");
                 return NodeStatus.Failure;
             }
 
-            s.EqsRequestTime = 0f;
+            s.EqsRequestTime = (SimInstant)0f;
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(self, world, "EQS resolved targets. targets=" + count + ".");
             return NodeStatus.Success;
@@ -374,7 +374,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!world.HasComponent<UnitRoster>(self))
             {
                 s.CachedEqsRequestId      = -1;
-                s.EqsRequestTime          = 0f;
+                s.EqsRequestTime          = (SimInstant)0f;
                 s.CurrentWave             = (byte)(1 - s.CurrentWave);
                 return NodeStatus.Success;
             }
@@ -522,7 +522,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             for (int k = 0; k < orderCount; k++)
             {
-                orders[k].GoAt = goAt;
+                orders[k].GoAt = (SimInstant)goAt;
                 string json = JsonSerializer.Serialize(
                     orders[k],
                     Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
@@ -537,7 +537,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             s.CachedEqsRequestId      = -1;   // the answer is consumed; the sensor stays for the next wave (§4 D6)
-            s.EqsRequestTime          = 0f;
+            s.EqsRequestTime          = (SimInstant)0f;
             s.CurrentWave             = (byte)(1 - s.CurrentWave);
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(self, world, "Wave dispatched. Wave=" + dispatchWave + " attackers=" + s.ActiveAttackerCount + " targets=" + targetCount + " nextWave=" + s.CurrentWave + ".");

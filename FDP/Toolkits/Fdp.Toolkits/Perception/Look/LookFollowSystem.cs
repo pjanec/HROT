@@ -52,14 +52,14 @@ namespace Fdp.Toolkit.Perception.Look
                 {
                     look.Source = LookSource.LookAim;
                     look.HeadYaw = (Fdp.Core.Angle)(Toward(body, tf.Position, aim, neck));
-                    look.GlanceSince = 0;
+                    look.GlanceSince = (SimInstant)0;
                     continue;
                 }
                 if (look.HasTarget == 0)
                 {
                     look.Source = LookSource.LookFree;
                     look.HeadYaw = (Fdp.Core.Angle)(0f);
-                    look.GlanceSince = 0;
+                    look.GlanceSince = (SimInstant)0;
                     continue;
                 }
                 float want = Toward(body, tf.Position, look.Target, neck);
@@ -68,7 +68,7 @@ namespace Fdp.Toolkit.Perception.Look
                     // standing: the head leads; CarKinematicsSystem turns the body after it, so the head comes back as it does
                     look.Source = LookSource.LookOrdered;
                     look.HeadYaw = (Fdp.Core.Angle)(want);
-                    look.GlanceSince = 0;
+                    look.GlanceSince = (SimInstant)0;
                     continue;
                 }
                 // walking: glances only (LD-C)
@@ -76,14 +76,14 @@ namespace Fdp.Toolkit.Perception.Look
                 {
                     look.Source = LookSource.LookOrdered;
                     look.HeadYaw = (Fdp.Core.Angle)(0f);
-                    look.GlanceSince = 0;
+                    look.GlanceSince = (SimInstant)0;
                     continue;
                 }
-                if (look.GlanceSince <= 0) look.GlanceSince = Math.Max(now, 1e-6);   // 0 means "none", so a glance at t = 0 still ends
+                if (look.GlanceSince <= 0) look.GlanceSince = (SimInstant)(Math.Max(now, 1e-6));   // 0 means "none", so a glance at t = 0 still ends
                 if (now - look.GlanceSince > LookOf.GlanceSeconds)
                 {
-                    look.GlanceSince = 0;
-                    look.RestUntil = now + LookOf.RestSeconds;
+                    look.GlanceSince = (SimInstant)0;
+                    look.RestUntil = (SimInstant)(now + LookOf.RestSeconds);
                     look.Source = LookSource.LookOrdered;
                     look.HeadYaw = (Fdp.Core.Angle)(0f);
                     continue;

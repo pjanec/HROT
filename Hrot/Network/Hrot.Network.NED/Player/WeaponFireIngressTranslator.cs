@@ -100,7 +100,7 @@ namespace Hrot.Network.NED.Player
                 Origin      = new System.Numerics.Vector3(msg.OriginX, msg.OriginY, msg.OriginZ),
                 Velocity    = new System.Numerics.Vector3(msg.VelocityX, msg.VelocityY, msg.VelocityZ),
                 Quantity    = msg.Quantity,
-                FiredAt     = msg.FiredAt,
+                FiredAt     = (SimInstant)msg.FiredAt,
                 RequestId   = msg.RequestId,                                       // ⭐ Q94 A-1 (R-3018)
                 Refusal     = (Fdp.Toolkit.Combat.FireRefusal)msg.Refusal,
             });

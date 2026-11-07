@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Civilians
                         ref var mind = ref repo.GetComponentRW<CivilianState>(heard.Observer);   // ⭐ CE-2236 — where it came from
                         mind.FrightFrom = new System.Numerics.Vector3(heard.X, heard.Y, heard.Z);
                         mind.HasFrightFrom = 1;
-                        mind.HeardAt = now;   // ⭐ CE-2237 — heard, not caught from his crowd
+                        mind.HeardAt = (SimInstant)now;   // ⭐ CE-2237 — heard, not caught from his crowd
                     }
                 }
 
@@ -98,7 +98,7 @@ namespace Fdp.Toolkit.Civilians
                     ref readonly var fx = ref repo.GetComponentRO<Fdp.Toolkit.Combat.EffectState>(e);
                     double until = Math.Max(fx.StunnedUntil, fx.IrritatedUntil);
                     if (until <= effectsNow || until <= repo.GetComponentRO<CivilianState>(e).EffectFrightUntil) continue;
-                    repo.GetComponentRW<CivilianState>(e).EffectFrightUntil = until;
+                    repo.GetComponentRW<CivilianState>(e).EffectFrightUntil = (SimInstant)until;
                     Frighten(repo, e, CivilianFear.EffectImpulse, now);
                 }
             }
@@ -129,7 +129,7 @@ namespace Fdp.Toolkit.Civilians
             if (impulse <= 0f) return;
             ref var mind = ref repo.GetComponentRW<CivilianState>(unit);
             mind.Fear = MathF.Min(1f, mind.Fear + impulse);
-            mind.LastFrightAt = now;
+            mind.LastFrightAt = (SimInstant)now;
         }
     }
 }

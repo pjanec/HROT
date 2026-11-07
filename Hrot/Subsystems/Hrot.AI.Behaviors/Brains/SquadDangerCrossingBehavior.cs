@@ -45,7 +45,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte PairLane;
         /// <summary>The phase the fields below were reset for, and when it began.</summary>
         public ushort SeenPhase;
-        public double PhaseSince;
+        public SimInstant PhaseSince;
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ namespace Hrot.AI.Behaviors.Brains
         public void Update(ref SquadDangerCrossingParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             ushort phase = ctx.Squad.PhaseId;
-            if (phase != p.SeenPhase) { p.SeenPhase = phase; p.PhaseSince = ctx.Now; p.Pair = 0; }
+            if (phase != p.SeenPhase) { p.SeenPhase = phase; p.PhaseSince = (SimInstant)ctx.Now; p.Pair = 0; }
             byte crossing = phase switch
             {
                 DangerAreaCrossingManeuver.PhaseCrossElement     => DangerAreaCrossingManeuver.ElementCrossing,

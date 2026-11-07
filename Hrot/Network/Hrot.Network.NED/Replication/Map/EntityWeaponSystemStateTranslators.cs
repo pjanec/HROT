@@ -127,7 +127,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_entityMap.TryGetEntity(d.EntityId, out var weapon) || !view.IsAlive(weapon)) return false;
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, weapon, OwnershipExtensions.PackKey(OrdinalValue, 0))) return true;   // ours: drop
-            cmd.AddComponent(weapon, new WeaponSystemState { Deploy = (WeaponDeploy)d.Deploy, Until = d.Until });
+            cmd.AddComponent(weapon, new WeaponSystemState { Deploy = (WeaponDeploy)d.Deploy, Until = (SimInstant)d.Until });
             return true;
         }
 

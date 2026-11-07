@@ -56,7 +56,7 @@ namespace Fdp.Toolkit.Combat
                 WeaponIndex = mountIndex,
                 AtPoint     = true,
                 TargetPoint = point,
-                RaisedAt    = HitModel.Now(world),   // ⭐ CE-2180
+                RaisedAt    = (SimInstant)(HitModel.Now(world)),   // ⭐ CE-2180
                 RequestId   = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 (R-3018) — asked; the muscle's answer spends it
             });
             weapon.CooldownSecondsRemaining = CooldownSeconds;

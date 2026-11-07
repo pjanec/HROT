@@ -22,9 +22,9 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>Where he stood when last checked (a move by anything else re-settles him).</summary>
         public Vector3 LastPos;
         /// <summary>Sim time he came to rest (or ended his last shift).</summary>
-        public double StillSince;
+        public SimInstant StillSince;
         /// <summary>Sim time of his next shift (seeded per man and per shift).</summary>
-        public double NextAt;
+        public SimInstant NextAt;
         /// <summary>The <c>NavigationIntent.IntentId</c> the reflex wrote; 0 = none in hand.</summary>
         public uint HoldIntentId;
         /// <summary>The shifts he has made since he settled (sides alternate, the seed moves on).</summary>
@@ -32,8 +32,8 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>1 while a shift is under way.</summary>
         public byte Moving;
         /// <summary>⭐ AQ103 I — the idle gesture he shows ends then (s); the next one may start at <see cref="NextGestureAt"/>.</summary>
-        public double GestureUntil, NextGestureAt;
+        public SimInstant GestureUntil, NextGestureAt;
         /// <summary>⭐ AQ103 I — when his calm is next judged (s): at most once a second.</summary>
-        public double GestureCheckAt;
+        public SimInstant GestureCheckAt;
     }
 }

@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>Running number on this node (1-based).</summary>
         public long Serial;
         /// <summary>When this node took it in (sim s).</summary>
-        public double SeenAt;
+        public SimInstant SeenAt;
         public Entity FromUnit;
         public Entity ToUnit;
         public CommandReport Report;

@@ -40,7 +40,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Per roster slot: his place in the stack (#1 = 0; the first <c>Plan.Entry</c> go in), or <see cref="NotInIt"/>.</summary>
         public fixed sbyte OrderOf[Capacity];
         /// <summary>When the breach began · when the entry began · since when the room looks clear.</summary>
-        public double BreachSince, EnterSince, ClearSince;
+        public SimInstant BreachSince, EnterSince, ClearSince;
         /// <summary>How many entry men have been sent in · 1 once RoomClear went · <see cref="RoomDrill.Running"/>, <c>Cleared</c> or
         /// <c>Blocked</c>.</summary>
         public byte Released, Reported, Outcome;
@@ -62,10 +62,10 @@ namespace Hrot.AI.Behaviors.Brains
         public int RoundsBefore;
         public Vector3 Aim;
         public float Fuze;
-        public double StepSince, BangAt;
+        public SimInstant StepSince, BangAt;
         /// <summary>CB-72 — 1 while contact at the way in holds the entry · since when it has been quiet.</summary>
         public byte Contact;
-        public double QuietSince, ContactSince;
+        public SimInstant QuietSince, ContactSince;
         /// <summary>CB-72 — the pie slice last issued (0 = the first, widest off the doorway's line).</summary>
         public byte PieStepIssued;
         /// <summary>⭐ CB-72 (as built) — 1 once this room's contact hold ran its <see cref="RoomDrill.HoldLimitSeconds"/>: the entry goes, under
@@ -168,20 +168,20 @@ namespace Hrot.AI.Behaviors.Brains
             switch (ctx.Squad.PhaseId)
             {
                 case StackAndRoomEntryManeuver.PhaseStacking:
-                    if (ctx.Now - ws.IssuedAt >= StackTimeoutSeconds) { ws.CompletedByTimeout = 1; d.BreachSince = ctx.Now; return true; }
+                    if (ctx.Now - ws.IssuedAt >= StackTimeoutSeconds) { ws.CompletedByTimeout = 1; d.BreachSince = (SimInstant)ctx.Now; return true; }
                     if (!AllAt(ref d, in ctx, stack: true, StackedMetres)) return false;
-                    d.BreachSince = ctx.Now;
+                    d.BreachSince = (SimInstant)ctx.Now;
                     return true;
                 case StackAndRoomEntryManeuver.PhaseBreaching:
-                    if (DoorOpen(ref d, ctx.World)) { d.EnterSince = ctx.Now; d.Released = 0; return true; }
+                    if (DoorOpen(ref d, ctx.World)) { d.EnterSince = (SimInstant)ctx.Now; d.Released = 0; return true; }
                     if (ctx.Now - d.BreachSince < BreachTimeoutSeconds) return false;
                     Report(in ctx, d.RoomAt, ProgressKind.RoomBlocked);   // CB-53 — the door would not open
                     d.Outcome = Blocked;
                     evt = PhaseEventKind.Abort;
                     return true;
                 case StackAndRoomEntryManeuver.PhaseEntering:
-                    if (!AllAt(ref d, in ctx, stack: false, AtPointMetres) || HostileInRoom(ref d, in ctx)) { d.ClearSince = 0; return false; }
-                    if (d.ClearSince == 0) { d.ClearSince = ctx.Now; return false; }
+                    if (!AllAt(ref d, in ctx, stack: false, AtPointMetres) || HostileInRoom(ref d, in ctx)) { d.ClearSince = (SimInstant)0; return false; }
+                    if (d.ClearSince == 0) { d.ClearSince = (SimInstant)ctx.Now; return false; }
                     if (ctx.Now - d.ClearSince < ClearSeconds) return false;
                     evt = PhaseEventKind.FarSideReached;
                     return true;
@@ -296,7 +296,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (d.Contact == 0 || d.GateOpen != 0)
                 {
-                    d.ContactSince = ctx.Now;
+                    d.ContactSince = (SimInstant)ctx.Now;
                     d.PieStepIssued = 0;
                     d.Contact = 1;
                     d.GateOpen = 0;
@@ -304,14 +304,14 @@ namespace Hrot.AI.Behaviors.Brains
                     if (d.GrenadeStep is GrenadeToDoor or GrenadeThrowing) { d.GrenadeStep = GrenadeUndecided; d.Thrower = -1; }   // not into the fire
                     ws.Reissue = 1;
                 }
-                d.QuietSince = 0;
+                d.QuietSince = (SimInstant)0;
                 int step = PieStep(ref d, ctx.Now);
                 if (step != d.PieStepIssued) { d.PieStepIssued = (byte)step; ws.Reissue = 1; }   // the next slice
                 return false;
             }
             if (d.Contact != 0)
             {
-                if (d.HoldSpent == 0 && d.QuietSince == 0) { d.QuietSince = ctx.Now; return false; }
+                if (d.HoldSpent == 0 && d.QuietSince == 0) { d.QuietSince = (SimInstant)ctx.Now; return false; }
                 if (d.HoldSpent == 0 && ctx.Now - d.QuietSince < QuietSeconds) return false;
                 d.Contact = 0;
                 if (d.Thrown == 0) d.GrenadeStep = GrenadeUndecided;   // the room is suspected now: decide again
@@ -320,7 +320,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (d.GateOpen != 0) return true;
             if (!Grenade(ref d, ref ws, in ctx, know)) return false;
             d.GateOpen = 1;
-            d.EnterSince = ctx.Now;
+            d.EnterSince = (SimInstant)ctx.Now;
             d.Released = 0;
             ws.Reissue = 1;
             return true;
@@ -356,7 +356,7 @@ namespace Hrot.AI.Behaviors.Brains
                 case GrenadeUndecided:
                     if (d.Thrown != 0 || !Decide(ref d, in ctx, in know)) { d.GrenadeStep = GrenadeDone; return true; }
                     d.GrenadeStep = GrenadeToDoor;
-                    d.StepSince = ctx.Now;
+                    d.StepSince = (SimInstant)ctx.Now;
                     ws.Reissue = 1;
                     return false;
                 case GrenadeToDoor:
@@ -367,7 +367,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(from.X, from.Y)) > JambArrival + 0.2f) return false;
                     d.RoundsBefore = GrenadeCheck.Rounds(ctx.World, man, d.GrenadeMount);
                     d.GrenadeStep = GrenadeThrowing;
-                    d.StepSince = ctx.Now;
+                    d.StepSince = (SimInstant)ctx.Now;
                     ws.Reissue = 1;
                     return false;
                 }
@@ -376,7 +376,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (!ThrowerLive(ref d, in ctx, out var man) || ctx.Now - d.StepSince > ThrowTimeoutSeconds) { d.GrenadeStep = GrenadeDone; return true; }
                     if (GrenadeCheck.Rounds(ctx.World, man, d.GrenadeMount) >= d.RoundsBefore) return false;
                     float flight = Vector3.Distance(ThrowFrom(ref d), d.Aim) / ThrowSpeed;
-                    d.BangAt = ctx.Now + d.Fuze + flight;
+                    d.BangAt = (SimInstant)(ctx.Now + d.Fuze + flight);
                     d.Thrown = 1;
                     d.GrenadeStep = GrenadeThrown;
                     ws.Reissue = 1;   // the thrower back to his stack point, out of the doorway

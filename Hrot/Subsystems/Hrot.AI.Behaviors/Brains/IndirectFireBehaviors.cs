@@ -162,7 +162,7 @@ namespace Hrot.AI.Behaviors.Brains
         public float SheafWidthM;
         public float ImpactInS;
         /// <summary>Time on target: when every first round lands (sim s); 0 = when ready.</summary>
-        public double ImpactAt;
+        public SimInstant ImpactAt;
         public fixed float AimX[16];
         public fixed float AimY[16];
         public fixed float AimZ[16];
@@ -316,9 +316,9 @@ namespace Hrot.AI.Behaviors.Brains
                 lead = MathF.Max(lead, IndirectFireNodes.LaySecondsFor(world, weapons[i], dtos[i]!, aim, in s) + s.TimeOfFlight);
             }
             // time on target (FM-4): every first round lands at ImpactAt
-            p.ImpactAt = (FireMissionControl)p.Control == FireMissionControl.TimeOnTarget
+            p.ImpactAt = (SimInstant)((FireMissionControl)p.Control == FireMissionControl.TimeOnTarget
                 ? ctx.Now + MathF.Max(lead + IndirectFireNodes.LayMarginSeconds, p.ImpactInS)
-                : 0d;
+                : 0d);
             p.Planned = 1;
             return reach;
         }
@@ -381,7 +381,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Point = new Vector3(p.AimX[member], p.AimY[member], p.AimZ[member]),
                 Rounds = left,
                 Mount = p.Mount[member],
-                FireAt = p.ImpactAt > 0d ? p.ImpactAt - p.Tof[member] : 0d,
+                FireAt = (SimInstant)(p.ImpactAt > 0d ? p.ImpactAt - p.Tof[member] : 0d),
                 RoleId = BatteryFireMissionManeuver.RoleFiring,
             };
         }
@@ -414,7 +414,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Point = point,
                 Rounds = refused || mount < 0 ? -1 : order.Method == FireMissionMethod.Adjust ? 1 : order.Rounds > 0 ? order.Rounds : IndirectFireNodes.DefaultRounds,
                 Mount = (byte)Math.Max(mount, 0),
-                FireAt = order.ImpactInS > 0f ? Fdp.Toolkit.Combat.HitModel.Now(world) + order.ImpactInS : 0d,
+                FireAt = (SimInstant)(order.ImpactInS > 0f ? Fdp.Toolkit.Combat.HitModel.Now(world) + order.ImpactInS : 0d),
             };
         }
 
@@ -456,7 +456,7 @@ namespace Hrot.AI.Behaviors.Brains
         public float Step;
         /// <summary>Calls sent (the first one included).</summary>
         public int Calls;
-        public double CalledAt;
+        public SimInstant CalledAt;
         /// <summary>The last burst looked at (<see cref="RecentBurst.Serial"/>).</summary>
         public long SeenSerial;
     }
@@ -546,7 +546,7 @@ namespace Hrot.AI.Behaviors.Brains
                 //   and the observer would then wait 180 s for a round that never comes. He waits for it instead, the same 180 s.
                 if (!Ready(world, p.Battery))
                 {
-                    if (p.CalledAt <= 0d) { p.CalledAt = now; BehaviorLog.Trace(self, world, "observe fire: waiting for the battery to be ready"); }
+                    if (p.CalledAt <= 0d) { p.CalledAt = (SimInstant)now; BehaviorLog.Trace(self, world, "observe fire: waiting for the battery to be ready"); }
                     if (now - p.CalledAt <= BurstWaitSeconds) return NodeStatus.Running;
                     BehaviorLog.Warn(self, world, "observe fire: the battery never got ready");
                     return NodeStatus.Failure;
@@ -701,7 +701,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Origin = BehaviorOrigin.Superior,
             });
             p.Calls++;
-            p.CalledAt = now;
+            p.CalledAt = (SimInstant)now;
         }
     }
 }

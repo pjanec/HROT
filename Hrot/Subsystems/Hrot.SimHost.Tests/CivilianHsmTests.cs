@@ -553,10 +553,10 @@ namespace Hrot.SimHost.Tests
 
             // a man knocked down is not struck again while he is down (the Health owner stamps it; here by hand)
             if (!w.Repo.HasComponent<EffectState>(police)) w.Repo.AddComponent(police, new EffectState());
-            w.Repo.GetComponentRW<EffectState>(police).KnockedDownUntil = HitModel.Now(w.Repo) + 60.0;
+            w.Repo.GetComponentRW<EffectState>(police).KnockedDownUntil = (SimInstant)(HitModel.Now(w.Repo) + 60.0);
             for (int i = 0; i < (int)(Melee.CooldownSeconds * 2 / 0.016f); i++) w.Tick();
             Assert.Equal(strikes + 2, Melee.Strikes);
-            w.Repo.GetComponentRW<EffectState>(police).KnockedDownUntil = 0;
+            w.Repo.GetComponentRW<EffectState>(police).KnockedDownUntil = (SimInstant)0;
 
             w.Repo.GetComponentRW<CivilianState>(w.Unit).Anger = CivilianBehavior.DefaultRiotAt * 0.5f - 0.01f;
             for (int i = 0; i < 4; i++) w.Tick();
@@ -597,7 +597,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(HostileActKind.Lethal, HostileActs.Of(w.Repo, w.Unit));
 
             var replica = w.Repo.CreateEntity();                                                      // his act, arrived from another node
-            w.Repo.AddComponent(replica, new HostileAct { SinceSimTime = 1.0, Kind = HostileActKind.Lethal });
+            w.Repo.AddComponent(replica, new HostileAct { SinceSimTime = (SimInstant)1.0, Kind = HostileActKind.Lethal });
             Assert.True(HostileActs.Committed(w.Repo, replica));
         }
 

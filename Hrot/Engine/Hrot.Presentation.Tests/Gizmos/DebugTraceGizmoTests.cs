@@ -39,7 +39,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
     {
         var t = default(DetonationTraces);
         ref var d = ref t.SlotsRW()[0];
-        d.Time = at; d.Burst = new Vector3(0, 0, 0.1f); d.FragmentRadius = 15f; d.BlastInjuryRadius = 6f;
+        d.Time = (SimInstant)at; d.Burst = new Vector3(0, 0, 0.1f); d.FragmentRadius = 15f; d.BlastInjuryRadius = 6f;
         d.RayCount = 2;
         d.Rays[0] = new DetonationRay { To = new Vector3(0, 8, 1.5f), Transmission = 1f };
         d.Rays[1] = new DetonationRay { To = new Vector3(2, 8, 0.3f), StopAt = new Vector3(1, 4, 0.2f), HasStop = 1, Transmission = 0f };
@@ -54,7 +54,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
     {
         var t = default(ShotTraces);
         ref var s = ref t.SlotsRW()[0];
-        s.Seq = 1; s.Time = at;
+        s.Seq = 1; s.Time = (SimInstant)at;
         s.Muzzle = new Vector3(0, 0, 1.5f);
         s.End    = new Vector3(10, 0, 1.5f);
         s.Outcome = ShotOutcome.StoppedByTerrain;
@@ -129,7 +129,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
         var listener = _w.CreateEntity();
         _w.AddComponent(listener, new SimTransform { Position = new Vector3(0, 0, 0) });
         var heard = default(HeardTraces);
-        heard.Add(new HeardTrace { Time = 9.8, At = new Vector3(48, 3, 0), Radius = 5f, SourceClass = 4 });
+        heard.Add(new HeardTrace { Time = (SimInstant)9.8, At = new Vector3(48, 3, 0), Radius = 5f, SourceClass = 4 });
         _w.AddComponent(listener, heard);
 
         new HearingGizmo().Draw(_w, _draw);
@@ -234,9 +234,9 @@ public sealed class DebugTraceGizmoTests : IDisposable
         _w.AddComponent(unit, new SimTransform { Position = new Vector3(5, 5, 0) });
         var status = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus();
         status.Weapon = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatusRow
-            { ActionId = 1, Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNotSeen, At = 9.9 };
+            { ActionId = 1, Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNotSeen, At = (SimInstant)9.9 };
         status.Locomotion = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatusRow
-            { ActionId = 3, Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving, At = 8.0 };   // stale: 2 s old
+            { ActionId = 3, Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving, At = (SimInstant)8.0 };   // stale: 2 s old
         _w.AddComponent(unit, status);
 
         new ActionStatusGizmo().Draw(_w, unit, _draw);
@@ -244,7 +244,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Assert.Single(texts);
 
         var aiming = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatusRow
-            { Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, Progress = 0.4f, Needed = 0.8f, At = 10.0 };
+            { Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, Progress = 0.4f, Needed = 0.8f, At = (SimInstant)10.0 };
         Assert.Equal("W aiming 0.4/0.8s", ActionStatusGizmo.Text('W', in aiming, 10.0));
         Assert.Equal("W hold: not seen", ActionStatusGizmo.Text('W', in status.Weapon, 10.0));
         Assert.Null(ActionStatusGizmo.Text('L', in status.Locomotion, 10.0));

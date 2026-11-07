@@ -57,7 +57,7 @@ namespace Fdp.Toolkit.Civilians
         /// <summary>Where his routine keeps him — where he stood when his HSM first ran.</summary>
         public Vector3 Home;
         /// <summary>Sim time (s) of the last thing that frightened him; 0 when nothing has.</summary>
-        public double LastFrightAt;
+        public SimInstant LastFrightAt;
         /// <summary>⭐ <c>CE-2236</c> — where the last frightening SOUND seemed to come from (the hearing estimate, off by its radius);
         /// valid when <see cref="HasFrightFrom"/> is 1. A panicking man runs away from it.</summary>
         public Vector3 FrightFrom;
@@ -70,19 +70,19 @@ namespace Fdp.Toolkit.Civilians
         public byte HasFocus;
         /// <summary>⭐ <c>CE-2237</c> — sim time (s) he last HEARD violence (a shot, a blast); 0 when he never has. Tells a fright he heard
         /// from one he caught from his crowd.</summary>
-        public double HeardAt;
+        public SimInstant HeardAt;
         /// <summary>⭐ <c>CE-2238</c> (§5i) — 1 while he is an INSTIGATOR: his anger is 1 and he raises the anger of his crowd near him
         /// (<see cref="CrowdSystem"/>). Written by his HSM from its params.</summary>
         public byte Instigator;
         /// <summary>⭐ <c>CE-2238</c> (§5i, CV-4) — sim time (s) of his first HOSTILE ACT (a blow); 0 when he committed none. Brain-local;
         /// the act and its kind replicate as <see cref="HostileAct"/> (<c>CE-3238</c>, B-16). Written by <see cref="HostileActs.Commit"/>.</summary>
-        public double HostileActAt;
+        public SimInstant HostileActAt;
         /// <summary>⭐ <c>CE-2239</c> part 2 (FL-6, §5j) — the latest end of a stun or an irritation (<c>EffectState</c>) that has frightened
         /// him already, so a running effect frightens him once and only a new or longer one again. Written by <see cref="CivilianFearSystem"/>.</summary>
-        public double EffectFrightUntil;
+        public SimInstant EffectFrightUntil;
         /// <summary>⭐ <c>CE-2241</c> ② (§5m PV-2) — the latest end of a knock-down, stun or irritation on him that has already spiked his
         /// neighbours' anger, so one blow spikes it once. Written by <see cref="CrowdSystem"/>.</summary>
-        public double ForceSeenUntil;
+        public SimInstant ForceSeenUntil;
     }
 
     /// <summary>⭐ <c>CE-2235</c> — the one writer of <see cref="CivilianState"/>'s presence and mode.</summary>

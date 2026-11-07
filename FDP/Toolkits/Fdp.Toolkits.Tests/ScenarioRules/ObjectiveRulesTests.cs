@@ -36,7 +36,7 @@ namespace Fdp.Toolkits.Tests.ScenarioRules
         {
             var s = In(ObjectiveState.Active);
             Assert.True(ObjectiveRules.Settle(ref s, ObjectiveState.Achieved, "done", 5));
-            Assert.Equal(5, s.ChangedAt);
+            Assert.Equal(5, s.ChangedAt.Seconds);
             Assert.False(ObjectiveRules.Settle(ref s, ObjectiveState.Failed, "late", 9));
             Assert.Equal((ObjectiveState.Achieved, 5.0), (s.State, s.ChangedAt));
 

@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Civilians
         /// <summary>Whom he addresses (a command's target); <see cref="Entity.Null"/> = everyone around.</summary>
         public Entity Target;
         /// <summary>Sim time (s) the utterance is over.</summary>
-        public double Until;
+        public SimInstant Until;
     }
 
     /// <summary>⭐ <c>CE-3264</c> — the one writer and the readers of <see cref="Utterance"/>. The POLICY (who says what, when) is behaviors'
@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Civilians
         public static bool Say(EntityRepository repo, Entity man, UtteranceKind kind, Entity target, double now, float seconds)
         {
             if (!repo.IsAlive(man) || !repo.IsComponentTypeRegistered<Utterance>()) return false;
-            var u = new Utterance { Kind = kind, Target = target, Until = now + System.Math.Max(0f, seconds) };
+            var u = new Utterance { Kind = kind, Target = target, Until = (SimInstant)(now + System.Math.Max(0f, seconds)) };
             if (repo.HasComponent<Utterance>(man)) repo.GetComponentRW<Utterance>(man) = u;
             else repo.AddComponent(man, u);
             return true;

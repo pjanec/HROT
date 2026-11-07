@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-2080</c> — sim time the slot's current run (or emptiness) began: set by every start and clear. An SOP
         /// row asks "sensed SINCE then?" (<c>SopConditions.SensedFresh</c>) so an event that already caused a reaction does not
         /// fire it again when the task restarts.</summary>
-        public double RunSince;
+        public SimInstant RunSince;
         /// <summary>⭐ <c>CE-2382</c> (docs/DESIGN_Evaluation_Cost_And_Cadence.md §3.0) — WHEN this task slot ticks: 0 = every frame (every brain
         /// nothing cadences). A POLICY writes it (the rules' <c>ObjectiveHost</c>); <c>BrainTickSystem</c> + <see cref="CadenceGate"/> obey it.</summary>
         public CadenceMode Cadence;

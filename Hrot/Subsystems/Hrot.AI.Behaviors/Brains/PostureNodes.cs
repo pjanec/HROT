@@ -157,9 +157,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3170</c> — where the move was issued to (a hunted target that moves further re-issues it).</summary>
         public Vector3 IssuedTo;
         /// <summary>⭐ <c>CE-2371</c> (AQ104 I) — when an arrival on the wrong storey last re-issued the move (sim s).</summary>
-        public double RetriedAt;
+        public SimInstant RetriedAt;
         /// <summary>⭐ <c>CE-2373</c> — when, and from where, the move was last issued (the "not arrived, not moving" check).</summary>
-        public double IssuedAt;
+        public SimInstant IssuedAt;
         public Vector3 IssuedFrom;
     }
 
@@ -316,7 +316,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (storeyBound && (status == NodeStatus.Success || stuck))
                 {
                     if (ws.RetriedAt > 0 && t - ws.RetriedAt < StoreyRetrySeconds) return NodeStatus.Running;   // the first at once, then throttled
-                    ws.RetriedAt = t;
+                    ws.RetriedAt = (SimInstant)t;
                     ws.Moving = 0;
                 }
                 else if (status == NodeStatus.Success && (hunting || p.Stay != 0)) return NodeStatus.Running;   // there: the fight goes on
@@ -327,7 +327,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!LocomotionMoveTo.Issue(world, self, objective, p.Speed, p.ArrivalRadius, source: hunting ? MoveSource.Attack : LocomotionMoveTo.OrderSource(world, self))) return NodeStatus.Failure;
             ws.Moving = 1;
             ws.IssuedTo = objective;
-            ws.IssuedAt = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+            ws.IssuedAt = (SimInstant)(world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d);
             ws.IssuedFrom = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : default;
             return NodeStatus.Running;
         }

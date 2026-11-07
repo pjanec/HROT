@@ -31,7 +31,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// its position and slot out, and a newer sighting / hearing than <paramref name="airTick"/> moves <paramref name="lastAirAt"/> to
         /// now. Returns the aircraft when it is an identified one (Null for heard rotors, or nothing in the air).
         /// </summary>
-        public static unsafe Entity Newest(EntityRepository world, Entity self, double now, ref uint airTick, ref double lastAirAt,
+        public static unsafe Entity Newest(EntityRepository world, Entity self, double now, ref uint airTick, ref SimInstant lastAirAt,
                                            out Vector3 at, out long slot)
         {
             at = default; slot = 0;
@@ -50,13 +50,13 @@ namespace Hrot.AI.Behaviors.Brains
             if (found < 0) return Entity.Null;
             at = new Vector3(mem.PositionsX[found], mem.PositionsY[found], mem.PositionsZ[found]);
             slot = mem.EntityIds[found];
-            if (newest > airTick || airTick == 0) { airTick = newest; lastAirAt = now; }
+            if (newest > airTick || airTick == 0) { airTick = newest; lastAirAt = (SimInstant)now; }
             return TargetMemory.IsAnonymous(in mem, found) ? Entity.Null : new Entity((ulong)mem.EntityIds[found]);
         }
 
         /// <summary>Aimed fire at <paramref name="air"/> while it is SEEN — the weapon brain picks the mount (a MANPADS at an aircraft,
         /// the ZU-23, an HMG on a pintle); a failure (out of arc) waits <see cref="RetryFireSeconds"/> before the next try; unseen ⇒ stop.</summary>
-        public static void FireAt(EntityRepository world, Entity self, ref EngageState fire, ref double retryAt, Entity air, double now)
+        public static void FireAt(EntityRepository world, Entity self, ref EngageState fire, ref SimInstant retryAt, Entity air, double now)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return;
             bool seen = !air.IsNull && SightNow.Sees(world, self, air);
@@ -66,7 +66,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (mine && channel.Status == NodeStatus.Failure)
             {
                 PostureNodes.StopFiring(world, self, ref fire);
-                retryAt = now + RetryFireSeconds;
+                retryAt = (SimInstant)(now + RetryFireSeconds);
                 return;
             }
             if (now < retryAt) return;
@@ -91,7 +91,7 @@ namespace Hrot.AI.Behaviors.Brains
         public uint AirTick;
         public long AirSlot;
         public Vector3 AirAt;
-        public double StartedAt, LastAirAt, RetryFireAt;
+        public SimInstant StartedAt, LastAirAt, RetryFireAt;
         public EngageState Fire;
     }
 
@@ -129,7 +129,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             var p = Effective(in authored);
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
-            if (ws.StartedAt == 0d) { ws.StartedAt = now; ws.LastAirAt = now; }
+            if (ws.StartedAt == 0d) { ws.StartedAt = (SimInstant)now; ws.LastAirAt = (SimInstant)now; }
             var air = AirSense.Newest(world, self, now, ref ws.AirTick, ref ws.LastAirAt, out ws.AirAt, out ws.AirSlot);
             if (now - ws.LastAirAt >= p.ClearSeconds)
             {

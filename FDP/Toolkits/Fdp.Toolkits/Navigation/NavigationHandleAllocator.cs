@@ -56,6 +56,6 @@ namespace Fdp.Toolkit.Navigation
     public struct NavigationHandleMark
     {
         public int Last;
-        public double At;
+        public Fdp.Core.SimInstant At;
     }
 }

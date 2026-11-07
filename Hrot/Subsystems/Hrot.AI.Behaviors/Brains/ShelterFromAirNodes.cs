@@ -50,7 +50,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The newest air sighting / hearing tick seen so far (an increase = sensed again).</summary>
         public uint AirTick;
         /// <summary>When the node began · when an air contact was last sensed · when a failed fire may be retried (sim s).</summary>
-        public double StartedAt, LastAirAt, RetryFireAt;
+        public SimInstant StartedAt, LastAirAt, RetryFireAt;
         public EngageState Fire;
     }
 
@@ -94,7 +94,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!world.HasComponent<LocomotionChannel>(self)) return NodeStatus.Failure;
             var p = Effective(in authored);
             double now = Now(world);
-            if (ws.StartedAt == 0d) { ws.StartedAt = now; ws.LastAirAt = now; }
+            if (ws.StartedAt == 0d) { ws.StartedAt = (SimInstant)now; ws.LastAirAt = (SimInstant)now; }
 
             var drone = SenseAir(ref ws, world, self, now);
             if (now - ws.LastAirAt >= p.ClearSeconds)

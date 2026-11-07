@@ -254,7 +254,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             var beside = Civ(w, 4, 0, CivilianMode.Protest);
             var back = Civ(w, 12, 0, CivilianMode.Protest);
             Frame(w, crowds);
-            w.AddComponent(struck, new Fdp.Toolkit.Combat.EffectState { KnockedDownUntil = w.SimulationTime + 3 });
+            w.AddComponent(struck, new Fdp.Toolkit.Combat.EffectState { KnockedDownUntil = (SimInstant)(w.SimulationTime + 3) });
             Frame(w, crowds);
             Assert.InRange(Mind(w, beside).Anger, 0.239f, 0.241f);           // 0.3 × (1 − 0.5 × 4/10)
             Assert.Equal(0f, Mind(w, struck).Anger);
@@ -263,7 +263,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             for (int i = 0; i < 5; i++) Frame(w, crowds);
             Assert.True(Mind(w, beside).Anger <= once, $"one blow spikes it once: {Mind(w, beside).Anger}");
 
-            w.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(struck).KnockedDownUntil = w.SimulationTime + 3;   // a second blow
+            w.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(struck).KnockedDownUntil = (SimInstant)(w.SimulationTime + 3);   // a second blow
             Frame(w, crowds);
             Assert.True(Mind(w, beside).Anger > once + 0.2f, $"a new blow spikes it again: {Mind(w, beside).Anger}");
         }

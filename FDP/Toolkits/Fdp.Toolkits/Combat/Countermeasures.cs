@@ -112,7 +112,7 @@ namespace Fdp.Toolkit.Combat
                 AtPoint     = true,                                              // ⭐ released where the aircraft is
                 TargetPoint = world.GetComponentRO<SimTransform>(unit).Position,
                 AmmoGuid    = load.AmmoAt(slot),
-                RaisedAt    = HitModel.Now(world),
+                RaisedAt    = (SimInstant)(HitModel.Now(world)),
             });
             load.SetRounds(slot, load.RoundsAt(slot) - 1);
             Magazine.Spend(ref weapon);

@@ -1220,7 +1220,7 @@ namespace Hrot.SimHost.Tests
         private static void Silence(Squad s, double seconds)
         {
             var now = s.Repo.GetSingleton<GlobalTime>().TotalTime;
-            var lead = new Fdp.Toolkit.Squad.SquadLeadership { SilentUntil = now + seconds };
+            var lead = new Fdp.Toolkit.Squad.SquadLeadership { SilentUntil = (SimInstant)(now + seconds) };
             if (s.Repo.HasComponent<Fdp.Toolkit.Squad.SquadLeadership>(s.Commander)) s.Repo.SetComponent(s.Commander, lead);
             else s.Repo.AddComponent(s.Commander, lead);
         }

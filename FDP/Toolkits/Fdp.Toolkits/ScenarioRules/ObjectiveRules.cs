@@ -98,7 +98,7 @@ namespace Fdp.Toolkit.ScenarioRules
         {
             s.Role = role;
             s.State = c.StartActive != 0 ? ObjectiveState.Active : ObjectiveState.Inactive;
-            s.ChangedAt = now;
+            s.ChangedAt = (SimInstant)now;
             s.Kind = new FixedString32(kind);
             Display(ref s, in c, kind, role);
             CopyLinks(ref l, in c);
@@ -131,7 +131,7 @@ namespace Fdp.Toolkit.ScenarioRules
         public static void Timing(ref ObjectiveStatus s, in ObjectiveCommonBlock c)
         {
             s.Deadline = c.DeadlineSeconds;
-            s.ExpectedAt = s.Closed == 0 && s.State == ObjectiveState.Active && c.DeadlineSeconds > 0f ? c.DeadlineSeconds : 0d;
+            s.ExpectedAt = (SimInstant)(s.Closed == 0 && s.State == ObjectiveState.Active && c.DeadlineSeconds > 0f ? c.DeadlineSeconds : 0d);
         }
 
         /// <summary>S1-c — the links are the params' copy, rewritten every tick (ONE owner: the params).</summary>
@@ -149,8 +149,8 @@ namespace Fdp.Toolkit.ScenarioRules
             s.Reason = new FixedString64(reason ?? string.Empty);
             if (next == s.State) return false;
             s.State = next;
-            s.ChangedAt = now;
-            if (s.IsFinal) s.ExpectedAt = 0d;   // V-2: nothing more is expected of a final one
+            s.ChangedAt = (SimInstant)now;
+            if (s.IsFinal) s.ExpectedAt = (SimInstant)0d;   // V-2: nothing more is expected of a final one
             return true;
         }
 
@@ -166,7 +166,7 @@ namespace Fdp.Toolkit.ScenarioRules
             if (reset) { s.ResetRequested = (byte)(active ? 1 : 2); return null; }
             var next = active ? ObjectiveState.Active : ObjectiveState.Inactive;
             if (s.State == next) return null;
-            s.State = next; s.ChangedAt = now;
+            s.State = next; s.ChangedAt = (SimInstant)now;
             s.Reason = new FixedString64(active ? "switched on" : "switched off");
             return null;
         }
@@ -234,7 +234,7 @@ namespace Fdp.Toolkit.ScenarioRules
                 }
             }
             s.Closed = 1;
-            s.ExpectedAt = 0d;
+            s.ExpectedAt = (SimInstant)0d;
         }
     }
 }

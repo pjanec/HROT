@@ -123,7 +123,7 @@ namespace Hrot.SimHost.Tests
             _brain.Bus.Publish(new WeaponFireIntent
             {
                 Shooter = _onBrain, Target = Entity.Null, WeaponIndex = 2, AtPoint = true,
-                TargetPoint = new Vector3(1000, 1000, 300), AmmoGuid = flare, RaisedAt = 50.0,
+                TargetPoint = new Vector3(1000, 1000, 300), AmmoGuid = flare, RaisedAt = (SimInstant)50.0,
             });
             _brain.Bus.SwapBuffers();
             intentEgress.ScanAndPublish(_brain);
@@ -138,7 +138,7 @@ namespace Hrot.SimHost.Tests
             _simHost.Bus.Publish(new WeaponFireNotification
             {
                 Shooter = _onSimHost, Target = Entity.Null, WeaponIndex = 2, AmmoGuid = flare, Round = Entity.Null,
-                Origin = new Vector3(1000, 1000, 300), Velocity = new Vector3(0, 60, 0), Quantity = 1, FiredAt = 50.1,
+                Origin = new Vector3(1000, 1000, 300), Velocity = new Vector3(0, 60, 0), Quantity = 1, FiredAt = (SimInstant)50.1,
             });
             _simHost.Bus.SwapBuffers();
             fireEgress.ScanAndPublish(_simHost);

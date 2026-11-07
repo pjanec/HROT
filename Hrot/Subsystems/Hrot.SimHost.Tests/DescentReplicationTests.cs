@@ -45,7 +45,7 @@ namespace Hrot.SimHost.Tests
                 var d = new Descent
                 {
                     Kind = DescentKind.FreeFall, Phase = DescentPhase.Canopy, Canopy = CanopyKind.RamAir, AnchorIndex = 1,
-                    PhaseSince = 12.5, Anchor = ownerHeli, Target = new Vector3(400, -250, 3),
+                    PhaseSince = (SimInstant)12.5, Anchor = ownerHeli, Target = new Vector3(400, -250, 3),
                 };
                 var sample = EntityDescentEgressTranslator.ToSample(51, d, owner);
                 Assert.Equal(52L, sample.AnchorNetworkId);

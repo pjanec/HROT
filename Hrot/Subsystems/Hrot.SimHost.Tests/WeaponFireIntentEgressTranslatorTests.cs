@@ -128,7 +128,7 @@ namespace Hrot.SimHost.Tests
             var shooter = SpawnShooter(netId: 1, authoritative: true);
             var target  = SpawnTarget(netId: 2);
             var firstThrower = SpawnTarget(netId: 3);   // ⭐ CE-4155 — a thrown-back round's first thrower
-            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, AmmoGuid = 9003, RaisedAt = 12.5, BurnSeconds = 37.25f, RequestId = 77u, BodyStance = 2,
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, AmmoGuid = 9003, RaisedAt = (SimInstant)12.5, BurnSeconds = 37.25f, RequestId = 77u, BodyStance = 2,
                                                       OriginalShooter = firstThrower });
             _world.Bus.SwapBuffers();
 

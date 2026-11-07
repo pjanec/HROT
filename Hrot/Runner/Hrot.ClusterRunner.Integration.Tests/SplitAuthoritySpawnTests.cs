@@ -246,7 +246,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
                     new Fdp.Toolkit.Motion.Descent
                     {
                         Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = Fdp.Toolkit.Motion.DescentPhase.Exit,
-                        Canopy = Fdp.Toolkit.Motion.CanopyKind.Round, PhaseSince = Fdp.Toolkit.Motion.DescentRules.Now(cgfWorld),
+                        Canopy = Fdp.Toolkit.Motion.CanopyKind.Round, PhaseSince = (SimInstant)(Fdp.Toolkit.Motion.DescentRules.Now(cgfWorld)),
                     },
                 },
             });

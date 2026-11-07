@@ -345,7 +345,7 @@ namespace Hrot.SimHost.Tests
             repo.Bus.Register<ExerciseEndedEvent>(); repo.Bus.RegisterManaged<PauseTimeIntent>();
             var sys = new ExercisePauseOnEndSystem();
             Assert.Equal(0, PausesAfter(repo, sys, null));
-            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = 5 })));
+            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)5 })));
             Assert.Equal(0, PausesAfter(repo, sys, null));                                    // the next frame: the event is gone, no second pause
         }
 
@@ -362,9 +362,9 @@ namespace Hrot.SimHost.Tests
             var sch = new SystemScheduler { FeatureGate = features };
             sch.RegisterSystem(sys); sch.BuildExecutionOrders();
             void Phase() => sch.ExecutePhase(SystemPhase.Simulation, repo, 0.1f);
-            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = 1 }), Phase));
+            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)1 }), Phase));
             features.SetNodeOverride(ExercisePauseOnEndSystem.FeatureId, "{\"Enabled\":false}");
-            Assert.Equal(0, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = 2 }), Phase));
+            Assert.Equal(0, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)2 }), Phase));
 
             var pack = new Hrot.CGF.CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
                 new Fdp.Toolkit.Behavior.TacticalOrderMapper.TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
@@ -384,7 +384,7 @@ namespace Hrot.SimHost.Tests
             var repo = new EntityRepository();
             repo.Bus.Register<ExerciseEndedEvent>(); repo.Bus.RegisterManaged<PauseTimeIntent>();
             var sys = new ExercisePauseOnEndSystem(node);
-            repo.Bus.Publish(new ExerciseEndedEvent { EndedAt = 3 });
+            repo.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)3 });
             repo.Bus.SwapBuffers();
             sys.Execute(repo, 0.1f);
             repo.Bus.SwapBuffers(); node.SwapBuffers();

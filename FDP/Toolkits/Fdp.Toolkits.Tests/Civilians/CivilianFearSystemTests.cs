@@ -120,12 +120,12 @@ namespace Fdp.Toolkit.Civilians.Tests
         {
             var w = World();
             var man = Person(w, Vector3.Zero);
-            w.AddComponent(man, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = 1000 });
+            w.AddComponent(man, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)1000 });
             Frame(w);
             Assert.Equal(CivilianFear.EffectImpulse, Fear(w, man), 3);
             for (int i = 0; i < 10; i++) Frame(w, 0.1f);
             Assert.Equal(CivilianFear.EffectImpulse - CivilianFear.DecayPerSecond, Fear(w, man), 3);
-            w.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(man).IrritatedUntil = 2000;   // the gas reaches him
+            w.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(man).IrritatedUntil = (SimInstant)2000;   // the gas reaches him
             Frame(w);
             Assert.Equal(1f, Fear(w, man), 3);
         }

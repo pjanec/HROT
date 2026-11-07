@@ -116,7 +116,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte WindowStage, RoofStage, CoverStage;
         /// <summary>⭐ D-2h (DA-48) — the visibility fan that puts the automatic weapon on the longest view: 0 · 1 asked · 2 done.</summary>
         public byte FanStage;
-        public double StageSince;
+        public SimInstant StageSince;
         /// <summary>1 = the posts are given (orders carry them).</summary>
         public byte Ready;
         /// <summary>1 = PROGRESS Set went up (every man at his post).</summary>
@@ -146,7 +146,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// hunt began; and the last contact hunted (once per contact).</summary>
         public byte Hunter;
         public long Hunted, LastHunted;
-        public double HuntSince;
+        public SimInstant HuntSince;
         /// <summary>⭐ <c>CE-2373</c> (D-2m) — the coverage pass: 0 not started · 1 the fan asked · 2 done.</summary>
         public byte CoverageStage;
         /// <summary>⭐ D-2m — the candidates in coverage order (the first <see cref="RankCount"/>; the rest keep their ask order).</summary>
@@ -156,7 +156,7 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed uint Sees[Capacity];
         /// <summary>⭐ D-2m (DL-4) — a lone man's round: the first <see cref="RoundCount"/> ranked posts; when he reached his current one.</summary>
         public byte RoundCount;
-        public double RoundAt, RoundSince;
+        public SimInstant RoundAt, RoundSince;
         /// <summary>⭐ D-2m — when each probe was last watched from a round post.</summary>
         public fixed double WatchedAt[CoveragePosts.ProbeCount];
         /// <summary>⭐ <c>CE-2359</c> — where the hunted contact was last known when the hunt began (the hunter's arc faces it).</summary>
@@ -500,7 +500,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (p.Posts.WindowStage == 0)
                 {
-                    p.Posts.WindowStage = 1; p.Posts.StageSince = ctx.Now;
+                    p.Posts.WindowStage = 1; p.Posts.StageSince = (SimInstant)ctx.Now;
                     var tier = MedianTier(in ctx);   // ⭐ D-2b (DA-42) — once, by the squad's median man
                     // ⭐ D-2l (DA-77, R-2059) — Regular or better fights a window from beside its frame; a Veteran keeps the set-back post
                     //   where the room is deep enough (D-2b / D-2j) and stands at the frame elsewhere. ⛔ SUPERSEDED: Regular set back (D-2b).
@@ -531,7 +531,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 // ⭐ D-2g (DA-5, DA-22, DA-47) — the roof, behind its parapet, for the men the windows did not take: points the cover ask
                 //   never gives (📌 measured on OBJ: 22 roof points, none hidden from the sector)
-                if (p.Posts.RoofStage == 0) { p.Posts.RoofStage = 1; p.Posts.StageSince = ctx.Now; }
+                if (p.Posts.RoofStage == 0) { p.Posts.RoofStage = 1; p.Posts.StageSince = (SimInstant)ctx.Now; }
                 bool answered = SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindRoofPosts.BlueprintId, RoofSite, p.SearchRadius, from, ea, out var buffer);
                 if (!Settle(ref p, ref ws, in ctx, answered, in buffer, window: false, roof: true)) return;
                 p.Posts.RoofStage = 2;
@@ -539,7 +539,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (p.Posts.CoverStage < 2 && hasEa && AnyWithoutPost(ref p, in ctx))
             {
-                if (p.Posts.CoverStage == 0) { p.Posts.CoverStage = 1; p.Posts.StageSince = ctx.Now; }
+                if (p.Posts.CoverStage == 0) { p.Posts.CoverStage = 1; p.Posts.StageSince = (SimInstant)ctx.Now; }
                 bool answered = SquadManeuverRunner.AskTerrainAll(ref ws, in ctx, FindCoverPosts.BlueprintId, CoverSite, p.SearchRadius, from, ea, out var buffer);   // ⭐ CE-2342 (R-2066 A)
                 if (!Settle(ref p, ref ws, in ctx, answered, in buffer, window: false)) return;
                 p.Posts.CoverStage = 2;
@@ -548,7 +548,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Posts.CoverageStage < 2 && !hasEa && !Coverage(ref p, in ctx)) return;   // ⭐ CE-2373 (D-2m, DL-1) — all-round only
             if (p.Posts.FanStage < 2 && !GunOnTheLongestView(ref p, in ctx, hasEa, ea)) return;
             p.Posts.Ready = 1;
-            p.Posts.RoundSince = ctx.Now;
+            p.Posts.RoundSince = (SimInstant)ctx.Now;
             unsafe
             {
                 for (int i = 0; i < ctx.Roster.Count && i < DefencePosts.Capacity; i++)   // only rounds from now on count (DA-38)
@@ -587,7 +587,7 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 float range = Math.Clamp(Flat(ea - p.Position) * 1.5f, 50f, 300f);
                 WorldSurveyChildSensor.Ensure(ctx.World, ctx.Commander, FanSite, WorldSurveyRequest.Fan(origins, FanRays, range));
-                p.Posts.FanStage = 1; p.Posts.StageSince = ctx.Now;
+                p.Posts.FanStage = 1; p.Posts.StageSince = (SimInstant)ctx.Now;
                 return false;
             }
             var child = EqsChildSensor.Find(ctx.World, ctx.Commander, FanSite);
@@ -757,7 +757,7 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 WorldSurveyChildSensor.Ensure(ctx.World, ctx.Commander, CoverageSite,
                     WorldSurveyRequest.Fan(origins, CoveragePosts.Rays, CoveragePosts.Range(p.Position, p.SearchRadius, farthest)));
-                p.Posts.CoverageStage = 1; p.Posts.StageSince = ctx.Now;
+                p.Posts.CoverageStage = 1; p.Posts.StageSince = (SimInstant)ctx.Now;
                 return false;
             }
             var child = EqsChildSensor.Find(ctx.World, ctx.Commander, CoverageSite);
@@ -806,7 +806,7 @@ namespace Hrot.AI.Behaviors.Brains
             ctx.Live(man, out var who);
             bool there = Vector3.Distance(ctx.At(who), p.Posts.Point(post)) <= PostRadius || ctx.Now - p.Posts.MovedAt[man] >= RoundMoveSeconds;
             if (!there) return;
-            if (p.Posts.RoundAt < p.Posts.MovedAt[man] || p.Posts.RoundAt == 0) p.Posts.RoundAt = ctx.Now;   // arrived
+            if (p.Posts.RoundAt < p.Posts.MovedAt[man] || p.Posts.RoundAt == 0) p.Posts.RoundAt = (SimInstant)ctx.Now;   // arrived
             if (current >= 0)
                 for (int q = 0; q < CoveragePosts.ProbeCount; q++)
                     if ((p.Posts.Sees[post] & (1u << q)) != 0) p.Posts.WatchedAt[q] = ctx.Now;
@@ -959,7 +959,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (hunter < 0) return;
             p.Posts.Hunter = (byte)hunter;
             p.Posts.Hunted = p.Posts.LastHunted = id;
-            p.Posts.HuntSince = ctx.Now;
+            p.Posts.HuntSince = (SimInstant)ctx.Now;
             p.Posts.HuntX = at.X; p.Posts.HuntY = at.Y; p.Posts.HuntZ = at.Z;
             ws.Reissue = 1;
             Report(in ctx, at, ProgressKind.Displacing);

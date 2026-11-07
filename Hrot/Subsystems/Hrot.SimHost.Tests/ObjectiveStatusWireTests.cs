@@ -33,11 +33,11 @@ namespace Hrot.SimHost.Tests
         private static ObjectiveStatus Full() => new()
         {
             Role = ObjectiveRole.Measure, State = ObjectiveState.Failed, Closed = 1, Owner = ForceId.Hostile,
-            ProgressCur = 3, ProgressNeed = 7, Value = 1.5f, Target = 9.25f, Score = 0.75f, Points = 12f, ChangedAt = 321.5,
+            ProgressCur = 3, ProgressNeed = 7, Value = 1.5f, Target = 9.25f, Score = 0.75f, Points = 12f, ChangedAt = (SimInstant)321.5,
             Reason = new FixedString64("held 60 s, 5 Blue / 0 Red"), Title = new FixedString64("Hold the bridge"), Kind = new FixedString32("HoldArea"),
             Required = 1, Scored = 1, Weight = 2.5f, VisibleSides = 0b110, FireCount = 4, LastFired = 99.25, TriggerState = TriggerState.Cooldown,
             DependsOnCount = 2, DependsOn = Ids(101, 102), ActsOnCount = 3, ActsOn = Ids(201, 202, 203),
-            HoldFor = 1.5f, Delay = 2.5f, Cooldown = 3.5f, Deadline = 60f, ExpectedAt = 77.25,
+            HoldFor = 1.5f, Delay = 2.5f, Cooldown = 3.5f, Deadline = 60f, ExpectedAt = (SimInstant)77.25,
             Group = new FixedString32("fire"), Pass = 0.8f, StepCur = 2, StepCount = 3,
             Capture = 1, Challenger = ForceId.Friend, AreaCenter = new WorldPoint(12.5f, -3f, 4f), AreaRadius = 37.5f,
             EndsExercise = 1,
@@ -295,7 +295,7 @@ namespace Hrot.SimHost.Tests
                 w.SetSimulationTime(10f);
                 egress.ScanAndPublish(w);
                 w.SetSimulationTime(10.1f);
-                w.GetComponentRW<ObjectiveStatus>(e).ExpectedAt = 99;
+                w.GetComponentRW<ObjectiveStatus>(e).ExpectedAt = (SimInstant)99;
                 egress.ScanAndPublish(w);
                 Assert.Equal(2, wire.Written.Count);
                 Assert.Equal(99d, wire.Written[1].ExpectedAt);

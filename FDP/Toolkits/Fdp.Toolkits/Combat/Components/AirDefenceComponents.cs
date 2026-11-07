@@ -29,14 +29,14 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>The aircraft that released it.</summary>
         public Entity Owner;
         /// <summary>Sim time (s) it burns out.</summary>
-        public double Until;
+        public SimInstant Until;
         /// <summary>The aircraft's velocity at release. ⭐ No <c>SimVelocity</c>: <c>CountermeasureSystem</c> places it by
         /// <c>DecoyFlight.At</c>, so no host's integrator (narrowed to projectiles on Stride, CE-238) has to know about it.</summary>
         public Vector3 Velocity;
         /// <summary>Where it left the aircraft.</summary>
         public Vector3 Origin;
         /// <summary>Sim time (s) it left — the notification's <c>FiredAt</c>.</summary>
-        public double FiredAt;
+        public SimInstant FiredAt;
         /// <summary>How fast it sinks (its munition's <c>ExpendableDto.SinkMps</c>).</summary>
         public float SinkMps;
     }
@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Combat.Components
     public struct MissileWarning
     {
         /// <summary>Sim time (s) the warning arrived.</summary>
-        public double At;
+        public SimInstant At;
         public Vector3 From;
         public float BearingDeg;
         public Fdp.Toolkit.Tkb.Domain.GuidanceKind Seeker;

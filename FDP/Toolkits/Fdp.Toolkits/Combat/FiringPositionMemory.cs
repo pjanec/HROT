@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>T4 display — the node's phase (<see cref="PeekPhase"/>) and the sim time it was last written / its timer ends.</summary>
         public byte Phase;
-        public double PhaseAt, PhaseUntil;
+        public SimInstant PhaseAt, PhaseUntil;
         public Vector3 HidePoint, PeekPoint;
 
         /// <summary>⭐ Declared: a unit memory is created with <c>new T()</c> (Q87 §1).</summary>

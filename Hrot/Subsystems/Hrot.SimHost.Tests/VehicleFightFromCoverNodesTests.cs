@@ -174,7 +174,7 @@ namespace Hrot.SimHost.Tests
                     AimedAt.Add(Unsafe.As<byte, AimAndFireParams>(ref ch.Params[0]).Target);
                 }
                 ref var row = ref Repo.GetComponentRW<ActionStatus>(Self).Weapon;
-                if (Masked) { row.Reason = ActionReason.Masked; row.At = Time; return; }   // ⭐ CE-2218 — the muzzle line runs into a wall: held
+                if (Masked) { row.Reason = ActionReason.Masked; row.At = (SimInstant)Time; return; }   // ⭐ CE-2218 — the muzzle line runs into a wall: held
                 row.Reason = Guiding ? ActionReason.Guiding : ActionReason.Firing;
                 if (Guiding) return;   // a round in flight: the next is not granted
                 _fired++;
@@ -306,7 +306,7 @@ namespace Hrot.SimHost.Tests
         public void CE2230_H5_TheHullWaitsInItsHide_UntilTheWavesGoTime()
         {
             var d = HillDuel(seesFromX: 1000f);
-            d.P.HoldUntil = 8.0;
+            d.P.HoldUntil = (SimInstant)8.0;
             Assert.Equal(VehiclePhase.Hidden, d.RunUntil(VehiclePhase.Hidden, 5));
             Assert.True(d.Time < 3.0, $"in the hide at {d.Time:F1} s");
             Assert.Equal(VehiclePhase.Exposing, d.RunUntil(VehiclePhase.Exposing, 10));

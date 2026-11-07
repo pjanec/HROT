@@ -165,7 +165,7 @@ namespace Hrot.Network.Translators
             repo.Bus.PublishManaged(new SquadReportNotification
             {
                 FromUnit = EntityOf(report.FromUnit), ToUnit = EntityOf(report.ToUnit),
-                Subject = report.Subject == 0 ? Entity.Null : EntityOf(report.Subject), Building = report.Building, SentAt = report.SentAt,
+                Subject = report.Subject == 0 ? Entity.Null : EntityOf(report.Subject), Building = report.Building, SentAt = (SimInstant)report.SentAt,
                 Report = SquadReportEgressTranslator.FromWire(in report), OriginNodeId = (Fdp.Core.NodeId)(report.OriginNodeId),
             });
             return true;

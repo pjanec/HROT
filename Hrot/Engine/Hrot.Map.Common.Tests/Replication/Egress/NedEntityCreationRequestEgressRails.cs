@@ -275,7 +275,7 @@ public class NedEntityCreationRequestEgressRails
         var cloud = new Fdp.Toolkit.Combat.AreaEffectCloud
         {
             Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
-            BornAtSimSeconds = 12.5, Seconds = 60f,
+            BornAtSimSeconds = (SimInstant)12.5, Seconds = 60f,
         };
 
         egress.Send(new EntityCreationRequest

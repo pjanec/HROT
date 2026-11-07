@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// inside it — rooms are derived per answer and have no id (R-2038).</summary>
         public int Building = -1;
         /// <summary>When the sender published it (sim s). The report ages from <see cref="CommandReport.ObservedAt"/>, not from this.</summary>
-        public double SentAt;
+        public SimInstant SentAt;
         /// <summary>The report itself (kind, subtype, the kind's fields, <c>ObservedAt</c>, <c>Seq</c>, <c>Synthetic</c>).</summary>
         public CommandReport Report;
         /// <summary>The node it was raised on: 0 = THIS node (the egress sends it); otherwise it arrived from that node.</summary>

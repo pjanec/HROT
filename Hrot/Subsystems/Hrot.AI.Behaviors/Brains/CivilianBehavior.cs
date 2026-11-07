@@ -106,16 +106,16 @@ namespace Hrot.AI.Behaviors.Brains
             public Entity Target;
             public byte Moving;
             public Vector3 Goal;
-            public double NextLookAt, NextStrikeAt;
-            public double NextThrowAt;   // ⭐ CE-2238 part 2
-            public double BendUntil;     // ⭐ CE-2238 part 2 — 0 = not bending
+            public SimInstant NextLookAt, NextStrikeAt;
+            public SimInstant NextThrowAt;   // ⭐ CE-2238 part 2
+            public SimInstant BendUntil;     // ⭐ CE-2238 part 2 — 0 = not bending
             public Entity Pickup;        // ⭐ CE-2238 part 3 (§5i.3) — the lying throwable he goes for, Null = none
         }
 
         /// <summary>⭐ <c>CE-2241</c> ① — when someone last covered him (sim seconds).</summary>
         public struct SurrenderState
         {
-            public double CoveredAt;
+            public SimInstant CoveredAt;
         }
 
         /// <summary>⭐ <c>CE-2236</c> — the panic's working memory, shared by Panic, Shelter and Inside: the shelter query, its answer,
@@ -124,10 +124,10 @@ namespace Hrot.AI.Behaviors.Brains
         public struct PanicState
         {
             public EqsSensorHandle Sensor;
-            public double Since;
+            public SimInstant Since;
             public byte Answered, Found, Moving, Arrived, Failed, Deleted, Occupant;   // ⭐ CE-2337 Occupant — panicked already indoors (fits the padding before Shelter)
             public Vector3 Shelter;
-            public double HideUntil;
+            public SimInstant HideUntil;
         }
 
         /// <summary>⭐ <c>CE-2240</c> — the protester's working memory: his spot on the ring, when he steps again, and his gesture's clock.</summary>
@@ -137,7 +137,7 @@ namespace Hrot.AI.Behaviors.Brains
             public byte Started, Moving, Sign, FistUp;
             public int Steps;
             public Vector3 Spot;
-            public double NextMillAt, NextGestureAt;
+            public SimInstant NextMillAt, NextGestureAt;
         }
 
         /// <summary>⭐ <c>CE-2237</c> — the onlooker's working memory: the ring point he walks to round <see cref="FocusAt"/>.</summary>
@@ -154,7 +154,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public byte Walking;
             public int Legs;
-            public double PauseUntil;
+            public SimInstant PauseUntil;
             public Vector3 Target;
         }
 
@@ -343,7 +343,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
                 ws.Walking = 0;
                 var rng = SimRng.FromSim((int)self.Index, 0x2235 + ws.Legs, (float)now);
-                ws.PauseUntil = now + p.PauseMinSeconds + rng.NextSingle() * (p.PauseMaxSeconds - p.PauseMinSeconds);
+                ws.PauseUntil = (SimInstant)(now + p.PauseMinSeconds + rng.NextSingle() * (p.PauseMaxSeconds - p.PauseMinSeconds));
                 if (rng.NextSingle() < PhoneShare) Hold(world, self, HeldItemKind.Phone);   // ⭐ CE-2248 HD-1 — a share of his pauses, his own draw
                 return NodeStatus.Running;
             }
@@ -355,7 +355,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Target = WanderPoint(mind.Home, p.WanderRadius, (int)self.Index, ws.Legs, now);
             ws.Legs++;
             if (LocomotionMoveTo.Issue(world, self, ws.Target, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Walking = 1;
-            else ws.PauseUntil = now + p.PauseMaxSeconds;   // nothing to walk with: look again later
+            else ws.PauseUntil = (SimInstant)(now + p.PauseMaxSeconds);   // nothing to walk with: look again later
             return NodeStatus.Running;
         }
 
@@ -366,7 +366,7 @@ namespace Hrot.AI.Behaviors.Brains
             LocomotionMoveTo.Stop(world, self);
             PutAway(world, self, HeldItemKind.Phone);
             ws.Walking = 0;
-            ws.PauseUntil = 0;
+            ws.PauseUntil = (SimInstant)0;
         }
 
         /// <summary>⭐ <c>CE-2248</c> (§5n HD-3) — he takes <paramref name="kind"/> (his phone, a stone) in his hand — unless a drawn weapon or
@@ -422,7 +422,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var sensor = ws.Sensor;
                 ws = default;
                 ws.Sensor = sensor;
-                ws.Since = now > 0 ? now : 1e-6;
+                ws.Since = (SimInstant)(now > 0 ? now : 1e-6);
                 // ⭐⭐ CE-2337 (AQ99, Building Clearing §6a) — an OCCUPANT (panicked already indoors) has his shelter: he neither runs out
                 //   nor searches — no shelter is asked for, so NoShelter sends him to COWER where he is, and he stays (never Inside, never
                 //   deleted). R-4035's hide-then-disappear is the panicking PEDESTRIAN's; 📌 bc-house-clear: the occupant of room C hid,
@@ -459,7 +459,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             PostureNodes.Drop(world, ws.Sensor);
             ws.Sensor = default;
-            ws.Since = 0;
+            ws.Since = (SimInstant)0;
         }
 
         /// <summary>⭐ <c>CE-2236</c> — Shelter: he runs upright to the point inside; the mover opens a closed door on the way
@@ -501,7 +501,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.HideUntil == 0)
             {
                 var rng = SimRng.FromSim((int)self.Index, 0x22361, (float)now);
-                ws.HideUntil = now + p.HideMinSeconds + rng.NextSingle() * (p.HideMaxSeconds - p.HideMinSeconds);
+                ws.HideUntil = (SimInstant)(now + p.HideMinSeconds + rng.NextSingle() * (p.HideMaxSeconds - p.HideMinSeconds));
             }
             if (ws.Deleted == 0 && now >= ws.HideUntil && world.HasComponent<NetworkIdentity>(self))
             {
@@ -595,7 +595,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return Gesture(ref ws, self, world, now);
                 ws.Moving = 0;
                 var rng = SimRng.FromSim((int)self.Index, 0x22401 + ws.Steps, (float)now);
-                ws.NextMillAt = now + MillMinSeconds + rng.NextSingle() * (MillMaxSeconds - MillMinSeconds);
+                ws.NextMillAt = (SimInstant)(now + MillMinSeconds + rng.NextSingle() * (MillMaxSeconds - MillMinSeconds));
             }
             else if (now >= ws.NextMillAt && ws.NextMillAt > 0)
             {
@@ -604,7 +604,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var step = new Vector3(ws.Spot.X + r * MathF.Cos(a), ws.Spot.Y + r * MathF.Sin(a), ws.Spot.Z);
                 ws.Steps++;
                 if (LocomotionMoveTo.Issue(world, self, step, MillSpeed, 0.5f, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Moving = 1;
-                else ws.NextMillAt = now + MillMaxSeconds;
+                else ws.NextMillAt = (SimInstant)(now + MillMaxSeconds);
             }
             return Gesture(ref ws, self, world, now);
         }
@@ -615,9 +615,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Sign != 0 || now < ws.NextGestureAt) return NodeStatus.Running;
             var rng = SimRng.FromSim((int)self.Index, 0x22403 + ws.Steps * 7 + ws.FistUp, (float)now);
             ws.FistUp = ws.FistUp != 0 ? (byte)0 : (byte)1;
-            ws.NextGestureAt = now + (ws.FistUp != 0
+            ws.NextGestureAt = (SimInstant)(now + (ws.FistUp != 0
                 ? FistMinSeconds + rng.NextSingle() * (FistMaxSeconds - FistMinSeconds)
-                : RestMinSeconds + rng.NextSingle() * (RestMaxSeconds - RestMinSeconds));
+                : RestMinSeconds + rng.NextSingle() * (RestMaxSeconds - RestMinSeconds)));
             Gestures.Set(world, self, ws.FistUp != 0 ? GestureKind.FistRaised : GestureKind.None);
             return NodeStatus.Running;
         }
@@ -647,13 +647,13 @@ namespace Hrot.AI.Behaviors.Brains
             if (now >= ws.NextLookAt || !Standing(world, ws.Target))
             {
                 ws.Target = NearestForces(world, self, RiotReachMetres);
-                ws.NextLookAt = now + RiotLookSeconds;
+                ws.NextLookAt = (SimInstant)(now + RiotLookSeconds);
             }
             // ⭐ CE-2238 part 2 (§5i.2) — empty hands in a stone source: bend for stones first
             if (ws.BendUntil > 0)
             {
                 if (now < ws.BendUntil) return NodeStatus.Running;
-                ws.BendUntil = 0;
+                ws.BendUntil = (SimInstant)0;
                 ItemSources.Refill(world, self);
                 StanceRequest.Set(world, self, StanceId.Standing, CrouchSeconds);
             }
@@ -661,7 +661,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
                 StanceRequest.Set(world, self, StanceId.Crouched, CrouchSeconds);
-                ws.BendUntil = now + BendSeconds;
+                ws.BendUntil = (SimInstant)(now + BendSeconds);
                 return NodeStatus.Running;
             }
             if (ws.Target.IsNull)
@@ -677,7 +677,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (now >= ws.NextThrowAt && Stones.Throw(world, self, target))
                 {
                     HostileActs.Commit(world, self, HostileActKind.NonLethal);   // the first stone is his act, as the blow is
-                    ws.NextThrowAt = now + ThrowCooldownSeconds;
+                    ws.NextThrowAt = (SimInstant)(now + ThrowCooldownSeconds);
                 }
                 return NodeStatus.Running;
             }
@@ -687,7 +687,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (now >= ws.NextStrikeAt && !Effects.IsKnockedDown(world, ws.Target) && Melee.Strike(world, self, ws.Target))
                 {
                     HostileActs.Commit(world, self, HostileActKind.NonLethal);
-                    ws.NextStrikeAt = now + Melee.CooldownSeconds;
+                    ws.NextStrikeAt = (SimInstant)(now + Melee.CooldownSeconds);
                 }
                 return NodeStatus.Running;
             }
@@ -713,7 +713,7 @@ namespace Hrot.AI.Behaviors.Brains
                 RoundPickUp.Ask(world, self, ws.Pickup);
                 ws.Pickup = Entity.Null;
                 StanceRequest.Set(world, self, StanceId.Crouched, CrouchSeconds);
-                ws.BendUntil = now + BendSeconds;
+                ws.BendUntil = (SimInstant)(now + BendSeconds);
                 return true;
             }
             var at = world.GetComponentRO<SimTransform>(ws.Pickup).Position;
@@ -741,7 +741,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             CivilianMind.SetMode(world, self, CivilianMode.Surrender);
             double now = world.SimulationTime;
-            if (ws.CoveredAt <= 0 || !Covering.By(world, self).IsNull) ws.CoveredAt = now;
+            if (ws.CoveredAt <= 0 || !Covering.By(world, self).IsNull) ws.CoveredAt = (SimInstant)now;
             LocomotionMoveTo.Stop(world, self);
             if (Gestures.Of(world, self) != GestureKind.HandsUp) Gestures.Set(world, self, GestureKind.HandsUp);
             return NodeStatus.Running;

@@ -47,8 +47,8 @@ namespace Hrot.Editor.DebugApi
                     ["arrivingPenetration"] = s.Outcome == ShotOutcome.Hit ? s.ArrivingPenetration : null,
                     ["hitPart"] = s.HitPart, ["hitFace"] = s.HitFace,   // ⭐ CE-3209 — the body part met and the face entered
                     // ⭐ CE-2180 — the trip from the brain: raised (brain's synced sim time, null when unknown) → fired here
-                    ["raisedAt"] = s.RaisedAt > 0d ? s.RaisedAt : null, ["firedAt"] = s.FiredAt,
-                    ["tripSeconds"] = s.RaisedAt > 0d ? s.FiredAt - s.RaisedAt : null, ["caughtUpSeconds"] = s.CaughtUpSeconds, ["owedFrames"] = s.OwedFrames, ["caughtUpFrames"] = s.CaughtUpFrames, ["frameDt"] = s.FrameDt,
+                    ["raisedAt"] = s.RaisedAt > 0d ? (double)s.RaisedAt : null, ["firedAt"] = (double)s.FiredAt,
+                    ["tripSeconds"] = s.RaisedAt > 0d ? (float)(s.FiredAt - s.RaisedAt) : null, ["caughtUpSeconds"] = s.CaughtUpSeconds, ["owedFrames"] = s.OwedFrames, ["caughtUpFrames"] = s.CaughtUpFrames, ["frameDt"] = s.FrameDt,
                     ["crossings"] = crossings,
                 });
             }

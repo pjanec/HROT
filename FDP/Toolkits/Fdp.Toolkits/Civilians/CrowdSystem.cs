@@ -30,7 +30,7 @@ namespace Fdp.Toolkit.Civilians
         public Vector3 Focus;
         public byte HasFocus;
         /// <summary>Sim time (s) the crowd first formed.</summary>
-        public double FormedAt;
+        public SimInstant FormedAt;
     }
 
     /// <summary>⭐ <c>CE-2237</c> (§5f) — the crowd's numbers, one place.</summary>
@@ -211,7 +211,7 @@ namespace Fdp.Toolkit.Civilians
                 double until = Math.Max(fx.KnockedDownUntil, Math.Max(fx.StunnedUntil, fx.IrritatedUntil));
                 ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[i]);
                 if (until <= effectsNow || until <= mind.ForceSeenUntil) continue;
-                mind.ForceSeenUntil = until;
+                mind.ForceSeenUntil = (SimInstant)until;
                 if (mind.CrowdId != 0) _forced.Add(i);
             }
             float reach = CrowdRules.SpikeMetres * CrowdRules.SpikeMetres;
@@ -374,7 +374,7 @@ namespace Fdp.Toolkit.Civilians
                 if (!_crowdEntity.TryGetValue(id, out var ce) || !repo.IsAlive(ce))
                 {
                     ce = repo.CreateEntity();
-                    crowd.FormedAt = now;
+                    crowd.FormedAt = (SimInstant)now;
                     repo.AddComponent(ce, crowd);
                     Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(repo, ce);
                     _crowdEntity[id] = ce;

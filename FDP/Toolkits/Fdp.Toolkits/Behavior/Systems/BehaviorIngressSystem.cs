@@ -92,7 +92,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         }
 
         private readonly Fdp.Toolkit.Replay.ResumableCounter<RunTokenMark> _runTokens = new(
-            () => RunTokens.Last, RunTokens.ResumeAt, m => (m.Last, m.At), (last, at) => new RunTokenMark { Last = last, At = at });
+            () => RunTokens.Last, RunTokens.ResumeAt, m => (m.Last, m.At), (last, at) => new RunTokenMark { Last = last, At = (SimInstant)at });
 
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
@@ -202,7 +202,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 unhosted.Origin = BehaviorOriginRank.AfterAssign(evt.Origin, unhosted);   // ⭐ CE-3034 — before the hash moves
                 unhosted.Urgency = UrgencyAfterAssign(evt.Origin, ReactionUrgency.NotAReaction, unhosted.Urgency);
                 unhosted.ActiveBehaviorHash = evt.BehaviorHash;
-                unhosted.RunSince = Now(repo);   // ⭐ CE-2080
+                unhosted.RunSince = (SimInstant)(Now(repo));   // ⭐ CE-2080
                 unhosted.InstanceId = NextRunToken(repo, evt.Entity, unhosted.InstanceId, pausing: false);   // ⭐ CE-2081
                 JournalStarted(repo, evt.Entity, evt.BehaviorHash, previousBehaviorId, evt.Origin, ReactionUrgency.NotAReaction, false);
                 AfterAdmitted(repo, evt.Entity, evt.Origin, null);
@@ -513,7 +513,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 state.BrainTier = paused.BrainTier;
                 state.Origin = paused.Origin;
                 state.Urgency = ReactionUrgency.NotAReaction;
-                state.RunSince = Now(repo);
+                state.RunSince = (SimInstant)(Now(repo));
                 if (repo.TryGetTable(typeof(BehaviorStartRecord), out _))
                     repo.SetManagedComponent(entity, new BehaviorStartRecord
                     {
@@ -625,7 +625,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             // ⭐ CE-3034: record WHO started it (Self keeps the running origin) — read while the old run is still current.
             behavior.Urgency = UrgencyAfterAssign(origin, urgency, behavior.Urgency);   // ⭐ CE-2078 — before Origin moves
-            behavior.RunSince = Now(repo);                                               // ⭐ CE-2080
+            behavior.RunSince = (SimInstant)(Now(repo));                                               // ⭐ CE-2080
             behavior.Origin = BehaviorOriginRank.AfterAssign(origin, behavior);
             behavior.ActiveBehaviorHash = behaviorId;
             // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
@@ -1787,7 +1787,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             behavior.BrainTier = 0;
             behavior.Origin = BehaviorOrigin.Unmarked;   // ⭐ CE-3034 — an empty slot admits anything
             behavior.Urgency = ReactionUrgency.NotAReaction;   // ⭐ CE-2078
-            behavior.RunSince = Now(repo);                       // ⭐ CE-2080 — emptiness is a "run" too
+            behavior.RunSince = (SimInstant)(Now(repo));                       // ⭐ CE-2080 — emptiness is a "run" too
 
             // ⭐ CE-452: no behaviour ⇒ nothing to restart.
             if (repo.HasManagedComponent<BehaviorStartRecord>(entity))

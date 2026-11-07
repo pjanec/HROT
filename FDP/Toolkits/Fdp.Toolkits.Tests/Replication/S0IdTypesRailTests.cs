@@ -341,6 +341,21 @@ namespace Fdp.Toolkits.Tests.Replication
             ["CivilianParamsJsonDto.PanicAt"] = "the authored form of CivilianParams.PanicAt (a level)",
             ["CivilianParamsJsonDto.RiotAt"] = "the authored form of CivilianParams.RiotAt (a level)",
             ["Vars.StartedAt"] = "a variable of a GENERATED demo blueprint (SubordinateForEachDemo, authored with the blueprint scalar Flt); blueprint variables are the compiler's scalar set, not a component field",
+            ["GlobalTime.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["GlobalTime.UnscaledTotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["FrameOuterHeader.SimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["FrameMetadata.SimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["CheckpointMark.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["CheckpointMark.UnscaledTotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["ClusterTimeObservation.ResumeSimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["ClusterTimeObservation.SnapshotSimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["ISimClock.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["WorldSimClock.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["AdvanceFrameIntent.TargetSimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["JumpTimeIntent.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["TestStep.Time"] = "a step of an authored TEST SCRIPT (JSON), not runtime state",
+            ["NetworkTransform.SimStamp"] = "WIRE stamp: the replicated sample's sim time, copied from the DDS double by the translator",
+            ["FireAtPointParamsJsonDto.FireAt"] = "the authored (JSON) form of a params struct: kept a plain double until S-d proves the JSON path round-trips",
         };
 
         private static bool LooksLikeAnInstant(string name)
@@ -362,6 +377,28 @@ namespace Fdp.Toolkits.Tests.Replication
             var sb = new StringBuilder();
             foreach (var o in offences.OrderBy(x => x, StringComparer.Ordinal)) sb.AppendLine(o);
             Assert.True(offences.Count == 0, $"{offences.Count} members look like an instant but are a bare float:\n{sb}");
+        }
+
+        private static bool LooksLikeADoubleInstant(string name)
+        {
+            var w = Words(name);
+            return w.Length > 0 && w[^1] is "At" or "Since" or "Until" or "Time";
+        }
+
+        /// <summary>⭐ CE-4201 SV-1 S-b — the DOUBLE half of the rail above: a point in sim time that is a bare <c>double</c> (outside the wire types and the allow-list) is a <see cref="SimInstant"/>.</summary>
+        [Fact]
+        public void S0_EveryAtSinceUntilTimeMember_IsNotABareDouble()
+        {
+            var types = AllPublicNonWire().ToList();
+            Assert.True(types.Count >= 1000, $"only {types.Count} public types found — the scan lost its assemblies");
+            var offences = new List<string>();
+            foreach (var t in types)
+                foreach (var (owner, member, type) in Members(t))
+                    if (Strip(type) == typeof(double) && LooksLikeADoubleInstant(member) && !NotAnInstant.ContainsKey(owner + "." + member))
+                        offences.Add($"{t.FullName}.{member} ({type.Name}) — a point in sim time is a SimInstant; say what it is if it is not one");
+            var sb = new StringBuilder();
+            foreach (var o in offences.OrderBy(x => x, StringComparer.Ordinal)) sb.AppendLine(o);
+            Assert.True(offences.Count == 0, $"{offences.Count} members look like an instant but are a bare double:\n{sb}");
         }
 
         [Fact]

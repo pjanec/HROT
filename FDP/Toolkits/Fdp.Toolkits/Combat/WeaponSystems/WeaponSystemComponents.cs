@@ -65,7 +65,7 @@ namespace Fdp.Toolkit.Combat
     {
         public WeaponDeploy Deploy;
         /// <summary>Sim time (<c>GlobalTime.TotalTime</c>, s) a <see cref="WeaponDeploy.Deploying"/> or <see cref="WeaponDeploy.Packing"/> ends.</summary>
-        public double Until;
+        public SimInstant Until;
     }
 
     /// <summary>
@@ -190,7 +190,7 @@ namespace Fdp.Toolkit.Combat
             repo.GetComponentRW<WeaponSystemState>(weapon) = new WeaponSystemState
             {
                 Deploy = deploy ? WeaponDeploy.Deploying : WeaponDeploy.Packing,
-                Until = Now(repo) + Math.Max(0f, deploy ? p.DeploySeconds : p.PackSeconds),
+                Until = (SimInstant)(Now(repo) + Math.Max(0f, deploy ? p.DeploySeconds : p.PackSeconds)),
             };
             return true;
         }

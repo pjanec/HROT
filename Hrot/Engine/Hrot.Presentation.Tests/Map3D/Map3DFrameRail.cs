@@ -2673,7 +2673,7 @@ public sealed class Map3DFrameRail
             world.AddComponent(m, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, ground + up), Rotation = Quaternion.Identity });
             world.AddComponent(m, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Pilot) });
             world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
-            world.AddComponent(m, new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = phase, PhaseSince = Now - since,
+            world.AddComponent(m, new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = phase, PhaseSince = (SimInstant)(Now - since),
                                                                    Canopy = Fdp.Toolkit.Motion.CanopyKind.Round });
         }
         Pilot(-4f, 40f, Fdp.Toolkit.Motion.DescentPhase.Exit, 0.3);
@@ -2752,7 +2752,7 @@ public sealed class Map3DFrameRail
             world.AddComponent(m, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Exposed = 1, Seat = (byte)(2 + k) });
             roper.Add(m);
             onRope.Add((top - new Vector3(0f, 0f, 4f + 4f * k) - new Vector3(0f, 0f, 1.9f), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, k == 0 ? MathF.PI / 2f : -MathF.PI / 2f),
-                        new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.FastRope, Phase = Fdp.Toolkit.Motion.DescentPhase.Slide, Anchor = heli, AnchorIndex = (byte)k, PhaseSince = Now - 1.0 }));
+                        new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.FastRope, Phase = Fdp.Toolkit.Motion.DescentPhase.Slide, Anchor = heli, AnchorIndex = (byte)k, PhaseSince = (SimInstant)(Now - 1.0) }));
         }
 
         // the stick, in a line to the north of the helicopter, each in its phase
@@ -2760,7 +2760,7 @@ public sealed class Map3DFrameRail
         var banked = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 22f * MathF.PI / 180f);
         Fdp.Toolkit.Motion.Descent Para(Fdp.Toolkit.Motion.DescentKind kind, Fdp.Toolkit.Motion.DescentPhase phase, double since,
                                         Fdp.Toolkit.Motion.CanopyKind canopy = Fdp.Toolkit.Motion.CanopyKind.Round)
-            => new() { Kind = kind, Phase = phase, PhaseSince = Now - since, Canopy = canopy };
+            => new() { Kind = kind, Phase = phase, PhaseSince = (SimInstant)(Now - since), Canopy = canopy };
         var round = Fdp.Toolkit.Motion.DescentKind.StaticLine;
         var mff = Fdp.Toolkit.Motion.DescentKind.FreeFall;
         float y0 = spot.Y + 14f;
@@ -2825,7 +2825,7 @@ public sealed class Map3DFrameRail
             var tf = world.GetComponentRO<SimTransform>(m);
             world.SetComponent(m, tf with { Position = new Vector3(tf.Position.X, tf.Position.Y, G(tf.Position.X, tf.Position.Y)) });
             var dsc = world.GetComponentRO<Fdp.Toolkit.Motion.Descent>(m);
-            world.SetComponent(m, dsc with { Phase = Fdp.Toolkit.Motion.DescentPhase.Landed, PhaseSince = Now });
+            world.SetComponent(m, dsc with { Phase = Fdp.Toolkit.Motion.DescentPhase.Landed, PhaseSince = (SimInstant)Now });
         }
         world.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now + 0.05 });
         frame.Step(canvas.Draw);
@@ -3503,7 +3503,7 @@ public sealed class Map3DFrameRail
         void Release(long ammo, double ago)   // where the aircraft was then: it flew on at its velocity since
             => world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification
             {
-                Shooter = heli, WeaponIndex = 1, AmmoGuid = ammo, Quantity = 1, FiredAt = now - ago,
+                Shooter = heli, WeaponIndex = 1, AmmoGuid = ammo, Quantity = 1, FiredAt = (SimInstant)(now - ago),
                 Origin = heliAt - velocity * (float)ago + new Vector3(0f, 0f, -1f), Velocity = velocity,
             });
         for (int i = 0; i < 4; i++) Release(Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare, 1.2 - i * 0.3);
@@ -3787,13 +3787,13 @@ public sealed class Map3DFrameRail
         var gas = Place(Hrot.Core.Tkb.AreaEffectCloudTkb.Type, gasAt);
         world.AddComponent(gas, new Fdp.Toolkit.Combat.AreaEffectCloud
         {
-            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, BornAtSimSeconds = 90.0, Seconds = 60f,
+            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, BornAtSimSeconds = (SimInstant)90.0, Seconds = 60f,
         });
         var smokeAt = new Vector3(spot.X + 16f, spot.Y + 2f, query.GroundHeightAt(spot.X + 16f, spot.Y + 2f));
         var smoke = Place(Hrot.Core.Tkb.AreaEffectCloudTkb.Type, smokeAt);
         world.AddComponent(smoke, new Fdp.Toolkit.Combat.AreaEffectCloud
         {
-            Kind = Fdp.Toolkit.Combat.CloudKind.Smoke, Radius = 8f, Height = 4f, SightTransmittance = 0.1f, BornAtSimSeconds = 95.0, Seconds = 75f,
+            Kind = Fdp.Toolkit.Combat.CloudKind.Smoke, Radius = 8f, Height = 4f, SightTransmittance = 0.1f, BornAtSimSeconds = (SimInstant)95.0, Seconds = 75f,
         });
         foreach (var off in new[] { new Vector2(-1.5f, 0.5f), new Vector2(1f, -1f), new Vector2(7.5f, 1f) })
             Place(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale,

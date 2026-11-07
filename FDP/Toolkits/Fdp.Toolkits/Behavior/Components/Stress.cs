@@ -18,13 +18,13 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>0 calm … 1 the most he can bear.</summary>
         public float Level;
         /// <summary>Sim time of his last stimulus (a round, a hit, a friend down).</summary>
-        public double LastStimulusAt;
+        public SimInstant LastStimulusAt;
         /// <summary>Sim time of the last pass (the continuous terms run over the time since).</summary>
-        public double LastStepAt;
+        public SimInstant LastStepAt;
         /// <summary>⭐ TS-6 (<c>CE-2272</c>) — 1 while he is broken.</summary>
         public byte Broken;
         /// <summary>⭐ TS-6 — sim time his level fell under the recovery mark (0 = not under it).</summary>
-        public double CalmSince;
+        public SimInstant CalmSince;
     }
 
     /// <summary>

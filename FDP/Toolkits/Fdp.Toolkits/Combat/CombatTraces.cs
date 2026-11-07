@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Combat
         /// <summary>The <see cref="ShotRecord.Seq"/> this slot mirrors.</summary>
         public long Seq;
         /// <summary>Sim time it was mirrored (one frame after the shot at most).</summary>
-        public double Time;
+        public SimInstant Time;
         public Vector3 Muzzle;
         /// <summary>Where it ended, or where it was aimed while it flies (<see cref="HasEnd"/> = 0).</summary>
         public Vector3 End;
@@ -115,7 +115,7 @@ namespace Fdp.Toolkit.Combat
     public struct DetonationTrace
     {
         public long Seq;
-        public double Time;
+        public SimInstant Time;
         public Vector3 Burst;
         public float FragmentRadius;
         public float BlastInjuryRadius;

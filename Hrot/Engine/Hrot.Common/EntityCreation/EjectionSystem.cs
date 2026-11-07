@@ -80,7 +80,7 @@ namespace Hrot.Common.EntityCreation
                 {
                     new SimTransform { Position = seat, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) },
                     new SimVelocity { Linear = v + new Vector3(0f, 0f, ParachuteModel.EjectUpMps) },
-                    new Descent { Kind = DescentKind.Ejection, Phase = DescentPhase.Exit, Canopy = CanopyKind.Round, PhaseSince = DescentRules.Now(repo) },
+                    new Descent { Kind = DescentKind.Ejection, Phase = DescentPhase.Exit, Canopy = CanopyKind.Round, PhaseSince = (SimInstant)(DescentRules.Now(repo)) },
                 },
             });
 

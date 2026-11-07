@@ -45,7 +45,7 @@ namespace Hrot.SimHost.Tests
         {
             _world.Bus.PublishManaged(new BehaviorFaultNotification
             {
-                Entity = e, BehaviorHash = hash, InstanceId = run, Code = code, Message = "no area", SimTime = 12.5,
+                Entity = e, BehaviorHash = hash, InstanceId = run, Code = code, Message = "no area", SimTime = (SimInstant)12.5,
             });
             _world.Bus.SwapBuffers();
         }

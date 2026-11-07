@@ -126,7 +126,7 @@ namespace Fdp.Toolkit.Squad.Systems
             }
             leadership.Leader = successor;
             float lull = repo.HasComponent<UnitEntity>(commander) ? repo.GetComponentRO<UnitEntity>(commander).CommandDisruptionSeconds : 6f;
-            leadership.SilentUntil = now + (lull > 0f ? lull : 6f);
+            leadership.SilentUntil = (SimInstant)(now + (lull > 0f ? lull : 6f));
             Publish(repo, commander, SensorChange.SquadLeaderDown);
         }
 

@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.Perception.Signatures
             long count = ring.Places;
             if (!repo.HasSingleton<SoundTimeline>() || repo.GetSingleton<SoundTimeline>().Places != count)
             {
-                var timeline = new SoundTimeline { At = now };
+                var timeline = new SoundTimeline { At = (SimInstant)now };
                 timeline.TailCount = ring.TailBefore(double.PositiveInfinity, timeline.TailSpan(), out timeline.Places);
                 repo.SetSingletonUnmanaged(timeline);
             }
@@ -182,7 +182,7 @@ namespace Fdp.Toolkit.Perception.Signatures
             {
                 Source = source.PackedValue,
                 Force  = repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(source) ? (byte)repo.GetComponentRO<EntityInfo>(source).ForceId : (byte)0,
-                Kind   = (byte)kind, Class = cls, At = at, Carry = carry, Time = time, Signature = signature, Family = family,
+                Kind   = (byte)kind, Class = cls, At = at, Carry = carry, Time = (SimInstant)time, Signature = signature, Family = family,
             };
 
         // ⭐ Q95 A — a shot's signature is the weapon's TKB type (a crewed weapon's round names the weapon, WS-3)

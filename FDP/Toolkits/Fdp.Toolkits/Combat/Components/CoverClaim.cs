@@ -24,6 +24,6 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>The spot a step peek steps out to (= <see cref="Hide"/> for a stance peek).</summary>
         public Vector3 Peek;
         /// <summary>Sim time the claim lapses unless refreshed; 0 = released.</summary>
-        public double Until;
+        public SimInstant Until;
     }
 }

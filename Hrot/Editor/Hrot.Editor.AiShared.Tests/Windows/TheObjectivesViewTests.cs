@@ -30,7 +30,7 @@ public sealed class TheObjectivesViewTests
         bystander = world.CreateEntity(); world.AddComponent(bystander, new NetworkIdentity(950));
         var rule = world.CreateEntity();
         world.AddComponent(rule, new NetworkIdentity(10));
-        world.AddComponent(rule, new ObjectiveStatus { Title = new FixedString64("Reach the bridge"), State = ObjectiveState.Active, ChangedAt = 0 });
+        world.AddComponent(rule, new ObjectiveStatus { Title = new FixedString64("Reach the bridge"), State = ObjectiveState.Active, ChangedAt = (SimInstant)0 });
         world.AddComponent(rule, new ObjectiveLinks { Subject = new EntityRef(900) });
         return world;
     }

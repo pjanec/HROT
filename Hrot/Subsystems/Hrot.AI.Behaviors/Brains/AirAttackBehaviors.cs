@@ -104,15 +104,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6d — door guns that ran dry (bit k = mount 32 + k).</summary>
         public byte DoorDry;
         /// <summary>⭐ <c>CE-2191</c> (§7e) — the sim time of the last missile warning this attack answered (its <c>MissileWarning.At</c>).</summary>
-        public double WarnedAt;
+        public SimInstant WarnedAt;
         /// <summary>⭐ <c>CE-2191</c> — the evasion holds until this sim time (the missile's time to impact, and a margin).</summary>
-        public double EvadeUntil;
+        public SimInstant EvadeUntil;
         /// <summary>⭐ <c>CE-2191</c> — decoys released in this evasion.</summary>
         public byte Decoys;
         /// <summary>⭐ <c>CE-2191</c> — the stage the evasion returns to: the orbit, or (any other) a fresh run-in.</summary>
         public byte Resume;
         /// <summary>⭐ Slice 6e (§9i D-6) — the sim time the attack began (the drone's battery counts from it).</summary>
-        public double StartedAt;
+        public SimInstant StartedAt;
         /// <summary>⭐ Slice 6e — 1 once the battery ran out: the dive is straight down.</summary>
         public byte BatteryOut;
     }
@@ -374,7 +374,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     // ⭐ slice 6e (§9i) — an entity is pursued at once; a point is searched first
                     ws.Stage = entity ? StagePursue : StageSearch;
-                    ws.StartedAt = now;
+                    ws.StartedAt = (SimInstant)now;
                     ws.NextSteer = 0;
                 }
                 else if (ws.Profile == AirAttackProfile.DoorGunOrbit)

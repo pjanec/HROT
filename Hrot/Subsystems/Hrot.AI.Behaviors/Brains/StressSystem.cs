@@ -71,7 +71,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!Ensure(world, e, now)) return;
             ref var s = ref world.GetComponentRW<Stress>(e);
             s.Level = Math.Clamp(s.Level + amount * Reach(world, e), 0f, 1f);
-            s.LastStimulusAt = now;
+            s.LastStimulusAt = (SimInstant)now;
         }
 
         /// <summary>One pass of the continuous terms over the time since the last: outnumbered and alone raise him, time calms him.</summary>
@@ -80,7 +80,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!Ensure(world, e, now)) return;
             ref var s = ref world.GetComponentRW<Stress>(e);
             double dt = Math.Clamp(now - s.LastStepAt, 0.0, MaxStepSeconds);
-            s.LastStepAt = now;
+            s.LastStepAt = (SimInstant)now;
             if (dt <= 0.0) return;
             var at = world.GetComponentRO<SimTransform>(e).Position;
             float up = 0f;
@@ -185,15 +185,15 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (s.Level < breakAt) return;
                 s.Broken = 1;
-                s.CalmSince = 0;
+                s.CalmSince = (SimInstant)0;
                 edge = SensorChange.StressBreak;
             }
             else if (s.Level < RecoverFraction * breakAt)
             {
-                if (s.CalmSince <= 0) s.CalmSince = now;
-                else if (now - s.CalmSince >= RecoverSeconds) { s.Broken = 0; s.CalmSince = 0; edge = SensorChange.StressRecovered; }
+                if (s.CalmSince <= 0) s.CalmSince = (SimInstant)now;
+                else if (now - s.CalmSince >= RecoverSeconds) { s.Broken = 0; s.CalmSince = (SimInstant)0; edge = SensorChange.StressRecovered; }
             }
-            else s.CalmSince = 0;
+            else s.CalmSince = (SimInstant)0;
             world.SetComponent(e, s);
             if (edge is { } what && world.Bus.IsRegistered<SensorChangedEvent>())
                 world.Bus.Publish(new SensorChangedEvent { Unit = e, What = what });
@@ -293,7 +293,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.IsComponentTypeRegistered<Stress>() || !world.HasComponent<SimTransform>(e)) return false;
             if (!Feels(world, e)) return false;
-            if (!world.HasComponent<Stress>(e)) world.AddComponent(e, new Stress { LastStepAt = now });
+            if (!world.HasComponent<Stress>(e)) world.AddComponent(e, new Stress { LastStepAt = (SimInstant)now });
             return true;
         }
 

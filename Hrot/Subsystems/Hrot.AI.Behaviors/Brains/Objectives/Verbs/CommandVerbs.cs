@@ -42,7 +42,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
     }
 
     /// <summary>⭐ <c>Order</c>'s working state.</summary>
-    public struct OrderState { public byte Began; public double IssuedAt; }
+    public struct OrderState { public byte Began; public Fdp.Core.SimInstant IssuedAt; }
 
     /// <summary>What <c>MissionCommand</c> asks of the target's mission plan. ⛔ <c>Replace</c> is declared (SR-97 names it) but refused at assignment: a verb carries no plan.</summary>
     public enum MissionCommandKind : byte { Jump = 0, Replace = 1, Abort = 2 }
@@ -65,7 +65,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
     }
 
     /// <summary>⭐ <c>MissionCommand</c>'s working state: the request in flight.</summary>
-    public struct MissionCommandState { public byte Began; public double IssuedAt; public Guid RequestId; }
+    public struct MissionCommandState { public byte Began; public Fdp.Core.SimInstant IssuedAt; public Guid RequestId; }
 
     public static partial class ScenarioVerbs
     {
@@ -102,7 +102,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                     Entity = target, IntentId = name, JsonParams = json,
                     Origin = BehaviorOrigin.Superior,   // as a commander's order (CommanderNodes.cs:80)
                 });
-                s.Began = 1; s.IssuedAt = now;
+                s.Began = 1; s.IssuedAt = (SimInstant)now;
                 return NodeStatus.Running;
             }
             if (world.GetComponentRO<BehaviorState>(target).ActiveBehaviorHash == BehaviorHash.FromName(name)) return NodeStatus.Success;
@@ -146,7 +146,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                 {
                     RequestId = s.RequestId, TargetEntityId = world.GetComponentRO<NetworkIdentity>(target).Value, BaseVersion = 0, Payload = payload,
                 });
-                s.Began = 1; s.IssuedAt = now;
+                s.Began = 1; s.IssuedAt = (SimInstant)now;
                 return NodeStatus.Running;
             }
             foreach (var ack in world.ReadEvents<MissionControlAckEvent>())

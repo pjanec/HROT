@@ -44,7 +44,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Flanking, FlanksTried;
         public EqsTacticsState Flank;
         /// <summary>⭐ <c>CE-2357</c> — when the last escalation ended (sim s): the next waits another <c>FlankAfterSeconds</c>.</summary>
-        public double EscalatedAt;
+        public SimInstant EscalatedAt;
     }
 
     /// <summary>
@@ -122,7 +122,7 @@ namespace Hrot.AI.Behaviors.Brains
                         : EqsTacticsNodes.FlankRemembered(ref p.Flank, ref ws.Flank, self, world);
                     if (flank == NodeStatus.Running) return NodeStatus.Running;
                     Release(ref p, ref ws, self, world);
-                    ws.EscalatedAt = world.SimulationTime > 0 ? world.SimulationTime : 1e-6;
+                    ws.EscalatedAt = (SimInstant)(world.SimulationTime > 0 ? world.SimulationTime : 1e-6);
                     ws.Flanking = 0;
                     ws.Peek = default;   // a fresh fight from where the flank left him
                 }

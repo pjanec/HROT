@@ -204,7 +204,7 @@ namespace Fdp.Toolkit.Squad.Systems
             else Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Configure(repo, child, request);
             if (child.IsNull) return;
             var was = unit;
-            unit.AskedAt = unit.LastAsk = now;
+            unit.AskedAt = (SimInstant)(unit.LastAsk = now);
             unit.Source = at;
             Store(repo, commander, in was, in unit);
         }
@@ -218,10 +218,10 @@ namespace Fdp.Toolkit.Squad.Systems
             var read = Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.Read(repo, child, now);
             if (!read.Ready || read.Payload == null || read.Payload.Kind != Fdp.Toolkit.Perception.Survey.WorldSurveyKind.PointSurvey)
             {
-                if (now - unit.AskedAt > StructureTimeoutSeconds) unit.AskedAt = double.NegativeInfinity;
+                if (now - unit.AskedAt > StructureTimeoutSeconds) unit.AskedAt = (SimInstant)double.NegativeInfinity;
                 return;
             }
-            unit.AskedAt = double.NegativeInfinity;
+            unit.AskedAt = (SimInstant)double.NegativeInfinity;
             var votes = new Dictionary<int, int>();
             foreach (var pt in read.Payload.Points)
                 if (pt.Building >= 0) votes[pt.Building] = votes.TryGetValue(pt.Building, out int v) ? v + 1 : 1;

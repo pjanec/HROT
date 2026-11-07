@@ -88,7 +88,7 @@ namespace Hrot.AI.Behaviors.Brains
         public long DesignatePacked;
         /// <summary>⭐ CE-2230 H-5 — no drive out of the hide before this simulation time (s; 0 = none): a commander's go time, so the
         /// members of a wave leave their hides together.</summary>
-        public double HoldUntil;
+        public SimInstant HoldUntil;
     }
 
     /// <summary>⭐ <c>CE-2165</c> V4 — the node's working state: scratch, lost on every exit; what outlives an exit is in <see cref="FiringPositionMemory"/>.</summary>
@@ -109,7 +109,7 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 SensorAt;
         /// <summary>When the phase's timer ends · when the vehicle reached the firing point · since when a dangerous threat has seen it
         /// without a break (0 = none now) · since when the node waits (sim s).</summary>
-        public double PhaseUntil, ExposedAt, SeenSince, WaitingSince;
+        public SimInstant PhaseUntil, ExposedAt, SeenSince, WaitingSince;
         /// <summary>The sim tick the exposure began (a heard launch is compared with <c>TargetMemory.LastSeenTick</c>).</summary>
         public uint ExposedTick;
         /// <summary>The exposure budget (s): how long it may be seen by a dangerous threat.</summary>
@@ -295,7 +295,7 @@ namespace Hrot.AI.Behaviors.Brains
                 GoToHide(ref ws, in p, self, world, hide);
                 return true;
             }
-            if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = now; }
+            if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = (SimInstant)now; }
             return now - ws.WaitingSince < p.NoCoverSeconds;
         }
 
@@ -367,7 +367,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.FiringPoint = new Vector3(p.LaneStart.X, p.LaneStart.Y, 0f);
                 ws.Creeping = 0;
                 ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.FiringPoint, p.ApproachSpeed, ArrivalRadius, onSurface: true, source: MoveSource.CoverSearch) ? 1 : 0);
-                ws.SeenSince = 0;
+                ws.SeenSince = (SimInstant)0;
                 ws.Phase = VehiclePhase.Exposing;
                 return;
             }
@@ -375,7 +375,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!PickBest(ws.FiringSensor, ref mem, in p, world, self, now, null, 0f, out var firing))
             {
                 // no firing point from this hide for NoCoverSeconds: it cannot be fought from — to the next hide
-                if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = now; }
+                if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = (SimInstant)now; }
                 else if (now - ws.WaitingSince >= p.NoCoverSeconds)
                 {
                     ws.Waiting = 0;
@@ -388,7 +388,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Waiting = 0;
             ws.FiringPoint = firing;
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius, source: MoveSource.CoverSearch) ? 1 : 0);   // T3 — front first
-            ws.SeenSince = 0;   // CE-2216 — this exposure's clock starts on the way out
+            ws.SeenSince = (SimInstant)0;   // CE-2216 — this exposure's clock starts on the way out
             ws.Phase = VehiclePhase.Exposing;
         }
 
@@ -401,8 +401,8 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐ CE-2216 — the DRIVE OUT is part of the exposure: a dangerous threat that can see me starts the clock here, and the
                 //   budget spent before I reach the point sends me back. 📐 Live ua-javelin-lock: Javelin A saw the tank 3 s before it
                 //   reached its firing point and launched as it arrived — the clock only started at the point
-                if (!SeenByADangerousThreat(world, self, in p)) ws.SeenSince = 0;
-                else if (ws.SeenSince == 0) { ws.SeenSince = now; ws.Budget = Budget(in p, world, self); }
+                if (!SeenByADangerousThreat(world, self, in p)) ws.SeenSince = (SimInstant)0;
+                else if (ws.SeenSince == 0) { ws.SeenSince = (SimInstant)now; ws.Budget = Budget(in p, world, self); }
                 else if (now - ws.SeenSince >= ws.Budget) Withdraw(ref ws, in p, ref mem, self, world, now);
                 return;
             }
@@ -415,7 +415,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
             // at the firing point: the exposure is real — count it, heat the point, set the budget
-            ws.ExposedAt = now;
+            ws.ExposedAt = (SimInstant)now;
             ws.ExposedTick = Fdp.Toolkit.Perception.PerceptionClock.Now(world);   // ⭐ CE-3292 — compared with LastSeenTick
             ws.ExposuresHere++;
             ws.Exposures++;
@@ -425,7 +425,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Budget = ws.SeenSince > 0 ? MathF.Min(ws.Budget, budget) : budget;
             if (!StartFire(ref ws, in p, self, world, in threat))
             {
-                ws.PhaseUntil = now + p.WatchSeconds;
+                ws.PhaseUntil = (SimInstant)(now + p.WatchSeconds);
                 ws.Phase = VehiclePhase.Watching;
             }
         }
@@ -478,8 +478,8 @@ namespace Hrot.AI.Behaviors.Brains
                                      Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
             bool seenByDanger = SeenByADangerousThreat(world, self, in p);
-            if (!seenByDanger) ws.SeenSince = 0;
-            else if (ws.SeenSince == 0) ws.SeenSince = now;
+            if (!seenByDanger) ws.SeenSince = (SimInstant)0;
+            else if (ws.SeenSince == 0) ws.SeenSince = (SimInstant)now;
 
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
             // the aimed-fire executor's own answer (its status row): a guided round in flight holds the gunner (W-12c) — the one reader (CE-2228)
@@ -607,7 +607,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             PostureNodes.StopFiring(world, self, ref ws.Fire);
             var rng = SimRng.FromSim(self.Index, HideSite ^ (ws.Exposures * 7919), (float)now);
-            ws.PhaseUntil = now + p.HideSecondsMin + rng.NextSingle() * (p.HideSecondsMax - p.HideSecondsMin);
+            ws.PhaseUntil = (SimInstant)(now + p.HideSecondsMin + rng.NextSingle() * (p.HideSecondsMax - p.HideSecondsMin));
             ws.Waiting = 0;
             ws.Phase = VehiclePhase.Hidden;
         }
@@ -765,7 +765,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Claim(ref VehicleFightFromCoverState ws, Entity self, EntityRepository world, double now)
         {
             if (ws.Phase == VehiclePhase.Choose || !world.IsComponentTypeRegistered<CoverClaim>()) return;
-            var claim = new CoverClaim { Hide = ws.HidePoint, Peek = ws.FiringPoint, Until = now + PeekAndFireNodes.ClaimTtlSeconds };
+            var claim = new CoverClaim { Hide = ws.HidePoint, Peek = ws.FiringPoint, Until = (SimInstant)(now + PeekAndFireNodes.ClaimTtlSeconds) };
             if (world.HasComponent<CoverClaim>(self)) world.GetComponentRW<CoverClaim>(self) = claim;
             else world.AddComponent(self, claim);
         }
@@ -791,7 +791,7 @@ namespace Hrot.AI.Behaviors.Brains
             PostureNodes.Drop(world, ws.FiringSensor);
             if (ws.Moving == 1) LocomotionMoveTo.Stop(world, self);
             if (world.IsComponentTypeRegistered<CoverClaim>() && world.HasComponent<CoverClaim>(self))
-                world.GetComponentRW<CoverClaim>(self).Until = 0d;
+                world.GetComponentRW<CoverClaim>(self).Until = (SimInstant)0d;
             ws = default;
         }
 

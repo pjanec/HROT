@@ -22,6 +22,6 @@ namespace Fdp.Toolkit.Squad
         /// <summary>Its current phase.</summary>
         public ushort Phase;
         /// <summary>Sim time the phase began.</summary>
-        public double PhaseSince;
+        public SimInstant PhaseSince;
     }
 }

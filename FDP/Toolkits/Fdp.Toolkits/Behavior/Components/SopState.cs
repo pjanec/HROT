@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Behavior.Components
     public struct RunTokenMark
     {
         public int Last;
-        public double At;
+        public SimInstant At;
     }
 
     /// <summary>⭐ <c>CE-3035</c> — what the SOP slot was started with (the twin of <see cref="BehaviorStartRecord"/>).</summary>

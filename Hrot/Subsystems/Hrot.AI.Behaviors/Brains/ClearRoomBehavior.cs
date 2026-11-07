@@ -32,7 +32,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Suspected;
         /// <summary>1 once the survey was asked · when · 1 once the plan is made · 1 once it failed (no room, no door, no answer).</summary>
         public byte Asked, Planned, Failed;
-        public double AskedAt;
+        public SimInstant AskedAt;
         public RoomDrillState Drill;
     }
 
@@ -145,7 +145,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 WorldSurveyChildSensor.Ensure(ctx.World, ctx.Commander, RoomSite, WorldSurveyRequest.OfArea(new Vector2(p.Room.X, p.Room.Y), RoomAskMetres));
                 p.Asked = 1;
-                p.AskedAt = ctx.Now;
+                p.AskedAt = (SimInstant)ctx.Now;
                 return;
             }
             var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, RoomSite);

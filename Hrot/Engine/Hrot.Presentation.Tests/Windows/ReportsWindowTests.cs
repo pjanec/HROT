@@ -47,7 +47,7 @@ public sealed class ReportsWindowTests : IDisposable
             };
             _log.Add(new SquadReportLogEntry
             {
-                SeenAt = 100.0 + i, FromUnit = _units[i % 4], ToUnit = _units[(i + 1) % 4], Report = report, Verdict = i % 2 == 0 ? "folded" : "stale",
+                SeenAt = (SimInstant)(100.0 + i), FromUnit = _units[i % 4], ToUnit = _units[(i + 1) % 4], Report = report, Verdict = i % 2 == 0 ? "folded" : "stale",
             });
         }
     }

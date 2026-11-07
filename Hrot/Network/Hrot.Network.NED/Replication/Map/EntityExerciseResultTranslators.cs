@@ -153,7 +153,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                     if (_endedRaised.Add(d.EntityId))   // ⭐ ONCE: the phase became Ended
                     {
                         if (!repo.Bus.IsRegistered<ExerciseEndedEvent>()) repo.Bus.Register<ExerciseEndedEvent>();
-                        repo.Bus.Publish(new ExerciseEndedEvent { EndedAt = d.EndedAt });
+                        repo.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)d.EndedAt });
                     }
                 }
                 else _endedRaised.Remove(d.EntityId);   // a new run on the same entity
@@ -165,7 +165,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <summary>The result a sample carries (the test seam).</summary>
         internal static ExerciseResult FromSample(in EntityExerciseResult d) => new()
         {
-            Phase = (ExercisePhase)d.Phase, EndedAt = d.EndedAt, Reason = new FixedString64(d.Reason ?? string.Empty),
+            Phase = (ExercisePhase)d.Phase, EndedAt = (SimInstant)d.EndedAt, Reason = new FixedString64(d.Reason ?? string.Empty),
             Friend = new SideResult { Outcome = (SideOutcome)d.FriendOutcome, Points = d.FriendPoints, Score = d.FriendScore },
             Hostile = new SideResult { Outcome = (SideOutcome)d.HostileOutcome, Points = d.HostilePoints, Score = d.HostileScore },
             Neutral = new SideResult { Outcome = (SideOutcome)d.NeutralOutcome, Points = d.NeutralPoints, Score = d.NeutralScore },

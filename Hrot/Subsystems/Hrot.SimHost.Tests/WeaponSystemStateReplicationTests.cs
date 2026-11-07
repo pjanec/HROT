@@ -53,7 +53,7 @@ namespace Hrot.SimHost.Tests
             egress.ScanAndPublish(owner);
             Assert.Equal(1, egress.SentSampleCount);   // unchanged ⇒ said once
 
-            owner.GetComponentRW<WeaponSystemState>(m2) = new WeaponSystemState { Deploy = WeaponDeploy.Packing, Until = 12.5 };
+            owner.GetComponentRW<WeaponSystemState>(m2) = new WeaponSystemState { Deploy = WeaponDeploy.Packing, Until = (SimInstant)12.5 };
             egress.ScanAndPublish(owner);
             Assert.Equal(2, egress.SentSampleCount);
             var sample = EntityWeaponSystemStateEgressTranslator.ToSample(M2Id, owner.GetComponentRO<WeaponSystemState>(m2));

@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Perception.Components
     [StructLayout(LayoutKind.Sequential)]
     public struct HeardTrace
     {
-        public double Time;
+        public SimInstant Time;
         public Vector3 At;
         public float Radius;
         /// <summary><c>Signatures.SoundKind</c>.</summary>

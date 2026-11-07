@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Combat
         public fixed double At[EscalationLadder.MaxWarned];
         public byte Count;
         /// <summary>Until when (sim seconds) the warner shows <see cref="GestureKind.Warning"/>.</summary>
-        public double ShowUntil;
+        public SimInstant ShowUntil;
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ namespace Fdp.Toolkit.Combat
                 log.At[log.Count] = now;
                 log.Count++;
             }
-            log.ShowUntil = now + WarningShowSeconds;
+            log.ShowUntil = (SimInstant)(now + WarningShowSeconds);
             if (world.IsComponentTypeRegistered<Gesture>()) Gestures.Set(world, unit, GestureKind.Warning);
         }
 

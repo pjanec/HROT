@@ -23,7 +23,7 @@ namespace Hrot.AI.Behaviors.Brains
         public float RestSeconds;
         /// <summary>0 = watching · 1 = a mission runs (<see cref="Observe"/>).</summary>
         public byte Observing;
-        public double RestUntil;
+        public SimInstant RestUntil;
         /// <summary>Missions started (a test / diagnostics probe).</summary>
         public int Missions;
     }
@@ -77,7 +77,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var status = PersonObserveFireBehavior.Observe(ref p.Observe, self, world);
                 if (status == NodeStatus.Running) return NodeStatus.Running;
                 p.Observing = 0;
-                p.RestUntil = now + p.RestSeconds;   // SP-4 — either end
+                p.RestUntil = (SimInstant)(now + p.RestSeconds);   // SP-4 — either end
                 return NodeStatus.Running;
             }
             if (now < p.RestUntil || !world.HasComponent<SimTransform>(self)) return NodeStatus.Running;
@@ -96,7 +96,7 @@ namespace Hrot.AI.Behaviors.Brains
             p.Observing = 1;
             p.Missions++;
             var first = PersonObserveFireBehavior.Observe(ref p.Observe, self, world);
-            if (first != NodeStatus.Running) { p.Observing = 0; p.RestUntil = now + p.RestSeconds; }
+            if (first != NodeStatus.Running) { p.Observing = 0; p.RestUntil = (SimInstant)(now + p.RestSeconds); }
             return NodeStatus.Running;
         }
     }

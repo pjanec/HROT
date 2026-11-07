@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Combat
         /// <summary>How long one Irritant hit lasts (s) — the pulse is each second, so ≥ 1 keeps a man irritated while he stays in.</summary>
         public float IrritantSeconds;
         /// <summary>The sim time it was made (<c>ISimClock.TotalTime</c>).</summary>
-        public double BornAtSimSeconds;
+        public SimInstant BornAtSimSeconds;
         /// <summary>How long it lives (s).</summary>
         public float Seconds;
 
@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>R-3039</c> S1 — the OWNER's step clock (APPENDED; ⛔ not on the wire — the translator copies named fields): the sim time of
         /// its last step, valid once <see cref="Stepped"/> is 1. Was a field of <c>AreaEffectCloudSystem</c>: a checkpoint restored into a fresh
         /// system lost it and the cloud stepped at once, drifting on the wind for its whole age. 📄 docs/DESIGN_System_State_Inventory.md §6 #3.</summary>
-        public double LastStepSimSeconds;
+        public SimInstant LastStepSimSeconds;
         /// <summary>1 once the owner has stepped it (the first step comes at once).</summary>
         public byte Stepped;
         /// <summary>1 once the owner asked the lifecycle to end it (a networked cloud's teardown, asked once).</summary>

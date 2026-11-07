@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Squad
         /// <summary>The leading member; <see cref="Entity.Null"/> when the squad has none designated.</summary>
         public Entity Leader;
         /// <summary>Sim time until which the commander is silent (no new orders); 0 = not silent.</summary>
-        public double SilentUntil;
+        public SimInstant SilentUntil;
         /// <summary>⭐ <c>CE-2152</c> C-c (R-a) — roster slots already reported DOWN (<see cref="Fdp.Toolkit.Perception.Events.SensorChange.SquadMemberDown"/>
         /// once per man). Health only falls, so a bit is never cleared.</summary>
         public ushort DownReported;

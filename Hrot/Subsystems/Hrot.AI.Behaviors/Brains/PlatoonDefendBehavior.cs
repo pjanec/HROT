@@ -51,7 +51,7 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 FallBackTo;
         /// <summary>⭐ E-4 (DA-85, DA-90) — 1 once the area's survey was asked (battle positions) · when (sim s).</summary>
         public byte Asked;
-        public double AskedAt;
+        public SimInstant AskedAt;
         public fixed byte Role[Capacity];
         public fixed float X[Capacity];
         public fixed float Y[Capacity];
@@ -286,7 +286,7 @@ namespace Hrot.AI.Behaviors.Brains
                         WorldSurveyChildSensor.Ensure(world, self, PositionsSite,
                             WorldSurveyRequest.OfArea(new Vector2(p.Position.X, p.Position.Y), p.SearchRadius));
                         p.Asked = 1;
-                        p.AskedAt = now;
+                        p.AskedAt = (SimInstant)now;
                         return NodeStatus.Running;
                     }
                     var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(world, self, PositionsSite);

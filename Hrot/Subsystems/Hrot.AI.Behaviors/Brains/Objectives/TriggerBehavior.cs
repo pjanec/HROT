@@ -136,7 +136,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             /// <summary>The condition last time it was evaluated (0/1), and whether there was a last time (the first armed tick only records it).</summary>
             public byte Prev, PrevKnown;
             /// <summary>The rising edge (sim s); when the delay ends; when the cooldown ends.</summary>
-            public double EdgeAt, WaitUntil, CooldownUntil;
+            public SimInstant EdgeAt, WaitUntil, CooldownUntil;
             /// <summary>The <c>do</c> list's runner state: <c>RunActions</c>' own params (list 1, depth 0) and its cursor.</summary>
             public RunActionsParams ListParams; public RunActionsState List;
             /// <summary>⭐ V-1 — the entities the rule names (net ids): its <c>when</c> reads / its <c>do</c> acts on. <c>LinksPending</c> = some ref was not resolved yet (asked again each tick, <c>LinkTries</c> times at most).</summary>
@@ -246,7 +246,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             // one that never fired is switched off first (it did not "fail": it is not an objective)
             if (s.Closed == 0 && b.Phase != TriggerState.Acting && b.Phase != TriggerState.Fired && ExerciseResult.PhaseOf(world) != ExercisePhase.Running)
             {
-                if (!s.IsFinal) { s.State = ObjectiveState.Inactive; s.ChangedAt = now; s.Reason = new FixedString64("exercise ended"); b.Phase = TriggerState.Disarmed; }
+                if (!s.IsFinal) { s.State = ObjectiveState.Inactive; s.ChangedAt = (SimInstant)now; s.Reason = new FixedString64("exercise ended"); b.Phase = TriggerState.Disarmed; }
                 s.Closed = 1;
             }
             if (s.Closed == 0)
@@ -273,7 +273,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 if (s.State != ObjectiveState.Active || b.Phase is TriggerState.Disarmed or TriggerState.Acting or TriggerState.Fired or TriggerState.Done)
                 { Refuse(ref s, world, self, $"Fire refused: {(s.State != ObjectiveState.Active ? "it is switched off" : b.Phase.ToString())}"); return; }
-                b.EdgeAt = now;
+                b.EdgeAt = (SimInstant)now;
                 StartActing(ref b, ref s, self, world, now);
                 ObjectiveHost.ReportControl(world, self, null);
                 return;
@@ -301,15 +301,15 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             s.HoldFor = b.HoldFor; s.Delay = b.Delay; s.Cooldown = b.Cooldown;
             s.Deadline = b.Common.DeadlineSeconds;
             s.EndsExercise = b.EndsExercise;
-            if (s.Closed != 0 || s.IsFinal) { s.ExpectedAt = 0d; return; }
+            if (s.Closed != 0 || s.IsFinal) { s.ExpectedAt = (SimInstant)0d; return; }
             s.ExpectedAt = b.Phase switch
             {
                 TriggerState.Waiting => b.WaitUntil,
                 TriggerState.Holding => b.EdgeAt + b.HoldFor,
                 TriggerState.Cooldown => b.CooldownUntil,
-                TriggerState.Armed when b.Common.DeadlineSeconds > 0f => b.Common.DeadlineSeconds,
-                TriggerState.Armed => TriggerWhenTime.ExpectedAt(((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items[WhenItem], now),
-                _ => 0d,
+                TriggerState.Armed when b.Common.DeadlineSeconds > 0f => (SimInstant)b.Common.DeadlineSeconds,
+                TriggerState.Armed => (SimInstant)(TriggerWhenTime.ExpectedAt(((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items[WhenItem], now)),
+                _ => (SimInstant)0d,
             };
         }
 
@@ -340,7 +340,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                     bool edge = b.PrevKnown != 0 ? cond && b.Prev == 0 : cond && b.FireIfTrueWhenArmed != 0;   // CE-4166: already true when armed is NOT an edge, unless opted in
                     b.Prev = (byte)(cond ? 1 : 0); b.PrevKnown = 1;
                     if (!edge) break;
-                    b.EdgeAt = now;
+                    b.EdgeAt = (SimInstant)now;
                     if (b.HoldFor > 0f) Go(ref b, ref s, TriggerState.Holding, $"condition rose, holding {b.HoldFor:0.##} s", now);
                     else AfterHold(ref b, ref s, self, world, now);
                     break;
@@ -357,7 +357,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                     }
                     else if (now >= b.CooldownUntil - Eps && b.WhileTrue != 0)   // ⭐ S6 G-4: still true after the cooldown ⇒ the periodic rule fires again, as a fresh edge
                     {
-                        b.Prev = 1; b.PrevKnown = 1; b.EdgeAt = now;
+                        b.Prev = 1; b.PrevKnown = 1; b.EdgeAt = (SimInstant)now;
                         if (b.HoldFor > 0f) Go(ref b, ref s, TriggerState.Holding, $"condition still true, holding {b.HoldFor:0.##} s", now);
                         else AfterHold(ref b, ref s, self, world, now);
                     }
@@ -367,7 +367,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
 
         private static void AfterHold(ref Block b, ref ObjectiveStatus s, Entity self, EntityRepository world, double now)
         {
-            if (b.Delay > 0f) { b.WaitUntil = now + b.Delay; Go(ref b, ref s, TriggerState.Waiting, $"firing in {b.Delay:0.##} s", now); }
+            if (b.Delay > 0f) { b.WaitUntil = (SimInstant)(now + b.Delay); Go(ref b, ref s, TriggerState.Waiting, $"firing in {b.Delay:0.##} s", now); }
             else StartActing(ref b, ref s, self, world, now);
         }
 
@@ -406,7 +406,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             }
             else
             {
-                b.CooldownUntil = s.LastFired + b.Cooldown;
+                b.CooldownUntil = (SimInstant)(s.LastFired + b.Cooldown);
                 Go(ref b, ref s, TriggerState.Cooldown, $"cooling down {b.Cooldown:0.##} s", now);
             }
         }

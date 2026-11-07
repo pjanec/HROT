@@ -117,7 +117,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_entityMap.TryGetEntity(d.EntityId, out var unit) || !view.IsAlive(unit)) { DroppedSampleCount++; return; }
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, unit, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
-            cmd.AddComponent(unit, new Utterance { Kind = (UtteranceKind)d.Kind, Target = d.TargetId != 0 && _entityMap.TryGetEntity(d.TargetId, out var t) ? t : Entity.Null, Until = d.Until });
+            cmd.AddComponent(unit, new Utterance { Kind = (UtteranceKind)d.Kind, Target = d.TargetId != 0 && _entityMap.TryGetEntity(d.TargetId, out var t) ? t : Entity.Null, Until = (SimInstant)d.Until });
         }
 
         public void ScanAndPublish(ISimulationView view) { }

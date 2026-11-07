@@ -42,7 +42,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!urgent && st.LastAt > 0 && now - st.LastAt < CoolDownSeconds) return false;
             if (SaidNearby(world, man, at, kind, now)) return false;
             if (!Utterances.Say(world, man, kind, target, now, SpeakSeconds)) return false;
-            st.LastAt = now;
+            st.LastAt = (SimInstant)now;
             st.LastKind = kind;
             return true;
         }

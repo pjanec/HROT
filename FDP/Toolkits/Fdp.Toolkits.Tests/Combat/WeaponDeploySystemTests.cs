@@ -89,7 +89,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var m2 = Weapon();
             _w.AddComponent(m2, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
             Assert.False(WeaponDeployment.Pack(_w, m2));
-            _w.GetComponentRW<WeaponSystemState>(m2) = new WeaponSystemState { Deploy = WeaponDeploy.Packing, Until = 0.5 };
+            _w.GetComponentRW<WeaponSystemState>(m2) = new WeaponSystemState { Deploy = WeaponDeploy.Packing, Until = (SimInstant)0.5 };
             Tick(1.0);
             Assert.Equal(WeaponDeploy.Packing, State(m2));   // the owner's Stowed arrives by replication
         }

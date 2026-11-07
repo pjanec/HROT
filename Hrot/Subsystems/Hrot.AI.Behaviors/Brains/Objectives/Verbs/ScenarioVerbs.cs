@@ -45,7 +45,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             return null;
         }
     }
-    public struct EndExerciseState { public byte Began; public double StartedAt; }
+    public struct EndExerciseState { public byte Began; public Fdp.Core.SimInstant StartedAt; }
 
     /// <summary>⭐ <c>Message</c>'s params (SR-121). <c>ToKind</c>: All / Side / Station / Unit / Instructor.</summary>
     public struct MessageParams : IActionArgsCheck
@@ -142,7 +142,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                 ref var r0 = ref world.GetComponentRW<ExerciseResult>(env);
                 if (r0.Phase == ExercisePhase.Ended) return Fail(world, self, "the exercise already ended");
                 r0.Phase = ExercisePhase.Closing; r0.Reason = p.Reason;
-                s.Began = 1; s.StartedAt = now;
+                s.Began = 1; s.StartedAt = (SimInstant)now;
                 Fdp.Core.Logging.FdpLog<Log>.Info($"exercise closing ({p.Reason}) at {now:0.###} s");
                 return NodeStatus.Running;   // the objectives close at their next tick
             }
@@ -153,9 +153,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             ref var r = ref world.GetComponentRW<ExerciseResult>(env);
             Outcomes(world, ref r);
             NameTheWinner(ref r, p.Winner.ToString());
-            r.Phase = ExercisePhase.Ended; r.EndedAt = now;
+            r.Phase = ExercisePhase.Ended; r.EndedAt = (SimInstant)now;
             if (!world.Bus.IsRegistered<ExerciseEndedEvent>()) world.Bus.Register<ExerciseEndedEvent>();
-            world.Bus.Publish(new ExerciseEndedEvent { EndedAt = now });
+            world.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)now });
             Fdp.Core.Logging.FdpLog<Log>.Info($"exercise ended at {now:0.###} s: Friend {r.Friend.Outcome} {r.Friend.Score:0.00}, Hostile {r.Hostile.Outcome} {r.Hostile.Score:0.00}");
             return NodeStatus.Success;
         }
@@ -236,7 +236,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             {
                 MessageId = System.Threading.Interlocked.Increment(ref s_messageSeq), OriginNodeId = Fdp.Core.NodeId.None,
                 ToKind = p.ToKind.Length == 0 ? "All" : p.ToKind.ToString(), ToValue = p.ToValue, Text = WithSubject(world, self, p.Text.ToString()),
-                Seconds = p.Seconds, Priority = p.Priority, SentAt = ObjectiveHost.Now(world),
+                Seconds = p.Seconds, Priority = p.Priority, SentAt = (SimInstant)(ObjectiveHost.Now(world)),
                 Source = world.HasComponent<NetworkIdentity>(self) ? world.GetComponentRO<NetworkIdentity>(self).Value : 0,
             });
             return NodeStatus.Success;

@@ -138,7 +138,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             {
                 Kind = (DescentKind)s.Kind, Phase = (DescentPhase)s.Phase, Canopy = (CanopyKind)s.Canopy, AnchorIndex = s.AnchorIndex,
                 Anchor = s.AnchorNetworkId != 0 && _entityMap.TryGetEntity(s.AnchorNetworkId, out var a) ? a : Entity.Null,
-                PhaseSince = s.PhaseSince, Target = new Vector3(s.TargetX, s.TargetY, s.TargetZ),
+                PhaseSince = (SimInstant)s.PhaseSince, Target = new Vector3(s.TargetX, s.TargetY, s.TargetZ),
             });
         }
 

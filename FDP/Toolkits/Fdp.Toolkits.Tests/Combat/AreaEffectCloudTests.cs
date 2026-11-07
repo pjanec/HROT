@@ -56,7 +56,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.AddComponent(e, new AreaEffectCloud
             {
                 Kind = kind, Radius = radius, Height = 3f, SightTransmittance = transmittance,
-                IrritantSeconds = kind == CloudKind.TearGas ? 1.5f : 0f, BornAtSimSeconds = _t, Seconds = seconds,
+                IrritantSeconds = kind == CloudKind.TearGas ? 1.5f : 0f, BornAtSimSeconds = (SimInstant)_t, Seconds = seconds,
             });
             return e;
         }

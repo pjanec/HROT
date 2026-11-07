@@ -27,7 +27,7 @@ public sealed partial class PossessionStationTests
         w.Bus.RegisterManaged<PlayerMessageEvent>();
         w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 12.0 });
         var store = PlayerMessages.In(w);
-        void Add(int id, string kind, int value, string text, double at = 10) => store.Record(new PlayerMessageEvent { MessageId = id, ToKind = kind, ToValue = value, Text = text, Seconds = 6f, SentAt = at });
+        void Add(int id, string kind, int value, string text, double at = 10) => store.Record(new PlayerMessageEvent { MessageId = id, ToKind = kind, ToValue = value, Text = text, Seconds = 6f, SentAt = (SimInstant)at });
         Add(1, "All", 0, "to all");
         Add(2, "Unit", 4242, "to my unit");          // 4242: the held unit's network id (World())
         Add(3, "Unit", 99, "to another unit");
@@ -71,7 +71,7 @@ public sealed partial class PossessionStationTests
             w.AddComponent(me, new NetworkAuthority(primaryOwnerId: 5, localNodeId: 5));
             int stationId = st.ViewerOf(w, me).StationId;
             Assert.Equal(5, stationId);
-            PlayerMessages.In(w).Record(new PlayerMessageEvent { MessageId = 9, ToKind = "Station", ToValue = stationId, Text = "to my station", Seconds = 6f, SentAt = 11 });
+            PlayerMessages.In(w).Record(new PlayerMessageEvent { MessageId = 9, ToKind = "Station", ToValue = stationId, Text = "to my station", Seconds = 6f, SentAt = (SimInstant)11 });
             Assert.Contains(PlayerMessages.In(w).Log(st.ViewerOf(w, me)), e => e.Text == "to my station");
             Assert.DoesNotContain(PlayerMessages.In(w).Log(default), e => e.Text == "to my station");   // the unknown station (0) is no match, even for ToValue 0
         }

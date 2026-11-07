@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(3, w.GetSingleton<SoundTimeline>().Places);           // the world keeps the count beside the ring
 
             // a checkpoint restore at 1.5 s: the keyframe brought back the count of that moment
-            w.SetSingletonUnmanaged(new SoundTimeline { Places = 1, At = 1.0 });
+            w.SetSingletonUnmanaged(new SoundTimeline { Places = 1, At = (SimInstant)1.0 });
             At(w, 1.5);
             Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(w);
             Step(w, s);

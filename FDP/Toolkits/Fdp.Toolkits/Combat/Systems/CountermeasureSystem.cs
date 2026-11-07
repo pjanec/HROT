@@ -64,8 +64,8 @@ namespace Fdp.Toolkit.Combat.Systems
             repo.AddComponent(decoy, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             repo.AddComponent(decoy, new Decoy
             {
-                Kind = kind, Owner = unit, Until = now + Math.Max(0.1f, exp.LifeSeconds),
-                Origin = at, Velocity = velocity, FiredAt = now, SinkMps = exp.SinkMps,
+                Kind = kind, Owner = unit, Until = (SimInstant)(now + Math.Max(0.1f, exp.LifeSeconds)),
+                Origin = at, Velocity = velocity, FiredAt = (SimInstant)now, SinkMps = exp.SinkMps,
             });
             Seduce(repo, kind, decoy, now);
 
@@ -73,7 +73,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 repo.Bus.Publish(new WeaponFireNotification
                 {
                     Shooter = unit, Target = Entity.Null, WeaponIndex = mountIndex,
-                    AmmoGuid = ammo, Round = Entity.Null, Origin = at, Velocity = velocity, Quantity = 1, FiredAt = now,
+                    AmmoGuid = ammo, Round = Entity.Null, Origin = at, Velocity = velocity, Quantity = 1, FiredAt = (SimInstant)now,
                 });
             return true;
         }

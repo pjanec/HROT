@@ -50,15 +50,15 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>Where the side step or the crawl goes.</summary>
         public Vector3 SubTarget;
         /// <summary>Sim time he went down / started the sub-move / last rose.</summary>
-        public double DownSince, SubSince, UpSince;
+        public SimInstant DownSince, SubSince, UpSince;
         /// <summary>The time of the near miss or hit he last reacted to (so one round drops him once).</summary>
-        public double ReactedFireAt;
+        public SimInstant ReactedFireAt;
         /// <summary>⭐ C3 — his half of the squad is covered by the other half's fire until then (stamped by the play that checks the gate).</summary>
-        public double CoveredUntil;
+        public SimInstant CoveredUntil;
         /// <summary>⭐ <c>CE-2343</c> (R-2066 C) — the way the cover he crawled to faces (toward its obstacle; zero = none).</summary>
         public Vector2 CoverFacing;
         /// <summary>⭐ <c>CE-2363</c> — sim time the fire first put him down on this drop (a scoot does not reset it; rising does).</summary>
-        public double PinnedSince;
+        public SimInstant PinnedSince;
         /// <summary>⭐ <c>CE-2363</c> — how long (s) the side step, crawl or scoot in hand may take before he gives it up.</summary>
         public float SubSeconds;
         /// <summary>⭐ <c>CE-2363</c> — the scoots he has made on this drop (the side alternates, the seed moves on).</summary>

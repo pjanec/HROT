@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// <summary>Minimum seconds between refreshes. 0 = refresh every call.</summary>
         public float RefreshIntervalSeconds;
         /// <summary>Simulation time (seconds) at which the last refresh completed.</summary>
-        public float LastRefreshSimTime;
+        public SimInstant LastRefreshSimTime;
 
         /// <summary>⭐ <c>CE-3072</c> B0 — what the sensor watches and how (corridor, route, cadence). Set by
         /// <c>DangerAreaChildSensor.Ensure</c> / <c>Configure</c>; read by the solver (B3) and the producer (B4).</summary>

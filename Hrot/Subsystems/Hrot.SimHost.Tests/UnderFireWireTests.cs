@@ -137,7 +137,7 @@ namespace Hrot.SimHost.Tests
                 float calm = HitModel.Sigma(w, man, Rifle, now: 12.0);
                 Assert.True(calm > 0f);
 
-                var sample = EntityUnderFireEgressTranslator.ToSample(70, new UnderFire { LastTime = 10.0 });
+                var sample = EntityUnderFireEgressTranslator.ToSample(70, new UnderFire { LastTime = (SimInstant)10.0 });
                 Apply(w, map, in sample);
 
                 Assert.Equal(calm * HitModel.UnderFireFactor, HitModel.Sigma(w, man, Rifle, now: 12.0), 6);                      // 2 s after

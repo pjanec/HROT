@@ -130,8 +130,8 @@ namespace Fdp.Toolkit.Combat
         public static void StampUnderFire(EntityRepository repo, Entity unit, double now)
         {
             if (!repo.IsComponentTypeRegistered<UnderFire>() || !repo.IsAlive(unit)) return;
-            if (repo.HasComponent<UnderFire>(unit)) repo.GetComponentRW<UnderFire>(unit).LastTime = now;
-            else repo.AddComponent(unit, new UnderFire { LastTime = now });
+            if (repo.HasComponent<UnderFire>(unit)) repo.GetComponentRW<UnderFire>(unit).LastTime = (SimInstant)now;
+            else repo.AddComponent(unit, new UnderFire { LastTime = (SimInstant)now });
         }
 
         /// <summary>

@@ -62,7 +62,7 @@ public sealed class DebriefWindowsFrameRail : IDisposable
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var res = _world.CreateEntity();
-        _world.AddComponent(res, new ExerciseResult { Phase = ExercisePhase.Ended, EndedAt = 1122, Friend = new SideResult { Outcome = SideOutcome.Win }, Hostile = new SideResult { Outcome = SideOutcome.Lose } });
+        _world.AddComponent(res, new ExerciseResult { Phase = ExercisePhase.Ended, EndedAt = (SimInstant)1122, Friend = new SideResult { Outcome = SideOutcome.Win }, Hostile = new SideResult { Outcome = SideOutcome.Lose } });
         int plat = Man(900, "1st Platoon", ForceId.Friend), kral = Man(902, "Rifleman Kral", ForceId.Friend), hawk = Man(10, "Hawk", ForceId.Friend); int raven = Man(20, "Raven", ForceId.Hostile);
         int blue = Man(1, "Blue", ForceId.Friend), red = Man(2, "Red", ForceId.Hostile);
         // training

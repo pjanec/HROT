@@ -58,7 +58,7 @@ namespace Fdp.Toolkit.Civilians
         /// <summary>Who searches him now (this node's entity). ⛔ Not on the wire.</summary>
         public Entity SearchedBy;
         /// <summary>When the running search ends (sim s). ⛔ Not on the wire.</summary>
-        public double SearchUntil;
+        public SimInstant SearchUntil;
     }
 
     /// <summary>⭐ <c>CE-3256</c> — the asks and the readers of custody.</summary>
@@ -170,7 +170,7 @@ namespace Fdp.Toolkit.Civilians
             {
                 case CustodyVerb.Search:
                     if (c.Searching != 0 || !CustodyRules.InReach(world, man, ask.By) || !CustodyRules.Complies(world, man)) return false;
-                    c.Searching = 1; c.SearchedBy = ask.By; c.SearchUntil = now + CustodyRules.SearchSeconds;
+                    c.Searching = 1; c.SearchedBy = ask.By; c.SearchUntil = (SimInstant)(now + CustodyRules.SearchSeconds);
                     return true;
                 case CustodyVerb.Detain:
                     if (!CustodyRules.InReach(world, man, ask.By) || !CustodyRules.Complies(world, man)) return false;

@@ -133,7 +133,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Moving;
         public StanceId HideStance, PeekStance;
         /// <summary>When the current phase's timer ends · when the unit came up · when the enemy was last seen (sim s).</summary>
-        public double PhaseUntil, ExposedAt, LastSeenAt;
+        public SimInstant PhaseUntil, ExposedAt, LastSeenAt;
         public Vector3 HidePoint, PeekPoint;
         /// <summary>The hide-point sensor (<see cref="PeekAndFireParams.HideTemplate"/>) · the step-peek sensor.</summary>
         public EqsSensorHandle CoverSensor, PeekSensor;
@@ -158,16 +158,16 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3158</c> G2 — 1 while the node waits for a point (no cover answer, or no step-out point) · since when (sim s).
         /// 2 = every answered cover point is burned: the unit fires from where it stands meanwhile.</summary>
         public byte Waiting;
-        public double WaitingSince;
+        public SimInstant WaitingSince;
         /// <summary>⭐ <c>CE-2274</c> DA-C — the target he has already shot at · the new one he is still reacting to, since when (sim s).</summary>
         public Entity Engaged, Reacting;
-        public double ReactingSince;
+        public SimInstant ReactingSince;
         /// <summary>⭐ <c>CE-2275</c> D-2l — 1 while he fights from a frame point · 1 once the frame failed him this run (DA-84: the sill
         /// shape from then on) · 1 while the lean is still coming out (<see cref="PeekAndFireNodes.LeanSeconds"/>, since <see cref="LeanAt"/>).</summary>
         public byte Framed, FrameOff, Leaning;
-        public double LeanAt;
+        public SimInstant LeanAt;
         /// <summary>⭐ <c>CE-2328</c> — when the current blind burst began (sim s): it runs its count, for up to <c>ExposeSeconds</c> from HERE.</summary>
-        public double BlindAt;
+        public SimInstant BlindAt;
         /// <summary>⭐ <c>CE-2327</c> (R-2064) — the step-out spot's fire mark (<see cref="CheapLineOfSightTest.FireClearBit"/>): 0 = not marked,
         /// 1 = a round clears from it, 2 = it only SEES (he looks from it, and steps on to a marked spot before he fires).</summary>
         public byte PeekFire;
@@ -351,7 +351,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             Claim(ref ws, self, world, now);   // ⭐ CE-3158 G5 — keep my claim live while I hold a point
             mem.Phase = (byte)ws.Phase;
-            mem.PhaseAt = now;
+            mem.PhaseAt = (SimInstant)now;
             mem.PhaseUntil = ws.PhaseUntil;
             mem.HidePoint = ws.HidePoint;
             mem.PeekPoint = ws.PeekPoint;
@@ -390,7 +390,7 @@ namespace Hrot.AI.Behaviors.Brains
                 else PostureNodes.StopFiring(world, self, ref ws.Fire);
                 return true;
             }
-            if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = now; }
+            if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = (SimInstant)now; }
             return now - ws.WaitingSince < p.NoCoverSeconds;
         }
 
@@ -522,7 +522,7 @@ namespace Hrot.AI.Behaviors.Brains
                         ws.NextHide = next;
                         ws.NextStance = nextStance is { } ns ? (byte)((byte)ns + 1) : (byte)0;
                         ws.NextKind = nextKind;
-                        ws.PhaseUntil = now;   // no further wait: the bound is the reason to come up
+                        ws.PhaseUntil = (SimInstant)now;   // no further wait: the bound is the reason to come up
                     }
                 }
                 else
@@ -552,7 +552,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!PickPeek(ref ws, in p, ref mem, world, now, out var peek, out var peekStance, self))
             {
                 // ⭐ CE-3158 G2 — no step-out point for NoCoverSeconds: this cover cannot be fought from — to the next one
-                if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = now; }
+                if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = (SimInstant)now; }
                 else if (now - ws.WaitingSince >= p.NoCoverSeconds)
                 {
                     PositionHeat.Add(ref mem, ws.HidePoint, p.BurnHeat, now, Rules(in p), exposure: false);
@@ -601,12 +601,12 @@ namespace Hrot.AI.Behaviors.Brains
             var target = LockTarget(world, self, in threat);
             if (!target.IsNull && SightNow.Sees(world, self, target))
             {
-                ws.LastSeenAt = now;
+                ws.LastSeenAt = (SimInstant)now;
                 // ⭐ CE-2274 DA-C — a NEW target: below Regular he takes his reaction delay before the first shot, staying up meanwhile
                 float delay = ProficiencyOf.ReactionDelaySeconds(world, self);
                 if (delay > 0f && !target.Equals(ws.Engaged))
                 {
-                    if (!target.Equals(ws.Reacting)) { ws.Reacting = target; ws.ReactingSince = now; }
+                    if (!target.Equals(ws.Reacting)) { ws.Reacting = target; ws.ReactingSince = (SimInstant)now; }
                     if (now - ws.ReactingSince < delay) return;
                 }
                 if (StepToShoot(ref ws, in p, ref mem, self, world, now)) return;   // ⭐ CE-2327 — seen from a look-only spot
@@ -693,7 +693,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             FireAtPointNodes.FireAtPoint(ref ws.Blind, self, world);
             ws.Phase = PeekPhase.Blind;
-            ws.BlindAt = Now(world);   // ⭐ CE-2328
+            ws.BlindAt = (SimInstant)(Now(world));   // ⭐ CE-2328
             return true;
         }
 
@@ -751,7 +751,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Aimed(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, Entity self,
                                   EntityRepository world, double now, in ThreatAim threat)
         {
-            if (!ws.Fire.Threat.IsNull && SightNow.Sees(world, self, ws.Fire.Threat)) ws.LastSeenAt = now;   // the LOCKED target
+            if (!ws.Fire.Threat.IsNull && SightNow.Sees(world, self, ws.Fire.Threat)) ws.LastSeenAt = (SimInstant)now;   // the LOCKED target
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
             bool done = channel.ActiveAction == CombatConstants.ActionIdAimAndFire && channel.Status != NodeStatus.Running;
             // ⭐ CE-2228 (Exposure Cycle §7, V6: "a TOW-type gunner holds sight through the flight") — a command-guided round in flight
@@ -865,7 +865,7 @@ namespace Hrot.AI.Behaviors.Brains
             Leans.Set(world, self, LeanToward(world, self, in p, ws.HidePoint));
             ws.PeekPoint = ws.HidePoint;
             ws.Leaning = 1;
-            ws.LeanAt = now;
+            ws.LeanAt = (SimInstant)now;
             ws.Phase = PeekPhase.Expose;
         }
 
@@ -882,8 +882,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The exposure counts once it is real (up at the window, or arrived at the peek point): a use and B2's heat.</summary>
         private static void BeginExposure(ref PeekAndFireState ws, in PeekAndFireParams p, ref FiringPositionMemory mem, double now)
         {
-            ws.ExposedAt = now;
-            ws.LastSeenAt = 0;   // not seen this exposure (a time before any exposure) — ⛔ never an infinity: the block is dumped as JSON
+            ws.ExposedAt = (SimInstant)now;
+            ws.LastSeenAt = (SimInstant)0;   // not seen this exposure (a time before any exposure) — ⛔ never an infinity: the block is dumped as JSON
             if (ws.Counted == 1) return;
             ws.Counted = 1;
             ws.ExposuresHere++;
@@ -924,7 +924,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2366 (R-2078) — a HOT spot (burned: used up or shot at) he could not leave: he still peeks from it, at a third of the rhythm
             ref var mem = ref UnitMemory.Ref<FiringPositionMemory>(world, self);
             if (PositionHeat.IsBurnedAt(ref mem, ws.HidePoint, now, Rules(in p))) wait *= HotWaitFactor;
-            ws.PhaseUntil = now + wait;
+            ws.PhaseUntil = (SimInstant)(now + wait);
             ws.Phase = PeekPhase.Hidden;
         }
 
@@ -1128,7 +1128,7 @@ namespace Hrot.AI.Behaviors.Brains
             PostureNodes.StopFiring(world, self, ref ws.Fire);
             StopBlind(ref ws, self, world);
             ws.Fire = default;
-            ws.ExposedAt = now + 1e-3;   // just after this tick: the refusal that brought him up is behind it
+            ws.ExposedAt = (SimInstant)(now + 1e-3);   // just after this tick: the refusal that brought him up is behind it
             ws.Phase = PeekPhase.Expose;
             return true;
         }
@@ -1197,7 +1197,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Claim(ref PeekAndFireState ws, Entity self, EntityRepository world, double now)
         {
             if (ws.Phase == PeekPhase.Choose || !world.IsComponentTypeRegistered<CoverClaim>()) return;
-            var claim = new CoverClaim { Hide = ws.HidePoint, Peek = ws.PeekPoint, Until = now + ClaimTtlSeconds };
+            var claim = new CoverClaim { Hide = ws.HidePoint, Peek = ws.PeekPoint, Until = (SimInstant)(now + ClaimTtlSeconds) };
             if (world.HasComponent<CoverClaim>(self)) world.GetComponentRW<CoverClaim>(self) = claim;
             else world.AddComponent(self, claim);
         }
@@ -1293,7 +1293,7 @@ namespace Hrot.AI.Behaviors.Brains
             PostureNodes.Drop(world, ws.PeekSensor);
             if (ws.Moving == 1) LocomotionMoveTo.Stop(world, self);
             if (world.IsComponentTypeRegistered<CoverClaim>() && world.HasComponent<CoverClaim>(self))
-                world.GetComponentRW<CoverClaim>(self).Until = 0d;   // ⭐ CE-3158 G5 — the point is free at once
+                world.GetComponentRW<CoverClaim>(self).Until = (SimInstant)0d;   // ⭐ CE-3158 G5 — the point is free at once
             ws = default;
         }
 

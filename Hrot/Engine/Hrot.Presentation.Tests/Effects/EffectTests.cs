@@ -77,7 +77,7 @@ public sealed partial class EffectTests
         var gas = Unit(world, AreaEffectCloudTkb.Type, new Vector3(10f, 20f, 2f));
         world.AddComponent(gas, new Fdp.Toolkit.Combat.AreaEffectCloud
         {
-            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, BornAtSimSeconds = 100.0, Seconds = 60f,
+            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, BornAtSimSeconds = (SimInstant)100.0, Seconds = 60f,
         });
         var layer = new EffectLayer(() => world, () => tkb);
 
@@ -442,11 +442,11 @@ public sealed partial class EffectTests
         var origin = new Vector3(0, 0, 300);
         var velocity = new Vector3(60, 0, 0);
         world.Bus.Publish(new WeaponFireNotification { Shooter = heli, WeaponIndex = 1, AmmoGuid = MunitionTkbCatalog.TkbFlare,
-                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = 99.5 });
+                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = (SimInstant)99.5 });
         world.Bus.Publish(new WeaponFireNotification { Shooter = heli, WeaponIndex = 1, AmmoGuid = MunitionTkbCatalog.TkbChaff,
-                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = 99.5 });
+                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = (SimInstant)99.5 });
         world.Bus.Publish(new WeaponFireNotification { Shooter = heli, WeaponIndex = 1, AmmoGuid = MunitionTkbCatalog.TkbFlare,
-                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = 90.0 });   // burnt out
+                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = (SimInstant)90.0 });   // burnt out
         var spawn = new EffectSpawnSystem();
         Tick(world, spawn, 0.016f);
 

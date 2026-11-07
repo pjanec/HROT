@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             repo.AddComponent(t, new ObjectiveStatus { State = ObjectiveState.Active });
             harness.Tick().RecordKeyframe(100_000L);                                                                  // frame 0
 
-            repo.GetComponentRW<ObjectiveStatus>(m).ExpectedAt = 42;                                                    // not projected
+            repo.GetComponentRW<ObjectiveStatus>(m).ExpectedAt = (Fdp.Core.SimInstant)42;                                                    // not projected
             repo.GetComponentRW<ObjectiveStatus>(t).Reason = new Fdp.Core.FixedString64("waiting");                   // not projected
             harness.Tick().RecordDelta(200_000L);                                                                     // frame 1
 

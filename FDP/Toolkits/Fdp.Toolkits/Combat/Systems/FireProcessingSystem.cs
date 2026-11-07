@@ -417,7 +417,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Tick = currentTick, Shooter = shooter, Target = target, Bullet = bullet, WeaponIndex = evt.WeaponIndex,
                     Muzzle = muzzlePos, Aim = targetPos, Ordinal = ordinal, Sigma = sigma, Deflection = theta,
                     Penetration = penetration, PenetrationSource = penetrationSource, Damage = damage,
-                    RaisedAt = evt.RaisedAt, FiredAt = now, CaughtUpSeconds = late * BombBallistics.DefaultDt, CaughtUpFrames = late, OwedFrames = owed, FrameDt = deltaTime,   // ⭐ CE-2180
+                    RaisedAt = evt.RaisedAt, FiredAt = (SimInstant)now, CaughtUpSeconds = late * BombBallistics.DefaultDt, CaughtUpFrames = late, OwedFrames = owed, FrameDt = deltaTime,   // ⭐ CE-2180
                 });
 
                 // 5. Physics collider — small sphere for broadphase candidate selection.
@@ -442,7 +442,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Origin      = muzzlePos,
                     Velocity    = velocity,
                     Quantity    = 1,
-                    FiredAt     = now,
+                    FiredAt     = (SimInstant)now,
                     RequestId   = evt.RequestId,   // ⭐ Q94 A-1 (R-3018) — the answer names its request
                 });
             }
@@ -461,7 +461,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 WeaponIndex = evt.WeaponIndex,
                 AmmoGuid    = evt.AmmoGuid,
                 Quantity    = 0,
-                FiredAt     = now,
+                FiredAt     = (SimInstant)now,
                 RequestId   = evt.RequestId,
                 Refusal     = why,
             });
