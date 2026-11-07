@@ -119,6 +119,58 @@ public sealed class TheUnitFormDrawsTests
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-s5.png"));
     }
 
+    /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §3) — the Unit form's <b>Knows about</b> list in a real frame: one row per remembered target by name, after the other lists; <i>Add…</i> picks through the one context and seeds the target
+    /// through <c>KnowledgeOrders.SeedTarget</c> (a <c>SeedTargetCommand</c> on the bus); he cannot be asked to know of himself; with no <c>TargetMemory</c> (a station that does not run his brain) the footer says where it is known.
+    /// 🔴 Red-proof (compiles): <c>FillKnows</c> adding nothing ⇒ no row ⇒ red.</summary>
+    [SkippableFact]
+    public void U24_S5_KnowsAbout_ListsTheRememberedTargets_AndAddSeedsThroughTheOneOrder()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+        world.RegisterEvent<Fdp.Toolkit.Perception.Events.SeedTargetCommand>();
+        var enemy = world.CreateEntity();
+        world.AddComponent(enemy, new EntityInfo { Name = new FixedString64("Enemy 1") });
+        world.AddComponent(enemy, new NetworkIdentity(9));
+        var man = world.CreateEntity();
+        world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
+        world.AddComponent(man, new NetworkIdentity(7));
+        var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
+        Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)enemy.PackedValue, 10f, 20f, 1f, 1);
+        world.AddComponent(man, mem);
+        var bare = world.CreateEntity();   // a unit whose brain is elsewhere: no TargetMemory here
+        world.AddComponent(bare, new EntityInfo { Name = new FixedString64("Bravo 2") });
+
+        HrotForms.EnsureRegistered();
+        int list = HrotForms.Unit.Lists.Count - 1;
+        Assert.Equal("Knows about", HrotForms.Unit.Lists[list].Label);
+        Assert.Null(HrotForms.Unit.Lists[list].Remove);   // nothing in the engine forgets a target on request
+        var pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(7), "form.unit.list" + list);   // he is picked as HIS OWN known unit
+        var view = new FormView { Pick = pick };
+        using var frame = UiFrameHarness.Begin(700, 420);
+        void Draw(Entity who) => frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 360));
+            ImGui.Begin("Details##unit-knows");
+            view.Draw(HrotForms.Unit, world, new[] { who }, editable: true);
+            ImGui.End();
+        });
+        Draw(man);
+        Assert.Equal(new[] { "Unit", "Enemy 1" }, view.ListRows.Skip(view.ListRows.Count - 2).ToArray());   // after the other lists' rows
+        Assert.Equal("he cannot know of himself", view.ListProblem(list));
+        HrotForms.Unit.Lists[list].Add!(world, man, enemy);   // what the picked enemy sends
+        world.Bus.SwapBuffers();
+        var sent = world.Bus.Read<Fdp.Toolkit.Perception.Events.SeedTargetCommand>();
+        Assert.Equal(1, sent.Length);
+        Assert.Equal(man, sent[0].Perceiver); Assert.Equal(enemy, sent[0].Target);
+        view = new FormView();
+        Draw(bare);
+        Assert.Empty(view.ListRows);                       // no memory here: no rows ...
+        Assert.Equal("(known only where his brain runs)", HrotForms.Unit.Lists[list].Footer!(world, bare));   // ... and the footer says why
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) { view = new FormView(); Draw(man); frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-knows.png")); }
+    }
+
     /// <summary>⭐ U-24 / S6 (DESIGN_Initial_State §4.2) — the Unit form's <b>Character</b> section in a real frame: Skill and Bravery / Obedience / Nerve / Resolve read the EFFECTIVE values; an authored value that differs from the type's
     /// carries the blue reset arrow (<c>FormMark.DiffersFromType</c>, tooltip <i>type 0.5 — reset</i>), one that does not carries none; the reset writes a NEGATIVE value to the attribute (81) through the one <c>Submit</c> seam.
     /// Skill is a SLIDER row (not the tier word — the optional part of the S6 row). 🔴 Red-proof (compiles): <c>FormView.RefreshType</c> never setting <c>Differs</c> ⇒ no mark ⇒ red. Renders: <c>unit-form-s5.png</c>.</summary>

@@ -175,8 +175,58 @@ public static class HrotForms
                 AddLabel = "Aim at...",
                 Add = AimAt,
             },
+            // ⭐ U-24 / S5 — knows about: what his TargetMemory holds (read only where his brain runs — the component is on the brain's node alone); Add… seeds a target through the ONE order
+            //   (KnowledgeOrders.SeedTarget → Edits.Submit(Interact), applied on the brain's node). ⛔ no Remove: nothing in the engine forgets a target on request
+            new FormList
+            {
+                Label = "Knows about", RowLabels = UnitWords,
+                Fill = FillKnows,
+                Footer = KnowsFooter,
+                AddLabel = "Add...",
+                Add = SeedKnown,
+            },
         },
     };
+
+    private static readonly string[] UnitWords = { "Unit" };
+    private const int KnowsCap = 8;
+    private static readonly string[] MoreWords = BuildMoreWords();
+    private static string[] BuildMoreWords() { var w = new string[Fdp.Toolkit.Perception.PerceptionConstants.MaxTrackedTargets + 1]; for (int i = 0; i < w.Length; i++) w[i] = "+" + i + " more"; return w; }
+    private static readonly FixedString64 UnknownName = new("(unknown)");
+
+    private static bool HasMemory(EntityRepository w, Entity e)
+        => w.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>() && w.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(e);
+
+    /// <summary>One row per remembered, IDENTIFIED target (the first <see cref="KnowsCap"/>): the target's name, or <i>(unknown)</i>; the row's item is the TARGET. No LINQ, no per-frame string.</summary>
+    private static void FillKnows(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        if (!HasMemory(w, e)) return;
+        ref readonly var m = ref w.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(e);
+        int shown = 0;
+        for (int i = 0; i < m.Count && shown < KnowsCap; i++)
+        {
+            if (Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in m, i)) continue;   // a heard, unidentified contact has no entity
+            var t = new Entity((ulong)KnowsId(in m, i));
+            var name = w.IsAlive(t) && w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(t) ? w.GetComponentRO<EntityInfo>(t).Name : UnknownName;
+            into.Add(new FormListItem(UnitWords[0], name, t));
+            shown++;
+        }
+    }
+
+    private static unsafe long KnowsId(in Fdp.Toolkit.Perception.Components.TargetMemory m, int i) => m.EntityIds[i];
+
+    /// <summary>The footer: <i>+N more</i> past the cap, or — where the component is absent (a station that does not run his brain) — where the answer lives.</summary>
+    private static string? KnowsFooter(EntityRepository w, Entity e)
+    {
+        if (!HasMemory(w, e)) return "(known only where his brain runs)";
+        ref readonly var m = ref w.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(e);
+        int identified = 0;
+        for (int i = 0; i < m.Count; i++) if (!Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in m, i)) identified++;
+        return identified > KnowsCap ? MoreWords[Math.Min(identified - KnowsCap, MoreWords.Length - 1)] : null;
+    }
+
+    private static string? SeedKnown(EntityRepository w, Entity unit, Entity target)
+        => unit == target ? "he cannot know of himself" : Hrot.Common.Orders.KnowledgeOrders.SeedTarget(w, unit, target) ? null : "not sent";
 
     /// <summary>One row when his weapon has a live target: the target's name; the row's item is HIM (Clear writes his attribute).</summary>
     private static void FillAimTarget(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
