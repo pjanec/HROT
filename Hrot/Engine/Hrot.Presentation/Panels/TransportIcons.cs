@@ -13,7 +13,7 @@ namespace Hrot.UI.Common.Panels;
 public static class TransportIcons
 {
     /// <summary>Icon shapes understood by the transport drawing helpers.</summary>
-    public enum BtnShape { Play, Pause, Step, Stop, Eject }
+    public enum BtnShape { Play, Pause, Step, Stop, Eject, Rewind }
 
     /// <summary>Ordered list of choosable time-rate values shown in rate-selector popups.</summary>
     public static readonly float[] TimeRates = { 0.1f, 0.5f, 1.0f, 1.5f, 2.0f, 5.0f, 10.0f };
@@ -141,6 +141,15 @@ public static class TransportIcons
                 break;
             }
 
+            case BtnShape.Rewind:
+            {
+                // ⭐ CE-4321 (L-5) — ⏪ two amber left-pointing triangles: "Review" (DAR's colour).
+                uint col = ImGui.GetColorU32(new Vector4(0.96f, 0.70f, 0.18f, alpha));
+                float mid = size * 0.5f, half = (size - 2 * pad) * 0.5f;
+                dl.AddTriangleFilled(pos + new Vector2(pad, mid), pos + new Vector2(pad + half, pad), pos + new Vector2(pad + half, size - pad), col);
+                dl.AddTriangleFilled(pos + new Vector2(pad + half, mid), pos + new Vector2(size - pad, pad), pos + new Vector2(size - pad, size - pad), col);
+                break;
+            }
             case BtnShape.Stop:
             {
                 // Red filled square.

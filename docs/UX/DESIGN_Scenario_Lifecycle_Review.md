@@ -89,6 +89,21 @@ Status column: **built** · **queued** (designed and in a running handoff) · **
 | LC-20 | ⭐ **no bookmarks or notes during Live** (TE-4 not built) — the instructor's "remember this for the AAR" has nowhere to go | none (E7, not designed) | design E7: *Bookmark* (one key, a name optional) and *Note* on the timeline in Live, listed in DAR and AAR |
 | LC-21 | recordings default to a TEMP folder (`$TMP/FDP_Temp`, `C:\FDP_Temp`, `OrchestrationConstants.cs:16-20`) | built | a fixed data folder by default (beside the scenarios); temp only when asked |
 
+**LC-16 as built (L-5, CE-4321, behaviors):** ⏪ **Review** — `MainToolbarTimeControlSection.ReviewChoices()` is the ONE list of a live run's DAR choices
+(the mode menu's Live items now come from it); in Live the toolbar draws ⏪ (`TransportIcons.BtnShape.Rewind`, DAR amber) beside ▶ and its popup offers
+those choices (greyed with the reason when the run is not recorded, D14). The Player's banner — `RunMode.ReviewBanner` — *"REVIEW — the exercise is
+paused"*, amber, across the top on the foreground draw list whenever the node's run transport is in `TransportMode.Review`; drawn from
+`PlayerApplication.DrawUI` (the Player's time bar stays suppressed). Rails: `MainToolbarTimeControlTests.CE4321_*`, `ColourIconsFrameRail.L5_*` (a real frame).
+
+**LC-17 as built (L-3, CE-4322, behaviors):** `InstructorEnd.Of(world, blocked, withoutRule)` — with no `instructor-end` rule the End is AVAILABLE where the
+station can create a one-shot and its seat may edit rules (`RuleEditorServicesFactory.SeatRefusal`: Instructor / Author); it runs `InstructorEnd.EndStep()`
+(`EndExercise { reason: "Ended by the instructor" }`) through the Game master's one path (`GmOneShot.TriggerParamsJson` → the bundle's `CreateOneShot`). The
+`RulesBundle` wires BOTH End controls (Rules toolbar, Mission summary) and hands the Rules window's End to the host's transport as its `IExerciseEnder`
+(`ClusterTimeTransportAdapter.Ender`), by construction on every host that composes the bundle. ■ in Live then asks ONE question — *End the exercise?* — and
+leaves Live once the end is in (the ender can no longer end), or after 180 frames; no ender ⇒ today's ■. ⚠ **Deviation:** LC-17's second button *Keep
+running* is the house confirmation's own Cancel (every run confirmation ends with it, `RunModeConfirmation.WithCancel`); the text says *"Cancel keeps it
+running"*. Rails: `RunnableRulesTests.CE4322_*`, `TheOneTimeFacadeTests.CE4322_*`, `TheRulesBundleTests.CE4322_*`.
+
 **LC-2 as built (L-4, CE-4312):** `EntityNames.Next(world, typeName, pending)` (Hrot.Common, beside `EntityCreation`) — `"<type> <n>"`, the lowest free `n` in the scenario; called by `ScenarioSpawnAdapter` after the side is applied, only for a unit still carrying its type's bare name. ⚠ One counter per name across sides (unique in the scenario, as LC-2 asks), not one per side.
 
 ### 2.7 LC-13 — the Problems checks, detailed *(backend, `2026-11-07`, L-6 / CE-4318)*

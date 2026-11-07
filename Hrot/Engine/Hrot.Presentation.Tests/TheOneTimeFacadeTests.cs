@@ -398,6 +398,46 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(RunArmed.AAR, replay.Choice.Armed);
     }
 
+    private sealed class FakeEnder : IExerciseEnder
+    {
+        public bool CanEnd { get; set; } = true;
+        public int Ended;
+        public bool End() { Ended++; return true; }
+    }
+
+    /// <summary>⭐ CE-4322 (L-3, LC-17) — with an ender on the host, ■ in Live asks ONCE "End the exercise? / Keep running": Keep running changes nothing; End asks the
+    /// ender, and the station leaves Live once the end is in (or after StopAfterEndFrames). ✅ Red-proof: Stop ignoring the ender ⇒ OpenForEdit at once, no question ⇒ red.</summary>
+    [Fact]
+    public void CE4322_StopInLive_AsksToEndTheExercise_ThenLeavesOnceTheEndIsIn()
+    {
+        var live = With(ClusterState.OperatingLive, RunArmed.Live, clock: 754, inventoryScenario: "from-the-inventory");
+        var ender = new FakeEnder();
+        live.F.Ender = ender;
+        live.F.Stop();
+        var ask = live.Choice.Pending!;
+        Assert.Equal(new[] { "End the exercise", RunModeConfirmation.CancelLabel }, ask.Buttons.Select(b => b.Label));   // Cancel = keep running
+        Assert.Contains("Cancel keeps it running", ask.Text);
+        Assert.Empty(live.C.Calls);                                                   // nothing yet
+        ask.Resolve(ask.Buttons[1]);                                                  // Cancel: keep running
+        Assert.Empty(live.C.Calls);
+        Assert.Equal(0, ender.Ended);
+
+        live.F.Stop();
+        live.Choice.Pending!.Resolve(live.Choice.Pending.Buttons[0]);                 // End the exercise
+        Assert.Equal(1, ender.Ended);
+        Assert.True(live.Choice.StoppingAfterEnd);
+        live.Choice.Update();
+        Assert.Empty(live.C.Calls);                                                   // the end is not in yet
+        ender.CanEnd = false;                                                         // the result is written
+        live.Choice.Update();
+        Assert.Equal(new[] { "OpenForEdit:from-the-inventory" }, live.C.Calls);
+        Assert.False(live.Choice.StoppingAfterEnd);
+
+        var noEnder = With(ClusterState.OperatingLive, RunArmed.Live, inventoryScenario: "from-the-inventory");
+        noEnder.F.Stop();
+        Assert.Equal(new[] { "OpenForEdit:from-the-inventory" }, noEnder.C.Calls);    // no ender on the host: today's ■
+    }
+
     /// <summary>⭐ D14 — with recording OFF the same ■ ends the run with the plain note and offers no replay.</summary>
     [Fact]
     public void CE4097_StopInAnUnrecordedLiveRun_SaysTheRunEnded_WithNoReplay()

@@ -201,6 +201,35 @@ public class MainToolbarTimeControlTests
         Assert.StartsWith("Live", menu.Header);
     }
 
+    /// <summary>⭐ CE-4321 (L-5, LC-16) — the ⏪ Review button beside ▶ shows in a live run only and offers the SAME DAR choices as the mode menu (one list), which act the same.
+    /// ✅ Red-proof: <c>ShowsReviewButton</c> true in every mode ⇒ the Edit row ⇒ red.</summary>
+    [Fact]
+    public void CE4321_TheReviewButton_ShowsInLiveOnly_WithTheModeMenusDarChoices()
+    {
+        var fake = In(TransportMode.Live, total: 754);
+        var section = new MainToolbarTimeControlSection(fake);
+        Assert.True(section.ShowsReviewButton);
+        Assert.Equal(section.ModeMenu()!.Items.Select(i => i.Label), section.ReviewChoices().Select(i => i.Label));
+        section.ReviewChoices()[1].Invoke!();
+        Assert.Equal(754 - 120, fake.LastEnterReviewAtSim);
+        foreach (var mode in new[] { TransportMode.Edit, TransportMode.Preview, TransportMode.Review, TransportMode.Replay, TransportMode.Idle })
+        {
+            var other = new MainToolbarTimeControlSection(In(mode));
+            Assert.False(other.ShowsReviewButton, mode.ToString());
+            Assert.Empty(other.ReviewChoices());
+        }
+    }
+
+    /// <summary>⭐ CE-4321 (L-5, LC-16) — the Player's banner: shown for the whole DAR (and only then), in the design's words.</summary>
+    [Fact]
+    public void CE4321_ThePlayersReviewBanner_ShowsForTheWholeDarOnly()
+    {
+        Assert.True(Hrot.UI.Common.RunMode.ReviewBanner.Shows(TransportMode.Review));
+        foreach (var mode in new TransportMode?[] { TransportMode.Live, TransportMode.Edit, TransportMode.Preview, TransportMode.Replay, TransportMode.Idle, null })
+            Assert.False(Hrot.UI.Common.RunMode.ReviewBanner.Shows(mode));
+        Assert.Equal("REVIEW — the exercise is paused", Hrot.UI.Common.RunMode.ReviewBanner.Text);
+    }
+
     [Fact]
     public void LiveMenu_Review2Min_EntersBySimMinus120_ClampedAtZero()
     {

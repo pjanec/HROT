@@ -173,6 +173,31 @@ public sealed class RunnableRulesTests : IDisposable
         Assert.Contains("no instructor-end trigger", new InstructorEndControl(() => _world, () => null).Offer.DisabledReason);
     }
 
+    /// <summary>⭐ CE-4322 (L-3, LC-17) — End ALWAYS works for an Instructor / Author: with NO instructor-end rule a station that can create a one-shot ends the exercise
+    /// with "Ended by the instructor" (the Game master's one path, an EndExercise step); a seat that may not edit rules is refused with its reason; after the end, "already
+    /// ended". ✅ Red-proof: <c>Of</c> ignoring <c>withoutRule</c> (the old NoTrigger) ⇒ unavailable ⇒ red.</summary>
+    [Fact]
+    public void CE4322_EndWorksWithoutAnInstructorEndRule_ForAStationThatMayEditRules()
+    {
+        var offer = InstructorEnd.Of(_world, null, withoutRule: null);
+        Assert.True(offer.Available);
+        Assert.True(offer.WithoutRule);
+        Assert.Equal("your seat (Player) cannot edit rules", InstructorEnd.Of(_world, null, withoutRule: "your seat (Player) cannot edit rules").DisabledReason);
+        Assert.Equal(InstructorEnd.NoTrigger, InstructorEnd.Of(_world, null).DisabledReason);                 // a host with no way to create one: as before
+
+        string? created = null;
+        var control = new InstructorEndControl(() => _world, () => null) { CreateOneShot = json => { created = json; return true; }, SeatRefusal = () => null };
+        Assert.True(control.CanEnd);
+        Assert.True(control.End());
+        var step = System.Text.Json.Nodes.JsonNode.Parse(created!)!["do"]![0]!;
+        Assert.Equal(("EndExercise", InstructorEnd.EndedByInstructor), ((string)step["act"]!, (string)step["args"]!["reason"]!));
+        Assert.Equal("End: " + InstructorEnd.EndedByInstructor, control.Message);
+
+        var done = _world.CreateEntity(); _world.AddComponent(done, new ExerciseResult { Phase = ExercisePhase.Ended });
+        Assert.Equal(InstructorEnd.Ended, control.Offer.DisabledReason);
+        Assert.False(control.CanEnd);
+    }
+
     [Fact]
     public void TheEndButton_FindsTheTriggerByItsKey_AndIsAvailableWhileItIsArmed()
     {

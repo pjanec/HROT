@@ -368,8 +368,21 @@ public sealed record RunModeMove(RunArmed Target, string Label, string? ConfirmT
 /// ⭐⭐ <c>CE-4097</c> (AQ108 §2.8) — the raw transport the <see cref="RunModeChoice"/> stands on: the cases that keep TODAY's behaviour (dry-run
 /// exit, review exit, seek) and the readings of the cluster it needs. Implemented by <c>ClusterTimeTransportAdapter</c>, the one facade.
 /// </summary>
+/// <summary>⭐ CE-4322 (L-3, Scenario Lifecycle LC-17) — who can END the exercise with a result from this station (the instructor's End: the scenario's
+/// <c>instructor-end</c> rule, else "Ended by the instructor"). ■ in Live asks <i>"End the exercise? / Keep running"</i> through it.</summary>
+public interface IExerciseEnder
+{
+    /// <summary>The exercise runs and this station may end it now.</summary>
+    bool CanEnd { get; }
+    /// <summary>Asks for the end (the owner writes the result). False when nothing was asked.</summary>
+    bool End();
+}
+
 public interface IRunTransport
 {
+    /// <summary>⭐ CE-4322 — the exercise's ender on this host (set by the rules bundle), or null: ■ in Live then stops at once, as before.</summary>
+    IExerciseEnder? Ender => null;
+
     /// <summary>The facade's mode for the cluster state as this host last heard it.</summary>
     TransportMode Mode { get; }
     /// <summary>The cluster's last pause decision.</summary>
