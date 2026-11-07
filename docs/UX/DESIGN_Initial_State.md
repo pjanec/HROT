@@ -214,9 +214,9 @@ Rail `TheUnitFormDrawsTests.U24_S5_…` (a real frame).
 |---|---|---|
 | the gallery | `PlacementToolRegistry.Graphics` lists **Point** (8816, the point tool); `assets/thumbnails/groups.json` puts the point-tool graphics (Point, Deploy Role) under *Areas &amp; routes* (Deploy Role was in *Other* — the gallery had no group for a point graphic) | — |
 | on the map | `NamedPointGizmo` (`Hrot.Presentation/ScenarioEditor/Gizmos`): a diamond, the name (cached per change — 0 B steady), a heading tick when ORIENTED (a rotation other than the identity — ⚠ there is no "oriented" flag; the identity reads as "no heading"), and the shared pick box (select / menu) — the `[GizmoProjector]` pattern of `TacticalAreaGizmo`, so every map host draws it | the name and heading in the Details (the Shape form) |
-| pickers | — | ⏳ **every point picker offering named points** (a location pick that snaps to a Point ⇒ `PointLink` with the point's reference, SR-130) — the acceptance *"a rule's point picked from LZ Alpha resolves"* is NOT met yet |
+| pickers | ✅ `MapPickBroker.TryConsumeLocationPick` → `SnapToNamedPoint`: a location pick landing on a Point (`IMapPickService.NamedPointAt`, the canvas adapter: the topmost pick under the click, TKB 8816) stores `PointLink(the point's position, RefSpec.ByExact(its GUID))` — the chip's exact form, resolved once (SR-130); elsewhere, coordinates as before. ⭐ In the ONE broker every host's point pickers go through ⇒ all of them offer named points. **The acceptance *"a rule's point picked from LZ Alpha resolves"* is met** (rail `U25_ALocationPickOnANamedPoint_…`) | a LIST of named points beside the map pick (today: click the point) |
 
-Rails `NamedPointGizmoTests` (red-proved), `EntityTypeCatalogTests` (the golden gains 8816; the group assertion moved).
+Rails `NamedPointGizmoTests` (both red-proved), `EntityTypeCatalogTests` (the golden gains 8816; the group assertion moved).
 
 ## 5. Questions — ✅ all nine APPROVED (R-4137, user `2026-11-06`: *"Approved."*)
 

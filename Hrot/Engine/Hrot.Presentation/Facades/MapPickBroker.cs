@@ -149,6 +149,19 @@ public sealed class MapPickBroker : IMapPickContext
     }
 
     /// <inheritdoc/>
+    /// <summary>⭐ U-25 / S4 — a location pick that lands on a named Point stores the POINT (its position and its GUID, the chip's exact form — resolved once,
+    /// SR-130); anywhere else, the coordinates as before. ⭐ Here, in the one broker every host's pickers go through, so every point picker offers named points.</summary>
+    internal PointLink SnapToNamedPoint(Fdp.Core.WorldPoint at)
+    {
+        if (_pickService() is not { } svc || References is not { } refs) return new PointLink(at);
+        int net = svc.NamedPointAt(new System.Numerics.Vector2(at.X, at.Y));
+        if (net <= 0) return new PointLink(at);
+        var point = new EntityRef(net);
+        if (!refs.TryGuidOf(point, out var guid)) return new PointLink(at);
+        var where = refs.TryPositionOf(point, out var p) ? p : at;
+        return new PointLink(where, Fdp.Core.RefSpec.ByExact(guid));
+    }
+
     public bool TryConsumeLocationPick(string jsonPath, out PointLink location)
     {
         location = default;
@@ -157,7 +170,7 @@ public sealed class MapPickBroker : IMapPickContext
         _pendingPath      = null;
         _locationPickTask = null;
         if (!task.IsCompletedSuccessfully) return false;
-        location = new PointLink(task.Result);
+        location = SnapToNamedPoint(task.Result);
         return true;
     }
 }

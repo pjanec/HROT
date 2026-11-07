@@ -94,4 +94,8 @@ public interface IMapPickService
     /// -1 when nothing is there, or when this service has no map to test against (the default).
     /// </summary>
     int EntityAt(System.Numerics.Vector2 worldXY) => -1;
+
+    /// <summary>⭐ U-25 / S4 (DESIGN_Initial_State §3) — the network id of a named <b>Point</b> (8816) under <paramref name="worldXY"/>, or -1: a location pick
+    /// that lands on one stores the point's reference (<c>PointLink</c> with its GUID — resolved once, SR-130), not bare coordinates.</summary>
+    int NamedPointAt(System.Numerics.Vector2 worldXY) => -1;
 }

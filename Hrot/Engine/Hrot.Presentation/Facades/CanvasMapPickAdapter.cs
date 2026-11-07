@@ -177,6 +177,16 @@ public sealed class CanvasMapPickAdapter : IMapPickService
         return (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
     }
 
+    /// <inheritdoc/>
+    public int NamedPointAt(System.Numerics.Vector2 worldXY)
+    {
+        var entity = _canvas.PickTopmostEntity(worldXY) ?? Fdp.Core.Entity.Null;
+        if (_repo == null || entity.IsNull || !_repo.IsAlive(entity) || !_repo.HasComponent<NetworkIdentity>(entity)) return -1;
+        if (!_repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity)
+            || _repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity).TkbType != Hrot.Map.Common.TkbEntityTypes.Point) return -1;
+        return (int)_repo.GetComponentRO<NetworkIdentity>(entity).Value;
+    }
+
     /// <summary>The clicked world position as a <see cref="GeoPoint"/> — geodetic through the host's transform.
     /// ⭐ The passed transform, else the world's <see cref="IGeographicTransform"/> singleton — the one behaviour resolvers
     /// read (SimHost, CGF and the editor publish it) — resolved at pick time, since a host may publish it after building

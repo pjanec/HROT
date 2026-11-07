@@ -8,8 +8,8 @@ per-item state and shas: [STATUS_Editing_UX_Build_Ui.md](STATUS_Editing_UX_Build
 
 | | items |
 |---|---|
-| ✅ done | U-1 … U-16, U-18 (RX1 – RX3) |
-| 🟡 most of it | **U-23** (Unit · Crew & cargo · Shape · Scenario forms; Playable folded; ⏸ Summary kept — §3) · **U-24** (S5 Weapon · In hand · Aboard · Aimed at · S6 Character; ⏳ Knows about with the worker, Carried by / Carries, Damage) · **U-25** (the Point in the gallery and on the map; ⏳ pickers) |
+| ✅ done | U-1 … U-16, U-18 (RX1 – RX3), U-25 |
+| 🟡 most of it | **U-23** (Unit · Crew & cargo · Shape · Scenario forms; Playable folded; ⏸ Summary kept — §3) · **U-24** (S5 Weapon · In hand · Aboard · Aimed at · Knows about (`6eb8e519e`) · S6 Character; ⏳ Carried by / Carries, Damage) |
 | ➡ moved to backend by the handoff | U-17 · U-19 · U-20 · U-21 · U-22 · U-26 · U-27 · U-28 |
 
 ⭐ Fidelity (R-4146): the List view and the Details forms were rendered by their rails and compared with `rule-list-visual.svg` and
@@ -36,8 +36,8 @@ times); a test project not restored after a merge (ClusterRunner.Tests). ⇒ eve
 
 | open | where |
 |---|---|
-| U-25 pickers: a point pick that snaps to a named Point ⇒ `PointLink` with its reference — the acceptance *"LZ Alpha resolves"* is NOT met | [Initial state §4.3](../../UX/DESIGN_Initial_State.md) |
-| U-24: Knows about (worker, in flight), Carried by / Carries, Damage, aim at a POINT, the seat chooser, Weapons control / Reactions | Initial state §4.2 |
+| U-25: a LIST of named points beside the map pick (the map click snaps today) | [Initial state §4.3](../../UX/DESIGN_Initial_State.md) |
+| U-24: Carried by / Carries, Damage, aim at a POINT, the seat chooser, Weapons control / Reactions | Initial state §4.2 |
 | U-23: retire **Summary** once the Unit form carries position / kind / DIS / shown-as (retiring it now loses them); the combined rows the mockup draws | [Details forms §4.0a](../../UX/DESIGN_Details_Forms.md) parts 5 + fidelity |
 | U-18: live edits on CGF (it reads and controls rules; no `RuleEditorServices` yet); richer objective sentences (RX4's gallery) | [Rule editor §2.6, §2.1.1](../../UX/DESIGN_Rule_Editor_UX.md) |
 | CE-4290 (the Event Timeline's lanes drawn empty) — not started | tracker |

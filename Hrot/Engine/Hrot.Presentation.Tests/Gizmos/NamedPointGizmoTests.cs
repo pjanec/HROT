@@ -57,4 +57,37 @@ public sealed class NamedPointGizmoTests : IDisposable
         gizmo.Draw(_repo, other, b3);
         Assert.Empty(b3.GetFrame().ToArray());
     }
+
+    /// <summary>⭐ U-25 acceptance — <i>"a rule's point picked from LZ Alpha resolves"</i>: a location pick that lands on a named Point stores the POINT
+    /// (its position, its GUID — the chip's exact form, resolved once, SR-130); a pick elsewhere stays coordinates. 🔴 Red-proof (compiles): the broker's
+    /// snap returning the coordinates always ⇒ red.</summary>
+    [Fact]
+    public void U25_ALocationPickOnANamedPoint_StoresThePointsReference()
+    {
+        _repo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+        var g = Guid.NewGuid();
+        var lz = Point(TkbEntityTypes.Point, WorldRotation.Identity, 41);
+        _repo.AddComponent(lz, new Fdp.Toolkit.Scenario.EntityGuid(g));
+        var svc = new PointsAt(41);
+        var broker = new Hrot.Presentation.Facades.MapPickBroker(svc) { References = new Fdp.Toolkit.Scenario.LiveRefScope(_repo) };
+
+        var onIt = broker.SnapToNamedPoint(new WorldPoint(101, 199, 0));
+        Assert.Equal(Fdp.Core.RefSpec.ByExact(g), onIt.Spec);
+        Assert.Equal(100f, onIt.Local.X); Assert.Equal(200f, onIt.Local.Y);   // the POINT's position, not the click's
+
+        svc.Net = -1;   // nothing named under the click
+        var elsewhere = broker.SnapToNamedPoint(new WorldPoint(500, 500, 0));
+        Assert.True(elsewhere.Spec.IsNone);
+        Assert.Equal(500f, elsewhere.Local.X);
+    }
+
+    private sealed class PointsAt : Hrot.UI.Common.Facades.IMapPickService
+    {
+        public int Net;
+        public PointsAt(int net) => Net = net;
+        public int NamedPointAt(System.Numerics.Vector2 worldXY) => Net;
+        public System.Threading.Tasks.Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(System.Threading.CancellationToken ct = default) => throw new NotSupportedException();
+        public System.Threading.Tasks.Task<int> PickEntityAsync(string[]? filterPresets = null, System.Threading.CancellationToken ct = default) => throw new NotSupportedException();
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, System.Threading.CancellationToken ct = default) => throw new NotSupportedException();
+    }
 }
