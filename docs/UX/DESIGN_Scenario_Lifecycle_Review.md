@@ -8,6 +8,7 @@ known-rot: none
 known-conflict: AQ108 D20 ("no dirty indicator", on purpose) vs DESIGN_Edit_Mode_Undo U5 (a dirty flag) — LC-12 · R-4162 ("Save in Preview takes a checkpoint") vs a Preview is never recorded — LC-8
 related-designs:
   - docs/UX/DESIGN_Entity_Copy_Paste.md — the build design of LC-3 (Copy / Paste / Duplicate over the shared slice expansion)
+  - docs/UX/DESIGN_Scenario_Presets.md — OWNS scenario presets and the preview with a preset: the answer to LC-11 (D8 re-scopes it)
   - DESIGN_Editing_UX.md — the programme this walks through end to end
   - DESIGN_New_Scenario_And_Recipe.md · ../DESIGN_Add_Entity_Picker.md · DESIGN_Map_Interaction.md — steps 1–2
   - DESIGN_Mission_Plan_Editor.md · DESIGN_Rule_Editor_UX.md · DESIGN_Initial_State.md · DESIGN_Details_Forms.md — steps 3–5
@@ -68,7 +69,7 @@ Status column: **built** · **queued** (designed and in a running handoff) · **
 | LC-8 | ⭐ **Preview tells a lie**: the status bar says *"Running — edits are not saved unless you save"* (`RunNoteStatusBarSection.cs:23`) while Save is REFUSED in Preview (`RunModeChoice.cs:370`). And R-4162 says Save in Preview takes a checkpoint — but a Preview is never recorded, so there is nothing to checkpoint | built (wrong text) · ruling conflict | the note says **"Preview — changes are thrown away on Stop"**; Save in Preview stays refused with that reason; **amend R-4162: a checkpoint in Live only** |
 | LC-9 | a fix made DURING Preview is lost on Stop, silently | none (AQ108 D11 allows edits) | keep the rule (Preview is throw-away) — LC-8's honest text is the fix; *"keep this change"* later only if asked for |
 | LC-10 | ⭐ **testing minute 30 means watching minute 0–30 every iteration** — Preview always starts at the authored state, max 10× (`TransportIcons.cs:19`) | none | **"Run to …"** in Preview: as fast as the machine can until a time or an event (a phase begins, a rule fires), then pause |
-| LC-11 | Preview takes no Run setup (variant / params) — only Live reuses the picker's | none | the Run setup lines on the mode indicator menu apply to Preview AND Live |
+| LC-11 | Preview takes no Run setup (variant / params) — only Live reuses the picker's | none | the Run setup lines on the mode indicator menu apply to Preview AND Live — ⭐ **SUPERSEDED `2026-11-07`** by [`DESIGN_Scenario_Presets.md`](DESIGN_Scenario_Presets.md) (presets; a preview loads its preset; D8: the split ▶ is the one picker) |
 | LC-12 | ⭐ **no unsaved indicator, no autosave, and undo is never cleared** — `EditHistory` has no Clear (an undo after opening another scenario hits the wrong entities); AQ108 D20 rejected a dirty indicator, Undo U5 designs one; autosave D23 designed, CE-4099 open | undo clear + dirty flag queued (B-14) · autosave designed, not dispatched | **a dirty dot in the title** (U5 — supersede D20) and **autosave every 2 min with recovery** (D23) dispatched |
 | LC-13 | ⭐ **no problems list** — a rule on a deleted unit, a unit with no brain or plan, an objective nobody can reach: found only when nothing happens in Preview (reason in the log) | none (old UXR-34 P0, AQ25 Q25-E never built) | **one Problems window** + a count on the toolbar: dangling references, rules whose subject is gone, units without side / brain, an objective on a side with no units; click = select the culprit. ⛔ never blocks Preview / Live |
 

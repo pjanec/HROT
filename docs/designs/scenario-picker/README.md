@@ -6,6 +6,7 @@ stale-below: nothing
 known-rot: none — ⚠ a MOCKUP of an unbuilt UI; names and numbers are illustrative; the decision rows win where they differ
 known-conflict: none
 related-designs:
+  - docs/UX/DESIGN_Scenario_Presets.md — §5b: the preset combo under the thumbnail replaces the Run setup expander (D24)
   - docs/blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the picker, the Start perspective, the modes; D24 run setup, D25 the wide picker
   - docs/DESIGN_Scenario_Rules.md — SR-101 run variants and SR-41 scenario params that the run setup chooses
   - docs/designs/rules-view/README.md — the sibling mockups (rules view, summaries, HUD)

@@ -7,6 +7,7 @@ stale-below: nothing — superseded revisions removed 2026-11-01; full history a
 known-rot: §2.6 / §2.8 / §2.10 as-built records name the per-host armed default (`HostArmedMode`, `RunModeChoice.HostDefault`, `RunArmedDefaults`) — all deleted by R-1043 (§2.15a): the master's initial armed mode is the one bootstrap difference
 known-conflict: none — CGF-1-DESIGN.md:557 removed `RunningEdit → LoadingLive`; D3 needs no such edge (going live is the ordinary load through Idle)
 related-designs:
+  - docs/UX/DESIGN_Scenario_Presets.md — D7 keeps D24's random Live default; D8 the split ▶ picks the preset; D9 the eye replaces ◐ for Preview (user 2026-11-07)
   - ../UX/DESIGN_New_Scenario_And_Recipe.md — E12: New Scenario gains "Blank, on a terrain"; Save Scenario as Recipe gains Replace recipe
   - ../DESIGN_Add_Entity_Picker.md — §2f the thumbnail gallery (CE-4142), the second source on D26's generic picker extensions
   - ../DESIGN_Scenario_Rules.md — SR-101 OWNS run variants (presence, one-of-N, random delay / place) and SR-41 the scenario params that D24's run setup chooses at start
