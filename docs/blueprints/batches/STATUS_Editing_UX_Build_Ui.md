@@ -47,3 +47,15 @@
 | 5 | B-10 rest K2, K3, K7 | ⏳ | — | |
 | 6 | CE-4305 server seat config | ⏳ | — | only if backend has not claimed it |
 | 7 | P-8 (CE-4304) | ⏳ | — | after backend P-5 / P-6 |
+
+## Fourth handoff — [Lifecycle fixes](HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md) (dispatched `f523103e`; ui started at `f1e4c8048`)
+
+| # | id | state | sha | notes |
+|---|---|---|---|---|
+| L-1 | CE-4315 | started (ui) | — | Preview's status note + Save refused with the same reason |
+| L-2 | CE-4320 | started (ui) | — | the RulesBundle opens Mission summary at Live start / exercise end on every host; the Player's Trainee debrief at the end |
+| L-10 | CE-4317 | started (ui) | — | the Run setup on the mode menu, Preview AND Live |
+| L-11 | CE-4319 | started (ui) | — | ▶ in its mode's colour |
+| L-12 | CE-4311 | started (ui) | — | an empty scenario's map hint |
+| L-13 | CE-4313 | started (ui) | — | ORBAT: New group here, the Commander row, the drop says what it does |
+| L-14 | CE-4314 | started (ui) | — | Copy plan / Paste plan (after P-7) |
