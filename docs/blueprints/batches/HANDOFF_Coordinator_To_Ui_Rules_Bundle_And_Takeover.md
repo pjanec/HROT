@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — coordinator → ui: the rules windows as one bundle, then five items taken over from backend
 
-**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at `DISPATCHSHA`**. ⭐ Scope FROZEN there; later documents are FYI.
+**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at `9c599cc7a`**. ⭐ Scope FROZEN there; later documents are FYI.
 Merge `coordinator` and `backend` first, push `chore: started HANDOFF_Coordinator_To_Ui_Rules_Bundle_And_Takeover at <sha>`, then the
 [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md) exactly as last night — keep writing `STATUS_Editing_UX_Build_Ui.md` (add the rows below).
 ⛔⛔ **Anything that needs the user's decision is skipped, never blocking (R-4156)** — a QUESTION note with your lean, then the next item.
