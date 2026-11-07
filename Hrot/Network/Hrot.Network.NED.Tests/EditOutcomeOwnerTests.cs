@@ -561,4 +561,31 @@ public sealed class EditOutcomeOwnerTests
         Assert.Equal(0.3f, t.TypeRiskAcceptance);
         Assert.Equal(EditStatus.Applied, AnswerBack(owner, requester, reset.RequestId).Status);
     }
+
+    /// <summary>⭐ B-5 S5 (docs/UX/DESIGN_Initial_State.md §3 "Damage") — a part's damage level set on a station that does NOT own the unit's Health reaches the OWNER, is applied
+    /// THERE (the component added with the body's plan when absent; the replica untouched), and the requester's journal reads Applied. ✅ Red-proof: the Damage.Part binary handler left out ⇒ the owner
+    /// never gets the component ⇒ red.</summary>
+    [Fact]
+    public void S5_DamageSetOnANonOwner_ReachesTheOwner()
+    {
+        var owner = new Node(owns: true, OwnerNode);
+        var requester = new Node(owns: false, OtherNode);
+        owner.World.AddComponent(owner.Entity, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+        owner.World.SetAuthority<Fdp.Toolkit.Combat.Components.Health>(owner.Entity, true);
+        requester.World.AddComponent(requester.Entity, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+
+        var ticket = Edits.Submit(requester.World, EditOp.Write(requester.Entity,
+            new Fdp.Toolkit.Replication.Patching.EntityAttributeChange
+            {
+                AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.DamagePart,
+                SubIndex1 = Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso,
+                Value = Fdp.Toolkit.Replication.Patching.AttributeValue.FromDouble(90),
+            }, "Set torso damage"));
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested, ticket.Route);
+        Assert.False(requester.World.HasComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(requester.Entity));   // the replica is NOT written
+        owner.Run(SentBy(requester));
+        var d = owner.World.GetComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(owner.Entity);
+        Assert.Equal((Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person, (byte)90), (d.Plan, d.LevelOf(Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso)));
+        Assert.Equal(EditStatus.Applied, AnswerBack(owner, requester, ticket.RequestId).Status);
+    }
 }

@@ -92,6 +92,9 @@ public static class AttributeVocabulary
         new("Weapon.AimPoint.*",     AttributeIds.WeaponAimPoint,      AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
         new("Weapon.AimTarget",      AttributeIds.WeaponAimTarget,     AttributeValueKind.CsInt64,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
         new("Weapon.HeldItem",       AttributeIds.WeaponHeldItem,      AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
+        // ⭐ Initial state S5 (docs/UX/DESIGN_Initial_State.md §3) — the damage per part, and the mobility kill as one switch (1 / 0)
+        new("Damage.Part.*",              AttributeIds.DamagePart,                 AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Physics.BodyParts.PartDamage)),
+        new("Damage.MobilityKill",        AttributeIds.DamageMobilityKill,         AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Physics.BodyParts.PartDamage)),
         // ⭐ Initial state S6 (docs/UX/DESIGN_Initial_State.md §3) — the AI character settings; a negative value is the reset (clears the authored bit)
         new("Proficiency",                AttributeIds.Proficiency,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatProficiency)),
         new("Temperament.RiskAcceptance", AttributeIds.TemperamentRiskAcceptance, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament)),

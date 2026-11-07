@@ -62,6 +62,10 @@ public sealed class FormAttributeInstaller : IBinaryAttributeInstaller<EntityAtt
             Fdp.Toolkit.Combat.HeldItems.Set(repo, ctx.Entity, item);
         });
 
+        // ⭐ Initial state S5 — the damage per part; ONE body, FormAttributes.WriteDamage (no RegisterHandler<T>: it also ADDS the component, owner proven by Health)
+        builder.RegisterHandler(AttributeIds.DamagePart, (ctx, r) => FormAttributes.WriteDamage(ctx, r.AttributeId, r.SubIndex1, FormAttributes.AsDouble(r.Value)));
+        builder.RegisterHandler(AttributeIds.DamageMobilityKill, (ctx, r) => FormAttributes.WriteDamage(ctx, r.AttributeId, 0, FormAttributes.AsDouble(r.Value)));
+
         // ⭐ Initial state S6 — the AI character settings; a negative value resets (FormAttributes.SetProficiency / SetTemperament)
         builder.RegisterHandler<Fdp.Toolkit.Behavior.Components.CombatProficiency>(AttributeIds.Proficiency, (ctx, r) =>
             FormAttributes.SetProficiency(ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>(), FormAttributes.AsDouble(r.Value)));

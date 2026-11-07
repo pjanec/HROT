@@ -250,4 +250,15 @@ public static class AttributeIds
 
     /// <summary>⭐ <c>CombatTemperament.Resolve</c>, 0..1; negative = reset. <c>Float64</c>.</summary>
     public const ushort TemperamentResolve = 84;
+
+    // ── ⭐ Initial state S5 (docs/UX/DESIGN_Initial_State.md §3, "Damage") — the damage per body part, on PartDamage (owned with Health, Brain group) ──
+
+    /// <summary>⭐ <c>PartDamage.Levels[part]</c> — the damage LEVEL 0..255 (clamped, rounded) of one part; the part id travels as <c>SubIndex1</c>
+    /// (<c>{"Damage":{"Part":{"3":128}}}</c>), 0..15, anything else is refused. The component is added (with the body's plan) when the unit has none; a unit
+    /// with no body is refused. The unit's capabilities follow at once (<c>CombatLife</c>). <c>Float64</c>.</summary>
+    public const ushort DamagePart = 85;
+
+    /// <summary>⭐ The mobility kill as one switch: non-zero raises every part of every Mobility zone to at least its wounded threshold, zero lowers them to 0
+    /// (shares <see cref="DamagePart"/>'s value logic). A type with no Mobility zone is refused. <c>Int32</c> 1 / 0.</summary>
+    public const ushort DamageMobilityKill = 86;
 }

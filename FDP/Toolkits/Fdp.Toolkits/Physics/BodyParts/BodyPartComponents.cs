@@ -26,6 +26,13 @@ namespace Fdp.Toolkit.Physics.BodyParts
 
         public readonly byte LevelOf(byte part) => part < MaxParts ? Levels[part] : (byte)0;
 
+        /// <summary>Sets <paramref name="part"/>'s level outright (an authored damage, Initial state S5); a part id out of range is ignored.</summary>
+        public void Set(byte part, byte level)
+        {
+            if (part >= MaxParts) return;
+            Levels[part] = level;
+        }
+
         /// <summary>Adds <paramref name="amount"/> to <paramref name="part"/>'s level, saturating at 255.</summary>
         public void Add(byte part, int amount)
         {
