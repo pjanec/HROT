@@ -19,3 +19,9 @@
 | B-10 · B-11 · B-14 · B-16 · B-17 | ➡ MOVED to ui (coordinator `NOTE_Coordinator_To_Backend_Items_Moved_To_Ui.md`, user `2026-11-07`; none was started here) | — | the ui lane's list: `HANDOFF_Coordinator_To_Ui_Rules_Bundle_And_Takeover.md` — ⭐ backend's B-13 `WorldSnapshotRing` and B-15 `station.seat` are what B-14 / B-16 build on |
 
 ⚠ **Pre-existing red, measured `2026-11-07`:** `Hrot.Editor.Tests` `TheRunSetupDrawsTests` (2 of 2: `CE4258_ResetOnAnOverriddenRow_…`, `TheOpenExpander_ShowsTheVariantAndTheParams_…`) fail under `LIBGL_DEBUG=verbose xvfb-run -a` at `9fbcb9f40` (before B-9's pane commits) exactly as at `ad14b407b` — not caused by B-9. The Run setup expander (AQ108 D24) is not this batch's; unowned, not chased.
+
+## Mission plan ([handoff](HANDOFF_Coordinator_To_Lanes_Mission_Plan.md), dispatched `9f2cd761`, started at `e160c6d25`)
+
+| item | state | sha | what the other lane can now use / notes |
+|---|---|---|---|
+| P-1 | ⏳ started (backend) | — | readable scenario JSON (CE-4295) |
