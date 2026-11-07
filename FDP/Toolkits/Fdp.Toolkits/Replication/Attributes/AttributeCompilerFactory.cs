@@ -213,7 +213,28 @@ public static class AttributeCompilerFactory
             .RegisterValuePath<Fdp.Toolkit.Combat.Components.WeaponPosture>(
                 "Weapon.AimTarget",
                 (ref Fdp.Toolkit.Combat.Components.WeaponPosture c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => { r.Skip(); },
-                kind: KindOf("Weapon.AimTarget"));
+                kind: KindOf("Weapon.AimTarget"))
+            // ⭐ Initial state S6 — the AI character settings (a negative value resets); FormAttributes holds the value logic
+            .RegisterValuePath<Fdp.Toolkit.Behavior.Components.CombatProficiency>(
+                "Proficiency",
+                (ref Fdp.Toolkit.Behavior.Components.CombatProficiency c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => FormAttributes.SetProficiency(ref c, r.GetDouble()),
+                kind: KindOf("Proficiency"))
+            .RegisterValuePath<Fdp.Toolkit.Behavior.Components.CombatTemperament>(
+                "Temperament.RiskAcceptance",
+                (ref Fdp.Toolkit.Behavior.Components.CombatTemperament c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => FormAttributes.SetTemperament(ref c, FormAttributes.TemperamentField.RiskAcceptance, r.GetDouble()),
+                kind: KindOf("Temperament.RiskAcceptance"))
+            .RegisterValuePath<Fdp.Toolkit.Behavior.Components.CombatTemperament>(
+                "Temperament.Obedience",
+                (ref Fdp.Toolkit.Behavior.Components.CombatTemperament c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => FormAttributes.SetTemperament(ref c, FormAttributes.TemperamentField.Obedience, r.GetDouble()),
+                kind: KindOf("Temperament.Obedience"))
+            .RegisterValuePath<Fdp.Toolkit.Behavior.Components.CombatTemperament>(
+                "Temperament.Nerve",
+                (ref Fdp.Toolkit.Behavior.Components.CombatTemperament c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => FormAttributes.SetTemperament(ref c, FormAttributes.TemperamentField.Nerve, r.GetDouble()),
+                kind: KindOf("Temperament.Nerve"))
+            .RegisterValuePath<Fdp.Toolkit.Behavior.Components.CombatTemperament>(
+                "Temperament.Resolve",
+                (ref Fdp.Toolkit.Behavior.Components.CombatTemperament c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => FormAttributes.SetTemperament(ref c, FormAttributes.TemperamentField.Resolve, r.GetDouble()),
+                kind: KindOf("Temperament.Resolve"));
 
         foreach (var id in FormAttributeInstaller.WeatherIds)
         {

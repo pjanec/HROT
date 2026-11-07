@@ -92,6 +92,45 @@ public static class FormAttributes
         }
     }
 
+    // ── Character (Initial state S6) ─────────────────────────────────────────────────────────────────────
+
+    /// <summary>Which <see cref="Fdp.Toolkit.Behavior.Components.CombatTemperament"/> field.</summary>
+    public enum TemperamentField : byte { RiskAcceptance, Obedience, Nerve, Resolve }
+
+    /// <summary>
+    /// ⭐ S6 — the proficiency a person authored: 0..1 into <c>Authored</c> with its set bit (a slider that only moved the raw value would leave the unit unchanged —
+    /// the reader honours the bit); a NEGATIVE value is the reset (the bit cleared ⇒ the unit's, else the type's value). The one logic, shared by the JSON setter,
+    /// the binary handler and the Brain tab's local path.
+    /// </summary>
+    public static void SetProficiency(ref Fdp.Toolkit.Behavior.Components.CombatProficiency p, double value)
+    {
+        if (value < 0d) { p.Set &= unchecked((byte)~Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet); return; }
+        p.Authored = (float)Math.Clamp(value, 0d, 1d);
+        p.Set |= Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet;
+    }
+
+    /// <summary>⭐ S6 — one temperament field a person authored (0..1, sets its bit); a NEGATIVE value clears the bit ⇒ the type's value (with its spread) again.</summary>
+    public static void SetTemperament(ref Fdp.Toolkit.Behavior.Components.CombatTemperament t, TemperamentField field, double value)
+    {
+        byte bit = field switch
+        {
+            TemperamentField.RiskAcceptance => Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet,
+            TemperamentField.Obedience => Fdp.Toolkit.Behavior.Components.CombatTemperament.ObedienceSet,
+            TemperamentField.Nerve => Fdp.Toolkit.Behavior.Components.CombatTemperament.NerveSet,
+            _ => Fdp.Toolkit.Behavior.Components.CombatTemperament.ResolveSet,
+        };
+        if (value < 0d) { t.Set &= unchecked((byte)~bit); return; }
+        float v = (float)Math.Clamp(value, 0d, 1d);
+        switch (field)
+        {
+            case TemperamentField.RiskAcceptance: t.RiskAcceptance = v; break;
+            case TemperamentField.Obedience: t.Obedience = v; break;
+            case TemperamentField.Nerve: t.Nerve = v; break;
+            default: t.Resolve = v; break;
+        }
+        t.Set |= bit;
+    }
+
     // ── Weapon posture (Initial state S2) ────────────────────────────────────────────────────────────────
 
     /// <summary>A token of enum <typeparamref name="T"/>: a whole number or its name; <c>false</c> for anything the enum does not define.</summary>

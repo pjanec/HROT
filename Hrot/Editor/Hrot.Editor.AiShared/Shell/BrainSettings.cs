@@ -4,6 +4,9 @@ using System.Linq;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Replication.Attributes;
+using Fdp.Toolkit.Replication.Edits;
+using Fdp.Toolkit.Replication.Patching;
 
 namespace Hrot.Editor.AiShared.Shell;
 
@@ -20,8 +23,9 @@ public sealed record BrainSetting(string Key, string Label, float Value, float T
 /// ⭐⭐ <c>CE-1311</c> (Brain View §12b BV-41, R-1037) — one COMPONENT that steers a behaviour, offered to the user as settings in a
 /// user-facing <see cref="Group"/> (🔒 user: <i>"the user who wants to see and tune the behavior doesn't care what component the settings
 /// lives in"</i>). Two providers may share a group and merge into it. ⭐ A write sets the component's AUTHORED bit — a slider that only
-/// moved the raw value would leave the unit unchanged (the reader honours the bit); a reset clears it. Written LOCALLY, on the node that
-/// runs the brain (R-1036).
+/// moved the raw value would leave the unit unchanged (the reader honours the bit); a reset clears it. ⭐ B-5 S6 (R-4137): written through the ATTRIBUTES
+/// (<c>Proficiency</c>, <c>Temperament.*</c>; a negative value is the reset — <c>FormAttributes.SetProficiency</c> / <c>SetTemperament</c> hold the one value
+/// logic) by <c>Edits.Submit</c>, so a station that does not run the brain reaches it: the brain's node applies it and answers. (Was a local write, R-1036.)
 /// </summary>
 public interface IBrainSettingProvider
 {
@@ -95,31 +99,32 @@ public sealed class CombatTemperamentSettings : IBrainSettingProvider
         };
     }
 
-    public void Write(EntityRepository world, Entity unit, string key, float value)
+    private static ushort IdOf(string key) => key switch
     {
-        if (!world.IsComponentTypeRegistered<CombatTemperament>() || !world.IsAlive(unit)) return;
-        if (!world.HasComponent<CombatTemperament>(unit)) world.AddComponent(unit, default(CombatTemperament));
-        ref var t = ref world.GetComponentRW<CombatTemperament>(unit);
-        value = Math.Clamp(value, 0f, 1f);
-        switch (key)
-        {
-            case "bravery":   t.RiskAcceptance = value; t.Set |= CombatTemperament.RiskAcceptanceSet; break;
-            case "obedience": t.Obedience = value;      t.Set |= CombatTemperament.ObedienceSet; break;
-            case "nerve":     t.Nerve = value;          t.Set |= CombatTemperament.NerveSet; break;
-            case "resolve":   t.Resolve = value;        t.Set |= CombatTemperament.ResolveSet; break;
-        }
+        "bravery" => AttributeIds.TemperamentRiskAcceptance, "obedience" => AttributeIds.TemperamentObedience,
+        "nerve" => AttributeIds.TemperamentNerve, "resolve" => AttributeIds.TemperamentResolve, _ => (ushort)0,
+    };
+
+    private static void Submit(EntityRepository world, Entity unit, string key, double value, string label)
+    {
+        ushort id = IdOf(key);
+        if (id == 0 || !world.IsComponentTypeRegistered<CombatTemperament>() || !world.IsAlive(unit)) return;
+        Edits.Submit(world, EditOp.Write(unit, new EntityAttributeChange { AttributeId = id, Value = AttributeValue.FromDouble(value) }, label));
     }
 
+    public void Write(EntityRepository world, Entity unit, string key, float value)
+    {
+        if (IdOf(key) == 0 || !world.IsComponentTypeRegistered<CombatTemperament>() || !world.IsAlive(unit)) return;
+        // a unit with none yet gets one on its owner first (F3), as the Playable toggle does
+        if (!world.HasComponent<CombatTemperament>(unit)) Edits.Submit(world, EditOp.AddComponent(unit, typeof(CombatTemperament), "Give it a temperament"));
+        Submit(world, unit, key, Math.Clamp(value, 0f, 1f), "Set " + key);
+    }
+
+    /// <summary>Back to the type's value: a negative value clears the field's authored bit on the owner.</summary>
     public void Reset(EntityRepository world, Entity unit, string key)
     {
         if (!world.IsComponentTypeRegistered<CombatTemperament>() || !world.IsAlive(unit) || !world.HasComponent<CombatTemperament>(unit)) return;
-        ref var t = ref world.GetComponentRW<CombatTemperament>(unit);
-        byte bit = key switch
-        {
-            "bravery" => CombatTemperament.RiskAcceptanceSet, "obedience" => CombatTemperament.ObedienceSet,
-            "nerve" => CombatTemperament.NerveSet, "resolve" => CombatTemperament.ResolveSet, _ => 0,
-        };
-        t.Set &= (byte)~bit;
+        Submit(world, unit, key, -1d, "Reset " + key + " to the type's");
     }
 }
 
@@ -155,16 +160,14 @@ public sealed class CombatProficiencySettings : IBrainSettingProvider
     public void Write(EntityRepository world, Entity unit, string key, float value)
     {
         if (key != "proficiency" || !world.IsComponentTypeRegistered<CombatProficiency>() || !world.IsAlive(unit)) return;
-        if (!world.HasComponent<CombatProficiency>(unit)) world.AddComponent(unit, default(CombatProficiency));
-        ref var p = ref world.GetComponentRW<CombatProficiency>(unit);
-        p.Authored = Math.Clamp(value, 0f, 1f);
-        p.Set |= CombatProficiency.AuthoredSet;
+        if (!world.HasComponent<CombatProficiency>(unit)) Edits.Submit(world, EditOp.AddComponent(unit, typeof(CombatProficiency), "Give it a proficiency"));
+        Edits.Submit(world, EditOp.Write(unit, new EntityAttributeChange { AttributeId = AttributeIds.Proficiency, Value = AttributeValue.FromDouble(Math.Clamp(value, 0f, 1f)) }, "Set proficiency"));
     }
 
+    /// <summary>Back to the unit's or the type's value: a negative value clears the authored bit on the owner.</summary>
     public void Reset(EntityRepository world, Entity unit, string key)
     {
-        if (key != "proficiency" || !world.IsComponentTypeRegistered<CombatProficiency>() || !world.IsAlive(unit)
-            || !world.HasComponent<CombatProficiency>(unit)) return;
-        world.GetComponentRW<CombatProficiency>(unit).Set &= unchecked((byte)~CombatProficiency.AuthoredSet);
+        if (key != "proficiency" || !world.IsComponentTypeRegistered<CombatProficiency>() || !world.IsAlive(unit) || !world.HasComponent<CombatProficiency>(unit)) return;
+        Edits.Submit(world, EditOp.Write(unit, new EntityAttributeChange { AttributeId = AttributeIds.Proficiency, Value = AttributeValue.FromDouble(-1d) }, "Reset proficiency to the type's"));
     }
 }

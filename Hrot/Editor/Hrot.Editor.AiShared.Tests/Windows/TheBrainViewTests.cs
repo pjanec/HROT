@@ -340,11 +340,13 @@ public sealed unsafe class TheBrainViewTests : IDisposable
             RiskAcceptance = 0.62f, Set = CombatTemperament.RiskAcceptanceSet,
         });
         w.AddComponent(e, new CombatProficiency { TypeDefault = 0.6f, Set = CombatProficiency.TypeDefaultSet });
+        w.SetAuthority<CombatTemperament>(e, true);   // ⭐ B-5 S6 — the settings are attribute writes now: this node owns the unit's brain, so it applies them
+        w.SetAuthority<CombatProficiency>(e, true);
     }
 
     /// <summary>⭐⭐ <c>CE-1311</c> (BV-41) — the settings come as the user's GROUPS (Temperament, Combat skill), never components; a slider
     /// write sets the AUTHORED bit (the reader honours it — a raw value alone would change nothing) and a reset clears it back to the
-    /// type's value. 🔴 Red-proof: drop the <c>Set |=</c> in <c>CombatTemperamentSettings.Write</c> ⇒ the unit keeps its old bravery.</summary>
+    /// type's value. 🔴 Red-proof: drop the <c>Set |=</c> in <c>FormAttributes.SetTemperament</c> ⇒ the unit keeps its old bravery. ⭐ B-5 S6: the write is an attribute edit (<c>Edits.Submit</c>) applied by the owner.</summary>
     [Fact]
     public void CE1311_Settings_AreGroups_AWriteIsAuthored_AndAResetGoesBackToTheType()
     {
