@@ -243,6 +243,20 @@ gets a row in this Scenario form when its own design lands.
 | it writes the local copy, on any station — **by design** (user; CE-4283 refuted) | a debugging tool, never the user's way to edit |
 | last in the tab order, behind the forms | R-4120 |
 
+**As-built — D6** *(behaviors, `2026-11-07`, CE-4310)* — each item MEASURED first (a rail red against the old panel), then fixed in the one tree
+(`ImGuiPropertyTree` / `ComponentReflector`, `Fdp.Presentation`):
+
+| item | measured | as built |
+|---|---|---|
+| nested structs | ⛔ a struct inside a struct started collapsed — its fields were never drawn; Expand All opened only the component headers | a nested struct is open by default; Collapse / Expand All reach the nested nodes (`ForceOpen`, set by the reflector around its loop) |
+| inline arrays | ⛔ same cause (`EngagementArea.NoFire`: a count + an `[InlineArray]` buffer, one level down) | a collection of ≤ 16 elements is open by default |
+| typed fields | ✅ `FixedStringNN` already drew as text · ⛔ `EntityRef` / `EntityLink` / `PointLink` / `AreaLink` / `RefKey` drew as an expandable struct with a BLANK value; `SimInstant` / `SimDuration` as raw members | ⭐ the leaf test is the forms' own `ReferenceLeafDrawers.Handles` (one predicate, no second formatter) + the two sim-time types; drawn as the type's text (`#42` — the panel has no pick scope, as a form leaf without one) |
+| last in the tab order | ✅ already (Components rank 30, below every entity tab) | a guard rail over every registered rank ≥ 32 |
+
+Rails: `EntityInspectorPanelTests.CE4310_*` (nested, Expand / Collapse All, inline array, typed fields, a steady-frame allocation bound),
+`TheScenarioComponentsViewTests.ItsRank_PutsTheRawTabBehindEveryFormAndEntityTab`. ⚠ The panel builds its row ids per frame already, so its steady
+frame is bounded (< 6 KB), not 0 B — the new leaves add only the type's `ToString`.
+
 ## 4. Stages
 
 | stage | what | owner | rails |

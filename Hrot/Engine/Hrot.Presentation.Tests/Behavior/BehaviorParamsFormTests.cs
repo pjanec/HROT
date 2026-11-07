@@ -12,7 +12,7 @@ using Xunit;
 namespace Hrot.Presentation.Tests.Behavior
 {
     /// <summary>
-    /// ⭐⭐ <c>CE-1023</c> (📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.6b) — THE ONE PARAMS FORM on the mission panel: a pick lands
+    /// ⭐⭐ <c>CE-1023</c> (📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c> §7.6b) — THE ONE PARAMS FORM on a task (the Orders tab since P-7 7d; the retired mission panel before): a pick lands
     /// in the task's JSON through the task's scoped path, the form never rewrites a draft it only looked at, and every declared
     /// behaviour's params type draws. ⭐ The two pick rails are re-homed from <c>BehaviorUiCompilerTests</c> (CE-2023 ③, the
     /// compiled form deleted by CE-1023): the claim — a pick on a STRUCT contract reaches the JSON, not a copy — is the same.
@@ -54,9 +54,21 @@ namespace Hrot.Presentation.Tests.Behavior
             finally { ImGuiNET.ImGui.DestroyContext(ctx); }
         }
 
-        /// <summary>The mission panel's form for task 0 with <paramref name="behaviour"/> and <paramref name="json"/>.</summary>
-        private static BehaviorParamsEditor FormOf(string behaviour, string json)
-            => new MissionPanel().ParamsFormFor(Guid.NewGuid(), behaviour, json)!;
+        /// <summary>⭐ P-7 7d — the pick scope of a task's form (what the retired <c>Task0</c> answered): a field <c>X</c> picks at <c>$.tasks[0].X</c>.</summary>
+        private const string Task0 = "$.tasks[0]";
+
+        /// <summary>⭐ P-7 7d — a task's params form, built the way the Orders tab builds it (one editor over the shared edit service, the host's lookup — here the declared contracts).
+        /// Null when the behaviour has no params type.</summary>
+        private static BehaviorParamsEditor? TryFormOf(string behaviour, string json)
+        {
+            var type = BehaviorParamsForm.ParamsTypeOf(behaviour, null);
+            if (type == null) return null;
+            var form = new BehaviorParamsEditor(Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build());
+            form.Sync(type, json);
+            return form;
+        }
+
+        private static BehaviorParamsEditor FormOf(string behaviour, string json) => TryFormOf(behaviour, json)!;
 
         [Fact]
         public void CE1023_AnEntityPick_LandsInTheTasksJson_AtTheTasksScopedPath()
@@ -65,7 +77,7 @@ namespace Hrot.Presentation.Tests.Behavior
             var form = FormOf(FireAtTargetParamsJsonDto.BehaviorId, "{\"targetNetworkId\":42,\"maxRounds\":5,\"cooldownSeconds\":1.0}");
             var ctx  = new PickingContext { Entity = 99 };
 
-            DrawOneFrame(form.Session!, new ScopedMapPickContext(ctx, MissionPanel.PickScope(0)));
+            DrawOneFrame(form.Session!, new ScopedMapPickContext(ctx, Task0));
             string? json = form.Edited();
 
             Assert.NotNull(json);
@@ -81,7 +93,7 @@ namespace Hrot.Presentation.Tests.Behavior
             var form = FormOf(MoveToLocationParamsJsonDto.BehaviorId, "{\"target\":[1,2,0],\"speed\":5}");
 
             DrawOneFrame(form.Session!, new ScopedMapPickContext(new PickingContext { Location = new PointLink(new Fdp.Core.WorldPoint(50.5f, 14.25f, 0f)) },
-                                                                MissionPanel.PickScope(0)));
+                                                                Task0));
             string? json = form.Edited();
 
             Assert.NotNull(json);
@@ -125,7 +137,7 @@ namespace Hrot.Presentation.Tests.Behavior
             Assert.NotEmpty(behaviours);
             foreach (var d in behaviours)
             {
-                var form = new MissionPanel().ParamsFormFor(Guid.NewGuid(), d.Name, "{}");
+                var form = TryFormOf(d.Name, "{}");
                 Assert.True(form?.Session != null, $"{d.Name}: no form for {d.ParamsType.Name}");
                 DrawOneFrame(form!.Session!, new PickingContext());
                 Assert.Null(form.Edited());

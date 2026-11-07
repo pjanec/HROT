@@ -120,10 +120,10 @@ public sealed class SelectionInteractionSystem
             {
                 if (isRight)
                 {
-                    // ⭐⭐ §2.3 row 3 — right-click on empty space CLEARS. ⛔ It must not start a rubber
-                    //   band: a band is a left-drag gesture, and arming one on a right-release would
-                    //   leave _isBoxSelecting set with no matching commit.
-                    Request(SelectionChangeRequest.ClearAll("Map.RightClick.EmptySpace"));
+                    // ⭐ A4 / R-4163 — right-click on empty space leaves the selection ALONE (its menu is the empty-space menu only:
+                    //   measure, add entity here …). 🔒 "if there are entities selected and I right click the empty space, the menu should be for
+                    //   the empty space only, not for the selection". ⛔ SUPERSEDED: §2.3 row 3 "right-click on empty space CLEARS".
+                    //   ⛔ It must not start a rubber band either: a band is a left-drag gesture.
                     continue;
                 }
 

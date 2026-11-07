@@ -415,7 +415,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             var shipped = ShippedTimelineLanes.Catalog();
 
             Assert.Equal(Shipped().Lanes(ctx).Select(l => l.Id), shipped.Lanes(ctx).Select(l => l.Id));
-            Assert.Equal(18, shipped.Lanes(ctx).Count);                    // the three toolkits' ten (combat.downed, CE-3364) + the five hidden state lanes (CE-4117) + the rules' three (SR-103, S4 score)
+            Assert.Equal(19, shipped.Lanes(ctx).Count);                    // ⭐ W-1 / P-8 8c: + the ONE Tasks lane (mission.tasks) · the three toolkits' ten (combat.downed, CE-3364) + the five hidden state lanes (CE-4117) + the rules' three (SR-103, S4 score)
             Assert.Contains(CombatTimelineLanes.Shot.Id, shipped.Lanes(ctx).Select(l => l.Id));
             Assert.NotSame(shipped, ShippedTimelineLanes.Catalog());
             shipped.Register(new IndexedLaneDefinition(new TimelineLaneDescriptor("mine", "Mine"),

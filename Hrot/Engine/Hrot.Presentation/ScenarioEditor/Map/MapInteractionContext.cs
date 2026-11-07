@@ -324,10 +324,15 @@ namespace Hrot.ScenarioEditor.Map
     /// </summary>
     public static class MapServices
     {
+        /// <remarks>⭐ W-1 / P-8 8d-2 — an entry may be a <c>Func&lt;object?&gt;</c>: a service the host builds AFTER its map (the mission editor
+        /// facade, built once the node is up), resolved when it is asked for — a tool asks at activation, so it finds it.</remarks>
         public static Func<Type, object?> Of(params object?[] services) => type =>
         {
             foreach (var s in services)
-                if (s != null && type.IsInstanceOfType(s)) return s;
+            {
+                var v = s is Func<object?> later ? later() : s;
+                if (v != null && type.IsInstanceOfType(v)) return v;
+            }
             return null;
         };
     }

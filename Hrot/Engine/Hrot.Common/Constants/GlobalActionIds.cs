@@ -119,5 +119,27 @@ namespace Hrot.Common.Constants
         //     (the rules bundle binds them on every host that composes it). ⚠ 545 / 546 measured free 2026-11-07.
         public const int AddRuleAboutUnit = 545;
         public const int AddRuleForArea   = 546;
+
+        // --- ⭐ L-14 / CE-4314 (LC-6, DESIGN_Scenario_Lifecycle_Review) — a unit's mission plan copied onto others (each gets its own copy, new task ids).
+        //     ⚠ 547 / 548 measured free 2026-11-07.
+        public const int CopyPlan  = 547;
+        public const int PastePlan = 548;
+
+        // --- ⭐ A5 / LC-3 (DESIGN_Entity_Copy_Paste) — the entities themselves copied, pasted (the placement gesture), duplicated. ⚠ 549–551 measured free 2026-11-07.
+        public const int CopyEntities      = 549;
+        public const int PasteEntities     = 550;
+        public const int DuplicateEntities = 551;
+
+        // --- ⭐ A6 / W-3 (DESIGN_Action_Catalogue §9) — the run-mode moves on a moment (timeline, mode indicator), declared once by RunModeActions.
+        //     ⭐ behaviors' own block 2400–2499 (lanes allocate ids from their own thousand; ⛔ never 552+, the shared low range other lanes take).
+        public const int DarFromHere        = 2401;
+        public const int DarFromEvent       = 2402;
+        public const int AarFromHere        = 2403;
+        public const int GoLiveFromHere     = 2404;
+        public const int TakeCheckpointHere = 2405;
+        public const int DarLastWindow      = 2406;   // the mode indicator's "DAR — the last N" (one declaration, one row per window)
+        public const int DarFromStart       = 2407;
+        public const int RunTo              = 2408;
+        public const int EditPlan           = 2409;   // ⭐ W-1 / P-8 8d-2 — a unit's plan edited on the map (the Plan tool)
     }
 }

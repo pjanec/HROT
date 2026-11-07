@@ -40,10 +40,22 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         public static readonly TimelineLaneDescriptor Task = new("state.task", "Task", Group: StateGroup, Hidden: true);
         public static readonly TimelineLaneDescriptor Embark = new("state.embark", "Embark", Group: StateGroup, Hidden: true);
 
+        /// <summary>
+        /// ⭐ W-1 / P-8 8c (Mission plan §5.8 E4, R-4161: <i>"a task line for every single entity? What if there are thousands?"</i>) — the ONE <b>Tasks</b>
+        /// lane for every unit: an entry each time a unit's plan moves — Subject = the unit, Value = its current task (0-based; = Y when the plan is
+        /// finished), X = how the latest task ended (<see cref="MissionPlanQueue.LatestOutcome"/>), Y = its task count. <see cref="TasksLane"/> reads
+        /// the entries as markers (started · Done · Failed, each naming the unit and the task).
+        /// </summary>
+        public const string TasksGroup = "Tasks";
+        public static readonly TimelineLaneDescriptor Tasks = new("mission.tasks", "all units", Group: TasksGroup, Priority: 2, Color: 0xFFFAA95A, Hidden: true);   // ⭐ 8c-2: drawn by the Tasks TRACK (glyph per kind, the selection's bars), not as plain dots
+
         private static readonly IndexedLaneDefinition[] Definitions =
         {
             new(Task, new ValueChangePredicateDto { ComponentType = typeof(BehaviorState) },
                 new ResultProjectionDto { SourceComponent = typeof(BehaviorState), OtherPath = nameof(BehaviorState.ActiveBehaviorHash), ValuePath = nameof(BehaviorState.ActiveBehaviorHash) }),
+            new(Tasks, new ValueChangePredicateDto { ComponentType = typeof(MissionPlanQueue) },
+                new ResultProjectionDto { SourceComponent = typeof(MissionPlanQueue), ValuePath = nameof(MissionPlanQueue.CurrentTask),
+                                          XPath = nameof(MissionPlanQueue.LatestOutcome), YPath = nameof(MissionPlanQueue.TaskCount) }),
             new(Embark, new ValueChangePredicateDto { ComponentType = typeof(IsEmbarkedTag) },
                 new ResultProjectionDto { SourceComponent = typeof(IsEmbarkedTag), OtherPath = nameof(IsEmbarkedTag.VehicleEntity) }),   // no ValuePath ⇒ Value 1 while present
             new(Changes,
@@ -66,7 +78,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                 new ResultProjectionDto { OtherPath = nameof(UtilityLogSlot.Winner), ValuePath = nameof(UtilityLogSlot.DecisionId) }),
         };
 
-        public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Changes, Orders, Reports, Decisions, Task, Embark };
+        public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Changes, Orders, Reports, Decisions, Tasks, Task, Embark };
         public IReadOnlyList<IndexedLaneDefinition> Indexed => Definitions;
         public bool Applies(TimelineLaneContext context) => context.Indexing;   // ⭐ CE-3330 — a recording's index or the live one
     }

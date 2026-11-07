@@ -82,6 +82,24 @@ paid once per user action (the step's start), never per frame.
 
 Rails: `WorldSnapshotRingTests` (restore with participants, eviction, redo branch, the two U3 caches).
 
+### 1.4 ⭐ AS-BUILT — U2 + U5, the ui side *(ui, `2026-11-07`, B-14)*
+
+| piece | as built |
+|---|---|
+| the step bracket | `IEditStepRecorder` / `EditSteps` (`Fdp.Toolkits/Replication/Edits/EditOp.cs`, beside `EditGate`): a per-world recorder, `Begin(label)` / `End` / `Cancel`, NESTED (only the outer pair is a step). `Edits.Submit` brackets every accepted authoring edit (not orders / interactions); the map drag opens it at the FIRST preview write (`EntityDragGizmo.OnDragUpdate` — the preview pokes the world directly, so a "before" taken at the commit would be the dragged state) and closes it at the commit, cancels it on Esc or a dead entity; the rotator brackets its one commit |
+| the world step | `WorldUndoRecorder` (`Hrot.Presentation/Edits`): `Begin` captures the ring; `End` pushes ONE entry on the editor's `EditHistory` — undo captures the AFTER state then restores the before, redo restores the after; available only while the ring holds the before (an evicted step is greyed and still named). Records only while the station is in Edit mode. The same label again within 1 s with nothing undone between joins the last step |
+| the ring | `EcsHostClusterHandlers.UndoRing`: built in `Compose` from the SAME participant list as the dry run (R-174: one list, so they cannot differ) — every ECS host has one, only the editor fills it |
+| `EditHistory` | + `Push(…, available)`, `Version`, `IsDirty` (position ≠ `MarkSaved`'s; the saved point in a discarded redo tail ⇒ dirty until saved again), `Clear()` |
+| lifetime | `EditorScenarioSession.Opened` (any load — to edit or Live — and a clear) ⇒ `EditHistory.Clear()` + the ring cleared; `Saved` (Save, Save As; ⛔ not a checkpoint, not Save selection as macro) ⇒ `MarkSaved` |
+| keys and menu | `EditUndoCommands`: shell commands `edit.undo` (Ctrl+Z), `edit.redo` (Ctrl+Y), `edit.redoAlt` (Ctrl+Shift+Z) — the key router gives a focused graph canvas its own Ctrl+Z first; *Edit ▸ Undo Move* / *Redo …* name the step, *(only in Edit mode)* elsewhere. ⛔ The Parameters drawer's private Ctrl+Z chord (CE-4254) is removed — it drove the SAME history and would have undone twice |
+| the dirty dot (U5, LC-12 — supersedes AQ108 D20) | `ScenarioWindowTitle.Detail(…, dirty)`: `● my-scenario · on highway-rest` while `EditHistory.IsDirty` (the editor; CGF passes nothing) |
+| ⏭ not built | *Edit ▸ History* (the step list); U4 (the take editor onto `EditHistory`); brackets for the vertex / route-waypoint / area gizmos (their writes inside a Submit are covered, their preview pokes are not); autosave (D23) |
+
+⚠ An undo's own AFTER capture can evict the before it is about to restore when the ring holds a single slot (depth 1 or one keyframe over the budget): the
+ring keeps the newest, so a depth of 2+ is required (the default is 100).
+
+Rails: `WorldUndoTests` (Presentation.Tests).
+
 ## 2. The model
 
 ### 2.1 Classes

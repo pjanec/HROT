@@ -434,4 +434,49 @@ public sealed class RulesModelTests : IDisposable
         var groups = Build(new RulesOptions(GroupBy: RulesGroupBy.Side)).Groups.ToDictionary(g => g.Name, g => g.Rows.Select(r => r.Title).ToList());
         Assert.Contains("Red tickets", groups["Red"]); Assert.Contains("Blue tickets", groups["Blue"]);
     }
+
+    // ── ⭐ W-1 (P-8, Mission plan §5.5 M6, D5) — the Phases group ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ The phase triggers lead in their own group <b>Phases</b>, ordered by phase number, and leave the group they would otherwise be in; an
+    /// AUTHORED phase is grouped too (its <c>common.phase</c> projected before a run). 🔴 Red-proof: the authored projection of <c>phase</c> dropped
+    /// ⇒ "Approach" stays under Scenario ⇒ red.
+    /// </summary>
+    [Fact]
+    public void W1_PhaseTriggersLeadInThePhasesGroup_ByNumber_AuthoredOnesToo()
+    {
+        Add(1, "Assault", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.Phase = 2);
+        Add(2, "Hold the bridge");
+        Add(3, "Brief Blue", role: ObjectiveRole.Trigger);
+        Authored(4, "Trigger", """{"common":{"title":"Approach","phase":1}}""");
+        var v = Build(new RulesOptions());
+        Assert.Equal(RulesModel.PhasesGroup, v.Groups[0].Name);
+        Assert.Equal(new[] { "Approach", "Assault" }, v.Groups[0].Rows.Select(r => r.Title));
+        Assert.DoesNotContain(v.Groups.Skip(1).SelectMany(g => g.Rows), r => r.Status.Phase > 0);
+        Assert.Contains(v.Groups.Skip(1).SelectMany(g => g.Rows), r => r.Title == "Brief Blue");
+    }
+
+    /// <summary>⭐ A phase row's right side: nothing before a run · <i>Begin now</i> while it has not fired · <i>begun m:ss</i> once it has (mockup B).</summary>
+    [Fact]
+    public void W1_APhaseRow_OffersBeginNow_UntilItBegins()
+    {
+        Add(1, "Assault", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.Phase = 2);
+        Add(2, "Approach", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.Phase = 1; s.FireCount = 1; s.LastFired = 0; });
+        Authored(3, "Trigger", """{"common":{"title":"Consolidate","phase":3}}""");
+        var rows = Build(new RulesOptions()).Groups[0].Rows;
+        Assert.Equal((false, (string?)null, "begun 0:00"), Hrot.Presentation.Windows.RulesWindow.PhaseRightOf(rows.Single(r => r.Title == "Approach")));
+        var waiting = Hrot.Presentation.Windows.RulesWindow.PhaseRightOf(rows.Single(r => r.Title == "Assault"));
+        Assert.True(waiting.BeginNow); Assert.Null(waiting.State);
+        Assert.Equal((false, (string?)null, (string?)null), Hrot.Presentation.Windows.RulesWindow.PhaseRightOf(rows.Single(r => r.Title == "Consolidate")));
+    }
+
+    /// <summary>⭐ How a phase begins, in words: at the start (scenario time 0), when … (the ONE condition sentence), with a no-later-than.</summary>
+    [Fact]
+    public void W1_HowAPhaseBegins_InWords()
+    {
+        Assert.Equal("begins at the start", Hrot.UI.Common.Rules.RuleSentence.PhaseBegins("""{"when":{"$type":"ScenarioTime","fromSeconds":0}}""", 0, null));
+        Assert.StartsWith("begins when ", Hrot.UI.Common.Rules.RuleSentence.PhaseBegins("""{"when":{"$type":"ScenarioTime","fromSeconds":600}}""", 0, null));
+        Assert.EndsWith(" · latest 20:00", Hrot.UI.Common.Rules.RuleSentence.PhaseBegins("""{"when":{"$type":"ScenarioTime","fromSeconds":0}}""", 1200, null));
+        Assert.Equal("begins when (no condition yet)", Hrot.UI.Common.Rules.RuleSentence.PhaseBegins("{}", 0, null));
+    }
 }

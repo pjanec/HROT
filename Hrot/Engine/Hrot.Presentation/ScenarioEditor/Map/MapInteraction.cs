@@ -275,6 +275,9 @@ namespace Hrot.ScenarioEditor.Map
         /// Scheduled through <see cref="InteractionSystems"/>.</summary>
         public MenuShortcuts MenuShortcuts { get; internal init; } = null!;
 
+        /// <summary>⭐ Seats H3 (📄 docs/UX/DESIGN_Seats_And_Hats.md §3.3) — the map's ONE hat arbiter, scheduled with <see cref="InteractionSystems"/>.</summary>
+        public HatArbiter Hats { get; internal init; } = null!;
+
         /// <summary>
         /// ⭐ <c>CE-1059</c> (P5b, design §13.12) — THE order form on this map (null in a replay: nothing to order). It becomes the
         /// world's <see cref="Hrot.Common.Orders.IOrderForm"/> on its first draw, so call <see cref="DrawOperatorUi"/> each ImGui frame.
@@ -298,7 +301,7 @@ namespace Hrot.ScenarioEditor.Map
         /// <see cref="Unserviceable"/>, so the two cannot disagree.
         /// </summary>
         public Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] InteractionSystems
-            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, DebugStatePatch, GizmoGroup, EffectSpawn, WreckSpawn, Lifespan, MenuOrders, MenuShortcuts };
+            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, DebugStatePatch, GizmoGroup, EffectSpawn, WreckSpawn, Lifespan, MenuOrders, MenuShortcuts, Hats };
 
         /// <summary>
         /// ⭐⭐ Returns one message per required system the host did not schedule — empty when the host

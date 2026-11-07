@@ -71,4 +71,5 @@ public interface IScenarioEntityExtractor
 /// <summary>The extra walker passes of one extraction (macro expansion, §10.1): bind → (remap + resolve) → relocate.</summary>
 public sealed record ExtractionPasses(
     Fdp.Toolkit.Replication.LeafApplier? BeforeResolve = null,
-    Fdp.Toolkit.Replication.LeafApplier? AfterResolve = null);
+    Fdp.Toolkit.Replication.LeafApplier? AfterResolve = null,
+    Fdp.Toolkit.Replication.IRefScope? Outside = null);   // ⭐ A5 — a reference the slice does not hold resolves here (the world outside); null = the file only

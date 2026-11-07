@@ -31,6 +31,7 @@ public sealed class MainToolbarTimeControlSection
     private bool _modeSeen;
     private DateTime? _returnedToLiveAt;
     private readonly Func<IReadOnlyList<string>>? _runSetupLines;
+    private readonly RunToController? _runTo;   // ⭐ W-4 (LC-10) — Run to …, on a host that has one (the editor)
 
     /// <summary>F15 — how long ■ ignores presses after a review returned to live.</summary>
     public static readonly TimeSpan StopGuard = TimeSpan.FromSeconds(3);
@@ -39,8 +40,12 @@ public sealed class MainToolbarTimeControlSection
     /// <param name="now">The clock of the F15 guard (tests inject one); default <see cref="DateTime.UtcNow"/>.</param>
     /// <param name="choice">⭐ CE-4097 (AQ108 §2.8) — the host's <see cref="RunModeChoice"/>: the indicator draws its <see cref="RunModeChoice.Indicator"/>, its menu is the
     /// choice's moves (each with its confirmation, drawn as a modal), ▶ ■ keep calling the facade. ⛔ A host that HAS one must pass it.</param>
-    public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null, RunModeChoice? choice = null, Func<IReadOnlyList<string>>? runSetupLines = null)
+    /// <param name="runTo">⭐ W-4 (LC-10) — the host's <see cref="RunToController"/>: the mode menu offers <i>Run to …</i> in Edit and Preview. ⛔ A host that HAS one must pass it.</param>
+    public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null, RunModeChoice? choice = null, Func<IReadOnlyList<string>>? runSetupLines = null,
+        RunToController? runTo = null, Func<Fdp.Core.EntityRepository?>? stationWorld = null)
     {
+        _stationWorld = stationWorld;
+        _runTo = runTo;
         _runSetupLines = runSetupLines;
         _facade = facade;
         _now = now ?? (() => DateTime.UtcNow);
@@ -141,12 +146,17 @@ public sealed class MainToolbarTimeControlSection
     public static string? ModeIcon(TransportMode mode) => ModeGlyph(mode)?.Glyph;   // ONE table: the indicator's
 
     /// <summary>One entry of the mode menu: a label, what it does, whether it can be chosen, and (a sub-menu) its children.</summary>
-    public sealed record ModeMenuItem(string Label, Action? Invoke, bool Enabled = true, IReadOnlyList<ModeMenuItem>? Children = null, bool Selected = false);
+    public sealed record ModeMenuItem(string Label, Action? Invoke, bool Enabled = true, IReadOnlyList<ModeMenuItem>? Children = null, bool Selected = false,
+        string? Glyph = null, Vector4? GlyphColor = null, bool IsSeparator = false)
+    {
+        /// <summary>A separator line between groups of the menu.</summary>
+        public static readonly ModeMenuItem Separator = new("", null, IsSeparator: true);
+    }
 
     /// <summary>The mode menu: the header line (mode + context) and the items.</summary>
     public sealed record ModeMenuModel(string Header, IReadOnlyList<ModeMenuItem> Items);
 
-    private static readonly double[] ReviewWindows = { 30, 120, 600 };
+    private static readonly double[] ReviewWindows = Hrot.Common.Actions.RunModeActions.DarWindows;   // ⭐ A6 — one table of DAR windows
 
     private static string WindowLabel(double seconds) => seconds < 60 ? $"{seconds:0} s" : $"{seconds / 60:0} min";
 
@@ -177,7 +187,7 @@ public sealed class MainToolbarTimeControlSection
     /// </summary>
     public ModeMenuModel? ModeMenu()
     {
-        var model = ModeMenuBase();
+        var model = WithRunTo(ModeMenuBase());
         // ⭐ AQ108 D24 — the running scenario's variant and changed params, as plain (disabled) lines under the moves
         if (model is not null && _facade.Mode is not (TransportMode.Edit or TransportMode.Idle) && _runSetupLines?.Invoke() is { Count: > 0 } setup)
         {
@@ -186,6 +196,143 @@ public sealed class MainToolbarTimeControlSection
             model = new(model.Header, items);
         }
         return model;
+    }
+
+    // ── ⭐ W-4 — Run to … (LC-10, 📄 DESIGN_Scenario_Lifecycle_Review.md §2.8; mockup run-to-visual.svg) ──────────────────────────────
+
+    /// <summary>The run choices the Run to popup offers, read when it opens (never per frame).</summary>
+    private readonly List<RunToChoices.Choice> _runToPhases = new(), _runToRules = new();
+    private bool _runToOpenRequested;
+    private Vector2 _runToAnchor;   // the bottom-left of the mode indicator, where the popup opens
+    private string _runToText = "";
+
+    /// <summary>The phases the Run to popup offers (rails).</summary>
+    public IReadOnlyList<RunToChoices.Choice> RunToPhases => _runToPhases;
+    /// <summary>The rules the Run to popup offers under <i>When a rule fires</i> (rails).</summary>
+    public IReadOnlyList<RunToChoices.Choice> RunToRules => _runToRules;
+    /// <summary>The Run to popup opens on the next drawn frame (rails).</summary>
+    public bool RunToOpenRequested => _runToOpenRequested;
+
+    /// <summary>Run to … is offered now: a host with a controller, in a Preview, or in Edit when the host can start one from there.</summary>
+    public bool OffersRunTo => _runTo is { } r && (_facade.Mode == TransportMode.Preview || (_facade.Mode == TransportMode.Edit && r.CanStartFromEdit));
+
+    /// <summary>⭐ The item's click: reads the phases and rules of the world once, then the popup opens.</summary>
+    public void OpenRunTo()
+    {
+        if (_runTo?.World is { } world) RunToChoices.Collect(world, _runToPhases, _runToRules);
+        else { _runToPhases.Clear(); _runToRules.Clear(); }
+        _runToOpenRequested = true;
+    }
+
+    /// <summary>Why the typed time cannot run (null = it can): not a time, or not ahead of the clock (in Preview) / of the start (from Edit).</summary>
+    public string? RunToTimeProblem(string text, out double seconds)
+    {
+        if (!RunToChoices.TryParseTime(text, out seconds)) return "type a time: m:ss, h:mm:ss, or minutes";
+        double now = _facade.Mode == TransportMode.Preview ? _facade.TotalTime : 0;
+        return seconds > now ? null : $"{RunToController.Clock(seconds)} is not ahead of the clock ({RunToController.Clock(now)})";
+    }
+
+    /// <summary>Runs to the typed time (the popup's Run); false with the reason in the controller's status.</summary>
+    public bool RunToTime(string text)
+        => _runTo is { } r && RunToTimeProblem(text, out double t) is null && r.Request(t, null);
+
+    /// <summary>Runs until <paramref name="choice"/> holds (a phase begins, a rule fires).</summary>
+    public bool RunToChoice(RunToChoices.Choice choice) => _runTo is { } r && r.Request(null, choice.Until);
+
+    private ModeMenuModel? WithRunTo(ModeMenuModel? model)
+    {
+        // ⭐ A6 — in an AAR the playhead's move (Go live from here), after the arming moves
+        if (_facade.Mode == TransportMode.Replay && model is not null)
+        {
+            var rows = PlayheadRows();
+            if (rows.Count > 0)
+            {
+                var withRows = new List<ModeMenuItem>(model.Items) { ModeMenuItem.Separator };
+                foreach (var r in rows) withRows.Add(new(r.Shown, r.Run, Enabled: r.Why is null));
+                model = new(model.Header, withRows);
+            }
+        }
+        if (_runTo is not { } run) return model;
+        bool active = run.IsRunning || run.IsStarting;
+        if (!active && !OffersRunTo) return model;
+        model ??= new(_facade.Mode == TransportMode.Preview ? $"Preview · {TransportIcons.FormatTime(_facade.TotalTime)}" : "Edit", Array.Empty<ModeMenuItem>());   // a host with no run choice: Run to alone
+        var items = new List<ModeMenuItem>(model.Items);
+        if (items.Count > 0) items.Add(ModeMenuItem.Separator);
+        var hourglass = Fdp.Presentation.Fonts.IconsFontAwesome6.HourglassHalf;
+        if (active)
+        {
+            items.Add(new(run.Status, null, Enabled: false));
+            items.Add(new("Stop Run to", () => run.Cancel(), Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Xmark, GlyphColor: RunToStopColor));
+        }
+        else
+        {
+            if (run.Status.Length > 0) items.Add(new(run.Status, null, Enabled: false));   // why the last one ended, until the next
+            foreach (var r in PlayheadRows())   // ⭐ A6 — declared and worded once (RunModeActions.RunTo; its modes: Edit, Preview)
+                if (r.Id == Hrot.Common.Constants.GlobalActionIds.RunTo)
+                    items.Add(new(r.Label, r.Run, Glyph: hourglass, GlyphColor: ModeGlyph(TransportMode.Preview)?.Color));
+        }
+        return new(model.Header, items);
+    }
+
+    private static readonly Vector4 RunToStopColor = new(0.90f, 0.33f, 0.33f, 1f);   // the house red (C.RED)
+    private static readonly Vector4 PhaseColor = new(0.95f, 0.75f, 0.20f, 1f);       // amber: a phase (the Rules window's flag)
+    private static readonly Vector4 RuleColor = new(0.95f, 0.61f, 0.22f, 1f);        // orange: a rule (a trigger's bolt)
+
+    private void DrawRunToPopup()
+    {
+        if (_runToOpenRequested) { _runToOpenRequested = false; ImGui.OpenPopup("##mt_runto"); ImGui.SetNextWindowPos(_runToAnchor); }   // under the mode indicator (the mockup)
+        if (!ImGui.BeginPopup("##mt_runto")) return;
+        // the title strip (the mockup's window title)
+        {
+            var dl = ImGui.GetWindowDrawList();
+            var p = ImGui.GetCursorScreenPos();
+            float w = Math.Max(ImGui.GetContentRegionAvail().X, 330f);
+            dl.AddRectFilled(p - new Vector2(4, 4), p + new Vector2(w + 4, ImGui.GetTextLineHeight() + 4), ImGui.GetColorU32(ImGuiCol.TitleBgActive));
+            ImGui.Text("Run to");
+            ImGui.Dummy(new Vector2(w, 2));
+        }
+        ImGui.TextDisabled("Run the Preview as fast as it steps, then pause.");
+        ImGui.AlignTextToFramePadding();
+        ImGui.Text("Time");
+        ImGui.SameLine(60);
+        ImGui.SetNextItemWidth(120);
+        bool enter = ImGui.InputTextWithHint("##runto_time", "m:ss", ref _runToText, 16, ImGuiInputTextFlags.EnterReturnsTrue);
+        ImGui.SameLine();
+        var why = RunToTimeProblem(_runToText, out _);
+        ImGui.BeginDisabled(why is not null);
+        bool run = ImGui.Button($"{Fdp.Presentation.Fonts.IconsFontAwesome6.Play} Run##runto_go", new Vector2(70, 0));
+        ImGui.EndDisabled();
+        if (why is not null && _runToText.Length > 0 && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(why);
+        if ((run || enter) && why is null && RunToTime(_runToText)) ImGui.CloseCurrentPopup();
+        ImGui.Separator();
+        ImGui.TextDisabled("When a phase begins");
+        if (_runToPhases.Count == 0) ImGui.TextDisabled("  no phases in this scenario");
+        for (int i = 0; i < _runToPhases.Count; i++)
+        {
+            ImGui.PushID(i);
+            ImGui.TextColored(PhaseColor, Fdp.Presentation.Fonts.IconsFontAwesome6.Flag);
+            ImGui.SameLine();
+            if (ImGui.Selectable(_runToPhases[i].Label) && RunToChoice(_runToPhases[i])) ImGui.CloseCurrentPopup();
+            ImGui.PopID();
+        }
+        ImGui.Separator();
+        ImGui.TextColored(RuleColor, Fdp.Presentation.Fonts.IconsFontAwesome6.Bolt);
+        ImGui.SameLine();
+        if (ImGui.BeginMenu("When a rule fires", _runToRules.Count > 0))
+        {
+            for (int i = 0; i < _runToRules.Count; i++)
+            {
+                ImGui.PushID(1000 + i);
+                ImGui.TextColored(RuleColor, Fdp.Presentation.Fonts.IconsFontAwesome6.Bolt);
+                ImGui.SameLine();
+                if (ImGui.MenuItem(_runToRules[i].Label) && RunToChoice(_runToRules[i])) ImGui.CloseCurrentPopup();
+                ImGui.PopID();
+            }
+            ImGui.EndMenu();
+        }
+        ImGui.Separator();
+        ImGui.TextDisabled("It pauses there. Stop Run to (this menu) stops it sooner.");
+        ImGui.EndPopup();
     }
 
     private ModeMenuModel? ModeMenuBase()
@@ -212,23 +359,66 @@ public sealed class MainToolbarTimeControlSection
         return new(header, items);
     }
 
+    /// <summary>
+    /// ⭐ The DAR choices of a live run — ONE list for the mode menu and ⭐ CE-4321 (L-5, LC-16) the ⏪ Review button beside ▶: the last N minutes, from the start;
+    /// greyed with the reason when the run is not recorded (D14). Empty outside Live.
+    /// </summary>
+    public IReadOnlyList<ModeMenuItem> ReviewChoices()
+    {
+        var items = new List<ModeMenuItem>();
+        if (_facade.Mode != TransportMode.Live) return items;
+        foreach (var r in PlayheadRows())
+            if (r.Id is Hrot.Common.Constants.GlobalActionIds.DarLastWindow or Hrot.Common.Constants.GlobalActionIds.DarFromStart)
+                items.Add(new(r.Shown, r.Run, Enabled: r.Why is null));
+        return items;
+    }
+
+    /// <summary>
+    /// ⭐ A6 (📄 docs/UX/DESIGN_Action_Catalogue.md §9) — the run-mode moves at the PLAYHEAD, composed from the action catalogue
+    /// (<see cref="Hrot.Common.Actions.RunModeActions"/>: declared and worded once) and bound here: in Live the DAR windows, <i>DAR from the start</i>
+    /// (⭐ D14 — greyed with the reason when the run is not recorded) and <i>Take checkpoint here</i>; in an AAR <i>Go live from here</i>; in Edit /
+    /// Preview <i>Run to …</i> (drawn by <see cref="WithRunTo"/>). Built when the menu is built, never cached across modes.
+    /// </summary>
+    public List<RunModeBinding.Row> PlayheadRows()
+    {
+        var ctx = Hrot.Common.Actions.ActionContext.ForMoment(Hrot.Common.Actions.ActionTarget.Playhead, RunModeBinding.ModeOf(_facade.Mode), TransportIcons.FormatTime(_facade.TotalTime));
+        return RunModeBinding.Rows(ctx, BindPlayhead);
+    }
+
+    private RunModeBinding.Binding? BindPlayhead(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto row)
+    {
+        var mode = _facade.Mode;
+        var darWhy = _choice?.DarDisabledReason;   // ⭐ D14 — a run that was not recorded has nothing to look back at (the master refuses it too)
+        switch (row.Id)
+        {
+            case Hrot.Common.Constants.GlobalActionIds.DarLastWindow when mode == TransportMode.Live && row.Priority is int window:
+                return new(() => _facade.EnterReviewAtSim(Math.Max(0, _facade.TotalTime - window)), darWhy);
+            case Hrot.Common.Constants.GlobalActionIds.DarFromStart when mode == TransportMode.Live:
+                return new(() => _facade.EnterReviewAtSim(0), darWhy);
+            case Hrot.Common.Constants.GlobalActionIds.TakeCheckpointHere when mode == TransportMode.Live && _choice is { } c:
+                return new(c.TakeCheckpoint, c.CheckpointDisabledReason);
+            case Hrot.Common.Constants.GlobalActionIds.GoLiveFromHere when mode == TransportMode.Replay && _choice is { } c:
+                return new(() => c.GoLiveFromHere(() => { }), c.GoLiveFromHereDisabledReason);   // the playhead IS the moment: nothing to seek
+            case Hrot.Common.Constants.GlobalActionIds.RunTo when OffersRunTo:
+                return new(OpenRunTo);
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>⭐ CE-4321 — the ⏪ Review button shows in a live run only.</summary>
+    public bool ShowsReviewButton => _facade.Mode == TransportMode.Live;
+
+    private IReadOnlyList<ModeMenuItem>? _reviewOpen;   // the choices while the button's popup is up (built on the click, not per frame)
+
     private ModeMenuModel? LegacyModeMenu()
     {
         switch (_facade.Mode)
         {
             case TransportMode.Live:
             {
-                var items = new List<ModeMenuItem>();
-                // ⭐ D14 — a run that was not recorded has nothing to look back at: DAR is greyed with the reason (the master refuses it too)
-                var darWhy = _choice?.DarDisabledReason;
-                string Dar(string label) => darWhy is null ? label : $"{label} — {darWhy}";
-                foreach (var d in ReviewWindows)
-                {
-                    var window = d;
-                    items.Add(new(Dar($"DAR — the last {WindowLabel(window)}"),
-                        () => _facade.EnterReviewAtSim(Math.Max(0, _facade.TotalTime - window)), Enabled: darWhy is null));
-                }
-                items.Add(new(Dar("DAR from the start"), () => _facade.EnterReviewAtSim(0), Enabled: darWhy is null));
+                var items = new List<ModeMenuItem>();   // ⭐ A6 — the playhead's run-mode moves (the DAR choices, Take checkpoint here)
+                foreach (var r in PlayheadRows()) items.Add(new(r.Shown, r.Run, Enabled: r.Why is null));
                 return new($"Live · {TransportIcons.FormatTime(_facade.TotalTime)}", items);
             }
             case TransportMode.Review:
@@ -368,6 +558,14 @@ public sealed class MainToolbarTimeControlSection
         // ── [Mode indicator] — opens its menu, never acts (R-3061) ─────────
         DrawModeIndicator(iconSize);
         ImGui.SameLine();
+        // ⭐ Seats H3 (§2.3 "the mode indicator shows the run mode, the seat and the hat") — "Instructor · Command" beside the mode glyph
+        if (StationLine() is { } station)
+        {
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextDisabled(station);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("This station's seat · what you are doing now (the hat)");
+            ImGui.SameLine();
+        }
 
         // ── [Play/Pause] ───────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_pp", iconSize,
@@ -381,6 +579,29 @@ public sealed class MainToolbarTimeControlSection
                 : PlayTooltip(isPaused));    // what a press does, by the mode
 
         ImGui.SameLine();
+
+        // ── [⏪ Review] — ⭐ CE-4321 (L-5, LC-16): the DAR choices one click away, beside ▶ (the mode menu keeps them too) ──
+        if (ShowsReviewButton)
+        {
+            if (TransportIcons.DrawTransportButton("##mt_review", iconSize, TransportIcons.BtnShape.Rewind, enabled: true))
+            {
+                _reviewOpen = ReviewChoices();
+                ImGui.OpenPopup("##mt_review_menu");
+            }
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip("Review (DAR): look back at the live run");
+            if (ImGui.BeginPopup("##mt_review_menu"))
+            {
+                if (_reviewOpen != null)
+                    foreach (var item in _reviewOpen)
+                    {
+                        if (!item.Enabled) ImGui.BeginDisabled();
+                        if (ImGui.MenuItem(item.Label)) item.Invoke?.Invoke();
+                        if (!item.Enabled) ImGui.EndDisabled();
+                    }
+                ImGui.EndPopup();
+            }
+            ImGui.SameLine();
+        }
 
         // ── [Step] ─────────────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_step", iconSize,
@@ -457,6 +678,32 @@ public sealed class MainToolbarTimeControlSection
     /// <summary>⭐ CE-4097 — draws <see cref="RunModeChoice.Pending"/> through the ONE modal helper (CE-1438): its text and buttons; closing it (Esc / ✕) is Cancel, the last button.</summary>
     private void DrawConfirmation() => ConfirmationModal.Draw(_choice?.Pending);
 
+    private readonly Func<Fdp.Core.EntityRepository?>? _stationWorld;
+    private Hrot.Common.Infrastructure.Seat _lineSeat;
+    private Hrot.Common.Editing.Hat _lineHat;
+    private string? _line;
+
+    /// <summary>⭐ Seats H3 — the seat · hat line of the station's world, or null (no world / no map); rebuilt only when either changes (0 B per frame).</summary>
+    internal string? StationLine()
+    {
+        if (_stationWorld?.Invoke() is not { } w || Hrot.ScenarioEditor.Map.HatArbiter.Of(w) is not { } hats) return null;
+        var seat = w.HasSingletonManaged<Hrot.Common.Editing.StationMode>() ? w.GetSingletonManaged<Hrot.Common.Editing.StationMode>()!.Seat : Hrot.Common.Infrastructure.Seat.Author;
+        var hat = hats.Active;
+        if (_line == null || seat != _lineSeat || hat != _lineHat)
+        {
+            _lineSeat = seat; _lineHat = hat;
+            _line = SeatWord(seat) + " · " + Hrot.ScenarioEditor.Map.HatArbiter.WordOf(hat);
+        }
+        return _line;
+    }
+
+    /// <summary>⭐ Seats H3 — a seat as the indicator words it.</summary>
+    public static string SeatWord(Hrot.Common.Infrastructure.Seat seat) => seat switch
+    {
+        Hrot.Common.Infrastructure.Seat.SideController => "Side controller",
+        _ => seat.ToString(),
+    };
+
     /// <summary>A coloured disc with the mode's letter; a click opens the mode menu (where there is one).</summary>
     private void DrawModeIndicator(float size)
     {
@@ -468,6 +715,7 @@ public sealed class MainToolbarTimeControlSection
 
         var pos = ImGui.GetCursorScreenPos();
         bool clicked = ImGui.InvisibleButton("##mt_mode", new Vector2(size, size));
+        _runToAnchor = new Vector2(pos.X, pos.Y + size + 2);
         bool hovered = ImGui.IsItemHovered();
         var dl = ImGui.GetWindowDrawList();
         var icon = chosen?.Glyph ?? ModeIcon(mode)!;   // FontAwesome 6 Solid, drawn in the mode's colour
@@ -494,10 +742,17 @@ public sealed class MainToolbarTimeControlSection
             }
             ImGui.EndPopup();
         }
+        DrawRunToPopup();   // ⭐ W-4 — opened by the menu's Run to … on the next frame
     }
 
     private static void DrawMenuItem(ModeMenuItem item)
     {
+        if (item.IsSeparator) { ImGui.Separator(); return; }
+        if (item.Glyph is { } glyph)   // ⭐ W-4 — a coloured glyph before the label (Colour Icons: never monochrome, R-4139)
+        {
+            ImGui.TextColored(item.GlyphColor ?? new Vector4(1, 1, 1, 1), glyph);
+            ImGui.SameLine();
+        }
         if (item.Children is { } kids)
         {
             if (ImGui.BeginMenu(item.Label, item.Enabled))

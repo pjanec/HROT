@@ -74,7 +74,14 @@ namespace Hrot.ClusterRunner.Configuration
             return o.Count == 0 ? null : o.ToJsonString();
         }
 
-        /// <summary>The parsed <see cref="FeatureTexts"/> (valid after <see cref="Validate"/>).</summary>
+        /// <summary>
+        /// ⭐ CE-4305 ② (R-4164, Seats and hats §2.2a, Node Features F-7) — the config file's <c>"features": { "&lt;id&gt;": {partial config} | "on" | "off" }</c>:
+        /// a node override layered BELOW <c>--feature</c> (its entries go first, so a command-line entry for the same id wins) and, like every node
+        /// override, above the scenario's preset. 📌 <c>"features": { "station.seat": { "Seat": "Instructor" } }</c> makes a server station an instructor.
+        /// </summary>
+        public IReadOnlyList<(string Id, string Json)> ConfigFileFeatures { get; private set; } = Array.Empty<(string Id, string Json)>();
+
+        /// <summary>The parsed <see cref="FeatureTexts"/> (valid after <see cref="Validate"/>), after <see cref="ConfigFileFeatures"/>.</summary>
         public IReadOnlyList<(string Id, string Json)> FeatureOverrides { get; private set; } = Array.Empty<(string Id, string Json)>();
 
         /// <summary>The sentinel a bare <c>--map-in-load</c> becomes: this process' own nodes.</summary>
@@ -328,7 +335,7 @@ namespace Hrot.ClusterRunner.Configuration
                     : MapInLoadText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             try
             {
-                FeatureOverrides = (FeatureTexts ?? Array.Empty<string>()).Select(Hrot.Common.Infrastructure.NodeFeatureOverrides.Parse).ToList();
+                FeatureOverrides = ConfigFileFeatures.Concat((FeatureTexts ?? Array.Empty<string>()).Select(Hrot.Common.Infrastructure.NodeFeatureOverrides.Parse)).ToList();   // ⭐ CE-4305 ② — the file first: --feature wins
             }
             catch (FormatException e) { throw new InvalidOperationException(e.Message); }
             bool ci = RequestedSubsystems.Contains("ci");
@@ -505,6 +512,20 @@ namespace Hrot.ClusterRunner.Configuration
 
         // -- JSON config merge -----------------------------------------------
 
+        /// <summary>⭐ CE-4305 ② — the <c>features</c> object of a config file as node overrides: an object value is the partial config, <c>"on"</c> /
+        /// <c>"off"</c> the switch (as <c>--feature</c> reads them, <see cref="Hrot.Common.Infrastructure.NodeFeatureOverrides.Parse"/>). No object ⇒ none.</summary>
+        public static IReadOnlyList<(string Id, string Json)> FeaturesOf(string configJson)
+        {
+            if (Newtonsoft.Json.Linq.JObject.Parse(configJson)["features"] is not Newtonsoft.Json.Linq.JObject features) return Array.Empty<(string Id, string Json)>();
+            var list = new List<(string Id, string Json)>();
+            foreach (var p in features.Properties())
+            {
+                string value = p.Value.Type == Newtonsoft.Json.Linq.JTokenType.Object ? p.Value.ToString(Formatting.None) : p.Value.ToString();
+                list.Add(Hrot.Common.Infrastructure.NodeFeatureOverrides.Parse(p.Name + "=" + value));
+            }
+            return list;
+        }
+
         /// <summary>
         /// Merges non-default JSON values over CLI defaults.
         /// </summary>
@@ -518,6 +539,7 @@ namespace Hrot.ClusterRunner.Configuration
             var json = File.ReadAllText(path);
             var overrides = JsonConvert.DeserializeObject<HrotRunnerConfiguration>(json);
             if (overrides is null) return;
+            ConfigFileFeatures = FeaturesOf(json);   // ⭐ CE-4305 ②
 
             // Merge non-empty / non-default values
             if (!string.IsNullOrEmpty(overrides.ModeString))

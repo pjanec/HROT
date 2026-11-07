@@ -122,6 +122,22 @@ public sealed class TheScenarioComponentsViewTests
         Assert.True(ScenarioComponentsViewDescriptor.Rank < RuntimeDetailsViewDescriptor.Rank);
     }
 
+    /// <summary>
+    /// ⭐ CE-4310 (D6, R-4120) — the raw Components tab is the LAST entity tab, behind every form: its rank is below each entity view's (Summary, Playable, Objectives, Brain, AI, Runtime)
+    /// and below every descriptor of the entity band (rank ≥ 32) the production editor registers — the forms (Unit, Scenario, Crew …) and the Rule / Orders tabs among them. The tab bar sorts by
+    /// descending rank, so lower = later. ✅ Red-proof: <c>Rank</c> set to 60 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void ItsRank_PutsTheRawTabBehindEveryFormAndEntityTab()
+    {
+        int r = ScenarioComponentsViewDescriptor.Rank;
+        Assert.True(r < EntitySummaryViewDescriptor.Rank && r < EntityPlayableViewDescriptor.Rank && r < EntityObjectivesViewDescriptor.Rank
+                    && r < EntityBrainViewDescriptor.Rank && r < EntityAiDetailsViewDescriptor.Rank
+                    && r < RuntimeDetailsViewDescriptor.Rank);
+        foreach (var d in RealEditor().ScenarioWorkspace!.DetailsViews.All.Where(d => d.Id != ScenarioComponentsViewDescriptor.ViewId && d.Rank >= 32))
+            Assert.True(r < d.Rank, $"{d.Id} (rank {d.Rank}) must come before Components (rank {r})");
+    }
+
     // ══ the predicate ════════════════════════════════════════════════════════
 
     /// <summary>

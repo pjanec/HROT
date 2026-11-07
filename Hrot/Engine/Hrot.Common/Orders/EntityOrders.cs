@@ -72,9 +72,12 @@ namespace Hrot.Common.Orders
             //   event registration on, the first order threw "published without being explicitly registered" (📐 live, a POST
             //   /entities/{id}/order on the SimHost perspective answered 500). The node that can order registers what it publishes.
             if (!_world.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) _world.Bus.RegisterManaged<AssignTacticalIntentEvent>();
+            // ⭐ Seats H2 (📄 docs/UX/DESIGN_Seats_And_Hats.md §3.2) — a side-scoped seat's station orders ITS side only, by construction: every order this
+            //   station sends (the menu, the RTS tool, the wheel) starts locked to the seat's side. An HTTP session (a virtual station, H7) sets its own.
+            SideLock = Hrot.Common.Editing.StationMode.SideOf(world);
         }
 
-        /// <summary>⭐ C-10 — when set, orders to units of any other side are refused (the AI player plays one side).</summary>
+        /// <summary>⭐ C-10 — when set, orders to units of any other side are refused (the AI player plays one side). ⭐ Seats H2 — defaults to the station seat's side.</summary>
         public ForceId? SideLock { get; set; }
 
         /// <summary>Move to a point: geo (<paramref name="lat"/>/<paramref name="lon"/>) or this node's local metres

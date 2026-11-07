@@ -158,4 +158,81 @@ public sealed class RunToControllerTests
         Assert.InRange(cluster.TotalTime, 1.99, 2.01);
         Assert.Equal(0, cluster.Steps);                                         // turbo never goes through the transport's StepBy
     }
+
+    // ── ⭐ W-4 (LC-10 from Edit, the mode menu's Run to …) ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void W4_FromEdit_StartsThePreviewPaused_ThenRunsToTheTime_AndCancelWhileStartingStopsIt()
+    {
+        var cluster = new FakeCluster();
+        var preview = new Flag { On = false };
+        int entered = 0;
+        var run = new RunToController(cluster, () => cluster.InFlight > 0, () => preview.On, () => new EntityRepository(),
+            enterPreview: () => { entered++; return true; });
+        Assert.True(run.CanStartFromEdit);
+
+        Assert.True(run.Request(atSeconds: 0.1, until: null, stepSeconds: RunToController.StepSeconds));
+        Assert.Equal(1, entered);                                 // the Preview was asked for, once
+        Assert.True(run.IsStarting); Assert.False(run.IsRunning);
+        run.Tick(); run.Tick();                                   // the Preview is not up yet: nothing steps
+        Assert.Equal(0, cluster.Steps);
+
+        preview.On = true;                                        // the Preview is up, paused at its first frame
+        run.Tick();
+        Assert.False(run.IsStarting); Assert.True(run.IsRunning);
+        for (int i = 0; i < 30 && run.IsRunning; i++) { run.Tick(); cluster.Land(); }
+        Assert.StartsWith("reached", run.Status);
+        Assert.Equal(6, cluster.Steps);                           // the same deterministic run as Start in a Preview
+        Assert.True(cluster.IsPaused);
+
+        // cancelled while the Preview starts: nothing runs when it comes up
+        preview.On = false; cluster.Steps = 0;
+        Assert.True(run.Request(atSeconds: 5, until: null));
+        run.Cancel();
+        Assert.False(run.IsStarting);
+        preview.On = true; run.Tick();
+        Assert.False(run.IsRunning); Assert.Equal(0, cluster.Steps);
+    }
+
+    [Fact]
+    public void W4_FromEdit_IsRefusedWithoutADoor_WithNothingToRunTo_OrWhenThePreviewCannotStart_AndGivesUpIfItNeverComes()
+    {
+        var (noDoor, _, _) = Make(preview: false);
+        Assert.False(noDoor.CanStartFromEdit);
+        Assert.False(noDoor.Request(10, null));
+        Assert.Contains("Preview", noDoor.Status);
+
+        var cluster = new FakeCluster();
+        bool can = false;
+        var run = new RunToController(cluster, () => false, () => false, () => new EntityRepository(), enterPreview: () => can);
+        Assert.False(run.Request(null, null));
+        Assert.Contains("a time or a condition", run.Status);
+        Assert.False(run.Request(10, null));
+        Assert.Equal("the Preview cannot start now.", run.Status);
+
+        can = true;
+        Assert.True(run.Request(10, null));
+        for (int i = 0; i <= RunToController.EnterPreviewFrames; i++) run.Tick();
+        Assert.False(run.IsStarting);
+        Assert.Equal("the Preview did not start.", run.Status);
+    }
+
+    [Theory]
+    [InlineData("10:00", 600)]
+    [InlineData("1:02:03", 3723)]
+    [InlineData("10", 600)]
+    [InlineData("0:30", 30)]
+    public void W4_TheTimeReadsAsTheClockShowsIt(string text, double seconds)
+    {
+        Assert.True(RunToChoices.TryParseTime(text, out double s));
+        Assert.Equal(seconds, s);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("ten")]
+    [InlineData("1:75")]
+    [InlineData("-3")]
+    [InlineData("1:2:3:4")]
+    public void W4_ATimeTheClockCannotShowIsRefused(string text) => Assert.False(RunToChoices.TryParseTime(text, out _));
 }

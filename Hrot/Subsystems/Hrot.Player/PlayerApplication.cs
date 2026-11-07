@@ -1127,6 +1127,7 @@ public class PlayerApplication : IDisposable
 
     {
         _playerMapInteraction?.DrawOperatorUi();   // ⛔ OpenPicker only queues (CE-1017) · ⭐ CE-1059 the order form
+        Hrot.UI.Common.RunMode.ReviewBanner.Draw(RunControls?.Mode);   // ⭐ CE-4321 (L-5, LC-16) — "REVIEW — the exercise is paused" for the whole DAR
 
         _fdpRepoAdapter ??= new FdpRepositoryAdapter(_world);
 

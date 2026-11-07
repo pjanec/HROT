@@ -17,25 +17,32 @@ namespace Hrot.ScenarioEditor.Gizmos
         public const byte GhostAlpha = 110;
         public const float MarkerRadius = 2f;
 
-        public static void Draw(IDebugDrawBuilder draw, MacroPreviewResult preview, Vector3 anchor)
+        public static void Draw(IDebugDrawBuilder draw, MacroPreviewResult preview, Vector3 anchor) => Draw(draw, preview, anchor, 0f);
+
+        /// <summary>⭐ A5 — the same ghosts turned by <paramref name="turnRad"/> about the anchor (math sense, counter-clockwise): the paste tool's drag.
+        /// ⛔ No allocation: each offset is rotated in place of drawing.</summary>
+        public static void Draw(IDebugDrawBuilder draw, MacroPreviewResult preview, Vector3 anchor, float turnRad)
         {
+            float cos = MathF.Cos(turnRad), sin = MathF.Sin(turnRad);
             if (!preview.Ok)
             {
-                draw.DrawTextLong(anchor.X, anchor.Y + 12f, $"preview: {preview.Failure}", new Rgba32(230, 90, 80, 255));
+                draw.DrawTextLong(anchor.X, anchor.Y + 12f, preview.FailureText, new Rgba32(230, 90, 80, 255));
                 return;
             }
             var ring = new Rgba32(200, 200, 200, GhostAlpha);
             draw.DrawSphere(anchor, MarkerRadius * 1.5f, ring);
-            foreach (var g in preview.Ghosts)
+            var ghosts = preview.Ghosts;
+            for (int i = 0; i < ghosts.Count; i++)   // ⛔ R-2084 — an index loop: a foreach over the interface boxed its enumerator every frame
             {
+                var g = ghosts[i];
                 var colour = Hrot.Common.Diagnostics.Gizmos.SidePalette.Of(g.Side);
                 colour.A = GhostAlpha;
-                var at = anchor + g.Offset;
+                var at = anchor + new Vector3(g.Offset.X * cos - g.Offset.Y * sin, g.Offset.X * sin + g.Offset.Y * cos, g.Offset.Z);
                 draw.DrawSphere(at, MarkerRadius, colour);
                 draw.DrawLine(anchor, at, ring, 1f);
                 draw.DrawTextLong(at.X, at.Y - 6f, g.Name, new Rgba32(255, 255, 255, GhostAlpha + 60));
             }
-            draw.DrawTextLong(anchor.X, anchor.Y + 12f, $"preview: {preview.Macro} - {preview.Ghosts.Count} to create", Rgba32.White);
+            draw.DrawTextLong(anchor.X, anchor.Y + 12f, preview.Summary, Rgba32.White);
         }
     }
 

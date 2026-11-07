@@ -12,6 +12,7 @@ known-rot: ⚠ the moved rows keep their ORIGINAL section references (§8.0, §9
   numbers; §13 maps each to its section here (the rules doc's stubs forward them too). Every related design links back (2026-11-01).
 known-conflict: none
 related-designs:
+  - docs/UX/DESIGN_Entity_Copy_Paste.md — Copy / Paste SHARE the expander's core (SliceExpander): one extract + relocate + fresh ids for macros and paste
   - docs/UX/DESIGN_Scenario_Presets.md — OWNS scenario presets, CanSave and the preview with a preset; §17.1 here OWNS the variant holder it relies on
   - docs/DESIGN_Scenario_Rules.md — the RULES (objectives, triggers, the director, evaluation): the first USER of macros (`InsertMacro`, a director IS a macro — SR-99, a macro insertion reports its own completion — SR-96, bindings in a `do` entry — SR-94); still OWNS §9.8 relocation + the reference / place / orientation types until slice S0 lands, and the objective rows of its §8 / §9 (§11 here)
   - docs/DESIGN_Scenario_Entity_Keys.md — CE-4153 rev 2: STABLE entity GUIDs, derived for macro-made entities — the cross-scope reference (SR-62); its S9 (internal refs of saved components as GUIDs) is S3's prerequisite

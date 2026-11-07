@@ -84,7 +84,7 @@ public sealed class EntityDetailsBundle : IUiBundle
         Hrot.Presentation.Forms.HrotForms.EnsureRegistered();
         foreach (var form in Fdp.Presentation.Forms.FormCatalogue.All) Workspace.DetailsViews.Add(FormDetailsViewDescriptor.For(form, host.World, host.Pick));
         if (host.Rules != null) Workspace.DetailsViews.Add(RuleDetailsTabDescriptor.For(host.Rules));   // ⭐ U-18 / RX2
-        if (host.Missions != null) Workspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.For(host.Missions, host.World, host.Pick, host.ParamsTypeOf));   // ⭐ P-7 / 7a — the Orders tab
+        if (host.Missions != null) Workspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.For(host.Missions, host.World, host.Pick, host.ParamsTypeOf, host.Host));   // ⭐ P-8 8b — its New rule… asks the host   // ⭐ P-7 / 7a — the Orders tab
         if (host.EventFocus is { } focus)   // ⭐ CE-4263 — a clicked timeline event shows the EVENT (rank 1: first among the entity views)
             Workspace.DetailsViews.Add(EventDetailsViewDescriptor.For(host.World, focus, host.SelectNetworkEntity ?? (_ => { })));
         Workspace.DetailsViews.Add(EntityObjectivesViewDescriptor.For(host.World, host.OpenRule));   // ⭐ CE-4216 RV-7 — objectives about this unit, every host   // ⭐ CE-1247 — the IG's former card, every host
@@ -119,6 +119,7 @@ public sealed class EntityDetailsBundle : IUiBundle
         ctx.Windows.RegisterWindow(Window);
         if (_host.Host() is not { } host) return;   // no actions on this host (Stride mode 2): the panel only
         RegisterProperties(host, ctx.Windows, Window);
+        if (_host.Missions is { } missions) RegisterPlanClipboard(host, Plans = new Hrot.Editor.AiShared.Shell.PlanClipboard(missions), new WorldEntitySelectionSource(_host.World));
         // ⛔ CE-1334 — no View ▸ Details menu: float and pin are the panel's own tab-bar icons (the menu offered nothing more)
     }
 
@@ -138,6 +139,28 @@ public sealed class EntityDetailsBundle : IUiBundle
             windows.FocusWindow(details.Id);
             // ⭐ DS-6 — pending until the selection lands and the view joins the offer, then picked and revealed.
             details.RequestView(ScenarioComponentsViewDescriptor.ViewId);
+        });
+    }
+
+    /// <summary>⭐ L-14 / CE-4314 — the host's plan clipboard (null on a host with no mission facade or no actions).</summary>
+    public Hrot.Editor.AiShared.Shell.PlanClipboard? Plans { get; private set; }
+
+    /// <summary>
+    /// ⭐ L-14 / CE-4314 (LC-6) — <c>Copy plan</c> / <c>Paste plan</c> (this node's own clicks): copy the clicked unit's plan; paste onto
+    /// the whole selection when it holds the clicked unit (each its own copy), else onto the clicked unit.
+    /// </summary>
+    public static void RegisterPlanClipboard(HostActions host, Hrot.Editor.AiShared.Shell.PlanClipboard plans, IEntitySelectionSource selection)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(plans);
+        ArgumentNullException.ThrowIfNull(selection);
+        host.Actions.RegisterLocal(GlobalActionIds.CopyPlan, (view, target) =>
+        {
+            if (view is EntityRepository w) plans.Copy(w, target);
+        });
+        host.Actions.RegisterLocal(GlobalActionIds.PastePlan, (view, target) =>
+        {
+            if (view is EntityRepository w) plans.Paste(w, Hrot.Editor.AiShared.Shell.PlanClipboard.TargetsOf(target, selection.Selected()));
         });
     }
 

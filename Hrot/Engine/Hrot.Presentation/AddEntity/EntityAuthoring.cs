@@ -89,6 +89,9 @@ public sealed class EntityAuthoring
     /// <summary>The Add Entity action, already registered on the map's actions.</summary>
     public AddEntityAction AddEntity { get; }
 
+    /// <summary>⭐ A5 — Copy / Paste / Duplicate on this map (set by the map pack, which holds the selection); null before the pack built it.</summary>
+    public CopyPasteActions? CopyPaste { get; internal set; }
+
     /// <summary>The canvas (empty-map) menu system — the host schedules it.</summary>
     public Hrot.Presentation.Systems.CanvasMenuUpdateSystem CanvasMenu { get; }
 

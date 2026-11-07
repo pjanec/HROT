@@ -298,6 +298,18 @@ public static class HrotForms
                 AddLabel = "Add...",
                 Add = SeedKnown,
             },
+            // ⭐ L-13 / CE-4313 (Scenario lifecycle LC-5) — the COMMANDER row: who he answers to (the ORBAT's Command relation). Commander… → the ONE write path the
+            //   ORBAT's drop takes (`Edits.Submit(EditOp.SetCommander)`), refused by the ORBAT's own rule (`CommandHierarchyAdapter.ReparentRefusal`); Detach → no commander.
+            new FormList
+            {
+                Label = "Commander",
+                Fill = FillCommander,
+                Footer = (w, e) => CommanderOf(w, e).IsNull ? "no commander" : null,
+                RemoveLabel = "Detach",
+                Remove = (w, it) => { Fdp.Toolkit.Replication.Edits.Edits.Submit(w, Fdp.Toolkit.Replication.Edits.EditOp.SetCommander(it.Item, Entity.Null, "Detach from its commander")); },
+                AddLabel = "Commander...",
+                Add = AssignCommander,
+            },
             // ⭐ U-24 / S5 — carried by: a soldier carries him (Carried · Dragged · Stretcher + the second man of a stretcher). Put down → the ONE disembark; Carried by… → the ONE embark with a carry mode.
             //   how he is carried is the Carried as field; the second man of a stretcher is the Second man list
             new FormList
@@ -456,6 +468,31 @@ public static class HrotForms
 
     private static FixedString64 NameOf(EntityRepository w, Entity e, string fallback)
         => w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(e) ? w.GetComponentRO<EntityInfo>(e).Name : new FixedString64(fallback);
+
+    /// <summary>⭐ L-13 — his commander (<c>UnitSubordinate.Commander</c>, alive and not himself), or <see cref="Entity.Null"/>.</summary>
+    public static Entity CommanderOf(EntityRepository w, Entity e)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>() || !w.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(e)) return Entity.Null;
+        var c = w.GetComponentRO<Fdp.Core.CommandHierarchy.UnitSubordinate>(e).Commander;
+        return !c.IsNull && c != e && w.IsAlive(c) ? c : Entity.Null;
+    }
+
+    /// <summary>One row: the commander's name; the row's item is HIM (Detach detaches him).</summary>
+    private static void FillCommander(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        var c = CommanderOf(w, e);
+        if (!c.IsNull) into.Add(new FormListItem("Commander", NameOf(w, c, "(a unit)"), e));
+    }
+
+    /// <summary>⭐ L-13 — <i>Commander…</i>: a unit that takes subordinates (a <c>UnitRoster</c> — the ORBAT's drop rule), refused by the ORBAT's own rule, sent through the ONE write path.</summary>
+    public static string? AssignCommander(EntityRepository w, Entity unit, Entity commander)
+    {
+        if (unit == commander) return "he cannot command himself";
+        if (!w.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitRoster>() || !w.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(commander)) return "only a unit commands (a platoon, a squad, an HQ)";
+        if (((Fdp.Toolkit.Vis2D.Abstractions.IHierarchyAdapter)new Hrot.UI.Common.Adapters.CommandHierarchyAdapter()).ReparentRefusal(w, unit, commander) is { } why) return why;
+        Fdp.Toolkit.Replication.Edits.Edits.Submit(w, Fdp.Toolkit.Replication.Edits.EditOp.SetCommander(unit, commander, "Assign to a commander"));
+        return null;
+    }
 
     private static string? CarriedBy(EntityRepository w, Entity unit, Entity carrier)
     {

@@ -28,15 +28,40 @@ public sealed class RulesBundle : IUiBundle
         GameSummary = new GameSummaryWindow(host.World, host.TimelineSource, host.Cursor(), p + "game_summary", host.Perspective, host.Colour) { IsOpen = false };
         if (!host.Recording && !host.TraineeOnly && Editor != null && host.EntityCreation != null)
             GameMaster = new GameMasterWindow(host.World, p + "game_master", host.Perspective, host.Colour, Editor,
-                createOneShot: json =>
-                {
-                    if (host.EntityCreation() is not { } creation) return false;
-                    creation.RequestEntityCreation(Hrot.UI.Common.Rules.RuleAdd.TkbOf(Hrot.UI.Common.Rules.RuleAdd.TriggerKind), isTransient: true,
-                        initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.InitialBrainIntent { Behavior = new Fdp.Toolkit.Behavior.Components.SavedBrainSlot { Name = Hrot.UI.Common.Rules.RuleAdd.TriggerKind, Params = json } } });
-                    return true;
-                },
+                createOneShot: CreateOneShot,
                 selection: host.Selection, blocked: blocked, enabled: host.GamePaletteEnabled) { IsOpen = false };
         BindMenuActions();
+        WireInstructorEnd();
+    }
+
+    /// <summary>⭐ The ONE way this host creates a one-shot trigger (the Game master's run-now, the instructor's End without a rule): a transient trigger entity
+    /// through the host's creation path. False when the host cannot create entities or shows a recording.</summary>
+    private bool CreateOneShot(string json)
+    {
+        if (_host.Recording || _host.EntityCreation?.Invoke() is not { } creation) return false;
+        creation.RequestEntityCreation(Hrot.UI.Common.Rules.RuleAdd.TkbOf(Hrot.UI.Common.Rules.RuleAdd.TriggerKind), isTransient: true,
+            initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.InitialBrainIntent { Behavior = new Fdp.Toolkit.Behavior.Components.SavedBrainSlot { Name = Hrot.UI.Common.Rules.RuleAdd.TriggerKind, Params = json } } });
+        return true;
+    }
+
+    /// <summary>⭐ CE-4322 (L-3, LC-17) — End ALWAYS works for an Instructor / Author: both End controls (Rules toolbar, Mission summary) may end a scenario with no
+    /// <c>instructor-end</c> rule through <see cref="CreateOneShot"/> (the seat decides, as for editing rules), and the host's transport gets the Rules window's End
+    /// as its ender, so ■ in Live asks "End the exercise? / Keep running".</summary>
+    private void WireInstructorEnd()
+    {
+        if (_host.Recording || _host.EntityCreation == null) return;
+        foreach (var end in new[] { Rules.End, MissionSummary.End })
+        {
+            end.CreateOneShot = CreateOneShot;
+            end.SeatRefusal = () => RuleEditorServicesFactory.SeatRefusal(_host.Seat());
+        }
+        AttachEnder();
+    }
+
+    /// <summary>The host's transport, when it exists, ends the exercise through the Rules window's End (idempotent; called at construction and at compose).</summary>
+    private void AttachEnder()
+    {
+        if (!_host.Recording && _host.EntityCreation != null && _host.TimeTransport?.Invoke() is { } transport && transport.Ender == null) transport.Ender = Rules.End;
     }
 
     private Fdp.Presentation.WindowManager.WindowManager? _windows;
@@ -70,7 +95,8 @@ public sealed class RulesBundle : IUiBundle
         ctx.Windows.RegisterWindow(MissionSummary);
         ctx.Windows.RegisterWindow(TraineeDebrief);
         ctx.Windows.RegisterWindow(GameSummary);
-        if (!_host.Recording) ctx.Windows.RegisterFrameOverlay(WatchTheRun);   // ⭐ L-2 — every frame, on every host that composes the bundle (a recording opens nothing)
+        if (!_host.Recording) ctx.Windows.RegisterFrameOverlay(WatchTheRun);
+        AttachEnder();   // ⭐ CE-4322 — the transport may exist only by now   // ⭐ L-2 — every frame, on every host that composes the bundle (a recording opens nothing)
     }
 
     // ── ⭐ L-2 / CE-4320 (Scenario lifecycle LC-15, R-4166) — Mission summary opens when Live STARTS and again when the exercise ENDS, on EVERY host that composes

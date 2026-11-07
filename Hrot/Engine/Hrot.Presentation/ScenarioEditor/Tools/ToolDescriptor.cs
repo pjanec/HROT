@@ -59,6 +59,10 @@ namespace Hrot.ScenarioEditor.Tools
     /// <param name="ToggleOnReactivate">🔒 <c>Q27</c>: re-activating the current modal tool does NOT cancel
     /// it unless flagged. ⭐ <c>Edit</c>/<c>Route</c> set this — they toggled before this slice and must keep
     /// toggling; <c>Rotate</c> does not, because both hosts deliberately re-arm it.
+    /// <para>⭐ <b>B-17 P1</b> (📄 docs/UX/DESIGN_Map_Interaction.md §2.5 <i>"the armed tool is visible"</i>): <c>Hint</c> is the ONE line
+    /// that says what the next click does (<i>"click: add point · Esc: cancel"</i>), shown by the status line and by the cursor; <c>Glyph</c>
+    /// is its FontAwesome icon (drawn in the colour of its meaning, R-4139). A gizmo that knows more (<i>"4 points"</i>) overrides the hint
+    /// through <c>ToolController.SetHint</c>.</para>
     ///
     /// <para>⛔⛔ <b>The rule is keyed on (tool, TARGET), not on the tool alone</b> — see
     /// <see cref="ArmedTool"/>. 📐 Measured: <c>ToolActivationDrainSystem.ToggleEntityGizmo:176</c> keys its
@@ -70,7 +74,9 @@ namespace Hrot.ScenarioEditor.Tools
         ToolModality Modality,
         ToolArbiter  Arbiter,
         bool         ShowOnToolbar      = false,
-        bool         ToggleOnReactivate = false);
+        bool         ToggleOnReactivate = false,
+        string?      Hint               = null,
+        string?      Glyph              = null);
 
     /// <summary>
     /// ⭐⭐ <b>A modal tool AND the entity it armed on.</b> The modal stack is made of these, not of bare

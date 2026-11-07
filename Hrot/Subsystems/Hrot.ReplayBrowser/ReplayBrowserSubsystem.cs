@@ -84,6 +84,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     // ⭐ CE-1302 R1-c (DESIGN_Director_Timeline_Editor.md §9) — the event timeline over the primary node's recording: its index comes from
     //   the sidecar or a background pass on its own playback (TL-7), its clicks seek through the manager (D1, FederatedReplayCursor).
     private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
+    /// <summary>⭐ W-1 / P-8 8c-2 — the Event Timeline's Tasks rows (forwarding rails).</summary>
+    internal Hrot.Presentation.Orders.TasksTimelineTracks? TasksTracks { get; private set; }
     // ⭐ CE-3330 E6 — the ONE reopen-on-path-or-catalogue-change holder (shared with every ECS node's cluster-replay timeline)
     private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot? _timelineSlotField;
     private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot _timelineSlot => _timelineSlotField ??=
@@ -972,6 +974,13 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             () => _timelineLanes.Lanes(TimelineContext), color,
             onSelect: e => SelectTimelineEvent(e),        // ⭐ CE-3330 (R-4087 addendum 5) — the ONE selection, RB-7's path
             rowMenu: _timelineLanes.MenuItems));          // ⭐ CE-3330 (addendum 4) — the row's provider's items
+        // ⭐ W-1 / P-8 8c-2 (Mission plan E4) — the ONE Tasks row (all units) + the selection's task bars, over the recording's index
+        if (TasksTracks == null)
+        {
+            TasksTracks = new Hrot.Presentation.Orders.TasksTimelineTracks(() => _timelineSource, () => _activeRepo,
+                () => Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_activeRepo, _inspectorState?.SelectedEntity), n => SelectNetworkEntity(n));
+            _eventTimeline.AddTracks(TasksTracks.Tracks);
+        }
 
         // ⭐⭐ CE-4292 (Rules bundle R3) — the rules windows on a RECORDING: the ONE bundle every host composes (Rules · Mission summary · Trainee debrief ·
         //   Game summary; no Game master on a recording); read-only by construction, the moments seeking the recording through the viewer's cursor

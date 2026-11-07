@@ -118,7 +118,8 @@ namespace Hrot.UI.Common.Adapters
                     Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceArea,
                     "Draw Area",
                     Hrot.ScenarioEditor.Tools.ToolModality.Modal,
-                    Hrot.ScenarioEditor.Tools.ToolArbiter.Global),
+                    Hrot.ScenarioEditor.Tools.ToolArbiter.Global,
+                    Hint: "click: add point · right-click: finish · Esc: cancel", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),   // ⭐ B-17 P1 (today's gestures; P2 moves finish to Enter / ✓)
                 _ => ArmAreaAuthoring(_pendingAreaTkbType));
 
             _tools?.Register(
@@ -126,7 +127,8 @@ namespace Hrot.UI.Common.Adapters
                     Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceRoute,
                     "Draw Route",
                     Hrot.ScenarioEditor.Tools.ToolModality.Modal,
-                    Hrot.ScenarioEditor.Tools.ToolArbiter.Global),
+                    Hrot.ScenarioEditor.Tools.ToolArbiter.Global,
+                    Hint: "click: add point · right-click: finish · Esc: cancel", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Route),   // ⭐ B-17 P1 (today's gestures; P2 moves finish to Enter / ✓)
                 _ => ArmRouteAuthoring());
 
             // ⭐⭐ E5 — a terrain zone is drawn by the SAME mechanism with a different TkbType, so the
@@ -139,7 +141,8 @@ namespace Hrot.UI.Common.Adapters
                     Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceZone,
                     "Draw Zone",
                     Hrot.ScenarioEditor.Tools.ToolModality.Modal,
-                    Hrot.ScenarioEditor.Tools.ToolArbiter.Global),
+                    Hrot.ScenarioEditor.Tools.ToolArbiter.Global,
+                    Hint: "click: add point · right-click: finish · Esc: cancel", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),   // ⭐ B-17 P1 (today's gestures; P2 moves finish to Enter / ✓)
                 _ => ArmZoneAuthoring());
         }
 
@@ -273,6 +276,19 @@ namespace Hrot.UI.Common.Adapters
 
         /// <summary>⭐ CE-4244 — this node's one macro expander (null on a host that cannot expand).</summary>
         public Hrot.Common.Macros.MacroExpander? ExpanderOrNull => _creation.MacroExpansionSystem.Expander;
+
+        /// <summary>⭐ A5 — the ids this node's expansions take (a paste expands through the same expander with them).</summary>
+        public Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator IdAllocator => _creation.MacroExpansionSystem.IdAllocator;
+
+        /// <summary>⭐ A5 (📄 docs/UX/DESIGN_Entity_Copy_Paste.md §3) — arms the paste tool over <paramref name="clipboard"/> (the placement gesture, the copy's
+        /// ghosts); false with no gizmo manager or nothing copied.</summary>
+        public bool ArmPaste(Hrot.Common.Macros.EntityClipboard clipboard)
+        {
+            if (_globalGizmoManager == null || !clipboard.HasCopy) return false;
+            var id = GlobalGizmoManager.NewId();
+            _globalGizmoManager.Register(id, new Hrot.ScenarioEditor.Gizmos.PasteGizmo(clipboard, _creation.World, () => _globalGizmoManager!.Unregister(id)));
+            return true;
+        }
 
         /// <summary>⭐ CE-4244 (MP-2 b) — shows <paramref name="preview"/> at <paramref name="anchor"/> as a gizmo (replacing one already shown); false when this host has no gizmo manager.</summary>
         public bool ShowPreview(Hrot.Common.Macros.MacroPreviewResult preview, System.Numerics.Vector3 anchor)

@@ -242,7 +242,9 @@ namespace Hrot.ScenarioEditor.Map
                 startPlacementMode:  ctx.StartPlacementMode
                                      ?? (ctx.EntityAuthoring is null ? null : () => authoringRef?.Spawn?.ArmPlacement()),
                 reportUnserviceable: ctx.ReportUnserviceableTool,
-                measureUnits:        ctx.MeasureUnits);
+                measureUnits:        ctx.MeasureUnits,
+                services:            ctx.Services);   // ⭐ W-1 / P-8 8d-2 — the Plan tool's mission facade
+            MapUiStates.Set(ctx.World, tools);   // ⭐ B-17 P1 — the cursor hint, the status line and the gizmos find the ONE controller from the world
 
             // 🔴 GZH-003 headless-first, but NOT "disabled for everyone" (§3.2d ①): the only production
             // driver of AddListener() is PerspectiveCoordinatorSystem, so a standalone IG or editor has no
@@ -384,6 +386,8 @@ namespace Hrot.ScenarioEditor.Map
                             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
                         if (Fdp.Toolkit.Replay.ReplayState.IsActive(ctx.World))   // ⭐ DAR F7 — a recording takes no orders
                             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
+                        if ((int)Hrot.Common.Editing.StationMode.LevelOf(ctx.World) > (int)Hrot.Common.Editing.EditingLevel.Controller)   // ⭐ Seats H2 (CE-4279) — a Player / observer commands nothing
+                            return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
                         var id = GlobalGizmoManager.NewId();
                         globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id), rtsMode));
                         return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
@@ -402,15 +406,25 @@ namespace Hrot.ScenarioEditor.Map
                 var hostReason = hostInputs.SuspendedReason;
                 var inputs = hostInputs with
                 {
-                    SuspendedReason = () => Fdp.Toolkit.Replay.ReplayState.IsActive(ctx.World) ? "a recording is shown" : hostReason?.Invoke(),
+                    // ⭐ Seats H2 (CE-4279) — and greys for a seat that may not bring in units: a Player, an observer, a side controller, an instructor in Edit mode
+                    //   (the gate's own reason — one answer for the button and the edit it would submit)
+                    SuspendedReason = () => Fdp.Toolkit.Replay.ReplayState.IsActive(ctx.World) ? "a recording is shown"
+                        : Hrot.Common.Editing.HrotEditGate.Reason(Hrot.Common.Editing.StationMode.Of(ctx.World), Hrot.Common.Editing.StationMode.LevelOf(ctx.World))
+                          ?? hostReason?.Invoke(),
                 };
                 authoring = new Hrot.UI.Common.AddEntity.EntityAuthoring(inputs, ctx.World.Bus, globalManager, tools);
                 authoring.AddEntity.RegisterOn(actions);
+                authoring.CopyPaste = new Hrot.UI.Common.AddEntity.CopyPasteActions(() => authoring.Spawn, selection);   // ⭐ A5 — one clipboard per map, beside Add Entity
+                authoring.CopyPaste.RegisterOn(actions);
+                var clipboard = authoring.CopyPaste.Clipboard;
+                authoring.CanvasMenu.CanPaste = () => clipboard.HasCopy;   // ⭐ A5 C3 — the empty map's Paste
                 authoringRef = authoring;
                 authoringForForm = authoring;   // ⭐ CE-1059 — the order form's entity list opens in the same picker registry
             }
             var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
 
+            var hats = new HatArbiter(ctx.World, tools);
+            MapUiStates.Set(ctx.World, hats);
             var map = new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
@@ -419,6 +433,7 @@ namespace Hrot.ScenarioEditor.Map
             {
                 MenuOrders     = menuOrders,
                 MenuShortcuts  = new MenuShortcuts(ctx.World, bus, selection, tools),   // ⭐ CE-1076
+                Hats           = hats,   // ⭐ Seats H3 — one hat per map, by construction
                 OrderForm      = orderForm,
                 Host           = host,   // ⭐ CE-1150
             };
@@ -528,6 +543,8 @@ namespace Hrot.ScenarioEditor.Map
             //   resolution per tick, CE-1054), so the 2-D reading's altitude is the terrain's at that spot.
             var cursor = new MapCursorReadout();
             canvas.AddResource(cursor);
+            // ⭐ B-17 P1 — the map's tool controller, for the status line (ToolStatusSection, registered with the cursor section on every host)
+            canvas.AddResource(new MapToolsLink(() => MapUiStates.ToolsOf(worldProvider())));
 
             var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                           ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);

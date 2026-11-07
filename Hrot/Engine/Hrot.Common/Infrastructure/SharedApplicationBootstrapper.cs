@@ -235,11 +235,14 @@ public abstract class SharedApplicationBootstrapper
                 // ⭐⭐ B-11 A3 — the ONE station mode (cluster state + replay), installed on the world: the gate and the action catalogue read the same
                 //    source. ⛔ SUPERSEDED: the gate's own "a replay is Review, else Edit".
                 var slaveForMode = context.ClusterSlave;
+                //    ⭐ Seats H2 — and the SEAT (its level and side), so a menu, a tool and the gate read ONE answer.
                 var mode = Hrot.Common.Editing.StationMode.Install(gateWorld,
-                    () => Hrot.Common.Editing.StationMode.From(slaveForMode.View.State, Fdp.Toolkit.Replay.ReplayState.IsActive(gateWorld)));
+                    () => Hrot.Common.Editing.StationMode.From(slaveForMode.View.State, Fdp.Toolkit.Replay.ReplayState.IsActive(gateWorld)),
+                    seat: () => StationSeat.Of(features),
+                    side: () => Hrot.Common.Editing.StationMode.ParseSide(StationSeat.SideOf(features)));
                 Hrot.Common.Editing.HrotEditGate.Install(gateWorld,
                     () => mode.Current,
-                    () => Hrot.Common.Editing.HrotEditGate.LevelOf(StationSeat.Of(features)));
+                    () => mode.Level);
                 NodeFeatureOverrides.NoteDeclared(context.Features.Registry.All.Select(d => d.Id));   // F-18 — so the runner can refuse an id NO node declares
                 foreach (var (fid, fjson) in NodeFeatureOverrides.FromCommandLine)   // F-7 — --feature; an id this node does not declare is another node's
                     if (context.Features.Registry.Available(fid)) context.Features.SetNodeOverride(fid, fjson);

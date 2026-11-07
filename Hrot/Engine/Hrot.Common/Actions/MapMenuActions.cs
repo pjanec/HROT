@@ -83,9 +83,16 @@ namespace Hrot.Common.Actions
                         : new ContextMenuItemDto { Id = GlobalActionIds.Possess, Label = "Possess (FPS)", Shortcut = "P" },
             });
 
+            // ⭐ L-14 / CE-4314 (LC-6) — a plan copied onto other units: planned in Edit, re-planned in Live (the Orders tab's modes).
+            catalogue.Declare(new ActionDecl(GlobalActionIds.CopyPlan,  "Copy plan",  ActionGroup.Orders, First + 4, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
+                Offer = ctx => ctx.Unit.Orders ? new ContextMenuItemDto { Id = GlobalActionIds.CopyPlan, Label = "Copy plan" } : null });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.PastePlan, "Paste plan", ActionGroup.Orders, First + 5, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
+                Offer = ctx => ctx.Unit.Orders ? new ContextMenuItemDto { Id = GlobalActionIds.PastePlan, Label = "Paste plan" } : null });
+
             // ── Embark (⭐ CE-1230 OM-2, OM-3, R-1019 — the ONE place a unit is embarked / disembarked by hand) ─────────────────────────
             catalogue.Declare(new ActionDecl(GlobalActionIds.Disembark, "Disembark", ActionGroup.Embark, First, Unit)
             {
+                Execution = ActionExecution.PerEntity,   // ⭐ A4 (R-4162) — every selected unit gets off
                 Modes = ActionModes.InEdit | ActionModes.InLive,   // ⭐ A3 — planned in Edit, ordered in Live; not in a Preview, not in a recording
                 Offer = ctx => ctx.Unit.Embark == EmbarkOffer.Disembark ? new ContextMenuItemDto { Id = GlobalActionIds.Disembark, Label = "Disembark" } : null,
             });
@@ -100,13 +107,20 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.FollowUnit, "Follow with the camera", ActionGroup.View, First + 1, Unit));   // ⭐ CE-1293 (UC-2)
             catalogue.Declare(new ActionDecl(GlobalActionIds.Select, "Select", ActionGroup.View, First + 2, Everything) { Shortcut = "Space" });
             catalogue.Declare(new ActionDecl(GlobalActionIds.Properties, "Properties…", ActionGroup.View, First + 3, Everything));   // ⭐ CE-1135
-            catalogue.Declare(new ActionDecl(GlobalActionIds.SaveSelectionAsMacro, "Save selection as macro…", ActionGroup.View, First + 4, Unit) { Modes = ActionModes.InEdit });   // ⭐ CE-4210 MA-9 · R-4162: authoring only
+            catalogue.Declare(new ActionDecl(GlobalActionIds.SaveSelectionAsMacro, "Save selection as macro…", ActionGroup.View, First + 4, Unit) { Level = EditingLevel.Full, Modes = ActionModes.InEdit });   // ⭐ CE-4210 MA-9 · R-4162: authoring only
 
             // ── Edit ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+            // ⭐ A5 / LC-3 — Copy / Paste / Duplicate (units and graphics): one path in Edit and Live (DESIGN_Entity_Copy_Paste §2); the paste is the placement gesture
+            catalogue.Declare(new ActionDecl(GlobalActionIds.CopyEntities, "Copy", ActionGroup.Edit, First + 2, Everything) { Shortcut = "Ctrl+C", Modes = ActionModes.InEdit | ActionModes.InLive });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.PasteEntities, "Paste", ActionGroup.Edit, First + 3, Everything) { Shortcut = "Ctrl+V", Modes = ActionModes.InEdit | ActionModes.InLive });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.DuplicateEntities, "Duplicate", ActionGroup.Edit, First + 4, Everything) { Shortcut = "Ctrl+D", Modes = ActionModes.InEdit | ActionModes.InLive });
             catalogue.Declare(new ActionDecl(GlobalActionIds.Rotate, "Rotate", ActionGroup.Edit, First, Unit) { Shortcut = "R", Modes = ActionModes.InEdit | ActionModes.InLive });   // ⭐ R-4162 — the same modes as moving by drag and drop
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditOverlay, "Edit Shape", ActionGroup.Edit, First, ActionTarget.Area | ActionTarget.Zone) { Shortcut = "E", Modes = ActionModes.InEdit | ActionModes.InLive });
             catalogue.Declare(new ActionDecl(GlobalActionIds.LoadZone, "Load zone", ActionGroup.Edit, First + 1, ActionTarget.Zone) { Shortcut = "L", Modes = ActionModes.InEdit | ActionModes.InLive });   // ⭐ CE-3024 (E2) — always enabled: the load is cluster-wide
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditRoute, "Edit Route", ActionGroup.Edit, First, ActionTarget.Route) { Shortcut = "E", Modes = ActionModes.InEdit | ActionModes.InLive });
+            // ⭐ W-1 / P-8 8d-2 (DESIGN_Mission_Plan_Editor §5.8 E2) — drag a task's marker to move its place; the modes the plan is edited in (the Orders tab's)
+            catalogue.Declare(new ActionDecl(GlobalActionIds.EditPlan, "Edit plan on the map", ActionGroup.Edit, First + 1, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
+                Offer = ctx => ctx.Unit.Plan ? new ContextMenuItemDto { Id = GlobalActionIds.EditPlan, Label = "Edit plan on the map" } : null });
 
             // ── Debug (a unit) ────────────────────────────────────────────────────────────────────────────────────────────────────────
             catalogue.Declare(new ActionDecl(0, "Pin gizmos", ActionGroup.Debug, First, Unit)
@@ -119,7 +133,7 @@ namespace Hrot.Common.Actions
             });
 
             // ── Destructive (a graphic) ───────────────────────────────────────────────────────────────────────────────────────────────
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Graphic) { Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Graphic) { Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive, Execution = ActionExecution.PerEntity });   // ⭐ A4 — every selected one
         }
 
         private static IEnumerable<ContextMenuItemDto> OrderRows(ActionContext ctx)
@@ -179,10 +193,10 @@ namespace Hrot.Common.Actions
             }
             var ctx = ContextFor(view, entity);
             var u = ctx.Unit;
-            int modeBits = (int)ctx.Mode;
+            int modeBits = (int)ctx.Mode | ((int)ctx.Level << 2) | (ctx.Side is ForceId sd && ctx.UnitSide != sd ? 1 << 5 : 0);   // ⭐ Seats H2 — the seat greys rows: part of the key
             int flags = ctx.Target != ActionTarget.Unit ? 0
                 : (u.Degraded ? 1 : 0) | (u.Brain ? 2 : 0) | (u.Orders ? 4 : 0) | (u.Form ? 8 : 0) | (u.Manned ? 16 : 0)
-                  | ((int)u.Embark << 5) | ((int)u.Pins << 8) | (u.TraceOn ? 1 << 24 : 0);
+                  | ((int)u.Embark << 5) | ((int)u.Pins << 8) | (u.TraceOn ? 1 << 24 : 0) | (u.Plan ? 1 << 25 : 0);
             var key = (ctx.Target, flags | (modeBits << 26), u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);
             return Menus.GetOrAdd(key, _ => MenuComposer.Json(ctx));
         }
@@ -194,15 +208,17 @@ namespace Hrot.Common.Actions
             bool showsRecording = Fdp.Toolkit.Replay.ReplayState.IsActive(view);
             bool orders = Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view);   // ⭐ CE-1363 — the one shared test (the View menu asks it too)
             var mode = StationMode.Of(view);   // ⭐ B-11 A3 — the ONE station mode (the gate reads the same)
+            var level = StationMode.LevelOf(view);   // ⭐ Seats H2 — and the ONE seat: its level and side bound what the menu offers
+            var side = StationMode.SideOf(view);
 
             if (view.HasManagedComponent<EditablePolyline>(entity))
             {
                 bool isZone = view.HasComponent<TkbIdentity>(entity)   // ⭐ CE-3024 — a terrain zone is an area that can also be LOADED
                     && view.GetComponentRO<TkbIdentity>(entity).TkbType == Hrot.Map.Common.TkbEntityTypes.TerrainZone;
-                return new ActionContext(view, entity, isZone ? ActionTarget.Zone : ActionTarget.Area, mode, default);
+                return new ActionContext(view, entity, isZone ? ActionTarget.Zone : ActionTarget.Area, mode, default) { Level = level, Side = side };
             }
             if (view.HasManagedComponent<RoutePlan>(entity))
-                return new ActionContext(view, entity, ActionTarget.Route, mode, default);
+                return new ActionContext(view, entity, ActionTarget.Route, mode, default) { Level = level, Side = side };
 
             // ⭐ CE-196 — "degraded" is at or below half health; ⚠ Max <= 0 leaves it healthy.
             bool degraded = false;
@@ -225,8 +241,11 @@ namespace Hrot.Common.Actions
             bool traceOn = brain && repo != null && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(repo, entity) is var nid and not 0
                            && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(repo)?.IsTraceSet(nid) == true;
             // ⭐ as before: form and manned matter only where orders are offered
+            ForceId? unitSide = side is null ? null : repo != null && repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(entity) ? repo.GetComponentRO<EntityInfo>(entity).ForceId : ForceId.Neutral;   // ⭐ Seats H2 — as EntityOrders' side lock reads it
             return new ActionContext(view, entity, ActionTarget.Unit, mode,
-                new UnitFacts(degraded, brain, orders, dis, isUnit, form && orders, manned && orders, embark, pins, traceOn));
+                new UnitFacts(degraded, brain, orders, dis, isUnit, form && orders, manned && orders, embark, pins, traceOn,
+                    Plan: view.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(entity)))
+                { Level = level, Side = side, UnitSide = unitSide };
         }
     }
 }

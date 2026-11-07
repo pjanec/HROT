@@ -6,5 +6,5 @@ namespace Hrot.Common.Actions
     /// ⭐ B-11 A1 (docs/UX/DESIGN_Action_Catalogue.md §6) — the fixed order of a menu's groups. A separator stands between two non-empty groups,
     /// never anywhere else (📐 measured: that rule reproduces every menu <c>MenuJsonFor</c> built by hand).
     /// </summary>
-    public enum ActionGroup { Orders, Embark, View, Edit, Debug, Destructive }
+    public enum ActionGroup { Orders, Embark, View, Edit, Debug, Destructive, Run }   // ⭐ A6 — Run: the run-mode moves (first in every mode)
 }

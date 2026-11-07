@@ -39,7 +39,18 @@ public sealed class RunToController
     private readonly Func<bool> _inPreview;
     private readonly Func<EntityRepository?> _world;
     private readonly Action<float, bool>? _turbo;
+    private readonly Func<bool>? _enterPreview;
     private float _step = StepSeconds;
+
+    // ⭐ W-4 (LC-10 from Edit) — a run asked before the Preview is up: kept until the Preview has started (paused), then started
+    private bool _starting;
+    private double? _pendingAt;
+    private Func<EntityRepository, Entity, bool>? _pendingUntil;
+    private float? _pendingStep;
+    private int _startingFrames;
+
+    /// <summary>How many frames a run asked from Edit waits for the Preview to come up before it gives up (~30 s at 60 fps).</summary>
+    public const int EnterPreviewFrames = 1800;
 
     private double _target = double.NaN;
     private Func<EntityRepository, Entity, bool>? _until;
@@ -51,9 +62,12 @@ public sealed class RunToController
     /// <param name="world">The world the condition is asked about.</param>
     /// <param name="turbo">⭐ The networkless editor node only: run ONE node frame now, first taking a fixed step of the given seconds on the master
     /// when the bool is true. Null ⇒ the networked strategy.</param>
+    /// <param name="enterPreview">⭐ W-4 — starts the Preview, PAUSED at its first frame (the run choice's dry run), true when it was asked; lets
+    /// <see cref="Request"/> run from Edit. Null ⇒ Run to works only inside a Preview.</param>
     public RunToController(ITimeTransportFacade time, Func<bool> acksPending, Func<bool> inPreview, Func<EntityRepository?> world,
-        Action<float, bool>? turbo = null)
+        Action<float, bool>? turbo = null, Func<bool>? enterPreview = null)
     {
+        _enterPreview = enterPreview;
         _time = time ?? throw new ArgumentNullException(nameof(time));
         _acksPending = acksPending ?? throw new ArgumentNullException(nameof(acksPending));
         _inPreview = inPreview ?? throw new ArgumentNullException(nameof(inPreview));
@@ -69,6 +83,34 @@ public sealed class RunToController
 
     /// <summary>A run to … is going on.</summary>
     public bool IsRunning { get; private set; }
+
+    /// <summary>⭐ W-4 — a run was asked from Edit and waits for its Preview to come up.</summary>
+    public bool IsStarting => _starting;
+
+    /// <summary>The world the conditions are asked about (the Run to popup reads its phases and rules from it).</summary>
+    public EntityRepository? World => _world();
+
+    /// <summary>⭐ W-4 — this host can start a run from Edit (it was handed the Preview's door).</summary>
+    public bool CanStartFromEdit => _enterPreview != null;
+
+    /// <summary>
+    /// ⭐ W-4 (LC-10, the mode menu's <i>Run to …</i>) — <see cref="Start"/> from anywhere a Preview can begin: inside a Preview it IS
+    /// <see cref="Start"/>; from Edit it starts the Preview (paused) and starts the run once the Preview is up (<see cref="Tick"/>). The same
+    /// refusals as <see cref="Start"/>, checked again when the Preview is up (its clock starts at the scenario's start).
+    /// </summary>
+    public bool Request(double? atSeconds, Func<EntityRepository, Entity, bool>? until, float? stepSeconds = null)
+    {
+        if (_inPreview()) return Start(atSeconds, until, stepSeconds);
+        if (_enterPreview is null) return Start(atSeconds, until, stepSeconds);   // refused there, with its reason
+        if (atSeconds is null && until is null) { Status = "Run to needs a time or a condition."; return false; }
+        if (atSeconds is double t && !(t > 0)) { Status = $"{Clock(t)} is not after the start."; return false; }
+        if (IsRunning || _starting) { Status = "a run to … is already going on."; return false; }
+        if (!_enterPreview()) { Status = "the Preview cannot start now."; return false; }
+        _starting = true; _startingFrames = 0;
+        _pendingAt = atSeconds; _pendingUntil = until; _pendingStep = stepSeconds;
+        Status = "starting the Preview…";
+        return true;
+    }
 
     /// <summary>Why the last run stopped (<i>"reached 12:00"</i>, <i>"the condition held at 8:34"</i>, <i>"left Preview"</i>), or what it is doing.</summary>
     public string Status { get; private set; } = "";
@@ -99,6 +141,7 @@ public sealed class RunToController
     /// <summary>Stops the run where it is (paused).</summary>
     public void Cancel(string why = "stopped")
     {
+        if (_starting) { ClearStarting(); Status = why; return; }
         if (!IsRunning) return;
         Finish($"{why} at {Clock(_time.TotalTime)}");
     }
@@ -109,6 +152,7 @@ public sealed class RunToController
     /// </summary>
     public void Tick()
     {
+        if (_starting) { WaitForPreview(); return; }
         if (_turbo is null) { Advance(); return; }
         long start = System.Diagnostics.Stopwatch.GetTimestamp();
         long budget = (long)(TurboBudgetSeconds * System.Diagnostics.Stopwatch.Frequency);
@@ -133,6 +177,21 @@ public sealed class RunToController
         else _time.StepBy(_step);
     }
 
+    /// <summary>⭐ W-4 — a run asked from Edit: started once the Preview is up and paused; given up after <see cref="EnterPreviewFrames"/>.</summary>
+    private void WaitForPreview()
+    {
+        if (_inPreview() && _time.IsPaused)
+        {
+            var (at, until, step) = (_pendingAt, _pendingUntil, _pendingStep);
+            ClearStarting();
+            Start(at, until, step);   // a refusal leaves its reason in Status
+            return;
+        }
+        if (++_startingFrames > EnterPreviewFrames) { ClearStarting(); Status = "the Preview did not start."; }
+    }
+
+    private void ClearStarting() { _starting = false; _pendingUntil = null; _pendingAt = null; _pendingStep = null; }
+
     private void Finish(string status)
     {
         IsRunning = false;
@@ -141,7 +200,8 @@ public sealed class RunToController
         FramePacing.SetUnthrottled(false);
     }
 
-    private static string Clock(double seconds)
+    /// <summary>The clock as Run to words it (m:ss, h:mm:ss from an hour).</summary>
+    public static string Clock(double seconds)
     {
         var t = TimeSpan.FromSeconds(Math.Max(0, seconds));
         return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");

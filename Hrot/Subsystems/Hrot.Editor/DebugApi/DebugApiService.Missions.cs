@@ -14,7 +14,7 @@ namespace Hrot.Editor.DebugApi
     ///
     /// <para><b>One path, edit-time == runtime.</b> Every write here is
     /// <c>GetMissionSnapshot → modify → CommitMissionAsync(id, plan, baseVersion)</c> — a full-mission
-    /// replace with optimistic concurrency, exactly as <see cref="Hrot.UI.Common.Panels.MissionPanel"/>
+    /// replace with optimistic concurrency, exactly as the retired <c>MissionPanel</c> did (the Orders tab does now)
     /// does it (compare <c>HandleAddTask</c>/<c>HandleCommit</c>). ⛔ There is NO parallel write API and
     /// NO behaviour-name mapper: a task carries the behaviour name pass-through, and its params ride as the
     /// raw JSON string the behaviour's own resolver parses (CE-2145: no sender-side rewrite) — the SAME string the panel's params editor stores in

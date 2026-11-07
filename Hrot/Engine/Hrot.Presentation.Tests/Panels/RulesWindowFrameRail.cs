@@ -664,4 +664,37 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.StartsWith("Choose an area", window.Details.ConditionProblem);
         frame.Screenshot(ShotPath("rules-u15-blank.png"));
     }
+
+    /// <summary>
+    /// ⭐ W-1 (P-8, mission-plan-detail-visual.svg B) — the Phases group in a run: the violet flag, the number and title, how it begins, <i>begun 0:00</i>
+    /// for a phase that fired, <i>▶ Begin now</i> + <i>waiting</i> for one that has not; first, before the other rules. Renders <c>rules-phases.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void W1_ThePhasesGroup_OnARealFrame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        Add(30, "Approach", 0, 0, ObjectiveState.Active, ObjectiveRole.Trigger, trig: TriggerState.Done, fires: 1, lastFired: 0);
+        Add(31, "Assault", 0, 0, ObjectiveState.Active, ObjectiveRole.Trigger, trig: TriggerState.Armed);
+        Add(32, "Hold the bridge", 0, 0, ObjectiveState.Active);
+        foreach (var (id, phase) in new[] { (30, (byte)1), (31, (byte)2) })
+            foreach (var e in _world.Query().With<NetworkIdentity>().With<ObjectiveStatus>().Build())
+                if (_world.GetComponentRO<NetworkIdentity>(e).Value == id) { var st = _world.GetComponentRO<ObjectiveStatus>(e); st.Phase = phase; _world.SetComponent(e, st); }
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_phases", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 300d) { ListView = true };
+        using var frame = UiFrameHarness.Begin(1100, 220);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        Action draw = () =>
+        {
+            ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1100, 220));
+            ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+            window.DrawContent();
+            ImGui.End();
+        };
+        for (int i = 0; i < 6; i++) frame.Step(draw);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 }) frame.Screenshot(ShotPath("rules-phases.png"));
+        var marks = window.ListMarks;
+        Assert.Equal(new[] { 30, 31 }, marks.Take(2).Select(m => m.NetworkId));                       // the phases first, by number
+        var flag = NodeEditor.Core.Widgets.Icons.Get("rule/phase");
+        Assert.All(marks.Take(2), m => { Assert.Equal(flag.Glyph, m.Glyph); Assert.Equal(NodeEditor.Core.Widgets.IconPalette.Violet, m.Colour); });
+        Assert.Equal(32, marks[2].NetworkId);
+    }
 }

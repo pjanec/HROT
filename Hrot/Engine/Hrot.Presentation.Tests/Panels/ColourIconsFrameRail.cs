@@ -263,5 +263,36 @@ public sealed class ColourIconsFrameRail
         }
         finally { Raylib.UnloadImage(shot); }
     }
-}
 
+    /// <summary>
+    /// ⭐ L-5 / CE-4321 (LC-16) — on a real frame: the toolbar in a LIVE run draws ⏪ Review (amber, DAR's colour) beside ▶, and the Player's banner
+    /// <i>"REVIEW — the exercise is paused"</i> draws across the top in a DAR. Renders <c>review-button-and-banner.png</c>.
+    /// 🔴 Red-proof: the Rewind case removed from <c>DrawShape</c> ⇒ no amber pixels ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void L5_ReviewButtonBesidePlay_AndThePlayersBanner_OnARealFrame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin(640, 160);
+        RealFonts();
+        var section = new MainToolbarTimeControlSection(new FakeTimeTransportFacade { Mode = TransportMode.Live, TotalTime = 754, IsPlayPauseEnabled = true, IsStopEnabled = true });
+        void Draw()
+        {
+            ImGui.SetNextWindowPos(new Vector2(0, 90)); ImGui.SetNextWindowSize(new Vector2(640, 60));
+            ImGui.Begin("##toolbar", Bare);
+            section.Render();
+            ImGui.End();
+            Hrot.UI.Common.RunMode.ReviewBanner.Draw(TransportMode.Review);
+        }
+        for (int i = 0; i < 4; i++) frame.Step(Draw);
+        var shot = Raylib.LoadImageFromScreen();
+        try
+        {
+            Shoot(frame, "review-button-and-banner.png");
+            var amber = new Vector4(0.96f, 0.70f, 0.18f, 1f);
+            Assert.True(Extent(shot, 0, 90, 640, 150, p => Near(p, amber, 40)).Count > 30, "the ⏪ Review button is drawn in DAR amber on the toolbar");
+            Assert.True(Extent(shot, 0, 0, 640, 60, p => Near(p, amber, 40)).Count > 30, "the REVIEW banner's amber frame is drawn at the top");
+        }
+        finally { Raylib.UnloadImage(shot); }
+    }
+}

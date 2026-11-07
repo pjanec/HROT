@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using System;
 using System.IO;
+using System.Linq;
 using System.Collections.Generic;
 using Xunit;
 using Newtonsoft.Json;
@@ -256,6 +257,29 @@ namespace Hrot.ClusterRunner.Tests
             {
                 File.Delete(path);
             }
+        }
+
+        /// <summary>⭐ CE-4305 ② (R-4164, Seats and hats §2.2a) — the config file's <c>features</c> object is a node override layered BELOW <c>--feature</c>:
+        /// its entries come first, so a command-line entry for the same id wins (a node override list applies in order). 🔴 Red-proof (compiles): the file's
+        /// entries appended AFTER the command line ⇒ the order assertion fails.</summary>
+        [Fact]
+        public void CE4305_TheConfigFilesFeatures_AreANodeOverride_BelowTheCommandLine()
+        {
+            var path = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(path, "{ \"features\": { \"station.seat\": { \"Seat\": \"Instructor\" }, \"hud.kill-cam\": \"off\" } }");
+                var config = new RunnerConfiguration { ModeString = "all", NoWait = true, FeatureTexts = new[] { "station.seat={\"Seat\":\"Observer\"}" } };
+                config.MergeFromJsonFile(path);
+                config.Validate();
+
+                Assert.Equal(new[] { "station.seat", "hud.kill-cam", "station.seat" }, config.FeatureOverrides.Select(o => o.Id).ToArray());
+                Assert.Contains("Instructor", config.FeatureOverrides[0].Json);
+                Assert.Equal("{\"Enabled\":false}", config.FeatureOverrides[1].Json);    // "off" reads as --feature reads it
+                Assert.Contains("Observer", config.FeatureOverrides[2].Json);              // the command line last: it wins
+                Assert.Empty(RunnerConfiguration.FeaturesOf("{ \"DomainId\": 3 }"));    // no features object ⇒ none
+            }
+            finally { File.Delete(path); }
         }
 
         [Fact]

@@ -16,6 +16,11 @@ namespace Hrot.ScenarioEditor.Map
         private static readonly ConditionalWeakTable<EntityRepository, RubberBandState> Bands = new();
         private static readonly ConditionalWeakTable<EntityRepository, RtsModeState> Rts = new();
         private static readonly ConditionalWeakTable<EntityRepository, Fdp.Toolkit.Vis2D.MapCanvas> Canvases = new();
+        private static readonly ConditionalWeakTable<EntityRepository, HatArbiter> Hats = new();
+
+        /// <summary>⭐ Seats H3 — the map's ONE hat arbiter.</summary>
+        public static void Set(EntityRepository world, HatArbiter hats) => Hats.AddOrUpdate(world, hats);
+        public static HatArbiter? HatsOf(EntityRepository? world) => world != null && Hats.TryGetValue(world, out var h) ? h : null;
 
         public static void Set(EntityRepository world, RubberBandState band) => Bands.AddOrUpdate(world, band);
         public static void Set(EntityRepository world, RtsModeState mode) => Rts.AddOrUpdate(world, mode);
@@ -24,6 +29,12 @@ namespace Hrot.ScenarioEditor.Map
         public static RtsModeState? RtsOf(EntityRepository? world) => world != null && Rts.TryGetValue(world, out var r) ? r : null;
 
         /// <summary>⭐ CE-1134 — the map canvas showing <paramref name="world"/> (its current camera is 2-D or 3-D).</summary>
+        // ⭐ B-17 P1 (DESIGN_Map_Interaction §2.4) — the map's ONE tool controller, so what draws the armed tool (the cursor hint, the status line,
+        //   a gizmo stating its own line) finds it from the world, as the band and the RTS mode are found
+        private static readonly ConditionalWeakTable<EntityRepository, Hrot.ScenarioEditor.Tools.ToolController> Tools = new();
+        public static void Set(EntityRepository world, Hrot.ScenarioEditor.Tools.ToolController tools) => Tools.AddOrUpdate(world, tools);
+        public static Hrot.ScenarioEditor.Tools.ToolController? ToolsOf(EntityRepository? world) => world != null && Tools.TryGetValue(world, out var t) ? t : null;
+
         public static void Set(EntityRepository world, Fdp.Toolkit.Vis2D.MapCanvas canvas) => Canvases.AddOrUpdate(world, canvas);
         public static Fdp.Toolkit.Vis2D.MapCanvas? CanvasOf(EntityRepository? world) => world != null && Canvases.TryGetValue(world, out var c) ? c : null;
     }

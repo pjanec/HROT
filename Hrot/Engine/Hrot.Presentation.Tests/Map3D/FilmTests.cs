@@ -224,4 +224,58 @@ public sealed class FilmTests : System.IDisposable
         }
         finally { FilmStudio.Reset(); }
     }
+
+    private sealed class Gesture : Fdp.Toolkit.Vis2D.Abstractions.IInputProvider
+    {
+        public float Wheel; public bool Right, Left;
+        public Vector2 MousePosition => new(100, 100);
+        public Vector2 MouseDelta => Vector2.Zero;
+        public float MouseWheelMove => Wheel;
+        public bool IsMouseButtonPressed(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => b == Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton.Right ? Right : b == Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton.Left && Left;
+        public bool IsMouseButtonDown(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsMouseButtonReleased(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsKeyPressed(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public bool IsKeyDown(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public bool IsKeyReleased(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public int GetKeyPressed() => 0;
+        public bool IsMouseCaptured => false;
+        public bool IsKeyboardCaptured => false;
+    }
+
+    /// <summary>
+    /// ⭐ Seats H4 (docs/UX/DESIGN_Seats_And_Hats.md §3.4; 🔒 user: "while director is playing, i still like to move around (director overrides whenever he
+    /// wants …)") — a camera gesture during a playback takes the camera from the director at once; a left click does not (it selects); the director retakes it
+    /// at its NEXT cut, or never with <i>Director camera</i> off; a capture films the program (no grab). 🔴 Red-proof (compiles): <c>HandleInput</c> back to
+    /// <c>=&gt; false</c> ⇒ the director keeps the camera ⇒ red.
+    /// </summary>
+    [Fact]
+    public void H4_AGesture_TakesTheCameraFromTheDirector_WhichRetakesItAtItsNextCut()
+    {
+        using var world = new EntityRepository();
+        var camera = new MapCamera3D();
+        var director = new FilmDirector(() => world);
+        camera.Driver = director;
+
+        Assert.False(director.HandleInput(camera, new Gesture { Left = true }));
+        Assert.Same(director, camera.Driver);                                    // a click selects: the director keeps it
+        director.HandleInput(camera, new Gesture { Wheel = 1f });
+        Assert.Null(camera.Driver);                                              // the wheel: the user has it, from the current shot
+        Assert.True(FilmStudio.UserHoldsCamera);
+        Assert.True(FilmStudio.UserHoldsCamera);                                 // the same shot: still theirs
+        FilmStudio.NextCut();
+        Assert.False(FilmStudio.UserHoldsCamera);                                // the next shot: the director's again
+
+        FilmStudio.DirectorCamera = false;
+        camera.Driver = director;
+        director.HandleInput(camera, new Gesture { Right = true });
+        FilmStudio.NextCut(); FilmStudio.NextCut();
+        Assert.True(FilmStudio.UserHoldsCamera);                                 // Director camera off: never taken back
+
+        FilmStudio.Release();
+        Assert.False(FilmStudio.UserHoldsCamera);                                // the film ended
+        FilmStudio.CameraLocked = true;                                          // a capture films the program
+        camera.Driver = director;
+        director.HandleInput(camera, new Gesture { Wheel = 1f });
+        Assert.Same(director, camera.Driver);
+    }
 }

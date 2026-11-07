@@ -436,6 +436,37 @@ so P-7 adds a surface and deletes three, without a new write path.*
 | **7c** | D9: Edit mode = one `EditHistory` step per action; Live = **Commit** with the base version, Conflict → *Reload* / *Overwrite*; `TaskId` kept across edits (P-4) | the two-station conflict rail; an edit of task 4 while task 2 runs leaves task 2 running |
 | **7d** | retire the three `MissionPanel` instances (+ `MissionPanelWindow`, `ScenarioMissionView`); re-home `MissionPanelTests` / `MissionPanelRegistryTests` claims onto the model | the window-set rail per host (Mission window gone, Orders tab present) |
 
+**7c as built (ui, `2026-11-07`):** ⭐ **Edit mode — one undo step per Apply, BY CONSTRUCTION:** the commit is an `EditOp.Commit` through `Edits.Submit`
+(`ScenarioMissionService.cs:185`), which B-14 brackets (rail `WorldUndoTests.P7c_ACommitIsAnUndoStep_AnOrderIsNot`). **Live — Conflict → Reload /
+Overwrite:** `MissionCommitResult.Conflict` (set from the ack's `VersionConflictCode` and from a network outcome `EditStatus.Conflict`); the Orders tab
+keeps the draft and offers *Reload* (drop it, re-read) / *Overwrite* (re-send over the CURRENT version). ⛔ Two defects found and fixed on the way:
+(1) the facade's snapshot reported a CONSTANT version 0 — a base of 0 is "no precondition", so a conflict could never happen; it now reads
+`MissionControlExecutionSystem.VersionOf` (the one definition); (2) the snapshot mapped every task's triggers to an EMPTY list — the Orders tab
+showed every task as *when done* and an Apply WIPED the *then* / *give up* conditions. ⚠ Not closed in ui: the version is not on the wire, so a
+REPLICA (the editor in Live over CGF's units) still sends base 0 — asked of backend in `NOTE_Ui_To_Backend_Mission_Plan_Version_On_The_Wire.md`.
+Rails: `EditorMissionServiceTests.P7c_*` (2), `TheOrdersTabEditsTests.P7c_AConflict_*`, both red-proved.
+
+**7d as built (ui, `2026-11-07`) — DONE (the two stopped claims were built the same day, below):** ⭐ **Deleted:** `ScenarioMissionView` (`details.mission`), `MissionPanelWindow`, the ids
+`ScenarioPanelWindowIds.EditorMission` / `CgfMission`, `PanelIds.Mission`, and every host construction — `EditorSubsystem` (the window, the Scenario Details
+view, the per-frame `SelectedEntityId` sync, the `NetworkIdOf` helper) and `CgfSubsystem` (its panel + window). The `ui-baseline-editor` / `-all`
+`registered-windows.json` goldens lose `editor_mission` / `cgf_mission` (a deliberate one-line recapture each). **Acceptance rail:**
+`TheScenarioWindowsAreSharedTests.NoHostRegistersAMissionWindow_AndEveryHostHandsTheOrdersTabItsMissionFacade` (both hosts) +
+`TheEditorsDetailsCatalogue_HasTheOrdersTab_AndNoMissionTab`, red-proved by a compiling mutation. **Where each claim went:**
+offering rules (brain-only → orderable-or-has-a-plan, no service, none/two entities, rank, the network id not the index) ⇒ `TheOrdersTabEditsTests.P7d_*`;
+task-state colour ⇒ `TheOrdersTabTests.U3_EachTaskStateHasItsColour…`; the task's form from the host's lookup ⇒ `P7d_ATasksFormComesFromTheHostsLookup…`;
+consume-once / location / no-frame-service pick ⇒ `TheMapPickBrokerConsumesAPickOnceTests` (on the broker itself); `BehaviorParamsFormTests` now builds its form directly.
+**Dropped:** "two view instances do not share a panel" and "C010 MissionPanel is in `Hrot.Presentation`" (no subject left); the two dump rails
+(`EditorMissionWindowDumpsItsPlan`, `ScenarioMissionViewDumpsItsPanel`) — ⚠ the Orders tab has **no `PanelSnapshot` dump of its plan** (only `LastRows`), so the
+plan's rows are not observable over the debug API any more; and the real-frame glyph-pixel rail (the tab colours the task number, no glyph, and has no frame rail).
+⭐ **The two capabilities the panel had, now on the Orders tab — `MissionPanel` (+ its `PanelConstants` block) and `MissionPanelRegistryTests` DELETED:**
+(1) **per-task pick scope** — `OrdersTab.PickFor(taskId, then)` gives each task's form `ScopedMapPickContext(pick, "$.tasks[<task id>]")` and its *then* condition
+`…".then"`, cached per task (no allocation per frame). ⭐ Deviation, argued: keyed by the task's **id**, not its index (the panel's `$.tasks[i]`), so a pending pick follows its task through ↑ ↓.
+(2) **the CE-1059 entity LIST** — both hosts' Details brokers (`EditorSubsystem` `_formsPick`, CGF `cgfPickBroker`) get `EntityListSource.Opener`. Rails:
+`TheOrdersTabEditsTests.P7d_EachTasksPickIsScopedToThatTask_TheEntityListReachesIt_TheScopeIsCached` (re-homes P4 + CE-1059) and
+`TheScenarioWindowsAreSharedTests.EveryParamsFormHostPassesTheEntityList` (Editor 2, CGF 1). The task-sentence inputs (*then* preset, *min*, *%*, *give up after*) are
+named in `LabelFirstFormsFrameRail` as inline-in-a-sentence, the `ConditionEditor` family.
+⛔ **HISTORY:** 7d first stopped here with both capabilities missing (two user-visible regressions against the retired window).
+
 **7a + 7b as built (ui, `2026-11-07`):** `Hrot.Editor.AiShared.Shell` — `OrdersPlanModel` (rows as sentences, the queue's states), `OrdersPlanEdits`
 (new Wait / order / behaviour, the *then* presets, give up, move, `RefusalOf`, `Copy`) and `OrdersTab` (`details.orders`; a draft per unit,
 ↑ ↓ ✕, *+ Add task* — Wait first, then `OrderMenu.OfferedFor(dis)`, then the facade's behaviours — Apply = the whole plan with its base version
@@ -451,3 +482,207 @@ a plan or one that can be ordered. ⭐ Two measured deviations, both argued:
 host's map pick) — an order's type is its DTO from the ONE order registry (`OrderMenu.TryGetByName`, the lookup G1 resolves by), a behaviour's the
 host's `ParamsTypeOf` (new `EntityDetailsHostServices.ParamsTypeOf`, passed by Editor and CGF over their registries); *Advanced condition…* = the
 ONE `ConditionEditor` in the Mission context, opened on the task's current condition (`OrdersPlanEdits.ConditionOf`).
+
+### 5.12 P-8 (M3 + M5 / M6 UI) — as built *(behaviors, `2026-11-07`, W-1 of `HANDOFF_Coordinator_To_Behaviors_Taken_From_Ui.md`; built in slices)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Phase|RulesWindow|RulesModel).*` Class + grep `Status.Phase` ⇒ the phase reached the UI in ONE place
+(`RulesWindow.OpenGallery`'s next-number count) — and ⚠ measured broken there: `AuthoredRules.Parse` built the authored status WITHOUT `phase`,
+so before a run every rule read phase 0 (the gallery always offered *Phase 1*; `RunToChoices` listed no phase from Edit).
+
+**8a — the Rules window's Phases group, *Begin now* (mockup B) — BUILT:**
+
+```mermaid
+classDiagram
+  class AuthoredRules { <<existing>> Parse → + Phase from common.phase (the authored twin of ObjectiveRules.Display) }
+  class RulesModel { <<existing>> Build → + group "Phases" FIRST: phase triggers by number, out of their own group }
+  class RulesWindow { <<existing>> DrawList → + DrawPhaseRow · PhaseLineOf · PhaseRightOf }
+  class RuleSentence { <<existing>> + PhaseBegins(json, deadline, refs) }
+  class RuleCommands { <<existing>> Control(..., Fire, Instructor) }
+  RulesModel ..> AuthoredRules : authored rows
+  RulesWindow --> RulesModel
+  RulesWindow ..> RuleSentence : "begins …" (cached per params)
+  RulesWindow --> RuleCommands : Begin now = the trigger's Fire (D5)
+```
+*What the picture shows: no phase store — a phase is a trigger (D5); the group is a VIEW of the rules model, so the List and the Timeline
+views agree, and Begin now is the instructor's existing Fire.*
+
+| decision | why |
+|---|---|
+| the Phases group leads whatever the grouping (Macro / Subject / Side) | the operation's order is read first (mockup B); a phase is shown once — it leaves its own group |
+| right side: nothing before a run · *begun m:ss* (green) once it fired · *▶ Begin now* + *waiting* otherwise; greyed with `RuleCommands.DisabledReason` | D5: *Begin now* IS the trigger's Fire (`RuleOrigin.Instructor`); the mockup's columns |
+| *"begins at the start"* for `ScenarioTime ≥ 0`, else *"begins when …"* (the ONE condition sentence) + *" · latest m:ss"* (`deadlineSeconds`) | E3: the phase's no-later-than is the rule's deadline |
+| ⚠ deviations | ▶ in *Begin now* is white, not green (ImGui buttons draw one text colour); the mockup's *latest H+20* reads *latest 20:00* (the window's one clock format) |
+
+Rails: `RulesModelTests.W1_*` (the group first by number, authored too — red-proved by dropping the authored projection; the right side; the words) ·
+`RulesWindowFrameRail.W1_ThePhasesGroup_OnARealFrame` (`rules-phases.png`). ⏳ next: the plan on the map (8d, M3 / E2).
+
+**8b — the *then* picker's phase, rule and unit entries, *New rule…* — BUILT:**
+
+| the picker shows | stored (§5.6) | read back |
+|---|---|---|
+| *when a phase begins* + which phase | `OrdersPlanEdits.ThenRuleFires(link)` = `PlanConditionCache.PhaseBegins` — the trigger fired | `ThenPreset.RuleFires` + `TargetOf` — shown as a phase when the target's `phase` > 0 |
+| *when a rule fires* + which rule | the same shape (a phase IS a trigger, D5) | the same |
+| *when a unit finishes a task* + unit + task N | `ThenUnitFinishes(unit, N)` = `TaskFinished { Unit, Task }` (1-based) | `ThenPreset.UnitFinishesTask` + N + `TargetOf` |
+| *New rule…* | nothing (the *then* is unchanged) | asks the host's `AddRuleAboutUnit` (the Rules gallery about this unit, CE-4308) — the author then picks it under *when a rule fires* |
+
+| decision | why |
+|---|---|
+| one stored shape for *phase begins* and *rule fires*; the picker tells them apart by the target's `phase` | D5: a phase IS a trigger — ⛔ no second condition type |
+| the choices (triggers via `RulesReader` — authored ones too; units with a `MissionPlanQueue`) read at most once a second | the Orders tab draws every frame (R-2084) |
+| `OrdersTab` takes the host's actions (`EntityDetailsBundle` passes `host.Host`) | the silent-default rule — the bundle held them; `OrdersTabDescriptor.For(…, host)` forwards, railed on the constructed tab |
+| ⚠ deviation from mockup A | the picker is ui's P-7 combo (no ▸ submenus, no coloured glyphs): 8b adds its entries there with a second chooser beside it. The popup form is P-7's fidelity, ui's |
+
+Rails: `TheOrdersTabTests.P8b_*` (read back as themselves with the target — red-proved by dropping the target read; the phases first, authored too;
+the descriptor forwards the host).
+
+**8c — the ONE Tasks lane (E4) — BUILT (data 8c, drawing 8c-2):**
+
+```mermaid
+classDiagram
+  class MissionPlanQueue { <<existing, recorded>> CurrentTask · TaskCount · Outcomes · Halted + LatestOutcome (read-only property) }
+  class BehaviourTimelineLanes { <<existing, Behavior toolkit>> + Tasks "mission.tasks" (group Tasks) }
+  class TasksLane { <<NEW, pure>> Markers(index, into, unitFilter) · Bars(markers, unit, lastFrame, into) }
+  class TaskMarker { <<NEW>> Frame · Unit · Task (1-based) · Started / Done / Failed }
+  class ShippedTimelineLanes { <<existing>> the ONE catalogue — every host's timeline }
+  BehaviourTimelineLanes ..> MissionPlanQueue : value change, Value CurrentTask · X LatestOutcome · Y TaskCount
+  ShippedTimelineLanes --> BehaviourTimelineLanes
+  TasksLane ..> BehaviourTimelineLanes : reads the lane's entries
+  TasksLane --> TaskMarker
+```
+*What the picture shows: no new store and nothing on the wire — the lane is a value-change projection of the recorded queue (R-4078: the
+toolkit that owns the data registers it), so the live timeline, a recording and a replica read one history; a thousand units are ONE lane
+because every marker carries its unit.*
+
+| decision | why |
+|---|---|
+| `LatestOutcome` a read-only PROPERTY (the task before `CurrentTask`, or the current one when halted) | the projection reads properties; ⛔ no stored field, no translator change (replicas already get `Outcomes`) |
+| one entry per plan move; the reader expands a jump of several tasks into Done markers and the latest's own outcome | a value-change lane sees states, not events |
+| a new plan (task back to 1 or a new count) and a halt read as Started / Failed once | E1 / CE-483 |
+| ⛔ SUPERSEDED (8c-2 built): *"8c-2 needs a per-lane renderer seam"* — the rows are TRACKS instead (below); the lane itself is `Hidden` (indexed, not drawn as plain dots) | the panel already draws coloured items per track; a lane renderer would have been a second drawing path |
+
+**8c-2 — the rows on the Event Timeline (mockup C) — BUILT:** `TasksTimelineTracks` (Hrot.Presentation/Orders) gives the panel three rows —
+*Tasks* (a collapsible header), *all units* (a key per start / Done / Failed in blue / green / red, labelled *"Alpha 1-1 · task 2 Failed"*, a click
+selects that unit) and the SELECTED unit's bars (*"Alpha 1-1 ▸"*: each task from start to end, green Done · red Failed · amber running). The
+panel takes them through `TimelinePanel.AddTracks` — ⭐ a second track owner beside the director's `Tracks` (one reused buffer, 0 B a steady
+frame). Composed on the editor and the Replay Browser where each builds its Event Timeline (`TasksTracks`, over the same shown source and the
+host's ONE selection). Items are rebuilt only when the index grows or the selection changes.
+
+| ⚠ deviation from mockup C | why |
+|---|---|
+| the markers are the panel's coloured diamonds, not ▶ / ✓ / ✕ glyphs | a track item draws a diamond or a bar; the colour carries the kind (the mockup's colours) |
+| no phase columns across the rows | the panel has no full-height column for a track; the phases are already the Rules window's Phases group and the rules lanes — ⏳ a column seam if wanted |
+
+Rails: `TheTasksTimelineTracksTests` (Presentation.Tests — the rows, colours, labels and bars, red-proved by the Failed colour mapped to Done; a
+thousand units one row, built once; a real frame beside another owner's tracks — `tasks-timeline.png`).
+
+Rails: `TheTasksLaneTests.P8c_*` (Fdp.Toolkits.Tests — a plan's starts and ends with how each ended, red-proved by `LatestOutcome` reading the
+current task; a halt and a new plan; a thousand units, one lane, the unit filter) · `TimelineIndexTests.CE3330_Node_TheShippedCatalog…` (19 lanes).
+
+**8d-1 — the plan ON THE MAP, read-only (M3 / E2) — BUILT into the ONE plan drawing; 8d-2 (drag a marker = edit its field) BUILT below; right-click *Add task ▸* ⏳ (needs the catalogue's `Ground` target, Action Catalogue A5):**
+
+INVENTORY (re-run after a first cut): `scripts/cbm.sh search_graph name_pattern=".*Mission.*(Gizmo|Overlay|Layer|Presentation).*"` ⇒
+**`MissionPresentationGizmo`** (GZ058, a `[GizmoProjector]` in the Path family since CE-3123 — every map host, its own Paths checkbox, which
+units by the family policy) already drew a unit's plan as lines — ⚠ to a behaviour's `"target"` key ONLY, so an `Order.*` task (its place is
+`Location`) drew nothing. ⛔ SUPERSEDED: a first cut added a second drawing (`MissionPlanOverlayGizmo`, registered by hand beside the fire-mission
+overlay) — deleted the same day: two drawings of one plan (ruling 9).
+
+```mermaid
+classDiagram
+  class MissionPresentationGizmo { <<existing GizmoProjector, Path family>> Draw — the route + numbered markers }
+  class MissionPlanPlaces { <<NEW, pure>> Of(plan) cached per plan value · PlacesOf(plan) }
+  class ActiveMissionPlan { <<existing record>> Plan.Tasks (BehaviorName, BehaviorParams) }
+  class MapPreviews { <<existing>> Has(type) + PlaceOf(value, refs) }
+  class OrderMenu { <<existing>> TryGetByName(kind) Dto }
+  MissionPresentationGizmo ..> MissionPlanPlaces : each task's place value
+  MissionPlanPlaces ..> OrderMenu : an Order.* task's DTO
+  MissionPlanPlaces ..> MapPreviews : the FIRST field whose type has a place
+  MissionPresentationGizmo ..> MapPreviews : PlaceOf at draw time (a moving target is followed)
+  MissionPresentationGizmo ..> ActiveMissionPlan
+```
+*What the picture shows: no new "task place" field (E2's rejected `[TaskPlace]`) and no second drawing — the order's DTO type says which fields
+are places, the one show-on-map table resolves them, and the plan's one gizmo draws them on every map host through its family membership.*
+
+| decision | why |
+|---|---|
+| a task's place: its order DTO's FIRST place field (declaration order), else a legacy behaviour's `"target"`, else the previous task's place | E2; the `"target"` read is the gizmo's old behaviour, kept |
+| the route from the unit, solid to task 1 then dashed, in the unit's side colour; numbered markers done green / running amber / planned grey (`MissionPlanQueue.CurrentTask`); a placeless task adds no zero-length line | mockup `mission-plan-editor.svg`; ⛔ SUPERSEDED: the orange → blue gradient lines |
+| which units: the Path family's policy (selected / pinned / all) | CE-3123 — ⛔ no selection check of its own |
+| `MapPreviews.PlaceOf` extracted from `MapPreviews.Draw` | ONE resolution of "where is this value" |
+| ⚠ deviation: the number sits just BELOW its marker | map text anchors at its top-left (no centring); the show-on-map labels sit the same way |
+| ✅ 8d-2 drag (below) · ⏳ *Add task ▸* | the drag commits through `IMissionEditorService.CommitMissionAsync` (P-7 7c — one undo step in Edit, conflict-checked in Live); *Add task ▸* waits for A5 |
+
+Rails: `MenuOrdersTests.P8d_TheSelectedUnitsPlan_IsNumberedMarkersAndItsRoute` (places, Hold at the previous place — red-proved by placing it at the
+unit; two lines, three markers) · `MissionPlanOverlayFrameRail.P8d_ThePlanOnARealMapFrame` (`mission-plan-map.png` — the amber and green markers on a
+real 2-D frame) · `DebugTraceGizmoTests.CE1203_TheMissionLines_AreOnThePathsLayer` (unchanged, green).
+
+**8d-2 — drag a task's marker = edit its place (E2) — BUILT:**
+
+INVENTORY: `scripts/cbm.sh search_graph name_pattern=".*(Waypoint|Vertex|Route).*Gizmo.*"` ⇒ `RouteWaypointGizmo`, `VertexEditGizmo` — the
+exclusive-focus draggable-handle pattern, armed by `ScenarioToolRegistrations.ToggleEntityGizmo<T>` (the one toggle, the onRemove pair, the
+netId-anchor guard); `grep CommitMissionAsync` ⇒ one production caller, the Orders tab (P-7) — the map commits through the same facade.
+
+```mermaid
+classDiagram
+  class MissionPlanEditGizmo { <<NEW IEntityStatefulGizmo>> handles · drag preview · Commit(task, to) }
+  class MissionPresentationGizmo { <<existing projector>> Draw · PositionsOf(view, unit, plan, at) — NEW, the ONE "where each task sits" }
+  class MissionPlanPlaces { <<existing>> Of · IsMovable(place) NEW · MovePlace(order, json, to) NEW }
+  class IMissionEditorService { <<existing facade>> GetMissionSnapshot · CommitMissionAsync }
+  class ScenarioToolRegistrations { <<existing>> Plan tool NEW (not on the toolbar) · ToggleEntityGizmo~ActiveMissionPlan~ }
+  class MapServices { <<existing>> Of(...) — a Func~object?~ entry resolved when asked NEW }
+  class MapMenuActions { <<existing>> EditPlan 2409 — offered when UnitFacts.Plan }
+  MissionPlanEditGizmo ..> MissionPresentationGizmo : PositionsOf (handles sit on the markers)
+  MissionPlanEditGizmo ..> MissionPlanPlaces : IsMovable · MovePlace
+  MissionPlanEditGizmo ..> IMissionEditorService : snapshot → commit the whole plan
+  ScenarioToolRegistrations ..> MissionPlanEditGizmo : arms (ctx.Services → the facade, at activation)
+  ScenarioToolRegistrations ..> MapServices
+```
+*What the picture shows: no second drawing (the edit gizmo draws handles and the drag's preview only), no second "where is task N" (one
+`PositionsOf`), no second first-place rule (`MovePlace` and `Of` share `FirstPlaceMember`), no second commit path (the Orders tab's facade).*
+
+```mermaid
+sequenceDiagram
+  actor Op as operator
+  participant Menu as unit menu (catalogue)
+  participant Tools as ToolController (map pack)
+  participant G as MissionPlanEditGizmo
+  participant F as IMissionEditorService
+  participant X as MissionControlExecutionSystem
+  Op->>Menu: right-click a planned unit → Edit plan on the map
+  Menu->>Tools: Activate(scenario.plan, unit)
+  Tools->>G: ToggleEntityGizmo — new gizmo (facade from ctx.Services)
+  Op->>G: drag handle 3
+  G->>G: preview at the mouse
+  Op->>G: release
+  G->>F: GetMissionSnapshot(net) → (plan, version)
+  G->>G: MovePlace(task 3) → new params
+  G->>F: CommitMissionAsync(net, plan, version)
+  F->>X: EditOp.Commit → CMD_REPLACE_MISSION (undo step / conflict)
+  X-->>G: ActiveMissionPlan replaced → the drawing shows the new place
+```
+
+```mermaid
+graph TD
+  Pack["MapInteractionPack.Build — every map host"] --> Reg["ScenarioToolRegistrations.RegisterAll(services: ctx.Services)"]
+  Reg --> Plan[Plan tool]
+  Ed["EditorSubsystem: Services = MapServices.Of(geo, registry, lazy missionService)"] --> Pack
+  Cgf[CgfSubsystem: the same] --> Pack
+  Other[IG · SimHost · ReplayBrowser · Player: no mission facade] -.->|activation REPORTS 'no mission editor'| Plan
+  EdAct[EditorSubsystem binds EditPlan 2409] --> Plan
+```
+*Who reaches it: every host registers the tool (the no-whitelist ruling); the editor and CGF hold the facade (built AFTER the map — hence
+the lazy `Func<object?>` entry); the menu action is bound by the editor (CGF shows it greyed — not bound there, like Edit Route).*
+
+| decision | why |
+|---|---|
+| a handle only on a task whose first place is a POINT (`PointLink`) | an entity target is where the entity is; an area is reshaped by its own editor |
+| the drag writes coordinates (a named point's binding is replaced), the field's own height kept | a drag is a place on the map, not a reference |
+| the whole plan committed at the snapshot's version | P-7 7c: one undo step in Edit, a CONFLICT in Live when it moved |
+| the moved marker stays where it was dropped until the plan value changes or the commit settles | no jump back while the commit is in flight |
+| ⚠ deviation from the mockup (*"drag a numbered marker"* with no mode): the drag needs **Edit plan on the map** (the Plan tool), like Edit Route | an always-on handle would win the hit-test over the unit and the map's selection drag (§4.7g.1 — handles beat entity boxes only for an ACTIVE tool) |
+| *Add task ▸* not built | the ground menu is still `CanvasMenuUpdateSystem`; the catalogue's `Ground` target is A5 (ui), and a menu click carries no world point yet ⇒ ⛔ a second ground menu would be the duplicate A5 removes |
+
+Rails: `MenuOrdersTests.P8d2_EditPlanOnTheMap_IsOfferedOnAPlannedUnit_AndArmsThePlanTool` (offered only with a plan; a host with no facade
+REPORTS; with one the tool arms — red-proved by the pack not forwarding `ctx.Services`) · `MenuOrdersTests.P8d2_DraggingATasksMarker_MovesItsPlace_AndCommitsThePlan`
+(handles on the point tasks only, at the markers; the drag rewrites task 3's `Location`, task 1 untouched, the snapshot's version sent; the Hold
+has no handle; right-click ends it) · `MissionPlanOverlayFrameRail.P8d_ThePlanOnARealMapFrame` (+ `mission-plan-drag.png` — the dragged marker
+amber where the mouse is).

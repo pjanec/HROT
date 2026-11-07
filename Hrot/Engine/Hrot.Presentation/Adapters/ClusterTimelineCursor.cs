@@ -144,33 +144,62 @@ public sealed class ClusterTimelineCursor : ITimelineCursor
     /// (seek, then the built branch). In any run: <i>Take checkpoint here</i> — ⚠ a checkpoint is a keyframe of the LIVE recorder, so it exists only at the live edge (Live); a past moment,
     /// a DAR and an AAR show the item greyed with the reason. The DAR item of Live is the panel's own (<see cref="EnterReview"/>).
     /// </summary>
-    public IEnumerable<TimelineMenuItem> ModeMenuItems(long wallTicks, string time)
+    public IEnumerable<TimelineMenuItem> ModeMenuItems(long wallTicks, string time) => ModeMenuItems(wallTicks, time, null, null);
+
+    /// <summary>⭐ A6 — this host composes the DAR rows with the other run-mode moves (the panel draws none of its own).</summary>
+    public bool ComposesReviewItems => true;
+
+    /// <summary>
+    /// ⭐ A6 (📄 docs/UX/DESIGN_Action_Catalogue.md §9) — the run-mode moves at the clicked moment / event, COMPOSED from the action catalogue
+    /// (<see cref="Hrot.Common.Actions.RunModeActions"/>: the declaration and the words, once) and BOUND here, through the host's ONE run choice:
+    /// <i>DAR from {t}</i> / <i>from this event</i> (Live), <i>AAR from {t}</i> (Live), <i>Go live from {t}</i> (an AAR), <i>Take checkpoint here</i>
+    /// (any run — a keyframe of the LIVE recorder, so only at the live edge; elsewhere greyed with the reason). None asks.
+    /// </summary>
+    public IEnumerable<TimelineMenuItem> ModeMenuItems(long wallTicks, string time, long? eventTicks, string? eventLane)
     {
-        if (_facade() is not { RunChoice: { } choice }) yield break;
+        if (_facade() is not { RunChoice: { } choice } f) return Array.Empty<TimelineMenuItem>();
         var mode = Mode;
-        if (mode == TimelineMode.Live)
-        {
-            var index = Index;
-            bool hasSim = CanReview;   // the live index carries a sim column
-            var why = choice.AarFromHereDisabledReason ?? (hasSim ? null : "the timeline has no sim time yet");
-            yield return new TimelineMenuItem(Label($"AAR from {time}", why),
-                () => { if (CanReview) choice.AarFromHere(index.FrameSim[index.FrameAt(wallTicks)]); }, why is null);
-        }
-        if (mode == TimelineMode.Replay)
-        {
-            var why = choice.GoLiveFromHereDisabledReason;
-            yield return new TimelineMenuItem(Label($"Go live from {time}", why), () => choice.GoLiveFromHere(() => Seek(wallTicks)), why is null);
-        }
-        if (mode is TimelineMode.Live or TimelineMode.Review or TimelineMode.Replay)
-        {
-            var why = choice.CheckpointDisabledReason
-                      ?? (mode == TimelineMode.Live && Math.Abs(wallTicks - Now) > Tps ? "a checkpoint captures the live state now — click the live edge" : null)
-                      ?? (mode == TimelineMode.Review ? "go back to live to take one" : null);
-            yield return new TimelineMenuItem(Label("Take checkpoint here", why), choice.TakeCheckpoint, why is null);
-        }
+        var target = eventTicks is null ? Hrot.Common.Actions.ActionTarget.Moment : Hrot.Common.Actions.ActionTarget.Event;
+        var ctx = Hrot.Common.Actions.ActionContext.ForMoment(target, RunModeBinding.ModeOf(f.Mode), time, wallTicks, eventLane);
+        var rows = RunModeBinding.Rows(ctx, dto => Bind(dto.Id, choice, mode, wallTicks, eventTicks));
+        var items = new List<TimelineMenuItem>(rows.Count);
+        foreach (var r in rows) items.Add(new TimelineMenuItem(r.ShownWithIcon, r.Run, r.Why is null));
+        return items;
     }
 
-    private static string Label(string label, string? disabledReason) => disabledReason is null ? label : $"{label} — {disabledReason}";
+    private RunModeBinding.Binding? Bind(int id, RunModeChoice choice, TimelineMode mode, long wallTicks, long? eventTicks)
+    {
+        switch (id)
+        {
+            case Hrot.Common.Constants.GlobalActionIds.DarFromHere:
+            case Hrot.Common.Constants.GlobalActionIds.DarFromEvent:
+            {
+                if (mode != TimelineMode.Live) return null;
+                long at = id == Hrot.Common.Constants.GlobalActionIds.DarFromEvent && eventTicks is { } e ? e : wallTicks;
+                var why = choice.DarDisabledReason ?? (CanReview ? null : "the timeline has no sim time yet");
+                return new(() => EnterReview(at), why);
+            }
+            case Hrot.Common.Constants.GlobalActionIds.AarFromHere:
+            {
+                if (mode != TimelineMode.Live) return null;
+                var index = Index;
+                var why = choice.AarFromHereDisabledReason ?? (CanReview ? null : "the timeline has no sim time yet");
+                return new(() => { if (CanReview) choice.AarFromHere(index.FrameSim[index.FrameAt(wallTicks)]); }, why);
+            }
+            case Hrot.Common.Constants.GlobalActionIds.GoLiveFromHere:
+                return mode == TimelineMode.Replay ? new(() => choice.GoLiveFromHere(() => Seek(wallTicks)), choice.GoLiveFromHereDisabledReason) : null;   // a DAR goes back with ⏏
+            case Hrot.Common.Constants.GlobalActionIds.TakeCheckpointHere:
+            {
+                if (mode is not (TimelineMode.Live or TimelineMode.Review or TimelineMode.Replay)) return null;
+                var why = choice.CheckpointDisabledReason
+                          ?? (mode == TimelineMode.Live && Math.Abs(wallTicks - Now) > Tps ? "a checkpoint captures the live state now — click the live edge" : null)
+                          ?? (mode == TimelineMode.Review ? "go back to live to take one" : null);
+                return new(choice.TakeCheckpoint, why);
+            }
+            default:
+                return null;   // a run-mode move this surface does not offer (the playhead's)
+        }
+    }
 
     public long? LivePoint => ActiveSession is { IsReview: true, LivePointSeconds: { } l } s ? s.ZeroWallTicks + (long)Math.Round(l * Tps) : null;
 

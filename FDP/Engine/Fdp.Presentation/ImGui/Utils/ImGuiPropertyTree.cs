@@ -42,6 +42,26 @@ public static class ImGuiPropertyTree
     // Process-wide member cache keyed by Type.
     private static readonly Dictionary<Type, MemberInfo[]> _memberCache = new();
 
+    /// <summary>⭐ CE-4310 (D6) — a RAIL's eye on what the tree draws: called once per drawn row with its path, HOW it was drawn (<c>leaf</c> text · <c>renderer</c> · <c>summary</c> ·
+    /// <c>fold</c> = an expandable node with nothing in the value cell) and its text. <c>null</c> in production (one reference test per row, nothing allocated).</summary>
+    internal static Action<string, string, string>? RowObserver;
+
+    /// <summary>⭐ CE-4310 (D6) — a bulk request for the nested nodes: <c>true</c> = open every foldable node (the reflector's Expand All), <c>false</c> = close them, <c>null</c> = leave them as they are.
+    /// Set by <c>ComponentReflector.DrawComponents</c> around its loop (UI thread only).</summary>
+    public static bool? ForceOpen;
+
+    /// <summary>A collection of at most this many elements is open by default (a longer one is one click away — the tree stays readable).</summary>
+    private const int OpenByDefaultUpTo = 16;
+
+    /// <summary>⭐ CE-4310 — the flags of a foldable node: a nested struct is open by default (the raw tab is a debugging tool: the person asked for the fields); a collection when it is short.</summary>
+    private static ImGuiTreeNodeFlags FoldFlags(object? value, int shortLimit = OpenByDefaultUpTo)
+    {
+        var flags = ImGuiTreeNodeFlags.SpanAvailWidth;
+        if (ForceOpen is bool force) ImGuiApi.SetNextItemOpen(force, ImGuiCond.Always);
+        else if (value != null && (!IsCollectionType(value.GetType()) || GetCount(value) <= shortLimit)) flags |= ImGuiTreeNodeFlags.DefaultOpen;
+        return flags;
+    }
+
     // ── Public entry point ────────────────────────────────────────────────────
 
     /// <summary>
@@ -141,7 +161,7 @@ public static class ImGuiPropertyTree
             {
                 opened = ImGuiApi.TreeNodeEx(
                     $"{name}##{depth}_{i}",
-                    ImGuiTreeNodeFlags.SpanAvailWidth);
+                    FoldFlags(value));
                 FormGrid.Note(ImGuiApi.CalcTextSize(name).X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
             }
             else
@@ -166,7 +186,7 @@ public static class ImGuiPropertyTree
 
             // ── Value column ───────────────────────────────────────────
             ImGuiApi.TableSetColumnIndex(1);
-            RenderValueCell(value, effectiveType, contextType, isFoldable);
+            RenderValueCell(value, effectiveType, contextType, isFoldable, memberPath);
 
             // ── Recurse into children ──
             if (opened && value != null)
@@ -209,18 +229,22 @@ public static class ImGuiPropertyTree
         }
     }
 
-    private static void RenderValueCell(object? value, Type mType, Type? contextType, bool isFoldable)
+    private static void RenderValueCell(object? value, Type mType, Type? contextType, bool isFoldable, string path)
     {
         if (value == null)
         {
             ImGuiApi.TextDisabled("null");
+            RowObserver?.Invoke(path, "null", "null");
             return;
         }
 
         // Try a registered custom renderer first.
         var renderer = ImGuiRendererRegistry.GetRenderer(mType, contextType);
         if (renderer != null && renderer.RenderValue(value))
+        {
+            RowObserver?.Invoke(path, "renderer", renderer.GetSummary(value) ?? string.Empty);
             return;
+        }
 
         // Default rendering
         if (isFoldable)
@@ -228,10 +252,12 @@ public static class ImGuiPropertyTree
             if (value is FixedListItems fl)
             {
                 ImGuiApi.TextDisabled($"[{fl.Count} of {fl.Capacity}]");
+                RowObserver?.Invoke(path, "fold", $"[{fl.Count} of {fl.Capacity}]");
             }
             else if (IsCollectionType(mType) || IsCollectionType(value.GetType()))
             {
                 ImGuiApi.TextDisabled($"[{GetCount(value)}]");
+                RowObserver?.Invoke(path, "fold", $"[{GetCount(value)}]");
             }
             else if (renderer != null)
             {
@@ -239,13 +265,15 @@ public static class ImGuiPropertyTree
                 string? summary = renderer.GetSummary(value);
                 if (!string.IsNullOrEmpty(summary))
                     ImGuiApi.TextDisabled(summary);
+                RowObserver?.Invoke(path, "summary", summary ?? string.Empty);
                 // else: leave blank (default behaviour)
             }
-            // else: complex struct/class — value cell is intentionally blank
+            else RowObserver?.Invoke(path, "fold", string.Empty);   // complex struct/class — value cell is intentionally blank
         }
         else
         {
             ImGuiApi.Text(FormatLeaf(value));
+            RowObserver?.Invoke(path, "leaf", FormatLeaf(value));
         }
     }
 
@@ -255,6 +283,7 @@ public static class ImGuiPropertyTree
         if (depth >= MaxDepth) return;
 
         int idx = 0;
+        int count = GetCount(collection);
         foreach (var item in (IEnumerable)collection)
         {
             string elementPath = jsonPath + "[" + idx + "]";
@@ -268,7 +297,7 @@ public static class ImGuiPropertyTree
             {
                 opened = ImGuiApi.TreeNodeEx(
                     $"[{idx}]##{depth}_{idx}",
-                    ImGuiTreeNodeFlags.SpanAvailWidth);
+                    FoldFlags(item, shortLimit: 0) | (count <= 4 ? ImGuiTreeNodeFlags.DefaultOpen : 0));
                 FormGrid.Note(ImGuiApi.CalcTextSize("[000]").X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
             }
             else
@@ -292,7 +321,10 @@ public static class ImGuiPropertyTree
             if (item == null)
                 ImGuiApi.TextDisabled("null");
             else if (!foldable)
+            {
                 ImGuiApi.Text(FormatLeaf(item));
+                RowObserver?.Invoke(elementPath, "leaf", FormatLeaf(item));
+            }
 
             if (opened && item != null)
             {
@@ -321,6 +353,9 @@ public static class ImGuiPropertyTree
         // Compact well-known structs rendered inline by built-in renderers
         if (t == typeof(Vector2) || t == typeof(Vector3) || t == typeof(Vector4)) return true;
         if (t == typeof(Quaternion)) return true;
+        // ⭐ CE-4310 (D6) — the SAME types the edit forms draw as ONE leaf (the reference / picked types: EntityRef, EntityLink, PointLink, AreaLink, WorldPoint, Bearing, RefKey) and the
+        //   sim time types read as their text, not as an expandable struct of raw members
+        if (Fdp.Presentation.Editing.ReferenceLeafDrawers.Handles(t) || t == typeof(Fdp.Core.SimInstant) || t == typeof(Fdp.Core.SimDuration)) return true;
         // Nullable<T> wrapping a leaf
         var u = Nullable.GetUnderlyingType(t);
         if (u != null && IsLeafType(u)) return true;

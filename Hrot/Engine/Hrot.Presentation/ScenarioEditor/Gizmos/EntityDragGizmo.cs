@@ -156,6 +156,8 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     public void OnDragUpdate(Vector3 worldPos)
     {
         if (!_view.IsAlive(_entity)) return;
+        // ⭐ B-14 / undo U2 — the preview writes the world directly, so the step's "before" is taken HERE, before the first preview write
+        if (!_isDragging) Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_view as EntityRepository, "Move");
         _isDragging     = true;
         _currentDragPos = worldPos + _dragOffset;
         ApplyPosition(_currentDragPos);
@@ -163,12 +165,16 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
 
     public void OnCommit(Vector3 worldPos)
     {
-        if (!_view.IsAlive(_entity)) return;
+        if (!_view.IsAlive(_entity)) { CloseAbandoned(); return; }
 
         if (_isDragging)
         {
-            CommitPosition(_currentDragPos);
-            OnDragCommitted?.Invoke(_entity, new Vector2(_currentDragPos.X, _currentDragPos.Y));
+            try
+            {
+                CommitPosition(_currentDragPos);
+                OnDragCommitted?.Invoke(_entity, new Vector2(_currentDragPos.X, _currentDragPos.Y));
+            }
+            finally { Fdp.Toolkit.Replication.Edits.EditSteps.End(_view as EntityRepository); }   // one step: the drag and its commit
         }
 
         _isDragging = false;
@@ -176,9 +182,17 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
 
     public void OnCancel()
     {
-        if (!_view.IsAlive(_entity)) return;
+        if (!_view.IsAlive(_entity)) { CloseAbandoned(); return; }
+        if (_isDragging) Fdp.Toolkit.Replication.Edits.EditSteps.Cancel(_view as EntityRepository);
         _isDragging = false;
         ApplyPosition(_originalPos);
+    }
+
+    /// <summary>The entity died mid-drag: the open step is abandoned (never left open — it would swallow every later step).</summary>
+    private void CloseAbandoned()
+    {
+        if (_isDragging) Fdp.Toolkit.Replication.Edits.EditSteps.Cancel(_view as EntityRepository);
+        _isDragging = false;
     }
 
     public void OnMenuAction(int actionId) { }

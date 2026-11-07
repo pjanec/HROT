@@ -94,6 +94,24 @@ public sealed class TimelinePanel
     /// Camera); null or empty = none, every existing host unchanged. The panel draws, hit-tests, selects and drags; it knows nothing about takes.</summary>
     public Func<IReadOnlyList<ITimelineTrack>>? Tracks { get; set; }
 
+    // ⭐ W-1 / P-8 8c-2 — more than one owner of track rows: Tracks (the director's take) keeps its one setter; a feature adds its rows here
+    //   (the mission plan's Tasks rows). Drawn after Tracks' rows, in the order added; concatenated into one reused buffer (0 B per steady frame).
+    private readonly List<Func<IReadOnlyList<ITimelineTrack>>> _extraTracks = new();
+    private readonly List<ITimelineTrack> _allTracks = new();
+
+    /// <summary>⭐ W-1 / P-8 8c-2 — adds a source of track rows drawn after <see cref="Tracks"/>' (a feature's own rows; never replaces another owner's).</summary>
+    public void AddTracks(Func<IReadOnlyList<ITimelineTrack>> source) => _extraTracks.Add(source ?? throw new ArgumentNullException(nameof(source)));
+
+    private IReadOnlyList<ITimelineTrack>? CollectTracks()
+    {
+        var first = Tracks?.Invoke();
+        if (_extraTracks.Count == 0) return first;
+        _allTracks.Clear();
+        if (first != null) for (int i = 0; i < first.Count; i++) _allTracks.Add(first[i]);
+        for (int s = 0; s < _extraTracks.Count; s++) { var more = _extraTracks[s](); for (int i = 0; i < more.Count; i++) _allTracks.Add(more[i]); }
+        return _allTracks.Count == 0 && first == null ? null : _allTracks;
+    }
+
     /// <summary>⭐ <c>CE-4216</c> (RV-3a) — draw the ruler and the tracks' headers even when no track holds an item yet (the rules view before a run: authored rows have no past). Off by default: the director's empty tracks keep "No recording.".</summary>
     public bool ExtentWithoutItems { get; set; }
 
@@ -166,7 +184,7 @@ public sealed class TimelinePanel
         lanes = TimelineLayout.Drawn(lanes);   // ⭐ CE-4117: a hidden lane is not drawn
         if (_gesture.Active && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) _gesture.Release();   // ⭐ CE-1364 T2 — commits once, wherever it is released (T10's lesson)
         _trackHits.Clear(); _handles.Clear(); _rowBands.Clear(); _connectors.Clear();
-        _tracksNow = Tracks?.Invoke();
+        _tracksNow = CollectTracks();
         _labelWidth = TrackLayout.LabelWidthFor(_tracksNow, FlatLabelWidth, TreeLabelWidth);   // ⭐ CE-4167 X3
         // ⭐ CE-3330 T13 — everything below is on the ACTIVE axis: the index's frame times, the extent, "now" and every seek go through it
         var axis = cursor?.Axis ?? TimelineAxis.Wall;
@@ -863,14 +881,15 @@ public sealed class TimelinePanel
     {
         var items = new List<TimelineMenuItem>();
         var t = index.FrameTicks;
-        if (cursor is { Mode: TimelineMode.Live, CanReview: true })   // ⭐ CE-3330 E2 (R-3059) — a live host seeks by ENTERING A REVIEW
+        if (cursor is { Mode: TimelineMode.Live, CanReview: true, ComposesReviewItems: false })   // ⭐ CE-3330 E2 (R-3059) — a live host seeks by ENTERING A REVIEW; ⭐ A6: unless the host composes it
         {
             // ⭐ AQ108 D17 — the user's word is DAR (During Action Review); the code keeps EnterReview
             items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} DAR from {time}", () => cursor.EnterReview(at)));
             if (ev is { } re && re.Frame < t.Count)
                 items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} DAR from this event ({nameOf?.Invoke(re.Lane) ?? re.Lane})", () => cursor.EnterReview(t[re.Frame])));
         }
-        if (cursor != null) items.AddRange(cursor.ModeMenuItems(at, time));   // ⭐ CE-4097 part two (D21) — AAR from here · Go live from here · Take checkpoint here
+        if (cursor != null)   // ⭐ CE-4097 part two (D21) — AAR from here · Go live from here · Take checkpoint here; ⭐ A6 — with the clicked event, for the host's composed DAR rows
+            items.AddRange(cursor.ModeMenuItems(at, time, ev is { } ce && ce.Frame < t.Count ? t[ce.Frame] : null, ev is { } le ? nameOf?.Invoke(le.Lane) ?? le.Lane : null));
         if (cursor is { CanSeek: true })
         {
             items.Add(new TimelineMenuItem($"Seek here ({time})", () => cursor.Seek(at)));

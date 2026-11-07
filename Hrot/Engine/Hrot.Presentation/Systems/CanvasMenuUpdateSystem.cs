@@ -25,7 +25,11 @@ namespace Hrot.Presentation.Systems
         private static readonly object MeasureItem = new { id = 200, label = "Measurement Tool" };
 
         private readonly AddEntityAction? _addEntity;
-        private (bool Available, string? Reason)? _builtFor;
+        private (bool Available, string? Reason, bool Paste)? _builtFor;
+
+        /// <summary>⭐ A5 C3 (📄 docs/UX/DESIGN_Entity_Copy_Paste.md §4) — whether this map's clipboard holds a copy: the menu then offers <i>Paste</i>
+        /// (it arms the ONE paste tool, greyed with Add Entity's reason). Set by the map pack beside the clipboard; null ⇒ no Paste.</summary>
+        public System.Func<bool>? CanPaste { get; set; }
         private string _json = "";
 
         /// <summary>Creates the system. <paramref name="addEntity"/> is the map's shared Add Entity action
@@ -35,17 +39,23 @@ namespace Hrot.Presentation.Systems
         /// <summary>The menu JSON for the current state (also what <see cref="Execute"/> publishes).</summary>
         public string CurrentJson()
         {
-            var key = (_addEntity?.IsAvailable == true, _addEntity?.SuspendedReason);
+            var key = (_addEntity?.IsAvailable == true, _addEntity?.SuspendedReason, CanPaste?.Invoke() == true);
             if (_builtFor != key)
             {
-                var items = new List<object>(2);
+                var items = new List<object>(3);
                 if (key.Item1) items.Add(AddEntityAction.MenuItem(key.Item2));
+                if (key.Item1 && key.Item3) items.Add(PasteItem(key.Item2));
                 items.Add(MeasureItem);
                 _json = AddEntityAction.ToJson(items);
                 _builtFor = key;
             }
             return _json;
         }
+
+        /// <summary>⭐ A5 C3 — the empty map's <i>Paste</i> row (the action <c>PasteEntities</c>, the ONE paste path), greyed with <paramref name="suspendedReason"/>.</summary>
+        public static object PasteItem(string? suspendedReason) => suspendedReason is null
+            ? new { id = Hrot.Common.Constants.GlobalActionIds.PasteEntities, label = "Paste", shortcut = "Ctrl+V" }
+            : new { id = Hrot.Common.Constants.GlobalActionIds.PasteEntities, label = $"Paste ({suspendedReason})", shortcut = "Ctrl+V", enabled = false };   // as Add Entity words it
 
         public void Execute(ISimulationView view, float deltaTime)
         {

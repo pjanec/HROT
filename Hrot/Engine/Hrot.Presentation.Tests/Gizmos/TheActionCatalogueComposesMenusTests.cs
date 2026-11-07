@@ -77,4 +77,53 @@ public sealed class TheActionCatalogueComposesMenusTests
         Assert.Equal("Move,—,Center", Rows(EditingMode.Live));
         Assert.Equal("Center", Rows(EditingMode.Review));
     }
+
+    /// <summary>⭐ Seats H2 (docs/UX/DESIGN_Seats_And_Hats.md §3.2, CE-4279) — the composer GREYS (never hides) what the seat may not do, with the reason:
+    /// a Player gets no orders, no edits, no debug — only the View group; a side controller's orders are greyed on another side's unit; an instructor's
+    /// edits are greyed in Edit mode and offered while running. 🔴 Red-proof (compiles): <c>SeatRefusal</c> answering null ⇒ every row enabled ⇒ red.</summary>
+    [Fact]
+    public void H2_TheSeatGreysWhatItMayNotDo_WithTheReason_NeverHides()
+    {
+        var c = new ActionCatalogue();
+        c.Declare(new ActionDecl(1, "Center", ActionGroup.View, 0, ActionTarget.Unit));
+        c.Declare(new ActionDecl(2, "Rotate", ActionGroup.Edit, 0, ActionTarget.Unit));
+        c.Declare(new ActionDecl(3, "Move", ActionGroup.Orders, 0, ActionTarget.Unit));
+        c.Declare(new ActionDecl(4, "AI trace", ActionGroup.Debug, 0, ActionTarget.Unit));
+        string Rows(EditingMode m, EditingLevel level, ForceId? side = null, ForceId? unit = null)
+            => string.Join(",", MenuComposer.Compose(new ActionContext(null!, Entity.Null, ActionTarget.Unit, m, default) { Level = level, Side = side, UnitSide = unit }, c)
+                .Where(r => r.IsSeparator != true).Select(r => r.Label + (r.Enabled == false ? "(x)" : "")));
+
+        Assert.Equal("Move,Center,Rotate,AI trace", Rows(EditingMode.Live, EditingLevel.Full));
+        Assert.Equal("Move(x),Center,Rotate(x),AI trace(x)", Rows(EditingMode.Live, EditingLevel.None));             // a Player: View only, the rest greyed
+        Assert.Equal("Move,Center,Rotate(x),AI trace(x)", Rows(EditingMode.Live, EditingLevel.Controller, ForceId.Friend, ForceId.Friend));
+        Assert.Equal("Move(x),Center,Rotate(x),AI trace(x)", Rows(EditingMode.Live, EditingLevel.Controller, ForceId.Friend, ForceId.Hostile));   // not its side
+        Assert.Equal("Rotate(x),Center,Move,AI trace(x)", Rows(EditingMode.Edit, EditingLevel.Instructor));           // an instructor does not author
+        Assert.Equal("Move,Center,Rotate,AI trace(x)", Rows(EditingMode.Live, EditingLevel.Instructor));              // …but edits a running exercise
+
+        var player = MenuComposer.Compose(new ActionContext(null!, Entity.Null, ActionTarget.Unit, EditingMode.Live, default) { Level = EditingLevel.None }, c);
+        Assert.Equal(ActionContext.SeatText(EditingLevel.None), player.First(r => r.Label == "Move").Tooltip);
+    }
+
+    /// <summary>⭐ Seats H2 — the station's seat on the ONE station source: its level (D4) and its side ("Blue" = Friend); none installed ⇒ Full, every side.
+    /// And the gate's reasons: an instructor refused only in Edit mode, a side controller refused edits but not orders.</summary>
+    [Fact]
+    public void H2_TheStationSourceCarriesTheSeat_AndTheGateRefusesByIt()
+    {
+        using var w = new EntityRepository();
+        Assert.Equal(EditingLevel.Full, StationMode.LevelOf(w));
+        Assert.Null(StationMode.SideOf(w));
+        StationMode.Install(w, () => EditingMode.Live, () => Hrot.Common.Infrastructure.Seat.SideController, () => StationMode.ParseSide("Blue"));
+        Assert.Equal(EditingLevel.Controller, StationMode.LevelOf(w));
+        Assert.Equal(ForceId.Friend, StationMode.SideOf(w));
+        Assert.Equal(ForceId.Hostile, StationMode.ParseSide("hostile"));
+        Assert.Null(StationMode.ParseSide(""));
+        Assert.Null(StationMode.ParseSide("Purple"));
+
+        Assert.Equal(HrotEditGate.InstructorDoesNotAuthor, HrotEditGate.Reason(EditingMode.Edit, EditingLevel.Instructor));
+        Assert.Null(HrotEditGate.Reason(EditingMode.Live, EditingLevel.Instructor));
+        Assert.Null(HrotEditGate.Reason(EditingMode.Edit, EditingLevel.Full));
+        Assert.NotNull(HrotEditGate.Reason(EditingMode.Live, EditingLevel.Controller));
+        var gate = new HrotEditGate(() => EditingMode.Live, () => EditingLevel.Controller);
+        Assert.Null(gate.Refuse(w, Fdp.Toolkit.Replication.Edits.EditOp.Command(Entity.Null, _ => { }, "Move")));   // an order is a controller's job
+    }
 }

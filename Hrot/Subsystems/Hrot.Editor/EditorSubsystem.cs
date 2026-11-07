@@ -265,12 +265,19 @@ namespace Hrot.Editor
         private readonly Hrot.Editor.Scenario.HeaderParamsSchemaSource _headerParams;   // ⭐ CE-4210 P2 (MA-5)
         private Hrot.Editor.Scenario.ParametersDrawer? _parametersDrawer;
         private Hrot.Editor.Scenario.SaveSelectionAsMacroWindow? _saveSelectionWindow;   // ⭐ CE-4210 MA-9
+        private Hrot.Presentation.Windows.ProblemsWindow? _problemsWindow;   // ⭐ CE-4318 (L-6)
+        /// <summary>⭐ CE-4318 — the Problems count sits right after the time control group (0) and its separator (10).</summary>
+        internal const int ProblemsCountSortOrder = 15;
+        /// <summary>⭐ CE-4318 — the editor's Problems window (rails).</summary>
+        internal Hrot.Presentation.Windows.ProblemsWindow? ProblemsWindow => _problemsWindow;
         private Action<Action<string>>? _openMacroPicker;   // ⭐ CE-4210 MA-8 — the scenario picker's Macros group, for the instance's "Change…" (set once the picker exists)
 
         // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR is its NODE CONTEXT's: the
         //   lanes, the live index and the lane context are the ones every ECS node has (HrotNodeContext.Timeline); the editor runs its own
         //   frame, so it steps the index itself (StepTimeline) where the context's Tick would. Drawn by the shared TimelinePanel.
         private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
+        /// <summary>⭐ W-1 / P-8 8c-2 — the Event Timeline's Tasks rows (forwarding rails).</summary>
+        internal Hrot.Presentation.Orders.TasksTimelineTracks? TasksTracks { get; private set; }
 
         /// <summary>⭐ CE-3330 — the live event timeline's index: the node context's (null before Initialize / after Shutdown).</summary>
         internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? LiveTimeline => _node?.Timeline;
@@ -305,6 +312,30 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-4216 (R2) — Window ▸ Rules; kept so the Details panel's Objectives tab can open a rule in it (RV-7).</summary>
         /// <summary>⭐ CE-4218 (R5a) — THE editor undo history: the Parameters window and the rule editor push to it.</summary>
         internal Hrot.Presentation.Edits.EditHistory EditHistory { get; } = new();
+
+        private bool _undoRecorderInstalled, _undoSessionWired;
+
+        /// <summary>⭐ B-14 / Edit-mode undo U2 + U5 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.2) — the world's step recorder writes world steps onto the ONE
+        /// <see cref="EditHistory"/> (Edit mode only); the session's Save marks the clean point and an open / create / clear (or a Live load) starts over.
+        /// Called where the world + ring and where the session come into being (either order); each half once.</summary>
+        private void WireWorldUndo()
+        {
+            if (!_undoRecorderInstalled && _world is { } world && _clusterHandlers is { } handlers)
+            {
+                _undoRecorderInstalled = true;
+                Fdp.Toolkit.Replication.Edits.EditSteps.Install(world, UndoRecorder = new Hrot.Presentation.Edits.WorldUndoRecorder(EditHistory, handlers.UndoRing,
+                    recording: () => Hrot.Common.Editing.StationMode.Of(world) == Hrot.Common.Editing.EditingMode.Edit));
+            }
+            if (!_undoSessionWired && _editorApp?.ScenarioSession is Hrot.Editor.AiShared.Scenarios.EditorScenarioSession session)
+            {
+                _undoSessionWired = true;
+                session.Saved  += EditHistory.MarkSaved;
+                session.Opened += () => { EditHistory.Clear(); _clusterHandlers?.UndoRing.Clear(); };
+            }
+        }
+
+        /// <summary>⭐ B-14 — the world's step recorder (null until the world exists); a rail reads it.</summary>
+        internal Hrot.Presentation.Edits.WorldUndoRecorder? UndoRecorder { get; private set; }
         private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
         private Hrot.Editor.AiShared.Rules.RulesBundle? _rulesBundle;
         /// <summary>⭐ CE-4292 — the rules bundle this host composed (forwarding rails).</summary>
@@ -376,6 +407,7 @@ namespace Hrot.Editor
         private Hrot.UI.Common.RunMode.RunToController? _runTo;
         /// <summary>⭐ CE-4316 — Run to …, for the debug API and the mode menu.</summary>
         internal Hrot.UI.Common.RunMode.RunToController? RunTo => _runTo;
+        Hrot.UI.Common.RunMode.RunToController? Hrot.UI.Common.RunMode.IProvidesRunControls.RunTo => _runTo;   // ⭐ W-4 — the toolbar's Run to … (the silent-default rule: a host that HAS one hands it)
         private MapViewConfig?                  _mapViewConfig;
 
         // ?? UI panels (legacy, always created) ????????????????????????????????
@@ -385,7 +417,6 @@ namespace Hrot.Editor
         // ?? Shared UI panels (skipped in headless) ????????????????????????????
 
         private SpawnerPanel?    _spawnerPanel;
-        private MissionPanel?    _missionPanel;
         private ConfigPanel?     _configPanel;
         private SharedOrbatPanel? _sharedOrbatPanel;
         private PreviewPanel?    _previewPanel;
@@ -478,7 +509,7 @@ namespace Hrot.Editor
         // ⛔ This was a DefaultSelectionState: a HashSet with no connection to the world, while
         //   SelectionInteractionSystem wrote the SelectionState component. ⇒ Update() fed the
         //   Mission Editor from the hash set and ctx.Entities read the component, and the two
-        //   disagreed on every map click -- the divergence ScenarioMissionView's remarks record.
+        //   disagreed on every map click -- the divergence the retired Mission view's remarks recorded.
         private ISelectionState? _selectionState;
 
         /// ⭐ UXI-11 — the shared map pack, kept so the selection view and the systems this host
@@ -1377,6 +1408,7 @@ namespace Hrot.Editor
                 leaveRun: () => _previewController?.ForgetPreview());
             _editorLogic = app;
             _editorApp   = app;
+            WireWorldUndo();   // ⭐ B-14 — the session exists now
 
             // ⭐⭐ CE-1321 (BV-68) — THE C# behaviour rebuild (toolbar button and POST /ai/reload): build, copy into the watched
             //   directory, await the swap. The signal subscribes to the coordinator only when a rebuild runs, so it fires AFTER the
@@ -1456,7 +1488,9 @@ namespace Hrot.Editor
                 inPreview:   () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview,
                 world:       () => _world,
                 // ⭐⭐ the TURBO strategy (DESIGN_Time_Architecture.md §20) — only on a NETWORKLESS node: no ACK leaves the process, so a step can land in place
-                turbo:       _networkFactory is OfflineNetworkFactory ? TurboStep : null);
+                turbo:       _networkFactory is OfflineNetworkFactory ? TurboStep : null,
+                // ⭐ W-4 — Run to … from Edit: the run choice's dry run, paused at its first frame, then the run (one door into Preview)
+                enterPreview: () => _timeTransport?.RunChoice?.EnterPreviewPaused() ?? false);
             // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
             //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
             if (_orchestratorCore != null && _timeTransport.RunChoice is { } panelChoice && _editorApp?.ScenarioSession is { } panelSession)
@@ -1853,7 +1887,7 @@ namespace Hrot.Editor
             }
 
             // ?? 11. UI panels ?????????????????????????????????????????????????
-            _toolbarPanel = new EditorToolbarPanel();
+            _toolbarPanel = new EditorToolbarPanel(() => _editorToolController?.ActiveModal?.Id);   // ⭐ B-17 P1 — the armed tool is lit
 
             if (!_headless)
             {
@@ -1866,14 +1900,11 @@ namespace Hrot.Editor
                     Tkb        = () => _tkbDatabase,
                     OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
                 };
-                _missionPanel     = new MissionPanel(0, name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry))
-                {
-                    EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers),   // ⭐ CE-1059
-                };
                 _configPanel      = new ConfigPanel();
                 _sharedOrbatPanel = new SharedOrbatPanel
                 {
                     RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions, () => _world),   // ⭐ CE-1230 — the map's entity menu (CE-1150: the host's actions)
+                    NewGroup = () => _editorMapInteraction?.EntityAuthoring?.AddEntity.OpenNewGroup(),   // ⭐ L-13 (LC-5) — the ONE Add Entity picker, rooted at the units
                 };
                 _previewPanel     = new PreviewPanel();
                 _zoneEditorPanel  = new ZoneEditorPanel();
@@ -1912,6 +1943,7 @@ namespace Hrot.Editor
             _trafficPack = bootstrapper.TrafficPack;
             _capabilities = bootstrapper.ResolvedCapabilities;
             _clusterHandlers = bootstrapper.Orchestration.Handlers;
+            WireWorldUndo();   // ⭐ B-14 — the world and the ring exist now
             TerrainResidency = bootstrapper.Orchestration.TerrainResidency;
 
             // Expose the registry to the diagnostic renderers so the entity inspector
@@ -2343,7 +2375,7 @@ namespace Hrot.Editor
                     DimTransientEntities = true,   // ⭐ SR-191 — the authoring map shows what a save will NOT write, dimmed
                     Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
-                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry),
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry, (System.Func<object?>)(() => _missionService)),   // ⭐ 8d-2 — the mission facade is built after the map: resolved when asked
                     GizmoUiPublisher = _gizmoUiHub,
                     Inspector = () => _fdpInspectorState,
                     // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
@@ -2440,6 +2472,8 @@ namespace Hrot.Editor
                 ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Edit, target));
             actionRegistry.Register(GlobalActionIds.EditRoute, (_, target) =>
                 ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Route, target));
+            actionRegistry.Register(GlobalActionIds.EditPlan, (_, target) =>   // ⭐ W-1 / P-8 8d-2
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Plan, target));
             // ⭐ CE-3024 (E2) — "Load zone" on a terrain zone publishes the CLUSTER op on the orchestration bus; the
             //    editor's in-process master drains it and runs the PrepareZone/CommitZone round (design §9.6).
             actionRegistry.Register(GlobalActionIds.LoadZone, (view, target) =>
@@ -2629,23 +2663,6 @@ namespace Hrot.Editor
             // Poll mission ACKs so async CommitMissionAsync tasks can resolve.
             _missionService?.PollAcks();
 
-            // Synchronise map selection to the MissionPanel using Network ID.
-            if (_missionPanel != null && _selectionState != null && _world != null)
-            {
-                var selected = _selectionState.PrimarySelected;
-                int selectedNetId = 0;
-
-                if (selected.HasValue && selected.Value != Entity.Null && _world.IsAlive(selected.Value))
-                {
-                    if (_world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(selected.Value))
-                    {
-                        selectedNetId = (int)_world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(selected.Value).Value;
-                    }
-                }
-
-                _missionPanel.SelectedEntityId = selectedNetId;
-            }
-
             // Feed the FDP event browser each frame.
             if (!_headless && _world != null)
             {
@@ -2712,7 +2729,7 @@ namespace Hrot.Editor
         }
 
         /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
-        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName, _world is { } w ? Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w) : null);   // ⭐ CE-4210 MA-6 — "Macro: <path>" · N4 the terrain
+        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName, _world is { } w ? Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w) : null, dirty: EditHistory.IsDirty);   // ⭐ B-14 / U5 — the dirty dot   // ⭐ CE-4210 MA-6 — "Macro: <path>" · N4 the terrain
 
         /// <inheritdoc/>
         /// <remarks>
@@ -2827,7 +2844,7 @@ namespace Hrot.Editor
                 _saveAsBrowser.DrawFrame(_iconProvider);
 
             // ⭐ Edit framework F7 (B-12) — the sticky notification stack for a refused / lost / conflicting edit, LAST so it is on top. It also folds the journal's outcomes in
-            //   (EditJournal.Refresh — this is its one caller). Reload / Overwrite (a mission-plan Conflict) are not wired here: the plan's conflict state is MissionPanel's own.
+            //   (EditJournal.Refresh — this is its one caller). Reload / Overwrite (a mission-plan Conflict) are not wired here: the plan's conflict state is the Orders tab's own (P-7 7c).
             _editNotifications ??= new Hrot.Presentation.Edits.EditNotificationOverlay(show: id => SelectNetworkEntity(id));
             _editNotifications.Draw(_world);
         }
@@ -3229,7 +3246,7 @@ namespace Hrot.Editor
                 EventFocus:     _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
                 SelectNetworkEntity: n => SelectNetworkEntity(n),
                 Rules:          () => _rulesWindow,     // ⭐ U-18 / RX2 — the rule's detail in Details, through the one window
-                Pick:           () => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter),   // ⭐ U-23 / D4 — Put aboard… picks on the map
+                Pick:           () => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter) { EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers) },   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
                 ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry)));   // ⭐ P-7 7b — a task's fields
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
@@ -3266,30 +3283,6 @@ namespace Hrot.Editor
                     loadZone: id => LoadZoneById(id),
                     renderer: new Hrot.Editor.Scenario.ImGuiZoneRowRenderer()));
 
-            // ⭐⭐⭐ L6.4 — THE MISSION PLAN VIEW. 📄 §6 L6 stage 5.
-            // ⛔⛔ Its OWN MissionPanel, unlike the borrowed entity inspector above — 📐 Update()
-            //    (:1810–1823) writes _missionPanel.SelectedEntityId every frame from the LEGACY
-            //    _selectionState, not the World's SelectionState that ctx.Entities reads (R-122).
-            //    ⇒ ⚠ sharing it would make the Details view and the Mission Editor window fight over
-            //    one property. ⭐ And it is free: nothing is wired into a MissionPanel after
-            //    construction, so a fresh one is fully equivalent (see the type's remarks).
-            _scenarioWorkspace.DetailsViews.Add(
-                Hrot.Editor.Scenario.ScenarioMissionViewDescriptor.For(
-                    panel:       new MissionPanel(0, name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry))
-                    {
-                        EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers),   // ⭐ CE-1059
-                    },
-                    service:     () => _missionService,
-                    pick:        () => _mapPickAdapter,
-                    networkIdOf: NetworkIdOf,
-                    // ⭐⭐ THE BRAIN SIGNAL, as-built (c): there is no HasBrain in this codebase — the
-                    //   behavioural fact is "the mission service offers this entity behaviours".
-                    // ⚠ Called once per frame from the predicate; the Mission panel already calls
-                    //   GetAvailableBehaviors every frame, so this is the same order of cost.
-                    hasBrain:    e => _missionService is { } svc
-                                   && NetworkIdOf(e) is var id and not 0
-                                   && svc.GetAvailableBehaviors(id).Count > 0));
-
             // ⭐⭐ CE-3043 — THE AI SECTION: the unit's task, SOP and ROE, edited LIVE through the one gate (paused: the
             //   ingress's own pipeline at once; running: the events). 📄 DESIGN_Sensors_And_Doctrine.md §7.6.
             //   ⚠ Its own StructEdit service: the facet service is built later in RegisterWindows' AI half.
@@ -3311,19 +3304,6 @@ namespace Hrot.Editor
                     //   (⛔ it was not passed: no Pick button). Read at request time — the adapter is built later.
                     picks:       () => aiParamPicks,
                     history:     EditHistory));   // ⭐ CE-4219 ① — an edit-mode Apply is ONE entry on the editor's shared undo history
-
-            // ⭐⭐ L6.4's Entity → NETWORK id translation, in ONE place (R-13).
-            // 📐 MissionPanel.SelectedEntityId is an int NETWORK id, not an Entity (MissionPanel.cs:103),
-            //    and Update() already does exactly this lookup at :1816 to feed the Mission window.
-            // ⛔ 0 is the panel's own "no selection" value, so an entity that is not replicated —
-            //    or a dead one — honestly reads as nothing selected rather than as entity zero.
-            int NetworkIdOf(Fdp.Core.Entity e)
-                => _world is { } w
-                && e != Fdp.Core.Entity.Null
-                && w.IsAlive(e)
-                && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
-                     ? (int)w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
-                     : 0;
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
@@ -3867,6 +3847,10 @@ namespace Hrot.Editor
             Action<Action<string>?> openScenarioSaveAsThen = onNamed => openScenarioSaveAsCore(onNamed, false);
             Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
             if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
+
+            // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
+            Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,
+                inEdit: () => _world is { } uw && Hrot.Common.Editing.StationMode.Of(uw) == Hrot.Common.Editing.EditingMode.Edit);
 
             Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
                 register:          windowManager.ShellCommands.Register,
@@ -4883,6 +4867,13 @@ namespace Hrot.Editor
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
                     Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAllId, "File/Save All");
 
+            // ⭐ B-14 — the Edit menu names the step it undoes / redoes (design §2.9)
+            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.EditUndoCommands.UndoId) != null)
+            {
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.UndoId, "Edit/Undo");
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.RedoId, "Edit/Redo");
+            }
+
             // ─────────────────────────────────────────────────────────────────────────
 
             if (_editorLogic == null) return;
@@ -4947,6 +4938,11 @@ namespace Hrot.Editor
             _rulesWindow = rules.Rules; _rulesBundle = rules;
             Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
+            // ⭐ CE-4318 (L-6, Scenario Lifecycle LC-13) — the ONE Problems window over backend's ScenarioProblems; its count on the toolbar (nothing when there are none)
+            _problemsWindow = new Hrot.Presentation.Windows.ProblemsWindow(() => _world, n => SelectNetworkEntity(n), "problems", "Scenario", EditorWindowColor.TitleBar);
+            windowManager.RegisterWindow(_problemsWindow);
+            windowManager.MainToolbar?.RegisterEntry("ProblemsCount", sortOrder: ProblemsCountSortOrder, declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight, _problemsWindow.DrawToolbarCount);
+
             if (_headless) return;
 
             // ?? Shared UI panels ??????????????????????????????????????????????
@@ -4954,12 +4950,6 @@ namespace Hrot.Editor
                 windowManager.RegisterWindow(new Hrot.Presentation.Windows.SpawnerPanelWindow(
                     _spawnerPanel, _spawnAdapter,
                     Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorSpawner, "Scenario",
-                    EditorWindowColor.TitleBar));
-
-            if (_missionPanel     != null && _missionService   != null && _mapPickAdapter != null)
-                windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionPanelWindow(
-                    _missionPanel, _missionService, _mapPickAdapter,
-                    Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorMission, "Scenario",
                     EditorWindowColor.TitleBar));
 
             if (_configPanel      != null && _mapConfigAdapter  != null)
@@ -4991,6 +4981,13 @@ namespace Hrot.Editor
                 () => _node?.TimelineLanes.Lanes(_node.ShownTimelineContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor>(), EditorWindowColor.TitleBar,
                 onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>())
             { IsOpen = false });
+            // ⭐ W-1 / P-8 8c-2 (Mission plan E4) — the ONE Tasks row (all units) + the selection's task bars, over the same shown timeline
+            if (TasksTracks == null)
+            {
+                TasksTracks = new Hrot.Presentation.Orders.TasksTimelineTracks(timelineSource, () => _world,
+                    () => Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_world, _selectionState?.PrimarySelected), n => SelectNetworkEntity(n));
+                _eventTimeline.AddTracks(TasksTracks.Tracks);
+            }
 
             // ⭐⭐ CE-4247 (rules runnable ⑨c; Node Features F-11 / S2) — Window ▸ Features: nodes × features from the master's roster; a tick replaces the cluster's override list through the run settings
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.FeatureGridWindow("editor_feature_grid", "Scenario", EditorWindowColor.TitleBar,
@@ -5227,7 +5224,6 @@ namespace Hrot.Editor
             _previewController  = null;
             _mapViewConfig      = null;
             _spawnerPanel     = null;
-            _missionPanel     = null;
             _configPanel      = null;
             _sharedOrbatPanel = null;
             _previewPanel     = null;

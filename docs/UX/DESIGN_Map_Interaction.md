@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4134); the building lane (ui, backend for the gizmo side) details it (R-4123)
-updated: 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
+updated: 2026-11-07 (P1 as-built — behaviors) · 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: ROUTES1-DESIGN.md §11.1 says right-click COMMITS a route edit — D11 (approved, first iteration) makes right-click the menu and Enter / ✓ the commit; this design follows D11 and ROUTES1 §11.1 stays the spec for everything else (click a segment inserts, Delete removes)
 related-designs:
+  - docs/UX/DESIGN_Entity_Copy_Paste.md — paste placement reuses PlacementSession (press, drag turns, release)
   - DESIGN_Show_On_Map.md — the map previews drawn from forms (a local debug-primitive buffer), not edited
   - DESIGN_Editing_UX.md — the programme: §1.5 the inventory, §3.12 the target, D11 / D12 / D16 (approved as a first iteration)
   - UX_Feature_Tool_Model.md — OWNS the tool (ToolDescriptor, ToolController, the modal stack, PushModal, PickerToolHost); this design adds a hint and a toolbar reader to it (its Migration step 5) and leaves Esc to the input design (its step 6)
@@ -70,7 +71,7 @@ Coverage could not be checked (the CLI has no `check_index_coverage`).
 | nothing displays the armed tool | ✅ `ShowOnToolbar` read by 0 (Map Rendering §4.2, measured `2026-09-19`) | ✅ Tool Model Migration step 5 (open) |
 | a pick can interrupt a drawing and give it back | ✅ `PickerToolHost` → `PushModal` | ✅ Q27-F |
 | airborne spawn needs no wire change | ✅ `SpawnHeightMode.AboveLevel` on `SpawnEntityCommand` and the DDS message (`GenericMessages.cs:197`) | ✅ CE-1017 S2 (D6b) |
-| a fixed-wing placed in the air flies on at cruise | ⚠ **assumed from the design**, not run: `FixedWingModel` "overflies, never stops" (Air Ops §6a) | ✅ Air Ops §6a. ⛔ **CE-4272 must measure it** (stage P3's first step) — if a plane spawned in the air also falls, the fix is in the motion model, not here |
+| a fixed-wing placed in the air flies on at cruise | ✅ **MEASURED `2026-11-07` (behaviors, CE-4272, P3 step ①):** an A-10C (TKB 405) spawned through `POST /entities/spawn` at z = 300 on `test-move` (`--mode all`, live) holds **300 m at 150 m/s with full health for 30 s** (x 72 → 4638 m). ⇒ the motion model is fine; airborne placement IS the fix | ✅ Air Ops §6a |
 | the centre handle moves a whole shape only on some shapes | ⚠ from the user's correction; the measured split: an `EditablePolyline` stores points relative to its entity (ROUTES1 §11), so dragging the entity moves the shape; a `RoutePlan` stores absolute waypoints, so it does not | ROUTES1 §11 |
 | the map's keys are resolved on the backend | ✅ the input design §2.4 (approved R-4132) | ✅ gizmo-input-focus-design |
 
@@ -302,6 +303,73 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 | **P7** | the gizmo look review (§2.6), approved by the user before it is built | ui | the frame rails under `xvfb-run` |
 
 Order: P1 → P2 → P3 (P3's measurement can start at once) → P4 → P5 → P6 → P7. P2 depends on the action catalogue's first stage (A1),
+
+### ⭐ AS-BUILT — P3 *(behaviors, `2026-11-07`, CE-4309)*
+
+| step | as built |
+|---|---|
+| ① CE-4272 | ✅ **measured live** (`--mode all`, `test-move`): an A-10C spawned at z = 300 holds 300 m at 150 m/s, full health, for 30 s ⇒ the aircraft is fine; the crash was the GROUND start. §1.1's claim row updated |
+| ② `PlacementSession` | `Hrot.Presentation/ScenarioEditor/Gizmos/PlacementSession.cs` — PURE, fed by `EntityPlacementGizmo`. ⭐ **deviation:** "flies" is read from the TKB **flight descriptor** (`FlightParamsDto.HoverHeightM`: 300 m fixed-wing, 30 m helicopter), not `SimVehicleDef.Mobility` — the descriptor carries the height the design wants, and every flying type has one (the type that has no flight descriptor cannot fly in the sim either). Airborne = `AboveLevel(level)` + that height; **Shift** = on the ground. 2-D level: `SurfacesAt` under the cursor; PgUp / PgDn (raylib 266 / 267 — the map streams every key press to a raw-input tool) step it; the hint *"level 0 of 3 · PgUp / PgDn"* / *"airborne 300 m (Shift: on the ground)"* is rebuilt only when a choice moves (0 B steady). A 3-D click keeps its own level (CE-1033). Heading: press, drag ≥ 3 m, release ⇒ placed at the press point facing the drag; a click faces north |
+| ③ Create through `Edits.Submit` | ✅ already built by backend's F2: `ScenarioSpawnAdapter.Request` submits `EditOp.Create` ("Place an entity") |
+
+Rails: `EntityPlacementGizmoTests.CE4309_*` (airborne + Shift, the level choice on a 3-storey stack, the heading drag).
+
+### ⭐ AS-BUILT — P1 *(behaviors, `2026-11-07`, B-17)* — the armed tool is visible
+
+INVENTORY: `scripts/cbm.sh search_graph name_pattern=".*(StatusBar|Hint|Toolbar).*"` + grep `ShowOnToolbar` / `ActiveModalChanged` ⇒ `ShowOnToolbar`
+read by nothing, one toolbar (`EditorToolbarPanel`, four tool buttons reading no state — CE-259m), the status-bar section pattern
+(`MapCursorStatusBarSection`, registered by five hosts), the world-scoped UI states (`MapUiStates`), the placement gizmo's own cursor hint (P3).
+
+```mermaid
+classDiagram
+  class ToolDescriptor { <<existing record>> +Hint +Glyph }
+  class ToolController { <<existing>> +ActiveHint · +SetHint(line) · +ClaimCursorHint() · +CursorHintClaimed · +DescriptorOf(id) }
+  class MapUiStates { <<existing>> +ToolsOf(world) — the pack's ONE controller }
+  class MapToolsLink { <<NEW canvas resource>> Tools }
+  class ToolHintGizmo { <<NEW GizmoProjector, global>> the hint under the cursor }
+  class ToolStatusSection { <<NEW status-bar section>> icon · label · hint }
+  class MapCursorStatusBarSection { <<existing>> Register — now registers ToolStatusSection too }
+  class EditorToolbarPanel { <<existing>> the armed tool's button lit }
+  class EntityPlacementGizmo { <<existing>> claims the cursor (its own level / heading line) }
+  class GizmoTextDraw { <<existing>> +Strings · +TextOf(prim) — the ONE text reader }
+  ToolController o-- ToolDescriptor
+  ToolHintGizmo ..> MapUiStates : the controller + the canvas cursor
+  ToolStatusSection ..> MapToolsLink
+  MapToolsLink ..> MapUiStates
+  MapCursorStatusBarSection ..> ToolStatusSection : registers
+  EntityPlacementGizmo ..> ToolController : ClaimCursorHint
+  EditorToolbarPanel ..> ToolController : ActiveModal.Id
+```
+*What the picture shows: the words live once (the descriptor, or the gizmo's own line through `SetHint`), and the three surfaces (status line,
+cursor, toolbar) read the one controller; the status line rides on the cursor section, so no host can lack it.*
+
+```mermaid
+graph TD
+  Pack["MapInteractionPack.Build — every map host"] -->|"MapUiStates.Set(world, tools)"| UI[MapUiStates]
+  Attach["MapInteractionPack.AttachMapLayers — every map host"] -->|"canvas.AddResource(MapToolsLink)"| Canvas[MapCanvas]
+  Hosts["Editor · CGF · SimHost · ReplayBrowser · Player: MapCursorStatusBarSection.Register"] --> Status[ToolStatusSection]
+  Status --> Canvas
+  Proj["GizmoProjector registrar (every host)"] --> Hint[ToolHintGizmo]
+  Hint --> UI
+  EdBar["EditorSubsystem: new EditorToolbarPanel(() => tools.ActiveModal?.Id)"] --> Bar[EditorToolbarPanel]
+```
+*Who reaches it: all three hooks are in shared composition (the pack, the attach, the cursor section, the projector registrar); only the
+toolbar is the editor's own (the one tool toolbar there is).*
+
+| decision | why |
+|---|---|
+| the hint is the descriptor's line; a gizmo that knows more states it with `SetHint`; arming another tool clears it | one answer, never stale for the next tool |
+| ONE line at the cursor: a gizmo that draws its own there (placement) calls `ClaimCursorHint` and the generic one stays away | the mockup shows one hint by the cursor |
+| hints describe TODAY's gestures (the drawing tools still finish on right-click) | P2 moves finish to Enter / ✓ / the menu and updates the words with it |
+| ⭐ found and fixed: gizmo text over 31 characters was cut on every map — `GizmoTextDraw.TextOf` resolves the interned string (the layer sets `Strings` to its buffer's map before it draws) | the P1 fidelity frame showed the hint cut; the P3 placement hint was cut the same way |
+| ⚠ deviation: the cursor hint has no dark backdrop (gizmo text has none) | readable on the map's grey; a backdrop is P7's look review |
+| ⚠ the cursor is the LOCAL canvas's; a remote viewer gets the status line, not the cursor hint, until its cursor reaches the backend | the remote cursor is not on the backend today |
+| ⚠ the remote viewer's own renderer (GizmoMap's layer) does not set `GizmoTextDraw.Strings` yet | local hosts all go through the FDP layer, which does |
+
+Rails: `TheArmedToolIsVisibleTests` (Presentation.Tests) — every map tool has a hint and an icon; one active hint, cleared with the tool
+(red-proved: the pack not sharing its controller ⇒ the cursor-hint and status rails red); the cursor hint as gizmo text at the cursor (not for
+Select, not when claimed); the status line registered by the cursor section; a long gizmo text read whole; `P1_TheArmedTool_OnARealFrame`
+(`armed-tool.png` — the teal icon, name and hint in the status line, the hint under the cursor).
 because the drawing menu reads it.
 
 ## 4. Questions — ✅ all eight APPROVED as leaned (R-4134, user `2026-11-06`: *"Okay, accept it."*)

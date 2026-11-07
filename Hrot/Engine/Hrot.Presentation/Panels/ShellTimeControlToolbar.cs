@@ -59,17 +59,21 @@ public static class ShellTimeControlToolbar
     /// <param name="facade">the host's transport. ⭐ The existing seam: the editor supplies
     /// every host supplies the one <c>ClusterTimeTransportAdapter</c> (CE-3329 row 21; the editor's own facade is retired).</param>
     /// <param name="runChoice">⭐ CE-4097 — the host's run-mode choice (the adapter's <c>RunChoice</c>); the indicator draws it and its menu is its moves.</param>
+    /// <param name="runTo">⭐ W-4 (LC-10) — the host's <see cref="RunToController"/> (<see cref="IProvidesRunControls.RunTo"/>): the mode menu offers <i>Run to …</i>. Null ⇒ none.</param>
+    /// <param name="stationWorld">⭐ Seats H3 — the world whose seat and hat the indicator shows (the owner's); null ⇒ no seat line.</param>
     /// <param name="runSetupLines">⭐ AQ108 D24 — the running scenario's variant and changed params as text (<see cref="IProvidesRunControls.RunSetupLines"/>); the indicator's menu shows them. Null ⇒ none.</param>
     public static void Register(
         MainToolbarManager toolbar,
         ITimeTransportFacade facade,
         RunModeChoice? runChoice = null,
-        Func<IReadOnlyList<string>>? runSetupLines = null)
+        Func<IReadOnlyList<string>>? runSetupLines = null,
+        RunToController? runTo = null,
+        Func<Fdp.Core.EntityRepository?>? stationWorld = null)
     {
         if (toolbar is null) throw new ArgumentNullException(nameof(toolbar));
         if (facade  is null) throw new ArgumentNullException(nameof(facade));
 
-        var section = new MainToolbarTimeControlSection(facade, choice: runChoice, runSetupLines: runSetupLines);
+        var section = new MainToolbarTimeControlSection(facade, choice: runChoice, runSetupLines: runSetupLines, runTo: runTo, stationWorld: stationWorld);
 
         toolbar.RegisterEntry(
             EntryId, sortOrder: EntrySortOrder,

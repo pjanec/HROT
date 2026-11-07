@@ -131,7 +131,7 @@ namespace GizmoMap.Presentation
 
         private static float WidthOf(in DebugPrimitive p, Func<string, float, float> measure) => p.Shape switch
         {
-            DebugPrimitiveShape.Text => p.TextX + measure(p.TextContent.ToString(), HeightOf(p)),
+            DebugPrimitiveShape.Text => p.TextX + measure(GizmoTextDraw.TextOf(in p), HeightOf(p)),
             DebugPrimitiveShape.Box2D when p.SizeMode != SizeMode.ScreenPercent => p.BoxCenterX + p.BoxExtentX,
             DebugPrimitiveShape.Line => MathF.Max(p.LineStart.X, p.LineEnd.X),
             DebugPrimitiveShape.EntityBadge => 8f * p.BadgeRichText.ToString().Length,

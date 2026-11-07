@@ -251,6 +251,10 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     /// <summary>⭐ The host's run choice (what ▶ runs, R1–R3); <see langword="null"/> until <see cref="AttachRunChoice"/>.</summary>
     public RunModeChoice? RunChoice => _run;
 
+    /// <summary>⭐ CE-4322 (L-3) — the exercise's ender on this host: the rules bundle sets its End control here, so ■ in Live can ask
+    /// <i>"End the exercise? / Keep running"</i> on every host that composes the bundle.</summary>
+    public IExerciseEnder? Ender { get; set; }
+
     /// <summary>
     /// ⭐ Builds this host's ONE <see cref="RunModeChoice"/> over this facade and makes ■ / ▶ / Step from Edit delegate to it (every host calls this one line).
     /// </summary>

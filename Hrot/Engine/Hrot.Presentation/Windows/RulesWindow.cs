@@ -533,16 +533,19 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
             {
                 // the shared collapsible header bar (U-5), the count right-aligned and muted
                 while (_groupIds.Count <= gi) _groupIds.Add("rules-group-" + _groupIds.Count);
-                bool open = NodeEditor.Core.Widgets.SectionHeader.Draw(_groupIds[gi], g.Name, "tab/rules", ImGuiTreeNodeFlags.DefaultOpen);
+                bool phasesGroup = g.Name == RulesModel.PhasesGroup;
+                bool open = NodeEditor.Core.Widgets.SectionHeader.Draw(_groupIds[gi], g.Name, phasesGroup ? "rule/phase" : "tab/rules", ImGuiTreeNodeFlags.DefaultOpen);
                 string count = CountText(rs.Count);
                 var hmin = ImGui.GetItemRectMin(); var hmax = ImGui.GetItemRectMax();
                 dl.AddText(new Vector2(hmax.X - ImGui.CalcTextSize(count).X - 8f * scale, hmin.Y + (hmax.Y - hmin.Y - fs) * 0.5f), muted, count);
                 if (!open) { any |= rs.Count > 0; continue; }
             }
+            bool phases = g.Name == RulesModel.PhasesGroup;
             for (int ri = 0; ri < rs.Count; ri++)
             {
                 var row = rs[ri];
                 any = true;
+                if (phases) { DrawPhaseRow(row, scale, dl, muted); continue; }   // ⭐ W-1 (P-8) — mission-plan-detail-visual.svg B
                 var (text, incomplete, segs) = LineOf(row);
                 ImGui.PushID(row.NetworkId);
                 // ONE click target over the whole row; the sentence is drawn over it (no widget of its own steals the click)
@@ -580,6 +583,76 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
             }
         }
         if (!any) ImGui.TextDisabled("No rules yet.");
+    }
+
+    // ── ⭐ W-1 (P-8, Mission plan §5.5 M6, D5; mission-plan-detail-visual.svg B) — a phase row: ⚑ N  Title   begins …   [▶ Begin now] / begun m:ss / waiting ──
+
+    private readonly Dictionary<int, (string Key, string Number, string Begins)> _phaseLines = new();
+    private readonly Dictionary<double, string> _begunText = new();
+    private static readonly Vector4 BegunGreen = new(0.36f, 0.82f, 0.42f, 1f);
+
+    /// <summary>A phase row's number and <i>"begins …"</i>, re-built only when its params change (the list draws every frame).</summary>
+    internal (string Number, string Begins) PhaseLineOf(RuleRow row)
+    {
+        var p = RuleSentence.ParamsOf(_world(), row.Entity);
+        string key = p is { } k ? k.Json : row.Title;
+        if (_phaseLines.TryGetValue(row.NetworkId, out var c) && ReferenceEquals(c.Key, key)) return (c.Number, c.Begins);
+        var refs = _world() is { } w ? AuthoredRules.ScopeOf(w) : null;
+        string begins = p is { } prm ? RuleSentence.PhaseBegins(prm.Json, row.Status.Deadline, refs) : "";
+        var line = (key, row.Status.Phase.ToString(System.Globalization.CultureInfo.InvariantCulture), begins);
+        _phaseLines[row.NetworkId] = line;
+        return (line.Item2, line.Item3);
+    }
+
+    /// <summary>What a phase row offers on its right (rails): <i>Begin now</i> in a run while it has not begun (greyed with the reason when the rule refuses
+    /// a fire), <i>begun m:ss</i> once it has, <i>waiting</i> otherwise; nothing before a run (an authored row).</summary>
+    internal static (bool BeginNow, string? Why, string? State) PhaseRightOf(RuleRow row)
+    {
+        if (row.Authored) return (false, null, null);
+        if (row.Status.FireCount > 0) return (false, null, "begun " + RulesModel.Clock(row.Status.LastFired));
+        var why = RuleCommands.DisabledReason(row.Status, Fdp.Toolkit.ScenarioRules.RuleRequest.Fire);
+        return (true, why, null);
+    }
+
+    private void DrawPhaseRow(RuleRow row, float scale, ImDrawListPtr dl, uint muted)
+    {
+        var (number, begins) = PhaseLineOf(row);
+        ImGui.PushID(row.NetworkId);
+        if (ImGui.Selectable("##row", _selected == row.NetworkId, ImGuiSelectableFlags.AllowOverlap)) Select(row);
+        var rmin = ImGui.GetItemRectMin(); var rmax = ImGui.GetItemRectMax();
+        float x = rmin.X + 8f * scale, textX = x + 22f * scale;
+        var flag = NodeEditor.Core.Widgets.Icons.Get("rule/phase");
+        ImGui.SetCursorScreenPos(new Vector2(x, rmin.Y));
+        ImGui.TextColored(flag.Color, flag.Glyph);
+        ImGui.SetCursorScreenPos(new Vector2(textX, rmin.Y));
+        ImGui.TextUnformatted(number);
+        ImGui.SetCursorScreenPos(new Vector2(textX + 16f * scale, rmin.Y));
+        ImGui.TextUnformatted(row.Title);
+        ImGui.SetCursorScreenPos(new Vector2(textX + 136f * scale, rmin.Y));   // the "begins …" column (the mockup's second column)
+        ImGui.TextColored(NodeEditor.Core.Widgets.IconPalette.Muted, begins);
+        var (beginNow, why, state) = PhaseRightOf(row);
+        float right = rmax.X - 10f * scale;
+        if (state != null)
+        {
+            var sz = ImGui.CalcTextSize(state);
+            dl.AddText(new Vector2(right - sz.X, rmin.Y), ImGui.GetColorU32(BegunGreen), state);
+        }
+        else if (beginNow)
+        {
+            string label = $"{Fdp.Presentation.Fonts.IconsFontAwesome6.Play} Begin now";
+            float w = ImGui.CalcTextSize(label).X + ImGui.GetStyle().FramePadding.X * 2;
+            float waitW = ImGui.CalcTextSize("waiting").X;
+            dl.AddText(new Vector2(right - waitW, rmin.Y), muted, "waiting");
+            ImGui.SetCursorScreenPos(new Vector2(right - waitW - 16f * scale - w, rmin.Y - ImGui.GetStyle().FramePadding.Y));
+            ImGui.BeginDisabled(why != null);
+            if (ImGui.SmallButton(label)) Ask(row, Fdp.Toolkit.ScenarioRules.RuleRequest.Fire);   // ⭐ D5 — Begin now IS the trigger's Fire, the instructor's (RuleOrigin.Instructor)
+            ImGui.EndDisabled();
+            if (why != null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(why);
+        }
+        _listMarks.Add(new ListMark(row.NetworkId, flag.Glyph, flag.Color, false, false, textX, 0f));
+        ImGui.SetCursorScreenPos(new Vector2(rmin.X, rmax.Y));
+        ImGui.Dummy(Vector2.Zero);
+        ImGui.PopID();
     }
 
     private void DrawToolbar()

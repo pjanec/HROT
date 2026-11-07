@@ -101,6 +101,9 @@ public sealed class AxisCursor : ITimelineCursor
 
     // ⭐ CE-4097 part two (D21) — the host's run-mode items at a moment: the click is on the axis, the host takes WALL ticks
     public IEnumerable<TimelineMenuItem> ModeMenuItems(long ticks, string time) => _inner.ModeMenuItems(Axis.ToWall(ticks), time);
+    public IEnumerable<TimelineMenuItem> ModeMenuItems(long ticks, string time, long? eventTicks, string? eventLane)
+        => _inner.ModeMenuItems(Axis.ToWall(ticks), time, eventTicks is { } e ? Axis.ToWall(e) : null, eventLane);
+    public bool ComposesReviewItems => _inner.ComposesReviewItems;   // ⭐ A6
 
     private IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>? _marksFor;
     private IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> _marks = Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();

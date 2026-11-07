@@ -88,7 +88,9 @@ public static class OrdersPlanModel
 }
 
 /// <summary>The plain <i>then</i> choices (Mission plan §5.6); <see cref="Advanced"/> = any condition from the condition editor.</summary>
-public enum ThenPreset { WhenDone, After, UnderFire, StrengthBelow, Advanced }
+/// <summary>The <i>then</i> presets (§5.6). ⭐ W-1 / P-8 8b: <see cref="RuleFires"/> — a rule (or a PHASE: a phase IS a trigger, D5) has fired;
+/// <see cref="UnitFinishesTask"/> — another unit finishes its task N.</summary>
+public enum ThenPreset { WhenDone, After, UnderFire, StrengthBelow, Advanced, RuleFires, UnitFinishesTask }
 
 /// <summary>
 /// ⭐ P-7 / CE-4303 slice 7b (Mission plan §5.6, D4, E5, E9) — the plan's EDITS, headless: a new task (a Wait first, an order by its kind, a behaviour),
@@ -133,6 +135,7 @@ public static class OrdersPlanEdits
             if (trig.Type == "BehaviorFinished") return (ThenPreset.WhenDone, 0);
             if (trig.Type == "TimerElapsed" && double.TryParse(trig.Params, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s)) return (ThenPreset.After, s);
             if (trig.Type != MissionTriggerHelper.ThenType) continue;
+            if (TargetIn(trig.Params) is { } target) return (target.Preset, target.Task);   // ⭐ P-8 8b — a rule / phase fired, a unit's task finished
             if (FactIn(trig.Params) is { } f)
             {
                 if (f.Id == "task-time" && !f.Negated) return (ThenPreset.After, f.Number);
@@ -142,6 +145,39 @@ public static class OrdersPlanEdits
             return (ThenPreset.Advanced, 0);
         }
         return (ThenPreset.WhenDone, 0);
+    }
+
+    // ── ⭐ W-1 / P-8 8b (Mission plan §5.5 M5 / M6, §5.6) — the picker's rule, phase and unit entries ─────────────────────────────
+
+    /// <summary><i>when Phase N begins</i> / <i>when a rule fires</i>: that trigger has fired (<c>OnEntity(trigger) · FireCount &gt; 0</c> — the ONE shape, <c>PlanConditionCache.PhaseBegins</c>).</summary>
+    public static Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto ThenRuleFires(Fdp.Toolkit.Replication.EntityLink trigger)
+        => Fdp.Toolkit.Behavior.Systems.PlanConditionCache.PhaseBegins(trigger);
+
+    /// <summary><i>when &lt;unit&gt; finishes task N</i> (1-based): the <c>TaskFinished</c> leaf (D6).</summary>
+    public static Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto ThenUnitFinishes(Fdp.Toolkit.Replication.EntityLink unit, int task)
+        => new Fdp.Toolkit.ReplayBrowser.Search.TaskFinishedPredicateDto { Unit = unit, Task = Math.Max(1, task) };
+
+    /// <summary>The rule / phase or the unit a <i>then</i> names (<see cref="ThenPreset.RuleFires"/>, <see cref="ThenPreset.UnitFinishesTask"/>), else none.</summary>
+    public static Fdp.Toolkit.Replication.EntityLink TargetOf(MissionTask t)
+    {
+        foreach (var trig in t.Triggers)
+            if (trig.Type == MissionTriggerHelper.ThenType && TargetIn(trig.Params) is { } target) return target.Link;
+        return Fdp.Toolkit.Replication.EntityLink.None;
+    }
+
+    private static (ThenPreset Preset, Fdp.Toolkit.Replication.EntityLink Link, int Task)? TargetIn(string json)
+    {
+        Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto d;
+        try { d = Fdp.Toolkit.ReplayBrowser.Search.ConditionCache.Parse(json); }
+        catch (Exception) { return null; }
+        return d switch
+        {
+            Fdp.Toolkit.ReplayBrowser.Search.TaskFinishedPredicateDto tf => (ThenPreset.UnitFinishesTask, tf.Unit, tf.Task),
+            Fdp.Toolkit.ReplayBrowser.Search.OnEntityPredicateDto { Predicate: Fdp.Toolkit.ReplayBrowser.Search.PropertyMatchDto pm } on
+                when pm.PropertyPath == nameof(Fdp.Toolkit.ScenarioRules.ObjectiveStatus.FireCount)
+                  && pm.Operator == Fdp.Toolkit.ReplayBrowser.Search.SearchOperator.GreaterThan => (ThenPreset.RuleFires, on.Ref, 0),
+            _ => null,
+        };
     }
 
     /// <summary>The task's <i>then</i> as a condition (a preset's, or the stored one); null = <i>when done</i> or unreadable.</summary>
@@ -223,6 +259,22 @@ public static class OrdersPlanEdits
         for (int i = 0; i < plan.Tasks.Count; i++)
             if (OrdersPlanModel.ProblemOf(plan.Tasks[i]) is { } why) return $"task {i + 1}: {why}";
         return null;
+    }
+
+    /// <summary>⭐ L-14 / CE-4314 (LC-6) — the plan as ANOTHER unit's own copy: every task a NEW id (the active one mapped to its new id),
+    /// every task planned again. Triggers name no task id, so they copy as they are.</summary>
+    public static MissionPlan CopyAsNew(MissionPlan plan)
+    {
+        var c = new MissionPlan();
+        foreach (var t in plan.Tasks)
+        {
+            var nt = new MissionTask { TaskId = Guid.NewGuid(), ExecutingEngine = t.ExecutingEngine, BehaviorId = t.BehaviorId, BehaviorParams = t.BehaviorParams, State = Hrot.Core.Mission.eTaskState.TASK_PLANNED };
+            foreach (var trig in t.Triggers) nt.Triggers.Add(new MissionTrigger { Type = trig.Type, Params = trig.Params });
+            if (t.TaskId == plan.ActiveTaskId) c.ActiveTaskId = nt.TaskId;
+            c.Tasks.Add(nt);
+        }
+        if (c.ActiveTaskId == Guid.Empty && c.Tasks.Count > 0) c.ActiveTaskId = c.Tasks[0].TaskId;
+        return c;
     }
 
     /// <summary>A deep copy (the draft the tab edits; the snapshot stays untouched).</summary>

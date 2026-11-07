@@ -304,7 +304,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     private Hrot.Map.Common.Config.MapViewConfig?                _mapViewConfig;
     private SpawnerPanel?                                        _spawnerPanel;
-    private MissionPanel?                                        _missionPanel;
     private ConfigPanel?                                         _configPanel;
     private SharedOrbatPanel?                                    _sharedOrbatPanel;
     private Hrot.UI.Common.Adapters.ScenarioSpawnAdapter?        _spawnAdapter;
@@ -724,7 +723,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 FeatureGate = () => _context?.Features,   // ⭐ CE-4148 — the hud.* features
                 Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                 // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
-                Services = Hrot.ScenarioEditor.Map.MapServices.Of(_context.GeoTransform, _behaviorRegistry),
+                Services = Hrot.ScenarioEditor.Map.MapServices.Of(_context.GeoTransform, _behaviorRegistry, (System.Func<object?>)(() => _missionService)),   // ⭐ 8d-2 — built after the map: resolved when asked
                 // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
                 IsSelectedPredicate = null,
                 Inspector = () => _fdpInspectorState,
@@ -1097,17 +1096,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 Tkb        = () => _context?.TkbDb,
                 OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
             };
-            // ⚠ MissionPanel's first argument is the node id the editor passes as a literal 0; this host
-            //   has a REAL one, and passing it is the point of "the editor is a one-node cluster".
-            _missionPanel      = new MissionPanel(
-                _context.NodeId, name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry))
-            {
-                EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _context?.World, () => _shellPickers),   // ⭐ CE-1059
-            };
             _configPanel       = new ConfigPanel();
             _sharedOrbatPanel  = new SharedOrbatPanel
             {
                 RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions, () => _context?.World),   // ⭐ CE-1230 — the map's entity menu (CE-1150: the host's actions)
+                NewGroup = () => _cgfMapInteraction?.EntityAuthoring?.AddEntity.OpenNewGroup(),   // ⭐ L-13 (LC-5) — the ONE Add Entity picker, rooted at the units
             };
 
             // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring), arbiter passed.
@@ -1298,7 +1291,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _cgfMapPick = cgfCanvasAdapter;   // ⭐ also the Watch's entity picker (BuildAiShell)
         if (_cgfMapInteraction != null) _cgfMapInteraction.MenuOrders.PickService = () => _cgfMapPick;   // ⭐ CE-3169 — the menu orders' follow-up picks
         MapPickBroker? cgfPickBroker = cgfCanvasAdapter != null
-            ? new MapPickBroker(cgfCanvasAdapter)
+            ? new MapPickBroker(cgfCanvasAdapter) { EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _context?.World, () => _shellPickers) }   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had
             : null;
         _cgfPickBroker = cgfPickBroker;   // ⭐ U-23 / D4 — also the Details forms' pick context
 
@@ -1322,11 +1315,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.SpawnerPanelWindow(
                 _spawnerPanel, _spawnAdapter,
                 Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfSpawner, "Scenario", TitleBarColor));
-
-        if (_missionPanel != null && _missionService != null && cgfCanvasAdapter != null)
-            windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionPanelWindow(
-                _missionPanel, _missionService, cgfCanvasAdapter,
-                Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfMission, "Scenario", TitleBarColor));
 
         if (_configPanel != null && _mapConfigAdapter != null)
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.ConfigPanelWindow(

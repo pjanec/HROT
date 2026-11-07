@@ -141,6 +141,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
                 // load is cleared on every node by the world boundary (CE-2101), as before.
                 if (load.TargetState == ClusterState.OperatingEdit) ClearWorld();
                 _loadedScenarioName = load.ScenarioId;
+                Opened?.Invoke();   // ⭐ B-14 — a load (to edit, or Live) starts a new history
             });
         Door = new ScenarioDoor(this, () => ClusterReplayControls.ModeOf(CurrentClusterState), RawLeave);
     }
@@ -175,7 +176,15 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
         _fileService?.NewScenario(_world!);   // a world-less host (CE-1439) has no local world to wipe
         _loadedScenarioName = null;
         _alertManager.OnScenarioCleared();
+        Opened?.Invoke();
     }
+
+    /// <summary>⭐ B-14 / Edit-mode undo U5 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.2 lifetime) — a scenario was opened, created or cleared: the undo history
+    /// starts over (an undo across it would hit the wrong entities).</summary>
+    public event Action? Opened;
+
+    /// <summary>⭐ B-14 / U5 — the scenario was written (Save, Save As; ⛔ not a checkpoint, not a selection saved as a macro): the clean point.</summary>
+    public event Action? Saved;
 
     /// <inheritdoc/>
     /// <remarks>⭐ <c>CE-4101</c> / <c>CE-1443</c> — the OUT door: editing with unsaved edits asks <i>Save / Discard / Cancel</i> first; a run is simply stopped. Replaced <i>New Exercise</i>.</remarks>
@@ -261,6 +270,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
         if (SaveIntercept?.Invoke() == true) return;
         if (string.IsNullOrEmpty(_loadedScenarioName)) return;
         PublishScenarioSave(_loadedScenarioName!);
+        Saved?.Invoke();
     }
 
     /// <inheritdoc/>
@@ -270,6 +280,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
         PublishScenarioSave(scenarioName);
         CopyTakes(_loadedScenarioName, scenarioName);
         _loadedScenarioName = scenarioName;
+        Saved?.Invoke();
     }
 
     /// <summary>

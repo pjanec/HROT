@@ -161,4 +161,23 @@ public sealed class TheRulesBundleTests
         _ = new RulesBundle(Host(Seat.Author));
         Assert.False(bare.Actions.Has(Hrot.Common.Constants.GlobalActionIds.AddRuleAboutUnit));
     }
+
+    /// <summary>⭐ CE-4322 (L-3) — the bundle gives BOTH End controls the host's one-shot path and the seat's verdict, by construction on every host that can create
+    /// entities: an Instructor may end a scenario with no instructor-end rule, a Player may not (with the seat's reason); a recording gets neither.
+    /// ✅ Red-proof: <c>WireInstructorEnd</c> not called ⇒ the Instructor's End stays "no instructor-end trigger" ⇒ red.</summary>
+    [Fact]
+    public void CE4322_BothEndControls_GetTheOneShotPathAndTheSeat()
+    {
+        var instructor = new RulesBundle(Host(Seat.Instructor, canCreate: true));
+        Assert.NotNull(instructor.Rules.End.CreateOneShot);
+        Assert.NotNull(instructor.MissionSummary.End.CreateOneShot);
+        Assert.Null(instructor.Rules.End.SeatRefusal!());
+        Assert.NotEqual(Hrot.UI.Common.Rules.InstructorEnd.NoTrigger, instructor.Rules.End.Offer.DisabledReason);
+
+        var player = new RulesBundle(Host(Seat.Player, canCreate: true));
+        Assert.Contains("cannot edit rules", player.Rules.End.Offer.DisabledReason);
+
+        var onRecording = new RulesBundle(Host(Seat.Reviewer, recording: true, canCreate: true));
+        Assert.Null(onRecording.Rules.End.CreateOneShot);
+    }
 }

@@ -63,6 +63,7 @@ public static class Icons
             // ⭐ U-8 (Condition editor §8.2 ④) — a THING in an entity-link chip, by its kind; and the chip's map pick
             case "thing/objective": icon = new("\uf024", IconPalette.Amber); return true;   // Flag
             case "thing/trigger": icon = new("\uf0e7", IconPalette.Violet); return true;   // Bolt
+            case "rule/phase": icon = new("\uf024", IconPalette.Violet); return true;   // Flag — ⭐ W-1 (P-8): an operation phase (a trigger marked as one), mission-plan-detail-visual.svg B
             case "thing/entity": icon = new("\uf1b2", IconPalette.Blue); return true;   // Cube
             case "form/map-pick": icon = new("\uf3c5", IconPalette.Teal); return true;   // LocationDot
             case "tab/unit": icon = new("\uf007", IconPalette.Blue); return true;   // User

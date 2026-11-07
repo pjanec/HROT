@@ -51,6 +51,7 @@ public static class AuthoredRules
                 Required = (byte)(Bool(common, "required") == true ? 1 : 0), Scored = (byte)(Bool(common, "scored") != false ? 1 : 0),
                 Weight = Num(common, "weight"), Points = Num(common, "points"), Pass = Num(common, "pass"), Deadline = Num(common, "deadlineSeconds"),
                 VisibleSides = (byte)Num(common, "visibleSides"), Owner = SideOf(world, entity, subject),
+                Phase = (byte)Math.Clamp(Num(common, "phase"), 0, 255),   // ⭐ W-1 (P-8) — a phase is grouped (and numbered) before a run too: ObjectiveRules.Display's projection, authored
             };
             var waits = new List<int>(); var starts = new List<int>();
             if (Prop(root, "when", out var when)) Collect(when, waits, scope, "ref");
