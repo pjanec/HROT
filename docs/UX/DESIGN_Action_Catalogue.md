@@ -396,7 +396,11 @@ being in the wrong mode. Everything that is not the bootstrapper falls back to A
 |---|---|---|
 | an entity **in** the selection | unchanged | **every selected entity**, whichever was clicked |
 | an entity **not** in the selection | becomes **that entity alone** | that entity |
-| empty ground | unchanged | the selection (e.g. *Move here*) |
+| empty ground | unchanged | ✏ **the empty-space menu only** (measure, add entity here, centre view …) — never the selection's commands (R-4163) |
+| *left* click an unselected entity | becomes **that entity alone** | — (R-4163) |
+| *left* click empty ground | **cleared** | — (R-4163) |
+
+✏ **R-4163 (`2026-11-07`):** 🔒 *"if there are entities selected and I right click the empty space, the menu should be for the empty space only, not for the selection. If I want it to be applied to the selection, I would click one of the selected entities. Imagine I would like to measure something on the map"*. ⛔ SUPERSEDED: the row *empty ground → the selection (e.g. Move here)*. ⇒ moving the selection = right-click one of them → Move → click the point. ⭐ These rows are the **map scope's mouse bindings** (Input and Commands §6b); in RTS mode the RTS scope overrides them
 
 The click that FOLLOWS a menu command (a target point, a target entity) is the command's parameter, never a command. ⇒ ONE rule for every menu command, orders included; ⛔ SUPERSEDES [Orders §13.12 O6](../DESIGN_Orders_Params_Entity_Classes.md) (*"plain menu orders stay one unit"*).
 
