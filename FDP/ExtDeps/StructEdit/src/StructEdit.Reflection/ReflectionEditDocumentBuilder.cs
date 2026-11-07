@@ -62,6 +62,37 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         IValueBinding? explicitBinding = null,
         IValueBinding? parentBinding = null)
     {
+        var node = BuildNodeCore(buffer, jsonPath, name, nodeType, nativeOffset, fi, pi, idAlloc, visited, providers, fieldEditors, context, explicitBinding, parentBinding);
+        // ⭐ S8 (docs/DESIGN_Struct_Editor.md §6) — [EditReadOnly] is APPLIED: the member's node and its whole subtree are read-only (the table greys them, ⌖ still works)
+        bool readOnly = (fi?.IsDefined(typeof(EditReadOnlyAttribute), true) ?? false) || (pi?.IsDefined(typeof(EditReadOnlyAttribute), true) ?? false);
+        return readOnly ? AsReadOnly(node) : node;
+    }
+
+    /// <summary>The node and every descendant marked read-only (the tree is immutable: a copy).</summary>
+    internal static EditNode AsReadOnly(EditNode node)
+    {
+        if (node.IsReadOnly && node.Children.Count == 0) return node;
+        var kids = new List<EditNode>(node.Children.Count);
+        foreach (var c in node.Children) kids.Add(AsReadOnly(c));
+        return new EditNode(node.Id, node.Name, node.JsonPath, node.Kind, node.ClrType, node.Binding, kids, node.Metadata, isReadOnly: true);
+    }
+
+    private static EditNode BuildNodeCore(
+        IEditBuffer buffer,
+        string jsonPath,
+        string name,
+        Type nodeType,
+        int nativeOffset,
+        FieldInfo? fi,
+        PropertyInfo? pi,
+        IdAllocator idAlloc,
+        HashSet<object> visited,
+        IReadOnlyList<IBufferViewProvider> providers,
+        IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
+        EditContext? context,
+        IValueBinding? explicitBinding,
+        IValueBinding? parentBinding)
+    {
         bool isFixedBuffer = fi?.GetCustomAttribute<FixedBufferAttribute>() != null;
         var kind = isFixedBuffer ? EditNodeKind.FixedBuffer : DetermineKind(nodeType);
 
