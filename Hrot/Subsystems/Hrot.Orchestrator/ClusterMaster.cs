@@ -371,6 +371,7 @@ public sealed partial class ClusterMaster : IDisposable
 
         // Bus-based intent drain (CMC-S008).
         ProcessRunSettingsIntents();   // ⭐ CE-4090 D14 — BEFORE the transitions: a setting and a load in one frame honour the setting
+        ProcessBlankScenarioIntents();   // ⭐ New scenario N2 — BEFORE the transitions: a create and the load of its name in one frame find the file
         ProcessTransitionStateIntents();
         ProcessManageEpisodeIntents();
         ProcessStorageOpIntents();
@@ -531,6 +532,7 @@ public sealed partial class ClusterMaster : IDisposable
             case ClusterOpType.ExportArchive:
             case ClusterOpType.ImportArchive:
             case ClusterOpType.DeleteExercise:   // ⭐ CE-4090 D15
+            case ClusterOpType.CreateBlankScenario:   // ⭐ New scenario N2
                 ProcessStorageOpIntent(ClusterOpRequestAdapter.ToExecuteStorageOpIntent(req));
                 break;
 
@@ -851,7 +853,8 @@ public sealed partial class ClusterMaster : IDisposable
     private void ProcessStorageOpIntents()
     {
         foreach (var intent in _eventBus.ReadManaged<ExecuteStorageOpIntent>())
-            ProcessStorageOpIntent(intent);
+            if (intent.Operation != StorageOpType.CreateBlankScenario)   // ⭐ N2 — already run by ProcessBlankScenarioIntents
+                ProcessStorageOpIntent(intent);
     }
 
     private void ProcessTakeCheckpointIntents()
@@ -1989,6 +1992,7 @@ public sealed partial class ClusterMaster : IDisposable
         }
         // ⭐ CE-4090 (AQ108 D15) — discard an unarchived recording
         if (intent.Operation == StorageOpType.Delete) { ProcessDeleteExercise(intent); return; }
+        if (intent.Operation == StorageOpType.CreateBlankScenario) { ProcessCreateBlankScenario(intent); return; }   // ⭐ New scenario N2
         switch (intent.Operation)
         {
             // CE-278: StorageOpType.SaveScenario (=2) retired — the half-built .fdp-archive stub whose only

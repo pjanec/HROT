@@ -215,7 +215,36 @@ public sealed class AskingCreationSession : IScenarioCreationSession
     public void SaveScenarioAs(string scenarioName) => SaveScenarioAsCalls.Add(scenarioName);
     public void LoadScenarioByName(string scenarioName) => Opens.Add(scenarioName);
     public void LoadScenarioByName(string scenarioName, System.Action then) { Opens.Add(scenarioName); _held = then; }
+    public readonly List<(string Name, string Terrain)> Blanks = new();
+    public void CreateBlankScenario(string scenarioName, string terrainName) => Blanks.Add((scenarioName, terrainName));
     public void TheUserConfirms() => _held?.Invoke();
+}
+
+/// <summary>⭐ New scenario N2 (docs/UX/DESIGN_New_Scenario_And_Recipe.md §2.2, R-4135) — a blank on a terrain: the guarded open of the new name, and
+/// the master's create of the header-only file ONLY once the open went out (in the same frame; the master runs the create before the loads).</summary>
+public sealed class ScenarioNewBlankTests
+{
+    [Fact]
+    public void N2_ABlank_OpensTheNewName_AndAsksForTheFileOnlyOnceTheOpenWentOut()
+    {
+        var session = new AskingCreationSession();
+        var svc = new ScenarioNewAssetService(session, () => new[] { "basic-desert" });
+
+        Assert.Equal("Berlin/Checkpoint", svc.CreateBlank("highway-rest", "Checkpoint", "Berlin"));
+        Assert.Equal(new[] { "Berlin/Checkpoint" }, session.Opens);
+        Assert.Empty(session.Blanks);                 // the user has not confirmed the open yet ⇒ nothing is created
+        session.TheUserConfirms();
+        Assert.Equal(new[] { ("Berlin/Checkpoint", "highway-rest") }, session.Blanks);
+        Assert.Empty(session.SaveScenarioAsCalls);    // ⛔ no save-as: the master writes the file, the load opens it
+    }
+
+    [Fact]
+    public void N2_ABlank_NeedsATerrainAndAName()
+    {
+        var svc = new ScenarioNewAssetService(new AskingCreationSession());
+        Assert.Throws<System.ArgumentException>(() => svc.CreateBlank("", "x"));
+        Assert.Throws<System.ArgumentException>(() => svc.CreateBlank("highway-rest", " "));
+    }
 }
 
 /// <summary>

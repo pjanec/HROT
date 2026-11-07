@@ -208,6 +208,53 @@ public sealed class StorageProcessManager
     }
 
     /// <summary>
+    /// ⭐ New scenario N2 (📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §2.2, R-4135) — writes a BLANK scenario: a header naming
+    /// <paramref name="terrainName"/>, no entities (the shape of the shipped <c>basic-desert</c> recipe), at the folder every load of
+    /// <paramref name="scenarioName"/> resolves (<see cref="ContentLayout.ResolveScenarioDirectory"/> under this master's NAS — the same place a save
+    /// merges into). Returns <see langword="null"/> when written, else the refusal: ⛔ a scenario that exists already (never overwritten — the
+    /// picker's Save-As asks Replace first), ⛔ a terrain this master's catalog does not list (named with the ones it does).
+    /// </summary>
+    public string? WriteBlankScenario(string scenarioName, string terrainName)
+    {
+        string dir;
+        try { dir = ContentLayout.ResolveScenarioDirectory(_nasBasePath, scenarioName); }
+        catch (ArgumentException ex) { return ex.Message; }
+        var file = Path.Combine(dir, ContentLayout.ScenarioFileName);
+        if (File.Exists(file)) return $"a scenario named '{scenarioName}' already exists";
+
+        var terrains = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _nasBasePath);   // ⭐ the catalog the master's load reads the origin from
+        string? found;
+        try { found = terrains.ResolveDefinition(terrainName); }
+        catch (ArgumentException ex) { return ex.Message; }
+        if (found == null)
+        {
+            var known = terrains.List();
+            return $"unknown terrain '{terrainName}' — the terrains are: {(known.Count == 0 ? "(none)" : string.Join(", ", known))}";
+        }
+
+        var doc = new JsonObject
+        {
+            ["$meta"] = new JsonObject { ["docType"] = ScenarioDocType, ["schemaVersion"] = 1 },
+            ["header"] = new JsonObject
+            {
+                ["subsystemType"] = ScenarioDocType,
+                ["schemaVersion"] = "1.0",
+                ["terrainName"] = terrainName.Replace('\\', '/').Trim('/'),
+            },
+            ["entities"] = new JsonArray(),
+        };
+        try
+        {
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(file, doc.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (IOException ex) { return $"the scenario could not be written: {ex.Message}"; }
+        catch (UnauthorizedAccessException ex) { return $"the scenario could not be written: {ex.Message}"; }
+        FdpLog<StorageProcessManager>.Info("[StorageProcessManager] N2: blank scenario '{0}' on '{1}' → '{2}'.", scenarioName, terrainName, file);
+        return null;
+    }
+
+    /// <summary>
     /// CE-277(c2) — after the pull, combine the format-compatible per-node slices into the one canonical
     /// <c>scenarios/&lt;name&gt;/scenario.json</c> via <see cref="ScenarioMergeCore"/>, keep the foreign slices
     /// under <c>foreign/</c> for load-side push-back, and clean up the staging <c>.slices/</c>.

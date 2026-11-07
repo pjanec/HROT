@@ -733,6 +733,46 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "new_scenario",
+    "group": "E — Scenario",
+    "summary": "⭐ New scenario N5 — create a scenario and open it for editing: blank on a terrain (the master writes a header-only file naming it), or from a recipe (the New-Asset path).",
+    "http": {
+      "method": "POST",
+      "path": "/scenario/new"
+    },
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "The new scenario's name (may hold subfolders, e.g. Berlin/Checkpoint)"
+      },
+      {
+        "name": "terrain",
+        "type": "string",
+        "required": false,
+        "description": "A blank scenario on this terrain (a name the master's terrain catalog lists)"
+      },
+      {
+        "name": "recipe",
+        "type": "string",
+        "required": false,
+        "description": "Start from this recipe (a name from GET /assets/recipes) instead"
+      }
+    ],
+    "returns": "blank: {created, terrain, requestId, loading}; recipe: the POST /assets answer.",
+    "example": {
+      "args": {
+        "name": "Berlin/Checkpoint",
+        "terrain": "basic-desert"
+      },
+      "gist": "a blank scenario on basic-desert"
+    },
+    "hint": "Req: name and exactly one of terrain or recipe. The terrain is fixed at creation and never changes. Answers 409 for an existing name or an unknown terrain (with the terrains the master offers). Example: new_scenario({name:\"Berlin/Checkpoint\", terrain:\"basic-desert\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "save_scenario",
     "group": "E — Scenario",
     "summary": "Save the current authored world as a scenario.",

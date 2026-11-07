@@ -30,4 +30,7 @@ internal sealed class EditorLogicSessionAdapter : IScenarioCreationSession
 
     public void LoadScenarioByName(string scenarioName, Action then)
         => _editorLogic.LoadScenarioByName(scenarioName, then);
+
+    public void CreateBlankScenario(string scenarioName, string terrainName)
+        => _editorLogic.CreateBlankScenario(scenarioName, terrainName);
 }

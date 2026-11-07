@@ -314,6 +314,23 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     }
 
     /// <inheritdoc/>
+    /// <remarks>⭐ New scenario N2 — the same storage-op door as a save (<see cref="ExecuteStorageOpIntent"/>), so it is identical on every host.</remarks>
+    public void CreateBlank(string scenarioName, string terrainName)
+    {
+        if (string.IsNullOrWhiteSpace(scenarioName) || string.IsNullOrWhiteSpace(terrainName)) return;
+        _orchestrationBus.PublishManaged(BlankScenarioIntent(scenarioName, terrainName));
+    }
+
+    /// <summary>⭐ N2 — the ONE construction of the blank-create intent (the session and <c>POST /scenario/new</c>).</summary>
+    public static ExecuteStorageOpIntent BlankScenarioIntent(string scenarioName, string terrainName) => new()
+    {
+        RequestId    = Guid.NewGuid(),
+        Operation    = StorageOpType.CreateBlankScenario,
+        ScenarioName = scenarioName,
+        HeaderJson   = new System.Text.Json.Nodes.JsonObject { ["terrainName"] = terrainName }.ToJsonString(),
+    };
+
+    /// <inheritdoc/>
     /// <remarks>⭐ CE-4210 MA-9 — the ONE save path with a filter and a header. ⛔ Unlike <see cref="SaveAs"/> it changes NOTHING of the open scenario: not its loaded name, not its takes.</remarks>
     public void SaveSelectionAs(string scenarioName, Guid[] onlyGuids, string? headerJson)
     {

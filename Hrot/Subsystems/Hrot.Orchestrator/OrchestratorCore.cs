@@ -165,6 +165,7 @@ public sealed class OrchestratorCore : IDisposable
         // ⭐ CE-4090 (AQ108 D15) — the master discards an unarchived recording through the inventory that holds its ledger (silent-default rule:
         //   every host builds its master here, so none can forget it).
         _master.ExerciseDeleter = _inventory.DeleteExercise;
+        _master.BlankScenarioWriter = _storage.WriteBlankScenario;   // ⭐ New scenario N2 — the master writes a blank scenario where its loads resolve names
 
         // TASK-T001 — the live branch. Must tick BEFORE ClusterMaster so FreezeTime runs before the PrepareLive fan-out.
         var timeReads = o.TimeReads;

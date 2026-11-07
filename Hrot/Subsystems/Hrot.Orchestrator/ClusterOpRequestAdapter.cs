@@ -135,6 +135,7 @@ internal static class ClusterOpRequestAdapter
             ClusterOpType.ImportArchive    => StorageOpType.Import,
             ClusterOpType.SaveScenario => StorageOpType.SaveScenario,
             ClusterOpType.DeleteExercise   => StorageOpType.Delete,   // ⭐ CE-4090 D15
+            ClusterOpType.CreateBlankScenario => StorageOpType.CreateBlankScenario,   // ⭐ New scenario N2
             // CE-278: SaveScenario=2 retired; reject an unmapped cluster op instead of silently
             // mapping it to the dead SaveScenario storage op (previous default).
             _ => throw new ArgumentOutOfRangeException(
@@ -144,7 +145,7 @@ internal static class ClusterOpRequestAdapter
 
         // CE-277(c0): the distributed JSON scenario save carries its relative name in PayloadJson.
         string? scenarioName = null; Guid[]? onlyGuids = null; string? headerJson = null;
-        if (opType == StorageOpType.SaveScenario)
+        if (opType is StorageOpType.SaveScenario or StorageOpType.CreateBlankScenario)
             (scenarioName, onlyGuids, headerJson) = Hrot.Network.Orchestration.SaveScenarioRequestJson.Decode(req.PayloadJson);   // ⭐ CE-4210 MA-9 — the one decoding
 
         return new ExecuteStorageOpIntent

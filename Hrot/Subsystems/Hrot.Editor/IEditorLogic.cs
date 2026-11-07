@@ -42,6 +42,9 @@ public interface IEditorLogic
     /// </summary>
     void LoadScenarioByName(string scenarioName, System.Action then) { LoadScenarioByName(scenarioName); then(); }
 
+    /// <summary>⭐ New scenario N2 — the master writes a blank scenario on a terrain (header only).</summary>
+    void CreateBlankScenario(string scenarioName, string terrainName) => throw new System.NotSupportedException("This host cannot create a scenario.");
+
     /// <summary>
     /// ⭐ <c>CE-4101</c> — the ONE guarded door of this editor's scenario session (HTTP asks through it with its refusing asker); <see langword="null"/> on a fake that has no session.
     /// </summary>

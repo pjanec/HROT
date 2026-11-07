@@ -1520,6 +1520,17 @@ namespace Hrot.Editor.DebugApi
             return new JsonObject { ["saved"] = name, ["via"] = "cluster-intent" };
         }
 
+        /// <summary>⭐ New scenario N5 (R-4135) — asks the master to write a BLANK scenario <paramref name="name"/> on <paramref name="terrain"/> (the same
+        /// intent the editor's New Scenario sends, <c>EditorScenarioSession.BlankScenarioIntent</c>); returns its request id, whose outcome
+        /// (<see cref="LoadPhaseOf"/>) says written or refused with the reason.</summary>
+        public Guid RequestBlankScenario(string name, string terrain)
+        {
+            var master = MasterOrNull ?? throw NotSupportedHere(Hrot.Presentation.DebugApi.DebugCapabilities.SaveScenarioJson);
+            var intent = Hrot.Editor.AiShared.Scenarios.EditorScenarioSession.BlankScenarioIntent(name, terrain);
+            master.Storage(intent);
+            return intent.RequestId;
+        }
+
         // ── Group F — Commands + discovery + spawn ─────────────────────────────
 
         /// <summary>

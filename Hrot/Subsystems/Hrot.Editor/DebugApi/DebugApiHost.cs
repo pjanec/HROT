@@ -161,7 +161,7 @@ namespace Hrot.Editor.DebugApi
         {
             ("POST", "/sim/play"), ("POST", "/sim/pause"), ("POST", "/sim/step"), ("POST", "/sim/timescale"),
             ("POST", "/run-mode"), ("POST", "/run-settings"), ("POST", "/preview/enter"), ("POST", "/preview/exit"),
-            ("POST", "/scenario/load/edit"), ("POST", "/scenario/load/live"), ("POST", "/scenario/check-unsaved"),
+            ("POST", "/scenario/load/edit"), ("POST", "/scenario/load/live"), ("POST", "/scenario/new"), ("POST", "/scenario/check-unsaved"),
             ("POST", "/exercises/keep"), ("DELETE", "/exercises/{id}"),
             ("POST", "/replay"), ("POST", "/replay/seek"), ("POST", "/review/seek"), ("POST", "/review"), ("POST", "/review/exit"),
             ("POST", "/replay/axis"), ("POST", "/replay/loop"),
@@ -710,6 +710,10 @@ namespace Hrot.Editor.DebugApi
                 var header = ctx.Body?["header"]?.ToJsonString();
                 return RunMain(s => s.SaveScenario(name!, only, header));
             }));
+
+            // ⭐ New scenario N5 (docs/UX/DESIGN_New_Scenario_And_Recipe.md, R-4135) — both kinds of new scenario: from a recipe (the New-Asset path,
+            //   POST /assets {kind: Scenario}) or blank on a terrain (the master writes it, then the ordinary edit load opens it).
+            _routes.Add(new("POST", "/scenario/new", HandleScenarioNew));
 
             // Group F — commands + discovery + spawn
             _routes.Add(new("GET", "/commands", _ =>
@@ -2139,6 +2143,45 @@ namespace Hrot.Editor.DebugApi
         /// 📄 <c>MCP_Integration.md</c> § Group U. ⛔ Not two handlers: the readiness contract is identical and
         /// duplicating it is how the two modes would drift apart.
         /// </summary>
+        /// <summary>⭐ N5 — <c>POST /scenario/new {name, recipe | terrain}</c>.</summary>
+        private async Task<RouteResult> HandleScenarioNew(RequestContext ctx)
+        {
+            var name    = ctx.Body?["name"]?.GetValue<string>();
+            var recipe  = ctx.Body?["recipe"]?.GetValue<string>();
+            var terrain = ctx.Body?["terrain"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(name)) return Fail(400, "name is required.", DebugApiHints.Scenario);
+            if (string.IsNullOrWhiteSpace(recipe) == string.IsNullOrWhiteSpace(terrain))
+                return Fail(400, "send exactly one of recipe (a name from GET /assets/recipes) or terrain (a blank scenario on that terrain).", DebugApiHints.Scenario);
+
+            if (!string.IsNullOrWhiteSpace(recipe))   // ⭐ one creator: the New-Asset path the editor's picker uses
+                return await RunMainResult(s =>
+                {
+                    var (result, error, hint) = s.CreateAsset(new JsonObject { ["kind"] = "Scenario", ["name"] = name, ["recipe"] = recipe });
+                    return error == null ? Ok(result) : Fail(error.StartsWith("This host wires no", StringComparison.Ordinal) ? 503 : 400, error, hint);
+                }).ConfigureAwait(false);
+
+            Guid request;
+            try { request = await _jobQueue.RunOnMainThread(() => Service().RequestBlankScenario(name!, terrain!)).ConfigureAwait(false); }
+            catch (Hrot.Presentation.DebugApi.NotSupportedHereException e) { return Fail(501, e.Message, DebugApiHints.Scenario); }
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
+            {
+                var phase = await _jobQueue.RunOnMainThread(() => Service().LoadPhaseOf(request)).ConfigureAwait(false);
+                if (phase is { Phase: "Failed" } refused) return Fail(409, $"Scenario '{name}' was not created: {refused.Reason}", DebugApiHints.Scenario);
+                if (phase is null || phase.Value.Phase == "Loaded")   // written (or a host with no cluster view: nothing to wait on)
+                {
+                    var load = await _jobQueue.RunOnMainThread(() => Service().LoadScenarioEdit(name!)).ConfigureAwait(false);
+                    if (load?["refused"] is JsonValue r && r.TryGetValue(out string? why))
+                        return Fail(409, $"Scenario '{name}' was created but not opened: {why}", DebugApiHints.Scenario);
+                    return Ok(new JsonObject { ["created"] = name, ["terrain"] = terrain, ["requestId"] = request.ToString(), ["loading"] = name,
+                                               ["note"] = "an empty scenario on the terrain, saved; GET /status shows the load" });
+                }
+                await Task.Delay(50).ConfigureAwait(false);
+            }
+            return Fail(504, $"Scenario '{name}': the master did not answer the create within {ScenarioReadyTimeoutSeconds}s.", DebugApiHints.Scenario);
+        }
+
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx, Fdp.Toolkit.Orchestration.ClusterState target)
         {
             var name = ctx.Body?["name"]?.GetValue<string>();
