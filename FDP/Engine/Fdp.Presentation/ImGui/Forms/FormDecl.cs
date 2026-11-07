@@ -43,6 +43,8 @@ public sealed class FormField
     public Func<EntityRepository, Entity, double?>? TypeValue { get; init; }
     /// <summary>What the reset writes (the attribute's own "back to the type" value — the Character attributes: a NEGATIVE number clears the authored bit). ⛔ Not range-checked: it is not a typed value.</summary>
     public double ResetValue { get; init; } = -1;
+    /// <summary>⭐ U-23 part 5 — a number shown as <i>value / max</i> (Strength: <c>80 / 100</c>); the write stays on <see cref="Attribute"/>. Single selection only (a multi-selection shows the plain value / <i>mixed</i>). Cached per change: 0 B.</summary>
+    public Func<EntityRepository, Entity, double>? MaxOf { get; init; }
     /// <summary>A bounded number drawn as a slider (the mockup's Character rows) instead of an input; written when the drag ends.</summary>
     public bool Slider { get; init; }
 

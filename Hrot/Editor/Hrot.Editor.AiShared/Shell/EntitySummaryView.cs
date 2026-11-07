@@ -40,19 +40,16 @@ public sealed record EntitySummary(
     public float? HealthFraction => HealthCurrent is { } c && HealthMax is > 0f and var m ? Math.Clamp(c / m, 0f, 1f) : null;
 
     /// <summary>⭐ CE-4257 — the DIS type as its seven numbers, colon-separated: <c>Kind:Domain:Country:Category:Subcategory:Specific:Extra</c>.</summary>
-    public static string DisText(DISEntityType t)
-        => string.Create(CultureInfo.InvariantCulture, $"{t.Kind}:{t.Domain}:{t.Country}:{t.Category}:{t.Subcategory}:{t.Specific}:{t.Extra}");
+    public static string DisText(DISEntityType t) => Hrot.Presentation.Forms.EntityFacts.DisText(t);   // ⭐ U-23 part 5 — ONE copy, in Hrot.Presentation (the Unit form reads it too)
 
     /// <summary>⭐ CE-4257 — the DIS type's levels by name (the row's tooltip), e.g. <c>Platform › Land › United States › Tank</c>.</summary>
-    public static string DisNames(DISEntityType t) => string.Join(" › ", DisNameTable.Default.Path(t));
+    public static string DisNames(DISEntityType t) => Hrot.Presentation.Forms.EntityFacts.DisNames(t);
 
     /// <summary>⭐ CE-4257 — a position as the Details show it: CULTURE-INVARIANT (a decimal comma would collide with the separator).</summary>
-    public static string PositionText(Vector3 p)
-        => string.Create(CultureInfo.InvariantCulture, $"{p.X:F1}, {p.Y:F1}, {p.Z:F1} m");
+    public static string PositionText(Vector3 p) => Hrot.Presentation.Forms.EntityFacts.PositionText(p);
 
     /// <summary>⭐ CE-4257 — health as shown, culture-invariant.</summary>
-    public static string HealthText(float current, float max)
-        => string.Create(CultureInfo.InvariantCulture, $"{current:F0} / {max:F0}");
+    public static string HealthText(float current, float max) => Hrot.Presentation.Forms.EntityFacts.HealthText(current, max);
 
     /// <summary>Reads the entity's summary; null when it is not alive.</summary>
     public static EntitySummary? Read(ISimulationView view, Entity entity)
@@ -68,12 +65,7 @@ public sealed record EntitySummary(
             side = info.ForceId;
         }
 
-        ForceId? shownAs = null;
-        if (Has<ResolvedStyle>(view, entity))
-        {
-            var drawn = view.GetComponentRO<ResolvedStyle>(entity).Affiliation;
-            if (drawn != side) shownAs = drawn;
-        }
+        ForceId? shownAs = Hrot.Presentation.Forms.EntityFacts.ShownAs(view, entity, side);
 
         float? current = null, max = null;
         if (Has<Health>(view, entity))
@@ -85,22 +77,7 @@ public sealed record EntitySummary(
 
         // ⭐ CE-4257 — WHAT KIND of entity: the TKB template's display name, else the DIS category's name; the DIS type is the entity's own,
         //   else its template's (as DisEntityTypeTranslator reads it)
-        TkbTypeId? tkbType = Has<TkbIdentity>(view, entity) ? view.GetComponentRO<TkbIdentity>(entity).TkbType : null;
-        string? kind = null; DISEntityType? dis = null;
-        if (view is EntityRepository repo)
-        {
-            var own = repo.GetDisType(entity);
-            if (own.Value != 0) dis = own;
-            if (tkbType is { } tt && repo.HasSingletonManaged<ITkbDatabase>() && repo.GetSingletonManaged<ITkbDatabase>() is { } db
-                && db.TryGetByType(tt.Value, out var template))
-            {
-                var display = template.GetDescriptor<TkbMasterDto>()?.CustomName;
-                kind = !string.IsNullOrWhiteSpace(display) ? display : !string.IsNullOrWhiteSpace(template.Name) ? template.Name : null;
-                if (dis is null && template.DisType.Value != 0) dis = template.DisType;
-            }
-            if (kind is null && dis is { } d)
-                kind = d.Category != 0 ? DisNameTable.Default.CategoryName(d.Kind, d.Domain, d.Category) : DisNameTable.Default.KindName(d.Kind);
-        }
+        var (kind, dis) = Hrot.Presentation.Forms.EntityFacts.KindAndDis(view, entity);
 
         return new EntitySummary(
             name,
@@ -220,7 +197,8 @@ public static class EntitySummaryViewDescriptor
             Id:        ViewId,
             Title:     "Summary",
             Rank:      Rank,
-            AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx) && world() is not null,
+            AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx) && world() is { } w
+                       && !(w.IsAlive(ctx.Entities[0]) && Hrot.Presentation.Forms.HrotForms.Unit.OffersFor(w, ctx.Entities[0])),   // ⭐ U-23 part 5 — the Unit form shows position, kind, DIS type, shown-as and strength; Summary stays for an entity the form is not offered for
             Create:    () => instance);   // ⚠ no per-window state, as the Components view
     }
 }

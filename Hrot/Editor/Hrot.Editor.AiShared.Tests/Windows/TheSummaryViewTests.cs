@@ -132,7 +132,14 @@ public sealed class TheSummaryViewTests : IDisposable
             Inspector: () => inspector, Session: () => session, RunState: () => VariableRunState.Running, Host: () => null));
         Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { bundle }, new Fdp.Toolkit.Runner.UiBundleContext(windows));
 
-        var ctx = DetailsContext.Empty("Player") with { Entities = new[] { e } };
+        // ⭐ U-23 part 5 — a UNIT (the Unit form is offered for it) no longer gets the Summary tab: the form carries position, kind, DIS type, shown-as and strength
+        var unitCtx = DetailsContext.Empty("Player") with { Entities = new[] { e } };
+        Assert.DoesNotContain(bundle.Workspace.DetailsViews.OfferSet(unitCtx), d => d.Id == EntitySummaryViewDescriptor.ViewId);
+        // ... and an entity with no EntityInfo (no Unit form) keeps it, as the default over Components
+        var thing = world.CreateEntity();
+        world.AddComponent(thing, new NetworkIdentity(1043));
+        world.AddComponent(thing, new SimTransform { Position = new Vector3(123.4f, 567.8f, 9f), Rotation = Quaternion.Identity });
+        var ctx = DetailsContext.Empty("Player") with { Entities = new[] { thing } };
         Assert.Contains(bundle.Workspace.DetailsViews.OfferSet(ctx), d => d.Id == Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.ViewId);
         Assert.Equal(EntitySummaryViewDescriptor.ViewId, bundle.Workspace.DetailsViews.Default(ctx)?.Id);
         Assert.Null(bundle.Workspace.DetailsViews.Default(DetailsContext.Empty("Player")));   // nothing selected ⇒ no card
@@ -141,9 +148,8 @@ public sealed class TheSummaryViewTests : IDisposable
         var view = (EntitySummaryView)bundle.Workspace.DetailsViews.Default(ctx)!.Create();
         view.SimulateDraw(ctx, "details_ce1247");
         var dump = PanelSnapshot.TryGet($"details_ce1247/{EntitySummaryViewDescriptor.ViewId}")!.Dump();
-        Assert.Equal("T-72", dump["name"]!.GetValue<string>());
-        Assert.Equal("Hostile", dump["side"]!.GetValue<string>());
         Assert.Equal(1043L, dump["networkId"]!.GetValue<int>());
+        Assert.Equal("123.4, 567.8, 9.0 m", dump["positionText"]!.GetValue<string>());
     }
 
     // ── ⭐ CE-4257 — the Summary names WHAT KIND of entity it is, and prints numbers culture-invariantly ──────────────────────

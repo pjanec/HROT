@@ -98,6 +98,7 @@ public static class HrotForms
                 Label = "Strength", Attribute = "Health.Current", Min = 0,
                 Has = (w, e) => w.IsComponentTypeRegistered<Health>() && w.HasComponent<Health>(e),
                 ReadNumber = (w, e) => w.GetComponentRO<Health>(e).Current,
+                MaxOf = (w, e) => w.GetComponentRO<Health>(e).Max,   // reads "80 / 100"; the write stays Health.Current
             },
             new FormField
             {
@@ -139,6 +140,31 @@ public static class HrotForms
                 Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultNerve, t => t.TypeNerve),
             Trait("Resolve", "Temperament.Resolve", Fdp.Toolkit.Behavior.Components.CombatTemperament.ResolveSet, Fdp.Toolkit.Behavior.Components.TemperamentOf.Resolve,
                 Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultResolve, t => t.TypeResolve),
+            // ⭐ U-23 part 5 — what the Summary tab showed (read-only, expert): position (rebuilt only after a move > 5 cm), kind, the DIS type (the colon form), the style's affiliation where it differs
+            new FormField
+            {
+                Label = "Position", Kind = FieldKind.Text, Expert = true,
+                Has = EntityFacts.HasPosition,
+                ReadText = EntityFacts.PositionFixed,
+            },
+            new FormField
+            {
+                Label = "Kind", Kind = FieldKind.Text, Expert = true,
+                Has = (w, e) => !EntityFacts.KindFixed(w, e).IsEmpty,
+                ReadText = EntityFacts.KindFixed,
+            },
+            new FormField
+            {
+                Label = "DIS type", Kind = FieldKind.Text, Expert = true,
+                Has = (w, e) => !EntityFacts.DisFixed(w, e).IsEmpty,
+                ReadText = EntityFacts.DisFixed,
+            },
+            new FormField
+            {
+                Label = "Shown as", Kind = FieldKind.Text, Expert = true,
+                Has = (w, e) => !EntityFacts.ShownAsFixed(w, e).IsEmpty,
+                ReadText = EntityFacts.ShownAsFixed,
+            },
             new FormField
             {
                 Label = "Entity id", Expert = true,

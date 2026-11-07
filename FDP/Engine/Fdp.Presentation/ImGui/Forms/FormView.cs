@@ -42,6 +42,8 @@ public sealed class FormView
         public string? Refusal;
         public bool Differs;              // ⭐ U-24 / S6 — authored over the type, and different from it
         public double TypeNumber;
+        public double Max = double.NaN;       // ⭐ U-23 part 5 — the "/ max" shown after the value (NaN: none)
+        public string? NumberFormat;          // the input's ImGui format with " / max" — rebuilt when the max moves
         public string SliderFormat = "%.2f";   // "0.80  (type 0.50)" while it differs — cached with the tip
         public string? TypeTip;           // "type 0.5 — reset", rebuilt only when the type's value changes (0 B steady)
     }
@@ -223,9 +225,11 @@ public sealed class FormView
             s.Has = has && sel.Count > 0;
             if (!s.Has) continue;
             if (field.TypeValue != null) RefreshType(field, s, world, sel);
-            if (s.Known && s.Mixed == mixed && (field.Kind == FieldKind.Text ? s.Text.Equals(text) : s.Number == num)) continue;
-            s.Known = true; s.Mixed = mixed; s.Number = num; s.Text = text;
-            s.Shown = mixed ? "mixed" : Format(field, num, text);
+            double max = field.MaxOf != null && sel.Count == 1 && !mixed ? field.MaxOf(world, sel[0]) : double.NaN;
+            if (s.Known && s.Mixed == mixed && (field.Kind == FieldKind.Text ? s.Text.Equals(text) : s.Number == num) && (s.Max == max || (double.IsNaN(s.Max) && double.IsNaN(max)))) continue;
+            s.Known = true; s.Mixed = mixed; s.Number = num; s.Text = text; s.Max = max;
+            s.NumberFormat = double.IsNaN(max) ? null : NumberInput.FormatFor(field.Unit) + " / " + max.ToString("0.##", CultureInfo.InvariantCulture).Replace("%", "%%");
+            s.Shown = mixed ? "mixed" : Format(field, num, text) + (double.IsNaN(max) ? "" : " / " + max.ToString("0.##", CultureInfo.InvariantCulture));
         }
     }
 
@@ -298,7 +302,7 @@ public sealed class FormView
             ImGui.SliderFloat("##n", ref f, (float)field.Min, (float)field.Max, s.SliderFormat);
             v = f;
         }
-        else ImGui.InputDouble("##n", ref v, 0, 0, NumberInput.FormatFor(field.Unit));
+        else ImGui.InputDouble("##n", ref v, 0, 0, s.NumberFormat ?? NumberInput.FormatFor(field.Unit));
         if (ImGui.IsItemActivated()) { _editing = i; _editNumber = s.Number; }
         if (_editing == i)
         {

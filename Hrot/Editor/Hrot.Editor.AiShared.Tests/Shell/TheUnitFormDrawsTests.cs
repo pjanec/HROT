@@ -50,7 +50,7 @@ public sealed class TheUnitFormDrawsTests
             view.View.Draw(HrotForms.Unit, world, new[] { e }, editable: true);
             ImGui.End();
         });
-        Assert.Equal(new[] { "Name = Alpha 1-1", "Side = Blue", "Strength = 80", "Entity id = 42" }, view.View.Rows);
+        Assert.Equal(new[] { "Name = Alpha 1-1", "Side = Blue", "Strength = 80 / 100", "Entity id = 42" }, view.View.Rows);
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form.png"));
     }
 
@@ -169,6 +169,71 @@ public sealed class TheUnitFormDrawsTests
         Assert.Empty(view.ListRows);                       // no memory here: no rows ...
         Assert.Equal("(known only where his brain runs)", HrotForms.Unit.Lists[list].Footer!(world, bare));   // ... and the footer says why
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) { view = new FormView(); Draw(man); frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-knows.png")); }
+    }
+
+    /// <summary>⭐ U-23 part 5 (DESIGN_Details_Forms §4.0a) — the Summary tab retired into the Unit form: <i>Strength</i> reads <c>80 / 100</c> (the write stays <c>Health.Current</c>), the expert rows <i>Position · Kind · DIS type · Shown as</i> read the world through the ONE
+    /// <c>EntityFacts</c>; a STATIC unit's frame allocates nothing; Summary is no longer offered where the form is, and still is for an entity with no <c>EntityInfo</c>.
+    /// 🔴 Red-proof (compiles): <c>FormView.Refresh</c> dropping the max from <c>Shown</c> ⇒ "80" ⇒ red. Renders: <c>unit-form.png</c>.</summary>
+    [SkippableFact]
+    public void U23_P5_TheUnitForm_AbsorbsTheSummary_StrengthOverMax_ExpertFacts_0B_AndTheTabIsNotOffered()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Health>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<SimTransform>(); world.RegisterComponent<Hrot.Map.Common.Components.ResolvedStyle>();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
+        world.AddComponent(e, new Health { Current = 80, Max = 100 });
+        world.AddComponent(e, new NetworkIdentity(42));
+        world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(12.34f, 5f, 0f), Rotation = System.Numerics.Quaternion.Identity });
+        var style = Hrot.Map.Common.Components.ResolvedStyle.CreateDefault(); style.Affiliation = ForceId.Hostile;   // drawn as Red though he is Blue
+        world.AddComponent(e, style);
+        var dis = new DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 1 };
+        world.SetDisType(e, dis);
+
+        HrotForms.EnsureRegistered();
+        var view = new FormView { ExpertOpen = true };
+        using var frame = UiFrameHarness.Begin(700, 420);
+        Action draw = () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 360));
+            ImGui.Begin("Details##unit-p5");
+            view.Draw(HrotForms.Unit, world, new[] { e }, editable: true);
+            ImGui.End();
+        };
+        var sel = new[] { e };
+        draw = () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 360));
+            ImGui.Begin("Details##unit-p5");
+            view.Draw(HrotForms.Unit, world, sel, editable: true);
+            ImGui.End();
+        };
+        for (int i = 0; i < 5; i++) frame.Step(draw);
+        Assert.Contains("Strength = 80 / 100", view.Rows);
+        Assert.Contains("Position = 12.3, 5.0, 0.0 m", view.Rows);
+        Assert.Contains("DIS type = " + Hrot.Presentation.Forms.EntityFacts.DisText(dis), view.Rows);
+        Assert.Contains("Shown as = Hostile", view.Rows);
+        Assert.Contains(view.Rows, r => r.StartsWith("Kind = "));
+        Assert.Equal("Health.Current", HrotForms.Unit.Fields.First(f => f.Label == "Strength").Attribute);   // reads over a max, writes the current value
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form.png"));
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 3; i++) frame.Step(draw);
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);   // a static unit: nothing is rebuilt, nothing allocated
+        world.SetComponent(e, new SimTransform { Position = new System.Numerics.Vector3(12.36f, 5f, 0f), Rotation = System.Numerics.Quaternion.Identity });   // moved 2 cm: the text stays
+        frame.Step(draw);
+        Assert.Contains("Position = 12.3, 5.0, 0.0 m", view.Rows);
+        world.SetComponent(e, new SimTransform { Position = new System.Numerics.Vector3(20f, 5f, 0f), Rotation = System.Numerics.Quaternion.Identity });   // moved 8 m: it follows
+        frame.Step(draw);
+        Assert.Contains("Position = 20.0, 5.0, 0.0 m", view.Rows);
+
+        // the Summary tab is not offered where the Unit form is — and still is for an entity the form is not offered for
+        var summary = Hrot.Editor.AiShared.Shell.EntitySummaryViewDescriptor.For(() => world);
+        Assert.False(summary.AppliesTo(DetailsContext.Empty("Scenario") with { Entities = new[] { e } }));
+        var bare = world.CreateEntity();
+        Assert.True(summary.AppliesTo(DetailsContext.Empty("Scenario") with { Entities = new[] { bare } }));
     }
 
     /// <summary>⭐ U-24 / S6 (DESIGN_Initial_State §4.2) — the Unit form's <b>Character</b> section in a real frame: Skill and Bravery / Obedience / Nerve / Resolve read the EFFECTIVE values; an authored value that differs from the type's
