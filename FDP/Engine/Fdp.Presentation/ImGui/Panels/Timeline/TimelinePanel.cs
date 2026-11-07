@@ -94,6 +94,24 @@ public sealed class TimelinePanel
     /// Camera); null or empty = none, every existing host unchanged. The panel draws, hit-tests, selects and drags; it knows nothing about takes.</summary>
     public Func<IReadOnlyList<ITimelineTrack>>? Tracks { get; set; }
 
+    // ⭐ W-1 / P-8 8c-2 — more than one owner of track rows: Tracks (the director's take) keeps its one setter; a feature adds its rows here
+    //   (the mission plan's Tasks rows). Drawn after Tracks' rows, in the order added; concatenated into one reused buffer (0 B per steady frame).
+    private readonly List<Func<IReadOnlyList<ITimelineTrack>>> _extraTracks = new();
+    private readonly List<ITimelineTrack> _allTracks = new();
+
+    /// <summary>⭐ W-1 / P-8 8c-2 — adds a source of track rows drawn after <see cref="Tracks"/>' (a feature's own rows; never replaces another owner's).</summary>
+    public void AddTracks(Func<IReadOnlyList<ITimelineTrack>> source) => _extraTracks.Add(source ?? throw new ArgumentNullException(nameof(source)));
+
+    private IReadOnlyList<ITimelineTrack>? CollectTracks()
+    {
+        var first = Tracks?.Invoke();
+        if (_extraTracks.Count == 0) return first;
+        _allTracks.Clear();
+        if (first != null) for (int i = 0; i < first.Count; i++) _allTracks.Add(first[i]);
+        for (int s = 0; s < _extraTracks.Count; s++) { var more = _extraTracks[s](); for (int i = 0; i < more.Count; i++) _allTracks.Add(more[i]); }
+        return _allTracks.Count == 0 && first == null ? null : _allTracks;
+    }
+
     /// <summary>⭐ <c>CE-4216</c> (RV-3a) — draw the ruler and the tracks' headers even when no track holds an item yet (the rules view before a run: authored rows have no past). Off by default: the director's empty tracks keep "No recording.".</summary>
     public bool ExtentWithoutItems { get; set; }
 
@@ -166,7 +184,7 @@ public sealed class TimelinePanel
         lanes = TimelineLayout.Drawn(lanes);   // ⭐ CE-4117: a hidden lane is not drawn
         if (_gesture.Active && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) _gesture.Release();   // ⭐ CE-1364 T2 — commits once, wherever it is released (T10's lesson)
         _trackHits.Clear(); _handles.Clear(); _rowBands.Clear(); _connectors.Clear();
-        _tracksNow = Tracks?.Invoke();
+        _tracksNow = CollectTracks();
         _labelWidth = TrackLayout.LabelWidthFor(_tracksNow, FlatLabelWidth, TreeLabelWidth);   // ⭐ CE-4167 X3
         // ⭐ CE-3330 T13 — everything below is on the ACTIVE axis: the index's frame times, the extent, "now" and every seek go through it
         var axis = cursor?.Axis ?? TimelineAxis.Wall;

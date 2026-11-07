@@ -504,7 +504,7 @@ Rails: `RulesModelTests.W1_*` (the group first by number, authored too — red-p
 Rails: `TheOrdersTabTests.P8b_*` (read back as themselves with the target — red-proved by dropping the target read; the phases first, authored too;
 the descriptor forwards the host).
 
-**8c — the ONE Tasks lane (E4) — the DATA BUILT; its drawing (glyph per kind, the selection's bars row, the phase columns) ⏳ 8c-2:**
+**8c — the ONE Tasks lane (E4) — BUILT (data 8c, drawing 8c-2):**
 
 ```mermaid
 classDiagram
@@ -527,7 +527,22 @@ because every marker carries its unit.*
 | `LatestOutcome` a read-only PROPERTY (the task before `CurrentTask`, or the current one when halted) | the projection reads properties; ⛔ no stored field, no translator change (replicas already get `Outcomes`) |
 | one entry per plan move; the reader expands a jump of several tasks into Done markers and the latest's own outcome | a value-change lane sees states, not events |
 | a new plan (task back to 1 or a new count) and a halt read as Started / Failed once | E1 / CE-483 |
-| ⏳ 8c-2 | the timeline panel draws a lane's entries in its one colour: the ▶ / ✓ / ✕ per kind, the hover *"Bravo 1-1 · task 2 Overwatch · Failed"*, the selection's bars (`TasksLane.Bars`) and the phase columns (the `rules.fired` lane's phase triggers) need a per-lane renderer seam in the FDP panel |
+| ⛔ SUPERSEDED (8c-2 built): *"8c-2 needs a per-lane renderer seam"* — the rows are TRACKS instead (below); the lane itself is `Hidden` (indexed, not drawn as plain dots) | the panel already draws coloured items per track; a lane renderer would have been a second drawing path |
+
+**8c-2 — the rows on the Event Timeline (mockup C) — BUILT:** `TasksTimelineTracks` (Hrot.Presentation/Orders) gives the panel three rows —
+*Tasks* (a collapsible header), *all units* (a key per start / Done / Failed in blue / green / red, labelled *"Alpha 1-1 · task 2 Failed"*, a click
+selects that unit) and the SELECTED unit's bars (*"Alpha 1-1 ▸"*: each task from start to end, green Done · red Failed · amber running). The
+panel takes them through `TimelinePanel.AddTracks` — ⭐ a second track owner beside the director's `Tracks` (one reused buffer, 0 B a steady
+frame). Composed on the editor and the Replay Browser where each builds its Event Timeline (`TasksTracks`, over the same shown source and the
+host's ONE selection). Items are rebuilt only when the index grows or the selection changes.
+
+| ⚠ deviation from mockup C | why |
+|---|---|
+| the markers are the panel's coloured diamonds, not ▶ / ✓ / ✕ glyphs | a track item draws a diamond or a bar; the colour carries the kind (the mockup's colours) |
+| no phase columns across the rows | the panel has no full-height column for a track; the phases are already the Rules window's Phases group and the rules lanes — ⏳ a column seam if wanted |
+
+Rails: `TheTasksTimelineTracksTests` (Presentation.Tests — the rows, colours, labels and bars, red-proved by the Failed colour mapped to Done; a
+thousand units one row, built once; a real frame beside another owner's tracks — `tasks-timeline.png`).
 
 Rails: `TheTasksLaneTests.P8c_*` (Fdp.Toolkits.Tests — a plan's starts and ends with how each ended, red-proved by `LatestOutcome` reading the
 current task; a halt and a new plan; a thousand units, one lane, the unit filter) · `TimelineIndexTests.CE3330_Node_TheShippedCatalog…` (19 lanes).
