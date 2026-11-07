@@ -65,11 +65,17 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource, IRevision
     /// <summary>The declared params now.</summary>
     public IReadOnlyList<ScenarioParamDecl> Decls() => ScenarioDescription.HeaderOf(_world())?.Params ?? Array.Empty<ScenarioParamDecl>();
 
-    private void Set(IReadOnlyList<ScenarioParamDecl> decls)
+    /// <summary>⭐ CE-3391 — the stored presets (Default is implicit and not in this list), in order.</summary>
+    public IReadOnlyList<ScenarioPreset> Presets() => ScenarioDescription.HeaderOf(_world())?.Presets ?? Array.Empty<ScenarioPreset>();
+
+    private void Set(IReadOnlyList<ScenarioParamDecl> decls) => SetState(decls, Presets());
+
+    /// <summary>The ONE writer of the resident header's params and presets: a NEW header, ONE <see cref="ScenarioDescription.Stamp"/> (never a field mutated in place).</summary>
+    private void SetState(IReadOnlyList<ScenarioParamDecl> decls, IReadOnlyList<ScenarioPreset> presets)
     {
         if (_world() is not { } w) return;
         var header = ScenarioDescription.HeaderOf(w) ?? new ScenarioHeader("");
-        var next = header with { Params = decls.Count == 0 ? null : decls.ToArray() };
+        var next = header with { Params = decls.Count == 0 ? null : decls.ToArray(), Presets = presets.Count == 0 ? null : presets.ToArray() };
         var held = w.HasSingletonManaged<ScenarioDescriptionResident>() ? w.GetSingletonManaged<ScenarioDescriptionResident>() : null;
         ScenarioDescription.Stamp(w, held?.Text, held?.Name, held?.Hash, held?.Args, ScenarioDescription.HeaderJsonOf(next));
         _counts = null;
@@ -110,8 +116,27 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource, IRevision
 
     // ── edits ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-    private void Edit(string label, IReadOnlyList<ScenarioParamDecl> before, IReadOnlyList<ScenarioParamDecl> after)
-        => _history.Do(label, () => Set(after), () => Set(before));
+    /// <summary>One undo step for a declaration edit; <paramref name="mapPresets"/> (a remove / rename / retype of a param) updates every preset's Args in the SAME step (one Stamp each way).</summary>
+    private void Edit(string label, IReadOnlyList<ScenarioParamDecl> before, IReadOnlyList<ScenarioParamDecl> after, Func<IReadOnlyList<ScenarioPreset>, IReadOnlyList<ScenarioPreset>>? mapPresets = null)
+    {
+        var beforeP = Presets();
+        var afterP = mapPresets is null ? beforeP : mapPresets(beforeP);
+        _history.Do(label, () => SetState(after, afterP), () => SetState(before, beforeP));
+    }
+
+    /// <summary>Every preset with its Args rewritten by <paramref name="map"/> (a CLONE of the Args: null ⇒ the key set is unchanged; an empty result ⇒ no Args).</summary>
+    private static IReadOnlyList<ScenarioPreset> MapArgs(IReadOnlyList<ScenarioPreset> presets, Action<JsonObject> map)
+    {
+        var list = new List<ScenarioPreset>(presets.Count);
+        foreach (var p in presets)
+        {
+            if (p.Args is null) { list.Add(p); continue; }
+            var args = (JsonObject)p.Args.DeepClone();
+            map(args);
+            list.Add(p with { Args = args.Count == 0 ? null : args });
+        }
+        return list;
+    }
 
     public void AddVariable(BlackboardVariableEntry entry)
     {
@@ -143,7 +168,9 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource, IRevision
             var (n, where) = Session is { } s ? ParamUsage.Find(s, d.Name) : (0, Array.Empty<string>());
             if (n > 0) { Refuse($"'{d.Name}' is still bound by {n} field(s): {string.Join(", ", where)}{(n > where.Count ? ", …" : "")}. Unbind them first."); return; }
         }
-        Edit(doomed.Count == 1 ? $"Delete Parameter '{doomed[0].Name}'" : $"Delete {doomed.Count} Parameters", before, before.Except(doomed).ToList());
+        var gone = doomed.Select(d => d.Name).ToList();
+        Edit(doomed.Count == 1 ? $"Delete Parameter '{doomed[0].Name}'" : $"Delete {doomed.Count} Parameters", before, before.Except(doomed).ToList(),
+            ps => MapArgs(ps, a => { foreach (var n in gone) a.Remove(n); }));
     }
 
     public void RenameVariable(string oldName, string newName)
@@ -156,10 +183,18 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource, IRevision
         if (before.Any(d => d.Name == to)) { Refuse($"A parameter '{to}' is already declared."); return; }
         if (System.Text.Encoding.UTF8.GetByteCount(to) > FixedString32.MaxLength) { Refuse($"'{to}' is too long (at most {FixedString32.MaxLength} bytes)."); return; }
         var after = before.Select(d => d == decl ? d with { Name = to } : d).ToList();
-        // ONE step: the declaration and every binding of it (all three homes) move together; undo moves them back together.
+        // ONE step: the declaration, every preset's override of it and every binding of it (all three homes) move together; undo moves them back together.
+        var beforeP = Presets();
+        var afterP = MapArgs(beforeP, a =>
+        {
+            if (!a.ContainsKey(oldName)) return;
+            var rebuilt = new JsonObject();   // order kept: the key keeps its place
+            foreach (var kv in a.ToList()) { a.Remove(kv.Key); rebuilt[kv.Key == oldName ? to : kv.Key] = kv.Value; }
+            foreach (var kv in rebuilt.ToList()) { rebuilt.Remove(kv.Key); a[kv.Key] = kv.Value; }
+        });
         _history.Do($"Rename Parameter '{oldName}' to '{to}'",
-            () => { Set(after); if (Session is { } s) ParamUsage.Rename(s, oldName, to); },
-            () => { Set(before); if (Session is { } s) ParamUsage.Rename(s, to, oldName); });
+            () => { SetState(after, afterP); if (Session is { } s) ParamUsage.Rename(s, oldName, to); },
+            () => { SetState(before, beforeP); if (Session is { } s) ParamUsage.Rename(s, to, oldName); });
     }
 
     public void MoveVariable(int sourceIndex, int destIndex)
@@ -204,7 +239,8 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource, IRevision
         if (id == decl.TypeId) return;
         var (n, where) = Session is { } s ? ParamUsage.Find(s, name) : (0, Array.Empty<string>());
         if (n > 0) { Refuse($"'{name}' is still bound by {n} field(s): {string.Join(", ", where)}{(n > where.Count ? ", …" : "")}. Unbind them first."); return; }
-        Edit($"Retype Parameter '{name}'", before, before.Select(d => d == decl ? d with { TypeId = id, Default = null } : d).ToList());
+        Edit($"Retype Parameter '{name}'", before, before.Select(d => d == decl ? d with { TypeId = id, Default = null } : d).ToList(),
+            ps => MapArgs(ps, a => a.Remove(name)));
     }
 
     public DeclarationPropertySnapshot? ReadVariableProperties(string name)
@@ -212,6 +248,140 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource, IRevision
             ? new DeclarationPropertySnapshot(VariableDeclarationKind.BlackboardEntry,
                 new VariablePropertyValues(DefaultValueJson: d.Default?.ToJsonString() ?? "", Comment: d.Comment ?? ""), d.TypeId)
             : null;
+
+    // ── ⭐ CE-3391 (docs/UX/DESIGN_Scenario_Presets.md §5a) — the presets: header edits, each ONE history step, never a field mutated in place ────────────────────
+
+    private bool EditPresets(string label, Func<IReadOnlyList<ScenarioPreset>, IReadOnlyList<ScenarioPreset>?> change)
+    {
+        LastRefusal = null;
+        if (IsReadOnly) return false;
+        var before = Presets();
+        var after = change(before);
+        if (after is null) return false;
+        _history.Do(label, () => SetPresetsOnly(after), () => SetPresetsOnly(before));
+        return true;
+    }
+
+    private void SetPresetsOnly(IReadOnlyList<ScenarioPreset> presets) => SetState(Decls(), presets);
+
+    private static bool IsDefault(string name) => string.Equals(name, ScenarioPreset.DefaultName, StringComparison.OrdinalIgnoreCase);
+
+    private static string FreeName(IReadOnlyList<ScenarioPreset> presets, string stem)
+    {
+        for (int n = 1; ; n++)
+        {
+            string name = stem + " " + n;
+            if (!IsDefault(name) && !presets.Any(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))) return name;
+        }
+    }
+
+    /// <summary>[+] — a new preset that is a COPY of <paramref name="shown"/> (Default ⇒ as authored, no overrides), named <i>Preset N</i> (unique). Returns its name, null when refused.</summary>
+    public string? AddPresetCopyOf(string shown)
+    {
+        string? made = null;
+        EditPresets("Add Preset", ps =>
+        {
+            var src = ps.FirstOrDefault(p => string.Equals(p.Name, shown, StringComparison.OrdinalIgnoreCase));
+            made = FreeName(ps, "Preset");
+            return ps.Append(new ScenarioPreset(made, src?.Variant ?? PresetVariant.AsAuthored, src?.Args is { } a ? (JsonObject)a.DeepClone() : null)).ToList();
+        });
+        return made;
+    }
+
+    /// <summary>Duplicate — a copy right after <paramref name="name"/>, named <i>"name 2"</i>… (unique). Null for Default / unknown.</summary>
+    public string? DuplicatePreset(string name)
+    {
+        string? made = null;
+        EditPresets($"Duplicate Preset '{name}'", ps =>
+        {
+            int i = IndexOfPreset(ps, name);
+            if (i < 0) { Refuse(IsDefault(name) ? "Default is the declared values; add a preset to copy them." : $"No preset '{name}'."); return null; }
+            made = FreeName(ps, ps[i].Name);
+            var list = ps.ToList();
+            list.Insert(i + 1, new ScenarioPreset(made, ps[i].Variant, ps[i].Args is { } a ? (JsonObject)a.DeepClone() : null));
+            return list;
+        });
+        return made;
+    }
+
+    public bool RenamePreset(string name, string newName)
+    {
+        newName = newName?.Trim() ?? "";
+        return EditPresets($"Rename Preset '{name}'", ps =>
+        {
+            int i = IndexOfPreset(ps, name);
+            if (i < 0) { Refuse(IsDefault(name) ? "Default cannot be renamed." : $"No preset '{name}'."); return null; }
+            if (newName.Length == 0) { Refuse("A preset needs a name."); return null; }
+            if (IsDefault(newName) || ps.Where((p, k) => k != i).Any(p => string.Equals(p.Name, newName, StringComparison.OrdinalIgnoreCase))) { Refuse($"A preset '{newName}' already exists."); return null; }
+            if (newName == ps[i].Name) return null;
+            var list = ps.ToList(); list[i] = list[i] with { Name = newName }; return list;
+        });
+    }
+
+    public bool DeletePreset(string name) => EditPresets($"Delete Preset '{name}'", ps =>
+    {
+        int i = IndexOfPreset(ps, name);
+        if (i < 0) { Refuse(IsDefault(name) ? "Default cannot be deleted." : $"No preset '{name}'."); return null; }
+        var list = ps.ToList(); list.RemoveAt(i); return list;
+    });
+
+    /// <summary>Moves a stored preset by <paramref name="delta"/> places (Default stays first).</summary>
+    public bool MovePreset(string name, int delta) => EditPresets($"Move Preset '{name}'", ps =>
+    {
+        int i = IndexOfPreset(ps, name), to = i + delta;
+        if (i < 0 || to < 0 || to >= ps.Count) return null;
+        var list = ps.ToList(); var p = list[i]; list.RemoveAt(i); list.Insert(to, p); return list;
+    });
+
+    /// <summary>Reset all to default — the preset keeps its variant, loses every override.</summary>
+    public bool ResetPreset(string name) => EditPresets($"Reset Preset '{name}'", ps =>
+    {
+        int i = IndexOfPreset(ps, name);
+        if (i < 0 || ps[i].Args is null) return null;
+        var list = ps.ToList(); list[i] = list[i] with { Args = null }; return list;
+    });
+
+    public bool SetPresetVariant(string name, PresetVariant variant) => EditPresets($"Variant of Preset '{name}'", ps =>
+    {
+        int i = IndexOfPreset(ps, name);
+        if (i < 0 || ps[i].Variant == variant) return null;
+        var list = ps.ToList(); list[i] = list[i] with { Variant = variant }; return list;
+    });
+
+    /// <summary>
+    /// A value of a preset: <paramref name="valueJson"/> becomes the override of <paramref name="param"/>; null, or a value EQUAL to the declared default, REMOVES the key (an override is a difference).
+    /// </summary>
+    public bool SetPresetValue(string name, string param, string? valueJson)
+    {
+        var decl = Decls().FirstOrDefault(d => d.Name == param);
+        if (decl is null) return false;
+        JsonNode? value = null;
+        if (!string.IsNullOrWhiteSpace(valueJson)) { try { value = JsonNode.Parse(valueJson!); } catch (JsonException) { LastRefusal = null; Refuse($"'{param}': the value is not valid JSON."); return false; } }
+        bool isDefault = value is null || JsonNode.DeepEquals(value, decl.Default) || (decl.Default is null && value is JsonValue v0 && IsTypeDefault(v0, decl.TypeId));
+        return EditPresets($"Edit '{param}' in Preset '{name}'", ps =>
+        {
+            int i = IndexOfPreset(ps, name);
+            if (i < 0) { Refuse(IsDefault(name) ? "Default's values are the declared defaults." : $"No preset '{name}'."); return null; }
+            var args = ps[i].Args is { } a ? (JsonObject)a.DeepClone() : new JsonObject();
+            if (isDefault) { if (!args.Remove(param)) return null; }
+            else args[param] = value!.DeepClone();
+            var list = ps.ToList(); list[i] = list[i] with { Args = args.Count == 0 ? null : args }; return list;
+        });
+    }
+
+    /// <summary>A declared param with no default holds the TYPE's default (0 · false · "" · the first enum member): a value equal to it is "not overridden".</summary>
+    private static bool IsTypeDefault(JsonValue v, string typeId)
+    {
+        if (!ParamTypes.TryResolve(typeId, out var t)) return false;
+        try { var d = Activator.CreateInstance(t) ?? (t == typeof(string) ? "" : null); return d is not null && JsonNode.DeepEquals(v, JsonSerializer.SerializeToNode(d, t, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)); }
+        catch (Exception e) when (e is JsonException or NotSupportedException or MissingMethodException) { return false; }
+    }
+
+    private static int IndexOfPreset(IReadOnlyList<ScenarioPreset> ps, string name)
+    {
+        for (int i = 0; i < ps.Count; i++) if (string.Equals(ps[i].Name, name, StringComparison.OrdinalIgnoreCase)) return i;
+        return -1;
+    }
 
     // ── no aliasing for parameters ──────────────────────────────────────────────────────────────────────────────────────────────────
 

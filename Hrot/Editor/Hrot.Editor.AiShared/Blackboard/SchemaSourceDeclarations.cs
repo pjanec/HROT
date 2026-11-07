@@ -42,7 +42,7 @@ public sealed class SchemaSourceDeclarations : IFieldDeclarations
         {
             var vars = _src.Variables;
             var rows = new List<FieldRow>(vars.Count);
-            foreach (var v in vars) rows.Add(new FieldRow(v.Name, v.TypeName, v.FieldType, v.DefaultValueJson, v.Comment, v.IsReadOnly));
+            foreach (var v in vars) rows.Add(new FieldRow(v.Name, v.TypeName, v.FieldType, v.DefaultValueJson, v.Comment, v.IsReadOnly, v.DefaultValueJson));
             return rows;
         }
     }

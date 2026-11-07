@@ -62,6 +62,9 @@ public sealed class EditorApplication : IEditorLogic
     /// <inheritdoc/>
     public string? LoadedScenarioName => _session.LoadedScenarioName;
 
+    /// <summary>⭐ CE-3391 — the args the resident load applied (which preset the world holds), or null.</summary>
+    public string? LoadedArgsJson => ((Hrot.UI.Common.RunMode.IRunScenarioControl)_session).LoadedArgsJson;
+
     /// <inheritdoc/>
     public IReadOnlyList<string> AvailableScenarios =>
         _availableScenariosSource?.Invoke() ?? Array.Empty<string>();

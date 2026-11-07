@@ -20,7 +20,8 @@ using ImGuiApi = ImGuiNET.ImGui;
 /// <param name="ValueJson">The value (a default, a preset's value, …) as JSON; null ⇒ not set (the type's default shows).</param>
 /// <param name="Comment">The declaration's comment, or null.</param>
 /// <param name="ReadOnly">The row is greyed.</param>
-public readonly record struct FieldRow(string Name, string TypeId, Type ClrType, string? ValueJson, string? Comment, bool ReadOnly);
+/// <param name="DefaultJson">What "changed" is measured against when <see cref="FieldTableSettings.ShowDefaults"/> (the declaration's default; a preset's value differs from it); null ⇒ the type's default.</param>
+public readonly record struct FieldRow(string Name, string TypeId, Type ClrType, string? ValueJson, string? Comment, bool ReadOnly, string? DefaultJson = null);
 
 /// <summary>The groups the ONE type picker lists (docs/DESIGN_Struct_Editor.md §11a): a group the host's settings forbid is greyed with the reason.</summary>
 public enum TypeGroup { Values, Enums, References, Structures, Lists }
@@ -37,6 +38,8 @@ public sealed class FieldTableSettings
     public string AddLabel { get; init; } = "Add field";
     /// <summary>The stem of a new row's name — a free <c>stem1</c>, <c>stem2</c>… is made.</summary>
     public string NewNameStem { get; init; } = "field";
+    /// <summary>⭐ CE-3391 — the value column marks a value equal to its row's <see cref="FieldRow.DefaultJson"/> grey and a different one with the amber bar + ↺ (a preset's overrides); false = no marks (the declaration table edits the default itself).</summary>
+    public bool ShowDefaults { get; init; }
     /// <summary>The value column's header (<i>Default</i> · <i>Value</i> · <i>Live</i>).</summary>
     public string ValueHeader { get; init; } = "Value";
     /// <summary>Show the read-only <i>Used by</i> column.</summary>
@@ -97,6 +100,7 @@ public sealed class FieldTable : IStructTableTarget
     private IFieldDeclarations? _decls;
     private IMapPickContext? _picks;
     private int _builtVersion = -1;
+    private bool _builtShowDefaults;
     private FieldRow[] _rows = Array.Empty<FieldRow>();
     private TypeGroup[] _groups = Array.Empty<TypeGroup>();
     private DeclaredEditSession? _session;
@@ -213,7 +217,7 @@ public sealed class FieldTable : IStructTableTarget
         _settings = settings;
         if (_key is { } k) { _key = null; ApplyKey(k); }
         if (_op != Op.None) Exec(decls);
-        if (!ReferenceEquals(decls, _decls) || decls.Version != _builtVersion || !ReferenceEquals(picks, _picks)) Rebuild(decls, picks);
+        if (!ReferenceEquals(decls, _decls) || decls.Version != _builtVersion || !ReferenceEquals(picks, _picks) || settings.ShowDefaults != _builtShowDefaults) Rebuild(decls, picks);
         _ro = decls.IsReadOnly;
         _drawer!.ReadOnly = _ro;
 
@@ -464,13 +468,15 @@ public sealed class FieldTable : IStructTableTarget
         {
             var r = rows[i];
             _rows[i] = r;
-            fields.Add(new FieldDeclaration(r.Name, r.ClrType, null, null, null, r.ReadOnly));
+            JsonNode? def = null;
+            if (_settings.ShowDefaults && r.DefaultJson is { Length: > 0 } dj) { try { def = JsonNode.Parse(dj); } catch (System.Text.Json.JsonException) { } }
+            fields.Add(new FieldDeclaration(r.Name, r.ClrType, null, null, def, r.ReadOnly));
             if (r.ValueJson is { Length: > 0 } json) { try { values[r.Name] = JsonNode.Parse(json); } catch (System.Text.Json.JsonException) { } }
             _groups[i] = GroupFor(r);
         }
         _session = new DeclaredEditSession(_builder, fields, values);
-        _drawer = new ComponentEditDrawer(_session, picks, null, _types, _services, null, decls.IsReadOnly);
-        _builtVersion = decls.Version;
+        _drawer = new ComponentEditDrawer(_session, picks, null, _types, _services, _settings.ShowDefaults ? StructEdit.Core.Defaults.DeclaredDefaults.Instance : null, decls.IsReadOnly);
+        _builtVersion = decls.Version; _builtShowDefaults = _settings.ShowDefaults;
         if (_sel >= _rows.Length) _sel = -1;
         if (_renameIdx >= 0 && (_renameIdx >= _rows.Length || _rows[_renameIdx].Name != _renameOld)) _renameIdx = -1;
         if (_errRow is { Length: > 0 } er && IndexOf(er) < 0) { _errText = null; _errRow = null; }

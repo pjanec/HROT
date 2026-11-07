@@ -439,6 +439,39 @@ namespace Hrot.Editor
         private Hrot.UI.Common.Map3D.Director.DirectorPack? _directorPack;
         /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
         /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Preview), for the wiring rail.</summary>
+        /// <summary>
+        /// ⭐ CE-3391 (presets §5a) — the preset editor's three host seams (the silent-default rule: the drawer is built where the world / session / run choice are held, so it is handed all three):
+        /// what the map holds (the loaded preset by ARGS — <c>PresetText.IsLoaded</c> — and whether it can be saved), whether the scenario uses variants (any entity keeps its <c>VariantForms</c>), and
+        /// <i>Preview this preset</i> (Preview armed, the preset armed, ▶).
+        /// </summary>
+        private Hrot.Editor.Scenario.ParametersDrawer WireParametersDrawer(Hrot.Editor.Scenario.ParametersDrawer drawer)
+        {
+            drawer.MapHolds = () =>
+            {
+                if (_editorApp is null || _world is null) return null;
+                string name = Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName;
+                string? args = _editorApp.LoadedArgsJson;
+                foreach (var p in Fdp.Toolkit.Scenario.ScenarioPresets.Of(Fdp.Toolkit.Scenario.ScenarioDescription.HeaderOf(_world)))
+                    if (Hrot.UI.Common.RunMode.PresetText.IsLoaded(p, args)) { name = p.Name; break; }
+                string? why = _editorApp.ScenarioSession.SaveDisabledReason;
+                return new Hrot.Editor.Scenario.MapHolding(name, why is null, why);
+            };
+            drawer.UsesVariants = () =>
+            {
+                if (_world is not { } w || !w.GetRegisteredComponentTypes().ContainsKey(typeof(Fdp.Toolkit.Scenario.VariantForms))) return false;
+                foreach (var _ in w.Query().WithManaged<Fdp.Toolkit.Scenario.VariantForms>().Build()) return true;
+                return false;
+            };
+            drawer.PreviewPreset = name =>
+            {
+                if (_timeTransport?.RunChoice is not { } choice) return;
+                choice.Choose(Hrot.UI.Common.RunMode.RunArmed.Preview);   // the mode first (nothing running: it arms at once), then the preset, then ▶ — the same path as the split ▶
+                choice.ArmPreset(name);
+                choice.Play();
+            };
+            return drawer;
+        }
+
         internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
         /// <summary>⭐ CE-4102 — the host's ONE time transport (what the choice and the toolbar read: mode, recording flag, active exercise), for the end-to-end armed-mode rail.</summary>
         internal Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? TimeTransportForTest => _timeTransport;
@@ -3275,7 +3308,7 @@ namespace Hrot.Editor
                     world:          () => _world,
                     session:        () => _fdpRepoAdapter,
                     drawComponents: (s, e) => _fdpEntityInspector?.DrawComponentsFor(s, e),
-                    parameters:     _parametersDrawer ??= new Hrot.Editor.Scenario.ParametersDrawer(_headerParams, () => macroArgsEditService)));   // ⭐ CE-4253 — the parameter editor, a collapsible header of THIS view
+                    parameters:     _parametersDrawer ??= WireParametersDrawer(new Hrot.Editor.Scenario.ParametersDrawer(_headerParams, () => macroArgsEditService))));   // ⭐ CE-4253 — the parameter editor, a collapsible header of THIS view
             _scenarioWorkspace.DetailsViews.Add(
                 Hrot.Editor.AiShared.Shell.ZonesDetailsViewDescriptor.For(
                     rows:     () => Hrot.Presentation.Zones.ZoneStatusReader.Read(_world!),
@@ -3847,6 +3880,7 @@ namespace Hrot.Editor
             Action<Action<string>?> openScenarioSaveAsThen = onNamed => openScenarioSaveAsCore(onNamed, false);
             Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
             if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
+            if (_timeTransport?.RunChoice is { } presetsChoice) presetsChoice.EditPresets = () => _parametersDrawer?.RequestOpen();   // ⭐ CE-3391 — the ▾ menu's Edit presets… opens Details ▸ Scenario ▸ Parameters
 
             // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
             Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,
@@ -5034,7 +5068,7 @@ namespace Hrot.Editor
                 _kernel != null ? () => _kernel?.GetExecutionStats() : null;
 
             // ⭐ CE-4253 — the Scenario menu is gone: the parameters live in Details ▸ Scenario (a collapsible header; the drawer is created with that view)
-            _parametersDrawer ??= new Hrot.Editor.Scenario.ParametersDrawer(_headerParams);
+            _parametersDrawer ??= WireParametersDrawer(new Hrot.Editor.Scenario.ParametersDrawer(_headerParams));
 
             // ⭐ CE-4210 MA-9 — Save selection as macro…: the Scenario menu AND the map's unit menu (the same gesture, one window). The save is the cluster's ONE save path with a filter and a header.
             if (_editorApp is not null)
