@@ -66,3 +66,6 @@ build-output.txt
 __pycache__/
 scenarios/perf-civ-*/
 .claude/worktrees/
+
+# CE-4324 — the default staging / recordings root (OrchestrationConstants.ResolveStagingRoot) in a dev build
+/data/

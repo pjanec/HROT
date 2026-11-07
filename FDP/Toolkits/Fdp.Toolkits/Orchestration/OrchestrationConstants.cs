@@ -9,15 +9,30 @@ namespace Fdp.Toolkit.Orchestration
     public static class OrchestrationConstants
     {
         /// <summary>
-        /// Resolves the default root directory for scenario staging, checkpoints, and archives.
-        /// Honors the <c>FDP_STAGING_ROOT</c> environment variable when set, otherwise falls
-        /// back to a platform-appropriate temp directory (cross-platform; not a fixed Windows path).
+        /// Resolves the root directory for scenario staging, checkpoints, recordings and archives (the shared / NAS tree is
+        /// <c>{root}/shared</c>, each node's staging <c>{root}/nodes/node-N</c>, its recordings <c>…/exercises/&lt;id&gt;</c>).
+        /// <para>⭐⭐ <c>CE-4324</c> (scenario lifecycle LC-21, R-4166: <i>"a fixed data folder by default (beside the scenarios); temp only when
+        /// asked"</i>) — ⛔ it defaulted to TEMP (<c>$TMP/FDP_Temp</c>, <c>C:\FDP_Temp</c>), so an exercise recording could vanish with a temp clean-up.
+        /// Now, in order: <c>FDP_STAGING_ROOT</c> when set (THE way to ask for temp, or anything else) · <see cref="DataDirectoryName"/> beside the
+        /// content tree's <c>scenarios/</c> in a dev build (<see cref="ContentLayout.TryFindSourceTree"/>) · the machine's application data
+        /// (<c>%LOCALAPPDATA%\HROT\data</c>, <c>~/.local/share/HROT/data</c>) on an install. Every node and tool reads it through this ONE call.</para>
         /// </summary>
         public static string ResolveStagingRoot() =>
-            Environment.GetEnvironmentVariable("FDP_STAGING_ROOT")
-            ?? (OperatingSystem.IsWindows()
-                ? "C:\\FDP_Temp"
-                : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FDP_Temp"));
+            Environment.GetEnvironmentVariable("FDP_STAGING_ROOT") ?? DefaultDataRoot.Value;
+
+        /// <summary>⭐ <c>CE-4324</c> — the default data folder's name (<c>data/</c> beside <c>scenarios/</c>; git-ignored in the repository).</summary>
+        public const string DataDirectoryName = "data";
+
+        /// <summary>⭐ <c>CE-4324</c> — is <paramref name="path"/> a dev build's default data folder (<c>&lt;source tree&gt;/data</c>)? Retention treats it as scratch.</summary>
+        public static bool IsDevDataRoot(string path)
+            => ContentLayout.TryFindSourceTree() is { } tree
+               && string.Equals(Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar),
+                                Path.GetFullPath(Path.Combine(tree, DataDirectoryName)).TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal);
+
+        private static readonly Lazy<string> DefaultDataRoot = new(() =>
+            ContentLayout.TryFindSourceTree() is { } tree
+                ? Path.Combine(tree, DataDirectoryName)
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.Create), "HROT", DataDirectoryName));
         public const string ScenariosDirectoryName = "scenarios";
         public const string ExercisesDirectoryName = "exercises";
         public const string EpisodesDirectoryName = "episodes";

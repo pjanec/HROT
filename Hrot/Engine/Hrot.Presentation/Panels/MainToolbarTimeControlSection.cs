@@ -120,6 +120,22 @@ public sealed class MainToolbarTimeControlSection
     private static readonly ModeIndicator ReviewIndicator  = Indicator("mode/review", "DAR");
     private static readonly ModeIndicator ReplayIndicator  = Indicator("mode/replay", "AAR");
 
+    /// <summary>
+    /// ⭐ L-11 / CE-4319 (Scenario lifecycle LC-14) — the colour of ▶: the mode a press PLAYS, from the ONE indicator table — in Edit / Idle the ARMED
+    /// mode (Live green, Preview violet, AAR blue), during a run the run's own mode (a DAR amber). Null when nothing is known (the default green).
+    /// </summary>
+    public static Vector4? PlayColour(TransportMode mode, RunArmed? armed) => mode switch
+    {
+        TransportMode.Edit or TransportMode.Idle => armed switch
+        {
+            RunArmed.Live    => ModeGlyph(TransportMode.Live)?.Color,
+            RunArmed.Preview => ModeGlyph(TransportMode.Preview)?.Color,
+            RunArmed.AAR     => ModeGlyph(TransportMode.Replay)?.Color,
+            _ => null,
+        },
+        _ => ModeGlyph(mode)?.Color,
+    };
+
     /// <summary>The mode indicator's FontAwesome 6 Solid glyph (merged into the UI font): Edit Pen, Preview CircleHalfStroke, Live Circle,
     /// Review ClockRotateLeft, Replay Play; Idle none (<see langword="null"/>).</summary>
     public static string? ModeIcon(TransportMode mode) => ModeGlyph(mode)?.Glyph;   // ONE table: the indicator's
@@ -355,7 +371,7 @@ public sealed class MainToolbarTimeControlSection
 
         // ── [Play/Pause] ───────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_pp", iconSize,
-                PlayPauseFace(isPaused), enabled: IsPlayEnabled))
+                PlayPauseFace(isPaused), IsPlayEnabled, PlayColour(_facade.Mode, _choice?.Armed)))
         {
             OnPlayPause();
         }

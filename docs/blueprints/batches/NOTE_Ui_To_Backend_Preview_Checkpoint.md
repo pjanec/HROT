@@ -1,12 +1,13 @@
 <!--STATUS
-state: LIVE
+state: WITHDRAWN
+superseded-by: ../RULINGS.md R-4166 (a checkpoint is LIVE only; Save in Preview stays refused — LC-8, built as L-1)
 updated: 2026-11-07
 current-answer: the whole file
 related-designs:
   - ../../UX/DESIGN_Action_Catalogue.md — §8, the A3 table and R-4162's Save row (as built)
 -->
 
-# NOTE — ui → backend: a checkpoint in PREVIEW (R-4162's Save row) — REQUEST
+# NOTE — ui → backend: a checkpoint in PREVIEW (R-4162's Save row) — ⛔ WITHDRAWN (R-4166: nothing to build)
 
 🔒 User, R-4162: *"The save Icon Should work as save only in edit mode, and if used during preview or live, it should create a checkpoint."*
 

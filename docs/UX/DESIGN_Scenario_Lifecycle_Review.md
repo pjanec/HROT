@@ -89,6 +89,54 @@ Status column: **built** · **queued** (designed and in a running handoff) · **
 | LC-20 | ⭐ **no bookmarks or notes during Live** (TE-4 not built) — the instructor's "remember this for the AAR" has nowhere to go | none (E7, not designed) | design E7: *Bookmark* (one key, a name optional) and *Note* on the timeline in Live, listed in DAR and AAR |
 | LC-21 | recordings default to a TEMP folder (`$TMP/FDP_Temp`, `C:\FDP_Temp`, `OrchestrationConstants.cs:16-20`) | built | a fixed data folder by default (beside the scenarios); temp only when asked |
 
+### 2.7 LC-13 — the Problems checks, detailed *(backend, `2026-11-07`, L-6 / CE-4318)*
+
+INVENTORY (`search_graph .*(Problem|Validator|Lint|ScenarioCheck|Issue).*` Class — 60 hits, every one an ASSET validator (BTree / HSM /
+blueprint / animation); none walks a scenario's world; grep `ScenarioProblem` — none) ⇒ new, one class, read by every host.
+
+```mermaid
+classDiagram
+  class ScenarioProblems { <<NEW · Fdp.Toolkits/Scenario>> Collect(world, List~ScenarioProblem~) int · Text(world, problem) }
+  class ScenarioProblem { <<NEW struct>> Kind · Culprit : Entity · Other : int }
+  class ObjectiveLinks { <<existing>> Subject · Parent }
+  class ObjectiveStatus { <<existing>> DependsOn · ActsOn · VisibleSides · Role }
+  class UnitRoster { <<existing>> SubordinateEntities }
+  class EntityInfo { <<existing>> ForceId }
+  class NetworkIdResolver { <<existing, the ONE resolver>> }
+  ScenarioProblems ..> ObjectiveLinks
+  ScenarioProblems ..> ObjectiveStatus
+  ScenarioProblems ..> UnitRoster
+  ScenarioProblems ..> EntityInfo
+  ScenarioProblems ..> NetworkIdResolver
+  ScenarioProblems --> ScenarioProblem : fills a reused list
+```
+
+```mermaid
+sequenceDiagram
+  participant W as the Problems window / toolbar count (ui)
+  participant P as ScenarioProblems
+  W->>P: Collect(world, list) - on a timer or an edit, never per frame
+  P-->>W: the problems (kind, the culprit to select) into a reused list
+  W->>P: Text(world, problem) - only for a row drawn
+```
+
+*What the picture shows: one pure reader over components that already exist; the window (ui) only draws the list and selects the culprit; nothing
+gates Preview or Live.*
+
+| check (`Kind`) | the problem | culprit (click selects) |
+|---|---|---|
+| `RuleSubjectGone` | a rule / objective's subject or parent (`ObjectiveLinks`) names an entity that is gone | the rule |
+| `RuleLinkGone` | a rule it depends on / acts on (`ObjectiveStatus.DependsOn` / `ActsOn`) is gone | the rule |
+| `RosterMemberGone` | a group's roster lists a member that is gone | the group |
+| `MixedSides` | a group's members are not all on its side | the member |
+| `ObjectiveSideEmpty` | an objective shown to one side (`VisibleSides`) that has no units | the objective |
+
+| deviation from LC-13's list | why |
+|---|---|
+| *"a unit without side"* is checked as **MixedSides** | ⛔ undecidable as written: `ForceId.Neutral` is BOTH the default and a real side (civilians, armed civilians); the authoring error that IS detectable is a member on another side than its group |
+| *"a unit without brain"* is NOT checked yet | whether a unit has a behaviour depends on its TKB template's default (`BehaviorTkbTranslator`), which a world-only reader cannot see; the Preview log already names a unit that starts nothing. ⏳ a later check with the TKB in hand |
+| the Problems WINDOW and the toolbar count | ui's (the handoff: "ui window by whoever claims it"); backend ships the checks (`ScenarioProblems.Collect` / `Text`). ⏳ no HTTP route yet |
+
 ## 3. For the user — the decisions — ✅ ALL APPROVED (R-4166, user `2026-11-07`: *"Otherwise, all approved."*), Q9 as revised
 
 | # | question | ⭐ lean |

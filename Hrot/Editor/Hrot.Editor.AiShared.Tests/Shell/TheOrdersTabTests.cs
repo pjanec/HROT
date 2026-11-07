@@ -165,4 +165,21 @@ public sealed class TheOrdersTabEditsTests
         Assert.NotNull(tab.Apply());                                                       // refused: nothing sent
         Assert.Single(svc.Commits);
     }
+
+    /// <summary>⭐ 7b rest — an order task's fields are its order DTO (the ONE order registry G1 resolves by); a behaviour's the host's lookup; a Wait none.
+    /// An advanced condition reads back as itself. 🔴 Red-proof: <c>ParamsTypeOfTask</c> not special-casing orders ⇒ the Move row ⇒ red.</summary>
+    [Fact]
+    public void P7b_AnOrdersFieldsAreItsDto_AWaitHasNone_AnAdvancedConditionReadsBack()
+    {
+        var tab = new OrdersTab(() => null, () => null, paramsTypeOf: name => name == "Patrol" ? typeof(string) : null);
+        Assert.True(Hrot.Common.Orders.OrderMenu.TryGetByName("Move", out var move));
+        Assert.Equal(move.Dto, tab.ParamsTypeOfTask("Order.Move"));
+        Assert.Equal(typeof(string), tab.ParamsTypeOfTask("Patrol"));           // the host's lookup is used (the silent-default rule)
+        Assert.Null(tab.ParamsTypeOfTask(""));                                  // a Wait has no fields
+
+        var advanced = new CompoundPredicateDto { Operator = LogicalOperator.Or, Conditions = { OrdersPlanEdits.Then(ThenPreset.UnderFire)!, OrdersPlanEdits.Then(ThenPreset.After, 60)! } };
+        var t = OrdersPlanEdits.WithThen(OrdersPlanEdits.NewOrder("Hold"), advanced);
+        Assert.Equal(ThenPreset.Advanced, OrdersPlanEdits.ThenOf(t).Preset);
+        Assert.Equal(ConditionCache.ToJson(advanced), ConditionCache.ToJson(OrdersPlanEdits.ConditionOf(t)!));
+    }
 }

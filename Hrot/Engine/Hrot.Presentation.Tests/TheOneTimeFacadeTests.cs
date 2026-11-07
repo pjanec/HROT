@@ -973,7 +973,7 @@ public sealed class TheOneTimeFacadeTests
     {
         var preview = With(ClusterState.OperatingPreview, RunArmed.Preview);
         Assert.True(SaveRoute(preview.Choice, preview.C));                  // handled = the scenario is NOT written
-        Assert.Equal("Not saved: stop the preview to save", Assert.Single(preview.Choice.Toasts.Pending).Title);
+        Assert.Equal("Not saved: Preview — changes are thrown away on Stop", Assert.Single(preview.Choice.Toasts.Pending).Title);   // ⭐ L-1: the status bar's reason
         Assert.Empty(Sent<TakeCheckpointIntent>(preview));                  // a refusal, not a checkpoint
         var edit = With(ClusterState.OperatingEdit, RunArmed.Preview);
         Assert.False(SaveRoute(edit.Choice, edit.C));                       // editing: the ordinary save

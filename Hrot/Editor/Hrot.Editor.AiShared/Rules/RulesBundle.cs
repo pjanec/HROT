@@ -26,7 +26,7 @@ public sealed class RulesBundle : IUiBundle
             showMoments: n => { Rules.ShowSubtree(n); _windows?.FocusWindow(Rules.Id); }, blocked: host.Blocked) { IsOpen = false };
         TraineeDebrief = new TraineeDebriefWindow(host.World, host.TimelineSource, host.Cursor(), p + "trainee_debrief", host.Perspective, host.Colour) { IsOpen = false };
         GameSummary = new GameSummaryWindow(host.World, host.TimelineSource, host.Cursor(), p + "game_summary", host.Perspective, host.Colour) { IsOpen = false };
-        if (!host.Recording && Editor != null && host.EntityCreation != null)
+        if (!host.Recording && !host.TraineeOnly && Editor != null && host.EntityCreation != null)
             GameMaster = new GameMasterWindow(host.World, p + "game_master", host.Perspective, host.Colour, Editor,
                 createOneShot: json =>
                 {
@@ -58,11 +58,52 @@ public sealed class RulesBundle : IUiBundle
     {
         ArgumentNullException.ThrowIfNull(ctx);
         _windows = ctx.Windows;
+        if (_host.TraineeOnly)
+        {
+            // ⭐ L-2 (LC-18) — the Player: its own Trainee debrief only (no rules, no summaries), opened when the exercise ends
+            ctx.Windows.RegisterWindow(TraineeDebrief);
+            ctx.Windows.RegisterFrameOverlay(WatchTheRun);
+            return;
+        }
         ctx.Windows.RegisterWindow(Rules);
         if (GameMaster != null) ctx.Windows.RegisterWindow(GameMaster);
         ctx.Windows.RegisterWindow(MissionSummary);
         ctx.Windows.RegisterWindow(TraineeDebrief);
         ctx.Windows.RegisterWindow(GameSummary);
+        if (!_host.Recording) ctx.Windows.RegisterFrameOverlay(WatchTheRun);   // ⭐ L-2 — every frame, on every host that composes the bundle (a recording opens nothing)
+    }
+
+    // ── ⭐ L-2 / CE-4320 (Scenario lifecycle LC-15, R-4166) — Mission summary opens when Live STARTS and again when the exercise ENDS, on EVERY host that composes
+    //    this bundle (was the editor's alone, CE-4240). Never on first sight (a host joining a running exercise is not "starting" it); 0 B per frame. ──
+    private Hrot.Common.Editing.EditingMode? _lastMode;
+    private Fdp.Toolkit.ScenarioRules.ExercisePhase _lastPhase = Fdp.Toolkit.ScenarioRules.ExercisePhase.Running;
+    private Fdp.Core.EntityRepository? _resultWorld;
+    private Fdp.Core.EntityQuery? _results;
+
+    /// <summary>How many times the watcher opened Mission summary (a rail reads it).</summary>
+    public int SummaryOpenings { get; private set; }
+
+    /// <summary>The per-frame watch (a frame overlay that draws nothing): the station entering Live, the exercise going Running → Ended.</summary>
+    public void WatchTheRun()
+    {
+        if (_host.World() is not { } w) return;
+        var mode = Hrot.Common.Editing.StationMode.Of(w);
+        var phase = PhaseOf(w);
+        bool started = _lastMode is { } was && was != Hrot.Common.Editing.EditingMode.Live && mode == Hrot.Common.Editing.EditingMode.Live;
+        bool ended = phase == Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended && _lastPhase != Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended;
+        if (_host.TraineeOnly) { if (ended) { _windows?.FocusWindow(TraineeDebrief.Id); SummaryOpenings++; } }   // the Player: its debrief, at the end only
+        else if (started || ended) { _windows?.FocusWindow(MissionSummary.Id); SummaryOpenings++; }
+        _lastMode = mode;
+        _lastPhase = phase;
+    }
+
+    private Fdp.Toolkit.ScenarioRules.ExercisePhase PhaseOf(Fdp.Core.EntityRepository w)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.ScenarioRules.ExerciseResult>()) return Fdp.Toolkit.ScenarioRules.ExercisePhase.Running;
+        if (!ReferenceEquals(w, _resultWorld))
+        { _resultWorld = w; _results = w.Query().With<Fdp.Toolkit.ScenarioRules.ExerciseResult>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build(); }
+        foreach (var e in _results!) return w.GetComponentRO<Fdp.Toolkit.ScenarioRules.ExerciseResult>(e).Phase;   // the one result entity (ExerciseResult.PhaseOf's rule)
+        return Fdp.Toolkit.ScenarioRules.ExercisePhase.Running;
     }
 
     /// <summary>⭐ CE-4308 (RX6, DESIGN_Rule_Editor_UX §2.5) — the rules' map-menu entries (declared by <c>RuleMenuActions</c>) bound HERE, once for every host that composes the

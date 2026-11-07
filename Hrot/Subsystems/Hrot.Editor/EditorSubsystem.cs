@@ -309,16 +309,7 @@ namespace Hrot.Editor
         private Hrot.Editor.AiShared.Rules.RulesBundle? _rulesBundle;
         /// <summary>⭐ CE-4292 — the rules bundle this host composed (forwarding rails).</summary>
         internal Hrot.Editor.AiShared.Rules.RulesBundle? RulesBundleForTest => _rulesBundle;
-        private Fdp.Toolkit.ScenarioRules.ExercisePhase _lastExercisePhase = Fdp.Toolkit.ScenarioRules.ExercisePhase.Running;
-        /// <summary>⭐ CE-4240 — Running → Ended seen on this node's world: opens Window ▸ Mission summary once (the debrief / game summary stay one click away in the Window menu).</summary>
-        private void OpenSummaryWhenTheExerciseEnds()
-        {
-            if (_world == null || _rulesWindowManager == null) return;
-            var phase = Fdp.Toolkit.ScenarioRules.ExerciseResult.PhaseOf(_world);
-            if (phase == Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended && _lastExercisePhase != Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended)
-                _rulesWindowManager.FocusWindow("editor_mission_summary");
-            _lastExercisePhase = phase;
-        }
+        // ⭐ L-2 / CE-4320 — CE-4240's "open Mission summary when the exercise ends" moved INTO the RulesBundle (RulesBundle.WatchTheRun): every host that composes it now does it, and on Live start too
         private Fdp.Presentation.WindowManager.WindowManager? _rulesWindowManager;
         internal Hrot.Presentation.Windows.RulesWindow? RulesWindow => _rulesWindow;
         private void OpenRuleInRulesView(int networkId)
@@ -2635,7 +2626,6 @@ namespace Hrot.Editor
             _orchestratorCore?.UiCache.Update();
             _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
             _editorLogic?.Update();
-            OpenSummaryWhenTheExerciseEnds();   // ⭐ CE-4240 — the round ended (by rule or by the instructor's End): the Mission summary opens on it
             _orchestratorCore?.ScenarioPanel.Update(deltaTime);
 
             // ⭐⭐⭐ CE-051 — the drain MOVED to the shared ToolActivationDrainSystem /
@@ -3204,7 +3194,8 @@ namespace Hrot.Editor
                 SelectNetworkEntity: n => SelectNetworkEntity(n),
                 Rules:          () => _rulesWindow,     // ⭐ U-18 / RX2 — the rule's detail in Details, through the one window
                 Pick:           () => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter),   // ⭐ U-23 / D4 — Put aboard… picks on the map
-                Missions:       () => _missionService));   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
+                Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
+                ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry)));   // ⭐ P-7 7b — a task's fields
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
             ScenarioDetails    = _scenarioDetailsBundle.Window;
 

@@ -115,3 +115,7 @@ Rails: `RunnableRulesTests.QB4_*`.
 | **Q-B4** ✅ R-4156 | *End exercise* on a recording | **not drawn** — it is not unavailable now, it does not exist here (unlike a seat's missing right, R-4132) | greyed (today): a control nothing can ever enable |
 | **Q-B5** ✅ R-4155 | the editor's / CGF's main bar | **unchanged** in this design; a seek bar there belongs to the review (time axis §9a/§9b, a live run seeks only by entering a review) | the same bar everywhere now: a live run has no "end" to scrub to |
 | **Q-B6** | the Federation window's per-node offsets | **keep, as a debug window**; rows named by node role (*CGF · SimHost*) not number | remove: it repairs clock skew between node files |
+
+### As built — LC-19 / CE-4323 *(backend, 2026-11-07)*
+
+*File ▸ Open Exercise Recording…* in the Replay Browser is the editor's `RecordingPickerLauncher` (one class, every host), fed by the browser's disk inventory (`ExercisesOnDisk`, the list `GET /exercises` serves) and ending in the browser's ONE opener (`ReplayBrowserControl.Open`). *Load .fdp…* stays for files outside the inventory. 📄 `DESIGN_Scenario_Lifecycle_Review.md` LC-19.
