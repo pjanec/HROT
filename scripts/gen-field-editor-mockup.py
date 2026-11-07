@@ -4,7 +4,7 @@
 import sys
 from mockup_kit import Svg, C, FA, text_width
 
-W, H = 1280, 1790
+W, H = 1280, 1850
 s = Svg(W, H, "The shared field editor — one table, two modes, substructures; hosts differ only by settings (design §6)",
         "Scope: the table and its popups. Window chrome and the hosts' other sections are context — unchanged.")
 
@@ -12,11 +12,9 @@ KIND = {"plain": (C.SUB, None), "enum": (C.TEAL, None), "ref": (C.BLUE, None), "
 
 
 def type_chip(x, y, label, kind):
-    col, g = KIND[kind]
-    w = text_width(label, 11.5) + (26 if g else 12)
-    s.rect(x, y + 4, w, 18, C.NEUTRAL, stroke=col, rx=9)
-    if g: s.glyph(g, x + 6, y + 7, col, 10)
-    s.text(x + (20 if g else 6), y + 17, label, col, 11.5)
+    """The type: plain text in the colour of its kind (user 2026-11-07: no ovals)."""
+    col, _ = KIND[kind]
+    s.text(x, y + 17, label, col, 12)
 
 
 def table(x, y, w, cols, rows, vcol=None):
@@ -46,6 +44,10 @@ def table(x, y, w, cols, rows, vcol=None):
                 s.text(vx, yy + 18, v, C.GREEN, 12.5)
             else:
                 s.field(vx, yy + 3, 170, v, c=C.DIS if st == "def" else C.TXT)
+        if r.get("kind") == "ref" and v:                                         # a SEMANTIC type: ⌖ show on map (always), ⊕ pick (when editable)
+            mx = vx + (204 if st == "over" else 178)
+            s.glyph(FA.LOCATION, mx, yy + 7, C.TEAL, 12.5)
+            if st not in ("live", "ro"): s.glyph(FA.CROSSHAIRS, mx + 20, yy + 7, C.GREY, 12.5)
         for col, txt in (r.get("extra") or {}).items():
             s.text(x + dict(cols)[col], yy + 18, txt, C.DIS, 12)
         if r.get("err"):
@@ -57,13 +59,14 @@ def table(x, y, w, cols, rows, vcol=None):
 
 # ════════ A — the GENERIC form, DEFINE mode, substructures allowed (a params asset — CE-3376) ════════
 X, Y, WW = 20, 60, 760
-s.window(X, Y, WW, 470, "Params — AmbushParams   (a params asset, CE-3376 — the generic form)")
+s.window(X, Y, WW, 498, "Params — AmbushParams   (a params asset, CE-3376 — the generic form)")
 s.text(X + 14, Y + 46, "DEFINE mode — the author declares the fields; Default is the value a new user of the type starts from.", C.SUB, 12)
 cols = [("Name", 8), ("Type", 230), ("Default", 400), ("Used by", 690)]
 rows = [
     dict(name="triggerRange", type="float · m", kind="plain", value="120", state="set", extra={"Used by": "3"}),
     dict(name="side", type="ForceId", kind="enum", value="Hostile", state="set", extra={"Used by": "2"}),
     dict(name="killZone", type="AreaLink", kind="ref", value="@KillZone", state="set", extra={"Used by": "1"}),
+    dict(name="rallyPoint", type="WorldPoint", kind="ref", value="668 · 427 m", state="set", extra={"Used by": "1"}),
     dict(name="timing", type="AmbushTiming", kind="struct", open=True, value="3 fields", state="summary", extra={"Used by": "2"}),
     dict(depth=1, name="minDelay", type="float · s", kind="plain", value="4", state="set"),
     dict(depth=1, name="maxDelay", type="float · s", kind="plain", value="9", state="set"),
@@ -79,23 +82,26 @@ s.button(X + 16, yy + 8, 116, "Add field", glyph=FA.PLUS, gc=C.OK); s.button(X +
 s.button(X + 288, yy + 8, 100, "Add item", glyph=FA.PLUS, gc=C.ORANGE)
 s.text(X + 400, yy + 24, "Ctrl+Z / Ctrl+Y · double-click a name to rename · drag ⋮⋮ to move", C.DIS, 11.5)
 # the row menu
-s.menu(X + WW + 14, Y + 300, 220, [("Rename", "F2", None, None), ("Duplicate", None, FA.COPY, C.GREY), ("Move up / down", None, None, None),
+s.menu(X + WW + 14, Y + 392, 220, [("Rename", "F2", None, None), ("Duplicate", None, FA.COPY, C.GREY), ("Move up / down", None, None, None),
                                      ("Open type AmbushTiming ↗", None, FA.CUBES, C.VIOLET), "---", ("Delete", "Del", FA.TRASH, C.RED, "used by 2")])
-s.note(X + WW + 14, Y + 70, ["Type chips by kind:", "  grey  = plain value", "  teal  = enum", "  blue  = reference / place",
-                             "  violet ▣ = structure (expands)", "  orange = list (expands, + item)", "",
+s.note(X + WW + 14, Y + 70, ["The type, as text in its kind's colour:", "  grey  = plain value", "  teal  = enum", "  blue  = semantic: a place / an entity",
+                             "  violet = structure (expands)", "  orange = list (expands, + item)", "",
+                             "A semantic value carries the map:", "  ⌖ teal = show on map (hover previews,", "     click pins) — always, read-only too",
+                             "  ⊕ = pick it on the map (when editable)", "",
                              "A structure row shows a summary", "(\"3 fields\") and opens with ▸.", "",
                              "A structure is a NAMED type (D1):", "its fields here are the type's —", "edit the type itself with",
                              "\"Open type ↗\" — the row menu:"], C.SUB, 11.5)
 
 # ════════ B — the SAME table, FILL mode, substructures (a unit's behaviour params / an asset's defaults) ════════
-BX, BY = 20, 560
-s.window(BX, BY, WW, 330, "Details — AI — Ambush   (FILL mode: values for one unit)")
+BX, BY = 20, 588
+s.window(BX, BY, WW, 358, "Details — AI — Ambush   (FILL mode: values for one unit)")
 s.text(BX + 14, BY + 46, "FILL mode — names and types are fixed (grey); every value is the default until changed. A closed structure says what changed.", C.SUB, 12)
 cols = [("Name", 8), ("Type", 230), ("Value", 400)]
 rows = [
     dict(name="triggerRange", type="float · m", kind="plain", value="150", state="over"),
     dict(name="side", type="ForceId", kind="enum", value="Hostile", state="def"),
     dict(name="killZone", type="AreaLink", kind="ref", value="@NorthBridge", state="over"),
+    dict(name="rallyPoint", type="WorldPoint", kind="ref", value="668 · 427 m", state="def"),
     dict(name="timing", type="AmbushTiming", kind="struct", open=True, value="1 changed", state="summary"),
     dict(depth=1, name="minDelay", type="float · s", kind="plain", value="4", state="def"),
     dict(depth=1, name="maxDelay", type="float · s", kind="plain", value="15", state="over"),
@@ -109,7 +115,7 @@ s.note(BX + WW + 14, BY + 60, ["The ONE value form (presets §5d):", "  default 
                                "Reset all = the ⋮ of the section."], C.SUB, 11.5)
 
 # ════════ C — the SCENARIO PARAMETERS specialization (flat; presets) ════════
-CX, CY = 20, 920
+CX, CY = 20, 976
 s.window(CX, CY, WW, 300, "Details — Scenario — Parameters   (DEFINE + the preset's values)")
 s.text(CX + 14, CY + 40, "Preset", C.SUB, 13); s.combo(CX + 70, CY + 26, 240, "Night attack", glyph=FA.EYE, gc=C.VIOLET)
 s.text(CX + 324, CY + 40, "(presets design §5a — the combo, + and ⋮ are drawn there)", C.DIS, 11.5)
@@ -125,22 +131,21 @@ s.button(CX + 16, yy + 8, 140, "Add parameter", glyph=FA.PLUS, gc=C.OK)
 s.text(CX + 170, yy + 24, "flat: no ▸ rows — the Type list offers no structures or lists", C.DIS, 11.5)
 
 # ════════ D — the BLACKBOARD specialization (live value, bytes, budget) ════════
-DX, DY = 20, 1250
-s.window(DX, DY, WW, 250, "BTree — Blackboard   (DEFINE + LIVE)")
-s.rect(DX + 14, DY + 34, 300, 10, C.FRAME); s.rect(DX + 14, DY + 34, 132, 10, C.TEAL)
-s.text(DX + 324, DY + 44, "56 / 128 B", C.DIS, 11.5)
-cols = [("Name", 8), ("Type", 200), ("Live · Alpha 1-1", 360), ("Bytes", 610)]
+DX, DY = 20, 1306
+s.window(DX, DY, WW, 236, "BTree — Blackboard   (DEFINE + LIVE — the same table)")
+s.text(DX + 14, DY + 40, "No byte column, no memory budget (user 2026-11-07: the limit is ~16 KB now, nobody counts bytes).", C.SUB, 12)
+cols = [("Name", 8), ("Type", 200), ("Live · Alpha 1-1", 360)]
 rows = [
-    dict(name="target", type="EntityRef", kind="ref", value="Bravo 2-3", state="live", extra={"Bytes": "8"}),
-    dict(name="lastSeen", type="WorldPoint", kind="ref", value="(512.3, 88.0, 2.1)", state="live", extra={"Bytes": "24"}),
-    dict(name="threat", type="float", kind="plain", value="0.72", state="live", extra={"Bytes": "4"}),
-    dict(name="mode", type="AttackMode", kind="enum", value="Suppress", state="live", extra={"Bytes": "4"}),
+    dict(name="target", type="EntityRef", kind="ref", value="Bravo 2-3", state="live"),
+    dict(name="lastSeen", type="WorldPoint", kind="ref", value="(512.3, 88.0, 2.1)", state="live"),
+    dict(name="threat", type="float", kind="plain", value="0.72", state="live"),
+    dict(name="mode", type="AttackMode", kind="enum", value="Suppress", state="live"),
 ]
 yy = table(DX + 8, DY + 52, WW - 16, cols, rows, vcol="Live · Alpha 1-1")
-s.button(DX + 16, yy + 8, 116, "Add field", glyph=FA.PLUS, gc=C.OK); s.text(DX + 144, yy + 24, "Remove unused · live values read-only (green)", C.DIS, 11.5)
+s.button(DX + 16, yy + 8, 116, "Add field", glyph=FA.PLUS, gc=C.OK); s.text(DX + 144, yy + 24, "live values read-only (green) · ⌖ still shows a place on the map", C.DIS, 11.5)
 
 # ════════ E — the Type picker (Add field / the Type cell) ════════
-EX, EY = 810, 820
+EX, EY = 810, 876
 s.rect(EX, EY, 450, 380, C.POPUP, stroke=C.BORDER)
 s.text(EX + 12, EY + 22, "Type", C.SUB, 12.5); s.field(EX + 60, EY + 8, 378, "      search types", hint=True); s.glyph(FA.SEARCH, EX + 66, EY + 11, C.DIS, 12)
 gy = EY + 44
@@ -152,7 +157,7 @@ for grp, items, dis in [("Values", [("float", "plain"), ("int", "plain"), ("bool
     s.text(EX + 14, gy + 14, grp, C.DIS if dis else C.SUB, 12); gy += 20
     x = EX + 20
     for lab, k in items:
-        type_chip(x, gy - 4, lab, k); x += text_width(lab, 11.5) + (34 if KIND[k][1] else 20)
+        type_chip(x, gy - 6, lab, k); x += text_width(lab, 12) + 18
     if dis:
         s.raw(f"<rect x='{EX + 14}' y='{gy - 6}' width='420' height='24' fill='{C.POPUP}' opacity='0.55'/>")
     gy += 30
@@ -160,14 +165,14 @@ s.tooltip(EX + 130, gy - 10, 300, ["Structures and lists are off for", "scenario
 s.note(EX, EY + 392, ["The same picker for every host; a group the host's settings forbid", "is shown greyed with the reason, never hidden (§5a of AQ108: gates", "say why)."], C.SUB, 11.5)
 
 # ════════ F — the settings, per host ════════
-FX, FY = 810, 1270
+FX, FY = 810, 1326
 s.window(FX, FY, 450, 500, "One table · the hosts differ ONLY by these settings")
 hdr = ["host", "mode", "structs", "columns"]
 xs = [FX + 12, FX + 190, FX + 260, FX + 320]
 for h, x in zip(hdr, xs): s.text(x, FY + 46, h, C.SUB, 12)
 s.line(FX + 8, FY + 54, FX + 442, FY + 54, C.SEP)
 data = [("Params asset (CE-3376)", "define", "✓", "Default · Used by"), ("Scenario parameters", "define+fill", "—", "Value(preset) · Used by"),
-        ("BTree / HSM blackboard", "define", "—", "Live · Bytes · budget"), ("Blueprint variables (×2)", "define", "—", "Live · Bytes"),
+        ("BTree / HSM blackboard", "define", "—", "Live"), ("Blueprint variables (×2)", "define", "—", "Live"),
         ("Unit's behaviour params", "fill", "✓", "Value"), ("Behaviour asset defaults", "fill", "✓", "Value"),
         ("Macro instance args", "fill", "—", "Value"), ("Scenario preset values", "fill", "—", "Value")]
 ry = FY + 76
@@ -175,6 +180,6 @@ for row in data:
     for v, x in zip(row, xs): s.text(x, ry, v, C.TXT if x == xs[0] else C.DIS, 11.5)
     ry += 26
 s.note(FX + 12, ry + 6, ["Settings (DeclarationFeatures + the mode):", "  Mode: Define · Fill · Define+Fill", "  AllowStructFields · AllowLists",
-                         "  TypeGroups (what the picker offers)", "  Columns: Default · Value · Live · Bytes · UsedBy", "  MemoryBudget · RemoveUnused",
+                         "  TypeGroups (what the picker offers)", "  Columns: Default · Value · Live · UsedBy", "  RemoveUnused",
                          "  Words: \"Add parameter\" / \"Add field\" …", "", "⛔ never a host name tested in the table"], C.SUB, 11.5)
 s.save(sys.argv[1] if len(sys.argv) > 1 else "docs/UX/field-editor-visual.svg")
