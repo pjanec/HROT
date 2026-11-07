@@ -1,5 +1,6 @@
 using Fdp.Testing;
 using System;
+using Fdp.Toolkit.Behavior.Components;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -680,6 +681,44 @@ public sealed class MenuOrdersTests : IDisposable
         Click(mi, Id("Hold"));
         _w.Bus.SwapBuffers();
         Assert.Equal(_unit, Assert.Single(_w.Bus.ReadManaged<AssignTacticalIntentEvent>().ToArray()).Entity);
+    }
+
+    /// <summary>
+    /// ⭐ W-1 / P-8 8d (Mission plan M3 / E2) — the SELECTED unit's plan on the map: a numbered marker at each task's FIRST place field, a task with no
+    /// place (<i>Hold</i>) at the previous one's, the route from the unit (solid to task 1, dashed after); the markers coloured by the queue — done
+    /// green, running amber, planned grey (which units: the Path family's policy). 🔴 Red-proof:
+    /// the Hold-at-previous rule broken (a placeless task at the unit) ⇒ red. ⭐ The ONE drawing of a plan: <c>MissionPresentationGizmo</c> (the Path family).
+    /// </summary>
+    [Fact]
+    public void P8d_TheSelectedUnitsPlan_IsNumberedMarkersAndItsRoute()
+    {
+        _w.RegisterManagedComponent<ActiveMissionPlan>();
+        _w.RegisterComponent<MissionPlanQueue>();
+        Assert.True(OrderMenu.TryGetByName("Move", out var move));
+        string MoveTo(float x, float y)
+        {
+            var dto = Activator.CreateInstance(move.Dto)!;
+            var field = (System.Reflection.MemberInfo?)move.Dto.GetField("Location") ?? move.Dto.GetProperty("Location")!;
+            if (field is System.Reflection.FieldInfo fi) fi.SetValue(dto, new Fdp.Toolkit.Replication.PointLink(new Vector3(x, y, 0)));
+            else ((System.Reflection.PropertyInfo)field).SetValue(dto, new Fdp.Toolkit.Replication.PointLink(new Vector3(x, y, 0)));
+            return Hrot.Presentation.Behavior.BehaviorParamsForm.ToJson(dto, move.Dto);
+        }
+        var plan = new DomainMissionPlan();
+        plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Order.Move", BehaviorParams = MoveTo(100, 200) });
+        plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Order.Hold", BehaviorParams = "{}" });
+        plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Order.Move", BehaviorParams = MoveTo(300, 50) });
+        _w.SetManagedComponent(_unit, new ActiveMissionPlan { Plan = plan });
+        _w.AddComponent(_unit, new MissionPlanQueue { CurrentTask = 1, TaskCount = 3 });
+
+        var gizmo = new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0));
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 64);
+        gizmo.Draw(_w, _unit, buffer);
+        var frame = buffer.GetFrame().ToArray();
+        var markers = frame.Where(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Sphere).ToArray();
+        Assert.Equal(3, markers.Length);
+        Assert.Equal(new[] { new Vector3(100, 200, 0), new Vector3(100, 200, 0), new Vector3(300, 50, 0) }, markers.Select(m => m.SphereCenter));   // Hold sits at task 1's place
+        var lines = frame.Where(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Line).ToArray();
+        Assert.Equal(2, lines.Length);   // unit → 1 (solid), 1 → 3 (dashed) — Hold adds no zero-length line
     }
 
     /// <summary>⭐ O5 / O6 / O7 — "Order with options › Move" opens the form for the SELECTION the clicked unit is in; Send publishes

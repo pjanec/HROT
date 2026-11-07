@@ -25,6 +25,18 @@ public static class MapPreviews
     public static bool Has(Type type)
         => type == typeof(WorldPoint) || type == typeof(PointLink) || type == typeof(EntityRef) || type == typeof(EntityLink) || type == typeof(AreaLink);
 
+    /// <summary>
+    /// ⭐ W-1 / P-8 8d (Mission plan E2) — WHERE a value with a place is now: a point, an entity's position, an area's centre; null when it stands for no
+    /// place (an unresolved link, none). The same resolution <see cref="Draw"/> uses — one table of "this type has a place".
+    /// </summary>
+    public static Vector3? PlaceOf(object? value, LiveRefScope? refs)
+    {
+        if (value is AreaLink a && a.IsShape) { var c = a.Center; return new Vector3(c.X, c.Y, c.Z); }
+        var (entity, point) = ReferenceLeafDrawers.ShowTarget(value, refs);
+        if (point is null && !entity.IsNone && refs != null && refs.TryPositionOf(entity, out var at)) point = at;
+        return point is { } p ? new Vector3(p.X, p.Y, p.Z) : null;
+    }
+
     /// <summary>Draws <paramref name="value"/> into <paramref name="draw"/>; <c>false</c> when it stands for no place now (an unresolved link, none).</summary>
     public static bool Draw(DebugPrimitiveBuffer draw, object? value, LiveRefScope? refs, in Fdp.Core.FixedString32 label)
     {
