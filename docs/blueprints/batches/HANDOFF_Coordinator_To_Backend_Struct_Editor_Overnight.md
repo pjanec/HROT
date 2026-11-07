@@ -14,7 +14,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: the struct editor, overnight
 
-**For:** backend, autonomous overnight. **From:** coordinator. **Dispatched at `<sha of the commit adding this file>`**. ⭐ Scope FROZEN there.
+**For:** backend, autonomous overnight. **From:** coordinator. **Dispatched at `32728eb5`**. ⭐ Scope FROZEN there.
 Merge `coordinator` first (restore after), push `chore: started HANDOFF_Coordinator_To_Backend_Struct_Editor_Overnight at <sha>`, then the
 [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md): status file after every item. ⭐ **ui and behaviors are ON HOLD (user) — no collisions;
 every file in §11 is yours tonight.**
