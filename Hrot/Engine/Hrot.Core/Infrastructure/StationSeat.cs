@@ -44,4 +44,8 @@ public static class StationSeat
     /// <summary>The station's seat (Author when the node does not declare it).</summary>
     public static Seat Of(NodeFeatures? features)
         => features != null && features.Registry.Available(Id) ? features.Config<SeatConfig>(features.Resolve(Id)).Seat : Seat.Author;
+
+    /// <summary>⭐ Seats H2 — the seat's side text (empty = every side).</summary>
+    public static string SideOf(NodeFeatures? features)
+        => features != null && features.Registry.Available(Id) ? features.Config<SeatConfig>(features.Resolve(Id)).Side.ToString() : "";
 }

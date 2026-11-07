@@ -275,4 +275,27 @@ public sealed class RtsCommandToolTests : IDisposable
         Fdp.Toolkit.Replay.ReplayState.Enter(replayWorld);   // ⭐ DAR F7 — a recording is shown: the tool does not arm
         Assert.False(replay.Tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand), "a recording takes no orders");
     }
+
+    /// <summary>⭐ Seats H2 (CE-4279, docs/UX/DESIGN_Seats_And_Hats.md §3.2) — a Player's / an observer's station cannot arm the RTS tool; a side controller's
+    /// station can, and every order it sends is locked to ITS side by construction (EntityOrders' default side lock), so a selected enemy is refused.
+    /// 🔴 Red-proof (compiles): the EntityOrders default side lock removed ⇒ the hostile is ordered too ⇒ red.</summary>
+    [Fact]
+    public void H2_APlayerCannotArmTheTool_ASideControllerOrdersOnlyItsSide()
+    {
+        var seat = Hrot.Common.Infrastructure.Seat.Player;
+        Hrot.Common.Editing.StationMode.Install(_w, () => Hrot.Common.Editing.EditingMode.Live, () => seat, () => ForceId.Friend);
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w });
+        mi.MenuOrders.PickService = () => _pick;
+        Assert.False(mi.Tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand), "a Player commands nothing from the map");
+        seat = Hrot.Common.Infrastructure.Seat.Observer;
+        Assert.False(mi.Tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand), "nor does an observer");
+        seat = Hrot.Common.Infrastructure.Seat.SideController;
+        Assert.True(mi.Tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand), "a side controller commands");
+
+        var mine = Unit(10, ForceId.Friend, new Vector2(1, 1));
+        var theirs = Unit(30, ForceId.Hostile, new Vector2(5, 5));
+        Commands(mine, theirs).Command(new Vector2(60, 60));                            // move both — only mine goes
+        Assert.Equal(new[] { mine }, Read<AssignTacticalIntentEvent>().Select(o => o.Entity).ToArray());
+        Assert.Equal(ForceId.Friend, new Hrot.Common.Orders.EntityOrders(_w, _map, null).SideLock);
+    }
 }

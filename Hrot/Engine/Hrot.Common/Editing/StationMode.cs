@@ -16,18 +16,55 @@ namespace Hrot.Common.Editing
     public sealed class StationMode
     {
         private readonly Func<EditingMode> _current;
+        private readonly Func<Hrot.Common.Infrastructure.Seat> _seat;
+        private readonly Func<ForceId?> _side;
 
-        private StationMode(Func<EditingMode> current) => _current = current ?? throw new ArgumentNullException(nameof(current));
+        private StationMode(Func<EditingMode> current, Func<Hrot.Common.Infrastructure.Seat>? seat, Func<ForceId?>? side)
+        {
+            _current = current ?? throw new ArgumentNullException(nameof(current));
+            _seat = seat ?? (static () => Hrot.Common.Infrastructure.Seat.Author);
+            _side = side ?? (static () => null);
+        }
 
         /// <summary>The mode now.</summary>
         public EditingMode Current => _current();
 
-        /// <summary>Installs the station's mode source on <paramref name="world"/> (replacing any earlier one).</summary>
-        public static StationMode Install(EntityRepository world, Func<EditingMode> current)
+        /// <summary>⭐ Seats H2 (📄 docs/UX/DESIGN_Seats_And_Hats.md §3.2) — the station's SEAT now (<c>station.seat</c>, read live).</summary>
+        public Hrot.Common.Infrastructure.Seat Seat => _seat();
+
+        /// <summary>⭐ Seats H2 — the seat's editing level (D4): what the gate AND the action catalogue bound by.</summary>
+        public EditingLevel Level => HrotEditGate.LevelOf(_seat());
+
+        /// <summary>⭐ Seats H2 — the seat's side scope: a side controller's / player's side, null = every side.</summary>
+        public ForceId? Side => _side();
+
+        /// <summary>Installs the station's mode (and seat) source on <paramref name="world"/> (replacing any earlier one). No seat ⇒ Author, every side.</summary>
+        public static StationMode Install(EntityRepository world, Func<EditingMode> current,
+                                          Func<Hrot.Common.Infrastructure.Seat>? seat = null, Func<ForceId?>? side = null)
         {
-            var source = new StationMode(current);
+            var source = new StationMode(current, seat, side);
             world.SetSingletonManaged(source);
             return source;
+        }
+
+        /// <summary>⭐ Seats H2 — the station's level on <paramref name="view"/>; <see cref="EditingLevel.Full"/> where no source is installed (today's behaviour).</summary>
+        public static EditingLevel LevelOf(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonManaged<StationMode>() ? repo.GetSingletonManaged<StationMode>()!.Level : EditingLevel.Full;
+
+        /// <summary>⭐ Seats H2 — the station's side scope on <paramref name="view"/>; null (every side) where no source is installed.</summary>
+        public static ForceId? SideOf(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonManaged<StationMode>() ? repo.GetSingletonManaged<StationMode>()!.Side : null;
+
+        /// <summary>⭐ Seats H2 — a seat config's side text as a <see cref="ForceId"/>: the force names (Friend · Hostile · Neutral) or their colours
+        /// (Blue · Red · Green, the design's words); empty or unknown ⇒ null (every side).</summary>
+        public static ForceId? ParseSide(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            var t = text.Trim();
+            if (t.Equals("Blue", StringComparison.OrdinalIgnoreCase)) return ForceId.Friend;
+            if (t.Equals("Red", StringComparison.OrdinalIgnoreCase)) return ForceId.Hostile;
+            if (t.Equals("Green", StringComparison.OrdinalIgnoreCase)) return ForceId.Neutral;
+            return Enum.TryParse<ForceId>(t, ignoreCase: true, out var f) && Enum.IsDefined(f) ? f : null;
         }
 
         /// <summary>
