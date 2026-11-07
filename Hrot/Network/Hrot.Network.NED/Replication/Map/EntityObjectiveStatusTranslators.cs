@@ -90,7 +90,7 @@ namespace Hrot.Map.Common.Replication.Egress
             Required = s.Required, Scored = s.Scored, Weight = s.Weight, VisibleSides = s.VisibleSides,
             DependsOn = ToList(s.DependsOnCount, in s.DependsOn), ActsOn = ToList(s.ActsOnCount, in s.ActsOn),
             HoldFor = s.HoldFor, Delay = s.Delay, Cooldown = s.Cooldown, Deadline = s.Deadline, ExpectedAt = s.ExpectedAt,
-            Group = s.Group.ToString(), Pass = s.Pass, StepCur = s.StepCur, StepCount = s.StepCount,
+            Group = s.Group.ToString(), Phase = s.Phase, Pass = s.Pass, StepCur = s.StepCur, StepCount = s.StepCount,
             Capture = s.Capture, Challenger = (byte)s.Challenger, AreaX = s.AreaCenter.X, AreaY = s.AreaCenter.Y, AreaZ = s.AreaCenter.Z, AreaRadius = s.AreaRadius,
             EndsExercise = s.EndsExercise,
         };
@@ -114,7 +114,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>The fields whose change goes at once (everything but progress / value / score / points / reason / times).</summary>
         internal static bool SameDisplayAndState(in EntityObjectiveStatus a, in EntityObjectiveStatus b)
             => a.Role == b.Role && a.State == b.State && a.Closed == b.Closed && a.Owner == b.Owner
-               && a.Title == b.Title && a.Kind == b.Kind && a.Group == b.Group && a.Pass == b.Pass && a.StepCur == b.StepCur && a.StepCount == b.StepCount
+               && a.Title == b.Title && a.Kind == b.Kind && a.Group == b.Group && a.Phase == b.Phase && a.Pass == b.Pass && a.StepCur == b.StepCur && a.StepCount == b.StepCount
                && a.Capture == b.Capture && a.Challenger == b.Challenger && a.AreaX == b.AreaX && a.AreaY == b.AreaY && a.AreaZ == b.AreaZ && a.AreaRadius == b.AreaRadius && a.Required == b.Required && a.Scored == b.Scored
                && a.EndsExercise == b.EndsExercise && a.Weight == b.Weight && a.VisibleSides == b.VisibleSides && a.FireCount == b.FireCount && a.TriggerState == b.TriggerState
                && a.Subject == b.Subject && a.Parent == b.Parent
@@ -219,7 +219,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             DependsOnCount = (byte)Math.Min(d.DependsOn?.Count ?? 0, 8), DependsOn = ToIds(d.DependsOn),
             ActsOnCount = (byte)Math.Min(d.ActsOn?.Count ?? 0, 8), ActsOn = ToIds(d.ActsOn),
             HoldFor = d.HoldFor, Delay = d.Delay, Cooldown = d.Cooldown, Deadline = d.Deadline, ExpectedAt = (SimInstant)d.ExpectedAt,
-            Group = new FixedString32(d.Group ?? string.Empty), Pass = d.Pass, StepCur = d.StepCur, StepCount = d.StepCount,
+            Group = new FixedString32(d.Group ?? string.Empty), Phase = d.Phase, Pass = d.Pass, StepCur = d.StepCur, StepCount = d.StepCount,
             Capture = d.Capture, Challenger = (ForceId)d.Challenger, AreaCenter = new WorldPoint(d.AreaX, d.AreaY, d.AreaZ), AreaRadius = d.AreaRadius,
             EndsExercise = d.EndsExercise,
         };

@@ -49,6 +49,8 @@ namespace Fdp.Toolkit.ScenarioRules
         public FixedString32 Kind;
         /// <summary>⭐ rules S4 E-3 — the evaluation group (mission · fire · reports · conduct …) a frontend sections the rows by; "" = none. A projection of <c>common.group</c>.</summary>
         public FixedString32 Group;
+        /// <summary>⭐ <c>CE-4302</c> — a trigger marked as an operation PHASE: its order (1, 2, …); 0 = not a phase. A projection of <c>common.phase</c>.</summary>
+        public byte Phase;
         public byte Required;
         public byte Scored;
         public float Weight;

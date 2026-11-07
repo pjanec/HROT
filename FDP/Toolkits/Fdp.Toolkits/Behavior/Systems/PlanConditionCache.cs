@@ -99,6 +99,24 @@ namespace Fdp.Toolkit.Behavior.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4302</c> — mission plan D5 / D6 (§5.6): the preset <i>when Phase N begins</i> — the phase's trigger (a rule marked
+        /// <c>common.phase</c>) HAS FIRED: <c>OnEntity(trigger) · ObjectiveStatus.FireCount &gt; 0</c>. No new leaf: a phase IS a trigger, and the
+        /// instructor's <i>Begin now</i> is that trigger's <c>RuleRequest.Fire</c>. <see cref="ObjectiveStatus"/> is replicated, so a task on any
+        /// node sees the phase begin.
+        /// </summary>
+        public static SearchPredicateDto PhaseBegins(Fdp.Toolkit.Replication.EntityLink phaseTrigger) => new OnEntityPredicateDto
+        {
+            Ref = phaseTrigger,
+            Predicate = new PropertyMatchDto
+            {
+                ComponentType = typeof(Fdp.Toolkit.ScenarioRules.ObjectiveStatus),
+                PropertyPath = nameof(Fdp.Toolkit.ScenarioRules.ObjectiveStatus.FireCount),
+                Operator = SearchOperator.GreaterThan,
+                Predicate = new NumericPredicateDto { MinValue = 0 },
+            },
+        };
+
+        /// <summary>
         /// ⭐⭐ THE translation of an old trigger type to the condition it means (D3) — the presets the <i>then</i> picker writes are the same ones:
         /// <list type="table">
         /// <item><c>BehaviorFinished</c> / <c>ReachedDestination</c> / none ⇒ <c>TaskFinished</c> (this unit, its current task) — <i>when done</i></item>

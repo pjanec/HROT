@@ -399,6 +399,8 @@ fresh world (new network ids) and still points at the same three entities — an
 
 **M5 runtime (P-5, CE-4301) as built:** D6's leaf was built in P-2 (§5.10). G2 as §5.7 says — each `Then` / `GiveUp` entry walked with the contract `SearchPredicateDto` (`ScenarioBehaviorRemapper.ResolveConditionJson`). ⚠ §5.7's premise *"the walker already handles the polymorphic tree"* was only HALF true: members typed as a polymorphic node were dispatched (SR-164), but a polymorphic ROOT was planned as its abstract base and walked nothing — fixed in `EntityRefRemap.WalkJson` (one place, every caller).
 
+**M6 runtime (P-6, CE-4302) as built:** E3 exactly — `common.phase` (byte, 0 = none) on `ObjectiveCommon` + `ObjectiveCommonBlock`, projected by `ObjectiveRules.Display` onto `ObjectiveStatus.Phase` and replicated (`EntityObjectiveStatus.Phase`). *Begin now* needs no new code (`RuleRequest.Fire` through `RuleCommands.Control`, origin Instructor). *when Phase N begins* = `PlanConditionCache.PhaseBegins(trigger)` — the §5.6 row, as a preset beside the others.
+
 ### 5.11 P-7 (M2 + M4 UI) — the build plan *(ui, `2026-11-07`; claimed in `STATUS_Editing_UX_Build_Ui.md`)*
 
 INVENTORY (graph `search_graph .*(OrdersTab|MissionPanel|MissionPlan).*` Class + grep `new MissionPanel`): no Orders tab exists; **three**
