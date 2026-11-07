@@ -247,6 +247,72 @@ public sealed class RuleEditorR5cTests : IDisposable
         Assert.Single(asked);
     }
 
+    // ── ⭐ CE-4308 (RX6, DESIGN_Rule_Editor_UX §2.5, rule-list-visual.svg) — the gallery ───────────────────────────────────────────────
+
+    /// <summary>A link's network id: the picker writes the bare id for an entity with no GUID, else <c>{"NetworkId", "Ref"}</c>.</summary>
+    private static int IdOf(JsonNode? link) => link is JsonObject o ? (int)o["NetworkId"]! : (int)link!;
+
+    /// <summary>⭐ CE-4308 — the gallery offers the mockup's starting points in its groups; an area adds its own entry first; the search filters; a unit becomes the
+    /// rule's subject; a phase gets the next phase number; the area's entry pre-fills the condition editor's own row (<i>is inside the area</i>).
+    /// ✅ Red-proof: <c>Rule()</c> not writing <c>common.subject</c> ⇒ red.</summary>
+    [Fact]
+    public void CE4308_TheGallery_OffersTheMockupsStartingPoints_PreFilledFromWhereTheAuthorCame()
+    {
+        var all = RuleGallery.For(RuleGallery.Context.Empty);
+        Assert.Equal(new[] { "Take and hold an area", "Reach an area", "Destroy", "Protect", "Survive", "Begin a phase when ...", "End the exercise when ...",
+            "Bring in ... when ...", "Brief Blue when ...", "Tell everyone when ...", "Hit ratio", "Report latency" }, all.Select(t => t.Label));
+        Assert.Equal(RuleGallery.Groups, all.Select(t => t.Group).Distinct());
+        Assert.All(all, t => Assert.Contains(t.Kind, RuleAdd.Kinds()));                                      // every starting point is a real kind
+        Assert.Equal(new[] { "Brief Blue when ...", "Tell everyone when ..." }, RuleGallery.For(RuleGallery.Context.Empty, "messag").Select(t => t.Label));
+
+        var unit = new Fdp.Toolkit.Replication.EntityLink(new EntityRef(777));
+        var area = new Fdp.Toolkit.Replication.EntityLink(new EntityRef(888));
+        var c = new RuleGallery.Context(unit, area, NextPhase: 3);
+        var shown = RuleGallery.For(c);
+        Assert.Equal("When someone enters this area...", shown[0].Label);
+        var protect = JsonNode.Parse(RuleGallery.ParamsJson(all.Single(t => t.Label == "Protect"), c, null))!;
+        Assert.Equal(777, IdOf(protect["common"]!["subject"]));                                  // the unit is the subject …
+        Assert.Equal(777, IdOf(protect["targets"]![0]));                                          // … and what is protected
+        var phase = JsonNode.Parse(RuleGallery.ParamsJson(all.Single(t => t.Label == "Begin a phase when ..."), c, new JsonObject { ["NetworkId"] = 5 }))!;
+        Assert.Equal((3, "Phase 3", 5), ((int)phase["common"]!["phase"]!, (string)phase["common"]!["title"]!, (int)phase["common"]!["parent"]!["NetworkId"]!));
+        var enters = JsonNode.Parse(RuleGallery.ParamsJson(shown[0], c, null))!;
+        // the when is the condition editor's own row "any of Blue side is inside the area" (RowProjection.ToDto) — its shape, and the editor reads that shape back as the row
+        var w = enters["when"]!;
+        Assert.Equal(("CountMatching", 1, int.MaxValue), ((string)w["$type"]!, (int)w["Min"]!, (int)w["Max"]!));
+        var conds = w["Predicate"]!["Conditions"]!.AsArray();
+        Assert.Equal(("PropertyMatch", "ForceId", 1d), ((string)conds[0]!["$type"]!, (string)conds[0]!["PropertyPath"]!, (double)conds[0]!["Predicate"]!["MinValue"]!));
+        Assert.Equal(("SpatialBounding", 888), ((string)conds[1]!["$type"]!, IdOf(conds[1]!["Bounds"])));
+        var row = Fdp.Toolkit.ReplayBrowser.Search.Conditions.RowProjection.RowOf(Fdp.Toolkit.ReplayBrowser.Search.Conditions.RowProjection.ToDto(new Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionRow(
+            Fdp.Toolkit.ReplayBrowser.Search.Conditions.Subject.OfSide(Fdp.Toolkit.ReplayBrowser.Search.Conditions.SubjectKind.Any, ForceId.Friend), "inside",
+            Values: new Fdp.Toolkit.ReplayBrowser.Search.Conditions.FactValues(Area: AreaLink.OfEntity(new EntityRef(888))))));
+        Assert.Contains("inside the area", Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionSentence.Of(row, null));
+        var brief = JsonNode.Parse(RuleGallery.ParamsJson(all.Single(t => t.Label == "Brief Blue when ..."), RuleGallery.Context.Empty, null))!;
+        Assert.Equal("Message", (string)brief["do"]![0]!["act"]!);
+        Assert.Null(brief["common"]!["subject"]);                                                               // no unit ⇒ no subject
+    }
+
+    /// <summary>⭐ CE-4308 — the window creates a gallery choice through the ONE creation path (the right TKB, the template's params, the selected row as parent),
+    /// and <c>OpenGallery</c> pre-fills the context from a unit (as the map's <i>Add rule about this unit…</i> does). ✅ Red-proof: <c>AddFromGallery</c> passing
+    /// <c>RuleAdd.NewParamsJson</c> ⇒ the title is "New Protect" ⇒ red.</summary>
+    [Fact]
+    public void CE4308_AGalleryChoice_IsCreatedThroughTheOnePath_AndAUnitPreFillsIt()
+    {
+        Rule(10, "WeightedMean", """{"common":{"title":"Mission"}}""");
+        var asked = new List<(long Tkb, string Kind, string Json)>();
+        var svc = new RuleEditorServices(() => ComponentEditServices.CreateBuilder().Build(), () => null, (_, _, _) => true, _history, _ => Array.Empty<RuleJournalEntry>(),
+            CreateRule: (tkb, kind, json) => { asked.Add((tkb, kind, json)); return true; });
+        var window = new RulesWindow(() => _world, () => null, null, "r5c_gallery", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 0d, editor: svc) { ListView = false };
+        window.SelectNetworkId(10); window.Rebuild();
+        window.OpenGallery(subjectNetworkId: 777);
+        Assert.Equal(777, window.GalleryContext.Subject.Ref.NetworkId);
+        Assert.False(window.GalleryContext.HasArea);
+        var protect = RuleGallery.All.Single(t => t.Label == "Protect");
+        Assert.True(window.AddFromGallery(protect, window.GalleryContext));
+        var (tkb, kind, json) = Assert.Single(asked);
+        var p = JsonNode.Parse(json)!;
+        Assert.Equal((8860L, "Protect", "Protect", 10, 777), (tkb, kind, (string)p["common"]!["title"]!, (int)p["common"]!["parent"]!["NetworkId"]!, IdOf(p["targets"]![0])));
+    }
+
     // ── the Bindings tab ─────────────────────────────────────────────────────────────────────────────────────
 
     [Fact]

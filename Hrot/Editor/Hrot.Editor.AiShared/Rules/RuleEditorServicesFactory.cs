@@ -35,6 +35,7 @@ public sealed record RulesHostServices(
     bool Recording = false,                                        // a recording host: read-only by construction, no Game master
     Func<(int NetworkId, ForceId Side)?>? Selection = null,        // the Game master's "for the selected unit"
     Func<bool>? GamePaletteEnabled = null,                         // the Game master's feature gate (HudFeatures.GamePalette)
+    Func<Hrot.Common.Interactions.HostActions?>? Actions = null,   // ⭐ CE-4308 (RX6) — the host's action registry: the map's "Add rule about this unit…" / "When someone enters this area…" land on the bundle
     bool TraineeOnly = false);                                     // ⭐ L-2 (LC-18) — the Player: only the Trainee debrief, opened when the exercise ends
 
 /// <summary>
