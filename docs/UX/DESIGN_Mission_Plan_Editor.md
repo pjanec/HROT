@@ -435,3 +435,17 @@ so P-7 adds a surface and deletes three, without a new write path.*
 | **7b** | EDIT: *+ Add task* (Wait first, E9; orders from `OrderMenu.OfferedFor`; behaviours), the order form, the *then* picker §5.6 (presets → `{type: Then, params}`), *give up after* (D4), remove / reorder; a Wait with no *then* refused; nothing written for *when done* (P-2) | the stored JSON per preset (§5.6 table) rail; side-by-side with `mission-plan-editor.svg` + `mission-plan-detail-visual.svg` |
 | **7c** | D9: Edit mode = one `EditHistory` step per action; Live = **Commit** with the base version, Conflict → *Reload* / *Overwrite*; `TaskId` kept across edits (P-4) | the two-station conflict rail; an edit of task 4 while task 2 runs leaves task 2 running |
 | **7d** | retire the three `MissionPanel` instances (+ `MissionPanelWindow`, `ScenarioMissionView`); re-home `MissionPanelTests` / `MissionPanelRegistryTests` claims onto the model | the window-set rail per host (Mission window gone, Orders tab present) |
+
+**7a + 7b as built (ui, `2026-11-07`):** `Hrot.Editor.AiShared.Shell` — `OrdersPlanModel` (rows as sentences, the queue's states), `OrdersPlanEdits`
+(new Wait / order / behaviour, the *then* presets, give up, move, `RefusalOf`, `Copy`) and `OrdersTab` (`details.orders`; a draft per unit,
+↑ ↓ ✕, *+ Add task* — Wait first, then `OrderMenu.OfferedFor(dis)`, then the facade's behaviours — Apply = the whole plan with its base version
+through `IMissionEditorService.CommitMissionAsync`, settled on the UI thread; Revert; Jump / Stop when nothing is pending). Offered to a unit with
+a plan or one that can be ordered. ⭐ Two measured deviations, both argued:
+
+| | as built | why |
+|---|---|---|
+| ① | *after N* is a NEW catalogue fact **`task-time`** (`FactCatalogue`, Mission context only, world-only) whose leaf is byte-identical to `PlanConditionCache.Translate(TimerElapsed, N)` (railed) | one vocabulary: the condition editor, the summary and the picker read it; the runtime's translation and the authored preset are one condition |
+| ② | the presets are read back by `FactCatalogue.Recognise` on the leaf (a one-child `None` = negated), NOT `RowProjection.FromDto` | `FromDto` reads an UNWRAPPED leaf as a row only for a world fact; a task's facts (*under fire*, *strength*) are about the unit itself, stored unwrapped (E5) — so they would read back as Custom |
+
+⏳ **Still open in 7b:** the order's own FIELDS (an added order carries `{}` — the order form from `OrderMenu.FieldsOf` / the picks) and
+*Advanced condition…* (the condition editor in the Mission context) — both draw through existing editors, next.
