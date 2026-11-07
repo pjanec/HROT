@@ -37,7 +37,10 @@ public static class EntityField
     private static readonly IconGlyph GoneIcon = new(KitGlyphWarning, IconPalette.Error);
     private const string KitGlyphWarning = "";
 
-    public static EntityFieldOp Draw(string id, string chipLabel, IconGlyph? kind, float maxWidth, IReadOnlyList<EntityCandidate> candidates, int version = 0, string? goneText = null)
+    /// <param name="offerKey">⭐ N-5 — <i>By key (@name)</i> is offered (an <c>EntityLink</c>); false for a value that cannot hold a key (an <c>EntityRef</c>).</param>
+    /// <param name="offerMap">⭐ N-5 — <i>Pick on the map</i> is offered (the host has a pick context).</param>
+    public static EntityFieldOp Draw(string id, string chipLabel, IconGlyph? kind, float maxWidth, IReadOnlyList<EntityCandidate> candidates, int version = 0, string? goneText = null,
+                                     bool offerKey = true, bool offerMap = true)
     {
         uint sid = ImGui.GetID(id);
         ImGui.PushID(id);
@@ -55,14 +58,14 @@ public static class EntityField
         ImGui.SetNextWindowSize(new Vector2(380f, 0f));
         if (ImGui.BeginPopup("##pick"))
         {
-            DrawPopup(st, candidates, version, ref op);
+            DrawPopup(st, candidates, version, ref op, offerKey, offerMap);
             ImGui.EndPopup();
         }
         ImGui.PopID();
         return op;
     }
 
-    private static void DrawPopup(State st, IReadOnlyList<EntityCandidate> candidates, int version, ref EntityFieldOp op)
+    private static void DrawPopup(State st, IReadOnlyList<EntityCandidate> candidates, int version, ref EntityFieldOp op, bool offerKey, bool offerMap)
     {
         float width = ImGui.GetContentRegionAvail().X;
         ImGui.TextDisabled(KitGlyphSearch);
@@ -100,8 +103,8 @@ public static class EntityField
         else if (st.FilteredCount == 0) ImGui.TextDisabled("no match");
 
         ImGui.Separator();
-        if (IconRow(0, "##map", KitGlyphCrosshairs, IconPalette.Grey, "Pick on the map", width) && op.Kind == EntityFieldOpKind.None) { op = new EntityFieldOp(EntityFieldOpKind.PickOnMap); ImGui.CloseCurrentPopup(); }
-        if (IconRow(1, "##key", KitGlyphBookmark, IconPalette.Amber, "By key (@name) — follows whoever holds the key", width) && op.Kind == EntityFieldOpKind.None) { op = new EntityFieldOp(EntityFieldOpKind.ByKey); ImGui.CloseCurrentPopup(); }
+        if (offerMap && IconRow(0, "##map", KitGlyphCrosshairs, IconPalette.Grey, "Pick on the map", width) && op.Kind == EntityFieldOpKind.None) { op = new EntityFieldOp(EntityFieldOpKind.PickOnMap); ImGui.CloseCurrentPopup(); }
+        if (offerKey && IconRow(1, "##key", KitGlyphBookmark, IconPalette.Amber, "By key (@name) — follows whoever holds the key", width) && op.Kind == EntityFieldOpKind.None) { op = new EntityFieldOp(EntityFieldOpKind.ByKey); ImGui.CloseCurrentPopup(); }
         if (IconRow(2, "##clr", KitGlyphXmark, IconPalette.Grey, "Clear", width) && op.Kind == EntityFieldOpKind.None) { op = new EntityFieldOp(EntityFieldOpKind.Clear); ImGui.CloseCurrentPopup(); }
     }
 

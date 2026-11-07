@@ -159,5 +159,34 @@ namespace Fdp.Toolkit.Scenario.Tests
             for (int i = 0; i < 50; i++) { scope.ChipLabelOf(objRef); scope.TryKindOf(objRef, out _); }
             Assert.Equal(before, System.GC.GetAllocatedBytesForCurrentThread());
         }
+
+        /// <summary>⭐ N-5 (DESIGN_Struct_Editor §5, CE-3382) — what the one entity chip reads: a destroyed entity is GONE (not Exists), the side comes from
+        /// <see cref="EntityInfo.ForceId"/>, the picker's rows are the named ids BY NAME, and <see cref="LiveRefScope.Generation"/> moves on a rebuild so a cached
+        /// row list knows to rebuild. Red-proof: <c>_named</c> unsorted ⇒ the order assert fails.</summary>
+        [Fact]
+        public void N5_Exists_Side_AndTheNamedRows_ByName()
+        {
+            var (_, zulu) = Spawn("Zulu 9");
+            var (alphaE, alpha) = Spawn("alpha 1");
+            var (_, mike) = Spawn("Mike 4");
+            Spawn();                                                             // nameless: not a row
+            _repo.SetComponent(alphaE, new EntityInfo { Name = new FixedString64("alpha 1"), ForceId = ForceId.Hostile });
+            var scope = Scope();
+
+            Assert.Equal(new[] { alpha.NetworkId, mike.NetworkId, zulu.NetworkId }, scope.NamedIds().ToArray());
+            Assert.True(scope.Exists(mike));
+            Assert.False(scope.Exists(new EntityRef(9999)));
+            Assert.False(scope.Exists(EntityRef.None));
+            Assert.True(scope.TrySideOf(alpha, out var side) && side == ForceId.Hostile);
+            Assert.True(scope.TrySideOf(zulu, out var z) && z == ForceId.Neutral);
+
+            int gen = scope.Generation;
+            Assert.Equal(gen, scope.Generation);                                // a steady ask: no rebuild
+            _repo.DestroyEntity(alphaE);
+            scope.Invalidate();
+            Assert.NotEqual(gen, scope.Generation);
+            Assert.False(scope.Exists(alpha));                                  // destroyed ⇒ the chip reads gone
+            Assert.Equal(new[] { mike.NetworkId, zulu.NetworkId }, scope.NamedIds().ToArray());
+        }
     }
 }

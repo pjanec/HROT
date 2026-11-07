@@ -74,5 +74,8 @@ namespace Fdp.Presentation.Editing
 
         /// <summary>⭐ <c>CE-4206</c> R2 — a finished area edit for <paramref name="jsonPath"/>, once. <see langword="false"/> while none is ready (or it was cancelled).</summary>
         bool TryConsumeAreaEdit(string jsonPath, out Fdp.Toolkit.Replication.AreaLink area) { area = default; return false; }
+
+        /// <summary>⭐ N-5 (DESIGN_Struct_Editor §5) — where the host's selection stands: the entity picker's distance column measures from it. False ⇒ no distances.</summary>
+        bool TryGetSelectionPosition(out Fdp.Core.WorldPoint position) { position = default; return false; }
     }
 }

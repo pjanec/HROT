@@ -58,5 +58,6 @@ namespace Fdp.Presentation.Editing
         public void ShowOnMap(Fdp.Core.WorldPoint point) => _inner.ShowOnMap(point);
         public void RequestAreaEdit(string jsonPath, Fdp.Toolkit.Replication.AreaLink start) => _inner.RequestAreaEdit(Path(jsonPath), start);   // ⭐ CE-4206 R2
         public bool TryConsumeAreaEdit(string jsonPath, out Fdp.Toolkit.Replication.AreaLink area) => _inner.TryConsumeAreaEdit(Path(jsonPath), out area);   // ⭐ CE-4206 — a form's view shares the host's scope
+        public bool TryGetSelectionPosition(out Fdp.Core.WorldPoint position) => _inner.TryGetSelectionPosition(out position);   // ⭐ N-5 — the picker's distance column
     }
 }

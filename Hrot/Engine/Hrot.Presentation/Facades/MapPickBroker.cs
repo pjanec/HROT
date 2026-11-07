@@ -87,6 +87,13 @@ public sealed class MapPickBroker : IMapPickContext
     /// <inheritdoc/>
     public void ShowOnMap(Fdp.Core.WorldPoint point) => _pickService()?.ShowOnMap(point);
 
+    /// <summary>⭐ N-5 — the pick service's primary selection (the entity picker measures distance from it).</summary>
+    public bool TryGetSelectionPosition(out Fdp.Core.WorldPoint position)
+    {
+        position = default;
+        return _pickService() is { } s && s.TryGetSelectionPosition(out position);
+    }
+
     /// <inheritdoc/>
     public void RequestAreaEdit(string jsonPath, AreaLink start)
     {

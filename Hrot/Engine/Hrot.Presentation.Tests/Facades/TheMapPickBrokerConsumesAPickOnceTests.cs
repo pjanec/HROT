@@ -29,6 +29,9 @@ namespace Hrot.Presentation.Tests.Facades
             public Task<int> PickEntityAsync(string[]? filterPresets = null, System.Threading.CancellationToken ct = default) => _entityTcs.Task;
             public Task<System.Collections.Generic.IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, System.Threading.CancellationToken ct = default)
                 => Task.FromResult<System.Collections.Generic.IReadOnlyList<int>>(System.Array.Empty<int>());
+
+            public Fdp.Core.WorldPoint? Selection;   // ⭐ N-5
+            public bool TryGetSelectionPosition(out Fdp.Core.WorldPoint position) { position = Selection ?? default; return Selection.HasValue; }
         }
 
         [Fact]
@@ -92,6 +95,23 @@ namespace Hrot.Presentation.Tests.Facades
             broker.RequestEntityPick(EntityPath, null);
             Assert.False(broker.IsEntityPickPending);
             Assert.False(broker.IsPickPendingFor(EntityPath));
+        }
+
+        /// <summary>⭐ N-5 (DESIGN_Struct_Editor §5) — the entity picker's distance column measures from the host's selection: the broker AND the form scope forward it
+        /// (a wrapper that dropped it would silently show no distances — the silent-default pattern). Red-proof: the scope's member removed ⇒ the default answers false.</summary>
+        [Fact]
+        public void TheSelectionPosition_IsForwardedByTheBroker_AndByAFormsScope()
+        {
+            var pick = new StubMapPickService();
+            var broker = new MapPickBroker(() => pick);
+            Assert.False(broker.TryGetSelectionPosition(out _));
+            pick.Selection = new Fdp.Core.WorldPoint(10, 20, 0);
+            Assert.True(broker.TryGetSelectionPosition(out var p));
+            Assert.Equal(new Fdp.Core.WorldPoint(10, 20, 0), p);
+            Fdp.Presentation.Editing.IMapPickContext scoped = new Fdp.Presentation.Editing.ScopedMapPickContext(broker, "$.tasks[2]");
+            Assert.True(scoped.TryGetSelectionPosition(out var q));
+            Assert.Equal(p, q);
+            Assert.False(new MapPickBroker(() => null).TryGetSelectionPosition(out _));
         }
     }
 }

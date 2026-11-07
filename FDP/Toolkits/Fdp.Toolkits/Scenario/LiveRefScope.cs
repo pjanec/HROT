@@ -39,6 +39,9 @@ namespace Fdp.Toolkit.Scenario
         private readonly Func<EntityRepository, Entity, EntityKind?>? _kinds;
         private readonly Dictionary<int, EntityKind> _kindOf = new();
         private readonly Dictionary<int, string> _chipOf = new();
+        private readonly Dictionary<int, ForceId> _sideOf = new();   // ⭐ N-5 (DESIGN_Struct_Editor §5) — the picker's side column
+        private readonly HashSet<int> _ids = new();                   // ⭐ N-5 — every live network id: a link to one not here is GONE
+        private readonly List<int> _named = new();                    // ⭐ N-5 — the picker's rows: named entities, by name
 
         private bool _built;
         private int _count, _maxIndex;
@@ -101,7 +104,7 @@ namespace Fdp.Toolkit.Scenario
         private void Rebuild()
         {
             _byGuid.Clear(); _byKey.Clear(); _duplicateKeys.Clear(); _keyCounts.Clear();
-            _guidOf.Clear(); _keyOf.Clear(); _nameOf.Clear(); _positions.Clear(); _kindOf.Clear(); _chipOf.Clear();
+            _guidOf.Clear(); _keyOf.Clear(); _nameOf.Clear(); _positions.Clear(); _kindOf.Clear(); _chipOf.Clear(); _sideOf.Clear(); _ids.Clear(); _named.Clear();
             Rebuilds++;
 
             if (_world.IsComponentTypeRegistered<NetworkIdentity>())
@@ -115,6 +118,7 @@ namespace Fdp.Toolkit.Scenario
                     int id = _world.GetComponent<NetworkIdentity>(e).Value;
                     if (id <= 0) continue;
                     var r = new EntityRef(id);
+                    _ids.Add(id);
                     if (hasGuid && _world.HasComponent<EntityGuid>(e) && _world.GetComponent<EntityGuid>(e).Value is { } g && g != Guid.Empty)
                     { _byGuid[g] = r; _guidOf[id] = g; }
                     if (hasKey && _world.HasComponent<RefKey>(e) && _world.GetComponent<RefKey>(e).Value.ToString() is { Length: > 0 } k)
@@ -123,8 +127,12 @@ namespace Fdp.Toolkit.Scenario
                         if (_byKey.ContainsKey(k)) _duplicateKeys.Add(k); else _byKey[k] = r;
                         _keyOf[id] = k;
                     }
-                    if (hasInfo && _world.HasComponent<EntityInfo>(e) && _world.GetComponent<EntityInfo>(e).Name.ToString() is { Length: > 0 } n)
-                        _nameOf[id] = n;
+                    if (hasInfo && _world.HasComponent<EntityInfo>(e))
+                    {
+                        var info = _world.GetComponent<EntityInfo>(e);
+                        _sideOf[id] = info.ForceId;
+                        if (info.Name.ToString() is { Length: > 0 } n) { _nameOf[id] = n; _named.Add(id); }
+                    }
                     if (hasPos && _world.HasComponent<SimTransform>(e))
                         _positions[id] = new WorldPoint(_world.GetComponent<SimTransform>(e).Position);
                     if (_kinds?.Invoke(_world, e) is { } kind)
@@ -135,6 +143,7 @@ namespace Fdp.Toolkit.Scenario
                 }
             }
 
+            _named.Sort((a, b) => string.Compare(_nameOf[a], _nameOf[b], StringComparison.OrdinalIgnoreCase));
             _built = true; _invalid = false;
             _count = _world.EntityCount; _maxIndex = _world.MaxEntityIndex; _version = _world.GlobalVersion;
             _builtAt = _nowTicks();
@@ -215,6 +224,27 @@ namespace Fdp.Toolkit.Scenario
             Refresh();
             return _chipOf.TryGetValue(entity.NetworkId, out var c) ? c : NameOf(entity);
         }
+
+        /// <summary>⭐ N-5 — changes on every rebuild: a picker's cached rows are rebuilt when it moves.</summary>
+        public int Generation { get { Refresh(); return Rebuilds; } }
+
+        /// <summary>⭐ N-5 (DESIGN_Struct_Editor §5) — the entity is in the world (a link to one that is not is GONE: the chip reads red).</summary>
+        public bool Exists(EntityRef entity)
+        {
+            if (entity.IsNone) return false;
+            Refresh();
+            return _ids.Contains(entity.NetworkId);
+        }
+
+        /// <summary>⭐ N-5 — the entity's side (<see cref="EntityInfo.ForceId"/>); false when it has no <see cref="EntityInfo"/>.</summary>
+        public bool TrySideOf(EntityRef entity, out ForceId side)
+        {
+            Refresh();
+            return _sideOf.TryGetValue(entity.NetworkId, out side);
+        }
+
+        /// <summary>⭐ N-5 — the named entities' network ids, by name: the picker's rows (built at the rebuild, never per frame).</summary>
+        public IReadOnlyList<int> NamedIds() { Refresh(); return _named; }
 
         /// <summary>The entity's <see cref="EntityInfo.Name"/>, else <c>#id</c> (<c>(none)</c> for none).</summary>
         public string NameOf(EntityRef entity)

@@ -87,6 +87,15 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     public Fdp.Toolkit.Scenario.LiveRefScope? References
         => _repo == null ? null : Hrot.UI.Common.Rules.AuthoredRules.ScopeOf(_repo);
 
+    /// <summary>⭐ N-5 (DESIGN_Struct_Editor §5) — the primary selection (<see cref="Hrot.Map.Common.Components.SelectionStore"/>, a read never creates it), placed by the same
+    /// reference scope the picker's rows come from (built at its rebuild ⇒ no per-frame lookup cost).</summary>
+    public bool TryGetSelectionPosition(out Fdp.Core.WorldPoint position)
+    {
+        position = default;
+        if (_repo == null || Hrot.Map.Common.Components.SelectionStore.Peek(_repo) is not { Primary: > 0 } store) return false;
+        return References is { } refs && refs.TryPositionOf(new Fdp.Toolkit.Replication.EntityRef((int)store.Primary), out position);
+    }
+
     /// <summary>⭐ The ONE picker-modal protocol — see <c>PickerToolHost</c>.</summary>
     private readonly Hrot.ScenarioEditor.Tools.PickerToolHost _pickers;
 

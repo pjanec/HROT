@@ -27,6 +27,9 @@ public interface IMapPickService
     /// <summary>⭐ <c>CE-4206</c> R3 (F8) — centres the map on a local-metres point. Default: nothing.</summary>
     void ShowOnMap(Fdp.Core.WorldPoint point) { }
 
+    /// <summary>⭐ N-5 (DESIGN_Struct_Editor §5) — where the operator's PRIMARY selection stands (the entity picker's distance column). Default: none.</summary>
+    bool TryGetSelectionPosition(out Fdp.Core.WorldPoint position) { position = default; return false; }
+
     /// <summary>
     /// ⭐ <c>CE-4206</c> R2 (DESIGN_Map_Picking_Unification §6.3 F6) — edits an <see cref="Fdp.Toolkit.Replication.AreaLink"/> SHAPE (circle / rectangle) on the map with
     /// handles, starting from <paramref name="start"/> (a non-shape start = place a new circle with the first click). Completes with the edited shape on Enter / right-click;

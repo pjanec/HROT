@@ -423,24 +423,55 @@ public static class ReferenceLeafDrawers
 
     // ── EntityRef (internal, unchanged behaviour) ────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐ N-5 (📄 docs/DESIGN_Struct_Editor.md §5, CE-3382) — an EntityRef draws THE entity chip (the same as an EntityLink — ⛔ no longer a raw network-id box): kind glyph ·
+    /// name · ▾ — the picker (type-ahead over name · side · kind · distance, then Pick on the map · Clear; no key: an EntityRef cannot hold one). A ref to an entity no
+    /// longer in the world reads RED (<c>gone · #42</c>) with the line under the row.
+    /// </summary>
     private static bool DrawEntityRef(EditNode node, float width, IMapPickContext? ctx)
     {
         bool changed = false;
-        float input = width - (ctx != null ? (ctx.CanListEntities ? 140f : 90f) : 0f);
-        ImGuiApi.SetNextItemWidth(Math.Max(input, 60f));
-        string text = node.Binding?.GetBoxed() is EntityRef r ? r.NetworkId.ToString() : "0";   // the network id, typed in or set by the picker; 0 = none
-        if (ImGuiApi.InputText("##v", ref text, 64) && int.TryParse(text, out int id))
+        var current = node.Binding?.GetBoxed() is EntityRef r ? r : EntityRef.None;
+        var refs = ctx?.References;
+        string path = node.JsonPath;
+        var link = new EntityLink(current);
+        string? gone = GoneText(current, refs);
+        var rows = refs is null ? (IReadOnlyList<EntityCandidate>)Array.Empty<EntityCandidate>() : EntityPickerRows.Of(refs).Rows(refs, SelectionOf(ctx));
+        int version = refs is null ? 0 : EntityPickerRows.Of(refs).Version;
+        float mapW = ctx != null ? ImGuiApi.GetFrameHeight() + 4f : 0f;
+        var op = EntityField.Draw("##ref", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - mapW - 4f, 80f), rows, version, gone, offerKey: false, offerMap: ctx != null);
+        switch (op.Kind)
         {
-            node.Binding?.SetBoxed(new EntityRef(id));
-            changed = true;
+            case EntityFieldOpKind.Pick: node.Binding?.SetBoxed(new EntityRef((int)op.Id)); changed = true; break;
+            case EntityFieldOpKind.Clear: node.Binding?.SetBoxed(EntityRef.None); changed = true; break;
+            case EntityFieldOpKind.PickOnMap: ctx?.RequestEntityPick(path, Presets(node)); break;
         }
-        if (ctx != null && DrawEntityPickButtons(node, ctx, out var picked))
+        if (ctx != null)
         {
-            node.Binding?.SetBoxed(picked);
-            changed = true;
+            ImGuiApi.SameLine(0f, 4f);
+            if (ctx.IsPickPendingFor(path)) ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
+            else if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton("##mappick", NodeEditor.Core.Widgets.Icons.Get("form/map-pick"), "Pick it on the map"))
+                ctx.RequestEntityPick(path, Presets(node));
+            if (ctx.TryConsumeEntityPick(path, out var picked)) { node.Binding?.SetBoxed(picked); changed = true; }
         }
+        if (gone is not null) NodeEditor.Core.Widgets.RowMarks.ErrorLine(GoneLine);
         return changed;
     }
+
+    /// <summary>⭐ N-5 — the Validate line of a gone entity (§5).</summary>
+    public const string GoneLine = "the entity no longer exists — pick another or Clear";
+
+    /// <summary>⭐ N-5 — <c>gone · #42</c> when <paramref name="entity"/> is set but not in the world (null when it exists, is none, or there is no scope to ask).</summary>
+    public static string? GoneText(EntityRef entity, LiveRefScope? refs)
+        => entity.IsNone || refs is null || refs.Exists(entity) ? null : GoneTexts.Of(entity.NetworkId);
+
+    private static class GoneTexts
+    {
+        private static readonly Dictionary<int, string> Cache = new();
+        public static string Of(int id) { lock (Cache) { if (!Cache.TryGetValue(id, out var t)) Cache[id] = t = "gone · #" + id; return t; } }
+    }
+
+    private static Fdp.Core.WorldPoint? SelectionOf(IMapPickContext? ctx) => ctx is not null && ctx.TryGetSelectionPosition(out var p) ? p : null;
 
     // ── WorldPoint (internal, unchanged behaviour) ───────────────────────────────────────────────────────────────────────────
 
@@ -475,29 +506,6 @@ public static class ReferenceLeafDrawers
         ImGuiApi.SetNextItemWidth(third);
         bool cz = ImGuiApi.InputFloat("##z", ref local.Z, 0, 0, "%.2f");
         return cx || cy || cz;
-    }
-
-    // ── the pick buttons (shared) ────────────────────────────────────────────────────────────────────────────────────────────
-
-    /// <summary>Pick Entity / List… and the consumption of a finished pick; <c>true</c> when an entity was picked this frame.</summary>
-    private static bool DrawEntityPickButtons(EditNode node, IMapPickContext ctx, out EntityRef picked)
-    {
-        ImGuiApi.SameLine();
-        if (ctx.IsPickPendingFor(node.JsonPath))
-            ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
-        else
-        {
-            if (ImGuiApi.Button($"Pick Entity##{node.Id.Value}"))
-                ctx.RequestEntityPick(node.JsonPath, Presets(node));
-            // ⭐ CE-1059 — or choose it from a searchable list, narrowed by the same presets; it comes back through the same TryConsumeEntityPick.
-            if (ctx.CanListEntities)
-            {
-                ImGuiApi.SameLine();
-                if (ImGuiApi.Button($"List…##{node.Id.Value}"))
-                    ctx.RequestEntityListPick(node.JsonPath, Presets(node));
-            }
-        }
-        return ctx.TryConsumeEntityPick(node.JsonPath, out picked);
     }
 
     private static readonly string[] NamedPointPresets = { IMapPickContext.NamedPointsPreset };
@@ -552,21 +560,24 @@ public static class ReferenceLeafDrawers
             // ⭐ U-8 (DESIGN_Condition_Editor §8.2 ④, condition-expert-visual.svg) — THE THING BY NAME: one chip — its kind's glyph in colour · "Objective: Hold the
             // bridge" · ▾ — whose menu picks on the map, from a list, by key, or clears; then the map-pick glyph. ⛔ No Exact/Key radio, never "#10" when a name exists.
             int marks = (ctx != null ? 1 : 0) + (ctx is { Preview: not null } or { CanShowOnMap: true } ? 1 : 0) + (NeedsStableIdWarning(link, refs) ? 1 : 0);   // what follows the chip
-            if (NodeEditor.Core.Widgets.Chip.Dropdown("##chip", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f)))
-                ImGuiApi.OpenPopup("thing");
-            if (ImGuiApi.BeginPopup("thing"))
+            // ⭐ N-5 (DESIGN_Struct_Editor §5, CE-3382) — THE entity field (the kit's chip + its picker: type-ahead over name · side · kind · distance; map · key · clear); a gone thing reads red
+            string? gone = GoneText(link.Ref, refs);
+            var rows = refs is null ? (IReadOnlyList<EntityCandidate>)Array.Empty<EntityCandidate>() : EntityPickerRows.Of(refs).Rows(refs, SelectionOf(ctx));
+            var op = EntityField.Draw("##thing", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f),
+                rows, refs is null ? 0 : EntityPickerRows.Of(refs).Version, gone, offerKey: true, offerMap: ctx != null);
+            switch (op.Kind)
             {
-                if (ctx != null && ImGuiApi.Selectable("Pick on the map")) ctx.RequestEntityPick(path, Presets(node));
-                if (ctx is { CanListEntities: true } && ImGuiApi.Selectable("Choose from a list…")) ctx.RequestEntityListPick(path, Presets(node));
-                if (ImGuiApi.Selectable("By key (@name)…"))
+                case EntityFieldOpKind.Pick: { var next = PickToLink(new EntityRef((int)op.Id), refs); if (next != link) { link = next; changed = true; } break; }
+                case EntityFieldOpKind.PickOnMap: ctx?.RequestEntityPick(path, Presets(node)); break;
+                case EntityFieldOpKind.ByKey:
                 {
                     st.KeyForm[path] = true;
                     var next = SwitchToKey(link, refs, out var text);
                     st.KeyText[path] = text;
                     if (next != link) { link = next; changed = true; }
+                    break;
                 }
-                if (!link.Ref.IsNone && ImGuiApi.Selectable("Clear")) { link = EntityLink.None; changed = true; }
-                ImGuiApi.EndPopup();
+                case EntityFieldOpKind.Clear: if (!link.Ref.IsNone || !link.Spec.IsNone) { link = EntityLink.None; changed = true; } break;
             }
             if (ctx != null)
             {
@@ -584,6 +595,7 @@ public static class ReferenceLeafDrawers
                 ImGuiApi.TextColored(warn.Color, warn.Glyph);
                 if (ImGuiApi.IsItemHovered()) ImGuiApi.SetTooltip(NoStableId);
             }
+            if (gone is not null) NodeEditor.Core.Widgets.RowMarks.ErrorLine(GoneLine);
         }
         else
         {
@@ -731,5 +743,6 @@ public static class ReferenceLeafDrawers
         public bool CanShowOnMap => _inner?.CanShowOnMap ?? false;
         public void ShowOnMap(EntityRef entity) => _inner?.ShowOnMap(entity);
         public void ShowOnMap(WorldPoint point) => _inner?.ShowOnMap(point);
+        public bool TryGetSelectionPosition(out WorldPoint position) { position = default; return _inner is not null && _inner.TryGetSelectionPosition(out position); }   // ⭐ N-5
     }
 }
