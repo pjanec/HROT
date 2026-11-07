@@ -14,29 +14,8 @@ namespace Fdp.Presentation.Editing
     public static class ComponentEditServices
     {
         /// <summary>A builder with the standard leaves registered — a host adds its own on top.</summary>
-        public static ComponentEditServiceBuilder CreateBuilder()
-            => new ComponentEditServiceBuilder()
-                .RegisterFieldEditor<Fdp.Core.FixedString32>(new FixedString32FieldEditor())
-                .RegisterFieldEditor<Fdp.Core.FixedString64>(new FixedString64FieldEditor())
-                .RegisterFieldEditor<Fdp.Core.FixedString128>(new FixedString128FieldEditor())
-                .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
-                .RegisterFieldEditor<Fdp.Core.WorldRotation>(new QuaternionEulerFieldEditor(typeof(Fdp.Core.WorldRotation)))   // ⭐ S0 item 6 — a world orientation edits as Y/P/R like a Quaternion
-                .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityRef)))
-                .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityLink)))   // ⭐ S0 item 5 — the authored types are pickable leaves by TYPE
-                .RegisterFieldEditor<Fdp.Toolkit.Replication.PointLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.PointLink)))
-                .RegisterFieldEditor<Fdp.Core.WorldPoint>(new PickableLeafFieldEditor(typeof(Fdp.Core.WorldPoint)))
-                .RegisterFieldEditor<Fdp.Core.Bearing>(new PickableLeafFieldEditor(typeof(Fdp.Core.Bearing)))   // ⭐ CE-4206 R3 F7 — degrees + a compass dial
-                .RegisterFieldEditor<Fdp.Toolkit.Scenario.RefKey>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Scenario.RefKey)))   // ⭐ CE-4206 R3 F9a — the entity's key, unique-checked
-                .RegisterFieldEditor<Fdp.Toolkit.Replication.AreaLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.AreaLink)))   // ⭐ CE-4206 R2 — an authored area (circle / rectangle / area entity) is one leaf by TYPE
-                // ⭐ CE-2068 — a utility decision reference is pickable by its TYPE (R-184): one leaf, drawn as a catalog combo.
-                .RegisterFieldEditor<Fdp.Toolkit.Utility.UtilityDecisionRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Utility.UtilityDecisionRef)))
-                // ⭐ CE-4218 (RE-3) — the value leaf of a property match is a standard leaf BY TYPE (gated by [PredicateValue]); the Replay Browser registers the same editor and draws the same drawer
-                .RegisterFieldEditor<Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto>(new PredicateValueFieldEditor())
-                // ⭐ CE-4220 (R5b) — a `Type` field (PropertyMatch.ComponentType, TransientEvent.EventType …) is a standard leaf, drawn by the filtered type combo; ⛔ it was registered only by the Replay Browser, so the rule editor drew it as "RuntimeType" with an empty combo
-                .RegisterFieldEditor<Type>(new TypeFieldEditor())
-                // ⭐ CE-4220 (R5b, RE-4) — a trigger's do list is one leaf by TYPE (the rules editor draws it as rows)
-                .RegisterFieldEditor<System.Collections.Generic.List<Fdp.Toolkit.ScenarioRules.Actions.ActionStep>>(new ActionListFieldEditor())
-                .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
+        /// <remarks>⭐ S3 (CE-3378) — the list lives in ONE place now, <see cref="Types.TypeCatalogue.Standard"/> (<c>StandardTypes</c>): the leaves AND their cells.</remarks>
+        public static ComponentEditServiceBuilder CreateBuilder() => Types.TypeCatalogue.Standard.CreateBuilder();
     }
 
     /// <summary>

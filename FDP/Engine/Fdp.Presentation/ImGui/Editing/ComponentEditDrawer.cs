@@ -22,6 +22,8 @@ public sealed class ComponentEditDrawer
     private readonly IEditSession _session;
     private readonly IMapPickContext? _pickerCtx;
     private readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> _customDrawers;
+    private readonly Types.TypeCatalogue _types;                     // ⭐ S3 (CE-3378) — every cell by TYPE, registered once; the host's dictionary (transitional) wins over it
+    private readonly IServiceProvider? _services;                    // ⭐ S3 — what a domain type's cell reads (the asset, the registry), instead of a per-host drawer constructor
     private readonly ReferenceLeafDrawers.State _refState = new();   // ⭐ CE-4206 — the form a person switched a link field to, the key being typed
     private readonly IParamBindContext? _bindCtx;                    // ⭐ CE-4210 MA-1 — the params in scope, null ⇒ no bind affordance anywhere
     private readonly Stack<object?> _containers = new();             // ⭐ CE-4210 MA-2 — the values of the containers being drawn: the nearest one decides the home
@@ -32,13 +34,22 @@ public sealed class ComponentEditDrawer
         IEditSession session,
         IMapPickContext? pickerCtx,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
-        IParamBindContext? paramBindContext = null)
+        IParamBindContext? paramBindContext = null,
+        Types.TypeCatalogue? types = null,
+        IServiceProvider? services = null)
     {
         _session            = session;
         _pickerCtx          = pickerCtx;
-        _customDrawers      = customDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
+        _customDrawers      = customDrawers ?? EmptyDrawers;
         _bindCtx            = paramBindContext;
+        _types              = types ?? Types.TypeCatalogue.Standard;
+        _services           = services;
     }
+
+    private static readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> EmptyDrawers = new Dictionary<Type, IImGuiFieldDrawer>();
+
+    /// <summary>⭐ S3 — the catalogue this table draws its cells from (the forwarding rails assert on the CONSTRUCTED object).</summary>
+    public Types.TypeCatalogue Catalogue => _types;
 
     /// <summary>⭐ CE-4210 — the bind context this drawer was given (for the host rails: the CONSTRUCTED object is what a forwarding rail asserts on).</summary>
     public IParamBindContext? ParamBindContext => _bindCtx;
@@ -483,6 +494,8 @@ public sealed class ComponentEditDrawer
     {
         if (_customDrawers.TryGetValue(type, out var customDrawer))
             return customDrawer.DrawInput(ref value, node);
+        if (_types.TryGetFor(node, out var typeEditor) && typeEditor.CanDraw)
+            return typeEditor.Draw(new Types.TypeDrawContext(node, _session, _pickerCtx, _services), ref value);
 
         var meta = node.Metadata;
 
