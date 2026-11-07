@@ -74,6 +74,9 @@ public static class ActionSentence
             case "SetObjectiveActive":
                 b.G(b.Bool("Active") ? "Activate " : "Deactivate ").C(b.Link("Target"));
                 break;
+            case "BeginPhase":
+                b.G("Begin ").C(b.Link("Target"));
+                break;
             case "AddToCounter":
             {
                 double amount = b.Num("Amount");

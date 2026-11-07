@@ -218,7 +218,7 @@ assembly); names come from the one `LiveRefScope` the List uses (`AuthoredRules.
 `Order.<kind>` — the Do tab offers the kinds from `OrderMenu.Orders` (the ONE list the mission plan uses) in an *order* combo above the form, the
 behaviour name stays writable in the form (Advanced); at run time the verb resolves the kind by the target's class (`OrderResolver`, the receiver's
 own answer), sends the intent `Order.<kind>` as before and waits for the behaviour that class resolves to; a kind no class fulfils fails at once
-with the resolver's reason. ⏭ **Begin phase — SKIPPED:** it needs backend's P-6 phase field (CE-4302), not in yet. ⚠ *Message* uses the short form
+with the resolver's reason. ⭐ **Begin phase** (built once backend's P-6, CE-4302, landed): a `BeginPhase` verb `{target}` fires a PHASE trigger (`common.phase` > 0) through the ONE control path the instructor's *Begin now* uses (`RuleCommands.Control`, `RuleRequest.Fire`, new origin `RuleOrigin.Rule`, journalled as *"Fire by Rule"*); it reads *Begin Phase 2*; a trigger that is no phase fails with the reason. Rail `ScenarioRulesTests.BeginPhase_FiresThePhaseTrigger_…`. ⚠ *Message* uses the short form
 of the mockup (*Message Blue: …*), not the table's *Send a message … to …* — the mockup is the acceptance spec (R-4165).
 Rails: `RuleEditorR5bTests.ADoStep_ReadsAsASentence_…`, `TheListLine_SaysWhatEachStepDoes`, `AnOrderStep_IsSetByOrderKind_…`; `RulesWindowFrameRail` (the List line, the Do rows).
 

@@ -354,6 +354,7 @@ public sealed class RuleEditorR5bTests : IDisposable
         var segs = ActionSentence.Parts(Step("Message", """{"Text":"go"}"""), null);
         Assert.True(segs[0].Grammar); Assert.Equal("Message ", segs[0].Text);
         Assert.Contains(segs, x => !x.Grammar && x.Text == "\"go\"");
+        Assert.Equal("Begin @Phase_2", ActionSentence.Of(Step("BeginPhase", """{"target":"@Phase_2"}"""), null));
         Assert.Equal("Unknown verb", ActionSentence.Of(Step("UnknownVerb", "{}"), null));   // an act the table does not know: its humanised name
     }
 
