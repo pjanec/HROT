@@ -171,7 +171,7 @@ public interface ICanvasRenderSeam
 /// </list>
 /// </para>
 /// </summary>
-public sealed class AiGraphCanvasWindow : ManagedWindow
+public sealed class AiGraphCanvasWindow : ManagedWindow, Fdp.Presentation.Input.IKeyScopeWindow
 {
     /// <summary>⭐ <c>U-obs-5</c> — THE KIND. ⛔ Local literal, not a <c>PanelIds</c> constant: this
     /// class is instantiated per-perspective (BTree/HSM/Blueprint each construct their own), so the
@@ -188,13 +188,11 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     // and can close. Null only in legacy headless tests that do not exercise the picker.
     private readonly IPickerRegistry? _pickers;
 
-    // BCP-BATCH-02-FIX Task 1: per-frame hotkey pump (Ctrl+F find, etc.). Null only in
-    // legacy headless tests that do not supply a host input source.
-    private readonly EditorHotkeyDispatcher? _hotkeys;
+    // ⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5, CE-4282) — the canvas's command hotkeys (Ctrl+F, Ctrl+Z, Delete, Esc …) run
+    //   through the WindowManager's KeyRouter, and ONLY while this canvas is focused (IKeyScopeWindow below). ⛔ SUPERSEDED: BCP-BATCH-02-FIX's
+    //   per-canvas EditorHotkeyDispatcher, which pumped on every DRAWN canvas, so one Esc/Delete/Ctrl+Z fired in several.
 
-    // MULTI-TAB: raw host input, kept alongside _hotkeys so the Alt+Left back-navigation
-    // check can read modifiers/keys directly (EditorHotkeyDispatcher only dispatches
-    // registered IEditorCommands bindings). Null in legacy headless tests.
+    // MULTI-TAB: raw host input, so the Alt+Left back-navigation check can read modifiers/keys directly. Null in legacy headless tests.
     private readonly IInputSource? _input;
 
     // SAVE-ON-CLOSE FIX: the ONLY path that persists a document. Invoked exclusively by the
@@ -273,8 +271,8 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     ///   in headless tests that do not exercise the picker overlay.
     /// </param>
     /// <param name="input">
-    ///   Host input source used to drive the per-frame <see cref="EditorHotkeyDispatcher"/>
-    ///   (Ctrl+F find and other command shortcuts). May be <c>null</c> in headless tests.
+    ///   Host input source for the Alt+Left back-navigation chord (the command shortcuts are the WindowManager's KeyRouter's, B-10 K1).
+    ///   May be <c>null</c> in headless tests.
     /// </param>
     /// <param name="idOverride">
     ///   Optional stable ImGui id suffix. When <c>null</c> a default of
@@ -304,7 +302,6 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _docManager = docManager ?? throw new ArgumentNullException(nameof(docManager));
         _renderer   = renderer   ?? throw new ArgumentNullException(nameof(renderer));
         _pickers      = pickers;
-        _hotkeys      = input != null ? new EditorHotkeyDispatcher(input) : null;
         _input        = input;
         _saveDocument = saveDocument;
         _baseTitle    = $"{assetKind} Canvas";
@@ -436,41 +433,21 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         // Render the cached GraphView via the seam, threading FindBar and Commands when present.
         _renderer.Render(context.View, context.FindBar, context.Commands);
 
-        // BCP-BATCH-02-FIX Task 1 (THE key fix): draw the picker overlay and pump command
-        // hotkeys once per frame, gated behind an available ImGui context for headless safety.
-        // Without DrawFrame the TAB add-node picker / wire-drop picker open invisibly and the
-        // interaction Mode sticks (PickerOpen / PendingWire), killing RMB-pan, context menu and
-        // wire-drag (all of which live in HandleIdle).
+        // BCP-BATCH-02-FIX Task 1 (THE key fix): draw the picker overlay once per frame, gated behind an available ImGui context for headless
+        // safety. Without DrawFrame the TAB add-node picker / wire-drop picker open invisibly and the interaction Mode sticks (PickerOpen /
+        // PendingWire), killing RMB-pan, context menu and wire-drag (all of which live in HandleIdle). ⭐ B-10 K1: the hotkeys are the router's.
         if (ImGuiAvailable())
-        {
-            // Yield command hotkeys while the user is typing into a text field so we do not
-            // steal keystrokes from inline editors / search boxes.
-            bool wantText = ImGuiNET.ImGui.GetIO().WantTextInput;
-            DrawPickerAndPumpHotkeys(context, suppressHotkeys: wantText);
-        }
+            _pickers?.DrawFrame();
 
         // BF-UX1 FIX C: per-frame hook for cross-cutting logic (e.g. selection→details bridge).
         AfterDraw?.Invoke(context);
     }
 
-    /// <summary>
-    /// Draws the shared picker overlay once and pumps the per-frame command hotkeys.
-    /// Extracted from <see cref="DrawClientArea"/> so it can be exercised headlessly
-    /// via <see cref="SimulatePickerAndHotkeyFrame"/> (the <c>DrawFrame</c> spy and the
-    /// hotkey dispatcher do not require an ImGui context themselves).
-    /// </summary>
-    /// <param name="context">The active canvas context (supplies the command set).</param>
-    /// <param name="suppressHotkeys">
-    /// When <c>true</c>, the hotkey pump is skipped (used when the user is typing into a
-    /// text field so command shortcuts do not steal keystrokes).
-    /// </param>
-    private void DrawPickerAndPumpHotkeys(AiCanvasContext context, bool suppressHotkeys)
-    {
-        _pickers?.DrawFrame();
+    /// <summary>⭐ B-10 K1 — the keymap's window kind for this canvas's commands (one per canvas window).</summary>
+    public string KeyScopeKind => Id;
 
-        if (!suppressHotkeys)
-            _hotkeys?.ProcessThisFrame(context.Commands);
-    }
+    /// <summary>⭐ B-10 K1 — the active document's commands, run by the KeyRouter while this canvas is focused.</summary>
+    public NodeEditor.Core.Action.IEditorCommands? KeyCommands => ActiveContext?.Commands;
 
     /// <summary>
     /// Sets <see cref="ManagedWindow.Title"/> to include the active document's asset name
@@ -853,13 +830,10 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     /// <summary>
     /// Test hook: runs the non-ImGui portion of <see cref="DrawClientArea"/> for the active
     /// document — updates <see cref="ManagedWindow.Title"/> from the asset name and, when a
-    /// context is present, draws the picker overlay and pumps command hotkeys.
-    /// Mirrors the production per-frame path without requiring an ImGui context.
+    /// context is present, draws the picker overlay. Mirrors the production per-frame path without requiring an ImGui context.
+    /// ⭐ B-10 K1: the hotkeys are the KeyRouter's (KeyRouterTests), not the canvas's.
     /// </summary>
-    /// <param name="suppressHotkeys">
-    /// Simulates the "user is typing into a text field" gate that suppresses the hotkey pump.
-    /// </param>
-    internal void SimulateDrawClientArea(bool suppressHotkeys = false)
+    internal void SimulateDrawClientArea()
     {
         var doc = ActiveDocument;
         UpdateTitle(doc);
@@ -868,7 +842,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         var context = ActiveContext;
         if (doc == null || context == null) return;
 
-        DrawPickerAndPumpHotkeys(context, suppressHotkeys);
+        _pickers?.DrawFrame();
     }
 
     // ── MULTI-TAB: test seams (mirror production tab-bar / back-nav logic, no ImGui) ──

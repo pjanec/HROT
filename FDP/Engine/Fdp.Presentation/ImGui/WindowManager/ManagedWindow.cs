@@ -164,6 +164,8 @@ public abstract class ManagedWindow
     /// <param name="atlas">Icon atlas (reserved for subclass use; not consumed by base rendering).</param>
     public void Render(string currentPerspective, IconAtlas atlas)
     {
+        HasKeyFocus = false;   // ⭐ B-10 K1 — only a window drawn THIS frame can hold the keys
+
         // Step 1 — open gate.
         if (!_isOpen) { OnRenderWhileClosed(); return; }
 
@@ -212,6 +214,9 @@ public abstract class ManagedWindow
         var flags = (HasMenuBar ? ImGuiWindowFlags.MenuBar : ImGuiWindowFlags.None) | ExtraFlags;
         BeforeBegin();
         Gui.Begin(windowInternalName, ref _isOpen, flags);
+        // ⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5 ⑤) — focus is ImGui's: read it ONCE here, for the WindowManager's KeyRouter.
+        //   RootAndChildWindows — a canvas draws into child windows; ⚠ a docked window's root stops at its dock node, so only ONE docked window is focused.
+        HasKeyFocus = Gui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
 
         // Pop title-bar colours immediately after Begin (title bar is already rendered).
         if (colorsPushed > 0)
@@ -235,6 +240,13 @@ public abstract class ManagedWindow
         // Step 10 — end the window.
         Gui.End();
     }
+
+    /// <summary>
+    /// ⭐ B-10 K1 — whether this window held ImGui's keyboard focus in the frame it last drew (false when it did not draw). The
+    /// <see cref="WindowManager"/>'s <see cref="Fdp.Presentation.Input.KeyRouter"/> runs the focused window's keys; a window reading raw keys
+    /// itself gates them on this.
+    /// </summary>
+    public bool HasKeyFocus { get; private set; }
 
     // ── Internal focus API ─────────────────────────────────────────────────────
 

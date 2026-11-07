@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07, READY-TO-BUILD); ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
+build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07) — K1 BUILT, as-built in §5a; ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
 updated: 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
 current-answer: §2 the model · §3 stages · §4 questions with leans · §5 the K1 build design (homes, the chord, the id, the per-frame call)
 stale-below: nothing
@@ -289,3 +289,21 @@ window** — ⑤ · **the router inside `Hrot.Presentation`** — the window man
 reach ONLY the focused one (CE-4282) · ③ a focused panel ⇒ the map's key drain gets nothing; a click on the map ⇒ it gets the keys · ④ Ctrl+S
 fires from any focus (the existing rail stays green) · ⑤ `Keymap.Validate` refuses the same chord twice in overlapping scopes · ⑥ every graph
 command's `DefaultKey` appears in the keymap (one declaration source).
+
+### 5a. ⭐ K1 as built *(ui, `2026-11-07`)* — what the build changed against the plan above
+
+| | as built | why it differs |
+|---|---|---|
+| map focus | **a click decides it**: the router reads, once a frame, whether a mouse button went down and whether it landed on ImGui (`io.WantCaptureMouse`) — on the map ⇒ `KeyboardFocus.MapHasKeyboard = true`, on a window ⇒ false; a locked cursor (first person) takes it too | ImGui already clears its own focus on a click into the void (the dockspace's pass-through hole), so ⑥'s explicit `SetWindowFocus(null)` is not needed; and keying on the CLICK — not on "no window focused" — means a window that merely APPEARS (focus-on-appearing) does not steal the map's keys |
+| `KeyboardFocus` | a process-wide static in `Fdp.Presentation.Input`, starting `true` | it complements ImGui's focus, and ImGui's context is process-wide; a host that drew no frame keeps today's behaviour |
+| the map's drain | `MapCanvas.ProcessInputPipeline` runs the key drain BEFORE the mouse gate; `RaylibInputProvider.IsKeyboardCaptured` = `WantCaptureKeyboard \|\| (!CursorLocked && !MapHasKeyboard)` | the keyboard follows focus, the mouse gate stays for the mouse (CE-4282) |
+| a disabled binding | falls through to the outer scope (the first ENABLED binding wins) | a canvas command that is off must not swallow Ctrl+S |
+| removed | `EditorHotkeyDispatcher` (AiShared) — the canvas pump and the editor-only shell pump | ruling 9 — one implementation; the router does both, on every host. Its rails moved to the router (`BcpBatch02FixCanvasTests`, `SaveCommandsTests`) |
+| moved | `ImGuiInputSource` → `Fdp.Presentation.Input` | the router (every host's `WindowManager`) reads keys through it |
+| also gated | the audio layer's F6–F10 keys read only while the map has the keyboard | CE-4282 named F8 / F9 colliding with the graph editors |
+| not yet | `ActionRef.Global` bindings dispatch through `KeyRouter.GlobalActions`, unwired until K2 (no K1 row uses it) · the player's F3 performance overlay still reads raw Raylib (the player hosts no graph editor) · cinema mode skips the router | K2 / K3 |
+
+**Rails:** `KeyRouterTests` (Fdp.Presentation.Tests — conflicts, scope chain, map-focus state, zero allocation, and a REAL ImGui frame through
+`WindowManager.Render`: only the focused window gets Ctrl+F; a click on the void gives the map the keys) · `MapCanvasTests.B10_K1_…` (keys
+follow focus, not the mouse) · `BcpBatch02FixCanvasTests.Router_*` (two canvases, one focused; typing; popups; the keymap declares the
+canvas commands) · `SaveCommandsTests.Hotkey_CtrlS_…` (Global from any focus).

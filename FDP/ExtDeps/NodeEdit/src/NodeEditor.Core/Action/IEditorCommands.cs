@@ -42,17 +42,5 @@ public readonly record struct EditorCommandContext(
 
 public readonly record struct EditorCommandResult(bool Success, string? Message);
 
-/// <summary>Default key binding for a command.</summary>
-public readonly record struct KeyBinding(EditorKey Key, KeyModifiers Modifiers)
-{
-    public override string ToString()
-    {
-        var parts = new List<string>(4);
-        if ((Modifiers & KeyModifiers.Ctrl) != 0)  parts.Add("Ctrl");
-        if ((Modifiers & KeyModifiers.Shift) != 0) parts.Add("Shift");
-        if ((Modifiers & KeyModifiers.Alt) != 0)   parts.Add("Alt");
-        if ((Modifiers & KeyModifiers.Super) != 0) parts.Add("Super");
-        parts.Add(Key.ToString());
-        return string.Join('+', parts);
-    }
-}
+// ⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5 ①) — KeyBinding lives in NodeEditor.Primitives now (same namespace), so the
+// keymap (Fdp.Toolkits.Input) reaches it without ImGui.

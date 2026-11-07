@@ -59,6 +59,11 @@
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <!-- ⭐ B-10 K1 — the ONE chord type (NodeEditor.Core.Action.KeyBinding, EditorKey, KeyModifiers) for the keymap in Input/; a leaf project, no ImGui -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ExtDeps\NodeEdit\src\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
+  </ItemGroup>
+
   <!-- StructEdit for GizmoSettingsPublisherSystem -->
   <ItemGroup>
     <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />

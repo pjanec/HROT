@@ -259,11 +259,12 @@ public sealed class SaveCommandsTests
     // ── Test 4: Hotkey_CtrlS_InvokesSave_RegardlessOfFocusedWindow ──────────────
 
     /// <summary>
-    /// Register the commands, feed them to <see cref="EditorHotkeyDispatcher.ProcessThisFrame"/>
-    /// with a fake <see cref="IInputSource"/> reporting Ctrl+S pressed →
+    /// Register the commands as the Global scope of a <see cref="Fdp.Presentation.Input.KeyRouter"/> (⭐ B-10 K1 — the WindowManager's, on every
+    /// host; ⛔ SUPERSEDED: the editor's own EditorHotkeyDispatcher pump), with another window FOCUSED, and a fake <see cref="IInputSource"/>
+    /// reporting Ctrl+S pressed →
     /// the <c>shell.save</c> command is invoked (and Ctrl+Shift+S → <c>shell.saveAll</c>,
     /// not <c>shell.save</c>).
-    /// Mirrors <c>BcpBatch02FixCanvasTests.HotkeyDispatcher_InvokesBoundCommand_OnMatchingChord</c>.
+    /// Mirrors <c>BcpBatch02FixCanvasTests.Router_RunsTheFocusedCanvasCommand_OnItsChord</c>.
     /// <para>
     /// <b>Differentiation:</b> <c>shell.save</c> calls the per-kind delegate directly without
     /// reporting; <c>shell.saveAll</c> goes through <c>SaveAllAiDocumentsCommand.Execute</c>
@@ -296,9 +297,10 @@ public sealed class SaveCommandsTests
             report:        _ => reportCalled++);
 
         // -- Ctrl+S → should invoke shell.save ─────────────────────────────────
+        var focusedElsewhere = new FocusedPanel();   // ⭐ some other window has the focus — Ctrl+S is Global
         var ctrlSInput = new FakeInputSource(EditorKey.S, KeyModifiers.Ctrl);
-        var dispatcher = new EditorHotkeyDispatcher(ctrlSInput);
-        dispatcher.ProcessThisFrame(commands);
+        new Fdp.Presentation.Input.KeyRouter(ctrlSInput) { GlobalCommands = commands }
+            .Dispatch(new Fdp.Presentation.Input.KeyFrame(TextInput: false, PopupOpen: false, Focused: focusedElsewhere));
 
         // shell.save → per-kind delegate called, then report fires (BUG-A3).
         Assert.Equal(1, writeCalled);
@@ -310,14 +312,21 @@ public sealed class SaveCommandsTests
         doc.MarkDirty();
 
         var ctrlShiftSInput = new FakeInputSource(EditorKey.S, KeyModifiers.Ctrl | KeyModifiers.Shift);
-        dispatcher = new EditorHotkeyDispatcher(ctrlShiftSInput);
-        dispatcher.ProcessThisFrame(commands);
+        new Fdp.Presentation.Input.KeyRouter(ctrlShiftSInput) { GlobalCommands = commands }
+            .Dispatch(new Fdp.Presentation.Input.KeyFrame(false, false, focusedElsewhere));
 
         // shell.saveAll → SaveAllAiDocumentsCommand.Execute → calls both the per-kind
         // delegate AND report. The writeCalled goes from 1→2, reportCalled from 1→2.
         Assert.Equal(2, writeCalled);
         Assert.Equal(0, saveAsCalled);
         Assert.Equal(2, reportCalled);
+    }
+
+    /// <summary>A focused window with keys of its own, none of them Ctrl+S.</summary>
+    private sealed class FocusedPanel : Fdp.Presentation.Input.IKeyScopeWindow
+    {
+        public string KeyScopeKind => "some-panel";
+        public IEditorCommands? KeyCommands { get; } = new EditorCommandsImpl();
     }
 
     // ── Edge case: Null active document does not throw ──────────────────────────

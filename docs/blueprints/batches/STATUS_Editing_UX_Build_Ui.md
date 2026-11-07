@@ -29,7 +29,7 @@
 | item | state | sha | notes |
 |---|---|---|---|
 | T-1 | ✅ R1–R4 | `70778164c` + (this commit) | CE-4292 the rules windows as one bundle — `RulesBundle` composed by Editor, CGF, Replay Browser; editing decided by the seat every frame (deviation folded into `DESIGN_Rules_Bundle.md` §5) |
-| B-10 | ⏳ | — | input K1–K3, K5, K6 |
+| B-10 | 🔨 K1 ✅ | `2026-11-07` | input K1 BUILT (keymap, router, focus, map focus — CE-4282 fixed; design §5/§5a); K2, K3, K5, K6 next |
 | B-11 | ⏳ | — | action catalogue A1–A5, A7 |
 | B-14 | ⏳ | — | undo UI U2–U5 (after B-10) |
 | B-16 | ⏳ | — | seats H2–H4 (after B-11) |

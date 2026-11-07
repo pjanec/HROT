@@ -5,7 +5,7 @@ using ImGuiNET;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
-namespace Hrot.Editor.AiShared.Adapters;
+namespace Fdp.Presentation.Input;   // ⭐ B-10 K1 — moved from Hrot.Editor.AiShared.Adapters so the KeyRouter (every host's WindowManager) reads keys through it
 
 /// <summary>
 /// <see cref="IInputSource"/> that reads from ImGuiNET each frame.

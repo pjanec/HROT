@@ -235,6 +235,9 @@ namespace Hrot.UI.Common.Audio
         private void Keys()
         {
             if (_output == null) return;
+            // ⭐ B-10 K1 (CE-4282) — the audio keys are the MAP's: only while the map has the keyboard, so F8 / F9 no longer fire while a
+            //   focused graph editor takes them as next-error / breakpoint. (The default reader is raw Raylib; an injected one is a rail's.)
+            if (!Fdp.Presentation.Input.KeyboardFocus.MapHasKeyboard) return;
             var s = Settings;
             bool changed = false;
             if (_keyPressed(KeyboardKey.F6)) { s.Master = Step(s.Master, -1); changed = true; }

@@ -203,6 +203,26 @@ namespace Fdp.Toolkit.Vis2D
         {
             KeyboardConsumedByTool = false;
 
+            // 0. Keyboard routing to layers (highest index = top priority).
+            // ⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5, CE-4282) — the KEYBOARD follows focus, not the mouse: it runs before the
+            //    mouse gate below, and only while the map has the keyboard (IsKeyboardCaptured is false — RaylibInputProvider asks
+            //    KeyboardFocus.MapHasKeyboard). ⛔ SUPERSEDED: keys read only while the mouse was over the map, whichever panel was focused.
+            if (!_input.IsKeyboardCaptured)
+            {
+                int rawKey;
+                while ((rawKey = _input.GetKeyPressed()) != 0)
+                {
+                    for (int i = _layers.Count - 1; i >= 0; i--)
+                    {
+                        if (_layers[i].HandleKeyInput((MapKeyboardKey)rawKey))
+                        {
+                            KeyboardConsumedByTool = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
             if (_input.IsMouseCaptured) return;
 
             Vector2 mouseScreen = _input.MousePosition;
@@ -227,23 +247,6 @@ namespace Fdp.Toolkit.Vis2D
 
             // Save right-drag state before reset so 3.5 can check it correctly.
             bool wasRightDragged = _rightButtonDragged;
-
-            // 0. Keyboard routing to layers (highest index = top priority).
-            if (!_input.IsKeyboardCaptured)
-            {
-                int rawKey;
-                while ((rawKey = _input.GetKeyPressed()) != 0)
-                {
-                    for (int i = _layers.Count - 1; i >= 0; i--)
-                    {
-                        if (_layers[i].HandleKeyInput((MapKeyboardKey)rawKey))
-                        {
-                            KeyboardConsumedByTool = true;
-                            break;
-                        }
-                    }
-                }
-            }
 
             // 1. Hover and drag to layers (informational; no consume semantics for hover).
             for (int i = _layers.Count - 1; i >= 0; i--)

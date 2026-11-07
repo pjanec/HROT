@@ -688,9 +688,8 @@ namespace Hrot.Editor
         // the modal instead of exiting; the loop keeps running until the user resolves it.
         private Hrot.Editor.AiShared.Documents.AppExitPromptController? _exitPrompt;
 
-        // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
-        private ImGuiInputSource? _shellInputSource;
-        private Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher? _shellHotkeyDispatcher;
+        // ⭐ B-10 K1 — the shell's hotkeys (Ctrl+S …) are the Global scope of the WindowManager's ONE KeyRouter now, on every host;
+        //   ⛔ SUPERSEDED: BATCH-06's editor-only shell hotkey pump (_shellInputSource / _shellHotkeyDispatcher).
 
         // BATCH-20 (DEC-9): per-kind INewAssetService registry for SaveAsDialog.
         // Initialized before ShellSaveCommands.Register so the requestSaveAs seam
@@ -2730,17 +2729,7 @@ namespace Hrot.Editor
                 DrawPromptModals();
             }
 
-            // ── BATCH-06: perspective-level shell hotkey dispatch (Ctrl+S fix, §20) ───────────
-            // Pump the shell command hotkeys once per frame so Ctrl+S/Ctrl+Shift+S fire
-            // regardless of which sub-window is focused. Skip while the user is typing in
-            // a text field so keystrokes are not stolen from text inputs.
-            if (_shellHotkeyDispatcher != null && _wm?.ShellCommands != null)
-            {
-                var io = ImGuiNET.ImGui.GetIO();
-                if (!io.WantTextInput)
-                    _shellHotkeyDispatcher.ProcessThisFrame(_wm.ShellCommands);
-            }
-            // ───────────────────────────────────────────────────────────────────────────────────
+            // ⭐ B-10 K1 — the shell's hotkeys fire through the WindowManager's KeyRouter (its Global scope), on every host.
 
             // ⭐ CE-1237 — the Blueprint Tools window is a managed window now (EditorBlueprintToolsWindow, registered in RegisterWindows):
             //   it had no close box and drew in EVERY perspective (a raw ImGui.Begin here). Its content is DrawBlueprintToolsContent.
@@ -3803,9 +3792,6 @@ namespace Hrot.Editor
             // ── BATCH-06: register shell save commands (Ctrl+S/Ctrl+Shift+S fix, §20) ──────────
             // Wire the three save commands into the global shell command set with production
             // save delegates and a requestSaveAs seam (DEC-9: connected to SaveAsDialog model).
-            _shellInputSource = new ImGuiInputSource();
-            _shellHotkeyDispatcher = new Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher(
-                _shellInputSource);
 
             // BATCH-43 (MTB2-T8b): scenario Save-As → SaveAsBrowserDialog (same browser as New + doc Save-As).
             // ⭐ CE-4097 — the optional `onNamed` is the run choice's "Save as… and go live": called with the saved name once the save was published
