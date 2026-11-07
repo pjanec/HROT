@@ -22,7 +22,7 @@ related-designs:
 📄 The work: [`batches/HANDOFF_Coordinator_To_Backend_Editing_UX_Build.md`](batches/HANDOFF_Coordinator_To_Backend_Editing_UX_Build.md) (B-1…B-18, scope frozen at `9c50cec00`) ·
 the rules: [`batches/PROTOCOL_Two_Lanes_Self_Coordinating.md`](batches/PROTOCOL_Two_Lanes_Self_Coordinating.md) (after every item: commit + push, update the status file, `git fetch origin ui backend coordinator`, merge `ui`, answer notes; a user decision ⇒ a QUESTION note + skip) ·
 ⭐ the LIVE per-item table: [`batches/STATUS_Editing_UX_Build_Backend.md`](batches/STATUS_Editing_UX_Build_Backend.md) — **read it first; it says what each item gives the ui lane.**
-Branch `backend` at `0d0453df1`, clean, pushed; `ui` merged at `91195cb0f`.
+Branch `backend` at `0603f5300` (+ this doc), clean, pushed; `ui` merged at `91195cb0f`.
 
 ### Done (shas on `backend`)
 
@@ -34,7 +34,7 @@ Branch `backend` at `0d0453df1`, clean, pushed; `ui` merged at `91195cb0f`.
 | B-4 form attributes 50–66 (worker) | ✅ | `78c40554c` |
 | B-5 initial state: S1 carry mode + assistant saved, S2 WeaponPosture saved + `Weapon.*` attrs 70–73, S3 SeedTarget to the brain's node (worker), S4 `Point` type 8816 (backend half), S6 character attrs 80–84 (worker) | PART | `80ccf0396` `14c7352ad` `05106e168` `130011a4d` |
 | B-6 F4 interactions + F6 mission commit Conflict | ✅ | `312a2c7d0` `f2f3d0f1f` `8431ff979` `408780adf` |
-| B-7 Replay Browser: Q-B4 (no End exercise on a recording), ① the main-bar seek bar | PART | `b62bd9886` `cff01bd48` |
+| B-7 Replay Browser: Q-B4 (no End exercise on a recording), ① the main-bar seek bar, ② the Replay Timeline window retired (File ▸ Recording info carries its snapshot) | ✅ | `b62bd9886` `cff01bd48` `0603f5300` |
 | B-8 N2 blank scenario (master writes it, run before the loads) + N5 `POST /scenario/new` | ✅ | `079e14616` |
 | B-9 N1 New Scenario lists terrains blank + recipes | PART | `0d0453df1` |
 | B-12 F7 `EditNotifications` model + mockup, the overlay (worker) | PART | `160260efd` `efad24ef3` |
@@ -44,7 +44,7 @@ Branch `backend` at `0d0453df1`, clean, pushed; `ui` merged at `91195cb0f`.
 
 ### ⏭ Next, in order (each detailed in the status file / its design)
 
-1. **B-7 ② retire the Replay Timeline window** — ⚠ an UNVERIFIED worker patch is in [`batches/wip/B-7-part3-UNVERIFIED.patch`](batches/wip/B-7-part3-UNVERIFIED.patch) (RecordingInfoWindow carrying the retired window's panel snapshot, the seek-bar tooltip, the meta row → Frame Diff, `rb_timeline` unregistered + golden). Its last build had compile errors in its new test file and 4 unexamined ReplayBrowser.Tests reds. `git apply --check` it, fix, verify. Notes from the worker: the "group rejected" modal was drawn only by the retired window (moved into `DrawTransport`); no route / MCP tool opens the window.
+1. ✅ **B-7 ② retire the Replay Timeline window** — DONE (the patch is applied, verified and deleted; as-built in [`DESIGN_Replay_Browser_UX.md`](../UX/DESIGN_Replay_Browser_UX.md) §2a, row in [`STATUS_Editing_UX_Build_Backend.md`](batches/STATUS_Editing_UX_Build_Backend.md)). The "group rejected" modal was drawn only by the retired window and moved into `DrawTransport`; no route / MCP tool opens the window. Four ReplayBrowser.Tests reds are PRE-EXISTING at `0d0453df1` (window-count and catalogue lists went stale when the ui lane added windows / state columns).
 2. **B-9** the rest: the pane's terrain facts (origin, size, roads, recipes on it) + the still (N6), N3 the ONE Save-As *Replace?*, N4 terrain read-only. Mockup `docs/UX/new-scenario-visual.svg`.
 3. **B-12** the Messages history reading the journal; ⚠ the overlay's Reload/Overwrite are NOT wired (the mission plan's conflict state is private to `MissionPanel`).
 4. **B-10 keymap · B-11 action catalogue · B-14 undo UI side (EditHistory world steps on `WorldSnapshotRing`) · B-16 seats H2–H4 · B-17 map interaction** — all large, UI-heavy; each has a design + mockup.
@@ -53,10 +53,10 @@ Branch `backend` at `0d0453df1`, clean, pushed; `ui` merged at `91195cb0f`.
 ### Open questions / notes sent
 - ⚠ QUESTION [`NOTE_Backend_To_Coordinator_Knows_About_Read.md`](batches/NOTE_Backend_To_Coordinator_Knows_About_Read.md) — where a non-brain station reads *Knows about* (lean: on demand from the brain's node). Unanswered.
 - FYI [`NOTE_Backend_To_Ui_Two_Presentation_Reds.md`](batches/NOTE_Backend_To_Ui_Two_Presentation_Reds.md) — `LabelFirstFormsFrameRail` + `EditorFontCoverage CE1063` reds are ui's (green at batch start `6754d2ecc`).
-- Pre-existing reds (red at `6754d2ecc`): `NoNewInlineNetworkIdLookupAppears` (EventDetailsView), `TriggerAdvertisesItsAuthoredKeys`, `CE1150_TheBundle…`, CE2171 FollowRoute split cluster (CE-3369). Also seen, not compared to a base: `EntityTypeCatalogTests.CE2138_EveryBuiltInType_KeepsIts3dFamily…`, and the Presentation AddEntity classes are not yet re-run after S4's `Point` type (they did not compile at the time).
+- Pre-existing reds (red at `6754d2ecc`): `NoNewInlineNetworkIdLookupAppears` (EventDetailsView), `TriggerAdvertisesItsAuthoredKeys`, `CE1150_TheBundle…`, CE2171 FollowRoute split cluster (CE-3369). ⚠ `Hrot.SystemTests` `The_registered_window_set_is_unchanged` is STALE in all 3 modes at base (its golden lists 10 windows vs 17 actual) — only `rb_timeline`→`rb_recording_info` was renamed in it; re-capture it deliberately. Also seen, not compared to a base: `EntityTypeCatalogTests.CE2138_EveryBuiltInType_KeepsIts3dFamily…`, and the Presentation AddEntity classes are not yet re-run after S4's `Point` type (they did not compile at the time).
 
 ### The worker (Sonnet, `a6d1b9ce3d2323faa`) and the traps
-- Idle, nothing uncommitted. It shares the checkout: **commit is the sync point**; when it is mid-edit and you need a clean build, save its diff as a patch, revert, build, re-apply (done twice — it works).
+- Idle (finished B-7 ② and stopped), nothing uncommitted. It shares the checkout: **commit is the sync point**; when it is mid-edit and you need a clean build, save its diff as a patch, revert, build, re-apply (done twice — it works).
 - ⭐ Build lock: `MSBUILDDISABLENODEREUSE=1 flock -o /tmp/hrot-build.lock dotnet build <TEST csproj> --no-restore -nodeReuse:false`, then `--no-build` tests. `flock` without `-o` + node reuse = a lock held forever.
 - ⛔ A `Passed!` after a build with errors is a STALE binary (hit 4 times this session) — always read the `Error(s)` line first.
 - ⛔ A red-proof mutation must COMPILE (`if (false)` / unused fields are warnings-as-errors ⇒ stale pass). Use `&& x < 0`-style mutants; reverse with sed only.

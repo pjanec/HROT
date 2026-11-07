@@ -6,7 +6,7 @@
   "rb_diff",
   "rb_fdp_events",
   "rb_fdp_inspector",
+  "rb_recording_info",
   "rb_search",
-  "rb_timeline",
   "rb_wire_entities"
 ]

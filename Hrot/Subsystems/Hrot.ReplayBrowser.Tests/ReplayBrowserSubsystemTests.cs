@@ -247,8 +247,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         //   (rb_fdp_inspector / rb_fdp_events, which replaced this host's own rb_inspector / rb_events copies).
         // ⭐ CE-1302 R1-c — and the event timeline (rb_event_timeline) over the primary node's recording.
         // ⭐ CE-1303 P2a — and the ONE film director's window (DirectorPack's, in this host's perspective — §11m D11).
+        // ⭐ B-7 part 3 — rb_timeline (the Replay Timeline window) is RETIRED; File ▸ Recording info (rb_recording_info, closed) carries its file path and panel snapshot.
         // ⭐ AQ109 X5 — and the generic wire inspector (rb_wire_entities, closed; this host has no participant, so it says so).
-        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline", "rb_wire_entities" },
+        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_recording_info", "rb_search", "rb_wire_entities" },
                      windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
 
         foreach (var (_, win) in windows)
