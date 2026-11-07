@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Hrot.Core.Mission;
@@ -234,5 +235,62 @@ public sealed class TheOrdersTabEditsTests
         var t = OrdersPlanEdits.WithThen(OrdersPlanEdits.NewOrder("Hold"), advanced);
         Assert.Equal(ThenPreset.Advanced, OrdersPlanEdits.ThenOf(t).Preset);
         Assert.Equal(ConditionCache.ToJson(advanced), ConditionCache.ToJson(OrdersPlanEdits.ConditionOf(t)!));
+    }
+
+    // ── ⭐ W-1 / P-8 8b (Mission plan §5.5 M5 / M6, §5.6) — the picker's phase, rule and unit entries ─────────────────────────
+
+    /// <summary>
+    /// ⭐ <i>when Phase N begins</i> / <i>when a rule fires</i> store the ONE shape (the trigger fired — <c>PlanConditionCache.PhaseBegins</c>) and read back as
+    /// <see cref="ThenPreset.RuleFires"/> with the trigger; <i>when &lt;unit&gt; finishes task N</i> stores <c>TaskFinished</c> and reads back with its number.
+    /// 🔴 Red-proof: <c>TargetIn</c> dropped from <c>ThenOf</c> ⇒ both read as Advanced ⇒ red.
+    /// </summary>
+    [Fact]
+    public void P8b_ARuleOrPhaseAndAUnitsTask_ReadBackAsThemselves_WithTheirTarget()
+    {
+        var trigger = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(77));
+        var t = new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Hold" };
+        OrdersPlanEdits.WithThen(t, OrdersPlanEdits.ThenRuleFires(trigger));
+        Assert.Equal(ThenPreset.RuleFires, OrdersPlanEdits.ThenOf(t).Preset);
+        Assert.Equal(77, OrdersPlanEdits.TargetOf(t).Ref.NetworkId);
+        Assert.Equal(ConditionCache.ToJson(Fdp.Toolkit.Behavior.Systems.PlanConditionCache.PhaseBegins(trigger)), Assert.Single(t.Triggers).Params);   // the runtime's own preset
+
+        var unit = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(42));
+        OrdersPlanEdits.WithThen(t, OrdersPlanEdits.ThenUnitFinishes(unit, 3));
+        Assert.Equal((ThenPreset.UnitFinishesTask, 3d), OrdersPlanEdits.ThenOf(t));
+        Assert.Equal(42, OrdersPlanEdits.TargetOf(t).Ref.NetworkId);
+        Assert.IsType<TaskFinishedPredicateDto>(ConditionCache.Parse(Assert.Single(t.Triggers).Params));
+        Assert.Equal(1, ((TaskFinishedPredicateDto)OrdersPlanEdits.ThenUnitFinishes(unit, 0)).Task);   // a task number is 1-based
+    }
+
+    /// <summary>⭐ The picker's rules: the phases first by number, then the other triggers by title — authored (Edit) rules too; objectives are not offered.</summary>
+    [Fact]
+    public void P8b_ThePickerOffersThePhasesFirst_ThenTheOtherTriggers_AuthoredToo()
+    {
+        using var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        w.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
+        void Rule(int id, string kind, string json)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(id));
+            w.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 });
+        }
+        Rule(1, "Trigger", """{"common":{"title":"Assault","phase":2}}""");
+        Rule(2, "Trigger", """{"common":{"title":"Brief Blue"}}""");
+        Rule(3, "Trigger", """{"common":{"title":"Approach","phase":1}}""");
+        Rule(4, "ReachArea", """{"common":{"title":"Reach the bridge"}}""");
+        var tab = new OrdersTab(() => null, () => w);
+        Assert.Equal(new[] { "Approach", "Assault", "Brief Blue" }, tab.RuleChoicesOf(w).Select(r => r.Title));
+    }
+
+    /// <summary>⭐ The silent-default rule — the bundle HAS the host's actions and passes them: the constructed tab offers <i>New rule…</i>. 🔴 Red-proof: the
+    /// descriptor not forwarding <c>host</c> ⇒ red.</summary>
+    [Fact]
+    public void P8b_TheDescriptorForwardsTheHost_SoNewRuleCanAsk()
+    {
+        var host = new Hrot.Common.Interactions.HostActions();
+        var tab = (OrdersTab)OrdersTabDescriptor.For(() => null, () => null, host: () => host).Create();
+        Assert.True(tab.OffersNewRule);
+        Assert.False(((OrdersTab)OrdersTabDescriptor.For(() => null, () => null).Create()).OffersNewRule);
     }
 }

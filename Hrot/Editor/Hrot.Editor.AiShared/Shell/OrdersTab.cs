@@ -28,9 +28,19 @@ public sealed class OrdersTab : IDetailsViewInstance
 
     /// <param name="pick">the host's map pick (a field's pick on the map); null ⇒ no pick.</param>
     /// <param name="paramsTypeOf">the host's behaviour → params type (its registry also knows blueprint behaviours); null ⇒ the declared contracts.</param>
+    /// <param name="host">⭐ P-8 8b — the host's actions: the picker's <i>New rule…</i> asks <c>AddRuleAboutUnit</c> (the Rules gallery with this unit
+    /// filled in, bound by the RulesBundle on every host); null ⇒ the entry is greyed.</param>
     public OrdersTab(Func<IMissionEditorService?> missions, Func<EntityRepository?> world,
-                     Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Func<string, Type?>? paramsTypeOf = null)
-    { _missions = missions; _world = world; _pick = pick; _paramsTypeOf = paramsTypeOf; }
+                     Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Func<string, Type?>? paramsTypeOf = null, Func<Hrot.Common.Interactions.HostActions?>? host = null)
+    { _missions = missions; _world = world; _pick = pick; _paramsTypeOf = paramsTypeOf; _host = host; }
+
+    private readonly Func<Hrot.Common.Interactions.HostActions?>? _host;
+
+    /// <summary>⭐ P-8 8b — the picker's <i>New rule…</i> can ask this host (it was handed the host's actions — the forwarding rail).</summary>
+    public bool OffersNewRule => _host?.Invoke() != null;
+
+    /// <summary>⭐ P-8 8b — the rules and phases the picker offers, read now from <paramref name="w"/> (rails; the draw reads them at most once a second).</summary>
+    public IReadOnlyList<(int Net, string Title, int Phase)> RuleChoicesOf(EntityRepository w) { _choicesAt = long.MinValue; RefreshChoices(w); return _rules; }
 
     /// <summary>
     /// ⭐ 7b — a task's params type: an order's is its DTO from the ONE order registry (<c>OrderMenu</c>, the lookup G1 resolves its references
@@ -150,7 +160,7 @@ public sealed class OrdersTab : IDetailsViewInstance
             }
             ImGui.Indent();
             if (DrawFields(task)) _dirty = true;
-            if (DrawThen(task)) _dirty = true;
+            if (DrawThen(task, entity, net)) _dirty = true;
             if (DrawGiveUp(task)) _dirty = true;
             ImGui.Unindent();
             ImGui.PopID();
@@ -203,38 +213,139 @@ public sealed class OrdersTab : IDetailsViewInstance
         return true;
     }
 
-    private static readonly string[] ThenLabels = { "when done", "after", "when under fire", "when strength below", "an advanced condition" };
+    // ⭐ P-8 8b (§5.6, mission-plan-detail-visual.svg A) — the picker in the mockup's order: the plain presets, then a phase / a unit's task / a rule,
+    //   then Advanced condition… and New rule…. A phase and a rule store the SAME condition (the trigger fired); which one shows is the target's phase.
+    private enum ThenItem { WhenDone, After, UnderFire, StrengthBelow, PhaseBegins, UnitFinishesTask, RuleFires, Advanced, NewRule }
+    private static readonly string[] ThenLabels = { "when done", "after", "when under fire", "when strength below", "when a phase begins", "when a unit finishes a task", "when a rule fires", "an advanced condition", "New rule..." };
 
-    private bool DrawThen(MissionTask task)
+    /// <summary>The rules (and phases) and the units with a plan the picker offers, read at most once a second (never per frame), with each rule's title / phase.</summary>
+    private readonly List<(int Net, string Title, int Phase)> _rules = new();
+    private readonly List<(int Net, string Name)> _planUnits = new();
+    private long _choicesAt = long.MinValue;
+
+    private void RefreshChoices(EntityRepository w)
     {
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_choicesAt != long.MinValue && now - _choicesAt < System.Diagnostics.Stopwatch.Frequency) return;
+        _choicesAt = now;
+        _rules.Clear(); _planUnits.Clear();
+        foreach (var r in Hrot.UI.Common.Rules.RulesReader.Read(w))
+            if (r.Status.Role == Fdp.Toolkit.ScenarioRules.ObjectiveRole.Trigger) _rules.Add((r.NetworkId, r.Status.Title.ToString(), r.Status.Phase));
+        _rules.Sort((a, b) => a.Phase != b.Phase ? (a.Phase == 0 ? 1 : b.Phase == 0 ? -1 : a.Phase.CompareTo(b.Phase)) : string.Compare(a.Title, b.Title, StringComparison.OrdinalIgnoreCase));
+        if (w.IsComponentTypeRegistered<MissionPlanQueue>())
+            foreach (var e in w.Query().With<MissionPlanQueue>().With<NetworkIdentity>().Build())
+            {
+                int n = w.GetComponentRO<NetworkIdentity>(e).Value;
+                string name = w.IsComponentTypeRegistered<Fdp.Core.EntityInfo>() && w.HasComponent<Fdp.Core.EntityInfo>(e)
+                    ? w.GetComponentRO<Fdp.Core.EntityInfo>(e).Name.ToString() : $"#{n}";
+                _planUnits.Add((n, name));
+            }
+        _planUnits.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string RuleLabel(int net)
+    {
+        foreach (var r in _rules) if (r.Net == net) return r.Phase > 0 ? $"Phase {r.Phase} {r.Title}" : r.Title;
+        return net > 0 ? $"rule #{net}" : "(pick one)";
+    }
+
+    private bool IsPhase(int net) { foreach (var r in _rules) if (r.Net == net) return r.Phase > 0; return false; }
+
+    private Fdp.Toolkit.Replication.EntityLink LinkTo(EntityRepository w, int net) => Hrot.UI.Common.Rules.RuleGallery.LinkTo(net, Hrot.UI.Common.Rules.AuthoredRules.ScopeOf(w));
+
+    private bool DrawThen(MissionTask task, Entity unit, int unitNet)
+    {
+        if (_world() is not { } w) return false;
+        RefreshChoices(w);
         var (preset, number) = OrdersPlanEdits.ThenOf(task);
         if (preset == ThenPreset.Advanced) _advanced.Add(task.TaskId);
         bool advanced = _advanced.Contains(task.TaskId);
-        bool changed = false;
-        ImGui.SetNextItemWidth(170);
-        int sel = advanced ? (int)ThenPreset.Advanced : (int)preset;
-        if (ImGui.Combo("then", ref sel, ThenLabels, ThenLabels.Length) && (ThenPreset)sel == ThenPreset.Advanced && !advanced)
+        var target = OrdersPlanEdits.TargetOf(task);
+        int targetNet = target.Ref.NetworkId;
+        ThenItem shown = advanced ? ThenItem.Advanced : preset switch
         {
-            _advanced.Add(task.TaskId);   // the condition editor opens on what the task says now (its preset's condition)
-            return false;
+            ThenPreset.After => ThenItem.After, ThenPreset.UnderFire => ThenItem.UnderFire, ThenPreset.StrengthBelow => ThenItem.StrengthBelow,
+            ThenPreset.RuleFires => IsPhase(targetNet) ? ThenItem.PhaseBegins : ThenItem.RuleFires,
+            ThenPreset.UnitFinishesTask => ThenItem.UnitFinishesTask,
+            _ => ThenItem.WhenDone,
+        };
+        bool changed = false;
+        ImGui.SetNextItemWidth(190);
+        int sel = (int)shown;
+        if (ImGui.Combo("then", ref sel, ThenLabels, ThenLabels.Length) && sel != (int)shown)
+        {
+            var item = (ThenItem)sel;
+            switch (item)
+            {
+                case ThenItem.Advanced:
+                    _advanced.Add(task.TaskId);   // the condition editor opens on what the task says now (its preset's condition)
+                    return false;
+                case ThenItem.NewRule:
+                    _host?.Invoke()?.Request(Hrot.Common.Constants.GlobalActionIds.AddRuleAboutUnit, unit);   // the gallery about this unit; the then is unchanged
+                    return false;
+                case ThenItem.PhaseBegins or ThenItem.RuleFires:
+                {
+                    _advanced.Remove(task.TaskId);
+                    int first = 0;
+                    foreach (var r in _rules) if ((r.Phase > 0) == (item == ThenItem.PhaseBegins)) { first = r.Net; break; }
+                    OrdersPlanEdits.WithThen(task, OrdersPlanEdits.ThenRuleFires(first > 0 ? LinkTo(w, first) : Fdp.Toolkit.Replication.EntityLink.None));
+                    return true;
+                }
+                case ThenItem.UnitFinishesTask:
+                {
+                    _advanced.Remove(task.TaskId);
+                    int first = 0;
+                    foreach (var u in _planUnits) if (u.Net != unitNet) { first = u.Net; break; }
+                    OrdersPlanEdits.WithThen(task, OrdersPlanEdits.ThenUnitFinishes(first > 0 ? LinkTo(w, first) : Fdp.Toolkit.Replication.EntityLink.None, 1));
+                    return true;
+                }
+            }
+            _advanced.Remove(task.TaskId);
+            var p = item switch { ThenItem.After => ThenPreset.After, ThenItem.UnderFire => ThenPreset.UnderFire, ThenItem.StrengthBelow => ThenPreset.StrengthBelow, _ => ThenPreset.WhenDone };
+            OrdersPlanEdits.WithThen(task, OrdersPlanEdits.Then(p, p == ThenPreset.After ? 300 : p == ThenPreset.StrengthBelow ? 0.5 : 0));
+            changed = true;
+            (preset, number) = OrdersPlanEdits.ThenOf(task);
+            shown = item;
         }
-        if ((ThenPreset)sel != ThenPreset.Advanced && advanced) _advanced.Remove(task.TaskId);
         if (_advanced.Contains(task.TaskId))
         {
             // ⭐ Advanced condition… — the ONE condition editor, Mission context (E5: its WHO defaults to this unit)
             if (!_conditions.TryGetValue(task.TaskId, out var editor)) _conditions[task.TaskId] = editor = new Fdp.Presentation.Editing.ConditionEditor(Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionContexts.Mission);
             Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto? dto = OrdersPlanEdits.ConditionOf(task);
             if (editor.Draw("then_condition", ref dto, _pick?.Invoke())) { OrdersPlanEdits.WithThen(task, dto); return true; }
-            return false;
+            return changed;
         }
-        if (sel != (int)preset)
+        if (shown is ThenItem.PhaseBegins or ThenItem.RuleFires)
         {
-            var p = (ThenPreset)sel;
-            OrdersPlanEdits.WithThen(task, OrdersPlanEdits.Then(p, p == ThenPreset.After ? 300 : p == ThenPreset.StrengthBelow ? 0.5 : 0));
-            changed = true;
-            (preset, number) = OrdersPlanEdits.ThenOf(task);
+            // which phase / rule (the mockup's ▸ submenu, as a second chooser beside the preset)
+            bool phases = shown == ThenItem.PhaseBegins;
+            ImGui.SameLine(); ImGui.SetNextItemWidth(200);
+            if (ImGui.BeginCombo("##then-rule", RuleLabel(targetNet)))
+            {
+                foreach (var r in _rules)
+                    if ((r.Phase > 0) == phases && ImGui.Selectable(r.Phase > 0 ? $"Phase {r.Phase} {r.Title}##{r.Net}" : $"{r.Title}##{r.Net}", r.Net == targetNet))
+                    { OrdersPlanEdits.WithThen(task, OrdersPlanEdits.ThenRuleFires(LinkTo(w, r.Net))); changed = true; }
+                ImGui.EndCombo();
+            }
         }
-        if (preset == ThenPreset.After)
+        else if (shown == ThenItem.UnitFinishesTask)
+        {
+            ImGui.SameLine(); ImGui.SetNextItemWidth(160);
+            string unitName = "(pick a unit)";
+            foreach (var u in _planUnits) if (u.Net == targetNet) { unitName = u.Name; break; }
+            if (ImGui.BeginCombo("##then-unit", unitName))
+            {
+                foreach (var u in _planUnits)
+                    if (u.Net != unitNet && ImGui.Selectable($"{u.Name}##{u.Net}", u.Net == targetNet))
+                    { OrdersPlanEdits.WithThen(task, OrdersPlanEdits.ThenUnitFinishes(LinkTo(w, u.Net), (int)Math.Max(1, number))); changed = true; }
+                ImGui.EndCombo();
+            }
+            ImGui.SameLine(); ImGui.AlignTextToFramePadding(); ImGui.TextUnformatted("task"); ImGui.SameLine(); ImGui.SetNextItemWidth(60);
+            int n = (int)Math.Max(1, number);
+            if (ImGui.InputInt("##then-task", ref n, 1) && n >= 1 && n <= MissionPlanQueue.MaxTasks)
+            { OrdersPlanEdits.WithThen(task, OrdersPlanEdits.ThenUnitFinishes(target, n)); changed = true; }
+        }
+        else if (preset == ThenPreset.After)
         {
             ImGui.SameLine(); ImGui.SetNextItemWidth(80);
             float min = (float)(number / 60.0);
@@ -281,11 +392,12 @@ public static class OrdersTabDescriptor
     public const string Id = "details.orders";
 
     public static DetailsViewDescriptor For(Func<IMissionEditorService?> missions, Func<EntityRepository?> world,
-                                            Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Func<string, Type?>? paramsTypeOf = null)
+                                            Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Func<string, Type?>? paramsTypeOf = null,
+                                            Func<Hrot.Common.Interactions.HostActions?>? host = null)
     {
         ArgumentNullException.ThrowIfNull(missions);
         ArgumentNullException.ThrowIfNull(world);
-        var instance = new OrdersTab(missions, world, pick, paramsTypeOf);
+        var instance = new OrdersTab(missions, world, pick, paramsTypeOf, host);
         return new DetailsViewDescriptor(
             Id:        Id,
             Title:     "Orders",

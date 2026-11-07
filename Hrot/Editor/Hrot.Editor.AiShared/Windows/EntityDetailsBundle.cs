@@ -84,7 +84,7 @@ public sealed class EntityDetailsBundle : IUiBundle
         Hrot.Presentation.Forms.HrotForms.EnsureRegistered();
         foreach (var form in Fdp.Presentation.Forms.FormCatalogue.All) Workspace.DetailsViews.Add(FormDetailsViewDescriptor.For(form, host.World, host.Pick));
         if (host.Rules != null) Workspace.DetailsViews.Add(RuleDetailsTabDescriptor.For(host.Rules));   // ⭐ U-18 / RX2
-        if (host.Missions != null) Workspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.For(host.Missions, host.World, host.Pick, host.ParamsTypeOf));   // ⭐ P-7 / 7a — the Orders tab
+        if (host.Missions != null) Workspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.For(host.Missions, host.World, host.Pick, host.ParamsTypeOf, host.Host));   // ⭐ P-8 8b — its New rule… asks the host   // ⭐ P-7 / 7a — the Orders tab
         if (host.EventFocus is { } focus)   // ⭐ CE-4263 — a clicked timeline event shows the EVENT (rank 1: first among the entity views)
             Workspace.DetailsViews.Add(EventDetailsViewDescriptor.For(host.World, focus, host.SelectNetworkEntity ?? (_ => { })));
         Workspace.DetailsViews.Add(EntityObjectivesViewDescriptor.For(host.World, host.OpenRule));   // ⭐ CE-4216 RV-7 — objectives about this unit, every host   // ⭐ CE-1247 — the IG's former card, every host

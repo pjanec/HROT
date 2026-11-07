@@ -483,5 +483,23 @@ views agree, and Begin now is the instructor's existing Fire.*
 | ⚠ deviations | ▶ in *Begin now* is white, not green (ImGui buttons draw one text colour); the mockup's *latest H+20* reads *latest 20:00* (the window's one clock format) |
 
 Rails: `RulesModelTests.W1_*` (the group first by number, authored too — red-proved by dropping the authored projection; the right side; the words) ·
-`RulesWindowFrameRail.W1_ThePhasesGroup_OnARealFrame` (`rules-phases.png`). ⏳ next: the picker's *when a phase begins ▸ · when a rule fires ▸ ·
-New rule…* (8b), the ONE Tasks lane (8c, E4), the plan on the map (8d, M3 / E2).
+`RulesWindowFrameRail.W1_ThePhasesGroup_OnARealFrame` (`rules-phases.png`). ⏳ next: the ONE Tasks lane (8c, E4), the plan on the map (8d, M3 / E2).
+
+**8b — the *then* picker's phase, rule and unit entries, *New rule…* — BUILT:**
+
+| the picker shows | stored (§5.6) | read back |
+|---|---|---|
+| *when a phase begins* + which phase | `OrdersPlanEdits.ThenRuleFires(link)` = `PlanConditionCache.PhaseBegins` — the trigger fired | `ThenPreset.RuleFires` + `TargetOf` — shown as a phase when the target's `phase` > 0 |
+| *when a rule fires* + which rule | the same shape (a phase IS a trigger, D5) | the same |
+| *when a unit finishes a task* + unit + task N | `ThenUnitFinishes(unit, N)` = `TaskFinished { Unit, Task }` (1-based) | `ThenPreset.UnitFinishesTask` + N + `TargetOf` |
+| *New rule…* | nothing (the *then* is unchanged) | asks the host's `AddRuleAboutUnit` (the Rules gallery about this unit, CE-4308) — the author then picks it under *when a rule fires* |
+
+| decision | why |
+|---|---|
+| one stored shape for *phase begins* and *rule fires*; the picker tells them apart by the target's `phase` | D5: a phase IS a trigger — ⛔ no second condition type |
+| the choices (triggers via `RulesReader` — authored ones too; units with a `MissionPlanQueue`) read at most once a second | the Orders tab draws every frame (R-2084) |
+| `OrdersTab` takes the host's actions (`EntityDetailsBundle` passes `host.Host`) | the silent-default rule — the bundle held them; `OrdersTabDescriptor.For(…, host)` forwards, railed on the constructed tab |
+| ⚠ deviation from mockup A | the picker is ui's P-7 combo (no ▸ submenus, no coloured glyphs): 8b adds its entries there with a second chooser beside it. The popup form is P-7's fidelity, ui's |
+
+Rails: `TheOrdersTabTests.P8b_*` (read back as themselves with the target — red-proved by dropping the target read; the phases first, authored too;
+the descriptor forwards the host).
