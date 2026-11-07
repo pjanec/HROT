@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — a usability walkthrough; findings LC-1…LC-21 with leans, for the user
+build-state: READY-TO-BUILD — ✅ Q1–Q13 APPROVED (R-4166; Q9 revised); dispatched in HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md
 updated: 2026-11-07 (first version — the user: "revise the whole process of creation a scenario … focus on the accessibility of user interface, on the practical stuff")
 current-answer: §2 the walkthrough (findings by step) · §3 the leans needing the user
 stale-below: nothing
@@ -76,7 +76,7 @@ Status column: **built** · **queued** (designed and in a running handoff) · **
 | # | finding | status | ⭐ lean |
 |---|---|---|---|
 | LC-14 | going live = arm *Live* in the mode menu, then ▶; unsaved edits ⇒ *"Save and go live"* — good. ⚠ which mode ▶ starts is only in its tooltip | built | ▶ shows its mode in its own colour (green Live, violet Preview, amber DAR) |
-| LC-15 | ⭐ **the instructor's windows start closed** — Rules, Mission summary, Game master, Game summary all `IsOpen = false` (`RulesBundle.cs:23-38`) | designed (Seats §2.4: "window layout + HUD preset" per seat) | entering Live opens the seat's layout: an Instructor / Author gets Mission summary + Game master + the Event Timeline |
+| LC-15 | ⭐ **the instructor's windows start closed** — Rules, Mission summary, Game master, Game summary all `IsOpen = false` (`RulesBundle.cs:23-38`). ⚠ measured after the review: the end-of-exercise open (CE-4240, `EditorSubsystem.cs:314`, `:2638`) still exists but **only in the editor** — CGF / SimHost gained the windows through the bundle (T-1) but not this — and only on *Ended*, which ■ never reaches | built in part | ✏ **revised (R-4166):** ⛔ NOT by seat — 🔒 *"Window layouts are not controlled by seats. They are defined by the nodes and perspectives which is ok"*. The **RulesBundle** (every host that composes it) opens Mission summary when Live starts and again when the exercise ends; CE-4240's editor-only code moves into the bundle |
 | LC-16 | ⭐ **DAR is hidden and, for trainees, invisible**: entered only from the mode menu (*DAR — last 30 s / 2 min …*) or a timeline right-click; Player nodes replay it but show NO indicator (their time bar is suppressed, `PlayerApplication.cs:1563`) | none for the Player | a **⏪ Review** button beside ▶ (opens the same choices); Player HUD: a banner *"REVIEW — the exercise is paused"* for the whole DAR |
 | LC-17 | ⭐ **two different "ends"**: *End exercise* is DISABLED unless the scenario has a rule keyed `instructor-end` (`InstructorEnd.cs:16`); ■ stops at once, with no result and no question | built (both) | *End exercise* ALWAYS works for an Instructor / Author: fires `instructor-end` when present, else ends with the result *"Ended by the instructor"*; ■ in Live asks *"End the exercise? / Keep running"* (one question, not two) |
 | LC-18 | the debrief: Trainee debrief / Game summary appear only on Editor, CGF, Replay Browser — **not on the Player**; nothing opens them at the end | designed (Player HUD PH-6 / PH-7) | at the end: the instructor's layout opens Game summary; the Player opens its Trainee debrief |
@@ -89,7 +89,7 @@ Status column: **built** · **queued** (designed and in a running handoff) · **
 | LC-20 | ⭐ **no bookmarks or notes during Live** (TE-4 not built) — the instructor's "remember this for the AAR" has nowhere to go | none (E7, not designed) | design E7: *Bookmark* (one key, a name optional) and *Note* on the timeline in Live, listed in DAR and AAR |
 | LC-21 | recordings default to a TEMP folder (`$TMP/FDP_Temp`, `C:\FDP_Temp`, `OrchestrationConstants.cs:16-20`) | built | a fixed data folder by default (beside the scenarios); temp only when asked |
 
-## 3. For the user — the decisions
+## 3. For the user — the decisions — ✅ ALL APPROVED (R-4166, user `2026-11-07`: *"Otherwise, all approved."*), Q9 as revised
 
 | # | question | ⭐ lean |
 |---|---|---|
@@ -101,7 +101,7 @@ Status column: **built** · **queued** (designed and in a running handoff) · **
 | **Q6** | *Run to …* (LC-10) | yes — the biggest time-saver of the loop |
 | **Q7** | a dirty dot + autosave (LC-12) — supersedes AQ108 D20 | yes |
 | **Q8** | the Problems window (LC-13) | yes, never blocking |
-| **Q9** | Live opens the seat's windows; the end opens the debriefs (LC-15, LC-18) | yes |
+| **Q9** ✏ | ~~Live opens the seat's windows~~ — the bundle opens Mission summary on Live and at the end on every host; the Player opens its Trainee debrief (LC-15, LC-18) | ✅ revised by the user |
 | **Q10** | DAR: ⏪ Review button + the Player's banner (LC-16) | yes |
 | **Q11** | *End exercise* always works; ■ asks once (LC-17) | yes |
 | **Q12** | the Replay Browser's recording picker; recordings out of TEMP (LC-19, LC-21) | yes |
