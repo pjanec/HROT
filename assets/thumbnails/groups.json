@@ -10,7 +10,7 @@
     { "name": "Units", "masks": [ "11.1", "11" ] },
     { "name": "Civilians", "masks": [ "3.1.*.2" ], "chips": "none" },
     { "name": "Tactical symbols", "tools": [ "None" ] },
-    { "name": "Areas & routes", "tools": [ "Area", "Route", "Zone" ] },
+    { "name": "Areas & routes", "tools": [ "Area", "Route", "Zone", "Point" ] },
     { "name": "Props", "masks": [ "2,4-9" ], "chips": "kind" },
     { "name": "Macros", "macros": true }
   ]

@@ -150,7 +150,8 @@ public sealed class EntityTypeCatalogTests
         foreach (long t in new[] { TkbEntityTypes.TacGraphic_Area, TkbEntityTypes.TacGraphic_Route, TkbEntityTypes.TerrainZone,
                                    TkbEntityTypes.WeatherRegion, TkbEntityTypes.StoneSource, TkbEntityTypes.SpawnArea })
             Assert.Equal("Areas & routes", Of(c, t).Group);
-        Assert.Equal(GalleryGroups.OtherName, Of(c, TkbEntityTypes.DeployRole).Group);   // ⭐ Player Join S2-a — a Deploy Role is a point-tool graphic: the gallery has no group for it
+        Assert.Equal("Areas & routes", Of(c, TkbEntityTypes.DeployRole).Group);   // ⭐ U-25 — the point-tool graphics (Deploy Role, the named Point) now have a group: Areas & routes
+        Assert.Equal("Areas & routes", Of(c, TkbEntityTypes.Point).Group);
         Assert.All(c.Where(e => !e.HasSide), e => Assert.Null(e.Chip));
     }
 
@@ -680,6 +681,7 @@ public sealed class EntityTypeCatalogTests
         8813 Scenario Macro | dis 5.0.0.90.0.0.0 | family Unknown | folder Cultural Feature/Scenario Macro (HROT) | icon -
         8814 Spawn Area | dis - | family Unknown | folder Other | icon -
         8815 Deploy Role | dis - | family Unknown | folder Other | icon -
+        8816 Point | dis - | family Unknown | folder Other | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         8860 Objective | dis - | family Unknown | folder Other | icon -

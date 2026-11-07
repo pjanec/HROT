@@ -206,6 +206,16 @@ Rail `TheUnitFormDrawsTests.U24_S5_…` (a real frame).
 
 ⭐ **S6, the Unit form's Character section *(ui, `2026-11-07`, U-24)*:** five number rows under a *Character* caption — **Skill** (`Proficiency`, 80) · **Bravery** (`Temperament.RiskAcceptance`, 81) · **Obedience** (82) · **Nerve** (83) · **Resolve** (84) — each a 0..1 **slider** reading the EFFECTIVE value (`ProficiencyOf` / `TemperamentOf`). Skill is a number slider, not the mockup's tier word (the optional part). New generic seam on `FormField`: `TypeValue` (the type's value, null when nothing is authored over it) + `ResetValue` (−1, the Character attributes' "back to the type"). When an authored value differs from the type's the row shows `0.80  (type 0.50)` and the blue reset arrow in the status slot (`FormMark.DiffersFromType`, tooltip *type 0.5 — reset*); a click commits `ResetValue` through `ChangeFor` (never range-checked). Strings cached per change (0 B steady). ⏳ not yet: *Weapons control / Reactions* as plain choices (`SetRoeEvent`); the Character section on the Brain tab is still the old surface. Rail `TheUnitFormDrawsTests.U24_S6_…` (a real frame, red-proven).
 
+### 4.3 ⭐ AS-BUILT — S4, the ui half: the Point on the map *(ui, `2026-11-07`, U-25)*
+
+| piece | as built | ⏳ not yet |
+|---|---|---|
+| the gallery | `PlacementToolRegistry.Graphics` lists **Point** (8816, the point tool); `assets/thumbnails/groups.json` puts the point-tool graphics (Point, Deploy Role) under *Areas &amp; routes* (Deploy Role was in *Other* — the gallery had no group for a point graphic) | — |
+| on the map | `NamedPointGizmo` (`Hrot.Presentation/ScenarioEditor/Gizmos`): a diamond, the name (cached per change — 0 B steady), a heading tick when ORIENTED (a rotation other than the identity — ⚠ there is no "oriented" flag; the identity reads as "no heading"), and the shared pick box (select / menu) — the `[GizmoProjector]` pattern of `TacticalAreaGizmo`, so every map host draws it | the name and heading in the Details (the Shape form) |
+| pickers | — | ⏳ **every point picker offering named points** (a location pick that snaps to a Point ⇒ `PointLink` with the point's reference, SR-130) — the acceptance *"a rule's point picked from LZ Alpha resolves"* is NOT met yet |
+
+Rails `NamedPointGizmoTests` (red-proved), `EntityTypeCatalogTests` (the golden gains 8816; the group assertion moved).
+
 ## 5. Questions — ✅ all nine APPROVED (R-4137, user `2026-11-06`: *"Approved."*)
 
 | # | question | lean | rejected |
