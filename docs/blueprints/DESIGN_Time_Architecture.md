@@ -10,7 +10,7 @@ verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - 
   ClusterRunner.Integration suite is un-gateable (pre-existing DDS crash) - gate via the filtered runs.
 current-answer: the whole file. §2-§6 AS-IS (measured) - §7 findings - §8 probes - §9 root cause
   - §10 target/AS-BUILT - §11 replay - §12 the regression net - §13 verification - §15 the two remote
-  caches (T7) - §16 the pause-notion roll, site by site (T5) - §17 stepped mode is deterministic (CE-3292).
+  caches (T7) - §16 the pause-notion roll, site by site (T5) - §17 stepped mode is deterministic (CE-3292) - §20 Run to …'s turbo, the one documented exception (CE-4316).
   The ORDER lives in PLAN_Time_System_Refactor.md.
 stale-below: nothing above HISTORY.
 known-rot: none. Claims corrected by later measurement are marked CORRECTED inline and keep the
@@ -1789,6 +1789,11 @@ landed: 0.3× measured, lifecycle §2.8), the turbo pays ~2 cheap node frames an
 | ⭐⭐ **still deterministic** — every step is the run's fixed quantum; a step is never asked while the last is in flight | ✅ rail: `RunToControllerTests.CE4316_Turbo_*` (2 s at 1/60 = 120 steps, never two in flight) |
 | ⭐⭐ **the quantum is a setting of each run**, in (0, 1/6] s — default 1/60 on turbo (the live cadence), 1/6 networked (the 10× fast-forward quantum, option C) | ⚠ a bigger step is a little less like the live 1/60 run (movers and rounds are tuned near 1/60) — the user's call, per run |
 | ⭐ **used ONLY by Run to …** | ⛔ not a play mode, not the ▶ path, not the film director (D-1 paces fixed steps against the wall) |
+
+📐 **MEASURED `2026-11-07`** (`PreviewLifecycleRails.Run_to_stops_the_preview_at_the_time_paused`, headless cloud editor, `hill-attack`): **+5 s at
+1/60 → 5.49 s wall = 0.9×** (was 0.3× networked-style); **+5 s at 1/20 → 2.68 s wall = 1.9×**. ⚠ Smaller than hoped: a step now costs ≈ 18 ms
+— about **two node frames** (the step's own, plus one more for its ACK to be read) of ≈ 9 ms each, which is the scenario's kernel tick itself.
+⇒ the remaining levers, ⛔ not built: ① let the ACK land in the step's own frame (halves the cost), ② a bigger step (linear, measured).
 
 ## ⭐ WHERE THE TASKS WENT
 

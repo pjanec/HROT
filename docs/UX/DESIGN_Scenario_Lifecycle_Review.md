@@ -153,14 +153,14 @@ The diagrams below are the networked path (A), still the one any networked host 
 
 ```mermaid
 classDiagram
-  class RunToController { <<NEW · Hrot.Presentation/RunMode>> Start(atSeconds?, until?) · Tick() · Cancel() · IsRunning · Status }
+  class RunToController { <<NEW · Hrot.Presentation/RunMode>> Start(atSeconds?, until?, stepSeconds?) · Tick() · Cancel() · IsRunning · Status · Step · IsTurbo }
   class FramePacing { <<NEW>> Register(setTargetFps, normal) · SetUnthrottled(on) }
   class ITimeTransportFacade { <<existing>> IsPaused · TotalTime · StepBy }
   class MasterSyncController { <<existing>> IsAwaitingStepAcks }
   class ConditionCache { <<existing>> Get(json) }
   class EditorSubsystem { <<existing>> Update ticks it · /sim/run-to }
-  EditorSubsystem --> RunToController
-  RunToController --> ITimeTransportFacade : one 1/60 step per frame
+  EditorSubsystem --> RunToController : turbo delegate TurboStep (networkless only, Time §20)
+  RunToController --> ITimeTransportFacade : networked, one step per frame (default 1/6)
   RunToController --> MasterSyncController : the last step landed?
   RunToController --> FramePacing : cap lifted while running
   RunToController ..> ConditionCache : until (a phase begins, a rule fires)
@@ -177,7 +177,7 @@ sequenceDiagram
   loop every frame
     R->>M: acks pending? clock moved since the last step?
     alt landed and not reached
-      R->>T: StepBy(1/60)
+      R->>T: StepBy(step)
     else reached / the condition holds / left Preview
       R->>R: stop, paused, cap restored
     end
