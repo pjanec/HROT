@@ -4,7 +4,7 @@
 import sys
 from mockup_kit import Svg, C, FA, text_width
 
-W, H = 1280, 1380
+W, H = 1280, 1720
 s = Svg(W, H, "The struct editor — every kind of field, the list forms, entities, errors (DESIGN_Struct_Editor.md)",
         "Scope: the value side of the one table (Fill mode). Define mode adds Name / Type cells — field-editor-visual.svg. Grey notes are not drawn.")
 
@@ -176,5 +176,34 @@ s.note(DX + 292, DY + 40, ["TypeEditor<T> — everything a type needs:", "", "  
                            "  Validate value → problems (per field)", "  Default  a new item's value", "  Map      ⌖ show · ⊕ pick (semantic)",
                            "", "Registered ONCE in the library's", "catalogue → every host draws it.", "",
                            "⛔ today: two registries (StructEdit", "node + host ImGui drawer) — most", "hosts forget the second."], C.SUB, 11.5)
+
+
+# ═══════════ E — an ENTITY FORM (FormView) drawn with the SAME kit ═══════════
+EX, EY = 20, 1390
+s.window(EX, EY, 620, 300, "Details — Unit — Alpha 1-1   (an entity FORM: FormDecl rows, the SAME widgets)")
+y = EY + 32
+vx = row(EX + 6, y, 608, "Name"); val(vx, y, 200, "Alpha 1-1", True); y += 28
+vx = row(EX + 6, y, 608, "Side", stripe=True); s.raw(f"<circle cx='{vx + 8}' cy='{y + 14}' r='5' fill='{C.BLUE}'/>"); s.combo(vx + 18, y + 3, 140, "Friend"); y += 28
+vx = row(EX + 6, y, 608, "Commander"); e = chip(vx, y, FA.USERS, C.BLUE, "1st Platoon", "Friend"); mapbtns(e + 10, y); y += 28
+vx = row(EX + 6, y, 608, "Strength", stripe=True); val(vx, y, 80, "80"); s.text(vx + 90, y + 18, "/ 100", C.DIS, 12); y += 28
+vx = row(EX + 6, y, 608, "Knows about", chev=True); s.text(vx, y + 18, "2 entities", C.DIS, 12); y += 28
+for n, nm, st, sc in [("1", "Bravo 2-3", "applied", C.OK), ("2", "Bravo 2", "pending", C.AMBER)]:
+    s.rect(EX + 6, y, 608, 26, C.BG); s.line(EX + 21, y, EX + 21, y + 26, "#34343E"); s.text(EX + 30, y + 17, "⋮⋮", C.DIS, 11)
+    chip(EX + 50, y - 1, FA.USER, C.RED, nm, "Hostile"); s.text(EX + 330, y + 17, st, sc, 11.5); s.glyph(FA.ELLIPSIS_V, EX + 590, y + 6, C.GREY, 11); y += 26
+s.button(EX + 30, y + 6, 120, "Add ▾", glyph=FA.PLUS, gc=C.OK); y += 40
+s.note(EX + 12, y, ["the SAME FormGrid rows · the SAME entity chip and picker · the SAME list block, item menu and error line —",
+                    "FormView keeps its declared rows (R-4120); only its hand-made buttons go"], C.SUB, 11)
+
+# ═══════════ F — the widget kit and what ImGui needs for each ═══════════
+FX, FY = 660, 1390
+s.window(FX, FY, 600, 300, "The ONE widget kit (NodeEditor.Core.Widgets) — and its ImGui cost")
+kit = [("FormGrid", "label | value | status", "exists (C1)"), ("Chip", "glyph · text · ▾ / ✕ / toggle", "exists (U-8): InvisibleButton + rounded DrawList rect"),
+       ("ChipRow", "B1 chips, wrap, ⊕, drag", "cursor wrap + ImGui drag-drop (used 3× already)"), ("ListBlock", "B2 B5 B6 summary rows, ⋮, Add ▾", "Selectable rows + BeginPopupContextItem"),
+       ("GridBlock", "B3 columns = fields", "BeginTable"), ("RowMarks", "changed bar + ↺ · error line · set box", "DrawList rect + one text row"),
+       ("EntityField", "the chip + picker popup", "InputText + filtered Selectables (Fdp.Presentation)")]
+ky = FY + 36
+for nm, what, cost in kit:
+    s.text(FX + 14, ky, nm, C.TXT, 12.5); s.text(FX + 112, ky, what, C.SUB, 11.5); s.text(FX + 112, ky + 15, cost, C.DIS, 11); ky += 36
+s.note(FX + 14, ky + 2, ["drag is a BONUS: the ⋮ menu and Alt+↑/↓ always move an item"], C.SUB, 11)
 
 s.save(sys.argv[1] if len(sys.argv) > 1 else "docs/UX/struct-editor-visual.svg")
