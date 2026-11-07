@@ -102,7 +102,15 @@ namespace Fdp.Toolkit.Behavior
             CarryMode mode = CarryMode.Seated, Entity assistant = default)
         {
             var result = Check(repo, passenger, vehicle, role, ref mode, assistant, out int seat);
-            if (result == EmbarkResult.AlreadyAboard) { Board(repo, passenger, vehicle, seat); return result; }
+            if (result == EmbarkResult.AlreadyAboard)
+            {
+                // ⭐ Initial state S5 (📄 docs/UX/DESIGN_Initial_State.md §3 "Carried by … as", §4.1) — a man already carried by a PERSON who is
+                //   asked for another way of carrying (mode or second man) is RE-CARRIED in his seat: the one embark command, no second op.
+                var recarry = Recarry(repo, passenger, vehicle, seat, mode, assistant, apply: true);
+                if (recarry != EmbarkResult.AlreadyAboard) return recarry;
+                Board(repo, passenger, vehicle, seat);
+                return result;
+            }
             if (result != EmbarkResult.Applied) return result;
             return Seat(repo, passenger, vehicle, seat, mode, assistant);
         }
@@ -115,7 +123,43 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public static EmbarkResult CanEmbark(EntityRepository repo, Entity passenger, Entity vehicle, SeatRole role = SeatRole.Passenger,
             CarryMode mode = CarryMode.Seated, Entity assistant = default)
-            => Check(repo, passenger, vehicle, role, ref mode, assistant, out _);
+        {
+            var result = Check(repo, passenger, vehicle, role, ref mode, assistant, out int seat);
+            return result == EmbarkResult.AlreadyAboard ? Recarry(repo, passenger, vehicle, seat, mode, assistant, apply: false) : result;
+        }
+
+        /// <summary>
+        /// ⭐ Initial state S5 (📄 docs/UX/DESIGN_Initial_State.md §3, §4.1; ui NOTE_Ui_To_Backend_Carry_Mode_And_Damage ①) — how a man ALREADY
+        /// carried by a person (<paramref name="vehicle"/> a <see cref="PersonCarrier"/>, seat <paramref name="seat"/>) is carried from now on.
+        /// A request that names no way (<see cref="CarryMode.Seated"/>, no second man) changes nothing — so a repeated plain embark stays
+        /// idempotent. <see cref="CarryMode.Carried"/> / <see cref="CarryMode.Dragged"/> take no second man (the one he had lets go);
+        /// <see cref="CarryMode.Stretcher"/> needs one — the one already holding the rear, or a <see cref="FitAssistant"/>.
+        /// Answers <see cref="EmbarkResult.AlreadyAboard"/> (nothing to change), <see cref="EmbarkResult.Applied"/> (re-carried — written
+        /// only when <paramref name="apply"/>) or <see cref="EmbarkResult.Invalid"/>. A carried WEAPON, or a man in a vehicle, is never re-carried.
+        /// </summary>
+        private static EmbarkResult Recarry(EntityRepository repo, Entity passenger, Entity vehicle, int seat, CarryMode mode, Entity assistant, bool apply)
+        {
+            if (mode == CarryMode.Seated && assistant.IsNull) return EmbarkResult.AlreadyAboard;
+            if (!IsPersonCarrier(repo, vehicle) || IsWeaponSystem(repo, passenger)) return EmbarkResult.AlreadyAboard;
+            if (mode == CarryMode.Seated) mode = CarryMode.Carried;
+            ref readonly var list = ref repo.GetComponentRO<PassengerBuffer>(vehicle);
+            var current = list.ModeOf(seat);
+            var holding = list.Assistant;
+            if (mode == CarryMode.Stretcher)
+            {
+                if (assistant.IsNull) return EmbarkResult.Invalid;   // ⛔ no stretcher with one man
+                if (assistant != holding && !FitAssistant(repo, vehicle, passenger, assistant)) return EmbarkResult.Invalid;
+            }
+            else if (!assistant.IsNull) return EmbarkResult.Invalid;   // a one-man carry takes no second man
+            if (mode == current && assistant == holding) return EmbarkResult.AlreadyAboard;
+            if (!apply) return EmbarkResult.Applied;
+            if (holding != assistant) DropAssistant(repo, vehicle);
+            ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
+            buffer.SetMode(seat, mode);
+            if (!assistant.IsNull && holding != assistant) { buffer.Assistant = assistant; Assist(repo, assistant, vehicle); }
+            Board(repo, passenger, vehicle, seat);   // the tag's mode follows the list
+            return EmbarkResult.Applied;
+        }
 
         /// <summary>The one boarding rule: the result, the seat it would take (or the one it already holds) and the carry mode.</summary>
         private static EmbarkResult Check(EntityRepository repo, Entity passenger, Entity vehicle, SeatRole role,

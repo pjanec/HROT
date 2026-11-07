@@ -39,7 +39,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // ⭐ edit framework F4 — the owner says why (was: a counter only)
                     if (ok) Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Applied(repo, c.RequestId, c.Vehicle);
                     else Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Refused(repo, c.RequestId, c.Vehicle,
-                        result == EmbarkResult.Full ? "the vehicle has no free seat for it" : "it cannot board this (gone, a unit, or nothing to board)");
+                        result == EmbarkResult.Full ? "the vehicle has no free seat for it"
+                        // ⭐ Initial state S5 — a re-carry refused (Embarkation.Recarry): a stretcher with no fit second man, or a second man for a one-man carry
+                        : Embarkation.IsAboard(repo, c.Passenger, c.Vehicle) ? "he cannot be carried that way (a stretcher needs a fit second man beside the carrier; one man carries or drags alone)"
+                        : "it cannot board this (gone, a unit, or nothing to board)");
                 }
             }
             if (repo.Bus.IsRegistered<DisembarkEntityCommand>())
