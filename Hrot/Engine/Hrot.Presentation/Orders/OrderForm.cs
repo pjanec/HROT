@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -95,7 +96,7 @@ public sealed class OrderForm : IOrderForm
             if (e.CanRemember)
             {
                 bool remember = e.Remember;
-                if (ImGui.Checkbox("Remember as designations", ref remember)) e.Remember = remember;
+                if (FormGrid.Begin("order.remember")) { FormGrid.Row("Remember as designations"); if (ImGui.Checkbox("##remember", ref remember)) e.Remember = remember; FormGrid.End(); }
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Store the target / point / route / sector sent as each unit's designation.");
             }
             var missing = e.Missing;

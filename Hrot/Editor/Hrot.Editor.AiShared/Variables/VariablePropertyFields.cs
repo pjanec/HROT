@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
@@ -127,58 +128,55 @@ public static class VariablePropertyFields
 
         if (!enabled) ImGui.BeginDisabled();
 
+        bool formOpen = FormGrid.Begin("var.props");
         foreach (var property in offered)
         {
+            if (!formOpen) break;
             switch (property)
             {
                 case VariableProperty.Name:
-                    Label("Name");
+                    FormGrid.Row("Name");
                     DrawGuarded(nameDisabledReason,
                         () => ImGui.InputText($"##{idPrefix}_name", ref state.Name, 128));
                     break;
 
                 case VariableProperty.Type:
-                    Label("Type");
+                    FormGrid.Row("Type");
                     DrawTypeCombo(state, idPrefix, typeIds, shortName, typeDisabledReason);
                     break;
 
                 case VariableProperty.DefaultValue:
-                    Label("Default Value");
+                    FormGrid.Row("Default Value");
                     ImGui.InputText($"##{idPrefix}_default", ref state.DefaultValueJson, 512);
                     break;
 
                 case VariableProperty.Tooltip:
-                    Label("Tooltip");
+                    FormGrid.Row("Tooltip");
                     ImGui.InputText($"##{idPrefix}_tooltip", ref state.Tooltip, 512);
                     break;
 
                 case VariableProperty.Comment:
-                    Label("Comment");
+                    FormGrid.Row("Comment");
                     ImGui.InputText($"##{idPrefix}_comment", ref state.Comment, 512);
                     break;
 
                 case VariableProperty.Category:
-                    Label("Category");
+                    FormGrid.Row("Category");
                     ImGui.InputText($"##{idPrefix}_category", ref state.Category, 128);
                     break;
 
                 case VariableProperty.IsEditable:
-                    ImGui.Checkbox($"Editable##{idPrefix}_editable", ref state.IsEditable);
+                    FormGrid.Row("Editable"); ImGui.Checkbox($"##{idPrefix}_editable", ref state.IsEditable);
                     break;
 
                 case VariableProperty.IsExposedOnSpawn:
-                    ImGui.Checkbox($"Exposed on Spawn##{idPrefix}_exposed", ref state.IsExposedOnSpawn);
+                    FormGrid.Row("Exposed on Spawn"); ImGui.Checkbox($"##{idPrefix}_exposed", ref state.IsExposedOnSpawn);
                     break;
             }
         }
+        if (formOpen) FormGrid.End();
 
         if (!enabled) ImGui.EndDisabled();
-    }
-
-    private static void Label(string text)
-    {
-        ImGui.TextUnformatted(text);
-        ImGui.SetNextItemWidth(220f);
     }
 
     /// <summary>

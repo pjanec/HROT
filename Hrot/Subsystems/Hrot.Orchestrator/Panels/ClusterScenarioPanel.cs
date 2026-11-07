@@ -597,17 +597,25 @@ public sealed class ClusterScenarioPanel
     }
 
     /// <summary>⭐ CE-4100 ① — the cluster's run settings, through <see cref="ClusterPanelRunControls"/> (the ONE sender): <i>Record live runs</i> and <i>Ask to keep recordings</i>; enabled whenever this host has a cluster view.</summary>
+    private static readonly string[] ClusterLabels = { "Start Paused (Live/Preview)", "Record live runs", "Ask to keep recordings" };
+
     private void RenderRunSettings(bool disableAll)
     {
         var controls = RunControls;
         bool enabled = !disableAll && controls is { RunSettingsEnabled: true };
         if (!enabled) ImGui.BeginDisabled();
         bool record = controls?.RecordLiveRuns ?? true;
-        if (ImGui.Checkbox("Record live runs##OrcRecordLive", ref record)) controls!.SetRecordLiveRuns(record);
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Cluster-wide; applies from the next live load. Off: a live run writes no recording.");
         bool ask = controls?.AskToKeepRecordings ?? false;
-        if (ImGui.Checkbox("Ask to keep recordings##OrcAskKeep", ref ask)) controls!.SetAskToKeepRecordings(ask);
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("At ■ in a recorded live run, ask: Keep / Discard. Off: keep silently.");
+        if (FormGrid.Begin("orc.cluster", ClusterLabels))
+        {
+            FormGrid.Row("Record live runs");
+            if (ImGui.Checkbox("##OrcRecordLive", ref record)) controls!.SetRecordLiveRuns(record);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Cluster-wide; applies from the next live load. Off: a live run writes no recording.");
+            FormGrid.Row("Ask to keep recordings");
+            if (ImGui.Checkbox("##OrcAskKeep", ref ask)) controls!.SetAskToKeepRecordings(ask);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("At ■ in a recorded live run, ask: Keep / Discard. Off: keep silently.");
+            FormGrid.End();
+        }
         if (!enabled) ImGui.EndDisabled();
     }
 
@@ -618,7 +626,7 @@ public sealed class ClusterScenarioPanel
         if (ImGui.BeginChild("##OrcClusterControl", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
             if (disableAll) ImGui.BeginDisabled();
-            ImGui.Checkbox("Start Paused (Live/Preview)##OrcStartPaused", ref _startPaused);
+            if (FormGrid.Begin("orc.cluster", ClusterLabels)) { FormGrid.Row("Start Paused (Live/Preview)"); ImGui.Checkbox("##OrcStartPaused", ref _startPaused); FormGrid.End(); }
             RenderRunSettings(disableAll);
             ImGui.Spacing();
 
@@ -743,13 +751,19 @@ public sealed class ClusterScenarioPanel
             else
             {
                 if (!nodes.Contains(_assetNodeId)) _assetNodeId = nodes[0];
-                if (ImGui.BeginCombo("Node##OrcAssetNode", $"node {_assetNodeId}"))
+                if (FormGrid.Begin("orc.asset"))
                 {
-                    foreach (var n in nodes)
-                        if (ImGui.Selectable($"node {n}", n == _assetNodeId)) _assetNodeId = n;
-                    ImGui.EndCombo();
+                    FormGrid.Row("Node");
+                    if (ImGui.BeginCombo("##OrcAssetNode", $"node {_assetNodeId}"))
+                    {
+                        foreach (var n in nodes)
+                            if (ImGui.Selectable($"node {n}", n == _assetNodeId)) _assetNodeId = n;
+                        ImGui.EndCombo();
+                    }
+                    FormGrid.Row("Kind");
+                    ImGui.Combo("##OrcAssetKind", ref _assetKindIndex, AssetKinds, AssetKinds.Length);
+                    FormGrid.End();
                 }
-                ImGui.Combo("Kind##OrcAssetKind", ref _assetKindIndex, AssetKinds, AssetKinds.Length);
 
                 if (disableAll) ImGui.BeginDisabled();
                 if (ImGui.Button("Publish to NAS##OrcAssetPublish")) SendAssetOp(refresh: false);
@@ -956,8 +970,13 @@ public sealed class ClusterScenarioPanel
 
             if (_selectedEpisodeIdx >= _uiCache.AvailableScenarios.Length) _selectedEpisodeIdx = -1;
 
-            ImGui.Combo("Episode Package##OrcInjectScen", ref _selectedEpisodeIdx,
-                _uiCache.AvailableScenarios, _uiCache.AvailableScenarios.Length);
+            if (FormGrid.Begin("orc.episode"))
+            {
+                FormGrid.Row("Episode Package");
+                ImGui.Combo("##OrcInjectScen", ref _selectedEpisodeIdx,
+                    _uiCache.AvailableScenarios, _uiCache.AvailableScenarios.Length);
+                FormGrid.End();
+            }
             if (ImGui.Button("Inject Episode##OrcInjectBtn") && _selectedEpisodeIdx >= 0)
             {
                 string scenId     = _uiCache.AvailableScenarios[_selectedEpisodeIdx];

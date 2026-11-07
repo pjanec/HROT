@@ -1,4 +1,5 @@
 using Hrot.Core.Mission;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
@@ -286,7 +287,9 @@ public sealed class SpawnerPanel
             if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
                 SearchFilter = filterBuf;
 
-            if (ImGui.BeginCombo("Entity Type", previewText))
+            bool typeOpen = false, typeForm = FormGrid.Begin("spawner.type");
+            if (typeForm) { FormGrid.Row("Entity Type"); typeOpen = ImGui.BeginCombo("##entitytype", previewText); }
+            if (typeOpen)
             {
                 for (int i = 0; i < _filteredEntries.Count; i++)
                 {
@@ -299,6 +302,7 @@ public sealed class SpawnerPanel
                 }
                 ImGui.EndCombo();
             }
+            if (typeForm) FormGrid.End();
         }
 
         if (ImGui.Button("ACTIVATE PLACEMENT TOOL"))
@@ -306,8 +310,12 @@ public sealed class SpawnerPanel
 
         ImGui.Separator();
         ImGui.Text("Area Style");
-        ImGui.InputText("Fill Colour", ref _fillColorHex, 16);
-        ImGui.SliderFloat("Line Thickness", ref _lineThickness, 1.0f, 10.0f);
+        if (FormGrid.Begin("spawner.area"))
+        {
+            FormGrid.Row("Fill Colour");     ImGui.InputText("##fill", ref _fillColorHex, 16);
+            FormGrid.Row("Line Thickness");  ImGui.SliderFloat("##thickness", ref _lineThickness, 1.0f, 10.0f);
+            FormGrid.End();
+        }
 
         if (ImGui.Button("DRAW AREA"))
             HandleStartAreaAuthoring(spawn);

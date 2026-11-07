@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -333,6 +334,8 @@ public sealed class ReplaySearchPanel
         }
     }
 
+    private static readonly string[] TargetLabels = { "Target Network ID", "Index", "Generation" };
+
     private void DrawEntityFilter()
     {
         ImGuiApi.Separator();
@@ -373,17 +376,18 @@ public sealed class ReplaySearchPanel
             ImGuiApi.SameLine();
             if (ImGuiApi.RadioButton("Network ID", _targetUseNetworkId)) _targetUseNetworkId = true;
 
-            if (_targetUseNetworkId)
+            if (FormGrid.Begin("replay.search.target", TargetLabels))
             {
-                ImGuiApi.InputText("Target Network ID", ref _targetNetworkIdStr, 32);
-            }
-            else
-            {
-                ImGuiApi.SetNextItemWidth(100f);
-                ImGuiApi.InputInt("Index", ref _targetIndex);
-                ImGuiApi.SameLine();
-                ImGuiApi.SetNextItemWidth(100f);
-                ImGuiApi.InputInt("Generation", ref _targetGeneration);
+                if (_targetUseNetworkId)
+                {
+                    FormGrid.Row("Target Network ID"); ImGuiApi.InputText("##targetnetid", ref _targetNetworkIdStr, 32);
+                }
+                else
+                {
+                    FormGrid.Row("Index");      ImGuiApi.InputInt("##targetindex", ref _targetIndex);
+                    FormGrid.Row("Generation"); ImGuiApi.InputInt("##targetgeneration", ref _targetGeneration);
+                }
+                FormGrid.End();
             }
         }
         ImGuiApi.Separator();
