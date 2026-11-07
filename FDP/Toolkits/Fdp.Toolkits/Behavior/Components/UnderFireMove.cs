@@ -60,7 +60,7 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-2363</c> — sim time the fire first put him down on this drop (a scoot does not reset it; rising does).</summary>
         public SimInstant PinnedSince;
         /// <summary>⭐ <c>CE-2363</c> — how long (s) the side step, crawl or scoot in hand may take before he gives it up.</summary>
-        public float SubSeconds;
+        public SimDuration SubSeconds;
         /// <summary>⭐ <c>CE-2363</c> — the scoots he has made on this drop (the side alternates, the seed moves on).</summary>
         public byte Scoots;
     }

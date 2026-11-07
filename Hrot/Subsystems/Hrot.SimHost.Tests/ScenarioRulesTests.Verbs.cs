@@ -146,7 +146,7 @@ namespace Hrot.SimHost.Tests
             w.Run(3);
             Assert.Equal(1, w.Ended);
             var msg = Assert.Single(w.Messages);
-            Assert.Equal(("All", "Exercise over", 4f, (byte)2), (msg.ToKind, msg.Text, msg.Seconds, msg.Priority));
+            Assert.Equal(("All", "Exercise over", 4f, (byte)2), (msg.ToKind, msg.Text, (float)(msg.Seconds), msg.Priority));
             Assert.Equal(w.Net(end), msg.Source);
         }
 
@@ -192,7 +192,7 @@ namespace Hrot.SimHost.Tests
             var ex = Assert.Throws<ActionListException>(() => ActionList.Validate(Do(Step("Message", "{\"toKind\":\"Everyone\",\"text\":\"hi\"}"))));
             Assert.Contains("toKind", ex.Message);
             ActionList.Validate(Do(Step("Message", "{\"toKind\":\"Side\",\"toValue\":1,\"text\":\"" + new string('x', 127) + "\"}")));   // the limit itself passes
-            Assert.Equal(6f, new MessageParams().Seconds);                          // the documented default
+            Assert.Equal(6f, (float)(new MessageParams().Seconds));                          // the documented default
         }
 
         // ═════════════════════════════════════════ rules S2 ⑨ — pause-on-end, Order, MissionCommand ═════════════════════════════════════════

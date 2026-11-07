@@ -17,7 +17,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public Vector3 Centre;
         public float RadiusM;
-        public float QuietSeconds;
+        public SimDuration QuietSeconds;
         public float HeightAgl;
     }
 
@@ -128,7 +128,7 @@ namespace Hrot.AI.Behaviors.Orders
 
         /// <summary>Nothing found over the area this long ends the search (s); 0 = 60.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("QuietSeconds")]
-        public float QuietSeconds;
+        public SimDuration QuietSeconds;
 
         /// <summary>The search height above the ground (m); 0 = 150.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("HeightAgl")]

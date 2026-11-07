@@ -79,7 +79,7 @@ namespace Hrot.AI.Behaviors.Brains
     public struct EngageAircraftParams
     {
         /// <summary>Done once no air contact has been sensed for this long (s; default 10).</summary>
-        public float ClearSeconds;
+        public SimDuration ClearSeconds;
         /// <summary>A gun counts as an air-defence gun from this elevation up (degrees; default 80 — the ZU-23-2's 90°, not an M2's 70°).</summary>
         public float MinElevationDeg;
     }

@@ -31,7 +31,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public float Metres;
             public float Speed;
-            public float TimeoutSeconds;
+            public SimDuration TimeoutSeconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]

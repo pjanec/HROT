@@ -68,13 +68,13 @@ namespace CarKinem.Core
         /// ⭐ <c>CE-2304</c> — seconds the move has gone without gaining <c>NavigationExecutionSystem.NoProgressMinGainM</c> on
         /// <see cref="BestProgressS"/> while it should be walking. Appended.
         /// </summary>
-        public float NoProgressSeconds;
+        public SimDuration NoProgressSeconds;
 
         // ⭐ CE-3286 (R-3025; docs/designs/motion-models/DESIGN_Motion_Domains.md §5f) — the held hull's recovery (HullRecovery), APPENDED.
         //   The watchdog's remedy, so it lives in the watchdog's never-sent state; a new move (a new IntentId) clears it with the rest.
 
         /// <summary>How long the wall guard has held this hull (s).</summary>
-        public float WallHeldSeconds;
+        public SimDuration WallHeldSeconds;
 
         /// <summary>How far the current recovery try has driven (m).</summary>
         public float RecoverMetres;

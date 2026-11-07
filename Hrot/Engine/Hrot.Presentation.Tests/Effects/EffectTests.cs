@@ -456,7 +456,7 @@ public sealed partial class EffectTests
         Assert.Single(fx, f => f.Type == EffectTkbCatalog.ChaffCloud);
         var exp = Fdp.Toolkit.Combat.Munitions.ExpendableOf(tkb, MunitionTkbCatalog.TkbFlare)!;
         Assert.Equal(99.5, world.GetComponentRO<Lifespan>(flare).BornAtSimSeconds);                            // DV-2: born at the release
-        Assert.Equal(exp.LifeSeconds, world.GetComponentRO<Lifespan>(flare).Seconds);
+        Assert.Equal(exp.LifeSeconds, (float)(world.GetComponentRO<Lifespan>(flare).Seconds));
         Assert.Equal<System.Numerics.Vector3>(Fdp.Toolkit.Combat.DecoyFlight.At(origin, velocity, exp.SinkMps, 0.5f), world.GetComponentRO<SimTransform>(flare).Position);
 
         At(world, 102.0);                                                                                       // DV-3: it moves
@@ -742,7 +742,7 @@ public sealed partial class EffectTests
             var anchor = world.GetComponentRO<EffectAnchor>(e);
             Assert.Equal(tank, anchor.Shooter);
             Assert.Equal(EffectAnchorKind.Body, anchor.Kind);
-            Assert.Equal(type == EffectTkbCatalog.Fire ? 60f : 180f, world.GetComponentRO<Lifespan>(e).Seconds);
+            Assert.Equal(type == EffectTkbCatalog.Fire ? 60f : 180f, (float)(world.GetComponentRO<Lifespan>(e).Seconds));
             Assert.Equal(20.0, world.GetComponentRO<Lifespan>(e).BornAtSimSeconds);
         }
         Tick(world, wrecks, 0.016f);

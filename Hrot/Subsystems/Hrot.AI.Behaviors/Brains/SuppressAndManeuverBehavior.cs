@@ -23,7 +23,7 @@ namespace Hrot.AI.Behaviors.Brains
         public float FlankSearchRadius;
         public float Speed;
         public float ArrivalRadius;
-        public float PhaseTimeoutSeconds;
+        public SimDuration PhaseTimeoutSeconds;
         /// <summary>⭐ <c>CE-2141</c> (D2-G) — the enemy to attack (a local entity's packed id), as an ATTACK order names it; 0 = the
         /// squad's top identified contact. A target the squad has not pooled is attacked where it stands when ordered (the order's
         /// designation is the knowledge), and followed once pooled.</summary>

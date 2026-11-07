@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Motion
         public float MaxSpeedMps;
         public float ClimbMps;
         public float TurnRateDeg;
-        public float EnduranceSeconds;
+        public SimDuration EnduranceSeconds;
         public float ContactRadiusM;
         /// <summary>⭐ Air Ops slice 2 — the route height where a waypoint states none, and the height a landing starts from.</summary>
         public float HoverHeightM;

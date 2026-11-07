@@ -85,10 +85,12 @@ namespace Hrot.AI.Behaviors.Brains
         [StructLayout(LayoutKind.Sequential)]
         public struct CivilianParams
         {
-            public float WanderRadius, WalkSpeed, PauseMinSeconds, PauseMaxSeconds;
+            public float WanderRadius, WalkSpeed;
+            public SimDuration PauseMinSeconds, PauseMaxSeconds;
             public float AlarmAt, CalmBelow;
             // ⭐ CE-2236
-            public float PanicAt, PanicSpeed, ShelterSearchRadius, FleeMetres, HideMinSeconds, HideMaxSeconds;
+            public float PanicAt, PanicSpeed, ShelterSearchRadius, FleeMetres;
+            public SimDuration HideMinSeconds, HideMaxSeconds;
             // ⭐ CE-2240
             public Vector3 ProtestAt;
             public byte HasProtest;

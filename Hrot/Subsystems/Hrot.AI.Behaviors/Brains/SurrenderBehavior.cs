@@ -21,7 +21,7 @@ namespace Hrot.AI.Behaviors.Brains
     public static class SurrenderBehavior
     {
         [StructLayout(LayoutKind.Sequential)]
-        public struct SurrenderParams { public float Seconds; }
+        public struct SurrenderParams { public Fdp.Core.SimDuration Seconds; }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct SurrenderState { public Fdp.Core.SimInstant Since; }

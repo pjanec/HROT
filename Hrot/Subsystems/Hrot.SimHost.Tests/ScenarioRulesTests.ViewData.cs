@@ -24,7 +24,7 @@ namespace Hrot.SimHost.Tests
             var s = w.S(t);
             Assert.Equal(new[] { w.Net(a), w.Net(b) }, Ids(s.DependsOn, s.DependsOnCount));
             Assert.Equal(new[] { w.Net(c) }, Ids(s.ActsOn, s.ActsOnCount));
-            Assert.Equal((0f, 2f, 4f, 60f), (s.HoldFor, s.Delay, s.Cooldown, s.Deadline));
+            Assert.Equal((0f, 2f, 4f, 60f), (s.HoldFor, (float)(s.Delay), (float)(s.Cooldown), s.Deadline));
             Assert.Equal(60d, s.ExpectedAt);                                   // Armed with a deadline: the deadline
 
             Flip(w, a, true); Flip(w, b, true); w.Run(0.5);                    // the edge tick

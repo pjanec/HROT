@@ -25,8 +25,8 @@ namespace Fdp.Toolkit.Combat
         public float CarrySpeedFactor;
         /// <summary>1 when it fires while carried (stowed).</summary>
         public byte FireWhileCarried;
-        public float DeploySeconds;
-        public float PackSeconds;
+        public SimDuration DeploySeconds;
+        public SimDuration PackSeconds;
         /// <summary><see cref="MountKinds"/>.</summary>
         public byte MountKinds;
         /// <summary>⭐ <c>CE-3233</c> (B-11b) — 1 for an explosive charge: detonated, never fired.</summary>

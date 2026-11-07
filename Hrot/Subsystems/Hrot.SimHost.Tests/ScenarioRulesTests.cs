@@ -564,7 +564,7 @@ namespace Hrot.SimHost.Tests
             var opts = BehaviorParams.JsonOptions;
             const string circle = "{\"common\":{\"title\":\"Hold\",\"subject\":77,\"required\":true,\"weight\":2,\"deadlineSeconds\":90,\"visibleSides\":6},\"area\":{\"circle\":{\"center\":[1,2,0],\"radius\":25}},\"minMen\":5,\"capture\":true}";
             var dto = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.HoldAreaParamsJsonDto>(circle, opts);
-            Assert.Equal(("Hold", 77, true, 2f, 90f, (byte)6), (dto.Common.Title, dto.Common.Subject.Ref.NetworkId, dto.Common.Required, dto.Common.Weight, dto.Common.DeadlineSeconds, dto.Common.VisibleSides));
+            Assert.Equal(("Hold", 77, true, 2f, 90f, (byte)6), (dto.Common.Title, dto.Common.Subject.Ref.NetworkId, dto.Common.Required, dto.Common.Weight, (float)(dto.Common.DeadlineSeconds), dto.Common.VisibleSides));
             Assert.Equal((RefForm.Circle, 25f, 5, true), (dto.Area.Spec.Form, dto.Area.Size.X, dto.MinMen, dto.Capture));
             Assert.Null(dto.Common.Scored); Assert.Null(dto.Common.StartActive);                  // absent = the default (true), applied by the block
             var block = ObjectiveCommonBlock.From(in dto.Common);

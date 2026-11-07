@@ -281,7 +281,7 @@ namespace Fdp.Toolkit.Tests.Combat
             var intent = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
             Assert.Equal((man, GrenadeAmmo, true), (intent.Shooter, intent.AmmoGuid, intent.AtPoint));
             Assert.Equal(PersonHands.MountIndex(_world, man), intent.WeaponIndex);
-            Assert.Equal(HandsFuzeSystem.CookOffFuzeSeconds, intent.FuzeSeconds);
+            Assert.Equal(HandsFuzeSystem.CookOffFuzeSeconds, intent.FuzeSeconds.Seconds);
             Assert.True(Vector2.Distance(new Vector2(intent.TargetPoint.X, intent.TargetPoint.Y), Vector2.Zero) <= 1f, "at his feet");
         }
 

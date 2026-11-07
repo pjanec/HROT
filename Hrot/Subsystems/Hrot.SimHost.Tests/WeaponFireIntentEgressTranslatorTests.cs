@@ -150,7 +150,7 @@ namespace Hrot.SimHost.Tests
             var back = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
             Assert.Equal(9003L, back.AmmoGuid);
             Assert.Equal(12.5, back.RaisedAt);
-            Assert.Equal(37.25f, back.BurnSeconds);
+            Assert.Equal(37.25f, (float)(back.BurnSeconds));
             Assert.Equal(77u, back.RequestId);
             Assert.Equal(2, back.BodyStance);
             Assert.Equal(firstThrower, back.OriginalShooter);   // ⭐ CE-4155

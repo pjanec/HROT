@@ -72,7 +72,7 @@ namespace Hrot.AI.Behaviors.Brains
     public struct EngageParams
     {
         /// <summary>Seconds between shots (the AimAndFire executor's cooldown).</summary>
-        public float CooldownSeconds;
+        public SimDuration CooldownSeconds;
     }
 
     /// <summary>⭐ <c>CE-2073</c> — what <see cref="PostureNodes.Engage"/> is firing at.</summary>
@@ -133,7 +133,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Distance from the objective that counts as arrived (m).</summary>
         public float ArrivalRadius;
         /// <summary>Seconds between shots while advancing.</summary>
-        public float CooldownSeconds;
+        public SimDuration CooldownSeconds;
         /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — 1 = arriving does not end the advance: he stays there, firing at his threat.</summary>
         public byte Stay;
     }

@@ -148,7 +148,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>How near counts as there (0 = the receiver's own default).</summary>
         public float ArrivalRadius;
         /// <summary>The extra SITREP asked with the order (s; 0 = none) — CC-2, CC-8.</summary>
-        public float SitrepEverySeconds;
+        public SimDuration SitrepEverySeconds;
     }
 
     /// <summary>⭐ <c>CE-2294</c> — what <see cref="CommandNodes.MoveLeg"/> keeps: how many times it gave its order.</summary>
@@ -174,7 +174,7 @@ namespace Hrot.AI.Behaviors.Brains
         public int Slot;
         public PirFlags Pir;
         public FfirFlags Ffir;
-        public float SitrepEverySeconds;
+        public SimDuration SitrepEverySeconds;
         /// <summary>PC-3 — the area entity's network id the area PIRs refer to (0 = none).</summary>
         public long PirArea;
     }

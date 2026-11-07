@@ -24,7 +24,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public float Speed;
         /// <summary>Done after this long (s); 0 = never by time.</summary>
-        public float DurationSeconds;
+        public SimDuration DurationSeconds;
         /// <summary>1 = done once the squad knows no enemy (<see cref="Fdp.Toolkit.Squad.SquadContacts.AnyEnemy"/> — a neutral or a man
         /// out of the fight is none, CE-2353).</summary>
         public byte EndWhenClear;
@@ -113,7 +113,7 @@ namespace Hrot.AI.Behaviors.Brains
         public float RetreatSearchRadius;
         public float Speed;
         public float ArrivalRadius;
-        public float BoundTimeoutSeconds;
+        public SimDuration BoundTimeoutSeconds;
         /// <summary>⭐ E-3a (DA-68) — the authored destination; <see cref="HasTo"/> 0 = ask the terrain.</summary>
         public Vector3 To;
         public byte HasTo;

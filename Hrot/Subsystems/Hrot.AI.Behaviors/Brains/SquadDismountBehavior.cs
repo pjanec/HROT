@@ -19,7 +19,7 @@ namespace Hrot.AI.Behaviors.Brains
     public struct SquadDismountParams
     {
         /// <summary>Failure when somebody is still aboard after this long (s).</summary>
-        public float TimeoutSeconds;
+        public SimDuration TimeoutSeconds;
         /// <summary>The hold speed of a member already out.</summary>
         public float Speed;
     }

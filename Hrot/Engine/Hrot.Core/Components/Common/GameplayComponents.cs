@@ -43,5 +43,5 @@ public struct GameplaySettings
 {
     public const float DefaultRespawnDelaySeconds = 10f;
 
-    public float RespawnDelaySeconds;
+    public SimDuration RespawnDelaySeconds;
 }

@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Combat
         /// far a bomb was flown forward to make up the trip between them.</summary>
         public SimInstant RaisedAt { get; init; }
         public SimInstant FiredAt { get; init; }
-        public float CaughtUpSeconds { get; init; }
+        public SimDuration CaughtUpSeconds { get; init; }
         /// <summary>The cue steps owed (<c>BombBallistics.LateSteps</c>, 1/60 s each), the steps flown (fewer only when the ground came first), and this frame's dt.</summary>
         public int OwedFrames { get; init; }
         public int CaughtUpFrames { get; init; }

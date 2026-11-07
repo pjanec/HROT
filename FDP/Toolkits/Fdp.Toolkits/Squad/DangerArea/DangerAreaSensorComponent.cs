@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// to detect staleness (matches EqsSensor.Epoch precedent).</summary>
         public uint Epoch;
         /// <summary>Minimum seconds between refreshes. 0 = refresh every call.</summary>
-        public float RefreshIntervalSeconds;
+        public SimDuration RefreshIntervalSeconds;
         /// <summary>Simulation time (seconds) at which the last refresh completed.</summary>
         public SimInstant LastRefreshSimTime;
 

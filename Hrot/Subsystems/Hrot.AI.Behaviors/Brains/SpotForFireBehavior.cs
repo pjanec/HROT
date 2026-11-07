@@ -20,7 +20,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public ObserveFireParams Observe;
         public float MaxMetres;
-        public float RestSeconds;
+        public SimDuration RestSeconds;
         /// <summary>0 = watching · 1 = a mission runs (<see cref="Observe"/>).</summary>
         public byte Observing;
         public SimInstant RestUntil;
@@ -171,7 +171,7 @@ namespace Hrot.AI.Behaviors.Orders
 
         /// <summary>The rest after each mission (s); 0 = 30.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("RestSeconds")]
-        public float RestSeconds;
+        public SimDuration RestSeconds;
 
         /// <summary>How he locates a target (map / eye ≈ 150 m, laser ≈ 10 m).</summary>
         [System.Text.Json.Serialization.JsonPropertyName("Locating")]

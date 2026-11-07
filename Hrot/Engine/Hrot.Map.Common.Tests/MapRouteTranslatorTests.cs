@@ -145,7 +145,7 @@ public class MapRouteTranslatorTests
         new MapRouteIngressTranslator(null, otherMap).ApplyToEntity(replica, writer.Publishes[0], other);
         var back = ((ISimulationView)other).GetManagedComponentRO<RoutePlan>(replica).Waypoints[0];
         Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 45f, Fdp.Toolkit.Navigation.RouteHold.Unload, 4f, 7701),
-                     (back.Kind, back.HeightAgl, back.Hold, back.HoldSeconds, back.HoldUnit.Ref.NetworkId));
+                     (back.Kind, back.HeightAgl, back.Hold, back.HoldSeconds.Seconds, back.HoldUnit.Ref.NetworkId));
     }
 
     [Fact]

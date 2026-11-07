@@ -126,7 +126,7 @@ namespace Fdp.Toolkit.Squad.Command
     {
         public int Slot;
         /// <summary>Heard from within this many sim seconds.</summary>
-        public float WithinSeconds;
+        public SimDuration WithinSeconds;
     }
 
     /// <summary>Params of <see cref="PictureConditions.ElementReported"/>.</summary>
@@ -138,7 +138,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>Within this many metres of the commander (0 = anywhere).</summary>
         public float WithinMetres;
         /// <summary>Observed within this many sim seconds (0 = any age).</summary>
-        public float FreshSeconds;
+        public SimDuration FreshSeconds;
     }
 
     /// <summary>Params of <see cref="PictureConditions.PendingRequest"/>.</summary>

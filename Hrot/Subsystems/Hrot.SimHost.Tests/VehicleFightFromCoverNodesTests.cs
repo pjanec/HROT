@@ -630,7 +630,7 @@ namespace Hrot.SimHost.Tests
             Assert.InRange(VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self), 1.39f, 1.41f);
 
             d.See(false);
-            Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+            Assert.Equal((float)(p.ExposeSeconds), VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
         }
 
         /// <summary>
@@ -658,13 +658,13 @@ namespace Hrot.SimHost.Tests
                 Prisms = new[] { new Fdp.Toolkit.Terrain.TerrainPrism { Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall, Footprint = wall, BaseZ = 0f, TopZ = 6f,
                                                                        Min = new Vector2(-10f, 40f), Max = new Vector2(10f, 41f) } },
             });
-            Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+            Assert.Equal((float)(p.ExposeSeconds), VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
 
             // ⭐ CE-2352 — the open line again, but his eyes reach 60 m and he stands 80 m off: he cannot see me ⇒ the full exposure
             d.Repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld { BoundsMin = new Vector2(-200, -200), BoundsMax = new Vector2(200, 200) });
             if (!d.Repo.IsComponentTypeRegistered<PerceptionReceptor>()) d.Repo.RegisterComponent<PerceptionReceptor>();
             d.Repo.AddComponent(d.Enemy, new PerceptionReceptor { VisionRange = 60f });
-            Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+            Assert.Equal((float)(p.ExposeSeconds), VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
             d.Repo.GetComponentRW<PerceptionReceptor>(d.Enemy).VisionRange = 100f;   // 100 m: he can
             Assert.InRange(VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self), 1.39f, 1.41f);
         }

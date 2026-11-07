@@ -172,7 +172,7 @@ namespace Hrot.AI.Behaviors.Brains
             public Vector3 At;
             public float LethalMetres;
             /// <summary>The fuze it had left when he reacted (s; 0 = not known).</summary>
-            public float FuzeSeconds;
+            public SimDuration FuzeSeconds;
             public Vector3 ThrowAt;
         }
 

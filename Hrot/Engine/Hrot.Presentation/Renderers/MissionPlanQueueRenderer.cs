@@ -28,7 +28,7 @@ public sealed class MissionPlanQueueRenderer : IImGuiRenderer
 
             DrawLeafRow("CurrentPhase", q.CurrentPhase.ToString());
             DrawLeafRow("PhaseCount", q.PhaseCount.ToString());
-            DrawLeafRow("PhaseElapsedSeconds", q.PhaseElapsedSeconds.ToString("F2"));
+            DrawLeafRow("PhaseElapsedSeconds", q.PhaseElapsedSeconds.Seconds.ToString("F2"));
 
             // Safe cast to Span bypasses the C# 12 InlineArray trap
             ReadOnlySpan<MissionPhase> phases = q.Phases;

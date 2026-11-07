@@ -447,7 +447,7 @@ public sealed class EditOutcomeOwnerTests
         Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Stance, Fdp.Toolkit.Replication.Patching.AttributeValue.FromString("Crouched")), "Crouch").Status);   // the name shape
         var intent = owner.World.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(owner.Entity);
         var status = owner.World.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>(owner.Entity);
-        Assert.Equal((StanceId.Crouched, 0.3f, 1u), (intent.TargetStance, intent.BlendTime, intent.Version));
+        Assert.Equal((StanceId.Crouched, 0.3f, 1u), (intent.TargetStance, (float)(intent.BlendTime), intent.Version));
         Assert.Equal((StanceId.Standing, 0u), (status.CurrentStance, status.AckVersion));   // the transition system will animate it
     }
 

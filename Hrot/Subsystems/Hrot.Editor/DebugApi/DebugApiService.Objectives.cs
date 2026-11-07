@@ -120,7 +120,7 @@ namespace Hrot.Editor.DebugApi
                 var dep = new JsonArray(); for (int i = 0; i < s.DependsOnCount && i < 8; i++) dep.Add(s.DependsOn[i]);
                 var act = new JsonArray(); for (int i = 0; i < s.ActsOnCount && i < 8; i++) act.Add(s.ActsOn[i]);
                 row["dependsOn"] = dep; row["actsOn"] = act;
-                row["timing"] = new JsonObject { ["holdFor"] = s.HoldFor, ["delay"] = s.Delay, ["cooldown"] = s.Cooldown, ["deadline"] = s.Deadline, ["expectedAt"] = (double)s.ExpectedAt };
+                row["timing"] = new JsonObject { ["holdFor"] = s.HoldFor, ["delay"] = (float)s.Delay, ["cooldown"] = (float)s.Cooldown, ["deadline"] = s.Deadline, ["expectedAt"] = (double)s.ExpectedAt };
                 if (s.Role == ObjectiveRole.Trigger)   // ⭐ rules S2-c (T8): the §10.11 machine's state, as a string, and how often it fired
                 {
                     row["triggerState"] = s.TriggerState.ToString();

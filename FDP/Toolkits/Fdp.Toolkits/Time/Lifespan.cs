@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Time
         public SimInstant BornAtSimSeconds;
 
         /// <summary>How long it lives (s).</summary>
-        public float Seconds;
+        public SimDuration Seconds;
 
         /// <summary>A lifespan starting at <paramref name="now"/>.</summary>
         public static Lifespan Starting(double now, float seconds) => new() { BornAtSimSeconds = (SimInstant)now, Seconds = seconds };

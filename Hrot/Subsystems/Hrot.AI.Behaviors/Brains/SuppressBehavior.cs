@@ -24,7 +24,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>1 when <see cref="Point"/> is set.</summary>
         public byte HasPoint;
         /// <summary>Seconds between aimed rounds (blind rounds go slower — the executor's cadence).</summary>
-        public float CooldownSeconds;
+        public SimDuration CooldownSeconds;
     }
 
     /// <summary>What <see cref="SuppressNodes.SuppressContact"/> is doing.</summary>

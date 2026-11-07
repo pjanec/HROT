@@ -29,7 +29,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public Vector3 At;
             public float Reach;
-            public float Seconds;
+            public SimDuration Seconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]

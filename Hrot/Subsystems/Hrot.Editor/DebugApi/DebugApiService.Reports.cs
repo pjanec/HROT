@@ -76,7 +76,7 @@ namespace Hrot.Editor.DebugApi
                 var req = _world.GetComponentRO<ReportingRequirements>(unit);
                 node["requirements"] = new JsonObject
                 {
-                    ["pir"] = req.Pir.ToString(), ["ffir"] = req.Ffir.ToString(), ["sitrepEverySeconds"] = req.SitrepEverySeconds,
+                    ["pir"] = req.Pir.ToString(), ["ffir"] = req.Ffir.ToString(), ["sitrepEverySeconds"] = (float)req.SitrepEverySeconds,
                     ["pirArea"] = req.PirArea, ["setBy"] = req.SetBy.ToString(),
                 };
             }

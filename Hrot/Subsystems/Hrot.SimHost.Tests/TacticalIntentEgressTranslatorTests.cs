@@ -207,7 +207,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(RoeDirectiveJson.TryDecode(roe.JsonParams, entity, BehaviorOrigin.Superior, out var back));
             Assert.Equal(RoeFire.HoldFire, back.Fire);
             Assert.Equal(RoeReactions.ReactionsUnset, back.Reactions);
-            Assert.Equal(7.5f, back.ReturnFireWindowSeconds);
+            Assert.Equal(7.5f, (float)(back.ReturnFireWindowSeconds));
             Assert.Equal(RoeForceLevel.NonLethal, back.ForceLevel);
             Assert.Equal(2, translator.SentSampleCount);
         }
@@ -254,7 +254,7 @@ namespace Hrot.SimHost.Tests
             var sent = Assert.Single(writer.Written);
             Assert.Equal((TacticalIntentWireKind.SetReporting, 42L, (byte)BehaviorOrigin.Superior), (sent.Kind, sent.TargetEntityId, sent.Origin));
             Assert.True(ReportingDirectiveJson.TryDecode(sent.JsonParams, remote, BehaviorOrigin.Superior, out var back));
-            Assert.Equal((Fdp.Toolkit.Squad.Command.FfirFlags.LaceAfterContact, 60f), (back.Ffir, back.SitrepEverySeconds));
+            Assert.Equal((Fdp.Toolkit.Squad.Command.FfirFlags.LaceAfterContact, 60f), (back.Ffir, (float)(back.SitrepEverySeconds)));
         }
 
         /// <summary>⭐ CE-3261 (behaviors' sectors note ①) — a superior's SECTOR (CE-2282) for a man whose brain runs elsewhere goes there as

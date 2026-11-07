@@ -21,7 +21,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The vehicle to board.</summary>
         public Entity Vehicle;
         /// <summary>Failure when somebody is still out after this long (s).</summary>
-        public float TimeoutSeconds;
+        public SimDuration TimeoutSeconds;
         /// <summary>Walking speed to the vehicle (m/s); 0 ⇒ the Embark node's default.</summary>
         public float Speed;
     }

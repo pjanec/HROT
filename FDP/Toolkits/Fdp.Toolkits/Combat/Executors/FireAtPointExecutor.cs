@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// <summary>The ground point to fire at (world metres).</summary>
         public Vector3 Point;
         /// <summary>Seconds between rounds.</summary>
-        public float CooldownSeconds;
+        public SimDuration CooldownSeconds;
         /// <summary>Rounds to fire; 0 = until the ammunition runs out.</summary>
         public int Rounds;
         /// <summary>The mount that fires (its index in the type's weapon suite); ⭐ IF-1 (I6) a CONTROLLED weapon system's index
@@ -351,7 +351,7 @@ namespace Fdp.Toolkit.Combat
     public struct FireAtPointNodeParams
     {
         public Vector3 Point;
-        public float CooldownSeconds;
+        public SimDuration CooldownSeconds;
         /// <summary>Rounds to fire; 0 = until the ammunition runs out.</summary>
         public int Rounds;
         public byte Mount;

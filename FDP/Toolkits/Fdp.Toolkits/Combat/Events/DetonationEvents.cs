@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Combat.Events
         public HitEffect Effect;
 
         /// <summary>⭐ <c>CE-3219</c> — how long <see cref="Effect"/> lasts (s); the Health owner stores it in <see cref="EffectState"/>.</summary>
-        public float EffectSeconds;
+        public SimDuration EffectSeconds;
 
         /// <summary>⭐ <c>CE-3237</c> (civilians B-15, AW-23 — APPENDED; docs/DESIGN_Civilians_And_Crowd_Control.md §7.16 DS-1) — who caused it,
         /// where the producer knows: the round's shooter (a person, a vehicle, or a weapon system — <c>WeaponSystems.ControllerOf</c> names

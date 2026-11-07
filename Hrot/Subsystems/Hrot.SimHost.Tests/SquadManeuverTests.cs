@@ -1744,7 +1744,7 @@ namespace Hrot.SimHost.Tests
             s.Repo.Bus.SwapBuffers();
             new Fdp.Toolkit.Squad.Command.ReportingRequirementsSystem().Execute(s.Repo, 0.016f);
             var req = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportingRequirements>(s.Members[0]);
-            Assert.Equal((Fdp.Toolkit.Squad.Command.PirFlags.AnyElement, 15f, BehaviorOrigin.Superior), (req.Pir, req.SitrepEverySeconds, req.SetBy));
+            Assert.Equal((Fdp.Toolkit.Squad.Command.PirFlags.AnyElement, 15f, BehaviorOrigin.Superior), (req.Pir, (float)(req.SitrepEverySeconds), req.SetBy));
 
             double now = s.Repo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
             var phase = new SendReportParams { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.PhaseLine, Count = 2 };
@@ -4243,7 +4243,7 @@ namespace Hrot.SimHost.Tests
             Defend(p);
             p.Ticks(6);
             Assert.Equal(PlatoonDefendBehavior.SitrepSeconds,
-                p.S.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportingRequirements>(p.Bravo).SitrepEverySeconds);
+                (float)(p.S.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportingRequirements>(p.Bravo).SitrepEverySeconds));
             p.ReportSpot(p.Alpha, new Vector3(30f, 100f, 0f), 2);   // ~17°: inside Bravo's slice (358.5°…31.5°), not Alpha's
             p.Ticks(4);
             Assert.Equal(1, DefendOrders(p, p.Charlie));

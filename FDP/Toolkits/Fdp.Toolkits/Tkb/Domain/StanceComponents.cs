@@ -41,7 +41,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
         public StanceId TargetStance;
 
         /// <summary>Blend duration in seconds for smooth transition (0 = immediate).</summary>
-        public float BlendTime;
+        public SimDuration BlendTime;
 
         /// <summary>Version counter; bumped each time intent changes (triggers Muscle transition).</summary>
         public uint Version;

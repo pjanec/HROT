@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.ScenarioRules
         [JsonPropertyName("weight")] public float Weight;
         [JsonPropertyName("points")] public float Points;
         /// <summary>Sim seconds since the start; 0 = none.</summary>
-        [JsonPropertyName("deadlineSeconds")] public float DeadlineSeconds;
+        [JsonPropertyName("deadlineSeconds")] public SimDuration DeadlineSeconds;
         /// <summary>Starts Active (<c>null</c> = true) or Inactive.</summary>
         [JsonPropertyName("startActive")] public bool? StartActive;
         /// <summary>Bit mask by <see cref="ForceId"/> value; 0 = everybody.</summary>
@@ -56,7 +56,8 @@ namespace Fdp.Toolkit.ScenarioRules
         public FixedString32 Group;
         public EntityRef Subject, Parent;
         public byte Required, Scored, StartActive, VisibleSides;
-        public float Weight, Points, DeadlineSeconds;
+        public float Weight, Points;
+        public SimDuration DeadlineSeconds;
         /// <summary>⭐ rules S4 ② — see <see cref="ObjectiveCommon.Pass"/> (0 = the kind's default).</summary>
         public float Pass;
 

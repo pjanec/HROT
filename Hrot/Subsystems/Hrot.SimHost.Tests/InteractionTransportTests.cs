@@ -162,8 +162,8 @@ namespace Hrot.SimHost.Tests
             }
             brain.Bus.SwapBuffers();
             var grant = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Combat.PickUpGrantEvent>().ToArray());
-            Assert.Equal((brainsMan, 6038L, 1, 2.5f, true), (grant.Man, grant.Ammo, grant.Rounds, grant.FuzeSeconds, grant.IsRemote));
-            Assert.Equal(41f, grant.BurnSeconds);   // ⭐ CE-3236 (B-14, VC-5) — a venting canister's burn left crosses with it
+            Assert.Equal((brainsMan, 6038L, 1, 2.5f, true), (grant.Man, grant.Ammo, grant.Rounds, (float)(grant.FuzeSeconds), grant.IsRemote));
+            Assert.Equal(41f, (float)(grant.BurnSeconds));   // ⭐ CE-3236 (B-14, VC-5) — a venting canister's burn left crosses with it
             Assert.Equal(brainsFirst, grant.OriginalShooter);   // ⭐ CE-4155 (SR-82) — the round's first thrower crosses as the grant's actor
         }
 

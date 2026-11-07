@@ -72,7 +72,7 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-2095</c> — how long after being hit (or near-missed) a <see cref="RoeFire.ReturnFire"/> unit may shoot
         /// back, in seconds; <c>0</c> = unset ⇒ <see cref="RoeOf.DefaultReturnFireWindowSeconds"/>. Last, so the earlier fields
         /// keep their offsets.</summary>
-        public float ReturnFireWindowSeconds;
+        public SimDuration ReturnFireWindowSeconds;
         /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, §5j FL-1) — the most force the unit may use; <see cref="RoeForceLevel.ForceUnset"/> ⇒
         /// <see cref="RoeForceLevel.Lethal"/>. Last, so the earlier fields keep their offsets.</summary>
         public RoeForceLevel ForceLevel;

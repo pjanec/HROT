@@ -32,7 +32,7 @@ namespace Hrot.AI.Behaviors.Brains
             public int Charge;
             public float KillZoneMetres;
             public byte AnyTarget;
-            public float TimeoutSeconds;
+            public SimDuration TimeoutSeconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]

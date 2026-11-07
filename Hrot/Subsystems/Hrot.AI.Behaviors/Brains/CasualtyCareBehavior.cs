@@ -28,9 +28,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The medic goes after this long even when not every coverer has fired (s). ⭐ <c>CE-2227</c>: 5 s (was 3) — live, the
         /// slowest coverer's first round comes 2–3.8 s after the order (turn, raise, aim), so 3 s sent the medic before the covering
         /// in about half the runs of <c>ua-casualty-care</c>.</summary>
-        public float CoveringSeconds;
+        public SimDuration CoveringSeconds;
         /// <summary>The whole drill gives up after this long in one phase (s).</summary>
-        public float PhaseTimeoutSeconds;
+        public SimDuration PhaseTimeoutSeconds;
         /// <summary>Runtime: the man being cared for.</summary>
         public Entity Casualty;
         /// <summary>Runtime: the man sent for him.</summary>

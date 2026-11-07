@@ -381,7 +381,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 _sys.Execute(_world, 0.016f);
                 _world.Bus.SwapBuffers();
                 var hit = Assert.Single(_world.Bus.Read<DamageAssessedEvent>().ToArray());
-                Assert.Equal((effect, seconds), (hit.Effect, hit.EffectSeconds));
+                Assert.Equal((effect, seconds), (hit.Effect, hit.EffectSeconds.Seconds));
             }
         }
 }

@@ -53,7 +53,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
         public FixedString32 ToKind;
         public int ToValue;
         public FixedString128 Text;
-        public float Seconds;
+        public SimDuration Seconds;
         public byte Priority;
         public MessageParams() { ToKind = new FixedString32("All"); ToValue = 0; Text = default; Seconds = 6f; Priority = 0; }
 

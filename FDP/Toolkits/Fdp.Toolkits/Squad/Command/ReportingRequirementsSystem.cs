@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Squad.Command
         public BehaviorOrigin Origin;
         public PirFlags Pir;
         public FfirFlags Ffir;
-        public float SitrepEverySeconds;
+        public SimDuration SitrepEverySeconds;
         /// <summary>PC-3 — the area entity's network id for the area PIRs (0 = none).</summary>
         public long PirArea;
     }

@@ -130,7 +130,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public struct Block
         {
             public ObjectiveCommonBlock Common; public ObjectiveRun Run;
-            public float HoldFor, Delay, Cooldown; public int MaxFires; public byte Repeat, FireIfTrueWhenArmed;
+            public float HoldFor; public SimDuration Delay, Cooldown; public int MaxFires; public byte Repeat, FireIfTrueWhenArmed;
             /// <summary>Working state (recorded with the blackboard).</summary>
             public TriggerState Phase;
             /// <summary>The condition last time it was evaluated (0/1), and whether there was a last time (the first armed tick only records it).</summary>
@@ -307,7 +307,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 TriggerState.Waiting => b.WaitUntil,
                 TriggerState.Holding => b.EdgeAt + b.HoldFor,
                 TriggerState.Cooldown => b.CooldownUntil,
-                TriggerState.Armed when b.Common.DeadlineSeconds > 0f => (SimInstant)b.Common.DeadlineSeconds,
+                TriggerState.Armed when b.Common.DeadlineSeconds > 0f => new SimInstant(b.Common.DeadlineSeconds.Seconds),
                 TriggerState.Armed => (SimInstant)(TriggerWhenTime.ExpectedAt(((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items[WhenItem], now)),
                 _ => (SimInstant)0d,
             };

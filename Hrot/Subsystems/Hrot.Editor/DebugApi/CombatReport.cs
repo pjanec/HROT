@@ -48,7 +48,7 @@ namespace Hrot.Editor.DebugApi
                     ["hitPart"] = s.HitPart, ["hitFace"] = s.HitFace,   // ⭐ CE-3209 — the body part met and the face entered
                     // ⭐ CE-2180 — the trip from the brain: raised (brain's synced sim time, null when unknown) → fired here
                     ["raisedAt"] = s.RaisedAt > 0d ? (double)s.RaisedAt : null, ["firedAt"] = (double)s.FiredAt,
-                    ["tripSeconds"] = s.RaisedAt > 0d ? (float)(s.FiredAt - s.RaisedAt) : null, ["caughtUpSeconds"] = s.CaughtUpSeconds, ["owedFrames"] = s.OwedFrames, ["caughtUpFrames"] = s.CaughtUpFrames, ["frameDt"] = s.FrameDt,
+                    ["tripSeconds"] = s.RaisedAt > 0d ? (float)(s.FiredAt - s.RaisedAt) : null, ["caughtUpSeconds"] = (float)s.CaughtUpSeconds, ["owedFrames"] = s.OwedFrames, ["caughtUpFrames"] = s.CaughtUpFrames, ["frameDt"] = s.FrameDt,
                     ["crossings"] = crossings,
                 });
             }

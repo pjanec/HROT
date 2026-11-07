@@ -25,7 +25,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             /// <summary>1 Hands · 2 Back · 3 Hidden (<see cref="WeaponStation"/>).</summary>
             public byte Station;
-            public float Seconds;
+            public SimDuration Seconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]

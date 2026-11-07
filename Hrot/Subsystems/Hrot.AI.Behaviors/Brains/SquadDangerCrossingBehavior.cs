@@ -30,7 +30,7 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         public float CrossSpeed;
         /// <summary>A phase whose gate does not hold in this long moves on anyway (traced as Timeout) (s).</summary>
-        public float PhaseTimeoutSeconds;
+        public SimDuration PhaseTimeoutSeconds;
 
         // ── runtime ──
         /// <summary>The area, copied at Start: the buffer moves with the squad while it crosses.</summary>

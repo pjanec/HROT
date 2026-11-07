@@ -42,7 +42,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
                 Pir = PirFlags.AnyElement | PirFlags.PirMachineGun, Ffir = FfirFlags.EveryPhase, SitrepEverySeconds = 15f, PirArea = 77 });
             var req = world.GetComponentRO<ReportingRequirements>(squad);
             Assert.Equal((PirFlags.AnyElement | PirFlags.PirMachineGun, FfirFlags.EveryPhase, 15f, 77L, BehaviorOrigin.Superior),
-                         (req.Pir, req.Ffir, req.SitrepEverySeconds, req.PirArea, req.SetBy));
+                         (req.Pir, req.Ffir, req.SitrepEverySeconds.Seconds, req.PirArea, req.SetBy));
 
             Send(world, sys, new SetReportingEvent { Entity = squad, Origin = BehaviorOrigin.Sop, Pir = PirFlags.InArea });
             Assert.Equal(PirFlags.AnyElement | PirFlags.PirMachineGun, world.GetComponentRO<ReportingRequirements>(squad).Pir);
@@ -50,10 +50,10 @@ namespace Fdp.Toolkits.Tests.Squad.Command
 
             Send(world, sys, new SetReportingEvent { Entity = squad, Origin = BehaviorOrigin.Superior });   // withdraw
             req = world.GetComponentRO<ReportingRequirements>(squad);
-            Assert.Equal((PirFlags.NoPir, 0f, BehaviorOrigin.Unmarked), (req.Pir, req.SitrepEverySeconds, req.SetBy));
+            Assert.Equal((PirFlags.NoPir, 0f, BehaviorOrigin.Unmarked), (req.Pir, req.SitrepEverySeconds.Seconds, req.SetBy));
 
             Send(world, sys, new SetReportingEvent { Entity = squad, Origin = BehaviorOrigin.Sop, SitrepEverySeconds = 30f });
-            Assert.Equal(30f, world.GetComponentRO<ReportingRequirements>(squad).SitrepEverySeconds);   // withdrawn ⇒ anyone may set
+            Assert.Equal(30f, world.GetComponentRO<ReportingRequirements>(squad).SitrepEverySeconds.Seconds);   // withdrawn ⇒ anyone may set
             world.Dispose();
         }
 
@@ -77,7 +77,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             Send(world, sys, new SetReportingEvent { Entity = offline, Origin = BehaviorOrigin.Superior, SitrepEverySeconds = 15f });
 
             Assert.False(world.HasComponent<ReportingRequirements>(replica));
-            Assert.Equal(15f, world.GetComponentRO<ReportingRequirements>(offline).SitrepEverySeconds);
+            Assert.Equal(15f, world.GetComponentRO<ReportingRequirements>(offline).SitrepEverySeconds.Seconds);
             Assert.Equal(1, sys.ForwardedCount);
             world.Dispose();
         }

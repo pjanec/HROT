@@ -97,7 +97,7 @@ namespace Hrot.SimHost.Serializers
                         case BTreeTraceOpCode.WaitCompleted:
                             recordObj["NodeIndex"] = rec->NodeIndex;
                             recordObj["NodeName"]  = NodeName(blob, rec->NodeIndex);
-                            recordObj["Duration"]  = rec->Duration;
+                            recordObj["Duration"]  = (float)rec->Duration;
                             break;
                         case BTreeTraceOpCode.ChannelMutated:
                             recordObj["NodeIndex"]     = rec->NodeIndex;

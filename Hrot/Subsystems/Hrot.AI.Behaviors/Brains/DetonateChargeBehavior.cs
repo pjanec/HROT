@@ -21,7 +21,7 @@ namespace Hrot.AI.Behaviors.Brains
         [StructLayout(LayoutKind.Sequential)]
         public struct DetonateChargeParams
         {
-            public float Seconds;
+            public SimDuration Seconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]

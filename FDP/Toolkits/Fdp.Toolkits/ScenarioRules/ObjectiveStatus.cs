@@ -76,7 +76,9 @@ namespace Fdp.Toolkit.ScenarioRules
         public byte ActsOnCount;
         public NetIds8 ActsOn;
         /// <summary>⭐ rules V-2 — the authored timing (s; 0 = none) of a trigger; <see cref="Deadline"/> is every kind's <c>common.deadlineSeconds</c> (sim s since the start).</summary>
-        public float HoldFor, Delay, Cooldown, Deadline;
+        public float HoldFor;
+        public SimDuration Delay, Cooldown;
+        public float Deadline;
         /// <summary>⭐ rules V-2 — sim s of the NEXT thing the owner already knows will happen (Waiting ⇒ the delay's end · Holding ⇒ edge + holdFor · Cooldown ⇒ its end · an Active one with a deadline ⇒ the deadline); 0 = unknown / final.</summary>
         public SimInstant ExpectedAt;
 

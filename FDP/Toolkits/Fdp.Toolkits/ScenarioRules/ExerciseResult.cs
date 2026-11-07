@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.ScenarioRules
         public int ToValue;
         public string Text = "";
         /// <summary>How long a subtitle shows (s).</summary>
-        public float Seconds = 6f;
+        public SimDuration Seconds = 6f;
         public byte Priority;
         /// <summary>Sim time (s) it was sent.</summary>
         public SimInstant SentAt;

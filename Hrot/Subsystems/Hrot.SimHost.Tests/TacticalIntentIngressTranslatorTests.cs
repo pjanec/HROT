@@ -121,7 +121,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorOrigin.Superior, roe.Origin);
             Assert.Equal(RoeFire.HoldFire, roe.Fire);
             Assert.Equal(RoeReactions.StayOnTask, roe.Reactions);
-            Assert.Equal(4f, roe.ReturnFireWindowSeconds);
+            Assert.Equal(4f, (float)(roe.ReturnFireWindowSeconds));
             Assert.Equal(RoeForceLevel.Warn, roe.ForceLevel);
         }
 
@@ -169,7 +169,7 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(_world.Bus.ReadManaged<AssignTacticalIntentEvent>());
             var got = Assert.Single(_world.Bus.Read<Fdp.Toolkit.Squad.Command.SetReportingEvent>().ToArray());
             Assert.Equal((entity, BehaviorOrigin.Superior), (got.Entity, got.Origin));
-            Assert.Equal((sent.Pir, sent.Ffir, 30f, 4711L), (got.Pir, got.Ffir, got.SitrepEverySeconds, got.PirArea));
+            Assert.Equal((sent.Pir, sent.Ffir, 30f, 4711L), (got.Pir, got.Ffir, (float)(got.SitrepEverySeconds), got.PirArea));
             Assert.Equal(0, translator.UnhandledDirectiveCount);
         }
 

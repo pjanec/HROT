@@ -63,9 +63,9 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>⭐ <c>CE-3235</c> (B-13, §7.10 PU-6) — the fuze a TIME-fuzed round flies with (s); 0 = its warhead's own. A live round
         /// picked up and thrown back keeps what it had left.</summary>
-        public float FuzeSeconds;
+        public SimDuration FuzeSeconds;
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-7) — a thrown-back venting canister's burn left (s); 0 = its own (APPENDED).</summary>
-        public float BurnSeconds;
+        public SimDuration BurnSeconds;
         /// <summary>⭐ Q94 A-1 (R-3018; Architect Question 94 §4) — the brain's id for this request, echoed by the muscle's
         /// <see cref="WeaponFireNotification.RequestId"/> (fired or REFUSED) so the brain's ledger matches the answer; 0 = untracked
         /// (APPENDED).</summary>

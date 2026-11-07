@@ -26,9 +26,9 @@ namespace Hrot.AI.Behaviors.Brains
     public struct ShelterFromAirParams
     {
         /// <summary>Done once no air contact has been sensed for this long (s; default 10).</summary>
-        public float ClearSeconds;
+        public SimDuration ClearSeconds;
         /// <summary>With no shelter answer for this long, evade instead (s; default 3).</summary>
-        public float FindSeconds;
+        public SimDuration FindSeconds;
         /// <summary>Drive speed (m/s; 0 ⇒ the vehicle's own).</summary>
         public float EvadeSpeed;
         /// <summary>How far the shelter query looks (m; default 60) · one evade leg (m; default 40).</summary>

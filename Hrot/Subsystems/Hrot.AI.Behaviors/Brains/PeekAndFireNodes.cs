@@ -69,13 +69,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>A random wait in this range while hidden (s).</summary>
         public float HideSecondsMin, HideSecondsMax;
         /// <summary>The longest an exposure lasts (s) · the time to SEE the enemy before a blind burst instead (s).</summary>
-        public float ExposeSeconds, GraceSeconds;
+        public SimDuration ExposeSeconds, GraceSeconds;
         /// <summary>A near miss or a hit this recent keeps the unit down (s) (B8, D12).</summary>
-        public float SuppressedSeconds;
+        public SimDuration SuppressedSeconds;
         /// <summary>Aimed rounds per exposure (B7's count) · rounds of a blind burst.</summary>
         public int RoundsPerExposure, BlindRounds;
         /// <summary>Seconds between rounds.</summary>
-        public float FireCooldownSeconds;
+        public SimDuration FireCooldownSeconds;
         /// <summary>A blind burst flies at the remembered spot raised by this much (m) — the body's middle, not the feet.</summary>
         public float BlindAimHeight;
         /// <summary>Exposures from one hide point before relocating (B4's heat may relocate sooner).</summary>
@@ -85,7 +85,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>B4 — burned at · usable again below · a usable warm spot's score penalty per unit of heat.</summary>
         public float BurnHeat, ReuseHeat, HeatPenalty;
         /// <summary>B2/B3 — heat halves in this many seconds · B5 — a candidate within this of a slot IS that slot (m).</summary>
-        public float CoolHalfLifeSeconds, MatchRadius;
+        public SimDuration CoolHalfLifeSeconds;
+        public float MatchRadius;
         /// <summary>Travel speed (m/s) · a new hide point at least this far from the current one (m).</summary>
         public float RelocateSpeed, MinRelocateMetres;
         /// <summary>D12 — 1 = a suppressive burst before relocating (built with P-7).</summary>
@@ -99,7 +100,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte PeekStanceOverride;
         /// <summary>⭐ <c>CE-3158</c> G2 — with no usable cover point this long the node answers Failure (the posture re-scores);
         /// a step peek with no step-out point this long moves to the next cover (s).</summary>
-        public float NoCoverSeconds;
+        public SimDuration NoCoverSeconds;
         /// <summary>⭐ <c>CE-3158</c> G4 — a heard shot moves a burst only when it is within this of the locked target's remembered spot
         /// (m); a shot heard elsewhere is another enemy, not this one moving.</summary>
         public float HeardMatchRadius;

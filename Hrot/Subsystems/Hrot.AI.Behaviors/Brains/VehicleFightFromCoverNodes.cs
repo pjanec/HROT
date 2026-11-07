@@ -46,7 +46,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>See <see cref="WithdrawMode"/>.</summary>
         public WithdrawMode WithdrawMode;
         /// <summary>The longest an exposure lasts (s) · how long a firing point is held with nothing to shoot (s).</summary>
-        public float ExposeSeconds, WatchSeconds;
+        public SimDuration ExposeSeconds, WatchSeconds;
         /// <summary>A random wait in this range while hidden (s).</summary>
         public float HideSecondsMin, HideSecondsMax;
         /// <summary>Aimed rounds per exposure.</summary>
@@ -61,9 +61,10 @@ namespace Hrot.AI.Behaviors.Brains
         public float SearchRadius, FiringSearchRadius;
         /// <summary>Drive speed between hide and firing point (m/s; 0 ⇒ 5 — a creep, CE-2198: at the type's top speed a tank
         /// overshot its hide by its braking distance, ~26 m, into a building) · seconds between rounds (0 ⇒ the weapon's own).</summary>
-        public float Speed, FireCooldownSeconds;
+        public float Speed;
+        public SimDuration FireCooldownSeconds;
         /// <summary>With no hide for this long the vehicle fights from where it stands (s; CE-2196 — was: the node answered Failure).</summary>
-        public float NoCoverSeconds;
+        public SimDuration NoCoverSeconds;
         /// <summary>A new hide at least this far from the current one (m).</summary>
         public float MinRelocateMetres;
         /// <summary>Which forces count as threats for the queries (0 = every acquired contact) · a top score must move by this to publish.</summary>
