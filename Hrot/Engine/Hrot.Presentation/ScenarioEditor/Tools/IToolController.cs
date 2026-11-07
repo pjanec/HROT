@@ -139,5 +139,8 @@ namespace Hrot.ScenarioEditor.Tools
 
         /// <summary>Raised whenever <see cref="ActiveModal"/> changes. The toolbar binds here (step 5).</summary>
         event Action<ToolDescriptor?>? ActiveModalChanged;
+
+        /// <summary>⭐ B-17 P1 — what the armed tool's next click does (the gizmo's line, else the descriptor's hint); null with no modal tool.</summary>
+        string? ActiveHint => ActiveModal?.Hint;
     }
 }

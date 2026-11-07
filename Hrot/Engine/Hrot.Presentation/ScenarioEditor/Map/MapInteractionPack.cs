@@ -244,6 +244,7 @@ namespace Hrot.ScenarioEditor.Map
                 reportUnserviceable: ctx.ReportUnserviceableTool,
                 measureUnits:        ctx.MeasureUnits,
                 services:            ctx.Services);   // ⭐ W-1 / P-8 8d-2 — the Plan tool's mission facade
+            MapUiStates.Set(ctx.World, tools);   // ⭐ B-17 P1 — the cursor hint, the status line and the gizmos find the ONE controller from the world
 
             // 🔴 GZH-003 headless-first, but NOT "disabled for everyone" (§3.2d ①): the only production
             // driver of AddListener() is PerspectiveCoordinatorSystem, so a standalone IG or editor has no
@@ -537,6 +538,8 @@ namespace Hrot.ScenarioEditor.Map
             //   resolution per tick, CE-1054), so the 2-D reading's altitude is the terrain's at that spot.
             var cursor = new MapCursorReadout();
             canvas.AddResource(cursor);
+            // ⭐ B-17 P1 — the map's tool controller, for the status line (ToolStatusSection, registered with the cursor section on every host)
+            canvas.AddResource(new MapToolsLink(() => MapUiStates.ToolsOf(worldProvider())));
 
             var tkb = tkbProvider ?? (() => worldProvider() is { } w && w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                           ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);

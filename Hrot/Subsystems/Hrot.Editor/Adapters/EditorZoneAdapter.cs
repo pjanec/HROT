@@ -72,7 +72,8 @@ namespace Hrot.Editor.Adapters
                     Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceObstacle,
                     "Place Obstacle",
                     Hrot.ScenarioEditor.Tools.ToolModality.Modal,
-                    Hrot.ScenarioEditor.Tools.ToolArbiter.Global),
+                    Hrot.ScenarioEditor.Tools.ToolArbiter.Global,
+                    Hint: "click: place · right-click or Esc: cancel", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.LocationDot),   // ⭐ B-17 P1
                 _ => ArmObstaclePlacement());
         }
 

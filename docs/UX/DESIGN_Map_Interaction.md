@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4134); the building lane (ui, backend for the gizmo side) details it (R-4123)
-updated: 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
+updated: 2026-11-07 (P1 as-built — behaviors) · 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
@@ -313,6 +313,63 @@ Order: P1 → P2 → P3 (P3's measurement can start at once) → P4 → P5 → P
 | ③ Create through `Edits.Submit` | ✅ already built by backend's F2: `ScenarioSpawnAdapter.Request` submits `EditOp.Create` ("Place an entity") |
 
 Rails: `EntityPlacementGizmoTests.CE4309_*` (airborne + Shift, the level choice on a 3-storey stack, the heading drag).
+
+### ⭐ AS-BUILT — P1 *(behaviors, `2026-11-07`, B-17)* — the armed tool is visible
+
+INVENTORY: `scripts/cbm.sh search_graph name_pattern=".*(StatusBar|Hint|Toolbar).*"` + grep `ShowOnToolbar` / `ActiveModalChanged` ⇒ `ShowOnToolbar`
+read by nothing, one toolbar (`EditorToolbarPanel`, four tool buttons reading no state — CE-259m), the status-bar section pattern
+(`MapCursorStatusBarSection`, registered by five hosts), the world-scoped UI states (`MapUiStates`), the placement gizmo's own cursor hint (P3).
+
+```mermaid
+classDiagram
+  class ToolDescriptor { <<existing record>> +Hint +Glyph }
+  class ToolController { <<existing>> +ActiveHint · +SetHint(line) · +ClaimCursorHint() · +CursorHintClaimed · +DescriptorOf(id) }
+  class MapUiStates { <<existing>> +ToolsOf(world) — the pack's ONE controller }
+  class MapToolsLink { <<NEW canvas resource>> Tools }
+  class ToolHintGizmo { <<NEW GizmoProjector, global>> the hint under the cursor }
+  class ToolStatusSection { <<NEW status-bar section>> icon · label · hint }
+  class MapCursorStatusBarSection { <<existing>> Register — now registers ToolStatusSection too }
+  class EditorToolbarPanel { <<existing>> the armed tool's button lit }
+  class EntityPlacementGizmo { <<existing>> claims the cursor (its own level / heading line) }
+  class GizmoTextDraw { <<existing>> +Strings · +TextOf(prim) — the ONE text reader }
+  ToolController o-- ToolDescriptor
+  ToolHintGizmo ..> MapUiStates : the controller + the canvas cursor
+  ToolStatusSection ..> MapToolsLink
+  MapToolsLink ..> MapUiStates
+  MapCursorStatusBarSection ..> ToolStatusSection : registers
+  EntityPlacementGizmo ..> ToolController : ClaimCursorHint
+  EditorToolbarPanel ..> ToolController : ActiveModal.Id
+```
+*What the picture shows: the words live once (the descriptor, or the gizmo's own line through `SetHint`), and the three surfaces (status line,
+cursor, toolbar) read the one controller; the status line rides on the cursor section, so no host can lack it.*
+
+```mermaid
+graph TD
+  Pack["MapInteractionPack.Build — every map host"] -->|"MapUiStates.Set(world, tools)"| UI[MapUiStates]
+  Attach["MapInteractionPack.AttachMapLayers — every map host"] -->|"canvas.AddResource(MapToolsLink)"| Canvas[MapCanvas]
+  Hosts["Editor · CGF · SimHost · ReplayBrowser · Player: MapCursorStatusBarSection.Register"] --> Status[ToolStatusSection]
+  Status --> Canvas
+  Proj["GizmoProjector registrar (every host)"] --> Hint[ToolHintGizmo]
+  Hint --> UI
+  EdBar["EditorSubsystem: new EditorToolbarPanel(() => tools.ActiveModal?.Id)"] --> Bar[EditorToolbarPanel]
+```
+*Who reaches it: all three hooks are in shared composition (the pack, the attach, the cursor section, the projector registrar); only the
+toolbar is the editor's own (the one tool toolbar there is).*
+
+| decision | why |
+|---|---|
+| the hint is the descriptor's line; a gizmo that knows more states it with `SetHint`; arming another tool clears it | one answer, never stale for the next tool |
+| ONE line at the cursor: a gizmo that draws its own there (placement) calls `ClaimCursorHint` and the generic one stays away | the mockup shows one hint by the cursor |
+| hints describe TODAY's gestures (the drawing tools still finish on right-click) | P2 moves finish to Enter / ✓ / the menu and updates the words with it |
+| ⭐ found and fixed: gizmo text over 31 characters was cut on every map — `GizmoTextDraw.TextOf` resolves the interned string (the layer sets `Strings` to its buffer's map before it draws) | the P1 fidelity frame showed the hint cut; the P3 placement hint was cut the same way |
+| ⚠ deviation: the cursor hint has no dark backdrop (gizmo text has none) | readable on the map's grey; a backdrop is P7's look review |
+| ⚠ the cursor is the LOCAL canvas's; a remote viewer gets the status line, not the cursor hint, until its cursor reaches the backend | the remote cursor is not on the backend today |
+| ⚠ the remote viewer's own renderer (GizmoMap's layer) does not set `GizmoTextDraw.Strings` yet | local hosts all go through the FDP layer, which does |
+
+Rails: `TheArmedToolIsVisibleTests` (Presentation.Tests) — every map tool has a hint and an icon; one active hint, cleared with the tool
+(red-proved: the pack not sharing its controller ⇒ the cursor-hint and status rails red); the cursor hint as gizmo text at the cursor (not for
+Select, not when claimed); the status line registered by the cursor section; a long gizmo text read whole; `P1_TheArmedTool_OnARealFrame`
+(`armed-tool.png` — the teal icon, name and hint in the status line, the hint under the cursor).
 because the drawing menu reads it.
 
 ## 4. Questions — ✅ all eight APPROVED as leaned (R-4134, user `2026-11-06`: *"Okay, accept it."*)

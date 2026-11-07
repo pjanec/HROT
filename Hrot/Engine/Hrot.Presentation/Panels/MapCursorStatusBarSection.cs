@@ -36,6 +36,7 @@ public sealed class MapCursorStatusBarSection
     {
         var section = new MapCursorStatusBarSection(canvas);
         bar.RegisterSection(SectionId, SortOrder, section.Render, perspective);
+        ToolStatusSection.Register(bar, canvas, perspective);   // ⭐ B-17 P1 — the armed tool beside the cursor reading, on every map host
         return section;
     }
 

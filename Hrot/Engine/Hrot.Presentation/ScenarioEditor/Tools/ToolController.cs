@@ -62,6 +62,26 @@ namespace Hrot.ScenarioEditor.Tools
         /// <inheritdoc/>
         public Entity ActiveModalTarget => _modalStack.Count > 0 ? _modalStack[^1].Target : Entity.Null;
 
+        private string? _hintOverride;
+
+        /// <summary>
+        /// ⭐ B-17 P1 (📄 docs/UX/DESIGN_Map_Interaction.md §2.5) — what the armed tool's next click does: the active gizmo's own line when it set
+        /// one (<see cref="SetHint"/>), else the descriptor's <see cref="ToolDescriptor.Hint"/>; null with no modal tool. Read by the status line
+        /// (<c>ToolStatusSection</c>) and the cursor hint (<c>ToolHintGizmo</c>) — ⛔ never a second copy of the words.
+        /// </summary>
+        public string? ActiveHint => ActiveModal is null ? null : _hintOverride ?? ActiveModal.Hint;
+
+        /// <summary>⭐ B-17 P1 — the armed tool's gizmo states its current line (e.g. <i>"4 points · Enter: finish"</i>); null returns to the
+        /// descriptor's. Cleared whenever the armed tool changes.</summary>
+        public void SetHint(string? hint) => _hintOverride = hint;
+
+        /// <summary>⭐ B-17 P1 — the armed tool's gizmo draws its own line by the cursor (the placement ghost's level / heading hint), so the
+        /// generic cursor hint (<c>ToolHintGizmo</c>) stays away: ONE hint at the cursor. Cleared whenever the armed tool changes.</summary>
+        public bool CursorHintClaimed { get; private set; }
+
+        /// <summary>⭐ B-17 P1 — called by a gizmo that draws its own cursor hint, each frame it draws it (no allocation).</summary>
+        public void ClaimCursorHint() => CursorHintClaimed = true;
+
         /// <inheritdoc/>
         public IReadOnlyList<ArmedTool> ModalStack => _modalStack;
 
@@ -87,6 +107,9 @@ namespace Hrot.ScenarioEditor.Tools
 
         /// <summary>True when <paramref name="toolId"/> has been registered on this host.</summary>
         public bool IsRegistered(string toolId) => _tools.ContainsKey(toolId);
+
+        /// <summary>⭐ B-17 P1 — a registered tool's descriptor (its label, hint, icon — what a toolbar draws), or null.</summary>
+        public ToolDescriptor? DescriptorOf(string toolId) => _tools.TryGetValue(toolId, out var entry) ? entry.Descriptor : null;
 
         /// <inheritdoc/>
         public bool Activate(string toolId, Entity target = default)
@@ -374,7 +397,7 @@ namespace Hrot.ScenarioEditor.Tools
             }
         }
 
-        private void NotifyActiveModalChanged() => ActiveModalChanged?.Invoke(ActiveModal);
+        private void NotifyActiveModalChanged() { _hintOverride = null; CursorHintClaimed = false; ActiveModalChanged?.Invoke(ActiveModal); }
 
         // ── PushModal internals ───────────────────────────────────────────────────
 

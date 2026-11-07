@@ -174,6 +174,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (key != _hintKey) { _hintKey = key; _hint = _session.Hint(_autoPopOnPlace ? "click: place" : MultiPlacementHint); }   // ⭐ CE-4309 — rebuilt only when a choice moves (0 B steady)
             if (!_autoPopOnPlace || _hint.Second != null)
             {
+                Hrot.ScenarioEditor.Map.MapUiStates.ToolsOf(view as EntityRepository)?.ClaimCursorHint();   // ⭐ B-17 P1 — ONE hint at the cursor: this one
                 draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - 2 * GhostLabelOffsetY, _hint.First, Rgba32.White);
                 if (_hint.Second != null) draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - 3 * GhostLabelOffsetY, _hint.Second, Rgba32.White);
             }
