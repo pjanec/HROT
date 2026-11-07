@@ -14,8 +14,8 @@ related-designs:
 
 # HANDOFF — coordinator → backend and ui: the mission plan editor, end to end
 
-**For:** `backend` first (it is idle), `ui` when its current handoff is done. **From:** the coordinator lane. **Dispatched at `<see commit>`**
-(the commit that adds this file). ⭐ Scope FROZEN there; later documents are FYI.
+**For:** `backend` first (it is idle), `ui` when its current handoff is done. **From:** the coordinator lane. **Dispatched at `9f2cd761`**
+⭐ Scope FROZEN there; later documents are FYI.
 Merge `coordinator` first, push `chore: started HANDOFF_Coordinator_To_Lanes_Mission_Plan at <sha>`, then the
 [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md) exactly as before — add the rows below to your `STATUS_Editing_UX_Build_<lane>.md`.
 ⛔⛔ **Anything that needs the user's decision is skipped, never blocking (R-4156)** — a QUESTION note with your lean, then the next item.
