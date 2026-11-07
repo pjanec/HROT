@@ -118,6 +118,16 @@ public sealed class EditorFontCoverageTests
                         if (!Canvas(rune.Value)) missing.Add($"{rel} U+{rune.Value:X4} '{rune}' in {m.Value}");
                 }
             }
+        // ⭐ U-2 moved the badges onto the ONE icon table (NodeEditor.Core.Widgets.Icons.Get(key)): enumerate it at runtime, every key's glyph must draw with the canvas faces
+        int iconBadges = 0;
+        foreach (string key in NodeEditor.Core.Widgets.Icons.Keys)
+        {
+            Assert.True(NodeEditor.Core.Widgets.Icons.TryGet(key, out var icon), $"Icons.Keys lists '{key}' but the map does not answer it");
+            iconBadges++; badges++;
+            foreach (var rune in icon.Glyph.EnumerateRunes())
+                if (!Canvas(rune.Value)) missing.Add($"Icons[{key}] U+{rune.Value:X4} '{rune}'");
+        }
+        Assert.True(iconBadges >= 60, $"only {iconBadges} icon-table keys — the enumeration is not reaching the Icons table");
         Assert.True(badges >= 5, $"found only {badges} badge glyphs — the scan is not reaching the attachments");
         Assert.True(missing.Count == 0, "node badge glyphs the canvas faces lack (they draw \"?\"):\n" + string.Join("\n", missing));
     }
