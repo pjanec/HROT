@@ -227,3 +227,84 @@ offer (hot path R-2084: the per-frame cost is zero). The graph editors' menus (d
 | **Q3** | graph editors (BTree / HSM / Blueprint node menus) | outside stage 1 — they are NodeEdit's generic menus (AQ26 constraint 1: no engine concept in a generic component); later the same composer behind NodeEdit's provider seam | — |
 | **Q4** | where declarations come from | each feature pack declares its actions at composition (orders by the orders pack, Embark by the embark pack …) — never one central list; the catalogue only holds them | — |
 | **Q5** | the order of groups per mode | Edit: Edit · View · Properties · Debug — Preview / Live: Orders · Edit · View · Properties · Debug — Review: Review · View · Properties · Debug; Destructive last in every group | the user's practice |
+
+## 6. ⭐ A1 build design *(ui, `2026-11-07`; `build-state: READY-TO-BUILD` for A1)*
+
+INVENTORY (re-measured for the build): `ContextMenuProjectorGizmo.MenuJsonFor` (`Hrot.Common/Diagnostics/Gizmos/ContextMenuProjectorGizmo.cs:209`) is
+the one menu builder — four menus: area, terrain zone, route (static JSON) and the unit menu (`UnitMenu`, cached by a flag key). Its callers:
+the map terminal's `MenuResolver`, `MapEntityMenuHandler` (inspector, ORBAT), `MenuShortcuts` (keys). The three dead pieces —
+`SharedContextMenuPopulator`, `IEntityActionController`, `MapContextActionController` — have **0 code references** outside their own files
+(grep: two doc-comment mentions in `ZonesDetailsView.cs`, `ZoneStatusReader.cs`; no test references). The golden:
+`Hrot.Presentation.Tests/Gizmos/TheMenusAreGoldenTests.cs` → `Goldens/menus.golden.txt` (8 entity kinds × 3 modes), captured from the
+code BEFORE A1.
+
+📐 **The finding that makes A1 data-driven, measured on today's four menus:** every separator sits exactly between two non-empty GROUPS —
+unit: *Orders (+ Possess) │ Embark │ View (Center, Follow, Select, Properties, Macro) │ Edit (Rotate) │ Debug (pins, AI trace)*; area / zone /
+route: *View │ Edit │ Destructive*. ⇒ the composer emits the groups in their fixed order and a separator between non-empty ones; ⛔ no
+hand-placed separators.
+
+```mermaid
+classDiagram
+  direction LR
+  class ActionGroup { <<NEW enum>> Orders · Embark · View · Edit · Debug · Destructive }
+  class ActionTarget { <<NEW flags>> Unit · Area · Zone · Route }
+  class EditingMode { <<NEW enum>> Edit · Preview · Live · Review }
+  class ActionDecl {
+    <<NEW record, Hrot.Common.Actions>>
+    Id : int · Label · Group · Order
+    Targets : ActionTarget · Shortcut · Style
+    Offer : Func~ActionContext, ContextMenuItemDto?~  (optional: dynamic label / enabled / tooltip / children / hidden)
+    Expand : Func~ActionContext, IEnumerable~ContextMenuItemDto~~  (optional: one declaration, many rows — the orders)
+  }
+  class ActionCatalogue {
+    <<NEW, one per process: Shared>>
+    Declare(ActionDecl) · All
+  }
+  class ActionContext {
+    <<NEW readonly struct>>
+    View · Entity · Target · Mode
+    UnitFacts (degraded, brain, orders, dis, isUnit, form, manned, embark, pins, traceOn) — computed once
+  }
+  class MenuComposer { <<NEW static, Hrot.Common>> Compose(ActionContext) ContextMenuItemDto[] · Json(ActionContext) }
+  class MapMenuActions { <<NEW>> DeclareInto(ActionCatalogue) — TODAY's items, exactly }
+  class ContextMenuProjectorGizmo { <<existing>> MenuJsonFor → MenuComposer.Json (delegates) }
+  ActionCatalogue "1" o-- "*" ActionDecl
+  MapMenuActions ..> ActionCatalogue : declares at first use
+  MenuComposer --> ActionCatalogue
+  MenuComposer ..> ActionContext
+  ContextMenuProjectorGizmo ..> MenuComposer
+```
+*What the picture shows that the prose hid: the catalogue holds DECLARATIONS; what varies per entity (an order disabled on a damaged unit,
+the checked pins) stays a declaration's `Offer`, not a host's code — and `MenuJsonFor` keeps its signature, so the map, the inspector, the
+ORBAT and the keys need no change.*
+
+```mermaid
+sequenceDiagram
+  participant S as caller (map MenuResolver · inspector · ORBAT · MenuShortcuts)
+  participant G as ContextMenuProjectorGizmo.MenuJsonFor
+  participant C as MenuComposer
+  participant K as ActionCatalogue.Shared
+  S->>G: MenuJsonFor(view, entity)
+  G->>C: Json(ActionContext.For(view, entity))
+  C->>K: All (declared once, at first use)
+  loop group in fixed order
+    loop decl in group, by Order, whose Targets has the context's target
+      C->>C: Expand(ctx) rows, or Offer(ctx) row (null = hidden), or the plain row
+    end
+    C->>C: a separator before a non-empty group that follows a non-empty one
+  end
+  C-->>G: JSON (cached by the context's key, as UnitMenus was)
+  G-->>S: the same JSON as before (the golden)
+```
+*What it shows: one walk over one catalogue; the per-entity facts are read once into the context, exactly the facts `MenuJsonFor` read.*
+
+| decision | why |
+|---|---|
+| `MenuComposer` in **Hrot.Common**, not Hrot.Presentation (§2.3 drew it there) | `MenuJsonFor` lives in Hrot.Common and must delegate; ⚠ a deviation from §2.3, folded here |
+| `EditingMode` derived in A1 as **Review** (the world shows a recording) · **Live** (orders offered) · **Edit** (otherwise) | today's menus only distinguish those; A3 derives it from `RunModeChoice` (§3 row 9) and separates Preview |
+| the orders: ONE `Expand` declaration over `OrderMenu.OfferedFor(dis)` | the order vocabulary is data already (behaviour assemblies); ⛔ not 20 hand-copied declarations |
+| the JSON cached per context key (the old `UnitMenus` key) | `MenuShortcuts` asks per key press, the map per right-click — never per frame (R-2084) |
+| the three dead pieces deleted | §4 A1; measured 0 references |
+
+*Rejected:* **hand-placed separators as declarations** — the group rule reproduces all four menus · **one declaration per order** — the
+vocabulary is hot-reloaded data · **the composer in Presentation with a callback from Common** — a second path for one menu.
