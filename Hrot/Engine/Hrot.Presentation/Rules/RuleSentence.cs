@@ -50,7 +50,7 @@ public static class RuleSentence
                 for (int i = 0; i < t.Do.Count; i++)
                 {
                     if (i > 0) Add(", ", true);
-                    Add(StructEdit.Core.Attributes.DisplayNames.Humanize(t.Do[i].Act), true);
+                    foreach (var seg in ActionSentence.Parts(t.Do[i], refs)) Add(seg.Text, seg.Grammar);   // ⭐ CE-4307 (RX5) — the ONE step renderer
                 }
             return (sb.ToString(), incomplete, segs.ToArray());
         }

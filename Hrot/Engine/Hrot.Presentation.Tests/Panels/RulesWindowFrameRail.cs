@@ -309,7 +309,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.True(marks[22].Incomplete); Assert.False(marks[20].Incomplete);
         Assert.True(marks[22].MarkX > marks[22].TextX + 100f, "the incomplete mark sits on the RIGHT of the text");
         Assert.Equal(0f, marks[20].MarkX);                                                                                      // a complete rule draws no mark
-        Assert.Contains("for 30 s → Message", window.ListRows[0]);                                                              // the text keeps the arrow; the frame draws the Font Awesome one
+        Assert.Contains("for 30 s → Message everyone: \"Phase 2\"", window.ListRows[0]);   // ⭐ CE-4307 — the step as a sentence                                                              // the text keeps the arrow; the frame draws the Font Awesome one
     }
 
     /// <summary>
@@ -480,7 +480,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Step(null, 5);
         var ed = window.Probe.Editor!;
         Assert.True(ed.Editable, ed.ReadOnlyReason);
-        Assert.Equal(new[] { "1. Message", "> 2. Message", "3. Message" }, ed.Steps);                       // the running step is marked
+        Assert.Equal(new[] { "1. Message everyone: \"one\"", "> 2. Message everyone: \"two\"", "3. Message everyone: \"three\"" }, ed.Steps);                       // the running step is marked
         Assert.Equal("step 2 / 3", ed.StepMarker);
         Assert.True(window.Details.Steps.Probe.AddEnabled);
         frame.Screenshot(ShotPath("rules-7-do.png"));
