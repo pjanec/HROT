@@ -89,6 +89,13 @@ Status column: **built** · **queued** (designed and in a running handoff) · **
 | LC-20 | ⭐ **no bookmarks or notes during Live** (TE-4 not built) — the instructor's "remember this for the AAR" has nowhere to go | none (E7, not designed) | design E7: *Bookmark* (one key, a name optional) and *Note* on the timeline in Live, listed in DAR and AAR |
 | LC-21 | recordings default to a TEMP folder (`$TMP/FDP_Temp`, `C:\FDP_Temp`, `OrchestrationConstants.cs:16-20`) | built | a fixed data folder by default (beside the scenarios); temp only when asked |
 
+**LC-13 — the window, as built (L-6, CE-4318, behaviors):** `Hrot.Presentation/Windows/ProblemsWindow` over §2.7's `ScenarioProblems` — one row per
+problem (`ScenarioProblems.Text`), a click selects the culprit through the host's one selection request (by network id); the checks run on a
+1 s timer, never per frame, and the row strings are rebuilt only when the list CHANGED (a steady scan draws kept strings). `DrawToolbarCount`:
+an amber ⚠ N on the main toolbar right after the time control (sort 15), nothing when there are none; a click opens the window. ⛔ Never blocks
+Preview / Live (it only tells). Composed by the editor (authoring); ⏭ CGF and the Replay Browser do not compose it yet. Rails
+`TheProblemsWindowTests` (rows, select, timer, a real frame).
+
 **LC-16 as built (L-5, CE-4321, behaviors):** ⏪ **Review** — `MainToolbarTimeControlSection.ReviewChoices()` is the ONE list of a live run's DAR choices
 (the mode menu's Live items now come from it); in Live the toolbar draws ⏪ (`TransportIcons.BtnShape.Rewind`, DAR amber) beside ▶ and its popup offers
 those choices (greyed with the reason when the run is not recorded, D14). The Player's banner — `RunMode.ReviewBanner` — *"REVIEW — the exercise is

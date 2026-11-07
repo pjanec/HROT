@@ -65,13 +65,13 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 |---|---:|---:|
 | `WIRING` | 12 | 97 |
 | `RW-XS` | 5 | 15 |
-| `RW-S` | 190 | 890 |
+| `RW-S` | 189 | 891 |
 | `RW-L` | 148 | 260 |
 | `RW-M` | 233 | 842 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **613** | **2201** |
+| **Total** | **612** | **2202** |
 | *(refuted on verification)* | | *17* |
 
 | Id family | Open | Done |
@@ -4762,7 +4762,7 @@ collides with work in flight.
 - [ ] **CE-4315** · `RW-S` 📋 **OPEN `2026-11-07` (coordinator, R-4166, LC-8; dispatched in [HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md)) — Preview's status note says *changes are thrown away on Stop*; Save refused there with that reason.** Design: [`DESIGN_Scenario_Lifecycle_Review.md`](../UX/DESIGN_Scenario_Lifecycle_Review.md).
 - [ ] **CE-4316** · `RW-S` 📋 **OPEN `2026-11-07` (coordinator, R-4166, LC-10; dispatched in [HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md)) — *Run to …* in Preview — as fast as possible to a time or an event, then pause.** Design: [`DESIGN_Scenario_Lifecycle_Review.md`](../UX/DESIGN_Scenario_Lifecycle_Review.md).
 - [ ] **CE-4317** · `RW-S` 📋 **OPEN `2026-11-07` (coordinator, R-4166, LC-11; dispatched in [HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md)) — the Run setup (variant / params) on the mode menu, for Preview AND Live.** Design: [`DESIGN_Scenario_Lifecycle_Review.md`](../UX/DESIGN_Scenario_Lifecycle_Review.md).
-- [ ] **CE-4318** · `RW-S` 📋 **OPEN `2026-11-07` (coordinator, R-4166, LC-13; dispatched in [HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md)) — one Problems window + a toolbar count (dangling references, a rule's subject gone, a unit without side / brain, an objective with no units on its side) — never blocking.** Design: [`DESIGN_Scenario_Lifecycle_Review.md`](../UX/DESIGN_Scenario_Lifecycle_Review.md).
+- [x] **CE-4318** · `RW-S` ✅ **DONE `2026-11-07` — the checks by backend (`ScenarioProblems`, design §2.7); the window and the toolbar count by behaviors (`ProblemsWindow`: a row per problem, a click selects the culprit, checks on a 1 s timer, rows kept while unchanged; the editor composes it, count beside the time control). Was: OPEN `2026-11-07` (coordinator, R-4166, LC-13; dispatched in [HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md)) — one Problems window + a toolbar count (dangling references, a rule's subject gone, a unit without side / brain, an objective with no units on its side) — never blocking.** Design: [`DESIGN_Scenario_Lifecycle_Review.md`](../UX/DESIGN_Scenario_Lifecycle_Review.md).
 - [ ] **CE-4319** · `RW-S` 📋 **OPEN `2026-11-07` (coordinator, R-4166, LC-14; dispatched in [HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md)) — ▶ drawn in its mode's colour (Live green, Preview violet, DAR amber).** Design: [`DESIGN_Scenario_Lifecycle_Review.md`](../UX/DESIGN_Scenario_Lifecycle_Review.md).
 - [ ] **CE-4320** · `RW-S` 📋 **OPEN `2026-11-07` (coordinator, R-4166, LC-15 / LC-18; dispatched in [HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md)) — the RulesBundle opens Mission summary when Live starts and at the end on every host (CE-4240 moved from the editor); the Player opens its Trainee debrief.** Design: [`DESIGN_Scenario_Lifecycle_Review.md`](../UX/DESIGN_Scenario_Lifecycle_Review.md).
 - [x] **CE-4321** · `RW-S` ✅ **DONE `2026-11-07` (behaviors, L-5) — ⏪ Review beside ▶ in Live (the mode menu's DAR choices, one list); the Player's "REVIEW — the exercise is paused" banner for the whole DAR. Lifecycle design LC-16 as-built. Was: OPEN `2026-11-07` (coordinator, R-4166, LC-16; dispatched in [HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md)) — a ⏪ Review button beside ▶; the Player's *REVIEW* banner for the whole DAR.** Design: [`DESIGN_Scenario_Lifecycle_Review.md`](../UX/DESIGN_Scenario_Lifecycle_Review.md).

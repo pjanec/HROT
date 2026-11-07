@@ -265,6 +265,11 @@ namespace Hrot.Editor
         private readonly Hrot.Editor.Scenario.HeaderParamsSchemaSource _headerParams;   // ⭐ CE-4210 P2 (MA-5)
         private Hrot.Editor.Scenario.ParametersDrawer? _parametersDrawer;
         private Hrot.Editor.Scenario.SaveSelectionAsMacroWindow? _saveSelectionWindow;   // ⭐ CE-4210 MA-9
+        private Hrot.Presentation.Windows.ProblemsWindow? _problemsWindow;   // ⭐ CE-4318 (L-6)
+        /// <summary>⭐ CE-4318 — the Problems count sits right after the time control group (0) and its separator (10).</summary>
+        internal const int ProblemsCountSortOrder = 15;
+        /// <summary>⭐ CE-4318 — the editor's Problems window (rails).</summary>
+        internal Hrot.Presentation.Windows.ProblemsWindow? ProblemsWindow => _problemsWindow;
         private Action<Action<string>>? _openMacroPicker;   // ⭐ CE-4210 MA-8 — the scenario picker's Macros group, for the instance's "Change…" (set once the picker exists)
 
         // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR is its NODE CONTEXT's: the
@@ -4911,6 +4916,11 @@ namespace Hrot.Editor
                 Actions: () => HostActions));   // ⭐ CE-4308 — the map menu's rule entries (silent-default rule: the editor holds them)
             _rulesWindow = rules.Rules; _rulesBundle = rules;
             Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+            // ⭐ CE-4318 (L-6, Scenario Lifecycle LC-13) — the ONE Problems window over backend's ScenarioProblems; its count on the toolbar (nothing when there are none)
+            _problemsWindow = new Hrot.Presentation.Windows.ProblemsWindow(() => _world, n => SelectNetworkEntity(n), "problems", "Scenario", EditorWindowColor.TitleBar);
+            windowManager.RegisterWindow(_problemsWindow);
+            windowManager.MainToolbar?.RegisterEntry("ProblemsCount", sortOrder: ProblemsCountSortOrder, declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight, _problemsWindow.DrawToolbarCount);
 
             if (_headless) return;
 
