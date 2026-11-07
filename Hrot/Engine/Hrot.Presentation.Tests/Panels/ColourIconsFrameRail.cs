@@ -210,10 +210,18 @@ public sealed class ColourIconsFrameRail
             }
             ImGui.End();
         }
+        // ⭐ deterministic: the font atlas the service just baked is uploaded by a frame of its own, and the read-back of a swapped frame can be an undrawn buffer —
+        //   so draw until the first row's glyph is on the SCREEN (bounded), then assert. A glyph that never shows still fails, after 40 frames.
         for (int i = 0; i < 4; i++) frame.Step(Draw);
+        int grey = 0;
+        for (int tries = 0; tries < 40 && grey <= 5; tries++)
+        {
+            frame.Step(Draw);
+            var probe = Raylib.LoadImageFromScreen();
+            try { grey = Extent(probe, 0, 0, 270, 40, p => Near(p, IconPalette.Grey, 20)).Count; }
+            finally { Raylib.UnloadImage(probe); }
+        }
         Shoot(frame, "colour-icons-sheet.png");
-        var shot = Raylib.LoadImageFromScreen();
-        try { Assert.True(Extent(shot, 0, 0, 270, 40, p => Near(p, IconPalette.Grey, 20)).Count > 5, "the first row (mode/edit) is drawn grey"); }
-        finally { Raylib.UnloadImage(shot); }
+        Assert.True(grey > 5, $"the first row (mode/edit) is drawn grey ({grey} px after the bounded wait)");
     }
 }

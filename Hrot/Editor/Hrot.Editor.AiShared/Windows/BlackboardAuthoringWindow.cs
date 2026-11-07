@@ -637,7 +637,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
         if (autoAllocs is { Count: > 0 })
         {
             ImGuiNET.ImGui.Separator();
-            if (ImGuiNET.ImGui.CollapsingHeader("SUB-TREE ALLOCATIONS (auto-managed)",
+            if (NodeEditor.Core.Widgets.SectionHeader.Draw("hdr.subtree_allocs", "SUB-TREE ALLOCATIONS (auto-managed)", "section/allocations",
                 ImGuiNET.ImGuiTreeNodeFlags.DefaultOpen))
             {
                 ImGuiNET.ImGui.PushStyleVar(ImGuiNET.ImGuiStyleVar.Alpha, 0.5f);

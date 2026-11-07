@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — ✅ Q-M1…Q-M4 approved (R-4155)
+build-state: BUILT (U-10, §2.1) — ✅ Q-M1…Q-M4 approved (R-4155); FormGrid ⌖ with U-12
 updated: 2026-11-06 (first version — the user: "wherever there is something that can be shown on the map, like … the position of something, there should be a way to do it for debug purposes")
-current-answer: §1 what exists · §2 the design · §3 questions
+current-answer: §1 what exists · §2 the design · §2.1 as built · §3 questions
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -106,6 +106,20 @@ graph TD
 | **M1** | `MapPreviews` (point, bearing, entity, area, route) + `MapPreview` over a local buffer | ui | a frame rail: hover draws, click pins, selection change clears; 0 B on a steady frame |
 | **M2** | the ⌖ in the struct editor (every inspector) and in `FormGrid` rows | ui | the mockup's three panels, compared by the builder (R-4146) |
 | **M3** | the same in the Replay Browser | ui | a recording's Details row shows its point at the playhead |
+
+### 2.1 ⭐ AS BUILT — U-10 (M1, M2 in the struct editor, M3 by construction) *(ui, `2026-11-06`)*
+
+| piece | where | note |
+|---|---|---|
+| `MapPreviews` — `Has(type)` · `Draw(buffer, value, refs, label)` | `Fdp.Presentation/ImGui/Editing/MapPreview.cs` | point / entity = a screen-size ring + label; area shape = its dashed outline (circle, or the rectangle's four edges by `AreaLink.Contains`' compass maths); an area ENTITY or a link resolves through `ShowTarget` + the scope's positions. Teal, on `DebugTraceLayers.ToolHandles` (always on, never filmed) |
+| `MapPreview` — `Hover` · `TogglePin` · `Keep` · `Emit` | same file | ⭐ a pin lives while its row is DRAWN (the row calls `Keep` each frame): a selection change, a collapsed node or a closed panel clears it by construction — no selection event needed. 0 B per steady frame |
+| `MapPreviewLayer` | `Fdp.Presentation/Vis2D/Layers/MapPreviewLayer.cs` | added by `MapInteractionPack.AttachMapLayers` just before the gizmo layer ⇒ **all five map hosts** (editor, CGF, SimHost, player, Replay Browser = M3); writes into the host's buffer at DRAW time (after the frame's egress, before the next `EndFrame`) ⇒ never on the wire or recorded; not a scene layer ⇒ never in a film |
+| the seam | `IMapPickContext.Preview` → `MapPickBroker.Preview` → `IMapPickService.Preview` → `CanvasMapPickAdapter` (`canvas.Get<MapPreview>()`) | forwarded by `ScopedMapPickContext` and the point form's `PickSink` (silent-default rule) |
+| the ⌖ | `ReferenceLeafDrawers.DrawShowOnMap` | a teal crosshairs `GlyphToggle` at the row's end (framed while pinned); hover = preview, click = pin, right-click *Show on map · Centre the map here · Copy value*. ⛔ SUPERSEDED: the `Show` button that only centred the map (CE-4206 R3). The link row's *no stable id* sentence became the forms' warning mark with the sentence as its tooltip — it pushed the ⌖ off the row |
+
+⚠ **Deviations:** `Bearing` has no ⌖ yet — a bare bearing has no origin; the arrow needs the row's owning entity, which the leaf drawer does not know.
+No route type exists to preview. ⏳ The ⌖ in `FormGrid` rows lands with the E2 forms (U-12, `FormView`), reading the same `MapPreviews.Has`.
+Rails: `MapPreviewTests` (5: type table, hover/pin, selection clears, area outline, 0 B); the rule editor's When tab render shows the ⌖ on its *Thing* row.
 
 ## 3. Questions — ✅ all approved (R-4155, user `2026-11-06`: *"M1 to M4 approved"*)
 

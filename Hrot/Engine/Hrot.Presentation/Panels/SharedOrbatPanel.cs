@@ -160,39 +160,25 @@ public sealed class SharedOrbatPanel
         {
             var node = nodes[i];
 
-            if (node.Depth > 0)
-                ImGui.Indent(node.Depth * 12f);
+            // ⭐ U-4 (DESIGN_UI_Conventions §2, C2) — the shared TreeRow: chevron · label, ImGui's own arrow, the depth is the indent. The flat visible-node list and the panel's own expand
+            //   set are unchanged: the row takes `ref open` and never pushes the tree stack (NoTreePushOnOpen). ⛔ the framed ArrowButton is gone.
+            bool open = _expandedNodes.Contains(node.EntityId);
+            bool wasOpen = open;
 
-            // Arrow toggle for nodes with children
-            bool? arrow = null;
-            if (node.HasChildren)
-            {
-                bool expanded = _expandedNodes.Contains(node.EntityId);
-                arrow = expanded;
-                if (ImGui.ArrowButton($"##arr_{node.EntityId}", expanded ? ImGuiDir.Down : ImGuiDir.Right))
-                {
-                    if (expanded)
-                        _expandedNodes.Remove(node.EntityId);
-                    else
-                        _expandedNodes.Add(node.EntityId);
-                    ctrl.ToggleExpanded(node.EntityId);
-                }
-                ImGui.SameLine();
-            }
-
-            // ⭐ CE-4213 ⑥ — a Scenario-view GROUP row (Saved / Transient) has no entity: a plain label, no select, drag, drop or menu
+            // ⭐ CE-4213 ⑥ — a Scenario-view GROUP row (Saved / Transient) has no entity: a label with its arrow, no select, drag, drop or menu
             if (node.IsGroup)
             {
-                ImGui.TextUnformatted(node.Name);
-                _drawn.Add(new(node.Name, node.Depth, true, arrow, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
-                if (node.Depth > 0) ImGui.Unindent(node.Depth * 12f);
+                NodeEditor.Core.Widgets.TreeRow.Draw(RowId(node.EntityId), node.Name, NodeEditor.Core.Widgets.RowIcon.None, node.Depth, node.HasChildren, ref open, false);
+                if (node.HasChildren && open != wasOpen) ToggleNode(node.EntityId, open, ctrl);
+                _drawn.Add(new(node.Name, node.Depth, true, node.HasChildren ? open : null, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
                 continue;
             }
 
-            // Selectable row — ⭐ CE-1350: a destroyed unit's name in dark red; a double-click centres the map on it (Center View)
+            // ⭐ CE-1350: a destroyed unit's name in dark red; a double-click centres the map on it (Center View)
             if (node.IsDestroyed) ImGui.PushStyleColor(ImGuiCol.Text, DestroyedColour);
-            bool picked = ImGui.Selectable($"{node.Name}##{node.EntityId}", false, ImGuiSelectableFlags.AllowDoubleClick);
-            _drawn.Add(new(node.Name, node.Depth, false, arrow, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+            bool picked = NodeEditor.Core.Widgets.TreeRow.Draw(RowId(node.EntityId), node.Name, NodeEditor.Core.Widgets.RowIcon.None, node.Depth, node.HasChildren, ref open, false);
+            if (node.HasChildren && open != wasOpen) ToggleNode(node.EntityId, open, ctrl);
+            _drawn.Add(new(node.Name, node.Depth, false, node.HasChildren ? open : null, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
             if (picked)
             {
                 if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) ctrl.CenterOn(node.EntityId);
@@ -239,9 +225,6 @@ public sealed class SharedOrbatPanel
                 rowMenu.PopulateMenuFor(node.NetworkId, new Fdp.Presentation.Utils.ContextMenuBuilder());   // ⭐ CE-1271: the network id, not the row key
                 ImGui.EndPopup();
             }
-
-            if (node.Depth > 0)
-                ImGui.Unindent(node.Depth * 12f);
         }
 
         // Background drop target — dropping here removes the entity from its current command hierarchy.
@@ -259,6 +242,20 @@ public sealed class SharedOrbatPanel
             }
             ImGui.EndDragDropTarget();
         }
+    }
+
+    /// <summary>The row's constant id string (cached per entity: nothing is concatenated per frame).</summary>
+    private readonly Dictionary<int, string> _rowIds = new();
+    private string RowId(int entityId)
+    {
+        if (!_rowIds.TryGetValue(entityId, out var id)) _rowIds[entityId] = id = "orbat_" + entityId;
+        return id;
+    }
+
+    private void ToggleNode(int entityId, bool open, IOrbatController ctrl)
+    {
+        if (open) _expandedNodes.Add(entityId); else _expandedNodes.Remove(entityId);
+        ctrl.ToggleExpanded(entityId);
     }
 
     // ── Internal logic (exposed for unit testing) ─────────────────────────────

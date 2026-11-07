@@ -11,6 +11,8 @@ public static class IconPalette
     // ── status tokens (forms §6.3) ───────────────────────────────────────────────────────────────────────────────────
     public static readonly Vector4 Error   = new(0.90f, 0.33f, 0.33f, 1f);
     public static readonly Vector4 Pending = new(0.95f, 0.75f, 0.20f, 1f);
+    /// <summary>A validation warning that is not about an edit (the Blueprint node drawers' old <c>EditorColors.Warning</c>): the same amber as <see cref="Pending"/>, a different MEANING — and a different glyph.</summary>
+    public static readonly Vector4 Warning = new(0.95f, 0.75f, 0.20f, 1f);
     public static readonly Vector4 Info    = new(0.42f, 0.69f, 1.00f, 1f);
     public static readonly Vector4 Muted   = new(0.50f, 0.50f, 0.50f, 1f);
 

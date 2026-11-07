@@ -21,6 +21,10 @@ public static class SectionHeader
 
     private static Vector4 Rgb(int rgb) => new(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, 1f);
 
+    /// <summary>The same header with its icon taken from the Colour Icons map by <paramref name="iconKey"/> (<see cref="Icons"/>).</summary>
+    public static bool Draw(string id, string label, string iconKey, ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags.None, HeaderColors? colors = null)
+        => Draw(id, label, RowIcon.OfGlyph(Icons.Get(iconKey)), flags, colors);
+
     /// <summary>Draws the header; returns whether it is open (draw the body when true).</summary>
     /// <param name="id">The caller-owned id (constant per header).</param>
     /// <param name="label">The caller's text.</param>

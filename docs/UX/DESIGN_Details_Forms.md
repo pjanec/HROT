@@ -341,6 +341,17 @@ reads them too.
 |---|---|---|---|
 | **D0** *(before D1)* | the status palette in `Fdp.Presentation` (Blueprints' `EditorColors` folded into it); a `FormRow` drawing helper with the slot, the marks, the tooltips, the invalid frame, the mixed and disabled states; the notification stack | ui | a frame rail per state (`xvfb-run`): each mark in the slot, the layout identical with and without a mark; 0 B per steady frame |
 
+**D0 AS-BUILT (U-11, `2026-11-06`)** — *prior D0 row above is the plan; this is what shipped.*
+
+| built | where |
+|---|---|
+| the ONE status palette: values in `NodeEditor.Core.IconPalette` (Error · Pending · **Warning** · Info · Muted; Core cannot reference `Fdp.Presentation`), named façade `Fdp.Presentation.Forms.StatusPalette` (+ `ErrorRowTint`, Error at 18 %) | `FDP/Engine/Fdp.Presentation/ImGui/Forms/StatusPalette.cs` |
+| Blueprints' `EditorColors` **folded**: file deleted, its 41 uses in 14 node drawers now read `StatusPalette` (`Warning` became its own token: same amber as Pending, different meaning) | `Hrot.Blueprints.Editor/NodeDrawers/*` |
+| `FormRow.Begin(id,label,in FormRowState)` / `End(in state)` → clicked `FormMark` (only ✗ and reset answer a click); `FormRow.Strongest`, `IconKeyOf`; invalid frame + reason under the field; refused row tint; locked = disabled + tooltip; one mark in the 18 px slot (`FormGrid.StatusSlotWidth`) | `.../Forms/FormRow.cs` |
+| rail (xvfb): layout identical per state, each mark's colour, invalid frame/reason, refused tint, click behaviour, **0 B steady frame**; red-proved by `IconKeyOf(Refused)` → `"form/pending"` | `Hrot.Presentation.Tests/Panels/FormRowFrameRail.cs` |
+
+⛔ **NOT built in D0 (still open, stay on the D0 list):** the mixed-value tick, the conflict band, the notification stack. 📌 Deviation: the palette lives in Core, not `Fdp.Presentation`, because Core is below it.
+
 ### 6.5 Questions — leans for the user
 
 | # | question | lean | rejected |

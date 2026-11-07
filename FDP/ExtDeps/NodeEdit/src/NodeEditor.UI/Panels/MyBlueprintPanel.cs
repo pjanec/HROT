@@ -173,10 +173,10 @@ public sealed class MyBlueprintPanel
         List<(MyBlueprintItem item, FuzzyMatcher.Result match)>? searchResults)
     {
         bool expanded = _sectionExpanded.GetValueOrDefault(section.Id, true);
-        string label  = $"{section.DisplayName} ({items.Count})##sec_{section.Id}";
+        string label  = $"{section.DisplayName} ({items.Count})";
         var flags = expanded ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
         flags |= ImGuiTreeNodeFlags.AllowOverlap;
-        bool isOpen = ImGui.CollapsingHeader(label, flags);
+        bool isOpen = NodeEditor.Core.Widgets.SectionHeader.Draw($"sec_{section.Id}", label, "doc/blueprint", flags);
 
         if (section.CanCreateItems && section.CreateCommandId is not null)
         {
@@ -252,17 +252,15 @@ private void DrawItemsGrouped(string sectionId, IReadOnlyList<MyBlueprintItem> i
             string folderId = $"{sectionId}__cat_{catName}_{depth}";
             bool folderOpen = _sectionExpanded.GetValueOrDefault(folderId, true);
 
-            if (ImGui.TreeNodeEx($"{catName}##fold_{folderId}",
-                    folderOpen ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None))
+            // ⭐ U-4 (DESIGN_UI_Conventions §2) — the shared TreeRow: chevron · label; the open state stays this panel's own (_sectionExpanded).
+            NodeEditor.Core.Widgets.TreeRow.Draw(folderId, catName, NodeEditor.Core.Widgets.RowIcon.None, 0, hasChildren: true, ref folderOpen, selected: false);
+            _sectionExpanded[folderId] = folderOpen;
+            if (folderOpen)
             {
-                _sectionExpanded[folderId] = true;
+                ImGui.Indent(ImGui.GetStyle().IndentSpacing);   // the row never pushes the tree stack: its items are indented one level by hand
                 foreach (var item in catItems)
                     DrawItem(item, null, true);
-                ImGui.TreePop();
-            }
-            else
-            {
-                _sectionExpanded[folderId] = false;
+                ImGui.Unindent(ImGui.GetStyle().IndentSpacing);
             }
         }
 

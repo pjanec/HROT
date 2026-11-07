@@ -136,5 +136,28 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.False(scope.TryResolve(RefSpec.ByKey("X"), out _));
             Assert.Empty(scope.Keys());
         }
+
+        /// <summary>⭐ U-8 (DESIGN_Condition_Editor §8.2 ④) — the entity-link chip's text comes from the scope: <c>Kind: Name</c> with a kind, the name alone
+        /// without one, <c>Kind #id</c> for a nameless thing; built at the rebuild, so asking again allocates nothing.</summary>
+        [Fact]
+        public void U8_TheChipLabel_IsKindThenName_FromTheScopesKinds_AndCostsNothingPerAsk()
+        {
+            var (obj, objRef) = Spawn(name: "Hold the bridge");
+            var (_, tankRef) = Spawn(name: "Blue 1");
+            var (anon, anonRef) = Spawn();
+            var scope = new LiveRefScope(_repo, () => _now, kinds: (w, e) => e == obj ? new EntityKind("Objective", "thing/objective") : e == anon ? new EntityKind("Trigger", "thing/trigger") : null);
+
+            Assert.Equal("Objective: Hold the bridge", scope.ChipLabelOf(objRef));
+            Assert.Equal("Blue 1", scope.ChipLabelOf(tankRef));
+            Assert.Equal($"Trigger #{anonRef.NetworkId}", scope.ChipLabelOf(anonRef));
+            Assert.True(scope.TryKindOf(objRef, out var k) && k.IconKey == "thing/objective");
+            Assert.False(scope.TryKindOf(tankRef, out _));
+            Assert.Equal("Hold the bridge", Scope().ChipLabelOf(objRef));   // a scope with no kinds: the name alone
+            Assert.Equal("(none)", scope.ChipLabelOf(EntityRef.None));
+
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) { scope.ChipLabelOf(objRef); scope.TryKindOf(objRef, out _); }
+            Assert.Equal(before, System.GC.GetAllocatedBytesForCurrentThread());
+        }
     }
 }

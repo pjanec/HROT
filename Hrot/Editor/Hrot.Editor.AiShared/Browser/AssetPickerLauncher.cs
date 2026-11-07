@@ -248,7 +248,7 @@ public sealed class AssetPickerLauncher
     private void DrawRunSetup(string name, ScenarioPaneFacts.Facts f, Action<string> muted)
     {
         if (!f.UsesVariants && f.Params is not { Count: > 0 }) return;   // nothing to set up: no expander at all
-        var im = ImGuiNET.ImGui.CollapsingHeader("Run setup##runsetup");
+        var im = NodeEditor.Core.Widgets.SectionHeader.Draw("runsetup", "Run setup", "tab/settings");
         if (!im) { _runSetups.Remove(name); return; }   // closed ⇒ the defaults, nothing remembered
         if (!_runSetups.TryGetValue(name, out var setup)) _runSetups[name] = setup = new Hrot.UI.Common.RunMode.RunSetup(f.Params, f.UsesVariants);
         if (setup.UsesVariants)

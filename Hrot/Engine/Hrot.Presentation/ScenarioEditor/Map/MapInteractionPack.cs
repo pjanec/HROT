@@ -552,6 +552,12 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1384 (DESIGN_Director_Timeline_Editor §11t "CE-1380 / CE-1379 as built") — the gizmos AFTER the 3-D terrain: their ground fills draw
             //   with depth writes off (CE-1196 CA-4), so drawn before the terrain they were painted over — no tactical area, no filled disc showed
             //   in 3-D on any host (and so in no 3-D film). ⭐ The 2-D order is unchanged: the 3-D terrain draws nothing in 2-D.
+            // ⭐ U-10 (docs/UX/DESIGN_Show_On_Map.md M1) — "show on map" from any form: ONE preview per map, written into this buffer just before the
+            //   gizmo layer draws it (both views); a canvas resource, so the host's pick adapter hands it to the forms. Every map host gets it here.
+            var preview = new Fdp.Presentation.Editing.MapPreview();
+            canvas.AddResource(preview);
+            canvas.AddLayer(new Fdp.Toolkit.Vis2D.Layers.MapPreviewLayer(preview, buffer,
+                () => worldProvider() is { } pw ? Hrot.UI.Common.Rules.AuthoredRules.ScopeOf(pw) : null));
             canvas.AddLayer(gizmoLayer);
             canvas.AddLayer(new MapCursorLayer(canvas, cursor, worldProvider, viewSwitch.Camera3D.GroundHeight));   // ⭐ CE-1289
             // ⭐ AQ93 R-4024 / V7 — the SUMO roads and lights, TerrainLayer3D's sibling (idle when the terrain has no SUMO net); its far

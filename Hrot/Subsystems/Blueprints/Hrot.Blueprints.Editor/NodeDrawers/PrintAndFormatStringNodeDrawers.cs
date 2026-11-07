@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
@@ -231,7 +232,7 @@ internal sealed class PrintStringNodeSession : INodeEditSession
             "Writes to the AI Behaviors log (AI.Behavior.Blueprint). A disabled level costs one bool read.");
 
         if (string.IsNullOrEmpty(_node.Format))
-            ImGui.TextColored(EditorColors.Warning, "(empty Format -- nothing will be logged)");
+            ImGui.TextColored(StatusPalette.Warning, "(empty Format -- nothing will be logged)");
     }
 
     private void DrawLevelCombo()
@@ -473,7 +474,7 @@ internal sealed class FormatStringNodeSession : INodeEditSession
         DrawResultTypeCombo();
 
         ImGui.TextDisabled("(pure -- one \"Result\" data-out pin, no exec pins)");
-        ImGui.TextColored(EditorColors.Warning, TruncationWarningForTest);
+        ImGui.TextColored(StatusPalette.Warning, TruncationWarningForTest);
     }
 
     private void DrawResultTypeCombo()

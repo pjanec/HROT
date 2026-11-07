@@ -60,7 +60,7 @@ public static class RootTreeStateProjection
 
         ImGui.Separator();
         string summary = BTreeVisualizerRenderer.GetSummary(session, entity, in state) ?? "BTree";
-        if (!ImGui.CollapsingHeader($"BTree execution path — {summary}"))
+        if (!NodeEditor.Core.Widgets.SectionHeader.Draw("hdr.btree_path", $"BTree execution path — {summary}", "doc/btree"))
             return;
 
         BTreeVisualizerRenderer.RenderTree(session, entity, in state, out _);

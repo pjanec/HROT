@@ -115,6 +115,24 @@ sequenceDiagram
   R-->>E: reopened later: FromDto rebuilds the same rows (rail: ToDto ∘ FromDto = identity)
 ```
 
+### 2.1 ⭐ AS BUILT — C2 (U-14) *(ui, `2026-11-07`)*
+
+| piece | where | as built |
+|---|---|---|
+| `ConditionRow` · `Subject` · `FactValues` · `ConditionContexts` | `Fdp.Toolkits/ReplayBrowser/Search/Conditions/ConditionRow.cs` | records (value equality — the rail's `x = FromDto(ToDto(x))`); a Custom row carries its DTO untouched |
+| `FactCatalogue` | `…/Conditions/FactCatalogue.cs` | ⭐ DATA: per fact its words (positive / negated), `Build` (values → leaf) and `Read` (leaf → values) — the two halves of ONE mapping; `Add` lets a host register its own (e.g. *was hit*) |
+| `RowProjection` — `ToDto` / `FromDto` / `RowOf` | `…/Conditions/RowProjection.cs` | WHO wraps the fact: one ⇒ `OnEntity`; any / at least N / all / none ⇒ `CountMatching(And[set, fact])` (all = `Max 0` of the negated fact); world ⇒ bare. A bound field, a nested group, `ReadOnlyChildIndices`, a debugging kind or a unit fact with no WHO ⇒ one Custom row |
+| `ConditionSentence` — `Of(dto)` · `Of(row)` · `Summary(dto)` · `Technical` · `Step` | `…/Conditions/ConditionSentence.cs` | ⭐ the ONE renderer. `BreakpointConditionSummarizer` FOLDED IN (it now forwards; a debugging-only condition keeps its technical line). `Summary` caches per DTO behind a 0 B fingerprint (`Stamp`) — the struct editor's collapsed node asks every frame |
+| the U-7 hook filled | `EditSummaries` (Fdp.Presentation) | registered by default for `SearchPredicateDto` ⇒ every collapsed condition, in every inspector, says its sentence |
+
+**Facts built:** inside (area) · in the fight / destroyed · strength above / below · ammunition above / below · under fire · side is · objective state ·
+rule has fired (n) · time after / before / between. ⏳ **Not yet** (they read back as Custom, untouched): *was hit* (its event type is above Fdp.Toolkits — a
+host `Add`s it), *phase has begun* (E11), the generic *[property] [op] [value]* (needs PropertyNames). **Canonical readings** (same DTO, one reading):
+*none of S is not X* ⇒ *all of S are X*; a one-row *None* group ⇒ the row negated; *at least 1* ⇒ *any*. ⚠ The hook has no scope, so a collapsed
+node names a thing by its key or `#id`; the editor's rows (C3) pass the scope and say *Objective: Hold the bridge*.
+Rails: `ConditionProjectionTests` (5: the round-trip sweep over every fact × WHO × negation, several rows × And / Or / None, Custom byte-for-byte,
+the sentences, the cached summary at 0 B); `StructEditorReadableTests.U7_ACollapsedNodesSummary_…`; the breakpoints' summarizer suite.
+
 ## 3. The vocabulary — every friendly row and the leaf it builds
 
 | row (as the user reads it) | built as |
@@ -254,6 +272,15 @@ five kinds the mockup names carry `[EditDisplayName]` + `[EditIcon("kind/…")]`
 *Overview · When · Do · Settings · Bindings · History* — When = the condition + its timing (the former *Rules* tab's fields), the header
 (`Common`) is drawn on Settings only (`RuleTabs`, `RuleDetails`). ⛔ SUPERSEDED: *Overview · When · Rules · Do · …* with the header on every tab.
 ⏳ Still open in U-7: the §8.1 frame re-measured side-by-side with `condition-expert-visual.svg`; ④ is U-8.
+
+⭐ **AS BUILT — U-8 (④)** *(ui, `2026-11-06`)*: `ReferenceLeafDrawers` draws an `EntityLink` as ONE chip — the kind's glyph in colour · *Objective:
+Hold the bridge* · ▾ — then the map-pick glyph (`form/map-pick`). The chip's menu: *Pick on the map* · *Choose from a list…* · *By key (@name)…* ·
+*Clear*; the key form keeps its box, with a pick glyph ahead of it to go back to one thing. ⛔ SUPERSEDED: the `Exact | Key` radio and *Name (#id)*.
+The kind comes from the ONE reference scope: `LiveRefScope` takes a `kinds` resolver (asked once per entity per rebuild) and caches the chip text
+(`ChipLabelOf`, 0 B per ask); the editor's scope (`AuthoredRules.ScopeOf`) passes `EntityKinds.Describe` — TKB 8860 / 8861 ⇒ *Objective* /
+*Trigger*, else the most specific `EntityClassTable` class; no class ⇒ the name alone. ⭐ The map-pick adapter now uses that same scope instead of a
+second instance of its own. Glyph keys `thing/objective · thing/trigger · thing/entity`. Rails: `ComponentEditDrawerTests.U8_…`,
+`LiveRefScopeTests.U8_…`, and the rule editor's When tab in `RulesWindowFrameRail` (render `rules-4-when.png`).
 
 ### 8.3 Questions — ✅ approved (R-4149); Q-X3 revised by the user (§8.4)
 

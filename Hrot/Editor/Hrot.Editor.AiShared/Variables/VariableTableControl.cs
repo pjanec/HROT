@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 
 namespace Hrot.Editor.AiShared.Variables;
 
@@ -42,6 +43,8 @@ public sealed class VariableTableControl
     // 🔴 the sim changed it · 🟡 your edit has not landed. ⛔ Never the same colour: §4a's whole point.
     private static readonly Vector4 ChangedTint = new(0.90f, 0.20f, 0.20f, 0.22f);
     private static readonly Vector4 PendingTint = new(1.00f, 0.85f, 0.30f, 0.22f);
+    private static readonly HeaderColors ChangedHeader = new(ChangedTint, ChangedTint with { W = 0.34f }, ChangedTint with { W = 0.46f });
+    private static readonly HeaderColors PendingHeader = new(PendingTint, PendingTint with { W = 0.34f }, PendingTint with { W = 0.46f });
     private static readonly Vector4 StaleText   = new(0.55f, 0.55f, 0.55f, 1.00f);
 
     private readonly VariableValueFormatter _formatter;
@@ -177,12 +180,11 @@ public sealed class VariableTableControl
         // ⭐⭐⭐ A collapsed header inherits its children's state, so folding everything down still shows
         //     WHERE the activity is. Without it, folding only hides.
         var agg = view.HighlightOf(group);
-        if (agg.Changed) ImGui.PushStyleColor(ImGuiCol.Header, ChangedTint);
-        else if (agg.Pending) ImGui.PushStyleColor(ImGuiCol.Header, PendingTint);
+        // ⭐ U-5 — the tint MEANS something (changed / pending), so it is a HeaderColors override (Q-C5); no tint ⇒ slate.
+        HeaderColors? tint = agg.Changed ? ChangedHeader : agg.Pending ? PendingHeader : null;
 
-        bool open = ImGui.CollapsingHeader($"{group.Header}##{id}_{group.Facet}_{group.Header}",
-                                           ImGuiTreeNodeFlags.DefaultOpen);
-        if (agg.Changed || agg.Pending) ImGui.PopStyleColor();
+        bool open = SectionHeader.Draw($"{id}_{group.Facet}_{group.Header}", group.Header, "doc/blackboard",
+                                       ImGuiTreeNodeFlags.DefaultOpen, tint);
 
         if (!open) return;
 

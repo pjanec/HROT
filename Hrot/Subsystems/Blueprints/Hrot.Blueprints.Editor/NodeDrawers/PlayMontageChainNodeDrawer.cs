@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Editor.AiShared.Catalog;
@@ -109,7 +110,7 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
         var currentClass = _currentClassProvider?.Invoke();
         if (string.IsNullOrEmpty(currentClass))
         {
-            ImGui.TextColored(EditorColors.Warning, "⚠ No target class context available");
+            ImGui.TextColored(StatusPalette.Warning, "⚠ No target class context available");
             return;
         }
 
@@ -577,14 +578,14 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
         var anim005Feedback = GetANIM005ValidationFeedback(currentClass);
         if (anim005Feedback != null)
         {
-            ImGui.TextColored(EditorColors.Error, anim005Feedback);
+            ImGui.TextColored(StatusPalette.Error, anim005Feedback);
         }
 
         // ANIM012: Check for length ≤ 8
         var anim012Feedback = GetANIM012ValidationFeedback();
         if (anim012Feedback != null)
         {
-            ImGui.TextColored(EditorColors.Warning, anim012Feedback);
+            ImGui.TextColored(StatusPalette.Warning, anim012Feedback);
             ImGui.SameLine();
             if (ImGui.Button("Truncate to 8"))
             {
@@ -594,7 +595,7 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
 
         if (anim005Feedback == null && anim012Feedback == null)
         {
-            ImGui.TextColored(EditorColors.Info, "✓ No validation errors");
+            ImGui.TextColored(StatusPalette.Info, "✓ No validation errors");
         }
     }
 }

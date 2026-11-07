@@ -1,5 +1,6 @@
 using System;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Formation;
@@ -231,12 +232,12 @@ namespace Hrot.SimHost.UI
             ModuleHostKernel       kernel,
             SimHostScenarioManager scenario)
         {
-            if (ImGui.CollapsingHeader("Simulation", ImGuiTreeNodeFlags.DefaultOpen))
+            if (SectionHeader.Draw("hdr.simulation", "Simulation", "mode/live", ImGuiTreeNodeFlags.DefaultOpen))
                 _simCtrl.Render(repo, kernel);
 
             ImGui.Separator();
 
-            if (ImGui.CollapsingHeader("Spawning", ImGuiTreeNodeFlags.DefaultOpen))
+            if (SectionHeader.Draw("hdr.spawning", "Spawning", "section/spawn", ImGuiTreeNodeFlags.DefaultOpen))
                 _spawnPanel.Render(scenario, UIState);
         }
     }

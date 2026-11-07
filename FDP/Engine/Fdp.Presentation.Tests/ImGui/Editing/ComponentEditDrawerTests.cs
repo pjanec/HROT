@@ -503,6 +503,31 @@ public class ComponentEditDrawerTests
         return (T)session.Commit();
     }
 
+    /// <summary>⭐ U-8 (DESIGN_Condition_Editor §8.2 ④, condition-expert-visual.svg) — an entity link is ONE chip naming the thing: its kind's glyph in colour and
+    /// <c>Objective: Hold the bridge</c> — never <c>Exact · Key #10</c>; the name alone when no kind is known; <c>#id</c> only without a scope. A frame draws it with
+    /// the ID stack balanced, and a map pick still lands. 🔴 Red-proof (compiles): <c>ChipLabel</c> returning <c>refs.NameOf(link.Ref)</c> ⇒ red.</summary>
+    [Fact]
+    public void U8_AnEntityLink_IsAChip_KindAndName_WithItsGlyph()
+    {
+        using var w = new RefWorld();
+        var bridge = w.Spawn("Hold the bridge", guid: Guid.NewGuid());
+        var hq = w.Spawn("Blue HQ", guid: Guid.NewGuid());
+        var scope = new Fdp.Toolkit.Scenario.LiveRefScope(w.Repo, kinds: (repo, e) =>
+            repo.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == bridge.NetworkId ? new Fdp.Toolkit.Scenario.EntityKind("Objective", "thing/objective") : null);
+
+        var link = new Fdp.Toolkit.Replication.EntityLink(bridge, RefSpec.None);
+        Assert.Equal("Objective: Hold the bridge", ReferenceLeafDrawers.ChipLabel(link, scope));
+        Assert.Equal(NodeEditor.Core.Widgets.Icons.Get("thing/objective"), ReferenceLeafDrawers.ChipIcon(link, scope));
+        Assert.Equal("Blue HQ", ReferenceLeafDrawers.ChipLabel(new Fdp.Toolkit.Replication.EntityLink(hq, RefSpec.None), scope));
+        Assert.Null(ReferenceLeafDrawers.ChipIcon(new Fdp.Toolkit.Replication.EntityLink(hq, RefSpec.None), scope));
+        Assert.Equal("#" + bridge.NetworkId, ReferenceLeafDrawers.ChipLabel(link, null));
+        Assert.Equal("(none)", ReferenceLeafDrawers.ChipLabel(Fdp.Toolkit.Replication.EntityLink.None, scope));
+
+        var picker = new SpyPickerContext { Refs = scope, PendingResult = hq };   // the chip row still consumes a finished pick
+        var committed = DrawAndCommit(new LinkComp { Link = link }, picker, typeof(Fdp.Toolkit.Replication.EntityLink));
+        Assert.Equal(hq, committed.Link.Ref);
+    }
+
     [Fact]
     public void R1_AnEntityLinkPick_OfAnEntityWithAGuid_WritesExact()
     {

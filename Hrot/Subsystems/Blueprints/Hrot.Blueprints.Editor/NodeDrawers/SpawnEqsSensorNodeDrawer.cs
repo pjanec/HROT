@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 
@@ -70,7 +71,7 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
         // CE-496: mirrors BP2030 (Stage2_Validate) — Instance and Behavior (a behaviour IS an Instance body).
         if (_parent.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior))
         {
-            ImGui.TextColored(EditorColors.Error,
+            ImGui.TextColored(StatusPalette.Error,
                 "⚠ SpawnEqsSensorNode is only allowed in Instance and Behaviour Blueprints.");
             ImGui.Separator();
         }
@@ -101,7 +102,7 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
         }
 
         if (_node.TemplateAssetId == Guid.Empty)
-            ImGui.TextColored(EditorColors.Warning, "(no template selected)");
+            ImGui.TextColored(StatusPalette.Warning, "(no template selected)");
     }
 
     public void ResetDirty() => IsDirty = false;

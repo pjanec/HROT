@@ -18,14 +18,6 @@ namespace Fdp.Toolkits.Tests.Scenario
     /// </summary>
     public sealed class MacroTypesTests
     {
-        private static string RepoRoot()
-        {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "macros"))) dir = dir.Parent;
-            Assert.NotNull(dir);
-            return dir!.FullName;
-        }
-
         // ── ② the macro file ─────────────────────────────────────────────────────────────────────────────
 
         /// <summary>⭐ P-7 F-27 — <c>Header.Features</c>: "on"/"off" read as {"Enabled":…}, an object as its JSON; written back in the short form, so an editor save keeps the preset. ✅ Red-proof: the
@@ -105,7 +97,7 @@ namespace Fdp.Toolkits.Tests.Scenario
         [Fact]
         public void TheSampleMacroFile_OpensByItsName_AndItsHeaderReads()
         {
-            var root = RepoRoot();
+            var root = Fdp.Testing.TestRepo.Root;   // CE-3343: the ONE test-side repository-root walk-up
             var dir = ContentLayout.ResolveScenarioDirectory(root, "macros/test/fire-team");
             Assert.EndsWith(Path.Combine("macros", "test", "fire-team"), dir);
             var file = Path.Combine(dir, ContentLayout.MacroFileName);

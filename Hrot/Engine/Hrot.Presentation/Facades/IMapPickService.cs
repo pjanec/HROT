@@ -41,6 +41,9 @@ public interface IMapPickService
     /// </summary>
     Fdp.Toolkit.Scenario.LiveRefScope? References => null;
 
+    /// <summary>⭐ U-10 (DESIGN_Show_On_Map §2) — the preview service of this service's map (one per map, a canvas resource); null without one.</summary>
+    Fdp.Presentation.Editing.MapPreview? Preview => null;
+
     Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default);
 
     /// <summary>

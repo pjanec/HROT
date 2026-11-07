@@ -61,6 +61,9 @@ internal sealed class PickerState
     /// <summary>One-shot toggle request: folder path to expand/collapse next frame (Tree layout only).</summary>
     public string? PendingToggleFolderPath;
 
+    /// <summary>⭐ U-4 — the Tree layout's open state, owned HERE (the shared <c>TreeRow</c> takes <c>ref open</c>; ImGui no longer remembers it): folder path → open. A folder never recorded takes the draw's default (open while searching).</summary>
+    public readonly Dictionary<string, bool> FolderOpen = new(StringComparer.Ordinal);
+
     /// <summary>Target open state for <see cref="PendingToggleFolderPath"/>.</summary>
     public bool PendingToggleOpen;
 
@@ -256,6 +259,7 @@ internal sealed class PickerState
         GridColumns             = 1;
         PendingToggleFolderPath = null;
         PendingToggleOpen       = false;
+        FolderOpen.Clear();
         VisualRows.Clear();
         RevealCategory          = null;
         FocusLeafOnDraw         = -1;

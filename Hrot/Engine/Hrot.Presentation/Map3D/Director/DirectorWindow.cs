@@ -551,7 +551,7 @@ namespace Hrot.UI.Common.Map3D.Director
         private void DrawRenderQueue()
         {
             if (Renders is not { } renders || renders.Jobs.Count == 0) return;
-            if (!ImGui.CollapsingHeader($"Render queue ({renders.Queued} queued{(renders.Running is { } r ? ", " + r.Id + " running" : "")})###director.renders")) return;
+            if (!NodeEditor.Core.Widgets.SectionHeader.Draw("director.renders", $"Render queue ({renders.Queued} queued{(renders.Running is { } r ? ", " + r.Id + " running" : "")})", "section/render")) return;
             if (!ImGui.BeginTable("##renders", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp)) return;
             ImGui.TableSetupColumn("id");
             ImGui.TableSetupColumn("state");

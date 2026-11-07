@@ -121,25 +121,30 @@ namespace Hrot.Presentation.Behavior
                 .ToList();
         }
 
-        private static bool DrawFolder(Folder folder, string? current, string? currentPath, ref string picked)
+        /// <summary>⭐ U-4 — the popup's folder open state (the shared <c>TreeRow</c> takes <c>ref open</c>); reset each time the popup opens, so a folder starts as <c>Appearing</c> used to decide.</summary>
+        private static readonly Dictionary<string, bool> OpenFolders = new(StringComparer.Ordinal);
+
+        private static bool DrawFolder(Folder folder, string? current, string? currentPath, ref string picked, int depth = 0)
         {
+            if (depth == 0 && ImGui.IsWindowAppearing()) OpenFolders.Clear();
             bool done = false;
             foreach (var sub in folder.Folders)
             {
-                bool open = sub.Path == LibraryFolder
+                bool open = OpenFolders.TryGetValue(sub.Path, out var remembered) ? remembered
+                          : sub.Path == LibraryFolder
                          || (currentPath != null && (currentPath == sub.Path || currentPath.StartsWith(sub.Path + "/", StringComparison.Ordinal)));
-                ImGui.SetNextItemOpen(open, ImGuiCond.Appearing);
-                if (ImGui.TreeNodeEx(sub.Name + "##" + sub.Path, ImGuiTreeNodeFlags.SpanAvailWidth))
-                {
-                    done |= DrawFolder(sub, current, currentPath, ref picked);
-                    ImGui.TreePop();
-                }
+                NodeEditor.Core.Widgets.TreeRow.Draw(sub.Path, sub.Name, NodeEditor.Core.Widgets.RowIcon.None, depth, hasChildren: true, ref open, selected: false);
+                OpenFolders[sub.Path] = open;
+                if (open) done |= DrawFolder(sub, current, currentPath, ref picked, depth + 1);
             }
             foreach (var c in folder.Choices)
             {
                 bool selected = c.Name == current;
+                float indent = depth * ImGui.GetStyle().IndentSpacing + ImGui.GetTreeNodeToLabelSpacing();   // a choice keeps the chevron's slot too
+                ImGui.Indent(indent);
                 if (ImGui.Selectable($"{c.Label}##{c.Name}", selected)) { picked = c.Name; done = true; }
                 if (selected) ImGui.SetItemDefaultFocus();
+                ImGui.Unindent(indent);
             }
             return done;
         }

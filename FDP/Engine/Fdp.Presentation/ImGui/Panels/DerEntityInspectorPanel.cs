@@ -7,6 +7,7 @@ using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Utils;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using ImGuiApi = ImGuiNET.ImGui;
 
 namespace Fdp.Presentation.Panels;
@@ -343,7 +344,7 @@ public sealed class DerEntityInspectorPanel
 
             ImGuiApi.PushID(i++);
 
-            if (ImGuiApi.CollapsingHeader(header))
+            if (SectionHeader.Draw("hdr", header, "tab/components"))
             {
                 ImGuiApi.Indent();
                 // ImGuiPropertyTree automatically honours custom type renderers

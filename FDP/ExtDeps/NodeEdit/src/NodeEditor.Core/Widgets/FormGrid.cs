@@ -19,6 +19,8 @@ public static class FormGrid
     public const float LabelPadding = 14f;
     public const float MinLabelColumn = 90f;
     public const float MaxLabelFraction = 0.25f;
+    /// <summary>The status slot's width at the reference font size (DESIGN_Details_Forms §6.2: fixed 18 px).</summary>
+    public const float StatusSlotWidth = 18f;
 
     private sealed class State
     {
@@ -59,7 +61,7 @@ public static class FormGrid
         if (!ImGui.BeginTable(id, statusSlot ? 3 : 2, ImGuiTableFlags.None)) return false;
         ImGui.TableSetupColumn("##label", ImGuiTableColumnFlags.WidthFixed, st.Column);
         ImGui.TableSetupColumn("##control", ImGuiTableColumnFlags.WidthStretch);
-        if (statusSlot) ImGui.TableSetupColumn("##status", ImGuiTableColumnFlags.WidthFixed, fs * 1.6f);
+        if (statusSlot) ImGui.TableSetupColumn("##status", ImGuiTableColumnFlags.WidthFixed, StatusSlotWidth * scale);   // §6.2: a fixed 18 px slot, always there
         if (_depth < Stack.Length) Stack[_depth] = st;
         _depth++;
         return true;

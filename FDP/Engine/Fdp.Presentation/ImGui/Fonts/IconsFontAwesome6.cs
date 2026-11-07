@@ -36,6 +36,8 @@ public static class IconsFontAwesome6
     // Edit / undo
     public const string Pen                 = "\uf304"; // edit
     public const string Plus                = "\uf067";
+    public const string LocationDot         = "\uf3c5";   // ⭐ U-8 (Condition editor §8.2 ④) — pick a thing on the map
+    public const string Cube                = "\uf1b2";   // ⭐ U-8 — a thing of no named kind
     public const string TrashCan            = "\uf2ed";   // ⭐ U-7 (Condition editor §8.2 ⑦) — the struct editor's delete
     public const string Xmark               = "\uf00d";
     public const string ArrowRotateLeft     = "\uf0e2"; // undo
@@ -102,4 +104,13 @@ public static class IconsFontAwesome6
     public const string Clock               = "\uf017"; // U-7 condition kind: Time
     public const string Users               = "\uf0c0"; // U-7 condition kind: At least N of
     public const string FlagCheckered       = "\uf11e"; // U-2 colour-icon key glyph
+    public const string Stethoscope         = "\uf0f1"; // U-5 section-header key glyph
+    public const string Mountain            = "\uf6fc"; // U-5 section-header key glyph
+    public const string BoxesStacked        = "\uf468"; // U-5 section-header key glyph
+    public const string BoxArchive          = "\uf187"; // U-5 section-header key glyph
+    public const string Film                = "\uf008"; // U-5 section-header key glyph
+    public const string Sliders             = "\uf1de"; // U-5 section-header key glyph
+    public const string Memory              = "\uf538"; // U-5 section-header key glyph
+    public const string Image               = "\uf03e"; // U-5 section-header key glyph
+    public const string List                = "\uf03a"; // U-5 section-header key glyph
 }

@@ -56,6 +56,10 @@ namespace Fdp.Presentation.Editing
         /// places a new circle). A no-op where the host cannot.</summary>
         void RequestAreaEdit(string jsonPath, Fdp.Toolkit.Replication.AreaLink start) { }
 
+        /// <summary>⭐ U-10 / M2 (DESIGN_Show_On_Map §2) — the map's preview service: a row whose type has a place (<see cref="MapPreviews.Has"/>) draws the ⌖,
+        /// hover previews, click pins. <see langword="null"/> (the default) for a host with no map: no ⌖.</summary>
+        MapPreview? Preview => null;
+
         /// <summary>⭐ <c>CE-4206</c> R3 (F8) — this context can centre the map on a value (the leaves then draw <i>Show on map</i>).</summary>
         bool CanShowOnMap => false;
 
