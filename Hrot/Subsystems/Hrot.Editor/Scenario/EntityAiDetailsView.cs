@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
@@ -342,8 +343,15 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         ImGui.Separator();
         ImGui.TextUnformatted("Rules of engagement");
         int fire = (int)now.Fire, reactions = (int)now.Reactions;
-        bool changed = ImGui.Combo("Fire", ref fire, "(unset)\0Hold fire\0Return fire\0Fire at will\0");
-        changed |= ImGui.Combo("Reactions", ref reactions, "(unset)\0Stay on task\0React\0");
+        bool changed = false;
+        if (FormGrid.Begin("ai.roe", RoeLabels))
+        {
+            FormGrid.Row("Fire");
+            changed = ImGui.Combo("##fire", ref fire, "(unset)\0Hold fire\0Return fire\0Fire at will\0");
+            FormGrid.Row("Reactions");
+            changed |= ImGui.Combo("##reactions", ref reactions, "(unset)\0Stay on task\0React\0");
+            FormGrid.End();
+        }
         if (changed)
             _status = _model.ApplyRoe(entity, (RoeFire)fire, (RoeReactions)reactions, running) ? "ROE applied." : "ROE refused (a higher rank set it).";
         ImGui.TextDisabled($"Set by: {now.RoeSetBy}");
@@ -363,14 +371,23 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
         ImGui.PopID();
     }
 
+    private static readonly string[] RoeLabels = { "Fire", "Reactions" };
+
     private void Row(string id, IReadOnlyList<string> choices, ref string pick, ref IEditSession? form, ref Type? formType,
                      string? current, string currentParams, Func<string, string, bool> apply, Func<bool> clear, string? note)
     {
         ImGui.PushID(id);
         if (pick.Length == 0 && current != null) pick = current;
         // ⭐ CE-3164 (R-268) — the shared folder-tree picker
-        if (Hrot.Presentation.Behavior.BehaviorPickerTree.Combo("Behaviour", pick.Length == 0 ? "(choose)" : pick,
-                _model.AsChoices(choices), pick, out var picked)) { pick = picked; form = null; }
+        string? pickedBehaviour = null;
+        if (FormGrid.Begin("ai.behaviour"))
+        {
+            FormGrid.Row("Behaviour");
+            if (Hrot.Presentation.Behavior.BehaviorPickerTree.Combo("##behaviour", pick.Length == 0 ? "(choose)" : pick,
+                    _model.AsChoices(choices), pick, out var picked)) pickedBehaviour = picked;
+            FormGrid.End();
+        }
+        if (pickedBehaviour != null) { pick = pickedBehaviour; form = null; }
         if (note != null) ImGui.TextDisabled(note);
 
         var type = pick.Length > 0 ? _model.ParamsTypeOf(pick) : null;

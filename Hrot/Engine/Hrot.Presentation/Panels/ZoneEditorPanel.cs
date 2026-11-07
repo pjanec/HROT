@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
@@ -72,17 +73,17 @@ public sealed class ZoneEditorPanel
     /// </summary>
     public void DrawContent(IZoneAuthoringController ctrl)
     {
-        ImGui.InputText("Zone Name", ref _zoneName, 128);
+        if (FormGrid.Begin("zone.name")) { FormGrid.Row("Zone Name"); ImGui.InputText("##zonename", ref _zoneName, 128); FormGrid.End(); }
 
         ImGui.Separator();
 
-        ImGui.InputText("Road Network JSON", ref _roadNetworkPath, 256);
+        if (FormGrid.Begin("zone.road")) { FormGrid.Row("Road Network JSON"); ImGui.InputText("##roadnet", ref _roadNetworkPath, 256); FormGrid.End(); }
         if (ImGui.Button("Apply Road Network"))
             HandleApplyRoadNetwork(ctrl);
 
         ImGui.Separator();
 
-        ImGui.SliderFloat("Obstacle Radius (m)", ref _obstacleRadius, ObstacleRadiusMin, ObstacleRadiusMax);
+        if (FormGrid.Begin("zone.obstacle")) { FormGrid.Row("Obstacle Radius (m)"); ImGui.SliderFloat("##obstacleradius", ref _obstacleRadius, ObstacleRadiusMin, ObstacleRadiusMax); FormGrid.End(); }
         if (ImGui.Button("Place LOS Obstacle"))
             HandlePlaceObstacle(ctrl);
     }

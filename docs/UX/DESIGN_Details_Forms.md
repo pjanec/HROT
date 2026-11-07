@@ -253,6 +253,20 @@ gets a row in this Scenario form when its own design lands.
 | **D5** | the Shape and Crew & cargo forms | ui | a route's leg speed set on a non-owner reaches the owner; a unit put aboard in Edit mode is aboard after save and reload |
 | **D6** | the raw tab fixes | ui | — |
 
+### 4.0 AS-BUILT — D1 *(U-12, ui, `2026-11-07`)*
+
+| piece | where | as built |
+|---|---|---|
+| `FormDecl` (Id · Title · Order · Requires · Fields) · `FormField` · `FieldKind` | `Fdp.Presentation/ImGui/Forms/FormDecl.cs` | ✏ the design's **FormRow** is named **`FormField`**: D0 already owns `FormRow` (the row DRAWER). A field names its attribute by vocabulary path (`Health.Current`) and reads the world allocation-free (a number, or a `FixedString64`); `ChangeFor` builds the change by the attribute's declared kind; `RangeProblem` refuses with the reason (never clamps); no attribute ⇒ read-only |
+| `FormCatalogue` | same | `Register` · `OfferedFor(world, entity, into)` (0 B) · `AttributeOf(path)` — an unknown path THROWS (§2.3: a field without an attribute gets one first) |
+| `FormView` | `Fdp.Presentation/ImGui/Forms/FormView.cs` | draws on `FormGrid` through D0's `FormRow`: the value at rest is a CACHED string rebuilt only when the read changes; ⭐ **0 B per steady frame** (rail); multi-select = rows common to all, *mixed* when they differ, a commit = ONE `Submit` per entity; `Edits.Submit(EditOp.Write)` is the one seam (injectable for rails); the outcome marks the row ⏳ / ✗ with the reason; `editable: false` = the whole form disabled, no marks (§2.4); expert rows under *Details for experts*, open by default with the panel's `ExpertOpen` |
+
+⚠ **Deviations:** numbers / text / choices / toggles edit with the native ImGui control (cached format, allocation-free) — ⛔ no `ScalarEditBox` session at all
+for a scalar, which removes CE-4285's cost rather than limiting it to one row; a structured field type (a link, an area) is the D3 forms' (U-23). ⏳ Not yet:
+the *ExpertOpen* switch saved in user settings (D7), *Copy value* / *Copy the whole form* (§2.4 Q-R3), the after-seek tint (Q-R1), one undo step across a
+multi-select commit (each `Submit` is its own journal entry today). Rails: `FormViewTests` (3: common rows + *mixed*; one Submit per entity with the field's
+attribute, range, read-only; 0 B steady frame — red-proven).
+
 ### 4.1 AS-BUILT — D2 *(B-4, `2026-11-06`)*
 
 | attribute (JSON path) | id | component · handler | applies where | notes / deviations |

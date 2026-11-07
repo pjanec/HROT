@@ -117,23 +117,32 @@ namespace Hrot.SimHost.UI
         private int  _count         = 10;
         private bool _randomMovement = true;
 
+        private static readonly string[] SpawnLabels = { "Count", "Random movement", "Path interpolation", "Vehicle type" };
+
         public void Render(SimHostScenarioManager scenario, SimHostUIState uiState)
         {
-            ImGui.SliderInt("Count", ref _count, 1, 100);
-            ImGui.Checkbox("Random movement", ref _randomMovement);
-
-            // Interpolation Radio
             int iMode = (int)uiState.InterpolationMode;
-            ImGui.Text("Path interpolation:");
-            if (ImGui.RadioButton("Linear",      ref iMode, 0)) uiState.InterpolationMode = TrajectoryInterpolation.Linear;
-            ImGui.SameLine();
-            if (ImGui.RadioButton("Catmull-Rom", ref iMode, 1)) uiState.InterpolationMode = TrajectoryInterpolation.CatmullRom;
-
-            // Vehicle class combo
             string[] classNames = Enum.GetNames(typeof(VehicleClass));
             int selIdx = (int)uiState.SelectedVehicleClass;
-            if (ImGui.Combo("Vehicle type", ref selIdx, classNames, classNames.Length))
-                uiState.SelectedVehicleClass = (VehicleClass)selIdx;
+            if (FormGrid.Begin("simhost.spawn", SpawnLabels))
+            {
+                FormGrid.Row("Count");
+                ImGui.SliderInt("##count", ref _count, 1, 100);
+                FormGrid.Row("Random movement");
+                ImGui.Checkbox("##random", ref _randomMovement);
+
+                // Interpolation Radio
+                FormGrid.Row("Path interpolation");
+                if (ImGui.RadioButton("Linear",      ref iMode, 0)) uiState.InterpolationMode = TrajectoryInterpolation.Linear;
+                ImGui.SameLine();
+                if (ImGui.RadioButton("Catmull-Rom", ref iMode, 1)) uiState.InterpolationMode = TrajectoryInterpolation.CatmullRom;
+
+                // Vehicle class combo
+                FormGrid.Row("Vehicle type");
+                if (ImGui.Combo("##vehicletype", ref selIdx, classNames, classNames.Length))
+                    uiState.SelectedVehicleClass = (VehicleClass)selIdx;
+                FormGrid.End();
+            }
 
             // Spawn buttons
             if (ImGui.Button("Spawn"))

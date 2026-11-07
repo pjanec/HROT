@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
@@ -122,10 +123,10 @@ internal sealed class SopOrderNodeSession : INodeEditSession
         ImGui.Separator();
 
         int kind = (int)_node.Kind;
-        if (ImGui.Combo("Order", ref kind, Kinds, Kinds.Length)) ApplyKind((SopOrderKind)kind);
+        FormGrid.BeginField("bp.node", "Order"); if (ImGui.Combo("##Order", ref kind, Kinds, Kinds.Length)) ApplyKind((SopOrderKind)kind); FormGrid.EndField();
 
         var current = string.IsNullOrWhiteSpace(_node.BehaviorName) ? "(none)" : _node.BehaviorName;
-        if (ImGui.BeginCombo("Behaviour", current))
+        FormGrid.BeginField("bp.node", "Behaviour"); if (ImGui.BeginCombo("##Behaviour", current))
         {
             ImGui.InputTextWithHint("##SopOrderFilter", "Filter...", ref _filter, 256);
             foreach (var name in Filtered(_filter))
@@ -135,13 +136,13 @@ internal sealed class SopOrderNodeSession : INodeEditSession
                 if (selected) ImGui.SetItemDefaultFocus();
             }
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (_node.Kind == SopOrderKind.React)
         {
             int u = Math.Max(0, Array.IndexOf(Urgencies, _node.Urgency.ToString()));
-            if (ImGui.Combo("Urgency", ref u, Urgencies, Urgencies.Length))
-                ApplyUrgency(Enum.Parse<SopOrderUrgency>(Urgencies[u]));
+            FormGrid.BeginField("bp.node", "Urgency"); if (ImGui.Combo("##Urgency", ref u, Urgencies, Urgencies.Length))
+                ApplyUrgency(Enum.Parse<SopOrderUrgency>(Urgencies[u])); FormGrid.EndField();
         }
 
         if (string.IsNullOrWhiteSpace(_node.BehaviorName))

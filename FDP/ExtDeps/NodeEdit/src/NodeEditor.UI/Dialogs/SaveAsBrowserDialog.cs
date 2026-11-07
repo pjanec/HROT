@@ -266,10 +266,15 @@ public sealed class SaveAsBrowserDialog
             _focusName = false;
         }
 
-        ImGui.SetNextItemWidth(-1f);
         var inputFlags = ImGuiInputTextFlags.EnterReturnsTrue;
-        bool nameEnter = ImGui.InputText("Name", ref _name, 256, inputFlags);
-        _nameInputActive = ImGui.IsItemActive();
+        bool nameEnter = false;
+        if (NodeEditor.Core.Widgets.FormGrid.Begin("saveas.form"))
+        {
+            NodeEditor.Core.Widgets.FormGrid.Row("Name");
+            nameEnter = ImGui.InputText("##name", ref _name, 256, inputFlags);
+            _nameInputActive = ImGui.IsItemActive();
+            NodeEditor.Core.Widgets.FormGrid.End();
+        }
 
         // Validate name
         string? error = _request?.ValidateName?.Invoke(_name);

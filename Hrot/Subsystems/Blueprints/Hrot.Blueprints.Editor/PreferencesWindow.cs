@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using NodeEditor.Core.Widgets;
 using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
 
@@ -61,12 +62,18 @@ public sealed class PreferencesWindow : BlueprintEditorWindowBase
         BuildAndPublish();
 
         bool autoReload = _prefs.AutoReloadOnSave;
-        if (ImGui.Checkbox("Auto Reload on Save", ref autoReload))
-            _prefs.AutoReloadOnSave = autoReload;
-
         int logMax = _prefs.HotReloadLogMaxEntries;
-        if (ImGui.InputInt("Hot Reload Log Max Entries", ref logMax))
-            _prefs.HotReloadLogMaxEntries = System.Math.Max(1, logMax);
+        if (FormGrid.Begin("prefs.form"))
+        {
+            FormGrid.Row("Auto Reload on Save");
+            if (ImGui.Checkbox("##autoreload", ref autoReload))
+                _prefs.AutoReloadOnSave = autoReload;
+
+            FormGrid.Row("Hot Reload Log Max Entries");
+            if (ImGui.InputInt("##logmax", ref logMax))
+                _prefs.HotReloadLogMaxEntries = System.Math.Max(1, logMax);
+            FormGrid.End();
+        }
 
         ImGui.Separator();
 

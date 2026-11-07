@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -412,6 +413,8 @@ public sealed class ReplayTimelinePanel
 
     // ── Export expander sub-sections ─────────────────────────────────────
 
+    private static readonly string[] ExportLabels = { "Start Frame", "End Frame", "Start Time (s)", "End Time (s)", "Filter by Entity Index", "Entity Index", "Include Entities", "Include Events", "Minified Output", "Epsilon" };
+
     private void DrawExportModeRadios()
     {
         Gui.TextDisabled("Export Range");
@@ -429,16 +432,24 @@ public sealed class ReplayTimelinePanel
     private void DrawFrameInputs()
     {
         if (GetDisabledFrameInputs(_options.WindowMode)) Gui.BeginDisabled();
-        Gui.InputInt("Start Frame", ref _options.StartFrame);
-        Gui.InputInt("End Frame", ref _options.EndFrame);
+        if (FormGrid.Begin("replay.export", ExportLabels))
+        {
+            FormGrid.Row("Start Frame"); Gui.InputInt("##startframe", ref _options.StartFrame);
+            FormGrid.Row("End Frame");   Gui.InputInt("##endframe", ref _options.EndFrame);
+            FormGrid.End();
+        }
         if (GetDisabledFrameInputs(_options.WindowMode)) Gui.EndDisabled();
     }
 
     private void DrawTimeInputs()
     {
         if (GetDisabledTimeInputs(_options.WindowMode)) Gui.BeginDisabled();
-        Gui.InputFloat("Start Time (s)", ref _options.StartTimeSec);
-        Gui.InputFloat("End Time (s)", ref _options.EndTimeSec);
+        if (FormGrid.Begin("replay.export", ExportLabels))
+        {
+            FormGrid.Row("Start Time (s)"); Gui.InputFloat("##starttime", ref _options.StartTimeSec);
+            FormGrid.Row("End Time (s)");   Gui.InputFloat("##endtime", ref _options.EndTimeSec);
+            FormGrid.End();
+        }
         if (GetDisabledTimeInputs(_options.WindowMode)) Gui.EndDisabled();
     }
 
@@ -459,10 +470,14 @@ public sealed class ReplayTimelinePanel
     private void DrawFilterOptions()
     {
         Gui.TextDisabled("Filters");
-        Gui.Checkbox("Filter by Entity Index", ref _options.FilterByEntityIndex);
-        if (!_options.FilterByEntityIndex) Gui.BeginDisabled();
-        Gui.InputInt("Entity Index", ref _options.TargetEntityIndex);
-        if (!_options.FilterByEntityIndex) Gui.EndDisabled();
+        if (FormGrid.Begin("replay.export", ExportLabels))
+        {
+            FormGrid.Row("Filter by Entity Index"); Gui.Checkbox("##filterentity", ref _options.FilterByEntityIndex);
+            if (!_options.FilterByEntityIndex) Gui.BeginDisabled();
+            FormGrid.Row("Entity Index"); Gui.InputInt("##entityindex", ref _options.TargetEntityIndex);
+            if (!_options.FilterByEntityIndex) Gui.EndDisabled();
+            FormGrid.End();
+        }
         Gui.Spacing();
         Gui.TextDisabled("Export Scope");
         int scope = _options.FilterBySelection ? 1 : 0;
@@ -476,17 +491,21 @@ public sealed class ReplayTimelinePanel
     private void DrawPayloadOptions()
     {
         Gui.TextDisabled("Payload & Format");
-        Gui.Checkbox("Include Entities", ref _options.IncludeEntities);
-        Gui.SameLine();
-        Gui.Checkbox("Include Events", ref _options.IncludeEvents);
-        Gui.Checkbox("Minified Output", ref _options.Minified);
-
         bool epsilonDisabled = _options.FormatMode == ExportFormatMode.AbsoluteState;
-        if (epsilonDisabled) Gui.BeginDisabled();
         double eps = _options.EpsilonTolerance;
-        if (Gui.InputDouble("Epsilon", ref eps))
-            _options.EpsilonTolerance = eps;
-        if (epsilonDisabled) Gui.EndDisabled();
+        if (FormGrid.Begin("replay.export", ExportLabels))
+        {
+            FormGrid.Row("Include Entities"); Gui.Checkbox("##includeentities", ref _options.IncludeEntities);
+            FormGrid.Row("Include Events");   Gui.Checkbox("##includeevents", ref _options.IncludeEvents);
+            FormGrid.Row("Minified Output");  Gui.Checkbox("##minified", ref _options.Minified);
+
+            if (epsilonDisabled) Gui.BeginDisabled();
+            FormGrid.Row("Epsilon");
+            if (Gui.InputDouble("##epsilon", ref eps))
+                _options.EpsilonTolerance = eps;
+            if (epsilonDisabled) Gui.EndDisabled();
+            FormGrid.End();
+        }
     }
 
     private void DrawSaveButton()

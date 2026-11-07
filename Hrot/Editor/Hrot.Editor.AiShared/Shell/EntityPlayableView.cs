@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Edits;
@@ -107,14 +108,24 @@ public sealed class EntityPlayableView : IDetailsViewInstance
         if (!vm.HasTarget || _world() is not { } world) return;
         var entity = context.Entities[0];
         bool playable = vm.IsPlayable;
-        if (ImGui.Checkbox("Playable (a Player may deploy into this unit)", ref playable)) EntityPlayableModel.SetPlayable(world, entity, playable);
-        if (!playable) return;
-        var st = EntityPlayableModel.Read(world, entity);
-        int side = st.Side == ForceId.Hostile ? 1 : 0;
-        if (ImGui.Combo("Side", ref side, "Friend\0Hostile\0")) EntityPlayableModel.SetSide(world, entity, side == 1 ? ForceId.Hostile : ForceId.Friend);
-        if (_nameFor != entity.Index) { _nameBuffer = st.SlotName; _nameFor = entity.Index; }
-        if (ImGui.InputText("Slot name", ref _nameBuffer, 31)) EntityPlayableModel.SetSlotName(world, entity, _nameBuffer);
+        if (!FormGrid.Begin("playable.form", PlayableLabels)) return;
+        FormGrid.Row("Playable");
+        if (ImGui.Checkbox("##playable", ref playable)) EntityPlayableModel.SetPlayable(world, entity, playable);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("A Player may deploy into this unit.");
+        if (playable)
+        {
+            var st = EntityPlayableModel.Read(world, entity);
+            int side = st.Side == ForceId.Hostile ? 1 : 0;
+            FormGrid.Row("Side");
+            if (ImGui.Combo("##side", ref side, "Friend\0Hostile\0")) EntityPlayableModel.SetSide(world, entity, side == 1 ? ForceId.Hostile : ForceId.Friend);
+            if (_nameFor != entity.Index) { _nameBuffer = st.SlotName; _nameFor = entity.Index; }
+            FormGrid.Row("Slot name");
+            if (ImGui.InputText("##slotname", ref _nameBuffer, 31)) EntityPlayableModel.SetSlotName(world, entity, _nameBuffer);
+        }
+        FormGrid.End();
     }
+
+    private static readonly string[] PlayableLabels = { "Playable", "Side", "Slot name" };
 
     public void Dispose() { }
 }

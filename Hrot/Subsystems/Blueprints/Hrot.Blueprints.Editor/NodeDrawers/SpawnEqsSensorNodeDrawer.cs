@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 
@@ -88,7 +89,7 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
             if (templates[i].AssetId == _node.TemplateAssetId) { currentIdx = i; break; }
         }
 
-        if (ImGui.Combo("Template", ref currentIdx, displayNames, displayNames.Length))
+        FormGrid.BeginField("bp.node", "Template"); if (ImGui.Combo("##Template", ref currentIdx, displayNames, displayNames.Length))
         {
             if (currentIdx >= 0)
             {
@@ -99,7 +100,7 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
                     IsDirty = true;
                 }
             }
-        }
+        } FormGrid.EndField();
 
         if (_node.TemplateAssetId == Guid.Empty)
             ImGui.TextColored(StatusPalette.Warning, "(no template selected)");

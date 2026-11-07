@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
@@ -95,7 +96,7 @@ public sealed class EntityRenameModal
         if (ImGui.IsKeyPressed(ImGuiKey.Escape))
             ImGui.CloseCurrentPopup();
 
-        ImGui.InputText("New Name", ref _buffer, 64);
+        FormGrid.BeginField("rename.form", "New Name"); ImGui.InputText("##newname", ref _buffer, 64); FormGrid.EndField();
         ImGui.Separator();
 
         bool canSave = !string.IsNullOrWhiteSpace(_buffer);

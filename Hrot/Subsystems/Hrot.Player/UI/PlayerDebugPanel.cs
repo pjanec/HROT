@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Fdp.Diagnostics.Contracts.Panels;
@@ -85,11 +86,17 @@ public class PlayerDebugPanel
         ImGui.Text("Render Overrides");
 
         bool forceHostile = _state.ForceHostile;
-        if (ImGui.Checkbox("Force Hostile", ref forceHostile))
-            _state.ForceHostile = forceHostile;
-
         bool hideLabels = _state.HideLabels;
-        if (ImGui.Checkbox("Hide Labels", ref hideLabels))
-            _state.HideLabels = hideLabels;
+        if (FormGrid.Begin("player.debug"))
+        {
+            FormGrid.Row("Force Hostile");
+            if (ImGui.Checkbox("##forcehostile", ref forceHostile))
+                _state.ForceHostile = forceHostile;
+
+            FormGrid.Row("Hide Labels");
+            if (ImGui.Checkbox("##hidelabels", ref hideLabels))
+                _state.HideLabels = hideLabels;
+            FormGrid.End();
+        }
     }
 }

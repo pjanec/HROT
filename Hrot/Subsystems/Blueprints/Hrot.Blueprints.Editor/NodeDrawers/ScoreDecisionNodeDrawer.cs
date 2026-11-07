@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Fdp.Toolkit.Utility;
 using Hrot.Blueprints.Core.Assets;
@@ -109,7 +110,7 @@ internal sealed class ScoreDecisionNodeSession : INodeEditSession
         ImGui.Text("Score Decision");
         ImGui.Separator();
 
-        if (ImGui.BeginCombo("Decision", CurrentLabel()))
+        FormGrid.BeginField("bp.node", "Decision"); if (ImGui.BeginCombo("##Decision", CurrentLabel()))
         {
             ImGui.InputTextWithHint("##ScoreDecisionFilter", "Filter...", ref _filter, 256);
             foreach (var (name, assetId) in Filtered(_filter))
@@ -119,7 +120,7 @@ internal sealed class ScoreDecisionNodeSession : INodeEditSession
                 if (selected) ImGui.SetItemDefaultFocus();
             }
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (string.IsNullOrWhiteSpace(_node.AssetId))
             ImGui.TextColored(StatusPalette.Warning, "(no decision picked)");

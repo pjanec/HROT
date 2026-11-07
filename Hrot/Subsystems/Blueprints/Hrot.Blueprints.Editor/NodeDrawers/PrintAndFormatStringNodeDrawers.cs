@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
@@ -211,8 +212,8 @@ internal sealed class PrintStringNodeSession : INodeEditSession
         ImGui.Separator();
 
         var format = _node.Format ?? "";
-        if (ImGui.InputText("Format", ref format, 512))
-            LiveFormat(format);
+        FormGrid.BeginField("bp.node", "Format"); if (ImGui.InputText("##Format", ref format, 512))
+            LiveFormat(format); FormGrid.EndField();
 
         // BP-204: the widget above mutates Format live (pins appear as you type -- confirmed
         // behaviour, kept), but undo is recorded once per gesture. The baseline is captured on
@@ -239,12 +240,12 @@ internal sealed class PrintStringNodeSession : INodeEditSession
     {
         var names      = Enum.GetNames(typeof(BlueprintLogLevel));
         int currentIdx = (int)_node.Level;
-        if (ImGui.Combo("Level", ref currentIdx, names, names.Length))
+        FormGrid.BeginField("bp.node", "Level"); if (ImGui.Combo("##Level", ref currentIdx, names, names.Length))
         {
             var chosen = (BlueprintLogLevel)currentIdx;
             if (chosen != _node.Level)
                 ApplyLevel(chosen);
-        }
+        } FormGrid.EndField();
     }
 
     public void ResetDirty() => IsDirty = false;
@@ -459,8 +460,8 @@ internal sealed class FormatStringNodeSession : INodeEditSession
         ImGui.Separator();
 
         var format = _node.Format ?? "";
-        if (ImGui.InputText("Format", ref format, 512))
-            LiveFormat(format);
+        FormGrid.BeginField("bp.node", "Format"); if (ImGui.InputText("##Format", ref format, 512))
+            LiveFormat(format); FormGrid.EndField();
 
         // BP-204: live per keystroke, one undo entry per gesture -- see PrintStringNodeSession.Draw.
         _formatCoalescer.BeginIfNeeded(ImGui.IsItemActivated(), _node.Format ?? "");
@@ -483,7 +484,7 @@ internal sealed class FormatStringNodeSession : INodeEditSession
         var currentIdx = Array.IndexOf(ResultTypeOptions, current);
         var comboLabel = currentIdx >= 0 ? current : $"{current} (unrecognized)";
 
-        if (ImGui.BeginCombo("Result Type", comboLabel))
+        FormGrid.BeginField("bp.node", "Result Type"); if (ImGui.BeginCombo("##Result_Type", comboLabel))
         {
             for (int i = 0; i < ResultTypeOptions.Length; i++)
             {
@@ -493,7 +494,7 @@ internal sealed class FormatStringNodeSession : INodeEditSession
                 if (selected) ImGui.SetItemDefaultFocus();
             }
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
     }
 
     public void ResetDirty() => IsDirty = false;

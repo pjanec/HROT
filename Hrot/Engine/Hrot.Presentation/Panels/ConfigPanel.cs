@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Fdp.Core.Logging;
 using Fdp.Diagnostics.Contracts.Panels;
@@ -131,19 +132,25 @@ public sealed class ConfigPanel
     /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
     /// Called by the Window Manager when this panel is hosted as a managed window.
     /// </summary>
+    private static readonly string[] Labels = { "Satellite Layer", "Ground Units", "Air Units", "Vehicles", "Tactical Graphics", "Routes", "Grid", "Icon Scale" };
+
     public void DrawContent(IMapConfigController ctrl)
     {
-        ImGui.Checkbox("Satellite Layer",   ref _satelliteLayer);
-        ImGui.Checkbox("Ground Units",      ref _groundUnits);
-        ImGui.Checkbox("Air Units",         ref _airUnits);
-        ImGui.Checkbox("Vehicles",          ref _vehicles);
-        ImGui.Checkbox("Tactical Graphics", ref _tacticalGraphics);
-        ImGui.Checkbox("Routes",            ref _roadGraphs);
-        ImGui.Checkbox("Grid",              ref _grid);
-
         float scale = _iconScale;
-        if (ImGui.SliderFloat("Icon Scale", ref scale, PanelConstants.IconScaleMin, PanelConstants.IconScaleMax))
-            IconScale = scale;
+        if (FormGrid.Begin("cfg.form", Labels))
+        {
+            FormGrid.Row("Satellite Layer");   ImGui.Checkbox("##satellite", ref _satelliteLayer);
+            FormGrid.Row("Ground Units");      ImGui.Checkbox("##ground", ref _groundUnits);
+            FormGrid.Row("Air Units");         ImGui.Checkbox("##air", ref _airUnits);
+            FormGrid.Row("Vehicles");          ImGui.Checkbox("##vehicles", ref _vehicles);
+            FormGrid.Row("Tactical Graphics"); ImGui.Checkbox("##graphics", ref _tacticalGraphics);
+            FormGrid.Row("Routes");            ImGui.Checkbox("##routes", ref _roadGraphs);
+            FormGrid.Row("Grid");              ImGui.Checkbox("##grid", ref _grid);
+            FormGrid.Row("Icon Scale");
+            if (ImGui.SliderFloat("##iconscale", ref scale, PanelConstants.IconScaleMin, PanelConstants.IconScaleMax))
+                IconScale = scale;
+            FormGrid.End();
+        }
 
         if (ImGui.Button("SEND CONFIG PATCH"))
             HandleSendConfigPatch(ctrl);

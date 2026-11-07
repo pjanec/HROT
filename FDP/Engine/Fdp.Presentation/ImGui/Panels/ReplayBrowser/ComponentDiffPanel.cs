@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -96,13 +97,17 @@ public sealed class ComponentDiffPanel
     /// <summary>
     /// Renders <paramref name="diffs"/> using the current filter settings.
     /// </summary>
+    private static readonly string[] DiffLabels = { "Ignore Epsilon (< 0.001)", "Hide Unchanged" };
+
     public void DrawContent(IReadOnlyList<DiffNode> diffs)
     {
-        Gui.Checkbox("Ignore Epsilon (< 0.001)", ref _ignoreEpsilon);
-        Gui.SameLine();
-        Gui.Checkbox("Hide Unchanged", ref _hideUnchanged);
+        if (FormGrid.Begin("diff.options", DiffLabels))
+        {
+            FormGrid.Row("Ignore Epsilon (< 0.001)"); Gui.Checkbox("##ignoreepsilon", ref _ignoreEpsilon);
+            FormGrid.Row("Hide Unchanged");           Gui.Checkbox("##hideunchanged", ref _hideUnchanged);
+            FormGrid.End();
+        }
 
-        Gui.SameLine();
         if (Gui.Button("Filter"))
             Gui.OpenPopup("##diff_filter_popup");
 

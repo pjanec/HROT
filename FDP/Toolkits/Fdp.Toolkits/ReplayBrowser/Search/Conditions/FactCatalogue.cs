@@ -162,15 +162,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Search.Conditions
             return true;
         }
 
-        internal static string Num(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+        public static string Num(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
 
-        internal static string SideName(ForceId side) => side switch
+        public static string SideName(ForceId side) => side switch
         {
             ForceId.Friend => "Blue", ForceId.Hostile => "Red", ForceId.Neutral => "Neutral", _ => side.ToString(),
         };
 
         /// <summary><i>after 1:00</i> · <i>before 2:30</i> · <i>between 1:00 and 2:30</i>.</summary>
-        internal static string TimeWords(double from, double to)
+        public static string TimeWords(double from, double to)
         {
             bool open = to >= double.MaxValue / 2;
             if (from <= 0 && open) return "any time";
@@ -179,7 +179,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search.Conditions
             return $"between {Clock(from)} and {Clock(to)}";
         }
 
-        internal static string Clock(double seconds)
+        public static string Clock(double seconds)
         {
             var t = TimeSpan.FromSeconds(Math.Max(0, seconds));
             return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes}:{t.Seconds:00}";

@@ -255,6 +255,11 @@ public sealed class RulesWindowFrameRail : IDisposable
         window.Details!.RequestTab(RuleTab.When); Step(null, 4);
         Assert.Equal("When", window.Probe.Editor!.Tab);
         Assert.Equal(new[] { "When", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }, window.Probe.Editor.Fields.ToArray());   // ⭐ U-9 — the condition and its timing, no header
+        // ⭐ U-15 / C3 — the When tab reads as SENTENCES (the friendly view): the objective by its kind and name, no component path; nothing blank ⇒ Apply may run
+        Assert.Equal(new[] { "Objective: Hold the bridge is achieved" }, window.Details!.ConditionRows);
+        Assert.Null(window.Details.ConditionProblem);
+        // ⭐ C4 — the timing is the END OF THE SENTENCE (cooldown 10 on a once-trigger: "once")
+        Assert.Equal("...and it stays true for 0 s, then wait 0 s. Fire once", window.Details.TimingSentence);
         frame.Screenshot(ShotPath("rules-4-when.png"));
         {   // ⭐ CE-4286 / U-2 — the rule editor's tabs are a real tab bar (the neutral palette: the selected tab #3A3A48 with the blue overline), not a strip of buttons
             var shot = Raylib.LoadImageFromScreen();
@@ -390,6 +395,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.Equal(new[] { true }, liveValues);
         Assert.True(window.Probe.Editor!.LiveValuesWanted);
         Assert.Contains(window.Probe.Editor.LiveStrip!, t => t.StartsWith("yes | ") && t.EndsWith("| 2"));
+        Assert.Equal(new string?[] { "yes 2" }, window.Details.ConditionLive);   // ⭐ C4 — the row's own live column (✓ + the number), not a strip under the form
         frame.Screenshot(ShotPath("rules-9-when-live.png"));
         window.Details.RequestTab(RuleTab.Settings); Step(null, 3);
         Assert.Equal(new[] { true, false }, liveValues);
@@ -478,5 +484,43 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.Equal(new[] { "State", "TriggerState" }, both["Conditions"]!.AsArray().Select(c => c!["Predicate"]!["PropertyPath"]!.ToString()));   // A2: by kind
         Assert.True(window.Details.Undo()); Assert.True(window.Details.Undo());
         Assert.Equal(pushJson, Params());
+    }
+
+    /// <summary>
+    /// ⭐ U-15 / C3 (DESIGN_Condition_Editor §4) — an unfilled blank in the friendly view: the row says what is missing (<i>Choose an area …</i>) and Apply stays
+    /// disabled until it is filled; the Expert view (the struct editor, as before) is one tick away and lifts the friendly view's hold.
+    /// 🔴 Red-proof (compiles): <c>ConditionEditor.ProblemOf</c> returning null ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void U15_TheWhenTab_ReadsAsSentences_AnUnfilledBlankHoldsApply()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
+        var e = _world.CreateEntity();
+        _world.AddComponent(e, new NetworkIdentity(30));
+        _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "Trigger", InstanceId = 1,
+            JsonParams = """{"common":{"title":"Reach"},"when":{"$type":"OnEntity","ref":{"NetworkId":12},"predicate":{"$type":"SpatialBounding"}}}""" });
+        var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null,
+            (x, n, j) => true, new Hrot.Presentation.Edits.EditHistory(), _ => Array.Empty<RuleJournalEntry>());
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_u15", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc);
+        using var frame = UiFrameHarness.Begin(1400, 700);
+        void Step(int n = 1)
+        {
+            for (int i = 0; i < n; i++)
+                frame.Step(() =>
+                {
+                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1400, 700));
+                    ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+                    window.DrawContent();
+                    ImGui.End();
+                });
+        }
+        window.SelectNetworkId(30);
+        Step(4);
+        window.Details!.RequestTab(RuleTab.When); Step(4);
+        Assert.Single(window.Details.ConditionRows);
+        Assert.Contains("is inside the area", window.Details.ConditionRows[0]);
+        Assert.StartsWith("Choose an area", window.Details.ConditionProblem);
+        frame.Screenshot(ShotPath("rules-u15-blank.png"));
     }
 }

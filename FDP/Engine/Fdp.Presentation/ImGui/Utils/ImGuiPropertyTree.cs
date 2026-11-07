@@ -1,4 +1,5 @@
 using System.Collections;
+using NodeEditor.Core.Widgets;
 using System.Numerics;
 using System.Reflection;
 using Fdp.Presentation.Renderers;
@@ -32,7 +33,11 @@ namespace Fdp.Presentation.Utils;
 public static class ImGuiPropertyTree
 {
     private const int   MaxDepth     = 8;
-    public const float NameColWidth = 180f;
+    /// <summary>The FormGrid id every property tree shares (so every component's tree lines up on ONE name column).</summary>
+    public const string TableFormId = "##ptree";
+
+    /// <summary>The name column of the property tree drawn this frame (a nested table in a value cell mirrors it); 180 before any tree has been drawn.</summary>
+    public static float NameColWidth { get { float w = FormGrid.ColumnWidthOf(TableFormId); return w > 0f ? w : 180f; } }
 
     // Process-wide member cache keyed by Type.
     private static readonly Dictionary<Type, MemberInfo[]> _memberCache = new();
@@ -85,21 +90,16 @@ public static class ImGuiPropertyTree
         // when multiple Render() calls appear inside the same window (e.g. several component
         // headers each calling Render for their data).  The caller is responsible for
         // establishing a unique ImGui ID scope (via PushID/PopID) before calling Render().
-        string tableId = "##ptree";
 
-        if (!ImGuiApi.BeginTable(tableId, 2,
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable |
-            ImGuiTableFlags.SizingFixedFit))
+        // ⭐ U-13 (C4): the label column is FormGrid's ONE rule (§3.3: ≤ 25 % of the width, learned from the rows via Note) — no private fixed 180 px
+        if (!FormGrid.BeginTree(TableFormId))
             return;
-
-        ImGuiApi.TableSetupColumn( "Property", ImGuiTableColumnFlags.WidthFixed, NameColWidth );
-        ImGuiApi.TableSetupColumn( "Value", ImGuiTableColumnFlags.WidthStretch );
         //ImGuiApi.TableHeadersRow();
 
         string? dcPath = null;
         RenderRows(obj, obj.GetType(), contextType, 0, "$", ref dcPath, include);
 
-        ImGuiApi.EndTable();
+        FormGrid.End();
 
         doubleClickedPath = dcPath;
     }
@@ -142,6 +142,7 @@ public static class ImGuiPropertyTree
                 opened = ImGuiApi.TreeNodeEx(
                     $"{name}##{depth}_{i}",
                     ImGuiTreeNodeFlags.SpanAvailWidth);
+                FormGrid.Note(ImGuiApi.CalcTextSize(name).X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
             }
             else
             {
@@ -153,6 +154,7 @@ public static class ImGuiPropertyTree
                     ImGuiTreeNodeFlags.Leaf |
                     ImGuiTreeNodeFlags.NoTreePushOnOpen |
                     ImGuiTreeNodeFlags.SpanAvailWidth);
+                FormGrid.Note(ImGuiApi.CalcTextSize(name).X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
                 opened = false;
             }
 
@@ -267,6 +269,7 @@ public static class ImGuiPropertyTree
                 opened = ImGuiApi.TreeNodeEx(
                     $"[{idx}]##{depth}_{idx}",
                     ImGuiTreeNodeFlags.SpanAvailWidth);
+                FormGrid.Note(ImGuiApi.CalcTextSize("[000]").X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
             }
             else
             {
@@ -275,6 +278,7 @@ public static class ImGuiPropertyTree
                     ImGuiTreeNodeFlags.Leaf |
                     ImGuiTreeNodeFlags.NoTreePushOnOpen |
                     ImGuiTreeNodeFlags.SpanAvailWidth);
+                FormGrid.Note(ImGuiApi.CalcTextSize("[000]").X + (depth + 1) * ImGuiApi.GetStyle().IndentSpacing + ImGuiApi.GetTreeNodeToLabelSpacing());
                 opened = false;
             }
 

@@ -60,6 +60,8 @@ public sealed class ScenarioEnvironmentView : IDetailsViewInstance
     /// <summary>For rails: whether the Parameters header was open on the last draw.</summary>
     internal bool ParametersHeaderOpen { get; private set; }
 
+    private static readonly string[] ClockLabels = { "Scenario start (UTC)", "Local offset (min)" };
+
     private void DrawEnvironment(DetailsContext context, string idScope)
     {
         var world = _world();
@@ -75,18 +77,22 @@ public sealed class ScenarioEnvironmentView : IDetailsViewInstance
             _error = null;
         }
 
-        ImGui.TextUnformatted("Scenario start (UTC)");
-        ImGui.SetNextItemWidth(160f);
-        if (ImGui.InputText($"##start{idScope}", ref _startText, 32, ImGuiInputTextFlags.EnterReturnsTrue))
-            Apply(world!);
-        ImGui.SameLine();
-        if (ImGui.Button($"Set##start{idScope}")) Apply(world!);
-        if (_error != null) ImGui.TextColored(new System.Numerics.Vector4(1f, 0.45f, 0.35f, 1f), _error);
-
         int offset = state.Clock.DisplayUtcOffsetMinutes;
-        ImGui.SetNextItemWidth(160f);
-        if (ImGui.InputInt($"Local offset (min)##off{idScope}", ref offset, 15, 60))
-            ScenarioClockEdit.SetOffsetMinutes(world!, offset);
+        if (FormGrid.Begin("scn.clock", ClockLabels))
+        {
+            FormGrid.Row("Scenario start (UTC)");
+            ImGui.SetNextItemWidth(-48f * ImGui.GetFontSize() / 13f);
+            if (ImGui.InputText($"##start{idScope}", ref _startText, 32, ImGuiInputTextFlags.EnterReturnsTrue))
+                Apply(world!);
+            ImGui.SameLine();
+            if (ImGui.Button($"Set##start{idScope}")) Apply(world!);
+            if (_error != null) { ImGui.TableNextRow(); ImGui.TableSetColumnIndex(1); ImGui.TextColored(new System.Numerics.Vector4(1f, 0.45f, 0.35f, 1f), _error); }
+
+            FormGrid.Row("Local offset (min)");
+            if (ImGui.InputInt($"##off{idScope}", ref offset, 15, 60))
+                ScenarioClockEdit.SetOffsetMinutes(world!, offset);
+            FormGrid.End();
+        }
         ImGui.TextDisabled($"Local start: {state.StartLocal.ToString(ScenarioClockEdit.Format, System.Globalization.CultureInfo.InvariantCulture)}"
                            + (state.Direct ? string.Empty : "  (sent to the owner)"));
 

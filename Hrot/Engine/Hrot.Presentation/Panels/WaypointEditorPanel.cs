@@ -1,4 +1,5 @@
 ﻿using System;
+using NodeEditor.Core.Widgets;
 using System.Text.Json.Nodes;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Toolkit.Navigation;
@@ -183,52 +184,60 @@ public class WaypointEditorPanel
         bool changed = false;
 
         // -- Position (read-only) --
-        ImGui.LabelText("Position", $"({wp.Position.X:F1}, {wp.Position.Y:F1}, {wp.Position.Z:F1})");
-
-        ImGui.Separator();
-
-        // -- Target Speed --
-        float speed = wp.TargetSpeed;
-        if (ImGui.InputFloat("Target Speed (m/s)", ref speed))
-            wp.TargetSpeed = System.Math.Max(0f, speed);
-        changed |= ImGui.IsItemDeactivatedAfterEdit();
-
-        // -- ⭐ CE-1096 (W-2) — the air fields --
-        int kind = (int)wp.Kind;
-        if (ImGui.Combo("Kind", ref kind, KindNames, KindNames.Length)) { wp.Kind = (RouteWaypointKind)kind; changed = true; }
-        float height = wp.HeightAgl;
-        if (ImGui.InputFloat("Height above ground (m)", ref height)) wp.HeightAgl = System.Math.Max(0f, height);
-        changed |= ImGui.IsItemDeactivatedAfterEdit();
-        if (wp.HeightAgl <= 0f) ImGui.TextDisabled("0 = the waypoint's own height");
-        int hold = (int)wp.Hold;
-        if (ImGui.Combo("Hold", ref hold, HoldNames, HoldNames.Length)) { wp.Hold = (RouteHold)hold; changed = true; }
-        if (wp.Hold == RouteHold.Seconds)
+        if (FormGrid.Begin("wp.form"))
         {
-            float seconds = wp.HoldSeconds;
-            if (ImGui.InputFloat("Hold (s)", ref seconds)) wp.HoldSeconds = System.Math.Max(0f, seconds);
-            changed |= ImGui.IsItemDeactivatedAfterEdit();
-        }
-        if (wp.Hold == RouteHold.Pickup)
-        {
-            string unit = wp.HoldUnit.Ref.NetworkId.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            if (ImGui.InputText("Unit to pick up (network id)", ref unit, 24)
-                && int.TryParse(unit, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id))
-                wp.HoldUnit = PickLink(id);
-            changed |= ImGui.IsItemDeactivatedAfterEdit();
-        }
+            FormGrid.Row("Position");
+            ImGui.TextUnformatted($"({wp.Position.X:F1}, {wp.Position.Y:F1}, {wp.Position.Z:F1})");
 
-        ImGui.Separator();
+            // -- Target Speed --
+            float speed = wp.TargetSpeed;
+            FormGrid.Row("Target Speed (m/s)");
+            if (ImGui.InputFloat("##speed", ref speed))
+                wp.TargetSpeed = System.Math.Max(0f, speed);
+            changed |= ImGui.IsItemDeactivatedAfterEdit();
 
-        // -- AI Advice JSON --
-        if (ImGui.InputTextMultiline(
-                "AI Advice (JSON)",
+            // -- ⭐ CE-1096 (W-2) — the air fields --
+            int kind = (int)wp.Kind;
+            FormGrid.Row("Kind");
+            if (ImGui.Combo("##kind", ref kind, KindNames, KindNames.Length)) { wp.Kind = (RouteWaypointKind)kind; changed = true; }
+            float height = wp.HeightAgl;
+            FormGrid.Row("Height above ground (m)");
+            if (ImGui.InputFloat("##height", ref height)) wp.HeightAgl = System.Math.Max(0f, height);
+            changed |= ImGui.IsItemDeactivatedAfterEdit();
+            if (wp.HeightAgl <= 0f) { ImGui.TableNextRow(); ImGui.TableSetColumnIndex(1); ImGui.TextDisabled("0 = the waypoint's own height"); }
+            int hold = (int)wp.Hold;
+            FormGrid.Row("Hold");
+            if (ImGui.Combo("##hold", ref hold, HoldNames, HoldNames.Length)) { wp.Hold = (RouteHold)hold; changed = true; }
+            if (wp.Hold == RouteHold.Seconds)
+            {
+                float seconds = wp.HoldSeconds;
+                FormGrid.Row("Hold (s)");
+                if (ImGui.InputFloat("##holdseconds", ref seconds)) wp.HoldSeconds = System.Math.Max(0f, seconds);
+                changed |= ImGui.IsItemDeactivatedAfterEdit();
+            }
+            if (wp.Hold == RouteHold.Pickup)
+            {
+                string unit = wp.HoldUnit.Ref.NetworkId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                FormGrid.Row("Unit to pick up (network id)");
+                if (ImGui.InputText("##unit", ref unit, 24)
+                    && int.TryParse(unit, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id))
+                    wp.HoldUnit = PickLink(id);
+                changed |= ImGui.IsItemDeactivatedAfterEdit();
+            }
+
+            // -- AI Advice JSON --
+            FormGrid.Row("AI Advice (JSON)");
+            if (ImGui.InputTextMultiline(
+                "##aiadvice",
                 ref _jsonBuffer,
                 maxLength: 2048,
                 size: new System.Numerics.Vector2(0f, 80f)))
-        {
-            wp.ExtensionJson = string.IsNullOrWhiteSpace(_jsonBuffer) ? null : _jsonBuffer;
+            {
+                wp.ExtensionJson = string.IsNullOrWhiteSpace(_jsonBuffer) ? null : _jsonBuffer;
+            }
+            changed |= ImGui.IsItemDeactivatedAfterEdit();
+            FormGrid.End();
         }
-        changed |= ImGui.IsItemDeactivatedAfterEdit();
 
         // ⭐ CE-1096 (W-3) — committed when made, not lost on Escape
         if (changed) activeState.CommitEdits();

@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.WindowManager;
@@ -114,18 +115,30 @@ namespace Hrot.UI.Common.Map3D.Director
                 {
                     _scenario = Math.Clamp(_scenario, 0, all.Count - 1);
                     var scenarios = all.Select(x => x.Scenario).ToArray();
-                    if (ImGui.Combo("Scenario", ref _scenario, scenarios, scenarios.Length)) _take = 0;
-                    var takes = all[_scenario].Takes.ToArray();
+                    var takes = all[Math.Clamp(_scenario, 0, all.Count - 1)].Takes.ToArray();
+                    if (FormGrid.Begin("dir.pick"))
+                    {
+                        FormGrid.Row("Scenario");
+                        if (ImGui.Combo("##scenario", ref _scenario, scenarios, scenarios.Length)) { _take = 0; takes = all[_scenario].Takes.ToArray(); }
+                        _take = Math.Clamp(_take, 0, takes.Length - 1);
+                        FormGrid.Row("Take");
+                        ImGui.Combo("##take", ref _take, takes, takes.Length);
+                        FormGrid.End();
+                    }
                     _take = Math.Clamp(_take, 0, takes.Length - 1);
-                    ImGui.Combo("Take", ref _take, takes, takes.Length);
                     chosen = Reel.Of(scenarios[_scenario], takes[_take]);
                 }
             }
 
             float speed = _speed;
-            ImGui.SliderFloat("Speed", ref speed, 0.25f, 2f, "%.2fx");
-            _speed = speed;
-            if (runner.Busy && ImGui.IsItemDeactivatedAfterEdit()) runner.SetSpeed(_speed);
+            if (FormGrid.Begin("dir.speed"))
+            {
+                FormGrid.Row("Speed");
+                ImGui.SliderFloat("##speed", ref speed, 0.25f, 2f, "%.2fx");
+                _speed = speed;
+                if (runner.Busy && ImGui.IsItemDeactivatedAfterEdit()) runner.SetSpeed(_speed);
+                FormGrid.End();
+            }
             if (_pick == PickTake && chosen != null) DrawEdit(chosen.Items[0].Scenario, chosen.Items[0].Take);
 
             ImGui.BeginDisabled(chosen == null || chosen.Items.Count == 0 || Renders is { Busy: true });   // ⭐ CE-1306 — a render holds the director
@@ -286,29 +299,36 @@ namespace Hrot.UI.Common.Map3D.Director
             {
                 var seg = take.Segments[si];
                 float speed = (float)seg.Speed;
-                ImGui.SetNextItemWidth(160f);
-                ImGui.SliderFloat("Segment speed", ref speed, 0.1f, 8f, "%.2fx", ImGuiSliderFlags.Logarithmic);
-                if (ImGui.IsItemDeactivatedAfterEdit() && speed > 0f) editor.Apply(new TakeEdit.SetSegment(si, seg with { Speed = Math.Round(speed, 2) }));
-                ImGui.SameLine();
                 bool dip = seg.Gap == SegmentGap.Dip;
-                if (ImGui.Checkbox("Dip into it", ref dip)) editor.Apply(new TakeEdit.SetSegment(si, seg with { Gap = dip ? SegmentGap.Dip : SegmentGap.Cut }));
+                if (FormGrid.Begin("dir.segment"))
+                {
+                    FormGrid.Row("Segment speed");
+                    ImGui.SliderFloat("##speed", ref speed, 0.1f, 8f, "%.2fx", ImGuiSliderFlags.Logarithmic);
+                    if (ImGui.IsItemDeactivatedAfterEdit() && speed > 0f) editor.Apply(new TakeEdit.SetSegment(si, seg with { Speed = Math.Round(speed, 2) }));
+                    FormGrid.Row("Dip into it");
+                    if (ImGui.Checkbox("##dip", ref dip)) editor.Apply(new TakeEdit.SetSegment(si, seg with { Gap = dip ? SegmentGap.Dip : SegmentGap.Cut }));
+                    FormGrid.End();
+                }
             }
             else if (tracks.SelectedSubtitle is { } ui && TakeSubtitles.Of(take, TakeTimeline.Plan(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null)) is { } subs && ui < subs.Count)
             {
                 var sub = subs[ui];
                 if (_subtitleEdit?.Index != ui || _subtitleEdit.Value.Version != editor.Version) _subtitleEdit = (ui, editor.Version, sub.Text);
                 string text = _subtitleEdit.Value.Text;
-                ImGui.SetNextItemWidth(320f);
-                if (ImGui.InputText("Subtitle", ref text, 512)) _subtitleEdit = (ui, editor.Version, text);
-                if (ImGui.IsItemDeactivatedAfterEdit() && text != sub.Text) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Text = text }));
                 int pos = (int)sub.Position;
-                ImGui.SetNextItemWidth(120f);
-                if (ImGui.Combo("Position", ref pos, SubtitlePositions, SubtitlePositions.Length)) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Position = (SubtitlePosition)pos }));
-                ImGui.SameLine();
                 float fade = (float)sub.Fade;
-                ImGui.SetNextItemWidth(120f);
-                ImGui.SliderFloat("Fade", ref fade, 0f, 2f, "%.1f s");
-                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Fade = Math.Round(fade, 2) }));
+                if (FormGrid.Begin("dir.subtitle"))
+                {
+                    FormGrid.Row("Subtitle");
+                    if (ImGui.InputText("##text", ref text, 512)) _subtitleEdit = (ui, editor.Version, text);
+                    if (ImGui.IsItemDeactivatedAfterEdit() && text != sub.Text) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Text = text }));
+                    FormGrid.Row("Position");
+                    if (ImGui.Combo("##position", ref pos, SubtitlePositions, SubtitlePositions.Length)) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Position = (SubtitlePosition)pos }));
+                    FormGrid.Row("Fade");
+                    ImGui.SliderFloat("##fade", ref fade, 0f, 2f, "%.1f s");
+                    if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Fade = Math.Round(fade, 2) }));
+                    FormGrid.End();
+                }
             }
             else if (tracks.SelectedView is { } vi && TakeViews.Of(take, TakeTimeline.Plan(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null)) is { } views && vi < views.Count)
                 DrawSelectedView(editor, vi, views[vi]);
@@ -321,13 +341,17 @@ namespace Hrot.UI.Common.Map3D.Director
         private static void DrawSelectedView(TakeEditor editor, int index, ViewChange view)
         {
             int map = view.TwoD is null ? 0 : view.TwoD.Value ? 1 : 2;
-            ImGui.SetNextItemWidth(140f);
-            if (ImGui.Combo("Map", ref map, ViewMaps, ViewMaps.Length))
-                editor.Apply(new TakeEdit.SetView(index, view with { TwoD = map == 0 ? null : map == 1 }));
-            ImGui.SameLine();
             bool own = view.Layers != null;
-            if (ImGui.Checkbox("Sets layers", ref own))
-                editor.Apply(new TakeEdit.SetView(index, view with { Layers = own ? LayerChange.None : null }));
+            if (FormGrid.Begin("dir.view"))
+            {
+                FormGrid.Row("Map");
+                if (ImGui.Combo("##map", ref map, ViewMaps, ViewMaps.Length))
+                    editor.Apply(new TakeEdit.SetView(index, view with { TwoD = map == 0 ? null : map == 1 }));
+                FormGrid.Row("Sets layers");
+                if (ImGui.Checkbox("##setslayers", ref own))
+                    editor.Apply(new TakeEdit.SetView(index, view with { Layers = own ? LayerChange.None : null }));
+                FormGrid.End();
+            }
             if (view.Layers is not { } layers) return;
             var scene = Hrot.Common.Diagnostics.Gizmos.LayerControlSets.SceneRows;
             int column = 0;
@@ -353,33 +377,34 @@ namespace Hrot.UI.Common.Map3D.Director
         private void DrawSelectedGraphic(TakeEditor editor, DirectorTracks tracks, int index, FilmGraphic g)
         {
             int kind = (int)g.Kind;
-            ImGui.SetNextItemWidth(110f);
-            if (ImGui.Combo("Kind", ref kind, GraphicKinds, GraphicKinds.Length)) editor.Apply(new TakeEdit.SetGraphic(index, g with { Kind = (GraphicKind)kind }));
             if (_graphicEdit?.Index != index || _graphicEdit.Value.Version != editor.Version)
                 _graphicEdit = (index, editor.Version, g.Text ?? "", g.Who ?? "", g.Toward ?? "");
             var (_, version, text, who, toward) = _graphicEdit.Value;
-            ImGui.SameLine();
-            ImGui.SetNextItemWidth(140f);
-            if (ImGui.InputText("Unit", ref who, 128)) _graphicEdit = (index, version, text, who, toward);
-            if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Who = who.Length == 0 ? null : who }));
-            if (g.Kind == GraphicKind.Arrow)
-            {
-                ImGui.SameLine();
-                ImGui.SetNextItemWidth(140f);
-                if (ImGui.InputText("Toward", ref toward, 128)) _graphicEdit = (index, version, text, who, toward);
-                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Toward = toward.Length == 0 ? null : toward }));
-            }
-            ImGui.SetNextItemWidth(260f);
-            if (ImGui.InputText("Text", ref text, 256)) _graphicEdit = (index, version, text, who, toward);
-            if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Text = text.Length == 0 ? null : text }));
             float radius = g.Radius, fade = (float)g.Fade;
-            ImGui.SetNextItemWidth(120f);
-            ImGui.SliderFloat("Radius", ref radius, 1f, 100f, "%.0f m");
-            if (ImGui.IsItemDeactivatedAfterEdit() && radius > 0f) editor.Apply(new TakeEdit.SetGraphic(index, g with { Radius = MathF.Round(radius, 1) }));
-            ImGui.SameLine();
-            ImGui.SetNextItemWidth(120f);
-            ImGui.SliderFloat("Fade##gfx", ref fade, 0f, 2f, "%.1f s");
-            if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Fade = Math.Round(fade, 2) }));
+            if (FormGrid.Begin("dir.graphic"))
+            {
+                FormGrid.Row("Kind");
+                if (ImGui.Combo("##kind", ref kind, GraphicKinds, GraphicKinds.Length)) editor.Apply(new TakeEdit.SetGraphic(index, g with { Kind = (GraphicKind)kind }));
+                FormGrid.Row("Unit");
+                if (ImGui.InputText("##unit", ref who, 128)) _graphicEdit = (index, version, text, who, toward);
+                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Who = who.Length == 0 ? null : who }));
+                if (g.Kind == GraphicKind.Arrow)
+                {
+                    FormGrid.Row("Toward");
+                    if (ImGui.InputText("##toward", ref toward, 128)) _graphicEdit = (index, version, text, who, toward);
+                    if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Toward = toward.Length == 0 ? null : toward }));
+                }
+                FormGrid.Row("Text");
+                if (ImGui.InputText("##text", ref text, 256)) _graphicEdit = (index, version, text, who, toward);
+                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Text = text.Length == 0 ? null : text }));
+                FormGrid.Row("Radius");
+                ImGui.SliderFloat("##radius", ref radius, 1f, 100f, "%.0f m");
+                if (ImGui.IsItemDeactivatedAfterEdit() && radius > 0f) editor.Apply(new TakeEdit.SetGraphic(index, g with { Radius = MathF.Round(radius, 1) }));
+                FormGrid.Row("Fade");
+                ImGui.SliderFloat("##fade", ref fade, 0f, 2f, "%.1f s");
+                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetGraphic(index, g with { Fade = Math.Round(fade, 2) }));
+                FormGrid.End();
+            }
             ImGui.Text($"{g.Points.Count} point(s)");
             ImGui.SameLine();
             if (ImGui.Button("Add the camera's look-at as a point") && tracks.PilotLookAt is { } look)
@@ -448,16 +473,19 @@ namespace Hrot.UI.Common.Map3D.Director
             var reel = Composer.Reel!;
             ImGui.TextUnformatted($"Composing reel '{reel.Name}'{(Composer.Dirty ? " * (unsaved - Play plays it as it stands)" : "")}");
             string title = reel.Title ?? "";
-            ImGui.SetNextItemWidth(260f);
-            if (ImGui.InputText("Title##reel", ref title, 256)) Composer.SetOptions(title, reel.Transition, reel.GapSeconds, reel.Loop);
-            ImGui.SameLine();
             float gap = (float)reel.GapSeconds;
-            ImGui.SetNextItemWidth(110f);
-            ImGui.SliderFloat("Gap", ref gap, 0f, 5f, "%.1f s");
-            if (ImGui.IsItemDeactivatedAfterEdit()) Composer.SetOptions(reel.Title, reel.Transition, Math.Round(gap, 2), reel.Loop);
-            ImGui.SameLine();
             bool loopReel = reel.Loop;
-            if (ImGui.Checkbox("Loop (live)", ref loopReel)) Composer.SetOptions(reel.Title, reel.Transition, reel.GapSeconds, loopReel);
+            if (FormGrid.Begin("dir.reel"))
+            {
+                FormGrid.Row("Title");
+                if (ImGui.InputText("##reeltitle", ref title, 256)) Composer.SetOptions(title, reel.Transition, reel.GapSeconds, reel.Loop);
+                FormGrid.Row("Gap");
+                ImGui.SliderFloat("##gap", ref gap, 0f, 5f, "%.1f s");
+                if (ImGui.IsItemDeactivatedAfterEdit()) Composer.SetOptions(reel.Title, reel.Transition, Math.Round(gap, 2), reel.Loop);
+                FormGrid.Row("Loop (live)");
+                if (ImGui.Checkbox("##reelloop", ref loopReel)) Composer.SetOptions(reel.Title, reel.Transition, reel.GapSeconds, loopReel);
+                FormGrid.End();
+            }
 
             if (ImGui.BeginTable("##reelitems", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
             {

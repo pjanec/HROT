@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Collections.Generic;
 using System.Linq;
 using Hrot.UI.Common.Map3D.Director;
@@ -25,7 +26,7 @@ namespace Hrot.Editor.Director
             if (names.Count == 0) { ImGui.TextDisabled("No scenario has checks (scenarios/<name>/checks.json)."); return; }
             _verify = Math.Clamp(_verify, 0, names.Count - 1);
             var arr = names.ToArray();
-            ImGui.Combo("Scenario##verify", ref _verify, arr, arr.Length);
+            if (FormGrid.Begin("verify.form")) { FormGrid.Row("Scenario"); ImGui.Combo("##verify", ref _verify, arr, arr.Length); FormGrid.End(); }
             ImGui.BeginDisabled(runner.Busy);
             if (ImGui.Button("Verify")) ctx.Start(VerifyRequest(arr[_verify], capture: false));
             ImGui.SameLine();

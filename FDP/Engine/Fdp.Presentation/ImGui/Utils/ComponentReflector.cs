@@ -391,16 +391,12 @@ public class ComponentReflector
         if (_inPlaceEditSession!.RebuildState == EditRebuildState.RebuildRequired)
             _inPlaceEditSession.RebuildDocument();
 
-        if (ImGuiApi.BeginTable($"##inPlaceEdit_{type.Name}", 2,
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
-            ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit))
+        // ⭐ U-13 (C4): the in-place editor's table is a FormGrid tree table (the one label-column rule), not a private 180 px
+        if (FormGrid.BeginTree("##inPlaceEdit"))
         {
-            ImGuiApi.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 180f);
-            ImGuiApi.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
-
             _inPlaceEditDrawer!.DrawRoot(_inPlaceEditSession.Document.Root);
 
-            ImGuiApi.EndTable();
+            FormGrid.End();
         }
 
         if (_inPlaceEditErrorMessage != null)

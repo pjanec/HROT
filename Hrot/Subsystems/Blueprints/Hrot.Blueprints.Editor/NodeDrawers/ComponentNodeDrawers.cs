@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 
@@ -195,7 +196,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         var unlisted = IsCurrentComponentTypeFqnUnlistedForTest();
         var comboLabel = current.Length > 0 ? current : "(none)";
 
-        if (ImGui.BeginCombo("Component Type", comboLabel))
+        FormGrid.BeginField("bp.node", "Component Type"); if (ImGui.BeginCombo("##Component_Type", comboLabel))
         {
             ImGui.InputTextWithHint("##GetComponentTypeFilter", "Filter...", ref _typeFilterText, 256);
 
@@ -214,7 +215,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
             }
 
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (unlisted)
             ImGui.TextColored(StatusPalette.Warning,
@@ -436,7 +437,7 @@ internal sealed class SetComponentNodeSession : INodeEditSession
         var unlisted = IsCurrentComponentTypeFqnUnlistedForTest();
         var comboLabel = current.Length > 0 ? current : "(none)";
 
-        if (ImGui.BeginCombo("Component Type", comboLabel))
+        FormGrid.BeginField("bp.node", "Component Type"); if (ImGui.BeginCombo("##Component_Type", comboLabel))
         {
             ImGui.InputTextWithHint("##SetComponentTypeFilter", "Filter...", ref _typeFilterText, 256);
 
@@ -455,7 +456,7 @@ internal sealed class SetComponentNodeSession : INodeEditSession
             }
 
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (unlisted)
             ImGui.TextColored(StatusPalette.Warning,

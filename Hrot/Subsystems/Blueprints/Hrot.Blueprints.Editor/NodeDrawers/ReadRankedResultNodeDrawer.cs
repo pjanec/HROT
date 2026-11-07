@@ -1,4 +1,5 @@
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using Hrot.Blueprints.Core.Assets;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
@@ -91,14 +92,14 @@ internal sealed class ReadRankedResultNodeSession : INodeEditSession
         int baseline = _node.Rank;
 
         int rank = _node.Rank;
-        if (ImGui.InputInt("Rank", ref rank))
+        FormGrid.BeginField("bp.node", "Rank"); if (ImGui.InputInt("##Rank", ref rank))
         {
             // Live, deliberately un-recorded: holding a stepper fires per frame. The gesture is
             // recorded once on deactivation below (Q22-E1).
             _node.Rank = ClampRank(rank);
             IsDirty    = true;
             _editService.MarkDirty(_parent);
-        }
+        } FormGrid.EndField();
 
         _rankCoalescer.BeginIfNeeded(ImGui.IsItemActivated(), baseline);
         if (_rankCoalescer.TryCommit(ImGui.IsItemDeactivatedAfterEdit(), out var beforeGesture))

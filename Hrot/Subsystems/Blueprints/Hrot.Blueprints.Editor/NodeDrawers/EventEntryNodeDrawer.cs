@@ -1,4 +1,5 @@
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using Hrot.Blueprints.Core.Assets;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
@@ -92,13 +93,13 @@ internal sealed class EventEntryNodeSession : INodeEditSession
         ImGui.Separator();
 
         int current = Array.IndexOf(Policies, _node.Policy);
-        if (ImGui.BeginCombo("Policy", _node.Policy.ToString()))
+        FormGrid.BeginField("bp.node", "Policy"); if (ImGui.BeginCombo("##Policy", _node.Policy.ToString()))
         {
             for (int i = 0; i < Policies.Length; i++)
                 if (ImGui.Selectable(Policies[i].ToString(), i == current))
                     ApplyPolicy(Policies[i]);
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
         ImGui.TextDisabled(_node.Policy switch
         {
             EventFiberPolicy.Restart => "(an arrival while the handler waits restarts it — the newest wins)",
@@ -109,15 +110,18 @@ internal sealed class EventEntryNodeSession : INodeEditSession
         if (_node.Policy != EventFiberPolicy.Restart)
         {
             int capacity = Math.Max(1, _node.Capacity);
-            if (ImGui.InputInt("Capacity", ref capacity))
-                ApplyCapacity(capacity);
+            FormGrid.BeginField("bp.node", "Capacity"); if (ImGui.InputInt("##Capacity", ref capacity))
+                ApplyCapacity(capacity); FormGrid.EndField();
         }
 
         if (!string.IsNullOrEmpty(_node.TargetFieldName))
         {
             bool self = _node.TargetFilterSelf;
-            if (ImGui.Checkbox($"Only when '{_node.TargetFieldName}' is this entity", ref self))
+            FormGrid.BeginField("bp.node", "Targets me");
+            if (ImGui.Checkbox("##targetsme", ref self))
                 ApplySelfFilter(self);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Only when '{_node.TargetFieldName}' is this entity");
+            FormGrid.EndField();
         }
         ImGui.TextDisabled("(waiting handlers apply to behaviours; an Instance handler runs to the end at once)");
     }

@@ -24,7 +24,7 @@ public static class FormGrid
 
     private sealed class State
     {
-        public float Widest, FontSize, FormWidth, Column;
+        public float Widest, FontSize, FormWidth, Column, LastWidest;
         public bool Fixed;           // measured from the labels given to Begin
         public bool StatusSlot;
     }
@@ -43,11 +43,28 @@ public static class FormGrid
     /// <summary>Begins a form. <paramref name="labels"/> (a caller-owned, static array) fixes the widest label up front; null learns it from <see cref="Row"/>.</summary>
     /// <returns>false when the table is not visible (do not call Row/End then).</returns>
     public static bool Begin(string id, string[]? labels = null, bool statusSlot = false)
+        => Begin(id, labels, statusSlot, ImGuiTableFlags.None, tree: false);
+
+    /// <summary>
+    /// A TREE / property table — rows the caller lays out itself (tree nodes in column 1, values in column 2: <c>ImGuiPropertyTree</c>, the raw component editor) on the SAME label-column rule (§3.3):
+    /// <c>min(widest + 14, max(25 % of the width, 90 px × scale))</c>, the widest learned from <see cref="Note"/> (nothing noted ⇒ the 25 % cap). ⛔ Not user-resizable — one rule, no per-table drag.
+    /// </summary>
+    public static bool BeginTree(string id, ImGuiTableFlags flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit)
+        => Begin(id, null, false, flags, tree: true);
+
+    /// <summary>A tree row tells the current form how wide its column-1 content is (text + indent), so the column learns the widest.</summary>
+    public static void Note(float contentWidth)
+    {
+        var st = _depth > 0 && _depth <= Stack.Length ? Stack[_depth - 1] : null;
+        if (st is not null && !st.Fixed && contentWidth > st.Widest) st.Widest = contentWidth;
+    }
+
+    private static bool Begin(string id, string[]? labels, bool statusSlot, ImGuiTableFlags flags, bool tree)
     {
         if (!States.TryGetValue(id, out var st)) States[id] = st = new State();
         float fs = ImGui.GetFontSize();
         float scale = fs / ReferenceFontSize;
-        if (st.FontSize != fs) { st.FontSize = fs; st.Widest = 0f; st.Fixed = false; st.FormWidth = -1f; }
+        if (st.FontSize != fs) { st.FontSize = fs; st.Widest = 0f; st.Fixed = false; st.FormWidth = -1f; st.LastWidest = -1f; }
         if (labels is not null && !st.Fixed)
         {
             float w = 0f;
@@ -55,10 +72,12 @@ public static class FormGrid
             st.Widest = w; st.Fixed = true; st.FormWidth = -1f;
         }
         float avail = ImGui.GetContentRegionAvail().X;
-        if (avail != st.FormWidth) { st.FormWidth = avail; st.Column = LabelColumn(st.Widest, avail, scale); }
+        // a form that learns its labels (or a tree that Notes its rows) starts at the cap; a wider/narrower learned width recomputes the column
+        float widest = !st.Fixed && st.Widest <= 0f ? 1e6f : st.Widest;   // nothing learned yet: the cap, not a 14 px sliver
+        if (avail != st.FormWidth || widest != st.LastWidest) { st.FormWidth = avail; st.LastWidest = widest; st.Column = LabelColumn(widest, avail, scale); }
         st.StatusSlot = statusSlot;
 
-        if (!ImGui.BeginTable(id, statusSlot ? 3 : 2, ImGuiTableFlags.None)) return false;
+        if (!ImGui.BeginTable(id, statusSlot ? 3 : 2, flags)) return false;
         ImGui.TableSetupColumn("##label", ImGuiTableColumnFlags.WidthFixed, st.Column);
         ImGui.TableSetupColumn("##control", ImGuiTableColumnFlags.WidthStretch);
         if (statusSlot) ImGui.TableSetupColumn("##status", ImGuiTableColumnFlags.WidthFixed, StatusSlotWidth * scale);   // §6.2: a fixed 18 px slot, always there
@@ -84,6 +103,30 @@ public static class FormGrid
             CutLabel(label, avail);
         ImGui.TableSetColumnIndex(1);
         ImGui.SetNextItemWidth(-1f);
+    }
+
+    private static readonly bool[] FieldOpen = new bool[8];
+    private static int _fieldDepth;
+
+    /// <summary>
+    /// ONE labelled row as its own one-row form: <c>BeginField("bp.node", "Mode"); ImGui.Combo("##mode", …); EndField();</c>. ⭐ Every field of one <paramref name="form"/> id shares the
+    /// learned widest label and the cached column, so rows drawn by separate calls (a drawer's methods, a panel's sections) still line up on ONE label column — the helper for code
+    /// whose rows are interleaved with other widgets. ⛔ Never <c>return</c> / <c>break</c> between the pair (the table would stay open); a field that must exit early uses <c>Begin</c>/<see cref="End"/>.
+    /// </summary>
+    public static void BeginField(string form, string label)
+    {
+        bool open = Begin(form);
+        if (_fieldDepth < FieldOpen.Length) FieldOpen[_fieldDepth] = open;
+        _fieldDepth++;
+        if (open) Row(label);
+    }
+
+    /// <summary>Ends the field begun by <see cref="BeginField"/>.</summary>
+    public static void EndField()
+    {
+        if (_fieldDepth == 0) return;
+        _fieldDepth--;
+        if (_fieldDepth < FieldOpen.Length && FieldOpen[_fieldDepth]) End();
     }
 
     /// <summary>Moves to the status slot (column 3) of the current row — only for a form begun with a status slot.</summary>
