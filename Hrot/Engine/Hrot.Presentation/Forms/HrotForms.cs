@@ -223,11 +223,57 @@ public static class HrotForms
                 AddLabel = "Carried by...",
                 Add = CarriedBy,
             },
+            // ⭐ U-24 / S5 — carries: one line per weapon in a station of HIS carrier buffer — in his Hands, on his Back, or Hidden. Drop → the ONE disembark; Add… → the ONE embark (the owner puts it in the FIRST free
+            //   station that accepts it — `Embarkation.FreeStation`). ⏳ not yet: choosing WHICH station (Hands vs Back — `CarryStations.Ask` / `RestationEvent` moves one already carried)
+            new FormList
+            {
+                Label = "Carries", RowLabels = StationWords,
+                Fill = FillCarries,
+                Footer = (w, e) => HasStations(w, e) ? null : "carries nothing",
+                RemoveLabel = "Drop",
+                Remove = (w, it) => Hrot.Common.Orders.EmbarkOrders.Disembark(w, it.Item),
+                AddLabel = "Add...",
+                Add = AddWeapon,
+            },
         },
     };
 
     private static readonly string[] UnitWords = { "Unit" };
     private static readonly string[] CarryWords = { "Carried", "Carried", "Dragged", "Stretcher", "Second man" };   // by CarryMode (Seated reads as Carried), then the assistant
+
+    private static readonly string[] StationWords = { "Hands", "Back", "Hidden" };
+
+    private static bool HasStations(EntityRepository w, Entity e)
+        => w.IsAlive(e) && w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CarrierStations>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>(e)
+           && w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(e);
+
+    /// <summary>One row per WEAPON in one of his stations: <i>Hands</i> (an open station), <i>Back</i> (stowed), <i>Hidden</i> (stowed and concealed); the row's item is the WEAPON (Drop disembarks it).</summary>
+    private static void FillCarries(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        if (!HasStations(w, e)) return;
+        ref readonly var buf = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(e);
+        ref readonly var stations = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierStations>(e);
+        for (int i = 0; i < Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity; i++)
+        {
+            if (!stations.IsStation(i)) continue;
+            var weapon = buf.Passengers[i];
+            if (weapon.IsNull || !w.IsAlive(weapon) || !Fdp.Toolkit.Behavior.Embarkation.IsWeaponSystem(w, weapon)) continue;
+            into.Add(new FormListItem(stations.IsConcealed(i) ? StationWords[2] : stations.IsStowed(i) ? StationWords[1] : StationWords[0], NameOf(w, weapon, "(a weapon)"), weapon));
+        }
+    }
+
+    private static string? AddWeapon(EntityRepository w, Entity man, Entity weapon)
+    {
+        if (!HasStations(w, man)) return "he has nowhere to carry a weapon";
+        if (!Fdp.Toolkit.Behavior.Embarkation.IsWeaponSystem(w, weapon)) return "that is not a weapon";
+        return Fdp.Toolkit.Behavior.Embarkation.CanEmbark(w, weapon, man) switch
+        {
+            Fdp.Toolkit.Behavior.EmbarkResult.Applied => Hrot.Common.Orders.EmbarkOrders.Embark(w, weapon, man) ? null : "not sent",
+            Fdp.Toolkit.Behavior.EmbarkResult.AlreadyAboard => "he already carries it",
+            Fdp.Toolkit.Behavior.EmbarkResult.Full => "his hands and back are full",
+            _ => "he cannot carry that (no station of his takes it, it is a fixed weapon, or he is not in the fight)",
+        };
+    }
 
     private static bool IsPersonCarrier(EntityRepository w, Entity v)
         => w.IsAlive(v) && w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PersonCarrier>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>(v);

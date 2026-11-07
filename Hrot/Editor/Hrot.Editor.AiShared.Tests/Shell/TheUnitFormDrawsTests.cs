@@ -289,6 +289,72 @@ public sealed class TheUnitFormDrawsTests
         Assert.Equal(other, sent[0].Passenger); Assert.Equal(soldier, sent[0].Vehicle);
     }
 
+    /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §3) — the Unit form's <b>Carries</b> list in a real frame: a man with a rifle in his hands reads <c>["Hands", "Rifle"]</c>, a stowed one <i>Back</i>; <i>Add…</i> of something that is no weapon is refused with the reason
+    /// (the pick on <c>form.unit.list4</c>); a weapon with a free station is sent through the ONE embark (<c>EmbarkEntityCommand</c> on the bus). ⏳ Which station (Hands vs Back) is the owner's first-free choice, not the form's.
+    /// 🔴 Red-proof (compiles): <c>FillCarries</c> naming every station <i>Hands</i> ⇒ the stowed rifle reads "Hands" ⇒ red.</summary>
+    [SkippableFact]
+    public void U24_S5_Carries_ListsTheWeaponsInHisStations_AndAddSendsThroughTheOneEmbark()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        byte carried = (byte)Fdp.Toolkit.Tkb.Domain.MountKinds.Carried;
+        Entity Weapon(string name, int net)
+        {
+            var wpn = world.CreateEntity();
+            world.AddComponent(wpn, new EntityInfo { Name = new FixedString64(name) });
+            world.AddComponent(wpn, new NetworkIdentity(net));
+            world.AddComponent(wpn, new Fdp.Toolkit.Combat.WeaponSystemParams { MountKinds = carried });
+            return wpn;
+        }
+        var crate = world.CreateEntity();
+        world.AddComponent(crate, new EntityInfo { Name = new FixedString64("Crate") });
+        world.AddComponent(crate, new NetworkIdentity(9));
+        var rifle = Weapon("Rifle", 20); var launcher = Weapon("Launcher", 21);
+        var man = world.CreateEntity();
+        world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
+        world.AddComponent(man, new NetworkIdentity(7));
+        var stations = new Fdp.Toolkit.Behavior.Components.CarrierStations { StationMask = 0b11, StowedMask = 0b10 };   // seat 0 = hands, seat 1 = back
+        stations.Seats[0] = new Fdp.Toolkit.Behavior.Components.StationSeat { Accepts = carried };
+        stations.Seats[1] = new Fdp.Toolkit.Behavior.Components.StationSeat { Accepts = carried };
+        world.AddComponent(man, stations);
+        var buf = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1 };
+        buf.Passengers[0] = rifle;
+        world.AddComponent(man, buf);
+        world.AddComponent(rifle, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = man, Seat = 0 });
+
+        HrotForms.EnsureRegistered();
+        const int list = 4;
+        Assert.Equal("Carries", HrotForms.Unit.Lists[list].Label);
+        var view = new FormView { Pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(9), "form.unit.list" + list) };   // he is handed a crate
+        using var frame = UiFrameHarness.Begin(700, 420);
+        void Draw() => frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 360));
+            ImGui.Begin("Details##unit-carries");
+            view.Draw(HrotForms.Unit, world, new[] { man }, editable: true);
+            ImGui.End();
+        });
+        Draw();
+        Assert.Equal(new[] { "Hands", "Rifle" }, view.ListRows);
+        Assert.Equal("that is not a weapon", view.ListProblem(list));
+        ref var b2 = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(man);   // the rifle moves to his back
+        b2.Passengers[0] = Entity.Null; b2.Passengers[1] = rifle;
+        world.SetComponent(rifle, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = man, Seat = 1 });
+        view = new FormView(); Draw();
+        Assert.Equal(new[] { "Back", "Rifle" }, view.ListRows);
+
+        Assert.Null(HrotForms.Unit.Lists[list].Add!(world, man, launcher));   // seat 0 (his hands) is free again: the owner puts it there
+        world.Bus.SwapBuffers();
+        var sent = world.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        Assert.Equal(1, sent.Length);
+        Assert.Equal(launcher, sent[0].Passenger); Assert.Equal(man, sent[0].Vehicle);
+    }
+
     /// <summary>⭐ U-24 / S6 (DESIGN_Initial_State §4.2) — the Unit form's <b>Character</b> section in a real frame: Skill and Bravery / Obedience / Nerve / Resolve read the EFFECTIVE values; an authored value that differs from the type's
     /// carries the blue reset arrow (<c>FormMark.DiffersFromType</c>, tooltip <i>type 0.5 — reset</i>), one that does not carries none; the reset writes a NEGATIVE value to the attribute (81) through the one <c>Submit</c> seam.
     /// Skill is a SLIDER row (not the tier word — the optional part of the S6 row). 🔴 Red-proof (compiles): <c>FormView.RefreshType</c> never setting <c>Differs</c> ⇒ no mark ⇒ red. Renders: <c>unit-form-s5.png</c>.</summary>
