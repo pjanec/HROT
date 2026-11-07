@@ -63,6 +63,8 @@ public static class SimHostAuxiliaryTranslatorPack
         //   exactly the intents for units this node does not own (HasAuthority<BehaviorState> gate). 🔴 It was Brain-only, so an
         //   order published on a SimHost / map node reached nobody. A Brain node's egress still carries a commander's intents.
         translators.Add(new TacticalIntentEgressTranslator(participant, entityMap));
+        // ⭐ Edit framework F6 (CE-4277) — a mission plan commit, likewise, from any node to the unit's brain owner (forwards only what this node does not own).
+        translators.Add(new MissionControlEgressTranslator(participant, entityMap));
 
         // ── Mission control CQRS ───────────────────────────────────────────
         if (role.HasFlag(NodeRole.Brain))

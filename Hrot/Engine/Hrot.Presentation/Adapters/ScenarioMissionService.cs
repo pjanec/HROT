@@ -164,22 +164,25 @@ namespace Hrot.UI.Common.Adapters
         public System.Threading.Tasks.Task<MissionCommitResult> CommitMissionAsync(
             int entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
         {
-            var tcs       = new TaskCompletionSource<MissionCommitResult>();
-            var requestId = Guid.NewGuid();
-            _pendingCommits[requestId] = tcs;
-
-            _bus.PublishManaged(new MissionControlIntent
+            var tcs = new TaskCompletionSource<MissionCommitResult>();
+            // ⭐ Edit framework F6 (CE-4277) — a journalled Commit: Submit mints the id, the intent carries it and its version precondition; the executor
+            //   answers Applied, or CONFLICT when the plan moved since it was opened (the notification offers Reload / Overwrite — Q3).
+            void Send(Guid requestId)
             {
-                RequestId      = requestId,
-                TargetEntityId = entityId,
-                BaseVersion    = baseVersion,
-                Payload = new MissionCommandPayload
+                _pendingCommits[requestId] = tcs;
+                _bus.PublishManaged(new MissionControlIntent
                 {
-                    CommandType     = Hrot.Core.Mission.eMissionCommandType.CMD_REPLACE_MISSION,
-                    FullMissionData = plan,
-                }
-            });
-
+                    RequestId      = requestId,
+                    TargetEntityId = entityId,
+                    BaseVersion    = baseVersion,
+                    Payload = new MissionCommandPayload
+                    {
+                        CommandType     = Hrot.Core.Mission.eMissionCommandType.CMD_REPLACE_MISSION,
+                        FullMissionData = plan,
+                    }
+                });
+            }
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(_repo, Fdp.Toolkit.Replication.Edits.EditOp.Commit(FindEntityByNetworkId(entityId), Send, "Commit the mission plan"));
             return tcs.Task;
         }
 
@@ -225,7 +228,23 @@ namespace Hrot.UI.Common.Adapters
                         ErrorMessage: success ? null : $"ErrorCode={ack.ErrorCode}"));
                 }
             }
+
+            // ⭐ Edit framework F6 (CE-4277) — a commit for a unit whose brain another node owns is answered THERE: its answer arrives as the ONE edit
+            //   outcome (no local ack event). Resolve the pending commit from the outcome log (0 B while nothing is pending).
+            if (_pendingCommits.Count == 0) return;
+            var log = Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(_repo);
+            _resolved.Clear();
+            foreach (var (id, tcs) in _pendingCommits)
+            {
+                if (!log.TryGet(id, out var o) || !o.FromNetwork || o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Pending) continue;
+                bool ok = o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Applied;
+                tcs.TrySetResult(new MissionCommitResult(Success: ok, NewVersion: 0, ErrorMessage: ok ? null : o.Reason));
+                _resolved.Add(id);
+            }
+            foreach (var id in _resolved) _pendingCommits.Remove(id);
         }
+
+        private readonly List<Guid> _resolved = new();
 
         // ── Private helpers ───────────────────────────────────────────────────
 

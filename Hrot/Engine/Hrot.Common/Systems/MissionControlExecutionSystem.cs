@@ -175,6 +175,10 @@ namespace Hrot.Common.Systems
                 return;
             }
 
+            // ⭐ Edit framework F6 (CE-4277) — only the node that owns the unit's BRAIN applies its plan (the tactical-intent rule): a local commit for a
+            //   unit owned elsewhere goes there (MissionControlEgressTranslator) and is NOT written to this replica; a remote one on a bystander is silent.
+            if (!OwnsBrain(repo, entity)) return;
+
             long currentVersion = VersionOf(repo, entity);
 
             switch (intent.Payload.CommandType)          
@@ -302,6 +306,13 @@ namespace Hrot.Common.Systems
             if (!repo.HasComponent<MissionPlanQueue>(entity)) repo.AddComponent(entity, new MissionPlanQueue());
             repo.GetComponentRW<MissionPlanQueue>(entity).Version++;
         }
+
+        /// <summary>Does this node own <paramref name="e"/>'s brain? An entity with no authority component (a networkless world, a bare test world) is local.</summary>
+        public static bool OwnsBrain(EntityRepository repo, Entity e)
+            => !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkAuthority>()
+               || !repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(e)
+               || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>()
+               || repo.HasAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(e);
 
         private void PublishAck(EntityRepository repo, MissionControlIntent intent, NedStatusCode errorCode, long newVersion)
         {

@@ -513,4 +513,54 @@ public class MissionControlExecutionSystemTests
         provider.ClearFor(entity, repo);   // idempotent: no plan, nothing to do
         Assert.Equal(0, repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount);
     }
+
+    // ── ⭐ Edit framework F6 (CE-4277): only the BRAIN's owner applies a commit; a commit for a unit owned elsewhere goes there ─────────────────
+
+    private sealed class CapturingRequests : Hrot.Map.Common.Dds.IDdsWriter<Hrot.NED.Messages.MissionControlRequest>
+    {
+        public readonly List<Hrot.NED.Messages.MissionControlRequest> Written = new();
+        public void Write(Hrot.NED.Messages.MissionControlRequest sample) => Written.Add(sample);
+        public void DisposeInstance(Hrot.NED.Messages.MissionControlRequest key) { }
+    }
+
+    /// <summary>A commit on a node that does not own the unit's brain is NOT applied to the replica and answers nothing; the egress forwards it with the
+    /// user's request id; a unit owned here is not forwarded. ✅ Red-proof: the executor's OwnsBrain gate removed ⇒ the replica's queue is written ⇒ red.</summary>
+    [Fact]
+    public void F6_ACommitForAUnitOwnedElsewhere_IsForwarded_NotAppliedToTheReplica()
+    {
+        var entityMap = new NetworkEntityMap();
+        using var repo = CreateWorld();
+        repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+        repo.Bus.RegisterManaged<MissionControlIntent>();
+        var replica = repo.CreateEntity();
+        repo.AddComponent(replica, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+        entityMap.Register(1, replica);
+        var owned = repo.CreateEntity();
+        repo.AddComponent(owned, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+        repo.AddComponent(owned, new BehaviorState());
+        repo.SetAuthority<BehaviorState>(owned, true);
+        entityMap.Register(2, owned);
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
+        MissionControlIntent Commit(int target) => new()
+        {
+            RequestId = Guid.NewGuid(), TargetEntityId = target, BaseVersion = 0,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(Guid.NewGuid()) },
+        };
+
+        var toReplica = Commit(1);
+        system.TestHook_ProcessIntent(repo, toReplica);
+        Assert.False(repo.HasComponent<MissionPlanQueue>(replica) && repo.GetComponent<MissionPlanQueue>(replica).PhaseCount > 0);
+        repo.Bus.SwapBuffers();
+        Assert.Null(FindAck(repo, toReplica.RequestId));                                      // the owner answers, not this node
+
+        var toOwned = Commit(2);
+        repo.Bus.PublishManaged(toReplica);
+        repo.Bus.PublishManaged(toOwned);
+        repo.Bus.PublishManaged(new MissionControlIntent { RequestId = Guid.NewGuid(), TargetEntityId = 1, IsRemote = true, Payload = toReplica.Payload });
+        repo.Bus.SwapBuffers();
+        var writer = new CapturingRequests();
+        new Hrot.Network.NED.SimHost.MissionControlEgressTranslator(writer, entityMap).ScanAndPublish(repo);
+        var sent = Assert.Single(writer.Written);                                              // the owned one stays, the remote one is never re-sent
+        Assert.Equal((toReplica.RequestId, 1), (sent.RequestId, sent.TargetEntityId));
+    }
 }
