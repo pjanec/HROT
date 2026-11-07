@@ -92,6 +92,7 @@ namespace Hrot.Common.Actions
             // ── Embark (⭐ CE-1230 OM-2, OM-3, R-1019 — the ONE place a unit is embarked / disembarked by hand) ─────────────────────────
             catalogue.Declare(new ActionDecl(GlobalActionIds.Disembark, "Disembark", ActionGroup.Embark, First, Unit)
             {
+                Execution = ActionExecution.PerEntity,   // ⭐ A4 (R-4162) — every selected unit gets off
                 Modes = ActionModes.InEdit | ActionModes.InLive,   // ⭐ A3 — planned in Edit, ordered in Live; not in a Preview, not in a recording
                 Offer = ctx => ctx.Unit.Embark == EmbarkOffer.Disembark ? new ContextMenuItemDto { Id = GlobalActionIds.Disembark, Label = "Disembark" } : null,
             });
@@ -129,7 +130,7 @@ namespace Hrot.Common.Actions
             });
 
             // ── Destructive (a graphic) ───────────────────────────────────────────────────────────────────────────────────────────────
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Graphic) { Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Graphic) { Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive, Execution = ActionExecution.PerEntity });   // ⭐ A4 — every selected one
         }
 
         private static IEnumerable<ContextMenuItemDto> OrderRows(ActionContext ctx)

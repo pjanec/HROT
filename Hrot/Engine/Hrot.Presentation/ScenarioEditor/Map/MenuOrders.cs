@@ -120,13 +120,16 @@ namespace Hrot.ScenarioEditor.Map
         {
             var pick = PickService?.Invoke();
             if (pick is null || !TryNetworkId(unit, out int id)) return;
+            // ⭐ A4 (R-4162) — a plain order on a SELECTED unit goes to every selected unit ("doesn't matter which one was right clicked");
+            //   the follow-up pick is the order's parameter, made ONCE. ⛔ SUPERSEDES Orders §13.12 O6 ("plain menu orders stay one unit").
+            var units = UnitsOf(unit);
             _unit = id;
             _order = order;
             _designating = null;
             _embarking = Entity.Null;
             _location = null;
             _enemy = null;
-            _draft = OrderMenu.Draft(order, new[] { id }, OrderContext.None, json => Send(new[] { id }, order, json),
+            _draft = OrderMenu.Draft(order, units, OrderContext.None, json => Send(units, order, json),
                 designation: DesignationLookup());
             if (_draft.IsComplete) { Report(Send(_draft)); return; }
             switch (order.Pick)

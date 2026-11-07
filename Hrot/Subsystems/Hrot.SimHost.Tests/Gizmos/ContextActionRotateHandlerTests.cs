@@ -119,6 +119,39 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Equal(Entity.Null, Click());
         }
 
+        /// <summary>⭐ A4 (R-4162) — a menu click on a SELECTED entity runs a PerEntity action (Delete) for every selected one; a Selection action
+        /// (Center View) and a click on an UNSELECTED entity run once, for the clicked one. 🔴 Red-proof (compiles): <c>RunsPerEntity</c> answering false ⇒
+        /// one Delete ⇒ red.</summary>
+        [Fact]
+        public void A4_AClickOnASelectedEntity_RunsAPerEntityActionForEverySelected_OtherwiseOnce()
+        {
+            _repo.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
+            Entity Unit(int net, bool selected)
+            {
+                var e = _repo.CreateEntity();
+                _repo.AddComponent(e, new Hrot.Map.Common.Components.SelectionState { IsSelected = selected });
+                _entityMap.Register(net, e);
+                return e;
+            }
+            var a = Unit(7, true); var b = Unit(8, true); var c = Unit(9, false);
+            var bus = new FdpEventBus();
+            bus.Register<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent>();
+            bus.Register<GlobalActionRequestedEvent>();
+            var sys = new ContextActionIngressSystem(_entityMap, bus);
+            Entity[] Click(int anchor, int action)
+            {
+                bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent { AnchorId = anchor, ActionId = action });
+                bus.SwapBuffers();
+                sys.Execute(_repo, 0f);
+                bus.SwapBuffers();
+                return bus.Read<GlobalActionRequestedEvent>().ToArray().Select(e => e.Target).OrderBy(e => e.Index).ToArray();
+            }
+
+            Assert.Equal(new[] { a, b }, Click(8, GlobalActionIds.Delete));            // in the selection ⇒ every selected one
+            Assert.Equal(new[] { c }, Click(9, GlobalActionIds.Delete));               // outside it ⇒ that one
+            Assert.Equal(new[] { b }, Click(8, GlobalActionIds.CenterOnEntity));       // a Selection action ⇒ once, the clicked one
+        }
+
         /// <summary>⭐ CE-3178 — a click relayed from another node (the gizmo topic's ContextActionTriggered) keeps that mark into
         /// the request the dispatcher reads; this node's own menu click (GizmoMenuActionEvent) is unmarked.</summary>
         [Fact]

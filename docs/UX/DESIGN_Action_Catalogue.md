@@ -410,6 +410,23 @@ it takes a checkpoint" (the backend request was withdrawn).
 
 ✏ **R-4163 (`2026-11-07`):** 🔒 *"if there are entities selected and I right click the empty space, the menu should be for the empty space only, not for the selection. If I want it to be applied to the selection, I would click one of the selected entities. Imagine I would like to measure something on the map"*. ⛔ SUPERSEDED: the row *empty ground → the selection (e.g. Move here)*. ⇒ moving the selection = right-click one of them → Move → click the point. ⭐ These rows are the **map scope's mouse bindings** (Input and Commands §6b); in RTS mode the RTS scope overrides them
 
+⭐ **A4 as built (ui, `2026-11-07`)** — `ActionDecl.Execution` (`Selection` = one request, the default · `PerEntity` = one request per selected
+entity); `ContextActionIngressSystem` fans a LOCAL map-menu click out when the action is `PerEntity` and the clicked entity is selected (a relayed
+click was made against another station's selection, so it never fans out). Per action, measured:
+
+| action | execution | why |
+|---|---|---|
+| Delete, Disembark | **PerEntity** | a plain act on each |
+| plain orders (Move, Hold, Attack …) | Selection — `MenuOrders.Begin` sends to `UnitsOf(clicked)` | ONE follow-up pick, then the order to every selected unit (⛔ SUPERSEDES O6) |
+| Order with options, Designate › Set… | Selection — already `UnitsOf` (CE-1059) | one form / one pick |
+| Copy / Paste / Duplicate, Paste plan, Save selection as macro | Selection — the handler reads the selection | per-entity would overwrite the clipboard N times |
+| Rotate, Edit Shape, Edit Route, Possess, Embark…, Follow, Center View, Properties…, Select | Selection (the clicked one) | a tool, a camera or a panel on ONE entity; ⏭ Embark of several onto one vehicle not built |
+| Pin gizmos / AI trace items | Selection (the clicked one) | ⏭ per-selection pins not built |
+
+**Right-click on empty ground keeps the selection** (`SelectionInteractionSystem`, R-4163 — ⛔ SUPERSEDED: §2.3 row 3 "clears"); rows 1–2 were
+already built (S-4b). ⏭ Not built: the offer as AND over the selection (`Requires`), the inspector's multi menu, `MenuShortcuts` on all selected.
+Rails: `ContextActionIngressSystemTests.A4_*`, `MenuOrdersTests.A4_*`, `SelectionInteractionSystemTests.A4_*`.
+
 The click that FOLLOWS a menu command (a target point, a target entity) is the command's parameter, never a command. ⇒ ONE rule for every menu command, orders included; ⛔ SUPERSEDES [Orders §13.12 O6](../DESIGN_Orders_Params_Entity_Classes.md) (*"plain menu orders stay one unit"*).
 
 **Group order:** Edit mode — *Edit, Embark, View, Debug, Destructive*; Preview / Live — *Orders, Embark, View, Edit, Debug, Destructive*

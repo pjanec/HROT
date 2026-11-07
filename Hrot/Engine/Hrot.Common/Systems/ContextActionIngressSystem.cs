@@ -42,6 +42,10 @@ namespace Hrot.Common.Systems
             _interactionBus = interactionBus ?? throw new System.ArgumentNullException(nameof(interactionBus));
         }
 
+        private static bool IsSelected(EntityRepository world, Entity e)
+            => !e.IsNull && world.IsAlive(e) && world.IsComponentTypeRegistered<Hrot.Map.Common.Components.SelectionState>()
+               && world.HasComponent<Hrot.Map.Common.Components.SelectionState>(e) && world.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsSelected;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             var entityMap = _entityMap();
@@ -77,6 +81,17 @@ namespace Hrot.Common.Systems
                 Entity target = Entity.Null;
                 if (evt.AnchorId > 0 && evt.AnchorId <= int.MaxValue)   // ⭐ CE-4200: the gizmo anchor id is 64-bit; above int.MaxValue it is no network id (see NetworkIdResolver.ResolveAnchorId)
                     entityMap?.TryGetEntity((int)evt.AnchorId, out target);
+
+                // ⭐ A4 (R-4162) — a click on a SELECTED entity runs a per-entity action for EVERY selected one ("doesn't matter which one was right
+                //   clicked"); a click outside the selection, or an action that reads the selection itself, runs once. Local clicks only: a relayed click
+                //   (ContextActionTriggered above) was made against ANOTHER station's selection.
+                if (Hrot.Common.Actions.ActionCatalogue.Shared.RunsPerEntity(evt.ActionId) && view is EntityRepository world && IsSelected(world, target))
+                {
+                    foreach (var e in world.Query().With<Hrot.Map.Common.Components.SelectionState>().Build())
+                        if (world.IsAlive(e) && world.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsSelected)
+                            _interactionBus.Publish(new GlobalActionRequestedEvent { ActionId = evt.ActionId, Target = e });
+                    continue;
+                }
 
                 _interactionBus.Publish(new GlobalActionRequestedEvent
                 {

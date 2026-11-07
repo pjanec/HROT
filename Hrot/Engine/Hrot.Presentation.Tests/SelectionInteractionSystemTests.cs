@@ -643,16 +643,16 @@ public class SelectionInteractionSystemTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>§2.3 row 3 — right-click on EMPTY SPACE clears.</b> 🔴 This could not be implemented at
-    /// all before <c>S-4b</c>: the terminal emitted nothing for a canvas right-click, so no event
-    /// reached this system.
+    /// ⭐⭐⭐ <b>A4 / R-4163 — right-click on EMPTY SPACE leaves the selection alone</b> (its menu is the empty-space menu only). 🔒 <i>"if there
+    /// are entities selected and I right click the empty space, the menu should be for the empty space only, not for the selection"</i>.
+    /// ⛔ SUPERSEDED: §2.3 row 3 "right-click on empty space clears". 🔴 Red-proof: the old <c>ClearAll</c> restored ⇒ red.
     ///
     /// <para>⛔ And it must NOT arm a rubber band — that is a left-drag gesture, and arming one on a
     /// right-release leaves <c>_isBoxSelecting</c> set with no matching commit. The second half of this
     /// rail pins that: a later commit must not then re-clear as a tiny drag.</para>
     /// </summary>
     [Fact]
-    public void RightClickingEmptySpace_ClearsTheSelection_AndDoesNotArmARubberBand()
+    public void A4_RightClickingEmptySpace_KeepsTheSelection_AndDoesNotArmARubberBand()
     {
         var a = CreateSelectableEntity();
         _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
@@ -664,7 +664,7 @@ public class SelectionInteractionSystemTests
         _system.Tick(0f);
         ServeRequests();
 
-        Assert.False(_world.GetComponent<SelectionState>(a).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(a).IsSelected);   // ⭐ R-4163 — unchanged
 
         // ⭐ No band was armed, so this commit is not a tiny-drag deselect and nothing further happens.
         Entity? callbackEntity = null;

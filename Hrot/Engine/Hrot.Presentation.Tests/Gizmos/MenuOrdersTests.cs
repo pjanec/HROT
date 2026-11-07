@@ -660,6 +660,28 @@ public sealed class MenuOrdersTests : IDisposable
             "registered on every map host, before the orders (a replay draws the marks too)");
     }
 
+    /// <summary>⭐ A4 (R-4162) — a PLAIN order on a selected unit goes to EVERY selected unit ("doesn't matter which one was right clicked"); on a
+    /// unit outside the selection, to that unit alone. ⛔ SUPERSEDES O6 (plain menu orders stay one unit). 🔴 Red-proof: <c>Begin</c> back to
+    /// <c>new[] { id }</c> ⇒ one order ⇒ red.</summary>
+    [Fact]
+    public void A4_APlainOrderOnASelectedUnit_GoesToEverySelectedUnit_OutsideTheSelectionToThatUnitAlone()
+    {
+        var (mi, _) = Live();
+        var other = Add(66);
+        _w.SetDisType(other, _w.GetDisType(_unit));
+        mi.MenuOrders.Selected = () => new[] { _unit, other };
+        Click(mi, Id("Hold"));
+        _w.Bus.SwapBuffers();
+        var orders = _w.Bus.ReadManaged<AssignTacticalIntentEvent>().ToArray();
+        Assert.Equal(new[] { _unit, other }, orders.Select(o => o.Entity).OrderBy(e => e.Index));
+        Assert.All(orders, o => Assert.Equal("Order.Hold", o.IntentId));
+
+        mi.MenuOrders.Selected = () => new[] { other };                                // the clicked unit is NOT selected
+        Click(mi, Id("Hold"));
+        _w.Bus.SwapBuffers();
+        Assert.Equal(_unit, Assert.Single(_w.Bus.ReadManaged<AssignTacticalIntentEvent>().ToArray()).Entity);
+    }
+
     /// <summary>⭐ O5 / O6 / O7 — "Order with options › Move" opens the form for the SELECTION the clicked unit is in; Send publishes
     /// the order once per selected unit through EntityOrders, and the remember tick stores the point as both units' designation.</summary>
     [Fact]

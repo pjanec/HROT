@@ -21,6 +21,11 @@ namespace Hrot.Common.Actions
         /// <summary>⭐ B-11 A3 — the modes it is offered in (hidden elsewhere); default every mode.</summary>
         public ActionModes Modes { get; init; } = ActionModes.Always;
 
+        /// <summary>⭐ A4 (R-4162, 📄 docs/UX/DESIGN_Action_Catalogue.md §4 A4) — whom a click on a SELECTED entity runs for: <see cref="ActionExecution.Selection"/>
+        /// (default) = ONE request with the clicked entity, the handler reads the selection itself (a tool, a pick, a camera, Copy); <see cref="ActionExecution.PerEntity"/>
+        /// = one request PER selected entity (the ingress fans out — Delete, Disembark).</summary>
+        public ActionExecution Execution { get; init; } = ActionExecution.Selection;
+
         /// <summary>Whether it is offered in <paramref name="mode"/>.</summary>
         public bool OfferedIn(EditingMode mode) => (Modes & ModeBit(mode)) != 0;
 
@@ -65,6 +70,15 @@ namespace Hrot.Common.Actions
             => new(null!, Entity.Null, target, mode, default) { Time = time, AtTicks = atTicks, Lane = lane };
     }
 
+    /// <summary>⭐ A4 — how a menu command on a multi-selection runs (<see cref="ActionDecl.Execution"/>).</summary>
+    public enum ActionExecution : byte
+    {
+        /// <summary>One request with the clicked entity; the handler acts on the selection itself where it should (the safe default).</summary>
+        Selection = 0,
+        /// <summary>One request per selected entity when the clicked one is selected.</summary>
+        PerEntity = 1,
+    }
+
     /// <summary>⭐ B-11 A1 — the ONE catalogue of user actions in this process. Today's map menus are declared into it at first use.</summary>
     public sealed class ActionCatalogue
     {
@@ -82,6 +96,15 @@ namespace Hrot.Common.Actions
 
         /// <summary>Every declaration, in declaration order.</summary>
         public IReadOnlyList<ActionDecl> All => _all;
+
+        /// <summary>⭐ A4 — whether action <paramref name="id"/> runs once per selected entity (any declaration of it says so). An undeclared id runs once.</summary>
+        public bool RunsPerEntity(int id)
+        {
+            if (id == 0) return false;
+            for (int i = 0; i < _all.Count; i++)
+                if (_all[i].Id == id && _all[i].Execution == ActionExecution.PerEntity) return true;
+            return false;
+        }
 
         /// <summary>
         /// Declares an action. ⛔ The same id, targets and label declared twice throws — two declarations of one action is the duplicate the
