@@ -74,10 +74,9 @@ public sealed class StructEditorReadableTests
     [Fact]
     public void U7_ACollapsedNodesSummary_ComesFromTheOneHook()
     {
-        Assert.Null(EditSummaries.Of(new ScenarioTimePredicateDto()));
-        EditSummaries.Register(typeof(SearchPredicateDto), v => v is ScenarioTimePredicateDto t ? $"after {t.FromSeconds} s" : null);
-        try { Assert.Equal("after 60 s", EditSummaries.Of(new ScenarioTimePredicateDto { FromSeconds = 60 })); }
-        finally { EditSummaries.Register(typeof(SearchPredicateDto), _ => null); }
+        // ⭐ U-14 / C2 — the hook is filled by default with the ONE sentence renderer
+        Assert.Equal("It is after 1:00", EditSummaries.Of(new ScenarioTimePredicateDto { FromSeconds = 60 }));
+        Assert.Equal("In the fight", EditSummaries.Of(new InTheFightPredicateDto()));   // a bare leaf (no WHO): its kind's name, never the CLR name
     }
 
     [Fact]

@@ -78,7 +78,11 @@ public static class NumberInput
 /// </summary>
 public static class EditSummaries
 {
-    private static readonly Dictionary<Type, Func<object, string?>> Registered = new();
+    private static readonly Dictionary<Type, Func<object, string?>> Registered = new()
+    {
+        // ⭐ U-14 / C2 — a collapsed CONDITION says its sentence: the ONE renderer (ConditionSentence), cached per node so a frame allocates nothing
+        [typeof(Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto)] = v => Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionSentence.Summary((Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto)v),
+    };
     private static readonly Dictionary<Type, Func<object, string?>?> Resolved = new();
 
     /// <summary>Registers the summary of <paramref name="type"/> and every type derived from it.</summary>
