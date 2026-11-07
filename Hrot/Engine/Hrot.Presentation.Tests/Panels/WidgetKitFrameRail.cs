@@ -27,7 +27,7 @@ public sealed class WidgetKitFrameRail
 
     // ── harness helpers ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    private sealed class Sim
+    internal sealed class Sim
     {
         public Vector2 Pos = new(-100, -100);
         public bool Left, Right;

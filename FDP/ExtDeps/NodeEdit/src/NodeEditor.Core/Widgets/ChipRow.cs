@@ -31,6 +31,7 @@ public static class ChipRow
             x = Place(i, x, w, spacing, avail);
             ImGui.PushID(i);
             var hit = Chip.Draw("##c", label, icon, avail, end);
+            if (i < 7) KitProbe.Set(KitProbe.Chip + i, ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
             if (hit == ChipHit.Body) op = new ChipRowOp(ChipRowOpKind.Click, i);
             else if (hit == ChipHit.Remove) op = new ChipRowOp(ChipRowOpKind.Remove, i);
             if (KitDrag.Reorder(owner, i, label, asSource: true, asTarget: true, out int from)) op = new ChipRowOp(ChipRowOpKind.Move, from, i);
@@ -40,7 +41,9 @@ public static class ChipRow
         {
             float h = ImGui.GetFrameHeight();
             x = Place(n, x, h, spacing, avail);
-            if (AddButton(h)) op = new ChipRowOp(ChipRowOpKind.Add, n);
+            bool added = AddButton(h);
+            KitProbe.Set(KitProbe.ChipAdd, ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+            if (added) op = new ChipRowOp(ChipRowOpKind.Add, n);
         }
         ImGui.PopID();
         return op;

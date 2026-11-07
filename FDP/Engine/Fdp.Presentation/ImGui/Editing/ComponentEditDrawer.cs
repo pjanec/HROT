@@ -17,7 +17,7 @@ using ImGuiApi = ImGuiNET.ImGui;
 /// Draws each <see cref="EditNode"/> as one or more rows in the two-column
 /// "Property | Value" table owned by <see cref="ComponentEditWindow"/>.
 /// </summary>
-public sealed class ComponentEditDrawer
+public sealed partial class ComponentEditDrawer
 {
     private readonly IEditSession _session;
     private readonly IMapPickContext? _pickerCtx;
@@ -129,6 +129,9 @@ public sealed class ComponentEditDrawer
             case EditNodeKind.DynamicArray:
             case EditNodeKind.InlineArray:
             case EditNodeKind.FixedBuffer:
+                DrawListNode(node);   // ⭐ N-2 (CE-3379): the list forms of the kit (ComponentEditDrawer.Lists.cs)
+                break;
+
             case EditNodeKind.BufferView:
                 DrawContainerNode(node, parentContainer, elementIndex);
                 break;
@@ -353,7 +356,10 @@ public sealed class ComponentEditDrawer
             changed = DrawPrimitiveInput(node.ClrType, ref value, node);
 
             if (changed)
+            {
                 node.Binding?.SetBoxed(value);
+                _epoch++;   // ⭐ N-2 — cached list text is rebuilt
+            }
             // ⭐ CE-4206 R3 F7 — a WorldRotation keeps its Y/P/R editor and gains a muted read-out line through OrientationText
             if (node.ClrType == typeof(Fdp.Core.WorldRotation))
                 ImGuiApi.TextDisabled(ReferenceLeafDrawers.RotationReadout(changed ? value : node.Binding?.GetBoxed()));

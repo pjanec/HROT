@@ -31,9 +31,9 @@ public static class GridBlock
         _state = ListBlock.StateFor(_owner);
         _tableOpen = ImGui.BeginTable("##grid", headers.Length + 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.PadOuterX);
         if (!_tableOpen) return false;
-        ImGui.TableSetupColumn("##h", ImGuiTableColumnFlags.WidthFixed, HandleW);
-        for (int c = 0; c < headers.Length; c++) ImGui.TableSetupColumn(headers[c]);
-        ImGui.TableSetupColumn("##m", ImGuiTableColumnFlags.WidthFixed, MenuW);
+        ImGui.TableSetupColumn("##hcol", ImGuiTableColumnFlags.WidthFixed, HandleW);   // ⚠ not "##h": a header cell and row 0 would share one ID
+        for (int c = 0; c < headers.Length; c++) ImGui.TableSetupColumn(headers[c], ImGuiTableColumnFlags.WidthStretch, 1f);   // equal shares: a short field is not squeezed
+        ImGui.TableSetupColumn("##mcol", ImGuiTableColumnFlags.WidthFixed, MenuW);
         ImGui.TableHeadersRow();
         return true;
     }

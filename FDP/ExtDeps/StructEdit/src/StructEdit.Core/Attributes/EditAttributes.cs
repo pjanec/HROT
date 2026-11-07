@@ -59,3 +59,14 @@ public sealed class EditDocAttribute(string summary) : Attribute
     /// <summary>One or two sentences: what this is, and when to change it.</summary>
     public string Summary { get; } = summary;
 }
+
+/// <summary>⭐ CE-3379 (docs/DESIGN_Struct_Editor.md §4, B3) — how a LIST of structures draws: <see cref="Auto"/> (a summary row per item, B2) or <see cref="Grid"/> (small flat structures: one column per field, a row per item).</summary>
+public enum EditListForm { Auto, Grid }
+
+/// <summary>⭐ CE-3379 — the per-type opt-in of the grid form: on a list FIELD, or on the ELEMENT type (<c>[EditListForm(EditListForm.Grid)] struct Waypoint</c>), the list draws as a grid (B3).</summary>
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Class | AttributeTargets.Struct)]
+public sealed class EditListFormAttribute(EditListForm form) : Attribute
+{
+    public EditListForm Form { get; } = form;
+}
+

@@ -79,4 +79,16 @@ public sealed class WidgetKitLogicTests
         Assert.Equal(1, into[0]); Assert.Equal(2, into[1]);
         Assert.Equal(0, EntityField.Filter(c, "zzz", into));
     }
+
+    /// <summary>⭐ N-2 — the selected row after an op: it follows its item through a move, lands on an inserted / duplicated item, stays near a removed one.</summary>
+    [Theory]
+    [InlineData(ListOpKind.Duplicate, 1, -1, 1, 4, 2)]
+    [InlineData(ListOpKind.InsertAbove, 1, -1, 1, 4, 1)]
+    [InlineData(ListOpKind.MoveDown, 1, 2, 1, 4, 2)]
+    [InlineData(ListOpKind.MoveUp, 3, 2, 3, 4, 2)]
+    [InlineData(ListOpKind.Delete, 3, -1, 3, 4, 2)]
+    [InlineData(ListOpKind.Delete, 0, -1, 0, 1, -1)]
+    [InlineData(ListOpKind.Copy, 2, -1, 2, 4, 2)]
+    public void NextSelected_FollowsTheItem(ListOpKind kind, int index, int target, int selected, int count, int expected)
+        => Assert.Equal(expected, ListBlock.NextSelected(selected, new ListOp(kind, index, target), count));
 }

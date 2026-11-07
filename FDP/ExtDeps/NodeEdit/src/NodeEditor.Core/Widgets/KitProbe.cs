@@ -18,6 +18,8 @@ public static class KitProbe
     public const int Entry = 48;
     /// <summary>The LAST list row drawn by <c>ListBlock.ItemBegin</c>: 56 = handle · 57 = body · 58 = ⋮ button.</summary>
     public const int ListHandle = 56, ListBody = 57, ListMenuButton = 58;
+    /// <summary>ChipRow: slots 40 … 46 = the first seven chips · 47 = the ⊕.</summary>
+    public const int Chip = 40, ChipAdd = 47;
     /// <summary>The long list's header: 59 = filter box · 60 = ‹ · 61 = › · 62 = the ▸/▾ fold button.</summary>
     public const int HeaderFilter = 59, HeaderPrev = 60, HeaderNext = 61, HeaderFold = 62;
 

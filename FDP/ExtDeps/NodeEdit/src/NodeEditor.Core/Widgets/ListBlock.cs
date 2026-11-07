@@ -64,6 +64,7 @@ public static class ListBlock
         public readonly OpenSet Open = new();
         public readonly TextBuffer FilterBox = new(96);
         public bool Init, Collapsed, Dirty = true;
+        public int Selected = -1;
         public bool LastCollapsed;
         public int Page, LastCount = -1, LastVersion = int.MinValue, LastPage = -1;
         public string LastFilter = "";
@@ -97,6 +98,18 @@ public static class ListBlock
 
     /// <summary>How many items are drawn this page (0 while the list is collapsed).</summary>
     public static int VisibleCount => Cur.St.VisCount;
+
+    /// <summary>The selected item of the current list (the last one clicked; -1 = none) — what the keys of a hosting table act on. Valid between <see cref="Begin"/> and <see cref="End"/>.</summary>
+    public static int SelectedIndex => Cur.St.Selected;
+
+    private static uint _lastSelectedOwner;
+
+    /// <summary>Whether the current list is the one whose item was selected last (of every list on screen) — the one a table's keys belong to.</summary>
+    public static bool OwnsSelection => Cur.DragOwner == _lastSelectedOwner;
+
+    /// <summary>Asks for <paramref name="op"/> as if the user chose it from the item menu this frame (a key command of the hosting table): <see cref="End"/> applies it to the open flags and the selection and returns it.
+    /// Ignored when an op is already pending. Call between <see cref="Begin"/> and <see cref="End"/>.</summary>
+    public static void Inject(in ListOp op) { var f = Cur; if (f.Op.Kind == ListOpKind.None) f.Op = op; }
 
     /// <summary>The real item index of the <paramref name="v"/>-th visible item (filter and page applied).</summary>
     public static int VisibleIndex(int v) => Cur.St.UseFiltered ? Cur.St.Filtered[Cur.St.VisStart + v] : Cur.St.VisStart + v;
@@ -133,6 +146,7 @@ public static class ListBlock
         f.St = st; f.Opt = opt; f.Summaries = summaries; f.Count = summaries.Count; f.Op = default; f.DragOwner = sid; f.ItemOpen = false;
 
         bool isLong = f.Count > opt.LongThreshold;
+        if (st.Selected >= f.Count) st.Selected = -1;
         if (!st.Init) { st.Init = true; st.Collapsed = isLong; }
         if (!isLong) st.Collapsed = false;
 
@@ -216,6 +230,7 @@ public static class ListBlock
     // ── one item ──────────────────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Draws item <paramref name="i"/>'s summary row. True when the item is OPEN — the host then draws its fields (and ⛔ always calls <see cref="ItemEnd"/>).</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]   // per-row, per-frame: never run the tier-0 code (it boxes the nullable kind)
     public static bool ItemBegin(int i, IconGlyph? kind = null)
     {
         var f = Cur; var st = f.St;
@@ -227,7 +242,7 @@ public static class ListBlock
         if (open) dl.AddRectFilled(pos, pos + new Vector2(width, h), ImGui.GetColorU32(IconPalette.Blue with { W = 0.55f }), ImGui.GetStyle().FrameRounding);
 
         // handle
-        ImGui.InvisibleButton("##h", new Vector2(HandleW, h));
+        if (ImGui.InvisibleButton("##h", new Vector2(HandleW, h))) { st.Selected = i; _lastSelectedOwner = f.DragOwner; }
         KitProbe.Set(KitProbe.ListHandle, ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         string summary = f.Summaries[i];
         if (KitDrag.Reorder(f.DragOwner, i, summary, asSource: true, asTarget: false, out _)) { }
@@ -244,7 +259,9 @@ public static class ListBlock
         if (hovered && !open) dl.AddRectFilled(bpos, bpos + new Vector2(bodyW, h), ImGui.GetColorU32(ImGuiCol.HeaderHovered, 0.35f), ImGui.GetStyle().FrameRounding);
         if (KitDrag.Reorder(f.DragOwner, i, summary, asSource: false, asTarget: true, out int from))
             f.Op = new ListOp(ListOpKind.Move, from, i);
-        if (toggled) { st.Open.Toggle(i); open = !open; }
+        if (toggled) { st.Open.Toggle(i); open = !open; st.Selected = i; _lastSelectedOwner = f.DragOwner; }
+        else if (right) { st.Selected = i; _lastSelectedOwner = f.DragOwner; }
+        if (st.Selected == i && !open) dl.AddRectFilled(bpos, bpos + new Vector2(bodyW, h), ImGui.GetColorU32(ImGuiCol.Header, 0.30f), ImGui.GetStyle().FrameRounding);
         float ty = bpos.Y + (h - ImGui.GetTextLineHeight()) * 0.5f, x = bpos.X + 2f;
         string num = NumberText(i + 1);
         dl.AddText(new Vector2(x, ty), ImGui.GetColorU32(ImGuiCol.TextDisabled), num);
@@ -287,11 +304,23 @@ public static class ListBlock
         if (!st.Collapsed) DrawAddAndFooter(f.Opt, f.Count, st, ref f.Op);
         var op = f.Op;
         ApplyToState(st.Open, in op);
+        if (op.Kind != ListOpKind.None) { st.Selected = NextSelected(st.Selected, in op, f.Count); _lastSelectedOwner = f.DragOwner; }
         if (op.Kind != ListOpKind.None) st.Dirty = true;
         _depth--;
         ImGui.PopID();
         return op;
     }
+
+    /// <summary>The selected item after <paramref name="op"/> (pure): it follows its item through a move, lands on the new item of an insert / duplicate / add, and stays near the removed one.</summary>
+    public static int NextSelected(int selected, in ListOp op, int countBefore) => op.Kind switch
+    {
+        ListOpKind.Add => op.Index,
+        ListOpKind.InsertAbove => op.Index,
+        ListOpKind.InsertBelow or ListOpKind.Duplicate => op.Index + 1,
+        ListOpKind.MoveUp or ListOpKind.MoveDown or ListOpKind.Move => op.Target,
+        ListOpKind.Delete => countBefore <= 1 ? -1 : Math.Min(op.Index, countBefore - 2),
+        _ => selected,
+    };
 
     /// <summary>Updates an <see cref="OpenSet"/> for <paramref name="op"/> so each flag stays with its item (pure; the host's list is changed by the host).</summary>
     public static void ApplyToState(OpenSet open, in ListOp op)

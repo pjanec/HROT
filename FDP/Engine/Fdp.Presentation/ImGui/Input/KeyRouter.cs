@@ -61,6 +61,7 @@ public sealed class KeyRouter
     {
         _input = input ?? throw new ArgumentNullException(nameof(input));
         Keymap = keymap ?? new Keymap();
+        StructTableFocus.Keymap ??= Keymap;   // ⭐ §10.3 — the struct table's menu reads its chord labels from the keymap
     }
 
     /// <summary>The keymap — every binding the router knows.</summary>
@@ -87,6 +88,9 @@ public sealed class KeyRouter
         FiredLastFrame = 0;
         if (frame.MouseClicked) KeyboardFocus.MapHasKeyboard = !frame.ClickOnUi;
 
+        // ⭐ §10.3 — the struct table that has the keyboard this frame: a focused SUB-scope, run BEFORE the focused window's
+        var table = StructTableFocus.Take();
+        if (table != null) DeclareIfChanged(InputScope.FocusedWindow, StructTableFocus.Kind, StructTableFocus.Scope.KeyCommands!);
         if (frame.Focused is { KeyCommands: { } own } focused) DeclareIfChanged(InputScope.FocusedWindow, focused.KeyScopeKind, own);
         if (GlobalCommands is { } global && !ReferenceEquals(global.All, _lastGlobalAll))
         {
@@ -98,6 +102,12 @@ public sealed class KeyRouter
 
         _consumed.Clear();
         var mods = _input.Modifiers;
+        if (table != null)
+        {
+            StructTableFocus.Bind(table);
+            RunScope(InputScope.FocusedWindow, StructTableFocus.Kind, StructTableFocus.Scope.KeyCommands!, mods);
+            StructTableFocus.Bind(null);
+        }
         if (frame.Focused is { KeyCommands: { } commands } window)
             RunScope(InputScope.FocusedWindow, window.KeyScopeKind, commands, mods);
         if (GlobalCommands is { } shell)
