@@ -35,8 +35,9 @@ public sealed class TimelineEventFocus
     {
         if (focus.Event is not { } ev || ev.Subject <= 0 || !DetailsViewPredicates.ExactlyOneEntity(context) || world is null) return false;
         var entity = context.Entities[0];
-        if (!world.IsAlive(entity) || !world.IsComponentTypeRegistered<NetworkIdentity>() || !world.HasComponent<NetworkIdentity>(entity)) return false;
-        return world.GetComponentRO<NetworkIdentity>(entity).Value == ev.Subject;
+        // ⭐ CE-1366 — through the ONE network-id resolver (ThereIsOneNetworkIdResolverTests); its 0 sentinel never equals a Subject > 0
+        return world.IsComponentTypeRegistered<NetworkIdentity>()
+            && Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, entity) == ev.Subject;
     }
 }
 
