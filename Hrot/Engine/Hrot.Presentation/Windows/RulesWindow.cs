@@ -636,7 +636,7 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
             if (ImGui.MenuItem(t.Label)) { AddFromGallery(t, _galleryCtx); ImGui.CloseCurrentPopup(); }
         }
         ImGui.Separator();
-        if (ImGui.BeginMenu("More… (every kind)"))
+        if (ImGui.BeginMenu("More... (every kind)"))
         {
             foreach (var kind in RuleAdd.Kinds()) if (ImGui.MenuItem(kind)) { AddRule(kind); ImGui.CloseCurrentPopup(); }
             ImGui.EndMenu();

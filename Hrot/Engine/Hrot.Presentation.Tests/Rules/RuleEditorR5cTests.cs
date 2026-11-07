@@ -259,21 +259,21 @@ public sealed class RuleEditorR5cTests : IDisposable
     public void CE4308_TheGallery_OffersTheMockupsStartingPoints_PreFilledFromWhereTheAuthorCame()
     {
         var all = RuleGallery.For(RuleGallery.Context.Empty);
-        Assert.Equal(new[] { "Take and hold an area", "Reach an area", "Destroy", "Protect", "Survive", "Begin a phase when …", "End the exercise when …",
-            "Bring in … when …", "Brief Blue when …", "Tell everyone when …", "Hit ratio", "Report latency" }, all.Select(t => t.Label));
+        Assert.Equal(new[] { "Take and hold an area", "Reach an area", "Destroy", "Protect", "Survive", "Begin a phase when ...", "End the exercise when ...",
+            "Bring in ... when ...", "Brief Blue when ...", "Tell everyone when ...", "Hit ratio", "Report latency" }, all.Select(t => t.Label));
         Assert.Equal(RuleGallery.Groups, all.Select(t => t.Group).Distinct());
         Assert.All(all, t => Assert.Contains(t.Kind, RuleAdd.Kinds()));                                      // every starting point is a real kind
-        Assert.Equal(new[] { "Brief Blue when …", "Tell everyone when …" }, RuleGallery.For(RuleGallery.Context.Empty, "messag").Select(t => t.Label));
+        Assert.Equal(new[] { "Brief Blue when ...", "Tell everyone when ..." }, RuleGallery.For(RuleGallery.Context.Empty, "messag").Select(t => t.Label));
 
         var unit = new Fdp.Toolkit.Replication.EntityLink(new EntityRef(777));
         var area = new Fdp.Toolkit.Replication.EntityLink(new EntityRef(888));
         var c = new RuleGallery.Context(unit, area, NextPhase: 3);
         var shown = RuleGallery.For(c);
-        Assert.Equal("When someone enters this area…", shown[0].Label);
+        Assert.Equal("When someone enters this area...", shown[0].Label);
         var protect = JsonNode.Parse(RuleGallery.ParamsJson(all.Single(t => t.Label == "Protect"), c, null))!;
         Assert.Equal(777, IdOf(protect["common"]!["subject"]));                                  // the unit is the subject …
         Assert.Equal(777, IdOf(protect["targets"]![0]));                                          // … and what is protected
-        var phase = JsonNode.Parse(RuleGallery.ParamsJson(all.Single(t => t.Label == "Begin a phase when …"), c, new JsonObject { ["NetworkId"] = 5 }))!;
+        var phase = JsonNode.Parse(RuleGallery.ParamsJson(all.Single(t => t.Label == "Begin a phase when ..."), c, new JsonObject { ["NetworkId"] = 5 }))!;
         Assert.Equal((3, "Phase 3", 5), ((int)phase["common"]!["phase"]!, (string)phase["common"]!["title"]!, (int)phase["common"]!["parent"]!["NetworkId"]!));
         var enters = JsonNode.Parse(RuleGallery.ParamsJson(shown[0], c, null))!;
         // the when is the condition editor's own row "any of Blue side is inside the area" (RowProjection.ToDto) — its shape, and the editor reads that shape back as the row
@@ -286,7 +286,7 @@ public sealed class RuleEditorR5cTests : IDisposable
             Fdp.Toolkit.ReplayBrowser.Search.Conditions.Subject.OfSide(Fdp.Toolkit.ReplayBrowser.Search.Conditions.SubjectKind.Any, ForceId.Friend), "inside",
             Values: new Fdp.Toolkit.ReplayBrowser.Search.Conditions.FactValues(Area: AreaLink.OfEntity(new EntityRef(888))))));
         Assert.Contains("inside the area", Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionSentence.Of(row, null));
-        var brief = JsonNode.Parse(RuleGallery.ParamsJson(all.Single(t => t.Label == "Brief Blue when …"), RuleGallery.Context.Empty, null))!;
+        var brief = JsonNode.Parse(RuleGallery.ParamsJson(all.Single(t => t.Label == "Brief Blue when ..."), RuleGallery.Context.Empty, null))!;
         Assert.Equal("Message", (string)brief["do"]![0]!["act"]!);
         Assert.Null(brief["common"]!["subject"]);                                                               // no unit ⇒ no subject
     }

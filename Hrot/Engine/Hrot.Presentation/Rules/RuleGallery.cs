@@ -46,18 +46,18 @@ public static class RuleGallery
         new("Objectives", "Destroy", BehaviorNames.DestroyTargets, c => Rule("Destroy", c, ("targets", TargetsOf(c)))),
         new("Objectives", "Protect", BehaviorNames.Protect, c => Rule("Protect", c, ("targets", TargetsOf(c)))),
         new("Objectives", "Survive", BehaviorNames.Protect, c => Rule("Survive", c, ("targets", TargetsOf(c)))),   // ⭐ Survive = protect the unit itself (its own men)
-        new("Phases and timing", "Begin a phase when …", Trigger, c => Phase(c)),
-        new("Phases and timing", "End the exercise when …", Trigger, c => Rule("End the exercise", c, ("do", Steps(("EndExercise", new JsonObject { ["reason"] = "" }))))),
-        new("Reinforcements", "Bring in … when …", Trigger, c => Rule("Bring in", c, ("do", Steps(("InsertMacro", new JsonObject()))))),
-        new("Messages", "Brief Blue when …", Trigger, c => Rule("Brief Blue", c, ("do", Steps(("Message", new JsonObject { ["ToKind"] = "Side", ["ToValue"] = (int)ForceId.Friend, ["Text"] = "" }))))),
-        new("Messages", "Tell everyone when …", Trigger, c => Rule("Tell everyone", c, ("do", Steps(("Message", new JsonObject { ["ToKind"] = "All", ["Text"] = "" }))))),
+        new("Phases and timing", "Begin a phase when ...", Trigger, c => Phase(c)),
+        new("Phases and timing", "End the exercise when ...", Trigger, c => Rule("End the exercise", c, ("do", Steps(("EndExercise", new JsonObject { ["reason"] = "" }))))),
+        new("Reinforcements", "Bring in ... when ...", Trigger, c => Rule("Bring in", c, ("do", Steps(("InsertMacro", new JsonObject()))))),
+        new("Messages", "Brief Blue when ...", Trigger, c => Rule("Brief Blue", c, ("do", Steps(("Message", new JsonObject { ["ToKind"] = "Side", ["ToValue"] = (int)ForceId.Friend, ["Text"] = "" }))))),
+        new("Messages", "Tell everyone when ...", Trigger, c => Rule("Tell everyone", c, ("do", Steps(("Message", new JsonObject { ["ToKind"] = "All", ["Text"] = "" }))))),
         new("Scoring", "Hit ratio", BehaviorNames.HitRatio, c => Rule("Hit ratio", c)),
         new("Scoring", "Report latency", BehaviorNames.ReportLatency, c => Rule("Report latency", c)),
     };
 
     /// <summary>⭐ The area's own entry (<i>When someone enters this area…</i>): a trigger whose <i>when</i> is the condition editor's row <i>any of Blue side is
     /// inside the area</i> — the author changes WHO in the editor.</summary>
-    public static readonly Template EntersArea = new("Area", "When someone enters this area…", Trigger,
+    public static readonly Template EntersArea = new("Area", "When someone enters this area...", Trigger,
         c => Rule("Someone enters the area", c, ("when", WhenInside(c))));
 
     /// <summary>The starting points to show for <paramref name="c"/>, filtered by <paramref name="search"/> (case-insensitive, on the label and group): the area's
