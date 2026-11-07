@@ -101,6 +101,10 @@ public class WindowManager
     {
         _atlas = atlas;
 
+        // ⭐⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5) — the ONE key router, on every host by construction; its Global scope is
+        //    this window manager's shell commands (Ctrl+S from anywhere). ⛔ SUPERSEDED: the editor-only shell hotkey pump (BATCH-06).
+        Keys = new Fdp.Presentation.Input.KeyRouter(new Fdp.Presentation.Input.ImGuiInputSource()) { GlobalCommands = _shellCommands };
+
         // ⭐⭐⭐ VC-2 — THE ONE `Settings` MENU, and it lives in GlobalMenu.
         // 📐 Measured 2026-08-22: the menu bar renders TWO independent models side by side —
         //    RenderGlobalMenu(GlobalMenu.Root) and ImGuiMenuRenderer.DrawMenus(BuildHostMenuDtos()).
@@ -511,6 +515,9 @@ public class WindowManager
     /// </summary>
     public ShellEditorCommands ShellCommands => _shellCommands;
 
+    /// <summary>⭐ B-10 K1 — the key router (keymap + scope chain), run at the end of every <see cref="Render"/>.</summary>
+    public Fdp.Presentation.Input.KeyRouter Keys { get; }
+
     // �� Settings Persistence ���������������������������������������������������
     //
     // NOTE(DEBT-003): ImGui.NET 1.91.x does not expose ImGuiSettingsHandler or
@@ -762,6 +769,8 @@ public class WindowManager
                 Gui.CloseCurrentPopup();
         }
 
+        Fdp.Presentation.Input.IKeyScopeWindow? focusedKeys = null;   // ⭐ B-10 K1 — this frame's focused key scope
+
         // Iterate a copy to allow safe removal of closed volatile windows.
         foreach (var win in _windows.Values.ToList())
         {
@@ -779,6 +788,7 @@ public class WindowManager
             long t0 = WindowTimings.Start();   // ⭐ W-P1 — HROT_FRAME_STATS: the time of THIS window's whole ImGui build
             win.Render(CurrentPerspective, _atlas);
             WindowTimings.Record(win.Id, t0);
+            if (win.HasKeyFocus && win is Fdp.Presentation.Input.IKeyScopeWindow keyed) focusedKeys = keyed;   // ⭐ B-10 K1
         }
 
         // BATCH-25: Toolbar is now rendered inline inside BeginMainMenuBar
@@ -799,6 +809,17 @@ public class WindowManager
         foreach (var overlay in _frameOverlays.ToList())
             overlay();
         WindowTimings.Record("(frame overlays)", t1);
+
+        // ⭐⭐ B-10 K1 — the keys, ONCE, after every window drew (so the focus is this frame's).
+        var io = Gui.GetIO();
+        bool clicked = Gui.IsMouseClicked(ImGuiNET.ImGuiMouseButton.Left) || Gui.IsMouseClicked(ImGuiNET.ImGuiMouseButton.Right)
+                       || Gui.IsMouseClicked(ImGuiNET.ImGuiMouseButton.Middle);
+        Keys.Dispatch(new Fdp.Presentation.Input.KeyFrame(
+            TextInput:    io.WantTextInput,
+            PopupOpen:    Gui.IsPopupOpen("", ImGuiNET.ImGuiPopupFlags.AnyPopupId | ImGuiNET.ImGuiPopupFlags.AnyPopupLevel),
+            Focused:      focusedKeys,
+            MouseClicked: clicked,
+            ClickOnUi:    io.WantCaptureMouse));
     }
 
     /// <summary>

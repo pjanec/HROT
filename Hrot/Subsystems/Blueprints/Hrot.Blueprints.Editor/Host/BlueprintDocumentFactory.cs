@@ -340,8 +340,8 @@ public static class BlueprintDocumentFactory
 
         // ── 10. Bookmarks (navigation aids) ──────────────────────────────────
         // Per-document BookmarkStore + the shared NodeEdit set/jump commands (Ctrl+1..9
-        // jump, Ctrl+Shift+1..9 set — see BookmarkCommands). Pumped automatically by
-        // AiGraphCanvasWindow's per-frame EditorHotkeyDispatcher since they're registered
+        // jump, Ctrl+Shift+1..9 set — see BookmarkCommands). Run automatically by the WindowManager's
+        // KeyRouter while the canvas is focused (B-10 K1) since they're registered
         // on this document's `commands` (same object as FindBar/Toggle-Breakpoint/etc).
         // The store is exposed via AiCanvasContext.Bookmarks so the composition root can
         // draw the off-screen edge-marker overlay (BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers)

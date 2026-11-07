@@ -202,6 +202,34 @@ namespace Fdp.Toolkit.Vis2D.Tests
             Assert.False(canvas.KeyboardConsumedByTool);
         }
 
+        /// <summary>
+        /// ⭐⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5 ⑥, CE-4282) — the KEYBOARD follows focus, not the mouse: with the map holding the
+        /// keyboard, keys reach its layers even while the mouse is over a panel; with the keyboard elsewhere (a panel focused —
+        /// <c>RaylibInputProvider.IsKeyboardCaptured</c> asks <c>KeyboardFocus.MapHasKeyboard</c>) none do, wherever the mouse is.
+        /// ✅ Red-proof: the key drain back below the mouse gate ⇒ the first case reaches no layer.
+        /// </summary>
+        [Fact]
+        public void B10_K1_TheMapsKeysFollowTheKeyboardFocus_NotTheMouse()
+        {
+            var canvas = new TestableMapCanvas();
+            canvas.Camera = new TestableMapCameraForCanvas();
+            var layer = new Mock<IMapLayer>();
+            layer.Setup(x => x.HandleKeyInput(It.IsAny<MapKeyboardKey>())).Returns(true);
+            canvas.AddLayer(layer.Object);
+
+            canvas.InputProvider.IsMouseCaptured = true;       // the mouse is over a panel …
+            canvas.InputProvider.IsKeyboardCaptured = false;   // … but the map has the keyboard
+            canvas.InputProvider.Keys.Enqueue(82);
+            canvas.HandleInput();
+            layer.Verify(x => x.HandleKeyInput((MapKeyboardKey)82), Times.Once);
+
+            canvas.InputProvider.IsMouseCaptured = false;      // the mouse over the map …
+            canvas.InputProvider.IsKeyboardCaptured = true;    // … but a panel has the keyboard
+            canvas.InputProvider.Keys.Enqueue(83);
+            canvas.HandleInput();
+            layer.Verify(x => x.HandleKeyInput((MapKeyboardKey)83), Times.Never);
+        }
+
         /// <summary>⭐ CE-3175 — the terminal streams every key it is handed with this frame's modifiers; a captured keyboard (a text
         /// field) still drains the source, so nothing leaks into the next frame, but sends nothing.</summary>
         [Fact]
