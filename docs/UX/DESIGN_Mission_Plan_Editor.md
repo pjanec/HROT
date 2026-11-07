@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — §5 ✅ D1–D9 (D3 / D4 as revised) + §5.7 APPROVED 2026-11-07 (R-4160); the remaining detail in §5.8 · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
+build-state: READY-TO-BUILD — ✅ E1–E9 + §5.9 approved 2026-11-07 (R-4161); dispatched in HANDOFF_Coordinator_To_Lanes_Mission_Plan.md (CE-4298…CE-4304) · §5 ✅ D1–D9 (D3 / D4 as revised) + §5.7 APPROVED 2026-11-07 (R-4160); the remaining detail in §5.8 · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
 updated: 2026-11-07 (E9: the Wait task — a plan that waits before its first task) · 2026-11-07 (E4 / E5 revised by the user: ONE Tasks lane for all units; the WHO chip defaults to 'this unit'; §5.9 the sequencing rule, measured) · 2026-11-07 (§5.8 the remaining detail E1–E8 — E1: a Live edit restarts the plan today) · 2026-11-07 (§5.7 entity references: the GUID / @Key rule exists (S9′); two load-path gaps G1, G2 named) · 2026-11-07 (§5.7 storage and compatibility, measured; one unmeasured gate for M5) · 2026-11-07 (D3 / D4 revised by the user's question: every then / give-up is ONE shared condition; old trigger types translated on compile) · 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
 current-answer: ⭐ §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions
 stale-below: nothing
@@ -335,7 +335,7 @@ the GUID (`ReferenceLeafDrawers.PickToLink`, `:47-49`, F3); at load `RefResolve`
 ⭐ **The rail, first in M1 / M5:** a plan whose ORDER targets a unit and whose *then* names ANOTHER unit and a phase trigger is saved, loaded into a
 fresh world (new network ids) and still points at the same three entities — and the file holds their GUIDs, never a number.
 
-### 5.8 The remaining detail — E1–E8, leans for the user *(measured `2026-11-07`)*
+### 5.8 The remaining detail — E1–E8 *(measured `2026-11-07`)* — ✅ E1–E9 approved (R-4161, user `2026-11-07`: *"Approved"*), with §5.9
 
 | # | point | measured | ⭐ lean | rejected — one line |
 |---|---|---|---|---|
