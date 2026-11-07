@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level; ✅ Q1–Q7 APPROVED by the user 2026-11-06 (R-4131); the building lanes detail it (R-4123)
-updated: 2026-11-06 (Q1–Q7 approved, R-4131; the director shares the camera with the user) · 2026-11-06 (§2.5 the user's review: HTTP sessions take seats, seat = a node feature preset while the hat is local UI state, the camera keeps the view on leaving a hat, keys → E14) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4: E10 / D17, with D4's editing levels)
+updated: 2026-11-07 (§2.2a R-4164: Zeus = Instructor, live only; the hat follows the run mode; CGF / server / SimHost default Author, the seat from the node config file) · 2026-11-06 (Q1–Q7 approved, R-4131; the director shares the camera with the user) · 2026-11-06 (§2.5 the user's review: HTTP sessions take seats, seat = a node feature preset while the hat is local UI state, the camera keeps the view on leaving a hat, keys → E14) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4: E10 / D17, with D4's editing levels)
 current-answer: §2 the model (seat × hat) · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
@@ -111,6 +111,20 @@ time, owning the input and the camera). Neither is `NodeRole`: that stays what a
 | **Player** | the trainee / gamer | Embodied (own claimed unit, squad command of own men) · Observe (dead, waiting, no unit) | none | own side | the Player |
 | **Observer** | a visitor, a trainee watching | Observe (+ bookmarks, notes) | Observer | all, or one side | a Player with no deploy server (R-4103) |
 | **Reviewer** | after-action review | Observe · Direct (+ notes, branch to live) | none (Review is read-only) | all | the Replay Browser |
+
+#### 2.2a ⭐ The server stations' seat — Author by default, Instructor by config *(R-4164, user `2026-11-07`)*
+
+🔒 *"In some use cases, those nodes are used by the instructor who shouldn't be allowed to edit. But in other use cases, these nodes should be able to edit. This might go to the external config file with the author mode as the hard-coded default if not specified in that config."*
+
+| rule | |
+|---|---|
+| **Zeus = the Instructor seat** — one thing, not a second hat | the game master works on a RUNNING exercise (Preview / Live); there is no Zeus in Edit mode |
+| **the hat follows the run mode** — never picked by hand | Edit mode ⇒ the Edit hat (authoring); Preview / Live ⇒ Observe + the game-master tools, the RTS checked mode (R-4163), first person while possessing |
+| **CGF, the fused server and SimHost default to AUTHOR** | Author ⊇ Instructor in Preview / Live (the Full level, every hat) and can author in Edit mode. ⛔ SUPERSEDED: the default Instructor (§2.4 as-built, `CgfNodeBootstrapper.cs:209`, `SimHostNodeBootstrapper.cs:332`) |
+| **Instructor (cannot edit) is chosen per node in its CONFIG FILE** | the runner's `--config <file.json>` gains a `features` object — the same partial JSON as `--feature`: `"features": { "station.seat": { "Seat": "Instructor" } }`. Layers: the hard-coded default (Author) < the config file < `--feature` on the command line ([Node Features F-7](../DESIGN_Node_Features.md)). An Instructor in Edit mode sees the scenario but cannot change it |
+| the game-master window stays ON for Author too | it is the feature `gm.palette`, not part of the seat — R-4107 holds |
+
+*Rejected — one line each:* a Zeus-vs-Instructor hat switch — they are the same seat · keeping Instructor as the default — an authoring server would need a flag in the common case · the scenario choosing the seat — a seat belongs to the deployment, not to what is loaded (⚠ the built scenario preset layer still CAN set it: leave as is, flagged here)
 
 ⭐ A seat can be changed on a station only to a seat its host allows (an editor may switch Author ↔ Instructor; a Player station cannot
 become Author). ⚖️ Trust: stations are on a trusted exercise network — the seat is enforced at the station (catalogue + gate), not as
