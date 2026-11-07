@@ -103,7 +103,7 @@ public sealed class MissionSummaryModelTests : IDisposable
         Assert.Null(h.Trend);                                                                                    // no history ⇒ no trend, never a guess
         var red = MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Red), null, 100).Cards.Single();
         Assert.Null(red.Headline);                                                                               // Red owns no evaluation
-        var closed = _world.CreateEntity(); _world.AddComponent(closed, new ExerciseResult { Phase = ExercisePhase.Ended, EndedAt = 90, Reason = new FixedString64("time up"), Friend = new SideResult { Outcome = SideOutcome.Win, Points = 3f, Score = 0.7f } });
+        var closed = _world.CreateEntity(); _world.AddComponent(closed, new ExerciseResult { Phase = ExercisePhase.Ended, EndedAt = (SimInstant)90, Reason = new FixedString64("time up"), Friend = new SideResult { Outcome = SideOutcome.Win, Points = 3f, Score = 0.7f } });
         var after = MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Blue), null, 100).Cards.Single();
         Assert.True(after.Headline!.Decided);
         Assert.Equal((ExercisePhase.Ended, SideOutcome.Win, 3f, 0.7f, "time up"), (after.Result.Phase, after.Result.Outcome, after.Result.Points, after.Result.Score, after.Result.Reason));

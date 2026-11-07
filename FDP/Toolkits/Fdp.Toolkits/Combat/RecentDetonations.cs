@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Combat
     public struct RecentBurst
     {
         public Vector3 At;
-        public double Time;
+        public SimInstant Time;
         public Entity Shooter;
         public long Ammo;
         /// <summary>Running count of bursts recorded on this node — a stable id for this one (1-based).</summary>
@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Combat
         {
             var m = world.HasSingletonUnmanaged<RecentDetonations>() ? world.GetSingletonUnmanaged<RecentDetonations>() : default;
             m.Count++;
-            m.Slots[(int)((m.Count - 1) % Capacity)] = new RecentBurst { At = at, Time = time, Shooter = shooter, Ammo = ammo, Serial = m.Count };
+            m.Slots[(int)((m.Count - 1) % Capacity)] = new RecentBurst { At = at, Time = (SimInstant)time, Shooter = shooter, Ammo = ammo, Serial = m.Count };
             world.SetSingletonUnmanaged(in m);
         }
 

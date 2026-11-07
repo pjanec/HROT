@@ -43,7 +43,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>
         /// ⭐ CE-2125 (R-272 §7.2 L2) — how long the unit's commander gives no new orders after its leader soldier falls (s).
         /// </summary>
-        public float CommandDisruptionSeconds { get; init; } = 6f;
+        public SimDuration CommandDisruptionSeconds { get; init; } = 6f;
         
         /// <summary>
         /// Whether children are automatically created with parent.
@@ -59,7 +59,7 @@ namespace Hrot.Map.Definitions.Tkb
     {
         public List<TkbChildSlot> Subordinates { get; } = new();
         public string Echelon { get; set; } = "Platoon";
-        public float CommandDisruptionSeconds { get; set; } = 6f;
+        public SimDuration CommandDisruptionSeconds { get; set; } = 6f;
         public bool AutoCreateChildren { get; set; } = true;
 
         /// <summary>Freezes the authored values into the immutable component.</summary>

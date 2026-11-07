@@ -109,7 +109,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         public float        Progress;
         public float        Needed;
         public Entity       Target;
-        public double       At;
+        public SimInstant       At;
     }
 
     /// <summary>
@@ -222,7 +222,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             row.Target   = target;
             row.Progress = progress;
             row.Needed   = needed;
-            row.At       = now;
+            row.At       = (SimInstant)now;
         }
 
         private static double Now(EntityRepository world)

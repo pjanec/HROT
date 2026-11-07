@@ -93,7 +93,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public CountWhat What; public HarmAttribute Attribute; public float Target;
             public FireTally Tally; public int Reports; public float ShownValue; public int ShownN;
             /// <summary>⭐ S4 ⑥ — the assist window (s), authored <c>assistSeconds</c>; 0 = <see cref="MeasureEvidence.AssistSeconds"/>.</summary>
-            public float AssistSeconds;
+            public SimDuration AssistSeconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]

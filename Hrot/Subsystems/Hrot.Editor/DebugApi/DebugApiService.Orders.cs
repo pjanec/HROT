@@ -256,7 +256,7 @@ namespace Hrot.Editor.DebugApi
                 && ((ISimulationView)_world).GetManagedComponentRO<BehaviorStartRecord>(unit) is { } running && running.InstanceId == bs.InstanceId)
                 node["task"] = new JsonObject
                 {
-                    ["behavior"] = NameOf(bs.ActiveBehaviorHash), ["origin"] = bs.Origin.ToString(), ["since"] = bs.RunSince,
+                    ["behavior"] = NameOf(bs.ActiveBehaviorHash), ["origin"] = bs.Origin.ToString(), ["since"] = (double)bs.RunSince,
                     ["params"] = TryParse(running.JsonParams),
                 };
 
@@ -264,7 +264,7 @@ namespace Hrot.Editor.DebugApi
             {
                 node["state"] = "running";
                 node["behavior"] = NameOf(bs.ActiveBehaviorHash);
-                node["since"] = bs.RunSince;
+                node["since"] = (double)bs.RunSince;
                 if (_world.HasManagedComponent<BehaviorStartRecord>(unit))
                 {
                     var rec = ((ISimulationView)_world).GetManagedComponentRO<BehaviorStartRecord>(unit);
@@ -295,7 +295,7 @@ namespace Hrot.Editor.DebugApi
                     _ => "faulted",
                 };
                 node["behavior"] = NameOf(o.BehaviorHash);
-                node["finishedAt"] = o.FinishedAt;
+                node["finishedAt"] = (double)o.FinishedAt;
                 if (o.FaultCode != BehaviorFaultCode.None) node["fault"] = o.FaultCode.ToString();
                 return node;
             }

@@ -145,7 +145,7 @@ namespace Hrot.AI.Behaviors.Brains
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct SquadFastRopeParams
     {
-        public float TimeoutSeconds;
+        public SimDuration TimeoutSeconds;
         public float RingRadius;
         /// <summary>The helicopter (found at the start: the one a member rides).</summary>
         public Entity Carrier;
@@ -312,9 +312,9 @@ namespace Hrot.AI.Behaviors.Brains
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct SquadAirborneExitParams
     {
-        public float IntervalSeconds;
+        public SimDuration IntervalSeconds;
         public float RingRadius;
-        public float TimeoutSeconds;
+        public SimDuration TimeoutSeconds;
         public Entity Carrier;
         /// <summary>1 once the stick is planned (the carrier on its Drop leg).</summary>
         public byte Planned;
@@ -573,7 +573,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public Vector3 Point;
         public float RingRadius;
-        public float TimeoutSeconds;
+        public SimDuration TimeoutSeconds;
         /// <summary>Per member: 1 once he was told his spot (down, out of any carrier).</summary>
         public fixed byte Down[UnitRoster.Capacity];
     }

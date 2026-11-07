@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Replication.Edits
         /// <summary>The node that answered. ⭐ Edit framework §2.4 (F2): typed <see cref="Fdp.Core.NodeId"/> in the engine; a plain <c>int</c> on the wire (SV-3).</summary>
         public Fdp.Core.NodeId RespondingNode { get; init; }
         /// <summary>Sim time (s) it was reported on the answering node.</summary>
-        public double At { get; init; }
+        public Fdp.Core.SimInstant At { get; init; }
         /// <summary>True when it ARRIVED from another node (the wire ingress); false when this node reported it.</summary>
         public bool FromNetwork { get; init; }
 
@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Replication.Edits
             => new()
             {
                 RequestId = requestId, NetworkId = networkId, Status = status,
-                Reason = Cap(reason), RespondingNode = (Fdp.Core.NodeId)respondingNode, At = at, FromNetwork = fromNetwork,
+                Reason = Cap(reason), RespondingNode = (Fdp.Core.NodeId)respondingNode, At = (Fdp.Core.SimInstant)at, FromNetwork = fromNetwork,
             };
 
         internal static string Cap(string? reason)

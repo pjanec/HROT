@@ -38,9 +38,9 @@ namespace Fdp.Toolkit.Combat
         public float Damage { get; init; }
         /// <summary>⭐ <c>CE-2180</c> — the synced sim time the brain raised the shot (0 = unknown), the time this node fired it, and how
         /// far a bomb was flown forward to make up the trip between them.</summary>
-        public double RaisedAt { get; init; }
-        public double FiredAt { get; init; }
-        public float CaughtUpSeconds { get; init; }
+        public SimInstant RaisedAt { get; init; }
+        public SimInstant FiredAt { get; init; }
+        public SimDuration CaughtUpSeconds { get; init; }
         /// <summary>The cue steps owed (<c>BombBallistics.LateSteps</c>, 1/60 s each), the steps flown (fewer only when the ground came first), and this frame's dt.</summary>
         public int OwedFrames { get; init; }
         public int CaughtUpFrames { get; init; }

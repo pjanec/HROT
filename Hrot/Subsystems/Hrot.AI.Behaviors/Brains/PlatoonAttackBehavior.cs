@@ -42,7 +42,7 @@ namespace Hrot.AI.Behaviors.Brains
         public int Reporter;
         public byte Made;
         public byte Asked;
-        public double AskedAt;
+        public SimInstant AskedAt;
         public byte Phase;
         /// <summary>AT-10 — 1 once the attack is broken off.</summary>
         public byte Aborted;
@@ -282,7 +282,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 WorldSurveyChildSensor.Ensure(world, self, AreaSite, WorldSurveyRequest.OfArea(new Vector2(p.Position.X, p.Position.Y), p.SearchRadius));
                 p.Asked = 1;
-                p.AskedAt = now;
+                p.AskedAt = (SimInstant)now;
                 return NodeStatus.Running;
             }
             var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(world, self, AreaSite);

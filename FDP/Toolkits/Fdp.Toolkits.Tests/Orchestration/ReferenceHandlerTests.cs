@@ -519,7 +519,7 @@ public sealed class ReferenceHandlerTests
         Fdp.Toolkit.Navigation.NavigationHandleAllocator.EnsureAbove(liveEnd);
         int atBranch = liveEnd - 30;
         world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 5.0 });
-        world.SetSingletonUnmanaged(new Fdp.Toolkit.Navigation.NavigationHandleMark { Last = atBranch, At = 5.0 });
+        world.SetSingletonUnmanaged(new Fdp.Toolkit.Navigation.NavigationHandleMark { Last = atBranch, At = (SimInstant)5.0 });
         // ⚠ the system does not run during the replay (its group is off), so it never mirrored the live counter over the recorded copy
         int before = Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(world);
 

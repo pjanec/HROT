@@ -61,14 +61,14 @@ namespace Hrot.Map.Definitions.Tkb
         public bool? FireOnMove { get; set; }
 
         /// <summary>⭐ M5 — the aim (or lock) time, s; 0 = the engine fallback. <c>WeaponMountDto.AimSeconds</c>.</summary>
-        public float AimSeconds { get; set; }
+        public SimDuration AimSeconds { get; set; }
 
         /// <summary>⭐ M5 — rounds per magazine / belt (0 = no magazine) and the change time, s. <c>WeaponMountDto.MagazineSize</c> /
         /// <c>ReloadSeconds</c>.</summary>
         public int MagazineSize { get; set; }
 
         /// <inheritdoc cref="MagazineSize"/>
-        public float ReloadSeconds { get; set; }
+        public SimDuration ReloadSeconds { get; set; }
 
         /// <summary>⭐ Air Ops slice 6a (AW-1) — a FIXED mount's nose cone, degrees off the body's forward (0 = no cone).
         /// <c>WeaponMountDto.FixedConeDeg</c>.</summary>

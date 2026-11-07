@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Combat.Executors
         public Entity Target;
 
         /// <summary>Seconds to wait between successive shots.</summary>
-        public float CooldownSeconds;
+        public SimDuration CooldownSeconds;
 
         /// <summary>
         /// ⭐ <c>CE-3089</c> (G7) — which weapon mount fires: 0 = the primary (what every zero-filled writer gets — today's

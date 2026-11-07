@@ -42,10 +42,10 @@ public struct VisualEffectState
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     /// <summary>Total active lifetime of this effect in seconds.</summary>
-    public float Duration;
+    public SimDuration Duration;
 
     /// <summary>Seconds elapsed since this effect was spawned.</summary>
-    public float ElapsedTime;
+    public SimDuration ElapsedTime;
 
     // ── Colour (RGBA) ─────────────────────────────────────────────────────────
 

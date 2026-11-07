@@ -77,7 +77,7 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <summary>A human-readable reason.</summary>
         public string Message = string.Empty;
         /// <summary>Simulation time of the fault.</summary>
-        public double SimTime;
+        public SimInstant SimTime;
     }
 
     /// <summary>
@@ -140,7 +140,7 @@ namespace Fdp.Toolkit.Behavior.Events
                 InstanceId   = behavior.InstanceId,
                 Code         = code,
                 Message      = message ?? string.Empty,
-                SimTime      = repo.SimulationTime,
+                SimTime      = (SimInstant)repo.SimulationTime,
             });
             return true;
         }

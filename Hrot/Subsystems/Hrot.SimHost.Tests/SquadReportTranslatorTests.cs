@@ -47,7 +47,7 @@ namespace Hrot.SimHost.Tests
 
         private static SquadReportNotification Spot(Entity from, Entity to, Entity subject) => new()
         {
-            FromUnit = from, ToUnit = to, Subject = subject, Building = 7, SentAt = 44.0,
+            FromUnit = from, ToUnit = to, Subject = subject, Building = 7, SentAt = (SimInstant)44.0,
             Report = new CommandReport { Kind = ReportKind.Spot, At = new Vector3(120f, 80f, 3f), Count = 2, Radius = 15f,
                 Size = ElementSize.Team, Activity = ElementActivity.Firing, Equipment = ElementEquipment.MachineGun, ObservedAt = (Fdp.Core.SimInstant)41d, Seq = 5 },
         };

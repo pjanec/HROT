@@ -31,7 +31,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>How close both elements must be to the objective for the manoeuvre to end (m).</summary>
         public float ArrivalRadius;
         /// <summary>A bound counts as complete after this long even if a mover never arrives (s).</summary>
-        public float BoundTimeoutSeconds;
+        public SimDuration BoundTimeoutSeconds;
         /// <summary>⭐ <c>CE-2158</c> F-c — runtime: each mover's cover point for his element's next bound (<see cref="SquadCover"/>).</summary>
         public SquadCoverPicks Cover;
         /// <summary>⭐ <c>CE-2284</c> — runtime: the moving element's distance to the objective when its bound was issued (m), and how many

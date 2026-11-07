@@ -20,7 +20,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public struct Block
         {
             public ObjectiveCommonBlock Common; public ObjectiveRun Run; public AreaLink Area;
-            public ForceId EnemySide; public int MaxEnemy; public float ForSeconds;
+            public ForceId EnemySide; public int MaxEnemy; public Fdp.Core.SimDuration ForSeconds;
             public double ClearFor; public int LastEnemy;
         }
 

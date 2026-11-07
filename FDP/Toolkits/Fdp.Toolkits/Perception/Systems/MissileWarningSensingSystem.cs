@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Perception.Systems
                     float bearing = MathF.Atan2(w.FromX - at.X, w.FromY - at.Y) * (180f / MathF.PI);
                     var warning = new MissileWarning
                     {
-                        At = now, From = new System.Numerics.Vector3(w.FromX, w.FromY, w.FromZ),
+                        At = (SimInstant)now, From = new System.Numerics.Vector3(w.FromX, w.FromY, w.FromZ),
                         BearingDeg = bearing < 0f ? bearing + 360f : bearing,
                         Seeker = (Fdp.Toolkit.Tkb.Domain.GuidanceKind)w.Seeker, TimeToImpactS = w.TimeToImpactS,
                     };

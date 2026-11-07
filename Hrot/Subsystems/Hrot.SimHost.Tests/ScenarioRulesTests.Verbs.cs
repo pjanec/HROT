@@ -146,7 +146,7 @@ namespace Hrot.SimHost.Tests
             w.Run(3);
             Assert.Equal(1, w.Ended);
             var msg = Assert.Single(w.Messages);
-            Assert.Equal(("All", "Exercise over", 4f, (byte)2), (msg.ToKind, msg.Text, msg.Seconds, msg.Priority));
+            Assert.Equal(("All", "Exercise over", 4f, (byte)2), (msg.ToKind, msg.Text, (float)(msg.Seconds), msg.Priority));
             Assert.Equal(w.Net(end), msg.Source);
         }
 
@@ -192,7 +192,7 @@ namespace Hrot.SimHost.Tests
             var ex = Assert.Throws<ActionListException>(() => ActionList.Validate(Do(Step("Message", "{\"toKind\":\"Everyone\",\"text\":\"hi\"}"))));
             Assert.Contains("toKind", ex.Message);
             ActionList.Validate(Do(Step("Message", "{\"toKind\":\"Side\",\"toValue\":1,\"text\":\"" + new string('x', 127) + "\"}")));   // the limit itself passes
-            Assert.Equal(6f, new MessageParams().Seconds);                          // the documented default
+            Assert.Equal(6f, (float)(new MessageParams().Seconds));                          // the documented default
         }
 
         // ═════════════════════════════════════════ rules S2 ⑨ — pause-on-end, Order, MissionCommand ═════════════════════════════════════════
@@ -345,7 +345,7 @@ namespace Hrot.SimHost.Tests
             repo.Bus.Register<ExerciseEndedEvent>(); repo.Bus.RegisterManaged<PauseTimeIntent>();
             var sys = new ExercisePauseOnEndSystem();
             Assert.Equal(0, PausesAfter(repo, sys, null));
-            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = 5 })));
+            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)5 })));
             Assert.Equal(0, PausesAfter(repo, sys, null));                                    // the next frame: the event is gone, no second pause
         }
 
@@ -362,9 +362,9 @@ namespace Hrot.SimHost.Tests
             var sch = new SystemScheduler { FeatureGate = features };
             sch.RegisterSystem(sys); sch.BuildExecutionOrders();
             void Phase() => sch.ExecutePhase(SystemPhase.Simulation, repo, 0.1f);
-            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = 1 }), Phase));
+            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)1 }), Phase));
             features.SetNodeOverride(ExercisePauseOnEndSystem.FeatureId, "{\"Enabled\":false}");
-            Assert.Equal(0, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = 2 }), Phase));
+            Assert.Equal(0, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)2 }), Phase));
 
             var pack = new Hrot.CGF.CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
                 new Fdp.Toolkit.Behavior.TacticalOrderMapper.TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
@@ -384,7 +384,7 @@ namespace Hrot.SimHost.Tests
             var repo = new EntityRepository();
             repo.Bus.Register<ExerciseEndedEvent>(); repo.Bus.RegisterManaged<PauseTimeIntent>();
             var sys = new ExercisePauseOnEndSystem(node);
-            repo.Bus.Publish(new ExerciseEndedEvent { EndedAt = 3 });
+            repo.Bus.Publish(new ExerciseEndedEvent { EndedAt = (SimInstant)3 });
             repo.Bus.SwapBuffers();
             sys.Execute(repo, 0.1f);
             repo.Bus.SwapBuffers(); node.SwapBuffers();

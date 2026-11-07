@@ -38,7 +38,7 @@ namespace Hrot.AI.Behaviors.Brains
         public int RouteNet;
         public Vector3 RouteEnd;
         public float Speed;
-        public float ClearSeconds;
+        public SimDuration ClearSeconds;
         public byte Made;
         public byte Phase;
         public SimInstant PhaseAt;

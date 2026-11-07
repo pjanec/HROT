@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// <summary>How far it carries (m).</summary>
         public float Carry;
         /// <summary>When it was made (sim seconds).</summary>
-        public double Time;
+        public SimInstant Time;
         /// <summary>⭐ Q95 A (<c>CE-3283</c>) — what made it: the TKB type of the weapon (a shot) or the munition (a burst); 0 = unknown.</summary>
         public long Signature;
         /// <summary>⭐ <c>CE-3283</c> — <see cref="Signature"/>'s per-node token (<see cref="SoundEmissionRing.TypeOf"/>): what fits the answer's
@@ -286,7 +286,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         public long Places;
 
         /// <summary>The sim time it was counted at.</summary>
-        public double At;
+        public SimInstant At;
 
         /// <summary>⭐ <c>CE-3316</c> — how many of <see cref="Tail"/> hold a sound.</summary>
         public int TailCount;

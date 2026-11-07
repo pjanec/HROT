@@ -27,9 +27,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Both halves' centres this close to <see cref="Objective"/> ⇒ Success (m).</summary>
         public float ArrivalRadius;
         /// <summary>The movers go after this long even when not every coverer has fired (s).</summary>
-        public float CoveringSeconds;
+        public SimDuration CoveringSeconds;
         /// <summary>A rush counts as set after this long (s).</summary>
-        public float RushTimeoutSeconds;
+        public SimDuration RushTimeoutSeconds;
         /// <summary>⭐ <c>CE-2158</c> F-d (§7.6.4) — 1 = the moving half rushes by BUDDY PAIRS: its even-ranked men (A) first while their
         /// buddies (B) fire, then B; 0 = the whole half at once.</summary>
         public byte Pairs;

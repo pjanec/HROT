@@ -126,9 +126,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(12f, RoeOf.ReturnFireWindowSeconds(world, e));
 
             var saved = BrainIntentReader.RoeOf(world, e, BrainIntentScope.Ordered);
-            Assert.Equal(12f, saved!.ReturnFireWindowSeconds);
+            Assert.Equal(12f, saved!.ReturnFireWindowSeconds.Seconds);
             var json = System.Text.Json.JsonSerializer.Serialize(saved);
-            Assert.Equal(12f, System.Text.Json.JsonSerializer.Deserialize<SavedRoe>(json)!.ReturnFireWindowSeconds);
+            Assert.Equal(12f, System.Text.Json.JsonSerializer.Deserialize<SavedRoe>(json)!.ReturnFireWindowSeconds.Seconds);
             world.Dispose();
         }
 

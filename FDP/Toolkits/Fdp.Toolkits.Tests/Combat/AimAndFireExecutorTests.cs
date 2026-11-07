@@ -1520,12 +1520,12 @@ namespace Fdp.Toolkit.Combat.Tests
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>()) _world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
             var rifle = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms };
             var (shooter, ch, enemy) = TypedShooter(rifle, range: 50f);
-            _world.AddComponent(shooter, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = Fdp.Toolkit.Combat.HitModel.Now(_world) + 1000.0 });
+            _world.AddComponent(shooter, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)(Fdp.Toolkit.Combat.HitModel.Now(_world) + 1000.0) });
 
             Assert.Equal(0, ShotsIn(shooter, ref ch, 60));
             Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldStunned, AimAndFireExecutor.HoldOf(_world, shooter, enemy, rifle, 0));
 
-            _world.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(shooter).StunnedUntil = 0.0;   // the stun ends
+            _world.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(shooter).StunnedUntil = (SimInstant)0.0;   // the stun ends
             Assert.True(ShotsIn(shooter, ref ch, 60) > 0);
         }
 
@@ -3633,7 +3633,7 @@ namespace Fdp.Toolkit.Combat.Tests
         [Fact]
         public void IF1_AGunnerFiresTheMortarHeMans_AsTheTube_WithTheSolution_AndNotBeforeFireAt()
         {
-            var (man, tube, channel) = MannedMortar(new FireAtPointParams { Point = new Vector3(500f, 0f, 0f), Rounds = 1, CooldownSeconds = 3f, FireAt = 5d });
+            var (man, tube, channel) = MannedMortar(new FireAtPointParams { Point = new Vector3(500f, 0f, 0f), Rounds = 1, CooldownSeconds = 3f, FireAt = (SimInstant)5d });
             new FireAtPointExecutor().OnEnter(man, ref channel, _world);
 
             Assert.Empty(FireAtPointStep(man, ref channel, now: 1d));
@@ -3703,7 +3703,7 @@ namespace Fdp.Toolkit.Combat.Tests
         public void P2_AMortar_IsLaid_OnTheSolutionsElevation_BeforeItsFirstRound()
         {
             var point = new Vector3(0f, 500f, 0f);   // due north: 90° left of the tube's +X
-            var (man, tube, channel) = MannedMortar(new FireAtPointParams { Point = point, Rounds = 1, CooldownSeconds = 3f, FireAt = 20d }, laid: true);
+            var (man, tube, channel) = MannedMortar(new FireAtPointParams { Point = point, Rounds = 1, CooldownSeconds = 3f, FireAt = (SimInstant)20d }, laid: true);
             var brain = new FireAtPointExecutor();
             var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
             brain.OnEnter(man, ref channel, _world);
@@ -3816,7 +3816,7 @@ namespace Fdp.Toolkit.Combat.Tests
         [Fact]
         public void P4_AGunner_FiringTheTubeHeMans_NamesIt_OnThePosture()
         {
-            var (man, _, channel) = MannedMortar(new FireAtPointParams { Point = new Vector3(500f, 0f, 0f), Rounds = 1, FireAt = 5d });
+            var (man, _, channel) = MannedMortar(new FireAtPointParams { Point = new Vector3(500f, 0f, 0f), Rounds = 1, FireAt = (SimInstant)5d });
             _world.RegisterComponent<WeaponPosture>();
             _world.AddComponent(man, new WeaponPosture());
             new FireAtPointExecutor().OnEnter(man, ref channel, _world);

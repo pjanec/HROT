@@ -159,7 +159,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public byte PhaseCount;
 
         /// <summary>Elapsed simulation time (seconds) for the current phase's <see cref="MissionTrigger.TimerElapsed"/> trigger.</summary>
-        public float PhaseElapsedSeconds;
+        public SimDuration PhaseElapsedSeconds;
 
         /// <summary>⭐ <c>CE-483</c>: how each phase ended (index = phase). Read with a <c>Span&lt;MissionPhaseOutcome&gt;</c>
         /// cast — the same InlineArray rule as <see cref="Phases"/>. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D3.</summary>

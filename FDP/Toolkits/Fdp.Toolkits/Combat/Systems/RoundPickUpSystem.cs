@@ -123,7 +123,7 @@ namespace Fdp.Toolkit.Combat.Systems
             repo.Bus.Publish(new WeaponFireIntent
             {
                 Shooter = man, Target = Entity.Null, WeaponIndex = index, AtPoint = true, TargetPoint = at.Position + new Vector3(ahead.X, ahead.Y, 0f),
-                AmmoGuid = ammo, FuzeSeconds = CookOffFuzeSeconds, RaisedAt = HitModel.Now(repo),
+                AmmoGuid = ammo, FuzeSeconds = CookOffFuzeSeconds, RaisedAt = (SimInstant)(HitModel.Now(repo)),
                 OriginalShooter = original,   // ⭐ CE-4155 (SR-82) — it cooks off in his hand: he is the last thrower, whoever threw it before him the first
             });
             PersonHands.Take(repo, man, ammo);

@@ -29,15 +29,15 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public Vector3 At;
             public float Reach;
-            public float Seconds;
+            public SimDuration Seconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct BatonChargeState
         {
             /// <summary>When the charge began (0 = not yet).</summary>
-            public double Since;
-            public double NextStrikeAt;
+            public SimInstant Since;
+            public SimInstant NextStrikeAt;
             /// <summary>Where his move goes (valid while <see cref="Moving"/> is 1).</summary>
             public Vector3 Goal;
             public byte Moving;
@@ -79,7 +79,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
             double now = world.SimulationTime > 0 ? world.SimulationTime : 1e-6;
-            if (ws.Since <= 0) ws.Since = now;
+            if (ws.Since <= 0) ws.Since = (SimInstant)now;
             if (now - ws.Since >= p.Seconds)
             {
                 LocomotionMoveTo.Stop(world, self);
@@ -92,7 +92,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
                 if (now >= ws.NextStrikeAt && ForceLevels.LevelFor(world, self, target) >= RoeForceLevel.NonLethal && Melee.Strike(world, self, target))
-                    ws.NextStrikeAt = now + Melee.CooldownSeconds;
+                    ws.NextStrikeAt = (SimInstant)(now + Melee.CooldownSeconds);
                 return NodeStatus.Running;
             }
 

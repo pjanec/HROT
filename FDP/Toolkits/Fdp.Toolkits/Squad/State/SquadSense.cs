@@ -42,12 +42,12 @@ namespace Fdp.Toolkit.Squad
         public byte InsideCount;
         public byte HeardInside;
         /// <summary>SC-8 — the point survey asked (−∞ = none) and when the last was asked.</summary>
-        public double AskedAt;
+        public SimInstant AskedAt;
         public double LastAsk;
         /// <summary>SC-8 — where the fire came from.</summary>
         public Vector3 Source;
 
-        public static SquadUnitSense Fresh => new() { AskedAt = double.NegativeInfinity, LastAsk = double.NegativeInfinity };
+        public static SquadUnitSense Fresh => new() { AskedAt = (SimInstant)double.NegativeInfinity, LastAsk = double.NegativeInfinity };
 
         public bool Contains(long id)
         {

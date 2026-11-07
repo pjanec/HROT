@@ -54,7 +54,7 @@ public struct EffectFlight
     public float SinkMps;
 
     /// <summary>The synced sim time (s) it was released.</summary>
-    public double FiredAt;
+    public SimInstant FiredAt;
 }
 
 /// <summary>⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P) — where an attached effect sits on its entity, found every frame.</summary>

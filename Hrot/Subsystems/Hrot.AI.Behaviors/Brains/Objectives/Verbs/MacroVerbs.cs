@@ -40,7 +40,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
     }
 
     /// <summary>⭐ <c>InsertMacro</c>'s working state: the GUID its instance is created with (two halves — unmanaged), when it asked.</summary>
-    public struct InsertMacroState { public byte Began; public ulong GuidLo, GuidHi; public double AskedAt; }
+    public struct InsertMacroState { public byte Began; public ulong GuidLo, GuidHi; public Fdp.Core.SimInstant AskedAt; }
 
     /// <summary>
     /// ⭐⭐ Macros S3b B1 (SR-93 / SR-96 / SR-157 / SR-167 / SR-171) — <c>InsertMacro</c>: a scenario macro instance created at RUNTIME, by the
@@ -77,7 +77,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                 if (refused != null) return Fail(world, self, refused);
                 var bytes = guid.ToByteArray();
                 s.GuidLo = BitConverter.ToUInt64(bytes, 0); s.GuidHi = BitConverter.ToUInt64(bytes, 8);
-                s.Began = 1; s.AskedAt = now;
+                s.Began = 1; s.AskedAt = (SimInstant)now;
                 return NodeStatus.Running;
             }
 

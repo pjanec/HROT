@@ -30,7 +30,7 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         public float CrossSpeed;
         /// <summary>A phase whose gate does not hold in this long moves on anyway (traced as Timeout) (s).</summary>
-        public float PhaseTimeoutSeconds;
+        public SimDuration PhaseTimeoutSeconds;
 
         // ── runtime ──
         /// <summary>The area, copied at Start: the buffer moves with the squad while it crosses.</summary>
@@ -45,7 +45,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte PairLane;
         /// <summary>The phase the fields below were reset for, and when it began.</summary>
         public ushort SeenPhase;
-        public double PhaseSince;
+        public SimInstant PhaseSince;
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ namespace Hrot.AI.Behaviors.Brains
         public void Update(ref SquadDangerCrossingParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             ushort phase = ctx.Squad.PhaseId;
-            if (phase != p.SeenPhase) { p.SeenPhase = phase; p.PhaseSince = ctx.Now; p.Pair = 0; }
+            if (phase != p.SeenPhase) { p.SeenPhase = phase; p.PhaseSince = (SimInstant)ctx.Now; p.Pair = 0; }
             byte crossing = phase switch
             {
                 DangerAreaCrossingManeuver.PhaseCrossElement     => DangerAreaCrossingManeuver.ElementCrossing,

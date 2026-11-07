@@ -677,7 +677,7 @@ public sealed class Map3DTests
             Assert.Equal(CarriageKind.Free, Carriage.Of(world, man, db).Kind);
             Assert.Null(Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
 
-            world.AddComponent(man, new Fdp.Toolkit.Combat.EffectState { KnockedDownUntil = 14.0, IrritatedUntil = 30.0 });
+            world.AddComponent(man, new Fdp.Toolkit.Combat.EffectState { KnockedDownUntil = (SimInstant)14.0, IrritatedUntil = (SimInstant)30.0 });
             Assert.Equal(CarriageKind.Downed, Carriage.Of(world, man, db).Kind);   // at full health
             Assert.Equal("DOWN · GASSED", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
 
@@ -2327,7 +2327,7 @@ public sealed class Map3DTests
     {
         var seat = new List<(PartShape Shape, Matrix4x4 Local, bool Flame)>();
         Fdp.Toolkit.Motion.Descent D(Fdp.Toolkit.Motion.DescentPhase phase, double since)
-            => new() { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = phase, PhaseSince = 100.0 - since, Canopy = Fdp.Toolkit.Motion.CanopyKind.Round };
+            => new() { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = phase, PhaseSince = (SimInstant)(100.0 - since), Canopy = Fdp.Toolkit.Motion.CanopyKind.Round };
 
         Assert.Equal(DescentPose.SittingOut, DescentDraw.PoseOf(Fdp.Toolkit.Motion.DescentKind.Ejection, Fdp.Toolkit.Motion.DescentPhase.Exit));
         DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Exit, 0.2), 100.0, seat);
@@ -2343,7 +2343,7 @@ public sealed class Map3DTests
         Assert.True(seat[0].Local.Translation.Z < -1.5f, $"falling away beneath him ({seat[0].Local.Translation})");
         DescentDraw.EjectionSeat(D(Fdp.Toolkit.Motion.DescentPhase.Deploying, 2.0), 100.0, seat);
         Assert.Empty(seat);                                                        // gone
-        DescentDraw.EjectionSeat(new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.StaticLine, Phase = Fdp.Toolkit.Motion.DescentPhase.Exit, PhaseSince = 99.8 }, 100.0, seat);
+        DescentDraw.EjectionSeat(new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.StaticLine, Phase = Fdp.Toolkit.Motion.DescentPhase.Exit, PhaseSince = (SimInstant)99.8 }, 100.0, seat);
         Assert.Empty(seat);                                                        // a paratrooper has no seat
     }
 
@@ -4577,7 +4577,7 @@ public sealed class Map3DTests
 
     private static Fdp.Toolkit.Motion.Descent Descending(Fdp.Toolkit.Motion.DescentKind kind, Fdp.Toolkit.Motion.DescentPhase phase, double since,
                                                          Fdp.Toolkit.Motion.CanopyKind canopy = Fdp.Toolkit.Motion.CanopyKind.Round)
-        => new() { Kind = kind, Phase = phase, PhaseSince = since, Canopy = kind == Fdp.Toolkit.Motion.DescentKind.FastRope ? Fdp.Toolkit.Motion.CanopyKind.NoCanopy : canopy };
+        => new() { Kind = kind, Phase = phase, PhaseSince = (SimInstant)since, Canopy = kind == Fdp.Toolkit.Motion.DescentKind.FastRope ? Fdp.Toolkit.Motion.CanopyKind.NoCanopy : canopy };
 
     /// <summary>⭐ CE-1119 (§6w AB-V2) — every descent phase has its figure in the shared part order (so it blends): the rope slide's hands
     /// above his head, the arch face down, hands up on the toggles under the canopy and down at the hips in the flare, sitting once landed;

@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.ScenarioRules
         public float Pass;
         public float Points;
         /// <summary>Sim time (s) of the last state change.</summary>
-        public double ChangedAt;
+        public SimInstant ChangedAt;
         /// <summary>A short text: "held 60 s, 5 Blue / 0 Red".</summary>
         public FixedString64 Reason;
         public FixedString64 Title;
@@ -76,9 +76,11 @@ namespace Fdp.Toolkit.ScenarioRules
         public byte ActsOnCount;
         public NetIds8 ActsOn;
         /// <summary>⭐ rules V-2 — the authored timing (s; 0 = none) of a trigger; <see cref="Deadline"/> is every kind's <c>common.deadlineSeconds</c> (sim s since the start).</summary>
-        public float HoldFor, Delay, Cooldown, Deadline;
+        public float HoldFor;
+        public SimDuration Delay, Cooldown;
+        public float Deadline;
         /// <summary>⭐ rules V-2 — sim s of the NEXT thing the owner already knows will happen (Waiting ⇒ the delay's end · Holding ⇒ edge + holdFor · Cooldown ⇒ its end · an Active one with a deadline ⇒ the deadline); 0 = unknown / final.</summary>
-        public double ExpectedAt;
+        public SimInstant ExpectedAt;
 
         /// <summary>⭐ G-8 (DESIGN_Scenario_Rules §00.12, CE-4230) — a CAPTURE point's facts, so every node's HUD reads them from the status (display fields, on the wire): <see cref="Capture"/> 1 = a capture point;
         /// <see cref="Challenger"/> = the side whose clock runs against the owner (Neutral = none); <see cref="AreaCenter"/> / <see cref="AreaRadius"/> = the area's bounding circle (a circle as authored, a rectangle's half diagonal, an area entity's outline from its centroid). Written by <c>HoldAreaBehavior</c>.</summary>

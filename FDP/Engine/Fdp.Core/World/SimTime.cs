@@ -24,7 +24,7 @@ namespace Fdp.Core
     [JsonConverter(typeof(SimInstantJsonConverter))]
     [TypeConverter(typeof(SimInstantTypeConverter))]
     [DebuggerDisplay("{ToString(),nq}")]
-    public readonly struct SimInstant : IEquatable<SimInstant>, IComparable<SimInstant>
+    public readonly struct SimInstant : IEquatable<SimInstant>, IComparable<SimInstant>, IFormattable
     {
         /// <summary>Seconds of sim time.</summary>
         public readonly double Seconds;
@@ -59,6 +59,10 @@ namespace Fdp.Core
 
         /// <summary><c>t=123.5 s</c> — seconds of sim time, one decimal, invariant culture (a tool shows the scenario clock through <c>ScenarioClock</c>).</summary>
         public override string ToString() => "t=" + Seconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
+
+        /// <summary>⭐ With a format (<c>{t:0.0}</c>, <c>ToString("F3")</c>, <c>:R</c>) the plain NUMBER of seconds in that format — exactly what the <see cref="double"/> this replaced printed, so interpolations and
+        /// hand-built JSON do not change; with none, <see cref="ToString()"/>.</summary>
+        public string ToString(string? format, IFormatProvider? provider) => string.IsNullOrEmpty(format) ? ToString() : Seconds.ToString(format, provider);
     }
 
     /// <summary>
@@ -69,7 +73,7 @@ namespace Fdp.Core
     [JsonConverter(typeof(SimDurationJsonConverter))]
     [TypeConverter(typeof(SimDurationTypeConverter))]
     [DebuggerDisplay("{ToString(),nq}")]
-    public readonly struct SimDuration : IEquatable<SimDuration>, IComparable<SimDuration>
+    public readonly struct SimDuration : IEquatable<SimDuration>, IComparable<SimDuration>, IFormattable
     {
         /// <summary>Seconds.</summary>
         public readonly float Seconds;
@@ -92,6 +96,9 @@ namespace Fdp.Core
         public int CompareTo(SimDuration other) => Seconds.CompareTo(other.Seconds);
         public static bool operator ==(SimDuration a, SimDuration b) => a.Seconds == b.Seconds;
         public static bool operator !=(SimDuration a, SimDuration b) => a.Seconds != b.Seconds;
+
+        /// <summary>⭐ With a format the plain number of seconds in that format (what the <see cref="float"/> this replaced printed); with none, <see cref="ToString()"/>.</summary>
+        public string ToString(string? format, IFormatProvider? provider) => string.IsNullOrEmpty(format) ? ToString() : Seconds.ToString(format, provider);
 
         /// <summary><c>1 min 12 s</c> above a minute, else <c>12.5 s</c>; invariant culture.</summary>
         public override string ToString()

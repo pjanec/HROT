@@ -112,7 +112,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 && AuthorityExtensions.IsRecordedOwner(repo, unit, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
             cmd.AddComponent(unit, new EffectState
             {
-                StunnedUntil = d.StunnedUntil, IrritatedUntil = d.IrritatedUntil, KnockedDownUntil = d.KnockedDownUntil, Cowering = d.Cowering,
+                StunnedUntil = (SimInstant)d.StunnedUntil, IrritatedUntil = (SimInstant)d.IrritatedUntil, KnockedDownUntil = (SimInstant)d.KnockedDownUntil, Cowering = d.Cowering,
             });
         }
 

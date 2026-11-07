@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.ScenarioRules
     {
         public ExercisePhase Phase;
         /// <summary>Sim time (s) when <see cref="Phase"/> became Ended.</summary>
-        public double EndedAt;
+        public SimInstant EndedAt;
         /// <summary>Why it ended (the <c>EndExercise</c> reason).</summary>
         public FixedString64 Reason;
         /// <summary>Per side (<see cref="ForceId"/>): Friend, Hostile, Neutral.</summary>
@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.ScenarioRules
     public struct ExerciseEndedEvent
     {
         /// <summary>Sim time (s) of the end.</summary>
-        public double EndedAt;
+        public SimInstant EndedAt;
     }
 
     /// <summary>
@@ -95,10 +95,10 @@ namespace Fdp.Toolkit.ScenarioRules
         public int ToValue;
         public string Text = "";
         /// <summary>How long a subtitle shows (s).</summary>
-        public float Seconds = 6f;
+        public SimDuration Seconds = 6f;
         public byte Priority;
         /// <summary>Sim time (s) it was sent.</summary>
-        public double SentAt;
+        public SimInstant SentAt;
         /// <summary>The network id of the trigger (or entity) that sent it; 0 = none.</summary>
         public int Source;
     }

@@ -125,7 +125,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                     t = view.HasComponent<HeardTraces>(h.Observer) ? view.GetComponentRO<HeardTraces>(h.Observer) : default;
                 t.Add(new HeardTrace
                 {
-                    Time = _now, At = new System.Numerics.Vector3(h.X, h.Y, h.Z), Radius = h.Radius, Kind = h.Kind,
+                    Time = (SimInstant)_now, At = new System.Numerics.Vector3(h.X, h.Y, h.Z), Radius = h.Radius, Kind = h.Kind,
                     SourceClass = h.SourceClass,
                 });
                 _traces[h.Observer] = t;

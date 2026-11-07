@@ -179,7 +179,7 @@ namespace Hrot.AI.Behaviors.Brains
             var at = world.GetComponentRO<SimTransform>(self).Position;
             if (!world.HasComponent<Restless>(self))
             {
-                world.AddComponent(self, new Restless { Anchor = at, LastPos = at, StillSince = now, NextAt = now + StillSeconds });
+                world.AddComponent(self, new Restless { Anchor = at, LastPos = at, StillSince = (SimInstant)now, NextAt = (SimInstant)(now + StillSeconds) });
                 return;
             }
             ref var r = ref world.GetComponentRW<Restless>(self);
@@ -194,8 +194,8 @@ namespace Hrot.AI.Behaviors.Brains
                 r.Moving = 0;
                 r.HoldIntentId = 0;
                 r.LastPos = at;
-                r.StillSince = now;
-                r.NextAt = now + Interval(world, self, r.Moves, now);
+                r.StillSince = (SimInstant)now;
+                r.NextAt = (SimInstant)(now + Interval(world, self, r.Moves, now));
                 return;
             }
             if (Flat(at - r.LastPos).Length() > ResettleMetres) { Resettle(ref r, at, now); return; }   // something else moved him
@@ -206,7 +206,7 @@ namespace Hrot.AI.Behaviors.Brains
             float nervous = StressModel.Nervousness(world, self);   // ⭐ CE-2365 — a nervous man fidgets, his weapon up or not
             if (RestlessHolds.Holds(world, self, calm: !underFire && nervous <= 0f) != RestlessHold.None)
             {
-                r.NextAt = now + HeldRecheckSeconds;
+                r.NextAt = (SimInstant)(now + HeldRecheckSeconds);
                 r.LastPos = at;
                 return;
             }
@@ -219,7 +219,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!UnderFire.CoverNear(world, self, at, StepMaxMetres, InCoverMinMetres, out var behind, out _)
                     || Flat(behind - r.Anchor).Length() > TetherMetres)
                 {
-                    r.NextAt = now + Interval(world, self, r.Moves, now);
+                    r.NextAt = (SimInstant)(now + Interval(world, self, r.Moves, now));
                     r.LastPos = at;
                     return;
                 }
@@ -232,7 +232,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             r.HoldIntentId = MoveToExecutor.WriteIntent(world, self, in move);
             r.Moving = 1;
-            r.StillSince = now;   // the shift's own clock (ShiftSeconds)
+            r.StillSince = (SimInstant)now;   // the shift's own clock (ShiftSeconds)
             r.Moves++;
         }
 
@@ -287,24 +287,24 @@ namespace Hrot.AI.Behaviors.Brains
             var current = Gestures.Of(world, self);
             if (current != GestureKind.None && !Gestures.IsIdle(current)) return;   // his behaviour's act
             if (now < r.GestureCheckAt) return;
-            r.GestureCheckAt = now + 1.0;
+            r.GestureCheckAt = (SimInstant)(now + 1.0);
             if (!Calm(world, self, now))
             {
                 if (Gestures.IsIdle(current)) Gestures.Set(world, self, GestureKind.None);
-                if (r.NextGestureAt < now + GestureGapMinSeconds) r.NextGestureAt = now + GestureGapMinSeconds;
+                if (r.NextGestureAt < now + GestureGapMinSeconds) r.NextGestureAt = (SimInstant)(now + GestureGapMinSeconds);
                 return;
             }
             if (Gestures.IsIdle(current))
             {
                 if (now < r.GestureUntil) return;
                 Gestures.Set(world, self, GestureKind.None);
-                r.NextGestureAt = now + Seeded(self, 0x236A, now, GestureGapMinSeconds, GestureGapMaxSeconds);
+                r.NextGestureAt = (SimInstant)(now + Seeded(self, 0x236A, now, GestureGapMinSeconds, GestureGapMaxSeconds));
                 return;
             }
-            if (r.NextGestureAt <= 0) { r.NextGestureAt = now + Seeded(self, 0x236B, now, 10.0, 40.0); return; }
+            if (r.NextGestureAt <= 0) { r.NextGestureAt = (SimInstant)(now + Seeded(self, 0x236B, now, 10.0, 40.0)); return; }
             if (now < r.NextGestureAt) return;
             Gestures.Set(world, self, PickIdle(self, now));
-            r.GestureUntil = now + Seeded(self, 0x236C, now, GestureMinSeconds, GestureMaxSeconds);
+            r.GestureUntil = (SimInstant)(now + Seeded(self, 0x236C, now, GestureMinSeconds, GestureMaxSeconds));
         }
 
         /// <summary>⭐ AQ103 I — the tasks of a man who is truly IDLE or on a boring wait (🔒 user: <i>"really idle or waiting in some boring
@@ -378,8 +378,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             r.Anchor = at;
             r.LastPos = at;
-            r.StillSince = now;
-            r.NextAt = now + StillSeconds;
+            r.StillSince = (SimInstant)now;
+            r.NextAt = (SimInstant)(now + StillSeconds);
             r.Moving = 0;
             r.HoldIntentId = 0;
             r.Moves = 0;

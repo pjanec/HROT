@@ -163,7 +163,7 @@ public sealed class StanceTranslatorTests : IDisposable
 
         ref readonly var result = ref ingressWorld.GetComponentRO<StanceIntent>(ingressEntity);
         Assert.Equal(StanceId.Prone, result.TargetStance);
-        Assert.Equal(1.5f, result.BlendTime);
+        Assert.Equal(1.5f, result.BlendTime.Seconds);
         Assert.Equal(3u, result.Version);
 
         ingressWorld.Dispose();

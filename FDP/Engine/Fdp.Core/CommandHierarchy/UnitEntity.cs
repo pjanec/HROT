@@ -16,6 +16,6 @@ namespace Fdp.Core.CommandHierarchy
     {
         /// <summary>How long the commander gives no new orders after its leader soldier falls (s) — the lull an observer sees
         /// while the next man takes over (§7.2 L2). From the unit type.</summary>
-        public float CommandDisruptionSeconds;
+        public SimDuration CommandDisruptionSeconds;
     }
 }

@@ -123,7 +123,7 @@ namespace Hrot.AI.Behaviors.Brains
             /// <summary>Maximum number of fire activations. 0 = unlimited.</summary>
             public int   MaxRounds;
             /// <summary>Seconds to wait between successive shots.</summary>
-            public float CooldownSeconds;
+            public SimDuration CooldownSeconds;
             /// <summary>Runtime counter of fire activations (written back to blackboard).</summary>
             public int   RoundsFired;
         }

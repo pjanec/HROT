@@ -33,7 +33,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Suspected;
         /// <summary>1 once the survey was asked · when · 1 once the building is known · 1 once it failed · 1 once the building is clear.</summary>
         public byte Asked, Planned, Failed, Done;
-        public double AskedAt;
+        public SimInstant AskedAt;
         public int Building;
         /// <summary>Per room index: <see cref="RoomOrder.Unknown"/>, <c>Cleared</c> or <c>Blocked</c>.</summary>
         public fixed byte Rooms[MaxRooms];
@@ -210,7 +210,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 WorldSurveyChildSensor.Ensure(ctx.World, ctx.Commander, BuildingSite, WorldSurveyRequest.OfArea(new Vector2(p.Point.X, p.Point.Y), BuildingAskMetres));
                 p.Asked = 1;
-                p.AskedAt = ctx.Now;
+                p.AskedAt = (SimInstant)ctx.Now;
                 return;
             }
             var answer = Answer(in ctx);

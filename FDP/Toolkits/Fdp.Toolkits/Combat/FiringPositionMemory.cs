@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>T4 display — the node's phase (<see cref="PeekPhase"/>) and the sim time it was last written / its timer ends.</summary>
         public byte Phase;
-        public double PhaseAt, PhaseUntil;
+        public SimInstant PhaseAt, PhaseUntil;
         public Vector3 HidePoint, PeekPoint;
 
         /// <summary>⭐ Declared: a unit memory is created with <c>new T()</c> (Q87 §1).</summary>
@@ -67,7 +67,8 @@ namespace Fdp.Toolkit.Combat
     {
         /// <summary>Heat halves in this many seconds · burned at · usable again below · a warm spot's score penalty per heat · a
         /// candidate within this of a slot IS that slot (m).</summary>
-        public float CoolHalfLifeSeconds, BurnHeat, ReuseHeat, HeatPenalty, MatchRadius;
+        public SimDuration CoolHalfLifeSeconds;
+        public float BurnHeat, ReuseHeat, HeatPenalty, MatchRadius;
 
         /// <summary>The design's defaults (§8.4).</summary>
         public static HeatRules Default => new() { CoolHalfLifeSeconds = 45f, BurnHeat = 2.5f, ReuseHeat = 1.0f, HeatPenalty = 0.3f, MatchRadius = 1.0f };

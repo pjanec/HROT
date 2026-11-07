@@ -83,7 +83,7 @@ namespace Hrot.SimHost.Tests
                              (w[0].Kind, w[0].Hold, w[0].HoldUnit.Spec.ToString()));   // S9': the file carries the unit's GUID
                 Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Pass, 60f, Fdp.Toolkit.Navigation.RouteHold.None, true),
                              (w[1].Kind, w[1].HeightAgl, w[1].Hold, w[1].HoldUnit.IsNone));
-                Assert.Equal((Fdp.Toolkit.Navigation.RouteHold.Seconds, 12.5f), (w[2].Hold, w[2].HoldSeconds));
+                Assert.Equal((Fdp.Toolkit.Navigation.RouteHold.Seconds, 12.5f), (w[2].Hold, (float)(w[2].HoldSeconds)));
             }
         }
 

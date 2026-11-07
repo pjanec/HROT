@@ -216,7 +216,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
 
         RaiseOnSimHost(60f, BehaviorOrigin.Superior);   // lower than the operator who set them
         harness.PumpFrames(120);
-        Assert.Equal(15f, OnBrain().SitrepEverySeconds);
+        Assert.Equal(15f, (float)(OnBrain().SitrepEverySeconds));
     }
 
     /// <summary>
@@ -692,7 +692,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         Fdp.Toolkit.Combat.AreaEffectClouds.Request(sim, new System.Numerics.Vector3(5, 5, 0), new Fdp.Toolkit.Combat.AreaEffectCloud
         {
             Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
-            BornAtSimSeconds = Fdp.Toolkit.Time.SimClock.Of(sim).TotalTime, Seconds = 3f,
+            BornAtSimSeconds = (SimInstant)(Fdp.Toolkit.Time.SimClock.Of(sim).TotalTime), Seconds = 3f,
         });
         Assert.True(harness.PumpUntil(() => Clouds(sim) == 1 && Clouds(cgf) == 1 && Clouds(player) == 1, timeoutFrames: 600),
             $"the cloud must exist on SimHost, CGF and the Player (sim {Clouds(sim)}, cgf {Clouds(cgf)}, player {Clouds(player)})");
@@ -701,7 +701,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             var c = w.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(FirstCloud(w));
             Assert.Equal(Fdp.Toolkit.Combat.CloudKind.TearGas, c.Kind);
             Assert.Equal(6f, c.Radius);
-            Assert.Equal(3f, c.Seconds);
+            Assert.Equal(3f, (float)(c.Seconds));
         }
         // ⭐ CE-3228 — asked for with owner 0 on SimHost (not the default processor) ⇒ forwarded; the default processor (CGF) creates and owns it
         Assert.True(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, FirstCloud(cgf)), "the default processor (CGF) owns it");

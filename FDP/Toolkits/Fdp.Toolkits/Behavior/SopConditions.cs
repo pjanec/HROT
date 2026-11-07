@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>The change to look for (Hit, FirstThreat, Acquired, …).</summary>
         public SensorChange Kind;
         /// <summary>How recent, in sim seconds.</summary>
-        public float Seconds;
+        public SimDuration Seconds;
     }
 
     /// <summary>⭐ <c>CE-2159</c> X-c — params of the "danger area ahead" condition: how near along the route the next area must be.</summary>
@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Behavior
     {
         /// <summary>How long the mode outlasts the contact: still true this many sim seconds after <c>AllClear</c>
         /// (0 = ends with the contact).</summary>
-        public float LingerSeconds;
+        public SimDuration LingerSeconds;
     }
 
     /// <summary>

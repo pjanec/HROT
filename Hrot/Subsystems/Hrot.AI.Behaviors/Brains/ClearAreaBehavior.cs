@@ -29,7 +29,7 @@ namespace Hrot.AI.Behaviors.Brains
         public ClearIntensity Intensity;
         public byte Suspected;
         public byte Asked, Planned;
-        public double AskedAt;
+        public SimInstant AskedAt;
         public fixed float BuildingX[MaxBuildings];
         public fixed float BuildingY[MaxBuildings];
         /// <summary>Per building: <see cref="RoomOrder.Unknown"/>, <c>Cleared</c> or <c>Blocked</c>.</summary>
@@ -142,7 +142,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 WorldSurveyChildSensor.Ensure(ctx.World, ctx.Commander, AreaSite, WorldSurveyRequest.OfArea(new Vector2(p.Centre.X, p.Centre.Y), p.Radius));
                 p.Asked = 1;
-                p.AskedAt = ctx.Now;
+                p.AskedAt = (SimInstant)ctx.Now;
                 return NodeStatus.Running;
             }
             var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, AreaSite);

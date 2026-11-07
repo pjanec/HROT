@@ -43,11 +43,11 @@ namespace Fdp.Toolkit.Combat
         /// <summary>How many (a lying round is one).</summary>
         public int Rounds;
         /// <summary>The fuze it had left (s) — a live round keeps burning in his hand; 0 = inert.</summary>
-        public float FuzeSeconds;
+        public SimDuration FuzeSeconds;
         /// <summary>Came off the network: never sent again.</summary>
         public bool IsRemote;
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-5) — a venting canister's burn left (s): it goes on venting in his hand; 0 = none (APPENDED).</summary>
-        public float BurnSeconds;
+        public SimDuration BurnSeconds;
         /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — the first thrower of the round being granted: the round's own <c>OriginalShooter</c>, else
         /// its <c>Shooter</c> (who threw it before this man picked it up); <see cref="Entity.Null"/> = unknown. Crosses nodes as the interaction's <c>actor</c>.</summary>
         public Entity OriginalShooter;
@@ -68,7 +68,7 @@ namespace Fdp.Toolkit.Combat
         public float Remaining;
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-6) — a VENTING canister's burn left (s): it irritates him while it burns, and is gone (no
         /// burst) when it is out. 0 = a live round (<see cref="Remaining"/> is its fuze).</summary>
-        public float BurnSeconds;
+        public SimDuration BurnSeconds;
         /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — the first thrower of the round he holds (from the grant): thrown back, it is the
         /// <c>OriginalShooter</c> of the new throw, and a canister burning in his hand names him as <c>Source</c> and this as <c>OriginalSource</c>.</summary>
         public Entity OriginalShooter;

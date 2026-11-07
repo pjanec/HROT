@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Motion
         public int Waypoint;
         public RouteWaypointKind Kind;
         public RouteHold Hold;
-        public float HoldSeconds;
+        public SimDuration HoldSeconds;
         public int HoldUnit;
         /// <summary>The route's end (a non-looping route): the order is done here.</summary>
         public bool Last;

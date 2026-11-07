@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Civilians
     public struct HostileAct
     {
         /// <summary>Sim time (s) of his FIRST act — an upgrade keeps it.</summary>
-        public double SinceSimTime;
+        public SimInstant SinceSimTime;
         /// <summary>The gravest act so far.</summary>
         public HostileActKind Kind;
     }
@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.Civilians
             {
                 if (!repo.HasComponent<HostileAct>(actor))
                 {
-                    repo.AddComponent(actor, new HostileAct { SinceSimTime = now, Kind = kind });
+                    repo.AddComponent(actor, new HostileAct { SinceSimTime = (SimInstant)now, Kind = kind });
                     changed = true;
                 }
                 else
@@ -79,7 +79,7 @@ namespace Fdp.Toolkit.Civilians
             if (repo.IsComponentTypeRegistered<CivilianState>() && repo.HasComponent<CivilianState>(actor))
             {
                 ref var mind = ref repo.GetComponentRW<CivilianState>(actor);
-                if (mind.HostileActAt <= 0) { mind.HostileActAt = now; changed = true; }
+                if (mind.HostileActAt <= 0) { mind.HostileActAt = (SimInstant)now; changed = true; }
             }
             if (!first) return changed;
             if (repo.HasComponent<EntityInfo>(actor) && repo.GetComponentRO<EntityInfo>(actor).ForceId == ForceId.Hostile) return changed;

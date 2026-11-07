@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Combat.Systems
         private static void Fill(ref ShotTrace s, ShotRecord r, double time)
         {
             s.Seq = r.Seq;
-            s.Time = time;
+            s.Time = (SimInstant)time;
             s.Muzzle = r.Muzzle;
             s.Outcome = r.Outcome;
             s.HasEnd = (byte)(r.EndPoint.HasValue ? 1 : 0);
@@ -88,7 +88,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 ref var d = ref slots[t.Next];
                 d = default;
                 d.Seq = r.Seq;
-                d.Time = now;
+                d.Time = (SimInstant)now;
                 d.Burst = r.Burst;
                 d.FragmentRadius = r.FragmentRadius;
                 d.BlastInjuryRadius = r.BlastInjuryRadius;

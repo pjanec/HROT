@@ -45,7 +45,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0.006f, HitModel.Sigma(repo, e, Rifle, 0), 6);
             repo.AddComponent(e, new SimVelocity { Linear = new Vector3(1, 0, 0) });
             Assert.Equal(0.012f, HitModel.Sigma(repo, e, Rifle, 0), 6);
-            repo.AddComponent(e, new UnderFire { LastTime = 10 });
+            repo.AddComponent(e, new UnderFire { LastTime = (SimInstant)10 });
             Assert.Equal(0.024f, HitModel.Sigma(repo, e, Rifle, 12), 6);   // 2 s after: suppressed
             Assert.Equal(0.012f, HitModel.Sigma(repo, e, Rifle, 16), 6);   // 6 s after: not any more
             repo.AddComponent(e, new StanceIntent { TargetStance = StanceId.Prone });
@@ -90,7 +90,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var (repo, e) = Unit();
             HitModel.StampUnderFire(repo, e, 3);
             HitModel.StampUnderFire(repo, e, 7);
-            Assert.Equal(7, repo.GetComponent<UnderFire>(e).LastTime);
+            Assert.Equal(7, repo.GetComponent<UnderFire>(e).LastTime.Seconds);
         }
 
         /// <summary>

@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (cloud.Stepped != 0 && now - last < StepSeconds) continue;
                 {
                     ref var step = ref repo.GetComponentRW<AreaEffectCloud>(e);
-                    step.LastStepSimSeconds = now;
+                    step.LastStepSimSeconds = (SimInstant)now;
                     step.Stepped = 1;
                 }
 

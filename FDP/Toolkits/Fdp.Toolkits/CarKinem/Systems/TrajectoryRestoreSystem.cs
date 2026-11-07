@@ -40,7 +40,7 @@ namespace CarKinem.Systems
         // ⭐ CE-3337 — the ONE resume protocol (Fdp.Toolkit.Replay.ResumableCounter), shared with the behaviour run tokens
         private readonly Fdp.Toolkit.Replay.ResumableCounter<NavigationHandleMark> _handles = new(
             () => NavigationHandleAllocator.Last, NavigationHandleAllocator.ResumeAt,
-            m => (m.Last, m.At), (last, at) => new NavigationHandleMark { Last = last, At = at });
+            m => (m.Last, m.At), (last, at) => new NavigationHandleMark { Last = last, At = (SimInstant)at });
 
         private void Replaced(EntityRepository repo)
         {

@@ -43,7 +43,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3264_AnUtterance_ReachesTheOtherNode_ItsTargetMappedToThatNodesEntity()
         {
-            var sample = EntityUtteranceEgressTranslator.ToSample(60, new Utterance { Kind = UtteranceKind.CmdHandsUp, Until = 42.5 }, targetId: 61);
+            var sample = EntityUtteranceEgressTranslator.ToSample(60, new Utterance { Kind = UtteranceKind.CmdHandsUp, Until = (SimInstant)42.5 }, targetId: 61);
             var (node, map, officer, man) = Node();
             using (node)
             {

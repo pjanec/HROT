@@ -158,9 +158,9 @@ namespace Hrot.SimHost.Tests
             var w = new World();
             var neutral = w.Person(new Vector3(5, 0, 0), ForceId.Neutral);
             var down = w.Person(new Vector3(10, 0, 0), ForceId.Hostile);
-            w.Repo.AddComponent(down, new EffectState { KnockedDownUntil = 1e6 });
+            w.Repo.AddComponent(down, new EffectState { KnockedDownUntil = (SimInstant)1e6 });
             var stunned = w.Person(new Vector3(12, 0, 0), ForceId.Hostile);
-            w.Repo.AddComponent(stunned, new EffectState { StunnedUntil = 1e6 });
+            w.Repo.AddComponent(stunned, new EffectState { StunnedUntil = (SimInstant)1e6 });
             var handsUp = w.Person(new Vector3(15, 0, 0), ForceId.Hostile);
             Gestures.Set(w.Repo, handsUp, GestureKind.HandsUp);
             var rioter = w.Person(new Vector3(20, 0, 0), ForceId.Hostile);
@@ -216,7 +216,7 @@ namespace Hrot.SimHost.Tests
             var w = new World();
             var soldier = w.Person(new Vector3(0.5f, 0, 0), ForceId.Neutral);     // a Neutral, nearest — not of the Civilian class
             var down = w.Protester(new Vector3(0.8f, 0, 0));
-            w.Repo.AddComponent(down, new EffectState { KnockedDownUntil = 1e6 });
+            w.Repo.AddComponent(down, new EffectState { KnockedDownUntil = (SimInstant)1e6 });
             var protester = w.Protester(new Vector3(1.2f, 0, 0));
             var beyond = w.Protester(new Vector3(-20f, 0, 0));
             foreach (var e in new[] { soldier, down, protester, beyond }) w.Sees(e);
@@ -226,7 +226,7 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(w.Blows, b => b.HitEntity == soldier || b.HitEntity == down || b.HitEntity == beyond);
 
             // the protester goes down: nobody standing in reach of the point — he goes to the point, never toward the far one
-            w.Repo.AddComponent(protester, new EffectState { KnockedDownUntil = 1e6 });
+            w.Repo.AddComponent(protester, new EffectState { KnockedDownUntil = (SimInstant)1e6 });
             for (int i = 0; i < 4; i++) w.Tick();
             ref var loco = ref w.Repo.GetComponentRW<LocomotionChannel>(w.Police);
             if (loco.ActiveAction == NavigationConstants.ActionIdMoveTo)

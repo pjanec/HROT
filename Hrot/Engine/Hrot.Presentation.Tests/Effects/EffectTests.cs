@@ -77,7 +77,7 @@ public sealed partial class EffectTests
         var gas = Unit(world, AreaEffectCloudTkb.Type, new Vector3(10f, 20f, 2f));
         world.AddComponent(gas, new Fdp.Toolkit.Combat.AreaEffectCloud
         {
-            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, BornAtSimSeconds = 100.0, Seconds = 60f,
+            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, BornAtSimSeconds = (SimInstant)100.0, Seconds = 60f,
         });
         var layer = new EffectLayer(() => world, () => tkb);
 
@@ -442,11 +442,11 @@ public sealed partial class EffectTests
         var origin = new Vector3(0, 0, 300);
         var velocity = new Vector3(60, 0, 0);
         world.Bus.Publish(new WeaponFireNotification { Shooter = heli, WeaponIndex = 1, AmmoGuid = MunitionTkbCatalog.TkbFlare,
-                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = 99.5 });
+                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = (SimInstant)99.5 });
         world.Bus.Publish(new WeaponFireNotification { Shooter = heli, WeaponIndex = 1, AmmoGuid = MunitionTkbCatalog.TkbChaff,
-                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = 99.5 });
+                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = (SimInstant)99.5 });
         world.Bus.Publish(new WeaponFireNotification { Shooter = heli, WeaponIndex = 1, AmmoGuid = MunitionTkbCatalog.TkbFlare,
-                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = 90.0 });   // burnt out
+                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = (SimInstant)90.0 });   // burnt out
         var spawn = new EffectSpawnSystem();
         Tick(world, spawn, 0.016f);
 
@@ -456,7 +456,7 @@ public sealed partial class EffectTests
         Assert.Single(fx, f => f.Type == EffectTkbCatalog.ChaffCloud);
         var exp = Fdp.Toolkit.Combat.Munitions.ExpendableOf(tkb, MunitionTkbCatalog.TkbFlare)!;
         Assert.Equal(99.5, world.GetComponentRO<Lifespan>(flare).BornAtSimSeconds);                            // DV-2: born at the release
-        Assert.Equal(exp.LifeSeconds, world.GetComponentRO<Lifespan>(flare).Seconds);
+        Assert.Equal(exp.LifeSeconds, (float)(world.GetComponentRO<Lifespan>(flare).Seconds));
         Assert.Equal<System.Numerics.Vector3>(Fdp.Toolkit.Combat.DecoyFlight.At(origin, velocity, exp.SinkMps, 0.5f), world.GetComponentRO<SimTransform>(flare).Position);
 
         At(world, 102.0);                                                                                       // DV-3: it moves
@@ -742,7 +742,7 @@ public sealed partial class EffectTests
             var anchor = world.GetComponentRO<EffectAnchor>(e);
             Assert.Equal(tank, anchor.Shooter);
             Assert.Equal(EffectAnchorKind.Body, anchor.Kind);
-            Assert.Equal(type == EffectTkbCatalog.Fire ? 60f : 180f, world.GetComponentRO<Lifespan>(e).Seconds);
+            Assert.Equal(type == EffectTkbCatalog.Fire ? 60f : 180f, (float)(world.GetComponentRO<Lifespan>(e).Seconds));
             Assert.Equal(20.0, world.GetComponentRO<Lifespan>(e).BornAtSimSeconds);
         }
         Tick(world, wrecks, 0.016f);

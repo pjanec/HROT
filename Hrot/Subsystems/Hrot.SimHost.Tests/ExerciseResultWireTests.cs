@@ -31,7 +31,7 @@ namespace Hrot.SimHost.Tests
 
         private static ExerciseResult Full() => new()
         {
-            Phase = ExercisePhase.Ended, EndedAt = 321.5, Reason = new FixedString64("time is up"),
+            Phase = ExercisePhase.Ended, EndedAt = (SimInstant)321.5, Reason = new FixedString64("time is up"),
             Friend = new SideResult { Outcome = SideOutcome.Win, Points = 12f, Score = 0.75f },
             Hostile = new SideResult { Outcome = SideOutcome.Lose, Points = 3f, Score = 0.25f },
             Neutral = new SideResult { Outcome = SideOutcome.Draw, Points = 1f, Score = 0.5f },

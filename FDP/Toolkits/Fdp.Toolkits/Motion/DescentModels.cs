@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Motion
         {
             if (d.Phase == phase) return;
             d.Phase = phase;
-            d.PhaseSince = now;
+            d.PhaseSince = (SimInstant)now;
         }
 
         /// <summary>The world point of <paramref name="d"/>'s rope or door, and the carrier's velocity; false when the carrier is gone or dead.</summary>
@@ -171,7 +171,7 @@ namespace Fdp.Toolkit.Motion
         public static bool Start(EntityRepository world, Entity man, Entity carrier, ExitKind exit, byte anchorIndex, Vector3 target = default)
         {
             if (exit == ExitKind.StepOut || !world.IsAlive(man) || !world.IsComponentTypeRegistered<Descent>()) return false;
-            var d = new Descent { Anchor = carrier, AnchorIndex = anchorIndex, Phase = DescentPhase.Exit, PhaseSince = DescentRules.Now(world) };
+            var d = new Descent { Anchor = carrier, AnchorIndex = anchorIndex, Phase = DescentPhase.Exit, PhaseSince = (SimInstant)(DescentRules.Now(world)) };
             if (exit == ExitKind.RopeDown) d.Kind = DescentKind.FastRope;
             else
             {

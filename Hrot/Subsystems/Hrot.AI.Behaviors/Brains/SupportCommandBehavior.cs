@@ -23,7 +23,7 @@ namespace Hrot.AI.Behaviors.Brains
     public struct SupportCommandParams
     {
         public float AirDefenceMetres;
-        public float AirDefenceFreshSeconds;
+        public SimDuration AirDefenceFreshSeconds;
     }
 
     /// <summary>⭐ <c>CE-2312</c> — what the HQ keeps: the answers it gave, the air-defence strikes it ordered (a test / diagnostics probe).</summary>

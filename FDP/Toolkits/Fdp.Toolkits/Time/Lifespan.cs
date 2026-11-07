@@ -20,13 +20,13 @@ namespace Fdp.Toolkit.Time
     public struct Lifespan
     {
         /// <summary>The sim time it was made (<see cref="ISimClock.TotalTime"/>).</summary>
-        public double BornAtSimSeconds;
+        public SimInstant BornAtSimSeconds;
 
         /// <summary>How long it lives (s).</summary>
-        public float Seconds;
+        public SimDuration Seconds;
 
         /// <summary>A lifespan starting at <paramref name="now"/>.</summary>
-        public static Lifespan Starting(double now, float seconds) => new() { BornAtSimSeconds = now, Seconds = seconds };
+        public static Lifespan Starting(double now, float seconds) => new() { BornAtSimSeconds = (SimInstant)now, Seconds = seconds };
 
         /// <summary>Seconds since it was made (0 before it was made — a jump back).</summary>
         public readonly float Age(double now) => (float)Math.Max(0.0, now - BornAtSimSeconds);

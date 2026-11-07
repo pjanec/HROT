@@ -43,7 +43,7 @@ public struct RouteWaypoint
     public Fdp.Toolkit.Navigation.RouteHold Hold;
 
     /// <summary>The hold for <see cref="Fdp.Toolkit.Navigation.RouteHold.Seconds"/> (s).</summary>
-    public float HoldSeconds;
+    public SimDuration HoldSeconds;
 
     /// <summary>The unit whose members a <see cref="Fdp.Toolkit.Navigation.RouteHold.Pickup"/> waits for; None = none. S9': a reference a person authors is an <c>EntityLink</c> (the file holds the unit's GUID; the loader fills <c>.Ref</c>).</summary>
     public Fdp.Toolkit.Replication.EntityLink HoldUnit;

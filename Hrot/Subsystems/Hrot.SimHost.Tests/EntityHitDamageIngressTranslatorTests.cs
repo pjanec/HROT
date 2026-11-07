@@ -99,7 +99,7 @@ namespace Hrot.SimHost.Tests
 
             var blunt = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, EffectKind = (byte)Fdp.Toolkit.Combat.HitEffect.Blunt, EffectSeconds = 4f };
             var e = ProcessAndFlush(translator, in blunt);
-            Assert.Equal((Fdp.Toolkit.Combat.HitEffect.Blunt, 4f), (e[0].Effect, e[0].EffectSeconds));
+            Assert.Equal((Fdp.Toolkit.Combat.HitEffect.Blunt, 4f), (e[0].Effect, (float)(e[0].EffectSeconds)));
 
             var plain = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f };
             e = ProcessAndFlush(translator, in plain);

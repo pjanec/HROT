@@ -50,7 +50,7 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject
             {
                 ["requestId"] = o.RequestId.ToString(), ["networkId"] = o.NetworkId, ["status"] = o.Status.ToString(), ["reason"] = o.Reason,
-                ["respondingNode"] = (int)o.RespondingNode, ["at"] = o.At, ["fromNetwork"] = o.FromNetwork,
+                ["respondingNode"] = (int)o.RespondingNode, ["at"] = (double)o.At, ["fromNetwork"] = o.FromNetwork,
             }, null);
         }
 
@@ -112,7 +112,7 @@ namespace Hrot.Editor.DebugApi
                     ["value"] = s.Value, ["target"] = s.Target, ["score"] = s.Score, ["pass"] = s.Pass, ["stepCur"] = (int)s.StepCur, ["stepCount"] = (int)s.StepCount,
                     ["capture"] = s.Capture != 0, ["challenger"] = s.Challenger.ToString(), ["areaCenter"] = new JsonArray(s.AreaCenter.X, s.AreaCenter.Y, s.AreaCenter.Z), ["areaRadius"] = s.AreaRadius,   // ⭐ G-8 (CE-4230)
                     ["points"] = s.Points, ["weight"] = s.Weight,
-                    ["required"] = s.Required != 0, ["scored"] = s.Scored != 0, ["changedAt"] = s.ChangedAt, ["reason"] = s.Reason.ToString(),
+                    ["required"] = s.Required != 0, ["scored"] = s.Scored != 0, ["changedAt"] = (double)s.ChangedAt, ["reason"] = s.Reason.ToString(),
                     ["subject"] = subject != 0 ? subject : null, ["parent"] = parent != 0 && rows.ContainsKey(parent) ? parent : null,
                     ["children"] = new JsonArray(children.TryGetValue(id, out var kids) ? kids.Select(k => (JsonNode)k).ToArray() : System.Array.Empty<JsonNode>()),
                 };
@@ -120,7 +120,7 @@ namespace Hrot.Editor.DebugApi
                 var dep = new JsonArray(); for (int i = 0; i < s.DependsOnCount && i < 8; i++) dep.Add(s.DependsOn[i]);
                 var act = new JsonArray(); for (int i = 0; i < s.ActsOnCount && i < 8; i++) act.Add(s.ActsOn[i]);
                 row["dependsOn"] = dep; row["actsOn"] = act;
-                row["timing"] = new JsonObject { ["holdFor"] = s.HoldFor, ["delay"] = s.Delay, ["cooldown"] = s.Cooldown, ["deadline"] = s.Deadline, ["expectedAt"] = s.ExpectedAt };
+                row["timing"] = new JsonObject { ["holdFor"] = s.HoldFor, ["delay"] = (float)s.Delay, ["cooldown"] = (float)s.Cooldown, ["deadline"] = s.Deadline, ["expectedAt"] = (double)s.ExpectedAt };
                 if (s.Role == ObjectiveRole.Trigger)   // ⭐ rules S2-c (T8): the §10.11 machine's state, as a string, and how often it fired
                 {
                     row["triggerState"] = s.TriggerState.ToString();

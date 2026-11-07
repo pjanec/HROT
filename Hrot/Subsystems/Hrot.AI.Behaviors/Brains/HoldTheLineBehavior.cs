@@ -40,7 +40,7 @@ namespace Hrot.AI.Behaviors.Brains
             /// <summary>1 while he walks back to the post.</summary>
             public byte Returning;
             public EngageState Engage;
-            public double NextStrikeAt;
+            public SimInstant NextStrikeAt;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -97,7 +97,7 @@ namespace Hrot.AI.Behaviors.Brains
                 double now = world.SimulationTime;
                 // ⭐ CE-2239 part 3 (B2, §5k EL-7) — the baton is non-lethal FORCE: at the Warn rung (or under a Warn ceiling) no blow
                 if (now >= ws.NextStrikeAt && ForceLevels.LevelFor(world, self, target) >= RoeForceLevel.NonLethal && Melee.Strike(world, self, target))
-                    ws.NextStrikeAt = now + Melee.CooldownSeconds;
+                    ws.NextStrikeAt = (SimInstant)(now + Melee.CooldownSeconds);
                 return NodeStatus.Running;
             }
             PostureNodes.Fire(world, self, ref ws.Engage, CooldownSeconds, 0, target);

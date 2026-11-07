@@ -29,7 +29,7 @@ namespace Hrot.SimHost.Tests
 
         private static PlayerMessageEvent Sent() => new()
         {
-            MessageId = 7, ToKind = "Unit", ToValue = 412, Text = "Blue-2, hold at the bridge", Seconds = 9.5f, Priority = 3, SentAt = 123.25, Source = 80,
+            MessageId = 7, ToKind = "Unit", ToValue = 412, Text = "Blue-2, hold at the bridge", Seconds = 9.5f, Priority = 3, SentAt = (SimInstant)123.25, Source = 80,
         };
 
         private static EntityRepository Node() { var w = new EntityRepository(); w.Bus.RegisterManaged<PlayerMessageEvent>(); return w; }

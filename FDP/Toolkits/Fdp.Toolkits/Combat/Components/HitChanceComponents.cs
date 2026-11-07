@@ -27,6 +27,6 @@ namespace Fdp.Toolkit.Combat.Components
     [DataPolicy(DataPolicy.NoScenario)]
     public struct UnderFire
     {
-        public double LastTime;
+        public SimInstant LastTime;
     }
 }

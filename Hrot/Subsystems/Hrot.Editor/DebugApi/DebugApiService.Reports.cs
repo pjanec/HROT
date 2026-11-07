@@ -76,7 +76,7 @@ namespace Hrot.Editor.DebugApi
                 var req = _world.GetComponentRO<ReportingRequirements>(unit);
                 node["requirements"] = new JsonObject
                 {
-                    ["pir"] = req.Pir.ToString(), ["ffir"] = req.Ffir.ToString(), ["sitrepEverySeconds"] = req.SitrepEverySeconds,
+                    ["pir"] = req.Pir.ToString(), ["ffir"] = req.Ffir.ToString(), ["sitrepEverySeconds"] = (float)req.SitrepEverySeconds,
                     ["pirArea"] = req.PirArea, ["setBy"] = req.SetBy.ToString(),
                 };
             }
@@ -166,7 +166,7 @@ namespace Hrot.Editor.DebugApi
                 var to = Id(e.ToUnit);
                 if (unitNetId.HasValue && from != unitNetId && to != unitNetId) continue;
                 var n = ReportNode(e.Report, now, null);
-                n["serial"] = e.Serial; n["seenAt"] = e.SeenAt; n["from"] = from; n["to"] = to;
+                n["serial"] = e.Serial; n["seenAt"] = (double)e.SeenAt; n["from"] = from; n["to"] = to;
                 n["originNode"] = e.OriginNodeId.Value; n["verdict"] = e.Verdict;
                 arr.Add(n);
             }

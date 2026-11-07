@@ -2068,7 +2068,7 @@ namespace CarKinem.Tests.Systems
         {
             var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
             repo.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
-            repo.AddComponent(e, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = Fdp.Toolkit.Combat.HitModel.Now(repo) + 1000.0 });
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)(Fdp.Toolkit.Combat.HitModel.Now(repo) + 1000.0) });
             var spatial = new SpatialHashSystem();
             var kin = new CarKinematicsSystem(pool);
             void RunFor(float seconds) { for (int i = 0; i < (int)(seconds * 60); i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); } }
@@ -2077,7 +2077,7 @@ namespace CarKinem.Tests.Systems
             RunFor(3f);
             Assert.True(Vector3.Distance(start, repo.GetComponent<SimTransform>(e).Position) < 0.05f, "stunned, he stood");
 
-            repo.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(e).StunnedUntil = 0.0;
+            repo.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(e).StunnedUntil = (SimInstant)0.0;
             RunFor(3f);
             Assert.True(Vector3.Distance(start, repo.GetComponent<SimTransform>(e).Position) > 1f, "the stun over, he walks on");
             pool.Dispose();

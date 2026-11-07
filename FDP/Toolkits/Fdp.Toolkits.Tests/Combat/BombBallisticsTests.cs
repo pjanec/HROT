@@ -172,7 +172,7 @@ namespace Fdp.Toolkit.Combat.Tests
                     _w.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireIntent
                     {
                         Shooter = aircraft, Target = Entity.Null, AtPoint = true, TargetPoint = predicted,
-                        RaisedAt = RaiseTick * (double)Dt,
+                        RaisedAt = (SimInstant)(RaiseTick * (double)Dt),
                     });
                 _w.Bus.SwapBuffers();
                 foreach (var d in _w.Bus.Read<DetonationNotification>()) bursts.Add(d);

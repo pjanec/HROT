@@ -56,7 +56,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.AddComponent(e, new AreaEffectCloud
             {
                 Kind = kind, Radius = radius, Height = 3f, SightTransmittance = transmittance,
-                IrritantSeconds = kind == CloudKind.TearGas ? 1.5f : 0f, BornAtSimSeconds = _t, Seconds = seconds,
+                IrritantSeconds = kind == CloudKind.TearGas ? 1.5f : 0f, BornAtSimSeconds = (SimInstant)_t, Seconds = seconds,
             });
             return e;
         }
@@ -298,7 +298,7 @@ namespace Fdp.Toolkit.Combat.Tests
             {
                 Assert.Equal(HitEffect.Irritant, h.Effect);
                 Assert.Equal(0f, h.TotalDamage);
-                Assert.Equal(1.5f, h.EffectSeconds);
+                Assert.Equal(1.5f, h.EffectSeconds.Seconds);
             });
         }
 
@@ -398,9 +398,9 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(CloudKind.TearGas, cloud.Kind);
             Assert.Equal(6f, cloud.Radius);
             Assert.Equal(2.5f, cloud.Height);
-            Assert.Equal(40f, cloud.Seconds);
+            Assert.Equal(40f, cloud.Seconds.Seconds);
             Assert.Equal(12.0, cloud.BornAtSimSeconds);
-            Assert.Equal(2f, cloud.IrritantSeconds);
+            Assert.Equal(2f, cloud.IrritantSeconds.Seconds);
             Assert.True(cloud.SightTransmittance is > 0f and < 1f);
         }
 

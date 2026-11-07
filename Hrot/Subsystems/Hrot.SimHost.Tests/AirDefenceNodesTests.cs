@@ -177,7 +177,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(firedAt >= 0, "it fired");
             Assert.Equal(heli, aimedAt);
             Assert.Equal(NodeStatus.Success, status);
-            Assert.InRange(frame * Dt, 5f + AirDefenceNodes.Defaults.ClearSeconds - 0.5f, 5f + AirDefenceNodes.Defaults.ClearSeconds + 1f);
+            Assert.InRange(frame * Dt, 5f + (float)AirDefenceNodes.Defaults.ClearSeconds - 0.5f, 5f + (float)AirDefenceNodes.Defaults.ClearSeconds + 1f);
             Assert.Equal<System.Numerics.Vector3>(new Vector3(300, 300, 0), _w.GetComponentRO<SimTransform>(tech).Position);   // it never moved
         }
     }

@@ -15,6 +15,6 @@ namespace Fdp.Toolkit.Behavior.Components
         public string SquadName { get; init; } = "";
         public string Play { get; init; } = "";
         public string ParamsJson { get; init; } = "";
-        public double AskedAt { get; init; }
+        public SimInstant AskedAt { get; init; }
     }
 }

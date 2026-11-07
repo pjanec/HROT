@@ -20,7 +20,7 @@ namespace Hrot.AI.Behaviors.Brains
     public struct FightFromCoverParams
     {
         /// <summary>How long nothing must land near him, once in cover, before the reaction ends (s).</summary>
-        public float QuietSeconds;
+        public SimDuration QuietSeconds;
         /// <summary>The fight from cover (the library defaults).</summary>
         public PeekAndFireParams Peek;
         /// <summary>No cover anywhere: down in the open until a point comes (<c>TakeCover</c>, AQ96 C — the library defaults).</summary>
@@ -28,7 +28,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2357</c> (AQ102 E) — the flank (<c>EqsTacticsNodes.Flank</c>) a trained man runs once the enemy has been out of
         /// sight for <see cref="FlankAfterSeconds"/> (s).</summary>
         public EqsTacticsParams Flank;
-        public float FlankAfterSeconds;
+        public SimDuration FlankAfterSeconds;
     }
 
     /// <summary>⭐ <c>CE-2331</c> — what <see cref="FightFromCoverBehavior.Run"/> keeps: the fight's own state.</summary>
@@ -44,7 +44,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Flanking, FlanksTried;
         public EqsTacticsState Flank;
         /// <summary>⭐ <c>CE-2357</c> — when the last escalation ended (sim s): the next waits another <c>FlankAfterSeconds</c>.</summary>
-        public double EscalatedAt;
+        public SimInstant EscalatedAt;
     }
 
     /// <summary>
@@ -122,7 +122,7 @@ namespace Hrot.AI.Behaviors.Brains
                         : EqsTacticsNodes.FlankRemembered(ref p.Flank, ref ws.Flank, self, world);
                     if (flank == NodeStatus.Running) return NodeStatus.Running;
                     Release(ref p, ref ws, self, world);
-                    ws.EscalatedAt = world.SimulationTime > 0 ? world.SimulationTime : 1e-6;
+                    ws.EscalatedAt = (SimInstant)(world.SimulationTime > 0 ? world.SimulationTime : 1e-6);
                     ws.Flanking = 0;
                     ws.Peek = default;   // a fresh fight from where the flank left him
                 }

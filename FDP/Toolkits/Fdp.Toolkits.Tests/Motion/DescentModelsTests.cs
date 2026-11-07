@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.AddComponent(e, new SimVelocity { Linear = velocity });
             _w.AddComponent(e, new Locomotion { Class = LocomotionClass.Pedestrian });
             _w.AddComponent(e, new NavigationIntent());
-            d.PhaseSince = _t;
+            d.PhaseSince = (SimInstant)_t;
             _w.AddComponent(e, d);
             _w.SetAuthority<SimTransform>(e, true);
             return e;

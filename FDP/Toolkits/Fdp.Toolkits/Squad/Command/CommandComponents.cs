@@ -135,7 +135,7 @@ namespace Fdp.Toolkit.Squad.Command
         public PirFlags Pir;
         public FfirFlags Ffir;
         /// <summary>A routine SITREP every this many seconds; 0 = none beyond the standing minimum.</summary>
-        public float SitrepEverySeconds;
+        public SimDuration SitrepEverySeconds;
         /// <summary>PC-3 — the network id of the area entity <see cref="PirFlags.InArea"/> / <see cref="PirFlags.NearArea"/> refer to (0 = none).</summary>
         public long PirArea;
         /// <summary>Who set it last — a lower origin cannot change it (<see cref="BehaviorOriginRank"/>).</summary>

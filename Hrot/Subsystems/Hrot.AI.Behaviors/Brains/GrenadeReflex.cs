@@ -24,7 +24,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// last moved to and since when it has kept still.</summary>
     public struct ReplicaSighting
     {
-        public double FirstAt, StillSince;
+        public SimInstant FirstAt, StillSince;
         public Vector3 From, Last;
     }
 
@@ -88,8 +88,8 @@ namespace Hrot.AI.Behaviors.Brains
                 // it appeared: thrown from here · ⭐ a replica carries no velocity here, so RoundPickUp.IsLying reads it as lying in FLIGHT —
                 //   📐 live: all four men ran from where it was in the air, lost it and gave up. It lies once it has kept still StillSeconds.
                 if (!seen.TryGetValue(e.PackedValue, out var s))
-                    s = new ReplicaSighting { FirstAt = now, From = at, Last = at, StillSince = now };
-                else if (Vector3.Distance(at, s.Last) > StillMetres) { s.Last = at; s.StillSince = now; }
+                    s = new ReplicaSighting { FirstAt = (SimInstant)now, From = at, Last = at, StillSince = (SimInstant)now };
+                else if (Vector3.Distance(at, s.Last) > StillMetres) { s.Last = at; s.StillSince = (SimInstant)now; }
                 seen[e.PackedValue] = s;
                 if (RoundPickUp.OwnsRound(world, e) || now - s.StillSince < StillSeconds || !RoundPickUp.IsLying(world, e)) continue;
                 long ammo = RoundPickUp.AmmoOf(world, e);
@@ -172,16 +172,17 @@ namespace Hrot.AI.Behaviors.Brains
             public Vector3 At;
             public float LethalMetres;
             /// <summary>The fuze it had left when he reacted (s; 0 = not known).</summary>
-            public float FuzeSeconds;
+            public SimDuration FuzeSeconds;
             public Vector3 ThrowAt;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct EvadeGrenadeState
         {
-            public double Started, BurstAt, AskedAt, ThrownAt, StepUntil;
+            public double Started;   // ⚠ first, as before SV-1 (sequential layout: the order is the byte layout)
+            public SimInstant BurstAt, AskedAt, ThrownAt, StepUntil;
             /// <summary>When the grenade was no longer where it lay (it burst, or a man took it).</summary>
-            public double GoneAt;
+            public SimInstant GoneAt;
             /// <summary>What he does now (a throw back can fall back to Prone).</summary>
             public byte Mode;
             public byte Moving, Asked, Thrown, Down;
@@ -219,7 +220,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Started <= 0)
             {
                 ws.Started = now;
-                ws.BurstAt = now + (p.FuzeSeconds > 0f ? p.FuzeSeconds : GrenadeDanger.UnknownFuzeSeconds);
+                ws.BurstAt = (SimInstant)(now + (p.FuzeSeconds > 0f ? p.FuzeSeconds : GrenadeDanger.UnknownFuzeSeconds));
                 ws.Mode = p.Response;
             }
             var me = world.GetComponentRO<SimTransform>(self).Position;
@@ -228,7 +229,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Thrown != 0 || ws.Mode != (byte)GrenadeResponse.ThrowBack)
             {
                 // it burst (or went from where it lay) — or he threw it — and he stayed down a moment: back to what he was doing
-                if (round.IsNull && ws.GoneAt <= 0) ws.GoneAt = now;
+                if (round.IsNull && ws.GoneAt <= 0) ws.GoneAt = (SimInstant)now;
                 double end = ws.Thrown != 0 ? ws.ThrownAt + AfterBurstSeconds
                            : (ws.GoneAt > 0 ? Math.Min(ws.GoneAt, ws.BurstAt) : ws.BurstAt) + AfterBurstSeconds;
                 if (now >= end || now - ws.Started > LimitSeconds) return NodeStatus.Success;
@@ -257,7 +258,7 @@ namespace Hrot.AI.Behaviors.Brains
                         LocomotionMoveTo.Issue(world, self, GrenadeDanger.Away(me, p.At, d + StepMetres), GrenadeDanger.RunSpeed, 0.4f, MoveGait.Upright,
                                                onSurface: true, source: MoveSource.Flee);   // one step: his back to it, his head away
                         ws.Moving = 1;
-                        ws.StepUntil = now + GrenadeDanger.ReactSeconds;
+                        ws.StepUntil = (SimInstant)(now + GrenadeDanger.ReactSeconds);
                     }
                     if (now >= ws.StepUntil || LocomotionMoveTo.Status(world, self) != NodeStatus.Running) GoDown(world, self, ref ws);
                     return NodeStatus.Running;
@@ -270,7 +271,7 @@ namespace Hrot.AI.Behaviors.Brains
                     }
                     if (holding)
                     {
-                        if (Fdp.Toolkit.Civilians.Stones.ThrowHeld(world, self, p.ThrowAt)) { ws.Thrown = 1; ws.ThrownAt = now; }
+                        if (Fdp.Toolkit.Civilians.Stones.ThrowHeld(world, self, p.ThrowAt)) { ws.Thrown = 1; ws.ThrownAt = (SimInstant)now; }
                         return NodeStatus.Running;
                     }
                     if (ws.Asked != 0)
@@ -286,7 +287,7 @@ namespace Hrot.AI.Behaviors.Brains
                         if (RoundPickUp.Ask(world, self, round))
                         {
                             ws.Asked = 1;
-                            ws.AskedAt = now;
+                            ws.AskedAt = (SimInstant)now;
                             StanceRequest.Set(world, self, StanceId.Crouched, 0.2f);
                         }
                         else Fallback(ref ws);

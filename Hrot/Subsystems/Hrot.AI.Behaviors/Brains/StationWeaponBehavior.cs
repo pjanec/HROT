@@ -25,14 +25,14 @@ namespace Hrot.AI.Behaviors.Brains
         {
             /// <summary>1 Hands · 2 Back · 3 Hidden (<see cref="WeaponStation"/>).</summary>
             public byte Station;
-            public float Seconds;
+            public SimDuration Seconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct StationWeaponState
         {
             /// <summary>When the weapon was seen in the station (0 = not yet).</summary>
-            public double Since;
+            public SimInstant Since;
             /// <summary>1 once the move was asked of the list's owner (a node that does not own it).</summary>
             public byte Asked;
         }
@@ -75,7 +75,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (!Place(world, self, seat, ref ws)) return NodeStatus.Failure;
                     if (WeaponIn(world, self, seat).IsNull) return NodeStatus.Running;   // asked of the list's owner: wait for the replicated slot
                 }
-                ws.Since = now;
+                ws.Since = (SimInstant)now;
             }
             return now - ws.Since >= p.Seconds ? NodeStatus.Success : NodeStatus.Running;
         }

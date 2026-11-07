@@ -51,7 +51,7 @@ namespace Hrot.AI.Behaviors.Brains
                     new EntityInfo { Name = name, ForceId = info.ForceId },
                 },
             });
-            world.SetManagedComponent(man, new PendingUnitCommand { SquadName = name, Play = play, ParamsJson = paramsJson, AskedAt = Now(world) });
+            world.SetManagedComponent(man, new PendingUnitCommand { SquadName = name, Play = play, ParamsJson = paramsJson, AskedAt = (SimInstant)(Now(world)) });
             return true;
         }
 

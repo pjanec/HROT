@@ -24,7 +24,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public float Speed;
         /// <summary>Done after this long (s); 0 = never by time.</summary>
-        public float DurationSeconds;
+        public SimDuration DurationSeconds;
         /// <summary>1 = done once the squad knows no enemy (<see cref="Fdp.Toolkit.Squad.SquadContacts.AnyEnemy"/> — a neutral or a man
         /// out of the fight is none, CE-2353).</summary>
         public byte EndWhenClear;
@@ -113,7 +113,7 @@ namespace Hrot.AI.Behaviors.Brains
         public float RetreatSearchRadius;
         public float Speed;
         public float ArrivalRadius;
-        public float BoundTimeoutSeconds;
+        public SimDuration BoundTimeoutSeconds;
         /// <summary>⭐ E-3a (DA-68) — the authored destination; <see cref="HasTo"/> 0 = ask the terrain.</summary>
         public Vector3 To;
         public byte HasTo;
@@ -272,11 +272,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>0 = returning fire · 1 = the chosen drill · 2 = holding until clear.</summary>
         public byte Stage;
         /// <summary>⭐ CE-2125 — sim time the current stage began (a leader lost since then sends the reaction back to decide again).</summary>
-        public double StageSince;
+        public SimInstant StageSince;
         public UtilityChoice Choice;
         public SquadPlayState Play;
         /// <summary>⭐ <c>CE-2152</c> C-c (R-d) — sim time the choice was last scored (the re-decide clock while a man is down).</summary>
-        public double DecidedAt;
+        public SimInstant DecidedAt;
         /// <summary>⭐ <c>CE-2158</c> §7.6.3 — the Assault's stage: 0 = not decided · 1 = closing (fire and movement) · 2 = flank and assault.</summary>
         public byte AssaultStage;
     }
@@ -367,7 +367,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Next(ref ws, StageDrill, world);
                 ws.Choice = new UtilityChoice { Winner = (byte)SquadContactResponse.Rescue };
-                ws.DecidedAt = now;
+                ws.DecidedAt = (SimInstant)now;
                 FreshCare(ref p);
             }
             // ⭐ CE-2125 (§7.2 L3) — the leader fell during the drill or the hold: the weaker squad holds and decides again.
@@ -397,7 +397,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (NothingToFight(world, self) || SquadSopConditions.InALull(world, self)) fresh.Winner = (byte)SquadContactResponse.Rescue;   // nothing to fight, or a lull: bring him in
                 else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref fresh, self, world);
                 Firm(ref fresh, self, world);
-                ws.DecidedAt = now;
+                ws.DecidedAt = (SimInstant)now;
                 if (fresh.Winner != 0 && fresh.Winner != was)
                 {
                     Next(ref ws, StageDrill, world);
@@ -412,7 +412,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (NothingToFight(world, self) && SquadCasualties.Count(world, self) > 0) ws.Choice.Winner = (byte)SquadContactResponse.Rescue;
                     else UtilityNodes.ChooseOptionOnce(ref p.Choose, ref ws.Choice, self, world);
                     Firm(ref ws.Choice, self, world);
-                    ws.DecidedAt = now;
+                    ws.DecidedAt = (SimInstant)now;
                     if ((SquadContactResponse)ws.Choice.Winner == SquadContactResponse.Rescue) FreshCare(ref p);
                 }
                 var drill = (SquadContactResponse)ws.Choice.Winner switch
@@ -436,7 +436,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (SquadCasualties.Count(world, self) == 0) return NodeStatus.Success;
                     Next(ref ws, StageDrill, world);
                     ws.Choice = new UtilityChoice { Winner = (byte)SquadContactResponse.Rescue };
-                    ws.DecidedAt = now;
+                    ws.DecidedAt = (SimInstant)now;
                     FreshCare(ref p);
                     return NodeStatus.Running;
                 }
@@ -537,7 +537,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Play = default;
             ws.AssaultStage = AssaultUndecided;
             ws.Stage = stage;
-            ws.StageSince = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+            ws.StageSince = (SimInstant)(world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d);
         }
     }
 }

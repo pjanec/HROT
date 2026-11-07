@@ -21,14 +21,14 @@ namespace Hrot.AI.Behaviors.Brains
         [StructLayout(LayoutKind.Sequential)]
         public struct DetonateChargeParams
         {
-            public float Seconds;
+            public SimDuration Seconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct DetonateChargeState
         {
             /// <summary>When he began to stand still (0 = not yet).</summary>
-            public double Since;
+            public SimInstant Since;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -58,7 +58,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (charge.IsNull) return NodeStatus.Failure;
             double now = world.SimulationTime > 0 ? world.SimulationTime : 1e-6;
             LocomotionMoveTo.Stop(world, self);
-            if (ws.Since <= 0) ws.Since = now;
+            if (ws.Since <= 0) ws.Since = (SimInstant)now;
             if (now - ws.Since < p.Seconds) return NodeStatus.Running;
             return Charges.Ask(world, charge, self) ? NodeStatus.Success : NodeStatus.Failure;
         }

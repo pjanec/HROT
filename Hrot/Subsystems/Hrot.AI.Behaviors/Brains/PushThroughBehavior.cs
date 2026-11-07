@@ -31,14 +31,14 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public float Metres;
             public float Speed;
-            public float TimeoutSeconds;
+            public SimDuration TimeoutSeconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct PushThroughState
         {
             /// <summary>When it started (0 = not yet) and where it drives to.</summary>
-            public double Since;
+            public SimInstant Since;
             public Vector3 To;
         }
 
@@ -74,7 +74,7 @@ namespace Hrot.AI.Behaviors.Brains
             double now = world.SimulationTime > 0 ? world.SimulationTime : 1e-6;
             if (ws.Since <= 0)
             {
-                ws.Since = now;
+                ws.Since = (SimInstant)now;
                 ws.To = Ahead(world, self, p.Metres);
                 if (!LocomotionMoveTo.Issue(world, self, ws.To, p.Speed, ArrivalRadius, MoveGait.Keep, onSurface: true, source: MoveSource.Route)) return NodeStatus.Failure;
                 return NodeStatus.Running;

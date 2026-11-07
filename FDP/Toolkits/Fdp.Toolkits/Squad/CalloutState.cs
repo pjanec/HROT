@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Squad
     [DataPolicy(DataPolicy.NoScenario)]
     public struct CalloutState
     {
-        public double LastAt;
+        public SimInstant LastAt;
         public UtteranceKind LastKind;
         public byte WasReloading;
         /// <summary>Grenades in his throwable mount at the last look (−1 = not looked yet).</summary>

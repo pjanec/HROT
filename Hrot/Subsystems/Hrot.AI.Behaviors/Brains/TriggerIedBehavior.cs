@@ -32,14 +32,14 @@ namespace Hrot.AI.Behaviors.Brains
             public int Charge;
             public float KillZoneMetres;
             public byte AnyTarget;
-            public float TimeoutSeconds;
+            public SimDuration TimeoutSeconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct TriggerIedState
         {
             /// <summary>When he began to watch (0 = not yet).</summary>
-            public double Since;
+            public SimInstant Since;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -75,7 +75,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (charge.IsNull || !Charges.IsCharge(world, charge) || !world.HasComponent<SimTransform>(charge)) return NodeStatus.Failure;
             if (HeldItems.Of(world, self) != HeldItemKind.Phone && !HeldItems.Set(world, self, HeldItemKind.Phone)) return NodeStatus.Failure;
             double now = world.SimulationTime > 0 ? world.SimulationTime : 1e-6;
-            if (ws.Since <= 0) ws.Since = now;
+            if (ws.Since <= 0) ws.Since = (SimInstant)now;
             LocomotionMoveTo.Stop(world, self);
             var at = world.GetComponentRO<SimTransform>(charge).Position;
             if (KillZone.Entered(world, self, at, p.KillZoneMetres, vehiclesOnly: p.AnyTarget == 0))

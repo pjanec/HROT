@@ -132,7 +132,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (!repo.IsComponentTypeRegistered<UnderFire>()) { DroppedSampleCount++; return; }
                 if (AuthorityExtensions.IsRecordedOwner(repo, e, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
             }
-            cmd.AddComponent(e, new UnderFire { LastTime = s.LastTime });
+            cmd.AddComponent(e, new UnderFire { LastTime = (SimInstant)s.LastTime });
         }
 
         public void ScanAndPublish(ISimulationView view) { }

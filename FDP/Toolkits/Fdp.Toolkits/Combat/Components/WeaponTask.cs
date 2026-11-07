@@ -60,7 +60,7 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>The ammunition to load (W-6); 0 = the mount's own.</summary>
         public ulong AmmoGuid;
         /// <summary>⭐ WL-3 — seconds between rounds (the action's own cooldown); the muscle times the shots with it.</summary>
-        public float CooldownSeconds;
+        public SimDuration CooldownSeconds;
         public uint Epoch;
         /// <summary>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — for a mount that declares an indirect arc: the arc the brain's fire
         /// solution chose (Low / High); Auto = not laid by a solution (the one-speed arc, as before — every Engage order). The muscle lays the turret along <c>FireSolution.For</c> on it. Appended.</summary>

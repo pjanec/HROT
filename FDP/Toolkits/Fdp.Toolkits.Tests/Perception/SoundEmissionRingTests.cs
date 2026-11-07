@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Perception.Tests
     /// </summary>
     public class SoundEmissionRingTests
     {
-        private static SoundEmission Shot(float x, double time = 0d) => new() { Kind = (byte)SoundKind.Shot, At = new Vector3(x, 0f, 0f), Carry = 100f, Time = time };
+        private static SoundEmission Shot(float x, double time = 0d) => new() { Kind = (byte)SoundKind.Shot, At = new Vector3(x, 0f, 0f), Carry = 100f, Time = (SimInstant)time };
 
         /// <summary>
         /// ⭐ <c>CE-3292</c> (R-3035) — the ring outlives a load and a preview Stop (it is a node singleton). 📐 Measured before: after a reload

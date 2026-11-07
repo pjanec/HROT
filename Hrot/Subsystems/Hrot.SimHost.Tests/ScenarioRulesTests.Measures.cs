@@ -79,8 +79,8 @@ namespace Hrot.SimHost.Tests
             Shoot(w, m, 3); Shoot(w, other, 2);
             w.Harm(foe, m); w.Harm(pal, m); w.Harm(pal, other); w.Harm(civ, m); w.Harm(m, m);   // a hit · a friend · NOT a man's · a civilian · himself
             if (!w.Repo.Bus.IsRegisteredManaged<SquadReportNotification>()) w.Repo.Bus.RegisterManaged<SquadReportNotification>();
-            w.Repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = squad, SentAt = 10 });
-            w.Repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = other, SentAt = 10 });
+            w.Repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = squad, SentAt = (SimInstant)10 });
+            w.Repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = other, SentAt = (SimInstant)10 });
             w.Tick();
             Assert.Equal((3f, 1f, 0f, 1f, 1f, 1f), (w.S(c["shots"]).Value, w.S(c["hits"]).Value, w.S(c["kills"]).Value, w.S(c["fratricide"]).Value, w.S(c["civiliansHarmed"]).Value, w.S(c["reports"]).Value));
             Assert.Equal(0.75f, w.S(c["shots"]).Score, 3);                       // 3 of 4
@@ -106,7 +106,7 @@ namespace Hrot.SimHost.Tests
             w.Run(1);
             Assert.Equal((0f, 60f, 0f), (w.S(rl).Value, w.S(rl).Target, w.S(rl).Score));   // nothing reported yet is not a pass
             if (!w.Repo.Bus.IsRegisteredManaged<SquadReportNotification>()) w.Repo.Bus.RegisterManaged<SquadReportNotification>();
-            void Report(Entity from, double sent, double observed) => w.Repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = from, SentAt = sent, Report = new CommandReport { ObservedAt = (Fdp.Core.SimInstant)observed } });
+            void Report(Entity from, double sent, double observed) => w.Repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = from, SentAt = (SimInstant)sent, Report = new CommandReport { ObservedAt = (Fdp.Core.SimInstant)observed } });
             Report(squad, 100, 70); Report(squad, 200, 110); Report(stranger, 300, 0);
             w.Tick();
             Assert.Equal(60f, w.S(rl).Value, 3);       // (30 + 90) / 2

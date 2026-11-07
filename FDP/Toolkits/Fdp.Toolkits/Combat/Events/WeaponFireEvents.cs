@@ -59,13 +59,13 @@ namespace Fdp.Toolkit.Combat.Events
         /// <summary>⭐ <c>CE-2180</c> (Air Ops §8a) — the synced sim time (s) the brain raised this shot (Dead Reckoning D4: sim time stamps
         /// what crosses nodes); <b>0 = unknown ⇒ now</b>. A bomb starts from its carrier as it was THEN and is flown forward to now, so the
         /// trip from the brain to the SimHost moves nowhere the bomb lands.</summary>
-        public double RaisedAt;
+        public SimInstant RaisedAt;
 
         /// <summary>⭐ <c>CE-3235</c> (B-13, §7.10 PU-6) — the fuze a TIME-fuzed round flies with (s); 0 = its warhead's own. A live round
         /// picked up and thrown back keeps what it had left.</summary>
-        public float FuzeSeconds;
+        public SimDuration FuzeSeconds;
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-7) — a thrown-back venting canister's burn left (s); 0 = its own (APPENDED).</summary>
-        public float BurnSeconds;
+        public SimDuration BurnSeconds;
         /// <summary>⭐ Q94 A-1 (R-3018; Architect Question 94 §4) — the brain's id for this request, echoed by the muscle's
         /// <see cref="WeaponFireNotification.RequestId"/> (fired or REFUSED) so the brain's ledger matches the answer; 0 = untracked
         /// (APPENDED).</summary>
@@ -130,7 +130,7 @@ namespace Fdp.Toolkit.Combat.Events
         public int Quantity;
 
         /// <summary>The synced sim time (s) it was fired; a viewer draws a decoy at <c>now − FiredAt</c>.</summary>
-        public double FiredAt;
+        public SimInstant FiredAt;
 
         /// <summary>⭐ Q94 A-1 (R-3018) — the <see cref="WeaponFireIntent.RequestId"/> this answers (APPENDED).</summary>
         public uint RequestId;

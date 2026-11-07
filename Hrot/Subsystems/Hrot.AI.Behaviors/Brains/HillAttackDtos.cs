@@ -146,7 +146,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Simulation time at which the current EQS request was submitted.
         /// Used by commander timeout recovery in Condition_IsAreaQueryResolved.
         /// </summary>
-        public float EqsRequestTime;                  // 4, offset 24
+        public SimInstant EqsRequestTime;                  // 4, offset 24
 
         // 4 explicit pad bytes where CachedTargetGroupHandle was — keeps the struct at 120 with no implicit padding.
         private int _pad1;                            // 4, offset 28
@@ -248,7 +248,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// then, so the pair crests together (🔒 R-2022: "another pair comes up the hill"). The commander sets it to the slowest
         /// member's estimated arrival at its hide.
         /// </summary>
-        public double GoAt;              // 8, offset 40
+        public SimInstant GoAt;              // 8, offset 40
         // Total: 48 bytes
     }
 }

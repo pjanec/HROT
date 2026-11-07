@@ -21,10 +21,10 @@ namespace Hrot.AI.Behaviors.Brains
     public static class SurrenderBehavior
     {
         [StructLayout(LayoutKind.Sequential)]
-        public struct SurrenderParams { public float Seconds; }
+        public struct SurrenderParams { public Fdp.Core.SimDuration Seconds; }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct SurrenderState { public double Since; }
+        public struct SurrenderState { public Fdp.Core.SimInstant Since; }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct SurrenderBlackboard
@@ -54,7 +54,7 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiAction]
         public static NodeStatus Surrendered(ref SurrenderParams p, ref SurrenderState ws, Entity self, EntityRepository world)
         {
-            if (ws.Since <= 0) ws.Since = world.SimulationTime > 0 ? world.SimulationTime : 1e-6;
+            if (ws.Since <= 0) ws.Since = (SimInstant)(world.SimulationTime > 0 ? world.SimulationTime : 1e-6);
             LocomotionMoveTo.Stop(world, self);
             if (!WeaponLaying.AllLaidDown(world, self)) WeaponLaying.LayDownAll(world, self);
             if (Gestures.Of(world, self) != GestureKind.HandsUp) Gestures.Set(world, self, GestureKind.HandsUp);

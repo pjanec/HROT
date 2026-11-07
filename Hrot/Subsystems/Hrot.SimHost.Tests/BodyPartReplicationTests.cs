@@ -95,7 +95,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3219_F3_EffectState_WithCowering_ReachesTheOtherNode()
         {
-            var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = 12.5, IrritatedUntil = 3, KnockedDownUntil = 7.25, Cowering = 1 };
+            var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)12.5, IrritatedUntil = (SimInstant)3, KnockedDownUntil = (SimInstant)7.25, Cowering = 1 };
             var sample = EntityEffectStateEgressTranslator.ToSample(44, effects);
 
             var (node, unit, map) = Node(44);
@@ -137,7 +137,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3238_HostileAct_ReachesTheOtherNode_AndAnUpgradeIsAChange()
         {
-            var shot = new Fdp.Toolkit.Civilians.HostileAct { SinceSimTime = 12.5, Kind = Fdp.Toolkit.Civilians.HostileActKind.Lethal };
+            var shot = new Fdp.Toolkit.Civilians.HostileAct { SinceSimTime = (SimInstant)12.5, Kind = Fdp.Toolkit.Civilians.HostileActKind.Lethal };
             var sample = EntityHostileActEgressTranslator.ToSample(46, shot);
 
             var (node, unit, map) = Node(46);
@@ -384,7 +384,7 @@ namespace Hrot.SimHost.Tests
             var cloud = new Fdp.Toolkit.Combat.AreaEffectCloud
             {
                 Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
-                BornAtSimSeconds = 12.5, Seconds = 60f, SourceNetworkId = 4711,   // ⭐ CE-3236 — the canister it sits on
+                BornAtSimSeconds = (SimInstant)12.5, Seconds = 60f, SourceNetworkId = 4711,   // ⭐ CE-3236 — the canister it sits on
                 CreatorNetworkId = 4712, OriginalCreatorNetworkId = 4713,   // ⭐ CE-4155 (SR-82) — who threw it, and who threw it first
             };
             var sample = EntityAreaEffectCloudEgressTranslator.ToSample(46, cloud);
@@ -424,7 +424,7 @@ namespace Hrot.SimHost.Tests
             var look = new Fdp.Toolkit.Perception.Look.LookState
             {
                 Target = new Vector3(4f, 5f, 1.5f), HasTarget = 1, Source = Fdp.Toolkit.Perception.Look.LookSource.LookGlance, HeadYaw = (Fdp.Core.Angle)(0.6f),
-                GlanceSince = 12.0, RestUntil = 3.0,   // the muscle's own timers — not on the wire
+                GlanceSince = (SimInstant)12.0, RestUntil = (SimInstant)3.0,   // the muscle's own timers — not on the wire
             };
             var sample = Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator.ToSample(46, look);
 

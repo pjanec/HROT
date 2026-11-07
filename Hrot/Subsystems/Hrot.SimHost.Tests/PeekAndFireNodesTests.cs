@@ -157,7 +157,7 @@ namespace Hrot.SimHost.Tests
                 {
                     ref var row = ref Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(Self);
                     row.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Guiding;
-                    row.Weapon.At = Time;
+                    row.Weapon.At = (SimInstant)Time;
                     return;
                 }
                 _fired++;
@@ -208,7 +208,7 @@ namespace Hrot.SimHost.Tests
             {
                 ref var status = ref Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(Self);
                 status.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked;
-                status.Weapon.At = Time;
+                status.Weapon.At = (SimInstant)Time;
             }
 
             public void Unmask() => Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(Self).Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None;
@@ -295,7 +295,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
             ref var status = ref d.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(d.Self);
             status.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked;
-            status.Weapon.At = d.Time;
+            status.Weapon.At = (SimInstant)d.Time;
             Assert.Equal(PeekPhase.MoveToHide, d.RunUntil(PeekPhase.MoveToHide, 5));
             Assert.Equal(FrameB, d.Moves[^1]);
             Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
@@ -1360,7 +1360,7 @@ namespace Hrot.SimHost.Tests
         private static Entity FriendClaims(Duel d, Vector3 hide, double until, ForceId? force = null)
         {
             var f = d.Repo.CreateEntity();
-            d.Repo.AddComponent(f, new Fdp.Toolkit.Combat.Components.CoverClaim { Hide = hide, Peek = hide, Until = until });
+            d.Repo.AddComponent(f, new Fdp.Toolkit.Combat.Components.CoverClaim { Hide = hide, Peek = hide, Until = (SimInstant)until });
             if (force is { } fid) d.Repo.AddComponent(f, new EntityInfo { ForceId = fid });
             return f;
         }

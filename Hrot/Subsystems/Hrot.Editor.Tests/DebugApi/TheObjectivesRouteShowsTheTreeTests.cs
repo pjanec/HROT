@@ -144,7 +144,7 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         var acts = default(NetIds8); acts[0] = 9;
         ref var s = ref _world.GetComponentRW<ObjectiveStatus>(e);
         s.DependsOnCount = 2; s.DependsOn = ids; s.ActsOnCount = 1; s.ActsOn = acts;
-        s.HoldFor = 1.5f; s.Delay = 2f; s.Cooldown = 3f; s.Deadline = 60f; s.ExpectedAt = 12.5;
+        s.HoldFor = 1.5f; s.Delay = 2f; s.Cooldown = 3f; s.Deadline = 60f; s.ExpectedAt = (SimInstant)12.5;
         var row = _svc.GetObjectives()["objectives"]![0]!;
         Assert.Equal(new[] { 7, 8 }, row["dependsOn"]!.AsArray().Select(n => n!.GetValue<int>()));
         Assert.Equal(new[] { 9 }, row["actsOn"]!.AsArray().Select(n => n!.GetValue<int>()));

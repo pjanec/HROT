@@ -35,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Which forces count as threats for the query's exposure scoring (bit N = force N; 0 = every acquired contact).</summary>
         public uint FactionFilter;
         /// <summary>⭐ <c>CE-2108</c> (§9.6a) — seconds between shots when <see cref="FireWhileMoving"/> (0 ⇒ 1 s).</summary>
-        public float FireCooldownSeconds;
+        public SimDuration FireCooldownSeconds;
         /// <summary>⭐ <c>CE-2108</c> (§9.6a) — 1 = fire at the top threat while moving there (the ROE still gates every shot).
         /// A manoeuvre setting, not an ROE one: it does not outlive the run.</summary>
         public byte FireWhileMoving;

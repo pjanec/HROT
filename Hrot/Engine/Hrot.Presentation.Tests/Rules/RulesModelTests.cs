@@ -40,7 +40,7 @@ public sealed class RulesModelTests : IDisposable
         var e = _world.CreateEntity();
         _byId[id] = e;
         _world.AddComponent(e, new NetworkIdentity(id));
-        var s = new ObjectiveStatus { Title = new FixedString64(title), State = state, Role = role, Owner = owner, VisibleSides = visible, ChangedAt = 0 };
+        var s = new ObjectiveStatus { Title = new FixedString64(title), State = state, Role = role, Owner = owner, VisibleSides = visible, ChangedAt = (SimInstant)0 };
         edit?.Invoke(ref s);
         _world.AddComponent(e, s);
         _world.AddComponent(e, new ObjectiveLinks { Parent = new EntityRef(parent), Subject = new EntityRef(subject) });
@@ -162,7 +162,7 @@ public sealed class RulesModelTests : IDisposable
 
     [Fact]
     public void AnActiveObjective_ShowsHowLongItHasBeenActive_AsMinutesSeconds()
-        => Assert.Equal("Active 1:05", RulesModel.StateWords(new ObjectiveStatus { State = ObjectiveState.Active, ChangedAt = 10 }, 75));
+        => Assert.Equal("Active 1:05", RulesModel.StateWords(new ObjectiveStatus { State = ObjectiveState.Active, ChangedAt = (SimInstant)10 }, 75));
 
     [Theory]
     [InlineData(TriggerState.Armed, "Armed")]
@@ -206,7 +206,7 @@ public sealed class RulesModelTests : IDisposable
     public void WithNoHistory_TheOneSpanIsChangedAtToNow_InTheStatusState()
     {
         var e = Add(10, "Reach");
-        ref var s = ref _world.GetComponentRW<ObjectiveStatus>(e); s.ChangedAt = 30;
+        ref var s = ref _world.GetComponentRW<ObjectiveStatus>(e); s.ChangedAt = (SimInstant)30;
         var span = Assert.Single(Build(now: 100).Find(10)!.Spans);
         Assert.Equal((30d, 100d, ObjectiveState.Active, false), (span.From, span.To, span.State, span.Hatched));
     }
@@ -215,7 +215,7 @@ public sealed class RulesModelTests : IDisposable
     public void ATriggerWaiting_HasItsCurrentSpanHatched()
     {
         var e = Add(10, "T", role: ObjectiveRole.Trigger);
-        ref var s = ref _world.GetComponentRW<ObjectiveStatus>(e); s.TriggerState = TriggerState.Cooldown; s.ChangedAt = 40;
+        ref var s = ref _world.GetComponentRW<ObjectiveStatus>(e); s.TriggerState = TriggerState.Cooldown; s.ChangedAt = (SimInstant)40;
         Assert.True(Assert.Single(Build(now: 100).Find(10)!.Spans).Hatched);
     }
 

@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public BehaviorFaultCode FaultCode;
 
         /// <summary>Sim time it ended (<c>GlobalTime.TotalTime</c>; 0 on a world without the clock).</summary>
-        public double FinishedAt;
+        public SimInstant FinishedAt;
 
         /// <summary>Records the end of an operator run on <paramref name="entity"/> (registers the type on first use).</summary>
         public static void Record(EntityRepository repo, Entity entity, int behaviorHash, uint instanceId,
@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Behavior.Components
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0;
             var value = new OperatorOrderOutcome
             {
-                BehaviorHash = behaviorHash, InstanceId = instanceId, Outcome = outcome, FaultCode = fault, FinishedAt = now,
+                BehaviorHash = behaviorHash, InstanceId = instanceId, Outcome = outcome, FaultCode = fault, FinishedAt = (SimInstant)now,
             };
             if (repo.HasComponent<OperatorOrderOutcome>(entity)) repo.SetComponent(entity, value);
             else repo.AddComponent(entity, value);

@@ -49,7 +49,7 @@ public sealed class DebriefModelTests : IDisposable
     private IReadOnlyList<RulesReader.Entry> Entries() => RulesReader.Read(_world, includeAuthored: false);
     private string Name(int net) => _by.TryGetValue(net, out var e) && _world.HasComponent<EntityInfo>(e) ? _world.GetComponentRO<EntityInfo>(e).Name.ToString() : "#" + net;
     private ForceId SideOf(RulesReader.Entry e) => e.SubjectNetworkId != 0 && _by.TryGetValue(e.SubjectNetworkId, out var s) && _world.HasComponent<EntityInfo>(s) ? _world.GetComponentRO<EntityInfo>(s).ForceId : e.Status.Owner;
-    private static ExerciseResult Ended(SideOutcome blue = SideOutcome.None, SideOutcome red = SideOutcome.None) => new() { Phase = ExercisePhase.Ended, EndedAt = 1122, Friend = new SideResult { Outcome = blue }, Hostile = new SideResult { Outcome = red }, Reason = new FixedString64("tickets") };
+    private static ExerciseResult Ended(SideOutcome blue = SideOutcome.None, SideOutcome red = SideOutcome.None) => new() { Phase = ExercisePhase.Ended, EndedAt = (SimInstant)1122, Friend = new SideResult { Outcome = blue }, Hostile = new SideResult { Outcome = red }, Reason = new FixedString64("tickets") };
 
     private sealed class History : ISummaryHistory
     {

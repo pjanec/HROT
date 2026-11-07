@@ -58,7 +58,7 @@ namespace Fdp.Toolkit.Motion
         /// <summary>The carrier's rope or door he left by (its <c>RopeAnchors</c> index; 0 = the first).</summary>
         public byte AnchorIndex;
         /// <summary>The sim time (s) the phase began.</summary>
-        public double PhaseSince;
+        public SimInstant PhaseSince;
         /// <summary>The carrier he hangs from (a rope) or left (a jump) — this node's handle; the wire carries its network id.</summary>
         public Entity Anchor;
         /// <summary>Where he means to land (a jumper's landing point; zero = wherever he comes down).</summary>

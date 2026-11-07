@@ -84,7 +84,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: rounds to fire (≥ 1).</summary>
         public int Rounds;
         /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: sim time before which nothing leaves (0 = now).</summary>
-        public double FireAt;
+        public SimInstant FireAt;
         /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: the member's mount (own index, or 32 + k controlled).</summary>
         public byte Mount;
         /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: the arc preference (0 Auto, 1 Low, 2 High).</summary>
@@ -153,12 +153,12 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public byte Started;
         /// <summary>⭐ S2 — sim time the play went (its <see cref="PlayStart.Go"/>), for a play with a time limit.</summary>
-        public double StartedAt;
+        public SimInstant StartedAt;
         /// <summary>1 = send every member's order again this tick (a resume after a pause, a moved threat, a new answer).</summary>
         public byte Reissue;
         public ushort IssuedPhase;
-        public double IssuedAt;
-        public double LastTickAt;
+        public SimInstant IssuedAt;
+        public SimInstant LastTickAt;
         /// <summary>The threat the play is about (a pooled contact's entity id; 0 = none).</summary>
         public long ThreatId;
         public Vector3 ThreatPoint;
@@ -399,13 +399,13 @@ namespace Hrot.AI.Behaviors.Brains
                 Span<MemberPartitionInput> inputs = stackalloc MemberPartitionInput[roster.Count];
                 var start = play.Start(ref p, ref ws, in ctx, inputs);
                 if (start == PlayStart.Fail) return NodeStatus.Failure;
-                if (start == PlayStart.Wait) { ws.LastTickAt = now; return NodeStatus.Running; }
+                if (start == PlayStart.Wait) { ws.LastTickAt = (SimInstant)now; return NodeStatus.Running; }
                 ref var squad0 = ref ctx.Squad;
                 ElementPartitionPrimitive.Partition(ref squad0, inputs, play.ElementCount, 0f, out _);
                 squad0.ManeuverKind = play.ManeuverKind;
                 squad0.PhaseId = play.StartPhase;
                 ws.Started = 1;
-                ws.StartedAt = now;
+                ws.StartedAt = (SimInstant)now;
                 ws.IssuedPhase = ushort.MaxValue;
                 SquadDrillTrace.Started(world, self, play.ManeuverKind, play.StartPhase, now);   // ⭐ CE-2157 (O-a)
             }
@@ -418,7 +418,7 @@ namespace Hrot.AI.Behaviors.Brains
                     SquadDrillTrace.PhaseChanged(world, self, ws.OwnKind, ws.OwnPhase, SquadDrillTrace.EventRetake, now);
                 }
             }
-            ws.LastTickAt = now;
+            ws.LastTickAt = (SimInstant)now;
             ws.CompletedByTimeout = 0;
 
             if (ctx.Squad.PhaseId == play.AbortPhase) return End<TPlay, TParams>(ref play, ref ws, world, self, now, NodeStatus.Failure);
@@ -531,7 +531,7 @@ namespace Hrot.AI.Behaviors.Brains
                 else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
             }
             ws.IssuedPhase = squad.PhaseId;
-            ws.IssuedAt = ctx.Now;
+            ws.IssuedAt = (SimInstant)ctx.Now;
             ws.IssuedThreatPoint = ws.ThreatPoint;
             ws.Reissue = 0;
             SquadDrillTrace.Issued(ctx.World, ctx.Commander, traced);

@@ -22,11 +22,11 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public struct Block
         {
             public ObjectiveCommonBlock Common; public ObjectiveRun Run; public AreaLink Area;
-            public int MinMen, MaxEnemy; public float HoldSeconds; public byte Capture;
+            public int MinMen, MaxEnemy; public Fdp.Core.SimDuration HoldSeconds; public byte Capture;
             /// <summary>Working state (recorded with the blackboard): how long it has been held without a break; the last census.</summary>
             public double HeldFor; public int LastMen, LastEnemy;
             /// <summary>⭐ S6 G-1 — <c>captureSeconds</c> (0 = the S1 rule); the side whose advantage is being timed; the seconds it has been the one with more men.</summary>
-            public float CaptureSeconds; public ForceId Challenger; public double AdvantageFor;
+            public SimDuration CaptureSeconds; public ForceId Challenger; public double AdvantageFor;
         }
 
         [StructLayout(LayoutKind.Sequential)]

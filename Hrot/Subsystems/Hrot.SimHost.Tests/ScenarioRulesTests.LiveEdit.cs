@@ -83,7 +83,7 @@ namespace Hrot.SimHost.Tests
             w.Run(0.5);
             var now = Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block;
             Assert.Equal((2, TriggerState.Cooldown), (w.S(t).FireCount, Phase(w, t)));
-            Assert.Equal((20f, was.CooldownUntil), (now.Cooldown, now.CooldownUntil));        // the new value in, the running clock untouched
+            Assert.Equal((20f, (double)(was.CooldownUntil)), ((float)(now.Cooldown), (double)(now.CooldownUntil)));        // the new value in, the running clock untouched
             Assert.Equal(run, w.Repo.GetComponentRO<BehaviorState>(t).InstanceId);            // not a restart
             Assert.Equal(1, EditEntries(w, t).Length);
             Assert.Equal(((byte)BehaviorOrigin.Operator, (byte)0), (EditEntries(w, t)[0].Origin, EditEntries(w, t)[0].Cause));
@@ -108,7 +108,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(EntityWriteRoute.Direct, Edit(w.Repo, hold, $"{{{Common(w, squad)},\"area\":{{\"circle\":{{\"center\":[0,0,0],\"radius\":50}}}},\"holdSeconds\":7}}", 1));
             w.Run(0.5);
             Assert.InRange(w.S(hold).ProgressCur, 4, 6);                                      // kept, not 0
-            Assert.Equal(7f, Bb<HoldAreaBehavior.HoldAreaBlackboard>(w, hold).Block.HoldSeconds);   // the new value is in
+            Assert.Equal(7f, (float)(Bb<HoldAreaBehavior.HoldAreaBlackboard>(w, hold).Block.HoldSeconds));   // the new value is in
             w.Run(2);
             Assert.Equal(ObjectiveState.Achieved, w.S(hold).State);                           // 7 s reached ~2 s after the edit; a restarted hold would need 7 more
         }
@@ -213,11 +213,11 @@ namespace Hrot.SimHost.Tests
             var t = w.Trigger(TrigJson(w.Net(src), ",\"cooldown\":3"));
             w.Run(1.5);
             Edit(w.Repo, t, TrigJson(w.Net(src), ",\"cooldown\":5"), 1); w.Run(2);
-            Assert.Equal((5f, 1), (Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block.Cooldown, EditEntries(w, t).Length));
+            Assert.Equal((5f, 1), ((float)(Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block.Cooldown), EditEntries(w, t).Length));
             Edit(w.Repo, t, TrigJson(w.Net(src), ",\"cooldown\":6"), 1); w.Run(2);            // the same Seq: nothing
-            Assert.Equal((5f, 1), (Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block.Cooldown, EditEntries(w, t).Length));
+            Assert.Equal((5f, 1), ((float)(Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block.Cooldown), EditEntries(w, t).Length));
             Edit(w.Repo, t, TrigJson(w.Net(src), ",\"cooldown\":6"), 2); w.Run(2);            // a new one: again
-            Assert.Equal((6f, 2), (Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block.Cooldown, EditEntries(w, t).Length));
+            Assert.Equal((6f, 2), ((float)(Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block.Cooldown), EditEntries(w, t).Length));
         }
 
         /// <summary>On a node that does NOT own the rule the router turns the write into ONE change-request (three attributes in one command), and the owner applies those very changes through its own
@@ -246,7 +246,7 @@ namespace Hrot.SimHost.Tests
             interp.Apply(bctx, cmd.AttributeChanges.ToArray());
             Assert.True(patch.HasAppliedAny);
             owner.Run(0.5);
-            Assert.Equal(8f, Bb<TriggerBehavior.TriggerBlackboard>(owner, t).Block.Cooldown);
+            Assert.Equal(8f, (float)(Bb<TriggerBehavior.TriggerBlackboard>(owner, t).Block.Cooldown));
             Assert.Equal(1, EditEntries(owner, t).Length);
         }
         // ── CE-2380 part 2 — the rule's verdict comes back as an OUTCOME under the request id ─────────────
@@ -282,7 +282,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(EditStatus.Pending, Outcome(w, id).Status);
             w.Run(0.5);
             Assert.Equal(EditStatus.Applied, Outcome(w, id).Status);
-            Assert.Equal(5f, Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block.Cooldown);
+            Assert.Equal(5f, (float)(Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block.Cooldown));
         }
 
         /// <summary>CE-2380 part 2 — a refusal with TWO problems: the outcome carries the WHOLE text (both), the status Reason stays cut to 55 characters (unchanged).

@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Perception.Survey.Tests
             var cloud = _w.CreateEntity();
             _w.AddComponent(cloud, new SimTransform { Position = new Vector3(102.1f, 95f, 0f), Rotation = Quaternion.Identity });
             _w.AddComponent(cloud, new AreaEffectCloud { Kind = CloudKind.Smoke, Radius = 3f, Height = 4f, SightTransmittance = 0.1f,
-                                                         BornAtSimSeconds = 0, Seconds = 60f });
+                                                         BornAtSimSeconds = (SimInstant)0, Seconds = 60f });
             var south = OneRay(102.1f, 102f, -MathF.PI / 2f);
             Assert.Equal(SurveyStop.Obscurant, south.Stop);
             Assert.InRange(south.Free, 3f, 5f);   // the cloud's edge, 4 m south

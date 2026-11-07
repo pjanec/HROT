@@ -23,7 +23,7 @@ public sealed partial class EffectTests
         At(world, 10.0);
         for (int i = 0; i < sends; i++)
         {
-            world.Bus.PublishManaged(new PlayerMessageEvent { MessageId = 5, OriginNodeId = Fdp.Core.NodeId.None, ToKind = "All", Text = "go", Seconds = 6f, SentAt = 10.0 });
+            world.Bus.PublishManaged(new PlayerMessageEvent { MessageId = 5, OriginNodeId = Fdp.Core.NodeId.None, ToKind = "All", Text = "go", Seconds = 6f, SentAt = (SimInstant)10.0 });
             Tick(world, new EffectSpawnSystem { FeatureGate = () => gate }, 0.016f);   // the same message offered again on a later frame
         }
         return PlayerMessages.Of(world)?.Log(default).Count ?? 0;

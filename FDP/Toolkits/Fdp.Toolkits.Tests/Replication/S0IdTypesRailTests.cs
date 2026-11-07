@@ -341,6 +341,21 @@ namespace Fdp.Toolkits.Tests.Replication
             ["CivilianParamsJsonDto.PanicAt"] = "the authored form of CivilianParams.PanicAt (a level)",
             ["CivilianParamsJsonDto.RiotAt"] = "the authored form of CivilianParams.RiotAt (a level)",
             ["Vars.StartedAt"] = "a variable of a GENERATED demo blueprint (SubordinateForEachDemo, authored with the blueprint scalar Flt); blueprint variables are the compiler's scalar set, not a component field",
+            ["GlobalTime.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["GlobalTime.UnscaledTotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["FrameOuterHeader.SimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["FrameMetadata.SimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["CheckpointMark.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["CheckpointMark.UnscaledTotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["ClusterTimeObservation.ResumeSimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["ClusterTimeObservation.SnapshotSimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["ISimClock.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["WorldSimClock.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["AdvanceFrameIntent.TargetSimTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["JumpTimeIntent.TotalTime"] = "the SOURCE clock / a recording or clock-control value: stays double; a SimInstant is taken FROM it",
+            ["TestStep.Time"] = "a step of an authored TEST SCRIPT (JSON), not runtime state",
+            ["NetworkTransform.SimStamp"] = "WIRE stamp: the replicated sample's sim time, copied from the DDS double by the translator",
+            ["FireAtPointParamsJsonDto.FireAt"] = "the authored (JSON) form of a params struct: kept a plain double until S-d proves the JSON path round-trips",
         };
 
         private static bool LooksLikeAnInstant(string name)
@@ -362,6 +377,138 @@ namespace Fdp.Toolkits.Tests.Replication
             var sb = new StringBuilder();
             foreach (var o in offences.OrderBy(x => x, StringComparer.Ordinal)) sb.AppendLine(o);
             Assert.True(offences.Count == 0, $"{offences.Count} members look like an instant but are a bare float:\n{sb}");
+        }
+
+        private static bool LooksLikeADoubleInstant(string name)
+        {
+            var w = Words(name);
+            return w.Length > 0 && w[^1] is "At" or "Since" or "Until" or "Time";
+        }
+
+        /// <summary>⭐ CE-4201 SV-1 S-b — the DOUBLE half of the rail above: a point in sim time that is a bare <c>double</c> (outside the wire types and the allow-list) is a <see cref="SimInstant"/>.</summary>
+        [Fact]
+        public void S0_EveryAtSinceUntilTimeMember_IsNotABareDouble()
+        {
+            var types = AllPublicNonWire().ToList();
+            Assert.True(types.Count >= 1000, $"only {types.Count} public types found — the scan lost its assemblies");
+            var offences = new List<string>();
+            foreach (var t in types)
+                foreach (var (owner, member, type) in Members(t))
+                    if (Strip(type) == typeof(double) && LooksLikeADoubleInstant(member) && !NotAnInstant.ContainsKey(owner + "." + member))
+                        offences.Add($"{t.FullName}.{member} ({type.Name}) — a point in sim time is a SimInstant; say what it is if it is not one");
+            var sb = new StringBuilder();
+            foreach (var o in offences.OrderBy(x => x, StringComparer.Ordinal)) sb.AppendLine(o);
+            Assert.True(offences.Count == 0, $"{offences.Count} members look like an instant but are a bare double:\n{sb}");
+        }
+
+        /// <summary><c>Type.Member</c> → why it is NOT a <see cref="SimDuration"/> although it is a bare float named like a length of time. ⭐ A decision each; never a silencer.</summary>
+        internal static readonly Dictionary<string, string> NotADuration = new(StringComparer.Ordinal)
+        {
+            ["TrafficDemand.StepSeconds"] = "WIRE twin: mirrored field-by-field by the DDS struct; EntityTrafficDemandWireTests requires the same type",
+            ["DangerAreaSettings.RefreshSeconds"] = "READ BY THE BLUEPRINT SENSOR DECLS: the DangerArea decl baked into the shipped `.bp.json` (`DangerCrossingBp`) names this field's type (`RefreshSeconds:System.Single`) — widening it needs a re-bake (a blueprint-lane item)",
+            ["AdvanceToParamsJsonDto.CooldownSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["AssembleAfterDropParamsJsonDto.TimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["BatonChargeParamsJsonDto.Seconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["BehaviorProfileDto.DefaultRoeReturnFireWindowSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["BoundingOverwatchParamsJsonDto.BoundTimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["BreakContactParamsJsonDto.BoundTimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["CivilianParamsJsonDto.HideMaxSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["CivilianParamsJsonDto.HideMinSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["CivilianParamsJsonDto.PauseMaxSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["CivilianParamsJsonDto.PauseMinSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["ClearAreaObjectiveParamsJsonDto.ForSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["CombatPostureAdvanceJsonDto.CooldownSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["CountParamsJsonDto.AssistSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["DangerAreaCognitiveBuffer.LastUpdateTimeSeconds"] = "READ BY THE BLUEPRINT COMPILER as a float: `BecomesStale` emits `float age = time - buffer.LastUpdateTimeSeconds`, the sensor decls baked in the shipped `.bp.json` name the field's type, and `SensorKindBaker` finds it by reflection — widening it needs the compiler's type map and a re-bake (a blueprint-lane item)",
+            ["DetonateChargeParamsJsonDto.Seconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["EffectVisualDto.Duration"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["EffectVisualDto.FadeSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["EqsCognitiveBuffer.LastUpdateTimeSeconds"] = "READ BY THE BLUEPRINT COMPILER as a float: `BecomesStale` emits `float age = time - buffer.LastUpdateTimeSeconds`, the sensor decls baked in the shipped `.bp.json` name the field's type, and `SensorKindBaker` finds it by reflection — widening it needs the compiler's type map and a re-bake (a blueprint-lane item)",
+            ["EvadeGrenadeParamsJsonDto.FuzeSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["ExpendableDto.LifeSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["FightFromCoverParamsJsonDto.QuietSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["FireAndMovementParamsJsonDto.RushTimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["FireAtPointParamsJsonDto.CooldownSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["FireAtTargetParamsJsonDto.CooldownSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["FlightParamsDto.EnduranceSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["HandItemDto.LiesSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["HoldAreaParamsJsonDto.CaptureSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["HoldAreaParamsJsonDto.HoldSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["IRecordReplayController.ActiveReplayDurationSeconds"] = "a replay-control service read by the UI (wall / recorded axis), not state",
+            ["InjuryDefDto.BleedOutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["MissileDto.MaxFlightSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["MontageDefDto.DurationSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["MontageNotifyRefDto.TimeSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["NavRouteWaypoint.HoldSeconds"] = "a positional `record struct` RESULT handed back by a service (WorldSurveyRead / NavRouteWaypoint), not saved or replicated state",
+            ["ParachuteDto.LandingSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["ParachuteDto.OpenSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["PlatoonBoundParamsJsonDto.SitrepEverySeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["PlatoonConvoyParamsJsonDto.ClearSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["PlatoonHoldParamsJsonDto.FreshSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["PushThroughParamsJsonDto.TimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["ReactToContactParamsJsonDto.DecideAfterSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["ReactToContactParamsJsonDto.PhaseTimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["ReplayPrepareResult.DurationSeconds"] = "a replay-prepare RESULT (recording length)",
+            ["RunnerConfiguration.FixedDeltaSeconds"] = "CONFIG (a command-line option set by reflection)",
+            ["RunnerOptions.FixedDeltaSeconds"] = "CONFIG",
+            ["SimDuration.Seconds"] = "the type's own storage",
+            ["SquadAirborneExitParamsJsonDto.IntervalSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["SquadAirborneExitParamsJsonDto.TimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["SquadDangerCrossingParamsJsonDto.PhaseTimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["SquadDismountParamsJsonDto.TimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["SquadEmbarkParamsJsonDto.TimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["SquadFastRopeParamsJsonDto.TimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["SquadHoldParamsJsonDto.DurationSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["StationWeaponParamsJsonDto.Seconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["StepTimeIntent.DeltaSeconds"] = "a clock-control intent (a frame step)",
+            ["SubsystemConfig.FixedDeltaSeconds"] = "CONFIG",
+            ["SupportCommandParamsJsonDto.AirDefenceFreshSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["SuppressAndManeuverParamsJsonDto.PhaseTimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["SuppressParamsJsonDto.CooldownSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["SurrenderParamsJsonDto.Seconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["TimeConfig.FixedDeltaSeconds"] = "CONFIG (a command-line / options value set by reflection)",
+            ["TriggerIedParamsJsonDto.TimeoutSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["TriggerParamsJsonDto.Cooldown"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["TriggerParamsJsonDto.Delay"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["WarheadDto.CloudSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["WarheadDto.EffectSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["WeaponMountDto.AimSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["WeaponMountDto.BarrelCoolSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["WeaponMountDto.ReloadSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["WeaponSystemDto.DeploySeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["WeaponSystemDto.PackSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["WorldSurveyRead.AgeSeconds"] = "a positional `record struct` RESULT handed back by a service (WorldSurveyRead / NavRouteWaypoint), not saved or replicated state",
+            ["WorldSurveyStatus.LastUpdateTimeSeconds"] = "READ BY THE BLUEPRINT COMPILER as a float: `BecomesStale` emits `float age = time - buffer.LastUpdateTimeSeconds`, the sensor decls baked in the shipped `.bp.json` name the field's type, and `SensorKindBaker` finds it by reflection — widening it needs the compiler's type map and a re-bake (a blueprint-lane item)",
+        };
+
+        private static bool LooksLikeADuration(string name)
+        {
+            var w = Words(name);
+            return w.Length > 0 && w[^1] is "Seconds" or "Timeout" or "Cooldown" or "Delay" or "Interval" or "Duration";
+        }
+
+        /// <summary>⭐ CE-4201 SV-1 S-c — a length of sim time that is a bare <c>float</c> (a member whose last word is <c>Seconds</c> / <c>Timeout</c> / <c>Cooldown</c> / <c>Delay</c> / <c>Interval</c> / <c>Duration</c>, outside the wire types) is a <see cref="SimDuration"/> unless <c>NotADuration</c> says why.</summary>
+        [Fact]
+        public void S0_EverySecondsTimeoutCooldownMember_IsNotABareFloat()
+        {
+            var types = AllPublicNonWire().ToList();
+            Assert.True(types.Count >= 1000, $"only {types.Count} public types found — the scan lost its assemblies");
+            var offences = new List<string>();
+            foreach (var t in types)
+                foreach (var (owner, member, type) in Members(t))
+                    if (Strip(type) == typeof(float) && LooksLikeADuration(member) && !NotADuration.ContainsKey(owner + "." + member))
+                        offences.Add($"{t.FullName}.{member} ({type.Name}) — a length of sim time is a SimDuration; say what it is if it is not one");
+            var sb = new StringBuilder();
+            foreach (var o in offences.OrderBy(x => x, StringComparer.Ordinal)) sb.AppendLine(o);
+            Assert.True(offences.Count == 0, $"{offences.Count} members look like a duration but are a bare float:\n{sb}");
+        }
+
+        [Fact]
+        public void S0_EveryNotADurationEntry_StillNamesAMember()
+        {
+            var live = new HashSet<string>(AllPublicNonWire().SelectMany(t => Members(t).Select(m => m.Owner + "." + m.Member)));
+            var stale = NotADuration.Keys.Where(k => !live.Contains(k)).ToList();
+            Assert.True(stale.Count == 0, "NotADuration entries name no member any more: " + string.Join(", ", stale));
         }
 
         [Fact]

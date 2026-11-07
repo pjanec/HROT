@@ -108,7 +108,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 2.0 });
 
             int carried = Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate() + 5000;   // the checkpoint's counter, ahead of this one
-            _w.SetSingletonUnmanaged(new Fdp.Toolkit.Navigation.NavigationHandleMark { Last = carried, At = 1.5 });
+            _w.SetSingletonUnmanaged(new Fdp.Toolkit.Navigation.NavigationHandleMark { Last = carried, At = (SimInstant)1.5 });
             Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(_w);
             _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });   // the restore's paused frame: the clock has not snapped yet …
             restore.Execute(_w, 0f);
@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             Assert.True(Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate() > carried, "the next handle follows the carried counter");
 
             int abandoned = Fdp.Toolkit.Navigation.NavigationHandleAllocator.Allocate() + 5000;
-            _w.SetSingletonUnmanaged(new Fdp.Toolkit.Navigation.NavigationHandleMark { Last = abandoned, At = 3.0 });   // newer than 2.0 s
+            _w.SetSingletonUnmanaged(new Fdp.Toolkit.Navigation.NavigationHandleMark { Last = abandoned, At = (SimInstant)3.0 });   // newer than 2.0 s
             Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(_w);
             restore.Execute(_w, 0f);
             restore.Execute(_w, 1f / 60f);

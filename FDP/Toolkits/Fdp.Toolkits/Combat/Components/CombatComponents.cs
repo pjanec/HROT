@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Combat.Components
         public int MagazineSize;
 
         /// <summary>Seconds a reload takes (cached from the mount's TKB at spawn, like <see cref="MaxAmmo"/>).</summary>
-        public float ReloadSeconds;
+        public SimDuration ReloadSeconds;
 
         /// <summary>Seconds left of the running reload; 0 = not reloading.</summary>
         public float ReloadSecondsRemaining;
@@ -50,10 +50,10 @@ namespace Fdp.Toolkit.Combat.Components
         public uint LastAnsweredId;
 
         /// <summary>Seconds the oldest unanswered request has waited (since the last ask or answer); the ledger drops it at its timeout.</summary>
-        public float PendingSeconds;
+        public SimDuration PendingSeconds;
 
         /// <summary>Seconds the last REFUSAL still holds this weapon (no new request); 0 = not held.</summary>
-        public float RefusalHoldSeconds;
+        public SimDuration RefusalHoldSeconds;
 
         /// <summary>The muscle's last refusal (why the round did not fly), read while <see cref="RefusalHoldSeconds"/> runs.</summary>
         public Fdp.Toolkit.Combat.FireRefusal Refusal;
@@ -171,7 +171,7 @@ namespace Fdp.Toolkit.Combat.Components
         public uint ArcLifetimeTicks;
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-2) — a <see cref="WarheadRound.Vents"/> round's burn (s): the cloud it raises lasts this long
         /// and it vents that long where it lies. At fire: the thrown-back burn left, else its warhead's <c>CloudSeconds</c>. Owner only.</summary>
-        public float BurnSeconds;
+        public SimDuration BurnSeconds;
         /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — the FIRST thrower of a round that was picked up and thrown back (<see cref="Shooter"/> is
         /// the last); <see cref="Entity.Null"/> = never rethrown. Rides to the detonation and from there to <c>DamageAssessedEvent.OriginalSource</c>.</summary>
         public Entity OriginalShooter;

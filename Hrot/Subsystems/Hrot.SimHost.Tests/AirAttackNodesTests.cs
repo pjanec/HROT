@@ -835,7 +835,7 @@ namespace Hrot.SimHost.Tests
             Reg<MissileWarning>();
             var at = _w.GetComponentRO<SimTransform>(aircraft).Position;
             float bearing = MathF.Atan2(from.X - at.X, from.Y - at.Y) * (180f / MathF.PI);
-            var w = new MissileWarning { At = now, From = from, BearingDeg = bearing < 0f ? bearing + 360f : bearing, Seeker = seeker, TimeToImpactS = timeToImpact };
+            var w = new MissileWarning { At = (SimInstant)now, From = from, BearingDeg = bearing < 0f ? bearing + 360f : bearing, Seeker = seeker, TimeToImpactS = timeToImpact };
             if (_w.HasComponent<MissileWarning>(aircraft)) _w.GetComponentRW<MissileWarning>(aircraft) = w;
             else _w.AddComponent(aircraft, w);
         }

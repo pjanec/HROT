@@ -82,7 +82,7 @@ namespace Hrot.SimHost.Serializers
                     if (wp.Kind != Fdp.Toolkit.Navigation.RouteWaypointKind.Pass) node["Kind"] = wp.Kind.ToString();
                     if (wp.HeightAgl != 0f) node["HeightAgl"] = wp.HeightAgl;
                     if (wp.Hold != Fdp.Toolkit.Navigation.RouteHold.None) node["Hold"] = wp.Hold.ToString();
-                    if (wp.HoldSeconds != 0f) node["HoldSeconds"] = wp.HoldSeconds;
+                    if (wp.HoldSeconds != 0f) node["HoldSeconds"] = (float)wp.HoldSeconds;
                     if (!wp.HoldUnit.IsNone) node["HoldUnit"] = !wp.HoldUnit.Spec.IsNone ? wp.HoldUnit.Spec.ToString() : (System.Text.Json.Nodes.JsonNode)wp.HoldUnit.Ref.NetworkId;   // a file holds the GUID only, never the live id   // S9': GUID form when authored
 
                     waypoints.Add(node);

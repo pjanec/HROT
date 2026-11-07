@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 Height = w.CloudHeightM > 0f ? w.CloudHeightM : 3f,
                 SightTransmittance = gas ? 0.4f : 0.1f,
                 IrritantSeconds = gas ? MathF.Max(w.EffectSeconds, (float)AreaEffectCloudSystem.StepSeconds + 0.5f) : 0f,
-                BornAtSimSeconds = Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime,
+                BornAtSimSeconds = (SimInstant)(Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime),
                 Seconds = seconds,
                 SourceNetworkId = source,
                 // ⭐ CE-4155 (SR-82) — who threw it (and who threw it first): every pulse of the cloud names them

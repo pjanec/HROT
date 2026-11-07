@@ -298,8 +298,8 @@ namespace Fdp.Toolkit.Combat.Executors
                 AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round (0 = the mount's own)
                 RequestId   = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 (R-3018) — ASKED: reserved now, spent when the muscle says it flew
                 // ⭐ CE-2180 — when it was raised; a bomb: the moment its cue says the release IS (the SimHost starts it from there)
-                RaisedAt    = bomb && world.HasComponent<SimTransform>(p.Target)
-                              ? ReleaseAt(world, entity, world.GetComponentRO<SimTransform>(p.Target).Position) : HitModel.Now(world),
+                RaisedAt    = (SimInstant)((bomb && world.HasComponent<SimTransform>(p.Target))
+                              ? ReleaseAt(world, entity, world.GetComponentRO<SimTransform>(p.Target).Position) : HitModel.Now(world)),
             });
 
             // ⭐ CE-3136 P-5 / M8 — the total, the magazine and the loaded type are spent by the muscle's ANSWER (ShotLedger.Answer), not here
@@ -478,7 +478,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 TargetPoint = seenStance != 0 ? feet : point,
                 BodyStance  = seenStance,   // ⭐ CE-2326
                 AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round
-                RaisedAt    = HitModel.Now(world),   // ⭐ CE-2180
+                RaisedAt    = (SimInstant)(HitModel.Now(world)),   // ⭐ CE-2180
                 RequestId   = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 — asked; the muscle's answer spends it
             });
             weapon.CooldownSecondsRemaining = FirePacing.Gap(MathF.Max(p.CooldownSeconds, 0.1f) * BlindCooldownFactor, shooter,   // ⭐ CE-2323

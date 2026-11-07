@@ -23,7 +23,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>How far either side of the route an area counts (m); 0 = the sensor's default.</summary>
         public float CorridorHalfWidth;
         /// <summary>How often the route is re-asked (s); 0 = the sensor's default.</summary>
-        public float RefreshSeconds;
+        public SimDuration RefreshSeconds;
         /// <summary>At most this many areas (≤ 8); 0 = the sensor's default.</summary>
         public byte MaxAreas;
     }

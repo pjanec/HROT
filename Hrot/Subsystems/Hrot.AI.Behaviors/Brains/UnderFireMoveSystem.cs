@@ -102,7 +102,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void MarkCovered(EntityRepository world, Entity member, double now)
         {
             if (!world.IsComponentTypeRegistered<UnderFireMove>() || !world.HasComponent<UnderFireMove>(member)) return;
-            world.GetComponentRW<UnderFireMove>(member).CoveredUntil = now + CoveredSeconds;
+            world.GetComponentRW<UnderFireMove>(member).CoveredUntil = (SimInstant)(now + CoveredSeconds);
         }
 
         /// <summary>The move speed for a threatened soldier: at least the rush.</summary>
@@ -128,7 +128,7 @@ namespace Hrot.AI.Behaviors.Brains
                 // the play moved on (arrived, failed, another action): the reflex lets go — the next move re-stamps
                 u.ActionInstanceId = 0;
                 u.HoldIntentId = 0;
-                if (u.Phase != UnderFirePhase.Moving) { u.Phase = UnderFirePhase.Moving; u.UpSince = now; }
+                if (u.Phase != UnderFirePhase.Moving) { u.Phase = UnderFirePhase.Moving; u.UpSince = (SimInstant)now; }
                 return;
             }
             if (!world.HasComponent<NavigationIntent>(self) || !world.HasComponent<SimTransform>(self)) return;
@@ -152,7 +152,7 @@ namespace Hrot.AI.Behaviors.Brains
                         && Flat(move.Destination - at).Length() > ArrivingMetres && CarryLoad.Factor(world, self) >= 1f
                         && !Fdp.Toolkit.Combat.GrenadeRules.Indoors(world, at, out _))
                     {
-                        u.ReactedFireAt = lastFire;
+                        u.ReactedFireAt = (SimInstant)lastFire;
                         GoDown(world, self, ref u, now);
                         return;
                     }
@@ -171,7 +171,7 @@ namespace Hrot.AI.Behaviors.Brains
                 case UnderFirePhase.Down:
                 {
                     if (intentId != u.HoldIntentId) u.HoldIntentId = MoveToExecutor.Halt(world, self);   // a new move was handed to a man down
-                    if (lastFire > u.ReactedFireAt) u.ReactedFireAt = lastFire;
+                    if (lastFire > u.ReactedFireAt) u.ReactedFireAt = (SimInstant)lastFire;
                     bool lapsed = now - lastFire >= LapseSeconds;
                     bool covered = u.CoveredUntil > now;
                     if (lapsed || covered)
@@ -214,7 +214,7 @@ namespace Hrot.AI.Behaviors.Brains
                 case UnderFirePhase.Crawling:
                 case UnderFirePhase.Scooting:
                 {
-                    if (lastFire > u.ReactedFireAt) u.ReactedFireAt = lastFire;
+                    if (lastFire > u.ReactedFireAt) u.ReactedFireAt = (SimInstant)lastFire;
                     bool there = Flat(u.SubTarget - at).Length() < 0.6f || SubEnded(world, self, u.HoldIntentId)
                                  || now - u.SubSince > u.SubSeconds;
                     if (!there) return;
@@ -222,7 +222,7 @@ namespace Hrot.AI.Behaviors.Brains
                     {
                         u.HoldIntentId = MoveToExecutor.Halt(world, self);
                         u.Phase = UnderFirePhase.Down;
-                        u.DownSince = now;
+                        u.DownSince = (SimInstant)now;
                         return;
                     }
                     Rise(world, self, ref u, ref move, now, threatened);
@@ -236,8 +236,8 @@ namespace Hrot.AI.Behaviors.Brains
             StanceRequest.Set(world, self, StanceId.Prone, DropBlendSeconds);
             u.HoldIntentId = MoveToExecutor.Halt(world, self);
             u.Phase = UnderFirePhase.Down;
-            u.DownSince = now;
-            u.PinnedSince = now;
+            u.DownSince = (SimInstant)now;
+            u.PinnedSince = (SimInstant)now;
             u.Crawled = 0;
             u.Scoots = 0;
         }
@@ -261,7 +261,7 @@ namespace Hrot.AI.Behaviors.Brains
             sub.Speed = RushSpeed;   // the prone cap makes it a crawl
             u.HoldIntentId = MoveToExecutor.WriteIntent(world, self, in sub);
             u.Phase = phase;
-            u.SubSince = now;
+            u.SubSince = (SimInstant)now;
             u.SubSeconds = seconds;
         }
 
@@ -333,8 +333,8 @@ namespace Hrot.AI.Behaviors.Brains
             u.Threatened = threatened ? (byte)1 : (byte)0;
             u.HoldIntentId = 0;
             u.Phase = UnderFirePhase.Moving;
-            u.UpSince = now;
-            u.CoveredUntil = 0;
+            u.UpSince = (SimInstant)now;
+            u.CoveredUntil = (SimInstant)0;
             Repace(world, self, ref move, MathF.Max(Pace(u.AskedSpeed, threatened), RushSpeed));   // up and away: a rush
         }
 

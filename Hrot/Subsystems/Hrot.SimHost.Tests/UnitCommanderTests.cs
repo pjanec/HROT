@@ -38,7 +38,7 @@ namespace Hrot.SimHost.Tests
             new CompositeUnitTkbTranslator().Inject(world, soldier, rifleman!);
 
             Assert.True(world.HasComponent<UnitEntity>(unit));
-            Assert.Equal(6f, world.GetComponentRO<UnitEntity>(unit).CommandDisruptionSeconds);
+            Assert.Equal(6f, (float)(world.GetComponentRO<UnitEntity>(unit).CommandDisruptionSeconds));
             Assert.False(world.HasComponent<UnitEntity>(soldier));
             Assert.Contains(Hrot.Core.Tkb.TkbTranslatorSet.Base(), t => t is CompositeUnitTkbTranslator);
         }

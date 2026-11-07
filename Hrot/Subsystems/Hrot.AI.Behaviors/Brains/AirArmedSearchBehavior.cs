@@ -17,7 +17,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public Vector3 Centre;
         public float RadiusM;
-        public float QuietSeconds;
+        public SimDuration QuietSeconds;
         public float HeightAgl;
     }
 
@@ -28,7 +28,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Stage;
         public FlyToParams Fly;
         /// <summary>When it last arrived over the area or ended an attack (0 = not yet over it): the quiet runs from here.</summary>
-        public double QuietSince;
+        public SimInstant QuietSince;
         public AirAttackParams Attack;
         public AirAttackState AttackState;
         /// <summary>Targets destroyed (a test / diagnostics probe).</summary>
@@ -85,7 +85,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.Kills++;
                 ws.Stage = 0;
                 ws.Fly.Issued = 0;                     // back over the area
-                ws.QuietSince = Math.Max(now, 1e-6);
+                ws.QuietSince = (SimInstant)(Math.Max(now, 1e-6));
                 return NodeStatus.Running;
             }
             var pick = DroneTargets.Pick(world, self, p.Centre, p.RadiusM);
@@ -99,7 +99,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Fly.Issued == 0) ws.Fly = new FlyToParams { X = p.Centre.X, Y = p.Centre.Y, HeightAgl = p.HeightAgl };
             var fly = AirOrderNodes.FlyTo(ref ws.Fly, self, world);
             if (fly == NodeStatus.Failure) return NodeStatus.Failure;
-            if (fly == NodeStatus.Success && ws.QuietSince <= 0) ws.QuietSince = Math.Max(now, 1e-6);   // over the area
+            if (fly == NodeStatus.Success && ws.QuietSince <= 0) ws.QuietSince = (SimInstant)(Math.Max(now, 1e-6));   // over the area
             if (ws.QuietSince > 0 && now - ws.QuietSince >= p.QuietSeconds) return NodeStatus.Success;  // the area is quiet
             return NodeStatus.Running;
         }
@@ -128,7 +128,7 @@ namespace Hrot.AI.Behaviors.Orders
 
         /// <summary>Nothing found over the area this long ends the search (s); 0 = 60.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("QuietSeconds")]
-        public float QuietSeconds;
+        public SimDuration QuietSeconds;
 
         /// <summary>The search height above the ground (m); 0 = 150.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("HeightAgl")]

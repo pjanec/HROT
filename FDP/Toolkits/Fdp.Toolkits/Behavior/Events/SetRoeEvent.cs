@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <summary>Who orders it; unmarked reads as Operator.</summary>
         public BehaviorOrigin Origin;
         /// <summary>⭐ <c>CE-2095</c> — the ReturnFire window in seconds; <c>0</c> keeps the current one (as <c>Unset</c> does).</summary>
-        public float ReturnFireWindowSeconds;
+        public SimDuration ReturnFireWindowSeconds;
         /// <summary>⭐ <c>CE-2239</c> part 1 — the force level; <see cref="RoeForceLevel.ForceUnset"/> keeps the current one.</summary>
         public RoeForceLevel ForceLevel;
     }

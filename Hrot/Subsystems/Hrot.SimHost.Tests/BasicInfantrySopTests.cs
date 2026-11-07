@@ -373,7 +373,7 @@ namespace Hrot.SimHost.Tests
             FightFromCoverBehavior.Deactivate_Run(ref p, ref second, w.Unit, w.Repo);
 
             var justMoved = hidden;
-            justMoved.EscalatedAt = w.Repo.SimulationTime - 1.0;
+            justMoved.EscalatedAt = (SimInstant)(w.Repo.SimulationTime - 1.0);
             Assert.False(FightFromCoverBehavior.ShouldFlank(in p, in justMoved, w.Unit, w.Repo));     // the last escalation was a second ago
 
             Assert.True(FightFromCoverBehavior.ShouldFlank(in p, in hidden, w.Unit, w.Repo));         // nothing paused: he may

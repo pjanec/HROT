@@ -34,7 +34,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Scan ±this many degrees around the chosen bearing (0 = a fixed look).</summary>
         public float HalfWidth;
         /// <summary>How long each of the scan's fixation points is held (s); 0 = 2.</summary>
-        public float StepSeconds;
+        public SimDuration StepSeconds;
         /// <summary>How far out the look point is put along a bearing (m); 0 = 100.</summary>
         public float Metres;
     }

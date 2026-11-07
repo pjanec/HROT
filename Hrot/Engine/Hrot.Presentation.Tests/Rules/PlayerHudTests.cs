@@ -153,7 +153,7 @@ public sealed class PlayerHudTests : IDisposable
     [Fact]
     public void AnActiveObjectiveWithADeadline_ShowsTheTimeLeft()
     {
-        Add(40, "Cross before dawn", edit: (ref ObjectiveStatus s) => { s.ChangedAt = 100; s.Deadline = 400; });
+        Add(40, "Cross before dawn", edit: (ref ObjectiveStatus s) => { s.ChangedAt = (SimInstant)100; s.Deadline = 400; });
         var line = TrainingHud.Build(Entries(), Me(1, ForceId.Friend), 250).Objectives.Single();
         Assert.Equal("2:30", line.Detail);                 // 400 − 250
         Assert.Equal(0.5f, line.Fraction, 3);              // half of the window gone
@@ -212,11 +212,11 @@ public sealed class PlayerHudTests : IDisposable
     public void TheRoundClock_CountsDownToTheTriggerThatEndsTheExercise()
     {
         Crossfire();
-        Add(80, "Crate drop 1", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 180);
-        Add(81, "Blue wins", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = 900; s.EndsExercise = 1; });
-        Add(82, "Sudden death end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = 720; s.EndsExercise = 1; });
-        Add(83, "Instructor end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = 1e9; s.EndsExercise = 1; });
-        Add(84, "Done end", role: ObjectiveRole.Trigger, state: ObjectiveState.Achieved, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = 100; s.EndsExercise = 1; });
+        Add(80, "Crate drop 1", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = (SimInstant)180);
+        Add(81, "Blue wins", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = (SimInstant)900; s.EndsExercise = 1; });
+        Add(82, "Sudden death end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = (SimInstant)720; s.EndsExercise = 1; });
+        Add(83, "Instructor end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = (SimInstant)1e9; s.EndsExercise = 1; });
+        Add(84, "Done end", role: ObjectiveRole.Trigger, state: ObjectiveState.Achieved, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = (SimInstant)100; s.EndsExercise = 1; });
         var g = GameHud.Build(Entries(), Me(1, ForceId.Friend), now: 60);
         Assert.True(g.ClockIsCountdown);
         Assert.Equal(RulesModel.Clock(660), g.Clock);                                     // 720 - 60: the soonest ender, not the crate drop (180), the placeholder (1e9) or the finished one

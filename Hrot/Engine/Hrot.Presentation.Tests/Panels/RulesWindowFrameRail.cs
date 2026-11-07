@@ -45,7 +45,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         _world.AddComponent(e, new NetworkIdentity(id));
         _world.AddComponent(e, new ObjectiveStatus
         {
-            Title = new FixedString64(title), State = state, Role = role, Owner = ForceId.Friend, ChangedAt = changedAt, TriggerState = trig,
+            Title = new FixedString64(title), State = state, Role = role, Owner = ForceId.Friend, ChangedAt = (SimInstant)changedAt, TriggerState = trig,
             FireCount = fires, LastFired = lastFired, StepCur = stepCur, StepCount = stepCount,
         });
         _world.AddComponent(e, new ObjectiveLinks { Parent = new EntityRef(parent), Subject = new EntityRef(subject) });

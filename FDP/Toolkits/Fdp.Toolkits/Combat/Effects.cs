@@ -33,9 +33,9 @@ namespace Fdp.Toolkit.Combat
     [DataPolicy(DataPolicy.NoScenario)]
     public struct EffectState
     {
-        public double StunnedUntil;
-        public double IrritatedUntil;
-        public double KnockedDownUntil;
+        public SimInstant StunnedUntil;
+        public SimInstant IrritatedUntil;
+        public SimInstant KnockedDownUntil;
         /// <summary>⭐ ui finding F-3 (design §7.6) — 1 while the person cowers: a MODE its behaviour sets and clears (the CivilianHsm's
         /// Cower state), not a timed effect of a hit. Written through <see cref="Effects.SetCowering"/> on the brain owner.</summary>
         public byte Cowering;
@@ -53,9 +53,9 @@ namespace Fdp.Toolkit.Combat
             switch (kind)
             {
                 case HitEffect.Blunt:
-                case HitEffect.Push:     state.KnockedDownUntil = Math.Max(state.KnockedDownUntil, until); return true;
-                case HitEffect.Irritant: state.IrritatedUntil   = Math.Max(state.IrritatedUntil, until);   return true;
-                case HitEffect.Stun:     state.StunnedUntil     = Math.Max(state.StunnedUntil, until);     return true;
+                case HitEffect.Push:     state.KnockedDownUntil = (SimInstant)(Math.Max(state.KnockedDownUntil, until)); return true;
+                case HitEffect.Irritant: state.IrritatedUntil   = (SimInstant)(Math.Max(state.IrritatedUntil, until));   return true;
+                case HitEffect.Stun:     state.StunnedUntil     = (SimInstant)(Math.Max(state.StunnedUntil, until));     return true;
                 default: return false;
             }
         }

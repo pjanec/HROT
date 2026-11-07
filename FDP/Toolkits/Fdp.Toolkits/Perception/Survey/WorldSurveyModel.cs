@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.Perception.Survey
         /// <summary>PointSurvey: the points (≤ <see cref="MaxPoints"/>).</summary>
         public IReadOnlyList<SurveyPointQuery> Points { get; init; } = new List<SurveyPointQuery>();
         /// <summary>WS-7 — the solver answers at most this often (s).</summary>
-        public float RefreshSeconds { get; init; } = 1f;
+        public SimDuration RefreshSeconds { get; init; } = 1f;
 
         /// <summary>A fan from <paramref name="origins"/>.</summary>
         public static WorldSurveyRequest Fan(IEnumerable<SurveyOrigin> origins, int rays = 12, float range = 150f, float eyeHeight = 1.6f)

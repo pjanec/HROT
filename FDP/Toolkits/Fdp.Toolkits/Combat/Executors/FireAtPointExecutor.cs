@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// <summary>The ground point to fire at (world metres).</summary>
         public Vector3 Point;
         /// <summary>Seconds between rounds.</summary>
-        public float CooldownSeconds;
+        public SimDuration CooldownSeconds;
         /// <summary>Rounds to fire; 0 = until the ammunition runs out.</summary>
         public int Rounds;
         /// <summary>The mount that fires (its index in the type's weapon suite); ⭐ IF-1 (I6) a CONTROLLED weapon system's index
@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// padding before <see cref="FireAt"/> — the params stay 32 bytes.</summary>
         public byte BodyStance;
         /// <summary>⭐ IF-1 (I6, FM-4) — hold until this sim time (seconds; 0 = fire now): time on target fires each gun at T − its flight.</summary>
-        public double FireAt;
+        public SimInstant FireAt;
     }
 
     /// <summary>
@@ -301,7 +301,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 Shooter = firing, Target = Entity.Null, WeaponIndex = mountIndex, AtPoint = true, TargetPoint = point,
                 AmmoGuid = ammo,   // ⭐ CE-1079 — the loaded round (0 = the mount's own)
                 Charge = charge, HighArc = highArc,   // ⭐ IF-1 (I3) — the brain's fire solution
-                RaisedAt = raisedAt > 0d ? raisedAt : HitModel.Now(world),   // ⭐ CE-2180 — when it was raised (a bomb: its cue's moment)
+                RaisedAt = (SimInstant)(raisedAt > 0d ? raisedAt : HitModel.Now(world)),   // ⭐ CE-2180 — when it was raised (a bomb: its cue's moment)
                 FuzeSeconds = fuzeSeconds,   // ⭐ CE-3235 (PU-6) — a thrown-back live round's fuze left (0 = its own)
                 BurnSeconds = burnSeconds,   // ⭐ CE-3236 (B-14, VC-7) — a thrown-back canister's burn left (0 = its own)
                 OriginalShooter = originalShooter,   // ⭐ CE-4155 (SR-82) — a thrown-back round's first thrower (Null = a first throw)
@@ -351,7 +351,7 @@ namespace Fdp.Toolkit.Combat
     public struct FireAtPointNodeParams
     {
         public Vector3 Point;
-        public float CooldownSeconds;
+        public SimDuration CooldownSeconds;
         /// <summary>Rounds to fire; 0 = until the ammunition runs out.</summary>
         public int Rounds;
         public byte Mount;
@@ -362,7 +362,7 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ Indirect fire IF-2 (FM-2, IF-C) — the arc a fire solution prefers (Auto: low when it clears, else high).</summary>
         public ArcPreference Arc;
         /// <summary>⭐ Indirect fire IF-2 (FM-4) — sim time (s) before which nothing leaves (time on target); 0 = now.</summary>
-        public double FireAt;
+        public SimInstant FireAt;
     }
 
     /// <summary>
