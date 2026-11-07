@@ -61,7 +61,7 @@ public sealed class MissionPlanOverlayFrameRail
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
         var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new FdpEventBus(), camera: camera);
         canvas.AddLayer(gizmos);
-        new MissionPlanOverlayGizmo(() => new[] { unit }).UpdateAndDraw(w, 0f, buffer);
+        new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0)).Draw(w, unit, buffer);
         gizmos.Update(0.016f);
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);

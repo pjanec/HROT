@@ -557,32 +557,39 @@ thousand units one row, built once; a real frame beside another owner's tracks �
 Rails: `TheTasksLaneTests.P8c_*` (Fdp.Toolkits.Tests — a plan's starts and ends with how each ended, red-proved by `LatestOutcome` reading the
 current task; a halt and a new plan; a thousand units, one lane, the unit filter) · `TimelineIndexTests.CE3330_Node_TheShippedCatalog…` (19 lanes).
 
-**8d-1 — the plan ON THE MAP, read-only (M3 / E2) — BUILT; 8d-2 (drag a marker = edit its field, right-click *Add task ▸*) ⏳:**
+**8d-1 — the plan ON THE MAP, read-only (M3 / E2) — BUILT into the ONE plan drawing; 8d-2 (drag a marker = edit its field, right-click *Add task ▸*) ⏳:**
+
+INVENTORY (re-run after a first cut): `scripts/cbm.sh search_graph name_pattern=".*Mission.*(Gizmo|Overlay|Layer|Presentation).*"` ⇒
+**`MissionPresentationGizmo`** (GZ058, a `[GizmoProjector]` in the Path family since CE-3123 — every map host, its own Paths checkbox, which
+units by the family policy) already drew a unit's plan as lines — ⚠ to a behaviour's `"target"` key ONLY, so an `Order.*` task (its place is
+`Location`) drew nothing. ⛔ SUPERSEDED: a first cut added a second drawing (`MissionPlanOverlayGizmo`, registered by hand beside the fire-mission
+overlay) — deleted the same day: two drawings of one plan (ruling 9).
 
 ```mermaid
 classDiagram
-  class MissionPlanOverlayGizmo { <<NEW, Hrot.Presentation/Orders>> UpdateAndDraw · PlacesOf(plan) · LastRoute · MarkersDrawn }
+  class MissionPresentationGizmo { <<existing GizmoProjector, Path family>> Draw — the route + numbered markers }
+  class MissionPlanPlaces { <<NEW, pure>> Of(plan) cached per plan value · PlacesOf(plan) }
   class ActiveMissionPlan { <<existing record>> Plan.Tasks (BehaviorName, BehaviorParams) }
   class MapPreviews { <<existing>> Has(type) + PlaceOf(value, refs) }
   class OrderMenu { <<existing>> TryGetByName(kind) Dto }
-  class MapInteractionPack { <<existing>> registers it beside FireMissionOverlayGizmo (every map host) }
-  MissionPlanOverlayGizmo ..> ActiveMissionPlan : the selected units' plans (cached per plan value)
-  MissionPlanOverlayGizmo ..> OrderMenu : an Order.* task's DTO
-  MissionPlanOverlayGizmo ..> MapPreviews : the FIRST place field's position
-  MapInteractionPack --> MissionPlanOverlayGizmo
+  MissionPresentationGizmo ..> MissionPlanPlaces : each task's place value
+  MissionPlanPlaces ..> OrderMenu : an Order.* task's DTO
+  MissionPlanPlaces ..> MapPreviews : the FIRST field whose type has a place
+  MissionPresentationGizmo ..> MapPreviews : PlaceOf at draw time (a moving target is followed)
+  MissionPresentationGizmo ..> ActiveMissionPlan
 ```
-*What the picture shows: no new "task place" field (E2's rejected `[TaskPlace]`): the order's DTO type already says which fields are places,
-and the one show-on-map table resolves them — so the map, the forms' ⌖ and this overlay agree by construction.*
+*What the picture shows: no new "task place" field (E2's rejected `[TaskPlace]`) and no second drawing — the order's DTO type says which fields
+are places, the one show-on-map table resolves them, and the plan's one gizmo draws them on every map host through its family membership.*
 
 | decision | why |
 |---|---|
-| the place is the order DTO's FIRST field (declaration order) whose type has a place; a task with none sits at the previous task's place; a behaviour task (not `Order.*`) has none yet | E2 |
-| the route from the unit: solid to task 1, dashed after, in the unit's side colour; markers done green / running amber / planned grey (`MissionPlanQueue.CurrentTask`) | mockup `mission-plan-editor.svg` |
+| a task's place: its order DTO's FIRST place field (declaration order), else a legacy behaviour's `"target"`, else the previous task's place | E2; the `"target"` read is the gizmo's old behaviour, kept |
+| the route from the unit, solid to task 1 then dashed, in the unit's side colour; numbered markers done green / running amber / planned grey (`MissionPlanQueue.CurrentTask`); a placeless task adds no zero-length line | mockup `mission-plan-editor.svg`; ⛔ SUPERSEDED: the orange → blue gradient lines |
+| which units: the Path family's policy (selected / pinned / all) | CE-3123 — ⛔ no selection check of its own |
 | `MapPreviews.PlaceOf` extracted from `MapPreviews.Draw` | ONE resolution of "where is this value" |
-| ⚠ deviation: the number sits just BELOW its marker, not inside it | map text anchors at its top-left (no centring); the show-on-map labels sit the same way |
-| ⏳ 8d-2 — drag / *Add task ▸* write the plan | they must go through the Orders tab's draft and its commit (D9), which ui is reworking in P-7 7c (undo, conflict); built after 7c lands so there is ONE edit path |
+| ⚠ deviation: the number sits just BELOW its marker | map text anchors at its top-left (no centring); the show-on-map labels sit the same way |
+| ⏳ 8d-2 — drag a marker / *Add task ▸* | P-7 7c landed (`e091c7c5e`): a plan edit commits through `IMissionEditorService.CommitMissionAsync` (an `EditOp.Commit` — one undo step in Edit, conflict-checked in Live); the map's edits will go through the same commit |
 
-Rails: `MenuOrdersTests.P8d_TheSelectedUnitsPlan_IsNumberedMarkersAndItsRoute` (places, Hold at the previous place — red-proved by placing it at
-the unit; three lines, three markers; registered on every map host) · `MissionPlanOverlayFrameRail` (`mission-plan-map.png` — the amber and green
-markers on a real 2-D frame).
-
+Rails: `MenuOrdersTests.P8d_TheSelectedUnitsPlan_IsNumberedMarkersAndItsRoute` (places, Hold at the previous place — red-proved by placing it at the
+unit; two lines, three markers) · `MissionPlanOverlayFrameRail.P8d_ThePlanOnARealMapFrame` (`mission-plan-map.png` — the amber and green markers on a
+real 2-D frame) · `DebugTraceGizmoTests.CE1203_TheMissionLines_AreOnThePathsLayer` (unchanged, green).

@@ -664,8 +664,8 @@ public sealed class MenuOrdersTests : IDisposable
     /// <summary>
     /// ⭐ W-1 / P-8 8d (Mission plan M3 / E2) — the SELECTED unit's plan on the map: a numbered marker at each task's FIRST place field, a task with no
     /// place (<i>Hold</i>) at the previous one's, the route from the unit (solid to task 1, dashed after); the markers coloured by the queue — done
-    /// green, running amber, planned grey; registered on every map host; nothing drawn for an unselected unit. 🔴 Red-proof: <c>PlacesOf</c> taking
-    /// the LAST place field instead of the first ⇒ … (one field here) — the Hold-at-previous rule instead: a placeless task at the unit ⇒ red.
+    /// green, running amber, planned grey (which units: the Path family's policy). 🔴 Red-proof:
+    /// the Hold-at-previous rule broken (a placeless task at the unit) ⇒ red. ⭐ The ONE drawing of a plan: <c>MissionPresentationGizmo</c> (the Path family).
     /// </summary>
     [Fact]
     public void P8d_TheSelectedUnitsPlan_IsNumberedMarkersAndItsRoute()
@@ -688,22 +688,15 @@ public sealed class MenuOrdersTests : IDisposable
         _w.SetManagedComponent(_unit, new ActiveMissionPlan { Plan = plan });
         _w.AddComponent(_unit, new MissionPlanQueue { CurrentTask = 1, TaskCount = 3 });
 
-        var overlay = new Hrot.Presentation.Orders.MissionPlanOverlayGizmo(() => new[] { _unit });
+        var gizmo = new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0));
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 64);
-        overlay.UpdateAndDraw(_w, 0f, buffer);
-        Assert.Equal(3, overlay.MarkersDrawn);
-        Assert.Equal(new[] { new Vector3(100, 200, 0), new Vector3(100, 200, 0), new Vector3(300, 50, 0) }, overlay.LastRoute);   // Hold sits at task 1's place
+        gizmo.Draw(_w, _unit, buffer);
         var frame = buffer.GetFrame().ToArray();
+        var markers = frame.Where(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Sphere).ToArray();
+        Assert.Equal(3, markers.Length);
+        Assert.Equal(new[] { new Vector3(100, 200, 0), new Vector3(100, 200, 0), new Vector3(300, 50, 0) }, markers.Select(m => m.SphereCenter));   // Hold sits at task 1's place
         var lines = frame.Where(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Line).ToArray();
-        Assert.Equal(3, lines.Length);   // unit → 1 (solid), 1 → 2, 2 → 3 (dashed)
-        Assert.Equal(3, frame.Count(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Sphere));
-
-        var none = new Hrot.Presentation.Orders.MissionPlanOverlayGizmo(() => Array.Empty<Entity>());
-        none.UpdateAndDraw(_w, 0f, new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 8));
-        Assert.Equal(0, none.MarkersDrawn);
-
-        string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
-        Assert.Contains("new Hrot.Presentation.Orders.MissionPlanOverlayGizmo(", pack);   // every map host
+        Assert.Equal(2, lines.Length);   // unit → 1 (solid), 1 → 3 (dashed) — Hold adds no zero-length line
     }
 
     /// <summary>⭐ O5 / O6 / O7 — "Order with options › Move" opens the form for the SELECTION the clicked unit is in; Send publishes
