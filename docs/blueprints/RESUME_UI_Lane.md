@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-30
-current-answer: ⭐⭐⭐ 2026-10-30 — START AT "SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES" directly below this STATUS block.
+updated: 2026-11-07
+current-answer: ⭐⭐⭐ 2026-11-07 — START AT "SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-30 — START AT "SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES" directly below this STATUS block.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-29 (b) — START AT "SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066)", then "SESSION 2026-10-28/29 — RUN MODES + EDITOR FIXES" directly below this STATUS block (the run-modes batch built, what waits on backend, the next item).
   ⛔ OLDER: ⭐⭐⭐ 2026-10-26 (c) — START AT "SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS", then (b) "THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
   what was built 10-25/26, what is open, the traps measured). Then the 10-25 Brain-tab section and the 10-23 plan for the rest.
@@ -170,6 +171,53 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE *(state at `ui@7fe22dbeb`, pushed; the user said STOP — nothing new started)*
+
+🔒 User: *"Merge coordinator, follow HANDOFF_Coordinator_To_Ui_Rules_Bundle_And_Takeover.md"* · then *"Pls do not start anything new"*.
+
+| ⭐ read first | |
+|---|---|
+| the two handoffs | [Editing_UX_Build](batches/HANDOFF_Coordinator_To_Ui_Editing_UX_Build.md) (dispatched `9c50cec00`) · [Rules_Bundle_And_Takeover](batches/HANDOFF_Coordinator_To_Ui_Rules_Bundle_And_Takeover.md) (dispatched `9c599cc7a`, scope frozen there) |
+| the protocol | [PROTOCOL_Two_Lanes_Self_Coordinating](batches/PROTOCOL_Two_Lanes_Self_Coordinating.md) — after each item: commit by path, push `ui`, update the STATUS file, `git fetch origin ui backend coordinator`, answer backend notes, merge backend (merge, never rebase), restore the test projects; a user decision ⇒ a QUESTION note with a lean, never block |
+| ⭐ the live state, per item | [STATUS_Editing_UX_Build_Ui.md](batches/STATUS_Editing_UX_Build_Ui.md) · the report [REPORT_Editing_UX_Build_Ui.md](batches/REPORT_Editing_UX_Build_Ui.md) |
+
+### Done this session
+
+| item | sha | note |
+|---|---|---|
+| **T-1 / CE-4292** the rules windows as ONE bundle (R1–R4) | `70778164c` · `7fe22dbeb` | `Hrot.Editor.AiShared.Rules.RulesBundle` + `RulesHostServices` + `RuleEditorServicesFactory`; Editor (before its headless guard), CGF, Replay Browser compose it; CGF gains rule editing + Game master / Mission summary / Trainee debrief / Game summary. As-built + deviations: [DESIGN_Rules_Bundle.md §5](../UX/DESIGN_Rules_Bundle.md) (the seat read EVERY FRAME via `RuleEditorServices.SeatRefusal`, not a compose-time null; window-local `EditHistory` on CGF; null services only on a recording). Rails `TheRulesBundleTests`, `TheRunChoiceIsOnEveryHostTests`, red-proved ×4 |
+| B-10 inventory (worker) | `b1b0df819` | [INVENTORY_Input_Keys.md](../UX/INVENTORY_Input_Keys.md) — 207 key readers / 45 files, 41 Esc readers, no "map has the keyboard" concept, the dumb terminal exists for gizmos only, nothing named Keymap/KeyRouter/ActionDecl exists |
+
+⚠ **R4 is half end-to-end:** CGF's Rules window SENDS the live edit through the one write path (*"sent - waiting for the owner"*); the owner
+APPLYING it (`RuleEditSystem`, registered by `CgfLogicPack`) is railed only in `ScenarioRulesTests.LiveEdit` (SimHost.Tests). A one-process rail
+on a RUNNING CGF is still open.
+
+### ⚠ In flight when stopped — CHECK FIRST
+
+| | |
+|---|---|
+| ⭐⭐ **the Sonnet worker `a34e57e46a06f52e0`** (U-23 / U-24 / U-25 rest: combined rows, carry-mode change + Damage rows 85/86, *Knows about* seeds only per R-4157, a named-point list) | it was in its final gate run; **14 files uncommitted in the tree are ITS work**: `FormDecl.cs`, `FormView.cs`, `IMapPickContext.cs`, `ReferenceLeafDrawers.cs`, `HrotForms.cs`, `MapPickBroker.cs`, `KnowledgeOrders.cs`, `EntityListSource.cs`, `EntityBrainView.cs`, `TheUnitFormDrawsTests.cs`, `TheBrainViewTests.cs`, `NamedPointGizmoTests.cs`, `DESIGN_Details_Forms.md`, `DESIGN_Initial_State.md`. ⭐ `git log` for its commit first; if they are still uncommitted, `git diff` them, build the touched TEST projects, run its rails, then commit by path — ⛔ never commit them unbuilt |
+| one unexplained red | `MissionSummaryWindowFrameRail.TheMissionSummary_DrawsTheCards_…` failed once in a combined run, passed alone (`xvfb-run -a`) — re-check in the next full run |
+| ⭐ **coordinator moved** — NOT merged | `origin/coordinator` has B-9 N1/N6 (terrain pane, terrain stills), B-12 F7 (Messages history), a status note. Merge it (and backend — nothing new at stop) once the tree is clean; restore the test projects after (the third stale-binary trap) |
+
+### Next, in handoff order *(none started)*
+
+| item | what | design |
+|---|---|---|
+| **B-10** | input K1–K3, K5, K6 (Keymap / KeyRouter / scope chain, map focus = CE-4282, the map scope = CE-4281, central Esc, actions not closures, the shortcuts window) | [DESIGN_Input_And_Commands.md](../UX/DESIGN_Input_And_Commands.md) — ⚠ needs a BUILD design first (homes, the chord type, the id type). Measured for it: NodeEdit `KeyBinding(EditorKey, KeyModifiers)` (`IEditorCommands.cs:46`) is reachable from `Fdp.Presentation`; the action catalogue keys actions by `int GlobalActionIds` while graph commands are `string` ids ⇒ the keymap must bind both; the map key drain is gated by mouse-not-over-ImGui (`MapCanvas.cs:206/:232`); every graph canvas pumps its own hotkeys (`AiGraphCanvasWindow.cs:445-472`, text gate only) |
+| **B-11** | action catalogue A1–A5, A7 | [DESIGN_Action_Catalogue.md](../UX/DESIGN_Action_Catalogue.md) |
+| **B-14** | undo UI U2–U5 (after B-10) | [DESIGN_Edit_Mode_Undo.md](../UX/DESIGN_Edit_Mode_Undo.md) |
+| **B-16** | seats H2–H4 (after B-11) | [DESIGN_Seats_And_Hats.md](../UX/DESIGN_Seats_And_Hats.md) |
+| **B-17** | map interaction P1, P2, P4–P6 | [DESIGN_Map_Interaction.md](../UX/DESIGN_Map_Interaction.md) |
+
+### Standing facts for this lane
+
+ids: the ui block is **CE-1000–1999**, next free **CE-1466**. · Never commit unbuilt code or a file with a mutant applied (mutant backups in
+`/tmp/u13`). · Build the TEST project, then `--no-build`. · Display rails need `xvfb-run -a` (a skip is not a pass). · One build at a time
+(`pgrep -af "dotnet (build|test)"`) — the worker builds in the same checkout. · The headless editor registers no scenario windows after
+`EditorSubsystem.RegisterWindows`'s `if (_headless) return;` — compose anything railed headless above it.
+
 
 ## ⭐⭐⭐ SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES *(state at `ui@8c3f2b902`, pushed; merged `backend@ad1e7118f`)*
 
