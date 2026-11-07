@@ -130,7 +130,21 @@ public sealed class RunModeChoice
             _transport.SeekWall(wall);
         }
         if (_branchInFrames > 0 && --_branchInFrames == 0 && _transport.Mode == TransportMode.Replay) _transport.BranchLive();
+        // ⭐ CE-4322 — ■ asked for the end: leave Live once the end is in (the ender can no longer end), or after StopAfterEndFrames regardless
+        if (_stopAfterEnd is { } e && (!e.CanEnd || ++_stopAfterEndFrames > StopAfterEndFrames))
+        {
+            _stopAfterEnd = null;
+            if (_transport.Mode == TransportMode.Live && _control is not null) StopLive();
+        }
     }
+
+    /// <summary>⭐ CE-4322 — how many frames ■ waits for the end to be written before it leaves Live anyway (~3 s at 60 Hz).</summary>
+    public const int StopAfterEndFrames = 180;
+    private IExerciseEnder? _stopAfterEnd;
+    private int _stopAfterEndFrames;
+
+    /// <summary>⭐ CE-4322 — ■ asked for the end and is waiting for it before leaving Live (rails).</summary>
+    public bool StoppingAfterEnd => _stopAfterEnd != null;
 
     /// <summary>
     /// What ▶ runs from Edit. ⭐ CE-3341 (AQ108 §2.14, D12a) — the CLUSTER's armed mode (<see cref="IRunTransport.ClusterArmed"/>): one fact on every node. The value this host last armed (<see cref="Arm"/>)
@@ -418,7 +432,13 @@ public sealed class RunModeChoice
         switch (_transport.Mode)
         {
             case TransportMode.Live when _control is not null:
-                StopLive();
+                // ⭐ CE-4322 (L-3, LC-17) — ONE question: end the exercise (its result written: the scenario's instructor-end, else "Ended by the instructor"),
+                //   then back to editing once the end is in; or keep running. No ender on this host ⇒ today's ■.
+                if (_transport.Ender is { CanEnd: true } ender)
+                    Ask("End the exercise?", "End the exercise? Its result is written, then this station returns to editing. Cancel keeps it running.",
+                        new RunModeConfirmation.Button("End the exercise", () => { if (ender.End()) { _stopAfterEnd = ender; _stopAfterEndFrames = 0; } else StopLive(); }));
+                    // ⚠ LC-17 words the second button "Keep running": the house confirmation's own last button (Cancel) IS that — a second do-nothing button would duplicate it
+                else StopLive();
                 break;
             case TransportMode.Replay:
                 _transport.Seek(0);

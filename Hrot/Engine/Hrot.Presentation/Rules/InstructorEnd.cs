@@ -12,14 +12,22 @@ namespace Hrot.UI.Common.Rules;
 /// </summary>
 public static class InstructorEnd
 {
+    /// <summary>⭐ CE-4322 — the one-shot step that ends the exercise when the scenario has no <c>instructor-end</c> rule (the Game master's one path, <see cref="GmOneShot"/>).</summary>
+    public static Fdp.Toolkit.ScenarioRules.Actions.ActionStep EndStep()
+        => new() { Act = "EndExercise", Args = new System.Text.Json.Nodes.JsonObject { ["reason"] = EndedByInstructor } };
+
     public const string Key = "instructor-end";
     public const string NoTrigger = "this scenario has no instructor-end trigger";
     public const string Ended = "the exercise has already ended";
+    /// <summary>⭐ CE-4322 (L-3, Scenario Lifecycle LC-17) — the result an instructor's End writes when the scenario has no <c>instructor-end</c> rule.</summary>
+    public const string EndedByInstructor = "Ended by the instructor";
 
     /// <summary>What the button does now: the trigger to fire (null = none), and why it cannot be (null = it can).</summary>
     public readonly record struct Offer(Entity Trigger, string? DisabledReason, string Title)
     {
         public bool Available => DisabledReason == null;
+        /// <summary>⭐ CE-4322 — no <c>instructor-end</c> rule: the End writes <see cref="EndedByInstructor"/> through a one-shot <c>EndExercise</c> step instead.</summary>
+        public bool WithoutRule => Trigger.IsNull;
     }
 
     /// <summary>The entity carrying the <c>instructor-end</c> key (a rule row, running or only authored), or <see cref="Entity.Null"/>.</summary>
@@ -32,11 +40,20 @@ public static class InstructorEnd
     }
 
     /// <param name="blocked">Why this host cannot ask a rule now (a recording), or null.</param>
-    public static Offer Of(EntityRepository? world, string? blocked)
+    /// <param name="withoutRule">⭐ CE-4322 (L-3) — why this station cannot end a scenario that has NO <c>instructor-end</c> rule (no way to create the one-shot,
+    /// a seat that may not edit rules), or null when it can; omitted = it cannot (the old behaviour: disabled, <see cref="NoTrigger"/>).</param>
+    public static Offer Of(EntityRepository? world, string? blocked, string? withoutRule = NoTrigger)
     {
         if (world == null) return new Offer(Entity.Null, NoTrigger, "End");
         var e = Find(world);
-        if (e.IsNull) return new Offer(e, NoTrigger, "End");
+        if (e.IsNull)
+        {
+            // ⭐ CE-4322 (LC-17) — End ALWAYS works for an Instructor / Author: with no rule of its own, the exercise ends with "Ended by the instructor"
+            if (withoutRule != null) return new Offer(e, withoutRule, "End");
+            if (blocked != null) return new Offer(e, blocked, "End");
+            if (ExerciseResult.PhaseOf(world) != ExercisePhase.Running) return new Offer(e, Ended, "End");
+            return new Offer(e, null, "End");
+        }
         if (blocked != null) return new Offer(e, blocked, "End");
         if (ExerciseResult.PhaseOf(world) != ExercisePhase.Running) return new Offer(e, Ended, "End");
         if (!world.IsComponentTypeRegistered<ObjectiveStatus>() || !world.HasComponent<ObjectiveStatus>(e)) return new Offer(e, RulesModel.NotRunning, "End");
