@@ -445,5 +445,7 @@ a plan or one that can be ordered. ⭐ Two measured deviations, both argued:
 | ① | *after N* is a NEW catalogue fact **`task-time`** (`FactCatalogue`, Mission context only, world-only) whose leaf is byte-identical to `PlanConditionCache.Translate(TimerElapsed, N)` (railed) | one vocabulary: the condition editor, the summary and the picker read it; the runtime's translation and the authored preset are one condition |
 | ② | the presets are read back by `FactCatalogue.Recognise` on the leaf (a one-child `None` = negated), NOT `RowProjection.FromDto` | `FromDto` reads an UNWRAPPED leaf as a row only for a world fact; a task's facts (*under fire*, *strength*) are about the unit itself, stored unwrapped (E5) — so they would read back as Custom |
 
-⏳ **Still open in 7b:** the order's own FIELDS (an added order carries `{}` — the order form from `OrderMenu.FieldsOf` / the picks) and
-*Advanced condition…* (the condition editor in the Mission context) — both draw through existing editors, next.
+✅ **7b rest (ui, `2026-11-07`):** a task's own FIELDS through the ONE params form (`BehaviorParamsEditor` + `BehaviorParamsForm.DrawFields`, the
+host's map pick) — an order's type is its DTO from the ONE order registry (`OrderMenu.TryGetByName`, the lookup G1 resolves by), a behaviour's the
+host's `ParamsTypeOf` (new `EntityDetailsHostServices.ParamsTypeOf`, passed by Editor and CGF over their registries); *Advanced condition…* = the
+ONE `ConditionEditor` in the Mission context, opened on the task's current condition (`OrdersPlanEdits.ConditionOf`).

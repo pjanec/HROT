@@ -144,6 +144,22 @@ public static class OrdersPlanEdits
         return (ThenPreset.WhenDone, 0);
     }
 
+    /// <summary>The task's <i>then</i> as a condition (a preset's, or the stored one); null = <i>when done</i> or unreadable.</summary>
+    public static Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto? ConditionOf(MissionTask t)
+    {
+        foreach (var trig in t.Triggers)
+        {
+            if (trig.Type == MissionTriggerHelper.ThenType)
+            {
+                try { return Fdp.Toolkit.ReplayBrowser.Search.ConditionCache.Parse(trig.Params); }
+                catch (Exception) { return null; }
+            }
+            if (trig.Type == "TimerElapsed" && double.TryParse(trig.Params, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s))
+                return Then(ThenPreset.After, s);
+        }
+        return null;
+    }
+
     /// <summary>Sets the <i>then</i>: null = <i>when done</i> (the entry removed — nothing written). Replaces any legacy entry.</summary>
     public static MissionTask WithThen(MissionTask t, Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto? condition)
     {
