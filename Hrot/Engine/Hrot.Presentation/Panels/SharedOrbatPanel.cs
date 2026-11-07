@@ -47,6 +47,10 @@ public sealed class SharedOrbatPanel
     /// with a map (its inspector state finds it, as the entity inspector's menu does). Null ⇒ no row menu (OM-5).</summary>
     public Hrot.UI.Common.Menus.MapEntityMenuHandler? RowMenu { get; set; }
 
+    /// <summary>⭐ L-13 / CE-4313 (LC-5) — <i>New group…</i> on the ORBAT's empty space: the host's Add Entity picker rooted at the units (an empty group of
+    /// the chosen echelon, placed on the map). Null ⇒ the item is greyed with its reason (a host that cannot place entities).</summary>
+    public Action? NewGroup { get; set; }
+
     // ── State ─────────────────────────────────────────────────────────────────
 
     private string _filterText = string.Empty;
@@ -126,7 +130,7 @@ public sealed class SharedOrbatPanel
     /// </summary>
     public void DrawContent(IOrbatDataProvider data, IOrbatController ctrl)
     {
-        _drawn.Clear(); _switch.Clear(); DrawnRefusal = null;
+        _drawn.Clear(); _switch.Clear(); DrawnRefusal = null; DrawnDropVerb = null;
         // ⭐ CE-4213 — the relation switch: ONE tree, the parent rule chosen here. ⭐ CE-4256 — three ICON buttons on the filter's line (the active one
         //   lit, a tooltip naming the view), then the filter field fills the rest with "Filter" as its hint.
         RelationIcon("Command", "orbat/command", "##orbat_rel_Command", EntityTreeRelation.Command, "Command (ORBAT)");
@@ -201,17 +205,17 @@ public sealed class SharedOrbatPanel
                 }
             }
 
-            // Drop target
+            // Drop target — ⭐ L-13 / CE-4313 (LC-5): the drop SAYS what it will do before release ("Attach to 1st Platoon" / "Board Truck 2")
             if (editable && ImGui.BeginDragDropTarget())
             {
                 unsafe
                 {
-                    var payload = ImGui.AcceptDragDropPayload("ORBAT_ENTITY");
+                    var payload = ImGui.AcceptDragDropPayload("ORBAT_ENTITY", ImGuiDragDropFlags.AcceptBeforeDelivery | ImGuiDragDropFlags.AcceptNoDrawDefaultRect);
                     if (payload.NativePtr != null)
                     {
                         int passengerId = *(int*)payload.Data;
-                        int vehicleId   = node.EntityId;
-                        HandleHierarchyDropPayload(passengerId, node, ctrl);
+                        if (passengerId != node.EntityId) { ImGui.SetTooltip(DropVerb(node)); DrawnDropVerb = DropVerb(node); }
+                        if (payload.IsDelivery()) HandleHierarchyDropPayload(passengerId, node, ctrl);
                     }
                 }
                 ImGui.EndDragDropTarget();
@@ -229,15 +233,26 @@ public sealed class SharedOrbatPanel
 
         // Background drop target — dropping here removes the entity from its current command hierarchy.
         ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, Math.Max(ImGui.GetContentRegionAvail().Y, 20f)));
+        // ⭐ L-13 (LC-5) — the empty space's menu: New group… (an empty HQ of a chosen echelon)
+        if (editable && ImGui.BeginPopupContextItem("##orbat_empty"))
+        {
+            if (ImGui.MenuItem("New group...", "", false, NewGroup != null)) NewGroup?.Invoke();
+            if (NewGroup == null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip("this host cannot place entities");
+            ImGui.EndPopup();
+        }
         if (editable && ImGui.BeginDragDropTarget())
         {
             unsafe
             {
-                var bgPayload = ImGui.AcceptDragDropPayload("ORBAT_ENTITY");
+                var bgPayload = ImGui.AcceptDragDropPayload("ORBAT_ENTITY", ImGuiDragDropFlags.AcceptBeforeDelivery);
                 if (bgPayload.NativePtr != null)
                 {
-                    int subordinateId = *(int*)bgPayload.Data;
-                    ctrl.RequestRemoveSubordinate(subordinateId);
+                    ImGui.SetTooltip(DetachVerb); DrawnDropVerb = DetachVerb;   // ⭐ L-13 — the empty space says it too
+                    if (bgPayload.IsDelivery())
+                    {
+                        int subordinateId = *(int*)bgPayload.Data;
+                        ctrl.RequestRemoveSubordinate(subordinateId);
+                    }
                 }
             }
             ImGui.EndDragDropTarget();
@@ -278,6 +293,16 @@ public sealed class SharedOrbatPanel
     /// <see cref="IOrbatController.RequestEmbark"/>.
     /// Self-drops are always ignored.
     /// </summary>
+    /// <summary>⭐ L-13 / CE-4313 (LC-5) — what a drop on <paramref name="target"/> WILL do, in words, shown while dragging over it: the SAME test the drop
+    /// acts on (<see cref="HandleHierarchyDropPayload"/>) — a unit that takes subordinates is attached to, anything else is boarded.</summary>
+    public static string DropVerb(OrbatNodeViewModel target) => target.CanAcceptSubordinates ? $"Attach to {target.Name}" : $"Board {target.Name}";
+
+    /// <summary>The empty space's verb: dropped there, a unit leaves its commander.</summary>
+    public const string DetachVerb = "Detach from its commander";
+
+    /// <summary>The verb shown during this frame's drag, or null (a rail reads it).</summary>
+    public string? DrawnDropVerb { get; private set; }
+
     internal void HandleHierarchyDropPayload(int subId, OrbatNodeViewModel targetNode, IOrbatController ctrl)
     {
         if (subId == targetNode.EntityId)

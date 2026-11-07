@@ -56,7 +56,7 @@ Status column: **built** · **queued** (designed and in a running handoff) · **
 
 | # | finding | status | ⭐ lean |
 |---|---|---|---|
-| LC-6 | ⭐ **a plan per unit, by hand** — no copy of a plan to other units, no apply-to-selection; only the group's commander plan (E6) | none | *Copy plan* / *Paste plan* as catalogue actions (onto a multi-selection: each gets its own copy); the Orders tab on a multi-selection shows *"3 units — same plan"* or *"different plans"* |
+| LC-6 | ⭐ **a plan per unit, by hand** — no copy of a plan to other units, no apply-to-selection; only the group's commander plan (E6) | ✅ **built (L-14, CE-4314)**: *Copy plan* / *Paste plan* in the unit menu's Orders group (Edit and Live, orderable units), handled by `EntityDetailsBundle.RegisterPlanClipboard` over one `PlanClipboard` per host (every host with the mission facade, by construction); a paste on a unit inside the selection pastes onto the whole selection, else onto that unit; each gets `OrdersPlanEdits.CopyAsNew` (new task ids, all planned, the active task mapped) through `CommitMissionAsync` at its own base version. ⏳ the multi-selection Orders tab (*"3 units — same plan"*) not built | *Copy plan* / *Paste plan* as catalogue actions (onto a multi-selection: each gets its own copy); the Orders tab on a multi-selection shows *"3 units — same plan"* or *"different plans"* |
 | LC-7 | creating an objective = *Rules ▸ + Add* → a flat menu of ENGINE names (Trigger, HoldArea, Count, HitRatio …) → a params form (`RuleAdd.cs:19`) | queued (RX5 / RX6 — behaviors: gallery, sentences, entry points) | the gallery is the first thing *+ Add* shows; the engine list moves under *More…* |
 | — | start state rows (Aboard, Carries, Weapon, Knows about …) | built (U-23 / U-24) | — |
 

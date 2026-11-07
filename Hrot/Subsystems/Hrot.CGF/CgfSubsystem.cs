@@ -1108,6 +1108,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _sharedOrbatPanel  = new SharedOrbatPanel
             {
                 RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions, () => _context?.World),   // ⭐ CE-1230 — the map's entity menu (CE-1150: the host's actions)
+                NewGroup = () => _cgfMapInteraction?.EntityAuthoring?.AddEntity.OpenNewGroup(),   // ⭐ L-13 (LC-5) — the ONE Add Entity picker, rooted at the units
             };
 
             // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring), arbiter passed.
