@@ -92,6 +92,49 @@ public sealed class PreviewLifecycleRails
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4316</c> — lifecycle LC-10, <b>Run to …</b>: on the REAL editor, Preview paused at its start, <c>run_to(+5 s)</c> runs the
+    /// networkless node's TURBO (fixed steps, many per rendered frame — DESIGN_Time_Architecture.md §20) and stops AT the time, paused; then again
+    /// with a 1/20 s step. The measured rate (sim seconds per wall second) of each leg is printed.
+    /// </summary>
+    [Fact]
+    public async Task Run_to_stops_the_preview_at_the_time_paused()
+    {
+        (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
+        (await Mcp.EnterPreviewIfNeededAsync(startPaused: true)).EnsureOk();
+        double start = (await Mcp.GetSimStateAsync()).Double("totalTime");
+
+        // ⭐ CE-4316 — the editor node is networkless ⇒ the TURBO (DESIGN_Time_Architecture.md §20); the step is a setting of each run
+        start = await RunLeg(start, 5.0, step: null);          // the turbo default, 1/60
+        await RunLeg(start, 5.0, step: 1.0 / 20.0);            // a bigger quantum
+
+        (await Mcp.ExitPreviewAsync()).EnsureOk();
+    }
+
+    private async Task<double> RunLeg(double start, double seconds, double? step)
+    {
+        double target = start + seconds;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        (await Mcp.RunToAsync(target, step)).EnsureOk();
+        ApiResult state;
+        do
+        {
+            await Task.Delay(100);
+            state = await Mcp.GetSimStateAsync();
+        } while (state.Field("runTo")?["running"]?.GetValue<bool>() == true && clock.Elapsed < TimeSpan.FromSeconds(120));
+        clock.Stop();
+
+        double reached = state.Double("totalTime");
+        var runTo = state.Field("runTo");
+        _output.WriteLine($"run to +{seconds:F1} s, step {runTo?["step"]}, turbo {runTo?["turbo"]}: {clock.Elapsed.TotalSeconds:F2} s wall = {(reached - start) / clock.Elapsed.TotalSeconds:F1}× ({runTo?["status"]})");
+        Assert.False(runTo?["running"]?.GetValue<bool>() ?? true, "the run never stopped");
+        Assert.True(runTo?["turbo"]?.GetValue<bool>() ?? false, "the networkless editor node runs the turbo");
+        Assert.True(state.Bool("isPaused"));
+        double half = (step ?? 1.0 / 60.0) / 2;
+        Assert.InRange(reached, target - half - 0.01, target + half + 0.05);
+        return reached;
+    }
+
+    /// <summary>
     /// ⭐ R-3053 — <b>a dry run is never recorded</b>: the API that used to record a preview (<c>/recording/start</c>) is gone, and
     /// <c>/replay/status</c> names no recording on a node that only ran a preview.
     /// </summary>

@@ -31,3 +31,17 @@ measured rate is too slow. ⛔ C is rejected (it changes WHAT happens, not just 
 
 ---
 _backend lane, 2026-11-07_
+
+## ⭐ Follow-up `2026-11-07` — A is BUILT, and measured (user: *"A"*)
+
+| measured | |
+|---|---|
+| the real-editor rail (`PreviewLifecycleRails.Run_to_stops_the_preview_at_the_time_paused`) | ✅ stops at 5.00 s, paused |
+| ⚠ the rate, headless cloud editor | **0.3× real time** — 5 s of sim in 18.8 s: a step costs ~4 frames (issue → the master reads it → the nodes ACK → seen landed) ≈ 15 steps/s at 60 fps; the lifted cap helps only a windowed editor |
+
+⇒ A works but is SLOWER than ▶. ⭐ **Lean now: B** — the master retires a BATCH of steps per barrier (N frames, each still 1/60, each node
+running them back to back before one ACK), so the cost per step is no longer ~4 frames. Blast radius as stated above (the time protocol on
+every node, `DESIGN_Time_Architecture` §17's per-step cadence kept). **What I need:** "B approved" — or keep A as it is.
+
+⚠ Found on the way (not this question): the harness fix un-masked `Exiting_preview_returns_the_clock_to_where_the_preview_started` (CE-3156) — it
+fails ALONE: after Stop Preview the clock reads 3.3 s, not 0.
