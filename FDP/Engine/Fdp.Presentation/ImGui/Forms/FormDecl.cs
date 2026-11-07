@@ -40,7 +40,12 @@ public sealed class FormField
     /// <summary>The vocabulary row this field writes (resolved once), or null for a read-only field.</summary>
     public AttributeDefinition? Definition => _definition ??= Attribute == null ? null : FormCatalogue.AttributeOf(Attribute);
     private AttributeDefinition? _definition;
-    public bool ReadOnly => Definition == null;
+    public bool ReadOnly => Definition == null && Apply == null;
+
+    /// <summary>⭐ U-23 part 5 (docs/UX/DESIGN_Details_Forms.md §4.0a) — a field whose write is a DOMAIN op instead of an attribute (the Unit form's <i>Playable</i>
+    /// toggle = the edit framework's owner-side add / remove of the component): called per selected entity with the new value; returns the refusal, or null.
+    /// ⛔ Only for a value no attribute can carry — an attribute field writes through <see cref="ChangeFor"/>.</summary>
+    public Func<EntityRepository, Entity, double, string?, string?>? Apply { get; init; }
 
     /// <summary>The change this field writes for <paramref name="number"/> / <paramref name="text"/> — by the attribute's declared kind (§2.1: "the attribute already knows").</summary>
     public EntityAttributeChange? ChangeFor(double number, string? text)

@@ -75,6 +75,29 @@ public sealed class TheUnitFormDrawsTests
         Assert.All(HrotForms.Shape.Fields, f => Assert.False(f.Attribute != null && f.Definition == null));   // every field names a vocabulary attribute
     }
 
+    /// <summary>⭐ U-23 part 5 — the Unit form's <b>Playable</b> toggle is the ONE make-playable op (it replaced the Playable tab where the form is offered):
+    /// on adds the component with the unit's side and name, off removes it. 🔴 Red-proof (compiles): the field's <c>Apply</c> removed ⇒ read-only ⇒ nothing written ⇒ red.</summary>
+    [Fact]
+    public void U23_P5_TheUnitFormsPlayableToggle_AddsAndRemovesTheComponent()
+    {
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Hrot.Common.Playable>();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new EntityInfo { Name = new FixedString64("Alpha 1"), ForceId = ForceId.Friend });
+        HrotForms.EnsureRegistered();
+        int toggle = -1;
+        for (int i = 0; i < HrotForms.Unit.Fields.Count; i++) if (HrotForms.Unit.Fields[i].Label == "Playable") toggle = i;
+        Assert.True(toggle >= 0);
+        Assert.False(HrotForms.Unit.Fields[toggle].ReadOnly);
+        var view = new FormView();
+        view.CommitForTest(HrotForms.Unit, toggle, world, new[] { e }, 1);
+        Assert.True(world.HasComponent<Hrot.Common.Playable>(e));
+        Assert.Equal("Alpha 1", world.GetComponentRO<Hrot.Common.Playable>(e).SlotName.ToString());
+        view.CommitForTest(HrotForms.Unit, toggle, world, new[] { e }, 0);
+        Assert.False(world.HasComponent<Hrot.Common.Playable>(e));
+    }
+
     /// <summary>⭐ U-23 / D4 — the <b>Crew &amp; cargo</b> form in a real frame: offered for a carrier, not for a man; one row per OCCUPIED seat (role, who), the free
     /// seats as a count; <i>Put aboard…</i> picks through the one pick context and a vehicle picking itself is refused with the reason.
     /// 🔴 Red-proof (compiles): <c>FillSeats</c> skipping the seat-role lookup (always Passenger) ⇒ "Driver" missing ⇒ red.</summary>

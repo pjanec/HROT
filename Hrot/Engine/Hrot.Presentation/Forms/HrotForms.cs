@@ -82,6 +82,14 @@ public static class HrotForms
             },
             new FormField
             {
+                // ⭐ U-23 part 5 — the make-playable toggle (was the Playable tab's): an owner-side add / remove, the ONE op (PlayableOps)
+                Label = "Playable", Kind = FieldKind.Toggle,
+                Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>(),
+                ReadNumber = (w, e) => w.HasComponent<Hrot.Common.Playable>(e) ? 1 : 0,
+                Apply = (w, e, v, _) => PlayableOps.SetPlayable(w, e, v != 0) ? null : "not available",
+            },
+            new FormField
+            {
                 Label = "Playable for", Kind = FieldKind.Choice, Attribute = "Playable.Side", Choices = Sides,
                 Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>() && w.HasComponent<Hrot.Common.Playable>(e),
                 ReadNumber = (w, e) => SideIndex(w.GetComponentRO<Hrot.Common.Playable>(e).Side),

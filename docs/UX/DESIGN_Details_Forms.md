@@ -341,7 +341,7 @@ change — 0 B steady), `ListRows` / `ListProblem` probes; `HrotForms.CrewAndCar
 passed by the editor (its own broker over `_mapPickAdapter`), CGF, SimHost, the Player; the Replay Browser has none (read-only). ⏳ Not yet: the mounted
 weapon per station as its own column, the carry mode (carried / dragged). Rail `TheUnitFormDrawsTests.U23_D4_…`.
 
-**Part 5 — retiring Playable; Summary measured** *(ui, `2026-11-07`)*
+**Part 5 — retiring Playable; Summary measured** *(ui, `2026-11-07`)* — ✅ Playable folded: `FormField.Apply` (FDP `FormDecl.cs`), the Unit form's *Playable* toggle → `PlayableOps.SetPlayable` (`Hrot.Presentation/Forms`, the ONE op — `EntityPlayableModel.SetPlayable` forwards to it); `EntityPlayableViewDescriptor` is not offered where `HrotForms.Unit` is. Rails `TheUnitFormDrawsTests.U23_P5_…` (red-proved), `ThePlayableViewTests` (updated to the new rule).
 
 | tab | what it has that the Unit form lacks (measured: `EntityPlayableView.cs`, `EntitySummaryView.cs`) | ⭐ step |
 |---|---|---|

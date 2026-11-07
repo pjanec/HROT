@@ -290,6 +290,14 @@ public sealed class FormView
     private void Commit(int i, EntityRepository world, IReadOnlyList<Entity> sel, double number, string? text)
     {
         var field = _decl!.Fields[i]; var s = _state[i];
+        if (field.Apply != null)
+        {
+            // ⭐ U-23 part 5 — a field that writes through a DOMAIN op (the Playable toggle: an owner-side add / remove), never an attribute
+            s.Refusal = null;
+            for (int k = 0; k < sel.Count; k++) if (world.IsAlive(sel[k]) && field.Apply(world, sel[k], number, text) is { } why) s.Refusal = why;
+            s.Known = false;
+            return;
+        }
         if (field.ChangeFor(number, text) is not { } change) return;
         s.Refusal = null;
         string label = "Set " + field.Label.ToLowerInvariant();
@@ -330,4 +338,11 @@ public sealed class FormView
     /// <summary>Commits <paramref name="number"/> / <paramref name="text"/> to field <paramref name="field"/> of the last drawn selection, as a click would (rails).</summary>
     public void CommitForTest(int field, EntityRepository world, IReadOnlyList<Entity> selection, double number, string? text = null)
         => Commit(field, world, selection, number, text);
+
+    /// <summary>The same, binding <paramref name="decl"/> first (a rail with no frame drawn).</summary>
+    public void CommitForTest(FormDecl decl, int field, EntityRepository world, IReadOnlyList<Entity> selection, double number, string? text = null)
+    {
+        if (!ReferenceEquals(decl, _decl)) Bind(decl);
+        Commit(field, world, selection, number, text);
+    }
 }
