@@ -19,7 +19,7 @@
               "taskId": "61e2e000-0000-0000-0000-000000000001",
               "executingEngine": "",
               "behaviorName": "HsmChannelE2E",
-              "behaviorParams": "{\"Drive\": {\"DestX\": 560.0, \"DestY\": 296.0}, \"Fire\": {\"TargetNetworkId\": 1002}, \"Guard\": {\"EngageTarget\": false}}",
+              "behaviorParams": {"Drive": {"DestX": 560.0, "DestY": 296.0}, "Fire": {"TargetNetworkId": 1002}, "Guard": {"EngageTarget": false}},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -178,7 +178,7 @@
               "taskId": "61e2e001-0000-0000-0000-000000000001",
               "executingEngine": "",
               "behaviorName": "HsmChannelE2E",
-              "behaviorParams": "{\"Drive\": {\"DestX\": 560.0, \"DestY\": 360.0}, \"Fire\": {\"TargetNetworkId\": 1002}, \"Guard\": {\"EngageTarget\": true}}",
+              "behaviorParams": {"Drive": {"DestX": 560.0, "DestY": 360.0}, "Fire": {"TargetNetworkId": 1002}, "Guard": {"EngageTarget": true}},
               "triggers": [
                 {
                   "type": "BehaviorFinished",

@@ -33,12 +33,12 @@
       },
       "Behavior": {
         "Name": "SquadMarch",
-        "Params": "{\"Objective\": [175, 60, 0], \"Shape\": 0, \"Spacing\": 4}",
+        "Params": {"Objective": [175, 60, 0], "Shape": 0, "Spacing": 4},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -283,7 +283,7 @@
       },
       "Behavior": {
         "Name": "WeightedMean",
-        "Params": "{\"common\": {\"title\": \"Squad mission\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\"}, \"passScore\": 0.5}",
+        "Params": {"common": {"title": "Squad mission", "subject": "a2159f00-0000-4000-8000-0000000000c0"}, "passScore": 0.5},
         "Origin": "Superior"
       }
     },
@@ -297,7 +297,7 @@
       },
       "Behavior": {
         "Name": "ReachArea",
-        "Params": "{\"common\": {\"title\": \"Reach the crossroads\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\", \"parent\": \"5a110000-0000-4000-8000-000000000001\", \"deadlineSeconds\": 300, \"weight\": 1}, \"area\": {\"circle\": {\"center\": [175, 60, 0], \"radius\": 15}}, \"minMen\": 4}",
+        "Params": {"common": {"title": "Reach the crossroads", "subject": "a2159f00-0000-4000-8000-0000000000c0", "parent": "5a110000-0000-4000-8000-000000000001", "deadlineSeconds": 300, "weight": 1}, "area": {"circle": {"center": [175, 60, 0], "radius": 15}}, "minMen": 4},
         "Origin": "Superior"
       }
     },
@@ -311,7 +311,7 @@
       },
       "Behavior": {
         "Name": "HoldArea",
-        "Params": "{\"common\": {\"title\": \"Hold the crossroads\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\", \"parent\": \"5a110000-0000-4000-8000-000000000001\", \"required\": true}, \"area\": {\"circle\": {\"center\": [175, 60, 0], \"radius\": 15}}, \"minMen\": 4, \"maxEnemy\": 0, \"holdSeconds\": 20}",
+        "Params": {"common": {"title": "Hold the crossroads", "subject": "a2159f00-0000-4000-8000-0000000000c0", "parent": "5a110000-0000-4000-8000-000000000001", "required": true}, "area": {"circle": {"center": [175, 60, 0], "radius": 15}}, "minMen": 4, "maxEnemy": 0, "holdSeconds": 20},
         "Origin": "Superior"
       }
     },
@@ -325,7 +325,7 @@
       },
       "Behavior": {
         "Name": "ReachArea",
-        "Params": "{\"common\": {\"title\": \"Reach the far line\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\", \"parent\": \"5a110000-0000-4000-8000-000000000001\", \"deadlineSeconds\": 60}, \"area\": {\"circle\": {\"center\": [400, 400, 0], \"radius\": 10}}, \"minMen\": 1}",
+        "Params": {"common": {"title": "Reach the far line", "subject": "a2159f00-0000-4000-8000-0000000000c0", "parent": "5a110000-0000-4000-8000-000000000001", "deadlineSeconds": 60}, "area": {"circle": {"center": [400, 400, 0], "radius": 10}}, "minMen": 1},
         "Origin": "Superior"
       }
     },
@@ -339,7 +339,7 @@
       },
       "Behavior": {
         "Name": "NoHarm",
-        "Params": "{\"common\": {\"title\": \"No harm to civilians\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\", \"parent\": \"5a110000-0000-4000-8000-000000000001\"}, \"protected\": \"Neutral\", \"maxCount\": 0}",
+        "Params": {"common": {"title": "No harm to civilians", "subject": "a2159f00-0000-4000-8000-0000000000c0", "parent": "5a110000-0000-4000-8000-000000000001"}, "protected": "Neutral", "maxCount": 0},
         "Origin": "Superior"
       }
     }

@@ -24,4 +24,5 @@
 
 | item | state | sha | what the other lane can now use / notes |
 |---|---|---|---|
-| P-1 | ⏳ started (backend) | — | readable scenario JSON (CE-4295) |
+| P-1 | ✅ DONE | (this commit) | ⭐ **for P-7 / any reader:** a behaviour / task / trigger params string is written to files as the JSON OBJECT it holds (`[JsonText]` + `Fdp.Core.Serialization.Converters.JsonTextConverter`; the C# type stays a string; both forms read). ⭐ Reading a JSON TREE (a scenario node, a request body): `JsonTextConverter.TextOf(node)` / `NodeOf(text)` — never `GetValue<string>()`. The 129 scenario + recipe files rewritten (`scripts/scenario_json_readable.py`, also called by every generator); the debug API shows objects (Q3). Rails `ReadableScenarioJsonTests` (red-proven on the old files). Design §4 as-built; behaviour ASSET files left to behaviors (`NOTE_Backend_To_Behaviors_Readable_Json_Assets.md`). ⚠ Pre-existing reds, unchanged (same at the base): SimHost 6 (`TheDescriptorMapIsWired`, `CE1159` weather demo, `CE4208`, `NodeRolePersistenceRails`, `CE1431`, `CE3345`), Editor `TriggerAdvertisesItsAuthoredKeys` |
+| P-2 | ⏳ started (backend) | — | M1 plan runtime (CE-4298) |

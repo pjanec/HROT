@@ -80,7 +80,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\":\"a2176400-0000-4000-8000-000000000002\"}",
+        "Params": {"weapon":"a2176400-0000-4000-8000-000000000002"},
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -136,7 +136,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\":\"a2176400-0000-4000-8000-000000000004\"}",
+        "Params": {"weapon":"a2176400-0000-4000-8000-000000000004"},
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -192,7 +192,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\":\"a2176400-0000-4000-8000-000000000006\"}",
+        "Params": {"weapon":"a2176400-0000-4000-8000-000000000006"},
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -223,7 +223,7 @@
       },
       "Behavior": {
         "Name": "ArtilleryUnitStrike",
-        "Params": "{\"Location\":[720,-195,0],\"Control\":\"TimeOnTarget\",\"Sheaf\":\"Parallel\",\"Rounds\":1}",
+        "Params": {"Location":[720,-195,0],"Control":"TimeOnTarget","Sheaf":"Parallel","Rounds":1},
         "Origin": "Superior"
       }
     },
@@ -331,12 +331,12 @@
       },
       "Behavior": {
         "Name": "PersonObserveFire",
-        "Params": "{\"Location\":[340,300,0],\"Battery\":\"a2176400-0000-4000-8000-000000000001\",\"Sheaf\":\"Parallel\",\"Rounds\":2}",
+        "Params": {"Location":[340,300,0],"Battery":"a2176400-0000-4000-8000-000000000001","Sheaf":"Parallel","Rounds":2},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -366,12 +366,12 @@
       },
       "Behavior": {
         "Name": "HoldStance",
-        "Params": "{\"stance\": \"Standing\"}",
+        "Params": {"stance": "Standing"},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -401,12 +401,12 @@
       },
       "Behavior": {
         "Name": "HoldStance",
-        "Params": "{\"stance\": \"Standing\"}",
+        "Params": {"stance": "Standing"},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -436,12 +436,12 @@
       },
       "Behavior": {
         "Name": "HoldStance",
-        "Params": "{\"stance\": \"Standing\"}",
+        "Params": {"stance": "Standing"},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -471,12 +471,12 @@
       },
       "Behavior": {
         "Name": "HoldStance",
-        "Params": "{\"stance\": \"Standing\"}",
+        "Params": {"stance": "Standing"},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -594,12 +594,12 @@
       },
       "Behavior": {
         "Name": "HoldStance",
-        "Params": "{\"stance\": \"Standing\"}",
+        "Params": {"stance": "Standing"},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -629,12 +629,12 @@
       },
       "Behavior": {
         "Name": "HoldStance",
-        "Params": "{\"stance\": \"Standing\"}",
+        "Params": {"stance": "Standing"},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

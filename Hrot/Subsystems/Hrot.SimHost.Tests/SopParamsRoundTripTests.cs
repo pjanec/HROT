@@ -86,10 +86,20 @@ namespace Hrot.SimHost.Tests
 
             // the scenario's own params text — the shape a mission sends, kept honest by reading the file
             string scenario = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "scenarios", "hsm-channel-e2e", "scenario.json"));
+            // ⭐ CE-4295 — read as a tree: the params are the object they hold in the file (an escaped string in an old one), TextOf reads both
             string? json = null;
-            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(
-                         scenario, "\"behaviorName\":\\s*\"HsmChannelE2E\",\\s*\"behaviorParams\":\\s*(\"(?:[^\"\\\\]|\\\\.)*\")"))
-            { json = JsonSerializer.Deserialize<string>(m.Groups[1].Value); break; }
+            void Find(System.Text.Json.Nodes.JsonNode? n)
+            {
+                if (json != null) return;
+                if (n is System.Text.Json.Nodes.JsonObject o)
+                {
+                    if (o["behaviorName"] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var name) && name == "HsmChannelE2E")
+                    { json = Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(o["behaviorParams"]); return; }
+                    foreach (var kv in o) Find(kv.Value);
+                }
+                else if (n is System.Text.Json.Nodes.JsonArray a) foreach (var x in a) Find(x);
+            }
+            Find(System.Text.Json.Nodes.JsonNode.Parse(scenario));
             Assert.NotNull(json);
 
             using var world = new EntityRepository();

@@ -46,7 +46,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000110",
                             "executingEngine": "",
                             "behaviorName": "Surrender",
-                            "behaviorParams": "{\"Seconds\":20}",
+                            "behaviorParams": {"Seconds":20},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -58,7 +58,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000111",
                             "executingEngine": "",
                             "behaviorName": "PersonAttack",
-                            "behaviorParams": "{\"Target\":\"c2410002-0000-4000-8000-000000000002\"}",
+                            "behaviorParams": {"Target":"c2410002-0000-4000-8000-000000000002"},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -71,7 +71,7 @@
             },
             "Sop": {
                 "Name": "InertSop",
-                "Params": "{}",
+                "Params": {},
                 "Origin": "Superior"
             }
         },
@@ -111,7 +111,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000120",
                             "executingEngine": "",
                             "behaviorName": "PersonAttack",
-                            "behaviorParams": "{\"Target\":\"c2410002-0000-4000-8000-000000000001\"}",
+                            "behaviorParams": {"Target":"c2410002-0000-4000-8000-000000000001"},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -123,7 +123,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000121",
                             "executingEngine": "",
                             "behaviorName": "CombatPosture",
-                            "behaviorParams": "{}",
+                            "behaviorParams": {},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -136,7 +136,7 @@
             },
             "Sop": {
                 "Name": "InertSop",
-                "Params": "{}",
+                "Params": {},
                 "Origin": "Superior"
             }
         }

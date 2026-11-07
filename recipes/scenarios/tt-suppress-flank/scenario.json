@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "SuppressAndManeuver",
-        "Params": "{\"PhaseTimeoutSeconds\":30}",
+        "Params": {"PhaseTimeoutSeconds":30},
         "Origin": "Superior"
       }
     },
@@ -232,7 +232,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

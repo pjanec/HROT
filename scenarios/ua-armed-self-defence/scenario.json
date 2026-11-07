@@ -162,7 +162,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[108,200,0],\"Instigator\":true}",
+        "Params": {"Protest":true,"ProtestAt":[108,200,0],"Instigator":true},
         "Origin": "Superior"
       }
     },
@@ -196,7 +196,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[110,203,0]}",
+        "Params": {"Protest":true,"ProtestAt":[110,203,0]},
         "Origin": "Superior"
       }
     },
@@ -230,7 +230,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[110,197,0]}",
+        "Params": {"Protest":true,"ProtestAt":[110,197,0]},
         "Origin": "Superior"
       }
     },
@@ -264,7 +264,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[112,201,0]}",
+        "Params": {"Protest":true,"ProtestAt":[112,201,0]},
         "Origin": "Superior"
       }
     },
@@ -313,7 +313,7 @@
               "taskId": "c2390007-0000-4000-8000-000000000901",
               "executingEngine": "",
               "behaviorName": "CivilianHsm",
-              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
               "triggers": [
                 {
                   "type": "TimerElapsed",
@@ -325,7 +325,7 @@
               "taskId": "c2390007-0000-4000-8000-000000000902",
               "executingEngine": "",
               "behaviorName": "StationWeapon",
-              "behaviorParams": "{\"Station\":\"Hands\",\"Seconds\":1}",
+              "behaviorParams": {"Station":"Hands","Seconds":1},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -337,7 +337,7 @@
               "taskId": "c2390007-0000-4000-8000-000000000903",
               "executingEngine": "",
               "behaviorName": "CivilianHsm",
-              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
               "triggers": [
                 {
                   "type": "TimerElapsed",
@@ -349,7 +349,7 @@
               "taskId": "c2390007-0000-4000-8000-000000000904",
               "executingEngine": "",
               "behaviorName": "PersonAttack",
-              "behaviorParams": "{\"Target\":\"c2390007-0000-4000-8000-000000000001\"}",
+              "behaviorParams": {"Target":"c2390007-0000-4000-8000-000000000001"},
               "triggers": [
                 {
                   "type": "TimerElapsed",
@@ -361,7 +361,7 @@
               "taskId": "c2390007-0000-4000-8000-000000000905",
               "executingEngine": "",
               "behaviorName": "CivilianHsm",
-              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
               "triggers": [
                 {
                   "type": "BehaviorFinished",

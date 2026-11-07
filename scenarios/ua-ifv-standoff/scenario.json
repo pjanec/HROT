@@ -40,7 +40,7 @@
       },
       "Sop": {
         "Name": "BasicVehicleSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -74,12 +74,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\":\"a2199d00-0000-4000-8000-000000000001\",\"assault\":true}",
+        "Params": {"target":"a2199d00-0000-4000-8000-000000000001","assault":true},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -113,12 +113,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\":\"a2199d00-0000-4000-8000-000000000001\",\"assault\":true}",
+        "Params": {"target":"a2199d00-0000-4000-8000-000000000001","assault":true},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -152,7 +152,7 @@
       },
       "Sop": {
         "Name": "BasicVehicleSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -186,12 +186,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\":\"a2199d00-0000-4000-8000-000000000004\",\"assault\":true}",
+        "Params": {"target":"a2199d00-0000-4000-8000-000000000004","assault":true},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

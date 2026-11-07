@@ -46,7 +46,7 @@
                             "taskId": "c2380003-0000-4000-8000-000000000110",
                             "executingEngine": "",
                             "behaviorName": "FireAtPoint",
-                            "behaviorParams": "{\"x\":103,\"y\":200,\"z\":0,\"mount\":2,\"rounds\":1}",
+                            "behaviorParams": {"x":103,"y":200,"z":0,"mount":2,"rounds":1},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -58,7 +58,7 @@
                             "taskId": "c2380003-0000-4000-8000-000000000111",
                             "executingEngine": "",
                             "behaviorName": "HoldTheLine",
-                            "behaviorParams": "{}",
+                            "behaviorParams": {},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -106,7 +106,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[108,200,0],\"Instigator\":true,\"PanicAt\":1.5}",
+                "Params": {"Protest":true,"ProtestAt":[108,200,0],"Instigator":true,"PanicAt":1.5},
                 "Origin": "Superior"
             }
         },
@@ -140,7 +140,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[110,203,0]}",
+                "Params": {"Protest":true,"ProtestAt":[110,203,0]},
                 "Origin": "Superior"
             }
         },
@@ -174,7 +174,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[110,197,0]}",
+                "Params": {"Protest":true,"ProtestAt":[110,197,0]},
                 "Origin": "Superior"
             }
         }

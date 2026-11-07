@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Core.Serialization.Converters;
 
 namespace Fdp.Toolkit.Behavior.Components
 {
@@ -12,7 +13,7 @@ namespace Fdp.Toolkit.Behavior.Components
     public class DomainMissionTrigger
     {
         public string Type   { get; set; } = string.Empty;
-        public string Params { get; set; } = string.Empty;
+        [JsonText] public string Params { get; set; } = string.Empty;   // ⭐ CE-4295 — written as the object it holds
     }
 
     /// <summary>
@@ -24,7 +25,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public Guid   TaskId          { get; set; }
         public string ExecutingEngine { get; set; } = string.Empty;
         public string BehaviorName      { get; set; } = string.Empty;
-        public string BehaviorParams  { get; set; } = string.Empty;
+        [JsonText] public string BehaviorParams  { get; set; } = string.Empty;   // ⭐ CE-4295 — written as the object it holds
         public List<DomainMissionTrigger> Triggers { get; set; } = new();
     }
 

@@ -33,12 +33,12 @@
       },
       "Behavior": {
         "Name": "BoundingOverwatch",
-        "Params": "{\"Objective\":[340,300,0],\"BoundMetres\":20}",
+        "Params": {"Objective":[340,300,0],"BoundMetres":20},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -237,7 +237,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

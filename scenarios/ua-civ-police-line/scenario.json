@@ -127,7 +127,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[108,200,0],\"Instigator\":true}",
+                "Params": {"Protest":true,"ProtestAt":[108,200,0],"Instigator":true},
                 "Origin": "Superior"
             }
         },
@@ -161,7 +161,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[110,203,0]}",
+                "Params": {"Protest":true,"ProtestAt":[110,203,0]},
                 "Origin": "Superior"
             }
         },
@@ -195,7 +195,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[110,197,0]}",
+                "Params": {"Protest":true,"ProtestAt":[110,197,0]},
                 "Origin": "Superior"
             }
         },
@@ -229,7 +229,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[112,201,0]}",
+                "Params": {"Protest":true,"ProtestAt":[112,201,0]},
                 "Origin": "Superior"
             }
         },
@@ -263,7 +263,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[112,199,0]}",
+                "Params": {"Protest":true,"ProtestAt":[112,199,0]},
                 "Origin": "Superior"
             }
         },

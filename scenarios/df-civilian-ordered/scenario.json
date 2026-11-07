@@ -37,7 +37,7 @@
       },
       "Behavior": {
         "Name": "Idle",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -68,12 +68,12 @@
       },
       "Behavior": {
         "Name": "Idle",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -107,7 +107,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -141,12 +141,12 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [200, 285, 0], \"ArrivalRadius\": 3}, \"Stay\": true}",
+        "Params": {"Advance": {"Objective": [200, 285, 0], "ArrivalRadius": 3}, "Stay": true},
         "Origin": "Superior"
       }
     }

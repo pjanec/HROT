@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "SupportCommand",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -93,7 +93,7 @@
       },
       "Behavior": {
         "Name": "PlatoonDefend",
-        "Params": "{\"Position\": [8, 8, 0], \"Left\": 0, \"Right\": 90, \"MaxRange\": 400, \"Speed\": 2}",
+        "Params": {"Position": [8, 8, 0], "Left": 0, "Right": 90, "MaxRange": 400, "Speed": 2},
         "Origin": "Superior"
       }
     },
@@ -491,7 +491,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\":\"d0c70000-0000-4000-8000-000000009751\"}",
+        "Params": {"weapon":"d0c70000-0000-4000-8000-000000009751"},
         "Origin": "Superior"
       }
     },
@@ -551,7 +551,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\":\"d0c70000-0000-4000-8000-000000009752\"}",
+        "Params": {"weapon":"d0c70000-0000-4000-8000-000000009752"},
         "Origin": "Superior"
       }
     },
@@ -585,12 +585,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -624,12 +624,12 @@
       },
       "Behavior": {
         "Name": "SpotForFire",
-        "Params": "{\"Battery\":\"d0c70000-0000-4000-8000-000000009750\",\"Rounds\":2}",
+        "Params": {"Battery":"d0c70000-0000-4000-8000-000000009750","Rounds":2},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

@@ -58,12 +58,12 @@
       },
       "Behavior": {
         "Name": "SquadHold",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -277,12 +277,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[300,276,0],\"Speed\":2,\"ArrivalRadius\":8,\"CooldownSeconds\":1}}",
+        "Params": {"advance":{"Objective":[300,276,0],"Speed":2,"ArrivalRadius":8,"CooldownSeconds":1}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -316,12 +316,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[300,276,0],\"Speed\":2,\"ArrivalRadius\":8,\"CooldownSeconds\":1}}",
+        "Params": {"advance":{"Objective":[300,276,0],"Speed":2,"ArrivalRadius":8,"CooldownSeconds":1}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

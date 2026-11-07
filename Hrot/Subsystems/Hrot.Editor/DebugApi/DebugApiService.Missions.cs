@@ -206,7 +206,7 @@ namespace Hrot.Editor.DebugApi
                 triggers.Add(new MissionTrigger
                 {
                     Type   = type!,
-                    Params = item["params"]?.ToJsonString() ?? item["params"]?.GetValue<string>() ?? string.Empty,
+                    Params = Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(item["params"]) ?? string.Empty,   // ⭐ CE-4295 — a string or an object, both read
                 });
             }
             return triggers;
@@ -226,14 +226,14 @@ namespace Hrot.Editor.DebugApi
                             triggers.Add(new JsonObject
                             {
                                 ["type"]   = trig.Type,
-                                ["params"] = trig.Params,
+                                ["params"] = Fdp.Core.Serialization.Converters.JsonTextConverter.NodeOf(trig.Params),
                             });
 
                     tasks.Add(new JsonObject
                     {
                         ["taskId"]          = t.TaskId.ToString("D"),
                         ["behaviorId"]      = t.BehaviorId,
-                        ["behaviorParams"]  = t.BehaviorParams,
+                        ["behaviorParams"]  = Fdp.Core.Serialization.Converters.JsonTextConverter.NodeOf(t.BehaviorParams),   // ⭐ CE-4295 (Q3) — the object it holds, as in the scenario file
                         ["executingEngine"] = t.ExecutingEngine,
                         ["state"]           = t.State.ToString(),
                         ["triggers"]        = triggers,

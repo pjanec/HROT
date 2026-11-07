@@ -40,7 +40,7 @@
    },
    "Behavior": {
     "Name": "PersonHold",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    },
    "PerceptionReceptor": {
@@ -50,7 +50,7 @@
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   },
@@ -84,12 +84,12 @@
    },
    "Behavior": {
     "Name": "MoveToLocation",
-    "Params": "{\"speed\":1.0,\"arrivalRadius\":1,\"target\":[198,150,0]}",
+    "Params": {"speed":1.0,"arrivalRadius":1,"target":[198,150,0]},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   },
@@ -123,12 +123,12 @@
    },
    "Behavior": {
     "Name": "MoveToLocation",
-    "Params": "{\"speed\":1.5,\"arrivalRadius\":1,\"target\":[185,40,0]}",
+    "Params": {"speed":1.5,"arrivalRadius":1,"target":[185,40,0]},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   }

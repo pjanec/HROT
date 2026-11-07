@@ -43,7 +43,7 @@
               "TaskId": "a1118300-0000-4000-8000-0000000000a1",
               "ExecutingEngine": "",
               "BehaviorName": "FollowRoute",
-              "BehaviorParams": "{\"routeEntityId\":\"a1118300-0000-4000-8000-000000000002\",\"Speed\":150}",
+              "BehaviorParams": {"routeEntityId":"a1118300-0000-4000-8000-000000000002","Speed":150},
               "Triggers": [
                 {
                   "Type": "TimerElapsed",
@@ -55,7 +55,7 @@
               "TaskId": "a1118300-0000-4000-8000-0000000000a2",
               "ExecutingEngine": "",
               "BehaviorName": "Eject",
-              "BehaviorParams": "{}",
+              "BehaviorParams": {},
               "Triggers": [
                 {
                   "Type": "BehaviorFinished",
@@ -131,7 +131,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -165,7 +165,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -199,7 +199,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

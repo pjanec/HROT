@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "FollowRoute",
-        "Params": "{\"routeEntityId\":\"a2173400-0000-4000-8000-000000000002\",\"Speed\":15}",
+        "Params": {"routeEntityId":"a2173400-0000-4000-8000-000000000002","Speed":15},
         "Origin": "Superior"
       },
       "PassengerBuffer": {
@@ -83,7 +83,7 @@
               "taskId": "b2173400-0000-4000-8000-000000000001",
               "executingEngine": "",
               "behaviorName": "SquadRecover",
-              "behaviorParams": "{\"casualty\":\"a2173400-0000-4000-8000-000000000003\",\"to\":[190,334,0]}",
+              "behaviorParams": {"casualty":"a2173400-0000-4000-8000-000000000003","to":[190,334,0]},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -95,7 +95,7 @@
               "taskId": "b2173400-0000-4000-8000-000000000002",
               "executingEngine": "",
               "behaviorName": "SquadEmbark",
-              "behaviorParams": "{\"vehicle\":\"a2173400-0000-4000-8000-000000000001\",\"timeoutSeconds\":90}",
+              "behaviorParams": {"vehicle":"a2173400-0000-4000-8000-000000000001","timeoutSeconds":90},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -108,7 +108,7 @@
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -327,7 +327,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },

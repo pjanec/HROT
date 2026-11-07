@@ -46,7 +46,7 @@
               "taskId": "b3094000-0000-4000-8000-000000000001",
               "executingEngine": "",
               "behaviorName": "CombatPosture",
-              "behaviorParams": "{\"advance\":{\"Objective\":[242,226,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "behaviorParams": {"advance":{"Objective":[242,226,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -58,7 +58,7 @@
               "taskId": "b3094000-0000-4000-8000-000000000002",
               "executingEngine": "",
               "behaviorName": "CombatPosture",
-              "behaviorParams": "{\"advance\":{\"Objective\":[200,330,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "behaviorParams": {"advance":{"Objective":[200,330,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -76,7 +76,7 @@
       },
       "Sop": {
         "Name": "BasicInfantrySop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -110,12 +110,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[200,150,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
+        "Params": {"advance":{"Objective":[200,150,0],"Speed":1.2,"ArrivalRadius":3,"CooldownSeconds":1.5}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -149,12 +149,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[200,150,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
+        "Params": {"advance":{"Objective":[200,150,0],"Speed":1.2,"ArrivalRadius":3,"CooldownSeconds":1.5}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -188,12 +188,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[200,150,0],\"Speed\":1.2,\"ArrivalRadius\":3,\"CooldownSeconds\":1.5}}",
+        "Params": {"advance":{"Objective":[200,150,0],"Speed":1.2,"ArrivalRadius":3,"CooldownSeconds":1.5}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

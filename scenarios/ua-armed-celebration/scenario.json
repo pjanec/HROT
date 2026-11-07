@@ -110,7 +110,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -144,7 +144,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -178,7 +178,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -212,7 +212,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -246,7 +246,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -280,7 +280,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+        "Params": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
         "Origin": "Superior"
       }
     },
@@ -329,7 +329,7 @@
               "taskId": "c2390008-0000-4000-8000-000000000901",
               "executingEngine": "",
               "behaviorName": "CivilianHsm",
-              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
               "triggers": [
                 {
                   "type": "TimerElapsed",
@@ -341,7 +341,7 @@
               "taskId": "c2390008-0000-4000-8000-000000000902",
               "executingEngine": "",
               "behaviorName": "FireAtPoint",
-              "behaviorParams": "{\"x\":140,\"y\":190,\"z\":30,\"mount\":0,\"rounds\":8,\"cooldownSeconds\":1.5}",
+              "behaviorParams": {"x":140,"y":190,"z":30,"mount":0,"rounds":8,"cooldownSeconds":1.5},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -353,7 +353,7 @@
               "taskId": "c2390008-0000-4000-8000-000000000903",
               "executingEngine": "",
               "behaviorName": "CivilianHsm",
-              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
               "triggers": [
                 {
                   "type": "TimerElapsed",
@@ -365,7 +365,7 @@
               "taskId": "c2390008-0000-4000-8000-000000000904",
               "executingEngine": "",
               "behaviorName": "PersonAttack",
-              "behaviorParams": "{\"Target\":\"c2390008-0000-4000-8000-000000000001\"}",
+              "behaviorParams": {"Target":"c2390008-0000-4000-8000-000000000001"},
               "triggers": [
                 {
                   "type": "TimerElapsed",
@@ -377,7 +377,7 @@
               "taskId": "c2390008-0000-4000-8000-000000000905",
               "executingEngine": "",
               "behaviorName": "CivilianHsm",
-              "behaviorParams": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+              "behaviorParams": {"WanderRadius":0.1,"PauseMinSeconds":30,"PauseMaxSeconds":60},
               "triggers": [
                 {
                   "type": "BehaviorFinished",

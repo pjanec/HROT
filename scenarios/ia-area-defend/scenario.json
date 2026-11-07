@@ -85,12 +85,12 @@
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Behavior": {
         "Name": "SquadDefend",
-        "Params": "{\"Position\": [105.6, 97, 0], \"SearchRadius\": 25, \"Speed\": 2}",
+        "Params": {"Position": [105.6, 97, 0], "SearchRadius": 25, "Speed": 2},
         "Origin": "Superior"
       }
     },
@@ -157,7 +157,7 @@
       },
       "Behavior": {
         "Name": "ClearArea",
-        "Params": "{\"Centre\": [105.6, 104, 0], \"Radius\": 20, \"Speed\": 2}",
+        "Params": {"Centre": [105.6, 104, 0], "Radius": 20, "Speed": 2},
         "Origin": "Superior"
       }
     },
@@ -191,7 +191,7 @@
       },
       "Behavior": {
         "Name": "ClearArea",
-        "Params": "{\"Centre\": [105.6, 104, 0], \"Radius\": 20, \"Speed\": 2}",
+        "Params": {"Centre": [105.6, 104, 0], "Radius": 20, "Speed": 2},
         "Origin": "Superior"
       }
     }

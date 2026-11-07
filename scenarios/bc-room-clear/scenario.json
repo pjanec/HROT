@@ -24,12 +24,12 @@
    },
    "Behavior": {
     "Name": "ClearRoom",
-    "Params": "{\"Room\": [43.5, 108, 0], \"Speed\": 2}",
+    "Params": {"Room": [43.5, 108, 0], "Speed": 2},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "BasicSquadSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    },
    "Roe": {
@@ -205,12 +205,12 @@
    },
    "Behavior": {
     "Name": "CombatPosture",
-    "Params": "{\"Advance\": {\"Objective\": [40.8, 106.8, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [40.8, 106.8, 0], \"Radius\": 2.0}}",
+    "Params": {"Advance": {"Objective": [40.8, 106.8, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [40.8, 106.8, 0], "Radius": 2.0}},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    },
    "Roe": {
@@ -242,12 +242,12 @@
    },
    "Behavior": {
     "Name": "CombatPosture",
-    "Params": "{\"Advance\": {\"Objective\": [46.2, 106.8, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [46.2, 106.8, 0], \"Radius\": 2.0}}",
+    "Params": {"Advance": {"Objective": [46.2, 106.8, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [46.2, 106.8, 0], "Radius": 2.0}},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    },
    "Roe": {

@@ -40,12 +40,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\":{\"Objective\":[380,80,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+        "Params": {"advance":{"Objective":[380,80,0],"Speed":2,"ArrivalRadius":3,"CooldownSeconds":1}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -85,7 +85,7 @@
               "taskId": "b3084000-0000-4000-8000-000000000001",
               "executingEngine": "",
               "behaviorName": "MoveToLocation",
-              "behaviorParams": "{\"speed\":2,\"arrivalRadius\":2,\"target\":[360,80,0]}",
+              "behaviorParams": {"speed":2,"arrivalRadius":2,"target":[360,80,0]},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
