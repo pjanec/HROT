@@ -35,4 +35,5 @@
 
 | item | state | sha | what the other lane can now use / notes |
 |---|---|---|---|
-| L-8 | ⏳ started (backend) | — | recordings default to a fixed data folder beside the scenarios (CE-4324) |
+| L-8 | ✅ DONE | (this commit) | ⭐ `OrchestrationConstants.ResolveStagingRoot()` (THE root of staging, NAS `shared/`, every node's recordings): `FDP_STAGING_ROOT` when set (the way to ask for temp) · else `<content root>/data` in a dev build (beside `scenarios/`, git-ignored) · else `%LOCALAPPDATA%/HROT/data` on an install. ⛔ No more `$TMP/FDP_Temp` / `C:\FDP_Temp` by default. Retention (CE-3218) still prunes the dev `data/` folder to the newest 20 (dev runs are test output); an install keeps everything. Rail `ExerciseRetentionTests.CE4324_*` (red-proven). Orchestrator 427/427, Fdp.Toolkits Orchestration 140/140 |
+| L-9 | ⏳ started (backend) | — | the Replay Browser's File ▸ Open Exercise Recording… = the editor's picker (CE-4323) |

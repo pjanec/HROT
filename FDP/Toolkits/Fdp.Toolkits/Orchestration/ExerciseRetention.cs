@@ -38,11 +38,15 @@ namespace Fdp.Toolkit.Orchestration
             return keep is > 0 ? keep : null;
         }
 
-        /// <summary>A root the user did not choose: the platform temp directory, with no <c>FDP_STAGING_ROOT</c>.</summary>
+        /// <summary>A root the user did not choose: the platform temp directory or the dev build's <c>data/</c> folder, with no <c>FDP_STAGING_ROOT</c>.</summary>
         public static bool IsScratchRoot(string stagingRoot, Func<string, string?> environment, string tempPath)
         {
             if (!string.IsNullOrEmpty(environment("FDP_STAGING_ROOT"))) return false;
             var root = Path.GetFullPath(stagingRoot).TrimEnd(Path.DirectorySeparatorChar);
+            // ⭐ CE-4324 — the DEV build's default data folder (<repo>/data, OrchestrationConstants.ResolveStagingRoot) is scratch too: it took over
+            //   from the temp folder, and a dev tree's runs are test output (the 18 GB that filled a cloud disk, CE-3218). An install's default
+            //   (application data) is not: its recordings are user data, kept until an operator deletes them.
+            if (OrchestrationConstants.IsDevDataRoot(root)) return true;
             var temp = Path.GetFullPath(tempPath).TrimEnd(Path.DirectorySeparatorChar);
             return root.StartsWith(temp + Path.DirectorySeparatorChar, StringComparison.Ordinal);
         }
