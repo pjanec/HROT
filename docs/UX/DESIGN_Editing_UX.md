@@ -351,7 +351,7 @@ and a read-out in Review.* (The modes and transitions exist — AQ108; the per-m
 | | Edit (initial state) | Preview | Live | Review |
 |---|---|---|---|---|
 | applies to | the scenario as authored | a throw-away run | the running exercise | nothing (a recording) |
-| saved | yes, on Save | no scenario save — Save takes a **checkpoint**; Stop returns to the authored state | no scenario save — Save takes a **checkpoint** (R-4162; ⛔ SUPERSEDED: *save as* in Live) | not offered; bookmarks and notes only |
+| saved | yes, on Save | no scenario save — Save is refused: *"Preview — changes are thrown away on Stop"* (R-4166); Stop returns to the authored state | no scenario save — Save takes a **checkpoint** (R-4162; ⛔ SUPERSEDED: *save as* in Live) | not offered; bookmarks and notes only |
 | undo | ⭐ **yes — to investigate** (R-4120; R-1047 deferred it) | no | no | – |
 | confirm | destructive only (delete, change type) | destructive only | ⭐ **scarce** — only what cannot be taken back AND is not obvious (delete, end exercise, a change to many units); everything else applies at once and shows its outcome (R-4121) | – |
 | feedback | immediate | immediate | ✓ / ✗ / ⏳ in Messages and inline on the field | – |
