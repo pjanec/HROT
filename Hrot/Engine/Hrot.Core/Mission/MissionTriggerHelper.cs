@@ -48,7 +48,7 @@ namespace Hrot.Core.Mission
         }
 
         /// <summary>⭐ <c>CE-4298</c> — the two entry types whose params are a CONDITION (the condition language's JSON).</summary>
-        public const string ThenType = "Then", GiveUpType = "GiveUp";
+        public const string ThenType = Fdp.Toolkit.Behavior.Systems.MissionConditionTypes.Then, GiveUpType = Fdp.Toolkit.Behavior.Systems.MissionConditionTypes.GiveUp;   // the one spelling
 
         private static void CheckCondition(MissionTrigger t, string? task)
         {

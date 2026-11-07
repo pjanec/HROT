@@ -104,6 +104,26 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Contains("no entity with key 'Nobody' here", ex.Message);
         }
 
+        /// <summary>⭐⭐ <c>CE-4301</c> (mission plan G2, §5.7) — a mission task's CONDITION is walked by the one walker over the condition language
+        /// (polymorphic: a <c>TaskFinished</c> inside a <c>Compound</c>): its <c>@Key</c> resolves in the scenario's scope, the form kept; a key that
+        /// names nothing fails the load. ⛔ Before G2 the load walked a task's params only.</summary>
+        [Fact]
+        public void CE4301_AMissionConditionsReferences_ResolveOnLoad_AndAMissingKeyIsLoud()
+        {
+            var scope = new Scope();
+            scope.Keys["Bravo12"] = (4321, Vector3.Zero);
+            string cond = "{\"$type\":\"Compound\",\"Operator\":\"And\",\"Conditions\":[{\"$type\":\"TaskFinished\",\"Unit\":\"@Bravo12\",\"Task\":3}]}";
+
+            var outJson = Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper.ResolveConditionJson(cond, scope)!;
+            var dto = (Fdp.Toolkit.ReplayBrowser.Search.CompoundPredicateDto)Fdp.Toolkit.ReplayBrowser.Search.ConditionCache.Parse(outJson);
+            var leaf = Assert.IsType<Fdp.Toolkit.ReplayBrowser.Search.TaskFinishedPredicateDto>(dto.Conditions[0]);
+            Assert.Equal(new EntityRef(4321), leaf.Unit.Ref);
+            Assert.Equal("@Bravo12", leaf.Unit.Spec.ToString());
+            Assert.Equal(3, leaf.Task);
+
+            Assert.Throws<InvalidOperationException>(() => Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper.ResolveConditionJson(cond.Replace("Bravo12", "Nobody"), scope));
+        }
+
         // a contract one of whose fields was renamed (S0 item 5: targetLat/targetLon → Target)
         [RetiredJsonKeys("targetLat", "targetLon")]
         public sealed class RenamedParams { public PointLink Target; }
