@@ -38,6 +38,11 @@ public sealed record MissionPanelViewModel(
 }
 
 /// <summary>
+/// ⛔ <b>P-7 7d (CE-4303): NO HOST CONSTRUCTS THIS ANY MORE</b> — the Mission windows and the Mission Details view are retired; the Orders tab
+/// (<c>Hrot.Editor.AiShared.Shell.OrdersTab</c>) is the plan editor. ⚠ Kept ONLY because <c>MissionPanelRegistryTests</c> still pins two claims the Orders
+/// tab does not have yet (the per-task pick scope and the CE-1059 entity list on the host's pick broker — see DESIGN_Mission_Plan_Editor.md §5.11 "7d as built").
+/// Delete it with those tests once the Orders tab carries them.
+///
 /// Shared UI panel that displays the currently selected entity's mission plan
 /// and provides buttons to send control commands (jump / abort) and to edit
 /// mission task sequences.

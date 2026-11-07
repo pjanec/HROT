@@ -40,8 +40,6 @@ public static class ScenarioPanelWindowIds
     /// <summary>⭐ The editor's historical ids, kept verbatim so layout files and id-keyed rails resolve.</summary>
     public const string EditorSpawner = "editor_spawner";
     /// <inheritdoc cref="EditorSpawner"/>
-    public const string EditorMission = "editor_mission";
-    /// <inheritdoc cref="EditorSpawner"/>
     public const string EditorConfig  = "editor_config";
     /// <inheritdoc cref="EditorSpawner"/>
     public const string EditorOrbat   = "editor_shared_orbat";
@@ -50,8 +48,6 @@ public static class ScenarioPanelWindowIds
     /// process (<c>HrotRunnerConfiguration.Validate</c> rejects it), but a shared id would make a layout
     /// file written by one host silently reposition the other's window.</summary>
     public const string CgfSpawner = "cgf_spawner";
-    /// <inheritdoc cref="CgfSpawner"/>
-    public const string CgfMission = "cgf_mission";
     /// <inheritdoc cref="CgfSpawner"/>
     public const string CgfConfig  = "cgf_config";
     /// <inheritdoc cref="CgfSpawner"/>
@@ -108,49 +104,6 @@ public sealed class SpawnerPanelWindow : ManagedWindow
     {
         BuildAndPublish();
         _panel.DrawContent(_spawn);
-    }
-}
-
-/// <summary>⭐ Mission editor panel as a perspective-bound managed window.</summary>
-public sealed class MissionPanelWindow : ManagedWindow
-{
-    /// <summary>⭐ The readable panel kind — SHARED with ExCon's host of the same panel.</summary>
-    public const string Kind = PanelIds.Mission;
-
-    private readonly MissionPanel          _panel;
-    private readonly IMissionEditorService _svc;
-    private readonly IMapPickService       _pick;
-
-    /// <param name="pick">⭐ The host's map-pick facade. 📐 CGF passes the already-shared
-    /// <c>CanvasMapPickAdapter</c> it constructs for the inspector — ⛔ no new implementation
-    /// (design §8 D2 records why the editor's own copy is NOT reconciled in this slice).</param>
-    public MissionPanelWindow(
-        MissionPanel panel, IMissionEditorService svc, IMapPickService pick,
-        string id, string perspective, Vector4 titleBarColor)
-        : base(id, "Mission Editor", perspective, WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _svc   = svc;
-        _pick  = pick;
-        IsOpen        = true;
-        TitleBarColor = titleBarColor;
-        PanelSnapshot.DeclareInstrumented(Id);
-    }
-
-    private MissionPanelViewModel BuildAndPublish()
-    {
-        var vm = _panel.BuildViewModel(Id, Kind);
-        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
-        return vm;
-    }
-
-    /// <summary>⭐ Headless seam for the panel-model rails.</summary>
-    public MissionPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
-
-    protected override void DrawClientArea()
-    {
-        BuildAndPublish();
-        _panel.DrawContent(_svc, _pick);
     }
 }
 

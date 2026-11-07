@@ -446,6 +446,23 @@ showed every task as *when done* and an Apply WIPED the *then* / *give up* condi
 REPLICA (the editor in Live over CGF's units) still sends base 0 — asked of backend in `NOTE_Ui_To_Backend_Mission_Plan_Version_On_The_Wire.md`.
 Rails: `EditorMissionServiceTests.P7c_*` (2), `TheOrdersTabEditsTests.P7c_AConflict_*`, both red-proved.
 
+**7d as built (ui, `2026-11-07`) — PARTIAL, two claims stopped (below):** ⭐ **Deleted:** `ScenarioMissionView` (`details.mission`), `MissionPanelWindow`, the ids
+`ScenarioPanelWindowIds.EditorMission` / `CgfMission`, `PanelIds.Mission`, and every host construction — `EditorSubsystem` (the window, the Scenario Details
+view, the per-frame `SelectedEntityId` sync, the `NetworkIdOf` helper) and `CgfSubsystem` (its panel + window). The `ui-baseline-editor` / `-all`
+`registered-windows.json` goldens lose `editor_mission` / `cgf_mission` (a deliberate one-line recapture each). **Acceptance rail:**
+`TheScenarioWindowsAreSharedTests.NoHostRegistersAMissionWindow_AndEveryHostHandsTheOrdersTabItsMissionFacade` (both hosts) +
+`TheEditorsDetailsCatalogue_HasTheOrdersTab_AndNoMissionTab`, red-proved by a compiling mutation. **Where each claim went:**
+offering rules (brain-only → orderable-or-has-a-plan, no service, none/two entities, rank, the network id not the index) ⇒ `TheOrdersTabEditsTests.P7d_*`;
+task-state colour ⇒ `TheOrdersTabTests.U3_EachTaskStateHasItsColour…`; the task's form from the host's lookup ⇒ `P7d_ATasksFormComesFromTheHostsLookup…`;
+consume-once / location / no-frame-service pick ⇒ `TheMapPickBrokerConsumesAPickOnceTests` (on the broker itself); `BehaviorParamsFormTests` now builds its form directly.
+**Dropped:** "two view instances do not share a panel" and "C010 MissionPanel is in `Hrot.Presentation`" (no subject left); the two dump rails
+(`EditorMissionWindowDumpsItsPlan`, `ScenarioMissionViewDumpsItsPanel`) — ⚠ the Orders tab has **no `PanelSnapshot` dump of its plan** (only `LastRows`), so the
+plan's rows are not observable over the debug API any more; and the real-frame glyph-pixel rail (the tab colours the task number, no glyph, and has no frame rail).
+⛔ **STOPPED — the Orders tab lacks two capabilities the panel had; `MissionPanel` and `MissionPanelRegistryTests` (P4 + CE-1059) stay until they are built:**
+(1) **per-task pick scope** — the tab draws every task's form through the host's `Pick` unscoped (`OrdersTab.DrawFields`), so two tasks with an entity field share one pick key
+(the panel used `ScopedMapPickContext(_picks, "$.tasks[i]")`, `MissionPanel.cs:518`); (2) **the CE-1059 entity LIST** — the hosts' Details brokers (`EditorSubsystem` `_formsPick`,
+CGF `cgfPickBroker`) carry no `EntityList`, so a task's *entity* field is map-pick only. ⚠ Both are user-visible regressions of 7d against the retired window.
+
 **7a + 7b as built (ui, `2026-11-07`):** `Hrot.Editor.AiShared.Shell` — `OrdersPlanModel` (rows as sentences, the queue's states), `OrdersPlanEdits`
 (new Wait / order / behaviour, the *then* presets, give up, move, `RefusalOf`, `Copy`) and `OrdersTab` (`details.orders`; a draft per unit,
 ↑ ↓ ✕, *+ Add task* — Wait first, then `OrderMenu.OfferedFor(dis)`, then the facade's behaviours — Apply = the whole plan with its base version

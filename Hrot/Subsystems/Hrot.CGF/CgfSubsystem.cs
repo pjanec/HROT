@@ -304,7 +304,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     private Hrot.Map.Common.Config.MapViewConfig?                _mapViewConfig;
     private SpawnerPanel?                                        _spawnerPanel;
-    private MissionPanel?                                        _missionPanel;
     private ConfigPanel?                                         _configPanel;
     private SharedOrbatPanel?                                    _sharedOrbatPanel;
     private Hrot.UI.Common.Adapters.ScenarioSpawnAdapter?        _spawnAdapter;
@@ -1097,13 +1096,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 Tkb        = () => _context?.TkbDb,
                 OpenPicker = () => _shellPickers is { } pickers ? pickers.OpenPicker : null,
             };
-            // ⚠ MissionPanel's first argument is the node id the editor passes as a literal 0; this host
-            //   has a REAL one, and passing it is the point of "the editor is a one-node cluster".
-            _missionPanel      = new MissionPanel(
-                _context.NodeId, name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry))
-            {
-                EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _context?.World, () => _shellPickers),   // ⭐ CE-1059
-            };
             _configPanel       = new ConfigPanel();
             _sharedOrbatPanel  = new SharedOrbatPanel
             {
@@ -1323,11 +1315,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.SpawnerPanelWindow(
                 _spawnerPanel, _spawnAdapter,
                 Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfSpawner, "Scenario", TitleBarColor));
-
-        if (_missionPanel != null && _missionService != null && cgfCanvasAdapter != null)
-            windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionPanelWindow(
-                _missionPanel, _missionService, cgfCanvasAdapter,
-                Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfMission, "Scenario", TitleBarColor));
 
         if (_configPanel != null && _mapConfigAdapter != null)
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.ConfigPanelWindow(

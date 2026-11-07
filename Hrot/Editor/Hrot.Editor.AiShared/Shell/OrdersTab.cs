@@ -15,8 +15,7 @@ namespace Hrot.Editor.AiShared.Shell;
 /// ⭐ P-7 / CE-4303 slice 7a (docs/UX/DESIGN_Mission_Plan_Editor.md §5.11, D8) — the <b>Orders</b> Details tab: the selected unit's plan as sentences
 /// (<see cref="OrdersPlanModel"/>), the running task marked, and <i>Jump</i> / <i>Stop</i> through the ONE mission facade every host already passes
 /// (<see cref="IMissionEditorService"/>). ⭐ On the shared Details bundle, so every host shows the same tab. ⭐ 7b: a draft per unit — reorder, remove, <i>+ Add task</i>
-/// (Wait first, the unit's orders, its behaviours), the <i>then</i> presets and <i>give up after</i>, Apply = the whole plan with its base version. ⛔ Until 7d
-/// retires them, the three <c>MissionPanel</c>s still edit too.
+/// (Wait first, the unit's orders, its behaviours), the <i>then</i> presets and <i>give up after</i>, Apply = the whole plan with its base version. 7d: the three <c>MissionPanel</c> windows/views are retired — this tab is the only plan editor.
 /// </summary>
 public sealed class OrdersTab : IDetailsViewInstance
 {
@@ -400,7 +399,7 @@ public sealed class OrdersTab : IDetailsViewInstance
         return changed;
     }
 
-    private static System.Numerics.Vector4 ColourOf(OrdersTaskState s) => s switch
+    internal static System.Numerics.Vector4 ColourOf(OrdersTaskState s) => s switch
     {
         OrdersTaskState.Running => new(0.35f, 0.75f, 1f, 1f),
         OrdersTaskState.Done    => new(0.4f, 0.85f, 0.4f, 1f),

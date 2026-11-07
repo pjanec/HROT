@@ -108,13 +108,7 @@ public static class PanelIds
     /// <summary>⭐ The zone/road-network authoring panel.</summary>
     public const string ZoneEditor = "zone-editor";
 
-    /// <summary>⭐⭐ The mission editor panel (<c>MissionPanel</c>, in <c>Hrot.Presentation</c> — NOT a
-    /// group-5 twin, but hosted by BOTH <c>Hrot.Editor</c>'s <c>EditorMissionWindow</c> and
-    /// <c>Hrot.ExCon</c>'s <c>ExConMissionWindow</c>). ⚠⚠ <b>Correction:</b> an earlier commit in this
-    /// sweep stated "no ExCon host exists for this panel (measured)" — that measurement was wrong; it
-    /// checked <c>MissionPanel</c> usages everywhere EXCEPT <c>ExConWindows.cs</c>, which does host it.
-    /// Both hosts now cite this constant.</summary>
-    public const string Mission = "mission";
+    // ⭐ P-7 7d (CE-4303) — the Mission editor panel id ("mission") is gone with the window: the Orders Details tab replaces it.
 
     /// <summary>
     /// ⭐ <c>BP-327</c> follow-up — the module/system execution-stats profiler

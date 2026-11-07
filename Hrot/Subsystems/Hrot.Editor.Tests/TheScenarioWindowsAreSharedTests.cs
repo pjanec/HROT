@@ -60,7 +60,7 @@ public sealed class TheScenarioWindowsAreSharedTests
         var text = HostSource.Read(project, file);
 
         Assert.Contains("SpawnerPanelWindow(",     text);
-        Assert.Contains("MissionPanelWindow(",     text);
+        Assert.DoesNotContain("MissionPanelWindow",  text);   // ⭐ P-7 7d — retired: the Orders tab is the plan editor
         Assert.Contains("ConfigPanelWindow(",      text);
         Assert.Contains("SharedOrbatPanelWindow(", text);
     }
@@ -88,7 +88,41 @@ public sealed class TheScenarioWindowsAreSharedTests
     // ══ ② THE IDS — the byte-identical gate, and no cross-host collision ═════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The editor's four window ids are UNCHANGED.</b> ⚠ This is the gate that makes E5 safe: the
+    /// ⭐⭐⭐ <b>P-7 7d (CE-4303) — THE WINDOW-SET ACCEPTANCE RAIL: the Mission window is gone on every host and the Orders tab is offered.</b>
+    /// 📄 <c>docs/UX/DESIGN_Mission_Plan_Editor.md</c> §5.11 row 7d. ⚠ A source scan for the window half (the bare-ctor limitation above: the panels are built in
+    /// <c>Initialize</c>); the host's <c>Missions:</c> hand-over to the shared Details bundle is what puts the tab on it. The wire-level half is the
+    /// <c>ui-baseline-*</c> goldens (<c>registered-windows.json</c> no longer lists <c>editor_mission</c> / <c>cgf_mission</c>).
+    /// 🔴 Red-proof: registering any <c>MissionPanelWindow</c> in either host ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs")]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs")]
+    public void NoHostRegistersAMissionWindow_AndEveryHostHandsTheOrdersTabItsMissionFacade(string project, string file)
+    {
+        var text = HostSource.Read(project, file);
+
+        Assert.DoesNotContain("MissionPanelWindow", text);
+        Assert.DoesNotContain("new MissionPanel(",  text);
+        Assert.DoesNotContain("ScenarioMissionView", text);
+        Assert.Matches(@"Missions:\s+\(\) => _missionService", text);   // the bundle's Orders tab over the one mission facade
+    }
+
+    /// <summary>⭐ P-7 7d — the production editor's Details catalogue offers the Orders tab and no Mission tab (a behavioural half for the Editor).</summary>
+    [Fact]
+    public void TheEditorsDetailsCatalogue_HasTheOrdersTab_AndNoMissionTab()
+    {
+        var editor = new Hrot.Editor.EditorSubsystem();
+        var wm = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(IntPtr.Zero, 16f, 16f));
+        editor.RegisterWindows(wm);
+
+        var ids = editor.ScenarioWorkspace!.DetailsViews.All.Select(d => d.Id).ToArray();
+        Assert.Contains("details.orders", ids);
+        Assert.DoesNotContain("details.mission", ids);
+        Assert.DoesNotContain("editor_mission", wm.RegisteredWindowIds);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The editor's three window ids are UNCHANGED.</b> ⚠ This is the gate that makes E5 safe: the
     /// ids key layout files, <c>PanelSnapshot</c> instrumentation and every id-keyed rail, so a "tidier"
     /// rename would silently reset users' window layouts.
     /// </summary>
@@ -96,7 +130,6 @@ public sealed class TheScenarioWindowsAreSharedTests
     public void TheEditorIdsAreTheHistoricalOnes()
     {
         Assert.Equal("editor_spawner",      ScenarioPanelWindowIds.EditorSpawner);
-        Assert.Equal("editor_mission",      ScenarioPanelWindowIds.EditorMission);
         Assert.Equal("editor_config",       ScenarioPanelWindowIds.EditorConfig);
         Assert.Equal("editor_shared_orbat", ScenarioPanelWindowIds.EditorOrbat);
     }
@@ -110,14 +143,12 @@ public sealed class TheScenarioWindowsAreSharedTests
     [Fact]
     public void TheCgfIdsDoNotCollideWithTheEditorIds()
     {
-        var editor = new[] { ScenarioPanelWindowIds.EditorSpawner, ScenarioPanelWindowIds.EditorMission,
-                             ScenarioPanelWindowIds.EditorConfig,  ScenarioPanelWindowIds.EditorOrbat };
-        var cgf    = new[] { ScenarioPanelWindowIds.CgfSpawner,    ScenarioPanelWindowIds.CgfMission,
-                             ScenarioPanelWindowIds.CgfConfig,     ScenarioPanelWindowIds.CgfOrbat };
+        var editor = new[] { ScenarioPanelWindowIds.EditorSpawner, ScenarioPanelWindowIds.EditorConfig, ScenarioPanelWindowIds.EditorOrbat };
+        var cgf    = new[] { ScenarioPanelWindowIds.CgfSpawner,    ScenarioPanelWindowIds.CgfConfig,    ScenarioPanelWindowIds.CgfOrbat };
 
         Assert.Empty(editor.Intersect(cgf));
-        Assert.Equal(4, editor.Distinct().Count());
-        Assert.Equal(4, cgf.Distinct().Count());
+        Assert.Equal(3, editor.Distinct().Count());
+        Assert.Equal(3, cgf.Distinct().Count());
     }
 
     /// <summary>
@@ -230,12 +261,10 @@ public sealed class TheScenarioWindowsAreSharedTests
 
     /// <summary>
     /// ⭐ <c>CE-1059</c> — the silent-default rule for the entity LIST: a host that holds a world and a picker registry passes the
-    /// list to every params form it builds (the Editor: its mission panel, the Scenario view's mission panel and the AI view's
-    /// broker; CGF: its mission panel). ⛔ Forgetting one leaves that form map-only with no error — this rail is the error.
+    /// list to every params form it builds (the Editor: the AI view's broker; ⛔ P-7 7d retired the mission panels, CGF has none left). ⛔ Forgetting one leaves that form map-only with no error — this rail is the error.
     /// </summary>
     [Theory]
-    [InlineData("Hrot.Editor", "EditorSubsystem.cs", 3)]
-    [InlineData("Hrot.CGF",    "CgfSubsystem.cs",    1)]
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs", 1)]   // ⭐ P-7 7d — the AI view's broker; the two mission panels are gone (⛔ the Orders tab's forms do not get the list yet: see DESIGN_Mission_Plan_Editor §5.11 "7d as built")
     public void EveryParamsFormHostPassesTheEntityList(string project, string file, int forms)
     {
         var text = HostSource.Read(project, file);

@@ -70,6 +70,25 @@ public sealed class TheOrdersTabTests
             new MissionTrigger { Type = MissionTriggerHelper.GiveUpType, Params = ConditionCache.ToJson(new InputAbovePredicateDto { Input = "UnderFire", Threshold = 0.5f }) });
         Assert.StartsWith("Attack, then when done · give up ", OrdersPlanModel.SentenceOf(t));
     }
+
+    /// <summary>
+    /// ⭐ P-7 7d (U-3, docs/UX/DESIGN_Colour_Icons.md §3) — re-homed from the retired Mission panel's glyph rail: each task's STATE has its colour — running blue, done green,
+    /// failed red, halted amber, planned grey — and no two states share one. 🔴 Red-proof (compiles): <c>ColourOf</c> answering the grey for <c>Done</c> ⇒ red.
+    /// ⚠ The retired rail also read the glyph pixels of a real frame; the Orders tab draws the number in this colour (no glyph) and has no frame rail yet.
+    /// </summary>
+    [Fact]
+    public void U3_EachTaskStateHasItsColour_RunningBlue_DoneGreen_FailedRed_HaltedAmber_PlannedGrey()
+    {
+        var running = OrdersTab.ColourOf(OrdersTaskState.Running); var done = OrdersTab.ColourOf(OrdersTaskState.Done);
+        var failed = OrdersTab.ColourOf(OrdersTaskState.Failed); var halted = OrdersTab.ColourOf(OrdersTaskState.Halted); var planned = OrdersTab.ColourOf(OrdersTaskState.Planned);
+
+        Assert.True(running.Z > running.X && running.Z > running.Y * 0.99f, "running is blue");
+        Assert.True(done.Y > done.X && done.Y > done.Z, "done is green");
+        Assert.True(failed.X > failed.Y && failed.X > failed.Z, "failed is red");
+        Assert.True(halted.X > halted.Z && halted.Y > halted.Z, "halted is amber");
+        Assert.True(planned.X == planned.Y && planned.Y == planned.Z, "planned is neutral grey");
+        Assert.Equal(5, new[] { running, done, failed, halted, planned }.Distinct().Count());
+    }
 }
 
 /// <summary>
@@ -137,7 +156,8 @@ public sealed class TheOrdersTabEditsTests
         public bool ConflictNext;   // ⭐ 7c — the next commit answers CONFLICT (the plan moved since it was opened)
         public readonly List<(int Net, MissionPlan Plan, long Base)> Commits = new();
         public IReadOnlyList<string> GetAvailableBehaviors(int entityId) => Array.Empty<string>();
-        public (MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId) => (Plan, Version);
+        public readonly List<int> AskedAbout = new();
+        public (MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId) { AskedAbout.Add(entityId); return (Plan, Version); }
         public System.Threading.Tasks.Task<Hrot.UI.Common.Models.MissionCommitResult> CommitMissionAsync(int entityId, MissionPlan plan, long baseVersion)
         {
             Commits.Add((entityId, plan, baseVersion));
@@ -327,5 +347,114 @@ public sealed class TheOrdersTabEditsTests
         var tab = (OrdersTab)OrdersTabDescriptor.For(() => null, () => null, host: () => host).Create();
         Assert.True(tab.OffersNewRule);
         Assert.False(((OrdersTab)OrdersTabDescriptor.For(() => null, () => null).Create()).OffersNewRule);
+    }
+
+    // ── ⭐ P-7 7d — the OFFERING rules, re-homed from the retired Mission view's rails (TheScenarioMissionViewTests) onto the Orders tab ───────────────────────────
+
+    private const ulong GroundUnitDis = (3UL << 56) | (1UL << 48) | (225UL << 32) | (1UL << 24);   // a unit with orders offered (DebugApiOrdersTests)
+    private const ulong MunitionDis   = 2UL << 56;                                                    // no class of a munition has an order behaviour
+
+    private static Fdp.Core.Entity Networked(Fdp.Core.EntityRepository w, int net, ulong dis)
+    {
+        var e = w.CreateEntity();
+        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(net));
+        w.SetDisType(e, new Fdp.Core.DISEntityType { Value = dis });
+        return e;
+    }
+
+    private static DetailsContext Ctx(params Fdp.Core.Entity[] e)
+        => DetailsContextBuilder.Build(new Hrot.Editor.AiShared.Selection.EditorSelectionStore(), "Scenario", Hrot.Editor.AiShared.Variables.VariableRunState.Planning, new FixedSelection(e));
+
+    private static DetailsViewRegistry Catalogue(Func<Hrot.UI.Common.Facades.IMissionEditorService?> svc, Fdp.Core.EntityRepository w)
+    {
+        var views = new DetailsViewRegistry();
+        views.Add(OrdersTabDescriptor.For(svc, () => w));
+        return views;
+    }
+
+    /// <summary>⭐⭐ THE GATE (was "only a brain-equipped entity offers Mission"): a unit that can be ordered — or already has a plan — OFFERS Orders; one that can neither does not.
+    /// 🔴 Red-proof (compiles): <c>AppliesTo</c> answering true ⇒ the munition row ⇒ red.</summary>
+    [Fact]
+    public void P7d_OnlyAUnitThatCanBeOrderedOrHasAPlan_OffersTheOrdersTab()
+    {
+        using var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        var unit = Networked(w, 11, GroundUnitDis); var munition = Networked(w, 12, MunitionDis);
+        var svc = new FakeMissions();
+        var views = Catalogue(() => svc, w);
+
+        Assert.Contains(OrdersTabDescriptor.Id, views.OfferSet(Ctx(unit)).Select(d => d.Id));
+        Assert.DoesNotContain(OrdersTabDescriptor.Id, views.OfferSet(Ctx(munition)).Select(d => d.Id));
+
+        svc.Plan = new MissionPlan { Tasks = { new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Patrol" } } };   // …but a munition WITH a plan shows it
+        Assert.Contains(OrdersTabDescriptor.Id, views.OfferSet(Ctx(munition)).Select(d => d.Id));
+    }
+
+    /// <summary>⛔⛔ The ENTITY half still binds — none and two both offer nothing (the tab edits ONE unit's plan; offering on a multi-selection would silently drop the rest).</summary>
+    [Fact]
+    public void P7d_NoEntityAndTwoEntities_OfferNothing()
+    {
+        using var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        var (a, b) = (Networked(w, 11, GroundUnitDis), Networked(w, 12, GroundUnitDis));
+        var views = Catalogue(() => new FakeMissions(), w);
+
+        Assert.Empty(views.OfferSet(Ctx()));
+        Assert.Empty(views.OfferSet(Ctx(a, b)));
+    }
+
+    /// <summary>⭐⭐ No mission service ⇒ no offer — a host without the facade is not told it has orders (R-117: declining hands the answer to the shell's one grey line).</summary>
+    [Fact]
+    public void P7d_WithNoMissionServiceAtAll_ItNeverOffers()
+    {
+        using var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        var unit = Networked(w, 11, GroundUnitDis);
+
+        Assert.Empty(Catalogue(() => null, w).OfferSet(Ctx(unit)));
+    }
+
+    /// <summary>⭐⭐ Rank: Orders outranks the raw Components tab and sits below Runtime (R-98: rank is the default pick only) — an entity with orders is a more specific fact than "it has components".</summary>
+    [Fact]
+    public void P7d_ItsRank_SitsBetweenComponentsAndRuntime()
+    {
+        int rank = OrdersTabDescriptor.For(() => null, () => null).Rank;
+        Assert.True(rank > Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.Rank);
+        Assert.True(rank < RuntimeDetailsViewDescriptor.Rank);
+    }
+
+    /// <summary>⭐⭐⭐ THE SEAM (was "the panel is pointed at the entity's NETWORK id"): the tab asks the service about <c>NetworkIdentity.Value</c>, never <c>Entity.Index</c> — the two coincide in
+    /// single-entity scenarios and diverge everywhere else. 🔴 Red-proof (compiles): <c>RowsFor</c> passing <c>entity.Index</c> ⇒ red.</summary>
+    [Fact]
+    public void P7d_TheTabAsksTheServiceAboutTheSelectedUnitsNetworkId_NotItsIndex()
+    {
+        using var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        for (int i = 0; i < 3; i++) w.CreateEntity();   // push the unit's index away from its network id
+        var unit = Networked(w, 4242, GroundUnitDis);
+        var svc = new FakeMissions();
+        var tab = new OrdersTab(() => svc, () => w);
+
+        tab.RowsFor(unit);
+
+        Assert.NotEqual(4242, unit.Index);
+        Assert.Contains(4242, svc.AskedAbout);
+        Assert.DoesNotContain(unit.Index, svc.AskedAbout);
+    }
+
+    /// <summary>⭐ P-7 7d — re-homed from <c>MissionPanelRegistryTests.CE1023_…</c>: a task whose behaviour has a params type gets THE form; one with no known type gets none (the raw JSON);
+    /// a host's lookup wins over the declared contracts, and with no lookup the declared contracts answer (what a host with no registry can know).
+    /// 🔴 Red-proof (compiles): <c>ParamsTypeOfTask</c> ignoring the host's lookup ⇒ the first row ⇒ red.</summary>
+    [Fact]
+    public void P7d_ATasksFormComesFromTheHostsLookup_AnUnknownBehaviourGetsNone_TheDefaultIsTheDeclaredContracts()
+    {
+        var tab = new OrdersTab(() => null, () => null, paramsTypeOf: name => name == "Mine" ? typeof(string) : null);
+        Assert.Equal(typeof(string), tab.ParamsTypeOfTask("Mine"));
+        Assert.Null(tab.ParamsTypeOfTask("NoSuchBehaviour"));
+
+        var declared = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default.Behaviors;
+        Assert.NotEmpty(declared);
+        var plain = new OrdersTab(() => null, () => null);
+        Assert.All(declared, d => Assert.Equal(d.ParamsType, plain.ParamsTypeOfTask(d.Name)));
     }
 }

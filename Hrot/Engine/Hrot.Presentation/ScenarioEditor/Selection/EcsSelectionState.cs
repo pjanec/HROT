@@ -18,7 +18,7 @@ namespace Hrot.ScenarioEditor.Selection;
 /// <c>SelectionInteractionSystem</c> wrote the component. ⇒ two stores, one concept, synchronised by
 /// nobody: a map click moved the ring (component) and not the Mission Editor
 /// (<c>EditorSubsystem.Update</c> reads the hash set every frame), and an inspector click moved
-/// neither. ⚠ The divergence was known and written down — see <c>ScenarioMissionView</c>'s remarks,
+/// neither. ⚠ The divergence was known and written down — see the retired <c>ScenarioMissionView</c> (P-7 7d)'s remarks,
 /// which say in as many words <em>"the two selection models converge under UXI-11"</em>.</para>
 ///
 /// <para>⭐⭐ <b>It is a HANDLE, not a store, and that is the property that makes it safe to have
