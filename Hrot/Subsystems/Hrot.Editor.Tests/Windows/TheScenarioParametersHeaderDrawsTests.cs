@@ -147,14 +147,6 @@ public sealed class TheScenarioParametersHeaderDrawsTests
 
     private static string? Default(HeaderParamsSchemaSource src) => src.Variables.Single().DefaultValueJson;
 
-    private static void EditDefaultTo(ParametersDrawer drawer, string name, string member)
-    {
-        var session = drawer.Control.DefaultCellSession(name)!;
-        Fdp.Toolkit.Scenario.ParamTypes.TryResolve("ForceId", out var forceType);
-        var node = Hrot.Editor.AiShared.Variables.VariableEditModal.ScalarRowOrRoot(session.Document.Root, name);
-        node.Binding!.SetBoxed(Enum.Parse(forceType!, member));
-    }
-
     /// <summary>⭐ CE-4254 — the parameters host: no byte size, no memory line, no Remove unused (though the param IS unused); an editable Default and a Used by count (a bound param shows 1).</summary>
     [SkippableFact]
     public void TheParametersHost_DrawsADefaultAndUsedBy_AndNoBlackboardAffordances()
@@ -170,14 +162,13 @@ public sealed class TheScenarioParametersHeaderDrawsTests
         src.AddVariable(new BlackboardVariableEntry("idle", typeof(ForceId), null));
         drawer.RequestOpen();
         Stepper(frame, view)(null, 4);
-        Assert.Equal(new[] { "Name", "Type", "Default", "Used by" }, drawer.Control.ColumnHeaders);
-        Assert.False(drawer.Control.RemoveUnusedDrawn, "no Remove unused for parameters");
-        Assert.False(drawer.Control.MemoryLineDrawn, "no memory budget for parameters");
-        Assert.Equal(1, drawer.Control.UsedByDrawn["side"]);
-        Assert.Equal(0, drawer.Control.UsedByDrawn["idle"]);
+        // N-6: the Define table draws exactly the columns the parameters settings name — no byte size, no memory line, no Remove unused exist in it at all
+        Assert.Equal(new[] { "Name", "Type", "Default", "Used by" }, drawer.Table.ColumnHeaders);
+        Assert.Equal(1, drawer.Table.UsedByDrawn["side"]);
+        Assert.Equal(0, drawer.Table.UsedByDrawn["idle"]);
     }
 
-    /// <summary>⭐ CE-4254 — the default is edited IN PLACE by the type's leaf (the row's own session), lands on the source and is undoable.</summary>
+    /// <summary>⭐ CE-4254 → N-6 — the default is edited IN PLACE by the type's own cell (typed into an int parameter's box), lands on the source as the member JSON and is undoable.</summary>
     [SkippableFact]
     public void TheDefaultCell_EditsTheSourcesDefault_AndItIsUndoable()
     {
@@ -185,23 +176,34 @@ public sealed class TheScenarioParametersHeaderDrawsTests
         var (repo, src, drawer, view) = Fixture();
         using var _r = repo;
         using var frame = UiFrameHarness.Begin();
-        src.AddVariable(new BlackboardVariableEntry("side", typeof(ForceId), null));
+        src.AddVariable(new BlackboardVariableEntry("count", typeof(int), null));
         drawer.RequestOpen();
         var step = Stepper(frame, view);
         step(null, 4);
         Assert.Null(Default(src));
         var shot = System.Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS");
         if (!string.IsNullOrEmpty(shot)) frame.Screenshot(System.IO.Path.Combine(shot, "params-default-cell.png"));
-        EditDefaultTo(drawer, "side", "Neutral");
+        var nm = drawer.NameCells.Single(); var tc = drawer.Table.TypeCell("count");
+        var at = new Vector2(tc.Max.X + 60f, (nm.Min.Y + nm.Max.Y) / 2f);           // inside the Default column of that row
+        step(io => Pos(io, at.X, at.Y), 2);
+        step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, true); }, 1);
+        step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, false); }, 1);
+        step(null, 2);
+        step(io => { io.AddKeyEvent(ImGuiNET.ImGuiKey.ModCtrl, true); io.AddKeyEvent(ImGuiNET.ImGuiKey.A, true); }, 1);
+        step(io => { io.AddKeyEvent(ImGuiNET.ImGuiKey.A, false); io.AddKeyEvent(ImGuiNET.ImGuiKey.ModCtrl, false); }, 1);
+        step(io => io.AddInputCharacter('7'), 1);
         step(null, 3);
-        Assert.Contains("Neutral", Default(src));
+        Assert.Equal("7", Default(src));
+        step(io => io.AddKeyEvent(ImGuiNET.ImGuiKey.Enter, true), 1);                // Enter leaves the box (an undo from the shell's menu comes with the focus elsewhere; an ACTIVE ImGui text box keeps its own copy)
+        step(io => io.AddKeyEvent(ImGuiNET.ImGuiKey.Enter, false), 1);
+        step(null, 3);
         Assert.True(src.History.CanUndo);
         src.History.Undo();
         step(null, 3);
         Assert.Null(Default(src));
         src.History.Redo();
         step(null, 3);
-        Assert.Contains("Neutral", Default(src));
+        Assert.Equal("7", Default(src));
     }
 
     /// <summary>⭐ CE-4254 — Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) on the focused panel, the buttons being gone.</summary>

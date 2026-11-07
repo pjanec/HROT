@@ -27,6 +27,14 @@ public sealed class TextBuffer
 
     public void Clear() { if (Text.Length > 0 || _buf[0] != 0) Set(""); }
 
+    /// <summary>Reads the buffer into <see cref="Text"/> (a box that was just deactivated by Enter or a click away: the last keystrokes may not have been reported as an edit yet).</summary>
+    public void Sync()
+    {
+        _len = Array.IndexOf(_buf, (byte)0);
+        if (_len < 0) _len = _buf.Length;
+        Text = Encoding.UTF8.GetString(_buf, 0, _len);
+    }
+
     private string? _idKey, _hintKey;
     private byte[] _idBytes = Array.Empty<byte>(), _hintBytes = Array.Empty<byte>();
 

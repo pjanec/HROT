@@ -1,7 +1,7 @@
 namespace NodeEditor.Core.Widgets;
 
 /// <summary>The FontAwesome 6 Solid code points the kit draws itself (the same ones as <c>Fdp.Presentation.Fonts.IconsFontAwesome6</c>; NodeEditor.Core cannot reference it).</summary>
-internal static class KitGlyph
+public static class KitGlyph
 {
     public const string Grip = "";          // GripVertical  ⋮⋮
     public const string Ellipsis = "";      // EllipsisVertical  ⋮

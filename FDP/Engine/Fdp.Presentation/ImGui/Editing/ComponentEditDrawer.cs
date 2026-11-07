@@ -374,42 +374,7 @@ public sealed partial class ComponentEditDrawer
         inputWidth -= buttonReserve;
         if (changedFromDefault && !ro) inputWidth -= ImGuiApi.GetFrameHeight() + 8f;   // room for the ↺
 
-        bool changed;
-        if (ReferenceLeafDrawers.Handles(node.ClrType))
-        {
-            // ⭐ CE-4206 R1 (F1) — the reference types (EntityLink, PointLink, EntityRef, WorldPoint) are drawn by ONE class, one method per type:
-            //   the TYPE makes the field pickable (DESIGN_Entity_Reference D5, DESIGN_Map_Picking_Unification P5); the attribute only narrows the pick.
-            string? boundBefore = bind.Home == BindHome.RefParamForm ? bind.BoundParam : null;
-            changed = ReferenceLeafDrawers.Draw(node, (canDelete ? 30f : 0f) + buttonReserve + (changedFromDefault && !ro ? ImGuiApi.GetFrameHeight() + 8f : 0f), _pickerCtx, _refState, ro);
-            if (changed) _epoch++;
-            // ⭐ CE-4210 — editing the LITERAL of a bound link keeps its binding (SR-168: the literal is the value used when the macro is opened alone)
-            if (changed && boundBefore is not null && ParamBindModel.BoundParamOfLink(node.Binding?.GetBoxed()) is null)
-                node.Binding?.SetBoxed(ParamBindModel.LinkWithParam(node.Binding.GetBoxed(), boundBefore));
-        }
-        else
-        {
-            if (inputWidth < 60f) inputWidth = 60f;
-            ImGuiApi.SetNextItemWidth(inputWidth);
-
-            // ⭐ N-3 / N-4 — a text / number / nullable / flags cell parses through ValueText (a refusal keeps the typed text and the old value, with its line under the row);
-            //   a value at its default draws grey, a read-only row disabled
-            if (ro) ImGuiApi.BeginDisabled();
-            if (_defaults != null && !changedFromDefault) ImGuiApi.PushStyleColor(ImGuiCol.Text, ImGuiApi.GetColorU32(ImGuiCol.TextDisabled));
-            object? value = null;
-            if (DrawCellNode(node, inputWidth, out bool cellChanged)) changed = cellChanged;
-            else
-            {
-                value = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
-                changed = DrawPrimitiveInput(node.ClrType, ref value!, node);
-                if (changed && !ro) node.Binding?.SetBoxed(value);
-            }
-            if (_defaults != null && !changedFromDefault) ImGuiApi.PopStyleColor();
-            if (ro) ImGuiApi.EndDisabled();
-            if (changed) _epoch++;   // ⭐ N-2 — cached list / cell text is rebuilt
-            // ⭐ CE-4206 R3 F7 — a WorldRotation keeps its Y/P/R editor and gains a muted read-out line through OrientationText
-            if (node.ClrType == typeof(Fdp.Core.WorldRotation))
-                ImGuiApi.TextDisabled(ReferenceLeafDrawers.RotationReadout(changed && value != null ? value : node.Binding?.GetBoxed()));
-        }
+        bool changed = DrawValueControl(node, inputWidth, (canDelete ? 30f : 0f) + buttonReserve + (changedFromDefault && !ro ? ImGuiApi.GetFrameHeight() + 8f : 0f), changedFromDefault, ro, in bind);
 
         // ⭐ N-4 — ↺: write the default back (ONE Set ⇒ one undo step where the host has undo)
         if (changedFromDefault && !ro && NodeEditor.Core.Widgets.RowMarks.ResetButton("##reset")) ResetToDefault(node);
@@ -444,6 +409,82 @@ public sealed partial class ComponentEditDrawer
         }
 
         ImGuiApi.PopID();
+    }
+
+    /// <summary>
+    /// ⭐ N-6 — the VALUE control of one leaf node, shared by the struct table's rows and by <see cref="DrawValueCell"/> (the Define table's value column): a reference leaf, or a text / number / nullable / flags / primitive cell;
+    /// grey at the default, disabled when read-only. Returns true when the user changed the value (already written to the binding).
+    /// </summary>
+    private bool DrawValueControl(EditNode node, float inputWidth, float reserveRight, bool changedFromDefault, bool ro, in BindView bind)
+    {
+        bool changed;
+        if (ReferenceLeafDrawers.Handles(node.ClrType))
+        {
+            // ⭐ CE-4206 R1 (F1) — the reference types (EntityLink, PointLink, EntityRef, WorldPoint) are drawn by ONE class, one method per type:
+            //   the TYPE makes the field pickable (DESIGN_Entity_Reference D5, DESIGN_Map_Picking_Unification P5); the attribute only narrows the pick.
+            string? boundBefore = bind.Home == BindHome.RefParamForm ? bind.BoundParam : null;
+            changed = ReferenceLeafDrawers.Draw(node, reserveRight, _pickerCtx, _refState, ro);
+            if (changed) _epoch++;
+            // ⭐ CE-4210 — editing the LITERAL of a bound link keeps its binding (SR-168: the literal is the value used when the macro is opened alone)
+            if (changed && boundBefore is not null && ParamBindModel.BoundParamOfLink(node.Binding?.GetBoxed()) is null)
+                node.Binding?.SetBoxed(ParamBindModel.LinkWithParam(node.Binding.GetBoxed(), boundBefore));
+        }
+        else
+        {
+            if (inputWidth < 60f) inputWidth = 60f;
+            ImGuiApi.SetNextItemWidth(inputWidth);
+
+            // ⭐ N-3 / N-4 — a text / number / nullable / flags cell parses through ValueText (a refusal keeps the typed text and the old value, with its line under the row);
+            //   a value at its default draws grey, a read-only row disabled
+            if (ro) ImGuiApi.BeginDisabled();
+            if (_defaults != null && !changedFromDefault) ImGuiApi.PushStyleColor(ImGuiCol.Text, ImGuiApi.GetColorU32(ImGuiCol.TextDisabled));
+            object? value = null;
+            if (DrawCellNode(node, inputWidth, out bool cellChanged)) changed = cellChanged;
+            else
+            {
+                value = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
+                changed = DrawPrimitiveInput(node.ClrType, ref value!, node);
+                if (changed && !ro) node.Binding?.SetBoxed(value);
+            }
+            if (_defaults != null && !changedFromDefault) ImGuiApi.PopStyleColor();
+            if (ro) ImGuiApi.EndDisabled();
+            if (changed) _epoch++;   // ⭐ N-2 — cached list / cell text is rebuilt
+            // ⭐ CE-4206 R3 F7 — a WorldRotation keeps its Y/P/R editor and gains a muted read-out line through OrientationText
+            if (node.ClrType == typeof(Fdp.Core.WorldRotation))
+                ImGuiApi.TextDisabled(ReferenceLeafDrawers.RotationReadout(changed && value != null ? value : node.Binding?.GetBoxed()));
+        }
+        return changed;
+    }
+
+    /// <summary>
+    /// ⭐ N-6 (CE-3383, docs/DESIGN_Struct_Editor.md §11a) — the value column of ONE node, as a host that draws its own label column (the Define table) needs it: the changed bar, the value control and the ↺, with this
+    /// table's catalogue, defaults and read-only state. A leaf draws its cell; a structure or list draws a one-line summary (its fields are edited through the struct table). True when the user changed the value.
+    /// The caller owns the row and the column; the cell draws at the cursor.
+    /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveOptimization)]
+    public bool DrawValueCell(EditNode node)
+    {
+        ImGuiApi.PushID(node.Id.Value);
+        bool changed = false;
+        bool ro = ReadOnly || node.IsReadOnly;
+        if (node.Children.Count > 0 || node.Kind is EditNodeKind.DynamicArray or EditNodeKind.InlineArray or EditNodeKind.FixedBuffer)
+        {
+            int n = node.Children.Count;
+            ImGuiApi.AlignTextToFramePadding();
+            ImGuiApi.TextDisabled(node.Kind == EditNodeKind.DynamicArray ? CountLabel(n) : n == 1 ? "1 field" : n < CountLabels.Length ? CountLabels[n].Replace("items", "fields") : n + " fields");
+        }
+        else
+        {
+            bool changedFromDefault = _defaults != null && IsChangedFromDefault(node);
+            if (_defaults != null) NodeEditor.Core.Widgets.RowMarks.ChangedBar(changedFromDefault && !ro);
+            float width = ImGuiApi.GetContentRegionAvail().X - (changedFromDefault && !ro ? ImGuiApi.GetFrameHeight() + 8f : 0f);
+            if (width < 60f) width = 60f;
+            ImGuiApi.SetNextItemWidth(width);
+            changed = DrawValueControl(node, width, changedFromDefault && !ro ? ImGuiApi.GetFrameHeight() + 8f : 0f, changedFromDefault, ro, BindView.NotBindable);
+            if (changedFromDefault && !ro && NodeEditor.Core.Widgets.RowMarks.ResetButton("##reset")) { ResetToDefault(node); changed = true; }
+        }
+        ImGuiApi.PopID();
+        return changed;
     }
 
     // ── ⭐ CE-4210 MA-1 — the bind affordance ─────────────────────────────────────────────────────────────────────────────
@@ -674,8 +715,9 @@ public sealed partial class ComponentEditDrawer
         if (type.IsEnum)
         {
             bool isFlags = Attribute.IsDefined(type, typeof(FlagsAttribute));
-            string[] names  = Enum.GetNames(type);
-            Array    values = Enum.GetValues(type);
+            var info = EnumInfoOf(type);   // ⭐ N-6 (R-2084) — names and boxed values built ONCE per enum type: Enum.GetNames / GetValues / GetValue allocated every frame
+            string[] names = info.Names;
+            object[] values = info.Values;
 
             if (isFlags)
             {
@@ -684,7 +726,7 @@ public sealed partial class ComponentEditDrawer
 
                 for (int i = 0; i < values.Length; i++)
                 {
-                    ulong flagValue = Convert.ToUInt64(values.GetValue(i)!);
+                    ulong flagValue = Convert.ToUInt64(values[i]);
                     if (flagValue == 0) continue;
 
                     bool hasFlag = (currentMask & flagValue) == flagValue;
@@ -711,15 +753,26 @@ public sealed partial class ComponentEditDrawer
                 int current = 0;
                 for (int i = 0; i < values.Length; i++)
                 {
-                    if (Equals(values.GetValue(i), value))
+                    if (Equals(values[i], value))
                     {
                         current = i;
                         break;
                     }
                 }
 
-                bool ok = ImGuiApi.Combo("##v", ref current, names, names.Length);
-                if (ok) value = values.GetValue(current)!;
+                // BeginCombo (not Combo(string[])): nothing is converted or allocated while the list is closed
+                bool ok = false;
+                if (ImGuiApi.BeginCombo("##v", names.Length > 0 ? names[current] : ""))
+                {
+                    for (int i = 0; i < names.Length; i++)
+                    {
+                        bool sel = i == current;
+                        if (ImGuiApi.Selectable(names[i], sel)) { current = i; ok = true; }
+                        if (sel) ImGuiApi.SetItemDefaultFocus();
+                    }
+                    ImGuiApi.EndCombo();
+                }
+                if (ok) value = values[current];
                 return ok;
             }
         }
@@ -727,6 +780,17 @@ public sealed partial class ComponentEditDrawer
         // Unsupported type — show read-only text.
         ImGuiApi.TextDisabled(value?.ToString() ?? "null");
         return false;
+    }
+
+    private sealed class EnumInfo { public string[] Names = Array.Empty<string>(); public object[] Values = Array.Empty<object>(); }
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, EnumInfo> EnumCache = new();
+    private static EnumInfo EnumInfoOf(Type t)
+    {
+        if (EnumCache.TryGetValue(t, out var e)) return e;
+        var vals = Enum.GetValues(t);
+        var boxed = new object[vals.Length];
+        for (int i = 0; i < boxed.Length; i++) boxed[i] = vals.GetValue(i)!;
+        return EnumCache[t] = new EnumInfo { Names = Enum.GetNames(t), Values = boxed };
     }
 
     // ── Element removal ───────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ using NodeEditor.Primitives;
 namespace Fdp.Presentation.Input;
 
 /// <summary>The commands of the struct table's list scope (docs/DESIGN_Struct_Editor.md §10.3) — they act on the table's SELECTED item.</summary>
-public enum StructTableCommand { Duplicate, MoveUp, MoveDown, Delete, Copy, Paste }
+public enum StructTableCommand { Duplicate, MoveUp, MoveDown, Delete, Copy, Paste, Rename }
 
 /// <summary>What a struct table offers the key scope: whether a command is allowed now, and running it (the table applies it as the ⋮ menu would).</summary>
 public interface IStructTableTarget
@@ -28,7 +28,7 @@ public static class StructTableFocus
     public const string Kind = "StructTable";
 
     public const string DuplicateId = "structtable.duplicate", MoveUpId = "structtable.moveup", MoveDownId = "structtable.movedown",
-                        DeleteId = "structtable.delete", CopyId = "structtable.copy", PasteId = "structtable.paste";
+                        DeleteId = "structtable.delete", CopyId = "structtable.copy", PasteId = "structtable.paste", RenameId = "structtable.rename";
 
     private static readonly (string Id, string Name, StructTableCommand Command, EditorKey Key, KeyModifiers Mods)[] Table =
     {
@@ -38,6 +38,7 @@ public static class StructTableFocus
         (DeleteId, "Delete item", StructTableCommand.Delete, EditorKey.Delete, KeyModifiers.None),
         (CopyId, "Copy item value", StructTableCommand.Copy, EditorKey.C, KeyModifiers.Ctrl),
         (PasteId, "Paste item value", StructTableCommand.Paste, EditorKey.V, KeyModifiers.Ctrl),
+        (RenameId, "Rename item", StructTableCommand.Rename, EditorKey.F2, KeyModifiers.None),
     };
 
     private static IStructTableTarget? _target;

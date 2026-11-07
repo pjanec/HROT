@@ -22,7 +22,7 @@ namespace Hrot.Editor.Scenario;
 /// <para>The reference count of a row = its uses in the world across the three binding homes (<see cref="ParamUsage"/>). ⛔ Remove is REFUSED while bound, naming the bindings.
 /// <b>Rename</b> rewrites every use in ONE undoable step (<see cref="Hrot.Presentation.Edits.EditHistory"/>). ⛔ The <c>.params.json</c> source is NOT built here.</para>
 /// </summary>
-public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
+public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource, IRevisionedSource, IRefusingSource, IRetypableSource
 {
     private readonly Func<EntityRepository?> _world;
     private readonly Hrot.Presentation.Edits.EditHistory _history;
@@ -43,6 +43,19 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
     public string? LastRefusal { get; private set; }
 
     private void Refuse(string why) { LastRefusal = why; _refuse?.Invoke(why); }
+
+    private string? _seenHeader;
+    private int _revision;
+    /// <summary>⭐ N-6 — moves whenever the resident header was replaced (an edit, an undo, a scenario load): the Define table compares this one int per frame. The resident is REPLACED whole on every change, so its string's identity is the signal.</summary>
+    public int Revision
+    {
+        get
+        {
+            string? cur = _world() is { } w && w.HasSingletonManaged<ScenarioDescriptionResident>() ? w.GetSingletonManaged<ScenarioDescriptionResident>()?.HeaderJson : null;
+            if (!ReferenceEquals(cur, _seenHeader)) { _seenHeader = cur; _revision++; }
+            return _revision;
+        }
+    }
 
     public bool IsReadOnly => _world() is null;
     public DeclarationFeatures Features => DeclarationFeatures.Parameters;
@@ -102,6 +115,7 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
 
     public void AddVariable(BlackboardVariableEntry entry)
     {
+        LastRefusal = null;
         if (IsReadOnly) return;
         var before = Decls();
         string name = entry.Name?.Trim() ?? "";
@@ -119,6 +133,7 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
 
     public void RemoveVariables(IReadOnlyList<string> names)
     {
+        LastRefusal = null;
         if (IsReadOnly) return;
         var before = Decls();
         var doomed = before.Where(d => names.Contains(d.Name)).ToList();
@@ -133,6 +148,7 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
 
     public void RenameVariable(string oldName, string newName)
     {
+        LastRefusal = null;
         if (IsReadOnly || string.IsNullOrWhiteSpace(newName)) return;
         string to = newName.Trim();
         var before = Decls();
@@ -148,6 +164,7 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
 
     public void MoveVariable(int sourceIndex, int destIndex)
     {
+        LastRefusal = null;
         if (IsReadOnly) return;
         var before = Decls();
         if (sourceIndex < 0 || sourceIndex >= before.Count || destIndex < 0 || destIndex >= before.Count || sourceIndex == destIndex) return;
@@ -160,6 +177,7 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
 
     public void UpdateVariableProperties(string name, VariablePropertyValues values)
     {
+        LastRefusal = null;
         if (IsReadOnly || values is null) return;
         var before = Decls();
         if (before.FirstOrDefault(d => d.Name == name) is not { } decl) return;
@@ -173,6 +191,20 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
         if (values.Comment is { } c) next = next with { Comment = c.Length == 0 ? null : c };
         if (next == decl) return;
         Edit($"Edit Parameter '{name}'", before, before.Select(d => d == decl ? next : d).ToList());
+    }
+
+    /// <summary>⭐ N-6 — changes a parameter's TYPE (the picker's Retype): the default is dropped (it was a value of the old type); refused while a field is bound to it, naming the bindings.</summary>
+    public void RetypeVariable(string name, string typeId)
+    {
+        LastRefusal = null;
+        if (IsReadOnly) return;
+        var before = Decls();
+        if (before.FirstOrDefault(d => d.Name == name) is not { } decl) return;
+        if (!ParamTypes.TryResolve(typeId, out var clr) || ParamTypes.IdOf(clr) is not { } id) { Refuse($"'{typeId}' is not a parameter type."); return; }
+        if (id == decl.TypeId) return;
+        var (n, where) = Session is { } s ? ParamUsage.Find(s, name) : (0, Array.Empty<string>());
+        if (n > 0) { Refuse($"'{name}' is still bound by {n} field(s): {string.Join(", ", where)}{(n > where.Count ? ", …" : "")}. Unbind them first."); return; }
+        Edit($"Retype Parameter '{name}'", before, before.Select(d => d == decl ? d with { TypeId = id, Default = null } : d).ToList());
     }
 
     public DeclarationPropertySnapshot? ReadVariableProperties(string name)

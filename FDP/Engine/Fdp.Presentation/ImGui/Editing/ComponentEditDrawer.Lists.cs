@@ -54,6 +54,7 @@ public sealed partial class ComponentEditDrawer
                 StructTableCommand.MoveUp => KeySel > 0,
                 StructTableCommand.MoveDown => KeySel < KeyCount - 1,
                 StructTableCommand.Paste => ClipboardGet() is { Length: > 0 },
+                StructTableCommand.Rename => false,   // a name belongs to the Define table
                 _ => true,
             };
         }

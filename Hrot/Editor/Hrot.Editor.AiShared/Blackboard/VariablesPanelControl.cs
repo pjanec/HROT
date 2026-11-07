@@ -846,7 +846,7 @@ public sealed class VariablesPanelControl
         // ⭐ CE-3182 — a rename obeys the Add rule (an identifier, not a keyword, unique): a '.' would make every binding path
         //   (Var.Field) ambiguous, and a non-identifier cannot be the block struct's field name anyway.
         // ⭐ CE-4254 (measured): this used to return SILENTLY, so a refused name "reverted on Enter" with no word why — now the reason is drawn under the table.
-        var why = BlackboardNameValidator.Validate(newName) ?? (schema.Variables.Any(v => v.Name == newName) ? $"A variable named '{newName}' already exists." : null);
+        var why = BlackboardNameValidator.ValidateRename(newName, schema.Variables.Select(v => v.Name));
         if (why != null) { RenameRefusal = $"Rename refused: {why}"; return; }
         RenameRefusal = null;
 

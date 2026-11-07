@@ -45,4 +45,15 @@ public static class BlackboardNameValidator
 
         return null;
     }
+
+    /// <summary>
+    /// ⭐ N-6 — the rename rule, ONE place (it was inline in <c>VariablesPanelControl.CommitRename</c>): the new name obeys the Add rule (an identifier, not a keyword) and is not another declaration's name.
+    /// Null when allowed; else why not.
+    /// </summary>
+    public static string? ValidateRename(string? newName, IEnumerable<string> existingNames)
+    {
+        if (Validate(newName) is { } why) return why;
+        foreach (var n in existingNames) if (n == newName) return $"A variable named '{newName}' already exists.";
+        return null;
+    }
 }
