@@ -723,7 +723,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 FeatureGate = () => _context?.Features,   // ⭐ CE-4148 — the hud.* features
                 Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                 // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
-                Services = Hrot.ScenarioEditor.Map.MapServices.Of(_context.GeoTransform, _behaviorRegistry),
+                Services = Hrot.ScenarioEditor.Map.MapServices.Of(_context.GeoTransform, _behaviorRegistry, (System.Func<object?>)(() => _missionService)),   // ⭐ 8d-2 — built after the map: resolved when asked
                 // CGF is a dumb terminal for handles — it draws all active gizmos, like IG.
                 IsSelectedPredicate = null,
                 Inspector = () => _fdpInspectorState,

@@ -578,7 +578,7 @@ thousand units one row, built once; a real frame beside another owner's tracks �
 Rails: `TheTasksLaneTests.P8c_*` (Fdp.Toolkits.Tests — a plan's starts and ends with how each ended, red-proved by `LatestOutcome` reading the
 current task; a halt and a new plan; a thousand units, one lane, the unit filter) · `TimelineIndexTests.CE3330_Node_TheShippedCatalog…` (19 lanes).
 
-**8d-1 — the plan ON THE MAP, read-only (M3 / E2) — BUILT into the ONE plan drawing; 8d-2 (drag a marker = edit its field, right-click *Add task ▸*) ⏳:**
+**8d-1 — the plan ON THE MAP, read-only (M3 / E2) — BUILT into the ONE plan drawing; 8d-2 (drag a marker = edit its field) BUILT below; right-click *Add task ▸* ⏳ (needs the catalogue's `Ground` target, Action Catalogue A5):**
 
 INVENTORY (re-run after a first cut): `scripts/cbm.sh search_graph name_pattern=".*Mission.*(Gizmo|Overlay|Layer|Presentation).*"` ⇒
 **`MissionPresentationGizmo`** (GZ058, a `[GizmoProjector]` in the Path family since CE-3123 — every map host, its own Paths checkbox, which
@@ -609,8 +609,80 @@ are places, the one show-on-map table resolves them, and the plan's one gizmo dr
 | which units: the Path family's policy (selected / pinned / all) | CE-3123 — ⛔ no selection check of its own |
 | `MapPreviews.PlaceOf` extracted from `MapPreviews.Draw` | ONE resolution of "where is this value" |
 | ⚠ deviation: the number sits just BELOW its marker | map text anchors at its top-left (no centring); the show-on-map labels sit the same way |
-| ⏳ 8d-2 — drag a marker / *Add task ▸* | P-7 7c landed (`e091c7c5e`): a plan edit commits through `IMissionEditorService.CommitMissionAsync` (an `EditOp.Commit` — one undo step in Edit, conflict-checked in Live); the map's edits will go through the same commit |
+| ✅ 8d-2 drag (below) · ⏳ *Add task ▸* | the drag commits through `IMissionEditorService.CommitMissionAsync` (P-7 7c — one undo step in Edit, conflict-checked in Live); *Add task ▸* waits for A5 |
 
 Rails: `MenuOrdersTests.P8d_TheSelectedUnitsPlan_IsNumberedMarkersAndItsRoute` (places, Hold at the previous place — red-proved by placing it at the
 unit; two lines, three markers) · `MissionPlanOverlayFrameRail.P8d_ThePlanOnARealMapFrame` (`mission-plan-map.png` — the amber and green markers on a
 real 2-D frame) · `DebugTraceGizmoTests.CE1203_TheMissionLines_AreOnThePathsLayer` (unchanged, green).
+
+**8d-2 — drag a task's marker = edit its place (E2) — BUILT:**
+
+INVENTORY: `scripts/cbm.sh search_graph name_pattern=".*(Waypoint|Vertex|Route).*Gizmo.*"` ⇒ `RouteWaypointGizmo`, `VertexEditGizmo` — the
+exclusive-focus draggable-handle pattern, armed by `ScenarioToolRegistrations.ToggleEntityGizmo<T>` (the one toggle, the onRemove pair, the
+netId-anchor guard); `grep CommitMissionAsync` ⇒ one production caller, the Orders tab (P-7) — the map commits through the same facade.
+
+```mermaid
+classDiagram
+  class MissionPlanEditGizmo { <<NEW IEntityStatefulGizmo>> handles · drag preview · Commit(task, to) }
+  class MissionPresentationGizmo { <<existing projector>> Draw · PositionsOf(view, unit, plan, at) — NEW, the ONE "where each task sits" }
+  class MissionPlanPlaces { <<existing>> Of · IsMovable(place) NEW · MovePlace(order, json, to) NEW }
+  class IMissionEditorService { <<existing facade>> GetMissionSnapshot · CommitMissionAsync }
+  class ScenarioToolRegistrations { <<existing>> Plan tool NEW (not on the toolbar) · ToggleEntityGizmo~ActiveMissionPlan~ }
+  class MapServices { <<existing>> Of(...) — a Func~object?~ entry resolved when asked NEW }
+  class MapMenuActions { <<existing>> EditPlan 2409 — offered when UnitFacts.Plan }
+  MissionPlanEditGizmo ..> MissionPresentationGizmo : PositionsOf (handles sit on the markers)
+  MissionPlanEditGizmo ..> MissionPlanPlaces : IsMovable · MovePlace
+  MissionPlanEditGizmo ..> IMissionEditorService : snapshot → commit the whole plan
+  ScenarioToolRegistrations ..> MissionPlanEditGizmo : arms (ctx.Services → the facade, at activation)
+  ScenarioToolRegistrations ..> MapServices
+```
+*What the picture shows: no second drawing (the edit gizmo draws handles and the drag's preview only), no second "where is task N" (one
+`PositionsOf`), no second first-place rule (`MovePlace` and `Of` share `FirstPlaceMember`), no second commit path (the Orders tab's facade).*
+
+```mermaid
+sequenceDiagram
+  actor Op as operator
+  participant Menu as unit menu (catalogue)
+  participant Tools as ToolController (map pack)
+  participant G as MissionPlanEditGizmo
+  participant F as IMissionEditorService
+  participant X as MissionControlExecutionSystem
+  Op->>Menu: right-click a planned unit → Edit plan on the map
+  Menu->>Tools: Activate(scenario.plan, unit)
+  Tools->>G: ToggleEntityGizmo — new gizmo (facade from ctx.Services)
+  Op->>G: drag handle 3
+  G->>G: preview at the mouse
+  Op->>G: release
+  G->>F: GetMissionSnapshot(net) → (plan, version)
+  G->>G: MovePlace(task 3) → new params
+  G->>F: CommitMissionAsync(net, plan, version)
+  F->>X: EditOp.Commit → CMD_REPLACE_MISSION (undo step / conflict)
+  X-->>G: ActiveMissionPlan replaced → the drawing shows the new place
+```
+
+```mermaid
+graph TD
+  Pack["MapInteractionPack.Build — every map host"] --> Reg["ScenarioToolRegistrations.RegisterAll(services: ctx.Services)"]
+  Reg --> Plan[Plan tool]
+  Ed["EditorSubsystem: Services = MapServices.Of(geo, registry, lazy missionService)"] --> Pack
+  Cgf[CgfSubsystem: the same] --> Pack
+  Other[IG · SimHost · ReplayBrowser · Player: no mission facade] -.->|activation REPORTS 'no mission editor'| Plan
+  EdAct[EditorSubsystem binds EditPlan 2409] --> Plan
+```
+*Who reaches it: every host registers the tool (the no-whitelist ruling); the editor and CGF hold the facade (built AFTER the map — hence
+the lazy `Func<object?>` entry); the menu action is bound by the editor (CGF shows it greyed — not bound there, like Edit Route).*
+
+| decision | why |
+|---|---|
+| a handle only on a task whose first place is a POINT (`PointLink`) | an entity target is where the entity is; an area is reshaped by its own editor |
+| the drag writes coordinates (a named point's binding is replaced), the field's own height kept | a drag is a place on the map, not a reference |
+| the whole plan committed at the snapshot's version | P-7 7c: one undo step in Edit, a CONFLICT in Live when it moved |
+| the moved marker stays where it was dropped until the plan value changes or the commit settles | no jump back while the commit is in flight |
+| ⚠ deviation from the mockup (*"drag a numbered marker"* with no mode): the drag needs **Edit plan on the map** (the Plan tool), like Edit Route | an always-on handle would win the hit-test over the unit and the map's selection drag (§4.7g.1 — handles beat entity boxes only for an ACTIVE tool) |
+| *Add task ▸* not built | the ground menu is still `CanvasMenuUpdateSystem`; the catalogue's `Ground` target is A5 (ui), and a menu click carries no world point yet ⇒ ⛔ a second ground menu would be the duplicate A5 removes |
+
+Rails: `MenuOrdersTests.P8d2_EditPlanOnTheMap_IsOfferedOnAPlannedUnit_AndArmsThePlanTool` (offered only with a plan; a host with no facade
+REPORTS; with one the tool arms — red-proved by the pack not forwarding `ctx.Services`) · `MenuOrdersTests.P8d2_DraggingATasksMarker_MovesItsPlace_AndCommitsThePlan`
+(handles on the point tasks only, at the markers; the drag rewrites task 3's `Location`, task 1 untouched, the snapshot's version sent; the Hold
+has no handle; right-click ends it) · `MissionPlanOverlayFrameRail.P8d_ThePlanOnARealMapFrame` (+ `mission-plan-drag.png` — the dragged marker
+amber where the mouse is).

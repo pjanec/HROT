@@ -721,6 +721,114 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal(2, lines.Length);   // unit → 1 (solid), 1 → 3 (dashed) — Hold adds no zero-length line
     }
 
+    private sealed class FakeMissions : IMissionEditorService
+    {
+        public Func<MissionPlan?> Snapshot = () => null;
+        public long Version = 7;
+        public readonly List<(int Net, MissionPlan Plan, long Base)> Commits = new();
+        public IReadOnlyList<string> GetAvailableBehaviors(int entityId) => Array.Empty<string>();
+        public (MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId) => (Snapshot(), Version);
+        public Task<Hrot.UI.Common.Models.MissionCommitResult> CommitMissionAsync(int entityId, MissionPlan plan, long baseVersion)
+        { Commits.Add((entityId, plan, baseVersion)); return Task.FromResult(new Hrot.UI.Common.Models.MissionCommitResult(true, baseVersion + 1)); }
+        public Task<Hrot.UI.Common.Models.MissionCommitResult> SendControlCommandAsync(int entityId, eMissionCommandType type, Guid taskId)
+            => Task.FromResult(new Hrot.UI.Common.Models.MissionCommitResult(true, Version));
+    }
+
+    private string MoveTo(float x, float y)
+    {
+        Assert.True(OrderMenu.TryGetByName("Move", out var move));
+        var dto = Activator.CreateInstance(move.Dto)!;
+        var field = (System.Reflection.MemberInfo?)move.Dto.GetField("Location") ?? move.Dto.GetProperty("Location")!;
+        if (field is System.Reflection.FieldInfo fi) fi.SetValue(dto, new Fdp.Toolkit.Replication.PointLink(new Vector3(x, y, 0)));
+        else ((System.Reflection.PropertyInfo)field).SetValue(dto, new Fdp.Toolkit.Replication.PointLink(new Vector3(x, y, 0)));
+        return Hrot.Presentation.Behavior.BehaviorParamsForm.ToJson(dto, move.Dto);
+    }
+
+    /// <summary>Move (100, 200) · Hold · Move (300, 50) on the unit, and the facade's snapshot of the same plan.</summary>
+    private (DomainMissionPlan Plan, FakeMissions Missions) PlanOfThree()
+    {
+        _w.RegisterManagedComponent<ActiveMissionPlan>();
+        var plan = new DomainMissionPlan();
+        plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Order.Move", BehaviorParams = MoveTo(100, 200) });
+        plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Order.Hold", BehaviorParams = "{}" });
+        plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Order.Move", BehaviorParams = MoveTo(300, 50) });
+        _w.SetManagedComponent(_unit, new ActiveMissionPlan { Plan = plan });
+        var missions = new FakeMissions
+        {
+            Snapshot = () => new MissionPlan { Tasks = plan.Tasks.Select(t => new MissionTask { TaskId = t.TaskId, BehaviorId = t.BehaviorName, BehaviorParams = t.BehaviorParams }).ToList() },
+        };
+        return (plan, missions);
+    }
+
+    private static Vector3 LocationOf(string json)
+    {
+        Assert.True(OrderMenu.TryGetByName("Move", out var move));
+        var dto = Hrot.Presentation.Behavior.BehaviorParamsForm.Hydrate(move.Dto, json);
+        var v = move.Dto.GetField("Location")?.GetValue(dto) ?? move.Dto.GetProperty("Location")!.GetValue(dto);
+        return (Vector3)(Fdp.Toolkit.Replication.PointLink)v!;
+    }
+
+    /// <summary>
+    /// ⭐ W-1 / P-8 8d-2 (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.8 E2, §5.12) — <i>Edit plan on the map</i> is offered on a unit WITH a plan
+    /// (only); choosing it arms the Plan tool on the map every host builds (the facade from the host's <c>Services</c>, asked at activation), and a host
+    /// with no mission facade REPORTS why. 🔴 Red-proof: the pack not forwarding <c>ctx.Services</c> to the tool registrations ⇒ Unserviceable ⇒ red.
+    /// </summary>
+    [Fact]
+    public void P8d2_EditPlanOnTheMap_IsOfferedOnAPlannedUnit_AndArmsThePlanTool()
+    {
+        _w.RegisterManagedComponent<ActiveMissionPlan>();
+        Assert.False(Hrot.Common.Actions.MapMenuActions.ContextFor(_w, _unit).Unit.Plan);
+        var (_, missions) = PlanOfThree();
+        Assert.True(Hrot.Common.Actions.MapMenuActions.ContextFor(_w, _unit).Unit.Plan);
+        Assert.Contains("Edit plan on the map", Hrot.Common.Actions.MapMenuActions.JsonFor(_w, _unit));
+
+        var reasons = new List<string>();
+        var bare = MapInteractionPack.Build(new MapInteractionContext { World = _w, ReportUnserviceableTool = reasons.Add });
+        bare.Tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Plan, _unit);
+        Assert.False(bare.DataDrivenSystem.HasInjectedGizmo(_unit));
+        Assert.Contains(reasons, r => r.Contains("mission editor"));
+
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w, Services = MapServices.Of((Func<object?>)(() => missions)) });
+        mi.Tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Plan, _unit);
+        Assert.True(mi.DataDrivenSystem.HasInjectedGizmo(_unit));
+        Assert.Equal(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Plan, mi.Tools.ActiveModal?.Id);
+    }
+
+    /// <summary>
+    /// ⭐ W-1 / P-8 8d-2 — a handle on each task whose place is a POINT, on its marker (the Hold, which sits at the previous place, has none); dragging
+    /// task 3's handle rewrites ITS <c>Location</c> and commits the WHOLE plan at the snapshot's version through the facade — task 1 untouched. 🔴 Red-proof:
+    /// the commit sent with base version 0 (no precondition, the P-7 7c bug) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void P8d2_DraggingATasksMarker_MovesItsPlace_AndCommitsThePlan()
+    {
+        var (plan, missions) = PlanOfThree();
+        bool removed = false;
+        var gizmo = new Hrot.ScenarioEditor.Gizmos.MissionPlanEditGizmo(_w, _unit, UnitId, () => removed = true, missions);
+        gizmo.SetFocus(true);
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 64);
+        gizmo.UpdateAndDraw(_w, 0.016f, buffer);
+        var handles = buffer.GetFrame().ToArray().Where(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Box2D).ToArray();
+        Assert.Equal(new[] { (1, 100f, 200f), (3, 300f, 50f) }, handles.Select(h => ((int)h.SubElementId, h.BoxCenterX, h.BoxCenterY)));
+        Assert.All(handles, h => Assert.Equal(UnitId, h.BoxAnchorId));
+
+        gizmo.OnInteractionStarted(new Fdp.Toolkit.Diagnostics.Gizmos.GizmoPickToken { SubElementId = 3 }, new Vector3(300, 50, 0));
+        gizmo.OnDragUpdate(new Vector3(250, 80, 0));
+        gizmo.OnCommit(new Vector3(260, 90, 0));
+        var (net, sent, baseVersion) = Assert.Single(missions.Commits);
+        Assert.Equal(UnitId, net);
+        Assert.Equal(7, baseVersion);
+        Assert.Equal(new Vector3(260, 90, 0), LocationOf(sent.Tasks[2].BehaviorParams));
+        Assert.Equal(new Vector3(100, 200, 0), LocationOf(sent.Tasks[0].BehaviorParams));
+        Assert.Equal(plan.Tasks.Select(t => t.TaskId), sent.Tasks.Select(t => t.TaskId));
+
+        gizmo.OnInteractionStarted(new Fdp.Toolkit.Diagnostics.Gizmos.GizmoPickToken { SubElementId = 2 }, default);   // the Hold: no place to move
+        gizmo.OnCommit(new Vector3(1, 1, 0));
+        Assert.Single(missions.Commits);
+        gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Right, false, default);
+        Assert.True(removed);
+    }
+
     /// <summary>⭐ O5 / O6 / O7 — "Order with options › Move" opens the form for the SELECTION the clicked unit is in; Send publishes
     /// the order once per selected unit through EntityOrders, and the remember tick stores the point as both units' designation.</summary>
     [Fact]

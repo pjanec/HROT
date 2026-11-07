@@ -140,5 +140,6 @@ namespace Hrot.Common.Constants
         public const int DarLastWindow      = 2406;   // the mode indicator's "DAR — the last N" (one declaration, one row per window)
         public const int DarFromStart       = 2407;
         public const int RunTo              = 2408;
+        public const int EditPlan           = 2409;   // ⭐ W-1 / P-8 8d-2 — a unit's plan edited on the map (the Plan tool)
     }
 }

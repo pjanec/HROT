@@ -53,6 +53,8 @@ namespace Hrot.ScenarioEditor.Tools
         /// adapter — ⛔ Spawn is still REGISTERED (the no-whitelist ruling) and reports why.
         /// </param>
         /// <param name="reportUnserviceable">Where the reasons go. Defaults to the FDP log.</param>
+        /// <param name="services">⭐ W-1 / P-8 8d-2 — the host's services (<c>MapInteractionContext.Services</c>), asked at ACTIVATION: the Plan tool
+        /// commits through the host's <c>IMissionEditorService</c>. A host without one still registers it and reports why (ruling 49).</param>
         public static void RegisterAll(
             ToolController               controller,
             Func<EntityRepository?>      world,
@@ -60,7 +62,8 @@ namespace Hrot.ScenarioEditor.Tools
             Func<GlobalGizmoManager?>?   globalGizmos        = null,
             Action?                      startPlacementMode  = null,
             Action<string>?              reportUnserviceable = null,
-            Func<Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits>? measureUnits = null)
+            Func<Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits>? measureUnits = null,
+            Func<Type, object?>?         services            = null)
         {
             if (controller == null) throw new ArgumentNullException(nameof(controller));
             if (world      == null) throw new ArgumentNullException(nameof(world));
@@ -102,6 +105,20 @@ namespace Hrot.ScenarioEditor.Tools
                                    ShowOnToolbar: true, ToggleOnReactivate: true),
                 target => ToggleEntityGizmo<RoutePlan>(target, EditorTool.Route,
                     (w, e, netId, onRemove) => new RouteWaypointGizmo(w, e, netId, onRemove)));
+
+            // ⭐ W-1 / P-8 8d-2 (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.8 E2, §5.12) — a unit's plan edited on the map: a handle on each task
+            //   whose place is a point; a drag rewrites that field and commits the WHOLE plan through the mission facade (one undo step in Edit,
+            //   conflict-checked in Live — the same commit as the Orders tab). ⛔ Not on the toolbar: it is armed from the unit's menu.
+            controller.Register(
+                new ToolDescriptor(ScenarioToolIds.Plan, "Edit Plan", ToolModality.Modal, ToolArbiter.EntityScoped,
+                                   ShowOnToolbar: false, ToggleOnReactivate: true),
+                target =>
+                {
+                    if (services?.Invoke(typeof(Hrot.UI.Common.Facades.IMissionEditorService)) is not Hrot.UI.Common.Facades.IMissionEditorService missions)
+                        return Unserviceable(EditorTool.Plan, "this host composes no mission editor");
+                    return ToggleEntityGizmo<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(target, EditorTool.Plan,
+                        (w, e, netId, onRemove) => new MissionPlanEditGizmo(w, e, netId, onRemove, missions));
+                });
 
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Measure, "Measure", ToolModality.Modal, ToolArbiter.Global,

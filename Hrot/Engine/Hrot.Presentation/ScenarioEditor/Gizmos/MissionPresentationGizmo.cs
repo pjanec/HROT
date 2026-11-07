@@ -41,23 +41,20 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (!draw.IsLayerActive(DebugTraceLayers.Paths)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
             if (!view.HasManagedComponent<ActiveMissionPlan>(entity)) return;
             var activePlan = view.GetManagedComponentRO<ActiveMissionPlan>(entity);
-            if (activePlan?.Plan?.Tasks is not { Count: > 0 } tasks) return;
-            var places = Hrot.Presentation.Orders.MissionPlanPlaces.Of(activePlan);
-            var refs = view is EntityRepository world ? Hrot.UI.Common.Rules.AuthoredRules.ScopeOf(world) : null;   // ⚠ ScopeOf is cached per world
+            if (activePlan?.Plan?.Tasks is not { Count: > 0 }) return;
             var repo = view as EntityRepository;
             var colour = repo != null && repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(entity)
                 ? Hrot.Common.Diagnostics.Gizmos.SidePalette.Of(repo.GetComponentRO<EntityInfo>(entity).ForceId)
                 : Hrot.Common.Diagnostics.Gizmos.SidePalette.Neutral;
             int current = repo != null && repo.IsComponentTypeRegistered<MissionPlanQueue>() && repo.HasComponent<MissionPlanQueue>(entity) ? repo.GetComponentRO<MissionPlanQueue>(entity).CurrentTask : -1;
 
-            var previous = view.GetComponentRO<SimTransform>(entity).Position;
-            int n = Math.Min(tasks.Count, Numbers.Length);
             Span<Vector3> at = stackalloc Vector3[MissionPlanQueue.MaxTasks];
+            int n = PositionsOf(view, entity, activePlan, at);
+            var previous = view.GetComponentRO<SimTransform>(entity).Position;
             for (int i = 0; i < n; i++)
             {
-                var place = Fdp.Presentation.Editing.MapPreviews.PlaceOf(places[i], refs) ?? LegacyTarget(tasks[i].BehaviorParams) ?? previous;   // E2
-                if (place != previous) draw.DrawLine(previous, place, colour, 2f, layer: DebugTraceLayers.Paths, style: i == 0 ? LineStyle.Solid : LineStyle.Dashed);
-                at[i] = previous = place;
+                if (at[i] != previous) draw.DrawLine(previous, at[i], colour, 2f, layer: DebugTraceLayers.Paths, style: i == 0 ? LineStyle.Solid : LineStyle.Dashed);
+                previous = at[i];
             }
             for (int i = 0; i < n; i++)   // the markers over the route, numbered from 1 (map text anchors at its top-left: the number sits below)
             {
@@ -65,6 +62,23 @@ namespace Hrot.ScenarioEditor.Gizmos
                 draw.DrawSphere(at[i], 10f, Rim, thickness: 1.2f, sizeMode: SizeMode.ScreenPixels, layer: DebugTraceLayers.Paths, fillColor: fill);
                 draw.DrawText(at[i].X, at[i].Y, Numbers[i], new Rgba32(240, 240, 245), layer: DebugTraceLayers.Paths, fontSizePx: 14f, lineOffsetPx: 12f);
             }
+        }
+
+        /// <summary>
+        /// ⭐ W-1 / P-8 8d-2 — WHERE each task of <paramref name="plan"/> sits on the map (E2): its first place field, else a legacy <c>"target"</c>, else
+        /// the previous task's place (the unit's own position before task 1). ⭐ The ONE answer — the drawing above and the plan's edit handles
+        /// (<see cref="MissionPlanEditGizmo"/>) both read it, so a handle is always on its marker. Returns how many were written.
+        /// </summary>
+        public static int PositionsOf(ISimulationView view, Entity entity, ActiveMissionPlan plan, Span<Vector3> at)
+        {
+            if (plan?.Plan?.Tasks is not { Count: > 0 } tasks || !view.HasComponent<SimTransform>(entity)) return 0;
+            var places = Hrot.Presentation.Orders.MissionPlanPlaces.Of(plan);
+            var refs = view is EntityRepository world ? Hrot.UI.Common.Rules.AuthoredRules.ScopeOf(world) : null;   // ⚠ ScopeOf is cached per world
+            var previous = view.GetComponentRO<SimTransform>(entity).Position;
+            int n = Math.Min(Math.Min(tasks.Count, Numbers.Length), at.Length);
+            for (int i = 0; i < n; i++)
+                at[i] = previous = Fdp.Presentation.Editing.MapPreviews.PlaceOf(places[i], refs) ?? LegacyTarget(tasks[i].BehaviorParams) ?? previous;   // E2
+            return n;
         }
 
         /// <summary>A behaviour task's legacy <c>"target"</c> point (local metres), else null.</summary>

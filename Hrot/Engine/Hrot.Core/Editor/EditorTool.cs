@@ -26,4 +26,6 @@ public enum EditorTool
     Measure,
     /// <summary>Entity rotation mode (injects <c>EntityRotatorGizmo</c> directly via <c>DataDrivenGizmoSystem</c>).</summary>
     Rotate,
+    /// <summary>⭐ W-1 / P-8 8d-2 — a unit's mission plan edited on the map: drag a task's marker to move its place (activates <c>MissionPlanEditGizmo</c>).</summary>
+    Plan,
 }
