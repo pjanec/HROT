@@ -6,7 +6,7 @@ namespace Fdp.Toolkit.Behavior.Events
     /// Unmanaged event published by <see cref="Systems.MissionDirectorSystem"/> when a phase
     /// transition requires a new behavior to be activated by hash. This is a lightweight
     /// alternative to <see cref="AssignBehaviorEvent"/> for cases where the behavior name is
-    /// not known (only the integer hash from <see cref="Components.MissionPhase.BehaviorId"/>).
+    /// not known (only the integer hash from <see cref="Components.MissionTaskSlot.BehaviorId"/>).
     ///
     /// <para>
     /// Consumed by <see cref="Systems.BehaviorIngressSystem"/>, which is the sole owner of
@@ -28,7 +28,7 @@ namespace Fdp.Toolkit.Behavior.Events
         public Entity Entity;
 
         /// <summary>
-        /// The integer behavior hash (from <see cref="Components.MissionPhase.BehaviorId"/>)
+        /// The integer behavior hash (from <see cref="Components.MissionTaskSlot.BehaviorId"/>)
         /// to assign to the entity.
         /// </summary>
         public int BehaviorHash;

@@ -40,7 +40,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -74,7 +74,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -108,7 +108,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -142,7 +142,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -176,7 +176,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -210,7 +210,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -244,7 +244,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -278,7 +278,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -312,7 +312,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -346,7 +346,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -380,7 +380,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     },
@@ -414,7 +414,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Params": {"Protest":true,"ProtestAt":[224,265,0]},
         "Origin": "Superior"
       }
     }

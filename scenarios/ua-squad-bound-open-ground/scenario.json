@@ -33,12 +33,12 @@
       },
       "Behavior": {
         "Name": "SquadMarch",
-        "Params": "{\"Objective\": [175, 60, 0], \"Shape\": 0, \"Spacing\": 4, \"DangerAreas\": true, \"OpenGround\": true}",
+        "Params": {"Objective": [175, 60, 0], "Shape": 0, "Spacing": 4, "DangerAreas": true, "OpenGround": true},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },

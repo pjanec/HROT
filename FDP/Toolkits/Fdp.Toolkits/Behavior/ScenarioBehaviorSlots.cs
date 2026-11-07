@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Behavior
                 {
                     if ((key == "Behavior" || key == "Sop") && value is JsonObject slot && slot["Name"] is JsonValue nv && nv.TryGetValue<string>(out var name))
                     {
-                        string? p = slot["Params"] switch { JsonValue pv when pv.TryGetValue<string>(out var s) => s, null => null, var other => other.ToJsonString() };
+                        string? p = Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(slot["Params"]);   // ⭐ CE-4295 — the ONE tree reader
                         yield return new Found(key, name, p, entity);
                     }
                     else

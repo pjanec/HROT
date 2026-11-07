@@ -237,7 +237,7 @@ public sealed class MissionPanel
             ExecutingEngine = string.Empty,
             BehaviorId      = string.Empty,
             BehaviorParams  = string.Empty,
-            Triggers        = new List<MissionTrigger> { new MissionTrigger { Type = "BehaviorFinished" } },
+            Triggers        = new List<MissionTrigger>(),   // ⭐ CE-4298 — no condition = when done, decided by the runtime (MissionTriggerHelper)
             State           = eTaskState.TASK_PLANNED
         });
     }

@@ -56,6 +56,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     // ⭐ condition editor C1 (docs/UX/DESIGN_Condition_Editor.md §5, R-4142) — "this unit or anyone under it", "in the fight"; compiled in BOTH modes.
     [JsonDerivedType(typeof(InUnitPredicateDto),             "InUnit")]
     [JsonDerivedType(typeof(InTheFightPredicateDto),         "InTheFight")]
+    // ⭐ mission plan D6 (docs/UX/DESIGN_Mission_Plan_Editor.md §5.2, R-4160) — "when <unit> finishes task N"; compiled in BOTH modes.
+    [JsonDerivedType(typeof(TaskFinishedPredicateDto),       "TaskFinished")]
     // ⭐ SR-160 — every predicate node may bind its own properties to macro / scenario params (Bind); the trigger's do entries share the base.
     public abstract class SearchPredicateDto : Fdp.Toolkit.Scenario.BindableNode { }
 
@@ -107,6 +109,19 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     {
         public Fdp.Toolkit.Replication.EntityLink Unit { get; set; }
         public bool IncludeSelf { get; set; } = true;
+    }
+
+    /// <summary>⭐⭐ <c>CE-4298</c> — mission plan D6 (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.2, R-4160) — true when <see cref="Unit"/>'s mission task
+    /// <see cref="Task"/> has ENDED (its replicated outcome, <c>MissionPlanQueue.Outcomes</c>, is Done or Failed). ⭐ Defaults read as the plan's own
+    /// <i>when done</i>: no <see cref="Unit"/> ⇒ the entity being asked about; <see cref="Task"/> 0 ⇒ that unit's CURRENT task (1, 2, … = that task).
+    /// ⭐ The director records the outcome BEFORE it asks, and only for the TASK ending — a reaction or a possession ending is not (CE-2078,
+    /// CE-3172) — so it is the exact <c>BehaviorFinished</c> trigger, as a condition. A unit with no plan, or a task it does not have ⇒ false.</summary>
+    [StructEdit.Core.Attributes.EditDisplayName("A task finished")]
+    public sealed class TaskFinishedPredicateDto : SearchPredicateDto
+    {
+        public Fdp.Toolkit.Replication.EntityLink Unit { get; set; }
+        /// <summary>1-based task number; 0 = the unit's current task.</summary>
+        public int Task { get; set; }
     }
 
     /// <summary>⭐ condition editor C1 (R-4142) — true when the entity being asked about is IN THE FIGHT (<c>CombatEffective.IsInTheFight</c>: a man by his

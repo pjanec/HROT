@@ -81,13 +81,13 @@ namespace Hrot.SimHost.Tests
             _registry.TryGetId(behaviorName, out int behaviorId);
             var queue = new MissionPlanQueue
             {
-                CurrentPhase        = 0,
-                PhaseElapsedSeconds = 1.5f,
-                PhaseCount          = 1,
+                CurrentTask        = 0,
+                TaskElapsedSeconds = 1.5f,
+                TaskCount          = 1,
             };
             // Mutate Phases via local copy pattern (safe for [InlineArray]).
-            Span<MissionPhase> phases = queue.Phases;
-            phases[0] = new MissionPhase
+            Span<MissionTaskSlot> phases = queue.Tasks;
+            phases[0] = new MissionTaskSlot
             {
                 BehaviorId   = behaviorId,
                 Trigger      = MissionTrigger.BehaviorFinished,
@@ -157,9 +157,9 @@ namespace Hrot.SimHost.Tests
 
             // Assert MissionPlanQueue.
             var queue = _repo.GetComponent<MissionPlanQueue>(entity);
-            Assert.Equal(1, queue.PhaseCount);
-            Assert.Equal(FireAtTargetId, queue.Phases[0].BehaviorId);
-            Assert.Equal(MissionTrigger.BehaviorFinished, queue.Phases[0].Trigger);
+            Assert.Equal(1, queue.TaskCount);
+            Assert.Equal(FireAtTargetId, queue.Tasks[0].BehaviorId);
+            Assert.Equal(MissionTrigger.BehaviorFinished, queue.Tasks[0].Trigger);
         }
 
         /// <summary>⭐ CE-4157 — a scenario whose mission names an unknown trigger type (or two triggers) FAILS the load, naming the entity and
@@ -182,7 +182,7 @@ namespace Hrot.SimHost.Tests
             var ex = Assert.Throws<Hrot.Core.Mission.MissionPlanException>(() => translator.Inject(_repo, entity, dom, resolver));
             Assert.Contains("FireAtTarget", ex.Message);
             Assert.Contains($"#{entity.Index}", ex.Message);
-            Assert.Equal(0, _repo.GetComponent<MissionPlanQueue>(entity).PhaseCount);
+            Assert.Equal(0, _repo.GetComponent<MissionPlanQueue>(entity).TaskCount);
         }
 
         // ── Test 3: CanTranslate returns false without ActiveMissionPlan ──────────

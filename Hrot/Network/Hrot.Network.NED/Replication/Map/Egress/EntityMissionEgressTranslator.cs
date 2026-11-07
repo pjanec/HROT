@@ -117,11 +117,11 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         private MissionPlan BuildDdsPlan(in MissionPlanQueue queue, ActiveMissionPlan? activePlan)
         {
-            var tasks = new List<MissionTask>(queue.PhaseCount);
+            var tasks = new List<MissionTask>(queue.TaskCount);
 
-            for (int i = 0; i < queue.PhaseCount; i++)
+            for (int i = 0; i < queue.TaskCount; i++)
             {
-                var phase = queue.Phases[i];
+                var phase = queue.Tasks[i];
 
                 string triggerType = phase.Trigger switch
                 {

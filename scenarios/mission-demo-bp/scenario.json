@@ -19,7 +19,7 @@
               "taskId": "d3a0c0de-2023-4003-8000-00000000c3a1",
               "executingEngine": "",
               "behaviorName": "Demo_MissionPlan",
-              "behaviorParams": "{\"Move\":{\"speed\":5,\"arrivalRadius\":5,\"target\":[600,427,0]},\"Fire\":{\"targetNetworkId\":\"71171612-4f0e-4ead-aad3-881890b9b1e3\",\"maxRounds\":3,\"cooldownSeconds\":1},\"Home\":{\"speed\":5,\"arrivalRadius\":5,\"target\":[446.3,420.9,0]}}",
+              "behaviorParams": {"Move":{"speed":5,"arrivalRadius":5,"target":[600,427,0]},"Fire":{"targetNetworkId":"71171612-4f0e-4ead-aad3-881890b9b1e3","maxRounds":3,"cooldownSeconds":1},"Home":{"speed":5,"arrivalRadius":5,"target":[446.3,420.9,0]}},
               "triggers": [
                 {
                   "type": "BehaviorFinished",

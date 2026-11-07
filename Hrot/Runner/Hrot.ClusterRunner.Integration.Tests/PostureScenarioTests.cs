@@ -189,7 +189,7 @@ public sealed class PostureScenarioTests : IDisposable
             var b = Areas();
             var s = $"rifleman={Pos(simRifleman)} watcher={Pos(simWatcher)} areas={b.Count} ready={b.IsReady}";
             for (int i = 0; i < b.Count; i++) s += $" [{b.GetSpanRO()[i].Kind} d={b.GetSpanRO()[i].DistanceAlongRoute:F0} t={b.GetSpanRO()[i].ThreatRating:F2}]";
-            if (cgf.HasComponent<MissionPlanQueue>(cgfWatcher)) s += $" watcherPhase={cgf.GetComponent<MissionPlanQueue>(cgfWatcher).CurrentPhase}";
+            if (cgf.HasComponent<MissionPlanQueue>(cgfWatcher)) s += $" watcherPhase={cgf.GetComponent<MissionPlanQueue>(cgfWatcher).CurrentTask}";
             return s;
         }
 
@@ -1884,7 +1884,7 @@ public sealed class PostureScenarioTests : IDisposable
         Approach? ApproachWinner() => TryDecision(cgf, rifleman, "Attack approach", out var s) && s.Winner != 0 ? (Approach)s.Winner : null;
         float Hp(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : 0f;
         Vector3 Pos(Entity e) => !e.IsNull && cgf.IsAlive(e) && cgf.HasComponent<SimTransform>(e) ? cgf.GetComponent<SimTransform>(e).Position : default;
-        int Leg() => cgf.HasComponent<MissionPlanQueue>(rifleman) ? cgf.GetComponent<MissionPlanQueue>(rifleman).CurrentPhase : -1;
+        int Leg() => cgf.HasComponent<MissionPlanQueue>(rifleman) ? cgf.GetComponent<MissionPlanQueue>(rifleman).CurrentTask : -1;
         int HostilesUp() => hostileNames.Count(n => Hp(ByName(cgf, n)) > 0f);
         string State()
         {

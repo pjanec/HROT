@@ -45,11 +45,9 @@ namespace Hrot.Presentation.Behavior
             ScenarioBehaviorRemapper remapper,
             BehaviorRegistry? behaviorRegistry = null)
         {
-            var remapMethod  = typeof(ScenarioBehaviorRemapper).GetMethod("Register")!;
-
             foreach (var (behaviorName, type) in AuthoredContracts())
             {
-                remapMethod.MakeGenericMethod(type).Invoke(remapper,   new object[] { behaviorName });
+                remapper.Register(behaviorName, type);   // ⭐ CE-4298 — the run-time-type overload (no reflection over Register<TDto>)
                 behaviorRegistry?.RegisterJsonParamsDtoType(behaviorName, type);
             }
         }

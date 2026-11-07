@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "BoundingOverwatch",
-        "Params": "{\"Objective\": [140, 226, 0], \"BoundMetres\": 30, \"ArrivalRadius\": 10, \"BoundTimeoutSeconds\": 40}",
+        "Params": {"Objective": [140, 226, 0], "BoundMetres": 30, "ArrivalRadius": 10, "BoundTimeoutSeconds": 40},
         "Origin": "Superior"
       }
     },
@@ -268,7 +268,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

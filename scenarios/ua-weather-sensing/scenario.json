@@ -244,12 +244,12 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Behavior": {
         "Name": "HoldStance",
-        "Params": "{\"stance\": \"Standing\"}",
+        "Params": {"stance": "Standing"},
         "Origin": "Superior"
       }
     },
@@ -283,12 +283,12 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Behavior": {
         "Name": "MoveToLocation",
-        "Params": "{\"speed\":1.4,\"arrivalRadius\":2,\"target\":[15,0,0]}",
+        "Params": {"speed":1.4,"arrivalRadius":2,"target":[15,0,0]},
         "Origin": "Superior"
       }
     },
@@ -322,12 +322,12 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Behavior": {
         "Name": "HoldStance",
-        "Params": "{\"stance\": \"Standing\"}",
+        "Params": {"stance": "Standing"},
         "Origin": "Superior"
       }
     },
@@ -361,12 +361,12 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Behavior": {
         "Name": "MoveToLocation",
-        "Params": "{\"speed\":1.4,\"arrivalRadius\":2,\"target\":[15,300,0]}",
+        "Params": {"speed":1.4,"arrivalRadius":2,"target":[15,300,0]},
         "Origin": "Superior"
       }
     }

@@ -40,7 +40,7 @@
    },
    "Sop": {
     "Name": "BasicVehicleSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   },
@@ -93,12 +93,12 @@
    },
    "Behavior": {
     "Name": "WindowDuel",
-    "Params": "{\"shape\":0,\"exposuresPerPosition\":1}",
+    "Params": {"shape":0,"exposuresPerPosition":1},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "InertSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   },
@@ -132,7 +132,7 @@
    },
    "Sop": {
     "Name": "BasicVehicleSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   }

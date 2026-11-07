@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "UrbanMovement",
-        "Params": "{\"Legs\": [[200, 190, 0], [280, 190, 0]], \"Speed\": 1.5, \"Spacing\": 30}",
+        "Params": {"Legs": [[200, 190, 0], [280, 190, 0]], "Speed": 1.5, "Spacing": 30},
         "Origin": "Superior"
       }
     },
@@ -541,12 +541,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [231.5, 205.2, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [231.5, 205.2, 0], \"Radius\": 2.0}}",
+        "Params": {"Advance": {"Objective": [231.5, 205.2, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [231.5, 205.2, 0], "Radius": 2.0}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {
@@ -587,12 +587,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [234.6, 205.2, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [234.6, 205.2, 0], \"Radius\": 2.0}}",
+        "Params": {"Advance": {"Objective": [234.6, 205.2, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [234.6, 205.2, 0], "Radius": 2.0}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {
@@ -633,12 +633,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [237.5, 205.2, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [237.5, 205.2, 0], \"Radius\": 2.0}}",
+        "Params": {"Advance": {"Objective": [237.5, 205.2, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [237.5, 205.2, 0], "Radius": 2.0}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {
@@ -679,12 +679,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [238.6, 207.0, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [238.6, 207.0, 0], \"Radius\": 2.0}}",
+        "Params": {"Advance": {"Objective": [238.6, 207.0, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [238.6, 207.0, 0], "Radius": 2.0}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {

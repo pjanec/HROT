@@ -110,8 +110,8 @@ public class MissionControlIntegrationTests
         // Check CGF's ECS world for the MissionPlanQueue, not SimHost's.
         bool seeded = harness.PumpUntil(
             () => TryGetMissionQueue(harness.Cgf!.World!, networkId, out var queue)
-               && queue.PhaseCount == 3
-               && queue.CurrentPhase == 0,
+               && queue.TaskCount == 3
+               && queue.CurrentTask == 0,
             MissionSeedTimeoutFrames);
         Assert.True(seeded, "CGF did not apply the mission plan in time.");
 
@@ -132,7 +132,7 @@ public class MissionControlIntegrationTests
         // MissionControlExecutionSystem runs on CGF (Brain tier) in the split architecture.
         bool jumped = harness.PumpUntil(
             () => TryGetMissionQueue(harness.Cgf!.World!, networkId, out var queue)
-               && queue.CurrentPhase == 2,
+               && queue.CurrentTask == 2,
             JumpTimeoutFrames);
         Assert.True(jumped, "CGF did not jump to the target task in time.");
 

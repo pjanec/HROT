@@ -3091,7 +3091,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
             var posture = _world.GetComponent<WeaponPosture>(shooter);
             Assert.Equal(WeaponPostureKind.Aimed, posture.Kind);
-            Assert.Equal(new Vector3(-20f, 0f, 1f), posture.Point);
+            Assert.Equal(new Vector3(-20f, 0f, 1f), posture.Point.AsVector3);
 
             Face(shooter, 180f);
             Assert.Equal(1, BurstStep(shooter));

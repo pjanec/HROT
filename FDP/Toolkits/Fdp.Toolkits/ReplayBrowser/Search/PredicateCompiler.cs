@@ -90,6 +90,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 case InputAbovePredicateDto inputAbove: return CompileInputAbove(inputAbove);
                 case InUnitPredicateDto inUnit: return CompileInUnit(inUnit);
                 case InTheFightPredicateDto: return static (repo, e) => Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(repo, e);
+                case TaskFinishedPredicateDto taskFinished: return CompileTaskFinished(taskFinished);   // ⭐ CE-4298 — mission plan D6
 
                 // Specialized loop predicates: SEARCH mode passes through; handled by the service (edge / loop scanners).
                 case StructuralPredicateDto _:

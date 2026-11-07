@@ -36,7 +36,7 @@
       },
       "Sop": {
         "Name": "BasicVehicleSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -63,7 +63,7 @@
       },
       "Behavior": {
         "Name": "AirPlatformAttack",
-        "Params": "{\"Target\":\"a2220000-0000-4000-8000-000000000001\"}",
+        "Params": {"Target":"a2220000-0000-4000-8000-000000000001"},
         "Origin": "Superior"
       }
     },
@@ -93,7 +93,7 @@
       },
       "Sop": {
         "Name": "BasicVehicleSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -120,7 +120,7 @@
       },
       "Behavior": {
         "Name": "AirPlatformAttack",
-        "Params": "{\"Target\":\"a2220000-0000-4000-8000-000000000003\"}",
+        "Params": {"Target":"a2220000-0000-4000-8000-000000000003"},
         "Origin": "Superior"
       }
     }

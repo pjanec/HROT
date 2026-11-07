@@ -1,5 +1,6 @@
 """The small scenario-writing kit the demo generators share (gen-rf-scenarios.py, gen-ts-scenarios.py)."""
 import json, math, os
+from scenario_json_readable import readable  # CE-4295 — params written as the objects they hold
 
 ROOT = "/home/user/HROT"
 
@@ -57,7 +58,7 @@ class Scn:
         d = os.path.join(self.root, "scenarios", sid)
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "scenario.json"), "w") as f:
-            json.dump(doc, f, indent=2)
+            f.write(readable(json.dumps(doc, indent=2)))
             f.write("\n")
         print("wrote", sid, len(self.ents), "entities")
 

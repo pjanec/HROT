@@ -103,9 +103,10 @@ public sealed class PlatoonBaselineRails
     /// </summary>
     private static async Task<((double X, double Y) A, (double X, double Y) B)> BaselineLocalAsync(McpClient mcp)
     {
-        var plan = (await mcp.GetEntityAsync(1000)).EnsureOk()
-                   .Field("Components")?["MissionPlan"]?["PlanData"]?["tasks"]?[0]?["behaviorParams"]
-                   ?.GetValue<string>()
+        var plan = ((await mcp.GetEntityAsync(1000)).EnsureOk()
+                   .Field("Components")?["MissionPlan"]?["PlanData"]?["tasks"]?[0]?["behaviorParams"] is { } bp
+                   ? Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(bp)   // ⭐ CE-4295 — an object now
+                   : null)
                    ?? throw new InvalidOperationException(
                        "entity 1000 published no MissionPlan behaviourParams — the scenario changed shape, so "
                      + "this assertion cannot compute its expectation (do not weaken it: fix the read).");

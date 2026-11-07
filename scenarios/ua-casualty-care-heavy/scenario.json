@@ -33,12 +33,12 @@
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Behavior": {
         "Name": "SquadHold",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },

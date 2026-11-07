@@ -83,6 +83,10 @@ namespace Hrot.CGF.Configuration
         {
             var remapper = new ScenarioBehaviorRemapper(behaviorRegistry);
             BehaviorSchemaDiscovery.AutoRegister(remapper);
+            // ⭐⭐ CE-4298 (mission plan G1, §5.7) — an ORDER task (`Order.<Kind>`) is not a behaviour, so its contract was never found and a
+            //   target saved as a GUID resolved to nobody: every order's DTO is registered under its intent id (the one order registry).
+            foreach (var order in Hrot.Common.Orders.OrderMenu.Orders)
+                remapper.Register(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor(order.Name), order.Dto);
             return remapper;
         }
     }

@@ -96,7 +96,7 @@ namespace Hrot.Common.Systems
         public void ClearFor(Entity entity, EntityRepository repo)
         {
             bool hasQueue = repo.IsComponentTypeRegistered<MissionPlanQueue>() && repo.HasComponent<MissionPlanQueue>(entity)
-                && repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount > 0;
+                && repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount > 0;
             bool hasPlan = repo.HasManagedComponent<ActiveMissionPlan>(entity);
             if (!hasQueue && !hasPlan) return;
             if (!_entityMap.TryGetNetworkId(entity, out int networkId)) networkId = 0;
@@ -109,7 +109,7 @@ namespace Hrot.Common.Systems
         private void EmptyPlan(EntityRepository repo, Entity entity, int networkId)
         {
             // ⭐ R-3039 S1 — the version outlives the plan (it is on the queue); the task order goes with the plan (ActiveMissionPlan).
-            repo.SetComponent(entity, new MissionPlanQueue { PhaseCount = 0, CurrentPhase = 0, PhaseElapsedSeconds = 0f, Version = VersionOf(repo, entity) });
+            repo.SetComponent(entity, new MissionPlanQueue { TaskCount = 0, CurrentTask = 0, TaskElapsedSeconds = 0f, Version = VersionOf(repo, entity) });
             repo.SetManagedComponent<ActiveMissionPlan>(entity, null!);
             SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
         }
@@ -235,6 +235,7 @@ namespace Hrot.Common.Systems
                             }) ?? new List<DomainMissionTrigger>(),
                         }) ?? new List<DomainMissionTask>()
                     };
+                    CarryProgress(repo, entity, domainPlan, ref queue);   // ⭐ CE-4300 (E1)
                     currentVersion++;
                     queue.Version = currentVersion;
                     repo.SetComponent(entity, queue);
@@ -263,11 +264,11 @@ namespace Hrot.Common.Systems
                         repo.AddComponent(entity, new MissionPlanQueue());
 
                     ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
-                    queue.CurrentPhase = (byte)targetIndex;
-                    queue.PhaseElapsedSeconds = 0f;
+                    queue.CurrentTask = (byte)targetIndex;
+                    queue.TaskElapsedSeconds = 0f;
                     // ⭐ CE-483 — the operator's answer to a halted (faulted) plan: run from the target phase again.
                     queue.Halted = 0;
-                    if (targetIndex < MissionPlanQueue.MaxPhases)
+                    if (targetIndex < MissionPlanQueue.MaxTasks)
                     {
                         Span<MissionPhaseOutcome> outcomes = queue.Outcomes;
                         outcomes[targetIndex] = MissionPhaseOutcome.None;
@@ -335,6 +336,62 @@ namespace Hrot.Common.Systems
             Fdp.Toolkit.Replication.Edits.EditOutcomes.Report(repo, intent.RequestId, intent.TargetEntityId, status, reason);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4300</c> — mission plan E1 (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.8, R-4161): a replace carries the plan's PROGRESS over BY
+        /// TASK ID — ⛔ it used to restart the plan from task 1 (fixing a typo in task 4 sent a platoon back to its start line). A task already ended
+        /// keeps its outcome; the RUNNING task, if it is still in the plan and unchanged (name, params, conditions), keeps running — same task,
+        /// its elapsed time and halt kept, and the adapter does not restart it (it keys on the task, not the index); if its content changed it
+        /// restarts; if it was removed, the plan goes on with the task after the last one that ended. A plan with nothing done starts at task 1.
+        /// </summary>
+        private static void CarryProgress(EntityRepository repo, Entity entity, DomainMissionPlan next, ref MissionPlanQueue queue)
+        {
+            if (!repo.HasComponent<MissionPlanQueue>(entity) || !repo.HasManagedComponent<ActiveMissionPlan>(entity)) return;
+            var old = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity)?.Plan;
+            if (old?.Tasks is not { Count: > 0 } oldTasks) return;
+            ref readonly var was = ref repo.GetComponentRO<MissionPlanQueue>(entity);
+
+            Span<MissionPhaseOutcome> outcomes = queue.Outcomes;
+            int lastEnded = -1, running = -1;
+            for (int i = 0; i < queue.TaskCount && i < next.Tasks.Count; i++)
+            {
+                int j = IndexOf(oldTasks, next.Tasks[i].TaskId, was.TaskCount);
+                if (j < 0) continue;
+                if (was.Outcomes[j] != MissionPhaseOutcome.None)
+                {
+                    outcomes[i] = was.Outcomes[j];
+                    lastEnded = i;
+                }
+                if (j == was.CurrentTask && SameContent(oldTasks[j], next.Tasks[i])) running = i;
+            }
+            if (running >= 0)
+            {
+                outcomes[running] = MissionPhaseOutcome.None;   // still running: its end is not yet known
+                queue.CurrentTask = (byte)running;
+                queue.TaskElapsedSeconds = was.TaskElapsedSeconds;
+                queue.Halted = was.Halted;
+            }
+            else
+                queue.CurrentTask = (byte)Math.Min(lastEnded + 1, queue.TaskCount);
+        }
+
+        private static int IndexOf(List<DomainMissionTask> tasks, Guid id, int count)
+        {
+            if (id == Guid.Empty) return -1;
+            for (int j = 0; j < tasks.Count && j < count; j++)
+                if (tasks[j].TaskId == id) return j;
+            return -1;
+        }
+
+        private static bool SameContent(DomainMissionTask a, DomainMissionTask b)
+        {
+            if (a.BehaviorName != b.BehaviorName || a.BehaviorParams != b.BehaviorParams) return false;
+            int n = a.Triggers?.Count ?? 0;
+            if (n != (b.Triggers?.Count ?? 0)) return false;
+            for (int i = 0; i < n; i++)
+                if (a.Triggers![i].Type != b.Triggers![i].Type || a.Triggers[i].Params != b.Triggers[i].Params) return false;
+            return true;
+        }
+
         private bool TryBuildQueue(
             EntityRepository repo,
             MissionPlan plan,
@@ -345,21 +402,21 @@ namespace Hrot.Common.Systems
 
             queue = new MissionPlanQueue
             {
-                CurrentPhase = 0,
-                PhaseElapsedSeconds = 0f
+                CurrentTask = 0,
+                TaskElapsedSeconds = 0f
             };
 
             var tasks = plan.Tasks ?? new List<MissionTask>();
-            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxPhases);
+            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxTasks);
 
-            if (tasks.Count > MissionPlanQueue.MaxPhases)
+            if (tasks.Count > MissionPlanQueue.MaxTasks)
             {
                 FdpLog<MissionControlExecutionSystem>.Warn(
                     "[MissionControl] Mission has {0} tasks; truncating to {1}.",
-                    tasks.Count, MissionPlanQueue.MaxPhases);
+                    tasks.Count, MissionPlanQueue.MaxTasks);
             }
 
-            Span<MissionPhase> phases = queue.Phases;
+            Span<MissionTaskSlot> phases = queue.Tasks;
             for (int i = 0; i < count; i++)
             {
                 var task = tasks[i];
@@ -371,7 +428,7 @@ namespace Hrot.Common.Systems
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers, $"{task.BehaviorId} ({task.TaskId})");
 
-                phases[i] = new MissionPhase
+                phases[i] = new MissionTaskSlot
                 {
                     BehaviorId = behaviorId,
                     Trigger = trigger,
@@ -379,7 +436,7 @@ namespace Hrot.Common.Systems
                 };
             }
 
-            queue.PhaseCount = (byte)count;
+            queue.TaskCount = (byte)count;
             return true;
         }
 
@@ -391,6 +448,12 @@ namespace Hrot.Common.Systems
             if (_behaviorRegistry.TryGetId(behaviorName, out int behaviorId))
                 return behaviorId;
 
+            // ⭐ CE-4298 (mission plan D1, R-4160) — an ORDER task (`Order.<Kind>`) is resolved by the RECEIVER to its own class's behaviour
+            //   (TacticalIntentResolutionSystem); its stored id is 0 by design. An order nobody declares still warns.
+            if (behaviorName.StartsWith(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix, StringComparison.Ordinal)
+                && Hrot.Common.Orders.OrderMenu.TryGetByName(behaviorName.Substring(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix.Length), out _))
+                return 0;
+
             // Tactical intents (handled by TacticalIntentResolutionSystem) are not in the
             // concrete BehaviorRegistry. Falling back to 0 is correct; suppress the warning.
             if (_mapperRegistry.TryGetMapper(behaviorName, out _) )
@@ -401,7 +464,7 @@ namespace Hrot.Common.Systems
             // We cannot enumerate all valid intent names here, so warn only for truly unknown IDs.
             FdpLog<MissionControlExecutionSystem>.Warn(
                 "[MissionControl] Unknown BehaviorId '{0}'; using behavior 0 (Idle).",
-                behaviorId);
+                behaviorName);   // ⭐ CE-4298 — the NAME (it logged the id it had just failed to find, always 0)
             return 0;
         }
 

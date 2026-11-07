@@ -11,7 +11,9 @@ the Counter measure, AddToCounter, trigger whileTrue). Nothing compiled per scen
   macros/game/bot/scenario.json            one soldier who advances 250 m ahead of where he spawns (a respawn-wave bot)
   macros/game/supply-crate/scenario.json   a supply crate (an obstacle) — dropped by the supply-drop triggers
 """
-import json, math, os
+import json, math, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from scenario_json_readable import readable  # CE-4295 — params written as the objects they hold
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
@@ -25,7 +27,7 @@ def write(path, doc):
     full = os.path.join(ROOT, path)
     os.makedirs(os.path.dirname(full), exist_ok=True)
     with open(full, "w") as f:
-        json.dump(doc, f, indent=1)
+        f.write(readable(json.dumps(doc, indent=1)))
         f.write("\n")
 
 

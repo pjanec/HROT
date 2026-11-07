@@ -33,12 +33,12 @@
       },
       "Behavior": {
         "Name": "SquadMarch",
-        "Params": "{\"Objective\": [300, 100, 0], \"Shape\": 0, \"Spacing\": 4, \"DangerAreas\": true}",
+        "Params": {"Objective": [300, 100, 0], "Shape": 0, "Spacing": 4, "DangerAreas": true},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -351,7 +351,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -391,7 +391,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -431,7 +431,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -471,7 +471,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -511,7 +511,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

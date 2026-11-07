@@ -93,7 +93,7 @@
    },
    "Behavior": {
     "Name": "CombatPosture",
-    "Params": "{\"target\":\"2a970101-0000-4000-8000-000000000101\",\"assault\":true}",
+    "Params": {"target":"2a970101-0000-4000-8000-000000000101","assault":true},
     "Origin": "Superior"
    }
   },
@@ -172,12 +172,12 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [105.6, 104.0, 0], \"SearchRadius\": 8, \"Speed\": 2}",
+    "Params": {"Position": [105.6, 104.0, 0], "SearchRadius": 8, "Speed": 2},
     "Origin": "Superior"
    },
    "Sop": {
     "Name": "BasicSquadSop",
-    "Params": "{}",
+    "Params": {},
     "Origin": "Superior"
    }
   }

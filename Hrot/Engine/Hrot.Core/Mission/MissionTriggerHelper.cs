@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Fdp.Toolkit.Behavior.Components;
@@ -12,21 +13,50 @@ namespace Hrot.Core.Mission
     public static class MissionTriggerHelper
     {
         /// <summary>The trigger types a phase may name (the one list, quoted by every error).</summary>
-        public const string KnownTypes = "TimerElapsed, ReachedDestination, HealthCritical, BehaviorFinished, UnderAttack";
+        public const string KnownTypes = "TimerElapsed, ReachedDestination, HealthCritical, BehaviorFinished, UnderAttack, Then, GiveUp";
 
         /// <summary>
-        /// ⭐ <c>CE-4157</c> — the trigger of ONE phase. Null / empty ⇒ <c>(TimerElapsed, float.MaxValue)</c> (no trigger: the phase holds
-        /// indefinitely). The queue holds ONE trigger per phase (<c>MissionPhase</c>), so a second is refused loudly, never dropped. Throws
+        /// ⭐ <c>CE-4157</c> — the trigger of ONE phase. ⭐⭐ <c>CE-4298</c> (mission plan §5.9, R-4161) — null / empty ⇒ <c>BehaviorFinished</c>:
+        /// a task with no condition ends <i>when done</i>, so a plan of bare tasks runs one by one (the user: "I would expect that they are executed
+        /// one by one"); decided HERE, once — the editors write nothing for it. ⛔ SUPERSEDED: empty ⇒ <c>(TimerElapsed, ∞)</c> (held forever). The queue holds ONE trigger per phase (<c>MissionPhase</c>), so a second is refused loudly, never dropped. Throws
         /// <see cref="MissionPlanException"/> naming <paramref name="task"/> for an unknown type, more than one trigger or a bad parameter.
         /// </summary>
         public static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<MissionTrigger>? triggers, string? task)
         {
             if (triggers == null || triggers.Count == 0)
-                return (EcsMissionTrigger.TimerElapsed, float.MaxValue);
-            if (triggers.Count > 1)
-                throw new MissionPlanException(
-                    $"mission task '{task}': a phase holds ONE trigger, this one lists {triggers.Count} ({string.Join(", ", triggers.ConvertAll(t => t.Type))}) — CE-4157");
-            return Resolve(triggers[0].Type, triggers[0].Params, task);
+                return (EcsMissionTrigger.BehaviorFinished, 0f);   // ⭐ CE-4298 — no condition = when done
+            // ⭐⭐ CE-4298 (mission plan §5.7) — a task holds ONE "then" (an old type, or a `Then` condition) and at most ONE `GiveUp`; the meaning is
+            //   in the TYPE, never the position. A give-up is the director's (PlanConditionCache), so it does not change the slot's kind.
+            (EcsMissionTrigger Trigger, float Param)? then = null;
+            bool giveUp = false;
+            foreach (var t in triggers)
+            {
+                if (t.Type == GiveUpType)
+                {
+                    if (giveUp) throw new MissionPlanException($"mission task '{task}': more than one GiveUp — CE-4298");
+                    giveUp = true;
+                    CheckCondition(t, task);
+                    continue;
+                }
+                if (then != null)
+                    throw new MissionPlanException(
+                        $"mission task '{task}': a task holds ONE then, this one lists {triggers.Count} ({string.Join(", ", triggers.ConvertAll(x => x.Type))}) — CE-4157");
+                if (t.Type == ThenType) { CheckCondition(t, task); then = (EcsMissionTrigger.Condition, 0f); }
+                else then = Resolve(t.Type, t.Params, task);
+            }
+            return then ?? (EcsMissionTrigger.BehaviorFinished, 0f);   // a give-up alone: the then is "when done"
+        }
+
+        /// <summary>⭐ <c>CE-4298</c> — the two entry types whose params are a CONDITION (the condition language's JSON).</summary>
+        public const string ThenType = Fdp.Toolkit.Behavior.Systems.MissionConditionTypes.Then, GiveUpType = Fdp.Toolkit.Behavior.Systems.MissionConditionTypes.GiveUp;   // the one spelling
+
+        private static void CheckCondition(MissionTrigger t, string? task)
+        {
+            if (string.IsNullOrWhiteSpace(t.Params))
+                throw new MissionPlanException($"mission task '{task}': '{t.Type}' holds no condition — CE-4298");
+            try { Fdp.Toolkit.ReplayBrowser.Search.ConditionCache.Parse(t.Params); }
+            catch (Exception ex) when (ex is System.Text.Json.JsonException or NotSupportedException or InvalidOperationException)
+            { throw new MissionPlanException($"mission task '{task}': '{t.Type}' is not a condition ({ex.Message}) — CE-4298"); }
         }
 
         /// <summary>

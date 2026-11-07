@@ -22,6 +22,8 @@ import argparse, json, math, os, subprocess, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import importlib.util
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from scenario_json_readable import readable  # CE-4295 — params written as the objects they hold
 _spec = importlib.util.spec_from_file_location("udc", os.path.join(os.path.dirname(os.path.abspath(__file__)), "utility-demo-check.py"))
 udc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(udc)
@@ -116,7 +118,7 @@ def write(men, cars, spawn):
     os.makedirs(folder, exist_ok=True)
     doc = scenario(men, cars, spawn)
     with open(os.path.join(folder, "scenario.json"), "w") as fh:
-        json.dump(doc, fh, indent=1)
+        fh.write(readable(json.dumps(doc, indent=1)))   # ⭐ CE-4295
     return folder, len(doc["entities"])
 
 

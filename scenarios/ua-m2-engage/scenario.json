@@ -72,7 +72,7 @@
               "TaskId": "c4035011-0000-4000-8000-0000000000a1",
               "ExecutingEngine": "",
               "BehaviorName": "SetUpWeapon",
-              "BehaviorParams": "{\"weapon\":\"c4035011-0000-4000-8000-000000000001\"}",
+              "BehaviorParams": {"weapon":"c4035011-0000-4000-8000-000000000001"},
               "Triggers": [
                 {
                   "Type": "BehaviorFinished",
@@ -84,7 +84,7 @@
               "TaskId": "c4035011-0000-4000-8000-0000000000a2",
               "ExecutingEngine": "",
               "BehaviorName": "WeaponSystemHold",
-              "BehaviorParams": "{}",
+              "BehaviorParams": {},
               "Triggers": []
             }
           ]
@@ -121,12 +121,12 @@
       },
       "Behavior": {
         "Name": "MoveToLocation",
-        "Params": "{\"speed\":1.2,\"arrivalRadius\":1,\"target\":[310,400,0]}",
+        "Params": {"speed":1.2,"arrivalRadius":1,"target":[310,400,0]},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }
