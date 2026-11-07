@@ -88,6 +88,32 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("target not found", w.S(ghost).Reason.ToString());
         }
 
+        /// <summary>⭐ CE-4307 (RX5, Mission Plan Q4: phases begin on events) — <c>BeginPhase</c> fires a PHASE trigger (<c>common.phase</c> &gt; 0, CE-4302) through the one
+        /// control path the instructor's <i>Begin now</i> uses: the phase fires though its own <c>when</c> never rose; a trigger that is not a phase is refused with the reason.
+        /// ✅ Red-proof: the <c>RuleCommands.Control</c> call removed from the verb ⇒ the phase never fires ⇒ red.</summary>
+        [Fact]
+        public void BeginPhase_FiresThePhaseTrigger_AndRefusesATriggerThatIsNoPhase()
+        {
+            var w = new ObjWorld();
+            var never = Cond(w);                                                                  // the phase's own condition: never flipped
+            var phase = w.Trigger(TrigJson(w.Net(never), "", "[]", "\"title\":\"Phase 2\",\"phase\":2"));
+            var plain = w.Trigger(TrigJson(w.Net(never), "", "[]", "\"title\":\"Not a phase\""));
+            var src = Cond(w);
+            w.Run(1.5);
+            Assert.Equal(2, w.S(phase).Phase);
+            Assert.Equal(0, w.S(phase).FireCount);
+
+            var begin = Fire(w, src, Do(Step("BeginPhase", $"{{\"target\":{w.Net(phase)}}}")));
+            Flip(w, src, true); w.Run(1);
+            Assert.Equal(1, w.S(phase).FireCount);                                                 // begun by the step, not by its own condition
+
+            var wrong = Fire(w, src, Do(Step("BeginPhase", $"{{\"target\":{w.Net(plain)}}}")));
+            Flip(w, src, false); w.Run(0.5); Flip(w, src, true); w.Run(0.5);
+            Assert.Equal(ObjectiveState.Failed, w.S(wrong).State);
+            Assert.Contains("not a phase", w.S(wrong).Reason.ToString());
+            Assert.Equal(0, w.S(plain).FireCount);
+        }
+
         /// <summary>SR-114 — <c>reset: true</c> is the only way out of a final state, and it RESTARTS the objective: the hold timer is cleared (the kind's working state), the status
         /// is Active again, and it can be achieved a second time. ✅ Red-proof: the <c>f.Reset</c> clear removed from <c>HoldAreaBehavior.Tick</c> ⇒ the second hold completes at once ⇒ red.</summary>
         [Fact]

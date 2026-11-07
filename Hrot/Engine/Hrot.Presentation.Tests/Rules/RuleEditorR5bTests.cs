@@ -336,4 +336,54 @@ public sealed class RuleEditorR5bTests : IDisposable
         Assert.True(truncated);
         Assert.Empty(RuleLeafPlan.LeavesOf(null, out _));
     }
+    // ═══════════════════════ ⭐ CE-4307 (RX5, docs/UX/DESIGN_Rule_Editor_UX.md §2.4, rule-list-visual.svg) — actions as sentences; Order by order kind ═══════════════════════
+
+    private static ActionStep Step(string act, string args) => new() { Act = act, Args = (JsonObject)JsonNode.Parse(args)! };
+
+    /// <summary>⭐ CE-4307 — each catalogue verb reads as words (the ONE renderer the List line and the Do tab share): verb words are grammar, the rest content.
+    /// ✅ Red-proof: the switch's <c>"Message"</c> arm removed ⇒ the step reads "Message" alone ⇒ red.</summary>
+    [Fact]
+    public void ADoStep_ReadsAsASentence_GrammarAndContentApart()
+    {
+        Assert.Equal("Message everyone: \"Phase 2\"", ActionSentence.Of(Step("Message", """{"Text":"Phase 2"}"""), null));
+        Assert.Equal("Bring in red-qrf at @Drop", ActionSentence.Of(Step("InsertMacro", """{"macro":"forces/red-qrf","at":"@Drop"}"""), null));
+        Assert.Equal("End the exercise — Friend wins", ActionSentence.Of(Step("EndExercise", """{"reason":"held","winner":"Friend"}"""), null));
+        Assert.Equal("End the exercise — a draw", ActionSentence.Of(Step("EndExercise", """{"winner":"Draw"}"""), null));
+        Assert.Equal("Take 1 from @Blue_tickets", ActionSentence.Of(Step("AddToCounter", """{"target":"@Blue_tickets","amount":-1}"""), null));
+        Assert.Equal("Order @Alpha to (no order yet)", ActionSentence.Of(Step("Order", """{"target":"@Alpha"}"""), null));
+        var segs = ActionSentence.Parts(Step("Message", """{"Text":"go"}"""), null);
+        Assert.True(segs[0].Grammar); Assert.Equal("Message ", segs[0].Text);
+        Assert.Contains(segs, x => !x.Grammar && x.Text == "\"go\"");
+        Assert.Equal("Begin @Phase_2", ActionSentence.Of(Step("BeginPhase", """{"target":"@Phase_2"}"""), null));
+        Assert.Equal("Unknown verb", ActionSentence.Of(Step("UnknownVerb", "{}"), null));   // an act the table does not know: its humanised name
+    }
+
+    /// <summary>⭐ CE-4307 — the List line carries each step's sentence after the arrow. ✅ Red-proof: <c>RuleSentence</c> back on <c>Humanize(act)</c> ⇒ red.</summary>
+    [Fact]
+    public void TheListLine_SaysWhatEachStepDoes()
+    {
+        const string json = """{"common":{"title":"Push"},"when":{"$type":"ScenarioTime","FromSeconds":60},"do":[{"act":"Message","args":{"Text":"Phase 2"}},{"act":"EndExercise","args":{"winner":"Hostile"}}]}""";
+        var (text, incomplete) = RuleSentence.Of("Trigger", json, "Push", false, null);
+        Assert.False(incomplete);
+        Assert.EndsWith("→ Message everyone: \"Phase 2\", End the exercise — Hostile wins", text);
+    }
+
+    /// <summary>⭐ CE-4307 — an Order step is set by ORDER KIND (`Order.&lt;kind&gt;`, the receiver's class picks the behaviour); the other args stay; a behaviour name
+    /// (Advanced) has no kind. ✅ Red-proof: <c>WithOrderKind</c> writing the bare kind ⇒ <c>OrderKindOf</c> null ⇒ red.</summary>
+    [Fact]
+    public void AnOrderStep_IsSetByOrderKind_AndReadsAsOne()
+    {
+        var kinds = Hrot.Common.Orders.OrderMenu.Orders;
+        Assert.NotEmpty(kinds);
+        string kind = kinds[0].Name;
+        var list = new List<ActionStep> { Step("Order", """{"target":"@Alpha","behavior":"MoveToLocation","params":{"x":1}}""") };
+        Assert.Null(ActionListEdit.OrderKindOf(list[0]));                                                       // a behaviour (Advanced): no kind
+        var set = ActionListEdit.WithOrderKind(list, 0, kind);
+        Assert.Equal(kind, ActionListEdit.OrderKindOf(set[0]));
+        Assert.Equal("Order." + kind, (string)set[0].Args!["behavior"]!);
+        Assert.Equal(1, (int)set[0].Args!["params"]!["x"]!);                                                     // the other args kept
+        Assert.Equal("@Alpha", (string)set[0].Args!["target"]!);
+        Assert.Equal($"Order @Alpha to {StructEdit.Core.Attributes.DisplayNames.Humanize(kind)}", ActionSentence.Of(set[0], null));
+        Assert.True(ActionListEdit.IsOrder("Order")); Assert.False(ActionListEdit.IsOrder("Message"));
+    }
 }

@@ -6,6 +6,7 @@ using Fdp.Presentation.Fonts;
 using Hrot.Editor.UiFrameRail;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
+using Hrot.UI.Common.RunMode;
 using Hrot.Presentation.Tests.Map3D;
 using ImGuiNET;
 using NodeEditor.Core.Widgets;
@@ -224,4 +225,43 @@ public sealed class ColourIconsFrameRail
         Shoot(frame, "colour-icons-sheet.png");
         Assert.True(grey > 5, $"the first row (mode/edit) is drawn grey ({grey} px after the bounded wait)");
     }
+
+    /// <summary>
+    /// ⭐ L-11 / CE-4319 (LC-14) — the toolbar's ▶ on a real frame: drawn for each armed mode, the triangle's pixels are THAT mode's indicator colour
+    /// (Live green, Preview violet, AAR blue). Render: <c>play-colours.png</c>. 🔴 Red-proof: the tint dropped in <c>DrawShape</c> ⇒ every row green ⇒ red.
+    /// </summary>
+    [Fact]
+    public void L11_PlayIsDrawnInTheArmedModesColour_OnARealFrame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin(240, 60);
+        var armed = new[] { Hrot.UI.Common.RunMode.RunArmed.Live, Hrot.UI.Common.RunMode.RunArmed.Preview, Hrot.UI.Common.RunMode.RunArmed.AAR };
+        void Draw()
+        {
+            ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(240, 60));
+            ImGui.Begin("##play", Bare);
+            for (int i = 0; i < armed.Length; i++)
+            {
+                if (i > 0) ImGui.SameLine();
+                TransportIcons.DrawTransportButton($"##p{i}", 40f, TransportIcons.BtnShape.Play, true, MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, armed[i]));
+            }
+            ImGui.End();
+        }
+        for (int i = 0; i < 4; i++) frame.Step(Draw);
+        var shot = Raylib.LoadImageFromScreen();
+        try
+        {
+            Shoot(frame, "play-colours.png");
+            float step = 40f + ImGui.GetStyle().ItemSpacing.X;
+            for (int i = 0; i < armed.Length; i++)
+            {
+                var want = MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, armed[i])!.Value;
+                int x0 = (int)(ImGui.GetStyle().WindowPadding.X + i * step);
+                int hits = Extent(shot, x0, 0, x0 + 40, 60, p => Near(p, want * 0.85f + new Vector4(0, 0, 0, 0), 40) || Near(p, want, 40)).Count;
+                Assert.True(hits > 30, $"{armed[i]}: the play triangle is in its mode's colour ({hits} px)");
+            }
+        }
+        finally { Raylib.UnloadImage(shot); }
+    }
 }
+

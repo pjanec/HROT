@@ -46,6 +46,9 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             foreach (var id in new[] { "editor_rules", "editor_game_master", "editor_mission_summary", "editor_trainee_debrief", "editor_game_summary" })
                 Assert.True(windows.TryGetWindow(id, out _), id + " is registered on the editor");
             Assert.Same(editor.EditHistory, editor.RulesBundleForTest!.Editor!.History);
+            // ⭐ P-7 (CE-4303) — the editor's Details offer the Orders tab (it passes its mission facade)
+            Assert.NotNull(editor.ScenarioWorkspace);
+            Assert.Contains(editor.ScenarioWorkspace!.DetailsViews.All, d => d.Id == Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.Id);
 
             var choice = editor.RunChoiceForTest;
             Assert.NotNull(choice);

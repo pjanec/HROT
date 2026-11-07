@@ -34,10 +34,21 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                 if (!string.Equals(k, "behavior", StringComparison.OrdinalIgnoreCase)) continue;
                 if (v is not JsonValue jv || !jv.TryGetValue<string>(out var name) || string.IsNullOrWhiteSpace(name)) return "'behavior' must be a behaviour name";
                 if (name.Length > 63) return $"the behaviour name is {name.Length} characters; at most 63";
+                // ⭐ CE-4307 (RX5) — or an ORDER KIND (`Order.<kind>`, the mission plan's unit-agnostic vocabulary): the target's class picks the behaviour
+                if (name.StartsWith(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix, StringComparison.Ordinal))
+                    return IsOrderKind(name.Substring(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix.Length)) ? null : $"unknown order '{name}'";
                 if (!ParamsDtoRegistry.Default.TryGetBehavior(name, out _)) return $"unknown behaviour '{name}'";
                 return null;
             }
             return "'behavior' is required";
+        }
+
+        /// <summary>An order kind the vocabulary declares (a DTO with an <c>[Order]</c> name).</summary>
+        public static bool IsOrderKind(string kind)
+        {
+            foreach (var d in ParamsDtoRegistry.Default.Dtos)
+                if (d.OrderName != null && string.Equals(d.OrderName, kind, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
     }
 
@@ -87,6 +98,17 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             if (target.IsNull || !world.IsAlive(target)) return Fail(world, self, "target not found");
             if (!world.IsComponentTypeRegistered<BehaviorState>() || !world.HasComponent<BehaviorState>(target)) return Fail(world, self, "target has no brain");
             string name = p.Behavior.ToString();
+            // ⭐ CE-4307 (RX5) — an order KIND: sent as the intent `Order.<kind>` (the brain's owner resolves it by the unit's class, as an operator's order);
+            //   the step waits for the behaviour that class resolves to. A kind no class of the target fulfils fails at once, with why.
+            string runs = name;
+            string prefix = Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix;
+            if (name.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                var registry = ParamsDtoRegistry.Default;
+                var r = Hrot.Core.Tkb.OrderResolver.Resolve(Hrot.Core.Tkb.EntityClassTable.Default, world.GetDisType(target), name.Substring(prefix.Length), n => registry.TryGetBehavior(n, out _));
+                if (r.Outcome != Hrot.Core.Tkb.OrderResolution.Resolved) return Fail(world, self, r.Detail);
+                runs = r.Behaviour;
+            }
             if (s.Began == 0)
             {
                 string json = string.Empty;
@@ -105,7 +127,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                 s.Began = 1; s.IssuedAt = (SimInstant)now;
                 return NodeStatus.Running;
             }
-            if (world.GetComponentRO<BehaviorState>(target).ActiveBehaviorHash == BehaviorHash.FromName(name)) return NodeStatus.Success;
+            if (world.GetComponentRO<BehaviorState>(target).ActiveBehaviorHash == BehaviorHash.FromName(runs)) return NodeStatus.Success;
             if (now - s.IssuedAt >= AcceptTimeoutSeconds - 1e-9) return Fail(world, self, "not accepted");
             return NodeStatus.Running;
         }

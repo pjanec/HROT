@@ -286,11 +286,14 @@ namespace Hrot.Common.Orders
 
         private OrderResult Publish(Entity entity, string intentId, string json)
         {
-            _world.Bus.PublishManaged(new AssignTacticalIntentEvent
-            {
-                Entity = entity, IntentId = intentId, JsonParams = json,
-                Origin = BehaviorOrigin.Operator, ClearsPriorIntent = true,
-            });
+            // ⭐ edit framework F5 (CE-4306) — journalled: the brain's owner answers ACCEPTED, or refused with why (a higher-ranked order is running, no class fulfils it …)
+            string label = "Order " + (intentId.StartsWith(OrderAttribute.IntentPrefix, StringComparison.Ordinal) ? intentId.Substring(OrderAttribute.IntentPrefix.Length) : intentId);
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Command(entity,
+                id => _world.Bus.PublishManaged(new AssignTacticalIntentEvent
+                {
+                    Entity = entity, IntentId = intentId, JsonParams = json,
+                    Origin = BehaviorOrigin.Operator, ClearsPriorIntent = true, RequestId = id,
+                }), label));
             return new OrderResult(OrderRefusal.None, "ordered", intentId, json);
         }
 

@@ -199,5 +199,24 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((1, 77L), (got.NoFire.Count, got.NoFire.Items[0]));
             Assert.Equal(0, translator.UnhandledDirectiveCount);
         }
+
+        /// <summary>CE-4306 (F5) — the wire's RequestId comes back on the event (and an old sender's empty one stays empty). ✅ Red-proof: <c>RequestId</c> dropped from the ingress's event ⇒ red.</summary>
+        [Fact]
+        public void F5_TheWiresRequestId_BecomesTheEventsRequestId()
+        {
+            var translator = new TacticalIntentIngressTranslator(null, _entityMap);
+            var entity = _world.CreateEntity();
+            _entityMap.Register(42, entity);
+            var id = Guid.NewGuid();
+
+            var sample = new TacticalIntentRequest { TargetEntityId = 42, IntentId = "Order.Move", JsonParams = "{}", RequestId = id };
+            translator.ProcessSample(in sample, _world);
+            var older = new TacticalIntentRequest { TargetEntityId = 42, IntentId = "Order.Hold", JsonParams = "{}" };
+            translator.ProcessSample(in older, _world);
+            _world.Bus.SwapBuffers();
+
+            var events = _world.Bus.ReadManaged<AssignTacticalIntentEvent>();
+            Assert.Equal(new[] { id, Guid.Empty }, events.Select(e => e.RequestId).ToArray());
+        }
     }
 }

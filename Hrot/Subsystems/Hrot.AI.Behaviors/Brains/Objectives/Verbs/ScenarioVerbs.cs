@@ -24,6 +24,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
         public SetObjectiveActiveParams() { Target = default; Active = true; Reset = false; }
     }
 
+    /// <summary>⭐ CE-4307 (RX5, mission plan Q4) — <c>BeginPhase</c>'s params: the phase (a trigger whose <c>common.phase</c> &gt; 0, CE-4302).</summary>
+    public struct BeginPhaseParams { public EntityLink Target; }
+
     /// <summary>⭐ S6 G-3 — <c>AddToCounter</c>'s params: the target <c>Counter</c> measure and what to add (negative drains).</summary>
     public struct AddToCounterParams { public EntityLink Target; public float Amount; }
 
@@ -97,6 +100,27 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             if (refusal != null) return Fail(world, self, refusal);
             RuleCadence.Wake(world, target);   // ⭐ CE-2383 — the target may be asleep (final, waiting): it takes the switch at the next frame
             Fdp.Core.Logging.FdpLog<Log>.Info($"objective '{st.Title}': {(p.Reset ? "reset, " : "")}{(p.Active ? "on" : "off")} (asked by {self})");
+            return NodeStatus.Success;
+        }
+
+        // ═══════════════════════════════════════ BeginPhase (CE-4307, RX5) ═══════════════════════════════════════
+
+        /// <summary>⭐ CE-4307 (📄 docs/UX/DESIGN_Rule_Editor_UX.md §2.4, Mission Plan Editor Q4: phases begin on events) — begins an operation PHASE: fires the phase
+        /// trigger through the ONE control path the instructor's <i>Begin now</i> uses (<c>RuleCommands.Control</c>, <see cref="RuleRequest.Fire"/>, origin
+        /// <see cref="RuleOrigin.Rule"/>) — the trigger's own owner honours it, journals it and runs its <c>do</c>. Instant: Success once asked. Failure: the target
+        /// does not resolve or is not a phase.</summary>
+        [SharedAiAction]
+        public static NodeStatus BeginPhase(ref BeginPhaseParams p, ref VerbNoState s, Entity self, EntityRepository world)
+        {
+            var target = p.Target.Ref.Resolve(world);
+            if (target.IsNull || !world.IsAlive(target)) return Fail(world, self, "phase not found");
+            if (!world.IsComponentTypeRegistered<ObjectiveStatus>() || !world.HasComponent<ObjectiveStatus>(target)) return Fail(world, self, "target has no objective status");
+            ref readonly var st = ref world.GetComponentRO<ObjectiveStatus>(target);
+            if (st.Role != ObjectiveRole.Trigger || st.Phase == 0) return Fail(world, self, "the target is not a phase (a trigger with common.phase)");
+            int seq = 0;
+            RuleCommands.Control(world, target, RuleRequest.Fire, RuleOrigin.Rule, ref seq, out _);
+            RuleCadence.Wake(world, target);
+            Fdp.Core.Logging.FdpLog<Log>.Info($"phase {st.Phase} '{st.Title}': begun (asked by {self})");
             return NodeStatus.Success;
         }
 

@@ -22,6 +22,10 @@ public sealed class RunNoteStatusBarSection
     /// <summary>The note, in the user's words (AQ108 §3).</summary>
     public const string Text = "Running — edits are not saved unless you save";
 
+    /// <summary>⭐ L-1 / CE-4315 (Scenario lifecycle LC-8, R-4166) — the note in a PREVIEW, which never keeps anything: Stop restores the authored world and a
+    /// Save is refused with this same reason (<c>RunModeChoice</c>). ⛔ The Live note's "unless you save" was a lie here.</summary>
+    public const string PreviewText = "Preview — changes are thrown away on Stop";
+
     private readonly ITimeTransportFacade _facade;
 
     /// <param name="facade">The host's ONE time facade.</param>
@@ -36,7 +40,12 @@ public sealed class RunNoteStatusBarSection
     }
 
     /// <summary>The note to show now, or <see langword="null"/> when no Preview or Live run is going (AAR and editing edit nothing a run could lose).</summary>
-    public string? NoteNow() => _facade.Mode is TransportMode.Preview or TransportMode.Live ? Text : null;
+    public string? NoteNow() => _facade.Mode switch
+    {
+        TransportMode.Preview => PreviewText,
+        TransportMode.Live    => Text,
+        _                     => null,
+    };
 
     /// <summary>Called each frame by the <see cref="StatusBarManager"/>, inside an active ImGui frame and the status-bar window.</summary>
     public void Render()

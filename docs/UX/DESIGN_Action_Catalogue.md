@@ -394,9 +394,9 @@ being in the wrong mode. Everything that is not the bootstrapper falls back to A
 (`menus.golden.txt`, `menus.station.golden.txt`) regenerated — the only movement is those two rows. **Save** measured: Edit writes the scenario
 (the File menu's Save items are drawn only while editing; Ctrl+S `shell.save` → the session's `SaveCurrent`); Live takes a checkpoint
 (`RunModeChoice.TryCheckpointInsteadOfSave` intercepts every Save, `EditorScenarioSession.SaveIntercept`); a recording refuses
-(*"a recording cannot take a checkpoint"*). ⚠ **Gap, not built:** in **Preview** a Save is refused (*"Not saved: stop the preview to save"*)
-instead of taking a checkpoint — a checkpoint is the live run's recorder's (`CheckpointDisabledReason`: *"a checkpoint is taken of a live run"*)
-and a Preview runs a copy of the edit world ⇒ backend (`NOTE_Ui_To_Backend_Preview_Checkpoint.md`).
+(*"a recording cannot take a checkpoint"*). ⭐ **Preview — corrected by R-4166 (LC-8):** a checkpoint is LIVE only; in **Preview** a Save stays REFUSED with the status bar's own
+reason, *"Not saved: Preview — changes are thrown away on Stop"* (L-1 / CE-4315, `RunNoteStatusBarSection.PreviewText`). ⛔ SUPERSEDED: "in Preview
+it takes a checkpoint" (the backend request was withdrawn).
 
 ⭐ **A4 — WHOM a menu command acts on (R-4162):** 🔒 *"Right-clicking an unselected entity should indeed select just that entity"* · *"if we are right clicking an entity which is already part of the selection, then the menu command should go to all selected ones. Doesn't matter which one was right clicked."*
 
