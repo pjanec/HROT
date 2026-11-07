@@ -392,6 +392,7 @@ namespace Hrot.UI.Common.Map3D
             _view.Set(true, animate: false);
             _driver = new FpsCameraDriver(this, _world, unit, netId);
             _view.Camera3D.Driver = _driver;
+            if (Hrot.ScenarioEditor.Map.HatArbiter.Of(w) is { } hats) hats.Embodied = true;   // ⭐ Seats H3 — the station wears the Embodied hat
             if (Bodies != null) Bodies.FirstPerson = unit;   // ⭐ CE-1073 — the camera is inside this head
             // ⭐ CE-1158 (§8h U-4) — back in the rider after Get out: his first frame carries the Get-out press (his only action aboard)
             if (unit == _getOutRider)
@@ -409,6 +410,7 @@ namespace Hrot.UI.Common.Map3D
             MapPeek = false;                // ⭐ CE-1218 — a peek ends with the possession
             _view.Camera3D.Driver = null;   // Detached unlocks the cursor
             _driver = null;
+            if (Hrot.ScenarioEditor.Map.HatArbiter.Of(_world()) is { } hats) hats.Embodied = false;   // ⭐ Seats H3 — back to the hat it came from
             if (Bodies != null) Bodies.FirstPerson = Entity.Null;
             if (restore) RestoreView();
             else _softLeft = true;

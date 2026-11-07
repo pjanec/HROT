@@ -97,7 +97,7 @@ public sealed class MapStatsOverlay : IMapLayer
             Raylib.DrawText(text, (int)at.X, (int)at.Y, FontSize, new Color(170, 255, 170, 255));
             y = FontSize + 10;
         }
-        if (MapUiStates.RtsOf(_world()) is { Armed: true } rts)
+        if (MapUiStates.RtsOf(_world()) is { Armed: true, StoodDown: false } rts)
             DrawRtsLegend(viewport, y, rts);
     }
 

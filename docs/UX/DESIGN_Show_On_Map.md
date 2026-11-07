@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Struct_Editor.md — the ⌖ becomes the Map part of each semantic TypeEditor
   - ../DESIGN_Semantic_Value_Types.md — §3 "the TYPE drives the tools": a map preview is one more tool the type drives
   - ../DESIGN_Scenario_Rules.md — §9.8.9 / §9.8.10 OWN WorldPoint, Bearing, EntityLink / PointLink / AreaLink
   - DESIGN_Details_Forms.md — the form rows carry the ⌖ (read-only included, §2.4)

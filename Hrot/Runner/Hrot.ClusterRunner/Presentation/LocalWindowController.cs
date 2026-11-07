@@ -143,7 +143,8 @@ internal sealed class LocalWindowController
         var owner = PickRunControls(_subsystems.OfType<IProvidesRunControls>());
         RunControlsOwner = owner;
         if (owner?.Transport is { } transport && !owner.SuppressTimeControl)   // ⭐ CE-1445 — a role suppresses EXPLICITLY (the Player issues no ticks), never by lacking the control
-            Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice, runSetupLines: () => owner.RunSetupLines, runTo: owner.RunTo);   // ⭐ AQ108 D24 · W-4 Run to …
+            Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice, runSetupLines: () => owner.RunSetupLines, runTo: owner.RunTo,
+                stationWorld: () => owner.World);   // ⭐ Seats H3 — the indicator shows the owner's seat · hat   // ⭐ AQ108 D24 · W-4 Run to …
         // ⭐⭐ CE-1442 (U1, §11.7 ④) — the loading screen and the cluster-error indicator are composed HERE, once, over the same owner's choice: a host cannot lack them or draw a second one
         if (owner?.RunChoice is { } ownerChoice)
         {

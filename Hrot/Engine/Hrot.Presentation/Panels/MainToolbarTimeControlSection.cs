@@ -42,8 +42,9 @@ public sealed class MainToolbarTimeControlSection
     /// choice's moves (each with its confirmation, drawn as a modal), ▶ ■ keep calling the facade. ⛔ A host that HAS one must pass it.</param>
     /// <param name="runTo">⭐ W-4 (LC-10) — the host's <see cref="RunToController"/>: the mode menu offers <i>Run to …</i> in Edit and Preview. ⛔ A host that HAS one must pass it.</param>
     public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null, RunModeChoice? choice = null, Func<IReadOnlyList<string>>? runSetupLines = null,
-        RunToController? runTo = null)
+        RunToController? runTo = null, Func<Fdp.Core.EntityRepository?>? stationWorld = null)
     {
+        _stationWorld = stationWorld;
         _runTo = runTo;
         _runSetupLines = runSetupLines;
         _facade = facade;
@@ -557,6 +558,14 @@ public sealed class MainToolbarTimeControlSection
         // ── [Mode indicator] — opens its menu, never acts (R-3061) ─────────
         DrawModeIndicator(iconSize);
         ImGui.SameLine();
+        // ⭐ Seats H3 (§2.3 "the mode indicator shows the run mode, the seat and the hat") — "Instructor · Command" beside the mode glyph
+        if (StationLine() is { } station)
+        {
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextDisabled(station);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("This station's seat · what you are doing now (the hat)");
+            ImGui.SameLine();
+        }
 
         // ── [Play/Pause] ───────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_pp", iconSize,
@@ -668,6 +677,32 @@ public sealed class MainToolbarTimeControlSection
 
     /// <summary>⭐ CE-4097 — draws <see cref="RunModeChoice.Pending"/> through the ONE modal helper (CE-1438): its text and buttons; closing it (Esc / ✕) is Cancel, the last button.</summary>
     private void DrawConfirmation() => ConfirmationModal.Draw(_choice?.Pending);
+
+    private readonly Func<Fdp.Core.EntityRepository?>? _stationWorld;
+    private Hrot.Common.Infrastructure.Seat _lineSeat;
+    private Hrot.Common.Editing.Hat _lineHat;
+    private string? _line;
+
+    /// <summary>⭐ Seats H3 — the seat · hat line of the station's world, or null (no world / no map); rebuilt only when either changes (0 B per frame).</summary>
+    internal string? StationLine()
+    {
+        if (_stationWorld?.Invoke() is not { } w || Hrot.ScenarioEditor.Map.HatArbiter.Of(w) is not { } hats) return null;
+        var seat = w.HasSingletonManaged<Hrot.Common.Editing.StationMode>() ? w.GetSingletonManaged<Hrot.Common.Editing.StationMode>()!.Seat : Hrot.Common.Infrastructure.Seat.Author;
+        var hat = hats.Active;
+        if (_line == null || seat != _lineSeat || hat != _lineHat)
+        {
+            _lineSeat = seat; _lineHat = hat;
+            _line = SeatWord(seat) + " · " + Hrot.ScenarioEditor.Map.HatArbiter.WordOf(hat);
+        }
+        return _line;
+    }
+
+    /// <summary>⭐ Seats H3 — a seat as the indicator words it.</summary>
+    public static string SeatWord(Hrot.Common.Infrastructure.Seat seat) => seat switch
+    {
+        Hrot.Common.Infrastructure.Seat.SideController => "Side controller",
+        _ => seat.ToString(),
+    };
 
     /// <summary>A coloured disc with the mode's letter; a click opens the mode menu (where there is one).</summary>
     private void DrawModeIndicator(float size)

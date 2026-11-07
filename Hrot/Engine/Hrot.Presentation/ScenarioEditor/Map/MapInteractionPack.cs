@@ -416,11 +416,15 @@ namespace Hrot.ScenarioEditor.Map
                 authoring.AddEntity.RegisterOn(actions);
                 authoring.CopyPaste = new Hrot.UI.Common.AddEntity.CopyPasteActions(() => authoring.Spawn, selection);   // ⭐ A5 — one clipboard per map, beside Add Entity
                 authoring.CopyPaste.RegisterOn(actions);
+                var clipboard = authoring.CopyPaste.Clipboard;
+                authoring.CanvasMenu.CanPaste = () => clipboard.HasCopy;   // ⭐ A5 C3 — the empty map's Paste
                 authoringRef = authoring;
                 authoringForForm = authoring;   // ⭐ CE-1059 — the order form's entity list opens in the same picker registry
             }
             var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
 
+            var hats = new HatArbiter(ctx.World, tools);
+            MapUiStates.Set(ctx.World, hats);
             var map = new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
@@ -429,6 +433,7 @@ namespace Hrot.ScenarioEditor.Map
             {
                 MenuOrders     = menuOrders,
                 MenuShortcuts  = new MenuShortcuts(ctx.World, bus, selection, tools),   // ⭐ CE-1076
+                Hats           = hats,   // ⭐ Seats H3 — one hat per map, by construction
                 OrderForm      = orderForm,
                 Host           = host,   // ⭐ CE-1150
             };

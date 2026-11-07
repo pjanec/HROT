@@ -170,6 +170,7 @@ namespace Hrot.ScenarioEditor.Map
 
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
+            if (_mode is { StoodDown: true }) { _rightDown = false; return; }   // ⭐ Seats H3 — under the FPS view the gestures are the unit's
             // ⭐ CE-1075 — the terminal packs the held modifiers into the button's high bits (MapMouseButton.ShiftMask …): a
             //   Shift-click arrived as Left|ShiftMask and matched neither branch, so "Shift adds" never added. The mask IS the Shift.
             bool shift = _shift || (button & MapMouseButton.ShiftMask) != 0;
@@ -188,13 +189,16 @@ namespace Hrot.ScenarioEditor.Map
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
         {
             key &= ~(MapKeyboardKey.ShiftMask | MapKeyboardKey.CtrlMask | MapKeyboardKey.AltMask);   // ⭐ CE-1075 — as for the mouse
+            if (_mode is { StoodDown: true }) return;
             if (key is MapKeyboardKey.LeftShift or MapKeyboardKey.RightShift) _shift = isPressed;
             else if (key is MapKeyboardKey.LeftControl or MapKeyboardKey.RightControl)
             {
                 _ctrl = isPressed;
                 if (_mode != null) _mode.ForceAttack = isPressed;   // ⭐ CE-1132 — the overlay shows the attack reticle while held
             }
-            else if (key == MapKeyboardKey.Escape && isPressed) _onRemove();
+            // ⭐ R-4163 (Input §6b) — RTS is sticky: Esc drops a half-done right-press and stops; only View ▸ RTS command mode leaves.
+            //   ⛔ SUPERSEDED: Esc removed the tool (Entity Control §8a).
+            else if (key == MapKeyboardKey.Escape && isPressed) _rightDown = false;
         }
 
         public void OnDragUpdate(Vector3 worldPos) { if (_rightDown) _rightMoves++; }
@@ -211,6 +215,8 @@ namespace Hrot.ScenarioEditor.Map
     {
         public bool Armed;
         public bool ForceAttack;
+        /// <summary>⭐ Seats H3 (§3.3) — the station drives a unit: RTS stays checked but ignores input and hides its legend; release returns to it (R-4163).</summary>
+        public bool StoodDown;
 
         /// <summary>The controls, as the legend lists them.</summary>
         public static readonly string[] Legend =
@@ -219,7 +225,7 @@ namespace Hrot.ScenarioEditor.Map
             "LMB  select    Shift+LMB  add    drag  box select",
             "RMB  move here / attack the enemy under the cursor",
             "Ctrl+RMB  attack whatever is under the cursor",
-            "RMB drag  look    Esc  leave",
+            "RMB drag  look    View > RTS command mode  leave",
         };
     }
 }

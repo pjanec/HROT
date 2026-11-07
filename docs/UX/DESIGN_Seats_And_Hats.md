@@ -206,7 +206,7 @@ features"*
 | **H1** | the `station.seat` node feature + `HostDescription.DefaultSeat` (the fused server = Instructor, the Player = Player, the editor = Author, the Replay Browser = Reviewer); the mode indicator shows it | backend + ui |
 | **H2** | the catalogue and the gate read the seat: level and side scope (fixes CE-4279: a Player gets no Add Entity, no RTS, no other side's orders) | ui + backend |
 | **H3** | the `HatArbiter`: one hat, disarm on switch, Esc one level, the hat in the indicator | ui |
-| **H4** | one camera owner with per-hat views (FPS, Follow, director, free) | ui |
+| **H4** | one camera owner with per-hat views (FPS, Follow, director, free) — ✅ H4b the director shares the camera (§3.4); ⏸ H4a no snap-back after possession, held for the user | ui |
 | **H5** | the Instructor seat's windows on the fused server and CGF (rules, game master, End) — SR-104 Z7 | ui |
 | **H6** | the Side controller seat; the Observer seat's camera | ui |
 | **H7** | the HTTP session seat and hat (`/session/seat`, `/session/hat`); `/orders/side-lock` folded in | backend + ui |
@@ -254,6 +254,103 @@ another side by construction (CE-4279), not because each surface remembered to c
 ⏭ **Not here:** the timeline's / toolbar's moment menus (`ActionContext.ForMoment`) carry no seat yet — the Run group is greyed on the map only ·
 `RuleEditorServicesFactory` still lets an Instructor edit rules in Edit mode (the gate refuses the edit itself) · H3 the arbiter, H4 the camera.
 Rails: `TheActionCatalogueComposesMenusTests.H2_*` (2), `RtsCommandToolTests.H2_APlayerCannotArmTheTool_ASideControllerOrdersOnlyItsSide`.
+
+### 3.3 ⭐ H3 — the `HatArbiter` *(ui, `2026-11-07`; build design → as built)*
+
+**As built (same day):** exactly the diagrams below, plus one measured deviation: ⚠ the arbiter's FIRST frame records the hat and is not a change (the first
+build disarmed a tool armed before the arbiter ever ran — caught by its own rail). `Hat` lives in its own file (`Hrot.Common/Editing/Hat.cs`): the DDS
+code generator emits one IDL per source file and `Hat.Edit` collided with `EditingMode.Edit`. Rails: `HatArbiterTests` (9, red-proved by mutation) and
+`RtsCommandToolTests` — the Esc rail flipped (R-4163: Esc no longer leaves RTS).
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Hat|ToolController|ToolArbiter|ModeIndicator|Possession(Station|State)|RtsModeState).*` (Class) ⇒ 19,
+⛔ **no hat type**; the parts it joins: `ToolController` (the modal stack), `RtsModeState` (armed while the RTS gizmo lives, `MapUiStates`),
+`PossessionStation.Enter / Leave` (the FPS camera driver), the ONE toolbar time control (`LocalWindowController.ComposeRunControls`). Esc: 41 readers
+(Input §5 inventory) — central Esc stays **K3**.
+
+```mermaid
+classDiagram
+  direction LR
+  class Hat { <<NEW enum, Hrot.Common.Editing>> Observe · Edit · Command · Embodied · Direct }
+  class HatArbiter {
+    <<NEW, one per map world, a system in MapInteraction.InteractionSystems>>
+    Active : Hat  (derived: Embodied > Direct > Command > Edit > Observe)
+    Embodied : bool  (set by PossessionStation)
+    Directing : bool  (H4: the director owns the camera)
+    Execute() — on a change: disarm, RTS stands down
+    Of(world)
+  }
+  class RtsModeState { <<existing>> Armed · ForceAttack · + StoodDown }
+  class ToolController { <<existing>> ActiveModal · Cancel() }
+  class StationMode { <<existing, H2>> Current · Seat }
+  class PossessionStation { <<existing>> Enter / Leave }
+  class MainToolbarTimeControlSection { <<existing>> + StationLine "Instructor · Command" }
+  HatArbiter --> StationMode : the run mode
+  HatArbiter --> RtsModeState : armed? / stand down
+  HatArbiter --> ToolController : disarms the other hats' tools
+  PossessionStation ..> HatArbiter : Embodied on Enter / Leave
+  MainToolbarTimeControlSection ..> HatArbiter : shows Active
+```
+*What the picture shows that prose hid: the hat is DERIVED from facts that already exist (the run mode, the RTS tool, possession) — R-4164 "the hat
+follows the run mode, never picked by hand" — so the arbiter adds no second state to keep in step; its only actions are disarming on a change and
+standing RTS down under the FPS view.*
+
+```mermaid
+sequenceDiagram
+  participant P as PossessionStation
+  participant A as HatArbiter (system, each frame)
+  participant T as ToolController
+  participant R as RtsModeState
+  P->>A: Embodied = true (Enter)
+  A->>A: Active: Command → Embodied
+  A->>T: Cancel() while the top tool is not RTS (placement, paste, pick …)
+  A->>R: StoodDown = true (RTS stays checked, its gizmo ignores input)
+  P->>A: Embodied = false (Leave)
+  A->>R: StoodDown = false — back in Command (R-4163: release returns to it)
+```
+
+| rule | |
+|---|---|
+| **derived, one precedence** | Embodied (this station drives a unit) > Direct (the director owns the camera — set by H4) > Command (RTS armed, Preview / Live) > Edit (Edit mode) > Observe |
+| **disarm on a change** | every armed tool except RTS is cancelled (no placement tool under the FPS view, no Edit tool after ▶) |
+| **RTS sticky** (R-4163, Input §6b) | Esc no longer leaves the RTS tool — it drops a half-done right-press; only *View ▸ RTS command mode* leaves. Possessing stands it down; release returns to it |
+| **the indicator** | one line beside the mode glyph: *Instructor · Command* (the seat · the hat), composed ONCE with the toolbar time control |
+| ⏭ not here | the hat menu in the indicator (the mockup's clicks) · central Esc (K3) · the hat as the keymap scope (K2) · H4 the camera |
+
+### 3.4 ⭐ H4 — one camera owner *(ui, `2026-11-07`)*
+
+INVENTORY (grep `Camera3D.Driver =`, 4 drivers): `PossessionStation` (FPS + the fall screen) · `FollowCameraDriver` (`MapViewModeLayer`) · `FilmDirector`
+(`FilmCaptureLayer.Direct`) — and the free camera (no driver). ⭐ The camera already has ONE driver slot (`MapCamera3D.Driver`, replacing one detaches
+the other) — so "one owner" is structural today; what §2.5 asks for is HOW control passes between them.
+
+```mermaid
+sequenceDiagram
+  participant U as the user
+  participant D as FilmDirector (the driver)
+  participant S as FilmStudio
+  participant C as MapCamera3D
+  participant R as DirectorRunner
+  U->>D: wheel / right-look / middle-pan (HandleInput)
+  D->>S: UserTakesCamera() (refused while a capture films)
+  D->>C: Driver = null — the free camera flies on from the shot
+  R->>S: NextCut() when the key on screen changes
+  S-->>R: UserHoldsCamera false at the next cut (Director camera on)
+  Note over C: FilmCaptureLayer.Direct puts the director back on the camera
+```
+*What it shows that prose hid: the director stays the camera's SOURCE every frame — the user's gesture only suspends it until the next cut, so no second
+camera state exists; the cut is the runner's own key change.*
+
+| piece | as built — **H4b, the director shares the camera** (🔒 user, `2026-11-06`) |
+|---|---|
+| the grab | `FilmDirector.HandleInput`: the wheel, the right button (look), the middle button (pan) ⇒ `FilmStudio.UserTakesCamera()` and the driver lets go. ⛔ A left click stays the map's (select) |
+| the retake | `DirectorRunner` calls `FilmStudio.NextCut()` when the program's key changes; `UserHoldsCamera` turns false at the next cut while *Director camera* is on |
+| the toggle | *Director camera* (Director window, beside *Pilot view*): off ⇒ never taken back for the rest of the playback; the window says *"You have the camera — the director retakes it at its next shot"* |
+| a capture | `CameraLocked` (set with a capture, cleared by `Release`) — a captured film is always the program |
+
+⏸ **H4a — HELD for the user (R-4156):** §2.5 also says *"after releasing a unit, from the unit's eye … ⛔ no snap-back by default"* with *Back to my view*.
+⚠ That reverses possession's measured behaviour, pinned by ~8 rails (`PossessionStationTests` — *"back to the 2-D map it was in"*, *"the map as he had it"*),
+and the user's own words in §2.5 are about the DIRECTOR. ⇒ **Question:** should releasing a unit keep the view at the unit's eye (+ a *Back to my view* key),
+or keep today's return to the map you had? ⭐ Lean: **keep today's return** for possession (a trainee expects to come back to the map) and offer *Back to my
+view* only after a director take — the case the user named. Rails: `FilmTests.H4_AGesture_TakesTheCameraFromTheDirector_WhichRetakesItAtItsNextCut`.
 
 ## 4. Questions — ✅ all seven leans APPROVED *(🔒 user, `2026-11-06`: "Q1–Q7 of seats and hats approved")*
 
