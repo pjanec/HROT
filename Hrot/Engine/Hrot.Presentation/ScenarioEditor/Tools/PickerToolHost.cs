@@ -117,7 +117,8 @@ namespace Hrot.ScenarioEditor.Tools
                 var id = pair.Item1;
                 if (tools.IsRegistered(id)) continue;
                 tools.Register(
-                    new ToolDescriptor(id, pair.Item2, ToolModality.Modal, ToolArbiter.Global),
+                    new ToolDescriptor(id, pair.Item2, ToolModality.Modal, ToolArbiter.Global,
+                        Hint: "click the map · Esc: stop picking", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Crosshairs),   // ⭐ B-17 P1
                     _ => _pendingArm[id]());
             }
 

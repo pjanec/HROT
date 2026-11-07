@@ -85,7 +85,7 @@ namespace Hrot.ScenarioEditor.Tools
 
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Spawn, "Place Entity", ToolModality.Modal, ToolArbiter.Global,
-                                   ShowOnToolbar: true),
+                                   ShowOnToolbar: true, Hint: "click: place · drag: heading · right-click or Esc: done", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.LocationDot),
                 _ =>
                 {
                     if (startPlacementMode == null)
@@ -96,13 +96,15 @@ namespace Hrot.ScenarioEditor.Tools
 
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Edit, "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped,
-                                   ShowOnToolbar: true, ToggleOnReactivate: true),
+                                   ShowOnToolbar: true, ToggleOnReactivate: true,
+                                   Hint: "drag a vertex · right-click: done · Esc: undo the drag and stop", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),
                 target => ToggleEntityGizmo<EditablePolyline>(target, EditorTool.Edit,
                     (w, e, netId, onRemove) => new VertexEditGizmo(w, e, netId, onRemove)));
 
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Route, "Edit Route", ToolModality.Modal, ToolArbiter.EntityScoped,
-                                   ShowOnToolbar: true, ToggleOnReactivate: true),
+                                   ShowOnToolbar: true, ToggleOnReactivate: true,
+                                   Hint: "drag a waypoint · right-click: done · Esc: undo the drag and stop", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Route),
                 target => ToggleEntityGizmo<RoutePlan>(target, EditorTool.Route,
                     (w, e, netId, onRemove) => new RouteWaypointGizmo(w, e, netId, onRemove)));
 
@@ -111,7 +113,8 @@ namespace Hrot.ScenarioEditor.Tools
             //   conflict-checked in Live — the same commit as the Orders tab). ⛔ Not on the toolbar: it is armed from the unit's menu.
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Plan, "Edit Plan", ToolModality.Modal, ToolArbiter.EntityScoped,
-                                   ShowOnToolbar: false, ToggleOnReactivate: true),
+                                   ShowOnToolbar: false, ToggleOnReactivate: true,
+                                   Hint: "drag a task's marker: move its place · right-click or Esc: done", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Route),
                 target =>
                 {
                     if (services?.Invoke(typeof(Hrot.UI.Common.Facades.IMissionEditorService)) is not Hrot.UI.Common.Facades.IMissionEditorService missions)
@@ -122,7 +125,7 @@ namespace Hrot.ScenarioEditor.Tools
 
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Measure, "Measure", ToolModality.Modal, ToolArbiter.Global,
-                                   ShowOnToolbar: true),
+                                   ShowOnToolbar: true, Hint: "click: start · click: end · right-click or Esc: cancel", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Crosshairs),
                 _ =>
                 {
                     var global = globalGizmos?.Invoke();
@@ -143,7 +146,7 @@ namespace Hrot.ScenarioEditor.Tools
 
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Rotate, "Rotate", ToolModality.Modal, ToolArbiter.EntityScoped,
-                                   ShowOnToolbar: true),
+                                   ShowOnToolbar: true, Hint: "drag: rotate · right-click or Esc: cancel", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.RotateLeft),
                 ActivateRotate);
 
             // ── the arm bodies ───────────────────────────────────────────────────

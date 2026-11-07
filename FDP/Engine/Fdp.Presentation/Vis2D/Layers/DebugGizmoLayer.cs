@@ -171,6 +171,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         public void Draw3D(RenderContext ctx)
         {
+            GizmoMap.Presentation.GizmoTextDraw.Strings = _buffer?.InternMap;   // ⭐ B-17 P1 — long gizmo text resolves from THIS buffer
             if (_buffer == null) return;
             if (LayerBitIndex >= 0 && LayerBitIndex < 32 && (ctx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return;
             if (CurrentCamera?.Invoke() is not Fdp.Toolkit.Vis3D.MapCamera3D camera) return;
@@ -199,6 +200,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         public void DrawOverlay(RenderContext ctx)
         {
+            GizmoMap.Presentation.GizmoTextDraw.Strings = _buffer?.InternMap;   // ⭐ B-17 P1 — long gizmo text resolves from THIS buffer
             LabelsDrawn3D = 0;
             if (_buffer == null) return;
             if (LayerBitIndex >= 0 && LayerBitIndex < 32 && (ctx.VisibleLayersMask & (1u << LayerBitIndex)) == 0) return;
@@ -296,6 +298,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         public void Draw(RenderContext ctx)
         {
+            GizmoMap.Presentation.GizmoTextDraw.Strings = _buffer?.InternMap;   // ⭐ B-17 P1 — long gizmo text resolves from THIS buffer
             if (_buffer == null) return;
             var primitives = FrameFor(in ctx);   // ⭐ CE-1379 / CE-1380 — a film's pass: its film layers only
 

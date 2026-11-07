@@ -426,7 +426,7 @@ namespace GizmoMap.Presentation
                     // 0 means "use the renderer default of 13 px".
                     // ⭐ CE-1033 S3 — size and font come from GizmoTextDraw, shared with the 3-D map's label overlay.
                     float px = GizmoTextDraw.PixelSize(in prim);
-                    string str = prim.TextContent.ToString();
+                    string str = GizmoTextDraw.TextOf(in prim);   // ⭐ B-17 P1 — the whole text, not the 31-character preview
                     Font font = GizmoTextDraw.Font;
 
                     // AnchorGeneration carries a screen-pixel vertical line offset for Text
