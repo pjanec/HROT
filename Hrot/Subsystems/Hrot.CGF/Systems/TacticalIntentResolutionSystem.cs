@@ -144,6 +144,7 @@ namespace Hrot.CGF.Systems
                     {
                         if (r.Outcome == OrderResolution.Tie) s_aiLog.Error("Entity:[{EntityId}] Node:[TacticalIntentResolutionSystem] | {Detail}", evt.Entity.Index, r.Detail);
                         else s_aiLog.Warn("Entity:[{EntityId}] Node:[TacticalIntentResolutionSystem] | refused: {Detail}", evt.Entity.Index, r.Detail);
+                        Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Refused(repo, evt.RequestId, evt.Entity, r.Detail);   // ⭐ CE-4306 (F5): the station that asked is told why
                         continue;
                     }
                     behaviorEvent = new AssignBehaviorEvent { Entity = evt.Entity, BehaviorName = r.Behaviour, JsonParams = evt.JsonParams };
@@ -180,6 +181,7 @@ namespace Hrot.CGF.Systems
 
                 // ⭐ CE-3034 — the behaviour carries the intent's origin, whichever path built the assignment.
                 behaviorEvent.Origin = evt.Origin;
+                behaviorEvent.RequestId = evt.RequestId;   // ⭐ CE-4306 (F5): the gate answers under the order's id
                 repo.Bus.PublishManaged(behaviorEvent);
             }
         }

@@ -292,5 +292,22 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((4711L, 15f, (byte)1), (back.AllowArea, back.WatchBearing, back.WatchSet));
             Assert.Equal((2, 4712L, 4713L), (back.NoFire.Count, back.NoFire.Items[0], back.NoFire.Items[1]));
         }
+
+        /// <summary>CE-4306 (F5) — an order's request id crosses the wire (the order write only). ✅ Red-proof: <c>RequestId</c> dropped from the egress's <c>TacticalIntentRequest</c> ⇒ red.</summary>
+        [Fact]
+        public void F5_TheOrdersRequestId_IsWrittenOnTheWire()
+        {
+            var (translator, writer) = BuildTranslator();
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new BehaviorState());
+            _entityMap.Register(42, entity);
+            var id = Guid.NewGuid();
+
+            _world.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = entity, IntentId = "Order.Move", JsonParams = "{}", Origin = BehaviorOrigin.Operator, RequestId = id });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+
+            Assert.Equal(id, Assert.Single(writer.Written).RequestId);
+        }
     }
 }

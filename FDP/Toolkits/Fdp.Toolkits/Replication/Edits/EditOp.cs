@@ -61,6 +61,11 @@ namespace Fdp.Toolkit.Replication.Edits
         public static EditOp Interact(Entity target, Action<Guid> send, string label)
             => new() { Kind = EditKind.Interact, Target = target, Send = send ?? throw new ArgumentNullException(nameof(send)), Label = label ?? string.Empty };
 
+        /// <summary>⭐ F5 (CE-4306) — an order to a unit: <paramref name="send"/> publishes the order's intent carrying the id it is given; the brain's owner answers
+        /// ACCEPTED (<see cref="EditStatus.Applied"/>) or refused + why (<see cref="InteractionOutcomes"/>). Execution is not tracked.</summary>
+        public static EditOp Command(Entity target, Action<Guid> send, string label)
+            => new() { Kind = EditKind.Command, Target = target, Send = send ?? throw new ArgumentNullException(nameof(send)), Label = label ?? string.Empty };
+
         /// <summary>⭐ F6 (CE-4277) — a document commit with a version precondition (the mission plan): <paramref name="send"/> publishes it under the id;
         /// its executor answers Applied, or <see cref="EditStatus.Conflict"/> when the base version moved.</summary>
         public static EditOp Commit(Entity target, Action<Guid> send, string label)

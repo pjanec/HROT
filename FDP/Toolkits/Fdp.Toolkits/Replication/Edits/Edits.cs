@@ -48,6 +48,7 @@ namespace Fdp.Toolkit.Replication.Edits
                 EditKind.Write => throw new ArgumentException("A Write op carries Changes, a PatchJson or a commander.", nameof(op)),
                 EditKind.Create => Create(op),
                 EditKind.Interact => Create(op),
+                EditKind.Command => Create(op),    // ⭐ F5 (CE-4306): an order — the host's intent event sent under a fresh id; the brain's owner answers
                 EditKind.Commit => Create(op),     // ⭐ F6: likewise; the version precondition rides in the host's command   // ⭐ F4: the same shape — the host's command sent under a fresh id; its executor answers
                 EditKind.Delete => Delete(repo, op, netId),
                 EditKind.AddComponent => ComponentEdit(repo, op, netId, add: true),

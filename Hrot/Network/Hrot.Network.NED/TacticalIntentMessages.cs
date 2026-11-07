@@ -44,6 +44,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ <c>CE-3167</c> — <see cref="TacticalIntentFlags"/>: bit 0 = <c>ClearsPriorIntent</c>.</summary>
         public byte Flags;
+
+        /// <summary>⭐ CE-4306 (edit framework F5) — the id of the station's order edit (<c>Guid.Empty</c> = nobody asked); APPENDED last. The brain's owner answers it with <c>EntityEditOutcome</c>.</summary>
+        public System.Guid RequestId;
     }
 
     /// <summary>⭐ <c>CE-3167</c> — the bits of <see cref="TacticalIntentRequest.Flags"/> (outside the DDS struct: its generator
