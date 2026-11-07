@@ -87,6 +87,11 @@ public static class AttributeVocabulary
         // ⭐ ONE attribute for the four mounts: the mount index is the sub-index (JSON {"Ammo":{"2":5}}); the numeric segment normalises to '*'.
         new("Ammo.*",                AttributeIds.Ammo,                AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponState), BrainLocal: true),
         new("Stance",                AttributeIds.Stance,              AttributeValueKind.CsInt32,   typeof(Hrot.MuscleCharacter.Animation.Components.StanceIntent)),
+        // ⭐ Initial state S2 (docs/UX/DESIGN_Initial_State.md §3) — the weapon's start state; WeaponPosture is replicated (dtWeaponPosture), applied by the brain's node
+        new("Weapon.Posture",        AttributeIds.WeaponPosture,       AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
+        new("Weapon.AimPoint.*",     AttributeIds.WeaponAimPoint,      AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
+        new("Weapon.AimTarget",      AttributeIds.WeaponAimTarget,     AttributeValueKind.CsInt64,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
+        new("Weapon.HeldItem",       AttributeIds.WeaponHeldItem,      AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
         // the authored scalars of the GLOBAL weather and of a weather region (one component, DESIGN_Weather_And_Time §2); the wind levels and cloud layers are lists, not scalars — not attributes (yet)
         new("Weather.GroundTemperatureC",     AttributeIds.WeatherGroundTemperatureC,     AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
         new("Weather.LapseRateKPerKm",        AttributeIds.WeatherLapseRateKPerKm,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),

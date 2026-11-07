@@ -215,4 +215,20 @@ public static class AttributeIds
 
     /// <summary>⭐ <c>WeatherConditions.FeatherM</c> (the blend distance at a region's edge). <c>Float64</c>.</summary>
     public const ushort WeatherFeatherM = 66;
+
+    // ── ⭐ Initial state S2 (docs/UX/DESIGN_Initial_State.md §3, R-4137) — the weapon's start state, on WeaponPosture (applied by the brain's node) ──
+
+    /// <summary>⭐ <c>WeaponPosture.Kind</c> — a <c>WeaponPostureKind</c> (0 AtEase · 1 Ready · 2 Aimed) as a number or its name. <c>Int32</c>.</summary>
+    public const ushort WeaponPosture = 70;
+
+    /// <summary>⭐ <c>WeaponPosture.Point</c>, one axis per record — the axis (0 x · 1 y · 2 z) travels as <c>SubIndex1</c> (<c>{"Weapon.AimPoint":{"0":12.5}}</c>);
+    /// aims at a point, not a unit. World metres. <c>Float64</c>.</summary>
+    public const ushort WeaponAimPoint = 71;
+
+    /// <summary>⭐ <c>WeaponPosture.Target</c> — the target unit's NETWORK id (0 clears); aims at it, not at a point. Resolved on the applying node (binary only). <c>Int64</c>.</summary>
+    public const ushort WeaponAimTarget = 72;
+
+    /// <summary>⭐ <c>WeaponPosture.HeldItem</c> — a <c>HeldItemKind</c> (0 None · 1 Weapon · 2 Throwable · 3 Phone · 4 Binoculars) as a number or its name; a thing he does not
+    /// have is refused (<c>HeldItems.Has</c>). <c>Int32</c>.</summary>
+    public const ushort WeaponHeldItem = 73;
 }

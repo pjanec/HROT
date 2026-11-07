@@ -32,6 +32,36 @@ public sealed class FormAttributeInstaller : IBinaryAttributeInstaller<EntityAtt
         builder.RegisterHandler<WeaponState>(AttributeIds.Ammo, HandleAmmo);
         builder.RegisterHandler<StanceIntent>(AttributeIds.Stance, HandleStance);
 
+        // ⭐ Initial state S2 — the weapon's start state, through WeaponPostureOf / HeldItems (the one writers). The component is the state, so a paused world shows it at once.
+        builder.RegisterHandler<WeaponPosture>(AttributeIds.WeaponPosture, (ctx, r) =>
+        {
+            if (!FormAttributes.TryEnum<WeaponPostureKind>(r.Value, out var kind)) return;
+            ref var p = ref ctx.PatchContext.GetUnmanagedComponent<WeaponPosture>();
+            if (ctx.Repo == null) { p.Kind = kind; return; }   // creation path: the request carries it
+            Fdp.Toolkit.Combat.WeaponPostureOf.Author(ctx.Repo, ctx.Entity, kind);
+        });
+        builder.RegisterHandler<WeaponPosture>(AttributeIds.WeaponAimPoint, (ctx, r) =>
+            Fdp.Toolkit.Combat.WeaponPostureOf.AuthorAimPoint(ref ctx.PatchContext.GetUnmanagedComponent<WeaponPosture>(), r.SubIndex1, (float)FormAttributes.AsDouble(r.Value)));
+        builder.RegisterHandler<WeaponPosture>(AttributeIds.WeaponAimTarget, (ctx, r) =>
+        {
+            var repo = ctx.Repo;
+            if (repo == null) return;   // a target is a live unit: no world, nothing to aim at
+            long id = (long)FormAttributes.AsDouble(r.Value);
+            var target = FormAttributes.ByNetworkId(repo, id);
+            if (id != 0 && target.IsNull) return;   // ⛔ an unknown unit is refused (nothing applied)
+            ctx.PatchContext.GetUnmanagedComponent<WeaponPosture>();
+            Fdp.Toolkit.Combat.WeaponPostureOf.AuthorAimTarget(repo, ctx.Entity, target);
+        });
+        builder.RegisterHandler<WeaponPosture>(AttributeIds.WeaponHeldItem, (ctx, r) =>
+        {
+            if (!FormAttributes.TryEnum<HeldItemKind>(r.Value, out var item)) return;
+            var repo = ctx.Repo;
+            if (repo == null) { ctx.PatchContext.GetUnmanagedComponent<WeaponPosture>().HeldItem = item; return; }
+            if (!Fdp.Toolkit.Combat.HeldItems.Has(repo, ctx.Entity, item)) return;   // ⛔ a thing he does not have
+            ctx.PatchContext.GetUnmanagedComponent<WeaponPosture>();
+            Fdp.Toolkit.Combat.HeldItems.Set(repo, ctx.Entity, item);
+        });
+
         foreach (ushort id in WeatherIds)
         {
             ushort attribute = id;

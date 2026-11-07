@@ -231,6 +231,15 @@ namespace Fdp.Toolkit.Behavior
         /// <see cref="TryEmbark"/>; <see cref="EmbarkResult.Full"/> when that seat is taken.
         /// </summary>
         public static EmbarkResult TryEmbarkAt(EntityRepository repo, Entity passenger, Entity vehicle, int seat)
+            => TryEmbarkAt(repo, passenger, vehicle, seat, CarryMode.Seated, Entity.Null);
+
+        /// <summary>
+        /// ⭐ Initial state S1 (📄 docs/UX/DESIGN_Initial_State.md §2.2, R-4137) — <see cref="TryEmbarkAt(EntityRepository, Entity, Entity, int)"/> with the
+        /// SAVED carry mode and second man, so a scenario load boards a casualty on a stretcher as it was saved, not seated. On a person
+        /// carrier a man rides <paramref name="mode"/> (<see cref="CarryMode.Seated"/> ⇒ carried; a stretcher with no living second man ⇒
+        /// carried); on a vehicle always seated, and no assistant.
+        /// </summary>
+        public static EmbarkResult TryEmbarkAt(EntityRepository repo, Entity passenger, Entity vehicle, int seat, CarryMode mode, Entity assistant)
         {
             if (!repo.IsAlive(passenger) || !repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return EmbarkResult.Invalid;
             if (Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, passenger) || Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, vehicle)) return EmbarkResult.Invalid;
@@ -247,7 +256,12 @@ namespace Fdp.Toolkit.Behavior
             }
             else if (station) return EmbarkResult.Invalid;
             if (!repo.GetComponentRO<PassengerBuffer>(vehicle).Passengers[seat].IsNull) return EmbarkResult.Full;
-            return Seat(repo, passenger, vehicle, seat, IsPersonCarrier(repo, vehicle) ? CarryMode.Carried : CarryMode.Seated);
+            if (!IsPersonCarrier(repo, vehicle)) return Seat(repo, passenger, vehicle, seat, CarryMode.Seated);
+            if (IsWeaponSystem(repo, passenger) || mode == CarryMode.Seated) mode = CarryMode.Carried;
+            bool team = mode == CarryMode.Stretcher || IsTwoManWeapon(repo, passenger);
+            if (!team || assistant.IsNull || !repo.IsAlive(assistant) || assistant == passenger || assistant == vehicle) assistant = Entity.Null;
+            if (mode == CarryMode.Stretcher && assistant.IsNull) mode = CarryMode.Carried;   // ⛔ no stretcher with one man
+            return Seat(repo, passenger, vehicle, seat, mode, assistant);
         }
 
         private static EmbarkResult Seat(EntityRepository repo, Entity passenger, Entity vehicle, int seat, CarryMode mode, Entity assistant = default)

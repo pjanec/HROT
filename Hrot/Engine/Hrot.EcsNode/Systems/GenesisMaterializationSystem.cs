@@ -82,12 +82,19 @@ namespace Hrot.SimHost.Systems
                         break;
                     }
                 }
+                // ⭐ Initial state S1 — the second man resolves too (a stretcher waits for both handles)
+                Entity assistant = Entity.Null;
+                if (allResolved && !intent.Assistant.IsNone
+                    && (!_entityMap.TryGetEntity(intent.Assistant.Ref.NetworkId, out assistant) || !view.IsAlive(assistant))) allResolved = false;
                 if (!allResolved) continue;
-                // ⭐ WS-4 (W-I) — into the SAVED seat when the save has seats (a gunner into the gunner seat, the M2 into its station)
+                // ⭐ WS-4 (W-I) — into the SAVED seat when the save has seats (a gunner into the gunner seat, the M2 into its station);
+                //   ⭐ S1 — with the SAVED carry mode and second man (a casualty on a stretcher comes back on it, not seated)
                 bool seated = intent.Seats.Count == intent.PassengerNetworkIds.Count;
+                bool moded = seated && intent.Modes.Count == intent.Seats.Count;
                 for (int i = 0; i < intent.PassengerNetworkIds.Count; i++)
                     if (_entityMap.TryGetEntity(intent.PassengerNetworkIds[i].Ref.NetworkId, out var passenger))
-                        Count(seated ? Fdp.Toolkit.Behavior.Embarkation.TryEmbarkAt(repo, passenger, entity, intent.Seats[i])
+                        Count(seated ? Fdp.Toolkit.Behavior.Embarkation.TryEmbarkAt(repo, passenger, entity, intent.Seats[i],
+                                           moded ? (Fdp.Toolkit.Behavior.Components.CarryMode)intent.Modes[i] : Fdp.Toolkit.Behavior.Components.CarryMode.Seated, assistant)
                                      : Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, passenger, entity));
                 cmd.RemoveManagedComponent<InitialPassengersIntent>(entity);
             }

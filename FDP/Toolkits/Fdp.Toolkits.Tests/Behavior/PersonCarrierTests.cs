@@ -218,6 +218,34 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
+        /// ⭐ Initial state S1 (docs/UX/DESIGN_Initial_State.md §2.2, R-4137) — a scenario load boards the SAVED seat with the SAVED mode and second
+        /// man: a stretcher casualty comes back on the stretcher with his rear handle, not seated / carried. A stretcher whose second man is gone
+        /// comes back carried; a seated mode on a person is carried. ✅ Red-proof: TryEmbarkAt ignoring the mode ⇒ Carried ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S1_ALoadBoardsTheSavedSeat_WithTheSavedModeAndSecondMan()
+        {
+            var carrier = Soldier(100f);
+            var casualty = Soldier(20f);
+            var helper = Soldier(100f, new Vector3(1f, 0f, 0f));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbarkAt(_world, casualty, carrier, 0, CarryMode.Stretcher, helper));
+            Assert.Equal(CarryMode.Stretcher, _world.GetComponentRO<IsEmbarkedTag>(casualty).Mode);
+            Assert.Equal(helper, _world.GetComponentRO<PassengerBuffer>(carrier).Assistant);
+            Assert.Equal(carrier, _world.GetComponentRO<IsAssistingTag>(helper).Carrier);
+
+            var alone = Soldier(100f, new Vector3(0f, 10f, 0f));
+            var second = Soldier(20f, new Vector3(0f, 10f, 0f));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbarkAt(_world, second, alone, 0, CarryMode.Stretcher, Entity.Null));
+            Assert.Equal(CarryMode.Carried, _world.GetComponentRO<IsEmbarkedTag>(second).Mode);   // ⛔ no stretcher with one man
+
+            var dragger = Soldier(100f, new Vector3(0f, 20f, 0f));
+            var third = Soldier(20f, new Vector3(0f, 20f, 0f));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbarkAt(_world, third, dragger, 0, CarryMode.Dragged, helper));
+            Assert.Equal(CarryMode.Dragged, _world.GetComponentRO<IsEmbarkedTag>(third).Mode);
+            Assert.True(_world.GetComponentRO<PassengerBuffer>(dragger).Assistant.IsNull);       // a one-man load takes no second man
+        }
+
+        /// <summary>
         /// ⭐ T3 — the second man is PLACED at the rear handle (2 m behind, facing the carrier's way) and the casualty between them, and he
         /// follows as the carrier turns; a list that names him (another node's) tags him; a list that stops naming him releases him.
         /// ✅ Red-proof: EmbarkedStateSystem without the assistant pass ⇒ he stays where he stood ⇒ red.

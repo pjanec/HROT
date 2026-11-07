@@ -29,6 +29,13 @@ namespace Hrot.Common.Serializers
         /// into the gunner seat, the M2 into its station). Empty for a save written before seats were saved: then the seats are re-chosen
         /// by the boarding rules, as before.</summary>
         public List<int> Seats { get; set; } = new();
+
+        /// <summary>⭐ Initial state S1 (R-4137) — each passenger's carry mode (<c>CarryMode</c> as a byte), parallel to <see cref="Seats"/>;
+        /// empty in a save written before modes were saved (then a person carrier carries, a vehicle seats, as before).</summary>
+        public List<byte> Modes { get; set; } = new();
+
+        /// <summary>⭐ S1 — a person carrier's second man (the rear handle of a stretcher or a two-man weapon); <c>None</c> when there is none.</summary>
+        public EntityLink Assistant { get; set; }
     }
 
     /// <summary>

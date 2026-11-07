@@ -181,6 +181,15 @@ tune it. That conflicts with R-4119 (gated by the entity, not the node) and with
 | **S6** | the Character settings become attribute writes (Proficiency, the four temperament fields, and their reset) applied on the brain's node; the Brain tab's Character section offered on every station that may edit the unit (R-4119); Weapons control / Reactions as plain choices through `SetRoeEvent` | backend (attributes) + ui | bravery set from a CGF station that does not run the brain reaches it; *Reset to type* restores the type's value with its spread |
 | **S5** | the Unit form rows (Aboard, Carried by, Carries, Weapon, In hand, Knows about, Damage) and the Crew & cargo seat roles | ui | each from the form, Edit and Live, survives save and reload |
 
+### 4.1 ⭐ AS-BUILT — S1 and S2 *(backend, `2026-11-07`, B-5)*
+
+| stage | as built |
+|---|---|
+| **S1** | `PassengerBufferTranslator` writes each seat's carry mode (`"Modes"`, parallel to `"Seats"`) and the second man (`"Assistant"`, a link like a passenger); `InitialPassengersIntent.Modes` / `.Assistant`; genesis waits for the assistant too and boards through `Embarkation.TryEmbarkAt(…, seat, mode, assistant)` — on a person carrier the saved mode (a stretcher with no living second man ⇒ carried; seated ⇒ carried), on a vehicle always seated. ⚠ `PassengerBuffer.Modes` / `.Assistant` keep `[ScenarioIgnore]`: the translator owns the whole list, the attribute only keeps the generic serializer off the raw handle. An older save (no modes) loads as before |
+| **S2** | `WeaponPosture` → `DataPolicy.Default` (saved; `Target` through the serializer's entity links). Attributes **70 `Weapon.Posture`** · **71 `Weapon.AimPoint.*`** (axis = `SubIndex1`) · **72 `Weapon.AimTarget`** (the unit's network id, resolved on the applying node; an unknown id refused; ⚠ a creation request cannot aim at a live unit — the JSON path is consumed and ignored) · **73 `Weapon.HeldItem`** (refused for a thing he does not have, `HeldItems.Has`). The writes go through the one writer: `WeaponPostureOf.Author` / `AuthorAimPoint` / `AuthorAimTarget`, `HeldItems.Set` — ⛔ an authored aim is not a hostile act (only the brain's `Report` commits one). The component is the state, so a paused world shows it at once; the brain's idle branch may lower it (rule ⑤) |
+
+Rails: `PassengerBufferTranslatorTests.S1_*`, `PersonCarrierTests.S1_*`, `WeaponPostureStartStateTests.S2_*`, `TheFourRoutingTablesAgreeTests` (the four rows).
+
 ## 5. Questions — ✅ all nine APPROVED (R-4137, user `2026-11-06`: *"Approved."*)
 
 | # | question | lean | rejected |

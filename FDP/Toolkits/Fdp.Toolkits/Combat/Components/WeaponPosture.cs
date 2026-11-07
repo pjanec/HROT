@@ -18,10 +18,12 @@ namespace Fdp.Toolkit.Combat.Components
     /// ⭐⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13, R-272: <i>"the aiming/at ease needs to be weapon state controlled from the weapon
     /// brain"</i>) — the weapon brain's posture of a unit's weapon. Written ONLY through <see cref="WeaponPostureOf"/> (the executors'
     /// status points and the dispatcher's idle branch), on the unit, in the Brain ownership group; replicated as <c>dtWeaponPosture</c> to
-    /// every node; read by the 3-D figure. Never saved with a scenario.
+    /// every node; read by the 3-D figure. ⭐ Initial state S2 (📄 docs/UX/DESIGN_Initial_State.md §2.1, R-4137): SAVED — a unit may start Aimed at a
+    /// point or a unit, a phone in hand; at load it starts IN it (the component is the state), and the brain's first decision may change it.
+    /// <see cref="Target"/> is saved through the save's entity links (the serializer's <see cref="Entity"/> remap).
     /// </summary>
     [ComponentId(GlobalComponentIds.WeaponPosture)]
-    [DataPolicy(DataPolicy.NoScenario)]
+    [DataPolicy(DataPolicy.Default)]
     public struct WeaponPosture
     {
         public WeaponPostureKind Kind;

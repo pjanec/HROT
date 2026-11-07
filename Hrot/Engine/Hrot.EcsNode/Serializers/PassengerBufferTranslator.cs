@@ -44,6 +44,7 @@ namespace Hrot.SimHost.Serializers
             var buffer = repo.GetComponent<PassengerBuffer>(entity);
             var passengers = new JsonArray();
             var seats = new JsonArray();   // ⭐ WS-4 (W-I) — the seat of each, so a crew seat and a station come back as they were
+            var modes = new JsonArray();   // ⭐ Initial state S1 (R-4137) — and how each rides (a casualty carried / dragged / on a stretcher)
 
             for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — every seat (a slot IS a seat; holes are skipped)
             {
@@ -53,17 +54,19 @@ namespace Hrot.SimHost.Serializers
 
                 passengers.Add(resolver.Resolve(passenger));
                 seats.Add(i);
+                modes.Add((int)buffer.ModeOf(i));
             }
 
-            return new Dictionary<string, object>
+            var obj = new JsonObject
             {
-                [Key] = new JsonObject
-                {
-                    ["Count"]      = buffer.Count,
-                    ["Passengers"] = passengers,
-                    ["Seats"]      = seats,
-                }
+                ["Count"]      = buffer.Count,
+                ["Passengers"] = passengers,
+                ["Seats"]      = seats,
+                ["Modes"]      = modes,
             };
+            if (!buffer.Assistant.IsNull && repo.IsAlive(buffer.Assistant))   // ⭐ S1 — the second man, by the same link as a passenger
+                obj["Assistant"] = resolver.Resolve(buffer.Assistant);
+            return new Dictionary<string, object> { [Key] = obj };
         }
 
         public void Inject(
@@ -76,6 +79,7 @@ namespace Hrot.SimHost.Serializers
             int count      = obj["Count"]?.GetValue<int>() ?? 0;
             var passengers = obj["Passengers"] as JsonArray;
             var seats      = obj["Seats"] as JsonArray;   // ⭐ WS-4 — absent in an older save
+            var modes      = obj["Modes"] as JsonArray;   // ⭐ S1 — absent in an older save
 
             var intent = new InitialPassengersIntent();
 
@@ -94,10 +98,13 @@ namespace Hrot.SimHost.Serializers
 
                     intent.PassengerNetworkIds.Add(FileLinks.FromGuidText(guidStr));
                     if (seats != null && index < seats.Count) intent.Seats.Add(seats[index]!.GetValue<int>());
+                    if (modes != null && index < modes.Count) intent.Modes.Add((byte)modes[index]!.GetValue<int>());
                 }
             }
 
             if (intent.Seats.Count != intent.PassengerNetworkIds.Count) intent.Seats.Clear();   // all seats or none
+            if (intent.Modes.Count != intent.Seats.Count) intent.Modes.Clear();                // all modes or none (they ride with the seats)
+            if (obj["Assistant"]?.GetValue<string>() is { Length: > 0 } assistant) intent.Assistant = FileLinks.FromGuidText(assistant);
             repo.SetManagedComponent(entity, intent);
         }
 

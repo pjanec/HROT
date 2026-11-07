@@ -33,7 +33,8 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — how each seat's occupant rides (<see cref="CarryMode"/>), 2 bits per seat (seat i at bits
         /// 2i..2i+1). It lives in the LIST, like the seat, so every node derives the passenger's <see cref="IsEmbarkedTag.Mode"/> from it and
-        /// it crosses the wire with the list. ⚠ Not saved with a scenario (genesis boards seated), as the seat is not.</summary>
+        /// it crosses the wire with the list. ⭐ Saved by <c>PassengerBufferTranslator</c> (Initial state S1, R-4137) with the seat, so a scenario load boards
+        /// a casualty as he was carried; <c>[ScenarioIgnore]</c> keeps the generic serializer off it (the translator owns the whole list).</summary>
         [ScenarioIgnore]
         public uint Modes;   // ⭐ F4 — 2 bits × 12 seats (was a ushort for 8)
 
@@ -46,8 +47,8 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>⭐ Team carry T-a (R-2017 T1; docs/DESIGN_Entity_Interactions.md §7.5) — a PERSON carrier's second man: the one at the
         /// rear handle of a stretcher or of a two-man weapon. Null for every other load and for every vehicle. It lives in the LIST, so every
-        /// node derives the assistant's <see cref="IsAssistingTag"/> from it and it crosses the wire with the list (appended). ⚠ Not saved
-        /// with a scenario, as the carry mode is not.</summary>
+        /// node derives the assistant's <see cref="IsAssistingTag"/> from it and it crosses the wire with the list (appended). ⭐ Saved by
+        /// <c>PassengerBufferTranslator</c> as a link (S1); <c>[ScenarioIgnore]</c> keeps the generic serializer off the raw handle.</summary>
         [ScenarioIgnore]
         public Entity Assistant;
     }

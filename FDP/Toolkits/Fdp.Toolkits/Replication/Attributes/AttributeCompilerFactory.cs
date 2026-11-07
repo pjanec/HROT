@@ -185,7 +185,35 @@ public static class AttributeCompilerFactory
                 {
                     if (FormAttributes.TryStance(ref r, out var stance)) c.TargetStance = stance;
                 },
-                kind: KindOf("Stance"));
+                kind: KindOf("Stance"))
+            // ⭐ Initial state S2 — the weapon's start state on a creation request (a live entity goes through the binary handlers, which judge against the world)
+            .RegisterValuePath<Fdp.Toolkit.Combat.Components.WeaponPosture>(
+                "Weapon.Posture",
+                (ref Fdp.Toolkit.Combat.Components.WeaponPosture c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                {
+                    if (FormAttributes.TryEnum<Fdp.Toolkit.Combat.Components.WeaponPostureKind>(ref r, out var kind)) c.Kind = kind;
+                },
+                kind: KindOf("Weapon.Posture"))
+            .RegisterValuePath<Fdp.Toolkit.Combat.Components.WeaponPosture>(
+                "Weapon.AimPoint.*",
+                (ref Fdp.Toolkit.Combat.Components.WeaponPosture c, scoped ReadOnlySpan<int> idx, ref Utf8JsonReader r) =>
+                {
+                    if (idx.Length > 0) Fdp.Toolkit.Combat.WeaponPostureOf.AuthorAimPoint(ref c, idx[0], (float)r.GetDouble());
+                },
+                kind: KindOf("Weapon.AimPoint.*"))
+            .RegisterValuePath<Fdp.Toolkit.Combat.Components.WeaponPosture>(
+                "Weapon.HeldItem",
+                (ref Fdp.Toolkit.Combat.Components.WeaponPosture c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                {
+                    if (FormAttributes.TryEnum<Fdp.Toolkit.Combat.Components.HeldItemKind>(ref r, out var item)) c.HeldItem = item;
+                },
+                kind: KindOf("Weapon.HeldItem"))
+            // ⚠ a creation request cannot aim at a LIVE unit (no world to resolve the id in): the path is registered so the edge carries it, and the
+            //   value is applied only by the binary handler on a live entity (FormAttributeInstaller) — on a creation request it is consumed and ignored
+            .RegisterValuePath<Fdp.Toolkit.Combat.Components.WeaponPosture>(
+                "Weapon.AimTarget",
+                (ref Fdp.Toolkit.Combat.Components.WeaponPosture c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => { r.Skip(); },
+                kind: KindOf("Weapon.AimTarget"));
 
         foreach (var id in FormAttributeInstaller.WeatherIds)
         {
