@@ -47,6 +47,10 @@ public sealed class SharedOrbatPanel
     /// with a map (its inspector state finds it, as the entity inspector's menu does). Null ⇒ no row menu (OM-5).</summary>
     public Hrot.UI.Common.Menus.MapEntityMenuHandler? RowMenu { get; set; }
 
+    /// <summary>⭐ L-13 / CE-4313 (LC-5) — <i>New group…</i> on the ORBAT's empty space: the host's Add Entity picker rooted at the units (an empty group of
+    /// the chosen echelon, placed on the map). Null ⇒ the item is greyed with its reason (a host that cannot place entities).</summary>
+    public Action? NewGroup { get; set; }
+
     // ── State ─────────────────────────────────────────────────────────────────
 
     private string _filterText = string.Empty;
@@ -229,6 +233,13 @@ public sealed class SharedOrbatPanel
 
         // Background drop target — dropping here removes the entity from its current command hierarchy.
         ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, Math.Max(ImGui.GetContentRegionAvail().Y, 20f)));
+        // ⭐ L-13 (LC-5) — the empty space's menu: New group… (an empty HQ of a chosen echelon)
+        if (editable && ImGui.BeginPopupContextItem("##orbat_empty"))
+        {
+            if (ImGui.MenuItem("New group...", "", false, NewGroup != null)) NewGroup?.Invoke();
+            if (NewGroup == null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip("this host cannot place entities");
+            ImGui.EndPopup();
+        }
         if (editable && ImGui.BeginDragDropTarget())
         {
             unsafe

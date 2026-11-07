@@ -84,18 +84,36 @@ public sealed class AddEntityAction
         if (tkb is null || openPicker is null || spawn is null) return false;
 
         var side = SideOf(actionId);
-        openPicker(RequestFor(tkb, actionId, anchorScreen), result =>
-        {
-            // The gallery's footer has one action, Place on map (also Enter / double-click); the tree has no actions (ActionId null).
-            if (result.ActionId is not null && result.ActionId != PlaceActionId) return;
-            if (result.First?.Tag is EntityTypeEntry e)
-            {
-                if (e.MacroPath is { } macro) PlacementToolRegistry.ArmMacro(spawn, macro, side ?? eForceIdentifier.FORCE_NEUTRAL);   // ⭐ CE-4210 MA-7
-                else PlacementToolRegistry.Arm(spawn, e.TkbType, side ?? eForceIdentifier.FORCE_NEUTRAL);
-            }
-        });
+        openPicker(RequestFor(tkb, actionId, anchorScreen), result => Place(spawn, result, side));
         return true;
     }
+
+    /// <summary>The ONE handling of a picked type: arm its placement on the map (a macro its own tool).</summary>
+    private static void Place(ISpawnController spawn, PickerResult result, eForceIdentifier? side)
+    {
+        // The gallery's footer has one action, Place on map (also Enter / double-click); the tree has no actions (ActionId null).
+        if (result.ActionId is not null && result.ActionId != PlaceActionId) return;
+        if (result.First?.Tag is EntityTypeEntry e)
+        {
+            if (e.MacroPath is { } macro) PlacementToolRegistry.ArmMacro(spawn, macro, side ?? eForceIdentifier.FORCE_NEUTRAL);   // ⭐ CE-4210 MA-7
+            else PlacementToolRegistry.Arm(spawn, e.TkbType, side ?? eForceIdentifier.FORCE_NEUTRAL);
+        }
+    }
+
+    /// <summary>⭐ L-13 / CE-4313 (LC-5) — <i>New group…</i> (the ORBAT): the SAME picker rooted at the units folder (a composite unit type comes EMPTY —
+    /// its children are not auto-created), placed on the map like any entity. Returns false when the host cannot service it or authoring is suspended.</summary>
+    public bool OpenNewGroup(eForceIdentifier side = eForceIdentifier.FORCE_FRIENDLY, System.Numerics.Vector2? anchorScreen = null)
+    {
+        if (SuspendedReason is not null) return false;
+        var tkb = _tkb(); var openPicker = _openPicker(); var spawn = _spawn();
+        if (tkb is null || openPicker is null || spawn is null) return false;
+        openPicker(NewGroupRequest(tkb, side, anchorScreen), result => Place(spawn, result, side));
+        return true;
+    }
+
+    /// <summary>The request <see cref="OpenNewGroup"/> opens: only the units folder, titled <i>New group</i>.</summary>
+    public static PickerRequest NewGroupRequest(ITkbDatabase tkb, eForceIdentifier side, System.Numerics.Vector2? anchorScreen = null)
+        => BuildRequest(tkb, side, anchorScreen, rootFolder: EntityTypeCatalog.UnitsFolder, gallery: null, title: "New group");
 
     /// <summary>⭐ CE-4142 — the request the menu item <paramref name="actionId"/> opens now (the gallery when this action holds gallery data,
     /// else the tree) — the one path <see cref="Open"/> uses, so a rail asserts what a host actually shows.</summary>
@@ -122,7 +140,7 @@ public sealed class AddEntityAction
     /// search over all groups (G7) and Recent &amp; favourites as the first group (G10). The side is chosen by the menu item that opened it (G5).
     /// 📄 docs/DESIGN_Add_Entity_Picker.md §2h. A null gallery, or a rooted request (the ExCon ORBAT's <i>New Unit</i>), is the DIS tree as before.
     /// </summary>
-    public static PickerRequest BuildRequest(ITkbDatabase tkb, eForceIdentifier? side, System.Numerics.Vector2? anchorScreen, string? rootFolder, GalleryData? gallery, IReadOnlyList<string>? macros = null)
+    public static PickerRequest BuildRequest(ITkbDatabase tkb, eForceIdentifier? side, System.Numerics.Vector2? anchorScreen, string? rootFolder, GalleryData? gallery, IReadOnlyList<string>? macros = null, string? title = null)
     {
         if (gallery is not null && rootFolder is not { Length: > 0 })
             return BuildGalleryRequest(tkb, side, anchorScreen, gallery, macros);
@@ -132,13 +150,7 @@ public sealed class AddEntityAction
         return new PickerRequest
         {
             ContextKey             = side is null ? "add-entity/graphics" : "add-entity/types",
-            Title                  = side switch
-            {
-                eForceIdentifier.FORCE_FRIENDLY => "Add Friendly Entity",
-                eForceIdentifier.FORCE_OPPOSING => "Add Hostile Entity",
-                eForceIdentifier.FORCE_NEUTRAL  => "Add Neutral Entity",
-                _                               => "Add Map Graphic",
-            },
+            Title                  = title ?? TitleOf(side),
             Layout                 = PickerLayout.Tree,
             ItemsProvider          = () => EntityTypeCatalog.ToPickerEntries(catalog, sideBearing: side is not null),
             AnchorScreen           = anchorScreen,

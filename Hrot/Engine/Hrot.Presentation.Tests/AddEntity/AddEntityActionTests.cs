@@ -192,6 +192,29 @@ public sealed class AddEntityActionTests
         Assert.Equal(PickerLayout.Tree, rooted.Layout);   // the ExCon ORBAT's New Unit keeps its DIS folder tree
     }
 
+    /// <summary>⭐ L-13 / CE-4313 (LC-5) — the ORBAT's <i>New group…</i> opens the SAME picker rooted at the units folder, titled
+    /// <i>New group</i>; a pick arms placement like any entity; suspended ⇒ nothing opens.
+    /// 🔴 Red-proof (compiles): <c>NewGroupRequest</c> passing <c>rootFolder: null</c> ⇒ non-unit entries offered ⇒ red.</summary>
+    [Fact]
+    public void L13_NewGroup_OpensTheUnitsOnlyPicker_TitledNewGroup_AndAPickArmsPlacement()
+    {
+        var rig = new Rig(gallery: EntityTypeCatalogTests.ShippedGallery());
+
+        Assert.True(rig.Action.OpenNewGroup());
+        Assert.Equal("New group", rig.Request!.Title);
+        Assert.Equal(PickerLayout.Tree, rig.Request.Layout);
+        var entries = rig.Request.ItemsProvider().ToList();
+        Assert.NotEmpty(entries);
+        Assert.All(entries, e => Assert.StartsWith(EntityTypeCatalog.UnitsFolder, e.Category));
+
+        rig.Pick(entries[0].Name);
+        Assert.Single(rig.Spawn.Calls);
+
+        var suspended = new Rig { Suspended = "suspended in Preview" };
+        Assert.False(suspended.Action.OpenNewGroup());
+        Assert.Null(suspended.Request);
+    }
+
     [Fact]
     public void CE1017_MapGraphicsMenuItem_ListsOnlyGraphics_AndAnAreaPickArmsTheAreaTool()
     {

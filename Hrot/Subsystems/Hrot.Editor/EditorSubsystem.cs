@@ -1862,6 +1862,7 @@ namespace Hrot.Editor
                 _sharedOrbatPanel = new SharedOrbatPanel
                 {
                     RowMenu = new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => HostActions, () => _world),   // ⭐ CE-1230 — the map's entity menu (CE-1150: the host's actions)
+                    NewGroup = () => _editorMapInteraction?.EntityAuthoring?.AddEntity.OpenNewGroup(),   // ⭐ L-13 (LC-5) — the ONE Add Entity picker, rooted at the units
                 };
                 _previewPanel     = new PreviewPanel();
                 _zoneEditorPanel  = new ZoneEditorPanel();
