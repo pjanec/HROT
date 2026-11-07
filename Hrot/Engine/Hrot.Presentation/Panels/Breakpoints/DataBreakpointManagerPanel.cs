@@ -45,6 +45,14 @@ public sealed class DataBreakpointManagerPanel
     private readonly Action<Fdp.Core.Entity>? _selectEntity;
     private BreakpointId _selectedId;
     private bool _showCondition;
+    /// <summary>⭐ U-16 / C5 (DESIGN_Condition_Editor §6) — the friendly view of the selected breakpoint's condition: the ONE condition editor in the Breakpoint context (the facts plus the debugging kinds; a kind with no fact reads back as one Custom row).</summary>
+    private readonly Fdp.Presentation.Editing.ConditionEditor _conditions = new(Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionContexts.Breakpoint);
+    private bool _expert;
+    private BreakpointId _draftOf;
+    private SearchPredicateDto? _draftBase, _draft;
+
+    /// <summary>The ONE map pick context the friendly view's area / unit chips pick with (the host injects it); null ⇒ the chips take no map pick.</summary>
+    public Fdp.Presentation.Editing.IMapPickContext? PickContext { get; set; }
     private int _kindFilter;   // 0 = all, else (int)BreakpointKindOf + 1
 
     /// <param name="entityLabel">⭐ CE-1285 — how the Scope column names a unit (its network id); default the raw handle.</param>
@@ -253,6 +261,30 @@ public sealed class DataBreakpointManagerPanel
         var bp = _manager.AllBreakpoints.FirstOrDefault(b => b.Id == _selectedId);
         if (bp == null) return;
 
+        // a compound with LOCKED children (a node's own link to its visual node) can only be read — the friendly view would let them drift, so it stays on the Expert (read-only) view
+        bool locked = bp.Condition is CompoundPredicateDto lockedCompound && lockedCompound.ReadOnlyChildIndices?.Count > 0;
+        bool expert = _expert || locked;
+        ImGuiApi.BeginDisabled(locked);
+        if (ImGuiApi.Checkbox("Expert view", ref expert) && !locked) _expert = expert;
+        ImGuiApi.EndDisabled();
+
+        if (!expert)
+        {
+            // a draft of the condition: edited in the sentence rows, written back by Apply — never while a blank is unfilled (§4)
+            if (_draftOf != bp.Id || !ReferenceEquals(_draftBase, bp.Condition)) { _draftOf = bp.Id; _draftBase = bp.Condition; _draft = bp.Condition; }
+            ImGuiApi.SeparatorText("Condition");
+            _conditions.Draw("bp-when", ref _draft, PickContext);
+            FriendlyDraws++;
+            if (_conditions.ExpertRequested) { _expert = true; _conditions.ExpertRequested = false; }
+            bool dirty = !ReferenceEquals(_draft, _draftBase);
+            bool blank = _conditions.Problem != null;
+            ImGuiApi.BeginDisabled(!dirty || blank || _draft == null);
+            if (ImGuiApi.Button("Apply")) { _manager.UpdateCondition(bp.Id, _draft); _draftBase = _draft; }
+            ImGuiApi.EndDisabled();
+            if (blank) { ImGuiApi.SameLine(); ImGuiApi.TextDisabled(_conditions.Problem!); }
+            return;
+        }
+
         if (bp.Condition is CompoundPredicateDto compound)
         {
             ImGuiApi.SeparatorText("Condition (Compound)");
@@ -275,6 +307,17 @@ public sealed class DataBreakpointManagerPanel
             ImGuiApi.TextUnformatted(BreakpointConditionSummarizer.Summarize(bp.Condition));
         }
     }
+
+    /// <summary>How many frames drew the friendly view (rails: it stops counting while the Expert view shows).</summary>
+    internal int FriendlyDraws { get; private set; }
+    /// <summary>The friendly view's sentence rows as drawn (rails).</summary>
+    internal IReadOnlyList<string> ConditionRows => _conditions.Sentences;
+    /// <summary>The first unfilled blank of the friendly view, or null (Apply holds while it is set).</summary>
+    internal string? ConditionProblem => _expert ? null : _conditions.Problem;
+    /// <summary>Whether the Expert (read-only listing) view is showing.</summary>
+    internal bool ExpertView { get => _expert; set => _expert = value; }
+    /// <summary>Selects a breakpoint and opens its condition (a seam for rails; the UI does it with a double-click).</summary>
+    internal void ShowCondition(BreakpointId id) { _selectedId = id; _showCondition = true; }
 
     private void DrawBanner()
     {

@@ -78,6 +78,10 @@ public sealed class ReplaySearchPanel
     private readonly Func<int?>? _getSelectedNetworkId;
 
     private SearchPredicateMode _mode = SearchPredicateMode.Component;
+    /// <summary>⭐ U-16 / C5 (DESIGN_Condition_Editor §6) — the friendly view: the ONE condition editor in the Search context (the facts a recording can answer). The Expert view is today's mode radio + struct editor.</summary>
+    private readonly Fdp.Presentation.Editing.ConditionEditor _conditions = new(Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionContexts.Search);
+    private bool _expert;
+    private SearchPredicateDto? _friendly;
     private IEditSession? _predicateSession;
     private ComponentEditDrawer? _componentEditDrawer;
 
@@ -101,7 +105,7 @@ public sealed class ReplaySearchPanel
     {
         get
         {
-            if (_mode == SearchPredicateMode.Spatial && _predicateSession != null)
+            if (_expert && _mode == SearchPredicateMode.Spatial && _predicateSession != null)
             {
                 foreach (var child in _predicateSession.Document.Root.Children)
                 {
@@ -200,6 +204,18 @@ public sealed class ReplaySearchPanel
         if (_predicateSession.RebuildState == EditRebuildState.RebuildRequired)
             _predicateSession.RebuildDocument();
 
+        // ⭐ U-16 / C5 — the condition as sentence rows (the friendly view); "Expert view" shows today's mode radio + tree. The search panel edits a DTO of its own (no predicate node to bind), so the friendly view works through `ref _friendly` directly.
+        bool expert = _expert;
+        if (ImGuiApi.Checkbox("Expert view", ref expert)) SetExpert(expert);
+        if (!_expert) TreeRowsDrawn = 0;
+        if (!_expert)
+        {
+            _conditions.Draw("search-when", ref _friendly, PickContext);
+            if (_conditions.ExpertRequested) { SetExpert(true); _conditions.ExpertRequested = false; }
+            ImGuiApi.Spacing();
+        }
+        else
+        {
         DrawModeRadio();
         DrawPresetToolbar();
 
@@ -214,11 +230,14 @@ public sealed class ReplaySearchPanel
             ImGuiApi.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
             ImGuiApi.TableHeadersRow();
 
+            TreeRowsDrawn = 0;
             foreach (var child in _predicateSession.Document.Root.Children)
             {
                 _componentEditDrawer.DrawEditNode(child);
+                TreeRowsDrawn++;
             }
             ImGuiApi.EndTable();
+        }
         }
 
         DrawEntityFilter();
@@ -226,7 +245,42 @@ public sealed class ReplaySearchPanel
         DrawResultsGrid();
     }
 
+    /// <summary>
+    /// ⭐ U-16 — switches between the friendly view and the Expert view, carrying the ONE condition across: into Expert the friendly value opens in the struct editor (its mode radio follows the DTO's type);
+    /// back to friendly the struct editor's DTO (never a Lifecycle one — that search has no sentence) becomes the friendly value.
+    /// </summary>
+    private void SetExpert(bool expert)
+    {
+        if (expert == _expert) return;
+        if (expert)
+        {
+            if (_friendly != null && Array.IndexOf(SearchModes, PredicateModes.ModeOf(_friendly)) >= 0)
+            {
+                _mode = PredicateModes.ModeOf(_friendly);
+                _predicateSession?.Dispose();
+                _predicateSession    = _editService.Open(_friendly, _friendly.GetType());
+                _componentEditDrawer = BuildDrawer(_predicateSession);
+                _predicateSession.MarkStructuralChange();
+                _predicateSession.RebuildDocument();
+            }
+        }
+        else if (_predicateSession != null && _mode != SearchPredicateMode.Lifecycle && _predicateSession.Commit() is SearchPredicateDto dto)
+            _friendly = dto;
+        _expert = expert;
+    }
+
     // ── Test seams ────────────────────────────────────────────────────────
+
+    /// <summary>How many top-level struct-editor rows the Expert view drew last frame (0 while the friendly view shows) — rails.</summary>
+    public int TreeRowsDrawn { get; private set; }
+    /// <summary>The friendly view's sentence rows as drawn (rails).</summary>
+    public IReadOnlyList<string> ConditionRows => _conditions.Sentences;
+    /// <summary>The first unfilled blank of the friendly view, or null (the Execute button holds while it is set).</summary>
+    public string? ConditionProblem => _expert ? null : _conditions.Problem;
+    /// <summary>Whether the Expert view (the mode radio + struct editor) is showing.</summary>
+    public bool ExpertView { get => _expert; set => SetExpert(value); }
+    /// <summary>The friendly view's condition (what Execute searches while the Expert view is off).</summary>
+    public SearchPredicateDto? FriendlyCondition { get => _friendly; set => _friendly = value; }
 
     /// <summary>Simulates clicking a seek (Frame N) button. For unit testing only.</summary>
     internal void InvokeSeekRequested(int frameIndex) => _onSeekRequested(frameIndex);
@@ -454,7 +508,11 @@ public sealed class ReplaySearchPanel
         }
         else
         {
-            if (ImGuiApi.Button("Execute Search"))
+            bool blank = ConditionProblem != null;   // ⭐ U-16 — an unfilled blank: the search cannot run (DESIGN_Condition_Editor §4)
+            if (blank) ImGuiApi.BeginDisabled();
+            bool execute = ImGuiApi.Button("Execute Search");
+            if (blank) { ImGuiApi.EndDisabled(); if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGuiApi.SetTooltip(ConditionProblem!); }
+            if (execute)
             {
                 string path = CurrentFilePath ?? string.Empty;
                 if (string.IsNullOrEmpty(path))
@@ -469,7 +527,14 @@ public sealed class ReplaySearchPanel
                     return;
                 }
 
-                object dto = _predicateSession.Commit();
+                object? dtoOrNone = _expert ? _predicateSession.Commit() : _friendly;
+                if (dtoOrNone == null)
+                {
+                    _validationError = "Add at least one condition.";
+                    _validationErrorTimer = 3.0f;
+                    return;
+                }
+                object dto = dtoOrNone;
 
                 if (!ValidateDto(dto, out string errorMsg))
                 {
@@ -499,7 +564,7 @@ public sealed class ReplaySearchPanel
                     };
                 }
 
-                if (_mode == SearchPredicateMode.Lifecycle)
+                if (_expert && _mode == SearchPredicateMode.Lifecycle)
                 {
                     var pred = (LifecyclePredicateDto)dto;
                     _searchTask = Task.Run(() =>
@@ -585,7 +650,7 @@ public sealed class ReplaySearchPanel
             | ImGuiTableFlags.RowBg
             | ImGuiTableFlags.ScrollY;
 
-        if (_mode == SearchPredicateMode.Lifecycle)
+        if (_expert && _mode == SearchPredicateMode.Lifecycle)
         {
             if (!ImGuiApi.BeginTable("SearchResults", 4, tableFlags))
                 return;
