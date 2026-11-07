@@ -235,6 +235,7 @@ namespace Hrot.Common.Systems
                             }) ?? new List<DomainMissionTrigger>(),
                         }) ?? new List<DomainMissionTask>()
                     };
+                    CarryProgress(repo, entity, domainPlan, ref queue);   // ⭐ CE-4300 (E1)
                     currentVersion++;
                     queue.Version = currentVersion;
                     repo.SetComponent(entity, queue);
@@ -333,6 +334,62 @@ namespace Hrot.Common.Systems
                 _ => (Fdp.Toolkit.Replication.Edits.EditStatus.Refused, errorCode.ToString()),
             };
             Fdp.Toolkit.Replication.Edits.EditOutcomes.Report(repo, intent.RequestId, intent.TargetEntityId, status, reason);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4300</c> — mission plan E1 (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.8, R-4161): a replace carries the plan's PROGRESS over BY
+        /// TASK ID — ⛔ it used to restart the plan from task 1 (fixing a typo in task 4 sent a platoon back to its start line). A task already ended
+        /// keeps its outcome; the RUNNING task, if it is still in the plan and unchanged (name, params, conditions), keeps running — same task,
+        /// its elapsed time and halt kept, and the adapter does not restart it (it keys on the task, not the index); if its content changed it
+        /// restarts; if it was removed, the plan goes on with the task after the last one that ended. A plan with nothing done starts at task 1.
+        /// </summary>
+        private static void CarryProgress(EntityRepository repo, Entity entity, DomainMissionPlan next, ref MissionPlanQueue queue)
+        {
+            if (!repo.HasComponent<MissionPlanQueue>(entity) || !repo.HasManagedComponent<ActiveMissionPlan>(entity)) return;
+            var old = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity)?.Plan;
+            if (old?.Tasks is not { Count: > 0 } oldTasks) return;
+            ref readonly var was = ref repo.GetComponentRO<MissionPlanQueue>(entity);
+
+            Span<MissionPhaseOutcome> outcomes = queue.Outcomes;
+            int lastEnded = -1, running = -1;
+            for (int i = 0; i < queue.TaskCount && i < next.Tasks.Count; i++)
+            {
+                int j = IndexOf(oldTasks, next.Tasks[i].TaskId, was.TaskCount);
+                if (j < 0) continue;
+                if (was.Outcomes[j] != MissionPhaseOutcome.None)
+                {
+                    outcomes[i] = was.Outcomes[j];
+                    lastEnded = i;
+                }
+                if (j == was.CurrentTask && SameContent(oldTasks[j], next.Tasks[i])) running = i;
+            }
+            if (running >= 0)
+            {
+                outcomes[running] = MissionPhaseOutcome.None;   // still running: its end is not yet known
+                queue.CurrentTask = (byte)running;
+                queue.TaskElapsedSeconds = was.TaskElapsedSeconds;
+                queue.Halted = was.Halted;
+            }
+            else
+                queue.CurrentTask = (byte)Math.Min(lastEnded + 1, queue.TaskCount);
+        }
+
+        private static int IndexOf(List<DomainMissionTask> tasks, Guid id, int count)
+        {
+            if (id == Guid.Empty) return -1;
+            for (int j = 0; j < tasks.Count && j < count; j++)
+                if (tasks[j].TaskId == id) return j;
+            return -1;
+        }
+
+        private static bool SameContent(DomainMissionTask a, DomainMissionTask b)
+        {
+            if (a.BehaviorName != b.BehaviorName || a.BehaviorParams != b.BehaviorParams) return false;
+            int n = a.Triggers?.Count ?? 0;
+            if (n != (b.Triggers?.Count ?? 0)) return false;
+            for (int i = 0; i < n; i++)
+                if (a.Triggers![i].Type != b.Triggers![i].Type || a.Triggers[i].Params != b.Triggers[i].Params) return false;
+            return true;
         }
 
         private bool TryBuildQueue(

@@ -64,9 +64,10 @@ namespace Hrot.Editor.DebugApi
         /// <summary>
         /// <c>POST /missions/{networkId}/task {behavior, params?, triggers?}</c> — append one mission task
         /// naming <paramref name="behavior"/> with <paramref name="paramsNode"/> as its param JSON, then
-        /// commit the whole plan. Mirrors <c>MissionPanel.HandleAddTask</c>: a fresh <see cref="Guid"/>
-        /// task id, an empty executing engine, and a default <c>BehaviorFinished</c> trigger when none is
-        /// given. Runs on the main thread; the returned task must be awaited off it.
+        /// commit the whole plan with its version (a stale one is a Conflict). Mirrors <c>MissionPanel.HandleAddTask</c>: a fresh <see cref="Guid"/>
+        /// task id, an empty executing engine, and no trigger when none is given (the runtime reads that as <i>when done</i>, CE-4298).
+        /// ⭐ <c>CE-4300</c> (mission plan E8 / E7) — the commit keeps the plan's progress by task id (E1): the running task goes on and a
+        /// finished plan makes the new task current. Runs on the main thread; the returned task must be awaited off it.
         /// </summary>
         /// <returns>
         /// <c>commit</c> — the in-flight commit task, or <see langword="null"/> when <c>error</c> is set;

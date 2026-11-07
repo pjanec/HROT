@@ -97,11 +97,19 @@ namespace Hrot.CGF.Systems
                     // ⭐ CE-4043 — a STABLE hash: string.GetHashCode() is randomised per process, so this component differed in every
                     //   process (measured by the scenario verifier, CE-4042: LastPlanVersion 83239098 · 2673561298 · 1681038897 in three
                     //   runs of ua-civ-routine-alarm). The engine's one string hash (UtilityIdHash, through In.Fnv1a32).
-                    uint currentDefHash = Fdp.Toolkit.Utility.In.Fnv1a32(jsonParams) ^ (uint)phase.BehaviorId;
+                    // ⭐ CE-4300 (E1) — the TASK's identity is in the hash (its id, name, params), and the index is NOT compared: a Live edit that
+                    //   keeps the running task but moves it (an insert before it) must not restart it. A different task at the same index differs.
+                    uint currentDefHash = Fdp.Toolkit.Utility.In.Fnv1a32(jsonParams) ^ (uint)phase.BehaviorId
+                                        ^ Fdp.Toolkit.Utility.In.Fnv1a32(task.BehaviorName ?? string.Empty) * 31u
+                                        ^ (task.TaskId != Guid.Empty ? (uint)task.TaskId.GetHashCode()            // Guid's hash is its bytes: stable across processes
+                                                                     : 0x9E3779B9u * (uint)(queue.CurrentTask + 1));   // no id: the index tells two equal tasks apart
 
                     // Skip if nothing changed
-                    if (adapterState.LastPhase == queue.CurrentTask && adapterState.LastPlanVersion == currentDefHash)
+                    if (adapterState.LastPhase != byte.MaxValue && adapterState.LastPhase < queue.TaskCount && adapterState.LastPlanVersion == currentDefHash)
+                    {
+                        adapterState.LastPhase = queue.CurrentTask;
                         continue;
+                    }
 
                     bool startedBefore = adapterState.LastPhase != byte.MaxValue;
                     adapterState.LastPhase = queue.CurrentTask;

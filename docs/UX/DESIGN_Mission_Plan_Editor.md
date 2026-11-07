@@ -394,3 +394,5 @@ fresh world (new network ids) and still points at the same three entities — an
 ⏳ Not in M1: the load warning for a Wait with no *then* (the editor refuses it, P-7); E1 progress carry-over (P-4).
 
 **M1b (P-3, CE-4299) as built:** D7 exactly — 16 slots (`MissionPlanQueue.MaxTasks`, the one size the two inline buffers read); the six Roslyn renames (the names above in §5.10 are now `TaskElapsedSeconds`, `CurrentTask`, …). One consequence found: `MissionProgressWire.ProgressOf` packed 8 outcomes × 8 bits into a `ulong` — now 2 bits each.
+
+**M4 runtime (P-4, CE-4300) as built:** E1 exactly as §5.8 says, in `MissionControlExecutionSystem.CarryProgress` (by `TaskId`; "unchanged" = same name, params and condition entries). ⭐ One thing E1 needed that §5.8 did not name: the ADAPTER decided "already started" by the slot INDEX, so a task kept running but moved by an insert would have been restarted; it now keys on the task (id, name, params — the index only for an id-less task). E7 and E8 need no code of their own: both commit plan + 1 with the version, and E1 keeps the progress. D9's version precondition was already there (B-6); the two-station rail pins it.

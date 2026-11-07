@@ -561,4 +561,122 @@ public class MissionControlExecutionSystemTests
         var sent = Assert.Single(writer.Written);                                              // the owned one stays, the remote one is never re-sent
         Assert.Equal((toReplica.RequestId, 1), (sent.RequestId, sent.TargetEntityId));
     }
+
+    // ── ⭐⭐ CE-4300 — mission plan E1 / E7 / D9 (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.8): a Live edit carries progress BY TASK ID; the version
+    //    precondition makes a second station's stale commit a Conflict. ─────────────────────────────────────────────────────────────────────
+
+    private static (Hrot.Common.Systems.MissionControlExecutionSystem Sys, Entity E) Unit(EntityRepository repo)
+    {
+        var map = new NetworkEntityMap();
+        var e = repo.CreateEntity();
+        map.Register(1, e);
+        return (new Hrot.Common.Systems.MissionControlExecutionSystem(map, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry()), e);
+    }
+
+    private static long Commit(Hrot.Common.Systems.MissionControlExecutionSystem sys, EntityRepository repo, MissionPlan plan, long baseVersion, out int error)
+    {
+        var id = Guid.NewGuid();
+        sys.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId = id, TargetEntityId = 1, BaseVersion = baseVersion,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = plan },
+        });
+        repo.Bus.SwapBuffers();
+        var ack = FindAck(repo, id)!.Value;
+        error = ack.ErrorCode;
+        return ack.NewVersion;
+    }
+
+    /// <summary>Task 1 done, task 2 running for 7 s.</summary>
+    private static void RunningTask2(EntityRepository repo, Entity e)
+    {
+        ref var q = ref repo.GetComponentRW<MissionPlanQueue>(e);
+        Span<MissionPhaseOutcome> o = q.Outcomes;
+        o[0] = MissionPhaseOutcome.Done;
+        q.CurrentTask = 1;
+        q.TaskElapsedSeconds = 7f;
+    }
+
+    [Fact]
+    public void CE4300_E1_AnEditOfTask4_WhileTask2Runs_LeavesTask2Running_ElapsedKept()
+    {
+        using var repo = CreateWorld();
+        var (sys, e) = Unit(repo);
+        var ids = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+        long v = Commit(sys, repo, MakePlan(ids), 0, out _);
+        RunningTask2(repo, e);
+
+        var edited = MakePlan(ids);
+        edited.Tasks[3].BehaviorParams = "{\"Speed\":3}";
+        Commit(sys, repo, edited, v, out int err);
+
+        Assert.Equal(0, err);
+        var q = repo.GetComponentRO<MissionPlanQueue>(e);
+        Assert.Equal(1, q.CurrentTask);                                   // ⛔ was 0: the plan restarted from task 1
+        Assert.Equal(7f, (float)q.TaskElapsedSeconds, 3);
+        Assert.Equal(MissionPhaseOutcome.Done, q.Outcomes[0]);
+        Assert.Equal(MissionPhaseOutcome.None, q.Outcomes[1]);
+    }
+
+    [Fact]
+    public void CE4300_E1_AnInsertBeforeTheRunningTask_FollowsIt_AChangedRunningTaskRestarts_ARemovedOneGoesOn()
+    {
+        using var repo = CreateWorld();
+        var (sys, e) = Unit(repo);
+        var ids = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+        long v = Commit(sys, repo, MakePlan(ids), 0, out _);
+        RunningTask2(repo, e);
+
+        var inserted = MakePlan(ids[0], Guid.NewGuid(), ids[1], ids[2]);   // a new task before the running one
+        v = Commit(sys, repo, inserted, v, out _);
+        var q = repo.GetComponentRO<MissionPlanQueue>(e);
+        Assert.Equal(2, q.CurrentTask);                                   // the SAME task, now third
+        Assert.Equal(7f, (float)q.TaskElapsedSeconds, 3);
+
+        var changed = MakePlan(ids[0], inserted.Tasks[1].TaskId, ids[1], ids[2]);
+        changed.Tasks[2].BehaviorParams = "{\"Speed\":9}";             // the running task itself edited
+        v = Commit(sys, repo, changed, v, out _);
+        q = repo.GetComponentRO<MissionPlanQueue>(e);
+        Assert.Equal(1, q.CurrentTask);                                   // restarts: the plan goes on after the last task that ended (task 1)
+        Assert.Equal(0f, (float)q.TaskElapsedSeconds, 3);
+
+        RunningTask2(repo, e);                                            // now the new task (index 1) runs
+        Commit(sys, repo, MakePlan(ids[0], ids[1], ids[2]), v, out _);   // ...and is removed
+        q = repo.GetComponentRO<MissionPlanQueue>(e);
+        Assert.Equal(1, q.CurrentTask);                                   // the task after the last one done
+        Assert.Equal(MissionPhaseOutcome.Done, q.Outcomes[0]);
+    }
+
+    [Fact]
+    public void CE4300_E7_AppendingToAFinishedPlan_MakesTheNewTaskCurrent()
+    {
+        using var repo = CreateWorld();
+        var (sys, e) = Unit(repo);
+        var ids = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        long v = Commit(sys, repo, MakePlan(ids), 0, out _);
+        ref var q = ref repo.GetComponentRW<MissionPlanQueue>(e);
+        Span<MissionPhaseOutcome> o = q.Outcomes;
+        o[0] = MissionPhaseOutcome.Done; o[1] = MissionPhaseOutcome.Failed;
+        q.CurrentTask = 2;                                                // ran out
+
+        Commit(sys, repo, MakePlan(ids[0], ids[1], Guid.NewGuid()), v, out _);
+        var after = repo.GetComponentRO<MissionPlanQueue>(e);
+        Assert.Equal(2, after.CurrentTask);
+        Assert.Equal(MissionPhaseOutcome.Failed, after.Outcomes[1]);
+    }
+
+    [Fact]
+    public void CE4300_D9_TwoStations_OnTheSameVersion_TheSecondCommitIsAConflict_AndChangesNothing()
+    {
+        using var repo = CreateWorld();
+        var (sys, e) = Unit(repo);
+        long v = Commit(sys, repo, MakePlan(Guid.NewGuid()), 0, out _);
+
+        Commit(sys, repo, MakePlan(Guid.NewGuid(), Guid.NewGuid()), v, out int first);       // station A, opened at v
+        Commit(sys, repo, MakePlan(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()), v, out int second);   // station B, opened at v too
+
+        Assert.Equal(0, first);
+        Assert.Equal((int)Hrot.NED.Messages.NedStatusCode.VersionConflict, second);
+        Assert.Equal(2, repo.GetComponentRO<MissionPlanQueue>(e).TaskCount);               // A's plan stands
+    }
 }
