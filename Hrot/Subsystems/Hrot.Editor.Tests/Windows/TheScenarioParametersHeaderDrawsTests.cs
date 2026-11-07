@@ -18,6 +18,7 @@ namespace Hrot.Editor.Tests.Windows;
 /// (<see cref="ParametersDrawer.RequestOpen"/> — the bind popup's <i>New parameter…</i>), and what it edits is the SAME <see cref="HeaderParamsSchemaSource"/> with its ONE undo history.
 /// 🔴 Red-proof (compiles): the header made <c>DefaultOpen</c> ⇒ the first rail goes red.
 /// </summary>
+[Collection(PanelSnapshotTestCollection.Name)]   // one ImGui context: the frame rails of this assembly run serially
 public sealed class TheScenarioParametersHeaderDrawsTests
 {
     private static (EntityRepository Repo, HeaderParamsSchemaSource Src, ParametersDrawer Drawer, ScenarioEnvironmentView View) Fixture()
@@ -206,9 +207,11 @@ public sealed class TheScenarioParametersHeaderDrawsTests
         Assert.Equal("7", Default(src));
     }
 
-    /// <summary>⭐ CE-4254 — Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) on the focused panel, the buttons being gone.</summary>
+    /// <summary>⭐ CE-4254 → ⭐ B-14 (<c>a916d6e2f</c>) — the drawer's own Ctrl+Z / Ctrl+Y chord was REMOVED on purpose: Edit ▸ Undo / Redo (the shell's commands, Ctrl+Z /
+    /// Ctrl+Y / Ctrl+Shift+Z) undo the editor's ONE <see cref="Hrot.Presentation.Edits.EditHistory"/>, and a second chord on the panel would undo twice. What stays true here: an edit
+    /// made through the drawer is ONE step of that history, so the shell's Undo / Redo take it back and forth. (Was: chords on the focused panel — superseded by B-14.)</summary>
     [SkippableFact]
-    public void CtrlZ_CtrlY_UndoAndRedoTheParametersEdits_OnTheFocusedPanel()
+    public void AnEditMadeInThePanel_IsOneStepOfTheOneHistory_TheShellsUndoAndRedoTakeIt()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var (repo, src, drawer, view) = Fixture();
@@ -218,24 +221,13 @@ public sealed class TheScenarioParametersHeaderDrawsTests
         drawer.RequestOpen();
         var step = Stepper(frame, view);
         step(null, 4);
-        var cell = drawer.NameCells.Single();
-        var at = (cell.Min + cell.Max) / 2f;
-        step(io => Pos(io, at.X, at.Y), 2);
-        step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, true); }, 1);
-        step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, false); }, 1);   // a click: the panel's window is focused
+        Assert.Single(drawer.NameCells);                              // the row is drawn
+        Assert.True(src.History.Undo());
         step(null, 2);
-        void Chord(ImGuiNET.ImGuiKey key, bool shift = false)
-        {
-            step(io => { io.AddKeyEvent(ImGuiNET.ImGuiKey.ModCtrl, true); if (shift) io.AddKeyEvent(ImGuiNET.ImGuiKey.ModShift, true); io.AddKeyEvent(key, true); }, 1);
-            step(io => { io.AddKeyEvent(key, false); io.AddKeyEvent(ImGuiNET.ImGuiKey.ModCtrl, false); io.AddKeyEvent(ImGuiNET.ImGuiKey.ModShift, false); }, 2);
-        }
-        Chord(ImGuiNET.ImGuiKey.Z);
         Assert.Empty(src.Variables);                                  // the add was undone
-        Chord(ImGuiNET.ImGuiKey.Y);
+        Assert.True(src.History.Redo());
+        step(null, 2);
         Assert.Single(src.Variables);                                 // and redone
-        Chord(ImGuiNET.ImGuiKey.Z);
-        Assert.Empty(src.Variables);
-        Chord(ImGuiNET.ImGuiKey.Z, shift: true);                      // Ctrl+Shift+Z is redo
-        Assert.Single(src.Variables);
+        Assert.Single(drawer.NameCells);
     }
 }

@@ -19,6 +19,7 @@ namespace Hrot.Editor.Tests.Windows;
 /// a rename / remove / retype of a param updates every preset's Args in the SAME step. 🔴 Red-proofs (compile): <c>HeaderParamsSchemaSource.RenameVariable</c> not mapping the presets ⇒ the rename rail is red;
 /// <c>SetPresetValue</c> keeping a value equal to the default ⇒ the override / ↺ rail is red.
 /// </summary>
+[Collection(PanelSnapshotTestCollection.Name)]   // one ImGui context: the frame rails of this assembly run serially
 public sealed class ThePresetEditorTests
 {
     private static (EntityRepository Repo, HeaderParamsSchemaSource Src, ParametersDrawer Drawer) Fixture()
