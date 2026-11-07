@@ -579,6 +579,8 @@ this chat"* — R-4123.
 
 ### 4.6 Graphical designs — every UI design gets a mockup before it is built *(user, `2026-11-06`, R-4143)*
 
+⭐ **R-4165 (`2026-11-07`): every mockup below is ACCEPTED** — 🔒 *"if the mockups have not changed since the time they were presented, I am accepting them"*. Measured by git: all unchanged since shown, except New Scenario (tree rows moved to the approved E17 convention) and the mission plan detail (redrawn to the user's own E4 / E5 rulings). A later ruling (R-4162…R-4164) wins over a picture.
+
 🔒 *"we should add a graphical design for basically every UI related design we did today, just to avoid surprises. What it will look like
 after coding as it is way cheaper to define and change now than once it's coded."*
 
@@ -591,19 +593,19 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | Details forms (E2) + notifications (edit framework §2.5) | `details-forms-visual.svg` | ✅ approved |
 | Condition editor (E5) | `condition-editor-visual.svg` | ✅ approved |
 | Colour icons (E16) | the before / after strips (chat) | ✅ approved |
-| Mission plan editor (E11) | `mission-plan-editor.svg` — redrawn in the house style (`scripts/gen-mission-plan-mockup.py`) | ✍ drawn, for review |
-| Map interaction (E8): hint line, pick banner, drawing menu, placement ghost + level / airborne | `map-interaction-visual.svg` | ✍ drawn, for review |
-| New scenario on a terrain (E12): the New Scenario picker | `new-scenario-visual.svg` | ✍ drawn, for review |
-| Initial state (E15): the Unit form's Aboard / Carried by / Carries / Weapon / Knows about rows; the Brain tab's Character | `initial-state-visual.svg` | ✍ drawn, for review |
-| Rule editor UX (E13): the rule list as sentences, the gallery | `rule-list-visual.svg` | ✍ drawn, for review |
-| Seats and hats (E10): the seat and hat indicator and switch | `seats-hats-visual.svg` | ✍ drawn, for review |
-| Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | `menus-visual.svg` | ✍ drawn, for review |
+| Mission plan editor (E11) | `mission-plan-editor.svg` — redrawn in the house style (`scripts/gen-mission-plan-mockup.py`) | ✅ accepted (R-4165) |
+| Map interaction (E8): hint line, pick banner, drawing menu, placement ghost + level / airborne | `map-interaction-visual.svg` | ✅ accepted (R-4165) |
+| New scenario on a terrain (E12): the New Scenario picker | `new-scenario-visual.svg` | ✅ accepted (R-4165; its tree rows redrawn to the approved E17 convention after it was shown) |
+| Initial state (E15): the Unit form's Aboard / Carried by / Carries / Weapon / Knows about rows; the Brain tab's Character | `initial-state-visual.svg` | ✅ accepted (R-4165) |
+| Rule editor UX (E13): the rule list as sentences, the gallery | `rule-list-visual.svg` | ✅ accepted (R-4165) |
+| Seats and hats (E10): the seat and hat indicator and switch | `seats-hats-visual.svg` | ✅ accepted (R-4165) — ⚠ read with R-4163 / R-4164: RTS is a checked mode, Zeus = Instructor |
+| Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | `menus-visual.svg` | ✅ accepted (R-4165) — ⚠ per-mode items as corrected by R-4162 |
 | UI conventions (E17): trees (chevron · icon · label), label-first forms, slate collapsing headers — today vs after; what is not a form row, node editors, the label width | `ui-conventions-visual.svg` · `ui-conventions-details-visual.svg` | ✅ approved (R-4144…R-4147) |
 | Condition editor's Expert view (E5 §8): the struct editor readable — names, kinds as rows, no Bind rows, things by name | `condition-expert-visual.svg` | ✅ approved (R-4149) |
-| Forms in the Replay Browser, read-only (forms §2.4, R-4148): grey rows, not recorded, seek tint, copy | `replay-forms-visual.svg` | ✍ Q-R3 ✅ (R-4152), Q-R1 for review |
-| Replay Browser review (DESIGN_Replay_Browser_UX): main-bar seek bar, default layout | `replay-browser-visual.svg` | ✍ drawn, for review (Q-B1…Q-B6) |
+| Forms in the Replay Browser, read-only (forms §2.4, R-4148): grey rows, not recorded, seek tint, copy | `replay-forms-visual.svg` | ✅ accepted (R-4165; Q-R1 with it) |
+| Replay Browser review (DESIGN_Replay_Browser_UX): main-bar seek bar, default layout | `replay-browser-visual.svg` | ✅ accepted (R-4165) EXCEPT the default layout (Q-B3) and Federation (Q-B6), still open |
 | Show on map (DESIGN_Show_On_Map): the ⌖, preview, pin, row menu, the raw inspector | `show-on-map-visual.svg` | ✅ approved (R-4155) |
-| Mission plan editor detail (§5): the task form, the then-picker, give up, phases as triggers, the Tasks timeline | `mission-plan-detail-visual.svg` | ✍ drawn, for review (D1–D9) |
+| Mission plan editor detail (§5): the task form, the then-picker, give up, phases as triggers, the Tasks timeline | `mission-plan-detail-visual.svg` | ✅ accepted (R-4165) — redrawn `2026-11-07` to the user's own E4 / E5 corrections (one Tasks lane, the WHO chip) |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 
