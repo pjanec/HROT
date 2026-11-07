@@ -1,0 +1,821 @@
+diff --git a/FDP/Engine/Fdp.Presentation.Tests/ImGui/Windows/ReplayBrowser/RecordingInfoWindowDumpsItsFrameStateTests.cs b/FDP/Engine/Fdp.Presentation.Tests/ImGui/Windows/ReplayBrowser/RecordingInfoWindowDumpsItsFrameStateTests.cs
+new file mode 100644
+index 000000000..750589307
+--- /dev/null
++++ b/FDP/Engine/Fdp.Presentation.Tests/ImGui/Windows/ReplayBrowser/RecordingInfoWindowDumpsItsFrameStateTests.cs
+@@ -0,0 +1,181 @@
++using System;
++using System.IO;
++using System.Linq;
++using System.Numerics;
++using System.Threading.Tasks;
++using Fdp.Core;
++using Fdp.Core.FlightRecorder.Metadata;
++using Fdp.Diagnostics.Contracts.Panels;
++using Fdp.Presentation.Abstractions;
++using Fdp.Presentation.Panels.ReplayBrowser;
++using Fdp.Presentation.Tests.ImGui.Panels;
++using Fdp.Presentation.Windows.ReplayBrowser;
++using Fdp.Toolkit.ReplayBrowser;
++using Fdp.Toolkit.ReplayBrowser.Federation;
++using Xunit;
++
++namespace Fdp.Presentation.Tests.ImGui.Windows.ReplayBrowser;
++
++/// <summary>
++/// ⭐ B-7 part 3 — the retired <c>ReplayTimelineWindow</c>'s panel snapshot, now carried by <c>RecordingInfoWindow</c> (File ▸ Recording info) — the same kind, the same view model
++/// (<c>ReplayTimelinePanel.BuildViewModel</c>); published every frame, open or closed.
++/// ⭐⭐⭐ <b>U-obs-5 — <c>ReplayTimelinePanel</c> converted to the
++/// <c>PanelSnapshot</c> contract.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example ·
++/// <c>docs/blueprints/batches/QUEUE_Panel_Observability_Sweep.md</c> group 4 (the ReplayBrowser set).
++/// Mirrors <c>RBF_P5T2_TimelinePanelTests</c>'s recording-fixture and stub-service helpers.
++/// </summary>
++[Collection(PanelSnapshotTestCollection.Name)]
++public sealed class RecordingInfoWindowDumpsItsFrameStateTests : IDisposable
++{
++    private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"ReplayTimelineWindowTests_{Guid.NewGuid():N}");
++
++    public RecordingInfoWindowDumpsItsFrameStateTests()
++    {
++        Directory.CreateDirectory(_tempDir);
++        PanelSnapshot.Clear();
++        PanelSnapshot.CaptureEnabled = false;
++    }
++
++    public void Dispose()
++    {
++        try { Directory.Delete(_tempDir, recursive: true); } catch { }
++        PanelSnapshot.Clear();
++        PanelSnapshot.CaptureEnabled = false;
++    }
++
++    private sealed class StubExportService : IRecordingExportService
++    {
++        public void ExportToJson(string input, string output, JsonExportOptions opts) { }
++    }
++
++    private sealed class StubFileDialogService : IFileDialogService
++    {
++        public Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
++            => Task.FromResult<string?>(null);
++        public Task<string?> ShowSaveAsDialogAsync(string callSiteId, string defaultFileName, string extensionFilter)
++            => Task.FromResult<string?>(null);
++        public Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
++            => Task.FromResult<string[]?>(null);
++    }
++
++    private string CreateTwoFrameRecording(int nodeId)
++    {
++        var path = Path.Combine(_tempDir, $"node{nodeId}.fdp");
++        var exerciseId = Guid.NewGuid();
++        var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(exerciseId), NodeId = (Fdp.Core.NodeId)(nodeId) };
++        using var repo = new EntityRepository();
++        using var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path, meta);
++        recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
++        recorder.CaptureFrame(repo, 0u, 2_000_000L, blocking: true, eventBus: repo.Bus);
++        return path;
++    }
++
++    private static ReplayTimelinePanel MakePanel(FederatedReplayManager? manager, Func<int>? getNodeId = null) =>
++        new ReplayTimelinePanel(
++            manager, getNodeId ?? (() => manager?.LocalEntitiesProviderNodeId ?? 0),
++            new StubExportService(), new StubFileDialogService(),
++            new PlaybackHistoryTracker(), new InspectorState());
++
++    // ── Rail 1 — instrumented at construction, on the PRODUCTION object ─────────────────────────
++
++    [Fact]
++    public void ConstructingTheWindow_DeclaresItInstrumented_BeforeItHasEverDrawn()
++    {
++        Assert.DoesNotContain(RecordingInfoWindow.WindowId, PanelSnapshot.RegisteredPanels);   // ⛔ anti-vacuity
++
++        var window = new RecordingInfoWindow("test-perspective", MakePanel(null), new Vector4(1, 1, 1, 1));
++
++        Assert.Contains(RecordingInfoWindow.WindowId, PanelSnapshot.RegisteredPanels);
++        Assert.DoesNotContain(RecordingInfoWindow.WindowId, PanelSnapshot.CapturedPanels);
++        Assert.Null(PanelSnapshot.TryGet(RecordingInfoWindow.WindowId));
++        Assert.NotNull(window);
++    }
++
++    // ── Rail 2 — the dump carries a real field ───────────────────────────────────────────────────
++
++    [Fact]
++    public void AfterABuild_TheDumpCarriesTheFrameCount()
++    {
++        PanelSnapshot.CaptureEnabled = true;
++        var path = CreateTwoFrameRecording(nodeId: 1);
++        using var manager = FederatedReplayManager.LoadGroup(new[] { path });
++        var window = new RecordingInfoWindow("test-perspective", MakePanel(manager), new Vector4(1, 1, 1, 1));
++
++        window.SimulateDrawClientArea();
++
++        var vm = PanelSnapshot.TryGet(RecordingInfoWindow.WindowId);
++        Assert.NotNull(vm);
++        Assert.Equal(RecordingInfoWindow.WindowId, vm!.PanelId);
++        Assert.Equal(RecordingInfoWindow.Kind, vm.PanelKind);
++
++        var dump = vm.Dump();
++        Assert.True(dump["hasRecording"]!.GetValue<bool>());
++        Assert.Equal(2, dump["totalFrames"]!.GetValue<int>());
++    }
++
++    // ── Rail 3 — the flag gates the DUMP, not the BUILD ──────────────────────────────────────────
++
++    [Fact]
++    public void WithCaptureOff_TheProductionPathPublishesNothing()
++    {
++        var window = new RecordingInfoWindow("test-perspective", MakePanel(null), new Vector4(1, 1, 1, 1));   // CaptureEnabled stays false
++
++        var vm = window.SimulateDrawClientArea();
++
++        Assert.Empty(PanelSnapshot.CapturedPanels);
++        Assert.Contains(RecordingInfoWindow.WindowId, PanelSnapshot.RegisteredPanels);
++        Assert.NotNull(vm);   // ⭐ the BUILD is unaffected by the flag
++        Assert.False(vm.HasRecording);
++    }
++
++    // ── B-7 part 3 — the dialog's content, the tooltip's text, the shared frame times ─────────────────────────
++
++    /// <summary>⭐ <i>File ▸ Recording info</i> lists the exercise, and per node the file, the frames and the length — read from a REAL two-node recording.
++    /// ✅ Red-proof: <c>DescribeRecording</c> dropping the file path (or the length) ⇒ red.</summary>
++    [Fact]
++    public void TheDialog_ListsTheFilesPerNode_TheLength_AndTheExercise_OfARealRecording()
++    {
++        var a = CreateTwoFrameRecording(nodeId: 1);
++        var b = CreateTwoFrameRecording(nodeId: 2);
++        using var manager = FederatedReplayManager.LoadGroup(new[] { a, b });
++        var panel = MakePanel(manager);
++
++        var info = panel.DescribeRecording();
++
++        Assert.Equal(manager.ExerciseId.Value, info.ExerciseId);
++        Assert.Equal(new[] { 1, 2 }, info.Files.Select(f => f.NodeId).ToArray());
++        Assert.Equal(new[] { a, b }, info.Files.Select(f => f.Path).ToArray());
++        Assert.All(info.Files, f => { Assert.Equal(2, f.Frames); Assert.True(f.WallSeconds > 0d, "the length is the first-to-last frame's wall time"); });
++        Assert.Empty(MakePanel(null).DescribeRecording().Files);   // nothing loaded: an empty dialog, not a crash
++    }
++
++    /// <summary>The seek bar's tooltip text, as the retired window's readout: frame (spaced thousands) · wall · sim; and the panel's frame times are the ONE source the snapshot uses.</summary>
++    [Fact]
++    public void TheTooltipText_IsFrameWallSim_AndTheFrameTimesAreTheSnapshotsOwn()
++    {
++        Assert.Equal("frame 2 103 · wall 40.602 s · sim 39.997 s", ReplayTimelinePanel.DetailText(2103, 40.602, 39.997));
++        Assert.Equal("frame 0 · wall 0.000 s · sim 0.000 s", ReplayTimelinePanel.DetailText(0, 0, 0));
++
++        PanelSnapshot.CaptureEnabled = true;
++        var path = CreateTwoFrameRecording(nodeId: 1);
++        using var manager = FederatedReplayManager.LoadGroup(new[] { path });
++        var panel = MakePanel(manager);
++        manager.Contexts[1].SeekToFrame(1);
++        panel.FrameTimes(out long ticks, out double wall, out double sim);
++        var vm = panel.BuildViewModel("x", "replay-timeline");
++        Assert.Equal((ticks, wall, sim), (vm.WallClockTicks, vm.RelativeWallSeconds, vm.SimTimeSeconds));
++        Assert.True(wall > 0d);
++    }
++
++    /// <summary>⭐ The snapshot an agent reads is published whether the dialog is open or CLOSED (it is closed by default).</summary>
++    [Fact]
++    public void TheSnapshot_IsPublished_EvenWhileTheDialogIsClosed()
++    {
++        PanelSnapshot.CaptureEnabled = true;
++        var window = new RecordingInfoWindow("test-perspective", MakePanel(null), new Vector4(1, 1, 1, 1));
++        Assert.False(window.IsOpen);
++        window.GetType().GetMethod("OnRenderWhileClosed", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window, null);
++        Assert.NotNull(PanelSnapshot.TryGet(RecordingInfoWindow.WindowId));
++    }
++}
++}
+diff --git a/FDP/Engine/Fdp.Presentation.Tests/ImGui/Windows/ReplayBrowser/ReplayTimelineWindowDumpsItsFrameStateTests.cs b/FDP/Engine/Fdp.Presentation.Tests/ImGui/Windows/ReplayBrowser/ReplayTimelineWindowDumpsItsFrameStateTests.cs
+deleted file mode 100644
+index 3c8c5ccac..000000000
+--- a/FDP/Engine/Fdp.Presentation.Tests/ImGui/Windows/ReplayBrowser/ReplayTimelineWindowDumpsItsFrameStateTests.cs
++++ /dev/null
+@@ -1,129 +0,0 @@
+-using System;
+-using System.IO;
+-using System.Numerics;
+-using System.Threading.Tasks;
+-using Fdp.Core;
+-using Fdp.Core.FlightRecorder.Metadata;
+-using Fdp.Diagnostics.Contracts.Panels;
+-using Fdp.Presentation.Abstractions;
+-using Fdp.Presentation.Panels.ReplayBrowser;
+-using Fdp.Presentation.Tests.ImGui.Panels;
+-using Fdp.Presentation.Windows.ReplayBrowser;
+-using Fdp.Toolkit.ReplayBrowser;
+-using Fdp.Toolkit.ReplayBrowser.Federation;
+-using Xunit;
+-
+-namespace Fdp.Presentation.Tests.ImGui.Windows.ReplayBrowser;
+-
+-/// <summary>
+-/// ⭐⭐⭐ <b>U-obs-5 — <c>ReplayTimelinePanel</c>/<c>ReplayTimelineWindow</c> converted to the
+-/// <c>PanelSnapshot</c> contract.</b> 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example ·
+-/// <c>docs/blueprints/batches/QUEUE_Panel_Observability_Sweep.md</c> group 4 (the ReplayBrowser set).
+-/// Mirrors <c>RBF_P5T2_TimelinePanelTests</c>'s recording-fixture and stub-service helpers.
+-/// </summary>
+-[Collection(PanelSnapshotTestCollection.Name)]
+-public sealed class ReplayTimelineWindowDumpsItsFrameStateTests : IDisposable
+-{
+-    private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"ReplayTimelineWindowTests_{Guid.NewGuid():N}");
+-
+-    public ReplayTimelineWindowDumpsItsFrameStateTests()
+-    {
+-        Directory.CreateDirectory(_tempDir);
+-        PanelSnapshot.Clear();
+-        PanelSnapshot.CaptureEnabled = false;
+-    }
+-
+-    public void Dispose()
+-    {
+-        try { Directory.Delete(_tempDir, recursive: true); } catch { }
+-        PanelSnapshot.Clear();
+-        PanelSnapshot.CaptureEnabled = false;
+-    }
+-
+-    private sealed class StubExportService : IRecordingExportService
+-    {
+-        public void ExportToJson(string input, string output, JsonExportOptions opts) { }
+-    }
+-
+-    private sealed class StubFileDialogService : IFileDialogService
+-    {
+-        public Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
+-            => Task.FromResult<string?>(null);
+-        public Task<string?> ShowSaveAsDialogAsync(string callSiteId, string defaultFileName, string extensionFilter)
+-            => Task.FromResult<string?>(null);
+-        public Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
+-            => Task.FromResult<string[]?>(null);
+-    }
+-
+-    private string CreateTwoFrameRecording(int nodeId)
+-    {
+-        var path = Path.Combine(_tempDir, $"node{nodeId}.fdp");
+-        var exerciseId = Guid.NewGuid();
+-        var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(exerciseId), NodeId = (Fdp.Core.NodeId)(nodeId) };
+-        using var repo = new EntityRepository();
+-        using var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path, meta);
+-        recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
+-        recorder.CaptureFrame(repo, 0u, 2_000_000L, blocking: true, eventBus: repo.Bus);
+-        return path;
+-    }
+-
+-    private static ReplayTimelinePanel MakePanel(FederatedReplayManager? manager, Func<int>? getNodeId = null) =>
+-        new ReplayTimelinePanel(
+-            manager, getNodeId ?? (() => manager?.LocalEntitiesProviderNodeId ?? 0),
+-            new StubExportService(), new StubFileDialogService(),
+-            new PlaybackHistoryTracker(), new InspectorState());
+-
+-    // ── Rail 1 — instrumented at construction, on the PRODUCTION object ─────────────────────────
+-
+-    [Fact]
+-    public void ConstructingTheWindow_DeclaresItInstrumented_BeforeItHasEverDrawn()
+-    {
+-        Assert.DoesNotContain("replay_timeline_test", PanelSnapshot.RegisteredPanels);   // ⛔ anti-vacuity
+-
+-        var window = new ReplayTimelineWindow("replay_timeline_test", "Timeline", "test-perspective", MakePanel(null), new Vector4(1, 1, 1, 1));
+-
+-        Assert.Contains("replay_timeline_test", PanelSnapshot.RegisteredPanels);
+-        Assert.DoesNotContain("replay_timeline_test", PanelSnapshot.CapturedPanels);
+-        Assert.Null(PanelSnapshot.TryGet("replay_timeline_test"));
+-        Assert.NotNull(window);
+-    }
+-
+-    // ── Rail 2 — the dump carries a real field ───────────────────────────────────────────────────
+-
+-    [Fact]
+-    public void AfterABuild_TheDumpCarriesTheFrameCount()
+-    {
+-        PanelSnapshot.CaptureEnabled = true;
+-        var path = CreateTwoFrameRecording(nodeId: 1);
+-        using var manager = FederatedReplayManager.LoadGroup(new[] { path });
+-        var window = new ReplayTimelineWindow(
+-            "replay_timeline_test", "Timeline", "test-perspective", MakePanel(manager), new Vector4(1, 1, 1, 1));
+-
+-        window.SimulateDrawClientArea();
+-
+-        var vm = PanelSnapshot.TryGet("replay_timeline_test");
+-        Assert.NotNull(vm);
+-        Assert.Equal("replay_timeline_test", vm!.PanelId);
+-        Assert.Equal(ReplayTimelineWindow.Kind, vm.PanelKind);
+-
+-        var dump = vm.Dump();
+-        Assert.True(dump["hasRecording"]!.GetValue<bool>());
+-        Assert.Equal(2, dump["totalFrames"]!.GetValue<int>());
+-    }
+-
+-    // ── Rail 3 — the flag gates the DUMP, not the BUILD ──────────────────────────────────────────
+-
+-    [Fact]
+-    public void WithCaptureOff_TheProductionPathPublishesNothing()
+-    {
+-        var window = new ReplayTimelineWindow(
+-            "replay_timeline_test", "Timeline", "test-perspective", MakePanel(null), new Vector4(1, 1, 1, 1));   // CaptureEnabled stays false
+-
+-        var vm = window.SimulateDrawClientArea();
+-
+-        Assert.Empty(PanelSnapshot.CapturedPanels);
+-        Assert.Contains("replay_timeline_test", PanelSnapshot.RegisteredPanels);
+-        Assert.NotNull(vm);   // ⭐ the BUILD is unaffected by the flag
+-        Assert.False(vm.HasRecording);
+-    }
+-}
+diff --git a/FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ComponentDiffPanel.cs b/FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ComponentDiffPanel.cs
+index 9f2221dce..7e484a4ac 100644
+--- a/FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ComponentDiffPanel.cs
++++ b/FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ComponentDiffPanel.cs
+@@ -99,8 +99,24 @@ public sealed class ComponentDiffPanel
+     /// </summary>
+     private static readonly string[] DiffLabels = { "Ignore Epsilon (< 0.001)", "Hide Unchanged" };
+ 
++    /// <summary>⭐ B-7 part 3 — whether a recording is loaded (the host binds the timeline panel's); drives the meta row below.</summary>
++    public Func<bool>? HasRecording { get; set; }
++
++    /// <summary>
++    /// ⭐ B-7 part 3 (R-4155) — the per-frame debug row that used to sit empty in the retired Replay Timeline window (<c>Tick · SimFrame · SimTime · FrameType · CompressedSize</c>;
++    /// still a placeholder: the values are not read from the recording yet). It belongs with the frame diff, which is per-frame debug.
++    /// </summary>
++    private void DrawMetaRow()
++    {
++        if (!(HasRecording?.Invoke() ?? false))
++            Gui.TextDisabled("Tick: - | SimFrame: - | SimTime: - | Type: - | Size: -");
++        else
++            Gui.TextDisabled("Tick: - | SimFrame: - | SimTime: - | FrameType: - | CompressedSize: -");
++    }
++
+     public void DrawContent(IReadOnlyList<DiffNode> diffs)
+     {
++        DrawMetaRow();
+         if (FormGrid.Begin("diff.options", DiffLabels))
+         {
+             FormGrid.Row("Ignore Epsilon (< 0.001)"); Gui.Checkbox("##ignoreepsilon", ref _ignoreEpsilon);
+diff --git a/FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ReplayTimelinePanel.cs b/FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ReplayTimelinePanel.cs
+index 3ccd7112b..9c04466b5 100644
+--- a/FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ReplayTimelinePanel.cs
++++ b/FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ReplayTimelinePanel.cs
+@@ -36,9 +36,16 @@ public sealed record ReplayTimelinePanelViewModel(
+     public JsonNode Dump() => PanelDump.Of(this);
+ }
+ 
++/// <summary>⭐ B-7 part 3 — one node's recording file, as <i>File ▸ Recording info</i> lists it.</summary>
++public sealed record RecordingFileInfo(int NodeId, string Path, int Frames, double WallSeconds);
++
++/// <summary>⭐ B-7 part 3 — the loaded group: its exercise id (null when nothing is loaded) and a file per node.</summary>
++public sealed record RecordingInfo(Guid? ExerciseId, IReadOnlyList<RecordingFileInfo> Files);
++
+ /// <summary>
+ /// Transport control panel for the replay browser.
+-/// Renders timeline controls, frame metadata, file loading, and JSON export options.
++/// The replay transport (drawn by the main toolbar's entry: history, rewind, play, rate, axis, step, the seek bar with its frame / wall / sim tooltip) and the JSON export options
++/// (File ▸ JSON Export…). ⭐ B-7 part 3: the Replay Timeline WINDOW is retired — its parts moved (the readout to the seek bar's tooltip, the meta row to the Frame Diff window, the file path to File ▸ Recording info).
+ /// </summary>
+ public sealed class ReplayTimelinePanel
+ {
+@@ -121,18 +128,7 @@ public sealed class ReplayTimelinePanel
+         int currentFrame = (ActiveContext?.CurrentFrame ?? -1) < 0 ? 0 : ActiveContext!.CurrentFrame;
+         int totalFrames = ActiveContext?.Playback?.TotalFrames ?? 1;
+ 
+-        long wallClockTicks = 0;
+-        double relativeWallSec = 0.0;
+-        double simTimeSec = 0.0;
+-        if (hasRecording && (ActiveContext?.CurrentFrame ?? -1) >= 0)
+-        {
+-            var meta = ActiveContext!.Playback!.GetFrameMetadata(ActiveContext.CurrentFrame);
+-            long firstFrameWallTicks = ActiveContext.Playback.GetFrameMetadata(0).WallClockTicks;
+-            wallClockTicks = meta.WallClockTicks;
+-            relativeWallSec = (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
+-            if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
+-                simTimeSec = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+-        }
++        FrameTimes(out long wallClockTicks, out double relativeWallSec, out double simTimeSec);
+ 
+         return new ReplayTimelinePanelViewModel(
+             panelId, panelKind, hasRecording, currentFrame, totalFrames, wallClockTicks,
+@@ -140,9 +136,45 @@ public sealed class ReplayTimelinePanel
+             ActiveContext?.CurrentFdpPath ?? "(none)", LoadGroupRejectionReason);
+     }
+ 
++    /// <summary>
++    /// ⭐ B-7 part 3 — the current frame's wall ticks, wall seconds since the first frame and sim seconds, read from the active recording: ONE implementation for the panel snapshot
++    /// (<see cref="BuildViewModel"/>) and the seek bar's tooltip on the current-time label. Zeros when nothing is loaded or no frame is current.
++    /// </summary>
++    public void FrameTimes(out long wallClockTicks, out double relativeWallSeconds, out double simSeconds)
++    {
++        wallClockTicks = 0; relativeWallSeconds = 0d; simSeconds = 0d;
++        if (ActiveContext?.Playback == null || (ActiveContext?.CurrentFrame ?? -1) < 0) return;
++        var meta = ActiveContext!.Playback!.GetFrameMetadata(ActiveContext.CurrentFrame);
++        long firstFrameWallTicks = ActiveContext.Playback.GetFrameMetadata(0).WallClockTicks;
++        wallClockTicks = meta.WallClockTicks;
++        relativeWallSeconds = (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
++        if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
++            simSeconds = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
++    }
++
++    /// <summary>A recording is loaded on the selected node.</summary>
++    public bool HasRecording => ActiveContext?.Playback != null;
++
++    /// <summary>⭐ B-7 part 3 — what <i>File ▸ Recording info</i> lists: the exercise, and per node its file and length.</summary>
++    public RecordingInfo DescribeRecording()
++    {
++        if (_manager == null || _manager.Contexts.Count == 0) return new RecordingInfo(null, Array.Empty<RecordingFileInfo>());
++        var files = new List<RecordingFileInfo>();
++        foreach (var (node, ctx) in _manager.Contexts.OrderBy(kv => kv.Key))
++        {
++            int frames = ctx.Playback?.TotalFrames ?? 0;
++            double seconds = 0d;
++            if (frames > 1)
++                seconds = (ctx.Playback!.GetFrameMetadata(frames - 1).WallClockTicks - ctx.Playback.GetFrameMetadata(0).WallClockTicks) / (double)TimeSpan.TicksPerSecond;
++            files.Add(new RecordingFileInfo(node, ctx.CurrentFdpPath ?? "(none)", frames, seconds));
++        }
++        return new RecordingInfo(_manager.ExerciseId.Value, files);
++    }
++
+     // ── Public draw entry point ───────────────────────────────────────────
+ 
+-    public void DrawContent()
++    /// <summary>The "group rejected" modal — drawn with the transport (the toolbar entry is on screen whenever the replay perspective is), since the timeline window that used to host it is retired.</summary>
++    private void DrawLoadGroupError()
+     {
+         if (LoadGroupRejectionReason != null)
+         {
+@@ -158,12 +190,6 @@ public sealed class ReplayTimelinePanel
+             }
+             Gui.EndPopup();
+         }
+-        // ⭐ CE-4261 — the transport bar is NOT drawn here any more: the browser registers it as an entry of the MAIN TOOLBAR (DrawTransport, below), the one drawer
+-        DrawRow2_TimeInfo();
+-        DrawRow3_Slider();
+-        DrawRow4_Meta();
+-        DrawRow5_FileLoader();
+-        // ⭐ CE-4261 — the JSON Export options moved to File ▸ JSON Export… (JsonExportWindow draws DrawExportBody); the Load .fdp… button to File ▸ Load .fdp…
+     }
+ 
+     /// <summary>
+@@ -172,6 +198,7 @@ public sealed class ReplayTimelinePanel
+     /// </summary>
+     public void DrawTransport(float iconSize = 0f)
+     {
++        DrawLoadGroupError();
+         DrawRow1_Transport(iconSize);
+         DrawSeekBar();   // ⭐ Replay Browser UX ① (R-4153) — the seek bar fills the main bar after the transport
+     }
+@@ -180,12 +207,20 @@ public sealed class ReplayTimelinePanel
+     /// <see cref="AxisIsSim"/> says the sim axis is active and <see cref="HasSimAxis"/> allows it. Null ⇒ the wall axis only.</summary>
+     public Func<long, double>? SimAtWall { get; set; }
+ 
++    /// <summary>⭐ B-7 part 3 — the tooltip on the current-time label: <c>frame 2 103 · wall 40.602 s · sim 39.997 s</c> (the retired timeline window's readout).</summary>
++    public static string DetailText(int frame, double wallSeconds, double simSeconds)
++        => $"frame {frame:N0} · wall {wallSeconds:0.000} s · sim {simSeconds:0.000} s".Replace(',', ' ');
++
+     /// <summary>The seek bar's least width; below it the bar is not drawn (a narrow window keeps the transport).</summary>
+     public const float SeekBarMinWidth = 80f;
+ 
+     private int _seekLabelFrame = -1, _seekEndFrames = -1, _seekHoverFrame = -1;
+     private bool _seekLabelsSim;
+-    private string _seekNow = "", _seekEnd = "", _seekHover = "";
++    private string _seekNow = "", _seekEnd = "", _seekHover = "", _seekDetail = "";
++    private int _detailFrame = -1; private double _detailWall = double.NaN, _detailSim = double.NaN;
++
++    /// <summary>The tooltip on the seek bar's current-time label (frame · wall · sim), as last built — for the rails.</summary>
++    public string SeekDetailText => _seekDetail;
+ 
+     /// <summary>The seconds of <paramref name="frame"/> on the active axis.</summary>
+     public double SecondsOf(int frame)
+@@ -238,6 +273,17 @@ public sealed class ReplayTimelinePanel
+ 
+         Gui.AlignTextToFramePadding();
+         Gui.TextUnformatted(_seekNow);
++        if (Gui.IsItemHovered())
++        {
++            // ⭐ B-7 part 3 (R-4155) — the retired Replay Timeline window's frame / wall / sim readout: "frame 2 103 · wall 40.602 s · sim 39.997 s" (cached, 0 B steady)
++            FrameTimes(out _, out double wallSec, out double simSec);
++            if (current != _detailFrame || wallSec != _detailWall || simSec != _detailSim)
++            {
++                _detailFrame = current; _detailWall = wallSec; _detailSim = simSec;
++                _seekDetail = DetailText(current, wallSec, simSec);
++            }
++            Gui.SetTooltip(_seekDetail);
++        }
+         Gui.SameLine();
+         float h = Gui.GetFrameHeight();
+         var p0 = Gui.GetCursorScreenPos();
+@@ -448,66 +494,6 @@ public sealed class ReplayTimelinePanel
+         }
+     }
+ 
+-    private void DrawRow2_TimeInfo()
+-    {
+-        if (ActiveContext?.Playback == null || (ActiveContext?.CurrentFrame ?? -1) < 0)
+-        {
+-            Gui.TextDisabled("Frame: - | Wall Ticks: - | Wall Time: - | Sim Time: -");
+-            return;
+-        }
+-
+-        int current = ActiveContext!.CurrentFrame;
+-        var meta = ActiveContext.Playback.GetFrameMetadata(current);
+-        long firstFrameWallTicks = ActiveContext.Playback.GetFrameMetadata(0).WallClockTicks;
+-
+-        double relativeWallSec =
+-            (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
+-
+-        double simTimeSec = 0.0;
+-        if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
+-            simTimeSec = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+-
+-        Gui.TextUnformatted(
+-            $"Frame: {current} | Wall Ticks: {meta.WallClockTicks} | Wall Time: {relativeWallSec:F3}s | Sim Time: {simTimeSec:F3}s");
+-    }
+-
+-    private void DrawRow3_Slider()
+-    {
+-        int totalFrames = ActiveContext?.Playback?.TotalFrames ?? 1;
+-        int current = (ActiveContext?.CurrentFrame ?? -1) < 0 ? 0 : ActiveContext!.CurrentFrame;
+-        int max = totalFrames > 0 ? totalFrames - 1 : 0;
+-
+-        if (Gui.SliderInt("##timeline", ref current, 0, max))
+-        {
+-            IsPlaying = false;
+-            SeekToFrame(current);
+-        }
+-        Gui.SameLine();
+-        Gui.TextUnformatted($"Frame {current} / {max}");
+-    }
+-                                                                
+-    private void DrawRow4_Meta()
+-    {
+-        // Metadata display (tick, simframe, simtime, frame type, size)
+-        // When no recording is loaded, show dashes.
+-        if (ActiveContext?.Playback == null)
+-        {
+-            Gui.TextDisabled("Tick: - | SimFrame: - | SimTime: - | Type: - | Size: -");
+-        }
+-        else
+-        {
+-            Gui.TextDisabled(
+-                $"Tick: - | SimFrame: - | SimTime: - | FrameType: - | CompressedSize: -");
+-        }
+-    }
+-
+-    private void DrawRow5_FileLoader()
+-    {
+-        // ⭐ CE-4261 — the Load button is File ▸ Load .fdp… now; the row keeps the loaded path
+-        string displayPath = ActiveContext?.CurrentFdpPath ?? "(none)";
+-        Gui.TextUnformatted(displayPath);
+-    }
+-
+     // ── Export expander sub-sections ─────────────────────────────────────
+ 
+     private static readonly string[] ExportLabels = { "Start Frame", "End Frame", "Start Time (s)", "End Time (s)", "Filter by Entity Index", "Entity Index", "Include Entities", "Include Events", "Minified Output", "Epsilon" };
+diff --git a/FDP/Engine/Fdp.Presentation/ImGui/Windows/ReplayBrowser/RecordingInfoWindow.cs b/FDP/Engine/Fdp.Presentation/ImGui/Windows/ReplayBrowser/RecordingInfoWindow.cs
+new file mode 100644
+index 000000000..a554702b4
+--- /dev/null
++++ b/FDP/Engine/Fdp.Presentation/ImGui/Windows/ReplayBrowser/RecordingInfoWindow.cs
+@@ -0,0 +1,68 @@
++using System.Numerics;
++using Fdp.Diagnostics.Contracts.Panels;
++using Fdp.Presentation.Panels.ReplayBrowser;
++using Fdp.Presentation.WindowManager;
++
++namespace Fdp.Presentation.Windows.ReplayBrowser;
++
++/// <summary>
++/// ⭐ B-7 part 3 (docs/UX/DESIGN_Replay_Browser_UX.md §2a, Q-B2, R-4155) — <b>File ▸ Recording info</b>: the files of the loaded group (a file per node), its length and the
++/// exercise id — what the retired <i>Replay Timeline</i> window's last row (the loaded path) held, now where a person looks for it. ⭐ It also carries the retired window's PANEL SNAPSHOT
++/// (the <see cref="ReplayTimelinePanelViewModel"/>: frame, wall ticks, wall / sim time, path — built by <see cref="ReplayTimelinePanel.BuildViewModel"/>, not copied), so an agent reading
++/// panels loses nothing; the snapshot is published every frame, <b>open or closed</b> (<see cref="ManagedWindow.OnRenderWhileClosed"/>: no ImGui there). Draws no transport — that is
++/// the main toolbar's entry, the panel's ONE drawer.
++/// </summary>
++public sealed class RecordingInfoWindow : ManagedWindow
++{
++    public const string WindowId = "rb_recording_info";
++
++    /// <summary>⭐ <c>U-obs-5</c> — THE KIND of the snapshot (unchanged by the move from the retired timeline window).</summary>
++    internal const string Kind = "replay-timeline";
++
++    private readonly ReplayTimelinePanel _panel;
++
++    public RecordingInfoWindow(string owningPerspective, ReplayTimelinePanel panel, Vector4 titleBarColor)
++        : base(WindowId, "Recording info", owningPerspective, WindowScope.PerspectiveBound)
++    {
++        _panel = panel;
++        TitleBarColor = titleBarColor;
++        IsOpen = false;        // opened by File ▸ Recording info
++        ShowInMenu = false;
++
++        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
++        PanelSnapshot.DeclareInstrumented(Id);
++    }
++
++    /// <summary>Opens (and raises) the window — the File item calls this.</summary>
++    public void Show() => IsOpen = true;
++
++    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE. No ImGui here.</summary>
++    private ReplayTimelinePanelViewModel BuildAndPublish()
++    {
++        var vm = _panel.BuildViewModel(Id, Kind);
++        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
++        return vm;
++    }
++
++    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
++    internal ReplayTimelinePanelViewModel SimulateDrawClientArea() => BuildAndPublish();
++
++    /// <summary>Closed: still publish the snapshot (an agent reads it whether or not the dialog is up).</summary>
++    protected override void OnRenderWhileClosed() => BuildAndPublish();
++
++    protected override void DrawClientArea()
++    {
++        BuildAndPublish();
++        var info = _panel.DescribeRecording();
++        if (info.Files.Count == 0) { Gui.TextDisabled("No recording loaded (File ▸ Load .fdp…)."); return; }
++        Gui.TextUnformatted("Exercise  " + (info.ExerciseId?.ToString() ?? "-"));
++        Gui.Separator();
++        foreach (var f in info.Files)
++        {
++            Gui.TextUnformatted($"Node {f.NodeId}");
++            Gui.SameLine();
++            Gui.TextDisabled($"{f.Frames:N0} frames · {ReplayTimelinePanel.SeekTime(f.WallSeconds)} long".Replace(',', ' '));
++            Gui.TextUnformatted("  " + f.Path);
++        }
++    }
++}
+diff --git a/FDP/Engine/Fdp.Presentation/ImGui/Windows/ReplayBrowser/ReplayTimelineWindow.cs b/FDP/Engine/Fdp.Presentation/ImGui/Windows/ReplayBrowser/ReplayTimelineWindow.cs
+deleted file mode 100644
+index 78c62941e..000000000
+--- a/FDP/Engine/Fdp.Presentation/ImGui/Windows/ReplayBrowser/ReplayTimelineWindow.cs
++++ /dev/null
+@@ -1,54 +0,0 @@
+-using System.Numerics;
+-using Fdp.Diagnostics.Contracts.Panels;
+-using Fdp.Presentation.Panels.ReplayBrowser;
+-using Fdp.Presentation.WindowManager;
+-
+-namespace Fdp.Presentation.Windows.ReplayBrowser;
+-
+-/// <summary>
+-/// PerspectiveBound window that hosts <see cref="ReplayTimelinePanel"/>.
+-///
+-/// <para>⭐⭐⭐ <b>U-obs-5 — the HOST registers, not the panel.</b> <see cref="ReplayTimelinePanel"/> is a
+-/// plain <c>*Panel</c> with no window identity of its own; this window supplies the address (its own
+-/// <see cref="ManagedWindow.Id"/>) and the kind.</para>
+-/// </summary>
+-public sealed class ReplayTimelineWindow : ManagedWindow
+-{
+-    /// <summary>⭐ <c>U-obs-5</c> — THE KIND. Single host: stays a local literal.</summary>
+-    internal const string Kind = "replay-timeline";
+-
+-    private readonly ReplayTimelinePanel _panel;
+-
+-    public ReplayTimelineWindow(
+-        string id,
+-        string title,
+-        string owningPerspective,
+-        ReplayTimelinePanel panel,
+-        Vector4 titleBarColor)
+-        : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
+-    {
+-        _panel = panel;
+-        TitleBarColor = titleBarColor;
+-        IsOpen = true;
+-
+-        // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.
+-        PanelSnapshot.DeclareInstrumented(Id);
+-    }
+-
+-    /// <summary>⭐⭐⭐ U-obs-5: BUILD · CAPTURE. No ImGui here.</summary>
+-    private ReplayTimelinePanelViewModel BuildAndPublish()
+-    {
+-        var vm = _panel.BuildViewModel(Id, Kind);
+-        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+-        return vm;
+-    }
+-
+-    /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, callable with no live ImGui context.</summary>
+-    internal ReplayTimelinePanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+-
+-    protected override void DrawClientArea()
+-    {
+-        BuildAndPublish();
+-        _panel.DrawContent();
+-    }
+-}
+diff --git a/Hrot/Runner/Hrot.SystemTests/Goldens/ui-baseline-replaybrowser/registered-windows.json b/Hrot/Runner/Hrot.SystemTests/Goldens/ui-baseline-replaybrowser/registered-windows.json
+index 2d99dd8cd..3f20f88e8 100644
+--- a/Hrot/Runner/Hrot.SystemTests/Goldens/ui-baseline-replaybrowser/registered-windows.json
++++ b/Hrot/Runner/Hrot.SystemTests/Goldens/ui-baseline-replaybrowser/registered-windows.json
+@@ -6,7 +6,7 @@
+   "rb_diff",
+   "rb_fdp_events",
+   "rb_fdp_inspector",
++  "rb_recording_info",
+   "rb_search",
+-  "rb_timeline",
+   "rb_wire_entities"
+ ]
+diff --git a/Hrot/Subsystems/Hrot.ReplayBrowser.Tests/ReplayBrowserSubsystemTests.cs b/Hrot/Subsystems/Hrot.ReplayBrowser.Tests/ReplayBrowserSubsystemTests.cs
+index 95de75185..8125e750a 100644
+--- a/Hrot/Subsystems/Hrot.ReplayBrowser.Tests/ReplayBrowserSubsystemTests.cs
++++ b/Hrot/Subsystems/Hrot.ReplayBrowser.Tests/ReplayBrowserSubsystemTests.cs
+@@ -247,8 +247,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
+         //   (rb_fdp_inspector / rb_fdp_events, which replaced this host's own rb_inspector / rb_events copies).
+         // ⭐ CE-1302 R1-c — and the event timeline (rb_event_timeline) over the primary node's recording.
+         // ⭐ CE-1303 P2a — and the ONE film director's window (DirectorPack's, in this host's perspective — §11m D11).
++        // ⭐ B-7 part 3 — rb_timeline (the Replay Timeline window) is RETIRED; File ▸ Recording info (rb_recording_info, closed) carries its file path and panel snapshot.
+         // ⭐ AQ109 X5 — and the generic wire inspector (rb_wire_entities, closed; this host has no participant, so it says so).
+-        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline", "rb_wire_entities" },
++        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_recording_info", "rb_search", "rb_wire_entities" },
+                      windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
+ 
+         foreach (var (_, win) in windows)
+diff --git a/Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs b/Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs
+index 3d8fa20bc..5818f92fc 100644
+--- a/Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs
++++ b/Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs
+@@ -913,7 +913,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
+     /// <param name="federationPanel">⭐⭐⭐ U-obs-5 follow-up — <c>null</c> until a replay group has
+     /// been loaded (the panel is created lazily); when non-null its window is registered too.</param>
+     /// <summary>⭐ CE-4261 — the browser's File items and its main-toolbar entry (one source for the rails).</summary>
+-    public const string LoadFdpMenuPath = "File/Load .fdp…", JsonExportMenuPath = "File/JSON Export…", TransportEntryId = "ReplayTransport";
++    public const string LoadFdpMenuPath = "File/Load .fdp…", JsonExportMenuPath = "File/JSON Export…", RecordingInfoMenuPath = "File/Recording info", TransportEntryId = "ReplayTransport";
+ 
+     internal void RegisterWindowsCore(
+         WindowManager windowManager,
+@@ -930,8 +930,12 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
+         // Capture safe references for the inspector window factories.
+         InspectorState stateRef = _inspectorState ?? new InspectorState();
+ 
+-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplayTimelineWindow(
+-            "rb_timeline", "Replay Timeline", perspective, timelinePanel, color));
++        // ⭐ B-7 part 3 (R-4155, Q-B2) — the "Replay Timeline" window is RETIRED, nothing lost: its readout is the seek bar's tooltip, its meta row is in the Frame Diff window, its file path
++        //   and panel snapshot are File ▸ Recording info. The PANEL stays — the transport's and the export window's one drawer.
++        diffPanel.HasRecording = () => timelinePanel.HasRecording;
++        var recordingInfo = new Fdp.Presentation.Windows.ReplayBrowser.RecordingInfoWindow(perspective, timelinePanel, color);
++        windowManager.RegisterWindow(recordingInfo);
++        windowManager.GlobalMenu.RegisterItem(RecordingInfoMenuPath, () => recordingInfo.Show(), perspective);
+ 
+         // ⭐ CE-4261 — the browser's own toolbar contents and File items (🔒 user, 2026-11-03): the replay transport bar is an entry of the MAIN toolbar (the timeline panel's ONE drawer),
+         //   File ▸ Load .fdp… runs the load the timeline's button ran, File ▸ JSON Export… opens the window holding the export options.
+diff --git a/docs/DESIGN_Director_Timeline_Editor.md b/docs/DESIGN_Director_Timeline_Editor.md
+index 6b1626a03..e8d150e26 100644
+--- a/docs/DESIGN_Director_Timeline_Editor.md
++++ b/docs/DESIGN_Director_Timeline_Editor.md
+@@ -960,7 +960,7 @@ Built in `FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Timeline/` as the class diagra
+ | `TimelinePanel` | overview strip + bracket (drag moves it), ruler, Life / Combat / Behaviour groups (collapsed = one row), unscanned part shaded, "now" line; Ctrl+wheel zooms about the mouse, drag pans, click seeks, hover lists the mark | ⏳ not yet: jump to next / previous event, the search box, focus-dimming (R1-d with the pinned unit) |
+ | `ITimelineCursor` + `FederatedReplayCursor` | Extent / Now / CanSeek / Seek over `FederatedReplayManager`; a seek subtracts the node's offset and calls `SetBaseWallTicks` (which seeks every node) | — |
+ | `EventTimelineWindow` + `TimelinePanelViewModel` | the window (U-obs-5: declared, dumps scanned / total frames, window, now, per-lane counts in window and in total) | ⚠ named *Event* Timeline: "Replay Timeline" is already the browser's transport window |
+-| Replay Browser hosting | `rb_event_timeline` registered beside `rb_timeline`; `SyncTimelineSource()` opens the primary node's recording each update when it changes (sidecar or background build), disposed on shutdown | — |
++| Replay Browser hosting | `rb_event_timeline` registered beside `rb_timeline` (⛔ retired B-7 part 3 — now File ▸ Recording info, `rb_recording_info`); `SyncTimelineSource()` opens the primary node's recording each update when it changes (sidecar or background build), disposed on shutdown | — |
+ 
+ 📐 **Seen in a real ImGui frame** (`TimelinePanelFrameRail`, Hrot.Presentation.Tests — Xvfb + software GL, a synthetic ten-minute
+ firefight; screenshots to `HROT_TIMELINE_SHOTS`): the first render found three defects the pure-layout rails could not — ① `ImGui.Text*`
+diff --git a/docs/UX/DESIGN_Replay_Browser_UX.md b/docs/UX/DESIGN_Replay_Browser_UX.md
+index 50de5b401..f31f7911a 100644
+--- a/docs/UX/DESIGN_Replay_Browser_UX.md
++++ b/docs/UX/DESIGN_Replay_Browser_UX.md
+@@ -101,7 +101,7 @@ sequenceDiagram
+ | *End exercise* | `InstructorEndControl.ShowsARecording` (the WORLD's `ReplayState.IsActive` — so the Replay Browser AND an AAR in the editor agree, by construction); `Draw` draws nothing then — ⛔ not greyed. Both windows that hold the control (Rules toolbar, Mission summary) inherit it |
+ | Mission summary | on a recording the toolbar reads `MissionSummaryWindow.RecordingPosition(extent, now)` from the window's own timeline cursor — *"at 0:39 of 1:06"* (h:mm:ss past an hour) — instead of the phase |
+ | ① the seek bar | `ReplayTimelinePanel.DrawTransport` draws it after the transport (the ONE drawer, CE-4261): the current time · a bar filling the free width (drag = scrub, click = jump; ⛔ no ticks) · the end time; hover = *"0:50.1 · frame 2 640"*. Times on the ACTIVE axis: `SimAtWall` (the host's `ReplayTimeMap.SimAt`) while the axis is S, else the recording's wall clock; labels cached per frame / axis (0 B steady). Rails `ReplayBrowserSubsystemTests.RBUX1_*` (a real frame under xvfb: the bar fills the main bar, the playhead at the frame; red-proved) |
+-| ⏭ ② the Replay Timeline window retired, its parts routed (tooltip, *File ▸ Recording info*, Frame Diff) | next |
++| ✅ **② AS BUILT** (B-7 part 3, backend, `2026-11-07`) — the Replay Timeline window retired, its parts routed | **`rb_timeline` is unregistered.** The seek bar's **current-time label** has the tooltip *"frame 2 103 · wall 40.602 s · sim 39.997 s"* (`ReplayTimelinePanel.DetailText`, cached per frame/wall/sim ⇒ 0 B steady; the times come from `FrameTimes`, the one function the panel snapshot uses too). The empty *Tick · SimFrame · SimTime · FrameType · CompressedSize* meta row is the top row of the **Frame Diff** window (`ComponentDiffPanel.DrawMetaRow`, still a placeholder). The file path is **File ▸ Recording info** (`RecordingInfoWindow`, id `rb_recording_info`, closed by default): the exercise id, and per node the file, frame count and length. ⭐ That dialog also carries the retired window's **panel snapshot** (kind `replay-timeline`, the same `ReplayTimelinePanelViewModel`: frame, wall ticks, wall / sim time, path), published every frame **open or closed** — an agent reading panels loses nothing; the view-model code stayed in `ReplayTimelinePanel.BuildViewModel`, moved nowhere twice. The **"group rejected" modal** that only the retired window drew is now drawn with the transport (`DrawLoadGroupError` in `DrawTransport`). The panel stays: the transport's and the export window's one drawer; its `DrawContent` and rows 2-5 are gone. Rails: `RecordingInfoWindowDumpsItsFrameStateTests` (the dialog lists the files / length / exercise of a REAL two-node recording; the tooltip text; the snapshot closed), `ReplayBrowserSubsystemTests` (the registered set: `rb_timeline` gone, `rb_recording_info` in), the `ui-baseline-replaybrowser` golden. No HTTP route or MCP tool named the window (grep of `tools/ai-debug-mcp`, `Hrot/`, `FDP/`: none) — no catalog change. |
+ 
+ Rails: `RunnableRulesTests.QB4_*`.
+ 
+diff --git a/docs/projects/FDP/Core/Fdp.Presentation.md b/docs/projects/FDP/Core/Fdp.Presentation.md
+index 65394c388..63cfff47b 100644
+--- a/docs/projects/FDP/Core/Fdp.Presentation.md
++++ b/docs/projects/FDP/Core/Fdp.Presentation.md
+@@ -436,7 +436,7 @@ The project root contains 96 C# source files organized into two major subsystems
+ | File | Type | Responsibility |
+ |------|------|----------------|
+ | `ImGui/Windows/MessageLogWindow.cs` | `sealed class MessageLogWindow : ManagedWindow` | Global-scope window hosting `MessageLogPanel`. Exposes `HasUnobservedAttention` and `FocusFirstAttentionTab` for status bar integration. |
+-| `ImGui/Windows/ReplayBrowser/ReplayTimelineWindow.cs` | `sealed class ReplayTimelineWindow : ManagedWindow` | Perspective-bound window hosting `ReplayTimelinePanel`. |
++| `ImGui/Windows/ReplayBrowser/RecordingInfoWindow.cs` | `sealed class RecordingInfoWindow : ManagedWindow` | **File ▸ Recording info** (`rb_recording_info`, closed by default): the files per node, the length, the exercise id, and the `replay-timeline` panel snapshot. ⛔ `ReplayTimelineWindow` (`rb_timeline`) is RETIRED (B-7 part 3, R-4155): `ReplayTimelinePanel` stays as the transport's and the export window's one drawer. |
+ | `ImGui/Windows/ReplayBrowser/ReplaySearchWindow.cs` | `sealed class ReplaySearchWindow : ManagedWindow` | Perspective-bound window hosting `ReplaySearchPanel`. |
+ | `ImGui/Windows/ReplayBrowser/FdpEventBrowserWindow.cs` | `sealed class FdpEventBrowserWindow : ManagedWindow` | Perspective-bound window hosting `EventBrowserPanel` in replay context. |
+ | `ImGui/Windows/ReplayBrowser/FdpEntityInspectorWindow.cs` | `sealed class FdpEntityInspectorWindow : ManagedWindow` | Perspective-bound window hosting `EntityInspectorPanel`. Factory delegates supply session and state on each frame. |
+@@ -883,8 +883,8 @@ public sealed class HealthPointsRenderer : IImGuiRenderer
+ _wm.RegisterWindow(new EntityInspectorWindow("entity_inspector",
+     "Entity Inspector", "Live", inspectorPanel));
+ 
+-_wm.RegisterWindow(new ReplayTimelineWindow("rb_timeline",
+-    "Timeline", "Replay", timelinePanel,
++// ⛔ the "rb_timeline" Replay Timeline window is retired (B-7 part 3); File ▸ Recording info is the closed RecordingInfoWindow:
++_wm.RegisterWindow(new RecordingInfoWindow("Replay", timelinePanel,
+     new System.Numerics.Vector4(0.2f, 0.1f, 0.3f, 1f)));
+ 
+ // Switch between perspectives
+diff --git a/docs/projects/Hrot/Subsystems/Hrot.ReplayBrowser.md b/docs/projects/Hrot/Subsystems/Hrot.ReplayBrowser.md
+index 52561b161..abd39dc52 100644
+--- a/docs/projects/Hrot/Subsystems/Hrot.ReplayBrowser.md
++++ b/docs/projects/Hrot/Subsystems/Hrot.ReplayBrowser.md
+@@ -419,7 +419,7 @@ FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Federation/
+ | `Panels/ReplayBrowser/ComponentDiffPanel.cs` | `ComponentDiffPanel` | Renders `DiffNode` tree with old/new value columns; Seek-to-Change buttons disabled in Merged View |
+ | `Panels/EventBrowserPanel.cs` | `EventBrowserPanel` | Structured event log with causality-jump links |
+ | `Panels/EntityInspectorPanel.cs` | `EntityInspectorPanel` | Component inspector; renders `Entity`-typed fields in warning colour when value is `Entity.Null` and `InspectorState.IsMergedView` is true |
+-| `Windows/ReplayBrowser/ReplayTimelineWindow.cs` | `ReplayTimelineWindow` | `PerspectiveBound` window wrapping the timeline panel |
++| `Windows/ReplayBrowser/RecordingInfoWindow.cs` | `RecordingInfoWindow` | `PerspectiveBound` dialog (File ▸ Recording info) over the timeline panel — ⛔ the old `ReplayTimelineWindow` (`rb_timeline`) is retired (B-7 part 3) |
+ | `Windows/ReplayBrowser/FdpEntityInspectorWindow.cs` | `FdpEntityInspectorWindow` | `PerspectiveBound` window wrapping the entity inspector panel |
+ | `Windows/ReplayBrowser/ComponentDiffWindow.cs` | `ComponentDiffWindow` | `PerspectiveBound` window wrapping the diff panel |
+ | `Windows/ReplayBrowser/FdpEventBrowserWindow.cs` | `FdpEventBrowserWindow` | `PerspectiveBound` window wrapping the event browser panel |

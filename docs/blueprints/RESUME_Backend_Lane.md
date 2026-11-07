@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-02
-current-answer: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+updated: 2026-11-07
+current-answer: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/SHOWCASE_Scenarios.md — §1.7 / §2.8 Bridgehead and Crossfire v1 AS BUILT (this lane, 2026-11-02)
@@ -16,6 +16,52 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
+
+## ⭐⭐ EDITING-UX BUILD (`2026-11-07`) — user: *"Merge coordinator. Follow its handoff Editing_UX_Build. Work autonomously overnight, use warm sonnet where suitable."* · then *"Once you finish a task, pls stop and write a resumption document."*
+
+📄 The work: [`batches/HANDOFF_Coordinator_To_Backend_Editing_UX_Build.md`](batches/HANDOFF_Coordinator_To_Backend_Editing_UX_Build.md) (B-1…B-18, scope frozen at `9c50cec00`) ·
+the rules: [`batches/PROTOCOL_Two_Lanes_Self_Coordinating.md`](batches/PROTOCOL_Two_Lanes_Self_Coordinating.md) (after every item: commit + push, update the status file, `git fetch origin ui backend coordinator`, merge `ui`, answer notes; a user decision ⇒ a QUESTION note + skip) ·
+⭐ the LIVE per-item table: [`batches/STATUS_Editing_UX_Build_Backend.md`](batches/STATUS_Editing_UX_Build_Backend.md) — **read it first; it says what each item gives the ui lane.**
+Branch `backend` at `0d0453df1`, clean, pushed; `ui` merged at `91195cb0f`.
+
+### Done (shas on `backend`)
+
+| item | state | shas |
+|---|---|---|
+| B-1 condition leaves (None, InUnit, InTheFight) | ✅ | `b258e464b` |
+| B-2 edit framework F1 (Edits.Submit, gate, journal) | ✅ | `97892dd32` |
+| B-3 F2 create/delete with request id, F3 add/remove component | ✅ | `57faadb52` `ffbbdb377` `d3377c1d8` |
+| B-4 form attributes 50–66 (worker) | ✅ | `78c40554c` |
+| B-5 initial state: S1 carry mode + assistant saved, S2 WeaponPosture saved + `Weapon.*` attrs 70–73, S3 SeedTarget to the brain's node (worker), S4 `Point` type 8816 (backend half), S6 character attrs 80–84 (worker) | PART | `80ccf0396` `14c7352ad` `05106e168` `130011a4d` |
+| B-6 F4 interactions + F6 mission commit Conflict | ✅ | `312a2c7d0` `f2f3d0f1f` `8431ff979` `408780adf` |
+| B-7 Replay Browser: Q-B4 (no End exercise on a recording), ① the main-bar seek bar | PART | `b62bd9886` `cff01bd48` |
+| B-8 N2 blank scenario (master writes it, run before the loads) + N5 `POST /scenario/new` | ✅ | `079e14616` |
+| B-9 N1 New Scenario lists terrains blank + recipes | PART | `0d0453df1` |
+| B-12 F7 `EditNotifications` model + mockup, the overlay (worker) | PART | `160260efd` `efad24ef3` |
+| B-13 undo world side: U1 measured (2.3 MiB / 6 ms a step), `WorldSnapshotRing`, U3 | ✅ | `7a998fa47` `525f5fc91` |
+| B-15 seats H1 + H7 (`station.seat`, gate on every host, `/session`) | ✅ | `1d0a35392` |
+| B-18 SV-6 ExerciseId/EpisodeId, SV-4 Angle, SV-1 first slice SimInstant/SimDuration (worker) | PART | `2bc68e4be` `beeab0049` `93a0610df` |
+
+### ⏭ Next, in order (each detailed in the status file / its design)
+
+1. **B-7 ② retire the Replay Timeline window** — ⚠ an UNVERIFIED worker patch is in [`batches/wip/B-7-part3-UNVERIFIED.patch`](batches/wip/B-7-part3-UNVERIFIED.patch) (RecordingInfoWindow carrying the retired window's panel snapshot, the seek-bar tooltip, the meta row → Frame Diff, `rb_timeline` unregistered + golden). Its last build had compile errors in its new test file and 4 unexamined ReplayBrowser.Tests reds. `git apply --check` it, fix, verify. Notes from the worker: the "group rejected" modal was drawn only by the retired window (moved into `DrawTransport`); no route / MCP tool opens the window.
+2. **B-9** the rest: the pane's terrain facts (origin, size, roads, recipes on it) + the still (N6), N3 the ONE Save-As *Replace?*, N4 terrain read-only. Mockup `docs/UX/new-scenario-visual.svg`.
+3. **B-12** the Messages history reading the journal; ⚠ the overlay's Reload/Overwrite are NOT wired (the mission plan's conflict state is private to `MissionPanel`).
+4. **B-10 keymap · B-11 action catalogue · B-14 undo UI side (EditHistory world steps on `WorldSnapshotRing`) · B-16 seats H2–H4 · B-17 map interaction** — all large, UI-heavy; each has a design + mockup.
+5. **B-18** SV-1's remainder (~270 double instants / durations, CE-4201), SV-5 (waits on SR-76a).
+
+### Open questions / notes sent
+- ⚠ QUESTION [`NOTE_Backend_To_Coordinator_Knows_About_Read.md`](batches/NOTE_Backend_To_Coordinator_Knows_About_Read.md) — where a non-brain station reads *Knows about* (lean: on demand from the brain's node). Unanswered.
+- FYI [`NOTE_Backend_To_Ui_Two_Presentation_Reds.md`](batches/NOTE_Backend_To_Ui_Two_Presentation_Reds.md) — `LabelFirstFormsFrameRail` + `EditorFontCoverage CE1063` reds are ui's (green at batch start `6754d2ecc`).
+- Pre-existing reds (red at `6754d2ecc`): `NoNewInlineNetworkIdLookupAppears` (EventDetailsView), `TriggerAdvertisesItsAuthoredKeys`, `CE1150_TheBundle…`, CE2171 FollowRoute split cluster (CE-3369). Also seen, not compared to a base: `EntityTypeCatalogTests.CE2138_EveryBuiltInType_KeepsIts3dFamily…`, and the Presentation AddEntity classes are not yet re-run after S4's `Point` type (they did not compile at the time).
+
+### The worker (Sonnet, `a6d1b9ce3d2323faa`) and the traps
+- Idle, nothing uncommitted. It shares the checkout: **commit is the sync point**; when it is mid-edit and you need a clean build, save its diff as a patch, revert, build, re-apply (done twice — it works).
+- ⭐ Build lock: `MSBUILDDISABLENODEREUSE=1 flock -o /tmp/hrot-build.lock dotnet build <TEST csproj> --no-restore -nodeReuse:false`, then `--no-build` tests. `flock` without `-o` + node reuse = a lock held forever.
+- ⛔ A `Passed!` after a build with errors is a STALE binary (hit 4 times this session) — always read the `Error(s)` line first.
+- ⛔ A red-proof mutation must COMPILE (`if (false)` / unused fields are warnings-as-errors ⇒ stale pass). Use `&& x < 0`-style mutants; reverse with sed only.
+- The 5-hour rate limit hit the worker once; resume it with SendMessage after the reset.
+
 
 ## ⭐ SHOWCASE (`2026-11-02` night) — user: *"follow coordinator handoff regarding demo scenarios … make the scenario running and working, use XVFB … keep checking other lanes … write notes"* · then *"run the scenario with AI entities on both sides … check the objectives and evaluation … give me some screenshots"*
 

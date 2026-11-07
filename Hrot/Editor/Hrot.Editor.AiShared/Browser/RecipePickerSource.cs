@@ -18,6 +18,10 @@ public sealed record RecipeChoice(AssetKind Kind, IEditableAsset Recipe);
 /// </summary>
 public sealed record NotCreatableChoice(string Technology, string Reason);
 
+/// <summary>⭐ New scenario N1 (📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §2.2, R-4135) — a BLANK scenario on <paramref name="Terrain"/>: a row of the New
+/// Scenario picker's <i>Blank, on a terrain</i> group (the terrain is chosen here, and only here — R-4124).</summary>
+public sealed record BlankTerrainChoice(string Terrain);
+
 /// <summary>
 /// Projects per-kind recipes (from <see cref="INewAssetService.AvailableRecipes"/>,
 /// including the "Empty" entry) into Tree-layout <see cref="PickerEntry"/> values —

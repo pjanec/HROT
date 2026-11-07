@@ -50,12 +50,17 @@ namespace Fdp.Toolkit.Replication.Edits
                 if (IsShown(journal[i])) journal[i].Dismissed = true;
         }
 
-        /// <summary>The one line a notification says: <i>"Delete refused — Alpha 1-1 is a player's unit"</i>.</summary>
-        public static string Text(EditJournalEntry e)
+        /// <summary>The first line of a notification: the label and the verdict — <i>"Delete refused"</i>, <i>"Embark got no answer"</i>, <i>"Commit mission plan conflicts"</i>.
+        /// ⭐ The card's title (the reason is its body line); <see cref="Text"/> joins the two. Allocates — the overlay caches it per entry.</summary>
+        public static string Title(EditJournalEntry e)
         {
             string what = e.Label.Length > 0 ? e.Label : e.Kind.ToString();
             string verdict = e.Status switch { EditStatus.Lost => "got no answer", EditStatus.Conflict => "conflicts", _ => "refused" };
-            return e.Reason.Length > 0 ? $"{what} {verdict} — {e.Reason}" : $"{what} {verdict}";
+            return $"{what} {verdict}";
         }
+
+        /// <summary>The one line a notification says: <i>"Delete refused — Alpha 1-1 is a player's unit"</i>.</summary>
+        public static string Text(EditJournalEntry e)
+            => e.Reason.Length > 0 ? $"{Title(e)} — {e.Reason}" : Title(e);
     }
 }

@@ -197,7 +197,9 @@ read without consuming, so a pre-pass runs the create before the loads by constr
 | N5 | `POST /scenario/new {name, terrain}` sends the create, waits for its answer (409 with the master's reason), then the ordinary edit load; `{name, recipe}` is the New-Asset path (`POST /assets {kind: Scenario}`) — one creator each |
 | ⚠ deviation | the classDiagram's `IScenarioCreationSession.CreateBlankScenario` exists, but ⛔ there is no `CreateBlankScenario(name, terrain)` that LOADS: create and load are two calls joined by the door's `then`, so the door's guard (unsaved edits, a run) runs before anything is written |
 
-Rails: `ClusterMasterNewScenarioTests` (order in one frame, refusals, the wire op, the file), `ScenarioNewBlankTests`.
+| N1 (B-9) | `NewAssetLauncher` (the ONE picker, CE-4140) gains the terrains (`TerrainCatalog.ForNode(null, the shared NAS root).List()`, LIVE per open — the catalog the master's create checks) and `showNewBlankDialog`: *File ▸ New Scenario…* lists `Blank, on a terrain` (rows tagged `BlankTerrainChoice`) above `From a recipe`; a terrain's pick → the editor's `ShowNewBlankDialog` (the same Save-As naming) → `ScenarioNewAssetService.CreateBlank`. The general *New Asset* picker has no terrain rows. ⏭ the pane's terrain facts (origin, size, roads, recipes on it) and the still (N6) |
+
+Rails: `ClusterMasterNewScenarioTests` (order in one frame, refusals, the wire op, the file), `ScenarioNewBlankTests`, `NewAssetLauncherTests.N1_*`.
 
 ## 4. Questions — ✅ APPROVED (R-4135; Q4 revised, Q5 yes; user `2026-11-06`: *"otherwise accepted"*)
 
