@@ -223,6 +223,7 @@ known-conflict: ⛔ the dispatched frame handoff is stale on TWO points — its 
   a ruling violation). ⚠ The handoff is deliberately NOT edited — rule 1 forbids amending a dispatched
   handoff; the divergence is declared here and in the report instead.
 related-designs:
+  - docs/DESIGN_Node_Extensions.md - owns capabilities loaded from extensions/<name>/ and appended in the capabilities step (CE-4293, R-4158)
   - UX/DESIGN_Rules_Bundle.md — every host composes the rules windows as ONE bundle; editing decided by the seat (CE-4292)
   - docs/UX/DESIGN_Seats_And_Hats.md — a HostDescription row gains a DefaultSeat (the person's role at that station); NodeRole stays what the node computes
   - docs/DESIGN_Director_Timeline_Editor.md — TE-12: the Replay Browser makes its TKB the way §4.1ae.1 makes every node's (R-4069)

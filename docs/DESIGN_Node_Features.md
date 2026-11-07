@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: ⛔ §6.2 / §6.5 / §6.6 show the switch-only shapes (`bool On`, `string[] FeaturesAtLoad`, `FeaturesAtLoad` in the recording) — SUPERSEDED by §7 and, for what was built, §8 (marked inline). §6.1 / §6.3 / §6.4 and §7.1's flow still hold except the two points §8 lists (the load payload carries the cluster LAYER, not the full config; `GET /features` is not built)
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Node_Extensions.md - an extension's capability declares its features through F-2 like any other; a node switches it off there (CE-4293)
   - docs/UX/DESIGN_Seats_And_Hats.md — the station's seat is a node feature with a config (station.seat), defaulted by the host row
   - docs/UX/DESIGN_Editing_UX.md — §3.11: editing levels per node (full / instructor / controller / observer) as a node feature, ON by default (R-4121)
   - docs/DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); F-19: the expander is core, never behind a switch
