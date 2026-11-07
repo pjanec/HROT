@@ -205,8 +205,8 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
     public System.Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; set; }
 
     /// <summary>⭐ Node Features F-17 — this host supplies a 3-D map status, so it declares `map3d.in-load` (default false here).</summary>
-    /// <summary>⭐ Seats and hats H1 — this host's default seat (§2.2).</summary>
-    protected override Hrot.Common.Infrastructure.Seat DefaultSeat => Hrot.Common.Infrastructure.Seat.Instructor;
+    // ⭐ CE-4305 (R-4164, Seats and hats §2.2a) — this server station takes the shared default seat, AUTHOR (Author ⊇ Instructor in Preview / Live);
+    //   an Instructor (cannot author) is chosen per node in its config / --feature station.seat. ⛔ SUPERSEDED: DefaultSeat => Seat.Instructor.
 
     protected override System.Collections.Generic.IEnumerable<Hrot.Common.Infrastructure.FeatureDeclaration> HostFeatures
         => new[] { Hrot.Common.Infrastructure.Map3dInLoadFeature.Declaration(onByDefault: false) }

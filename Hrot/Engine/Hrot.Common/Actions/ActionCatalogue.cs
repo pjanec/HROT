@@ -29,6 +29,25 @@ namespace Hrot.Common.Actions
         /// <summary>Whether it is offered in <paramref name="mode"/>.</summary>
         public bool OfferedIn(EditingMode mode) => (Modes & ModeBit(mode)) != 0;
 
+        /// <summary>⭐ Seats H2 (📄 docs/UX/DESIGN_Seats_And_Hats.md §3.2, Action catalogue §2.1 <c>Level</c>, D4) — the LEAST privileged station level that may run
+        /// it; a station below it sees the row GREYED with the reason (never missing, R-4119). Default by group (<see cref="DefaultLevel"/>).</summary>
+        public EditingLevel Level { get; init; } = DefaultLevel(Group);
+
+        /// <summary>⭐ Seats H2 — whether a side-scoped seat (a side controller, a player with a side) may run it only on ITS side's units. Default: the
+        /// Orders and Embark groups.</summary>
+        public bool SideScoped { get; init; } = Group is ActionGroup.Orders or ActionGroup.Embark;
+
+        /// <summary>⭐ Seats H2 — a group's level: Edit and Destructive the Instructor (who brings in / removes units on a RUNNING exercise — the gate keeps
+        /// Edit mode the Author's); Orders and Embark a side Controller; Run (the run-mode moves) the Instructor; Debug the Author (Q7: the Author's Expert
+        /// switches); View anyone.</summary>
+        public static EditingLevel DefaultLevel(ActionGroup group) => group switch
+        {
+            ActionGroup.Edit or ActionGroup.Destructive or ActionGroup.Run => EditingLevel.Instructor,
+            ActionGroup.Orders or ActionGroup.Embark => EditingLevel.Controller,
+            ActionGroup.Debug => EditingLevel.Full,
+            _ => EditingLevel.None,
+        };
+
         /// <summary>The <see cref="ActionModes"/> bit of one mode.</summary>
         public static ActionModes ModeBit(EditingMode mode) => mode switch
         {
@@ -65,6 +84,34 @@ namespace Hrot.Common.Actions
         public long AtTicks { get; init; }
         /// <summary>⭐ A6 — the lane of a clicked timeline event (its display name), or null.</summary>
         public string? Lane { get; init; }
+
+        /// <summary>⭐ Seats H2 — the station's editing level (its seat); <see cref="EditingLevel.Full"/> where no seat is installed.</summary>
+        public EditingLevel Level { get; init; }
+        /// <summary>⭐ Seats H2 — the station's side scope (a side controller's side), null = every side.</summary>
+        public ForceId? Side { get; init; }
+        /// <summary>⭐ Seats H2 — the clicked unit's side, when the target is a unit.</summary>
+        public ForceId? UnitSide { get; init; }
+
+        /// <summary>⭐ Seats H2 — why this station may not run <paramref name="decl"/> here (greyed with it), or null. The ONE rule the composer applies.</summary>
+        public string? SeatRefusal(ActionDecl decl)
+        {
+            if ((int)Level > (int)decl.Level) return SeatText(Level);
+            if (Level == EditingLevel.Instructor && Mode == EditingMode.Edit && decl.Group is ActionGroup.Edit or ActionGroup.Destructive)
+                return HrotEditGate.InstructorDoesNotAuthor;
+            if (decl.SideScoped && Side is ForceId side && Target == ActionTarget.Unit && UnitSide != side)
+                return "another side's unit: this station commands " + side.ToString();
+            return null;
+        }
+
+        /// <summary>⭐ Seats H2 — the greyed row's reason for a station at <paramref name="level"/>.</summary>
+        public static string SeatText(EditingLevel level) => level switch
+        {
+            EditingLevel.Instructor => "not for an instructor station",
+            EditingLevel.Controller => "not for a side controller station",
+            EditingLevel.Observer => "this station is an observer",
+            EditingLevel.None => "not for this station's seat (a player or a reviewer)",
+            _ => "not for this station's seat",
+        };
 
         /// <summary>⭐ A6 — a context for a MOMENT (no view, no entity): the timeline's moment / event, the mode indicator's playhead.</summary>
         public static ActionContext ForMoment(ActionTarget target, EditingMode mode, string? time, long atTicks = 0, string? lane = null)
@@ -153,23 +200,31 @@ namespace Hrot.Common.Actions
                 bool needSeparator = before > 0;
                 foreach (var (_, _, decl) in group)
                 {
+                    var refusal = context.SeatRefusal(decl);   // ⭐ Seats H2 — below the seat: greyed with why, never missing
                     if (decl.Expand != null)
                     {
-                        foreach (var row in decl.Expand(context)) Add(row);
+                        foreach (var row in decl.Expand(context)) Add(row, refusal);
                         continue;
                     }
                     var one = decl.Offer != null ? decl.Offer(context) : decl.Row();
-                    if (one != null) Add(one);
+                    if (one != null) Add(one, refusal);
                 }
 
-                void Add(ContextMenuItemDto row)
+                void Add(ContextMenuItemDto row, string? refusal)
                 {
                     if (needSeparator) { items.Add(new ContextMenuItemDto { IsSeparator = true }); needSeparator = false; }
-                    items.Add(row);
+                    items.Add(refusal == null || row.IsSeparator == true ? row : Greyed(row, refusal));
                 }
             }
             return items.ToArray();
         }
+
+        /// <summary>⭐ Seats H2 — <paramref name="row"/> greyed with <paramref name="reason"/> (its submenu dropped: nothing under it can run).</summary>
+        public static ContextMenuItemDto Greyed(ContextMenuItemDto row, string reason) => new()
+        {
+            Id = row.Id, Label = row.Label, Icon = row.Icon, Style = row.Style, Shortcut = row.Shortcut, IsSeparator = row.IsSeparator,
+            AllowedInIdle = row.AllowedInIdle, Priority = row.Priority, IsChecked = row.IsChecked, Enabled = false, Tooltip = reason,
+        };
 
         /// <summary>⭐ B-11 A2 — the reason a row this station cannot run is greyed with.</summary>
         public const string NotOnThisStation = "Not available on this station";

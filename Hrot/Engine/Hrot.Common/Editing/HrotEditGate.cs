@@ -34,12 +34,20 @@ namespace Hrot.Common.Editing
         public string? Refuse(EntityRepository repo, EditOp op)
             => op.Kind is EditKind.Interact or EditKind.Command ? (Mode == EditingMode.Review ? Edits.ReplayRefusal : null) : Reason(Mode, Level);
 
+        /// <summary>⭐ Seats H2 — the Instructor seat's refusal in Edit mode.</summary>
+        public const string InstructorDoesNotAuthor = "this station is an instructor: it runs the exercise, it does not author the scenario";
+
         /// <summary>The refusal for a station in <paramref name="mode"/> at <paramref name="level"/>; null when it may edit.</summary>
         public static string? Reason(EditingMode mode, EditingLevel level)
         {
             if (mode == EditingMode.Review) return Edits.ReplayRefusal;
             return level switch
             {
+                // ⭐ Seats H2 (R-4164: "An Instructor in Edit mode sees the scenario but cannot change it") — the instructor edits a RUNNING exercise
+                //   (injects, heal / damage, bring in units), never the scenario itself
+                EditingLevel.Instructor when mode == EditingMode.Edit => InstructorDoesNotAuthor,
+                // ⭐ Seats H2 (§2.2: Controller = "orders to its side") — a side controller orders (an EditKind.Command), it does not edit
+                EditingLevel.Controller => "this station is a side controller: it gives orders, it does not edit",
                 EditingLevel.Observer => "this station is an observer",
                 EditingLevel.None => "this station's seat does not edit",
                 _ => null,

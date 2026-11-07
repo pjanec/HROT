@@ -107,7 +107,7 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.FollowUnit, "Follow with the camera", ActionGroup.View, First + 1, Unit));   // ⭐ CE-1293 (UC-2)
             catalogue.Declare(new ActionDecl(GlobalActionIds.Select, "Select", ActionGroup.View, First + 2, Everything) { Shortcut = "Space" });
             catalogue.Declare(new ActionDecl(GlobalActionIds.Properties, "Properties…", ActionGroup.View, First + 3, Everything));   // ⭐ CE-1135
-            catalogue.Declare(new ActionDecl(GlobalActionIds.SaveSelectionAsMacro, "Save selection as macro…", ActionGroup.View, First + 4, Unit) { Modes = ActionModes.InEdit });   // ⭐ CE-4210 MA-9 · R-4162: authoring only
+            catalogue.Declare(new ActionDecl(GlobalActionIds.SaveSelectionAsMacro, "Save selection as macro…", ActionGroup.View, First + 4, Unit) { Level = EditingLevel.Full, Modes = ActionModes.InEdit });   // ⭐ CE-4210 MA-9 · R-4162: authoring only
 
             // ── Edit ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
             // ⭐ A5 / LC-3 — Copy / Paste / Duplicate (units and graphics): one path in Edit and Live (DESIGN_Entity_Copy_Paste §2); the paste is the placement gesture
@@ -193,7 +193,7 @@ namespace Hrot.Common.Actions
             }
             var ctx = ContextFor(view, entity);
             var u = ctx.Unit;
-            int modeBits = (int)ctx.Mode;
+            int modeBits = (int)ctx.Mode | ((int)ctx.Level << 2) | (ctx.Side is ForceId sd && ctx.UnitSide != sd ? 1 << 5 : 0);   // ⭐ Seats H2 — the seat greys rows: part of the key
             int flags = ctx.Target != ActionTarget.Unit ? 0
                 : (u.Degraded ? 1 : 0) | (u.Brain ? 2 : 0) | (u.Orders ? 4 : 0) | (u.Form ? 8 : 0) | (u.Manned ? 16 : 0)
                   | ((int)u.Embark << 5) | ((int)u.Pins << 8) | (u.TraceOn ? 1 << 24 : 0) | (u.Plan ? 1 << 25 : 0);
@@ -208,15 +208,17 @@ namespace Hrot.Common.Actions
             bool showsRecording = Fdp.Toolkit.Replay.ReplayState.IsActive(view);
             bool orders = Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view);   // ⭐ CE-1363 — the one shared test (the View menu asks it too)
             var mode = StationMode.Of(view);   // ⭐ B-11 A3 — the ONE station mode (the gate reads the same)
+            var level = StationMode.LevelOf(view);   // ⭐ Seats H2 — and the ONE seat: its level and side bound what the menu offers
+            var side = StationMode.SideOf(view);
 
             if (view.HasManagedComponent<EditablePolyline>(entity))
             {
                 bool isZone = view.HasComponent<TkbIdentity>(entity)   // ⭐ CE-3024 — a terrain zone is an area that can also be LOADED
                     && view.GetComponentRO<TkbIdentity>(entity).TkbType == Hrot.Map.Common.TkbEntityTypes.TerrainZone;
-                return new ActionContext(view, entity, isZone ? ActionTarget.Zone : ActionTarget.Area, mode, default);
+                return new ActionContext(view, entity, isZone ? ActionTarget.Zone : ActionTarget.Area, mode, default) { Level = level, Side = side };
             }
             if (view.HasManagedComponent<RoutePlan>(entity))
-                return new ActionContext(view, entity, ActionTarget.Route, mode, default);
+                return new ActionContext(view, entity, ActionTarget.Route, mode, default) { Level = level, Side = side };
 
             // ⭐ CE-196 — "degraded" is at or below half health; ⚠ Max <= 0 leaves it healthy.
             bool degraded = false;
@@ -239,9 +241,11 @@ namespace Hrot.Common.Actions
             bool traceOn = brain && repo != null && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(repo, entity) is var nid and not 0
                            && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(repo)?.IsTraceSet(nid) == true;
             // ⭐ as before: form and manned matter only where orders are offered
+            ForceId? unitSide = side is null ? null : repo != null && repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(entity) ? repo.GetComponentRO<EntityInfo>(entity).ForceId : ForceId.Neutral;   // ⭐ Seats H2 — as EntityOrders' side lock reads it
             return new ActionContext(view, entity, ActionTarget.Unit, mode,
                 new UnitFacts(degraded, brain, orders, dis, isUnit, form && orders, manned && orders, embark, pins, traceOn,
-                    Plan: view.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(entity)));
+                    Plan: view.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(entity)))
+                { Level = level, Side = side, UnitSide = unitSide };
         }
     }
 }

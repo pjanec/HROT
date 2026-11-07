@@ -221,9 +221,39 @@ features"*
 | the launch flag | the existing `--feature station.seat={"Seat":"Observer","Side":"Blue"}` (Node Features F-7) — no new flag |
 | the gate reads it | the same bootstrapper installs `HrotEditGate` on every host: mode = Review while replaying (Live / Preview: B-11), level = `HrotEditGate.LevelOf(StationSeat.Of(features))`, read live. ⭐ The level bounds EDITING kinds only: an interaction (possess, embark) or an order is never refused for a Player here — the catalogue's per-action level does that (H2) |
 | H7 | `GET /session`, `POST /session/seat {seat, side}` (side = the old `/orders/side-lock`, which stays as an alias), `POST /session/hat {hat}`; the attribute route refuses the session's seat as the station's gate would (no seat ⇒ Author). ⏭ the other write routes adopt it as they move onto `Edits.Submit` |
-| ⏭ not here | the mode indicator showing the seat (H1's UI half), the catalogue reading level and side (H2) — B-16 |
+| ⏭ not here | the mode indicator showing the seat (H1's UI half) — B-16; the catalogue reading level and side (H2) — ✅ §3.2 |
 
 Rails: `NodeFeaturesTests.H1_*`, `EditOutcomeOwnerTests.H1_*`, `TheWriteRoutesAskTheOwnerTests.H7_*`.
+
+### 3.2 ⭐ AS-BUILT — H2 *(ui, `2026-11-07`, B-16; + CE-4305 ①)*
+
+```mermaid
+graph TD
+  FEAT["station.seat (node feature: Seat, Side)"] --> SM["StationMode (the ONE station source, on the world)<br/>Current · Seat · Level · Side"]
+  BOOT["SharedApplicationBootstrapper (every host)"] -->|installs| SM
+  SM -->|Level| GATE["HrotEditGate.Refuse (every Edits.Submit)"]
+  SM -->|Level, Side| CTX["MapMenuActions.ContextFor → ActionContext"]
+  CTX --> COMP["MenuComposer: decl.Level / SideScoped ⇒ greyed + reason"]
+  SM -->|Level| RTS["RTS tool activation (MapInteractionPack)"]
+  SM -->|Mode, Level| ADD["Add Entity SuspendedReason = the gate's reason"]
+  SM -->|Side| ORD["new EntityOrders ⇒ SideLock (menu, RTS, wheel)"]
+  HTTP["HTTP session seat (H7)"] -->|sets its own SideLock| ORD
+```
+*What the picture shows that prose hid: ONE source answers the seat for five readers — so a Player's station cannot place units or command
+another side by construction (CE-4279), not because each surface remembered to check. The HTTP session overrides only its own orders' side lock.*
+
+| piece | as built |
+|---|---|
+| the source | `StationMode` gains `Seat` · `Level` · `Side` (`Install(world, mode, seat, side)`; `LevelOf(view)` / `SideOf(view)`; none installed ⇒ Full, every side — today's behaviour for rails and the Replay Browser). `StationMode.ParseSide` reads the config's side as a force name or its colour (*Blue* = Friend, *Red* = Hostile, *Green* = Neutral). The gate's level now reads `mode.Level` — one answer |
+| the gate | `HrotEditGate.Reason`: ⭐ an **Instructor in Edit mode** is refused (`InstructorDoesNotAuthor`, R-4164) and edits a running exercise; a **side Controller** is refused every editing kind — its orders (`EditKind.Command`) pass |
+| the catalogue | `ActionDecl.Level` (default by group: View anyone · Orders, Embark a Controller · Edit, Destructive, Run the Instructor · Debug the Author, Q7) and `SideScoped` (Orders, Embark); *Save selection as macro…* the Author. `ActionContext.Level / Side / UnitSide` + `SeatRefusal(decl)` — the ONE rule; the composer **greys** with the reason, never hides (§2.6). The menu cache key carries level + side mismatch |
+| the tools | the RTS tool refuses to arm below Controller; Add Entity greys with the gate's own reason (Player, observer, controller, instructor in Edit) |
+| orders | `EntityOrders` starts with `SideLock = StationMode.SideOf(world)` — every order this station sends is side-locked by construction; the HTTP session (H7) sets its own |
+| CE-4305 ① | CGF, the fused server and SimHost drop their `DefaultSeat => Instructor` — the shared default, **Author** (§2.2a). ② the config file's `features` layer is not here |
+
+⏭ **Not here:** the timeline's / toolbar's moment menus (`ActionContext.ForMoment`) carry no seat yet — the Run group is greyed on the map only ·
+`RuleEditorServicesFactory` still lets an Instructor edit rules in Edit mode (the gate refuses the edit itself) · H3 the arbiter, H4 the camera.
+Rails: `TheActionCatalogueComposesMenusTests.H2_*` (2), `RtsCommandToolTests.H2_APlayerCannotArmTheTool_ASideControllerOrdersOnlyItsSide`.
 
 ## 4. Questions — ✅ all seven leans APPROVED *(🔒 user, `2026-11-06`: "Q1–Q7 of seats and hats approved")*
 

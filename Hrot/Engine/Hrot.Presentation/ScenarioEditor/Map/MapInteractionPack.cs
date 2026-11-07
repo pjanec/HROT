@@ -385,6 +385,8 @@ namespace Hrot.ScenarioEditor.Map
                             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
                         if (Fdp.Toolkit.Replay.ReplayState.IsActive(ctx.World))   // ⭐ DAR F7 — a recording takes no orders
                             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
+                        if ((int)Hrot.Common.Editing.StationMode.LevelOf(ctx.World) > (int)Hrot.Common.Editing.EditingLevel.Controller)   // ⭐ Seats H2 (CE-4279) — a Player / observer commands nothing
+                            return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
                         var id = GlobalGizmoManager.NewId();
                         globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id), rtsMode));
                         return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
@@ -403,7 +405,11 @@ namespace Hrot.ScenarioEditor.Map
                 var hostReason = hostInputs.SuspendedReason;
                 var inputs = hostInputs with
                 {
-                    SuspendedReason = () => Fdp.Toolkit.Replay.ReplayState.IsActive(ctx.World) ? "a recording is shown" : hostReason?.Invoke(),
+                    // ⭐ Seats H2 (CE-4279) — and greys for a seat that may not bring in units: a Player, an observer, a side controller, an instructor in Edit mode
+                    //   (the gate's own reason — one answer for the button and the edit it would submit)
+                    SuspendedReason = () => Fdp.Toolkit.Replay.ReplayState.IsActive(ctx.World) ? "a recording is shown"
+                        : Hrot.Common.Editing.HrotEditGate.Reason(Hrot.Common.Editing.StationMode.Of(ctx.World), Hrot.Common.Editing.StationMode.LevelOf(ctx.World))
+                          ?? hostReason?.Invoke(),
                 };
                 authoring = new Hrot.UI.Common.AddEntity.EntityAuthoring(inputs, ctx.World.Bus, globalManager, tools);
                 authoring.AddEntity.RegisterOn(actions);
