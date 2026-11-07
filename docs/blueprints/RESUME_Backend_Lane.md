@@ -42,6 +42,9 @@ Branch `backend` at `0603f5300` (+ this doc), clean, pushed; `ui` merged at `911
 | B-15 seats H1 + H7 (`station.seat`, gate on every host, `/session`) | ✅ | `1d0a35392` |
 | B-18 SV-6 ExerciseId/EpisodeId, SV-4 Angle, SV-1 first slice SimInstant/SimDuration (worker) | PART | `2bc68e4be` `beeab0049` `93a0610df` |
 
+### ⭐ Continued `2026-11-07` (later session) — user: *"update from your branch, read the resumption doc and continue"*
+- merged `ui@e9c5f7524` (its REQUEST [`NOTE_Ui_To_Backend_Carry_Mode_And_Damage.md`](batches/NOTE_Ui_To_Backend_Carry_Mode_And_Damage.md)); ① the carry-mode change ✅ `78d312871` (the same embark re-carries, `Embarkation.Recarry`); ② Damage attributes 85 `Damage.Part` / 86 `Damage.MobilityKill` — worker; then **B-9 N3** (Replace? in the one Save-As, recipe save stops forking) — worker. A fresh Sonnet worker this session (the earlier id is gone).
+
 ### ⏭ Next, in order (each detailed in the status file / its design)
 
 1. ✅ **B-7 ② retire the Replay Timeline window** — DONE (the patch is applied, verified and deleted; as-built in [`DESIGN_Replay_Browser_UX.md`](../UX/DESIGN_Replay_Browser_UX.md) §2a, row in [`STATUS_Editing_UX_Build_Backend.md`](batches/STATUS_Editing_UX_Build_Backend.md)). The "group rejected" modal was drawn only by the retired window and moved into `DrawTransport`; no route / MCP tool opens the window. Four ReplayBrowser.Tests reds are PRE-EXISTING at `0d0453df1` (window-count and catalogue lists went stale when the ui lane added windows / state columns).
