@@ -335,6 +335,10 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
 
     bool? IRunTransport.RecordLiveRunsSetting => View is { } v ? !v.RecordLiveRunsOff : null;
     bool? IRunTransport.AskToKeepSetting => View is { } v ? v.AskToKeepRecordings : null;
+    string[] IRunTransport.InventoryScenarios => View?.AvailableScenarios ?? System.Array.Empty<string>();   // ⭐ CE-3414 (AQ108 §0 D31)
+    (ExerciseInventoryItem[] Local, ExerciseInventoryItem[] Archived, ExerciseInventoryItem[] UnarchivedLocal) IRunTransport.InventoryExercises
+        => View is { } v ? (v.AvailableExercises, v.ArchivedExercises, v.UnarchivedLocalExercises) : (NoExercises, NoExercises, NoExercises);
+    private static readonly ExerciseInventoryItem[] NoExercises = System.Array.Empty<ExerciseInventoryItem>();
     bool? IRunTransport.StartImmediatelySetting => View is { } v ? v.StartLiveImmediately : null;   // ⭐ CE-3415 (AQ108 §0 D31)
 
     void IRunTransport.SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately) => _bus.PublishManaged(new SetRunSettingsIntent

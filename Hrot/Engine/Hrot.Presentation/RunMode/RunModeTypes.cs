@@ -435,6 +435,10 @@ public interface IRunTransport
     bool? AskToKeepSetting { get; }
     /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting (<c>ClusterView.StartLiveImmediately</c>); <see langword="null"/> when no view.</summary>
     bool? StartImmediatelySetting { get; }
+    /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the scenario names the master's inventory lists (<c>ClusterView.AvailableScenarios</c>); empty when no view or no inventory. The reference changes only when a new inventory arrives.</summary>
+    string[] InventoryScenarios { get; }
+    /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the recordings of the master's inventory: local, archived and unarchived-local lists (<c>ClusterView</c>); empty arrays when no view. References change only when a new inventory arrives.</summary>
+    (ExerciseInventoryItem[] Local, ExerciseInventoryItem[] Archived, ExerciseInventoryItem[] UnarchivedLocal) InventoryExercises { get; }
     /// <summary>⭐ CE-4100 ① — publish the run settings (<c>SetRunSettingsIntent</c>, the ONE intent <see cref="SendArmed"/> uses): a <see langword="null"/> argument is "no change".</summary>
     void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null);
 

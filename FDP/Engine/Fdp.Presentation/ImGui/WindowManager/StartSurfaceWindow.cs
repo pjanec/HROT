@@ -20,20 +20,35 @@ public sealed class StartSurfaceWindow : ManagedWindow
     public const string ActionsText = "Open a scenario or a recording to begin";
 
     /// <summary>One button: a menu leaf's label and the menu's own binding.</summary>
-    public sealed record StartButton(string Label, bool Enabled, Action Invoke);
+    /// <param name="Why">⭐ CE-3414 — the tooltip a DISABLED button gives (the reason); null = none.</param>
+    /// <param name="Icon">⭐ CE-3414 — a coloured glyph drawn at the button's left edge (the Recent rows' ● Live · pen Edit · ▶ AAR); null = text only.</param>
+    public sealed record StartButton(string Label, bool Enabled, Action Invoke, string? Why = null, NodeEditor.Core.Widgets.IconGlyph? Icon = null);
+
+    /// <summary>⭐⭐ CE-3414 (AQ108 §0 D31) — one row of the <i>Recent</i> list: the scenario's name, a sub line (<i>Live · 10 min ago</i> · <i>never run</i>) and its three buttons. Pure data, built by the host (the surface owns no action).</summary>
+    public sealed record StartRecentRow(string Name, string Sub, StartButton Live, StartButton Edit, StartButton Aar);
 
     /// <summary>⭐ What the window shows now — pure data, so a rail can read and "click" it without ImGui.</summary>
-    public sealed record StartSurfaceModel(StartVariant Variant, string Text, IReadOnlyList<StartButton> Buttons);
+    public sealed record StartSurfaceModel(StartVariant Variant, string Text, IReadOnlyList<StartButton> Buttons, IReadOnlyList<StartRecentRow>? Recent = null)
+    {
+        /// <summary>The Recent rows (empty when the host offers none).</summary>
+        public IReadOnlyList<StartRecentRow> RecentRows => Recent ?? Array.Empty<StartRecentRow>();
+    }
+
+    /// <summary>The column heading of the Recent list (the storyboard's panel ①).</summary>
+    public const string RecentHeading = "Recent  -  Live · Edit (author seat only) · AAR of the latest run";
 
     private readonly GlobalMenuRegistry _menu;
     private readonly Func<StartVariant> _variant;
+    private readonly Func<IReadOnlyList<StartRecentRow>>? _recent;
 
     /// <param name="bottomInset">⭐ What covers the surface's bottom edge (the status bar's height, <c>wm.StatusBar.Height</c>): the menu panel is centred on
     /// the VISIBLE area above it. Null = nothing covers it.</param>
-    public StartSurfaceWindow(GlobalMenuRegistry menu, Func<StartVariant> variant, Func<float>? bottomInset = null)
+    /// <param name="recent">⭐ CE-3414 — the Recent rows, from the host (read every frame in Idle: the provider caches). Null = the single-column surface.</param>
+    public StartSurfaceWindow(GlobalMenuRegistry menu, Func<StartVariant> variant, Func<float>? bottomInset = null, Func<IReadOnlyList<StartRecentRow>>? recent = null)
         : base(WindowId, "Start", WindowManager.StartPerspectiveName, WindowScope.PerspectiveBound)
     {
         _bottomInset = bottomInset;
+        _recent = recent;
         _menu = menu ?? throw new ArgumentNullException(nameof(menu));
         _variant = variant ?? throw new ArgumentNullException(nameof(variant));
         IsOpen = true;
@@ -46,7 +61,7 @@ public sealed class StartSurfaceWindow : ManagedWindow
         var variant = _variant();
         if (variant == StartVariant.Actions)
             return new StartSurfaceModel(StartVariant.Actions, ActionsText,
-                _menu.AllowedInIdleItems().Select(a => new StartButton(a.Label(), a.Enabled(), a.Invoke)).ToList());
+                _menu.AllowedInIdleItems().Select(a => new StartButton(a.Label(), a.Enabled(), a.Invoke)).ToList(), _recent?.Invoke());
         return new StartSurfaceModel(variant, variant == StartVariant.ServerLost ? ServerLostText : WaitingText, Array.Empty<StartButton>());
     }
 
@@ -139,7 +154,10 @@ public sealed class StartSurfaceWindow : ManagedWindow
         var wpos = Gui.GetWindowPos();
         var wsize = Gui.GetWindowSize();
         float visibleH = wsize.Y - Math.Max(0f, _bottomInset?.Invoke() ?? 0f);   // ⭐ centred on what is VISIBLE (the status bar covers the bottom)
-        float contentW = Math.Max(buttonWidth, Math.Max(Gui.CalcTextSize("HROT").X, Gui.CalcTextSize(model.Text).X));
+        var recent = model.RecentRows;
+        bool twoColumns = recent.Count > 0;
+        float leftW = buttonWidth, gap = twoColumns ? ColumnGap : 0f, rightW = twoColumns ? RecentColumnWidth : 0f;
+        float contentW = Math.Max(leftW + gap + rightW, Math.Max(Gui.CalcTextSize("HROT").X, Gui.CalcTextSize(model.Text).X));
         float blockH = _blockHeight > 0f ? _blockHeight
             : Gui.GetTextLineHeightWithSpacing() * 2 + model.Buttons.Count * (Gui.GetFrameHeightWithSpacing() + Gui.GetStyle().ItemSpacing.Y);
         var min = new Vector2(MathF.Round(wpos.X + (wsize.X - contentW) / 2f - PanelPadX), MathF.Round(wpos.Y + (visibleH - blockH) / 2f - PanelPadY));
@@ -158,16 +176,77 @@ public sealed class StartSurfaceWindow : ManagedWindow
         Gui.PushStyleColor(ImGuiCol.Button, Opaque(style.Colors[(int)ImGuiCol.Button]));
         Gui.PushStyleColor(ImGuiCol.ButtonHovered, Opaque(style.Colors[(int)ImGuiCol.ButtonHovered]));
         Gui.PushStyleColor(ImGuiCol.ButtonActive, Opaque(style.Colors[(int)ImGuiCol.ButtonActive]));
+        float colsTop = Gui.GetCursorPosY();
+        float leftX = twoColumns ? left : left + (contentW - buttonWidth) / 2f;   // one column: centred, as before
         foreach (var b in model.Buttons)
         {
-            Gui.SetCursorPosX(left + (contentW - buttonWidth) / 2f);
-            Gui.BeginDisabled(!b.Enabled);
-            if (Gui.Button(b.Label, new Vector2(buttonWidth, 0f))) b.Invoke();
-            Gui.EndDisabled();
+            Gui.SetCursorPosX(leftX);
+            DrawStartButton(b, new Vector2(buttonWidth, 0f));
             Gui.Spacing();
+        }
+        float leftBottom = Gui.GetCursorPosY();
+        if (twoColumns)
+        {
+            // ⭐ CE-3414 — the right column: the heading, then one box per Recent scenario (name · sub line · ● Live · pen Edit · ▶ AAR)
+            float rx = left + leftW + gap;
+            Gui.SetCursorPosY(colsTop);
+            Gui.SetCursorPosX(rx);
+            Gui.TextDisabled(RecentHeading);
+            for (int i = 0; i < recent.Count; i++) DrawRecentRow(i, recent[i], rx, rightW, wpos);
+            if (Gui.GetCursorPosY() < leftBottom) Gui.SetCursorPosY(leftBottom);
         }
         Gui.PopStyleColor(3);
         _blockHeight = Gui.GetCursorPosY() - startY - style.ItemSpacing.Y;
+    }
+
+    private const float ColumnGap = 24f, RecentColumnWidth = 470f, RowHeight = 46f, RowButtonW = 66f;
+
+    /// <summary>One start button: opaque, disabled-greyed, the glyph at its left edge, the reason as the tooltip while it is disabled.</summary>
+    private static void DrawStartButton(StartButton b, Vector2 size)
+    {
+        Gui.BeginDisabled(!b.Enabled);
+        if (b.Icon is { } icon)
+        {
+            // the label is pushed right of the glyph (the text is aligned left of the remaining width)
+            Gui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, new Vector2(0.72f, 0.5f));
+            bool clicked = Gui.Button(b.Label, size);
+            Gui.PopStyleVar();
+            var min = Gui.GetItemRectMin();
+            Gui.GetWindowDrawList().AddText(new Vector2(min.X + 7f, min.Y + (Gui.GetItemRectSize().Y - Gui.GetTextLineHeight()) / 2f),
+                Gui.GetColorU32(b.Enabled ? icon.Color : icon.Color with { W = 0.4f }), icon.Glyph);
+            if (clicked) b.Invoke();
+        }
+        else if (Gui.Button(b.Label, size)) b.Invoke();
+        Gui.EndDisabled();
+        if (!b.Enabled && b.Why is { } why && Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) Gui.SetTooltip(why);
+    }
+
+    private void DrawRecentRow(int i, StartRecentRow row, float x, float width, Vector2 wpos)
+    {
+        Gui.PushID(i);
+        Gui.SetCursorPosX(x);
+        var top = Gui.GetCursorScreenPos();
+        var dl = Gui.GetWindowDrawList();
+        dl.AddRectFilled(top, new Vector2(top.X + width, top.Y + RowHeight), Gui.GetColorU32(new Vector4(0.16f, 0.17f, 0.20f, 1f)), 4f);
+        dl.AddRect(top, new Vector2(top.X + width, top.Y + RowHeight), Gui.GetColorU32(new Vector4(0.30f, 0.31f, 0.36f, 1f)), 4f);
+        dl.AddText(new Vector2(top.X + 12f, top.Y + 6f), Gui.GetColorU32(ImGuiCol.Text), row.Name);
+        dl.AddText(new Vector2(top.X + 12f, top.Y + 6f + Gui.GetTextLineHeight() + 2f), Gui.GetColorU32(ImGuiCol.TextDisabled), row.Sub);
+        float bx = top.X + width - 3 * RowButtonW - 8f;
+        float by = top.Y + (RowHeight - Gui.GetFrameHeight()) / 2f;
+        DrawRowButton(0, row.Live, bx, by, top);
+        DrawRowButton(1, row.Edit, bx + RowButtonW, by, top);
+        DrawRowButton(2, row.Aar, bx + 2 * RowButtonW, by, top);
+        Gui.SetCursorScreenPos(new Vector2(top.X, top.Y + RowHeight));
+        Gui.Dummy(new Vector2(width, 6f));   // the gap between rows (also extends the window's content, so the cursor ends below the row)
+        Gui.PopID();
+    }
+
+    private static void DrawRowButton(int slot, StartButton b, float x, float y, Vector2 rowTop)
+    {
+        Gui.SetCursorScreenPos(new Vector2(x, y));
+        Gui.PushID(slot);
+        DrawStartButton(b, new Vector2(RowButtonW - 4f, 0f));
+        Gui.PopID();
     }
 
     /// <summary>The colour made opaque: blended over the panel's own near-black (what the eye saw through it), so the hue stays the style's.</summary>

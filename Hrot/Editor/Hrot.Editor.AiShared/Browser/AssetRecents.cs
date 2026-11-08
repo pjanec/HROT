@@ -23,6 +23,9 @@ public static class AssetRecents
         return asset.AssetId.ToString();
     }
 
+    /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the key a SCENARIO is remembered by, from its NAME: its asset id (<c>ScenarioCatalogContributor.DeriveAssetId</c>) — the ONE derivation, so the Start screen's Recent list maps a stored key back to a name through it.</summary>
+    public static string ScenarioKey(string scenarioName) => Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor.DeriveAssetId(scenarioName).ToString();
+
     /// <summary>The key a recording (an exercise) is remembered by: its exercise id.</summary>
     public static string RecordingKey(Guid exerciseId) => exerciseId.ToString();
 }
