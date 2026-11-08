@@ -67,7 +67,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.AirArmedSearch, Params = typeof(AirArmedSearchOrder), Categories = BehaviorCategory.MilitaryApc)]
+        [Behavior(BehaviorNames.AirArmedSearch, Params = typeof(AirArmedSearchOrder), Categories = BehaviorCategory.MilitaryApc, Classes = new[] { "AirPlatform" })]
         [BTreeDefinition(BehaviorNames.AirArmedSearch, Curated = true, Group = "Library/Orders", ParamsType = typeof(AirArmedSearchBlackboard))]
         public static BTreeBuilder<AirArmedSearchBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<AirArmedSearchBlackboard, BTreeContext>()

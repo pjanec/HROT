@@ -201,16 +201,24 @@ public sealed class OrdersTab : IDetailsViewInstance
 
         if (ImGui.BeginPopup("orders_add"))
         {
+            _addMenu.Clear();   // ⭐ CE-4350 — what this popup lists (a rail reads it); only while the popup is open
+            _addMenu.Add("Wait");
             if (ImGui.Selectable("Wait")) { draft.Tasks.Add(OrdersPlanEdits.NewWait()); _dirty = true; }   // E9: Wait first
             ImGui.Separator();
             foreach (var o in Hrot.Common.Orders.OrderMenu.OfferedFor(w.GetDisType(entity)))
+            {
+                _addMenu.Add("Order." + o.Name);
                 if (ImGui.Selectable(o.Name)) { draft.Tasks.Add(OrdersPlanEdits.NewOrder(o.Name)); _dirty = true; }
+            }
             if (svc != null)
             {
-                var behaviours = svc.GetAvailableBehaviorChoices(net);
+                var behaviours = svc.GetAvailableBehaviorChoices(net);   // ⭐ CE-4350 — only the behaviours that FIT this entity's class (BehaviorFit)
                 if (behaviours.Count > 0) ImGui.Separator();
                 for (int b = 0; b < behaviours.Count; b++)
+                {
+                    _addMenu.Add(behaviours[b].Name);
                     if (ImGui.Selectable(behaviours[b].Name)) { draft.Tasks.Add(OrdersPlanEdits.NewBehaviour(behaviours[b].Name)); _dirty = true; }
+                }
             }
             ImGui.EndPopup();
         }
@@ -238,6 +246,10 @@ public sealed class OrdersTab : IDetailsViewInstance
         }
         else if (_status is { } st) ImGui.TextDisabled(st);
     }
+
+    private readonly List<string> _addMenu = new();
+    /// <summary>⭐ CE-4350 — the entries "+ Add task" listed the last time its popup was drawn: <c>Wait</c>, <c>Order.&lt;Name&gt;</c> per fitting order, then each fitting behaviour.</summary>
+    public IReadOnlyList<string> LastAddMenu => _addMenu;
 
     private readonly List<string> _summaries = new();
     private MissionPlan? _rowsFor; private uint _rowsSig; private int _summariesHash;

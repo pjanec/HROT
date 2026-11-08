@@ -41,7 +41,7 @@ namespace Hrot.Core.Tkb
                 string? found = null, other = null;
                 for (; i >= 0 && chain[i].Mask.Specificity == level; i--)
                 {
-                    string name = chain[i].Name + orderName;
+                    string name = BehaviourName(chain[i].Name, orderName);
                     if (!isBehaviour(name)) continue;
                     if (found is null) found = name; else other ??= name;
                 }
@@ -52,6 +52,20 @@ namespace Hrot.Core.Tkb
             }
             return new Result(OrderResolution.NoBehaviour, string.Empty,
                 $"order '{orderName}' for DIS {dis}: no behaviour named <Class>{orderName} for its classes ({Names(chain)})");
+        }
+
+        /// <summary>⭐ <c>CE-4350</c> — THE order-behaviour name: <c>&lt;Class&gt;&lt;Order&gt;</c> (R-278). <see cref="Resolve"/> builds it with this,
+        /// <see cref="ClassOfBehaviour"/> splits it with the inverse, so the two can never disagree.</summary>
+        public static string BehaviourName(string className, string orderName) => className + orderName;
+
+        /// <summary>⭐ <c>CE-4350</c> — the inverse of <see cref="BehaviourName"/>: the class prefix of <paramref name="behaviour"/> when it is
+        /// <c>&lt;Class&gt;&lt;orderName&gt;</c> and that class is in <paramref name="table"/>; else null.</summary>
+        public static string? ClassOfBehaviour(EntityClassTable table, string behaviour, string orderName)
+        {
+            if (string.IsNullOrEmpty(orderName) || behaviour.Length <= orderName.Length
+                || !behaviour.EndsWith(orderName, StringComparison.Ordinal)) return null;
+            string prefix = behaviour.Substring(0, behaviour.Length - orderName.Length);
+            return table.Find(prefix) is null ? null : prefix;
         }
 
         private static string Names(IReadOnlyList<EntityClass> chain)

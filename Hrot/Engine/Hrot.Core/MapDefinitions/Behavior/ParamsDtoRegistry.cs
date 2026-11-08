@@ -8,7 +8,13 @@ using Hrot.Map.Definitions.Behavior.Orders;
 namespace Hrot.Map.Definitions.Behavior
 {
     /// <summary>⭐ <c>CE-2134</c> — one behaviour's declared params contract (<see cref="BehaviorAttribute"/>).</summary>
-    public sealed record BehaviorDeclaration(string Name, Type ParamsType, BehaviorCategory Categories, string DeclaredOn);
+    public sealed record BehaviorDeclaration(string Name, Type ParamsType, BehaviorCategory Categories, string DeclaredOn)
+    {
+        /// <summary>⭐ <c>CE-4350</c> — the declared entity classes (<see cref="BehaviorAttribute.Classes"/>); empty when none.</summary>
+        public IReadOnlyList<string> Classes { get; init; } = Array.Empty<string>();
+        /// <summary>⭐ <c>CE-4350</c> — the declared required components (<see cref="BehaviorAttribute.Requires"/>); empty when none.</summary>
+        public IReadOnlyList<Type> Requires { get; init; } = Array.Empty<Type>();
+    }
 
     /// <summary>⭐ <c>CE-3185</c> (F9) — what an authored data struct is FOR; one DTO may serve several.</summary>
     [Flags]
@@ -203,7 +209,11 @@ namespace Hrot.Map.Definitions.Behavior
                 if (byName.TryGetValue(a.Name, out var first))
                     throw new InvalidOperationException(
                         $"CE-2134: behaviour '{a.Name}' is declared twice, on {first.DeclaredOn} and on {on} — one declaration per behaviour (R-132).");
-                byName[a.Name] = new BehaviorDeclaration(a.Name, a.Params, a.Categories, on);
+                byName[a.Name] = new BehaviorDeclaration(a.Name, a.Params, a.Categories, on)
+                {
+                    Classes = a.Classes ?? Array.Empty<string>(),
+                    Requires = a.Requires ?? Array.Empty<Type>(),
+                };
             }
 
             var marked = dtoTypes.Distinct().ToList();

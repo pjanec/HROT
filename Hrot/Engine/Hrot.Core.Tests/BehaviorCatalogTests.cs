@@ -9,6 +9,9 @@ using Hrot.Map.Definitions.Tkb;
 [assembly: Behavior(BehaviorNames.ConvoyEscort, Params = typeof(NoParams), Categories = BehaviorCategory.MilitaryApc)]
 [assembly: Behavior(BehaviorNames.DefendArea, Params = typeof(Hrot.Map.Definitions.Behavior.Intents.DefendAreaIntentDto), Categories = BehaviorCategory.AllMilitary)]
 [assembly: Behavior(BehaviorNames.CombatPosture, Params = typeof(CombatPostureParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
+// ⭐ CE-4350 — the civilian lists are retired: WanderCivil / PanicFlee name the classes they suit (civilian people AND the civilian traffic's cars).
+[assembly: Behavior("WanderCivil", Params = typeof(NoParams), Classes = new[] { "Civilian", "Car" })]
+[assembly: Behavior("PanicFlee", Params = typeof(NoParams), Classes = new[] { "Civilian", "Car" })]
 
 namespace Hrot.Map.Common.Tests;
 
@@ -25,7 +28,7 @@ public class BehaviorCatalogTests
     [Fact]
     public void GetValidBehaviors_Insurgent_ContainsAmbush_NotWanderCivil()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.Insurgent);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInsurgent);
 
         Assert.Contains("Ambush", behaviors);
         Assert.DoesNotContain("WanderCivil", behaviors);
@@ -65,8 +68,8 @@ public class BehaviorCatalogTests
     [Fact]
     public void GetValidBehaviors_SameListInstanceReturnedOnRepeatedCalls()
     {
-        var first  = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.InfantrySoldier);
-        var second = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.InfantrySoldier);
+        var first  = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier);
+        var second = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier);
 
         Assert.True(ReferenceEquals(first, second),
             "Expected the same list instance on repeated calls to avoid per-call allocation.");
@@ -75,13 +78,13 @@ public class BehaviorCatalogTests
     // ── Test 5 ────────────────────────────────────────────────────────────
     /// <summary>
     /// Civilian car entities share the same behavior list as civilian pedestrians
-    /// (both map to the s_civilianBehaviors static field).
+    /// (both declare Classes Civilian + Car — CE-4350).
     /// Verifies "WanderCivil" and "PanicFlee" are present.
     /// </summary>
     [Fact]
     public void GetValidBehaviors_CivilianCar_ContainsWanderCivilAndPanicFlee()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.CivilianCar);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar);
 
         Assert.Contains("WanderCivil", behaviors);
         Assert.Contains("PanicFlee", behaviors);
@@ -94,7 +97,7 @@ public class BehaviorCatalogTests
     [Fact]
     public void GetValidBehaviors_MilitaryApc_ContainsConvoyEscort_NotCivilian()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.MilitaryApc);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMilitaryApc);
 
         Assert.Contains("ConvoyEscort", behaviors);
         Assert.DoesNotContain("WanderCivil", behaviors);

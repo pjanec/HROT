@@ -4,74 +4,56 @@ using Hrot.Map.Definitions.Behavior;
 namespace Hrot.Map.Definitions.Tkb;
 
 /// <summary>
-/// Static catalog that maps TKB entity type constants to the behavior names that
-/// are valid for that entity type.  Used by the mission editing UI to populate
-/// behavior drop-down lists filtered to the selected entity's capabilities.
+/// Static catalog that maps a TKB entity type to the behaviour names that fit it. Used by ExCon's mission editor and the HTTP list
+/// (no entity at hand — only its TKB type); the mission editor's "+ Add task" asks the same <see cref="Hrot.Core.Tkb.BehaviorFit"/> with the entity itself.
 ///
 /// <para>
-/// ⭐ <c>CE-2134</c> — the military, insurgent and commander lists come from each behaviour's declared categories
-/// (<see cref="BehaviorAttribute.Categories"/>), read through the ONE scan (<see cref="ParamsDtoRegistry"/>), so they follow
-/// what this host can actually run. ⛔ HISTORY: built from <c>[BehaviorContract]</c> on the DTOs in this assembly, which listed
-/// the editor's example behaviours on every node, CGF and ExCon included.
-/// </para>
-/// <para>
-/// The civilian list and the default fallback list remain hardcoded because <c>WanderCivil</c> and <c>PanicFlee</c> declare
-/// no params contract (they are out of scope for the current phase). The class table replaces the categories (CE-2142).
+/// ⭐ <c>CE-4350</c> (docs/DESIGN_Orders_Params_Entity_Classes.md §14) — the 11-id switch and the hard-coded civilian lists are RETIRED: the list is every
+/// behaviour this host DECLARES (<see cref="ParamsDtoRegistry"/>, the ONE scan) that fits the TKB template's DIS type through the class table
+/// (<see cref="Hrot.Core.Tkb.EntityClassTable"/>). ⚠ It cannot see AUTHORED assets (they are not declared) — the entity-based list does — and it cannot
+/// ask for equipment (no entity), so a declared <c>Requires</c> counts as met here.
 /// </para>
 /// </summary>
 public static class BehaviorCatalog
 {
-    private static readonly IReadOnlyList<string> s_civilianBehaviors =
-        ["WanderCivil", "PanicFlee"];
-
-    /// <summary>⭐ <c>CE-3220</c> part 2 — the civilian family's people (1101–1104): their own HSM first, a move, and <c>Idle</c> (the
-    /// behaviourless stand-in the retired 1001 used to be).</summary>
-    private static readonly IReadOnlyList<string> s_civilianPeople =
-        ["CivilianHsm", "MoveToLocation", "FollowRoute", "Idle", "WanderCivil", "PanicFlee"];
-
+    /// <summary>The list of an unknown TKB type (no template, so no DIS type to match): the general-purpose few.</summary>
     private static readonly IReadOnlyList<string> s_defaultBehaviors =
         ["MoveToLocation", "FollowRoute", "JoinFormation", "Idle", "FireAtTarget"];
 
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ParamsDtoRegistry, Dictionary<BehaviorCategory, IReadOnlyList<string>>> s_maps = new();
+    /// <summary>The built-in TKB's DIS type per TKB type id — built once, the ONE source of "what is TKB type N" for a caller with no database.</summary>
+    private static readonly Lazy<Dictionary<long, Fdp.Core.DISEntityType>> s_disOf = new(() =>
+    {
+        var map = new Dictionary<long, Fdp.Core.DISEntityType>();
+        foreach (var t in Hrot.Map.Common.HrotEnvironment.CreateTkb().GetAll()) map[(long)t.TkbType] = t.DisType;
+        return map;
+    });
 
-    private static Dictionary<BehaviorCategory, IReadOnlyList<string>> MapFor(ParamsDtoRegistry registry)
-        => s_maps.GetValue(registry, r =>
-        {
-            var map = new Dictionary<BehaviorCategory, IReadOnlyList<string>>();
-            foreach (var cat in new[] { BehaviorCategory.MilitaryApc, BehaviorCategory.Infantry, BehaviorCategory.Insurgent, BehaviorCategory.Commander, BehaviorCategory.Objective, BehaviorCategory.Trigger })
-            {
-                var names = r.NamesWithCategory(cat);
-                map[cat] = names.Count > 0 ? names : s_defaultBehaviors;
-            }
-            return map;
-        });
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ParamsDtoRegistry, System.Collections.Concurrent.ConcurrentDictionary<long, IReadOnlyList<string>>> s_lists = new();
 
     /// <summary>
-    /// Returns the list of behavior names valid for the given TKB entity type, from this host's declared behaviours
-    /// (<see cref="ParamsDtoRegistry.Default"/>). Civilian and unknown types use static lists. The same list instance is
-    /// returned until another assembly loads.
+    /// The behaviours that fit TKB type <paramref name="tkbType"/>, from this host's declared behaviours (<see cref="ParamsDtoRegistry.Default"/>);
+    /// an unknown type gets a short default list. The same list instance is returned until another assembly loads.
     /// </summary>
-    /// <param name="tkbType">A TKB entity type constant (see <see cref="TkbEntityTypes"/>).</param>
+    /// <param name="tkbType">A TKB entity type constant (see <see cref="TkbEntityTypes"/> and the catalogues' ids).</param>
     public static IReadOnlyList<string> GetValidBehaviors(long tkbType) => GetValidBehaviors(tkbType, ParamsDtoRegistry.Default);
 
     /// <summary>As <see cref="GetValidBehaviors(long)"/>, over <paramref name="registry"/> (a rail scans a known set).</summary>
-    public static IReadOnlyList<string> GetValidBehaviors(long tkbType, ParamsDtoRegistry registry) => tkbType switch
+    public static IReadOnlyList<string> GetValidBehaviors(long tkbType, ParamsDtoRegistry registry)
     {
-        // ⭐ CE-3220 part 2 — the civilian family (1101–1104) replaces the retired map key 501
-        Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale   => s_civilianPeople,
-        Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultFemale => s_civilianPeople,
-        Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianChild       => s_civilianPeople,
-        Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianElderly     => s_civilianPeople,
-        TkbEntityTypes.CivilianCar        => s_civilianBehaviors,
-        TkbEntityTypes.MilitaryApc        => MapFor(registry)[BehaviorCategory.MilitaryApc],
-        TkbEntityTypes.InfantrySoldier    => MapFor(registry)[BehaviorCategory.Infantry],
-        TkbEntityTypes.Insurgent          => MapFor(registry)[BehaviorCategory.Insurgent],
-        TkbEntityTypes.Unit_TankPlatoon      => MapFor(registry)[BehaviorCategory.Commander],
-        TkbEntityTypes.Unit_TankPlatoon_Auto => MapFor(registry)[BehaviorCategory.Commander],
-        TkbEntityTypes.Unit_InfantrySquad    => MapFor(registry)[BehaviorCategory.Commander],
-        TkbEntityTypes.Unit_InfantryPlatoon  => MapFor(registry)[BehaviorCategory.Commander],   // ⭐ CE-2262 SL-0
-        TkbEntityTypes.Objective             => MapFor(registry)[BehaviorCategory.Objective],   // ⭐ rules S1
-        TkbEntityTypes.Trigger               => MapFor(registry)[BehaviorCategory.Trigger],     // ⭐ rules S2-c
-        _                                 => s_defaultBehaviors,
-    };
+        var cache = s_lists.GetValue(registry, _ => new System.Collections.Concurrent.ConcurrentDictionary<long, IReadOnlyList<string>>());
+        if (cache.TryGetValue(tkbType, out var hit)) return hit;
+        return cache.GetOrAdd(tkbType, Build(tkbType, registry));
+    }
+
+    private static IReadOnlyList<string> Build(long tkbType, ParamsDtoRegistry registry)
+    {
+        var dis = s_disOf.Value.TryGetValue(tkbType, out var d) ? d : default;
+        bool known = s_disOf.Value.ContainsKey(tkbType);
+        if (!known) return s_defaultBehaviors;
+        var list = new List<string>();
+        foreach (var decl in registry.Behaviors)
+            if (Hrot.Core.Tkb.BehaviorFit.Fits(registry, Hrot.Core.Tkb.EntityClassTable.Default, dis, tkbType, decl.Name, static (_, _) => true, default))
+                list.Add(decl.Name);
+        return list.Count > 0 ? list : s_defaultBehaviors;
+    }
 }

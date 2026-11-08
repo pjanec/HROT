@@ -27,5 +27,14 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The entity categories the behaviour suits (the mission pickers' filter) until the class table replaces it
         /// (CE-2138 / CE-2142).</summary>
         public BehaviorCategory Categories { get; set; }
+
+        /// <summary>⭐ <c>CE-4350</c> (docs/DESIGN_Orders_Params_Entity_Classes.md §14) — the entity CLASSES (<c>EntityClassTable</c> names)
+        /// the behaviour suits: an entity is offered it when ANY of them is in its DIS type's class chain. Null/empty ⇒ the class comes from
+        /// the order name (<c>&lt;Class&gt;&lt;Order&gt;</c>) or, failing that, <see cref="Categories"/> (<c>BehaviorFit</c>).</summary>
+        public string[]? Classes { get; set; }
+
+        /// <summary>⭐ <c>CE-4350</c> — components the entity must carry (equipment: the weapon a fire behaviour needs), the tabs' AND
+        /// (<c>ComponentRequirements</c>). Null/empty ⇒ none.</summary>
+        public Type[]? Requires { get; set; }
     }
 }

@@ -142,7 +142,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.Eject)]
         public static void Resolve(in NoParams authored, ref EjectBlackboard block, EntityRepository world, Entity self) => block.Eject = default;
 
-        [Behavior(BehaviorNames.Eject, Params = typeof(NoParams), Categories = BehaviorCategory.MilitaryApc)]   // the aircraft behaviours' category (AirPlatformStrike)
+        [Behavior(BehaviorNames.Eject, Params = typeof(NoParams), Categories = BehaviorCategory.MilitaryApc, Classes = new[] { "AirPlatform" })]   // the aircraft behaviours' category (AirPlatformStrike)
         [BTreeDefinition(BehaviorNames.Eject, Curated = true, Group = "Library/Air", ParamsType = typeof(EjectBlackboard))]
         public static BTreeBuilder<EjectBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<EjectBlackboard, BTreeContext>()

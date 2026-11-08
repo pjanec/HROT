@@ -6,6 +6,8 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Core.Mission;
+using Hrot.Core.Tkb;
+using Hrot.Map.Definitions.Behavior;
 using Hrot.Common.Events;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.UI.Common.Facades;
@@ -77,13 +79,12 @@ namespace Hrot.UI.Common.Adapters
                 return Array.Empty<BehaviorChoice>();
 
             long tkbType = _repo.GetComponent<TkbIdentity>(entity).TkbType;
-            var catalog  = BehaviorCatalog.GetValidBehaviors(tkbType);
 
-            // Curated list: only names that are actually registered in the live registry.
-            var result = catalog.Where(n => _registry.TryGetId(n, out _)).ToList();
-
-            // Append editor-authored BTree behaviors not already in the curated list.
-            AppendEditorBTreeBehaviors(_registry, result);
+            // ⭐ CE-4350 (docs/DESIGN_Orders_Params_Entity_Classes.md §14) — EVERY registered behaviour (curated and authored, every technology),
+            //   kept when it FITS the entity's class: the same class table the orders end at. ⛔ This was a curated list by TKB id (an 11-id switch)
+            //   plus EVERY other behaviour appended — a tank was offered the infantry drills.
+            var result = FittingBehaviours(_registry, ParamsDtoRegistry.Default, EntityClassTable.Default,
+                _repo.GetDisType(entity), tkbType, ComponentProbe, entity);
 
             // ⭐ CE-1019 — an SOP is not a mission task: it runs beside the task in its own slot (§4.5, the ruled mark).
             result.RemoveAll(n => _registry.TryGetId(n, out int id) && _registry.TryGetDefinition(id, out var d) && d is { CarriesSopOrders: true });
@@ -112,37 +113,43 @@ namespace Hrot.UI.Common.Adapters
             };
         }
 
-        /// <summary>
-        /// Appends registered editor-authored behaviours of EVERY technology — BTree, HSM, blueprint (CE-446 E4) — to
-        /// <paramref name="result"/>, skipping any names already present (dedup, curated first).
-        /// </summary>
-        /// <remarks>
-        /// INTERIM approach: all BrainTierBTree entries that are not in the curated list are
-        /// included, making editor-authored BTrees available to every entity type.
-        /// TODO (option c): gate by per-asset DisEntityType affinity mask instead of listing for all entity types.
-        /// </remarks>
-        private static void AppendEditorBTreeBehaviors(BehaviorRegistry registry, List<string> result)
+        /// <summary>⭐ CE-4350 — the standard component probe over this service's world (an unregistered type or a dead entity answers false).</summary>
+        private bool ComponentProbe(Entity entity, Type type)
         {
-            var existingNames = new HashSet<string>(result, StringComparer.Ordinal);
+            int id = Fdp.Core.ComponentTypeRegistry.GetId(type);
+            return id >= 0 && _repo.IsAlive(entity) && _repo.HasComponentByTypeId(entity, id);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4350 — the registered behaviours that fit one entity, in registry order. ⭐ CE-446 E4 (Q77 §5.5): every TECHNOLOGY — 🔒 user 2026-09-30,
+        /// "when picking … i need to see all available ones no matter what technology they are based on". A behaviour the registry DECLARES
+        /// (<see cref="ParamsDtoRegistry"/>) is offered when it <see cref="BehaviorFit.Fits"/>; one it does not declare is an authored asset (BTree, HSM,
+        /// blueprint) and is offered to every entity until assets can declare classes (§14 rule 2) — it needs a known brain tier.
+        /// </summary>
+        public static List<string> FittingBehaviours(BehaviorRegistry registry, ParamsDtoRegistry declared, EntityClassTable table,
+            DISEntityType dis, long tkbType, Func<Entity, Type, bool>? probe, Entity entity)
+        {
+            var result = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var name in registry.GetRegisteredNames())
             {
-                if (existingNames.Contains(name))
-                    continue;
-                if (!registry.TryGetId(name, out int id))
-                    continue;
-                if (!registry.TryGetDefinition(id, out var def))
-                    continue;
-                // ⭐ CE-446 E4 (Q77 §5.5) — every TECHNOLOGY, not just BTree: 🔒 user 2026-09-30, "when picking … i need to
-                //   see all available ones no matter what technology they are based on". ⛔ An HSM or blueprint behaviour
-                //   registered in the live registry was assignable by MCP/JSON but invisible here.
-                if (def.BrainTier != BehaviorConstants.BrainTierBTree
-                    && def.BrainTier != BehaviorConstants.BrainTierHsm
-                    && def.BrainTier != BehaviorConstants.BrainTierBlueprint)
-                    continue;
-
+                if (!seen.Add(name)) continue;   // dedup: a name may be listed twice by the registry
+                if (!registry.TryGetId(name, out int id)) continue;
+                if (declared.TryGetBehavior(name, out _))
+                {
+                    if (!BehaviorFit.Fits(declared, table, dis, tkbType, name, probe, entity)) continue;
+                }
+                else
+                {
+                    if (!registry.TryGetDefinition(id, out var def)) continue;
+                    if (def.BrainTier != BehaviorConstants.BrainTierBTree
+                        && def.BrainTier != BehaviorConstants.BrainTierHsm
+                        && def.BrainTier != BehaviorConstants.BrainTierBlueprint)
+                        continue;
+                }
                 result.Add(name);
-                existingNames.Add(name); // keep dedup consistent if there are duplicates in the registry
             }
+            return result;
         }
 
         /// <inheritdoc/>

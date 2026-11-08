@@ -317,7 +317,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
     [Fact]
     public void BehaviorCatalog_Insurgent_ReturnsInsurgentBehaviors()
     {
-        var behaviors = BehaviorCatalog.GetValidBehaviors(TkbEntityTypes.Insurgent);
+        var behaviors = BehaviorCatalog.GetValidBehaviors(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInsurgent);
 
         Assert.Contains("Ambush",        behaviors);
         Assert.DoesNotContain("WanderCivil", behaviors);
@@ -343,6 +343,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         var insurgent = world.CreateEntity();
         world.AddComponent(insurgent, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
         world.AddComponent(insurgent, new Fdp.Toolkit.Replication.Components.NetworkIdentity(insurgentNetId));
+        world.SetDisType(insurgent, new Fdp.Core.DISEntityType { Kind = 3, Domain = 1, Category = 1 });   // ⭐ CE-4350 — the offer follows the DIS class (Infantry)
 
         // Build a BehaviorRegistry that only registers "Ambush" (not "MoveToLocation").
         var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();

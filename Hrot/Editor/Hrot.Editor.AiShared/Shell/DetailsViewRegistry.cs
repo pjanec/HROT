@@ -166,8 +166,7 @@ public sealed class DetailsViewRegistry
     {
         if (ComponentProbe is not { } probe || context.Entities.Count == 0) return false;
         for (int e = 0; e < context.Entities.Count; e++)
-            for (int r = 0; r < d.Requires.Count; r++)
-                if (!probe(context.Entities[e], d.Requires[r])) return false;
+            if (!Hrot.Core.Tkb.ComponentRequirements.Met(probe, context.Entities[e], d.Requires)) return false;   // ⭐ CE-4350 — the ONE AND (behaviours' Requires ask it too)
         return true;
     }
 

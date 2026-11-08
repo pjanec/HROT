@@ -478,6 +478,9 @@ namespace Hrot.Editor.Tests.Adapters
         /// </summary>
         private static int NetIdFor(Entity e) => 1000 + e.Index;
 
+        /// <summary>⭐ CE-4350 — the DIS type of the Insurgent template (life form · land · Infantry class).</summary>
+        private static DISEntityType InsurgentDis => new() { Kind = 3, Domain = 1, Category = 1 };
+
         [Fact]
         public void GetAvailableBehaviors_InsurgentWithRegisteredCombatPosture_ReturnsIt()
         {
@@ -490,6 +493,7 @@ namespace Hrot.Editor.Tests.Adapters
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
+            _repo.SetDisType(entity, InsurgentDis);   // ⭐ CE-4350 — the offer follows the entity's DIS class (a real spawn carries its TKB template's), not its TKB id
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var service = new ScenarioMissionService(_bus, _repo, _registry);
@@ -514,6 +518,7 @@ namespace Hrot.Editor.Tests.Adapters
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
+            _repo.SetDisType(entity, InsurgentDis);   // ⭐ CE-4350 — the offer follows the entity's DIS class (a real spawn carries its TKB template's), not its TKB id
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var choices = new ScenarioMissionService(_bus, _repo, _registry).GetAvailableBehaviorChoices(NetIdFor(entity));
@@ -531,6 +536,7 @@ namespace Hrot.Editor.Tests.Adapters
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
+            _repo.SetDisType(entity, InsurgentDis);   // ⭐ CE-4350 — the offer follows the entity's DIS class (a real spawn carries its TKB template's), not its TKB id
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var names = new ScenarioMissionService(_bus, _repo, _registry).GetAvailableBehaviorChoices(NetIdFor(entity)).Select(c => c.Name).ToList();
@@ -699,6 +705,7 @@ namespace Hrot.Editor.Tests.Adapters
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
+            _repo.SetDisType(entity, InsurgentDis);   // ⭐ CE-4350 — the offer follows the entity's DIS class (a real spawn carries its TKB template's), not its TKB id
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var service = new ScenarioMissionService(_bus, _repo, _registry);

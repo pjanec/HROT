@@ -2629,7 +2629,7 @@ the search-predicate reader, and the blueprint clipboard. Writers that printed n
 - `OrchestrationSchemaTests.TheGatewaysSetTimeScalePayload_IsWhatTheMasterReads`.
 - `SpawnTransformBindsTests.AComponentInASpawnBodyBindsItsFields` (both vector shapes).
 
-## 14. CE-4350 — the tasks a unit is OFFERED fit it: the behaviour filter by CLASS *(behaviors, `2026-11-08`, overnight O-2 · build-state: READY-TO-BUILD)*
+## 14. CE-4350 — the tasks a unit is OFFERED fit it: the behaviour filter by CLASS *(behaviors, `2026-11-08`, overnight O-2 · build-state: BUILT `2026-11-08` — as-built at the end of this section)*
 
 🔒 User report (CE-4350): *the entity mission plan editor offers tasks / behaviours that do not fit the entity's type.* ⭐ §5 already ruled the
 target — **"behaviour filter per type: the class table (classes declared by the order behaviour's name, or by a class list on a non-order
@@ -2720,3 +2720,49 @@ AND loop stays in ONE helper both callers use.
 | an authored asset (BTree / HSM / blueprint) with no class | ⚠ still offered to every entity, listed under its group — until assets can declare classes (a later step); ⛔ not hidden: the user would lose behaviours they authored |
 | equipment | `Requires` component types, the tabs' AND; declared only where measured (a fire behaviour needs the weapon component every armed spawn carries — measure which) |
 | the 11-id switch | retired; ⭐ a GOLDEN pins every built-in TKB type's list before / after, every difference named |
+
+### 14.1 AS-BUILT *(`2026-11-08`, behaviors, O-2)*
+
+| what | where |
+|---|---|
+| `[Behavior]` takes `Classes` (string[]) and `Requires` (Type[]); the ONE scan records both on `BehaviorDeclaration` (`Classes`, `Requires`) — the curated source generator reads only `Params` / `Curated` / `ParamsType` / `Group` by name, so the new named args pass through (build clean) | `BehaviorAttribute.cs`, `ParamsDtoRegistry.cs` (`FromDeclarations`) |
+| `BehaviorFit` (Hrot.Core/Tkb): `ClassesOf` = declared `Classes` → the order name's class prefix → `CategoryClasses`; `Fits` = any class in the DIS chain AND `Requires`; no class at all ⇒ an authored asset ⇒ fits everyone (rule 2). Cached per registry for the shipped table | `Hrot.Core/Tkb/BehaviorFit.cs:28` (`CategoryClasses`), `:56` (`ClassesOf`), `:86` (`Fits`) |
+| the order split is shared: `OrderResolver.BehaviourName` builds `<Class><Order>`, `ClassOfBehaviour` is its inverse (prefix must be a table class, else it falls to the categories) | `OrderResolver.cs:44, :59, :61` |
+| the component AND is one helper, `ComponentRequirements.Met`; `DetailsViewRegistry.RequirementsMet` and `BehaviorFit` both call it | `Hrot.Core/Tkb/ComponentRequirements.cs`, `DetailsViewRegistry.cs:169` |
+| `GetAvailableBehaviorChoices` = every registered behaviour (curated AND authored, every technology; SOPs still removed) through `FittingBehaviours`: a declared behaviour must `Fit`, an undeclared one (an authored asset) is kept if its brain tier is BTree / HSM / blueprint. `AppendEditorBTreeBehaviors` and its "all to all" are gone | `ScenarioMissionService.cs:72, :129` |
+| `BehaviorCatalog.GetValidBehaviors(tkbType)` keeps its signature for ExCon / the HTTP list and delegates to `BehaviorFit` over the built-in TKB's DIS type; the 11-id switch and the civilian lists are retired | `BehaviorCatalog.cs:38, :41` |
+| `OrdersTab.LastAddMenu` — what the popup listed in the last drawn frame (for the frame rail) | `OrdersTab.cs:252` |
+| `Eject` and `AirArmedSearch` declare `Classes = {"AirPlatform"}` (they are aircraft behaviours filed under the MilitaryApc category) | `EjectAndEvadeBehaviors.cs:145`, `AirArmedSearchBehavior.cs:70` |
+
+**Deviations from the design above — each with its measured reason**
+
+| deviation | why |
+|---|---|
+| `ComponentRequirements` lives in **Hrot.Core**, not Hrot.Common | `BehaviorFit` is in Core and Core cannot see Common (the design's own ⚠) |
+| `MilitaryApc` → **`Armor`, `WheeledUtility`, `SelfPropelledArtillery`, `AirPlatform`**, not one class | the shipped military land types span three classes (tank 1.1.\*.1 + IFV/APC \*.2 = Armor; HMMWV and the technicals \*.6 = WheeledUtility; M109 \*.4) and no single class covers them without `Car` (1.1.\*.81, the civilian traffic) — `LandPlatform` holds the cars. `AirPlatform` because the category also meant military aircraft (`MoveToLocation`, `Idle` were offered to a helicopter before); the golden showed them vanish without it |
+| `Infantry` / `Insurgent` → `Infantry` **and `SecurityForce`** | the security forces (3.1.\*.3: shield, baton, launcher) run the infantry drills (`BatonCharge` is AllMilitary); without it they lost 71 behaviours with nothing replacing them |
+| `Objective` / `Trigger` → **pseudo-classes matched on the TKB type id** (8860 / 8861) | measured: both templates carry NO DIS type (DIS `none`), so no class of the table names them |
+| `BehaviorFit.Fits` takes the registry and the TKB type besides the DIS | the order name is read from the DTO the registry holds; the pseudo-classes need the TKB id |
+| `BehaviorCatalog` for an unknown TKB id returns the short default list | the old switch keyed on the legacy ids 502–505, which have no template (the urban catalogue's are 2001–2003) — three tests moved to the real ids |
+| **equipment `Requires` NOT declared on any behaviour** | measured: `WeaponState` sits on the weapon MOUNT entities (child parts, `WeaponMountQuery.EnumerateMounts` — the owner carries it only when it is its own primary mount), not on the unit; the unit carries no component that says "armed" reliably. A declared `Requires` would hide fire behaviours from armed units. The mechanism is built and railed (`BehaviorFitTests`); it waits for a unit-level marker |
+| `WanderCivil` / `PanicFlee` | registered nowhere in production (only names in demo constants), so nothing to declare; the Core test host declares them with `Classes = {Civilian, Car}` |
+
+**The golden** — `Hrot.Editor.Tests/Catalog/OfferedBehaviours.golden.txt` (62 built-in TKB types, `before` recorded at HEAD, `after` now). BEFORE: **161 behaviours for every type** (all to all). Diff shape, per group (nothing is ever ADDED; every removal is a declared curated behaviour — a rail proves no authored one is removed):
+
+| types | before → after | what disappears |
+|---|---|---|
+| 12 military vehicles (tanks 100, 103; IFVs 101, 2001; HMMWVs 102, 111; technicals 104–106, 108–110) | 161 → 77 | the infantry/person/squad/platoon drills and orders, civilian brains, objectives |
+| 107 M109 self-propelled howitzer | 161 → 78 | same, but keeps `SelfPropelledArtilleryStrike` |
+| 23 people (riflemen 200–211, 2002–2009, security forces 1201–1203) | 161 → 90 | `Platform*` / `Air*` / vehicle drills, squad and platoon commands, civilian brains, objectives |
+| 4 civilians 1101–1104 | 161 → 65 | all combat drills and vehicle behaviours; keeps `CivilianHsm`, `CivilianReact`, `PersonMove` / `Hold` |
+| 8 civilian cars 1002, 1050–1056 | 161 → 54 | everything military; keeps the `Platform*` order behaviours (a car is a platform) |
+| 7 aircraft 400–406 | 161 → 81 | ground vehicle and infantry behaviours; keeps `Eject`, `AirPlatform*`, `MoveToLocation` |
+| 301, 303, 305 tank / infantry platoons | 161 → 79 | vehicle and person behaviours, `InfantrySquad*` orders |
+| 302 infantry squad | 161 → 82 | vehicle behaviours, person orders |
+| 304 artillery battery | 161 → 80 | same as a unit |
+| 8860 objective / 8861 trigger | 161 → 69 / 51 | every unit behaviour; the objective keeps the objective brains, the trigger keeps `Trigger` |
+
+⚠ **Known limit (a later step, not a defect of the filter):** the categories are coarse — `AllMilitary` behaviours (`HoldTheLine`, `BreachDoor`, `TriggerIed` …) are still offered to a tank, because their declaration says so; tightening one is a `Classes = …` on that `[Behavior]`. Authored BTree / HSM / blueprint assets still fit everyone (rule 2).
+
+**Rails:** `BehaviorFitTests` (Hrot.Core.Tests, 6) · `TheOfferedBehavioursFitTheEntityTests` (Hrot.Editor.Tests: the golden + tank / squad / rifleman / civilian / aircraft / objective + authored-asset rails) · `TheOrdersAddTaskPopupFitsTheEntityTests` (a real ImGui frame of the Orders tab's open popup for a tank and a squad, `xvfb-run -a`).
+
