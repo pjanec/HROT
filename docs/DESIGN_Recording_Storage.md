@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: designs/mgmt-1/DESIGN.md §13 — written before the build; its §13.3 layout (/archives/, .fdprec + .meta.json, drill_manifest.json) is NOT the as-built ({NAS}/exercises/<id>/node_N.fdp + Orchestrator.json + scenario/, §1 here). This design is the current answer for WHAT happens to a recording; mgmt-1 §12.6/§13.1 stay the answer for HOW the gateway moves bytes.
 related-designs:
+  - UX/DESIGN_Bookmarks_And_Notes.md — its mark notes live in this design's exercise record (ledger → Orchestrator.json)
   - designs/mgmt-1/DESIGN.md — OWNS the transport: §12.4 the SMB pull gateway, §12.6 StorageGatewayModule, §13.1 the export phases, §13.3a the scenario copy taken at Live start (CE-3119)
   - blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the run controls: §0 R2″ (Live ends in two steps — ⏏ Close asks here), D15 (discard), CE-4100 (ask to keep recordings)
   - UX/DESIGN_Scenario_Lifecycle_Review.md — LC-19 (the recording picker), LC-21 (recordings out of TEMP)
