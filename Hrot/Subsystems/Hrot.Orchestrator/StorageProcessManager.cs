@@ -95,6 +95,12 @@ public sealed class StorageProcessManager
                         FdpLog<StorageProcessManager>.Error("[StorageProcessManager] ImportArchive NAS prefetch failed: {0}", why);
                         Answer(importRequestId, OrchestrationStatusCode.Rejected, "the import failed: " + why);
                     }
+                    else if (t.Result.Placement is { Refused: true } refused)
+                    {
+                        // ⭐ CE-4331 ② (§9a) — no recording fits a node of this cluster: refused, with where it CAN be reviewed
+                        FdpLog<StorageProcessManager>.Warn("[StorageProcessManager] ImportArchive: {0}.", refused.Refusal ?? "");
+                        Answer(importRequestId, OrchestrationStatusCode.Rejected, refused.Refusal);
+                    }
                     else if (t.Result.FailureCount > 0)
                     {
                         // ⭐ CE-4330 / CE-4331 ④ (Recording Storage §9) — the failure count is READ: an import that left a node without its file is not a success
@@ -103,7 +109,7 @@ public sealed class StorageProcessManager
                         Answer(importRequestId, OrchestrationStatusCode.Rejected, why);
                     }
                     else
-                        Answer(importRequestId, OrchestrationStatusCode.Success, null);
+                        Answer(importRequestId, OrchestrationStatusCode.Success, t.Result.Placement);   // ⭐ CE-4331 ③ — what plays where, what does not, who listens
                 }, System.Threading.Tasks.TaskScheduler.Default);
         }
 

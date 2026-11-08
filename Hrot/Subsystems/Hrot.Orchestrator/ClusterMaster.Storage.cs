@@ -119,17 +119,21 @@ public sealed partial class ClusterMaster
     /// <summary>The import's push (the existing ImportArchive path, as the head job).</summary>
     private bool StartImport(ExecuteStorageOpIntent intent)
     {
-        // ⭐ CE-4330 ④ (§7.2) — only the nodes that LACK the recording get it (fact ③, NodesHolding); every node holds it ⇒ the job ends at once (the cache hit, §5a)
+        // ⭐ CE-4330 ④ (§7.2) — every node is a placement target (CE-4331 ②: name and kind from the roster), but a node that already HOLDS the
+        //   recording (fact ③, NodesHolding) is not pushed to; every node holds it ⇒ the job ends at once (the cache hit, §5a)
         var all = BuildNodeDistributionTargetsForExercise(intent.ExerciseId);
         var holding = NodesHolding(intent.ExerciseId);
         var targets = new List<NodeDistributionTarget>(all.Count);
+        int lacking = 0;
         foreach (var t in all)
         {
             bool has = false;
             for (int i = 0; i < holding.Count; i++) if (holding[i] == t.NodeId) { has = true; break; }
-            if (!has) targets.Add(t);
+            if (!has) lacking++;
+            var who = _roster.ActiveNodes.TryGetValue(t.NodeId.Value, out var profile) ? profile : null;
+            targets.Add(t with { AlreadyHolds = has, NodeName = who?.NodeName ?? "", Subsystem = who?.SubsystemName ?? "", Roles = (int)(who?.Roles ?? 0) });
         }
-        if (targets.Count == 0)
+        if (lacking == 0)
         {
             EndStorageJob(intent.RequestId, StorageJobState.Done, null);
             return false;

@@ -355,7 +355,7 @@ public sealed class ClusterMasterArchiveTests
     /// <summary>
     /// ⭐ CE-4330 ④ (§7.2) — an import pushes ONLY to the nodes that lack the recording (fact ③); when every node holds it the job ends at once
     /// (the cache hit, §5a) and nothing is pushed.
-    /// 🔴 Mutation: the NodesHolding filter removed ⇒ node 2 is targeted too ⇒ red.
+    /// 🔴 Mutation: the NodesHolding check removed ⇒ node 2 is not marked as holding ⇒ red.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void CE4330_AnImportPushesOnlyToTheNodesThatLackTheRecording_AndNothingWhenAllHoldIt()
@@ -372,7 +372,8 @@ public sealed class ClusterMasterArchiveTests
         ImportArchiveBegunEvent? begun = null;
         foreach (var ev in bus.ReadManaged<ImportArchiveBegunEvent>()) begun = ev;
         Assert.NotNull(begun);
-        Assert.Equal(new[] { 1 }, begun!.Value.Targets.Select(t => t.NodeId.Value).ToArray());
+        // every node is a placement target (CE-4331 ②); the holder is marked and is not pushed to
+        Assert.Equal(new[] { (1, false), (2, true) }, begun!.Value.Targets.Select(t => (t.NodeId.Value, t.AlreadyHolds)).OrderBy(x => x.Item1).ToArray());
 
         bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = first, StatusCode = OrchestrationStatusCode.Success });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
