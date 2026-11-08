@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: AQ108 D20 ("no dirty indicator", on purpose) vs DESIGN_Edit_Mode_Undo U5 (a dirty flag) — LC-12 · R-4162 ("Save in Preview takes a checkpoint") vs a Preview is never recorded — LC-8
 related-designs:
+  - DESIGN_Recording_Collection.md — collecting the recordings at the end (archive / keep / discard), the picker listing archived runs too
   - docs/UX/DESIGN_Entity_Copy_Paste.md — the build design of LC-3 (Copy / Paste / Duplicate over the shared slice expansion)
   - docs/UX/DESIGN_Scenario_Presets.md — OWNS scenario presets and the preview with a preset: the answer to LC-11 (D8 re-scopes it)
   - DESIGN_Editing_UX.md — the programme this walks through end to end
