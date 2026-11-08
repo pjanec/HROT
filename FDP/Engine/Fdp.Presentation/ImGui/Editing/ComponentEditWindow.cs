@@ -203,49 +203,24 @@ internal sealed class ComponentEditWindow : ManagedWindow
         // frame's truth) and before any ImGui call.
         BuildAndPublish();
 
-        // 3. Two-column property table (mirrors ImGuiPropertyTree style).
-        if (ImGuiApi.BeginTable("##cedit", 2,
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
-            ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit))
+        // 3. ⭐ CE-3386 — the ONE two-column struct table (Field · Value) every struct host draws in.
+        if (StructTable.Begin("##cedit"))
         {
-            ImGuiApi.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 180f);
-            ImGuiApi.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
-
             // 4. Render the full node tree.
             _drawer.DrawRoot(_session.Document.Root);
-
-            // 5. Close table.
-            ImGuiApi.EndTable();
+            StructTable.End();
         }
 
-        // 6. Validation error banner.
+        // 6. Validation error — the kit's one error line.
         if (_errorMessage != null)
-            ImGuiApi.TextColored(new Vector4(1f, 0.2f, 0.2f, 1f), _errorMessage);
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine(_errorMessage);
 
         // 7. Separator before buttons.
         ImGuiApi.Separator();
 
         // 8. OK — commit and apply.
         if (ImGuiApi.Button("OK") || ImGuiApi.IsKeyPressed(ImGuiKey.Enter))
-        {
-            try
-            {
-                object newState = _session.Commit();
-                // Re-evaluate session: entity may have been destroyed between frame start
-                // and the commit (mid-frame disposal guard).
-                var ls = _sessionGetter();
-                if (ls != null && ls.IsAlive(_targetEntity))
-                    ls.SetComponent(_targetEntity, _componentType, newState);
-                CloseAndCleanup();
-            }
-            catch (EditValidationException ex)
-            {
-                _errorMessage = ex.Result.Errors.Count > 0
-                    ? ex.Result.Errors[0].Message
-                    : "Validation failed.";
-                // Do NOT close on validation failure so the user can correct the value.
-            }
-        }
+            ExecuteOkLogic();   // ⭐ ONE commit path (the draw path and the rails' hook were two copies)
 
         // 9. Cancel — discard edits and close.
         ImGuiApi.SameLine();

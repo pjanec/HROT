@@ -395,16 +395,16 @@ public class ComponentReflector
         if (_inPlaceEditSession!.RebuildState == EditRebuildState.RebuildRequired)
             _inPlaceEditSession.RebuildDocument();
 
-        // ⭐ U-13 (C4): the in-place editor's table is a FormGrid tree table (the one label-column rule), not a private 180 px
-        if (FormGrid.BeginTree("##inPlaceEdit"))
+        // ⭐ CE-3386 — the ONE two-column struct table (as the edit window and every struct host), the error in the kit's one error line
+        if (StructTable.Begin("##inPlaceEdit"))
         {
             _inPlaceEditDrawer!.DrawRoot(_inPlaceEditSession.Document.Root);
 
-            FormGrid.End();
+            StructTable.End();
         }
 
         if (_inPlaceEditErrorMessage != null)
-            ImGuiApi.TextColored(new Vector4(1f, 0.2f, 0.2f, 1f), _inPlaceEditErrorMessage);
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine(_inPlaceEditErrorMessage);
 
         ImGuiApi.Separator();
 
