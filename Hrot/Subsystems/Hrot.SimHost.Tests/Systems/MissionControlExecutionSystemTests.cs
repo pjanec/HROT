@@ -156,6 +156,47 @@ public class MissionControlExecutionSystemTests
         Assert.Equal((1, versionBefore), (queue.TaskCount, queue.Version));   // the first plan is still there
     }
 
+    /// <summary>⭐ CE-4298 rest (mission plan §5.9 E9 / §5.10) — a plan whose WAIT task (no behaviour) has no <i>then</i> loads (the queue is applied) with exactly ONE warning naming the entity and the task; a Wait WITH a then, and an ordinary task with no condition, log none.
+    /// 🔴 Red-proof (compiles): the warning not logged ⇒ the first case reads 0 warnings ⇒ red; the test dropped from <c>ResolveTrigger</c>'s result (always warning) ⇒ the other cases red.</summary>
+    [Theory]
+    [InlineData("", false, 1)]       // a Wait, no then: warns
+    [InlineData("", true, 0)]        // a Wait WITH a then: none
+    [InlineData("MoveToLocation", false, 0)]   // an ordinary task with no condition (= when done): none
+    public void CE4298_AWaitWithNoThen_LoadsWithOneWarning_NamingTheEntityAndTheTask(string behavior, bool withThen, int warnings)
+    {
+        var entityMap = new NetworkEntityMap();
+        using var repo = CreateWorld();
+        repo.RegisterComponent<Fdp.Core.EntityInfo>();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new Fdp.Core.EntityInfo { Name = new Fdp.Core.FixedString64("Alpha 1-1") });
+        entityMap.Register(7, entity);
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
+        var plan = MakePlan(Guid.NewGuid(), Guid.NewGuid());
+        plan.Tasks[1].BehaviorId = behavior;
+        if (withThen) plan.Tasks[1].Triggers = new List<Hrot.Core.Mission.MissionTrigger> { new() { Type = Hrot.Core.Mission.MissionTriggerHelper.ThenType, Params = Fdp.Toolkit.ReplayBrowser.Search.ConditionCache.ToJson(new Fdp.Toolkit.ReplayBrowser.Search.InputAbovePredicateDto { Input = "UnderFire", Threshold = 0f }) } };
+
+        var target = new NLog.Targets.MemoryTarget("mission") { Layout = "${message}" };
+        var original = NLog.LogManager.Configuration;
+        var config = new NLog.Config.LoggingConfiguration();
+        config.AddRule(NLog.LogLevel.Warn, NLog.LogLevel.Fatal, target);
+        NLog.LogManager.Configuration = config; NLog.LogManager.ReconfigExistingLoggers();
+        try
+        {
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
+            {
+                RequestId = Guid.NewGuid(), TargetEntityId = 7, BaseVersion = 0,
+                Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = plan },
+            });
+            NLog.LogManager.Flush();
+        }
+        finally { NLog.LogManager.Configuration = original; NLog.LogManager.ReconfigExistingLoggers(); }
+
+        Assert.Equal(2, repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount);   // the load went on
+        var waits = target.Logs.Where(l => l.Contains("is a Wait with no 'then'")).ToList();
+        Assert.Equal(warnings, waits.Count);
+        if (warnings == 1) { Assert.Contains("Alpha 1-1 (#7)", waits[0]); Assert.Contains("task 2", waits[0]); Assert.Contains(plan.Tasks[1].TaskId.ToString(), waits[0]); }
+    }
+
     /// <summary>
     /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #7) — the mission's version and task order survive a checkpoint restored
     /// into a FRESH system: a three-task plan (version 1), keyframe, applied to a new world with a NEW system; then a jump to the third task lands
