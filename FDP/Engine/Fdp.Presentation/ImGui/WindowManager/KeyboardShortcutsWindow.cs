@@ -6,7 +6,7 @@ using ImGuiNET;
 namespace Fdp.Presentation.WindowManager;
 
 /// <summary>
-/// ⭐⭐ B-10 K6 (📄 docs/UX/DESIGN_Input_And_Commands.md §6f) — <b>Edit ▸ Keyboard shortcuts…</b> (Ctrl+K): every binding of the ONE keymap — keys and the K7 mouse gestures — grouped by scope, with a search box.
+/// ⭐⭐ B-10 K6 (📄 docs/UX/DESIGN_Input_And_Commands.md §6f) — <b>View ▸ Settings ▸ Keyboard shortcuts…</b> (R-4178) (Ctrl+K): every binding of the ONE keymap — keys and the K7 mouse gestures — grouped by scope, with a search box.
 /// Read-only; it owns no list (<see cref="ShortcutRows"/> reads <see cref="Keymap.Process"/>). House style: the chord in the accent colour, the scope shown once per group, three aligned columns.
 /// </summary>
 public sealed class KeyboardShortcutsWindow : ManagedWindow

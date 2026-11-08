@@ -534,7 +534,7 @@ classDiagram
 
 ```mermaid
 sequenceDiagram
-  participant U as the user (Ctrl+K · Edit ▸ Keyboard shortcuts…)
+  participant U as the user (Ctrl+K · View ▸ Settings ▸ Keyboard shortcuts…)
   participant K as KeyRouter (Global scope)
   participant W as KeyboardShortcutsWindow
   participant R as ShortcutRows
@@ -552,14 +552,13 @@ sequenceDiagram
 | what is listed | key rows (Global · focused-window kinds · the map's menu letters per target class — unit / area / zone / route — declared by `MapMenuActions.DeclareKeys` from the action catalogue + `OrderShortcuts`; the same letter on two classes is not a conflict, twice on one is) and the K7 gesture rows (map scope, RTS scope) — each with its action's label (`Keymap.SetLabel`, set by whoever declares) |
 | not listed | a panel's own item-level keys (Enter / Esc in a text field) — not declared in the keymap. ⛔ SUPERSEDED for held keys: WASD, sprint and the rest are Hold / Axis rows since K4 (§6g), listed with their kind |
 | user overrides file, rebind UI | ⏭ **not built**: Q6's "optional overrides file" has no stored-state home decided (settings location, per-host) — an architect question, not a build item; the window is read-only |
-| the window | `KeyboardShortcutsWindow` (`Edit ▸ Keyboard shortcuts…`, command `shell.keyboard-shortcuts`, **Ctrl+K** — the mockup's key; ⛔ SUPERSEDES §2.2's "F1"): a search box over a three-column table (Where 130 · Shortcut 270 · Does), the scope named once per group, the chord in the accent colour; model `ShortcutRows` (rebuilt only when `Keymap.Version` or the filter moved). Mockup: `menus-visual.svg` panel F (`scripts/gen-menus-mockup.py`) |
+| the window | `KeyboardShortcutsWindow` (`View ▸ Settings ▸ Keyboard shortcuts…`, R-4178; command `shell.keyboard-shortcuts`, **Ctrl+K** — the mockup's key; ⛔ SUPERSEDES §2.2's "F1"): a search box over a three-column table (Where 130 · Shortcut 270 · Does), the scope named once per group, the chord in the accent colour; model `ShortcutRows` (rebuilt only when `Keymap.Version` or the filter moved). Mockup: `menus-visual.svg` panel F (`scripts/gen-menus-mockup.py`) |
 | fidelity, measured | rail `OnARealFrame_CtrlKOpensTheWindow…` reads the drawn positions on a real ImGui frame: the search box above the first row, one x for every row's chord and action column, rows going down; ⚠ no pixel render was made (no SVG rasteriser on this machine) — the layout is asserted, the picture is the SVG |
 | rails | `ShortcutsWindowTests` (rows by scope + filter, 0 B steady, real frame + Ctrl+K + measured layout) · `MenuOrdersTests.K6_TheMapLettersAndGestures…` — each red-proved by a compiling mutation |
 
-⭐ **R-4176 (user-approved, `2026-11-08`) — where the item lives:** *Edit ▸ Keyboard shortcuts…* where the host's Edit menu offers anything else, else
-*Help ▸ Keyboard shortcuts…* — ONE command, two paths, decided per frame by `WindowManager.EditMenuHoldsOtherItems` (`SetLayout` visibility); a host with no
-Edit menu (Player, Replay Browser, SimHost …) gets none just for it. ⛔ SUPERSEDED: K6's "every host gets an Edit menu". `WindowManager.BarMenuShows` is the
-draw loop's one "header shows" test, shared with the rails. Rail `TopLevelMenuOrderTests.R4176_…` (red-proved). Per-user overrides + *Rebind…*: PARKED (R-4176 #4).
+⭐ **R-4178 (CE-4337, user `2026-11-08`) — where the item lives: *View ▸ Settings ▸ Keyboard shortcuts…*, ONE path on every host** (`WindowManager.ShortcutsMenuPath`; the window and the command `shell.keyboard-shortcuts`, **Ctrl+K**, are unchanged). No host needs an Edit menu or a Help item for it. `WindowManager.BarMenuShows` stays the draw loop's one "header shows" test, shared with the rails. Rail `TopLevelMenuOrderTests.R4178_…` (red-proved); mockup `menus-visual.svg` panels C and F updated. Per-user overrides + *Rebind…*: PARKED (R-4176 #4).
+
+⛔ **SUPERSEDED (R-4176 #3, built the same day):** *Edit ▸ Keyboard shortcuts…* where the host's Edit menu offered anything else, else *Help ▸ Keyboard shortcuts…* — one command, two paths, decided per frame by `WindowManager.EditMenuHoldsOtherItems` (`SetLayout` visibility). Both paths and that method are deleted. ⛔ SUPERSEDED before it: K6's "every host gets an Edit menu".
 
 ### 6g. ⭐ K4 — held inputs are READ through the keymap: Hold and Axis rows *(ui, `2026-11-08`; ⭐ BUILT the same day — as built at the end of this section)*
 

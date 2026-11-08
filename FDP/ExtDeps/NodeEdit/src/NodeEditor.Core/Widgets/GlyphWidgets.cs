@@ -4,21 +4,15 @@ using ImGuiNET;
 namespace NodeEditor.Core.Widgets;
 
 /// <summary>
-/// ⭐ U-2 (docs/UX/DESIGN_Colour_Icons.md §2) — a coloured glyph as a button or a switch option, on a NEUTRAL background: unselected ≈ <c>#1C1C22</c>, selected ≈ <c>#34343E</c> with a light frame
-/// (📐 rendered: on ImGui's default blue button a blue or violet glyph nearly vanishes). In a switch every option keeps its OWN colour; the selected one is full strength and framed, the others
-/// draw at ~60 % — ⛔ never the selected one coloured and the rest grey (Q-I2). Zero allocation.
+/// ⭐ U-2 (docs/UX/DESIGN_Colour_Icons.md §2, §I1) — a coloured glyph as a button or a switch option. ⭐⭐ CE-4333: drawn through <see cref="IconButtonChrome"/>, the ONE chrome of every icon button — transparent at rest, the accent
+/// fill for the selected option of a switch, a white inset frame on hover. In a switch every option keeps its OWN colour; the selected one is full strength and filled, the others draw at ~60 % — ⛔ never the selected one coloured and the
+/// rest grey (Q-I2). Zero allocation.
 /// <para>⭐ Deviation from the design (Q-C1, R-4145): these live in <c>NodeEditor.Core</c>, not <c>Fdp.Presentation.IconWidgets</c>, so the node-editor pickers can use them.</para>
 /// </summary>
 public static class GlyphWidgets
 {
-    public static readonly Vector4 Neutral         = Rgb(0x1C1C22);
-    public static readonly Vector4 NeutralHovered  = Rgb(0x2A2A32);
-    public static readonly Vector4 NeutralSelected = Rgb(0x34343E);
-    public static readonly Vector4 SelectedFrame   = new(0.78f, 0.78f, 0.84f, 0.85f);
     /// <summary>The strength of an unselected option of a switch.</summary>
     public const float UnselectedAlpha = 0.6f;
-
-    private static Vector4 Rgb(int rgb) => new(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, 1f);
 
     /// <summary>A plain glyph button (full strength). <paramref name="id"/> is the caller's constant id.</summary>
     public static bool GlyphButton(string id, in IconGlyph icon, string? tooltip = null)
@@ -42,16 +36,14 @@ public static class GlyphWidgets
         bool clicked = ImGui.InvisibleButton(id, size);
         bool hovered = ImGui.IsItemHovered();
 
-        var bg = selected ? NeutralSelected : hovered ? NeutralHovered : Neutral;
         var dl = ImGui.GetWindowDrawList();
-        var max = pos + size;
-        dl.AddRectFilled(pos, max, ImGui.GetColorU32(bg), style.FrameRounding);
-        if (selected) dl.AddRect(pos, max, ImGui.GetColorU32(SelectedFrame), style.FrameRounding);
+        IconButtonChrome.DrawToggleFill(dl, pos, size, selected);   // ⭐ CE-4333 — behind the glyph; nothing at rest
 
         var c = icon.Color;
         if (isToggle && !selected) c.W *= UnselectedAlpha;
         dl.AddText(new Vector2(pos.X + (size.X - glyphW) * 0.5f, pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f), ImGui.GetColorU32(c), icon.Glyph);
 
+        IconButtonChrome.DrawHoverFrame(dl, pos, size, hovered);   // ⭐ on top of the glyph
         if (hovered && tooltip is not null) ImGui.SetTooltip(tooltip);
         return clicked;
     }

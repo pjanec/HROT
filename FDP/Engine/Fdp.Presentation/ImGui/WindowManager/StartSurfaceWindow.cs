@@ -22,7 +22,9 @@ public sealed class StartSurfaceWindow : ManagedWindow
     /// <summary>One button: a menu leaf's label and the menu's own binding.</summary>
     /// <param name="Why">⭐ CE-3414 — the tooltip a DISABLED button gives (the reason); null = none.</param>
     /// <param name="Icon">⭐ CE-3414 — a coloured glyph drawn at the button's left edge (the Recent rows' ● Live · pen Edit · ▶ AAR); null = text only.</param>
-    public sealed record StartButton(string Label, bool Enabled, Action Invoke, string? Why = null, NodeEditor.Core.Widgets.IconGlyph? Icon = null);
+    /// <param name="CommandId">⭐ U-1 — the declared command the menu item runs (K5); the look of an ACTION (icon, short words) is keyed on it, never on the label. Null for a Recent row's button or a closure-only item.</param>
+    /// <param name="IconKey">⭐ U-1 — a contributed item's own icon key (the Help ▸ About DTO's <c>status/info</c>), the look's key when there is no command.</param>
+    public sealed record StartButton(string Label, bool Enabled, Action Invoke, string? Why = null, NodeEditor.Core.Widgets.IconGlyph? Icon = null, string? CommandId = null, string? IconKey = null);
 
     /// <summary>⭐⭐ CE-3414 (AQ108 §0 D31) — one row of the <i>Recent</i> list: the scenario's name, a sub line (<i>Live · 10 min ago</i> · <i>never run</i>) and its three buttons. Pure data, built by the host (the surface owns no action).</summary>
     /// <param name="JustRun">⭐ CE-3414 follow-up (storyboard ⑧) — this scenario\'s run has JUST ended: its box is highlighted.</param>
@@ -63,8 +65,31 @@ public sealed class StartSurfaceWindow : ManagedWindow
         var variant = _variant();
         if (variant == StartVariant.Actions)
             return new StartSurfaceModel(StartVariant.Actions, ActionsText,
-                _menu.AllowedInIdleItems().Select(a => new StartButton(a.Label(), a.Enabled(), a.Invoke)).ToList(), _recent?.Invoke());
+                _menu.AllowedInIdleItems().Select(ToButton).ToList(), _recent?.Invoke());
         return new StartSurfaceModel(variant, variant == StartVariant.ServerLost ? ServerLostText : WaitingText, Array.Empty<StartButton>());
+    }
+
+    /// <summary>
+    /// ⭐ U-1 — one menu item as a button. ⛔ The disabled reason is NOT part of the label: a host words a greyed item <i>Name (unavailable — why)</i> / <i>Name (why)</i> (<c>ScenarioMenuCommands.RegisterCommand</c>); the button
+    /// keeps the plain <see cref="GlobalMenuRegistry.IdleAction.Name"/> and the reason goes to the tooltip (<see cref="StartButton.Why"/>).
+    /// </summary>
+    private static StartButton ToButton(GlobalMenuRegistry.IdleAction a)
+    {
+        bool on = a.Enabled();
+        string full = a.Label();
+        string name = a.Name.Length > 0 ? a.Name : full;
+        return new StartButton(on ? full : name, on, a.Invoke, on ? null : ReasonOf(name, full), null, a.CommandId, a.IconKey);
+    }
+
+    /// <summary>⭐ U-1 — the reason a host put after the plain <paramref name="name"/> in a greyed item's <paramref name="full"/> label (<c>"Name (unavailable — why)"</c>, <c>"Name (why)"</c>, or a label that is only the reason), or null when the label is the plain name.</summary>
+    public static string? ReasonOf(string name, string full)
+    {
+        if (string.IsNullOrEmpty(full) || full == name) return null;
+        string rest = full.StartsWith(name, StringComparison.Ordinal) ? full.Substring(name.Length).Trim() : full;
+        if (rest.Length > 1 && rest[0] == '(' && rest[^1] == ')') rest = rest.Substring(1, rest.Length - 2);
+        const string unavailable = "unavailable — ";
+        if (rest.StartsWith(unavailable, StringComparison.Ordinal)) rest = rest.Substring(unavailable.Length);
+        return rest.Length > 0 ? rest : null;
     }
 
     protected override ImGuiWindowFlags ExtraFlags =>
@@ -151,14 +176,15 @@ public sealed class StartSurfaceWindow : ManagedWindow
     {
         DrawWallpaper();   // ⭐ CE-4112: under everything the surface draws
         var model = Model();
-        const float buttonWidth = ActionWidth;
+        Measure(model);
+        float buttonWidth = _actionW;
         // ⭐ the panel is sized by what it shows and centred on the WHOLE surface (⛔ was: the content width without the left padding, and 40 % down)
         var wpos = Gui.GetWindowPos();
         var wsize = Gui.GetWindowSize();
         float visibleH = wsize.Y - Math.Max(0f, _bottomInset?.Invoke() ?? 0f);   // ⭐ centred on what is VISIBLE (the status bar covers the bottom)
         var recent = model.RecentRows;
         bool twoColumns = recent.Count > 0;
-        float leftW = buttonWidth, gap = twoColumns ? ColumnGap : 0f, rightW = twoColumns ? RecentColumnWidth : 0f;
+        float leftW = buttonWidth, gap = twoColumns ? ColumnGap : 0f, rightW = twoColumns ? _recentW : 0f;
         Gui.SetWindowFontScale(TitleScale);
         float titleW = Gui.CalcTextSize("HROT").X;
         Gui.SetWindowFontScale(1f);
@@ -189,7 +215,7 @@ public sealed class StartSurfaceWindow : ManagedWindow
         Gui.PushStyleColor(ImGuiCol.ButtonActive, Opaque(style.Colors[(int)ImGuiCol.ButtonActive]));
         float colsTop = Gui.GetCursorPosY();
         float leftX = twoColumns ? left : left + (contentW - buttonWidth) / 2f;   // one column: centred, as before
-        _actionRects.Clear(); _rowRects.Clear();
+        _actionRects.Clear(); _rowRects.Clear(); _actionProbes.Clear(); _rowButtonProbes.Clear();
         foreach (var b in model.Buttons)
         {
             Gui.SetCursorPosX(leftX);
@@ -202,9 +228,13 @@ public sealed class StartSurfaceWindow : ManagedWindow
         {
             // ⭐ CE-3414 — the right column: the heading, then one box per Recent scenario (name · sub line · ● Live · pen Edit · ▶ AAR)
             float rx = left + leftW + gap;
+            RecentColumnRight = wpos.X + rx + rightW;
             Gui.SetCursorPosY(colsTop);
             Gui.SetCursorPosX(rx);
+            // ⭐ U-1 — the heading WRAPS inside the column (⛔ was one long line cut at the column's edge: "AAR of the lates…")
+            Gui.PushTextWrapPos(Gui.GetCursorPosX() + rightW);
             Gui.TextDisabled(RecentHeading);
+            Gui.PopTextWrapPos();
             string? hint = null;
             for (int i = 0; i < recent.Count; i++) { DrawRecentRow(i, recent[i], rx, rightW, wpos); if (recent[i].JustRun && recent[i].Hint is { } h) hint = h; }
             if (hint != null) { Gui.SetCursorPosX(rx); Gui.TextDisabled(hint); }
@@ -221,28 +251,88 @@ public sealed class StartSurfaceWindow : ManagedWindow
         _blockHeight = Gui.GetCursorPosY() - startY - style.ItemSpacing.Y;
     }
 
-    private const float ColumnGap = 24f, RecentColumnWidth = 470f, RowHeight = 46f, RowButtonW = 66f, ActionWidth = 220f, TitleScale = 1.7f;
+    private const float ColumnGap = 24f, TitleScale = 1.7f;
+
+    // ⭐ U-1 — sizes are MEASURED from the text each frame (font, UI scale, glyph), never constants: a fixed 220 / 66 / 470 is what cut the labels at the user's font.
+    private const float ActionMinW = 160f, RecentMinW = 470f, RowMinH = 46f, RowButtonMinW = 54f, BtnPadX = 8f, BtnGap = 6f;
+    private float _actionW = ActionMinW, _recentW = RecentMinW, _rowH = RowMinH, _rowBtnW = RowButtonMinW;
+    private static readonly Dictionary<string, string> Words = new();
+
+    /// <summary>The word as the UI font can draw it: the font has no ellipsis, so "…" is drawn as three dots (cached — nothing allocates once a label was seen).</summary>
+    private static string Drawn(string label)
+    {
+        if (label.IndexOf('…') < 0) return label;
+        if (!Words.TryGetValue(label, out var w)) Words[label] = w = label.Replace("…", "...");
+        return w;
+    }
+
+    /// <summary>⭐ U-1 — measures the columns from this frame's text: the action column fits its widest glyph + words, a Recent row button fits the widest glyph + word of any row, the Recent column fits the names, the sub lines and the three buttons.</summary>
+    private void Measure(StartSurfaceModel model)
+    {
+        float line = Gui.GetTextLineHeight();
+        float aw = ActionMinW;
+        for (int i = 0; i < model.Buttons.Count; i++)
+        {
+            var (text, glyph) = ActionLook(model.Buttons[i]);
+            aw = Math.Max(aw, BtnPadX + (glyph != null ? Gui.CalcTextSize(glyph).X + BtnGap : 0f) + Gui.CalcTextSize(text).X + BtnPadX);
+        }
+        _actionW = MathF.Ceiling(aw);
+        var recent = model.RecentRows;
+        float bw = RowButtonMinW, nameW = 0f;
+        for (int i = 0; i < recent.Count; i++)
+        {
+            var r = recent[i];
+            bw = Math.Max(bw, RowButtonWidth(r.Live)); bw = Math.Max(bw, RowButtonWidth(r.Edit)); bw = Math.Max(bw, RowButtonWidth(r.Aar));
+            nameW = Math.Max(nameW, Math.Max(Gui.CalcTextSize(r.Name).X, Gui.CalcTextSize(r.Sub).X));
+        }
+        _rowBtnW = MathF.Ceiling(bw);
+        _rowH = Math.Max(RowMinH, MathF.Ceiling(2f * line + 14f));
+        _recentW = MathF.Ceiling(Math.Max(RecentMinW, 12f + nameW + 16f + 3f * _rowBtnW + 8f));
+    }
+
+    private static float RowButtonWidth(StartButton b)
+        => BtnPadX + (b.Icon is { } ic ? Gui.CalcTextSize(ic.Glyph).X + BtnGap : 0f) + Gui.CalcTextSize(b.Label).X + BtnPadX;
 
     private readonly List<(Vector2 Min, Vector2 Max)> _actionRects = new(), _rowRects = new();
+    private readonly List<ButtonProbe> _actionProbes = new(), _rowButtonProbes = new();
     /// <summary>⭐ Rail probes (last drawn frame, screen px): the title, each action button, each Recent row\'s box.</summary>
     public (Vector2 Min, Vector2 Max) TitleRect { get; private set; }
     public IReadOnlyList<(Vector2 Min, Vector2 Max)> ActionRects => _actionRects;
     public IReadOnlyList<(Vector2 Min, Vector2 Max)> RecentRowRects => _rowRects;
 
-    /// <summary>⭐ Storyboard ①: how an Idle action is DRAWN — its icon and its words (<i>New scenario...</i> opens a dialog, so the ellipsis — three dots: the UI font has no …); the menu\'s own label (and every binding) is untouched. An action the picture does not name keeps its label and has no icon.</summary>
-    private static (string Text, string? Glyph) ActionLook(string label) => label switch
+    /// <summary>⭐ U-1 rail probe: where one button and its drawn parts landed (screen px) — the box, the glyph's right edge (NaN: no glyph), the words' left and right edges.</summary>
+    public readonly record struct ButtonProbe(string Label, Vector2 Min, Vector2 Max, float GlyphRight, float TextLeft, float TextRight, bool HasGlyph);
+    /// <summary>⭐ U-1 — each action button as last drawn, in order.</summary>
+    public IReadOnlyList<ButtonProbe> ActionProbes => _actionProbes;
+    /// <summary>⭐ U-1 — each Recent row button as last drawn (Live, Edit, AAR per row, in order).</summary>
+    public IReadOnlyList<ButtonProbe> RowButtonProbes => _rowButtonProbes;
+    /// <summary>⭐ U-1 — the Recent heading's wrapped height as last drawn is checked through the column: its right edge (screen px).</summary>
+    public float RecentColumnRight { get; private set; }
+
+    /// <summary>
+    /// ⭐ Storyboard ①: how an Idle action is DRAWN — its icon and its words (<i>New scenario...</i> opens a dialog, so the ellipsis — three dots: the UI font has no …). ⭐⭐ U-1: keyed on the item's COMMAND
+    /// (<see cref="StartButton.CommandId"/>; K5 — every app menu item runs a declared command), ⛔ never on its label: the label carries the host's dynamic text and a rename must not strip the icon. A contributed item
+    /// with no command (Help ▸ About) is keyed on its own icon key. An action the picture does not name keeps its (drawn) label and has no icon.
+    /// </summary>
+    internal static (string Text, string? Glyph) ActionLook(StartButton b) => b.CommandId switch
     {
-        "New Scenario" => ("New scenario...", Fonts.IconsFontAwesome6.Plus),
-        "Open Scenario" => ("Open scenario...", Fonts.IconsFontAwesome6.FolderOpen),
-        "Open Recording" => ("Open recording...", Fonts.IconsFontAwesome6.ClockRotateLeft),
-        "About" => ("About", Fonts.IconsFontAwesome6.CircleInfo),
-        _ => (label, null),
+        "scenario.new" => ("New scenario...", Fonts.IconsFontAwesome6.Plus),
+        "scenario.load" => ("Open scenario...", Fonts.IconsFontAwesome6.FolderOpen),
+        "scenario.openRecording" => ("Open recording...", Fonts.IconsFontAwesome6.ClockRotateLeft),
+        "scenario.loadCheckpoint" => ("Load checkpoint...", Fonts.IconsFontAwesome6.Flag),
+        "scenario.close" => ("Close", Fonts.IconsFontAwesome6.RightFromBracket),
+        "shell.exit" => ("Exit", Fonts.IconsFontAwesome6.Xmark),
+        _ => b.IconKey switch
+        {
+            "status/info" => (Drawn(b.Label), Fonts.IconsFontAwesome6.CircleInfo),
+            _ => (Drawn(b.Label), null),
+        },
     };
 
     /// <summary>One left-column action as the storyboard draws it: a box, its grey icon at the left, the words after it (left-aligned), greyed when disabled with the reason as the tooltip.</summary>
-    private static void DrawActionButton(StartButton b, Vector2 size)
+    private void DrawActionButton(StartButton b, Vector2 size)
     {
-        var (text, glyph) = ActionLook(b.Label);
+        var (text, glyph) = ActionLook(b);
         Gui.BeginDisabled(!b.Enabled);
         Gui.PushID(b.Label);
         bool clicked = Gui.Button("##action", size);
@@ -250,29 +340,42 @@ public sealed class StartSurfaceWindow : ManagedWindow
         var min = Gui.GetItemRectMin();
         float y = min.Y + (Gui.GetItemRectSize().Y - Gui.GetTextLineHeight()) / 2f;
         var dl = Gui.GetWindowDrawList();
-        if (glyph != null) dl.AddText(new Vector2(min.X + 8f, y), Gui.GetColorU32(NodeEditor.Core.Widgets.IconPalette.Grey), glyph);
-        dl.AddText(new Vector2(min.X + (glyph != null ? 30f : 8f), y), Gui.GetColorU32(ImGuiCol.Text), text);
+        float textX = min.X + BtnPadX;
+        float glyphRight = float.NaN;
+        if (glyph != null)
+        {
+            dl.AddText(new Vector2(min.X + BtnPadX, y), Gui.GetColorU32(NodeEditor.Core.Widgets.IconPalette.Grey), glyph);
+            glyphRight = min.X + BtnPadX + Gui.CalcTextSize(glyph).X;
+            textX = glyphRight + BtnGap;
+        }
+        dl.AddText(new Vector2(textX, y), Gui.GetColorU32(ImGuiCol.Text), text);
+        _actionProbes.Add(new ButtonProbe(b.Label, min, Gui.GetItemRectMax(), glyphRight, textX, textX + Gui.CalcTextSize(text).X, glyph != null));
         if (clicked) b.Invoke();
         Gui.EndDisabled();
         if (!b.Enabled && b.Why is { } why && Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) Gui.SetTooltip(why);
     }
 
-    /// <summary>One start button: opaque, disabled-greyed, the glyph at its left edge, the reason as the tooltip while it is disabled.</summary>
-    private static void DrawStartButton(StartButton b, Vector2 size)
+    /// <summary>One Recent-row button: opaque, disabled-greyed, the glyph at its left edge then the words at the glyph's width + a gap (⛔ was: the words pushed right with a text-align fraction, which overprinted the glyph when the font was wide), the reason as the tooltip while it is disabled.</summary>
+    private void DrawStartButton(StartButton b, Vector2 size)
     {
         Gui.BeginDisabled(!b.Enabled);
+        Gui.PushID(b.Label);
+        bool clicked = Gui.Button("##row", size);
+        Gui.PopID();
+        var min = Gui.GetItemRectMin();
+        float y = min.Y + (Gui.GetItemRectSize().Y - Gui.GetTextLineHeight()) / 2f;
+        var dl = Gui.GetWindowDrawList();
+        float textX = min.X + BtnPadX;
+        float glyphRight = float.NaN;
         if (b.Icon is { } icon)
         {
-            // the label is pushed right of the glyph (the text is aligned left of the remaining width)
-            Gui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, new Vector2(0.72f, 0.5f));
-            bool clicked = Gui.Button(b.Label, size);
-            Gui.PopStyleVar();
-            var min = Gui.GetItemRectMin();
-            Gui.GetWindowDrawList().AddText(new Vector2(min.X + 7f, min.Y + (Gui.GetItemRectSize().Y - Gui.GetTextLineHeight()) / 2f),
-                Gui.GetColorU32(b.Enabled ? icon.Color : icon.Color with { W = 0.4f }), icon.Glyph);
-            if (clicked) b.Invoke();
+            dl.AddText(new Vector2(min.X + BtnPadX, y), Gui.GetColorU32(b.Enabled ? icon.Color : icon.Color with { W = 0.4f }), icon.Glyph);
+            glyphRight = min.X + BtnPadX + Gui.CalcTextSize(icon.Glyph).X;
+            textX = glyphRight + BtnGap;
         }
-        else if (Gui.Button(b.Label, size)) b.Invoke();
+        dl.AddText(new Vector2(textX, y), Gui.GetColorU32(ImGuiCol.Text), b.Label);
+        _rowButtonProbes.Add(new ButtonProbe(b.Label, min, Gui.GetItemRectMax(), glyphRight, textX, textX + Gui.CalcTextSize(b.Label).X, b.Icon != null));
+        if (clicked) b.Invoke();
         Gui.EndDisabled();
         if (!b.Enabled && b.Why is { } why && Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) Gui.SetTooltip(why);
     }
@@ -284,26 +387,28 @@ public sealed class StartSurfaceWindow : ManagedWindow
         var top = Gui.GetCursorScreenPos();
         var dl = Gui.GetWindowDrawList();
         // ⭐ storyboard ⑧: the just-run row is the selected one — a lighter box and a pale frame
-        dl.AddRectFilled(top, new Vector2(top.X + width, top.Y + RowHeight), Gui.GetColorU32(row.JustRun ? new Vector4(0.27f, 0.29f, 0.35f, 1f) : new Vector4(0.16f, 0.17f, 0.20f, 1f)), 4f);
-        dl.AddRect(top, new Vector2(top.X + width, top.Y + RowHeight), Gui.GetColorU32(row.JustRun ? new Vector4(0.78f, 0.78f, 0.83f, 1f) : new Vector4(0.30f, 0.31f, 0.36f, 1f)), 4f);
-        _rowRects.Add((top, new Vector2(top.X + width, top.Y + RowHeight)));
-        dl.AddText(new Vector2(top.X + 12f, top.Y + 6f), Gui.GetColorU32(ImGuiCol.Text), row.Name);
-        dl.AddText(new Vector2(top.X + 12f, top.Y + 6f + Gui.GetTextLineHeight() + 2f), Gui.GetColorU32(ImGuiCol.TextDisabled), row.Sub);
-        float bx = top.X + width - 3 * RowButtonW - 8f;
-        float by = top.Y + (RowHeight - Gui.GetFrameHeight()) / 2f;
+        dl.AddRectFilled(top, new Vector2(top.X + width, top.Y + _rowH), Gui.GetColorU32(row.JustRun ? new Vector4(0.27f, 0.29f, 0.35f, 1f) : new Vector4(0.16f, 0.17f, 0.20f, 1f)), 4f);
+        dl.AddRect(top, new Vector2(top.X + width, top.Y + _rowH), Gui.GetColorU32(row.JustRun ? new Vector4(0.78f, 0.78f, 0.83f, 1f) : new Vector4(0.30f, 0.31f, 0.36f, 1f)), 4f);
+        _rowRects.Add((top, new Vector2(top.X + width, top.Y + _rowH)));
+        float textTop = top.Y + (_rowH - (2f * Gui.GetTextLineHeight() + 2f)) / 2f;
+        dl.AddText(new Vector2(top.X + 12f, textTop), Gui.GetColorU32(ImGuiCol.Text), row.Name);
+        dl.AddText(new Vector2(top.X + 12f, textTop + Gui.GetTextLineHeight() + 2f), Gui.GetColorU32(ImGuiCol.TextDisabled), row.Sub);
+        float bw = _rowBtnW;
+        float bx = top.X + width - 3 * bw - 8f;
+        float by = top.Y + (_rowH - Gui.GetFrameHeight()) / 2f;
         DrawRowButton(0, row.Live, bx, by, top);
-        DrawRowButton(1, row.Edit, bx + RowButtonW, by, top);
-        DrawRowButton(2, row.Aar, bx + 2 * RowButtonW, by, top);
-        Gui.SetCursorScreenPos(new Vector2(top.X, top.Y + RowHeight));
+        DrawRowButton(1, row.Edit, bx + bw, by, top);
+        DrawRowButton(2, row.Aar, bx + 2 * bw, by, top);
+        Gui.SetCursorScreenPos(new Vector2(top.X, top.Y + _rowH));
         Gui.Dummy(new Vector2(width, 6f));   // the gap between rows (also extends the window's content, so the cursor ends below the row)
         Gui.PopID();
     }
 
-    private static void DrawRowButton(int slot, StartButton b, float x, float y, Vector2 rowTop)
+    private void DrawRowButton(int slot, StartButton b, float x, float y, Vector2 rowTop)
     {
         Gui.SetCursorScreenPos(new Vector2(x, y));
         Gui.PushID(slot);
-        DrawStartButton(b, new Vector2(RowButtonW - 4f, 0f));
+        DrawStartButton(b, new Vector2(_rowBtnW - 4f, 0f));
         Gui.PopID();
     }
 

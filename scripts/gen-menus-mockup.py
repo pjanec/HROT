@@ -30,9 +30,8 @@ for i, m in enumerate(["File", "Edit", "View", "Window", "Help"]):
 s.text(CX0, CY0 - 8, "C — the Edit menu · Edit mode", C.SUB, 12)
 s.menu(CX0 + 68, CY0 + 22, 330, [("Undo  Move Alpha 1-1", "Ctrl+Z", FA.UNDO, C.BLUE), ("Redo  Set side of Bravo 1", "Ctrl+Y", FA.REDO, C.BLUE),
                                   ("History…", None, FA.CLOCK_BACK, C.BLUE), "---",
-                                  ("Cut", "Ctrl+X", None, None), ("Copy", "Ctrl+C", FA.COPY, C.GREY), ("Paste", "Ctrl+V", FA.PASTE, C.GREY), "---",
-                                  ("Keyboard shortcuts…", "Ctrl+K", FA.KEYBOARD, C.GREY)])
-s.note(CX0 + 410, CY0 + 50, ["UNDO NAMES THE STEP:", "one user action = one", "step (R-4133);", "Ctrl+Z / Ctrl+Y only in", "Edit mode — in Live and", "Review they are greyed:", "\"undo works in Edit", "mode only\"", "", "History… opens the list", "of steps (panel E)"], C.SUB)
+                                  ("Cut", "Ctrl+X", None, None), ("Copy", "Ctrl+C", FA.COPY, C.GREY), ("Paste", "Ctrl+V", FA.PASTE, C.GREY)])   # R-4178: Keyboard shortcuts… is NOT here — it is View > Settings (panel F)
+s.note(CX0 + 410, CY0 + 50, ["UNDO NAMES THE STEP:", "one user action = one", "step (R-4133);", "Ctrl+Z / Ctrl+Y only in", "Edit mode — in Live and", "Review they are greyed:", "\"undo works in Edit", "mode only\"", "", "History… opens the list", "of steps (panel E)", "", "Keyboard shortcuts… is not", "here: View ▸ Settings (F)"], C.SUB)
 # ── D: the one confirmation ─────────────────────────────────────────
 DX, DY = 640, 470
 s.text(DX, DY - 8, "D — Delete… during a live exercise (the scarce confirmation)", C.SUB, 12)
@@ -68,7 +67,7 @@ s.note(EX + 540, EY + 50, ["ONE list, oldest first; the state before the first",
                           "A take edit (Move camera key) is a step like any", "other: Edit ▸ Undo names it. A take is its own file,", "so it never puts the dot on the scenario title."], C.SUB)
 # ── F: Edit ▸ Keyboard shortcuts… (Ctrl+K) — every binding of the ONE keymap ───────────────────────
 FX, FY = 20, 905
-s.text(FX, FY - 8, "F — Edit ▸ Keyboard shortcuts… (Ctrl+K) · a read-only VIEW of the one keymap: keys AND mouse gestures, by scope (B-10 K6)", C.SUB, 12)
+s.text(FX, FY - 8, "F — View ▸ Settings ▸ Keyboard shortcuts… (Ctrl+K; one path on every host, R-4178) · a read-only VIEW of the one keymap: keys AND mouse gestures, by scope (B-10 K6)", C.SUB, 12)
 s.window(FX, FY, 640, 330, "Keyboard shortcuts")
 s.field(FX + 8, FY + 32, 624, "Search shortcuts…", hint=True)
 s.rect(FX + 8, FY + 62, 624, 20, C.HDR)

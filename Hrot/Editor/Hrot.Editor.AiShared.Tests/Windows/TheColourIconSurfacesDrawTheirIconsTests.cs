@@ -105,7 +105,8 @@ public sealed class TheColourIconSurfacesDrawTheirIconsTests
             var pin = Find(shot, right - 130, 28, right, 56, IconPalette.Amber);
             Assert.True(violet.Count >= 6 && blueBtn.Count >= 6 && pin.Count >= 6, $"layout violet {violet.Count}, float blue {blueBtn.Count}, pin amber {pin.Count} px");
             Assert.True(violet.Min < blueBtn.Min && blueBtn.Min < pin.Min, "layout, then float, then pin");
-            Assert.True(Find(shot, right - 130, 28, right, 56, new Vector4(0x1C / 255f, 0x1C / 255f, 0x22 / 255f, 1f), 5).Count > 100, "on the neutral glyph-button background");
+            // ⭐ CE-4333 — the glyph buttons draw through the ONE icon-button chrome: no fill of their own at rest (the old neutral #1C1C22 box is gone)
+            Assert.True(Find(shot, right - 130, 28, right, 56, new Vector4(0x1C / 255f, 0x1C / 255f, 0x22 / 255f, 1f), 1).Count < 20, "no neutral glyph-button box behind the header buttons");
         }
         finally { Raylib.UnloadImage(shot); }
 
