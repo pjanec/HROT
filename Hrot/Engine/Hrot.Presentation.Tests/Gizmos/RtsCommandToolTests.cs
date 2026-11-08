@@ -305,7 +305,6 @@ public sealed class RtsCommandToolTests : IDisposable
         Assert.Empty(router.Keymap.ValidateGestures());
         // ⭐ RTS overrides only GESTURES: it declares no key, so 2-D / 3-D, Ctrl+S, the camera keys and the letters fall through untouched
         for (int i = 0; i < router.Keymap.Count; i++) Assert.NotEqual(Fdp.Toolkit.Input.InputScope.Hat, router.Keymap[i].Scope);
-        Assert.Equal(0, router.Keymap.Count);
     }
 
     /// <summary>⛔ Hot path (R-2084) — resolving a gesture allocates nothing.</summary>

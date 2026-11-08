@@ -96,7 +96,7 @@ public class TopLevelMenuOrderTests
 
         var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective));
 
-        Assert.Equal(new[] { "File", "View", "Zeta", "Help" }, bar.Select(m => m.Name));   // ⭐ CE-4114: Windows is under View; Zeta (unlisted) after the listed menus
+        Assert.Equal(new[] { "File", "Edit", "View", "Zeta", "Help" }, bar.Select(m => m.Name));   // ⭐ B-10 K6: Edit holds the shell's Keyboard shortcuts…   // ⭐ CE-4114: Windows is under View; Zeta (unlisted) after the listed menus
         Assert.Equal("Help", bar.Last().Name);
         Assert.True(bar.Last().RightAligned);
         Assert.Equal(new[] { "Help" }, bar.Where(m => m.RightAligned).Select(m => m.Name));
@@ -197,6 +197,7 @@ public class TopLevelMenuOrderTests
             "Perspective/Player", "Perspective/Scenario",
             "Windows/Player/w-Player", "Windows/Scenario/w-Scn",
             "Help/About",
+            "Edit/Keyboard shortcuts…",   // ⭐ B-10 K6 — the shell's own item (Ctrl+K)
         };
         string Rehome(string p) => p.StartsWith("Settings/") || p.StartsWith("Perspective/") || p.StartsWith("Windows/") ? "View/" + p : p;   // ⭐ CE-4114: + Windows
 

@@ -175,6 +175,33 @@ namespace Hrot.Common.Actions
         /// ⛔ SUPERSEDES the letter derived from the order's first character: two orders starting alike collided silently. An order with no entry shows NO letter,
         /// and the rail <c>OrderLettersAreDeclaredAndDistinct</c> names it — a new order must declare one here, distinct from the unit menu's other letters.
         /// </summary>
+        /// <summary>
+        /// ⭐ B-10 K6 (§6f) — declares the map menu's letters as rows of <paramref name="keymap"/> (scope Map, kind = the target class: unit / area / zone / route), so the Keyboard shortcuts window
+        /// lists them and a letter bound twice for one target class is a conflict <c>Keymap.Validate</c> refuses. The ids are the actions' (<c>ActionRef.Global</c>); the label is the action's.
+        /// </summary>
+        public static void DeclareKeys(Fdp.Toolkit.Input.Keymap keymap)
+        {
+            var catalogue = new ActionCatalogue();
+            DeclareInto(catalogue);
+            foreach (var d in catalogue.All)
+            {
+                if (d.Id == 0 || d.Shortcut is null || !Fdp.Toolkit.Input.ChordText.TryParse(d.Shortcut, out var chord)) continue;
+                DeclareRows(keymap, chord, d.Id, d.Label, d.Targets);
+            }
+            foreach (var kv in OrderShortcuts)
+                if (Hrot.Common.Orders.OrderMenu.TryGetByName(kv.Key, out var order) && Fdp.Toolkit.Input.ChordText.TryParse(kv.Value, out var chord))
+                    DeclareRows(keymap, chord, order.ActionId, order.Name, ActionTarget.Unit);
+        }
+
+        private static void DeclareRows(Fdp.Toolkit.Input.Keymap keymap, NodeEditor.Core.Action.KeyBinding chord, int id, string label, ActionTarget targets)
+        {
+            var action = Fdp.Toolkit.Input.ActionRef.Global(id);
+            keymap.SetLabel(action, label);
+            foreach (var (bit, name) in new[] { (ActionTarget.Unit, "unit"), (ActionTarget.Area, "area"), (ActionTarget.Zone, "zone"), (ActionTarget.Route, "route") })
+                if ((targets & bit) != 0)
+                    keymap.Declare(new Fdp.Toolkit.Input.KeymapEntry(chord, Fdp.Toolkit.Input.InputScope.Map, name, action));
+        }
+
         public static readonly IReadOnlyDictionary<string, string> OrderShortcuts = new Dictionary<string, string>
         {
             ["Move"] = "M", ["Attack"] = "A", ["Hold"] = "H", ["Strike"] = "S", ["ObserveFire"] = "O",

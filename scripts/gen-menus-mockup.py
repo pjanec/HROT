@@ -2,7 +2,7 @@
 # DESIGN_Input_And_Commands.md, DESIGN_Edit_Mode_Undo.md), house style (R-4143). Regenerate: python3 scripts/gen-menus-mockup.py <out.svg>
 import sys
 from mockup_kit import Svg, C, FA
-W, H = 1240, 985
+W, H = 1240, 1290
 s = Svg(W, H, "Menus, shortcuts and undo — one action catalogue for every surface (house style; Action Catalogue §2, Input, Undo)")
 # ── A: a unit's context menu, Live, instructor ───────────────────────
 AX, AY = 20, 78
@@ -66,4 +66,23 @@ s.note(EX + 540, EY + 50, ["ONE list, oldest first; the state before the first",
                           "A row you cannot reach is greyed WITH ITS REASON:", "a step on the way aged out of the snapshot ring", "(depth / memory budget) so it cannot be undone.", "",
                           "Outside Edit mode every row is greyed and the", "header reads \"Undo works in Edit mode only.\"", "",
                           "A take edit (Move camera key) is a step like any", "other: Edit ▸ Undo names it. A take is its own file,", "so it never puts the dot on the scenario title."], C.SUB)
+# ── F: Edit ▸ Keyboard shortcuts… (Ctrl+K) — every binding of the ONE keymap ───────────────────────
+FX, FY = 20, 905
+s.text(FX, FY - 8, "F — Edit ▸ Keyboard shortcuts… (Ctrl+K) · a read-only VIEW of the one keymap: keys AND mouse gestures, by scope (B-10 K6)", C.SUB, 12)
+s.window(FX, FY, 640, 330, "Keyboard shortcuts")
+s.field(FX + 8, FY + 32, 624, "Search shortcuts…", hint=True)
+s.rect(FX + 8, FY + 62, 624, 20, C.HDR)
+s.text(FX + 14, FY + 76, "Where", C.TXT, 12.5); s.text(FX + 144, FY + 76, "Shortcut", C.TXT, 12.5); s.text(FX + 414, FY + 76, "Does", C.TXT, 12.5)
+krows = [("Everywhere", "Ctrl+K", "Keyboard shortcuts…"), ("", "Ctrl+S", "Save"),
+         ("In Graph canvas", "Ctrl+Z", "Undo"), ("", "Delete", "Delete the selection"),
+         ("Map · unit", "A", "Attack"), ("", "C", "Center View"), ("", "M", "Move"), ("", "Space", "Select"),
+         ("Map", "Right click on the ground", "Menu for empty space"), ("", "Right click on an entity", "Select it and open its menu"),
+         ("Command hat", "Right click on the ground or a friendly", "RTS: move here"), ("", "Ctrl + Right click on a hostile", "RTS: attack whatever is there")]
+for i, (scope, chord, does) in enumerate(krows):
+    y = FY + 90 + i * 19
+    if i % 2: s.rect(FX + 8, y, 624, 19, "#16161B")
+    if scope: s.text(FX + 14, y + 14, scope, C.DIS, 12.5)
+    s.text(FX + 144, y + 14, chord, C.ACC, 12.5); s.text(FX + 414, y + 14, does, C.TXT, 12.5)
+s.note(FX + 660, FY + 40, ["ONE list, read from the ONE keymap:", "a binding that is declared cannot be", "missing, one that is not cannot be", "shown wrong. Keys (focused windows,", "the map's menu letters, Everywhere)", "and the RTS / map mouse gestures",
+                           "(K7) sit side by side, by scope.", "", "The scope is named once per group (dim);", "the chord is the accent colour; the", "search matches any column.", "", "Read-only: rebinding and a user", "overrides file are not built (Q6)."], C.SUB)
 s.save(sys.argv[1])

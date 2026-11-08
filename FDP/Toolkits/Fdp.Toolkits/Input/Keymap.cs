@@ -100,7 +100,28 @@ public readonly record struct KeymapConflict(KeymapEntry First, KeymapEntry Seco
 /// </summary>
 public sealed class Keymap
 {
+    /// <summary>
+    /// ⭐ B-10 K6 (§6f) — THE keymap of this process: the ImGui <c>KeyRouter</c>, the map backend's gesture router and the Keyboard shortcuts window all read and write THIS one
+    /// (⛔ SUPERSEDES one <see cref="Keymap"/> per <c>WindowManager</c> plus a separate map one).
+    /// </summary>
+    public static Keymap Process { get; } = new();
+
     private readonly List<KeymapEntry> _entries = new();
+    private readonly Dictionary<ActionRef, string> _labels = new();
+
+    /// <summary>Bumped on every change (a row, a label): a view rebuilds only when it moved.</summary>
+    public int Version { get; private set; }
+
+    /// <summary>Names <paramref name="action"/> for display (the Keyboard shortcuts window, a tooltip). Declarers call it when they declare.</summary>
+    public void SetLabel(ActionRef action, string label)
+    {
+        if (_labels.TryGetValue(action, out var old) && string.Equals(old, label, StringComparison.Ordinal)) return;
+        _labels[action] = label;
+        Version++;
+    }
+
+    /// <summary>The label of <paramref name="action"/>, else its id.</summary>
+    public string LabelOf(ActionRef action) => _labels.TryGetValue(action, out var l) ? l : action.ToString();
     private readonly HashSet<(InputScope, string?, ActionRef)> _declared = new();
 
     /// <summary>How many rows.</summary>
@@ -117,6 +138,7 @@ public sealed class Keymap
     {
         if (!_declared.Add((entry.Scope, entry.WindowKind, entry.Action))) return false;
         _entries.Add(entry);
+        Version++;
         return true;
     }
 
@@ -135,6 +157,7 @@ public sealed class Keymap
     {
         if (!_gestureDeclared.Add((entry.Scope, entry.Qualifier, entry.Gesture))) return false;
         _gestures.Add(entry);
+        Version++;
         return true;
     }
 

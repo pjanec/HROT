@@ -53,15 +53,27 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>The scope qualifier of the RTS scope: the Command hat's name.</summary>
         public static readonly string RtsHat = HatArbiter.WordOf(Hat.Command);
 
+        private static void Label(Keymap keymap, string id, string label) => keymap.SetLabel(ActionRef.Command(id), label);
+
         private static GestureEntry Map(GestureButton b, GestureKind k, GestureTarget t, string id, GestureModifiers m = GestureModifiers.None)
             => new(new MapGesture(b, k, m, t), InputScope.Map, null, ActionRef.Command(id));
 
         private static GestureEntry Rts(GestureButton b, GestureTarget t, string id, GestureModifiers m = GestureModifiers.None)
             => new(new MapGesture(b, GestureKind.Click, m, t), InputScope.Hat, RtsHat, ActionRef.Command(id));
 
-        /// <summary>Declares the defaults into <paramref name="keymap"/> (idempotent).</summary>
+        /// <summary>Declares the defaults into <paramref name="keymap"/> (idempotent): the gestures, their labels, and the unit menu's letters.</summary>
         public static void Declare(Keymap keymap)
         {
+            DeclareGestures(keymap);
+            Hrot.Common.Actions.MapMenuActions.DeclareKeys(keymap);   // ⭐ K6 — the map's menu letters are rows too (declared on the actions, K2)
+        }
+
+        private static void DeclareGestures(Keymap keymap)
+        {
+            Label(keymap, MapGestureIds.Select, "Select it alone"); Label(keymap, MapGestureIds.Clear, "Clear the selection"); Label(keymap, MapGestureIds.Band, "Box select");
+            Label(keymap, MapGestureIds.MenuSelection, "Menu for the selection"); Label(keymap, MapGestureIds.MenuEntity, "Select it and open its menu"); Label(keymap, MapGestureIds.MenuEmpty, "Menu for empty space");
+            Label(keymap, MapGestureIds.RtsSelect, "RTS: select"); Label(keymap, MapGestureIds.RtsSelectAdd, "RTS: add to the selection"); Label(keymap, MapGestureIds.RtsMove, "RTS: move here");
+            Label(keymap, MapGestureIds.RtsAttack, "RTS: attack"); Label(keymap, MapGestureIds.RtsAttackForce, "RTS: attack whatever is there");
             // ── the map scope: the selection rules (Action Catalogue §8) and "right click = the menu" ──────────────────────────────
             keymap.DeclareGesture(Map(GestureButton.Left, GestureKind.Click, GestureTarget.AnyEntity, MapGestureIds.Select));
             keymap.DeclareGesture(Map(GestureButton.Left, GestureKind.Click, GestureTarget.Ground, MapGestureIds.Clear));
@@ -94,7 +106,7 @@ namespace Hrot.ScenarioEditor.Map
             get
             {
                 if (_shared != null) return _shared;
-                var keymap = new Keymap();
+                var keymap = Keymap.Process;   // ⭐ B-10 K6 — the ONE keymap: the ImGui KeyRouter and the shortcuts window read it too
                 MapGestureBindings.Declare(keymap);
                 return _shared = new MapGestureRouter(keymap);
             }

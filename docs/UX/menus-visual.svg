@@ -1,5 +1,5 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='985' viewBox='0 0 1240 985'>
-<rect x='0' y='0' width='1240' height='985' fill='#1B1B1F' rx='0' opacity='1'/>
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='1290' viewBox='0 0 1240 1290'>
+<rect x='0' y='0' width='1240' height='1290' fill='#1B1B1F' rx='0' opacity='1'/>
 <text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Menus, shortcuts and undo — one action catalogue for every surface (house style; Action Catalogue §2, Input, Undo)</text>
 <text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
 <text x='20' y='70' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A — right-click Alpha 1-1 · Live · Instructor seat</text>
@@ -168,4 +168,63 @@
 <text x='560' y='930' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A take edit (Move camera key) is a step like any</text>
 <text x='560' y='944' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>other: Edit ▸ Undo names it. A take is its own file,</text>
 <text x='560' y='958' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>so it never puts the dot on the scenario title.</text>
+<text x='20' y='897' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>F — Edit ▸ Keyboard shortcuts… (Ctrl+K) · a read-only VIEW of the one keymap: keys AND mouse gestures, by scope (B-10 K6)</text>
+<rect x='20' y='905' width='640' height='330' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='905' width='640' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='919' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Keyboard shortcuts</text>
+<rect x='28' y='937' width='624' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='33' y='951' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Search shortcuts…</text>
+<rect x='28' y='967' width='624' height='20' fill='#1C344F' rx='0' opacity='1'/>
+<text x='34' y='981' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Where</text>
+<text x='164' y='981' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Shortcut</text>
+<text x='434' y='981' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Does</text>
+<text x='34' y='1009' fill='#808080' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Everywhere</text>
+<text x='164' y='1009' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Ctrl+K</text>
+<text x='434' y='1009' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Keyboard shortcuts…</text>
+<rect x='28' y='1014' width='624' height='19' fill='#16161B' rx='0' opacity='1'/>
+<text x='164' y='1028' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Ctrl+S</text>
+<text x='434' y='1028' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Save</text>
+<text x='34' y='1047' fill='#808080' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>In Graph canvas</text>
+<text x='164' y='1047' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Ctrl+Z</text>
+<text x='434' y='1047' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Undo</text>
+<rect x='28' y='1052' width='624' height='19' fill='#16161B' rx='0' opacity='1'/>
+<text x='164' y='1066' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Delete</text>
+<text x='434' y='1066' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Delete the selection</text>
+<text x='34' y='1085' fill='#808080' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Map · unit</text>
+<text x='164' y='1085' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A</text>
+<text x='434' y='1085' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Attack</text>
+<rect x='28' y='1090' width='624' height='19' fill='#16161B' rx='0' opacity='1'/>
+<text x='164' y='1104' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>C</text>
+<text x='434' y='1104' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Center View</text>
+<text x='164' y='1123' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>M</text>
+<text x='434' y='1123' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Move</text>
+<rect x='28' y='1128' width='624' height='19' fill='#16161B' rx='0' opacity='1'/>
+<text x='164' y='1142' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Space</text>
+<text x='434' y='1142' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Select</text>
+<text x='34' y='1161' fill='#808080' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Map</text>
+<text x='164' y='1161' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Right click on the ground</text>
+<text x='434' y='1161' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Menu for empty space</text>
+<rect x='28' y='1166' width='624' height='19' fill='#16161B' rx='0' opacity='1'/>
+<text x='164' y='1180' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Right click on an entity</text>
+<text x='434' y='1180' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Select it and open its menu</text>
+<text x='34' y='1199' fill='#808080' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Command hat</text>
+<text x='164' y='1199' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Right click on the ground or a friendly</text>
+<text x='434' y='1199' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>RTS: move here</text>
+<rect x='28' y='1204' width='624' height='19' fill='#16161B' rx='0' opacity='1'/>
+<text x='164' y='1218' fill='#4296FA' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Ctrl + Right click on a hostile</text>
+<text x='434' y='1218' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>RTS: attack whatever is there</text>
+<text x='680' y='945' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ONE list, read from the ONE keymap:</text>
+<text x='680' y='959' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a binding that is declared cannot be</text>
+<text x='680' y='973' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>missing, one that is not cannot be</text>
+<text x='680' y='987' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>shown wrong. Keys (focused windows,</text>
+<text x='680' y='1001' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the map's menu letters, Everywhere)</text>
+<text x='680' y='1015' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>and the RTS / map mouse gestures</text>
+<text x='680' y='1029' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(K7) sit side by side, by scope.</text>
+<text x='680' y='1043' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
+<text x='680' y='1057' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The scope is named once per group (dim);</text>
+<text x='680' y='1071' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the chord is the accent colour; the</text>
+<text x='680' y='1085' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>search matches any column.</text>
+<text x='680' y='1099' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
+<text x='680' y='1113' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Read-only: rebinding and a user</text>
+<text x='680' y='1127' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>overrides file are not built (Q6).</text>
 </svg>

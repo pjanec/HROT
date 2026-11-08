@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07) — K1 BUILT, as-built in §5a; K2 · K3 · K7 BUILT (§6, §6c, §6d, ui 2026-11-08); ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
-updated: 2026-11-08 (K5 — §6e, ui Z-6) · 2026-11-08 (K2 rest + K3 + K7 BUILT — §6 / §6c / §6d, ui Z-5) · 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
+updated: 2026-11-08 (K5 + K6 — §6e / §6f, ui Z-6) · 2026-11-08 (K2 rest + K3 + K7 BUILT — §6 / §6c / §6d, ui Z-5) · 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
 current-answer: §2 the model · §3 stages · §4 questions with leans · §5 the K1 build design (homes, the chord, the id, the per-frame call) · §6 / §6c / §6d the map: hat + camera scopes, one-level Esc, the mouse gestures (as built)
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
@@ -181,7 +181,7 @@ forwards, so a remote viewer gets exactly the same map keys as the local map, an
 | **K4** | the FPS station, the timeline, IG pan / zoom / undo, debug F-keys onto bindings (Hold / Axis kinds for the held ones) |
 | **K5** ✅ *(BUILT, §6e)* | `IEditorCommands` and `RegisterItem` closures as actions; buttons and keys call action ids; the dead seam deleted |
 | **K7** ✅ *(R-4163; BUILT §6d)* | **every user input, not only keys**: mouse gestures on the map (left / right click on an entity, on ground, a drag, Shift / Ctrl variants) become bindings in the same scope chain; the map scope binds the selection rules (Action Catalogue §8) and *right click = the menu*; the **RTS scope** overrides only what it changes (§6b); `RtsCommandGizmo`'s hand-written mouse handling becomes its bindings | a rail per scope: the same click resolves to the menu in the map scope and to Move / Attack in the RTS scope; an unbound key (2-D / 3-D, Ctrl+S) still works in RTS |
-| **K6** | the Keyboard shortcuts window; user overrides in a settings file; rebind UI later |
+| **K6** ✅ *(BUILT, §6f)* | the Keyboard shortcuts window; user overrides in a settings file; rebind UI later |
 
 ## 4. Questions — ✅ approved as revised *(🔒 user, `2026-11-06`: "otherwise it looks good")*
 
@@ -448,7 +448,7 @@ sequenceDiagram
 | the type | `MapGesture` + `GestureEntry` in `Fdp.Toolkit.Input`, rows in the SAME `Keymap`; ⛔ no `InputBinding` | §6d inventory: the chord type is a leaf assembly's |
 | RTS right click on a friend / neutral | **Move** (RTS declares Ground + non-hostile entity) | the handoff said RTS overrides only "ground / hostile"; Entity Control §8a and rail `CE3171_…OrAFriendOrANeutral_MovesThere` say a friend is a move to its position — a friend falling to the map's menu would pop a menu in RTS. ⏭ needs the user if the menu is wanted there |
 | the menu verbs (`map.menu.*`) | declared and resolved, but the MENU is still opened by the terminal (`DebugGizmoLayer`) and the selection effect by `SelectionInteractionSystem` | the dumb terminal (§2.4) opens a menu locally from the pick it made; moving the open onto a backend row is a wire change (⏭ the gizmo-input-focus design) |
-| `Shared` router | one process keymap for the map's backend side; the ImGui `KeyRouter` keeps its own `Keymap` | the key router lives per `WindowManager`; ⏭ K6 (the shortcuts window) joins them |
+| `Shared` router | one process keymap for the map's backend side; the ImGui `KeyRouter` kept its own `Keymap` — ⛔ SUPERSEDED by K6 (§6f): both are `Keymap.Process` now | the key router lives per `WindowManager`; K6 joined them |
 
 ### 6b. ⭐ The scope covers ALL input — keys AND mouse gestures; RTS is one scope *(R-4163, user `2026-11-07`)*
 
@@ -512,3 +512,46 @@ sequenceDiagram
 | the guard | rail `NoProductionMenuItemIsAClosureOnly` scans the production sources: a `GlobalMenu.RegisterItem(` / `RegisterCheckableItem(` outside the registry and the adapter fails |
 | the dead seam | `IShellCommandRegistrar.RegisterShortcut` deleted (interface, capture, mock) |
 | ⏭ | the map's `GlobalActionRegistry` ints and the shell's string ids stay two id spaces (`ActionRef.Global` / `Command`) — folding them is the catalogue's call (B-11), not K5's |
+
+### 6f. ⭐ K6 — the Keyboard shortcuts window; ONE keymap *(ui, `2026-11-08`; built)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Shortcut|Keymap|KeyRouter).*` Class ⇒ `Keymap` · `KeymapEntry` · `KeyRouter` · `StructTableFocus` (reads the router's keymap) · `MenuShortcuts`; **two** `Keymap` instances in a process: each `WindowManager`'s `KeyRouter` made its own, and the map backend's `MapGestureRouter.Shared` another (§6d ⏭). Window precedent: `ManagedWindow` + `RegisterWindow` (e.g. `JsonExportWindow`).
+
+```mermaid
+classDiagram
+  direction LR
+  class Keymap { <<existing>> Process : the ONE instance NEW · Version NEW · SetLabel / LabelOf NEW · key rows · gesture rows }
+  class KeyRouter { <<existing>> declares the shell + focused-window commands into the keymap it is given }
+  class MapGestureBindings { <<existing>> Declare: gestures + the unit menu's letters NEW }
+  class ShortcutRows { <<NEW, Fdp.Presentation>> Build(keymap, filter) cached by keymap.Version · Row(scope, chord, action label) }
+  class KeyboardShortcutsWindow { <<NEW ManagedWindow>> search box · rows by scope · Ctrl+K }
+  KeyRouter --> Keymap : Keymap.Process
+  MapGestureBindings ..> Keymap : declares into Process
+  KeyboardShortcutsWindow --> ShortcutRows
+  ShortcutRows --> Keymap : reads rows + labels
+```
+*What the picture shows that prose hid: the window owns no list — it is a VIEW of the one keymap, so a binding that is not declared cannot be shown wrong, and one that is declared cannot be missing.*
+
+```mermaid
+sequenceDiagram
+  participant U as the user (Ctrl+K · Edit ▸ Keyboard shortcuts…)
+  participant K as KeyRouter (Global scope)
+  participant W as KeyboardShortcutsWindow
+  participant R as ShortcutRows
+  participant M as Keymap.Process
+  U->>K: Ctrl+K
+  K->>W: command shell.keyboard-shortcuts → Show
+  W->>R: Rows(filter) — only when keymap.Version or the filter changed
+  R->>M: key rows · gesture rows · labels
+  W-->>U: table: scope · chord / gesture · action (steady frame: 0 B)
+```
+
+| | as built |
+|---|---|
+| ONE keymap | `Keymap.Process` — `WindowManager` passes it to its `KeyRouter`; the map backend's `MapGestureRouter.Shared` is built over it. ⛔ SUPERSEDES the "two keymaps, ⏭ K6" row of §6d |
+| what is listed | key rows (Global · focused-window kinds · the map's menu letters per target class — unit / area / zone / route — declared by `MapMenuActions.DeclareKeys` from the action catalogue + `OrderShortcuts`; the same letter on two classes is not a conflict, twice on one is) and the K7 gesture rows (map scope, RTS scope) — each with its action's label (`Keymap.SetLabel`, set by whoever declares) |
+| not listed | held keys (WASD, sprint: K4) and a panel's own item-level keys (Enter / Esc in a text field) — not declared in the keymap yet |
+| user overrides file, rebind UI | ⏭ **not built**: Q6's "optional overrides file" has no stored-state home decided (settings location, per-host) — an architect question, not a build item; the window is read-only |
+| the window | `KeyboardShortcutsWindow` (`Edit ▸ Keyboard shortcuts…`, command `shell.keyboard-shortcuts`, **Ctrl+K** — the mockup's key; ⛔ SUPERSEDES §2.2's "F1"): a search box over a three-column table (Where 130 · Shortcut 270 · Does), the scope named once per group, the chord in the accent colour; model `ShortcutRows` (rebuilt only when `Keymap.Version` or the filter moved). Mockup: `menus-visual.svg` panel F (`scripts/gen-menus-mockup.py`) |
+| fidelity, measured | rail `OnARealFrame_CtrlKOpensTheWindow…` reads the drawn positions on a real ImGui frame: the search box above the first row, one x for every row's chord and action column, rows going down; ⚠ no pixel render was made (no SVG rasteriser on this machine) — the layout is asserted, the picture is the SVG |
+| rails | `ShortcutsWindowTests` (rows by scope + filter, 0 B steady, real frame + Ctrl+K + measured layout) · `MenuOrdersTests.K6_TheMapLettersAndGestures…` — each red-proved by a compiling mutation |

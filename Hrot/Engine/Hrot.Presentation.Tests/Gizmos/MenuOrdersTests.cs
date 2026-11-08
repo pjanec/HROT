@@ -262,6 +262,25 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal("M", Hrot.Common.Actions.MapMenuActions.OrderItem(OrderMenu.Orders.First(o => o.Name == "Move"), degraded: false, form: false)!.Shortcut);
     }
 
+    /// <summary>
+    /// ⭐⭐ B-10 K6 (docs/UX/DESIGN_Input_And_Commands.md §6f) — the map's menu letters (declared on the actions, K2) and its mouse gestures (K7) are rows of the ONE process keymap, so the Keyboard shortcuts window
+    /// lists them: per target class (unit / area / zone / route) with the action's label, no letter bound twice for one class.
+    /// 🔴 Red-proof (compiles): <c>DeclareKeys</c> not called from <c>MapGestureBindings.Declare</c> ⇒ no letter rows ⇒ red; two actions declaring "E" for the unit ⇒ <c>Validate</c> names the conflict.
+    /// </summary>
+    [Fact]
+    public void K6_TheMapLettersAndGestures_AreRowsOfTheOneKeymap_WithoutAConflict()
+    {
+        var map = MapGestureRouter.Shared.Keymap;
+        Assert.Same(Fdp.Toolkit.Input.Keymap.Process, map);
+        var rows = new Fdp.Presentation.Input.ShortcutRows(map).Rows("");
+        void Has(string scope, string binding, string action) => Assert.Contains(rows, r => r.Scope == scope && r.Binding == binding && r.Action == action);
+        Has("Map · unit", "M", "Move"); Has("Map · unit", "A", "Attack"); Has("Map · unit", "P", "Possess (FPS)"); Has("Map · unit", "C", "Center View"); Has("Map · unit", "Ctrl+C", "Copy");
+        Has("Map · area", "E", "Edit Shape"); Has("Map · route", "E", "Edit Route");                      // the same letter, two target classes
+        Has("Map", "Right click on the ground", "Menu for empty space"); Has("Command hat", "Right click on the ground or a friendly", "RTS: move here");
+        Assert.DoesNotContain(map.Validate(), c => c.First.Scope == Fdp.Toolkit.Input.InputScope.Map);
+        Assert.Empty(map.ValidateGestures());
+    }
+
     private sealed class RightButton : Fdp.Toolkit.Vis2D.Abstractions.IInputProvider
     {
         public bool Down;
