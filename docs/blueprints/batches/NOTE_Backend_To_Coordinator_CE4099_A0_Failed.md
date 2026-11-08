@@ -12,7 +12,7 @@ singletons ON) is not the live save:
 - the Recording type set drops NoReplay saved components (`VariantForms`: a variant scenario's presence / places).
 The entities are otherwise identical with every type captured.
 
-**The amendment, measured.** All types + the header built on the frame thread + the content singletons handed to the sandbox by reference ⇒ identical.
+**The amendment, measured.** All types + the header built on the frame thread + the content singletons handed to the sandbox by reference ⇒ **byte-identical on all three** (the rail pins it: the amended gate must hold, the designed one is reported).
 
 **A second finding (A4, the worker).** The serializer holds no mutable state, but its translators read `BehaviorRegistry` (plain dictionaries) and a
 behaviour hot reload writes it on the frame thread ⇒ a worker extraction can race a hot reload. Lean: an autosave round started while a hot reload is

@@ -1658,7 +1658,7 @@ headless editor; `ScenarioSaveCore.BuildDom` on the live world vs on a sandbox r
 | ⛔ **as designed** — Recording types, singletons ON | DIFFERS: header (`TerrainName`, `Description` null) + every door written | same | header (`Description`, `Features`) + `VariantForms` Presence×6 / Positions×2 lost |
 | All types, singletons ON | header + doors | header + doors | header |
 | All types + the header built on the FRAME thread | doors only (`TerrainObjects` section: every door) | doors only | ✅ identical |
-| ⭐ **All types + header on the frame + CONTENT singletons shared by reference** | (see the rail) | (see the rail) | ✅ identical |
+| ⭐ **All types + header on the frame + CONTENT singletons shared by reference** | ✅ identical (112 103 B; capture 22 ms) | ✅ identical (77 070 B) | ✅ identical (94 204 B) |
 
 | why it fails | measured |
 |---|---|

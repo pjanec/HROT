@@ -364,6 +364,114 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
     }
 
     /// <summary>
+    /// ⛔⛔ <c>CE-4099</c> AUTOSAVE GATE <b>A0</b> (📄 AQ108 §4c) — MEASURED before anything is built: the save of a world REBUILT from a keyframe (a private sandbox repo,
+    /// what an autosave would extract on a worker) must be BYTE-IDENTICAL to the save of the live world, for curated scenarios loaded into a real headless editor.
+    /// Measured for two capture sets: the design's (<see cref="CaptureOptions.Recording"/> types, singletons ON) and every type (<see cref="KeyframeTypes.All"/>, singletons ON);
+    /// the output names, per set, the components and singletons that differ. The assertion is the design's set.
+    /// </summary>
+    [Theory(Timeout = 600_000)]
+    [InlineData("uc-urban-battle")]
+    [InlineData("pc-defend-house")]
+    [InlineData("showcase-bridgehead")]
+    public void CE4099_A0_ASaveOfAKeyframeSandbox_IsByteIdenticalToTheLiveSave(string scenario)
+    {
+        WithTheScenarioLoaded(scenario, (editor, world) =>
+        {
+            var save = editor.NodeForTest!.ClusterSlave.RegisteredHandlers.OfType<BaselineAfterSaveHandler>().Single().Inner;
+            var serializer = (Fdp.Toolkit.Scenario.ScenarioSerializer)save.GetType()
+                .GetField("_serializer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(save)!;
+            const string docType = Hrot.Common.Scenario.HrotSubsystemTypes.Scenario;
+            var liveHeader = Hrot.Map.Common.Scenario.ScenarioSaveCore.HeaderOf(world, docType);
+            string Save(EntityRepository w, bool headerFromLive = false) => Hrot.Map.Common.Scenario.ScenarioSaveCore.BuildDom(serializer, w,
+                    headerFromLive ? liveHeader : Hrot.Map.Common.Scenario.ScenarioSaveCore.HeaderOf(w, docType))
+                .ToJsonString(Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            string live = Save(world);
+
+            string? designVerdict = null;
+            string? amendedVerdict = null;
+            // ⭐ rows 3–4 are the AMENDMENT the measurement suggests: every type captured, the header built on the frame thread (it reads only singletons),
+            //   and (row 4) the CONTENT singletons the save reads but never writes — TerrainWorld (the doors' authored states) — handed to the sandbox by reference
+            foreach (var (label, options, headerFromLive, content) in new[] { ("Recording+singletons", CaptureOptions.Recording, false, false),
+                                                                     ("All+singletons", new CaptureOptions(KeyframeTypes.All, Singletons: true), false, false),
+                                                                     ("All+singletons, header from the frame", new CaptureOptions(KeyframeTypes.All, Singletons: true), true, false),
+                                                                     ("All+singletons, header from the frame, content singletons shared", new CaptureOptions(KeyframeTypes.All, Singletons: true), true, true) })
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var kf = WorldKeyframes.Capture(world, options);
+                double captureMs = sw.Elapsed.TotalMilliseconds;
+                using var sandbox = new EntityRepository();
+                RegisterLike(sandbox, world);
+                string boxed;
+                try
+                {
+                    WorldKeyframes.Apply(sandbox, kf);
+                    if (content && world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>())
+                        sandbox.SetSingletonManaged(world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()!);   // read-only content, shared by reference
+                    boxed = Save(sandbox, headerFromLive);
+                }
+                catch (Exception ex) { boxed = "THREW: " + ex.GetType().Name + ": " + ex.Message; }
+                string verdict = live == boxed ? "IDENTICAL" : "DIFFERS — " + Diff(live, boxed);
+                if (live != boxed && Environment.GetEnvironmentVariable("HROT_A0_DUMP") is { Length: > 0 } dump)   // the two saves, for a byte diff by hand
+                {
+                    Directory.CreateDirectory(dump);
+                    File.WriteAllText(Path.Combine(dump, $"{scenario}.{label}.live.json"), live);
+                    File.WriteAllText(Path.Combine(dump, $"{scenario}.{label}.sandbox.json"), boxed);
+                }
+                _out.WriteLine($"A0 {scenario} [{label}]: {world.EntityCount} entities, live save {live.Length} chars, sandbox save {boxed.Length} chars, capture {captureMs:F0} ms — {verdict}");
+                designVerdict ??= verdict;
+                if (content) amendedVerdict = verdict;
+            }
+            // ⛔ A0 as DESIGNED fails (measured 2026-11-08 — the header and the doors read NoReplay CONTENT singletons a keyframe does not carry; the
+            //   Recording set also drops NoReplay VariantForms). The rail pins the AMENDED gate: it must hold, and the designed one must still fail
+            //   (if it ever passes, the amendment is no longer needed — re-read AQ108 §4c).
+            Assert.True(amendedVerdict == "IDENTICAL", $"A0 (amended) FAILS for {scenario}: {amendedVerdict}");
+            _out.WriteLine($"A0 {scenario}: designed = {(designVerdict == "IDENTICAL" ? "holds" : "fails")}; amended = holds");
+        });
+    }
+
+    /// <summary>The sandbox registers exactly the live world's component types (what a worker's private repo would).</summary>
+    private static void RegisterLike(EntityRepository sandbox, EntityRepository world)
+    {
+        var register = typeof(EntityRepository).GetMethods().Single(m => m.Name == "RegisterComponent" && m.IsGenericMethodDefinition && m.GetParameters().Length == 1);
+        var registerManaged = typeof(EntityRepository).GetMethods().Single(m => m.Name == "RegisterManagedComponent" && m.IsGenericMethodDefinition && m.GetParameters().Length == 1);
+        foreach (var t in world.GetRegisteredComponentTypes().Keys)
+            (t.IsValueType ? register : registerManaged).MakeGenericMethod(t).Invoke(sandbox, new object?[] { null });
+    }
+
+    /// <summary>Where two saves differ: the top-level sections, then per entity the component names that differ (counted), and entities only on one side.</summary>
+    private static string Diff(string a, string b)
+    {
+        if (b.StartsWith("THREW", StringComparison.Ordinal)) return b;
+        var x = System.Text.Json.Nodes.JsonNode.Parse(a)!.AsObject();
+        var y = System.Text.Json.Nodes.JsonNode.Parse(b)!.AsObject();
+        var parts = new List<string>();
+        foreach (var (k, v) in x)
+            if (!string.Equals(k, "Entities", StringComparison.OrdinalIgnoreCase) && !System.Text.Json.Nodes.JsonNode.DeepEquals(v, y[k]))
+            {
+                string Short(System.Text.Json.Nodes.JsonNode? n) { var t = n?.ToJsonString() ?? "null"; return t.Length > 80 ? t[..80] + "…" : t; }
+                if (v is System.Text.Json.Nodes.JsonObject hv && y[k] is System.Text.Json.Nodes.JsonObject hb)
+                    parts.Add($"section '{k}' keys: " + string.Join(", ", hv.Select(kv => kv.Key).Union(hb.Select(kv => kv.Key))
+                        .Where(n => !System.Text.Json.Nodes.JsonNode.DeepEquals(hv[n], hb[n])).Select(n => $"{n} live={Short(hv[n])} sandbox={Short(hb[n])}")));
+                else parts.Add($"section '{k}'");
+            }
+        var ex = (x["Entities"] ?? x["entities"])?.AsObject();
+        var ey = (y["Entities"] ?? y["entities"])?.AsObject();
+        if (ex is null || ey is null) return string.Join("; ", parts.Append("no Entities on one side"));
+        int onlyLive = ex.Count(kv => !ey.ContainsKey(kv.Key)), onlyBox = ey.Count(kv => !ex.ContainsKey(kv.Key));
+        var comps = new Dictionary<string, int>();
+        foreach (var (key, ev) in ex)
+        {
+            if (ey[key] is not System.Text.Json.Nodes.JsonObject bo || ev is not System.Text.Json.Nodes.JsonObject lo) continue;
+            foreach (var name in lo.Select(kv => kv.Key).Union(bo.Select(kv => kv.Key)))
+                if (!System.Text.Json.Nodes.JsonNode.DeepEquals(lo[name], bo[name])) comps[name] = comps.GetValueOrDefault(name) + 1;
+        }
+        parts.Add($"entities {ex.Count} live / {ey.Count} sandbox (only live {onlyLive}, only sandbox {onlyBox})");
+        if (comps.Count > 0) parts.Add("components differing: " + string.Join(", ", comps.OrderByDescending(kv => kv.Value).Take(12).Select(kv => $"{kv.Key}×{kv.Value}")));
+        if (parts.Count == 1 && onlyLive == 0 && onlyBox == 0 && comps.Count == 0) parts.Add("same content, different order/bytes");
+        return string.Join("; ", parts);
+    }
+
+    /// <summary>
     /// ⭐ Edit-mode undo U1 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.2 "memory", §3 U1) — MEASURES one undo capture (<see cref="CaptureOptions.Undo"/>, the
     /// AUTHORED mask) on real scenarios in the real headless editor: its size and time, beside the recorder's mask, and the depth a 256 MB ring holds.
     /// ⭐ Writes the numbers to the test output (the design's §1 records them); asserts only what the ring needs — that a capture is a fraction of the budget
