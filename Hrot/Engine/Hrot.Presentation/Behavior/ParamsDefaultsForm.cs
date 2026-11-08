@@ -171,13 +171,11 @@ public static class ParamsDefaultsForm
         // ⭐ CE-3384 (presets §5d) — the ONE value form: the struct table's own rows in a two-column table (label · value). The amber bar, the grey default and the ↺ are the table's (defaults = a document over the DTO's
         // initialisers); the old third column ("*" + Reset) is gone — ↺ writes the default back and TryEdited turns a value equal to it into NO override.
         var drawer = model.DrawerFor(picks, readOnly)!;
-        if (ImGuiNET.ImGui.BeginTable(id, 2, ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg))
+        if (StructTable.Begin(id, label: "Field", value: "Default"))
         {
-            ImGuiNET.ImGui.TableSetupColumn("Field", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 140f);
-            ImGuiNET.ImGui.TableSetupColumn("Default", ImGuiNET.ImGuiTableColumnFlags.WidthStretch);
             var kids = fields.Children;
             for (int i = 0; i < kids.Count; i++) drawer.DrawEditNode(kids[i]);   // R-2084: an index loop (a foreach over the interface boxes an enumerator)
-            ImGuiNET.ImGui.EndTable();
+            StructTable.End();
         }
 
         if (readOnly) return null;

@@ -72,17 +72,33 @@ public static class BehaviorParamsForm
                                   Fdp.Presentation.Editing.Types.TypeCatalogue? types = null, IServiceProvider? services = null)
     {
         if (session is null) throw new ArgumentNullException(nameof(session));
-        if (!ImGuiNET.ImGui.BeginTable(tableId, 2, ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg)) return;
+        if (!Fdp.Presentation.Editing.StructTable.Begin(tableId)) return;   // ⭐ CE-3384 — the ONE struct-table chrome
         if (session.RebuildState == EditRebuildState.RebuildRequired) session.RebuildDocument();
         // ⭐ CE-4218 — the value leaf of a property match (RE-3) and the Type combo are STANDARD types now (CE-3378, N-1): no per-frame dictionary. ⭐ `only` = a tab's fields (RuleTabs): the root's fields by name, the rest of the document untouched
         // ⭐ CE-4220 — `types`: a host's own cells (the rule editor's do-list drawer holds the step sessions, so it lives across frames), an overlay it built ONCE on TypeCatalogue.Standard; it wins for its type
-        var drawer = new ComponentEditDrawer(session, picks, paramBindContext: binds, types: types, services: services, defaults: Fdp.Presentation.Editing.TypeDefaults.For(session.Document.Root.ClrType));   // ⭐ N-4: the params type's own defaults
+        var drawer = DrawerOf(session, picks, binds, types, services);
         if (only != null && ComponentEditDrawer.FieldsOwner(session.Document.Root) is { } owner)
         {
-            foreach (var child in owner.Children) if (only.Contains(child.Name)) drawer.DrawEditNode(child);
+            for (int i = 0, n = owner.Children.Count; i < n; i++) { var child = owner.Children[i]; if (only.Contains(child.Name)) drawer.DrawEditNode(child); }
         }
         else drawer.DrawRoot(session.Document.Root);
-        ImGuiNET.ImGui.EndTable();
+        Fdp.Presentation.Editing.StructTable.End();
+    }
+
+    private sealed class DrawerHolder { public ComponentEditDrawer Drawer = null!; public IMapPickContext? Picks; public Fdp.Presentation.Editing.IParamBindContext? Binds; public Fdp.Presentation.Editing.Types.TypeCatalogue? Types; public IServiceProvider? Services; }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IEditSession, DrawerHolder> Drawers = new();
+
+    /// <summary>⭐ CE-3384 — ONE drawer per session (it was built EVERY FRAME: its text cells, open flags and refusal lines lived one frame): rebuilt only when a host passes a different pick context / bind context / catalogue.
+    /// ⭐ N-4: the params type's own defaults.</summary>
+    private static ComponentEditDrawer DrawerOf(IEditSession session, IMapPickContext? picks, Fdp.Presentation.Editing.IParamBindContext? binds, Fdp.Presentation.Editing.Types.TypeCatalogue? types, IServiceProvider? services)
+    {
+        var h = Drawers.GetOrCreateValue(session);
+        if (h.Drawer is null || !ReferenceEquals(h.Picks, picks) || !ReferenceEquals(h.Binds, binds) || !ReferenceEquals(h.Types, types) || !ReferenceEquals(h.Services, services))
+        {
+            h.Drawer = new ComponentEditDrawer(session, picks, paramBindContext: binds, types: types, services: services, defaults: Fdp.Presentation.Editing.TypeDefaults.For(session.Document.Root.ClrType));
+            h.Picks = picks; h.Binds = binds; h.Types = types; h.Services = services;
+        }
+        return h.Drawer;
     }
 
     /// <summary>Commits <paramref name="session"/> and returns the assignment's JSON.</summary>

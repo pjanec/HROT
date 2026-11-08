@@ -251,12 +251,12 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
             if (row.Problem != null) ImGui.TextColored(new Vector4(0.9f, 0.7f, 0.3f, 1f), row.Problem);
             else if (row.Session is { } session)
             {
-                if (ImGui.BeginTable("##args", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+                if (Fdp.Presentation.Editing.StructTable.Begin("##args"))
                 {
                     if (session.RebuildState == EditRebuildState.RebuildRequired) session.RebuildDocument();
                     if (row.Drawer == null || !ReferenceEquals(row.DrawerPicks, _ctx.Picks)) { row.Drawer = new ComponentEditDrawer(session, _ctx.Picks, defaults: row.Entry != null ? TypeDefaults.For(row.Entry.ParamsType) : null); row.DrawerPicks = _ctx.Picks; }
                     row.Drawer.DrawRoot(session.Document.Root);
-                    ImGui.EndTable();
+                    Fdp.Presentation.Editing.StructTable.End();
                 }
                 if (session.IsDirty && row.Entry != null)
                 {

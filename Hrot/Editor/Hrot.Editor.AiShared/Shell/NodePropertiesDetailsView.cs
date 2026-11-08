@@ -211,18 +211,16 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
         if (_facetSession.RebuildState == EditRebuildState.RebuildRequired)
             _facetSession.RebuildDocument();
 
-        var drawer  = new ComponentEditDrawer(_facetSession, pickerCtx: null, types: _source.Catalogue, defaults: TypeDefaults.For(facetType));
+        // ⭐ CE-3384 — ONE drawer per open session (it was built every frame: the cells' text and refusal lines lived one frame)
+        if (_facetDrawer is null || !ReferenceEquals(_facetDrawerSession, _facetSession)) { _facetDrawer = new ComponentEditDrawer(_facetSession, pickerCtx: null, types: _source.Catalogue, defaults: TypeDefaults.For(facetType)); _facetDrawerSession = _facetSession; }
+        var drawer  = _facetDrawer;
 
         // Two-column "Property | Value" table (matches ComponentEditWindow layout).
-        if (ImGuiNET.ImGui.BeginTable($"##{idScope}_facet_edit", 2,
-            ImGuiNET.ImGuiTableFlags.SizingStretchProp))
+        if (Fdp.Presentation.Editing.StructTable.Begin($"##{idScope}_facet_edit", label: "Property"))   // ⭐ CE-3384 — the ONE struct-table chrome
         {
-            ImGuiNET.ImGui.TableSetupColumn("Property", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.4f);
-            ImGuiNET.ImGui.TableSetupColumn("Value",    ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.6f);
-
             drawer.DrawRoot(_facetSession.Document.Root);
 
-            ImGuiNET.ImGui.EndTable();
+            Fdp.Presentation.Editing.StructTable.End();
         }
 
         // Commit on every dirty frame so edits flow back to the asset continuously.
@@ -284,17 +282,14 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
         ImGuiNET.ImGui.Text($"DEFAULT VALUE — {boundVarName}");
         ImGuiNET.ImGui.TextDisabled("the variable this node writes (ExpressionTargetField)");
 
-        var drawer  = new ComponentEditDrawer(_defaultValueSession, pickerCtx: null, types: _source.Catalogue);
+        if (_defaultValueDrawer is null || !ReferenceEquals(_defaultValueDrawerSession, _defaultValueSession)) { _defaultValueDrawer = new ComponentEditDrawer(_defaultValueSession, pickerCtx: null, types: _source.Catalogue); _defaultValueDrawerSession = _defaultValueSession; }
+        var drawer  = _defaultValueDrawer;
 
-        if (ImGuiNET.ImGui.BeginTable($"##{idScope}_defval_edit", 2,
-            ImGuiNET.ImGuiTableFlags.SizingStretchProp))
+        if (Fdp.Presentation.Editing.StructTable.Begin($"##{idScope}_defval_edit"))
         {
-            ImGuiNET.ImGui.TableSetupColumn("Field", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.4f);
-            ImGuiNET.ImGui.TableSetupColumn("Value", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.6f);
-
             drawer.DrawRoot(_defaultValueSession.Document.Root);
 
-            ImGuiNET.ImGui.EndTable();
+            Fdp.Presentation.Editing.StructTable.End();
         }
 
         if (_defaultValueSession.IsDirty)
@@ -310,6 +305,9 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
     }
 
     // ── lifetime ─────────────────────────────────────────────────────────────
+
+    private ComponentEditDrawer? _facetDrawer, _defaultValueDrawer;
+    private IEditSession? _facetDrawerSession, _defaultValueDrawerSession;
 
     private void DisposeFacetSession()
     {

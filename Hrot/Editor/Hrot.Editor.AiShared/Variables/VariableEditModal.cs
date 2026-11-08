@@ -339,6 +339,16 @@ public sealed class VariableEditModal
 
     // ── the draw half — ImGui only, and deliberately decision-free ──────────
 
+    private ComponentEditDrawer? _drawer;
+    private IEditSession? _drawerSession;
+
+    /// <summary>⭐ CE-3384 — ONE drawer per open session (it was built every frame).</summary>
+    private ComponentEditDrawer DrawerOf(IEditSession session)
+    {
+        if (_drawer is null || !ReferenceEquals(_drawerSession, session)) { _drawer = new ComponentEditDrawer(session, pickerCtx: null); _drawerSession = session; }
+        return _drawer;
+    }
+
     /// <summary>
     /// ⭐⭐⭐ <b>A SCALAR IS ONE ROW, LABELLED WITH THE VARIABLE'S OWN NAME.</b>
     ///
@@ -444,18 +454,13 @@ public sealed class VariableEditModal
             // ⭐ Steps 3–5. EndTable is inside the `if`, so it is reached on every path that opened the
             //   table — including DrawEditNode's own early RebuildRequired return, which returns into
             //   this block rather than out of it.
-            if (ImGui.BeginTable(TableId, 2,
-                    ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
-                    ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit))
+            if (Fdp.Presentation.Editing.StructTable.Begin(TableId, label: "Property"))   // ⭐ CE-3384 — the ONE struct-table chrome
             {
-                ImGui.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 180f);
-                ImGui.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
-
-                var drawer = new ComponentEditDrawer(session, pickerCtx: null);
+                var drawer = DrawerOf(session);
                 drawer.DrawRoot(ScalarRowOrRoot(session.Document.Root,   // ⭐ CE-1013/CE-1016 — no redundant struct-name row
                                                     _binder.ActiveRow?.ShortName));
 
-                ImGui.EndTable();
+                Fdp.Presentation.Editing.StructTable.End();
             }
 
             ImGui.Separator();

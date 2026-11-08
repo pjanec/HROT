@@ -57,4 +57,31 @@ public sealed class ParamsDefaultsFrameRail
         Assert.NotNull(commit);
         Assert.Null(commit!.Json);                                               // no override is left
     }
+
+    /// <summary>⭐ CE-3384 (b) — the behaviour-params form (the host of the rule, order, entity-AI, mission forms) draws through the ONE struct-table chrome with ONE drawer per session (it built a drawer every frame): 0 B steady, and an edit lands in the session.</summary>
+    [SkippableFact]
+    public void TheBehaviourParamsForm_DrawsThroughTheStructTable_WithOneDrawerPerSession_AndAllocatesNothing()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin(700, 300);
+        new EditorFontService().Initialize(1f, 1f);
+        var session = BehaviorParamsForm.Open(ComponentEditServices.CreateBuilder().Build(), typeof(Dto), null);
+        long bytes = -1;
+        void Draw()
+        {
+            ImGui.SetNextWindowPos(new Vector2(10, 10)); ImGui.SetNextWindowSize(new Vector2(680, 260));
+            ImGui.Begin("##bpf", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            BehaviorParamsForm.DrawFields(session, null);
+            bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            ImGui.End();
+        }
+        for (int k = 0; k < 3; k++) { frame.StepN(15, Draw); System.Threading.Thread.Sleep(220); }
+        frame.StepN(5, Draw);
+        Assert.True(bytes == 0, $"a steady behaviour-params form allocates nothing ({bytes} bytes)");
+        var root = session.Document.Root.Kind == EditNodeKind.SelectionRoot ? session.Document.Root.Children[0] : session.Document.Root;
+        root.Children.Single(c => c.Name == "Rounds").Binding!.SetBoxed(9);
+        frame.StepN(3, Draw);
+        Assert.Equal(9, ((Dto)session.Commit()).Rounds);
+    }
 }

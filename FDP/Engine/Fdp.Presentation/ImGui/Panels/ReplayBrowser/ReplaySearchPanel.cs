@@ -219,16 +219,8 @@ public sealed class ReplaySearchPanel
         DrawModeRadio();
         DrawPresetToolbar();
 
-        var tableFlags = ImGuiTableFlags.Borders
-            | ImGuiTableFlags.RowBg
-            | ImGuiTableFlags.Resizable
-            | ImGuiTableFlags.SizingFixedFit;
-
-        if (ImGuiApi.BeginTable("SearchCriteria", 2, tableFlags))
+        if (StructTable.Begin("SearchCriteria", headers: true, label: "Property"))   // ⭐ CE-3384 — the ONE struct-table chrome
         {
-            ImGuiApi.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 180f);
-            ImGuiApi.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
-            ImGuiApi.TableHeadersRow();
 
             TreeRowsDrawn = 0;
             foreach (var child in _predicateSession.Document.Root.Children)
@@ -236,7 +228,7 @@ public sealed class ReplaySearchPanel
                 _componentEditDrawer.DrawEditNode(child);
                 TreeRowsDrawn++;
             }
-            ImGuiApi.EndTable();
+            StructTable.End();
         }
         }
 

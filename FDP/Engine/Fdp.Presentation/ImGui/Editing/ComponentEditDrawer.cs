@@ -83,7 +83,7 @@ public sealed partial class ComponentEditDrawer
         try
         {
             if (FieldsOwner(root) is { } owner)
-                foreach (var child in owner.Children) DrawEditNode(child);
+                for (int i = 0, n = owner.Children.Count; i < n; i++) DrawEditNode(owner.Children[i]);   // R-2084: an index loop (foreach over the interface boxes an enumerator)
             else
                 DrawEditNode(root);
         }

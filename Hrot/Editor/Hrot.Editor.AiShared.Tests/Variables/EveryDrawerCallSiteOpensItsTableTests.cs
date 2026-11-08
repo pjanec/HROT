@@ -115,9 +115,9 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
                 if (!IsCallSite(lines[i])) continue;
 
                 bool opened = Enumerable.Range(Math.Max(0, i - Window), Math.Min(Window, i))
-                    .Any(j => lines[j].Contains("BeginTable(", StringComparison.Ordinal) || lines[j].Contains("FormGrid.BeginTree(", StringComparison.Ordinal));   // ⭐ U-13: FormGrid.BeginTree is a table
+                    .Any(j => lines[j].Contains("BeginTable(", StringComparison.Ordinal) || lines[j].Contains("StructTable.Begin(", StringComparison.Ordinal) || lines[j].Contains("FormGrid.BeginTree(", StringComparison.Ordinal));   // ⭐ U-13: FormGrid.BeginTree is a table
                 bool closed = Enumerable.Range(i + 1, Math.Min(Window, lines.Length - i - 1))
-                    .Any(j => lines[j].Contains("EndTable(", StringComparison.Ordinal) || lines[j].Contains("FormGrid.End(", StringComparison.Ordinal));
+                    .Any(j => lines[j].Contains("EndTable(", StringComparison.Ordinal) || lines[j].Contains("StructTable.End(", StringComparison.Ordinal) || lines[j].Contains("FormGrid.End(", StringComparison.Ordinal));
 
                 if (!opened || !closed)
                     failures.Add($"{file}:{i + 1} — " +
@@ -142,12 +142,11 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
     {
         var modal = RepoFiles.Read("Hrot/Editor/Hrot.Editor.AiShared/Variables/VariableEditModal.cs");
 
-        Assert.Contains("BeginTable(TableId, 2", modal, StringComparison.Ordinal);
-        Assert.Contains("TableSetupColumn(\"Property\"", modal, StringComparison.Ordinal);
-        Assert.Contains("TableSetupColumn(\"Value\"",    modal, StringComparison.Ordinal);
+        // ⭐ CE-3384 — the two columns (Property · Value) are the ONE struct-table chrome's now
+        Assert.Contains("StructTable.Begin(TableId, label: \"Property\"", modal, StringComparison.Ordinal);
 
         int rebuildAt = modal.IndexOf("RebuildDocument()", StringComparison.Ordinal);
-        int tableAt   = modal.IndexOf("BeginTable(",       StringComparison.Ordinal);
+        int tableAt   = modal.IndexOf("StructTable.Begin(",  StringComparison.Ordinal);
         Assert.True(rebuildAt > 0, "the modal never rebuilds a stale document");
         Assert.True(rebuildAt < tableAt,
             "RebuildDocument must run BEFORE BeginTable, as ComponentEditWindow.DrawClientArea does.");
