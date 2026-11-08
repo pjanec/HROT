@@ -276,14 +276,27 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     {
         if (SaveIntercept?.Invoke() == true) return;
         if (string.IsNullOrEmpty(_loadedScenarioName)) return;
-        if (SaveDisabledReason is not null) return;   // ⭐ CE-3394 — a variant world is never written (the menu says why)
+        if (VariantSaveRefusal is not null) return;   // ⭐ CE-3394 — a variant world is never written (the menu says why); the cluster half gates the SURFACES (CE-3407)
         PublishScenarioSave(_loadedScenarioName!);
         Saved?.Invoke();
     }
 
     /// <inheritdoc/>
-    /// <remarks>Cached per world version (the gate walks the entities): a menu reads it every frame it is open, the world changes only on a load.</remarks>
+    /// <remarks>⭐ CE-3407 (AQ108 §0 D27, R-3083) — ONE answer: the cluster first (<see cref="SaveRefusal.Of"/> — an error, or any state but Edit), then the variant gate.
+    /// The variant gate is cached per world version (it walks the entities): a menu reads it every frame it is open, the world changes only on a load.</remarks>
     public string? SaveDisabledReason
+    {
+        get
+        {
+            if (SaveRefusal.Of(_clusterView()) is { } cluster) return cluster;
+            return VariantSaveRefusal;
+        }
+    }
+
+    /// <summary>⭐ CE-3394 — the variant half alone: the backstop <see cref="SaveCurrent"/> / <see cref="SaveAs"/> keep.</summary>
+    /// <remarks>⛔ Not the cluster half: <c>New from a recipe</c> calls <see cref="SaveAs"/> as soon as its open WENT OUT (<c>ScenarioDoor.Open</c>'s <c>then</c>), while the
+    /// cluster may still be Idle — the master orders the save after the load. The cluster half gates the user's surfaces, which all read <see cref="SaveDisabledReason"/>.</remarks>
+    private string? VariantSaveRefusal
     {
         get
         {
@@ -301,7 +314,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     public void SaveAs(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
-        if (SaveDisabledReason is not null) return;   // ⭐ CE-3394 — under a new name it would lose the absent entities just the same
+        if (VariantSaveRefusal is not null) return;   // ⭐ CE-3394 — under a new name it would lose the absent entities just the same
         PublishScenarioSave(scenarioName);
         CopyTakes(_loadedScenarioName, scenarioName);
         _loadedScenarioName = scenarioName;

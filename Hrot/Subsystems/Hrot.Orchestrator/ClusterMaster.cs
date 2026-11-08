@@ -1754,7 +1754,7 @@ public sealed partial class ClusterMaster : IDisposable
                     Targets                      = activeNodeIds,
                     ResyncsOnSuccess             = throughIdle,   // ⭐ C3
                     IsLoadRound                  = trajectory.OfType<TransitionStep>().Any(t => t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit),   // ⭐ CE-3345
-                    RunOnSuccess                 = RunsWhenLoaded(intent, trajectory, resolvedTarget),   // ⭐ CE-3354
+                    RunOnSuccess                 = RunsWhenLoaded(intent, trajectory, resolvedTarget, StartLiveImmediately),   // ⭐ CE-3354
                 };
             }
             else
@@ -1762,7 +1762,7 @@ public sealed partial class ClusterMaster : IDisposable
                 // No nodes registered or no prepare steps — complete immediately.
                 if (resolvedTarget == ClusterState.Idle && ClearClusterError()) PublishClusterState(ClusterState.Idle);   // ⭐ CE-3345 — Idle reached with no node to ask
                 PublishOpStatus(requestId, OrchestrationStatusCode.Success);
-                if (RunsWhenLoaded(intent, trajectory, resolvedTarget)) _eventBus.PublishManaged(new ResumeTimeIntent());   // ⭐ CE-3354 — no node to wait for
+                if (RunsWhenLoaded(intent, trajectory, resolvedTarget, StartLiveImmediately)) _eventBus.PublishManaged(new ResumeTimeIntent());   // ⭐ CE-3354 — no node to wait for
             }
         }
         else
@@ -2315,6 +2315,7 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
+            StartLiveImmediately = StartLiveImmediately,   // ⭐ CE-3415 (AQ108 §0 D31)
             FeatureOverrides = FeatureOverrides.ToArray(),   // ⭐ Node Features F-16
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
@@ -2334,6 +2335,7 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
+            StartLiveImmediately = StartLiveImmediately,   // ⭐ CE-3415 (AQ108 §0 D31)
             FeatureOverrides = FeatureOverrides.ToArray(),   // ⭐ Node Features F-16
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
@@ -2614,14 +2616,15 @@ public sealed partial class ClusterMaster : IDisposable
     /// succeeds? A LIVE load of a scenario runs unless it asked to start paused (<c>TimeMode = "Deterministic"</c>); a DRY RUN runs when it asked to
     /// (<c>TimeMode = "Continuous"</c>, the Play button from edit). The rules <c>GlobalContextProcessManager</c> applied, now on the round's success.
     /// </summary>
-    internal static bool RunsWhenLoaded(TransitionStateIntent intent, IEnumerable<ISysOpStep> trajectory, ClusterState resolvedTarget)
+    /// <remarks>⭐ CE-3415 (AQ108 §0 D31) — <paramref name="startLiveImmediately"/> (the <i>Start immediately</i> run setting) lets a live load run even when it asked to start paused; Preview is unaffected.</remarks>
+    internal static bool RunsWhenLoaded(TransitionStateIntent intent, IEnumerable<ISysOpStep> trajectory, ClusterState resolvedTarget, bool startLiveImmediately = false)
     {
         if (resolvedTarget == ClusterState.OperatingPreview)
             return intent.TimeMode == GlobalContextProcessManager.ContinuousTimeMode;
         return resolvedTarget == ClusterState.OperatingLive
             && !string.IsNullOrEmpty(intent.ScenarioId)
             && trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.LoadingLive)
-            && intent.TimeMode != GlobalContextProcessManager.StartPausedTimeMode;
+            && (intent.TimeMode != GlobalContextProcessManager.StartPausedTimeMode || startLiveImmediately);
     }
 
     private void OweAck(Guid txId, int nodeId)

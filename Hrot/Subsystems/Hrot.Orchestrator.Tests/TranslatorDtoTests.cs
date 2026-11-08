@@ -132,6 +132,14 @@ public sealed class TranslatorDtoTests
             Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
         }
         Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false,\"Armed\":1}").AskToKeepRecordings);
+
+        // ⭐ CE-3415 (AQ108 D31) — Start immediately crosses whole too, and an older sender's payload (absent) leaves it unchanged
+        foreach (bool? start in new bool?[] { null, true, false })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), StartLiveImmediately = start };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false,\"AskToKeepRecordings\":true}").StartLiveImmediately);
     }
 
     // ── Test 4: Unknown enum string should throw ──────────────────────────────

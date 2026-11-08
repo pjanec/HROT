@@ -92,6 +92,9 @@ public sealed class ClusterPanelRunControls
     /// <summary>The cluster's <i>Ask to keep recordings</i> setting; null = no cluster view.</summary>
     public bool? AskToKeepRecordings => Choice.AskToKeepSetting;
 
+    /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting; null = no cluster view.</summary>
+    public bool? StartImmediately => Choice.StartImmediatelySetting;
+
     /// <summary>Both toggles are enabled whenever the host has a cluster view.</summary>
     public bool RunSettingsEnabled => Choice.RecordLiveRunsSetting is not null;
 
@@ -100,6 +103,9 @@ public sealed class ClusterPanelRunControls
 
     /// <summary>Set <i>Ask to keep recordings</i> — <c>SetRunSettingsIntent</c> with only that field.</summary>
     public void SetAskToKeepRecordings(bool on) => Choice.SendRunSettings(null, on);
+
+    /// <summary>Set <i>Start immediately</i> — <c>SetRunSettingsIntent</c> with only that field.</summary>
+    public void SetStartImmediately(bool on) => Choice.SendRunSettings(null, null, on);
 
     // ── scenario / recording ─────────────────────────────────────────────────────────
 

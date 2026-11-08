@@ -166,9 +166,10 @@ namespace Hrot.Editor.DebugApi
                 return (null, "No subsystem on this host keeps the cluster's read model (a ClusterUiCache / ClusterSlave) that carries the run settings.", DebugApiHints.Panel);
             var armed = _editorArmedMode?.Invoke() ?? _dispatcher?.ArmedModeAnyNode ?? Fdp.Toolkit.Orchestration.ClusterArmedMode.Live;   // the same View fact as `off`; Live = the master's default
             var ask = _editorAskToKeepRecordings?.Invoke() ?? _dispatcher?.AskToKeepRecordingsAnyNode ?? false;   // ⭐ AQ108 D15 (CE-4100 ①) — the same View fact; OFF = the master's default
+            var startNow = _editorStartLiveImmediately?.Invoke() ?? _dispatcher?.StartLiveImmediatelyAnyNode ?? false;   // ⭐ CE-3415 (AQ108 §0 D31) — the same View fact; OFF = the master's default
             var mapNodes = new JsonArray();
             foreach (var n in MapInLoadNodesNow()) mapNodes.Add(n);   // ⭐ CE-3354 ③ — the same View fact
-            return (new JsonObject { ["recordLiveRuns"] = !off.Value, ["armed"] = armed.ToString().ToLowerInvariant(), ["askToKeepRecordings"] = ask, ["mapInLoadNodes"] = mapNodes }, null, null);
+            return (new JsonObject { ["recordLiveRuns"] = !off.Value, ["armed"] = armed.ToString().ToLowerInvariant(), ["askToKeepRecordings"] = ask, ["startLiveImmediately"] = startNow, ["mapInLoadNodes"] = mapNodes }, null, null);
         }
 
         /// <summary>⭐ CE-3354 ③ — the master's map-in-load set as this host's cluster view last heard it (empty where there is no view).</summary>
@@ -183,7 +184,7 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public (JsonNode? Result, string? Error, string? HintCategory) SetRunSettings(JsonNode? body)
         {
-            const string usage = "recordLiveRuns (true | false), armed (preview | live | aar), askToKeepRecordings (true | false), mapInLoad (true | false: this node) and / or mapInLoadNodes ([names]) is required: {\"recordLiveRuns\": false}, {\"armed\": \"live\"}, {\"askToKeepRecordings\": true}, {\"mapInLoad\": true} or {\"mapInLoadNodes\": [\"film-cam\"]}.";
+            const string usage = "recordLiveRuns (true | false), armed (preview | live | aar), askToKeepRecordings (true | false), startLiveImmediately (true | false), mapInLoad (true | false: this node) and / or mapInLoadNodes ([names]) is required: {\"recordLiveRuns\": false}, {\"armed\": \"live\"}, {\"askToKeepRecordings\": true}, {\"startLiveImmediately\": true}, {\"mapInLoad\": true} or {\"mapInLoadNodes\": [\"film-cam\"]}.";
             bool? record = null;
             if (body?["recordLiveRuns"] is { } rv)
             {
@@ -198,6 +199,12 @@ namespace Hrot.Editor.DebugApi
                     || !Enum.IsDefined(parsed))
                     return (null, usage, DebugApiHints.Scenario);
                 armed = parsed;
+            }
+            bool? startNow = null;
+            if (body?["startLiveImmediately"] is { } sv)
+            {
+                if (sv is not JsonValue sj || !sj.TryGetValue(out bool sb)) return (null, usage, DebugApiHints.Scenario);
+                startNow = sb;
             }
             bool? ask = null;
             if (body?["askToKeepRecordings"] is { } kv)
@@ -248,10 +255,10 @@ namespace Hrot.Editor.DebugApi
                 }
                 general = specs.ToArray();
             }
-            if (record is null && armed is null && ask is null && mapNodes is null && general is null) return (null, usage, DebugApiHints.Scenario);
+            if (record is null && armed is null && ask is null && startNow is null && mapNodes is null && general is null) return (null, usage, DebugApiHints.Scenario);
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
-            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed, AskToKeepRecordings = ask,
+            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed, AskToKeepRecordings = ask, StartLiveImmediately = startNow,
                 FeatureOverrides = general ?? (mapNodes is null ? null : MapInLoadOverrides.Replace((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.FeatureOverrides, mapNodes)) };
             master.SetRunSettings(intent);
             var result = new JsonObject
@@ -262,6 +269,7 @@ namespace Hrot.Editor.DebugApi
             if (record is { } r) result["recordLiveRuns"] = r;
             if (armed is { } a) result["armed"] = a.ToString().ToLowerInvariant();
             if (ask is { } k2) result["askToKeepRecordings"] = k2;
+            if (startNow is { } k3) result["startLiveImmediately"] = k3;
             if (mapNodes != null) { var arr2 = new JsonArray(); foreach (var n in mapNodes) arr2.Add(n); result["mapInLoadNodes"] = arr2; }
             return (result, null, null);
         }

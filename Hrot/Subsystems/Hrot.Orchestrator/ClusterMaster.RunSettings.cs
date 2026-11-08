@@ -39,6 +39,9 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster-wide <i>Ask to keep recordings</i> setting: when a live run ends, the operator UI asks Keep / Discard (default OFF — keep silently). Read by the UI off the broadcast; the master never acts on it.</summary>
     public bool AskToKeepRecordings { get; set; }
 
+    /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster-wide <i>Start immediately</i> setting: a LIVE load of a scenario resumes by itself even when it asked to start paused (default OFF — pause at 0:00 for the briefing). Read at the load's success (<see cref="RunsWhenLoaded"/>); Preview is unaffected.</summary>
+    public bool StartLiveImmediately { get; set; }
+
     /// <summary>⭐ Node Features F-16 — the cluster's feature overrides, held by the MASTER and broadcast with the cluster state; stamped per node onto each LOAD's payload.</summary>
     public IReadOnlyList<FeatureOverrideSpec> FeatureOverrides { get; private set; } = Array.Empty<FeatureOverrideSpec>();
 
@@ -126,6 +129,7 @@ public sealed partial class ClusterMaster
         if (intent.RecordLiveRuns is { } record) RecordLiveRuns = record;
         if (intent.Armed is { } armed) ArmedMode = armed;
         if (intent.AskToKeepRecordings is { } ask) AskToKeepRecordings = ask;   // ⭐ AQ108 D15 (CE-4100 ①)
+        if (intent.StartLiveImmediately is { } startNow) StartLiveImmediately = startNow;   // ⭐ CE-3415 (AQ108 §0 D31)
         if (intent.FeatureOverrides is { } featureOverrides)   // ⭐ Node Features F-8/F-16 — null = no change, empty = none; refused whole when a node lacks the feature
         {
             if (FeatureOverrideRefusal(featureOverrides) is { } refusal)
@@ -137,7 +141,7 @@ public sealed partial class ClusterMaster
             FeatureOverrides = featureOverrides.ToArray();   // a NEW array per change: every node compares the reference
         }
         PublishClusterState(_currentDsmState);   // every host reads the settings off the broadcast, so tell them now
-        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090/CE-3341: run settings now: Record live runs {0} (from the next live load), armed mode {1}, ask to keep recordings {2}.", RecordLiveRuns, ArmedMode, AskToKeepRecordings);
+        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090/CE-3341: run settings now: Record live runs {0} (from the next live load), armed mode {1}, ask to keep recordings {2}, start immediately {3}.", RecordLiveRuns, ArmedMode, AskToKeepRecordings, StartLiveImmediately);
         PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
     }
 

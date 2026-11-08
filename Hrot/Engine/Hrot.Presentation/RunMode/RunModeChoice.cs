@@ -65,8 +65,10 @@ public sealed class RunModeChoice
     public bool? RecordLiveRunsSetting => _transport.RecordLiveRunsSetting;
     /// <summary>⭐ CE-4100 ① — the cluster's <i>Ask to keep recordings</i> setting (null = no cluster view here).</summary>
     public bool? AskToKeepSetting => _transport.AskToKeepSetting;
+    /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting (null = no cluster view here).</summary>
+    public bool? StartImmediatelySetting => _transport.StartImmediatelySetting;
     /// <summary>⭐ CE-4100 ① — set the cluster's run settings; a null argument leaves that one as it is.</summary>
-    public void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings) => _transport.SendRunSettings(recordLiveRuns, askToKeepRecordings);
+    public void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null) => _transport.SendRunSettings(recordLiveRuns, askToKeepRecordings, startLiveImmediately);
 
     /// <summary>⭐ <c>CE-1437</c> — this host has a scenario session (an <i>operator</i> host: editor, CGF); false on SimHost / IG. Read by the run-controls pick rule.</summary>
     public bool HasScenarioControl => _control is not null;

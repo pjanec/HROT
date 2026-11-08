@@ -246,6 +246,9 @@ public interface ISubsystemDebugProvider
     /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> SETTING is ON (the master's broadcast); null when this node keeps no cluster read model.</summary>
     bool? AskToKeepRecordings { get; }
 
+    /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> SETTING is ON (the master's broadcast); null when this node keeps no cluster read model.</summary>
+    bool? StartLiveImmediately { get; }
+
     /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode (the master's broadcast, via this node's <c>ClusterView</c>); null when this node keeps no cluster read model.</summary>
     Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedMode { get; }
 
@@ -413,6 +416,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<bool?>? _runNotRecorded;   // CE-4090
     private readonly Func<bool?>? _recordLiveRunsOff;   // CE-4090
     private readonly Func<bool?>? _askToKeepRecordings;   // CE-4100
+    private readonly Func<bool?>? _startLiveImmediately;   // CE-3415
     private readonly Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? _armedMode;   // CE-3341
     private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?>? _clusterView;   // CE-3344
     private readonly Func<Hrot.UI.Common.RunMode.RunModeChoice?>? _runChoice;   // CE-1451
@@ -502,6 +506,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<bool?>? runNotRecorded = null,
         Func<bool?>? recordLiveRunsOff = null,
         Func<bool?>? askToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①)
+        Func<bool?>? startLiveImmediately = null,   // ⭐ CE-3415 (AQ108 §0 D31)
         Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? armedMode = null,   // ⭐ CE-3341
         // ⭐ CE-4093 (AQ108 D20) — the check round's outcome and the last verdict, from the same cluster read model (ClusterUiCache)
         Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
@@ -521,6 +526,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _runNotRecorded = runNotRecorded;
         _recordLiveRunsOff = recordLiveRunsOff;
         _askToKeepRecordings = askToKeepRecordings;
+        _startLiveImmediately = startLiveImmediately;
         _armedMode = armedMode;
         _unsavedCheck = unsavedCheck;
         _scenarioDirty = scenarioDirty;
@@ -688,6 +694,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public bool? RunNotRecorded => _runNotRecorded?.Invoke();
     public bool? RecordLiveRunsOff => _recordLiveRunsOff?.Invoke();
     public bool? AskToKeepRecordings => _askToKeepRecordings?.Invoke();
+    public bool? StartLiveImmediately => _startLiveImmediately?.Invoke();
     public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedMode => _armedMode?.Invoke();
     public Fdp.Toolkit.Orchestration.ClusterView? ClusterView => _clusterView?.Invoke();
     public Hrot.UI.Common.RunMode.RunModeChoice? RunChoice => _runChoice?.Invoke();

@@ -1,126 +1,91 @@
 #!/usr/bin/env python3
-"""Derive the Blueprint_Issues_Tracker.md counts table from the rows themselves.
+"""Counts and an id lint for Blueprint_Issues_Tracker.md — DERIVED from the rows, never stored.
 
-Why this exists
----------------
-The counts table has been wrong in the done column in three consecutive batches (29, 30, 31),
-each time by a different mechanism, and each time the OPEN column was correct:
+⭐ User, `2026-11-08`: the stored counts table is REMOVED from the tracker — it conflicted on almost every
+merge (every lane rewrote the same lines) and it only ever restated the rows. The counts are a VIEW now:
 
-  29 — inherited drift that predated the batch
-  30 — a row ticked done but never added to its complexity column
-  31 — two rows moved open->done; open was decremented by 2, done incremented by 1
-
-The shape of the error is always the same: maintaining two representations of one fact by hand.
-So stop doing that. Run this, paste the table.
-
-  python3 scripts/tracker-counts.py            # print the table
-  python3 scripts/tracker-counts.py --check    # exit 1 if the file's table disagrees
+  python3 scripts/tracker-counts.py            # print the counts (by size, by id family)
+  python3 scripts/tracker-counts.py --check    # lint: exit 1 on a NEW duplicate id or a NEW letter-suffixed id
 
 Counting rules:
   * an issue row is a top-level "- [ ] " / "- [x] " line whose FIRST bold token is an id of ANY family
-    (BP- CE- HN- AX- MA- MD- MX- QA- ST- TM- …). ⭐ CE-073 (`2026-11-01`): it used to count BP- rows only,
-    so every `--check` OK ignored the majority of the file.
-  * a row's complexity is its FIRST `RW-x` tag: the size buckets in ORDER; an unknown letter buckets as
-    OTHER (a handful of rows used RW-N/O/P/Q/W as private labels); rows with none are counted under WIRING
-  * a second table breaks the same rows down by id family (open / done)
-  * the *(refuted on verification)* row sits OUTSIDE the Total, so the checkbox tally of
-    done rows is exactly one higher than the Total. That is correct, not a discrepancy.
+  * a row's size is its FIRST `RW-x` tag (unknown letter = OTHER; none = WIRING)
+  * a done row marked REFUTED is counted apart, not in the totals
+
+Lint rules (--check):
+  * one id = one row. An id may repeat only with a different lane tag right after it — `**CE-459** (ui)` —
+    the protocol's way of telling apart ids allocated before the per-lane blocks. ⛔ Never renumber.
+  * no letter suffix on an id from the per-lane blocks (`CE-1000` and above; user `2026-09-12`)
+  * KNOWN_DUPLICATES are collisions that predate this lint; each stays until a lane tags it apart.
 """
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 TRACKER = Path(__file__).resolve().parent.parent / "docs" / "blueprints" / "Blueprint_Issues_Tracker.md"
 ORDER = ["WIRING", "RW-XS", "RW-S", "RW-L", "RW-M", "RW-H", "RW-XL", "OTHER"]
+ROW = re.compile(r"^- \[( |x)\] (?:~~)?\*\*\[?(([A-Z]{2,3})-(\d+)([a-z]?))\]?(?:\]\([^)]*\))?\*\*(?:~~)?"
+                 r"( \((?:ui|behaviors|backend|coordinator)\))?")
+
+# Measured 2026-11-08 when the lint replaced the stored table. Legacy (pre-block) collisions, plus two in ui's
+# block (CE-1461, CE-1462: an OPEN row and a BUILT row each — NOTE_Backend_To_Ui_Tracker_Id_Collisions.md).
+KNOWN_DUPLICATES = {"CE-011", "CE-170", "CE-215", "CE-217", "CE-297", "CE-298", "CE-299", "CE-1461", "CE-1462"}
 
 
 def scan(text):
-    """Return (counter keyed by (state, bucket), refuted_count, total_rows, counter keyed by (state, family))."""
-    counts = Counter()
-    families = Counter()
-    refuted = 0
-    rows = 0
-    for line in text.split("\n"):
-        m = re.match(r"^- \[( |x)\] (?:~~)?\*\*\[?([A-Z]{2,3})-\d+", line)
+    counts, families, lines = Counter(), Counter(), defaultdict(list)
+    refuted = rows = 0
+    suffixed = []
+    for n, line in enumerate(text.split("\n"), 1):
+        m = ROW.match(line)
         if not m:
             continue
         rows += 1
-        state = m.group(1)
-        tag = re.search(r"`(RW-[A-Z]+)`", line)         # FIRST tag wins
+        state, rid, fam, num, suf, lane = m.groups()
+        lines[rid + (lane or "")].append(n)
+        if suf and int(num) >= 1000:
+            suffixed.append((rid, n))
+        tag = re.search(r"`(RW-[A-Z]+)`", line)
         bucket = (tag.group(1) if tag.group(1) in ORDER else "OTHER") if tag else "WIRING"
-        # A refuted row is a done row struck through and marked REFUTED; it is excluded
-        # from the Total by the table's own convention.
         if state == "x" and "REFUTED" in line:
             refuted += 1
             continue
         counts[(state, bucket)] += 1
-        families[(state, m.group(2))] += 1
-    return counts, refuted, rows, families
-
-
-def render(counts, refuted):
-    out = ["| Complexity | Open | Done |", "|---|---:|---:|"]
-    to = td = 0
-    for bucket in ORDER:
-        o = counts.get((" ", bucket), 0)
-        d = counts.get(("x", bucket), 0)
-        to += o
-        td += d
-        label = f"`{bucket}`"
-        out.append(f"| {label} | {o} | {d} |")
-    out.append(f"| **Total** | **{to}** | **{td}** |")
-    if refuted:
-        out.append(f"| *(refuted on verification)* | | *{refuted}* |")
-    return "\n".join(out), to, td
-
-
-def render_families(families):
-    out = ["| Id family | Open | Done |", "|---|---:|---:|"]
-    for fam in sorted({f for _, f in families}):
-        out.append(f"| `{fam}-` | {families.get((' ', fam), 0)} | {families.get(('x', fam), 0)} |")
-    return "\n".join(out)
+        families[(state, fam)] += 1
+    return counts, families, refuted, rows, lines, suffixed
 
 
 def main():
     text = TRACKER.read_text(encoding="utf-8")
-    counts, refuted, rows, families = scan(text)
-    table, to, td = render(counts, refuted)
+    counts, families, refuted, rows, lines, suffixed = scan(text)
+    to = sum(v for (s, _), v in counts.items() if s == " ")
+    td = sum(v for (s, _), v in counts.items() if s == "x")
 
-    check = "--check" in sys.argv
-    if not check:
-        print(table)
-        print()
-        print(render_families(families))
-        print()
-        print(f"# rows scanned: {rows}  (open {to} + done {td} + refuted {refuted})")
+    if "--check" not in sys.argv:
+        print("| Size | Open | Done |\n|---|---:|---:|")
+        for b in ORDER:
+            print(f"| `{b}` | {counts.get((' ', b), 0)} | {counts.get(('x', b), 0)} |")
+        print(f"| **Total** | **{to}** | **{td}** |\n")
+        print("| Id family | Open | Done |\n|---|---:|---:|")
+        for fam in sorted({f for _, f in families}):
+            print(f"| `{fam}-` | {families.get((' ', fam), 0)} | {families.get(('x', fam), 0)} |")
+        print(f"\n# rows: {rows}  (open {to} + done {td} + refuted {refuted})")
         return 0
 
-    # --check: compare against what the file currently claims.
     bad = []
-    for bucket in ORDER:
-        m = re.search(rf"^\| `{re.escape(bucket)}` \| (\d+) \| (\d+) \|", text, re.M)
-        if not m:
-            bad.append(f"{bucket}: row not found in the table")
-            continue
-        want = (counts.get((" ", bucket), 0), counts.get(("x", bucket), 0))
-        got = (int(m.group(1)), int(m.group(2)))
-        if want != got:
-            bad.append(f"{bucket}: table says open={got[0]} done={got[1]}, rows say open={want[0]} done={want[1]}")
-
-    m = re.search(r"^\| \*\*Total\*\* \| \*\*(\d+)\*\* \| \*\*(\d+)\*\* \|", text, re.M)
-    if not m:
-        bad.append("Total: row not found")
-    elif (int(m.group(1)), int(m.group(2))) != (to, td):
-        bad.append(f"Total: table says open={m.group(1)} done={m.group(2)}, rows say open={to} done={td}")
-
+    for key, ns in sorted(lines.items()):
+        if len(ns) > 1 and key not in KNOWN_DUPLICATES:
+            bad.append(f"{key}: one id on {len(ns)} rows (lines {', '.join(map(str, ns))}) — take a new id from your block")
+    for rid, n in suffixed:
+        bad.append(f"{rid}: letter suffix on a block id (line {n}) — ids are plain numbers")
     if bad:
-        print("TRACKER COUNTS DISAGREE WITH THE ROWS:", file=sys.stderr)
+        print("TRACKER ID LINT FAILED:", file=sys.stderr)
         for b in bad:
             print("  " + b, file=sys.stderr)
-        print("\nCorrect table:\n" + table, file=sys.stderr)
         return 1
-    print(f"tracker counts OK — open {to} / done {td} (+{refuted} refuted)")
+    print(f"tracker ids OK — {rows} rows, open {to} / done {td} (+{refuted} refuted), "
+          f"{len(KNOWN_DUPLICATES)} known legacy duplicates")
     return 0
 
 

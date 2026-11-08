@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-02 (ID BLOCKS per lane added)
 current-answer: the row itself - each BP row carries its own status marker
 stale-below: nothing; closed rows are marked [x] and keep their history deliberately
-note: counts are gated by scripts/tracker-counts.py --check
+note: counts are a view (scripts/tracker-counts.py); --check lints ids. No stored table (user 2026-11-08)
 -->
 # Blueprint Subsystem — Issue Tracker
 
@@ -57,93 +57,9 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 
 > ⚠⚠ **`RW-S` was MISSING from this legend until `2026-08-27` while being used on 95 rows** *(since the
 > Batch-60 era, across `CE-` · `HN-` · `AX-` · `MA-` and one `BP-`)*. ⭐ Documented here to match practice.
-> ✅ **FIXED `2026-11-01` (`CE-073`):** `scripts/tracker-counts.py` now counts EVERY id family (the table below gained a
-> by-family breakdown) and every size tag (`RW-XS` · `RW-S` · `RW-L` · `RW-M` · `RW-H` · `RW-XL`; an unknown letter = `OTHER`).
-> ⚠ The totals jumped from 105 / 387 (BP- only) to the whole file — a RE-BASELINE, not new work.
-
-| Complexity | Open | Done |
-|---|---:|---:|
-| `WIRING` | 12 | 97 |
-| `RW-XS` | 7 | 15 |
-| `RW-S` | 203 | 900 |
-| `RW-L` | 152 | 267 |
-| `RW-M` | 234 | 854 |
-| `RW-H` | 23 | 87 |
-| `RW-XL` | 0 | 1 |
-| `OTHER` | 2 | 9 |
-| **Total** | **633** | **2230** |
-| *(refuted on verification)* | | *17* |
-
-| Id family | Open | Done |
-|---|---:|---:|
-| `AX-` | 4 | 23 |
-| `BP-` | 105 | 386 |
-| `CE-` | 472 | 1661 |
-| `HN-` | 11 | 41 |
-| `MA-` | 2 | 21 |
-| `MD-` | 0 | 7 |
-| `MX-` | 6 | 15 |
-| `QA-` | 13 | 24 |
-| `ST-` | 12 | 23 |
-| `TM-` | 10 | 27 |
-
-# rows scanned: 2719  (open 592 + done 2112 + refuted 15)
-
-# rows scanned: 2718  (open 591 + done 2112 + refuted 15)
-
-# rows scanned: 2714  (open 587 + done 2112 + refuted 15)
-
-# rows scanned: 2712  (open 585 + done 2112 + refuted 15)
-
-# rows scanned: 2711  (open 584 + done 2112 + refuted 15)
-
-# rows scanned: 2707  (open 580 + done 2112 + refuted 15)
-
-# rows scanned: 2706  (open 579 + done 2112 + refuted 15)
-
-# rows scanned: 2705  (open 578 + done 2112 + refuted 15)
-
-# rows scanned: 2653  (open 580 + done 2059 + refuted 14)
-
-# rows scanned: 2652  (open 597 + done 2041 + refuted 14)
-
-# rows scanned: 2651  (open 598 + done 2039 + refuted 14)
-
-# rows scanned: 2650  (open 600 + done 2036 + refuted 14)
-
-# rows scanned: 2647  (open 601 + done 2032 + refuted 14)
-
-# rows scanned: 2646  (open 600 + done 2032 + refuted 14)
-
-# rows scanned: 2645  (open 599 + done 2032 + refuted 14)
-
-> ⚠ **`RW-L` done was 43 and the Total 88 — an off-by-one that predates Batch 29** (present at
-> `1af9bea`, and at least as far back as the 41/85 figures). Corrected by the coordinator after
-> Batch 29 merged. ⭐ **Batch 29's own delta was exactly right**; the drift was inherited.
->
-> **Reconciles three ways at `da13a6a`:** checkbox tally **65 open / 90 done** · columns
-> `5+28+29+3 = 65` open, `26+44+18+1 = 89` done · **89 done + 1 refuted = 90** = the tally.
-> ⚠ The *refuted* row sits outside the Total, which is why the tally is one higher than it.
-
-> ✅ **Reconciling these counts (three ways, and they now agree EXACTLY).** The checkbox tally used to run
-> **+1 open / +1 done** against this table, and that standing offset was carried for several batches as
-> "permanent". It was not a real offset — it was a **loose regex**. Two rows are struck through
-> (`~~BP-46~~`, refuted; `~~Squad-quartet~~`, abandoned by design), one `[x]` and one `[ ]`, and a bare
-> checkbox count includes them. **Skip struck-through rows and the tally is exact:**
->
-> ```bash
-> grep '^- \[ \]' Blueprint_Issues_Tracker.md | grep -vc '~~'   # open -> must equal the Total row
-> grep '^- \[x\]' Blueprint_Issues_Tracker.md | grep -vc '~~'   # done -> must equal the Total row
-> ```
->
-> ⚠ **Per-complexity rows need the FIRST tag on a line, not every tag on it.** Some rows discuss other
-> complexity classes in their prose (BP-87 names three), so `grep -c '`RW-H`'` over-counts and the
-> per-tag columns stop summing to the total. Take the first `` `WIRING|RW-L|RW-M|RW-H` `` match per row —
-> that is the row's own classification. *(Found Batch 27, when the columns summed to 69 against a
-> checkbox tally of 68.)*
->
-> ⚠ **Do not reintroduce a "known offset."** A reconciliation check with a standing discrepancy is a
-> weaker check — it cannot tell a real miscount from the expected slack. *(Tightened Batch 25.)*
+> ⭐ **The counts are no longer stored here** *(user, `2026-11-08`: the table conflicted on almost every merge)*. ⭐ They are a
+> VIEW: `python3 scripts/tracker-counts.py` prints them from the rows; `--check` is now an ID LINT (one id = one row, no letter
+> suffix on a block id). ⛔ Do not re-add a counts table.
 
 > 🧹 **Rows from BP-123 on carry a bare id, not a link** — deliberately, decided Batch 28.
 > `Blueprint_Issues_Detail.md` stops at BP-122, so every row after it pointed at an anchor that does not
@@ -2398,15 +2314,15 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 - [ ] **CE-3404** · `RW-XS` 📋 **OPEN `2026-11-08` (backend, found by the N-9 rail) — the condition editor allocates 64 B per frame on a row whose fact is `strength` (`ConditionEditor.FactValuePopupChip` builds its chip strings each frame).** Pre-existing; the N-9 0 B rail uses the `inside` fact. Fix shape: cache the chip text per row value (rebuild on change). [`DESIGN_Condition_Editor.md`](../UX/DESIGN_Condition_Editor.md). Done when: the `ConditionWhoFieldFrameRail` 0 B assert passes with a `strength` row.
 - [x] **CE-3405** · `RW-M` ✅ **BUILT `2026-11-08` (ui, `27383eca0`; see AQ108 §0.A as built)** — was 📋 **OPEN `2026-11-08` (backend; user: *"Approved, switch now"*, R-3084) — SWITCH NOW: choosing a mode at the indicator SWITCHES at once.** `RunModeChoice.Plan` Edit branch: leaving Edit with unsaved edits asks *Save / Discard / Cancel* (never-saved: *Save as… / Discard / Cancel*), then → Live loads Live PAUSED at the start (the live load without the resume) · → AAR opens the last exercise (or the picker) at its start. `Play`: in Edit = always the preview; in Live paused = resume. ■ in Live: see **CE-3413** (R2″ supersedes the earlier "■ → Live paused at the start"). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 R1′, D5′. Done when: rails on a real bus — indicator → Live with unsaved edits asks, Save loads Live paused, ▶ resumes; → AAR asks and opens; `RunModeChoice` rails updated (the arming expectations retired).
 - [ ] **CE-3406** · `RW-S` 📋 **OPEN `2026-11-08` (backend, R-3083 / R-3084) — THE INDICATOR: the mode the cluster IS in, drawn as a BUTTON.** No dim "armed" level; Edit = the yellow pen on a saveable world, the violet eye (steady) on a variant world; Preview running = eye blinking; Live ● red recorded / green not (steady paused, blinking running); DAR amber ⟲; AAR blue ▶. Drawn as the kit's glyph button (`GlyphWidgets`: neutral background, lighter + framed on hover) with a small ▾, the hand cursor and the tooltip (D29 — today a bare glyph whose only hover cue is alpha 0.9 → 1.0). `RunModeChoice.Indicator`, `MainToolbarTimeControlSection.DrawModeIndicator`. [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D1′, D29 · [`run-indicator-visual.svg`](../UX/run-indicator-visual.svg). Done when: a frame rail asserts the glyph + colour per state and the hover background; a render matches the mockup. ⭐ Takes over CE-3394's pen part.
-- [ ] **CE-3407** · `RW-S` 📋 **OPEN `2026-11-08` (backend, R-3083) — ONE "can I save" answer.** `IScenarioSession.SaveDisabledReason` today covers only the variant gate (`ScenarioSaveGate`); extend it with the cluster state (Edit only — Preview / Live / DAR / AAR refuse) and the cluster error (CE-3345), so the pen, the Save button and File ▸ Save read ONE reason and can never disagree. [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D27. Done when: a rail per refusal (variant · Preview · Live · error) and a forwarding rail that the pen, the button and the menu read the same member.
+- [x] **CE-3407** · `RW-S` ✅ **BUILT `2026-11-08` (backend, `509485b9b`; as-built AQ108 §0 build table): `SaveRefusal.Of(ClusterView)` (error, then any state but Edit) before the variant gate in `SaveDisabledReason`; File › Save / Save As / Save as Recipe read it; `SaveAs`/`SaveCurrent` keep the variant backstop only (New-from-recipe saves while Idle). Rails `EditorScenarioSessionSaveTests.CE3407_*` (states, error, Idle SaveAs, 0 B) + `ScenarioMenuTests.CE3407_EverySaveItem_ReadsTheOneReason`; pen / Save-slot forwarding = ui R-3 / R-5.** Was: ONE "can I save" answer. `IScenarioSession.SaveDisabledReason` today covers only the variant gate (`ScenarioSaveGate`); extend it with the cluster state (Edit only — Preview / Live / DAR / AAR refuse) and the cluster error (CE-3345), so the pen, the Save button and File ▸ Save read ONE reason and can never disagree. [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D27. Done when: a rail per refusal (variant · Preview · Live · error) and a forwarding rail that the pen, the button and the menu read the same member.
 - [ ] **CE-3408** · `RW-S` 📋 **OPEN `2026-11-08` (backend, R-3083) — THE SAVE BUTTON shows what Ctrl+S will do: ONE button, ONE slot, its glyph changes (user `2026-11-08`: the flag takes the save icon's place — they are mutually exclusive).** Edit saveable: the floppy · Edit not saveable / Preview: the floppy greyed with its reason · Live / DAR / AAR: the AMBER FLAG (the checkpoint glyph, `section/checkpoint`), tooltip *"Take a checkpoint (Ctrl+S) — a live run never saves the scenario"*. The shell's Save slot (`ShellSaveCommands.SaveId`, icon `shell/save`). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D27 · [`run-indicator-visual.svg`](../UX/run-indicator-visual.svg). Done when: a frame rail per state + a render vs the mockup.
 - [ ] **CE-3409** · `RW-XS` 📋 **OPEN `2026-11-08` (backend, R-3083) — ▶'s glyph wears the INDICATOR's colour; ▾ only where a preset load makes sense.** `PlayColour` reads the indicator's colour (today Live is always green, ignoring recording — must be red when recorded); never the button background. `ShowsPresetArrow`: Edit and Live paused at the start only (today Edit with Preview / Live armed). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D27. Done when: rails for the colour (recorded / not) and the ▾ visibility per state.
-- [ ] **CE-3410** · `RW-S` 📋 **OPEN `2026-11-08` (backend, D28) — a Live that never ran leaves NO recording.** The master mints the exercise at the live load (CE-3310) and its first keyframe is written then (CE-3313) ⇒ switching to Live and away without ▶ would list an empty exercise. `ClusterMaster` drops (deletes, never lists) an exercise whose sim clock never advanced when the live session ends. [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D28. Done when: an orchestrator rail — load Live, leave without resuming ⇒ no exercise listed; with one resumed tick ⇒ listed.
+- [x] **CE-3410** · `RW-S` ✅ **BUILT `2026-11-08` (backend; as-built AQ108 §0 build table) — in `AssetInventoryProcessManager`, not the master: `ClockAdvancing` (OrchestratorCore: `IsAdvancing`) sampled each Live frame; a run left with no advancing frame writes no ledger entry (⇒ never listed) and its files go through `Discard` (shared with D15's delete); a run resumed from DAR is kept. Rails `AssetInventoryProcessManagerTests.CE3410_*` (3).** Was: a Live that never ran leaves NO recording. The master mints the exercise at the live load (CE-3310) and its first keyframe is written then (CE-3313) ⇒ switching to Live and away without ▶ would list an empty exercise. `ClusterMaster` drops (deletes, never lists) an exercise whose sim clock never advanced when the live session ends. [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D28. Done when: an orchestrator rail — load Live, leave without resuming ⇒ no exercise listed; with one resumed tick ⇒ listed.
 - [ ] **CE-3411** · `RW-S` 📋 **OPEN `2026-11-08` (backend, R-3084) — HTTP follows the switch.** `POST /run-mode {armed}` SWITCHES (same unsaved rule: 409 + the question's text unless `confirm:true`); `GET /status.armedMode` = the current mode; route docs, MCP catalog + skill regenerated (`gen-catalog.mjs`, `generate-skill.mjs`). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 (the build table). Done when: `DebugApi` rails for the switch + the 409 question; the catalog test green.
 - [ ] **CE-3412** · `RW-S` 📋 **OPEN `2026-11-08` (backend) — FIDELITY + AS-BUILT for §0.** Render every mockup state from the real toolbar (`HROT_RAIL_SHOTS`, xvfb), compare with [`run-indicator-visual.svg`](../UX/run-indicator-visual.svg), fix until they match (R-4146); fold the as-built into [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 (and retire the §2.1 / §3 arming record to HISTORY); the run-mode rails' gate table. Done when: the side-by-sides are in the report and §0 says BUILT.
 - [x] **CE-3413** · `RW-M` ✅ **BUILT `2026-11-08` (ui, `27383eca0`; Lifecycle LC-17 as-built step two)** — was 📋 **OPEN `2026-11-08` (backend; user *"Looks good!"* on the storyboard) — LIVE ENDS IN TWO STEPS (R2″, D30).** ■ running → *End the exercise?* → the end (SR-116, built: CE-4322's ender) → **stay** in Live · ENDED (today it calls `StopLive` → `OpenForEdit` right after the end — `RunModeChoice.Stop` / `_stopAfterEnd`): indicator = checkered flag in Live's colour, ▶ greyed with the reason, ■ = ⏏ *Close the session* → *Close the live session? Exercise N is kept* → FinalizeLive → Idle on every node. The ended menu: Run again (same scenario → briefing) · Restart from a checkpoint · DAR · AAR of this exercise · Close the session. Live · ended is DERIVED (`OperatingLive` + `ExerciseResult.Phase == Ended`), no new cluster state. ⭐ **This CHANGES behaviors' L-3 as built** (coordinator note [`NOTE_Coordinator_To_Backend_Live_Storyboard_Review.md`](batches/NOTE_Coordinator_To_Backend_Live_Storyboard_Review.md) #2): today ■ → *End the exercise?* → the end → LEAVES Live (`IExerciseEnder` on `ClusterTimeTransportAdapter.Ender`, then `StopLive`); R2″ keeps it IN Live · ended — fold the change into behaviors' L-3 as-built note when built. ⛔ The built ⏪ Review (LC-16, L-5) and *Run to …* (LC-10, W-4) stay as they are (the storyboard marks them *unchanged*). ⭐ ⏪ Review KEEPS its menu (user `2026-11-08`: *"keep the menu"* — DAR the last 30 s / 2 min / 10 min / from the start, the same list as the indicator's). One tweak: greyed during the briefing (Live at 0:00) with *"nothing to review yet"*; enabled while running and in Live · ended ([`run-indicator-visual.svg`](../UX/run-indicator-visual.svg)). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 R2″, D30 · [`live-session-storyboard.svg`](../UX/live-session-storyboard.svg) ⑤–⑦. Done when: rails — ■ asks and ends, the cluster stays Live paused, ▶ refused with the reason, ⏏ asks and reaches Idle, Run again reloads Live paused at 0.
 - [ ] **CE-3414** · `RW-S` 📋 **OPEN `2026-11-08` (backend, D31) — THE START SCREEN'S RECENT LIST.** `StartSurfaceWindow` lists the Recent scenarios (`UserRecentPicks`, kind Scenario) with **Live** (load Live → the briefing) · **Edit** (author seat only — `Seat.Author`; greyed elsewhere with *"editing needs an author seat"*) · **AAR** (the scenario's LATEST exercise; greyed when never run). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D31 · [`live-session-storyboard.svg`](../UX/live-session-storyboard.svg) ①, ⑧. Done when: a frame rail per button state (author / player seat, run / never run) + a render vs the storyboard.
-- [ ] **CE-3415** · `RW-S` 📋 **OPEN `2026-11-08` (backend, D31) — the run setting *Start immediately*.** A Live load resumes by itself instead of pausing at 0:00 (off by default — the briefing pause is the default). One more field of the run settings beside *Record live runs* (`SetRunSettings`). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D31. Done when: a rail — with it on, a Live load reaches running without a ▶.
+- [x] **CE-3415** · `RW-S` ✅ **BUILT `2026-11-08` (backend, `dfdc52985`) — `StartLiveImmediately` mirrored on `AskToKeepRecordings` (intent · DTO · wire · master · broadcast · ClusterView · panel checkbox · `/run-settings` · MCP catalog); `ClusterMaster.RunsWhenLoaded(…, startLiveImmediately)` runs a start-paused Live load; Preview unaffected. Rails `ClusterMasterLoadAndRunTests.CE3415_*` (red-proved) + one per hop.** Was: the run setting *Start immediately*. A Live load resumes by itself instead of pausing at 0:00 (off by default — the briefing pause is the default). One more field of the run settings beside *Record live runs* (`SetRunSettings`). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D31. Done when: a rail — with it on, a Live load reaches running without a ▶.
 - [ ] **CE-3416** · `RW-M` 📋 **OPEN `2026-11-08` (backend, D32) — THE PLAYER'S BRIEFING SCREEN (reserved UI).** On Player seats, while Live waits at 0:00: the scenario's description (`ScenarioHeader.Description`) + the player's side / role objectives (the replicated objectives, the same reader the HUD uses) + a reserved *picture book* area (◀ page ▶, empty until CE-3417); hides on ▶. Training and game profiles (SR-112). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D32 · [`live-session-storyboard.svg`](../UX/live-session-storyboard.svg) ⑨. Done when: a frame rail on a Player seat at 0:00 (shown) and after ▶ (hidden).
 - [ ] **CE-3417** · `RW-L` 📋 **OPEN `2026-11-08` (idea, user — to be DESIGNED, not built) — THE SCENARIO'S BRIEFING SECTION: a picture book per role.** Pages of screenshots, each with its own description, explaining the expected sequence of operation and the objectives; content may differ per trainee role; a little interactive (page through). The same idea at the debrief: each trainee sees his own role's summary while the instructor sees all objectives. Needs a design (where the pages live in the scenario, how a role is chosen, how screenshots are taken from the editor). Feeds CE-3416's reserved area. [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D32.
 - [ ] **CE-3418** · `RW-S` 📋 **OPEN `2026-11-08` (backend, D32) — PLAYER SEATS SHOW THEIR OWN SUMMARY WHEN THE EXERCISE ENDS.** The trainee debrief (training profile) or the game summary (game profile) — both built (`TraineeDebriefWindow`, `GameSummaryWindow`, `RulesBundle`), today `IsOpen = false` until opened by hand — open by themselves on Player seats the moment `ExerciseResult.Phase` reaches `Ended`, by the scenario's profile (SR-112). Per-role content later (CE-3417). [`AQ108`](Architect_Question_108_Run_Mode_Picker.md) §0 D32 · [`live-session-storyboard.svg`](../UX/live-session-storyboard.svg) ⑩. Done when: a rail — a Player seat's window opens on the end, an Instructor seat's does not.

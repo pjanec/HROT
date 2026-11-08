@@ -351,6 +351,78 @@ public sealed class AssetInventoryProcessManagerTests
         }
     }
 
+    // ── ⭐ CE-3410 (AQ108 §0 D28 / D33) — a Live left before its clock ever ran leaves no recording ──────────────────────────────────
+
+    /// <summary>
+    /// ⭐ CE-3410 — load Live and leave without the clock advancing ⇒ the exercise is NOT listed (no ledger entry, no ledger file, no scenario copy); with ONE advancing frame ⇒ listed as before;
+    /// a run RESUMED from DAR that is left without running again keeps its recording.
+    /// 🔴 Red-proof (compiles): the live-exit arm without its <c>!_liveRan</c> branch ⇒ the unrun exercise is listed ⇒ red. Inverse: <c>_liveRan</c> never set ⇒ the run one is dropped ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE3410_ALiveLeftBeforeItsClockRan_LeavesNoRecording_OneAdvancingFrameKeepsIt(bool ran)
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce3410_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce3410_stg_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            var bus = new FdpEventBus();
+            bool advancing = false;
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero) { ClockAdvancing = () => advancing };
+            void State(ClusterState s) { bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = s, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) }); bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers(); }
+
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
+            State(ClusterState.OperatingLive);                        // the briefing: Live, paused at 0:00
+            advancing = ran; manager.Tick(); bus.SwapBuffers();      // one frame — the clock runs or it does not
+            advancing = false; manager.Tick(); bus.SwapBuffers();
+            State(ClusterState.Idle);                                 // closed / switched away
+
+            var inventory = LastInventory(bus);
+            Assert.NotNull(inventory);
+            Assert.Equal(ran, inventory!.Value.UnarchivedLocalExercises!.Any(e => e.ExerciseId == exerciseId));
+            Assert.Equal(ran, inventory.Value.LocalExercises!.Any(e => e.ExerciseId == exerciseId));
+            bool onDisk = Directory.Exists(staging) && Directory.GetFiles(staging, "*", SearchOption.AllDirectories).Any(f => f.Contains(exerciseId.ToString()));
+            Assert.Equal(ran, onDisk);
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
+    /// <summary>⭐ CE-3410 — a run that went into DAR (it ran: Live → Review wrote its entry) and came back to Live is NEVER dropped, even when left at once.</summary>
+    [Fact]
+    public void CE3410_ARunResumedFromDar_IsKept_EvenIfLeftWithoutRunningAgain()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce3410r_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce3410r_stg_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            var bus = new FdpEventBus();
+            bool advancing = false;
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero) { ClockAdvancing = () => advancing };
+            void State(ClusterState s) { bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = s, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) }); bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers(); }
+
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
+            State(ClusterState.OperatingLive);
+            advancing = true; manager.Tick(); bus.SwapBuffers(); advancing = false;
+            State(ClusterState.OperatingReview);   // ⏪ DAR
+            State(ClusterState.OperatingLive);     // back to live, paused
+            State(ClusterState.Idle);              // closed at once
+
+            Assert.Contains(LastInventory(bus)!.Value.UnarchivedLocalExercises!, e => e.ExerciseId == exerciseId);
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
     // ── CE-4097 (AQ108 D5) — a branched run's parent and branch point on the inventory ─────────────────────────────────────────────
 
     private static AssetInventoryUpdateEvent? LastInventory(FdpEventBus bus)

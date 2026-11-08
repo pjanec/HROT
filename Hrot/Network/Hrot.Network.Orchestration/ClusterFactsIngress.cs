@@ -178,6 +178,7 @@ public sealed class ClusterFactsIngress : IDisposable
         ClusterPlayReady = topic.ClusterPlayReady,         // ⭐ CE-3345 R-3070
         LoadProgress = topic.LoadProgress ?? string.Empty,
         AskToKeepRecordings = topic.AskToKeepRecordings != 0,   // ⭐ AQ108 D15 (CE-4100 ①)
+        StartLiveImmediately = topic.StartLiveImmediately != 0, // ⭐ CE-3415 (AQ108 §0 D31)
         LastLoadRequestId = topic.LastLoadRequestId,                          // ⭐ CE-3354 ⑦
         LastLoadScenario = string.IsNullOrEmpty(topic.LastLoadScenario) ? null : topic.LastLoadScenario,
         FeatureOverrides = FeatureOverrideWires.FromWire(topic.FeatureOverrides),   // ⭐ Node Features F-16

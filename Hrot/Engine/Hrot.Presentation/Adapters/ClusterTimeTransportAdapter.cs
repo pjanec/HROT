@@ -335,12 +335,14 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
 
     bool? IRunTransport.RecordLiveRunsSetting => View is { } v ? !v.RecordLiveRunsOff : null;
     bool? IRunTransport.AskToKeepSetting => View is { } v ? v.AskToKeepRecordings : null;
+    bool? IRunTransport.StartImmediatelySetting => View is { } v ? v.StartLiveImmediately : null;   // ⭐ CE-3415 (AQ108 §0 D31)
 
-    void IRunTransport.SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings) => _bus.PublishManaged(new SetRunSettingsIntent
+    void IRunTransport.SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately) => _bus.PublishManaged(new SetRunSettingsIntent
     {
         RequestId = Guid.NewGuid(),
         RecordLiveRuns = recordLiveRuns,
         AskToKeepRecordings = askToKeepRecordings,   // null = unchanged; Armed stays null too (the intent's own default)
+        StartLiveImmediately = startLiveImmediately,
     });
 
     /// <summary>

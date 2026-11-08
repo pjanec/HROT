@@ -863,6 +863,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, from the node's one <see cref="ClusterView"/>.</summary>
         public bool AskToKeepRecordings => View.AskToKeepRecordings;
 
+        /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting is ON, from the node's one <see cref="ClusterView"/>.</summary>
+        public bool StartLiveImmediately => View.StartLiveImmediately;
+
         /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode, from the node's one <see cref="ClusterView"/> (no second copy).</summary>
         public ClusterArmedMode ArmedMode => View.ArmedMode;
 
