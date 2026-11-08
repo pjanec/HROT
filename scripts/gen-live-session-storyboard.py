@@ -19,7 +19,7 @@ COLS = 2
 W = GX * 2 + PW * COLS + 40
 H = 64 + 5 * (PH + 76) + 40
 s = Svg(W, H, "A live training session — from the Start screen to the debrief and back",
-        "Scope: the Start screen, the run controls (indicator · ▶ · ■ · Save) and the two questions. The map and panels are context — unchanged.")
+        "Scope: the Start screen, the run controls (indicator · ▶ · ■ · Save) and the two questions. Built controls drawn as 'unchanged' (⏪ Review, Run to …) stay as they are; the map and panels are context.")
 
 
 def panel(i, step, caption):
@@ -37,7 +37,7 @@ def panel(i, step, caption):
     return x, y + 22
 
 
-def toolbar(x, y, ind, ind_col, play, play_col, play_dis, stop_glyph, stop_col, stop_dis, save, save_col, save_dis, label=None, blink=False):
+def toolbar(x, y, ind, ind_col, play, play_col, play_dis, stop_glyph, stop_col, stop_dis, save, save_col, save_dis, label=None, blink=False, review=False):
     """The editor's main toolbar (context: File/Edit/View menus) with the run controls."""
     s.rect(x, y, PW, 30, "#16161B")
     s.text(x + 10, y + 19, "File   Edit   View   Scenario", C.NOTE, 11.5)
@@ -54,7 +54,12 @@ def toolbar(x, y, ind, ind_col, play, play_col, play_dis, stop_glyph, stop_col, 
     # ■ — End the exercise / Close the session
     s.rect(bx + 70, y + 4, 26, 22, C.BTN, rx=3, op=0.55 if stop_dis else 1)
     s.glyph(stop_glyph, bx + 76.5, y + 8, stop_col, 13, op=0.4 if stop_dis else 1)
-    s.text(bx + 104, y + 19, "00:00", C.SUB, 11) if label is None else s.text(bx + 104, y + 19, label, C.SUB, 11)
+    tx = bx + 104
+    if review:                                             # ⏪ Review — built (LC-16, behaviors L-5), unchanged
+        s.rect(bx + 100, y + 4, 26, 22, C.BTN, rx=3)
+        s.glyph(FA.CLOCK_BACK, bx + 106.5, y + 8, AMB, 13)
+        tx = bx + 134
+    s.text(tx, y + 19, "00:00", C.SUB, 11) if label is None else s.text(tx, y + 19, label, C.SUB, 11)
     # Save
     s.rect(x + PW - 40, y + 4, 28, 22, C.BTN, rx=3, op=0.55 if save_dis else 1)
     s.glyph(save, x + PW - 33, y + 8, save_col, 13, op=0.4 if save_dis else 1)
@@ -114,7 +119,7 @@ x, y = panel(1, "② EDIT — Recent ▸ Edit (or Open scenario)",
              "The full editor appears; the pen says your edits are saved. Indicator ▾ → Live: asks Save / Discard / Cancel, then loads Live.")
 toolbar(x, y, FA.PEN, YELLOW, FA.PLAY, VIO, False, STOP, C.SUB, True, FLOPPY, C.TXT, False)
 mapview(x, y + 30)
-s.menu(x + 250, y + 30, 230, [("Edit", "✓", FA.PEN, YELLOW), ("Live", None, CIRCLE, RED), ("AAR — open a recording…", None, FA.PLAY, BLU), "---", ("Close", None, CLOSE, C.SUB)])
+s.menu(x + 250, y + 30, 300, [("Edit", "✓", FA.PEN, YELLOW), ("Live", None, CIRCLE, RED), ("AAR — open a recording…", None, FA.PLAY, BLU), "---", ("Run to …  (built, LC-10 — unchanged)", None, FA.CLOCK, VIO), "---", ("Close", None, CLOSE, C.SUB)])
 
 # ③ Live — briefing
 x, y = panel(2, "③ LIVE · BRIEFING — loaded, paused at 0:00 (the exercise exists, recording armed)",
@@ -124,8 +129,8 @@ mapview(x, y + 30)
 
 # ④ Live running
 x, y = panel(3, "④ LIVE · RUNNING",
-             "■ = END THE EXERCISE (a square). DAR looks back inside the run; Save = take a checkpoint (the flag).")
-toolbar(x, y, CIRCLE, RED, PAUSE, RED, False, STOP, C.TXT, False, FA.FLAG, AMB, False, label="12:31", blink=True)
+             "■ = END THE EXERCISE (a square). ⏪ Review (built, LC-16 — unchanged) looks back inside the run (DAR); Save = take a checkpoint (the flag).")
+toolbar(x, y, CIRCLE, RED, PAUSE, RED, False, STOP, C.TXT, False, FA.FLAG, AMB, False, label="12:31", blink=True, review=True)
 mapview(x, y + 30)
 s.text(x + 324, y + 62, "■ End the exercise", C.NOTE, 10.5)
 s.line(x + 336, y + 50, x + 333, y + 28, C.NOTE)
