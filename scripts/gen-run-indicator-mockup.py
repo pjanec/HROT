@@ -14,6 +14,7 @@ PAUSE = 0xf04c
 CARET = 0xf0d7
 YELLOW = "#FFE14D"       # the yellow pen: brighter than the DAR amber, never in the same state
 VIO, GRN, AMB, BLU, GRY = C.VIOLET, C.GREEN, "#FFB333", C.BLUE, C.GREY
+RED = "#E63838"         # Live while runs are RECORDED (CE-4090); green = not recorded
 DIM = 0.45               # the indicator's "armed" level (today's RunModeIndicator dim)
 
 # (group, state, indicator (glyph, colour, alpha, mark), play (glyph, colour, dis), save (glyph, colour, dis), indicator tooltip, Save tooltip)
@@ -21,20 +22,24 @@ ROWS = [
     ("EDIT — the scenario as authored (variant 0), healthy cluster: edits are SAVED", None),
     ("Edit · saveable · ▶ armed Preview", (FA.PEN, YELLOW, 1.0, ""), (FA.PLAY, VIO, False), (FLOPPY, C.TXT, False),
      "Editing — your changes save to Night attack. ▶ will start: Preview (click to change)", "Save scenario (Ctrl+S)"),
-    ("Edit · saveable · ▶ armed Live", (FA.PEN, YELLOW, 1.0, ""), (FA.PLAY, GRN, False), (FLOPPY, C.TXT, False),
-     "Editing — your changes save to Night attack. ▶ will start: Live (click to change)", "Save scenario (Ctrl+S)"),
+    ("Edit · saveable · ▶ armed Live (recorded)", (FA.PEN, YELLOW, 1.0, ""), (FA.PLAY, RED, False), (FLOPPY, C.TXT, False),
+     "Editing — your changes save to Night attack. ▶ will start: Live, recorded (click to change)", "Save scenario (Ctrl+S)"),
+    ("Edit · saveable · ▶ armed Live (not recorded)", (FA.PEN, YELLOW, 1.0, ""), (FA.PLAY, GRN, False), (FLOPPY, C.TXT, False),
+     "Editing — your changes save to Night attack. ▶ will start: Live, not recorded (click to change)", "Save scenario (Ctrl+S)"),
     ("Edit · saveable · ▶ armed AAR", (FA.PEN, YELLOW, 1.0, ""), (FA.PLAY, BLU, False), (FLOPPY, C.TXT, False),
      "Editing — your changes save to Night attack. ▶ will start: AAR (click to change)", "Save scenario (Ctrl+S)"),
     ("EDIT — NOT saveable (a variant preset is loaded: some entities may be missing)", None),
     ("Edit · variant world · ▶ armed Preview", (FA.EYE, VIO, DIM, ""), (FA.PLAY, VIO, False), (FLOPPY, C.TXT, True),
      "▶ will start: Preview (click to change) — not saveable: built with variant 3", "Not saved: this world was built with variant 3 — load the scenario as authored to save"),
-    ("Edit · variant world · ▶ armed Live", (0xf111, GRN, DIM, ""), (FA.PLAY, GRN, False), (FLOPPY, C.TXT, True),
+    ("Edit · variant world · ▶ armed Live (recorded)", (0xf111, RED, DIM, ""), (FA.PLAY, RED, False), (FLOPPY, C.TXT, True),
      "▶ will start: Live (click to change) — not saveable: built with variant 3", "Not saved: this world was built with variant 3 — load the scenario as authored to save"),
     ("RUNNING — the world is a run, never the scenario", None),
     ("Preview running (indicator blinks)", (FA.EYE, VIO, 1.0, ""), (PAUSE, VIO, False), (FLOPPY, C.TXT, True),
      "Preview — a copy of the edit world; ■ returns to it", "Not saved: a preview runs a copy — ■ to return to editing"),
-    ("Live (indicator blinks while running)", (0xf111, GRN, 1.0, ""), (FA.PLAY, GRN, False), (FA.FLAG, AMB, False),
-     "Live", "Take a checkpoint (Ctrl+S) — a live run never saves the scenario"),
+    ("Live, recorded (blinks while running)", (0xf111, RED, 1.0, ""), (FA.PLAY, RED, False), (FA.FLAG, AMB, False),
+     "Live — recorded", "Take a checkpoint (Ctrl+S) — a live run never saves the scenario"),
+    ("Live, not recorded (blinks while running)", (0xf111, GRN, 1.0, ""), (FA.PLAY, GRN, False), (FA.FLAG, AMB, False),
+     "Live — not recorded", "Take a checkpoint (Ctrl+S) — a live run never saves the scenario"),
     ("DAR (review)", (FA.CLOCK_BACK, AMB, 1.0, ""), (FA.PLAY, AMB, False), (FA.FLAG, AMB, False),
      "DAR — 2 min behind live", "Take a checkpoint (Ctrl+S)"),
     ("AAR (replay)", (FA.PLAY, BLU, 1.0, ""), (FA.PLAY, BLU, False), (FA.FLAG, AMB, False),
@@ -42,7 +47,7 @@ ROWS = [
 ]
 
 W = 1330
-H = 96 + sum(30 if r[1] is None else 40 for r in ROWS) + 150
+H = 96 + sum(30 if r[1] is None else 40 for r in ROWS) + 180
 s = Svg(W, H, "The run indicator, ▶ and Save — every state",
         "Scope: the mode indicator, ▶ (+ ▾) and Save. The rest of the toolbar is context — unchanged. Grey text is annotation.")
 
@@ -90,9 +95,11 @@ for r in ROWS:
 y += 10
 s.note(X_STATE, y, [
     "THE RULES",
+    "• ARMING never leaves Edit (AQ108 R3: nothing running, nothing lost) — only ▶ does. So the pen holds whatever is armed.",
     "• The indicator shows the ARMED mode (dim) in Edit, the RUNNING mode (bright; blinking while time runs) in a run — as today.",
     "  ONE exception: Edit + saveable (variant 0 · cluster in Edit · not in error) ⇒ the YELLOW PEN. It still opens the mode menu on click.",
-    "• ▶'s GLYPH is always in the armed / running mode's colour (violet Preview · green Live · blue AAR · amber DAR) — never the background.",
+    "• ▶'s GLYPH is always in the indicator's colour (violet Preview · Live RED when recorded / GREEN when not · blue AAR · amber DAR) — never the background.",
+    "  ⚠ Fix: today ▶ uses plain Live green even when runs are recorded; it will read the indicator's colour (one source).",
     "  So with the pen showing, the armed mode is still on screen: on ▶. (LC-14 PlayColour, built.)",
     "• Save: the floppy saves the scenario (only in the pen state); greyed with its reason in Edit-not-saveable and Preview;",
     "  in Live / DAR / AAR it becomes the AMBER FLAG — the checkpoint glyph — because Ctrl+S there takes a checkpoint.",
