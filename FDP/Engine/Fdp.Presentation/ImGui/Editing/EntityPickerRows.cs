@@ -17,37 +17,66 @@ public sealed class EntityPickerRows
 {
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<LiveRefScope, EntityPickerRows> ByScope = new();
 
-    private readonly List<EntityCandidate> _rows = new();
-    private int _generation = int.MinValue;
-    private WorldPoint _from;
-    private bool _hasFrom;
+    /// <summary>One row list with its own cache state: the base one (every named entity) and one per PRESET ARRAY (a field's <c>[MapPickableEntity]</c>, the attribute's own instance).</summary>
+    private sealed class RowSet
+    {
+        public readonly List<EntityCandidate> Rows = new();
+        public int Generation = int.MinValue, Version;
+        public WorldPoint From;
+        public bool HasFrom;
+    }
 
-    /// <summary>The rows' version (the field rebuilds its filter when it moves).</summary>
-    public int Version { get; private set; }
+    private sealed class ByReference : IEqualityComparer<string[]>
+    {
+        public static readonly ByReference Instance = new();
+        public bool Equals(string[]? a, string[]? b) => ReferenceEquals(a, b);
+        public int GetHashCode(string[] a) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(a);
+    }
+
+    private readonly RowSet _all = new();
+    private readonly Dictionary<string[], RowSet> _byPresets = new(ByReference.Instance);
+
+    private RowSet SetOf(string[]? presets)
+    {
+        if (presets == null || presets.Length == 0) return _all;
+        if (!_byPresets.TryGetValue(presets, out var set)) _byPresets[presets] = set = new RowSet();
+        return set;
+    }
+
+    /// <summary>The rows' version (the field rebuilds its filter when it moves) — of the unfiltered list.</summary>
+    public int Version => _all.Version;
+
+    /// <summary>⭐ CE-3399 — the version of the list narrowed by <paramref name="presets"/> (the field's own).</summary>
+    public int VersionOf(string[]? presets) => SetOf(presets).Version;
 
     /// <summary>The cached rows of <paramref name="refs"/>.</summary>
     public static EntityPickerRows Of(LiveRefScope refs) => ByScope.GetValue(refs, _ => new EntityPickerRows());
 
     /// <summary>The rows, rebuilt when the scope rebuilt or <paramref name="from"/> moved more than a metre.</summary>
-    public IReadOnlyList<EntityCandidate> Rows(LiveRefScope refs, WorldPoint? from)
+    public IReadOnlyList<EntityCandidate> Rows(LiveRefScope refs, WorldPoint? from) => Rows(refs, from, null);
+
+    /// <summary>⭐ CE-3399 — the rows narrowed by a field's <c>[MapPickableEntity]</c> <paramref name="presets"/> (a TKB-type preset and / or map layers — the same filter the map pick uses): ONE list per scope and preset set, cached like the full one.</summary>
+    public IReadOnlyList<EntityCandidate> Rows(LiveRefScope refs, WorldPoint? from, string[]? presets)
     {
+        var set = SetOf(presets);
         int gen = refs.Generation;
-        bool fromMoved = from.HasValue != _hasFrom || from is { } f && Vector3.DistanceSquared(f.AsVector3, _from.AsVector3) > 1f;
-        if (gen == _generation && !fromMoved) return _rows;
-        _generation = gen; _hasFrom = from.HasValue; _from = from ?? default;
-        _rows.Clear();
+        bool fromMoved = from.HasValue != set.HasFrom || from is { } f && Vector3.DistanceSquared(f.AsVector3, set.From.AsVector3) > 1f;
+        if (gen == set.Generation && !fromMoved) return set.Rows;
+        set.Generation = gen; set.HasFrom = from.HasValue; set.From = from ?? default;
+        set.Rows.Clear();
         var ids = refs.NamedIds();
-        var thing = NodeEditor.Core.Widgets.Icons.TryGet("thing/entity", out var g) ? g : new IconGlyph("", IconPalette.Grey);
+        var thing = NodeEditor.Core.Widgets.Icons.TryGet("thing/entity", out var g) ? g : new IconGlyph("", IconPalette.Grey);
         for (int i = 0; i < ids.Count; i++)
         {
+            if (!refs.Admits(ids[i], presets)) continue;
             var r = new EntityRef(ids[i]);
             var kind = refs.TryKindOf(r, out var k) && k.IconKey.Length > 0 && NodeEditor.Core.Widgets.Icons.TryGet(k.IconKey, out var kg) ? kg : thing;
             var side = refs.TrySideOf(r, out var s) ? s : ForceId.Neutral;
-            string distance = _hasFrom && refs.TryPositionOf(r, out var at) ? DistanceText(Vector3.Distance(at.AsVector3, _from.AsVector3)) : "";
-            _rows.Add(new EntityCandidate(refs.ChipLabelOf(r), SideColor(side), kind, side.ToString(), distance, r.NetworkId));
+            string distance = set.HasFrom && refs.TryPositionOf(r, out var at) ? DistanceText(Vector3.Distance(at.AsVector3, set.From.AsVector3)) : "";
+            set.Rows.Add(new EntityCandidate(refs.ChipLabelOf(r), SideColor(side), kind, side.ToString(), distance, r.NetworkId));
         }
-        Version++;
-        return _rows;
+        set.Version++;
+        return set.Rows;
     }
 
     /// <summary>"427 m" · "1.2 km".</summary>
