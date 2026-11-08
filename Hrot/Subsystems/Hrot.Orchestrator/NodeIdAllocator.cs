@@ -27,7 +27,9 @@ public sealed class NodeIdAllocator
     public readonly record struct Outcome(NodeId NodeId, bool Refused, string Reason);
 
     /// <param name="isLive">Whether a node id is currently live in the roster.</param>
-    public Outcome Grant(string computerName, int processId, int forcedId, int preferredId, Func<int, bool> isLive)
+    /// <param name="subsystemName">⭐ CE-4331 ⑥ (§9b) — the asking node's kind: with no free preferred id it gets the LOWEST free id of the kind's range
+    /// (<see cref="NodeIdRanges"/>) — so a relaunched cluster gets the same ids and a replacement computer the vacant one. Null / a full range ⇒ a dynamic id.</param>
+    public Outcome Grant(string computerName, int processId, int forcedId, int preferredId, Func<int, bool> isLive, string? subsystemName = null)
     {
         var who = ((computerName ?? string.Empty).ToUpperInvariant(), processId);
         if (_granted.TryGetValue(who, out var already)) return new Outcome((Fdp.Core.NodeId)(already), false, "already granted");
@@ -43,6 +45,12 @@ public sealed class NodeIdAllocator
         if (preferredId > 0 && (!_holderOf.TryGetValue(preferredId, out var prev) || prev == who) && !isLive(preferredId))
             return Record(who, preferredId);
 
+        if (!string.IsNullOrEmpty(subsystemName))
+        {
+            int first = NodeIdRanges.OffsetOf(subsystemName);
+            for (int id = first; id < first + NodeIdRanges.Width; id++)
+                if (!_holderOf.ContainsKey(id) && !isLive(id)) return Record(who, id);   // ⛔ never an id granted earlier in the session (its records may still name it)
+        }
         while (_holderOf.ContainsKey(_next) || isLive(_next)) _next++;
         return Record(who, _next++);
     }

@@ -602,6 +602,31 @@ export const TOOLS_CATALOG = [
   // ── Group E — Scenario ──────────────────────────────────────────────────────
 
   {
+    "name": "get_scenario_autosave",
+    "group": "E — Scenario",
+    "summary": "Whether a scenario has an autosave to recover, from when, and whether it is stale.",
+    "http": {
+      "method": "GET",
+      "path": "/scenario/autosave"
+    },
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Scenario name (relative path; may contain '/')."
+      }
+    ],
+    "returns": "ok:true envelope with name, exists, at (UTC ISO-8601 or null), stale, recoverable, reason (why not recoverable, or null).",
+    "notes": [
+      "⭐ CE-4099 (AQ108 §4c) — while a scenario is open for editing the cluster autosaves it every 2 minutes when it changed, into <scenario>/.autosave/ (never its scenario.json); a real save deletes the autosave.",
+      "stale:true — the scenario was saved (elsewhere) after the autosave was taken: reported, never offered."
+    ],
+    "hint": "Req: name (query). Example: get_scenario_autosave({name:\"test-move\"}) then load_scenario_edit({name:\"test-move\",recoverAutosave:true,waitForReady:true}).",
+    "manualVerify": false
+  },
+
+  {
     "name": "check_unsaved",
     "group": "E — Scenario",
     "summary": "Ask the cluster whether the scenario open for editing has unsaved changes (every node compares its whole world with its baseline).",
@@ -666,6 +691,13 @@ export const TOOLS_CATALOG = [
         "type": "string",
         "required": false,
         "description": "⭐ CE-3375 — load with this preset (list_scenario_presets): its param overrides and its variant. Not with args / variant. A preset that is not as authored loads a world that cannot be saved (status canSave:false)."
+      },
+      {
+        "name": "recoverAutosave",
+        "type": "boolean",
+        "required": false,
+        "description": "⭐ CE-4099 (AQ108 §4c A7) — open the scenario's AUTOSAVE (get_scenario_autosave) instead of its saved file: same name and folder, the world reads as unsaved until a save. 409 when there is none or it is stale (the scenario was saved since).",
+        "default": false
       }
     ],
     "returns": "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
@@ -2519,7 +2551,7 @@ export const TOOLS_CATALOG = [
       "path": "/run-settings"
     },
     "params": [],
-    "returns": "{ recordLiveRuns, armed, askToKeepRecordings, startLiveImmediately }",
+    "returns": "{ recordLiveRuns, armed, askToKeepRecordings, startLiveImmediately, autosaveMinutes }",
     "notes": [
       "A set_run_settings is visible here once the master has broadcast it (a frame or two)."
     ],
@@ -2563,9 +2595,15 @@ export const TOOLS_CATALOG = [
         "type": "boolean",
         "required": false,
         "description": "⭐ CE-3415 (AQ108 D31) — a Live load resumes by itself instead of pausing at 0:00 for the briefing (default false); absent = unchanged"
+      },
+      {
+        "name": "autosaveMinutes",
+        "type": "number",
+        "required": false,
+        "description": "⭐ CE-4099 phase 2 (AQ108 §4c.2 A1) — how often (whole minutes) the master autosaves the scenario being EDITED (the check round first, then the save round into .autosave/); 0 = off (default 2); absent = unchanged"
       }
     ],
-    "returns": "{ published, requestId, recordLiveRuns?, armed?, askToKeepRecordings?, startLiveImmediately?, note }",
+    "returns": "{ published, requestId, recordLiveRuns?, armed?, askToKeepRecordings?, startLiveImmediately?, autosaveMinutes?, note }",
     "notes": [
       "The scenario verifier always records, whatever this says.",
       "A replay → live branch follows the setting like any live run."
@@ -2576,7 +2614,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "run live without recording"
     },
-    "hint": "At least one of: recordLiveRuns (bool), armed (preview|live|aar), askToKeepRecordings (bool), startLiveImmediately (bool); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
+    "hint": "At least one of: recordLiveRuns (bool), armed (preview|live|aar), askToKeepRecordings (bool), startLiveImmediately (bool), autosaveMinutes (whole number >= 0; 0 = off); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
     "manualVerify": false
   },
 

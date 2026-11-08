@@ -203,6 +203,7 @@ public class PlayerApplication : IDisposable
     /// </summary>
 
     private Vector2 _keyboardPanTarget;
+    private Fdp.Toolkit.Input.KeymapReader? _mapKeys;   // ⭐ B-10 K4 (§6g) — the map-view rows of the one keymap
 
 
 
@@ -690,6 +691,7 @@ public class PlayerApplication : IDisposable
         _performanceMetrics = new PerformanceMetrics();
 
         _performanceOverlay = new PerformanceOverlay(_performanceMetrics);
+        PlayerKeys.Declare(Fdp.Toolkit.Input.Keymap.Process);   // ⭐ B-10 K4 — the Keyboard shortcuts window lists the map-view keys from the start
 
 
         _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
@@ -1276,16 +1278,10 @@ public class PlayerApplication : IDisposable
 
         // panDir is in WORLD space (the camera target is a world point).
 
-        Vector2 panDir = Vector2.Zero;
-
-        if (Raylib.IsKeyDown(KeyboardKey.Right)) panDir.X += 1f;
-
-        if (Raylib.IsKeyDown(KeyboardKey.Left))  panDir.X -= 1f;
-
-        // ⭐ CE-1040 — the 2-D map is north-up: the Up arrow moves the view NORTH (+Y in the world the target lives in).
-        if (Raylib.IsKeyDown(KeyboardKey.Up))    panDir.Y += 1f; // north
-
-        if (Raylib.IsKeyDown(KeyboardKey.Down))  panDir.Y -= 1f; // south
+        // ⭐ B-10 K4 (§6g) — the keys are rows of the keymap's map scope (PlayerKeys); ⭐ CE-1040 — the 2-D map is north-up: Up moves the view NORTH (+Y)
+        _mapKeys ??= PlayerKeys.Reader(Fdp.Toolkit.Input.Keymap.Process,
+            new Fdp.Presentation.Input.ProviderChordInput(new Fdp.Toolkit.Vis2D.Defaults.RaylibInputProvider()));
+        Vector2 panDir = PlayerKeys.Pan(_mapKeys);
 
 
 
@@ -1327,13 +1323,9 @@ public class PlayerApplication : IDisposable
 
         // Simulate a single wheel tick so the same 1.2+O factor is applied.
 
-        bool zoomIn  = Raylib.IsKeyPressed(KeyboardKey.Equal)
+        bool zoomIn  = _mapKeys.Pressed(PlayerKeys.ZoomIn);
 
-                    || Raylib.IsKeyPressed(KeyboardKey.KpAdd);
-
-        bool zoomOut = Raylib.IsKeyPressed(KeyboardKey.Minus)
-
-                    || Raylib.IsKeyPressed(KeyboardKey.KpSubtract);
+        bool zoomOut = _mapKeys.Pressed(PlayerKeys.ZoomOut);
 
 
 

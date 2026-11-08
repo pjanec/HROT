@@ -50,6 +50,7 @@ public static class EcsNodeDebugProvider
             recordLiveRunsOff: () => node()?.ClusterSlave.RecordLiveRunsOff,
             askToKeepRecordings: () => node()?.ClusterSlave.AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
             startLiveImmediately: () => node()?.ClusterSlave.StartLiveImmediately,   // ⭐ CE-3415 (AQ108 §0 D31)
+            autosaveMinutes:   () => node()?.ClusterSlave.AutosaveMinutes,   // ⭐ CE-4099 phase 2
             armedMode:         () => node()?.ClusterSlave.ArmedMode,   // ⭐ CE-3341 R-3068 — the same View
             runChoice:         x.RunChoice,   // ⭐ CE-1451 — the host's run choice, independent of the drive (the IG has none)
             clusterView:       () => node()?.ClusterSlave.View,   // ⭐ CE-3344 R-3069 — the node's ONE read model: CanOperate gates the HTTP cluster routes

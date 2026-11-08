@@ -368,4 +368,78 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
     }
 
     private static ScenarioHeader ScenarioSaveCore_HeaderOf(EntityRepository world) => Hrot.Map.Common.Scenario.ScenarioSaveCore.HeaderOf(world, "Hrot.Scenario");
+
+    // ── ⭐⭐ CE-4099 AUTOSAVE (AQ108 §4c A2–A4, §4c.1) — the node's half ─────────────────────────────────────────────────────────────────────
+
+    private (EntityRepository Repo, ScenarioSerializer Serializer) OwnedAndForeign()
+    {
+        var repo = BuildWorld();
+        repo.RegisterComponent<EntityGuid>();   // stable keys: without them every save mints new ones and two saves can never be equal
+        var owned = repo.CreateEntity();
+        repo.SetComponent(owned, new SaveMarker { X = 1f });
+        repo.AddComponent(owned, new NetworkAuthority(primaryOwnerId: NodeId, localNodeId: NodeId));
+        repo.AddComponent(owned, new EntityGuid(Guid.Parse("aaaa0000-0000-4000-8000-000000000001")));
+        var foreign = repo.CreateEntity();
+        repo.SetComponent(foreign, new SaveMarker { X = 2f });
+        repo.AddComponent(foreign, new NetworkAuthority(primaryOwnerId: 2, localNodeId: NodeId));
+        repo.AddComponent(foreign, new EntityGuid(Guid.Parse("aaaa0000-0000-4000-8000-000000000002")));
+        return (repo, new ScenarioSerializerBuilder("Hrot.Scenario").Build());
+    }
+
+    private ExecuteNodeOpIntent Op(bool autosave) => new()
+    {
+        Operation = NodeOpType.SerializeLocal, TransactionId = Guid.NewGuid(),
+        DomainPayload = new ScenarioSaveHandlerPayload(_scenarioName, Autosave: autosave),
+    };
+
+    /// <summary>
+    /// ⭐⭐ CE-4099 A2/A4 — an AUTOSAVE writes this node's slice from a keyframe SANDBOX (on a worker) into <c>.autosave/</c>, pulled to the
+    /// scenario's <c>.autosave/.slices</c> — and its content is the real save's, byte for byte (the gate flowed: the foreign entity is absent).
+    /// 🔴 Red-proof (compiles): the handler ignoring <c>Autosave</c> ⇒ the slice lands in the real save's folder ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4099_AnAutosave_WritesTheSameSlice_IntoTheAutosaveFolder()
+    {
+        var (repo, serializer) = OwnedAndForeign();
+        var handler = new HrotScenarioSaveHandler(serializer, world: repo, nodeId: NodeId);
+
+        var saved = Assert.IsType<FileManifestResult[]>(handler.PrepareAsync(Op(autosave: false), CancellationToken.None).GetAwaiter().GetResult());
+        string real = File.ReadAllText(saved[0].SourceUnc);
+        var auto = Assert.IsType<FileManifestResult[]>(handler.PrepareAsync(Op(autosave: true), CancellationToken.None).GetAwaiter().GetResult());
+
+        Assert.Single(auto);
+        Assert.Contains(Path.Combine(".autosave", "scenario.json"), auto[0].SourceUnc);
+        Assert.Equal(HrotScenarioSaveHandler.AutosaveSliceRelativePath(_scenarioName, (Fdp.Core.NodeId)NodeId), auto[0].RelativeDest);
+        Assert.Contains(".autosave", auto[0].RelativeDest);
+        Assert.Equal(real, File.ReadAllText(auto[0].SourceUnc));
+    }
+
+    /// <summary>⭐ CE-4099 A3 — an autosave does NOT re-baseline the node (its world must keep reading "changed" until a REAL save); a real save does.
+    /// 🔴 Red-proof (compiles): the wrapper's autosave early return removed ⇒ a baseline after the autosave ⇒ red.</summary>
+    [Fact]
+    public void CE4099_AnAutosave_DoesNotRebaseline_ARealSaveDoes()
+    {
+        var (repo, serializer) = OwnedAndForeign();
+        var check = new Fdp.Toolkit.Replay.WorldChangeCheck();
+        var wrapped = new BaselineAfterSaveHandler(new HrotScenarioSaveHandler(serializer, world: repo, nodeId: NodeId), check, repo);
+
+        wrapped.Commit(Op(autosave: true), repo);
+        Assert.False(check.HasBaseline);
+        wrapped.Commit(Op(autosave: false), repo);
+        Assert.True(check.HasBaseline);
+    }
+
+    /// <summary>⭐ CE-4099 (the worker half) — a behaviour hot reload between the capture and the end of the extraction DISCARDS the result (the registry's
+    /// dictionaries are not thread-safe). 🔴 Red-proof (compiles): the revision compare removed ⇒ no throw ⇒ red.</summary>
+    [Fact]
+    public void CE4099_AHotReloadDuringTheExtraction_DiscardsIt()
+    {
+        var (repo, serializer) = OwnedAndForeign();
+        var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+        var capture = Hrot.Map.Common.Scenario.ScenarioAutosaveCore.Take(repo, "Hrot.Scenario", registry);
+        Assert.NotEmpty(Hrot.Map.Common.Scenario.ScenarioAutosaveCore.ToJson(serializer, capture, registry));   // no change ⇒ written
+        registry.RegisterValidator("hot", _ => Array.Empty<string>());                                        // a hot reload re-registers
+        Assert.Throws<Hrot.Map.Common.Scenario.ScenarioAutosaveCore.RacedHotReloadException>(
+            () => Hrot.Map.Common.Scenario.ScenarioAutosaveCore.ToJson(serializer, capture, registry));
+    }
 }

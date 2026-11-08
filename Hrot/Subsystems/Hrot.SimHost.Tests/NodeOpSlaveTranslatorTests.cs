@@ -277,6 +277,16 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Null(plain.HeaderJson);
     }
 
+    /// <summary>⭐ CE-4099 (AQ108 §4c A2) — the autosave flag survives the wire; a payload without it is a real save (false), exactly as before.
+    /// 🔴 Red-proof (compiles): the slave not passing <c>dto.Autosave</c> ⇒ false ⇒ red.</summary>
+    [Fact]
+    public void CE4099_DeserializeNodePayload_SerializeLocal_CarriesTheAutosaveFlag()
+    {
+        var auto = Assert.IsType<ScenarioSaveHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(NedNodeOpType.SerializeLocal, "{\"ScenarioId\":\"scn\",\"Autosave\":true}"));
+        Assert.True(auto.Autosave);
+        Assert.False(Assert.IsType<ScenarioSaveHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(NedNodeOpType.SerializeLocal, "{\"ScenarioId\":\"scn\"}")).Autosave);
+    }
+
     [Fact]
     public void DeserializeNodePayload_SerializeLocal_ExerciseId_RebuildsArchivePayload()
     {
@@ -415,6 +425,36 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(wire, topic.StartLiveImmediately);
         Assert.Equal(on, ClusterFactsIngress.StateOf(topic).StartLiveImmediately);
         Assert.False(ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).StartLiveImmediately);
+    }
+
+    /// <summary>⭐ CE-4330 ③ fact ① — the master's storage job list survives the wire (<c>StorageJobsWire</c>, the ONE encoding of <c>StorageJobsTopic</c>): two jobs (one Running with its numbers and <c>GivingWay</c>, one Queued with <c>AskedBy</c> and a reason)
+    /// come back equal; an empty list stays an empty list; a blank or unparseable sample reads as "skip" (null), never a throw. 🔴 Mutation: <c>FromTopic</c> dropping a field (e.g. <c>GivingWay</c>) ⇒ the equality assert fails.</summary>
+    [Fact]
+    public void CE4330_TheStorageJobsList_SurvivesTheWire_AndABadSampleIsSkipped()
+    {
+        var running = new StorageJob(Guid.NewGuid(), StorageJobKind.Archive, (Fdp.Core.ExerciseId)Guid.NewGuid(), StorageJobState.Running,
+            FilesDone: 3, FilesTotal: 10, BytesDone: 1_234_567_890L, BytesTotal: 9_876_543_210L, WaitingFor: 0, AskedBy: "film-cam", Reason: null, GivingWay: true);
+        var queued = new StorageJob(Guid.NewGuid(), StorageJobKind.Import, (Fdp.Core.ExerciseId)Guid.NewGuid(), StorageJobState.Queued,
+            AskedBy: "ig-1", Reason: "waiting for the NAS");
+        var topic = Hrot.Network.Orchestration.StorageJobsWire.ToTopic(new[] { running, queued });
+        Assert.Equal(0, topic.NodeId);                                                        // the master
+        Assert.Equal(new[] { running, queued }, Hrot.Network.Orchestration.StorageJobsWire.FromTopic(topic));
+        Assert.Empty(Hrot.Network.Orchestration.StorageJobsWire.FromTopic(Hrot.Network.Orchestration.StorageJobsWire.ToTopic(Array.Empty<StorageJob>()))!);
+        Assert.Null(Hrot.Network.Orchestration.StorageJobsWire.FromTopic(new StorageJobsTopic { JobsJson = "" }));
+        Assert.Null(Hrot.Network.Orchestration.StorageJobsWire.FromTopic(new StorageJobsTopic { JobsJson = "{not json" }));
+    }
+
+    /// <summary>⭐ CE-4099 phase 2 — <i>Autosave</i> minutes ride the cluster-state broadcast both ways (APPENDED last, R-42); an older sender's topic reads 0 (off). 🔴 Mutation: <c>StateOf</c> not mapping it ⇒ red.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    [InlineData(45)]
+    public void CE4099_TheClusterStateBroadcast_CarriesAutosaveMinutes_BothWays(int minutes)
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.Idle, AutosaveMinutes = minutes });
+        Assert.Equal(minutes, topic.AutosaveMinutes);
+        Assert.Equal(minutes, ClusterFactsIngress.StateOf(topic).AutosaveMinutes);
+        Assert.Equal(0, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).AutosaveMinutes);
     }
 
     /// <summary>⭐ R-1043 — the mode of the last scenario load rides the cluster-state broadcast both ways; an older sender's (field never set) reads Live.</summary>

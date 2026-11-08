@@ -216,6 +216,16 @@ public sealed class MainToolbarTimeControlSection
     public ModeMenuModel? ModeMenu()
     {
         var model = WithRunTo(ModeMenuBase());
+        // ⭐ CE-4317 (R-4168, L-10) — Run setup ▸ Preview · Live: the preset each mode starts with (Edit menu and the Live briefing's)
+        if (model is not null && RunSetupItem() is { } runSetup)
+        {
+            var withSetup = new List<ModeMenuItem>(model.Items);
+            bool grouped = false;
+            foreach (var i in model.Items) grouped |= i.IsSeparator;
+            if (!grouped) withSetup.Add(ModeMenuItem.Separator);
+            withSetup.Add(runSetup);
+            model = new(model.Header, withSetup);
+        }
         // ⭐ CE-3406 (story ②) — the Edit menu ends with Close (back to the Start screen, through the one door: unsaved edits ask first)
         if (model is not null && _choice is { CanCloseScenario: true } closer && _facade.Mode == TransportMode.Edit)
         {
@@ -230,6 +240,42 @@ public sealed class MainToolbarTimeControlSection
             model = new(model.Header, items);
         }
         return model;
+    }
+
+    /// <summary>The label of the mode menu's run-setup entry (rails).</summary>
+    public const string RunSetupLabel = "Run setup";
+
+    /// <summary>
+    /// ⭐ CE-4317 (R-4168; presets D8 / D11) — <i>Run setup ▸ Preview ▸ presets · Live ▸ presets · Edit presets…</i>: ONE list per mode (the same <see cref="PresetText"/> wording as the ▾ at ▶), ✓ on the armed one. Choosing ARMS it for that mode
+    /// (<see cref="RunModeChoice.ArmPresetFor"/>) — ⛔ never the mode, and ⛔ no second run-setup editor: params and variants are authored in the preset editor (<i>Edit presets…</i>). Offered in Edit and in the Live briefing (Live only there);
+    /// <see langword="null"/> elsewhere. A Preview of the armed preset runs IN PLACE on the edit world — unsaved edits included (R-4168).
+    /// </summary>
+    private ModeMenuItem? RunSetupItem()
+    {
+        if (_choice is not { } c || c.LoadedPresets.Count <= 1) return null;   // like the ▾: only a scenario with a preset besides Default
+        bool edit = _facade.Mode == TransportMode.Edit;
+        if (!edit && !c.LiveBriefing) return null;
+        if (c.LoadedScenario is not { } scenario) return null;
+        var groups = new List<ModeMenuItem>();
+        if (edit) groups.Add(PresetGroup(c, scenario, RunArmed.Preview, "Preview", ModeGlyph(TransportMode.Preview)));
+        groups.Add(PresetGroup(c, scenario, RunArmed.Live, "Live", ModeGlyph(TransportMode.Live), c.LiveColour));
+        var presets = new List<ModeMenuItem>();
+        if (groups.Count == 1) presets.AddRange(groups[0].Children!); else presets.AddRange(groups);
+        presets.Add(ModeMenuItem.Separator);
+        presets.Add(new("Edit presets…", c.EditPresets, c.EditPresets is not null));
+        return new(RunSetupLabel, null, Children: presets, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Sliders, GlyphColor: NodeEditor.Core.Widgets.IconPalette.Amber);
+    }
+
+    private static ModeMenuItem PresetGroup(RunModeChoice c, string scenario, RunArmed mode, string label, ModeIndicator? icon, Vector4? colour = null)
+    {
+        var armed = c.ArmedPresetOf(scenario, mode);
+        var rows = new List<ModeMenuItem>();
+        foreach (var p in c.LoadedPresets)
+        {
+            var name = p.Name;
+            rows.Add(new(PresetText.Label(p), () => c.ArmPresetFor(mode, name), Selected: string.Equals(name, armed.Name, StringComparison.OrdinalIgnoreCase)));
+        }
+        return new(label, null, Children: rows, Glyph: icon?.Glyph, GlyphColor: colour ?? icon?.Color);
     }
 
     // ── ⭐ W-4 — Run to … (LC-10, 📄 DESIGN_Scenario_Lifecycle_Review.md §2.8; mockup run-to-visual.svg) ──────────────────────────────

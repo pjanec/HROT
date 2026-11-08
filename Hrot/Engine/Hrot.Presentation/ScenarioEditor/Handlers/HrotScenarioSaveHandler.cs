@@ -92,6 +92,10 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
             return Task.FromResult<object?>(null);
         }
 
+        // ⭐⭐ CE-4099 (AQ108 §4c A2/A4, §4c.1) — an AUTOSAVE: capture on THIS (frame) thread, extract on a worker from a private sandbox, the slice
+        //   beside the scenario's .autosave/ — the same round, the same manifest, a different destination.
+        if (payload.Autosave) return AutosaveAsync(payload);
+
         // Write this node's slice to its OWN staging root (never the shared store directly).
         var dir = Path.Combine(OrchestrationConstants.GetNodeScenariosRoot(_nodeId), payload.ScenarioName);
         Directory.CreateDirectory(dir);
@@ -115,6 +119,38 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
         return Task.FromResult<object?>(
             new[] { new FileManifestResult(localFile, relativeDest, ScenarioDocType) });
     }
+
+    /// <summary>
+    /// ⭐ CE-4099 — the autosave half: <see cref="ScenarioAutosaveCore.Take"/> here (the frame thread, ~20–30 ms), the JSON on a worker
+    /// (<see cref="ScenarioAutosaveCore.Write"/>: a sandbox, the ONE save core), the slice at <see cref="AutosaveSliceRelativePath"/>. A hot reload during the
+    /// extraction fails the node's part (the master only logs a failed autosave).
+    /// </summary>
+    private Task<object?> AutosaveAsync(ScenarioSaveHandlerPayload payload)
+    {
+        var registry = _behaviorRemapper?.Registry;
+        var capture  = ScenarioAutosaveCore.Take(_world, ScenarioDocType, registry);
+        var dir      = Path.Combine(OrchestrationConstants.GetNodeScenariosRoot(_nodeId), payload.ScenarioName, AutosaveFolder);
+        var file     = Path.Combine(dir, ScenarioFileName);
+        var relative = AutosaveSliceRelativePath(payload.ScenarioName, _nodeId);
+        var serializer = _serializer;
+        var remapper   = _behaviorRemapper;
+        var nodeId     = _nodeId;
+        return Task.Run<object?>(() =>
+        {
+            Directory.CreateDirectory(dir);
+            ScenarioAutosaveCore.Write(serializer, capture, file, registry, remapper);
+            FdpLog<HrotScenarioSaveHandler>.Info("[HrotScenarioSaveHandler] node {0} wrote the AUTOSAVE slice of '{1}'.", nodeId, payload.ScenarioName);
+            return new[] { new FileManifestResult(file, relative, ScenarioDocType) };
+        });
+    }
+
+    /// <summary>⭐ CE-4099 (AQ108 §4c A5) — the scenario's autosave folder: a dot-folder, so no scenario enumerator lists it and CE-4091's copy skips it.</summary>
+    public const string AutosaveFolder = AutosaveFiles.Folder;
+
+    /// <summary>⭐ CE-4099 — the NAS-relative path of this node's AUTOSAVE slice: <c>&lt;scenario folder&gt;/.autosave/.slices/node_N.json</c> (never the real
+    /// save's <c>.slices</c>, so an autosave and a save never share staging).</summary>
+    public static string AutosaveSliceRelativePath(string scenarioName, NodeId nodeId)
+        => Path.Combine(ContentLayout.ScenarioRelativeFolder(scenarioName), AutosaveFolder, ".slices", $"node_{nodeId}.json");
 
     /// <summary>⭐ CE-4210 MA-4 — the NAS-relative path of this node's slice: <c>&lt;scenario folder&gt;/.slices/node_N.json</c>, the folder resolved by
     /// <see cref="ContentLayout.ResolveScenarioDirectory"/> (<c>scenarios/x</c>, or <c>macros/x</c>) — the SAME resolver the merge reads.</summary>

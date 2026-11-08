@@ -75,6 +75,7 @@ namespace Hrot.Editor.DebugApi
         private readonly Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? _editorArmedMode;   // CE-3341 — the cluster's armed mode, from the in-process master's broadcast
         private readonly Func<bool?>? _editorRecordLiveRunsOff;   // CE-4090 — the setting, from the in-process master's broadcast
         private readonly Func<bool?>? _editorAskToKeepRecordings;   // CE-4100 — the same, for the Ask-to-keep setting
+        private readonly Func<int?>? _editorAutosaveMinutes;   // CE-4099 phase 2 — the same, for the Autosave setting
         private readonly Func<bool?>? _editorStartLiveImmediately;   // CE-3415 — the same, for the Start-immediately setting
         private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?>? _editorClusterView;   // CE-3344 — the in-process node's ONE cluster read model (the 409 gate)
         private readonly Func<bool?>? _editorRunNotRecorded;   // CE-4090 — the in-process master's "this run was not recorded"
@@ -582,6 +583,7 @@ namespace Hrot.Editor.DebugApi
             Func<bool?>? recordLiveRunsOff = null,
             Func<bool?>? askToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①)
             Func<bool?>? startLiveImmediately = null,   // ⭐ CE-3415 (AQ108 §0 D31)
+            Func<int?>? autosaveMinutes = null,   // ⭐ CE-4099 phase 2
             Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? armedMode = null,   // ⭐ CE-3341
             // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer + last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS them.
             Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
@@ -593,6 +595,7 @@ namespace Hrot.Editor.DebugApi
             _editorRecordLiveRunsOff = recordLiveRunsOff;
             _editorAskToKeepRecordings = askToKeepRecordings;
             _editorStartLiveImmediately = startLiveImmediately;
+            _editorAutosaveMinutes = autosaveMinutes;
             _editorArmedMode = armedMode;
             _editorRunNotRecorded = runNotRecorded;
             _editorUnsavedCheck = unsavedCheck;
@@ -1338,13 +1341,24 @@ namespace Hrot.Editor.DebugApi
         /// <c>--mode all</c> an edit load is PARTIAL: SimHost loads, CGF does not. ⛔ Declared in the
         /// conformance baseline rather than crashing — which is why the content diff uses LIVE.</para>
         /// </summary>
-        public JsonNode LoadScenarioEdit(string name, HttpUnsavedGate? gate = null, string? scenarioArgsJson = null)
+        public JsonNode LoadScenarioEdit(string name, HttpUnsavedGate? gate = null, string? scenarioArgsJson = null, bool recoverAutosave = false)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
 
             var asker = HttpAsker(gate);
             var answered = gate?.Answer ?? UnsavedAnswer.Unchanged;
+            if (recoverAutosave)
+            {
+                // ⭐⭐ CE-4099 (AQ108 §4c A7) — RECOVER the scenario's autosave: refused when there is none or it is stale; the unsaved-edits decision is the
+                //   SAME one (HTTP's deciding door); the load is the edit load with RecoverAutosave set (⛔ the editor's session door has no such open yet — ui's).
+                if (AutosaveFiles.Read(OrchestrationConstants.GetSharedRoot(), name, Fdp.Toolkit.Scenario.ScenarioDescription.HashOf).Refusal is { } why)
+                    return new JsonObject { ["refused"] = why };
+                JsonNode? recovered = null;
+                HttpDoor.Admit(DoorMove.OpeningScenario(name), asker, answered, () => recovered = SendEditLoad(name, scenarioArgsJson, recoverAutosave: true));
+                if (asker.Refusal is { } refusedRecovery) return new JsonObject { ["refused"] = refusedRecovery };
+                return recovered ?? throw new InvalidOperationException("the door neither admitted nor refused the recovery");
+            }
             if (_editorLogic?.Door is { } editorDoor)
             {
                 // ⭐ CE-4101 — the editor's ONE guarded door, asked with HTTP's refusing asker: a run is stopped (the session leaves a dry run itself, CE-1025), a loss is refused — the 409 is the door's answer
@@ -1362,10 +1376,23 @@ namespace Hrot.Editor.DebugApi
             return sent ?? throw new InvalidOperationException("the door neither admitted nor refused the edit load");
         }
 
-        private JsonNode SendEditLoad(string name, string? scenarioArgsJson = null)
+        /// <summary>⭐ CE-4099 (AQ108 §4c A7) — <c>GET /scenario/autosave?name=</c>: whether the scenario has an autosave, from when, and whether it is stale
+        /// (the scenario was saved since — reported, never offered). <b>Any thread</b> (a file read).</summary>
+        public JsonNode AutosaveStatus(string name)
+        {
+            var st = AutosaveFiles.Read(OrchestrationConstants.GetSharedRoot(), name, Fdp.Toolkit.Scenario.ScenarioDescription.HashOf);
+            return new JsonObject
+            {
+                ["name"] = name, ["exists"] = st.Exists, ["stale"] = st.Stale, ["recoverable"] = st.Refusal is null,
+                ["at"] = st.Exists ? st.AtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture) : null,
+                ["reason"] = st.Refusal,
+            };
+        }
+
+        private JsonNode SendEditLoad(string name, string? scenarioArgsJson = null, bool recoverAutosave = false)
         {
             var stopped = LeaveRunForLoad();
-            if (_editorLogic is not null)
+            if (_editorLogic is not null && !recoverAutosave)
             {
                 _editorLogic.LoadScenarioByName(name);   // a host whose editor logic has no session door (a fake): as it always was
                 return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "editor-driver",
@@ -1374,6 +1401,7 @@ namespace Hrot.Editor.DebugApi
 
             // ⭐ CE-3354 ⑥ — the ONE edit-load intent (ScenarioLoadSequence.EditLoadIntent: no ExerciseId — authoring is not an exercise run), shared with the command line's startup load
             var editIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.EditLoadIntent(name, scenarioArgsJson);   // ⭐ macros debt A5 (SR-41)
+            editIntent.RecoverAutosave = recoverAutosave;   // ⭐ CE-4099 A7
             var editRequest = editIntent.TransactionId;
             NoteLoadSent(editRequest, name);   // ⭐ CE-3354 ④ — GET /status.load and waitForReady follow THIS request's outcome
             ScenarioLoads.Request(editIntent);

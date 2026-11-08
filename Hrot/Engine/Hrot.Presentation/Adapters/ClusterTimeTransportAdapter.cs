@@ -344,7 +344,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
 
     void IRunTransport.StopRaw() => StopRaw();
 
-    void IRunTransport.EnterDryRun(bool startPaused) => _bus.PublishManaged(DryRunIntents.Enter(startPaused));
+    void IRunTransport.EnterDryRun(bool startPaused, string? presetArgs) => _bus.PublishManaged(DryRunIntents.Enter(startPaused, presetArgs));   // ⭐ CE-4317 — the run setup rides the ONE construction
 
     void IRunTransport.Resume() => _bus.PublishManaged(new ResumeTimeIntent());
 
@@ -364,13 +364,15 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         => View is { } v ? (v.AvailableExercises, v.ArchivedExercises, v.UnarchivedLocalExercises) : (NoExercises, NoExercises, NoExercises);
     private static readonly ExerciseInventoryItem[] NoExercises = System.Array.Empty<ExerciseInventoryItem>();
     bool? IRunTransport.StartImmediatelySetting => View is { } v ? v.StartLiveImmediately : null;   // ⭐ CE-3415 (AQ108 §0 D31)
+    int? IRunTransport.AutosaveMinutesSetting => View is { } v ? v.AutosaveMinutes : null;   // ⭐ CE-4099 phase 2 — 0 = off
 
-    void IRunTransport.SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately) => _bus.PublishManaged(new SetRunSettingsIntent
+    void IRunTransport.SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately, int? autosaveMinutes) => _bus.PublishManaged(new SetRunSettingsIntent
     {
         RequestId = Guid.NewGuid(),
         RecordLiveRuns = recordLiveRuns,
         AskToKeepRecordings = askToKeepRecordings,   // null = unchanged; Armed stays null too (the intent's own default)
         StartLiveImmediately = startLiveImmediately,
+        AutosaveMinutes = autosaveMinutes,   // ⭐ CE-4099 phase 2 — null = unchanged
     });
 
     /// <summary>

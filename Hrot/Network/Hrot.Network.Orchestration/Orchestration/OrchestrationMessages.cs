@@ -196,6 +196,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public List<FeatureOverrideWire> FeatureOverrides;
         /// <summary>⭐ CE-3415 (AQ108 §0 D31) — 1 = the cluster's <i>Start immediately</i> SETTING is ON; 0 = OFF, or an older sender (the default). ⭐ APPENDED LAST (R-42); additive on the wire.</summary>
         public int StartLiveImmediately;
+        /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes; 0 = off, or an older sender (the default). ⭐ APPENDED LAST (R-42); additive on the wire.</summary>
+        public int AutosaveMinutes;
     }
 
     /// <summary>⭐ Node Features F-16 (R-134) — the wire twin of <c>FeatureOverrideSpec</c>; only the translators convert.</summary>
@@ -226,6 +228,21 @@ namespace Hrot.NED.Descriptors.Orchestration
         public Guid ExerciseId;
         /// <summary>The whole session, <c>Fdp.Toolkit.Orchestration.ReplaySession</c> as JSON (the map and the marks are variable-length).</summary>
         [DdsManaged] public string SessionJson;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ③ fact ① (docs/DESIGN_Recording_Storage.md §7.2) — THE CLUSTER'S STORAGE JOBS: the master's queue of archive / import / discard / delete jobs with their state and numbers, what every station's status bar draws.
+    /// One producer (the master, <see cref="NodeId"/> 0); the master republishes the whole list on every change, TransientLocal + KeepLast 1 hands the newest to a late joiner. Mirrors <see cref="ReplaySessionTopic"/>.
+    /// </summary>
+    [DdsTopic]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct StorageJobsTopic
+    {
+        /// <summary>The producer: 0 = the master.</summary>
+        [DdsKey] public int NodeId;
+        /// <summary>The whole list, <c>Fdp.Toolkit.Orchestration.StorageJob[]</c> as JSON (variable length).</summary>
+        [DdsManaged] public string JobsJson;
     }
 
     /// <summary>

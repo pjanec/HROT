@@ -119,7 +119,7 @@ x, y = panel(1, "② EDIT — Recent ▸ Edit (or Open scenario)",
              "The full editor appears; the pen says your edits are saved. Indicator ▾ → Live: asks Save / Discard / Cancel, then loads Live.")
 toolbar(x, y, FA.PEN, YELLOW, FA.PLAY, VIO, False, STOP, C.SUB, True, FLOPPY, C.TXT, False)
 mapview(x, y + 30)
-s.menu(x + 250, y + 30, 300, [("Edit", "✓", FA.PEN, YELLOW), ("Live", None, CIRCLE, RED), ("AAR — open a recording…", None, FA.PLAY, BLU), "---", ("Run to …  (built, LC-10 — unchanged)", None, FA.CLOCK, VIO), "---", ("Close", None, CLOSE, C.SUB)])
+s.menu(x + 250, y + 30, 330, [("Edit", "✓", FA.PEN, YELLOW), ("Live", None, CIRCLE, RED), ("AAR — open a recording…", None, FA.PLAY, BLU), "---", ("Run to …  (built, LC-10 — unchanged)", None, FA.CLOCK, VIO), ("Run setup  ▸  Preview · Live  (presets, CE-4317)", None, FA.SLIDERS, AMB), "---", ("Close", None, CLOSE, C.SUB)])
 
 # ③ Live — briefing
 x, y = panel(2, "③ LIVE · BRIEFING — loaded, paused at 0:00 (the exercise exists, recording armed)",

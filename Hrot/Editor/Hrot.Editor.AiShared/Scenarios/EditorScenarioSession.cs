@@ -143,7 +143,23 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
                 _loadedScenarioName = load.ScenarioId;
                 Opened?.Invoke();   // ⭐ B-14 — a load (to edit, or Live) starts a new history
             });
-        Door = new ScenarioDoor(this, () => ClusterReplayControls.ModeOf(CurrentClusterState), RawLeave);
+        Door = new ScenarioDoor(this, () => ClusterReplayControls.ModeOf(CurrentClusterState), RawLeave)
+        {
+            AutosaveOf = AutosaveOfScenario,   // ⭐ CE-4099 A7 — the door's recovery offer
+        };
+    }
+
+    /// <summary>
+    /// ⭐ CE-4099 A7 — a scenario's autosave state, read by the door ONCE per open (a user action, never per frame): <c>AutosaveFiles.Read</c> — the ONE reader HTTP's <c>GET /scenario/autosave</c> and the master's prefetch use — under the NAS
+    /// root of THIS session's scenarios root (<c>{nas}/scenarios</c>, so a host and its rails agree on one tree); a root of another shape falls back to the shared NAS root.
+    /// </summary>
+    private Fdp.Toolkit.Orchestration.AutosaveFiles.Status AutosaveOfScenario(string scenarioName)
+    {
+        string scenarios = _scenariosRoot().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string nas = string.Equals(Path.GetFileName(scenarios), Fdp.Toolkit.Orchestration.ContentLayout.ScenariosDirectoryName, StringComparison.Ordinal) && Path.GetDirectoryName(scenarios) is { Length: > 0 } parent
+            ? parent
+            : Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot();
+        return Fdp.Toolkit.Orchestration.AutosaveFiles.Read(nas, scenarioName, Fdp.Toolkit.Scenario.ScenarioDescription.HashOf);
     }
 
     // ⭐ CE-1025 (R-1031, load design §9.1) — leaves the host's own dry run WITHOUT a rewind, FIRST, at every load request (and New
@@ -226,7 +242,10 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     string? IRunScenarioControl.LoadedArgsJson => _world is null ? null : Fdp.Toolkit.Scenario.ScenarioDescription.ArgsOf(_world);
 
     /// <summary>⭐ CE-3375 — the edit open with a preset's args (null ⇒ the plain open, exactly as before).</summary>
-    void IRunScenarioControl.OpenForEdit(string scenarioName, string? argsJson)
+    void IRunScenarioControl.OpenForEdit(string scenarioName, string? argsJson) => ((IRunScenarioControl)this).OpenForEdit(scenarioName, argsJson, recoverAutosave: false);
+
+    /// <summary>⭐ CE-4099 A7 (backend's session half, one pass-through) — the edit open; <paramref name="recoverAutosave"/> rides the load's <c>TransitionStateIntent.RecoverAutosave</c> (the wire carries it, the nodes stage the autosave).</summary>
+    void IRunScenarioControl.OpenForEdit(string scenarioName, string? argsJson, bool recoverAutosave)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         _leaveRun?.Invoke();
@@ -237,6 +256,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
             ScenarioId       = scenarioName,
             ExerciseId       = Fdp.Core.ExerciseId.NewId(),
             ScenarioArgsJson = string.IsNullOrWhiteSpace(argsJson) ? null : argsJson,
+            RecoverAutosave  = recoverAutosave,
         });
     }
 

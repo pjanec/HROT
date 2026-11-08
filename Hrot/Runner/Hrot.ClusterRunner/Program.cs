@@ -796,20 +796,9 @@ class Program
     /// subsystem in a multi-process cluster receives a distinct ID.
     /// Returns 0 (legacy fallback) when <paramref name="baseNodeId"/> is 0.
     /// </summary>
-    private static int ResolveAppNodeId(string subsystemName, int baseNodeId)
+    internal static int ResolveAppNodeId(string subsystemName, int baseNodeId)   // ⭐ CE-4332 — internal for the per-arm rail
     {
-        int offset = subsystemName.ToUpper() switch
-        {
-            "SIMHOST"      => 1,
-            "Player"           => 100,
-            "ORCHESTRATOR" => 300,
-            "CGF"          => 400,
-            "CI"           => 500,
-            "TRAFFIC"      => 800,   // ⭐ AQ93 N1 — the SUMO traffic node (several may run: give each its own -n base)
-            // ST-015: the "STRIDEMOCK" => 700 arm went with the subsystem. Not in the dispatch's
-            // table, which recorded Program.cs:256 as the only StrideMock line in this file.
-            _              => 600,
-        };
+        int offset = Hrot.Orchestrator.NodeIdRanges.OffsetOf(subsystemName);   // ⭐ CE-4331 ⑥ — the ONE table, shared with the master's grants
         return baseNodeId + offset;
     }
 

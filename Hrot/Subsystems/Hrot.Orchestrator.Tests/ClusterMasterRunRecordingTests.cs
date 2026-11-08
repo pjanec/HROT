@@ -232,6 +232,37 @@ public sealed class ClusterMasterRunRecordingTests
         Assert.True(Last()!.Value.StartLiveImmediately);
     }
 
+    /// <summary>⭐ CE-4099 phase 2 — <i>Autosave</i>: 2 minutes by default (on the broadcast), set by the op, left alone by an op that does not carry it, 0 = off, a negative value = off.
+    /// 🔴 Mutation: the master not copying <c>AutosaveMinutes</c> into the broadcast ⇒ the first broadcast assert fails.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4099_AutosaveMinutes_DefaultsToTwo_IsSetByTheOp_RidesTheBroadcast_AndAnOpThatDoesNotCarryItLeavesItAlone()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
+        ClusterStateUpdateEvent? Last()
+        {
+            ClusterStateUpdateEvent? last = null;
+            foreach (var e in bus.ReadManaged<ClusterStateUpdateEvent>()) last = e;
+            return last;
+        }
+        Assert.Equal(2, master.AutosaveMinutes);
+        Assert.Equal(TimeSpan.FromMinutes(2), master.AutosaveEvery);
+        bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), AutosaveMinutes = 7 });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Equal(TimeSpan.FromMinutes(7), master.AutosaveEvery);
+        Assert.Equal(7, Last()!.Value.AutosaveMinutes);
+        SetSetting(master, bus, false);                          // an op carrying only RecordLiveRuns
+        Assert.Equal(7, master.AutosaveMinutes);
+        Assert.Equal(7, Last()!.Value.AutosaveMinutes);
+        bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), AutosaveMinutes = 0 });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Equal(TimeSpan.Zero, master.AutosaveEvery);
+        Assert.Equal(0, Last()!.Value.AutosaveMinutes);
+        bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), AutosaveMinutes = -4 });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Equal(TimeSpan.Zero, master.AutosaveEvery);       // a negative interval is off, never a negative timer
+    }
+
     // ── 4 — the verifier ──────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>⭐ §5a — the scenario verifier compares a RECORDING against a golden: its live load (<c>ForceRecording</c>) records even with the

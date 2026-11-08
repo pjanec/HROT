@@ -19,4 +19,7 @@ public readonly record struct ScenarioSaveHandlerPayload(
     // ⭐ CE-4210 MA-9 — Save selection as macro: the entity GUIDs to write (null = everything, as today) and the macro header fields
     //   (the object ScenarioHeaderJson.Write produces; null = from the resident, as today). Both optional: a null / empty value keeps every existing save as it was.
     System.Collections.Generic.IReadOnlyList<System.Guid>? OnlyGuids = null,
-    string? HeaderJson = null);
+    string? HeaderJson = null,
+    // ⭐ CE-4099 (AQ108 §4c A2/A3) — an AUTOSAVE round: the same fan-out, the slice goes to <c>.autosave/</c>, the node does NOT re-baseline, and it is extracted
+    //   from a keyframe sandbox on a worker (A4). False = a real save, exactly as before.
+    bool Autosave = false);

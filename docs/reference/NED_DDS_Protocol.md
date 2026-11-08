@@ -443,7 +443,6 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Fdp.Network.Cyclone.Topics.EntityLifecycleStatusDescriptor` | descriptor | yes: entity id + node id | S | Fdp.Network.Cyclone | Per-node readiness for reliable-init construction barrier |
 | `Fdp.Network.Cyclone.Topics.OwnershipUpdate` | message | no | Q | Fdp.Network.Cyclone | Per-descriptor ownership handoff (the spec's OwnershipUpdate) |
 | `Hrot.NED.Messages.CreateEntityRequest` | message | no | Q | Hrot.Network.NED | Ask the creator node to create an entity |
-| `Hrot.NED.Messages.CreateUpdateDeleteEntityAck` | message | no | Q | Hrot.Network.NED | Unified ack for create, update and delete requests |
 | `Hrot.NED.Messages.EntityEditOutcome` | message | no | Q | Hrot.Network.NED | The owner's outcome of a remote edit that asked for one: applied / pending / refused, with the reason (CE-2380, `DESIGN_Remote_Edit_Outcome.md`) |
 | `Hrot.NED.Messages.DeferredTakeOwnership` | message | yes: entity id | Q | Hrot.Network.NED | Pre-genesis grant table: who will own which descriptor |
 | `Hrot.NED.Messages.DeleteEntityRequest` | message | no | Q | Hrot.Network.NED | Ask the owner to delete an entity |
@@ -495,6 +494,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.Orchestration.NodeOpStatus` | message | no | Q | Hrot.Network.Orchestration | Node's reply to a node operation |
 | `Hrot.NED.Descriptors.Orchestration.OrchestratorContextTopic` | message | no | S | Hrot.Network.Orchestration | Exercise, scenario and required nodes context |
 | `Hrot.NED.Descriptors.Orchestration.ReplaySessionTopic` | message | no | S | Hrot.Network.Orchestration | Replay session layer: zero, length, axis, marks |
+| `Hrot.NED.Descriptors.Orchestration.StorageJobsTopic` | message | yes: node id (0 = master) | S | Hrot.Network.Orchestration | The master's storage job list (archive / import / discard / delete) with state and numbers |
 
 ### H. EQS (environment-query sensors) — 4
 

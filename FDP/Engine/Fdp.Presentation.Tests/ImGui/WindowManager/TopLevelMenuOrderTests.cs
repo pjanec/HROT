@@ -94,9 +94,10 @@ public class TopLevelMenuOrderTests
         wm.GlobalMenu.RegisterItem("File/Open", () => { });
         wm.GlobalMenu.RegisterItem("Zeta/Unlisted", () => { });
 
-        var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective));
+        var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective))
+            .Where(wm.BarMenuShows).ToList();   // the bar as DRAWN (no dead headers, UXI-05)
 
-        Assert.Equal(new[] { "File", "Edit", "View", "Zeta", "Help" }, bar.Select(m => m.Name));   // ⭐ B-10 K6: Edit holds the shell's Keyboard shortcuts…   // ⭐ CE-4114: Windows is under View; Zeta (unlisted) after the listed menus
+        Assert.Equal(new[] { "File", "View", "Zeta", "Help" }, bar.Select(m => m.Name));   // ⭐ R-4176: no Edit menu just for Keyboard shortcuts   // ⭐ CE-4114: Windows is under View; Zeta (unlisted) after the listed menus
         Assert.Equal("Help", bar.Last().Name);
         Assert.True(bar.Last().RightAligned);
         Assert.Equal(new[] { "Help" }, bar.Where(m => m.RightAligned).Select(m => m.Name));
@@ -181,6 +182,25 @@ public class TopLevelMenuOrderTests
     /// <summary>⭐ CE-4085 cond. 3 — NO ITEM LOST: the leaf set of a real window manager's tree equals the pre-CE-4085 leaf set with
     /// Settings/… and Perspective/… re-parented under View — nothing dropped, nothing duplicated, no other menu touched.
     /// ✅ Red-proof: dropping the "UI Scale &amp; Fonts…" registration, or a perspective from the switcher ⇒ red.</summary>
+    /// <summary>
+    /// ⭐ R-4176 (user-approved) — the shell's Keyboard shortcuts item lives in Edit where the host's Edit menu holds something else, else under Help; never both,
+    /// and no Edit menu exists just for it. 🔴 Red-proof: the Help path's visibility always true ⇒ both shown ⇒ red.
+    /// </summary>
+    [Fact]
+    public void R4176_KeyboardShortcuts_UnderEditWhenTheHostHasAnEditMenu_ElseUnderHelp()
+    {
+        var wm = WmWithPerspectives();
+        string[] Paths() => wm.GlobalMenu.BuildViewModel(wm.CurrentPerspective).Items.Where(i => i.Kind == "item" && i.Visible).Select(i => i.Path).ToArray();
+
+        Assert.Contains(Fdp.Presentation.WindowManager.WindowManager.ShortcutsInHelp, Paths());
+        Assert.DoesNotContain(Fdp.Presentation.WindowManager.WindowManager.ShortcutsInEdit, Paths());
+        Assert.DoesNotContain(wm.GlobalMenu.TopLevelMenus(), m => m.Name == "Edit" && wm.HasVisibleDescendant(m));   // no Edit header drawn just for it
+
+        wm.GlobalMenu.RegisterItem("Edit/Undo", () => { });   // a host with an Edit menu (the editor's Undo / Redo / History…)
+        Assert.Contains(Fdp.Presentation.WindowManager.WindowManager.ShortcutsInEdit, Paths());
+        Assert.DoesNotContain(Fdp.Presentation.WindowManager.WindowManager.ShortcutsInHelp, Paths());
+    }
+
     [Fact]
     public void CE4085_NoItemIsLost_TheLeafSetIsTheOldSetReparentedUnderView()
     {
@@ -197,12 +217,12 @@ public class TopLevelMenuOrderTests
             "Perspective/Player", "Perspective/Scenario",
             "Windows/Player/w-Player", "Windows/Scenario/w-Scn",
             "Help/About",
-            "Edit/Keyboard shortcuts…",   // ⭐ B-10 K6 — the shell's own item (Ctrl+K)
+            "Help/Keyboard shortcuts…",   // ⭐ B-10 K6 / R-4176 — the shell's own item (Ctrl+K): under Help on a host with no Edit menu
         };
         string Rehome(string p) => p.StartsWith("Settings/") || p.StartsWith("Perspective/") || p.StartsWith("Windows/") ? "View/" + p : p;   // ⭐ CE-4114: + Windows
 
         var after = wm.GlobalMenu.BuildViewModel(wm.CurrentPerspective).Items
-            .Where(i => i.Kind == "item").Select(i => i.Path).ToHashSet();
+            .Where(i => i.Kind == "item" && i.Visible).Select(i => i.Path).ToHashSet();
         var expected = before.Select(Rehome).ToHashSet();
 
         Assert.Equal(expected.OrderBy(x => x), after.OrderBy(x => x));

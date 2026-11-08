@@ -26,6 +26,24 @@ public sealed class ClusterViewTests
         view.Update();
     }
 
+    /// <summary>⭐ CE-4330 ③ fact ① — the storage jobs are one more fact of the same fold: empty before any broadcast, the master's whole list after (last wins), empty again for an empty list.
+    /// 🔴 Mutation: <c>DrainStorageJobs</c> not run from <c>Update</c> ⇒ the list stays empty ⇒ red.</summary>
+    [Fact]
+    public void CE4330_TheStorageJobsListIsFolded_LastWins_AndAnEmptyListEmptiesIt()
+    {
+        var bus = new FdpEventBus();
+        var view = new ClusterView(bus);
+        Assert.Empty(view.StorageJobs);
+        var running = new StorageJob(Guid.NewGuid(), StorageJobKind.Archive, (ExerciseId)Guid.NewGuid(), StorageJobState.Running, 3, 10, 1_000, 9_000, GivingWay: true);
+        var queued = new StorageJob(Guid.NewGuid(), StorageJobKind.Import, (ExerciseId)Guid.NewGuid(), StorageJobState.Queued, AskedBy: "ig-1");
+        HearStruct(bus, view, new StorageJobsUpdateEvent { Jobs = new[] { running, queued } });
+        Assert.Equal(new[] { running, queued }, view.StorageJobs);
+        HearStruct(bus, view, new StorageJobsUpdateEvent { Jobs = new[] { running with { State = StorageJobState.Done } } });
+        Assert.Equal(new[] { running with { State = StorageJobState.Done } }, view.StorageJobs);   // the newest list IS the list
+        HearStruct(bus, view, new StorageJobsUpdateEvent { Jobs = Array.Empty<StorageJob>() });
+        Assert.Empty(view.StorageJobs);
+    }
+
     /// <summary>
     /// The state broadcast is folded once: state, exercise, axis and the two recording flags; "no master heard" (<c>HasFollowedState</c> false) is told
     /// from a heard <c>Idle</c>, <c>MasterGone</c> is set by its broadcast and cleared by the next real one, and the flags survive a MasterGone.
@@ -73,6 +91,13 @@ public sealed class ClusterViewTests
         Assert.True(view.StartLiveImmediately);
         HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall });
         Assert.False(view.StartLiveImmediately);
+
+        // CE-4099 phase 2 - Autosave minutes: 0 (off) before any broadcast, the master's word after, 0 again for a sender that never sets it
+        Assert.Equal(0, view.AutosaveMinutes);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall, AutosaveMinutes = 5 });
+        Assert.Equal(5, view.AutosaveMinutes);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall });
+        Assert.Equal(0, view.AutosaveMinutes);
 
         HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
         Assert.True(view.MasterGone);

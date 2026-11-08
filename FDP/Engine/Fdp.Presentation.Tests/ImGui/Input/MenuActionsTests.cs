@@ -79,9 +79,7 @@ public sealed class MenuActionsTests
     [Fact]
     public void NoProductionMenuItemIsAClosureOnly()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root != null && !File.Exists(Path.Combine(root.FullName, "HROT.sln"))) root = root.Parent;
-        Assert.NotNull(root);
+        var root = new DirectoryInfo(Fdp.Testing.TestRepo.Root);   // CE-3343: the ONE test-side repository-root walk-up
         var call = new Regex(@"\.(RegisterItem|RegisterCheckableItem)\(");
         var offenders = new System.Collections.Generic.List<string>();
         foreach (var top in new[] { "Hrot", "FDP" })

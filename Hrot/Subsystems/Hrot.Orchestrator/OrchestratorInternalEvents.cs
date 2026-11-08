@@ -24,6 +24,8 @@ internal struct ExecutePrefetchIntent
     /// <summary>⭐ CE-3020 — each active node's advertised capability tokens, so the saga knows which asset kinds each
     /// node needs or authors and where they live (docs/DESIGN_Asset_Management.md §4, §7.3a). Null = none known.</summary>
     public Dictionary<int, string[]>? NodeCapabilities;
+    /// <summary>⭐ CE-4099 (AQ108 §4c A7) — stage the scenario's AUTOSAVE as its <c>scenario.json</c> for this load (refused when none or stale).</summary>
+    public bool RecoverAutosave;
 }
 
 /// <summary>
@@ -96,6 +98,8 @@ internal struct ExportArchiveBegunEvent
     public Guid ArchiveRequestId;
     /// <summary>Cancellation token source for the NAS pull; also stored in ClusterMaster._activeCancellations.</summary>
     public System.Threading.CancellationTokenSource Cts;
+    /// <summary>⭐ CE-4330 ② — the job's counters the pull writes (files, bytes) and the master's give-way word it reads.</summary>
+    public Fdp.Toolkit.Orchestration.StorageTransferProgress? Progress;
 }
 
 /// <summary>
@@ -110,6 +114,9 @@ internal struct SaveScenarioJsonBegunEvent
     public Guid TransactionId;
     /// <summary>Relative scenario name / subfolder under the NAS scenarios root (never a filesystem path).</summary>
     public string ScenarioName;
+    /// <summary>⭐ CE-4099 (AQ108 §4c A2/A5) — an AUTOSAVE round: merged into <c>.autosave/autosave.json</c> (+ its meta), never <c>scenario.json</c>; no
+    /// <see cref="ScenarioSaveFinishedEvent"/> (an autosave is not a save — A3).</summary>
+    public bool Autosave;
 }
 
 /// <summary>
@@ -139,4 +146,6 @@ internal struct ImportArchiveBegunEvent
     public System.Collections.Generic.List<NodeDistributionTarget> Targets;
     /// <summary>Cancellation token source; also stored in ClusterMaster._activeCancellations.</summary>
     public System.Threading.CancellationTokenSource Cts;
+    /// <summary>⭐ CE-4330 ② — the job's counters the push writes, and the master's give-way word.</summary>
+    public Fdp.Toolkit.Orchestration.StorageTransferProgress? Progress;
 }

@@ -19,10 +19,15 @@ public sealed class FallScreen : ICameraDriver
 
     private readonly PossessionStation _station;
     private float _killCamUntil = -1f;
+    private readonly Fdp.Toolkit.Input.KeymapReader _keys;   // ⭐ B-10 K4 (§6g) — the Embodied hat's rows: the fall screen leaves with the same keys he fell with
+    private IInputProvider? _chordsFor;
+    private Fdp.Presentation.Input.ProviderChordInput? _chords;
 
     public FallScreen(PossessionStation station, Entity dead, Entity killer, float since)
     {
         _station = station;
+        EmbodiedKeys.Declare(station.Keymap);
+        _keys = new Fdp.Toolkit.Input.KeymapReader(station.Keymap, Fdp.Toolkit.Input.InputScope.Hat, EmbodiedKeys.Hat);
         Dead = dead;
         Killer = killer;
         Since = since;
@@ -69,9 +74,11 @@ public sealed class FallScreen : ICameraDriver
 
     public bool HandleInput(MapCamera3D camera, IInputProvider input)
     {
-        if (input.IsKeyPressed(MapKeyboardKey.Escape)) { _station.EndFall(); return true; }
-        if (input.IsKeyPressed((MapKeyboardKey)FpsCameraDriver.TeamSwitchKey)) { _station.FallToSquadMate(); return true; }   // R-3076: J, the one next-man key
-        if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.K) && _station.World is { } w && CanKillCam(w))
+        if (!ReferenceEquals(_chordsFor, input)) { _chords = new Fdp.Presentation.Input.ProviderChordInput(input); _chordsFor = input; }
+        _keys.Input = _chords;
+        if (_keys.Pressed(EmbodiedKeys.Release)) { _station.EndFall(); return true; }
+        if (_keys.Pressed(EmbodiedKeys.TeamNext)) { _station.FallToSquadMate(); return true; }   // R-3076: J, the one next-man key
+        if (_keys.Pressed(EmbodiedKeys.KillCam) && _station.World is { } w && CanKillCam(w))
             _killCamUntil = _station.Clock + PossessionStation.KillCamSeconds;
         return true;
     }

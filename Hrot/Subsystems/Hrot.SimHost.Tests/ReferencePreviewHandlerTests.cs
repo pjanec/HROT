@@ -109,6 +109,56 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0.5, forms.Presence);
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-4317 (L-10, R-4168 — the ui acceptance of "a Preview of a preset shows an unsaved edit"): the edit world holds an UNSAVED edit (an entity moved, one added since the load); a Preview of a preset runs the preset applied ON TOP of
+        /// that edited world — the edit is in the Preview's world AND the preset's change is — so the Preview's world differs from the edit world; and after ■ the edit world is exactly as it was (the edit kept, the preset gone). A Preview with
+        /// no setup is the edit world as it is. 🔴 Red-proof (compiles): the applier called BEFORE the capture (⇒ the rewind restores the preset world) ⇒ the final asserts fail; or a reload of the SAVED scenario (⇒ the edit is missing) ⇒ the edit asserts fail.
+        /// </summary>
+        [Fact]
+        public async Task CE4317_APresetPreview_ShowsAnUnsavedEdit_AndStopLeavesTheEditWorldUntouched()
+        {
+            _liveRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            _liveRepo.RegisterManagedComponent<Fdp.Toolkit.Scenario.VariantForms>();
+            var guid = Guid.Parse("cccc0000-0000-4000-8000-000000000003");
+            var maybe = _liveRepo.CreateEntity();                                       // authored with a 50 % presence
+            _liveRepo.AddComponent(maybe, new Fdp.Toolkit.Scenario.EntityGuid(guid));
+            _liveRepo.SetManagedComponent(maybe, new Fdp.Toolkit.Scenario.VariantForms { Variant = 0, Presence = 0.5 });
+            _liveRepo.SetComponent(maybe, new PreviewTestPos { X = 7f });
+            var kept = _liveRepo.CreateEntity();                                        // an entity the user added since the last save (unsaved)
+            _liveRepo.SetComponent(kept, new PreviewTestPos { X = 100f });
+            _liveRepo.SetComponent(maybe, new PreviewTestPos { X = 9f });               // … and moved the first one (unsaved)
+            int v = 1;
+            while (Fdp.Toolkit.Scenario.ScenarioVariants.IsPresent(v, Guid.Empty, guid.ToString(), 0.5)) v++;
+
+            var handler = new ReferencePreviewHandler(_liveRepo);
+            var enter = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(), Operation = NodeOpType.PrepareState,
+                DomainPayload = new EditLoadHandlerPayload(ScenarioId: null, TargetState: ClusterState.LoadingPreview, ScenarioArgsJson: "{\"$variant\": " + v + "}"),
+            };
+            int editEntities = _liveRepo.EntityCount;
+            await handler.PrepareAsync(enter, default);
+            handler.Commit(enter, _liveRepo);
+            Assert.False(_liveRepo.IsAlive(maybe));                                      // the preset's change is in the Preview's world …
+            Assert.True(_liveRepo.IsAlive(kept));                                        // … on top of the unsaved edit (the added entity is there)
+            Assert.Equal(100f, _liveRepo.GetComponent<PreviewTestPos>(kept).X);
+            Assert.NotEqual(editEntities, _liveRepo.EntityCount);                        // the Preview's world differs from the edit world
+
+            var exit = MakePrepareStateCmd(ClusterState.UnloadingPreview);
+            await handler.PrepareAsync(exit, default);
+            handler.Commit(exit, _liveRepo);
+            Assert.Equal(editEntities, _liveRepo.EntityCount);                           // ■: the edit world is whole again …
+            Assert.Equal(9f, _liveRepo.GetComponent<PreviewTestPos>(TheOneWithAGuid(_liveRepo)).X);   // … with the unsaved move …
+            Assert.Equal(1, CountWithX(_liveRepo, 100f));                                // … and the unsaved addition
+        }
+
+        private static int CountWithX(EntityRepository repo, float x)
+        {
+            int n = 0;
+            foreach (var e in repo.Query().With<PreviewTestPos>().Build()) if (repo.GetComponent<PreviewTestPos>(e).X == x) n++;
+            return n;
+        }
+
         private static Entity TheOneWithAGuid(EntityRepository repo)
         {
             Entity back = default;

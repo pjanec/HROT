@@ -98,6 +98,7 @@ namespace Hrot.Editor.Director
             private readonly EditorDirectorHost _host;
             public DirectorAsker(EditorDirectorHost host) => _host = host;
             public bool DiscardsUnsaved => false;
+            public bool CanPrompt => false;   // ⭐ CE-4099 A7 — nobody sees a take's question: the autosave of its scenario is never offered (the take loads the saved one)
             public void Ask(Hrot.UI.Common.RunMode.DoorQuestion question)
             {
                 switch (question.Kind)

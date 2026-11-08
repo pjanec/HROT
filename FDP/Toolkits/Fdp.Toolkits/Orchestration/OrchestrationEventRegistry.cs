@@ -21,6 +21,8 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<NodeIdGrantEvent>();   // C6 — the master's InSync set, to every node's cluster cache
             bus.RegisterManaged<ClusterStateUpdateEvent>();
             bus.RegisterManaged<AssetInventoryUpdateEvent>();
+            bus.RegisterManaged<StorageJobsPublishedEvent>();   // ⭐ CE-4330 ② — the master's job list, to the DDS writer
+            bus.RegisterManaged<StorageJobsUpdateEvent>();      // ⭐ CE-4330 ③ fact ① — folded by every host
             bus.RegisterManaged<EpisodeStateChangedEvent>();
             bus.RegisterManaged<ClusterOpIntent>();
 

@@ -155,6 +155,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool AskToKeepRecordings;
         /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> SETTING is ON (a Live load resumes by itself). Default false.</summary>
         public bool StartLiveImmediately;
+        /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes (0 = off; a sender that does not set it reads as off). The master's <c>AutosaveEvery</c>, rounded UP so a sub-minute interval is never shown as off.</summary>
+        public int AutosaveMinutes;
         /// <summary>⭐ Node Features F-16 — the cluster's feature overrides (the master's run setting); null/empty = none.</summary>
         public FeatureOverrideSpec[]? FeatureOverrides;
         /// <summary>⭐ <c>CE-3354</c> ⑦ — the request id of the cluster's CURRENT (last started) scenario load, the id <c>GET /status.load</c> and every outcome follow; <see cref="Guid.Empty"/> before any load.</summary>
@@ -255,6 +257,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool AskToKeepRecordings;
         /// <summary>⭐ CE-3415 (AQ108 §0 D31) — as <see cref="ClusterStateTransitionedEvent.StartLiveImmediately"/>.</summary>
         public bool StartLiveImmediately;
+        /// <summary>⭐ CE-4099 phase 2 — as <see cref="ClusterStateTransitionedEvent.AutosaveMinutes"/>.</summary>
+        public int AutosaveMinutes;
         /// <summary>⭐ Node Features F-16 — as <see cref="ClusterStateTransitionedEvent.FeatureOverrides"/>.</summary>
         public FeatureOverrideSpec[]? FeatureOverrides;
         /// <summary>⭐ CE-3354 ⑦ — as <see cref="ClusterStateTransitionedEvent.LastLoadRequestId"/>.</summary>

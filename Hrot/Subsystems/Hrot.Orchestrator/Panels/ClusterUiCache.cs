@@ -53,6 +53,8 @@ public sealed class ClusterUiCache : IDisposable
     public bool        AskToKeepRecordings    => _view.AskToKeepRecordings;
     /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting is ON, as the master's last broadcast said.</summary>
     public bool        StartLiveImmediately   => _view.StartLiveImmediately;
+    /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes (0 = off), as the master's last broadcast said.</summary>
+    public int         AutosaveMinutes        => _view.AutosaveMinutes;
     /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode, from the node's one <see cref="ClusterView"/> (the master's broadcast).</summary>
     public Fdp.Toolkit.Orchestration.ClusterArmedMode ArmedMode => _view.ArmedMode;
 

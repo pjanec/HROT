@@ -95,6 +95,15 @@ public sealed class ClusterPanelRunControls
     /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting; null = no cluster view.</summary>
     public bool? StartImmediately => Choice.StartImmediatelySetting;
 
+    /// <summary>⭐ CE-4099 phase 2 (AQ108 §4c.1) — the cluster's <i>Autosave</i> interval in whole minutes while editing (0 = off); null = no cluster view.</summary>
+    public int? AutosaveMinutes => Choice.AutosaveMinutesSetting;
+
+    /// <summary>⭐ CE-4099 phase 2 — the intervals the <i>Autosave</i> combo offers, in order (0 = Off).</summary>
+    public static readonly int[] AutosaveChoices = { 0, 1, 2, 5, 10 };
+
+    /// <summary>⭐ CE-4099 phase 2 — the combo's words for an interval: <i>Off</i> · <i>1 minute</i> · <i>5 minutes</i> (a value set elsewhere, e.g. over HTTP, reads the same way).</summary>
+    public static string AutosaveLabel(int minutes) => minutes <= 0 ? "Off" : minutes == 1 ? "1 minute" : $"{minutes} minutes";
+
     /// <summary>Both toggles are enabled whenever the host has a cluster view.</summary>
     public bool RunSettingsEnabled => Choice.RecordLiveRunsSetting is not null;
 
@@ -106,6 +115,9 @@ public sealed class ClusterPanelRunControls
 
     /// <summary>Set <i>Start immediately</i> — <c>SetRunSettingsIntent</c> with only that field.</summary>
     public void SetStartImmediately(bool on) => Choice.SendRunSettings(null, null, on);
+
+    /// <summary>⭐ CE-4099 phase 2 — set <i>Autosave</i> (whole minutes; 0 = off) — <c>SetRunSettingsIntent</c> with only that field.</summary>
+    public void SetAutosaveMinutes(int minutes) => Choice.SendRunSettings(null, null, null, Math.Max(0, minutes));
 
     // ── scenario / recording ─────────────────────────────────────────────────────────
 

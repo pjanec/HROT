@@ -57,6 +57,35 @@ public sealed class ShortcutsWindowTests : IDisposable
         Assert.Equal(4, rows.Rows("").Count);
     }
 
+    /// <summary>
+    /// ⭐ B-10 K4 (§6g) — the Keyboard shortcuts window shows a held or value binding with its KIND: <c>Shift (hold)</c>, <c>W (axis)</c>, <c>S (axis −1)</c>, <c>Wheel (axis)</c>, <c>Right button (hold)</c>;
+    /// a Press stays the chord alone; the debug keys are their own group.
+    /// 🔴 Red-proof (compiles): <c>BindingText</c> returning the chord for every kind ⇒ the kind is not shown ⇒ red.
+    /// </summary>
+    [Fact]
+    public void K4_HoldAndAxisRows_ShowTheirKind()
+    {
+        var map = new Keymap();
+        var a = ActionRef.Command("t.run"); var b = ActionRef.Command("t.fwd"); var c = ActionRef.Command("t.zoom"); var d = ActionRef.Command("t.cam"); var f = ActionRef.Command("t.dbg");
+        map.Declare(new KeymapEntry(new KeyBinding(EditorKey.Unknown, KeyModifiers.Shift), InputScope.Hat, "Embodied", a, KeyTrigger.Hold));
+        map.Declare(new KeymapEntry(new KeyBinding(EditorKey.W, KeyModifiers.None), InputScope.Hat, "Embodied", b, KeyTrigger.Axis, 1f));
+        map.Declare(new KeymapEntry(new KeyBinding(EditorKey.S, KeyModifiers.None), InputScope.Hat, "Embodied", b, KeyTrigger.Axis, -1f));
+        map.Declare(new KeymapEntry(new KeyBinding(EditorKey.MouseRight, KeyModifiers.None), InputScope.Hat, "Embodied", c, KeyTrigger.Hold));
+        map.Declare(new KeymapEntry(new KeyBinding(EditorKey.MouseWheel, KeyModifiers.Ctrl), InputScope.Hat, "Embodied", d, KeyTrigger.Axis, 1f));
+        map.Declare(new KeymapEntry(new KeyBinding(EditorKey.F3, KeyModifiers.None), InputScope.Global, "debug", f));
+        foreach (var x in new[] { a, b, c, d, f }) map.SetLabel(x, x.CommandId!);
+        var rows = new ShortcutRows(map).Rows("");
+        string Bind(string action) => rows.First(r => r.Action == action && r.Binding != "S (axis \u22121)").Binding;
+        Assert.Equal("Shift (hold)", Bind("t.run"));
+        Assert.Equal("W (axis)", Bind("t.fwd"));
+        Assert.Contains(rows, r => r.Binding == "S (axis \u22121)");
+        Assert.Equal("Right button (hold)", Bind("t.zoom"));
+        Assert.Equal("Ctrl+Wheel (axis)", Bind("t.cam"));
+        Assert.Equal("F3", Bind("t.dbg"));
+        Assert.Equal("Debug keys", rows.First(r => r.Action == "t.dbg").Scope);
+        Assert.Equal("Embodied hat", rows.First(r => r.Action == "t.run").Scope);
+    }
+
     /// <summary>⛔ Hot path (R-2084) — a steady call returns the cached list: the same instance, 0 B.</summary>
     [Fact]
     public void ASteadyCall_AllocatesNothing_AndARebuildHappensOnlyWhenTheKeymapMoves()

@@ -425,6 +425,14 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
             //   Recording set also drops NoReplay VariantForms). The rail pins the AMENDED gate: it must hold, and the designed one must still fail
             //   (if it ever passes, the amendment is no longer needed — re-read AQ108 §4c).
             Assert.True(amendedVerdict == "IDENTICAL", $"A0 (amended) FAILS for {scenario}: {amendedVerdict}");
+            // ⭐⭐ CE-4099 — and THE PRODUCTION PATH (what HrotScenarioSaveHandler runs for an autosave): capture on this thread, the JSON from its sandbox
+            string production = Hrot.Map.Common.Scenario.ScenarioAutosaveCore.ToJson(serializer,
+                Hrot.Map.Common.Scenario.ScenarioAutosaveCore.Take(world, docType, registry: null), registry: null);
+            Assert.True(production == Hrot.Map.Common.Scenario.ScenarioAutosaveCore.ToJson(serializer,
+                Hrot.Map.Common.Scenario.ScenarioAutosaveCore.Take(world, docType, registry: null), registry: null), "two autosaves of one world agree");
+            string liveFile = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(
+                System.Text.Json.JsonSerializer.Serialize(Hrot.Map.Common.Scenario.ScenarioSaveCore.BuildDom(serializer, world, liveHeader), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+            Assert.True(liveFile == production, $"A0 (production autosave) differs for {scenario}: {Diff(liveFile, production)}");
             _out.WriteLine($"A0 {scenario}: designed = {(designVerdict == "IDENTICAL" ? "holds" : "fails")}; amended = holds");
         });
     }

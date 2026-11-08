@@ -66,6 +66,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting is ON, as the master's last broadcast said (false before a broadcast and for a sender that does not set it).</summary>
         public bool StartLiveImmediately { get; private set; }
 
+        /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes while editing a scenario, as the master's last broadcast said (0 = off, also before a broadcast and for a sender that does not set it).</summary>
+        public int AutosaveMinutes { get; private set; }
+
         /// <summary>⭐ Node Features F-16 — the cluster's feature overrides, off the master's broadcast; empty = none. A NEW list object per broadcast, so a reader can compare references.</summary>
         public IReadOnlyList<FeatureOverrideSpec> FeatureOverrides { get; private set; } = Array.Empty<FeatureOverrideSpec>();
 
@@ -199,6 +202,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ <c>CE-3329</c> — the replay's SESSION LAYER as the master last published it (inactive outside a replay).</summary>
         public ReplaySession ReplaySession { get; private set; } = ReplaySession.None(Guid.Empty);
 
+        /// <summary>⭐ CE-4330 ③ fact ① — the cluster's storage jobs (every station's status bar): the master's list as its last <see cref="StorageJobsUpdateEvent"/> said; empty before one.</summary>
+        public StorageJob[] StorageJobs { get; private set; } = Array.Empty<StorageJob>();
+
         // ── op outcomes ───────────────────────────────────────────────────────
 
         /// <summary>
@@ -232,6 +238,7 @@ namespace Fdp.Toolkit.Orchestration
             DrainInSync();
             DrainInventory();
             DrainReplaySession();
+            DrainStorageJobs();
             DrainOpOutcomes();
         }
 
@@ -256,6 +263,7 @@ namespace Fdp.Toolkit.Orchestration
                     RecordLiveRunsOff = ev.RecordLiveRunsOff;
                     AskToKeepRecordings = ev.AskToKeepRecordings;   // ⭐ AQ108 D15 (CE-4100 ①)
                     StartLiveImmediately = ev.StartLiveImmediately;   // ⭐ CE-3415 (AQ108 §0 D31)
+                    AutosaveMinutes = ev.AutosaveMinutes;             // ⭐ CE-4099 phase 2
                     FeatureOverrides = ev.FeatureOverrides ?? Array.Empty<FeatureOverrideSpec>();   // ⭐ Node Features F-16
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
                     LastLoadMode = ev.LastLoadMode;            // ⭐ R-1043
@@ -295,6 +303,12 @@ namespace Fdp.Toolkit.Orchestration
         {
             foreach (var ev in _bus!.ReadManaged<ReplaySessionUpdateEvent>())
                 if (ev.Session != null) ReplaySession = ev.Session;   // TransientLocal, KeepLast 1: the newest is the session
+        }
+
+        private void DrainStorageJobs()
+        {
+            foreach (var ev in _bus!.ReadManaged<StorageJobsUpdateEvent>())
+                StorageJobs = ev.Jobs ?? Array.Empty<StorageJob>();   // TransientLocal, KeepLast 1: the newest list is the list
         }
 
         private void DrainOpOutcomes()

@@ -735,6 +735,10 @@ namespace Hrot.Editor.DebugApi
             //    to `load/edit` explicitly instead. ⚠ An old client calling `/scenario/load` now gets a clean
             //    404, which is the honest answer — ⛔ better than silently choosing a mode for it.
             _routes.Add(new("POST", "/scenario/load/edit", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
+            // ⭐ CE-4099 (AQ108 §4c A7) — the scenario's autosave: {exists, at, stale, recoverable, reason}. A query, not a path: names hold slashes (macros/x).
+            _routes.Add(new("GET", "/scenario/autosave", ctx => string.IsNullOrWhiteSpace(ctx.Query("name"))
+                ? Task.FromResult(Fail(400, "name is required: GET /scenario/autosave?name=<scenario>", DebugApiHints.Scenario))
+                : Task.FromResult(Ok(Service().AutosaveStatus(ctx.Query("name")!)))));
             _routes.Add(new("GET",  "/scenario/presets", ctx =>   // ⭐ CE-3375 — the scenario's presets, Default first
             {
                 var pn = ctx.Query("name");
@@ -2289,6 +2293,11 @@ namespace Hrot.Editor.DebugApi
                     return Fail(400, "variant is a number (0 = as authored) or \"random\"");
             }
 
+            // ⭐ CE-4099 (AQ108 §4c A7) — {"recoverAutosave": true}: the scenario's autosave instead of its saved file (an edit load only)
+            bool recoverAutosave = ctx.Body?["recoverAutosave"] is System.Text.Json.Nodes.JsonValue rv && rv.TryGetValue<bool>(out bool rb) && rb;
+            if (recoverAutosave && target != Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)
+                return Fail(400, "recoverAutosave opens a scenario for editing: send it to /scenario/load/edit", DebugApiHints.Scenario);
+
             // ⭐ The count BEFORE the request: with CE-295's unload-first the world empties during the unload, which is
             //   the edge the readiness check needs to see.
             int? countBeforeLoad = await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull())
@@ -2297,7 +2306,7 @@ namespace Hrot.Editor.DebugApi
             var requested = await _jobQueue.RunOnMainThread(() =>
                 target == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive
                     ? Service().LoadScenarioLive(name!, startPaused, gate: unsavedGate, scenarioArgsJson: scenarioArgs)
-                    : Service().LoadScenarioEdit(name!, unsavedGate, scenarioArgs)).ConfigureAwait(false);
+                    : Service().LoadScenarioEdit(name!, unsavedGate, scenarioArgs, recoverAutosave)).ConfigureAwait(false);
 
             // ⭐⭐ CE-4101 — a load the editor's door REFUSED (unsaved edits it would lose) answers 409 with the door's text (D22: today's status and words)
             if (requested?["refused"] is JsonValue refused && refused.TryGetValue(out string? refusalText))

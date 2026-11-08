@@ -357,6 +357,68 @@ public sealed class EditorScenarioSessionLoadTests
         Assert.Equal("a", load.ScenarioId);
     }
 
+    // ── ⭐ CE-4099 (AQ108 §4c A7) — the session half: the door reads the scenario's REAL autosave files and the recovery rides the load intent ──────────────────
+
+    /// <summary>A session over a temp NAS (<c>{tmp}/scenarios</c>) holding scenario <c>alpha</c> with an autosave taken at 14:41 UTC; <paramref name="staleSince"/> rewrites the saved file after it.</summary>
+    private static (EditorScenarioSession Session, FdpEventBus Bus, RunModeChoice Choice, string Nas) WithAutosave(bool staleSince = false)
+    {
+        string nas = Path.Combine(Path.GetTempPath(), "hrot-autosave-" + Guid.NewGuid().ToString("N"));
+        string dir = Path.Combine(nas, "scenarios", "alpha");
+        Directory.CreateDirectory(Path.Combine(dir, ".autosave"));
+        const string saved = "{\"entities\":[]}";
+        File.WriteAllText(Path.Combine(dir, "scenario.json"), saved);
+        File.WriteAllText(Path.Combine(dir, ".autosave", "autosave.json"), "{\"entities\":[1]}");
+        File.WriteAllText(Path.Combine(dir, ".autosave", "autosave.meta.json"),
+            new System.Text.Json.Nodes.JsonObject { ["at"] = "2026-11-08T14:41:00Z", ["savedHash"] = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(saved) }.ToJsonString());
+        if (staleSince) File.WriteAllText(Path.Combine(dir, "scenario.json"), "{\"entities\":[2]}");
+        var bus = new FdpEventBus();
+        var session = new EditorScenarioSession(new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build()), bus, () => ViewOf(bus), new EntityRepository(), () => Path.Combine(nas, "scenarios"));
+        var (choice, _, _) = WithChoice(bus, session);
+        ClusterIs(bus, session, ClusterState.Idle);   // ⭐ CE-1442 — the run gate is closed until the master's state has reached this node
+        return (session, bus, choice, nas);
+    }
+
+    /// <summary>
+    /// ⭐ File › Open of a scenario whose autosave is on disk asks <i>Recover unsaved changes from HH:mm?</i>; <i>Recover</i> sends the edit load with <c>RecoverAutosave = true</c>, <i>Open the saved one</i> the plain load. The session's own door
+    /// reads the real files (<c>AutosaveFiles.Read</c>) — a forwarding rail on the CONSTRUCTED session, not on the door's source.
+    /// 🔴 Mutations: the session not giving the door its <c>AutosaveOf</c> ⇒ no question; the raw verb dropping the flag ⇒ <c>RecoverAutosave</c> false.
+    /// </summary>
+    [Fact]
+    public void CE4099_TheSessionsDoorReadsTheRealAutosave_AndRecoverRidesTheLoadIntent()
+    {
+        var (session, bus, choice, nas) = WithAutosave();
+        try
+        {
+            session.OpenForEdit("alpha");                                                    // the door's Open (File › Open's Load ends here when Preview is armed)
+            Assert.Empty(Drain(bus));                                                          // nothing is sent before the answer
+            Assert.Equal($"Recover unsaved changes from {new DateTime(2026, 11, 8, 14, 41, 0, DateTimeKind.Utc).ToLocalTime():HH:mm}?", choice.Pending!.Text);
+            choice.Pending.Resolve(choice.Pending.Buttons[0]);                                // Recover
+            var load = Assert.Single(Drain(bus));
+            Assert.Equal(ClusterState.OperatingEdit, load.TargetState);
+            Assert.Equal("alpha", load.ScenarioId);
+            Assert.True(load.RecoverAutosave);
+
+            session.OpenForEdit("alpha");
+            choice.Pending!.Resolve(choice.Pending.Buttons[1]);                               // Open the saved one
+            Assert.False(Assert.Single(Drain(bus)).RecoverAutosave);
+        }
+        finally { Directory.Delete(nas, recursive: true); }
+    }
+
+    /// <summary>A stale autosave (the scenario was saved since) is not offered: the load goes out plain at once. 🔴 Mutation: the door ignoring <c>Refusal</c> ⇒ a question stands.</summary>
+    [Fact]
+    public void CE4099_AStaleAutosaveOnDisk_IsNotOffered()
+    {
+        var (session, bus, choice, nas) = WithAutosave(staleSince: true);
+        try
+        {
+            session.OpenForEdit("alpha");
+            Assert.Null(choice.Pending);
+            Assert.False(Assert.Single(Drain(bus)).RecoverAutosave);
+        }
+        finally { Directory.Delete(nas, recursive: true); }
+    }
+
     [Fact]
     public void OpenForEdit_FromEdit_UnloadsFirst_ThenLoadsForEdit()
     {

@@ -59,6 +59,12 @@ public interface IRunScenarioControl
     /// </summary>
     void OpenForEdit(string scenarioName, string? argsJson) => OpenForEdit(scenarioName);
 
+    /// <summary>
+    /// ⭐ <c>CE-4099</c> (AQ108 §4c A7) — the edit open that RECOVERS the scenario's autosave (<c>TransitionStateIntent.RecoverAutosave</c>): the nodes stage the autosave as the scenario for this load only. Called ONLY by the door, after the
+    /// operator answered <i>Recover</i>; <paramref name="recoverAutosave"/> false is the plain open. ⛔ A control that cannot carry the flag opens the saved scenario — the editor session overrides it.
+    /// </summary>
+    void OpenForEdit(string scenarioName, string? argsJson, bool recoverAutosave) => OpenForEdit(scenarioName, argsJson);
+
     /// <summary>⭐ CE-3393 — the args the loaded world was built with (<c>ScenarioDescription.ArgsOf</c>): which preset is loaded. A control with no world answers null (Default).</summary>
     string? LoadedArgsJson => null;
 
@@ -425,8 +431,9 @@ public interface IRunTransport
     void SeekWall(long wallTicks);
     /// <summary>■ exactly as before the choice existed: a review back to live, a dry run back to edit, anything else to Idle.</summary>
     void StopRaw();
-    /// <summary>The dry run (Preview), running or paused at its first frame.</summary>
-    void EnterDryRun(bool startPaused);
+    /// <summary>The dry run (Preview), running or paused at its first frame. ⭐ CE-4317 / R-4168 — <paramref name="presetArgs"/> = the run setup (a preset's args, <c>$variant</c> included) every node applies IN PLACE on the Preview's copy of the edit world
+    /// (backend CE-4326: <c>DryRunIntents.Enter</c>); <see langword="null"/> = as the world holds it (the default Preview — byte-identical to before).</summary>
+    void EnterDryRun(bool startPaused, string? presetArgs = null);
     /// <summary>Resume the cluster clock.</summary>
     void Resume();
     /// <summary>Seek the review / replay (on the active axis).</summary>
@@ -447,12 +454,15 @@ public interface IRunTransport
     bool? AskToKeepSetting { get; }
     /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting (<c>ClusterView.StartLiveImmediately</c>); <see langword="null"/> when no view.</summary>
     bool? StartImmediatelySetting { get; }
+    /// <summary>⭐ CE-4099 phase 2 (AQ108 §4c.1, D23) — the cluster's <i>Autosave</i> interval in whole minutes while editing (<c>ClusterView.AutosaveMinutes</c>; 0 = off); <see langword="null"/> when no view.</summary>
+    int? AutosaveMinutesSetting { get; }
     /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the scenario names the master's inventory lists (<c>ClusterView.AvailableScenarios</c>); empty when no view or no inventory. The reference changes only when a new inventory arrives.</summary>
     string[] InventoryScenarios { get; }
     /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the recordings of the master's inventory: local, archived and unarchived-local lists (<c>ClusterView</c>); empty arrays when no view. References change only when a new inventory arrives.</summary>
     (ExerciseInventoryItem[] Local, ExerciseInventoryItem[] Archived, ExerciseInventoryItem[] UnarchivedLocal) InventoryExercises { get; }
     /// <summary>⭐ CE-4100 ① — publish the run settings (<c>SetRunSettingsIntent</c>, the ONE intent <see cref="SendArmed"/> uses): a <see langword="null"/> argument is "no change".</summary>
-    void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null);
+    /// <remarks>⭐ CE-4099 phase 2 — <paramref name="autosaveMinutes"/> (0 = off) rides the same op as <paramref name="startLiveImmediately"/>.</remarks>
+    void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null, int? autosaveMinutes = null);
 
     /// <summary>⭐⭐⭐ <c>CE-1442</c> (U1, §11.7 ①) — the ONE run gate: built by the adapter from the node's <c>ClusterView</c> and the host's <see cref="HostGatePolicy"/> (<see cref="RunGate.From"/>); no view ⇒ <see cref="RunGate.AlwaysOpen"/>.</summary>
     RunGate Gate { get; }

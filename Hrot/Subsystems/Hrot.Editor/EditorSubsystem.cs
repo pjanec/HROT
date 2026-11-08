@@ -1700,6 +1700,7 @@ namespace Hrot.Editor
                         recordLiveRunsOff: () => _orchestratorCore?.UiCache.RecordLiveRunsOff,
                         askToKeepRecordings: () => _orchestratorCore?.UiCache.AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
                         startLiveImmediately: () => _orchestratorCore?.UiCache.StartLiveImmediately,   // ⭐ CE-3415 (AQ108 §0 D31)
+                        autosaveMinutes:   () => _orchestratorCore?.UiCache.AutosaveMinutes,   // ⭐ CE-4099 phase 2
                         armedMode:         () => _orchestratorCore?.UiCache.ArmedMode,   // ⭐ CE-3341 R-3068
                         clusterView:       () => _orchestratorCore?.UiCache.View,   // ⭐ CE-3344 R-3069 — the node's one read model (CanOperate): the HTTP cluster routes' 409 gate. ⛔ The editor HOLDS it.
                         // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer and last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS it.

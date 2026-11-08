@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07) — K1 BUILT, as-built in §5a; K2 · K3 · K7 BUILT (§6, §6c, §6d, ui 2026-11-08); ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
-updated: 2026-11-08 (K5 + K6 — §6e / §6f, ui Z-6) · 2026-11-08 (K2 rest + K3 + K7 BUILT — §6 / §6c / §6d, ui Z-5) · 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
-current-answer: §2 the model · §3 stages · §4 questions with leans · §5 the K1 build design (homes, the chord, the id, the per-frame call) · §6 / §6c / §6d the map: hat + camera scopes, one-level Esc, the mouse gestures (as built)
+build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07) — K1 BUILT, as-built in §5a; K2 · K3 · K7 BUILT (§6, §6c, §6d, ui 2026-11-08); K4 BUILT (§6g, ui 2026-11-08) — K1–K7 all built, the overrides file / rebind UI (Q6) open; ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
+updated: 2026-11-08 (K4 — §6g, ui Z-7: Hold / Axis rows, the FPS station, the timeline, the Player's map keys, the debug F-keys) · 2026-11-08 (K5 + K6 — §6e / §6f, ui Z-6) · 2026-11-08 (K2 rest + K3 + K7 BUILT — §6 / §6c / §6d, ui Z-5) · 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
+current-answer: §2 the model · §3 stages · §4 questions with leans · §5 the K1 build design (homes, the chord, the id, the per-frame call) · §6 / §6c / §6d the map: hat + camera scopes, one-level Esc, the mouse gestures (as built) · §6g held inputs: Hold / Axis rows (as built)
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: UX_Feature_Tool_Model.md:302 "No keyboard shortcut activates any tool" — kept for TOOLS armed by a key? §4 Q5 decides (lean: a key may run the ACTION that arms a tool)
@@ -178,7 +178,7 @@ forwards, so a remote viewer gets exactly the same map keys as the local map, an
 | **K1** | `Keymap` + `KeyBinding` + `KeyRouter` + the scope chain; focus = ImGui focus, click-to-focus the map (fixes CE-4282); the graph canvases gated by focus |
 | **K2** ✅ | the map: hat scopes before the map scope; the map menu letters declared on the actions (fixes CE-4281); `MenuShortcuts` becomes the router's map scope — ⭐ **BUILT** (§6, as built; R-4169: letters stay on while following) |
 | **K3** ✅ | central Esc (Tool Model step 6) — ⭐ **BUILT as ONE-LEVEL ownership (§6c)**; ⛔ "gizmos stop reading Esc" NOT done — superseded by §2.4 and Tool Model Q27-E (the gizmo keeps its own cleanup), see §6c |
-| **K4** | the FPS station, the timeline, IG pan / zoom / undo, debug F-keys onto bindings (Hold / Axis kinds for the held ones) |
+| **K4** ✅ *(BUILT, §6g; ⛔ the Player's undo STOPPED — nothing records onto it, R-4120)* | the FPS station, the timeline, IG pan / zoom, debug F-keys onto bindings (Hold / Axis kinds for the held ones) |
 | **K5** ✅ *(BUILT, §6e)* | `IEditorCommands` and `RegisterItem` closures as actions; buttons and keys call action ids; the dead seam deleted |
 | **K7** ✅ *(R-4163; BUILT §6d)* | **every user input, not only keys**: mouse gestures on the map (left / right click on an entity, on ground, a drag, Shift / Ctrl variants) become bindings in the same scope chain; the map scope binds the selection rules (Action Catalogue §8) and *right click = the menu*; the **RTS scope** overrides only what it changes (§6b); `RtsCommandGizmo`'s hand-written mouse handling becomes its bindings | a rail per scope: the same click resolves to the menu in the map scope and to Move / Attack in the RTS scope; an unbound key (2-D / 3-D, Ctrl+S) still works in RTS |
 | **K6** ✅ *(BUILT, §6f)* | the Keyboard shortcuts window; user overrides in a settings file; rebind UI later |
@@ -302,7 +302,7 @@ command's `DefaultKey` appears in the keymap (one declaration source).
 | removed | `EditorHotkeyDispatcher` (AiShared) — the canvas pump and the editor-only shell pump | ruling 9 — one implementation; the router does both, on every host. Its rails moved to the router (`BcpBatch02FixCanvasTests`, `SaveCommandsTests`) |
 | moved | `ImGuiInputSource` → `Fdp.Presentation.Input` | the router (every host's `WindowManager`) reads keys through it |
 | also gated | the audio layer's F6–F10 keys read only while the map has the keyboard | CE-4282 named F8 / F9 colliding with the graph editors |
-| not yet | `ActionRef.Global` bindings dispatch through `KeyRouter.GlobalActions`, unwired until K2 (no K1 row uses it) · the player's F3 performance overlay still reads raw Raylib (the player hosts no graph editor) · cinema mode skips the router | K2 / K3 |
+| not yet | `ActionRef.Global` bindings dispatch through `KeyRouter.GlobalActions`, unwired until K2 (no K1 row uses it) · ⛔ SUPERSEDED by K4 (§6g): the player's F3 performance overlay is a keymap row · cinema mode skips the router | K2 / K3 |
 
 **Rails:** `KeyRouterTests` (Fdp.Presentation.Tests — conflicts, scope chain, map-focus state, zero allocation, and a REAL ImGui frame through
 `WindowManager.Render`: only the focused window gets Ctrl+F; a click on the void gives the map the keys) · `MapCanvasTests.B10_K1_…` (keys
@@ -550,8 +550,128 @@ sequenceDiagram
 |---|---|
 | ONE keymap | `Keymap.Process` — `WindowManager` passes it to its `KeyRouter`; the map backend's `MapGestureRouter.Shared` is built over it. ⛔ SUPERSEDES the "two keymaps, ⏭ K6" row of §6d |
 | what is listed | key rows (Global · focused-window kinds · the map's menu letters per target class — unit / area / zone / route — declared by `MapMenuActions.DeclareKeys` from the action catalogue + `OrderShortcuts`; the same letter on two classes is not a conflict, twice on one is) and the K7 gesture rows (map scope, RTS scope) — each with its action's label (`Keymap.SetLabel`, set by whoever declares) |
-| not listed | held keys (WASD, sprint: K4) and a panel's own item-level keys (Enter / Esc in a text field) — not declared in the keymap yet |
+| not listed | a panel's own item-level keys (Enter / Esc in a text field) — not declared in the keymap. ⛔ SUPERSEDED for held keys: WASD, sprint and the rest are Hold / Axis rows since K4 (§6g), listed with their kind |
 | user overrides file, rebind UI | ⏭ **not built**: Q6's "optional overrides file" has no stored-state home decided (settings location, per-host) — an architect question, not a build item; the window is read-only |
 | the window | `KeyboardShortcutsWindow` (`Edit ▸ Keyboard shortcuts…`, command `shell.keyboard-shortcuts`, **Ctrl+K** — the mockup's key; ⛔ SUPERSEDES §2.2's "F1"): a search box over a three-column table (Where 130 · Shortcut 270 · Does), the scope named once per group, the chord in the accent colour; model `ShortcutRows` (rebuilt only when `Keymap.Version` or the filter moved). Mockup: `menus-visual.svg` panel F (`scripts/gen-menus-mockup.py`) |
 | fidelity, measured | rail `OnARealFrame_CtrlKOpensTheWindow…` reads the drawn positions on a real ImGui frame: the search box above the first row, one x for every row's chord and action column, rows going down; ⚠ no pixel render was made (no SVG rasteriser on this machine) — the layout is asserted, the picture is the SVG |
 | rails | `ShortcutsWindowTests` (rows by scope + filter, 0 B steady, real frame + Ctrl+K + measured layout) · `MenuOrdersTests.K6_TheMapLettersAndGestures…` — each red-proved by a compiling mutation |
+
+⭐ **R-4176 (user-approved, `2026-11-08`) — where the item lives:** *Edit ▸ Keyboard shortcuts…* where the host's Edit menu offers anything else, else
+*Help ▸ Keyboard shortcuts…* — ONE command, two paths, decided per frame by `WindowManager.EditMenuHoldsOtherItems` (`SetLayout` visibility); a host with no
+Edit menu (Player, Replay Browser, SimHost …) gets none just for it. ⛔ SUPERSEDED: K6's "every host gets an Edit menu". `WindowManager.BarMenuShows` is the
+draw loop's one "header shows" test, shared with the rails. Rail `TopLevelMenuOrderTests.R4176_…` (red-proved). Per-user overrides + *Rebind…*: PARKED (R-4176 #4).
+
+### 6g. ⭐ K4 — held inputs are READ through the keymap: Hold and Axis rows *(ui, `2026-11-08`; ⭐ BUILT the same day — as built at the end of this section)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Keymap|KeyRouter|Binding|Gesture|Axis|InputAction|CameraDriver|FirstPerson|Fps|Possession|Debug.*Key).*` Class ⇒ the K1 `Keymap` /
+`KeymapEntry` (`Trigger` already names `Hold` / `Axis`, **nothing reads them**), `FpsCameraDriver` · `FollowCameraDriver` · `FpsZoom` · `FpsCompass` (the FPS station), `TimelineAxis`
+(a time axis, not an input one); same pattern, `label: Interface` ⇒ **0** (no input-state interface exists beside `IInputProvider` / `IInputSource`). `search_code` with limit 300:
+`Raylib.IsKeyDown` **43** matches · `IsKeyPressed` **247** · `IsMouseButtonDown` **54** · `GetMouseWheelMove` **6** · `ImGui.IsKeyDown` **6** (⚠ coverage not checkable through the CLI).
+Production raw reads, classified (the demos, `Stride/` and `FDP/Examples` are other apps and untouched):
+
+| surface | raw reads today | ⇒ K4 |
+|---|---|---|
+| **FPS station** | `PossessionStation.FpsCameraDriver` 30 reads through `IInputProvider` (W A S D, Shift, Ctrl, Q E Z C Space, T wheel, B, Tab, F, 1–4, R L N O I X V J G M, Esc, RMB, LMB, the wheel, the mouse look) · `FallScreen` Esc / J / K | rows of the **Embodied hat** scope |
+| **timeline** | `TimelinePanel.Keys` 17 `ImGui.IsKeyPressed` + the wheel / Shift / Ctrl / middle-drag reads in `PanAnywhere`, the ruler and the lanes | rows of the **Timeline** window scope |
+| **Player map** | `PlayerApplication.HandleCameraInput` raw Raylib arrows + `= + −` · `HandleGizmoUndoInput` Ctrl+Z / Y | pan / zoom rows of the **Map** scope; ⛔ undo — see below |
+| **debug F-keys** | `PerformanceOverlay` F3 · `AudioLayer` F6–F10 and its panel's arrows | rows of the **Global** scope, qualifier `debug` |
+| *stays raw, by design* | a widget's own text editing and its `Enter` / `Esc` (the 41 Esc readers, K3) · `DebugGizmoLayer` (the dumb terminal's raw forward, §2.4) · `MenuShortcuts`' Ctrl / Alt flags (the terminal's raw modifiers) · a gizmo's own cleanup (Tool Model Q27-E) · `MapCamera3D` free-fly and `FollowCameraDriver` (camera scope, K2 `OwnsKey`; ⏭ the same rows) · `MapCanvas` / `MapCamera` mouse wheel and middle drag (the shared 2-D map, K7) | not K4's four surfaces |
+
+⛔ **STOPPED, R-106 — the Player's Ctrl+Z / Ctrl+Y.** `PlayerApplication._gizmoUndoStack` is built (`:812`) and cleared on a world reset (`:1047`) but **nothing ever pushes onto it**
+(`DataDrivenGizmoSystem`, the only recorder, takes it by constructor and the pack builds its own without one) — the keys call `Undo()` on a stack that is always empty. R-4120: *"undo does
+not apply in Live or Preview"*, and the Player has no authoring; [Undo design](DESIGN_Edit_Mode_Undo.md) Q6: *"the IG's map undo goes with the Player seat (no authoring there)"*. ⇒ the
+design says it should NOT exist; binding it would put a dead action in the keymap. **Left as is, not bound, reported (needs-user: delete the dead path).**
+
+```mermaid
+classDiagram
+  direction LR
+  class Keymap { <<existing>> Declare(row) · rows keyed by scope, qualifier, action, chord, trigger }
+  class KeymapEntry { <<existing>> Chord · Scope · WindowKind : the qualifier · Action · Trigger : Press Hold Axis · Scale NEW }
+  class EditorKey { <<existing, NodeEditor.Primitives>> keys + NEW KpAdd KpSubtract MouseLeft MouseRight MouseMiddle MouseWheel MouseWheelH MouseDeltaX MouseDeltaY }
+  class IChordInput { <<NEW interface>> Modifiers · IsDown · IsPressed(allowRepeat) · Value }
+  class KeymapReader { <<NEW, Fdp.Toolkits.Input>> scope + qualifier · Pressed · Held · Axis · rows cached per Keymap.Version }
+  class ProviderChordInput { <<NEW>> over IInputProvider — the map's device }
+  class ImGuiChordInput { <<NEW>> over ImGui — a panel's device }
+  class ManualChordInput { <<NEW>> a rail's hand }
+  class EmbodiedKeys { <<NEW, Hrot.Presentation>> Declare Embodied hat rows · action ids }
+  class TimelineKeys { <<NEW, Fdp.Presentation>> Declare Timeline window rows }
+  class PlayerKeys { <<NEW, Hrot.Player>> pan zoom rows, Map scope }
+  class DebugKeys { <<NEW, Hrot.Presentation>> F3 and audio F6-F10 rows, Global scope }
+  class FpsCameraDriver { <<existing>> HandleInput reads Keys }
+  class TimelinePanel { <<existing>> Keys PanAnywhere read Keys }
+  class AudioLayer { <<existing>> Keys reads rows }
+  class ShortcutRows { <<existing K6>> shows the kind of every row }
+  Keymap "1" o-- "*" KeymapEntry
+  KeymapEntry --> EditorKey
+  KeymapReader --> Keymap
+  KeymapReader --> IChordInput
+  ProviderChordInput ..|> IChordInput
+  ImGuiChordInput ..|> IChordInput
+  ManualChordInput ..|> IChordInput
+  EmbodiedKeys ..> Keymap : declares
+  TimelineKeys ..> Keymap : declares
+  PlayerKeys ..> Keymap : declares
+  DebugKeys ..> Keymap : declares
+  FpsCameraDriver --> KeymapReader : Hat Embodied
+  TimelinePanel --> KeymapReader : FocusedWindow Timeline
+  AudioLayer --> KeymapReader : Global debug
+  ShortcutRows --> Keymap : Press, Hold or Axis
+```
+*What the picture shows that prose hid: nothing new is a second table — `Keymap`, `KeymapEntry` and `Trigger` already held Hold and Axis and nothing read them; K4 adds the READER (one class, one
+device interface) and the chord's missing sources (a mouse button, a mouse value). Each surface declares its rows beside the code that owns the effect and reads them through the same class.*
+
+```mermaid
+sequenceDiagram
+  participant D as the device (Raylib / ImGui)
+  participant I as IChordInput adapter
+  participant R as KeymapReader (Embodied hat)
+  participant K as Keymap.Process
+  participant F as FpsCameraDriver.HandleInput
+  F->>R: Axis(fps.move.forward)
+  R->>K: rows of that action in (Hat, Embodied) — cached until Keymap.Version moves
+  loop each row
+    R->>I: IsDown(W) / IsDown(S) — modifiers named by the row held? shadowed by a row naming more?
+    I->>D: key state
+  end
+  R-->>F: +1 − 0 (any positive minus any negative)
+  F->>R: Held(fps.sprint) · Pressed(fps.map) · Axis(fps.look.x)
+  Note over F,K: rebind W to another key in the keymap ⇒ the next frame walks on that key — no code change
+```
+
+```mermaid
+graph TD
+  WM["a host's frame"] -->|"every frame, locked cursor"| CAM["MapCamera3D.ICameraDriver.HandleInput ⇒ FpsCameraDriver ⇒ Embodied reader"]
+  WM2["WindowManager.Render ⇒ the timeline's host window"] -->|"drawn and focused"| TL["TimelinePanel.Keys ⇒ Timeline reader"]
+  PA["PlayerApplication.FrameInput"] -->|"active map owner, mouse free"| PAN["HandleCameraInput ⇒ Map reader"]
+  PA2["PlayerApplication / AudioLayer.Update"] -->|"each frame"| DBG["F3 overlay · F6-F10 ⇒ Global debug reader"]
+  KR["KeyRouter.Dispatch (K1)"] -.->|"runs Press rows of the Global + focused-window scopes only"| X["Hold and Axis rows are NEVER dispatched — a surface reads them"]
+```
+*What it shows: who asks, each frame — the camera driver, the focused panel, the Player's frame. ⚠ The K1 router stays the only DISPATCHER and still runs Press rows of Global and the focused
+window's kind only; the Embodied / Timeline / Map-view / debug rows carry kinds it does not look at, so no key can fire twice.*
+
+| rule | |
+|---|---|
+| a row fires when the modifiers it names are held | Shift+W still walks; ⭐ the row naming the MOST modifiers for a key wins — `J` and `Shift+J` are two actions and Shift+J is never also J |
+| a chord with no key and only modifiers | a Hold row: `Shift` = sprint, `Ctrl` = crouch held |
+| Axis | keys: any positive row down − any negative row down (Q and Space both held still climb once); a mouse value: multiplied by the row's `Scale` and added |
+| rebinding | a row's chord is data; ⏭ the overrides file / UI stays K6's open question |
+
+**As built, against the plan above (ui, `2026-11-08`):**
+
+| surface | as built | rails |
+|---|---|---|
+| shared | `KeymapEntry.Scale`; `Keymap.Declare` is idempotent per (scope, qualifier, action, chord, trigger) — one action may have several chords (`Keymap.IsDeclared` stays per action); `Keymap.Unbind` (a rebind = unbind + declare; the action stays declared); `IChordInput` + `KeymapReader` (`Fdp.Toolkits.Input`); `RowDeclarer` (a pass keeps an action's chords together and never puts a default back over a rebind); adapters `ProviderChordInput` (the map's `IInputProvider`) / `ImGuiChordInput` / `ManualChordInput` (a rail's hand); `RaylibKeyCodes`; `EditorKey` gained the keypad +/−, three mouse buttons, the wheel, the horizontal wheel and the mouse movement; the Keyboard shortcuts window shows the kind (`Shift (hold)`, `W (axis)`, `S (axis −1)`) | `KeymapReaderTests` (9), `ShortcutsWindowTests.K4_…` |
+| **FPS station** | `EmbodiedKeys` (Hat scope, qualifier `Embodied`): 17 Press + 10 Hold + 6 Axis actions; `FpsCameraDriver.HandleInput` / `UseKey` / `CommandWheelInput` and `FallScreen` read them; the 14 `KeyboardKey` constants are gone; the `AIM … (L: switch)` hint follows the keymap | `PossessionStationTests.Keymap` (declared / no conflict · today's keys + a rebind of an Axis, a modifier Hold, a mouse-button Hold and a Press · look inversion by `Scale` · Shift+J ≠ J · 0 B) |
+| **timeline** | `TimelineKeys` (FocusedWindow, kind `Timeline`): Press rows (the zoom, arrows and undo repeat), 5 Axis (wheel · Ctrl+wheel · Shift+wheel · horizontal wheel · drag X), 1 Hold (the pan button); `TimelinePanel.Keys` / `PanFromInput` read them, no ImGui frame needed | `TimelineKeysTests` (5) + the scan |
+| **Player map** | `PlayerKeys` (Map scope, qualifier `view`): arrows = 2 Axis actions, `=` / keypad `+` and `−` / keypad `−` = Press; `PlayerApplication.HandleCameraInput` reads them | `PlayerKeysTests` (3) |
+| **debug F-keys** | `DebugKeys` (Global scope, qualifier `debug`, shown as *Debug keys*): F3 (Player overlay), F6–F10 and the audio panel's arrows; `PerformanceOverlay` / `AudioLayer` read them. ⚠ The K1 router dispatches only the Global rows with NO qualifier, so these are never double-fired | `AudioTests.K4_…`, `PlayerKeysTests.F3…` |
+| the guard | `NoRawKeyReadsTests` scans the FPS station, the fall screen, the audio layer, the Player's frame code, the overlay and the timeline for a raw device read | red under one put back |
+
+⛔ **Deviations, stated:**
+- **Two matching rules, on purpose.** The K1 router fires a Press row only when its modifiers are EXACTLY the ones held (`Ctrl+S` is not `S`); a `KeymapReader` row fires when the modifiers it names are held and the row naming MORE wins. The FPS station needs it (Shift+W walks, C toggles crouch while Ctrl is held), and `J` / `Shift+J` are shadowed by the same rule.
+- **"behind Expert" is not built.** No Expert switch exists for keys (the catalogue's Level belongs to menu items); the debug rows are only read by the surfaces that host them. ⏭ needs the user: tie the debug group to an Expert level when the catalogue's Level reaches keys.
+- **The HUD key hints are still text.** Only the fire-mode hint follows the keymap; the FPS help line and the use / scoreboard hints name the default keys by hand (`PossessionStation.Hud`). ⏭ a follow-up: build them from `KeymapReader.ChordOf`.
+- **Not converted, not K4's four:** the free-fly camera (`MapCamera3D`) and `FollowCameraDriver` keys (camera scope, K2's `OwnsKey`), `MapCanvas` / `MapCamera` wheel and middle drag (the shared 2-D map, K7), `MapViewModeLayer`'s Ctrl+M, and the timeline's pointer gestures (click, drag, double click, the Shift that turns a drag into a range). ⏭ the same rows, when each gets its turn.
+- **Shift+wheel over the timeline's overview** only pans now; before, it panned AND zoomed (the plain-wheel row yields to the Shift row).
+- **The Player's Ctrl+Z / Ctrl+Y** is NOT bound — §6g STOPPED. ⏭ needs the user: delete the dead path (`PlayerApplication._gizmoUndoStack`, `HandleGizmoUndoInput`) — lean yes: nothing records onto it and R-4120 / Undo Q6 say there is no undo there.
+- **The overrides file / rebind UI** (Q6) is still not built; `Keymap.Unbind` + `Declare` is the primitive it will use.

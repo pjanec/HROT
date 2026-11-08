@@ -346,6 +346,48 @@ public sealed class StorageGatewayTests
                 if (Directory.Exists(d)) Directory.Delete(d, recursive: true);
         }
     }
+
+    /// <summary>
+    /// ⭐ CE-4330 ② / ⑤ — the archive's counted copy: every byte is counted into the job's progress, the copy keeps the source's write time (the C1
+    /// freshness skip compares it, as it did with <c>File.Copy</c>), and while the job GIVES WAY (a Live runs) it is held to its share of
+    /// <see cref="StorageGatewayModule.GiveWayBytesPerSecond"/>.
+    /// 🔴 Mutation: the give-way wait removed ⇒ the slow copy is as fast as the free one ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 30_000)]
+    public void CE4330_ACountedCopy_CountsItsBytes_KeepsTheWriteTime_AndGivesWayWhenAsked()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "fdp_ce4330c_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var src = Path.Combine(root, "node_1.fdp");
+            var bytes = new byte[3 * 1024 * 1024];
+            new Random(7).NextBytes(bytes);
+            File.WriteAllBytes(src, bytes);
+            var stamp = new DateTime(2020, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(src, stamp);
+
+            var free = new Fdp.Toolkit.Orchestration.StorageTransferProgress();
+            var t0 = System.Diagnostics.Stopwatch.StartNew();
+            StorageGatewayModule.CopyCounted(src, Path.Combine(root, "a.part"), free, CancellationToken.None);
+            var freeSeconds = t0.Elapsed.TotalSeconds;
+            Assert.Equal(bytes.Length, free.BytesDone);
+            Assert.Equal(stamp, File.GetLastWriteTimeUtc(Path.Combine(root, "a.part")));
+            Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(root, "a.part")));
+
+            var slow = new Fdp.Toolkit.Orchestration.StorageTransferProgress { GiveWay = true };
+            t0.Restart();
+            StorageGatewayModule.CopyCounted(src, Path.Combine(root, "b.part"), slow, CancellationToken.None);
+            // one thread's share is GiveWayBytesPerSecond / MaxParallelCopies: 3 MB at 2.5 MB/s ≈ 1.2 s (the first chunk is free)
+            double floor = 2.0 * 1024 * 1024 / (StorageGatewayModule.GiveWayBytesPerSecond / StorageGatewayModule.MaxParallelCopies);
+            Assert.True(t0.Elapsed.TotalSeconds >= floor * 0.9, $"giving way took {t0.Elapsed.TotalSeconds:F2} s (free: {freeSeconds:F2} s), expected ≥ {floor:F2} s");
+            Assert.Equal(bytes.Length, slow.BytesDone);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
 }
 
 /// <summary>
@@ -398,6 +440,55 @@ public sealed class StorageGatewayTkbConsensusTests
         finally
         {
             if (Directory.Exists(nasDir))  Directory.Delete(nasDir,  recursive: true);
+            if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4099 (AQ108 §4c A7) — a RECOVERY prefetch delivers the autosave AS the node's <c>scenario.json</c>; every other file of the folder goes as it
+    /// is; the NAS folder is not touched. Then the shared staleness rule (<see cref="AutosaveFiles.Read"/>): fresh while <c>scenario.json</c> is the one it
+    /// was based on, stale once it changed. 🔴 Red-proof (compiles): the gateway ignoring <c>scenarioFileFrom</c> ⇒ the saved text arrives ⇒ red.
+    /// </summary>
+    [Fact]
+    public async Task CE4099_ARecoveryPrefetch_DeliversTheAutosaveAsScenarioJson_AndStalenessIsTheSavedFilesHash()
+    {
+        var nasDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var destDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(destDir);
+        try
+        {
+            var srcDir = MakeScenarioDir(nasDir, "rec");
+            const string saved = "{\"Header\":{\"SubsystemType\":\"Hrot.Scenario\"},\"Entities\":{}}";
+            const string edited = "{\"Header\":{\"SubsystemType\":\"Hrot.Scenario\"},\"Entities\":{\"aaaa0000-0000-4000-8000-000000000001\":{}}}";
+            WriteJson(Path.Combine(srcDir, "scenario.json"), saved);
+            WriteJson(Path.Combine(srcDir, "notes.json"), "{}");
+            var autosaveDir = Path.Combine(srcDir, AutosaveFiles.Folder);
+            Directory.CreateDirectory(autosaveDir);
+            File.WriteAllText(Path.Combine(autosaveDir, AutosaveFiles.DataFile), edited);
+            File.WriteAllText(Path.Combine(autosaveDir, AutosaveFiles.MetaFile),
+                "{\"at\":\"2026-11-08T14:41:00.0000000Z\",\"savedHash\":\"" + Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(saved) + "\"}");
+
+            var status = AutosaveFiles.Read(nasDir, "rec", Fdp.Toolkit.Scenario.ScenarioDescription.HashOf);
+            Assert.True(status.Exists && !status.Stale && status.Refusal is null);
+            Assert.Equal(new DateTime(2026, 11, 8, 14, 41, 0, DateTimeKind.Utc), status.AtUtc);
+
+            var targets = new List<NodeDistributionTarget> { new() { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = destDir } };
+            var result = await new StorageGatewayModule().PrefetchScenarioAsync("rec", targets, nasDir, scenarioFileFrom: status.DataPath);
+
+            Assert.True(result.IsFullSuccess);
+            Assert.Equal(edited, File.ReadAllText(Path.Combine(destDir, "scenario.json")));     // the autosave stands in
+            Assert.True(File.Exists(Path.Combine(destDir, "notes.json")));                       // the rest of the folder as it is
+            Assert.Equal(saved, File.ReadAllText(Path.Combine(srcDir, "scenario.json")));       // the NAS is untouched
+
+            WriteJson(Path.Combine(srcDir, "scenario.json"), saved.Replace("Entities", "entities"));   // saved elsewhere since
+            var stale = AutosaveFiles.Read(nasDir, "rec", Fdp.Toolkit.Scenario.ScenarioDescription.HashOf);
+            Assert.True(stale.Stale);
+            Assert.NotNull(stale.Refusal);
+            Assert.NotNull(AutosaveFiles.Read(nasDir, "nothing-here", Fdp.Toolkit.Scenario.ScenarioDescription.HashOf).Refusal);
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir)) Directory.Delete(nasDir, recursive: true);
             if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
         }
     }

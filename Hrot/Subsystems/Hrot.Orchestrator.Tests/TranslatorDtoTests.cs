@@ -140,6 +140,14 @@ public sealed class TranslatorDtoTests
             Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
         }
         Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false,\"AskToKeepRecordings\":true}").StartLiveImmediately);
+
+        // ⭐ CE-4099 phase 2 — Autosave minutes cross whole too (0 = off is a VALUE, absent = no change)
+        foreach (int? minutes in new int?[] { null, 0, 2, 30 })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), AutosaveMinutes = minutes };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false}").AutosaveMinutes);
     }
 
     // ── Test 4: Unknown enum string should throw ──────────────────────────────

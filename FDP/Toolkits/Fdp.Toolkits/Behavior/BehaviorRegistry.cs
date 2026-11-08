@@ -366,6 +366,13 @@ namespace Fdp.Toolkit.Behavior
     /// </summary>
     public sealed class BehaviorRegistry
     {
+        private long _revision;
+        /// <summary>⭐ CE-4099 (AQ108 §4c A4) — moves on every change (a behaviour hot reload re-registers). An autosave extracts on a WORKER from a keyframe
+        /// sandbox while the frame thread may hot-reload: the extraction reads this before and after and DISCARDS its result if it moved (the dictionaries are
+        /// not thread-safe; a read that raced a write is not trusted). Read with <see cref="System.Threading.Interlocked.Read(ref long)"/> semantics.</summary>
+        public long Revision => System.Threading.Interlocked.Read(ref _revision);
+        private void Bump() => System.Threading.Interlocked.Increment(ref _revision);
+
         private readonly Dictionary<int, BehaviorDefinition> _definitions = new();
         private readonly Dictionary<string, int> _nameToId = new(StringComparer.Ordinal);
         // Named resolver overlays keyed by behavior name. Lets a curated registrar supply the
@@ -426,6 +433,7 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void Register(int id, string name, BehaviorDefinition definition)
         {
+            Bump();   // ⭐ CE-4099 — a worker extraction can tell its read raced a change
             // ⭐ CE-3164 (R-268) — remember the picker group (see MergeFrom: a hot reload's staging registration carries none).
             if (!string.IsNullOrEmpty(definition.Group)) _groupByName[name] = definition.Group!;
             // Startup-time firewall: ensure the params DTO can actually be STORED.
@@ -573,6 +581,7 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void RegisterJsonParamsDtoType(string name, Type jsonParamsDtoType)
         {
+            Bump();   // ⭐ CE-4099 — a worker extraction can tell its read raced a change
             if (name              == null) throw new ArgumentNullException(nameof(name));
             if (jsonParamsDtoType == null) throw new ArgumentNullException(nameof(jsonParamsDtoType));
 
@@ -585,6 +594,7 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>⭐ <c>CE-2377</c> — binds a behaviour's optional params validator (<see cref="BehaviorValidatorAttribute"/>); order-independent, last wins.</summary>
         public void RegisterValidator(string name, Func<string, IEnumerable<string>> validator)
         {
+            Bump();   // ⭐ CE-4099 — a worker extraction can tell its read raced a change
             if (name == null) throw new ArgumentNullException(nameof(name));
             _validatorsByName[name] = validator ?? throw new ArgumentNullException(nameof(validator));
         }
@@ -592,6 +602,7 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>⭐ rules ② (R4) — binds a behaviour's state keeper (<see cref="BehaviorStateKeeperAttribute"/>); last wins.</summary>
         public void RegisterKeeper(string name, StateKeeper keeper)
         {
+            Bump();   // ⭐ CE-4099 — a worker extraction can tell its read raced a change
             if (name == null) throw new ArgumentNullException(nameof(name));
             _keepersByName[name] = keeper ?? throw new ArgumentNullException(nameof(keeper));
         }
@@ -621,6 +632,7 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void RegisterHostedOccurrenceDemand(string name, HostedOccurrenceDemand demand)
         {
+            Bump();   // ⭐ CE-4099 — a worker extraction can tell its read raced a change
             if (name   == null) throw new ArgumentNullException(nameof(name));
             if (demand == null) throw new ArgumentNullException(nameof(demand));
 
@@ -663,6 +675,7 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void RegisterResolver(string name, ParseParamsDelegate resolver, Type? blackboardLayoutType = null)
         {
+            Bump();   // ⭐ CE-4099 — a worker extraction can tell its read raced a change
             if (name     == null) throw new ArgumentNullException(nameof(name));
             if (resolver == null) throw new ArgumentNullException(nameof(resolver));
 
@@ -814,6 +827,7 @@ namespace Fdp.Toolkit.Behavior
         /// must bind to start this child with parameters (<see cref="TryGetHostedInputType"/>).</summary>
         public void RegisterSourceResolver(string name, ResolveStageDelegate resolve, Type? sourceType)
         {
+            Bump();   // ⭐ CE-4099 — a worker extraction can tell its read raced a change
             if (name    == null) throw new ArgumentNullException(nameof(name));
             if (resolve == null) throw new ArgumentNullException(nameof(resolve));
             _sourceResolversByName[name] = resolve;
@@ -893,6 +907,7 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void Clear()
         {
+            Bump();   // ⭐ CE-4099 — a worker extraction can tell its read raced a change
             _definitions.Clear();
             _nameToId.Clear();
             _resolversByName.Clear();
