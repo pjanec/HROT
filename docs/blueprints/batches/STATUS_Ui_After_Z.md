@@ -5,7 +5,7 @@
 |---|---|---|---|---|---|
 | U-1 | — | Start screen on the REAL editor | DONE | 6fdbbba43 | look keyed on command id (`MenuItemNode.CommandId`); reason to tooltip; widths measured; glyph then words; heading wraps; rail `TheStartScreenOnTheRealEditorTests` at scale 1 and 1.5 |
 | U-2 | CE-4333 | ONE icon-button chrome | DONE | c61717172 | `IconButtonChrome` in NodeEditor.Core.Widgets; GlyphWidgets + mode indicator through it; rail `TheOneIconButtonChromeRail`; Colour Icons §I1 folded |
-| U-3 | CE-4337 | Keyboard shortcuts → View ▸ Settings | DONE | SHA3 | one path `WindowManager.ShortcutsMenuPath`; two-path machinery + `EditMenuHoldsOtherItems` deleted; rail `R4178_…`; mockup panels C/F regenerated; Input design §6f folded |
+| U-3 | CE-4337 | Keyboard shortcuts → View ▸ Settings | DONE | 0d0815365 | one path `WindowManager.ShortcutsMenuPath`; two-path machinery + `EditMenuHoldsOtherItems` deleted; rail `R4178_…`; mockup panels C/F regenerated; Input design §6f folded |
 | U-4 | CE-4334 | ORBAT row icons | QUEUED | — | |
 | U-5 | CE-4335 | End exercise greyed outside Live | QUEUED | — | |
 | U-6 | CE-4336 | Data breakpoints: condition first | QUEUED | — | |
