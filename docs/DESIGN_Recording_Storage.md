@@ -2,7 +2,7 @@
 state: LIVE
 build-state: READY-TO-BUILD (CE-4330) — §1–§7 decided (R-4171, R-4172, R-4173); §8 the visual; Q8 (delete from the NAS) open, not part of CE-4330
 updated: 2026-11-08 (⭐ PROMOTED to the ONE owning design of recording files — moved from docs/DESIGN_Recording_Storage.md and retitled; the user: "it's probably a whole design document regarding the management of the recording files, importing and exporting")
-current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue; §7.4 decided) · ⭐ §8 the visual · ⭐ §9 an AAR on a different cluster (Q9)
+current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue; §7.4 decided) · ⭐ §8 the visual · ⭐ §9 an AAR on a different cluster · §9a placing the files by name, then kind (Q9) · §9b different ids: replay fine; stable ids, else no Go Live
 stale-below: nothing
 known-rot: none
 known-conflict: designs/mgmt-1/DESIGN.md §13 — written before the build; its §13.3 layout (/archives/, .fdprec + .meta.json, drill_manifest.json) is NOT the as-built ({NAS}/exercises/<id>/node_N.fdp + Orchestrator.json + scenario/, §1 here). This design is the current answer for WHAT happens to a recording; mgmt-1 §12.6/§13.1 stay the answer for HOW the gateway moves bytes.
@@ -355,15 +355,89 @@ only where the transfer runs · ⑦ Delete from the archive (R-4174). Scope: onl
 | **the same nodes** | each restores its own recording | — |
 | **FEWER** (node 4 is gone) | node 4's file is never fetched. The world is still COMPLETE — every other node recorded node 4's entities as replicas. ⛔ Lost: what only node 4 held (its units' brain / task state, its local-only components, its own view) | the AAR start says it: *"node 4 (CGF-2) is not in this cluster — its units replay as seen by the others; their brains are not inspectable"* · the full detail is one click away: open the run on the all-in-one editor / Replay Browser (merged, every file) |
 | **MORE** (a new node 6) | node 6 has no file ⇒ a listener: it shows the world the replaying nodes send | — (a display station joining an AAR is the normal case) |
-| **OTHER nodes under the SAME ids** (node 2 was a SimHost, now an IG) | ⛔ node 2 gets the SimHost's file and replays it — nothing checks | **record the node's role** in the metadata and, at import, give a file only to a node of the SAME role; otherwise the node listens and the start names the mismatch |
+| **OTHER nodes under the SAME ids** (node 2 was a SimHost, now an IG) | ⛔ node 2 gets the SimHost's file and replays it — nothing checks | the placement rule §9a: files go by NAME, then by KIND — never by id |
 | **a file missing on the NAS** | the node silently listens (the import says Success) | the job reports *"3 of 4 files"* (§7) and the AAR start names the missing node |
 
 ⭐ **Why this is enough — and no re-mapping is needed:** a recording is not a node's *share* of the world, it is a node's *view* of all of it.
 Any one file replays the whole exercise; more files add only what each node alone knew. ⇒ an AAR on any cluster shape shows the full world;
 ⛔ re-assigning node 4's file to another node is rejected — that node would replay node 4's world on top of its own (two restores, one world).
 
-**Q9** — ⭐ lean: the three proposal cells above as **CE-4331** (the role in the metadata + the import matches by role · the participant check at
-the AAR start · the import's failure count read) — small, backend; ⛔ not in CE-4330.
+### 9a. ⭐ Placing the recordings on the nodes — by NAME, then by KIND; refuse only what cannot be placed at all *(Q9)*
+
+🔒 User: *"How the role of the node is expressed. What if there were multiple nodes with the same role … Will we need to distribute the recordings to
+available nodes who are of the same role? We should support simple cases where everything is clear how to resolve … or if they are too complex to
+simply refuse them."*
+
+| measured | where |
+|---|---|
+| a node announces, in every heartbeat: **node id**, **subsystem** (`CGF`, `SimHost`, `IG`, `Player`, …), **node name** (unique in the cluster), **roles** (a flags mask: Brain, MuscleGround, Map2D, Perception, NavigationSolver, Traffic) | `NodeHealthProfile.cs:10-34` · `NodeRole.cs:80` · names: CE-3354, [Cluster load phase §11.10](DESIGN_Cluster_Load_Phase.md) |
+| ⛔ **a node id is NOT stable between runs**: the master GRANTS one unless the launch forces it (R-4009); the default name is `<subsystem>-<id>`, so it moves with it — a **configured** name (`--node-name`) is what stays | `Program.cs:155-188` (Hrot.ClusterRunner) |
+| ⭐ **a recording replays AS the node that made it**: ownership is the component `NetworkAuthority {PrimaryOwnerId, LocalNodeId}`, recorded and restored by the blit, and `HasAuthority` compares the two RECORDED ids — so the file carries its own identity, whichever node restores it | `NetworkAuthority.cs:16-31` (recorded: only `NoScenario`) |
+| a recording knows only its node id | `RecordingMetadata.cs:61` |
+
+⇒ ⭐ **Which node plays a file barely matters** (the file brings its identity) — **but its KIND must match**: a CGF file needs the CGF's systems and
+translators to show and send what it holds. ⇒ the rule needs a node's **kind = its subsystem + its roles mask**, and nothing finer.
+
+```mermaid
+flowchart TD
+    A["each recorded file: name · kind (NEW in the metadata)"] --> B{"a current node with the SAME name and kind?"}
+    B -- yes --> P1["that node plays it"]
+    B -- no --> C{"a free current node of the same KIND?"}
+    C -- yes --> P2["the next free one plays it (any order — the file brings its identity)"]
+    C -- no --> U["not played — its world comes from the other files; named at the AAR start"]
+    P1 --> D{"at least ONE file placed?"}
+    P2 --> D
+    U --> D
+    D -- yes --> S["AAR starts · nodes with no file listen"]
+    D -- no --> R["REFUSED in the cluster: open it in the all-in-one editor / Replay Browser (merged, any files)"]
+```
+*What the picture shows: the only hard stop is "no file fits any node" — every other shape plays, with what is missing named before it starts.*
+
+| case | ⭐ result |
+|---|---|
+| the same cluster (names configured) | each node its own file — no question asked |
+| the same cluster, names NOT configured (ids granted anew) | by kind: one CGF file per free CGF node, etc. — no question asked when every file is placed |
+| **several nodes of one kind** (CGF ×3 recorded, CGF ×3 now) | by name where names match, the rest one-to-one in any order — ⭐ correct because each file replays as its own recorded node |
+| fewer nodes of a kind (CGF ×3 recorded, ×2 now) | 2 files placed; the third not played — the AAR start says *"CGF-3's recording has no CGF node — its units replay as the others saw them; their brains are not inspectable"* · Start / Cancel |
+| more nodes of a kind | the extras listen |
+| a kind entirely absent (no Player node now) | its files not played — named at the start, like above |
+| ⛔ **fused ↔ split** (recorded as one node `Brain\|MuscleGround`, now two nodes, or the reverse) | ⛔ **no match across kinds, ever** — one node restores ONE file, and a file needs its own kind's systems. If that leaves no file placed: refused in the cluster |
+| ⛔ nothing placeable at all | **refused** with the reason; ⭐ the all-in-one editor and the Replay Browser open ANY set of files merged — that is where an odd shape is reviewed |
+
+⛔ **Rejected:** matching by node id (ids are granted anew each run) · by role FLAG alone (a fused `Brain\|MuscleGround` node would "match" a pure Brain
+file and miss its kinematics) · putting two files on one node (one world per node) · re-labelling a file to another kind.
+
+#### 9b. ⭐ A file on a node with a DIFFERENT id — replay works; going LIVE from it does not *(measured `2026-11-08`)*
+
+| who decides "is it mine?" | uses | in a replay on a node with another id |
+|---|---|---|
+| every system and egress (`HasAuthority`) | `NetworkAuthority.PrimaryOwnerId == NetworkAuthority.LocalNodeId` and `DescriptorOwnership` owners `== LocalNodeId` — ⭐ **all three ids come from the FILE** (`AuthorityExtensions.cs:16-66`, `NetworkAuthority.cs:31`) | ✅ the node sees its recorded units as **its own** — ⛔ not unowned |
+| the listeners' ingress | stamps `PrimaryOwnerId = the writer's CURRENT id` (`EntityMasterIngressTranslator.cs:228-245`) | ✅ consistent: the owner is the node that sends |
+| the replaying node's own ingress | frozen inside its span (R-4007) | ✅ not consulted |
+
+⇒ ⭐ **a replay is unaffected.** ⛔ **Going from the replay into LIVE is not** (restart from a checkpoint, a branch, a review's *continue from
+here*): the restored world still names the RECORDED ids, while the node now lives under its CURRENT one — the master's roster, ownership grants and
+handovers (addressed by node id), entities created after the branch (stamped with the current id) and the listeners (who see the current writer id)
+all use the new id. The node keeps simulating its units (its components still say "mine"), but **one node answers to two ids**, and if two nodes
+swapped ids (recorded 2 ↔ 3), a handover to *node 3* reaches the wrong one. ⚠ Nothing re-stamps ids today (searched code + `docs/`: none).
+
+| ⭐ | |
+|---|---|
+| **within one session** (Live → AAR → back to Live) | the ids never changed — ✅ unaffected; this is the common case |
+| **an archived run on a later cluster** | ids may differ (granted anew, R-4009) ⇒ |
+| ~~⭐ lean, CE-4331 ⑥: re-stamp at the branch~~ | ⛔ **SUPERSEDED `2026-11-08`** (the user: *"Is the one-time restamping a sufficient solution? … wouldn't it be easier to somehow renumber the nodes?"*) — measured: node ids sit in MORE recorded fields than the three (`PossessedBy.StationNodeId`, `NavigationIntent.TargetNodeId`, `PendingAuthorityGrants.CreatorNodeId`, `NetworkSpawnRequest.OwnerId`, `DescriptorOwnership`, found by a NAME scan — not proof of completeness) and in state outside components (the master's possession record, Q91 K8). A re-stamp that misses one fails SILENTLY |
+| ⭐⭐ **lean, CE-4331 ⑥ — STABLE IDS BY KIND, so nothing needs re-stamping** *(revised `2026-11-08` on the user's idea: "number ranges for different roles … calculating the IDs from that node subsystem and its role set deterministically and just ordering +1, +2")* | ⭐ **an id RANGE per kind** (subsystem + roles): the runner ALREADY has one per subsystem for `-n` launches — SimHost +1, Player +100, Orchestrator +300, CGF +400, CI +500, Traffic +800, the rest +600 (`Program.cs:799-811`) — while the master's grants ignore it and hand out 10000+ in join order (`NodeIdAllocator.cs:42-46`). ⭐ The master grants **inside the kind's range**: ① the id the node held before (it remembers it locally and sends it — the EXISTING `NodeIdRequest.PreferredId`, today always 0, `Program.cs:171`) if free · ② else the LOWEST free id of the range. ⇒ the same cluster gets the same ids; a REPLACEMENT computer of the same kind takes the vacant slot, i.e. the old id. ⚠ the request gains the node's subsystem and roles (a wire field: NED doc + `ned-wire-inventory.py`). A kind with no fixed range (an unusual roles mix) gets a block the master assigns once and keeps in its staging |
+| ⭐ **what it buys for the AAR** | §9a then places a recorded file on the node with the SAME id whenever that kind's count is complete — ids match by construction, across computers, and *Go Live from here* works. ⭐ Which of two CGFs is +1 does not matter: nodes of one kind are interchangeable, and each file replays as its recorded node |
+| ⛔ still refused | *Go Live* when a recorded id has no node (fewer nodes of a kind, a kind absent) — its units would be owned by nobody. The replay itself works |
+| ⭐ **the rest — a file on a node with another id** (another machine, fewer / other nodes, §9a) | the replay works (above); ⛔ *Go Live from here* is **refused** — greyed: *"node CGF-3's recording plays on a node with another id — going Live needs the same cluster"*. Rare, and a wrong guess there fails silently, so no re-stamp is built |
+| ⛔ rejected | re-stamping (the field list cannot be proven complete) · re-numbering a RUNNING node at the AAR (its id is its DDS identity and keys its caches — it would have to restart; absent nodes' ids would collide with new ones) |
+
+⭐ CE-4331's acceptance: the same cluster relaunched without `-n` gets the same ids, and a replacement computer of a kind gets the vacant id (⑥), and goes Live from its AAR with a working handover; a cluster
+with a file on a node of another id replays correctly and greys *Go Live*.
+
+**CE-4331** (backend, small; ⛔ not in CE-4330): ① the metadata records the node's name, subsystem and roles · ② the master places the files by §9a
+and the import copies `node_<recorded>.fdp` to each chosen node under its own file name · ③ the AAR start names every unplaced file and every node
+that listens, asking only when something is unplaced · ④ the import reads its failure count · ⑤ a rail per row of the case table · ⑥ node ids granted inside a range per kind, the previous id first (§9b); *Go Live* refused when a recorded id has no node.
 
 ---
 _coordinator lane, 2026-11-08_
