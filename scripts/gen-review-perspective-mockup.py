@@ -5,7 +5,7 @@ import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mockup_kit import Svg, C, FA, render, text_width
 
-W, H = 1240, 860
+W, H = 1240, 1090
 s = Svg(W, H, "Review perspective — the editor in AAR with the Replay Browser's analysis windows (DESIGN_Review_Perspective.md)")
 X0, Y0, SW, SH = 20, 56, 1200, 640
 s.rect(X0, Y0, SW, SH, "#0B0B0D", stroke=C.BORDER)
@@ -97,6 +97,32 @@ s.note(20, NY, ["★ ONE world (the ALL-IN-ONE editor, or the standalone Replay 
                 "★ Source (D6): several participant files open MERGED by default — each component from the node that owned it (a brain's state from CGF); a node's part plays;",
                 "   merged steps / scrubs only. The parts are HIDDEN worlds; the editor still shows one (Q-B6).",
                 "   Unchanged, drawn as context: the run controls (AQ108 §0), the rules bundle, Details, the Event Timeline's own lanes."], C.SUB, 12)
+
+# ── ★ how you get here (§3a) ──
+BY = Y0 + SH + 130
+s.separator_text(20, BY, "How you get into Review (§3a) — opening a recording for analysis switches the layout; the indicator ▸ Edit switches back", W - 20)
+# 1 the picker rows
+s.window(20, BY + 22, 470, 180, "Open Exercise Recording")
+ry = BY + 50
+for name, sub, glyph, col, sel in [("Night attack · 18:40", "4 participants (CGF ×2, SimHost, Player) — opens MERGED", 0xf0e8, C.TEAL, True),
+                                   ("Bridgehead · 07:12", "this editor's run — one file", 0xf108, C.GREY, False),
+                                   ("Crossfire · 31:05", "2 participants — opens MERGED", 0xf0e8, C.TEAL, False)]:
+    if sel: s.rect(26, ry - 4, 458, 40, "#1E2A3E")
+    s.glyph(glyph, 36, ry + 4, col, 13); s.text(58, ry + 14, name, C.TXT, 12.5); s.text(58, ry + 30, sub, C.SUB, 11.5); ry += 46
+# 2 the Start screen's Recent row
+s.window(510, BY + 22, 330, 90, "Start screen — Recent")
+s.text(522, BY + 64, "Night attack", C.TXT, 12.5); s.text(522, BY + 80, "Live · exercise 3", C.SUB, 11)
+bx = 650
+for lab, g, col in [("Live", 0xf111, C.RED), ("Edit", 0xf303, C.AMBER), ("AAR", FA.PLAY, C.BLUE)]:
+    w = text_width(lab, 11.5) + 30
+    s.rect(bx, BY + 56, w, 22, "#2C3A52" if lab == "AAR" else C.BTN, rx=3, stroke="#8FB7F0" if lab == "AAR" else None)
+    s.glyph(g, bx + 6, BY + 60, col, 11); s.text(bx + 22, BY + 71, lab, C.TXT, 11.5); bx += w + 6
+s.note(522, BY + 104, ["Recent ▸ AAR = the scenario's latest run"], C.NOTE, 11)
+# 3 the Live · ended menu
+s.menu(860, BY + 22, 360, [("#", "Live · ended ▾"), ("Run again (→ briefing)", None, 0xf111, C.RED), ("Restart from a checkpoint ▸", None, 0xf024, C.AMBER),
+                            ("AAR — full replay of this exercise", None, FA.PLAY, C.BLUE), "---", ("Close the session", None, 0xf2f5, C.GREY)])
+s.note(20, BY + 222, ["leave: the indicator ▸ Edit — the layout you had comes back · the Scenario / Review buttons change only the layout, never the mode ·",
+                        "a real cluster's AAR (the trainees' debrief) never switches by itself"], C.SUB, 11.5)
 
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "UX", "review-perspective-visual.svg")
 s.save(out)

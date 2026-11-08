@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — the perspective's first iteration (§3–§5) + a better merge recorded complete and UNSCHEDULED (§6: M1–M6 measured, I1–I9, Q9–Q14)
 updated: 2026-11-08 (third pass — the user: the perspective is for the ALL-IN-ONE editor and the standalone Replay Browser, never a cluster AAR (a debrief); merged by default when the files hold several participants; DAR unrelated; the merge measured — §2.2) · 2026-11-08 (second pass — Federation as the SOURCE of the editor's one world) · 2026-11-08 (first version — CE-3419)
-current-answer: §1 measured · §2 how Federation and the merge work · §3 the design · §4 stages · §5 decisions · ⭐ §6 a better merge — the full idea, measured, unscheduled (I1–I9, Q9–Q14, appendices §6.8 / §6.9)
+current-answer: ⭐ §0a the idea on one page · §3a entering and leaving · §1 measured · §2 how Federation and the merge work · §3 the design · §4 stages · §5 decisions · ⭐ §6 a better merge — the full idea, measured, unscheduled (I1–I9, Q9–Q14, appendices §6.8 / §6.9)
 stale-below: nothing
 known-rot: ⛔ first pass: "Federation does not fit the editor" / "standalone only" — WITHDRAWN (§2.4) · ⛔ second pass: the "this station's part" source during a CLUSTER AAR, G2 (read-only), Q5 (DAR), Q6 (per-station switch in a cluster) — WITHDRAWN by the user (§2.4) · the first pass cited R-4010 for "each node replays its own recording" — wrong id; the rule is W5 in DESIGN_Replay_Time_Axis_And_Review
 known-conflict: none
@@ -30,6 +30,17 @@ from multiple participants into a single one that can be analyzed"* → *"the ed
 cluster … there are no real other nodes … The AAR in a real cluster mode is usually not a replay analysis session. It is serving for the
 debriefing for the trainees. So likely the replay browser mode or perspective makes sense mainly in the all-in-one editor or in a standalone
 replay browser node."*
+
+## 0a. ⭐ The idea on one page *(2026-11-08)*
+
+| | |
+|---|---|
+| **what** | the editor gets a **Review** perspective — the Replay Browser's analysis tools (search, frame diff, recording info, JSON export, ◀ ▶ navigation, search hits and breakpoint stops as timeline lanes) on the editor's ONE world; the standalone Replay Browser keeps working and shows the SAME windows in the SAME layout |
+| **where** | the **all-in-one editor** (one node, its internal orchestrator) and the **standalone Replay Browser**. ⛔ NOT a real cluster's AAR — that is the trainees' debrief (W5: every node replays its own part) |
+| **what fills the one world** | a **single recording** (the all-in-one editor's own run) plays straight in · a **participant group** (a real cluster's run: CGF, SimHost … each its own file) goes through the Replay Browser's Federation pieces and is shown **Merged** by default (each component from the node that owned it) or as one node's part — the Source switch |
+| **how a single piece is reused** | ONE `ReviewBundle` of windows both hosts compose (the RulesBundle precedent); the editor adds ONE `ReviewSource` over the existing `FederatedReplayManager` + merge |
+| **when you are in it** | §3a — opening a recording for analysis switches to Review; going back to Edit switches back; the perspective button works by hand |
+| **what it is not** | not a new run mode (the indicator still says AAR, AQ108 §0); not a second visible world; not the better merge (§6 — recorded, unscheduled) |
 
 ## 1. Measured *(2026-11-08)*
 
@@ -109,7 +120,7 @@ serializer's `UnknownComponentPolicy` reports it) · ~~Q5 DAR~~ — unrelated.
 
 | ⭐ decision | |
 |---|---|
-| **D1 — Review is a PERSPECTIVE** (a window layout), entered on opening a recording for analysis in the editor, left when it is closed | the run mode stays AQ108 §0's |
+| **D1 — Review is a PERSPECTIVE** (a window layout), entered on opening a recording for analysis in the editor, left on leaving AAR — §3a | the run mode stays AQ108 §0's |
 | **D2 — ONE `ReviewBundle`** (Frame diff, Replay search, Recording info, JSON export, ◀ ▶ navigation), composed by the editor AND the Replay Browser | the RulesBundle precedent; the RB's hand-written registrations deleted |
 | **D3 — the host gives the bundle ONE world and the recording**: `World`, `RecordingFiles`, `CurrentFrame`, `Seek(frame)`, `Selection` | the editor: its world; the RB: the shown world |
 | **D4 — the analysis reads the FILES** in throwaway readers, never the shown world | as the editor's HTTP API already does |
@@ -165,6 +176,34 @@ graph TD
 ```
 *Who calls it: the internal orchestrator's seek (or a step) asks `ReviewSource` once per move; a merged step costs a JSON round-trip, so the
 merged source steps / scrubs only. The dotted edge: a real cluster's AAR is the debrief, never this perspective.*
+
+### 3a. ⭐ When you are in Review — entering and leaving *(2026-11-08)*
+
+```mermaid
+stateDiagram-v2
+  state "Edit — Scenario perspective" as E
+  state "AAR of the editor's own run — Review" as A1
+  state "AAR of a participant group — Review, Source = Merged" as A2
+  state "Live · ended (the debrief menu)" as L
+  E --> A1 : File ▸ Open Exercise Recording… (one file)
+  E --> A2 : File ▸ Open Exercise Recording… (several participants)
+  L --> A1 : the ended menu ▸ AAR — full replay of this exercise
+  E --> A1 : Start screen ▸ Recent ▸ AAR
+  A2 --> A2 : Source ▾ Merged / a node's part
+  A1 --> E : the indicator ▸ Edit
+  A2 --> E : the indicator ▸ Edit
+```
+*What it shows: Review is entered by OPENING a recording for analysis and left by leaving AAR — the perspective follows the run mode in the
+all-in-one editor; nothing new to arm.*
+
+| ⭐ rule | |
+|---|---|
+| **enter** — the editor switches to the Review perspective when it opens a recording for ANALYSIS: *File ▸ Open Exercise Recording…*, *Start screen ▸ Recent ▸ AAR*, the ended menu's *AAR — full replay of this exercise* | in the all-in-one editor every AAR is analysis |
+| **the picker says what you will get** | each exercise row shows its participants: *"Night attack · 18:40 · 4 participants — opens merged"* or *"… · this editor's run"* (`RecordingGroupInventory` already groups the node files by exercise) |
+| **leave** — the indicator ▸ Edit (AQ108 §0, asks nothing: a recording has nothing unsaved) returns to the Scenario perspective | the layout you had before Review comes back |
+| **by hand** — the perspective button (Scenario · Review) changes only the LAYOUT, never the mode | Review with no recording open shows *"Open a recording…"* |
+| **a real cluster's AAR** (the editor as one station of a cluster) | ⛔ no automatic switch; the Source switch is not shown (the station has only its own part) |
+| **the standalone Replay Browser** | always in Review — its default and only layout (Q3) |
 
 ## 4. Stages
 
