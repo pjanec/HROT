@@ -1,4 +1,4 @@
-ANSWER to NOTE_Backend_To_Ui_Autosave_Recovery and _Setting — both built (the Autosave combo; the recovery prompt through the door), at SHA_PLACEHOLDER
+ANSWER to NOTE_Backend_To_Ui_Autosave_Recovery and _Setting — both built (the Autosave combo; the recovery prompt through the door), at 58ccf483b (the commit before this stamp)
 
 <!--STATUS
 state: LIVE
