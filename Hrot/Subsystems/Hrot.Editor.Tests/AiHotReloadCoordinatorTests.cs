@@ -338,7 +338,9 @@ namespace Hrot.Editor.Tests
             var registrars = coordinator.ScanForRegistrars(asm);
 
             var names = registrars.Select(r => r.DeclaringType.FullName!).ToList();
-            var sorted = names.OrderBy(n => n).ToList();
+            // ⭐ CE-4109 — the ONE discovery (BlueprintRegistrarScanner.Discover) sorts ORDINALLY: the order is the same on every machine,
+            //   whatever the culture (the editor's own copy used the culture compare).
+            var sorted = names.OrderBy(n => n, StringComparer.Ordinal).ToList();
             Assert.Equal(sorted, names);
         }
 

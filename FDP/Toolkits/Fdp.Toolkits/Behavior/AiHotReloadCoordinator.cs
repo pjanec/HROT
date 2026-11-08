@@ -376,38 +376,7 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// <see cref="BlueprintRegistrarScanner.Scan"/> (the unified discover+invoke path used by reload);
     /// this discovery-only seam exists for callers/tests that inspect registrar metadata.
     /// </summary>
-    internal IReadOnlyList<ResolvedRegistrar> ScanForRegistrars(Assembly assembly)
-    {
-        var registrars = new List<ResolvedRegistrar>();
-        Type[] types;
-
-        try { types = assembly.GetTypes(); }
-        catch (ReflectionTypeLoadException ex)
-        {
-            types = ex.Types.Where(t => t != null).ToArray()!;
-        }
-
-        foreach (var type in types)
-        {
-            if (type.GetCustomAttribute<BlueprintRegistrarAttribute>() == null)
-                continue;
-
-            var method =
-                type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static) ??
-                type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
-            if (method == null) continue;
-
-            var parameters = method.GetParameters()
-                .Select((p, i) => new RegistrarParameter(p.Name ?? $"arg{i}", p.ParameterType, i))
-                .ToList();
-
-            registrars.Add(new ResolvedRegistrar(type, method, parameters));
-        }
-
-        return registrars
-            .OrderBy(r => r.DeclaringType.FullName, StringComparer.Ordinal)
-            .ToList();
-    }
+    internal IReadOnlyList<ResolvedRegistrar> ScanForRegistrars(Assembly assembly) => BlueprintRegistrarScanner.Discover(assembly);   // ⭐ CE-4109 — the ONE discovery
 
     private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<byte, BTreeContext> btreeActionRegistry)
     {

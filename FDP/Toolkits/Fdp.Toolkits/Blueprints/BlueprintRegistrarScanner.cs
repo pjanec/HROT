@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Linq;
 using System.Reflection;
@@ -31,6 +32,46 @@ namespace Fdp.Toolkit.Blueprints;
 /// </summary>
 public static class BlueprintRegistrarScanner
 {
+    /// <summary>
+    /// ⭐ CE-4109 — THE discovery (does NOT invoke) of the <c>[BlueprintRegistrar]</c> classes in <paramref name="assembly"/>, sorted
+    /// deterministically: one <see cref="ResolvedRegistrar"/> per class with its <c>Register</c> / <c>RegisterAll</c> entry point. Both hot-reload
+    /// coordinators (the blueprint one in Fdp.Toolkits and the editor's <c>Hrot.AI.Behaviors.dll</c> one) discover through here.
+    /// ⚠ The attribute is matched by TYPE: a reload context with no <c>Load</c> override resolves <c>Fdp.Toolkits</c> from the default
+    /// context, so the attribute type is the same type there (the editor's copy used to match it by NAME — CE-4109 ①).
+    /// </summary>
+    public static IReadOnlyList<ResolvedRegistrar> Discover(Assembly assembly)
+    {
+        var registrars = new List<ResolvedRegistrar>();
+        Type[] types;
+
+        try { types = assembly.GetTypes(); }
+        catch (ReflectionTypeLoadException ex)
+        {
+            types = ex.Types.Where(t => t != null).ToArray()!;
+        }
+
+        foreach (var type in types)
+        {
+            if (type.GetCustomAttribute<BlueprintRegistrarAttribute>() == null)
+                continue;
+
+            var method =
+                type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static) ??
+                type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
+            if (method == null) continue;
+
+            var parameters = method.GetParameters()
+                .Select((p, i) => new RegistrarParameter(p.Name ?? $"arg{i}", p.ParameterType, i))
+                .ToList();
+
+            registrars.Add(new ResolvedRegistrar(type, method, parameters));
+        }
+
+        return registrars
+            .OrderBy(r => r.DeclaringType.FullName, StringComparer.Ordinal)
+            .ToList();
+    }
+
     /// <summary>
     /// Scans <paramref name="assembly"/> for all <see cref="BlueprintRegistrarAttribute"/>-decorated
     /// classes, resolves each one's <c>Register</c> or <c>RegisterAll</c> static method, and invokes

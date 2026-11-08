@@ -54,16 +54,7 @@ namespace Hrot.Editor
     // ---- Registrar discovery types ------------------------------------------
 
     /// <summary>One parameter of a discovered registrar entry-point method.</summary>
-    public record RegistrarParameter(string Name, Type ParameterType, int OrdinalIndex);
-
-    /// <summary>
-    /// Metadata for a registrar class discovered by
-    /// <see cref="AiHotReloadCoordinator.ScanForRegistrars"/>.
-    /// </summary>
-    public record ResolvedRegistrar(
-        Type DeclaringType,
-        MethodInfo RegisterMethod,
-        IReadOnlyList<RegistrarParameter> Parameters);
+    // ⭐ CE-4109 — `RegistrarParameter` / `ResolvedRegistrar` are Fdp.Toolkit.Behavior's (the ONE pair); this file kept its own copies.
 
     // =========================================================================
 
@@ -489,49 +480,7 @@ namespace Hrot.Editor
         /// sorted deterministically by declaring type full name.
         /// </summary>
         internal IReadOnlyList<ResolvedRegistrar> ScanForRegistrars(Assembly assembly)
-        {
-            var validAttributeNames = new[]
-            {
-                "BlueprintRegistrarAttribute",
-            };
-
-            var registrars = new List<ResolvedRegistrar>();
-            Type[] types;
-
-            try
-            {
-                types = assembly.GetTypes();
-            }
-            catch (ReflectionTypeLoadException ex)
-            {
-                // Gracefully handle partial assembly loads.
-                types = ex.Types.Where(t => t != null).ToArray()!;
-            }
-
-            foreach (var type in types)
-            {
-                bool isRegistrar = type.GetCustomAttributes().Any(attr =>
-                    Array.IndexOf(validAttributeNames, attr.GetType().Name) >= 0);
-
-                if (!isRegistrar) continue;
-
-                // Find the public static entry point (prefer "Register", fall back to "RegisterAll").
-                var method =
-                    type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static) ??
-                    type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
-
-                if (method == null) continue;
-
-                var parameters = method.GetParameters()
-                    .Select((p, i) => new RegistrarParameter(p.Name ?? string.Empty, p.ParameterType, i))
-                    .ToArray();
-
-                registrars.Add(new ResolvedRegistrar(type, method, parameters));
-            }
-
-            // Sort deterministically to ensure reproducible registration order.
-            return registrars.OrderBy(r => r.DeclaringType.FullName).ToList();
-        }
+            => BlueprintRegistrarScanner.Discover(assembly);   // ⭐ CE-4109 ① — the ONE discovery, by attribute TYPE (it matched the attribute by NAME here)
 
         // ---- Private: parameter resolution ----
 
