@@ -113,7 +113,7 @@ public sealed class FieldTableFrameRail
         public readonly WidgetKitFrameRail.Sim Sim = new();
         public readonly Decls D = new();
         public readonly FieldTable Table = new();
-        public readonly FieldTableSettings Settings;
+        public FieldTableSettings Settings;
         public readonly ListFormsFrameRail.Pressing Input = new();
         public readonly KeyRouter Router;
         public readonly ListFormsFrameRail.Keyed Window = new();
@@ -377,5 +377,28 @@ public sealed class FieldTableFrameRail
         Assert.Null(r.Table.RenamingName);
         r.Click((r.Table.AddButton.Min + r.Table.AddButton.Max) / 2f); r.Frames(3);
         Assert.Equal(calls, r.D.Calls);
+    }
+
+    /// <summary>⭐ CE-3384 — FILL mode (the macro args, a run setup): names and types are fixed — no grip, no ⋮, no Add, no rename; the value column carries the defaults (grey = default, amber + ↺ = overridden); ↺ writes the default; 0 B.</summary>
+    [SkippableFact]
+    public void Fill_HasNoStructureControls_ShowsDefaultsAndOverrides_AndAllocatesNothing()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var r = new Rig();
+        r.Settings = new FieldTableSettings { Fill = true, ShowDefaults = true, ValueHeader = "Value" };
+        r.D.List.Add(new FieldRow("speed", "int", typeof(int), "9", null, false, "3"));       // overridden
+        r.D.List.Add(new FieldRow("limit", "int", typeof(int), "5", null, false, "5"));       // at its default
+        r.D.Ver++;
+        r.Steady();
+        Assert.True(r.Bytes == 0, $"a steady Fill frame allocates nothing ({r.Bytes} bytes)");
+        Assert.Equal(default, r.Table.AddButton);                                              // no Add
+        Assert.Equal(default, r.Table.MenuButton("speed"));                                    // no ⋮
+        Assert.True(r.Table.Drawer!.IsChanged(r.Table.ValueNode("speed")!)); Assert.False(r.Table.Drawer.IsChanged(r.Table.ValueNode("limit")!));
+        r.DoubleClick(r.NameCenter("speed")); r.Frames(3);
+        Assert.Null(r.Table.RenamingName);                                                      // names are fixed
+        Assert.True(KitProbe.TryGet(KitProbe.ResetMark, out var a, out var b));
+        r.Click((a + b) / 2f); r.Frames(3);
+        Assert.Equal("3", r.D.List[0].ValueJson);                                               // ↺ wrote the default through SetValueJson
+        Shot(r, "fieldtable-fill.png");
     }
 }

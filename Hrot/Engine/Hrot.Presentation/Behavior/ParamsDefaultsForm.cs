@@ -22,6 +22,11 @@ public sealed class ParamsDefaultsModel
     private readonly IComponentEditService _editService;
     private string? _source;                    // the overrides the session reflects
     private JsonObject _opened = new();         // the effective value as the session opened (or last committed) it
+    private JsonObject _dtoDefault = new();     // the DTO's own initialisers as JSON — what an override equal to is NO override
+    private IEditSession? _defaultsSession;     // a document over the DTO's initialisers: the struct table's IFieldDefaults reads it
+    private ComponentEditDrawer? _drawer;
+    private IMapPickContext? _drawerPicks;
+    private bool _drawerReadOnly;
 
     public ParamsDefaultsModel(IComponentEditService editService)
         => _editService = editService ?? throw new ArgumentNullException(nameof(editService));
@@ -31,6 +36,21 @@ public sealed class ParamsDefaultsModel
 
     /// <summary>The open session (null when there is no DTO, or a class DTO with no default constructor).</summary>
     public IEditSession? Session { get; private set; }
+
+    /// <summary>⭐ CE-3384 — where each field's DEFAULT comes from (a document over the DTO's initialisers); the struct table draws grey = default, amber bar + ↺ = overridden. Null with no DTO.</summary>
+    public StructEdit.Core.Defaults.IFieldDefaults? Defaults { get; private set; }
+
+    /// <summary>⭐ CE-3384 — the ONE struct-table drawer of this form (kept: its text cells and open flags live in it), rebuilt only when the session, the pick context or read-only changes.</summary>
+    public ComponentEditDrawer? DrawerFor(IMapPickContext? picks, bool readOnly)
+    {
+        if (Session is null) return null;
+        if (_drawer is null || !ReferenceEquals(_drawerPicks, picks) || _drawerReadOnly != readOnly)
+        {
+            _drawer = new ComponentEditDrawer(Session, picks, defaults: Defaults, readOnly: readOnly);
+            _drawerPicks = picks; _drawerReadOnly = readOnly;
+        }
+        return _drawer;
+    }
 
     /// <summary>The asset's overrides (field → value), as last synced or committed.</summary>
     public JsonObject Overrides { get; private set; } = new();
@@ -46,6 +66,13 @@ public sealed class ParamsDefaultsModel
         if (effective is null) return;
         Type     = dto;
         Session  = _editService.Open(effective, dto, null);
+        if (ParamsDefaults.Effective(dto, null) is { } initial)
+        {
+            _defaultsSession = _editService.Open(initial, dto, null);
+            Defaults = new StructEdit.Core.Defaults.DocumentDefaults(_defaultsSession.Document);
+            _dtoDefault = Parse(BehaviorParamsForm.ToJson(initial, dto));
+        }
+        _drawer  = null;
         _source  = overridesJson;
         _opened  = Parse(BehaviorParamsForm.ToJson(effective, dto));
         Overrides = Parse(overridesJson);
@@ -78,6 +105,8 @@ public sealed class ParamsDefaultsModel
         foreach (var key in changed)
         {
             if (KeyOf(next, key) is { } existing) next.Remove(existing);
+            // ⭐ CE-3384 — an override is a DIFFERENCE: a value equal to the DTO's own default is no override (↺ writes the default, so it clears the key)
+            if (_dtoDefault.TryGetPropertyValue(key, out var dflt) && JsonNode.DeepEquals(now[key], dflt)) continue;
             next[key] = now[key]?.DeepClone();
         }
         field = changed[0];
@@ -100,6 +129,8 @@ public sealed class ParamsDefaultsModel
     private void Close()
     {
         Session?.Dispose();
+        _defaultsSession?.Dispose();
+        _defaultsSession = null; Defaults = null; _drawer = null; _dtoDefault = new JsonObject();
         Session = null;
         Type = null;
         _source = null;
@@ -125,7 +156,7 @@ public sealed record ParamsDefaultsCommit(string? Json, string Label);
 
 /// <summary>
 /// ⭐ <c>CE-1061</c> U5b (§13.10c E2) — THE params-defaults form every asset kind draws (BTree / HSM variables panel, the blueprint outline):
-/// one row per DTO field — the value editor (<see cref="ComponentEditDrawer"/>), then "*" + Reset where the asset overrides it.
+/// one row per DTO field — the struct table's value editor (<see cref="ComponentEditDrawer"/>) with the DTO's initialisers as its defaults (grey = default, amber bar + ↺ = the asset overrides it).
 /// It commits only when no widget is active, so a drag or a typed number is ONE undo entry.
 /// </summary>
 public static class ParamsDefaultsForm
@@ -137,35 +168,19 @@ public static class ParamsDefaultsForm
         var root = session.Document.Root;
         var fields = root.Kind == EditNodeKind.SelectionRoot && root.Children.Count > 0 ? root.Children[0] : root;
 
-        string? reset = null;
-        ImGuiNET.ImGui.BeginDisabled(readOnly);
-        if (ImGuiNET.ImGui.BeginTable(id, 3, ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg))
+        // ⭐ CE-3384 (presets §5d) — the ONE value form: the struct table's own rows in a two-column table (label · value). The amber bar, the grey default and the ↺ are the table's (defaults = a document over the DTO's
+        // initialisers); the old third column ("*" + Reset) is gone — ↺ writes the default back and TryEdited turns a value equal to it into NO override.
+        var drawer = model.DrawerFor(picks, readOnly)!;
+        if (ImGuiNET.ImGui.BeginTable(id, 2, ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg))
         {
             ImGuiNET.ImGui.TableSetupColumn("Field", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 140f);
             ImGuiNET.ImGui.TableSetupColumn("Default", ImGuiNET.ImGuiTableColumnFlags.WidthStretch);
-            ImGuiNET.ImGui.TableSetupColumn("##ovr", ImGuiNET.ImGuiTableColumnFlags.WidthFixed, 64f);
-            var drawer = new ComponentEditDrawer(session, picks);
-            foreach (var node in fields.Children)
-            {
-                drawer.DrawEditNode(node);
-                ImGuiNET.ImGui.TableSetColumnIndex(2);
-                if (model.IsOverridden(node.Name))
-                {
-                    ImGuiNET.ImGui.PushID(node.Name);
-                    // ⚠ "*", not "●": U+25CF is outside every glyph range the editor font loads (EditorFontService.UiRanges) — it drew as "?".
-                    ImGuiNET.ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0.3f, 1f), "*");
-                    if (ImGuiNET.ImGui.IsItemHovered()) ImGuiNET.ImGui.SetTooltip("This asset overrides the DTO's default.");
-                    ImGuiNET.ImGui.SameLine();
-                    if (ImGuiNET.ImGui.SmallButton("Reset")) reset = node.Name;
-                    ImGuiNET.ImGui.PopID();
-                }
-            }
+            var kids = fields.Children;
+            for (int i = 0; i < kids.Count; i++) drawer.DrawEditNode(kids[i]);   // R-2084: an index loop (a foreach over the interface boxes an enumerator)
             ImGuiNET.ImGui.EndTable();
         }
-        ImGuiNET.ImGui.EndDisabled();
 
         if (readOnly) return null;
-        if (reset != null) return new ParamsDefaultsCommit(model.Without(reset), $"Reset params default {reset}");
         if (!ImGuiNET.ImGui.IsAnyItemActive() && model.TryEdited(out var json, out var field))
             return new ParamsDefaultsCommit(json, $"Edit params default {field}");
         return null;

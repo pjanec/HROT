@@ -40,6 +40,8 @@ public sealed class FieldTableSettings
     public string NewNameStem { get; init; } = "field";
     /// <summary>⭐ CE-3391 — the value column marks a value equal to its row's <see cref="FieldRow.DefaultJson"/> grey and a different one with the amber bar + ↺ (a preset's overrides); false = no marks (the declaration table edits the default itself).</summary>
     public bool ShowDefaults { get; init; }
+    /// <summary>⭐ CE-3384 — FILL mode: the names and types are FIXED (a macro instance's args, a run setup): no grip, no ⋮ menu, no rename, no type picker, no Add — only the value column (with its defaults when <see cref="ShowDefaults"/>).</summary>
+    public bool Fill { get; init; }
     /// <summary>The value column's header (<i>Default</i> · <i>Value</i> · <i>Live</i>).</summary>
     public string ValueHeader { get; init; } = "Value";
     /// <summary>Show the read-only <i>Used by</i> column.</summary>
@@ -107,6 +109,7 @@ public sealed class FieldTable : IStructTableTarget
     private ComponentEditDrawer? _drawer;
     private FieldTableSettings _settings = new();
     private bool _ro;
+    private bool _fill;
 
     private int _sel = -1;
     private string? _errRow, _errText;                    // the error line: under the row of that name ("" = under the Add button)
@@ -194,7 +197,7 @@ public sealed class FieldTable : IStructTableTarget
 
     bool IStructTableTarget.CanRun(StructTableCommand c)
     {
-        if (_ro || _sel < 0 || _sel >= _rows.Length) return false;
+        if (_ro || _fill || _sel < 0 || _sel >= _rows.Length) return false;
         return c switch
         {
             StructTableCommand.Rename or StructTableCommand.Delete or StructTableCommand.Duplicate => true,
@@ -215,6 +218,7 @@ public sealed class FieldTable : IStructTableTarget
         ArgumentNullException.ThrowIfNull(decls);
         ArgumentNullException.ThrowIfNull(settings);
         _settings = settings;
+        _fill = settings.Fill;
         if (_key is { } k) { _key = null; ApplyKey(k); }
         if (_op != Op.None) Exec(decls);
         if (!ReferenceEquals(decls, _decls) || decls.Version != _builtVersion || !ReferenceEquals(picks, _picks) || settings.ShowDefaults != _builtShowDefaults) Rebuild(decls, picks);
@@ -225,7 +229,7 @@ public sealed class FieldTable : IStructTableTarget
         float menuW = frameH;
         var tableMin = ImGuiApi.GetCursorScreenPos();
         float tableW = ImGuiApi.GetContentRegionAvail().X;
-        int cols = _settings.UsedBy ? 5 : 4;
+        int cols = (_settings.UsedBy ? 5 : 4) - (_fill ? 1 : 0);
         bool ownWrite = false;
         if (ImGuiApi.BeginTable("##fields", cols, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV))
         {
@@ -233,7 +237,7 @@ public sealed class FieldTable : IStructTableTarget
             ImGuiApi.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthStretch, 0.18f);
             ImGuiApi.TableSetupColumn(_settings.ValueHeader, ImGuiTableColumnFlags.WidthStretch, 0.40f);
             if (_settings.UsedBy) ImGuiApi.TableSetupColumn("Used by", ImGuiTableColumnFlags.WidthFixed, 64f);
-            ImGuiApi.TableSetupColumn("##menu", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHeaderLabel, menuW + 6f);
+            if (!_fill) ImGuiApi.TableSetupColumn("##menu", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHeaderLabel, menuW + 6f);
             ImGuiApi.TableHeadersRow();
 
             uint owner = ImGuiApi.GetID("##fieldrows");
@@ -247,22 +251,25 @@ public sealed class FieldTable : IStructTableTarget
 
                 // name: ⋮⋮ handle, then the cell (or the rename box)
                 ImGuiApi.TableSetColumnIndex(0);
-                var gpos = ImGuiApi.GetCursorScreenPos();
-                float gw = frameH * 0.6f;
-                ImGuiApi.InvisibleButton("##g", new Vector2(gw, frameH));
-                bool gripHot = ImGuiApi.IsItemHovered();
-                if (!_ro) KitDrag.Reorder(owner, i, r.Name, asSource: true, asTarget: false, out _);
-                CenterGlyph(dl, KitGlyph.Grip, gpos, gw, frameH, ImGuiApi.GetColorU32(gripHot ? ImGuiCol.Text : ImGuiCol.TextDisabled));
-                ImGuiApi.SameLine(0f, 2f);
+                if (!_fill)
+                {
+                    var gpos = ImGuiApi.GetCursorScreenPos();
+                    float gw = frameH * 0.6f;
+                    ImGuiApi.InvisibleButton("##g", new Vector2(gw, frameH));
+                    bool gripHot = ImGuiApi.IsItemHovered();
+                    if (!_ro) KitDrag.Reorder(owner, i, r.Name, asSource: true, asTarget: false, out _);
+                    CenterGlyph(dl, KitGlyph.Grip, gpos, gw, frameH, ImGuiApi.GetColorU32(gripHot ? ImGuiCol.Text : ImGuiCol.TextDisabled));
+                    ImGuiApi.SameLine(0f, 2f);
+                }
                 if (_renameIdx == i) DrawRenameBox(i);
                 else
                 {
                     var npos = ImGuiApi.GetCursorScreenPos();
                     bool clicked = ImGuiApi.Selectable("##n", _sel == i, ImGuiSelectableFlags.AllowDoubleClick, new Vector2(0f, frameH));
                     _nameMin[i] = ImGuiApi.GetItemRectMin(); _nameMax[i] = ImGuiApi.GetItemRectMax();
-                    if (!_ro && KitDrag.Reorder(owner, i, r.Name, asSource: false, asTarget: true, out int from)) Queue(Op.Move, from, i);
-                    if (clicked) { _sel = i; if (!_ro && ImGuiApi.IsMouseDoubleClicked(ImGuiMouseButton.Left)) Queue(Op.StartRename, i); }
-                    if (ImGuiApi.IsItemClicked(ImGuiMouseButton.Right)) { _sel = i; ImGuiApi.OpenPopup("##rowmenu"); }
+                    if (!_ro && !_fill && KitDrag.Reorder(owner, i, r.Name, asSource: false, asTarget: true, out int from)) Queue(Op.Move, from, i);
+                    if (clicked) { _sel = i; if (!_ro && !_fill && ImGuiApi.IsMouseDoubleClicked(ImGuiMouseButton.Left)) Queue(Op.StartRename, i); }
+                    if (!_fill && ImGuiApi.IsItemClicked(ImGuiMouseButton.Right)) { _sel = i; ImGuiApi.OpenPopup("##rowmenu"); }
                     dl.AddText(new Vector2(npos.X + 4f, npos.Y + ImGuiApi.GetStyle().FramePadding.Y), ImGuiApi.GetColorU32(r.ReadOnly || _ro ? ImGuiCol.TextDisabled : ImGuiCol.Text), r.Name);
                 }
                 if (_renameIdx == i) { _nameMin[i] = ImGuiApi.GetItemRectMin(); _nameMax[i] = ImGuiApi.GetItemRectMax(); }
@@ -273,7 +280,7 @@ public sealed class FieldTable : IStructTableTarget
                 bool tclick = ImGuiApi.Selectable("##t", false, ImGuiSelectableFlags.None, new Vector2(0f, frameH));
                 _typeMin[i] = ImGuiApi.GetItemRectMin(); _typeMax[i] = ImGuiApi.GetItemRectMax();
                 dl.AddText(new Vector2(tpos.X, tpos.Y + ImGuiApi.GetStyle().FramePadding.Y), ImGuiApi.GetColorU32(ColorOf(_groups[i])), r.TypeId);
-                if (tclick && !_ro && !r.ReadOnly) { _pickRow = i; _openPicker = true; }
+                if (tclick && !_ro && !_fill && !r.ReadOnly) { _pickRow = i; _openPicker = true; }
 
                 // value: the struct table's own cell over the declared document
                 ImGuiApi.TableSetColumnIndex(2);
@@ -296,8 +303,7 @@ public sealed class FieldTable : IStructTableTarget
                 }
 
                 // ⋮ menu
-                ImGuiApi.TableSetColumnIndex(col);
-                DrawMenu(dl, i, menuW, frameH, n);
+                if (!_fill) { ImGuiApi.TableSetColumnIndex(col); DrawMenu(dl, i, menuW, frameH, n); }
 
                 ImGuiApi.PopID();
 
@@ -315,13 +321,13 @@ public sealed class FieldTable : IStructTableTarget
         }
         if (ownWrite) _builtVersion = decls.Version;   // our own value write: the cells already show it — rebuilding would drop the focused text box
 
-        DrawAdd(frameH);
+        if (!_fill) DrawAdd(frameH);
         if (_errText != null && _errRow == "") RowMarks.ErrorLine(_errText);
 
         DrawPicker(decls);
 
         // the keys act on the selected row while this window has the focus (nothing here reads a key — the router runs the scope)
-        if (_sel >= 0 && _renameIdx < 0 && ImGuiApi.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)) StructTableFocus.Set(this);
+        if (!_fill && _sel >= 0 && _renameIdx < 0 && ImGuiApi.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)) StructTableFocus.Set(this);
         if (_op != Op.None) Exec(decls);
     }
 

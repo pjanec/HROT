@@ -50,13 +50,11 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
         // ⭐ CE-1023 — THE params form draws itself (inside its "params" table) for the AI section AND the mission panel; the
         //   AI section's own two calls (CE-3043) moved here.
         "Hrot/Engine/Hrot.Presentation/Behavior/BehaviorParamsForm.cs",
-        // ⭐ CE-1061 U5b — the params DEFAULTS form (3 columns: field · value · override marker + Reset), §13.10c E2.
+        // ⭐ CE-1061 U5b — the params DEFAULTS form (2 columns: field · value — the struct table's own defaults / ↺), §13.10c E2.
         "Hrot/Engine/Hrot.Presentation/Behavior/ParamsDefaultsForm.cs",
         // ⭐ CE-4243 — the action list's per-step args: one 2-column table ("##args") per step (added at 13b81077c, not listed then).
         "Hrot/Engine/Hrot.Presentation/Behavior/ActionListFieldDrawer.cs",
-        // ⭐ CE-4210 MA-8 / CE-4141 — the ONE typed args form (the Macro section AND the Run setup): one 3-column table (param · value · reset), one drawer per row.
-        //   ⚠ Was MacroInstanceDetailsView.cs — CE-4141 extracted its calls here and the list was not moved with them (CE-4258 found the red).
-        "Hrot/Editor/Hrot.Editor.AiShared/Scenarios/ParamArgsTable.cs",
+        // ⭐ CE-3384 — ParamArgsTable.cs is not here any more: the macro args draw through FieldTable (Fill), which calls no drawer row itself.
     };
 
     /// <summary>⭐ How far a <c>BeginTable</c>/<c>EndTable</c> may sit from the call it wraps. ⚠ Every

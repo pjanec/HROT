@@ -215,11 +215,10 @@ public sealed class VariablesPanelControl
     /// <summary>Frame-rail probe: the <i>used by</i> count drawn per row name by the last frame (empty without the column).</summary>
     public System.Collections.Generic.Dictionary<string, int> UsedByDrawn { get; } = new();
 
-    /// <summary>Frame-rail probes (CE-4254): the column headers, the memory line and the Remove-unused button the last frame drew; the default cell's open edit session of a row.</summary>
+    /// <summary>Frame-rail probes (CE-4254): the column headers, the memory line and the Remove-unused button the last frame drew.</summary>
     internal System.Collections.Generic.List<string> ColumnHeaders { get; } = new();
     internal bool MemoryLineDrawn { get; private set; }
     internal bool RemoveUnusedDrawn { get; private set; }
-    internal StructEdit.Core.IEditSession? DefaultCellSession(string name) => _defaultCells?.SessionOf(name);
 
     /// <summary>Frame-rail probe (CE-4254): the screen rect of each variable-name cell drawn by the last <see cref="DrawSingle"/>; a rail clicks the REAL cell.</summary>
     public System.Collections.Generic.IReadOnlyList<(string Name, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> DrawnNameCells => _nameCells;
@@ -294,13 +293,10 @@ public sealed class VariablesPanelControl
         return _choices;
     }
 
-    private readonly Hrot.Editor.AiShared.Scenarios.ParamArgsTable? _defaultCells;
-
-    /// <param name="editService">⭐ CE-4254 — the StructEdit service the DEFAULT cell's leaf editor opens over (only a source with <see cref="DeclarationFeatures.DefaultValueCell"/> needs one).</param>
+    /// <param name="editService">⭐ CE-4254 — the StructEdit service the DEFAULT cell's leaf editor opens over (kept for the call sites — the parameters host draws the Define table now, CE-3384).</param>
     public VariablesPanelControl(IRefactorService refactorService, IEditableAsset assetBase, IReadOnlyList<VariableTypeChoice> typeChoices,
         Func<StructEdit.Core.IComponentEditService?>? editService = null)
     {
-        if (editService != null) _defaultCells = new Hrot.Editor.AiShared.Scenarios.ParamArgsTable(editService, null, "$.paramdefault.");
         _refactorService = refactorService;
         _assetBase = assetBase;
         _typeChoices = typeChoices;
@@ -614,16 +610,9 @@ public sealed class VariablesPanelControl
                 if (feat.ByteSize) { ImGui.TableNextColumn(); ImGui.TextUnformatted(row.ByteSize.ToString()); }
                 if (feat.DefaultValueCell)
                 {
-                    // ⭐ CE-4254 — the DEFAULT value: the field type's StructEdit leaf (the ParamArgsTable path, CE-4141), committed through the source.
+                    // ⭐ CE-3384 — a source that declares a default shows it as text; EDITING a default is the Define table's value column (FieldTable), the one value form
                     ImGui.TableNextColumn();
-                    if (_defaultCells is null) ImGui.TextDisabled("—");
-                    else
-                    {
-                        ImGui.BeginDisabled(schema.IsReadOnly || row.IsReadOnly);
-                        var arow = new Hrot.Editor.AiShared.Scenarios.ParamArgRow(row.Name, row.TypeName, row.FieldType, row.Comment, row.DefaultValueJson, null);
-                        _defaultCells.DrawCell(arow, (r, json) => schema.UpdateVariableDefaultValueJson(r.Name, json));
-                        ImGui.EndDisabled();
-                    }
+                    ImGui.TextDisabled(row.DefaultValueJson ?? "—");
                 }
                 else if (feat.LiveValue)
                 {

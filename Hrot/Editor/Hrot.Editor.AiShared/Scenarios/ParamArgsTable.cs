@@ -5,10 +5,6 @@ using System.Text.Json.Nodes;
 using Fdp.Presentation.Editing;
 using Fdp.Toolkit.Scenario;
 using Hrot.Editor.AiShared.Blackboard;
-using Hrot.Editor.AiShared.Inspector;
-using Hrot.Editor.AiShared.Variables;
-using ImGuiNET;
-using StructEdit.Core;
 
 namespace Hrot.Editor.AiShared.Scenarios;
 
@@ -34,178 +30,136 @@ public sealed record ParamArgRow(string Name, string TypeId, Type? Type, string?
 }
 
 /// <summary>
-/// ⭐⭐ CE-4141 / CE-4210 MA-8 — THE typed one-field args form, shared by the macro instance's Details section (MA-8) and the scenario picker's <i>Run setup</i> expander (AQ108 D24): one table row per declared param, each drawn by the ONE component
-/// drawer over a one-field typed holder (<see cref="DefaultValueAuthoring"/>, the precedent of a variable's default); the default is greyed until it is overridden; a <i>reset</i> button on an override. The caller owns what an edit MEANS:
-/// <c>onSet</c> gets the row and the committed JSON, <c>onReset</c> the row. ⛔ Extracted from the macro view so there is not a second copy.
+/// ⭐⭐ CE-4141 / CE-4210 MA-8 → ⭐ CE-3384 (presets §5d) — THE typed args form, shared by the macro instance's Details section: one row per declared param, drawn by the Define table (<see cref="FieldTable"/>) in FILL mode — the names and
+/// types are fixed (no Add / ⋮ / drag), the value column is the struct table's own cell with the declared default as its default: grey while it is the default, an amber bar + ↺ once overridden (↺ writes the default back, which the caller's
+/// <c>onReset</c> turns into "no override"). The caller owns what an edit MEANS: <c>onSet</c> gets the row and the committed JSON, <c>onReset</c> the row.
+/// ⛔ The old form's own table, its <i>reset</i> column, its alpha-greyed default and its one-field holder sessions are gone — there is ONE value form.
 /// </summary>
 public sealed class ParamArgsTable : IDisposable
 {
-    private sealed class RowState : IDisposable
+    /// <summary>The rows as the Define table's declarations: fixed names / types, the value = the effective JSON, the default = the declaration's. A write is the caller's onSet / onReset.</summary>
+    private sealed class ArgsDeclarations : IFieldDeclarations
     {
-        public IEditSession Session = null!;
-        public ComponentEditDrawer Drawer = null!;
-        public string ShownJson = "";
-        public Type Type = null!;
-        public void Dispose() => Session?.Dispose();
+        private IReadOnlyList<ParamArgRow> _rows = Array.Empty<ParamArgRow>();
+        private string[] _effective = Array.Empty<string>();   // what the table shows per row (an own write updates it at once, so the host echoing it back is no change)
+        private FieldRow[] _fieldRows = Array.Empty<FieldRow>();
+        private int _version;
+        private Action<ParamArgRow, string> _onSet = (_, _) => { };
+        private Action<ParamArgRow> _onReset = _ => { };
+
+        public IReadOnlyList<FieldRow> Rows => _fieldRows;
+        public int Version => _version;
+        public bool IsReadOnly => false;
+        public string? LastRefusal => null;
+
+        /// <summary>Takes this frame's rows; the table rebuilds only when they differ from what it shows (an own write is already shown).</summary>
+        public void Update(IReadOnlyList<ParamArgRow> rows, Action<ParamArgRow, string> onSet, Action<ParamArgRow> onReset)
+        {
+            _onSet = onSet; _onReset = onReset;
+            bool same = rows.Count == _rows.Count;
+            for (int i = 0; same && i < rows.Count; i++)
+            {
+                var a = rows[i]; var b = _rows[i];
+                same = string.Equals(a.Name, b.Name, StringComparison.Ordinal) && string.Equals(a.TypeId, b.TypeId, StringComparison.Ordinal)
+                    && string.Equals(a.DefaultJson, b.DefaultJson, StringComparison.Ordinal) && string.Equals(a.EffectiveJson, _effective[i], StringComparison.Ordinal);
+            }
+            if (same) { _rows = rows; return; }
+            Rebuild(rows);
+        }
+
+        public void Invalidate() => Rebuild(_rows);
+
+        private void Rebuild(IReadOnlyList<ParamArgRow> rows)
+        {
+            _rows = rows;
+            _effective = new string[rows.Count];
+            _fieldRows = new FieldRow[rows.Count];
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var r = rows[i];
+                _effective[i] = r.EffectiveJson;
+                _fieldRows[i] = new FieldRow(r.Name, r.TypeId, r.Type ?? typeof(object), r.EffectiveJson, r.Comment, false, r.DefaultJson);
+            }
+            _version++;
+        }
+
+        public bool Add(string name, string typeId, string? valueJson) => false;
+        public bool Rename(string name, string newName) => false;
+        public bool Retype(string name, string typeId) => false;
+        public bool Move(int from, int to) => false;
+        public bool Remove(string name) => false;
+        public int UsedBy(string name) => 0;
+
+        public void SetValueJson(string name, string? valueJson)
+        {
+            for (int i = 0; i < _rows.Count; i++)
+            {
+                if (!string.Equals(_rows[i].Name, name, StringComparison.Ordinal)) continue;
+                var row = _rows[i];
+                if (valueJson is null || Same(valueJson, row.DefaultJson)) { _onReset(row); _effective[i] = row.DefaultJson ?? "null"; }   // a value equal to the default is NO override
+                else { _onSet(row, valueJson); _effective[i] = valueJson; }
+                return;
+            }
+        }
+
+        private static bool Same(string a, string? b)
+        {
+            if (b is null) return false;
+            try { return JsonNode.DeepEquals(JsonNode.Parse(a), JsonNode.Parse(b)); }
+            catch (System.Text.Json.JsonException) { return false; }
+        }
     }
 
-    private readonly Func<IComponentEditService?> _editService;
     private readonly Func<IMapPickContext?> _picks;
     private readonly string _pickScope;
-    private readonly Dictionary<string, RowState> _rows = new();
+    private readonly ArgsDeclarations _decls = new();
+    private readonly FieldTable _table = new();
+    private IMapPickContext? _scopedFor;
+    private IMapPickContext? _scoped;
+    private static readonly FieldTableSettings Settings = new() { Fill = true, ShowDefaults = true, ValueHeader = "Value" };
 
-    /// <summary>What the last <see cref="Draw"/> showed (read by the frame rails): the rows drawn and the reset buttons.</summary>
+    /// <summary>What the last <see cref="Draw"/> showed (read by the frame rails): the rows drawn and the overridden ones (each carries a ↺).</summary>
     public int RowsDrawn { get; private set; }
     public int ResetButtons { get; private set; }
 
-    /// <summary>The screen centre of the last <i>reset</i> button drawn (the frame rails click it); null when none was drawn.</summary>
+    /// <summary>The screen centre of the last ↺ drawn (the frame rails click it); null when none was drawn.</summary>
     public System.Numerics.Vector2? LastResetButtonCenter { get; private set; }
 
-    /// <param name="pickScope">The map-pick scope prefix of a row's field (<c>"$.macroarg."</c>, <c>"$.runsetup."</c>).</param>
-    public ParamArgsTable(Func<IComponentEditService?> editService, Func<IMapPickContext?>? picks = null, string pickScope = "$.arg.")
+    /// <param name="pickScope">The map-pick scope of the form's fields (<c>"$.macroarg"</c>): a row's field is <c>scope.name</c>.</param>
+    public ParamArgsTable(Func<IMapPickContext?>? picks = null, string pickScope = "$.arg")
     {
-        _editService = editService ?? throw new ArgumentNullException(nameof(editService));
         _picks = picks ?? (() => null);
-        _pickScope = pickScope;
+        _pickScope = pickScope.TrimEnd('.');
     }
 
     /// <summary>Zeroes the counters (a view that returns before drawing the table starts each frame from nothing).</summary>
     public void ResetCounts() { RowsDrawn = ResetButtons = 0; LastResetButtonCenter = null; }
 
-    /// <summary>Draws the table. Returns false (and draws a muted line) when there is no editor service. <paramref name="id"/> keeps two tables on one window apart.</summary>
+    /// <summary>Draws the table. <paramref name="id"/> keeps two tables on one window apart.</summary>
     public bool Draw(string id, IReadOnlyList<ParamArgRow> rows, Action<ParamArgRow, string> onSet, Action<ParamArgRow> onReset)
     {
         ResetCounts();
-        if (_editService() is not { } svc) { ImGui.TextDisabled("No editor service."); return false; }
-        ParamArgRow? resetClicked = null;
-        if (ImGui.BeginTable(id, 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        _decls.Update(rows, onSet, onReset);
+        IMapPickContext? scoped = null;
+        if (_picks() is { } p)
         {
-            try
-            {
-                ImGui.TableSetupColumn("Param", ImGuiTableColumnFlags.WidthFixed, 160f);
-                ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
-                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 70f);
-                foreach (var row in rows)
-                {
-                    // ⭐ CE-4258 ① — one id scope per row: two rows of one type (two entity links) drew widgets with the same id
-                    ImGui.PushID(row.Name);
-                    try
-                    {
-                        var st = PrepareRow(svc, row);
-                        if (st is null) continue;
-                        ImGui.PushStyleVar(ImGuiStyleVar.Alpha, row.IsOverridden ? 1f : 0.55f);   // the default is greyed until it is overridden
-                        st.Drawer.DrawRoot(VariableEditModal.ScalarRowOrRoot(st.Session.Document.Root, row.Name));
-                        ImGui.PopStyleVar();
-                        if (FinishRow(row, st, onSet)) resetClicked = row;
-                    }
-                    finally { ImGui.PopID(); }
-                }
-            }
-            finally { ImGui.EndTable(); }
+            if (!ReferenceEquals(p, _scopedFor)) { _scopedFor = p; _scoped = new ScopedMapPickContext(p, _pickScope); }
+            scoped = _scoped;
         }
-        // ⭐ CE-4258 ② — the reset runs AFTER the table: a caller's reset may Clear() (dispose) every row's session, which inside the row loop
-        // left the next FinishRow reading a disposed session — the exception skipped EndTable ("missing EndTable") and crashed the editor
-        if (resetClicked is not null) onReset(resetClicked);
+        ImGuiNET.ImGui.PushID(id);
+        _table.Draw(_decls, Settings, scoped);
+        ImGuiNET.ImGui.PopID();
+        RowsDrawn = rows.Count;
+        foreach (var r in rows) if (r.IsOverridden) ResetButtons++;
+        if (ResetButtons > 0) LastResetButtonCenter = NodeEditor.Core.Widgets.KitProbe.Center(NodeEditor.Core.Widgets.KitProbe.ResetMark);
         return true;
     }
 
-    /// <summary>The row's session (opened or reopened from the effective JSON); null for an unknown type (its row is already written).</summary>
-    private RowState? PrepareRow(IComponentEditService svc, ParamArgRow row)
-    {
-        if (row.Type is null)
-        {
-            ImGui.TableNextRow(); ImGui.TableSetColumnIndex(0); ImGui.TextUnformatted(row.Name);
-            ImGui.TableSetColumnIndex(1); ImGui.TextDisabled($"unknown type '{row.TypeId}'");
-            return null;
-        }
-        if (!_rows.TryGetValue(row.Name, out var st) || !string.Equals(st.ShownJson, row.EffectiveJson, StringComparison.Ordinal) || st.Type != row.Type)
-        {
-            st?.Dispose();
-            var entry = new BlackboardVariableEntry(row.Name, row.Type, row.Comment, DefaultValueJson: row.EffectiveJson);
-            var s = DefaultValueAuthoring.OpenSession(svc, entry);
-            st = new RowState { Session = s, Drawer = new ComponentEditDrawer(s, _picks() is { } p ? new ScopedMapPickContext(p, _pickScope + row.Name) : null), ShownJson = row.EffectiveJson, Type = row.Type };
-            _rows[row.Name] = st;
-        }
-        if (st.Session.RebuildState == EditRebuildState.RebuildRequired) st.Session.RebuildDocument();
-        return st;
-    }
+    /// <summary>The value node of row <paramref name="name"/> in the table's current document (null before it was drawn) — the frame rails read what it shows.</summary>
+    internal StructEdit.Core.EditNode? NodeOf(string name) => _table.ValueNode(name);
 
-    /// <summary>After the drawer drew the row: the reset column and the commit of an edit. Returns true when <i>reset</i> was clicked (the caller resets after the table).</summary>
-    private bool FinishRow(ParamArgRow row, RowState st, Action<ParamArgRow, string> onSet)
-    {
-        RowsDrawn++;
-        ImGui.TableSetColumnIndex(2);
-        if (row.IsOverridden)
-        {
-            ResetButtons++;
-            bool clicked = ImGui.SmallButton("reset");
-            LastResetButtonCenter = (ImGui.GetItemRectMin() + ImGui.GetItemRectMax()) / 2f;
-            if (clicked) return true;
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Reset to the default" + (row.DefaultJson is null ? "" : " (" + row.DefaultJson + ")"));
-        }
-        else ImGui.TextDisabled("default");
-
-        CommitIfDirty(row, st, onSet);
-        return false;
-    }
-
-    /// <summary>The commit of an edit: when the form is dirty and valid, serialises it and tells the caller (<paramref name="onSet"/>) — shared by the table row and the one-cell form.</summary>
-    private static void CommitIfDirty(ParamArgRow row, RowState st, Action<ParamArgRow, string> onSet)
-    {
-        if (st.Session.IsDirty)
-        {
-            try
-            {
-                string json = DefaultValueAuthoring.CommitAndSerialize(st.Session, row.Type!);
-                if (!string.Equals(json, st.ShownJson, StringComparison.Ordinal))
-                {
-                    st.ShownJson = json;   // what the form now shows; the next frame's record carries it
-                    onSet(row, json);
-                }
-            }
-            catch (EditValidationException) { /* an invalid edit stays in the form; nothing is written */ }
-        }
-    }
-
-    /// <summary>
-    /// ⭐ CE-4254 — the ONE-CELL form of a row: the field type's StructEdit leaf, with no table and no reset column, for a host that already owns the table
-    /// (the Variables table's <i>default</i> cell). Same session / drawer / commit as <see cref="Draw"/>; the caller owns what an edit means (<paramref name="onSet"/>).
-    /// Returns false (a muted line) when there is no editor service or the type is unknown.
-    /// </summary>
-    public bool DrawCell(ParamArgRow row, Action<ParamArgRow, string> onSet)
-    {
-        if (_editService() is not { } svc) { ImGui.TextDisabled("No editor service."); return false; }
-        if (row.Type is null) { ImGui.TextDisabled($"unknown type '{row.TypeId}'"); return false; }
-        ImGui.PushID(row.Name);
-        try
-        {
-            var st = PrepareRow(svc, row)!;
-            // the drawer's leaf starts with TableNextRow — it needs its OWN two-column table, nested in the host's cell (else it would add a row to the host's table)
-            if (ImGui.BeginTable("##defcell", 2, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
-            {
-                try
-                {
-                    ImGui.TableSetupColumn("##n", ImGuiTableColumnFlags.WidthFixed, 1f);
-                    ImGui.TableSetupColumn("##v", ImGuiTableColumnFlags.WidthStretch);
-                    st.Drawer.DrawRoot(VariableEditModal.ScalarRowOrRoot(st.Session.Document.Root, row.Name));
-                }
-                finally { ImGui.EndTable(); }
-            }
-            CommitIfDirty(row, st, onSet);
-        }
-        finally { ImGui.PopID(); }
-        return true;
-    }
-
-    /// <summary>The open edit session of row <paramref name="name"/> (null before it was drawn) — the frame rails edit through it as the row's widget does.</summary>
-    internal IEditSession? SessionOf(string name) => _rows.TryGetValue(name, out var st) ? st.Session : null;
-
-    /// <summary>Drops every row's session (the record changed, or the write was refused: reopen from the owner's own value next frame).</summary>
-    public void Clear()
-    {
-        foreach (var r in _rows.Values) r.Dispose();
-        _rows.Clear();
-    }
+    /// <summary>Forces a rebuild of the table's document from the next frame's rows (the macro or the entity changed).</summary>
+    public void Clear() => _decls.Invalidate();
 
     public void Dispose() => Clear();
 }

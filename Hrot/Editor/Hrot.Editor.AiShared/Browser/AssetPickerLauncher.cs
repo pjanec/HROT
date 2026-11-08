@@ -32,7 +32,6 @@ public sealed class AssetPickerLauncher
     private readonly Func<Hrot.UI.Common.RunMode.RunModeChoice?>? _runChoice;
     private readonly Func<IReadOnlyList<string>>? _macroPaths;
     private readonly Func<string?>? _macrosRoot;
-    private readonly Hrot.Editor.AiShared.Scenarios.ParamArgsTable? _paramTable;
     private readonly Dictionary<string, int> _presetChosen = new(StringComparer.Ordinal);   // ⭐ CE-3392 — the preset picked per scenario, for one picker session
 
     /// <summary>⭐ CE-4141 (AQ108 D25) — the id of the scenario picker's default footer action (<i>Open</i>).</summary>
@@ -83,8 +82,6 @@ public sealed class AssetPickerLauncher
         Func<string?>? macrosRoot = null,
         Func<StructEdit.Core.IComponentEditService?>? paramEditService = null)
     {
-        // ⭐ AQ108 D24 — the run setup's typed param rows are the ONE args form (ParamArgsTable); a host with a component edit service passes it (the Editor, CGF), else the params rows say there is none and only the variant is offered
-        _paramTable = paramEditService is null ? null : new Hrot.Editor.AiShared.Scenarios.ParamArgsTable(paramEditService, pickScope: "$.runsetup.");
         // ⭐ CE-4210 MA-6 — a host that EDITS macros passes the listing of the NAS `macros/` root (the root the load resolves against); null ⇒ no Macros group (macro authoring is the editor's).
         _macroPaths = macroPaths;
         _macrosRoot = macrosRoot;

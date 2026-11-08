@@ -204,5 +204,20 @@ namespace Hrot.Presentation.Tests.Behavior
             Assert.NotSame(session, model.Session);
             Assert.Equal(4, ((DefaultsRailDto)model.Session!.Commit()).Rounds);
         }
+
+        /// <summary>⭐ CE-3384 — an override is a DIFFERENCE: a value written equal to the DTO's own default drops the key (what the table's ↺ writes), and the model offers the struct table its defaults.</summary>
+        [Fact]
+        public void CE3384_AValueEqualToTheDtoDefault_IsNoOverride_AndTheModelOffersTheTableItsDefaults()
+        {
+            var model = new ParamsDefaultsModel(ComponentEditServices.CreateBuilder().Build());
+            model.Sync(typeof(DefaultsRailDto), "{\"radius\":2.5}");
+            Assert.NotNull(model.Defaults);
+            var radius = (model.Session!.Document.Root.Kind == EditNodeKind.SelectionRoot ? model.Session.Document.Root.Children.First() : model.Session.Document.Root).Children.Single(c => c.Name == "Radius");
+            Assert.True(model.Defaults!.TryGetDefault(radius, out var d)); Assert.Equal(1.5f, d);
+            SetField(model.Session, "Radius", 1.5f);                           // ↺: the default written back
+            Assert.True(model.TryEdited(out var json, out _));
+            Assert.Null(json);                                                  // no override is left
+            Assert.False(model.IsOverridden("Radius"));
+        }
 }
 }

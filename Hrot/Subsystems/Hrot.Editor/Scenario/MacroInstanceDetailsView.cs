@@ -48,7 +48,7 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
         _editService = editService ?? throw new ArgumentNullException(nameof(editService));
         _picks = picks ?? (() => null);
         _pickMacro = pickMacro;
-        _table = new ParamArgsTable(_editService, _picks, "$.macroarg.");
+        _table = new ParamArgsTable(_picks, "$.macroarg");
     }
 
     /// <summary>The expansion status as one line: <c>Done</c>, <c>Failed: reason</c>, <c>Expanding…</c> or <c>Not expanded</c>.</summary>
@@ -113,7 +113,7 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
     private void Write(IInspectableSession session, Entity entity, MacroInstance next)
     {
         MacroArgs.Write(session, entity, next);
-        ClearRows();   // the record changed (or the write was refused): reopen the rows from the entity's own record next frame
+        // the table compares the next frame's rows with what it shows: an accepted write is echoed back (no rebuild), a refused one differs and the rows reopen from the entity's own record
     }
 
     private void ClearRows() => _table.Clear();
