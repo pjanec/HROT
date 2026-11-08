@@ -18,7 +18,13 @@ _backend lane, 2026-11-08_
 | V-2 | CE-4284 | DONE | a non-owner's route edit → `UpdateEntityDescriptorRequest(dtMapRoute)` → the owner applies + acks + publishes; one encoding `MapRouteWire`. Rail `MapRouteTranslatorTests.CE4284_*` (two nodes, round trip). Design `DESIGN_Details_Forms.md` §1 updated |
 
 Gates (V): `Hrot.Map.Common.Tests` 88/88 · `Hrot.SimHost.Tests` (`UpdateEntityDescriptorRequestSystemTests` + `SimHostAppTests`) 8/8 · `Hrot.Presentation.Tests` Map3D under Xvfb 565/567 — the 2 reds (`FilmFrameRail.CE1380_A2DFilmFrame_*`: "the window shows the unit's symbol"; `Map3DFrameRail.CE1227_V_DemoCity_*`: 14283/18949 samples agree) are PRE-EXISTING: red at base `d688c6cc2` with `Picking.cs` reverted (2-D drawing, not picking — ui's area).
-**Queued after that:** [HANDOFF_Coordinator_To_Backend_Queue_After_V](HANDOFF_Coordinator_To_Backend_Queue_After_V.md) (X-1 CE-4345 … X-6 CE-4131), received at `560565730`, merged.
+**[HANDOFF_Coordinator_To_Backend_Queue_After_V](HANDOFF_Coordinator_To_Backend_Queue_After_V.md)** (received at `560565730`):
+
+| # | id | state | note |
+|---|---|---|---|
+| X-1 | CE-4345 | DONE | one steer limit in the one integrator (`BicycleModel.SteerLimit`, radius ≥ v²/`MaxLatAccel`); the possessed drive now integrates through `BicycleModel.Integrate`; the AI's cornering cap is the inverse. Rails `CarKinematicsSystemTests.CE4345_*` possessed + AI (red with the limit off); CarKinem 274/274; `Fdp.Toolkits.Tests` Possession 7/7. Design Motion Domains §5i |
+| X-2 | CE-4344 | FILED on behaviors (measured) | the latch is `OperatorControlBehavior.OperateWeapon` (behaviors), not the weapon: [NOTE](NOTE_Backend_To_Behaviors_Possessed_Shot_Through_Reload.md) with the proposed patch and rail shape |
+| X-3…X-6 | | next | |
 
 **Reds seen in `Hrot.ClusterRunner.Tests` (full run, `2026-11-08`), not from this batch** — none touches a storage file; owners named: `EveryReplayWriterIsGatedTests` (`EditorPerceptionSetupSystem`, ui/editor) · `EverySystemForgetsTheLastWorldTests` (`RuleEditSystem`, `RuleLeafSampler` — behaviors; `MacroExpansionSystem` — macros) · `EverySystemStateFieldIsClassifiedTests` ×2 (185 unclassified fields / 45 class-B translators — mixed, mostly replication) · `CgfSubsystemTests.CE1446_TheKernelRunsItsSystemsInTheSharedBootstrappersOrder` (`MacroExpansionSystem` newly in the order) · `HrotNodeBuilderTests.CE1436_CgfShapedHost_*` · `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_*` (looks for a "New Scenario…" button no code builds any more — ui's Start-screen rework). ⚠ Not checked against a base sha.
 

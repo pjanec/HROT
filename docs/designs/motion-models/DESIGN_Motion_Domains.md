@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (§5f.1 a corner's rise is from its own ground — the hill attack's ramp, CE-4041; behaviors, cross-lane) · 2026-10-21 (§5h.1 AQ99 C — a man down is stepped over where there is no way round; behaviors, cross-lane) · 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+updated: 2026-11-08 (§5i CE-4345 the turn falls with speed — one steer limit, possessed and AI; backend) · 2026-10-22 (§5f.1 a corner's rise is from its own ground — the hill attack's ramp, CE-4041; behaviors, cross-lane) · 2026-10-21 (§5h.1 AQ99 C — a man down is stepped over where there is no way round; behaviors, cross-lane) · 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
 build-state: BUILT (§5f, live 2026-10-20) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: ⭐ §5h (CE-2321: a man down lies where he fell, R-3027; §5h.1 stepped over where there is no way round, AQ99 C, R-2065) · §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
+current-answer: ⭐ §5i (CE-4345: a vehicle turns wider at speed) · §5h (CE-2321: a man down lies where he fell, R-3027; §5h.1 stepped over where there is no way round, AQ99 C, R-2065) · §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -591,3 +591,27 @@ read on the walker's own layer, can take him out of one walker's avoidance, and 
 | skip every man down as a neighbour (built once, reverted) | contradicts R-3027 — in the open he is walked round |
 | step over when the bent step leaves the mesh (`KeepOnNavmesh` clamped) | a body ahead mostly repels the walker BACKWARDS, on the mesh — the clamp never fires and he stalls |
 
+
+## 5i. A vehicle turns WIDER at speed — one steer limit, possessed and AI alike — `CE-4345` (`2026-11-08`, backend)
+
+🔒 User report `2026-11-08`: a possessed technical / tank turned as tightly at speed as at a crawl.
+
+```mermaid
+graph TD
+  MM["ManualMotion.Vehicle (possessed: wheel slew + throttle)"] --> BI["BicycleModel.Integrate (THE ground integrator)"]
+  AI["CarKinematicsSystem.UpdateVehicle (pure pursuit + cornering speed)"] --> BI
+  RC["CarKinematicsSystem.DriveRecovery (CE-3286)"] --> BI
+  BI --> SL["BicycleModel.SteerLimit(v, L, a_lat, δmax) = min(δmax, atan(a·L / v²))"]
+  AI --> CS["BicycleModel.MaxCorneringSpeed(δ, L, a_lat) = √(a·L / |tan δ|) — the inverse"]
+```
+*What it shows:* the possessed drive had its OWN copy of the integrator (no lateral limit); the AI capped only its target SPEED from the
+wheel angle, so it slewed to full lock at speed and braked afterwards. Now all three go through one integrator that clamps the wheel.
+
+| decision | why |
+|---|---|
+| the wheel held to `SteerLimit` at the step's speed ⇒ radius `L / tan δ ≥ v² / MaxLatAccel` | the type's existing `MaxLatAccel` (TKB / presets) is the grip; 0 = no limit (old behaviour) |
+| `ManualMotion.Vehicle` integrates through `BicycleModel.Integrate` | one motion model — the duplicate yaw/position step is gone (same speed clamp, same order) |
+| the AI's cornering cap uses the same relation (`tan`, it used `sin`) | the AI's target speed and the integrator's wheel limit agree, so the AI's equilibrium is not clipped |
+
+Rails: `CarKinematicsSystemTests.CE4345_APossessedVehicle_TurnsWiderAtSpeed_*` and `CE4345_AnAiVehicle_TurnsWiderAtSpeed_*` (red with the
+limit disabled). ⚠ A TRACKED hull (a tank) still uses the bicycle geometry; a pivot turn at standstill is not modelled — not asked.
