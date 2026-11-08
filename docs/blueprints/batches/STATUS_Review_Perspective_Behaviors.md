@@ -6,7 +6,8 @@ Started at `cf2bbb727` (all lanes merged); marker pushed `70456551a`.
 | item | state | sha | notes |
 |---|---|---|---|
 | R-1 (V1) `ReviewBundle` + `ReviewHostServices`; the Replay Browser composes it | DONE | (this commit) | Frame diff · Replay search · Recording info · JSON export from ONE bundle (`Hrot.Editor.AiShared/Review/`); the RB's four hand registrations deleted. V2's host-services members are optional and unread. The RB window-set golden was stale-red at HEAD and re-baselined first (design §4 AS BUILT — V1) |
-| R-2 … R-6 | not started | — | |
+| R-2 (V2) the editor composes `ReviewBundle` over its own-part AAR | DONE | (this commit) | `OwnPartReplay` = the ONE seek/reader/file (extracted from `DebugApiService`, which now delegates); `FileReview` builds the diff + search panels from D3's members; a hit seeks + selects; 0 B (diff panel's per-frame allocations fixed); windows closed until opened, in every layout; outside AAR they say so. Recording info / JSON export say *no recording* until V6 (design §4 AS BUILT — V2) |
+| R-3 … R-6 | not started | — | |
 
 ## Gates
 | gate | command | result |

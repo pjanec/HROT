@@ -345,6 +345,18 @@ namespace Hrot.Editor
         internal Hrot.Presentation.Edits.WorldUndoRecorder? UndoRecorder { get; private set; }
         private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
         private Hrot.Editor.AiShared.Rules.RulesBundle? _rulesBundle;
+        // ⭐ R-2 / V2 — the Review bundle's own-part replay access, the analysis over its file, and the bundle (see RegisterWindows)
+        private Hrot.Editor.Review.OwnPartReplay? _ownPartReplay;
+        private Hrot.Editor.AiShared.Review.FileReview? _fileReview;
+        private Hrot.Editor.AiShared.Review.ReviewBundle? _reviewBundle;
+        private Hrot.Presentation.DebugApi.IClusterMasterControl? _reviewMaster;
+        internal Hrot.Editor.AiShared.Review.ReviewBundle? ReviewBundleForTest => _reviewBundle;
+        internal Hrot.Editor.AiShared.Review.FileReview? FileReviewForTest => _fileReview;
+
+        /// <summary>⭐ R-2 / V2 — the shared selection's network id (null when nothing, or a unit with no network identity).</summary>
+        private int? SelectedNetworkId()
+            => _world is { } w && _selectionState?.PrimarySelected is { } sel && w.IsAlive(sel) && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel)
+                ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel).Value : null;
         /// <summary>⭐ CE-4292 — the rules bundle this host composed (forwarding rails).</summary>
         internal Hrot.Editor.AiShared.Rules.RulesBundle? RulesBundleForTest => _rulesBundle;
         // ⭐ L-2 / CE-4320 — CE-4240's "open Mission summary when the exercise ends" moved INTO the RulesBundle (RulesBundle.WatchTheRun): every host that composes it now does it, and on Live start too
@@ -4991,6 +5003,34 @@ namespace Hrot.Editor
                 Actions: () => HostActions));   // ⭐ CE-4308 — the map menu's rule entries (silent-default rule: the editor holds them)
             _rulesWindow = rules.Rules; _rulesBundle = rules;
             Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+            // ⭐⭐ R-2 / V2 (docs/UX/DESIGN_Review_Perspective.md §3 D2/D3/D4, §4 V2) — Frame diff · Replay search · Recording info · JSON export: the ONE ReviewBundle, over THIS node's own-part replay
+            //   (the file it replays, a throwaway reader over it, THE seek — OwnPartReplay, which the debug API shares) and the editor's shared selection. Listed in the Window menu in EVERY layout
+            //   (closed until opened); outside AAR the two analysis windows say so. Composed BEFORE the headless guard (as the rules above) so the composition is railed.
+            if (_bootstrapper?.ScenarioSerializer is { } reviewSerializer)
+            {
+                _ownPartReplay ??= new Hrot.Editor.Review.OwnPartReplay(
+                    recordingPath: () => _clusterHandlers?.RecordReplayController?.ActiveReplayFilePath,
+                    position:      () => Hrot.Editor.Review.OwnPartReplay.PositionOf(_clusterHandlers?.RecordReplayController),
+                    master:        () => _reviewMaster ??= new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),
+                    state:         () => _editorApp?.CurrentClusterState);
+                _fileReview = new Hrot.Editor.AiShared.Review.FileReview(new Hrot.Editor.AiShared.Review.ReviewFileServices(
+                    RecordingFiles: _ownPartReplay.RecordingFiles,
+                    CurrentFrame:   _ownPartReplay.CurrentFrame,
+                    Seek:           frame => _ownPartReplay.SeekToFrame((int)frame, "review"),
+                    Selection:      SelectedNetworkId,
+                    Select:         SelectNetworkEntity,
+                    Serializer:     reviewSerializer,
+                    Behaviors:      _behaviorRegistry,
+                    Blueprints:     _blueprintRegistry,
+                    Reader:         _ownPartReplay.Reader));
+                var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host("Scenario", "editor_review_", EditorWindowColor.TitleBar, () => _world));
+                Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { reviewBundle }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+                reviewBundle.FrameDiff.IsOpen = false; reviewBundle.ReplaySearch.IsOpen = false;   // listed in the Window menu, closed until opened
+                var reviewFiles = _fileReview; var reviewDiff = reviewBundle.FrameDiff;
+                windowManager.RegisterFrameOverlay(() => reviewFiles.Update(reviewDiff.IsOpen));
+                _reviewBundle = reviewBundle;
+            }
 
             // ⭐ U5 (Edit mode undo) — Edit ▸ History…: the ONE EditHistory's steps, a click goes to one
             _historyWindow = new Hrot.Presentation.Windows.EditHistoryWindow(EditHistory, () => InEditMode, "edit_history", "Scenario", EditorWindowColor.TitleBar);
