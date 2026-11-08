@@ -149,9 +149,14 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     /// <inheritdoc/>
     public float TimeScale => _clusterTime.TimeScale;
 
+    /// <summary>⭐ U-12 (CE-4129) — why ▶ / Step cannot act now (null = they can): the ONE run gate is closed — a scenario load is still running (<c>loading: …</c>), the cluster is in error, or the node is not ready. The raw transport used to publish the
+    /// resume / dry-run intent whatever the gate said, so a play during a load ran the clock over a world still loading ("no entities").</summary>
+    public string? PlayRefusal => Gate is { Open: false } g ? g.Reason ?? "not ready" : null;
+
     /// <inheritdoc/>
     public void TogglePlayPause()
     {
+        if (PlayRefusal != null) return;   // ⭐ U-12 (CE-4129) — a scenario load is still running: ▶ is refused (the toolbar and POST /sim/play both say why, from this one gate)
         // ⭐ CE-3329 row 21 — Play from EDIT is the dry run, running (the master resumes it when it lands); the same request on every host
         // ⭐ CE-4097 part two (AQ108 D22) — and it stays so whatever mode is ARMED: this is what POST /sim/play calls, and a route does what it names. The USER's ▶
         //   asks the run choice instead (UserTransport.UserPlayPause: Live → the unsaved check, then LoadForLive; AAR → the recording).
@@ -172,6 +177,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     /// <inheritdoc/>
     public void StepBy(float seconds)
     {
+        if (PlayRefusal != null) return;   // ⭐ U-12 (CE-4129) — same gate as ▶
         if (_currentState == ClusterState.OperatingEdit)
         {
             _bus.PublishManaged(DryRunIntents.Enter(startPaused: true));   // step from edit = the dry run, paused at its first frame (⭐ D22: raw — never the armed mode, see TogglePlayPause)

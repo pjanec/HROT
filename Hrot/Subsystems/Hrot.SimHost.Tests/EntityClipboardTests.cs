@@ -175,6 +175,38 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, removed[0]);                                               // one paste per arming
         }
 
+        /// <summary>⭐ U-8 (CE-4339) — the Paste tool's feature suite: while the press is dragged the tool draws a direction line from the press point (the group's anchor) toward the cursor; button up (a plain follow) draws none. 0 B steady while dragging.
+        /// 🔴 Red-proof (compiles): <c>PasteGizmo.UpdateAndDraw</c> not calling <c>PlacementDirectionLine.Draw</c> ⇒ no amber line ⇒ red.</summary>
+        [Fact]
+        public void U8_ThePasteTool_DrawsADirectionLine_WhileThePressIsDragged()
+        {
+            var (rig, tool, _) = Tool();
+            using var _r = rig;
+            var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(256);
+            var amber = Hrot.ScenarioEditor.Gizmos.PlacementDirectionLine.Colour;
+            int Count(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer b, out System.Numerics.Vector3 start, out System.Numerics.Vector3 end)
+            {
+                int n = 0; start = end = default;
+                foreach (var p in b.GetFrame())
+                    if (p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Line && p.Color.R == amber.R && p.Color.G == amber.G && p.Color.B == amber.B)
+                    { if (n == 0) { start = p.LineStart; end = p.LineEnd; } n++; }
+                return n;
+            }
+            tool.OnDragUpdate(new System.Numerics.Vector3(300, 300, 0));
+            tool.UpdateAndDraw(rig.World, 0f, buffer);
+            Assert.Equal(0, Count(buffer, out _, out _));                                // following the cursor: no direction yet
+
+            tool.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, true, new System.Numerics.Vector3(300, 300, 0));
+            tool.OnDragUpdate(new System.Numerics.Vector3(300, 340, 0));                  // dragged 40 m north
+            for (int i = 0; i < 5; i++) { buffer.Clear(); tool.UpdateAndDraw(rig.World, 0f, buffer); }
+            Assert.Equal(3, Count(buffer, out var start, out var end));                  // the line and its two head strokes
+            Assert.Equal(new System.Numerics.Vector3(300, 300, 0), start);               // from the group's anchor (the press)
+            Assert.Equal(new System.Numerics.Vector3(300, 340, 0), end);                 // toward the cursor
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            buffer.Clear(); tool.UpdateAndDraw(rig.World, 0f, buffer);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);            // R-2084: still a steady frame
+        }
+
         [Fact]
         public void A5_ThePasteToolsFrame_AllocatesNothing_EscCancelsWithoutPasting()
         {

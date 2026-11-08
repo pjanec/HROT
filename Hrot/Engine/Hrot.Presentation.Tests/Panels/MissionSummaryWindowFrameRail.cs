@@ -114,5 +114,79 @@ public sealed class MissionSummaryWindowFrameRail : IDisposable
         Assert.All(window.Probe.Cards, l => Assert.StartsWith("Red:", l));   // the side switch
     }
 
+    /// <summary>⭐ U-5 (CE-4335, AQ108 §0; the user's report: "Mission summary's End exercise works with no live exercise running") — the REAL Mission summary window in a real frame, once per run mode: <i>End exercise</i> is enabled ONLY in a running Live exercise; in
+    /// Edit, a Preview, the Live briefing and a review (DAR) it is greyed with its reason (the ONE rule, <c>InstructorEnd.RunRefusal</c>, that the rules bundle wires to the host's transport); a Live exercise that has ENDED keeps "already ended"; on a recording (AAR) it is not
+    /// drawn (R-4156). Read off the frame: the button's own text is dim when greyed. 🔴 Red-proof (compiles): <c>RunRefusal</c> returning null for Edit ⇒ the Edit row is enabled ⇒ red.</summary>
+    [SkippableFact]
+    public void U5_EndExercise_IsGreyedWithItsReason_InEveryModeButARunningLive()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        _world.RegisterComponent<ExerciseResult>();
+        Man(900, ForceId.Friend, "1st Platoon");
+        var rows = new (string Name, Hrot.UI.Common.Facades.TransportMode Mode, bool Paused, double Total, bool Ended, bool Recording, string? Reason)[]
+        {
+            ("Edit", Hrot.UI.Common.Facades.TransportMode.Edit, true, 0, false, false, InstructorEnd.NotRunning),
+            ("Preview", Hrot.UI.Common.Facades.TransportMode.Preview, false, 12, false, false, InstructorEnd.PreviewIsNotAnExercise),
+            ("Live briefing", Hrot.UI.Common.Facades.TransportMode.Live, true, 0, false, false, InstructorEnd.NotStarted),
+            ("Live running", Hrot.UI.Common.Facades.TransportMode.Live, false, 42, false, false, null),
+            ("Live ended", Hrot.UI.Common.Facades.TransportMode.Live, false, 90, true, false, InstructorEnd.Ended),
+            ("DAR", Hrot.UI.Common.Facades.TransportMode.Review, true, 30, false, false, InstructorEnd.ARecording),
+            ("AAR", Hrot.UI.Common.Facades.TransportMode.Replay, false, 30, false, true, "not drawn"),
+        };
+        using var frame = UiFrameHarness.Begin(900, 300);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        foreach (var row in rows)
+        {
+            Entity ended = default;
+            if (row.Ended) { ended = _world.CreateEntity(); _world.AddComponent(ended, new ExerciseResult { Phase = ExercisePhase.Ended }); }
+            if (row.Recording) Fdp.Toolkit.Replay.ReplayState.Enter(_world);
+            try
+            {
+                var window = new MissionSummaryWindow(() => _world, () => null, null, "rail_end_" + row.Name.Replace(' ', '_'), "Scenario", Vector4.One, _ => { }, now: () => 600d);
+                window.End.CreateOneShot = _ => true;          // the host can create the one-shot (the rules bundle wires it)
+                window.End.SeatRefusal = () => null;           // an Instructor / Author seat
+                window.End.RunRefusal = () => InstructorEnd.RunRefusal(row.Mode, row.Paused, row.Total);   // what the rules bundle wires to the host's transport
+                for (int i = 0; i < 5; i++)
+                    frame.Step(() =>
+                    {
+                        ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(900, 300));
+                        ImGui.Begin("Mission summary", ImGuiWindowFlags.NoCollapse);
+                        window.DrawContent();
+                        ImGui.End();
+                    });
+                string path = ShotPath("end-" + row.Name.Replace(' ', '-') + ".png");
+                frame.Screenshot(path);
+                var r = window.End.DrawnButton;
+                if (row.Reason == "not drawn")
+                {
+                    Assert.Equal(default, r);                                  // a recording: End does not exist here
+                    continue;
+                }
+                var offer = window.End.Offer;
+                Assert.Equal(row.Reason, offer.DisabledReason);
+                Assert.Equal(row.Reason == null, offer.Available);
+                var image = Raylib.LoadImage(path);
+                try
+                {
+                    int bright = 0;
+                    for (int x = (int)r.Min.X; x < (int)r.Max.X; x++)
+                        for (int y = (int)r.Min.Y; y < (int)r.Max.Y; y++)
+                        {
+                            var c = Raylib.GetImageColor(image, x, y);
+                            if (c.R > 215 && c.G > 215 && c.B > 215) bright++;
+                        }
+                    if (row.Reason == null) Assert.True(bright >= 20, $"{row.Name}: End exercise is enabled - its text is full strength ({bright} px)");
+                    else Assert.True(bright == 0, $"{row.Name}: End exercise is greyed - its text is dim ({bright} bright px)");
+                }
+                finally { Raylib.UnloadImage(image); }
+            }
+            finally
+            {
+                if (row.Recording) Fdp.Toolkit.Replay.ReplayState.Leave(_world);
+                if (row.Ended) _world.DestroyEntity(ended);
+            }
+        }
+    }
+
     private const string ExportLaterText = "later";
 }

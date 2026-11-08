@@ -19,6 +19,28 @@ public static class InstructorEnd
     public const string Key = "instructor-end";
     public const string NoTrigger = "this scenario has no instructor-end trigger";
     public const string Ended = "the exercise has already ended";
+
+    // ⭐ U-5 (CE-4335, AQ108 §0) — why End is greyed OUTSIDE a Live run: ONE rule for every control that draws it (the Rules toolbar, the Mission summary), by the host's transport mode
+    public const string NoExercise = "no exercise is loaded";
+    public const string NotRunning = "no exercise is running - End applies to a Live run";
+    public const string PreviewIsNotAnExercise = "a preview is not an exercise - stop the preview instead";
+    public const string NotStarted = "the exercise has not started - press play first";
+    public const string ARecording = "a recording is shown - End applies to the live run";
+
+    /// <summary>⭐ U-5 (CE-4335) — why <i>End exercise</i> cannot be used in this transport state, or null in a running Live exercise (a Live exercise that has ENDED keeps <see cref="Ended"/>, which the offer itself says).
+    /// Edit, Preview, the Live briefing (paused at 0:00, <see cref="Hrot.UI.Common.RunMode.RunModeChoice.IsBriefing"/> — the same fact ■ and ⏪ read), a review (DAR) and a replay (AAR) are refused with their reason; constant strings, 0 B per read.</summary>
+    public static string? RunRefusal(Hrot.UI.Common.Facades.TransportMode mode, bool paused, double totalTime) => mode switch
+    {
+        Hrot.UI.Common.Facades.TransportMode.Idle => NoExercise,
+        Hrot.UI.Common.Facades.TransportMode.Edit => NotRunning,
+        Hrot.UI.Common.Facades.TransportMode.Preview => PreviewIsNotAnExercise,
+        Hrot.UI.Common.Facades.TransportMode.Live => Hrot.UI.Common.RunMode.RunModeChoice.IsBriefing(mode, paused, totalTime) ? NotStarted : null,
+        _ => ARecording,   // Review (DAR) and Replay (AAR)
+    };
+
+    /// <summary>The same, read off the host's transport (null transport = a host with none: no refusal of its own).</summary>
+    public static string? RunRefusal(Hrot.UI.Common.Facades.ITimeTransportFacade? transport)
+        => transport == null ? null : RunRefusal(transport.Mode, transport.IsPaused, transport.TotalTime);
     /// <summary>⭐ CE-4322 (L-3, Scenario Lifecycle LC-17) — the result an instructor's End writes when the scenario has no <c>instructor-end</c> rule.</summary>
     public const string EndedByInstructor = "Ended by the instructor";
 

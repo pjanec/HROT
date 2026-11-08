@@ -41,6 +41,28 @@ public sealed class EmptyScenarioHintLayerTests
         Assert.False(new EmptyScenarioHintLayer(() => live).Shows());          // a run is not authoring
     }
 
+    /// <summary>⭐ U-12 / CE-4129 — a Preview or Live run over a world with NO entity says so (it used to say nothing: "Pressed play. No entities."); the edit hint stays Edit's; both go with the first entity, and a run with no terrain says nothing.
+    /// 🔴 Red-proof (compiles): <c>ShowsRunNotice</c> always false ⇒ red.</summary>
+    [Fact]
+    public void CE4129_ARunOverAnEmptyWorld_SaysSo()
+    {
+        foreach (var mode in new[] { Hrot.Common.Editing.EditingMode.Preview, Hrot.Common.Editing.EditingMode.Live })
+        {
+            var w = WithTerrain();
+            Hrot.Common.Editing.StationMode.Install(w, () => mode);
+            var layer = new EmptyScenarioHintLayer(() => w);
+            Assert.True(layer.ShowsRunNotice(), $"{mode}: an empty world says so");
+            Assert.False(layer.Shows());                                       // the Edit hint ("right-click ▸ Add Entity") is not for a run
+            var e = w.CreateEntity(); w.AddComponent(e, new EntityInfo());
+            Assert.False(layer.ShowsRunNotice());                              // the first entity: gone
+        }
+        var edit = WithTerrain();
+        Assert.False(new EmptyScenarioHintLayer(() => edit).ShowsRunNotice());   // Edit has its own hint
+        var noTerrain = new EntityRepository();
+        Hrot.Common.Editing.StationMode.Install(noTerrain, () => Hrot.Common.Editing.EditingMode.Live);
+        Assert.False(new EmptyScenarioHintLayer(() => noTerrain).ShowsRunNotice());
+    }
+
     [Fact]
     public void L12_ASteadyCheckAllocatesNothing()
     {
