@@ -14,7 +14,7 @@ related-designs:
 
 # HANDOFF — coordinator → ui and backend: the run controls (AQ108 §0)
 
-**For:** `ui` and `backend`, both free. **From:** coordinator. **Dispatched at `<sha of the commit adding this file>`**. ⭐ Scope FROZEN there.
+**For:** `ui` and `backend`, both free. **From:** coordinator. **Dispatched at `dd9eb622`**. ⭐ Scope FROZEN there.
 Each lane: merge `coordinator` and the other lane first (restore after), push `chore: started HANDOFF_Coordinator_To_Ui_And_Backend_Run_Controls at <sha>`,
 then the [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md) — status file after every item, fetch and merge the other lane after every item.
 ⛔⛔ Anything needing the user is skipped (R-4156). behaviors is on hold.
