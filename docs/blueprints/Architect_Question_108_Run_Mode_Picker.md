@@ -226,6 +226,25 @@ Rails: `PlayerBriefingTests` (states, content, rebuild-on-change, real frame + 0
 
 Rails: `ThePlayersSummaryOpensAtTheEndTests` (4) · `TheRulesBundleTests.L2_ThePlayersSet…` (updated). **Open (needs user, lean stated):** with BOTH profiles on and BOTH windows having content (a scenario with standards AND a score) both open — lean: keep (PH-8 puts a scenario's preset in charge of switching the other profile off).
 
+**R-8 `CE-3412` fidelity pass (ui):** every state rendered from the real code (`SaveSlotTests.R8_*` → `r8-*.png`, `RunToolbarFrameRail`, `ce3414-start-recent.png`; never in git) beside `ind.png` / `story.png`.
+
+| picture | state | result |
+|---|---|---|
+| ind | Edit saveable · variant (eye, Save greyed + reason) · Preview running | ✔ glyph, colour, ▶ ⏸ ■, Save, tooltip words. Deviation kept: ▾ only when the scenario HAS presets (R-1); the floppy is an atlas sprite — the rail frame has none (text fallback) |
+| ind | Edit HOVERED | ✔ lighter button + frame + tooltip (mouse driven on the real frame) |
+| ind | Live briefing · running · not recorded | ✔ ● red / green, ■ and ⏪ dim in the briefing. Deviation kept: not-recorded Live greys the Save flag (picture: amber) — a checkpoint needs a recording (R-5) |
+| ind | Live ENDED | **fixed**: ■ is ⏏ = FA right-from-bracket, light (was a green eject triangle); ▶ greyed, ⏪ amber ✔ |
+| ind | DAR · AAR | **fixed**: DAR's ⏏ is the same glyph; ✔ rest. Deviation kept: AAR flag greyed (picture amber) — a recording cannot take a checkpoint (R-5). Tooltip omits *exercise N* (no number on the wire) |
+| story ② | Edit menu | **fixed**: Edit pen · Live ● (red / green) · AAR ▶ glyphs. Run to … / Close are asserted by their own rails (this rig has no controller / door) |
+| story ③ ④ | briefing · running toolbars | ✔ (= ind rows) |
+| story ⑤ | *End the exercise?* | **fixed**: text as pictured; buttons **End the exercise / Keep running** — the house last button (Esc / ✕) now carries the worded label (`WithCancel(cancelLabel)`). Deviation kept: modal sits under the toolbar, not centred |
+| story ⑥ | ended toolbar + menu | **fixed**: *Run again* ● in Live's colour (was always green), *Restart from a checkpoint ▸* amber flag; rest ✔ |
+| story ⑦ | *Close the live session?* | ✔ words and buttons. Deviation kept: *This exercise of X is kept* (no exercise number) |
+| story ⑨ ⑩ | briefing · own summary | ✔ (R-7 / R-6) |
+| story ① ⑧ | Start screen + Recent | backend's `StartSurfaceWindow`, not edited — differences in the note to backend |
+
+Rails (red-proved): `R8_EveryStateOfIndPng…` (⏏ glyph pixels, no green) · `R8_TheMenusAndDialogsOfTheStory…` (dialog buttons, menu glyphs) · `TheOneTimeFacadeTests.CE4322…` / `RunControlsSwitchNowTests.R2…` (Keep running).
+
 ## 1. ⭐ The three rules — the spine
 
 | # | rule | why it makes the rest predictable |
