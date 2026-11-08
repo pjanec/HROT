@@ -1,3 +1,15 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-08 (STATUS block added; content unchanged)
+current-answer: §7 the synthesis · §6 the view modes · §8 the Federation panel
+stale-below: nothing
+known-rot: none
+known-conflict: none
+related-designs:
+  - ../../UX/DESIGN_Review_Perspective.md — explains Federation (§2) and keeps it in the standalone Replay Browser; the editor composes the other analysis windows
+  - ../../UX/DESIGN_Replay_Browser_UX.md — the Replay Browser's UX review; Q-B6 is this feature's place
+-->
+
 # Replay Browser — Federated Multi-Node "Frankenstein" Merged View — DESIGN
 
 **Source talk:** [merged-view.md](./merged-view.md)
