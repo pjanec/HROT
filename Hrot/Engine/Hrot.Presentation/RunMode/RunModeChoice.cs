@@ -906,6 +906,10 @@ public sealed class RunModeChoice
         static MovePlan Disabled(string reason) => new(null, "", false, reason, () => { });
     }
 
+    /// <summary>⭐ CE-4330 ⑨ (backend, cross-lane) — a HOST-level question (the transfer quit guard) through the ONE pending slot the toolbar draws, the closing button worded
+    /// <paramref name="cancelLabel"/>.</summary>
+    public void Confirm(string title, string text, string cancelLabel, params RunModeConfirmation.Button[] actions) => _asker.Show(title, text, cancelLabel, actions);
+
     private void Ask(string text, params RunModeConfirmation.Button[] buttons) => Ask("Confirm", text, buttons);
 
     private void Ask(string title, string text, params RunModeConfirmation.Button[] buttons) => _asker.Show(title, text, buttons);

@@ -197,6 +197,8 @@ namespace Hrot.Editor
 
         /// <summary>⭐ CE-3354 ⑥ — the cluster state the editor's node sees (null before the editor application exists).</summary>
         public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateNow => _editorApp?.CurrentClusterState;
+        /// <summary>⭐ CE-4330 ⑨ — the transfer this host's master runs now (the quit guard asks about it here only).</summary>
+        public Fdp.Toolkit.Orchestration.StorageJob? RunningTransfer => _orchestratorCore?.Master.StorageJobs.Running;
 
         public string NodeName => string.IsNullOrWhiteSpace(_nodeName) ? Fdp.Toolkit.Orchestration.ClusterSlave.DefaultNodeName("Editor", EditorNodeId) : _nodeName!;
 

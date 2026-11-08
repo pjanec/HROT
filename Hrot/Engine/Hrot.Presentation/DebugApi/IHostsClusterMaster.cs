@@ -13,4 +13,8 @@ public interface IHostsClusterMaster
 
     /// <summary>The cluster state as this host sees it; null before the host is initialised.</summary>
     ClusterState? ClusterStateNow { get; }
+
+    /// <summary>⭐ CE-4330 ⑨ (📄 docs/DESIGN_Recording_Storage.md §3 P3) — the storage transfer this host's master is running now (an archive / import), or null.
+    /// The quit guard asks about it ONLY here: the transfer runs where the master runs. Read on the frame thread.</summary>
+    StorageJob? RunningTransfer => null;
 }

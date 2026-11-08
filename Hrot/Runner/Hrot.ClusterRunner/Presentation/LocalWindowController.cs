@@ -105,6 +105,9 @@ internal sealed class LocalWindowController
     /// </summary>
     internal IAppExitGuard ExitGuard { get; private set; }
 
+    /// <summary>⭐ CE-4330 ⑨ — the quit guard of a running transfer (null where this process does not host the master, or has no run choice to ask through).</summary>
+    internal TransferExitGuard? TransferExit { get; private set; }
+
     /// <summary>⭐ <c>CE-4101</c> follow-up — the ONE guard of the open scenario's exit (null before <see cref="ComposeRunControls"/>, or when no host offers a scenario door: SimHost alone has nothing of a scenario to lose).</summary>
     internal ScenarioExitGuard? ScenarioExit { get; private set; }
 
@@ -117,6 +120,13 @@ internal sealed class LocalWindowController
         var door = owner?.RunChoice?.Door;
         ScenarioExit = door is null ? null : new ScenarioExitGuard(door);
         var guards = _subsystems.OfType<IAppExitGuard>().ToList();
+        // ⭐ CE-4330 ⑨ — a running archive / import asks before the window closes, only on the host whose master runs it; before the scenario door (whose approval is the destructive step)
+        if (owner?.RunChoice is { } choice && _subsystems.OfType<Hrot.Presentation.DebugApi.IHostsClusterMaster>().FirstOrDefault() is { } masterHost)
+        {
+            TransferExit = new TransferExitGuard(() => masterHost.RunningTransfer, choice,
+                job => masterHost.ClusterMasterControl?.Cancel(new Fdp.Toolkit.Orchestration.CancelOperationIntent { TargetRequestId = job }));
+            guards.Add(TransferExit);
+        }
         if (ScenarioExit is not null) guards.Add(ScenarioExit);
         ExitGuard = new ExitGuardChain(guards);
     }
