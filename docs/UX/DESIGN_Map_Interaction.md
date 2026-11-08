@@ -584,6 +584,122 @@ classDiagram
 
 Rails: `ShapeEditSessionTests` `P6_*` (centre drag from the originals / cancel / no-move · `SegmentAt` finds the segment, not a vertex or the centre, closing segment, route · `DeleteSelectedPoint` holds the minimum · **Delete is a keymap row, a rebind moves it**); `VertexEditGizmoTests` / `RouteWaypointGizmoTests` `P6_*` (the centre handle drawn at the mean · centre drag moves every point and is ONE undo step with undo / redo · Esc cancels clean, a click on the handle is no edit · a segment click inserts between the right two (route: height along the leg) as one step, a vertex / centre / open-ground click inserts nothing · Delete removes the selected one as one step, the press is ignored · Delete at the minimum refuses with the reason on the tool's hint, then a touch clears it); `SelectionInteractionSystemTests.B17P6_*` (Delete destroys nothing while a tool holds the keyboard); `TheArmedToolIsVisibleTests.P6_TheEditToolsHints_…` + frame `P6_ARouteBeingEdited_OnARealFrame_…` (`editing-route.png` under `HROT_RAIL_SHOTS`, never committed: waypoints, the selected one red, the amber centre handle, the ✓, the hint). Red-proofs: a write-back per drag update ⇒ the centre-drag one-step rails (vertex and route) red · the minimum check dropped ⇒ the Delete-at-the-minimum rails red · `ToolOwnsKeys` ignored ⇒ `B17P6_*` red · the keymap lookup replaced by a key compare ⇒ `P6_Delete_IsAKeymapRow…` red.
 
+### ⭐ P7 — the build *(behaviors, `2026-11-08`, B-17 — approved by the user: "Approved build.it")* — `build-state: BUILDING`
+
+INVENTORY *(measured before drawing)*: `search_graph name_pattern=".*(Symbol|Footprint|Silhouette).*" label=Class` ⇒ `EntityFootprint` (Fdp.Toolkits,
+the 2-D symbol's L × W rule) + the placement ghost's own box (`EntityPlacementGizmo.DrawGhostBox`, sized by `EntityBodyLayer3D.Resolve`, U-8);
+grep `backdrop` ⇒ none (`PickBanner.cs:45` names the gap); the gizmo font is loaded twice, ASCII-only (`RaylibPresentationShell.LoadGizmoFont`,
+`PlayerApplication.LoadAndRegisterGizmoFont`); the four drawing gizmos + two editors draw points in four styles; the rotate label is `EntityRotatorGizmo.cs:109,125`.
+⭐ **3-D (subagent sweep):** the 3-D view has NO hit test of its own — it turns the mouse ray into a ground point and runs the 2-D test there
+(GizmoMap `DebugGizmoLayer.cs:137-215`), as `DESIGN_Map_3D_Mode.md:571` designs; an unanchored `Box2D` is DRAPED (`GizmoRenderer3D.cs:219-255`,
+constant pixel size). ⇒ the 3-D handles already exist and are pickable; P7 gives them the look and a stem under a raised point. ⛔ No 3-D picker is built.
+Graph coverage could not be checked (no `check_index_coverage` over the CLI).
+
+```mermaid
+classDiagram
+  class GizmoTextStyle {
+    <<NEW enum · GizmoMap.Contracts>>
+    Plain = 0 · Backdrop = 1 · Button = 2
+  }
+  class DebugPrimitive {
+    <<EXISTING · 64 B wire layout unchanged>>
+    +TextStyle  (offset 14, Text only — aliases SizeMode, which Text never reads)
+  }
+  class GizmoTextDraw {
+    <<EXISTING · the ONE text drawer, 2-D map + 3-D labels>>
+    +DrawScreen(p, at, colour) draws the backdrop / button box first
+  }
+  class GizmoFont {
+    <<NEW · GizmoMap.Presentation>>
+    +Load() ASCII + · ° — – × …  (both hosts call it)
+  }
+  class GizmoEditStyle {
+    <<NEW · Fdp.Presentation/Vis2D/Gizmos — the ONE look>>
+    +KindColour(ShapeKind) area teal · route green
+    +Point(draw, at, kind, first)
+    +Handle(draw, at, kind, state, id) idle · grabbed (amber)
+    +Centre(draw, at, id) diamond
+    +Segment(draw, a, b, kind, Placed|Next|Closing)
+    +Stem(draw, at, height)
+  }
+  class ShapeDoneMark { <<EXISTING>> +Draw ⇒ a "Done" button }
+  class PointSequenceGizmo { <<EXISTING>> }
+  class AreaShapeGizmo { <<EXISTING>> }
+  class VertexEditGizmo { <<EXISTING>> }
+  class RouteWaypointGizmo { <<EXISTING>> }
+  class EntityPlacementGizmo { <<EXISTING>> ghost = footprint, no sphere }
+  class EntityRotatorGizmo { <<EXISTING>> ring + wedge + knob }
+  class PickBannerGizmo { <<EXISTING>> Button / Backdrop text, crosshair }
+  DebugPrimitive --> GizmoTextStyle
+  GizmoTextDraw --> GizmoTextStyle : reads
+  GizmoTextDraw --> GizmoFont : font
+  PointSequenceGizmo --> GizmoEditStyle
+  AreaShapeGizmo --> GizmoEditStyle
+  VertexEditGizmo --> GizmoEditStyle
+  RouteWaypointGizmo --> GizmoEditStyle
+  PointSequenceGizmo --> ShapeDoneMark
+  AreaShapeGizmo --> ShapeDoneMark
+  EntityPlacementGizmo --> GizmoTextStyle : hint text
+  EntityRotatorGizmo --> GizmoTextStyle : label
+  PickBannerGizmo --> GizmoTextStyle : banner
+```
+
+*What the picture shows that the prose hid:* the look has exactly two homes — the TEXT look in `GizmoTextDraw` (one drawer for the 2-D map and
+the 3-D overlay, so both views agree by construction) and the SHAPE look in `GizmoEditStyle` (six gizmos call it; none keeps its own colours).
+
+```mermaid
+sequenceDiagram
+  participant G as a gizmo (any of six)
+  participant B as IDebugDrawBuilder (DrawTextLong + style)
+  participant W as DebugPrimitive (wire, 64 B)
+  participant R2 as DebugPrimitiveRenderer2D
+  participant R3 as GizmoRenderer3D labels
+  participant T as GizmoTextDraw
+  G->>B: DrawTextLong(x, y, hint, white, style: Backdrop)
+  B->>W: Text, TextStyle = Backdrop (offset 14)
+  W->>R2: 2-D map frame
+  W->>R3: 3-D map frame (label overlay)
+  R2->>T: DrawScreen(p, at, colour)
+  R3->>T: DrawScreen(p, at, colour)
+  T->>T: MeasureTextEx · box (black 60 % / button blue) · text
+```
+
+```mermaid
+graph TD
+  subgraph every terminal
+    R2[DebugPrimitiveRenderer2D] --> TD[GizmoTextDraw]
+    R3[Map 3-D label overlay] --> TD
+    TD --> GF[GizmoFont — loaded once per host by RaylibPresentationShell / PlayerApplication]
+  end
+  subgraph editor / node: gizmos each frame via DataDrivenGizmoSystem
+    PS[PointSequenceGizmo] --> ES[GizmoEditStyle]
+    AS[AreaShapeGizmo] --> ES
+    VE[VertexEditGizmo] --> ES
+    RW[RouteWaypointGizmo] --> ES
+    EP[EntityPlacementGizmo]
+    ER[EntityRotatorGizmo]
+    PB[PickBannerGizmo]
+  end
+  ES -. primitives over the wire .-> R2
+  EP -. primitives .-> R2
+  ER -. primitives .-> R2
+  PB -. primitives .-> R2
+```
+
+*What the module picture shows:* the gizmos run where the edit runs and only EMIT primitives; every terminal draws them. ⇒ the crosshair while a
+pick is pending is drawn as primitives at the cursor (seen on a remote terminal too, §2.4), ⛔ not the OS cursor the proposal sheet named — the
+OS cursor would be set by the process that runs the gizmo, which is not always the one the user looks at.
+
+| row | as it will be built | the rail |
+|---|---|---|
+| ⑥ text | `GizmoTextStyle` at offset 14; `DrawText`/`DrawTextLong` take `style` (default `Plain`, so every other text is unchanged); `GizmoTextDraw` draws the box; `GizmoFont.Load` shared by both hosts; every hint, label and readout of the six gizmos + the P1 on-map hint pass `Backdrop` | a text with `Backdrop` round-trips the wire; the frame rail shows the box |
+| ⑥ Done | `ShapeDoneMark` draws a button (filled box + tick + "Done"); `HitDone` takes its rectangle; hints say "Enter / Done" | the existing Done-click rails, on the new rectangle |
+| ④ pick | the banner: prompt `Backdrop`, Cancel `Button`; a crosshair at the cursor while a pick is pending (two pixel bars + outline) | P4 rails + a crosshair frame rail |
+| ⑤ rotate | amber dashed ring; the swept wedge (≤ 24 triangles); a knob; `+35°` `Backdrop`; ⛔ the per-frame `$"…deg"` string goes (cached per whole degree, 0 B steady) | the P5 rails + a 0 B steady-frame rail |
+| ② drawing | `GizmoEditStyle` in four gizmos: kind colour, small squares, first point white, next dashed, closing dotted | a frame rail per gizmo |
+| ③ handles | idle white + kind outline; grabbed amber; centre diamond; a point with a height gets a stem; ⚠ no hover state (the editors are not told where the cursor is when no button is down) — the sheet's "hovered" and the dashed `+` wait for that | P6 rails |
+| ① ghost | no sphere; 2-D: a translucent footprint (the 2-D symbol's own L × W, `EntityFootprint`'s rule read from the TKB type) with a heading notch; 3-D: the U-8 wire box kept; an aircraft adds a drop line and a ground ring | P3 rails + a frame rail |
+
 ## 4. Questions — ✅ all eight APPROVED as leaned (R-4134, user `2026-11-06`: *"Okay, accept it."*)
 
 | # | question | lean | rejected |

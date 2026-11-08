@@ -265,7 +265,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (input.ShotSeq != ws.ShotSeq)
             {
                 ws.ShotSeq = input.ShotSeq;
-                if (mode == OperatorFireMode.Lock)
+                if (!CanFireNow(world, platform, platformMount))
+                    ws.Pending = 0;   // ⭐ CE-4344 — a press while the weapon reloads (or is empty / too hot) is DROPPED, never fired when it is ready again
+                else if (mode == OperatorFireMode.Lock)
                 {
                     ws.Pending = 1;
                     ws.PendingTarget = ShotTargetOf(world, self, input.ShotTarget);
@@ -320,6 +322,17 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ CE-1078 — the unit a press locked on (its network id; never the operator's own unit), or null for the point.</summary>
+        /// <summary>⭐ CE-4344 (backend's measurement: NOTE_Backend_To_Behaviors_Possessed_Shot_Through_Reload) — may a press fire NOW? Not while a
+        /// reload runs, with no ammunition, or with the barrel too hot. ⚠ Not <see cref="Fdp.Toolkit.Combat.Magazine.Ready"/>: that is also false for one
+        /// round in flight (the shot ledger), and a quick second press must still count. A mount with no <c>WeaponState</c> always may.</summary>
+        private static bool CanFireNow(EntityRepository world, Entity platform, int platformMount)
+        {
+            var mount = WeaponMountQuery.MountEntity(world, platform, platformMount);
+            if (!world.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(mount)) return true;
+            ref readonly var w = ref world.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponState>(mount);
+            return w.Ammo > 0 && !Fdp.Toolkit.Combat.Magazine.Reloading(in w) && !Fdp.Toolkit.Combat.BarrelHeat.IsOverheated(w);
+        }
+
         private static Entity ShotTargetOf(EntityRepository world, Entity self, int networkId)
         {
             if (networkId == 0 || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return Entity.Null;

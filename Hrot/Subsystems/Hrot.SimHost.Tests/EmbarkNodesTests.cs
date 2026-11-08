@@ -911,6 +911,38 @@ namespace Hrot.SimHost.Tests
             Assert.True(Vector3.Distance(eye + dir * OperatorFireModes.SightZeroMetres, ParamsOf(op).Point) < 0.01f);
         }
 
+        /// <summary>⭐ <c>CE-4344</c> (backend's measurement, NOTE_Backend_To_Behaviors_Possessed_Shot_Through_Reload) — a press while the weapon
+        /// RELOADS is dropped: no shot is latched, and none fires when the reload ends; the next press after it fires. 🔴 Red-proof: remove the
+        /// <c>CanFireNow</c> gate in <c>OperateWeapon</c> ⇒ the first <c>Pending</c> is 2 (latched through the reload).</summary>
+        [Fact]
+        public void CE4344_APressDuringAReload_IsDropped_AndTheNextPressFires()
+        {
+            var op = TurretMgOperator();
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            var mount = WeaponMountQuery.MountEntity(_w, op, 0);
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponState>()) _w.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
+            var state = new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 60, MagazineSize = 30, MagazineRounds = 0, ReloadSeconds = 3f, ReloadSecondsRemaining = 2f };
+            if (_w.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(mount)) _w.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount) = state;
+            else _w.AddComponent(mount, state);
+
+            ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            input.Seq++; input.ShotSeq = 1; input.Trigger = 1; input.AimPoint = new Vector3(5f, 500f, 0f);
+            Tick(op, ref ws);
+            Assert.Equal(0, (int)ws.Pending);
+
+            ref var w = ref _w.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount);
+            w.ReloadSecondsRemaining = 0f; w.MagazineRounds = 30;                  // the reload ends
+            ref var still = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            still.Seq++; still.Trigger = 0;
+            Tick(op, ref ws);
+            Assert.Equal(0, (int)ws.Pending);                                       // nothing remembered
+
+            ref var again = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            again.Seq++; again.ShotSeq = 2; again.Trigger = 1;
+            Tick(op, ref ws);
+            Assert.NotEqual(0, (int)ws.Pending);                                    // a press when ready fires
+        }
+
         /// <summary>⭐ <c>CE-4143</c> — a frame with no look ray (an older station: <c>LookDir</c> zero) keeps today's SIGHT: the crosshair's
         /// point and the on-target gate, never a point at the zero range of nothing.</summary>
         [Fact]
