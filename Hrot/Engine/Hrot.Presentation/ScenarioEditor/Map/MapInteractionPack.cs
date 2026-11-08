@@ -115,6 +115,8 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.Map.Common.PresentationComponentRegistry.RegisterDebugViewState(ctx.World);
             // ⭐ CE-1042 E2 — the effect entities' components, so the effect systems below can run on every map host.
             Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(ctx.World);
+            // ⭐ the selection request / notification the pack's SelectionInteractionSystem publishes — on EVERY map host (the Player never called RegisterAll and threw).
+            Hrot.Map.Common.PresentationComponentRegistry.RegisterSelectionEvents(ctx.World);
 
             var settings          = ctx.Settings ?? new GizmoSettingsRegistry();
             var gizmoRegistry     = new GizmoRegistry();
