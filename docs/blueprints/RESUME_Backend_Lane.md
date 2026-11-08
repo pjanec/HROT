@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-08
-current-answer: ⭐⭐⭐ §STRUCT EDITOR OVERNIGHT — DONE (2026-11-08, LATEST) below: N-0…N-11 built and pushed; open = the pen QUESTION + the follow-ups listed there. Then §SCENARIO PRESETS (2026-11-07) — CE-3374 now BUILT. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+current-answer: ⭐⭐⭐ §RECORDING STORAGE + THE V / X QUEUE (2026-11-08 evening, LATEST) below: W-1…W-4, V-1, V-2, X-1 built; X-2 filed on behaviors; NEXT = X-3…X-6, then W-3 ⑤'s lab measurement. Before it: §STRUCT EDITOR OVERNIGHT — DONE (2026-11-08) below: N-0…N-11 built and pushed; open = the pen QUESTION + the follow-ups listed there. Then §SCENARIO PRESETS (2026-11-07) — CE-3374 now BUILT. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Struct_Editor.md — the one struct-editor library (✅ APPROVED 2026-11-07: S1–S12, §8 the ONE widget kit K1–K6, §9 the inspector)
@@ -20,7 +20,49 @@ related-designs:
 -->
 # RESUME — backend lane
 
-## ⭐⭐⭐ STRUCT EDITOR OVERNIGHT — DONE (`2026-11-08`, LATEST) — start here
+## ⭐⭐⭐ RECORDING STORAGE + THE V / X QUEUE (`2026-11-08` evening, LATEST) — start here
+
+📄 Per-item record (one file for all three handoffs): [`batches/STATUS_Backend_Recording_Storage.md`](batches/STATUS_Backend_Recording_Storage.md) · storage design as-built:
+[`DESIGN_Recording_Storage.md`](../DESIGN_Recording_Storage.md) §10. Branch `backend` = `claude/time-system-refactor-batch-104-gp617x` at `642582c8f` (pushed; `ui`, `coordinator`
+merged at `c1f07f50f`; `behaviors` NOT merged into backend this session).
+
+| handoff | item | state | sha | what |
+|---|---|---|---|---|
+| [Recording_Storage](batches/HANDOFF_Coordinator_To_Backend_Recording_Storage.md) | W-1 CE-4332 | ✅ | `680c3b30c` | the Player's node-id offset arm |
+| | W-2 CE-4099 | ✅ (earlier) | `aecbad03e` | autosave |
+| | W-3 CE-4330 ①–④ ⑥–⑩ | ✅ | `0ac09947f` … `d688c6cc2` | manifest-last + `.part`; `StorageJobQueue` (one job / exercise, one transfer at a time); facts on every `ClusterView`; heartbeat `LocalRecordings`; the local cache rule; resume; `POST /session/close`; quit guard; HTTP routes |
+| | W-3 ⑤ | ⚠ **OPEN — lab cluster** | — | the 20 MB/s give-way is built + rail-proven; the ACCEPTANCE (frame time + DDS latency equal with/without a transfer) cannot be measured on one cloud VM — the recipe is in the status file. The import's push is not throttled yet |
+| | W-4 CE-4331 | ✅ | `fb1901bf4` … `eb42baeb6` | AAR on a different cluster: recording metadata (name/kind/roles), node ids by kind (`NodeIdRanges`, `NodeIdMemory`), `RecordingPlacement` (name → kind → never across kinds → listeners; nothing placed ⇒ refused), Go Live needs the same cluster |
+| [After_Recording_Storage](batches/HANDOFF_Coordinator_To_Backend_After_Recording_Storage.md) | V-1 CE-4341 | ✅ | `e541630f1` | the 3-D picker read `Build` (no apron) while the layer draws `BuildTagged` ⇒ a pick on the hilly band fell to the look-at plane (z≈0). Now `BuildTagged`. `DESIGN_Map_3D_Mode.md` §6ad-1 |
+| | V-2 CE-4284 | ✅ | `e541630f1` | a non-owner's route edit → `UpdateEntityDescriptorRequest(dtMapRoute)` → owner applies + acks + publishes; one encoding `MapRouteWire`. `UX/DESIGN_Details_Forms.md` §1 |
+| [Queue_After_V](batches/HANDOFF_Coordinator_To_Backend_Queue_After_V.md) | X-1 CE-4345 | ✅ | `a0d50cc04` | one steer limit (`BicycleModel.SteerLimit`, radius ≥ v²/`MaxLatAccel`) in the ONE integrator; `ManualMotion.Vehicle` now goes through `BicycleModel.Integrate`. Motion Domains §5i |
+| | X-2 CE-4344 | 📨 filed on behaviors | `a0d50cc04` | the latch is `OperatorControlBehavior.OperateWeapon:265-283` (behaviors' file); patch proposed in `NOTE_Backend_To_Behaviors_Possessed_Shot_Through_Reload.md` |
+| | **X-3 CE-4346** | ⏭ **NEXT** | — | empty-map Scenario form: why scenario time is greyed (make editable in Edit) · global weather cloud + wind LAYERS as attributes · what `ClockOffset` means (propose a name in the row) · NOTE to ui when the attributes land |
+| | X-4 CE-2153 | ⏭ | — | the harness can path (solver + flat navmesh in `SimHostInstance`, or a Direct move) ⇒ `EntityMission_MovesEntity` green |
+| | X-5 CE-3420 | ⏭ | — | four attribute components with no translator ⇒ `TheDescriptorMapIsWired` green, or file each with its owner |
+| | X-6 CE-4131 | ⏭ | — | the editor slows with every Live — MEASURE what grows per run first, then fix or file |
+
+**Rails added this stretch (all red-proved by a compiling mutation):** `Map3DPickingTests.CE4341_*` · `MapRouteTranslatorTests.CE4284_*` ·
+`CarKinematicsSystemTests.CE4345_APossessedVehicle_*` / `CE4345_AnAiVehicle_*` · the `CE4330_*` / `CE4331_*` storage rails (see the status file).
+
+**Gates last run:** `Hrot.Orchestrator.Tests` 462/462 · Editor DebugApi 189/189 · `Hrot.Map.Common.Tests` 88/88 · SimHost descriptor-request + Possession
+8/8 + 12/12 · CarKinem 274/274 · Presentation Map3D (xvfb) 565/567.
+
+**Pre-existing reds (confirmed or listed, not this lane's changes):** Map3D `FilmFrameRail.CE1380_A2DFilmFrame_*` + `Map3DFrameRail.CE1227_V_DemoCity_*`
+(red at `d688c6cc2` with `Picking.cs` reverted — 2-D drawing, ui's) · `Hrot.ClusterRunner.Tests`: `EveryReplayWriterIsGated`, `EverySystemForgetsTheLastWorld`,
+`EverySystemStateFieldIsClassified` ×2, `CgfSubsystemTests.CE1446`, `HrotNodeBuilderTests.CE1436`, `AnOrchestratorOnlyProcess_*` (listed in the status
+file, ⚠ not base-checked).
+
+**Traps measured this stretch:**
+- ⛔ after a red-proof, REBUILD the test project before the next suite run — a restored source with a stale mutated bin printed a false red (CE4341 under xvfb).
+- ⛔ a mutation that does not compile leaves the old binary ⇒ a fake "pass"; check `0 Error(s)` before trusting a red (unused var / unassigned are errors here).
+- ⚠ V-1's user symptom (*"drops to height 0"*) was the PICK, not a height query — every sim query (`GroundHeightAt`, `SurfaceZ`, `ResolveLevel`, the paused clamp)
+  already answered the band. Measure the pick before the sim next time a 3-D click "lands wrong".
+
+⏭ **Next session, in order:** ① merge `origin/behaviors` + `origin/ui` + `origin/coordinator`; check for new `HANDOFF_*`/`NOTE_*` to backend ·
+② X-3 → X-6 (status file rows; one commit per item, design fold-back each) · ③ W-3 ⑤ only when a lab cluster is available.
+
+## ⭐⭐ STRUCT EDITOR OVERNIGHT — DONE (`2026-11-08`)
 
 📄 Per-item record: [`batches/STATUS_Struct_Editor_Overnight_Backend.md`](batches/STATUS_Struct_Editor_Overnight_Backend.md) · design as-built: [`DESIGN_Struct_Editor.md`](../DESIGN_Struct_Editor.md) §11a + §12 · presets as-built: [`UX/DESIGN_Scenario_Presets.md`](../UX/DESIGN_Scenario_Presets.md) §8.
 
