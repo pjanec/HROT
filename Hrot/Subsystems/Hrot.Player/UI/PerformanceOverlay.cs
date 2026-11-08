@@ -42,9 +42,24 @@ public class PerformanceOverlay
     /// </summary>
     public bool IsVisible { get; set; } = true;
 
+    private readonly Fdp.Toolkit.Input.KeymapReader _keys;   // ⭐ B-10 K4 (§6g) — F3 is the keymap's debug row (Global, "debug"), read here
+
     /// <param name="metrics">Performance metrics instance refreshed by the application shell.</param>
-    public PerformanceOverlay(PerformanceMetrics metrics)
-        => _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+    /// <param name="keymap">The keymap whose debug rows toggle the overlay; default the process's.</param>
+    /// <param name="input">The device the rows are read from; default Raylib's (a rail hands in its own).</param>
+    public PerformanceOverlay(PerformanceMetrics metrics, Fdp.Toolkit.Input.Keymap? keymap = null, Fdp.Toolkit.Input.IChordInput? input = null)
+    {
+        _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        _keys = Hrot.UI.Common.DebugKeys.Reader(keymap ?? Fdp.Toolkit.Input.Keymap.Process,
+            input ?? new Fdp.Presentation.Input.ProviderChordInput(new Fdp.Toolkit.Vis2D.Defaults.RaylibInputProvider()));
+    }
+
+    /// <summary>F3 (the keymap's debug row, <see cref="Hrot.UI.Common.DebugKeys.PerformanceOverlay"/>) toggles the overlay.</summary>
+    internal void HandleKeys()
+    {
+        if (_keys.Pressed(Hrot.UI.Common.DebugKeys.PerformanceOverlay))
+            IsVisible = !IsVisible;
+    }
 
     // ── Draw ──────────────────────────────────────────────────────────────────
 
@@ -56,9 +71,7 @@ public class PerformanceOverlay
     /// </summary>
     public void Draw()
     {
-        // F3 toggles overlay visibility.
-        if (Raylib.IsKeyPressed(KeyboardKey.F3))
-            IsVisible = !IsVisible;
+        HandleKeys();
 
         if (!IsVisible)
             return;
