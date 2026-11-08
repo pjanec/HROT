@@ -13,13 +13,10 @@ namespace Fdp.Toolkit.Behavior
     /// </summary>
     public static class BehaviorParamsValidation
     {
-        private static readonly JsonSerializerOptions Strict = MakeStrict();
-
-        private static JsonSerializerOptions MakeStrict()
-        {
-            var o = new JsonSerializerOptions(BehaviorParams.JsonOptions) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
-            return o;
-        }
+        /// <summary>The params options (<see cref="BehaviorParams.JsonOptions"/> = <c>DefaultRelaxed</c>) with ONE named delta: an unknown key is an
+        /// error (CE-2377). Made through <c>FdpJsonOptionsRegistry.Derive</c> — the one legal way to make a variant (CE-3187).</summary>
+        private static readonly JsonSerializerOptions Strict =
+            Fdp.Core.Serialization.FdpJsonOptionsRegistry.Derive(o => o.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow);
 
         /// <summary>The problems with <paramref name="paramsJson"/> for <paramref name="behaviorName"/> (empty = fine; null / blank params are fine).</summary>
         public static IReadOnlyList<string> Validate(BehaviorRegistry registry, string behaviorName, string? paramsJson)

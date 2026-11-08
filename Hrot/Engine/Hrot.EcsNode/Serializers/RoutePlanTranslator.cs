@@ -132,7 +132,7 @@ namespace Hrot.SimHost.Serializers
                             HeightAgl     = wpObj["HeightAgl"]?.GetValue<float>() ?? 0f,
                             Hold          = System.Enum.TryParse<Fdp.Toolkit.Navigation.RouteHold>(wpObj["Hold"]?.GetValue<string>(), true, out var hold) ? hold : default,
                             HoldSeconds   = wpObj["HoldSeconds"]?.GetValue<float>() ?? 0f,
-                            HoldUnit      = wpObj["HoldUnit"] is { } hu ? System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.Replication.EntityLink>(hu) : default,
+                            HoldUnit      = wpObj["HoldUnit"] is { } hu ? System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.Replication.EntityLink>(hu, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed) : default,
                         });
                     }
                 });

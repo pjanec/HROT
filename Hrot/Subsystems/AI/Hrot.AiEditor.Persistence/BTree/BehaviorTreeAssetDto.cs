@@ -235,6 +235,10 @@ public enum SopUrgencyDto
     Contact = 2,
     UnderFire = 3,
     Hit = 4,
+    /// <summary>⭐ CE-2360 — mirrors <c>ReactionUrgency.Grenade</c> (appended there; the mirror rail found it missing).</summary>
+    Grenade = 5,
+    /// <summary>⭐ CE-2272 — mirrors <c>ReactionUrgency.Break</c>.</summary>
+    Break = 6,
 }
 
 /// <summary>
