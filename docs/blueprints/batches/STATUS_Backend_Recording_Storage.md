@@ -10,7 +10,14 @@
 ---
 _backend lane, 2026-11-08_
 
-**Queued next:** [HANDOFF_Coordinator_To_Backend_After_Recording_Storage](HANDOFF_Coordinator_To_Backend_After_Recording_Storage.md) (V-1 CE-4341, V-2 CE-4284), received at `cfcbe0fbd`, merged — it starts once this one is done.
+**[HANDOFF_Coordinator_To_Backend_After_Recording_Storage](HANDOFF_Coordinator_To_Backend_After_Recording_Storage.md)** (received at `cfcbe0fbd`):
+
+| # | id | state | note |
+|---|---|---|---|
+| V-1 | CE-4341 | DONE | 📐 measured: every sim height query already answered the band (CE-4122); the one that did not was the 3-D PICK — `PickGrid.Build` read `Build` (no apron) while the layer draws `BuildTagged` ⇒ a click/drag on the band fell to the look-at plane (z ≈ 0). Now reads `BuildTagged`. Rail `Map3DPickingTests.CE4341_*` (red on `Build`); `Map3DPickingTests` + `HoverPickVolume` 14/14. Design §6ad-1 updated |
+| V-2 | CE-4284 | DONE | a non-owner's route edit → `UpdateEntityDescriptorRequest(dtMapRoute)` → the owner applies + acks + publishes; one encoding `MapRouteWire`. Rail `MapRouteTranslatorTests.CE4284_*` (two nodes, round trip). Design `DESIGN_Details_Forms.md` §1 updated |
+
+Gates (V): `Hrot.Map.Common.Tests` 88/88 · `Hrot.SimHost.Tests` (`UpdateEntityDescriptorRequestSystemTests` + `SimHostAppTests`) 8/8 · `Hrot.Presentation.Tests` Map3D under Xvfb 565/567 — the 2 reds (`FilmFrameRail.CE1380_A2DFilmFrame_*`: "the window shows the unit's symbol"; `Map3DFrameRail.CE1227_V_DemoCity_*`: 14283/18949 samples agree) are PRE-EXISTING: red at base `d688c6cc2` with `Picking.cs` reverted (2-D drawing, not picking — ui's area).
 **Queued after that:** [HANDOFF_Coordinator_To_Backend_Queue_After_V](HANDOFF_Coordinator_To_Backend_Queue_After_V.md) (X-1 CE-4345 … X-6 CE-4131), received at `560565730`, merged.
 
 **Reds seen in `Hrot.ClusterRunner.Tests` (full run, `2026-11-08`), not from this batch** — none touches a storage file; owners named: `EveryReplayWriterIsGatedTests` (`EditorPerceptionSetupSystem`, ui/editor) · `EverySystemForgetsTheLastWorldTests` (`RuleEditSystem`, `RuleLeafSampler` — behaviors; `MacroExpansionSystem` — macros) · `EverySystemStateFieldIsClassifiedTests` ×2 (185 unclassified fields / 45 class-B translators — mixed, mostly replication) · `CgfSubsystemTests.CE1446_TheKernelRunsItsSystemsInTheSharedBootstrappersOrder` (`MacroExpansionSystem` newly in the order) · `HrotNodeBuilderTests.CE1436_CgfShapedHost_*` · `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_*` (looks for a "New Scenario…" button no code builds any more — ui's Start-screen rework). ⚠ Not checked against a base sha.

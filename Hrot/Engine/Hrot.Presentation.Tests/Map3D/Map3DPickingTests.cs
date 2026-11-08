@@ -165,6 +165,44 @@ public sealed class Map3DPickingTests
         Assert.False(picker.TryPick(new Vector3(at.X, at.Y + 2.5f, at.Z + 50f), -Vector3.UnitZ, 200f, out _));
     }
 
+    /// <summary>
+    /// ⭐ CE-4341 — a click or drag on the hilly OUTER band (the apron, CE-4122) lands ON the drawn surface: the picker hits the apron's
+    /// triangles (the same ones the layer draws), the point is the band's ground height there, its level is 0, and the placement's birth height
+    /// (<c>ResolveLevel(x, y, 0)</c>) is that same height. 🔴 Mutation: the pick grid built from <c>Build</c> (the soup alone) ⇒ the ray misses the
+    /// band and the camera falls back to its look-at plane (z = 0, <see cref="PickKind.Ground"/>) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4341_APickOnTheOuterBand_LandsOnTheDrawnGround_AndPlacementResolvesToIt()
+    {
+        var (terrain, world, q) = Town();
+        var (min, max, _) = terrain.GroundRect;
+        // a point 600 m east of the terrain's edge, where the band's hills are fully grown and well off z = 0
+        float x = max.X + 600f, y = (min.Y + max.Y) * 0.5f;
+        for (int i = 0; i < 40 && MathF.Abs(q.GroundHeightAt(x, y)) < 5f; i++) y += 37f;
+        float ground = q.GroundHeightAt(x, y);
+        Assert.True(MathF.Abs(ground) >= 5f, $"the band should be hilly here (ground {ground:0.0} m)");
+
+        var picker = Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
+        Assert.True(picker.TryPick(new Vector3(x, y, 500f), -Vector3.UnitZ, 1000f, out var down), "a ray straight down on the band hits the drawn band");
+        Assert.InRange(down.Point.Z, ground - 2f, ground + 2f);   // the apron's 40 m cells interpolate the hills — within a couple of metres
+
+        // the camera over the band: the click and the drag both land on the band, never on the look-at plane
+        var at = new Vector3(x, y, ground);
+        // ⚠ the look-at height is 0 on purpose: the miss fallback is the plane at that height, so a fallback answer shows as z = 0 and kind Ground
+        var cam = new MapCamera3D { ViewportOverride = Viewport, LookAt = new Vector3(x, y, 0f), Distance = 150f, Pitch = -0.9f, Yaw = 1.0f };
+        cam.Pickers.Add(picker);
+        var px = cam.WorldToScreen(at);
+        var click = cam.Pick(px, PickFilter.All);
+        Assert.Equal(PickKind.Terrain, click.Kind);
+        Assert.InRange(click.Point.Z, ground - 2f, ground + 2f);
+        Assert.True(Vector2.Distance(new Vector2(click.Point.X, click.Point.Y), new Vector2(x, y)) < 10f, "the click lands where the cursor points");
+        Assert.Equal(PickKind.Terrain, cam.Pick(px, PickFilter.Terrain).Kind);   // a drag follows the band too
+
+        // placement: the 3-D click's level is the ground, and the birth height of that level is the band's ground there
+        Assert.Equal(0, Levels.LevelOf(q, click.Point));
+        Assert.Equal(q.GroundHeightAt(click.Point.X, click.Point.Y), q.ResolveLevel(click.Point.X, click.Point.Y, 0), 3);
+    }
+
     [Fact]
     public void S2_TheCamera_PicksTheEntity_ButADragFollowsTheTerrain()
     {

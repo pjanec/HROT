@@ -184,7 +184,10 @@ namespace Fdp.Toolkit.Vis3D
         public static PickGrid Build(ITerrainRenderGeometry geometry)
         {
             var g = new PickGrid();
-            geometry.Build(out var verts, out var indices, out _);
+            // ⭐ CE-4341 — the triangles TerrainLayer3D DRAWS (BuildTagged: the soup + the apron round the terrain + water), never Build's soup alone.
+            //   ⛔ It read Build, so the hilly apron (CE-4122) was drawn but not pickable: a click or drag there fell through to the camera's look-at
+            //   plane (z ≈ 0) — the ghost and the drop point sat under the drawn ground, at the wrong place behind the hill.
+            geometry.BuildTagged(out var verts, out var indices, out _, out _);
             int n = indices.Length / 3;
             g.A = new Vector3[n]; g.B = new Vector3[n]; g.C = new Vector3[n];
             var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
