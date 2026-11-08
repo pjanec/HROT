@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-02 (ID BLOCKS per lane added)
 current-answer: the row itself - each BP row carries its own status marker
 stale-below: nothing; closed rows are marked [x] and keep their history deliberately
-note: counts are gated by scripts/tracker-counts.py --check
+note: counts are a view (scripts/tracker-counts.py); --check lints ids. No stored table (user 2026-11-08)
 -->
 # Blueprint Subsystem — Issue Tracker
 
@@ -57,93 +57,9 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 
 > ⚠⚠ **`RW-S` was MISSING from this legend until `2026-08-27` while being used on 95 rows** *(since the
 > Batch-60 era, across `CE-` · `HN-` · `AX-` · `MA-` and one `BP-`)*. ⭐ Documented here to match practice.
-> ✅ **FIXED `2026-11-01` (`CE-073`):** `scripts/tracker-counts.py` now counts EVERY id family (the table below gained a
-> by-family breakdown) and every size tag (`RW-XS` · `RW-S` · `RW-L` · `RW-M` · `RW-H` · `RW-XL`; an unknown letter = `OTHER`).
-> ⚠ The totals jumped from 105 / 387 (BP- only) to the whole file — a RE-BASELINE, not new work.
-
-| Complexity | Open | Done |
-|---|---:|---:|
-| `WIRING` | 12 | 97 |
-| `RW-XS` | 7 | 15 |
-| `RW-S` | 203 | 900 |
-| `RW-L` | 152 | 267 |
-| `RW-M` | 236 | 852 |
-| `RW-H` | 23 | 87 |
-| `RW-XL` | 0 | 1 |
-| `OTHER` | 2 | 9 |
-| **Total** | **635** | **2228** |
-| *(refuted on verification)* | | *17* |
-
-| Id family | Open | Done |
-|---|---:|---:|
-| `AX-` | 4 | 23 |
-| `BP-` | 105 | 386 |
-| `CE-` | 472 | 1661 |
-| `HN-` | 11 | 41 |
-| `MA-` | 2 | 21 |
-| `MD-` | 0 | 7 |
-| `MX-` | 6 | 15 |
-| `QA-` | 13 | 24 |
-| `ST-` | 12 | 23 |
-| `TM-` | 10 | 27 |
-
-# rows scanned: 2719  (open 592 + done 2112 + refuted 15)
-
-# rows scanned: 2718  (open 591 + done 2112 + refuted 15)
-
-# rows scanned: 2714  (open 587 + done 2112 + refuted 15)
-
-# rows scanned: 2712  (open 585 + done 2112 + refuted 15)
-
-# rows scanned: 2711  (open 584 + done 2112 + refuted 15)
-
-# rows scanned: 2707  (open 580 + done 2112 + refuted 15)
-
-# rows scanned: 2706  (open 579 + done 2112 + refuted 15)
-
-# rows scanned: 2705  (open 578 + done 2112 + refuted 15)
-
-# rows scanned: 2653  (open 580 + done 2059 + refuted 14)
-
-# rows scanned: 2652  (open 597 + done 2041 + refuted 14)
-
-# rows scanned: 2651  (open 598 + done 2039 + refuted 14)
-
-# rows scanned: 2650  (open 600 + done 2036 + refuted 14)
-
-# rows scanned: 2647  (open 601 + done 2032 + refuted 14)
-
-# rows scanned: 2646  (open 600 + done 2032 + refuted 14)
-
-# rows scanned: 2645  (open 599 + done 2032 + refuted 14)
-
-> ⚠ **`RW-L` done was 43 and the Total 88 — an off-by-one that predates Batch 29** (present at
-> `1af9bea`, and at least as far back as the 41/85 figures). Corrected by the coordinator after
-> Batch 29 merged. ⭐ **Batch 29's own delta was exactly right**; the drift was inherited.
->
-> **Reconciles three ways at `da13a6a`:** checkbox tally **65 open / 90 done** · columns
-> `5+28+29+3 = 65` open, `26+44+18+1 = 89` done · **89 done + 1 refuted = 90** = the tally.
-> ⚠ The *refuted* row sits outside the Total, which is why the tally is one higher than it.
-
-> ✅ **Reconciling these counts (three ways, and they now agree EXACTLY).** The checkbox tally used to run
-> **+1 open / +1 done** against this table, and that standing offset was carried for several batches as
-> "permanent". It was not a real offset — it was a **loose regex**. Two rows are struck through
-> (`~~BP-46~~`, refuted; `~~Squad-quartet~~`, abandoned by design), one `[x]` and one `[ ]`, and a bare
-> checkbox count includes them. **Skip struck-through rows and the tally is exact:**
->
-> ```bash
-> grep '^- \[ \]' Blueprint_Issues_Tracker.md | grep -vc '~~'   # open -> must equal the Total row
-> grep '^- \[x\]' Blueprint_Issues_Tracker.md | grep -vc '~~'   # done -> must equal the Total row
-> ```
->
-> ⚠ **Per-complexity rows need the FIRST tag on a line, not every tag on it.** Some rows discuss other
-> complexity classes in their prose (BP-87 names three), so `grep -c '`RW-H`'` over-counts and the
-> per-tag columns stop summing to the total. Take the first `` `WIRING|RW-L|RW-M|RW-H` `` match per row —
-> that is the row's own classification. *(Found Batch 27, when the columns summed to 69 against a
-> checkbox tally of 68.)*
->
-> ⚠ **Do not reintroduce a "known offset."** A reconciliation check with a standing discrepancy is a
-> weaker check — it cannot tell a real miscount from the expected slack. *(Tightened Batch 25.)*
+> ⭐ **The counts are no longer stored here** *(user, `2026-11-08`: the table conflicted on almost every merge)*. ⭐ They are a
+> VIEW: `python3 scripts/tracker-counts.py` prints them from the rows; `--check` is now an ID LINT (one id = one row, no letter
+> suffix on a block id). ⛔ Do not re-add a counts table.
 
 > 🧹 **Rows from BP-123 on carry a bare id, not a link** — deliberately, decided Batch 28.
 > `Blueprint_Issues_Detail.md` stops at BP-122, so every row after it pointed at an anchor that does not
