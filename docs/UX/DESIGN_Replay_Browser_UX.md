@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: ../DESIGN_Replay_Time_Axis_And_Review.md §9c ("the Replay Browser keeps its own controls … slider, step, play, rate") — this design moves the slider to the MAIN BAR (user, R-4153) and retires the Replay Timeline window; §9c's axis icon and the shared timeline panel stand
 related-designs:
+  - DESIGN_Review_Perspective.md — the Replay Browser's analysis windows as ONE bundle the editor composes in AAR (CE-3419); answers Q-B3 / Q-B6 as leans
   - ../DESIGN_Replay_Time_Axis_And_Review.md — OWNS the time model, the mode indicator (§9a) and the timeline panel's zoom / pan / menus (§9b, §10); this design changes only where the Replay Browser's seek lives
   - ../designs/replay-browser-2/DESIGN.md — the Replay Browser itself (selection history, sandbox, panels as built)
   - ../DESIGN_Director_Timeline_Editor.md — OWNS the Event Timeline panel and its lanes index (TL-4, §9)

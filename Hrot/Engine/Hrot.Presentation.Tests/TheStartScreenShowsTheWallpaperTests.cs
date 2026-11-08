@@ -75,4 +75,38 @@ public sealed class TheStartScreenShowsTheWallpaperTests
         }
         finally { Raylib.UnloadImage(wall); Raylib.UnloadImage(shot); }
     }
+
+    /// <summary>⭐ CE-3414 (AQ108 §0 D31; storyboard panel ①) — with Recent rows the surface is TWO columns (the actions left; the heading and one box per scenario right): a REAL frame — the panel is still centred on the surface, holds both columns, and the rows draw their
+    /// three buttons (the glyph, the label; a disabled one greyed). Renders <c>ce3414-start-recent.png</c> under <c>HROT_RAIL_SHOTS</c> (no PNG in git).
+    /// 🔴 Mutation: the rows not passed to the model ⇒ the single-column panel ⇒ the width assert fails.</summary>
+    [SkippableFact]
+    public void CE3414_TheStartSurface_DrawsTheRecentListInASecondColumn()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin();
+        var wm = new WM(new IconAtlas(nint.Zero, 1, 1, 16f));
+        wm.GlobalMenu.RegisterItem("File/New Scenario", () => { }, allowedInIdle: true);
+        wm.GlobalMenu.RegisterItem("File/Open Scenario", () => { }, allowedInIdle: true);
+        wm.GlobalMenu.RegisterItem("File/Open Recording", () => { }, allowedInIdle: true);
+        static StartSurfaceWindow.StartButton B(string label, bool on, string? why = null, string glyph = "\uf111", System.Numerics.Vector4? c = null)
+            => new(label, on, () => { }, why, new NodeEditor.Core.Widgets.IconGlyph(glyph, c ?? new System.Numerics.Vector4(0.9f, 0.3f, 0.3f, 1f)));
+        var rows = new[]
+        {
+            new StartSurfaceWindow.StartRecentRow("Night attack", "Live · 10 min ago", B("Live", true), B("Edit", true, null, "\uf304", new(0.95f, 0.75f, 0.2f, 1f)), B("AAR", true, null, "\uf04b", new(0.3f, 0.6f, 1f, 1f))),
+            new StartSurfaceWindow.StartRecentRow("Bridgehead", "never run", B("Live", true), B("Edit", false, "editing needs an author seat", "\uf304"), B("AAR", false, "never run", "\uf04b")),
+        };
+        var surface = new StartSurfaceWindow(wm.GlobalMenu, () => StartVariant.Actions, () => wm.StatusBar.Height, recent: () => rows);
+        wm.RegisterWindow(surface);
+        wm.SwitchPerspective(WM.StartPerspectiveName);
+
+        System.Numerics.Vector2 pos = default, size = default;
+        frame.StepN(4, () => { wm.Render(); var vp = ImGui.GetMainViewport(); pos = vp.WorkPos; size = vp.WorkSize; });
+        var (pmin, pmax) = surface.PanelRect;
+        Assert.True(pmax.X - pmin.X > 700f, $"the panel holds the action column AND the Recent column ({pmax.X - pmin.X:0} px)");
+        Assert.InRange((pmin.X + pmax.X) / 2f - (pos.X + size.X / 2f), -1.5f, 1.5f);
+        Assert.Equal(2, surface.Model().RecentRows.Count);
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-start");
+        Directory.CreateDirectory(dir);
+        frame.Screenshot(Path.Combine(dir, "ce3414-start-recent.png"));
+    }
 }

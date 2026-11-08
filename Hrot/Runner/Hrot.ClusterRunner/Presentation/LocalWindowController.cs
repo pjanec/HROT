@@ -130,6 +130,11 @@ internal sealed class LocalWindowController
     /// <summary>⭐ CE-1442 — the process's ONE cluster-error status-bar section.</summary>
     internal Hrot.UI.Common.Panels.ClusterErrorStatusBarSection? ErrorSection { get; private set; }
 
+    private static readonly IReadOnlyList<StartSurfaceWindow.StartRecentRow> NoRecent = Array.Empty<StartSurfaceWindow.StartRecentRow>();
+
+    /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the Start screen's Recent rows (built over the run-controls owner's door and inventory; null before <see cref="ComposeRunControls"/> or with no owner choice).</summary>
+    internal Hrot.UI.Common.RunMode.StartRecentRows? StartRecent { get; private set; }
+
     /// <summary>⭐ <c>CE-1437</c> — the host whose run controls the process's ONE toolbar time control shows (null before <see cref="ComposeRunControls"/>, or when no host offers any).</summary>
     internal IProvidesRunControls? RunControlsOwner { get; private set; }
 
@@ -150,6 +155,9 @@ internal sealed class LocalWindowController
         {
             LoadingScreen = Hrot.UI.Common.Panels.LoadingScreen.Register(wm.StatusBar, ownerChoice, owner!.GatePolicy);   // ⭐ CE-1445 — the Player's policy makes it the waiting screen
             ErrorSection  = Hrot.UI.Common.Panels.ClusterErrorStatusBarSection.Register(wm.StatusBar, ownerChoice);
+            StartRecent = new Hrot.UI.Common.RunMode.StartRecentRows(ownerChoice, Hrot.UI.Common.Picker.UserRecentPicks.Shared,
+                Hrot.Editor.AiShared.Browser.AssetRecents.ContextFor(Hrot.Editor.AiShared.AssetKind.Scenario), Hrot.Editor.AiShared.Browser.AssetRecents.ScenarioKey,
+                seat: () => SeatOf(owner!.World));   // ⭐ CE-3414 (AQ108 §0 D31) — the Recent list over the SAME owner's door, inventory and seat
             // ⭐ Player Join D-4 — the Player's deploy screen, composed ONCE here beside the loading screen it yields to; it reads the node's DeployFlowSystem through the owner's world.
             if (owner.GatePolicy == Fdp.Toolkit.Orchestration.HostGatePolicy.Player)
             {
@@ -160,6 +168,10 @@ internal sealed class LocalWindowController
         ComposeExitGuard(owner);             // ⭐ CE-4101 follow-up — the ONE scenario exit guard, over the same owner's door
         owner?.ComposeScenarioActions(wm);   // ⭐ CE-1439 — the scenario menu (and so the Start surface's Open / New / Recording) of the host that owns ▶, by the same rule
     }
+
+    /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the station's seat as the toolbar reads it: the <c>StationMode</c> singleton of the owner's world (Author when there is none).</summary>
+    private static Hrot.Common.Infrastructure.Seat SeatOf(Fdp.Core.EntityRepository? world)
+        => world is { } w && w.HasSingletonManaged<Hrot.Common.Editing.StationMode>() ? w.GetSingletonManaged<Hrot.Common.Editing.StationMode>()!.Seat : Hrot.Common.Infrastructure.Seat.Author;
 
     /// <summary>
     /// ⭐ The pick RULE (AQ108 §2.10 ①, §2.12), never registration order: of the hosts that offer a transport, one whose choice HAS a scenario session (an operator: editor, CGF,
@@ -197,7 +209,8 @@ internal sealed class LocalWindowController
         if (real.Count > 0 && real.All(s => s is Hrot.ReplayBrowser.ReplayBrowserSubsystem)) return;
 
         var gate = new StartGate(wm);
-        var surface = new StartSurfaceWindow(wm.GlobalMenu, () => gate.Variant, () => wm.StatusBar.Height);
+        // ⭐ CE-3414 (AQ108 §0 D31) — the Recent list: rows built from the run-controls OWNER (picked later by ComposeRunControls), cached by the provider
+        var surface = new StartSurfaceWindow(wm.GlobalMenu, () => gate.Variant, () => wm.StatusBar.Height, recent: () => StartRecent?.Rows() ?? NoRecent);
         wm.RegisterWindow(surface);
         // ⭐ Exit: the same path as the window's [X] (the frame loop asks every exit guard). Allowed in Idle — the Start surface offers it.
         wm.GlobalMenu.RegisterItem("File/Exit", RequestExit, allowedInIdle: true);

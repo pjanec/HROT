@@ -66,6 +66,10 @@ public sealed class RunModeChoice
     /// <summary>⭐ CE-4100 ① — the cluster's <i>Ask to keep recordings</i> setting (null = no cluster view here).</summary>
     public bool? AskToKeepSetting => _transport.AskToKeepSetting;
     /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting (null = no cluster view here).</summary>
+    /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the master's scenario inventory (names); the same array until a new inventory arrives.</summary>
+    public string[] InventoryScenarios => _transport.InventoryScenarios;
+    /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the master's recordings inventory (local, archived, unarchived-local); the same arrays until a new inventory arrives.</summary>
+    public (ExerciseInventoryItem[] Local, ExerciseInventoryItem[] Archived, ExerciseInventoryItem[] UnarchivedLocal) InventoryExercises => _transport.InventoryExercises;
     public bool? StartImmediatelySetting => _transport.StartImmediatelySetting;
     /// <summary>⭐ CE-4100 ① — set the cluster's run settings; a null argument leaves that one as it is.</summary>
     public void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null) => _transport.SendRunSettings(recordLiveRuns, askToKeepRecordings, startLiveImmediately);

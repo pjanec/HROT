@@ -129,6 +129,9 @@ public sealed class ScenarioCatalogContributor : IAssetCatalogContributor
 
     // ── Nested asset type ─────────────────────────────────────────────────
 
+    /// <summary>⭐ CE-3414 — a scenario's asset id from its name (the nested asset's own derivation, reachable): what the Recent lists remember it by.</summary>
+    internal static Guid DeriveAssetId(string relPath) => ScenarioEditableAsset.DeriveAssetId(relPath);
+
     private sealed class ScenarioEditableAsset : IEditableAsset
     {
         public ScenarioEditableAsset(string name, string? scenariosRoot)

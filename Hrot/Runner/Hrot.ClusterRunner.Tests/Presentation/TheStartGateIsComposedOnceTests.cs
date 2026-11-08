@@ -264,6 +264,32 @@ public class TheStartGateIsComposedOnceTests
         return (ctrl, wm);
     }
 
+    /// <summary>
+    /// ⭐ CE-3414 (AQ108 §0 D31) — the composed Start surface HAS the Recent provider (the silent-default rule: the owner is picked later, the provider is wired at composition): with a run-controls owner the controller holds
+    /// the rows over THAT owner's choice, and the surface's model carries the rows list; with no owner the surface still shows (empty). 🔴 Mutation: <c>ComposeStartSurface</c> not passing <c>recent:</c> ⇒ the model's list is null ⇒ red;
+    /// <c>ComposeRunControls</c> not building the rows ⇒ <c>StartRecent</c> null ⇒ red.
+    /// </summary>
+    [Fact]
+    public void TheStartSurface_IsComposedWithTheRecentRows_OverTheRunControlsOwnersChoice()
+    {
+        var editor = new RunHost("Editor", RunHostKind.Editor, operatorHost: true);
+        var (ctrl, wm) = Composed(editor);
+        Assert.NotNull(ctrl.StartRecent);
+        Assert.Same(editor.RunChoice, ctrl.StartRecent!.Choice);
+
+        ctrl.ClusterRestOverride = () => new ClusterRest(ClusterState.Idle, false, true);
+        wm.RegisterWindow(new PerspectiveWindow("Editor")); wm.SwitchPerspective("Editor");
+        ctrl.TickStartGate(100.0); ctrl.TickStartGate(100.0 + StartGate.SettleSeconds);
+        Assert.True(wm.IsStartShowing);
+        var model = ctrl.StartSurface!.Model();
+        Assert.Equal(StartVariant.Actions, model.Variant);
+        Assert.NotNull(model.Recent);                                   // the provider is wired (an unwired surface carries null)
+
+        var (bare, wm2) = Composed();                                    // no owner: the rows are not built, the surface still composes
+        Assert.Null(bare.StartRecent);
+        Assert.NotNull(bare.StartSurface);
+    }
+
     private static int TimeControlEntries(Fdp.Presentation.WindowManager.WindowManager wm)
         => wm.MainToolbar.BuildViewModel(currentPerspective: "Scenario").Entries.Count(e => e.Id == ShellTimeControlToolbar.EntryId);
 
