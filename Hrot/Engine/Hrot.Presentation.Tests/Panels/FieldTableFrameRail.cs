@@ -32,7 +32,7 @@ public sealed class FieldTableFrameRail
     public enum Weather { Clear, Rain, Fog }
 
     /// <summary>An in-memory declaration list with ONE undo history — what a real source (the scenario header) is, minus the world.</summary>
-    internal sealed class Decls : IFieldDeclarations
+    internal class Decls : IFieldDeclarations
     {
         public readonly List<FieldRow> List = new();
         public readonly Dictionary<string, int> Used = new();
@@ -107,11 +107,21 @@ public sealed class FieldTableFrameRail
         public string Names() => string.Join(",", List.Select(r => r.Name));
     }
 
+    /// <summary>⭐ CE-3401 — the same declarations that ALSO answer the live column (<see cref="IFieldLiveValues"/>): the text per row, an epoch the test moves, and how many times the table asked.</summary>
+    internal sealed class LiveDecls : Decls, IFieldLiveValues
+    {
+        public readonly Dictionary<string, string> Live = new();
+        public long Ep;
+        public int Reads;
+        public long Epoch => Ep;
+        public bool TryLiveText(string name, out string text) { Reads++; return Live.TryGetValue(name, out text!); }
+    }
+
     internal sealed class Rig : IDisposable
     {
         public readonly UiFrameSession Frame;
         public readonly WidgetKitFrameRail.Sim Sim = new();
-        public readonly Decls D = new();
+        public readonly Decls D;
         public readonly FieldTable Table = new();
         public FieldTableSettings Settings;
         public readonly ListFormsFrameRail.Pressing Input = new();
@@ -120,8 +130,9 @@ public sealed class FieldTableFrameRail
         public bool Route;
         public long Bytes = -1;
 
-        public Rig(bool structsOff = true)
+        public Rig(bool structsOff = true, Decls? decls = null)
         {
+            D = decls ?? new Decls();
             Frame = UiFrameHarness.Begin(760, 520);
             new EditorFontService().Initialize(1f, 1f);
             Router = new KeyRouter(Input);
@@ -400,5 +411,79 @@ public sealed class FieldTableFrameRail
         r.Click((a + b) / 2f); r.Frames(3);
         Assert.Equal("3", r.D.List[0].ValueJson);                                               // ↺ wrote the default through SetValueJson
         Shot(r, "fieldtable-fill.png");
+    }
+
+    /// <summary>⭐ CE-3401 (§12a ②) — the LIVE column: shown when <c>ShowLive</c> and the declarations ALSO implement <see cref="IFieldLiveValues"/> ("—" for a row it cannot answer); the table reads the text only when the epoch moves, so a steady frame asks
+    /// nothing and allocates nothing. 🔴 Red-proof: <c>FieldTable.Draw</c> refreshing the live text every frame (not on <c>Epoch</c>) ⇒ the read-count assertion fails.</summary>
+    [SkippableFact]
+    public void Live_ShowsTheTextPerRow_ReadsOnlyWhenTheEpochMoves_AndAllocatesNothing()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var live = new LiveDecls();
+        using var r = new Rig(decls: live);
+        r.Settings = new FieldTableSettings { ValueHeader = "Default", ShowLive = true, TypeChoices = Decls.Choices() };
+        live.Add("hp", "int", "3"); live.Add("speed", "float", null); live.History.Clear();
+        live.Live["hp"] = "7";
+        live.Ep++;
+        r.Steady();
+        Assert.Equal(new[] { "Name", "Type", "Default", "Live" }, r.Table.ColumnHeaders);
+        Assert.Equal("7", r.Table.LiveShown("hp"));
+        Assert.Null(r.Table.LiveShown("speed"));                                                // no answer ⇒ "—"
+        Assert.True(r.Bytes == 0, $"a steady frame with the Live column allocates nothing ({r.Bytes} bytes)");
+        int reads = live.Reads;
+        r.Frames(6);
+        Assert.Equal(reads, live.Reads);                                                        // the epoch did not move ⇒ nothing was asked
+        live.Live["speed"] = "1.5"; live.Ep++;
+        r.Frames(3);
+        Assert.Equal("1.5", r.Table.LiveShown("speed"));
+        Assert.True(live.Reads > reads);
+        Shot(r, "fieldtable-live.png");
+    }
+
+    /// <summary>⭐ CE-3401 (§12a ②) — the host's ONE trailing cell: <c>RowTail(row, index)</c> is called for every row, once per frame, in a cell at the right of the value, and costs nothing.
+    /// 🔴 Red-proof: <c>FieldTable.Draw</c> not calling <c>RowTail</c> ⇒ the call-count assertion fails.</summary>
+    [SkippableFact]
+    public void RowTail_IsCalledOncePerRow_InItsOwnCell_AndAllocatesNothing()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var r = new Rig();
+        var calls = new int[3]; var seen = new string?[3];
+        void Tail(FieldRow row, int i) { calls[i]++; seen[i] = row.Name; ImGui.TextDisabled("tail"); }
+        r.Settings = new FieldTableSettings { ValueHeader = "Default", TypeChoices = Decls.Choices(), RowTail = Tail, RowTailWidth = 80f };
+        r.D.Add("a", "int", "1"); r.D.Add("b", "int", "2"); r.D.Add("c", "int", "3"); r.D.History.Clear();
+        r.Steady();
+        Assert.True(r.Bytes == 0, $"a steady frame with a tail cell allocates nothing ({r.Bytes} bytes)");
+        Assert.Equal(new[] { "a", "b", "c" }, seen);
+        int c0 = calls[0]; r.Frames(1); Assert.Equal(c0 + 1, calls[0]);                          // once per frame
+        var cell = r.Table.TailCell("b");
+        Assert.True(cell.Max.X - cell.Min.X >= 79f && cell.Min.X > r.NameCenter("b").X, $"the tail cell sits right of the name: {cell}");
+        Assert.Equal(new[] { "Name", "Type", "Default" }, r.Table.ColumnHeaders);                // a tail cell has no header
+        Shot(r, "fieldtable-tail.png");
+    }
+
+    /// <summary>⭐ CE-3401 (§12a ③) — SUB-ROWS: a fixed structure's fields shown read-only under their row (an expander in the value cell, the fields' names / types / values below, <c>*</c> where overridden); a click folds them; they take no menu, no rename and
+    /// never write a declaration; 0 B. 🔴 Red-proof: <c>FieldTable.Draw</c> drawing the value cell instead of the expander for a row with sub-rows ⇒ the open-state assertions fail.</summary>
+    [SkippableFact]
+    public void SubRows_AreAReadOnlyExpandableView_AndAllocateNothing()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var r = new Rig();
+        r.Settings = new FieldTableSettings { ValueHeader = "Default", TypeChoices = Decls.Choices(), AllowStructs = false };
+        r.D.List.Add(new FieldRow("Params", "Weather", typeof(Weather), null, null, true, null, new[] { new FieldSubRow("Radius", "float", "12.5", false), new FieldSubRow("Rounds", "int", "3", true) }));
+        r.D.List.Add(new FieldRow("hp", "int", typeof(int), "3", null, false));
+        r.D.Ver++;
+        r.Steady();
+        Assert.True(r.Bytes == 0, $"a steady frame with sub-rows allocates nothing ({r.Bytes} bytes)");
+        Assert.True(r.Table.SubRowsOpen("Params"));
+        int calls = r.D.Calls;
+        var type = r.Table.TypeCell("Params");
+        var toggle = new Vector2(type.Max.X + 40f, r.NameCenter("Params").Y);
+        r.Click(toggle); r.Frames(3);
+        Assert.False(r.Table.SubRowsOpen("Params"));                                             // folded
+        r.Click(toggle); r.Frames(3);
+        Assert.True(r.Table.SubRowsOpen("Params"));
+        Assert.Equal(calls, r.D.Calls);                                                          // a view: nothing was written
+        Assert.Equal(default, r.Table.MenuButton("Radius"));                                     // a sub-row is not a row
+        Shot(r, "fieldtable-subrows.png");
     }
 }

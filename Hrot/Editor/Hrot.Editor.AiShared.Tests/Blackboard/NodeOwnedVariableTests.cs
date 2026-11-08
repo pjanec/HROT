@@ -116,7 +116,7 @@ public sealed class NodeOwnedVariableTests
     public void IsAliasDropAccepted_NormalVar_MatchingType_ReturnsTrue()
     {
         var target = MakeVar("sharedVar", isAutoManaged: false, type: typeof(float));
-        VariablesPanelControl.IsAliasDropAccepted(target, typeof(float))
+        VariablesPanelHost.IsAliasDropAccepted(target, typeof(float))
             .Should().BeTrue("hand-authored var with matching DTO type accepts alias drop");
     }
 
@@ -124,7 +124,7 @@ public sealed class NodeOwnedVariableTests
     public void IsAliasDropAccepted_NormalVar_MismatchedType_ReturnsFalse()
     {
         var target = MakeVar("sharedVar", isAutoManaged: false, type: typeof(float));
-        VariablesPanelControl.IsAliasDropAccepted(target, typeof(int))
+        VariablesPanelHost.IsAliasDropAccepted(target, typeof(int))
             .Should().BeFalse("type mismatch rejects alias drop");
     }
 
@@ -133,7 +133,7 @@ public sealed class NodeOwnedVariableTests
     {
         // B-4 §3.7: auto-managed vars must never be alias targets.
         var target = MakeVar("_auto_nodeA", isAutoManaged: true, type: typeof(float));
-        VariablesPanelControl.IsAliasDropAccepted(target, typeof(float))
+        VariablesPanelHost.IsAliasDropAccepted(target, typeof(float))
             .Should().BeFalse("auto-managed var must NOT accept alias drop even if types match");
     }
 
@@ -141,7 +141,7 @@ public sealed class NodeOwnedVariableTests
     public void IsAliasDropAccepted_AutoManagedVar_MismatchedType_ReturnsFalse()
     {
         var target = MakeVar("_auto_nodeA", isAutoManaged: true, type: typeof(float));
-        VariablesPanelControl.IsAliasDropAccepted(target, typeof(int))
+        VariablesPanelHost.IsAliasDropAccepted(target, typeof(int))
             .Should().BeFalse("auto-managed var must NOT accept alias drop");
     }
 
@@ -235,18 +235,18 @@ internal class FakeBlackboardAsset : IEditableAsset, IBlackboardManagedAsset
         Changed?.Invoke();
     }
 
-    public void AddVariable(BlackboardVariableEntry entry) { _vars.Add(entry); Changed?.Invoke(); }
+    public virtual void AddVariable(BlackboardVariableEntry entry) { _vars.Add(entry); Changed?.Invoke(); }
     public void RemoveVariable(string name) { _vars.RemoveAll(v => v.Name == name); Changed?.Invoke(); }
-    public void RemoveVariables(IReadOnlyList<string> names) { foreach (var n in names) _vars.RemoveAll(v => v.Name == n); Changed?.Invoke(); }
+    public virtual void RemoveVariables(IReadOnlyList<string> names) { foreach (var n in names) _vars.RemoveAll(v => v.Name == n); Changed?.Invoke(); }
     public void UpdateVariableComment(string name, string? comment) { Changed?.Invoke(); }
-    public void UpdateVariableDefaultValueJson(string name, string? json) { Changed?.Invoke(); }
-    public void MoveVariable(int src, int dst) { Changed?.Invoke(); }
-    public void RenameVariable(string o, string n) { Changed?.Invoke(); }
+    public virtual void UpdateVariableDefaultValueJson(string name, string? json) { Changed?.Invoke(); }
+    public virtual void MoveVariable(int src, int dst) { Changed?.Invoke(); }
+    public virtual void RenameVariable(string o, string n) { Changed?.Invoke(); }
     public int CountNodesReferencingVariable(string name) => _refCountOverride;
 
 
-    public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string v) => Array.Empty<BlackboardAliasBinding>();
-    public void AddAlias(string v, BlackboardAliasBinding b) { }
+    public virtual IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string v) => Array.Empty<BlackboardAliasBinding>();
+    public virtual void AddAlias(string v, BlackboardAliasBinding b) { }
     public void RemoveAlias(string v, Guid a, Guid e) { }
     public void PruneStaleAliasBindings(IReadOnlyCollection<Guid> knownIds) { }
     public IReadOnlyCollection<Guid> GetKnownSubAssetIds() => Array.Empty<Guid>();

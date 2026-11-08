@@ -21,7 +21,11 @@ using ImGuiApi = ImGuiNET.ImGui;
 /// <param name="Comment">The declaration's comment, or null.</param>
 /// <param name="ReadOnly">The row is greyed.</param>
 /// <param name="DefaultJson">What "changed" is measured against when <see cref="FieldTableSettings.ShowDefaults"/> (the declaration's default; a preset's value differs from it); null ⇒ the type's default.</param>
-public readonly record struct FieldRow(string Name, string TypeId, Type ClrType, string? ValueJson, string? Comment, bool ReadOnly, string? DefaultJson = null);
+/// <param name="SubRows">⭐ CE-3401 (§12a ③) — a read-only VIEW of fields the author does not declare (a behaviour's params DTO): drawn expandable under the row, never editable as structure; null ⇒ none. A row with sub-rows shows an expander instead of a value cell.</param>
+public readonly record struct FieldRow(string Name, string TypeId, Type ClrType, string? ValueJson, string? Comment, bool ReadOnly, string? DefaultJson = null, IReadOnlyList<FieldSubRow>? SubRows = null);
+
+/// <summary>⭐ CE-3401 — one read-only sub-row: the field's name, its type's words, its value text (null ⇒ "—") and whether this declaration overrides the field's own default (drawn <c>* value</c>).</summary>
+public readonly record struct FieldSubRow(string Name, string TypeName, string? ValueText, bool Overridden);
 
 /// <summary>The groups the ONE type picker lists (docs/DESIGN_Struct_Editor.md §11a): a group the host's settings forbid is greyed with the reason.</summary>
 public enum TypeGroup { Values, Enums, References, Structures, Lists }
@@ -46,6 +50,12 @@ public sealed class FieldTableSettings
     public string ValueHeader { get; init; } = "Value";
     /// <summary>Show the read-only <i>Used by</i> column.</summary>
     public bool UsedBy { get; init; }
+    /// <summary>⭐ CE-3401 (§12a ②) — show the <i>Live</i> column: the running value of each row, from the declarations object when it ALSO implements <see cref="IFieldLiveValues"/> ("—" for a row it cannot answer, or when it does not implement it).</summary>
+    public bool ShowLive { get; init; }
+    /// <summary>⭐ CE-3401 (§12a ②) — ONE trailing cell the HOST draws per row (an aliasing drop target, a toggle, a tint …): called with the row and its index while the cell is current. A host that has nothing for a row (an auto-managed one) draws nothing. Null ⇒ no such column.</summary>
+    public Action<FieldRow, int>? RowTail { get; init; }
+    /// <summary>The width of the <see cref="RowTail"/> column.</summary>
+    public float RowTailWidth { get; init; } = 96f;
     /// <summary>False ⇒ the picker's Structures group is greyed (<see cref="StructsOffReason"/>).</summary>
     public bool AllowStructs { get; init; } = true;
     /// <summary>False ⇒ the picker's Lists group is greyed (<see cref="ListsOffReason"/>).</summary>
@@ -85,6 +95,16 @@ public interface IFieldDeclarations
     int UsedBy(string name);
     /// <summary>Writes the value of one row (its member JSON); null clears it.</summary>
     void SetValueJson(string name, string? valueJson);
+}
+
+/// <summary>
+/// ⭐ CE-3401 (§12a ②) — OPTIONAL: a declarations object that can also say what each row holds RIGHT NOW (a blackboard's live values). <see cref="Epoch"/> moves whenever any answer may differ from the last read;
+/// the table reads <see cref="TryLiveText"/> only then and keeps the text, so a steady frame allocates nothing (R-2084).
+/// </summary>
+public interface IFieldLiveValues
+{
+    long Epoch { get; }
+    bool TryLiveText(string name, out string text);
 }
 
 /// <summary>
@@ -136,6 +156,15 @@ public sealed class FieldTable : IStructTableTarget
     private int[] _usedShown = new int[8];
     private Vector2 _addMin, _addMax;
 
+    // CE-3401: the live column's text (per row, read per epoch) and the sub-rows' words (built once per rebuild)
+    private string?[] _liveText = Array.Empty<string?>();
+    private long _liveEpoch = -1;
+    private bool _liveDirty = true;
+    private sealed class SubView { public string[] Names = Array.Empty<string>(), Types = Array.Empty<string>(), Values = Array.Empty<string>(); public bool[] Overridden = Array.Empty<bool>(); public string Open = "", Closed = ""; }
+    private SubView?[] _subs = Array.Empty<SubView?>();
+    private readonly HashSet<string> _collapsed = new();
+    private Vector2[] _tailMin = new Vector2[8], _tailMax = new Vector2[8];
+
     private string? _addLabelFor, _addText;
     private static readonly string[] Numbers = BuildNumbers(256);
     private static string[] BuildNumbers(int n) { var a = new string[n]; for (int i = 0; i < n; i++) a[i] = i.ToString(); return a; }
@@ -166,7 +195,22 @@ public sealed class FieldTable : IStructTableTarget
     /// <summary>Where the Add button was drawn.</summary>
     public (Vector2 Min, Vector2 Max) AddButton => (_addMin, _addMax);
     /// <summary>The column headers last drawn.</summary>
-    public IReadOnlyList<string> ColumnHeaders => _settings.UsedBy ? new[] { "Name", "Type", _settings.ValueHeader, "Used by" } : new[] { "Name", "Type", _settings.ValueHeader };
+    public IReadOnlyList<string> ColumnHeaders
+    {
+        get
+        {
+            var l = new List<string> { "Name", "Type", _settings.ValueHeader };
+            if (_settings.ShowLive) l.Add("Live");
+            if (_settings.UsedBy) l.Add("Used by");
+            return l;
+        }
+    }
+    /// <summary>The live text last drawn for a row (null ⇒ "—").</summary>
+    public string? LiveShown(string name) { int i = IndexOf(name); return i < 0 ? null : _liveText[i]; }
+    /// <summary>Where the host's <see cref="FieldTableSettings.RowTail"/> cell of a row was drawn.</summary>
+    public (Vector2 Min, Vector2 Max) TailCell(string name) { int i = IndexOf(name); return i < 0 ? default : (_tailMin[i], _tailMax[i]); }
+    /// <summary>The rows' sub-rows open state: true when a row has sub-rows and they are shown.</summary>
+    public bool SubRowsOpen(string name) => IndexOf(name) is var i && i >= 0 && _subs[i] != null && !_collapsed.Contains(name);
     /// <summary>The <i>Used by</i> counts last drawn, by row name.</summary>
     public IReadOnlyDictionary<string, int> UsedByDrawn { get { var d = new Dictionary<string, int>(); for (int i = 0; i < _rows.Length; i++) d[_rows[i].Name] = _usedShown[i]; return d; } }
     /// <summary>The error line now drawn (the row it sits under — "" for the Add button — and its text), or null.</summary>
@@ -229,14 +273,20 @@ public sealed class FieldTable : IStructTableTarget
         float menuW = frameH;
         var tableMin = ImGuiApi.GetCursorScreenPos();
         float tableW = ImGuiApi.GetContentRegionAvail().X;
-        int cols = (_settings.UsedBy ? 5 : 4) - (_fill ? 1 : 0);
+        bool hasTail = _settings.RowTail != null;
+        int cols = 3 + (_settings.ShowLive ? 1 : 0) + (_settings.UsedBy ? 1 : 0) + (hasTail ? 1 : 0) + (_fill ? 0 : 1);
+        var live = _settings.ShowLive ? decls as IFieldLiveValues : null;
+        if (live != null && (_liveDirty || live.Epoch != _liveEpoch)) RefreshLive(live);
+        _liveDirty = false;
         bool ownWrite = false;
         if (ImGuiApi.BeginTable("##fields", cols, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV))
         {
             ImGuiApi.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch, 0.30f);
             ImGuiApi.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthStretch, 0.18f);
             ImGuiApi.TableSetupColumn(_settings.ValueHeader, ImGuiTableColumnFlags.WidthStretch, 0.40f);
+            if (_settings.ShowLive) ImGuiApi.TableSetupColumn("Live", ImGuiTableColumnFlags.WidthStretch, 0.22f);
             if (_settings.UsedBy) ImGuiApi.TableSetupColumn("Used by", ImGuiTableColumnFlags.WidthFixed, 64f);
+            if (hasTail) ImGuiApi.TableSetupColumn("##tail", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHeaderLabel, _settings.RowTailWidth);
             if (!_fill) ImGuiApi.TableSetupColumn("##menu", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHeaderLabel, menuW + 6f);
             ImGuiApi.TableHeadersRow();
 
@@ -268,6 +318,7 @@ public sealed class FieldTable : IStructTableTarget
                     bool clicked = ImGuiApi.Selectable("##n", _sel == i, ImGuiSelectableFlags.AllowDoubleClick, new Vector2(0f, frameH));
                     _nameMin[i] = ImGuiApi.GetItemRectMin(); _nameMax[i] = ImGuiApi.GetItemRectMax();
                     if (!_ro && !_fill && KitDrag.Reorder(owner, i, r.Name, asSource: false, asTarget: true, out int from)) Queue(Op.Move, from, i);
+                    if (r.Comment != null && ImGuiApi.IsItemHovered()) ImGuiApi.SetTooltip(r.Comment);
                     if (clicked) { _sel = i; if (!_ro && !_fill && ImGuiApi.IsMouseDoubleClicked(ImGuiMouseButton.Left)) Queue(Op.StartRename, i); }
                     if (!_fill && ImGuiApi.IsItemClicked(ImGuiMouseButton.Right)) { _sel = i; ImGuiApi.OpenPopup("##rowmenu"); }
                     dl.AddText(new Vector2(npos.X + 4f, npos.Y + ImGuiApi.GetStyle().FramePadding.Y), ImGuiApi.GetColorU32(r.ReadOnly || _ro ? ImGuiCol.TextDisabled : ImGuiCol.Text), r.Name);
@@ -284,7 +335,9 @@ public sealed class FieldTable : IStructTableTarget
 
                 // value: the struct table's own cell over the declared document
                 ImGuiApi.TableSetColumnIndex(2);
-                if (r.ClrType == typeof(object)) { ImGuiApi.AlignTextToFramePadding(); ImGuiApi.TextDisabled("unknown type"); }
+                var sub = _subs[i];
+                if (sub != null) DrawSubToggle(r.Name, sub);
+                else if (r.ClrType == typeof(object)) { ImGuiApi.AlignTextToFramePadding(); ImGuiApi.TextDisabled("unknown type"); }
                 else if (_drawer.DrawValueCell(_session!.Document.Root.Children[i]))
                 {
                     decls.SetValueJson(r.Name, _session.Values[r.Name]?.ToJsonString());
@@ -293,6 +346,12 @@ public sealed class FieldTable : IStructTableTarget
                 }
 
                 int col = 3;
+                if (_settings.ShowLive)
+                {
+                    ImGuiApi.TableSetColumnIndex(col++);
+                    ImGuiApi.AlignTextToFramePadding();
+                    if (_liveText[i] is { } lt) ImGuiApi.TextUnformatted(lt); else ImGuiApi.TextDisabled("—");
+                }
                 if (_settings.UsedBy)
                 {
                     ImGuiApi.TableSetColumnIndex(col++);
@@ -302,10 +361,21 @@ public sealed class FieldTable : IStructTableTarget
                     ImGuiApi.TextDisabled(Num(u));
                 }
 
+                // the host's one trailing cell
+                if (hasTail)
+                {
+                    ImGuiApi.TableSetColumnIndex(col++);
+                    var tmin = ImGuiApi.GetCursorScreenPos();
+                    _settings.RowTail!(r, i);
+                    _tailMin[i] = tmin; _tailMax[i] = new Vector2(tmin.X + _settings.RowTailWidth, tmin.Y + frameH);
+                }
+
                 // ⋮ menu
                 if (!_fill) { ImGuiApi.TableSetColumnIndex(col); DrawMenu(dl, i, menuW, frameH, n); }
 
                 ImGuiApi.PopID();
+
+                if (sub != null && !_collapsed.Contains(r.Name)) DrawSubRows(sub, col);
 
                 if (_errText != null && _errRow == r.Name)
                 {
@@ -329,6 +399,39 @@ public sealed class FieldTable : IStructTableTarget
         // the keys act on the selected row while this window has the focus (nothing here reads a key — the router runs the scope)
         if (!_fill && _sel >= 0 && _renameIdx < 0 && ImGuiApi.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)) StructTableFocus.Set(this);
         if (_op != Op.None) Exec(decls);
+    }
+
+    private void RefreshLive(IFieldLiveValues live)
+    {
+        for (int i = 0; i < _rows.Length; i++) _liveText[i] = live.TryLiveText(_rows[i].Name, out var t) ? t : null;
+        _liveEpoch = live.Epoch;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]  // R-2084: tier-0 JIT boxes struct arguments
+    private void DrawSubToggle(string name, SubView sub)
+    {
+        bool open = !_collapsed.Contains(name);
+        ImGuiApi.AlignTextToFramePadding();
+        if (ImGuiApi.Selectable(open ? sub.Open : sub.Closed, false, ImGuiSelectableFlags.None, new Vector2(0f, ImGuiApi.GetFrameHeight())))
+        { if (open) _collapsed.Add(name); else _collapsed.Remove(name); }
+    }
+
+    /// <summary>The read-only rows of a DTO's fields, under their row: name (indented) · type · value (<c>* v</c> where overridden). Never a structural edit.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]  // R-2084: tier-0 JIT boxes struct arguments
+    private void DrawSubRows(SubView sub, int lastCol)
+    {
+        for (int j = 0; j < sub.Names.Length; j++)
+        {
+            ImGuiApi.TableNextRow();
+            ImGuiApi.TableSetColumnIndex(0);
+            ImGuiApi.Indent(14f);
+            ImGuiApi.TextDisabled(sub.Names[j]);
+            ImGuiApi.Unindent(14f);
+            ImGuiApi.TableSetColumnIndex(1);
+            ImGuiApi.TextDisabled(sub.Types[j]);
+            ImGuiApi.TableSetColumnIndex(2);
+            if (sub.Overridden[j]) ImGuiApi.TextUnformatted(sub.Values[j]); else ImGuiApi.TextDisabled(sub.Values[j]);
+        }
     }
 
     private static Vector4 ColorOf(TypeGroup g) => g switch
@@ -465,9 +568,12 @@ public sealed class FieldTable : IStructTableTarget
         if (_nameMin.Length < rows.Count)
         {
             int cap = Math.Max(rows.Count, _nameMin.Length * 2);
+            _tailMin = new Vector2[cap]; _tailMax = new Vector2[cap];
             _nameMin = new Vector2[cap]; _nameMax = new Vector2[cap]; _typeMin = new Vector2[cap]; _typeMax = new Vector2[cap]; _menuMin = new Vector2[cap]; _menuMax = new Vector2[cap]; _usedShown = new int[cap];
         }
         _groups = new TypeGroup[rows.Count];
+        _liveText = new string?[rows.Count]; _liveDirty = true;
+        _subs = new SubView?[rows.Count];
         var fields = new List<FieldDeclaration>(rows.Count);
         var values = new JsonObject();
         for (int i = 0; i < rows.Count; i++)
@@ -479,6 +585,7 @@ public sealed class FieldTable : IStructTableTarget
             fields.Add(new FieldDeclaration(r.Name, r.ClrType, null, null, def, r.ReadOnly));
             if (r.ValueJson is { Length: > 0 } json) { try { values[r.Name] = JsonNode.Parse(json); } catch (System.Text.Json.JsonException) { } }
             _groups[i] = GroupFor(r);
+            if (r.SubRows is { Count: > 0 } sr) _subs[i] = BuildSub(sr);
         }
         _session = new DeclaredEditSession(_builder, fields, values);
         _drawer = new ComponentEditDrawer(_session, picks, null, _types, _services, _settings.ShowDefaults ? StructEdit.Core.Defaults.DeclaredDefaults.Instance : null, decls.IsReadOnly);
@@ -486,6 +593,20 @@ public sealed class FieldTable : IStructTableTarget
         if (_sel >= _rows.Length) _sel = -1;
         if (_renameIdx >= 0 && (_renameIdx >= _rows.Length || _rows[_renameIdx].Name != _renameOld)) _renameIdx = -1;
         if (_errRow is { Length: > 0 } er && IndexOf(er) < 0) { _errText = null; _errRow = null; }
+    }
+
+    private static SubView BuildSub(IReadOnlyList<FieldSubRow> rows)
+    {
+        int n = rows.Count;
+        var v = new SubView { Names = new string[n], Types = new string[n], Values = new string[n], Overridden = new bool[n] };
+        for (int j = 0; j < n; j++)
+        {
+            var f = rows[j];
+            v.Names[j] = "." + f.Name; v.Types[j] = f.TypeName; v.Overridden[j] = f.Overridden;
+            v.Values[j] = f.ValueText is { } t ? (f.Overridden ? "* " + t : t) : "—";   // ⚠ "*", not "●": the editor font has no glyph for it
+        }
+        v.Open = "v  " + n + (n == 1 ? " field" : " fields"); v.Closed = ">  " + n + (n == 1 ? " field" : " fields");
+        return v;
     }
 
     private TypeGroup GroupFor(in FieldRow r)

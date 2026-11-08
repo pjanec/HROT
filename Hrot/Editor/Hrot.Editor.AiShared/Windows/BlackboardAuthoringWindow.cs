@@ -445,7 +445,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
 
     // ---- ImGui rendering ---------------------------------------------------
 
-    private VariablesPanelControl? _variablesControl;
+    private VariablesPanelHost? _variablesControl;
     private IEditableAsset? _lastAssetBase;
 
     protected override void DrawClientArea() => DrawContent();
@@ -596,20 +596,9 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
             }
         }
 
-        var schema = new BTreeHsmSchemaSource(bbAsset, vm, isReadOnly);
-        var section = new VariablesPanelSection(
-            "Variables",
-            "##bb_vars",
-            schema,
-            vm.TotalInlineBytes,
-            vm.InlineBudget,
-            vm.Warning,
-            AliasingEnabled: true
-        );
-
         if (_variablesControl == null || _lastAssetBase != asset)
         {
-            _variablesControl = new VariablesPanelControl(_refactorService, asset, vm.KnownTypeNames)
+            _variablesControl = new VariablesPanelHost(_refactorService, asset, vm.KnownTypeNames)
             {
                 // ⭐ CE-1062 (§13.10c E5) — the active document's undo stack, only when its document IS this asset.
                 UndoView = () => _canvasContext?.Invoke() is { } ctx && ReferenceEquals(ctx.AssetRef, asset) ? ctx.View.Undo : null,
@@ -630,7 +619,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
         if (_liveValueProvider != null && asset != null)
             liveValues = _liveValueProvider.GetLiveVariableValues(asset);
 
-        _variablesControl.DrawSingle(section, rowDec, liveValues);
+        _variablesControl.Draw(vm, isReadOnly, aliasingEnabled: true, rowDec, liveValues);
 
         // Sub-tree allocations section (1e-05): auto-managed slots for Approach B nodes.
         var autoAllocs = (asset as IBTreeSyncableAsset)?.GetAutoAllocatedVariables();
