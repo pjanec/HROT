@@ -263,7 +263,7 @@ no JSON.*
 
 | # | part | what it fixes | ⚠ risk / what it needs |
 |---|---|---|---|
-| **I1** | **binary copy** of each owned component from its owner's sandbox — unmanaged by value, managed by reference (M5) | the M1 gap disappears: no translator in the path, every recorded component kept exactly | the M2 remap list must be complete; a component type added later with a raw `Entity` must be caught — a rail over the probe |
+| **I1** | **binary copy** of each owned component from its owner's sandbox — unmanaged by value, managed by reference (M5) — into the target's OWN entities (not a chunk merge, §6.10) | the M1 gap disappears: no translator in the path, every recorded component kept exactly | the M2 remap list must be complete (incl. inline arrays — D03); reuse the auto-serializer's per-type field knowledge for the remap, not a second walker; keep the paradox rule (§6.10) |
 | **I2** | **one persistent target world** with a netId → entity map; entities created on first sight, destroyed when gone from every node | stable handles: selection, Details, the frame diff, timeline references survive a step; the editor's one world is the target directly (D8) | an entity that changes owner keeps its target entity (the map is by network id) |
 | **I3** | **incremental**: copy only chunks whose version changed since the last merge (M4) | the merged view can **PLAY** | measure the per-frame cost on the largest exercise; 0 B steady (R-2084) — the remap and the copy must not allocate |
 | **I4** | **align by recorded sim time** (M6); the per-node offsets stay as an expert override | no manual offsets in the normal case | a node that recorded no sim time (older format) falls back to wall ticks + offsets |
@@ -386,6 +386,29 @@ no JSON.*
 ⚠ Both appendices come from a SOURCE parse (`scripts/probe-recorded-components.py`), not reflection: "recorded" = no `NoReplay` / `Transient`
 policy; a component registered without `[ComponentId]`, or an `Entity` nested deeper than one struct, is missed — re-run the probe (and confirm by
 reflection) before building.
+
+### 6.10 Why JSON was chosen back then — and what the binary idea must not lose *(read `2026-11-08`)*
+
+🔒 User: *"I'm wondering why the JSON-based merging was selected back then … Might be interesting to find out if we are not missing something important."*
+Sources: the design talk `.dev/_DONE/replay-browser-frankenstein/merged-view.md` (the spec + the NotebookLM review) · its `DESIGN.md` · `DEBT-TRACKER.md`.
+
+| the reason, as recorded | where | does it still hold for I1? |
+|---|---|---|
+| **a RAW-MEMORY merge corrupts the world**: `.fdp` stores whole 64 KB chunks and `EntityIndex` arrays whose `Entity.Index` is node-local (*"index 42 on the Brain might be a tank; on the Muscle a tree"*) — merging chunks breaks the free list and the layout | `merged-view.md:27`, review `:124-130` | ✅ still true — and **I1 is NOT a chunk merge**: it creates its own entities in the target and copies component VALUES per entity, so the layout is the target's own |
+| **REUSE the remap that exists**: the scenario serializer already routes every `Entity` handle through `IGuidResolver` (the machinery scenario loading uses) — *"we are reusing it, not building it"* | `merged-view.md:79-84` | ⚠ **this is I1's real cost**: a binary copy needs its OWN remap of the M2 fields (28 types) — the reason JSON was the cheaper build. Look first for a way to reuse the auto-serializer's compiled per-type knowledge of where the `Entity` fields are, rather than writing a second walker (the shared-and-unified rule) |
+| **correctness over speed — the user rejected a fast path**: a "Tier 1" inspector-level federation (read each owner's slice in place, no copy) was proposed and refused: *"I do not want any tier 1 … I need "correct" merged view, not fast but broken one"* — it could not make cross-node references valid, so gizmos and hierarchy tools would read garbage | review `:134-212` | ✅ **I1 keeps the rule** — every reference is remapped into ONE concrete repository; I1 changes only HOW the values get there. The oracle and remap rails (§6.6) are what prove it stays "correct" |
+| slow was ACCEPTED, not wanted — *"step-by-step offline analysis, not 60 Hz playback"* | `merged-view.md:82` | I3 removes a cost that was only tolerated |
+
+**What the record shows was NOT considered — the things this idea adds:**
+
+| | |
+|---|---|
+| **managed components** | never discussed: the design assumed *"existing translator + auto-serializer code paths"* cover every component (`DESIGN.md:342`). M1 shows 30 recorded managed types with no translator — an oversight, not a decision |
+| **the owner source** | the SPEC said authority is read from `NetworkAuthority` and `DescriptorOwnership` per component (`merged-view.md:77`, review `:206, 243`); the built design switched to the cold `AuthorityMask` as *"the existing field"* (`DESIGN.md` §7.3) — which is where M3's stale owner after a handover comes from. ⭐ I8 RETURNS to the spec's source |
+| **entity handles inside inline arrays** | the batch's own debt D03: the test for an inline-array `Entity` handle through the JSON path was never written — unverified even today; the I1 remap must cover it AND the oracle rail must include such a type |
+
+**What must be carried into I1 unchanged:** the paradox rule — a reference whose target does not exist in the merged world becomes `Entity.Null`
+AND is flagged (design §7.6) — the remap must not throw, and must not hide it.
 
 ---
 _coordinator lane, 2026-11-08_
