@@ -103,7 +103,8 @@ public sealed class AssetInventoryProcessManager
             }
             else if (_lastState == ClusterState.OperatingLive && ev.CurrentState != ClusterState.OperatingLive)
             {
-                if (_currentRecording != null && _currentRecording.ExerciseId != Guid.Empty && !_liveRan && SimSeconds != null)
+                if (_currentRecording != null && _currentRecording.ExerciseId != Guid.Empty && !_liveRan && SimSeconds != null
+                    && _currentRecording.ParentExerciseId == Guid.Empty)   // ⛔ never a BRANCH: it holds the parent's history up to the branch point (RecordingModule.StartBranch) — not empty (CE-4104: every branch keeps its recording)
                 {
                     // ⭐⭐ CE-3410 (AQ108 §0 D28 / D33) — a Live left before its clock ever ran (a cancelled briefing, a switch away from Live) leaves NO recording: the master minted the
                     //   exercise at the load (CE-3310) and its first keyframe was written then (CE-3313), so it would list an empty exercise. ⛔ No ledger entry ⇒ never listed (the inventory

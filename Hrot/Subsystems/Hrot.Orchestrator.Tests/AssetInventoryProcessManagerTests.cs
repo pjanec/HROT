@@ -425,6 +425,37 @@ public sealed class AssetInventoryProcessManagerTests
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-3410 — a BRANCHED live run (go live from a replay) is kept even when left before its clock ran: its recording carries the parent's history up to the branch point,
+    /// so it is not the empty exercise D28 drops (CE-4104 keeps one recording per branch). 🔴 Red-proof: the exit arm without its parent check ⇒ the branch is not listed ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3410_ABranchLeftBeforeItsClockRan_IsKept()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce3410c_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce3410c_stg_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            var parent = Guid.NewGuid();
+            var bus = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero) { SimSeconds = () => 4.0 };
+            void State(ClusterState s) { bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = s, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) }); bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers(); }
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
+            State(ClusterState.OperatingLive);
+            bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Success,
+                                                            ResultPayload = new LiveBranchResult(new GlobalTime { TotalWallTicks = 42 }, true, (Fdp.Core.ExerciseId)(parent), 1234) });   // the branch result lands after the state
+            bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers();
+            State(ClusterState.OperatingReplay);   // ■ — back to the parent's AAR, the clock never ran
+            Assert.Contains(LastInventory(bus)!.Value.LocalExercises!, e => e.ExerciseId == exerciseId);
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
     /// <summary>⭐ CE-3410 — a run that went into DAR (it ran: Live → Review wrote its entry) and came back to Live is NEVER dropped, even when left at once.</summary>
     [Fact]
     public void CE3410_ARunResumedFromDar_IsKept_EvenIfLeftWithoutRunningAgain()
