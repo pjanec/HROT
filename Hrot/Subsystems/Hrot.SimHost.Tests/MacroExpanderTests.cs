@@ -250,7 +250,8 @@ namespace Hrot.SimHost.Tests
             return (repo, sys, inst);
         }
 
-        private static (EntityRepository Repo, MacroExpansionSystem System, Entity Instance, NetworkEntityMap Map) ExpandingWorldWithMap()
+        private static (EntityRepository Repo, MacroExpansionSystem System, Entity Instance, NetworkEntityMap Map) ExpandingWorldWithMap(
+            string macro = FireTeam, IMacroLibrary? library = null)
         {
             var repo = new EntityRepository();
             HrotSharedComponentRegistry.RegisterAll(repo);
@@ -261,11 +262,11 @@ namespace Hrot.SimHost.Tests
             var map = new NetworkEntityMap();
             var inst = repo.CreateEntity();
             repo.AddComponent(inst, At(100, 100, 0));
-            repo.SetManagedComponent(inst, new MacroInstance { Macro = FireTeam });
+            repo.SetManagedComponent(inst, new MacroInstance { Macro = macro });
             repo.AddComponent(inst, new MacroExpansionStatus { State = MacroExpansionState.Expanding });
             repo.SetManagedComponent(inst, new MacroExpansionIntent());
             map.Register(500, inst);
-            return (repo, new MacroExpansionSystem(Expander(Library()), map, new SequentialIdAllocator(), Owner), inst, map);
+            return (repo, new MacroExpansionSystem(Expander(library ?? Library()), map, new SequentialIdAllocator(), Owner), inst, map);
         }
 
         private static T[] Frame<T>(EntityRepository repo, MacroExpansionSystem sys) where T : class
@@ -309,9 +310,10 @@ namespace Hrot.SimHost.Tests
             return answer;
         }
 
-        private static (EntityRepository Repo, MacroExpansionSystem System, Entity Instance, Dictionary<Guid, Entity> Men) ExpandedTeam()
+        private static (EntityRepository Repo, MacroExpansionSystem System, Entity Instance, Dictionary<Guid, Entity> Men) ExpandedTeam(
+            string macro = FireTeam, IMacroLibrary? library = null)
         {
-            var (repo, sys, inst, map) = ExpandingWorldWithMap();
+            var (repo, sys, inst, map) = ExpandingWorldWithMap(macro, library);
             var ask = Assert.Single(Frame<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo, sys));
             repo.Bus.PublishManaged(AnswerAll(ask, System.Numerics.Vector3.Zero));
             repo.Bus.SwapBuffers();
@@ -368,6 +370,32 @@ namespace Hrot.SimHost.Tests
             sys.Execute(repo, 0f);
 
             Assert.All(men.Values, m => Assert.Equal("Friend", repo.GetComponentRO<EntityInfo>(m).ForceId.ToString()));
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4326 P2 (📄 docs/UX/DESIGN_Scenario_Presets.md §9a.3) — a param bound into a component OTHER than the transform and the identity (here
+        /// <c>Health.Max</c>, standing in for a behaviour's args) reaches the KEPT men when the instance's args change — what a Preview's preset does to a
+        /// macro in place. Only what the args changed is applied: a component the old args made the same (<c>TkbIdentity</c>) is not written.
+        /// 🔴 Red-proof (compiles): <c>ArgsChanged</c> returning false ⇒ the men keep 100 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4326_P2_AnArgBoundIntoAKeptChildsComponent_ReachesIt_AndNothingElseIsWritten()
+        {
+            const string HpTeam = "test/hp-team";
+            var file = JsonNode.Parse(FireTeamJson())!.AsObject();
+            ((JsonArray)file["header"]!["Params"]!).Add(new JsonObject { ["Name"] = "hp", ["TypeId"] = "float", ["Default"] = 100 });
+            foreach (var (_, man) in file["entities"]!.AsObject())
+                man!["ParamBindings"]!["Bindings"]!["Health.Max"] = "hp";
+            var lib = Library((HpTeam, file.ToJsonString()));
+
+            var (repo, sys, inst, men) = ExpandedTeam(HpTeam, lib);
+            Assert.All(men.Values, m => Assert.False(repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(m)));   // the miniature creation made them bare
+
+            repo.SetManagedComponent(inst, new MacroInstance { Macro = HpTeam, ArgsJson = """{"hp": 250}""" });   // the preset's args: a NEW record
+            sys.Execute(repo, 0f);
+
+            Assert.All(men.Values, m => Assert.Equal(250f, repo.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(m).Max));
+            Assert.All(men.Values, m => Assert.False(repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(m)));   // unchanged by the args ⇒ not written
         }
 
         /// <summary>⭐ Macros debt A3 (SR-157 / SR-180) — MOVING an instance re-runs placement for its children: one request, every slot naming

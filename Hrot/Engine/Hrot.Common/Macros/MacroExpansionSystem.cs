@@ -433,7 +433,8 @@ namespace Hrot.Common.Macros
             var now = new MacroExpander.Result(children, null);
             var before = _expander!.Expand(with.Instance, instanceId, guid, _localNode, with.Anchor, scope, new Hrot.Core.Network.SequentialIdAllocator(), VariantOf(repo));
             var madeBefore = new HashSet<Guid>();
-            foreach (var c in before.Children) madeBefore.Add(GuidOf(c));
+            var beforeByGuid = new Dictionary<Guid, EntityCreationRequest>();
+            foreach (var c in before.Children) { madeBefore.Add(GuidOf(c)); beforeByGuid[GuidOf(c)] = c; }
 
             // what exists now, by GUID (every level: a nested instance's men too)
             var existing = LiveChildrenByGuid(repo);
@@ -444,17 +445,19 @@ namespace Hrot.Common.Macros
                 if (existing.TryGetValue(GuidOf(c), out var kept) && _entityMap.TryGetNetworkId(kept, out int keptId)) keptIds[c.PreAllocatedNetworkId] = keptId;
 
             var nowGuids = new HashSet<Guid>();
-            int created = 0, kept2 = 0, gone = 0;
+            int created = 0, kept2 = 0, gone = 0, changed = 0;
             foreach (var c in now.Children)
             {
                 var g = GuidOf(c);
                 nowGuids.Add(g);
                 if (existing.TryGetValue(g, out var x))
                 {
+                    beforeByGuid.TryGetValue(g, out var was);
                     foreach (var comp in c.InitialComponents!)
                     {
                         if (comp is SimTransform st) MoveKept(repo, x, st);
                         else if (comp is EntityInfo info) repo.SetComponent(x, info);
+                        else if (ArgsChanged(comp, was)) changed += SetKept(repo, x, comp);   // ⭐ CE-4326 P2 — a param reaches a KEPT child
                     }
                     kept2++;
                 }
@@ -476,7 +479,50 @@ namespace Hrot.Common.Macros
                     gone++;
                 }
             repo.SetManagedComponent(e, new MacroExpandedWith { Instance = mi, Anchor = anchor });
-            FdpLog<MacroExpansionSystem>.Info($"[Macros] instance #{instanceId} reconciled: {kept2} kept, {created} created, {gone} removed");
+            FdpLog<MacroExpansionSystem>.Info($"[Macros] instance #{instanceId} reconciled: {kept2} kept ({changed} component(s) the args changed), {created} created, {gone} removed");
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4326 P2 (📄 docs/UX/DESIGN_Scenario_Presets.md §9a.3) — did the ARGS change this component of a kept child? The child as the OLD
+        /// args made it (<paramref name="was"/>, the baseline's own expansion) against the new one: a component the old set did not hold, or one whose
+        /// value differs. Only those are applied — ⛔ never the whole child (a kept man keeps everything the run gave him that the args did not touch).
+        /// Identity, origin and the baseline's own bookkeeping are never re-applied.
+        /// </summary>
+        private static bool ArgsChanged(object comp, EntityCreationRequest? was)
+        {
+            if (comp is EntityGuid or MacroOrigin or MacroExpansionStatus or MacroExpandedWith or MacroInstance) return false;
+            if (was?.InitialComponents is null) return true;
+            var type = comp.GetType();
+            foreach (var old in was.InitialComponents)
+            {
+                if (old is null || old.GetType() != type) continue;
+                if (old.Equals(comp)) return false;
+                if (type.IsValueType) return true;
+                // a class without value equality (two expansions = two objects): compare what it holds
+                try
+                {
+                    var o = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+                    return System.Text.Json.JsonSerializer.Serialize(old, type, o) != System.Text.Json.JsonSerializer.Serialize(comp, type, o);
+                }
+                catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or System.Text.Json.JsonException) { return true; }
+            }
+            return true;
+        }
+
+        /// <summary>⭐ CE-4326 P2 — a changed component onto a kept child, through the spawner's own setter (<see cref="EntityComponentReflector"/>; a
+        /// managed one is the expansion's NEW object — never a mutation). ⛔ Not written into a REPLICA: a component this node does not own is left and
+        /// said (the owner's next sample would put it back — <see cref="MoveKept"/>'s finding).</summary>
+        private static int SetKept(EntityRepository repo, Entity x, object comp)
+        {
+            if (!repo.GetRegisteredComponentTypes().TryGetValue(comp.GetType(), out var table)) return 0;
+            bool local = !repo.HasComponent<NetworkAuthority>(x) || repo.HasAuthority(x, table.ComponentTypeId);
+            if (!local)
+            {
+                FdpLog<MacroExpansionSystem>.Warn($"[Macros] a kept child {x}'s {comp.GetType().Name} is owned elsewhere — the args' new value is not applied there");
+                return 0;
+            }
+            EntityComponentReflector.SetComponent(repo, x, comp);
+            return 1;
         }
 
         /// <summary>
