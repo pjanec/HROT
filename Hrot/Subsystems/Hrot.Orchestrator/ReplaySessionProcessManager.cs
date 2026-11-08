@@ -44,7 +44,13 @@ public sealed class ReplaySessionProcessManager
     private ReplaySession Build()
     {
         var state = (Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState;
-        if (!ClusterStates.IsReplaying(state)) return ReplaySession.None(_master.SessionId);
+        if (!ClusterStates.IsReplaying(state))
+        {
+            // ⭐ ui REQUEST (AQ108 §0 R2″) — in Live the INACTIVE session carries the checkpoints of the run being recorded (Restart from a checkpoint ▸)
+            var none = ReplaySession.None(_master.SessionId);
+            if (state == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive) none.Checkpoints = _master.LiveCheckpoints;
+            return none;
+        }
 
         long zero = _master.ReplayAnchorWallTicks;
         var session = new ReplaySession

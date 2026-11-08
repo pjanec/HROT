@@ -804,6 +804,47 @@ public sealed class ClusterMasterSeekTests
         Assert.Equal(2, cmds.Jumps.Count);                           // not replaying: never
     }
 
+    /// <summary>
+    /// ⭐ ui's REQUEST (AQ108 §0 R2″ — <i>Restart from a checkpoint ▸</i>) — in Live the session layer carries the checkpoints of the run being recorded: each
+    /// SUCCEEDED checkpoint round adds its mark (an inactive session, so nothing replays); a restore to X keeps the marks up to X (the new exercise inherits them).
+    /// 🔴 Red-proof (compiles): the publisher's Live branch removed ⇒ <c>Checkpoints</c> stays empty ⇒ red; <c>TruncateLiveCheckpointsAt</c> made a no-op ⇒ the last assert reds.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void UiRequest_TheLiveRunsCheckpoints_RideTheSessionLayer_AndARestoreKeepsThoseUpToIt()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        RegisterNode(bus, master, nodeId: 7);
+        MasterShows.State(master, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        master.WallTicks = () => 1_000_000L;
+        var review = new ReviewProcessManager(bus, new FakeReplayClock { Mode = TimeMode.Continuous }, new RecordingTimeCommands(),
+                                              () => Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        var session = new ReplaySessionProcessManager(bus, master, review);
+
+        void Take(string label)
+        {
+            master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = label });
+            bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+            var sent = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.TakeSnapshot);
+            bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = sent.TransactionId, Operation = FdpNodeOpType.TakeSnapshot, NodeId = (Fdp.Core.NodeId)7,
+                                                         StatusCode = OrchestrationStatusCode.Success, IsParticipating = true, ResultPayload = sent.DomainPayload });
+            bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        }
+        Take("a"); Take("b"); Take("c");
+        session.Tick();
+        Assert.False(session.Current!.Active);
+        Assert.Equal(new[] { "a", "b", "c" }, session.Current.Checkpoints.Select(m => m.Label));
+
+        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.RestoreCheckpoint, PayloadJson = "b" });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var stage = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.PrepareRestore);
+        bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = stage.TransactionId, Operation = FdpNodeOpType.PrepareRestore, NodeId = (Fdp.Core.NodeId)7,
+                                                     StatusCode = OrchestrationStatusCode.Success, IsParticipating = true });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();   // all staged ⇒ CommitRestore
+        session.Tick();
+        Assert.Equal(new[] { "a", "b" }, session.Current!.Checkpoints.Select(m => m.Label));
+    }
+
     /// <summary>⭐ CE-3329 §12n — the loop rides the session layer: a sample with the bounds after it is set, a NEW sample after it is cleared.</summary>
     [Fact(Timeout = 10_000)]
     public void CE3329_The_session_layer_carries_the_loop()

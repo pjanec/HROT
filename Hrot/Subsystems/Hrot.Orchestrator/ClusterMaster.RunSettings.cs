@@ -154,6 +154,7 @@ public sealed partial class ClusterMaster
     {
         if (startsLiveRun)
         {
+            ResetLiveCheckpoints();   // ⭐ ui REQUEST (R2″) — a fresh live run has no checkpoints yet
             _runNotRecorded = !(RecordLiveRuns || intent.ForceRecording);
             if (_runNotRecorded)
                 FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090: this live run is NOT recorded (Record live runs is off).");
