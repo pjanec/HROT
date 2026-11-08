@@ -14,7 +14,7 @@ related-designs:
 
 # HANDOFF — coordinator → behaviors: the Review perspective (CE-3419)
 
-**For:** behaviors. **From:** coordinator. **Dispatched at `<sha of the commit adding this file>`**. ⭐ Scope FROZEN there. Merge `coordinator`, `ui`,
+**For:** behaviors. **From:** coordinator. **Dispatched at `f02becbc8`**. ⭐ Scope FROZEN there. Merge `coordinator`, `ui`,
 `backend` first (restore after), push `chore: started HANDOFF_Coordinator_To_Behaviors_Review_Perspective at <sha>`, then the
 [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md) — three lanes: fetch and merge `ui` and `backend` after every item. ⛔⛔ Anything needing the user
 is skipped (R-4156).
