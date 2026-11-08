@@ -49,6 +49,7 @@ public static class EntityField
 
         bool gone = goneText is not null;
         var hit = Chip.Draw("##chip", gone ? goneText! : chipLabel, gone ? GoneIcon : kind, maxWidth, ChipEnd.Dropdown, tint: gone ? IconPalette.Error : null);
+        KitProbe.Set(KitProbe.EntityChip, ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         if (hit == ChipHit.Body)
         {
             ImGui.OpenPopup("##pick");

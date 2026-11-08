@@ -26,6 +26,9 @@ public static class KitProbe
     /// <summary>The struct table's cells: 64 = the last text cell · 65 … 72 = flag chips · 73 = the nullable's set box · 74 = the last ↺ · 75 = the last show-on-map glyph.</summary>
     public const int TextCell = 64, FlagChip = 65, SetBox = 73, ResetMark = 74, ShowOnMap = 75;
 
+    /// <summary>76 = the last entity field's chip (closed).</summary>
+    public const int EntityChip = 76;
+
     private static readonly Vector4[] Rects = new Vector4[80];
     private static readonly bool[] Has = new bool[80];
 

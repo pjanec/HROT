@@ -68,12 +68,19 @@ public sealed class ConditionEditor
         return (holds ? "yes " : "no ") + FactCatalogue.Num(s.Measured);
     }
 
+    /// <summary>Where row <paramref name="row"/>'s Who chip was drawn (a frame rail clicks it); default when the row has none.</summary>
+    public (Vector2 Min, Vector2 Max) WhoChipOf(int row) => row >= 0 && row < _views.Count ? (_views[row].WhoMin, _views[row].WhoMax) : default;
+
+    /// <summary>The rows' conditions as drawn (rails): the subject of row <paramref name="row"/>.</summary>
+    public Subject? SubjectOf(int row) => row >= 0 && row < _rows.Count ? _rows[row].Who : null;
+
     /// <summary>The sentence rows as drawn (rails, the panel probe).</summary>
     public IReadOnlyList<string> Sentences { get { var l = new List<string>(_views.Count); foreach (var v in _views) l.Add(v.Sentence); return l; } }
 
     private sealed class RowView
     {
         public string Who = "", Fact = "", Value = "", Sentence = "", WhoPath = "", UnitPath = "", AreaPath = "", AreaThingPath = "";
+        public Vector2 WhoMin, WhoMax;
         public IconGlyph? WhoIcon, FactIcon;
         public string? Problem;
     }
@@ -228,6 +235,7 @@ public sealed class ConditionEditor
         if (r.Who.Kind != SubjectKind.World)
         {
             if (NodeEditor.Core.Widgets.Chip.Dropdown("##who", v.Who, v.WhoIcon, 260f)) ImGuiApi.OpenPopup("who");
+            v.WhoMin = ImGuiApi.GetItemRectMin(); v.WhoMax = ImGuiApi.GetItemRectMax();
             if (WhoPopup(ref r, ctx, v)) changed = true;
             ImGuiApi.SameLine();
         }
@@ -289,9 +297,13 @@ public sealed class ConditionEditor
         bool changed = false;
         if (ctx != null)
         {
+            // ⭐ CE-3397 — ONE thing is the shared entity field (type-ahead over name · side · kind · distance, pick on the map): the same call the entity leaves make, nothing copied
             ImGuiApi.TextDisabled("one thing");
-            if (ImGuiApi.Selectable("Pick it on the map")) ctx.RequestEntityPick(v.WhoPath, null);
-            if (ctx.CanListEntities && ImGuiApi.Selectable("Choose it from a list...")) ctx.RequestEntityListPick(v.WhoPath, null);
+            var one = r.Who.Kind == SubjectKind.One ? r.Who.One : EntityLink.None;
+            ImGuiApi.PushID("whone");
+            if (ReferenceLeafDrawers.DrawEntityLinkField("##whone", ref one, 300f, ctx, v.WhoPath, null, offerKey: false, consumePick: false, out _))
+            { r = r with { Who = r.Who with { Kind = SubjectKind.One, One = one } }; changed = true; }
+            ImGuiApi.PopID();
             ImGuiApi.Separator();
         }
         ImGuiApi.TextDisabled("a group");
@@ -310,7 +322,15 @@ public sealed class ConditionEditor
             foreach (var side in Sides)
                 if (ImGuiApi.Selectable(FactCatalogue.SideName(side) + " side", r.Who.Set == SetKind.Side && r.Who.Side == side))
                 { r = r with { Who = r.Who with { Set = SetKind.Side, Side = side } }; changed = true; }
-            if (ctx != null && ImGuiApi.Selectable("a unit's men (pick the unit)...", r.Who.Set == SetKind.UnitsMen)) ctx.RequestEntityPick(v.UnitPath, null);
+            if (ctx != null)
+            {
+                ImGuiApi.TextDisabled("a unit's men");   // ⭐ CE-3397 — the unit is the shared entity field too
+                var unit = r.Who.Set == SetKind.UnitsMen ? r.Who.Unit : EntityLink.None;
+                ImGuiApi.PushID("whunit");
+                if (ReferenceLeafDrawers.DrawEntityLinkField("##whunit", ref unit, 300f, ctx, v.UnitPath, null, offerKey: false, consumePick: false, out _))
+                { r = r with { Who = r.Who with { Set = SetKind.UnitsMen, Unit = unit } }; changed = true; }
+                ImGuiApi.PopID();
+            }
         }
         ImGuiApi.EndPopup();
         return changed;
@@ -359,7 +379,15 @@ public sealed class ConditionEditor
         {
             case "inside":
                 if (ctx != null && ImGuiApi.Selectable("Draw it on the map")) ctx.RequestAreaEdit(v.AreaPath, vals.Area.IsShape ? vals.Area : default);
-                if (ctx != null && ImGuiApi.Selectable("An area on the map (pick it)...")) ctx.RequestEntityPick(v.AreaThingPath, null);
+                if (ctx != null)
+                {
+                    ImGuiApi.TextDisabled("an area on the map");   // ⭐ CE-3397 — an area THING is the shared entity field (AreaLink.OfEntity keeps the link's spec)
+                    var thing = ReferenceLeafDrawers.AreaEntityAsLink(vals.Area, refs);
+                    ImGuiApi.PushID("areathing");
+                    if (ReferenceLeafDrawers.DrawEntityLinkField("##areathing", ref thing, 300f, ctx, v.AreaThingPath, null, offerKey: false, consumePick: false, out _))
+                    { vals = vals with { Area = ReferenceLeafDrawers.AreaFromEntityLink(thing) }; changed = true; }
+                    ImGuiApi.PopID();
+                }
                 break;
             case "strength": case "ammunition":
             {

@@ -550,6 +550,40 @@ public static class ReferenceLeafDrawers
     }
 
     /// <summary>
+    /// ⭐ CE-3397 (N-5) — THE entity field every host draws: the kit's chip (kind glyph · name · ▾) and its picker (type-ahead rows over name · side · kind · distance; <i>Pick on the map</i>; <i>By key</i> when
+    /// <paramref name="offerKey"/>; <i>Clear</i>), then the map-pick glyph and the pending marker. ⛔ A host (the condition editor, an entity leaf) calls THIS — nothing of it is copied. True when <paramref name="link"/> changed.
+    /// <paramref name="consumePick"/>: also take the map pick that finished for <paramref name="path"/> (false for a host whose field lives in a popup that closes while the map is picked — it consumes the pick where it draws every frame).
+    /// <paramref name="byKey"/> is set when the picker's <i>By key</i> was chosen (the caller switches its form).
+    /// </summary>
+    public static bool DrawEntityLinkField(string id, ref EntityLink link, float width, IMapPickContext? ctx, string path, string[]? presets, bool offerKey, bool consumePick, out bool byKey)
+    {
+        byKey = false;
+        var refs = ctx?.References;
+        bool changed = false;
+        int marks = (ctx != null ? 1 : 0) + (ctx is { Preview: not null } or { CanShowOnMap: true } ? 1 : 0) + (NeedsStableIdWarning(link, refs) ? 1 : 0);   // what follows the chip
+        string? gone = GoneText(link.Ref, refs);
+        var rows = refs is null ? (IReadOnlyList<EntityCandidate>)Array.Empty<EntityCandidate>() : EntityPickerRows.Of(refs).Rows(refs, SelectionOf(ctx));
+        var op = EntityField.Draw(id, ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f),
+            rows, refs is null ? 0 : EntityPickerRows.Of(refs).Version, gone, offerKey: offerKey, offerMap: ctx != null);
+        switch (op.Kind)
+        {
+            case EntityFieldOpKind.Pick: { var next = PickToLink(new EntityRef((int)op.Id), refs); if (next != link) { link = next; changed = true; } break; }
+            case EntityFieldOpKind.PickOnMap: ctx?.RequestEntityPick(path, presets); break;
+            case EntityFieldOpKind.ByKey: byKey = true; break;
+            case EntityFieldOpKind.Clear: if (!link.Ref.IsNone || !link.Spec.IsNone) { link = EntityLink.None; changed = true; } break;
+        }
+        if (ctx != null)
+        {
+            ImGuiApi.SameLine(0f, 4f);
+            if (ctx.IsPickPendingFor(path)) ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
+            else if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton("##mappick", NodeEditor.Core.Widgets.Icons.Get("form/map-pick"), "Pick it on the map"))
+                ctx.RequestEntityPick(path, presets);
+            if (consumePick && ctx.TryConsumeEntityPick(path, out var picked)) { link = PickToLink(picked, refs); changed = true; }
+        }
+        return changed;
+    }
+
+    /// <summary>
     /// The F4 controls over an <see cref="EntityLink"/> value: the <c>[Exact | Key]</c> switch, then the entity (name, Pick, List) or the key box.
     /// Shared by the EntityLink leaf and by the PointLink leaf's Entity form (which is why it takes the value by <c>ref</c>).
     /// </summary>
@@ -566,33 +600,16 @@ public static class ReferenceLeafDrawers
         {
             // ⭐ U-8 (DESIGN_Condition_Editor §8.2 ④, condition-expert-visual.svg) — THE THING BY NAME: one chip — its kind's glyph in colour · "Objective: Hold the
             // bridge" · ▾ — whose menu picks on the map, from a list, by key, or clears; then the map-pick glyph. ⛔ No Exact/Key radio, never "#10" when a name exists.
-            int marks = (ctx != null ? 1 : 0) + (ctx is { Preview: not null } or { CanShowOnMap: true } ? 1 : 0) + (NeedsStableIdWarning(link, refs) ? 1 : 0);   // what follows the chip
-            // ⭐ N-5 (DESIGN_Struct_Editor §5, CE-3382) — THE entity field (the kit's chip + its picker: type-ahead over name · side · kind · distance; map · key · clear); a gone thing reads red
-            string? gone = GoneText(link.Ref, refs);
-            var rows = refs is null ? (IReadOnlyList<EntityCandidate>)Array.Empty<EntityCandidate>() : EntityPickerRows.Of(refs).Rows(refs, SelectionOf(ctx));
-            var op = EntityField.Draw("##thing", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f),
-                rows, refs is null ? 0 : EntityPickerRows.Of(refs).Version, gone, offerKey: true, offerMap: ctx != null);
-            switch (op.Kind)
+            var refsNow = refs;
+            string? gone = GoneText(link.Ref, refsNow);
+            bool fieldChanged = DrawEntityLinkField("##thing", ref link, width, ctx, path, Presets(node), offerKey: true, consumePick: true, out bool byKey);
+            changed |= fieldChanged;
+            if (byKey)
             {
-                case EntityFieldOpKind.Pick: { var next = PickToLink(new EntityRef((int)op.Id), refs); if (next != link) { link = next; changed = true; } break; }
-                case EntityFieldOpKind.PickOnMap: ctx?.RequestEntityPick(path, Presets(node)); break;
-                case EntityFieldOpKind.ByKey:
-                {
-                    st.KeyForm[path] = true;
-                    var next = SwitchToKey(link, refs, out var text);
-                    st.KeyText[path] = text;
-                    if (next != link) { link = next; changed = true; }
-                    break;
-                }
-                case EntityFieldOpKind.Clear: if (!link.Ref.IsNone || !link.Spec.IsNone) { link = EntityLink.None; changed = true; } break;
-            }
-            if (ctx != null)
-            {
-                ImGuiApi.SameLine(0f, 4f);
-                if (ctx.IsPickPendingFor(path)) ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
-                else if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton("##mappick", NodeEditor.Core.Widgets.Icons.Get("form/map-pick"), "Pick it on the map"))
-                    ctx.RequestEntityPick(path, Presets(node));
-                if (ctx.TryConsumeEntityPick(path, out var picked)) { link = PickToLink(picked, refs); changed = true; }
+                st.KeyForm[path] = true;
+                var next = SwitchToKey(link, refs, out var text);
+                st.KeyText[path] = text;
+                if (next != link) { link = next; changed = true; }
             }
             if (NeedsStableIdWarning(link, refs))
             {
