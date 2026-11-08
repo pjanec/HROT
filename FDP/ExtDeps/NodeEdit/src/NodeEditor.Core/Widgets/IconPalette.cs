@@ -20,6 +20,7 @@ public static class IconPalette
     public static readonly Vector4 Grey   = new(0.60f, 0.60f, 0.60f, 1f);
     public static readonly Vector4 Violet = new(0.66f, 0.45f, 0.92f, 1f);
     public static readonly Vector4 Green  = new(0.25f, 0.80f, 0.30f, 1f);
+    public static readonly Vector4 Yellow = new(0.96f, 0.82f, 0.25f, 1f);   // ⭐ CE-3406 — the pen of a saveable Edit
     public static readonly Vector4 Amber  = new(1.00f, 0.70f, 0.20f, 1f);
     public static readonly Vector4 Blue   = new(0.30f, 0.60f, 1.00f, 1f);
     public static readonly Vector4 Teal   = new(0.25f, 0.78f, 0.75f, 1f);

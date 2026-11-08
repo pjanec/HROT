@@ -171,6 +171,17 @@ already lands in today.*
 | Ended ▾ menu: Run again · Restart from a checkpoint ▸ · DAR ▸ · AAR · Close | `MainToolbarTimeControlSection.EndedMenu` · `RunAgain` · `ReplayEndedExercise` | |
 | ■ and ⏪ greyed in the briefing (Live, paused, clock 0) | `LiveBriefing` · `IsStopEnabled` · `IsReviewEnabled` | `POST /sim/stop` is not the toolbar: it still answers |
 
+**R-3 `CE-3406` the indicator (ui):**
+
+| what | where | note |
+|---|---|---|
+| current mode only, no dim level: Edit pen (yellow) / eye steady (`SaveDisabledReason` ≠ null) · Preview eye (blinks) · Live ● red/green (steady paused, blinks running) · ended = `FlagCheckered` · DAR amber ⟲ · AAR blue ▶ | `RunModeChoice.Indicator` (interned: 0 B per read) | `IRunScenarioControl.SaveDisabledReason` = the session's ONE answer (pen, Save slot, File ▸ Save) |
+| drawn as a glyph button: neutral bg, lighter + frame on hover, small ▾ (triangle), hand cursor, tooltip | `MainToolbarTimeControlSection.DrawModeIndicator` · `GlyphWidgets.Neutral*` | tooltips = ind.png column 3 (`IndicatorTooltip`); *exercise N* omitted (no number) |
+| Edit menu: Edit ✓ · Live · AAR — open a recording… · Run to … · Close | `Moves` · `ModeMenu` · `CloseScenario` | menu built on click / while open only |
+| pen colour `IconPalette.Yellow` | `Icons "mode/edit"` | was grey |
+
+Rails: `RunIndicatorTests.R3_*`, `RunToolbarFrameRail.R3_*` (real frame, every ind.png row).
+
 **Deviations / open.** (1) A host with **no scenario session** (SimHost, IG) keeps ▶ greyed in Edit (reason *"No scenario session on this host — nothing to preview from here"*): the armed mode used to be what greyed it. (2) A host with **no ender** keeps today's ■ in Live (leaves to editing). (3) *Exercise N* is not in the Close question (no number on the inventory). (4) *Restart from a checkpoint ▸* is greyed: the live run's marks are not on the cluster view (hosts may supply `CheckpointLabels` / `RestoreCheckpoint`). (5) The End question's second sentence now describes the debrief, not *"returns to editing"*. (6) HTTP `/run-mode` untouched (backend B-5): its rails that expect the old arm-only `Choose` are listed in the build report.
 
 ## 1. ⭐ The three rules — the spine

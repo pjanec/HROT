@@ -6,6 +6,7 @@ using Fdp.Toolkit.Orchestration;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.RunMode;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -222,6 +223,12 @@ public sealed class MainToolbarTimeControlSection
     public ModeMenuModel? ModeMenu()
     {
         var model = WithRunTo(ModeMenuBase());
+        // ⭐ CE-3406 (story ②) — the Edit menu ends with Close (back to the Start screen, through the one door: unsaved edits ask first)
+        if (model is not null && _choice is { CanCloseScenario: true } closer && _facade.Mode == TransportMode.Edit)
+        {
+            var closing = new List<ModeMenuItem>(model.Items) { ModeMenuItem.Separator, new("Close", closer.CloseScenario, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.RightFromBracket) };
+            model = new(model.Header, closing);
+        }
         // ⭐ AQ108 D24 — the running scenario's variant and changed params, as plain (disabled) lines under the moves
         if (model is not null && _facade.Mode is not (TransportMode.Edit or TransportMode.Idle) && _runSetupLines?.Invoke() is { Count: > 0 } setup)
         {
@@ -772,31 +779,39 @@ public sealed class MainToolbarTimeControlSection
         _ => seat.ToString(),
     };
 
-    /// <summary>A coloured disc with the mode's letter; a click opens the mode menu (where there is one).</summary>
+    /// <summary>
+    /// ⭐ CE-3406 (AQ108 §0 D1′ + D29) — the mode indicator, drawn as a BUTTON in the kit's glyph-button look (<see cref="GlyphWidgets"/>: neutral background, lighter on hover) with a small ▾ (it opens the mode menu), the hand cursor and the
+    /// tooltip. The glyph is the CURRENT mode (<see cref="RunModeChoice.Indicator"/>): steady, or blinking while the run plays — no dim level. Zero allocation while nothing is hovered.
+    /// </summary>
     private void DrawModeIndicator(float size)
     {
         var mode = _facade.Mode;
-        // ⭐ CE-4097 — with a run choice the indicator draws ITS state (dim = armed, bright = paused run, blinking = playing; the words Preview / Live / DAR / AAR)
         var chosen = _choice?.Indicator;
         var ind = chosen is { } c ? new ModeIndicator(c.Glyph, c.Color, c.Word) : ModeGlyph(mode);
         if (ind is null) { ImGui.Dummy(new Vector2(size, size)); return; }
 
+        var icon = chosen?.Glyph ?? ModeIcon(mode)!;
+        var style = ImGui.GetStyle();
+        float caret = MathF.Max(5f, size * 0.22f);
+        var button = new Vector2(ImGui.CalcTextSize(icon).X + style.FramePadding.X * 2f + caret + 6f, size);
+        button.X = MathF.Max(button.X, size + caret + 4f);
         var pos = ImGui.GetCursorScreenPos();
-        bool clicked = ImGui.InvisibleButton("##mt_mode", new Vector2(size, size));
+        bool clicked = ImGui.InvisibleButton("##mt_mode", button);
         _runToAnchor = new Vector2(pos.X, pos.Y + size + 2);
         bool hovered = ImGui.IsItemHovered();
+        if (hovered) ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
         var dl = ImGui.GetWindowDrawList();
-        var icon = chosen?.Glyph ?? ModeIcon(mode)!;   // FontAwesome 6 Solid, drawn in the mode's colour
+        dl.AddRectFilled(pos, pos + button, ImGui.GetColorU32(hovered ? GlyphWidgets.NeutralHovered : GlyphWidgets.Neutral), style.FrameRounding);
+        if (hovered) dl.AddRect(pos, pos + button, ImGui.GetColorU32(GlyphWidgets.SelectedFrame), style.FrameRounding);
+        var alpha = chosen is { } ch ? RunModeIndicator.Alpha(ch.Level, ImGui.GetTime()) : 1f;
         var ts = ImGui.CalcTextSize(icon);
-        var alpha = chosen is { } ch ? RunModeIndicator.Alpha(ch.Level, ImGui.GetTime()) * (hovered ? 1f : 0.9f) : (hovered ? 1f : 0.85f);
-        dl.AddText(pos + (new Vector2(size, size) - ts) * 0.5f, ImGui.GetColorU32(ind.Color with { W = alpha }), icon);
+        float glyphX = pos.X + (button.X - caret - 6f - ts.X) * 0.5f + 3f;
+        dl.AddText(new Vector2(glyphX, pos.Y + (size - ts.Y) * 0.5f), ImGui.GetColorU32(ind.Color with { W = alpha }), icon);
+        // the ▾: a small triangle (no font glyph needed), neutral grey
+        float cx = pos.X + button.X - caret * 0.5f - 4f, cy = pos.Y + size * 0.55f, half = caret * 0.5f;
+        dl.AddTriangleFilled(new Vector2(cx - half, cy - half * 0.5f), new Vector2(cx + half, cy - half * 0.5f), new Vector2(cx, cy + half * 0.6f), ImGui.GetColorU32(new Vector4(0.7f, 0.7f, 0.74f, 1f)));
         if (hovered)
-        {
-            var behind = SecondsBehindLive();
-            ImGui.SetTooltip(mode == TransportMode.Review && behind is { } b ? $"DAR — {FormatSpan(b)} behind live"
-                           : chosen is { Level: IndicatorLevel.Dim } ? $"▶ will start: {ind.Name} (click to change)"
-                           : ind.Name);
-        }
+            ImGui.SetTooltip(_choice is { } cc ? cc.IndicatorTooltip(mode == TransportMode.Review ? SecondsBehindLive() : null) : ind.Name);
 
         // ⭐ CE-3413 — the menu is built when it is asked for (a click) and while it is open — never per frame (the moves, the DAR rows and the ended menu allocate)
         if (clicked && ModeMenu() is not null) ImGui.OpenPopup("##mt_mode_popup");

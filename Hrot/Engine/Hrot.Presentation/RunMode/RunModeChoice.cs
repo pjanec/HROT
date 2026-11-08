@@ -572,6 +572,12 @@ public sealed class RunModeChoice
         }
     }
 
+    /// <summary>⭐ CE-3406 (story ②) — the Edit menu's <i>Close</i>: back to the Start screen through the ONE door (unsaved edits ask first). False when this host's session has no door OUT.</summary>
+    public bool CanCloseScenario => _door is { CanLeave: true } && ClosedReason is null;
+
+    /// <summary>⭐ CE-3406 — <i>Close</i> (see <see cref="CanCloseScenario"/>).</summary>
+    public void CloseScenario() { if (CanCloseScenario) _door!.Leave(LeaveReason.Close); }
+
     /// <summary>⭐ CE-3413 — ⏏ in Live · ended: <i>Close the live session?</i> The exercise is kept; every station returns to the Start screen.</summary>
     private void AskToClose()
     {
@@ -704,7 +710,9 @@ public sealed class RunModeChoice
         foreach (var target in new[] { RunArmed.Preview, RunArmed.Live, RunArmed.AAR })
         {
             // ⭐ CE-3405 — "Preview" the MODE is the dry run (running); the move that gets you back to authoring is "Edit" (the armed-mode fact it sets is still Preview)
-            var label = target == RunArmed.Preview && mode != TransportMode.Preview ? "Edit" : target.ToString();
+            var label = target == RunArmed.Preview && mode != TransportMode.Preview ? "Edit"
+                      : target == RunArmed.AAR && mode is TransportMode.Edit or TransportMode.Idle && LastExercise is null ? "AAR — open a recording…"   // ⭐ CE-3406 (story ②): no exercise yet — the pick is the recording picker
+                      : target.ToString();
             // ⭐ CE-4111 — the SHOWN mode (what the indicator draws) is checked AND enabled; choosing it does nothing (the menu just closes). ⛔ No greyed "where you are" item.
             //    (A CLOSED gate still disables every item, the shown one included — CE-1442: the host takes no move at all.)
             if (closed is not null) { moves.Add(new(target, label, null, false, closed, target == Shown)); continue; }
@@ -874,30 +882,74 @@ public sealed class RunModeChoice
     private static Vector4 ColorOf(TransportMode mode) => MainToolbarTimeControlSection.ModeGlyph(mode)!.Color;
     private static readonly Vector4 RecordingRed = new(0.90f, 0.22f, 0.22f, 1f);
 
+    private static readonly List<RunModeIndicator> Interned = new();
+
+    /// <summary>⭐ CE-3406 — the indicators are a handful of values: each is built once and handed out again, so reading <see cref="Indicator"/> every frame allocates nothing.</summary>
+    private static RunModeIndicator Intern(string glyph, Vector4 color, string word, IndicatorLevel level)
+    {
+        lock (Interned)
+        {
+            foreach (var i in Interned)
+                if (i.Level == level && i.Color == color && ReferenceEquals(i.Glyph, glyph) && ReferenceEquals(i.Word, word)) return i;
+            var made = new RunModeIndicator(glyph, color, word, level);
+            Interned.Add(made);
+            return made;
+        }
+    }
+
     /// <summary>
-    /// ⭐ What the toolbar draws (AQ108 D1, §1a): DIM in Edit (R-3 replaces it with the pen), BRIGHT steady while a run is paused, BLINKING while it
-    /// plays. Live is RED when the broadcast says runs are recorded and GREEN when not (CE-4090). The words are the user's: Preview / Live / DAR / AAR.
+    /// ⭐ What the toolbar draws (AQ108 §0 D1′, CE-3406) — <b>the mode the cluster IS in</b>, no dim "armed" level. Edit: the yellow PEN on a world that can be saved, the violet EYE (steady) on one that cannot — a variant world, an error
+    /// (<see cref="IRunScenarioControl.SaveDisabledReason"/>, the ONE answer the Save slot and File › Save read too). Preview: violet eye, blinking while it runs. Live: ● RED when recorded / GREEN when not (CE-4090), steady paused, blinking running;
+    /// ⭐ Live · ended: the checkered FLAG in Live's colour. DAR amber ⟲. AAR blue ▶. The words are the user's: Edit / Preview / Live / DAR / AAR. Interned: 0 B per read.
     /// </summary>
     public RunModeIndicator Indicator
     {
         get
         {
             var mode = _transport.Mode;
-            var level = mode is TransportMode.Edit or TransportMode.Idle
-                ? IndicatorLevel.Dim
-                : _transport.IsPaused ? IndicatorLevel.Bright : IndicatorLevel.Blink;
-            return mode == TransportMode.Review
-                ? new(IconsFontAwesome6.ClockRotateLeft, ColorOf(TransportMode.Review), "DAR", level)
-                : Of(Shown, level);   // ⭐ CE-4111: the one shown value
+            var level = _transport.IsPaused ? IndicatorLevel.Bright : IndicatorLevel.Blink;
+            switch (mode)
+            {
+                case TransportMode.Review:  return Intern(IconsFontAwesome6.ClockRotateLeft, ColorOf(TransportMode.Review), "DAR", level);
+                case TransportMode.Preview: return Intern(IconsFontAwesome6.Eye, ColorOf(TransportMode.Preview), "Preview", level);
+                case TransportMode.Replay:  return Intern(IconsFontAwesome6.Play, ColorOf(TransportMode.Replay), "AAR", level);
+                case TransportMode.Live:
+                    var live = _transport.RecordsLiveRuns ? RecordingRed : ColorOf(TransportMode.Live);
+                    return LiveEnded ? Intern(IconsFontAwesome6.FlagCheckered, live, "Live", IndicatorLevel.Bright) : Intern(IconsFontAwesome6.Circle, live, "Live", level);
+                default:   // Edit / Idle — the pen where the world can be saved, the eye where it cannot
+                    return mode == TransportMode.Edit && _control?.SaveDisabledReason is not null
+                        ? Intern(IconsFontAwesome6.Eye, ColorOf(TransportMode.Preview), "Edit", IndicatorLevel.Bright)
+                        : Intern(IconsFontAwesome6.Pen, ColorOf(TransportMode.Edit), "Edit", IndicatorLevel.Bright);
+            }
         }
     }
 
-    private RunModeIndicator Of(RunArmed mode, IndicatorLevel level) => mode switch
+    /// <summary>
+    /// ⭐ CE-3406 — the indicator's tooltip (ind.png's third column). Built on hover only (allocates then, not per frame). <paramref name="behindLive"/>: a DAR's distance behind live, when known.
+    /// </summary>
+    public string IndicatorTooltip(double? behindLive = null)
     {
-        RunArmed.Preview => new(IconsFontAwesome6.Eye,   /* ⭐ CE-3394 / presets D9 — the eye replaces ◐ */ ColorOf(TransportMode.Preview), "Preview", level),
-        RunArmed.Live    => new(IconsFontAwesome6.Circle, _transport.RecordsLiveRuns ? RecordingRed : ColorOf(TransportMode.Live), "Live", level),
-        _                => new(IconsFontAwesome6.Play, ColorOf(TransportMode.Replay), "AAR", level),
-    };
+        var scenario = ScenarioOfRun() ?? _control?.LoadedScenarioName ?? "the scenario";
+        var recorded = _transport.RecordsLiveRuns ? "recorded" : "not recorded";
+        switch (_transport.Mode)
+        {
+            case TransportMode.Review:
+                return behindLive is { } b ? $"DAR — {MainToolbarTimeControlSection.FormatSpan(b)} behind live. ⏏ goes back to live" : "DAR — looking back inside the live run. ⏏ goes back to live";
+            case TransportMode.Preview:
+                return "Preview — a copy of the edit world: nothing is kept. ■ goes back to Edit";
+            case TransportMode.Replay:
+                return $"AAR — {scenario}. Click: Run again from here · Edit · Close";
+            case TransportMode.Live:
+                if (LiveEnded) return "Exercise ended — results ready. Click: Run again · checkpoint · DAR · AAR · Close";
+                return LiveBriefing ? $"Live — {recorded}. ▶ starts the exercise. Click: switch mode"
+                     : _transport.IsPaused ? $"Live — {recorded}, paused. Click: switch mode"
+                     : $"Live — {recorded}, running. Click: switch mode";
+            default:
+                return _control?.SaveDisabledReason is { } why && _transport.Mode == TransportMode.Edit
+                    ? $"Editing a variant (preview only) — not saveable: {why}"
+                    : $"Editing — your changes save to {scenario}. ▶ previews them. Click: switch mode";
+        }
+    }
 }
 
 /// <summary>

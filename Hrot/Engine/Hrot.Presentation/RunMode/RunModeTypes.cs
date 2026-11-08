@@ -81,6 +81,12 @@ public interface IRunScenarioControl
     void SaveCurrent();
 
     /// <summary>
+    /// ⭐ CE-3406 / CE-3408 (AQ108 §0 D27) — <b>THE one "can I save the scenario" answer</b> (<c>IScenarioSession.SaveDisabledReason</c>: the cluster half, then the variant gate): null ⇒ saveable. The indicator's pen, the Save slot and File › Save all read THIS.
+    /// A control with no scenario to save (a fake, a host with none) answers null. 0 B per read.
+    /// </summary>
+    string? SaveDisabledReason => null;
+
+    /// <summary>
     /// ⭐⭐ <b>Saves the live running state</b> — publishes the existing <c>TakeCheckpointIntent</c> to the master
     /// (<c>File/Checkpoint/Take Checkpoint</c>). One home for the publish: the session already holds the orchestration bus.
     /// </summary>

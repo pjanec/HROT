@@ -76,7 +76,7 @@ public sealed class ColourIconsFrameRail
             var i = MainToolbarTimeControlSection.ModeGlyph(m)!;
             Assert.Equal(glyph, i.Glyph); Assert.Equal(new Vector4(r, g, b, 1f), i.Color);
         }
-        Mode(TransportMode.Edit, IconsFontAwesome6.Pen, 0.60f, 0.60f, 0.60f);
+        Mode(TransportMode.Edit, IconsFontAwesome6.Pen, 0.96f, 0.82f, 0.25f);   // ⭐ CE-3406: the pen is YELLOW
         Mode(TransportMode.Preview, IconsFontAwesome6.Eye, 0.66f, 0.45f, 0.92f);
         Mode(TransportMode.Live, IconsFontAwesome6.Circle, 0.25f, 0.80f, 0.30f);
         Mode(TransportMode.Review, IconsFontAwesome6.ClockRotateLeft, 1.00f, 0.70f, 0.20f);
