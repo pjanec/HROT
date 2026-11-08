@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: §11d's D-A lean (wire-silent) is OVERTURNED — §12. §1's claim rows and §2's INVENTORY predate §11 / §12 (the wire and checkpoint rows are in §12c with their file:line). replay-and-modules §2.2 / §2.3 ("IG nodes … do not record and do not replay") are SUPERSEDED — every recording node replays (R-4010) · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcReplicationModule` (named beside `NedReplicationModule` as a mixed module) was removed with the BDC stack.
 known-conflict: UX/DESIGN_Replay_Browser_UX.md moves §9c's Replay Browser slider to the main bar (R-4153, `2026-11-06`) · DESIGN_Director_Timeline_Editor.md TL-4 (time = frame index + wall ticks) and TE-19 (a live host never seeks) — this design ADDS a sim axis and makes a seek on a live host ENTER a review (R10); both stand until the user approves §5
 related-designs:
+  - UX/DESIGN_Bookmarks_And_Notes.md — E7 builds on §12's "⚑ Mark this moment = a checkpoint": the key, a name / note / unit, the Marks window
   - UX/DESIGN_Review_Perspective.md — the AAR's Review perspective: search, frame diff over this node's recording, on the ONE replayed world
   - UX/DESIGN_Scenario_Lifecycle_Review.md — the whole author → live → DAR → AAR cycle walked for usability (LC-1…LC-21, 2026-11-07)
   - UX/DESIGN_Replay_Browser_UX.md — moves the Replay Browser's seek slider to the MAIN BAR and retires its Replay Timeline window (R-4153); supersedes §9c's "keeps its own … slider"
