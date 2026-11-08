@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: LIVE — dispatched, not started (RE-STAMPED, rule 1a: O-1 amended — ui had already built CE-4339; first stamp 802d9ff8b never reached behaviors)
 updated: 2026-11-08
 current-answer: the whole file
 related-designs:
@@ -20,7 +20,7 @@ item only (R-106). Leans you would have asked about: take the one that keeps ONE
 
 | # | id | what | basis | done when |
 |---|---|---|---|---|
-| **O-1** | B-17 P7 + CE-4339 | ⭐ **the gizmo looks, as the user approved them in your chat** (§2.6: placement ghost = map symbol 2-D / footprint 3-D / aircraft at altitude with a drop line · one drawing style · 3-D handles · pick crosshair + banner · rotate ring) **+ a backdrop behind the cursor hint and the banner** + ⭐ **CE-4339 moved here from ui's U-8**: a direction line from the placement centre toward the drag while dragging (Paste and the tool, 2-D and 3-D) — one gizmo, one lane | §2.6, §2.7; R-4146 fidelity | frame rails under `xvfb-run` per look; the side-by-side with your approved images in the report |
+| **O-1** | B-17 P7 | ⭐ **the gizmo looks, as the user approved them in your chat** (§2.6: placement ghost = map symbol 2-D / footprint 3-D / aircraft at altitude with a drop line · one drawing style · 3-D handles · pick crosshair + banner · rotate ring) **+ a backdrop behind the cursor hint and the banner** + ⭐ the placement direction line is ALREADY BUILT by ui (CE-4339, `PlacementDirectionLine`, [Map interaction — U-8 / U-9](../../UX/DESIGN_Map_Interaction.md)): ⛔ do not rebuild it — restyle it within the P7 looks, ONE drawer | §2.6, §2.7; R-4146 fidelity | frame rails under `xvfb-run` per look; the side-by-side with your approved images in the report |
 | **O-2** | CE-4350 | the mission plan editor offers only tasks that FIT the entity: classify each task by what it needs (mover, role, equipment) and filter through the action catalogue's `Requires` — the same `ActionAvailability` the Details tabs use (ui's Z-3), ⛔ not a second filter | Mission plan editor; R-4125 | a rail per class: a tank is not offered a dismount task, an infantry squad not a vehicle one; the picker's frame rail |
 | **O-3** | CE-4344 | a possessed shot that cannot fire NOW (reloading) is dropped — measure which side latches it (`PossessionStation` input or the weapon); fix it if it is the station; if it is the weapon, write the measured cause into the row (backend's X-2 builds it) | possession (yours) | a rail: trigger during a reload → no shot after it |
 | **O-4** | CE-4123 · CE-4124 · CE-4132 · CE-4133 · CE-4134 · CE-4136 · CE-4137 · CE-4139 | the filming findings, each ⚠ MEASURE FIRST (some may be intended tuning): run the scenario, decide defect vs description, fix the behaviour or correct the scenario's description — each row closed with its cause | each row | one line per row in the status file; a rail where a defect was fixed |

@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE
+state: WITHDRAWN 2026-11-08 — ui had ALREADY BUILT U-8 (CE-4339 done) before this steer; ignore it, U-8 stays yours as built
 updated: 2026-11-08
 current-answer: the whole file
 -->
