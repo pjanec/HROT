@@ -159,8 +159,19 @@ public sealed class TimelinePanel
     /// <summary>Shows <paramref name="window"/> (clamped to the extent) — a host zooming to an event, a rail, R1-d's jump.</summary>
     public void Show(TimelineWindow window) => _view.Show(window);
 
+    private Fdp.Toolkit.Input.KeymapReader _keys = null!;   // ⭐ B-10 K4 (§6g) — the timeline's rows of the one keymap (FocusedWindow, "Timeline"), read here
+    private float _panDragPx;                        // the movement accumulated while the pan button is held (the 2 px that start a drag, as ImGui's own threshold did)
+
+    /// <summary>⭐ B-10 K4 — reads the timeline's keys from <paramref name="keymap"/> through <paramref name="input"/> (production: the process's keymap and ImGui; a rail hands in its own).</summary>
+    internal void UseKeys(Fdp.Toolkit.Input.Keymap keymap, Fdp.Toolkit.Input.IChordInput input)
+    {
+        TimelineKeys.Declare(keymap);
+        _keys = new Fdp.Toolkit.Input.KeymapReader(keymap, Fdp.Toolkit.Input.InputScope.FocusedWindow, TimelineKeys.Kind) { Input = input };
+    }
+
     public TimelinePanel()
     {
+        UseKeys(Fdp.Toolkit.Input.Keymap.Process, new Fdp.Presentation.Input.ImGuiChordInput());
         _priorityOf = id => _byId.TryGetValue(id, out var d) ? d.Priority : 0;
         _nameOf = id => _byId.TryGetValue(id, out var d) ? d.DisplayName : id;
     }
@@ -271,8 +282,8 @@ public sealed class TimelinePanel
         ImGui.EndChild();
         if (ComingUpCount > 0) DrawComingUp();
 
-        PanAnywhere(io, width);
-        if (focused) Keys(io, index, all, width, now, cursor);
+        PanAnywhere(width);
+        if (focused) Keys(index, all, width, now, cursor);
         DrawMenu(index, cursor);
     }
 
@@ -306,8 +317,8 @@ public sealed class TimelinePanel
 
         var io = ImGui.GetIO();
         float mx = io.MousePos.X - p.X;
-        if (hovered && io.MouseWheel != 0)   // ⭐ T4 — the wheel zooms over the overview too, about the tick under the mouse
-            _view.Zoom(_view.Window.XOf(all.TicksAt(mx, width), width), width, TimelineView.WheelFactor(io.MouseWheel));
+        if (hovered && WheelZoom() is var wheel and not 0f)   // ⭐ T4 — the wheel zooms over the overview too, about the tick under the mouse
+            _view.Zoom(_view.Window.XOf(all.TicksAt(mx, width), width), width, TimelineView.WheelFactor(wheel));
         if (hovered && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
         {
             _view.Remember();
@@ -401,8 +412,8 @@ public sealed class TimelinePanel
         // to leave it, and the drag used to freeze until the mouse came back. The release ends it wherever it happens (T10).
         if (!hovered) { if (_drag is Drag.Scrub or Drag.Pan or Drag.Range) DragUpdate(io, w, width, mx, index); return; }
         _hoverX = mx;
-        if (io.MouseWheel != 0 && !io.KeyShift)   // ⭐ T4 / T5 — the plain wheel zooms over the ruler, proportional to the delta
-            _view.Zoom(mx, width, TimelineView.WheelFactor(io.MouseWheel));
+        if (WheelZoom() is var wheel and not 0f)   // ⭐ T4 / T5 — the wheel zooms over the ruler, proportional to the delta (Shift+wheel is the pan's: its own row shadows the zoom's)
+            _view.Zoom(mx, width, TimelineView.WheelFactor(wheel));
         bool offscreenArrow = (xn < 0 && mx <= 10) || (xn > width && mx >= width - 10);
         if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) { _view.Fit(); _drag = Drag.None; return; }   // fit all
         if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
@@ -475,8 +486,8 @@ public sealed class TimelinePanel
         var io = ImGui.GetIO();
         float mx = io.MousePos.X - p.X;
         _hoverX = mx;
-        if (io.KeyCtrl && io.MouseWheel != 0)   // Ctrl+wheel zooms anywhere; the plain wheel scrolls the lanes (the child's own)
-            _view.Zoom(mx, width, TimelineView.WheelFactor(io.MouseWheel));
+        if (_keys.Axis(TimelineKeys.ZoomWheelAnywhere) is var anywhere and not 0f)   // Ctrl+wheel zooms anywhere; the plain wheel scrolls the lanes (the child's own)
+            _view.Zoom(mx, width, TimelineView.WheelFactor(anywhere));
         int hit = TimelineLayout.MarkAt(_marks, mx, TimelineLayout.DefaultGlyphPx);
         var nearest = TimelineLayout.NearestEvent(index, lanes, w, width, mx, TimelineLayout.DefaultGlyphPx);
 
@@ -796,47 +807,69 @@ public sealed class TimelinePanel
 
     // ── input that applies over the whole panel ──────────────────────────────────────────────────────────────
 
-    private void PanAnywhere(ImGuiIOPtr io, float width)
+    /// <summary>⭐ B-10 K4 — the tracks of the last frame, for the key rails (no ImGui frame is needed to drive <see cref="Keys"/> and <see cref="PanFromInput"/>).</summary>
+    internal IReadOnlyList<ITimelineTrack>? TracksNow { set => _tracksNow = value; }
+
+    /// <summary>⭐ B-10 K4 — the wheel's zoom this frame: the plain wheel's row, or Ctrl+wheel's (the more specific row shadows the plain one when Ctrl is held, so the two never add up).</summary>
+    internal float WheelZoom() => _keys.Axis(TimelineKeys.ZoomWheel) + _keys.Axis(TimelineKeys.ZoomWheelAnywhere);
+
+    private void PanAnywhere(float width)
     {
         if (!ImGui.IsWindowHovered(ImGuiHoveredFlags.ChildWindows)) return;
-        float h = io.MouseWheelH != 0 ? io.MouseWheelH : io.KeyShift && !io.KeyCtrl ? io.MouseWheel : 0f;   // ⭐ T6
+        PanFromInput(width);
+    }
+
+    /// <summary>
+    /// ⭐ B-10 K4 — the pan the input asks for: the horizontal wheel, else Shift + the wheel (never with Ctrl — that zooms); the pan button held and moved. The hover is the caller's (ImGui's window state).
+    /// </summary>
+    internal void PanFromInput(float width)
+    {
+        float h = _keys.Axis(TimelineKeys.PanWheelH);
+        if (h == 0f && (_keys.Input!.Modifiers & NodeEditor.Primitives.KeyModifiers.Ctrl) == 0) h = _keys.Axis(TimelineKeys.PanWheel);   // ⭐ T6
         if (h != 0) _view.Pan(h * 40f, width);
-        if (ImGui.IsMouseDragging(ImGuiMouseButton.Middle, 2f) && io.MouseDelta.X != 0) _view.Pan(io.MouseDelta.X, width);   // middle drag pans
+        if (!_keys.Held(TimelineKeys.PanDrag)) { _panDragPx = 0f; return; }
+        float dx = _keys.Axis(TimelineKeys.PanDragX);
+        _panDragPx += Math.Abs(dx);
+        if (_panDragPx >= 2f && dx != 0) _view.Pan(dx, width);   // dragging pans (a click that moves under 2 px is not a drag)
     }
 
     /// <summary>⭐ §10b / R-4087 addendum 2 — the keymap, only while the panel is focused (⛔ never stolen from the map).</summary>
-    private void Keys(ImGuiIOPtr io, TimelineIndex index, string[] lanes, float width, long now, ITimelineCursor? cursor)
+    internal void Keys(TimelineIndex index, string[] lanes, float width, long now, ITimelineCursor? cursor)
     {
+        var k = _keys;
+        var mods = k.Input!.Modifiers;
+        bool ctrl = (mods & NodeEditor.Primitives.KeyModifiers.Ctrl) != 0, alt = (mods & NodeEditor.Primitives.KeyModifiers.Alt) != 0;
         bool seek = cursor is { CanSeek: true };
-        if (_tracksNow is { Count: > 0 } && io.KeyCtrl && !io.KeyAlt)   // ⭐ CE-1364 T3 — undo / redo of a track edit
+        if (_tracksNow is { Count: > 0 } && ctrl && !alt)   // ⭐ CE-1364 T3 — undo / redo of a track edit
         {
-            if (ImGui.IsKeyPressed(ImGuiKey.Z, true)) { if (io.KeyShift) Redo?.Invoke(); else Undo?.Invoke(); }
-            else if (ImGui.IsKeyPressed(ImGuiKey.Y, true)) Redo?.Invoke();
+            if (k.Pressed(TimelineKeys.Redo, allowRepeat: true)) Redo?.Invoke();
+            else if (k.Pressed(TimelineKeys.Undo, allowRepeat: true)) Undo?.Invoke();
         }
-        if (_tracksNow is { Count: > 0 } tracks && _axis != null && !io.KeyCtrl && !io.KeyAlt &&   // ⭐ CE-1364 T2 — K / J / L go to the selected item's track first
+        if (_tracksNow is { Count: > 0 } tracks && _axis != null && !ctrl && !alt &&   // ⭐ CE-1364 T2 — K / J / L go to the selected item's track first
             TrackLayout.SimSeconds(now, _axis, _timeMap) is { } playheadSim)
         {
-            if (ImGui.IsKeyPressed(ImGuiKey.K, false)) TrackLayout.OfferKey(tracks, 'K', playheadSim);
-            if (ImGui.IsKeyPressed(ImGuiKey.J, false)) TrackLayout.OfferKey(tracks, 'J', playheadSim);
-            if (ImGui.IsKeyPressed(ImGuiKey.L, false)) TrackLayout.OfferKey(tracks, 'L', playheadSim);
+            if (k.Pressed(TimelineKeys.OfferK)) TrackLayout.OfferKey(tracks, 'K', playheadSim);
+            if (k.Pressed(TimelineKeys.OfferJ)) TrackLayout.OfferKey(tracks, 'J', playheadSim);
+            if (k.Pressed(TimelineKeys.OfferL)) TrackLayout.OfferKey(tracks, 'L', playheadSim);
         }
-        if (ImGui.IsKeyPressed(ImGuiKey.Space, false) && cursor is { CanPlay: true }) cursor.TogglePlay();
-        if (ImGui.IsKeyPressed(ImGuiKey.F, false)) _view.Fit();
+        if (k.Pressed(TimelineKeys.Play) && cursor is { CanPlay: true }) cursor.TogglePlay();
+        if (k.Pressed(TimelineKeys.Fit)) _view.Fit();
         for (int i = 0; i < Presets.Length; i++)
-            if (ImGui.IsKeyPressed(ImGuiKey._0 + i, false)) { if (Presets[i] == 0) _view.Fit(); else _view.Last(Presets[i]); }
-        if (ImGui.IsKeyPressed(ImGuiKey.Backspace, false)) _view.Back();
-        if (ImGui.IsKeyPressed(ImGuiKey.Equal) || ImGui.IsKeyPressed(ImGuiKey.KeypadAdd)) _view.Zoom(width / 2, width, 0.8);
-        if (ImGui.IsKeyPressed(ImGuiKey.Minus) || ImGui.IsKeyPressed(ImGuiKey.KeypadSubtract)) _view.Zoom(width / 2, width, 1.25);
-        if (ImGui.IsKeyPressed(ImGuiKey.I, false)) _view.Range = (now, Math.Max(now, _view.Range?.To ?? now));
-        if (ImGui.IsKeyPressed(ImGuiKey.O, false)) _view.Range = (Math.Min(now, _view.Range?.From ?? now), now);
-        if (ImGui.IsKeyPressed(ImGuiKey.Escape, false)) _view.Range = null;
+            if (k.Pressed(TimelineKeys.Preset(i))) { if (Presets[i] == 0) _view.Fit(); else _view.Last(Presets[i]); }
+        if (k.Pressed(TimelineKeys.Back)) _view.Back();
+        if (k.Pressed(TimelineKeys.ZoomIn, allowRepeat: true)) _view.Zoom(width / 2, width, 0.8);
+        if (k.Pressed(TimelineKeys.ZoomOut, allowRepeat: true)) _view.Zoom(width / 2, width, 1.25);
+        if (k.Pressed(TimelineKeys.RangeIn)) _view.Range = (now, Math.Max(now, _view.Range?.To ?? now));
+        if (k.Pressed(TimelineKeys.RangeOut)) _view.Range = (Math.Min(now, _view.Range?.From ?? now), now);
+        if (k.Pressed(TimelineKeys.RangeClear)) _view.Range = null;
         if (index.FrameTicks.Count == 0) return;
 
-        bool left = ImGui.IsKeyPressed(ImGuiKey.LeftArrow), right = ImGui.IsKeyPressed(ImGuiKey.RightArrow);
+        bool eventBack = k.Pressed(TimelineKeys.EventPrevious, allowRepeat: true), eventForward = k.Pressed(TimelineKeys.EventNext, allowRepeat: true);
+        bool left = eventBack || k.Pressed(TimelineKeys.StepBack, allowRepeat: true), right = eventForward || k.Pressed(TimelineKeys.StepForward, allowRepeat: true);
         if (left || right)
         {
             int frame = _selected is { } s && !seek ? s.Frame : index.FrameAt(now);
-            if (io.KeyShift || !seek)
+            if (eventBack || eventForward || !seek)
             {
                 // Shift+←/→ — the previous / next event; ⭐ on a LIVE host (no seek) the arrows move the SELECTION, never the time
                 var e = TimelineLayout.Adjacent(index, lanes, frame, forward: right);
@@ -852,8 +885,8 @@ public sealed class TimelinePanel
                 cursor!.Seek(index.FrameTicks[f]);
             }
         }
-        if (seek && ImGui.IsKeyPressed(ImGuiKey.Home, false)) { cursor!.Seek(index.FrameTicks[0]); _view.Reveal(index.FrameTicks[0]); }
-        if (seek && ImGui.IsKeyPressed(ImGuiKey.End, false)) { cursor!.Seek(index.FrameTicks[^1]); _view.Reveal(index.FrameTicks[^1]); }
+        if (seek && k.Pressed(TimelineKeys.First)) { cursor!.Seek(index.FrameTicks[0]); _view.Reveal(index.FrameTicks[0]); }
+        if (seek && k.Pressed(TimelineKeys.Last)) { cursor!.Seek(index.FrameTicks[^1]); _view.Reveal(index.FrameTicks[^1]); }
     }
 
     // ── the right-click menu ─────────────────────────────────────────────────────────────────────────────────
