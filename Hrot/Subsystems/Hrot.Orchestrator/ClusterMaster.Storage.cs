@@ -119,6 +119,21 @@ public sealed partial class ClusterMaster
     /// <summary>The import's push (the existing ImportArchive path, as the head job).</summary>
     private bool StartImport(ExecuteStorageOpIntent intent)
     {
+        // ⭐ CE-4330 ④ (§7.2) — only the nodes that LACK the recording get it (fact ③, NodesHolding); every node holds it ⇒ the job ends at once (the cache hit, §5a)
+        var all = BuildNodeDistributionTargetsForExercise(intent.ExerciseId);
+        var holding = NodesHolding(intent.ExerciseId);
+        var targets = new List<NodeDistributionTarget>(all.Count);
+        foreach (var t in all)
+        {
+            bool has = false;
+            for (int i = 0; i < holding.Count; i++) if (holding[i] == t.NodeId) { has = true; break; }
+            if (!has) targets.Add(t);
+        }
+        if (targets.Count == 0)
+        {
+            EndStorageJob(intent.RequestId, StorageJobState.Done, null);
+            return false;
+        }
         var importCts = new CancellationTokenSource();
         _activeCancellations[intent.RequestId] = importCts;
         var progress = new StorageTransferProgress();
@@ -128,7 +143,7 @@ public sealed partial class ClusterMaster
         {
             RequestId  = intent.RequestId,
             ExerciseId = intent.ExerciseId.ToString(),
-            Targets    = BuildNodeDistributionTargetsForExercise(intent.ExerciseId),
+            Targets    = targets,
             Cts        = importCts,
             Progress   = progress,
         });
@@ -139,8 +154,38 @@ public sealed partial class ClusterMaster
     /// Every frame: the running job's end (its own request's final status, published by the transfer), its numbers, giving way while a Live runs
     /// (Q5), the next job, and the list to the stations.
     /// </summary>
+    private readonly HashSet<Guid> _autoResumed = new();   // ⑧ — exercises already resumed (or just failed) since the roster last grew
+    private readonly HashSet<Guid> _cancelledArchives = new();   // ⑧ — an archive the operator CANCELLED is never resumed by itself (this session)
+    private int _rosterSizeAtResume;
+
+    /// <summary>
+    /// ⭐ CE-4330 ⑧ (§3 P5 ①, §7.2 "the master restarts mid-job") — an archive cut short RESUMES BY ITSELF: an exercise still on the nodes whose NAS copy is
+    /// INCOMPLETE (fact ②) and that no job holds gets a new Archive job (the pull skips the files already whole). Once per exercise — and again whenever
+    /// a node joins (the missing one may be back). ⛔ Never a loop on a node that stays away: a failed resume waits for the roster to grow.
+    /// </summary>
+    private void ResumeIncompleteArchives()
+    {
+        if (_roster.ActiveNodes.Count > _rosterSizeAtResume) _autoResumed.Clear();
+        _rosterSizeAtResume = _roster.ActiveNodes.Count;
+        foreach (var inv in _eventBus.ReadManaged<AssetInventoryUpdateEvent>())
+        {
+            var onNodes = inv.UnarchivedLocalExercises;
+            if (onNodes == null) continue;
+            for (int i = 0; i < onNodes.Length; i++)
+            {
+                var item = onNodes[i];
+                if (item.NasState != ArchiveNasState.Incomplete) continue;
+                Guid id = (Guid)item.ExerciseId;
+                if (_storageJobs.ActiveFor(id) != null || _cancelledArchives.Contains(id) || !_autoResumed.Add(id)) continue;
+                FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4330 ⑧: exercise {0}'s archive is incomplete ({1} of {2}) — resumed.", id, item.NasFiles, item.NasFilesTotal);
+                SubmitStorageJob(StorageIntents.Archive(id, "resume"), StorageJobKind.Archive);
+            }
+        }
+    }
+
     private void TickStorageJobs()
     {
+        ResumeIncompleteArchives();
         if (_storageJobs.Running is { } run)
         {
             foreach (var ev in _eventBus.ReadManaged<ClusterOpCompletedEvent>())
@@ -180,6 +225,12 @@ public sealed partial class ClusterMaster
     {
         if (_activeCancellations.Remove(jobId, out var cts)) cts.Dispose();
         _jobProgress.Remove(jobId);
+        if (_storageJobs.Find(jobId) is { Kind: StorageJobKind.Archive } ended)
+        {
+            if (end == StorageJobState.Cancelled) _cancelledArchives.Add((Guid)ended.ExerciseId);
+            else if (end == StorageJobState.Failed) _autoResumed.Add((Guid)ended.ExerciseId);   // ⑧ — retried when a node joins, not at once
+            else _cancelledArchives.Remove((Guid)ended.ExerciseId);
+        }
         var owed = _storageJobs.Finish(jobId, end, reason);
         var code = end switch
         {

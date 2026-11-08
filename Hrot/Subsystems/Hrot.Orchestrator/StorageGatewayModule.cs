@@ -787,6 +787,13 @@ public sealed class StorageGatewayModule
                 $"[Gateway] PrefetchArchive: NAS source directory '{sourceDir}' does not exist. " +
                 $"Ensure exercise '{exerciseId}' is archived to the NAS before issuing a replay prefetch.");
 
+        // ⭐ CE-4330 / CE-4331 (§9) — a node with no recording of its own in the archive LISTENS (it restores nothing and takes the world from the
+        //   replaying nodes): it is not sent anything and is not a failure. ⛔ Only a file that exists and does not arrive counts as failed.
+        var withFile = new List<NodeDistributionTarget>(targets.Count);
+        foreach (var target in targets)
+            if (File.Exists(Path.Combine(sourceDir, OrchestrationConstants.GetNodeRecordingFileName(target.NodeId)))) withFile.Add(target);
+        targets = withFile;
+
         // ⭐ P6 — through the provider: each node gets ITS OWN recording (and the schema manifest beside it, so replay
         //   validation succeeds), one request per node.
         var pushes = targets.Select(target =>
