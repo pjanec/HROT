@@ -101,6 +101,7 @@ obtrusive"* · *"ok leans are fine"*
 | **D1′** | **The indicator glyph = the current mode.** Edit: the **yellow pen** on a saveable world (variant 0, cluster not in error — presets D10, R-3083), the **violet eye, steady** on a variant world (not saveable). Preview running: violet eye, blinking. Live: ● red when recorded / green when not; steady when paused, blinking while running. DAR: amber ⟲. AAR: blue ▶. ⛔ No dim "armed" level any more. | D1 *"the mode is a CHOICE of what ▶ runs, shown dim before the start"* |
 | **D5′** | ■ follows R2′ | D5 |
 | **D27** | **▶'s GLYPH takes the indicator's colour** (Live red / green by recording too); never the button's background. **▾ (presets)** only where a load with a preset makes sense: Edit (reopens with it) and Live paused at the start (reloads Live with it) — never while running, in DAR or in AAR. **Save** = the floppy in Edit (greyed with its reason when not saveable, and in Preview); the **amber flag** (take a checkpoint) in Live / DAR / AAR, where Ctrl+S checkpoints. Save on / off is ONE answer (`IScenarioSession.SaveDisabledReason`, extended with the cluster state + error) that the pen, the button and File ▸ Save all read | — |
+| **D29** | **The indicator is visibly a BUTTON**: drawn as the kit's glyph button (`GlyphWidgets` — neutral background, lighter and framed on hover) with a small ▾ (it opens the mode menu), the hand cursor and the tooltip on hover. ⛔ Today it is a bare glyph on an `InvisibleButton` whose only hover feedback is alpha 0.9 → 1.0 (`MainToolbarTimeControlSection.DrawModeIndicator`), so nobody can tell it is clickable | user `2026-11-08`: *"the armed mode indicator now was not responding to hovering, so the user didn't know that it can press and click"* |
 | **D28** | **A Live that is left without its clock ever running leaves no recording**: the master mints the exercise at the live load (CE-3310) and the first keyframe is written then (CE-3313) — switching to Live and away again would list an empty exercise; the master DROPS an exercise whose sim clock never advanced | — (new; the cost of R1′) |
 
 ```mermaid
@@ -137,7 +138,7 @@ already lands in today.*
 | the Edit branch of `RunModeChoice.Plan`: from `Arm(target)` to the unsaved check + the switch (Live: the unsaved check then `GoLive` WITHOUT the resume; AAR: `OpenRecording` / the picker) | `Hrot.Presentation/RunMode/RunModeChoice.cs` `Plan` default branch, `PlayLive`, `Play` |
 | `Play` in Edit = always the preview; in Live paused = resume | same file, `Play` |
 | ■ in Live → reload Live paused at the start (not `OpenForEdit`) | `StopLive` |
-| the indicator: the current mode, no dim level; the pen / steady eye in Edit | `RunModeChoice.Indicator`, `MainToolbarTimeControlSection.DrawModeIndicator` |
+| the indicator: the current mode, no dim level; the pen / steady eye in Edit; drawn as a glyph button with ▾ + hover (D29) | `RunModeChoice.Indicator`, `MainToolbarTimeControlSection.DrawModeIndicator` |
 | ▶ colour from the indicator (recording red / green) | `MainToolbarTimeControlSection.PlayColour` |
 | ▾ in Edit and Live-paused-at-start only | `ShowsPresetArrow` |
 | Save: the floppy / the flag / greyed, one reason | the shell's Save slot (`ShellSaveCommands`, `shell/save` icon), `IScenarioSession.SaveDisabledReason` |

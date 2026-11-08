@@ -22,6 +22,8 @@ ROWS = [
     ("EDIT — the indicator shows the mode you ARE in; ▶ previews what you edit", None),
     ("Edit · saveable (variant 0, healthy cluster)", (FA.PEN, YELLOW, 1.0, ""), (FA.PLAY, VIO, False, True), (FLOPPY, C.TXT, False),
      "Editing — your changes save to Night attack. ▶ previews them. Click: switch mode", "Save scenario (Ctrl+S)"),
+    ("Edit · HOVERED (button + hand cursor)", (FA.PEN, YELLOW, 1.0, "hover"), (FA.PLAY, VIO, False, True), (FLOPPY, C.TXT, False),
+     "Editing — your changes save to Night attack. ▶ previews them. Click: switch mode", "Save scenario (Ctrl+S)"),
     ("Edit · a variant preset is loaded (not saveable)", (FA.EYE, VIO, 1.0, ""), (FA.PLAY, VIO, False, True), (FLOPPY, C.TXT, True),
      "Editing a variant (preview only) — not saveable: built with variant 3. Click: switch mode", "Not saved: this world was built with variant 3 — load the scenario as authored to save"),
     ("Preview running (blinks; ■ → Edit)", (FA.EYE, VIO, 1.0, ""), (PAUSE, VIO, False, False), (FLOPPY, C.TXT, True),
@@ -41,7 +43,7 @@ ROWS = [
 ]
 
 W = 1330
-H = 96 + sum(30 if r[1] is None else 40 for r in ROWS) + 175
+H = 96 + sum(30 if r[1] is None else 40 for r in ROWS) + 195
 s = Svg(W, H, "The run indicator, ▶ and Save — every state (switch now)",
         "Scope: the mode indicator, ▶ (+ ▾) and Save. The rest of the toolbar is context — unchanged. Grey text is annotation.")
 
@@ -53,8 +55,11 @@ y += 14
 
 def toolbar(x, y, ind, play, save):
     s.rect(x, y, 170, 30, C.BG, stroke=C.BORDER, rx=3)
-    g, col, a, mark = ind                                 # the indicator
-    s.glyph(g, x + 10, y + 7, col, 16, op=a)
+    g, col, a, mark = ind                                 # the indicator — the kit's glyph button (D29): neutral background, lighter on hover, ▾ = it opens a menu
+    hov = mark == "hover"
+    s.rect(x + 4, y + 4, 32, 22, C.NEUTRALSEL if hov else C.NEUTRAL, stroke="#C8C8D4" if hov else None, rx=3)
+    s.glyph(g, x + 8, y + 7, col, 15, op=a)
+    s.glyph(CARET, x + 26, y + 10, C.SUB, 8)
     pg, pc, pd, caret = play                               # ▶ — the GLYPH takes the colour, never the background
     s.rect(x + 40, y + 4, 26, 22, C.BTN, rx=3)
     s.glyph(pg, x + 47, y + 8, pc, 14, op=0.55 if pd else 1)
@@ -92,6 +97,7 @@ s.note(X_STATE, y, [
     "THE RULES (AQ108 §0, user 2026-11-08 — SWITCH NOW)",
     "• The indicator shows the mode you ARE in. Choosing a mode in its menu SWITCHES at once: leaving Edit with unsaved edits asks Save / Discard / Cancel first.",
     "  → Live: loads Live PAUSED at the start (▶ starts the exercise) · → AAR: opens the last exercise (or the picker) at its start · → Edit (Preview): reopens the scenario.",
+    "• The indicator is a BUTTON (D29): the kit's glyph button (neutral background, lighter + framed on hover, hand cursor) with a small ▾ — it opens the mode menu.",
     "• The YELLOW PEN = Edit on a saveable world (variant 0 · not in error). A variant world in Edit: the violet eye, steady. ▶ in Edit is always the preview.",
     "• ▶'s GLYPH is in the indicator's colour (violet · Live RED recorded / GREEN not · amber DAR · blue AAR) — never the background.",
     "• ▾ (presets) only where a load with a preset makes sense: Edit (reopens with it) and Live paused at the start (reloads Live with it). Never while running, in DAR or AAR.",
