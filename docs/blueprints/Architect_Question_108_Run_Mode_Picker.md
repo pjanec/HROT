@@ -1672,6 +1672,14 @@ headless editor; `ScenarioSaveCore.BuildDom` on the live world vs on a sandbox r
 hand the sandbox the live world's read-only CONTENT singletons (`TerrainWorld`, …) by reference; and skip / defer an autosave while a hot reload is pending
 (or extract on the frame thread when one ran since the capture).
 
+✅ **DECIDED `2026-11-08` — the amendment (option A), by the user:** *"Otherwise option A accepted."* ⭐ What the shared content is for, asked and
+answered: the save reads `TerrainWorld` ONLY for the terrain's AUTHORED door states, so a door still as authored is not written
+(`TerrainObjectsSection.cs:36-46`), and the header reads names and text (description, terrain name, features). ⛔ Neither is a query of the
+current world — 🔒 the user restated R-2037 here: *"the terrain on brain should only be needed to render the map and never to be queried as only the
+muscle knows the current state of potentially changing world"*. The save writes door states FROM `DoorState` (the current state, owned by its
+authority) and compares them only with the authored file values. "Shared" = the sandbox points at the editor's already-loaded, read-only objects
+instead of copying them.
+
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
 
