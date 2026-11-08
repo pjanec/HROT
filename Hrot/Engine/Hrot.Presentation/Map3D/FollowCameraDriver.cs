@@ -109,6 +109,12 @@ public sealed class FollowCameraDriver : ICameraDriver
         if (Alive) Update(camera, 0f);
     }
 
+    /// <summary>⭐ B-10 K2 (R-4169) — the follow camera's own keys (the ones that hand the camera back): a CAMERA scope in front of the map scope, overriding only these.
+    /// Every other map letter (Center, Select …) keeps working while following — the follow is Observe's camera, not a hat.</summary>
+    public bool OwnsKey(MapKeyboardKey key)
+        => key == (MapKeyboardKey)Raylib_cs.KeyboardKey.Escape || key == (MapKeyboardKey)Raylib_cs.KeyboardKey.W || key == (MapKeyboardKey)Raylib_cs.KeyboardKey.A
+        || key == (MapKeyboardKey)Raylib_cs.KeyboardKey.S || key == (MapKeyboardKey)Raylib_cs.KeyboardKey.D;
+
     public bool HandleInput(MapCamera3D camera, IInputProvider input)
     {
         if (input.IsKeyPressed((MapKeyboardKey)Raylib_cs.KeyboardKey.Escape)

@@ -117,20 +117,27 @@ namespace Hrot.ScenarioEditor.Map
 
     /// <summary>
     /// ⭐ CE-1076 — the canvas' half: every key typed on the map (the canvas routes only keys no panel took) becomes a
-    /// <see cref="MapShortcutKeyEvent"/> for <see cref="MenuShortcuts"/>. Silent while a camera driver (first person) holds the map —
-    /// there W, A, S, D and C drive the unit — and while the free-fly camera is flying (B-10 K2, CE-4281). Consumes nothing.
+    /// <see cref="MapShortcutKeyEvent"/> for <see cref="MenuShortcuts"/> and <see cref="EscapeChain"/>. Consumes nothing.
+    /// <para>⭐ B-10 K2 (docs/UX/DESIGN_Input_And_Commands.md §6, R-4169) — the two scopes IN FRONT of the map scope decide when it stands down:
+    /// ① the HAT scope — the <b>Embodied</b> (first person: W A S D C drive the unit) and <b>Direct</b> (director) hats own the keyboard, read from
+    /// the <see cref="HatArbiter"/> (<paramref name="hat"/>), never from the camera's state; ② the CAMERA scope — only the keys the camera reads
+    /// itself (<see cref="Fdp.Toolkit.Vis3D.MapCamera3D.OwnsKey"/>: the free camera's W A S D E Q while it flies, a follow camera's W A S D Esc).
+    /// ⛔ A follow camera is NOT a hat: Center, Select … keep working while following.</para>
     /// </summary>
     public sealed class MenuShortcutKeyLayer : IMapLayer
     {
         private readonly FdpEventBus _bus;
         private readonly Func<Fdp.Toolkit.Vis2D.Components.MapCamera?> _camera;
         private readonly Func<bool> _modified;
+        private readonly Func<Hrot.Common.Editing.Hat>? _hat;
 
-        public MenuShortcutKeyLayer(FdpEventBus bus, Func<Fdp.Toolkit.Vis2D.Components.MapCamera?> camera, Func<bool>? modified = null)
+        public MenuShortcutKeyLayer(FdpEventBus bus, Func<Fdp.Toolkit.Vis2D.Components.MapCamera?> camera, Func<bool>? modified = null,
+            Func<Hrot.Common.Editing.Hat>? hat = null)
         {
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));
             _camera = camera ?? throw new ArgumentNullException(nameof(camera));
             _modified = modified ?? CtrlOrAltHeld;
+            _hat = hat;
         }
 
         public string Name => "Menu shortcuts";
@@ -139,9 +146,10 @@ namespace Hrot.ScenarioEditor.Map
 
         public bool HandleKeyInput(VisKey key)
         {
-            if (_camera() is Fdp.Toolkit.Vis3D.MapCamera3D { Driver: not null }) return false;
-            // ⭐ B-10 K2 (CE-4281) — nor while the free-fly camera is flying: its W A S D E Q are held movement keys, never Attack / Strike / Edit
-            if (_camera() is Fdp.Toolkit.Vis3D.MapCamera3D { IsFlying: true }) return false;
+            // ① the hat scope: the Embodied and Direct hats own the keyboard
+            if (_hat?.Invoke() is Hrot.Common.Editing.Hat.Embodied or Hrot.Common.Editing.Hat.Direct) return false;
+            // ② the camera scope: only the keys the camera itself reads (a flying free camera, a follow camera's hand-back keys, a driver's own)
+            if (_camera() is Fdp.Toolkit.Vis3D.MapCamera3D cam && cam.OwnsKey(key)) return false;
             if (_bus.IsRegistered<MapShortcutKeyEvent>())
                 _bus.Publish(new MapShortcutKeyEvent { Key = (int)key, Modified = _modified() });
             return false;

@@ -639,7 +639,8 @@ namespace Hrot.ScenarioEditor.Map
             var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);
             canvas.AddLayer(audio);
             // ⭐ CE-1076 — the keys typed on the map go to the map's MenuShortcuts (the unit menu's M, A, H, P, C …), every host
-            canvas.AddLayer(new MenuShortcutKeyLayer(bus, () => canvas.Camera));
+            canvas.AddLayer(new MenuShortcutKeyLayer(bus, () => canvas.Camera,
+                hat: () => HatArbiter.Of(worldProvider())?.Active ?? Hrot.Common.Editing.Hat.Observe));   // ⭐ B-10 K2 — the hat scope, from the arbiter (not the camera)
             // ⭐ CE-3289 (§6ab, R-3032) — the film: a director camera and a clean capture of the scene, on every map host; LAST, so its
             //   update runs after every other layer's (the frame it captures is complete) and its director wins the camera.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.FilmCaptureLayer(canvas, viewSwitch, worldProvider));
