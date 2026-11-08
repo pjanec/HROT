@@ -45,6 +45,9 @@ public enum DoorQuestionKind
     NeverSaved,
     /// <summary>⭐ <c>CE-1442</c> (U1) — the run gate is closed (the cluster is not ready / loading / in error): the move is REFUSED; <see cref="DoorQuestion.Text"/> is the reason. Not a question: it has no buttons.</summary>
     Refused,
+    /// <summary>⭐ <c>CE-4099</c> (AQ108 §4c A7) — the scenario being opened for editing has a recoverable autosave: <i>Recover unsaved changes from HH:mm?</i> — <i>Recover</i> / <i>Open the saved one</i> (the asker adds Cancel).
+    /// Asked ONLY of an asker that <see cref="IDoorAsker.CanPrompt"/>s: HTTP never gets it (it keeps its explicit <c>recoverAutosave</c> flag).</summary>
+    RecoverAutosave,
 }
 
 /// <summary>
@@ -61,6 +64,9 @@ public interface IDoorAsker
 {
     /// <summary>The caller has already said it does not care about unsaved edits (a harness's <c>discardUnsaved</c>): the door then asks no check round at all.</summary>
     bool DiscardsUnsaved { get; }
+
+    /// <summary>⭐ CE-4099 A7 — this asker has someone to ask. <see langword="false"/> (HTTP, the film director): an optional question — the autosave offer — is never put to it; the move goes ahead as the caller asked.</summary>
+    bool CanPrompt => true;
 
     /// <summary>Puts <paramref name="question"/> to whoever answers; the button pressed runs its action (that is how the move continues).</summary>
     void Ask(DoorQuestion question);
@@ -120,6 +126,9 @@ public sealed class RefusingAsker : IDoorAsker
 
     /// <inheritdoc/>
     public bool DiscardsUnsaved => _discard;
+
+    /// <inheritdoc/>
+    public bool CanPrompt => false;   // ⭐ CE-4099 A7 — nobody to ask: HTTP recovers only with its explicit flag
 
     /// <summary>The text of the refusal, or <see langword="null"/> when nothing was refused (the move went, or is still deciding).</summary>
     public string? Refusal { get; private set; }
@@ -222,6 +231,15 @@ public sealed class ScenarioDoor
     /// </summary>
     public Func<DoorOpen>? LoadTarget { get; set; }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4099</c> (AQ108 §4c A7, §4c.3) — set by the host's session: the state of a scenario's autosave (<c>AutosaveFiles.Read</c> over the NAS root). <see langword="null"/> (a door nobody gave one: a bare rail, a host with no NAS) ⇒ the open
+    /// never offers a recovery. Read ONCE per open of a scenario for editing — a user action, a file read, never per frame.
+    /// </summary>
+    public Func<string, Fdp.Toolkit.Orchestration.AutosaveFiles.Status>? AutosaveOf { get; set; }
+
+    /// <summary>⭐ CE-4099 A7 — set by the run choice: the ONE toast (<see cref="RunModeChoice.Toasts"/>) — where "the autosave was not offered" is said.</summary>
+    public Action<string>? Notify { get; set; }
+
     /// <summary>⭐ CE-3413 — this door has a raw leave to Idle (the session gave one); a bare door has only the unsaved question for Exit.</summary>
     public bool CanLeave => _leave is not null;
 
@@ -261,12 +279,48 @@ public sealed class ScenarioDoor
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         var raw = Raw;
-        Admit(DoorMove.OpeningScenario(scenarioName), asker, answered, () =>
+        var a = asker ?? _asker;
+        Admit(DoorMove.OpeningScenario(scenarioName), asker, answered, () => OfferRecovery(scenarioName, a, recover =>
         {
-            if (argsJson is null) raw.OpenForEdit(scenarioName); else raw.OpenForEdit(scenarioName, argsJson);
+            if (recover) raw.OpenForEdit(scenarioName, argsJson, recoverAutosave: true);   // ⭐ CE-4099 A7 — the edit load carries RecoverAutosave
+            else if (argsJson is null) raw.OpenForEdit(scenarioName); else raw.OpenForEdit(scenarioName, argsJson);
             then?.Invoke();
-        });
+        }));
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4099</c> (AQ108 §4c A7) — <b>the recovery offer</b>, after the door let the open through (a run stopped, unsaved edits answered): a scenario with a recoverable autosave asks <i>Recover unsaved changes from HH:mm?</i>
+    /// through THIS door's one asker (no second dialog type); a STALE autosave (the scenario was saved since) is not offered — the open proceeds and the toast says why; no autosave, no lookup seam or an asker with nobody to ask
+    /// (<see cref="IDoorAsker.CanPrompt"/>: HTTP keeps its explicit flag) ⇒ the plain open.
+    /// </summary>
+    private void OfferRecovery(string scenarioName, IDoorAsker asker, Action<bool> open)
+    {
+        if (AutosaveOf is not { } lookup || !asker.CanPrompt) { open(false); return; }
+        Fdp.Toolkit.Orchestration.AutosaveFiles.Status st;
+        try { st = lookup(scenarioName); }
+        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or ArgumentException) { open(false); return; }   // a name that has no folder of its own (a recipe, a macro) or an unreadable share: no offer
+        if (!st.Exists) { open(false); return; }
+        if (st.Refusal is { } why)
+        {
+            Notify?.Invoke($"The autosave of '{scenarioName}' was not offered: {why}.");
+            open(false);
+            return;
+        }
+        asker.Ask(new DoorQuestion(DoorQuestionKind.RecoverAutosave, "Recover", RecoverText(st.AtUtc),
+            new[]
+            {
+                new RunModeConfirmation.Button(RecoverLabel, () => open(true)),
+                new RunModeConfirmation.Button(OpenSavedLabel, () => open(false)),
+            }));
+    }
+
+    /// <summary>⭐ CE-4099 A7 — the first button: open the autosave.</summary>
+    public const string RecoverLabel = "Recover";
+    /// <summary>⭐ CE-4099 A7 — the second button: ignore the autosave and open the saved file.</summary>
+    public const string OpenSavedLabel = "Open the saved one";
+
+    /// <summary>⭐ CE-4099 A7 — the question's words: <i>Recover unsaved changes from 14:41?</i> (the autosave's time in the operator's local clock).</summary>
+    public static string RecoverText(DateTime atUtc) => $"Recover unsaved changes from {atUtc.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)}?";
 
     /// <summary>
     /// ⭐⭐⭐ <c>CE-1443</c> (U2a, R-1043) — <b>THE operator's scenario load: it goes into the cluster's CURRENT armed mode, on every host.</b> Live armed ⇒ <see cref="LoadLive"/> (a fresh exercise, paused at the start); Preview armed (and, until the master

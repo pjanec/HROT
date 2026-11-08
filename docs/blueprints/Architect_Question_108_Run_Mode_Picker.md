@@ -1749,6 +1749,17 @@ on the NAS is renamed or overwritten, so declining the recovery (a plain open) l
 | stale | `savedHash` ≠ the hash of today's `scenario.json` ⇒ `GET` answers `{at, stale:true}`; `POST {recoverAutosave}` refuses a stale or missing autosave (409 + the reason) |
 | ui | the prompt on Open / the start surface (*"Recover unsaved changes from 14:41?"*) is ui's; backend sends a NOTE with the two routes |
 
+#### 4c.4 ✅ AS-BUILT ui half (`2026-11-08`, ui) — the Autosave setting and the recovery prompt (A1 control, A7)
+
+| piece | as built |
+|---|---|
+| ⭐ the setting (A1) | `IRunTransport.AutosaveMinutesSetting` (`ClusterView.AutosaveMinutes`, null = no view) · `SendRunSettings(…, autosaveMinutes)` → `SetRunSettingsIntent.AutosaveMinutes` (same op as *Start immediately*, other sends leave it null) · `ClusterPanelRunControls.AutosaveMinutes` / `SetAutosaveMinutes` / `AutosaveChoices` (Off · 1 · 2 · 5 · 10) · a combo under *Start immediately* in `ClusterScenarioPanel.RenderRunSettings` — the ONE panel both operator hosts compose (nothing per host). A value set elsewhere (HTTP) reads as *N minutes*. |
+| ⭐ the prompt (A7) | `ScenarioDoor.Open` — after `Admit` let the move through (run stopped, unsaved edits answered) — calls `OfferRecovery`: `AutosaveOf(name)` (the door's seam; the session sets it to `AutosaveFiles.Read` under its own `{nas}/scenarios` root, once per open) → `Exists && !Stale` ⇒ `DoorQuestionKind.RecoverAutosave` *"Recover unsaved changes from HH:mm?"* (local time) with **Recover** / **Open the saved one** + the house Cancel, through the door's ONE asker (`ConfirmingAsker` ⇒ the one `RunModeConfirmation`); **Stale** ⇒ no question, the plain open, and the one toast (`ScenarioDoor.Notify` = `RunModeChoice` toast) says *not offered: <Refusal>*; no autosave ⇒ plain open. |
+| who is never asked | `IDoorAsker.CanPrompt` (default true; `RefusingAsker` and the film director's asker false) ⇒ HTTP and the director skip the offer and the file read; HTTP keeps its explicit `recoverAutosave` flag (`DebugApiService.LoadScenarioEdit`, unchanged). |
+| the flag's route | `IRunScenarioControl.OpenForEdit(name, argsJson, recoverAutosave)` (default member = the plain open) → `EditorScenarioSession` → `TransitionStateIntent.RecoverAutosave` (backend offered the session half; it is this one pass-through, a cross-lane edit named in the commit). |
+| every entry | File ▸ Open, the start surface's Recent, the pickers all call `Door.Load` ⇒ `Open` in a Preview-armed cluster; `LoadLive` and the run choice's raw reopen (after ■ / go-to-edit) offer nothing — recovery is for opening a scenario to edit. |
+| not built | a recovery offer after a crash with no open (the next open asks); an Open into **Live** never recovers (an autosave is an edit-session artefact). |
+
 
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓

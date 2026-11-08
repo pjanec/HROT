@@ -121,6 +121,7 @@ public sealed class RunModeChoice
         {
             _door = (control as IHasScenarioDoor)?.Door ?? new ScenarioDoor(control, () => transport.Mode);
             _door.Bind(() => transport.Mode, _unsaved, _asker);
+            _door.Notify = text => Notify(text);   // ⭐ CE-4099 A7 — "the autosave was not offered" goes to the ONE toast
             _door.RecordingOpening = exercise => LastExercise = exercise;   // bookkeeping for EVERY caller
             // ⭐⭐ CE-1443 (R-1043) — a scenario LOAD goes into the cluster's CURRENT armed mode: the door asks THIS choice (one resolver, below). ⛔ No open sends an armed mode (CE-3341 decision ③ withdrawn); only the indicator's Choose does.
             _door.LoadTarget = () => LoadTarget;

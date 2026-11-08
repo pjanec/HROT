@@ -59,6 +59,12 @@ public interface IRunScenarioControl
     /// </summary>
     void OpenForEdit(string scenarioName, string? argsJson) => OpenForEdit(scenarioName);
 
+    /// <summary>
+    /// ⭐ <c>CE-4099</c> (AQ108 §4c A7) — the edit open that RECOVERS the scenario's autosave (<c>TransitionStateIntent.RecoverAutosave</c>): the nodes stage the autosave as the scenario for this load only. Called ONLY by the door, after the
+    /// operator answered <i>Recover</i>; <paramref name="recoverAutosave"/> false is the plain open. ⛔ A control that cannot carry the flag opens the saved scenario — the editor session overrides it.
+    /// </summary>
+    void OpenForEdit(string scenarioName, string? argsJson, bool recoverAutosave) => OpenForEdit(scenarioName, argsJson);
+
     /// <summary>⭐ CE-3393 — the args the loaded world was built with (<c>ScenarioDescription.ArgsOf</c>): which preset is loaded. A control with no world answers null (Default).</summary>
     string? LoadedArgsJson => null;
 
