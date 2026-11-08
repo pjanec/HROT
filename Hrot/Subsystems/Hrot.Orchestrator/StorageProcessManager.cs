@@ -39,8 +39,6 @@ public sealed class StorageProcessManager
     // ⭐ CE-4099 — the subset of those rounds that are AUTOSAVES.
     private readonly HashSet<Guid> _pendingAutosaves = new();
 
-    /// <summary>⭐ CE-4099 (AQ108 §4c A5) — the autosave's file and its meta, inside the scenario's dot-folder (no scenario enumerator lists it).</summary>
-    public const string AutosaveFolder = ".autosave", AutosaveFile = "autosave.json", AutosaveMetaFile = "autosave.meta.json";
 
     /// <summary>The wall clock an autosave's meta stamps (<c>at</c>); a rail sets it.</summary>
     internal Func<DateTime> UtcNow { get; set; } = () => DateTime.UtcNow;
@@ -360,7 +358,7 @@ public sealed class StorageProcessManager
     internal void MergeAutosaveSlices(string scenarioName, List<FileManifestEntry> manifest)
     {
         var scenarioDir = ContentLayout.ResolveScenarioDirectory(_nasBasePath, scenarioName);
-        var autosaveDir = Path.Combine(scenarioDir, AutosaveFolder);
+        var autosaveDir = Path.Combine(scenarioDir, AutosaveFiles.Folder);
         var slices = new List<ScenarioSlice>();
         foreach (var entry in manifest)
         {
@@ -373,14 +371,14 @@ public sealed class StorageProcessManager
         var result = ScenarioMergeCore.Merge(slices, ScenarioDocType);
         if (result.CanonicalDom == null) return;
         Directory.CreateDirectory(autosaveDir);
-        File.WriteAllText(Path.Combine(autosaveDir, AutosaveFile), result.CanonicalDom.ToJsonString(FdpJsonOptionsRegistry.DefaultRelaxed));
+        File.WriteAllText(Path.Combine(autosaveDir, AutosaveFiles.DataFile), result.CanonicalDom.ToJsonString(FdpJsonOptionsRegistry.DefaultRelaxed));
         var saved = Path.Combine(scenarioDir, ContentLayout.ScenarioFileName);
         var meta = new JsonObject
         {
             ["at"] = UtcNow().ToString("O", System.Globalization.CultureInfo.InvariantCulture),
             ["savedHash"] = File.Exists(saved) ? Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(saved)) : "",
         };
-        File.WriteAllText(Path.Combine(autosaveDir, AutosaveMetaFile), meta.ToJsonString());
+        File.WriteAllText(Path.Combine(autosaveDir, AutosaveFiles.MetaFile), meta.ToJsonString());
         try { Directory.Delete(Path.Combine(autosaveDir, ".slices"), recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         FdpLog<StorageProcessManager>.Info("[StorageProcessManager] autosaved '{0}' ({1} slice(s)).", scenarioName, slices.Count);
     }
@@ -388,7 +386,7 @@ public sealed class StorageProcessManager
     /// <summary>⭐ CE-4099 (AQ108 §4c A6) — a real save completed: the scenario's autosave is obsolete.</summary>
     internal void DeleteAutosave(string scenarioName)
     {
-        var dir = Path.Combine(ContentLayout.ResolveScenarioDirectory(_nasBasePath, scenarioName), AutosaveFolder);
+        var dir = AutosaveFiles.DirectoryOf(_nasBasePath, scenarioName);
         try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { FdpLog<StorageProcessManager>.Warn("[StorageProcessManager] could not delete the autosave of '{0}': {1}", scenarioName, ex.Message); }

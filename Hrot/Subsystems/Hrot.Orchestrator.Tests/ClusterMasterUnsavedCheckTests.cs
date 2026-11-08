@@ -85,6 +85,8 @@ public sealed class ClusterMasterUnsavedCheckTests
         public readonly ClusterMaster Master;
         public readonly List<ExecuteNodeOpIntent> Intents = new();
         public readonly List<ClusterOpCompletedEvent> Completed = new();
+        /// <summary>⭐ CE-4099 — the prefetch intents the master published (the recovery flag rides them).</summary>
+        public readonly List<ExecutePrefetchIntent> SeenPrefetches = new();
         /// <summary>What each node answers to <c>CheckUnsaved</c> (a missing node answers "unchanged").</summary>
         public readonly Dictionary<int, string> CheckAnswer = new();
         /// <summary>⭐ CE-3340 ⑤ — nodes that never answer a <c>CheckUnsaved</c> (dead, but still on the roster until their heartbeat times out).</summary>
@@ -147,6 +149,7 @@ public sealed class ClusterMasterUnsavedCheckTests
                 if (Respond(i) is { } ack) Bus.PublishManaged(ack);
             }
             Completed.AddRange(Bus.ReadManaged<ClusterOpCompletedEvent>());
+            SeenPrefetches.AddRange(Bus.ReadManaged<ExecutePrefetchIntent>());
             Bus.SwapBuffers();
             Master.Tick();
         }
@@ -388,6 +391,33 @@ public sealed class ClusterMasterUnsavedCheckTests
         Assert.Equal(1, rig.Master.AutosavesStarted);
     }
 
+    /// <summary>
+    /// ⭐ CE-4099 phase 2 (A1's <c>autosaveMinutes</c>) — the setting arrives as a <c>SetRunSettingsIntent</c>: 3 ⇒ <c>AutosaveEvery</c> = 3 min and the broadcast says 3; 0 ⇒ OFF (no check round in editing, however long it passes) and the broadcast says 0.
+    /// 🔴 Red-proof (compiles): <c>ProcessSetRunSettingsIntent</c> not applying <c>AutosaveMinutes</c> ⇒ the first assertion fails.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4099_AutosaveMinutes_IsSetByTheOp_RidesTheBroadcast_AndZeroTurnsItOff()
+    {
+        var (rig, advance) = EditingWithAutosave();
+        Assert.Equal(1, rig.Master.AutosaveMinutes);                          // the rail's 60 s, as whole minutes (rounded up)
+        rig.Inject(() => rig.Bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), AutosaveMinutes = 3 }));
+        rig.Settle(3);
+        Assert.Equal(TimeSpan.FromMinutes(3), rig.Master.AutosaveEvery);
+        Assert.Equal(3, rig.Master.AutosaveMinutes);
+        rig.Inject(() => rig.Bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = true }));   // an op that does not carry it
+        rig.Settle(3);
+        Assert.Equal(3, rig.Master.AutosaveMinutes);
+
+        rig.Inject(() => rig.Bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), AutosaveMinutes = 0 }));
+        rig.Settle(3);
+        Assert.Equal(TimeSpan.Zero, rig.Master.AutosaveEvery);
+        Assert.Equal(0, rig.Master.AutosaveMinutes);
+        rig.Intents.Clear();
+        for (int i = 0; i < 4; i++) { advance(); rig.Settle(6); }
+        Assert.DoesNotContain(rig.Intents, x => x.Operation == FdpNodeOpType.CheckUnsaved);   // OFF: no check round while editing
+        Assert.Equal(0, rig.Master.AutosavesStarted);
+    }
+
     /// <summary>⭐ CE-4099 A1 — nothing changed ⇒ the check round runs, no autosave is written.</summary>
     [Fact(Timeout = 10_000)]
     public void CE4099_NothingChanged_WritesNothing()
@@ -425,5 +455,31 @@ public sealed class ClusterMasterUnsavedCheckTests
         for (int i = 0; i < 5; i++) { t += 10; idle.Frame(); }
         Assert.DoesNotContain(idle.Intents, x => x.Operation == FdpNodeOpType.CheckUnsaved);
         Assert.Equal(0, idle.Master.AutosavesStarted);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4099 (AQ108 §4c A7) — a load that RECOVERS the autosave: the prefetch is asked for the recovery, and the scenario then reads CHANGED (what is
+    /// open is not the saved file) although every node's world equals its baseline — until a real save completes. 🔴 Red-proof (compiles): the master not
+    /// folding <c>RecoveredAutosaveSinceLoad</c> into the check ⇒ "unchanged" right after the recovery ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4099_ARecoveredAutosave_ReadsChanged_UntilASave()
+    {
+        var rig = new Rig(A, B);
+        var tx = Guid.NewGuid();
+        rig.Inject(() => rig.Bus.PublishManaged(new TransitionStateIntent { TransactionId = tx, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, ScenarioId = "scn", RecoverAutosave = true }));
+        rig.Frame();
+        rig.Frame();
+        Assert.Contains(rig.SeenPrefetches, p => p.RequestId == tx && p.RecoverAutosave);   // the prefetch is asked for the recovery
+        rig.Inject(() => rig.Bus.PublishManaged(new PrefetchDistributionCompletedEvent { RequestId = tx, ScenarioId = "scn", IsSuccess = true }));
+        rig.Settle();
+        Assert.Equal(ClusterState.OperatingEdit, rig.Master.CurrentClusterState);
+
+        Assert.True(rig.Master.RecoveredAutosaveSinceLoad);
+        Assert.True(ResultOf(rig.Check()).Changed);        // every node says "unchanged" — the master's fact says otherwise
+
+        rig.Save("scn");                                   // a real save that completes
+        Assert.False(rig.Master.RecoveredAutosaveSinceLoad);
+        Assert.False(ResultOf(rig.Check()).Changed);
     }
 }

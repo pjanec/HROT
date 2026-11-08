@@ -29,6 +29,10 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ Macros S3a ⑦ (SR-41, SR-176) — a LOAD's scenario args: a JSON object, param name → value, applied over the scenario
         /// header's defaults on every node and kept in the recording. Null = none (the defaults).</summary>
         public string? ScenarioArgsJson;
+        /// <summary>⭐ CE-4099 (AQ108 §4c A7, §4c.3) — a load into editing that RECOVERS the scenario's autosave: the nodes stage its
+        /// <c>.autosave/autosave.json</c> as the <c>scenario.json</c> of THIS load (the name and folder stay); the cluster then reads "changed" until a
+        /// real save. Refused when there is none or it is stale.</summary>
+        public bool RecoverAutosave;
     }
 
     /// <summary>
@@ -95,6 +99,8 @@ namespace Fdp.Toolkit.Orchestration
         public FeatureOverrideSpec[]? FeatureOverrides;
         /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting: a Live load resumes by itself instead of pausing at 0:00 for the briefing; <see langword="null"/> = no change.</summary>
         public bool? StartLiveImmediately;
+        /// <summary>⭐ CE-4099 phase 2 (AQ108 §4c.2 A1) — the cluster's <i>Autosave</i> interval in MINUTES while editing a scenario; 0 = off; <see langword="null"/> = no change. A negative value is treated as 0 by the master.</summary>
+        public int? AutosaveMinutes;
     }
 
     /// <summary>

@@ -39,6 +39,10 @@ public sealed partial class ClusterMaster
     /// stale whatever the nodes' worlds say. Cleared by the next load into editing, or by a save that completes (slices written AND merged).</summary>
     public bool SaveFailedSinceLoad => _saveFailedSinceLoad;
 
+    /// <summary>⭐ CE-4099 (AQ108 §4c A7) — the scenario open for editing was RECOVERED from its autosave and no save has completed since: the file on disk
+    /// is not what is open, so the check round says CHANGED (the nodes' baseline is the recovered world). Cleared by a completed save or the next load.</summary>
+    public bool RecoveredAutosaveSinceLoad { get; private set; }
+
     /// <summary>The scenario-save rounds in flight: their node round (SerializeLocal) has not completed yet.</summary>
     private readonly HashSet<Guid> _saveRounds = new();
 
@@ -91,7 +95,7 @@ public sealed partial class ClusterMaster
     {
         var nodes = aggregated as UnsavedCheckResult
             ?? (nobodyAsked ? UnsavedCheckResult.Unchanged : new UnsavedCheckResult(true, Array.Empty<int>()));
-        var result = _saveFailedSinceLoad && !nodes.Changed ? nodes with { Changed = true } : nodes;
+        var result = (_saveFailedSinceLoad || RecoveredAutosaveSinceLoad) && !nodes.Changed ? nodes with { Changed = true } : nodes;
         LastUnsavedCheck = result;
         FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4093: the scenario is {0} (nodes changed: [{1}], a save failed since the load: {2}).",
             result.Changed ? "CHANGED" : "unchanged", string.Join(",", result.ChangedNodes), _saveFailedSinceLoad);
@@ -111,7 +115,7 @@ public sealed partial class ClusterMaster
         if (!_saveRounds.Remove(txId)) return;
         if (failed) { _saveFailedSinceLoad = true; return; }
         if (aggregated is List<Hrot.Network.Orchestration.FileManifestEntry> { Count: > 0 }) _saveMerges.Add(txId);
-        else _saveFailedSinceLoad = false;   // nothing to pull: the save is complete
+        else { _saveFailedSinceLoad = false; RecoveredAutosaveSinceLoad = false; }   // nothing to pull: the save is complete
     }
 
     /// <summary>⭐ CE-4093 — the pull + merge of a scenario save reported: complete ⇒ the file on disk is current; failed ⇒ it is not.</summary>
@@ -119,15 +123,17 @@ public sealed partial class ClusterMaster
     {
         if (!_saveMerges.Remove(txId)) return;
         _saveFailedSinceLoad = !succeeded;
+        if (succeeded) RecoveredAutosaveSinceLoad = false;   // ⭐ CE-4099 A7 — the recovered world is on disk now
     }
 
     /// <summary>⭐ CE-4093 — the cluster loads a scenario into editing, or goes to Idle: the scenario is a different one (or none), so a failed
     /// save of the old one and the old answer no longer apply.</summary>
-    private void NoteLoadForUnsavedCheck(ClusterState resolvedTarget, string? scenarioId)
+    private void NoteLoadForUnsavedCheck(ClusterState resolvedTarget, string? scenarioId, bool recoversAutosave = false)
     {
         bool loadsIntoEditing = resolvedTarget == ClusterState.OperatingEdit && !string.IsNullOrEmpty(scenarioId);
         if (!loadsIntoEditing && resolvedTarget != ClusterState.Idle) return;
         _saveFailedSinceLoad = false;
+        RecoveredAutosaveSinceLoad = loadsIntoEditing && recoversAutosave;   // ⭐ CE-4099 A7 — what is open is the autosave, not the saved file
         _saveRounds.Clear();
         _saveMerges.Clear();
         LastUnsavedCheck = null;

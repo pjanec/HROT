@@ -24,6 +24,8 @@ internal struct ExecutePrefetchIntent
     /// <summary>⭐ CE-3020 — each active node's advertised capability tokens, so the saga knows which asset kinds each
     /// node needs or authors and where they live (docs/DESIGN_Asset_Management.md §4, §7.3a). Null = none known.</summary>
     public Dictionary<int, string[]>? NodeCapabilities;
+    /// <summary>⭐ CE-4099 (AQ108 §4c A7) — stage the scenario's AUTOSAVE as its <c>scenario.json</c> for this load (refused when none or stale).</summary>
+    public bool RecoverAutosave;
 }
 
 /// <summary>

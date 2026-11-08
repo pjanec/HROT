@@ -866,6 +866,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting is ON, from the node's one <see cref="ClusterView"/>.</summary>
         public bool StartLiveImmediately => View.StartLiveImmediately;
 
+        /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes (0 = off), from the node's one <see cref="ClusterView"/>.</summary>
+        public int AutosaveMinutes => View.AutosaveMinutes;
+
         /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode, from the node's one <see cref="ClusterView"/> (no second copy).</summary>
         public ClusterArmedMode ArmedMode => View.ArmedMode;
 

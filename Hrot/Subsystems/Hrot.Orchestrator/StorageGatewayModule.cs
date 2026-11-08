@@ -309,17 +309,20 @@ public sealed class StorageGatewayModule
         IReadOnlyList<NodeDistributionTarget> targets,
         string nasBasePath,
         string? tkbName = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? scenarioFileFrom = null)
         // ⭐ R-4001 — ALL of it on a worker, the NAS directory scan included: the saga calls this from the frame thread,
         //   and a transfer that finishes at once would otherwise resume the rest of the chain there.
-        => Task.Run(() => PrefetchScenarioCoreAsync(scenarioId, targets, nasBasePath, tkbName, ct), ct);
+        => Task.Run(() => PrefetchScenarioCoreAsync(scenarioId, targets, nasBasePath, tkbName, ct, scenarioFileFrom), ct);
 
+    /// <param name="scenarioFileFrom">⭐ CE-4099 (AQ108 §4c A7) — deliver THIS file as the folder's <c>scenario.json</c> (a recovered autosave); null = the folder's own.</param>
     private async Task<GatewayResult> PrefetchScenarioCoreAsync(
         string scenarioId,
         IReadOnlyList<NodeDistributionTarget> targets,
         string nasBasePath,
         string? tkbName,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? scenarioFileFrom = null)
     {
         if (string.IsNullOrWhiteSpace(scenarioId)) throw new ArgumentNullException(nameof(scenarioId));
         if (targets == null)                        throw new ArgumentNullException(nameof(targets));
@@ -352,9 +355,12 @@ public sealed class StorageGatewayModule
 
         // ⭐ P6 — every slice to every target through the provider, ONE request per file (bundled: every target in it).
         //   A target already holding the file (same length + mtime — including the NAS file itself) is skipped.
-        foreach (var srcFile in files)
+        foreach (var file in files)
         {
-            var status = await DeliverFileAsync(_provider, srcFile, Path.GetFileName(srcFile),
+            // ⭐ CE-4099 A7 — the recovered autosave stands in for scenario.json; every other file of the folder goes as it is
+            var srcFile = scenarioFileFrom != null && string.Equals(Path.GetFileName(file), ContentLayout.ScenarioFileName, StringComparison.OrdinalIgnoreCase)
+                ? scenarioFileFrom : file;
+            var status = await DeliverFileAsync(_provider, srcFile, Path.GetFileName(file),
                 distinctTargets.Select(t => (t.NodeId, t.DestinationPath)), ct).ConfigureAwait(false);
             success += status.FilesDone + status.FilesSkipped;
             failure += status.FilesFailed;

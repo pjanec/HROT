@@ -72,14 +72,20 @@ public record TransitionPayloadDto(
 
     // ⭐ Macros S3a ⑦ (SR-41) — a load's scenario args (a JSON object text). Additive on the wire; omitted ⇒ null ⇒ the header's defaults.
     [property: JsonPropertyName("ScenarioArgs")]
-    string?        ScenarioArgs = null
+    string?        ScenarioArgs = null,
+
+    // ⭐ CE-4099 (AQ108 §4c A7) — recover the scenario's autosave into this load. Additive; written only when true, omitted ⇒ false.
+    [property: JsonPropertyName("RecoverAutosave")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    bool           RecoverAutosave = false
 )
 {
     /// <summary>⭐ R-3055 — the ONE encoding of a transition on the wire (every node's egress).</summary>
     public static TransitionPayloadDto From(Fdp.Toolkit.Orchestration.TransitionStateIntent intent) => new(
         TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId,
         TimeMode: intent.TimeMode, CheckpointingSeconds: intent.CheckpointingSeconds, TargetWallTicks: intent.TargetWallTicks,
-        TargetSimSeconds: intent.TargetSimSeconds, ForceRecording: intent.ForceRecording, ScenarioArgs: intent.ScenarioArgsJson);
+        TargetSimSeconds: intent.TargetSimSeconds, ForceRecording: intent.ForceRecording, ScenarioArgs: intent.ScenarioArgsJson,
+        RecoverAutosave: intent.RecoverAutosave);
 
     /// <summary>⭐ R-3055 — the ONE decoding (the master's translator and its request adapter): nothing on the wire is dropped.</summary>
     public Fdp.Toolkit.Orchestration.TransitionStateIntent ToIntent(Guid requestId) => new()
@@ -94,6 +100,7 @@ public record TransitionPayloadDto(
         TargetSimSeconds     = TargetSimSeconds,   // CE-3329 R11
         ForceRecording       = ForceRecording,     // CE-4090 D14
         ScenarioArgsJson     = ScenarioArgs,       // macros S3a ⑦
+        RecoverAutosave      = RecoverAutosave,    // CE-4099 A7
     };
 }
 
@@ -111,10 +118,12 @@ public record SetRunSettingsPayloadDto(
     [property: JsonPropertyName("FeatureOverrides")]
     FeatureOverrideDto[]? FeatureOverrides = null,   // ⭐ Node Features F-16 — appended; absent = no change, empty = none
     [property: JsonPropertyName("StartLiveImmediately")]
-    bool? StartLiveImmediately = null)   // ⭐ CE-3415 (AQ108 §0 D31) — appended; absent = no change
+    bool? StartLiveImmediately = null,   // ⭐ CE-3415 (AQ108 §0 D31) — appended; absent = no change
+    [property: JsonPropertyName("AutosaveMinutes")]
+    int? AutosaveMinutes = null)   // ⭐ CE-4099 phase 2 — appended; absent = no change, 0 = off
 {
     public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed, intent.AskToKeepRecordings,
-        intent.FeatureOverrides?.Select(o => new FeatureOverrideDto(o.Feature, o.Nodes.ToArray(), o.Json)).ToArray(), intent.StartLiveImmediately);
+        intent.FeatureOverrides?.Select(o => new FeatureOverrideDto(o.Feature, o.Nodes.ToArray(), o.Json)).ToArray(), intent.StartLiveImmediately, intent.AutosaveMinutes);
 
     /// <summary>⭐ The ONE decoding (the master's translator): an unreadable payload changes nothing (both fields null).
     /// ⚠ CE-3341 changed this: before it, an unreadable payload meant "recording ON"; a no-op is the safer answer now that the op also carries the armed mode.</summary>
@@ -131,6 +140,7 @@ public record SetRunSettingsPayloadDto(
                     intent.Armed = dto.Armed;
                     intent.AskToKeepRecordings = dto.AskToKeepRecordings;
                     intent.StartLiveImmediately = dto.StartLiveImmediately;
+                    intent.AutosaveMinutes = dto.AutosaveMinutes;
                     intent.FeatureOverrides = dto.FeatureOverrides?.Select(o => new Fdp.Toolkit.Orchestration.FeatureOverrideSpec(o.Feature ?? "", o.Nodes ?? System.Array.Empty<string>(), o.Json ?? "")).ToArray();
                 }
             }

@@ -427,6 +427,19 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.False(ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).StartLiveImmediately);
     }
 
+    /// <summary>⭐ CE-4099 phase 2 — <i>Autosave</i> minutes ride the cluster-state broadcast both ways (APPENDED last, R-42); an older sender's topic reads 0 (off). 🔴 Mutation: <c>StateOf</c> not mapping it ⇒ red.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    [InlineData(45)]
+    public void CE4099_TheClusterStateBroadcast_CarriesAutosaveMinutes_BothWays(int minutes)
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.Idle, AutosaveMinutes = minutes });
+        Assert.Equal(minutes, topic.AutosaveMinutes);
+        Assert.Equal(minutes, ClusterFactsIngress.StateOf(topic).AutosaveMinutes);
+        Assert.Equal(0, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).AutosaveMinutes);
+    }
+
     /// <summary>⭐ R-1043 — the mode of the last scenario load rides the cluster-state broadcast both ways; an older sender's (field never set) reads Live.</summary>
     [Fact]
     public void R1043_TheLastLoadMode_RidesTheBroadcastBothWays_AndAnOlderSenderReadsLive()

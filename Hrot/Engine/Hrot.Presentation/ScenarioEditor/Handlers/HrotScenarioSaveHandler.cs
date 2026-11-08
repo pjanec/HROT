@@ -145,7 +145,7 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
     }
 
     /// <summary>⭐ CE-4099 (AQ108 §4c A5) — the scenario's autosave folder: a dot-folder, so no scenario enumerator lists it and CE-4091's copy skips it.</summary>
-    public const string AutosaveFolder = ".autosave";
+    public const string AutosaveFolder = AutosaveFiles.Folder;
 
     /// <summary>⭐ CE-4099 — the NAS-relative path of this node's AUTOSAVE slice: <c>&lt;scenario folder&gt;/.autosave/.slices/node_N.json</c> (never the real
     /// save's <c>.slices</c>, so an autosave and a save never share staging).</summary>
