@@ -12,8 +12,15 @@ namespace Fdp.Toolkit.Orchestration
     /// <param name="BranchWallTicks">⭐ The branch point in the metadata's own unit: the parent's WALL time at the frame the branch left it
     /// (<c>RecordingMetadata.BranchWallTicks</c>; 0 when not a branch). A host converts it to the replay axis as
     /// <c>atSeconds = (BranchWallTicks − zero) / 1e7</c> with the replay's zero (<c>ReplayPosition</c>) — no sim-seconds twin.</param>
+    /// <param name="NasState">⭐ CE-4330 ③ fact ② (📄 docs/DESIGN_Recording_Storage.md §7.2) — where the exercise stands on the NAS: not there, an INCOMPLETE
+    /// archive (cut, or still running — <see cref="NasFiles"/> of <see cref="NasFilesTotal"/>, the total 0 while no manifest names it), or COMPLETE
+    /// (<see cref="ArchiveManifest"/>, the one rule). Default = not on the NAS, so an old peer's inventory reads as before.</param>
     public record struct ExerciseInventoryItem(ExerciseId ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId,
-                                               ExerciseId ParentExerciseId = default, long BranchWallTicks = 0);
+                                               ExerciseId ParentExerciseId = default, long BranchWallTicks = 0,
+                                               ArchiveNasState NasState = ArchiveNasState.None, int NasFiles = 0, int NasFilesTotal = 0);
+
+    /// <summary>⭐ CE-4330 ③ fact ② — an exercise's state on the NAS.</summary>
+    public enum ArchiveNasState : byte { None = 0, Incomplete = 1, Complete = 2 }
 
     /// <summary>
     /// Published by <c>ClusterMaster</c> when a top-level cluster operation completes
@@ -108,6 +115,8 @@ namespace Fdp.Toolkit.Orchestration
         public System.Collections.Generic.List<string>? FeaturesOn;
         /// <summary>⭐ Node Features F-26 — the override layers this node REFUSED (an unknown key, malformed JSON), one text each; null = none or an older sender.</summary>
         public System.Collections.Generic.List<string>? FeatureErrors;
+        /// <summary>⭐ CE-4330 ③ fact ③ (DESIGN_Recording_Storage §7.2) — the exercise recordings in this node's OWN staging, one <c>"&lt;exerciseGuid&gt;:&lt;totalBytes&gt;"</c> each (sorted; a folder counts when it holds a <c>*.fdp</c>); null = none or an older sender. The SAME list instance is reused until the content changes.</summary>
+        public System.Collections.Generic.List<string>? LocalRecordings;
     }
 
     /// <summary>

@@ -163,6 +163,8 @@ namespace Hrot.Editor.DebugApi
             ("POST", "/run-mode"), ("POST", "/run-settings"), ("POST", "/preview/enter"), ("POST", "/preview/exit"),
             ("POST", "/scenario/load/edit"), ("POST", "/scenario/load/live"), ("POST", "/scenario/new"), ("POST", "/scenario/check-unsaved"),
             ("POST", "/exercises/keep"), ("DELETE", "/exercises/{id}"),
+            ("POST", "/exercises/{id}/archive"), ("POST", "/exercises/{id}/import"), ("DELETE", "/archive/{id}"),   // ⭐ CE-4330 ⑩
+            ("POST", "/storage/jobs/{job}/cancel"), ("POST", "/storage/jobs/{job}/resume"), ("POST", "/session/close"),
             ("POST", "/replay"), ("POST", "/replay/seek"), ("POST", "/review/seek"), ("POST", "/review"), ("POST", "/review/exit"),
             ("POST", "/replay/axis"), ("POST", "/replay/loop"),
             ("POST", "/cluster/transition"),
@@ -1155,6 +1157,20 @@ namespace Hrot.Editor.DebugApi
                 var (result, error, hint, status) = s.DeleteExercise(ctx.RouteValue("id"));
                 return error is null ? Ok(result) : Fail(status, error, hint);
             })));
+            // ⭐⭐ CE-4330 ⑩ (📄 docs/DESIGN_Recording_Storage.md §7.2) — the storage jobs: the list every station sees, an archive / import / delete-from-archive ask
+            //   (one job per exercise: a second ask joins), cancel / resume (Author and Instructor seats); ⑥ ⏏ close the session with the recording's answer
+            _routes.Add(new("GET", "/storage/jobs", _ => RunMainResult(s => ResultOf(s.ListStorageJobs(), unavailable: 503))));
+            _routes.Add(new("POST", "/exercises/{id}/archive", ctx => RunMainResult(s => { var (r, e, h, st) = s.AskStorage(ctx.RouteValue("id"), Fdp.Toolkit.Orchestration.StorageJobKind.Archive); return e is null ? Ok(r) : Fail(st, e, h); })));
+            _routes.Add(new("POST", "/exercises/{id}/import", ctx => RunMainResult(s => { var (r, e, h, st) = s.AskStorage(ctx.RouteValue("id"), Fdp.Toolkit.Orchestration.StorageJobKind.Import); return e is null ? Ok(r) : Fail(st, e, h); })));
+            _routes.Add(new("DELETE", "/archive/{id}", ctx => RunMainResult(s =>
+            {
+                bool confirmed = string.Equals(ctx.Query("confirm"), "true", StringComparison.OrdinalIgnoreCase);
+                var (r, e, h, st) = s.AskStorage(ctx.RouteValue("id"), Fdp.Toolkit.Orchestration.StorageJobKind.Delete, confirmed);
+                return e is null ? Ok(r) : Fail(st, e, h);
+            })));
+            _routes.Add(new("POST", "/storage/jobs/{job}/cancel", ctx => RunMainResult(s => { var (r, e, h, st) = s.CancelStorageJob(ctx.RouteValue("job")); return e is null ? Ok(r) : Fail(st, e, h); })));
+            _routes.Add(new("POST", "/storage/jobs/{job}/resume", ctx => RunMainResult(s => { var (r, e, h, st) = s.ResumeStorageJob(ctx.RouteValue("job")); return e is null ? Ok(r) : Fail(st, e, h); })));
+            _routes.Add(new("POST", "/session/close", ctx => RunMainResult(s => { var (r, e, h, st) = s.CloseSession(ctx.Body); return e is null ? Ok(r) : Fail(st, e, h); })));
             _routes.Add(new("GET", "/run-settings", _ => RunMainResult(s => ResultOf(s.GetRunSettings(), unavailable: 503))));
             _routes.Add(new("POST", "/run-settings", ctx => RunMainResult(s => ResultOf(s.SetRunSettings(ctx.Body), unavailable: 503))));
             // ⭐ CE-4101 — opening a recording leaves editing: the editor's door decides (409 over unsaved edits unless discardUnsaved)

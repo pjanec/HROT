@@ -230,37 +230,19 @@ public sealed class ClusterOpMasterTranslator
 
             case NedClusterOpType.ExportArchive:
             {
-                ArchivePayloadDto? archDto = TryDeserialize<ArchivePayloadDto>(req.PayloadJson);
-                _bus.PublishManaged(new ExecuteStorageOpIntent
-                {
-                    RequestId  = req.RequestId,
-                    Operation  = StorageOpType.Export,
-                    ExerciseId = (Fdp.Core.ExerciseId)(archDto?.ExerciseId ?? Guid.Empty),
-                });
+                _bus.PublishManaged(ArchivePayloadJson.Decode(req.RequestId, StorageOpType.Export, req.PayloadJson));   // ⭐ CE-4330 — the one decoding
                 break;
             }
 
             case NedClusterOpType.DeleteExercise:   // ⭐ CE-4090 D15
             {
-                ArchivePayloadDto? delDto = TryDeserialize<ArchivePayloadDto>(req.PayloadJson);
-                _bus.PublishManaged(new ExecuteStorageOpIntent
-                {
-                    RequestId  = req.RequestId,
-                    Operation  = StorageOpType.Delete,
-                    ExerciseId = (Fdp.Core.ExerciseId)(delDto?.ExerciseId ?? Guid.Empty),
-                });
+                _bus.PublishManaged(ArchivePayloadJson.Decode(req.RequestId, StorageOpType.Delete, req.PayloadJson));   // ⭐ CE-4330 — the one decoding
                 break;
             }
 
             case NedClusterOpType.ImportArchive:
             {
-                ArchivePayloadDto? impDto = TryDeserialize<ArchivePayloadDto>(req.PayloadJson);
-                _bus.PublishManaged(new ExecuteStorageOpIntent
-                {
-                    RequestId  = req.RequestId,
-                    Operation  = StorageOpType.Import,
-                    ExerciseId = (Fdp.Core.ExerciseId)(impDto?.ExerciseId ?? Guid.Empty),
-                });
+                _bus.PublishManaged(ArchivePayloadJson.Decode(req.RequestId, StorageOpType.Import, req.PayloadJson));   // ⭐ CE-4330 — the one decoding
                 break;
             }
 

@@ -185,10 +185,11 @@ public sealed class AssetInventoryProcessManager
             var exercisesNasPath  = Path.Combine(_nasBasePath, OrchestrationConstants.ExercisesDirectoryName);
             var localScenarios    = _gateway.ScanLocalScenarios(scenariosNasPath);
             var localExercises = _unarchivedLedger.Values
-                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc, e.Duration, e.ScenarioId, e.ParentExerciseId, e.BranchWallTicks))
+                .Select(e => NasStated(new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc, e.Duration, e.ScenarioId, e.ParentExerciseId, e.BranchWallTicks), exercisesNasPath))
                 .OrderByDescending(e => e.StartTimeUtc)
                 .ToArray();
             var archivedExercises = _gateway.ScanNasExercises(exercisesNasPath)
+                .Select(e => NasStated(e, exercisesNasPath))
                 .OrderByDescending(e => e.StartTimeUtc)
                 .ToArray();
             var unarchived = localExercises
@@ -212,6 +213,13 @@ public sealed class AssetInventoryProcessManager
             });
             _lastInventoryScan = DateTime.UtcNow;
         }
+    }
+
+    /// <summary>⭐ CE-4330 ③ fact ② — <paramref name="item"/> with its NAS state (<see cref="ArchiveManifest.StateOf"/>, the one rule). Off the frame's hot path: the 5 s inventory scan.</summary>
+    private static ExerciseInventoryItem NasStated(ExerciseInventoryItem item, string exercisesNasPath)
+    {
+        var (state, files, total) = ArchiveManifest.StateOf(Path.Combine(exercisesNasPath, ((Guid)item.ExerciseId).ToString()));
+        return item with { NasState = state, NasFiles = files, NasFilesTotal = total };
     }
 
     /// <summary>

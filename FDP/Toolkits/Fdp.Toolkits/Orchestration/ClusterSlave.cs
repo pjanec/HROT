@@ -68,6 +68,18 @@ namespace Fdp.Toolkit.Orchestration
         private string? _lastBeatStep;
         private string? _lastBeatReason;
         private string _lastBeatFeatures = "";
+        private System.Collections.Generic.List<string>? _lastBeatRecordings;
+
+        /// <summary>
+        /// ⭐ CE-4330 ③ fact ③ — what this node holds in its own exercises staging (rides the heartbeat as <c>LocalRecordings</c>, on change): scanned at most every 5 s. Default = the node's production staging
+        /// (<c>OrchestrationConstants.GetNodeExercisesRoot(nodeId)</c> — the SAME path builder the archive handler's per-node exercise folder comes from); a rail injects a temp root and a clock.
+        /// </summary>
+        public LocalRecordingsScanner LocalRecordings
+        {
+            get => _localRecordings ??= new LocalRecordingsScanner(() => OrchestrationConstants.GetNodeExercisesRoot((int)_nodeId));
+            set => _localRecordings = value ?? throw new ArgumentNullException(nameof(value));
+        }
+        private LocalRecordingsScanner? _localRecordings;
 
         /// <summary>⭐ Node Features F-16 — the ids of the features ON now, set by the shared bootstrapper; the heartbeat carries them.</summary>
         public Func<System.Collections.Generic.List<string>>? FeaturesOnProvider { get; set; }
@@ -571,7 +583,8 @@ namespace Fdp.Toolkit.Orchestration
             var featuresOn = FeaturesOnProvider?.Invoke();
             var featureErrors = FeatureErrorsProvider?.Invoke();
             string featuresKey = (featuresOn == null ? "" : string.Join(",", featuresOn)) + "|" + (featureErrors == null ? "" : string.Join(";", featureErrors));
-            bool changed = phase != _lastBeatPhase || step != _lastBeatStep || reason != _lastBeatReason || featuresKey != _lastBeatFeatures;
+            var recordings = LocalRecordings.Current();   // ⭐ CE-4330 ③ fact ③ — the cached list between scans; a NEW instance only when the content changed
+            bool changed = phase != _lastBeatPhase || step != _lastBeatStep || reason != _lastBeatReason || featuresKey != _lastBeatFeatures || !ReferenceEquals(recordings, _lastBeatRecordings);
             if (!changed && _heartbeatTimer.Elapsed.TotalSeconds < 1.0) return;
 
             // ⭐⭐⭐ CE-2417 — while a load step WORKS (a prepare or commit runs; ⛔ not a node held or waiting on the cluster — that one is not hung),
@@ -580,7 +593,7 @@ namespace Fdp.Toolkit.Orchestration
             if (Progress.IsActive && !Progress.MovedWithin(LoadBeatWindowSeconds)) return;
 
             _heartbeatTimer.Restart();
-            _lastBeatPhase = phase; _lastBeatStep = step; _lastBeatReason = reason; _lastBeatFeatures = featuresKey;
+            _lastBeatPhase = phase; _lastBeatStep = step; _lastBeatReason = reason; _lastBeatFeatures = featuresKey; _lastBeatRecordings = recordings;
             _eventBus?.PublishManaged(new NodeHeartbeatEvent
             {
                 NodeId        = _nodeId,
@@ -594,6 +607,7 @@ namespace Fdp.Toolkit.Orchestration
                 Reason        = reason,
                 FeaturesOn    = featuresOn,            // ⭐ Node Features F-16
                 FeatureErrors = featureErrors is { Count: > 0 } ? featureErrors : null,   // ⭐ Node Features F-26
+                LocalRecordings = recordings,                                              // ⭐ CE-4330 ③ fact ③
                 // CE-286 (C-roles): the heartbeat is telemetry-only; the role mask travels as fdp.role.*
                 // tokens on the durable NodeCapabilities descriptor (published once at join above).
             });

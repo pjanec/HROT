@@ -206,4 +206,31 @@ public sealed class TranslatorDtoTests
         Assert.NotNull(noKinds.Kinds);
         Assert.Empty(noKinds.Kinds!);
     }
+
+    /// <summary>
+    /// ⭐ CE-4330 — a storage ask crosses the wire WHOLE through the one encoding (<see cref="ArchivePayloadJson"/>): who asked, and a delete's
+    /// "from the archive" — 🔴 measured before: both master-side decoders read only the id, so a delete-from-archive asked on another station
+    /// arrived as a plain discard. The in-process adapter decodes the same; an old sender's payload (the id alone) reads as before.
+    /// 🔴 Mutation: Decode dropping FromArchive ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_AStorageAsk_CrossesTheWireWhole_OnEveryPath()
+    {
+        var id = Guid.NewGuid();
+        var sent = new Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent
+        {
+            RequestId = Guid.NewGuid(), Operation = Fdp.Toolkit.Orchestration.StorageOpType.Delete,
+            ExerciseId = (Fdp.Core.ExerciseId)id, AskedBy = "instructor-2", FromArchive = true,
+        };
+        var json = ArchivePayloadJson.Encode(sent);
+
+        var viaDds = ArchivePayloadJson.Decode(sent.RequestId, Fdp.Toolkit.Orchestration.StorageOpType.Delete, json);
+        Assert.Equal((sent.ExerciseId, "instructor-2", true), (viaDds.ExerciseId, viaDds.AskedBy, viaDds.FromArchive));
+
+        var viaAdapter = ClusterOpRequestAdapter.ToExecuteStorageOpIntent(new ClusterOpRequest { RequestId = sent.RequestId, OperationType = ClusterOpType.DeleteExercise, PayloadJson = json });
+        Assert.Equal((sent.ExerciseId, "instructor-2", true), (viaAdapter.ExerciseId, viaAdapter.AskedBy, viaAdapter.FromArchive));
+
+        var old = ArchivePayloadJson.Decode(Guid.NewGuid(), Fdp.Toolkit.Orchestration.StorageOpType.Delete, $"{{\"ExerciseId\":\"{id}\"}}");
+        Assert.Equal(((Fdp.Core.ExerciseId)id, (string?)null, false), (old.ExerciseId, old.AskedBy, old.FromArchive));   // an old sender: a discard, as before
+    }
 }

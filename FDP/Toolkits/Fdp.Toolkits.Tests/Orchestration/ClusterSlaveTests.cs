@@ -561,6 +561,82 @@ public sealed class ClusterSlaveTests
         Assert.Equal("TestNode", heartbeats[0].SubsystemName);
     }
 
+    private static string NewExercise(string root, bool withFdp, int fdpBytes = 100)
+    {
+        var id = Guid.NewGuid();
+        var dir = System.IO.Path.Combine(root, id.ToString());
+        System.IO.Directory.CreateDirectory(dir);
+        if (withFdp) { System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "node_1.fdp"), new byte[fdpBytes]); System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "node_1.fdp.meta.json"), new byte[20]); }
+        else System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "notes.txt"), "no recording here");
+        return id.ToString("D");
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ③ fact ③ — a node reports the exercise recordings in its OWN staging: a folder counts when it holds a <c>*.fdp</c> (the size is every file in it); a folder without one is not reported. The disk is scanned at most
+    /// every 5 s (an injected clock): a call inside the interval reuses the SAME list and allocates nothing; after it a NEW folder shows (a new list instance). 🔴 Mutations (each compiles): the scan ignoring the <c>*.fdp</c> test ⇒ two entries ⇒ red;
+    /// the interval check removed ⇒ the <c>Scans</c> / same-instance cells red; the new list not replacing the cached one ⇒ the last cell reds.
+    /// </summary>
+    [Fact]
+    public void CE4330_TheScanner_ReportsOnlyFoldersWithAnFdp_WithTheirSize_AndRescansOnlyEveryFiveSeconds()
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rec-scan-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var held = NewExercise(root, withFdp: true, fdpBytes: 100);
+            NewExercise(root, withFdp: false);                                   // no .fdp ⇒ not a recording
+            double now = 1000;
+            var scanner = new LocalRecordingsScanner(() => root, () => now);
+            var first = scanner.Current();
+            Assert.Equal(new[] { held + ":120" }, first);                        // 100 (.fdp) + 20 (.meta.json)
+            Assert.Equal(1, scanner.Scans);
+
+            var second = NewExercise(root, withFdp: true, fdpBytes: 7);
+            now += 4.9;
+            Assert.Same(first, scanner.Current());                               // inside the interval: the cached list, no disk read
+            Assert.Equal(1, scanner.Scans);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) scanner.Current();
+            Assert.True(GC.GetAllocatedBytesForCurrentThread() - before == 0, "the frames between scans allocate nothing");
+
+            now += 0.2;                                                          // 5.1 s after the first scan
+            var next = scanner.Current();
+            Assert.Equal(2, scanner.Scans);
+            Assert.NotSame(first, next);
+            Assert.Equal(new[] { held + ":120", second + ":27" }.OrderBy(x => x, StringComparer.Ordinal), next);
+            now += 6;
+            Assert.Same(next, scanner.Current());                                // a rescan that finds the same content keeps the instance (a change is detected by reference)
+            Assert.Equal(3, scanner.Scans);
+        }
+        finally { try { System.IO.Directory.Delete(root, true); } catch (System.IO.IOException) { } }
+    }
+
+    /// <summary>⭐ CE-4330 ③ fact ③ — the slave's heartbeat carries the scan (<c>LocalRecordings</c>) and a CHANGE of it beats at once (no waiting for the 1 s timer).
+    /// 🔴 Mutation: the slave not putting <c>recordings</c> on the event ⇒ the first cell reds; the reference test removed from <c>changed</c> ⇒ the second beat does not come at once ⇒ red.</summary>
+    [Fact]
+    public void CE4330_TheSlaveHeartbeat_CarriesTheLocalRecordings_AndAChangeBeatsAtOnce()
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rec-beat-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var held = NewExercise(root, withFdp: true);
+            var bus = new FdpEventBus();
+            using var slave = new ClusterSlave(5, "Player", bus);
+            double now = 50;
+            slave.LocalRecordings = new LocalRecordingsScanner(() => root, () => now);
+            Thread.Sleep(1100);
+            slave.Tick();
+            var beat = Assert.Single(Beats(bus));
+            Assert.Equal(new[] { held + ":120" }, beat.LocalRecordings);
+            var added = NewExercise(root, withFdp: true, fdpBytes: 9);
+            now += 5.5;                                                          // the next scan sees it
+            slave.Tick();                                                        // well inside the 1 s timer
+            var again = Assert.Single(Beats(bus));
+            Assert.Equal(2, again.LocalRecordings!.Count);
+            Assert.Contains(added + ":29", again.LocalRecordings);
+        }
+        finally { try { System.IO.Directory.Delete(root, true); } catch (System.IO.IOException) { } }
+    }
+
     /// <summary>
     /// ⭐ <c>CE-3354</c> ② — the slave puts its configured node NAME on every heartbeat; with none it is <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>, and a blank one is none.
     /// 🔴 Mutations (each compiles): the heartbeat not setting <c>NodeName</c> ⇒ both cells red; the default spelled differently ⇒ the default cell reds.

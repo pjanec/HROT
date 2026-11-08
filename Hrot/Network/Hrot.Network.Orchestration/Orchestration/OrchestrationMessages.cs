@@ -485,6 +485,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string SubsystemsJson;
         /// <summary>⭐ Node Features F-26 — the override layers this node refused, one text each. ⭐ APPENDED LAST (R-42); additive.</summary>
         [DdsManaged] public List<string> FeatureErrors;
+        /// <summary>⭐ CE-4330 ③ fact ③ — the exercise recordings in this node's own staging, <c>"exerciseGuid:totalBytes"</c> each. ⭐ APPENDED LAST (R-42); additive: an older sender omits it, which reads as none.</summary>
+        [DdsManaged] public List<string> LocalRecordings;
         // CE-286 (C-roles): the per-tick RolesMask field was REMOVED — roles are static and now travel as
         // fdp.role.* tokens on the durable NodeCapabilities descriptor (AQ-70 §Q70-C). The heartbeat is
         // telemetry-only again. History: CE-282 carried `int RolesMask` here.

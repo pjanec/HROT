@@ -1129,4 +1129,56 @@ public sealed class AssetInventoryProcessManagerTests
             if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         }
     }
+
+    /// <summary>
+    /// ⭐ CE-4330 ③ fact ② — every inventory item says where it stands on the NAS: an exercise still on the nodes whose archive was cut reads INCOMPLETE
+    /// "1 of 2" (what the picker and the status bar show, P5); one with no archive yet reads None; an archived one reads COMPLETE.
+    /// 🔴 Mutation: NasStated returning the item unchanged ⇒ every state None ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_TheInventorySaysWhereEachExerciseStandsOnTheNas()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce4330d_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce4330d_stg_" + Guid.NewGuid().ToString("N"));
+        const int nodeId = 400;
+        try
+        {
+            Guid cut = Guid.NewGuid(), fresh = Guid.NewGuid(), archived = Guid.NewGuid();
+            var ledgerDir = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), "recording_ledger");
+            Directory.CreateDirectory(ledgerDir);
+            foreach (var id in new[] { cut, fresh })
+                File.WriteAllText(Path.Combine(ledgerDir, $"{id}.json"),
+                    JsonSerializer.Serialize(new RecordingLedgerEntry((Fdp.Core.ExerciseId)(id), "s", DateTime.UtcNow, TimeSpan.FromSeconds(5)), FdpJsonOptionsRegistry.Indented));
+            var exercises = Path.Combine(nasRoot, OrchestrationConstants.ExercisesDirectoryName);
+            var cutDir = Path.Combine(exercises, cut.ToString());
+            Directory.CreateDirectory(cutDir);
+            File.WriteAllText(Path.Combine(cutDir, "node_1.fdp"), "aaa");
+            File.WriteAllText(Path.Combine(cutDir, ArchiveManifest.SidecarFileName),
+                "{\"archiveFiles\":[{\"name\":\"node_1.fdp\",\"size\":3},{\"name\":\"node_2.fdp\",\"size\":3}]}");
+            var doneDir = Path.Combine(exercises, archived.ToString());
+            Directory.CreateDirectory(doneDir);
+            File.WriteAllText(Path.Combine(doneDir, "node_1.fdp"), "aaa");
+            File.WriteAllText(Path.Combine(doneDir, ArchiveManifest.SidecarFileName), "{\"archiveFiles\":[{\"name\":\"node_1.fdp\",\"size\":3}]}");
+
+            var bus = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, nodeId, scanInterval: TimeSpan.Zero);
+            manager.Tick();
+            bus.SwapBuffers();
+            AssetInventoryUpdateEvent? inv = null;
+            foreach (var ev in bus.ReadManaged<AssetInventoryUpdateEvent>()) inv = ev;
+            Assert.NotNull(inv);
+
+            var onNodes = inv!.Value.UnarchivedLocalExercises;
+            var c = Assert.Single(onNodes, e => e.ExerciseId == cut);
+            Assert.Equal((ArchiveNasState.Incomplete, 1, 2), (c.NasState, c.NasFiles, c.NasFilesTotal));
+            Assert.Equal(ArchiveNasState.None, Assert.Single(onNodes, e => e.ExerciseId == fresh).NasState);
+            var a = Assert.Single(inv.Value.ArchivedExercises, e => e.ExerciseId == archived);
+            Assert.Equal((ArchiveNasState.Complete, 1, 1), (a.NasState, a.NasFiles, a.NasFilesTotal));
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
 }
