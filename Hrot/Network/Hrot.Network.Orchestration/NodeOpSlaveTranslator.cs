@@ -58,7 +58,8 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         string[]?                         transportCapabilities = null,
         DdsReader<ReplaySessionTopic>?    sessionReader = null,
         DdsReader<ClusterOpStatus>?       opStatusReader = null,
-        DdsReader<OrchestratorContextTopic>? contextReader = null)
+        DdsReader<OrchestratorContextTopic>? contextReader = null,
+        DdsReader<StorageJobsTopic>?      storageJobsReader = null)
     {
         _transportCapabilities = transportCapabilities ?? Array.Empty<string>();
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
@@ -69,7 +70,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _progress        = LoadProgress.For(_bus);   // ⭐ CE-2417 — the SAME instance the node's ClusterSlave reports into (keyed on the shared bus)
         _nodeId          = (Fdp.Core.NodeId)(nodeId);
         _jsonOptions     = jsonOptions ?? DefaultOptions;
-        _facts           = new ClusterFactsIngress(bus, clusterStateReader, inventoryReader, sessionReader, opStatusReader, contextReader);
+        _facts           = new ClusterFactsIngress(bus, clusterStateReader, inventoryReader, sessionReader, opStatusReader, contextReader, storageJobsReader);
     }
 
     /// <summary>

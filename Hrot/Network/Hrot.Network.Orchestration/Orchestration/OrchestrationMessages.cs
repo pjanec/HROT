@@ -231,6 +231,21 @@ namespace Hrot.NED.Descriptors.Orchestration
     }
 
     /// <summary>
+    /// ⭐ CE-4330 ③ fact ① (docs/DESIGN_Recording_Storage.md §7.2) — THE CLUSTER'S STORAGE JOBS: the master's queue of archive / import / discard / delete jobs with their state and numbers, what every station's status bar draws.
+    /// One producer (the master, <see cref="NodeId"/> 0); the master republishes the whole list on every change, TransientLocal + KeepLast 1 hands the newest to a late joiner. Mirrors <see cref="ReplaySessionTopic"/>.
+    /// </summary>
+    [DdsTopic]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct StorageJobsTopic
+    {
+        /// <summary>The producer: 0 = the master.</summary>
+        [DdsKey] public int NodeId;
+        /// <summary>The whole list, <c>Fdp.Toolkit.Orchestration.StorageJob[]</c> as JSON (variable length).</summary>
+        [DdsManaged] public string JobsJson;
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>AQ107 C</c> (R-4094) — THE ORIGIN OF THE NED WIRE'S LOCAL FRAME. Every position on the NED wire is local ENU metres (X east,
     /// Y north, Z up); this retained, keyless sample says WHERE on the Earth that frame's (0, 0, 0) is, so a gateway (DIS / HLA) can convert
     /// to ECEF / geodetic: <c>ECEF = ecef(origin) + R(origin) · local</c>, the same exact transform every node uses (<c>WGS84Transform</c>).
