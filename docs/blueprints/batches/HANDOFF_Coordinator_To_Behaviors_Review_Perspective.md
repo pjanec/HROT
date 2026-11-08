@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: ⏸ ON HOLD — do NOT start (coordinator, 2026-11-08): the user questioned how the Review tools, the Replay Browser transport and the merge relate to the normal AAR; the model is being revised (DESIGN_Review_Perspective §1 'measured: a multi-node exercise opens EMPTY') — a re-stamped handoff follows
 updated: 2026-11-08
 current-answer: the whole file
 stale-below: nothing

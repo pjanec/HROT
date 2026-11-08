@@ -56,6 +56,8 @@ grep) · grep `RegisterWindow(` in `Hrot.ReplayBrowser` → **6** · the panels'
 | Recording info · JSON export | over the RB's transport | ⛔ none |
 | **Federation** — the per-node worlds, offsets, the merged view | `FederatedReplayManager`, `FederationPanel`, `TransientMasterBuilder` | ⛔ none |
 | what is SHOWN | ONE world, `_activeRepo`, rebound to a node's sandbox or the merged master (`RebindActiveRepo`, `ReplayBrowserSubsystem.cs:598, 632, 638`) | ONE world — the editor node's |
+| ⚠ **the editor opening a MULTI-NODE exercise today** | — | the editor's AAR fills its world ONLY from this node's own recording (`EcsRecordReplayController.PrepareReplayAsync`, `:376-398`); a node with no file of that exercise becomes a **listener** (`"NO recording — listener"`, `:398`) that waits for other nodes to replay over the wire — in the ALL-IN-ONE editor there are none ⇒ **the world stays EMPTY**, said only in the log *(measured `2026-11-08`)* |
+| the transports | the RB's ONE transport drawer: history ◀ ▶ (waypoints) · rewind · play / pause · rate · axis S/W · step ◀ ▶ with hold-to-scrub · the seek bar (`ReplayTimelinePanel.DrawTransport`) | the editor's AAR: the indicator · ▶ ⏸ ■ · rate · axis · step FORWARD only (`MainToolbarTimeControlSection`, `OnStep`); seeking via the timeline — ⛔ no step back, no history, no seek bar |
 | how a recorded frame enters a world | — | `PlaybackSystem.ApplyFrame(repo, reader)` (`Fdp.Core/FlightRecorder/PlaybackSystem.cs:31`) — any repository |
 
 ## 2. How Federation and the merge work
