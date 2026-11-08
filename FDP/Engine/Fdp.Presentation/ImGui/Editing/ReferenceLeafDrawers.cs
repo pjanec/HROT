@@ -430,6 +430,15 @@ public static class ReferenceLeafDrawers
 
     // ── EntityRef (internal, unchanged behaviour) ────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>⭐ CE-3385 — THE entity chip + type-ahead picker over the pick context's reference scope (rows by name · side · distance, <i>Pick on the map</i> where there is a context, <i>Clear</i>): every host that shows one thing by name calls this.
+    /// <c>op.Id</c> is the picked entity's network id (<c>new EntityRef((int)op.Id)</c>).</summary>
+    public static EntityFieldOp DrawEntityChip(string id, string label, NodeEditor.Core.Widgets.IconGlyph? icon, float width, IMapPickContext? ctx, string? gone, bool offerKey)
+    {
+        var refs = ctx?.References;
+        var rows = refs is null ? (IReadOnlyList<EntityCandidate>)Array.Empty<EntityCandidate>() : EntityPickerRows.Of(refs).Rows(refs, SelectionOf(ctx));
+        return EntityField.Draw(id, label, icon, width, rows, refs is null ? 0 : EntityPickerRows.Of(refs).Version, gone, offerKey: offerKey, offerMap: ctx != null);
+    }
+
     /// <summary>
     /// ⭐ N-5 (📄 docs/DESIGN_Struct_Editor.md §5, CE-3382) — an EntityRef draws THE entity chip (the same as an EntityLink — ⛔ no longer a raw network-id box): kind glyph ·
     /// name · ▾ — the picker (type-ahead over name · side · kind · distance, then Pick on the map · Clear; no key: an EntityRef cannot hold one). A ref to an entity no
@@ -443,10 +452,8 @@ public static class ReferenceLeafDrawers
         string path = node.JsonPath;
         var link = new EntityLink(current);
         string? gone = GoneText(current, refs);
-        var rows = refs is null ? (IReadOnlyList<EntityCandidate>)Array.Empty<EntityCandidate>() : EntityPickerRows.Of(refs).Rows(refs, SelectionOf(ctx));
-        int version = refs is null ? 0 : EntityPickerRows.Of(refs).Version;
         float mapW = ctx != null ? ImGuiApi.GetFrameHeight() + 4f : 0f;
-        var op = EntityField.Draw("##ref", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - mapW - 4f, 80f), rows, version, gone, offerKey: false, offerMap: ctx != null);
+        var op = DrawEntityChip("##ref", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - mapW - 4f, 80f), ctx, gone, offerKey: false);
         switch (op.Kind)
         {
             case EntityFieldOpKind.Pick: node.Binding?.SetBoxed(new EntityRef((int)op.Id)); changed = true; break;
@@ -562,9 +569,7 @@ public static class ReferenceLeafDrawers
         bool changed = false;
         int marks = (ctx != null ? 1 : 0) + (ctx is { Preview: not null } or { CanShowOnMap: true } ? 1 : 0) + (NeedsStableIdWarning(link, refs) ? 1 : 0);   // what follows the chip
         string? gone = GoneText(link.Ref, refs);
-        var rows = refs is null ? (IReadOnlyList<EntityCandidate>)Array.Empty<EntityCandidate>() : EntityPickerRows.Of(refs).Rows(refs, SelectionOf(ctx));
-        var op = EntityField.Draw(id, ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f),
-            rows, refs is null ? 0 : EntityPickerRows.Of(refs).Version, gone, offerKey: offerKey, offerMap: ctx != null);
+        var op = DrawEntityChip(id, ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f), ctx, gone, offerKey);
         switch (op.Kind)
         {
             case EntityFieldOpKind.Pick: { var next = PickToLink(new EntityRef((int)op.Id), refs); if (next != link) { link = next; changed = true; } break; }

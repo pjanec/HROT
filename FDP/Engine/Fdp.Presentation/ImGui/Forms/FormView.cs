@@ -58,6 +58,10 @@ public sealed class FormView
     private string[] _gridIds = Array.Empty<string>(), _pickIds = Array.Empty<string>();
     private string[] _listIds = Array.Empty<string>(), _listGridIds = Array.Empty<string>();
     private string?[] _listProblem = Array.Empty<string?>();
+    private List<string>[] _listSums = Array.Empty<List<string>>();
+    private List<string>[] _listKeys = Array.Empty<List<string>>();
+    private ListOptions[] _listOpts = Array.Empty<ListOptions>();
+    private int[] _listVersion = Array.Empty<int>();
     private readonly List<FormListItem> _items = new();
     private readonly Dictionary<long, (FixedString64 Who, string Shown)> _who = new();   // a row's name, built once per change (0 B steady)
     private readonly List<string> _listRows = new();
@@ -127,38 +131,36 @@ public sealed class FormView
         list.Fill(world, e, _items);
         ImGui.PushID(id);
         Caption(list.Label);
-        if (FormGrid.Begin(_listGridIds[li], _decl!.Labels, statusSlot: true))
+        // ⭐ CE-3385 — the seats are the kit's LIST block (⋮ menu: Delete = the list's own Remove action; Add = a pick through the one context); the declared rows and their order stay the form's
+        var sums = _listSums[li]; var keys = _listKeys[li];
+        bool same = keys.Count == _items.Count * 2;
+        for (int j = 0; j < _items.Count; j++)
         {
-            for (int j = 0; j < _items.Count; j++)
-            {
-                var it = _items[j];
-                string who = WhoOf(it);
-                _listRows.Add(it.Role); _listRows.Add(who);
-                ImGui.PushID(j);
-                FormGrid.Row(it.Role);
-                ImGui.AlignTextToFramePadding();
-                ImGui.TextUnformatted(who);
-                if (list.Remove != null && list.RemoveLabel != null && !it.Passive)   // a Passive row (a second man) names someone, it has no action of its own
-                {
-                    ImGui.SameLine();
-                    if (ImGui.SmallButton(list.RemoveLabel) && editable) { list.Remove(world, it); _listProblem[li] = null; }
-                }
-                ImGui.PopID();
-            }
-            if (list.Footer?.Invoke(world, e) is { } footer) { FormGrid.Row(""); ImGui.TextDisabled(footer); }
-            if (list.Add != null && list.AddLabel != null && Pick != null)
-            {
-                FormGrid.Row("");
-                if (Pick.IsPickPendingFor(id)) ImGui.TextDisabled("pick on the map...");
-                else
-                {
-                    if (ImGui.Button(list.AddLabel)) { Pick.RequestEntityPick(id, null); _listProblem[li] = null; }
-                    if (Pick.CanListEntities) { ImGui.SameLine(); if (ImGui.Button("List...")) { Pick.RequestEntityListPick(id, null); _listProblem[li] = null; } }
-                }
-            }
-            if (_listProblem[li] is { } problem) { FormGrid.Row(""); ImGui.TextColored(new System.Numerics.Vector4(0.9f, 0.4f, 0.35f, 1f), problem); }
-            FormGrid.End();
+            string who = WhoOf(_items[j]);
+            _listRows.Add(_items[j].Role); _listRows.Add(who);
+            if (same && (!ReferenceEquals(keys[j * 2], _items[j].Role) || !ReferenceEquals(keys[j * 2 + 1], who))) same = false;
         }
+        if (!same)
+        {
+            keys.Clear(); sums.Clear();
+            for (int j = 0; j < _items.Count; j++) { keys.Add(_items[j].Role); string w = WhoOf(_items[j]); keys.Add(w); sums.Add(_items[j].Role.Length == 0 ? w : _items[j].Role + "  " + w); }
+            _listVersion[li]++;
+        }
+        ListBlock.Begin(_listGridIds[li], sums, _listOpts[li], _listVersion[li]);
+        for (int v = 0; v < ListBlock.VisibleCount; v++) { ListBlock.ItemBegin(ListBlock.VisibleIndex(v)); ListBlock.ItemEnd(); }
+        var op = ListBlock.End();
+        if (editable)
+        {
+            if (op.Kind == ListOpKind.Delete && list.Remove != null && op.Index >= 0 && op.Index < _items.Count && !_items[op.Index].Passive) { list.Remove(world, _items[op.Index]); _listProblem[li] = null; }
+            else if (op.Kind == ListOpKind.Add && list.Add != null && Pick != null) { Pick.RequestEntityPick(id, null); _listProblem[li] = null; }
+        }
+        if (list.Footer?.Invoke(world, e) is { } footer) ImGui.TextDisabled(footer);
+        if (Pick != null && list.Add != null)
+        {
+            if (Pick.IsPickPendingFor(id)) ImGui.TextDisabled("pick on the map...");
+            else if (Pick.CanListEntities && ImGui.SmallButton("List...")) { Pick.RequestEntityListPick(id, null); _listProblem[li] = null; }
+        }
+        if (_listProblem[li] is { } problem) RowMarks.ErrorLine(problem);
         ImGui.PopID();
     }
 
@@ -192,6 +194,17 @@ public sealed class FormView
         for (int i = 0, sec = 0; i < _gridIds.Length; i++) { if (decl.Fields[i].Section != null) sec++; _gridIds[i] = decl.Id + "/s" + sec; }
         _listIds = new string[decl.Lists.Count]; _listProblem = new string?[decl.Lists.Count];
         _listGridIds = new string[decl.Lists.Count];
+        _listSums = new List<string>[decl.Lists.Count]; _listKeys = new List<string>[decl.Lists.Count]; _listOpts = new ListOptions[decl.Lists.Count]; _listVersion = new int[decl.Lists.Count];
+        for (int i = 0; i < decl.Lists.Count; i++)
+        {
+            var l = decl.Lists[i];
+            _listSums[i] = new List<string>(); _listKeys[i] = new List<string>();
+            _listOpts[i] = new ListOptions   // the seats' own edits only: add (a pick) and remove (the list's action); no reorder / insert / copy — the rows are the world's
+            {
+                AddLabel = l.AddLabel ?? "Add",
+                Disabled = ListCmd.InsertAbove | ListCmd.InsertBelow | ListCmd.Duplicate | ListCmd.MoveUp | ListCmd.MoveDown | ListCmd.Copy | ListCmd.Paste | ListCmd.Reset | (l.Remove == null ? ListCmd.Delete : ListCmd.None),
+            };
+        }
         for (int i = 0; i < _listIds.Length; i++) { _listIds[i] = decl.Id + ".list" + i; _listGridIds[i] = _listIds[i] + "/g"; }
         _editing = -1;
     }
@@ -343,12 +356,16 @@ public sealed class FormView
             s.Known = false;
         }
         bool set = s.Shown.Length > 0;
-        float avail = ImGui.GetContentRegionAvail().X;
-        float extra = (set && field.Apply != null ? ClearWidth : 0f) + (Pick.CanListEntities ? ListWidth : 0f);
         if (Pick.IsPickPendingFor(id)) { ImGui.AlignTextToFramePadding(); ImGui.TextDisabled("pick on the map..."); return; }
-        if (ImGui.Button(set ? s.Shown : PickWords, new System.Numerics.Vector2(Math.Max(40f, avail - extra), 0f))) { Pick.RequestEntityPick(id, null); s.Refusal = null; }
-        if (Pick.CanListEntities) { ImGui.SameLine(); if (ImGui.Button("List...")) { Pick.RequestEntityListPick(id, null); s.Refusal = null; } }
-        if (set && field.Apply != null) { ImGui.SameLine(); if (ImGui.Button("Clear")) Commit(i, world, sel, 0, null); }
+        // ⭐ CE-3385 — the ONE entity field (chip + type-ahead + pick on the map + clear), as every entity leaf draws it
+        var op = ReferenceLeafDrawers.DrawEntityChip(id + "/f", set ? s.Shown : PickWords, null, ImGui.GetContentRegionAvail().X, Pick, null, offerKey: false);
+        switch (op.Kind)
+        {
+            case EntityFieldOpKind.Pick when field.PickApply != null && new Fdp.Toolkit.Replication.EntityRef((int)op.Id).TryResolve(world, out var chosen):
+                s.Refusal = field.PickApply!(world, sel[0], chosen); s.Known = false; break;
+            case EntityFieldOpKind.PickOnMap: Pick.RequestEntityPick(id, null); s.Refusal = null; break;
+            case EntityFieldOpKind.Clear when set && field.Apply != null: Commit(i, world, sel, 0, null); break;
+        }
     }
 
     private const string PickWords = "Pick on map...";
