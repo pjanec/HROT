@@ -86,7 +86,7 @@ public sealed class ScenarioEnvironmentView : IDetailsViewInstance
                 Apply(world!);
             ImGui.SameLine();
             if (ImGui.Button($"Set##start{idScope}")) Apply(world!);
-            if (_error != null) { ImGui.TableNextRow(); ImGui.TableSetColumnIndex(1); ImGui.TextColored(new System.Numerics.Vector4(1f, 0.45f, 0.35f, 1f), _error); }
+            if (_error != null) { ImGui.TableNextRow(); ImGui.TableSetColumnIndex(1); NodeEditor.Core.Widgets.RowMarks.ErrorLine(_error); }
 
             FormGrid.Row("Local offset (min)");
             if (ImGui.InputInt($"##off{idScope}", ref offset, 15, 60))

@@ -711,8 +711,7 @@ public sealed class ClusterScenarioPanel
                 // ⛔ The SUMMARY never stands alone: it is a count plus a per-node list, so "green" can
                 //    never hide a failed node.
                 if (_terrainBuild.AnyFailed)
-                    ImGui.TextColored(new System.Numerics.Vector4(1f, 0.35f, 0.3f, 1f),
-                        $"{outcomes.Count} node(s) answered — AT LEAST ONE FAILED");
+                    NodeEditor.Core.Widgets.RowMarks.ErrorLine($"{outcomes.Count} node(s) answered — AT LEAST ONE FAILED");
                 else
                     ImGui.Text($"{outcomes.Count} node(s) answered — all OK so far");
 
@@ -720,7 +719,7 @@ public sealed class ClusterScenarioPanel
                 {
                     string line = $"  node {o.NodeId}: {o.Status} ({o.Phase})";
                     if (o.Failed)
-                        ImGui.TextColored(new System.Numerics.Vector4(1f, 0.35f, 0.3f, 1f), line);
+                        NodeEditor.Core.Widgets.RowMarks.ErrorLine(line);
                     else
                         ImGui.Text(line);
                 }
@@ -777,7 +776,7 @@ public sealed class ClusterScenarioPanel
             else if (_assetOp.Status == null)
                 ImGui.TextDisabled($"{_assetOp.Description} — waiting...");
             else if (_assetOp.Failed)
-                ImGui.TextColored(new System.Numerics.Vector4(1f, 0.35f, 0.3f, 1f), $"{_assetOp.Description} — {_assetOp.Status}");
+                NodeEditor.Core.Widgets.RowMarks.ErrorLine($"{_assetOp.Description} — {_assetOp.Status}");
             else
                 ImGui.Text($"{_assetOp.Description} — {_assetOp.Status}");
         }

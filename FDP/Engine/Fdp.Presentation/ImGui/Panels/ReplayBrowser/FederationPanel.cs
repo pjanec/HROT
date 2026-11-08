@@ -110,8 +110,7 @@ public sealed class FederationPanel
 
             // Local-Entities Provider dropdown
             int currentProviderId = _manager.LocalEntitiesProviderNodeId;
-            Gui.Text("Local-Entities Provider:");
-            Gui.SameLine();
+            NodeEditor.Core.Widgets.FormGrid.BeginField("fed.rows", "Local-Entities Provider");   // ⭐ CE-3396 — label-first rows (the one label column)
             string previewLabel = $"Node {currentProviderId}";
             if (Gui.BeginCombo("##lep", previewLabel))
             {
@@ -123,20 +122,19 @@ public sealed class FederationPanel
                 }
                 Gui.EndCombo();
             }
+            NodeEditor.Core.Widgets.FormGrid.EndField();
         }
 
         // Global causality banner
         if (HasNonZeroOffset)
-            Gui.TextColored(new Vector4(1f, 0.7f, 0.2f, 1f),
-                "Causality may not hold -- non-zero offsets active");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine("Causality may not hold -- non-zero offsets active");
 
         // Per-node offset rows
         foreach (var kvp in _manager.Contexts.OrderBy(x => x.Key))
         {
             int nodeId = kvp.Key;
             long currentOffset = _manager.NodeOffsets.TryGetValue(nodeId, out long off) ? off : 0L;
-            Gui.Text($"Node {nodeId} offset:");
-            Gui.SameLine();
+            NodeEditor.Core.Widgets.FormGrid.BeginField("fed.rows", $"Node {nodeId} offset");
             int offsetInt = (int)currentOffset;  // ImGui int input for display only
             Gui.SetNextItemWidth(120f);
             if (Gui.InputInt($"##offset_{nodeId}", ref offsetInt))
@@ -148,6 +146,7 @@ public sealed class FederationPanel
                 if (Gui.IsItemHovered())
                     Gui.SetTooltip($"Node {nodeId} has a non-zero time offset.");
             }
+            NodeEditor.Core.Widgets.FormGrid.EndField();
         }
     }
 }

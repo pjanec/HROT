@@ -96,7 +96,7 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
         }
 
         var (header, problem) = MacroArgs.ReadHeader(_macrosRoot(), instance.Macro);
-        if (problem is not null) { ImGui.TextColored(new Vector4(1f, 0.45f, 0.35f, 1f), problem); ImGui.PopID(); return; }
+        if (problem is not null) { NodeEditor.Core.Widgets.RowMarks.ErrorLine(problem); ImGui.PopID(); return; }
         var rows = MacroArgs.Rows(header, instance.ArgsJson);
         if (rows.Count == 0) { ImGui.TextDisabled("This macro declares no parameters."); ImGui.PopID(); return; }
 
