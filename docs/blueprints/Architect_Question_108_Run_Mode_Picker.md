@@ -7,6 +7,7 @@ stale-below: nothing — superseded revisions removed 2026-11-01; full history a
 known-rot: ⭐ 2026-11-08 — every "armed" wording in §1–§4 (Live armed, ▶ starts the armed mode, the dim indicator) is the PRE-§0 model: read it through §0 (the §2.1 picture and the §3 moves table are superseded by §0's picture and R1′); §2.6 / §2.8 / §2.10 as-built records name the per-host armed default (`HostArmedMode`, `RunModeChoice.HostDefault`, `RunArmedDefaults`) — all deleted by R-1043 (§2.15a): the master's initial armed mode is the one bootstrap difference
 known-conflict: none — CGF-1-DESIGN.md:557 removed `RunningEdit → LoadingLive`; D3 needs no such edge (going live is the ordinary load through Idle)
 related-designs:
+  - ../UX/DESIGN_Recording_Collection.md — the end's ⏏ Close the session asks Archive / Keep / Discard; the archive in the background with status-bar progress; an incomplete archive is visible (proposal, 2026-11-08)
   - docs/UX/DESIGN_Scenario_Presets.md — D7 keeps D24's random Live default; D8 the split ▶ picks the preset; D9 the eye replaces ◐ for Preview (user 2026-11-07)
   - ../UX/DESIGN_New_Scenario_And_Recipe.md — E12: New Scenario gains "Blank, on a terrain"; Save Scenario as Recipe gains Replace recipe
   - ../DESIGN_Add_Entity_Picker.md — §2f the thumbnail gallery (CE-4142), the second source on D26's generic picker extensions
