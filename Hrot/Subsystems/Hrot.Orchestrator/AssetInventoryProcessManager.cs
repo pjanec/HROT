@@ -65,7 +65,13 @@ public sealed class AssetInventoryProcessManager
     public void Tick()
     {
         // ⭐ CE-3410 (AQ108 §0 D28 / D33) — did the live run's clock ever advance? Sampled every frame the cluster was Live (the previous frame's state, so the last Live frame counts).
-        if (_lastState == ClusterState.OperatingLive && _currentRecording != null && ClockAdvancing?.Invoke() == true) _liveRan = true;
+        //   ⚠ Read as the sim clock RISING frame to frame — ⛔ not GlobalTime.IsAdvancing: the master's time reads (MasterSyncController.GetCurrentState) always report DeltaTime 0,
+        //   so every run looked unrun and was dropped (ui's editor rails, NOTE_Ui_To_Backend_CE3410_Drops_Runs_That_Ran). A backward jump (a load's reset, a restore) is not a run.
+        if (_lastState == ClusterState.OperatingLive && _currentRecording != null && SimSeconds?.Invoke() is { } sim)
+        {
+            if (!double.IsNaN(_lastLiveSim) && sim > _lastLiveSim) _liveRan = true;
+            _lastLiveSim = sim;
+        }
 
         foreach (var intent in _bus.ReadManaged<TransitionStateIntent>())
         {
@@ -92,11 +98,12 @@ public sealed class AssetInventoryProcessManager
                 _pendingBranch = null;
                 // ⭐ CE-3410 — a run RESUMED (back from DAR) already holds a ledger entry: it ran, and is never dropped
                 _liveRan = _unarchivedLedger.ContainsKey(ev.ExerciseId);
+                _lastLiveSim = double.NaN;
                 SnapshotScenario(ev.ExerciseId, _pendingScenarioId, parent, _currentRecording.StartTimeUtc);
             }
             else if (_lastState == ClusterState.OperatingLive && ev.CurrentState != ClusterState.OperatingLive)
             {
-                if (_currentRecording != null && _currentRecording.ExerciseId != Guid.Empty && !_liveRan && ClockAdvancing != null)
+                if (_currentRecording != null && _currentRecording.ExerciseId != Guid.Empty && !_liveRan && SimSeconds != null)
                 {
                     // ⭐⭐ CE-3410 (AQ108 §0 D28 / D33) — a Live left before its clock ever ran (a cancelled briefing, a switch away from Live) leaves NO recording: the master minted the
                     //   exercise at the load (CE-3310) and its first keyframe was written then (CE-3313), so it would list an empty exercise. ⛔ No ledger entry ⇒ never listed (the inventory
@@ -227,11 +234,12 @@ public sealed class AssetInventoryProcessManager
     }
 
     /// <summary>
-    /// ⭐ CE-3410 (AQ108 §0 D28) — is the cluster clock advancing this frame? Set by the host that owns the time controller (<c>OrchestratorCore</c>, like the master's
-    /// <c>SimSeconds</c>); <see langword="null"/> ⇒ every live run counts as run (nothing is dropped).
+    /// ⭐ CE-3410 (AQ108 §0 D28) — the cluster's sim clock in seconds (<c>GlobalTime.TotalTime</c>). Set by the host that owns the time controller (<c>OrchestratorCore</c>, like the
+    /// master's <c>SimSeconds</c>); a live run RAN when it rose between two Live frames. <see langword="null"/> ⇒ every live run counts as run (nothing is dropped).
     /// </summary>
-    public Func<bool>? ClockAdvancing { get; set; }
+    public Func<double>? SimSeconds { get; set; }
     private bool _liveRan;
+    private double _lastLiveSim = double.NaN;
 
     private void HydrateLedger()
     {

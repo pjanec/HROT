@@ -369,14 +369,15 @@ public sealed class AssetInventoryProcessManagerTests
         {
             var exerciseId = Guid.NewGuid();
             var bus = new FdpEventBus();
-            bool advancing = false;
-            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero) { ClockAdvancing = () => advancing };
+            double sim = 0;
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero) { SimSeconds = () => sim };
             void State(ClusterState s) { bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = s, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) }); bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers(); }
 
             bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
             State(ClusterState.OperatingLive);                        // the briefing: Live, paused at 0:00
-            advancing = ran; manager.Tick(); bus.SwapBuffers();      // one frame — the clock runs or it does not
-            advancing = false; manager.Tick(); bus.SwapBuffers();
+            manager.Tick(); bus.SwapBuffers();                         // a Live frame at 0:00 (the briefing)
+            if (ran) sim = 0.05;                                       // the next frame the clock has run — or it has not
+            manager.Tick(); bus.SwapBuffers();
             State(ClusterState.Idle);                                 // closed / switched away
 
             var inventory = LastInventory(bus);
@@ -385,6 +386,37 @@ public sealed class AssetInventoryProcessManagerTests
             Assert.Equal(ran, inventory.Value.LocalExercises!.Any(e => e.ExerciseId == exerciseId));
             bool onDisk = Directory.Exists(staging) && Directory.GetFiles(staging, "*", SearchOption.AllDirectories).Any(f => f.Contains(exerciseId.ToString()));
             Assert.Equal(ran, onDisk);
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-3410 — a live load whose clock is first seen at the LAST run's end time and then reset to 0:00 did not run (a backward jump is no run).
+    /// 🔴 The bug ui's editor rails found: the seam read <c>GlobalTime.IsAdvancing</c>, which the master's time reads never set ⇒ runs that ran were dropped — this rail and
+    /// the inverse case of the theory above pin the clock-RISING reading.
+    /// </summary>
+    [Fact]
+    public void CE3410_AClockResetToZero_IsNotARun()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce3410b_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce3410b_stg_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            var bus = new FdpEventBus();
+            double sim = 300;   // the last run's end
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero) { SimSeconds = () => sim };
+            void State(ClusterState s) { bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = s, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) }); bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers(); }
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
+            State(ClusterState.OperatingLive);
+            manager.Tick(); bus.SwapBuffers();   // seen at 300
+            sim = 0; manager.Tick(); bus.SwapBuffers();   // the load's reset
+            State(ClusterState.Idle);
+            Assert.DoesNotContain(LastInventory(bus)!.Value.LocalExercises!, e => e.ExerciseId == exerciseId);
         }
         finally
         {
@@ -403,13 +435,13 @@ public sealed class AssetInventoryProcessManagerTests
         {
             var exerciseId = Guid.NewGuid();
             var bus = new FdpEventBus();
-            bool advancing = false;
-            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero) { ClockAdvancing = () => advancing };
+            double sim = 0;
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero) { SimSeconds = () => sim };
             void State(ClusterState s) { bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = s, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) }); bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers(); }
 
             bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
             State(ClusterState.OperatingLive);
-            advancing = true; manager.Tick(); bus.SwapBuffers(); advancing = false;
+            manager.Tick(); bus.SwapBuffers(); sim = 0.05; manager.Tick(); bus.SwapBuffers();
             State(ClusterState.OperatingReview);   // ⏪ DAR
             State(ClusterState.OperatingLive);     // back to live, paused
             State(ClusterState.Idle);              // closed at once
