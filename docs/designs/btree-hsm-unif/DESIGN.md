@@ -8,6 +8,7 @@ stale-below: "The Baseline This Programme Measured", every "Problem" block and e
   programme's DESIGN-TIME RECORD of what it set out to build. Read them as that record, never as a
   description of today's runtime; the banner is the current model.
 related-designs:
+  - ../quick-reload/DESIGN.md — owns the BLUEPRINT / quick-reload coordinator; both coordinators discover registrars through BlueprintRegistrarScanner.Discover (CE-4109, §1.3 AS-BUILT)
   - ../../blueprints/DESIGN_Occurrence_Scoped_Storage.md — owns where brain state LIVES (slots, tiers,
     the one tick system); this document owns the BTree/HSM PARADIGM parity work
 -->
@@ -259,6 +260,20 @@ AiHotReloadCoordinator
 
 Steps 6-10 must execute between simulation ticks (i.e., inside `DrainPendingCallbacks`,
 which is called at the start of each frame before any tick system runs).
+
+#### ⭐ AS-BUILT — CE-4109 (behaviors, `2026-11-08`): TWO coordinators, ONE registrar discovery
+
+| | owner | why it is not one class |
+|---|---|---|
+| `Hrot.Editor.AiHotReloadCoordinator` | the `Hrot.AI.Behaviors.dll` file-watch swap (BTree + HSM; `HsmActionDispatcher.ClearAll` before the registrars; live HSM instances re-pointed) — this §1.3 | it owns the AI assembly's lifetime and the HSM re-point, which the blueprint path does not do |
+| `Fdp.Toolkit.Behavior.AiHotReloadCoordinator` | blueprint assemblies and the in-memory Quick-Reload (per-blueprint ALCs, staging commit) — `docs/designs/quick-reload/DESIGN.md` | per-blueprint ALC bookkeeping the AI-dll swap has no use for |
+
+⭐ The duplicate was the DISCOVERY of `[BlueprintRegistrar]` classes: both scanned the assembly, and the editor's copy matched the attribute by
+its type NAME. 📐 Measured: the editor's reload context is a plain collectible `AssemblyLoadContext` with no `Load` override, so `Fdp.Toolkits`
+resolves from the default context and the attribute TYPE is the same type there — the FDP coordinator already matched by type in production.
+⇒ both now call `BlueprintRegistrarScanner.Discover(assembly)`; the editor's copies of `RegistrarParameter` / `ResolvedRegistrar` are deleted.
+⚠ Kept by name: the entry method (`Register` ?? `RegisterAll`) — the generated registrars' contract, now in ONE place. ⛔ No rush removal of
+either coordinator (CLAUDE.md "no rush removals": duplicate CODE routed, the two SURFACES own different reloads).
 
 #### 1.4 — Update `AiBehaviorFactory.BuildRegistrationAction`
 

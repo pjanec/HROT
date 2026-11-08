@@ -7,6 +7,9 @@ behavior without an MSBuild full rebuild.
 **Origin:** deferred substrate item PU-09 (JSON DD §6.5) / EB-E (Forward-Plan §5). The sibling visual-editing thread
 (`ai-hsm-btree-vis-edit-2`) explicitly deferred it (BT-07 "large/risky, lead-handled"); we own it here.
 
+> ⭐ **CE-4109 (`2026-11-08`)**: the editor's `Hrot.AI.Behaviors.dll` coordinator and this one discover `[BlueprintRegistrar]` classes through ONE
+> `BlueprintRegistrarScanner.Discover` (by attribute type); which coordinator owns which reload: `../btree-hsm-unif/DESIGN.md` §1.3 AS-BUILT.
+
 ## Why it's feasible (de-risked)
 The hot-reload machinery is **already general** and the emit path is **runtime-callable**:
 - **Emit (runtime-callable):** `Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.EmitTopologyCore(dto)` emits the
