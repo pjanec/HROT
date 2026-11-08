@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: §3 M5's "a task-owned rule evaluated by the rules runner" is SUPERSEDED by §5 D3 (one Condition trigger, the one compiler); §2.2's PhaseBegins leaf and OperationPhase class by §5 D5 / D6 (a phase IS a trigger)
 known-conflict: the code calls a plan's task slot a "phase" (MissionPlanQueue.Phases); this design uses "phase" for the MILITARY phase of an operation (§2.4) — Q6 renames the code's word
 related-designs:
+  - ../DESIGN_Orders_Params_Entity_Classes.md — §14 (CE-4350): the behaviours "+ Add task" offers fit the entity — the class-table filter
   - ../DESIGN_Scenario_Entity_Keys.md — OWNS S9′ / S10: a reference in a file is the target's GUID or @Key; §5.7 G1 / G2 close the plan's two load-path gaps
   - ../DESIGN_Readable_Scenario_Json.md — the task params and its then / give-up conditions written as JSON objects on disk, not escaped strings
   - DESIGN_Condition_Editor.md — the editor a task's Advanced condition opens; PhaseBegins is listed there as this design's leaf

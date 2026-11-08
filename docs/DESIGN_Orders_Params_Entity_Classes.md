@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-13 (§13 finishing the params story — measured, leans await the user)
 build-state: BUILDING — §5a records each task as built (CE-2145 ✅, CE-2131 ✅, CE-2132 ✅, CE-2130, CE-2133, CE-2134, CE-2140, CE-2141, CE-2142, CE-2143, CE-2137, CE-2138, CE-2139 ✅); §6 is the build plan
-current-answer: §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP · ⭐ §13 FINISHING THE PARAMS STORY (2026-10-13): what is left, decisions F1–F8, work P1–P7 by lane · §13.12 P5b the order form (ui, CE-1059)
+current-answer: ⭐ §14 CE-4350 the behaviour filter by class (2026-11-08) · §1 the rules every behaviour follows · §2 classes · §3 sequences · §4 modules · §5 what changes, file by file · §5a AS BUILT · §6 THE TASK LIST (ids, order, dependencies, acceptance) · §7 D2 (CE-2141) the unit order behaviours and the member release · §8 D3 (CE-2142) the receiver resolves an order by its class · §9 D4 (CE-2143) one generic order path: menu, RTS, HTTP · ⭐ §13 FINISHING THE PARAMS STORY (2026-10-13): what is left, decisions F1–F8, work P1–P7 by lane · §13.12 P5b the order form (ui, CE-1059)
 stale-below: nothing
 known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · none
 known-conflict: (resolved by CE-2143) docs/DESIGN_Entity_Control.md §3.1/§10 is now marked superseded in its own STATUS. · docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
@@ -2628,3 +2628,95 @@ the search-predicate reader, and the blueprint clipboard. Writers that printed n
   - It is a tripwire, not proof: it misses `Deserialize(json, type)`, and it skips calls inside string literals.
 - `OrchestrationSchemaTests.TheGatewaysSetTimeScalePayload_IsWhatTheMasterReads`.
 - `SpawnTransformBindsTests.AComponentInASpawnBodyBindsItsFields` (both vector shapes).
+
+## 14. CE-4350 — the tasks a unit is OFFERED fit it: the behaviour filter by CLASS *(behaviors, `2026-11-08`, overnight O-2 · build-state: READY-TO-BUILD)*
+
+🔒 User report (CE-4350): *the entity mission plan editor offers tasks / behaviours that do not fit the entity's type.* ⭐ §5 already ruled the
+target — **"behaviour filter per type: the class table (classes declared by the order behaviour's name, or by a class list on a non-order
+behaviour)"** — and it was never built. This section builds it.
+
+INVENTORY *(measured)*: `search_graph name_pattern=".*(ActionAvailab|Requires|TaskPicker|MissionTask|TaskCatalog|OrderCatalog).*" label=Class` ⇒ 3
+(`DomainMissionTask`, `MissionTask`, a test attribute — no task catalogue exists); grep: the "+ Add task" popup (`OrdersTab.cs:202-215`) lists Wait,
+the ORDERS through `OrderMenu.OfferedFor(dis)` (already by class, CE-2143 ✓) and the BEHAVIOURS through
+`ScenarioMissionService.GetAvailableBehaviorChoices` (`ScenarioMissionService.cs:70`): ① `BehaviorCatalog.GetValidBehaviors(tkbType)` — a switch over
+**11 TKB type ids** onto `BehaviorCategory` lists, `s_defaultBehaviors` for every other type; ② ⛔ **`AppendEditorBTreeBehaviors` then appends EVERY
+registered behaviour of every technology that is not already listed** (its own comment: *"INTERIM … available to every entity type"*) ⇒ **the
+cause of CE-4350**: a tank is offered the infantry drills, a squad the vehicle ones. 118 `[Behavior]` declarations carry `Categories`
+(Commander 33 · Objective 19 · AllMilitary 19 · MilitaryApc 14 · Infantry|Insurgent 12 · …). The tabs' `Requires` is a component AND
+(`DetailsViewRegistry.Evaluate` → `RequirementsMet`, `DetailsViewRegistry.cs:100-119`); `ActionDecl` itself carries no `Requires` yet.
+
+```mermaid
+classDiagram
+  class BehaviorAttribute {
+    <<EXISTING · Hrot.Core>>
+    Categories : BehaviorCategory
+    +Classes : string[]  NEW — class names (EntityClassTable)
+    +Requires : Type[]  NEW — components the entity must carry (equipment)
+  }
+  class BehaviorFit {
+    <<NEW · Hrot.Core/Tkb — the ONE filter>>
+    +ClassesOf(behaviour) : the declared Classes, else the order name's class prefix, else the category table
+    +Fits(table, dis, behaviour, probe) : bool
+  }
+  class CategoryClasses {
+    <<NEW · inside BehaviorFit — the ONE translation>>
+    Infantry, Insurgent → Infantry · Civilian → Civilian · MilitaryApc → LandPlatform · Commander → Unit · Objective / Trigger → their classes
+  }
+  class EntityClassTable { <<EXISTING>> +ChainContains(dis, name) }
+  class OrderResolver { <<EXISTING>> orders by class (CE-2142) }
+  class ComponentRequirements {
+    <<NEW · Hrot.Common — moved out of DetailsViewRegistry.RequirementsMet>>
+    +Met(probe, entity, Type[]) : bool  AND
+  }
+  class DetailsViewRegistry { <<EXISTING>> tabs' Requires }
+  class ScenarioMissionService { <<EXISTING>> GetAvailableBehaviorChoices }
+  class BehaviorCatalog { <<EXISTING — the TKB-id switch RETIRED>> }
+  BehaviorFit --> EntityClassTable
+  BehaviorFit --> CategoryClasses
+  BehaviorFit --> ComponentRequirements
+  DetailsViewRegistry --> ComponentRequirements
+  ScenarioMissionService --> BehaviorFit : every behaviour, curated AND authored
+  BehaviorCatalog ..> BehaviorFit : delegates
+```
+
+*What the picture shows that the prose hid:* the editor's behaviour list and the unit's order list end at the SAME class table (orders through
+`OrderResolver`, behaviours through `BehaviorFit`), and the equipment check is the tabs' own `Requires` — two filters become one vocabulary.
+
+```mermaid
+sequenceDiagram
+  participant OT as OrdersTab "+ Add task"
+  participant S as ScenarioMissionService
+  participant R as BehaviorRegistry (every technology)
+  participant F as BehaviorFit
+  participant C as EntityClassTable
+  OT->>S: GetAvailableBehaviorChoices(net)
+  S->>R: registered names (curated + authored)
+  loop each behaviour (no SOP)
+    S->>F: Fits(table, dis, behaviour, probe)
+    F->>C: ChainContains(dis, class) for its classes
+    F->>F: Requires met (ComponentRequirements)
+  end
+  S-->>OT: the fitting behaviours, grouped
+```
+
+```mermaid
+graph TD
+  ED[Hrot.Editor.AiShared OrdersTab — editor, every host's Details] --> SMS[Hrot.Presentation ScenarioMissionService]
+  EXC[ExCon MissionEditorService] --> BC[Hrot.Core BehaviorCatalog]
+  SMS --> BF[Hrot.Core BehaviorFit]
+  BC --> BF
+  BF --> ECT[Hrot.Core EntityClassTable]
+  BF --> CR[Hrot.Common ComponentRequirements]
+  DVR[Hrot.Editor.AiShared DetailsViewRegistry] --> CR
+```
+
+*Module picture:* `BehaviorFit` sits in `Hrot.Core` beside `EntityClassTable` and `OrderResolver`, so the editor, ExCon and the HTTP/MCP order
+path all ask ONE place; ⚠ if `ComponentRequirements` cannot live where `Hrot.Core` sees it, `BehaviorFit` takes the probe as a delegate and the
+AND loop stays in ONE helper both callers use.
+
+| rule | lean (taken overnight, R-4156: no question) |
+|---|---|
+| a behaviour's classes | ① `Classes` declared on `[Behavior]`; ② else an order behaviour's name prefix `<Class><Order>` (`PersonMove` → `Person`), the same split `OrderResolver` uses; ③ else its `Categories` through ONE translation table |
+| an authored asset (BTree / HSM / blueprint) with no class | ⚠ still offered to every entity, listed under its group — until assets can declare classes (a later step); ⛔ not hidden: the user would lose behaviours they authored |
+| equipment | `Requires` component types, the tabs' AND; declared only where measured (a fire behaviour needs the weapon component every armed spawn carries — measure which) |
+| the 11-id switch | retired; ⭐ a GOLDEN pins every built-in TKB type's list before / after, every difference named |
