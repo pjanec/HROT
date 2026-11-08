@@ -77,6 +77,8 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
             CanConnect: editor == null ? null : ConnectRefusal, Connect: editor == null ? null : ConnectRows);   // ⭐ CE-4222 RE-9 — only a host with the rule editor connects
         _editorSvc = editor;
         _details = editor == null ? null : new RuleDetails(editor, world, _blocked, selectEntity, (row, n) => DrawOverviewBody(row));
+        if (_details != null)   // ⭐ CE-2423 — Edit / Show history are bound where the host has the rule editor (the Details pane): they select the row and open its tab
+            _hooks = _hooks with { Edit = r => Select(r), ShowHistory = r => { Select(r); _details.RequestTab(RuleTab.History); } };
         _panel.Tracks = () => _tracks;
         _panel.ExtentWithoutItems = true;
         _panel.ComingUpCount = 5;                      // ⭐ CE-4221 X5 — the rules view turns Coming up on
@@ -386,8 +388,7 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
             foreach (var l in sel.WaitsOn) details.Add($"Waits on: {l.Text}");
             foreach (var l in sel.Starts) details.Add($"Starts: {l.Text}");
             foreach (var l in MessageDelivery.LinesOf(world, sel.NetworkId)) details.Add($"Sent: {l}");   // ⭐ CE-4241
-            foreach (var a in RulesModel.ActionsOf(sel)) buttons.Add((a.Label, block ?? a.DisabledReason));
-            buttons.Add(("Show on map", sel.SubjectNetworkId != 0 ? null : "this rule has no subject"));
+            foreach (var a in ActionRowsOf(sel, block)) buttons.Add((a.Label, a.Why));
         }
         _probe = new RulesWindowProbe(_view.Rows.Select(r => $"{new string(' ', r.Depth * 2)}{r.Title} | {r.StateWords}").ToList(), _selected, details, buttons, GroupNames[_groupBy], SideNames[_side], _search, null,
             _panel.LastConnectors.Select(c => $"{c.FromTrack} -> {c.ToTrack}").ToList(), _panel.LastComingUp.Select(c => $"{c.At:0} {c.TrackLabel} {c.ItemLabel}").ToList());   // ⭐ CE-4221 — what the last frame drew (an agent reads it)
@@ -741,15 +742,24 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
         var sent = MessageDelivery.LinesOf(_world(), sel.NetworkId);   // ⭐ CE-4241 — what went to whom
         if (sent.Count > 0) { ImGui.TextDisabled("Sent"); foreach (var l in sent) { ImGui.SameLine(110f); ImGui.TextWrapped(l); } }
         ImGui.Separator();
-        string? block = _blocked();
-        foreach (var a in RulesModel.ActionsOf(sel))
+        foreach (var a in ActionRowsOf(sel, _blocked()))
         {
-            string? why = block ?? a.DisabledReason;
-            Button(a.Label, why, () => Ask(sel, a.Request));
+            Button(a.Label, a.Why, a.Run);
             ImGui.SameLine();
         }
-        Button("Show on map", sel.SubjectNetworkId != 0 ? null : "this rule has no subject", () => _showOnMap(sel.SubjectNetworkId));
         if (Message != null) ImGui.TextDisabled(Message);
+    }
+
+    private (RuleRow Row, string? Block, bool Editor, List<RuleActionBinding.Row> Rows)? _actionRows;
+
+    /// <summary>⭐ CE-2423 — the selected rule's action rows, composed from the catalogue (<see cref="RuleActionBinding"/>) and cached per row object and block, so the drawn window builds nothing in a steady frame; the buttons and the probe read the same list.</summary>
+    private List<RuleActionBinding.Row> ActionRowsOf(RuleRow sel, string? block)
+    {
+        if (_actionRows is { } c && ReferenceEquals(c.Row, sel) && c.Block == block && c.Editor == (_details != null)) return c.Rows;
+        var surface = new RuleActionBinding.Surface(_hooks.Edit == null ? null : () => _hooks.Edit(sel), _hooks.ShowHistory == null ? null : () => _hooks.ShowHistory(sel));
+        var rows = RuleActionBinding.Rows(sel, RuleActionBinding.ModeOf(sel, block), req => Ask(sel, req), () => _showOnMap(sel.SubjectNetworkId), block, surface);
+        _actionRows = (sel, block, _details != null, rows);
+        return rows;
     }
 
     private static void Button(string label, string? why, Action run)

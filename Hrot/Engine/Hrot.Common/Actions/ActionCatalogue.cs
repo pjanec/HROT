@@ -91,6 +91,8 @@ namespace Hrot.Common.Actions
         public long AtTicks { get; init; }
         /// <summary>⭐ A6 — the lane of a clicked timeline event (its display name), or null.</summary>
         public string? Lane { get; init; }
+        /// <summary>⭐ CE-2423 (A6b) — the role of a clicked RULE (a trigger, an objective, a measure): decides which controls are offered; null elsewhere.</summary>
+        public Fdp.Toolkit.ScenarioRules.ObjectiveRole? RuleRole { get; init; }
 
         /// <summary>⭐ Seats H2 — the station's editing level (its seat); <see cref="EditingLevel.Full"/> where no seat is installed.</summary>
         public EditingLevel Level { get; init; }
@@ -126,6 +128,10 @@ namespace Hrot.Common.Actions
         /// <summary>⭐ B-17 P2 — a context for an armed TOOL's own menu (no view, no entity): the drawing menu (<see cref="ActionTarget.Drawing"/>).</summary>
         public static ActionContext ForTool(ActionTarget target, EditingMode mode)
             => new(null!, Entity.Null, target, mode, default);
+
+        /// <summary>⭐ CE-2423 (A6b) — a context for a RULE row / track (no view, no entity): its <paramref name="role"/> says which controls apply.</summary>
+        public static ActionContext ForRule(EditingMode mode, Fdp.Toolkit.ScenarioRules.ObjectiveRole role)
+            => new(null!, Entity.Null, ActionTarget.Rule, mode, default) { RuleRole = role };
 
         /// <summary>⭐ A6 — a context for a MOMENT (no view, no entity): the timeline's moment / event, the mode indicator's playhead.</summary>
         public static ActionContext ForMoment(ActionTarget target, EditingMode mode, string? time, long atTicks = 0, string? lane = null)

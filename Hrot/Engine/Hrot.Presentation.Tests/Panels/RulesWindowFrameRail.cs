@@ -144,7 +144,10 @@ public sealed class RulesWindowFrameRail : IDisposable
         var window = new RulesWindow(() => _world, () => null, null, "rail_rules_rec", "Scenario", Vector4.One, _ => { }, _ => { }, blocked: () => "a recording is read-only", now: () => 5d) { ListView = false };   // U-18: these rails drive the Timeline
         window.SelectNetworkId(12);
         window.Rebuild();
-        Assert.All(window.Probe.Buttons.Where(b => b.Label != "Show on map"), b => Assert.Equal("a recording is read-only", b.Reason));
+        var controls = new[] { "Fire now", "Disarm", "Re-arm", "Reset" };
+        Assert.All(window.Probe.Buttons.Where(b => controls.Contains(b.Label)), b => Assert.Equal("a recording is read-only", b.Reason));
+        Assert.Equal(new[] { "Show on map", "Show history", "Fire now", "Disarm", "Re-arm", "Reset" }, window.Probe.Buttons.Select(b => b.Label));   // ⭐ CE-2423 — a recording is Review (View group first): Show on map · Show history (greyed: this window has no details pane) · the four controls, greyed
+        Assert.Equal(RuleActionBinding.NoHistory, window.Probe.Buttons.Single(b => b.Label == "Show history").Reason);
         var row = Hrot.UI.Common.Rules.RulesModel.Build(_world, new Hrot.UI.Common.Rules.RulesOptions(), null, 5d).Find(12)!;
         window.Ask(row, RuleRequest.Fire);
         Assert.Equal("a recording is read-only", window.Message);          // refused before any write: this world has no write router, so a write would have thrown
@@ -198,7 +201,13 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.Equal(new[] { 900 }, picked);
         Assert.Contains("State: Authored", window.Probe.Details);
         Assert.Contains("Waits on: Mission", window.Probe.Details);
-        Assert.All(window.Probe.Buttons.Where(b => b.Label != "Show on map"), b => Assert.Equal(RulesModel.NotRunning, b.Reason));
+        var controls = new[] { "Fire now", "Disarm", "Re-arm", "Reset" };
+        Assert.All(window.Probe.Buttons.Where(b => controls.Contains(b.Label)), b => Assert.Equal(RulesModel.NotRunning, b.Reason));
+        // ⭐ CE-2423 — an authored row is Edit mode: Edit · Disable · Delete are listed beside the greyed controls; the two with no command say what is missing
+        Assert.Equal(new[] { "Edit", "Disable", "Show on map", "Fire now", "Disarm", "Re-arm", "Reset", "Delete" }, window.Probe.Buttons.Select(b => b.Label));
+        Assert.Equal(RuleActionBinding.CannotDisable, window.Probe.Buttons.Single(b => b.Label == "Disable").Reason);
+        Assert.Equal(RuleActionBinding.CannotDelete, window.Probe.Buttons.Single(b => b.Label == "Delete").Reason);
+        Assert.DoesNotContain(window.Probe.Buttons, b => b.Label == "Show history");
     }
 
     /// <summary>

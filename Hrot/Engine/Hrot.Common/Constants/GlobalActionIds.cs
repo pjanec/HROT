@@ -146,5 +146,18 @@ namespace Hrot.Common.Constants
         public const int FinishDrawing      = 2410;
         public const int RemoveLastPoint    = 2411;
         public const int CancelDrawing      = 2412;
+
+        // --- ⭐ CE-2423 / A6b (DESIGN_Action_Catalogue §9) — the RULE target (a rule row / track): the instructor's controls, the edit-mode rows, show on map / history (RuleMenuActions)
+        public const int RuleFire        = 2413;
+        public const int RuleDisarm      = 2414;
+        public const int RuleRearm       = 2415;
+        public const int RuleReset       = 2416;
+        public const int RuleActivate    = 2417;
+        public const int RuleDeactivate  = 2418;
+        public const int RuleEdit        = 2419;
+        public const int RuleDisable     = 2420;
+        public const int RuleDelete      = 2421;
+        public const int RuleShowOnMap   = 2422;
+        public const int RuleShowHistory = 2423;
     }
 }

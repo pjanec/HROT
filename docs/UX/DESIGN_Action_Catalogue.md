@@ -456,11 +456,17 @@ classDiagram
   class ActionContext { <<existing>> + Time · AtTicks · Lane (init — a moment's target) }
   class RunModeActions { <<NEW, Hrot.Common/Actions>> DeclareInto(catalogue) · the WORDS: DarFrom(t) · AarFrom(t) · GoLiveFrom(t) · DarLast(s) · DarFromStart · TakeCheckpointHere · RunTo }
   class RunModeBinding { <<NEW, Hrot.Presentation/RunMode>> Rows(target, mode, time, run(id), why(id)) → items · ModeOf(TransportMode) }
+  class RuleActionBinding { <<NEW A6b, Hrot.Presentation/Rules>> Rows(row, mode, ask, showOnMap, blocked, Surface) → items · ModeOf(row, blocked) · ControlReason }
+  class RuleMenuActions { <<existing, + Rule target A6b>> the words FireNow … ShowHistory · DeclareRule }
   class ClusterTimelineCursor { <<existing>> ModeMenuItems → composed · ComposesReviewItems = true }
   class MainToolbarTimeControlSection { <<existing>> the mode menu's moment items → composed (Playhead) }
   class TimelinePanel { <<existing, FDP>> its own DAR rows only when the cursor does not compose them }
   RunModeActions ..> ActionCatalogue : declares (Shared)
   RunModeBinding --> MenuComposer : Compose(Run group)
+  RuleActionBinding --> MenuComposer : Compose(Rule target; ActionContext.RuleRole)
+  RuleMenuActions ..> ActionCatalogue : declares (Shared)
+  RuleTrack --> RuleActionBinding : the timeline menu
+  RulesWindow --> RuleActionBinding : the buttons AND the probe
   ClusterTimelineCursor --> RunModeBinding : Moment / Event
   MainToolbarTimeControlSection --> RunModeBinding : Playhead
   TimelinePanel ..> ClusterTimelineCursor : ModeMenuItems
@@ -497,11 +503,33 @@ sequenceDiagram
 | greyed rows keep today's *"label — reason"* | `TimelineMenuItem` / `ModeMenuItem` have no tooltip; ⏭ the tooltip form (§2.1 "greyed with the reason") when those carry one |
 | the timeline's VIEWER rows (Seek, Play from here, previous / next, zoom / loop, Copy the time) stay the FDP panel's | they are navigation of a generic component (AQ26 constraint 1 — the same reason as the graph editors, §5 Q3); ⚠ a deviation from "the whole timeline menu composed" |
 | the arming moves (Preview / Live / AAR, with their confirmations) stay `RunModeChoice.Moves` | they choose a MODE, not an action on a target; they are already declared once (the choice) |
-| ⏭ **Rule** (a rule row / track: Fire now · Disarm · Re-arm · Reset — RV-5, `RulesModel`) | the target is declared; its actions are the next slice (tracker CE-2423) |
+| ✅ **Rule** (a rule row / track: Fire now · Disarm · Re-arm · Reset — RV-5) | built as A6b below (CE-2423) |
 
 **Goldens:** `Goldens/runmode.golden.txt` — the composed rows per target × mode (declarations only, `Time` = `3:12`). **Rails:**
 `TheRunModeMovesAreDeclaredOnceTests` (the words are the same on the timeline and the indicator; the panel draws no DAR of its own when the cursor
 composes; the Run group comes first and moves no older golden).
+
+### ⭐ A6b — the Rule target (CE-2423) AS-BUILT *(behaviors, `2026-11-08`; `build-state: BUILT`)*
+
+*The classDiagram of §9 now also covers `RuleActionBinding` / `RuleMenuActions` (updated in place, above).* Sequence = §9's: the surface asks `RuleActionBinding.Rows(row, mode, …)` → `MenuComposer.Compose(ActionContext.ForRule(mode, role))`.
+
+| target × mode | Edit (an authored row) | Live (running) | Review (a recording) |
+|---|---|---|---|
+| **Rule, Trigger** | Edit · Disable · Delete + the four controls **greyed** (*not running — start the exercise*) | Fire now · Disarm · Re-arm · Reset · Show on map | Show on map · Show history + the four controls **greyed** (the host's reason) |
+| **Rule, Objective / Measure** | same, controls = Activate · Deactivate · Reset | Activate · Deactivate · Reset · Show on map | same |
+
+| decision | why |
+|---|---|
+| the role rides in `ActionContext.RuleRole` (`init`, like A6's `Time` / `Lane`); a control's `Offer` returns null for the other role | one context type for every surface; Fire / Disarm / Re-arm only for a trigger, Activate / Deactivate only for an objective / measure, Reset for all |
+| the controls are in group **Orders** (Level Instructor, not side-scoped), Show on map / history **View**, Edit / Disable **Edit**, Delete **Destructive** | the Run group is for moments only (A6's rail); the Instructor level is the origin the controls are written with (`RuleOrigin.Instructor`) |
+| the controls are declared in EVERY mode and **grey** in Edit / Review rather than hidden | ⚠ deviation from §3.13's table ("Live: the controls"): the Rules window's rails (RV-3a authored rows, the recording rail) pin *every action listed, disabled with the reason*; the greying is the binding's (`ControlReason`: blocked → `RulesModel.NotRunning` → `RuleCommands.DisabledReason`, the ONE validity rule) |
+| mode of a row: authored ⇒ Edit; blocked (a recording) ⇒ Review; else Live | the Rules window has no mode facade of its own; these three facts are what it knows |
+| **Edit** binds to selecting the row (its form is in the Details pane); **Show history** to selecting it and opening the History tab; both greyed *"this host has no rule editor / details pane"* without the editor services | the surfaces that exist today |
+| **Disable** and **Delete** are declared and GREYED (*"this window cannot switch a rule off / delete a rule: it has no … command"*) | no rule disable flag or delete command exists on any host (grep `RuleCommands`, `RuleDetails`); ⏭ filed when one is designed |
+| `RulesModel.ActionsOf` / `RuleAction` are DELETED | the words are the catalogue's; the validity is `RuleCommands.DisabledReason` through the binding — no second list |
+| the Review group order puts View (Show on map · Show history) BEFORE the controls (the catalogue's `ReviewOrder`) | the only change to the probe's button order, on a recording |
+
+**Golden:** `Goldens/rule.golden.txt` (role × mode). **Rails:** `TheRuleActionsAreDeclaredOnceTests` (golden; the track's menu = the binding's rows; an authored / blocked row greys every control; controls ask their request; the controls are the Instructor's), `RulesWindowFrameRail` (the probe's buttons per mode).
 
 ## 10. ⭐ A7 — Details tabs declare `Requires` / `Modes` / `Level`, registered once *(ui, `2026-11-08`, Z-3 of `HANDOFF_Coordinator_To_Ui_Next.md`; `build-state: BUILT`)*
 

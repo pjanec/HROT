@@ -8,7 +8,8 @@ namespace Hrot.UI.Common.Rules;
 
 /// <summary>What a rules row's track may do — the window's answers: pick the row, ask the rule for something, show its subject on the map, and why asking is blocked now (a recording: null = allowed).</summary>
 public sealed record RuleTrackHooks(Action<RuleRow> Select, Action<RuleRow, RuleRequest> Ask, Action<RuleRow> ShowOnMap, string? Blocked,
-                                    Func<RuleRow, RuleRow, string?>? CanConnect = null, Action<RuleRow, RuleRow>? Connect = null);
+                                    Func<RuleRow, RuleRow, string?>? CanConnect = null, Action<RuleRow, RuleRow>? Connect = null,
+                                    Action<RuleRow>? Edit = null, Action<RuleRow>? ShowHistory = null);   // ⭐ CE-2423 — the editor / the history of a rule, where the host has them
 
 /// <summary>
 /// ⭐⭐ CE-4216 (rules view R2, RV-3 / RV-5; docs/DESIGN_Rules_View_UI.md §2) — ONE row of the rules view as an <see cref="ITimelineTrack"/> over the ONE <c>TimelinePanel</c>: a <see cref="TrackHeader"/> (depth, title, state words in the state's colour, role
@@ -94,11 +95,8 @@ public sealed class RuleTrack : ITimelineTrack
     {
         if (_row == null) yield break;
         var row = _row;
-        foreach (var a in RulesModel.ActionsOf(row))
-        {
-            string? why = _hooks.Blocked ?? a.DisabledReason;
-            yield return new TimelineMenuItem(why == null ? a.Label : $"{a.Label} — {why}", () => _hooks.Ask(row, a.Request), why == null);
-        }
-        yield return new TimelineMenuItem(row.SubjectNetworkId != 0 ? "Show on map" : "Show on map — no subject", () => _hooks.ShowOnMap(row), row.SubjectNetworkId != 0);
+        var surface = new RuleActionBinding.Surface(_hooks.Edit == null ? null : () => _hooks.Edit(row), _hooks.ShowHistory == null ? null : () => _hooks.ShowHistory(row));   // ⭐ CE-2423 — the rows are the catalogue's (one declaration with the Rules window's buttons)
+        foreach (var r in RuleActionBinding.Rows(row, RuleActionBinding.ModeOf(row, _hooks.Blocked), req => _hooks.Ask(row, req), () => _hooks.ShowOnMap(row), _hooks.Blocked, surface))
+            yield return new TimelineMenuItem(r.Shown, r.Run, r.Why == null);
     }
 }

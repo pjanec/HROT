@@ -271,20 +271,26 @@ public sealed class RulesModelTests : IDisposable
         Assert.Contains("2 units", Build().Find(30)!.Starts[0].Text);
     }
 
+    private static RuleRow StatusRow(ObjectiveStatus s) => new(1, Entity.Null, 0, false, s, "t", "", "", 0, 0, null, Array.Empty<RuleSpan>(), Array.Empty<double>(), null, Array.Empty<RuleLink>(), Array.Empty<RuleLink>());
+
+    /// <summary>⭐ CE-2423 — the controls of a row as the catalogue offers and <see cref="RuleActionBinding"/> binds them (the Rules window's and the track's rows are these).</summary>
+    private static List<RuleActionBinding.Row> Controls(RuleRow row)
+        => RuleActionBinding.Rows(row, RuleActionBinding.ModeOf(row, null), _ => { }, () => { }, null).Where(r => RuleActionBinding.RequestOf(r.Id) != RuleRequest.NoRequest).ToList();
+
     /// <summary>RV-5: an item is ALWAYS listed; an invalid one carries its reason. ✅ Red-proof: <c>DisabledReason</c> returning null for a final objective's Deactivate ⇒ red.</summary>
     [Fact]
     public void TheActions_AreAlwaysListed_AnInvalidOneCarriesItsReason()
     {
         var done = new ObjectiveStatus { Role = ObjectiveRole.Objective, State = ObjectiveState.Achieved };
-        var actions = RulesModel.ActionsOf(done);
+        var actions = Controls(StatusRow(done));
         Assert.Equal(new[] { "Activate", "Deactivate", "Reset" }, actions.Select(a => a.Label));
-        Assert.Contains("Achieved", actions[0].DisabledReason);   // needs Reset
-        Assert.Null(actions[2].DisabledReason);                   // a Reset restarts any rule, a final one too
+        Assert.Contains("Achieved", actions[0].Why);   // needs Reset
+        Assert.Null(actions[2].Why);                   // a Reset restarts any rule, a final one too
 
         var armed = new ObjectiveStatus { Role = ObjectiveRole.Trigger, State = ObjectiveState.Active, TriggerState = TriggerState.Armed };
-        var t = RulesModel.ActionsOf(armed);
+        var t = Controls(StatusRow(armed));
         Assert.Equal(new[] { "Fire now", "Disarm", "Re-arm", "Reset" }, t.Select(a => a.Label));
-        Assert.Null(t[0].DisabledReason);
+        Assert.Null(t[0].Why);
         Assert.NotNull(RuleCommands.DisabledReason(new ObjectiveStatus { Role = ObjectiveRole.Trigger, State = ObjectiveState.Active, TriggerState = TriggerState.Done }, RuleRequest.Fire));
         Assert.NotNull(RuleCommands.DisabledReason(new ObjectiveStatus { Closed = 1 }, RuleRequest.Reset));
     }
@@ -357,9 +363,9 @@ public sealed class RulesModelTests : IDisposable
         Assert.Equal(("Mission", RulesModel.AuthoredWords, RulesModel.Grey, true, 900), (m.Title, m.StateWords, m.StateColour, m.Authored, m.SubjectNetworkId));
         Assert.Empty(m.Spans);
         Assert.Equal(("WeightedMean", "mission", (byte)1), (m.Status.Kind.ToString(), m.Status.Group.ToString(), m.Status.Required));
-        var actions = RulesModel.ActionsOf(m);
+        var actions = Controls(m);
         Assert.Equal(new[] { "Activate", "Deactivate", "Reset" }, actions.Select(a => a.Label));
-        Assert.All(actions, a => Assert.Equal(RulesModel.NotRunning, a.DisabledReason));
+        Assert.All(actions, a => Assert.Equal(RulesModel.NotRunning, a.Why));
     }
 
     [Theory]
@@ -373,7 +379,7 @@ public sealed class RulesModelTests : IDisposable
         var row = Build().Find(10)!;
         Assert.Equal((role, kind), (row.Status.Role, row.Status.Kind.ToString()));
         Assert.Equal(RulesModel.IconOf(role), row.Icon);
-        if (role == ObjectiveRole.Trigger) Assert.Equal(new[] { "Fire now", "Disarm", "Re-arm", "Reset" }, RulesModel.ActionsOf(row).Select(a => a.Label));
+        if (role == ObjectiveRole.Trigger) Assert.Equal(new[] { "Fire now", "Disarm", "Re-arm", "Reset" }, Controls(row).Select(a => a.Label));
     }
 
     [Fact]

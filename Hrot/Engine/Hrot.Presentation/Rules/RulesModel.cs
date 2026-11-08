@@ -364,25 +364,7 @@ public static class RulesModel
         => fires is { Count: > 0 } ? fires.Select(f => f.Time).OrderBy(t => t).ToList()
          : s.FireCount > 0 ? new[] { s.LastFired } : Array.Empty<double>();
 
-    // ── RV-5 the actions of a row
-
-    /// <summary>One thing the instructor may ask of a row: its label, the request, and why it is not valid now (null = valid).</summary>
-    public sealed record RuleAction(string Label, RuleRequest Request, string? DisabledReason);
-
-    /// <summary>⭐ RV-5 — a trigger: Fire now · Disarm · Re-arm · Reset; an objective or a measure: Activate · Deactivate · Reset. Every item is always listed; an invalid one carries its reason (<see cref="RuleCommands.DisabledReason"/>).</summary>
-    public static IReadOnlyList<RuleAction> ActionsOf(in ObjectiveStatus sIn)
-    {
-        var s = sIn;
-        RuleAction A(string label, RuleRequest r) => new(label, r, RuleCommands.DisabledReason(s, r));
-        return s.Role == ObjectiveRole.Trigger
-            ? new[] { A("Fire now", RuleRequest.Fire), A("Disarm", RuleRequest.Disarm), A("Re-arm", RuleRequest.Rearm), A("Reset", RuleRequest.Reset) }
-            : new[] { A("Activate", RuleRequest.Activate), A("Deactivate", RuleRequest.Deactivate), A("Reset", RuleRequest.Reset) };
-    }
-
-    /// <summary>⭐ RV-5 / RV-3a — the actions of a ROW: an authored one (no status yet) lists the same items, every one disabled with <see cref="NotRunning"/>.</summary>
-    public static IReadOnlyList<RuleAction> ActionsOf(RuleRow row)
-        => !row.Authored ? ActionsOf(row.Status)
-         : ActionsOf(row.Status).Select(a => a with { DisabledReason = NotRunning }).ToList();
+    // ── RV-5 the actions of a row: declared once in the catalogue (RuleMenuActions), bound in RuleActionBinding — CE-2423
 
     // ── RV-6 the Overview
 
