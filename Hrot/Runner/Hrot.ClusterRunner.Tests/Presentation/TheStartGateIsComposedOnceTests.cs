@@ -355,6 +355,31 @@ public class TheStartGateIsComposedOnceTests
     }
 
     /// <summary>
+    /// ⭐ CE-4329 (R-4170) — the seat · hat status-bar section is composed EXACTLY ONCE per process by <c>ComposeRunControls</c>, over the PICKED owner's world, for every host family that has a
+    /// run-controls owner (the Player too — it suppresses the toolbar time control but has a seat); a process with no owner has none. 🔴 Mutation: <c>ComposeRunControls</c> not registering it ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4329_TheSeatSection_IsComposedOnce_ForEveryHostWithARunControlsOwner()
+    {
+        foreach (var editorFirst in new[] { true, false })
+        {
+            var editor = new RunHost("Editor", RunHostKind.Editor, operatorHost: true);
+            var cgf = new RunHost("CGF", RunHostKind.Cgf, operatorHost: true);
+            var (ctrl, wm) = Composed(editorFirst ? new ISubsystem[] { editor, cgf } : new ISubsystem[] { cgf, editor });
+            Assert.NotNull(ctrl.SeatSection);
+            Assert.Equal(1, wm.StatusBar.SectionIds.Count(id => id == Hrot.UI.Common.Panels.StationSeatStatusBarSection.SectionId));
+        }
+        var player = new RunHost("Player", RunHostKind.Player, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
+        var (pc, pwm) = Composed(player);
+        Assert.NotNull(pc.SeatSection);
+        Assert.Contains(Hrot.UI.Common.Panels.StationSeatStatusBarSection.SectionId, pwm.StatusBar.SectionIds);
+
+        var (none, bare) = Composed(new MockSubsystem("Player"));
+        Assert.Null(none.SeatSection);
+        Assert.DoesNotContain(Hrot.UI.Common.Panels.StationSeatStatusBarSection.SectionId, bare.StatusBar.SectionIds);
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-1445</c> (R-1044, §11.8 ③) S2 — a process whose ONLY run-controls host is a Player (the IG) composes the loading / waiting screen (Player policy) and the error section ONCE over its choice, and
     /// registers NO toolbar time control (the role's explicit suppression: it issues no ticks).
     /// 🔴 Mutation: <c>ComposeRunControls</c> ignoring <c>SuppressTimeControl</c> ⇒ the toolbar-entries cell reds; passing no policy to <c>LoadingScreen.Register</c> ⇒ the <c>IsPlayer</c> cell reds.

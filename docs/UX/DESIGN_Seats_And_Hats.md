@@ -284,12 +284,12 @@ classDiagram
   class ToolController { <<existing>> ActiveModal · Cancel() }
   class StationMode { <<existing, H2>> Current · Seat }
   class PossessionStation { <<existing>> Enter / Leave }
-  class MainToolbarTimeControlSection { <<existing>> + StationLine "Instructor · Command" }
+  class StationSeatStatusBarSection { <<NEW, CE-4329>> Line "Instructor · Command" at the status bar's right end ⛔ SUPERSEDED: MainToolbarTimeControlSection.StationLine }
   HatArbiter --> StationMode : the run mode
   HatArbiter --> RtsModeState : armed? / stand down
   HatArbiter --> ToolController : disarms the other hats' tools
   PossessionStation ..> HatArbiter : Embodied on Enter / Leave
-  MainToolbarTimeControlSection ..> HatArbiter : shows Active
+  StationSeatStatusBarSection ..> HatArbiter : shows Active
 ```
 *What the picture shows that prose hid: the hat is DERIVED from facts that already exist (the run mode, the RTS tool, possession) — R-4164 "the hat
 follows the run mode, never picked by hand" — so the arbiter adds no second state to keep in step; its only actions are disarming on a change and
@@ -314,7 +314,7 @@ sequenceDiagram
 | **derived, one precedence** | Embodied (this station drives a unit) > Direct (the director owns the camera — set by H4) > Command (RTS armed, Preview / Live) > Edit (Edit mode) > Observe |
 | **disarm on a change** | every armed tool except RTS is cancelled (no placement tool under the FPS view, no Edit tool after ▶) |
 | **RTS sticky** (R-4163, Input §6b) | Esc no longer leaves the RTS tool — it drops a half-done right-press; only *View ▸ RTS command mode* leaves. Possessing stands it down; release returns to it |
-| **the indicator** | one line beside the mode glyph: *Instructor · Command* (the seat · the hat), composed ONCE with the toolbar time control |
+| **the indicator** | ⛔ SUPERSEDED (R-4170, CE-4329, §3.5): one line beside the mode glyph on the toolbar. ⭐ Now the STATUS BAR's right end shows *Instructor · Command*; the toolbar's indicator is one glyph button again |
 | ⏭ not here | the hat menu in the indicator (the mockup's clicks) · central Esc (K3) · the hat as the keymap scope (K2) · H4 the camera |
 
 ### 3.4 ⭐ H4 — one camera owner *(ui, `2026-11-07`)*
@@ -367,4 +367,20 @@ view* only after a director take — the case the user named. Rails: `FilmTests.
 
 ### ⭐ R-4170 — the seat · hat text goes to the STATUS BAR *(user, `2026-11-08`, CE-4329)*
 
-🔒 *"the armed mode icon, which was just a single icon has changed to something saying the seat or roll mode, putting some text in between the armed mode and the play button on the main toolbar, which I don't like, and I think the text which makes clear what role and what seat is active needs to go to the status bar"* — ⛔ SUPERSEDED: H3's *"seat · hat beside the indicator"* (§3.3). The main toolbar keeps the indicator as ONE glyph button next to ▶ (AQ108 D29); the status bar's right end shows *"Author · Observe"* (click = the hat menu, as the toolbar text did).
+🔒 *"the armed mode icon, which was just a single icon has changed to something saying the seat or roll mode, putting some text in between the armed mode and the play button on the main toolbar, which I don't like, and I think the text which makes clear what role and what seat is active needs to go to the status bar"* — ⛔ SUPERSEDED: H3's *"seat · hat beside the indicator"* (§3.3). The main toolbar keeps the indicator as ONE glyph button next to ▶ (AQ108 D29); the status bar's right end shows *"Author · Observe"* (click = the hat menu, as the toolbar text did). ✅ BUILT — §3.5.
+
+### 3.5 ⭐ AS-BUILT — CE-4329 (R-4170): the seat · hat text is the status bar's *(ui, `2026-11-08`)*
+
+INVENTORY: `search_graph .*(StatusBar|Seat|Hat).*` — the section mechanism is `StatusBarManager.RegisterSection(id, sortOrder, render, perspective?)` (sections flow left to right, sorted); `RunNoteStatusBarSection`
+(60), `MapCursorStatusBarSection` (50), the message log (90). H3's text was `MainToolbarTimeControlSection.StationLine` drawn as `TextDisabled` beside the indicator — ⚠ **there was no hat menu**: §3.3 lists it as
+"⏭ not here" (the note's *"the same menu H3 opens today"* named a menu that was never built).
+
+| | as built |
+|---|---|
+| the toolbar | the run-mode indicator is ONE glyph button next to ▶ (AQ108 D29); `StationLine`, `SeatWord` and the `stationWorld` parameter are gone (⛔ SUPERSEDED: H3's toolbar text) |
+| the section | `StationSeatStatusBarSection` (`Hrot.Presentation/Panels`): id `station_seat`, sort order **200** (after the message log) and right-aligned inside the bar; ⛔ the LEFT end is untouched (a source segment there stays first and clear — rail). Plain text, as H3 drew it |
+| composed once | `LocalWindowController.ComposeRunControls` registers it over the PICKED owner's world — every host with a run-controls owner (the Player too, which suppresses the toolbar time control but has a seat); none without an owner |
+| the click | opens a popup menu: *Hat — one at a time* (Edit · Command · Embodied — possess a unit · Observe · Direct) and *Seat* (the six). The current hat and seat are checked; a hat the seat may not wear is greyed with `SeatHats.Refusal`; every other row is greyed with *"the hat follows what you do … not picked by hand"* / *"the seat is chosen at launch: --feature station.seat"* — ⚠ **deviation from seats.png**: the hat is DERIVED (R-4164) and a seat is set at launch, so the mockup's one-click switching is not built; no glyphs or key hints (the icon map has no seat / hat keys) |
+| hot path | the line and the rows are rebuilt only when the seat or hat changes: **0 B** per steady frame (rail) |
+| rails | `TheSeatTextIsOnTheStatusBarFrameRail` (Xvfb: nothing between the indicator and ▶ — one item spacing; the right end, the left clear; a click opens the menu; 0 B; the rows) · `HatArbiterTests.TheStatusBarLine_ShowsTheSeatAndTheHat` · `TheStartGateIsComposedOnceTests.CE4329_…` (composed once, every owner). Red-proofs: the toolbar drawing the line again ⇒ the gap rail; no right alignment ⇒ the right-end rail |
+
