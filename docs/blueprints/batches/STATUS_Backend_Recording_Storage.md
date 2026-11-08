@@ -9,3 +9,5 @@
 
 ---
 _backend lane, 2026-11-08_
+
+**Queued next:** [HANDOFF_Coordinator_To_Backend_After_Recording_Storage](HANDOFF_Coordinator_To_Backend_After_Recording_Storage.md) (V-1 CE-4341, V-2 CE-4284), received at `cfcbe0fbd`, merged — it starts once this one is done.
