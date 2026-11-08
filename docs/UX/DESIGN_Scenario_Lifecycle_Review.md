@@ -109,9 +109,19 @@ station can create a one-shot and its seat may edit rules (`RuleEditorServicesFa
 (`EndExercise { reason: "Ended by the instructor" }`) through the Game master's one path (`GmOneShot.TriggerParamsJson` → the bundle's `CreateOneShot`). The
 `RulesBundle` wires BOTH End controls (Rules toolbar, Mission summary) and hands the Rules window's End to the host's transport as its `IExerciseEnder`
 (`ClusterTimeTransportAdapter.Ender`), by construction on every host that composes the bundle. ■ in Live then asks ONE question — *End the exercise?* — and
-leaves Live once the end is in (the ender can no longer end), or after 180 frames; no ender ⇒ today's ■. ⚠ **Deviation:** LC-17's second button *Keep
+~~leaves Live once the end is in (the ender can no longer end), or after 180 frames~~ ⛔ **SUPERSEDED by R-2 (CE-3413, AQ108 §0 R2″)**: the world now STAYS in Live (*Live · ended*, derived), and
+leaving is a second step, ⏏ *Close the session* (see below); no ender ⇒ today's ■ (leaves to editing). ⚠ **Deviation:** LC-17's second button *Keep
 running* is the house confirmation's own Cancel (every run confirmation ends with it, `RunModeConfirmation.WithCancel`); the text says *"Cancel keeps it
 running"*. Rails: `RunnableRulesTests.CE4322_*`, `TheOneTimeFacadeTests.CE4322_*`, `TheRulesBundleTests.CE4322_*`.
+
+**LC-17 as built, step two (R-2, CE-3413, ui):** ■ → *End the exercise?* → `IExerciseEnder.End()` and **nothing else** — `_stopAfterEnd` / `StopLive` are gone from that path. **Live · ended** = `RunModeChoice.LiveEnded`
+= `OperatingLive` + `IExerciseEnder.HasEnded` (`InstructorEndControl` → `ExerciseResult.PhaseOf(world) == Ended`), read once per frame in `Update`; no FSM state. There ▶ is greyed
+(*"the exercise has ended — restart from a checkpoint to train again"*), ■ is ⏏ (`StopFaceNow`) → *Close the live session?* (*"This exercise of <scenario> is kept (mm:ss). Every station returns to the Start screen."*)
+→ `ScenarioDoor.Leave(LeaveReason.Close)` (the master finalises the recording on the Idle unload) → *Keep this recording?* (CE-4100) and the *Exercise recorded* toast, both moved to this step.
+The ▾ menu there (`EndedMenu`): Run again (`RunAgain`: raw `LoadForLive` of the same scenario → the briefing) · Restart from a checkpoint ▸ · DAR — look back… ▸ (`ReviewChoices`) · AAR — full replay of this exercise
+(`ReplayEndedExercise`) · Close the session. ⏪ and ■ are greyed in the briefing (`LiveBriefing` = Live, paused, clock 0). ⚠ **Deviations:** the question's second sentence now says what happens (*"…the world stays paused at the end for the debrief"*) instead of *"returns to editing"*;
+*"Exercise N"* is not shown (the inventory carries no exercise number); *Restart from a checkpoint ▸* is greyed — the live run's checkpoint list is not on the cluster view yet (hosts may set `RunModeChoice.CheckpointLabels` / `RestoreCheckpoint`).
+Rails: `RunControlsSwitchNowTests.R2_*`, `TheOneTimeFacadeTests.CE4322_*`.
 
 **LC-2 as built (L-4, CE-4312):** `EntityNames.Next(world, typeName, pending)` (Hrot.Common, beside `EntityCreation`) — `"<type> <n>"`, the lowest free `n` in the scenario; called by `ScenarioSpawnAdapter` after the side is applied, only for a unit still carrying its type's bare name. ⚠ One counter per name across sides (unique in the scenario, as LC-2 asks), not one per side.
 

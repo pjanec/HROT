@@ -218,6 +218,9 @@ public sealed class ScenarioDoor
     /// </summary>
     public Func<DoorOpen>? LoadTarget { get; set; }
 
+    /// <summary>⭐ CE-3413 — this door has a raw leave to Idle (the session gave one); a bare door has only the unsaved question for Exit.</summary>
+    public bool CanLeave => _leave is not null;
+
     /// <summary>The check round is open (shown as "checking…"; no timeout — the operator may <see cref="CancelCheck"/>).</summary>
     public bool IsCheckingUnsaved => _asking;
 

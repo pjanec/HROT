@@ -117,32 +117,33 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
     // ── pause / resume / step: the USER's ▶, not the raw toggle ───────────────────────────────
 
     /// <summary>
-    /// From Edit with Live armed the panel's Pause / Resume is the user's ▶: the unsaved check, then the live load — and NEVER the raw toggle's dry run (a route does what it names; a user control follows the armed mode, D22).
-    /// 🔴 Mutation: <c>PauseOrResume</c> calls <c>Transport.TogglePlayPause()</c> ⇒ a dry run is published and the check is never asked.
+    /// From Edit the panel's Pause / Resume is the user's ▶ (⭐ CE-3405: ALWAYS the Preview — the mode is switched at the indicator, not by ▶), asking no unsaved check and loading nothing live, even with Live armed.
+    /// 🔴 Mutation: <c>Play</c> dispatching on the armed mode again ⇒ a Live load and an unsaved check; <c>PauseOrResume</c> doing nothing from Edit ⇒ no dry run.
     /// </summary>
     [Fact]
-    public void ThePanelsResume_FromEdit_IsTheArmedModesStart_NotTheRawDryRun()
+    public void ThePanelsResume_FromEdit_IsThePreview_NotALiveLoad()
     {
         var rig = With(ClusterState.OperatingEdit);
 
         rig.Controls.PauseOrResume();
 
-        Assert.Equal(1, rig.Unsaved.Asked);
-        Assert.Equal(new[] { "LoadForLive:hill-attack" }, rig.Session.Calls);
-        Assert.DoesNotContain(Sent<TransitionStateIntent>(rig.Bus), t => t.TargetState == ClusterState.OperatingPreview);
+        Assert.Equal(0, rig.Unsaved.Asked);
+        Assert.Empty(rig.Session.Calls);
+        Assert.Contains(Sent<TransitionStateIntent>(rig.Bus), t => t.TargetState == ClusterState.OperatingPreview);
     }
 
     /// <summary>
-    /// Step from Edit is the armed mode's start too; over a paused run the panel's STEP SIZE reaches the facade's <c>StepBy</c>.
-    /// 🔴 Mutation: <c>Step</c> calls <c>Transport.StepBy(seconds)</c> directly ⇒ from Edit it publishes a dry run; or ignores <c>seconds</c> ⇒ the delta assertion fails.
+    /// Step from Edit is the Preview paused at its first frame (⭐ CE-3405); over a paused run the panel's STEP SIZE reaches the facade's <c>StepBy</c>.
+    /// 🔴 Mutation: <c>Step</c> calls <c>Transport.StepBy(seconds)</c> directly ⇒ from Edit it publishes a running dry run; or ignores <c>seconds</c> ⇒ the delta assertion fails.
     /// </summary>
     [Fact]
-    public void ThePanelsStep_FromEdit_IsTheArmedModesStart_AndOverAPausedRun_CarriesItsStepSize()
+    public void ThePanelsStep_FromEdit_IsThePreviewPaused_AndOverAPausedRun_CarriesItsStepSize()
     {
         var edit = With(ClusterState.OperatingEdit);
         edit.Controls.Step(0.25f);
-        Assert.Equal(1, edit.Unsaved.Asked);
-        Assert.DoesNotContain(Sent<TransitionStateIntent>(edit.Bus), t => t.TargetState == ClusterState.OperatingPreview);
+        Assert.Equal(0, edit.Unsaved.Asked);
+        Assert.Empty(edit.Session.Calls);
+        Assert.Equal("Deterministic", Sent<TransitionStateIntent>(edit.Bus).Single(t => t.TargetState == ClusterState.OperatingPreview).TimeMode);
 
         var live = With(ClusterState.OperatingLive);   // no time-mode broadcast yet ⇒ the facade reads "paused"
         live.Controls.Step(0.25f);

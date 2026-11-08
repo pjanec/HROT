@@ -379,13 +379,15 @@ public sealed record RunModeMove(RunArmed Target, string Label, string? ConfirmT
 /// exit, review exit, seek) and the readings of the cluster it needs. Implemented by <c>ClusterTimeTransportAdapter</c>, the one facade.
 /// </summary>
 /// <summary>⭐ CE-4322 (L-3, Scenario Lifecycle LC-17) — who can END the exercise with a result from this station (the instructor's End: the scenario's
-/// <c>instructor-end</c> rule, else "Ended by the instructor"). ■ in Live asks <i>"End the exercise? / Keep running"</i> through it.</summary>
+/// <c>instructor-end</c> rule, else "Ended by the instructor"). ■ in Live asks <i>"End the exercise? / Keep running"</i> through it; ⭐ CE-3413 it also says when the exercise HAS ended (<see cref="HasEnded"/>).</summary>
 public interface IExerciseEnder
 {
     /// <summary>The exercise runs and this station may end it now.</summary>
     bool CanEnd { get; }
     /// <summary>Asks for the end (the owner writes the result). False when nothing was asked.</summary>
     bool End();
+    /// <summary>⭐ CE-3413 (D30) — the replicated <c>ExerciseResult.Phase</c> of this host's world is Ended: <b>Live · ended</b> is DERIVED from this (plus the cluster being in Live) — no FSM state.</summary>
+    bool HasEnded => false;
 }
 
 public interface IRunTransport

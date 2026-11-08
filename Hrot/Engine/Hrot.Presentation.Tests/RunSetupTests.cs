@@ -81,9 +81,9 @@ public sealed class RunSetupTests
     }
 
     [Fact]
-    public void Play_ReusesTheScenariosLastRunSetup_AndAnotherScenarioStartsAtTheDefaults()
+    public void TheSwitchToLive_ReusesTheScenariosLastRunSetup_AndAnotherScenarioStartsAtTheDefaults()
     {
-        var rig = With(ClusterState.OperatingEdit, initialArmed: RunArmed.Live, withDoor: true);
+        var rig = With(ClusterState.OperatingEdit, initialArmed: RunArmed.Preview, withDoor: true);
         Assert.Null(rig.Choice.LastRunSetupOf("hill-attack"));
 
         rig.Choice.OpenAndGoLive("hill-attack", """{"$variant":3}""");
@@ -91,12 +91,12 @@ public sealed class RunSetupTests
         Assert.Equal("""{"$variant":3}""", rig.Choice.LastRunSetupOf("hill-attack"));
 
         rig.C.Calls.Clear();
-        rig.Choice.Play();                                                                  // ▶ on the open scenario
+        rig.Choice.Choose(RunArmed.Live);                                                   // ⭐ CE-3405: the indicator's switch on the open scenario
         Assert.Equal(new[] { "LoadForLive:hill-attack:{\"$variant\":3}" }, rig.C.Calls);   // ... starts with the same setup
 
         rig.C.LoadedScenarioName = "other";
         rig.C.Calls.Clear();
-        rig.Choice.Play();
+        rig.Choice.Choose(RunArmed.Live);
         Assert.Equal(new[] { "LoadForLive:other" }, rig.C.Calls);                           // never set up: the plain load, the defaults
 
         rig.Choice.OpenAndGoLive("hill-attack");                                            // a later start with nothing chosen forgets it
@@ -115,16 +115,18 @@ public sealed class RunSetupTests
         return rig;
     }
 
-    /// <summary>🔴 Red-proof (compiles): <c>GoLive</c> skipping the armed preset ⇒ the Live load carries no args ⇒ red.</summary>
     [Fact]
-    public void Live_PlaysTheArmedPreset_AndArmingNeverChangesTheMode()
+    public void TheSwitchToLive_LoadsTheArmedLivePreset_AndArmingNeverChangesTheMode()
     {
         var rig = PresetRig(RunArmed.Live);
         Assert.Equal(ScenarioPreset.DefaultName, rig.Choice.ArmedPreset!.Name);
-        rig.Choice.ArmPreset("Easy");
+        rig.Choice.ArmPreset("Easy");                                                        // in Edit the ▾ belongs to what ▶ plays: the Preview (CE-3405)
         Assert.Equal(RunArmed.Live, rig.Choice.Armed);                                       // ▾ arms a preset, never the mode (AQ108 R1)
         Assert.Equal("Easy", rig.Choice.ArmedPreset!.Name);
-        rig.Choice.Play();
+        Assert.Equal("Easy", rig.Choice.ArmedPresetOf("hill-attack", RunArmed.Preview).Name);
+        Assert.Equal(ScenarioPreset.DefaultName, rig.Choice.ArmedPresetOf("hill-attack", RunArmed.Live).Name);
+        rig.Choice.ArmedPresets.Arm("hill-attack", RunArmed.Live, "Easy");                   // (the Live preset remembered from the briefing's ▾)
+        rig.Choice.Choose(RunArmed.Live);
         Assert.Contains("LoadForLive:hill-attack:{\"count\":5}", rig.C.Calls);
     }
 

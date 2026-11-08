@@ -88,9 +88,15 @@ public sealed class MainToolbarTimeControlSection
     {
         Observe();
         if (StopGuarded) return;   // ⭐ F15 — a second press right after the return to live must not stop the exercise
-        if (_facade.IsStopEnabled)
+        if (IsStopEnabled)
             _facade.Stop();
     }
+
+    /// <summary>⭐ CE-3413 — ■ can be pressed: the facade says so, and the Live briefing (paused at 0:00, never ran) has nothing to stop.</summary>
+    public bool IsStopEnabled => _facade.IsStopEnabled && _choice?.StopDisabledReason is null;
+
+    /// <summary>⭐ CE-3413 — ⏪ Review is pressable: not during the briefing ("nothing to review yet").</summary>
+    public bool IsReviewEnabled => _choice?.ReviewDisabledReason is null;
 
     /// <summary>
     /// Selects a time-rate multiplier via <see cref="ITimeTransportFacade.SetTimeScale"/>.
@@ -143,8 +149,9 @@ public sealed class MainToolbarTimeControlSection
 
     // ── ⭐ CE-3393 (📄 docs/UX/DESIGN_Scenario_Presets.md §5c, D8) — the narrow ▾ at ▶'s right: THE preset picker; it ARMS (✓), never the mode ──────────
 
-    /// <summary>The ▾ is drawn: from Edit, with a run choice, when the loaded scenario has a preset besides Default (Preview / Live armed).</summary>
-    public bool ShowsPresetArrow => _choice is { Armed: RunArmed.Preview or RunArmed.Live } c && _facade.Mode == TransportMode.Edit && c.LoadedPresets.Count > 1;
+    /// <summary>The ▾ is drawn: from Edit or the Live briefing, with a run choice, when the loaded scenario has a preset besides Default.</summary>
+    /// <remarks>⭐ CE-3405 — Edit (▶ previews with it) and the Live briefing (a preset reloads Live with it); never while a run is on, in a DAR or an AAR.</remarks>
+    public bool ShowsPresetArrow => _choice is { } c && (_facade.Mode == TransportMode.Edit || c.LiveBriefing) && c.LoadedPresets.Count > 1;
 
     private void DrawPresetArrow(float iconSize)
     {
@@ -366,6 +373,7 @@ public sealed class MainToolbarTimeControlSection
     {
         var legacy = LegacyModeMenu();
         if (_choice is null) return legacy;
+        if (_choice.LiveEnded) return EndedMenu(_choice);   // ⭐ CE-3413 — what is next after the exercise
 
         // ⭐ CE-4097 — the choice's moves (AQ108 §3: only those that start from the current state; each asks its own confirmation), after the DAR items
         var moves = _choice.Moves();
@@ -379,11 +387,36 @@ public sealed class MainToolbarTimeControlSection
             items.Add(new(label, move.IsShown ? () => { } : () => _choice.Choose(target), move.Enabled, Selected: move.IsShown));   // ⭐ CE-4111: the shown item does nothing (no Choose)
         }
         var header = legacy?.Header ?? (_facade.Mode is TransportMode.Edit or TransportMode.Idle
-            ? $"▶ will start: {_choice.Armed}"
+            ? "Edit · ▶ previews"
             : $"{_choice.Indicator.Word} · {TransportIcons.FormatTime(_facade.TotalTime)}");
         // ⭐ CE-4111: during a run the armed mode is not lost — a load goes into it (R-1043)
         if (_facade.Mode is not (TransportMode.Edit or TransportMode.Idle)) header += $" · loads go into: {_choice.Armed}";
         return new(header, items);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3413 (AQ108 §0 R2″) — the indicator's menu in <b>Live · ended</b>: Run again (same scenario → the briefing) · Restart from a checkpoint ▸ · DAR — look back… · AAR — full replay of this exercise · Close the session.
+    /// ⚠ The live run's checkpoint LIST is not on the cluster view yet (only a replay session carries marks): the submenu lists what the host supplies (<see cref="RunModeChoice.CheckpointLabels"/>) and is greyed with that reason otherwise.
+    /// </summary>
+    private ModeMenuModel EndedMenu(RunModeChoice c)
+    {
+        var live = ModeGlyph(TransportMode.Live)!.Color;
+        var labels = c.CheckpointLabels?.Invoke() ?? Array.Empty<string>();
+        var checkpoints = new List<ModeMenuItem>();
+        foreach (var label in labels) { var l = label; checkpoints.Add(new(l, () => c.RestoreCheckpoint?.Invoke(l), c.RestoreCheckpoint is not null)); }
+        var dar = ReviewChoices();
+        var aarWhy = c.EndedAarDisabledReason;
+        var items = new List<ModeMenuItem>
+        {
+            new("Run again (same scenario → the briefing)", c.RunAgain, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Circle, GlyphColor: live),
+            new(checkpoints.Count > 0 ? "Restart from a checkpoint" : "Restart from a checkpoint — none listed for this run", null, Enabled: checkpoints.Count > 0, Children: checkpoints),
+            new("DAR — look back…", null, Enabled: dar.Count > 0, Children: dar, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft, GlyphColor: ModeGlyph(TransportMode.Review)!.Color),
+            new(aarWhy is null ? "AAR — full replay of this exercise" : $"AAR — full replay of this exercise — {aarWhy}", c.ReplayEndedExercise, Enabled: aarWhy is null,
+                Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Play, GlyphColor: ModeGlyph(TransportMode.Replay)!.Color),
+            ModeMenuItem.Separator,
+            new("Close the session", c.Stop, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.RightFromBracket),
+        };
+        return new($"Live · ended · {TransportIcons.FormatTime(_facade.TotalTime)}", items);
     }
 
     /// <summary>
@@ -481,6 +514,9 @@ public sealed class MainToolbarTimeControlSection
     /// <summary>■ in a review is ⏏ Back to live (R-3060), else ■.</summary>
     public static StopFaceKind StopFace(TransportMode mode) => mode == TransportMode.Review ? StopFaceKind.BackToLive : StopFaceKind.Stop;
 
+    /// <summary>⭐ CE-3413 — ■ becomes ⏏ in a DAR (back to live) and in Live · ended (close the session).</summary>
+    public StopFaceKind StopFaceNow => StopFace(_facade.Mode) == StopFaceKind.BackToLive || _choice?.LiveEnded == true ? StopFaceKind.BackToLive : StopFaceKind.Stop;
+
     /// <summary>
     /// ⭐ The ▶ / ⏸ tooltip: what a press does, named by the mode. 🔒 User, <c>2026-10-30</c>: <i>"the Play button should have tooltip saying what it does
     /// based on armed mode (Play Live, Play AAR, Play DAR, Play Preview...)"</i>. In Edit ▶ starts the ARMED mode (R-1043 — the indicator arms it);
@@ -491,18 +527,14 @@ public sealed class MainToolbarTimeControlSection
         var mode = _facade.Mode;
         if (mode == TransportMode.Edit || mode == TransportMode.Idle)
         {
-            string play = _choice?.Armed switch
-            {
-                RunArmed.Live    => "Play Live — start the exercise (recorded)",
-                RunArmed.AAR     => "Play AAR — play the recording",
-                RunArmed.Preview => "Play Preview — a dry run of the scenario (nothing recorded)",
-                _                => "Play",
-            };
+            // ⭐ CE-3405 — ▶ in Edit is ALWAYS the Preview (the mode is switched at the indicator)
+            string play = "Play Preview — a dry run of the scenario (nothing recorded)";
             // ⭐ CE-3393 (presets §5c) — the tooltip names the ARMED preset too: "▶ Preview — Night attack (variant 3 · preview only)"
-            if (_choice is { Armed: RunArmed.Preview or RunArmed.Live, ArmedPreset: { } p } && !string.Equals(p.Name, Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName, StringComparison.OrdinalIgnoreCase))
+            if (_choice is { ArmedPreset: { } p } && !string.Equals(p.Name, Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName, StringComparison.OrdinalIgnoreCase))
                 play += "\nPreset: " + p.Name + " (" + PresetText.Summary(p) + ")";
             return play;
         }
+        if (_choice?.LiveEnded == true) return RunModeChoice.LiveEndedPlayReason;   // ⭐ CE-3413
         string name = mode switch
         {
             TransportMode.Live    => "Live",
@@ -524,7 +556,9 @@ public sealed class MainToolbarTimeControlSection
             TransportMode.Review  => SecondsBehindLive() is { } b ? $"Back to live — {FormatSpan(b)} ahead" : "Back to live",
             TransportMode.Replay  => _choice is null ? "Leave the AAR" : "Back to the recording's start",
             TransportMode.Preview => "Back to edit",
-            TransportMode.Live    => _choice is null ? "Stop the exercise" : "Stop the exercise and return to the scenario's start",
+            TransportMode.Live    => _choice is null ? "Stop the exercise"
+                                   : _choice.LiveEnded ? "Close the session — every station returns to the Start screen"   // ⭐ CE-3413 (R2″)
+                                   : _choice.StopDisabledReason ?? "End the exercise",
             _                     => "Stop",
         };
     }
@@ -602,13 +636,13 @@ public sealed class MainToolbarTimeControlSection
 
         // ── [Play/Pause] ───────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_pp", iconSize,
-                PlayPauseFace(isPaused), IsPlayEnabled, PlayColour(_facade.Mode, _choice?.Armed)))
+                PlayPauseFace(isPaused), IsPlayEnabled, PlayColour(_facade.Mode, _choice?.Shown)))
         {
             OnPlayPause();
         }
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-            ImGui.SetTooltip(_choice?.PlayDisabledReason is { } playWhy && (_facade.Mode == TransportMode.Edit || _choice.ClosedReason is not null)
-                ? playWhy                    // ⭐ CE-4097 §2.8 ⑥ — Live armed with no scenario session
+            ImGui.SetTooltip((_facade.Mode == TransportMode.Edit ? _choice?.PlayDisabledReason : _choice?.RunPlayDisabledReason) is { } playWhy
+                ? playWhy                    // the gate's reason; ⭐ CE-3413 Live · ended: "the exercise has ended — restart from a checkpoint to train again"
                 : PlayTooltip(isPaused));    // what a press does, by the mode
         DrawPresetArrow(iconSize);
 
@@ -617,12 +651,12 @@ public sealed class MainToolbarTimeControlSection
         // ── [⏪ Review] — ⭐ CE-4321 (L-5, LC-16): the DAR choices one click away, beside ▶ (the mode menu keeps them too) ──
         if (ShowsReviewButton)
         {
-            if (TransportIcons.DrawTransportButton("##mt_review", iconSize, TransportIcons.BtnShape.Rewind, enabled: true))
+            if (TransportIcons.DrawTransportButton("##mt_review", iconSize, TransportIcons.BtnShape.Rewind, enabled: IsReviewEnabled))
             {
                 _reviewOpen = ReviewChoices();
                 ImGui.OpenPopup("##mt_review_menu");
             }
-            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip("Review (DAR): look back at the live run");
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(_choice?.ReviewDisabledReason ?? "Review (DAR): look back at the live run");
             if (ImGui.BeginPopup("##mt_review_menu"))
             {
                 if (_reviewOpen != null)
@@ -647,9 +681,9 @@ public sealed class MainToolbarTimeControlSection
         ImGui.SameLine();
 
         // ── [Stop] — ⏏ Back to live in a review ────────────────────────
-        var stopShape = StopFace(_facade.Mode) == StopFaceKind.BackToLive
+        var stopShape = StopFaceNow == StopFaceKind.BackToLive
             ? TransportIcons.BtnShape.Eject : TransportIcons.BtnShape.Stop;
-        if (TransportIcons.DrawTransportButton("##mt_stop", iconSize, stopShape, enabled: _facade.IsStopEnabled))
+        if (TransportIcons.DrawTransportButton("##mt_stop", iconSize, stopShape, enabled: IsStopEnabled))
         {
             OnStop();
         }
@@ -764,10 +798,11 @@ public sealed class MainToolbarTimeControlSection
                            : ind.Name);
         }
 
-        var menu = ModeMenu();
-        if (clicked && menu is not null) ImGui.OpenPopup("##mt_mode_popup");
+        // ⭐ CE-3413 — the menu is built when it is asked for (a click) and while it is open — never per frame (the moves, the DAR rows and the ended menu allocate)
+        if (clicked && ModeMenu() is not null) ImGui.OpenPopup("##mt_mode_popup");
         if (ImGui.BeginPopup("##mt_mode_popup"))
         {
+            var menu = ModeMenu();
             if (menu is not null)
             {
                 ImGui.TextDisabled(menu.Header);
