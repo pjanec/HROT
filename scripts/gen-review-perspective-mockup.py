@@ -21,6 +21,11 @@ bx += 44
 for cp, col in [(FA.PLAY, C.BLUE), (0xf04d, C.GREY)]:
     s.rect(bx, Y0 + 5, 24, 21, C.BTN, rx=3); s.glyph(cp, bx + 5, Y0 + 9, col, 13); bx += 30
 s.text(bx + 6, Y0 + 20, "12:31 / 18:40  AAR · Night attack · exercise 3", C.TXT, 12)
+# ★ the SOURCE switch (D6′): what fills the ONE world
+sx = X0 + SW - 470
+s.text(sx, Y0 + 20, "Source", C.SUB, 12)
+s.rect(sx + 48, Y0 + 5, 170, 21, C.FRAME, rx=3, stroke="#3EC6B0"); s.glyph(0xf0e8, sx + 55, Y0 + 9, C.TEAL, 12)
+s.text(sx + 74, Y0 + 20, "Merged · 4 parts", C.TXT, 12); s.text(sx + 206, Y0 + 20, "▾", C.TXT, 11)
 # ★ the perspective switch: Scenario · Review
 px = X0 + SW - 230
 s.text(px - 8, Y0 + 20, "", C.DIS, 11)
@@ -81,13 +86,16 @@ s.note(TX + 12, TY + TH - 40, ["★ the search's hits and a data breakpoint's st
 
 # ── the File menu addition ──
 s.menu(X0 + 8, Y0 + 30, 300, [("#", "File"), ("Open Exercise Recording…", None, 0xf1da, C.BLUE), ("Recording info", None, 0xf05a, C.GREY),
-                             ("Export to JSON…", None, 0xf56e, C.GREY), "---", ("Open all nodes in the Replay Browser…", None, 0xf0e8, C.TEAL)])
+                             ("Export to JSON…", None, 0xf56e, C.GREY)])
 
+s.menu(sx + 48, Y0 + 30, 290, [("#", "Source of the world"), ("Merged — every part (step / scrub)", None, 0xf0e8, C.TEAL), ("This station's part", None, 0xf108, C.GREY),
+                              ("CGF-1's part", None, 0xf544, C.BLUE), ("SimHost-1's part", None, 0xf1b2, C.AMBER), "---", ("Offsets…  (expert)", None, 0xf1de, C.GREY)])
 NY = Y0 + SH + 18
 s.note(20, NY, ["★ ONE world: everything above draws the editor's own world, which the AAR replays (the cluster seeks every node). The search, the frame diff and",
                 "   the change finder read the RECORDING FILE in throwaway background readers — the way the editor's HTTP API already searches (no second visible world).",
                 "★ Review is a perspective (a window layout), switched to automatically on entering AAR and back on leaving it; the same layout is the Replay Browser's default (Q-B3).",
-                "★ Federation (every node's own view, merged) stays in the standalone Replay Browser — File ▸ Open all nodes in the Replay Browser… opens this exercise there (Q-B6).",
+                "★ Source (D6′): Merged builds the ONE world from every node's part (each component from the node that owned it — a brain's state from CGF); a node's part plays;",
+                "   merged steps / scrubs only. The parts are HIDDEN worlds; the editor still shows one (Q-B6).",
                 "   Unchanged, drawn as context: the run controls (AQ108 §0), the rules bundle, Details, the Event Timeline's own lanes."], C.SUB, 12)
 
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "UX", "review-perspective-visual.svg")
