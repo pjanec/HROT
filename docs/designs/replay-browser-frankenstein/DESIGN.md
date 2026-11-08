@@ -6,7 +6,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
-  - ../../UX/DESIGN_Review_Perspective.md — explains Federation (§2) and keeps it in the standalone Replay Browser; the editor composes the other analysis windows
+  - ../../UX/DESIGN_Review_Perspective.md — Federation as the SOURCE of the editor's one world (§2.3, §3); §6 records an UNSCHEDULED better merge (binary, persistent, sim-time aligned, incremental) that would supersede §7.4–§7.5 here if adopted; §6.2 M3 found the owner can be stale after a handover (D004)
   - ../../UX/DESIGN_Replay_Browser_UX.md — the Replay Browser's UX review; Q-B6 is this feature's place
 -->
 
