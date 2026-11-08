@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mockup_kit import Svg, C, FA, render, text_width
 
 UP, DOWN, NAS, DISK, WARN, OK, CLOCK, CLOSE, ARCH = 0xf093, 0xf019, 0xf233, 0xf0a0, 0xf071, 0xf058, 0xf017, 0xf2f5, 0xf187
-W, H = 1240, 1190
+W, H = 1240, 1220
 s = Svg(W, H, "Recording storage — what every station shows of archives and imports (DESIGN_Recording_Storage.md §7.3, §8)")
 
 
@@ -123,7 +123,7 @@ for name, sub, chips, act, sel in [
         ("Night attack · exercise 3 · 18:40", "4 participants — opens merged", [("on the nodes", DISK, C.AMBER, "#3A3112"), ("archiving 2 / 4", UP, C.BLUE, "#1D2F48")], "opens at once", True),
         ("Recon · exercise 5 · 22:10", "2 participants", [("NAS", NAS, C.GREY, "#24242C"), ("importing — job #7", DOWN, C.TEAL, "#173A35")], "joins the import", False),
         ("Bridgehead · exercise 1 · 07:12", "this editor's run", [("NAS", NAS, C.GREY, "#24242C"), ("cached here", DISK, C.OK, "#1E3A22")], "opens at once", False),
-        ("Ambush · exercise 0 · 12:48", "3 participants", [("NAS", NAS, C.GREY, "#24242C")], "imports first · 1.4 GB", False),
+        ("Ambush · exercise 0 · 12:48", "3 participants", [("NAS", NAS, C.GREY, "#24242C")], "imports first · 1.4 GB   ⋮", False),
         ("Crossfire · exercise 2 · 31:05", "2 participants", [("NAS incomplete 3 / 4", WARN, C.AMBER, "#3A3112"), ("on the nodes", DISK, C.AMBER, "#3A3112")], "opens at once · Resume archive", False)]:
     if sel: s.rect(KX + 6, ky - 4, KW - 12, 50, "#1E2A3E")
     s.text(KX + 14, ky + 12, name, C.TXT, 12.5); s.text(KX + 14, ky + 30, sub, C.SUB, 11)
@@ -135,18 +135,27 @@ s.note(KX, KY + 318, ["⛔ \"on the nodes\" and not archived = the only copy, ne
 
 # ── ⑥ the CLOSE GUARD ────────────────────────────────────────────────────────────────────────────────────────────
 Y4 = KY + 364
-s.separator_text(20, Y4, "⑥ Quitting the app while a transfer runs — asked only where the transfer RUNS (the master's host, the all-in-one editor)", W - 20)
+s.separator_text(20, Y4, "⑥ Quitting while a transfer runs — asked only where it RUNS (master's host, all-in-one)", 600)
 GX, GY, GW, GH = 20, Y4 + 24, 580, 118
 dialog(GX, GY, GW, GH, "Quit")
 s.glyph(WARN, GX + 14, GY + 34, C.AMBER, 14)
 s.text(GX + 36, GY + 46, "Night attack · exercise 3 is still being archived (2 of 4 files).", C.TXT, 12.5)
 s.text(GX + 36, GY + 64, "Quit anyway: nothing is lost — the run stays on the nodes and the archive resumes at the next start.", C.SUB, 11)
 s.button(GX + GW - 230, GY + GH - 30, 120, "Wait", CLOCK, C.GREY, fill=C.BTNSEL); s.button(GX + GW - 100, GY + GH - 30, 86, "Quit anyway")
-s.note(620, Y4 + 40, ["another station (an instructor's, a debrief station) quits with NO question —",
-                      "the transfer runs on the master, not on it; the job stays in every status bar.",
-                      "",
-                      "an import cancelled by a quit leaves no partial file (.part is deleted);",
-                      "the NAS is never touched by an import."], C.SUB, 11.5)
+s.note(GX, GY + GH + 18, ["another station quits with NO question — the transfer runs on the master, not on it",
+                          "an import cancelled by a quit leaves no partial file (.part deleted); the NAS is never touched"], C.NOTE, 11)
+
+# ── ⑦ DELETE FROM THE ARCHIVE (R-4174) ───────────────────────────────────────────────────────────────────────────
+s.separator_text(620, Y4, "⑦ Delete from the archive — the picker's ⋮ on a NAS run, or the orchestrator panel", W - 20)
+XX, XY, XW, XH = 620, Y4 + 24, 600, 150
+dialog(XX, XY, XW, XH, "Delete from the archive")
+s.glyph(0xf1f8, XX + 14, XY + 34, C.RED, 14)
+s.text(XX + 36, XY + 46, "Delete Ambush · exercise 0 (12:48, 3 participants) from the NAS?", C.TXT, 12.5)
+s.text(XX + 36, XY + 64, "3 files · 1.4 GB. The cached copies on this cluster go too.", C.SUB, 11)
+s.text(XX + 36, XY + 80, "This cannot be undone — nothing else holds this recording.", C.RED, 11)
+s.button(XX + XW - 270, XY + XH - 30, 160, "Delete from archive", 0xf1f8, C.TXT, fill="#8A2A2A"); s.button(XX + XW - 100, XY + XH - 30, 86, "Cancel")
+s.note(XX, XY + XH + 18, ["Author / Instructor seats · refused while a transfer of that run is queued or running · Cancel is the focused default",
+                          "a storage job like the others (Delete) — the status bar shows it"], C.NOTE, 11)
 
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "UX", "recording-storage-visual.svg")
 s.save(out)

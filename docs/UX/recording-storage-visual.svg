@@ -1,5 +1,5 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='1190' viewBox='0 0 1240 1190'>
-<rect x='0' y='0' width='1240' height='1190' fill='#1B1B1F' rx='0' opacity='1'/>
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='1220' viewBox='0 0 1240 1220'>
+<rect x='0' y='0' width='1240' height='1220' fill='#1B1B1F' rx='0' opacity='1'/>
 <text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Recording storage — what every station shows of archives and imports (DESIGN_Recording_Storage.md §7.3, §8)</text>
 <text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
 <text x='20' y='74' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>① The status bar — every station shows the SAME job (the replicated StorageJobs). Its transfer segment sits left of the seat · hat.</text>
@@ -169,7 +169,7 @@
 <rect x='870' y='820' width='52.45046153846154' height='18' fill='#24242C' rx='9' opacity='1'/>
 <path d='M64 416Q37 415 19 397Q1 379 0 352V288Q1 261 19 243Q37 225 64 224H448Q475 225 493 243Q511 261 512 288V352Q511 379 493 397Q475 415 448 416H64ZM344 344Q366 342 368 320Q366 298 344 296Q322 298 320 320Q322 342 344 344ZM392 320Q394 342 416 344Q438 342 440 320Q438 298 416 296Q394 298 392 320ZM64 160Q37 159 19 141Q1 123 0 96V32Q1 5 19 -13Q37 -31 64 -32H448Q475 -31 493 -13Q511 5 512 32V96Q511 123 493 141Q475 159 448 160H64ZM344 88Q366 86 368 64Q366 42 344 40Q322 42 320 64Q322 86 344 88ZM400 64Q402 86 424 88Q446 86 448 64Q446 42 424 40Q402 42 400 64Z' fill='#A0A0AA' fill-opacity='1' transform='translate(877,832.861328125) scale(0.021484375,-0.021484375)'/>
 <text x='892' y='833' fill='#A0A0AA' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>NAS</text>
-<text x='1206' y='852' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>imports first · 1.4 GB</text>
+<text x='1206' y='852' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>imports first · 1.4 GB   ⋮</text>
 <text x='634' y='884' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Crossfire · exercise 2 · 31:05</text>
 <text x='634' y='902' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2 participants</text>
 <rect x='870' y='872' width='148.1673846153846' height='18' fill='#3A3112' rx='9' opacity='1'/>
@@ -181,8 +181,8 @@
 <text x='1206' y='904' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>opens at once · Resume archive</text>
 <text x='620' y='952' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⛔ "on the nodes" and not archived = the only copy, never removed automatically (§6)</text>
 <text x='620' y='966' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>"cached here" = a disposable local copy of an archived run</text>
-<text x='20' y='1010' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⑥ Quitting the app while a transfer runs — asked only where the transfer RUNS (the master's host, the all-in-one editor)</text>
-<line x1='774.7' y1='1006' x2='1220' y2='1006' stroke='#4A4A55' stroke-width='1'/>
+<text x='20' y='1010' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⑥ Quitting while a transfer runs — asked only where it RUNS (master's host, all-in-one)</text>
+<line x1='566.8000000000001' y1='1006' x2='600' y2='1006' stroke='#4A4A55' stroke-width='1'/>
 <rect x='24' y='1026' width='580' height='118' fill='#000000' rx='3' opacity='0.35'/>
 <rect x='20' y='1022' width='580' height='118' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
 <rect x='20' y='1022' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
@@ -195,9 +195,23 @@
 <text x='394' y='1124.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Wait</text>
 <rect x='500' y='1110' width='86' height='20' fill='#23415F' rx='3' opacity='1'/>
 <text x='543.0' y='1124.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Quit anyway</text>
-<text x='620' y='1038' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>another station (an instructor's, a debrief station) quits with NO question —</text>
-<text x='620' y='1052' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the transfer runs on the master, not on it; the job stays in every status bar.</text>
-<text x='620' y='1066' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
-<text x='620' y='1080' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>an import cancelled by a quit leaves no partial file (.part is deleted);</text>
-<text x='620' y='1094' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the NAS is never touched by an import.</text>
+<text x='20' y='1158' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>another station quits with NO question — the transfer runs on the master, not on it</text>
+<text x='20' y='1172' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>an import cancelled by a quit leaves no partial file (.part deleted); the NAS is never touched</text>
+<text x='620' y='1010' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⑦ Delete from the archive — the picker's ⋮ on a NAS run, or the orchestrator panel</text>
+<line x1='1133.1' y1='1006' x2='1220' y2='1006' stroke='#4A4A55' stroke-width='1'/>
+<rect x='624' y='1026' width='600' height='150' fill='#000000' rx='3' opacity='0.35'/>
+<rect x='620' y='1022' width='600' height='150' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<rect x='620' y='1022' width='600' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='628' y='1036' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Delete from the archive</text>
+<path d='M135 430 128 416 135 430 128 416H32Q18 416 9 407Q0 398 0 384Q0 370 9 361Q18 352 32 352H416Q430 352 439 361Q448 370 448 384Q448 398 439 407Q430 416 416 416H320L313 430Q304 447 284 448H164Q144 447 135 430ZM416 320H32H416H32L53 -19Q55 -38 68 -51Q82 -64 101 -64H347Q366 -64 380 -51Q393 -38 395 -19L416 320Z' fill='#E65555' fill-opacity='1' transform='translate(634,1068.55078125) scale(0.02734375,-0.02734375)'/>
+<text x='656' y='1068' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Delete Ambush · exercise 0 (12:48, 3 participants) from the NAS?</text>
+<text x='656' y='1086' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>3 files · 1.4 GB. The cached copies on this cluster go too.</text>
+<text x='656' y='1102' fill='#E65555' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>This cannot be undone — nothing else holds this recording.</text>
+<rect x='950' y='1142' width='160' height='20' fill='#8A2A2A' rx='3' opacity='1'/>
+<path d='M135 430 128 416 135 430 128 416H32Q18 416 9 407Q0 398 0 384Q0 370 9 361Q18 352 32 352H416Q430 352 439 361Q448 370 448 384Q448 398 439 407Q430 416 416 416H320L313 430Q304 447 284 448H164Q144 447 135 430ZM416 320H32H416H32L53 -19Q55 -38 68 -51Q82 -64 101 -64H347Q366 -64 380 -51Q393 -38 395 -19L416 320Z' fill='#FFFFFF' fill-opacity='1' transform='translate(957,1156.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='974' y='1156.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Delete from archive</text>
+<rect x='1120' y='1142' width='86' height='20' fill='#23415F' rx='3' opacity='1'/>
+<text x='1163.0' y='1156.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Cancel</text>
+<text x='620' y='1190' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Author / Instructor seats · refused while a transfer of that run is queued or running · Cancel is the focused default</text>
+<text x='620' y='1204' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a storage job like the others (Delete) — the status bar shows it</text>
 </svg>
