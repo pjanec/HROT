@@ -289,6 +289,46 @@ namespace Fdp.Tests
                 "D004 known limitation: cold-only mutation without LastChangeTick stamp is not captured in delta frame");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4327</c> (D004, 📄 docs/UX/DESIGN_Review_Perspective.md §6.2 M3) — an ownership HANDOVER is in the recording from its frame: a keyframe
+        /// with the authority held, then <c>SetAuthority(false)</c> and a DELTA — replayed into a fresh repo, the replica holds the authority after the
+        /// keyframe and NOT after the delta. And a <c>SetAuthority</c> that changes nothing stamps nothing (the delta stays empty of index chunks).
+        /// 🔴 Red-proof (compiles): <c>StampAuthorityChange</c>'s body emptied ⇒ the delta carries no index chunk ⇒ the replay keeps the old owner ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4327_AnAuthorityHandover_IsInTheDelta_AndReplaysWithTheNewOwner()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Tiny1>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new Tiny1 { B = 1 });
+            repo.SetAuthority<Tiny1>(e, true);
+            int typeId = ComponentType<Tiny1>.ID;
+            var recorder = new RecorderSystem();
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream);
+
+            repo.Tick();
+            recorder.RecordKeyframe(repo, writer, 0L);
+            uint baseline = repo.GlobalVersion;
+            repo.Tick();
+            repo.SetAuthority<Tiny1>(e, true);                                   // no change ⇒ no stamp
+            Assert.True(repo.GetEntityIndex().GetMetadata(e.Index).LastChangeTick <= baseline);
+            repo.SetAuthority<Tiny1>(e, false);                                  // ⭐ the handover
+            recorder.RecordDeltaFrame(repo, baseline, writer, 0L);
+            writer.Flush();
+
+            stream.Position = 0;
+            using var reader = new BinaryReader(stream);
+            using var replay = new EntityRepository();
+            replay.RegisterComponent<Tiny1>();
+            var playback = new PlaybackSystem();
+            playback.ApplyFrame(replay, reader);
+            Assert.True(replay.HasAuthority(e, typeId));                         // the keyframe: held
+            playback.ApplyFrame(replay, reader);
+            Assert.False(replay.HasAuthority(e, typeId));                        // ⭐ the delta: handed over, from this frame
+        }
+
         // Helper
         // ⭐ CE-3243 — one-byte components: a table chunk holds 65 536 slots, the worst case for a per-slot dirty check.
         //   Ids 486–491: free in every *Ids*.cs and every literal under FDP/ and Hrot/ (census 2026-10-17).

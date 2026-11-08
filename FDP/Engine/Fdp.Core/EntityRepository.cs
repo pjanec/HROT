@@ -1277,10 +1277,12 @@ namespace Fdp.Core
                 throw new InvalidOperationException(
                     $"Cannot set authority for component ID {typeId}: component is not present on entity {entity}.");
 
+            if (metaS.AuthorityMask.IsSet(typeId) == hasAuthority) return;   // ⭐ CE-4327 — no change, no stamp
             if (hasAuthority)
                 metaS.AuthorityMask.SetBit(typeId);
             else
                 metaS.AuthorityMask.ClearBit(typeId);
+            StampAuthorityChange(ref metaS);
         }
 
         /// <summary>
@@ -1300,11 +1302,22 @@ namespace Fdp.Core
             if (!compMaskG.IsSet(typeId))
                  throw new InvalidOperationException($"Cannot set authority for {typeof(T).Name}: Entity does not have component.");
 
+            if (metaG.AuthorityMask.IsSet(typeId) == hasAuthority) return;   // ⭐ CE-4327 — no change, no stamp
             if (hasAuthority)
                 metaG.AuthorityMask.SetBit(typeId);
             else
                 metaG.AuthorityMask.ClearBit(typeId);
+            StampAuthorityChange(ref metaG);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4327</c> (debt <c>D004</c>, 📄 docs/UX/DESIGN_Review_Perspective.md §6.2 M3 / §6.4 I8) — an ownership HANDOVER is recorded: the authority
+        /// mask lives in the entity's COLD metadata, and the recorder writes an entity's index chunks (hot + cold) only when its <c>LastChangeTick</c> moved
+        /// (<c>RecorderSystem.ChunkHasStructuralChanges</c>). So a changed bit stamps that clock — a replay then carries the NEW owner from the handover
+        /// frame, not the old one until the next keyframe. ⛔ <see cref="StructuralChanges"/> is NOT bumped: an owner change is not a change of the
+        /// world's SHAPE, and the per-frame indices keyed on it need not rebuild.
+        /// </summary>
+        private void StampAuthorityChange(ref EntityMetadataCold meta) => meta.LastChangeTick = _globalVersion;
         
         /// <summary>
         /// Checks if this peer has authority over the specified component.
