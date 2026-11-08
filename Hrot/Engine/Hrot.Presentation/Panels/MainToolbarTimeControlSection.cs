@@ -6,6 +6,7 @@ using Fdp.Toolkit.Orchestration;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.RunMode;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -132,19 +133,13 @@ public sealed class MainToolbarTimeControlSection
     private static readonly ModeIndicator ReplayIndicator  = Indicator("mode/replay", "AAR");
 
     /// <summary>
-    /// ⭐ L-11 / CE-4319 (Scenario lifecycle LC-14) — the colour of ▶: the mode a press PLAYS, from the ONE indicator table — in Edit / Idle the ARMED
-    /// mode (Live green, Preview violet, AAR blue), during a run the run's own mode (a DAR amber). Null when nothing is known (the default green).
+    /// ⭐ CE-3409 (AQ108 §0 D27) — the colour of ▶ / ⏸: <b>the glyph wears the indicator's colour, never the button's background</b>. In Edit / Idle ▶ is the Preview, violet (the pen is the INDICATOR's — ▶ previews); in a run the run's own:
+    /// Preview violet, Live red when recorded / green when not (<paramref name="indicatorColour"/>, the shown indicator's), DAR amber, AAR blue. ⛔ Replaces L-11's rule (the ARMED mode's colour).
     /// </summary>
-    public static Vector4? PlayColour(TransportMode mode, RunArmed? armed) => mode switch
+    public static Vector4? PlayColour(TransportMode mode, Vector4? indicatorColour) => mode switch
     {
-        TransportMode.Edit or TransportMode.Idle => armed switch
-        {
-            RunArmed.Live    => ModeGlyph(TransportMode.Live)?.Color,
-            RunArmed.Preview => ModeGlyph(TransportMode.Preview)?.Color,
-            RunArmed.AAR     => ModeGlyph(TransportMode.Replay)?.Color,
-            _ => null,
-        },
-        _ => ModeGlyph(mode)?.Color,
+        TransportMode.Edit or TransportMode.Idle => ModeGlyph(TransportMode.Preview)?.Color,
+        _ => indicatorColour ?? ModeGlyph(mode)?.Color,
     };
 
     // ── ⭐ CE-3393 (📄 docs/UX/DESIGN_Scenario_Presets.md §5c, D8) — the narrow ▾ at ▶'s right: THE preset picker; it ARMS (✓), never the mode ──────────
@@ -222,6 +217,12 @@ public sealed class MainToolbarTimeControlSection
     public ModeMenuModel? ModeMenu()
     {
         var model = WithRunTo(ModeMenuBase());
+        // ⭐ CE-3406 (story ②) — the Edit menu ends with Close (back to the Start screen, through the one door: unsaved edits ask first)
+        if (model is not null && _choice is { CanCloseScenario: true } closer && _facade.Mode == TransportMode.Edit)
+        {
+            var closing = new List<ModeMenuItem>(model.Items) { ModeMenuItem.Separator, new("Close", closer.CloseScenario, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.RightFromBracket) };
+            model = new(model.Header, closing);
+        }
         // ⭐ AQ108 D24 — the running scenario's variant and changed params, as plain (disabled) lines under the moves
         if (model is not null && _facade.Mode is not (TransportMode.Edit or TransportMode.Idle) && _runSetupLines?.Invoke() is { Count: > 0 } setup)
         {
@@ -578,6 +579,7 @@ public sealed class MainToolbarTimeControlSection
 
     /// <summary>The axis icon's letter: S = sim (pauses skipped), W = wall (pauses shown).</summary>
     public static string AxisFace(ReplayAxis axis) => axis == ReplayAxis.Sim ? "S" : "W";
+    private const string AxisSimId = "S##mt_axis", AxisWallId = "W##mt_axis";   // ⭐ CE-3409 — the button's label is a constant per axis (no per-frame concat)
 
     /// <summary>The axis icon's tooltip.</summary>
     public static string AxisTooltip(ReplayAxis axis)
@@ -636,7 +638,7 @@ public sealed class MainToolbarTimeControlSection
 
         // ── [Play/Pause] ───────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_pp", iconSize,
-                PlayPauseFace(isPaused), IsPlayEnabled, PlayColour(_facade.Mode, _choice?.Shown)))
+                PlayPauseFace(isPaused), IsPlayEnabled, PlayColour(_facade.Mode, _choice?.Indicator.Color)))
         {
             OnPlayPause();
         }
@@ -718,7 +720,7 @@ public sealed class MainToolbarTimeControlSection
         // ── [Axis] S / W ───────────────────────────────────────────────────
         ImGui.SameLine();
         ImGui.BeginDisabled(!IsAxisEnabled);
-        if (ImGui.SmallButton(AxisFace(_facade.Axis) + "##mt_axis")) OnToggleAxis();
+        if (ImGui.SmallButton(_facade.Axis == ReplayAxis.Sim ? AxisSimId : AxisWallId)) OnToggleAxis();
         ImGui.EndDisabled();
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(AxisTooltip(_facade.Axis));
 
@@ -772,31 +774,39 @@ public sealed class MainToolbarTimeControlSection
         _ => seat.ToString(),
     };
 
-    /// <summary>A coloured disc with the mode's letter; a click opens the mode menu (where there is one).</summary>
+    /// <summary>
+    /// ⭐ CE-3406 (AQ108 §0 D1′ + D29) — the mode indicator, drawn as a BUTTON in the kit's glyph-button look (<see cref="GlyphWidgets"/>: neutral background, lighter on hover) with a small ▾ (it opens the mode menu), the hand cursor and the
+    /// tooltip. The glyph is the CURRENT mode (<see cref="RunModeChoice.Indicator"/>): steady, or blinking while the run plays — no dim level. Zero allocation while nothing is hovered.
+    /// </summary>
     private void DrawModeIndicator(float size)
     {
         var mode = _facade.Mode;
-        // ⭐ CE-4097 — with a run choice the indicator draws ITS state (dim = armed, bright = paused run, blinking = playing; the words Preview / Live / DAR / AAR)
         var chosen = _choice?.Indicator;
-        var ind = chosen is { } c ? new ModeIndicator(c.Glyph, c.Color, c.Word) : ModeGlyph(mode);
-        if (ind is null) { ImGui.Dummy(new Vector2(size, size)); return; }
-
+        var plain = chosen is null ? ModeGlyph(mode) : null;   // a host with no run choice: the mode's fixed glyph (a shared instance)
+        if (chosen is null && plain is null) { ImGui.Dummy(new Vector2(size, size)); return; }
+        var icon = chosen?.Glyph ?? plain!.Glyph;
+        var color = chosen?.Color ?? plain!.Color;
+        var style = ImGui.GetStyle();
+        float caret = MathF.Max(5f, size * 0.22f);
+        var button = new Vector2(ImGui.CalcTextSize(icon).X + style.FramePadding.X * 2f + caret + 6f, size);
+        button.X = MathF.Max(button.X, size + caret + 4f);
         var pos = ImGui.GetCursorScreenPos();
-        bool clicked = ImGui.InvisibleButton("##mt_mode", new Vector2(size, size));
+        bool clicked = ImGui.InvisibleButton("##mt_mode", button);
         _runToAnchor = new Vector2(pos.X, pos.Y + size + 2);
         bool hovered = ImGui.IsItemHovered();
+        if (hovered) ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
         var dl = ImGui.GetWindowDrawList();
-        var icon = chosen?.Glyph ?? ModeIcon(mode)!;   // FontAwesome 6 Solid, drawn in the mode's colour
+        dl.AddRectFilled(pos, pos + button, ImGui.GetColorU32(hovered ? GlyphWidgets.NeutralHovered : GlyphWidgets.Neutral), style.FrameRounding);
+        if (hovered) dl.AddRect(pos, pos + button, ImGui.GetColorU32(GlyphWidgets.SelectedFrame), style.FrameRounding);
+        var alpha = chosen is { } ch ? RunModeIndicator.Alpha(ch.Level, ImGui.GetTime()) : 1f;
         var ts = ImGui.CalcTextSize(icon);
-        var alpha = chosen is { } ch ? RunModeIndicator.Alpha(ch.Level, ImGui.GetTime()) * (hovered ? 1f : 0.9f) : (hovered ? 1f : 0.85f);
-        dl.AddText(pos + (new Vector2(size, size) - ts) * 0.5f, ImGui.GetColorU32(ind.Color with { W = alpha }), icon);
+        float glyphX = pos.X + (button.X - caret - 6f - ts.X) * 0.5f + 3f;
+        dl.AddText(new Vector2(glyphX, pos.Y + (size - ts.Y) * 0.5f), ImGui.GetColorU32(color with { W = alpha }), icon);
+        // the ▾: a small triangle (no font glyph needed), neutral grey
+        float cx = pos.X + button.X - caret * 0.5f - 4f, cy = pos.Y + size * 0.55f, half = caret * 0.5f;
+        dl.AddTriangleFilled(new Vector2(cx - half, cy - half * 0.5f), new Vector2(cx + half, cy - half * 0.5f), new Vector2(cx, cy + half * 0.6f), ImGui.GetColorU32(new Vector4(0.7f, 0.7f, 0.74f, 1f)));
         if (hovered)
-        {
-            var behind = SecondsBehindLive();
-            ImGui.SetTooltip(mode == TransportMode.Review && behind is { } b ? $"DAR — {FormatSpan(b)} behind live"
-                           : chosen is { Level: IndicatorLevel.Dim } ? $"▶ will start: {ind.Name} (click to change)"
-                           : ind.Name);
-        }
+            ImGui.SetTooltip(_choice is { } cc ? cc.IndicatorTooltip(mode == TransportMode.Review ? SecondsBehindLive() : null) : plain!.Name);
 
         // ⭐ CE-3413 — the menu is built when it is asked for (a click) and while it is open — never per frame (the moves, the DAR rows and the ended menu allocate)
         if (clicked && ModeMenu() is not null) ImGui.OpenPopup("##mt_mode_popup");

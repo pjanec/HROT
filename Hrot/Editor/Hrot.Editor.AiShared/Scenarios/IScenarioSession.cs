@@ -60,8 +60,9 @@ public interface IScenarioSession
     void SaveCurrent();
 
     /// <summary>
-    /// ⭐ CE-3394 / CE-3389 (presets D10) — why the loaded world may NOT be saved (<c>ScenarioSaveGate.CanSave</c>: a world built with a variant ≠ 0), null when it may. Every save
-    /// surface reads THIS (File › Save / Save As / as Recipe greyed with it; <see cref="SaveCurrent"/> and <c>SaveAs</c> refuse) — so they cannot disagree. A default member (a fake saves).
+    /// ⭐ CE-3394 / CE-3389 (presets D10) / CE-3407 — why the loaded world may NOT be saved (the cluster half, then <c>ScenarioSaveGate.CanSave</c>: a variant ≠ 0), null when it may. Every save
+    /// surface reads THIS (File › Save / Save As / as Recipe greyed with it; <see cref="SaveCurrent"/> and <c>SaveAs</c> refuse) — so they cannot disagree. ⭐ CE-3406: the run choice reads the same answer through
+    /// <c>IRunScenarioControl.SaveDisabledReason</c> (the pen, the Save slot); the session implements both with ONE property. A default member (a fake saves).
     /// </summary>
     string? SaveDisabledReason => null;
 

@@ -155,7 +155,7 @@ public class MainToolbarTimeControlTests
         => new() { Mode = mode, Axis = axis, TotalTime = total, LivePoint = livePoint, Session = session };
 
     [Theory]
-    [InlineData(TransportMode.Edit,    Fdp.Presentation.Fonts.IconsFontAwesome6.Pen, 0.60f, 0.60f, 0.60f)]
+    [InlineData(TransportMode.Edit,    Fdp.Presentation.Fonts.IconsFontAwesome6.Pen, 0.96f, 0.82f, 0.25f)]
     [InlineData(TransportMode.Preview, Fdp.Presentation.Fonts.IconsFontAwesome6.Eye, 0.66f, 0.45f, 0.92f)]
     [InlineData(TransportMode.Live,    Fdp.Presentation.Fonts.IconsFontAwesome6.Circle, 0.25f, 0.80f, 0.30f)]
     [InlineData(TransportMode.Review,  Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft, 1.00f, 0.70f, 0.20f)]
@@ -418,8 +418,8 @@ public class MainToolbarTimeControlTests
     /// 🔴 Red-proof: <c>Indicator</c>'s level swapped (paused ⇒ Blink) / a word changed.
     /// </summary>
     [Theory]
-    [InlineData(TransportMode.Edit,    RunArmed.Preview, false, "Preview", IndicatorLevel.Dim)]
-    [InlineData(TransportMode.Edit,    RunArmed.Live,    false, "Preview", IndicatorLevel.Dim)]   // ⭐ CE-3405: Edit shows the authoring item whatever is armed (R-3 draws the pen)
+    [InlineData(TransportMode.Edit,    RunArmed.Preview, false, "Edit", IndicatorLevel.Bright)]   // ⭐ CE-3406: the current mode, steady — no dim "armed" level
+    [InlineData(TransportMode.Edit,    RunArmed.Live,    false, "Edit", IndicatorLevel.Bright)]   // whatever is armed
     [InlineData(TransportMode.Preview, RunArmed.Preview, true,  "Preview", IndicatorLevel.Blink)]
     [InlineData(TransportMode.Preview, RunArmed.Preview, false, "Preview", IndicatorLevel.Bright)]
     [InlineData(TransportMode.Live,    RunArmed.Live,    true,  "Live",    IndicatorLevel.Blink)]
@@ -692,8 +692,8 @@ public class MainToolbarTimeControlTests
         Assert.True(items.Single(i => i.Label == "AAR").Enabled);
 
         var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live);   // ⭐ CE-3405: even with Live armed, Edit shows (and checks) the authoring item
-        Assert.Equal("Preview", edit.Choice.Indicator.Word);
-        Assert.Equal(IndicatorLevel.Dim, edit.Choice.Indicator.Level);
+        Assert.Equal("Edit", edit.Choice.Indicator.Word);
+        Assert.Equal(IndicatorLevel.Bright, edit.Choice.Indicator.Level);
         Assert.Equal(new[] { true, false, false }, Bar(edit).ModeMenu()!.Items.Select(i => i.Selected));
         Assert.True(edit.Choice.Moves().Single(m => m.Target == RunArmed.Preview).Enabled);
     }
@@ -746,7 +746,7 @@ public class MainToolbarTimeControlTests
         rig.Choice.PickRecording = () => { };
         var menu = Bar(rig).ModeMenu()!;
         Assert.Equal("Edit · ▶ previews", menu.Header);
-        Assert.Equal(new[] { "Edit", "Live", "AAR" }, menu.Items.Select(i => i.Label));
+        Assert.Equal(new[] { "Edit", "Live", "AAR — open a recording…" }, menu.Items.Select(i => i.Label));
         Assert.Equal(new[] { true, false, false }, menu.Items.Select(i => i.Selected));
         menu.Items.Single(i => i.Label == "Live").Invoke!();
         Assert.Equal(RunArmed.Live, Armed(rig));                           // ⭐ CE-3405: choosing it SWITCHES (and arms): the load went out
@@ -833,18 +833,21 @@ public class MainToolbarTimeControlTests
         Assert.All(recorded.Items.Where(i => i.Label.StartsWith("DAR")), i => Assert.True(i.Enabled));
     }
 
-    /// <summary>⭐ L-11 / CE-4319 (LC-14) — ▶ is drawn in the colour of the mode a press PLAYS: in Edit the armed mode (Live green, Preview violet, AAR blue),
-    /// in a run the run's own (a DAR amber) — the ONE indicator table's colours. 🔴 Red-proof: <c>PlayColour</c> ignoring the armed mode ⇒ the Edit rows ⇒ red.</summary>
-    [Theory]
-    [InlineData(TransportMode.Edit, RunArmed.Live, TransportMode.Live)]
-    [InlineData(TransportMode.Edit, RunArmed.Preview, TransportMode.Preview)]
-    [InlineData(TransportMode.Idle, RunArmed.AAR, TransportMode.Replay)]
-    [InlineData(TransportMode.Review, RunArmed.Live, TransportMode.Review)]
-    [InlineData(TransportMode.Live, RunArmed.Preview, TransportMode.Live)]
-    public void CE4319_PlayIsDrawnInTheColourOfTheModeItPlays(TransportMode mode, RunArmed armed, TransportMode colourOf)
+    /// <summary>⭐ CE-3409 (R-4, D27; REPLACES L-11 / CE-4319) — ▶ / ⏸ wears the INDICATOR's colour: in Edit / Idle the Preview's violet (▶ previews), in a run the run's own (the indicator's: Live red / green by recording, a DAR amber, an AAR blue).
+    /// 🔴 Red-proof: <c>PlayColour</c> ignoring the indicator colour ⇒ the run rows ⇒ red.</summary>
+    [Fact]
+    public void CE3409_PlayWearsTheIndicatorsColour()
     {
-        Assert.Equal(MainToolbarTimeControlSection.ModeGlyph(colourOf)!.Color, MainToolbarTimeControlSection.PlayColour(mode, armed));
-        Assert.NotEqual(MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, RunArmed.Live), MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, RunArmed.Preview));
+        var violet = MainToolbarTimeControlSection.ModeGlyph(TransportMode.Preview)!.Color;
+        Assert.Equal(violet, MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, new System.Numerics.Vector4(1, 1, 0, 1)));   // the pen's yellow is NOT ▶'s colour
+        Assert.Equal(violet, MainToolbarTimeControlSection.PlayColour(TransportMode.Idle, null));
+        var red = new System.Numerics.Vector4(0.90f, 0.22f, 0.22f, 1f);
+        Assert.Equal(red, MainToolbarTimeControlSection.PlayColour(TransportMode.Live, red));
+        foreach (var (rig, colour) in new[] { (RunChoiceRig.With(ClusterState.OperatingLive, clock: 5), red),
+                                              (RunChoiceRig.With(ClusterState.OperatingLive, clock: 5, runNotRecorded: true), MainToolbarTimeControlSection.ModeGlyph(TransportMode.Live)!.Color),
+                                              (RunChoiceRig.With(ClusterState.OperatingReview, clock: 5), MainToolbarTimeControlSection.ModeGlyph(TransportMode.Review)!.Color),
+                                              (RunChoiceRig.With(ClusterState.OperatingReplay, clock: 5), MainToolbarTimeControlSection.ModeGlyph(TransportMode.Replay)!.Color) })
+            Assert.Equal(colour, MainToolbarTimeControlSection.PlayColour(rig.F.Mode, rig.Choice.Indicator.Color));
     }
 
     /// <summary>⭐ D11 — the status-bar note shows while a Preview or a Live run goes, and only then.</summary>

@@ -171,7 +171,60 @@ already lands in today.*
 | Ended ▾ menu: Run again · Restart from a checkpoint ▸ · DAR ▸ · AAR · Close | `MainToolbarTimeControlSection.EndedMenu` · `RunAgain` · `ReplayEndedExercise` | |
 | ■ and ⏪ greyed in the briefing (Live, paused, clock 0) | `LiveBriefing` · `IsStopEnabled` · `IsReviewEnabled` | `POST /sim/stop` is not the toolbar: it still answers |
 
+**R-3 `CE-3406` the indicator (ui):**
+
+| what | where | note |
+|---|---|---|
+| current mode only, no dim level: Edit pen (yellow) / eye steady (`SaveDisabledReason` ≠ null) · Preview eye (blinks) · Live ● red/green (steady paused, blinks running) · ended = `FlagCheckered` · DAR amber ⟲ · AAR blue ▶ | `RunModeChoice.Indicator` (interned: 0 B per read) | `IRunScenarioControl.SaveDisabledReason` = the session's ONE answer (pen, Save slot, File ▸ Save) |
+| drawn as a glyph button: neutral bg, lighter + frame on hover, small ▾ (triangle), hand cursor, tooltip | `MainToolbarTimeControlSection.DrawModeIndicator` · `GlyphWidgets.Neutral*` | tooltips = ind.png column 3 (`IndicatorTooltip`); *exercise N* omitted (no number) |
+| Edit menu: Edit ✓ · Live · AAR — open a recording… · Run to … · Close | `Moves` · `ModeMenu` · `CloseScenario` | menu built on click / while open only |
+| pen colour `IconPalette.Yellow` | `Icons "mode/edit"` | was grey |
+
+Rails: `RunIndicatorTests.R3_*`, `RunToolbarFrameRail.R3_*` (real frame, every ind.png row).
+
+**R-4 `CE-3409` ▶ wears the indicator's colour (ui):**
+
+| what | where | note |
+|---|---|---|
+| ▶ **and ⏸** glyph = the indicator's colour (Edit/Idle violet — the pen is the indicator's, ▶ previews; Live red/green; DAR amber; AAR blue); never the background; greyed in Live · ended | `MainToolbarTimeControlSection.PlayColour(mode, indicatorColour)` · `TransportIcons.DrawShape` (Pause takes the tint) | **replaces L-11 / CE-4319's armed-mode rule** |
+| ▾ presets only in Edit and the Live briefing | `ShowsPresetArrow` (R-1) | verified against ind.png: not in running Live, DAR, AAR |
+| toolbar frame = **0 B** in Edit / briefing / running / ended | `FormatTime` / `FormatRate` cache the shown value · `RunGate.From` shares the open gate · `AxisFace` ids constant · no `ModeIndicator` record per frame | rail `Hot_TheToolbarFrame…`; a RUNNING clock still builds one string per changed millisecond (the shown value changes) |
+
+Rails: `CE3409_PlayWearsTheIndicatorsColour`, `ColourIconsFrameRail.L11_PlayWearsTheIndicatorsColour…` (real frame, rewritten; stable 6/6 in the bigger filter — the old one's order flake was not root-caused).
+
+**R-5 `CE-3408` the Save slot (ui):**
+
+| what | where | note |
+|---|---|---|
+| ONE button, ONE slot (`shell.save`): floppy in Edit (greyed + reason tooltip when not saveable, and in a Preview) · amber FLAG in Live / DAR / AAR = take a checkpoint (greyed with `CheckpointDisabledReason`; an AAR keeps *a recording cannot take a checkpoint…*) | `ShellSaveCommands.Register(runChoice:)` · `RunModeChoice.SaveSlotDisabledReason` / `SaveSlotTakesCheckpoint` · new `EditorCommandDescriptor.DynamicGlyph` drawn by `ToolbarCommandAdapter` | editor and CGF pass their run choice; hosts with none keep today's slot |
+| pen, slot and File ▸ Save read ONE answer | `IRunScenarioControl.SaveDisabledReason` ← `EditorScenarioSession.SaveDisabledReason` | rail asserts pen colour + slot reason agree |
+| Ctrl+S in a run still checkpoints (the save intercept) | unchanged | ⚠ a GREYED slot also greys Ctrl+S: in an AAR the *"No checkpoint: …"* toast no longer shows (the slot's tooltip carries the reason) |
+
+Rails: `SaveSlotTests.R5_*` (descriptors per mode + the REAL adapter on a real frame: amber flag / dimmed flag; the floppy is an atlas sprite — no atlas on a rail frame, so its pixels are not checked).
+
 **Deviations / open.** (1) A host with **no scenario session** (SimHost, IG) keeps ▶ greyed in Edit (reason *"No scenario session on this host — nothing to preview from here"*): the armed mode used to be what greyed it. (2) A host with **no ender** keeps today's ■ in Live (leaves to editing). (3) *Exercise N* is not in the Close question (no number on the inventory). (4) *Restart from a checkpoint ▸* is greyed: the live run's marks are not on the cluster view (hosts may supply `CheckpointLabels` / `RestoreCheckpoint`). (5) The End question's second sentence now describes the debrief, not *"returns to editing"*. (6) HTTP `/run-mode` untouched (backend B-5): its rails that expect the old arm-only `Choose` are listed in the build report.
+
+**R-7 `CE-3416` the Player's briefing screen (ui):**
+
+| what | where | note |
+|---|---|---|
+| shown while `LiveBriefing` (Live, paused, clock 0, not ended); gone on ▶ | `PlayerBriefing.Shows` ← `RunModeChoice.LiveBriefing` · drawn in `PlayerApplication.DrawUI` next to `ReviewBanner` (L-5) | **Player host only** (the IG): D32 *"Player seats show a briefing screen"* + LC-18 / L-5 precedent |
+| title `<scenario> — briefing` · `You are: <side> · <unit> · <role>` · Mission · Your objectives (flag shapes) · reserved picture-book frame (dashed, `page 1 / 4`, inert ◀ ▶) · footer *waiting for the instructor to start…* | `PlayerBriefing.Build` / `DrawContent` | ⛔ nothing behind the frame (CE-3417) |
+| data: description + name = `ScenarioDescriptionResident`; side / unit = `PlayerView` (the held unit); role = `UnitSubordinate.Designation`; objectives = `RulesReader` → `TrainingHud.Build` (my side only, required first) | `PlayerBriefing.Rebuild` | ONE reader (R-174); no second query |
+| 0 B steady: rebuilt only when the world, the held unit, the objective-status count or the resident object changes | `Refresh` (+ `Rebuild` split out: a lambda capturing `world` made the compiler allocate 24 B on entry) | Mission capped at 1400 chars (one ImGui stack buffer) |
+
+Rails: `PlayerBriefingTests` (states, content, rebuild-on-change, real frame + 0 B + ▶ hides). **Open:** nobody held yet ⇒ *"not assigned to a unit yet"* and no objectives (they are by my side); the title is the scenario id (no display name in the header).
+
+**R-6 `CE-3418` Player seats open their own summary when the exercise ends (ui):**
+
+| what | where | note |
+|---|---|---|
+| the moment `LiveEnded` rises (Live + replicated `ExerciseResult.Phase == Ended`) the Player opens its summary — once per end; the user may close it (stays closed) | `RulesBundle.OpenPlayersSummary` (`TraineeOnly`, the Player's `WatchTheRun` branch) | reads `RunModeChoice.LiveEnded`, no second query; a host with no run controls falls back to the phase |
+| the Player's transport gets an observer ender (`CanEnd` false, `End()` false, `HasEnded` = the phase) so `LiveEnded` exists on a seat that cannot end | `ExerciseObserver` (`RunModeTypes.cs`) attached by the bundle | ■ is not on the Player (time control suppressed) |
+| WHICH: the profile = the node's feature set (PH-8): `HudFeatures.TrainingProfile` → trainee debrief, `GameProfile` → game summary (the HUD's own answer, now one function) | `HudFeatures` · `PlayerHudLayer.Compose` · `RulesHostServices.FeatureOn` | a window with nothing to say (`HasContent()`) is not opened beside one that has; when NEITHER has content the first profile-on window opens (its why-not shows); both profiles off ⇒ nothing |
+| the Player registers the game summary too (L-2 had the debrief alone) | `RulesBundle.RegisterInto` | no rules / instructor's Mission summary on the Player |
+
+Rails: `ThePlayersSummaryOpensAtTheEndTests` (4) · `TheRulesBundleTests.L2_ThePlayersSet…` (updated). **Open (needs user, lean stated):** with BOTH profiles on and BOTH windows having content (a scenario with standards AND a score) both open — lean: keep (PH-8 puts a scenario's preset in charge of switching the other profile off).
 
 ## 1. ⭐ The three rules — the spine
 

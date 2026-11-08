@@ -106,7 +106,7 @@ public sealed class TheRulesBundleTests
         Assert.DoesNotContain((Action)onRecording.WatchTheRun, w2.FrameOverlays);   // a recording opens nothing
     }
 
-    /// <summary>⭐ L-2 / CE-4320 (LC-18, PH-6) — the Player's set: the Trainee debrief ALONE (no rules, no summaries, no editing), opened when the exercise
+    /// <summary>⭐ L-2 / CE-4320 (LC-18, PH-6) — the Player's set: his OWN summaries (the Trainee debrief + the game summary; no rules, no instructor's summary, no editing), opened when the exercise
     /// ENDS — never when Live starts. 🔴 Red-proof: the trainee branch of the watcher dropped ⇒ it opens Mission summary (not registered) ⇒ red.</summary>
     [Fact]
     public void L2_ThePlayersSet_IsTheTraineeDebriefAlone_OpenedWhenTheExerciseEnds()
@@ -119,7 +119,8 @@ public sealed class TheRulesBundleTests
         var windows = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(nint.Zero, 1, 1, 16f));
         bundle.RegisterInto(new Fdp.Toolkit.Runner.UiBundleContext(windows));
         Assert.True(windows.TryGetWindow("t_trainee_debrief", out _));
-        foreach (var id in new[] { "t_rules", "t_mission_summary", "t_game_summary", "t_game_master" })
+        Assert.True(windows.TryGetWindow("t_game_summary", out _));   // ⭐ R-6 — his own summary under the game profile
+        foreach (var id in new[] { "t_rules", "t_mission_summary", "t_game_master" })
             Assert.False(windows.TryGetWindow(id, out _), id + " is not a trainee's");
         Assert.Null(bundle.Editor);
 

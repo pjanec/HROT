@@ -3895,6 +3895,7 @@ namespace Hrot.Editor
                 saveHsm:           saveHsmDelegate,
                 saveScenario:      null, // Scenario saved via IEditorLogic, not file delegate
                 openSaveAsBrowser: (req, onChosen) => _saveAsBrowser?.Open(req, onChosen),   // ⭐ B-9 N3 — "Save … as Recipe…" asks Replace? through the same browser (assigned later, hence the lambda)
+                runChoice:         () => _timeTransport?.RunChoice,   // ⭐ CE-3408 — the Save slot: floppy / amber flag
                 requestSaveAs:     doc =>
                 {
                     // BATCH-43 (MTB2-T8b): open the SaveAsBrowserDialog;

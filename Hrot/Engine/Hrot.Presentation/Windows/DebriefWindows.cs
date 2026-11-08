@@ -83,6 +83,8 @@ public sealed class TraineeDebriefWindow : ManagedWindow
 
     /// <summary>The man chosen in the picker (a subject net id); 0 = the possessed one.</summary>
     public int Chosen { get => _chosen; set => _chosen = value; }
+    /// <summary>⭐ R-6 — the debrief has something to show NOW (rebuilds from the world first): what the Player's end-of-exercise open asks, so a window with nothing to say is not opened beside the one that has.</summary>
+    public bool HasContent() { Rebuild(); return _data.Available; }
     public TraineeDebriefData Data => _data;
     public TraineeDebriefProbe Probe => _probe;
 
@@ -203,6 +205,8 @@ public sealed class GameSummaryWindow : ManagedWindow
         PanelSnapshot.DeclareInstrumented(Id);
     }
 
+    /// <summary>⭐ R-6 — the summary has something to show NOW (rebuilds from the world first).</summary>
+    public bool HasContent() { Rebuild(); return _data.Available; }
     public GameSummaryData Data => _data;
     public GameSummaryProbe Probe => _probe;
 

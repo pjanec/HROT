@@ -238,7 +238,9 @@ namespace Hrot.Player
                         SelectEntity:   _ => { },
                         ShowOnMap:      _ => { },
                         Seat:           () => Hrot.Common.Infrastructure.Seat.Player,
-                        TraineeOnly:    true)),
+                        TimeTransport:  () => _app.RunControls,   // ⭐ R-6 / CE-3418 — the end is read from the run choice's LiveEnded
+                        TraineeOnly:    true,
+                        FeatureOn:      id => Hrot.Common.Infrastructure.HudFeatures.IsOn(_app.NodeContext?.Features, id))),   // ⭐ R-6 (PH-8) — the profile is the node's feature set
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // Signal IgApplication that these panels must not be double-rendered.

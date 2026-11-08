@@ -76,7 +76,7 @@ public sealed class ColourIconsFrameRail
             var i = MainToolbarTimeControlSection.ModeGlyph(m)!;
             Assert.Equal(glyph, i.Glyph); Assert.Equal(new Vector4(r, g, b, 1f), i.Color);
         }
-        Mode(TransportMode.Edit, IconsFontAwesome6.Pen, 0.60f, 0.60f, 0.60f);
+        Mode(TransportMode.Edit, IconsFontAwesome6.Pen, 0.96f, 0.82f, 0.25f);   // ⭐ CE-3406: the pen is YELLOW
         Mode(TransportMode.Preview, IconsFontAwesome6.Eye, 0.66f, 0.45f, 0.92f);
         Mode(TransportMode.Live, IconsFontAwesome6.Circle, 0.25f, 0.80f, 0.30f);
         Mode(TransportMode.Review, IconsFontAwesome6.ClockRotateLeft, 1.00f, 0.70f, 0.20f);
@@ -227,38 +227,42 @@ public sealed class ColourIconsFrameRail
     }
 
     /// <summary>
-    /// ⭐ L-11 / CE-4319 (LC-14) — the toolbar's ▶ on a real frame: drawn for each armed mode, the triangle's pixels are THAT mode's indicator colour
-    /// (Live green, Preview violet, AAR blue). Render: <c>play-colours.png</c>. 🔴 Red-proof: the tint dropped in <c>DrawShape</c> ⇒ every row green ⇒ red.
+    /// ⭐ CE-3409 (R-4, AQ108 §0 D27; REPLACES L-11 / CE-4319's armed-mode rule) — on a REAL frame the toolbar's ▶ / ⏸ GLYPH wears the INDICATOR's colour — violet in Edit and Preview, Live red when recorded / green when not, amber in a DAR,
+    /// blue in an AAR — never the button's background; and in Live · ended ▶ is greyed (no hue). Render: <c>run-toolbar-states.png</c> (see <see cref="RunToolbarFrameRail"/>).
+    /// 🔴 Red-proof: <c>PlayColour</c> returning the old armed colour / the tint dropped in <c>DrawShape</c> ⇒ the Live rows are green / white ⇒ red.
     /// </summary>
-    [Fact]
-    public void L11_PlayIsDrawnInTheArmedModesColour_OnARealFrame()
+    [SkippableFact]
+    public void L11_PlayWearsTheIndicatorsColour_OnARealFrame()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
-        using var frame = UiFrameHarness.Begin(240, 60);
-        var armed = new[] { Hrot.UI.Common.RunMode.RunArmed.Live, Hrot.UI.Common.RunMode.RunArmed.Preview, Hrot.UI.Common.RunMode.RunArmed.AAR };
+        var rows = RunToolbarFrameRail.Rows();
+        const float rowH = 34f, w = 560f;
+        using var frame = UiFrameHarness.Begin((int)w, (int)(rowH * rows.Count + 4));
+        RealFonts();
+        var sections = rows.ConvertAll(r => new MainToolbarTimeControlSection(r.Rig.F, choice: r.Rig.Choice));
         void Draw()
         {
-            ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(240, 60));
-            ImGui.Begin("##play", Bare);
-            for (int i = 0; i < armed.Length; i++)
+            for (int i = 0; i < rows.Count; i++)
             {
-                if (i > 0) ImGui.SameLine();
-                TransportIcons.DrawTransportButton($"##p{i}", 40f, TransportIcons.BtnShape.Play, true, MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, armed[i]));
+                ImGui.SetNextWindowPos(new Vector2(0, i * rowH)); ImGui.SetNextWindowSize(new Vector2(w, rowH));
+                ImGui.Begin("##row" + i, Bare);
+                sections[i].Render();
+                ImGui.End();
             }
-            ImGui.End();
         }
-        for (int i = 0; i < 4; i++) frame.Step(Draw);
+        for (int i = 0; i < 6; i++) frame.Step(Draw);
         var shot = Raylib.LoadImageFromScreen();
         try
         {
             Shoot(frame, "play-colours.png");
-            float step = 40f + ImGui.GetStyle().ItemSpacing.X;
-            for (int i = 0; i < armed.Length; i++)
+            for (int i = 0; i < rows.Count; i++)
             {
-                var want = MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, armed[i])!.Value;
-                int x0 = (int)(ImGui.GetStyle().WindowPadding.X + i * step);
-                int hits = Extent(shot, x0, 0, x0 + 40, 60, p => Near(p, want * 0.85f + new Vector4(0, 0, 0, 0), 40) || Near(p, want, 40)).Count;
-                Assert.True(hits > 30, $"{armed[i]}: the play triangle is in its mode's colour ({hits} px)");
+                var name = rows[i].Name;
+                var want = name.StartsWith("edit") ? NodeEditor.Core.Widgets.IconPalette.Violet : rows[i].Indicator;   // the pen is the INDICATOR's; ▶ there previews (violet)
+                // ▶ / ⏸ is the first transport button, right of the indicator button (≈ 50 px)
+                int hits = RunToolbarFrameRail.Count(shot, 50, (int)(i * rowH), 84, (int)((i + 1) * rowH), p => Near(p, want, 40) || Near(p, new Vector4(want.X * 0.85f, want.Y * 0.85f, want.Z * 0.85f, 1f), 40));
+                if (name == "live-ended") Assert.True(hits < 4, $"{name}: ▶ is greyed — no hue ({hits} px)");
+                else Assert.True(hits > 25, $"{name}: ▶ / ⏸ wears the indicator's colour ({hits} px)");
             }
         }
         finally { Raylib.UnloadImage(shot); }

@@ -81,6 +81,12 @@ public interface IRunScenarioControl
     void SaveCurrent();
 
     /// <summary>
+    /// ⭐ CE-3406 / CE-3408 (AQ108 §0 D27) — <b>THE one "can I save the scenario" answer</b> (<c>IScenarioSession.SaveDisabledReason</c>: the cluster half, then the variant gate): null ⇒ saveable. The indicator's pen, the Save slot and File › Save all read THIS.
+    /// A control with no scenario to save (a fake, a host with none) answers null. 0 B per read.
+    /// </summary>
+    string? SaveDisabledReason => null;
+
+    /// <summary>
     /// ⭐⭐ <b>Saves the live running state</b> — publishes the existing <c>TakeCheckpointIntent</c> to the master
     /// (<c>File/Checkpoint/Take Checkpoint</c>). One home for the publish: the session already holds the orchestration bus.
     /// </summary>
@@ -448,4 +454,20 @@ public interface IRunTransport
     RunGate Gate { get; }
     /// <summary>⭐ CE-1442 (§11.7 ⑥) — cancel the load in progress on this node (the host's <c>ClusterSlave.CancelLoad</c>): it fails everywhere and the cluster returns to Idle with <paramref name="reason"/>. A host with no slave does nothing.</summary>
     void CancelLoad(string? reason);
+}
+
+/// <summary>
+/// ⭐ R-6 / CE-3418 (AQ108 §0 D30, D32) — an exercise ender that only OBSERVES: a seat that cannot end the exercise (the Player) still has to say whether it HAS ended, because
+/// <see cref="RunModeChoice.LiveEnded"/> is derived from <see cref="IExerciseEnder.HasEnded"/> and the end-of-exercise summary opens from that one fact (no second query). It never ends anything.
+/// </summary>
+public sealed class ExerciseObserver : IExerciseEnder
+{
+    private readonly Func<Fdp.Core.EntityRepository?> _world;
+    public ExerciseObserver(Func<Fdp.Core.EntityRepository?> world) { _world = world ?? throw new ArgumentNullException(nameof(world)); }
+    /// <inheritdoc/>
+    public bool CanEnd => false;
+    /// <inheritdoc/>
+    public bool End() => false;
+    /// <inheritdoc/>
+    public bool HasEnded => _world() is { } w && Fdp.Toolkit.ScenarioRules.ExerciseResult.PhaseOf(w) == Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended;
 }

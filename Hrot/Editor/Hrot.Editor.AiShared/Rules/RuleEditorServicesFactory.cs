@@ -36,7 +36,8 @@ public sealed record RulesHostServices(
     Func<(int NetworkId, ForceId Side)?>? Selection = null,        // the Game master's "for the selected unit"
     Func<bool>? GamePaletteEnabled = null,                         // the Game master's feature gate (HudFeatures.GamePalette)
     Func<Hrot.Common.Interactions.HostActions?>? Actions = null,   // ⭐ CE-4308 (RX6) — the host's action registry: the map's "Add rule about this unit…" / "When someone enters this area…" land on the bundle
-    bool TraineeOnly = false);                                     // ⭐ L-2 (LC-18) — the Player: only the Trainee debrief, opened when the exercise ends
+    bool TraineeOnly = false,                                      // ⭐ L-2 (LC-18) — the Player: its own summary only, opened when the exercise ends
+    Func<string, bool>? FeatureOn = null);                         // ⭐ R-6 (PH-8) — is this node feature on (the profile the Player's summary follows); null = every feature on
 
 /// <summary>
 /// ⭐ CE-4292 / R2 — THE rule editor services, built ONCE for every host (was the editor's private <c>BuildRuleEditorServices</c> /

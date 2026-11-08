@@ -22,6 +22,7 @@ internal static class RunChoiceRig
     {
         public Func<bool>? SaveIntercept { get; set; }
         public string? LoadedScenarioName { get; set; } = "hill-attack";
+        public string? SaveDisabledReason { get; set; }   // ⭐ CE-3406 — the ONE "can I save" answer (null ⇒ saveable)
         public readonly List<string> Calls = new();
         public void LoadForLive(string scenarioName) => Calls.Add($"LoadForLive:{scenarioName}");
         public void LoadForLive(string scenarioName, string? argsJson) => Calls.Add($"LoadForLive:{scenarioName}:{argsJson}");   // ⭐ AQ108 D24 — a load WITH a run setup

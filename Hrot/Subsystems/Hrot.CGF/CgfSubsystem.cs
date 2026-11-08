@@ -2337,6 +2337,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   modal browser to ask for one. ⇒ `scenario.saveAs` is not registered here, and `File/Save`
             //   with nothing loaded is a no-op rather than a lie. Ruling 49 — the absence is real.
             requestScenarioSaveAs: null,
+            runChoice:             () => _clusterTimeAdapter?.RunChoice,   // ⭐ CE-3408 — the Save slot: floppy / amber flag
             saveBlueprintRecipe: (asset, path) =>
             {
                 if (Hrot.Editor.AiShared.Documents.AiAssetSavers.ResolveAssetRef(_aiDocumentManager, asset.AssetId)

@@ -1,5 +1,6 @@
 using System;
 using Fdp.Toolkit.Runner;
+using Hrot.Common.Infrastructure;
 using Hrot.Presentation.Windows;
 
 namespace Hrot.Editor.AiShared.Rules;
@@ -85,8 +86,10 @@ public sealed class RulesBundle : IUiBundle
         _windows = ctx.Windows;
         if (_host.TraineeOnly)
         {
-            // ⭐ L-2 (LC-18) — the Player: its own Trainee debrief only (no rules, no summaries), opened when the exercise ends
+            // ⭐ L-2 (LC-18) + R-6 / CE-3418 (D32) — the Player: its OWN summary only (no rules, no instructor's summary): the trainee debrief (training profile) and the game summary (game profile), opened when the exercise ends
             ctx.Windows.RegisterWindow(TraineeDebrief);
+            ctx.Windows.RegisterWindow(GameSummary);
+            AttachObserver();
             ctx.Windows.RegisterFrameOverlay(WatchTheRun);
             return;
         }
@@ -117,10 +120,36 @@ public sealed class RulesBundle : IUiBundle
         var phase = PhaseOf(w);
         bool started = _lastMode is { } was && was != Hrot.Common.Editing.EditingMode.Live && mode == Hrot.Common.Editing.EditingMode.Live;
         bool ended = phase == Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended && _lastPhase != Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended;
-        if (_host.TraineeOnly) { if (ended) { _windows?.FocusWindow(TraineeDebrief.Id); SummaryOpenings++; } }   // the Player: its debrief, at the end only
+        if (_host.TraineeOnly) { OpenPlayersSummary(w); return; }   // the Player: its own summary, at the end only (R-6)
         else if (started || ended) { _windows?.FocusWindow(MissionSummary.Id); SummaryOpenings++; }
         _lastMode = mode;
         _lastPhase = phase;
+    }
+
+    // ── ⭐ R-6 / CE-3418 (AQ108 §0 D32, story ⑩) — the PLAYER's own summary opens the moment the exercise ENDS: the transition into <c>LiveEnded</c> (the run choice's derived fact — Live + the replicated result's
+    //    phase Ended — read through the observer ender, no second query; a host with no run controls falls back to the result's phase). Which windows: the scenario's PROFILE (PH-8: a profile is a feature set,
+    //    <see cref="HudFeatures.TrainingProfile"/> / <see cref="HudFeatures.GameProfile"/> — the HUD's own answer) → the trainee debrief under training, the game summary under game; a window with nothing to say is not
+    //    opened beside one that has, and when NEITHER has content the first profile-on window opens so its why-not shows (never an exercise ending in silence). Once per end; the user may close it. ──
+    private bool _lastEnded;
+
+    private void AttachObserver()
+    {
+        if (_host.TimeTransport?.Invoke() is { } transport && transport.Ender == null) transport.Ender = new Hrot.UI.Common.RunMode.ExerciseObserver(_host.World);
+    }
+
+    private void OpenPlayersSummary(Fdp.Core.EntityRepository w)
+    {
+        AttachObserver();
+        bool ended = _host.TimeTransport?.Invoke()?.RunChoice is { } choice ? choice.LiveEnded : PhaseOf(w) == Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended;
+        bool rising = ended && !_lastEnded;
+        _lastEnded = ended;
+        if (!rising) return;
+        Func<string, bool> on = _host.FeatureOn ?? (_ => true);
+        bool training = HudFeatures.TrainingProfile(on), game = HudFeatures.GameProfile(on);
+        bool t = training && TraineeDebrief.HasContent(), g = game && GameSummary.HasContent();
+        if (!t && !g) { if (training) t = true; else if (game) g = true; }
+        if (t) { _windows?.FocusWindow(TraineeDebrief.Id); SummaryOpenings++; }
+        if (g) { _windows?.FocusWindow(GameSummary.Id); SummaryOpenings++; }
     }
 
     private Fdp.Toolkit.ScenarioRules.ExercisePhase PhaseOf(Fdp.Core.EntityRepository w)
