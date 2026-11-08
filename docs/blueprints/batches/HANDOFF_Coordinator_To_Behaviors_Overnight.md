@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started (RE-STAMPED, rule 1a: O-1 amended — ui had already built CE-4339; first stamp 802d9ff8b never reached behaviors)
+state: LIVE — dispatched, not started (RE-STAMPED, rule 1a: O-1 amended — ui had already built CE-4339; first stamp aa602a3e7 never reached behaviors)
 updated: 2026-11-08
 current-answer: the whole file
 related-designs:
@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → behaviors: the overnight batch
 
-**For:** behaviors. **From:** coordinator. **Dispatched at `aa602a3e7`**. ⭐ Scope FROZEN there. Merge `coordinator`, `ui` and `backend` first, push
+**For:** behaviors. **From:** coordinator. **Dispatched at `55229b8ef`** (re-stamped; first stamp `aa602a3e7`). ⭐ Scope FROZEN there. Merge `coordinator`, `ui` and `backend` first, push
 `chore: started HANDOFF_Coordinator_To_Behaviors_Overnight at <sha>`, then the [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md): a status file
 (`STATUS_Behaviors_Overnight.md`) after every item, fetch and merge `ui` and `backend` after every item.
 
