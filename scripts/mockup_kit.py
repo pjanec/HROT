@@ -34,7 +34,7 @@ class FA:
     """FontAwesome 6 solid code points used by the mockups (the app's IconsFontAwesome6 names)."""
     USER = 0xf007; USERS = 0xf0c0; VAN = 0xf5b6; ROUTE = 0xf4d7; BRAIN = 0xf5dc; SCALE = 0xf24e; PUZZLE = 0xf12e; POLYGON = 0xf5ee
     EARTH = 0xf7a2; BOLT = 0xf0e7; CODE = 0xf121; FILTER = 0xf0b0; PLAY = 0xf04b; GEAR = 0xf013; FLAG_CHECKERED = 0xf11e
-    INFO = 0xf05a; LINK = 0xf0c1; CLOCK_BACK = 0xf1da; CLOCK = 0xf017; LIST_CHECK = 0xf0ae; FLAG = 0xf024; TARGET = 0xf140
+    INFO = 0xf05a; LINK = 0xf0c1; CLOCK_BACK = 0xf1da; CLOCK = 0xf017; SLIDERS = 0xf1de; LIST_CHECK = 0xf0ae; FLAG = 0xf024; TARGET = 0xf140
     CROSSHAIRS = 0xf05b; CHECK = 0xf00c; XMARK = 0xf00d; CIRCLE_XMARK = 0xf057; CIRCLE_CHECK = 0xf058; HOURGLASS = 0xf252
     LOCK = 0xf023; ROTATE_LEFT = 0xf2ea; WARNING = 0xf071; SKULL = 0xf54c; HEART = 0xf21e; FIRE = 0xf06d; PLUS = 0xf067
     ELLIPSIS_V = 0xf142; OBJECT_GROUP = 0xf247; WAND = 0xf0d0; LOCATION = 0xf3c5; PLANE = 0xf072; HELICOPTER = 0xf533

@@ -165,7 +165,7 @@ already lands in today.*
 | Preview running → Live / AAR: stop (restore), then the switch once Edit is heard | `_switchWhenEdit` in `OnClusterState` | the Preview's own question is unchanged |
 | ▶ in Edit = always the Preview; ▶ in a paused Live = the facade's resume | `Play` · `UserTransport` | no armed dispatch; the `PlayLive` check round is gone (the door asks) |
 | Edit shows the authoring item (`RunArmed.Preview` labelled **Edit**), not the armed mode | `Shown` · `Moves` | glyph (pen / eye) is R-3 |
-| ▾ presets: Edit (▶ previews with it) and the Live briefing (reloads Live with it); never in a run / DAR / AAR | `ShowsPresetArrow` · `ArmPreset` · `PresetMode` | Live presets are armed only from the briefing |
+| ▾ presets: Edit (▶ previews with it — ⭐ CE-4317: IN PLACE on the edit world, no reopen, unless the world holds another preset) and the Live briefing (reloads Live with it); never in a run / DAR / AAR | `ShowsPresetArrow` · `ArmPreset` · `PresetMode` | Live presets are armed only from the briefing |
 | ■ → *End the exercise?* → `End()` only; world stays in Live | `Stop` | `_stopAfterEnd`, `StoppingAfterEnd`, `StopAfterEndFrames` removed |
 | **Live · ended** derived: `OperatingLive` + `IExerciseEnder.HasEnded` (replicated `ExerciseResult.Phase == Ended`) | `LiveEnded` · `InstructorEndControl.HasEnded` | refreshed once per frame in `Update`; no FSM state |
 | ▶ greyed (words from D30); ■ = ⏏ (`StopFaceNow`) → *Close the live session?* → `ScenarioDoor.Leave(Close)` → keep question + toast | `PlayDisabledReason` · `AskToClose` · `CloseSession` · `AfterLiveEnded` | `ScenarioDoor.CanLeave` added; a session with no door OUT sends the same Idle intent |
@@ -178,7 +178,7 @@ already lands in today.*
 |---|---|---|
 | current mode only, no dim level: Edit pen (yellow) / eye steady (`SaveDisabledReason` ≠ null) · Preview eye (blinks) · Live ● red/green (steady paused, blinks running) · ended = `FlagCheckered` · DAR amber ⟲ · AAR blue ▶ | `RunModeChoice.Indicator` (interned: 0 B per read) | `IRunScenarioControl.SaveDisabledReason` = the session's ONE answer (pen, Save slot, File ▸ Save) |
 | drawn as a glyph button: neutral bg, lighter + frame on hover, small ▾ (triangle), hand cursor, tooltip | `MainToolbarTimeControlSection.DrawModeIndicator` · `GlyphWidgets.Neutral*` | tooltips = ind.png column 3 (`IndicatorTooltip`); *exercise N* omitted (no number) |
-| Edit menu: Edit ✓ · Live · AAR — open a recording… · Run to … · Close | `Moves` · `ModeMenu` · `CloseScenario` | menu built on click / while open only |
+| Edit menu: Edit ✓ · Live · AAR — open a recording… · Run to … · ⭐ CE-4317 *Run setup ▸ Preview · Live* (a scenario with presets; arms per mode, ▶ previews it in place — [Presets §9b](../UX/DESIGN_Scenario_Presets.md)) · Close | `Moves` · `ModeMenu` · `CloseScenario` | menu built on click / while open only |
 | pen colour `IconPalette.Yellow` | `Icons "mode/edit"` | was grey |
 
 Rails: `RunIndicatorTests.R3_*`, `RunToolbarFrameRail.R3_*` (real frame, every ind.png row).

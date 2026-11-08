@@ -31,6 +31,9 @@ namespace Hrot.UI.Common.Map3D
         private CameraPose _before;
         private bool _was3D;
 
+        /// <summary>⭐ B-10 K4 (§6g) — the keymap the FPS rows are read from: the process's one; a rail may hand in its own (a rebind that must not leak).</summary>
+        public Fdp.Toolkit.Input.Keymap Keymap { get; init; } = Fdp.Toolkit.Input.Keymap.Process;
+
         /// <param name="bodies">⭐ CE-1073 — the drawn figures: the eyes come from the drawn head, and the held unit's head is not
         /// drawn. Null (a host or rail without 3-D bodies) keeps the perception eye height above the unit's position.</param>
         /// <param name="featureGate">⭐ CE-4148 (Node Features S2) — this node's feature gate, read lazily (the map is built before the node exists):
@@ -40,6 +43,7 @@ namespace Hrot.UI.Common.Map3D
                                  Func<Fdp.ModuleHost.IFeatureGate?>? featureGate = null)
         {
             FeatureGate = featureGate;
+            EmbodiedKeys.Declare(Fdp.Toolkit.Input.Keymap.Process);   // ⭐ B-10 K4 — the Keyboard shortcuts window lists the FPS keys from the start
             _view = view ?? throw new ArgumentNullException(nameof(view));
             _world = world ?? throw new ArgumentNullException(nameof(world));
             Bodies = bodies;
@@ -216,7 +220,7 @@ namespace Hrot.UI.Common.Map3D
             //   (which opens the peek on that M) BEFORE its layers' Update (this), and IsKeyPressed still reads true — so the same press used to
             //   end the peek it had just begun (a one-frame flash back to 3-D). One press = one toggle.
             if (MapPeek && _peekJustBegun) _peekJustBegun = false;
-            else if (MapPeek && _driver?.Input is { } peekInput && peekInput.IsKeyPressed((MapKeyboardKey)FpsCameraDriver.MapKey)) EndMapPeek();
+            else if (MapPeek && _driver is { Input: not null } peekDriver && peekDriver.Keys.Pressed(EmbodiedKeys.Map)) EndMapPeek();
             if (_driver != null && (held.IsNull || held != _driver.Unit))
             {
                 // ⭐ CE-1220 (§8k K-1) — released because he FELL: the fall screen holds the view; a release just after a hit waits a
@@ -1211,6 +1215,19 @@ namespace Hrot.UI.Common.Map3D
         private readonly Func<EntityRepository?> _world;
         private readonly int _netId;
         private IInputProvider? _locked;
+        // ⭐ B-10 K4 (§6g) — the Embodied hat's rows of the one keymap, read through a reader over the locked provider
+        private readonly Fdp.Toolkit.Input.KeymapReader _keys;
+        private IInputProvider? _chordsFor;
+        private Fdp.Presentation.Input.ProviderChordInput? _chords;
+        /// <summary>⭐ B-10 K4 — the driver's reader of the Embodied hat's rows (the station reads M while the 2-D map is up).</summary>
+        internal Fdp.Toolkit.Input.KeymapReader Keys => _keys;
+
+        /// <summary>Points the reader at <paramref name="input"/> (built once per provider — no allocation per frame).</summary>
+        internal void Bind(IInputProvider input)
+        {
+            if (!ReferenceEquals(_chordsFor, input)) { _chords = new Fdp.Presentation.Input.ProviderChordInput(input); _chordsFor = input; }
+            _keys.Input = _chords;
+        }
         private float _yaw, _pitch, _roll;
         private float _hullLook, _hullYaw;   // ⭐ CE-1351 — the look off the hull while the view is hull-locked (V); the hull's heading
         private float? _heldHeading;         // ⭐ CE-1354 — the heading a flyer holds since A/D was let go (taken once, never re-read)
@@ -1250,6 +1267,8 @@ namespace Hrot.UI.Common.Map3D
             _world = world;
             Unit = unit;
             _netId = netId;
+            EmbodiedKeys.Declare(station.Keymap);
+            _keys = new Fdp.Toolkit.Input.KeymapReader(station.Keymap, Fdp.Toolkit.Input.InputScope.Hat, EmbodiedKeys.Hat);
         }
 
         public Entity Unit { get; }
@@ -1284,7 +1303,7 @@ namespace Hrot.UI.Common.Map3D
             var (holder, local) = PossessionStation.Hud.Resolve(w, Unit, Mount);
             if (Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local) is not { } dto) return null;
             return $"AIM {FireMode.ToString().ToUpperInvariant()}"
-                   + (Fdp.Toolkit.Combat.OperatorFireModes.CanChoose(dto) ? $"  ({FireModeKey}: switch)" : "");
+                   + (Fdp.Toolkit.Combat.OperatorFireModes.CanChoose(dto) ? $"  ({_keys.ChordOf(EmbodiedKeys.FireMode)}: switch)" : "");
         }
 
         /// <summary>⭐ CE-4143 (R-2) — L: toggle the selected weapon's SIGHT / LOCK preference where both apply; else say which one only.</summary>
@@ -1530,13 +1549,6 @@ namespace Hrot.UI.Common.Map3D
             if (_station.Bodies is { } bodies) bodies.ShowFirstPersonHead = distance > 0.5f;   // ⭐ CE-1201 (OS-5) — he is seen whole
         }
 
-        /// <summary>⭐ <c>CE-1201</c> (§8p OS-1) — O toggles the over-the-shoulder view while in first person.</summary>
-        public const KeyboardKey ShoulderKey = KeyboardKey.O;
-        /// <summary>⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10 M-3) — N opens / closes the player's message log (L is the fire mode).</summary>
-        public const KeyboardKey MessageLogKey = KeyboardKey.N;
-        /// <summary>⭐ G1 (CE-4231) / Player Join D-16 — hold Tab for the scoreboard. 🔒 R-3076 (user, 2026-11-05): ONE key, ONE purpose — Tab is the
-        /// scoreboard only; the next man moved to <see cref="TeamSwitchKey"/> (J). ⛔ Was: hold K (Tab was the next man).</summary>
-        public const KeyboardKey ScoreboardKey = KeyboardKey.Tab;
 
         /// <summary>⭐ <c>CE-1293</c> (UC-11) — the camera stands back this frame: the shoulder view is on and RMB is not aiming from the eyes.</summary>
         public bool ShoulderViewOn => _station.OverShoulder && !Zooming;
@@ -1593,10 +1605,6 @@ namespace Hrot.UI.Common.Map3D
             return at;
         }
 
-        /// <summary>⭐ <c>CE-4143</c> (§8r R-2) — L switches the selected weapon between SIGHT and LOCK where both apply (free before).</summary>
-        public const KeyboardKey FireModeKey = KeyboardKey.L;
-        /// <summary>⭐ <c>CE-1212</c> (§8j L-1, L-2; keys approved, R-1009) — hold to lean left / right; the use key; the next round.</summary>
-        public const KeyboardKey LeanLeftKey = KeyboardKey.Q, LeanRightKey = KeyboardKey.E, UseKeyCode = KeyboardKey.F, NextRoundKey = KeyboardKey.R;
 
         /// <summary>⭐ <c>CE-1216</c> (§8k S-3) — how long a recoil kick takes to settle (s).</summary>
         public const float KickSeconds = 0.15f;
@@ -1631,19 +1639,7 @@ namespace Hrot.UI.Common.Map3D
             if (Fdp.Toolkit.Combat.CombatTkb.MountOf(w, platform, index) is { } dto) Kick += KickRadians(dto.Category);
         }
 
-        /// <summary>⭐ <c>CE-1213</c> (§8j W-1; key approved, R-1009) — hold to open the command wheel.</summary>
-        public const KeyboardKey CommandWheelKey = KeyboardKey.T;
-        /// <summary>⭐ <c>CE-1214</c> (§8j T-1) — the next man of his squad (Shift: the previous); also the fall screen's "a squad mate".
-        /// 🔒 R-3076 (user, 2026-11-05): J — Tab is the scoreboard only. ⛔ Was Tab (R-1009).</summary>
-        public const KeyboardKey TeamSwitchKey = KeyboardKey.J;
-        /// <summary>⭐ <c>CE-1218</c> (§8k M-1; key approved, R-1010) — the 2-D map and back.</summary>
-        public const KeyboardKey MapKey = KeyboardKey.M;
-        /// <summary>⭐ <c>CE-1210</c> (§8n MS-3, R-1018) — the next seat of the vehicle: driver / pilot, then each manned gun.</summary>
-        public const KeyboardKey SeatKey = KeyboardKey.G;
 
-        /// <summary>⭐ <c>CE-1264</c> (AV-5, R-1029) — I: SELECT the unit under the crosshair ("identify"), the one way to point at a unit in
-        /// first person (LMB fires here). The selection is the pointer an AI agent reads (<c>GET /selection</c>) and it is recorded.</summary>
-        public const KeyboardKey SelectKey = KeyboardKey.I;
 
         /// <summary>⭐ <c>CE-1218</c> — the input this driver reads (its cursor lock), for the station to watch M while the 2-D map is up.</summary>
         internal IInputProvider? Input => _locked;
@@ -1679,9 +1675,9 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ <c>CE-1213</c> (§8j W-1) — T pressed opens the wheel on his men's orders; held, the mouse moves its cursor; let go,
         /// the sector under the cursor is sent to his men at the crosshair (nothing inside the dead zone). True while it has the mouse.</summary>
-        private bool CommandWheelInput(IInputProvider input, Vector2 delta)
+        private bool CommandWheelInput(Vector2 delta)
         {
-            bool held = input.IsKeyDown((MapKeyboardKey)CommandWheelKey);
+            bool held = _keys.Held(EmbodiedKeys.CommandWheel);
             if (held && !WheelOpen && _world() is { } ow)
             {
                 WheelItems = CommandWheel.Items(ow, Unit);
@@ -1718,8 +1714,6 @@ namespace Hrot.UI.Common.Map3D
         public float ZoomFovDegrees => BinocularsUp ? Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees   // ⭐ CE-1219 — the sim's own 10°
             : Zooming && _world() is { } zw ? FpsZoom.FovFor(zw, Unit, Mount) : FpsZoom.NormalFovDegrees;
 
-        /// <summary>⭐ <c>CE-1219</c> (§8k B-1; key approved, R-1010) — hold to raise his binoculars.</summary>
-        public const KeyboardKey BinocularsKey = KeyboardKey.B;
 
         /// <summary>⭐ <c>CE-1219</c> — is B held (the frame asks his brain to raise them)?</summary>
         public bool BinocularsHeld { get; private set; }
@@ -1757,7 +1751,8 @@ namespace Hrot.UI.Common.Map3D
         public bool HandleInput(MapCamera3D camera, IInputProvider input)
         {
             if (_locked == null) { input.SetCursorLocked(true); _locked = input; }
-            if (input.IsKeyPressed(MapKeyboardKey.Escape))
+            Bind(input);
+            if (_keys.Pressed(EmbodiedKeys.Release))
             {
                 // ⭐ CE-1158 (§8h U-4) — Esc in a vehicle with a rider is Get out (back into him), not a release that strands him aboard
                 if (!_station.TryGetOut(Unit)) _station.Release(_netId);
@@ -1765,7 +1760,7 @@ namespace Hrot.UI.Common.Map3D
             }
 
             // ⭐ CE-1218 (§8k M-1) — M: the 2-D map centred on him; he holds still (one still frame) until M brings the operator back
-            if (input.IsKeyPressed((MapKeyboardKey)MapKey) && _station.PeekEndedAt != _station.Clock)
+            if (_keys.Pressed(EmbodiedKeys.Map) && _station.PeekEndedAt != _station.Clock)
             {
                 SendStill();
                 _station.BeginMapPeek(this);
@@ -1773,33 +1768,34 @@ namespace Hrot.UI.Common.Map3D
             }
             // ⭐ CE-1214 (§8j T-1) — J / Shift+J (R-3076; was Tab): the next / previous man of his squad (SquadRoster); the one he leaves goes back
             //   to his brain (the possess releases him)
-            if (input.IsKeyPressed((MapKeyboardKey)TeamSwitchKey) && _world() is { } tw
-                && SquadRoster.Next(tw, Unit, input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift) ? -1 : 1) is { IsNull: false } next)
+            bool nextMan = _keys.Pressed(EmbodiedKeys.TeamNext), previousMan = _keys.Pressed(EmbodiedKeys.TeamPrevious);
+            if ((nextMan || previousMan) && _world() is { } tw
+                && SquadRoster.Next(tw, Unit, previousMan ? -1 : 1) is { IsNull: false } next)
             {
                 _station.SwitchTo(next);
                 return true;
             }
             // ⭐ CE-1210 (§8n MS-3) — G: the next seat (the vehicle's own seat, then each manned gun); one possession, as J
-            if (input.IsKeyPressed((MapKeyboardKey)SeatKey) && _world() is { } gw && SeatSwitch.Next(gw, Unit) is { IsNull: false } seat)
+            if (_keys.Pressed(EmbodiedKeys.SeatNext) && _world() is { } gw && SeatSwitch.Next(gw, Unit) is { IsNull: false } seat)
             {
                 _station.SwitchTo(seat);
                 return true;
             }
             bool vehicle = IsVehicle;
-            var delta = input.MouseDelta;
+            var delta = new Vector2(_keys.Axis(EmbodiedKeys.LookX), _keys.Axis(EmbodiedKeys.LookY));   // ⭐ B-10 K4 — the mouse look is two Axis rows
             // ⭐ CE-1213 (§8j W-1) — hold T: the command wheel; while it is open the mouse moves its cursor, not the look
-            if (CommandWheelInput(input, delta)) delta = Vector2.Zero;
+            if (CommandWheelInput(delta)) delta = Vector2.Zero;
             // ⭐ CE-1211 (§8j Z-1) — hold RMB to zoom; the look turns slower in proportion to the narrower view
-            Zooming = input.IsMouseButtonDown(MapMouseButton.Right);
+            Zooming = _keys.Held(EmbodiedKeys.Zoom);
             float look = FpsZoom.SensitivityFor(ZoomFovDegrees);
             if (delta != Vector2.Zero) _lookIdle = 0f;   // ⭐ CE-1293 (UC-7) — the mouse moved: no re-centre yet
             // ⭐ CE-1351 — V locks the view to the hull, looking forward (a vehicle or a flyer); the keys still steer and the mouse still looks.
             //   🔒 User, 2026-10-25: "V key switches to mouse steering - i would expect normal A-D key steering and the mouse is still the
             //   look-around camera and aim point" · "for aircraft - mouse steering feels unintuitive, classic WASD migth feel better, V locks view
             //   to forward hull view". ⛔ SUPERSEDED: hull-locked, the mouse X steered (MouseSteerPerPixel).
-            if ((vehicle || IsFlyer) && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V)) { HullLocked = !HullLocked; _hullLook = 0f; }
+            if ((vehicle || IsFlyer) && _keys.Pressed(EmbodiedKeys.LookLock)) { HullLocked = !HullLocked; _hullLook = 0f; }
             // ⭐ CE-1204 (§8l LK-4) — V frees a person's look from his body, or locks it back (his body turns to the look)
-            if (Scheme == ControlScheme.Person && input.IsKeyPressed((MapKeyboardKey)KeyboardKey.V))
+            if (Scheme == ControlScheme.Person && _keys.Pressed(EmbodiedKeys.LookLock))
             {
                 if (!_station.PersonLookFree) _bodyYaw = _yaw;
                 _station.PersonLookFree = !_station.PersonLookFree;
@@ -1810,8 +1806,8 @@ namespace Hrot.UI.Common.Map3D
             _pitch = Math.Clamp(_pitch - delta.Y * look, -1.4f, 1.4f);
             ClampToGun();   // ⭐ CE-1210 (§8n MS-5) — a gunner's look stays in his gun's arc
 
-            float forward = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S) ? 1f : 0f);
-            float side = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.A) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.D) ? 1f : 0f);
+            float forward = _keys.Axis(EmbodiedKeys.MoveForward);
+            float side = _keys.Axis(EmbodiedKeys.MoveSide);
             if (Aboard) forward = side = 0f;   // ⭐ CE-1210 (§8n MS-1) — a man in a seat is held by it
             if (lookFree)
             {
@@ -1839,8 +1835,7 @@ namespace Hrot.UI.Common.Map3D
             // ⭐ CE-1351 — a flyer climbs on Q (or Space) and descends on Z (or C), a plane's nose too; A/D TURN it (the heading led ahead of
             //   the nose), never strafe; the mouse is a free look. 🔒 User, 2026-10-25: "possessed helicopter needs some key to go up and
             //   down vertically, maybe Q/Z". ⛔ SUPERSEDED: a flyer turned to where the camera looked and a plane climbed on the look's pitch.
-            float climbKeys = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Q) || input.IsKeyDown((MapKeyboardKey)KeyboardKey.Space) ? 1f : 0f)
-                            - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Z) || input.IsKeyDown((MapKeyboardKey)KeyboardKey.C) ? 1f : 0f);
+            float climbKeys = _keys.Axis(EmbodiedKeys.Climb);
             float vertical = IsFlyer ? climbKeys : 0f;
             // ⭐ CE-1354 — held A/D leads the nose; released, the heading at that moment is HELD, never re-read from the airframe. 🔴 Re-read
             //   every frame, it was a feedback loop with a one-frame delay (the sim applies a frame on the next tick): a helicopter turns a
@@ -1852,9 +1847,9 @@ namespace Hrot.UI.Common.Map3D
             if (side != 0f) { flyerHeading = FlyerHeading(_hullYaw, side); _heldHeading = null; }
             else flyerHeading = _heldHeading ??= _hullYaw;
             if (IsFlyer) side = 0f;
-            bool run = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
+            bool run = _keys.Held(EmbodiedKeys.Sprint);
             Running = run;
-            float wheel = input.MouseWheelMove;
+            float wheel = _keys.Axis(EmbodiedKeys.CameraDistance);
             Span<int> slots = stackalloc int[PossessionStation.Hud.MaxSlots];
             int slotCount = _world() is { } mw ? PossessionStation.Hud.Slots(mw, Unit, slots) : 0;
             if (slotCount == 0) slots[slotCount++] = 0;
@@ -1871,7 +1866,7 @@ namespace Hrot.UI.Common.Map3D
                 int verbs = UseCount();
                 if (wheel != 0f && verbs > 0) _listIndex = ((_listIndex + (wheel > 0f ? -1 : 1)) % verbs + verbs) % verbs;
                 for (int k = 0; k < 4; k++)
-                    if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < verbs) _listIndex = k;
+                    if (_keys.Pressed(EmbodiedKeys.Weapon(k)) && k < verbs) _listIndex = k;
             }
             else
             {
@@ -1880,19 +1875,19 @@ namespace Hrot.UI.Common.Map3D
                 if (wheel != 0f) WheelDistance(wheel);
                 // ⭐ CE-1079 (§8e D-2) — 1-4 pick a weapon directly; ⭐ CE-1158 (U-5) the weapons he controls follow his own
                 for (int k = 0; k < 4; k++)
-                    if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < slotCount) Mount = slots[k];
+                    if (_keys.Pressed(EmbodiedKeys.Weapon(k)) && k < slotCount) Mount = slots[k];
             }
             // R moves the selected weapon to its next round (⭐ CE-1212, §8j L-2 — F before; F is the use key now)
-            if (input.IsKeyPressed((MapKeyboardKey)NextRoundKey)) unchecked { _ammoSeq++; }
-            if (input.IsKeyPressed((MapKeyboardKey)FireModeKey)) ToggleFireMode();   // ⭐ CE-4143 (§8r R-2)
+            if (_keys.Pressed(EmbodiedKeys.NextRound)) unchecked { _ammoSeq++; }
+            if (_keys.Pressed(EmbodiedKeys.FireMode)) ToggleFireMode();   // ⭐ CE-4143 (§8r R-2)
             // ⭐ CE-1212 (§8j L-1) — a person leans while Q / E is held (both, or neither: upright); the sim's own rule ignores it prone
-            bool leftHeld = input.IsKeyDown((MapKeyboardKey)LeanLeftKey), rightHeld = input.IsKeyDown((MapKeyboardKey)LeanRightKey);
+            bool leftHeld = _keys.Held(EmbodiedKeys.LeanLeft), rightHeld = _keys.Held(EmbodiedKeys.LeanRight);
             Leaning = Scheme != ControlScheme.Person || leftHeld == rightHeld ? Fdp.Toolkit.Combat.LeanSide.LeanNone
                     : leftHeld ? Fdp.Toolkit.Combat.LeanSide.LeanLeft : Fdp.Toolkit.Combat.LeanSide.LeanRight;
             // ⭐ CE-1293 (UC-6) — the lean also puts the camera over that shoulder (it stays there)
             if (Leaning == Fdp.Toolkit.Combat.LeanSide.LeanLeft) _station.ShoulderSide = -1;
             else if (Leaning == Fdp.Toolkit.Combat.LeanSide.LeanRight) _station.ShoulderSide = 1;
-            BinocularsHeld = Scheme == ControlScheme.Person && input.IsKeyDown((MapKeyboardKey)BinocularsKey);   // ⭐ CE-1219 (§8k B-1)
+            BinocularsHeld = Scheme == ControlScheme.Person && _keys.Held(EmbodiedKeys.Binoculars);   // ⭐ CE-1219 (§8k B-1)
             // ⭐ CE-1074 — C cycles a person's stance: standing → crouched → prone → standing (from the stance he has when first driven)
             if (Scheme == ControlScheme.Person && _world() is { } sw)   // a person only: on a flyer C is the climb axis (CE-2168)
             {
@@ -1900,13 +1895,13 @@ namespace Hrot.UI.Common.Map3D
                 // ⭐ CE-1143 — a shooter's keys: hold Ctrl to crouch (letting go stands him back up), C toggles crouched, Z toggles prone.
                 //   🔒 User, 2026-10-16: "CTRL when pressed should make him crouch (and releasing ctrl should make him stand again),
                 //   special key toggle for prone mode would be better then the cycling today".
-                if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.C)) _stance = ToggleCrouch(_stance.Value);
-                if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.Z)) _stance = ToggleProne(_stance.Value);
-                _crouchHeld = input.IsKeyDown(MapKeyboardKey.LeftControl) || input.IsKeyDown(MapKeyboardKey.RightControl);
+                if (_keys.Pressed(EmbodiedKeys.Crouch)) _stance = ToggleCrouch(_stance.Value);
+                if (_keys.Pressed(EmbodiedKeys.Prone)) _stance = ToggleProne(_stance.Value);
+                _crouchHeld = _keys.Held(EmbodiedKeys.CrouchHeld);
             }
-            _station.ScoreboardHeld = input.IsKeyDown((MapKeyboardKey)ScoreboardKey);   // ⭐ G1 (CE-4231)
-            if (input.IsKeyPressed((MapKeyboardKey)MessageLogKey)) _station.ToggleMessageLog();   // ⭐ CE-1461 W-M7 (SR-106)
-            if (input.IsKeyPressed((MapKeyboardKey)ShoulderKey)) _station.OverShoulder = !_station.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
+            _station.ScoreboardHeld = _keys.Held(EmbodiedKeys.Scoreboard);   // ⭐ G1 (CE-4231)
+            if (_keys.Pressed(EmbodiedKeys.MessageLog)) _station.ToggleMessageLog();   // ⭐ CE-1461 W-M7 (SR-106)
+            if (_keys.Pressed(EmbodiedKeys.Shoulder)) _station.OverShoulder = !_station.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
             Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)
 
             // ⭐ CE-1078 / CE-1080 (§8e D-1, D-4) — the crosshair sees units too; a PRESS locks one shot on what it rests on, X drops it (CE-1211)
@@ -1914,12 +1909,13 @@ namespace Hrot.UI.Common.Map3D
             AimAt = aimAt;
             AimTarget = aimTarget;
             // ⭐ CE-1264 (AV-5) — I selects what the crosshair rests on (the selection's one writer; nothing when it rests on no unit)
-            if (input.IsKeyPressed((MapKeyboardKey)SelectKey) && aimTarget != 0 && _world() is { } selectWorld
+            if (_keys.Pressed(EmbodiedKeys.Select) && aimTarget != 0 && _world() is { } selectWorld
                 && selectWorld.Bus.IsRegistered<Hrot.Common.Events.SelectEntityCommand>())
                 selectWorld.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = aimTarget });
             bool glassing = BinocularsUp;   // ⭐ CE-1219 (§8k B-1) — binoculars up: LMB designates, the trigger stays up
-            if (glassing && input.IsMouseButtonPressed(MapMouseButton.Left)) Designate(aimAt, aimTarget);
-            else if (input.IsMouseButtonPressed(MapMouseButton.Left))
+            bool firePressed = _keys.Pressed(EmbodiedKeys.Fire);
+            if (glassing && firePressed) Designate(aimAt, aimTarget);
+            else if (firePressed)
             {
                 unchecked { _shotSeq++; }
                 _shotTarget = aimTarget;
@@ -1931,10 +1927,10 @@ namespace Hrot.UI.Common.Map3D
                 ShotPending = FireMode == Fdp.Toolkit.Combat.OperatorFireMode.Lock;   // ⭐ CE-1127 — a SIGHT shot holds nothing to show
             }
             // ⭐ CE-1211 (§8j Z-2) — the locked shot's cancel is X now (RMB zooms, as in every shooter)
-            if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.X)) { unchecked { _cancelSeq++; } ShotPending = false; }
+            if (_keys.Pressed(EmbodiedKeys.CancelShot)) { unchecked { _cancelSeq++; } ShotPending = false; }
             if (ShotPending && AmmoOf(Mount) < _ammoAtPress) ShotPending = false;   // the round left
             UseAim = _world() is { } uw ? UseTargetFor(uw, aimTarget, aimAt) : aimTarget;   // ⭐ CE-1207 (§8m PK-3)
-            UseKey(input, UseAim);
+            UseKey(UseAim);
 
             var frame = new OperatorControlFrameEvent
             {
@@ -1945,7 +1941,7 @@ namespace Hrot.UI.Common.Map3D
                 Yaw = IsFlyer ? flyerHeading : BodyYaw,   // ⭐ CE-1204 — the body's heading (the look's while it is locked); ⭐ CE-1351 a flyer's from A/D
                 Vertical = vertical,
                 Gait = run ? (byte)0 : (byte)1,
-                Trigger = !glassing && input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
+                Trigger = !glassing && _keys.Held(EmbodiedKeys.Trigger) ? (byte)1 : (byte)0,
                 Mount = (byte)Mount,
                 AimPoint = aimAt,
                 Stance = !vehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074 / CE-1143 (Ctrl held = crouched)
@@ -2028,11 +2024,10 @@ namespace Hrot.UI.Common.Map3D
         /// held past <see cref="HoldSeconds"/> it opens the list, and letting go sends the verb picked there. Sent on release, as a
         /// counter (§8e D-1: a coalesced frame never loses one). ⭐ In a vehicle with a rider, the use key is Get out (U-4).
         /// </summary>
-        private void UseKey(IInputProvider input, int aimTarget)
+        private void UseKey(int aimTarget)
         {
             if (_queuedUse) { _queuedUse = false; Press(_queuedVerb, _queuedTarget); }
-            var e = (MapKeyboardKey)UseKeyCode;   // ⭐ CE-1212 (§8j L-2) — F (E before; E leans now)
-            if (!_eHolding && input.IsKeyPressed(e))
+            if (!_eHolding && _keys.Pressed(EmbodiedKeys.Use))   // ⭐ CE-1212 (§8j L-2) — F by default (E before; E leans now); the row is the keymap's
             {
                 _eHolding = true;
                 _eSince = _station.Clock;
@@ -2040,7 +2035,7 @@ namespace Hrot.UI.Common.Map3D
                 _listIndex = 0;
                 return;
             }
-            if (!_eHolding || input.IsKeyDown(e)) return;
+            if (!_eHolding || _keys.Held(EmbodiedKeys.UseHeld)) return;
             int verb = UseListOpen ? _listIndex : 0;
             _eHolding = false;
             if (_station.TryGetOut(Unit)) return;

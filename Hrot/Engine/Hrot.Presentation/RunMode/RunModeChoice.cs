@@ -272,14 +272,28 @@ public sealed class RunModeChoice
     {
         if (Busy) return;   // a question is open: ▶ does not stack another
         if (PlayDisabledReason is not null) return;
-        // ⭐ CE-3393 — a preset the world does not hold: reopen with it (the door asks first), the dry run starts once editing is back (presets §3)
-        if (ArmedPreset is { } preset && !IsLoaded(preset) && _door is not null && _control?.LoadedScenarioName is { Length: > 0 } scenario)
+        // ⭐ CE-4317 / R-4168 — the armed preset is applied IN PLACE on the Preview's copy of the edit world (unsaved edits kept, nothing saved or reloaded). ⛔ The reopen of CE-3393 survives ONLY where in place cannot work:
+        //   the world already holds ANOTHER non-default preset (its variant is baked in — an in-place apply on top of it would not be the preset's world) — see PreviewArgs.
+        var args = PreviewArgs(out bool reopen);
+        if (reopen && ArmedPreset is { } preset && _door is not null && _control?.LoadedScenarioName is { Length: > 0 } scenario)
         {
             _previewWhenEdit = true;
             _door.Open(scenario, argsJson: IsDefault(preset) ? null : preset.ArgsJson(Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant));
             return;
         }
-        _transport.EnterDryRun(startPaused);
+        _transport.EnterDryRun(startPaused, args);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4317 (R-4168, presets §9) — the run setup a Preview carries: the armed Preview preset's args, or <see langword="null"/> (the default — byte-identical to a Preview with no setup) when the world already holds the armed preset (Default included).
+    /// <paramref name="reopen"/> is set when the world holds a DIFFERENT non-default preset (an in-place apply needs the authored world under it): only then does ▶ reopen the scenario with the preset first (CE-3393).
+    /// </summary>
+    private string? PreviewArgs(out bool reopen)
+    {
+        reopen = false;
+        if (ArmedPreset is not { } preset || IsLoaded(preset)) return null;   // Default over an authored world is "loaded" too: the plain Preview
+        if (IsDefault(preset) || !PresetText.IsLoaded(DefaultOnly[0], _control?.LoadedArgsJson)) { reopen = _door is not null; return null; }   // the world holds another preset: back to authored / under the new one needs the load
+        return preset.ArgsJson(Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant);
     }
 
     /// <summary>
@@ -289,7 +303,7 @@ public sealed class RunModeChoice
     public bool EnterPreviewPaused()
     {
         if (Busy || ClosedReason is not null || _transport.Mode != TransportMode.Edit) return false;
-        _transport.EnterDryRun(true);
+        _transport.EnterDryRun(true, PreviewArgs(out _));   // ⭐ CE-4317 — the armed Preview preset, in place, as ▶ (Run to is a Preview of the same setup)
         return true;
     }
 
@@ -522,6 +536,9 @@ public sealed class RunModeChoice
 
     private static bool IsDefault(Fdp.Toolkit.Scenario.ScenarioPreset p) => string.Equals(p.Name, Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>The scenario this host has open (null = none).</summary>
+    public string? LoadedScenario => _control?.LoadedScenarioName is { Length: > 0 } s ? s : null;
+
     /// <summary>The presets of the LOADED scenario (Default only when none is loaded).</summary>
     public IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioPreset> LoadedPresets
         => _control?.LoadedScenarioName is { Length: > 0 } s ? PresetsOf(s) : DefaultOnly;
@@ -543,11 +560,17 @@ public sealed class RunModeChoice
         => _control?.LoadedScenarioName is { Length: > 0 } s ? ArmedPresetOf(s, PresetMode) : null;
 
     /// <summary>▾ — arms <paramref name="preset"/> for the loaded scenario. ⛔ Never the mode. In Edit it is what ▶ (the Preview) reopens with; ⭐ CE-3405 in the Live briefing (paused at the start, nothing run) it RELOADS Live with the preset.</summary>
-    public void ArmPreset(string preset)
+    public void ArmPreset(string preset) => ArmPresetFor(PresetMode, preset);
+
+    /// <summary>
+    /// ⭐ CE-4317 (the mode menu's <i>Run setup</i>) — arms <paramref name="preset"/> for the loaded scenario in <paramref name="mode"/> (Preview · Live): the ONE arming (<see cref="ArmPreset"/> is this for the ▾'s mode). ⛔ Never the mode.
+    /// Preview: ▶ applies it in place (<see cref="Play"/>); Live: the next switch to Live loads with it, and in the Live briefing it reloads at once.
+    /// </summary>
+    public void ArmPresetFor(RunArmed mode, string preset)
     {
-        if (_control?.LoadedScenarioName is not { Length: > 0 } s) return;
-        ArmedPresets.Arm(s, PresetMode, preset);
-        if (LiveBriefing && !Busy && ClosedReason is null) GoLive(s);   // nothing has run: a plain reload (the door's Stop & Load question is for a run with something to lose)
+        if (mode is not (RunArmed.Preview or RunArmed.Live) || _control?.LoadedScenarioName is not { Length: > 0 } s) return;
+        ArmedPresets.Arm(s, mode, preset);
+        if (mode == RunArmed.Live && LiveBriefing && !Busy && ClosedReason is null) GoLive(s);   // nothing has run: a plain reload (the door's Stop & Load question is for a run with something to lose)
     }
 
     /// <summary>The host's <i>Edit presets…</i> (Details ▸ Scenario ▸ Parameters, CE-3391); null ⇒ the menu item is greyed.</summary>

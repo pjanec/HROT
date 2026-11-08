@@ -45,6 +45,17 @@ namespace Hrot.UI.Common.Audio
         private readonly Func<bool> _cameraSound;   // ⭐ CE-1137 — no unit held, yet the operator wants the scene heard from the camera
         private readonly Func<IAudioOutput> _makeOutput;
         private readonly Func<KeyboardKey, bool> _keyPressed;
+        private readonly Fdp.Toolkit.Input.KeymapReader _keys;   // ⭐ B-10 K4 (§6g) — the F-keys are the keymap's debug rows (Global, "debug"), read here
+
+        /// <summary>⭐ B-10 K4 — the keyboard (<c>Func&lt;KeyboardKey,bool&gt;</c>: Raylib's, or a rail's) as a device for the keymap's rows; only presses are asked.</summary>
+        private sealed class PressedKeys(Func<KeyboardKey, bool> pressed) : Fdp.Toolkit.Input.IChordInput
+        {
+            public NodeEditor.Primitives.KeyModifiers Modifiers => NodeEditor.Primitives.KeyModifiers.None;
+            public bool IsDown(NodeEditor.Primitives.EditorKey source) => false;
+            public bool IsPressed(NodeEditor.Primitives.EditorKey source, bool allowRepeat = false)
+                => Fdp.Presentation.Input.RaylibKeyCodes.Of(source) is var code && code != 0 && pressed((KeyboardKey)code);
+            public float Value(NodeEditor.Primitives.EditorKey source) => 0f;
+        }
         private IAudioOutput? _output;
         private EntityRepository? _listening;
         private double _now;
@@ -63,7 +74,7 @@ namespace Hrot.UI.Common.Audio
         /// <param name="settingsPath">Where the operator's settings file is; null (the default) keeps them for the process only.</param>
         public AudioLayer(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb, Func<Entity> held, Func<Ear?> ear,
                           Func<IAudioOutput>? output = null, Func<KeyboardKey, bool>? keyPressed = null, Func<string?>? settingsPath = null,
-                          Func<bool>? cameraSound = null)
+                          Func<bool>? cameraSound = null, Fdp.Toolkit.Input.Keymap? keymap = null)
         {
             _cameraSound = cameraSound ?? (() => false);
             _settingsPath = settingsPath ?? (() => null);
@@ -73,6 +84,7 @@ namespace Hrot.UI.Common.Audio
             _ear = ear ?? throw new ArgumentNullException(nameof(ear));
             _makeOutput = output ?? DefaultOutput;
             _keyPressed = keyPressed ?? (k => Raylib.IsWindowReady() && Raylib.IsKeyPressed(k));
+            _keys = DebugKeys.Reader(keymap ?? Fdp.Toolkit.Input.Keymap.Process, new PressedKeys(_keyPressed));
             Mixer = new SoundMixer();
             Sources = new SoundSources(tkb, Mixer);
         }
@@ -240,17 +252,17 @@ namespace Hrot.UI.Common.Audio
             if (!Fdp.Presentation.Input.KeyboardFocus.MapHasKeyboard) return;
             var s = Settings;
             bool changed = false;
-            if (_keyPressed(KeyboardKey.F6)) { s.Master = Step(s.Master, -1); changed = true; }
-            if (_keyPressed(KeyboardKey.F7)) { s.Master = Step(s.Master, +1); s.Muted = false; changed = true; }
-            if (_keyPressed(KeyboardKey.F8)) { s.Muted = !s.Muted; changed = true; }
-            if (_keyPressed(KeyboardKey.F9)) { _testStep = 1; _testAt = _now; }
-            if (_keyPressed(KeyboardKey.F10)) { PanelOpen = !PanelOpen; _shownUntil = _now + 1.5; }
+            if (_keys.Pressed(DebugKeys.AudioMasterDown)) { s.Master = Step(s.Master, -1); changed = true; }
+            if (_keys.Pressed(DebugKeys.AudioMasterUp)) { s.Master = Step(s.Master, +1); s.Muted = false; changed = true; }
+            if (_keys.Pressed(DebugKeys.AudioMute)) { s.Muted = !s.Muted; changed = true; }
+            if (_keys.Pressed(DebugKeys.AudioTest)) { _testStep = 1; _testAt = _now; }
+            if (_keys.Pressed(DebugKeys.AudioPanel)) { PanelOpen = !PanelOpen; _shownUntil = _now + 1.5; }
             if (PanelOpen)
             {
                 int rows = 1 + AudioSettings.CategoryCount;
-                if (_keyPressed(KeyboardKey.Down)) _panelRow = (_panelRow + 1) % rows;
-                if (_keyPressed(KeyboardKey.Up)) _panelRow = (_panelRow + rows - 1) % rows;
-                int dir = _keyPressed(KeyboardKey.Right) ? 1 : _keyPressed(KeyboardKey.Left) ? -1 : 0;
+                if (_keys.Pressed(DebugKeys.AudioRowNext)) _panelRow = (_panelRow + 1) % rows;
+                if (_keys.Pressed(DebugKeys.AudioRowPrevious)) _panelRow = (_panelRow + rows - 1) % rows;
+                int dir = _keys.Pressed(DebugKeys.AudioLevelUp) ? 1 : _keys.Pressed(DebugKeys.AudioLevelDown) ? -1 : 0;
                 if (dir != 0)
                 {
                     if (_panelRow == 0) { s.Master = Step(s.Master, dir); if (dir > 0) s.Muted = false; }

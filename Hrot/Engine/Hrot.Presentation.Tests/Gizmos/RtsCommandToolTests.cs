@@ -304,7 +304,9 @@ public sealed class RtsCommandToolTests : IDisposable
             Assert.Equal(MapGestureIds.MenuEmpty, Id(hat, R, G));
         Assert.Empty(router.Keymap.ValidateGestures());
         // ⭐ RTS overrides only GESTURES: it declares no key, so 2-D / 3-D, Ctrl+S, the camera keys and the letters fall through untouched
-        for (int i = 0; i < router.Keymap.Count; i++) Assert.NotEqual(Fdp.Toolkit.Input.InputScope.Hat, router.Keymap[i].Scope);
+        //   ⭐ K4 (§6g): the keymap now also holds the EMBODIED hat's keys (held / axis rows of the FPS station) — the claim is about the RTS (Command) hat's scope: no key row of it
+        for (int i = 0; i < router.Keymap.Count; i++)
+            Assert.False(router.Keymap[i].Scope == Fdp.Toolkit.Input.InputScope.Hat && router.Keymap[i].WindowKind == MapGestureBindings.RtsHat, "the RTS scope declares a KEY: " + router.Keymap[i].Action);
     }
 
     /// <summary>⛔ Hot path (R-2084) — resolving a gesture allocates nothing.</summary>
