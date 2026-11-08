@@ -32,7 +32,9 @@ public sealed record EditorCommandDescriptor(
     KeyBinding? DefaultKey,
     Func<bool> IsEnabled,
     Func<bool>? IsChecked = null,
-    Func<string>? DynamicDisplayName = null);
+    Func<string>? DynamicDisplayName = null,
+    // ⭐ CE-3408 (AQ108 §0 D27) — a command whose toolbar button CHANGES its glyph with the state (the Save slot: floppy in Edit, the amber flag — take a checkpoint — in a run). Null result ⇒ the plain IconKey sprite.
+    Func<Widgets.IconGlyph?>? DynamicGlyph = null);
 
 /// <summary>Optional invocation context (e.g., screen position for context-menu commands).</summary>
 public readonly record struct EditorCommandContext(

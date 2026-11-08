@@ -90,7 +90,13 @@ public static class ToolbarCommandAdapter
                        && iconProvider.TryGet(descriptor.IconKey, out iconHandle);
 
         bool clicked;
-        if (hasIcon)
+        if (descriptor.DynamicGlyph?.Invoke() is { } glyph)
+        {
+            // ⭐ CE-3408 — the slot wears a glyph for this state (the amber flag): the kit's glyph button, dimmed when the command is disabled; the tooltip below says why
+            var g = enabled ? glyph : new NodeEditor.Core.Widgets.IconGlyph(glyph.Glyph, glyph.Color with { W = 0.35f });
+            clicked = NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton(commandId, g) && enabled;
+        }
+        else if (hasIcon)
         {
             if (descriptor.IsChecked != null)
             {

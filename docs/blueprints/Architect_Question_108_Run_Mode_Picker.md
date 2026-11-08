@@ -192,6 +192,16 @@ Rails: `RunIndicatorTests.R3_*`, `RunToolbarFrameRail.R3_*` (real frame, every i
 
 Rails: `CE3409_PlayWearsTheIndicatorsColour`, `ColourIconsFrameRail.L11_PlayWearsTheIndicatorsColour…` (real frame, rewritten; stable 6/6 in the bigger filter — the old one's order flake was not root-caused).
 
+**R-5 `CE-3408` the Save slot (ui):**
+
+| what | where | note |
+|---|---|---|
+| ONE button, ONE slot (`shell.save`): floppy in Edit (greyed + reason tooltip when not saveable, and in a Preview) · amber FLAG in Live / DAR / AAR = take a checkpoint (greyed with `CheckpointDisabledReason`; an AAR keeps *a recording cannot take a checkpoint…*) | `ShellSaveCommands.Register(runChoice:)` · `RunModeChoice.SaveSlotDisabledReason` / `SaveSlotTakesCheckpoint` · new `EditorCommandDescriptor.DynamicGlyph` drawn by `ToolbarCommandAdapter` | editor and CGF pass their run choice; hosts with none keep today's slot |
+| pen, slot and File ▸ Save read ONE answer | `IRunScenarioControl.SaveDisabledReason` ← `EditorScenarioSession.SaveDisabledReason` | rail asserts pen colour + slot reason agree |
+| Ctrl+S in a run still checkpoints (the save intercept) | unchanged | ⚠ a GREYED slot also greys Ctrl+S: in an AAR the *"No checkpoint: …"* toast no longer shows (the slot's tooltip carries the reason) |
+
+Rails: `SaveSlotTests.R5_*` (descriptors per mode + the REAL adapter on a real frame: amber flag / dimmed flag; the floppy is an atlas sprite — no atlas on a rail frame, so its pixels are not checked).
+
 **Deviations / open.** (1) A host with **no scenario session** (SimHost, IG) keeps ▶ greyed in Edit (reason *"No scenario session on this host — nothing to preview from here"*): the armed mode used to be what greyed it. (2) A host with **no ender** keeps today's ■ in Live (leaves to editing). (3) *Exercise N* is not in the Close question (no number on the inventory). (4) *Restart from a checkpoint ▸* is greyed: the live run's marks are not on the cluster view (hosts may supply `CheckpointLabels` / `RestoreCheckpoint`). (5) The End question's second sentence now describes the debrief, not *"returns to editing"*. (6) HTTP `/run-mode` untouched (backend B-5): its rails that expect the old arm-only `Choose` are listed in the build report.
 
 ## 1. ⭐ The three rules — the spine

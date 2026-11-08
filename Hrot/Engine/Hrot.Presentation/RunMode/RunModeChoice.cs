@@ -572,6 +572,17 @@ public sealed class RunModeChoice
         }
     }
 
+    // ── ⭐ CE-3408 (R-5, AQ108 §0 D27) — the Save SLOT: ONE button whose glyph changes ────────────────────────────────────────────────
+
+    /// <summary>In Live / DAR / AAR the Save slot is the amber FLAG — it takes a checkpoint (Ctrl+S does too, through the save intercept); in Edit and Preview it is the floppy.</summary>
+    public bool SaveSlotTakesCheckpoint => _transport.Mode is TransportMode.Live or TransportMode.Review or TransportMode.Replay;
+
+    /// <summary>
+    /// Why the Save slot is greyed now (null = it can act): in a run the checkpoint's reason (<see cref="CheckpointDisabledReason"/> — an AAR: <i>a recording cannot take a checkpoint…</i>, an unrecorded run), else the scenario's —
+    /// <see cref="IRunScenarioControl.SaveDisabledReason"/>, the ONE answer the indicator's pen and File › Save read (a Preview: <i>a preview runs a copy of the edit world</i>). 0 B per read.
+    /// </summary>
+    public string? SaveSlotDisabledReason => SaveSlotTakesCheckpoint ? CheckpointDisabledReason : _control?.SaveDisabledReason;
+
     /// <summary>⭐ CE-3406 (story ②) — the Edit menu's <i>Close</i>: back to the Start screen through the ONE door (unsaved edits ask first). False when this host's session has no door OUT.</summary>
     public bool CanCloseScenario => _door is { CanLeave: true } && ClosedReason is null;
 

@@ -49,6 +49,8 @@ public static class ShellSaveCommands
     // ⛔ CE-1443 part B — the "scenario.save" / "scenario.saveAs" commands are registered ONCE, by ScenarioMenuCommands (on every operator host). This class
     //   registered the same two ids a second time (last registration won) — deleted.
 
+    private static readonly NodeEditor.Core.Widgets.IconGlyph? CheckpointGlyph = new NodeEditor.Core.Widgets.IconGlyph("\uf024", NodeEditor.Core.Widgets.IconPalette.Amber);   // ⭐ CE-3408 — the amber flag (FA flag)
+
     // ── Public API ──────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -128,7 +130,8 @@ public static class ShellSaveCommands
         Func<string?>?                                            scenarioName = null,
         Func<AiDocument?>?                                        resolveActiveDocument = null,
         SaveAllAiDocumentsCommand.SaveDelegate?                   saveBlueprintRecipe = null,
-        Action<NodeEditor.UI.Dialogs.SaveAsRequest, Action<NodeEditor.UI.Dialogs.SaveAsResult>>? openSaveAsBrowser = null)
+        Action<NodeEditor.UI.Dialogs.SaveAsRequest, Action<NodeEditor.UI.Dialogs.SaveAsResult>>? openSaveAsBrowser = null,
+        Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null)
     {
         if (register       is null) throw new ArgumentNullException(nameof(register));
         if (docManager     is null) throw new ArgumentNullException(nameof(docManager));
@@ -141,6 +144,11 @@ public static class ShellSaveCommands
              : Target() is { } d                   ? SaveLabels.For(verb, d) + suffix
              :                                       $"{verb}{suffix} (no document open)";
 
+        // ⭐ CE-3408 (R-5, AQ108 §0 D27) — ONE Save slot whose glyph changes: the floppy in Edit (greyed with SaveDisabledReason as its tooltip when the world cannot be saved, and in a Preview), the AMBER FLAG in Live / DAR / AAR
+        //   (take a checkpoint; greyed with CheckpointDisabledReason where it cannot — an AAR). Ctrl+S in a run already checkpoints (the save intercept) — unchanged. No run choice on this host ⇒ today's slot.
+        string? SlotReason() => runChoice?.Invoke() is { } rc ? rc.SaveSlotDisabledReason : null;
+        bool SlotTakesCheckpoint() => runChoice?.Invoke() is { SaveSlotTakesCheckpoint: true };
+
         // ── shell.save ──────────────────────────────────────────────────────────
         register(
             new EditorCommandDescriptor(
@@ -151,9 +159,12 @@ public static class ShellSaveCommands
                 IconKey:     "shell/save",
                 DefaultKey:  new KeyBinding(EditorKey.S, KeyModifiers.Ctrl),
                 IsEnabled:   () => (isScenarioContext?.Invoke() == true)
-                    ? true
+                    ? SlotReason() is null   // ⭐ CE-3408 — the scenario slot is greyed by the ONE answer (the indicator's pen and File › Save read it too)
                     : (resolveActiveDocument != null ? resolveActiveDocument() : docManager.Active) is { IsReadOnly: false },
-                DynamicDisplayName: () => Label("Save", "")),
+                DynamicDisplayName: () => isScenarioContext?.Invoke() == true && SlotReason() is { } why
+                    ? Label(SlotTakesCheckpoint() ? "Take a checkpoint" : "Save", "") + " (unavailable — " + why + ")"
+                    : isScenarioContext?.Invoke() == true && SlotTakesCheckpoint() ? "Take a checkpoint (Ctrl+S)" : Label("Save", ""),
+                DynamicGlyph: () => isScenarioContext?.Invoke() == true && SlotTakesCheckpoint() ? CheckpointGlyph : null),
             _ =>
             {
                 // Branch on scenario context first.
