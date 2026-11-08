@@ -504,3 +504,29 @@ sequenceDiagram
 | **Y-9 ② lint reds in our code** (as-built) | `StructEdit.Core` (`IContainerOps.cs`, `Defaults/FieldDefaults.cs`) is an external library with no `Fdp.Core` reference, so its two `JsonSerializerOptions` (an in-memory element clone and the "same value" text compare — neither persisted) are EXEMPTED in `OneSharedJsonOptionsTests` with that reason, as its sibling `Memory/*Buffer.cs` already are. `OrdersTab`'s `System.HashCode` (the tasks list's change key — UI-local, never persisted) is `Fdp.Core.StableHash` now, so `NoIdFromAProcessRandomisedHashTests` passes whole. The JSON scan still names `BehaviorParamsValidation`, NodeEdit `RecentStore` / `PickerViewStore` (other lanes') | |
 | **Y-9 ③ Start screen fidelity** (ui's request, storyboard ① / ⑧; as-built) | `StartSurfaceWindow`: a large HROT title (1.7×), the sentence under it dropped in the Actions variant, the left column as the picture draws it (icon + words left-aligned: *+ New scenario... · Open scenario... · Open recording...*, *About* kept — display mapping only, the menu labels untouched), the Recent row of the run that JUST ended highlighted (`StartRecentRow.JustRun`, from `StartRecentRows`: the latest run's END within 15 min) with the hint line under the list. Row 3 (exercise number) skipped — not on the wire. Rails: `TheStartScreenShowsTheWallpaperTests.CE3414_…` (title ≥ 1.5× body, actions stacked at one x / width, Recent right of them, the highlight pixel) + `StartRecentRowsTests.TheJustRunRow_…` (red-proofs: window ignored / highlight colour equal). Answer: `batches/NOTE_Backend_To_Ui_Start_Screen_Fidelity_Done.md` | the font has no `…` / `▸` (three dots, `>`); the title is scaled, not bold |
 | **Y-9 ④ CE-3403 frame rails for the inspector and the Orders tab** (as-built) | NEW `ComponentEditWindowFrameRail` (`Fdp.Presentation` is now `InternalsVisibleTo Hrot.Presentation.Tests`; the window's body via `DrawBodyForRail`, the chrome's pin button crashes a GL host) and `TheOrdersTabEditsTests.CE3403_…` (a three-task plan in a real frame) — each renders (`inspector-window.png`, `orders-tab.png`) and asserts **0 B on a steady frame**. They FOUND three leaks, all fixed: ⓐ `ComponentEditWindow` built its U-obs-5 view model (a record + strings) EVERY frame — now only while a capture is on (120 → 24 B); ⓑ the shared drawer boxed every **enum / bool** row EVERY frame (24 B) — `BoxedOf`, cached per row per epoch like the number cells' text (a live external write to such a row shows at the next epoch, as the number cells already do); ⓒ the Orders tab rebuilt its rows (parsing every task's conditions into sentences) and the list's summaries every frame (608 B) — cached by a content signature of the plan + queue state (`PlanSignature`, `StableHash`). Also deleted: `OrdersTab.MenuRects` (written nowhere since N-9). Red-proofs: the capture gate removed ⇒ 96 B; the Orders cache bypassed ⇒ 608 B | the frame tests of the Orders tab must stay in `TheOrdersTabEditsTests` (its static constructor registers the component the condition JSON names; a separate collection raced it) |
+
+### 12a. CE-3401 — the blackboards and Blueprint variables onto `FieldTable`: the three open points DECIDED *(backend, `2026-11-08`)*
+
+```mermaid
+classDiagram
+  class FieldTable { <<existing>> Draw(decls, settings) }
+  class FieldTableSettings { <<existing>> ValueHeader · AllowStructs · … · RowTail NEW · ShowLive NEW }
+  class IFieldDeclarations { <<existing>> Rows · Add · Rename · Retype · Move · Remove · UsedBy · SetValueJson }
+  class IFieldLiveValues { <<NEW, optional>> Epoch · TryLiveText(name, out string) }
+  class FieldRow { <<existing>> … · SubRows NEW (read-only view) }
+  class VariablesPanelHost { <<NEW host of FieldTable>> blackboard / Blueprint variables }
+  FieldTable --> IFieldDeclarations
+  FieldTable ..> IFieldLiveValues : when ShowLive and decls implements it
+  FieldTable ..> FieldTableSettings : RowTail(row) drawn by the host
+  VariablesPanelHost --> FieldTable
+  VariablesPanelHost ..> VariablesPanelHost : draws AROUND the table — the node-owned allocations group, "Remove unused"
+```
+
+*What the picture shows that prose hid:* only ONE of the blackboard's extras is a table concept (Live); the others are a host's cell or the host's own
+surroundings — so the one table gains two small seams, not five features.
+
+| # | point (the worker's stop) | decision | why |
+|---|---|---|---|
+| ① | byte column, `(N B)` section totals, `Memory: x / y B` | ⛔ **dropped** — none of them | **D11** (user-approved, `DESIGN_Field_Declaration_Editor.md:214`): *"no byte column, no memory budget; its only extra is the Live column"*; step 7's *"frame rails unchanged"* means the hosts' rails keep passing, not that removed columns stay |
+| ② | Live column · `BB_UNBOUND_DRAG` aliasing drop targets · node-owned allocations group · exposure column · Remove unused | **Live** = an optional `IFieldLiveValues` the declarations object may also implement (`Epoch` + `TryLiveText`, the host caches text per epoch ⇒ 0 B steady), shown when `FieldTableSettings.ShowLive`; **aliasing drop target + exposure** = ONE host-drawn cell, `FieldTableSettings.RowTail : Action<FieldRow,int>?` (the host draws its drop target / toggle; auto-managed rows are the host's to skip); **node-owned allocations group + Remove unused** = drawn by the host AROUND the table (Remove unused = rows whose `UsedBy` is 0) | the table stays the ONE table (shared and unified); host specifics stay in the host |
+| ③ | params-DTO sub-rows vs `AllowStructs = false` | sub-rows are a **read-only VIEW** of a fixed DTO's fields (`FieldRow.SubRows`, drawn expandable, never editable as structure); `AllowStructs` governs only what an author may CREATE in the type picker | the author does not declare that structure; it comes from the behaviour's DTO |
