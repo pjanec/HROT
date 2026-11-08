@@ -427,17 +427,22 @@ public sealed class RunModeChoice
     /// ⭐ CE-3405 (R1′) — the switch Edit → Live: the unsaved check through the ONE door (<i>Save / Discard / Cancel</i>), then Live loads WITHOUT the resume — it lands paused at 0:00, the briefing; ▶ then resumes. A scenario never saved keeps
     /// today's <i>Save as… and go live</i> (the door would only offer Discard). The armed mode is set once the load went out.
     /// </summary>
-    private void SwitchToLive()
+    private void SwitchToLive(IDoorAsker? asker = null, UnsavedAnswer? answered = null)
     {
         var scenario = _control!.LoadedScenarioName;
         if (string.IsNullOrWhiteSpace(scenario))
         {
-            Ask("This scenario has never been saved. Live starts from a saved scenario.", new RunModeConfirmation.Button("Save as… and go live", () =>
+            // ⭐ CE-3411 (backend's REQUEST) — a CALLER's asker (HTTP) never gets the Save-As dialog: refused with the reason, nothing left standing in this host's UI
+            if (asker is not null) { asker.Ask(new DoorQuestion(DoorQuestionKind.Refused, "Not saved", NeverSavedLiveText, Array.Empty<RunModeConfirmation.Button>())); return; }
+            Ask(NeverSavedLiveText, new RunModeConfirmation.Button("Save as… and go live", () =>
                 SaveAsPrompt?.Invoke(name => { if (!string.IsNullOrWhiteSpace(name)) GoLive(name); })));
             return;
         }
-        _door!.LoadLive(scenario, then: () => Arm(RunArmed.Live), argsJson: LiveArgsOf(scenario));
+        _door!.LoadLive(scenario, asker, answered, then: () => Arm(RunArmed.Live), argsJson: LiveArgsOf(scenario));
     }
+
+    /// <summary>What a switch to Live says when the scenario has never been saved.</summary>
+    public const string NeverSavedLiveText = "This scenario has never been saved. Live starts from a saved scenario.";
 
     /// <summary>The load args a Live of <paramref name="scenario"/> starts with: its armed Live preset (CE-3393), else the last run setup (AQ108 D24), else null (as authored).</summary>
     private string? LiveArgsOf(string scenario)
@@ -458,9 +463,9 @@ public sealed class RunModeChoice
     /// ⭐ CE-3405 (R1′) — the switch Edit → AAR: the last exercise (or the recording picker when none) opens at its start, through the door (its unsaved question). The armed mode is set once the open went out; with the picker it is
     /// set at once (harmless if the pick is cancelled: an AAR-armed load goes where the last load went).
     /// </summary>
-    private void SwitchToAar()
+    private void SwitchToAar(IDoorAsker? asker = null, UnsavedAnswer? answered = null)
     {
-        if (LastExercise is { } exercise) OpenRecording(exercise, then: () => Arm(RunArmed.AAR));
+        if (LastExercise is { } exercise) { if (_door is not null && exercise != Guid.Empty) _door.OpenRecording(exercise, null, asker, answered, then: () => Arm(RunArmed.AAR)); }
         else { Arm(RunArmed.AAR); PickRecording?.Invoke(); }   // a cancelled pick leaves only the armed fact: a File ▸ Open then goes where the last load went (LoadTarget)
     }
 
@@ -475,10 +480,10 @@ public sealed class RunModeChoice
     }
 
     /// <summary>The switch out of Edit (the unsaved question first, always through the door) — also what a Preview's switch does once editing is back.</summary>
-    private void SwitchFromEdit(RunArmed target)
+    private void SwitchFromEdit(RunArmed target, IDoorAsker? asker = null, UnsavedAnswer? answered = null)
     {
-        if (target == RunArmed.Live) SwitchToLive();
-        else if (target == RunArmed.AAR) SwitchToAar();
+        if (target == RunArmed.Live) SwitchToLive(asker, answered);
+        else if (target == RunArmed.AAR) SwitchToAar(asker, answered);
         else Arm(target);
     }
 
@@ -756,17 +761,31 @@ public sealed class RunModeChoice
     /// ⭐ The ONLY way <see cref="Armed"/> changes (R1). Either arms <paramref name="target"/> at once (nothing running) or, where AQ108 §3 asks,
     /// sets <see cref="Pending"/> — the mode changes when its button is pressed. A move that cannot be made (<see cref="RunModeMove.Enabled"/> false) does nothing.
     /// </summary>
-    public void Choose(RunArmed target)
+    public void Choose(RunArmed target) => Choose(target, null, null);
+
+    /// <summary>
+    /// ⭐ <c>CE-3411</c> (backend's REQUEST, for <c>POST /run-mode</c>) — <see cref="Choose(RunArmed)"/> with the CALLER's door asker and its answer to the unsaved question: the door calls a switch out of Edit makes
+    /// (<c>LoadLive</c>, <c>OpenRecording</c>) take them instead of this host's own, so an HTTP caller never leaves a question standing in this host's UI. The confirmations this choice asks ITSELF stay on <see cref="Pending"/>.
+    /// </summary>
+    public void Choose(RunArmed target, IDoorAsker? asker, UnsavedAnswer? answered)
     {
         if (Pending is not null || ClosedReason is not null) return;
         var mode = _transport.Mode;
         if (mode == TransportMode.Review || ModeTarget(mode) == target) return;
-        var plan = Plan(target);
+        _callerAsker = asker; _callerAnswered = answered;
+        MovePlan plan;
+        try { plan = Plan(target); }
+        finally { _callerAsker = null; _callerAnswered = null; }
         if (!plan.Enabled) return;
         if (plan.ConfirmText is null) { plan.Execute(); return; }
         if (plan.AltButton is not null) Ask(plan.ConfirmText, new RunModeConfirmation.Button(plan.ConfirmButton, plan.Execute), new RunModeConfirmation.Button(plan.AltButton, plan.AltExecute));
         else Ask(plan.ConfirmText, new RunModeConfirmation.Button(plan.ConfirmButton, plan.Execute));
     }
+
+    private IDoorAsker? _callerAsker;          // ⭐ CE-3411 — set only while Choose builds its plan: captured by the plan's switch
+    private UnsavedAnswer? _callerAnswered;
+    private IDoorAsker? _switchAsker;          // ⭐ CE-3411 — the caller's asker for a switch deferred until a Preview has stopped
+    private UnsavedAnswer? _switchAnswered;
 
     private readonly record struct MovePlan(string? ConfirmText, string ConfirmButton, bool Enabled, string? DisabledReason, Action Execute,
                                              string? AltButton = null, Action? AltExecute = null);
@@ -785,9 +804,11 @@ public sealed class RunModeChoice
             case TransportMode.Preview:
                 // §3: Preview running → Live / AAR — the dry run restores (back to Edit), then the switch is made from there (the unsaved question included)
                 if (SwitchDisabledReason(target) is { } previewWhy) return Disabled(previewWhy);
+                var previewAsker = _callerAsker; var previewAnswered = _callerAnswered;
                 return new("Stops the preview and returns to the scenario's start", $"Stop preview, go {target}", true, null, () =>
                 {
                     _switchWhenEdit = target;
+                    _switchAsker = previewAsker; _switchAnswered = previewAnswered;   // ⭐ CE-3411 — the caller's asker follows the deferred switch
                     _transport.StopRaw();
                 });
 
@@ -847,7 +868,7 @@ public sealed class RunModeChoice
                 if (target == RunArmed.Preview) return new(null, "", true, null, () => Arm(target));
                 if (SwitchDisabledReason(target) is { } why) return Disabled(why);
                 if (_transport.Mode == TransportMode.Idle && target == RunArmed.Live) return new(null, "", true, null, () => Arm(target));
-                return new(null, "", true, null, () => SwitchFromEdit(target));
+                { var asker = _callerAsker; var answered = _callerAnswered; return new(null, "", true, null, () => SwitchFromEdit(target, asker, answered)); }
         }
 
         static MovePlan Disabled(string reason) => new(null, "", false, reason, () => { });
@@ -882,7 +903,8 @@ public sealed class RunModeChoice
         else if (state == ClusterState.OperatingEdit && _switchWhenEdit is { } target)
         {
             _switchWhenEdit = null;     // ⭐ CE-3405 — the preview stopped and editing is back: the switch the user chose
-            SwitchFromEdit(target);
+            SwitchFromEdit(target, _switchAsker, _switchAnswered);
+            _switchAsker = null; _switchAnswered = null;
         }
         else if (state == ClusterState.OperatingReplay || state == ClusterState.Idle && previous == ClusterState.OperatingLive)
         {

@@ -371,4 +371,33 @@ public sealed class RunControlsSwitchNowTests
         fixture.Render();
         Assert.True(bytesOf.Values.All(b => b == 0), string.Join(" ", bytesOf.Select(kv => $"{kv.Key}={kv.Value}")));
     }
+
+    // ── CE-3411 (backend's REQUEST) — Choose with the CALLER's asker: an HTTP switch never leaves a question in this host's UI ─────────────────────────
+
+    /// <summary>Edit with unsaved edits, <c>Choose(Live, httpAsker, Changed)</c>: the CALLER's asker gets the unsaved question (refused), nothing loads, nothing is pending here; with
+    /// <c>discardUnsaved</c> it loads Live at once. 🔴 Mutation: <c>SwitchToLive</c> passing <c>null</c> for the asker ⇒ the bound asker's Save / Discard / Cancel lands on <c>Pending</c> ⇒ red.</summary>
+    [Fact]
+    public void CE3411_ChooseWithTheCallersAsker_TheQuestionGoesToTheCaller_NotToThisHostsUi()
+    {
+        var rig = With(ClusterState.OperatingEdit, RunArmed.Preview, UnsavedAnswer.Changed);
+        var http = new RefusingAsker();
+        rig.Choice.Choose(RunArmed.Live, http, UnsavedAnswer.Changed);
+        Assert.Null(rig.Choice.Pending);                      // nothing standing in the operator's UI
+        Assert.NotNull(http.Refusal);                         // the caller was told why
+        Assert.Empty(rig.C.Calls);
+
+        var discard = new RefusingAsker(discardUnsaved: true);
+        rig.Choice.Choose(RunArmed.Live, discard, UnsavedAnswer.Changed);
+        Assert.Null(discard.Refusal);
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, rig.C.Calls);
+    }
+
+    /// <summary>The bare <c>Choose(Live)</c> keeps the operator's own question (the overload changed nothing for the toolbar).</summary>
+    [Fact]
+    public void CE3411_TheBareChoose_StillAsksInThisHostsUi()
+    {
+        var rig = With(ClusterState.OperatingEdit, RunArmed.Preview, UnsavedAnswer.Changed);
+        rig.Choice.Choose(RunArmed.Live);
+        Assert.Equal(new[] { "Save", "Discard", "Cancel" }, rig.Choice.Pending!.Buttons.Select(b => b.Label));
+    }
 }
