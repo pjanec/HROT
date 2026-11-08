@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — §1–§6 decided (R-4171, R-4172); §7 the distributed model — Q5–Q7 for the user; §00 scope added 2026-11-08
+build-state: READY-TO-BUILD (CE-4330) — §1–§7 decided (R-4171, R-4172, R-4173); §8 the visual; Q8 (delete from the NAS) open, not part of CE-4330
 updated: 2026-11-08 (⭐ PROMOTED to the ONE owning design of recording files — moved from docs/DESIGN_Recording_Storage.md and retitled; the user: "it's probably a whole design document regarding the management of the recording files, importing and exporting")
-current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue)
+current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue; §7.4 decided) · ⭐ §8 the visual
 stale-below: nothing
 known-rot: none
 known-conflict: designs/mgmt-1/DESIGN.md §13 — written before the build; its §13.3 layout (/archives/, .fdprec + .meta.json, drill_manifest.json) is NOT the as-built ({NAS}/exercises/<id>/node_N.fdp + Orchestrator.json + scenario/, §1 here). This design is the current answer for WHAT happens to a recording; mgmt-1 §12.6/§13.1 stay the answer for HOW the gateway moves bytes.
@@ -137,7 +137,7 @@ written LAST, so anything without it is visibly incomplete.*
 | **P3** | **closing the app during an archive asks**: *"Exercise 3 is still being archived (2 of 4 files). Wait · Close anyway — the exercise stays on the nodes and the archive resumes next time"* — the editor's existing exit prompt gains this line | G5 |
 | **P4** | **complete = a manifest written LAST**: the sidecar lists every file with its size; files land as `*.fdp.part` and are renamed when whole; the NAS scan counts an exercise ARCHIVED only when the manifest is present AND every listed file matches — otherwise it is **INCOMPLETE** | G3, G4 |
 | **P5** | **an incomplete archive RESUMES — where** (the user: *"Where can we select the option to continue?"*): ① **by itself** — the master re-tries every incomplete archive whose exercise its ledger still holds, at start-up and whenever the missing node comes back (the files are still on the nodes: they are deleted only after a VERIFIED archive, Q2); ② **the status bar** says it while it waits: *"⚠ Exercise 3 archive incomplete — waiting for node-3 (2 of 4 files)"*, a click opens the details with *Resume now*; ③ **the recording picker's row**: *"⚠ incomplete — 3 of 4 files · Resume archive"*; ④ **the orchestrator panel**'s archive list, the same action. ⭐ It re-runs the SAME pull — it already skips a file of the same size and time | G3 |
-| **P6** | **the picker lists both**: *on the nodes* and *archived*; opening an archived one in a cluster runs the EXISTING `ImportArchive` first (a prefetch, with the same status-bar progress); the all-in-one editor and the Replay Browser open the NAS files directly (a participant group, merged — Review perspective) | G2 |
+| **P6** | **the picker lists both**: *on the nodes* and *archived* (with where each is — §7.3, §8 ⑤); opening an archived one IMPORTS first everywhere (§5 — ⛔ SUPERSEDED: this row first said the all-in-one editor and the Replay Browser read the NAS files directly) | G2 |
 
 ## 4. Decisions — ✅ the user, `2026-11-08` (R-4171)
 
@@ -317,13 +317,26 @@ stateDiagram-v2
 | **the orchestrator panel** | the same job list (the monitor) |
 | **the import dialog** (§5a) | the ONE job's progress — ⭐ so a station that joined sees the same numbers |
 
-### 7.4 Questions — leans
+### 7.4 Decisions — ✅ the user, `2026-11-08` (R-4173)
 
-| # | question | ⭐ lean | rejected — one line |
-|---|---|---|---|
-| **Q5** | a transfer while a NEW Live runs | **it continues** (it reads finished files), the status bar shows it — the instructor can cancel; ⚠ measure the effect on a live run's network before building | paused during Live: an archive could stay incomplete for days |
-| **Q6** | one transfer at a time, or several | **one at a time** (the gateway's single NAS connection, predictable bandwidth) — others Queued | parallel: the NAS connection limit and the bandwidth (mgmt-1 §12.4) |
-| **Q7** | who may cancel | **Author and Instructor seats** (the seat gate, H2) | anyone: a trainee station could cancel the archive |
+🔒 User: *"Live runs shouldn't be restricted or limited by pending import or export. Up to one transfer at a time. Q7, yes. We will need some visual
+design for the dialogues and the status bar and the indication whatsoever."*
+
+| # | ✅ decision | ⭐ what it means for the build |
+|---|---|---|
+| **Q5** | **a Live is never restricted or limited by a transfer** | ⭐ starting a Live never waits for, asks about or cancels a job; ⭐ while a Live runs the job GIVES WAY (a lower rate — the status bar's clock mark) and speeds up after. Acceptance: a live run's frame time and DDS latency with a transfer running = without (measured by the build, numbers in the report) |
+| **Q6** | **at most one transfer at a time** | the queue (§7.2): the head job runs, the rest are *Queued* in order |
+| **Q7** | **Cancel / Resume: the Author and Instructor seats** | from any station; greyed on another seat with the reason |
+| **Q8** | ⏳ *open* — deleting a run FROM the NAS (§00) | lean: an operator-only Delete from archive through the gateway; ⭐ not in CE-4330 |
+
+## 8. ⭐ The visual — [`UX/recording-storage-visual.svg`](UX/recording-storage-visual.svg)
+
+Generated by `scripts/gen-recording-storage-mockup.py` (house style, `mockup_kit`). ⭐ It is the acceptance spec for the build's look (R-4138):
+① the status bar's transfer segment in its six states · ② the Transfers popover (= the orchestrator panel's list) · ③ ⏏ Close the session —
+Archive / Keep / Discard · ④ the import dialog (joined, Continue in background) · ⑤ the picker's location chips · ⑥ the quit guard, asked
+only where the transfer runs. Scope: only these; the rest of the editor is context, drawn unchanged (R-4151).
+
+![recording storage](UX/recording-storage-visual.svg)
 
 ---
 _coordinator lane, 2026-11-08_
