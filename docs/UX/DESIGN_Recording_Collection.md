@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — Q1–Q4 answered by the user (R-4171, 2026-11-08); §5 opening an archived run = always IMPORT
+build-state: DESIGN — §1–§6 decided (R-4171, R-4172); §7 the distributed model added 2026-11-08 — Q5–Q7 for the user
 updated: 2026-11-08 (first version — the user: "I think we might be missing some recording collection step at the end of the live exercise")
-current-answer: §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · ⭐ §5 opening from the NAS — always import · §5a wait or background · §6 the local cache
+current-answer: §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · ⭐ §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · ⭐ §7 the distributed model (jobs, facts, one queue)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -163,6 +163,109 @@ is removed is always a COPY whose record is on the NAS.
 
 ⛔ **Rejected:** direct reads from the NAS share — the ~20-connection limit on a Windows NAS and slow seeking; auto-detecting how many nodes will
 connect — unnecessary once nothing but the gateway connects.
+
+## 7. ⭐ The distributed model — who runs a transfer, how every station sees it, what stops two at once *(`2026-11-08`)*
+
+🔒 User: *we should define how this import is indicated inside the system, because we have distributed system. Many nodes want to share and show the status. Also, whether something is already on NAS or on local system. This sounds like several new cluster operations. I'm not sure if they are all defined. And how to find out that there is an import already in progress, and how to avoid importing something else in parallel to it.*
+
+### 7.1 Measured — what exists and what does not
+
+| | today | where |
+|---|---|---|
+| the cluster ops | `ExportArchive` (6), `ImportArchive` (7), `DeleteExercise`, `CancelOperation` (13) — all routed to the MASTER | `ClusterOpType.cs`, `ClusterMaster.cs:531-570` |
+| the transfers | run by the master's storage gateway only (the SMB pull gateway — nodes never touch the NAS, §5) | `StorageProcessManager`, `StorageGatewayModule` |
+| an op's status on every node | ✅ the `ClusterOpStatus` DDS topic → every node's `ClusterView` keeps the last 32 outcomes by request id — ⛔ only *InProgress / Success / Rejected*: no kind, no exercise, no progress | `ClusterFactsIngress.cs:113-135`, `ClusterView.cs:18-19` |
+| where an exercise is | ✅ replicated to every node: `AvailableExercises` (the ledger — originals on the nodes, + the run in progress), `ArchivedExercises` (the NAS scan), `UnarchivedLocalExercises` | `ClusterView.cs:189-195`, `AssetInventoryProcessManager.cs:181-210` |
+| ⛔ which node holds a CACHE copy | not known — an import pushes to EVERY node of the exercise | `ClusterMaster.BuildNodeDistributionTargetsForExercise` |
+| ⛔ two transfers at once | nothing prevents it: the master starts an Export or an Import whenever asked; only the orchestrator panel greys ITS button while its own op runs | `ClusterMaster.cs:2037-2095` · `ClusterScenarioPanel.cs:1028-1045` |
+
+### 7.2 ⭐ The model — no new operations; three new REPLICATED facts and one queue
+
+| ⭐ rule | |
+|---|---|
+| **ONE runner — the master's storage gateway** runs every archive, import and discard (as today); any station ASKS with the existing ops (`ExportArchive`, `ImportArchive`, `DeleteExercise`, `CancelOperation`) — ⛔ no node copies anything on its own | the gateway pattern (§5) |
+| **a STORAGE JOB per request**, kept by the master in ONE queue: `{ JobId (the request id), Kind (Archive / Import / Discard), ExerciseId, State (Queued / Running / WaitingForNode / Done / Failed / Cancelled), FilesDone / FilesTotal, BytesDone / BytesTotal, WaitingFor (a node), AskedBy (a station) }` | NEW — the master's `StorageJobQueue` |
+| **fact ① `StorageJobs`** — the queue, replicated on the cluster facts (as the inventory is), on every change and at most a few times a second while bytes move | NEW field on the facts every node already reads ⇒ every station's status bar shows the same jobs |
+| **fact ② where each exercise is** — `ExerciseInventoryItem` gains: *original on the nodes* (the ledger), *on the NAS: complete / incomplete N of M* (the manifest, §3 P4), *cached on: [nodes]* | NEW fields on the item every node already receives |
+| **fact ③ a node's local recordings** — each node reports the exercise folders in its staging (id + size), on change | NEW field on the node's status the master already reads ⇒ the master knows who needs an import (§7.3) |
+| ⭐ **one job per exercise** — a request for an exercise that already has a Queued / Running job JOINS it: the answer carries the existing JobId | two stations opening the same archived run import it ONCE |
+| ⭐ **one transfer at a time** — other jobs wait as *Queued* (the gateway's one NAS connection; the bandwidth stays predictable) | the user sees *"Queued — after exercise 3"* |
+| **Discard refused while a job on that exercise runs** | said: *"exercise 3 is being archived"* |
+| **Cancel** — any station with the seat to do it (Author / Instructor) sends `CancelOperation(JobId)`; the gateway deletes its `.part` files | the existing op |
+| **an import pushes only to the nodes that lack the file** (fact ③), and skips the job entirely when every node has it | the cache hit of §5a, decided by the master |
+| **the master restarts mid-job** | jobs are not persisted; on start the master re-derives: an incomplete NAS manifest of a ledger exercise ⇒ a new Archive job (§3 P5); a node finds `.part` files at start and deletes them |
+
+```mermaid
+classDiagram
+    direction LR
+    class ClusterMaster { <<existing>> routes ExportArchive · ImportArchive · DeleteExercise · CancelOperation }
+    class StorageJobQueue { <<NEW, master>> one job per exercise · one transfer at a time · join · cancel }
+    class StorageJob { <<NEW record>> JobId · Kind · ExerciseId · State · Files / Bytes done-total · WaitingFor · AskedBy }
+    class StorageProcessManager { <<existing>> the gateway's transfers }
+    class ClusterFacts { <<existing, replicated>> + StorageJobs (NEW) }
+    class ExerciseInventoryItem { <<existing>> + NasState (complete / incomplete) · CachedOn (NEW) }
+    class NodeStatus { <<existing>> + LocalRecordings (NEW) }
+    class ClusterView { <<existing, every node>> + StorageJobs }
+    class StorageStatusSection { <<NEW>> the status bar's transfer segment }
+    ClusterMaster --> StorageJobQueue
+    StorageJobQueue "1" *-- "*" StorageJob
+    StorageJobQueue --> StorageProcessManager : runs the head job
+    StorageJobQueue --> ClusterFacts : publishes
+    NodeStatus --> StorageJobQueue : who has what
+    ClusterFacts --> ClusterView : every node
+    ClusterView --> StorageStatusSection
+```
+*What the picture shows: the transfers already have ONE runner; what is new is that the runner keeps a QUEUE and PUBLISHES it, so every station sees
+the same jobs and asks for the same exercise only once.*
+
+```mermaid
+sequenceDiagram
+    participant A as station A (editor)
+    participant B as station B (an instructor)
+    participant M as the master (StorageJobQueue)
+    participant G as the storage gateway
+    participant F as the cluster facts (every node)
+    A->>M: ImportArchive(exercise 3)
+    M->>M: no job for exercise 3 · nodes 2 and 4 lack the file (fact ③)
+    M->>G: push node_2.fdp, node_4.fdp
+    M->>F: StorageJobs: Import #7 exercise 3 Running 1 of 2
+    B->>M: ImportArchive(exercise 3)
+    M-->>B: JOINED job #7
+    M->>F: Running 2 of 2 · then Done
+    F-->>A: status bar "✓ Exercise 3 ready" (A waited ⇒ the AAR load starts)
+    F-->>B: status bar "✓ Exercise 3 ready — Open"
+```
+*What it shows: the second request does not start a second copy; both stations follow the ONE job through the replicated facts.*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Queued
+  Queued --> Running : the gateway is free
+  Running --> WaitingForNode : a node holding a needed file is offline
+  WaitingForNode --> Running : the node is back
+  Running --> Done
+  Running --> Failed : a copy fails (the manifest stays incomplete)
+  Queued --> Cancelled : CancelOperation
+  Running --> Cancelled : CancelOperation (the .part files are deleted)
+  Failed --> Queued : Resume (§3 P5)
+```
+
+### 7.3 What every station SHOWS
+
+| where | what |
+|---|---|
+| **the status bar** (every station) | the RUNNING job: *"⇪ Archiving exercise 3 — 2 of 4 files, 1.2 / 3.1 GB"* / *"⇩ Importing exercise 5 — 1 of 2 files"* · *"+1 queued"*; a job THIS station asked for is marked *(yours)*; a click opens the job list (cancel, resume) |
+| **the recording picker's row** | where the exercise is: *on the nodes* · *archived* · *⚠ archive incomplete 3 / 4* · *cached here* · *importing (job #7)* — and opening it JOINS a running import instead of starting one |
+| **the orchestrator panel** | the same job list (the monitor) |
+| **the import dialog** (§5a) | the ONE job's progress — ⭐ so a station that joined sees the same numbers |
+
+### 7.4 Questions — leans
+
+| # | question | ⭐ lean | rejected — one line |
+|---|---|---|---|
+| **Q5** | a transfer while a NEW Live runs | **it continues** (it reads finished files), the status bar shows it — the instructor can cancel; ⚠ measure the effect on a live run's network before building | paused during Live: an archive could stay incomplete for days |
+| **Q6** | one transfer at a time, or several | **one at a time** (the gateway's single NAS connection, predictable bandwidth) — others Queued | parallel: the NAS connection limit and the bandwidth (mgmt-1 §12.4) |
+| **Q7** | who may cancel | **Author and Instructor seats** (the seat gate, H2) | anyone: a trainee station could cancel the archive |
 
 ---
 _coordinator lane, 2026-11-08_
