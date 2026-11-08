@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-07
-current-answer: ⭐⭐⭐ 2026-11-07 (b) — START AT "SESSION 2026-11-07 (b) — B-10 KEYS + B-11 ACTION CATALOGUE" directly below this STATUS block.
+updated: 2026-11-08
+current-answer: ⭐⭐⭐ 2026-11-08 — START AT "SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED)" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-07 (b) — START AT "SESSION 2026-11-07 (b) — B-10 KEYS + B-11 ACTION CATALOGUE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-07 — START AT "SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE" directly below this STATUS block.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-30 — START AT "SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES" directly below this STATUS block.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-29 (b) — START AT "SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066)", then "SESSION 2026-10-28/29 — RUN MODES + EDITOR FIXES" directly below this STATUS block (the run-modes batch built, what waits on backend, the next item).
@@ -172,6 +173,34 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED) *(state at `ui@7a302a3c2`, pushed, tree clean; the user said PAUSE — token allowance near; nothing in flight)*
+
+**Three handoffs this session — the status files are the record (one row per item, sha, gates):**
+
+| handoff | status file | state |
+|---|---|---|
+| [HANDOFF_Coordinator_To_Ui_And_Backend_Run_Controls](batches/HANDOFF_Coordinator_To_Ui_And_Backend_Run_Controls.md) — AQ108 §0 switch now, Live ends in two steps, the indicator, ▶ colour, the Save slot, the Player's briefing + summary, fidelity (R-1 … R-8) | [STATUS_Run_Controls_Ui](batches/STATUS_Run_Controls_Ui.md) | ✅ all DONE |
+| [HANDOFF_Coordinator_To_Ui_Next](batches/HANDOFF_Coordinator_To_Ui_Next.md) — Z-1 AAR flag text · Z-2 U4 + Edit ▸ History · Z-3 A7 Details tabs · Z-4 H6 seats · Z-5 K2/K3/K7 · Z-6 K5/K6 · Z-7 K4 · Z-8 L-10 Run setup (+ CE-4329 seat text → status bar, autosave setting + recovery for backend) | [STATUS_Ui_Next](batches/STATUS_Ui_Next.md) | ✅ all DONE |
+| [HANDOFF_Coordinator_To_Ui_After_Z](batches/HANDOFF_Coordinator_To_Ui_After_Z.md) — U-1 … U-12 | [STATUS_Ui_After_Z](batches/STATUS_Ui_After_Z.md) (its "RESUME HERE") | ✅ U-1 … U-10, U-12, CE-2426 · ⏸ **U-11 rest** |
+
+**⏭ Next, in order (nothing started):**
+1. **U-11 rest** (CE-4330 ui half) over backend's facts ② ③ ⑥ (`7a9016887`, [NOTE](batches/NOTE_Backend_To_Ui_Recording_Storage.md)): ① picker chips · ② ⏏ Close the session asks Archive / Keep / Discard (default Archive; no question when not recorded — `RunModeChoice.AskToClose` / `CloseSession`, R-4171) · ③ delete-from-archive confirmation · ④ import dialog · ⑤ quit guard · ⑥ the orchestrator panel's list. Built already: the status-bar segment + Transfers popover (`10a60648c`). Design [DESIGN_Recording_Storage](../DESIGN_Recording_Storage.md) §7.3 / §8 / §10, mockup `docs/UX/recording-storage-visual.svg`. ⭐ Commit + push per piece.
+2. **CE-4273** — the Car's thumbnail: `scripts/thumbnails.py --types Car --pack` against a live editor (the script half `202cd5c5c` is built), commit page + index.
+3. Open ui rows: **CE-1466** (3-D click-select still hit-tests the 2-D footprints — U-9 fixed hover only) · **CE-1467** (bookmark deviations, Bookmarks design §5).
+4. Then merge `coordinator` and look for the next handoff / notes to ui (`ls -t docs/blueprints/batches | grep To_Ui`).
+
+**Decided this session (rulings in RULINGS.md):** R-4168 (Preview with a preset in place; no checkpoints in AAR / unrecorded Live) · R-4169 (map letters stay on while following) · R-4170 (seat · hat text → status bar) · R-4176 (ui leans approved: informational hat menu, Observe-hat camera; per-user key overrides PARKED) · R-4178 (Keyboard shortcuts → View ▸ Settings, supersedes R-4176 #3).
+
+**Known reds (pre-existing, not ui's to chase):** Presentation CE1039 / CE1380 / CE1227 (+ load-flaky CE4318, StringFieldTyping 0 B, RouteWaypointGizmo CE1096) · Editor `EveryToolIsInTheGeneratedCatalog` (backend's storage routes not in the MCP catalog — [FYI](batches/NOTE_Ui_To_Backend_Tool_Catalog_Regen.md)) · AiShared CE1325 / CE3403 0 B load-flaky · ClusterRunner 6 (EveryReplayWriterIsGated, EverySystemStateFieldIsClassified ×2, EverySystemForgetsTheLastWorld, CE1436_CgfShapedHost, CE1446) · Blueprints 4 · Fdp.Toolkits DEBT-AIB-030 rotating.
+
+**Traps measured this session:**
+- a 0 B rail can go red inside a full class run from JIT TIERING (call counting allocates on the test thread) — take the smallest of several windows (`PossessionStationTests.Keymap`, `DOTNET_TieredCompilation=0` proves it).
+- the menu bar MODEL lists every top-level node; the DRAWN bar skips dead headers — rails read `WindowManager.BarMenuShows`.
+- the tracker header's "next free" for ui's block can be stale — `grep` the id before taking it (`tracker-counts.py --check` lints duplicates).
+- workers share this checkout and push to `ui`: `git fetch && git merge origin/ui` before your own push.
+- `scripts/cbm.sh` needs `index_repository` once per fresh VM (run it in the background); `bash scripts/cloud-bootstrap.sh` installs dotnet + the CLI.
+
 
 ## ⭐⭐⭐ SESSION 2026-11-07 (b) — TODAY'S RULINGS HANDOFF *(state at `ui@cdaa914c3`, pushed, tree clean)*
 
