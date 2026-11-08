@@ -411,16 +411,16 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
                 for (int x = 0; x < image.Width; x++)
                 {
                     var c = Raylib_cs.Raylib.GetImageColor(image, x, y);
-                    if (c.R > 200 && c.G < 60 && c.B < 60) red++;                                       // the selected waypoint
-                    if (c.R > 200 && c.G > 130 && c.G < 200 && c.B < 70) amber++;                       // the centre handle
-                    if (c.R < 60 && c.G > 120 && c.B > 200) blue++;                                     // an idle waypoint
+                    if (System.Math.Abs(c.R - 0xF2) < 12 && System.Math.Abs(c.G - 0xC0) < 12 && System.Math.Abs(c.B - 0x33) < 12) red++;   // ⭐ B-17 P7 ③ — the grabbed waypoint is AMBER now (was red)
+                    if (System.Math.Abs(c.R - 0x10) < 10 && System.Math.Abs(c.G - 0x30) < 10 && System.Math.Abs(c.B - 0x2B) < 10) amber++;   // ⭐ B-17 P7 ③ — the centre handle is a DARK diamond (0x10302B) with a white outline
+                    if (c.R > 245 && c.G > 245 && c.B > 245 && y < 380) blue++;                              // ⭐ B-17 P7 ③ — an idle waypoint is a WHITE square now (was blue)
                     if (Math.Abs(c.R - 90) + Math.Abs(c.G - 220) + Math.Abs(c.B - 110) < 60) green++;   // the ✓
                 }
         }
         finally { Raylib_cs.Raylib.UnloadImage(image); }
-        Assert.True(red > 20, $"the selected waypoint is drawn red ({red} px)");
-        Assert.True(amber > 20, $"the centre handle is drawn amber ({amber} px)");
-        Assert.True(blue > 20, $"the other waypoints are drawn ({blue} px)");
+        Assert.True(red > 20, $"the selected waypoint is drawn amber ({red} px)");
+        Assert.True(amber > 20, $"the centre handle is drawn as a dark diamond ({amber} px)");
+        Assert.True(blue > 60, $"the other waypoints are drawn as white squares ({blue} px)");
         Assert.True(green > 40, $"the ✓ is drawn ({green} px)");
         Console.WriteLine("P6 frame: " + png);
     }

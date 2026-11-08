@@ -150,10 +150,12 @@ public sealed class P7GizmoLookFrameRail
             int px0 = (int)PickerToolHost.PromptLeftPx - 6, py0 = (int)PickerToolHost.BannerTopPx - 3;
             int dark = Count(image, px0, py0, px0 + 260, py0 + 19, c => c.R < 40 && c.G is > 25 and < 70 && c.B < 40);
             Assert.True(dark > 2500, $"the prompt is on a dark backdrop ({dark} px)");
-            // the crosshair: two white bars through the cursor's screen point
+            // ONE cross: the location picker's own sky-blue cross stands at the cursor and the banner adds no white bars of its own
             var s = Screen(cursor);
+            int cyan = Count(image, (int)s.X - 12, (int)s.Y - 12, (int)s.X + 13, (int)s.Y + 13, c => Math.Abs(c.R - 102) < 12 && Math.Abs(c.G - 191) < 12 && c.B > 235);
             int white = Count(image, (int)s.X - 12, (int)s.Y - 12, (int)s.X + 13, (int)s.Y + 13, c => c.R > 235 && c.G > 235 && c.B > 235);
-            Assert.True(white >= 24, $"a white crosshair stands at the cursor ({white} px; two 18 × 2 px bars, the picker's own cyan cross and centre disc drawn over them)");
+            Assert.True(cyan >= 20, $"the picker's own aiming cross stands at the cursor ({cyan} px)");
+            Assert.True(white < 6, $"no second (banner) cross over it ({white} white px)");
             // the refusal, 22 px below the cursor, on a backdrop
             int refuse = Count(image, (int)s.X - 6, (int)s.Y + 18, (int)s.X + 170, (int)s.Y + 40, c => c.R < 40 && c.G is > 25 and < 70 && c.B < 40);
             Assert.True(refuse > 1200, $"the refusal is on a dark backdrop at the cursor ({refuse} px)");

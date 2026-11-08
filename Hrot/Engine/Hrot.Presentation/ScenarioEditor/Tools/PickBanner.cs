@@ -43,7 +43,7 @@ namespace Hrot.ScenarioEditor.Tools
     /// <c>[Cancel]  Pick a point for Move to</c> at the top of the map (screen-space text), <c>replaced: …</c> under it for a few seconds,
     /// and the refusal of a click flashed at the cursor. A left click on <c>[Cancel]</c> cancels the pick; every other event goes to the picker.
     /// ⭐ B-17 P7 ④ — the gap is CLOSED: the prompt, the notice and the refusal are <see cref="GizmoTextStyle.Backdrop"/> text, <c>Cancel</c> is a
-    /// <see cref="GizmoTextStyle.Button"/>, and a crosshair of two pixel bars follows the cursor while the pick is pending (gizmo primitives, not the OS cursor —
+    /// <see cref="GizmoTextStyle.Button"/>, and — for a picker that draws no aiming cross of its own — a crosshair of two pixel bars follows the cursor while the pick is pending (gizmo primitives, not the OS cursor —
     /// the gizmo runs where the edit runs, so a remote terminal would otherwise not show it).
     /// </summary>
     internal sealed class PickBannerGizmo : IEntityStatefulGizmo
@@ -81,7 +81,9 @@ namespace Hrot.ScenarioEditor.Tools
                 draw.DrawTextLong(PickerToolHost.PromptLeftPx, PickerToolHost.BannerTopPx + 22f, notice, NoticeColour, CoordinateSpace.Screen, style: GizmoTextStyle.Backdrop);
             if (_host.Rejected is { } rejected)
                 draw.DrawTextLong(_pick.CursorWorld.X, _pick.CursorWorld.Y, rejected.Reason, RejectColour, lineOffsetPx: 22f, style: GizmoTextStyle.Backdrop);
-            DrawCrosshair(draw, _pick.CursorWorld);
+            // ⭐ ONE cross on a pick: the location and entity pickers draw their own aiming cross (CE-1065 / CE-1337, tuned by the user); the banner adds its pixel crosshair
+            //   only for a picker that draws none (the area / bounds pickers).
+            if (_inner is not (Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo or Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo)) DrawCrosshair(draw, _pick.CursorWorld);
         }
 
         /// <summary>⭐ B-17 P7 ④ — the pick cursor: two thin bars (18 × 2 px) in SCREEN pixels at the cursor's world point, white with a dark outline, so the

@@ -33,9 +33,6 @@ namespace Hrot.ScenarioEditor.Gizmos
             new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 1, Label = "Insert waypoint after" },
             new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 2, Label = "Delete waypoint" });
 
-        private static readonly Rgba32 IdleColor   = new Rgba32(0, 160, 255, 220);
-        private static readonly Rgba32 ActiveColor = Rgba32.Red;
-        private static readonly Rgba32 CentreColor = new Rgba32(255, 170, 0, 230);   // ⭐ B-17 P6 — the centre handle (moves every waypoint)
 
         // Tracks the single active instance so WaypointEditorPanel can bind.
         public static RouteWaypointGizmo? Current { get; private set; }
@@ -122,54 +119,29 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (IsFocused)
                 draw.DrawContextMenuBinding(_networkId, MenuJson);
 
-            // Route line segments.
+            // Route line segments. ⭐ B-17 P7 ③ — through GizmoEditStyle (the ONE look): the route colour, white square handles (grabbed = amber), the centre a diamond, a stem under a raised waypoint.
+            //   Each handle is an invisible pick box with the ids (the hit area is what it always was) plus the small drawn square.
             int segCount = _isLoop ? _waypoints.Count : _waypoints.Count - 1;
             for (int i = 0; i < segCount; i++)
             {
                 var a = _waypoints[i];
                 var b = _waypoints[(i + 1) % _waypoints.Count];
-                draw.DrawLine(RouteGizmo.PointOf(view, a), RouteGizmo.PointOf(view, b),
-                    new Rgba32(0x44, 0x88, 0xFF, 0xFF), 1.5f, SizeMode.ScreenPixels);
+                GizmoEditStyle.Segment(draw, RouteGizmo.PointOf(view, a), RouteGizmo.PointOf(view, b), ShapeKind.Route, SegmentKind.Placed);
             }
 
-            // Box2D handle per waypoint. ⛔ §4.7i — handles only while this gizmo holds focus.
+            // ⛔ §4.7i — handles only while this gizmo holds focus.
             if (!IsFocused) return;
 
-            ShapeDoneMark.Draw(draw, _session);   // ⭐ B-17 P2 — the on-map ✓
+            ShapeDoneMark.Draw(draw, _session);   // ⭐ B-17 P2 — the on-map Done button
 
             // ⭐ B-17 P6 — the CENTRE handle (the waypoints' mean): dragging it moves every waypoint
-            var centre = _session.Centre;
-            var cprim = default(DebugPrimitive);
-            cprim.Shape        = DebugPrimitiveShape.Box2D;
-            cprim.Space        = CoordinateSpace.World;
-            cprim.TargetView   = PipelineTarget.Map2D;
-            cprim.BoxCenterX   = centre.X;
-            cprim.BoxCenterY   = centre.Y;
-            cprim.BoxExtentX   = 8f;
-            cprim.BoxExtentY   = 8f;
-            cprim.Color        = CentreColor;
-            cprim.SubElementId = (ushort)ShapeEditSession.CentreHandleId;
-            cprim.BoxAnchorId  = _networkId;
-            draw.EmitRaw(in cprim);
+            GizmoEditStyle.Centre(draw, _session.Centre, _networkId, (ushort)ShapeEditSession.CentreHandleId);
 
             for (int i = 0; i < _waypoints.Count; i++)
             {
-                bool isActive = (i == _activeVertex);
-                var pos = _waypoints[i].Position;
-                var prim = default(DebugPrimitive);
-                prim.Shape            = DebugPrimitiveShape.Box2D;
-                prim.Space            = CoordinateSpace.World;
-                prim.TargetView       = PipelineTarget.Map2D;
-                prim.BoxCenterX       = pos.X;
-                prim.BoxCenterY       = pos.Y;     // ⭐ CE-2172 — Y is north
-                prim.BoxExtentX       = 8f;
-                prim.BoxExtentY       = 8f;
-                prim.Color            = isActive ? ActiveColor : IdleColor;
-                prim.SubElementId     = (ushort)(i + 1);
-                // 🔴 §6.7 — the `AnchorIndex`/`AnchorGeneration` writes are DELETED: identity is
-                //   BoxAnchorId, and the ECS handle they carried is read by nothing.
-                prim.BoxAnchorId      = _networkId;
-                draw.EmitRaw(in prim);
+                var pos = _waypoints[i].Position;   // ⭐ CE-2172 — Y is north
+                GizmoEditStyle.Handle(draw, new Vector2(pos.X, pos.Y), ShapeKind.Route, i == _activeVertex ? HandleState.Grabbed : HandleState.Idle, _networkId, (ushort)(i + 1));
+                GizmoEditStyle.Stem(draw, new Vector2(pos.X, pos.Y), pos.Z, ShapeKind.Route);
             }
         }
 

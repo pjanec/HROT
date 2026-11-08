@@ -66,39 +66,36 @@ public sealed class AreaShapeGizmo : IEntityStatefulGizmo
     /// <inheritdoc/>
     public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
     {
-        var outline = new Rgba32(102, 191, 255, 255);
-        var handle = new Rgba32(255, 210, 60, 255);
-        var hot = new Rgba32(255, 120, 60, 255);
-
+        // ⭐ B-17 P7 ② — the ONE look (GizmoEditStyle): the outline in the area colour with a faint fill, the handles as the shared squares (grabbed = amber), the centre a diamond,
+        //   the place-mode preview dashed. ⛔ The private blue / yellow / orange are gone.
         if (!_shape.IsShape)
         {
-            // place mode: a faint preview of the default circle under the cursor
-            DrawPolyline(draw, AreaShapeHandles.Outline(AreaShapeHandles.NewAt(_cursor)), new Rgba32(102, 191, 255, 120));
+            // place mode: the default circle under the cursor, dashed — what the first click would place
+            DrawPolyline(draw, AreaShapeHandles.Outline(AreaShapeHandles.NewAt(_cursor)), SegmentKind.Next);
             return;
         }
 
-        DrawPolyline(draw, AreaShapeHandles.Outline(_shape), outline);
-        ShapeDoneMark.Draw(draw, AreaShapeHandles.DonePosition(_shape), AreaShapeHandles.DoneHalfSize(_shape));   // the Done affordance (the one ✓)
+        var poly = AreaShapeHandles.Outline(_shape);
+        GizmoEditStyle.FillConvex(draw, poly, ShapeKind.Area);
+        DrawPolyline(draw, poly, SegmentKind.Placed);
+        ShapeDoneMark.Draw(draw, AreaShapeHandles.DonePosition(_shape), AreaShapeHandles.DoneHalfSize(_shape));   // the Done button
         var handles = AreaShapeHandles.HandlesOf(_shape);
-        float r = MathF.Max(0.6f, AreaShapeHandles.HitRadiusFor(_shape) * 0.35f);
         foreach (var h in handles)
         {
-            bool active = _grabbed == h.Kind;
-            draw.DrawSphere(new Vector3(h.Position, 0f), r, active ? hot : handle);
+            var state = _grabbed == h.Kind ? HandleState.Grabbed : HandleState.Idle;
+            if (h.Kind == AreaHandleKind.Center) GizmoEditStyle.CentreMark(draw, h.Position, state);
+            else GizmoEditStyle.HandleSquare(draw, h.Position, ShapeKind.Area, state);
             if (h.Kind == AreaHandleKind.Heading)   // the knob hangs off the front edge by a stem
-            {
-                var front = AreaShapeHandles.HandlesOf(_shape);
-                foreach (var f in front)
+                foreach (var f in handles)
                     if (f.Kind == AreaHandleKind.Length)
-                        draw.DrawLine(new Vector3(f.Position, 0f), new Vector3(h.Position, 0f), handle, 1.5f);
-            }
+                        GizmoEditStyle.Segment(draw, new Vector3(f.Position, 0f), new Vector3(h.Position, 0f), ShapeKind.Area, SegmentKind.Placed);
         }
     }
 
-    private static void DrawPolyline(IDebugDrawBuilder draw, System.Collections.Generic.IReadOnlyList<Vector2> pts, Rgba32 colour)
+    private static void DrawPolyline(IDebugDrawBuilder draw, System.Collections.Generic.IReadOnlyList<Vector2> pts, SegmentKind segment)
     {
         for (int i = 0; i < pts.Count; i++)
-            draw.DrawLine(new Vector3(pts[i], 0f), new Vector3(pts[(i + 1) % pts.Count], 0f), colour, 2f);
+            GizmoEditStyle.Segment(draw, new Vector3(pts[i], 0f), new Vector3(pts[(i + 1) % pts.Count], 0f), ShapeKind.Area, segment);
     }
 
     /// <inheritdoc/>

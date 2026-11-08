@@ -351,7 +351,24 @@ namespace Hrot.Presentation.Tests.Tools
             Assert.Equal(GizmoTextStyle.Backdrop, Text("Pick a unit for Target").TextStyle);
             Assert.Equal(GizmoTextStyle.Backdrop, Text("pick a unit, not a graphic").TextStyle);
 
-            var bars = frame.Where(q => q.Shape == DebugPrimitiveShape.Box2D).ToArray();
+            // ⭐ ONE cross on a pick: the entity picker draws its own aiming cross, so the banner adds no pixel bars
+            Assert.DoesNotContain(frame, q => q.Shape == DebugPrimitiveShape.Box2D);
+            fx.Esc(); fx.Frame(); fx.Frame();
+        }
+
+        /// <summary>
+        /// ⭐ B-17 P7 ④ — a picker that draws NO cross of its own (the probe stands for the area / bounds pickers) gets the banner's CROSSHAIR: two screen-pixel bars (18 × 2 px, white, dark outline) at the cursor's world point;
+        /// none once the pick ends; 0 B in a steady frame. 🔴 Red-proofs (compile): <c>DrawCrosshair</c> not called ⇒ no bars; called for every picker ⇒ the entity-picker assert in the test above goes red.
+        /// </summary>
+        [Fact]
+        public void P7_ACrosshairStandsAtTheCursor_OfAPickerThatDrawsNoCross_At0BSteady()
+        {
+            using var fx = new P4Fx();
+            _ = fx.Pickers.RunPickAsync<int>(ScenarioToolIds.PickArea, (tcs, remove) => new ToolProbe(), default, "Drag a box");
+            fx.Move(41, 51);
+            fx.Frame();
+            fx.Frame();
+            var bars = fx.Buffer.GetFrame().ToArray().Where(q => q.Shape == DebugPrimitiveShape.Box2D).ToArray();
             Assert.Equal(2, bars.Length);
             foreach (var b in bars)
             {
@@ -368,7 +385,7 @@ namespace Hrot.Presentation.Tests.Tools
             long delta = GC.GetAllocatedBytesForCurrentThread() - before;
             Assert.True(delta == 0, $"the pending-pick banner + crosshair allocates {delta} B in a steady frame");
 
-            fx.Esc(); fx.Frame(); fx.Frame();   // Esc is handled, then a frame with no pick
+            Assert.True(fx.Pickers.CancelPending()); fx.Frame();
             Assert.DoesNotContain(fx.Buffer.GetFrame().ToArray(), q => q.Shape == DebugPrimitiveShape.Box2D);   // no crosshair once the pick has ended
         }
 

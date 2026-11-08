@@ -45,10 +45,6 @@ namespace Hrot.ScenarioEditor.Gizmos
             new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 1, Label = "Insert point after" },
             new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 2, Label = "Delete point" });
 
-        private static readonly Rgba32 IdleColor   = new Rgba32(0, 210, 120, 220);
-        private static readonly Rgba32 ActiveColor = Rgba32.Red;
-        private static readonly Rgba32 EdgeColor   = new Rgba32(255, 255, 0, 255);
-        private static readonly Rgba32 CentreColor = new Rgba32(255, 170, 0, 230);   // ⭐ B-17 P6 — the centre handle (moves the whole shape)
 
         private readonly EntityRepository _repo;
         private readonly Entity           _entity;
@@ -133,50 +129,25 @@ namespace Hrot.ScenarioEditor.Gizmos
                 draw.DrawContextMenuBinding(_networkId, MenuJson);
 
             // Draw live preview edges so the edited shape is visible during drag.
+            // ⭐ B-17 P7 ③ — through GizmoEditStyle (the ONE look): the area colour, a faint fill when convex, white square handles (grabbed = amber), the centre a diamond.
+            //   Each handle is an invisible pick box with the ids (the hit area is what it always was) plus the small drawn square.
             int n = _points.Count;
+            if (n >= 3) GizmoEditStyle.FillConvex(draw, _points, ShapeKind.Area);
             for (int i = 0; i < n; i++)
             {
                 var a = new Vector3(_points[i].X, _points[i].Y, 0f);
                 var b = new Vector3(_points[(i + 1) % n].X, _points[(i + 1) % n].Y, 0f);
-                draw.DrawLine(a, b, EdgeColor, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
+                GizmoEditStyle.Segment(draw, a, b, ShapeKind.Area, SegmentKind.Placed);
             }
 
-            // Box2D handle for each vertex. ⛔ §4.7i — handles only while this gizmo holds focus.
+            // ⛔ §4.7i — handles only while this gizmo holds focus.
             if (!IsFocused) return;
 
             for (int i = 0; i < _points.Count; i++)
-            {
-                bool isActive = (i == _activeVertex);
-                var prim = default(DebugPrimitive);
-                prim.Shape            = DebugPrimitiveShape.Box2D;
-                prim.Space            = CoordinateSpace.World;
-                prim.TargetView       = PipelineTarget.Map2D;
-                prim.BoxCenterX       = _points[i].X;
-                prim.BoxCenterY       = _points[i].Y;
-                prim.BoxExtentX       = 8f;
-                prim.BoxExtentY       = 8f;
-                prim.Color            = isActive ? ActiveColor : IdleColor;
-                prim.SubElementId     = (ushort)(i + 1);
-                // 🔴 §6.7 — the `AnchorIndex`/`AnchorGeneration` writes are DELETED: identity is
-                //   BoxAnchorId, and the ECS handle they carried is read by nothing.
-                prim.BoxAnchorId      = _networkId;
-                draw.EmitRaw(in prim);
-            }
+                GizmoEditStyle.Handle(draw, _points[i], ShapeKind.Area, i == _activeVertex ? HandleState.Grabbed : HandleState.Idle, _networkId, (ushort)(i + 1));
 
             // ⭐ B-17 P6 — the CENTRE handle: dragging it moves the WHOLE shape.
-            var centre = _session.Centre;
-            var cprim = default(DebugPrimitive);
-            cprim.Shape        = DebugPrimitiveShape.Box2D;
-            cprim.Space        = CoordinateSpace.World;
-            cprim.TargetView   = PipelineTarget.Map2D;
-            cprim.BoxCenterX   = centre.X;
-            cprim.BoxCenterY   = centre.Y;
-            cprim.BoxExtentX   = 8f;
-            cprim.BoxExtentY   = 8f;
-            cprim.Color        = CentreColor;
-            cprim.SubElementId = (ushort)ShapeEditSession.CentreHandleId;
-            cprim.BoxAnchorId  = _networkId;
-            draw.EmitRaw(in cprim);
+            GizmoEditStyle.Centre(draw, _session.Centre, _networkId, (ushort)ShapeEditSession.CentreHandleId);
 
             ShapeDoneMark.Draw(draw, _session);   // ⭐ B-17 P2 — the on-map ✓
         }

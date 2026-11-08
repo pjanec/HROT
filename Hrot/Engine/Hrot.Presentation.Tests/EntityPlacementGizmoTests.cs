@@ -38,19 +38,122 @@ public class EntityPlacementGizmoTests
         return (captured, gizmo);
     }
 
-    // ⭐ CE-1065 — the ghost is HALF the size it was (user, 2026-10-14: "make the entity placement … gizmo 2 times smaller"):
-    //   a 7.5 m sphere (world metres — a 15 m translucent ball hid the scene in 3-D), its labels half as far below the cursor.
+    // ⭐ B-17 P7 ① — the ghost is no longer a ball (CE-1065 / CE-1337 made the sphere 3 m, then P7 removed it): it is the type's FOOTPRINT. With no TKB database the rule's fallback (5 m × 2.5 m) stands.
     [Fact]
-    public void CE1065_TheGhost_IsHalfTheOldSize()
+    public void CE1065_TheGhost_HasNoBall_ItIsTheFallbackFootprint_WhenTheTypeIsUnknown()
     {
         var (_, gizmo) = CreateGizmo();
         gizmo.OnDragUpdate(new Vector3(100f, 200f, 0f));
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
         gizmo.UpdateAndDraw(new Fdp.Core.EntityRepository(), 0f, buffer);
-        float radius = -1f;
-        foreach (var p in buffer.GetFrame())
-            if (p.Shape == DebugPrimitiveShape.Sphere) radius = p.SphereRadius;
-        Assert.Equal(3f, radius);   // CE-1337
+        Assert.DoesNotContain(buffer.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.Sphere);
+        var box = Assert.Single(buffer.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.Box2D);
+        Assert.Equal(EntityFootprint.DefaultLengthMetres * 0.5f, box.BoxExtentX);
+        Assert.Equal(EntityFootprint.DefaultLengthMetres * EntityFootprint.DefaultWidthFactor * 0.5f, box.BoxExtentY);
+    }
+
+    private static (Fdp.Core.EntityRepository Repo, Fdp.Interfaces.TkbTemplate Tank, Fdp.Interfaces.TkbTemplate Jet) RepoWithTemplates()
+    {
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        var tank = new Fdp.Interfaces.TkbTemplate("Tank", 777);
+        tank.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.VehicleParametersDto { VehicleClass = global::CarKinem.Core.VehicleClass.Tank, Length = 8f, Width = 3.4f });
+        var jet = new Fdp.Interfaces.TkbTemplate("Jet", 778);
+        jet.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.VehicleParametersDto { VehicleClass = global::CarKinem.Core.VehicleClass.PersonalCar, Length = 15f, Width = 17f });
+        jet.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.FlightParamsDto { HoverHeightM = 300f, CruiseSpeedMps = 200f });
+        db.Register(tank); db.Register(jet);
+        var repo = new Fdp.Core.EntityRepository();
+        repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        return (repo, tank, jet);
+    }
+
+    /// <summary>
+    /// ⭐ B-17 P7 ① — the ghost is the type's FOOTPRINT, by <see cref="EntityFootprint"/>'s ONE rule read from the template (the same length × width the 2-D symbol and the pick area use): a translucent (α100), DASHED-outline Box2D in world metres, turned to the heading
+    /// (north until a drag), plus ONE small notch triangle at the front. A heading drag turns the box and moves the notch. 🔴 Red-proof (compiles): <c>DrawFootprint</c> not called ⇒ no box ⇒ red; the dims hard-coded ⇒ the 8 × 3.4 assert red.
+    /// </summary>
+    [Fact]
+    public void P7_TheGhost_IsTheTemplatesFootprint_TurnedToTheHeading_WithANotch()
+    {
+        var (repo, tank, _) = RepoWithTemplates();
+        using var _r = repo;
+        EntityFootprint.Dimensions(tank, out float len, out float wid);
+        Assert.Equal((8f, 3.4f), (len, wid));   // the rule: the template's authored size over the class preset
+
+        var (_, gizmo) = CreateGizmo(777L);
+        gizmo.OnDragUpdate(new Vector3(100f, 200f, 0f));
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        gizmo.UpdateAndDraw(repo, 0f, buffer);
+        var frame = buffer.GetFrame().ToArray();
+        Assert.DoesNotContain(frame, p => p.Shape == DebugPrimitiveShape.Sphere);
+        var box = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.Box2D);
+        Assert.Equal((100f, 200f), (box.BoxCenterX, box.BoxCenterY));
+        Assert.Equal((4f, 1.7f), (box.BoxExtentX, box.BoxExtentY));
+        Assert.Equal(SizeMode.WorldMeters, box.SizeMode);   // metres: it scales with the zoom like the symbol
+        Assert.Equal(90f, box.BoxAngleDeg, 2);              // north until a drag sets the heading
+        Assert.Equal(LineStyle.Dashed, box.LineStyle);
+        Assert.Equal(100, box.FillColor.A);
+        var notch = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.FilledTriangle);
+        Assert.True(notch.TriC.Y > 200f + 4f, "the notch tip is beyond the front (north) edge");
+
+        // a heading drag east: the press point is where it lands, the box turns, the notch moves to the east edge
+        gizmo.OnMouseEvent(MapMouseButton.Left, true, new Vector3(100f, 200f, 0f));
+        gizmo.OnDragUpdate(new Vector3(150f, 200f, 0f));
+        buffer.Clear();
+        gizmo.UpdateAndDraw(repo, 0f, buffer);
+        frame = buffer.GetFrame().ToArray();
+        box = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.Box2D);
+        Assert.Equal(0f, box.BoxAngleDeg, 2);
+        notch = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.FilledTriangle);
+        Assert.True(notch.TriC.X > 100f + 4f, "the notch tip is beyond the east edge");
+    }
+
+    /// <summary>
+    /// ⭐ B-17 P7 ① — an AIRCRAFT ghost (the type carries a flight descriptor, 300 m): a dashed drop line from the ghost at altitude down to the ground under it, and a ground ring — an outline Sphere at z = 0 the size of the footprint (its shadow).
+    /// A ground type draws neither. 🔴 Red-proof (compiles): <c>DrawAircraftShadow</c> not called ⇒ no drop line ⇒ red.
+    /// </summary>
+    [Fact]
+    public void P7_AnAircraftGhost_HasADropLineAndAGroundRing_AGroundTypeHasNeither()
+    {
+        var (repo, _, _) = RepoWithTemplates();
+        using var _r = repo;
+        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive[] Frame(long type)
+        {
+            var (_, g) = CreateGizmo(type);
+            g.OnDragUpdate(new Vector3(100f, 200f, 0f));
+            var b = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            g.UpdateAndDraw(repo, 0f, b);
+            return b.GetFrame().ToArray();
+        }
+        var jet = Frame(778L);
+        var drop = Assert.Single(jet, p => p.Shape == DebugPrimitiveShape.Line && p.LineStyle == LineStyle.Dashed);
+        Assert.Equal((100f, 200f, 300f), (drop.LineStart.X, drop.LineStart.Y, drop.LineStart.Z));
+        Assert.Equal((100f, 200f, 0f), (drop.LineEnd.X, drop.LineEnd.Y, drop.LineEnd.Z));
+        var ring = Assert.Single(jet, p => p.Shape == DebugPrimitiveShape.Sphere);
+        Assert.Equal(0f, ring.SphereCenter.Z);
+        Assert.Equal(8.5f, ring.SphereRadius, 3);
+        Assert.True(ring.ThicknessU16 > 0, "a ring, not a disc");
+
+        var tank = Frame(777L);
+        Assert.DoesNotContain(tank, p => p.Shape == DebugPrimitiveShape.Sphere);
+        Assert.DoesNotContain(tank, p => p.Shape == DebugPrimitiveShape.Line && p.LineStyle == LineStyle.Dashed);
+    }
+
+    /// <summary>⭐ B-17 P7 ① — HOT PATH: a steady ghost frame (a ground type and an aircraft) allocates 0 B. 🔴 Red-proof: a per-frame <c>EntityFootprint.Dimensions(template, …)</c> lookup is the shape of regression it guards.</summary>
+    [Fact]
+    public void P7_ASteadyGhostFrame_Allocates0B()
+    {
+        var (repo, _, _) = RepoWithTemplates();
+        using var _r = repo;
+        foreach (long type in new[] { 777L, 778L })
+        {
+            var (_, g) = CreateGizmo(type);
+            g.OnDragUpdate(new Vector3(100f, 200f, 0f));
+            var b = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            g.UpdateAndDraw(repo, 0f, b); b.Clear(); g.UpdateAndDraw(repo, 0f, b); b.Clear();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            g.UpdateAndDraw(repo, 0f, b);
+            long delta = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.True(delta == 0, $"a steady ghost frame (type {type}) allocates {delta} B");
+        }
     }
 
     /// <summary>⭐ U-8 (CE-4339) — while a heading drag is down the placement tool draws a DIRECTION LINE from the press point toward the cursor (a main line and an arrow head), and its ghost stands at the press point (where the entity will land); button up: none.
@@ -68,7 +171,7 @@ public class EntityPlacementGizmoTests
             {
                 if (p.Shape == DebugPrimitiveShape.Line && p.Color.R == Hrot.ScenarioEditor.Gizmos.PlacementDirectionLine.Colour.R && p.Color.G == Hrot.ScenarioEditor.Gizmos.PlacementDirectionLine.Colour.G)
                 { if (n == 0) { start = p.LineStart; end = p.LineEnd; } n++; }
-                if (p.Shape == DebugPrimitiveShape.Sphere) ghost = p.SphereCenter;
+                if (p.Shape == DebugPrimitiveShape.Box2D) ghost = new System.Numerics.Vector3(p.BoxCenterX, p.BoxCenterY, 0f);   // ⭐ B-17 P7 ① — the ghost is the footprint box now (no sphere)
             }
             return n;
         }

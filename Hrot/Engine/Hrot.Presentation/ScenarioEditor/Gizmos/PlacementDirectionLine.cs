@@ -13,10 +13,10 @@ namespace Hrot.ScenarioEditor.Gizmos
     public static class PlacementDirectionLine
     {
         /// <summary>The line's colour (amber: the armed-tool colour of the map's hints).</summary>
-        public static readonly Rgba32 Colour = new(255, 200, 40, 255);
+        public static readonly Rgba32 Colour = new(0xF2, 0xC0, 0x33, 255);   // ⭐ B-17 P7 ① — the look's amber
 
         /// <summary>Line width in SCREEN pixels (a placement aid, not a world object: the same at every zoom).</summary>
-        public const float ThicknessPx = 3f;
+        public const float ThicknessPx = 1.6f;
 
         /// <summary>Draws the line when a drag is in progress; true when it drew. <paramref name="cursor"/> is where the cursor is NOW (the same point <see cref="PlacementSession.Pending"/> reads).</summary>
         public static bool Draw(IDebugDrawBuilder draw, PlacementSession session, Vector3 cursor)
@@ -28,7 +28,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             var d = new Vector2(to.X - from.X, to.Y - from.Y);
             float len = d.Length();
             if (len < 1e-3f) return false;
-            draw.DrawLine(from, to, Colour, ThicknessPx);
+            draw.DrawLine(from, to, Colour, ThicknessPx, style: LineStyle.Dashed);   // ⭐ B-17 P7 ① — restyled in place (dashed amber 1.6 px), still the ONE drawer
             // the arrow head: two short strokes back from the tip, ±25° off the line (a fifth of its length, 1–8 m)
             float head = Math.Clamp(len * 0.2f, 1f, 8f);
             var u = d / len;

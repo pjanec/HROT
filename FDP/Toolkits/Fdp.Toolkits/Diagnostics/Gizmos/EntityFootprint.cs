@@ -65,6 +65,29 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 widthMetres  = vp.Width;
             }
 
+            ApplyFallback(ref lengthMetres, ref widthMetres);
+        }
+
+        /// <summary>
+        /// ⭐ B-17 P7 ① — the SAME rule read from the TKB TEMPLATE, before any entity exists: what <see cref="VehicleParams"/> the spawn will get is
+        /// <c>VehicleKinematicsTkbTranslator.BuildVehicleParams(VehicleParametersDto)</c> (a class preset overridden by the template's authored length / width), so the
+        /// placement ghost, the drawn symbol and the pick area share ONE rule. A template with no vehicle descriptor spawns with no <see cref="VehicleParams"/> ⇒ the fallback.
+        /// </summary>
+        public static void Dimensions(Fdp.Interfaces.TkbTemplate template, out float lengthMetres, out float widthMetres)
+        {
+            lengthMetres = 0f;
+            widthMetres  = 0f;
+            if (template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.VehicleParametersDto>() is { } dto)
+            {
+                var vp = global::CarKinem.Tkb.VehicleKinematicsTkbTranslator.BuildVehicleParams(dto);
+                lengthMetres = vp.Length;
+                widthMetres  = vp.Width;
+            }
+            ApplyFallback(ref lengthMetres, ref widthMetres);
+        }
+
+        private static void ApplyFallback(ref float lengthMetres, ref float widthMetres)
+        {
             if (lengthMetres <= 0f) lengthMetres = DefaultLengthMetres;
             if (widthMetres  <= 0f) widthMetres  = lengthMetres * DefaultWidthFactor;
         }

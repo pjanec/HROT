@@ -42,7 +42,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         // ⭐ CE-1065 — half the size it was (user, 2026-10-14: "make the entity placement and entity picker gizmo 2 times smaller").
         //   ⚠ Despite the "Px" name these are WORLD METRES (DrawSphere's default SizeMode) — a 15 m translucent ball hid the scene in 3-D.
         // ⭐ CE-1337 — 6 m across, about one tank (user, 2026-10-25: "it should not be bigger than 2 tank lengths"); the ghost box shows the real size.
-        private const float GhostRadiusPx     = 3f;
+        private const byte FootprintFillAlpha = 100;
         private const float GhostLabelOffsetY = 10f;
 
         private readonly Action<SpawnEntityCommand> _onEntityCreated;
@@ -161,9 +161,13 @@ namespace Hrot.ScenarioEditor.Gizmos
             ghostColor.A = GhostAlpha;
 
             // ⭐ U-8 (CE-4339) — while a heading drag is down the entity lands at the PRESS point, so the ghost stands there (it used to follow the cursor) and a direction line runs from it toward the cursor
-            var ghostAt = _session.Pending(_cursorWorld).At;
-            draw.DrawSphere(ghostAt, GhostRadiusPx, ghostColor);
-            DrawGhostBox(view, draw, ghostColor, ghostAt);
+            var (ghostAt, dragYaw) = _session.Pending(_cursorWorld);
+            // ⭐ B-17 P7 ① — NO ball any more (the 3 px sphere). The ghost is the entity's FOOTPRINT, as the 2-D map will draw it (EntityFootprint's one rule, read from the TKB template),
+            //   turned to the pending heading with a notch at the front; an aircraft stands at its altitude over a drop line and a ground ring (its shadow).
+            float lift = _session.AirborneHeight ?? 0f;
+            DrawFootprint(draw, ghostColor, ghostAt, dragYaw ?? (MathF.PI / 2f));   // north until a drag sets the heading (PlacementSession.FacingNorth)
+            DrawGhostBox(view, draw, ghostColor, lift > 0f ? new Vector3(ghostAt.X, ghostAt.Y, ghostAt.Z + lift) : ghostAt);
+            if (lift > 0f) DrawAircraftShadow(draw, ghostColor, ghostAt, lift);
             if (_macroPreview?.Invoke() is { } preview) MacroGhostDraw.Draw(draw, preview, ghostAt);   // ⭐ CE-4244 MP-2 (a) — what the click would create
             PlacementDirectionLine.Draw(draw, _session, _cursorWorld);
             // ⭐ CE-1017 S2: the type's NAME (it used to be the bare TKB number), and while the tool stays armed
@@ -171,7 +175,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             draw.DrawTextLong(
                 _cursorWorld.X,
                 _cursorWorld.Y - GhostLabelOffsetY,   // ⭐ CE-1040 (N5) — north-up: below the cursor is world −Y
-                string.IsNullOrWhiteSpace(_displayName) ? _tkbType.ToString() : _displayName!,
+                _label ??= string.IsNullOrWhiteSpace(_displayName) ? _tkbType.ToString() : _displayName!,   // ⭐ cached: a per-frame ToString() allocated
                 Rgba32.White, style: GizmoTextStyle.Backdrop);
             var key = (_session.AirborneHeight, _session.Level, _session.LevelCount);
             if (key != _hintKey) { _hintKey = key; _hint = _session.Hint(_autoPopOnPlace ? "click: place" : MultiPlacementHint); }   // ⭐ CE-4309 — rebuilt only when a choice moves (0 B steady)
@@ -191,7 +195,38 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (tkb == null || !tkb.TryGetByType(_tkbType, out var template) || template == null) return;
             var flight = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.FlightParamsDto>();
             _session.SetType(flight?.HoverHeightM, flight is null ? 0f : (flight.CruiseSpeedMps > 0f ? flight.CruiseSpeedMps : flight.MaxSpeedMps));
+            _bodyLook = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(template);   // ⭐ once, with the footprint: the ghost's wire box is the same every frame (0 B steady)
+            Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.Dimensions(template, out _footLength, out _footWidth);   // ⭐ B-17 P7 ① — once: the rule the 2-D symbol and the pick area use
             _typeKnown = true;
+        }
+
+        // ⭐ B-17 P7 ① — the footprint (metres) the spawned entity will have on the 2-D map; the rule's fallback until the TKB template is known.
+        private string? _label;
+        private Hrot.UI.Common.Map3D.EntityBodyLayer3D.TypeLook? _bodyLook;
+        private float _footLength = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.DefaultLengthMetres;
+        private float _footWidth = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.DefaultLengthMetres * Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.DefaultWidthFactor;
+
+        /// <summary>⭐ B-17 P7 ① — a translucent box of the entity's footprint (world metres) turned to <paramref name="yawRad"/> (math yaw: the length runs along local +X), a dashed outline in the side colour,
+        /// and a small solid notch triangle just beyond the front edge so the heading reads at a glance.</summary>
+        private void DrawFootprint(IDebugDrawBuilder draw, Rgba32 colour, Vector3 at, float yawRad)
+        {
+            var outline = new Rgba32(colour.R, colour.G, colour.B, 230);
+            var fill = new Rgba32(colour.R, colour.G, colour.B, FootprintFillAlpha);
+            var centre = new Vector2(at.X, at.Y);
+            draw.DrawBox2D(centre, new Vector2(_footLength * 0.5f, _footWidth * 0.5f), outline, yawRad * (180f / MathF.PI), 1.6f, SizeMode.WorldMeters, fillColor: fill, style: LineStyle.Dashed);   // metres for the box, a 1.6 px outline (outlines are pixels)
+            var f = new Vector2(MathF.Cos(yawRad), MathF.Sin(yawRad));
+            var side = new Vector2(-f.Y, f.X);
+            float half = _footLength * 0.5f, notchHalf = _footWidth * 0.2f, notchLen = _footWidth * 0.35f;
+            var front = centre + f * half;
+            draw.DrawFilledTriangle(front + side * notchHalf, front - side * notchHalf, front + f * notchLen, outline);
+        }
+
+        /// <summary>⭐ B-17 P7 ① — an aircraft at its altitude: a dashed drop line from the ghost down to the ground under it, and a ground ring (its shadow) round the footprint.</summary>
+        private void DrawAircraftShadow(IDebugDrawBuilder draw, Rgba32 colour, Vector3 groundAt, float lift)
+        {
+            var line = new Rgba32(colour.R, colour.G, colour.B, 230);
+            draw.DrawLine(new Vector3(groundAt.X, groundAt.Y, groundAt.Z + lift), groundAt, line, 1.2f, SizeMode.ScreenPixels, style: LineStyle.Dashed);
+            draw.DrawSphere(new Vector3(groundAt.X, groundAt.Y, 0f), MathF.Max(_footLength, _footWidth) * 0.5f, line, thickness: 1f);   // thickness ⇒ an outline ring only, draped on the ground in 3-D
         }
 
         /// <summary>
@@ -202,19 +237,22 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </summary>
         private void DrawGhostBox(ISimulationView view, IDebugDrawBuilder draw, Rgba32 colour, Vector3 centre)
         {
-            if (view is not Fdp.Core.EntityRepository repo || !repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return;
-            var tkb = repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
-            if (tkb == null || !tkb.TryGetByType(_tkbType, out var template) || template == null) return;
-            var look = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(template);
+            if (_bodyLook is not { } look) return;   // resolved once by EnsureType
             if (look.Family == Hrot.UI.Common.Map3D.VisualFamily.Unit) return;
             var h = look.Size / 2f;
             float z0 = centre.Z, z1 = centre.Z + look.Size.Z;
-            Span<Vector3> c = stackalloc Vector3[8];
-            for (int i = 0; i < 8; i++)
-                c[i] = new Vector3(centre.X + ((i & 1) == 0 ? -h.X : h.X), centre.Y + ((i & 2) == 0 ? -h.Y : h.Y),
-                                   (i & 4) == 0 ? z0 : z1);
-            ReadOnlySpan<int> edges = stackalloc int[] { 0, 1, 1, 3, 3, 2, 2, 0, 4, 5, 5, 7, 7, 6, 6, 4, 0, 4, 1, 5, 2, 6, 3, 7 };
-            for (int k = 0; k < edges.Length; k += 2) draw.DrawLine(c[edges[k]], c[edges[k + 1]], colour, 1f);
+            // the 12 edges of the box, with no span / array (a steady frame allocates nothing): the two rectangles (z0, z1) and the four verticals
+            for (int level = 0; level < 2; level++)
+            {
+                float z = level == 0 ? z0 : z1;
+                var a = new Vector3(centre.X - h.X, centre.Y - h.Y, z); var b = new Vector3(centre.X + h.X, centre.Y - h.Y, z);
+                var c = new Vector3(centre.X + h.X, centre.Y + h.Y, z); var d = new Vector3(centre.X - h.X, centre.Y + h.Y, z);
+                draw.DrawLine(a, b, colour, 1f); draw.DrawLine(b, c, colour, 1f); draw.DrawLine(c, d, colour, 1f); draw.DrawLine(d, a, colour, 1f);
+            }
+            draw.DrawLine(new Vector3(centre.X - h.X, centre.Y - h.Y, z0), new Vector3(centre.X - h.X, centre.Y - h.Y, z1), colour, 1f);
+            draw.DrawLine(new Vector3(centre.X + h.X, centre.Y - h.Y, z0), new Vector3(centre.X + h.X, centre.Y - h.Y, z1), colour, 1f);
+            draw.DrawLine(new Vector3(centre.X + h.X, centre.Y + h.Y, z0), new Vector3(centre.X + h.X, centre.Y + h.Y, z1), colour, 1f);
+            draw.DrawLine(new Vector3(centre.X - h.X, centre.Y + h.Y, z0), new Vector3(centre.X - h.X, centre.Y + h.Y, z1), colour, 1f);
         }
 
         // IEntityStatefulGizmo — interaction

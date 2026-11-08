@@ -293,6 +293,7 @@ public sealed class GroupTransformTests : IDisposable
         var ring = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.Sphere && p.LineStyle == LineStyle.Dashed);
         Assert.Equal(0xF2, ring.Color.R); Assert.Equal(0xC0, ring.Color.G); Assert.Equal(0x33, ring.Color.B);
         Assert.True(ring.ThicknessU16 > 0, "an outline only, no disc");
+        Assert.Equal(0f, ring.SphereCenter.Z);   // on the ground: the 3-D map drapes and dashes a z = 0 ring (a ring with height is a plain sphere there)
         int tris = frame.Count(p => p.Shape == DebugPrimitiveShape.FilledTriangle);
         Assert.InRange(tris, 1, 24);
         Assert.All(frame.Where(p => p.Shape == DebugPrimitiveShape.FilledTriangle), p => Assert.True(p.Color.A is > 0 and < 100, "translucent"));

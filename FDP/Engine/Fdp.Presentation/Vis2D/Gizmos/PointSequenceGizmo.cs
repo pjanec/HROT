@@ -42,14 +42,7 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     /// <inheritdoc/>
     public string? ToolMenuJson => Session.Menu?.Json;
 
-    // Raylib Color.Blue = R:0, G:121, B:241. SkyBlue = R:102, G:191, B:255.
-    private static readonly Rgba32 Blue    = new Rgba32(0,   121, 241, 255);
-    private static readonly Rgba32 SkyBlue = new Rgba32(102, 191, 255, 255);
 
-    private const float PointRadius  = 4.0f;
-    private const float CursorRadius = 5.0f;
-    private const float LineWidth    = 2.0f;
-    private const float ElasticWidth = 1.0f;
 
     /// <inheritdoc/>
     public bool RequiresExclusiveFocus => true;
@@ -107,34 +100,29 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
         _world = Fdp.Toolkit.World.WorldQuery.Of(view);
         var points = Session.Points;
         var heights = Session.Heights;
-        if (points.Count > 0)
+        // ⭐ B-17 P7 ② — the ONE drawing look (GizmoEditStyle): kind colour, small screen-pixel squares, the first point white, placed segments solid, the next dashed,
+        //   the closing one (areas) dotted, a faint fill once an area is convex. ⛔ The private blues, the round spheres and the cursor disc are gone.
+        var kind = Session.Closed ? ShapeKind.Area : ShapeKind.Route;
+        int n = points.Count;
+        if (n > 0)
         {
-            // Lines connecting points.
-            for (int i = 0; i < points.Count - 1; i++)
+            if (Session.Closed) GizmoEditStyle.FillConvex(draw, points, kind);
+            for (int i = 0; i < n - 1; i++)
+                GizmoEditStyle.Segment(draw, new Vector3(points[i].X, points[i].Y, heights[i]),
+                    new Vector3(points[i + 1].X, points[i + 1].Y, heights[i + 1]), kind, SegmentKind.Placed);
+
+            GizmoEditStyle.Segment(draw, new Vector3(points[n - 1].X, points[n - 1].Y, heights[n - 1]), _currentPos, kind, SegmentKind.Next);
+            if (Session.Closed && n >= 2)
+                GizmoEditStyle.Segment(draw, _currentPos, new Vector3(points[0].X, points[0].Y, heights[0]), kind, SegmentKind.Closing);
+
+            for (int i = 0; i < n; i++)
             {
-                draw.DrawLine(
-                    new Vector3(points[i].X,     points[i].Y,     heights[i]),
-                    new Vector3(points[i + 1].X, points[i + 1].Y, heights[i + 1]),
-                    Blue, LineWidth);
+                GizmoEditStyle.Point(draw, points[i], kind, first: i == 0);
+                GizmoEditStyle.Stem(draw, points[i], heights[i], kind);
             }
 
-            // Sphere at each collected point.
-            for (int i = 0; i < points.Count; i++)
-            {
-                draw.DrawSphere(new Vector3(points[i].X, points[i].Y, heights[i]), PointRadius, Blue);
-            }
-
-            // Elastic line from last point to current cursor.
-            draw.DrawLine(
-                new Vector3(points[^1].X,  points[^1].Y,  heights[^1]),
-                _currentPos,
-                SkyBlue, ElasticWidth);
-
-            ShapeDoneMark.Draw(draw, Session);   // the on-map ✓
+            ShapeDoneMark.Draw(draw, Session);   // the on-map Done button
         }
-
-        // Cursor indicator.
-        draw.DrawSphere(_currentPos, CursorRadius, Blue);
     }
 
     // ---- IEntityStatefulGizmo — interaction ---------------------------------

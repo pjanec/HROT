@@ -125,7 +125,8 @@ namespace Hrot.ScenarioEditor.Gizmos
             bool about = _mode == GroupRotateMode.AboutCentre;
             var pivot = about ? new Vector3(_centre.X, _centre.Y, 0f) : _entityPos;
             float ring = about ? _aboutRing : EachRingRadius;
-            draw.DrawSphere(pivot, ring, Amber, thickness: 1f, style: LineStyle.Dashed);   // thickness ⇒ an outline only (CE-3154)
+            // ⭐ the ring lies on the GROUND under the pivot (z = 0): the 3-D map drapes a z = 0 ring over the relief and dashes it by the path rule, whereas a ring with height is drawn by the sink as a plain sphere that ignores the style
+            draw.DrawSphere(new Vector3(pivot.X, pivot.Y, 0f), ring, Amber, thickness: 1f, style: LineStyle.Dashed);   // thickness ⇒ an outline only (CE-3154)
 
             float sweep = _currentYawRad - _yaw0;
             sweep -= 2f * MathF.PI * MathF.Round(sweep / (2f * MathF.PI));   // −π…π

@@ -109,6 +109,27 @@ public sealed class Map3DGizmoTests
         }
     }
 
+    /// <summary>
+    /// ⭐ B-17 P7 ⑤ — a DASHED ground ring (the rotate ring, z = 0) is drawn dashed in 3-D by the path rule (8 px on / 8 px off): the drawn length is about half the circumference, a SOLID ring's is all of it.
+    /// 🔴 Red-proof (compiles): <c>EmitClosed</c> given <c>LineStyle.Solid</c> ⇒ the dashed ring draws the full circumference ⇒ red.
+    /// </summary>
+    [Fact]
+    public void P7_ADashedGroundRing_IsDashedIn3D_AtHalfTheCircumference()
+    {
+        float Drawn(LineStyle style)
+        {
+            var r = new GizmoRenderer3D();
+            var sink = new CaptureSink();
+            var ring = DebugPrimitive.MakeSphere(new Vector3(0f, 0f, 0f), 30f, Red, thickness: 1f, style: style);
+            r.Draw(Triage(new DebugPrimitiveTriage3D(), ring), _ => 4f, sink);
+            float sum = 0f;
+            foreach (var (a, b, _, _) in sink.Lines) sum += Vector3.Distance(a, b);
+            return sum;
+        }
+        float solid = Drawn(LineStyle.Solid), dashed = Drawn(LineStyle.Dashed);
+        Assert.InRange(dashed / solid, 0.35f, 0.65f);
+    }
+
     [Fact]
     public void S3_AShapeWithHeight_IsDrawnAsGiven_AFireTraceStaysAtTheMuzzle()
     {
