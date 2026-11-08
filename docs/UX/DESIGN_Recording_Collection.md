@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — measured, a proposal for the user (Q1–Q4)
+build-state: READY-TO-BUILD — Q1–Q4 answered by the user (R-4171, 2026-11-08); §5 opening an archived run = always IMPORT
 updated: 2026-11-08 (first version — the user: "I think we might be missing some recording collection step at the end of the live exercise")
-current-answer: §1 measured · §2 the gaps · §3 the proposal · §4 questions
+current-answer: §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · ⭐ §5 opening from the NAS — always import
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -78,17 +78,48 @@ written LAST, so anything without it is visibly incomplete.*
 | **P2** | **the archive runs in the background on the master** (the existing op); the **status bar** shows it — *"⇪ Archiving exercise 3 — 2 of 4 files, 1.2 / 3.1 GB"*, a click opens the details; the session may go to Idle meanwhile (a new briefing can start — the pull reads finished files) | G5 |
 | **P3** | **closing the app during an archive asks**: *"Exercise 3 is still being archived (2 of 4 files). Wait · Close anyway — the exercise stays on the nodes and the archive resumes next time"* — the editor's existing exit prompt gains this line | G5 |
 | **P4** | **complete = a manifest written LAST**: the sidecar lists every file with its size; files land as `*.fdp.part` and are renamed when whole; the NAS scan counts an exercise ARCHIVED only when the manifest is present AND every listed file matches — otherwise it is **INCOMPLETE** | G3, G4 |
-| **P5** | **an incomplete archive is visible and resumable**: the picker and the orchestrator panel show *"⚠ incomplete — 3 of 4 files"*; *Resume archive* re-runs the pull (it already skips a file of the same size and time); the master re-tries an incomplete archive it finds at start-up for an exercise its ledger still holds | G3 |
+| **P5** | **an incomplete archive RESUMES — where** (the user: *"Where can we select the option to continue?"*): ① **by itself** — the master re-tries every incomplete archive whose exercise its ledger still holds, at start-up and whenever the missing node comes back (the files are still on the nodes: they are deleted only after a VERIFIED archive, Q2); ② **the status bar** says it while it waits: *"⚠ Exercise 3 archive incomplete — waiting for node-3 (2 of 4 files)"*, a click opens the details with *Resume now*; ③ **the recording picker's row**: *"⚠ incomplete — 3 of 4 files · Resume archive"*; ④ **the orchestrator panel**'s archive list, the same action. ⭐ It re-runs the SAME pull — it already skips a file of the same size and time | G3 |
 | **P6** | **the picker lists both**: *on the nodes* and *archived*; opening an archived one in a cluster runs the EXISTING `ImportArchive` first (a prefetch, with the same status-bar progress); the all-in-one editor and the Replay Browser open the NAS files directly (a participant group, merged — Review perspective) | G2 |
 
-## 4. Questions — leans for the user
+## 4. Decisions — ✅ the user, `2026-11-08` (R-4171)
 
-| # | question | ⭐ lean | rejected — one line |
-|---|---|---|---|
-| **Q1** | the default answer at the end | **Archive to NAS** | Keep on the nodes: recordings pile up and die with a node's disk |
-| **Q2** | after a COMPLETE archive, delete the nodes' local copies? | **yes, once the manifest verifies** — the NAS copy is the record; retention (`--keep-exercises`) no longer has to guess | keep both: the nodes fill up |
-| **Q3** | a run with *record* off, or automation (HTTP) | **no question** — HTTP passes the answer (`archive` / `keep` / `discard`); an unrecorded run has nothing to ask | always ask: blocks unattended runs |
-| **Q4** | the all-in-one editor (one node, its staging is local) | **the same three answers** — *Archive* copies its one file to the NAS so other stations and the Replay Browser can open it | no archive in the all-in-one: its runs stay invisible to everyone else |
+| # | | |
+|---|---|---|
+| **Q1** | the default answer at the end | ✅ **Archive to NAS** — 🔒 *"Yes, the default answer is to archive to NAS."* |
+| **Q2** | after a VERIFIED archive, delete the nodes' local copies | ✅ yes — 🔒 *"once archived securely, we delete the on-the-node recordings"* |
+| **Q3** | a run not recorded | ✅ no question — 🔒 *"if we are not recording, we cannot ask if we want to archive. So, no question if no recording."* HTTP passes the answer |
+| **Q4** | the all-in-one editor | ✅ the same — 🔒 *"the all-in-one editor is no difference. It also copies to NAS."* |
+
+## 5. ⭐ Opening a run from the NAS — ALWAYS IMPORT *(the user's question, measured `2026-11-08`)*
+
+🔒 User: *"how can we open the recordings from the NAS? … direct access … or … importing the recordings from the archive to the local storage …
+The direct remote access has one drawback, which is the Windows licensing for file share clients … maybe none of these consideration is actually
+valid because when we start the AAR, we might always want to import the files from the NAS"*
+
+| measured | where |
+|---|---|
+| the platform ALREADY forbids nodes to touch the NAS: a Windows client OS accepts **~20 inbound SMB connections**, so ONE storage gateway (with the master) does every NAS read and write over its own OUTBOUND connection — the *SMB Pull Gateway* pattern | [mgmt-1 §12.4](../designs/mgmt-1/DESIGN.md) (*"~20 on client SKUs causes cascading connection failures"*), `:2371` |
+| the import exists: `ImportArchive` → the gateway reads `{NAS}/exercises/<id>/node_N.fdp` and PUSHES each node its own file into its staging (`PrefetchArchiveAsync`) | `StorageGatewayModule.cs:701-725` · `StorageProcessManager.cs:71-75` |
+
+⭐ **Decision (lean, matching the user's last thought): every opener IMPORTS first, never reads the NAS directly.**
+
+| why | |
+|---|---|
+| the connection limit | nodes never connect to the NAS — a plain Windows PC can be the NAS (no Samba, no server licence needed); only the gateway's ONE connection |
+| replay needs fast random access | seeking reads keyframes all over the file — local disk, not a share |
+| it already exists | `ImportArchive`; the picker just has to call it (G2) |
+| the run stays reviewable if the NAS goes away mid-session | the files are local |
+
+| who opens | the import |
+|---|---|
+| a cluster's AAR | the gateway pushes each node ITS file (existing) — progress in the status bar (*"⇩ Importing exercise 3 — 2 of 4 files"*), then the AAR starts |
+| the all-in-one editor (a participant group) | the gateway (in-process) copies ALL the files to the local staging, then the merged Review opens them |
+| the standalone Replay Browser | the same: a local copy, then open |
+| ⭐ a run already local and matching the manifest | no copy — the import is skipped |
+| the local copy afterwards | a CACHE: retention removes it later; the NAS stays the record |
+
+⛔ **Rejected:** direct reads from the NAS share — the ~20-connection limit on a Windows NAS and slow seeking; auto-detecting how many nodes will
+connect — unnecessary once nothing but the gateway connects.
 
 ---
 _coordinator lane, 2026-11-08_
