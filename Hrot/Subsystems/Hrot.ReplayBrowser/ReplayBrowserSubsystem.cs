@@ -86,6 +86,9 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
     /// <summary>⭐ W-1 / P-8 8c-2 — the Event Timeline's Tasks rows (forwarding rails).</summary>
     internal Hrot.Presentation.Orders.TasksTimelineTracks? TasksTracks { get; private set; }
+    internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
+    /// <summary>⭐ R-6 / V7 — the Event Timeline's Search hits row (the ONE class both hosts compose); a recording has no breakpoint manager, so no stops row.</summary>
+    internal Hrot.Editor.AiShared.Review.ReviewTimelineTracks? ReviewTracks { get; private set; }
     // ⭐ CE-3330 E6 — the ONE reopen-on-path-or-catalogue-change holder (shared with every ECS node's cluster-replay timeline)
     private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot? _timelineSlotField;
     private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot _timelineSlot => _timelineSlotField ??=
@@ -983,6 +986,13 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 () => Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_activeRepo, _inspectorState?.SelectedEntity), n => SelectNetworkEntity(n));
             _eventTimeline.AddTracks(TasksTracks.Tracks);
         }
+        // ⭐ R-6 / V7 — the Search hits row: a marker per hit of THIS panel, a click runs the panel's own row-click path (waypoint + seek + select)
+        if (ReviewTracks == null)
+        {
+            ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _timelineSource, searchPanel, stops: null,
+                transport: () => timelinePanel, selectUnit: n => SelectNetworkEntity(n));
+            _eventTimeline.AddTracks(ReviewTracks.Tracks);
+        }
 
         // ⭐⭐ CE-4292 (Rules bundle R3) — the rules windows on a RECORDING: the ONE bundle every host composes (Rules · Mission summary · Trainee debrief ·
         //   Game summary; no Game master on a recording); read-only by construction, the moments seeking the recording through the viewer's cursor
@@ -1046,7 +1056,22 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                     Rules:       () => _rulesWindow)),   // ⭐ U-18 / RX2 — read-only on a recording (the window's blocked reason)
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+        // ⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D11) — the Replay Browser's default layout IS the Review layout: the SAME preset (Hrot.Editor.AiShared.Review.ReviewLayout) over this host's window ids,
+        //   laid out by the host's dockspace frame unless a saved layout already places these windows. (No data-breakpoints window here — that role is simply absent.)
+        windowManager.RequestDockPreset(ReviewLayoutIds(review, rules));
     }
+
+    /// <summary>⭐ R-4 / V4 — the Review layout over THIS host's window ids (a rail compares it with the editor's: one definition).</summary>
+    internal static Fdp.Presentation.WindowManager.DockPreset ReviewLayoutIds(Hrot.Editor.AiShared.Review.ReviewBundle review, Hrot.Editor.AiShared.Rules.RulesBundle rules)
+        => Hrot.Editor.AiShared.Review.ReviewLayout.PresetFor(new System.Collections.Generic.Dictionary<Hrot.Editor.AiShared.Review.ReviewLayout.Role, string>
+        {
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.MissionSummary] = rules.MissionSummary.Id,
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details]        = "rb_details",
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.FrameDiff]      = review.FrameDiff.Id,
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.Search]         = review.ReplaySearch.Id,
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.EventTimeline]  = "rb_event_timeline",
+        });
 
     /// <summary>⭐⭐⭐ U-obs-5 follow-up — shared by <see cref="RegisterWindowsCore"/> (the initial
     /// registration, when a group happened to already be loaded) and <c>OnLoadGroup</c> (every

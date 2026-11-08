@@ -51,6 +51,9 @@ public sealed class EditorApplication : IEditorLogic
     /// </summary>
     public Hrot.Editor.AiShared.Scenarios.IScenarioSession ScenarioSession => _session;
 
+    /// <summary>⭐ R-5 / V6 — the session's recording-opened event (the ONE branch where a recording opens): the host's review source classifies the exercise there.</summary>
+    public event Action<Guid>? RecordingOpened { add => _session.RecordingOpened += value; remove => _session.RecordingOpened -= value; }
+
     /// <summary>
     /// Optional delegate that returns the available scenario names.
     /// Injected by <see cref="SetAvailableScenariosSource"/> after construction to

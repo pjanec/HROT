@@ -39,6 +39,7 @@ public static class PerspectiveIconKeys
         ("Blueprint",  "asset/blueprint"),
         ("Blueprints", "asset/blueprint"),
         ("Scenario",   "perspective/editor"),
+        ("Review",     Hrot.Editor.AiShared.Review.ReviewLayout.IconKey),   // ⭐ R-4 / V4 — a recording
     };
 
     /// <summary>

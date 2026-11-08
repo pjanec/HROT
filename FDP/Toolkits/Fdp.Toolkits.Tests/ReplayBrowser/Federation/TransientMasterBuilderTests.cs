@@ -130,6 +130,51 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
         }
 
         [Fact]
+        public void V6_BuildInto_FillsAWorldTheCallerOwns_WithTheMergeBuildMakes()
+        {
+            // ⭐ R-5 / V6 (D7) — the editor's resident world takes the merge: the SAME merge as Build, into a repository the caller owns (cleared first), not a second load path.
+            var path1 = MakeNetworkRecording(1, repo =>
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new NetworkIdentity { Value = 42 });
+                repo.AddComponent(e, new DummyPosition { X = 1f, Y = 0f, Z = 0f });
+                repo.SetAuthority<NetworkIdentity>(e, true);
+                repo.SetAuthority<DummyPosition>(e, true);
+            });
+            var path2 = MakeNetworkRecording(2, repo =>
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new NetworkIdentity { Value = 42 });
+                repo.AddComponent(e, new GuidedTarget { TargetId = Entity.Null });
+                repo.SetAuthority<NetworkIdentity>(e, true);
+                repo.SetAuthority<GuidedTarget>(e, true);
+                var other = repo.CreateEntity();
+                repo.AddComponent(other, new NetworkIdentity { Value = 43 });
+                repo.SetAuthority<NetworkIdentity>(other, true);
+            });
+            using var manager = FederatedReplayManager.LoadGroup(new[] { path1, path2 });
+            manager.SetBaseWallTicks(1_000_000L);
+            var builder = new TransientMasterBuilder(_serializer);
+            using var viaBuild = builder.Build(manager);
+
+            using var resident = new EntityRepository();
+            resident.RegisterComponent<NetworkIdentity>();
+            resident.RegisterComponent<NetworkAuthority>();
+            resident.RegisterComponent<DummyPosition>();
+            resident.RegisterComponent<GuidedTarget>();
+            for (int round = 0; round < 2; round++)   // a second fill after a clear: the world is whole again, not doubled
+            {
+                resident.SoftClear();
+                builder.BuildInto(manager, resident);
+                Assert.Equal(viaBuild.EntityCount, resident.EntityCount);
+                Assert.Equal(2, resident.EntityCount);
+                var e = FindEntityWithNetId(resident, 42);
+                Assert.Equal(1f, resident.GetComponent<DummyPosition>(e).X);
+                Assert.True(resident.HasComponent<GuidedTarget>(e));
+            }
+        }
+
+        [Fact]
         public void RBF_P3T5_Build_GhostExcluded()
         {
             // Node 1: authoritative DummyPosition{X=10}.

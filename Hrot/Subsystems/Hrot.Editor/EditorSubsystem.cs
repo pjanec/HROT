@@ -280,6 +280,10 @@ namespace Hrot.Editor
         private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
         /// <summary>⭐ W-1 / P-8 8c-2 — the Event Timeline's Tasks rows (forwarding rails).</summary>
         internal Hrot.Presentation.Orders.TasksTimelineTracks? TasksTracks { get; private set; }
+        /// <summary>⭐ R-6 / V7 — the Event Timeline's Search hits and Breakpoint stops rows (the ONE class both hosts compose).</summary>
+        internal Hrot.Editor.AiShared.Review.ReviewTimelineTracks? ReviewTracks { get; private set; }
+        /// <summary>⭐ R-6 / V7 — the data-breakpoint stops of this session (what the Breakpoint stops row draws).</summary>
+        internal Hrot.Editor.AiShared.Review.ReviewStopLog ReviewStops { get; } = new();
 
         /// <summary>⭐ CE-3330 — the live event timeline's index: the node context's (null before Initialize / after Shutdown).</summary>
         internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? LiveTimeline => _node?.Timeline;
@@ -350,12 +354,52 @@ namespace Hrot.Editor
         // ⭐ R-2 / V2 — the Review bundle's own-part replay access, the analysis over its file, and the bundle (see RegisterWindows)
         private Hrot.Editor.Review.OwnPartReplay? _ownPartReplay;
         private Hrot.Editor.AiShared.Review.FileReview? _fileReview;
+        // ⭐ R-5 / V6 — the source of the ONE world while a participant group with no part of this node is open (Merged / a part), and the editor's ONE AAR transport over it
+        private Hrot.Editor.Review.ReviewSource? _reviewSource;
+        internal Hrot.Editor.Review.ReviewSource? ReviewSourceForTest => _reviewSource;
+        private Fdp.Toolkit.ReplayBrowser.Federation.TransientMasterBuilder? _reviewMerge;
+        private long _reviewLastTicks;
+        private Hrot.Editor.Review.ReviewSourceStatusSection? _reviewStatus;
+        internal Hrot.Editor.Review.ReviewSourceStatusSection? ReviewStatusForTest => _reviewStatus;
+        private Hrot.Editor.Review.ReviewSourceToolbarCombo? _reviewSourceCombo;
+        internal Hrot.Editor.Review.ReviewSourceToolbarCombo? ReviewSourceComboForTest => _reviewSourceCombo;
+        private Hrot.Editor.Review.ReplayTransportSelector? _reviewTransport;
         private Hrot.Editor.Review.AarTransportSegment? _aarTransport;
         internal Hrot.Editor.Review.AarTransportSegment? AarTransportForTest => _aarTransport;
         private Hrot.Editor.AiShared.Review.ReviewBundle? _reviewBundle;
+        private Hrot.Editor.AiShared.Review.ReviewLayoutSwitch? _reviewSwitch;
+        private readonly Dictionary<Hrot.Editor.AiShared.Review.ReviewLayout.Role, string> _reviewIds = new();
+        internal Hrot.Editor.AiShared.Review.ReviewLayoutSwitch? ReviewSwitchForTest => _reviewSwitch;
         private Hrot.Presentation.DebugApi.IClusterMasterControl? _reviewMaster;
         internal Hrot.Editor.AiShared.Review.ReviewBundle? ReviewBundleForTest => _reviewBundle;
         internal Hrot.Editor.AiShared.Review.FileReview? FileReviewForTest => _fileReview;
+
+        /// <summary>
+        /// ⭐ R-5 / V6 — the editor's ONE <see cref="Hrot.Editor.Review.ReviewSource"/> (built on first ask; every dependency is a resolver, as the rest of this host's review wiring — the world, the merge's serializer and the
+        /// cluster come up at different times).
+        /// </summary>
+        private Hrot.Editor.Review.ReviewSource ReviewSourceOf() => _reviewSource ??= new Hrot.Editor.Review.ReviewSource(
+            world:       () => _world,
+            builder:     () => _reviewMerge ??= _bootstrapper?.ScenarioSerializer is { } ser ? new Fdp.Toolkit.ReplayBrowser.Federation.TransientMasterBuilder(ser) : null,
+            clearWorld:  () => { if (_world is { } w) _scenarioFileService?.NewScenario(w); },   // the world boundary a scenario load starts from (reset observers, SoftClear, epoch)
+            stagingRoot: Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot,
+            thisNode:    EditorNodeId,
+            ready:       () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay
+                               && _world is { } w && Fdp.Toolkit.Replay.ReplayState.IsActive(w) && !Fdp.Toolkit.Replay.ReplayState.IsRestoring(w),   // the replay is up and THIS node listens: its listener cleared the world once, nothing writes it after
+            inReplay:    () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
+            selection:   SelectedNetworkId,
+            select:      SelectNetworkEntity,
+            facade:      () => _timeTransport);
+
+        /// <summary>⭐ R-5 / V6 — the picker's row notes, read once when the picker opens: <c>"4 participants — opens MERGED"</c> / <c>"this editor's run"</c> (the inventory scan the Replay Browser's group loader uses).</summary>
+        private IReadOnlyDictionary<Guid, string> ReviewPickerNotes()
+        {
+            var notes = new Dictionary<Guid, string>();
+            var source = ReviewSourceOf();
+            foreach (var g in Fdp.Toolkit.ReplayBrowser.Federation.RecordingGroupInventory.Scan(Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot()))
+                if (source.PickerNote(source.Classify(g)) is { } note) notes[g.ExerciseId.Value] = note;
+            return notes;
+        }
 
         /// <summary>⭐ R-2 / V2 — the shared selection's network id (null when nothing, or a unit with no network identity).</summary>
         private int? SelectedNetworkId()
@@ -3611,6 +3655,9 @@ namespace Hrot.Editor
             // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor (Scenario, where the map is).
             Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "editor/map-menus", "Scenario",
                 () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+            // ⭐ R-4 / V4 — the map is in the Review layout too: the same menus there (only the current perspective's contributor is asked, so the gizmo layer's menu is consumed once)
+            Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "editor/map-menus-review", Hrot.Editor.AiShared.Review.ReviewLayout.Perspective,
+                () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
             // ⭐ CE-1329 (Brain View §12r BV-71) — forget every unit's remembered debug settings (pins, traces, the followed unit) of the
             //   loaded scenario; the Brain tab's Debug section resets one unit
             Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "debug.reset-all-unit-settings", GlobalMenuRegistry.SettingsMenuPath + "/Reset all debug settings for this scenario", () =>
@@ -4246,7 +4293,8 @@ namespace Hrot.Editor
                                           ?? Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
                     // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
                     openRecording:  id => _editorApp.ScenarioSession.OpenRecording(id),
-                    hasInventory:   () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true)   // ⭐ CE-1442
+                    hasInventory:   () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
+                    sourceNotes:    ReviewPickerNotes)   // ⭐ R-5 / V6 — each row says what opening it GIVES
                 : null;
 
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
@@ -5018,28 +5066,103 @@ namespace Hrot.Editor
                     position:      () => Hrot.Editor.Review.OwnPartReplay.PositionOf(_clusterHandlers?.RecordReplayController),
                     master:        () => _reviewMaster ??= new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),
                     state:         () => _editorApp?.CurrentClusterState);
+                var reviewSource = ReviewSourceOf();   // ⭐ R-5 / V6 — while a participant group is open the analysis reads ITS file and a seek drives ITS transport; otherwise the own part (below)
                 _fileReview = new Hrot.Editor.AiShared.Review.FileReview(new Hrot.Editor.AiShared.Review.ReviewFileServices(
-                    RecordingFiles: _ownPartReplay.RecordingFiles,
-                    CurrentFrame:   _ownPartReplay.CurrentFrame,
-                    Seek:           frame => _ownPartReplay.SeekToFrame((int)frame, "review"),
+                    RecordingFiles: () => reviewSource.IsOpen ? reviewSource.RecordingFiles() : _ownPartReplay.RecordingFiles(),
+                    CurrentFrame:   () => reviewSource.IsOpen ? reviewSource.Transport.CurrentFrame : _ownPartReplay.CurrentFrame(),
+                    Seek:           frame => { if (reviewSource.IsOpen) reviewSource.Transport.Seek((int)frame); else _ownPartReplay.SeekToFrame((int)frame, "review"); },
                     Selection:      SelectedNetworkId,
                     Select:         SelectNetworkEntity,
                     Serializer:     reviewSerializer,
                     Behaviors:      _behaviorRegistry,
                     Blueprints:     _blueprintRegistry,
-                    Reader:         _ownPartReplay.Reader));
-                var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host("Scenario", "editor_review_", EditorWindowColor.TitleBar, () => _world));
+                    Reader:         _ownPartReplay.Reader,
+                    History:        () => _reviewTransport?.Waypoints));   // ⭐ R-6 / V7 — a hit is a history waypoint
+                var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host(Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, "editor_review_", EditorWindowColor.TitleBar, () => _world));
                 Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { reviewBundle }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
                 reviewBundle.FrameDiff.IsOpen = false; reviewBundle.ReplaySearch.IsOpen = false;   // listed in the Window menu, closed until opened
                 var reviewFiles = _fileReview; var reviewDiff = reviewBundle.FrameDiff;
                 windowManager.RegisterFrameOverlay(() => reviewFiles.Update(reviewDiff.IsOpen));
                 // ⭐⭐ R-3 / V3 (docs/UX/DESIGN_Review_Perspective.md §3 D8) — the editor's AAR segment of the ONE transport: its OWN toolbar entry (ui's time control is untouched), the Replay Browser's drawer
                 //   over OwnPartReplay (the ONE seek), shown only while the run mode is AAR
+                //   ⭐ R-5 / V6 — the SAME segment over the source's transport while a participant group is open (ReplayTransportSelector): Merged steps / scrubs and its ▶ is greyed with the reason,
+                //   a part plays. The Recording info / JSON export windows read the group's manager; a compact Source combo sits beside the segment, only while a group is open.
+                _reviewTransport = new Hrot.Editor.Review.ReplayTransportSelector(new Hrot.Editor.Review.OwnPartReplayTransport(_ownPartReplay, () => _timeTransport), reviewSource);
                 _aarTransport = new Hrot.Editor.Review.AarTransportSegment(
-                    new Hrot.Editor.Review.OwnPartReplayTransport(_ownPartReplay, () => _timeTransport),
-                    inAar: () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR);
-                if (windowManager.MainToolbar is { } aarToolbar) _aarTransport.RegisterInto(aarToolbar);
+                    _reviewTransport,
+                    inAar: () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR || reviewSource.IsOpen,
+                    merged: () => reviewSource.IsOpen && reviewSource.Kind == Hrot.Editor.Review.ReviewSourceKind.Merged);
+                if (windowManager.MainToolbar is { } aarToolbar)
+                {
+                    _aarTransport.RegisterInto(aarToolbar);
+                    _reviewSourceCombo = new Hrot.Editor.Review.ReviewSourceToolbarCombo(reviewSource);
+                    _reviewSourceCombo.RegisterInto(aarToolbar);
+                }
+                _reviewStatus = Hrot.Editor.Review.ReviewSourceStatusSection.Register(windowManager.StatusBar, reviewSource);   // D9 — the bar's LEFT end
+                var reviewTimeline = _fileReview.TimelinePanel;
+                reviewSource.Changed += () => reviewTimeline.SetManager(reviewSource.Manager);
+                if (_editorApp is { } reviewApp) reviewApp.RecordingOpened += id => reviewSource.OnRecordingOpened(id);   // ⭐ THE one branch where a recording opens: a group with no part of this node ⇒ the source
+                windowManager.RegisterFrameOverlay(() =>
+                {
+                    long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                    double dt = _reviewLastTicks == 0 ? 0d : (now - _reviewLastTicks) / (double)System.Diagnostics.Stopwatch.Frequency;
+                    _reviewLastTicks = now;
+                    reviewSource.Update(Math.Min(dt, 0.25));
+                });
                 _reviewBundle = reviewBundle;
+            }
+
+            // ⭐ R-6 / V7 — (composed with the review bundle, before the headless guard, so it is railed) Search hits (the review search panel's) and Breakpoint stops (this session's) as Event Timeline rows; a click seeks through the AAR transport / the panel's hit path and selects
+            if (ReviewTracks == null)
+            {
+                ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _node?.ShownTimeline, _fileReview?.SearchPanel, ReviewStops,
+                    transport: () => _reviewTransport, selectUnit: n => SelectNetworkEntity(n));
+                _eventTimeline.AddTracks(ReviewTracks.Tracks);
+                if (_bpManager is { } stopManager)
+                    stopManager.OnBreakpointHit += (bp, entity) =>
+                    {
+                        string who = "";
+                        int net = 0;
+                        if (!entity.IsNull && _world is { } w && w.IsAlive(entity))
+                        {
+                            who = w.IsComponentTypeRegistered<Fdp.Core.EntityInfo>() && w.HasComponent<Fdp.Core.EntityInfo>(entity) && w.GetComponentRO<Fdp.Core.EntityInfo>(entity).Name.ToString() is { Length: > 0 } nm ? nm + " · " : "";
+                            if (_entityMap != null) _entityMap.TryGetNetworkId(entity, out net);
+                        }
+                        string what = Hrot.Diagnostics.Breakpoints.BreakpointConditionSummarizer.Summarize(bp.Condition);
+                        ReviewStops.Add(stopManager.PausedTick, who + bp.DisplayName + (what.Length > 0 ? " · " + what : "") + (stopManager.LastHitDetail is { Length: > 0 } d ? " · " + d : ""), net);
+                    };
+            }
+
+            // ⭐⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D1 / D10 / D11) — the Review LAYOUT: the bundle's windows are owned by it; Details, the Event Timeline, the Mission summary and the data
+            //   breakpoints are the Scenario layout's windows, SHARED (shown in both, never copied); the first time Review comes up its windows open and the ONE preset (ReviewLayout, the Replay Browser's
+            //   too) docks them around the map. It switches by itself on an AAR of THIS all-in-one node — ⛔ never a cluster station's. Composed before the headless guard (railed); the timeline joins it where it registers.
+            if (_reviewBundle != null)
+            {
+                var reviewIds = _reviewIds;
+                void Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role role, string? id) { if (id != null && windowManager.TryGetWindow(id, out _)) reviewIds[role] = id; }
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.MissionSummary, _rulesBundle?.MissionSummary.Id);
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details, "scenario_details");
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.FrameDiff, _reviewBundle.FrameDiff.Id);
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Search, _reviewBundle.ReplaySearch.Id);
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Breakpoints, "editor_bp_manager");
+                Hrot.Editor.AiShared.Review.ReviewLayout.ShareWindows(windowManager, reviewIds);
+                                bool reviewLaidOut = false;
+                windowManager.OnPerspectiveChanged += (_, now) =>
+                {
+                    if (now != Hrot.Editor.AiShared.Review.ReviewLayout.Perspective || reviewLaidOut) return;
+                    reviewLaidOut = true;
+                    Hrot.Editor.AiShared.Review.ReviewLayout.OpenWindows(windowManager, reviewIds);
+                    windowManager.RequestDockPreset(Hrot.Editor.AiShared.Review.ReviewLayout.PresetFor(reviewIds));
+                };
+                _reviewSwitch = new Hrot.Editor.AiShared.Review.ReviewLayoutSwitch(
+                    inAar:         () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR || _reviewSource?.IsOpen == true,   // ⭐ V6 / D10 — a participant group opening is an AAR entry too
+                    allInOne:      () => _networkFactory is OfflineNetworkFactory,   // ⭐ the editor is a one-node cluster (ruling 66): no real node around it ⇒ its AAR is analysis; a networked node's is the debrief
+                    current:       () => windowManager.CurrentPerspective,
+                    trySwitch:     p => windowManager.TrySwitchPerspective(p, out _),
+                    startShowing:  () => windowManager.IsStartShowing,
+                    retargetStart: windowManager.RetargetRememberedPerspective);
+                var reviewSwitch = _reviewSwitch;
+                windowManager.RegisterFrameOverlay(reviewSwitch.Update);
             }
 
             // ⭐ U5 (Edit mode undo) — Edit ▸ History…: the ONE EditHistory's steps, a click goes to one
@@ -5095,6 +5218,13 @@ namespace Hrot.Editor
                 TasksTracks = new Hrot.Presentation.Orders.TasksTimelineTracks(timelineSource, () => _world,
                     () => Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_world, _selectionState?.PrimarySelected), n => SelectNetworkEntity(n));
                 _eventTimeline.AddTracks(TasksTracks.Tracks);
+            }
+
+            // ⭐ R-4 / V4 — the Event Timeline is the last window the Review layout names (registered after the headless guard)
+            if (_reviewBundle != null && _reviewIds.ContainsKey(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details))
+            {
+                _reviewIds[Hrot.Editor.AiShared.Review.ReviewLayout.Role.EventTimeline] = "editor_event_timeline";
+                windowManager.AlsoShowWindowIn("editor_event_timeline", Hrot.Editor.AiShared.Review.ReviewLayout.Perspective);
             }
 
             // ⭐⭐ CE-4247 (rules runnable ⑨c; Node Features F-11 / S2) — Window ▸ Features: nodes × features from the master's roster; a tick replaces the cluster's override list through the run settings
