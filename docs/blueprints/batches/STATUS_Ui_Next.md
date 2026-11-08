@@ -3,8 +3,8 @@
 
 | item | what | state | sha | notes |
 |---|---|---|---|---|
-| Z-1 | AAR checkpoint flag tooltip | IN PROGRESS | — | |
-| Z-2 | B-14 rest — U4 + Edit ▸ History | QUEUED | — | |
+| Z-1 | AAR checkpoint flag tooltip | DONE | `334c3393a` | `RunModeChoice.AarCheckpointReason`; gates 122/0 + 6/0 |
+| Z-2 | B-14 rest — U4 + Edit ▸ History | IN PROGRESS | — | |
 | Z-3 | A7 — Details tabs Requires / Modes / Level | QUEUED | — | |
 | Z-4 | H6 — Side-controller seat, Observer camera | QUEUED | — | |
 | Z-5 | K2 rest + K3 + K7 | QUEUED | — | follow behaviour ⏸ waits for the user |
