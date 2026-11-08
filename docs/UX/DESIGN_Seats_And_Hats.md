@@ -364,3 +364,7 @@ view* only after a director take — the case the user named. Rails: `FilmTests.
 | **Q5** | enforcement | **at the station** (catalogue + edit gate), trusted network; owner-side checks later if ever needed | anti-cheat now — out of scope |
 | **Q6** | Esc | **one level out** (tool → hat → Observe), everywhere — ✏ EXCEPT RTS (R-4163): Command is a sticky mode switched only by its checked menu item; Esc stops at it ([Input §6b](DESIGN_Input_And_Commands.md)) | Esc as "release the unit" and "leave RTS" at once |
 | **Q7** | the debugger | **not a seat** — the Author's Expert switches (R-4121) | a Developer seat |
+
+### ⭐ R-4170 — the seat · hat text goes to the STATUS BAR *(user, `2026-11-08`, CE-4329)*
+
+🔒 *"the armed mode icon, which was just a single icon has changed to something saying the seat or roll mode, putting some text in between the armed mode and the play button on the main toolbar, which I don't like, and I think the text which makes clear what role and what seat is active needs to go to the status bar"* — ⛔ SUPERSEDED: H3's *"seat · hat beside the indicator"* (§3.3). The main toolbar keeps the indicator as ONE glyph button next to ▶ (AQ108 D29); the status bar's right end shows *"Author · Observe"* (click = the hat menu, as the toolbar text did).

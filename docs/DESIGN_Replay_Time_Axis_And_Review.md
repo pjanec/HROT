@@ -1585,3 +1585,25 @@ frame's events go with it. Not what CE-4118 measured (the behaviour events survi
 Rail: `RecordingModuleTests.CE4118_ALiveRunsInputPhaseEvents_AreRecorded_EachOnce_AndACheckpointCarriesOnlyTheUnconsumed` (the kernel's
 publish → swap → publish → record order; replayed, every event once; the keyframe's checkpoint carries only the unconsumed one) — red with
 `readBuffer: false`.
+
+## ⭐ Naming in the code — AAR and DAR, not "Replay" and "Review" *(recorded `2026-11-08`, CE-4328 — a proposal for the user)*
+
+🔒 User, `2026-11-08`: *"the code is using different names which are not exactly clear and self-explaining, like replay for AAR and review for DAR.
+And especially the review collides with the name of the review perspective … I lean for naming like AAR and DAR because these are distinct and bring no
+confusion once we understand what they mean."*
+
+**Measured (grep, non-test):** ~560 `*Review*` identifiers and ~3 000 `*Replay*` identifiers. ⚠ `Replay` names TWO things — the AAR MODE and the
+playback MECHANISM both modes use (`ReplayModule`, `ReplayState`, `PlaybackSystem`, the Replay Browser product).
+
+| today | means | ⭐ proposed |
+|---|---|---|
+| `ClusterState.LoadingReview / OperatingReview / UnloadingReview` (50–52), `EnterReview`, `ExitReview`, `InReview`, `ReferenceReviewHandler`, `ReviewProcessManager`, `IReviewSuspendable`, `ReviewBanner` (the Player's DAR banner), `ReviewCheck` (the verify run's DAR check), `ReviewMark` + `RecordingMetadata.Reviews` | **DAR** | `…Dar` (`OperatingDar`, `EnterDar`, `ReferenceDarHandler`, `DarProcessManager`, `IDarSuspendable`, `DarBanner`, `DarCheck`, `DarMark`) |
+| `ClusterState.LoadingReplay / OperatingReplay / UnloadingReplay` (40–42), `ReplaySessionIntents.EnterReplay` and the other MODE-level names | **AAR** (the mode) | `…Aar` (`OperatingAar`, `EnterAar`) |
+| `EditingMode.Review` | "a recording" — AAR (the editor) and the Replay Browser | `EditingMode.Aar` |
+| `ReplayModule`, `ReplayState`, `PlaybackSystem`, `ReplayTimeMap`, the Replay Browser | the playback MECHANISM / the product | ⭐ **unchanged** — both AAR and DAR use it |
+
+| ⚠ what must not break | |
+|---|---|
+| the WIRE values (`ClusterState` 40–42, 50–52 are permanent, R-42) | ⭐ rename the NAMES only; the numbers stay |
+| names that cross as TEXT: HTTP `/status` and the MCP catalog (`tools/ai-debug-mcp`), the `.meta.json` key `Reviews` | ⭐ keep the JSON key with `[JsonPropertyName("Reviews")]`; the HTTP / MCP strings change with a regenerated catalog — or accept the old name as an alias for a while (lean: regenerate, no alias — one name) |
+| the rename itself | ⛔ never a text replace (CLAUDE.md) — Roslyn preview → apply, per symbol, then grep + the full build |
