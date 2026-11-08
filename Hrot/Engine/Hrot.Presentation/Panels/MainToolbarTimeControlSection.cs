@@ -400,7 +400,7 @@ public sealed class MainToolbarTimeControlSection
 
     /// <summary>
     /// ⭐ CE-3413 (AQ108 §0 R2″) — the indicator's menu in <b>Live · ended</b>: Run again (same scenario → the briefing) · Restart from a checkpoint ▸ · DAR — look back… · AAR — full replay of this exercise · Close the session.
-    /// ⚠ The live run's checkpoint LIST is not on the cluster view yet (only a replay session carries marks): the submenu lists what the host supplies (<see cref="RunModeChoice.CheckpointLabels"/>) and is greyed with that reason otherwise.
+    /// The live run's checkpoints ride the session layer (backend ANSWER): the operator host's adapter fills <see cref="RunModeChoice.CheckpointLabels"/>; greyed "none listed for this run" while there are none.
     /// </summary>
     private ModeMenuModel EndedMenu(RunModeChoice c)
     {
