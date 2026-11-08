@@ -155,6 +155,24 @@ already lands in today.*
 | `POST /run-mode {armed}` switches (same unsaved rule, 409 + the question unless `confirm:true`); `GET /status.armedMode` = the current mode; MCP catalog + skill regenerated | `DebugApiHost` / `DebugApiService.SetRunMode` |
 | the cluster's armed-mode fact (D12a, R-3068) stays — it is what a LOAD goes into (R-1043); the indicator switch now sets it AND loads | `ClusterMaster.ArmedMode` |
 
+### 0.A As built — R-1 `CE-3405` switch now · R-2 `CE-3413` Live ends in two steps *(ui, `2026-11-08`)*
+
+| what | where | note |
+|---|---|---|
+| Edit → Live: door's *Save / Discard / Cancel* → `LoadForLive` **without** the resume (the briefing, paused 0:00); never saved → *Save as… and go live* | `RunModeChoice.SwitchToLive` · `GoLive` | the switch sets `Arm(Live)` once the load went out (a cancelled switch arms nothing) |
+| Edit → AAR: last exercise through the door, else the picker | `SwitchToAar` | picker path arms AAR at once (harmless: an AAR-armed load goes where the last load went) |
+| Preview running → Live / AAR: stop (restore), then the switch once Edit is heard | `_switchWhenEdit` in `OnClusterState` | the Preview's own question is unchanged |
+| ▶ in Edit = always the Preview; ▶ in a paused Live = the facade's resume | `Play` · `UserTransport` | no armed dispatch; the `PlayLive` check round is gone (the door asks) |
+| Edit shows the authoring item (`RunArmed.Preview` labelled **Edit**), not the armed mode | `Shown` · `Moves` | glyph (pen / eye) is R-3 |
+| ▾ presets: Edit (▶ previews with it) and the Live briefing (reloads Live with it); never in a run / DAR / AAR | `ShowsPresetArrow` · `ArmPreset` · `PresetMode` | Live presets are armed only from the briefing |
+| ■ → *End the exercise?* → `End()` only; world stays in Live | `Stop` | `_stopAfterEnd`, `StoppingAfterEnd`, `StopAfterEndFrames` removed |
+| **Live · ended** derived: `OperatingLive` + `IExerciseEnder.HasEnded` (replicated `ExerciseResult.Phase == Ended`) | `LiveEnded` · `InstructorEndControl.HasEnded` | refreshed once per frame in `Update`; no FSM state |
+| ▶ greyed (words from D30); ■ = ⏏ (`StopFaceNow`) → *Close the live session?* → `ScenarioDoor.Leave(Close)` → keep question + toast | `PlayDisabledReason` · `AskToClose` · `CloseSession` · `AfterLiveEnded` | `ScenarioDoor.CanLeave` added; a session with no door OUT sends the same Idle intent |
+| Ended ▾ menu: Run again · Restart from a checkpoint ▸ · DAR ▸ · AAR · Close | `MainToolbarTimeControlSection.EndedMenu` · `RunAgain` · `ReplayEndedExercise` | |
+| ■ and ⏪ greyed in the briefing (Live, paused, clock 0) | `LiveBriefing` · `IsStopEnabled` · `IsReviewEnabled` | `POST /sim/stop` is not the toolbar: it still answers |
+
+**Deviations / open.** (1) A host with **no scenario session** (SimHost, IG) keeps ▶ greyed in Edit (reason *"No scenario session on this host — nothing to preview from here"*): the armed mode used to be what greyed it. (2) A host with **no ender** keeps today's ■ in Live (leaves to editing). (3) *Exercise N* is not in the Close question (no number on the inventory). (4) *Restart from a checkpoint ▸* is greyed: the live run's marks are not on the cluster view (hosts may supply `CheckpointLabels` / `RestoreCheckpoint`). (5) The End question's second sentence now describes the debrief, not *"returns to editing"*. (6) HTTP `/run-mode` untouched (backend B-5): its rails that expect the old arm-only `Choose` are listed in the build report.
+
 ## 1. ⭐ The three rules — the spine
 
 | # | rule | why it makes the rest predictable |

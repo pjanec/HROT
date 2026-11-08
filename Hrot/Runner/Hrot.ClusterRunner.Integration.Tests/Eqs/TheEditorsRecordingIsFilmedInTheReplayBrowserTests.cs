@@ -107,12 +107,13 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
             Pump(editor, () => choice.AskToKeepSetting == true, 10, "Ask to keep recordings ON heard by the editor");
         }
 
-        choice.Choose(RunArmed.Live);                                                    // the indicator's menu: R1, the ONLY place Armed changes
+        choice.Choose(RunArmed.Live);                                                    // ⭐ CE-3405 (R1′) the indicator SWITCHES: the unsaved check, then the live load — paused at 0:00 (the briefing)
+        Pump(editor, () => transport.Mode == TransportMode.Live, 90, "the cluster in OperatingLive (the briefing)");
         Pump(editor, () => ((IRunTransport)transport).ClusterArmed == RunArmed.Live, 10, "the cluster's armed mode = Live");
         Assert.Equal(RunArmed.Live, choice.Armed);
-
-        choice.Play();                                                                   // ▶ from Edit with Live armed: the unsaved check, then the live load
-        Pump(editor, () => transport.Mode == TransportMode.Live, 90, "the cluster in OperatingLive");
+        Assert.True(transport.IsPaused);                                                 // the briefing: nothing runs until ▶
+        transport.TogglePlayPause();                                                     // ▶ in a paused Live = resume
+        Pump(editor, () => !transport.IsPaused, 30, "the live run resumed");
         // ── S1 ──
         Assert.Equal(RunArmed.Live, choice.Armed);
         Assert.Equal(recordOn, transport.RecordsLiveRuns);                               // the transport says whether this run records
@@ -345,6 +346,54 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
             Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
             Assert.True(rb.Browser.ActiveRepo is { EntityCount: > 0 }, "the Replay Browser opened an empty recording");
             Console.WriteLine($"CE4104 exercises: A={run.Exercise} B={run2.Exercise}");
+        }
+        finally
+        {
+            editor.Shutdown();
+        }
+    }
+
+    private sealed class EndedEnder : IExerciseEnder
+    {
+        public bool CanEnd => false;
+        public bool HasEnded { get; set; }
+        public bool End() => false;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3413</c> (R2″, AQ108 §0 row 8) — the real headless editor, ONE cluster: Edit → <b>Live, paused at 0:00</b> (R-1 switch, no resume) → ▶ runs → <b>Live · ended</b> (the replicated result is faked by an ender that says
+    /// <c>HasEnded</c>; the cluster stays in <c>OperatingLive</c> — ▶ greyed, ■ = ⏏) → <i>Close the live session?</i> → the door's Leave → <b>Idle</b> on the node, the exercise kept and listed.
+    /// ⚠ Not walked: the real <c>EndExercise</c> writing the result across nodes (the rules bundle's own rails) — here only the end's FACT is faked. 🔴 Mutation: <c>CloseSession</c> calling <c>OpenForEdit</c> ⇒ the cluster ends in Edit, not Idle.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public void CE3413_LiveEnded_CloseTheSession_LeavesTheClusterToIdle_TheExerciseKept()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true, DomainId = 240 + Interlocked.Increment(ref _domain) });
+        try
+        {
+            var run = RecordALiveRun(editor, recordOn: true, liveSeconds: 4, stop: false);   // Edit → Live (paused) → ▶ → ran for 4 s
+            var choice = run.Choice; var transport = run.Transport;
+            Assert.Equal(TransportMode.Live, transport.Mode);
+            Assert.False(choice.LiveEnded);
+
+            var ender = new EndedEnder();
+            transport.Ender = ender;
+            ender.HasEnded = true;                                                       // the exercise's result says Ended
+            PumpFor(editor, 1);
+            Assert.True(choice.LiveEnded);
+            Assert.Equal(TransportMode.Live, transport.Mode);                            // still Live: no state of its own
+            Assert.False(transport.IsUserPlayEnabled());                                 // ▶ greyed
+            Assert.Equal(RunArmed.Live, choice.Armed);
+
+            choice.Stop();                                                               // ⏏
+            Assert.Equal("Close the live session?", choice.Pending!.Title);
+            choice.Pending.Resolve(choice.Pending.Buttons[0]);
+            Pump(editor, () => transport.Mode == TransportMode.Idle, 60, "the cluster in Idle after Close the session");
+            PumpFor(editor, 3);                                                          // …and it STAYS there: nothing reopens the scenario for editing (a leave to Idle, not an edit open that passes through it)
+            Assert.Equal(TransportMode.Idle, transport.Mode);
+            Assert.Equal(run.Exercise, choice.LastExercise);
+            Assert.NotEmpty(RecordingsOnDisk());                                         // the recording is kept on disk
         }
         finally
         {

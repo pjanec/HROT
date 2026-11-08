@@ -36,6 +36,8 @@ public sealed class InstructorEndControl : Hrot.UI.Common.RunMode.IExerciseEnder
     public bool CanEnd => !ShowsARecording && Offer.Available;
     /// <inheritdoc/>
     public bool End() => Fire();
+    /// <inheritdoc/>
+    public bool HasEnded => _world() is { } w && ExerciseResult.PhaseOf(w) == ExercisePhase.Ended;   // ⭐ CE-3413 (D30) — the replicated result's phase
 
     /// <summary>⭐ Replay Browser UX ⑤ / Q-B4 (R-4156) — the world shown is a RECORDING (the Replay Browser, an AAR): <i>End exercise</i> does not exist here,
     /// so it is NOT DRAWN — ⛔ not greyed (a control nothing can ever enable). By the world, so every host that draws this control agrees.</summary>

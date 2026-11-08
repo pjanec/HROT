@@ -15,9 +15,13 @@ namespace Hrot.UI.Common.RunMode;
 /// 📄 <c>docs/blueprints/Architect_Question_108_Run_Mode_Picker.md</c> §1 (the three rules), §2.8 (classes + sequences), §3 (every move), D1 D5 D10 D12 D14 D22.
 ///
 /// <list type="bullet">
-/// <item><b>R1</b> — only <see cref="Choose"/> (the indicator) changes <see cref="Armed"/>; ▶ ⏸ ■ and every load never do (R-1043).</item>
-/// <item><b>R2</b> — <see cref="Stop"/> returns to where the run came from and the armed mode stays: Preview → the dry run's exit; DAR → back to live;
-/// Live → <c>OpenForEdit(scenario of the active exercise)</c> (the cluster is NEVER sent to plain Idle); AAR → seek to 0, still AAR.</item>
+/// <item><b>R1′</b> (<c>CE-3405</c>, AQ108 §0) — <b>switch now</b>: <see cref="Choose"/> (the indicator's menu) SWITCHES the mode at once instead of arming it. From Edit: → Live asks the unsaved question through the ONE door
+/// (<i>Save / Discard / Cancel</i>; never saved: <i>Save as… and go live</i>) and loads Live WITHOUT the resume — it lands paused at 0:00, the briefing; → AAR opens the last exercise (or the picker) at its start through the door. ▶ in Edit is
+/// ALWAYS the Preview; ▶ in a paused Live resumes (the facade's own toggle). The cluster's armed-mode fact (<see cref="Armed"/>) is still SET by the switch, so a later File ▸ Open goes into the current mode (R-1043); ▶ ⏸ ■ and loads never set it.</item>
+/// <item><b>R2′</b> — <see cref="Stop"/> is the start of the SAME mode: Preview → the dry run's exit (back to Edit); DAR → back to live; AAR → seek to 0.</item>
+/// <item><b>R2″</b> (<c>CE-3413</c>, D30) — <b>Live ends in two steps</b>: ■ in a running Live asks <i>End the exercise?</i>; the end runs and the world STAYS in Live, paused at the end — <see cref="LiveEnded"/> is DERIVED
+/// (<c>OperatingLive</c> + the replicated <c>ExerciseResult.Phase == Ended</c>, read through <see cref="IExerciseEnder.HasEnded"/>; no FSM state). There ■ becomes ⏏ <i>Close the session</i>: <i>Close the live session?</i> → the door's Leave to Idle on every node,
+/// then <i>Keep this recording?</i> and the <i>Exercise recorded</i> note. <see cref="RunAgain"/> reloads the same scenario into the briefing. ⛔ Nothing in Live leaves Live by itself (a host with no ender keeps today's ■).</item>
 /// <item><b>R3</b> — a confirmation (<see cref="Pending"/>) only where a jump or a loss needs explaining; ■ never asks.</item>
 /// </list>
 ///
@@ -40,7 +44,9 @@ public sealed class RunModeChoice
     private RunArmed _localArmed;       // ⭐ CE-3341 — what THIS host last armed; shown only until the cluster's value next CHANGES (see Armed)
     private RunArmed? _seenCluster;     // ⭐ CE-3341 — the cluster's armed mode as last observed (the change detector for _localArmed)
     private bool _resumeWhenLive;      // ▶ in Live armed: the load lands paused (Q86 §4-G); ▶ means run, so the clock resumes once Live is up
-    private bool _previewWhenEdit;     // ⭐ CE-3393 — ▶ in Preview armed with a preset the world does not hold: reopened with it, the dry run starts once editing is back
+    private bool _previewWhenEdit;     // ⭐ CE-3393 — ▶ in Edit with a preset the world does not hold: reopened with it, the dry run starts once editing is back
+    private RunArmed? _switchWhenEdit; // ⭐ CE-3405 — the indicator chose Live / AAR while a Preview ran: the preview stops (restores), and the switch is made once editing is back
+    private bool _ended;               // ⭐ CE-3413 — Live · ended (D30), read once per frame in Update (the ender's world query is not per-call)
     private bool _asking;
 
     /// <summary>⭐ <c>CE-4101</c> follow-up — the session's ONE guarded door this choice is bound to (<see langword="null"/> on a host with no scenario session). The window composition builds its exit guard over the PICKED owner's door.</summary>
@@ -137,21 +143,20 @@ public sealed class RunModeChoice
             _transport.SeekWall(wall);
         }
         if (_branchInFrames > 0 && --_branchInFrames == 0 && _transport.Mode == TransportMode.Replay) _transport.BranchLive();
-        // ⭐ CE-4322 — ■ asked for the end: leave Live once the end is in (the ender can no longer end), or after StopAfterEndFrames regardless
-        if (_stopAfterEnd is { } e && (!e.CanEnd || ++_stopAfterEndFrames > StopAfterEndFrames))
-        {
-            _stopAfterEnd = null;
-            if (_transport.Mode == TransportMode.Live && _control is not null) StopLive();
-        }
+        _ended = _transport.Mode == TransportMode.Live && (_transport.Ender?.HasEnded ?? false);   // ⭐ CE-3413 (D30) — derived once per frame; the toolbar reads it several times
     }
 
-    /// <summary>⭐ CE-4322 — how many frames ■ waits for the end to be written before it leaves Live anyway (~3 s at 60 Hz).</summary>
-    public const int StopAfterEndFrames = 180;
-    private IExerciseEnder? _stopAfterEnd;
-    private int _stopAfterEndFrames;
+    /// <summary>⭐ CE-3413 (D30) — <b>Live · ended</b>: the cluster is still in Live and the replicated <c>ExerciseResult.Phase</c> is Ended (derived from the ender's world, refreshed once per frame in <see cref="Update"/>; ⛔ no FSM state). ▶ is greyed, ■ is ⏏ Close the session.</summary>
+    public bool LiveEnded => _ended && _transport.Mode == TransportMode.Live;
 
-    /// <summary>⭐ CE-4322 — ■ asked for the end and is waiting for it before leaving Live (rails).</summary>
-    public bool StoppingAfterEnd => _stopAfterEnd != null;
+    /// <summary>⭐ CE-3413 — Live, never ran: the briefing (paused, the sim clock at 0). ■ has nothing to stop there and ⏪ Review nothing to look at; ▾ presets reload it.</summary>
+    public bool LiveBriefing => _transport.Mode == TransportMode.Live && _transport.IsPaused && _transport.TotalTime <= 0 && !_ended;
+
+    /// <summary>⭐ CE-3413 — why ■ cannot be pressed now (null = it can): the briefing has nothing to stop (greyed, like a ■ in Edit).</summary>
+    public string? StopDisabledReason => LiveBriefing ? "nothing to stop — the exercise has not started" : null;
+
+    /// <summary>⭐ CE-3413 — why ⏪ Review is greyed now (null = it can show): during the briefing there is nothing to look back at.</summary>
+    public string? ReviewDisabledReason => LiveBriefing ? "nothing to review yet" : null;
 
     /// <summary>
     /// What ▶ runs from Edit. ⭐ CE-3341 (AQ108 §2.14, D12a) — the CLUSTER's armed mode (<see cref="IRunTransport.ClusterArmed"/>): one fact on every node. The value this host last armed (<see cref="Arm"/>)
@@ -235,48 +240,46 @@ public sealed class RunModeChoice
 
     // ── ▶ ─────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Why ▶ (from Edit) is disabled, or <see langword="null"/> when it can run (AQ108 §2.8 ⑥: Live armed on a host with no scenario session).</summary>
+    /// <summary>
+    /// Why ▶ is disabled, or <see langword="null"/> when it can run: the gate first (CE-1442); ⭐ CE-3413 — in <see cref="LiveEnded"/> ▶ is greyed (the exercise is over). ⭐ CE-3405: ▶ in Edit is ALWAYS the Preview, so no armed mode can make it unrunnable; a host with no scenario session keeps ▶ greyed in Edit
+    /// (Live / AAR need a scenario session or a recording only at the SWITCH — <see cref="Moves"/> says why a switch is greyed).
+    /// </summary>
     public string? PlayDisabledReason
     {
         get
         {
-            if (ClosedReason is { } closed) return closed;   // ⭐ CE-1442 — the gate first
-            if (Armed == RunArmed.Live && _control is null) return "No scenario session on this host — Live cannot be started from here";
-            if (Armed == RunArmed.AAR && LastExercise is not null && !_lastExerciseRecorded) return RunRecordingGates.NotRecordedReason;   // D14: the last run left nothing to review
-            if (Armed == RunArmed.AAR && LastExercise is null && PickRecording is null) return "No exercise for an AAR yet — open a recording first";
+            if (RunPlayDisabledReason is { } why) return why;
+            if (_control is null && _transport.Mode is TransportMode.Edit or TransportMode.Idle) return NoSessionPlayReason;   // a host with no scenario session (SimHost, IG) has nothing of its own to preview: ▶ stays greyed there, as it was
             return null;
         }
     }
 
+    /// <summary>The reasons that hold in EVERY mode: the gate first (CE-1442), then ⭐ CE-3413 — Live · ended (the exercise is over). What a USER's ▶ outside Edit asks (<see cref="UserTransport"/>).</summary>
+    public string? RunPlayDisabledReason => ClosedReason is { } closed ? closed : LiveEnded ? LiveEndedPlayReason : null;
+
+    /// <summary>The tooltip of ▶ in Edit on a host with no scenario session (SimHost, IG).</summary>
+    public const string NoSessionPlayReason = "No scenario session on this host — nothing to preview from here";
+
+    /// <summary>⭐ CE-3413 — the tooltip of the greyed ▶ in Live · ended.</summary>
+    public const string LiveEndedPlayReason = "the exercise has ended — restart from a checkpoint to train again";
+
     /// <summary>
-    /// ▶ (or Step) from Edit — what the ARMED mode does: Preview → the dry run (today's); Live → the unsaved check, then <c>LoadForLive</c>;
-    /// AAR → <c>OpenRecording(LastExercise)</c> at its start. ⛔ Never changes <see cref="Armed"/> (R1).
+    /// ▶ (or Step) from Edit — ⭐ CE-3405 (R1′): ALWAYS the Preview (the dry run of the scenario being edited); the mode is switched at the indicator, never by ▶. In Live ▶ is the facade's own resume
+    /// (<see cref="UserTransport"/>). ⛔ Never changes <see cref="Armed"/>.
     /// </summary>
-    /// <param name="startPaused">Step from Edit: the dry run paused at its first frame (Live and AAR load paused anyway).</param>
+    /// <param name="startPaused">Step from Edit: the dry run paused at its first frame.</param>
     public void Play(bool startPaused = false)
     {
         if (Busy) return;   // a question is open: ▶ does not stack another
         if (PlayDisabledReason is not null) return;
-        switch (Armed)
+        // ⭐ CE-3393 — a preset the world does not hold: reopen with it (the door asks first), the dry run starts once editing is back (presets §3)
+        if (ArmedPreset is { } preset && !IsLoaded(preset) && _door is not null && _control?.LoadedScenarioName is { Length: > 0 } scenario)
         {
-            case RunArmed.Preview:
-                // ⭐ CE-3393 — a preset the world does not hold: reopen with it (the door asks first), the dry run starts once editing is back (presets §3)
-                if (ArmedPreset is { } preset && !IsLoaded(preset) && _door is not null && _control?.LoadedScenarioName is { Length: > 0 } scenario)
-                {
-                    _previewWhenEdit = true;
-                    _door.Open(scenario, argsJson: IsDefault(preset) ? null : preset.ArgsJson(Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant));
-                    break;
-                }
-                _transport.EnterDryRun(startPaused);
-                break;
-            case RunArmed.Live:
-                PlayLive();
-                break;
-            case RunArmed.AAR:
-                if (LastExercise is { } exercise) OpenRecording(exercise);   // PlayDisabledReason guarantees a control or a picker
-                else PickRecording?.Invoke();
-                break;
+            _previewWhenEdit = true;
+            _door.Open(scenario, argsJson: IsDefault(preset) ? null : preset.ArgsJson(Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant));
+            return;
         }
+        _transport.EnterDryRun(startPaused);
     }
 
     /// <summary>
@@ -296,10 +299,10 @@ public sealed class RunModeChoice
     /// a never-saved scenario → <i>Discard / Cancel</i>. ⛔ Asked ONLY from editing (the master refuses a round elsewhere, and a run holds nothing of the scenario).
     /// Every host's File › Open Recording and ▶ in AAR armed end here.
     /// </summary>
-    public void OpenRecording(Guid exerciseId, double? atSimSeconds = null)
+    public void OpenRecording(Guid exerciseId, double? atSimSeconds = null, Action? then = null)
     {
         if (_door is null || exerciseId == Guid.Empty) return;
-        _door.OpenRecording(exerciseId, atSimSeconds);   // ⭐ CE-4101 — the door asks (Stop & Load / Save-Discard-Cancel); its RecordingOpening hook only records LastExercise — ⛔ it arms nothing (R-1043: no open sends or sets an armed mode, the recording open too)
+        _door.OpenRecording(exerciseId, atSimSeconds, then: then);   // ⭐ CE-4101 — the door asks (Stop & Load / Save-Discard-Cancel); its RecordingOpening hook only records LastExercise — ⛔ it arms nothing (R-1043: no open sends or sets an armed mode, the recording open too)
     }
 
     /// <summary>
@@ -420,39 +423,63 @@ public sealed class RunModeChoice
         return true;
     }
 
-    private void PlayLive()
+    /// <summary>
+    /// ⭐ CE-3405 (R1′) — the switch Edit → Live: the unsaved check through the ONE door (<i>Save / Discard / Cancel</i>), then Live loads WITHOUT the resume — it lands paused at 0:00, the briefing; ▶ then resumes. A scenario never saved keeps
+    /// today's <i>Save as… and go live</i> (the door would only offer Discard). The armed mode is set once the load went out.
+    /// </summary>
+    private void SwitchToLive()
     {
-        _asking = true;
-        _unsaved.Ask(answer =>
+        var scenario = _control!.LoadedScenarioName;
+        if (string.IsNullOrWhiteSpace(scenario))
         {
-            _asking = false;
-            switch (answer)
-            {
-                case UnsavedAnswer.Unchanged:
-                    if (!string.IsNullOrWhiteSpace(_control!.LoadedScenarioName)) GoLive(_control.LoadedScenarioName!);
-                    break;
-                case UnsavedAnswer.Changed:
-                    Ask("This scenario has unsaved changes. Live starts from the saved scenario.", new RunModeConfirmation.Button("Save and go live", () =>
-                    {
-                        _control!.SaveCurrent();
-                        if (!string.IsNullOrWhiteSpace(_control.LoadedScenarioName)) GoLive(_control.LoadedScenarioName!);
-                    }));
-                    break;
-                case UnsavedAnswer.NeverSaved:
-                    Ask("This scenario has never been saved. Live starts from a saved scenario.", new RunModeConfirmation.Button("Save as… and go live", () =>
-                        SaveAsPrompt?.Invoke(name => { if (!string.IsNullOrWhiteSpace(name)) GoLive(name); })));
-                    break;
-            }
-        });
+            Ask("This scenario has never been saved. Live starts from a saved scenario.", new RunModeConfirmation.Button("Save as… and go live", () =>
+                SaveAsPrompt?.Invoke(name => { if (!string.IsNullOrWhiteSpace(name)) GoLive(name); })));
+            return;
+        }
+        _door!.LoadLive(scenario, then: () => Arm(RunArmed.Live), argsJson: LiveArgsOf(scenario));
     }
 
+    /// <summary>The load args a Live of <paramref name="scenario"/> starts with: its armed Live preset (CE-3393), else the last run setup (AQ108 D24), else null (as authored).</summary>
+    private string? LiveArgsOf(string scenario)
+    {
+        if (ArmedPresetOf(scenario, RunArmed.Live) is { } armed && !IsDefault(armed)) return armed.ArgsJson(Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant);
+        return LastRunSetupOf(scenario);
+    }
+
+    /// <summary>Loads <paramref name="scenario"/> Live, paused at the start (the briefing) — no resume (⭐ CE-3405: ▶ is the one that runs).</summary>
     private void GoLive(string scenario)
     {
-        _resumeWhenLive = true;
-        if (ArmedPresetOf(scenario, RunArmed.Live) is { } armed && !IsDefault(armed))
-            _control!.LoadForLive(scenario, armed.ArgsJson(Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant));   // ⭐ CE-3393 — ▶ runs the ARMED preset
-        else if (LastRunSetupOf(scenario) is { } setup) _control!.LoadForLive(scenario, setup);   // ⭐ AQ108 D24 — ▶ reuses the scenario's last run setup
+        Arm(RunArmed.Live);
+        if (LiveArgsOf(scenario) is { } args) _control!.LoadForLive(scenario, args);
         else _control!.LoadForLive(scenario);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3405 (R1′) — the switch Edit → AAR: the last exercise (or the recording picker when none) opens at its start, through the door (its unsaved question). The armed mode is set once the open went out; with the picker it is
+    /// set at once (harmless if the pick is cancelled: an AAR-armed load goes where the last load went).
+    /// </summary>
+    private void SwitchToAar()
+    {
+        if (LastExercise is { } exercise) OpenRecording(exercise, then: () => Arm(RunArmed.AAR));
+        else { Arm(RunArmed.AAR); PickRecording?.Invoke(); }   // a cancelled pick leaves only the armed fact: a File ▸ Open then goes where the last load went (LoadTarget)
+    }
+
+    /// <summary>Why a switch from Edit / Idle to <paramref name="target"/> cannot be made (null = it can).</summary>
+    private string? SwitchDisabledReason(RunArmed target)
+    {
+        if (target == RunArmed.Live && _control is null) return "No scenario session on this host — Live cannot be started from here";
+        if (target == RunArmed.AAR && _door is null) return "No scenario session on this host — an AAR cannot be opened from here";
+        if (target == RunArmed.AAR && LastExercise is not null && !_lastExerciseRecorded) return RunRecordingGates.NotRecordedReason;   // D14: the last run left nothing to review
+        if (target == RunArmed.AAR && LastExercise is null && PickRecording is null) return "No exercise for an AAR yet — open a recording first";
+        return null;
+    }
+
+    /// <summary>The switch out of Edit (the unsaved question first, always through the door) — also what a Preview's switch does once editing is back.</summary>
+    private void SwitchFromEdit(RunArmed target)
+    {
+        if (target == RunArmed.Live) SwitchToLive();
+        else if (target == RunArmed.AAR) SwitchToAar();
+        else Arm(target);
     }
 
     // ── ⭐ CE-3393 (📄 docs/UX/DESIGN_Scenario_Presets.md §5c, D8, D11) — the split ▶: ▾ ARMS a preset (per scenario, per mode, remembered), ▶ plays it ──────────
@@ -500,14 +527,19 @@ public sealed class RunModeChoice
         return all[0];
     }
 
-    /// <summary>The preset ▶ will play now (the loaded scenario, the armed mode); null with no scenario loaded.</summary>
-    public Fdp.Toolkit.Scenario.ScenarioPreset? ArmedPreset
-        => _control?.LoadedScenarioName is { Length: > 0 } s ? ArmedPresetOf(s, Armed) : null;
+    /// <summary>⭐ CE-3405 — the mode ▾ presets belong to: Live while in Live (the briefing reloads with it), else Preview (Edit: ▶ previews with it).</summary>
+    private RunArmed PresetMode => _transport.Mode == TransportMode.Live ? RunArmed.Live : RunArmed.Preview;
 
-    /// <summary>▾ — arms <paramref name="preset"/> for the loaded scenario in the armed mode. ⛔ Never the mode (AQ108 R1); nothing loads until ▶.</summary>
+    /// <summary>The preset ▶ will play now (the loaded scenario, the mode the ▾ belongs to — <see cref="PresetMode"/>); null with no scenario loaded.</summary>
+    public Fdp.Toolkit.Scenario.ScenarioPreset? ArmedPreset
+        => _control?.LoadedScenarioName is { Length: > 0 } s ? ArmedPresetOf(s, PresetMode) : null;
+
+    /// <summary>▾ — arms <paramref name="preset"/> for the loaded scenario. ⛔ Never the mode. In Edit it is what ▶ (the Preview) reopens with; ⭐ CE-3405 in the Live briefing (paused at the start, nothing run) it RELOADS Live with the preset.</summary>
     public void ArmPreset(string preset)
     {
-        if (_control?.LoadedScenarioName is { Length: > 0 } s) ArmedPresets.Arm(s, Armed, preset);
+        if (_control?.LoadedScenarioName is not { Length: > 0 } s) return;
+        ArmedPresets.Arm(s, PresetMode, preset);
+        if (LiveBriefing && !Busy && ClosedReason is null) GoLive(s);   // nothing has run: a plain reload (the door's Stop & Load question is for a run with something to lose)
     }
 
     /// <summary>The host's <i>Edit presets…</i> (Details ▸ Scenario ▸ Parameters, CE-3391); null ⇒ the menu item is greyed.</summary>
@@ -519,20 +551,19 @@ public sealed class RunModeChoice
     // ── ■ (R2) ────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// ■ per R2 — back to where this run came from, and the armed mode stays. Preview → the dry run's exit; DAR → back to live (both TODAY's
-    /// behaviour, through the raw transport); Live → <c>OpenForEdit(scenario of the active exercise)</c>, <see cref="LastExercise"/> = the run, a
-    /// toast, and ⛔ never plain Idle; AAR → seek to 0, still AAR. A host with no scenario session keeps today's ■ in Live (to Idle).
+    /// ■ — the start of the SAME mode (R2′): Preview → the dry run's exit (back to Edit, restored); DAR → back to live; AAR → seek to 0. ⭐ CE-3413 (R2″, D30) — Live ends in two steps and NEVER leaves by itself:
+    /// a running Live asks <i>End the exercise?</i> (Cancel = keep running) and the end runs, the world staying in Live (<see cref="LiveEnded"/>); there ■ is ⏏ and asks <i>Close the live session?</i>.
+    /// A host with no ender (or one that cannot end now) keeps today's ■ (<see cref="StopLive"/>, to editing). ⛔ The briefing's ■ is greyed at the TOOLBAR (<see cref="StopDisabledReason"/>); the call itself (<c>POST /sim/stop</c>) still answers.
     /// </summary>
     public void Stop()
     {
         switch (_transport.Mode)
         {
             case TransportMode.Live when _control is not null:
-                // ⭐ CE-4322 (L-3, LC-17) — ONE question: end the exercise (its result written: the scenario's instructor-end, else "Ended by the instructor"),
-                //   then back to editing once the end is in; or keep running. No ender on this host ⇒ today's ■.
+                if (LiveEnded) { AskToClose(); break; }
                 if (_transport.Ender is { CanEnd: true } ender)
-                    Ask("End the exercise?", "End the exercise? Its result is written, then this station returns to editing. Cancel keeps it running.",
-                        new RunModeConfirmation.Button("End the exercise", () => { if (ender.End()) { _stopAfterEnd = ender; _stopAfterEndFrames = 0; } else StopLive(); }));
+                    Ask("End the exercise?", "End the exercise? The objectives are evaluated and the results shown; the world stays paused at the end for the debrief. Cancel keeps it running.",
+                        new RunModeConfirmation.Button("End the exercise", () => ender.End()));
                     // ⚠ LC-17 words the second button "Keep running": the house confirmation's own last button (Cancel) IS that — a second do-nothing button would duplicate it
                 else StopLive();
                 break;
@@ -544,6 +575,60 @@ public sealed class RunModeChoice
                 break;
         }
     }
+
+    /// <summary>⭐ CE-3413 — ⏏ in Live · ended: <i>Close the live session?</i> The exercise is kept; every station returns to the Start screen.</summary>
+    private void AskToClose()
+    {
+        var scenario = ScenarioOfRun();
+        var recorded = _transport.RecordsLiveRuns;
+        var kept = recorded ? $"This exercise of {scenario ?? "the scenario"} is kept ({MainToolbarTimeControlSection.FormatSpan(_transport.TotalTime)})." : "This run was not recorded.";
+        Ask("Close the live session?", kept + " Every station returns to the Start screen.", new RunModeConfirmation.Button("Close the session", CloseSession));
+    }
+
+    /// <summary>⭐ CE-3413 — the Close step: leave to Idle on every node (the door's <see cref="LeaveReason.Close"/>; the master finalises the live recording), then <i>Keep this recording?</i> and the <i>Exercise recorded</i> note — moved here from ■.</summary>
+    public void CloseSession()
+    {
+        if (_transport.Mode != TransportMode.Live) return;
+        var exercise = _transport.ActiveExercise;
+        var recorded = _transport.RecordsLiveRuns;
+        var length = _transport.TotalTime;
+        var scenario = ScenarioOfRun();
+        if (exercise != Guid.Empty) { LastExercise = exercise; _lastExerciseRecorded = recorded; }
+        void After() => AfterLiveEnded(exercise, recorded, length, scenario);
+        if (_door is { CanLeave: true } door) door.Leave(LeaveReason.Close, then: After);
+        else { _transport.StopRaw(); After(); }   // no door OUT on this host: the same Idle intent
+    }
+
+    /// <summary>⭐ CE-3413 — the exercise of a Live · ended world is run again: the same scenario loads into the briefing (a NEW exercise; the ended one stays recorded). Raw load — there is nothing of the ended run to lose.</summary>
+    public void RunAgain()
+    {
+        if (!LiveEnded || _control is null || Busy || ClosedReason is not null) return;
+        var scenario = ScenarioOfRun();
+        if (string.IsNullOrWhiteSpace(scenario)) return;
+        if (_transport.ActiveExercise != Guid.Empty) { LastExercise = _transport.ActiveExercise; _lastExerciseRecorded = _transport.RecordsLiveRuns; }
+        GoLive(scenario);
+    }
+
+    /// <summary>⭐ CE-3413 — Live · ended → AAR: the full replay of THIS exercise, at its start (no question — the exercise is over).</summary>
+    public void ReplayEndedExercise()
+    {
+        if (!LiveEnded || _control is null || Busy || ClosedReason is not null) return;
+        var exercise = _transport.ActiveExercise;
+        if (exercise == Guid.Empty || !_transport.RecordsLiveRuns) return;
+        LastExercise = exercise;
+        _lastExerciseRecorded = true;
+        Arm(RunArmed.AAR);
+        _control.OpenRecording(exercise);
+    }
+
+    /// <summary>⭐ CE-3413 — why the ended menu's AAR is greyed (null = it can open).</summary>
+    public string? EndedAarDisabledReason => !_transport.RecordsLiveRuns ? "this run was not recorded" : _transport.ActiveExercise == Guid.Empty ? "the run's exercise is not known yet" : null;
+
+    /// <summary>⭐ CE-3413 — the checkpoints of the live run the ended menu can restart from, by label (a host that can list them sets it; today none does — the live run's marks are not on the cluster view, only a replay session carries them).</summary>
+    public Func<IReadOnlyList<string>>? CheckpointLabels { get; set; }
+
+    /// <summary>⭐ CE-3413 — restores the checkpoint <paramref name="label"/> of the live run (the session's <c>RestoreCheckpoint</c>: live, paused at the checkpointed state); set by a host that has the session.</summary>
+    public Action<string>? RestoreCheckpoint { get; set; }
 
     private void StopLive()
     {
@@ -565,10 +650,16 @@ public sealed class RunModeChoice
         else
         {
             _control!.OpenForEdit(scenario!);          // R2: the RAW verb — sends no armed mode, the cluster's stays
-
         }
-        // ⭐ CE-4100 (AQ108 D15) — with "ask to keep recordings" on, a RECORDED run's ■ then asks. Keep (the default, first button) does nothing more; Discard deletes the exercise;
-        //   Cancel / Esc closes it like every confirmation (= keep). The toast below still follows.
+        AfterLiveEnded(exercise, recorded, length, scenario);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4100 (AQ108 D15) — with "ask to keep recordings" on, a RECORDED run's end then asks. Keep (the default, first button) does nothing more; Discard deletes the exercise;
+    /// Cancel / Esc closes it like every confirmation (= keep). The toast follows. ⭐ CE-3413: after the CLOSE step of an ended Live (and, on a host with no ender, after ■).
+    /// </summary>
+    private void AfterLiveEnded(Guid exercise, bool recorded, double length, string? scenario)
+    {
         if (AskToKeep() && recorded && exercise != Guid.Empty)
             Ask("Keep this recording?", $"Keep this recording? ({MainToolbarTimeControlSection.FormatSpan(length)}, {scenario ?? "scenario"})",
                 new RunModeConfirmation.Button("Keep", null), new RunModeConfirmation.Button("Discard", () => _transport.DiscardRecording(exercise)));
@@ -616,7 +707,8 @@ public sealed class RunModeChoice
         var moves = new List<RunModeMove>(3);
         foreach (var target in new[] { RunArmed.Preview, RunArmed.Live, RunArmed.AAR })
         {
-            var label = target.ToString();
+            // ⭐ CE-3405 — "Preview" the MODE is the dry run (running); the move that gets you back to authoring is "Edit" (the armed-mode fact it sets is still Preview)
+            var label = target == RunArmed.Preview && mode != TransportMode.Preview ? "Edit" : target.ToString();
             // ⭐ CE-4111 — the SHOWN mode (what the indicator draws) is checked AND enabled; choosing it does nothing (the menu just closes). ⛔ No greyed "where you are" item.
             //    (A CLOSED gate still disables every item, the shown one included — CE-1442: the host takes no move at all.)
             if (closed is not null) { moves.Add(new(target, label, null, false, closed, target == Shown)); continue; }
@@ -628,10 +720,10 @@ public sealed class RunModeChoice
     }
 
     /// <summary>
-    /// ⭐ <c>CE-4111</c> — THE one mode the indicator and its menu show: the CURRENT mode while a run is on (Preview / Live / AAR), else the <see cref="Armed"/> one
-    /// (Edit / Idle; a DAR has its own indicator and menu). <see cref="Indicator"/> and <see cref="RunModeMove.IsShown"/> both read it — ⛔ no second read of the mode.
+    /// ⭐ <c>CE-4111</c> / ⭐ CE-3405 (R1′) — THE one mode the indicator and its menu show: the mode the cluster IS in (Preview / Live / AAR); in Edit / Idle the authoring item (<see cref="RunArmed.Preview"/> stands for Edit — ▶ there is the
+    /// Preview), ⛔ no longer the mode ▶ "will start". <see cref="Indicator"/> and <see cref="RunModeMove.IsShown"/> both read it — ⛔ no second read of the mode (the pen glyph is R-3's).
     /// </summary>
-    public RunArmed Shown => ModeTarget(_transport.Mode) ?? Armed;
+    public RunArmed Shown => ModeTarget(_transport.Mode) ?? RunArmed.Preview;
 
     private static RunArmed? ModeTarget(TransportMode mode) => mode switch
     {
@@ -672,11 +764,12 @@ public sealed class RunModeChoice
         switch (_transport.Mode)
         {
             case TransportMode.Preview:
-                // §3: Preview running → Live / AAR — the dry run restores, then the chosen mode is armed
-                return new("Stops the preview and returns to the scenario's start", $"Stop preview, arm {target}", true, null, () =>
+                // §3: Preview running → Live / AAR — the dry run restores (back to Edit), then the switch is made from there (the unsaved question included)
+                if (SwitchDisabledReason(target) is { } previewWhy) return Disabled(previewWhy);
+                return new("Stops the preview and returns to the scenario's start", $"Stop preview, go {target}", true, null, () =>
                 {
+                    _switchWhenEdit = target;
                     _transport.StopRaw();
-                    Arm(target);
                 });
 
             case TransportMode.Live:
@@ -731,8 +824,11 @@ public sealed class RunModeChoice
                 return new($"Ends the AAR; you return to editing {recorded} at its start", "End AAR, edit scenario", true, null, OpenCurrent);
 
             default:
-                // Edit / Idle — nothing running: arming loses nothing (R3: no confirmation)
-                return new(null, "", true, null, () => Arm(target));
+                // ⭐ CE-3405 (R1′) — Edit / Idle: the mode SWITCHES at once; the unsaved question is the door's (R3: no confirmation of our own). Idle holds no scenario: only the armed fact (the next load goes into it).
+                if (target == RunArmed.Preview) return new(null, "", true, null, () => Arm(target));
+                if (SwitchDisabledReason(target) is { } why) return Disabled(why);
+                if (_transport.Mode == TransportMode.Idle && target == RunArmed.Live) return new(null, "", true, null, () => Arm(target));
+                return new(null, "", true, null, () => SwitchFromEdit(target));
         }
 
         static MovePlan Disabled(string reason) => new(null, "", false, reason, () => { });
@@ -764,11 +860,16 @@ public sealed class RunModeChoice
             _previewWhenEdit = false;   // ⭐ CE-3393 — the reopen with the armed preset landed: the dry run it was asked for
             _transport.EnterDryRun(false);
         }
+        else if (state == ClusterState.OperatingEdit && _switchWhenEdit is { } target)
+        {
+            _switchWhenEdit = null;     // ⭐ CE-3405 — the preview stopped and editing is back: the switch the user chose
+            SwitchFromEdit(target);
+        }
         else if (state == ClusterState.OperatingReplay || state == ClusterState.Idle && previous == ClusterState.OperatingLive)
         {
             _resumeWhenLive = false;
         }
-        if (state is ClusterState.OperatingLive or ClusterState.OperatingReplay) _previewWhenEdit = false;
+        if (state is ClusterState.OperatingLive or ClusterState.OperatingReplay) { _previewWhenEdit = false; _switchWhenEdit = null; }
     }
 
     // ── the indicator ───────────────────────────────────────────────────────────────────
@@ -778,7 +879,7 @@ public sealed class RunModeChoice
     private static readonly Vector4 RecordingRed = new(0.90f, 0.22f, 0.22f, 1f);
 
     /// <summary>
-    /// ⭐ What the toolbar draws (AQ108 D1, §1a): DIM in Edit (the armed mode, what ▶ will start), BRIGHT steady while a run is paused, BLINKING while it
+    /// ⭐ What the toolbar draws (AQ108 D1, §1a): DIM in Edit (R-3 replaces it with the pen), BRIGHT steady while a run is paused, BLINKING while it
     /// plays. Live is RED when the broadcast says runs are recorded and GREEN when not (CE-4090). The words are the user's: Preview / Live / DAR / AAR.
     /// </summary>
     public RunModeIndicator Indicator
@@ -813,13 +914,16 @@ public static class UserTransport
 {
     private static RunModeChoice? EditChoice(ITimeTransportFacade f, RunModeChoice? choice) => f.Mode == TransportMode.Edit ? choice ?? f.RunChoice : null;
 
-    /// <summary>▶ is enabled: the facade says so, and — from Edit — the armed mode can run here (Live armed on a host with no scenario session cannot).</summary>
-    public static bool IsUserPlayEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsPlayPauseEnabled && (choice ?? f.RunChoice)?.ClosedReason is null && EditChoice(f, choice)?.PlayDisabledReason is null;
+    /// <summary>▶ is enabled: the facade says so, and the choice does not say otherwise (the gate; ⭐ CE-3413 a Live · ended is over — ▶ is greyed).</summary>
+    public static bool IsUserPlayEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsPlayPauseEnabled && ReasonOf(f, choice) is null;
+
+    // from Edit the choice's whole answer (a host with no session has nothing to preview); in every other mode the reasons that hold anywhere (the gate, a Live · ended)
+    private static string? ReasonOf(ITimeTransportFacade f, RunModeChoice? choice) => f.Mode == TransportMode.Edit ? (choice ?? f.RunChoice)?.PlayDisabledReason : (choice ?? f.RunChoice)?.RunPlayDisabledReason;
 
     /// <summary>Step is enabled (same rule as <see cref="IsUserPlayEnabled"/>).</summary>
-    public static bool IsUserStepEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsStepEnabled && (choice ?? f.RunChoice)?.ClosedReason is null && EditChoice(f, choice)?.PlayDisabledReason is null;
+    public static bool IsUserStepEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsStepEnabled && ReasonOf(f, choice) is null;
 
-    /// <summary>A user's ▶ / ⏸: from Edit the armed mode's start, else the facade's toggle. Does nothing when <see cref="IsUserPlayEnabled"/> is false.</summary>
+    /// <summary>A user's ▶ / ⏸: from Edit the choice's ▶ (⭐ CE-3405: always the Preview), else the facade's toggle (a paused Live resumes). Does nothing when <see cref="IsUserPlayEnabled"/> is false.</summary>
     public static void UserPlayPause(this ITimeTransportFacade f, RunModeChoice? choice = null)
     {
         if (!f.IsUserPlayEnabled(choice)) return;
@@ -827,7 +931,7 @@ public static class UserTransport
         else f.TogglePlayPause();
     }
 
-    /// <summary>A user's Step: from Edit the armed mode's start, paused at its first frame; else the facade's step.</summary>
+    /// <summary>A user's Step: from Edit the Preview, paused at its first frame; else the facade's step.</summary>
     public static void UserStep(this ITimeTransportFacade f, RunModeChoice? choice = null)
     {
         if (!f.IsUserStepEnabled(choice)) return;

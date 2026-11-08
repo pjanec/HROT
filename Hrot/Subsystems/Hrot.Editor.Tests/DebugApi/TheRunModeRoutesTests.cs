@@ -22,7 +22,7 @@ namespace Hrot.Editor.Tests.DebugApi;
 /// ⭐⭐⭐ <c>CE-4097</c> part two (AQ108 D22) — <b>the HTTP surface stays EXPLICIT, over a REAL <see cref="DebugApiHost"/></b> on a loopback port, in front of the host's REAL
 /// <see cref="ClusterTimeTransportAdapter"/> with a run choice: <c>POST /sim/play</c> from editing is the dry run whatever is armed (never a live load); <c>POST /sim/stop</c> is the SAME
 /// stop as the toolbar's ■ (one rail compares what each published); <c>POST /run-mode</c> arms a mode through the indicator's own choice (409 with the confirmation's text unless
-/// <c>confirm:true</c>); <c>GET /status.armedMode</c> reads it; the menu-driven go-live and <c>POST /scenario/load/live</c> each cause ONE <c>CheckUnsaved</c> round.
+/// <c>confirm:true</c>); <c>GET /status.armedMode</c> reads it; the menu-driven switch to Live and <c>POST /scenario/load/live</c> each cause ONE <c>CheckUnsaved</c> round.
 /// 🔴 Mutations (each compiles): the adapter's <c>TogglePlayPause</c> following the armed mode ⇒ the play cell calls <c>LoadForLive</c>; <c>Stop()</c> in the service calling <c>StopRaw</c> ⇒ the
 /// "same as ■" cell red; <c>SetRunMode</c> not resolving Cancel on the unconfirmed 409 ⇒ the "no standing question" cell red; <c>/status</c> dropping <c>armedMode</c> ⇒ its cell red.
 /// </summary>
@@ -51,11 +51,11 @@ public sealed class TheRunModeRoutesTests : IDisposable
 
     /// <summary>A REAL adapter on a real bus with a run choice attached, heard in <paramref name="state"/> (exercise <see cref="RunId"/>).</summary>
     private static (ClusterTimeTransportAdapter F, FdpEventBus Bus, Control C) Adapter(ClusterState state, RunArmed armed, bool withChoice = true,
-                                                                                       UnsavedCheckReads? reads = null)
+                                                                                       UnsavedCheckReads? reads = null, double clock = 0)
     {
         var bus = new FdpEventBus();
         var view = new ClusterView(bus);   // CE-1436 - the node's one view, advanced by its owner
-        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => clock);
         var control = new Control();
         if (withChoice) facade.AttachRunChoice(control, reads is null ? new Unchanged() : null, reads);
         bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem((Fdp.Core.ExerciseId)(RunId), DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
@@ -180,10 +180,10 @@ public sealed class TheRunModeRoutesTests : IDisposable
     [Fact(Timeout = 90_000)]
     public async Task SimStop_IsTheSameStopAsTheToolbarsStop_AndIs409WhereThereIsNothingToStop()
     {
-        var click = Adapter(ClusterState.OperatingLive, RunArmed.Live);
+        var click = Adapter(ClusterState.OperatingLive, RunArmed.Live, clock: 12);   // ⭐ CE-3413: the toolbar's ■ is greyed in the briefing (clock 0, paused) — the exercise has run
         new MainToolbarTimeControlSection(click.F, choice: click.F.RunChoice).OnStop();
 
-        var request = Adapter(ClusterState.OperatingLive, RunArmed.Live);
+        var request = Adapter(ClusterState.OperatingLive, RunArmed.Live, clock: 12);
         var (host, queue, url) = Start(request.F, ClusterState.OperatingLive);
         using var h = host;
         var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/sim/stop", Json("{}")));
@@ -277,10 +277,10 @@ public sealed class TheRunModeRoutesTests : IDisposable
     [Fact(Timeout = 90_000)]
     public async Task TheMenuDrivenGoLive_AndPostScenarioLoadLive_EachCauseExactlyOneCheckUnsaved()
     {
-        // ── the menu-driven go-live ────────────────────────────────────────────────────────────────────────────────────────────────
+        // ── the menu-driven switch to Live ────────────────────────────────────────────────────────────────────────────────────────────────
         var answered = new Dictionary<Guid, UnsavedCheckOutcome>();
         var menu = Adapter(ClusterState.OperatingEdit, RunArmed.Live, reads: new UnsavedCheckReads(() => true, id => answered.TryGetValue(id, out var o) ? o : null));
-        new MainToolbarTimeControlSection(menu.F, choice: menu.F.RunChoice).OnPlayPause();
+        menu.F.RunChoice!.Choose(RunArmed.Live);   // ⭐ CE-3405: the indicator's switch (▶ in Edit is the Preview now)
         var asked = Sent<CheckUnsavedIntent>(menu.Bus);
         Assert.Single(asked);
         answered[asked[0].RequestId] = new UnsavedCheckOutcome(UnsavedCheckResult.Unchanged, null);

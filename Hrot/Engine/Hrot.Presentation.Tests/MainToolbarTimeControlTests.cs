@@ -298,14 +298,14 @@ public class MainToolbarTimeControlTests
             Assert.Equal(MainToolbarTimeControlSection.StopFaceKind.Stop, MainToolbarTimeControlSection.StopFace(m));
     }
 
-    /// <summary>⭐ The ▶ tooltip names what a press does (user, 2026-10-30): in Edit the ARMED mode it starts; in a run, resume or pause by the mode.</summary>
+    /// <summary>⭐ The ▶ tooltip names what a press does (user, 2026-10-30): in Edit ALWAYS the Preview (⭐ CE-3405 — the armed mode no longer decides); in a run, resume or pause by the mode.</summary>
     [Fact]
-    public void PlayTooltip_NamesTheArmedModeInEdit_AndTheRunningModeOtherwise()
+    public void PlayTooltip_NamesThePreviewInEdit_AndTheRunningModeOtherwise()
     {
-        foreach (var (armed, expected) in new[] { (RunArmed.Live, "Play Live"), (RunArmed.Preview, "Play Preview") })
+        foreach (var armed in new[] { RunArmed.Live, RunArmed.Preview, RunArmed.AAR })
         {
             var rig = RunChoiceRig.With(ClusterState.OperatingEdit, armed);
-            Assert.StartsWith(expected, new MainToolbarTimeControlSection(rig.F, choice: rig.Choice).PlayTooltip(isPaused: true));
+            Assert.StartsWith("Play Preview", new MainToolbarTimeControlSection(rig.F, choice: rig.Choice).PlayTooltip(isPaused: true));
         }
         Assert.Equal("Play DAR — resume", new MainToolbarTimeControlSection(In(TransportMode.Review)).PlayTooltip(isPaused: true));
         Assert.Equal("Pause AAR", new MainToolbarTimeControlSection(In(TransportMode.Replay)).PlayTooltip(isPaused: false));
@@ -419,8 +419,7 @@ public class MainToolbarTimeControlTests
     /// </summary>
     [Theory]
     [InlineData(TransportMode.Edit,    RunArmed.Preview, false, "Preview", IndicatorLevel.Dim)]
-    [InlineData(TransportMode.Edit,    RunArmed.Live,    false, "Live",    IndicatorLevel.Dim)]
-    [InlineData(TransportMode.Edit,    RunArmed.AAR,     false, "AAR",     IndicatorLevel.Dim)]
+    [InlineData(TransportMode.Edit,    RunArmed.Live,    false, "Preview", IndicatorLevel.Dim)]   // ⭐ CE-3405: Edit shows the authoring item whatever is armed (R-3 draws the pen)
     [InlineData(TransportMode.Preview, RunArmed.Preview, true,  "Preview", IndicatorLevel.Blink)]
     [InlineData(TransportMode.Preview, RunArmed.Preview, false, "Preview", IndicatorLevel.Bright)]
     [InlineData(TransportMode.Live,    RunArmed.Live,    true,  "Live",    IndicatorLevel.Blink)]
@@ -431,7 +430,6 @@ public class MainToolbarTimeControlTests
         TransportMode mode, RunArmed host, bool running, string word, IndicatorLevel level)
     {
         var rig = RunChoiceRig.With(StateOf(mode), host == RunArmed.AAR ? RunArmed.Preview : host, running: running);
-        if (host == RunArmed.AAR && mode == TransportMode.Edit) rig.Choice.Choose(RunArmed.AAR);
         var ind = rig.Choice.Indicator;
         Assert.Equal(word, ind.Word);
         Assert.Equal(level, ind.Level);
@@ -448,8 +446,7 @@ public class MainToolbarTimeControlTests
 
         Assert.True(Red(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live)));
         Assert.True(Green(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true)));
-        Assert.True(Red(RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live)));                                   // armed: the setting is ON
-        Assert.True(Green(RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, recordLiveRunsOff: true)));        // armed: the setting is OFF
+        Assert.True(Red(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, running: true)));                    // ⭐ CE-3405: in Edit the indicator is the authoring one (R-3); the briefing / run carry the recording colour
     }
 
     /// <summary>The blink pulses between 0.3 and 1; dim and bright are steady.</summary>
@@ -483,7 +480,9 @@ public class MainToolbarTimeControlTests
         Assert.False(notRecorded.Enabled);
         Assert.Equal("this run was not recorded", notRecorded.DisabledReason);
 
-        var preview = RunChoiceRig.With(ClusterState.OperatingPreview, RunArmed.Preview).Choice.Moves();
+        var previewRig = RunChoiceRig.With(ClusterState.OperatingPreview, RunArmed.Preview);
+        previewRig.Choice.PickRecording = () => { };   // ⭐ CE-3405: the AAR switch needs a last exercise or a picker
+        var preview = previewRig.Choice.Moves();
         Assert.Equal(previewStop, preview.Single(m => m.Target == RunArmed.Live).ConfirmText);
         Assert.Equal(previewStop, preview.Single(m => m.Target == RunArmed.AAR).ConfirmText);
 
@@ -491,9 +490,16 @@ public class MainToolbarTimeControlTests
         Assert.Equal("A new exercise starts from 7:04; this recording stays unchanged", replay.Single(m => m.Target == RunArmed.Live).ConfirmText);
         Assert.Equal("Ends the AAR; you return to editing hill-attack at its start", replay.Single(m => m.Target == RunArmed.Preview).ConfirmText);
 
-        var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview).Choice.Moves();
+        var editRig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        var edit = editRig.Choice.Moves();
         Assert.Equal(3, edit.Count);
-        Assert.All(edit, m => { Assert.Null(m.ConfirmText); Assert.True(m.Enabled); });
+        Assert.Equal("Edit", edit.Single(m => m.Target == RunArmed.Preview).Label);   // ⭐ CE-3405: the authoring item
+        Assert.All(edit, m => Assert.Null(m.ConfirmText));                            // R3: the switch's only question is the DOOR's (unsaved), not ours
+        Assert.True(edit.Single(m => m.Target == RunArmed.Live).Enabled);
+        Assert.False(edit.Single(m => m.Target == RunArmed.AAR).Enabled);             // no exercise to review yet, no picker: greyed with its reason
+        Assert.Equal("No exercise for an AAR yet — open a recording first", edit.Single(m => m.Target == RunArmed.AAR).DisabledReason);
+        editRig.Choice.PickRecording = () => { };
+        Assert.True(editRig.Choice.Moves().Single(m => m.Target == RunArmed.AAR).Enabled);
 
         Assert.Empty(RunChoiceRig.With(ClusterState.OperatingReview, RunArmed.Live).Choice.Moves());
     }
@@ -537,6 +543,9 @@ public class MainToolbarTimeControlTests
         Assert.Empty(RunChoiceRig.Sent<TransitionStateIntent>(pv));
         pv.Choice.Pending!.Resolve(pv.Choice.Pending.Buttons[0]);
         Assert.Equal(ClusterState.OperatingEdit, RunChoiceRig.Sent<TransitionStateIntent>(pv).Single().TargetState);   // the dry run's exit
+        Assert.Empty(pv.C.Calls);                                                          // ⭐ CE-3405: the switch waits for editing to be back (the restore)
+        RunChoiceRig.Hear(pv, ClusterState.OperatingEdit);
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, pv.C.Calls);                    // …then the unsaved question (none) and the load, paused
         Assert.Equal(RunArmed.Live, pv.Choice.Armed);
 
         // AAR → Live (the branch) and AAR → Preview
@@ -649,8 +658,8 @@ public class MainToolbarTimeControlTests
     [InlineData(TransportMode.Replay)]
     public void CE4097_TheToolbarsStop_AndTheFacadesStop_AreTheSameCalls(TransportMode mode)
     {
-        var viaFacade = RunChoiceRig.With(StateOf(mode), RunArmed.Live);
-        var viaToolbar = RunChoiceRig.With(StateOf(mode), RunArmed.Live);
+        var viaFacade = RunChoiceRig.With(StateOf(mode), RunArmed.Live, clock: 5);   // (clock 0 + paused is the Live briefing, whose ■ is greyed at the toolbar — CE-3413)
+        var viaToolbar = RunChoiceRig.With(StateOf(mode), RunArmed.Live, clock: 5);
 
         viaFacade.F.Stop();
         Bar(viaToolbar).OnStop();
@@ -682,7 +691,7 @@ public class MainToolbarTimeControlTests
         Assert.Equal(new[] { false, false, true }, items.Take(3).Select(i => i.Selected));   // the three moves (⭐ A6: then the playhead's Go live from here — TheRunModeMovesAreDeclaredOnceTests)
         Assert.True(items.Single(i => i.Label == "AAR").Enabled);
 
-        var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live);   // ⭐ CE-3405: even with Live armed, Edit shows (and checks) the authoring item
         Assert.Equal("Preview", edit.Choice.Indicator.Word);
         Assert.Equal(IndicatorLevel.Dim, edit.Choice.Indicator.Level);
         Assert.Equal(new[] { true, false, false }, Bar(edit).ModeMenu()!.Items.Select(i => i.Selected));
@@ -707,13 +716,13 @@ public class MainToolbarTimeControlTests
         // in Edit the shown item IS the armed one: choosing it publishes no run-settings intent (it would re-arm what is armed)
         var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
         var armedBefore = RunChoiceRig.Sent<SetRunSettingsIntent>(edit).Count();
-        Bar(edit).ModeMenu()!.Items.Single(i => i.Label == "Preview").Invoke!();
+        Bar(edit).ModeMenu()!.Items.Single(i => i.Label == "Edit").Invoke!();
         Assert.Equal(armedBefore, RunChoiceRig.Sent<SetRunSettingsIntent>(edit).Count());
         Assert.Null(edit.Choice.Pending);
         Assert.Empty(edit.C.Calls);
     }
 
-    /// <summary>⭐ <c>CE-4111</c> (d) — a running menu's header also names the ARMED mode (a load during a run goes into it, R-1043); Edit keeps <c>▶ will start</c>.
+    /// <summary>⭐ <c>CE-4111</c> (d) — a running menu's header also names the ARMED mode (a load during a run goes into it, R-1043); Edit says <c>Edit · ▶ previews</c> (CE-3405).
     /// 🔴 Red-proof: the header suffix dropped ⇒ no <c>loads go into: Preview</c>.</summary>
     [Fact]
     public void CE4111_TheRunningHeader_NamesTheArmedMode()
@@ -723,24 +732,25 @@ public class MainToolbarTimeControlTests
         Assert.StartsWith("AAR · ", header);
         Assert.EndsWith(" · loads go into: Preview", header);
         Assert.Contains("loads go into: Live", Bar(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 90)).ModeMenu()!.Header);
-        Assert.Equal("▶ will start: Preview", Bar(RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview)).ModeMenu()!.Header);
+        Assert.Equal("Edit · ▶ previews", Bar(RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview)).ModeMenu()!.Header);
     }
 
     /// <summary>
-    /// ⭐ The section's menu with a choice: Edit offers the three modes (the armed one selected, choosing one arms it); a live run keeps the DAR windows AND adds the
+    /// ⭐ The section's menu with a choice: Edit offers the three modes (Edit selected, choosing one switches to it at once); a live run keeps the DAR windows AND adds the
     /// moves (the confirmation opens as the pending dialog); without a choice the menu is the pre-4097 one (no menu in Edit).
     /// </summary>
     [Fact]
     public void CE4097_TheSectionsMenu_IsTheChoicesMoves()
     {
         var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        rig.Choice.PickRecording = () => { };
         var menu = Bar(rig).ModeMenu()!;
-        Assert.Equal("▶ will start: Preview", menu.Header);
-        Assert.Equal(new[] { "Preview", "Live", "AAR" }, menu.Items.Select(i => i.Label));
+        Assert.Equal("Edit · ▶ previews", menu.Header);
+        Assert.Equal(new[] { "Edit", "Live", "AAR" }, menu.Items.Select(i => i.Label));
         Assert.Equal(new[] { true, false, false }, menu.Items.Select(i => i.Selected));
         menu.Items.Single(i => i.Label == "Live").Invoke!();
-        Assert.Equal(RunArmed.Live, Armed(rig));
-        Assert.True(Bar(rig).ModeMenu()!.Items.Single(i => i.Label == "Live").Selected);
+        Assert.Equal(RunArmed.Live, Armed(rig));                           // ⭐ CE-3405: choosing it SWITCHES (and arms): the load went out
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, rig.C.Calls);
 
         var live = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 90);
         var liveMenu = Bar(live).ModeMenu()!;
@@ -755,56 +765,57 @@ public class MainToolbarTimeControlTests
         Assert.DoesNotContain(Bar(review).ModeMenu()!.Items, i => i.Label == "AAR");
     }
 
-    /// <summary>The ▶ tooltip carries the reason when Live is armed on a host with no session (§2.8 ⑥) — and the ▶ button's enabled state is the facade's.</summary>
+    /// <summary>⭐ CE-3405 — on a host with no session ▶ stays greyed in Edit with its reason (the facade's own answer is RAW: an HTTP play still works there); the Live item is greyed with its reason too.</summary>
     [Fact]
-    public void CE4097_PlayOnAHostWithNoSession_IsDisabledAtTheToolbar()
+    public void CE3405_PlayOnAHostWithNoSession_IsDisabledAtTheToolbar_AndTheLiveItemIsGreyed()
     {
         var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, withControl: false);
         Assert.True(rig.F.IsPlayPauseEnabled);                              // ⭐ D22: the facade's answer is RAW (an HTTP play still works here) …
         Assert.False(Bar(rig).IsPlayEnabled);                               // … the USER's ▶ is the one that is disabled
         Assert.False(Bar(rig).IsStepEnabled);
+        var live = Bar(rig).ModeMenu()!.Items.Single(i => i.Label.StartsWith("Live"));
+        Assert.False(live.Enabled);
+        Assert.Contains("No scenario session", live.Label);
         Bar(rig).OnPlayPause();
         Assert.Empty(RunChoiceRig.Sent<TransitionStateIntent>(rig));
         Assert.Empty(rig.C.Calls);
     }
 
     /// <summary>
-    /// ⭐ AQ108 D22 — the TOOLBAR's ▶ and Step (and the status bar's, and the timeline's Space) follow the armed mode through <see cref="UserTransport"/>: with Live armed ▶ is the live load, with
-    /// Preview armed the dry run; the facade's own play (an HTTP route) never does. 🔴 Red-proof: <c>OnPlayPause</c> calling <c>_facade.TogglePlayPause()</c> ⇒ Live armed publishes a dry run.
+    /// ⭐ AQ108 D22 / CE-3405 — the TOOLBAR's ▶ and Step (and the status bar's, and the timeline's Space) are the Preview from Edit whatever is armed (the mode is switched at the indicator); the facade's own play (an HTTP route) too.
+    /// 🔴 Red-proof: <c>Play</c> dispatching on <c>Armed</c> again ⇒ Live armed loads live.
     /// </summary>
     [Fact]
-    public void CE4097_D22_TheToolbarsPlay_WithLiveArmed_IsTheLiveLoad_WithPreviewArmed_TheDryRun()
+    public void CE3405_TheToolbarsPlayAndStep_FromEdit_AreThePreview_WhateverIsArmed()
     {
         var live = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
         Bar(live).OnPlayPause();
-        Assert.Equal(new[] { "LoadForLive:hill-attack" }, live.C.Calls);
-        Assert.Empty(RunChoiceRig.Sent<TransitionStateIntent>(live));
+        Assert.Empty(live.C.Calls);
+        var play = RunChoiceRig.Sent<TransitionStateIntent>(live).Single();
+        Assert.Equal(ClusterState.OperatingPreview, play.TargetState);
+        Assert.Equal("Continuous", play.TimeMode);
 
         var step = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
         Bar(step).OnStep();
-        Assert.Equal(new[] { "LoadForLive:hill-attack" }, step.C.Calls);
-
-        var preview = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
-        Bar(preview).OnPlayPause();
-        Assert.Equal(ClusterState.OperatingPreview, RunChoiceRig.Sent<TransitionStateIntent>(preview).Single().TargetState);
-        Assert.Empty(preview.C.Calls);
+        Assert.Empty(step.C.Calls);
+        Assert.Equal("Deterministic", RunChoiceRig.Sent<TransitionStateIntent>(step).Single().TimeMode);
     }
 
     /// <summary>
-    /// ⭐ AQ108 D20 / the NOTE — the menu-driven go-live (▶ with Live armed) and an HTTP load of the same scenario each cause exactly ONE <c>CheckUnsaved</c> round; the menu's ▶ publishes
+    /// ⭐ AQ108 D20 / the NOTE — the menu-driven go-live (the indicator's switch to Live) and an HTTP load of the same scenario each cause exactly ONE <c>CheckUnsaved</c> round; the switch publishes
     /// the intent through the facade's bus and waits for the answer without blocking. (The HTTP half — <c>POST /scenario/load/live</c> — is
-    /// <c>TheRunModeRoutesTests</c> in Hrot.Editor.Tests/DebugApi.) 🔴 Red-proof: <c>PlayLive</c> asking twice (once before, once after Save) ⇒ two intents.
+    /// <c>TheRunModeRoutesTests</c> in Hrot.Editor.Tests/DebugApi.) 🔴 Red-proof: <c>the switch</c> asking twice (once before, once after Save) ⇒ two intents.
     /// </summary>
     [Fact]
     public void CE4097_TheMenuDrivenGoLive_PublishesExactlyOneCheckUnsaved()
     {
         var rig = RunChoiceRig.WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live);
-        Bar(rig).OnPlayPause();
+        rig.Choice.Choose(RunArmed.Live);
         var asked = RunChoiceRig.Sent<CheckUnsavedIntent>(rig);
         Assert.Single(asked);
         rig.R.Answer(asked, changed: true);
         RunChoiceRig.Frame(rig);
-        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[0]);         // Save and go live
+        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[0]);         // Save
         Assert.Equal(new[] { "SaveCurrent", "LoadForLive:hill-attack" }, rig.C.Calls);
         Assert.Empty(RunChoiceRig.Sent<CheckUnsavedIntent>(rig));           // …and no second round for the same move
     }
@@ -857,7 +868,7 @@ public class MainToolbarTimeControlTests
         using var fixture = new ImGuiTestFixture();
         fixture.NewFrame();
         var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Changed);
-        rig.F.UserPlayPause();                                              // → pending "Save and go live / Cancel"
+        rig.Choice.Choose(RunArmed.Live);                                   // → pending "Save / Discard / Cancel"
         Assert.NotNull(rig.Choice.Pending);
         var done = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 12);
         done.F.Stop();                                                      // → the toast

@@ -379,17 +379,16 @@ public sealed class ClusterTimelineCursorTests
         Assert.Equal(new[] { $"OpenRecording:{RunChoiceRig.RunId}@5" }, rig.C.Calls);
     }
 
-    /// <summary>⭐ D22 — Space on the timeline (the cursor's play) is a USER control: from Edit with Live armed it is the live load, not the dry run.</summary>
-    [Fact]
-    public void CE4097_D22_TheTimelinesSpace_FollowsTheArmedModeFromEdit()
+    public void CE3405_TheTimelinesSpace_IsThePreviewFromEdit_WhateverIsArmed()
     {
         var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
         var c = RealCursor(rig);
         Assert.True(c.CanPlay);
         c.TogglePlay();
-        Assert.Equal(new[] { "LoadForLive:hill-attack" }, rig.C.Calls);
+        Assert.Empty(rig.C.Calls);                                          // never the live load (CE-3405: the mode is switched at the indicator)
+        Assert.Equal(ClusterState.OperatingPreview, RunChoiceRig.Sent<TransitionStateIntent>(rig).Single().TargetState);
 
         var blind = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, withControl: false);
-        Assert.False(RealCursor(blind).CanPlay);                            // Live armed on a host with no session: nothing to play
+        Assert.False(RealCursor(blind).CanPlay);                            // a host with no session: nothing to play from Edit
     }
 }
