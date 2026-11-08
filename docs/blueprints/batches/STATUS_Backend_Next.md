@@ -12,4 +12,4 @@
 | Y-5 | CE-4099 | STOPPED at A0 — QUESTION | (this commit) | A0 FAILS as designed (header + doors read NoReplay content singletons; Recording set drops `VariantForms`); the amended capture holds — measured in AQ108 §4c.1, [QUESTION](NOTE_Backend_To_Coordinator_CE4099_A0_Failed.md), lean (A) amend |
 | Y-6 | — | QUEUED | — | the pre-existing reds, one line each |
 | Y-7 | CE-4327 | DONE | `93ed4255f` | `SetAuthority` stamps `LastChangeTick` on a real change ⇒ a handover is in the delta; rail `RecorderDeltaLogicTests.CE4327_*` |
-| Y-8 | CE-3399…3404 | QUEUED | — | struct-editor follow-ups, small first |
+| Y-8 | CE-3399…3404 | IN PROGRESS (worker) | `f4ee3c02f` `560c9f900` `c0db9eee0` `011b00abf` | CE-3404, CE-3402, CE-3400, CE-3399 DONE (review: two CE-3399 hot-path fixes sent back); CE-3403, CE-3401 next; also ui's Start-screen fidelity REQUEST and our own lint reds (StructEdit JSON options, OrdersTab HashCode) |
