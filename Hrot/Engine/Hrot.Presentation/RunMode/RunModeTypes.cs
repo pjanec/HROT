@@ -425,8 +425,9 @@ public interface IRunTransport
     void SeekWall(long wallTicks);
     /// <summary>■ exactly as before the choice existed: a review back to live, a dry run back to edit, anything else to Idle.</summary>
     void StopRaw();
-    /// <summary>The dry run (Preview), running or paused at its first frame.</summary>
-    void EnterDryRun(bool startPaused);
+    /// <summary>The dry run (Preview), running or paused at its first frame. ⭐ CE-4317 / R-4168 — <paramref name="presetArgs"/> = the run setup (a preset's args, <c>$variant</c> included) every node applies IN PLACE on the Preview's copy of the edit world
+    /// (backend CE-4326: <c>DryRunIntents.Enter</c>); <see langword="null"/> = as the world holds it (the default Preview — byte-identical to before).</summary>
+    void EnterDryRun(bool startPaused, string? presetArgs = null);
     /// <summary>Resume the cluster clock.</summary>
     void Resume();
     /// <summary>Seek the review / replay (on the active axis).</summary>
