@@ -26,6 +26,10 @@ public static class Icons
             case "orbat/command": icon = new("\uf0e8", IconPalette.Teal); return true;   // Sitemap
             case "orbat/structure": icon = new("\uf1b3", IconPalette.Orange); return true;   // Cubes
             case "orbat/scenario": icon = new("\uf12e", IconPalette.Violet); return true;   // PuzzlePiece
+            // ⭐ U-4 (CE-4334, UI Conventions §2) — the ICON of an ORBAT row, by what the row IS (a unit with subordinates · a part · a Scenario-view group; a macro instance reuses orbat/scenario, any other entity thing/entity)
+            case "orbat/unit": icon = new("\uf0c0", IconPalette.Teal); return true;   // Users — a unit that takes subordinates
+            case "orbat/part": icon = new("\uf013", IconPalette.Grey); return true;   // Gear — a part of a vehicle (sensor, weapon mount)
+            case "orbat/group": icon = new("\uf07c", IconPalette.Amber); return true;   // FolderOpen — Saved / Transient
             case "details/layout-stacked": icon = new("\uf5fd", IconPalette.Violet); return true;   // LayerGroup
             case "details/layout-tabs": icon = new("\uf0db", IconPalette.Blue); return true;   // TableColumns
             case "details/float": icon = new("\uf35d", IconPalette.Blue); return true;   // UpRightFromSquare
@@ -98,6 +102,7 @@ public static class Icons
             case "section/list": icon = new("\uf03a", IconPalette.Teal); return true;   // List
             case "section/search": icon = new("\uf002", IconPalette.Blue); return true;   // MagnifyingGlass
             case "section/selection": icon = new("\uf0ae", IconPalette.Blue); return true;   // ListCheck
+            case "section/debug": icon = new("\uf188", IconPalette.Red); return true;   // Bug — ⭐ U-7 (CE-4338): the Brain tab's Debug section
             default: icon = Unknown; return false;
         }
     }
@@ -116,6 +121,9 @@ public static class Icons
         "orbat/command",
         "orbat/structure",
         "orbat/scenario",
+        "orbat/unit",
+        "orbat/part",
+        "orbat/group",
         "details/layout-stacked",
         "details/layout-tabs",
         "details/float",
@@ -184,6 +192,7 @@ public static class Icons
         "section/render",
         "section/list",
         "section/search",
-        "section/selection"
+        "section/selection",
+        "section/debug"
     };
 }

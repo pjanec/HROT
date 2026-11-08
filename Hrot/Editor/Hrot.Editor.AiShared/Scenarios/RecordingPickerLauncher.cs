@@ -37,17 +37,22 @@ public sealed class RecordingPickerLauncher
     private readonly Func<IReadOnlyList<ExerciseInventoryItem>> _listExercises;
     private readonly Action<Guid> _openRecording;
     private readonly Func<bool>? _hasInventory;
+    private readonly Func<IReadOnlyDictionary<Guid, string>>? _sourceNotes;
+    private IReadOnlyDictionary<Guid, string>? _notes;
 
     /// <param name="openPicker">The picker seam — production: the shell <c>PickerRegistry.OpenPicker</c>.</param>
     /// <param name="listExercises">The master's exercise inventory as this host reads it.</param>
     /// <param name="openRecording">The host's ONE recording opener, given the picked exercise id.</param>
     /// <param name="hasInventory">⭐ CE-1442 (§11.7 ⑤) — the master's list has arrived (<c>RunGate.HasInventory</c>, read through the host's run choice); until then the picker says <see cref="RunGate.WaitingForInventoryText"/> instead of an empty list that reads as "no recordings". <see langword="null"/> ⇒ always (a rail).</param>
+    /// <param name="sourceNotes">⭐ R-5 / V6 — what each exercise's row says about what opening it GIVES (<c>"4 participants — opens MERGED"</c>, <c>"this editor's run"</c>), read ONCE when the picker opens (a directory scan, never per frame); null ⇒ no note (a host with no review source).</param>
     public RecordingPickerLauncher(
         Action<PickerRequest, Action<PickerResult>> openPicker,
         Func<IReadOnlyList<ExerciseInventoryItem>> listExercises,
         Action<Guid> openRecording,
-        Func<bool>? hasInventory = null)
+        Func<bool>? hasInventory = null,
+        Func<IReadOnlyDictionary<Guid, string>>? sourceNotes = null)
     {
+        _sourceNotes    = sourceNotes;
         _hasInventory   = hasInventory;
         _openPicker     = openPicker     ?? throw new ArgumentNullException(nameof(openPicker));
         _listExercises  = listExercises  ?? throw new ArgumentNullException(nameof(listExercises));
@@ -62,7 +67,7 @@ public sealed class RecordingPickerLauncher
             .OrderByDescending(x => x.StartTimeUtc)
             .Select(x => new PickerEntry(
                 Id:            AssetRecents.RecordingKey(x.ExerciseId),
-                Name:          Label(x),
+                Name:          _notes is not null && _notes.TryGetValue(x.ExerciseId.Value, out var note) ? Label(x) + " · " + note : Label(x),
                 Description:   $"exercise {x.ExerciseId}",
                 Category:      null,
                 Keywords:      x.ScenarioId is { Length: > 0 } s ? new[] { s } : null,
@@ -84,6 +89,7 @@ public sealed class RecordingPickerLauncher
     /// <summary>Opens the picker; a confirmed recording goes to the host's one opener, a cancel does nothing.</summary>
     public void Open()
     {
+        _notes = _sourceNotes?.Invoke();   // ⭐ V6 — the rows say what each opens: read once per opening of the picker
         var request = new PickerRequest
         {
             ContextKey    = ContextKey,

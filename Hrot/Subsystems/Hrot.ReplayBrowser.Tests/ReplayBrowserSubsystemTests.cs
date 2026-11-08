@@ -212,6 +212,25 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     // ── FND-T12: 5 windows registered, all PerspectiveBound, all "ReplayBrowser" ─
 
     /// <summary>
+    /// ⭐ R-6 / V7 — the Replay Browser composes the Event Timeline's review rows (the ONE <c>ReviewTimelineTracks</c>, beside the Tasks rows) over ITS search panel; a recording has no breakpoint manager, so
+    /// the class is built with no stops. 🔴 Red-proof: no <c>AddTracks(ReviewTracks.Tracks)</c> ⇒ one source instead of two ⇒ red.
+    /// </summary>
+    [Fact]
+    public void V7_TheReplayBrowser_ComposesTheReviewRows_OverItsSearchPanel()
+    {
+        var wm = new WindowManager(new IconAtlas(IntPtr.Zero, 512, 512));
+        var timelinePanel = new Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel(null, () => 0, new StubExportService(), new StubFileDialogService(), new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(), new InspectorState());
+        var searchPanel = new Fdp.Presentation.Panels.ReplayBrowser.ReplaySearchPanel(new NopPanelEditService(), new NopPanelSearchService(), _ => { }, _ => { }, (_, _) => { });
+        _subsystem.RegisterWindowsCore(wm, timelinePanel, new Fdp.Presentation.Panels.EntityInspectorPanel(), new Fdp.Presentation.Panels.ReplayBrowser.ComponentDiffPanel(),
+            new Fdp.Presentation.Panels.EventBrowserPanel(new StubHistoryService()), searchPanel);
+
+        Assert.NotNull(_subsystem.TasksTracks);
+        Assert.NotNull(_subsystem.ReviewTracks);
+        Assert.Equal(2, _subsystem.EventTimelineForTest.ExtraTrackSourceCount);   // the Tasks rows and the review rows
+        Assert.Empty(_subsystem.ReviewTracks!.Tracks());                          // no recording / no hits ⇒ no row
+    }
+
+    /// <summary>
     /// FND-T12: RegisterWindowsCore registers exactly 6 windows (CE-1150 / CE-1244); all are
     /// PerspectiveBound scope; all belong to the "ReplayBrowser" perspective.
     /// </summary>
@@ -260,6 +279,35 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Assert.Equal(WindowScope.PerspectiveBound, win.Scope);
             Assert.Equal("ReplayBrowser", win.OwningPerspective);
         }
+    }
+
+    /// <summary>⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D11) — the Replay Browser's DEFAULT layout is the Review layout: the SAME <c>ReviewLayout</c> preset the editor's Review perspective
+    /// requests, over this host's ids (every role it has, in the role's region; no data-breakpoints window here, so that role is absent). ✅ Red-proof: the request removed ⇒ red.</summary>
+    [Fact]
+    public void V4_TheDefaultLayout_IsTheReviewLayout_TheSamePresetTheEditorUses()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var wm = new WindowManager(new IconAtlas(IntPtr.Zero, 1, 1));
+        _subsystem.RegisterWindowsCore(wm,
+            new Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel(null, () => 0, new StubExportService(), new StubFileDialogService(),
+                new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(), new InspectorState()),
+            new Fdp.Presentation.Panels.EntityInspectorPanel(), new Fdp.Presentation.Panels.ReplayBrowser.ComponentDiffPanel(),
+            new Fdp.Presentation.Panels.EventBrowserPanel(new StubHistoryService()),
+            new Fdp.Presentation.Panels.ReplayBrowser.ReplaySearchPanel(new NopPanelEditService(), new NopPanelSearchService(), _ => { }, _ => { }, (_, _) => { }));
+
+        var preset = wm.PendingDockPreset;
+        Assert.NotNull(preset);
+        var expected = new (string Id, DockRegion Region)[]
+        {
+            ("rb_mission_summary", Hrot.Editor.AiShared.Review.ReviewLayout.RegionOf(Hrot.Editor.AiShared.Review.ReviewLayout.Role.MissionSummary)),
+            ("rb_details",         Hrot.Editor.AiShared.Review.ReviewLayout.RegionOf(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details)),
+            ("rb_diff",            Hrot.Editor.AiShared.Review.ReviewLayout.RegionOf(Hrot.Editor.AiShared.Review.ReviewLayout.Role.FrameDiff)),
+            ("rb_search",          Hrot.Editor.AiShared.Review.ReviewLayout.RegionOf(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Search)),
+            ("rb_event_timeline",  Hrot.Editor.AiShared.Review.ReviewLayout.RegionOf(Hrot.Editor.AiShared.Review.ReviewLayout.Role.EventTimeline)),
+        };
+        Assert.Equal(expected, preset!.Placements.ToArray());
+        Assert.Equal(new[] { DockRegion.Left, DockRegion.Right, DockRegion.RightLower, DockRegion.RightLower, DockRegion.Bottom }, expected.Select(e => e.Region).ToArray());   // the mockup's regions
+        foreach (var (id, _) in expected) Assert.True(wm.TryGetWindow(id, out _), id + " is a window of this host");
     }
 
     /// <summary>⭐⭐ <c>CE-4323</c> (scenario lifecycle LC-19) — the Replay Browser's <i>File ▸ Open Exercise Recording…</i> is the EDITOR'S picker

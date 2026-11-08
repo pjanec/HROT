@@ -112,6 +112,11 @@ public sealed class TimelinePanel
         return _allTracks.Count == 0 && first == null ? null : _allTracks;
     }
 
+    /// <summary>⭐ R-6 / V7 — every row the panel draws now (the director's then each feature's), as a host rail reads them. For unit testing only.</summary>
+    internal IReadOnlyList<ITimelineTrack>? CollectedTracksForTest() => CollectTracks();
+    /// <summary>⭐ R-6 / V7 — how many feature sources added rows with <see cref="AddTracks"/> (a host-composition rail). For unit testing only.</summary>
+    internal int ExtraTrackSourceCount => _extraTracks.Count;
+
     /// <summary>⭐ <c>CE-4216</c> (RV-3a) — draw the ruler and the tracks' headers even when no track holds an item yet (the rules view before a run: authored rows have no past). Off by default: the director's empty tracks keep "No recording.".</summary>
     public bool ExtentWithoutItems { get; set; }
 

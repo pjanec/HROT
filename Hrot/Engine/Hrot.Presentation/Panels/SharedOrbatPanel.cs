@@ -84,7 +84,7 @@ public sealed class SharedOrbatPanel
     // ── ⭐ CE-4213 — what the last <see cref="DrawContent"/> actually EMITTED (the frame rail asserts on it; not a model projection) ──
 
     /// <summary>One row as drawn: its text, depth, whether it was a group label or a selectable entity row, and the arrow it carried (null = none, else expanded or not).</summary>
-    public readonly record struct DrawnRow(string Text, int Depth, bool IsGroup, bool? ArrowExpanded, System.Numerics.Vector2 Min = default, System.Numerics.Vector2 Max = default);
+    public readonly record struct DrawnRow(string Text, int Depth, bool IsGroup, bool? ArrowExpanded, System.Numerics.Vector2 Min = default, System.Numerics.Vector2 Max = default, string IconKey = "");
 
     /// <summary>The relation switch's three radio buttons as laid out: label and screen rectangle (what a click lands on).</summary>
     public readonly record struct DrawnSwitch(string Label, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max);
@@ -172,17 +172,17 @@ public sealed class SharedOrbatPanel
             // ⭐ CE-4213 ⑥ — a Scenario-view GROUP row (Saved / Transient) has no entity: a label with its arrow, no select, drag, drop or menu
             if (node.IsGroup)
             {
-                NodeEditor.Core.Widgets.TreeRow.Draw(RowId(node.EntityId), node.Name, NodeEditor.Core.Widgets.RowIcon.None, node.Depth, node.HasChildren, ref open, false);
+                NodeEditor.Core.Widgets.TreeRow.Draw(RowId(node.EntityId), node.Name, RowIconOf(node), node.Depth, node.HasChildren, ref open, false);
                 if (node.HasChildren && open != wasOpen) ToggleNode(node.EntityId, open, ctrl);
-                _drawn.Add(new(node.Name, node.Depth, true, node.HasChildren ? open : null, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+                _drawn.Add(new(node.Name, node.Depth, true, node.HasChildren ? open : null, ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), node.IconKey));
                 continue;
             }
 
             // ⭐ CE-1350: a destroyed unit's name in dark red; a double-click centres the map on it (Center View)
             if (node.IsDestroyed) ImGui.PushStyleColor(ImGuiCol.Text, DestroyedColour);
-            bool picked = NodeEditor.Core.Widgets.TreeRow.Draw(RowId(node.EntityId), node.Name, NodeEditor.Core.Widgets.RowIcon.None, node.Depth, node.HasChildren, ref open, false);
+            bool picked = NodeEditor.Core.Widgets.TreeRow.Draw(RowId(node.EntityId), node.Name, RowIconOf(node), node.Depth, node.HasChildren, ref open, false);
             if (node.HasChildren && open != wasOpen) ToggleNode(node.EntityId, open, ctrl);
-            _drawn.Add(new(node.Name, node.Depth, false, node.HasChildren ? open : null, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+            _drawn.Add(new(node.Name, node.Depth, false, node.HasChildren ? open : null, ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), node.IconKey));
             if (picked)
             {
                 if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) ctrl.CenterOn(node.EntityId);
@@ -258,6 +258,10 @@ public sealed class SharedOrbatPanel
             ImGui.EndDragDropTarget();
         }
     }
+
+    /// <summary>⭐ U-4 (CE-4334, UI Conventions §2) — the row's coloured glyph (CHEVRON · ICON · LABEL), through the ONE icon map (<c>Icons</c>): a key the adapter named; none ⇒ no icon. A struct built from the static map: nothing allocated.</summary>
+    private static NodeEditor.Core.Widgets.RowIcon RowIconOf(OrbatNodeViewModel node)
+        => node.IconKey.Length > 0 && NodeEditor.Core.Widgets.Icons.TryGet(node.IconKey, out var glyph) ? NodeEditor.Core.Widgets.RowIcon.OfGlyph(glyph) : NodeEditor.Core.Widgets.RowIcon.None;
 
     /// <summary>The row's constant id string (cached per entity: nothing is concatenated per frame).</summary>
     private readonly Dictionary<int, string> _rowIds = new();

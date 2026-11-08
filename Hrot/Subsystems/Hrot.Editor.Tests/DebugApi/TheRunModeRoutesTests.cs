@@ -9,6 +9,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Time.Domain;
 using Hrot.Editor.DebugApi;
 using Hrot.Presentation.DebugApi;
 using Hrot.UI.Common.Adapters;
@@ -70,6 +71,41 @@ public sealed class TheRunModeRoutesTests : IDisposable
     }
 
     private static List<T> Sent<T>(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<T>().ToList(); }
+
+    /// <summary>
+    /// ⭐ U-12 / CE-4129 (the user: "Freshly started editor node. Loaded recipe demo city. Pressed play. No entities.") — ▶ is REFUSED while the node's scenario load is still running, by the ONE run gate: the real adapter (a node still LOADING locally, the cluster Idle — the measured
+    /// state) publishes NO resume / dry-run intent for ▶ or Step, and <c>POST /sim/play</c> answers with the gate's reason (<c>refused</c>); once the load is done ▶ publishes as before. 🔴 Red-proof (compiles): <c>PlayRefusal</c> always null ⇒ the intent goes out during the load ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4129_APlayDuringALoad_IsRefused_WithTheGatesReason_AndWorksOnceItIsDone()
+    {
+        var bus = new FdpEventBus();
+        var view = new ClusterView(bus);
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
+        facade.AttachRunChoice(new Control(), new Unchanged());
+        view.NoteLocalPhase(NodePhase.Loading, "terrain: demo-city", null);
+        bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
+        Assert.Equal("loading: terrain: demo-city", facade.PlayRefusal);
+
+        facade.TogglePlayPause();                                              // ▶ while the load runs
+        facade.StepBy(1f / 60f);
+        bus.SwapBuffers();                                                    // one swap, then every kind of intent is read (each swap drops what was not read)
+        Assert.Empty(bus.ReadManaged<TransitionStateIntent>().ToList());
+        Assert.Empty(bus.ReadManaged<ResumeTimeIntent>().ToList());
+        Assert.Empty(bus.ReadManaged<StepTimeIntent>().ToList());
+        Assert.Empty(bus.ReadManaged<PauseTimeIntent>().ToList());
+
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Editor", "Editor", drive: () => facade, clusterView: () => view) },
+            currentPerspective: () => "Editor", acksPending: null);
+        var state = new DebugApiService(dispatcher, clusterState: () => ClusterState.Idle).Play();
+        Assert.Equal("loading: terrain: demo-city", state["refused"]!.GetValue<string>());   // the route says why, not "ok"
+
+        var (open, openBus, _) = Adapter(ClusterState.OperatingEdit, RunArmed.Preview);   // a node whose cluster state has arrived (the gate is open)
+        Assert.Null(open.PlayRefusal);
+        open.TogglePlayPause();                                                // ▶ goes out, as before: the dry run
+        Assert.Single(Sent<TransitionStateIntent>(openBus));
+    }
 
     /// <summary>
     /// ⭐⭐ CE-1451 — <c>GET /status</c> shows a node that is LOADING: its heartbeat's phase and step (<c>load</c>), the run gate its controls read (<c>runGate</c>) and the text of

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Presentation.Icons;
 using ImGuiNET;
@@ -41,6 +42,22 @@ public abstract class ManagedWindow
 
     /// <summary>Controls whether the window is perspective-filtered or always visible.</summary>
     public WindowScope Scope { get; }
+
+    private HashSet<string>? _alsoShownIn;
+
+    /// <summary>
+    /// ⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D1 / D10) — the OTHER perspectives this window is shown in, besides <see cref="OwningPerspective"/>
+    /// (a layout that SHARES a panel — the Review layout shows the Scenario layout's Details and Event Timeline — instead of a second copy of the window).
+    /// Empty for nearly every window. ⛔ The Windows menu still groups a window under its owner only.
+    /// </summary>
+    public IReadOnlyCollection<string> AlsoShownIn => (IReadOnlyCollection<string>?)_alsoShownIn ?? System.Array.Empty<string>();
+
+    /// <summary>Adds <paramref name="perspective"/> to <see cref="AlsoShownIn"/> (idempotent).</summary>
+    public void AlsoShowIn(string perspective) => (_alsoShownIn ??= new HashSet<string>()).Add(perspective);
+
+    /// <summary>⭐ The ONE test "this window belongs to <paramref name="perspective"/>": its owner, or one it is also shown in.</summary>
+    public bool BelongsTo(string perspective)
+        => OwningPerspective == perspective || (_alsoShownIn != null && _alsoShownIn.Contains(perspective));
 
     /// <summary>
     /// Whether the window is open. Setting to <c>false</c> hides the window immediately.
@@ -172,13 +189,13 @@ public abstract class ManagedWindow
         // Step 2 — visibility gate.
         var isVisible = Scope == WindowScope.Global
             || _isPinned
-            || OwningPerspective == currentPerspective;
+            || BelongsTo(currentPerspective);
 
         // Step 3 — exit if not visible.
         if (!isVisible) return;
 
         var windowInternalName = WindowInternalName;
-        var perspectiveActive = OwningPerspective == currentPerspective;
+        var perspectiveActive = BelongsTo(currentPerspective);
 
         // Step 4 — consume pending focus request before Begin so ImGui can find the window.
         if (_focusRequested)

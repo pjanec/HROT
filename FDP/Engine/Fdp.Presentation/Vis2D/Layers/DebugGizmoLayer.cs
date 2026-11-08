@@ -387,6 +387,17 @@ namespace Fdp.Toolkit.Vis2D.Layers
         {
             if (_buffer == null) return null;
 
+            // ⭐⭐ U-9 (CE-4340) — IN 3-D THE ANSWER IS THE CAMERA'S OWN PICK: the entity the cursor's RAY hit (its DRAWN box plus a few pixels, EntityBoxPicker), nothing else.
+            //   📐 MEASURED (HoverPickVolumeTests): this hit-test used to read the zoom off the 3-D camera's hidden 2-D <c>InnerCamera</c> — unrelated to the 3-D view — and test the 2-D FOOTPRINT box (5 m long symbol ⇒ 3 m half) plus 5 px
+            //   of slack AT THAT ZOOM, so a 0.5 m man answered the hover from 5 m (inner zoom 3) to 23 m (inner zoom 0.3) away — 31 to 202 screen pixels. ⇒ the hover label showed ~15 m from the entity.
+            if ((CurrentCamera?.Invoke() ?? _mapCamera) is Fdp.Toolkit.Vis3D.MapCamera3D camera3D)
+            {
+                var pick = camera3D.LastPick;
+                if (pick.Kind != Fdp.Toolkit.Vis3D.PickKind.Entity || pick.NetworkId == 0) return null;
+                var hit3D = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(_worldProvider?.Invoke(), pick.NetworkId);
+                return hit3D.IsNull ? null : hit3D;
+            }
+
             // ⚠ The camera is refreshed in Update(); a pick can arrive before the first frame, so fall
             //   back to the live one rather than hit-testing against a default zoom of 0.
             float zoom = _mapCamera?.InnerCamera.Zoom ?? _camera.Zoom;

@@ -52,6 +52,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
+            PlacementDirectionLine.Draw(draw, _session, _cursor);   // ⭐ U-8 (CE-4339) — the way the group will face, from the press point toward the cursor, while dragging
             if (_preview is null) return;
             var (at, heading) = PendingAt(_cursor);
             float turn = -(heading - _clipboard.Heading.Degrees) * (MathF.PI / 180f);   // compass is clockwise; the draw turns counter-clockwise

@@ -14,6 +14,7 @@ using Hrot.Editor.AiShared.Variables;
 using Hrot.Editor.AiShared.Windows;
 using Hrot.Editor.UiFrameRail;
 using ImGuiNET;
+using Raylib_cs;
 using Xunit;
 
 namespace Hrot.Editor.AiShared.Tests.Windows;
@@ -515,6 +516,81 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Contains("from #900  FightFromCover", Assert.Single(cmd.OrdersReceived).Text);
         Assert.Contains("because the play's phase changed (DefiladeReached)", Assert.Single(cmd.OrdersSent).Text);
         Assert.Null(BrainCommandView.Read(w, soldier, _ => null, 0f));                  // a soldier: no commander sections
+    }
+
+    /// <summary>⭐ U-7 (CE-4338; the user's report: "the unit's Details ▸ Brain tab: every expander has the pink brain icon — each section needs the icon of what it is about") — the REAL Brain view, a running unit AND a platoon commander (every
+    /// section the tab has), every section OPEN in a real frame: each section's header carries the glyph <c>SectionIconKey</c> names for it, painted in THAT glyph's own colour left of the label (never the tab's pink brain); the keys of the sections drawn are
+    /// all different; a blueprint section the host embeds takes the blueprint bolt. 🔴 Red-proof (compiles): <c>SectionIconKey</c> returning "tab/brain" for every id ⇒ red. 📷 <c>HROT_RAIL_SHOTS</c>/<c>brain-section-icons-*.png</c>.</summary>
+    [SkippableFact]
+    public void U7_EveryBrainSection_WearsTheIconOfWhatItIsAbout_NotThePinkBrain()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-brain");
+        Directory.CreateDirectory(shots);
+        var seen = new System.Collections.Generic.Dictionary<string, string>();
+        var embeds = new DetailsViewRegistry();
+        embeds.Add(new DetailsViewDescriptor("details.test.blueprints", "Blueprints", 1, DetailsViewPredicates.ExactlyOneEntity, () => new CountingView(() => { })));
+
+        foreach (var kind in new[] { "unit", "commander" })
+        {
+            var (w, e, reg, bps) = RunningWorld();
+            using var _w = w;
+            Entity unit = e;
+            if (kind == "unit") { Steering(w, e); Contacts(w, e); BrainJournalOf.Write(w, e, BrainJournalKind.TaskStarted, a: Fight, origin: (byte)BehaviorOrigin.Superior); }
+            else unit = Commander(w);
+            var view = new EntityBrainView(() => w, h => h == Fight ? "FightFromCover" : null, null, () => reg, () => bps, () => embeds);
+            var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { unit } };
+            EntityBrainView.ExpandForRail = true;
+            EntityBrainView.RecordSections = true;
+            try
+            {
+                using var frame = UiFrameHarness.Begin(860, 1100);
+                new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+                EntityBrainView.DrawnSections.Clear();
+                frame.StepN(5, () =>
+                {
+                    EntityBrainView.DrawnSections.Clear();
+                    ImGui.SetNextWindowPos(new Vector2(8, 8));
+                    ImGui.SetNextWindowSize(new Vector2(840, 1080));
+                    ImGui.Begin("Brain##u7" + kind);
+                    view.Draw(ctx, "details_u7" + kind);
+                    ImGui.End();
+                });
+                string path = Path.Combine(shots, $"brain-section-icons-{kind}.png");
+                frame.Screenshot(path);
+                var image = Raylib.LoadImage(path);
+                try
+                {
+                    Assert.True(EntityBrainView.DrawnSections.Count >= 7, $"{kind}: the tab drew its sections ({EntityBrainView.DrawnSections.Count})");
+                    foreach (var (id, key, min, max) in EntityBrainView.DrawnSections)
+                    {
+                        Assert.Equal(EntityBrainView.SectionIconKey(id), key);
+                        Assert.NotEqual("tab/brain", key);                                    // never the tab's own pink brain
+                        if (seen.TryGetValue(id, out var was)) Assert.Equal(was, key); else seen[id] = key;
+                        var glyph = NodeEditor.Core.Widgets.Icons.Get(key);
+                        var pink = NodeEditor.Core.Widgets.IconPalette.Pink;
+                        float size = ImGui.GetFontSize();
+                        int own = 0, brain = 0;
+                        // the header: chevron slot, then the icon cell (the section header paints CHEVRON · ICON · LABEL)
+                        for (int x = (int)min.X + 8; x < (int)min.X + 8 + (int)(size * 3f); x++)
+                            for (int y = (int)min.Y; y < (int)max.Y; y++)
+                            {
+                                var c = Raylib.GetImageColor(image, x, y);
+                                bool Near(System.Numerics.Vector4 v) => Math.Abs(c.R - v.X * 255f) <= 36 && Math.Abs(c.G - v.Y * 255f) <= 36 && Math.Abs(c.B - v.Z * 255f) <= 36;
+                                if (Near(glyph.Color)) own++;
+                                if (Near(pink)) brain++;
+                            }
+                        Assert.True(own >= 6, $"{kind} / '{id}': the header shows its own icon ({key}, {own} px in its colour)");
+                        if (glyph.Color != pink) Assert.True(brain <= own / 3, $"{kind} / '{id}': not the pink brain ({brain} px)");
+                    }
+                }
+                finally { Raylib.UnloadImage(image); }
+            }
+            finally { EntityBrainView.ExpandForRail = false; EntityBrainView.RecordSections = false; }
+        }
+        Assert.True(seen.Values.Distinct().Count() == seen.Count, "every section has its own icon: " + string.Join(", ", seen.Select(kv => kv.Key + "=" + kv.Value)));
+        Assert.True(seen.Count >= 10, $"the two units together drew {seen.Count} different sections");
+        Assert.Equal("doc/blueprint", EntityBrainView.SectionIconKey("embed.details.test.blueprints"));
     }
 
     /// <summary>📷 <c>CE-1312</c> — a commander's tab photographed with its sections open (<c>brain-commander.png</c>).</summary>

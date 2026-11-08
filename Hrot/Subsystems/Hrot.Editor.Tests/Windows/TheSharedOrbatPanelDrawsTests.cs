@@ -45,11 +45,13 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
         _world.RegisterComponent<Fdp.Toolkit.Scenario.MacroOrigin>();
         _world.RegisterComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>();
         _world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+        _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
         _world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>();
         _world.CreateEntity();   // index 0 is no entity
 
         // Command: a commander and two units under him
         _leader = Named("Platoon leader");
+        _world.AddComponent(_leader, new Fdp.Core.CommandHierarchy.UnitRoster());   // ⭐ U-4 — a unit that takes subordinates (its row's icon is the unit's)
         foreach (var n in new[] { "Rifleman A", "Rifleman B" })
         {
             var u = Named(n);
@@ -356,5 +358,67 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
             Assert.True(Math.Abs(l.LabelMin - (leader.Min.X + slot)) <= 4, "the label starts after the chevron's slot");
         }
         finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>⭐ U-4 (CE-4334, docs/UX/DESIGN_UI_Conventions.md §2 — CHEVRON · ICON · LABEL; the user's report: "the ORBAT tree draws no icons") — the REAL panel over the REAL adapter in all three relations: EVERY row it drew carries an icon, the
+    /// glyph the adapter named (a unit that takes subordinates, a vehicle's part, a macro instance, a Scenario-view group, any other entity), painted in that glyph's own colour between the chevron's slot and the label. Read off a real frame (real fonts).
+    /// 🔴 Red-proof (compiles): the adapter returning <c>""</c> from <c>IconKeyOf</c> ⇒ no row has an icon ⇒ red. Render (never in git): <c>HROT_FRAME_SCREENSHOTS</c> ⇒ <c>orbat-icons-{command,structure,scenario}.png</c>.</summary>
+    [SkippableFact]
+    public void U4_EveryOrbatRowHasItsIcon_InEveryRelation_ThroughTheOneIconMap()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var adapter = new ScenarioOrbatAdapter(_world, _world.Bus, _spawn.Object);
+        var panel = new SharedOrbatPanel();
+        foreach (var id in new[] { _leader.Index, _tank.Index, _instance.Index, ScenarioOrbatAdapter.GroupSavedId, ScenarioOrbatAdapter.GroupTransientId }) panel.Expand(id);
+        using var frame = UiFrameHarness.Begin(640, 340);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        var expect = new Dictionary<string, string>
+        {
+            ["Platoon leader"] = "orbat/unit", ["Rifleman A"] = "thing/entity", ["Rifleman B"] = "thing/entity",
+            ["Tank"] = "thing/entity", ["Tank · sensor Radar"] = "orbat/part", ["Passenger"] = "thing/entity",
+            ["Fire team A"] = "orbat/scenario", ["Blue 1"] = "thing/entity", ["Blue 2"] = "thing/entity", ["Live addition"] = "thing/entity",
+        };
+        int rowsChecked = 0;
+        foreach (var relation in new[] { EntityTreeRelation.Command, EntityTreeRelation.Structure, EntityTreeRelation.Scenario })
+        {
+            panel.Relation = relation;
+            for (int i = 0; i < 6; i++)
+                frame.Step(() =>
+                {
+                    ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
+                    ImGui.SetNextWindowSize(new Vector2(420, 300), ImGuiNET.ImGuiCond.Always);
+                    ImGui.Begin("ORBAT##u4icons");
+                    panel.DrawContent(adapter, adapter);
+                    ImGui.End();
+                });
+            string path = Shot($"orbat-icons-{relation.ToString().ToLowerInvariant()}.png");
+            frame.Screenshot(path);
+            var image = Raylib.LoadImage(path);
+            try
+            {
+                float slot = ImGui.GetTreeNodeToLabelSpacing(), size = ImGui.GetFontSize();
+                Assert.NotEmpty(panel.DrawnRows);
+                foreach (var row in panel.DrawnRows)
+                {
+                    string want = row.IsGroup ? "orbat/group" : expect.TryGetValue(row.Text, out var k) ? k : throw new Xunit.Sdk.XunitException($"unexpected row '{row.Text}'");
+                    Assert.Equal(want, row.IconKey);
+                    var glyph = NodeEditor.Core.Widgets.Icons.Get(want);
+                    var bg = Raylib.GetImageColor(image, (int)row.Max.X - 6, (int)((row.Min.Y + row.Max.Y) / 2));
+                    int inCell = 0, own = 0;
+                    for (int x = (int)(row.Min.X + slot - 1); x < (int)(row.Min.X + slot + size + 2); x++)
+                        for (int y = (int)row.Min.Y; y < (int)row.Max.Y; y++)
+                        {
+                            var c = Raylib.GetImageColor(image, x, y);
+                            if (Math.Abs(c.R - bg.R) + Math.Abs(c.G - bg.G) + Math.Abs(c.B - bg.B) > 90) inCell++;
+                            if (Math.Abs(c.R - glyph.Color.X * 255f) <= 40 && Math.Abs(c.G - glyph.Color.Y * 255f) <= 40 && Math.Abs(c.B - glyph.Color.Z * 255f) <= 40) own++;
+                        }
+                    Assert.True(inCell >= 12, $"{relation} / '{row.Text}': the icon cell holds ink ({inCell} px)");
+                    Assert.True(own >= 6, $"{relation} / '{row.Text}': the icon is in its own colour ({own} px of {want})");
+                    rowsChecked++;
+                }
+            }
+            finally { Raylib.UnloadImage(image); }
+        }
+        Assert.True(rowsChecked >= 20, $"every row of all three views was checked ({rowsChecked})");
     }
 }

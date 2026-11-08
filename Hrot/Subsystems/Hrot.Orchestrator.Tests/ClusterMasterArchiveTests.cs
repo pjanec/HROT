@@ -340,4 +340,88 @@ public sealed class ClusterMasterArchiveTests
         Assert.False(progress.GiveWay);
         Assert.False(master.StorageJobs.Find(job)!.GivingWay);
     }
+
+    private static void BeatHolding(FdpEventBus bus, ClusterMaster master, int nodeId, params string[] recordings)
+    {
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = (Fdp.Core.NodeId)(nodeId), SubsystemName = "TestNode", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            LocalRecordings = recordings.Length == 0 ? null : new List<string>(recordings),
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ④ (§7.2) — an import pushes ONLY to the nodes that lack the recording (fact ③); when every node holds it the job ends at once
+    /// (the cache hit, §5a) and nothing is pushed.
+    /// 🔴 Mutation: the NodesHolding filter removed ⇒ node 2 is targeted too ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4330_AnImportPushesOnlyToTheNodesThatLackTheRecording_AndNothingWhenAllHoldIt()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        var ex = Guid.NewGuid();
+        BeatHolding(bus, master, 1);
+        BeatHolding(bus, master, 2, $"{ex}:1000");
+
+        var first = Ask(master, ClusterOpType.ImportArchive, ex);
+        master.Tick();
+        bus.SwapBuffers();
+        ImportArchiveBegunEvent? begun = null;
+        foreach (var ev in bus.ReadManaged<ImportArchiveBegunEvent>()) begun = ev;
+        Assert.NotNull(begun);
+        Assert.Equal(new[] { 1 }, begun!.Value.Targets.Select(t => t.NodeId.Value).ToArray());
+
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = first, StatusCode = OrchestrationStatusCode.Success });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        BeatHolding(bus, master, 1, $"{ex}:1000");   // node 1 now holds it too
+
+        var second = Ask(master, ClusterOpType.ImportArchive, ex);
+        master.Tick();
+        bus.SwapBuffers();
+        Assert.Equal(OrchestrationStatusCode.Success, Statuses(bus)[second].Code);
+        foreach (var _ in bus.ReadManaged<ImportArchiveBegunEvent>()) Assert.Fail("every node holds it: nothing is pushed");
+        Assert.Equal(StorageJobState.Done, master.StorageJobs.Find(second)!.State);
+    }
+
+    private static void Inventory(FdpEventBus bus, ClusterMaster master, params ExerciseInventoryItem[] onNodes)
+    {
+        bus.PublishManaged(new AssetInventoryUpdateEvent
+        {
+            LocalScenarios = Array.Empty<string>(), LocalExercises = onNodes, ArchivedExercises = Array.Empty<ExerciseInventoryItem>(), UnarchivedLocalExercises = onNodes,
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ⑧ (§3 P5 ①) — an archive cut short RESUMES BY ITSELF: an exercise on the nodes whose NAS copy is INCOMPLETE gets an Archive job
+    /// ("resume"); the next inventory does not start a second one; once the operator CANCELS it, it is never resumed by itself again.
+    /// 🔴 Mutation: ResumeIncompleteArchives not called ⇒ no job ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4330_AnIncompleteArchiveResumesByItself_OnceAndNeverAfterACancel()
+    {
+        var bus = new FdpEventBus();
+        using var master = MasterWithOneNode(bus);
+        var ex = Guid.NewGuid();
+        var cut = new ExerciseInventoryItem((Fdp.Core.ExerciseId)ex, DateTime.UtcNow, TimeSpan.FromMinutes(3), "s", NasState: ArchiveNasState.Incomplete, NasFiles: 1, NasFilesTotal: 2);
+
+        Inventory(bus, master, cut);
+        var job = Assert.Single(master.StorageJobs.Jobs);
+        Assert.Equal((StorageJobKind.Archive, StorageJobState.Running, "resume"), (job.Kind, job.State, job.AskedBy));
+
+        Inventory(bus, master, cut);
+        Assert.Single(master.StorageJobs.Jobs);   // it holds the exercise: no second job
+
+        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.CancelOperation, PayloadJson = job.JobId.ToString() });
+        master.Tick();
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = job.JobId, StatusCode = OrchestrationStatusCode.Rejected, ResultPayload = "cancelled" });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Equal(StorageJobState.Cancelled, master.StorageJobs.Find(job.JobId)!.State);
+
+        Inventory(bus, master, cut);
+        Assert.Single(master.StorageJobs.Jobs);   // ⛔ the operator cancelled it: not resumed by itself
+    }
 }

@@ -19,24 +19,35 @@ public sealed class AarTransportSegment
     public const float SeekBarMaxWidth = 360f;
 
     private readonly Func<bool> _inAar;
+    private readonly Func<bool>? _merged;
 
     /// <param name="transport">The editor's transport over <see cref="OwnPartReplay"/>.</param>
     /// <param name="inAar">The run mode is AAR now (the run-mode indicator's <c>Shown</c>).</param>
-    public AarTransportSegment(IReplayTransport transport, Func<bool> inAar)
+    /// <param name="merged">⭐ V6 — a participant group is open MERGED: the segment then also draws ▶, <b>greyed with the reason</b> (<see cref="IReplayTransport.PlayDisabledReason"/>) — the time control's own ▶ is ui's and is not touched.</param>
+    public AarTransportSegment(IReplayTransport transport, Func<bool> inAar, Func<bool>? merged = null)
     {
         Transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _inAar = inAar ?? throw new ArgumentNullException(nameof(inAar));
+        _merged = merged;
         Drawer = new ReplayTransportDrawer(transport, ReplayTransportParts.AarSegment, idPrefix: "aar", seekBarMaxWidth: SeekBarMaxWidth);
+        if (merged is not null)
+            MergedDrawer = new ReplayTransportDrawer(transport, ReplayTransportParts.AarSegment | ReplayTransportParts.PlayPause, idPrefix: "aarm", seekBarMaxWidth: SeekBarMaxWidth);
     }
 
     public IReplayTransport Transport { get; }
     public ReplayTransportDrawer Drawer { get; }
 
+    /// <summary>⭐ V6 — the profile while Merged: the segment's items plus a greyed ▶; null when the host has no group source.</summary>
+    public ReplayTransportDrawer? MergedDrawer { get; }
+
+    /// <summary>The drawer in use now.</summary>
+    public ReplayTransportDrawer Current => MergedDrawer is not null && _merged!() ? MergedDrawer : Drawer;
+
     /// <summary>Draws the segment when the run mode is AAR; nothing otherwise.</summary>
     public void Draw()
     {
         if (!_inAar()) return;
-        Drawer.Draw();
+        Current.Draw();
     }
 
     /// <summary>Registers the segment as its own entry of <paramref name="toolbar"/>.</summary>

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 using Fdp.Toolkit.Orchestration;
@@ -115,6 +116,62 @@ namespace Fdp.Toolkits.Tests.Orchestration
             Assert.False(Path.GetFullPath(root).StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.Ordinal));
             Assert.Equal(ExerciseRetention.ScratchDefaultKeep, ExerciseRetention.ResolveKeep(root, null, Env(new()), Path.GetTempPath()));
             Assert.Null(ExerciseRetention.ResolveKeep(root, null, Env(new() { ["FDP_STAGING_ROOT"] = root }), Path.GetTempPath()));
+        }
+
+        // ── ⭐ CE-4330 ④ — the node cache rule (docs/DESIGN_Recording_Storage.md §6) ─────────────────────────────────────────────────────────────────────
+
+        private static string Named(string dir) => Path.GetFileName(dir);
+
+        /// <summary>⭐ CE-4330 ④ — 7 recordings, keep the newest 2: only the ARCHIVED ones older than that go; an UN-archived older one stays (user data), and so do the newest two whatever they are.
+        /// 🔴 Mutation: the <c>isArchived</c> test dropped from the count rule ⇒ the unarchived older ones go ⇒ red.</summary>
+        [Fact]
+        public void CE4330_PruneArchivedCopies_RemovesOnlyTheArchivedOnesBeyondTheNewestN()
+        {
+            var ex = Path.Combine(_temp, "exercises");
+            var d = new string[7];
+            for (int i = 0; i < 7; i++) d[i] = Exercise(_temp, "exercises", ageMinutes: i);          // d[0] is the newest
+            var archived = new[] { d[1], d[2], d[4], d[5] }.Select(x => Guid.Parse(Named(x))).ToArray();   // d[1] is inside the newest two; d[3] and d[6] are older and NOT archived
+
+            int removed = ExerciseRetention.PruneArchivedCopies(ex, keepNewest: 2, archived, minFreeFraction: 0.10, disk: _ => (90, 100));
+
+            Assert.Equal(3, removed);
+            Assert.True(Directory.Exists(d[0])); Assert.True(Directory.Exists(d[1]));                 // the newest two stay (d[1] is archived — a cache copy kept by recency)
+            Assert.False(Directory.Exists(d[2])); Assert.False(Directory.Exists(d[4])); Assert.False(Directory.Exists(d[5]));   // archived and older: gone
+            Assert.True(Directory.Exists(d[3])); Assert.True(Directory.Exists(d[6]));                 // NOT archived: never removed
+        }
+
+        /// <summary>⭐ CE-4330 ④ — space: with the disk short of free space the OLDEST archived copy goes first, even inside the newest N, until the disk is above the threshold; an un-archived recording is never touched, and neither is a newer
+        /// archived one once there is room. 🔴 Mutations: the space loop starting from the NEWEST ⇒ the wrong ones go ⇒ red; the loop not checking <c>isArchived</c> ⇒ the unarchived one goes ⇒ red.</summary>
+        [Fact]
+        public void CE4330_PruneArchivedCopies_WhenTheDiskIsShort_TheOldestArchivedGoFirst_NeverAnUnarchivedOne()
+        {
+            var ex = Path.Combine(_temp, "exercises");
+            var d = new string[4];
+            for (int i = 0; i < 4; i++) d[i] = Exercise(_temp, "exercises", ageMinutes: i);          // d[0] newest … d[3] oldest
+            var archived = new[] { d[0], d[1], d[3] }.Select(x => Guid.Parse(Named(x))).ToArray();     // d[2] is NOT archived
+
+            // free space recovers by 4 per deleted directory: 5, 9, 13 of 100 ⇒ two removals reach the 10 % line
+            Func<string, (long, long)> fake = _ => (5 + 4 * (4 - new DirectoryInfo(ex).GetDirectories().Length), 100);
+            int removed = ExerciseRetention.PruneArchivedCopies(ex, keepNewest: 10, archived, 0.10, fake);   // keepNewest 10: the count rule removes nothing
+
+            Assert.Equal(2, removed);
+            Assert.False(Directory.Exists(d[3])); Assert.False(Directory.Exists(d[1]));               // the oldest archived first … (d[2] is skipped: not archived)
+            Assert.True(Directory.Exists(d[2]));                                                      // … never an un-archived one
+            Assert.True(Directory.Exists(d[0]));                                                      // and the newest archived stays once there is room
+
+            // a disk that never recovers: every archived copy goes, the un-archived one still stays
+            int more = ExerciseRetention.PruneArchivedCopies(ex, keepNewest: 10, archived, 0.10, _ => (0, 100));
+            Assert.Equal(1, more);
+            Assert.False(Directory.Exists(d[0])); Assert.True(Directory.Exists(d[2]));
+        }
+
+        /// <summary>⭐ CE-4330 ④ — the keep count: <c>FDP_KEEP_EXERCISES</c> when set (> 0), else 5.</summary>
+        [Fact]
+        public void CE4330_ResolveCacheKeep_IsFiveUnlessTheVariableSaysOtherwise()
+        {
+            Assert.Equal(5, ExerciseRetention.ResolveCacheKeep(Env(new())));
+            Assert.Equal(9, ExerciseRetention.ResolveCacheKeep(Env(new() { ["FDP_KEEP_EXERCISES"] = "9" })));
+            Assert.Equal(5, ExerciseRetention.ResolveCacheKeep(Env(new() { ["FDP_KEEP_EXERCISES"] = "0" })));      // ≤ 0 is "unset" for the cache (the scratch sweep reads it as keep-all)
         }
     }
 }

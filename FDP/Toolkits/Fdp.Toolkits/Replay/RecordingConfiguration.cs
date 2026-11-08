@@ -42,6 +42,15 @@ namespace Fdp.Toolkit.Replay
         /// </summary>
         public required NodeId NodeId { get; init; }
 
+        /// <summary>⭐ CE-4331 ① — the node's name, subsystem and roles, written into the metadata (a branch writes THIS node's, not its parent's).</summary>
+        public string NodeName { get; init; } = "";
+
+        /// <inheritdoc cref="NodeName"/>
+        public string Subsystem { get; init; } = "";
+
+        /// <inheritdoc cref="NodeName"/>
+        public int Roles { get; init; }
+
         /// <summary>
         /// When <c>true</c>, <see cref="RecorderTickSystem"/> calls
         /// <c>AsyncRecorder.CaptureFrame(blocking: true)</c> on every frame, blocking the

@@ -67,7 +67,7 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10 M-3) — the player's message log is open (N while <c>hud.messages</c> is on).</summary>
         public bool MessageLogOpen { get; private set; }
 
-        /// <summary>⭐ G1 (CE-4231) — the scoreboard key (K) is held: the scoreboard overlay is drawn while it is. Set by the driver each frame.</summary>
+        /// <summary>⭐ G1 (CE-4231) — the scoreboard key (Tab, R-3076; was K) is held: the scoreboard overlay is drawn while it is. Set by the driver each frame.</summary>
         public bool ScoreboardHeld { get; internal set; }
 
         /// <summary>N: opens / closes the message log. Nothing when <c>hud.messages</c> is off.</summary>

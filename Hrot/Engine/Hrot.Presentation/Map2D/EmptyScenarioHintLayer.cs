@@ -29,12 +29,25 @@ public sealed class EmptyScenarioHintLayer : IMapLayer
     public string Name => "EmptyScenarioHint";
     public int LayerBitIndex => -1;
 
+    /// <summary>⭐ U-12 (CE-4129) — what the map says in a RUN (Preview / Live) over a world with no entity: a play over a world that is empty (or still loading) must not read as "nothing happens".</summary>
+    public const string RunningText = "No entities in this world - the scenario is empty or still loading";
+
     /// <summary>Whether the hint shows now: a terrain is loaded, the station edits, and nothing has been placed.</summary>
-    public bool Shows()
+    public bool Shows() => Hint(Hrot.Common.Editing.EditingMode.Edit);
+
+    /// <summary>⭐ U-12 (CE-4129) — whether the run notice (<see cref="RunningText"/>) shows now: a terrain is loaded, the station is in a Preview or Live run, and the world holds no entity.</summary>
+    public bool ShowsRunNotice()
+    {
+        var w = _world();
+        var mode = w is null ? Hrot.Common.Editing.EditingMode.Edit : Hrot.Common.Editing.StationMode.Of(w);
+        return mode is Hrot.Common.Editing.EditingMode.Preview or Hrot.Common.Editing.EditingMode.Live && Hint(mode);
+    }
+
+    private bool Hint(Hrot.Common.Editing.EditingMode mode)
     {
         var w = _world();
         if (w is null || TerrainFramingLayer.BoundsOf(w) is null) return false;
-        if (Hrot.Common.Editing.StationMode.Of(w) != Hrot.Common.Editing.EditingMode.Edit) return false;
+        if (Hrot.Common.Editing.StationMode.Of(w) != mode) return false;
         if (!w.IsComponentTypeRegistered<EntityInfo>()) return true;
         if (!ReferenceEquals(w, _queried)) { _queried = w; _entities = w.Query().With<EntityInfo>().Build(); }
         return _entities!.IsEmpty;
@@ -45,13 +58,14 @@ public sealed class EmptyScenarioHintLayer : IMapLayer
 
     public void DrawOverlay(RenderContext ctx)
     {
-        if (!Shows()) return;
+        string? text = Shows() ? Text : ShowsRunNotice() ? RunningText : null;
+        if (text is null) return;
         var viewport = new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight());
         var centre = OpenMapArea.Centre(viewport);
-        int width = Raylib.MeasureText(Text, FontSize);
+        int width = Raylib.MeasureText(text, FontSize);
         int x = (int)(centre.X - width / 2f), y = (int)(centre.Y - FontSize / 2f);
         Raylib.DrawRectangle(x - 10, y - 6, width + 20, FontSize + 12, new Color(0, 0, 0, 150));
-        Raylib.DrawText(Text, x, y, FontSize, new Color(230, 230, 230, 255));
+        Raylib.DrawText(text, x, y, FontSize, new Color(230, 230, 230, 255));
     }
 
     public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;

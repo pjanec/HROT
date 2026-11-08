@@ -76,10 +76,53 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public LocalRecordingsScanner LocalRecordings
         {
-            get => _localRecordings ??= new LocalRecordingsScanner(() => OrchestrationConstants.GetNodeExercisesRoot((int)_nodeId));
+            get => _localRecordings ??= new LocalRecordingsScanner(() => ExercisesRoot());
             set => _localRecordings = value ?? throw new ArgumentNullException(nameof(value));
         }
         private LocalRecordingsScanner? _localRecordings;
+
+        // ── ⭐ CE-4330 ④ (DESIGN_Recording_Storage §6) — the node's local copies of ARCHIVED recordings are a CACHE ──────────────────────────────────────────
+        private Func<string>? _exercisesRoot;
+        /// <summary>This node's own exercises staging (<c>OrchestrationConstants.GetNodeExercisesRoot(nodeId)</c> — what <see cref="LocalRecordings"/> scans and the cache pass prunes); a rail injects a temp folder.</summary>
+        public Func<string> ExercisesRoot
+        {
+            get => _exercisesRoot ??= () => OrchestrationConstants.GetNodeExercisesRoot((int)_nodeId);
+            set => _exercisesRoot = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        /// <summary>The pass itself: (exercises root, keep newest, archived ids). Default <see cref="ExerciseRetention.PruneArchivedCopies"/> with <see cref="ExerciseRetention.ResolveCacheKeep"/>; a rail records the call.</summary>
+        public Action<string, int, IReadOnlyCollection<Guid>> CachePruner { get; set; } = (root, keep, ids) => ExerciseRetention.PruneArchivedCopies(root, keep, ids);
+
+        /// <summary>Where the pass runs (default: the thread pool); a rail runs it inline.</summary>
+        public Action<Action> CacheRunner { get; set; } = work => System.Threading.Tasks.Task.Run(work);
+
+        private ExerciseInventoryItem[]? _cachePrunedFor;   // the inventory array the last pass was started for
+        private int _cachePruning;                          // 1 while a pass runs (at most one)
+
+        /// <summary>
+        /// ⭐ CE-4330 ④ — when the master's ARCHIVED inventory (<see cref="ClusterView.ArchivedExercises"/>) is a NEW array (an archive finished and the master republished it; the first one after start-up is the start-up pass), run ONE cache pass over this node's own
+        /// exercises root: the newest N archived copies stay, older ones go, the oldest go first when the disk is short of space — never an un-archived recording. At most one pass at a time: a change that lands while one runs is picked up on a later frame.
+        /// ⛔ HOT PATH: a steady frame costs one reference compare.
+        /// </summary>
+        private void CheckArchiveCache()
+        {
+            var archived = View.ArchivedExercises;
+            if (ReferenceEquals(archived, _cachePrunedFor)) return;
+            if (archived.Length == 0) { _cachePrunedFor = archived; return; }   // nothing is archived: nothing in this node's folder is a cache
+            if (System.Threading.Interlocked.CompareExchange(ref _cachePruning, 1, 0) != 0) return;   // one at a time; the next frame asks again
+            _cachePrunedFor = archived;
+            var ids = new Guid[archived.Length];
+            for (int i = 0; i < ids.Length; i++) ids[i] = (Guid)archived[i].ExerciseId;
+            string root = ExercisesRoot();
+            int keep = ExerciseRetention.ResolveCacheKeep();
+            var pruner = CachePruner;
+            CacheRunner(() =>
+            {
+                try { pruner(root, keep, ids); }
+                catch (Exception e) { FdpLog<ClusterSlave>.Warn("[Retention] node cache pass failed: {0}", e.Message); }
+                finally { System.Threading.Volatile.Write(ref _cachePruning, 0); }
+            });
+        }
 
         /// <summary>⭐ Node Features F-16 — the ids of the features ON now, set by the shared bootstrapper; the heartbeat carries them.</summary>
         public Func<System.Collections.Generic.List<string>>? FeaturesOnProvider { get; set; }
@@ -124,6 +167,9 @@ namespace Fdp.Toolkit.Orchestration
 
         /// <summary>⭐ <c>CE-3354</c> ② — the node's name as heartbeated.</summary>
         public string NodeName => _nodeName;
+
+        /// <summary>⭐ CE-4331 ① — the node's subsystem (what its heartbeat says), written on its recordings.</summary>
+        public string SubsystemName => _subsystemName;
 
         /// <summary>⭐ <c>CE-3354</c> ② — the name a node gets when none is configured: <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>.</summary>
         public static string DefaultNodeName(string subsystemName, int nodeId) => $"{subsystemName}-{nodeId}";
@@ -294,7 +340,9 @@ namespace Fdp.Toolkit.Orchestration
             // ⭐ The heartbeat moved to the END of Tick (PublishHeartbeat): it carries the node's phase, which this frame's dispatch / drain decides.
 
             // ⭐⭐ C2 (Q91 §4-I I5, R-4006) — follow ONE cluster session.
-            View.Update();   // ⭐ CE-1436 — the ONE fold of the master's facts (state, inventory, session, op outcomes); the follow-fields below read it
+            View.Update();
+            CheckArchiveCache();   // ⭐ CE-4330 ④ — a new archived inventory runs one cache pass
+            // ⭐ CE-1436 — the ONE fold of the master's facts (state, inventory, session, op outcomes); the follow-fields below read it
             FollowClusterSession();
 
             // Poll tickable handlers for deferred ACKs.
