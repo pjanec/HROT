@@ -1730,7 +1730,7 @@ sequenceDiagram
   participant M as ClusterMaster
   participant P as AssetPrefetchProcessManager
   participant G as StorageGatewayModule
-  U->>U: GET /scenarios/{name}/autosave → {at, savedHash matches?} (stale ⇒ reported, not offered)
+  U->>U: GET /scenario/autosave?name= → {exists, at, stale, recoverable} (stale ⇒ reported, not offered)
   U->>M: POST /scenario/load/edit {name, recoverAutosave:true} → TransitionStateIntent.RecoverAutosave
   M->>P: the prefetch of {name}, RecoverAutosave
   P->>G: PrefetchScenarioAsync(name, …, scenarioFileFrom: <name>/.autosave/autosave.json)
