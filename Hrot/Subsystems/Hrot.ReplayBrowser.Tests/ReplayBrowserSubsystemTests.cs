@@ -249,10 +249,12 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         // ⭐ CE-1303 P2a — and the ONE film director's window (DirectorPack's, in this host's perspective — §11m D11).
         // ⭐ B-7 part 3 — rb_timeline (the Replay Timeline window) is RETIRED; File ▸ Recording info (rb_recording_info, closed) carries its file path and panel snapshot.
         // ⭐ AQ109 X5 — and the generic wire inspector (rb_wire_entities, closed; this host has no participant, so it says so).
-        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_recording_info", "rb_search", "rb_wire_entities" },
-                     windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
+        // ⭐ R-1 / V1 — THE WINDOW-SET GOLDEN (re-baselined at HEAD: it had gone stale-red — the rules bundle's four windows (rb_rules / rb_mission_summary / rb_trainee_debrief / rb_game_summary,
+        //   CE-4292) and rb_json_export were missing — and the Review bundle's refactor was proved against it): the four review windows (rb_diff, rb_search, rb_recording_info, rb_json_export) come from ReviewBundle.
+        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_game_summary", "rb_json_export", "rb_mission_summary", "rb_recording_info", "rb_rules", "rb_search", "rb_trainee_debrief", "rb_wire_entities" },
+                     windows.Keys.Where(k => k != "shell_keyboard_shortcuts").OrderBy(k => k, StringComparer.Ordinal).ToArray());   // the shell's own shortcuts window is the window manager's, not this host's
 
-        foreach (var (_, win) in windows)
+        foreach (var (_, win) in windows.Where(kv => kv.Key != "shell_keyboard_shortcuts"))
         {
             Assert.Equal(WindowScope.PerspectiveBound, win.Scope);
             Assert.Equal("ReplayBrowser", win.OwningPerspective);
@@ -328,7 +330,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
 
-        Assert.Equal(9, windows.Count);   // ⭐ AQ109 X5 (+ rb_wire_entities) · CE-1150 / CE-1244 / CE-1302 / CE-1303 P2a (the Director) — see the rail above
+        Assert.Equal(14, windows.Keys.Count(k => k != "shell_keyboard_shortcuts"));   // ⭐ the golden above: AQ109 X5 · CE-1150 / CE-1244 / CE-1302 / CE-1303 P2a · CE-4292 (rules) · R-1 (the review bundle)
         Assert.False(windows.ContainsKey("rb_federation"));
     }
 

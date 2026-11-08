@@ -942,8 +942,11 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         // ⭐ B-7 part 3 (R-4155, Q-B2) — the "Replay Timeline" window is RETIRED, nothing lost: its readout is the seek bar's tooltip, its meta row is in the Frame Diff window, its file path
         //   and panel snapshot are File ▸ Recording info. The PANEL stays — the transport's and the export window's one drawer.
         diffPanel.HasRecording = () => timelinePanel.HasRecording;
-        var recordingInfo = new Fdp.Presentation.Windows.ReplayBrowser.RecordingInfoWindow(perspective, timelinePanel, color);
-        windowManager.RegisterWindow(recordingInfo);
+        // ⭐ R-1 / V1 (docs/UX/DESIGN_Review_Perspective.md §4) — Frame diff · Replay search · Recording info · JSON export are the ONE ReviewBundle every host composes (their hand registrations are gone)
+        var review = new Hrot.Editor.AiShared.Review.ReviewBundle(new Hrot.Editor.AiShared.Review.ReviewHostServices(
+            Perspective: perspective, IdPrefix: "rb_", Colour: color, DiffPanel: diffPanel, SearchPanel: searchPanel, TimelinePanel: timelinePanel));
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { review }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+        var recordingInfo = review.RecordingInfo;
         Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.recording-info.{perspective}", RecordingInfoMenuPath, () => recordingInfo.Show(), perspective);   // ⭐ B-10 K5
 
         // ⭐⭐ CE-4323 (scenario lifecycle LC-19, R-4166) — File ▸ Open Exercise Recording…: the editor's picker (RecordingPickerLauncher — ONE class
@@ -959,8 +962,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         // ⭐ CE-4261 — the browser's own toolbar contents and File items (🔒 user, 2026-11-03): the replay transport bar is an entry of the MAIN toolbar (the timeline panel's ONE drawer),
         //   File ▸ Load .fdp… runs the load the timeline's button ran, File ▸ JSON Export… opens the window holding the export options.
         //   ⛔ The browser is NOT an IProvidesRunControls: that offer is the CLUSTER's transport (ITimeTransportFacade + RunModeChoice, gate policy, loading screen, scenario door) — a recording has none of them.
-        var jsonExport = new Fdp.Presentation.Windows.ReplayBrowser.JsonExportWindow(perspective, timelinePanel, color);
-        windowManager.RegisterWindow(jsonExport);
+        var jsonExport = review.JsonExport;
         Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.load-fdp.{perspective}", LoadFdpMenuPath, () => timelinePanel.RequestLoadFdp(), perspective);
         Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.json-export.{perspective}", JsonExportMenuPath, () => jsonExport.Show(), perspective);
         windowManager.MainToolbar.RegisterEntry(TransportEntryId, sortOrder: 0, declaredHeight: MainToolbarManager.DefaultEntryHeight,
@@ -1000,12 +1002,6 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             Actions:        () => HostActions));   // ⭐ CE-4308 — passed as every host does (the rule entries are Edit-mode only, so a recording never offers them)
         _rulesWindow = rules.Rules;
         Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
-
-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ComponentDiffWindow(
-            "rb_diff", "Frame Diff Viewer", perspective, diffPanel, color));
-
-        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplaySearchWindow(
-            "rb_search", "Replay Search", perspective, searchPanel, color));
 
         if (federationPanel != null)
             RegisterFederationWindow(windowManager, federationPanel);

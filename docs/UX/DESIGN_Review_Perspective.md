@@ -226,6 +226,18 @@ entering, any layout by hand, the previous one back on leaving.*
 | **V6** | **`ReviewSource`** (D6, D7): a group opens Merged (default) or a part; the picker's rows; **the status bar's source segment** (D9) | the EMPTY-world bug gone: a 4-file exercise opens merged in the all-in-one editor; a CGF-only behaviour state readable in Details; a part plays; Merged steps |
 | **V7** | search hits and breakpoint stops as Event Timeline lanes | a click seeks |
 
+### AS BUILT — V1 *(behaviors, `2026-11-08`)*
+
+`ReviewBundle` + `ReviewHostServices` live in `Hrot/Editor/Hrot.Editor.AiShared/Review/ReviewBundle.cs` (beside `Rules/RulesBundle`, same shape: windows built in the constructor, `IUiBundle.RegisterInto` registers them, `Name = "review"`).
+
+| what | as built |
+|---|---|
+| windows | Frame diff `<prefix>diff`, Replay search `<prefix>search`, Recording info `rb_recording_info`, JSON export `rb_json_export` — the last two keep their FIXED ids (the window classes own them, unchanged); the window classes are untouched |
+| `ReviewHostServices` | D3's members + what the four windows need TODAY: `Perspective`, `IdPrefix`, `Colour`, and the three host-fed panels (`DiffPanel`, `SearchPanel`, `TimelinePanel`). **V1 reads only those six.** ⏭ **V2's members** (optional, null today): `World`, `RecordingFiles`, `CurrentFrame`, `Seek`, `Selection` — the editor builds its own diff / search panels from them |
+| Replay Browser | `RegisterWindowsCore` composes the bundle at the top (`UiBundleHost.Compose`); its four hand `RegisterWindow` calls are deleted; File ▸ Recording info / JSON Export… hang on `review.RecordingInfo` / `review.JsonExport` |
+| deviation | the design's V1 acceptance says the RB's window-set golden is *unchanged*; the golden (`ReplayBrowserSubsystemTests.RegisterWindowsCore_RegistersSixWindows_…`) had gone stale-red at HEAD (the rules bundle's four windows and `rb_json_export` were missing from its list; it also tripped on the shell's own `shell_keyboard_shortcuts`). It was re-baselined to HEAD's measured 14-window set FIRST, then the refactor proved against it — set identical before / after |
+| rails | `TheReviewBundleTests` (AiShared.Tests): exactly the four windows, prefix and perspective applied; red-proof: `ReplaySearch` not registered ⇒ red. The RB's window-set golden red-proved the same way |
+
 ## 5. Decisions
 
 | # | | |
