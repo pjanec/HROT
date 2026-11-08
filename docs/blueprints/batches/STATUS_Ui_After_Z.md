@@ -7,7 +7,7 @@
 | U-2 | CE-4333 | ONE icon-button chrome | DONE | `c61717172` `4e3fedb17` | `IconButtonChrome` in NodeEditor.Core.Widgets; GlyphWidgets + the mode indicator draw through it. Panels rendered (ORBAT, Details header both layouts, Rules list/timeline, condition ⋮, RowMarks ↻, presets) — transparent at rest, white frame on hover, accent fill selected; FYI: a teal glyph on the shared blue toggle fill is the weakest contrast (kept — the bitmap toolbar shares the fill) |
 | U-3 | CE-4337 | Keyboard shortcuts → View ▸ Settings | DONE | `0d0815365` | one path `WindowManager.ShortcutsMenuPath`; the R-4176 two-path machinery removed; mockup + Input §6f |
 | U-4 | CE-4334 | ORBAT row icons | DONE | `cdf40c359` | `IconKey` on the node, set by the adapter from components; 3 new `orbat/*` keys; rail over the real panel in all three relations, red-proved |
-| U-5 | CE-4335 | End exercise greyed outside Live | QUEUED | — | |
+| U-5 | CE-4335 | End exercise greyed outside Live | DONE | `SHA_U5` | `InstructorEnd.RunRefusal` by transport mode, wired to both End controls by the rules bundle; Live · ended keeps its own words, AAR not drawn; rails per mode (pure, bundle wiring, real window frame) |
 | U-6 | CE-4336 | Data breakpoints: condition first | QUEUED | — | |
 | U-7 | CE-4338 | Brain tab expander icons | QUEUED | — | |
 | U-8 | CE-4339 | 3-D placement direction line | QUEUED | — | |

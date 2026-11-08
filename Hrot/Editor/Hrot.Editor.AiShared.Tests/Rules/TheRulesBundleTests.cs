@@ -28,6 +28,25 @@ public sealed class TheRulesBundleTests
             TraineeOnly: trainee);
     }
 
+    /// <summary>⭐ U-5 (CE-4335) — the bundle wires BOTH End controls (Rules toolbar, Mission summary) to the host's transport with ONE rule: a host whose transport is idle (no view yet) greys End with "no exercise is loaded" in both; a host with no transport adds no refusal.
+    /// 🔴 Red-proof (compiles): the bundle not setting <c>RunRefusal</c> ⇒ both controls stay enabled ⇒ red.</summary>
+    [Fact]
+    public void U5_BothEndControls_AreWiredToTheHostsTransport_OneRule()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        var adapter = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => null);   // no cluster view ⇒ Idle
+        var world = new EntityRepository();
+        var host = new RulesHostServices(World: () => world, TimelineSource: () => null, Cursor: () => null, IdPrefix: "t_", Perspective: "Scenario", Colour: System.Numerics.Vector4.One,
+            SelectEntity: _ => { }, ShowOnMap: _ => { }, Seat: () => Seat.Instructor, EntityCreation: () => null, TimeTransport: () => adapter);
+        var bundle = new RulesBundle(host);
+        Assert.Equal(Hrot.UI.Common.Rules.InstructorEnd.NoExercise, bundle.Rules.End.Offer.DisabledReason);
+        Assert.Equal(Hrot.UI.Common.Rules.InstructorEnd.NoExercise, bundle.MissionSummary.End.Offer.DisabledReason);
+        Assert.False(bundle.MissionSummary.End.CanEnd);
+
+        var noTransport = new RulesBundle(host with { TimeTransport = null });
+        Assert.NotEqual(Hrot.UI.Common.Rules.InstructorEnd.NoExercise, noTransport.MissionSummary.End.Offer.DisabledReason);   // no transport: no refusal of its own
+    }
+
     [Theory]
     [InlineData(Seat.Author, true)]
     [InlineData(Seat.Instructor, true)]

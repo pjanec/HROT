@@ -154,5 +154,8 @@ exercise sits there) — the dashed edges are deliberate, not a gap.*
 
 | ⑦ | **R4 as built**: on the constructed CGF, a running trigger in CGF's world is editable from CGF's own Rules window and Apply sends the edit through the ONE write path (`RuleCommands.Edit` → `EditRequests` → the router) — the window reads *"sent - waiting for the owner"* | ⚠ the owner half — `RuleEditSystem` (which `CgfLogicPack` registers) applying it and journalling Applied — is railed where it runs, `ScenarioRulesTests.LiveEdit` (SimHost.Tests), and the content (complete params, Operator) is `RuleEditorR5bTests`'; ⛔ not one process: a composed-but-not-running CGF runs no frame |
 
+| ⑧ | **U-5 (CE-4335, ui `2026-11-08`) — *End exercise* only in a running Live exercise**: both End controls (Rules toolbar, Mission summary) get `RunRefusal`, wired by the bundle from the host's transport (`InstructorEnd.RunRefusal(ITimeTransportFacade?)`); Edit · Preview · the Live briefing · a review (DAR) are greyed with their reason, Live · ended keeps *"already ended"*, a recording (AAR) is not drawn (R-4156), a host with no transport adds none. The briefing is `RunModeChoice.IsBriefing` — the one fact ■ / ⏪ read | CE-4322 made End always available to an Instructor / Author, which left it enabled with nothing running |
+
+Rails: `TheRulesBundleTests.U5_…` (the wiring) · `RunnableRulesTests.U5_…` (one rule per mode) · `MissionSummaryWindowFrameRail.U5_…` (the real window, every mode, greyed text read off the frame)
 Rails: `TheRulesBundleTests` (the seat theory; recording / live / no-creation) · `TheRunChoiceIsOnEveryHostTests` (Editor: five ids + its ONE history
 forwarded; CGF: the four new windows + a forwarding row per capability — picks, pickers, entity creation, Game master).

@@ -55,6 +55,7 @@ public sealed class RulesBundle : IUiBundle
         {
             end.CreateOneShot = CreateOneShot;
             end.SeatRefusal = () => RuleEditorServicesFactory.SeatRefusal(_host.Seat());
+            end.RunRefusal = () => Hrot.UI.Common.Rules.InstructorEnd.RunRefusal(_host.TimeTransport?.Invoke());   // ⭐ U-5 (CE-4335) — End only in a running Live exercise, ONE rule for both controls
         }
         AttachEnder();
     }
