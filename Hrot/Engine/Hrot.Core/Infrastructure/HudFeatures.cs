@@ -49,6 +49,12 @@ public static class HudFeatures
     /// <summary>⭐ CE-4243 (SR-104 Z3, R-4108; DESIGN_Rules_View_UI §8) — the game master's palette (Window ▸ Game master): run any shared action by hand, a skill row per side. ON on the server UI hosts, OFF for the Player.</summary>
     public const string GamePalette = "gm.palette";
 
+    /// <summary>⭐ R-6 / CE-3418 (PH-8) — the TRAINING profile is on: any of the training HUD's elements (<see cref="Objectives"/>, <see cref="OwnEvaluation"/>). The ONE answer the HUD and the end-of-exercise summary share.</summary>
+    public static bool TrainingProfile(Func<string, bool> on) => on(Objectives) || on(OwnEvaluation);
+
+    /// <summary>⭐ R-6 / CE-3418 (PH-8) — the GAME profile is on: any of the game HUD's elements (tickets, capture points, round timer, score pop-ups, bounty marker).</summary>
+    public static bool GameProfile(Func<string, bool> on) => on(Tickets) || on(CapturePoints) || on(RoundTimer) || on(ScorePopups) || on(BountyMarker);
+
     /// <summary>Every HUD feature id this class declares.</summary>
     public static readonly string[] All = { HitMarker, DamageArc, KillCam, SquadTakeoverAfterDeath, SpreadRing, NearMiss, Messages,
         Objectives, OwnEvaluation, Tickets, CapturePoints, RoundTimer, KillFeed, ScorePopups, BountyMarker, Scoreboard, GamePalette, Coaching };

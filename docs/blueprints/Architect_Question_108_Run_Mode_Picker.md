@@ -215,6 +215,17 @@ Rails: `SaveSlotTests.R5_*` (descriptors per mode + the REAL adapter on a real f
 
 Rails: `PlayerBriefingTests` (states, content, rebuild-on-change, real frame + 0 B + ▶ hides). **Open:** nobody held yet ⇒ *"not assigned to a unit yet"* and no objectives (they are by my side); the title is the scenario id (no display name in the header).
 
+**R-6 `CE-3418` Player seats open their own summary when the exercise ends (ui):**
+
+| what | where | note |
+|---|---|---|
+| the moment `LiveEnded` rises (Live + replicated `ExerciseResult.Phase == Ended`) the Player opens its summary — once per end; the user may close it (stays closed) | `RulesBundle.OpenPlayersSummary` (`TraineeOnly`, the Player's `WatchTheRun` branch) | reads `RunModeChoice.LiveEnded`, no second query; a host with no run controls falls back to the phase |
+| the Player's transport gets an observer ender (`CanEnd` false, `End()` false, `HasEnded` = the phase) so `LiveEnded` exists on a seat that cannot end | `ExerciseObserver` (`RunModeTypes.cs`) attached by the bundle | ■ is not on the Player (time control suppressed) |
+| WHICH: the profile = the node's feature set (PH-8): `HudFeatures.TrainingProfile` → trainee debrief, `GameProfile` → game summary (the HUD's own answer, now one function) | `HudFeatures` · `PlayerHudLayer.Compose` · `RulesHostServices.FeatureOn` | a window with nothing to say (`HasContent()`) is not opened beside one that has; when NEITHER has content the first profile-on window opens (its why-not shows); both profiles off ⇒ nothing |
+| the Player registers the game summary too (L-2 had the debrief alone) | `RulesBundle.RegisterInto` | no rules / instructor's Mission summary on the Player |
+
+Rails: `ThePlayersSummaryOpensAtTheEndTests` (4) · `TheRulesBundleTests.L2_ThePlayersSet…` (updated). **Open (needs user, lean stated):** with BOTH profiles on and BOTH windows having content (a scenario with standards AND a score) both open — lean: keep (PH-8 puts a scenario's preset in charge of switching the other profile off).
+
 ## 1. ⭐ The three rules — the spine
 
 | # | rule | why it makes the rest predictable |

@@ -248,4 +248,5 @@ classDiagram
 | what | where | note |
 |---|---|---|
 | while Live waits at 0:00 the Player shows the scenario's description, who I am and MY side's objectives (the training HUD's own list, `TrainingHud.Build`) + a reserved picture-book frame | `Hrot.UI.Common.RunMode.PlayerBriefing` (`PlayerApplication.DrawUI`) | hides on ▶; 0 B steady; rail `PlayerBriefingTests` |
+| the Player's own summary opens when the exercise ends (CE-3418): the trainee debrief under the training profile, the game summary under the game profile | `RulesBundle.OpenPlayersSummary` · `HudFeatures.TrainingProfile` / `GameProfile` (shared with `PlayerHudLayer.Compose`) · `ExerciseObserver` | trigger = `RunModeChoice.LiveEnded` rising; once per end; a window with no content is skipped unless neither has any; rails `ThePlayersSummaryOpensAtTheEndTests` |
 

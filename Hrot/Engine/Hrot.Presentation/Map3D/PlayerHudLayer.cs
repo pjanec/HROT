@@ -38,8 +38,8 @@ public static class PlayerHudLayer
         var view = PlayerView.Of(w, unit);
         if (view.IsNone) return new PlayerHudFrame(view, null, null, Array.Empty<KillFeed.Entry>(), now);
 
-        bool training = on(HudFeatures.Objectives) || on(HudFeatures.OwnEvaluation);
-        bool game = on(HudFeatures.Tickets) || on(HudFeatures.CapturePoints) || on(HudFeatures.RoundTimer) || on(HudFeatures.ScorePopups) || on(HudFeatures.BountyMarker);
+        bool training = HudFeatures.TrainingProfile(on);
+        bool game = HudFeatures.GameProfile(on);
         TrainingHudModel? t = null; GameHudModel? g = null; ScoreboardModel? board = null; IReadOnlyList<ScorePopup> popups = Array.Empty<ScorePopup>();
         bool wantBoard = scoreboardHeld && on(HudFeatures.Scoreboard), wantPopups = on(HudFeatures.ScorePopups), wantCoach = on(HudFeatures.Coaching);
         string? coaching = null;

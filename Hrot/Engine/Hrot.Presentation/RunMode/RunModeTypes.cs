@@ -455,3 +455,19 @@ public interface IRunTransport
     /// <summary>⭐ CE-1442 (§11.7 ⑥) — cancel the load in progress on this node (the host's <c>ClusterSlave.CancelLoad</c>): it fails everywhere and the cluster returns to Idle with <paramref name="reason"/>. A host with no slave does nothing.</summary>
     void CancelLoad(string? reason);
 }
+
+/// <summary>
+/// ⭐ R-6 / CE-3418 (AQ108 §0 D30, D32) — an exercise ender that only OBSERVES: a seat that cannot end the exercise (the Player) still has to say whether it HAS ended, because
+/// <see cref="RunModeChoice.LiveEnded"/> is derived from <see cref="IExerciseEnder.HasEnded"/> and the end-of-exercise summary opens from that one fact (no second query). It never ends anything.
+/// </summary>
+public sealed class ExerciseObserver : IExerciseEnder
+{
+    private readonly Func<Fdp.Core.EntityRepository?> _world;
+    public ExerciseObserver(Func<Fdp.Core.EntityRepository?> world) { _world = world ?? throw new ArgumentNullException(nameof(world)); }
+    /// <inheritdoc/>
+    public bool CanEnd => false;
+    /// <inheritdoc/>
+    public bool End() => false;
+    /// <inheritdoc/>
+    public bool HasEnded => _world() is { } w && Fdp.Toolkit.ScenarioRules.ExerciseResult.PhaseOf(w) == Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended;
+}
