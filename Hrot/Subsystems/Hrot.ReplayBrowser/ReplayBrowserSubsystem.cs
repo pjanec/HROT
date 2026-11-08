@@ -1046,7 +1046,22 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                     Rules:       () => _rulesWindow)),   // ⭐ U-18 / RX2 — read-only on a recording (the window's blocked reason)
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+        // ⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D11) — the Replay Browser's default layout IS the Review layout: the SAME preset (Hrot.Editor.AiShared.Review.ReviewLayout) over this host's window ids,
+        //   laid out by the host's dockspace frame unless a saved layout already places these windows. (No data-breakpoints window here — that role is simply absent.)
+        windowManager.RequestDockPreset(ReviewLayoutIds(review, rules));
     }
+
+    /// <summary>⭐ R-4 / V4 — the Review layout over THIS host's window ids (a rail compares it with the editor's: one definition).</summary>
+    internal static Fdp.Presentation.WindowManager.DockPreset ReviewLayoutIds(Hrot.Editor.AiShared.Review.ReviewBundle review, Hrot.Editor.AiShared.Rules.RulesBundle rules)
+        => Hrot.Editor.AiShared.Review.ReviewLayout.PresetFor(new System.Collections.Generic.Dictionary<Hrot.Editor.AiShared.Review.ReviewLayout.Role, string>
+        {
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.MissionSummary] = rules.MissionSummary.Id,
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details]        = "rb_details",
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.FrameDiff]      = review.FrameDiff.Id,
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.Search]         = review.ReplaySearch.Id,
+            [Hrot.Editor.AiShared.Review.ReviewLayout.Role.EventTimeline]  = "rb_event_timeline",
+        });
 
     /// <summary>⭐⭐⭐ U-obs-5 follow-up — shared by <see cref="RegisterWindowsCore"/> (the initial
     /// registration, when a group happened to already be loaded) and <c>OnLoadGroup</c> (every

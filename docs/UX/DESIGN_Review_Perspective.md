@@ -221,7 +221,7 @@ entering, any layout by hand, the previous one back on leaving.*
 | **V1** | `ReviewBundle` + `ReviewHostServices`; the RB composes it (its four registrations deleted) | the RB's window-set golden unchanged; its frame rails green |
 | **V2** ✅ | the editor composes it (own-part AAR): Frame diff and Replay search, openable in any layout *(built — see AS BUILT — V2)* | a search hit seeks and selects; 0 B per steady frame |
 | **V3** ✅ | **the ONE AAR transport** (D8): `IReplayTransport` + the RB's drawer as the editor's AAR segment — history, step ± with scrub, the seek bar; the RB unchanged in look | side by side with the mockup's toolbar; step back in the editor = a cluster seek; 0 B steady *(built — see AS BUILT — V3)* |
-| **V4** | the Review LAYOUT and its automatic switch (D10), the same layout as the RB's default | side by side with `review-perspective-visual.svg` (R-4146) |
+| **V4** ✅ | the Review LAYOUT and its automatic switch (D10), the same layout as the RB's default | side by side with `review-perspective-visual.svg` (R-4146) *(built — see AS BUILT — V4)* |
 | **V5** | ✅ M1 measured (§6.2, §6.8) | done `2026-11-08` |
 | **V6** | **`ReviewSource`** (D6, D7): a group opens Merged (default) or a part; the picker's rows; **the status bar's source segment** (D9) | the EMPTY-world bug gone: a 4-file exercise opens merged in the all-in-one editor; a CGF-only behaviour state readable in Details; a part plays; Merged steps |
 | **V7** | search hits and breakpoint stops as Event Timeline lanes | a click seeks |
@@ -306,6 +306,43 @@ classDiagram
 | the editor | `OwnPartReplayTransport` (`Hrot/Subsystems/Hrot.Editor/Review/`): frame = `OwnPartReplay.CurrentFrame()`, `Seek` = `OwnPartReplay.SeekToFrame` (a cluster seek), **`Step(-1)` = a seek to the previous frame**; play / pause / rate delegate to the toolbar's facade (the segment does not draw them); the sim seconds in the tooltip come from the replay position (NaN ⇒ omitted: `DetailText` skips it). `AarTransportSegment` registers the entry `AarTransport` (sortOrder 12: after the time control 0–9 and its separator 10, before Problems 15 and the perspective group 20–29), draws nothing unless `RunModeChoice.Shown == AAR`, bar capped at 360 px. `EditorSubsystem` composes it beside the review bundle. ⛔ `MainToolbarTimeControlSection` is not touched — no duplicate had to be accepted, so no request note to ui |
 | 0 B | the segment measured **0 B** per steady frame (in AAR and hidden) |
 | rails | `TheAarTransportSegmentTests` (Hrot.Editor.Tests: step back = a cluster seek to current-1; the editor registers `AarTransport` with the AAR profile; draws only history · step back · the seek bar and nothing outside AAR; a click on the bar is a waypoint and ◀ seeks back; 0 B). The Replay Browser's `RBUX1_*` / `CE4261_*` frame rails run through the drawer unchanged (RBUX1 also asserts the full profile). Red-proofs: segment profile `All` (a duplicate ▶) ⇒ 2 red; `Step` not seeking ⇒ red |
+
+### AS BUILT — V4 *(behaviors, `2026-11-08`)*
+
+A perspective is a window TAG and the dock tree is ONE ini keyed by window id — so there was no per-perspective layout to edit. ⭐ The Review layout is a **dock preset as data** (`ReviewLayout`, one definition) that both hosts give their own ids, laid out with Dear ImGui's DockBuilder on the dockspace's CENTRAL node (the map's empty hole), so it never disturbs what is docked around it.
+
+```mermaid
+classDiagram
+    direction LR
+    class ReviewLayout { <<NEW static, AiShared/Review>> Perspective · Label · IconKey · Role→DockRegion · PresetFor(ids) · ShareWindows · OpenWindows }
+    class DockPreset { <<NEW record, Fdp.Presentation>> Placements · Regions(work) pure · IsPlacedIn(ini) · Apply(dockspace) }
+    class ReviewLayoutSwitch { <<NEW, AiShared/Review>> Update() once a frame · Before }
+    class WindowManager { <<existing>> RequestDockPreset · ApplyPendingDockPreset · AlsoShowWindowIn · RetargetRememberedPerspective }
+    class ManagedWindow { <<existing>> AlsoShownIn · BelongsTo(perspective) }
+    class EditorSubsystem { <<host>> composes the layout + the switch }
+    class ReplayBrowserSubsystem { <<host>> requests the same preset at start }
+    class ClusterRunnerProgram { <<host loop>> ApplyPendingDockPreset after DockSpace }
+    ReviewLayout --> DockPreset : PresetFor
+    WindowManager o-- DockPreset : pending
+    WindowManager --> ManagedWindow : AlsoShowIn
+    EditorSubsystem ..> ReviewLayout
+    EditorSubsystem *-- ReviewLayoutSwitch
+    ReplayBrowserSubsystem ..> ReviewLayout
+    ClusterRunnerProgram ..> WindowManager : each frame
+```
+*What the picture shows: one layout definition, one applier, two hosts — and the switch is a separate small machine that only calls `TrySwitchPerspective`.*
+
+| what | as built |
+|---|---|
+| the layout | `ReviewLayout` (`Hrot.Editor.AiShared/Review/ReviewLayout.cs`): roles → regions as the mockup draws them — **Mission summary** left · **Details** right-top · **Frame diff · Search · Breakpoints** tabbed right-lower · **Event Timeline** across the bottom · the **map** keeps the middle. `DockPreset.Regions` is the pure geometry (a rail asserts the tiling); `Apply` splits the central node (bottom → left → right → right-lower) and docks `###id` into each. Measured under xvfb: docked windows land within 16 px of the computed regions and the map's hole keeps the centre |
+| owned / shared windows | the bundle (`editor_review_diff` / `_search`, `rb_recording_info`, `rb_json_export`) is owned by perspective `Review` (was `Scenario`). Details (`scenario_details`), the Mission summary, the data breakpoints (`editor_bp_manager`) and the Event Timeline stay the Scenario layout's windows and are **shared, not copied**: new `ManagedWindow.AlsoShownIn` / `BelongsTo` (+ `WindowManager.AlsoShowWindowIn`), the visibility gate and `EntityDetailsBundle.ActiveDetails` use it. The Windows menu still groups a window under its owner only, so the bundle stays listed — and openable by hand (pinned) — in every layout (D2) |
+| icon / label | `PerspectiveIconKeys.Table` += `("Review", "asset/recording")`; the label is the name (pass-through, as Scenario) |
+| first entry | the first time Review comes up in a session its windows open and `RequestDockPreset` is made; `Program.cs` calls `ApplyPendingDockPreset(mainDockId)` right after `DockSpace(...)`. **A saved arrangement wins**: if the ini (`SaveIniSettingsToMemory`) already docks any preset window, the request is dropped (`DockPreset.IsPlacedIn`) |
+| D10 the switch | `ReviewLayoutSwitch.Update()` (a frame overlay): AAR **and** all-in-one ⇒ remember the current layout, switch to Review; AAR over ⇒ back to the remembered one (a manual switch mid-AAR is respected, leaving still restores the PRE-AAR one). Start refusing (cluster Idle) ⇒ retried next frame; an AAR that closes into Idle ⇒ `RetargetRememberedPerspective` makes Start restore the pre-AAR layout, not Review. **All-in-one** = `_networkFactory is OfflineNetworkFactory` (the editor is a one-node cluster, ruling 66 — the same predicate that enables turbo step); a node with a real network never switches |
+| the Replay Browser | `RegisterWindowsCore` requests the same preset over `rb_mission_summary` / `rb_details` / `rb_diff` / `rb_search` / `rb_event_timeline` (no data-breakpoints window there ⇒ that role is absent). Its perspective stays `ReplayBrowser` (its only layout, Q3) |
+| map menus | the editor's map menus are registered for `Review` too (`editor/map-menus-review`), so the map's right-click menu is the same in the layout |
+| deviation / caveat | a window has ONE dock slot across layouts, so the shared Details / Event Timeline are re-docked into Review's regions on first entry and stay there when you go back to Scenario. Windows drawn BEFORE the preset is applied keep their old size at first (the shared ones); the Review-only windows have never been drawn, so they take the computed size |
+| rails | `TheReviewLayoutTests` (Editor.Tests): all-in-one AAR ⇒ Review and back · a station never · manual switch mid-AAR then leave ⇒ pre-AAR · Start refusal retried / Idle-close retarget · the switch touches no replay state (master, position, selection) · mockup regions + tiling · editor composition (owned/shared windows, icon, hand-open pinned, first-entry preset, saved layout wins) · frame under `xvfb-run -a` (`HROT_RAIL_SHOTS`, ⛔ not in git). RB: `V4_TheDefaultLayout_IsTheReviewLayout_TheSamePresetTheEditorUses`. Red-proofs: the `allInOne` guard dropped ⇒ station rail red; the restore dropped ⇒ leave rails red |
 
 ## 5. Decisions
 
