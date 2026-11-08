@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — first iteration; the user's answers folded in (2026-11-08); open: M1 (measure) and Q8 (the merge's managed-component gap)
 updated: 2026-11-08 (third pass — the user: the perspective is for the ALL-IN-ONE editor and the standalone Replay Browser, never a cluster AAR (a debrief); merged by default when the files hold several participants; DAR unrelated; the merge measured — §2.2) · 2026-11-08 (second pass — Federation as the SOURCE of the editor's one world) · 2026-11-08 (first version — CE-3419)
-current-answer: §1 measured · §2 how Federation and the merge work · §3 the design · §4 stages · §5 decisions and the one open question
+current-answer: §1 measured · §2 how Federation and the merge work · §3 the design · §4 stages · §5 decisions · ⭐ §6 a better merge (ideas I1–I7, the user: "what exists now is not carved in stone")
 stale-below: nothing
 known-rot: ⛔ first pass: "Federation does not fit the editor" / "standalone only" — WITHDRAWN (§2.4) · ⛔ second pass: the "this station's part" source during a CLUSTER AAR, G2 (read-only), Q5 (DAR), Q6 (per-station switch in a cluster) — WITHDRAWN by the user (§2.4) · the first pass cited R-4010 for "each node replays its own recording" — wrong id; the rule is W5 in DESIGN_Replay_Time_Axis_And_Review
 known-conflict: none
@@ -187,7 +187,37 @@ merged source steps / scrubs only. The dotted edge: a real cluster's AAR is the 
 | **Q4′** (= RB Q-B6) | Federation in the editor, as the source of its one world | ✅ |
 | **Q7** | the default | ✅ 🔒 *"If there are multiple participants that produced their own [.fdp] file … we by default open in merged mode"* |
 | ~~Q5 · Q6~~ | DAR · per-station switching in a cluster | ⛔ withdrawn (§2.4) |
-| **Q8** ⏳ | **the merge's managed-component gap (§2.2)** — keep the JSON merge for the first iteration and FILL the gap found by M1 (a translator, or a recording-exact copy for those types), or replace the step between the sandboxes and the merged world by a BINARY component copy with a reference remap | ⭐ **lean: keep the JSON merge now, measure M1, then decide** — it is built, tested and correct for unmanaged state; a binary merge is a second implementation to justify with M1's numbers. ⛔ rejected: building the binary merge before knowing what is lost |
+| **Q8** ⏳ *(see §6 — I1 makes it moot)* | **the merge's managed-component gap (§2.2)** — keep the JSON merge for the first iteration and FILL the gap found by M1 (a translator, or a recording-exact copy for those types), or replace the step between the sandboxes and the merged world by a BINARY component copy with a reference remap | ⭐ **lean: keep the JSON merge now, measure M1, then decide** — it is built, tested and correct for unmanaged state; a binary merge is a second implementation to justify with M1's numbers. ⛔ rejected: building the binary merge before knowing what is lost |
+
+
+## 6. ⭐ A better merge — ideas *(coordinator, `2026-11-08`; the user: "If you see something that can be improved on the federation mode, how to do the merging … don't hesitate to come up with ideas. What exists now is not carved in stone.")*
+
+**Measured for these ideas:** every node's frame index carries the recorded SIM time per frame (`AsyncRecorder.StampIndex`, `AsyncRecorder.cs:199`,
+format v7), and the cluster's sim time is one clock; a recorded frame restores MANAGED components too — the playback has a restorer per managed type
+(`PlaybackSystem.cs:17-18`) — so each node's hidden sandbox already holds every component EXACTLY; only the step between the sandboxes and the merged
+world (JSON, §2.2) loses anything. Managed components are immutable and replaced whole (CLAUDE.md, user `2026-11-02`).
+
+| # | idea | what it fixes | cost / risk |
+|---|---|---|---|
+| **I1** | ⭐ **a BINARY merge**: for each networked entity, copy each owned component straight from the owner's sandbox into the merged world — unmanaged by value, **managed by REFERENCE** (safe: immutable, replaced whole); only `Entity`-typed fields need a remap (network ids and `EntityLink` keys are global already) | ⭐ the managed-component gap (§2.2, Q8) disappears by construction — no translator in the path; no JSON | ⚠ **M2**: count the recorded components with raw `Entity` fields (the remap list); the scenario serializer's resolver already knows how to walk them |
+| **I2** | ⭐ **a PERSISTENT merged world, updated in place**: one target entity per network id, created on first sight and kept (destroyed when the entity dies in every node) — instead of a NEW repository per step | ⭐ entity handles stay valid across steps: the selection, Details, the frame diff and timeline references survive a step (today the RB re-resolves the network id each time); and the editor's ONE world (D8) is the target naturally | low — the correlation map is already built per step (§2.2 ①) |
+| **I3** | ⭐ **an INCREMENTAL merge** from I1 + I2: copy only the chunks whose version changed since the last step (the frames ARE deltas; the playback bumps chunk versions) | ⭐ the merged view can **PLAY** — today it steps / scrubs only because each step re-serializes the whole world | ⚠ measure the per-frame cost on the largest exercise; must meet 0 B steady (R-2084) |
+| **I4** | ⭐ **align the participants by recorded SIM time**, not by wall-clock ticks + manual offsets | the offsets panel stops being needed in the normal case (it stays as the expert override for a node whose clock was really off) | low — the index already has it |
+| **I5** | **a "views" lens — what each node BELIEVED**: for the selected entity, Details shows each replicated component's value at the OWNER and at every node holding a replica, and the timeline marks the frames where a replica DIFFERS from its owner beyond ε (`ComponentDiffService` already compares) | ⭐ the desync analysis Federation exists for, in one place — today you flip between single-node views and compare by eye | medium — a Details section + one timeline lane |
+| **I6** | **federated SEARCH**: run the search on each participant file and keep, per hit, only components that node OWNED at that frame; union by network id | search works in Merged (today disabled there) | medium — the search already runs per file |
+| **I7** | **local entities from EVERY node**, tagged by node, with a per-node filter — instead of one "provider" node | effects from SimHost AND markers from CGF both visible | low |
+
+⭐ **Lean:** I1 + I2 + I4 as the merge of the FIRST iteration (they replace the JSON step and make the managed gap moot, so M1 / Q8 become a
+cross-check instead of a decision); I3 next (merged PLAY); I5 – I7 after, as the analysis grows. ⛔ **Rejected:** keeping the JSON merge and
+patching translators type by type — it fights the scenario serializer's purpose (saving authored state) forever. **Blast radius:** the merge lives in
+`Fdp.Toolkits/ReplayBrowser/Federation` — the standalone Replay Browser gets the same improvement (one implementation, two hosts); its
+`frankenstein` design §7 is superseded where I1 / I2 replace §7.4 – §7.5.
+
+| # | question for the user | ⭐ lean |
+|---|---|---|
+| **Q9** | adopt I1 + I2 + I4 for the first iteration (binary, persistent, sim-time-aligned) instead of the JSON merge | **yes** |
+| **Q10** | I3 (merged PLAY) next | **yes** |
+| **Q11** | I5 – I7 as later stages | **yes, in that order** |
 
 ---
 _coordinator lane, 2026-11-08_
