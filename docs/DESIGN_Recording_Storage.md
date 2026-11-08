@@ -362,7 +362,7 @@ only where the transfer runs · ⑦ Delete from the archive (R-4174). Scope: onl
 Any one file replays the whole exercise; more files add only what each node alone knew. ⇒ an AAR on any cluster shape shows the full world;
 ⛔ re-assigning node 4's file to another node is rejected — that node would replay node 4's world on top of its own (two restores, one world).
 
-### 9a. ⭐ Placing the recordings on the nodes — by NAME, then by KIND; refuse only what cannot be placed at all *(Q9)*
+### 9a. ⭐ Placing the recordings on the nodes — by NAME, then by KIND; refuse only what cannot be placed at all *(Q9 — ✅ approved, R-4175)*
 
 🔒 User: *"How the role of the node is expressed. What if there were multiple nodes with the same role … Will we need to distribute the recordings to
 available nodes who are of the same role? We should support simple cases where everything is clear how to resolve … or if they are too complex to
@@ -407,7 +407,7 @@ flowchart TD
 ⛔ **Rejected:** matching by node id (ids are granted anew each run) · by role FLAG alone (a fused `Brain\|MuscleGround` node would "match" a pure Brain
 file and miss its kinematics) · putting two files on one node (one world per node) · re-labelling a file to another kind.
 
-#### 9b. ⭐ A file on a node with a DIFFERENT id — replay works; going LIVE from it does not *(measured `2026-11-08`)*
+#### 9b. ⭐ A file on a node with a DIFFERENT id — replay works; going LIVE from it does not *(measured `2026-11-08`; the kind-range ids ✅ approved, R-4175)*
 
 | who decides "is it mine?" | uses | in a replay on a node with another id |
 |---|---|---|
