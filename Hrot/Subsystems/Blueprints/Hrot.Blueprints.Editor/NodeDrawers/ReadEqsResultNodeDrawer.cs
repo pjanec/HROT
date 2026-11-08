@@ -38,8 +38,7 @@ internal sealed class ReadEqsResultNodeSession : INodeEditSession
 
         if (_parent.Dispatch != BlueprintDispatchKind.Instance)
         {
-            ImGui.TextColored(StatusPalette.Error,
-                "⚠ ReadEqsResultNode is only allowed in Instance Blueprints.");
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine("ReadEqsResultNode is only allowed in Instance Blueprints.");
             ImGui.Separator();
         }
 

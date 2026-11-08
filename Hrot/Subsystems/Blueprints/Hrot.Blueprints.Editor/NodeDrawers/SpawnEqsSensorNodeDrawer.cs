@@ -72,8 +72,7 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
         // CE-496: mirrors BP2030 (Stage2_Validate) — Instance and Behavior (a behaviour IS an Instance body).
         if (_parent.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior))
         {
-            ImGui.TextColored(StatusPalette.Error,
-                "⚠ SpawnEqsSensorNode is only allowed in Instance and Behaviour Blueprints.");
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine("SpawnEqsSensorNode is only allowed in Instance and Behaviour Blueprints.");
             ImGui.Separator();
         }
     }
@@ -103,7 +102,7 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
         } FormGrid.EndField();
 
         if (_node.TemplateAssetId == Guid.Empty)
-            ImGui.TextColored(StatusPalette.Warning, "(no template selected)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine("(no template selected)");
     }
 
     public void ResetDirty() => IsDirty = false;

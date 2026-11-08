@@ -58,7 +58,8 @@ internal static class FormatArgTypeRows
             argTypes.TryGetValue(name, out var current);
             var preview = string.IsNullOrEmpty(current) ? AutoLabel : current;
 
-            if (!ImGui.BeginCombo(name, preview)) continue;
+            NodeEditor.Core.Widgets.FormGrid.BeginField("bp.node", name);   // ⭐ CE-3396 — a label-first row
+            if (!ImGui.BeginCombo("##arg_" + name, preview)) { NodeEditor.Core.Widgets.FormGrid.EndField(); continue; }
 
             if (ImGui.Selectable(AutoLabel, string.IsNullOrEmpty(current)))
                 onPick(name, "");
@@ -72,6 +73,7 @@ internal static class FormatArgTypeRows
             }
 
             ImGui.EndCombo();
+            NodeEditor.Core.Widgets.FormGrid.EndField();
         }
     }
 }

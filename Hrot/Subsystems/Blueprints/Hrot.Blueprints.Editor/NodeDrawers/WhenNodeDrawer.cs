@@ -106,8 +106,7 @@ internal sealed class WhenNodeSession : INodeEditSession
     {
         if (_parent.Dispatch != BlueprintDispatchKind.Instance)
         {
-            ImGui.TextColored(StatusPalette.Error,
-                "⚠ WhenNode is only allowed in Instance Blueprints.");
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine("WhenNode is only allowed in Instance Blueprints.");
             ImGui.Separator();
         }
     }
@@ -148,7 +147,7 @@ internal sealed class WhenNodeSession : INodeEditSession
         FormGrid.EndField();
 
         if (_node.Edges == WhenEdge.None)
-            ImGui.TextColored(StatusPalette.Warning, "(no edge selected — WhenNode will never fire)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine("(no edge selected — WhenNode will never fire)");
     }
 
     private void DrawPreviewPill()
@@ -276,7 +275,7 @@ internal sealed class WhenNodeSession : INodeEditSession
 
         if (entries.Count == 0 && !unlisted)
         {
-            ImGui.TextColored(StatusPalette.Warning, "(no engine events discovered)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine("(no engine events discovered)");
             return;
         }
 
@@ -307,8 +306,7 @@ internal sealed class WhenNodeSession : INodeEditSession
 
         if (unlisted)
         {
-            ImGui.TextColored(StatusPalette.Warning,
-                $"(no catalog entry matches '{payload.EventTypeId}' — this subscription can never fire)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine($"(no catalog entry matches '{payload.EventTypeId}' — this subscription can never fire)");
         }
         else if (current is not null)
         {
@@ -334,8 +332,7 @@ internal sealed class WhenNodeSession : INodeEditSession
             }
 
             if (current.QoS == EventQoS.BestEffort)
-                ImGui.TextColored(StatusPalette.Warning,
-                    "(BestEffort delivery — this event may be dropped; the compiler warns with BP2016)");
+                NodeEditor.Core.Widgets.RowMarks.WarningLine("(BestEffort delivery — this event may be dropped; the compiler warns with BP2016)");
         }
     }
 
@@ -397,7 +394,7 @@ internal sealed class WhenNodeSession : INodeEditSession
             sr.Trigger = sr.Decl is null ? "" : SensorPaletteEntries.UsableTriggers(sr.Decl).FirstOrDefault()?.Name ?? "";
             IsDirty = true;
         } FormGrid.EndField();
-        if (sr.Decl is null) { ImGui.TextColored(StatusPalette.Warning, "Pick a sensor kind."); return; }
+        if (sr.Decl is null) { NodeEditor.Core.Widgets.RowMarks.WarningLine("Pick a sensor kind."); return; }
 
         var triggers = SensorPaletteEntries.UsableTriggers(sr.Decl).ToArray();
         var labels = triggers.Select(t => t.Name).ToArray();

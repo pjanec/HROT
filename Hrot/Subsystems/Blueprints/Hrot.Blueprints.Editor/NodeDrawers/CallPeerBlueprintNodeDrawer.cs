@@ -197,8 +197,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
         DrawFunctionPicker();
 
         if (string.IsNullOrEmpty(_node.PeerBlueprintId) || string.IsNullOrEmpty(_node.FunctionRef))
-            ImGui.TextColored(StatusPalette.Warning,
-                "(both a peer and a function are required — untyped exec+Return pins until then)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine("(both a peer and a function are required — untyped exec+Return pins until then)");
     }
 
     private void DrawPeerPicker()
@@ -209,8 +208,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
 
         if (all.Count == 0 && !unresolved)
         {
-            ImGui.TextColored(StatusPalette.Warning,
-                "(no peer Blueprints discovered — check the blueprint asset root)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine("(no peer Blueprints discovered — check the blueprint asset root)");
             return;
         }
 
@@ -240,8 +238,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
         } FormGrid.EndField();
 
         if (unresolved)
-            ImGui.TextColored(StatusPalette.Warning,
-                $"(no discovered Blueprint has id {_node.PeerBlueprintId} — kept as-is)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine($"(no discovered Blueprint has id {_node.PeerBlueprintId} — kept as-is)");
     }
 
     private void DrawFunctionPicker()
@@ -253,15 +250,16 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
         if (peer is null)
         {
             ImGui.BeginDisabled();
-            ImGui.LabelText("Function", string.IsNullOrEmpty(_node.FunctionRef) ? "(select a peer first)" : _node.FunctionRef);
+            NodeEditor.Core.Widgets.FormGrid.BeginField("bp.node", "Function");   // ⭐ CE-3396
+            ImGui.TextUnformatted(string.IsNullOrEmpty(_node.FunctionRef) ? "(select a peer first)" : _node.FunctionRef);
+            NodeEditor.Core.Widgets.FormGrid.EndField();
             ImGui.EndDisabled();
             return;
         }
 
         if (peer.ExportedFunctions.Count == 0)
         {
-            ImGui.TextColored(StatusPalette.Warning,
-                $"({PeerLabel(peer)} exports no functions — nothing to call)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine($"({PeerLabel(peer)} exports no functions — nothing to call)");
             return;
         }
 
@@ -289,8 +287,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
         } FormGrid.EndField();
 
         if (unresolved)
-            ImGui.TextColored(StatusPalette.Warning,
-                $"({PeerLabel(peer)} does not export '{current}' — kept as-is; pins fall back to untyped)");
+            NodeEditor.Core.Widgets.RowMarks.WarningLine($"({PeerLabel(peer)} does not export '{current}' — kept as-is; pins fall back to untyped)");
     }
 
     public void ResetDirty() => IsDirty = false;
