@@ -98,6 +98,69 @@ namespace Fdp.Toolkit.Orchestration
             return removed;
         }
 
+        /// <summary>⭐ CE-4330 ④ (docs/DESIGN_Recording_Storage.md §6) — how many ARCHIVED recordings a node's local cache keeps by default.</summary>
+        public const int CacheDefaultKeep = 5;
+
+        /// <summary>⭐ CE-4330 ④ — how many archived copies the node cache keeps: <see cref="KeepVariable"/> when set (> 0), else <see cref="CacheDefaultKeep"/>.</summary>
+        public static int ResolveCacheKeep(Func<string, string?>? environment = null)
+        {
+            environment ??= Environment.GetEnvironmentVariable;
+            return int.TryParse(environment(KeepVariable), out var n) && n > 0 ? n : CacheDefaultKeep;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4330 ④ (docs/DESIGN_Recording_Storage.md §6) — THE NODE CACHE RULE (⛔ <see cref="Prune"/> is the scratch-root sweep, a different rule): in ONE node's <paramref name="exercisesDir"/>, an ARCHIVED recording's local copy is a cache.
+        /// ① the newest <paramref name="keepNewest"/> directories (by <c>LastWriteTimeUtc</c>) stay; older ones go — but ONLY those whose GUID name is in <paramref name="archived"/>; ② then, while the disk's free fraction is below
+        /// <paramref name="minFreeFraction"/>, the OLDEST archived copy still there goes, even inside the newest N. ⛔ An UN-archived recording is never removed here (not by age, not by space); a directory in use (cannot be deleted) is skipped.
+        /// <paramref name="keepNewest"/> ≤ 0 = no count limit (only the space rule). <paramref name="disk"/> answers (free, total) bytes for a path (default: the drive the directory lives on; an unreadable drive = no space rule).
+        /// Returns how many directories were deleted.
+        /// </summary>
+        public static int PruneArchivedCopies(string exercisesDir, int keepNewest, IReadOnlyCollection<Guid> archived, double minFreeFraction = 0.10,
+                                              Func<string, (long Free, long Total)>? disk = null, Action<string>? log = null)
+        {
+            if (string.IsNullOrEmpty(exercisesDir) || !Directory.Exists(exercisesDir) || archived is null || archived.Count == 0) return 0;
+            var isArchived = new HashSet<Guid>(archived);
+            var dirs = new DirectoryInfo(exercisesDir).GetDirectories().OrderByDescending(d => d.LastWriteTimeUtc).ToList();   // newest first
+            int removed = 0;
+
+            // ① beyond the newest N: the archived ones go
+            if (keepNewest > 0)
+                for (int i = dirs.Count - 1; i >= keepNewest; i--)
+                    if (Guid.TryParse(dirs[i].Name, out var id) && isArchived.Contains(id) && TryDelete(dirs[i])) { dirs.RemoveAt(i); removed++; }
+
+            // ② while the disk is short of space: the oldest archived copy goes, even inside the newest N
+            disk ??= DefaultDisk;
+            for (int i = dirs.Count - 1; i >= 0 && IsShortOfSpace(exercisesDir, minFreeFraction, disk); i--)
+                if (Guid.TryParse(dirs[i].Name, out var id) && isArchived.Contains(id) && TryDelete(dirs[i])) { dirs.RemoveAt(i); removed++; }
+
+            if (removed > 0) log?.Invoke($"[Retention] node cache: removed {removed} archived local copy(ies) under {exercisesDir}");
+            return removed;
+        }
+
+        private static bool TryDelete(DirectoryInfo dir)
+        {
+            try { dir.Delete(recursive: true); return true; }
+            catch (IOException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
+        }
+
+        private static bool IsShortOfSpace(string path, double minFreeFraction, Func<string, (long Free, long Total)> disk)
+        {
+            if (minFreeFraction <= 0) return false;
+            var (free, total) = disk(path);
+            return total > 0 && free < total * minFreeFraction;
+        }
+
+        private static (long Free, long Total) DefaultDisk(string path)
+        {
+            try
+            {
+                var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path))!);
+                return (drive.AvailableFreeSpace, drive.TotalSize);
+            }
+            catch (Exception e) when (e is IOException or ArgumentException or UnauthorizedAccessException) { return (0, 0); }   // unreadable ⇒ no space rule
+        }
+
         private static IEnumerable<string> ExerciseDirectories(string stagingRoot)
         {
             var shared = Path.Combine(stagingRoot, OrchestrationConstants.ExercisesDirectoryName);

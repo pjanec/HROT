@@ -638,6 +638,54 @@ public sealed class ClusterSlaveTests
     }
 
     /// <summary>
+    /// ⭐ CE-4330 ④ — a NEW archived inventory (a new array on the node's <c>ClusterView</c>) runs ONE cache pass over this node's own exercises root, with the newest-N default and the ids of the archived exercises; the same array again runs nothing;
+    /// a pass still running makes a later inventory wait (never two at once) and it runs when the first ends; a node with nothing archived runs none. 🔴 Mutations (each compiles): the reference test removed ⇒ a pass every frame ⇒ red;
+    /// the in-flight guard removed ⇒ two overlapping passes ⇒ red; the ids taken from the unarchived list ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_ANewArchivedInventory_RunsOneCachePass_AndNeverTwoAtOnce()
+    {
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(6, "Player", bus);
+        var calls = new List<(string Root, int Keep, Guid[] Ids)>();
+        var pending = new List<Action>();
+        slave.ExercisesRoot = () => "/stage/node-6/exercises";
+        slave.CachePruner = (root, keep, ids) => calls.Add((root, keep, ids.ToArray()));
+        slave.CacheRunner = work => pending.Add(work);                          // the pass is held until the test lets it run
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid();
+        ExerciseInventoryItem Item(Guid id) => new((ExerciseId)id, DateTime.UtcNow, TimeSpan.FromMinutes(1), "scn");
+        void Hear(params ExerciseInventoryItem[] archived)
+        {
+            bus.PublishManaged(new AssetInventoryUpdateEvent { ArchivedExercises = archived, LocalExercises = Array.Empty<ExerciseInventoryItem>(), UnarchivedLocalExercises = Array.Empty<ExerciseInventoryItem>(), LocalScenarios = Array.Empty<string>() });
+            bus.SwapBuffers();
+            slave.Tick();
+        }
+
+        Hear();                                                                 // nothing archived: no pass
+        Assert.Empty(pending);
+        Hear(Item(a));                                                          // the first inventory: the start-up pass
+        Assert.Single(pending);
+        pending[0](); pending.Clear();
+        Assert.Equal("/stage/node-6/exercises", calls[0].Root);
+        Assert.Equal(ExerciseRetention.CacheDefaultKeep, calls[0].Keep);
+        Assert.Equal(new[] { a }, calls[0].Ids);
+        slave.Tick(); slave.Tick();                                             // the same inventory: nothing more
+        Assert.Empty(pending);
+
+        Hear(Item(a), Item(b));                                                 // an archive finished: a new array ⇒ one pass
+        Assert.Single(pending);
+        Hear(Item(b));                                                          // arrives while that pass still runs ⇒ waits
+        Assert.Single(pending);
+        pending[0](); pending.Clear();                                          // the first ends …
+        slave.Tick();                                                           // … and the next frame picks the newer inventory up
+        Assert.Single(pending);
+        pending[0](); pending.Clear();
+        Assert.Equal(new[] { a, b }, calls[1].Ids);
+        Assert.Equal(new[] { b }, calls[2].Ids);
+        Assert.Equal(3, calls.Count);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3354</c> ② — the slave puts its configured node NAME on every heartbeat; with none it is <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>, and a blank one is none.
     /// 🔴 Mutations (each compiles): the heartbeat not setting <c>NodeName</c> ⇒ both cells red; the default spelled differently ⇒ the default cell reds.
     /// </summary>
