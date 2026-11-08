@@ -82,19 +82,19 @@ for i, (name, col, evs) in enumerate(lanes):
     s.text(TX + 12, yy + 13, name, col, 11.5); s.rect(rx0, yy + 2, rx1 - rx0, 18, "#16161B")
     for f in evs: s.o.append(f"<circle cx='{rx0 + (rx1 - rx0) * f}' cy='{yy + 11}' r='4' fill='{col}'/>")
 s.line(rx0 + (rx1 - rx0) * 0.67, TY + 30, rx0 + (rx1 - rx0) * 0.67, TY + TH - 6, C.RED, sw=1.5)
-s.note(TX + 12, TY + TH - 40, ["★ the search's hits and a data breakpoint's stops become timeline lanes; a click seeks the cluster there"], C.NOTE, 11)
+s.note(TX + 12, TY + TH - 40, ["★ the search's hits and a data breakpoint's stops become timeline lanes; a click seeks there"], C.NOTE, 11)
 
 # ── the File menu addition ──
 s.menu(X0 + 8, Y0 + 30, 300, [("#", "File"), ("Open Exercise Recording…", None, 0xf1da, C.BLUE), ("Recording info", None, 0xf05a, C.GREY),
                              ("Export to JSON…", None, 0xf56e, C.GREY)])
 
-s.menu(sx + 48, Y0 + 30, 290, [("#", "Source of the world"), ("Merged — every part (step / scrub)", None, 0xf0e8, C.TEAL), ("This station's part", None, 0xf108, C.GREY),
+s.menu(sx + 48, Y0 + 30, 290, [("#", "Source of the world"), ("Merged — every part (step / scrub)", None, 0xf0e8, C.TEAL),
                               ("CGF-1's part", None, 0xf544, C.BLUE), ("SimHost-1's part", None, 0xf1b2, C.AMBER), "---", ("Offsets…  (expert)", None, 0xf1de, C.GREY)])
 NY = Y0 + SH + 18
-s.note(20, NY, ["★ ONE world: everything above draws the editor's own world, which the AAR replays (the cluster seeks every node). The search, the frame diff and",
+s.note(20, NY, ["★ ONE world (the ALL-IN-ONE editor, or the standalone Replay Browser — never a real cluster's AAR, which is the trainees' debrief): the search, the frame diff and",
                 "   the change finder read the RECORDING FILE in throwaway background readers — the way the editor's HTTP API already searches (no second visible world).",
-                "★ Review is a perspective (a window layout), switched to automatically on entering AAR and back on leaving it; the same layout is the Replay Browser's default (Q-B3).",
-                "★ Source (D6′): Merged builds the ONE world from every node's part (each component from the node that owned it — a brain's state from CGF); a node's part plays;",
+                "★ Review is a perspective (a window layout), entered when a recording opens for analysis; the same layout is the Replay Browser's default (Q-B3).",
+                "★ Source (D6): several participant files open MERGED by default — each component from the node that owned it (a brain's state from CGF); a node's part plays;",
                 "   merged steps / scrubs only. The parts are HIDDEN worlds; the editor still shows one (Q-B6).",
                 "   Unchanged, drawn as context: the run controls (AQ108 §0), the rules bundle, Details, the Event Timeline's own lanes."], C.SUB, 12)
 
