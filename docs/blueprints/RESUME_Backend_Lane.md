@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-07
-current-answer: ⭐⭐⭐ §SCENARIO PRESETS + THE SHARED FIELD EDITOR (2026-11-07, LATEST) below — CE-3374 next. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+updated: 2026-11-08
+current-answer: ⭐⭐⭐ §STRUCT EDITOR OVERNIGHT — DONE (2026-11-08, LATEST) below: N-0…N-11 built and pushed; open = the pen QUESTION + the follow-ups listed there. Then §SCENARIO PRESETS (2026-11-07) — CE-3374 now BUILT. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Struct_Editor.md — the one struct-editor library (✅ APPROVED 2026-11-07: S1–S12, §8 the ONE widget kit K1–K6, §9 the inspector)
@@ -19,6 +19,18 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
+
+## ⭐⭐⭐ STRUCT EDITOR OVERNIGHT — DONE (`2026-11-08`, LATEST) — start here
+
+📄 Per-item record: [`batches/STATUS_Struct_Editor_Overnight_Backend.md`](batches/STATUS_Struct_Editor_Overnight_Backend.md) · design as-built: [`DESIGN_Struct_Editor.md`](../DESIGN_Struct_Editor.md) §11a + §12 · presets as-built: [`UX/DESIGN_Scenario_Presets.md`](../UX/DESIGN_Scenario_Presets.md) §8.
+
+| | |
+|---|---|
+| **built** | N-0 kit · N-1 one type catalogue · N-2 list forms + table keys · N-3/N-4 typed cells, defaults, read-only · N-5 one entity chip · N-6 the Define table (`FieldTable`) · N-7 presets: data + HTTP, load-dialog combo, split ▶, preset editor (CE-3374/75/88–94) · N-8 one value form + one table chrome + macro-arg undo · N-9 lists onto the kit + condition picks · N-10 entity forms + inspector (undo in Edit mode) · N-11 form rows / error lines |
+| **fixed on the way** | CE-3398 (HSM event picker) · `header.Features` dropped on save · three hosts built a drawer per frame (2016 B) · action list serialised Args per frame · the adapter-wide undo bracket (param rename recorded extra steps) · `HatArbiter` no `[TickMode]` (every headless editor boot threw) · `VariantForms` unregistered on the live world · `/scenario/save` 501 on a world-less host · the Start wallpaper crashed the Fdp.Presentation test host (782 tests now run) |
+| **waits on the user** | the yellow-pen vs AQ108 D1 QUESTION — [`NOTE_Backend_To_Coordinator_Edit_Pen_Vs_Armed_Indicator.md`](batches/NOTE_Backend_To_Coordinator_Edit_Pen_Vs_Armed_Indicator.md) (lean: the pen) |
+| **follow-ups (not filed as rows yet)** | `[MapPickableEntity]` narrows only the map pick (index the TKB type in `LiveRefScope`) · `DeferredEventIds` list elements draw the sync-group combo (CE-3398 tail) · blackboards / Blueprint variables still on `VariablesPanelControl` (step ③) · `ParametersDrawer` passes no pick context · the inspector and the Orders tab have no frame harness (0 B unmeasured) · `ConditionEditor` 64 B/frame for the fact "strength" |
+
 
 ## ⭐⭐⭐ SCENARIO PRESETS + THE SHARED FIELD EDITOR (`2026-11-07`, LATEST) — start here
 
