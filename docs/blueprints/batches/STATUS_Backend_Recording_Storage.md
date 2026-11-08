@@ -22,7 +22,7 @@ Gates (V): `Hrot.Map.Common.Tests` 88/88 · `Hrot.SimHost.Tests` (`UpdateEntityD
 
 | # | id | state | note |
 |---|---|---|---|
-| X-1 | CE-4345 | DONE | one steer limit in the one integrator (`BicycleModel.SteerLimit`, radius ≥ v²/`MaxLatAccel`); the possessed drive now integrates through `BicycleModel.Integrate`; the AI's cornering cap is the inverse. Rails `CarKinematicsSystemTests.CE4345_*` possessed + AI (red with the limit off); CarKinem 274/274; `Fdp.Toolkits.Tests` Possession 7/7. Design Motion Domains §5i |
+| X-1 | CE-4345 | DONE | one steer limit in the one integrator (`BicycleModel.SteerLimit`, radius ≥ v²/`MaxLatAccel`); the possessed drive now integrates through `BicycleModel.Integrate`; the AI's cornering cap is the inverse. Rails `CarKinematicsSystemTests.CE4345_*` possessed + AI (red with the limit off); CarKinem 274/274; `Hrot.SimHost.Tests` Possession 12/12. Design Motion Domains §5i |
 | X-2 | CE-4344 | FILED on behaviors (measured) | the latch is `OperatorControlBehavior.OperateWeapon` (behaviors), not the weapon: [NOTE](NOTE_Backend_To_Behaviors_Possessed_Shot_Through_Reload.md) with the proposed patch and rail shape |
 | X-3…X-6 | | next | |
 
