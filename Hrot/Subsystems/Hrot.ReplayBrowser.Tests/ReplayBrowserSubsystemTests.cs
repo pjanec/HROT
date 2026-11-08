@@ -1607,6 +1607,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(40f / 60f, bar.Fraction, 3);
         Assert.Equal("0:40.0", bar.Now);
         Assert.Equal("1:00.0", bar.End);
+        // ⭐ V3 — the Replay Browser draws the ONE drawer's FULL profile (its look unchanged): everything but the axis toggle this bare panel has no host for
+        Assert.Equal(Fdp.Presentation.Panels.ReplayBrowser.ReplayTransportParts.All & ~Fdp.Presentation.Panels.ReplayBrowser.ReplayTransportParts.Axis, panel.TransportDrawer.LastDrawn);
         string dir = Environment.GetEnvironmentVariable("HROT_FRAME_SCREENSHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-frames");
         Directory.CreateDirectory(dir);
         frame.Screenshot(Path.Combine(dir, "rbux1-seek-bar.png"));

@@ -181,15 +181,18 @@ namespace Hrot.Editor.DebugApi
         //    (R-3052…R-3055 — the brain, journal and selection of the replayed moment are the ORDINARY readers on the replayed world; a
         //    second replay world in the debug service is retired). 📄 docs/DESIGN_Http_Control_Through_The_Cluster_Master.md §3.
 
-        private (string Path, Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext Context)? _scanned;
+        private Hrot.Editor.Review.OwnPartReplay? _ownPart;
+
+        /// <summary>⭐ R-2 / V2 — this node's own-part replay: the file, its throwaway reader, where it stands and THE seek (<see cref="Hrot.Editor.Review.OwnPartReplay"/>, shared with the editor's review windows).</summary>
+        private Hrot.Editor.Review.OwnPartReplay OwnPart => _ownPart ??= new Hrot.Editor.Review.OwnPartReplay(
+            () => ReplayRecordingPathOrNull, () => ReplayPositionOrNull, () => MasterOrNull, CurrentClusterStateOrNull);
         private Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchService? _recordingSearch;
 
         /// <summary>The file this node replays now: the editor's own recorder, else the active perspective's node.</summary>
         private string? ReplayRecordingPathOrNull
             => _rrController?.ActiveReplayFilePath ?? _dispatcher?.ReplayRecordingPath;
 
-        private const string NoReplayRecording =
-            "This node is not in a replay (POST /replay {exerciseId} enters one), so there is no recording to scan.";
+        private const string NoReplayRecording = Hrot.Editor.Review.OwnPartReplay.NoRecording;
 
         private static NetworkEntityMap SandboxMap(EntityRepository repo)
         {
@@ -204,20 +207,7 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>A read-only reader over this node's replay recording, kept while the file is the same.</summary>
-        private Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext? ScanContext(out string? path)
-        {
-            path = ReplayRecordingPathOrNull;
-            if (path is null || !System.IO.File.Exists(path)) return null;
-            if (_scanned is not { } held || held.Path != path)
-            {
-                _scanned?.Context.Dispose();
-                var ctx = new Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext();
-                ctx.LoadRecording(path);
-                if (ctx.Playback is null) { ctx.Dispose(); _scanned = null; return null; }
-                _scanned = (path, ctx);
-            }
-            return _scanned.Value.Context;
-        }
+        private Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext? ScanContext(out string? path) => OwnPart.ScanContext(out path);
 
         /// <summary>
         /// ⭐ <c>CE-1265</c> (AV-8) — <c>GET /entities/{networkId}/journal/history?from=&amp;to=</c>: EVERY journal entry of one unit

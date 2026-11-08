@@ -18,9 +18,7 @@ namespace Hrot.Editor.DebugApi
     /// </remarks>
     public sealed partial class DebugApiService
     {
-        private const string NoMaster =
-            "No subsystem on this host has an orchestration bus that reaches the ClusterMaster, so it cannot publish this "
-          + "request. Check the 'scenario.load' cell in GET /capabilities.";
+        private const string NoMaster = Hrot.Editor.Review.OwnPartReplay.NoMaster;
 
         /// <summary>
         /// ⭐⭐⭐ <c>CE-3344</c> (R-3069) — <b>why the cluster cannot be operated from this host right now</b> (<c>ClusterView.NotOperableReason</c>: waiting for a mandatory
@@ -652,17 +650,7 @@ namespace Hrot.Editor.DebugApi
                 return (null, "atSeconds (wall, after the replay's zero) or atSimSeconds (the recorded sim time) is required: {\"atSeconds\": 30}.", DebugApiHints.Scenario);
             if (!TryReadSeconds(body, out double at, out var error)) return (null, error, DebugApiHints.Scenario);
             if (!TryReadSimSeconds(body, out double? atSim, out error)) return (null, error, DebugApiHints.Scenario);
-            if (CurrentClusterStateOrNull() is { } s && !ClusterStates.IsReplaying(s))   // ⭐ CE-3329 — a review seeks the same way
-                return (null, $"The cluster is in {s}, not a replay: POST /replay (or POST /review) first.", DebugApiHints.Scenario);
-            var master = MasterOrNull;
-            if (master is null) return (null, NoMaster, DebugApiHints.Panel);
-            // ⭐ CE-3329 R11 — atSimSeconds wins; the master (or the Replay Browser) resolves it through the replay's time map
-            var intent = Hrot.UI.Common.Facades.ReplaySessionIntents.Seek(at, atSim);   // ⭐ CE-4045 H1b — the ONE construction
-            try { master.SeekReplay(intent); }
-            catch (InvalidOperationException ex) { return (null, ex.Message, DebugApiHints.Scenario); }
-            var result = new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString() };
-            if (atSim is { } simTarget) result["atSimSeconds"] = simTarget; else result["atSeconds"] = at;
-            return (result, null, null);
+            return OwnPart.SeekAt(at, atSim);   // ⭐ R-2 / V2 — the ONE seek round (shared with the editor's review windows)
         }
 
         private Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxisOrNull => _editorReplayAxis?.Invoke() ?? _dispatcher?.ReplayAxisAnyNode;

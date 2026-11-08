@@ -49,8 +49,20 @@ public sealed class ComponentDiffPanel
     private string _typeFilter = string.Empty;
 
     /// <summary>Current diff list displayed by <see cref="DrawContent()"/>.</summary>
-    public IReadOnlyList<DiffNode> CurrentDiffs { get; set; }
-        = Array.Empty<DiffNode>();
+    public IReadOnlyList<DiffNode> CurrentDiffs
+    {
+        get => _currentDiffs;
+        set { _currentDiffs = value; _labels.Clear(); }
+    }
+    private IReadOnlyList<DiffNode> _currentDiffs = Array.Empty<DiffNode>();
+
+    /// <summary>⭐ R-2 / V2 — each row's tree label (<c>name##hash</c>) built ONCE per diff, not per frame: a steady frame draws 0 B.</summary>
+    private readonly Dictionary<DiffNode, string> _labels = new(ReferenceEqualityComparer.Instance);
+    private string LabelOf(DiffNode n)
+    {
+        if (!_labels.TryGetValue(n, out var label)) _labels[n] = label = $"{n.Name}##{n.GetHashCode()}";
+        return label;
+    }
 
     /// <summary>
     /// Fired when the user clicks an entity-handle button inside the diff tree.
@@ -102,6 +114,9 @@ public sealed class ComponentDiffPanel
     /// <summary>⭐ B-7 part 3 — whether a recording is loaded (the host binds the timeline panel's); drives the meta row below.</summary>
     public Func<bool>? HasRecording { get; set; }
 
+    /// <summary>⭐ R-2 / V2 (docs/UX/DESIGN_Review_Perspective.md §4) — when the host returns text, the panel draws only that (<i>"Open an exercise recording (AAR) to diff frames"</i>). Null / returning null ⇒ as ever.</summary>
+    public Func<string?>? UnavailableReason { get; set; }
+
     /// <summary>
     /// ⭐ B-7 part 3 (R-4155) — the per-frame debug row that used to sit empty in the retired Replay Timeline window (<c>Tick · SimFrame · SimTime · FrameType · CompressedSize</c>;
     /// still a placeholder: the values are not read from the recording yet). It belongs with the frame diff, which is per-frame debug.
@@ -116,6 +131,7 @@ public sealed class ComponentDiffPanel
 
     public void DrawContent(IReadOnlyList<DiffNode> diffs)
     {
+        if (UnavailableReason?.Invoke() is { } unavailable) { Gui.TextDisabled(unavailable); return; }
         DrawMetaRow();
         if (FormGrid.Begin("diff.options", DiffLabels))
         {
@@ -211,8 +227,8 @@ public sealed class ComponentDiffPanel
         Gui.TableSetupColumn("Value Transition", ImGuiTableColumnFlags.WidthStretch);
         Gui.TableHeadersRow();
 
-        foreach (var root in diffs)
-            DrawDiffNode(root);
+        for (int i = 0; i < diffs.Count; i++)   // ⭐ R-2 / V2 — indexed: a foreach over the interface boxes its enumerator (a steady frame draws 0 B)
+            DrawDiffNode(diffs[i]);
 
         Gui.EndTable();
     }
@@ -231,20 +247,21 @@ public sealed class ComponentDiffPanel
         if (node is DiffObject group)
         {
             bool isOpen = Gui.TreeNodeEx(
-                $"{group.Name}##{group.GetHashCode()}",
+                LabelOf(group),
                 ImGuiTreeNodeFlags.DefaultOpen | ImGuiTreeNodeFlags.SpanAvailWidth);
 
             if (isOpen)
             {
-                foreach (var child in group.Children)
-                    DrawDiffNode(child);
+                var children = group.Children;
+                for (int i = 0; i < children.Count; i++)
+                    DrawDiffNode(children[i]);
                 Gui.TreePop();
             }
         }
         else if (node is DiffValue val)
         {
             Gui.TreeNodeEx(
-                $"{val.Name}##{val.GetHashCode()}",
+                LabelOf(val),
                 ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen | ImGuiTreeNodeFlags.SpanAvailWidth);
 
             Gui.TableSetColumnIndex(1);

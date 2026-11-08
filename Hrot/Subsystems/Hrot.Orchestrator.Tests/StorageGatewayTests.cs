@@ -388,6 +388,43 @@ public sealed class StorageGatewayTests
             try { Directory.Delete(root, recursive: true); } catch { }
         }
     }
+
+    /// <summary>
+    /// ⭐ CE-4330 / CE-4331 (§9) — a node with no recording of its own in the archive LISTENS: it is not pushed anything and is NOT a failure (the import
+    /// now reads its failure count, so a listener counted as failed would refuse every AAR with a display station).
+    /// 🔴 Mutation: the listener filter removed ⇒ node 2's missing file counts as a failure ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 30_000)]
+    public async Task CE4330_ANodeWithNoArchivedRecording_ListensAndIsNotAFailure()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "fdp_ce4330l_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var ex = Guid.NewGuid().ToString();
+            var nasEx = Path.Combine(root, "nas", OrchestrationConstants.ExercisesDirectoryName, ex);
+            Directory.CreateDirectory(nasEx);
+            File.WriteAllText(Path.Combine(nasEx, OrchestrationConstants.GetNodeRecordingFileName(1)), "rec1");
+            var targets = new List<NodeDistributionTarget>();
+            foreach (var n in new[] { 1, 2 })
+                targets.Add(new NodeDistributionTarget
+                {
+                    NodeId = (Fdp.Core.NodeId)n,
+                    DestinationPath = Path.Combine(root, "node" + n, ex, OrchestrationConstants.GetNodeRecordingFileName(n)),
+                });
+            var progress = new StorageTransferProgress();
+
+            var result = await new StorageGatewayModule().PrefetchArchiveAsync(ex, targets, Path.Combine(root, "nas"), default, progress);
+
+            Assert.Equal((1, 0), (result.SuccessCount, result.FailureCount));
+            Assert.True(File.Exists(targets[0].DestinationPath));
+            Assert.False(File.Exists(targets[1].DestinationPath));
+            Assert.Equal((1, 1), (progress.FilesDone, progress.FilesTotal));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
 }
 
 /// <summary>

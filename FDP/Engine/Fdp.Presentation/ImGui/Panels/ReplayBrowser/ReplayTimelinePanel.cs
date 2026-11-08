@@ -47,7 +47,7 @@ public sealed record RecordingInfo(Guid? ExerciseId, IReadOnlyList<RecordingFile
 /// The replay transport (drawn by the main toolbar's entry: history, rewind, play, rate, axis, step, the seek bar with its frame / wall / sim tooltip) and the JSON export options
 /// (File ▸ JSON Export…). ⭐ B-7 part 3: the Replay Timeline WINDOW is retired — its parts moved (the readout to the seek bar's tooltip, the meta row to the Frame Diff window, the file path to File ▸ Recording info).
 /// </summary>
-public sealed class ReplayTimelinePanel
+public sealed class ReplayTimelinePanel : IReplayTransport
 {
     private FederatedReplayManager? _manager;
     private readonly Func<int> _getSelectedNodeId;
@@ -64,10 +64,7 @@ public sealed class ReplayTimelinePanel
     private bool _isExporting;
     public bool IsPlaying { get; set; }
     public float PlaybackRate { get; set; } = 1.0f;
-    private static readonly float[] TimeRates = { 0.1f, 0.5f, 1.0f, 1.5f, 2.0f, 5.0f, 10.0f };
-    private float _stepHoldTime;
-    private int _stepHoldDirection;
-    private float _autoStepAccumulator;
+    private readonly ReplayTransportDrawer _drawer;
 
     /// <summary>
     /// Fired when the user selects an entity via the timeline panel
@@ -113,6 +110,7 @@ public sealed class ReplayTimelinePanel
         _fileDialogService = fileDialogService;
         _playbackHistory = playbackHistory;
         _inspectorState = inspectorState;
+        _drawer = new ReplayTransportDrawer(this);   // ⭐ V3 — the ONE drawer, the Replay Browser's profile (everything)
     }
 
     /// <summary>Binds a new manager after a successful group load; <see langword="null"/> when the replay is closed (RB-1, <c>POST /replay/stop</c>).</summary>
@@ -199,8 +197,7 @@ public sealed class ReplayTimelinePanel
     public void DrawTransport(float iconSize = 0f)
     {
         DrawLoadGroupError();
-        DrawRow1_Transport(iconSize);
-        DrawSeekBar();   // ⭐ Replay Browser UX ① (R-4153) — the seek bar fills the main bar after the transport
+        _drawer.Draw(iconSize);   // ⭐ V3 — the ONE drawer over this panel's IReplayTransport; ⭐ Replay Browser UX ① (R-4153) — its seek bar fills the main bar after the transport
     }
 
     /// <summary>⭐ Replay Browser UX ① — the recording's sim seconds at a wall tick (the host's time map, <c>ReplayTimeMap.SimAt</c>); used while
@@ -209,18 +206,16 @@ public sealed class ReplayTimelinePanel
 
     /// <summary>⭐ B-7 part 3 — the tooltip on the current-time label: <c>frame 2 103 · wall 40.602 s · sim 39.997 s</c> (the retired timeline window's readout).</summary>
     public static string DetailText(int frame, double wallSeconds, double simSeconds)
-        => $"frame {frame:N0} · wall {wallSeconds:0.000} s · sim {simSeconds:0.000} s".Replace(',', ' ');
+        => (double.IsNaN(simSeconds) ? $"frame {frame:N0} · wall {wallSeconds:0.000} s" : $"frame {frame:N0} · wall {wallSeconds:0.000} s · sim {simSeconds:0.000} s").Replace(',', ' ');   // ⭐ V3 — NaN sim = the host does not know it (the editor's AAR): omitted
+
+    /// <summary>⭐ V3 — the ONE transport drawer this panel draws with (the Replay Browser's profile: everything). A probe for the rails.</summary>
+    public ReplayTransportDrawer TransportDrawer => _drawer;
 
     /// <summary>The seek bar's least width; below it the bar is not drawn (a narrow window keeps the transport).</summary>
-    public const float SeekBarMinWidth = 80f;
-
-    private int _seekLabelFrame = -1, _seekEndFrames = -1, _seekHoverFrame = -1;
-    private bool _seekLabelsSim;
-    private string _seekNow = "", _seekEnd = "", _seekHover = "", _seekDetail = "";
-    private int _detailFrame = -1; private double _detailWall = double.NaN, _detailSim = double.NaN;
+    public const float SeekBarMinWidth = ReplayTransportDrawer.SeekBarMinWidth;
 
     /// <summary>The tooltip on the seek bar's current-time label (frame · wall · sim), as last built — for the rails.</summary>
-    public string SeekDetailText => _seekDetail;
+    public string SeekDetailText => _drawer.SeekDetailText;
 
     /// <summary>The seconds of <paramref name="frame"/> on the active axis.</summary>
     public double SecondsOf(int frame)
@@ -234,9 +229,28 @@ public sealed class ReplayTimelinePanel
     }
 
     /// <summary>⭐ A probe for the frame rails (R-4138: layout is measured): the seek bar's screen rect and the playhead's fraction as last drawn; null when not drawn.</summary>
-    public (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max, float Fraction, string Now, string End)? LastSeekBar { get; private set; }
+    public (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max, float Fraction, string Now, string End)? LastSeekBar => _drawer.LastSeekBar;
 
     private bool SimAxisActive => SimAtWall != null && (AxisIsSim?.Invoke() ?? false) && (HasSimAxis?.Invoke() ?? true);
+
+    // ── ⭐ V3 — the Replay Browser's IReplayTransport: over its federated manager, today's behaviour unchanged ──
+    int IReplayTransport.CurrentFrame => ActiveContext?.CurrentFrame ?? -1;
+    int IReplayTransport.TotalFrames => ActiveContext?.Playback?.TotalFrames ?? 0;
+    void IReplayTransport.Seek(int frame) => SeekToFrame(frame);
+    void IReplayTransport.Step(int delta) { if (delta > 0) StepForward(); else if (delta < 0) StepBackward(); }
+    bool IReplayTransport.IsPlaying => IsPlaying;
+    void IReplayTransport.Play() => IsPlaying = true;
+    void IReplayTransport.Pause() => IsPlaying = false;
+    float IReplayTransport.Rate { get => PlaybackRate; set => PlaybackRate = value; }
+    bool IReplayTransport.CanPlay => IsPlayEnabled(HasRecording, IsMergedViewQuery?.Invoke() ?? false);
+    string? IReplayTransport.PlayDisabledReason => (IsMergedViewQuery?.Invoke() ?? false)
+        ? "Continuous playback is disabled in Merged View. Use Step-Forward/Backward or the timeline slider." : null;
+    PlaybackHistoryTracker IReplayTransport.Waypoints => _playbackHistory;
+    bool IReplayTransport.HasAxisToggle => AxisIsSim != null && ToggleAxis != null;
+    bool IReplayTransport.AxisIsSim => AxisIsSim?.Invoke() ?? false;
+    bool IReplayTransport.HasSimAxis => HasSimAxis?.Invoke() ?? true;
+    bool IReplayTransport.SimAxisActive => SimAxisActive;
+    void IReplayTransport.ToggleAxis() => ToggleAxis?.Invoke();
 
     /// <summary>"0:39.9" / "1:02:05.3" — the seek bar's time.</summary>
     public static string SeekTime(double seconds)
@@ -248,72 +262,6 @@ public sealed class ReplayTimelinePanel
 
     /// <summary>The frame at <paramref name="fraction"/> (0..1) of the bar.</summary>
     public static int FrameAt(float fraction, int maxFrame) => (int)Math.Round(Math.Clamp(fraction, 0f, 1f) * Math.Max(0, maxFrame));
-
-    /// <summary>⭐ R-4153 / R-4155 — the main bar's seek bar: the current time, the bar (drag = scrub, click = jump, hover = "0:50.1 · frame 2 640"), the end time.
-    /// ⛔ No ticks (the events are in the Event Timeline). Labels are cached per frame, so a steady frame allocates nothing.</summary>
-    private void DrawSeekBar()
-    {
-        LastSeekBar = null;
-        var pb = ActiveContext?.Playback;
-        if (pb == null || pb.TotalFrames <= 0) return;
-        int max = pb.TotalFrames - 1;
-        int current = Math.Clamp(ActiveContext!.CurrentFrame, 0, max);
-        bool sim = SimAxisActive;
-        if (sim != _seekLabelsSim) { _seekLabelsSim = sim; _seekLabelFrame = _seekEndFrames = _seekHoverFrame = -1; }   // the axis toggled: relabel
-        if (current != _seekLabelFrame) { _seekLabelFrame = current; _seekNow = SeekTime(SecondsOf(current)); }
-        if (pb.TotalFrames != _seekEndFrames) { _seekEndFrames = pb.TotalFrames; _seekEnd = SeekTime(SecondsOf(max)); }
-
-        var style = Gui.GetStyle();
-        float endW = Gui.CalcTextSize(_seekEnd).X;
-        Gui.SameLine(0f, style.ItemSpacing.X * 2f);
-        float avail = Gui.GetContentRegionAvail().X;
-        float nowW = Gui.CalcTextSize(_seekNow).X;
-        float barW = avail - nowW - endW - style.ItemSpacing.X * 4f;
-        if (barW < SeekBarMinWidth) return;
-
-        Gui.AlignTextToFramePadding();
-        Gui.TextUnformatted(_seekNow);
-        if (Gui.IsItemHovered())
-        {
-            // ⭐ B-7 part 3 (R-4155) — the retired Replay Timeline window's frame / wall / sim readout: "frame 2 103 · wall 40.602 s · sim 39.997 s" (cached, 0 B steady)
-            FrameTimes(out _, out double wallSec, out double simSec);
-            if (current != _detailFrame || wallSec != _detailWall || simSec != _detailSim)
-            {
-                _detailFrame = current; _detailWall = wallSec; _detailSim = simSec;
-                _seekDetail = DetailText(current, wallSec, simSec);
-            }
-            Gui.SetTooltip(_seekDetail);
-        }
-        Gui.SameLine();
-        float h = Gui.GetFrameHeight();
-        var p0 = Gui.GetCursorScreenPos();
-        Gui.InvisibleButton("##rb_seekbar", new System.Numerics.Vector2(barW, h));
-        bool hovered = Gui.IsItemHovered(), active = Gui.IsItemActive();
-        float fx = Gui.GetIO().MousePos.X;
-        if (active)
-        {
-            int target = FrameAt((fx - p0.X) / barW, max);
-            if (target != current) { IsPlaying = false; SeekToFrame(target); current = target; }
-        }
-
-        var dl = Gui.GetWindowDrawList();
-        float cy = p0.Y + h * 0.5f, track = 4f, knob = 6f;
-        float px = p0.X + (max > 0 ? (float)current / max : 0f) * barW;
-        dl.AddRectFilled(new System.Numerics.Vector2(p0.X, cy - track * 0.5f), new System.Numerics.Vector2(p0.X + barW, cy + track * 0.5f), Gui.GetColorU32(ImGuiCol.FrameBg), track * 0.5f);
-        dl.AddRectFilled(new System.Numerics.Vector2(p0.X, cy - track * 0.5f), new System.Numerics.Vector2(px, cy + track * 0.5f), Gui.GetColorU32(ImGuiCol.SliderGrabActive), track * 0.5f);
-        dl.AddCircleFilled(new System.Numerics.Vector2(px, cy), hovered || active ? knob + 1f : knob, Gui.GetColorU32(ImGuiCol.Text));
-        LastSeekBar = (p0, new System.Numerics.Vector2(p0.X + barW, p0.Y + h), max > 0 ? (float)current / max : 0f, _seekNow, _seekEnd);
-
-        if (hovered && !active)
-        {
-            int at = FrameAt((fx - p0.X) / barW, max);
-            if (at != _seekHoverFrame) { _seekHoverFrame = at; _seekHover = $"{SeekTime(SecondsOf(at))} · frame {at:N0}".Replace(',', ' '); }
-            Gui.SetTooltip(_seekHover);
-        }
-        Gui.SameLine();
-        Gui.AlignTextToFramePadding();
-        Gui.TextDisabled(_seekEnd);
-    }
 
     /// <summary>⭐ CE-4261 — File ▸ Load .fdp…: the same load the button ran (the file dialog, then <see cref="OnLoadGroup"/>).</summary>
     public void RequestLoadFdp() => _ = LoadFdpAsync();
@@ -334,165 +282,6 @@ public sealed class ReplayTimelinePanel
     }
 
     // ── Row implementations ───────────────────────────────────────────────
-
-    private void DrawRow1_Transport(float iconSize = 0f)
-    {
-        if (iconSize <= 0f) iconSize = Gui.GetFrameHeight();
-        float dt = Gui.GetIO().DeltaTime;
-        bool hasRecording = ActiveContext?.Playback != null;
-
-        if (TransportIconRenderer.DrawButton("##rb_hist_back", iconSize, TransportShape.HistoryBack, _playbackHistory.CanGoBack, out _, out _))
-            _playbackHistory.GoBack();
-        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-            Gui.SetTooltip("Navigate backward in selection history");
-
-        Gui.SameLine();
-        if (TransportIconRenderer.DrawButton("##rb_hist_fwd", iconSize, TransportShape.HistoryFwd, _playbackHistory.CanGoForward, out _, out _))
-            _playbackHistory.GoForward();
-        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-            Gui.SetTooltip("Navigate forward in selection history");
-
-        Gui.SameLine();
-        if (TransportIconRenderer.DrawButton("##rb_rewind", iconSize, TransportShape.Rewind, hasRecording, out _, out _))
-        {
-            IsPlaying = false;
-            SeekToFirst();
-        }
-        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-            Gui.SetTooltip("Rewind to start");
-
-        Gui.SameLine();
-        TransportShape playPauseShape = IsPlaying ? TransportShape.Pause : TransportShape.Play;
-        bool isMerged = IsMergedViewQuery?.Invoke() ?? false;
-        bool playEnabled = IsPlayEnabled(hasRecording, isMerged);
-        if (!playEnabled) Gui.BeginDisabled();
-        if (TransportIconRenderer.DrawButton("##rb_play_pause", iconSize, playPauseShape, playEnabled, out _, out _))
-        {
-            IsPlaying = !IsPlaying;
-        }
-        if (!playEnabled) Gui.EndDisabled();
-        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-        {
-            if (isMerged)
-                Gui.SetTooltip("Continuous playback is disabled in Merged View. Use Step-Forward/Backward or the timeline slider.");
-            else
-                Gui.SetTooltip(IsPlaying ? "Pause playback" : "Start playback");
-        }
-
-        Gui.SameLine();
-        float comboOffsetY = (iconSize - Gui.GetFrameHeight()) * 0.5f;
-        Gui.SetCursorPosY(Gui.GetCursorPosY() + comboOffsetY);
-        Gui.SetNextItemWidth(60f);
-        if (Gui.BeginCombo("##playback_rate", $"{PlaybackRate:F1}x"))
-        {
-            foreach (float rate in TimeRates)
-            {
-                bool isSelected = Math.Abs(PlaybackRate - rate) < 0.01f;
-                if (Gui.Selectable($"{rate:F1}x", isSelected))
-                    PlaybackRate = rate;
-            }
-            Gui.EndCombo();
-        }
-        if (Gui.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
-            Gui.SetTooltip("Set playback speed");
-        Gui.SetCursorPosY(Gui.GetCursorPosY() - comboOffsetY);
-
-        // ⭐ CE-3330 T13 (DAR §9c, row 34; R-3058) — the viewer's time axis, one small toggle: S = sim (pauses collapsed), W = wall
-        if (AxisIsSim != null && ToggleAxis != null)
-        {
-            Gui.SameLine();
-            Gui.SetCursorPosY(Gui.GetCursorPosY() + comboOffsetY);
-            bool sim = AxisIsSim();
-            bool can = HasSimAxis?.Invoke() ?? true;
-            if (!can) Gui.BeginDisabled();
-            if (Gui.SmallButton(sim && can ? "S##rb_axis" : "W##rb_axis")) ToggleAxis();
-            if (!can) Gui.EndDisabled();
-            if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-                Gui.SetTooltip(!can ? "Wall time - this recording has no sim time (format v6)"
-                             : sim ? "Sim time - pauses skipped (click: wall time)" : "Wall time - pauses shown (click: sim time)");
-            Gui.SetCursorPosY(Gui.GetCursorPosY() - comboOffsetY);
-        }
-
-        Gui.SameLine();
-        TransportIconRenderer.DrawButton("##rb_step_back", iconSize, TransportShape.StepBack, hasRecording, out bool stepBackHeld, out bool stepBackActivated);
-        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-            Gui.SetTooltip("Step backward (hold to scrub)");
-        if (stepBackActivated)
-        {
-            IsPlaying = false;
-            StepBackward();
-            _stepHoldTime = 0f;
-            _stepHoldDirection = -1;
-            _autoStepAccumulator = 0f;
-        }
-
-        Gui.SameLine();
-        TransportIconRenderer.DrawButton("##rb_step_fwd", iconSize, TransportShape.StepFwd, hasRecording, out bool stepFwdHeld, out bool stepFwdActivated);
-        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-            Gui.SetTooltip("Step forward (hold to scrub)");
-        if (stepFwdActivated)
-        {
-            IsPlaying = false;
-            StepForward();
-            _stepHoldTime = 0f;
-            _stepHoldDirection = 1;
-            _autoStepAccumulator = 0f;
-        }
-
-        bool autoBackHeld = stepBackHeld && !stepFwdHeld;
-        bool autoFwdHeld = stepFwdHeld && !stepBackHeld;
-
-        if (hasRecording && (autoBackHeld || autoFwdHeld))
-        {
-            _stepHoldDirection = autoBackHeld ? -1 : 1;
-            _stepHoldTime += dt;
-
-            const float holdDebounceSec = 0.30f;
-            const float holdRampSec = 2.00f;
-
-            if (_stepHoldTime > holdDebounceSec)
-            {
-                IsPlaying = false;
-
-                float rampProgress = Math.Clamp((_stepHoldTime - holdDebounceSec) / holdRampSec, 0f, 1f);
-                float currentRate = 1.0f + 9.0f * rampProgress;
-
-                _autoStepAccumulator += dt * currentRate;
-                float frameTime = 1.0f / 60.0f;
-
-                int framesToStep = 0;
-                while (_autoStepAccumulator >= frameTime)
-                {
-                    _autoStepAccumulator -= frameTime;
-                    framesToStep++;
-                }
-
-                if (framesToStep > 0)
-                {
-                    if (_stepHoldDirection > 0)
-                    {
-                        for (int i = 0; i < framesToStep; i++)
-                        {
-                            StepForward();
-                        }
-                    }
-                    else
-                    {
-                        int currentFrame = ActiveContext?.CurrentFrame ?? 0;
-                        int targetFrame = Math.Max(0, currentFrame - framesToStep);
-                        if (targetFrame < currentFrame)
-                            SeekToFrame(targetFrame);
-                    }
-                }
-            }
-        }
-        else
-        {
-            _stepHoldTime = 0f;
-            _stepHoldDirection = 0;
-            _autoStepAccumulator = 0f;
-        }
-    }
 
     // ── Export expander sub-sections ─────────────────────────────────────
 

@@ -88,6 +88,9 @@ public sealed class ReplaySearchPanel
     /// <summary>Set by the subsystem after loading a recording file.</summary>
     public string? CurrentFilePath { get; set; }
 
+    /// <summary>⭐ R-2 / V2 (docs/UX/DESIGN_Review_Perspective.md §4) — when the host returns text, the panel draws only that (a host with no recording to search says so: <i>"Open an exercise recording (AAR) to search"</i>). Null / returning null ⇒ the panel draws as ever.</summary>
+    public Func<string?>? UnavailableReason { get; set; }
+
     /// <summary>
     /// When true the search panel is in Merged View mode.
     /// DrawContent renders a disabled overlay and returns early.
@@ -190,6 +193,7 @@ public sealed class ReplaySearchPanel
 
     public void DrawContent()
     {
+        if (UnavailableReason?.Invoke() is { } unavailable) { ImGuiApi.TextDisabled(unavailable); return; }
         if (IsMergedViewActive)
         {
             ImGuiApi.BeginDisabled();

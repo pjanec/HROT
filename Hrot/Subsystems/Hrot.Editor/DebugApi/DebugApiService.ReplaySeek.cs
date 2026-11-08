@@ -27,12 +27,7 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>The replay's zero and now on THIS node: the editor's own recorder, else the active provider.</summary>
         private Hrot.Presentation.DebugApi.ReplayPosition? ReplayPositionOrNull
-            => _rrController is { IsReplayActive: true } rr
-                ? new Hrot.Presentation.DebugApi.ReplayPosition(
-                      rr.ReplayAnchorWallTicks > 0 ? rr.ReplayAnchorWallTicks : rr.ActiveRecordingStartWallTicks,
-                      rr.GetCurrentReplayTime().TotalWallTicks,
-                      rr.CurrentReplaySimSeconds)
-                : _dispatcher?.ReplayPosition;
+            => Hrot.Editor.Review.OwnPartReplay.PositionOf(_rrController) ?? _dispatcher?.ReplayPosition;
 
         private Fdp.Toolkit.Scenario.ScenarioSerializer? _lookupSerializer;
 
@@ -125,38 +120,13 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>Main thread: seeks the replay to frame <paramref name="frame"/> of THIS node's recording (clamped), as the ordinary seek.</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) SeekReplayToFrame(int frame, string resolvedFrom)
-        {
-            var ctx = ScanContext(out _);
-            if (ctx?.Playback is not { } playback) return (null, NoReplayRecording, DebugApiHints.Scenario);
-            if (ReplayPositionOrNull is not { } position)
-                return (null, "This host does not know where its replay stands (no replay position).", DebugApiHints.Scenario);
-            int target = Math.Clamp(frame, 0, Math.Max(0, playback.TotalFrames - 1));
-            long ticks = playback.GetFrameMetadata(target).WallClockTicks;
-            double at = Math.Max(0, (ticks - position.ZeroWallTicks) / (double)TimeSpan.TicksPerSecond);
-            var seek = SeekReplayTo(new JsonObject { ["atSeconds"] = at });
-            if (seek.Result is JsonObject o)
-            {
-                o["frame"] = target;
-                o["resolvedFrom"] = resolvedFrom;
-            }
-            return seek;
-        }
+            => OwnPart.SeekToFrame(frame, resolvedFrom);
 
         // ⚠ Lenient: a number may arrive parsed from HTTP or built in memory (an int where a long is read) — read its text.
         private static long Long(JsonNode n) => long.Parse(n.ToJsonString().Trim('"'), System.Globalization.CultureInfo.InvariantCulture);
         private static int Int(JsonNode n) => int.Parse(n.ToJsonString().Trim('"'), System.Globalization.CultureInfo.InvariantCulture);
 
         /// <summary>The last frame of the recording at or before <paramref name="wallTicks"/> (0 before its first).</summary>
-        internal static int FrameAt(PlaybackController playback, long wallTicks)
-        {
-            int lo = 0, hi = playback.TotalFrames - 1, found = 0;
-            while (lo <= hi)
-            {
-                int mid = (lo + hi) / 2;
-                if (playback.GetFrameMetadata(mid).WallClockTicks <= wallTicks) { found = mid; lo = mid + 1; }
-                else hi = mid - 1;
-            }
-            return found;
-        }
+        internal static int FrameAt(PlaybackController playback, long wallTicks) => Hrot.Editor.Review.OwnPartReplay.FrameAt(playback, wallTicks);
     }
 }
