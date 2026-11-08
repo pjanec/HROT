@@ -56,6 +56,30 @@ public sealed class RecordingPickerLauncherTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ R-5 / V6 (docs/UX/DESIGN_Review_Perspective.md §3a) — a row says what opening it GIVES: <i>"… · 4 participants — opens MERGED"</i> / <i>"… · this editor's run"</i>; the notes are read ONCE when the picker
+    /// opens (a directory scan, never per frame), and a row with no note (or a host with no source) reads as before.
+    /// </summary>
+    [Fact]
+    public void V6_ARowSaysWhatYouGet_ReadOnceWhenThePickerOpens()
+    {
+        int reads = 0;
+        var notes = new Dictionary<Guid, string> { [New] = "4 participants — opens MERGED", [Mid] = "this editor's run" };
+        var registry = new PickerRegistry();
+        var launcher = new RecordingPickerLauncher(registry.OpenPicker, () => new[] { Ex(Old, 1), Ex(New, 3), Ex(Mid, 2) }, id => _opened.Add(id),
+                                                   sourceNotes: () => { reads++; return notes; });
+        Assert.DoesNotContain(" · ", launcher.BuildEntries().First().Name);   // before the picker opens: no scan happened, no note
+
+        launcher.Open();
+        Assert.Equal(1, reads);
+        var rows = launcher.BuildEntries().ToDictionary(e => e.Id);
+        for (int i = 0; i < 5; i++) launcher.BuildEntries();                  // drawn every frame: no further scan
+        Assert.Equal(1, reads);
+        Assert.EndsWith(" · 4 participants — opens MERGED", rows[AssetRecents.RecordingKey(New)].Name);
+        Assert.EndsWith(" · this editor's run", rows[AssetRecents.RecordingKey(Mid)].Name);
+        Assert.DoesNotContain(" · ", rows[AssetRecents.RecordingKey(Old)].Name);   // an exercise the inventory does not know: the row as before
+    }
+
+    /// <summary>
     /// ⭐ CE-1442 (U1, S6; §11.7 ⑤) — until the master's list has arrived the picker says <i>"waiting for the cluster's list…"</i> (one disabled placeholder), never an empty list that reads as "no recordings";
     /// picking nothing opens nothing; once it arrived the real entries show (an empty list THEN is a true "none").
     /// 🔴 Mutations: <c>BuildEntries</c> ignoring <c>hasInventory</c> ⇒ the first cell reds (an empty list); the placeholder enabled / tagged with an exercise ⇒ the second cell reds.
