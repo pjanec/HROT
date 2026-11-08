@@ -607,6 +607,7 @@ public sealed partial class ClusterMaster : IDisposable
             // capability tokens (gathered by IngestCapabilities), so a heartbeat re-applies the latest known
             // capabilities + mask. Unknown-so-far ⇒ empty set / None until the capabilities advert lands.
             var tokens = _nodeCapabilities.TryGetValue(hb.NodeId, out var t) ? t : System.Array.Empty<string>();
+            NoteLocalRecordings(hb.NodeId, hb.LocalRecordings);   // ⭐ CE-4330 ③ fact ③ — who holds which exercise
             bool joined = !_roster.ActiveNodes.ContainsKey(hb.NodeId);
             var profile = new NodeHealthProfile
             {

@@ -599,6 +599,19 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Null(NodeHeartbeatWire.ToEvent(new NodeHeartbeat { NodeId = 9, NodeName = string.Empty }).NodeName);                      // empty / an older sender ⇒ null
     }
 
+    /// <summary>⭐ CE-4330 ③ fact ③ — the node's local recordings (<c>"exerciseGuid:bytes"</c> each) cross the heartbeat both ways (APPENDED last, R-42); none ⇒ an empty list on the wire and null on the event.
+    /// 🔴 Mutations (each compiles): <c>ToTopic</c> not writing <c>LocalRecordings</c> ⇒ the first cell reds; <c>ToEvent</c> not reading it ⇒ the round-trip cell reds.</summary>
+    [Fact]
+    public void CE4330_TheHeartbeat_CarriesTheLocalRecordings_BothWays_NoneIsNull()
+    {
+        var a = Guid.NewGuid(); var b = Guid.NewGuid();
+        var held = new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(9), SubsystemName = "Player", LocalRecordings = new List<string> { $"{a:D}:1234567890", $"{b:D}:0" } };
+        Assert.Equal(new[] { $"{a:D}:1234567890", $"{b:D}:0" }, NodeHeartbeatWire.ToTopic(held).LocalRecordings);
+        Assert.Equal(new[] { $"{a:D}:1234567890", $"{b:D}:0" }, NodeHeartbeatWire.ToEvent(NodeHeartbeatWire.ToTopic(held)).LocalRecordings);
+        Assert.Empty(NodeHeartbeatWire.ToTopic(new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(9), SubsystemName = "Player" }).LocalRecordings);   // null ⇒ empty
+        Assert.Null(NodeHeartbeatWire.ToEvent(new NodeHeartbeat { NodeId = 9, LocalRecordings = new List<string>() }).LocalRecordings);                   // empty / an older sender ⇒ null
+    }
+
     /// <summary>
     /// ⭐⭐ <c>CE-3345</c> success 7 (AQ110 A) — the node's phase, step and reason cross the heartbeat topic both ways through the ONE mapping (<c>NodeHeartbeatWire</c>: the slave's egress, the master's ingress and the observer's read it), and are written
     /// to the real DDS sample by the slave's translator; an older sender's omission reads as <c>Ready</c> with no step; a phase value this build does not know (a newer peer) reads as <c>Ready</c>.

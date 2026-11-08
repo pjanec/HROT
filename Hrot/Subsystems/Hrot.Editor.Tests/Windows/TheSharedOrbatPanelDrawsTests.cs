@@ -282,10 +282,12 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
                 for (int x = (int)icons[i].Min.X; x < (int)icons[i].Max.X; x++) for (int y = (int)icons[i].Min.Y; y < (int)icons[i].Max.Y; y++) if (what(Raylib.GetImageColor(image, x, y))) n++;
                 return n;
             }
-            var neutralSel = new Vector4(0x34 / 255f, 0x34 / 255f, 0x3E / 255f, 1f); var neutral = new Vector4(0x1C / 255f, 0x1C / 255f, 0x22 / 255f, 1f);
+            // ⭐ CE-4333 — ONE icon-button chrome: the selected option is filled with the accent, the others are transparent (they show the window's own colour, read at their corner)
+            var corner = Raylib.GetImageColor(image, (int)icons[1].Min.X + 2, (int)icons[1].Min.Y + 2);
+            var neutral = new Vector4(corner.R / 255f, corner.G / 255f, corner.B / 255f, 1f);
             var teal = NodeEditor.Core.Widgets.Icons.Get("orbat/command").Color; var orange = NodeEditor.Core.Widgets.Icons.Get("orbat/structure").Color; var violet = NodeEditor.Core.Widgets.Icons.Get("orbat/scenario").Color;
-            Assert.True(Count(0, c => Near(c, neutralSel, 5)) > 80, "the active option (Command) sits on the selected neutral #34343E");
-            Assert.True(Count(1, c => Near(c, neutral, 5)) > 80 && Count(2, c => Near(c, neutral, 5)) > 80, "the others on #1C1C22");
+            Assert.True(Count(0, c => c.B > c.R + 40 && Math.Abs(c.B - corner.B) > 20) > 80, "the active option (Command) sits on the accent fill");
+            Assert.True(Count(1, c => Near(c, neutral, 5)) > 80 && Count(2, c => Near(c, neutral, 5)) > 80, "the others are transparent (the window's own colour)");
             Assert.True(Count(0, c => Near(c, teal, 24)) >= 8, "Command's glyph is teal at full strength");
             Assert.True(Count(1, c => Near(c, orange, 24)) == 0 && Count(2, c => Near(c, violet, 24)) == 0, "the unselected options are not at full strength...");
             Assert.True(Count(1, c => Near(c, Vector4.Lerp(neutral, orange, 0.6f), 24)) >= 8, "...Structure keeps its own orange at ~60 %");

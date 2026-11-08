@@ -115,16 +115,13 @@ public class WindowManager
         //    ⭐ CE-4085: Settings is a SUBMENU of View (View ▸ Settings ▸ …), not a top-level menu — ⛔ SUPERSEDED: the top-level Settings.
         MenuCommandAdapter.RegisterAction(GlobalMenu, _shellCommands, "shell.ui-settings", GlobalMenuRegistry.SettingsMenuPath + "/UI Scale & Fonts…", () => _openSettingsModal = true);   // ⭐ B-10 K5 — an action, not a closure-only item
 
-        // ⭐⭐ B-10 K6 (§6f) — Edit ▸ Keyboard shortcuts… (Ctrl+K): every binding of the ONE keymap (menus-visual.svg panel C)
+        // ⭐⭐ B-10 K6 (§6f) — Keyboard shortcuts… (Ctrl+K): every binding of the ONE keymap (menus-visual.svg panel C)
+        // ⭐ R-4178 (CE-4337) — it lives at ONE path, View ▸ Settings ▸ Keyboard shortcuts…, on every host (⛔ SUPERSEDES R-4176's two paths — Edit where a host's Edit menu held something else, else Help — and the
+        //   per-frame visibility switch between them): no host needs an Edit menu or a Help item for it.
         _shortcutsWindow = new KeyboardShortcutsWindow(Fdp.Toolkit.Input.Keymap.Process);
         RegisterWindow(_shortcutsWindow);
-        MenuCommandAdapter.RegisterAction(GlobalMenu, _shellCommands, KeyboardShortcutsWindow.CommandId, ShortcutsInEdit, () => _shortcutsWindow.Show(),
+        MenuCommandAdapter.RegisterAction(GlobalMenu, _shellCommands, KeyboardShortcutsWindow.CommandId, ShortcutsMenuPath, () => _shortcutsWindow.Show(),
             key: new NodeEditor.Core.Action.KeyBinding(NodeEditor.Primitives.EditorKey.K, NodeEditor.Primitives.KeyModifiers.Ctrl));
-        // ⭐ R-4176 (user-approved ui lean) — ONE command, two homes: Edit ▸ Keyboard shortcuts… where the host's Edit menu holds anything else, else
-        //   Help ▸ Keyboard shortcuts… — a host with no Edit menu (Player, Replay Browser, SimHost …) gets none just for this item. Decided by construction, per frame.
-        MenuCommandAdapter.Register(GlobalMenu, _shellCommands, KeyboardShortcutsWindow.CommandId, ShortcutsInHelp, allowedInIdle: false);
-        GlobalMenu.SetLayout(ShortcutsInEdit, order: 1000, visible: EditMenuHoldsOtherItems);
-        GlobalMenu.SetLayout(ShortcutsInHelp, order: 1000, visible: () => !EditMenuHoldsOtherItems());
 
         // ⭐⭐ CE-1243 MB-3 (docs/UX/UX_Feature_Menu_Follows_Focus.md §MB) — the shell's own per-frame menus are CONTRIBUTORS of the one
         //    menu tree, drawn by the same walk and the same rows as every registered item. ⛔ SUPERSEDED: RenderPerspectiveMenu (a
@@ -971,20 +968,8 @@ public class WindowManager
     /// <summary>⭐ UXI-05 — whether the bar DRAWS <paramref name="menu"/>'s header (a tree item it offers, or a contributor's part) — the draw loop's own test, for rails that read the bar model.</summary>
     public bool BarMenuShows(BarMenu menu) => TreeShows(menu) || menu.Parts.Count > 0;
 
-    /// <summary>⭐ R-4176 — the two menu paths of the shell's Keyboard shortcuts item.</summary>
-    public const string ShortcutsInEdit = "Edit/Keyboard shortcuts…", ShortcutsInHelp = "Help/Keyboard shortcuts…";
-
-    /// <summary>⭐ R-4176 — the host's Edit menu offers something besides Keyboard shortcuts (then the item lives there; else under Help). Index-free walk, no allocation.</summary>
-    internal bool EditMenuHoldsOtherItems()
-    {
-        if (!GlobalMenu.Root.Children.TryGetValue("Edit", out var edit)) return false;
-        foreach (var child in edit.Children.Values)
-        {
-            if (child.IsSeparator || child.Name == "Keyboard shortcuts…") continue;
-            if (child.Children.Count > 0 ? HasVisibleDescendant(child) : GlobalMenu.Offers(child, CurrentPerspective)) return true;
-        }
-        return false;
-    }
+    /// <summary>⭐ R-4178 — the ONE menu path of the shell's Keyboard shortcuts item: View ▸ Settings ▸ Keyboard shortcuts….</summary>
+    public const string ShortcutsMenuPath = GlobalMenuRegistry.SettingsMenuPath + "/Keyboard shortcuts…";
 
     internal bool HasVisibleDescendant(MenuItemNode node)
     {

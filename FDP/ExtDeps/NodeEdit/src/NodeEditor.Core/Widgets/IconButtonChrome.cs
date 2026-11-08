@@ -1,11 +1,12 @@
 using System.Numerics;
 using ImGuiNET;
 
-namespace Fdp.Presentation.Icons;
+namespace NodeEditor.Core.Widgets;
 
 /// <summary>
-/// Single shared chrome for all toolbar icon buttons — vector and bitmap renderers
-/// route through the same toggle fill and hover frame so every icon looks identical.
+/// ⭐ CE-4333 (U-2) — the ONE chrome of every icon button: <b>transparent at rest</b>, the accent fill when toggled / selected, a white inset frame on hover. The bitmap toolbar icons
+/// (<c>IconWidgets</c>), the glyph buttons and switch options (<see cref="GlyphWidgets"/>) and the run-mode indicator all draw through it, so every icon looks identical.
+/// ⛔ Lives in <c>NodeEditor.Core</c> (where <see cref="GlyphWidgets"/> lives) so both assemblies reach it; it used to be in <c>Fdp.Presentation.Icons</c>, and the glyph widgets had a second chrome of their own.
 /// </summary>
 /// <remarks>
 /// Draw order at every call site:

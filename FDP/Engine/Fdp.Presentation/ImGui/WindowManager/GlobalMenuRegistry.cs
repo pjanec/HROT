@@ -89,6 +89,12 @@ public class MenuItemNode
     public bool AllowedInIdle { get; set; }
 
     /// <summary>
+    /// ⭐ U-1 (the Start screen on the real editor) — the id of the declared command this leaf runs (K5: every app menu item runs a command, <see cref="MenuCommandAdapter"/>), or <see langword="null"/>
+    /// for a leaf registered with a bare closure. ⭐ The start surface keys the look of an action (its icon and short words) on THIS, never on the label (the label moves: dynamic text, the disabled reason, a rename).
+    /// </summary>
+    public string? CommandId { get; set; }
+
+    /// <summary>
     /// Optional keyboard shortcut text displayed next to the item (e.g. "Ctrl+S").
     /// When <c>null</c> or empty, no shortcut is shown. Backward-compatible addition (MTB-P2-T2).
     /// </summary>
@@ -261,7 +267,10 @@ public class GlobalMenuRegistry
     internal static bool IsAllowedInIdle(bool? allowedInIdle) => allowedInIdle == true;
 
     /// <summary>One thing the start surface can offer: a menu leaf allowed in Idle, invoked through the very binding the menu uses.</summary>
-    public sealed record IdleAction(string Path, Func<string> Label, Func<bool> Enabled, Action Invoke);
+    /// <param name="Name">⭐ U-1 — the item's own name (the menu segment / the contributed label): the PLAIN words, without a dynamic label's "(unavailable — why)" tail.</param>
+    /// <param name="CommandId">⭐ U-1 — the command the leaf runs (see <see cref="MenuItemNode.CommandId"/>); null for a contributed item or a closure-only leaf.</param>
+    /// <param name="IconKey">⭐ U-1 — a contributed item's own icon key (<see cref="ContextMenuItemDto.Icon"/>); null otherwise.</param>
+    public sealed record IdleAction(string Path, Func<string> Label, Func<bool> Enabled, Action Invoke, string Name = "", string? CommandId = null, string? IconKey = null);
 
     /// <summary>
     /// ⭐⭐ <c>CE-4096</c> — every item marked allowed-in-Idle, in bar order: tree leaves (their global binding) and contributed items
@@ -287,7 +296,7 @@ public class GlobalMenuRegistry
                 return;
             }
             if (!IsAllowedInIdle(node.AllowedInIdle) || !(node.GetVisible?.Invoke() ?? true) || node.ResolveBinding(perspective)?.OnClick is not { } click) return;
-            into.Add(new IdleAction(path, node.ResolveLabel, () => node.GetEnabled?.Invoke() ?? true, click));
+            into.Add(new IdleAction(path, node.ResolveLabel, () => node.GetEnabled?.Invoke() ?? true, click, node.Name, node.CommandId));
         }
 
         static void WalkIdleDto(ContextMenuItemDto dto, string path, MenuContributor contributor, List<IdleAction> into)
@@ -301,7 +310,7 @@ public class GlobalMenuRegistry
             if (!IsAllowedInIdle(dto.AllowedInIdle)) return;
             var id = dto.Id;
             var enabled = dto.Enabled ?? true;
-            into.Add(new IdleAction(path + (path.EndsWith("/" + dto.Label) ? "" : "/" + dto.Label), () => dto.Label ?? "", () => enabled, () => contributor.OnAction(id)));
+            into.Add(new IdleAction(path + (path.EndsWith("/" + dto.Label) ? "" : "/" + dto.Label), () => dto.Label ?? "", () => enabled, () => contributor.OnAction(id), dto.Label ?? "", null, dto.Icon));
         }
     }
 
