@@ -1680,6 +1680,75 @@ muscle knows the current state of potentially changing world"*. The save writes 
 authority) and compares them only with the authored file values. "Shared" = the sandbox points at the editor's already-loaded, read-only objects
 instead of copying them.
 
+#### 4c.2 ✅ AS-BUILT phase 1 (`2026-11-08`, backend) — the autosave round (A1–A6 with the §4c.1 amendment)
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster.TickAutosave (OperatingEdit)
+  participant N as HrotScenarioSaveHandler (frame thread)
+  participant W as worker (KeyframeSandbox)
+  participant S as StorageProcessManager
+  M->>M: AutosaveEvery passed (default 2 min) · no save / autosave in flight
+  M->>N: CheckUnsaved round (StartUnsavedCheck, then: OnAutosaveCheck)
+  alt every node unchanged
+    Note over M: nothing written
+  else changed
+    M->>S: SaveScenarioJsonBegunEvent {Autosave}
+    M->>N: SerializeLocal {name, Autosave:true}
+    N->>N: ScenarioAutosaveCore.Take — keyframe (All + singletons), the header, TerrainWorld by reference, registry revision
+    N->>W: Task.Run
+    W->>W: KeyframeSandbox.Rebuild → ScenarioSaveCore.BuildDom → .autosave/scenario.json (revision moved ⇒ discarded)
+    W-->>N: manifest → <scenario>/.autosave/.slices/node_N.json
+    N-->>M: ACK · BaselineAfterSaveHandler: NO re-baseline
+    M->>S: pull → MergeAutosaveSlices → .autosave/autosave.json + autosave.meta.json {at, savedHash}
+  end
+  Note over S: a real save that completes → DeleteAutosave (A6)
+```
+
+*What the picture shows that prose hid:* the autosave is the save round with one flag — the only new code is the capture/sandbox pair, the master's
+timer, and the merge's destination; every node path, the wire and the merge core are the save's own.
+
+| piece | where |
+|---|---|
+| the timer + the check first (A1) | `ClusterMaster.Autosave.cs`: `AutosaveEvery` (default 2 min, `Zero` = off), the interval starts when editing does; skipped while a real save runs; a check / round that never answers is given up after 120 s (never blocks the session) |
+| the flag (A2) | `ScenarioSaveHandlerPayload.Autosave` · wire `NodeTransitionPayloadDto.Autosave` (written only when true) · `SaveScenarioJsonBegunEvent.Autosave` |
+| not a save (A3) | not registered as a save round ⇒ `SaveFailedSinceLoad` untouched · `BaselineAfterSaveHandler.Commit` returns early · a failure only logs |
+| capture + worker (A4, §4c.1) | `ScenarioAutosaveCore.Take` (frame) / `ToJson` (worker) · `KeyframeSandbox` (Fdp.Toolkits Replay — also what the A0 rail runs) · `BehaviorRegistry.Revision` (bumped by every mutator) ⇒ a hot reload during the extraction discards it |
+| files (A5) / delete on save (A6) | `StorageProcessManager.MergeAutosaveSlices` / `DeleteAutosave` |
+| rails | `ClusterMasterUnsavedCheckTests.CE4099_*` (3) · `StorageProcessManagerTests.CE4099_*` · `HrotScenarioSaveHandlerTests.CE4099_*` (3) · `NodeOpSlaveTranslatorTests.CE4099_*` · the A0 rail now also asserts the PRODUCTION autosave equals the live save |
+
+| deviation / finding | why |
+|---|---|
+| ⛔ **A8 (never-saved scenarios) is not needed** | 📐 *New Scenario…* is New FROM A RECIPE (CE-4140): the recipe picker, then the Save-As naming, then `ScenarioNewAssetService.CreateNew` SAVES the copy under the new name (`ScenarioMenuCommands.cs:190`). Every scenario open for editing therefore has its folder and `scenario.json` — A5's home always exists. A8 stays recorded as history |
+| ⏳ phase 2 | A1's `POST /run-settings {autosaveMinutes}` (the run-setting plumbing, CE-3415's shape) and A7 recovery (`GET /scenarios/{name}/autosave`, `POST /scenario/load/edit {recoverAutosave}`, the stager staging `autosave.json`, the master's "recovered autosave" fact) |
+
+#### 4c.3 Phase 2 — A7 RECOVERY, decided (`2026-11-08`, backend)
+
+```mermaid
+sequenceDiagram
+  participant U as host (HTTP / ui's prompt)
+  participant M as ClusterMaster
+  participant P as AssetPrefetchProcessManager
+  participant G as StorageGatewayModule
+  U->>U: GET /scenarios/{name}/autosave → {at, savedHash matches?} (stale ⇒ reported, not offered)
+  U->>M: POST /scenario/load/edit {name, recoverAutosave:true} → TransitionStateIntent.RecoverAutosave
+  M->>P: the prefetch of {name}, RecoverAutosave
+  P->>G: PrefetchScenarioAsync(name, …, scenarioFileFrom: <name>/.autosave/autosave.json)
+  G->>G: every file of the folder as today, but scenario.json delivered FROM the autosave
+  M->>M: the load resolves into editing ⇒ RecoveredAutosaveSinceLoad (the check round says CHANGED until a real save)
+```
+
+*What the picture shows that prose hid:* the scenario keeps its NAME and FOLDER — only the bytes the nodes stage for ONE load come from the autosave; nothing
+on the NAS is renamed or overwritten, so declining the recovery (a plain open) loads the saved file as before.
+
+| piece | decision |
+|---|---|
+| the substitute | `PrefetchScenarioAsync(…, scenarioFileFrom)` — the ONE place a scenario folder reaches the nodes; ⛔ not a second staging path, not a renamed copy in `opened/` |
+| the master's fact | `RecoveredAutosaveSinceLoad` folds into the check round exactly like `SaveFailedSinceLoad` (changed until a save completes; a new load clears it) |
+| stale | `savedHash` ≠ the hash of today's `scenario.json` ⇒ `GET` answers `{at, stale:true}`; `POST {recoverAutosave}` refuses a stale or missing autosave (409 + the reason) |
+| ui | the prompt on Open / the start surface (*"Recover unsaved changes from 14:41?"*) is ui's; backend sends a NOTE with the two routes |
+
+
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
 
