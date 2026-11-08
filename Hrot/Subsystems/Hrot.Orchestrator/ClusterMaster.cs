@@ -380,6 +380,7 @@ public sealed partial class ClusterMaster : IDisposable
         TickAutosave();                 // ⭐ CE-4099 (AQ108 §4c A1) — after the check intents: its own check round is one more
         ProcessSeekReplayIntents();
         ProcessCancelOperationIntents();
+        TickStorageJobs();   // ⭐ CE-4330 ② — after the storage and cancel intents: a job ended this frame lets the next start
         ProcessDiagnosticDumpIntents();
         ProcessLoadZoneIntents();
         ProcessBuildTerrainAssetIntents();
@@ -2045,29 +2046,7 @@ public sealed partial class ClusterMaster : IDisposable
                     PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
                     return;
                 }
-
-                var exportCts = new CancellationTokenSource();
-                _activeCancellations[intent.RequestId] = exportCts;
-
-                var exportNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
-                if (exportNodeIds.Count == 0)
-                {
-                    _activeCancellations.Remove(intent.RequestId);
-                    exportCts.Dispose();
-                    PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
-                    break;
-                }
-
-                var exportTxId = Guid.NewGuid();
-                // Notify StorageProcessManager of the archive context before the fan-out.
-                _eventBus.PublishManaged(new ExportArchiveBegunEvent
-                {
-                    TransactionId    = exportTxId,
-                    ArchiveRequestId = intent.RequestId,
-                    Cts              = exportCts,
-                });
-                FanOutSerializeLocal(exportTxId, exportNodeIds, new ArchiveHandlerPayload(intent.ExerciseId));
-                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.InProgress);
+                SubmitStorageJob(intent, StorageJobKind.Archive);   // ⭐ CE-4330 ② — the queue starts it (ClusterMaster.Storage.StartArchive)
                 break;
             }
 
@@ -2079,22 +2058,7 @@ public sealed partial class ClusterMaster : IDisposable
                     PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
                     return;
                 }
-
-                var importCts     = new CancellationTokenSource();
-                _activeCancellations[intent.RequestId] = importCts;
-
-                var importTargets = BuildNodeDistributionTargetsForExercise(intent.ExerciseId);
-
-                // Delegate the NAS prefetch to StorageProcessManager via event bus (SRP).
-                _eventBus.PublishManaged(new ImportArchiveBegunEvent
-                {
-                    RequestId  = intent.RequestId,
-                    ExerciseId = intent.ExerciseId.ToString(),
-                    Targets    = importTargets,
-                    Cts        = importCts,
-                });
-
-                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.InProgress);
+                SubmitStorageJob(intent, StorageJobKind.Import);   // ⭐ CE-4330 ② — the queue starts it (ClusterMaster.Storage.StartImport)
                 break;
             }
         }
@@ -2231,6 +2195,10 @@ public sealed partial class ClusterMaster : IDisposable
         // ⭐⭐ P8 (Q91 §4-H, R-4004) — a transition already fanned out and not yet complete: abort it on every node, then
         //   return the cluster to Idle so the same load can simply be issued again. ⛔ Still no timer (R-4001, H4).
         if (targetId != Guid.Empty && TryCancelInFlightTransition(targetId))
+            return;
+
+        // ⭐ CE-4330 ② — a QUEUED storage job ends here; a running one (or a joiner's id, now its job's) falls through to its token
+        if (targetId != Guid.Empty && TryCancelQueuedStorageJob(ref targetId))
             return;
 
         if (targetId != Guid.Empty && _activeCancellations.TryGetValue(targetId, out var cancelCts))

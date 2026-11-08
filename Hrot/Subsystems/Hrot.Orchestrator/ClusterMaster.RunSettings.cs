@@ -179,9 +179,22 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ CE-4090 (AQ108 D15) — <c>DELETE /exercises/{id}</c> at the master: never the run still recording; an unknown id is refused.</summary>
     private void ProcessDeleteExercise(ExecuteStorageOpIntent intent)
     {
+        if (intent.FromArchive)   // ⭐ CE-4330 ⑦ (R-4174) — delete from the ARCHIVE: a job of the queue (one NAS operation at a time)
+        {
+            if (intent.ExerciseId == Guid.Empty) { PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected, "an exercise id is required"); return; }
+            SubmitStorageJob(intent, StorageJobKind.Delete);
+            return;
+        }
         if (intent.ExerciseId == Guid.Empty || ExerciseDeleter is null)
         {
             PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected, "an exercise id is required");
+            return;
+        }
+        if (_storageJobs.ActiveFor(intent.ExerciseId) is { } busy)   // ⭐ CE-4330 ② (§7.2) — never discard what a job is moving
+        {
+            var why = $"exercise {((Guid)intent.ExerciseId).ToString("N").Substring(0, 8)} is being {(busy.Kind == StorageJobKind.Archive ? "archived" : busy.Kind == StorageJobKind.Import ? "imported" : "deleted")}";
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] CE-4330: discard {0} REJECTED — {1}.", intent.RequestId, why);
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected, why);
             return;
         }
         if (intent.ExerciseId == _activeExerciseId && !_runNotRecorded

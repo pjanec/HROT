@@ -54,6 +54,7 @@ public sealed class ClusterOpMasterTranslator
     private readonly DdsWriter<ClusterStateTopic>?   _clusterStateWriter;
     private readonly DdsWriter<ReplaySessionTopic>?  _sessionWriter;   // ⭐ CE-3329 rows 32, 45 — the session layer
     private readonly DdsWriter<GeoReference>?       _geoReferenceWriter;   // ⭐ AQ107 C — the NED wire's frame origin
+    private readonly DdsWriter<StorageJobsTopic>?   _storageJobsWriter;    // ⭐ CE-4330 ③ fact ① — the master's storage job list
     private readonly FdpEventBus                    _bus;
     private readonly JsonSerializerOptions          _jsonOptions;
 
@@ -66,7 +67,8 @@ public sealed class ClusterOpMasterTranslator
         DdsWriter<AssetInventoryTopic>? inventoryWriter = null,
         DdsWriter<ClusterStateTopic>?   clusterStateWriter = null,
         DdsWriter<ReplaySessionTopic>?  sessionWriter = null,
-        DdsWriter<GeoReference>?        geoReferenceWriter = null)
+        DdsWriter<GeoReference>?        geoReferenceWriter = null,
+        DdsWriter<StorageJobsTopic>?    storageJobsWriter = null)
     {
         _requestReader     = requestReader     ?? throw new ArgumentNullException(nameof(requestReader));
         _statusWriter      = statusWriter      ?? throw new ArgumentNullException(nameof(statusWriter));
@@ -76,6 +78,7 @@ public sealed class ClusterOpMasterTranslator
         _clusterStateWriter = clusterStateWriter;
         _sessionWriter      = sessionWriter;
         _geoReferenceWriter = geoReferenceWriter;
+        _storageJobsWriter  = storageJobsWriter;
     }
 
     /// <summary>Processes one frame: ingests DDS requests and publishes completed statuses.</summary>
@@ -126,6 +129,11 @@ public sealed class ClusterOpMasterTranslator
         if (_sessionWriter != null)
             foreach (var ev in _bus.ReadManaged<ReplaySessionPublishedEvent>())
                 if (ev.Session != null) _sessionWriter.Write(ReplaySessionWire.ToTopic(ev.Session));
+
+        // ── ⭐ CE-4330 ③ fact ① — Egress: Bus StorageJobsPublishedEvent → DDS StorageJobsTopic (TransientLocal: a late joiner gets the newest list)
+        if (_storageJobsWriter != null)
+            foreach (var ev in _bus.ReadManaged<StorageJobsPublishedEvent>())
+                _storageJobsWriter.Write(StorageJobsWire.ToTopic(ev.Jobs));
 
         // ── ⭐ AQ107 C — Egress: Bus GeoReferencePublishedEvent → DDS GeoReference (retained: a late gateway gets the newest origin)
         if (_geoReferenceWriter != null)

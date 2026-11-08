@@ -206,4 +206,138 @@ public sealed class ClusterMasterArchiveTests
         Assert.NotNull(ev.ArchivedExercises);
         Assert.NotNull(ev.UnarchivedLocalExercises);
     }
+
+    // ── ⭐ CE-4330 ② — the storage job queue (📄 docs/DESIGN_Recording_Storage.md §7.2) ─────────────────────────────
+
+    private static ClusterMaster MasterWithOneNode(FdpEventBus bus)
+    {
+        var master = new ClusterMaster(bus, NoMandatoryConfig());
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId        = (Fdp.Core.NodeId)(1),
+            SubsystemName = "TestNode",
+            LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
+        });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        return master;
+    }
+
+    private static Guid Ask(ClusterMaster master, ClusterOpType op, Guid exercise, string extra = "")
+    {
+        var id = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = id, OperationType = op, PayloadJson = $"{{\"ExerciseId\":\"{exercise}\"{extra}}}" });
+        return id;
+    }
+
+    /// <summary>The last status each request got this frame.</summary>
+    private static Dictionary<Guid, (OrchestrationStatusCode Code, object? Payload)> Statuses(FdpEventBus bus)
+    {
+        var map = new Dictionary<Guid, (OrchestrationStatusCode, object?)>();
+        foreach (var ev in bus.ReadManaged<ClusterOpCompletedEvent>()) map[ev.RequestId] = (ev.StatusCode, ev.ResultPayload);
+        return map;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4330 ② — ONE job per exercise, ONE transfer at a time: a second archive of the same exercise JOINS the running job (its answer carries that
+    /// job); an archive of another exercise waits QUEUED and starts only when the first ends; the joiner is answered with the job's outcome; every
+    /// change reaches the stations as <see cref="StorageJobsUpdateEvent"/>.
+    /// 🔴 Mutation: <c>StorageJobQueue.StartNext</c> not checking <c>Running</c> ⇒ the second exercise starts at once ⇒ two CTS ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4330_ASecondRequestJoins_AnotherExerciseWaits_AndStartsWhenTheFirstEnds()
+    {
+        var bus = new FdpEventBus();
+        using var master = MasterWithOneNode(bus);
+        Guid x = Guid.NewGuid(), y = Guid.NewGuid();
+
+        var first  = Ask(master, ClusterOpType.ExportArchive, x);
+        var joiner = Ask(master, ClusterOpType.ExportArchive, x);
+        var other  = Ask(master, ClusterOpType.ExportArchive, y);
+        master.Tick();
+        bus.SwapBuffers();
+
+        var asked = Statuses(bus);
+        var joined = Assert.IsType<StorageJob>(asked[joiner].Payload);
+        Assert.Equal(first, joined.JobId);                                   // the answer names the job it joined
+        Assert.Equal(new[] { first }, GetActiveCancellations(master).Keys);  // ⭐ one transfer: only the first runs
+        Assert.Equal(StorageJobState.Queued, master.StorageJobs.Find(other)!.State);
+        StorageJobsUpdateEvent? facts = null;
+        foreach (var ev in bus.ReadManaged<StorageJobsUpdateEvent>()) facts = ev;
+        Assert.NotNull(facts);
+        Assert.Equal(2, facts!.Value.Jobs.Length);                           // the stations see both jobs
+
+        // the transfer answers (StorageProcessManager's final status for the archive request)
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = first, StatusCode = OrchestrationStatusCode.Success });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        Assert.Equal(OrchestrationStatusCode.Success, Statuses(bus)[joiner].Code);   // the joiner learns the outcome
+        Assert.Equal(StorageJobState.Done, master.StorageJobs.Find(first)!.State);
+        Assert.Equal(StorageJobState.Running, master.StorageJobs.Find(other)!.State);
+        Assert.Equal(new[] { other }, GetActiveCancellations(master).Keys);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ② — Cancel of a QUEUED job ends it at once (nothing was copied); a discard of an exercise a job is moving is REFUSED with the reason;
+    /// a different kind for a busy exercise (an import while it is archived) is refused too.
+    /// 🔴 Mutation: the discard's busy check removed ⇒ the discard reaches the deleter ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4330_CancelOfAQueuedJob_EndsIt_AndABusyExerciseIsNeitherDiscardedNorImported()
+    {
+        var bus = new FdpEventBus();
+        using var master = MasterWithOneNode(bus);
+        var discarded = new List<Guid>();
+        master.ExerciseDeleter = id => { discarded.Add(id); return true; };
+        Guid x = Guid.NewGuid(), y = Guid.NewGuid();
+
+        var running = Ask(master, ClusterOpType.ExportArchive, x);
+        var queued  = Ask(master, ClusterOpType.ExportArchive, y);
+        var discard = Ask(master, ClusterOpType.DeleteExercise, x);
+        var import  = Ask(master, ClusterOpType.ImportArchive, x);
+        master.Tick();
+        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.CancelOperation, PayloadJson = queued.ToString() });
+        master.Tick();
+        bus.SwapBuffers();
+
+        var st = Statuses(bus);
+        Assert.Equal(OrchestrationStatusCode.Cancelled, st[queued].Code);
+        Assert.Equal(StorageJobState.Cancelled, master.StorageJobs.Find(queued)!.State);
+        Assert.Equal(OrchestrationStatusCode.Rejected, st[discard].Code);
+        Assert.Contains("being archived", (string)st[discard].Payload!);
+        Assert.Empty(discarded);
+        Assert.Equal(OrchestrationStatusCode.Rejected, st[import].Code);
+        Assert.Equal(StorageJobState.Running, master.StorageJobs.Find(running)!.State);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ⑤ (Q5) — while the cluster is LIVE the running transfer GIVES WAY: its progress carries the word to the copy, and the job says so
+    /// (the status bar's clock mark). Out of Live it speeds up again.
+    /// 🔴 Mutation: giveWay hard-coded false ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4330_ATransferGivesWayWhileLiveRuns()
+    {
+        var bus = new FdpEventBus();
+        using var master = MasterWithOneNode(bus);
+        var job = Ask(master, ClusterOpType.ExportArchive, Guid.NewGuid());
+        master.Tick();
+        var progress = ((Dictionary<Guid, StorageTransferProgress>)typeof(ClusterMaster)
+            .GetField("_jobProgress", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(master)!)[job];
+        var state = typeof(ClusterMaster).GetField("_currentDsmState", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        state.SetValue(master, ClusterState.OperatingLive);
+        master.Tick();
+        Assert.True(progress.GiveWay);
+        Assert.True(master.StorageJobs.Find(job)!.GivingWay);
+
+        state.SetValue(master, ClusterState.Idle);
+        master.Tick();
+        Assert.False(progress.GiveWay);
+        Assert.False(master.StorageJobs.Find(job)!.GivingWay);
+    }
 }
