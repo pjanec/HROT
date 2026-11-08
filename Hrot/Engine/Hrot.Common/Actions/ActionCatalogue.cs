@@ -123,6 +123,10 @@ namespace Hrot.Common.Actions
             _ => "not for this station's seat",
         };
 
+        /// <summary>⭐ B-17 P2 — a context for an armed TOOL's own menu (no view, no entity): the drawing menu (<see cref="ActionTarget.Drawing"/>).</summary>
+        public static ActionContext ForTool(ActionTarget target, EditingMode mode)
+            => new(null!, Entity.Null, target, mode, default);
+
         /// <summary>⭐ A6 — a context for a MOMENT (no view, no entity): the timeline's moment / event, the mode indicator's playhead.</summary>
         public static ActionContext ForMoment(ActionTarget target, EditingMode mode, string? time, long atTicks = 0, string? lane = null)
             => new(null!, Entity.Null, target, mode, default) { Time = time, AtTicks = atTicks, Lane = lane };
@@ -149,7 +153,7 @@ namespace Hrot.Common.Actions
         private static class SharedHolder
         {
             internal static readonly ActionCatalogue Instance = Build();
-            private static ActionCatalogue Build() { var c = new ActionCatalogue(); MapMenuActions.DeclareInto(c); RuleMenuActions.DeclareInto(c); RunModeActions.DeclareInto(c); return c; }   // ⭐ CE-4308 — each feature declares its own (Q4)
+            private static ActionCatalogue Build() { var c = new ActionCatalogue(); MapMenuActions.DeclareInto(c); RuleMenuActions.DeclareInto(c); RunModeActions.DeclareInto(c); DrawingActions.DeclareInto(c); return c; }   // ⭐ CE-4308 — each feature declares its own (Q4)
         }
 
         /// <summary>Every declaration, in declaration order.</summary>
@@ -186,9 +190,9 @@ namespace Hrot.Common.Actions
         // ⭐ B-11 A3 (Editing UX §3.13 "order of groups: the most likely action first") — Edit first in Edit mode, Orders first while running,
         //   View first in Review; Debug and Destructive last. A group hidden in a mode simply offers nothing there (ActionDecl.Modes).
         //   ⭐ A6 — Run (the run-mode moves on a moment) first in every mode; no unit / graphic declaration is in it, so their menus do not move.
-        private static readonly ActionGroup[] EditOrder = { ActionGroup.Run, ActionGroup.Edit, ActionGroup.Embark, ActionGroup.View, ActionGroup.Orders, ActionGroup.Debug, ActionGroup.Destructive };
-        private static readonly ActionGroup[] RunningOrder = { ActionGroup.Run, ActionGroup.Orders, ActionGroup.Embark, ActionGroup.View, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
-        private static readonly ActionGroup[] ReviewOrder = { ActionGroup.Run, ActionGroup.View, ActionGroup.Orders, ActionGroup.Embark, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
+        private static readonly ActionGroup[] EditOrder = { ActionGroup.Run, ActionGroup.Tool, ActionGroup.Edit, ActionGroup.Embark, ActionGroup.View, ActionGroup.Orders, ActionGroup.Debug, ActionGroup.Destructive };
+        private static readonly ActionGroup[] RunningOrder = { ActionGroup.Run, ActionGroup.Tool, ActionGroup.Orders, ActionGroup.Embark, ActionGroup.View, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
+        private static readonly ActionGroup[] ReviewOrder = { ActionGroup.Run, ActionGroup.Tool, ActionGroup.View, ActionGroup.Orders, ActionGroup.Embark, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
 
         /// <summary>The order the groups appear in, in <paramref name="mode"/>.</summary>
         public static ActionGroup[] GroupOrder(EditingMode mode)

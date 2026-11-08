@@ -269,8 +269,7 @@ namespace GizmoMap.Presentation
                             (int)MapMouseButton.Right, 0);
                     }
 
-                    if (exclusiveAnchorId.HasValue && hitNetworkId != exclusiveAnchorId.Value)
-                        hitNetworkId = 0;
+                    hitNetworkId = ResolveMenuAnchor(exclusiveAnchorId, hitNetworkId, menuBindings.ContainsKey);
 
                     if (hitNetworkId != 0 && hitNetworkId != -1L && menuBindings.TryGetValue(hitNetworkId, out uint menuHash))
                     {
@@ -448,6 +447,19 @@ namespace GizmoMap.Presentation
                 sent++;
             }
             return sent;
+        }
+
+        /// <summary>
+        /// ⭐ B-17 P2 (📄 docs/UX/DESIGN_Map_Interaction.md §2.5, D11) — whose menu a right-click opens. Without an exclusive tool: the hit anchor (or the
+        /// canvas, -1). While a tool holds exclusive capture, a click on something else is suppressed (0) — as before — EXCEPT a click on open map: that opens
+        /// the capturing tool's OWN menu when it bound one (the drawing menu: Finish · Remove last point · Cancel). ⛔ Right-click no longer finishes or cancels
+        /// a drawing; this is where it opens its menu instead. Pure, so a rail drives it without Raylib.
+        /// </summary>
+        public static long ResolveMenuAnchor(long? exclusiveAnchorId, long hitNetworkId, Func<long, bool> hasMenuBinding)
+        {
+            if (!exclusiveAnchorId.HasValue) return hitNetworkId;
+            if (hitNetworkId == -1L && hasMenuBinding(exclusiveAnchorId.Value)) return exclusiveAnchorId.Value;
+            return hitNetworkId != exclusiveAnchorId.Value ? 0 : hitNetworkId;
         }
 
         public IReadOnlyList<ContextMenuItemDto> ConsumeMainMenu() => _mainMenuAdapter.ConsumeItems();

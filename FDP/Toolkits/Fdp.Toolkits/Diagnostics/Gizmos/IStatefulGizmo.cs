@@ -37,5 +37,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <see cref="GizmoInteractionCommitEvent"/>.
         /// </summary>
         virtual IGizmoUndoRecord? CreateUndoRecord(GizmoInteractionCommitEvent commit) => null;
+
+        /// <summary>
+        /// ⭐ B-17 P2 (📄 docs/UX/DESIGN_Map_Interaction.md §2.5) — the right-click MENU of an armed tool that holds the map's input (the drawing menu:
+        /// Finish · Remove last point · Cancel). <see cref="GlobalGizmoManager"/> binds it to the gizmo's own tool id so a right-click on the map opens
+        /// it, and routes the click back to <see cref="IGizmoInteractionHandler.OnMenuAction"/>. Null (the default) = no menu of its own.
+        /// </summary>
+        virtual string? ToolMenuJson => null;
     }
 }

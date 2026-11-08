@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
@@ -114,6 +116,77 @@ public class RouteWaypointGizmoTests : IDisposable
         var plan = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity);
         Assert.Equal(20f, plan.Waypoints![1].Position.X, precision: 3);
         Assert.Equal(20f, plan.Waypoints![1].Position.Y, precision: 3);
+    }
+
+    // ── ⭐ B-17 P2 — the drawing convention (D11) on the route editor (ROUTES1 §11.1's right-click commit is overruled) ──────────────────
+
+    private RouteWaypointGizmo CreateGizmo(Action onRemove) => new RouteWaypointGizmo(_repo, _entity, NetworkId, onRemove);
+
+    private System.Collections.Generic.List<Vector3> Positions()
+        => ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).Waypoints!.Select(w => w.Position).ToList();
+
+    /// <summary>Enter, the on-map ✓ and the menu's Finish all write back the route as drawn (a drag in progress included) and end the tool; Esc and the menu's
+    /// Cancel undo the drag and end it. Red-proof (compiles): <c>Resolve</c> not removing on <c>Finished</c> ⇒ the first removal count reads 0.</summary>
+    [Fact]
+    public void P2_Enter_the_tick_and_the_menu_Finish_write_back_and_Esc_and_the_menu_Cancel_undo_the_drag()
+    {
+        foreach (var door in new[] { "enter", "tick", "menu" })
+        {
+            int removed = 0;
+            using var gizmo = CreateGizmo(() => removed++);
+            var before = Positions();
+            gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+            gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));
+            switch (door)
+            {
+                case "enter": gizmo.OnKeyEvent(MapKeyboardKey.Enter, true); break;
+                case "tick": var d = gizmo.Session.DonePosition; gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(d.X, d.Y, 0f)); break;
+                default: gizmo.OnMenuAction(Hrot.Common.Constants.GlobalActionIds.FinishDrawing); break;
+            }
+            Assert.True(removed == 1, $"{door}: the tool ended");
+            Assert.True(Math.Abs(Positions()[0].X - 50f) < 0.01f && Math.Abs(Positions()[0].Y - 60f) < 0.01f, $"{door}: written back");
+            // put the route back for the next door
+            var plan0 = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).WithWaypoints(w => { w.Clear(); foreach (var p in before) w.Add(new RouteWaypoint { Position = p }); });
+            _repo.SetManagedComponent(_entity, plan0);
+        }
+
+        foreach (var door in new[] { "esc", "menu" })
+        {
+            int removed = 0;
+            using var gizmo = CreateGizmo(() => removed++);
+            gizmo.OnInteractionStarted(Token(2), Vector3.Zero);
+            gizmo.OnDragUpdate(new Vector3(999f, 999f, 0f));
+            if (door == "esc") gizmo.OnKeyEvent(MapKeyboardKey.Escape, true); else gizmo.OnMenuAction(Hrot.Common.Constants.GlobalActionIds.CancelDrawing);
+            Assert.True(removed == 1, door);
+            Assert.Equal(20f, Positions()[1].X, precision: 3);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ Right-click is the MENU: press and release end NOTHING (a right-RELEASE used to write back and exit — ROUTES1 §11.1). The session's selection and
+    /// insert / delete keep the waypoint list in step: Insert after adds a waypoint at the midpoint and the session grows with it.
+    /// Red-proof (compiles): <c>OnMouseEvent</c> exiting on a right-release again ⇒ <c>removed</c> reads 1.
+    /// </summary>
+    [Fact]
+    public void P2_RightClick_ends_nothing_and_Insert_and_Delete_keep_the_session_and_the_route_in_step()
+    {
+        int removed = 0;
+        using var gizmo = CreateGizmo(() => removed++);
+        gizmo.OnMouseEvent(MapMouseButton.Right, true, Vector3.Zero);
+        gizmo.OnMouseEvent(MapMouseButton.Right, false, Vector3.Zero);
+        Assert.Equal(0, removed);
+
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+        gizmo.OnMenuAction(1);                                        // Insert after waypoint 0
+        Assert.Equal(4, Positions().Count);
+        Assert.Equal(4, gizmo.Session.Points.Count);
+        Assert.Equal(Positions()[1].X, gizmo.Session.Points[1].X, precision: 3);
+
+        gizmo.OnInteractionStarted(Token(2), Vector3.Zero);           // the inserted one is now index 1; select it and delete it
+        gizmo.OnMenuAction(2);
+        Assert.Equal(3, Positions().Count);
+        Assert.Equal(3, gizmo.Session.Points.Count);
+        Assert.Equal(0, removed);
     }
 
     // -- ⭐ CE-2172 (R-182; DESIGN_Air_Operations §5, air hand-off U1) --

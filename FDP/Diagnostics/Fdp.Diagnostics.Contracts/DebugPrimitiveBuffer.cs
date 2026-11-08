@@ -535,6 +535,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(DebugPrimitive.MakeContextMenuBinding(networkId, hash));
         }
 
+        /// <summary>⭐ B-17 P2 — a context-menu binding keyed by a 64-bit anchor (a TOOL id is above int range): the same interning, the same primitive.</summary>
+        public void DrawContextMenuBinding(long anchorId, string menuJson)
+        {
+            uint hash = StringInternMap.Fnv1a32(menuJson);
+            _internMap.Intern(hash, menuJson);
+            Append(DebugPrimitive.MakeContextMenuBinding(anchorId, hash));
+        }
+
         public void DrawMainMenuBinding(string menuJson)
         {
             uint hash = StringInternMap.Fnv1a32(menuJson);

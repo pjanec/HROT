@@ -114,5 +114,22 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         //     the confusion CE-259z fixes at the source.
         //   ⭐ Its only caller was SC-GZ013-2, retired above. Use `buffer.AppendRaw(in prim)`.
 
+
+        /// <summary>
+        /// ⭐ B-17 P2 (📄 docs/UX/DESIGN_Map_Interaction.md §2.5, D11) — whose menu a right-click opens. While a tool holds exclusive capture, a click on open map
+        /// opens THAT TOOL's own menu when it bound one (the drawing menu); a click on something else stays suppressed; with no exclusive tool nothing changes.
+        /// Red-proof (compiles): drop the "open map + bound ⇒ the tool's anchor" arm ⇒ the first assertion reads 0 (no menu: right-click would do nothing).
+        /// </summary>
+        [Fact]
+        public void B17P2_RightClickOnOpenMap_OpensTheCapturingToolsOwnMenu()
+        {
+            const long tool = (1L << 40) + 7;
+            Assert.Equal(tool, GizmoMap.Presentation.DebugGizmoLayer.ResolveMenuAnchor(tool, -1L, id => id == tool));   // open map, the tool bound a menu
+            Assert.Equal(0L,   GizmoMap.Presentation.DebugGizmoLayer.ResolveMenuAnchor(tool, -1L, _ => false));          // open map, no menu bound: suppressed (as before)
+            Assert.Equal(0L,   GizmoMap.Presentation.DebugGizmoLayer.ResolveMenuAnchor(tool, 55L, id => id == tool));    // a click on another entity: suppressed
+            Assert.Equal(tool, GizmoMap.Presentation.DebugGizmoLayer.ResolveMenuAnchor(tool, tool, id => id == tool));   // on the tool's own handle: its menu
+            Assert.Equal(-1L,  GizmoMap.Presentation.DebugGizmoLayer.ResolveMenuAnchor(null, -1L, _ => true));            // no exclusive tool: the canvas, unchanged
+            Assert.Equal(55L,  GizmoMap.Presentation.DebugGizmoLayer.ResolveMenuAnchor(null, 55L, _ => true));
+        }
     }
 }

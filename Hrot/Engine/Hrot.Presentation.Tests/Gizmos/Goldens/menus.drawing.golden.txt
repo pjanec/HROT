@@ -1,0 +1,24 @@
+## edit · armed drawing tool
+[{"id":2410,"label":"Finish","shortcut":"Enter"},{"id":2411,"label":"Remove last point","shortcut":"Backspace"},{"id":2412,"label":"Cancel","shortcut":"Esc"}]
+
+## edit · shape / route editor
+[{"id":2410,"label":"Finish","shortcut":"Enter"},{"id":2412,"label":"Cancel","shortcut":"Esc"}]
+
+## preview · armed drawing tool
+[{"id":2410,"label":"Finish","shortcut":"Enter"},{"id":2411,"label":"Remove last point","shortcut":"Backspace"},{"id":2412,"label":"Cancel","shortcut":"Esc"}]
+
+## preview · shape / route editor
+[{"id":2410,"label":"Finish","shortcut":"Enter"},{"id":2412,"label":"Cancel","shortcut":"Esc"}]
+
+## live · armed drawing tool
+[{"id":2410,"label":"Finish","shortcut":"Enter"},{"id":2411,"label":"Remove last point","shortcut":"Backspace"},{"id":2412,"label":"Cancel","shortcut":"Esc"}]
+
+## live · shape / route editor
+[{"id":2410,"label":"Finish","shortcut":"Enter"},{"id":2412,"label":"Cancel","shortcut":"Esc"}]
+
+## review · armed drawing tool
+[{"id":2410,"label":"Finish","shortcut":"Enter"},{"id":2411,"label":"Remove last point","shortcut":"Backspace"},{"id":2412,"label":"Cancel","shortcut":"Esc"}]
+
+## review · shape / route editor
+[{"id":2410,"label":"Finish","shortcut":"Enter"},{"id":2412,"label":"Cancel","shortcut":"Esc"}]
+

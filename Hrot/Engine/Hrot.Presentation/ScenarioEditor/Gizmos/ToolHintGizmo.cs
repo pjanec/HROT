@@ -21,13 +21,22 @@ namespace Hrot.ScenarioEditor.Gizmos
         public const float BelowCursorPx = 22f;
         private static readonly Rgba32 Colour = new(232, 232, 238, 235);
 
+        // ⭐ B-17 P2 — the map's gizmo-text font has no ✓ (it drew "?"), the status line's font does. The hint says "Enter / ✓: finish"; on the MAP it says
+        //   "Enter / tick: finish" (the green square the user sees). Cached per hint string, so the steady frame still allocates nothing.
+        private static string? _sourceHint, _mapText;
+        private static string MapText(string hint)
+        {
+            if (!ReferenceEquals(hint, _sourceHint)) { _mapText = hint.Replace("✓", "tick"); _sourceHint = hint; }
+            return _mapText!;
+        }
+
         public void Draw(ISimulationView view, IDebugDrawBuilder draw)
         {
             if (view is not EntityRepository world) return;
             if (MapUiStates.ToolsOf(world) is not { ActiveModal: { } tool } tools || tool.Id == ScenarioToolIds.Select) return;
             if (tools.CursorHintClaimed || tools.ActiveHint is not { Length: > 0 } hint) return;
             if (MapUiStates.CanvasOf(world)?.Get<MapCursorReadout>()?.Latest is not { } at) return;
-            draw.DrawTextLong(at.Local.X, at.Local.Y, hint, Colour, lineOffsetPx: BelowCursorPx);
+            draw.DrawTextLong(at.Local.X, at.Local.Y, MapText(hint), Colour, lineOffsetPx: BelowCursorPx);
         }
     }
 }

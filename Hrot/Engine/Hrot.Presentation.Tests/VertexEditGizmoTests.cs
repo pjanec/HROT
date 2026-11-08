@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
@@ -248,5 +250,77 @@ public class VertexEditGizmoTests : IDisposable
 
         Assert.Equal(3, draw.Handles);
         Assert.Equal(1, draw.MenuBindings);
+    }
+
+    // ── ⭐ B-17 P2 — the drawing convention (D11) on the vertex editor: ONE session, three finish doors, right-click = the menu ────────────
+
+    private VertexEditGizmo CreateGizmo(Action onRemove) => new VertexEditGizmo(_repo, _entity, NetworkId, onRemove);
+
+    private List<Vector2> Points() => ((ISimulationView)_repo).GetManagedComponentRO<EditablePolyline>(_entity).Points.ToList();
+
+    /// <summary>Enter, the on-map ✓ and the menu's Finish all write back what is on the screen (a drag still in progress included) and end the tool; one
+    /// removal each. Red-proof (compiles): <c>Resolve</c> not calling <c>_onRemove</c> on <c>Finished</c> ⇒ the removal counts read 0.</summary>
+    [Fact]
+    public void P2_Enter_the_tick_and_the_menu_Finish_all_write_back_and_end_the_tool()
+    {
+        foreach (var door in new[] { "enter", "tick", "menu" })
+        {
+            var poly0 = Points();
+            int removed = 0;
+            using var gizmo = CreateGizmo(() => removed++);
+            gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+            gizmo.OnDragUpdate(new Vector3(55f, 55f, 0f));          // a drag not yet committed
+            switch (door)
+            {
+                case "enter": gizmo.OnKeyEvent(MapKeyboardKey.Enter, true); break;
+                case "tick": var d = gizmo.Session.DonePosition; gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(d.X, d.Y, 0f)); break;
+                default: gizmo.OnMenuAction(Hrot.Common.Constants.GlobalActionIds.FinishDrawing); break;
+            }
+            Assert.True(removed == 1, $"{door}: the tool ended");
+            Assert.True(Points()[0] == new Vector2(55f, 55f), $"{door}: written back");
+            Assert.Equal(3, Points().Count);
+            // restore for the next door
+            _repo.SetManagedComponent(_entity, new EditablePolyline { Points = poly0 });
+        }
+    }
+
+    /// <summary>Esc and the menu's Cancel undo the drag in progress and end the tool; the polyline is as it was.</summary>
+    [Fact]
+    public void P2_Esc_and_the_menu_Cancel_undo_the_drag_and_end_the_tool()
+    {
+        foreach (var door in new[] { "esc", "menu" })
+        {
+            int removed = 0;
+            using var gizmo = CreateGizmo(() => removed++);
+            gizmo.OnInteractionStarted(Token(2), Vector3.Zero);
+            gizmo.OnDragUpdate(new Vector3(999f, 999f, 0f));
+            if (door == "esc") gizmo.OnKeyEvent(MapKeyboardKey.Escape, true); else gizmo.OnMenuAction(Hrot.Common.Constants.GlobalActionIds.CancelDrawing);
+            Assert.True(removed == 1, door);
+            Assert.Equal(new Vector2(20f, 20f), Points()[1]);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ Right-click is the MENU: press and release end NOTHING and write nothing (a right-RELEASE used to write back and exit); Backspace is not an editor key.
+    /// The menu carries the editor's own two rows then the catalogue's Finish · Cancel. Red-proof (compiles): <c>OnMouseEvent</c> exiting on a right-release again ⇒
+    /// <c>removed</c> reads 1.
+    /// </summary>
+    [Fact]
+    public void P2_RightClick_ends_nothing_and_the_menu_is_the_editors_rows_then_Finish_and_Cancel()
+    {
+        int removed = 0;
+        using var gizmo = CreateGizmo(() => removed++);
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+        gizmo.OnDragUpdate(new Vector3(77f, 77f, 0f));
+        gizmo.OnMouseEvent(MapMouseButton.Right, true, Vector3.Zero);
+        gizmo.OnMouseEvent(MapMouseButton.Right, false, Vector3.Zero);
+        gizmo.OnKeyEvent(MapKeyboardKey.Backspace, true);
+        Assert.Equal(0, removed);
+        Assert.Equal(new Vector2(10f, 10f), Points()[0]);           // nothing was written
+        Assert.Equal(3, gizmo.Session.Points.Count);
+
+        var rows = System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto[]>(
+            gizmo.Session.Menu!.Json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
+        Assert.Equal(new[] { "Insert point after", "Delete point", null, "Finish", "Cancel" }, rows.Select(r => r.Label).ToArray());
     }
 }

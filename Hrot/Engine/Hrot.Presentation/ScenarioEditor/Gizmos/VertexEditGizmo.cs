@@ -7,6 +7,9 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Vis2D.Gizmos;
+using Hrot.Common.Actions;
+using Hrot.ScenarioEditor.Tools;
 using Hrot.Map.Common.Components;
 
 namespace Hrot.ScenarioEditor.Gizmos
@@ -17,7 +20,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     //
     // Design:
     // - RequiresExclusiveFocus = true: terminal hit-testing is filtered to this entity while active.
-    // - WantsRawInput = true: right-click release and Escape are delivered to this gizmo.
+    // - WantsRawInput = true: Enter, Escape and the on-map ✓ click are delivered to this gizmo. ⭐ B-17 P2 (D11): right-click is the MENU, it ends nothing.
     // - SubElementId = vertexIndex + 1 (0 is reserved as "no handle").
     // - BoxAnchorId carries the entity's NETWORK id (§6.7); no ECS handle is emitted.
     // - OnCommit: writes back relative points to EditablePolyline, publishes UpdateEntityCommand.
@@ -36,8 +39,10 @@ namespace Hrot.ScenarioEditor.Gizmos
     public sealed class VertexEditGizmo : IEntityStatefulGizmo
     {
         // Context menu JSON: array format required by ContextMenuAdapter.
-        private static readonly string MenuJson =
-            "[{\"id\":1,\"label\":\"Insert point after\"},{\"id\":2,\"label\":\"Delete point\"}]";
+        // ⭐ B-17 P2 — the editor's own two rows, then the catalogue's Finish · Cancel (right-click is the MENU; it no longer ends the edit).
+        private static readonly string MenuJson = DrawingActions.JsonWith(
+            new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 1, Label = "Insert point after" },
+            new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 2, Label = "Delete point" });
 
         private static readonly Rgba32 IdleColor   = new Rgba32(0, 210, 120, 220);
         private static readonly Rgba32 ActiveColor = Rgba32.Red;
@@ -49,11 +54,17 @@ namespace Hrot.ScenarioEditor.Gizmos
         private readonly Action           _onRemove;
         private readonly Vector2          _originOffset;
 
-        // Working copy in ABSOLUTE world space (= relative Points + origin).
-        private readonly List<Vector2> _points;
+        // ⭐ B-17 P2 — the working copy lives in the ONE drawing core: ABSOLUTE world points (= relative Points + origin), the selected vertex,
+        //   insert / delete, and the finish / cancel convention (Enter · ✓ · the menu finish; Esc cancels; right-click is the menu).
+        private readonly ShapeEditSession _session = new(minPoints: 3, closed: true, noun: "an area");
 
-        // Index of the vertex being dragged (-1 = none).
-        private int     _activeVertex = -1;
+        /// <summary>⭐ B-17 P2 — the drawing core this editor is a view of.</summary>
+        public ShapeEditSession Session => _session;
+
+        private IReadOnlyList<Vector2> _points => _session.Points;
+
+        // Index of the vertex being dragged (-1 = none) — the session's selected point.
+        private int _activeVertex { get => _session.Selected; set => _session.Selected = value; }
         private Vector2 _savedPos;
 
         private bool _active = true;
@@ -70,6 +81,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             _entity    = entity;
             _networkId = networkId;
             _onRemove  = onRemove ?? throw new ArgumentNullException(nameof(onRemove));
+            _session.Menu = new ShapeMenu(MenuJson, DrawingMenu.CommandOf);   // the SAME ids the menu rows carry
 
             _originOffset = Vector2.Zero;
             if (_repo.HasComponent<SimTransform>(_entity))
@@ -79,14 +91,15 @@ namespace Hrot.ScenarioEditor.Gizmos
             }
 
             // Load current points into working copy in absolute world coords.
-            _points = new List<Vector2>();
             if (_repo.HasManagedComponent<EditablePolyline>(_entity))
             {
                 var poly = ((ISimulationView)_repo).GetManagedComponentRO<EditablePolyline>(_entity);
                 if (poly.Points != null)
                 {
+                    var abs = new List<Vector2>(poly.Points.Count);
                     foreach (var p in poly.Points)
-                        _points.Add(_originOffset + p);
+                        abs.Add(_originOffset + p);
+                    _session.Load(abs);
                 }
             }
         }
@@ -145,6 +158,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                 prim.BoxAnchorId      = _networkId;
                 draw.EmitRaw(in prim);
             }
+
+            ShapeDoneMark.Draw(draw, _session);   // ⭐ B-17 P2 — the on-map ✓
         }
 
         public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos)
@@ -158,7 +173,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         public void OnDragUpdate(Vector3 worldPos)
         {
             if (_activeVertex < 0 || _activeVertex >= _points.Count) return;
-            _points[_activeVertex] = new Vector2(worldPos.X, worldPos.Y);
+            _session.Set(_activeVertex, new Vector2(worldPos.X, worldPos.Y));
         }
 
         public void OnCommit(Vector3 worldPos)
@@ -171,46 +186,57 @@ namespace Hrot.ScenarioEditor.Gizmos
         public void OnCancel()
         {
             if (_activeVertex >= 0 && _activeVertex < _points.Count)
-                _points[_activeVertex] = _savedPos;
+                _session.Set(_activeVertex, _savedPos);
             _activeVertex = -1;
         }
 
         public void OnMenuAction(int actionId)
         {
+            // ⭐ B-17 P2 — the drawing rows (Finish · Cancel) are the session's; Insert / Delete are this editor's own and need a selected vertex.
+            if (DrawingMenu.CommandOf(actionId) != null) { Resolve(_session.ApplyMenuAction(actionId)); return; }
             if (_activeVertex < 0 || _activeVertex >= _points.Count) return;
 
             if (actionId == 1) // Insert after
             {
-                int next = (_points.Count == 1) ? 0 : (_activeVertex + 1) % _points.Count;
-                var mid  = (_points[_activeVertex] + _points[next]) * 0.5f;
-                _points.Insert(_activeVertex + 1, mid);
+                _session.InsertMidpointAfter(_activeVertex);
                 WriteBackAndPublish();
             }
             else if (actionId == 2) // Delete
             {
-                _points.RemoveAt(_activeVertex);
-                _activeVertex = -1;
+                _session.DeleteSelected();
                 WriteBackAndPublish();
             }
         }
 
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
-            if (button == MapMouseButton.Right && !isPressed)
+            // ⭐ B-17 P2 (D11) — right-click is the MENU: it no longer writes back and exits. The on-map ✓ (a left click) finishes.
+            if (button == MapMouseButton.Left && !isPressed && _session.HitDone(new Vector2(worldPos.X, worldPos.Y)))
+                Resolve(_session.Finish());
+        }
+
+        public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
+        {
+            // Enter finishes · Esc cancels (undo the drag in progress, then stop). ⛔ Backspace is not here: an editor has no "last point".
+            if (key == MapKeyboardKey.Backspace) return;
+            Resolve(_session.OnKey(key, isPressed));
+        }
+
+        // ⭐ ONE tail for every finish door (Enter, ✓, the menu) and every cancel door (Esc, the menu).
+        private void Resolve(ShapeOutcome outcome)
+        {
+            if (outcome == ShapeOutcome.Finished)
             {
                 WriteBackAndPublish();
                 _activeVertex = -1;
                 _onRemove();
             }
-        }
-
-        public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
-        {
-            if (key == MapKeyboardKey.Escape && isPressed)
+            else if (outcome == ShapeOutcome.Cancelled)
             {
                 OnCancel();
                 _onRemove();
             }
+            // TooFew (deleted below the minimum): stays armed; the reason is on the session
         }
         public void Dispose() { }
 

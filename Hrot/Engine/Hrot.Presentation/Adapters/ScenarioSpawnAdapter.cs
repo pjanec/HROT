@@ -119,7 +119,7 @@ namespace Hrot.UI.Common.Adapters
                     "Draw Area",
                     Hrot.ScenarioEditor.Tools.ToolModality.Modal,
                     Hrot.ScenarioEditor.Tools.ToolArbiter.Global,
-                    Hint: "click: add point · right-click: finish · Esc: cancel", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),   // ⭐ B-17 P1 (today's gestures; P2 moves finish to Enter / ✓)
+                    Hint: Hrot.ScenarioEditor.Tools.DrawingMenu.AreaHint, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),   // ⭐ B-17 P2 — the D11 words, stated once
                 _ => ArmAreaAuthoring(_pendingAreaTkbType));
 
             _tools?.Register(
@@ -128,7 +128,7 @@ namespace Hrot.UI.Common.Adapters
                     "Draw Route",
                     Hrot.ScenarioEditor.Tools.ToolModality.Modal,
                     Hrot.ScenarioEditor.Tools.ToolArbiter.Global,
-                    Hint: "click: add point · right-click: finish · Esc: cancel", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Route),   // ⭐ B-17 P1 (today's gestures; P2 moves finish to Enter / ✓)
+                    Hint: Hrot.ScenarioEditor.Tools.DrawingMenu.RouteHint, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Route),   // ⭐ B-17 P2 — the D11 words, stated once
                 _ => ArmRouteAuthoring());
 
             // ⭐⭐ E5 — a terrain zone is drawn by the SAME mechanism with a different TkbType, so the
@@ -142,7 +142,7 @@ namespace Hrot.UI.Common.Adapters
                     "Draw Zone",
                     Hrot.ScenarioEditor.Tools.ToolModality.Modal,
                     Hrot.ScenarioEditor.Tools.ToolArbiter.Global,
-                    Hint: "click: add point · right-click: finish · Esc: cancel", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),   // ⭐ B-17 P1 (today's gestures; P2 moves finish to Enter / ✓)
+                    Hint: Hrot.ScenarioEditor.Tools.DrawingMenu.AreaHint, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),   // ⭐ B-17 P2 — the D11 words, stated once
                 _ => ArmZoneAuthoring());
         }
 
@@ -374,7 +374,7 @@ namespace Hrot.UI.Common.Adapters
             if (_globalGizmoManager == null)
                 return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
 
-            var arm = _areaArm ??= new Hrot.ScenarioEditor.Tools.AreaAuthoringArm(_globalGizmoManager);
+            var arm = _areaArm ??= new Hrot.ScenarioEditor.Tools.AreaAuthoringArm(_globalGizmoManager, tools: _tools);
 
             if (_activeSequenceId.HasValue)
             {
@@ -451,9 +451,7 @@ namespace Hrot.UI.Common.Adapters
             var gizmo = new PointSequenceGizmo(
                 onFinish: points =>
                 {
-                    if (points.Length < 2)
-                        return;
-
+                    // ⭐ B-17 P2 — the gizmo's session refuses a finish under 2 points (reason shown, tool stays armed); it never gets here short.
                     var routePlan = new RoutePlan { IsLoop = false }.WithWaypoints(wps =>
                     {
                         for (int i = 0; i < points.Length; i++)
@@ -483,8 +481,10 @@ namespace Hrot.UI.Common.Adapters
 
                     Request(cmd);
                 },
-                onRemove: () => { _globalGizmoManager!.Unregister(routeId); _activeSequenceId = null; });
+                onRemove: () => { _globalGizmoManager!.Unregister(routeId); _activeSequenceId = null; },
+                minPoints: 2, closed: false, noun: "a route");
 
+            Hrot.ScenarioEditor.Tools.DrawingMenu.Attach(gizmo.Session, _tools);   // ⭐ B-17 P2 — right-click = the drawing menu
             _activeSequenceId = routeId;
             _globalGizmoManager!.Register(routeId, gizmo);
             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;

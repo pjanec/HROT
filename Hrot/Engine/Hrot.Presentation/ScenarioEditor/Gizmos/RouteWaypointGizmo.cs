@@ -7,7 +7,10 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Vis2D.Gizmos;
+using Hrot.Common.Actions;
 using Hrot.Map.Common.Components;
+using Hrot.ScenarioEditor.Tools;
 
 namespace Hrot.ScenarioEditor.Gizmos
 {
@@ -24,8 +27,10 @@ namespace Hrot.ScenarioEditor.Gizmos
     public sealed class RouteWaypointGizmo : IEntityStatefulGizmo, IRouteWaypointEditorState
     {
         // Context menu JSON: insert / delete waypoint.
-        private static readonly string MenuJson =
-            "[{\"id\":1,\"label\":\"Insert waypoint after\"},{\"id\":2,\"label\":\"Delete waypoint\"}]";
+        // ⭐ B-17 P2 — the editor's own two rows, then the catalogue's Finish · Cancel (right-click is the MENU; it no longer ends the edit).
+        private static readonly string MenuJson = DrawingActions.JsonWith(
+            new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 1, Label = "Insert waypoint after" },
+            new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 2, Label = "Delete waypoint" });
 
         private static readonly Rgba32 IdleColor   = new Rgba32(0, 160, 255, 220);
         private static readonly Rgba32 ActiveColor = Rgba32.Red;
@@ -42,8 +47,15 @@ namespace Hrot.ScenarioEditor.Gizmos
         private readonly List<RouteWaypoint> _waypoints;
         private readonly bool                _isLoop;
 
-        // Selected / dragging vertex.
-        private int           _activeVertex = -1;
+        // ⭐ B-17 P2 — the ONE drawing core: the waypoints' map positions (X, Y), the selected waypoint, insert / delete, and the finish / cancel
+        //   convention. ⚠ The waypoint list above keeps what the core cannot (speed, extension) and is kept in step by index.
+        private readonly ShapeEditSession _session;
+
+        /// <summary>⭐ B-17 P2 — the drawing core this editor is a view of.</summary>
+        public ShapeEditSession Session => _session;
+
+        // Selected / dragging vertex — the session's selected point.
+        private int _activeVertex { get => _session.Selected; set => _session.Selected = value; }
         private RouteWaypoint _savedWaypoint;
 
         private bool _active = true;
@@ -83,6 +95,12 @@ namespace Hrot.ScenarioEditor.Gizmos
                     _waypoints.AddRange(plan.Waypoints);
             }
 
+            _session = new ShapeEditSession(minPoints: 2, closed: _isLoop, noun: "a route");
+            var xy = new List<Vector2>(_waypoints.Count);
+            foreach (var wp in _waypoints) xy.Add(new Vector2(wp.Position.X, wp.Position.Y));
+            _session.Load(xy);
+            _session.Menu = new ShapeMenu(MenuJson, DrawingMenu.CommandOf);   // the SAME ids the menu rows carry
+
             Current = this;
         }
 
@@ -112,6 +130,8 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             // Box2D handle per waypoint. ⛔ §4.7i — handles only while this gizmo holds focus.
             if (!IsFocused) return;
+
+            ShapeDoneMark.Draw(draw, _session);   // ⭐ B-17 P2 — the on-map ✓
 
             for (int i = 0; i < _waypoints.Count; i++)
             {
@@ -149,6 +169,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             // ⭐ CE-2172 — the map's X / Y are the waypoint's; its height (Z) is not the drag's to change
             wp.Position = new Vector3(worldPos.X, worldPos.Y, wp.Position.Z);
             _waypoints[_activeVertex] = wp;
+            _session.Set(_activeVertex, new Vector2(worldPos.X, worldPos.Y));
         }
 
         public void OnCommit(Vector3 worldPos)
@@ -165,50 +186,70 @@ namespace Hrot.ScenarioEditor.Gizmos
         public void OnCancel()
         {
             if (_activeVertex >= 0 && _activeVertex < _waypoints.Count)
+            {
                 _waypoints[_activeVertex] = _savedWaypoint;
+                _session.Set(_activeVertex, new Vector2(_savedWaypoint.Position.X, _savedWaypoint.Position.Y));
+            }
             _activeVertex = -1;
         }
 
         public void OnMenuAction(int actionId)
         {
+            // ⭐ B-17 P2 — the drawing rows (Finish · Cancel) are the session's; Insert / Delete are this editor's own and need a selected waypoint.
+            if (DrawingMenu.CommandOf(actionId) != null) { Resolve(_session.ApplyMenuAction(actionId)); return; }
             if (_activeVertex < 0 || _activeVertex >= _waypoints.Count) return;
 
             if (actionId == 1) // Insert after
             {
-                int next = (_waypoints.Count == 1) ? 0 : (_activeVertex + 1) % _waypoints.Count;
-                var midPos = (_waypoints[_activeVertex].Position + _waypoints[next].Position) * 0.5f;
+                int at = _activeVertex;
+                int next = (_waypoints.Count == 1) ? 0 : (at + 1) % _waypoints.Count;
+                var midPos = (_waypoints[at].Position + _waypoints[next].Position) * 0.5f;
                 var newWp  = new RouteWaypoint
                 {
                     Position    = midPos,
-                    TargetSpeed = _waypoints[_activeVertex].TargetSpeed,
+                    TargetSpeed = _waypoints[at].TargetSpeed,
                 };
-                _waypoints.Insert(_activeVertex + 1, newWp);
+                _waypoints.Insert(at + 1, newWp);
+                _session.InsertOnSegment(at, new Vector2(midPos.X, midPos.Y));
                 WriteBackAndPublish();
             }
             else if (actionId == 2) // Delete
             {
                 _waypoints.RemoveAt(_activeVertex);
-                _activeVertex = -1;
+                _session.DeleteSelected();
                 WriteBackAndPublish();
             }
         }
 
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
-            if (button == MapMouseButton.Right && !isPressed)
-            {
-                WriteBackAndPublish();
-                _onRemove();
-            }
+            // ⭐ B-17 P2 (D11; overrules ROUTES1 §11.1's right-click commit) — right-click is the MENU: it no longer writes back and exits.
+            //   The on-map ✓ (a left click) finishes.
+            if (button == MapMouseButton.Left && !isPressed && _session.HitDone(new Vector2(worldPos.X, worldPos.Y)))
+                Resolve(_session.Finish());
         }
 
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
         {
-            if (key == MapKeyboardKey.Escape && isPressed)
+            // Enter finishes · Esc cancels (undo the drag in progress, then stop). ⛔ Backspace is not here: an editor has no "last point".
+            if (key == MapKeyboardKey.Backspace) return;
+            Resolve(_session.OnKey(key, isPressed));
+        }
+
+        // ⭐ ONE tail for every finish door (Enter, ✓, the menu) and every cancel door (Esc, the menu).
+        private void Resolve(ShapeOutcome outcome)
+        {
+            if (outcome == ShapeOutcome.Finished)
+            {
+                WriteBackAndPublish();
+                _onRemove();
+            }
+            else if (outcome == ShapeOutcome.Cancelled)
             {
                 OnCancel();
                 _onRemove();
             }
+            // TooFew (deleted below the minimum): stays armed; the reason is on the session
         }
 
         public void Dispose()

@@ -231,6 +231,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         exclusive:    kvp.Value.RequiresExclusiveFocus,
                         wantsRawInput: kvp.Value.WantsRawInput);
                     _drawBuilder.EmitRaw(in binding);
+
+                    // ⭐ B-17 P2 — the tool's own right-click menu rides on its tool id (the capture anchor), so a right-click on the map while the tool
+                    //   holds the input opens it (DebugGizmoLayer resolves the exclusive anchor's binding when nothing else is hit).
+                    if (kvp.Value.ToolMenuJson is { Length: > 0 } menu)
+                        buf.DrawContextMenuBinding(kvp.Key, menu);
                 }
             }
 
@@ -258,6 +263,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
             if (focused == null)
                 return;
+
+            // ⭐ B-17 P2 — a click on the tool's own menu (anchored by its tool id) reaches that gizmo. ⛔ Anchored, so only the gizmo whose id the
+            //   menu was scheduled on hears it — never the focus holder by accident.
+            if (bus.IsRegistered<GizmoMenuActionEvent>())
+                foreach (ref readonly var evt in bus.Read<GizmoMenuActionEvent>())
+                    if (_activeGizmos.TryGetValue(evt.AnchorId, out var menuOwner) && menuOwner.ToolMenuJson != null)
+                        menuOwner.OnMenuAction(evt.ActionId);
 
             var drags = bus.Read<GizmoDragUpdateEvent>();
             foreach (ref readonly var evt in drags)

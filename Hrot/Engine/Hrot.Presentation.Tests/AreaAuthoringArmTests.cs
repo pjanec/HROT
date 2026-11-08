@@ -4,12 +4,14 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Tools;
+using System.Linq;
 using Xunit;
 
 namespace Hrot.Presentation.Tests;
@@ -39,7 +41,7 @@ public sealed class AreaAuthoringArmTests
 
     /// <summary>
     /// Drives a registered <see cref="Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo"/> the way an
-    /// operator does: left-click each vertex, right-click to commit. ⭐ Mirrors IG's own
+    /// operator does: left-click each vertex, press Enter to finish (D11). ⭐ Mirrors IG's own
     /// <c>TestHook_DirectPointSequenceToolCommit</c> so a green here means the same thing it does there.
     /// </summary>
     private static void Commit(AreaAuthoringArm arm, IReadOnlyList<Vector2> points)
@@ -53,8 +55,8 @@ public sealed class AreaAuthoringArmTests
             gizmo!.OnMouseEvent(MapMouseButton.Left, false, new Vector3(points[i].X, points[i].Y, 0f));
         }
 
-        var last = points.Count > 0 ? points[^1] : Vector2.Zero;
-        gizmo!.OnMouseEvent(MapMouseButton.Right, true, new Vector3(last.X, last.Y, 0f));
+        // ⭐ B-17 P2 (D11) — Enter finishes; right-click is the menu and ends nothing
+        gizmo!.OnKeyEvent(MapKeyboardKey.Enter, true);
     }
 
     private static readonly Vector2[] ThreePoints =
@@ -146,7 +148,7 @@ public sealed class AreaAuthoringArmTests
             gizmo.UpdateAndDraw(world, 0f, new DebugPrimitiveBuffer());   // the gizmo learns the world it picks in
             foreach (var d in new[] { Vector3.Zero, new Vector3(1f, 0f, 0f), new Vector3(0f, 1f, 0f) })
                 gizmo.OnMouseEvent(MapMouseButton.Left, false, at + d);
-            gizmo.OnMouseEvent(MapMouseButton.Right, true, at);
+            gizmo.OnKeyEvent(MapKeyboardKey.Enter, true);   // ⭐ B-17 P2 — Enter finishes (right-click is the menu)
         }
 
         Draw(roof!.Value);
@@ -302,14 +304,14 @@ public sealed class AreaAuthoringArmTests
     // ── Too few points ────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// ⭐ A shape below <c>MinPoints</c> is a CANCELLATION, not a spawn. ⚠ IG's copy told its
-    /// request/ACK session about it; the editor's simply returned. ⇒ the arm reports it and lets the
-    /// host decide, so IG keeps its ACK and the editor stays silent.
+    /// ⭐ B-17 P2 (D11) — a finish below <c>MinPoints</c> spawns NOTHING and cancels NOTHING: the tool says why and STAYS armed (it used to be a silent
+    /// cancel that lost the user's points). Esc then cancels, and tells the host (<c>OnCancelled</c>).
     /// </summary>
     [Fact]
-    public void Commit_BelowMinPoints_CancelsAndSpawnsNothing()
+    public void Commit_BelowMinPoints_SpawnsNothing_SaysWhy_AndStaysArmed()
     {
-        var arm       = new AreaAuthoringArm(MakeManager());
+        var manager   = MakeManager();
+        var arm       = new AreaAuthoringArm(manager);
         var captured  = new List<SpawnEntityCommand>();
         var cancelled = 0;
 
@@ -318,7 +320,173 @@ public sealed class AreaAuthoringArmTests
         Commit(arm, new[] { new Vector2(1f, 1f), new Vector2(2f, 2f) });
 
         Assert.Empty(captured);
+        Assert.Equal(0, cancelled);                                   // not a cancel …
+        Assert.NotNull(arm.ActiveGizmo);                              // … the tool is still there
+        Assert.Equal(1, manager.ActiveCount);
+        Assert.Contains("an area needs 3 points", arm.ActiveGizmo!.Session.Reason);
+
+        arm.ActiveGizmo.OnKeyEvent(MapKeyboardKey.Escape, true);      // Esc cancels, through the one cancel
         Assert.Equal(1, cancelled);
+        Assert.Null(arm.ActiveGizmo);
+        Assert.Equal(0, manager.ActiveCount);
+    }
+
+    // ── ⭐ B-17 P2 — the drawing convention (D11), on the area gizmo (PointSequenceGizmo, closed, 3+ points) ───────────────
+
+    private static (AreaAuthoringArm Arm, List<SpawnEntityCommand> Out, int[] Cancelled, GlobalGizmoManager Manager) ArmedArea(ToolController? tools = null)
+    {
+        var manager = MakeManager();
+        var arm = new AreaAuthoringArm(manager, tools: tools);
+        var captured = new List<SpawnEntityCommand>();
+        var cancelled = new int[1];
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, captured.Add, () => cancelled[0]++));
+        return (arm, captured, cancelled, manager);
+    }
+
+    private static void Click(Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo g, Vector2 at)
+    {
+        g.OnDragUpdate(new Vector3(at, 0f));
+        g.OnMouseEvent(MapMouseButton.Left, false, new Vector3(at, 0f));
+    }
+
+    /// <summary>⭐ The three finish doors — Enter, the on-map ✓, the menu's Finish — all reach the ONE <c>Finish</c> and each commits exactly one command.
+    /// Red-proof (compiles): the gizmo's <c>Resolve</c> ignoring <c>Finished</c> ⇒ all three fail.</summary>
+    [Fact]
+    public void P2_Enter_the_tick_and_the_menu_Finish_all_commit_ONE_area()
+    {
+        foreach (var door in new[] { "enter", "tick", "menu" })
+        {
+            var (arm, captured, _, manager) = ArmedArea();
+            var g = arm.ActiveGizmo!;
+            foreach (var p in ThreePoints) Click(g, p);
+            switch (door)
+            {
+                case "enter": g.OnKeyEvent(MapKeyboardKey.Enter, true); break;
+                case "tick": Click(g, g.Session.DonePosition); break;   // a left click on the ✓
+                default: g.OnMenuAction(Hrot.Common.Constants.GlobalActionIds.FinishDrawing); break;
+            }
+            Assert.True(captured.Count == 1, $"{door}: one commit");
+            Assert.Equal(3, Assert.Single(captured).InitialComponents!.OfType<EditablePolyline>().Single().Points.Count);   // the ✓ click is NOT a fourth point
+            Assert.Equal(0, manager.ActiveCount);                    // and the tool is gone
+        }
+    }
+
+    /// <summary>⭐ Esc and the menu's Cancel cancel (and tell the host); Backspace removes the last point and nothing else.</summary>
+    [Fact]
+    public void P2_Esc_and_the_menu_Cancel_cancel_and_Backspace_removes_the_last_point()
+    {
+        var (arm, captured, cancelled, manager) = ArmedArea();
+        var g = arm.ActiveGizmo!;
+        foreach (var p in ThreePoints) Click(g, p);
+        g.OnKeyEvent(MapKeyboardKey.Backspace, true);
+        Assert.Equal(2, g.Session.Points.Count);
+        Assert.Equal(1, manager.ActiveCount);                         // Backspace ends nothing
+        g.OnKeyEvent(MapKeyboardKey.Escape, true);
+        Assert.Equal(1, cancelled[0]);
+        Assert.Empty(captured);
+        Assert.Equal(0, manager.ActiveCount);
+
+        var (arm2, captured2, cancelled2, _) = ArmedArea();
+        var g2 = arm2.ActiveGizmo!;
+        foreach (var p in ThreePoints) Click(g2, p);
+        g2.OnMenuAction(Hrot.Common.Constants.GlobalActionIds.RemoveLastPoint);
+        Assert.Equal(2, g2.Session.Points.Count);
+        g2.OnMenuAction(Hrot.Common.Constants.GlobalActionIds.CancelDrawing);
+        Assert.Equal(1, cancelled2[0]);
+        Assert.Empty(captured2);
+    }
+
+    /// <summary>
+    /// ⭐⭐ Right-click is the MENU. The press and the release finish NOTHING and cancel nothing (the area gizmo used to finish on the press), and the armed
+    /// gizmo's menu — the three catalogue rows Finish · Remove last point · Cancel — is bound to its tool id so a right-click opens it.
+    /// Red-proof (compiles): make <c>OnMouseEvent</c> finish on <c>Right</c> again ⇒ the commit count below reads 1.
+    /// </summary>
+    [Fact]
+    public void P2_RightClick_finishes_NOTHING_and_opens_the_drawing_menu()
+    {
+        var buffer = new DebugPrimitiveBuffer();
+        var manager = new GlobalGizmoManager(buffer);
+        var arm = new AreaAuthoringArm(manager);
+        var captured = new List<SpawnEntityCommand>();
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, captured.Add));
+        var g = arm.ActiveGizmo!;
+        foreach (var p in ThreePoints) Click(g, p);
+
+        g.OnMouseEvent(MapMouseButton.Right, true, new Vector3(500f, 600f, 0f));
+        g.OnMouseEvent(MapMouseButton.Right, false, new Vector3(500f, 600f, 0f));
+        Assert.Empty(captured);
+        Assert.Equal(1, manager.ActiveCount);
+        Assert.Equal(3, g.Session.Points.Count);
+
+        using var repo = new EntityRepository();
+        repo.RegisterEvent<GizmoDragUpdateEvent>(); repo.RegisterEvent<GizmoMouseEvent>(); repo.RegisterEvent<GizmoKeyEvent>();
+        repo.Bus.SwapBuffers();
+        manager.Execute(repo, 0.016f);
+        string? json = null; long anchor = 0;
+        foreach (ref readonly var prim in buffer.GetFrame())
+            if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding) { anchor = prim.StructNetworkId; json = buffer.InternMap.TryResolve(prim.StringHash); }
+        Assert.Equal(arm.ActiveGizmoId, anchor);
+        var rows = System.Text.Json.JsonSerializer.Deserialize<ContextMenuItemDto[]>(json!, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
+        Assert.Equal(new[] { "Finish", "Remove last point", "Cancel" }, rows.Select(r => r.Label).ToArray());
+        Assert.Equal(new[] { Hrot.Common.Constants.GlobalActionIds.FinishDrawing, Hrot.Common.Constants.GlobalActionIds.RemoveLastPoint, Hrot.Common.Constants.GlobalActionIds.CancelDrawing },
+                     rows.Select(r => r.Id).ToArray());
+    }
+
+    /// <summary>⭐ Clicking the FIRST point closes an area (once it has its minimum); with fewer it is just another point.</summary>
+    [Fact]
+    public void P2_ClickingTheFirstPoint_ClosesTheArea_OnceItHasThree()
+    {
+        var (arm, captured, _, manager) = ArmedArea();
+        var g = arm.ActiveGizmo!;
+        Click(g, ThreePoints[0]); Click(g, ThreePoints[1]);
+        Click(g, ThreePoints[0] + new Vector2(0.5f, 0.5f));          // two points so far: a third POINT, near the first
+        Assert.Equal(3, g.Session.Points.Count);
+        Assert.Empty(captured);
+        Click(g, ThreePoints[0] + new Vector2(0.5f, 0.5f));          // now it closes
+        Assert.Single(captured);
+        Assert.Equal(3, Assert.Single(captured).InitialComponents!.OfType<EditablePolyline>().Single().Points.Count);   // the closing click adds nothing
+        Assert.Equal(0, manager.ActiveCount);
+    }
+
+    /// <summary>
+    /// ⭐ Too few points: the tool says why on the armed tool's HINT LINE (replacing the hint) and stays armed; the next click gives the hint back.
+    /// Red-proof (compiles): <c>Finish()</c> returning <c>Cancelled</c> for too few ⇒ the tool is gone (<c>ActiveCount</c> 0) and no reason is set.
+    /// </summary>
+    [Fact]
+    public void P2_TooFew_StaysArmed_AndTheReasonReplacesTheHintUntilTheNextClick()
+    {
+        var manager = MakeManager();
+        var tools = new ToolController(() => manager, () => null);
+        var arm = new AreaAuthoringArm(manager, tools: tools);
+        tools.Register(new ToolDescriptor("draw-area", "Draw Area", ToolModality.Modal, ToolArbiter.Global, Hint: DrawingMenu.AreaHint),
+            _ => arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, _ => { })));
+        Assert.True(tools.Activate("draw-area"));
+        Assert.Contains("Enter / ✓: finish (3+)", tools.ActiveHint);   // the hint names the minimum and the keys
+
+        var g = arm.ActiveGizmo!;
+        Click(g, ThreePoints[0]); Click(g, ThreePoints[1]);
+        g.OnKeyEvent(MapKeyboardKey.Enter, true);
+        Assert.Equal(1, manager.ActiveCount);                          // stays armed
+        Assert.Contains("an area needs 3 points", tools.ActiveHint);   // the reason replaces the hint …
+
+        Click(g, ThreePoints[2]);
+        Assert.Equal(DrawingMenu.AreaHint, tools.ActiveHint);          // … until the next click
+    }
+
+    /// <summary>⭐ The route tool is the same gizmo with 2 points and no closing click: Enter finishes a 2-point route, one point says "a route needs 2 points".</summary>
+    [Fact]
+    public void P2_ARouteNeedsTwoPoints_AndAFirstPointClickDoesNotCloseIt()
+    {
+        var finished = new List<Vector2[]>();
+        var g = new Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo(finished.Add, () => { }, minPoints: 2, closed: false, noun: "a route");
+        Click(g, new Vector2(0, 0));
+        g.OnKeyEvent(MapKeyboardKey.Enter, true);
+        Assert.Empty(finished);
+        Assert.Contains("a route needs 2 points", g.Session.Reason);
+        Click(g, new Vector2(0.5f, 0.5f));                             // near the first point: an open route just takes another point
+        Assert.Equal(2, g.Session.Points.Count);
+        g.OnKeyEvent(MapKeyboardKey.Enter, true);
+        Assert.Equal(2, Assert.Single(finished).Length);
     }
 
     /// <summary>

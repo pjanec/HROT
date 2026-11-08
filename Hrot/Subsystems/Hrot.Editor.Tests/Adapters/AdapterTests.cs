@@ -301,6 +301,14 @@ namespace Hrot.Editor.Tests.Adapters
             manager.Execute(_world, 0.016f);
         }
 
+        /// <summary>⭐ B-17 P2 (D11) — Enter finishes a drawing (right-click is the menu); fed as the backend gets it, a GizmoKeyEvent.</summary>
+        private void PressEnter(GlobalGizmoManager manager)
+        {
+            _world.Bus.Publish(new GizmoKeyEvent { Key = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, IsPressed = true });
+            _world.Bus.SwapBuffers();
+            manager.Execute(_world, 0.016f);
+        }
+
         private List<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest> Requests()
         {
             _world.Bus.SwapBuffers();
@@ -318,7 +326,7 @@ namespace Hrot.Editor.Tests.Adapters
 
             foreach (var (x, y) in new[] { (100f, 200f), (300f, 400f), (500f, 600f) })
                 Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, x, y);
-            Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Right, true, 500f, 600f);
+            PressEnter(manager);
 
             var req = Assert.Single(Requests());
             Assert.Equal(TkbEntityTypes.TacGraphic_Area, req.TkbType);
@@ -336,7 +344,7 @@ namespace Hrot.Editor.Tests.Adapters
 
             foreach (var (x, y) in new[] { (10f, 20f), (30f, 40f) })
                 Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, x, y);
-            Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Right, true, 30f, 40f);
+            PressEnter(manager);
 
             var req = Assert.Single(Requests());
             Assert.Equal(TkbEntityTypes.TacGraphic_Route, req.TkbType);

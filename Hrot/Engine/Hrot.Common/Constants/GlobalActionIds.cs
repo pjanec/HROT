@@ -141,5 +141,10 @@ namespace Hrot.Common.Constants
         public const int DarFromStart       = 2407;
         public const int RunTo              = 2408;
         public const int EditPlan           = 2409;   // ⭐ W-1 / P-8 8d-2 — a unit's plan edited on the map (the Plan tool)
+
+        // --- ⭐ B-17 P2 (DESIGN_Map_Interaction §2.5, D11) — the drawing menu: three catalogue actions whose target is the armed drawing tool (DrawingActions)
+        public const int FinishDrawing      = 2410;
+        public const int RemoveLastPoint    = 2411;
+        public const int CancelDrawing      = 2412;
     }
 }

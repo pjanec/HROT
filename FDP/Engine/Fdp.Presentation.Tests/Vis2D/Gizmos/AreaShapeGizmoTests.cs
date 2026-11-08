@@ -122,40 +122,94 @@ public class AreaShapeGizmoTests
         Assert.False(cancelled);
     }
 
+    private static int Finish() => Hrot_Gizmo_Ids.Finish;
+    private static class Hrot_Gizmo_Ids { public const int Finish = 2410, RemoveLast = 2411, Cancel = 2412; }
+
+    private static ShapeMenu TheMenu() => new("[]", id => id switch { 2410 => ShapeCommand.Finish, 2411 => ShapeCommand.RemoveLast, 2412 => ShapeCommand.Cancel, _ => null });
+
+    /// <summary>
+    /// ⭐ B-17 P2 (D11) — every door reaches the ONE session: Enter, the Done tick and the menu's Finish all commit; Esc and the menu's Cancel both cancel.
+    /// Red-proof (compiles): make <c>Resolve</c> ignore <c>ShapeOutcome.Finished</c> ⇒ all three finish doors fail together.
+    /// </summary>
     [Fact]
-    public void Escape_and_a_right_click_CANCEL_like_the_location_gizmo_and_the_Done_button_commits()
+    public void D11_Enter_the_Done_tick_and_the_menu_Finish_all_commit_and_Esc_and_the_menu_Cancel_both_cancel()
     {
-        AreaLink? done = null; int cancelled = 0, removed = 0;
-        var esc = new AreaShapeGizmo(AreaLink.Circle(Origin, 20f), a => done = a, () => removed++, () => cancelled++);
-        esc.OnKeyEvent(MapKeyboardKey.Escape, true);
-        Assert.Equal((1, 1), (cancelled, removed)); Assert.Null(done);
-
-        var right = new AreaShapeGizmo(AreaLink.Circle(Origin, 20f), a => done = a, () => removed++, () => cancelled++);
-        right.OnMouseEvent(MapMouseButton.Right, true, Vector3.Zero);
-        Assert.Equal(2, cancelled); Assert.Null(done);                       // a right-click never commits
-
         var shape = AreaLink.Circle(Origin, 20f);
-        var button = new AreaShapeGizmo(shape, a => done = a, () => removed++, () => cancelled++);
-        var at = AreaShapeHandles.DonePosition(shape);
-        Assert.Null(AreaShapeHandles.HitHandle(shape, at, AreaShapeHandles.HitRadiusFor(shape)));   // the button is clear of every handle
-        Press(button, at);
+        AreaLink? done = null; int cancelled = 0, removed = 0;
+        AreaShapeGizmo Make() { var g = new AreaShapeGizmo(shape, a => done = a, () => removed++, () => cancelled++); g.Session.Menu = TheMenu(); return g; }
+
+        done = null; var viaEnter = Make(); viaEnter.OnKeyEvent(MapKeyboardKey.Enter, true);
         Assert.Equal(shape, done);
+
+        done = null; var viaTick = Make(); Press(viaTick, AreaShapeHandles.DonePosition(shape));
+        Assert.Equal(shape, done);
+
+        done = null; var viaMenu = Make(); viaMenu.OnMenuAction(Finish());
+        Assert.Equal(shape, done);
+        Assert.Equal(3, removed);
+        Assert.Equal(0, cancelled);
+
+        done = null; Make().OnKeyEvent(MapKeyboardKey.Escape, true);
+        Make().OnMenuAction(Hrot_Gizmo_Ids.Cancel);
+        Assert.Null(done);
         Assert.Equal(2, cancelled);
     }
 
+    /// <summary>⭐ B-17 P2 (D11) — right-click is the MENU: it ends NOTHING (it used to cancel). The gizmo advertises its menu for the layer to open.</summary>
     [Fact]
-    public void With_no_start_the_first_click_places_a_50m_circle_there_and_nothing_placed_cancels_on_Enter()
+    public void D11_A_right_click_ends_nothing_and_the_gizmo_has_a_menu_to_open()
     {
-        AreaLink? done = null; bool cancelled = false;
-        var gizmo = new AreaShapeGizmo(default, a => done = a, () => { }, () => cancelled = true);
+        AreaLink? done = null; int cancelled = 0, removed = 0;
+        var g = new AreaShapeGizmo(AreaLink.Circle(Origin, 20f), a => done = a, () => removed++, () => cancelled++);
+        g.Session.Menu = new ShapeMenu("[{\"id\":2410}]", _ => null);
+        g.OnMouseEvent(MapMouseButton.Right, true, Vector3.Zero);
+        g.OnMouseEvent(MapMouseButton.Right, false, Vector3.Zero);
+        Assert.Equal((0, 0), (cancelled, removed));
+        Assert.Null(done);
+        Assert.Equal("[{\"id\":2410}]", g.ToolMenuJson);
+    }
+
+    [Fact]
+    public void With_no_start_the_first_click_places_a_50m_circle_there_and_Finish_with_nothing_placed_says_so_and_stays_armed()
+    {
+        AreaLink? done = null; bool cancelled = false; int removed = 0;
+        var gizmo = new AreaShapeGizmo(default, a => done = a, () => removed++, () => cancelled = true);
         Press(gizmo, new Vector2(300f, 400f));
         Assert.Equal(AreaLink.Circle(new WorldPoint(300f, 400f, 0f), 50f), gizmo.Shape);
         gizmo.OnKeyEvent(MapKeyboardKey.Enter, true);
         Assert.Equal(50f, done!.Value.Size.X);
 
-        var empty = new AreaShapeGizmo(default, a => done = null, () => { }, () => cancelled = true);
+        done = null; removed = 0;
+        var empty = new AreaShapeGizmo(default, a => done = a, () => removed++, () => cancelled = true);
+        string? reason = null; empty.Session.ReasonChanged += r => reason = r;
         empty.OnKeyEvent(MapKeyboardKey.Enter, true);
-        Assert.True(cancelled);                                               // nothing was placed ⇒ no value invented
+        Assert.False(cancelled);                                              // ⭐ D11: NOT a silent cancel …
+        Assert.Equal(0, removed);                                             // … the tool stays armed …
+        Assert.Null(done);                                                    // … no value invented …
+        Assert.Contains("click to place", reason);                            // … and it says why
+        Press(empty, new Vector2(1f, 1f));
+        Assert.Null(empty.Session.Reason);                                    // the next click clears the reason
+    }
+
+    /// <summary>⭐ B-17 P2 — Backspace un-places the centre (back to "click to place"); the centre handle drags the WHOLE shape through the session's MoveAll.</summary>
+    [Fact]
+    public void D11_Backspace_unplaces_and_the_centre_handle_is_the_sessions_MoveAll()
+    {
+        var gizmo = new AreaShapeGizmo(default, _ => { }, () => { });
+        Press(gizmo, new Vector2(300f, 400f));
+        Release(gizmo, new Vector2(300f, 400f));
+        Assert.Single(gizmo.Session.Points);
+
+        Press(gizmo, new Vector2(300f, 400f));                               // grab the centre handle
+        Assert.Equal(AreaHandleKind.Center, gizmo.Grabbed);
+        gizmo.OnDragUpdate(new Vector3(350f, 420f, 0f));
+        Release(gizmo, new Vector2(350f, 420f));
+        Assert.Equal(new Vector2(350f, 420f), gizmo.Session.Points[0]);      // the session's point moved with the shape's centre
+        Assert.Equal(new WorldPoint(350f, 420f, 0f), gizmo.Shape.Center);
+
+        gizmo.OnKeyEvent(MapKeyboardKey.Backspace, true);
+        Assert.False(gizmo.Shape.IsShape);                                    // un-placed
+        Assert.Empty(gizmo.Session.Points);
     }
 
     [Fact]

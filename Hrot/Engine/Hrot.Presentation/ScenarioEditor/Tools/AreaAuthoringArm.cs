@@ -62,6 +62,7 @@ namespace Hrot.ScenarioEditor.Tools
     {
         private readonly GlobalGizmoManager? _gizmos;
         private readonly IGeographicTransform? _geo;
+        private readonly ToolController? _tools;
 
         /// <param name="gizmos">
         /// The host's gizmo manager. ⚠ <b>Nullable on purpose</b>, and a null one still ARMS: IG's prior
@@ -74,10 +75,13 @@ namespace Hrot.ScenarioEditor.Tools
         /// The host's geographic transform, or <c>null</c> for a host that authors in canvas space.
         /// ⭐ See the class remarks: null reduces to the editor's exact prior arithmetic.
         /// </param>
-        public AreaAuthoringArm(GlobalGizmoManager? gizmos, IGeographicTransform? geo = null)
+        /// <param name="tools">⭐ B-17 P2 — the host's tool controller, so a finish with too few points puts its reason on the armed tool's hint line.
+        /// Null = the reason is on the session only.</param>
+        public AreaAuthoringArm(GlobalGizmoManager? gizmos, IGeographicTransform? geo = null, ToolController? tools = null)
         {
             _gizmos = gizmos;
             _geo    = geo;
+            _tools  = tools;
         }
 
         /// <summary>The id this arm registered, or <c>null</c> when nothing is armed.</summary>
@@ -113,15 +117,8 @@ namespace Hrot.ScenarioEditor.Tools
             gizmo = new PointSequenceGizmo(
                 onFinish: points =>
                 {
-                    if (points == null || points.Length < minPoints)
-                    {
-                        // ⚠ Does NOT unregister: the prior bodies both left the gizmo alive here, and the
-                        //   gizmo's own onRemove is what tears it down. Changing that would make a
-                        //   too-short shape silently kill the tool mid-draw.
-                        onCancel?.Invoke();
-                        return;
-                    }
-
+                    // ⭐ B-17 P2 (D11) — the gizmo's ShapeEditSession refuses a finish with fewer than minPoints (it says why and stays armed), so
+                    //   a short shape never gets here. ⛔ The old "too short ⇒ onCancel, then the gizmo removed itself" silently lost the user's work.
                     var anchor   = ComputeAnchor(points, out var relative);
                     // ⭐ CE-1033 M22 step 1 — an area drawn on a roof is ON the roof: the anchor keeps the level's height
                     //   (0 on the ground, which drapes). 📄 docs/DESIGN_Map_3D_Mode.md §3.9.
@@ -140,6 +137,10 @@ namespace Hrot.ScenarioEditor.Tools
                         InitialComponents = BornWith(tkbType, polyline, style),
                     });
                 },
+                minPoints: minPoints,
+                closed: true,
+                noun: "an area",
+                onCancelled: onCancel,
                 onRemove: () =>
                 {
                     _gizmos?.Unregister(id);
@@ -161,6 +162,7 @@ namespace Hrot.ScenarioEditor.Tools
                     onDisarmed?.Invoke();
                 });
 
+            DrawingMenu.Attach(gizmo.Session, _tools);   // ⭐ B-17 P2 — right-click = the drawing menu; the too-few reason on the hint line
             ActiveGizmoId = id;
             ActiveGizmo   = gizmo;
             _gizmos?.Register(id, gizmo);

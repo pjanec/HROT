@@ -192,6 +192,35 @@ public sealed class TheMenusAreGoldenTests
 
     private static string MenuOnSharedHost(EntityRepository w, Entity e) => Hrot.Common.Actions.MapMenuActions.JsonFor(w, e, SharedHost().Actions.Has);
 
+    private static string DrawingGoldenPath([CallerFilePath] string here = "") => Path.Combine(Path.GetDirectoryName(here)!, "Goldens", "menus.drawing.golden.txt");
+
+    /// <summary>
+    /// ⭐ B-17 P2 (📄 docs/UX/DESIGN_Map_Interaction.md §2.5, D11) — the DRAWING MENU golden: the armed drawing tool's three catalogue rows (Finish · Remove last point ·
+    /// Cancel) and the shape / route editor's two (Finish · Cancel), in every mode. ⭐ A NEW file — the entity-menu goldens above are untouched (the
+    /// Tool group is first in every mode and offers nothing on an entity). Red-proof: a row's label, id or shortcut changed in <c>DrawingActions</c> ⇒ the diff names the case.
+    /// </summary>
+    [Fact]
+    public void P2_TheDrawingMenu_IsTheGolden_InEveryMode()
+    {
+        var sb = new StringBuilder();
+        foreach (var mode in new[] { Hrot.Common.Editing.EditingMode.Edit, Hrot.Common.Editing.EditingMode.Preview, Hrot.Common.Editing.EditingMode.Live, Hrot.Common.Editing.EditingMode.Review })
+            foreach (var (name, target) in new[] { ("armed drawing tool", Hrot.Common.Actions.ActionTarget.Drawing), ("shape / route editor", Hrot.Common.Actions.ActionTarget.ShapeEdit) })
+                sb.Append("## ").Append(mode.ToString().ToLowerInvariant()).Append(" · ").Append(name).Append('\n')
+                  .Append(Hrot.Common.Actions.MenuComposer.Json(Hrot.Common.Actions.ActionContext.ForTool(target, mode))).Append("\n\n");
+        AssertGolden(sb.ToString(), DrawingGoldenPath());
+    }
+
+    /// <summary>⭐ B-17 P2 — the drawing rows are offered ONLY on the drawing targets: no entity kind's menu in any mode gains one (the A1 golden stays byte-identical).</summary>
+    [Fact]
+    public void P2_NoEntityMenu_OffersADrawingRow()
+    {
+        foreach (var (name, json) in Cases())
+        {
+            Assert.DoesNotContain("\"Finish\"", json);
+            Assert.DoesNotContain("Remove last point", json);
+        }
+    }
+
     private static void AssertGolden(string actual, string path)
     {
         if (Environment.GetEnvironmentVariable("MENU_GOLDEN_CAPTURE") == "1")

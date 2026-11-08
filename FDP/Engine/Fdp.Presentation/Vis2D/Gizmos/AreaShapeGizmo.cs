@@ -10,8 +10,10 @@ namespace Fdp.Toolkit.Vis2D.Gizmos;
 /// <summary>
 /// ⭐⭐ CE-4206 R2 (DESIGN_Map_Picking_Unification §6.3 F6) — edits an <see cref="AreaLink"/> SHAPE on the map. A circle: drag the centre, drag the radius handle on the
 /// rim. A rectangle: drag the centre, the two edge handles (width, length) and the heading knob beyond the front edge. With no start shape the first left
-/// click places a circle of <see cref="AreaShapeHandles.DefaultRadius"/> m at the clicked point. <b>Enter</b> or a click on the <b>Done</b> button (drawn beside the shape) commits the shape
-/// (<c>onDone</c>); <b>right-click</b> or <b>Esc</b> cancels (<c>onCancelled</c>) — exactly as its sibling <see cref="FdpLocationPickerGizmo"/> cancels. The geometry is <see cref="AreaShapeHandles"/> (pure); this class
+/// click places a circle of <see cref="AreaShapeHandles.DefaultRadius"/> m at the clicked point. <b>Enter</b>, a click on the <b>Done</b> button (drawn beside the shape) or the menu's <i>Finish</i> commits the shape
+/// (<c>onDone</c>); <b>Esc</b> or the menu's <i>Cancel</i> cancels (<c>onCancelled</c>); <b>right-click</b> is the MENU and ends nothing. ⭐ B-17 P2 (D11): the
+/// convention is <see cref="ShapeEditSession"/>'s — one point (the centre) is the shape's "points", the centre handle is its <c>MoveAll</c>, Finish with no centre
+/// placed says so and stays armed. The geometry is <see cref="AreaShapeHandles"/> (pure); this class
 /// is the input state machine and the drawing. Armed through the pick arbiter like <see cref="FdpLocationPickerGizmo"/>.
 /// </summary>
 public sealed class AreaShapeGizmo : IEntityStatefulGizmo
@@ -23,6 +25,12 @@ public sealed class AreaShapeGizmo : IEntityStatefulGizmo
     private AreaLink _shape;
     private AreaHandleKind? _grabbed;
     private Vector2 _cursor;
+
+    /// <summary>⭐ B-17 P2 — THE drawing core (the shape's centre is its one point; Finish / Cancel / the menu are its convention).</summary>
+    public ShapeEditSession Session { get; } = new(minPoints: 1, closed: true, noun: "a shape");
+
+    /// <inheritdoc/>
+    public string? ToolMenuJson => Session.Menu?.Json;
 
     /// <summary>The shape being edited now (a rail reads it).</summary>
     public AreaLink Shape => _shape;
@@ -37,6 +45,7 @@ public sealed class AreaShapeGizmo : IEntityStatefulGizmo
     public AreaShapeGizmo(AreaLink start, Action<AreaLink> onDone, Action onRemove, Action? onCancelled = null)
     {
         _shape = start;
+        if (start.IsShape) Session.Add(new Vector2(start.Center.X, start.Center.Y));
         _onDone = onDone ?? throw new ArgumentNullException(nameof(onDone));
         _onRemove = onRemove ?? throw new ArgumentNullException(nameof(onRemove));
         _onCancelled = onCancelled;
@@ -69,16 +78,7 @@ public sealed class AreaShapeGizmo : IEntityStatefulGizmo
         }
 
         DrawPolyline(draw, AreaShapeHandles.Outline(_shape), outline);
-        // the Done affordance: a small green square with a tick, beside the shape
-        var done = AreaShapeHandles.DonePosition(_shape);
-        var green = new Rgba32(90, 220, 110, 255);
-        float d = AreaShapeHandles.DoneHalfSize(_shape);
-        draw.DrawLine(new Vector3(done.X - d, done.Y - d, 0f), new Vector3(done.X + d, done.Y - d, 0f), green, 2f);
-        draw.DrawLine(new Vector3(done.X + d, done.Y - d, 0f), new Vector3(done.X + d, done.Y + d, 0f), green, 2f);
-        draw.DrawLine(new Vector3(done.X + d, done.Y + d, 0f), new Vector3(done.X - d, done.Y + d, 0f), green, 2f);
-        draw.DrawLine(new Vector3(done.X - d, done.Y + d, 0f), new Vector3(done.X - d, done.Y - d, 0f), green, 2f);
-        draw.DrawLine(new Vector3(done.X - d * 0.6f, done.Y, 0f), new Vector3(done.X - d * 0.1f, done.Y - d * 0.6f, 0f), green, 2f);
-        draw.DrawLine(new Vector3(done.X - d * 0.1f, done.Y - d * 0.6f, 0f), new Vector3(done.X + d * 0.6f, done.Y + d * 0.6f, 0f), green, 2f);
+        ShapeDoneMark.Draw(draw, AreaShapeHandles.DonePosition(_shape), AreaShapeHandles.DoneHalfSize(_shape));   // the Done affordance (the one ✓)
         var handles = AreaShapeHandles.HandlesOf(_shape);
         float r = MathF.Max(0.6f, AreaShapeHandles.HitRadiusFor(_shape) * 0.35f);
         foreach (var h in handles)
@@ -106,7 +106,13 @@ public sealed class AreaShapeGizmo : IEntityStatefulGizmo
     {
         _cursor = new Vector2(worldPos.X, worldPos.Y);
         if (_grabbed is { } kind && _shape.IsShape)
+        {
+            var before = _shape;
             _shape = AreaShapeHandles.Drag(_shape, kind, _cursor);
+            // the centre handle moves the WHOLE shape (ShapeEditSession.MoveAll); the other handles reshape it around the centre
+            if (kind == AreaHandleKind.Center)
+                Session.MoveAll(new Vector2(_shape.Center.X - before.Center.X, _shape.Center.Y - before.Center.Y));
+        }
     }
 
     /// <inheritdoc/>
@@ -114,40 +120,56 @@ public sealed class AreaShapeGizmo : IEntityStatefulGizmo
     {
         var at = new Vector2(worldPos.X, worldPos.Y);
         _cursor = at;
-        if (button == MapMouseButton.Left)
+        // ⭐ B-17 P2 — right-click is the MENU (DebugGizmoLayer opens ToolMenuJson); it ends nothing here.
+        if (button != MapMouseButton.Left) return;
+        if (isPressed)
         {
-            if (isPressed)
-            {
-                if (_shape.IsShape && AreaShapeHandles.HitDone(_shape, at)) { Finish(); return; }   // the Done affordance
-                if (!_shape.IsShape) { _shape = AreaShapeHandles.NewAt(at); return; }   // the first click places the centre
-                _grabbed = AreaShapeHandles.HitHandle(_shape, at, AreaShapeHandles.HitRadiusFor(_shape))?.Kind;
-            }
-            else _grabbed = null;
+            if (_shape.IsShape && AreaShapeHandles.HitDone(_shape, at)) { Resolve(Session.Finish()); return; }   // the Done affordance
+            if (!_shape.IsShape) { PlaceAt(at); return; }   // the first click places the centre
+            _grabbed = AreaShapeHandles.HitHandle(_shape, at, AreaShapeHandles.HitRadiusFor(_shape))?.Kind;
         }
-        else if (button == MapMouseButton.Right && isPressed)
-        {
-            _onRemove();   // right-click CANCELS, as FdpLocationPickerGizmo does
-            _onCancelled?.Invoke();
-        }
+        else _grabbed = null;
     }
 
     /// <inheritdoc/>
     public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
     {
         if (!isPressed) return;
-        if (key == MapKeyboardKey.Enter) Finish();
-        else if (key == MapKeyboardKey.Escape)
+        bool had = Session.Points.Count > 0;
+        var outcome = Session.OnKey(key, isPressed);
+        if (had && Session.Points.Count == 0) _shape = default;   // Backspace un-places: back to "click to place"
+        Resolve(outcome);
+    }
+
+    /// <inheritdoc/>
+    public void OnMenuAction(int actionId)
+    {
+        bool had = Session.Points.Count > 0;
+        var outcome = Session.ApplyMenuAction(actionId);
+        if (had && Session.Points.Count == 0) _shape = default;
+        Resolve(outcome);
+    }
+
+    private void PlaceAt(Vector2 at)
+    {
+        _shape = AreaShapeHandles.NewAt(at);
+        Session.Add(at);
+    }
+
+    // ⭐ ONE tail for every finish door (Enter, the Done button, the menu) and every cancel door (Esc, the menu).
+    private void Resolve(ShapeOutcome outcome)
+    {
+        if (outcome == ShapeOutcome.Finished)
+        {
+            _onRemove();   // remove FIRST, then complete (see FdpLocationPickerGizmo)
+            _onDone(_shape);
+        }
+        else if (outcome == ShapeOutcome.Cancelled)
         {
             _onRemove();
             _onCancelled?.Invoke();
         }
-    }
-
-    private void Finish()
-    {
-        if (!_shape.IsShape) { _onRemove(); _onCancelled?.Invoke(); return; }   // nothing was placed
-        _onRemove();   // remove FIRST, then complete (see FdpLocationPickerGizmo)
-        _onDone(_shape);
+        // TooFew: nothing placed yet — the reason is on the session; the gizmo stays armed.
     }
 
     /// <inheritdoc/>
@@ -156,8 +178,6 @@ public sealed class AreaShapeGizmo : IEntityStatefulGizmo
     public void OnCommit(Vector3 worldPos) { }
     /// <inheritdoc/>
     public void OnCancel() { }
-    /// <inheritdoc/>
-    public void OnMenuAction(int actionId) { }
     /// <inheritdoc/>
     public void Dispose() { }
 }

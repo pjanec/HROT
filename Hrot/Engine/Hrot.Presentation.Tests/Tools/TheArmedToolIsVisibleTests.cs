@@ -111,6 +111,31 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ B-17 P2 — the map's gizmo-text font has no ✓ (the P2 fidelity frame drew "?"): the hint on the MAP says "tick", the status line (ImGui's font) keeps the ✓,
+    /// and both are the one descriptor hint. Red-proof: dropping the replacement ⇒ the map text keeps the ✓ and reads "?" on screen.
+    /// </summary>
+    [Fact]
+    public void P2_TheCursorHint_SaysTick_WhereTheMapFontHasNoTick()
+    {
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+        mi.Tools.Register(new ToolDescriptor("p2-tick", "Draw", ToolModality.Modal, ToolArbiter.None, Hint: DrawingMenu.AreaHint), _ => ToolActivationOutcome.Armed);
+        var canvas = new MapCanvas(new NoInput()) { Camera = new MapCamera { Zoom = 1f, Target = Vector2.Zero, Offset = Vector2.Zero } };
+        var readout = new MapCursorReadout();
+        canvas.AddResource(readout);
+        MapUiStates.Set(_world, canvas);
+        readout.Set(new MapCursorSample(new Vector3(1, 2, 0), false, 0, 0, 0));
+        mi.Tools.Activate("p2-tick");
+
+        var buffer = new DebugPrimitiveBuffer(capacity: 16);
+        new ToolHintGizmo().Draw(_world, buffer);
+        var p = buffer.GetFrame().ToArray().Single(q => q.Shape == DebugPrimitiveShape.Text);
+        string onMap = buffer.InternMap.TryResolve(p.StringHash)!;
+        Assert.DoesNotContain("✓", onMap);
+        Assert.Contains("Enter / tick: finish (3+)", onMap);
+        Assert.Contains("Enter / ✓: finish (3+)", mi.Tools.ActiveHint);   // the status line keeps the real glyph
+    }
+
+    /// <summary>
     /// ⭐ A gizmo text longer than 31 characters (<c>DrawTextLong</c>) is drawn WHOLE: the ONE text reader resolves its interned string through the
     /// buffer the layer is drawing. 🔴 Found by P1's fidelity frame: every map cut such a line (a tool hint, the placement hint) at 31 characters.
     /// </summary>
@@ -223,5 +248,77 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
         finally { Raylib_cs.Raylib.UnloadImage(image); }
         Assert.True(teal > 10, $"the status line's tool icon is drawn teal ({teal} px)");
         Assert.True(hintPx > 60, $"the cursor hint is drawn on the map ({hintPx} light px)");
+    }
+
+    /// <summary>
+    /// ⭐ B-17 P2 fidelity (R-4146; mockup <c>map-interaction-visual.svg</c> panel A) — an AREA BEING DRAWN on a real frame: its points and lines, the green on-map ✓ beside
+    /// the shape, the D11 hint under the cursor and in the status line. Renders <c>drawing-area.png</c> under <c>HROT_RAIL_SHOTS</c> (⛔ never committed); asserts the ✓'s green
+    /// and the hint's light text are drawn. Skips without a display (run under <c>xvfb-run -a</c>).
+    /// </summary>
+    [SkippableFact]
+    public void P2_AnAreaBeingDrawn_OnARealFrame_ShowsTheTickAndTheHint()
+    {
+        Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+        mi.Tools.Register(new ToolDescriptor("p2-draw-area", "Draw Area", ToolModality.Modal, ToolArbiter.None, ShowOnToolbar: true,
+                                             Hint: DrawingMenu.AreaHint, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon), _ => ToolActivationOutcome.Armed);
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(800, 420);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        var canvas = new MapCanvas(input: null);
+        var camera = new MapCamera();
+        const float zoom = 2f;
+        var target = new Vector2(-800f / 2f / zoom, 380f / 2f / zoom);
+        camera.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas.Camera = camera;
+        var readout = new MapCursorReadout();
+        canvas.AddResource(readout);
+        canvas.AddResource(new MapToolsLink(() => MapUiStates.ToolsOf(_world)));
+        MapUiStates.Set(_world, canvas);
+        readout.Set(new MapCursorSample(new Vector3(-60, -60, 0), false, 0, 0, 0));
+        var buffer = new DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new FdpEventBus(), camera: camera);
+        canvas.AddLayer(gizmos);
+        Assert.True(mi.Tools.Activate("p2-draw-area"));
+
+        var drawing = new Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo(_ => { }, () => { }, minPoints: 3, closed: true, noun: "an area");
+        foreach (var p in new[] { new Vector2(-120, -50), new Vector2(-30, 30), new Vector2(70, -20) })
+        {
+            drawing.OnDragUpdate(new Vector3(p, 0f));
+            drawing.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(p, 0f));
+        }
+        drawing.OnDragUpdate(new Vector3(-60, -60, 0));
+        drawing.UpdateAndDraw(_world, 0.016f, buffer);
+        new ToolHintGizmo().Draw(_world, buffer);
+        gizmos.Update(0.016f);
+        var section = new ToolStatusSection(() => canvas);
+        void Draw()
+        {
+            canvas.Draw();
+            ImGuiNET.ImGui.SetNextWindowPos(new Vector2(0, 390)); ImGuiNET.ImGui.SetNextWindowSize(new Vector2(800, 30));
+            ImGuiNET.ImGui.Begin("status", ImGuiNET.ImGuiWindowFlags.NoDecoration);
+            section.Render();
+            ImGuiNET.ImGui.End();
+        }
+        frame.StepN(3, Draw);
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-drawing-area");
+        System.IO.Directory.CreateDirectory(dir);
+        string png = System.IO.Path.Combine(dir, "drawing-area.png");
+        frame.Screenshot(png);
+        var image = Raylib_cs.Raylib.LoadImage(png);
+        int green = 0, hintPx = 0;
+        try
+        {
+            for (int y = 0; y < 380; y++)
+                for (int x = 0; x < image.Width; x++)
+                {
+                    var c = Raylib_cs.Raylib.GetImageColor(image, x, y);
+                    if (Math.Abs(c.R - 90) + Math.Abs(c.G - 220) + Math.Abs(c.B - 110) < 60) green++;   // the ✓ (ShapeDoneMark's green)
+                    if (c.R > 200 && c.G > 200 && c.B > 200) hintPx++;                                   // the hint's light text
+                }
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(image); }
+        Assert.True(green > 40, $"the on-map ✓ is drawn ({green} green px)");
+        Assert.True(hintPx > 60, $"the hint is drawn on the map ({hintPx} light px)");
+        Console.WriteLine("P2 frame: " + png);
     }
 }

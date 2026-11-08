@@ -101,6 +101,9 @@ namespace Hrot.ScenarioEditor.Tools
         /// ⭐ Idempotent, and re-registers if the host swapped controllers (teardown → rebuild).
         /// ⛔ Registration happens ONCE per controller — the duplicate-id guard stays strict (G4).
         /// </summary>
+        /// <summary>⭐ B-17 P2 — the host's tool controller (null on a host without one), for a picker tool that puts a line on the hint (<c>DrawingMenu.Attach</c>).</summary>
+        public ToolController? Tools => _tools();
+
         private ToolController? EnsureRegistered()
         {
             var tools = _tools();

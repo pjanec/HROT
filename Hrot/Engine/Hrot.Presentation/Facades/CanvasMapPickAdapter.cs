@@ -128,11 +128,16 @@ public sealed class CanvasMapPickAdapter : IMapPickService
     public Task<Fdp.Toolkit.Replication.AreaLink> EditAreaAsync(Fdp.Toolkit.Replication.AreaLink start, CancellationToken ct = default)
         => _pickers.RunPickAsync<Fdp.Toolkit.Replication.AreaLink>(
             Hrot.ScenarioEditor.Tools.ScenarioToolIds.EditAreaShape,
-            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.AreaShapeGizmo(
-                start,
-                onDone: shape => tcs.TrySetResult(shape),
-                onRemove: remove,
-                onCancelled: () => tcs.TrySetCanceled()),
+            (tcs, remove) =>
+            {
+                var gizmo = new Fdp.Toolkit.Vis2D.Gizmos.AreaShapeGizmo(
+                    start,
+                    onDone: shape => tcs.TrySetResult(shape),
+                    onRemove: remove,
+                    onCancelled: () => tcs.TrySetCanceled());
+                Hrot.ScenarioEditor.Tools.DrawingMenu.Attach(gizmo.Session, _pickers.Tools, editing: true);   // ⭐ B-17 P2 — right-click = Finish · Cancel; too-few on the hint
+                return gizmo;
+            },
             ct);
 
     /// <inheritdoc/>

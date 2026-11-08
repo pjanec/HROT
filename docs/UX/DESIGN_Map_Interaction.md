@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4134); the building lane (ui, backend for the gizmo side) details it (R-4123)
-updated: 2026-11-07 (P1 as-built — behaviors) · 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
+updated: 2026-11-08 (P2 as-built — behaviors) · 2026-11-07 (P1 as-built — behaviors) · 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
-known-conflict: ROUTES1-DESIGN.md §11.1 says right-click COMMITS a route edit — D11 (approved, first iteration) makes right-click the menu and Enter / ✓ the commit; this design follows D11 and ROUTES1 §11.1 stays the spec for everything else (click a segment inserts, Delete removes)
+known-conflict: ROUTES1-DESIGN.md §11.1 says right-click COMMITS a route edit — ⭐ OVERRULED AND BUILT (P2, 2026-11-08): D11 made right-click the menu and Enter / ✓ / the menu's Finish the commit, and `RouteWaypointGizmo` no longer commits on a right-release; ROUTES1 §11.1 stays the spec for everything else (click a segment inserts, Delete removes — P6)
 related-designs:
   - docs/UX/DESIGN_Entity_Copy_Paste.md — paste placement reuses PlacementSession (press, drag turns, release)
   - DESIGN_Show_On_Map.md — the map previews drawn from forms (a local debug-primitive buffer), not edited
@@ -295,7 +295,7 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 | stage | what | owner | rails |
 |---|---|---|---|
 | **P1** | the armed tool is visible: `ToolDescriptor.Hint`, `ToolController.ActiveHint`, the toolbar reads `ActiveModal` (Tool Model step 5, CE-259m), `ToolStatusSection`, the on-map hint as gizmo primitives | ui | the toolbar marks the tool on every host; the hint is drawn on a remote terminal |
-| **P2** | `ShapeEditSession`; the four drawing gizmos move onto it; the D11 convention; the drawing menu as three catalogue actions | ui (+ backend for the gizmo side) | each gizmo: Enter / ✓ / menu finish, Esc cancels, Backspace, too-few points keeps the tool |
+| **P2** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P2* below) `ShapeEditSession`; the four drawing gizmos move onto it; the D11 convention; the drawing menu as three catalogue actions | ui (+ backend for the gizmo side) | each gizmo: Enter / ✓ / menu finish, Esc cancels, Backspace, too-few points keeps the tool |
 | **P3** | placement: ① **measure CE-4272 first** (does an A-10C spawned at 300 m fly on?); ② `PlacementSession` — airborne by `Mobility`, 2-D level choice from `SurfacesAt`, optional heading drag; ③ Create through `Edits.Submit` | ui + backend (CE-4272) | an A-10C placed on the map is airborne at cruise; a click on a 3-storey house offers 3 levels |
 | **P4** | the pick banner, rejection flash, replace notice in `PickerToolHost` | ui | a pick is visible with the form scrolled away; Cancel on the banner clears the field |
 | **P5** | multi-select modifiers (Shift / Ctrl / Shift-drag / Alt-click); `GroupTransform` for move and rotate | ui | rotate 5 placed units about each centre and about the group centre: one undo step |
@@ -371,6 +371,81 @@ Rails: `TheArmedToolIsVisibleTests` (Presentation.Tests) — every map tool has 
 Select, not when claimed); the status line registered by the cursor section; a long gizmo text read whole; `P1_TheArmedTool_OnARealFrame`
 (`armed-tool.png` — the teal icon, name and hint in the status line, the hint under the cursor).
 because the drawing menu reads it.
+
+### ⭐ AS-BUILT — P2 *(behaviors, `2026-11-08`, B-17)* — ONE drawing core; right-click is the menu
+
+INVENTORY: `scripts/cbm.sh search_graph name_pattern=".*Vertex.*"` (class) ⇒ **three**: the PRODUCTION `Hrot.Presentation/ScenarioEditor/Gizmos/VertexEditGizmo.cs`
+(an `EditablePolyline`'s vertices; armed by the *Edit Shape* tool through `DataDrivenGizmoSystem`) and its test, and the GizmoMap **example**
+(`FDP/ExtDeps/GizmoMap/GizmoMap.Example/…/VertexEditGizmo.cs`, untouched — nothing in production uses it) + grep `PointSequenceGizmo` / `AreaShapeGizmo` /
+`RouteWaypointGizmo` ⇒ the four production drawing gizmos are `PointSequenceGizmo` (drawn areas + routes), `AreaShapeGizmo` (circle / rectangle shapes),
+`VertexEditGizmo` and `RouteWaypointGizmo`. Graph coverage could not be checked (no `check_index_coverage` over the CLI).
+
+```mermaid
+classDiagram
+  class ShapeEditSession {
+    <<NEW · Fdp.Presentation/Vis2D/Gizmos/ShapeEditSession.cs — pure>>
+    Points · Heights · Selected · MinPoints · Closed · Noun · Menu · Reason
+    Add · RemoveLast · InsertOnSegment · InsertMidpointAfter · DeleteSelected · MoveAll · Set · Load
+    Finish → ShapeOutcome · Cancel · Apply(ShapeCommand) · ApplyMenuAction(id) · OnKey(key)
+    DonePosition · DoneHalfSize · HitDone · HitsFirstPoint
+  }
+  class ShapeDoneMark { <<NEW>> the ONE ✓ drawing }
+  class PointSequenceGizmo { <<existing · now a view of a session>> }
+  class AreaShapeGizmo { <<existing · centre = the session's one point>> }
+  class VertexEditGizmo { <<existing · Hrot.Presentation>> }
+  class RouteWaypointGizmo { <<existing · Hrot.Presentation>> }
+  class DrawingActions { <<NEW · Hrot.Common/Actions>> Finish 2410 · Remove last point 2411 · Cancel 2412 · target Drawing / ShapeEdit }
+  class DrawingMenu { <<NEW · Hrot.Presentation/ScenarioEditor/Tools>> Attach(session, tools, editing) · CommandOf(id) }
+  class GlobalGizmoManager { <<existing>> binds IEntityStatefulGizmo.ToolMenuJson to the tool id · routes the click to OnMenuAction }
+  class DebugGizmoLayer { <<existing · GizmoMap>> ResolveMenuAnchor — right-click on open map opens the capturing tool's menu }
+  PointSequenceGizmo --> ShapeEditSession
+  AreaShapeGizmo --> ShapeEditSession
+  VertexEditGizmo --> ShapeEditSession
+  RouteWaypointGizmo --> ShapeEditSession
+  PointSequenceGizmo ..> ShapeDoneMark
+  AreaShapeGizmo ..> ShapeDoneMark
+  VertexEditGizmo ..> ShapeDoneMark
+  RouteWaypointGizmo ..> ShapeDoneMark
+  DrawingMenu ..> DrawingActions : the words, the catalogue rows
+  DrawingMenu ..> ShapeEditSession : Menu (json + id ⇒ command), Reason ⇒ the hint line
+  GlobalGizmoManager ..> PointSequenceGizmo : ToolMenuJson
+  GlobalGizmoManager ..> AreaShapeGizmo : ToolMenuJson
+```
+*What the picture shows: four gizmos, one convention. Each keeps its drawing and its result (a point array, an `AreaLink`, a written-back polyline or
+route); every finish door and every cancel door ends in the session. The words (catalogue) and the commands (session) meet only in `DrawingMenu`.*
+
+```mermaid
+graph TD
+  Arm["AreaAuthoringArm (area / zone) · ScenarioSpawnAdapter.ArmRouteAuthoring · CanvasMapPickAdapter.EditAreaAsync · ToolRegistrations (Edit Shape / Edit Route)"] -->|"DrawingMenu.Attach(session, tools)"| S[ShapeEditSession]
+  GGM["GlobalGizmoManager.Execute — every frame"] -->|"ToolMenuJson → ContextMenuBinding at the tool id; GizmoMenuActionEvent → OnMenuAction"| G[PointSequenceGizmo / AreaShapeGizmo]
+  DDG["DataDrivenGizmoSystem — injected gizmos"] -->|"MenuJson bound at the entity; menu click → every injected gizmo"| E[VertexEditGizmo / RouteWaypointGizmo]
+  Layer["GizmoMap DebugGizmoLayer.HandleInput — right-click"] -->|"ResolveMenuAnchor"| GGM
+  Layer --> DDG
+```
+*Who reaches it: the menu opens from the layer's right-click on open map while a tool holds exclusive input (the layer used to suppress that click); the click comes
+back as the ordinary `GizmoMenuActionEvent`, anchored at the tool id (global tools) or the entity (the editors).*
+
+| decision | why |
+|---|---|
+| ONE session type for all four; `PointSequenceGizmo` is built `(onFinish, onRemove, minPoints, closed, noun, onCancelled)` | the finish / cancel / too-few rules exist once. `AreaShapeGizmo` has no point list: its CENTRE is the session's one point (`MinPoints` 1; the centre handle is `MoveAll`; Backspace un-places) |
+| **right-click does nothing in any gizmo** | D11. `PointSequenceGizmo` finished on the press, `AreaShapeGizmo` cancelled, `VertexEdit` / `RouteWaypoint` wrote back and exited on the release — three meanings, now none |
+| too few ⇒ `TooFew`, stays armed, `Session.Reason` ("an area needs 3 points (2 so far)") replaces the tool's hint (`ToolController.SetHint`) until the next click | silent cancels lost work. `AreaAuthoringArm`'s old *"too short ⇒ onCancel, then the gizmo removed itself"* is gone (its `OnCancelled` now means Esc / Cancel) |
+| clicking the first point closes a CLOSED shape only once it has its minimum | with fewer, a click near the first point is just another point (a roof area drawn with 1 m between points still works) |
+| the drawing menu = three catalogue actions, ids **2410 Finish · 2411 Remove last point · 2412 Cancel** (behaviors' block 2400–2499; W-3 used 2401–2408, W-1 2409), new `ActionTarget.Drawing` (armed tool) / `ShapeEdit` (the editors: Finish · Cancel only), new first group `ActionGroup.Tool` | one declaration, one wording (`DrawingActions`); a Tool group so no unit / graphic menu moves (the entity goldens are byte-identical) |
+| the editors keep their own rows (*Insert point after* / *Delete point*, ids 1 / 2) ahead of the shared Finish · Cancel | `DrawingActions.JsonWith` composes it once |
+| `IEntityStatefulGizmo.ToolMenuJson` (default null) — `GlobalGizmoManager` binds it to the tool id and routes the click | a tool gizmo does not know its id; the arbiter does. Anchored routing: a menu click reaches only the gizmo whose id it names |
+| `DebugGizmoLayer.ResolveMenuAnchor` (GizmoMap) | an exclusive tool made a right-click on open map open nothing; now it opens the tool's own menu when it bound one |
+| the on-map ✓ is `ShapeDoneMark`, drawn by all four (sized from the shape, as `AreaShapeHandles` sized it) | one drawing; `PointSequenceGizmo` / the editors hit-test it with `Session.HitDone` (a left click, delivered raw — the terminal sends them while the tool holds exclusive input) |
+| hints: `DrawingMenu.AreaHint` / `RouteHint` = the session's `KeysHint` — *"click: add point · Enter / ✓: finish (3+) · Backspace: undo point · Esc: cancel"*; Edit Shape / Edit Route: *"drag a vertex · Enter / ✓: done · right-click: menu · Esc: undo the drag and stop"* | the words come from the session, so descriptor and gizmo say one thing |
+| one finish = ONE edit, as before | a drawn area / route: `onFinish` → `ScenarioSpawnAdapter.Request` → one `Edits.Submit(Create)`; an area shape: the form's own edit; the editors: the one write-back + `UpdateEntityCommand` they always did |
+| ⚠ not done (P6): the centre handle on a polyline / route (the session's `MoveAll` exists, no handle yet), click-a-segment insert (`InsertOnSegment` exists), the Delete key. The remote viewer's own layer does not yet open the tool menu (its renderer is not the FDP layer) | stage P6 owns the editing handles |
+| ⚠ `Backspace` (259) reaches a gizmo only as the layer's typed-key stream delivers it (the same path as every key); added `MapKeyboardKey.Backspace` to the contract | verified on the session and gizmo level, not with a live key |
+
+Rails: `ShapeEditSessionTests` (Fdp.Presentation.Tests — the convention itself); `AreaShapeGizmoTests` `D11_*`; `AreaAuthoringArmTests` `P2_*` (the area / route gizmo through the arm:
+the three finish doors, Esc / menu cancel, Backspace, right-click ends nothing and the menu rows are bound, first-point close, too-few + hint); `VertexEditGizmoTests` / `RouteWaypointGizmoTests`
+`P2_*`; `GlobalGizmoManagerTests.B17P2_*` (menu bound to the tool id, click anchored); `DebugGizmoLayerGizmoTests.B17P2_*` (`ResolveMenuAnchor`); `TheMenusAreGoldenTests`
+`P2_TheDrawingMenu_IsTheGolden_InEveryMode` (new `Goldens/menus.drawing.golden.txt`; the entity goldens did not move); `TheArmedToolIsVisibleTests.P2_AnAreaBeingDrawn_OnARealFrame_ShowsTheTickAndTheHint`
+(`drawing-area.png` under `HROT_RAIL_SHOTS`, never committed). Existing rails that finished by right-click (`AreaAuthoringArmTests`, Editor `AdapterTests` ×2) now finish by Enter.
 
 ## 4. Questions — ✅ all eight APPROVED as leaned (R-4134, user `2026-11-06`: *"Okay, accept it."*)
 
