@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Toolkit.Replication.Edits;
 using Fdp.Presentation.Abstractions;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Scenario;
@@ -68,11 +69,15 @@ public static class MacroArgs
     /// Writes <paramref name="next"/> to the entity — ⭐ ONLY where this node owns the component (<see cref="IInspectableSession.HasAuthority"/>): a managed component written to an entity another node owns is
     /// overwritten by the owner's next replication, so the view says <i>edit on the owning node</i> instead of pretending.
     /// </summary>
-    public static WriteResult Write(IInspectableSession session, Entity entity, MacroInstance next)
+    /// <param name="world">⭐ CE-3384 — with <paramref name="label"/>, the write is ONE undo step of the editor's history: it is bracketed by <see cref="EditSteps"/> exactly as every <c>Edits.Submit</c> is (the world as it was is the step's "before"). Null ⇒ no bracket (a host with no history).</param>
+    public static WriteResult Write(IInspectableSession session, Entity entity, MacroInstance next, EntityRepository? world = null, string? label = null)
     {
         if (!session.IsAlive(entity) || !session.HasComponent(entity, typeof(MacroInstance))) return WriteResult.NoInstance;
         if (!session.HasAuthority(entity, typeof(MacroInstance))) return WriteResult.NotOwned;
-        session.SetComponent(entity, typeof(MacroInstance), next);
+        bool step = world is not null && label is not null;
+        if (step) EditSteps.Begin(world, label!);
+        try { session.SetComponent(entity, typeof(MacroInstance), next); }
+        finally { if (step) EditSteps.End(world); }
         return WriteResult.Written;
     }
 }

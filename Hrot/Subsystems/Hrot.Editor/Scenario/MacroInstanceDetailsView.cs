@@ -91,7 +91,7 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
         {
             ImGui.SameLine();
             ImGui.BeginDisabled(!owned);
-            if (ImGui.SmallButton("Change...##macro")) _pickMacro(path => Write(session, entity, MacroArgs.Retarget(instance, path)));
+            if (ImGui.SmallButton("Change...##macro")) _pickMacro(path => Write(session, entity, MacroArgs.Retarget(instance, path), "Change macro"));
             ImGui.EndDisabled();
         }
 
@@ -104,16 +104,24 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
         ImGui.TextUnformatted("Arguments");
         ImGui.BeginDisabled(!owned);
         _table.Draw("args", rows,
-            onSet: (row, json) => Write(session, entity, MacroArgs.With(instance, row.Name, json, row.DefaultJson)),
-            onReset: row => Write(session, entity, MacroArgs.Reset(instance, row.Name)));
+            onSet: (row, json) => Write(session, entity, MacroArgs.With(instance, row.Name, json, row.DefaultJson), $"Edit macro argument '{row.Name}'"),
+            onReset: row => Write(session, entity, MacroArgs.Reset(instance, row.Name), $"Reset macro argument '{row.Name}'"));
         ImGui.EndDisabled();
         ImGui.PopID();
     }
 
-    private void Write(IInspectableSession session, Entity entity, MacroInstance next)
+    /// <summary>For rails: sets one argument exactly as the table's edit does (one undo step in the editor's history).</summary>
+    internal MacroArgs.WriteResult SetArg(Entity entity, string name, string json, string? defaultJson = null)
     {
-        MacroArgs.Write(session, entity, next);
+        var session = _session();
+        if (session is null || !session.IsAlive(entity) || session.GetComponent(entity, typeof(MacroInstance)) is not MacroInstance instance) return MacroArgs.WriteResult.NoInstance;
+        return Write(session, entity, MacroArgs.With(instance, name, json, defaultJson), $"Edit macro argument '{name}'");
+    }
+
+    private MacroArgs.WriteResult Write(IInspectableSession session, Entity entity, MacroInstance next, string label)
+    {
         // the table compares the next frame's rows with what it shows: an accepted write is echoed back (no rebuild), a refused one differs and the rows reopen from the entity's own record
+        return MacroArgs.Write(session, entity, next, _world(), label);
     }
 
     private void ClearRows() => _table.Clear();
