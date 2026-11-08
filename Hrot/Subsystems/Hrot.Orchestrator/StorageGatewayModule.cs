@@ -186,16 +186,25 @@ public sealed class StorageGatewayModule
     /// <returns>
     /// A <see cref="GatewayResult"/> reporting per-file success and failure counts.
     /// </returns>
+    /// <param name="progress">⭐ CE-4330 ② — the job's counters (files, bytes); while its <see cref="Fdp.Toolkit.Orchestration.StorageTransferProgress.GiveWay"/>
+    /// is set (a Live runs, Q5) the copy is held to <see cref="GiveWayBytesPerSecond"/>. Null = a plain copy (a scenario save's slices).</param>
     public async Task<GatewayResult> PullToNasAsync(
         IReadOnlyList<FileManifestEntry> manifests,
         string nasBasePath,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Fdp.Toolkit.Orchestration.StorageTransferProgress? progress = null)
     {
         if (manifests == null)  throw new ArgumentNullException(nameof(manifests));
         if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
 
         int successCount = 0;
         int failureCount = 0;
+        if (progress != null)
+        {
+            long total = 0;
+            foreach (var e in manifests) total += e.Length > 0 ? e.Length : (File.Exists(e.SourceUnc) ? new FileInfo(e.SourceUnc).Length : 0);
+            progress.SetTotals(manifests.Count, total);
+        }
 
         var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
         var partial = new ConcurrentBag<string>();
@@ -221,14 +230,33 @@ public sealed class StorageGatewayModule
                             if (d.Length == entry.Length && d.LastWriteTimeUtc == mtime)
                             {
                                 Interlocked.Increment(ref successCount);
+                                progress?.AddBytes(d.Length);
+                                progress?.FileDone();
                                 return;
                             }
                         }
 
-                        partial.Add(destPath);
-                        File.Copy(entry.SourceUnc, destPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
+                        // ⭐ CE-4330 ① (Recording Storage §3 P4) — the copy lands as <name>.part and is renamed when whole: a file under
+                        //   its real name is always complete (a cut transfer leaves only a .part, which the cancel / the next pull removes).
+                        var partPath = destPath + Fdp.Toolkit.Orchestration.ArchiveManifest.PartSuffix;
+                        partial.Add(partPath);
+                        try
+                        {
+                            if (progress == null) File.Copy(entry.SourceUnc, partPath, overwrite: true);
+                            else CopyCounted(entry.SourceUnc, partPath, progress, ct);
+                            File.Move(partPath, destPath, overwrite: true);
+                        }
+                        catch
+                        {
+                            try { File.Delete(partPath); } catch { /* best-effort */ }
+                            throw;
+                        }
                         Interlocked.Increment(ref successCount);
+                        progress?.FileDone();
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        throw;   // the cancel path below removes every .part
                     }
                     catch (Exception)
                     {
@@ -246,6 +274,41 @@ public sealed class StorageGatewayModule
         }
 
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
+    }
+
+    /// <summary>⭐ CE-4330 ⑤ (Q5) — the whole archive's rate while a Live runs (it gives way); measured against the live frame and DDS latency (design §10).</summary>
+    public const long GiveWayBytesPerSecond = 20L * 1024 * 1024;
+
+    private const int CopyChunkBytes = 1024 * 1024;
+
+    /// <summary>
+    /// ⭐ CE-4330 ② / ⑤ — a copy in chunks that counts its bytes into <paramref name="progress"/> and, while it gives way, holds this thread to its share
+    /// of <see cref="GiveWayBytesPerSecond"/> (the copies run <see cref="MaxParallelCopies"/> at a time). Keeps the source's write time, as
+    /// <see cref="File.Copy(string, string, bool)"/> does — the C1 freshness skip compares it.
+    /// </summary>
+    internal static void CopyCounted(string source, string dest, Fdp.Toolkit.Orchestration.StorageTransferProgress progress, CancellationToken ct)
+    {
+        var buffer = new byte[CopyChunkBytes];
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        long sinceMark = 0;
+        using (var src = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, CopyChunkBytes))
+        using (var dst = new FileStream(dest, FileMode.Create, FileAccess.Write, FileShare.None, CopyChunkBytes))
+        {
+            int read;
+            while ((read = src.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                ct.ThrowIfCancellationRequested();
+                dst.Write(buffer, 0, read);
+                progress.AddBytes(read);
+                sinceMark += read;
+                if (!progress.GiveWay) { sinceMark = 0; clock.Restart(); continue; }
+                double allowedSeconds = sinceMark / (double)(GiveWayBytesPerSecond / MaxParallelCopies);
+                double ahead = allowedSeconds - clock.Elapsed.TotalSeconds;
+                if (ahead > 0) ct.WaitHandle.WaitOne(TimeSpan.FromSeconds(ahead));
+            }
+        }
+        ct.ThrowIfCancellationRequested();
+        File.SetLastWriteTimeUtc(dest, File.GetLastWriteTimeUtc(source));
     }
 
     /// <summary>
@@ -706,11 +769,13 @@ public sealed class StorageGatewayModule
     /// and delivers each to the node-specific <see cref="NodeDistributionTarget.DestinationPath"/>.
     /// Each node receives <c>&lt;nasBasePath&gt;/&lt;exerciseId&gt;/node_&lt;nodeId&gt;.fdp</c>.
     /// </summary>
+    /// <param name="progress">⭐ CE-4330 ② — one "file" per node delivered (its recording and sidecar), the bytes of the recordings.</param>
     public async Task<GatewayResult> PrefetchArchiveAsync(
         string exerciseId,
         IReadOnlyList<NodeDistributionTarget> targets,
         string nasBasePath,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Fdp.Toolkit.Orchestration.StorageTransferProgress? progress = null)
     {
         if (string.IsNullOrWhiteSpace(exerciseId))     throw new ArgumentNullException(nameof(exerciseId));
         if (targets == null)                         throw new ArgumentNullException(nameof(targets));
@@ -735,11 +800,32 @@ public sealed class StorageGatewayModule
                 items, ct);
         }).ToList();
 
-        int successCount = 0, failureCount = 0;
-        foreach (var status in await Task.WhenAll(pushes).ConfigureAwait(false))
+        if (progress != null)
         {
+            long bytes = 0;
+            foreach (var target in targets)
+            {
+                var src = Path.Combine(sourceDir, OrchestrationConstants.GetNodeRecordingFileName(target.NodeId));
+                if (File.Exists(src)) bytes += new FileInfo(src).Length;
+            }
+            progress.SetTotals(targets.Count, bytes);
+        }
+
+        int successCount = 0, failureCount = 0;
+        for (int i = 0; i < pushes.Count; i++)
+        {
+            var status = await pushes[i].ConfigureAwait(false);
             if (status.FilesFailed > 0) failureCount++;
-            else successCount++;
+            else
+            {
+                successCount++;
+                if (progress != null)
+                {
+                    var src = Path.Combine(sourceDir, OrchestrationConstants.GetNodeRecordingFileName(targets[i].NodeId));
+                    if (File.Exists(src)) progress.AddBytes(new FileInfo(src).Length);
+                    progress.FileDone();
+                }
+            }
         }
 
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
@@ -792,7 +878,8 @@ public sealed class StorageGatewayModule
 
     /// <summary>
     /// Returns the names of subdirectories under <paramref name="nasRoot"/> that
-    /// contain at least one <c>*.fdp</c> file. Represents exercises archived to NAS.
+    /// contain at least one <c>*.fdp</c> file AND a complete manifest (<see cref="Fdp.Toolkit.Orchestration.ArchiveManifest"/>, CE-4330 ①).
+    /// Represents exercises archived to NAS.
     /// Returns an empty list if <paramref name="nasRoot"/> does not exist.
     /// </summary>
     public IReadOnlyList<ExerciseInventoryItem> ScanNasExercises(string nasRoot)
@@ -808,6 +895,8 @@ public sealed class StorageGatewayModule
         {
             if (Directory.GetFiles(d, "*.fdp", fdpMatch).Length == 0) continue;
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
+            // ⭐ CE-4330 ① (§3 P4) — ARCHIVED only with its manifest written and every listed file whole; anything else is INCOMPLETE (not listed here)
+            if (!Fdp.Toolkit.Orchestration.ArchiveManifest.Read(d).Complete) continue;
 
             DateTime startTime = Directory.GetCreationTimeUtc(d);
             TimeSpan duration = TimeSpan.Zero;

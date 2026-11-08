@@ -202,6 +202,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ <c>CE-3329</c> — the replay's SESSION LAYER as the master last published it (inactive outside a replay).</summary>
         public ReplaySession ReplaySession { get; private set; } = ReplaySession.None(Guid.Empty);
 
+        /// <summary>⭐ CE-4330 ③ fact ① — the cluster's storage jobs (every station's status bar): the master's list as its last <see cref="StorageJobsUpdateEvent"/> said; empty before one.</summary>
+        public StorageJob[] StorageJobs { get; private set; } = Array.Empty<StorageJob>();
+
         // ── op outcomes ───────────────────────────────────────────────────────
 
         /// <summary>
@@ -235,6 +238,7 @@ namespace Fdp.Toolkit.Orchestration
             DrainInSync();
             DrainInventory();
             DrainReplaySession();
+            DrainStorageJobs();
             DrainOpOutcomes();
         }
 
@@ -299,6 +303,12 @@ namespace Fdp.Toolkit.Orchestration
         {
             foreach (var ev in _bus!.ReadManaged<ReplaySessionUpdateEvent>())
                 if (ev.Session != null) ReplaySession = ev.Session;   // TransientLocal, KeepLast 1: the newest is the session
+        }
+
+        private void DrainStorageJobs()
+        {
+            foreach (var ev in _bus!.ReadManaged<StorageJobsUpdateEvent>())
+                StorageJobs = ev.Jobs ?? Array.Empty<StorageJob>();   // TransientLocal, KeepLast 1: the newest list is the list
         }
 
         private void DrainOpOutcomes()

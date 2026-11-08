@@ -171,7 +171,13 @@ public record ManageEpisodePayloadDto(
 /// <summary>Payload DTO for <c>ClusterOpType.ExportArchive</c> / <c>ImportArchive</c> DDS requests.</summary>
 public record ArchivePayloadDto(
     [property: JsonPropertyName("ExerciseId")]
-    Guid          ExerciseId
+    Guid          ExerciseId,
+    // ⭐ CE-4330 ② — who asked (a station name), shown on the storage job; absent from an older sender ⇒ null
+    [property: JsonPropertyName("AskedBy")]
+    string?       AskedBy = null,
+    // ⭐ CE-4330 ⑦ (R-4174) — on DeleteExercise: the ARCHIVED exercise (its NAS folder), not the unarchived recording on the nodes
+    [property: JsonPropertyName("FromArchive")]
+    bool          FromArchive = false
 );
 
 /// <summary>

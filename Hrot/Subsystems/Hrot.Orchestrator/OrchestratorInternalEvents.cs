@@ -98,6 +98,8 @@ internal struct ExportArchiveBegunEvent
     public Guid ArchiveRequestId;
     /// <summary>Cancellation token source for the NAS pull; also stored in ClusterMaster._activeCancellations.</summary>
     public System.Threading.CancellationTokenSource Cts;
+    /// <summary>⭐ CE-4330 ② — the job's counters the pull writes (files, bytes) and the master's give-way word it reads.</summary>
+    public Fdp.Toolkit.Orchestration.StorageTransferProgress? Progress;
 }
 
 /// <summary>
@@ -144,4 +146,6 @@ internal struct ImportArchiveBegunEvent
     public System.Collections.Generic.List<NodeDistributionTarget> Targets;
     /// <summary>Cancellation token source; also stored in ClusterMaster._activeCancellations.</summary>
     public System.Threading.CancellationTokenSource Cts;
+    /// <summary>⭐ CE-4330 ② — the job's counters the push writes, and the master's give-way word.</summary>
+    public Fdp.Toolkit.Orchestration.StorageTransferProgress? Progress;
 }
