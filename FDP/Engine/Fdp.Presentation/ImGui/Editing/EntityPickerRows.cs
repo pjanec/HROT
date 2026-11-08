@@ -26,21 +26,16 @@ public sealed class EntityPickerRows
         public bool HasFrom;
     }
 
-    private sealed class ByReference : IEqualityComparer<string[]>
-    {
-        public static readonly ByReference Instance = new();
-        public bool Equals(string[]? a, string[]? b) => ReferenceEquals(a, b);
-        public int GetHashCode(string[] a) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(a);
-    }
-
     private readonly RowSet _all = new();
-    private readonly Dictionary<string[], RowSet> _byPresets = new(ByReference.Instance);
+    private readonly PresetSetCache<RowSet> _byPresets = new();   // one list per DISTINCT preset set (by content — a document rebuild's new arrays share it)
+
+    /// <summary>How many distinct preset sets hold a row list (a rail: it does not grow per document rebuild).</summary>
+    public int RowSetCount => _byPresets.Count;
 
     private RowSet SetOf(string[]? presets)
     {
         if (presets == null || presets.Length == 0) return _all;
-        if (!_byPresets.TryGetValue(presets, out var set)) _byPresets[presets] = set = new RowSet();
-        return set;
+        return _byPresets.Of(presets);
     }
 
     /// <summary>The rows' version (the field rebuilds its filter when it moves) — of the unfiltered list.</summary>

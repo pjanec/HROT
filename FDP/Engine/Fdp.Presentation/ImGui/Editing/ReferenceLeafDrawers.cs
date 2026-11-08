@@ -424,9 +424,14 @@ public static class ReferenceLeafDrawers
         return changed && !readOnly;
     }
 
-    private static string[]? Presets(EditNode node)
-        => node.Metadata.CustomAttributes.OfType<Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute>().FirstOrDefault() is { FilterPresets.Length: > 0 } a
-            ? a.FilterPresets : null;
+    /// <summary>The field's <c>[MapPickableEntity]</c> presets (null = none). ⭐ Called every frame per entity chip: an index loop, no LINQ (R-2084).</summary>
+    public static string[]? Presets(EditNode node)
+    {
+        var attrs = node.Metadata.CustomAttributes;
+        for (int i = 0; i < attrs.Count; i++)
+            if (attrs[i] is Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute { FilterPresets.Length: > 0 } a) return a.FilterPresets;
+        return null;
+    }
 
     // ── EntityRef (internal, unchanged behaviour) ────────────────────────────────────────────────────────────────────────────
 

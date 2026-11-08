@@ -93,6 +93,35 @@ public sealed class EntityChipTests : IDisposable
         Assert.True(scope.Admits(a.R.NetworkId, onlyType7) && !scope.Admits(b.R.NetworkId, onlyType7) && !scope.Admits(c.R.NetworkId, onlyType7));
     }
 
+    /// <summary>⭐ CE-3399 follow-up (Y-8) — a field's preset lookup runs EVERY frame (an index loop, no LINQ: 0 B), and a document REBUILD (new attribute instances = new arrays with the SAME presets) does not grow the per-preset caches: N rebuilds ⇒ one admitted set, one row list.
+    /// 🔴 Red-proof (compiles): the caches keyed by array reference again ⇒ the counts read N ⇒ red; <c>Presets</c> back on LINQ ⇒ the allocation assert fails.</summary>
+    [Fact]
+    public void ThePresetLookup_AllocatesNothing_AndDocumentRebuildsDoNotGrowThePerPresetCaches()
+    {
+        var a = Spawn("Alpha road", ForceId.Friend, Vector3.Zero); _repo.AddComponent(a.E, new TkbIdentity { TkbType = new TkbTypeId(7) });
+        var scope = new LiveRefScope(_repo, () => 0);
+        var rows = new EntityPickerRows();
+        var node = new StructEdit.Core.EditNode(new StructEdit.Core.EditNodeId(1), "F", "$.F", StructEdit.Core.EditNodeKind.Scalar, typeof(EntityRef), null, null,
+            new StructEdit.Core.EditNodeMetadata { CustomAttributes = new Attribute[] { new Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute("tkb:7") } });
+        Assert.Equal(new[] { "tkb:7" }, ReferenceLeafDrawers.Presets(node));
+        for (int i = 0; i < 20; i++) ReferenceLeafDrawers.Presets(node);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++) ReferenceLeafDrawers.Presets(node);
+        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());                      // R-2084: every frame, every chip
+
+        for (int rebuild = 0; rebuild < 25; rebuild++)                                      // a document rebuild: a NEW attribute, a NEW array, the same presets
+        {
+            var fresh = new Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute("tkb:7").FilterPresets!;
+            Assert.Single(rows.Rows(scope, null, fresh));
+        }
+        Assert.Equal(1, scope.AdmissionSetCount);
+        Assert.Equal(1, rows.RowSetCount);
+        var other = new[] { "tkb:9" };
+        rows.Rows(scope, null, other);
+        Assert.Equal(2, scope.AdmissionSetCount);                                           // a DIFFERENT preset set is a second one
+        Assert.Equal(2, rows.RowSetCount);
+    }
+
     [Fact]
     public void AGoneEntity_ReadsGoneWithItsId_ALiveOneAndNoneDoNot()
     {
