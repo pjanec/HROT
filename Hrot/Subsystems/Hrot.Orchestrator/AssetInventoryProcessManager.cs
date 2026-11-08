@@ -166,15 +166,16 @@ public sealed class AssetInventoryProcessManager
             if (ev.StatusCode == OrchestrationStatusCode.Success &&
                 _pendingExports.TryGetValue(ev.RequestId, out var exerciseId))
             {
-                if (_unarchivedLedger.TryGetValue(exerciseId, out var ledgerEntry))
-                {
-                    WriteExerciseSidecar(exerciseId, ledgerEntry);
-                    ArchiveScenario(exerciseId, ledgerEntry);
-                }
+                _pendingExports.Remove(ev.RequestId);
+                _unarchivedLedger.TryGetValue(exerciseId, out var ledgerEntry);
+                // ⭐ CE-4330 ① (§3 P4) — the scenario copy FIRST, the manifest (the sidecar, listing every pulled file) LAST: an archive cut anywhere
+                //   before it stays INCOMPLETE on the NAS. ⛔ The ledger entry goes only once the manifest is written — else the exercise stays
+                //   "on the nodes" and its archive can be resumed (⑧).
+                if (ledgerEntry != null) ArchiveScenario(exerciseId, ledgerEntry);
+                if (!WriteExerciseSidecar(exerciseId, ledgerEntry, (ev.ResultPayload as ArchivePullResult)?.Files)) continue;
 
                 _unarchivedLedger.Remove(exerciseId);
                 DeleteLedgerEntry(exerciseId);
-                _pendingExports.Remove(ev.RequestId);
             }
         }
 
@@ -428,35 +429,50 @@ public sealed class AssetInventoryProcessManager
     /// lifecycle. The exercise dir uses <c>exerciseId.ToString()</c> to match <c>ReferenceArchiveHandler</c>'s
     /// NAS layout, so the sidecar lands in the same directory as the archived recordings.
     /// </summary>
-    private void WriteExerciseSidecar(Guid exerciseId, RecordingLedgerEntry entry)
+    /// <remarks>
+    /// ⭐ CE-4330 ① — the sidecar IS the archive's manifest: it lists <paramref name="files"/> (<see cref="ArchiveManifest.SetFiles"/>) and is written
+    /// whole (<see cref="ArchiveManifest.WriteWhole"/>), LAST. With no ledger entry (an exercise archived again) an existing sidecar keeps its facts and
+    /// only gains the list. <paramref name="files"/> null (a completion that carries no pull — older callers) writes the pre-CE-4330 shape.
+    /// Returns false when nothing could be written (the archive stays INCOMPLETE).
+    /// </remarks>
+    private bool WriteExerciseSidecar(Guid exerciseId, RecordingLedgerEntry? entry, IReadOnlyList<ArchivedFile>? files)
     {
         try
         {
             var dir = Path.Combine(
                 _nasBasePath, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString());
             Directory.CreateDirectory(dir);
-
-            var dto = new GlobalContextDto
-            {
-                StartWallTicks      = entry.StartTimeUtc.Ticks,
-                SceneId             = string.Empty,
-                ScenarioId          = entry.ScenarioId ?? string.Empty,
-                ScenarioTimeSeconds = entry.Duration.TotalSeconds,
-            };
+            var path = Path.Combine(dir, ArchiveManifest.SidecarFileName);
 
             var opts = FdpJsonOptionsRegistry.Indented;
-            var dom  = JsonSerializer.SerializeToNode(dto, opts)!.AsObject();
-            JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.OrchestratorContext, 2));
-            File.WriteAllText(Path.Combine(dir, "Orchestrator.json"), dom.ToJsonString(opts));
+            JsonObject dom;
+            if (entry == null && File.Exists(path) && JsonNode.Parse(File.ReadAllText(path)) is JsonObject existing)
+                dom = existing;
+            else
+            {
+                var dto = new GlobalContextDto
+                {
+                    StartWallTicks      = entry?.StartTimeUtc.Ticks ?? 0,
+                    SceneId             = string.Empty,
+                    ScenarioId          = entry?.ScenarioId ?? string.Empty,
+                    ScenarioTimeSeconds = entry?.Duration.TotalSeconds ?? 0,
+                };
+                dom = JsonSerializer.SerializeToNode(dto, opts)!.AsObject();
+                JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.OrchestratorContext, 2));
+            }
+            if (files != null) ArchiveManifest.SetFiles(dom, files);
+            ArchiveManifest.WriteWhole(path, dom.ToJsonString(opts));
 
             FdpLog<AssetInventoryProcessManager>.Info(
-                "[AssetInventory] wrote exercise sidecar for {0} (scenarioId='{1}', duration={2:F1}s).",
-                exerciseId, dto.ScenarioId, dto.ScenarioTimeSeconds);
+                "[AssetInventory] wrote exercise manifest for {0} ({1} file(s), scenarioId='{2}').",
+                exerciseId, files?.Count ?? -1, entry?.ScenarioId ?? "");
+            return true;
         }
         catch (Exception ex)
         {
             FdpLog<AssetInventoryProcessManager>.Warn(
-                "[AssetInventory] failed to write exercise sidecar for {0}: {1}", exerciseId, ex.Message);
+                "[AssetInventory] failed to write exercise manifest for {0}: {1} — the archive stays incomplete.", exerciseId, ex.Message);
+            return false;
         }
     }
 }

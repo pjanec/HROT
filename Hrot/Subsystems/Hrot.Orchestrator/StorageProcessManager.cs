@@ -154,8 +154,9 @@ public sealed class StorageProcessManager
                         {
                             _bus.PublishManaged(new ClusterOpCompletedEvent
                             {
-                                RequestId  = archRequestId,
-                                StatusCode = OrchestrationStatusCode.Success,
+                                RequestId     = archRequestId,
+                                StatusCode    = OrchestrationStatusCode.Success,
+                                ResultPayload = PulledFiles(manifest),   // ⭐ CE-4330 ① — the manifest written LAST lists these (AssetInventoryProcessManager)
                             });
                         }
                         else
@@ -390,6 +391,21 @@ public sealed class StorageProcessManager
         try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { FdpLog<StorageProcessManager>.Warn("[StorageProcessManager] could not delete the autosave of '{0}': {1}", scenarioName, ex.Message); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ① — the files a full archive pull put on the NAS, by name inside the exercise folder, each with the size it has THERE (the bytes the
+    /// manifest vouches for).
+    /// </summary>
+    internal ArchivePullResult PulledFiles(List<FileManifestEntry> manifest)
+    {
+        var files = new List<ArchivedFile>(manifest.Count);
+        foreach (var entry in manifest)
+        {
+            var path = Path.Combine(_nasBasePath, entry.RelativeDest);
+            if (File.Exists(path)) files.Add(new ArchivedFile(Path.GetFileName(path), new FileInfo(path).Length));
+        }
+        return new ArchivePullResult(files);
     }
 
     /// <summary>Parses the node id from a per-node slice RelativeDest (<c>.../.slices/node_&lt;id&gt;.json</c>).</summary>

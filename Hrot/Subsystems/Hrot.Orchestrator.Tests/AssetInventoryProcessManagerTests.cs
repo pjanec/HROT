@@ -69,11 +69,12 @@ public sealed class AssetInventoryProcessManagerTests
             bus.SwapBuffers();
             manager.Tick();
 
-            // Act 2: the export completes — the production completion signal that drives the re-home.
+            // Act 2: the export completes — the production completion signal that drives the re-home, carrying what the pull put on the NAS (CE-4330 ①).
             bus.PublishManaged(new ClusterOpCompletedEvent
             {
-                RequestId  = requestId,
-                StatusCode = OrchestrationStatusCode.Success,
+                RequestId     = requestId,
+                StatusCode    = OrchestrationStatusCode.Success,
+                ResultPayload = new ArchivePullResult(new[] { new ArchivedFile("rec_node_400.fdp", "fdp-bytes".Length) }),
             });
             bus.SwapBuffers();
             manager.Tick();
@@ -88,7 +89,11 @@ public sealed class AssetInventoryProcessManagerTests
                 Assert.True(root.TryGetProperty("$meta", out var meta), "$meta envelope must be present");
                 Assert.Equal("Hrot.OrchestratorContext", meta.GetProperty("docType").GetString());
                 Assert.Equal(scenarioId, root.GetProperty("scenarioId").GetString());
+                // ⭐ CE-4330 ① — the sidecar is the manifest: every pulled file with its size
+                var listed = Assert.Single(root.GetProperty(ArchiveManifest.FilesProperty).EnumerateArray());
+                Assert.Equal(("rec_node_400.fdp", 9L), (listed.GetProperty("name").GetString(), listed.GetProperty("size").GetInt64()));
             }
+            Assert.False(File.Exists(sidecar + ArchiveManifest.PartSuffix), "the manifest is written whole — no .part left");
 
             // Assert: ScanNasExercises reads it back with the restored scenarioId + duration.
             var scanned = gateway.ScanNasExercises(
@@ -644,6 +649,7 @@ public sealed class AssetInventoryProcessManagerTests
                 Directory.CreateDirectory(dir);
                 File.WriteAllText(Path.Combine(dir, $"{node}.fdp"), "fdp");
                 File.WriteAllText(Path.Combine(dir, $"{node}.fdp.meta.json"), Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Serialize(m));
+                File.WriteAllText(Path.Combine(dir, ArchiveManifest.SidecarFileName), "{}");   // ⭐ CE-4330 ① — an archive the scan lists has its manifest (a pre-CE-4330 one: no file list)
             }
             Write(branched, "node_1", meta);
             Write(branched, "node_2", new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata
@@ -1037,5 +1043,90 @@ public sealed class AssetInventoryProcessManagerTests
             Assert.False(Prefetch("Recipes/demo-city").IsSuccess, "the old reserved prefix is not a recipe name any more");
         }
         finally { Cleanup(nasRoot, staging); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4330 ① (📄 docs/DESIGN_Recording_Storage.md §3 P4) — an exercise on the NAS is ARCHIVED only when its manifest is there AND every file it
+    /// lists is whole: no manifest, a listed file missing, a listed file of another size ⇒ INCOMPLETE, not listed. A pre-CE-4330 sidecar (no list) stays archived.
+    /// 🔴 Mutation: the scan's manifest check removed ⇒ the three incomplete exercises are listed ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_TheNasScanListsAnExerciseOnlyWithACompleteManifest()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "fdp_ce4330a_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Guid Exercise(string? manifest, params (string Name, string Body)[] files)
+            {
+                var id = Guid.NewGuid();
+                var dir = Path.Combine(root, id.ToString());
+                Directory.CreateDirectory(dir);
+                foreach (var (name, body) in files) File.WriteAllText(Path.Combine(dir, name), body);
+                if (manifest != null) File.WriteAllText(Path.Combine(dir, ArchiveManifest.SidecarFileName), manifest);
+                return id;
+            }
+            const string twoFiles = "{\"archiveFiles\":[{\"name\":\"node_1.fdp\",\"size\":3},{\"name\":\"node_2.fdp\",\"size\":3}]}";
+            var complete   = Exercise(twoFiles, ("node_1.fdp", "aaa"), ("node_2.fdp", "bbb"));
+            var legacy     = Exercise("{}", ("node_1.fdp", "aaa"));
+            var noManifest = Exercise(null, ("node_1.fdp", "aaa"), ("node_2.fdp", "bbb"));
+            var missing    = Exercise(twoFiles, ("node_1.fdp", "aaa"), ("node_2.fdp.part", "b"));
+            var shorter    = Exercise(twoFiles, ("node_1.fdp", "aaa"), ("node_2.fdp", "b"));
+
+            var listed = new StorageGatewayModule().ScanNasExercises(root).Select(e => (Guid)e.ExerciseId).ToHashSet();
+
+            Assert.Equal(new HashSet<Guid> { complete, legacy }, listed);
+            Assert.Equal(new ArchiveManifest.Status(true, false, 2, 1), ArchiveManifest.Read(Path.Combine(root, missing.ToString())));   // "1 of 2" — what ③ reports
+            Assert.False(ArchiveManifest.Read(Path.Combine(root, noManifest.ToString())).HasManifest);
+            Assert.False(ArchiveManifest.Read(Path.Combine(root, shorter.ToString())).Complete);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ① — the ledger entry (the exercise "on the nodes") goes ONLY once the manifest is written: a manifest that cannot be written leaves the
+    /// exercise unarchived, so its archive can be taken again (⑧) — ⛔ never an exercise that is neither on the nodes' list nor archived.
+    /// 🔴 Mutation: evicting the ledger whatever the manifest write returned ⇒ the exercise drops out of the unarchived list ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_AManifestThatCannotBeWritten_KeepsTheExerciseOnTheNodesList()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce4330b_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce4330b_stg_" + Guid.NewGuid().ToString("N"));
+        const int nodeId = 400;
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            var ledgerDir = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), "recording_ledger");
+            Directory.CreateDirectory(ledgerDir);
+            File.WriteAllText(Path.Combine(ledgerDir, $"{exerciseId}.json"),
+                JsonSerializer.Serialize(new RecordingLedgerEntry((Fdp.Core.ExerciseId)(exerciseId), "s", DateTime.UtcNow, TimeSpan.FromSeconds(5)), FdpJsonOptionsRegistry.Indented));
+            var nasExerciseDir = Path.Combine(nasRoot, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString());
+            Directory.CreateDirectory(Path.Combine(nasExerciseDir, ArchiveManifest.SidecarFileName));   // a DIRECTORY where the manifest goes ⇒ the write fails
+
+            var bus = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, nodeId, scanInterval: TimeSpan.Zero);
+            var requestId = Guid.NewGuid();
+            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
+            bus.SwapBuffers();
+            manager.Tick();
+            bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = requestId, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new ArchivePullResult(Array.Empty<ArchivedFile>()) });
+            bus.SwapBuffers();
+            manager.Tick();
+            bus.SwapBuffers();
+
+            Assert.True(File.Exists(Path.Combine(ledgerDir, $"{exerciseId}.json")), "the ledger file stays");
+            AssetInventoryUpdateEvent? inventory = null;
+            foreach (var ev in bus.ReadManaged<AssetInventoryUpdateEvent>()) inventory = ev;
+            Assert.NotNull(inventory);
+            Assert.Contains(inventory!.Value.UnarchivedLocalExercises, e => e.ExerciseId == exerciseId);
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
     }
 }

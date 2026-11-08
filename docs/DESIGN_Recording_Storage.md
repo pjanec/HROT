@@ -439,5 +439,11 @@ with a file on a node of another id replays correctly and greys *Go Live*.
 and the import copies `node_<recorded>.fdp` to each chosen node under its own file name · ③ the AAR start names every unplaced file and every node
 that listens, asking only when something is unplaced · ④ the import reads its failure count · ⑤ a rail per row of the case table · ⑥ node ids granted inside a range per kind, the previous id first (§9b); *Go Live* refused when a recorded id has no node.
 
+## 10. ⭐ As built — CE-4330 *(backend, `2026-11-08`)*
+
+| item | as built | where |
+|---|---|---|
+| **① complete = manifest LAST** (P4) | ⭐ the manifest **is the sidecar** `Orchestrator.json` (P4's own words): it gains `archiveFiles: [{name, size}]` and is written whole (`.part` → rename) AFTER the scenario copy — the order of the two was reversed. Each pulled file lands as `<name>.part` and is renamed when whole. The NAS scan lists an exercise only when `ArchiveManifest.Read(dir).Complete` (manifest there + every listed file at its size). ⚠ A sidecar with NO list (an archive from before CE-4330, written only after a full pull) counts as complete. ⭐ The ledger entry (the exercise "on the nodes") is dropped only once the manifest is written — a failed write keeps it, so the archive can be taken again (⑧) | `ArchiveManifest.cs` (the ONE rule) · `StorageGatewayModule.PullToNasAsync` / `ScanNasExercises` · `StorageProcessManager.PulledFiles` · `AssetInventoryProcessManager.WriteExerciseSidecar` · rails `CE4330_*` in `AssetInventoryProcessManagerTests` |
+
 ---
 _coordinator lane, 2026-11-08_

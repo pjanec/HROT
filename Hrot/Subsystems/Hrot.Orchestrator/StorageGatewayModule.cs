@@ -225,9 +225,20 @@ public sealed class StorageGatewayModule
                             }
                         }
 
-                        partial.Add(destPath);
-                        File.Copy(entry.SourceUnc, destPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
+                        // ⭐ CE-4330 ① (Recording Storage §3 P4) — the copy lands as <name>.part and is renamed when whole: a file under
+                        //   its real name is always complete (a cut transfer leaves only a .part, which the cancel / the next pull removes).
+                        var partPath = destPath + Fdp.Toolkit.Orchestration.ArchiveManifest.PartSuffix;
+                        partial.Add(partPath);
+                        try
+                        {
+                            File.Copy(entry.SourceUnc, partPath, overwrite: true);
+                            File.Move(partPath, destPath, overwrite: true);
+                        }
+                        catch
+                        {
+                            try { File.Delete(partPath); } catch { /* best-effort */ }
+                            throw;
+                        }
                         Interlocked.Increment(ref successCount);
                     }
                     catch (Exception)
@@ -792,7 +803,8 @@ public sealed class StorageGatewayModule
 
     /// <summary>
     /// Returns the names of subdirectories under <paramref name="nasRoot"/> that
-    /// contain at least one <c>*.fdp</c> file. Represents exercises archived to NAS.
+    /// contain at least one <c>*.fdp</c> file AND a complete manifest (<see cref="Fdp.Toolkit.Orchestration.ArchiveManifest"/>, CE-4330 ①).
+    /// Represents exercises archived to NAS.
     /// Returns an empty list if <paramref name="nasRoot"/> does not exist.
     /// </summary>
     public IReadOnlyList<ExerciseInventoryItem> ScanNasExercises(string nasRoot)
@@ -808,6 +820,8 @@ public sealed class StorageGatewayModule
         {
             if (Directory.GetFiles(d, "*.fdp", fdpMatch).Length == 0) continue;
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
+            // ⭐ CE-4330 ① (§3 P4) — ARCHIVED only with its manifest written and every listed file whole; anything else is INCOMPLETE (not listed here)
+            if (!Fdp.Toolkit.Orchestration.ArchiveManifest.Read(d).Complete) continue;
 
             DateTime startTime = Directory.GetCreationTimeUtc(d);
             TimeSpan duration = TimeSpan.Zero;
