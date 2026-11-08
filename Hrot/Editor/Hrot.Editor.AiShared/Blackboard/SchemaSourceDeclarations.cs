@@ -19,10 +19,11 @@ public interface IRetypableSource { void RetypeVariable(string name, string type
 /// (<see cref="IVariablesSchemaSource"/>): every edit is a forwarded call, so the source's own validation, refusals and undo history stay the single owner. ⛔ No schema logic lives here beyond the shared
 /// name check (<see cref="BlackboardNameValidator.ValidateRename"/> — moved out of the old table, not copied).
 /// </summary>
-public sealed class SchemaSourceDeclarations : IFieldDeclarations
+public class SchemaSourceDeclarations : IFieldDeclarations
 {
     private readonly IVariablesSchemaSource _src;
     private readonly Func<string, Type?> _resolve;
+    private readonly bool _hideAutoManaged;
     private int _own;
     private string? _refusal;
     private IReadOnlyList<VariableViewModel>? _lastList;
@@ -30,8 +31,10 @@ public sealed class SchemaSourceDeclarations : IFieldDeclarations
 
     /// <param name="source">The declarations.</param>
     /// <param name="resolveType">The host's type id → CLR type (null ⇒ unknown); used to turn a picked id into the entry a source's <c>AddVariable</c> takes.</param>
-    public SchemaSourceDeclarations(IVariablesSchemaSource source, Func<string, Type?> resolveType)
+    /// <param name="hideAutoManaged">⭐ CE-3401 — leave the rows a node allocates for itself (<see cref="VariableViewModel.IsAutoManaged"/>) out of the table: the HOST lists them around it (§12a). A reorder is translated to the source's own indices.</param>
+    public SchemaSourceDeclarations(IVariablesSchemaSource source, Func<string, Type?> resolveType, bool hideAutoManaged = false)
     {
+        _hideAutoManaged = hideAutoManaged;
         _src = source ?? throw new ArgumentNullException(nameof(source));
         _resolve = resolveType ?? throw new ArgumentNullException(nameof(resolveType));
     }
@@ -42,9 +45,32 @@ public sealed class SchemaSourceDeclarations : IFieldDeclarations
         {
             var vars = _src.Variables;
             var rows = new List<FieldRow>(vars.Count);
-            foreach (var v in vars) rows.Add(new FieldRow(v.Name, v.TypeName, v.FieldType, v.DefaultValueJson, v.Comment, v.IsReadOnly, v.DefaultValueJson));
+            foreach (var v in vars)
+            {
+                if (_hideAutoManaged && v.IsAutoManaged) continue;
+                rows.Add(new FieldRow(v.Name, v.TypeName, v.FieldType, v.DefaultValueJson, v.Comment, v.IsReadOnly, v.DefaultValueJson, SubRowsOf(v)));
+            }
             return rows;
         }
+    }
+
+    private static IReadOnlyList<FieldSubRow>? SubRowsOf(VariableViewModel v)
+    {
+        if (v.ParamsFields is not { Count: > 0 } f) return null;
+        var l = new List<FieldSubRow>(f.Count);
+        foreach (var x in f) l.Add(new FieldSubRow(x.Name, x.TypeName, x.ValueJson, x.IsOverridden));
+        return l;
+    }
+
+    /// <summary>The source's index of the <paramref name="shown"/>-th row this table lists.</summary>
+    private int SourceIndex(int shown)
+    {
+        var vars = _src.Variables;
+        if (!_hideAutoManaged) return shown;
+        int seen = -1;
+        for (int i = 0; i < vars.Count; i++)
+            if (!vars[i].IsAutoManaged && ++seen == shown) return i;
+        return shown;
     }
 
     public int Version
@@ -75,7 +101,7 @@ public sealed class SchemaSourceDeclarations : IFieldDeclarations
         return Ok;
     }
 
-    public bool Rename(string name, string newName)
+    public virtual bool Rename(string name, string newName)
     {
         Begin();
         var names = new List<string>();
@@ -93,7 +119,7 @@ public sealed class SchemaSourceDeclarations : IFieldDeclarations
         return Ok;
     }
 
-    public bool Move(int from, int to) { Begin(); _src.MoveVariable(from, to); return Ok; }
+    public bool Move(int from, int to) { Begin(); _src.MoveVariable(SourceIndex(from), SourceIndex(to)); return Ok; }
 
     public bool Remove(string name) { Begin(); _src.RemoveVariable(name); return Ok; }
 

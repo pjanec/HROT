@@ -7,7 +7,9 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common.Components;
+using Fdp.Toolkit.Input;
 using Hrot.ScenarioEditor.Gizmos;
+using Hrot.ScenarioEditor.Map;
 // ⚠ Aliased, not imported: Fdp.Toolkit.Vis2D.Abstractions also declares MapKeyboardKey, which
 //   would make the Delete-key check ambiguous with the gizmo interaction one already in use.
 using SelectionChangeRequest = Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest;
@@ -36,6 +38,8 @@ public sealed class SelectionInteractionSystem
     private EntityRepository _world => _worldOf();
     private readonly FdpEventBus _interactionBus;
     private readonly RubberBandState? _rubberBandState;
+    /// <summary>⭐ B-10 K7 (§6b) — the MAP scope's gesture rows: WHICH selection effect a click has is declared in the keymap, not branched on here.</summary>
+    private readonly MapGestureRouter _gestures;
 
     /// ⭐⭐ UXI-11 S-1 -- the component writes live in ONE place now.
     /// ⛔ This system used to carry its own SetSelected/ClearAllSelections; EcsSelectionState carries
@@ -71,8 +75,9 @@ public sealed class SelectionInteractionSystem
         EntityRepository world,
         FdpEventBus interactionBus,
         RubberBandState? rubberBandState = null,
-        Hrot.ScenarioEditor.Selection.EcsSelectionState? selection = null)
-        : this(Fixed(world), interactionBus, rubberBandState, selection) { }
+        Hrot.ScenarioEditor.Selection.EcsSelectionState? selection = null,
+        MapGestureRouter? gestures = null)
+        : this(Fixed(world), interactionBus, rubberBandState, selection, gestures) { }
 
     private static Func<EntityRepository> Fixed(EntityRepository world)
     {
@@ -88,8 +93,10 @@ public sealed class SelectionInteractionSystem
         // ⭐⭐⭐ UXI-11 — the PACK's view. ⚠ Optional only for direct test construction; ⛔ in
         //   production MapInteractionPack always passes the one it built, so this system and the
         //   host write through the same object rather than two handles over one world.
-        Hrot.ScenarioEditor.Selection.EcsSelectionState? selection = null)
+        Hrot.ScenarioEditor.Selection.EcsSelectionState? selection = null,
+        MapGestureRouter? gestures = null)
     {
+        _gestures        = gestures ?? MapGestureRouter.Shared;   // ⭐ the process's map keymap — one declaration, not per-host state
         _worldOf         = world          ?? throw new ArgumentNullException(nameof(world));
         _interactionBus  = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
         _rubberBandState = rubberBandState;
@@ -115,6 +122,7 @@ public sealed class SelectionInteractionSystem
             //   part company. ⛔ Until the terminal tagged the button, a right-release and a left-press
             //   arrived as the same event and every press took the left branch below.
             bool isRight = (evt.Button & ButtonMask) == MapMouseButton.Right;
+            var button = isRight ? GestureButton.Right : GestureButton.Left;
 
             if (entity.IsNull)
             {
@@ -123,11 +131,14 @@ public sealed class SelectionInteractionSystem
                     // ⭐ A4 / R-4163 — right-click on empty space leaves the selection ALONE (its menu is the empty-space menu only:
                     //   measure, add entity here …). 🔒 "if there are entities selected and I right click the empty space, the menu should be for
                     //   the empty space only, not for the selection". ⛔ SUPERSEDED: §2.3 row 3 "right-click on empty space CLEARS".
-                    //   ⛔ It must not start a rubber band either: a band is a left-drag gesture.
+                    //   ⛔ It must not start a rubber band either: a band is a left-drag gesture. ⭐ K7: the map scope's row says so
+                    //   (map.menu.empty) — there is nothing to do here, the terminal opens the menu.
                     continue;
                 }
 
-                // Empty-space press: begin rubber-band selection.
+                // Empty-space press: begin rubber-band selection — ⭐ K7: when the map scope binds a left DRAG on ground to the band.
+                var drag = new MapGesture(button, GestureKind.Drag, ModifiersOf(evt.Button), GestureTarget.Ground);
+                if (!_gestures.ResolveMap(in drag, out var bandRow) || !MapGestureIds.Is(bandRow, MapGestureIds.Band)) continue;
                 _isBoxSelecting = true;
                 _boxStart   = new Vector2(evt.WorldPos.X, evt.WorldPos.Y);
                 _boxCurrent = _boxStart;
@@ -144,20 +155,21 @@ public sealed class SelectionInteractionSystem
             }
             else if (_world.IsAlive(entity))
             {
-                // ⭐⭐⭐ UXI-11 S-4b — §2.3 row 1: a right-click INSIDE the selection leaves it alone.
-                // 🔒 Ruled 2026-08-12, and it is load-bearing rather than cosmetic: the 2026-09-10
-                //    fan-out ruling ("a menu opened on a selection affects all selected") is impossible
-                //    if the gesture that opens the menu destroys the multi-selection.
-                // ⛔ NOT applied to a left-press, and that asymmetry is the whole reason the button had
-                //    to be carried: a left-click on a member of a five-selection must still narrow it to
-                //    that one. §2.3 exempts the right-click only.
-                // ⚠ Right-click on an entity OUTSIDE the selection still replaces — it deselects the
-                //   others, exactly as a left-click would. Only the inside case is exempt.
-                if (isRight && _selection.IsSelected(entity))
+                // ⭐⭐⭐ UXI-11 S-4b — §2.3's rows are BUTTON-SPECIFIC, so this is where the two gestures
+                //   part company. ⭐ B-10 K7 — and TARGET-specific: the map scope declares them (MapGestureBindings):
+                //   map.menu.selection = a right-click INSIDE the selection leaves it alone — 🔒 ruled 2026-08-12, load-bearing: the 2026-09-10
+                //   fan-out ruling ("a menu opened on a selection affects all selected") is impossible if the gesture that opens the menu
+                //   destroys the multi-selection. ⛔ NOT applied to a left-press (map.select): a left-click on a member of a five-selection
+                //   must still narrow it to that one. ⚠ A right-click OUTSIDE the selection (map.menu.entity) still replaces it.
+                var target = _selection.IsSelected(entity) ? GestureTarget.Selected : GestureTarget.Entity;
+                var gesture = new MapGesture(button, GestureKind.Click, ModifiersOf(evt.Button), target);
+                if (!_gestures.ResolveMap(in gesture, out var row)) continue;   // unbound ⇒ not ours
+                if (MapGestureIds.Is(row, MapGestureIds.MenuSelection))
                 {
                     OnSelectionChanged?.Invoke(entity, evt.WorldPos);
                     continue;
                 }
+                if (!MapGestureIds.Is(row, MapGestureIds.Select) && !MapGestureIds.Is(row, MapGestureIds.MenuEntity)) continue;   // the menu / band rows are not selection effects
 
                 // ⭐⭐⭐ UXI-11 S-4 — A MAP CLICK IS A REQUEST NOW, like every other surface.
                 // 🔴 This closes a defect S-3 introduced: the hand-syncs that pointed each host's
@@ -273,8 +285,7 @@ public sealed class SelectionInteractionSystem
         if (dx < 2f && dy < 2f)
         {
             // Tiny drag: treat as deselect-all click.
-            Request(SelectionChangeRequest.ClearAll("Map.EmptyClick"));
-            OnSelectionChanged?.Invoke(Entity.Null, new Vector3(_boxStart.X, _boxStart.Y, 0f));
+            EmptyClick();
             return;
         }
 
@@ -311,8 +322,7 @@ public sealed class SelectionInteractionSystem
         var a = band.ScreenStart; var b = band.ScreenCurrent;
         if (Math.Abs(a.X - b.X) < ScreenClickPixels && Math.Abs(a.Y - b.Y) < ScreenClickPixels)
         {
-            Request(SelectionChangeRequest.ClearAll("Map.EmptyClick"));
-            OnSelectionChanged?.Invoke(Entity.Null, new Vector3(_boxStart.X, _boxStart.Y, 0f));
+            EmptyClick();
             return;
         }
         var min = Vector2.Min(a, b); var max = Vector2.Max(a, b);
@@ -325,6 +335,21 @@ public sealed class SelectionInteractionSystem
         }
         Request(SelectionChangeRequest.ReplaceWith(inBox, "Map.RubberBand"));
     }
+
+    /// <summary>⭐ B-10 K7 — a click on empty ground: cleared when the map scope's left click on ground is <c>map.clear</c> (R-4163).</summary>
+    private void EmptyClick()
+    {
+        var click = new MapGesture(GestureButton.Left, GestureKind.Click, GestureModifiers.None, GestureTarget.Ground);
+        if (!_gestures.ResolveMap(in click, out var row) || !MapGestureIds.Is(row, MapGestureIds.Clear)) return;
+        Request(SelectionChangeRequest.ClearAll("Map.EmptyClick"));
+        OnSelectionChanged?.Invoke(Entity.Null, new Vector3(_boxStart.X, _boxStart.Y, 0f));
+    }
+
+    /// <summary>The modifiers the terminal packed into the button's high bits (<see cref="MapMouseButton.ShiftMask"/> …).</summary>
+    private static GestureModifiers ModifiersOf(MapMouseButton button)
+        => ((button & MapMouseButton.ShiftMask) != 0 ? GestureModifiers.Shift : 0)
+         | ((button & MapMouseButton.CtrlMask) != 0 ? GestureModifiers.Ctrl : 0)
+         | ((button & MapMouseButton.AltMask) != 0 ? GestureModifiers.Alt : 0);
 
     /// <summary>⭐ CE-1136 — a 3-D drag smaller than this (px, both ways) is a click.</summary>
     public const float ScreenClickPixels = 4f;

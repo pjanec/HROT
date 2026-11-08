@@ -90,6 +90,28 @@ namespace Fdp.Toolkit.Vis3D
         /// design's words; ⏭ the HatArbiter (seats-and-hats H3) makes it a declared hat scope.
         /// </summary>
         public bool IsFlying => _looking;
+
+        /// <summary>
+        /// ⭐ B-10 K2 (§6, R-4169) — the CAMERA SCOPE, in front of the map scope: the keys this camera reads this frame, so a map letter on the same key
+        /// must not fire. A driver says which (<see cref="ICameraDriver.OwnsKey"/>); the free camera owns W A S D E Q while it flies (the right
+        /// button held). ⛔ Every other key falls through — the camera overrides only what it uses.
+        /// </summary>
+        /// <summary>
+        /// ⭐ B-10 K3 (§6c) — whether Esc is the CAMERA's this press: false while an armed tool holds it (one level out — a tool inside the hat first). Set by the host
+        /// that knows its tools; null = always (a standalone camera).
+        /// </summary>
+        public Func<bool>? EscapeFree { get; set; }
+
+        /// <summary>Whether a driver may take Esc this press (see <see cref="EscapeFree"/>).</summary>
+        public bool EscapeIsFree => EscapeFree?.Invoke() ?? true;
+
+        public bool OwnsKey(MapKeyboardKey key)
+        {
+            if (_driver != null) return _driver.OwnsKey(key);
+            if (!_looking) return false;
+            return key == (MapKeyboardKey)KeyboardKey.W || key == (MapKeyboardKey)KeyboardKey.A || key == (MapKeyboardKey)KeyboardKey.S
+                || key == (MapKeyboardKey)KeyboardKey.D || key == (MapKeyboardKey)KeyboardKey.E || key == (MapKeyboardKey)KeyboardKey.Q;
+        }
         private float _wheelTravel;                  // ⭐ CE-1072 — metres of eye travel along the view the wheel still owes (+ = in)
         private Vector3 _flyVelocity;               // ⭐ CE-1072 — the eased W/A/S/D velocity (m/s)
         private float _flyHeld;                     // ⭐ CE-1142 — seconds a move key has been held (the acceleration)

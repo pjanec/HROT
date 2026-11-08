@@ -18,6 +18,9 @@ public sealed class StartRecentRows
 {
     public const int MaxRows = 5;
     public const string NeverRun = "never run";
+    /// <summary>⭐ Storyboard ⑧ — a run that ENDED within this long highlights its row (the one just played), with the hint under the list.</summary>
+    public static readonly TimeSpan JustRunWindow = TimeSpan.FromMinutes(15);
+    public const string JustRunHint = " > AAR = the replay of the latest run, at its start";
     public const string NeedsAuthorSeat = "editing needs an author seat";
     public const string NoSession = "No scenario session on this host";
 
@@ -84,6 +87,7 @@ public sealed class StartRecentRows
         var rows = new List<StartSurfaceWindow.StartRecentRow>();
         var door = _choice.Door;
         var now = _now();
+        int justRunAt = -1; DateTime newestEnd = DateTime.MinValue;   // the row whose latest run ended last, if that was just now (storyboard ⑧)
         for (int r = 0; r < recent.Count && rows.Count < MaxRows; r++)
         {
             string? name = null;   // the key → the scenario's name: the inventory's names, each through the ONE key function
@@ -104,8 +108,14 @@ public sealed class StartRecentRows
                 noDoor ?? (author ? null : NeedsAuthorSeat), new IconGlyph(Icons.Get("mode/edit").Glyph, IconPalette.Pending));
             var aar = new StartSurfaceWindow.StartButton("AAR", door is not null && exercise is not null, () => door!.OpenRecording(exercise!.Value),
                 noDoor ?? (exercise is null ? NeverRun : null), new IconGlyph(Icons.Get("mode/replay").Glyph, IconPalette.Blue));
+            if (latest is { } ran)
+            {
+                var end = ran.StartTimeUtc + ran.Duration;
+                if (now - end < JustRunWindow && end > newestEnd) { newestEnd = end; justRunAt = rows.Count; }
+            }
             rows.Add(new StartSurfaceWindow.StartRecentRow(name, sub, live, edit, aar));
         }
+        if (justRunAt >= 0) rows[justRunAt] = rows[justRunAt] with { JustRun = true, Hint = rows[justRunAt].Name + JustRunHint };
         return rows;
     }
 

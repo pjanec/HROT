@@ -14,6 +14,8 @@ public static class EditUndoCommands
     public const string UndoId = "edit.undo";
     public const string RedoId = "edit.redo";
     public const string RedoAltId = "edit.redoAlt";
+    /// <summary>⭐ U5 — <i>Edit ▸ History…</i>: opens the list of steps.</summary>
+    public const string HistoryId = "edit.history";
 
     /// <summary>The reason shown outside Edit mode.</summary>
     public const string OnlyInEdit = "only in Edit mode";
@@ -25,8 +27,11 @@ public static class EditUndoCommands
          : can ? $"{verb} {step}"
          : $"{verb} {step} (no longer available)";
 
-    /// <summary>Registers the three commands.</summary>
-    public static void Register(Action<EditorCommandDescriptor, Action<EditorCommandContext>> register, Hrot.Presentation.Edits.EditHistory history, Func<bool> inEdit)
+    /// <summary>The label of the History item: <c>History…</c>, <c>History… (only in Edit mode)</c>.</summary>
+    public static string HistoryLabel(bool inEdit) => inEdit ? "History…" : $"History… ({OnlyInEdit})";
+
+    /// <summary>Registers the commands: Undo, Redo, the Ctrl+Shift+Z alias and (⭐ U5, when <paramref name="showHistory"/> is given) <i>History…</i>.</summary>
+    public static void Register(Action<EditorCommandDescriptor, Action<EditorCommandContext>> register, Hrot.Presentation.Edits.EditHistory history, Func<bool> inEdit, Action? showHistory = null)
     {
         ArgumentNullException.ThrowIfNull(register);
         ArgumentNullException.ThrowIfNull(history);
@@ -45,5 +50,10 @@ public static class EditUndoCommands
                      new KeyBinding(EditorKey.Z, KeyModifiers.Ctrl | KeyModifiers.Shift),
                      IsEnabled: () => inEdit() && history.CanRedo),
                  _ => { if (inEdit()) history.Redo(); });
+        if (showHistory != null)
+            register(new EditorCommandDescriptor(HistoryId, "History…", "Edit", "List the steps of this session and go back (or forward) to any of them", null, null,
+                         IsEnabled: inEdit,
+                         DynamicDisplayName: () => HistoryLabel(inEdit())),
+                     _ => { if (inEdit()) showHistory(); });
     }
 }

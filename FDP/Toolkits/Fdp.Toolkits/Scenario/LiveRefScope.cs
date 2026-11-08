@@ -42,6 +42,15 @@ namespace Fdp.Toolkit.Scenario
         private readonly Dictionary<int, ForceId> _sideOf = new();   // ⭐ N-5 (DESIGN_Struct_Editor §5) — the picker's side column
         private readonly HashSet<int> _ids = new();                   // ⭐ N-5 — every live network id: a link to one not here is GONE
         private readonly List<int> _named = new();                    // ⭐ N-5 — the picker's rows: named entities, by name
+        private readonly Dictionary<int, long> _tkbOf = new();         // ⭐ CE-3399 (Y-8) — each id's TKB type (the <c>tkb:&lt;type&gt;</c> preset)
+        private readonly Dictionary<int, Entity> _entityOf = new();   // ⭐ CE-3399 (Y-8) — id → entity, for the host's layer filter (built at the rebuild)
+        private readonly PresetSetCache<Admission> _admitted = new();   // ⭐ CE-3399 (Y-8) — one admitted-id set per DISTINCT preset set (by content: a document rebuild's new arrays share it), rebuilt when the scope is
+        private sealed class Admission { public int Generation = -1; public readonly HashSet<int> Ids = new(); }
+        /// <summary>How many distinct preset sets the scope holds an admitted set for (a rail: it does not grow per document rebuild).</summary>
+        public int AdmissionSetCount => _admitted.Count;
+
+        /// <summary>⭐ CE-3399 (Y-8) — the host's LAYER filter (<c>[MapPickableEntity("road_graphs")]</c> names map layers): given the layer presets, the predicate the map pick uses; null = those presets do not narrow. The scope knows the TKB-type presets itself.</summary>
+        public Func<EntityRepository, string[], Func<Entity, bool>?>? LayerFilter { get; set; }
 
         private bool _built;
         private int _count, _maxIndex;
@@ -104,7 +113,7 @@ namespace Fdp.Toolkit.Scenario
         private void Rebuild()
         {
             _byGuid.Clear(); _byKey.Clear(); _duplicateKeys.Clear(); _keyCounts.Clear();
-            _guidOf.Clear(); _keyOf.Clear(); _nameOf.Clear(); _positions.Clear(); _kindOf.Clear(); _chipOf.Clear(); _sideOf.Clear(); _ids.Clear(); _named.Clear();
+            _guidOf.Clear(); _keyOf.Clear(); _nameOf.Clear(); _positions.Clear(); _kindOf.Clear(); _chipOf.Clear(); _sideOf.Clear(); _ids.Clear(); _named.Clear(); _tkbOf.Clear(); _entityOf.Clear();
             Rebuilds++;
 
             if (_world.IsComponentTypeRegistered<NetworkIdentity>())
@@ -113,12 +122,15 @@ namespace Fdp.Toolkit.Scenario
                 bool hasKey = _world.IsComponentTypeRegistered<RefKey>();
                 bool hasInfo = _world.IsComponentTypeRegistered<EntityInfo>();
                 bool hasPos = _world.IsComponentTypeRegistered<SimTransform>();
+                bool hasTkb = _world.IsComponentTypeRegistered<TkbIdentity>();
                 foreach (var e in _world.Query().With<NetworkIdentity>().Build())
                 {
                     int id = _world.GetComponent<NetworkIdentity>(e).Value;
                     if (id <= 0) continue;
                     var r = new EntityRef(id);
                     _ids.Add(id);
+                    _entityOf[id] = e;
+                    if (hasTkb && _world.HasComponent<TkbIdentity>(e)) _tkbOf[id] = _world.GetComponent<TkbIdentity>(e).TkbType.Value;
                     if (hasGuid && _world.HasComponent<EntityGuid>(e) && _world.GetComponent<EntityGuid>(e).Value is { } g && g != Guid.Empty)
                     { _byGuid[g] = r; _guidOf[id] = g; }
                     if (hasKey && _world.HasComponent<RefKey>(e) && _world.GetComponent<RefKey>(e).Value.ToString() is { Length: > 0 } k)
@@ -241,6 +253,45 @@ namespace Fdp.Toolkit.Scenario
         {
             Refresh();
             return _sideOf.TryGetValue(entity.NetworkId, out side);
+        }
+
+        /// <summary>⭐ CE-3399 (Y-8) — the <c>tkb:&lt;type&gt;</c> preset's type (0 = none) and the remaining LAYER presets (null when none): the ONE parse of a preset list.</summary>
+        public static int TkbTypeOf(string[]? presets, out string[]? layerPresets)
+        {
+            layerPresets = presets;
+            if (presets == null) return 0;
+            int type = 0, kept = 0;
+            var rest = new string[presets.Length];
+            foreach (var p in presets)
+            {
+                if (p.StartsWith("tkb:", StringComparison.OrdinalIgnoreCase) && int.TryParse(p.AsSpan(4), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int t) && t > 0) type = t;
+                else rest[kept++] = p;
+            }
+            if (type == 0) return 0;
+            layerPresets = kept == 0 ? null : rest[..kept];
+            return type;
+        }
+
+        /// <summary>⭐ CE-3399 (Y-8) — the entity is admitted by <paramref name="presets"/> (a field's <c>[MapPickableEntity]</c>): the TKB-type preset by the type indexed at the rebuild, the layer presets by the host's <see cref="LayerFilter"/> — the same filter the map pick uses.
+        /// Null / empty presets admit everything. One set per preset ARRAY (the attribute's own instance), rebuilt with the scope — 0 B on a steady frame.</summary>
+        public bool Admits(int id, string[]? presets)
+        {
+            if (presets == null || presets.Length == 0) return true;
+            Refresh();
+            var a = _admitted.Of(presets);
+            if (a.Generation != Rebuilds)
+            {
+                a.Generation = Rebuilds; a.Ids.Clear();
+                int onlyType = TkbTypeOf(presets, out var layers);
+                var layer = layers is { Length: > 0 } ? LayerFilter?.Invoke(_world, layers) : null;
+                foreach (int candidate in _ids)
+                {
+                    if (onlyType > 0 && (!_tkbOf.TryGetValue(candidate, out long t) || t != onlyType)) continue;
+                    if (layer != null && (!_entityOf.TryGetValue(candidate, out var e) || !layer(e))) continue;
+                    a.Ids.Add(candidate);
+                }
+            }
+            return a.Ids.Contains(id);
         }
 
         /// <summary>⭐ N-5 — the named entities' network ids, by name: the picker's rows (built at the rebuild, never per frame).</summary>

@@ -89,11 +89,14 @@ public sealed class PickerViewStore
                 PaneWidths = new Dictionary<string, float>(_paneWidths),
                 TileWidths = new Dictionary<string, float>(_tileWidths),
             },
-            new JsonSerializerOptions { WriteIndented = true });
+            Indented);
+
+    // ONE options instance (an external library with no Fdp.Core reference — exempted in OneSharedJsonOptionsTests); cached, never per call
+    private static readonly JsonSerializerOptions Indented = new JsonSerializerOptions { WriteIndented = true };
 
     private void ReadJson(string json)
     {
-        var dto = JsonSerializer.Deserialize<Dto>(json);
+        var dto = JsonSerializer.Deserialize<Dto>(json, Indented);
         if (dto is null) return;
         if (dto.Layouts is not null)
             foreach (var (k, v) in dto.Layouts)

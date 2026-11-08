@@ -152,7 +152,7 @@ already lands in today.*
 | Save: the floppy / the flag / greyed, one reason | the shell's Save slot (`ShellSaveCommands`, `shell/save` icon), `IScenarioSession.SaveDisabledReason` |
 | ✅ **AS-BUILT `2026-11-08` (backend, CE-3407)** — the ONE reason | `SaveRefusal.Of(ClusterView)` (`Hrot.Editor.AiShared/Scenarios/SaveRefusal.cs`: cluster error, then any state but `OperatingEdit` — constant texts, 0 B per read) before the variant gate, in `EditorScenarioSession.SaveDisabledReason`; File › Save / Save As / **Save as Recipe** read it. ⚠ Deviation: `SaveAs` / `SaveCurrent` keep ONLY the variant backstop — *New from a recipe* calls `SaveAs` the moment its open went out, while the cluster may still be Idle (the master orders the save after the load); the cluster half gates the surfaces. A view that never followed a cluster state refuses nothing |
 | ~~the empty exercise dropped~~ ⛔ SUPERSEDED as to WHERE | ~~`ClusterMaster` (exercise end without the clock advancing)~~ |
-| ✅ **AS-BUILT `2026-11-08` (backend, CE-3410)** — the empty exercise dropped | `AssetInventoryProcessManager` (not the master: the inventory LISTS only its ledger, and writes the entry when the cluster leaves Live): `ClockAdvancing` (`OrchestratorCore`: `TimeReads.GetCurrentState().IsAdvancing`) sampled every Live frame; a run left with no advancing frame writes NO ledger entry and its files go through the one deleter (`Discard`, shared with D15's `DeleteExercise`). A run RESUMED from DAR already holds an entry ⇒ never dropped |
+| ✅ **AS-BUILT `2026-11-08` (backend, CE-3410)** — the empty exercise dropped | `AssetInventoryProcessManager` (not the master: the inventory LISTS only its ledger, and writes the entry when the cluster leaves Live): ~~`ClockAdvancing` (`IsAdvancing`)~~ ⛔ SUPERSEDED the same day — the master's time reads always say `DeltaTime` 0 (ui's editor rails went red) ⇒ `SimSeconds` (`TotalTime`) RISING between two Live frames; ⭐ a BRANCHED run (a parent exercise) is never dropped — its recording holds the parent's history up to the branch point (CE-4104). A run left with no rise writes NO ledger entry and its files go through the one deleter (`Discard`, shared with D15's `DeleteExercise`). A run RESUMED from DAR already holds an entry ⇒ never dropped |
 | `POST /run-mode {armed}` switches (same unsaved rule, 409 + the question unless `confirm:true`); `GET /status.armedMode` = the current mode; MCP catalog + skill regenerated | `DebugApiHost` / `DebugApiService.SetRunMode` |
 | the cluster's armed-mode fact (D12a, R-3068) stays — it is what a LOAD goes into (R-1043); the indicator switch now sets it AND loads | `ClusterMaster.ArmedMode` |
 
@@ -197,7 +197,7 @@ Rails: `CE3409_PlayWearsTheIndicatorsColour`, `ColourIconsFrameRail.L11_PlayWear
 
 | what | where | note |
 |---|---|---|
-| ONE button, ONE slot (`shell.save`): floppy in Edit (greyed + reason tooltip when not saveable, and in a Preview) · amber FLAG in Live / DAR / AAR = take a checkpoint (greyed with `CheckpointDisabledReason`; an AAR keeps *a recording cannot take a checkpoint…*) | `ShellSaveCommands.Register(runChoice:)` · `RunModeChoice.SaveSlotDisabledReason` / `SaveSlotTakesCheckpoint` · new `EditorCommandDescriptor.DynamicGlyph` drawn by `ToolbarCommandAdapter` | editor and CGF pass their run choice; hosts with none keep today's slot |
+| ONE button, ONE slot (`shell.save`): floppy in Edit (greyed + reason tooltip when not saveable, and in a Preview) · amber FLAG in Live / DAR / AAR = take a checkpoint (greyed with `CheckpointDisabledReason`; an AAR: ~~*a recording cannot take a checkpoint…*~~ ⭐ Z-1 (R-4168): *a recording already holds every moment — use Go live from here*) | `ShellSaveCommands.Register(runChoice:)` · `RunModeChoice.SaveSlotDisabledReason` / `SaveSlotTakesCheckpoint` · new `EditorCommandDescriptor.DynamicGlyph` drawn by `ToolbarCommandAdapter` | editor and CGF pass their run choice; hosts with none keep today's slot |
 | pen, slot and File ▸ Save read ONE answer | `IRunScenarioControl.SaveDisabledReason` ← `EditorScenarioSession.SaveDisabledReason` | rail asserts pen colour + slot reason agree |
 | Ctrl+S in a run still checkpoints (the save intercept) | unchanged | ⚠ a GREYED slot also greys Ctrl+S: in an AAR the *"No checkpoint: …"* toast no longer shows (the slot's tooltip carries the reason) |
 
@@ -235,7 +235,7 @@ Rails: `ThePlayersSummaryOpensAtTheEndTests` (4) · `TheRulesBundleTests.L2_TheP
 | ind | Edit HOVERED | ✔ lighter button + frame + tooltip (mouse driven on the real frame) |
 | ind | Live briefing · running · not recorded | ✔ ● red / green, ■ and ⏪ dim in the briefing. Deviation kept: not-recorded Live greys the Save flag (picture: amber) — a checkpoint needs a recording (R-5) |
 | ind | Live ENDED | **fixed**: ■ is ⏏ = FA right-from-bracket, light (was a green eject triangle); ▶ greyed, ⏪ amber ✔ |
-| ind | DAR · AAR | **fixed**: DAR's ⏏ is the same glyph; ✔ rest. Deviation kept: AAR flag greyed (picture amber) — a recording cannot take a checkpoint (R-5). Tooltip omits *exercise N* (no number on the wire) |
+| ind | DAR · AAR | **fixed**: DAR's ⏏ is the same glyph; ✔ rest. AAR flag greyed (picture amber) — ✅ ruled by R-4168 (no checkpoints in AAR or an unrecorded Live); tooltip *a recording already holds every moment — use Go live from here* (Z-1). Tooltip omits *exercise N* (no number on the wire) |
 | story ② | Edit menu | **fixed**: Edit pen · Live ● (red / green) · AAR ▶ glyphs. Run to … / Close are asserted by their own rails (this rig has no controller / door) |
 | story ③ ④ | briefing · running toolbars | ✔ (= ind rows) |
 | story ⑤ | *End the exercise?* | **fixed**: text as pictured; buttons **End the exercise / Keep running** — the house last button (Esc / ✕) now carries the worded label (`WithCancel(cancelLabel)`). Deviation kept: modal sits under the toolbar, not centred |
@@ -1647,7 +1647,31 @@ sequenceDiagram
 
 **Cost (asked by the review):** one capture per node per interval — ≈30 ms (`uc-urban-battle` 6.8 MiB keyframe, Debug; §4a measured capture ≈33 ms) every 2 min = one frame hitch per node per interval, ONLY while editing (the clock is stopped). The JSON extraction and the write run on the worker. ⛔ Never in Live, Preview or AAR — no autosave runs outside `OperatingEdit` (A1).
 
-`build-state` for §4c: **READY-TO-BUILD, gated on A0** (the review accepted A0–A7; A8 added at its request).
+`build-state` for §4c: ⛔ **BLOCKED — A0 FAILED as designed (measured `2026-11-08`); an amendment that holds is measured and awaits the user** (QUESTION: [NOTE_Backend_To_Coordinator_CE4099_A0_Failed](batches/NOTE_Backend_To_Coordinator_CE4099_A0_Failed.md)). ⛔ HISTORY: *READY-TO-BUILD, gated on A0 (the review accepted A0–A7; A8 added at its request).*
+
+#### 4c.1 ⛔ A0 MEASURED (`2026-11-08`, backend) — the designed gate FAILS; the amended one HOLDS
+
+📐 Rail `TheWorldChangeCheckOnTheEditorTests.CE4099_A0_ASaveOfAKeyframeSandbox_IsByteIdenticalToTheLiveSave` (Editor.Tests): each scenario loaded into a real
+headless editor; `ScenarioSaveCore.BuildDom` on the live world vs on a sandbox repo (the live world's types registered) rebuilt by `WorldKeyframes.Apply`.
+
+| capture | `uc-urban-battle` (682) | `pc-defend-house` (160) | `showcase-bridgehead` (147) |
+|---|---|---|---|
+| ⛔ **as designed** — Recording types, singletons ON | DIFFERS: header (`TerrainName`, `Description` null) + every door written | same | header (`Description`, `Features`) + `VariantForms` Presence×6 / Positions×2 lost |
+| All types, singletons ON | header + doors | header + doors | header |
+| All types + the header built on the FRAME thread | doors only (`TerrainObjects` section: every door) | doors only | ✅ identical |
+| ⭐ **All types + header on the frame + CONTENT singletons shared by reference** | ✅ identical (112 103 B; capture 22 ms) | ✅ identical (77 070 B) | ✅ identical (94 204 B) |
+
+| why it fails | measured |
+|---|---|
+| the header reads `ScenarioDescriptionResident` / the resident terrain name — **NoReplay content singletons** a keyframe never carries, singletons ON or not | `ScenarioSaveCore.HeaderOf` → `ScenarioDescription.HeaderOf` / `TerrainDefinition.ResidentName` |
+| the doors section skips a door *"as authored"* by comparing with `TerrainWorld` (NoReplay content) — absent ⇒ every door is written | `TerrainObjectsSection.Write:45` |
+| the Recording type set drops NoReplay **saved** components (`VariantForms`) | the design's capture choice |
+| ⚠ the worker half (A4): the serializer holds no mutable state (fields readonly; `FdpAutoSerializer.Build` only at construction), BUT its translators read `BehaviorRegistry` (plain `Dictionary`s) which a behaviour **hot reload** writes on the frame thread | `BehaviorRegistry.cs:369-407`; `AiHotReloadCoordinator` |
+
+⭐ **The amendment (lean):** capture `KeyframeTypes.All` with singletons; build the header on the frame thread with the capture (it reads singletons only — µs);
+hand the sandbox the live world's read-only CONTENT singletons (`TerrainWorld`, …) by reference; and skip / defer an autosave while a hot reload is pending
+(or extract on the frame thread when one ran since the capture).
+
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
 

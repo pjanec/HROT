@@ -339,6 +339,8 @@ namespace Hrot.Editor.DebugApi
             string[] hats = { "Edit", "Command", "Embodied", "Observe", "Direct" };
             var hat = Array.Find(hats, h => string.Equals(h, raw, StringComparison.OrdinalIgnoreCase));
             if (hat is null) return (null, $"Unknown hat '{raw}'. One of: {string.Join(", ", hats)}.");
+            // ⭐ Seats H6 — the SAME refusal a person's station sees: a seat wears only the hats it allows (§2.2)
+            if (Hrot.Common.Editing.SeatHats.Refusal(_sessionSeat ?? Hrot.Common.Infrastructure.Seat.Author, Enum.Parse<Hrot.Common.Editing.Hat>(hat)) is { } why) return (null, why + " (the hat " + hat + ")");
             _sessionHat = hat;
             return (SessionJson(), null);
         }

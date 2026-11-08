@@ -32,7 +32,11 @@ namespace Hrot.ScenarioEditor.Map
         public bool Directing { get; set; }
 
         /// <summary>The hat now: Embodied &gt; Direct &gt; Command (RTS armed, running) &gt; Edit (Edit mode) &gt; Observe.</summary>
-        public Hat Active => Derive(Embodied, Directing, MapUiStates.RtsOf(_world)?.Armed == true, StationMode.Of(_world));
+        public Hat Active => Clamp(StationMode.SeatOf(_world), Derive(Embodied, Directing, MapUiStates.RtsOf(_world)?.Armed == true, StationMode.Of(_world)));
+
+        /// <summary>⭐ Seats H6 (§2.2 "hats allowed") — a hat the SEAT may not wear falls to Observe, the home hat: a Side controller never wears Edit or Embodied, an Observer only Observe,
+        /// an Instructor not Edit. ⭐ ONE table (<see cref="SeatHats"/>), the same the menu, the catalogue and the HTTP session read.</summary>
+        public static Hat Clamp(Hrot.Common.Infrastructure.Seat seat, Hat hat) => SeatHats.Allows(seat, hat) ? hat : Hat.Observe;
 
         /// <summary>The ONE precedence (§3.3).</summary>
         public static Hat Derive(bool embodied, bool directing, bool rtsArmed, EditingMode mode)
@@ -51,6 +55,13 @@ namespace Hrot.ScenarioEditor.Map
             Hat.Direct => "Direct",
             _ => "Observe",
         };
+
+        /// <summary>⭐ B-10 K3 — an armed modal tool (a pick, a placement, an edit — everything but the RTS command tool, which is the Command hat itself) holds Esc: the press is ITS level.</summary>
+        public bool ToolHoldsEscape => _tools.ActiveModal is { } top && top.Id != Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand;
+
+        /// <summary>⭐ B-10 K3 (📄 DESIGN_Input_And_Commands.md §6c) — who one Esc press on the map goes to NOW: <see cref="EscapeChain.Resolve"/> over this station's tool and hat.</summary>
+        /// <param name="cameraOwnsEscape">A camera driver that is not a hat (a follow) is on and hands the camera back on Esc.</param>
+        public EscapeLevel EscapeLevel(bool cameraOwnsEscape) => EscapeChain.Resolve(ToolHoldsEscape, cameraOwnsEscape, Active);
 
         /// <summary>The arbiter of <paramref name="world"/>'s map, or null (no map).</summary>
         public static HatArbiter? Of(EntityRepository? world) => MapUiStates.HatsOf(world);

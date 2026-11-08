@@ -188,6 +188,99 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal('A', (char)Assert.Single(bus.Read<Hrot.Common.Interactions.MapShortcutKeyEvent>().ToArray()).Key);
     }
 
+    private static (MenuShortcutKeyLayer layer, Fdp.Core.FdpEventBus bus, Fdp.Toolkit.Vis3D.MapCamera3D camera, Func<Hrot.Common.Editing.Hat> setHat) KeyLayer(Func<Hrot.Common.Editing.Hat>? hat = null)
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+        var camera = new Fdp.Toolkit.Vis3D.MapCamera3D { ViewportOverride = new Vector2(640, 480) };
+        return (new MenuShortcutKeyLayer(bus, () => camera, () => false, hat), bus, camera, hat!);
+    }
+
+    private static char[] Typed(Fdp.Core.FdpEventBus bus, MenuShortcutKeyLayer layer, params char[] keys)
+    {
+        foreach (var k in keys) layer.HandleKeyInput((Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey)k);
+        bus.SwapBuffers();
+        return bus.Read<Hrot.Common.Interactions.MapShortcutKeyEvent>().ToArray().Select(e => (char)e.Key).ToArray();
+    }
+
+    /// <summary>
+    /// ⭐⭐ B-10 K2 (docs/UX/DESIGN_Input_And_Commands.md §6, R-4169) — 🔒 user, 2026-11-08: <i>"Yes, letters stay on while following."</i> The map letters stand down only for a HAT that
+    /// owns the keyboard (Embodied, Direct — read from the HatArbiter, not from the camera), and a CAMERA scope in front of the map scope claims only the keys the camera reads: a follow
+    /// camera's W A S D Esc (they hand the camera back). Following a unit, Center fires; in first person nothing does.
+    /// 🔴 Red-proof (compiles): the layer standing down on <c>camera.Driver != null</c> (the K2 finding: ANY driver) instead of <c>OwnsKey</c> ⇒ Center is lost while following ⇒ red;
+    /// the hat check dropped ⇒ first person publishes ⇒ red.
+    /// </summary>
+    [Fact]
+    public void K2_FollowingAUnit_AMapLetterFires_InFirstPerson_NoneDoes()
+    {
+        var hat = Hrot.Common.Editing.Hat.Observe;
+        var (layer, bus, camera, _) = KeyLayer(() => hat);
+        Assert.Equal(new[] { 'C', 'M' }, Typed(bus, layer, 'C', 'M'));   // the free camera: everything fires
+
+        camera.Driver = new Hrot.UI.Common.Map3D.FollowCameraDriver(() => _w, _unit, bodies: null);
+        Assert.Equal(new[] { 'C', 'P', 'M' }, Typed(bus, layer, 'C', 'W', 'P', 'A', 'M'));   // following: Center, Possess, Move fire; W and A are the follow camera's own
+        Assert.Empty(Typed(bus, layer, (char)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.Escape));   // …and so is Esc (it lets go)
+
+        camera.Driver = null;
+        hat = Hrot.Common.Editing.Hat.Embodied;                              // first person: the hat owns the keyboard — even with no driver on the camera
+        Assert.Empty(Typed(bus, layer, 'C', 'W', 'M'));
+        hat = Hrot.Common.Editing.Hat.Direct;
+        Assert.Empty(Typed(bus, layer, 'C'));
+        hat = Hrot.Common.Editing.Hat.Command;                               // RTS declares no key of its own: the letters stay (Input §6b)
+        Assert.Equal(new[] { 'C', 'M' }, Typed(bus, layer, 'C', 'M'));
+        hat = Hrot.Common.Editing.Hat.Edit;
+        Assert.Equal(new[] { 'R' }, Typed(bus, layer, 'R'));
+    }
+
+    /// <summary>⭐ B-10 K2 — the camera scope claims ONLY what the camera reads: a flying free camera owns W A S D E Q, every other letter (Center, Move …) still fires while the right button is held.
+    /// 🔴 Red-proof (compiles): <c>OwnsKey</c> answering true for every key while flying (the pre-K2 blanket stand-down) ⇒ 'C' is lost ⇒ red.</summary>
+    [Fact]
+    public void K2_TheCameraScope_OverridesOnlyWhatTheFlyingCameraUses()
+    {
+        var (layer, bus, camera, _) = KeyLayer();
+        var rmb = new RightButton { Down = true };
+        camera.HandleInput(rmb);
+        camera.HandleInput(rmb);
+        Assert.True(camera.IsFlying);
+        Assert.Equal(new[] { 'C', 'M', 'H' }, Typed(bus, layer, 'W', 'A', 'S', 'D', 'E', 'Q', 'C', 'M', 'H'));
+    }
+
+    /// <summary>⭐ B-10 K2 (CE-4281) — the order letters are DECLARED, never derived from the order's name: every order of the vocabulary declares one, they are distinct, and none
+    /// collides with a letter the unit menu's other actions declare (P Possess, C Center, R Rotate, Space Select …). A new order without a letter is named here.
+    /// 🔴 Red-proof (compiles): <c>ObserveFire</c> declaring "A" ⇒ distinctness red; an order missing from the table ⇒ the first assertion names it.</summary>
+    [Fact]
+    public void K2_OrderLettersAreDeclaredAndDistinct()
+    {
+        var declared = Hrot.Common.Actions.MapMenuActions.OrderShortcuts;
+        foreach (var o in OrderMenu.Orders) Assert.True(declared.ContainsKey(o.Name), $"order '{o.Name}' declares no map letter (MapMenuActions.OrderShortcuts)");
+        Assert.Equal(declared.Count, declared.Values.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+
+        var catalogue = new Hrot.Common.Actions.ActionCatalogue();
+        Hrot.Common.Actions.MapMenuActions.DeclareInto(catalogue);
+        var unitLetters = catalogue.All.Where(d => d.Shortcut != null && (d.Targets & Hrot.Common.Actions.ActionTarget.Unit) != 0).Select(d => d.Shortcut!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var letter in declared.Values) Assert.DoesNotContain(letter, unitLetters);
+        Assert.Equal("M", Hrot.Common.Actions.MapMenuActions.OrderItem(OrderMenu.Orders.First(o => o.Name == "Move"), degraded: false, form: false)!.Shortcut);
+    }
+
+    /// <summary>
+    /// ⭐⭐ B-10 K6 (docs/UX/DESIGN_Input_And_Commands.md §6f) — the map's menu letters (declared on the actions, K2) and its mouse gestures (K7) are rows of the ONE process keymap, so the Keyboard shortcuts window
+    /// lists them: per target class (unit / area / zone / route) with the action's label, no letter bound twice for one class.
+    /// 🔴 Red-proof (compiles): <c>DeclareKeys</c> not called from <c>MapGestureBindings.Declare</c> ⇒ no letter rows ⇒ red; two actions declaring "E" for the unit ⇒ <c>Validate</c> names the conflict.
+    /// </summary>
+    [Fact]
+    public void K6_TheMapLettersAndGestures_AreRowsOfTheOneKeymap_WithoutAConflict()
+    {
+        var map = MapGestureRouter.Shared.Keymap;
+        Assert.Same(Fdp.Toolkit.Input.Keymap.Process, map);
+        var rows = new Fdp.Presentation.Input.ShortcutRows(map).Rows("");
+        void Has(string scope, string binding, string action) => Assert.Contains(rows, r => r.Scope == scope && r.Binding == binding && r.Action == action);
+        Has("Map · unit", "M", "Move"); Has("Map · unit", "A", "Attack"); Has("Map · unit", "P", "Possess (FPS)"); Has("Map · unit", "C", "Center View"); Has("Map · unit", "Ctrl+C", "Copy");
+        Has("Map · area", "E", "Edit Shape"); Has("Map · route", "E", "Edit Route");                      // the same letter, two target classes
+        Has("Map", "Right click on the ground", "Menu for empty space"); Has("Command hat", "Right click on the ground or a friendly", "RTS: move here");
+        Assert.DoesNotContain(map.Validate(), c => c.First.Scope == Fdp.Toolkit.Input.InputScope.Map);
+        Assert.Empty(map.ValidateGestures());
+    }
+
     private sealed class RightButton : Fdp.Toolkit.Vis2D.Abstractions.IInputProvider
     {
         public bool Down;

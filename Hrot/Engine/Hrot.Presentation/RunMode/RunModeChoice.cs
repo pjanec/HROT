@@ -394,10 +394,13 @@ public sealed class RunModeChoice
 
     // ── ⭐ AQ108 D8 — Save in a run is a checkpoint ───────────────────────────────────────────────────────────────────
 
+    /// <summary>⭐ Z-1 (R-4168) — why the checkpoint flag is greyed in an AAR: a recording has no checkpoints of its own; its moments are all there already.</summary>
+    public const string AarCheckpointReason = "a recording already holds every moment — use Go live from here";
+
     /// <summary>Why a checkpoint cannot be taken now (null = it can): a live run (or its DAR) that is recorded has a recorder to take it with; an AAR has none.</summary>
     public string? CheckpointDisabledReason
         => _control is null ? "This host has no scenario session"
-         : _transport.Mode == TransportMode.Replay ? "a recording cannot take a checkpoint — go live from a moment first"
+         : _transport.Mode == TransportMode.Replay ? AarCheckpointReason
          : _transport.Mode is TransportMode.Live or TransportMode.Review && !_transport.RecordsLiveRuns ? "this run was not recorded"
          : _transport.Mode is TransportMode.Live or TransportMode.Review ? null
          : "a checkpoint is taken of a live run";
@@ -587,7 +590,7 @@ public sealed class RunModeChoice
     public bool SaveSlotTakesCheckpoint => _transport.Mode is TransportMode.Live or TransportMode.Review or TransportMode.Replay;
 
     /// <summary>
-    /// Why the Save slot is greyed now (null = it can act): in a run the checkpoint's reason (<see cref="CheckpointDisabledReason"/> — an AAR: <i>a recording cannot take a checkpoint…</i>, an unrecorded run), else the scenario's —
+    /// Why the Save slot is greyed now (null = it can act): in a run the checkpoint's reason (<see cref="CheckpointDisabledReason"/> — an AAR: <see cref="AarCheckpointReason"/>, an unrecorded run), else the scenario's —
     /// <see cref="IRunScenarioControl.SaveDisabledReason"/>, the ONE answer the indicator's pen and File › Save read (a Preview: <i>a preview runs a copy of the edit world</i>). 0 B per read.
     /// </summary>
     public string? SaveSlotDisabledReason => SaveSlotTakesCheckpoint ? CheckpointDisabledReason : _control?.SaveDisabledReason;

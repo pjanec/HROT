@@ -9,7 +9,7 @@ namespace Hrot.Editor.AiShared.Blackboard;
 
 /// <summary>
 /// Builds the ordered, de-duplicated list of <see cref="VariableTypeChoice"/> offered by the
-/// Add-Variable dropdown in the Variables panel (<see cref="VariablesPanelControl"/>).
+/// Add-Variable dropdown in the Variables panel (<see cref="VariablesPanelHost"/>).
 /// <para>
 /// The choice set is the union of:
 /// </para>

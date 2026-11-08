@@ -59,7 +59,7 @@ public sealed class ParamsDefaultsModel
     /// OUTSIDE the form (an undo, another surface) — the form's own commit does not reopen it.</summary>
     public void Sync(Type? dto, string? overridesJson)
     {
-        if (dto == null || dto == typeof(object)) { Close(); return; }   // ⚠ an unresolved type id resolves to object
+        if (dto == null || dto == typeof(object)) { if (Session != null) Close(); return; }   // ⚠ an unresolved type id resolves to object. ⭐ R-2084 — already closed ⇒ nothing to do (Close allocates three JsonObjects, and this runs every frame)
         if (Session != null && dto == Type && string.Equals(overridesJson, _source, StringComparison.Ordinal)) return;
         Close();
         var effective = ParamsDefaults.Effective(dto, overridesJson);

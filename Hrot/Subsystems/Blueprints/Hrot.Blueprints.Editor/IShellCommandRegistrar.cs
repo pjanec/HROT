@@ -35,7 +35,4 @@ public interface IShellCommandRegistrar
 
     /// <summary>Bind <paramref name="onClicked"/> to a main-toolbar button labelled <paramref name="label"/>.</summary>
     void RegisterToolbarEntry(string label, Action onClicked);
-
-    /// <summary>Bind <paramref name="onTriggered"/> to a keybind (e.g. <c>"Ctrl+B"</c>).</summary>
-    void RegisterShortcut(string keybind, Action onTriggered);
 }

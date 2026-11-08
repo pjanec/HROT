@@ -273,3 +273,173 @@ applied only by the LOAD — `ScenarioParams.Prepare` + `ScenarioVariants.Apply`
 
 **The fallback (D)**, only where P2 says so: the autosave round (D23) turns the in-memory edit world (unsaved edits included) into scenario JSON,
 the load applies the preset to it, the Preview runs it, Stop rewinds. Slower, still with the edits.
+
+### 9a. ⭐ CE-4326 — the build (backend, `2026-11-08`) — `build-state: BUILT` (parts ① ② ③ — §9a.1 … §9a.3)
+
+**INVENTORY** *(`2026-11-08`: the graph index was stale — `search_graph` found no `VariantForms`; re-indexed in the background; ⚠ these rows are
+grep + reading, coverage unchecked)*: the load's variant decisions — `ScenarioVariants.Roll` / `Pick` / `ChoicesOf` / `PositionsOf`, composed inline in
+`ScenarioVariants.Apply` (JSON writer, `ScenarioVariants.cs:152`); the entity's roll key = its file key = its `EntityGuid` (`ScenarioSerializer.cs:474`,
+CE-4153); the authored forms on the entity = `VariantForms` (immutable, NoReplay); the ONE param binder = `ParamBinder` (`ParamBinding.cs`: JSON
+`ApplyBindings`, typed `Apply(object, IParamSource)`) and its JSON source `JsonParamSource` + `ScenarioParams.Prepare` (header defaults ▸ args); the
+Preview = `ReferencePreviewHandler` (keyframe on `LoadingPreview`, rewind on `UnloadingPreview`), reached by `PrepareState{LoadingPreview}` whose
+payload `EditLoadHandlerPayload` ALREADY carries `ScenarioArgsJson` (the master fills it for load steps only, `ClusterMaster.cs:1720`); the macro
+reconcile = `MacroExpansionSystem.MaybeReconcile` (re-expands a changed `MacroInstance` by GUID).
+
+```mermaid
+classDiagram
+  class ScenarioVariants {
+    <<existing, static>>
+    +Roll(variant, salt, key, what) double
+    +Pick(weights, variant, salt, key, what) int
+    +IsPresent(variant, salt, key, presence) bool  «NEW: extracted from Apply»
+    +Apply(JsonObject dom, variant, salt, here)  «JSON writer — calls IsPresent / Pick»
+  }
+  class PresetInPlace {
+    <<NEW, static, Fdp.Toolkit.Scenario>>
+    +Apply(EntityRepository world, string argsJson, IParamSource params) PresetInPlaceResult
+    -ApplyVariant(world, variant)  «world writer — calls IsPresent / Pick»
+    -ApplyParams(world, params)  «ParamBindings paths + typed binder on a COPY, replaced whole»
+  }
+  class VariantForms { <<existing>> Presence; PositionsJson; MacroChoicesJson }
+  class ParamBinder { <<existing>> Apply(object, IParamSource) ApplyBindings(JsonObject, IParamSource) }
+  class ReferencePreviewHandler {
+    <<existing>>
+    -LoadingPreviewCommit() «keyframe, THEN the preset applier when args»
+    +PresetApplier Action~EntityRepository,string~?  «NEW seam, set by the Hrot host»
+  }
+  class EditLoadHandlerPayload { <<existing>> ScenarioArgsJson }
+  PresetInPlace ..> ScenarioVariants : the SAME decisions (P1)
+  PresetInPlace ..> ParamBinder : the ONE binder
+  PresetInPlace ..> VariantForms : reads the authored forms
+  ReferencePreviewHandler ..> EditLoadHandlerPayload : reads args
+  ReferencePreviewHandler ..> PresetInPlace : via PresetApplier
+```
+*What the picture shows that prose hid: there is no second rule set — the JSON writer (`Apply`) and the world writer (`PresetInPlace`) are two
+WRITERS over one set of decision functions; the rail compares their worlds.*
+
+```mermaid
+sequenceDiagram
+  participant UI as ▶ Preview with preset P
+  participant M as ClusterMaster
+  participant H as ReferencePreviewHandler (every node)
+  participant W as edit world
+  UI->>M: TransitionStateIntent{OperatingPreview, ScenarioArgsJson = P's args}
+  M->>H: PrepareState{LoadingPreview, ScenarioArgsJson}
+  H->>W: WorldKeyframes.Capture (the rewind point — authored world + unsaved edits)
+  alt args present (not Default)
+    H->>W: PresetInPlace.Apply — destroy failed presence rolls, set chosen places / macros, write bound params
+  end
+  Note over W: the Preview runs (macro reconcile re-expands a changed one-of-N instance)
+  UI->>M: Stop
+  M->>H: PrepareState{UnloadingPreview}
+  H->>W: WorldKeyframes.Apply (rewind: the authored world back) + AfterRestore
+```
+*The apply sits AFTER the capture, so the rewind needs nothing new: destroyed entities, changed places and params all come back with the keyframe
+(P3: the id authority and the entity map are rewound by the same bracket — `_bracket` — as today).*
+
+```mermaid
+graph TD
+  subgraph FDP["Fdp.Toolkits (every node)"]
+    PIP[PresetInPlace]:::new --> SV[ScenarioVariants]
+    PIP --> PB[ParamBinder]
+    RPH[ReferencePreviewHandler] -->|PresetApplier seam| PIP
+  end
+  subgraph Host["each ECS host's composition (EcsHostClusterHandlers)"]
+    EHC[builds ReferencePreviewHandler] -->|sets PresetApplier = PresetInPlace.Apply| RPH
+  end
+  CM[ClusterMaster: LoadingPreview step carries ScenarioArgsJson]:::changed --> RPH
+  classDef new fill:#2d6,color:#000
+  classDef changed fill:#fd3,color:#000
+```
+*Who calls it each frame: nobody — it runs ONCE per Preview entry, inside the `LoadingPreview` commit, on every node the round reaches.*
+
+| decision | why |
+|---|---|
+| the applier lives in `Fdp.Toolkit.Scenario`, beside `ScenarioVariants` | P1 by construction: the decisions are `ScenarioVariants`' static functions; nothing in Hrot needs to know them |
+| default Preview = no args ⇒ the applier is not called | ⭐ zero extra cost (the user's "stay fast on default settings") |
+| params: `ParamBindings` paths written by the struct editor's path writer; a managed value bound by the typed binder is COPIED, bound, and replaced whole | ⛔ an in-place mutation of a managed component would rewrite the keyframe too (snapshots hold managed objects by reference — CLAUDE.md, managed components immutable) |
+| P2 (a param inside a macro's behaviour args reaching KEPT children) | measured when the params part is built; if the reconcile cannot carry it, such a preset names the fallback in the Preview note |
+
+⭐ Build order: ① the variant part + the flow (args reach every node's handler) — ② the params part — ③ P2. Each with its equality rail
+(*load with preset* = *in place on the authored world*).
+
+#### 9a.1 ✅ AS-BUILT part ① (`2026-11-08`) — the variant part and the flow
+
+| what | where |
+|---|---|
+| the shared decisions | `ScenarioVariants.IsPresent` (extracted from `Apply`) · `ScenarioParams.Resolve` (the param source + effective args, extracted from `Prepare`) — both now called by the load AND by `PresetInPlace` |
+| the world writer | `Fdp.Toolkit.Scenario.PresetInPlace.Apply(world, args)` → `Result{Removed, Placed, MacrosChosen, Refused}`: destroys a failed presence roll, sets the chosen place / heading, replaces `MacroInstance` with the chosen macro (`with`), records the choices in `VariantForms`, sets `ScenarioDescriptionResident.Args` (the expander's variant source) |
+| the flow | `DryRunIntents.Enter(startPaused, presetArgs)` → `TransitionStateIntent.ScenarioArgsJson` → `ClusterMaster` puts it on the `LoadingPreview` step (`EditLoadHandlerPayload.ScenarioArgsJson`) → `ReferencePreviewHandler` applies it right after the capture; HTTP `POST /preview/enter {args \| variant \| preset}` |
+| rails | `VariantFormsTests.CE4326_APresetAppliedInPlace_EqualsTheLoadWithThatPreset_ForEveryVariant` (P1: 200 variants, both roll branches) · `…_DefaultChangesNothing_AnUndeclaredArgIsRefused…` · `…_VariantForms_SurviveTheDryRunKeyframe` (both capture sets) · `ReferencePreviewHandlerTests.CE4326_APresetPreview_AppliesInPlaceAfterTheKeyframe_AndTheRewindRestoresTheAuthoredWorld` |
+
+| deviation from the diagrams above | why |
+|---|---|
+| ⛔ no `PresetApplier` host seam — the handler calls `PresetInPlace` directly | both live in `Fdp.Toolkits`: every host has it by construction (the silent-default rule needs no seam to forward) |
+| ⚠ found and fixed on the way: `FdpAutoSerializer` wrote a nullable value member (`double?`) as NOTHING | the rewind brought a removed entity back with `VariantForms.Presence` null — a save after the Preview would have lost the authored presence. Fixed in the serializer (CE-3305's shape); no recording carried a `T?`, so no format change |
+| ~~⏳ params (part ②) · P2 (part ③)~~ | built — §9a.2, §9a.3 |
+
+#### 9a.2 ✅ AS-BUILT part ② (`2026-11-08`) — a preset's PARAMS, in place, through the host's serializer
+
+```mermaid
+sequenceDiagram
+  participant H as ReferencePreviewHandler
+  participant P as PresetInPlace
+  participant S as ScenarioSerializer (the host's)
+  participant B as ParamBinder (the one binder)
+  participant W as world
+  H->>P: Apply(world, args, serializer)
+  P->>P: ScenarioParams.Resolve → source (the load's overlay)
+  P->>P: ApplyVariant (part ①) — first, as the load does
+  loop each entity with ParamBindings
+    P->>S: SerializeEntity(world, e, ResolverFor(world), saveable mask)
+    S-->>P: the entity as the file holds it
+    P->>B: ApplyBindings(entityJson, source)
+    P->>S: DeserializeWith(only the CHANGED components)
+    S->>W: new values (a managed one is a NEW object)
+  end
+  P-->>H: Result{…, Bound, Unbound}
+```
+
+*What the picture shows that prose hid:* the bindings (③) are paths over the **file's** component JSON (`"Behavior.Params.Speed"` steps into a translator's
+key), so the in-place writer must see the entity **as the file holds it** — only the host's serializer can produce that. ⇒ the same binder runs on the
+same shape the load gives it; ⛔ no second path walker over live components.
+
+| what | where / why |
+|---|---|
+| the round trip | `PresetInPlace.ApplyParams` — serialize the bound entity, `ParamBinder.ApplyBindings` (the load's call), inject back **only the changed keys** (a translator re-run on an untouched key could reset live state; a managed value injected is a NEW object, so the keyframe — which holds managed components by reference — is untouched and the rewind restores it) |
+| the resolver | `ScenarioSerializer.ResolverFor(world)` — entity ↔ `EntityGuid` both ways (the file key, CE-4153) |
+| the seam (⚠ a deviation from §9a.1's *"no host seam"*) | `ReferencePreviewHandler(…, scenarioSerializer)` ← `EcsHostClusterHandlerInputs.ScenarioSerializer` ← `NodeBootstrapper` (the ONE production `Compose` caller, which already holds the serializer for the save / load handlers). A host with none counts its bound entities in `Result.Unbound` and the Preview logs a warning — never silent |
+| refusals | a bad path / a missing param throws in the binder exactly as at load ⇒ `Result.Refused` (the keyframe rewinds anything already written) |
+| rail | `VariantFormsTests.CE4326_APresetsParams_AppliedInPlace_EqualTheLoadWithThatPreset` (the load with the preset = the defaults' world + the preset in place; unbound field and entity untouched; binding kept, SR-168; no serializer ⇒ `Unbound = 1`) |
+| ⚠ not in place | the `"^name"` forms (①) and a node's `Bind` map (②) on **top-level** scenario entities — the load binds them on the extracted values (`ScenarioEntityWalk`, Hrot-side). 📐 Measured: **no `scenarios/*/scenario.json` uses one** (`grep '"\^[A-Za-z]'` hits only `macros/`), and inside a macro they re-bind on re-expansion — that is P2, part ③ |
+
+#### 9a.3 ✅ AS-BUILT part ③ (`2026-11-08`) — P2: a param reaches a macro's KEPT children
+
+```mermaid
+sequenceDiagram
+  participant P as PresetInPlace (part ②)
+  participant W as world
+  participant M as MacroExpansionSystem.MaybeReconcile (the ONE reconcile)
+  participant X as MacroExpander
+  P->>W: MacroInstance replaced (its Args bound: "MacroInstance.Args.hp")
+  M->>X: Expand(old args) → before · Expand(new args) → now
+  loop each child, by GUID
+    alt kept
+      M->>W: SimTransform (MoveKept) + EntityInfo — as before
+      M->>W: + every OTHER component whose value the args changed (ArgsChanged → SetKept) «NEW»
+    else new / gone
+      M->>W: create / destroy — as before
+    end
+  end
+```
+
+*What the picture shows that prose hid:* the old reconcile already expanded BOTH sets (old args, new args) — it used the old one only to tell
+"destroyed by the run" from "no longer made". ⭐ The same pair now says **what the args changed** per kept child, so nothing new is computed and a
+kept man keeps everything the run gave him that the args did not touch.
+
+| what | where / why |
+|---|---|
+| the delta | `MacroExpansionSystem.ArgsChanged` — the child as the old args made it vs the new one: value equality, or the JSON of a class without it (two expansions = two objects). ⛔ Never re-applied: `EntityGuid`, `MacroOrigin`, the expansion's own bookkeeping |
+| the write | `SetKept` → `EntityComponentReflector.SetComponent` (the spawner's setter; a managed value is the expansion's NEW object). ⛔ A component this node does not own is NOT written into the replica — said in the log (`MoveKept`'s split-authority finding); the transform keeps its owner-request route |
+| the chain end to end | a preset's param bound onto the instance's args (`"MacroInstance.Args.<p>"`) → part ② re-injects the `MacroInstance` (a new record) → this reconcile. ⭐ No fallback to the load path was needed |
+| rail | `MacroExpanderTests.CE4326_P2_AnArgBoundIntoAKeptChildsComponent_ReachesIt_AndNothingElseIsWritten` (`Health.Max` bound to `hp` — standing in for a behaviour's args, which ride the same `InitialComponents`; an unchanged `TkbIdentity` is not written) |

@@ -15,6 +15,7 @@ using Hrot.Common.Orders;
 using Hrot.Map.Definitions.Behavior.Orders;
 using System.Text.Json.Nodes;
 using Hrot.UI.Common.Facades;
+using Fdp.Toolkit.Input;
 
 namespace Hrot.ScenarioEditor.Map
 {
@@ -52,12 +53,29 @@ namespace Hrot.ScenarioEditor.Map
             });
         }
 
-        /// <summary>RMB: every selected unit attacks the HOSTILE under the cursor, or moves to the point (a friendly or neutral
-        /// there is a move to its position). Returns how many orders were accepted.
-        /// ⭐ CE-1132 — <paramref name="forceAttack"/> (Ctrl held): the unit under the cursor is ATTACKED whatever its side; empty ground
-        /// is still a move. 🔒 User, 2026-10-16: <i>"how to switch to attack mode so i can click and entity and attack it? … would not
-        /// matter if something like ctrl or shift-click activated the attack"</i>.</summary>
-        public int Command(Vector2 worldXY, bool forceAttack = false)
+        /// <summary>⭐ B-10 K7 — what the cursor is on, for the gesture router: <see cref="GestureTarget.Ground"/>, a unit HOSTILE to a selected unit, or any other unit.</summary>
+        public GestureTarget TargetAt(Vector2 worldXY)
+        {
+            var hit = EntityAt(worldXY);
+            if (hit.IsNull) return GestureTarget.Ground;
+            foreach (var unit in _selected())
+                if (!unit.IsNull && !unit.Equals(hit) && IsHostile(unit, hit)) return GestureTarget.Hostile;
+            return GestureTarget.Entity;
+        }
+
+        /// <summary>RTS right click on ground (or a friendly / neutral: a move to its position): every selected unit moves to the point.
+        /// Returns how many orders were accepted.</summary>
+        public int Move(Vector2 worldXY) => Issue(worldXY, attack: false, force: false);
+
+        /// <summary>RTS right click on a hostile: every selected unit attacks it (a unit it is not hostile to moves there instead). ⭐ CE-1132 —
+        /// <paramref name="force"/> (Ctrl held): the unit under the cursor is ATTACKED whatever its side; empty ground is still a move.</summary>
+        public int Attack(Vector2 worldXY, bool force = false) => Issue(worldXY, attack: true, force);
+
+        /// <summary>RMB, as before the gesture bindings: every selected unit attacks the HOSTILE under the cursor, else moves to the point —
+        /// <see cref="Attack"/>. ⭐ Since B-10 K7 the RTS gizmo chooses <see cref="Move"/> or <see cref="Attack"/> by its bindings; this stays for the callers that do not.</summary>
+        public int Command(Vector2 worldXY, bool forceAttack = false) => Attack(worldXY, forceAttack);
+
+        private int Issue(Vector2 worldXY, bool attack, bool force)
         {
             var map = Map();
             if (map is null) return 0;
@@ -71,7 +89,7 @@ namespace Hrot.ScenarioEditor.Map
                 //   cursor is the EnemyClick order (Attack), anything else the GroundClick order (Move) to the point.
                 // ⭐ CE-2148 (F6) — the click is the gesture's CONTEXT: it fills the order's one missing [Required] field of its kind;
                 //   an order it cannot complete goes to the order form (MenuOrders.OpenForm), never half-filled.
-                OrderResult r = !hit.IsNull && (forceAttack || IsHostile(unit, hit)) && map.TryGetNetworkId(hit, out int target)
+                OrderResult r = attack && !hit.IsNull && (force || IsHostile(unit, hit)) && map.TryGetNetworkId(hit, out int target)
                     ? Gesture(orders, id, OrderGesture.EnemyClick, new OrderContext(target, null))
                     : Gesture(orders, id, OrderGesture.GroundClick, new OrderContext(null, Point(worldXY)));
                 if (r.Accepted) accepted++;
@@ -153,11 +171,14 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>⭐ CE-1077 — mouse-moved frames a right click may have and still be a click (hand jitter), not a drag.</summary>
         public const int ClickMaxMoves = 3;
 
-        public RtsCommandGizmo(RtsCommands commands, Action onRemove, RtsModeState? mode = null)
+        private readonly MapGestureRouter _gestures;
+
+        public RtsCommandGizmo(RtsCommands commands, Action onRemove, RtsModeState? mode = null, MapGestureRouter? gestures = null)
         {
             _commands = commands ?? throw new ArgumentNullException(nameof(commands));
             _onRemove = onRemove ?? throw new ArgumentNullException(nameof(onRemove));
             _mode = mode;
+            _gestures = gestures ?? MapGestureRouter.Shared;
             if (_mode != null) { _mode.Armed = true; _mode.ForceAttack = false; }
         }
 
@@ -168,6 +189,12 @@ namespace Hrot.ScenarioEditor.Map
 
         public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw) { }
 
+        /// <summary>
+        /// ⭐⭐ B-10 K7 (§6b, R-4163) — the gizmo owns NO gesture meaning any more: it classifies what the click landed on, asks the scope chain (the Command hat's scope in
+        /// front of the map's) and runs the row it gets — <c>rts.select</c>, <c>rts.select.add</c>, <c>rts.move</c>, <c>rts.attack</c>, <c>rts.attack.force</c>
+        /// (<see cref="MapGestureIds"/>). ⛔ SUPERSEDES the hand-written "left = select, right = command" branches. A row of the MAP scope (a gesture the RTS scope does not
+        /// override) is the terminal's menu or the selection system's — nothing to run here.
+        /// </summary>
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
             if (_mode is { StoodDown: true }) { _rightDown = false; return; }   // ⭐ Seats H3 — under the FPS view the gestures are the unit's
@@ -175,15 +202,28 @@ namespace Hrot.ScenarioEditor.Map
             //   Shift-click arrived as Left|ShiftMask and matched neither branch, so "Shift adds" never added. The mask IS the Shift.
             bool shift = _shift || (button & MapMouseButton.ShiftMask) != 0;
             bool ctrl = _ctrl || (button & MapMouseButton.CtrlMask) != 0;   // ⭐ CE-1132 — Ctrl = attack what is under the cursor
+            bool alt = (button & MapMouseButton.AltMask) != 0;
             button &= ~(MapMouseButton.ShiftMask | MapMouseButton.CtrlMask | MapMouseButton.AltMask);
             var xy = new Vector2(worldPos.X, worldPos.Y);
-            if (button == MapMouseButton.Left && !isPressed) _commands.Select(xy, shift);
+            var mods = (shift ? GestureModifiers.Shift : 0) | (ctrl ? GestureModifiers.Ctrl : 0) | (alt ? GestureModifiers.Alt : 0);
+            if (button == MapMouseButton.Left && !isPressed) Run(GestureButton.Left, mods, xy);
             else if (button == MapMouseButton.Right && isPressed) { _rightDown = true; _rightMoves = 0; _rightAt = xy; }
             else if (button == MapMouseButton.Right && _rightDown)
             {
                 _rightDown = false;
-                if (_rightMoves <= ClickMaxMoves) _commands.Command(_rightAt, ctrl);   // ⭐ CE-1077 — a click, not a look
+                if (_rightMoves <= ClickMaxMoves) Run(GestureButton.Right, mods, _rightAt);   // ⭐ CE-1077 — a click, not a look
             }
+        }
+
+        private void Run(GestureButton button, GestureModifiers mods, Vector2 xy)
+        {
+            var gesture = new MapGesture(button, GestureKind.Click, mods, _commands.TargetAt(xy));
+            if (!_gestures.Resolve(Hrot.Common.Editing.Hat.Command, in gesture, out var entry) || entry.Scope != Fdp.Toolkit.Input.InputScope.Hat) return;
+            if (MapGestureIds.Is(entry, MapGestureIds.RtsSelect)) _commands.Select(xy, additive: false);
+            else if (MapGestureIds.Is(entry, MapGestureIds.RtsSelectAdd)) _commands.Select(xy, additive: true);
+            else if (MapGestureIds.Is(entry, MapGestureIds.RtsMove)) _commands.Move(xy);
+            else if (MapGestureIds.Is(entry, MapGestureIds.RtsAttack)) _commands.Attack(xy);
+            else if (MapGestureIds.Is(entry, MapGestureIds.RtsAttackForce)) _commands.Attack(xy, force: true);
         }
 
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed)

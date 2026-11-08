@@ -79,7 +79,7 @@ public sealed class TheMenuBarIsOneTreeTests
         wm.SwitchPerspective("Scenario");
         Assert.Equal(new[] { "wm/perspective", "wm/windows", "wm/help" }, wm.GlobalMenu.Contributors.Select(c => c.Id));
         var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective)).Select(m => m.Name).ToArray();
-        Assert.Equal(new[] { "View", "Help" }, bar);   // ⭐ CE-4114: Windows is a submenu of View
+        Assert.Equal(new[] { "Edit", "View", "Help" }, bar);   // ⭐ B-10 K6: Edit holds the shell's Keyboard shortcuts…   // ⭐ CE-4114: Windows is a submenu of View
         var viewParts = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective)).Single(m => m.Name == "View").Parts;
         Assert.Contains(viewParts, p => p.Item.Children!.Any(c => c.Label == "Windows"));   // View ▸ Windows, contributed by wm/windows
 

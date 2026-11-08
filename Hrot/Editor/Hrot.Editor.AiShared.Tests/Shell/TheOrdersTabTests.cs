@@ -367,7 +367,7 @@ public sealed class TheOrdersTabEditsTests
 
     private static DetailsViewRegistry Catalogue(Func<Hrot.UI.Common.Facades.IMissionEditorService?> svc, Fdp.Core.EntityRepository w)
     {
-        var views = new DetailsViewRegistry();
+        var views = new DetailsViewRegistry { ComponentProbe = DetailsViewRegistry.ProbeFor(() => w) };   // ⭐ A7 — the tab declares Requires; the host's registry asks its world
         views.Add(OrdersTabDescriptor.For(svc, () => w));
         return views;
     }
@@ -492,5 +492,43 @@ public sealed class TheOrdersTabEditsTests
         Assert.Equal(new[] { "Order.Attack", "Order.Hold", "Order.Move" }, plan.Tasks.Select(t => t.BehaviorId).ToArray());
         tab.ApplyTaskOp(plan, new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Delete, 1));
         Assert.Equal(new[] { "Order.Attack", "Order.Move" }, plan.Tasks.Select(t => t.BehaviorId).ToArray());
+    }
+
+    /// <summary>⭐ CE-3403 (Y-9; DESIGN_Struct_Editor §10.2 / §12 N-9) — the Orders tab in a REAL frame: its plan is the kit's list (one summary row per task, ⋮ per row, Add at the end) and a steady frame allocates nothing (R-2084; it had no frame harness, so it was
+    /// unmeasured). Renders <c>orders-tab.png</c> under <c>HROT_RAIL_SHOTS</c>. 🔴 Red-proof (compiles): a per-frame string built in <c>Draw</c> ⇒ the byte assert fails.</summary>
+    [SkippableFact]
+    public void CE3403_TheOrdersTab_DrawsThePlanAsAList_AndASteadyFrameAllocatesNothing()
+    {
+        Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        using var world = new Fdp.Core.EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        world.RegisterComponent<MissionPlanQueue>();
+        var unit = world.CreateEntity(); world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(5));
+        var svc = new FakeMissions { Plan = new MissionPlan { Tasks =
+        {
+            new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Move", State = eTaskState.TASK_DONE },
+            new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Hold", State = eTaskState.TASK_ACTIVE, Triggers = { new MissionTrigger { Type = "TimerElapsed", Params = "30" } } },
+            new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Move", State = eTaskState.TASK_PLANNED },
+        } } };
+        var tab = new OrdersTab(() => svc, () => world);
+        var ctx = new DetailsContext(Hrot.Editor.AiShared.Selection.SelectionOrigin.Unknown, Array.Empty<Hrot.Editor.AiShared.Selection.IAssetSubSelection>(), new[] { unit }, null, "Scenario", Hrot.Editor.AiShared.Variables.VariableRunState.Planning);
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(700, 420);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        long bytes = -1;
+        void Draw()
+        {
+            ImGuiNET.ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(680, 400));
+            ImGuiNET.ImGui.Begin("##orders", ImGuiNET.ImGuiWindowFlags.NoDecoration | ImGuiNET.ImGuiWindowFlags.NoMove | ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            tab.Draw(ctx, "o");
+            bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            ImGuiNET.ImGui.End();
+        }
+        for (int k = 0; k < 3; k++) { frame.StepN(15, Draw); System.Threading.Thread.Sleep(220); }
+        frame.StepN(5, Draw);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "orders-tab.png"));
+        Assert.Equal(3, tab.LastRows.Count);
+        Assert.True(NodeEditor.Core.Widgets.KitProbe.TryGet(NodeEditor.Core.Widgets.KitProbe.ListMenuButton, out _, out _), "the tasks are the kit list (a menu button per row)");
+        Assert.True(bytes == 0, $"a steady Orders tab allocates nothing ({bytes} bytes)");
     }
 }

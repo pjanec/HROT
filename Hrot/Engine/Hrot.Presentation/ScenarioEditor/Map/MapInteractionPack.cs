@@ -284,7 +284,7 @@ namespace Hrot.ScenarioEditor.Map
 
             // ⭐ CE-3328 — the click resolves in the world the map SHOWS (the Replay Browser's node / merged view), as the selection does.
             var selectionInteraction = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(
-                ctx.SelectionWorld ?? (() => ctx.World), bus, rubberBand, selection);
+                ctx.SelectionWorld ?? (() => ctx.World), bus, rubberBand, selection, MapGestureRouter.Shared);
             if (ctx.OnMapSelectionChanged != null)
                 selectionInteraction.OnSelectionChanged += ctx.OnMapSelectionChanged;
 
@@ -389,7 +389,7 @@ namespace Hrot.ScenarioEditor.Map
                         if ((int)Hrot.Common.Editing.StationMode.LevelOf(ctx.World) > (int)Hrot.Common.Editing.EditingLevel.Controller)   // ⭐ Seats H2 (CE-4279) — a Player / observer commands nothing
                             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
                         var id = GlobalGizmoManager.NewId();
-                        globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id), rtsMode));
+                        globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id), rtsMode, MapGestureRouter.Shared));
                         return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
                     });
                 actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleRtsCommand, (_, _) =>
@@ -553,6 +553,8 @@ namespace Hrot.ScenarioEditor.Map
             if (LayerControlOf.TryGetValue(buffer, out var layerControl)) layerControl.Is3D = () => viewSwitch.Is3D;
             // ⭐ CE-1054 — one terrain resolution per tick, not one per draped point (the 3-D map ran at ~1 FPS)
             viewSwitch.Camera3D.GroundHeight = new Hrot.UI.Common.Map3D.CachedGroundHeight(worldProvider).At;
+            // ⭐ B-10 K3 (§6c) — one level out: while an armed tool holds Esc, a follow camera does not also hand the camera back
+            viewSwitch.Camera3D.EscapeFree = () => !(HatArbiter.Of(worldProvider())?.ToolHoldsEscape ?? false);
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
             // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — articulated kits are posed by their turret part's TurretPose.
@@ -639,7 +641,8 @@ namespace Hrot.ScenarioEditor.Map
             var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);
             canvas.AddLayer(audio);
             // ⭐ CE-1076 — the keys typed on the map go to the map's MenuShortcuts (the unit menu's M, A, H, P, C …), every host
-            canvas.AddLayer(new MenuShortcutKeyLayer(bus, () => canvas.Camera));
+            canvas.AddLayer(new MenuShortcutKeyLayer(bus, () => canvas.Camera,
+                hat: () => HatArbiter.Of(worldProvider())?.Active ?? Hrot.Common.Editing.Hat.Observe));   // ⭐ B-10 K2 — the hat scope, from the arbiter (not the camera)
             // ⭐ CE-3289 (§6ab, R-3032) — the film: a director camera and a clean capture of the scene, on every map host; LAST, so its
             //   update runs after every other layer's (the frame it captures is complete) and its director wins the camera.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.FilmCaptureLayer(canvas, viewSwitch, worldProvider));

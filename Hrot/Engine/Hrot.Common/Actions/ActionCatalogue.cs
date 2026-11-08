@@ -57,8 +57,15 @@ namespace Hrot.Common.Actions
             _ => ActionModes.InReview,
         };
 
+        /// <summary>⭐ Seats H6 (§2.1 "ActionCatalogue … + Hat") — the hat the action needs; a seat that may not wear it sees the row GREYED with <see cref="SeatHats.Refusal"/>
+        /// (Possess needs <see cref="Hat.Embodied"/>). Null = any hat.</summary>
+        public Hat? NeedsHat { get; init; }
+
         /// <summary>The row's style ("destructive"), or null.</summary>
         public string? Style { get; init; }
+
+        /// <summary>⭐ A7 — this action's <see cref="Modes"/> and <see cref="Level"/> as the ONE availability declaration a Details tab shares.</summary>
+        public ActionAvailability Availability => new(Modes, 0, Level);
 
         /// <summary>A dynamic row for this context (label, enabled, tooltip, children, checked), or null when not offered here.</summary>
         public Func<ActionContext, ContextMenuItemDto?>? Offer { get; init; }
@@ -87,6 +94,8 @@ namespace Hrot.Common.Actions
 
         /// <summary>⭐ Seats H2 — the station's editing level (its seat); <see cref="EditingLevel.Full"/> where no seat is installed.</summary>
         public EditingLevel Level { get; init; }
+        /// <summary>⭐ Seats H6 — the station's seat (Author where none is installed): what <see cref="ActionDecl.NeedsHat"/> is checked against.</summary>
+        public Hrot.Common.Infrastructure.Seat Seat { get; init; }
         /// <summary>⭐ Seats H2 — the station's side scope (a side controller's side), null = every side.</summary>
         public ForceId? Side { get; init; }
         /// <summary>⭐ Seats H2 — the clicked unit's side, when the target is a unit.</summary>
@@ -95,7 +104,8 @@ namespace Hrot.Common.Actions
         /// <summary>⭐ Seats H2 — why this station may not run <paramref name="decl"/> here (greyed with it), or null. The ONE rule the composer applies.</summary>
         public string? SeatRefusal(ActionDecl decl)
         {
-            if ((int)Level > (int)decl.Level) return SeatText(Level);
+            if (ActionAvailability.LevelRefusal(decl.Level, Level) is { } why) return why;
+            if (decl.NeedsHat is Hat hat && SeatHats.Refusal(Seat, hat) is { } hatWhy) return hatWhy;   // ⭐ H6 — a hat this seat may not wear
             if (Level == EditingLevel.Instructor && Mode == EditingMode.Edit && decl.Group is ActionGroup.Edit or ActionGroup.Destructive)
                 return HrotEditGate.InstructorDoesNotAuthor;
             if (decl.SideScoped && Side is ForceId side && Target == ActionTarget.Unit && UnitSide != side)

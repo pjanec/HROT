@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q7 by the user 2026-11-06 (R-4133); the building lanes detail it (R-4123)
-updated: 2026-11-06 (✅ Q1–Q7 approved — R-4133) · 2026-11-06 (§1.1 what a world snapshot misses — authored NoPreview components, singletons, files, version-compare caches, pure UI state; §2.3 the restore = the dry run's sequence, not a raw SyncFrom) · 2026-11-06 (first version — coordinator; editing-UX design queue item 5: D1)
+updated: 2026-11-08 (§1.5 U4 + U5 History BUILT — Z-2, ui) · 2026-11-06 (✅ Q1–Q7 approved — R-4133) · 2026-11-06 (§1.1 what a world snapshot misses — authored NoPreview components, singletons, files, version-compare caches, pure UI state; §2.3 the restore = the dry run's sequence, not a raw SyncFrom) · 2026-11-06 (first version — coordinator; editing-UX design queue item 5: D1)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
@@ -93,12 +93,30 @@ Rails: `WorldSnapshotRingTests` (restore with participants, eviction, redo branc
 | lifetime | `EditorScenarioSession.Opened` (any load — to edit or Live — and a clear) ⇒ `EditHistory.Clear()` + the ring cleared; `Saved` (Save, Save As; ⛔ not a checkpoint, not Save selection as macro) ⇒ `MarkSaved` |
 | keys and menu | `EditUndoCommands`: shell commands `edit.undo` (Ctrl+Z), `edit.redo` (Ctrl+Y), `edit.redoAlt` (Ctrl+Shift+Z) — the key router gives a focused graph canvas its own Ctrl+Z first; *Edit ▸ Undo Move* / *Redo …* name the step, *(only in Edit mode)* elsewhere. ⛔ The Parameters drawer's private Ctrl+Z chord (CE-4254) is removed — it drove the SAME history and would have undone twice |
 | the dirty dot (U5, LC-12 — supersedes AQ108 D20) | `ScenarioWindowTitle.Detail(…, dirty)`: `● my-scenario · on highway-rest` while `EditHistory.IsDirty` (the editor; CGF passes nothing) |
-| ⏭ not built | *Edit ▸ History* (the step list); U4 (the take editor onto `EditHistory`); brackets for the vertex / route-waypoint / area gizmos (their writes inside a Submit are covered, their preview pokes are not); autosave (D23) |
+| ⏭ not built | brackets for the vertex / route-waypoint / area gizmos (their writes inside a Submit are covered, their preview pokes are not); autosave (D23) |
+| ⛔ SUPERSEDED `2026-11-08` | *"not built: Edit ▸ History (the step list); U4 (the take editor onto `EditHistory`)"* — both are built, §1.5 |
 
 ⚠ An undo's own AFTER capture can evict the before it is about to restore when the ring holds a single slot (depth 1 or one keyframe over the budget): the
 ring keeps the newest, so a depth of 2+ is required (the default is 100).
 
 Rails: `WorldUndoTests` (Presentation.Tests).
+
+### 1.5 ⭐ AS-BUILT — U4 + U5 *Edit ▸ History…* *(ui, `2026-11-08`, Z-2)*
+
+Queries: `search_graph .*(Undo|History).*` Class (70) + Interface (7) — the only step lists are `EditHistory` and the Message Log's edit-journal source (`EditHistoryMessageLogSource`, a different thing: outcomes of edits, not undoable steps); grep `GizmoUndoStack`, `EditHistory`, `TakeEditor(`. Coverage could not be checked (`check_index_coverage` is not in the CLI).
+
+| piece | as built |
+|---|---|
+| U4 — the take editor onto the ONE history | `TakeEditor` takes the host's `EditHistory`; one `Apply` = ONE named step (*Move camera key*, *Add time segment* …) pushed as closures over the take before / after. `DirectorTakeSession(…, history)` passes it (the editor: `DirectorPackHost.History = EditorSubsystem.EditHistory`; a host without one — the Replay Browser — gets a private history). `TakeEditRecord` and the session's `GizmoUndoStack` are gone from the director; the toolkit `GizmoUndoStack` is untouched (Q6: unused by the director now, still used by `DataDrivenGizmoSystem` and the Player) |
+| steps that are not the scenario's | `EditHistory.Push(…, owner, dirties)`: a take step is tagged with its session (`UndoOwner` / `RedoOwner`) and `dirties: false` — a take is a file of its own, so it never puts the dot on the scenario title; the Director window's Undo / Redo buttons act on a take step only (a world step on top is Edit ▸ Undo's) |
+| closing a take | the editor is `Retire`d: its steps STAY on the history, greyed (*no longer available*) — a shared history cannot be cleared by a take opening |
+| the panel's own chord | on a host with the shared history the Event Timeline panel's Ctrl+Z / Ctrl+Y hooks are NOT wired (Edit ▸ Undo's chord already reaches the take steps; both would undo twice); a host with a private history keeps them |
+| U5 — Edit ▸ History… | `EditHistoryWindow` (`Hrot.Presentation/Windows`): the steps oldest first, the state before the first step on top (*Scenario as opened*), the current position a blue dot + the selection bar, undone steps dimmed; a click = `EditHistory.GoTo` (repeated Undo / Redo); a row whose way is blocked by an unavailable step is greyed WITH the reason (*'<step>' can no longer be undone*); outside Edit mode every row is greyed and the header says so. Row texts are rebuilt only when the history, the mode or the count of unavailable steps changed (0 B steady) |
+| the menu | `EditUndoCommands.HistoryId` (`edit.history`, no chord): *Edit ▸ History…* right under Redo, greyed outside Edit mode (*History… (only in Edit mode)*); the editor registers the window as `edit_history` |
+
+⚠ Deviation / limit: the real menu draws no glyph beside Undo / Redo / History… (the menu tree carries atlas icon keys, not FontAwesome glyphs — pre-existing for Undo / Redo); the mockup keeps the coloured glyphs as the intent (`DESIGN_Colour_Icons`).
+
+Rails: `EditHistoryStepsTests`, `TheEditHistoryWindowTests` (Presentation.Tests), `TakeEditsOnTheOneHistoryTests`, `DirectorTracksOnTheEditorTests` (Editor.Tests), `TheEditMenuHasHistoryTests` (AiShared.Tests).
 
 ## 2. The model
 
@@ -187,8 +205,8 @@ is `AfterRestore`'s list, extended with the throttled caches' `Invalidate` and t
 | **U1** | measure: one AUTHORED-mask capture's size and time on the largest scenario through `WorldKeyframes`; confirm §1.1's list of what the dry run's restore sequence already covers |
 | **U2** | `WorldSnapshotRing` + `WorldStep` in `EditHistory`; step brackets from the edit framework (F1) and from the map gizmos' begin / commit; Ctrl+Z / Ctrl+Y as actions (the keymap, design 4b) |
 | **U3** | restore listeners for the caches U1 names |
-| **U4** | the take editor onto `EditHistory`; `GizmoUndoStack` (Fdp.Toolkits) left with no user — its removal is a separate, later decision |
-| **U5** | the dirty flag from the saved point; *Edit ▸ History* (the list of steps, click to go back) |
+| **U4** ✅ BUILT `2026-11-08` (§1.5) | the take editor onto `EditHistory`; `GizmoUndoStack` (Fdp.Toolkits) left with no user — its removal is a separate, later decision |
+| **U5** ✅ BUILT (dirty dot `2026-11-07`, B-14 · *Edit ▸ History…* `2026-11-08`, §1.5) | the dirty flag from the saved point; *Edit ▸ History* (the list of steps, click to go back) |
 
 ## 4. Questions — ✅ all seven APPROVED as leaned (R-4133, user `2026-11-06`: *"Q1-Q7 approved, go on with the map interaction design"*)
 

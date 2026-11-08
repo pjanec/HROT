@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Fdp.Interfaces;
-using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
+using Hrot.Presentation.Edits;
 
 namespace Hrot.UI.Common.Map3D.Director;
 
@@ -49,25 +48,6 @@ public abstract record TakeEdit
 }
 
 /// <summary>
-/// ⭐ <c>CE-1364</c> T3 (§10, T-L2) — one undo step of a take: the take before and after. Rides the editor's EXISTING
-/// <see cref="GizmoUndoStack"/> (no fifth stack); the stack's <see cref="IEntityCommandBuffer"/> argument is unused by a take — the known wart.
-/// </summary>
-public sealed class TakeEditRecord : IGizmoUndoRecord
-{
-    private readonly TakeEditor _editor;
-    private readonly Take _before, _after;
-
-    public TakeEditRecord(TakeEditor editor, Take before, Take after, string description)
-    {
-        _editor = editor; _before = before; _after = after; Description = description;
-    }
-
-    public string Description { get; }
-    public void Undo(IEntityCommandBuffer cmd) => _editor.Restore(_before);
-    public void Redo(IEntityCommandBuffer cmd) => _editor.Restore(_after);
-}
-
-/// <summary>
 /// ⭐ <c>CE-1364</c> T3 (§10, T-L2 / T-L3 / T-L4) — the ONE edit path of an open take: the timeline panel's tracks and the Director window both go through it.
 /// It holds the take being edited, applies an edit (recording the before / after on the undo stack), keeps a PREVIEW (a drag shown without touching the
 /// take) and saves through <see cref="TakeStore"/> — only when the take was edited (T-L4: a seeded v1 take stays a v1 file until touched).
@@ -80,20 +60,28 @@ public sealed class TakeEditor
     public const double DefaultSegmentSeconds = 2d;
 
     private readonly TakeStore? _store;
-    private readonly GizmoUndoStack _undo;
+    private readonly EditHistory _history;
+    private readonly object? _owner;
     private Take? _saved;
 
+    /// <param name="history">⭐ U4 (docs/UX/DESIGN_Edit_Mode_Undo.md §3, Q3/Q6) — THE editor history: every take edit is ONE named document step on it (closures over the take before / after), so Edit ▸ Undo and Edit ▸ History show it.</param>
+    /// <param name="owner">Tags this editor's steps on the history (<see cref="EditHistory.UndoOwner"/>): the Director window's own Undo button acts on take steps only.</param>
     /// <param name="unsaved">⭐ <c>CE-4059</c> (§11q D2) — the take was never written (a draft): it is <see cref="Dirty"/> from the start, so Save writes it.</param>
-    public TakeEditor(TakeStore? store, Take take, GizmoUndoStack undo, bool unsaved = false)
+    public TakeEditor(TakeStore? store, Take take, EditHistory history, bool unsaved = false, object? owner = null)
     {
         _store = store;
         Take = take ?? throw new ArgumentNullException(nameof(take));
         _saved = unsaved ? null : take;
-        _undo = undo ?? throw new ArgumentNullException(nameof(undo));
+        _history = history ?? throw new ArgumentNullException(nameof(history));
+        _owner = owner;
     }
 
     /// <summary>The take as edited so far.</summary>
     public Take Take { get; private set; }
+
+    /// <summary>⭐ U4 — the take was closed / replaced: its steps stay on the history, greyed (they would restore a take nobody has open).</summary>
+    public bool Retired { get; private set; }
+    internal void Retire() => Retired = true;
 
     /// <summary>Counts every change of <see cref="Take"/> (an edit, an undo, a redo); a preview does not count.</summary>
     public int Version { get; private set; }
@@ -167,7 +155,8 @@ public sealed class TakeEditor
         Take = after;
         Preview = null;
         Version++;
-        _undo.Push(new TakeEditRecord(this, before, after, what));
+        // ⭐ U4 — ONE named document step on the editor's history (a take is a file of its own: it never dirties the scenario)
+        _history.Push(what, () => Restore(after), () => Restore(before), () => !Retired, _owner, dirties: false);
         Changed?.Invoke();
         return true;
     }

@@ -67,6 +67,10 @@ namespace Hrot.SimHost.Modules.Orchestration
         public IReadOnlyList<IClusterStateHandler> ScenarioHandlers { get; init; } = Array.Empty<IClusterStateHandler>();
         public IClusterStateHandler? ScenarioSaveHandler { get; init; }
 
+        /// <summary>⭐ CE-4326 (Presets §9a.2) — the host's scenario serializer, handed to the dry run so a Preview's preset binds its params in place
+        /// (null on a host that loads no scenarios).</summary>
+        public Fdp.Toolkit.Scenario.ScenarioSerializer? ScenarioSerializer { get; init; }
+
         // ── terrain / zone ops ──
         public TerrainLoadService? TerrainService     { get; init; }
         /// <summary>Where the D5 identity check reads the staged header; null where nothing is staged (the editor).</summary>
@@ -140,7 +144,8 @@ namespace Hrot.SimHost.Modules.Orchestration
                 : PreviewParticipants.EntityMapFromRepository(h.World));
             if (h.Elm != null)
                 rewindables.Add(PreviewParticipants.LifecycleModule(h.Elm));
-            var dryRun = new ReferencePreviewHandler(h.World, rewindables, includeTransient: h.DryRunIncludesTransient, accumulator: h.EventAccumulator);
+            var dryRun = new ReferencePreviewHandler(h.World, rewindables, includeTransient: h.DryRunIncludesTransient, accumulator: h.EventAccumulator,
+                                                  scenarioSerializer: h.ScenarioSerializer);   // ⭐ CE-4326 §9a.2 — a preset's params, in place
             slave.RegisterHandler(dryRun);
 
             // 4. Prefetch — stage scenario files and ACK.

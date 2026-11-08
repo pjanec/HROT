@@ -75,6 +75,7 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.Possess, "Possess (FPS)", ActionGroup.Orders, First + 3, Unit)
             {
                 Modes = ActionModes.Running,
+                NeedsHat = Hat.Embodied,   // ⭐ Seats H6 — a Side controller / Observer seat sees it greyed: "…cannot possess a unit"
                 Shortcut = "P",
                 Offer = ctx => !ctx.Unit.Orders || ctx.Unit.IsUnit ? null
                     : ctx.Unit.Manned
@@ -157,8 +158,8 @@ namespace Hrot.Common.Actions
         /// <summary>
         /// One order's unit-menu row, or null when it is not offered here. ⭐ <c>CE-1059</c> (§13.12 O5) — an order the gesture cannot complete
         /// (<see cref="Hrot.Common.Orders.OrderPick.Several"/>) needs the ORDER FORM: <c>Name…</c> where this world has one (<paramref name="form"/>),
-        /// hidden elsewhere. An order that needs a pick is disabled on a heavily damaged unit. ⚠ The shortcut is still derived from the order's
-        /// first letter (design §2.1 "no auto-derived letters" — B-11 A3 / B-10 K5 declare it).
+        /// hidden elsewhere. An order that needs a pick is disabled on a heavily damaged unit. ⭐ The shortcut is the order's DECLARED letter
+        /// (<see cref="OrderShortcuts"/>, B-10 K2) — never derived from its name.
         /// </summary>
         public static ContextMenuItemDto? OrderItem(Hrot.Common.Orders.OrderInfo o, bool degraded, bool form)
         {
@@ -166,12 +167,49 @@ namespace Hrot.Common.Actions
                 return form ? new ContextMenuItemDto { Id = o.ActionId, Label = o.Name + "…" } : null;
             return degraded && o.Pick != Hrot.Common.Orders.OrderPick.None
                 ? new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Enabled = false, Tooltip = "Cannot " + o.Name.ToLowerInvariant() + ": unit is heavily damaged" }
-                : new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Shortcut = o.Name.Substring(0, 1) };
+                : new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Shortcut = OrderShortcuts.TryGetValue(o.Name, out var letter) ? letter : null };
         }
+
+        /// <summary>
+        /// ⭐ B-10 K2 (docs/UX/DESIGN_Input_And_Commands.md §6, CE-4281) — the letter each order DECLARES on the map (the unit menu shows it, <c>MenuShortcuts</c> runs it).
+        /// ⛔ SUPERSEDES the letter derived from the order's first character: two orders starting alike collided silently. An order with no entry shows NO letter,
+        /// and the rail <c>OrderLettersAreDeclaredAndDistinct</c> names it — a new order must declare one here, distinct from the unit menu's other letters.
+        /// </summary>
+        /// <summary>
+        /// ⭐ B-10 K6 (§6f) — declares the map menu's letters as rows of <paramref name="keymap"/> (scope Map, kind = the target class: unit / area / zone / route), so the Keyboard shortcuts window
+        /// lists them and a letter bound twice for one target class is a conflict <c>Keymap.Validate</c> refuses. The ids are the actions' (<c>ActionRef.Global</c>); the label is the action's.
+        /// </summary>
+        public static void DeclareKeys(Fdp.Toolkit.Input.Keymap keymap)
+        {
+            var catalogue = new ActionCatalogue();
+            DeclareInto(catalogue);
+            foreach (var d in catalogue.All)
+            {
+                if (d.Id == 0 || d.Shortcut is null || !Fdp.Toolkit.Input.ChordText.TryParse(d.Shortcut, out var chord)) continue;
+                DeclareRows(keymap, chord, d.Id, d.Label, d.Targets);
+            }
+            foreach (var kv in OrderShortcuts)
+                if (Hrot.Common.Orders.OrderMenu.TryGetByName(kv.Key, out var order) && Fdp.Toolkit.Input.ChordText.TryParse(kv.Value, out var chord))
+                    DeclareRows(keymap, chord, order.ActionId, order.Name, ActionTarget.Unit);
+        }
+
+        private static void DeclareRows(Fdp.Toolkit.Input.Keymap keymap, NodeEditor.Core.Action.KeyBinding chord, int id, string label, ActionTarget targets)
+        {
+            var action = Fdp.Toolkit.Input.ActionRef.Global(id);
+            keymap.SetLabel(action, label);
+            foreach (var (bit, name) in new[] { (ActionTarget.Unit, "unit"), (ActionTarget.Area, "area"), (ActionTarget.Zone, "zone"), (ActionTarget.Route, "route") })
+                if ((targets & bit) != 0)
+                    keymap.Declare(new Fdp.Toolkit.Input.KeymapEntry(chord, Fdp.Toolkit.Input.InputScope.Map, name, action));
+        }
+
+        public static readonly IReadOnlyDictionary<string, string> OrderShortcuts = new Dictionary<string, string>
+        {
+            ["Move"] = "M", ["Attack"] = "A", ["Hold"] = "H", ["Strike"] = "S", ["ObserveFire"] = "O",
+        };
 
         // ── the context, and the cache (as the old per-flag unit menus) ──────────────────────────────────────────────────────────────
 
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(ActionTarget Target, int Flags, ulong Dis, bool Unit), string> Menus = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(ActionTarget Target, long Flags, ulong Dis, bool Unit), string> Menus = new();
         private static object? _menusBuiltFor;
 
         /// <summary>
@@ -197,7 +235,7 @@ namespace Hrot.Common.Actions
             int flags = ctx.Target != ActionTarget.Unit ? 0
                 : (u.Degraded ? 1 : 0) | (u.Brain ? 2 : 0) | (u.Orders ? 4 : 0) | (u.Form ? 8 : 0) | (u.Manned ? 16 : 0)
                   | ((int)u.Embark << 5) | ((int)u.Pins << 8) | (u.TraceOn ? 1 << 24 : 0) | (u.Plan ? 1 << 25 : 0);
-            var key = (ctx.Target, flags | (modeBits << 26), u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);
+            var key = (ctx.Target, (long)flags | ((long)modeBits << 26) | (SeatHats.Allows(ctx.Seat, Hat.Embodied) ? 0L : 1L << 40), u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);   // ⭐ H6 — the seat's hats grey Possess: part of the key
             return Menus.GetOrAdd(key, _ => MenuComposer.Json(ctx));
         }
 
@@ -210,15 +248,16 @@ namespace Hrot.Common.Actions
             var mode = StationMode.Of(view);   // ⭐ B-11 A3 — the ONE station mode (the gate reads the same)
             var level = StationMode.LevelOf(view);   // ⭐ Seats H2 — and the ONE seat: its level and side bound what the menu offers
             var side = StationMode.SideOf(view);
+            var seat = StationMode.SeatOf(view);   // ⭐ Seats H6
 
             if (view.HasManagedComponent<EditablePolyline>(entity))
             {
                 bool isZone = view.HasComponent<TkbIdentity>(entity)   // ⭐ CE-3024 — a terrain zone is an area that can also be LOADED
                     && view.GetComponentRO<TkbIdentity>(entity).TkbType == Hrot.Map.Common.TkbEntityTypes.TerrainZone;
-                return new ActionContext(view, entity, isZone ? ActionTarget.Zone : ActionTarget.Area, mode, default) { Level = level, Side = side };
+                return new ActionContext(view, entity, isZone ? ActionTarget.Zone : ActionTarget.Area, mode, default) { Level = level, Side = side, Seat = seat };
             }
             if (view.HasManagedComponent<RoutePlan>(entity))
-                return new ActionContext(view, entity, ActionTarget.Route, mode, default) { Level = level, Side = side };
+                return new ActionContext(view, entity, ActionTarget.Route, mode, default) { Level = level, Side = side, Seat = seat };
 
             // ⭐ CE-196 — "degraded" is at or below half health; ⚠ Max <= 0 leaves it healthy.
             bool degraded = false;
@@ -245,7 +284,7 @@ namespace Hrot.Common.Actions
             return new ActionContext(view, entity, ActionTarget.Unit, mode,
                 new UnitFacts(degraded, brain, orders, dis, isUnit, form && orders, manned && orders, embark, pins, traceOn,
                     Plan: view.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(entity)))
-                { Level = level, Side = side, UnitSide = unitSide };
+                { Level = level, Side = side, UnitSide = unitSide, Seat = seat };
         }
     }
 }

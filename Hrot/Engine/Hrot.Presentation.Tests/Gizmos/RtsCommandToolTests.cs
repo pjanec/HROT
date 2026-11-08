@@ -258,6 +258,106 @@ public sealed class RtsCommandToolTests : IDisposable
         Assert.Empty(Read<AssignTacticalIntentEvent>());
     }
 
+    /// <summary>
+    /// ⭐⭐ B-10 K7 (docs/UX/DESIGN_Input_And_Commands.md §6b, R-4163) — THE SAME CLICK means a different thing by scope: a right click is the MENU in the map scope (the empty-space menu on ground,
+    /// the entity's on a unit) and MOVE / ATTACK in the RTS scope (the Command hat's scope sits in front of the map's); a gesture the RTS scope does not declare (a left drag on ground = the band)
+    /// falls through to the map's row; every other hat resolves in the map scope.
+    /// 🔴 Red-proof (compiles): the router asking the map scope before the hat's ⇒ the RTS right click resolves to the menu ⇒ red.
+    /// </summary>
+    [Fact]
+    public void K7_TheSameClick_IsTheMenuInTheMapScope_MoveOrAttackInTheRtsScope()
+    {
+        var router = MapGestureRouter.Shared;
+        Fdp.Toolkit.Input.GestureEntry? Row(Hrot.Common.Editing.Hat hat, Fdp.Toolkit.Input.GestureButton b, Fdp.Toolkit.Input.GestureTarget t,
+            Fdp.Toolkit.Input.GestureModifiers m = Fdp.Toolkit.Input.GestureModifiers.None, Fdp.Toolkit.Input.GestureKind k = Fdp.Toolkit.Input.GestureKind.Click)
+            => router.Resolve(hat, new Fdp.Toolkit.Input.MapGesture(b, k, m, t), out var e) ? e : null;
+        string? Id(Hrot.Common.Editing.Hat hat, Fdp.Toolkit.Input.GestureButton b, Fdp.Toolkit.Input.GestureTarget t, Fdp.Toolkit.Input.GestureModifiers m = Fdp.Toolkit.Input.GestureModifiers.None)
+            => Row(hat, b, t, m)?.Action.CommandId;
+        var L = Fdp.Toolkit.Input.GestureButton.Left; var R = Fdp.Toolkit.Input.GestureButton.Right;
+        var G = Fdp.Toolkit.Input.GestureTarget.Ground; var E = Fdp.Toolkit.Input.GestureTarget.Entity;
+        var S = Fdp.Toolkit.Input.GestureTarget.Selected; var H = Fdp.Toolkit.Input.GestureTarget.Hostile;
+        var shift = Fdp.Toolkit.Input.GestureModifiers.Shift; var ctrl = Fdp.Toolkit.Input.GestureModifiers.Ctrl;
+        var obs = Hrot.Common.Editing.Hat.Observe; var cmd = Hrot.Common.Editing.Hat.Command;
+
+        // the right click: the menu in the map scope …
+        Assert.Equal(MapGestureIds.MenuEmpty, Id(obs, R, G));
+        Assert.Equal(MapGestureIds.MenuEntity, Id(obs, R, E));
+        Assert.Equal(MapGestureIds.MenuEntity, Id(obs, R, H));
+        Assert.Equal(MapGestureIds.MenuSelection, Id(obs, R, S));
+        // … Move / Attack in the RTS scope
+        Assert.Equal(MapGestureIds.RtsMove, Id(cmd, R, G));
+        Assert.Equal(MapGestureIds.RtsAttack, Id(cmd, R, H));
+        Assert.Equal(MapGestureIds.RtsMove, Id(cmd, R, E));                    // a friend / neutral: a move to its position (Entity Control §8a)
+        Assert.Equal(MapGestureIds.RtsAttackForce, Id(cmd, R, E, ctrl));       // Ctrl: attack whatever is there (CE-1132)
+        Assert.Equal(MapGestureIds.RtsMove, Id(cmd, R, G, ctrl));              // … on empty ground it is still a move
+        // the left click: the selection rules in the map scope (a member narrows, ground clears) and RTS select / add
+        Assert.Equal(MapGestureIds.Select, Id(obs, L, S));
+        Assert.Equal(MapGestureIds.Clear, Id(obs, L, G));
+        Assert.Equal(MapGestureIds.RtsSelect, Id(cmd, L, E));
+        Assert.Equal(MapGestureIds.RtsSelectAdd, Id(cmd, L, E, shift));
+        // not declared by RTS ⇒ falls through to the map scope: the rubber band is still the map's
+        var band = Row(cmd, L, G, k: Fdp.Toolkit.Input.GestureKind.Drag)!.Value;
+        Assert.Equal(MapGestureIds.Band, band.Action.CommandId);
+        Assert.Equal(Fdp.Toolkit.Input.InputScope.Map, band.Scope);
+        // every other hat resolves in the map scope — RTS in front of it only while it is the hat (it has no effect in Edit)
+        foreach (var hat in new[] { Hrot.Common.Editing.Hat.Edit, Hrot.Common.Editing.Hat.Embodied, Hrot.Common.Editing.Hat.Direct })
+            Assert.Equal(MapGestureIds.MenuEmpty, Id(hat, R, G));
+        Assert.Empty(router.Keymap.ValidateGestures());
+        // ⭐ RTS overrides only GESTURES: it declares no key, so 2-D / 3-D, Ctrl+S, the camera keys and the letters fall through untouched
+        for (int i = 0; i < router.Keymap.Count; i++) Assert.NotEqual(Fdp.Toolkit.Input.InputScope.Hat, router.Keymap[i].Scope);
+    }
+
+    /// <summary>⛔ Hot path (R-2084) — resolving a gesture allocates nothing.</summary>
+    [Fact]
+    public void K7_ResolvingAGesture_AllocatesNothing()
+    {
+        var router = MapGestureRouter.Shared;
+        var g = new Fdp.Toolkit.Input.MapGesture(Fdp.Toolkit.Input.GestureButton.Right, Fdp.Toolkit.Input.GestureKind.Click, Fdp.Toolkit.Input.GestureModifiers.Ctrl, Fdp.Toolkit.Input.GestureTarget.Hostile);
+        for (int i = 0; i < 3; i++) router.Resolve(Hrot.Common.Editing.Hat.Command, in g, out _);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 1000; i++) router.Resolve(Hrot.Common.Editing.Hat.Command, in g, out _);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    /// <summary>
+    /// ⭐⭐ B-10 K7 — the RTS gizmo owns NO gesture meaning: it runs the row its scope chain gives. Rebind a right click on a hostile to Move in a keymap of its own and the same click
+    /// MOVES the unit instead of attacking; with no row at all the click does nothing; Ctrl + right click on a friend attacks it (the bound force row).
+    /// 🔴 Red-proof (compiles): the gizmo calling <c>Command</c> directly (the pre-K7 hand-written branch) ⇒ the rebound click still attacks ⇒ red.
+    /// </summary>
+    [Fact]
+    public void K7_TheGizmoRunsWhatItsScopeBinds_NotWhatItWasWrittenWith()
+    {
+        var a = Unit(10, ForceId.Friend, new Vector2(1, 1));
+        Unit(12, ForceId.Friend, new Vector2(5, 5));
+        Unit(20, ForceId.Hostile, new Vector2(40, 0));
+        void RightClick(RtsCommandGizmo g, Vector3 at, bool ctrl = false)
+        {
+            var b = ctrl ? MapMouseButton.Right | MapMouseButton.CtrlMask : MapMouseButton.Right;
+            g.OnMouseEvent(b, isPressed: true, at);
+            g.OnMouseEvent(b, isPressed: false, at);
+        }
+
+        // the defaults: Ctrl + right click on a friend is the bound force row ⇒ an Attack order
+        var standard = new RtsCommandGizmo(Commands(a), () => { });
+        RightClick(standard, new Vector3(5, 5, 0), ctrl: true);
+        var forced = Assert.Single(Read<AssignTacticalIntentEvent>());
+        Assert.Equal("Order.Attack", forced.IntentId);
+        Assert.Contains("\"Target\":12", forced.JsonParams);
+
+        // a keymap that rebinds RMB on a hostile to Move
+        var rebound = new Fdp.Toolkit.Input.Keymap();
+        rebound.DeclareGesture(new(new Fdp.Toolkit.Input.MapGesture(Fdp.Toolkit.Input.GestureButton.Right, Fdp.Toolkit.Input.GestureKind.Click, Fdp.Toolkit.Input.GestureModifiers.None,
+            Fdp.Toolkit.Input.GestureTarget.Hostile), Fdp.Toolkit.Input.InputScope.Hat, MapGestureBindings.RtsHat, Fdp.Toolkit.Input.ActionRef.Command(MapGestureIds.RtsMove)));
+        var custom = new RtsCommandGizmo(Commands(a), () => { }, gestures: new MapGestureRouter(rebound));
+        RightClick(custom, new Vector3(40, 0, 0));
+        Assert.Equal("Order.Move", Assert.Single(Read<AssignTacticalIntentEvent>()).IntentId);
+
+        RightClick(custom, new Vector3(120, -40, 0));                           // ground: no row in this keymap ⇒ nothing
+        Assert.Empty(Read<AssignTacticalIntentEvent>());
+        custom.OnMouseEvent(MapMouseButton.Left, isPressed: false, new Vector3(1, 1, 0));   // and no select row either
+        Assert.Empty(Read<SelectionChangeRequest>());
+    }
+
     [Fact]
     public void CE3171_TheTool_IsOfferedOnALiveMap_ArmsWithAPick_AndIsAbsentInAReplay()
     {

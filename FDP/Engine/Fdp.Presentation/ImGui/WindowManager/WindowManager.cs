@@ -103,7 +103,7 @@ public class WindowManager
 
         // ⭐⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5) — the ONE key router, on every host by construction; its Global scope is
         //    this window manager's shell commands (Ctrl+S from anywhere). ⛔ SUPERSEDED: the editor-only shell hotkey pump (BATCH-06).
-        Keys = new Fdp.Presentation.Input.KeyRouter(new Fdp.Presentation.Input.ImGuiInputSource()) { GlobalCommands = _shellCommands };
+        Keys = new Fdp.Presentation.Input.KeyRouter(new Fdp.Presentation.Input.ImGuiInputSource(), Fdp.Toolkit.Input.Keymap.Process) { GlobalCommands = _shellCommands };
 
         // ⭐⭐⭐ VC-2 — THE ONE `Settings` MENU, and it lives in GlobalMenu.
         // 📐 Measured 2026-08-22: the menu bar renders TWO independent models side by side —
@@ -113,7 +113,13 @@ public class WindowManager
         // ⇒ ⭐ this item moves into GlobalMenu (route, don't duplicate) so `Settings` is ONE menu that
         //    hosts can extend — which is what the layout items now do.
         //    ⭐ CE-4085: Settings is a SUBMENU of View (View ▸ Settings ▸ …), not a top-level menu — ⛔ SUPERSEDED: the top-level Settings.
-        GlobalMenu.RegisterItem(GlobalMenuRegistry.SettingsMenuPath + "/UI Scale & Fonts…", () => _openSettingsModal = true);
+        MenuCommandAdapter.RegisterAction(GlobalMenu, _shellCommands, "shell.ui-settings", GlobalMenuRegistry.SettingsMenuPath + "/UI Scale & Fonts…", () => _openSettingsModal = true);   // ⭐ B-10 K5 — an action, not a closure-only item
+
+        // ⭐⭐ B-10 K6 (§6f) — Edit ▸ Keyboard shortcuts… (Ctrl+K): every binding of the ONE keymap (menus-visual.svg panel C)
+        _shortcutsWindow = new KeyboardShortcutsWindow(Fdp.Toolkit.Input.Keymap.Process);
+        RegisterWindow(_shortcutsWindow);
+        MenuCommandAdapter.RegisterAction(GlobalMenu, _shellCommands, KeyboardShortcutsWindow.CommandId, "Edit/Keyboard shortcuts…", () => _shortcutsWindow.Show(),
+            key: new NodeEditor.Core.Action.KeyBinding(NodeEditor.Primitives.EditorKey.K, NodeEditor.Primitives.KeyModifiers.Ctrl));
 
         // ⭐⭐ CE-1243 MB-3 (docs/UX/UX_Feature_Menu_Follows_Focus.md §MB) — the shell's own per-frame menus are CONTRIBUTORS of the one
         //    menu tree, drawn by the same walk and the same rows as every registered item. ⛔ SUPERSEDED: RenderPerspectiveMenu (a
@@ -514,6 +520,11 @@ public class WindowManager
     /// open-browser, new-asset, etc.). Per-document command sets are separate and unchanged.
     /// </summary>
     public ShellEditorCommands ShellCommands => _shellCommands;
+
+    private KeyboardShortcutsWindow _shortcutsWindow = null!;
+
+    /// <summary>⭐ B-10 K6 — the Keyboard shortcuts window (Edit ▸ Keyboard shortcuts…, Ctrl+K).</summary>
+    public KeyboardShortcutsWindow ShortcutsWindow => _shortcutsWindow;
 
     /// <summary>⭐ B-10 K1 — the key router (keymap + scope chain), run at the end of every <see cref="Render"/>.</summary>
     public Fdp.Presentation.Input.KeyRouter Keys { get; }

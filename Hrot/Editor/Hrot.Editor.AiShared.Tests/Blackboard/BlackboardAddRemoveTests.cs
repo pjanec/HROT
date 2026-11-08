@@ -307,7 +307,7 @@ public sealed class BlackboardAddRemoveTests
 
         Assert.True(BlackboardAuthoringWindow.IsReadOnlyAsset(codeBuilt));
         var schema = new BTreeHsmSchemaSource(codeBuilt, vm, BlackboardAuthoringWindow.IsReadOnlyAsset(codeBuilt));
-        Assert.False(VariablesPanelControl.AddOffered(schema));
+        Assert.False(VariablesPanelHost.AddOffered(schema));
 
         schema.AddVariable(new BlackboardVariableEntry("Sneaky", typeof(float), null));
         schema.RenameVariable("Counter", "Renamed");
@@ -318,7 +318,7 @@ public sealed class BlackboardAddRemoveTests
         var writable = new FakeBlackboardAsset();
         Assert.False(BlackboardAuthoringWindow.IsReadOnlyAsset(writable));
         var wSchema = new BTreeHsmSchemaSource(writable, BlackboardAuthoringWindow.BuildViewModel(writable), isReadOnly: false);
-        Assert.True(VariablesPanelControl.AddOffered(wSchema));
+        Assert.True(VariablesPanelHost.AddOffered(wSchema));
         wSchema.AddVariable(new BlackboardVariableEntry("Fresh", typeof(int), null));
         Assert.Contains(writable.BlackboardVariables, v => v.Name == "Fresh");
     }

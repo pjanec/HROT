@@ -315,6 +315,13 @@ namespace Hrot.Editor
 
         private bool _undoRecorderInstalled, _undoSessionWired;
 
+        /// <summary>⭐ U5 — Edit ▸ History… (null until the windows are registered).</summary>
+        private Hrot.Presentation.Windows.EditHistoryWindow? _historyWindow;
+        internal Hrot.Presentation.Windows.EditHistoryWindow? HistoryWindow => _historyWindow;
+
+        /// <summary>⭐ B-14 — the station is in Edit mode (the only mode undo works in, R-4120).</summary>
+        private bool InEditMode => _world is { } uw && Hrot.Common.Editing.StationMode.Of(uw) == Hrot.Common.Editing.EditingMode.Edit;
+
         /// <summary>⭐ B-14 / Edit-mode undo U2 + U5 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.2) — the world's step recorder writes world steps onto the ONE
         /// <see cref="EditHistory"/> (Edit mode only); the session's Save marks the clean point and an open / create / clear (or a Live load) starts over.
         /// Called where the world + ring and where the session come into being (either order); each half once.</summary>
@@ -396,6 +403,8 @@ namespace Hrot.Editor
         private ScenarioOrbatAdapter?             _orbatAdapter;
         private ScenarioMapConfigAdapter?         _mapConfigAdapter;
         private CanvasMapPickAdapter?           _mapPickAdapter;
+        /// <summary>⭐ CE-3402 (Y-8) — the Details forms' pick context: ONE broker, built on first use (the map adapter is resolved at request time).</summary>
+        internal Hrot.Presentation.Facades.MapPickBroker FormsPick => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter) { EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers) };
         private Hrot.Presentation.Facades.MapPickBroker? _formsPick;   // ⭐ U-23 / D4 — the Details forms' pick context (a list's add)
         private EditorZoneAdapter?              _zoneAdapter;
         private EditorPreviewController?        _previewController;
@@ -444,8 +453,9 @@ namespace Hrot.Editor
         /// what the map holds (the loaded preset by ARGS — <c>PresetText.IsLoaded</c> — and whether it can be saved), whether the scenario uses variants (any entity keeps its <c>VariantForms</c>), and
         /// <i>Preview this preset</i> (Preview armed, the preset armed, ▶).
         /// </summary>
-        private Hrot.Editor.Scenario.ParametersDrawer WireParametersDrawer(Hrot.Editor.Scenario.ParametersDrawer drawer)
+        internal Hrot.Editor.Scenario.ParametersDrawer WireParametersDrawer(Hrot.Editor.Scenario.ParametersDrawer drawer)
         {
+            drawer.Picks = () => FormsPick;   // ⭐ CE-3402 (Y-8) — the editor's ONE pick broker (the Details forms'): a link-type parameter default picks on the map
             drawer.MapHolds = () =>
             {
                 if (_editorApp is null || _world is null) return null;
@@ -683,6 +693,9 @@ namespace Hrot.Editor
 
         /// <summary>CE-4054 test hook: the preview controller <c>/status</c> reads <c>inPreview</c> from.</summary>
         internal IPreviewController? PreviewControllerForTest => _previewController;
+
+        /// <summary>⭐ CE-4326 §9a.2 test hook: the node's dry run (a preset's params are bound through ITS serializer — the forwarding rail reads it).</summary>
+        internal Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler? DryRunForTest => _clusterHandlers?.DryRun;
 
         /// <summary>Q86 test hook: this node's clock (the editor's own master — Q86 keeps it here).</summary>
         internal MasterSyncController? TimeControllerForTest => _timeController;
@@ -1595,7 +1608,8 @@ namespace Hrot.Editor
                     // ⭐ CE-4059 (§11q D1) — the drafter over the index the Event Timeline shows, a take of the loaded scenario
                     Index:     () => _node?.ShownTimeline?.Index,
                     Scenario:  () => _editorLogic?.LoadedScenarioName,
-                    IndexComplete: () => _node?.ShownTimeline?.IsComplete ?? false));   // ⭐ CE-4121 — the live source: always complete
+                    IndexComplete: () => _node?.ShownTimeline?.IsComplete ?? false,   // ⭐ CE-4121 — the live source: always complete
+                    History:   EditHistory));   // ⭐ U4 — the take editor's steps ride the editor's ONE history (Edit ▸ Undo / Redo / History)
                 _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 
@@ -3280,7 +3294,7 @@ namespace Hrot.Editor
                 EventFocus:     _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
                 SelectNetworkEntity: n => SelectNetworkEntity(n),
                 Rules:          () => _rulesWindow,     // ⭐ U-18 / RX2 — the rule's detail in Details, through the one window
-                Pick:           () => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter) { EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers) },   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
+                Pick:           () => FormsPick,   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
                 ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry)));   // ⭐ P-7 7b — a task's fields
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
@@ -3582,10 +3596,10 @@ namespace Hrot.Editor
                 () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
             // ⭐ CE-1329 (Brain View §12r BV-71) — forget every unit's remembered debug settings (pins, traces, the followed unit) of the
             //   loaded scenario; the Brain tab's Debug section resets one unit
-            windowManager.GlobalMenu.RegisterItem(GlobalMenuRegistry.SettingsMenuPath + "/Reset all debug settings for this scenario", () =>
+            Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "debug.reset-all-unit-settings", GlobalMenuRegistry.SettingsMenuPath + "/Reset all debug settings for this scenario", () =>
             {
                 if (_world != null) Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world).ResetAll();
-            });
+            });   // ⭐ B-10 K5
 
             // ⭐ CE-1150 — composed as a bundle: the panel AND its actions (Properties…, View ▸ Details ▸ Float / Pin).
             if (_scenarioDetailsBundle is not null)
@@ -3885,7 +3899,8 @@ namespace Hrot.Editor
 
             // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
             Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,
-                inEdit: () => _world is { } uw && Hrot.Common.Editing.StationMode.Of(uw) == Hrot.Common.Editing.EditingMode.Edit);
+                inEdit: () => InEditMode,
+                showHistory: () => _historyWindow?.Show());   // ⭐ U5 — Edit ▸ History…
 
             Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
                 register:          windowManager.ShellCommands.Register,
@@ -4203,7 +4218,7 @@ namespace Hrot.Editor
 
             // ⭐ CE-4210 MA-6 — File ▸ New ▸ Macro…  (a macro starts from a scenario recipe's terrain, like New Scenario…) — ⭐ CE-4253/4255: it was Scenario/New Macro…
             if (newAssetLauncher is { CanOpenMacro: true })
-                windowManager.GlobalMenu.RegisterItem(Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewMacro, () => newAssetLauncher.OpenMacro(), "Scenario", allowedInIdle: false);
+                Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "file.new-macro", Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewMacro, () => newAssetLauncher.OpenMacro(), "Scenario", allowedInIdle: false);
 
             // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording: the master's exercise inventory (the core's cluster read model, the SAME
             //   list GET /exercises serves) in the shared picker; a pick opens into AAR through the session's ONE replay intent.
@@ -4908,6 +4923,8 @@ namespace Hrot.Editor
             {
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.UndoId, "Edit/Undo");
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.RedoId, "Edit/Redo");
+                if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.EditUndoCommands.HistoryId) != null)   // ⭐ U5 — right under Redo
+                    MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.HistoryId, "Edit/History…");
             }
 
             // ─────────────────────────────────────────────────────────────────────────
@@ -4973,6 +4990,10 @@ namespace Hrot.Editor
                 Actions: () => HostActions));   // ⭐ CE-4308 — the map menu's rule entries (silent-default rule: the editor holds them)
             _rulesWindow = rules.Rules; _rulesBundle = rules;
             Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+            // ⭐ U5 (Edit mode undo) — Edit ▸ History…: the ONE EditHistory's steps, a click goes to one
+            _historyWindow = new Hrot.Presentation.Windows.EditHistoryWindow(EditHistory, () => InEditMode, "edit_history", "Scenario", EditorWindowColor.TitleBar);
+            windowManager.RegisterWindow(_historyWindow);
 
             // ⭐ CE-4318 (L-6, Scenario Lifecycle LC-13) — the ONE Problems window over backend's ScenarioProblems; its count on the toolbar (nothing when there are none)
             _problemsWindow = new Hrot.Presentation.Windows.ProblemsWindow(() => _world, n => SelectNetworkEntity(n), "problems", "Scenario", EditorWindowColor.TitleBar);
@@ -5083,7 +5104,7 @@ namespace Hrot.Editor
                     behaviorRemapper: _behaviorRegistry is null ? null : Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry));
                 _saveSelectionWindow = new Hrot.Editor.Scenario.SaveSelectionAsMacroWindow(selectionFlow);
                 windowManager.RegisterWindow(_saveSelectionWindow);
-                windowManager.GlobalMenu.RegisterItem(Hrot.Editor.AiShared.Scenarios.FileMenuLayout.SaveSelectionAsMacro, () => _saveSelectionWindow?.Start(), "Scenario");   // ⭐ CE-4253 — it was Scenario/…
+                Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "file.save-selection-as-macro", Hrot.Editor.AiShared.Scenarios.FileMenuLayout.SaveSelectionAsMacro, () => _saveSelectionWindow?.Start(), "Scenario");   // ⭐ CE-4253 — it was Scenario/…
                 HostActions.Actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.SaveSelectionAsMacro, (view, target) =>
                 {
                     if (!target.IsNull && _selectionState is { SelectedEntities.Count: 0 } sel) sel.PrimarySelected = target;   // a right-click on an unselected unit saves that unit

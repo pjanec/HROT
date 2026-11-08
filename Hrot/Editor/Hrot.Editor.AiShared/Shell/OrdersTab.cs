@@ -67,8 +67,12 @@ public sealed class OrdersTab : IDetailsViewInstance
 
     /// <summary>The rows for <paramref name="entity"/>, read now (headless).</summary>
     /// <summary>7b — a unit with no plan still gets the tab when it can be ordered (an order offered for its type) and the host has the facade.</summary>
-    public bool CanTakeAPlan(Entity entity)
-        => _missions() != null && _world() is { } w && w.IsAlive(entity) && w.HasComponent<NetworkIdentity>(entity)
+    public bool CanTakeAPlan(Entity entity) => _missions() != null && WouldTakeAPlan(entity);
+
+    /// <summary>⭐ B-11 A7 — the unit could be ordered (an order offered for its type), whether or not THIS host binds the facade: what lets the tab be GREYED
+    /// ("not available on this station") on a host without one, instead of missing.</summary>
+    public bool WouldTakeAPlan(Entity entity)
+        => _world() is { } w && w.IsAlive(entity) && w.HasComponent<NetworkIdentity>(entity)
            && Hrot.Common.Orders.OrderMenu.OfferedFor(w.GetDisType(entity)).Count > 0;
 
     public IReadOnlyList<OrdersTaskRow> RowsFor(Entity entity)
@@ -153,14 +157,24 @@ public sealed class OrdersTab : IDetailsViewInstance
         PollCommit();
         var draft = EnsureDraft(net);
         MissionPlanQueue? queue = w.IsComponentTypeRegistered<MissionPlanQueue>() && w.HasComponent<MissionPlanQueue>(entity) ? w.GetComponentRO<MissionPlanQueue>(entity) : null;
-        var rows = LastRows = OrdersPlanModel.RowsOf(draft, _dirty ? null : queue);
+        // ⭐ CE-3403 — the rows (every task\'s sentence parses its conditions) and the list\'s summaries are rebuilt ONLY when the plan or the queue changed: a steady frame builds nothing (R-2084)
+        var queueNow = _dirty ? null : queue;
+        uint sig = PlanSignature(draft, queueNow);
+        if (!ReferenceEquals(draft, _rowsFor) || sig != _rowsSig)
+        {
+            _rowsFor = draft; _rowsSig = sig;
+            var built = LastRows = OrdersPlanModel.RowsOf(draft, queueNow);
+            _summaries.Clear();
+            int h = built.Count;
+            for (int i = 0; i < built.Count; i++) { string line = built[i].Sentence + (built[i].Problem is { } pr ? "  ! " + pr : ""); _summaries.Add(line); h = Fdp.Core.StableHash.Combine(h, unchecked((int)Fdp.Core.StableHash.Fnv1a32(line)), 0); }
+            _summariesHash = h;
+        }
+        var rows = LastRows;
         var svc = _missions();
         if (rows.Count == 0) ImGui.TextDisabled("No plan — this unit runs its standing behaviour.");
-        // ⭐ CE-3395 — the plan's tasks are the kit's LIST block: one summary row per task (⋮⋮ drag · number · state glyph · the sentence · ⋮ menu), the task's fields / then / give-up open under the row; Add at the end opens the add menu.
-        // The ops go to the EXISTING draft edits (OrdersPlanEdits.Move, draft.Tasks.RemoveAt, the add menu's NewWait / NewOrder / NewBehaviour).
-        _summaries.Clear();
-        int hash = rows.Count;
-        for (int i = 0; i < rows.Count; i++) { string line = rows[i].Sentence + (rows[i].Problem is { } pr ? "  ! " + pr : ""); _summaries.Add(line); hash = HashCode.Combine(hash, line); }
+        // ⭐ CE-3395 — the plan\'s tasks are the kit\'s LIST block: one summary row per task (⋮⋮ drag · number · state glyph · the sentence · ⋮ menu), the task\'s fields / then / give-up open under the row; Add at the end opens the add menu.
+        // The ops go to the EXISTING draft edits (OrdersPlanEdits.Move, draft.Tasks.RemoveAt, the add menu\'s NewWait / NewOrder / NewBehaviour).
+        int hash = _summariesHash;
         ListBlock.Begin("tasks", _summaries, TaskOptions, hash);
         for (int v = 0; v < ListBlock.VisibleCount; v++)
         {
@@ -183,7 +197,6 @@ public sealed class OrdersTab : IDetailsViewInstance
             ListBlock.ItemEnd();
         }
         var taskOp = ListBlock.End();
-        MenuRects.Clear();
         ApplyTaskOp(draft, taskOp);
 
         if (ImGui.BeginPopup("orders_add"))
@@ -227,7 +240,28 @@ public sealed class OrdersTab : IDetailsViewInstance
     }
 
     private readonly List<string> _summaries = new();
-    internal List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> MenuRects { get; } = new();
+    private MissionPlan? _rowsFor; private uint _rowsSig; private int _summariesHash;
+
+    /// <summary>⭐ CE-3403 — a cheap content signature of the plan and its running state (task ids, behaviours, every trigger\'s type and params, each task\'s state): allocation-free; equal ⇒ the rows are the cached ones.</summary>
+    private static uint PlanSignature(MissionPlan plan, MissionPlanQueue? queue)
+    {
+        uint h = Fdp.Core.StableHash.Add(2166136261u, plan.Tasks.Count);
+        for (int i = 0; i < plan.Tasks.Count; i++)
+        {
+            var t = plan.Tasks[i];
+            h = Fdp.Core.StableHash.Add(h, t.TaskId.GetHashCode());
+            h = Fdp.Core.StableHash.Add(h, unchecked((int)Fdp.Core.StableHash.Fnv1a32(t.BehaviorId ?? "")));
+            var triggers = t.Triggers;
+            if (triggers != null)
+                for (int k = 0; k < triggers.Count; k++)
+                {
+                    h = Fdp.Core.StableHash.Add(h, unchecked((int)Fdp.Core.StableHash.Fnv1a32(triggers[k].Type ?? "")));
+                    h = Fdp.Core.StableHash.Add(h, unchecked((int)Fdp.Core.StableHash.Fnv1a32(triggers[k].Params ?? "")));
+                }
+            h = Fdp.Core.StableHash.Add(h, (int)OrdersPlanModel.StateOf(i, queue));
+        }
+        return h;
+    }
     private static readonly ListOptions TaskOptions = new()
     {
         AddLabel = "Add task",
@@ -468,7 +502,13 @@ public static class OrdersTabDescriptor
             Id:        Id,
             Title:     "Orders",
             Rank:      32,
-            AppliesTo: ctx => ctx.Entities.Count == 1 && (instance.RowsFor(ctx.Entities[0]).Count > 0 || instance.CanTakeAPlan(ctx.Entities[0])),
-            Create:    () => instance);
+            AppliesTo: ctx => ctx.Entities.Count == 1 && (instance.RowsFor(ctx.Entities[0]).Count > 0 || instance.WouldTakeAPlan(ctx.Entities[0])),
+            Create:    () => instance)
+        {
+            // ⭐ B-11 A7 (Editing UX §3.6 "order … a brain": Orders group = a side Controller; every mode, view-only on a recording) — declared, not coded
+            Requires     = new[] { typeof(NetworkIdentity) },
+            Availability = new Hrot.Common.Actions.ActionAvailability(Hrot.Common.Actions.ActionModes.Always, Level: Hrot.Common.Editing.EditingLevel.Controller),
+            Bound        = () => missions() != null,   // ⭐ D2 — a host with no mission facade shows the tab greyed
+        };
     }
 }

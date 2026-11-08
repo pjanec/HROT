@@ -128,7 +128,7 @@ namespace Hrot.Editor.DebugApi
         /// (for agents that drive the UI). Where the indicator would ASK first (a run would end) the route answers 409 with the confirmation's text, and does the move only when
         /// <c>confirm: true</c> accepts it — ⛔ an agent never confirms by accident. ⭐ The armed mode is the ONLY thing it sets; ▶ ⏸ ■ and the HTTP time routes never follow it.
         /// </summary>
-        public (JsonNode? Result, string? Error, string? HintCategory, int Status) SetRunMode(JsonNode? body)
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) SetRunMode(JsonNode? body, HttpUnsavedGate? gate = null)
         {
             var choice = RunChoiceOrNull;
             if (choice is null)
@@ -142,7 +142,11 @@ namespace Hrot.Editor.DebugApi
             if (move is null) return (null, "A DAR has its own exit (POST /review/exit); the armed mode cannot be changed inside it.", DebugApiHints.Scenario, 409);
             if (!move.Enabled) return (null, $"{target} cannot be armed now: {move.DisabledReason}.", DebugApiHints.Scenario, 409);
 
-            choice.Choose(target);
+            // ⭐ CE-3411 — HTTP's refusing asker (CE-4101): a switch out of Edit is decided by the door AT ONCE — a loss refused with the 409 text, discardUnsaved accepted —
+            //   ⛔ never a Save / Discard / Cancel left standing in the operator's UI (ui's Choose overload, NOTE_Ui_To_Backend_Choose_With_Asker_Answer)
+            var asker = HttpAsker(gate);
+            choice.Choose(target, asker, gate?.Answer ?? Hrot.UI.Common.RunMode.UnsavedAnswer.Unchanged);
+            if (asker.Refusal is { } refused) return (null, refused, DebugApiHints.Scenario, 409);
             if (choice.Pending is { } pending)
             {
                 if (!confirm)
@@ -347,14 +351,14 @@ namespace Hrot.Editor.DebugApi
         public bool IsEditingScenario => CurrentClusterStateOrNull() == ClusterState.OperatingEdit;
 
         /// <summary><c>POST /preview/enter {startPaused?}</c> — the cluster's dry run (<c>OperatingPreview</c>). ⛔ Never recorded (R-3053).</summary>
-        public (JsonNode? Result, string? Error, string? HintCategory) EnterPreview(bool startPaused = false)
+        public (JsonNode? Result, string? Error, string? HintCategory) EnterPreview(bool startPaused = false, string? presetArgs = null)
         {
             if (CurrentClusterStateOrNull() == ClusterState.OperatingPreview)
                 return (new JsonObject { ["published"] = false, ["target"] = nameof(ClusterState.OperatingPreview), ["note"] = "Already in preview." }, null, null);
             // ⭐⭐ CE-1440 (R-3066 audit #11) — the ONE construction of the dry run's intent (the toolbar's ▶ from Edit builds it too).
             //   ⚠ Behaviour change: a RUNNING preview now says TimeMode "Continuous" (it was null ⇒ the master left the clock paused:
             //   GlobalContextProcessManager resumes a preview only on "Continuous"), so POST /preview/enter {startPaused:false} runs, as ▶ does.
-            return PublishTransition(Hrot.UI.Common.Facades.DryRunIntents.Enter(startPaused));
+            return PublishTransition(Hrot.UI.Common.Facades.DryRunIntents.Enter(startPaused, presetArgs));   // ⭐ CE-4326 — the run setup, applied in place on every node
         }
 
         /// <summary><c>POST /preview/exit</c> — back to <c>OperatingEdit</c>: the dry run is rewound.</summary>

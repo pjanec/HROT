@@ -208,7 +208,7 @@ features"*
 | **H3** | the `HatArbiter`: one hat, disarm on switch, Esc one level, the hat in the indicator | ui |
 | **H4** | one camera owner with per-hat views (FPS, Follow, director, free) — ✅ H4b the director shares the camera (§3.4); ⏸ H4a no snap-back after possession, held for the user | ui |
 | **H5** | the Instructor seat's windows on the fused server and CGF (rules, game master, End) — SR-104 Z7 | ui |
-| **H6** | the Side controller seat; the Observer seat's camera | ui |
+| **H6** ✅ | the Side controller seat; the Observer seat's camera — **built, §3.5** | ui |
 | **H7** | the HTTP session seat and hat (`/session/seat`, `/session/hat`); `/orders/side-lock` folded in | backend + ui |
 
 ### 3.1 ⭐ AS-BUILT — H1 and H7 *(backend, `2026-11-07`, B-15)*
@@ -284,12 +284,12 @@ classDiagram
   class ToolController { <<existing>> ActiveModal · Cancel() }
   class StationMode { <<existing, H2>> Current · Seat }
   class PossessionStation { <<existing>> Enter / Leave }
-  class MainToolbarTimeControlSection { <<existing>> + StationLine "Instructor · Command" }
+  class StationSeatStatusBarSection { <<NEW, CE-4329>> Line "Instructor · Command" at the status bar's right end ⛔ SUPERSEDED: MainToolbarTimeControlSection.StationLine }
   HatArbiter --> StationMode : the run mode
   HatArbiter --> RtsModeState : armed? / stand down
   HatArbiter --> ToolController : disarms the other hats' tools
   PossessionStation ..> HatArbiter : Embodied on Enter / Leave
-  MainToolbarTimeControlSection ..> HatArbiter : shows Active
+  StationSeatStatusBarSection ..> HatArbiter : shows Active
 ```
 *What the picture shows that prose hid: the hat is DERIVED from facts that already exist (the run mode, the RTS tool, possession) — R-4164 "the hat
 follows the run mode, never picked by hand" — so the arbiter adds no second state to keep in step; its only actions are disarming on a change and
@@ -314,7 +314,7 @@ sequenceDiagram
 | **derived, one precedence** | Embodied (this station drives a unit) > Direct (the director owns the camera — set by H4) > Command (RTS armed, Preview / Live) > Edit (Edit mode) > Observe |
 | **disarm on a change** | every armed tool except RTS is cancelled (no placement tool under the FPS view, no Edit tool after ▶) |
 | **RTS sticky** (R-4163, Input §6b) | Esc no longer leaves the RTS tool — it drops a half-done right-press; only *View ▸ RTS command mode* leaves. Possessing stands it down; release returns to it |
-| **the indicator** | one line beside the mode glyph: *Instructor · Command* (the seat · the hat), composed ONCE with the toolbar time control |
+| **the indicator** | ⛔ SUPERSEDED (R-4170, CE-4329, §3.6): one line beside the mode glyph on the toolbar. ⭐ Now the STATUS BAR's right end shows *Instructor · Command*; the toolbar's indicator is one glyph button again |
 | ⏭ not here | the hat menu in the indicator (the mockup's clicks) · central Esc (K3) · the hat as the keymap scope (K2) · H4 the camera |
 
 ### 3.4 ⭐ H4 — one camera owner *(ui, `2026-11-07`)*
@@ -367,4 +367,55 @@ view* only after a director take — the case the user named. Rails: `FilmTests.
 
 ### ⭐ R-4170 — the seat · hat text goes to the STATUS BAR *(user, `2026-11-08`, CE-4329)*
 
-🔒 *"the armed mode icon, which was just a single icon has changed to something saying the seat or roll mode, putting some text in between the armed mode and the play button on the main toolbar, which I don't like, and I think the text which makes clear what role and what seat is active needs to go to the status bar"* — ⛔ SUPERSEDED: H3's *"seat · hat beside the indicator"* (§3.3). The main toolbar keeps the indicator as ONE glyph button next to ▶ (AQ108 D29); the status bar's right end shows *"Author · Observe"* (click = the hat menu, as the toolbar text did).
+🔒 *"the armed mode icon, which was just a single icon has changed to something saying the seat or roll mode, putting some text in between the armed mode and the play button on the main toolbar, which I don't like, and I think the text which makes clear what role and what seat is active needs to go to the status bar"* — ⛔ SUPERSEDED: H3's *"seat · hat beside the indicator"* (§3.3). The main toolbar keeps the indicator as ONE glyph button next to ▶ (AQ108 D29); the status bar's right end shows *"Author · Observe"* (click = the hat menu, as the toolbar text did). ✅ BUILT — §3.6.
+
+### 3.5 ⭐ H6 — the Side controller and the Observer seats *(ui, `2026-11-08`, Z-4; `build-state: BUILT`)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Seat|Hat|StationMode|StatusBar|EditingLevel).*` Class ⇒ 35; grep `Seat.SideController|Seat.Observer` ⇒ the level (`HrotEditGate.LevelOf`), the side lock
+(`StationMode.SideOf`, `EntityOrders.SideLock`), the RTS tool's level gate (H2) — all built; ⛔ **no hat limit per seat** existed: the arbiter derived one hat for every seat, so a Side controller in Edit mode
+"wore" Edit, and Possess was offered to a seat that may not possess. ⚠ Coverage not checkable through the CLI.
+
+```mermaid
+classDiagram
+  direction LR
+  class SeatHats { <<NEW static, Hrot.Common.Editing>> Allows(seat, hat) · Refusal(seat, hat) }
+  class HatArbiter { <<existing>> Active = Clamp(seat, Derive(...)) }
+  class ActionDecl { <<existing>> + NeedsHat : Hat? }
+  class ActionContext { <<existing>> + Seat · SeatRefusal checks NeedsHat }
+  class StationMode { <<existing>> + SeatOf(view) }
+  class DebugApiService { <<existing>> SetSessionHat refuses by SeatHats }
+  class StationSeatStatusBarSection { <<NEW>> MenuRows(seat, hat) greys by SeatHats }
+  HatArbiter ..> SeatHats
+  ActionContext ..> SeatHats
+  DebugApiService ..> SeatHats
+  StationSeatStatusBarSection ..> SeatHats
+  HatArbiter --> StationMode : SeatOf
+  ActionContext --> ActionDecl : NeedsHat
+```
+*What the picture shows that prose hid: ONE table (§2.2 "hats allowed") is read by the four things that show or enforce a hat — the arbiter, the menu rows, the HTTP session and the hat menu — so they cannot disagree.*
+
+| | as built |
+|---|---|
+| the table | `SeatHats.Allows`: Author all five · Instructor Command · Embodied · Observe · Side controller **Command · Observe** · Player Embodied · Observe · **Observer Observe** · Reviewer Observe · Direct. `Refusal` words: *"a Side controller seat cannot possess a unit"*, *"an Observer seat cannot command"* … |
+| the arbiter | `HatArbiter.Active` = the derived hat, **clamped**: a hat the seat may not wear is Observe (a Side controller in Edit mode, an Instructor in Edit, an Observer whatever is armed) |
+| the Side controller | level **Controller** (H2), side scope ONE side (H2: orders only to its side, `SideLock`), hats Command · Observe (new), launched as `--feature station.seat={"Seat":"SideController","Side":"Blue"}` (F-7, no new flag); **Possess greys** for it (`ActionDecl.NeedsHat = Embodied`, the row says why) |
+| the Observer seat | level **Observer** (H2: no edit, no orders, the RTS tool refuses to arm), hat **Observe only**; its CAMERA is the Observe hat's: the free camera and *Follow* / the unit camera (📄 DESIGN_Unit_Camera.md §4 — built, CE-1293) — the View group stays enabled for it (rail). Nothing new is drawn: the design's "no observer camera" was the missing hat limit, not a missing camera |
+| the HTTP session | `POST /session/hat` refuses a hat the session's seat may not wear, with the same words |
+| rails | `TheActionCatalogueComposesMenusTests.H6_*` (the table cell by cell; Possess greyed, Follow enabled; the seat as launched) · `HatArbiterTests.H6_*` (the clamp, 9 rows; a Side controller wears Command, an Observer never) |
+| ⏭ not built | *bookmarks and notes* for the Observer (a Review feature) · the seat menu's host-allowed seats ("Side controller — not on this host" greyed, panel A): seats change at launch only, so the menu lists them greyed with *"the seat is chosen at launch"* (§3.6) |
+
+### 3.6 ⭐ AS-BUILT — CE-4329 (R-4170): the seat · hat text is the status bar's *(ui, `2026-11-08`)*
+
+INVENTORY: `search_graph .*(StatusBar|Seat|Hat).*` — the section mechanism is `StatusBarManager.RegisterSection(id, sortOrder, render, perspective?)` (sections flow left to right, sorted); `RunNoteStatusBarSection`
+(60), `MapCursorStatusBarSection` (50), the message log (90). H3's text was `MainToolbarTimeControlSection.StationLine` drawn as `TextDisabled` beside the indicator — ⚠ **there was no hat menu**: §3.3 lists it as
+"⏭ not here" (the note's *"the same menu H3 opens today"* named a menu that was never built).
+
+| | as built |
+|---|---|
+| the toolbar | the run-mode indicator is ONE glyph button next to ▶ (AQ108 D29); `StationLine`, `SeatWord` and the `stationWorld` parameter are gone (⛔ SUPERSEDED: H3's toolbar text) |
+| the section | `StationSeatStatusBarSection` (`Hrot.Presentation/Panels`): id `station_seat`, sort order **200** (after the message log) and right-aligned inside the bar; ⛔ the LEFT end is untouched (a source segment there stays first and clear — rail). Plain text, as H3 drew it |
+| composed once | `LocalWindowController.ComposeRunControls` registers it over the PICKED owner's world — every host with a run-controls owner (the Player too, which suppresses the toolbar time control but has a seat); none without an owner |
+| the click | opens a popup menu: *Hat — one at a time* (Edit · Command · Embodied — possess a unit · Observe · Direct) and *Seat* (the six). The current hat and seat are checked; a hat the seat may not wear is greyed with `SeatHats.Refusal`; every other row is greyed with *"the hat follows what you do … not picked by hand"* / *"the seat is chosen at launch: --feature station.seat"* — ⚠ **deviation from seats.png**: the hat is DERIVED (R-4164) and a seat is set at launch, so the mockup's one-click switching is not built; no glyphs or key hints (the icon map has no seat / hat keys) |
+| hot path | the line and the rows are rebuilt only when the seat or hat changes: **0 B** per steady frame (rail) |
+| rails | `TheSeatTextIsOnTheStatusBarFrameRail` (Xvfb: nothing between the indicator and ▶ — one item spacing; the right end, the left clear; a click opens the menu; 0 B; the rows) · `HatArbiterTests.TheStatusBarLine_ShowsTheSeatAndTheHat` · `TheStartGateIsComposedOnceTests.CE4329_…` (composed once, every owner). Red-proofs: the toolbar drawing the line again ⇒ the gap rail; no right alignment ⇒ the right-end rail |
+

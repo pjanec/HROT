@@ -28,20 +28,20 @@ public sealed class TheParamsPanelRendersTests
         public RenderedParams() { }
     }
 
-    private sealed class ParamsAsset : FakeBlackboardAsset, IParamsDtoAsset
+    internal class ParamsAsset : FakeBlackboardAsset, IParamsDtoAsset
     {
         public string? ParamsDtoTypeId { get; set; }
         public string? CurrentParamsDefaults { get; set; }
         public void SetParams(string? typeId, string? defaultsJson) { ParamsDtoTypeId = typeId; CurrentParamsDefaults = defaultsJson; }
     }
 
-    private sealed class NoRefactor : IRefactorService
+    internal class NoRefactor : IRefactorService
     {
-        public IReadOnlyList<AssetReferenceInfo> FindReferences(string targetKey) => Array.Empty<AssetReferenceInfo>();
+        public virtual IReadOnlyList<AssetReferenceInfo> FindReferences(string targetKey) => Array.Empty<AssetReferenceInfo>();
         public IReadOnlyList<AssetReferenceInfo> FindReferencesInAsset(Guid hostAssetId) => Array.Empty<AssetReferenceInfo>();
-        public RefactorPreview PreviewRename(string fromKey, string toKey, RefactorOptions options) =>
+        public virtual RefactorPreview PreviewRename(string fromKey, string toKey, RefactorOptions options) =>
             new(fromKey, toKey, Array.Empty<RefactorFileEdit>(), Array.Empty<RefactorIssue>());
-        public RefactorResult ApplyRename(RefactorPreview preview) => new(true, Array.Empty<string>(), null);
+        public virtual RefactorResult ApplyRename(RefactorPreview preview) => new(true, Array.Empty<string>(), null);
         public DeletePreview PreviewDelete(Guid assetId, DeleteOptions options) =>
             new(assetId, Array.Empty<AssetReferenceInfo>(), Array.Empty<RefactorIssue>());
         public RefactorResult ApplyDelete(DeletePreview preview) => new(true, Array.Empty<string>(), null);
@@ -62,9 +62,7 @@ public sealed class TheParamsPanelRendersTests
             new BlackboardVariableEntry("Counter", typeof(int), "a plain variable"),
         });
         var vm = BlackboardAuthoringWindow.BuildViewModel(asset);
-        var control = new VariablesPanelControl(new NoRefactor(), asset, vm.KnownTypeNames);
-        var section = new VariablesPanelSection("Variables", "ce1061", new BTreeHsmSchemaSource(asset, vm, isReadOnly: false),
-            vm.TotalInlineBytes, vm.InlineBudget, vm.Warning, AliasingEnabled: false);
+        var control = new VariablesPanelHost(new NoRefactor(), asset, vm.KnownTypeNames);
 
         using var frame = UiFrameHarness.Begin();
         frame.StepN(4, () =>
@@ -72,7 +70,7 @@ public sealed class TheParamsPanelRendersTests
             ImGuiNET.ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
             ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(620, 470), ImGuiNET.ImGuiCond.Always);
             ImGuiNET.ImGui.Begin("Variables (CE-1061)");
-            control.DrawSingle(section);
+            control.Draw(vm, isReadOnly: false, aliasingEnabled: false);
             ImGuiNET.ImGui.End();
         });
         var dir = Environment.GetEnvironmentVariable("HROT_FRAME_SCREENSHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-frames");

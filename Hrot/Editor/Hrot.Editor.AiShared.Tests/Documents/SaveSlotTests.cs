@@ -101,7 +101,7 @@ public sealed class SaveSlotTests
         var aar = Slot(ClusterState.OperatingReplay);
         Assert.False(aar.Slot.IsEnabled());
         Assert.NotNull(aar.Slot.DynamicGlyph!());
-        Assert.Contains("a recording cannot take a checkpoint — go live from a moment first", aar.Slot.DynamicDisplayName!());
+        Assert.Contains("a recording already holds every moment — use Go live from here", aar.Slot.DynamicDisplayName!());   // ⭐ Z-1 (R-4168)
     }
 
     // ── the real toolbar slot on a real frame ─────────────────────────────────────────────────────────────────────

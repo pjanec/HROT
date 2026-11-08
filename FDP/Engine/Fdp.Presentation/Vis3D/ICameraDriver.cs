@@ -33,5 +33,13 @@ namespace Fdp.Toolkit.Vis3D
         /// it looks, fog starting part way there). Default: eyes.
         /// </summary>
         bool ViewsFromEye => true;
+
+        /// <summary>
+        /// ⭐ B-10 K2 (docs/UX/DESIGN_Input_And_Commands.md §6, R-4169) — the CAMERA SCOPE: whether this driver reads <paramref name="key"/> itself, so the
+        /// map's letters (Attack, Center …) must not also fire on it. Default: every key (a first-person view, a fall screen, a film director —
+        /// the hats that own the keyboard). ⭐ A driver that is NOT a hat (a follow camera) overrides it to name only the keys it uses; everything
+        /// else falls through to the map scope.
+        /// </summary>
+        bool OwnsKey(MapKeyboardKey key) => true;
     }
 }

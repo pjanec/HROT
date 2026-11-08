@@ -88,12 +88,16 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// </param>
         /// <param name="includeTransient">Carry Transient components too (the editor's dry run did, HN-016).</param>
         /// <param name="accumulator">⭐ B2 — the host's step-event accumulator, restarted after the rewind (D4).</param>
+        /// <param name="scenarioSerializer">⭐ CE-4326 (Presets §9a.2) — the host's scenario serializer: a preset's PARAMS reach the bound fields in place
+        /// through it (the one binder, on the entity's file JSON). Null ⇒ a preset's params are not applied in place (counted, and the Preview warns).</param>
         public ReferencePreviewHandler(
             EntityRepository? liveRepo,
             System.Collections.Generic.IEnumerable<IPreviewRewindable>? rewindables = null,
             bool includeTransient = false,
-            EventAccumulator? accumulator = null)
+            EventAccumulator? accumulator = null,
+            Fdp.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null)
         {
+            ScenarioSerializer = scenarioSerializer;
             _liveRepo    = liveRepo;
             _bracket     = rewindables is null ? null : new PreviewStateBracket(rewindables);
             _capture     = includeTransient ? CaptureOptions.EditorDryRun : CaptureOptions.NodeDryRun;
@@ -149,7 +153,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             switch (target)
             {
                 case ClusterState.LoadingPreview:
-                    LoadingPreviewCommit();
+                    LoadingPreviewCommit((intent.DomainPayload as EditLoadHandlerPayload?)?.ScenarioArgsJson);
                     break;
 
                 case ClusterState.UnloadingPreview:
@@ -173,9 +177,16 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// </summary>
         public WorldKeyframe? TestHook_Keyframe => _keyframe;
 
+        /// <summary>⭐ CE-4326 §9a.2 — the serializer a preset's params are bound through (exposed for the forwarding rail — the CONSTRUCTED object).</summary>
+        public Fdp.Toolkit.Scenario.ScenarioSerializer? ScenarioSerializer { get; }
+
+        /// <summary>⭐ CE-4326 — what the last Preview's preset changed (null before any preset Preview).</summary>
+        public Fdp.Toolkit.Scenario.PresetInPlace.Result? LastPresetApplied { get; private set; }
+
         // ── Private helpers ────────────────────────────────────────────────────
 
-        private void LoadingPreviewCommit()
+        /// <param name="presetArgs">⭐ CE-4326 (Presets §9a) — the Preview's run setup (a preset's args); null / empty = as authored (nothing applied, nothing paid).</param>
+        private void LoadingPreviewCommit(string? presetArgs = null)
         {
             if (_liveRepo == null)
             {
@@ -198,6 +209,23 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             _keyframe = WorldKeyframes.Capture(_liveRepo, _capture);
 
             _bracket?.Capture();
+
+            // ⭐⭐ CE-4326 (Presets §9 / §9a, R-4168) — a Preview WITH a preset: applied IN PLACE, AFTER the capture, so the rewind puts the authored world
+            //   (unsaved edits included) back with nothing new. The load's own decisions (PresetInPlace — P1). Default: not called.
+            if (!string.IsNullOrWhiteSpace(presetArgs))
+            {
+                var applied = Fdp.Toolkit.Scenario.PresetInPlace.Apply(_liveRepo, presetArgs, ScenarioSerializer);
+                LastPresetApplied = applied;
+                if (applied.Refused is { } why)
+                    FdpLog<ReferencePreviewHandler>.Warn("[ReferencePreviewHandler] LoadingPreview: the preset was refused — {0}; the Preview runs as authored.", why);
+                else
+                {
+                    FdpLog<ReferencePreviewHandler>.Info("[ReferencePreviewHandler] LoadingPreview: preset applied in place — {0} removed, {1} placed, {2} macro(s) chosen, {3} bound.",
+                        applied.Removed, applied.Placed, applied.MacrosChosen, applied.Bound);
+                    if (applied.Unbound > 0)
+                        FdpLog<ReferencePreviewHandler>.Warn("[ReferencePreviewHandler] LoadingPreview: {0} entit(ies) carry param bindings this host cannot apply in place (no scenario serializer) — they keep their authored values.", applied.Unbound);
+                }
+            }
 
             FdpLog<ReferencePreviewHandler>.Info(
                 "[ReferencePreviewHandler] LoadingPreview: snapshot captured.");

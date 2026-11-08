@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07) — K1 BUILT, as-built in §5a; ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
-updated: 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
-current-answer: §2 the model · §3 stages · §4 questions with leans · §5 the K1 build design (homes, the chord, the id, the per-frame call)
+build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07) — K1 BUILT, as-built in §5a; K2 · K3 · K7 BUILT (§6, §6c, §6d, ui 2026-11-08); ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
+updated: 2026-11-08 (K5 + K6 — §6e / §6f, ui Z-6) · 2026-11-08 (K2 rest + K3 + K7 BUILT — §6 / §6c / §6d, ui Z-5) · 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
+current-answer: §2 the model · §3 stages · §4 questions with leans · §5 the K1 build design (homes, the chord, the id, the per-frame call) · §6 / §6c / §6d the map: hat + camera scopes, one-level Esc, the mouse gestures (as built)
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: UX_Feature_Tool_Model.md:302 "No keyboard shortcut activates any tool" — kept for TOOLS armed by a key? §4 Q5 decides (lean: a key may run the ACTION that arms a tool)
@@ -176,12 +176,12 @@ forwards, so a remote viewer gets exactly the same map keys as the local map, an
 | stage | what |
 |---|---|
 | **K1** | `Keymap` + `KeyBinding` + `KeyRouter` + the scope chain; focus = ImGui focus, click-to-focus the map (fixes CE-4282); the graph canvases gated by focus |
-| **K2** | the map: hat scopes before the map scope; the map menu letters declared on the actions (fixes CE-4281); `MenuShortcuts` becomes the router's map scope |
-| **K3** | central Esc (Tool Model step 6); gizmos stop reading Esc |
+| **K2** ✅ | the map: hat scopes before the map scope; the map menu letters declared on the actions (fixes CE-4281); `MenuShortcuts` becomes the router's map scope — ⭐ **BUILT** (§6, as built; R-4169: letters stay on while following) |
+| **K3** ✅ | central Esc (Tool Model step 6) — ⭐ **BUILT as ONE-LEVEL ownership (§6c)**; ⛔ "gizmos stop reading Esc" NOT done — superseded by §2.4 and Tool Model Q27-E (the gizmo keeps its own cleanup), see §6c |
 | **K4** | the FPS station, the timeline, IG pan / zoom / undo, debug F-keys onto bindings (Hold / Axis kinds for the held ones) |
-| **K5** | `IEditorCommands` and `RegisterItem` closures as actions; buttons and keys call action ids; the dead seam deleted |
-| **K7** *(R-4163)* | **every user input, not only keys**: mouse gestures on the map (left / right click on an entity, on ground, a drag, Shift / Ctrl variants) become bindings in the same scope chain; the map scope binds the selection rules (Action Catalogue §8) and *right click = the menu*; the **RTS scope** overrides only what it changes (§6b); `RtsCommandGizmo`'s hand-written mouse handling becomes its bindings | a rail per scope: the same click resolves to the menu in the map scope and to Move / Attack in the RTS scope; an unbound key (2-D / 3-D, Ctrl+S) still works in RTS |
-| **K6** | the Keyboard shortcuts window; user overrides in a settings file; rebind UI later |
+| **K5** ✅ *(BUILT, §6e)* | `IEditorCommands` and `RegisterItem` closures as actions; buttons and keys call action ids; the dead seam deleted |
+| **K7** ✅ *(R-4163; BUILT §6d)* | **every user input, not only keys**: mouse gestures on the map (left / right click on an entity, on ground, a drag, Shift / Ctrl variants) become bindings in the same scope chain; the map scope binds the selection rules (Action Catalogue §8) and *right click = the menu*; the **RTS scope** overrides only what it changes (§6b); `RtsCommandGizmo`'s hand-written mouse handling becomes its bindings | a rail per scope: the same click resolves to the menu in the map scope and to Move / Attack in the RTS scope; an unbound key (2-D / 3-D, Ctrl+S) still works in RTS |
+| **K6** ✅ *(BUILT, §6f)* | the Keyboard shortcuts window; user overrides in a settings file; rebind UI later |
 
 ## 4. Questions — ✅ approved as revised *(🔒 user, `2026-11-06`: "otherwise it looks good")*
 
@@ -309,7 +309,7 @@ command's `DefaultKey` appears in the keymap (one declaration source).
 follow focus, not the mouse) · `BcpBatch02FixCanvasTests.Router_*` (two canvases, one focused; typing; popups; the keymap declares the
 canvas commands) · `SaveCommandsTests.Hotkey_CtrlS_…` (Global from any focus).
 
-## 6. ⭐ K2 — the map scope *(ui, `2026-11-07`; partly built — the hat scopes wait for the HatArbiter)*
+## 6. ⭐ K2 — the map scope *(ui, `2026-11-07`; ⭐ BUILT `2026-11-08` — the hat and camera scopes, declared letters; as built below)*
 
 INVENTORY: `scripts/cbm.sh search_graph .*Hat.*` (Class) ⇒ **10, none a hat** (case-insensitive: Chat / That) — ⛔ no hat type exists; the
 `HatArbiter` is [seats-and-hats](DESIGN_Seats_And_Hats.md) **H3** (B-16, after B-11). The map's letters today: `MenuShortcutKeyLayer`
@@ -319,24 +319,136 @@ letter against the primary unit's menu (`ContextMenuProjectorGizmo.MenuJsonFor`)
 ```mermaid
 graph TD
   DRAIN["MapCanvas key drain — only while the map has the keyboard (K1)"] --> LAYER["MenuShortcutKeyLayer.HandleKeyInput"]
-  LAYER -->|"camera driver set (Embodied) — stand down"| X1["nothing"]
-  LAYER -->|"free-fly camera flying (Observe, RMB held) — stand down (K2, CE-4281)"| X2["nothing"]
+  LAYER -->|"① HAT scope: HatArbiter.Active = Embodied or Direct (R-4169)"| X1["stands down — the hat owns the keyboard"]
+  LAYER -->|"② CAMERA scope: MapCamera3D.OwnsKey(key) — a follow's W A S D Esc · a flying free camera's W A S D E Q · a driver's own"| X2["stands down for THAT key only"]
   LAYER -->|"otherwise"| EV["MapShortcutKeyEvent (the terminal's raw key)"]
-  EV --> MS["MenuShortcuts (backend) — the unit menu's letter → GizmoMenuActionEvent"]
-  H3["HatArbiter (H3, not built)"] -.->|"later: the active hat's scope decides, not the camera's state"| LAYER
+  EV --> MS["MenuShortcuts (backend) — the unit menu's DECLARED letter → GizmoMenuActionEvent"]
+  HAT["HatArbiter (H3, built)"] -.->|"Func Hat"| LAYER
+  CAM["MapCamera3D.Driver : ICameraDriver.OwnsKey"] -.->|"camera scope"| LAYER
 ```
-*What it shows: the two stand-downs are hat facts read off the camera today (a driver = Embodied, flying = Observe's movement keys); once the
-`HatArbiter` exists they become the hat's declared scope, in the same place.*
+*What it shows (as built): the two scopes in FRONT of the map scope are different things — a HAT owns the whole keyboard (read from the arbiter, never guessed from the camera), a CAMERA claims only the keys it reads. A follow camera is not a hat, so Center / Select … stay on while following.*
 
 | piece | state |
 |---|---|
-| CE-4281 — free-fly W A S D E Q fired Attack / Strike / Edit | ✅ **built**: `MapCamera3D.IsFlying` (RMB held), `MenuShortcutKeyLayer` stands down while it is true; rail `MenuOrdersTests.CE4281_…` |
-| the hat scopes before the map scope | ⏭ with **H3** (`HatArbiter`) — ⛔ not invented here: a second hat state beside the arbiter would be the duplicate ruling 9 forbids |
-| the map letters declared on the actions (no auto-derived letters) | ⏭ with **B-11 / K5** — the letter belongs to the catalogue's `ActionDecl.Shortcut`; today it is derived from the order name (`ContextMenuProjectorGizmo.cs:149`) |
-| `MenuShortcuts` as the router's map scope | ✅ already the shape §2.4 wants: the backend resolves the terminal's raw key; the router does not see map keys (Q7) |
+| hat scope before the map scope | ✅ **built** — `MenuShortcutKeyLayer(…, hat)` reads `HatArbiter.Active` (the pack passes it); Embodied and Direct stand the letters down; Command (RTS) declares no key of its own, so the letters stay. ⛔ SUPERSEDES "stand down for ANY camera driver" |
+| camera scope in front of the map scope (R-4169) | ✅ **built** — `ICameraDriver.OwnsKey` (default: every key — first person, fall, film director) · `FollowCameraDriver` overrides: Esc, W, A, S, D only · `MapCamera3D.OwnsKey`: the free camera owns W A S D E Q while it flies (RMB held). ⛔ SUPERSEDES the CE-4281 blanket stand-down (every key while flying) — it now claims only the keys the camera reads |
+| the map letters declared on the actions (no auto-derived letters) | ✅ **built** — an action's letter is its `ActionDecl.Shortcut`; the ORDER letters are `MapMenuActions.OrderShortcuts` (Move M · Attack A · Hold H · Strike S · ObserveFire O). An order with no entry shows NO letter. ⛔ SUPERSEDES the letter derived from the order name (`OrderItem`). Rail `K2_OrderLettersAreDeclaredAndDistinct` names a new order that forgot its letter, and a collision with the unit menu |
+| `MenuShortcuts` as the router's map scope | ✅ already the shape §2.4 wants: the backend resolves the terminal's raw key |
 
-*Rejected:* **a hat enum in the router now** — the HatArbiter owns it (H3) · **stopping the camera reading W A S D while a unit is
-selected** — free-fly would stop working with a selection.
+⭐ **Deviation, stated:** the plan said "declared on the actions" for orders too; an order's DTO is a behaviours-lane asset (the generator emits its `[Order]`), so its letter is declared in the MAP's table beside the other action letters — one place, checked, not on the DTO. ⏭ Moving it onto `[Order(Shortcut = …)]` is the behaviours lane's call.
+
+*Rejected:* **a second hat state in the router** — the HatArbiter owns it · **stopping the camera reading W A S D while a unit is selected** — free-fly would stop working with a selection · **keeping the blanket stand-down for any driver** — R-4169: following is not a hat.
+
+⛔ **HISTORY (SUPERSEDED `2026-11-08`):** the first K2 slice (`bc626e089`) stood the letters down for any camera driver and for every key while the free camera flew; the hat scope waited for the HatArbiter, the letters waited for B-11.
+
+### 6c. ⭐ K3 — ONE Esc goes ONE level out *(ui, `2026-11-08`; built — ⚠ as ownership, not as "gizmos stop reading Esc")*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Escape|Esc).*` Class ⇒ none a resolver; `search_code KeyboardKey.Escape` ⇒ 53 results — **16 gizmos** (`EntityPlacement` · `EntityRotator` · `Measure` · `MissionPlanEdit` · `Paste` · `RouteWaypoint` · `VertexEdit` · `ModalBoxSelection` · `ObstaclePlacement` · `RtsCommand` in Hrot; `AreaShape` · `PointSequence` · `EntityPicker` · `FdpLocationPicker` · `BoundingBoxPicker` in FDP; `DebugGizmoLayer` + ExtDeps examples), the camera drivers (`FollowCameraDriver:114`, `FpsCameraDriver.HandleInput:1760`, `FallScreen:72`) and the panels' own Esc. Before K3 ONE press could move TWO levels: a follow camera let go on the same Esc that cancelled a tool.
+
+```mermaid
+classDiagram
+  direction LR
+  class EscapeLevel { <<NEW enum>> Tool · Camera · Hat · RtsStops · Nothing }
+  class EscapeChain { <<NEW static>> Resolve(toolArmed, cameraOwnsEscape, hat) EscapeLevel }
+  class HatArbiter { <<existing>> Active · ToolHoldsEscape NEW · EscapeLevel(cameraOwnsEscape) NEW }
+  class MapCamera3D { <<existing>> EscapeFree : Func bool NEW · EscapeIsFree NEW }
+  class FollowCameraDriver { <<existing>> HandleInput: Esc lets go only if camera.EscapeIsFree }
+  class ToolController { <<existing>> ActiveModal · PushModal }
+  HatArbiter ..> EscapeChain : Resolve
+  HatArbiter --> ToolController : ToolHoldsEscape = a modal tool that is not RTS
+  MapCamera3D ..> HatArbiter : EscapeFree = not ToolHoldsEscape (the pack)
+  FollowCameraDriver ..> MapCamera3D : EscapeIsFree
+```
+*What the picture shows that prose hid: there is no new Esc system — the ONE resolver is a pure function over three facts the station already has (an armed tool · a camera that hands back · the hat), and the one reader that could jump a level (the follow camera) asks it. The gizmos' own Esc handlers stay: they are the tool's cleanup.*
+
+```mermaid
+sequenceDiagram
+  participant T as terminal (raw Esc)
+  participant G as the armed gizmo (a pick / placement / edit)
+  participant F as FollowCameraDriver
+  participant A as HatArbiter
+  T->>G: Esc — cancel + cleanup (a pick completes its awaiting task)
+  T->>F: HandleInput — Esc
+  F->>A: camera.EscapeIsFree ⇒ not ToolHoldsEscape
+  A-->>F: false (a tool is armed) — the follow STAYS
+  Note over T,A: next press, no tool: the follow lets go · next: the hat (Embodied: the driver releases) · RTS: Esc drops a half-done press and STOPS
+```
+
+| level, innermost first | who reads Esc | as built |
+|---|---|---|
+| a modal tool (a pick, a placement, an edit — **not** RTS) | its gizmo's `OnKeyEvent` | unchanged: cancel + cleanup |
+| the camera scope | `FollowCameraDriver` | ✅ now yields while a tool holds Esc |
+| the hat | Embodied: `FpsCameraDriver` / `FallScreen` release; Direct: the director | unchanged (the hat owns the keyboard — K2) |
+| RTS | `RtsCommandGizmo` | unchanged: drops a half-done right press, stops (R-4163) |
+
+⛔ **Deviation, with the measurement — "gizmos stop reading Esc" is NOT done.** The handoff and the stage table said so; §2.4 already SUPERSEDED it and Tool Model Q27-E says *"centralize for modal tools, keep local where necessary"*. Measured why: `EntityPickerGizmo.OnKeyEvent` runs `_onRemove(); _onCancelled()` — it COMPLETES its awaiting task as cancelled — while `ToolController.Cancel()` reaches only the gizmo's `OnCancel()`, which is empty there; a central cancel would leave every awaiting pick hanging. And `DebugGizmoLayer`/FDP pickers run on hosts with no `ToolController`. ⇒ the central part is the OWNERSHIP of the press, not its delivery. ⏭ needs the user: a `Cancel()` contract that completes pick tasks would let the gizmos drop their handlers.
+
+### 6d. ⭐ K7 — mouse gestures are rows of the same keymap *(ui, `2026-11-08`; built — R-4163)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Gesture|MapGesture|InputBinding|Keymap|KeymapEntry).*` Class ⇒ the K1 `Keymap` / `KeymapEntry` (keys only) and unrelated gesture types (`Combat.Gestures`, `VariableEditGesture`, `TrackGesture`); the map's mouse today = `SelectionInteractionSystem` (left / right click rules, `S-4b`), the terminal's `DebugGizmoLayer.HandleInput` (opens the menu on a right release) and `RtsCommandGizmo.OnMouseEvent` (hand-written Left / Right branches). `InputBinding` (§6b's name for the grown `KeyBinding`) was NOT created: `KeyBinding` is NodeEdit's chord (a leaf assembly), so a gesture is its own record in `Fdp.Toolkit.Input`, one table with the keys.
+
+```mermaid
+classDiagram
+  direction LR
+  class Keymap { <<existing, Fdp.Toolkit.Input>> Declare key rows · DeclareGesture NEW · TryFindGesture NEW · ValidateGestures NEW }
+  class GestureEntry { <<NEW record>> Gesture · Scope · Qualifier : the hat name · Action : ActionRef }
+  class MapGesture { <<NEW record>> Button · Kind Click or Drag · Modifiers · Target mask }
+  class GestureTarget { <<NEW flags>> Ground · Entity · Selected · Hostile }
+  class MapGestureBindings { <<NEW static, Hrot.Presentation>> Declare keymap: the map scope + the RTS scope rows }
+  class MapGestureRouter { <<NEW>> Shared · Resolve(hat, gesture) hat scope then map · ResolveMap }
+  class SelectionInteractionSystem { <<existing>> runs the map scope's selection row }
+  class RtsCommandGizmo { <<existing>> classify, resolve, run the rts row }
+  class RtsCommands { <<existing>> TargetAt NEW · Move NEW · Attack NEW · Command = Attack }
+  Keymap "1" o-- "*" GestureEntry
+  GestureEntry --> MapGesture
+  MapGesture --> GestureTarget
+  MapGestureBindings ..> Keymap : declares
+  MapGestureRouter --> Keymap
+  SelectionInteractionSystem --> MapGestureRouter : ResolveMap
+  RtsCommandGizmo --> MapGestureRouter : Resolve(Command, gesture)
+  RtsCommandGizmo --> RtsCommands : the row's verb
+```
+*What the picture shows that prose hid: the gesture bindings are DATA (rows) and the two executors only look them up — the selection system for the map scope, the RTS gizmo for its scope. Rebinding is a keymap change, not a code change (rail `K7_TheGizmoRunsWhatItsScopeBinds…`).*
+
+```mermaid
+sequenceDiagram
+  participant U as a right click on a hostile
+  participant G as RtsCommandGizmo (Command hat)
+  participant C as RtsCommands
+  participant R as MapGestureRouter
+  participant K as Keymap
+  U->>G: OnMouseEvent press · release (a still click, CE-1077)
+  G->>C: TargetAt(point) — Ground · Entity · Hostile
+  G->>R: Resolve(Command, Right Click Hostile)
+  R->>K: hat scope "Command" first
+  K-->>R: rts.attack
+  R-->>G: the row (scope Hat)
+  G->>C: Attack(point)
+  Note over U,K: the SAME click, hat Observe: Resolve finds no Command row, falls to the MAP scope ⇒ map.menu.entity — the TERMINAL opens the entity's menu (DebugGizmoLayer, unchanged)
+```
+
+| scope | gesture | row (action id) |
+|---|---|---|
+| **map** | left click · any entity (selected or not) | `map.select` — it becomes the selection alone (a member narrows) |
+| | left click · ground | `map.clear` — clears (a rubber band's tiny drag is this click) |
+| | left DRAG · ground | `map.band` — the rubber band |
+| | right click · a SELECTED entity | `map.menu.selection` — its menu for the whole selection; the selection unchanged |
+| | right click · an entity outside the selection | `map.menu.entity` — it becomes the selection alone; its menu |
+| | right click · ground | `map.menu.empty` — the empty-space menu ONLY (R-4163) |
+| **RTS** (Command hat) | left click · anything | `rts.select`; **Shift** → `rts.select.add` |
+| | right click · ground / a non-hostile unit | `rts.move` |
+| | right click · a hostile | `rts.attack` |
+| | **Ctrl** + right click · any unit | `rts.attack.force` (CE-1132) |
+| every other gesture and **every key** | — | not declared by RTS ⇒ falls through to the map scope / the global scope: 2-D / 3-D (Ctrl+M), Ctrl+S, the camera and the letters work in RTS by construction |
+
+**As built, against the plan (§6b / the handoff):**
+
+| | as built | why |
+|---|---|---|
+| the type | `MapGesture` + `GestureEntry` in `Fdp.Toolkit.Input`, rows in the SAME `Keymap`; ⛔ no `InputBinding` | §6d inventory: the chord type is a leaf assembly's |
+| RTS right click on a friend / neutral | **Move** (RTS declares Ground + non-hostile entity) | the handoff said RTS overrides only "ground / hostile"; Entity Control §8a and rail `CE3171_…OrAFriendOrANeutral_MovesThere` say a friend is a move to its position — a friend falling to the map's menu would pop a menu in RTS. ⏭ needs the user if the menu is wanted there |
+| the menu verbs (`map.menu.*`) | declared and resolved, but the MENU is still opened by the terminal (`DebugGizmoLayer`) and the selection effect by `SelectionInteractionSystem` | the dumb terminal (§2.4) opens a menu locally from the pick it made; moving the open onto a backend row is a wire change (⏭ the gizmo-input-focus design) |
+| `Shared` router | one process keymap for the map's backend side; the ImGui `KeyRouter` kept its own `Keymap` — ⛔ SUPERSEDED by K6 (§6f): both are `Keymap.Process` now | the key router lives per `WindowManager`; K6 joined them |
 
 ### 6b. ⭐ The scope covers ALL input — keys AND mouse gestures; RTS is one scope *(R-4163, user `2026-11-07`)*
 
@@ -362,3 +474,84 @@ graph TD
 ⛔ SUPERSEDED: Entity Control §8a's *"Esc leaves"* RTS tool and Seats and Hats Q6's *Esc → out of Command*.
 
 ⭐ **R-4169 (user, `2026-11-08`): letters stay on while following** — 🔒 *"Yes, letters stay on while following."* The map letters stand down only for the Embodied (first person) and Direct (director) hats, never for the follow camera (Observe); a follow camera's own keys, if any, are a camera scope in front of the map scope (R-4163).
+
+### 6e. ⭐ K5 — a menu item that runs code NAMES AN ACTION *(ui, `2026-11-08`; built)*
+
+INVENTORY: `scripts/cbm.sh search_code RegisterItem(` + grep ⇒ **9** production `GlobalMenu.RegisterItem(path, closure)` calls (`WindowManager` ×1 · `LocalWindowController` ×2 · `ReplayBrowserSubsystem` ×4 · `EditorSubsystem` ×3 — the inventory's "10" counted the adapter's own call) and **2** `RegisterCheckableItem(path, get, set)` closures (`LocalWindowController`); `RegisterContributor` ×5 (id-based, already actions); `IShellCommandRegistrar.RegisterShortcut` — **0 callers**. Buttons: **409** raw `ImGui.Button / MenuItem / SmallButton` sites in `Hrot/` + `FDP/` — ⛔ NOT converted: a panel-local button (Apply, OK, a row's trash can) is not an application command; what K5 converts is every command a MENU or KEY reaches. Keys that call methods (the Player's Ctrl+Z / Ctrl+Y / F3) are **K4** (held / debug keys onto bindings), not K5.
+
+```mermaid
+classDiagram
+  direction LR
+  class ShellEditorCommands { <<existing, Fdp.Presentation>> ONE catalogue of shell commands: Register · Get · Invoke }
+  class EditorCommandDescriptor { <<existing>> Id · DisplayName · DefaultKey · IsEnabled · IsChecked · DynamicDisplayName }
+  class MenuCommandAdapter { <<existing>> Register(menu, commands, id, path) · RegisterAction NEW · RegisterToggle NEW }
+  class GlobalMenuRegistry { <<existing>> RegisterItem(path, closure) — no production caller any more }
+  class KeyRouter { <<existing>> Global scope reads the shell commands' DefaultKey }
+  ShellEditorCommands "1" o-- "*" EditorCommandDescriptor
+  MenuCommandAdapter ..> ShellEditorCommands : declares the command
+  MenuCommandAdapter ..> GlobalMenuRegistry : binds the item to Invoke(id)
+  KeyRouter ..> ShellEditorCommands : Invoke(id) on the chord
+```
+*What the picture shows that prose hid: the closure did not go away — it became the HANDLER of a command in the ONE catalogue the keymap already reads, so a key, a menu click, a toolbar slot and a remote call reach the same code; nothing had to be invented, `ShellEditorCommands` was under-adopted.*
+
+```mermaid
+sequenceDiagram
+  participant H as a host (Editor, Replay Browser, Player)
+  participant A as MenuCommandAdapter
+  participant C as ShellEditorCommands
+  participant M as GlobalMenuRegistry
+  H->>A: RegisterAction(menu, commands, "file.new-macro", path, run)
+  A->>C: Register(descriptor "file.new-macro", handler = run)
+  A->>M: RegisterItem(path, click → commands.Invoke("file.new-macro"))
+  Note over C,M: a click, Ctrl+key (DefaultKey) or Invoke(id) all run `run`
+```
+
+| | as built |
+|---|---|
+| the 9 + 2 sites | converted to `RegisterAction` / `RegisterToggle`: `shell.ui-settings` · `shell.exit` · `settings.layout.save-default` (its enabled / label now the command's) · `settings.layout.reset-on-start` · `settings.sound-3d-camera` · `replay.recording-info.<perspective>` · `replay.open-exercise.<p>` · `replay.load-fdp.<p>` · `replay.json-export.<p>` · `debug.reset-all-unit-settings` · `file.new-macro` · `file.save-selection-as-macro` |
+| the guard | rail `NoProductionMenuItemIsAClosureOnly` scans the production sources: a `GlobalMenu.RegisterItem(` / `RegisterCheckableItem(` outside the registry and the adapter fails |
+| the dead seam | `IShellCommandRegistrar.RegisterShortcut` deleted (interface, capture, mock) |
+| ⏭ | the map's `GlobalActionRegistry` ints and the shell's string ids stay two id spaces (`ActionRef.Global` / `Command`) — folding them is the catalogue's call (B-11), not K5's |
+
+### 6f. ⭐ K6 — the Keyboard shortcuts window; ONE keymap *(ui, `2026-11-08`; built)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Shortcut|Keymap|KeyRouter).*` Class ⇒ `Keymap` · `KeymapEntry` · `KeyRouter` · `StructTableFocus` (reads the router's keymap) · `MenuShortcuts`; **two** `Keymap` instances in a process: each `WindowManager`'s `KeyRouter` made its own, and the map backend's `MapGestureRouter.Shared` another (§6d ⏭). Window precedent: `ManagedWindow` + `RegisterWindow` (e.g. `JsonExportWindow`).
+
+```mermaid
+classDiagram
+  direction LR
+  class Keymap { <<existing>> Process : the ONE instance NEW · Version NEW · SetLabel / LabelOf NEW · key rows · gesture rows }
+  class KeyRouter { <<existing>> declares the shell + focused-window commands into the keymap it is given }
+  class MapGestureBindings { <<existing>> Declare: gestures + the unit menu's letters NEW }
+  class ShortcutRows { <<NEW, Fdp.Presentation>> Build(keymap, filter) cached by keymap.Version · Row(scope, chord, action label) }
+  class KeyboardShortcutsWindow { <<NEW ManagedWindow>> search box · rows by scope · Ctrl+K }
+  KeyRouter --> Keymap : Keymap.Process
+  MapGestureBindings ..> Keymap : declares into Process
+  KeyboardShortcutsWindow --> ShortcutRows
+  ShortcutRows --> Keymap : reads rows + labels
+```
+*What the picture shows that prose hid: the window owns no list — it is a VIEW of the one keymap, so a binding that is not declared cannot be shown wrong, and one that is declared cannot be missing.*
+
+```mermaid
+sequenceDiagram
+  participant U as the user (Ctrl+K · Edit ▸ Keyboard shortcuts…)
+  participant K as KeyRouter (Global scope)
+  participant W as KeyboardShortcutsWindow
+  participant R as ShortcutRows
+  participant M as Keymap.Process
+  U->>K: Ctrl+K
+  K->>W: command shell.keyboard-shortcuts → Show
+  W->>R: Rows(filter) — only when keymap.Version or the filter changed
+  R->>M: key rows · gesture rows · labels
+  W-->>U: table: scope · chord / gesture · action (steady frame: 0 B)
+```
+
+| | as built |
+|---|---|
+| ONE keymap | `Keymap.Process` — `WindowManager` passes it to its `KeyRouter`; the map backend's `MapGestureRouter.Shared` is built over it. ⛔ SUPERSEDES the "two keymaps, ⏭ K6" row of §6d |
+| what is listed | key rows (Global · focused-window kinds · the map's menu letters per target class — unit / area / zone / route — declared by `MapMenuActions.DeclareKeys` from the action catalogue + `OrderShortcuts`; the same letter on two classes is not a conflict, twice on one is) and the K7 gesture rows (map scope, RTS scope) — each with its action's label (`Keymap.SetLabel`, set by whoever declares) |
+| not listed | held keys (WASD, sprint: K4) and a panel's own item-level keys (Enter / Esc in a text field) — not declared in the keymap yet |
+| user overrides file, rebind UI | ⏭ **not built**: Q6's "optional overrides file" has no stored-state home decided (settings location, per-host) — an architect question, not a build item; the window is read-only |
+| the window | `KeyboardShortcutsWindow` (`Edit ▸ Keyboard shortcuts…`, command `shell.keyboard-shortcuts`, **Ctrl+K** — the mockup's key; ⛔ SUPERSEDES §2.2's "F1"): a search box over a three-column table (Where 130 · Shortcut 270 · Does), the scope named once per group, the chord in the accent colour; model `ShortcutRows` (rebuilt only when `Keymap.Version` or the filter moved). Mockup: `menus-visual.svg` panel F (`scripts/gen-menus-mockup.py`) |
+| fidelity, measured | rail `OnARealFrame_CtrlKOpensTheWindow…` reads the drawn positions on a real ImGui frame: the search box above the first row, one x for every row's chord and action column, rows going down; ⚠ no pixel render was made (no SVG rasteriser on this machine) — the layout is asserted, the picture is the SVG |
+| rails | `ShortcutsWindowTests` (rows by scope + filter, 0 B steady, real frame + Ctrl+K + measured layout) · `MenuOrdersTests.K6_TheMapLettersAndGestures…` — each red-proved by a compiling mutation |

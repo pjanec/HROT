@@ -151,6 +151,55 @@ public class SelectionInteractionSystemTests
         Assert.False(Selected(carrier));
     }
 
+    /// <summary>
+    /// ⭐⭐ B-10 K7 (docs/UX/DESIGN_Input_And_Commands.md §6b) — WHICH selection effect a click has is the MAP SCOPE's row, not a branch in this system: with the defaults a left click selects, with a keymap that binds
+    /// the left click on an entity to nothing it selects nothing, and bound to "keep the selection" it leaves the selection alone but still tells the host who was clicked; a keymap with no band row starts no rubber band.
+    /// 🔴 Red-proof (compiles): the system selecting without asking the router ⇒ the empty keymap still selects ⇒ red.
+    /// </summary>
+    [Fact]
+    public void K7_TheMapScopeDecidesWhatAClickDoes()
+    {
+        var entity = CreateSelectableEntity();
+        var seen = new List<Entity>();
+        SelectionInteractionSystem With(Fdp.Toolkit.Input.Keymap keymap)
+        {
+            var sys = new SelectionInteractionSystem(_world, _world.Bus, null, null, new Hrot.ScenarioEditor.Map.MapGestureRouter(keymap));
+            sys.OnSelectionChanged += (e, _) => seen.Add(e);
+            return sys;
+        }
+
+        // no rows: the click is nobody's
+        var none = With(new Fdp.Toolkit.Input.Keymap());
+        PublishStartedEvent(entity);
+        none.Tick(0f); ServeRequests();
+        Assert.False(_world.GetComponent<SelectionState>(entity).IsSelected);
+        Assert.Empty(seen);
+
+        // the left click on an entity bound to "keep" (the menu-for-the-selection row): no selection request, the host still hears of the click
+        var keep = new Fdp.Toolkit.Input.Keymap();
+        keep.DeclareGesture(new(new Fdp.Toolkit.Input.MapGesture(Fdp.Toolkit.Input.GestureButton.Left, Fdp.Toolkit.Input.GestureKind.Click, Fdp.Toolkit.Input.GestureModifiers.None,
+            Fdp.Toolkit.Input.GestureTarget.AnyEntity), Fdp.Toolkit.Input.InputScope.Map, null, Fdp.Toolkit.Input.ActionRef.Command(Hrot.ScenarioEditor.Map.MapGestureIds.MenuSelection)));
+        var keeper = With(keep);
+        PublishStartedEvent(entity);
+        keeper.Tick(0f); ServeRequests();
+        Assert.False(_world.GetComponent<SelectionState>(entity).IsSelected);
+        Assert.Equal(new[] { entity }, seen);
+
+        // the defaults select
+        PublishStartedEvent(entity);
+        With(Hrot.ScenarioEditor.Map.MapGestureRouter.Shared.Keymap).Tick(0f); ServeRequests();
+        Assert.True(_world.GetComponent<SelectionState>(entity).IsSelected);
+
+        // no band row ⇒ a press on empty ground starts no rubber band: a commit then clears nothing
+        var band = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+        var noBand = new SelectionInteractionSystem(_world, _world.Bus, band, null, new Hrot.ScenarioEditor.Map.MapGestureRouter(new Fdp.Toolkit.Input.Keymap()));
+        PublishStartedEvent(Entity.Null, new Vector3(5, 5, 0));
+        noBand.Tick(0f);
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default }); _world.Bus.SwapBuffers();
+        noBand.Tick(0f); ServeRequests();
+        Assert.True(_world.GetComponent<SelectionState>(entity).IsSelected);
+    }
+
     // SIS-002: After null-entity GizmoInteractionStartedEvent, selection is NOT cleared immediately.
     // A tiny-drag commit (GizmoInteractionCommitEvent without intervening GizmoDragUpdateEvent) clears all.
     [Fact]

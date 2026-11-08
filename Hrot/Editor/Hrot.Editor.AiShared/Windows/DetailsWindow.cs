@@ -34,7 +34,8 @@ public sealed record DetailsWindowPanelViewModel(
     string Focus,
     int SelectionCount,
     int EntityCount,
-    string Layout = "Tabs") : IPanelViewModel
+    string Layout = "Tabs",
+    IReadOnlyList<string>? GreyedViews = null) : IPanelViewModel   // ⭐ B-11 A7 — "viewId: reason" of each tab shown greyed
 {
     /// <inheritdoc/>
     public JsonNode Dump() => PanelDump.Of(this);
@@ -416,6 +417,14 @@ public sealed class DetailsWindow
     /// ⛔⛔ No ImGui — <see cref="Frame"/>, <see cref="ShowsViewSwitch"/> and <see cref="ShowsFloatAndPin"/>
     /// were already pure, published before any render call.
     /// </summary>
+    private static IReadOnlyList<string> GreyedOf(in DetailsViewSelector.Choice choice)
+    {
+        if (choice.Greyed is not { Count: > 0 } greyed) return System.Array.Empty<string>();
+        var rows = new string[greyed.Count];
+        for (int i = 0; i < rows.Length; i++) rows[i] = greyed[i].View.Id + ": " + greyed[i].Reason;
+        return rows;
+    }
+
     private DetailsWindowPanelViewModel BuildAndPublish(in DetailsFrame frame)
     {
         var ctx = frame.Context;
@@ -429,7 +438,8 @@ public sealed class DetailsWindow
             ctx.Asset?.AssetId, ctx.Asset?.Name, ctx.Perspective,
             ctx.Mode.ToString(), ctx.Focus.ToString(),
             ctx.Selection.Count, ctx.Entities.Count,
-            Layout.ToString());
+            Layout.ToString(),
+            GreyedOf(frame.Choice));
 
         if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
         return vm;
@@ -685,6 +695,17 @@ public sealed class DetailsWindow
                     ImGuiNET.ImGui.EndTabItem();
                 }
             }
+            // ⭐ B-11 A7 — a tab that applies but is greyed (this mode, this seat, this host): drawn AFTER the offered ones, disabled, with its reason on hover
+            //   (the precedent: BeginDisabled + a tooltip that still shows — SimHostControlPanels, ParametersDrawer). It never selects and never draws.
+            if (frame.Choice.Greyed is { Count: > 0 } greyed)
+                for (int g = 0; g < greyed.Count; g++)
+                {
+                    ImGuiNET.ImGui.BeginDisabled(true);
+                    if (NodeEditor.Core.Widgets.IconTab.Begin(greyed[g].View.Id, greyed[g].View.Title, TabIconOf(greyed[g].View.Title), ImGuiNET.ImGuiTabItemFlags.None))
+                        ImGuiNET.ImGui.EndTabItem();
+                    ImGuiNET.ImGui.EndDisabled();
+                    if (ImGuiNET.ImGui.IsItemHovered(ImGuiNET.ImGuiHoveredFlags.AllowWhenDisabled)) ImGuiNET.ImGui.SetTooltip(greyed[g].Reason);
+                }
             NodeEditor.Core.Widgets.IconTab.EndBar();
         }
 

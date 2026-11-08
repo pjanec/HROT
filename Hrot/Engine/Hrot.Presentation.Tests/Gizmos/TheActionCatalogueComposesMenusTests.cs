@@ -126,4 +126,57 @@ public sealed class TheActionCatalogueComposesMenusTests
         var gate = new HrotEditGate(() => EditingMode.Live, () => EditingLevel.Controller);
         Assert.Null(gate.Refuse(w, Fdp.Toolkit.Replication.Edits.EditOp.Command(Entity.Null, _ => { }, "Move")));   // an order is a controller's job
     }
+
+    /// <summary>⭐ Seats H6 (§2.2 "hats allowed") — the table of which seat may wear which hat is the design's, cell by cell. 🔴 Red-proof (compiles): any cell flipped in <c>SeatHats.Allows</c> ⇒ red.</summary>
+    [Theory]
+    [InlineData(Hrot.Common.Infrastructure.Seat.Author, "Edit,Command,Embodied,Observe,Direct")]
+    [InlineData(Hrot.Common.Infrastructure.Seat.Instructor, "Command,Embodied,Observe")]
+    [InlineData(Hrot.Common.Infrastructure.Seat.SideController, "Command,Observe")]
+    [InlineData(Hrot.Common.Infrastructure.Seat.Player, "Embodied,Observe")]
+    [InlineData(Hrot.Common.Infrastructure.Seat.Observer, "Observe")]
+    [InlineData(Hrot.Common.Infrastructure.Seat.Reviewer, "Observe,Direct")]
+    public void H6_TheHatsEachSeatMayWear_AreTheDesignsTable(Hrot.Common.Infrastructure.Seat seat, string allowed)
+    {
+        var got = string.Join(",", new[] { Hat.Edit, Hat.Command, Hat.Embodied, Hat.Observe, Hat.Direct }.Where(h => SeatHats.Allows(seat, h)).Select(h => h.ToString()));
+        Assert.Equal(allowed, got);
+        foreach (var h in new[] { Hat.Edit, Hat.Command, Hat.Embodied, Hat.Observe, Hat.Direct })
+            Assert.Equal(SeatHats.Allows(seat, h), SeatHats.Refusal(seat, h) == null);   // a refusal exists exactly where the hat is not allowed
+    }
+
+    /// <summary>⭐ Seats H6 — an action that needs a hat (Possess: Embodied) is GREYED for a seat that may not wear it, with the seat's reason, never hidden; a seat that may wear it sees it enabled;
+    /// the View group (Follow — the Observer camera) stays enabled for the Observer seat. 🔴 Red-proof (compiles): <c>SeatRefusal</c> not reading <c>NeedsHat</c> ⇒ the side controller row red.</summary>
+    [Fact]
+    public void H6_AnActionThatNeedsAHat_IsGreyedWhereTheSeatMayNotWearIt_AndFollowStaysForTheObserver()
+    {
+        var c = new ActionCatalogue();
+        c.Declare(new ActionDecl(1, "Follow", ActionGroup.View, 0, ActionTarget.Unit));
+        c.Declare(new ActionDecl(2, "Possess", ActionGroup.Orders, 0, ActionTarget.Unit) { NeedsHat = Hat.Embodied });
+        string Rows(Hrot.Common.Infrastructure.Seat seat, EditingLevel level)
+            => string.Join(",", MenuComposer.Compose(new ActionContext(null!, Entity.Null, ActionTarget.Unit, EditingMode.Live, default) { Level = level, Seat = seat }, c)
+                .Where(r => r.IsSeparator != true).Select(r => r.Label + (r.Enabled == false ? "(x)" : "")));
+
+        Assert.Equal("Possess,Follow", Rows(Hrot.Common.Infrastructure.Seat.Instructor, EditingLevel.Instructor));
+        Assert.Equal("Possess(x),Follow", Rows(Hrot.Common.Infrastructure.Seat.SideController, EditingLevel.Controller));   // commands, never possesses
+        Assert.Equal("Possess(x),Follow", Rows(Hrot.Common.Infrastructure.Seat.Observer, EditingLevel.Observer));          // the Observer camera (Follow) stays
+        var side = MenuComposer.Compose(new ActionContext(null!, Entity.Null, ActionTarget.Unit, EditingMode.Live, default) { Level = EditingLevel.Controller, Seat = Hrot.Common.Infrastructure.Seat.SideController }, c);
+        Assert.Equal("a Side controller seat cannot possess a unit", side.First(r => r.Label == "Possess").Tooltip);
+        // the REAL Possess declaration carries the hat
+        Assert.Equal(Hat.Embodied, ActionCatalogue.Shared.All.First(d => d.Id == Hrot.Common.Constants.GlobalActionIds.Possess).NeedsHat);
+    }
+
+    /// <summary>⭐ Seats H6 — a station launched as <c>--feature station.seat={"Seat":"SideController","Side":"Blue"}</c> is a Controller of the Blue side: its level, its side, its hats (Command · Observe), and the
+    /// station source reads them from the ONE seat. The Observer seat: the Observer level, the Observe hat only.</summary>
+    [Fact]
+    public void H6_TheSeatAsLaunched_GivesTheLevelTheSideAndTheHats()
+    {
+        using var w = new EntityRepository();
+        StationMode.Install(w, () => EditingMode.Live, () => Hrot.Common.Infrastructure.Seat.SideController, () => StationMode.ParseSide("Blue"));
+        Assert.Equal(Hrot.Common.Infrastructure.Seat.SideController, StationMode.SeatOf(w));
+        Assert.Equal(EditingLevel.Controller, StationMode.LevelOf(w));
+        Assert.Equal(ForceId.Friend, StationMode.SideOf(w));
+        using var o = new EntityRepository();
+        StationMode.Install(o, () => EditingMode.Live, () => Hrot.Common.Infrastructure.Seat.Observer);
+        Assert.Equal(EditingLevel.Observer, StationMode.LevelOf(o));
+        Assert.Equal(Hrot.Common.Infrastructure.Seat.Author, StationMode.SeatOf(new EntityRepository()));   // none installed ⇒ Author, as before
+    }
 }

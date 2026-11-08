@@ -50,10 +50,13 @@ public sealed class DetailsViewSelector
     ///   <c>OfferSet</c> calls in one frame could disagree if a predicate is not pure, and the button
     ///   row would then not match the view being drawn.</para>
     /// </param>
+    /// <param name="Greyed">⭐ B-11 A7 — the tabs that apply but are shown GREYED with a reason (the tab bar draws them after the offered ones); never null.
+    /// ⚠ They are never chosen, picked or drawn as a view — and an offer set that is empty is still an <see cref="Mode.EmptyOffer"/>.</param>
     public readonly record struct Choice(
         DetailsViewDescriptor? View,
         Mode State,
-        IReadOnlyList<DetailsViewDescriptor> Offered);
+        IReadOnlyList<DetailsViewDescriptor> Offered,
+        IReadOnlyList<DetailsViewRegistry.GreyedTab>? Greyed = null);
 
     /// <summary>
     /// ⭐⭐⭐ <b>Resolve this frame's view.</b>
@@ -77,21 +80,22 @@ public sealed class DetailsViewSelector
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(context);
 
-        var offered = registry.OfferSet(context);
-        if (offered.Count == 0) return new Choice(null, Mode.EmptyOffer, offered);
+        var offer = registry.Evaluate(context);
+        var offered = offer.Offered;
+        if (offered.Count == 0) return new Choice(null, Mode.EmptyOffer, offered, offer.Greyed);
 
         var key = KeyOf(context);
         if (_pickByKey.TryGetValue(key, out var pickedId))
         {
             foreach (var d in offered)
                 if (string.Equals(d.Id, pickedId, StringComparison.Ordinal))
-                    return new Choice(d, Mode.UserPick, offered);
+                    return new Choice(d, Mode.UserPick, offered, offer.Greyed);
 
             // ⭐ It no longer applies ⇒ forget it and fall back by Rank.
             _pickByKey.Remove(key);
         }
 
-        return new Choice(offered[0], Mode.RankDefault, offered);   // ⭐ offered is Rank-ordered
+        return new Choice(offered[0], Mode.RankDefault, offered, offer.Greyed);   // ⭐ offered is Rank-ordered
     }
 
     /// <summary>

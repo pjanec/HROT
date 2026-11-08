@@ -424,19 +424,24 @@ public static class ReferenceLeafDrawers
         return changed && !readOnly;
     }
 
-    private static string[]? Presets(EditNode node)
-        => node.Metadata.CustomAttributes.OfType<Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute>().FirstOrDefault() is { FilterPresets.Length: > 0 } a
-            ? a.FilterPresets : null;
+    /// <summary>The field's <c>[MapPickableEntity]</c> presets (null = none). ⭐ Called every frame per entity chip: an index loop, no LINQ (R-2084).</summary>
+    public static string[]? Presets(EditNode node)
+    {
+        var attrs = node.Metadata.CustomAttributes;
+        for (int i = 0; i < attrs.Count; i++)
+            if (attrs[i] is Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute { FilterPresets.Length: > 0 } a) return a.FilterPresets;
+        return null;
+    }
 
     // ── EntityRef (internal, unchanged behaviour) ────────────────────────────────────────────────────────────────────────────
 
     /// <summary>⭐ CE-3385 — THE entity chip + type-ahead picker over the pick context's reference scope (rows by name · side · distance, <i>Pick on the map</i> where there is a context, <i>Clear</i>): every host that shows one thing by name calls this.
     /// <c>op.Id</c> is the picked entity's network id (<c>new EntityRef((int)op.Id)</c>).</summary>
-    public static EntityFieldOp DrawEntityChip(string id, string label, NodeEditor.Core.Widgets.IconGlyph? icon, float width, IMapPickContext? ctx, string? gone, bool offerKey)
+    public static EntityFieldOp DrawEntityChip(string id, string label, NodeEditor.Core.Widgets.IconGlyph? icon, float width, IMapPickContext? ctx, string? gone, bool offerKey, string[]? presets = null)
     {
         var refs = ctx?.References;
-        var rows = refs is null ? (IReadOnlyList<EntityCandidate>)Array.Empty<EntityCandidate>() : EntityPickerRows.Of(refs).Rows(refs, SelectionOf(ctx));
-        return EntityField.Draw(id, label, icon, width, rows, refs is null ? 0 : EntityPickerRows.Of(refs).Version, gone, offerKey: offerKey, offerMap: ctx != null);
+        var rows = refs is null ? (IReadOnlyList<EntityCandidate>)Array.Empty<EntityCandidate>() : EntityPickerRows.Of(refs).Rows(refs, SelectionOf(ctx), presets);   // ⭐ CE-3399 — narrowed by the field's [MapPickableEntity] presets
+        return EntityField.Draw(id, label, icon, width, rows, refs is null ? 0 : EntityPickerRows.Of(refs).VersionOf(presets), gone, offerKey: offerKey, offerMap: ctx != null);
     }
 
     /// <summary>
@@ -453,7 +458,7 @@ public static class ReferenceLeafDrawers
         var link = new EntityLink(current);
         string? gone = GoneText(current, refs);
         float mapW = ctx != null ? ImGuiApi.GetFrameHeight() + 4f : 0f;
-        var op = DrawEntityChip("##ref", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - mapW - 4f, 80f), ctx, gone, offerKey: false);
+        var op = DrawEntityChip("##ref", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - mapW - 4f, 80f), ctx, gone, offerKey: false, Presets(node));
         switch (op.Kind)
         {
             case EntityFieldOpKind.Pick: node.Binding?.SetBoxed(new EntityRef((int)op.Id)); changed = true; break;
@@ -569,7 +574,7 @@ public static class ReferenceLeafDrawers
         bool changed = false;
         int marks = (ctx != null ? 1 : 0) + (ctx is { Preview: not null } or { CanShowOnMap: true } ? 1 : 0) + (NeedsStableIdWarning(link, refs) ? 1 : 0);   // what follows the chip
         string? gone = GoneText(link.Ref, refs);
-        var op = DrawEntityChip(id, ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f), ctx, gone, offerKey);
+        var op = DrawEntityChip(id, ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f), ctx, gone, offerKey, presets);
         switch (op.Kind)
         {
             case EntityFieldOpKind.Pick: { var next = PickToLink(new EntityRef((int)op.Id), refs); if (next != link) { link = next; changed = true; } break; }

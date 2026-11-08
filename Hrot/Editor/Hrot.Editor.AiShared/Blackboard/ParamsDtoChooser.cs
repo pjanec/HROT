@@ -74,6 +74,8 @@ public static class ParamsDtoChooser
     }
 
     private static readonly Dictionary<string, string> Filters = new(StringComparer.Ordinal);
+    private sealed class DrawCache { public string ComboId = "", FilterId = "", Preview = ""; public string? Current; public IReadOnlyList<ParamsDtoChoice>? Choices; }
+    private static readonly Dictionary<string, DrawCache> Cache = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Draws the "Params DTO" combo (with a type-to-filter box) over <paramref name="choices"/>; returns the picked type id when the
@@ -81,22 +83,28 @@ public static class ParamsDtoChooser
     /// </summary>
     public static string? Draw(string id, string? current, IReadOnlyList<ParamsDtoChoice> choices, bool readOnly = false)
     {
-        string preview = "(none — choose the params DTO)";
-        if (current is { Length: > 0 })
+        // ⭐ CE-3401 (R-2084) — the ids and the preview text are built when the DTO or the choice list changes, not every frame
+        if (!Cache.TryGetValue(id, out var cache)) { cache = new DrawCache { ComboId = $"##paramsDto_{id}", FilterId = $"##paramsDtoFilter_{id}" }; Cache[id] = cache; }
+        if (!ReferenceEquals(cache.Choices, choices) || !string.Equals(cache.Current, current, StringComparison.Ordinal) || cache.Preview.Length == 0)
         {
-            preview = SimpleName(current);
-            foreach (var c in choices)
-                if (string.Equals(c.TypeId, current, StringComparison.Ordinal)) { preview = c.Label; break; }
+            string preview = "(none — choose the params DTO)";
+            if (current is { Length: > 0 })
+            {
+                preview = SimpleName(current);
+                for (int i = 0; i < choices.Count; i++)
+                    if (string.Equals(choices[i].TypeId, current, StringComparison.Ordinal)) { preview = choices[i].Label; break; }
+            }
+            cache.Choices = choices; cache.Current = current; cache.Preview = "Params DTO: " + preview;
         }
         string? picked = null;
         ImGui.BeginDisabled(readOnly);
         ImGui.SetNextItemWidth(-1f);
-        if (ImGui.BeginCombo($"##paramsDto_{id}", "Params DTO: " + preview))
+        if (ImGui.BeginCombo(cache.ComboId, cache.Preview))
         {
             Filters.TryGetValue(id, out var filter);
             filter ??= "";
             ImGui.SetNextItemWidth(-1f);
-            if (ImGui.InputTextWithHint($"##paramsDtoFilter_{id}", "filter…", ref filter, 128)) Filters[id] = filter;
+            if (ImGui.InputTextWithHint(cache.FilterId, "filter…", ref filter, 128)) Filters[id] = filter;
             foreach (var c in choices)
             {
                 if (filter.Length > 0 && c.Label.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0) continue;

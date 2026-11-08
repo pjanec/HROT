@@ -51,6 +51,10 @@ namespace Hrot.Common.Editing
         public static EditingLevel LevelOf(ISimulationView view)
             => view is EntityRepository repo && repo.HasSingletonManaged<StationMode>() ? repo.GetSingletonManaged<StationMode>()!.Level : EditingLevel.Full;
 
+        /// <summary>⭐ Seats H6 — the station's seat on <paramref name="view"/>; <see cref="Hrot.Common.Infrastructure.Seat.Author"/> where no source is installed.</summary>
+        public static Hrot.Common.Infrastructure.Seat SeatOf(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonManaged<StationMode>() ? repo.GetSingletonManaged<StationMode>()!.Seat : Hrot.Common.Infrastructure.Seat.Author;
+
         /// <summary>⭐ Seats H2 — the station's side scope on <paramref name="view"/>; null (every side) where no source is installed.</summary>
         public static ForceId? SideOf(ISimulationView view)
             => view is EntityRepository repo && repo.HasSingletonManaged<StationMode>() ? repo.GetSingletonManaged<StationMode>()!.Side : null;

@@ -92,7 +92,7 @@ public sealed class TheStartScreenShowsTheWallpaperTests
             => new(label, on, () => { }, why, new NodeEditor.Core.Widgets.IconGlyph(glyph, c ?? new System.Numerics.Vector4(0.9f, 0.3f, 0.3f, 1f)));
         var rows = new[]
         {
-            new StartSurfaceWindow.StartRecentRow("Night attack", "Live · 10 min ago", B("Live", true), B("Edit", true, null, "\uf304", new(0.95f, 0.75f, 0.2f, 1f)), B("AAR", true, null, "\uf04b", new(0.3f, 0.6f, 1f, 1f))),
+            new StartSurfaceWindow.StartRecentRow("Night attack", "Live · just now", B("Live", true), B("Edit", true, null, "\uf304", new(0.95f, 0.75f, 0.2f, 1f)), B("AAR", true, null, "\uf04b", new(0.3f, 0.6f, 1f, 1f)), JustRun: true, Hint: "Night attack > AAR = the replay of the latest run, at its start"),
             new StartSurfaceWindow.StartRecentRow("Bridgehead", "never run", B("Live", true), B("Edit", false, "editing needs an author seat", "\uf304"), B("AAR", false, "never run", "\uf04b")),
         };
         var surface = new StartSurfaceWindow(wm.GlobalMenu, () => StartVariant.Actions, () => wm.StatusBar.Height, recent: () => rows);
@@ -105,6 +105,25 @@ public sealed class TheStartScreenShowsTheWallpaperTests
         Assert.True(pmax.X - pmin.X > 700f, $"the panel holds the action column AND the Recent column ({pmax.X - pmin.X:0} px)");
         Assert.InRange((pmin.X + pmax.X) / 2f - (pos.X + size.X / 2f), -1.5f, 1.5f);
         Assert.Equal(2, surface.Model().RecentRows.Count);
+
+        // ⭐ storyboard ① / ⑧ fidelity, MEASURED: a LARGE title; the three actions stacked at one x and one width (+ About); no sentence under the title; the just-run row highlighted
+        float body = ImGui.GetTextLineHeight();
+        var (tmin, tmax) = surface.TitleRect;
+        Assert.True(tmax.Y - tmin.Y >= body * 1.5f, $"the HROT title is large ({tmax.Y - tmin.Y:0} px beside {body:0} px body text)");
+        var actions = surface.ActionRects;
+        Assert.Equal(4, actions.Count);                                              // New · Open scenario · Open recording · (About)
+        Assert.All(actions, a => Assert.InRange(a.Min.X - actions[0].Min.X, -0.5f, 0.5f));
+        Assert.All(actions, a => Assert.InRange(a.Max.X - actions[0].Max.X, -0.5f, 0.5f));
+        Assert.True(actions[0].Max.Y < actions[1].Min.Y && actions[1].Max.Y < actions[2].Min.Y, "the actions are stacked");
+        Assert.True(actions[0].Max.X < surface.RecentRowRects[0].Min.X, "the Recent column is right of the actions");
+        var shot = Raylib.LoadImageFromScreen();
+        try
+        {
+            var hi = Raylib.GetImageColor(shot, (int)(surface.RecentRowRects[0].Min.X + 140), (int)(surface.RecentRowRects[0].Max.Y - 4));
+            var lo = Raylib.GetImageColor(shot, (int)(surface.RecentRowRects[1].Min.X + 140), (int)(surface.RecentRowRects[1].Max.Y - 4));
+            Assert.True(hi.R > lo.R + 20, $"the just-run row's box is lighter ({hi.R} vs {lo.R})");
+        }
+        finally { Raylib.UnloadImage(shot); }
         string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-start");
         Directory.CreateDirectory(dir);
         frame.Screenshot(Path.Combine(dir, "ce3414-start-recent.png"));

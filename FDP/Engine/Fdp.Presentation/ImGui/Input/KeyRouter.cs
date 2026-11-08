@@ -161,6 +161,7 @@ public sealed class KeyRouter
             var d = all[i];
             if (d.DefaultKey is not { } chord) continue;
             var action = ActionRef.Command(d.Id);
+            Keymap.SetLabel(action, d.DisplayName);   // ⭐ K6 — the shortcuts window names it
             if (!Keymap.IsDeclared(scope, kind, action))
                 Keymap.Declare(new KeymapEntry(chord, scope, kind, action));
         }

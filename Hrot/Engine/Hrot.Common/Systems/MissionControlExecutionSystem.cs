@@ -109,7 +109,7 @@ namespace Hrot.Common.Systems
         }
 
         /// <summary>⭐ <c>CE-3167</c> — the plan emptied, replicated, and this system's task order forgotten.</summary>
-        private void EmptyPlan(EntityRepository repo, Entity entity, int networkId)
+        private void EmptyPlan(EntityRepository repo, Entity entity, long networkId)
         {
             // ⭐ R-3039 S1 — the version outlives the plan (it is on the queue); the task order goes with the plan (ActiveMissionPlan).
             repo.SetComponent(entity, new MissionPlanQueue { TaskCount = 0, CurrentTask = 0, TaskElapsedSeconds = 0f, Version = VersionOf(repo, entity) });
@@ -206,7 +206,7 @@ namespace Hrot.Common.Systems
                     bool built;
                     MissionPlanQueue queue;
                     List<Guid> orderedTaskIds;
-                    try { built = TryBuildQueue(repo, plan, out queue, out orderedTaskIds); }
+                    try { built = TryBuildQueue(repo, plan, entity, intent.TargetEntityId, out queue, out orderedTaskIds); }
                     catch (Hrot.Core.Mission.MissionPlanException ex)
                     {
                         // ⭐ CE-4157 — refuse the whole request: no queue is applied, the entity keeps its plan
@@ -400,6 +400,8 @@ namespace Hrot.Common.Systems
         private bool TryBuildQueue(
             EntityRepository repo,
             MissionPlan plan,
+            Entity entity,
+            long networkId,
             out MissionPlanQueue queue,
             out List<Guid> orderedTaskIds)
         {
@@ -432,6 +434,12 @@ namespace Hrot.Common.Systems
 
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers, $"{task.BehaviorId} ({task.TaskId})");
+                // ⭐ CE-4298 rest (mission plan §5.9 E9) — a WAIT (no order, no behaviour) with no *then* resolves to "when done": it has nothing to finish, so it would end at once. The editor refuses it; a plan that
+                //   arrives so anyway loads (the load goes on) with ONE warning naming the entity and the task. THE one place every plan's tasks are resolved (every load passes TryBuildQueue).
+                if (string.IsNullOrWhiteSpace(task.BehaviorId) && trigger == EcsMissionTrigger.BehaviorFinished)
+                    FdpLog<MissionControlExecutionSystem>.Warn(
+                        "[MissionControl] Entity {0}: task {1} ({2}) is a Wait with no 'then' — it would end at once; give it a condition.",
+                        EntityLabel(repo, entity, networkId), i + 1, task.TaskId);
 
                 phases[i] = new MissionTaskSlot
                 {
@@ -443,6 +451,14 @@ namespace Hrot.Common.Systems
 
             queue.TaskCount = (byte)count;
             return true;
+        }
+
+        /// <summary>The entity as the warnings name it: its name when it has one, with its network id (<c>"Alpha 1-1 (#12)"</c>).</summary>
+        private static string EntityLabel(EntityRepository repo, Entity entity, long networkId)
+        {
+            string? name = repo.IsAlive(entity) && repo.HasComponent<Fdp.Core.EntityInfo>(entity)
+                ? repo.GetComponentRO<Fdp.Core.EntityInfo>(entity).Name.ToString() : null;
+            return string.IsNullOrEmpty(name) ? "#" + networkId : name + " (#" + networkId + ")";
         }
 
         private int ResolveBehaviorId(string? behaviorName)
