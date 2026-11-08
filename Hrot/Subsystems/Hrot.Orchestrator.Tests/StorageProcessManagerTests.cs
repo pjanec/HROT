@@ -93,6 +93,51 @@ public sealed class StorageProcessManagerTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-4099 (AQ108 §4c A5/A6) — an AUTOSAVE's slices merge into <c>scenarios/x/.autosave/autosave.json</c> (never <c>scenario.json</c>) with
+    /// <c>autosave.meta.json {at, savedHash}</c> — <c>savedHash</c> the hash of the scenario.json it was based on; its staging is cleaned up; and a REAL
+    /// save that completes deletes the whole <c>.autosave/</c>. 🔴 Red-proof (compiles): <c>MergeAutosaveSlices</c> writing <c>scenario.json</c> ⇒ the saved
+    /// file changes ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4099_AnAutosave_MergesIntoTheAutosaveFolder_WithItsMeta_AndASaveDeletesIt()
+    {
+        string nas = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            string scenarioDir = Path.Combine(nas, "scenarios", "x");
+            string slicesDir = Path.Combine(scenarioDir, ".autosave", ".slices");
+            Directory.CreateDirectory(slicesDir);
+            const string saved = "{\"Header\":{},\"Entities\":{}}";
+            File.WriteAllText(Path.Combine(scenarioDir, "scenario.json"), saved);
+            var dom = new System.Text.Json.Nodes.JsonObject { ["Header"] = new System.Text.Json.Nodes.JsonObject(), ["Entities"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["aaaa0000-0000-4000-8000-000000000001"] = new System.Text.Json.Nodes.JsonObject { ["EntityInfo"] = new System.Text.Json.Nodes.JsonObject { ["Name"] = "edited" } },
+            } };
+            Fdp.Core.Serialization.Migrations.JsonEnvelope.Write(dom, new Fdp.Core.Serialization.Migrations.DocumentMeta("Hrot.Scenario", 2));
+            File.WriteAllText(Path.Combine(slicesDir, "node_1.json"), dom.ToJsonString());
+
+            var manager = new StorageProcessManager(new FdpEventBus(), new StorageGatewayModule(), nas)
+            { UtcNow = () => new DateTime(2026, 11, 8, 14, 41, 0, DateTimeKind.Utc) };
+            manager.MergeAutosaveSlices("x", new List<FileManifestEntry>
+            {
+                new() { RelativeDest = Path.Combine("scenarios", "x", ".autosave", ".slices", "node_1.json"), DocType = "Hrot.Scenario" },
+            });
+
+            Assert.Equal(saved, File.ReadAllText(Path.Combine(scenarioDir, "scenario.json")));            // the saved file is untouched
+            Assert.Contains("edited", File.ReadAllText(Path.Combine(scenarioDir, ".autosave", "autosave.json")));
+            var meta = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(scenarioDir, ".autosave", "autosave.meta.json")))!;
+            Assert.StartsWith("2026-11-08T14:41:00", meta["at"]!.GetValue<string>());
+            Assert.Equal(Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(saved), meta["savedHash"]!.GetValue<string>());
+            Assert.False(Directory.Exists(slicesDir), "the autosave's staging is cleaned up");
+
+            manager.DeleteAutosave("x");                                                                    // A6 — what a completed save calls
+            Assert.False(Directory.Exists(Path.Combine(scenarioDir, ".autosave")));
+            Assert.True(File.Exists(Path.Combine(scenarioDir, "scenario.json")));
+        }
+        finally { if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true); }
+    }
+
+    /// <summary>
     /// SC3 -- Empty manifest: no NAS pull.
     /// When ResultPayload is an empty list, no files should be created.
     /// </summary>

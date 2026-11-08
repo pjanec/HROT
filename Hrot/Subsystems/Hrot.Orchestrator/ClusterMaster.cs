@@ -377,6 +377,7 @@ public sealed partial class ClusterMaster : IDisposable
         ProcessStorageOpIntents();
         ProcessTakeCheckpointIntents();
         ProcessUnsavedCheckIntents();   // ⭐ CE-4093 D20
+        TickAutosave();                 // ⭐ CE-4099 (AQ108 §4c A1) — after the check intents: its own check round is one more
         ProcessSeekReplayIntents();
         ProcessCancelOperationIntents();
         ProcessDiagnosticDumpIntents();

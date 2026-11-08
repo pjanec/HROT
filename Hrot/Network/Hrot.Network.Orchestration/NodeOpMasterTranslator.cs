@@ -175,7 +175,8 @@ public sealed class NodeOpMasterTranslator
                     ScenarioId:  p.ScenarioName,
                     ExerciseId:  Guid.Empty,
                     OnlyGuids:       p.OnlyGuids is { Count: > 0 } og ? new System.Collections.Generic.List<Guid>(og) : null,   // ⭐ CE-4210 MA-9
-                    MacroHeaderJson: string.IsNullOrWhiteSpace(p.HeaderJson) ? null : p.HeaderJson),
+                    MacroHeaderJson: string.IsNullOrWhiteSpace(p.HeaderJson) ? null : p.HeaderJson,
+                    Autosave:        p.Autosave),   // ⭐ CE-4099
                 _jsonOptions),
 
             _ => JsonSerializer.Serialize(domainPayload, domainPayload.GetType(), _jsonOptions),

@@ -50,6 +50,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo)
         {
             _inner.Commit(intent, repo);
+            // ⭐ CE-4099 (AQ108 §4c A3) — an AUTOSAVE is not a save: the world must keep reading "changed" until a real save
+            if (intent.DomainPayload is ScenarioSaveHandlerPayload { Autosave: true }) return;
             // the inner handler claims only a scenario save; its commit means this node's slice is on disk
             _check.TakeBaseline(_world);
         }

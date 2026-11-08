@@ -110,6 +110,9 @@ internal struct SaveScenarioJsonBegunEvent
     public Guid TransactionId;
     /// <summary>Relative scenario name / subfolder under the NAS scenarios root (never a filesystem path).</summary>
     public string ScenarioName;
+    /// <summary>⭐ CE-4099 (AQ108 §4c A2/A5) — an AUTOSAVE round: merged into <c>.autosave/autosave.json</c> (+ its meta), never <c>scenario.json</c>; no
+    /// <see cref="ScenarioSaveFinishedEvent"/> (an autosave is not a save — A3).</summary>
+    public bool Autosave;
 }
 
 /// <summary>

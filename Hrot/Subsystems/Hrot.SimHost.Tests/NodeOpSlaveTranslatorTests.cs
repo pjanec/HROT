@@ -277,6 +277,16 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Null(plain.HeaderJson);
     }
 
+    /// <summary>⭐ CE-4099 (AQ108 §4c A2) — the autosave flag survives the wire; a payload without it is a real save (false), exactly as before.
+    /// 🔴 Red-proof (compiles): the slave not passing <c>dto.Autosave</c> ⇒ false ⇒ red.</summary>
+    [Fact]
+    public void CE4099_DeserializeNodePayload_SerializeLocal_CarriesTheAutosaveFlag()
+    {
+        var auto = Assert.IsType<ScenarioSaveHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(NedNodeOpType.SerializeLocal, "{\"ScenarioId\":\"scn\",\"Autosave\":true}"));
+        Assert.True(auto.Autosave);
+        Assert.False(Assert.IsType<ScenarioSaveHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(NedNodeOpType.SerializeLocal, "{\"ScenarioId\":\"scn\"}")).Autosave);
+    }
+
     [Fact]
     public void DeserializeNodePayload_SerializeLocal_ExerciseId_RebuildsArchivePayload()
     {

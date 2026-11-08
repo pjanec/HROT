@@ -358,7 +358,12 @@ public record NodeTransitionPayloadDto(
 
     // ⭐ Macros S3a ⑦ (SR-41) — the load's scenario args, the same on every node. Additive; omitted ⇒ null.
     [property: JsonPropertyName("ScenarioArgs")]
-    string? ScenarioArgs = null
+    string? ScenarioArgs = null,
+
+    // ⭐ CE-4099 (AQ108 §4c A2) — the scenario save round is an AUTOSAVE: written into the scenario's .autosave/, no re-baseline. Additive; omitted ⇒ false.
+    [property: JsonPropertyName("Autosave")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    bool Autosave = false
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

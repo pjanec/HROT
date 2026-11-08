@@ -57,7 +57,8 @@ public sealed partial class ClusterMaster
     /// ⭐ CE-4093 — one check round: <see cref="NodeOpType.CheckUnsaved"/> to every participant, the aggregate (plus the master's own fact) as the
     /// op's result. Modelled on <c>CollectCheckpoint</c>: the same fan-out, the same <see cref="GenericTransactionTracker"/>; no new round mechanism.
     /// </summary>
-    private void StartUnsavedCheck(Guid requestId)
+    /// <param name="then">⭐ CE-4099 — the master's OWN use (the autosave trigger): told the answer when the round completes (also when nobody was asked).</param>
+    private void StartUnsavedCheck(Guid requestId, Action<UnsavedCheckResult>? then = null)
     {
         if (_currentDsmState != ClusterState.OperatingEdit)
         {
@@ -69,7 +70,9 @@ public sealed partial class ClusterMaster
         if (nodeIds.Count == 0)
         {
             // nobody to ask: only the master's own fact can say "changed"
-            PublishOpStatus(requestId, OrchestrationStatusCode.Success, RememberUnsavedCheck(null, nobodyAsked: true));
+            var alone = RememberUnsavedCheck(null, nobodyAsked: true);
+            PublishOpStatus(requestId, OrchestrationStatusCode.Success, alone);
+            then?.Invoke(alone);
             return;
         }
         var txId = Guid.NewGuid();
@@ -78,7 +81,7 @@ public sealed partial class ClusterMaster
         {
             RequestId     = requestId,
             Expected      = nodeIds.Count,
-            RefineResult  = aggregated => RememberUnsavedCheck(aggregated),
+            RefineResult  = aggregated => { var r = RememberUnsavedCheck(aggregated); then?.Invoke(r); return r; },
         };
     }
 
@@ -104,6 +107,7 @@ public sealed partial class ClusterMaster
     /// </summary>
     private void NoteRoundCompletedForUnsavedCheck(Guid txId, bool failed, object? aggregated)
     {
+        NoteAutosaveRoundDone(txId, failed);   // ⭐ CE-4099 — the autosave's node round (not a save round: it never touches the facts below)
         if (!_saveRounds.Remove(txId)) return;
         if (failed) { _saveFailedSinceLoad = true; return; }
         if (aggregated is List<Hrot.Network.Orchestration.FileManifestEntry> { Count: > 0 }) _saveMerges.Add(txId);

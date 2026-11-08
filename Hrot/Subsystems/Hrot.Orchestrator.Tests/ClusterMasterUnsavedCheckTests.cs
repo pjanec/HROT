@@ -343,4 +343,87 @@ public sealed class ClusterMasterUnsavedCheckTests
         rig.GoTo(ClusterState.OperatingEdit);
         Assert.False(ResultOf(rig.Check()).Changed);
     }
+
+    // ── ⭐⭐ CE-4099 AUTOSAVE (AQ108 §4c A1–A3, §4c.1) — the master's trigger ──────────────────────────────────────────────────────────────────
+
+    /// <summary>Into editing WITH a scenario open (autosave runs only for one), the autosave clock driven by the rail.</summary>
+    private static (Rig Rig, Func<double> Advance) EditingWithAutosave(double everySeconds = 60)
+    {
+        var rig = new Rig(A, B);
+        double now = 1000;
+        rig.Master.AutosaveClock = () => now;
+        rig.Master.AutosaveEvery = TimeSpan.FromSeconds(everySeconds);
+        var tx = Guid.NewGuid();   // a scenario load parks until its prefetch reports done (as the bootstrap rails drive it)
+        rig.Inject(() => rig.Bus.PublishManaged(new TransitionStateIntent { TransactionId = tx, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, ScenarioId = "scn" }));
+        rig.Frame();
+        rig.Inject(() => rig.Bus.PublishManaged(new PrefetchDistributionCompletedEvent { RequestId = tx, ScenarioId = "scn", IsSuccess = true }));
+        rig.Settle();
+        Assert.Equal(ClusterState.OperatingEdit, rig.Master.CurrentClusterState);
+        return (rig, () => now += everySeconds + 1);
+    }
+
+    private static Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload[] AutosaveFanOuts(Rig rig)
+        => rig.Intents.Where(i => i.Operation == FdpNodeOpType.SerializeLocal)
+                      .Select(i => i.DomainPayload).OfType<Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload>().ToArray();
+
+    /// <summary>
+    /// ⭐⭐ CE-4099 A1/A2 — editing, the interval passed, a node CHANGED ⇒ the check round, then the SAVE ROUND with the autosave flag to every participant
+    /// (the same fan-out as a save). 🔴 Red-proof (compiles): <c>OnAutosaveCheck</c> returning before the fan-out ⇒ no autosave payload ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4099_TheIntervalPassed_AndANodeChanged_StartsTheSaveRoundAsAnAutosave()
+    {
+        var (rig, advance) = EditingWithAutosave();
+        rig.CheckAnswer[A] = "changed";
+        rig.Settle(4);
+        Assert.Empty(AutosaveFanOuts(rig));                                   // not yet: the interval starts when editing does
+
+        advance();
+        rig.Settle(6);
+
+        Assert.Contains(rig.Intents, i => i.Operation == FdpNodeOpType.CheckUnsaved);
+        var fanned = AutosaveFanOuts(rig);
+        Assert.Equal(2, fanned.Length);                                       // A and B
+        Assert.All(fanned, p => Assert.True(p.Autosave && p.ScenarioName == "scn" && p.OnlyGuids == null));
+        Assert.Equal(1, rig.Master.AutosavesStarted);
+    }
+
+    /// <summary>⭐ CE-4099 A1 — nothing changed ⇒ the check round runs, no autosave is written.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4099_NothingChanged_WritesNothing()
+    {
+        var (rig, advance) = EditingWithAutosave();
+        rig.Settle(2);
+        advance();
+        rig.Settle(6);
+        Assert.Contains(rig.Intents, i => i.Operation == FdpNodeOpType.CheckUnsaved);
+        Assert.Empty(AutosaveFanOuts(rig));
+        Assert.Equal(0, rig.Master.AutosavesStarted);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4099 A3 — an autosave is NOT a save: its round failing does not make the scenario "save failed" (and a success does not clear one), and
+    /// it is never started outside editing. 🔴 Red-proof (compiles): the autosave registering as a save round (<c>NoteSaveRoundStarted(txId)</c>) ⇒
+    /// <c>SaveFailedSinceLoad</c> true ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4099_AFailedAutosave_IsNotAFailedSave_AndIdleNeverAutosaves()
+    {
+        var (rig, advance) = EditingWithAutosave();
+        rig.CheckAnswer[A] = "changed";
+        rig.SaveRoundStatus = OrchestrationStatusCode.Rejected;              // every node fails its part
+        rig.Settle(2);
+        advance();
+        rig.Settle(8);
+        Assert.Equal(1, rig.Master.AutosavesStarted);
+        Assert.False(rig.Master.SaveFailedSinceLoad);
+
+        var idle = new Rig(A, B);
+        double t = 0;
+        idle.Master.AutosaveClock = () => t;
+        idle.Master.AutosaveEvery = TimeSpan.FromSeconds(1);
+        for (int i = 0; i < 5; i++) { t += 10; idle.Frame(); }
+        Assert.DoesNotContain(idle.Intents, x => x.Operation == FdpNodeOpType.CheckUnsaved);
+        Assert.Equal(0, idle.Master.AutosavesStarted);
+    }
 }
