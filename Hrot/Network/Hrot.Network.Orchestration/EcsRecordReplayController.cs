@@ -74,6 +74,16 @@ namespace Hrot.SimHost.Modules.Orchestration
             return new EcsRecordReplayController(kernel, nodeId, world, afterSeek);
         }
 
+        /// <summary>⭐ CE-4331 ① (§9a) — this node's name, subsystem and roles, written on every recording it starts; set once by the ONE composition
+        /// (<see cref="EcsHostClusterHandlers.Compose"/>).</summary>
+        public string RecordingNodeName { get; set; } = "";
+
+        /// <inheritdoc cref="RecordingNodeName"/>
+        public string RecordingSubsystem { get; set; } = "";
+
+        /// <inheritdoc cref="RecordingNodeName"/>
+        public int RecordingRoles { get; set; }
+
         private readonly ModuleHostKernel _kernel;
         private readonly NodeId              _nodeId;
         private readonly EntityRepository _repo;
@@ -295,6 +305,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 EntityFilter = null,   // record all entities above MinRecordableId
                 ExerciseId      = (Fdp.Core.ExerciseId)exerciseId,
                 NodeId = _nodeId,
+                NodeName = RecordingNodeName, Subsystem = RecordingSubsystem, Roles = RecordingRoles,   // ⭐ CE-4331 ① — the node's identity on its recording
                 Branch = branch,
                 CheckpointingSeconds = branch == null ? SessionCheckpointingSeconds : 0,   // D17 — a branch reads its parent's (StartBranch)
                 SlotRunInFlight = () => _kernel.SlotRunInFlight,   // ⭐ CE-3316 — a checkpoint waits for a step with no slot run in flight

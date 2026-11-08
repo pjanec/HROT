@@ -108,6 +108,10 @@ namespace Hrot.SimHost.Modules.Orchestration
 
             // P5a — the ONE recording controller: a seek clears the ELM's bookkeeping, and the ELM is gated in replay.
             var controller = EcsRecordReplayController.ForNode(h.Kernel, h.NodeId, h.World, h.TransportAfterSeek, h.Elm);
+            // ⭐ CE-4331 ① — every recording carries the node's name, subsystem and roles (an AAR on another cluster places files by them, §9a)
+            controller.RecordingNodeName  = slave.NodeName;
+            controller.RecordingSubsystem = slave.SubsystemName;
+            controller.RecordingRoles     = (int)h.Role;
             Action<bool>? worldReplaced = h.Elm == null ? null : h.Elm.OnWorldReplaced;
 
             // 1. Replay load — FIRST, so it claims PrepareLive while a replay is active (live-from-replay, CGF1-S0305).

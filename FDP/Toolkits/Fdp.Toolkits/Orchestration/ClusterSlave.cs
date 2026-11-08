@@ -168,6 +168,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ <c>CE-3354</c> ② — the node's name as heartbeated.</summary>
         public string NodeName => _nodeName;
 
+        /// <summary>⭐ CE-4331 ① — the node's subsystem (what its heartbeat says), written on its recordings.</summary>
+        public string SubsystemName => _subsystemName;
+
         /// <summary>⭐ <c>CE-3354</c> ② — the name a node gets when none is configured: <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>.</summary>
         public static string DefaultNodeName(string subsystemName, int nodeId) => $"{subsystemName}-{nodeId}";
 
