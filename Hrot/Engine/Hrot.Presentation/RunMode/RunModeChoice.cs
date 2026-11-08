@@ -71,8 +71,10 @@ public sealed class RunModeChoice
     /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the master's recordings inventory (local, archived, unarchived-local); the same arrays until a new inventory arrives.</summary>
     public (ExerciseInventoryItem[] Local, ExerciseInventoryItem[] Archived, ExerciseInventoryItem[] UnarchivedLocal) InventoryExercises => _transport.InventoryExercises;
     public bool? StartImmediatelySetting => _transport.StartImmediatelySetting;
+    /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes (0 = off; null = no cluster view here).</summary>
+    public int? AutosaveMinutesSetting => _transport.AutosaveMinutesSetting;
     /// <summary>⭐ CE-4100 ① — set the cluster's run settings; a null argument leaves that one as it is.</summary>
-    public void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null) => _transport.SendRunSettings(recordLiveRuns, askToKeepRecordings, startLiveImmediately);
+    public void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null, int? autosaveMinutes = null) => _transport.SendRunSettings(recordLiveRuns, askToKeepRecordings, startLiveImmediately, autosaveMinutes);
 
     /// <summary>⭐ <c>CE-1437</c> — this host has a scenario session (an <i>operator</i> host: editor, CGF); false on SimHost / IG. Read by the run-controls pick rule.</summary>
     public bool HasScenarioControl => _control is not null;

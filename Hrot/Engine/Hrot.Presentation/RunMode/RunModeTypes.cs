@@ -448,12 +448,15 @@ public interface IRunTransport
     bool? AskToKeepSetting { get; }
     /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting (<c>ClusterView.StartLiveImmediately</c>); <see langword="null"/> when no view.</summary>
     bool? StartImmediatelySetting { get; }
+    /// <summary>⭐ CE-4099 phase 2 (AQ108 §4c.1, D23) — the cluster's <i>Autosave</i> interval in whole minutes while editing (<c>ClusterView.AutosaveMinutes</c>; 0 = off); <see langword="null"/> when no view.</summary>
+    int? AutosaveMinutesSetting { get; }
     /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the scenario names the master's inventory lists (<c>ClusterView.AvailableScenarios</c>); empty when no view or no inventory. The reference changes only when a new inventory arrives.</summary>
     string[] InventoryScenarios { get; }
     /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the recordings of the master's inventory: local, archived and unarchived-local lists (<c>ClusterView</c>); empty arrays when no view. References change only when a new inventory arrives.</summary>
     (ExerciseInventoryItem[] Local, ExerciseInventoryItem[] Archived, ExerciseInventoryItem[] UnarchivedLocal) InventoryExercises { get; }
     /// <summary>⭐ CE-4100 ① — publish the run settings (<c>SetRunSettingsIntent</c>, the ONE intent <see cref="SendArmed"/> uses): a <see langword="null"/> argument is "no change".</summary>
-    void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null);
+    /// <remarks>⭐ CE-4099 phase 2 — <paramref name="autosaveMinutes"/> (0 = off) rides the same op as <paramref name="startLiveImmediately"/>.</remarks>
+    void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null, int? autosaveMinutes = null);
 
     /// <summary>⭐⭐⭐ <c>CE-1442</c> (U1, §11.7 ①) — the ONE run gate: built by the adapter from the node's <c>ClusterView</c> and the host's <see cref="HostGatePolicy"/> (<see cref="RunGate.From"/>); no view ⇒ <see cref="RunGate.AlwaysOpen"/>.</summary>
     RunGate Gate { get; }

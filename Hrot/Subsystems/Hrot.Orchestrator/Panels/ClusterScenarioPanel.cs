@@ -597,7 +597,7 @@ public sealed class ClusterScenarioPanel
     }
 
     /// <summary>⭐ CE-4100 ① — the cluster's run settings, through <see cref="ClusterPanelRunControls"/> (the ONE sender): <i>Record live runs</i> and <i>Ask to keep recordings</i>; enabled whenever this host has a cluster view.</summary>
-    private static readonly string[] ClusterLabels = { "Start Paused (Live/Preview)", "Record live runs", "Ask to keep recordings", "Start immediately" };
+    private static readonly string[] ClusterLabels = { "Start Paused (Live/Preview)", "Record live runs", "Ask to keep recordings", "Start immediately", "Autosave" };
 
     private void RenderRunSettings(bool disableAll)
     {
@@ -618,6 +618,16 @@ public sealed class ClusterScenarioPanel
             FormGrid.Row("Start immediately");
             if (ImGui.Checkbox("##OrcStartNow", ref startNow)) controls!.SetStartImmediately(startNow);
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("a Live load starts running at once — no briefing pause");
+            FormGrid.Row("Autosave");   // ⭐ CE-4099 phase 2 (AQ108 §4c.1) — beside Start immediately: the same cluster-wide setting shape, sent through the same intent
+            int autosave = controls?.AutosaveMinutes ?? 0;
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.BeginCombo("##OrcAutosave", ClusterPanelRunControls.AutosaveLabel(autosave)))
+            {
+                foreach (int choice in ClusterPanelRunControls.AutosaveChoices)
+                    if (ImGui.Selectable(ClusterPanelRunControls.AutosaveLabel(choice), choice == autosave)) controls!.SetAutosaveMinutes(choice);
+                ImGui.EndCombo();
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("While you edit a scenario, keep an autosave this often (not a save — a real save deletes it). Off: none. Cluster-wide.");
             FormGrid.End();
         }
         if (!enabled) ImGui.EndDisabled();
