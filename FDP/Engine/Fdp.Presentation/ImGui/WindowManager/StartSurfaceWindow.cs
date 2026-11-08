@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using ImGuiNET;
 
@@ -92,6 +93,11 @@ public sealed class StartSurfaceWindow : ManagedWindow
     {
         if (!_wallpaperTried)
         {
+            // ⭐ No Raylib window ⇒ no GL context: the upload crashed the PROCESS natively (an ImGui-only test fixture — StartGateTests aborted the whole
+            //   Fdp.Presentation.Tests run there, silently leaving every later test unrun). Skip it and try again once a window exists (as MapCamera / Map3DBuild do).
+            bool ready;
+            try { ready = Raylib_cs.Raylib.IsWindowReady(); } catch (Exception) { ready = false; }
+            if (!ready) return null;
             _wallpaperTried = true;
             var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", Icons.EmbeddedAtlasResources.GetWallpaperPngBytes());
             var tex = Raylib_cs.Raylib.LoadTextureFromImage(img);
