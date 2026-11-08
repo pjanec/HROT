@@ -15,7 +15,6 @@ public sealed class CaptureShellCommandRegistrar : IShellCommandRegistrar
 {
     private readonly Dictionary<string, Action> _toolbarEntries = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Action> _menuEntries    = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Action> _shortcuts      = new(StringComparer.Ordinal);
 
     /// <inheritdoc/>
     public void RegisterMenuEntry(string path, Action onSelected)
@@ -33,13 +32,6 @@ public sealed class CaptureShellCommandRegistrar : IShellCommandRegistrar
         _toolbarEntries[label] = onClicked;
     }
 
-    /// <inheritdoc/>
-    public void RegisterShortcut(string keybind, Action onTriggered)
-    {
-        if (keybind is null)     throw new ArgumentNullException(nameof(keybind));
-        if (onTriggered is null) throw new ArgumentNullException(nameof(onTriggered));
-        _shortcuts[keybind] = onTriggered;
-    }
 
     /// <summary>
     /// Returns the callback registered for a toolbar entry, or <c>null</c> if not registered.

@@ -944,7 +944,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         diffPanel.HasRecording = () => timelinePanel.HasRecording;
         var recordingInfo = new Fdp.Presentation.Windows.ReplayBrowser.RecordingInfoWindow(perspective, timelinePanel, color);
         windowManager.RegisterWindow(recordingInfo);
-        windowManager.GlobalMenu.RegisterItem(RecordingInfoMenuPath, () => recordingInfo.Show(), perspective);
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.recording-info.{perspective}", RecordingInfoMenuPath, () => recordingInfo.Show(), perspective);   // ⭐ B-10 K5
 
         // ⭐⭐ CE-4323 (scenario lifecycle LC-19, R-4166) — File ▸ Open Exercise Recording…: the editor's picker (RecordingPickerLauncher — ONE class
         //   for every host), listing the exercises on this host's disk (the inventory GET /exercises serves) by scenario, start and length; a pick goes
@@ -954,15 +954,15 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             openPicker:    Pickers.OpenPicker,
             listExercises: ExercisesOnDisk,
             openRecording: id => BrowserControl.Open(Hrot.Presentation.DebugApi.RecordingName.Exercise(id), 0));
-        windowManager.GlobalMenu.RegisterItem(Hrot.Editor.AiShared.Scenarios.FileMenuLayout.OpenExerciseRecording, () => RecordingPicker.Open(), perspective);
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.open-exercise.{perspective}", Hrot.Editor.AiShared.Scenarios.FileMenuLayout.OpenExerciseRecording, () => RecordingPicker.Open(), perspective);
 
         // ⭐ CE-4261 — the browser's own toolbar contents and File items (🔒 user, 2026-11-03): the replay transport bar is an entry of the MAIN toolbar (the timeline panel's ONE drawer),
         //   File ▸ Load .fdp… runs the load the timeline's button ran, File ▸ JSON Export… opens the window holding the export options.
         //   ⛔ The browser is NOT an IProvidesRunControls: that offer is the CLUSTER's transport (ITimeTransportFacade + RunModeChoice, gate policy, loading screen, scenario door) — a recording has none of them.
         var jsonExport = new Fdp.Presentation.Windows.ReplayBrowser.JsonExportWindow(perspective, timelinePanel, color);
         windowManager.RegisterWindow(jsonExport);
-        windowManager.GlobalMenu.RegisterItem(LoadFdpMenuPath, () => timelinePanel.RequestLoadFdp(), perspective);
-        windowManager.GlobalMenu.RegisterItem(JsonExportMenuPath, () => jsonExport.Show(), perspective);
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.load-fdp.{perspective}", LoadFdpMenuPath, () => timelinePanel.RequestLoadFdp(), perspective);
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, $"replay.json-export.{perspective}", JsonExportMenuPath, () => jsonExport.Show(), perspective);
         windowManager.MainToolbar.RegisterEntry(TransportEntryId, sortOrder: 0, declaredHeight: MainToolbarManager.DefaultEntryHeight,
             () => timelinePanel.DrawTransport(), perspective);
 

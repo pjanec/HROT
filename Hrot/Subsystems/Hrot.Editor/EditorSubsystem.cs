@@ -3596,10 +3596,10 @@ namespace Hrot.Editor
                 () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
             // ⭐ CE-1329 (Brain View §12r BV-71) — forget every unit's remembered debug settings (pins, traces, the followed unit) of the
             //   loaded scenario; the Brain tab's Debug section resets one unit
-            windowManager.GlobalMenu.RegisterItem(GlobalMenuRegistry.SettingsMenuPath + "/Reset all debug settings for this scenario", () =>
+            Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "debug.reset-all-unit-settings", GlobalMenuRegistry.SettingsMenuPath + "/Reset all debug settings for this scenario", () =>
             {
                 if (_world != null) Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world).ResetAll();
-            });
+            });   // ⭐ B-10 K5
 
             // ⭐ CE-1150 — composed as a bundle: the panel AND its actions (Properties…, View ▸ Details ▸ Float / Pin).
             if (_scenarioDetailsBundle is not null)
@@ -4218,7 +4218,7 @@ namespace Hrot.Editor
 
             // ⭐ CE-4210 MA-6 — File ▸ New ▸ Macro…  (a macro starts from a scenario recipe's terrain, like New Scenario…) — ⭐ CE-4253/4255: it was Scenario/New Macro…
             if (newAssetLauncher is { CanOpenMacro: true })
-                windowManager.GlobalMenu.RegisterItem(Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewMacro, () => newAssetLauncher.OpenMacro(), "Scenario", allowedInIdle: false);
+                Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "file.new-macro", Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewMacro, () => newAssetLauncher.OpenMacro(), "Scenario", allowedInIdle: false);
 
             // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording: the master's exercise inventory (the core's cluster read model, the SAME
             //   list GET /exercises serves) in the shared picker; a pick opens into AAR through the session's ONE replay intent.
@@ -5104,7 +5104,7 @@ namespace Hrot.Editor
                     behaviorRemapper: _behaviorRegistry is null ? null : Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry));
                 _saveSelectionWindow = new Hrot.Editor.Scenario.SaveSelectionAsMacroWindow(selectionFlow);
                 windowManager.RegisterWindow(_saveSelectionWindow);
-                windowManager.GlobalMenu.RegisterItem(Hrot.Editor.AiShared.Scenarios.FileMenuLayout.SaveSelectionAsMacro, () => _saveSelectionWindow?.Start(), "Scenario");   // ⭐ CE-4253 — it was Scenario/…
+                Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "file.save-selection-as-macro", Hrot.Editor.AiShared.Scenarios.FileMenuLayout.SaveSelectionAsMacro, () => _saveSelectionWindow?.Start(), "Scenario");   // ⭐ CE-4253 — it was Scenario/…
                 HostActions.Actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.SaveSelectionAsMacro, (view, target) =>
                 {
                     if (!target.IsNull && _selectionState is { SelectedEntities.Count: 0 } sel) sel.PrimarySelected = target;   // a right-click on an unselected unit saves that unit

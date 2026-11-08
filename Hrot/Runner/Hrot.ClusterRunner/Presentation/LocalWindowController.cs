@@ -217,7 +217,7 @@ internal sealed class LocalWindowController
         var surface = new StartSurfaceWindow(wm.GlobalMenu, () => gate.Variant, () => wm.StatusBar.Height, recent: () => StartRecent?.Rows() ?? NoRecent);
         wm.RegisterWindow(surface);
         // ⭐ Exit: the same path as the window's [X] (the frame loop asks every exit guard). Allowed in Idle — the Start surface offers it.
-        wm.GlobalMenu.RegisterItem("File/Exit", RequestExit, allowedInIdle: true);
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(wm.GlobalMenu, wm.ShellCommands, "shell.exit", "File/Exit", RequestExit, allowedInIdle: true);   // ⭐ B-10 K5
         StartGate = gate;
         StartSurface = surface;
         // ⭐ coordinator review of CE-4096 — the providers are built ONCE here and folded each frame (⛔ was: rebuilt every frame)
@@ -465,8 +465,8 @@ internal sealed class LocalWindowController
         // ⭐ The mode INDICATOR — checkable, so the current state is visible at a glance. ⚠ Toggling it
         //   changes the NEXT run: the reset already happened before ImGui was set up, and pretending
         //   otherwise would be a control that lies about when it acts.
-        wm.GlobalMenu.RegisterCheckableItem(
-            GlobalMenuRegistry.SettingsMenuPath + "/Layout/Reset to default on start",   // ⭐ CE-4085: Settings is a submenu of View
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterToggle(wm.GlobalMenu, wm.ShellCommands, "settings.layout.reset-on-start",
+            GlobalMenuRegistry.SettingsMenuPath + "/Layout/Reset to default on start",   // ⭐ CE-4085: Settings is a submenu of View; ⭐ B-10 K5: an action
             () => _options.ResetLayoutOnRun,
             v =>
             {
@@ -479,12 +479,12 @@ internal sealed class LocalWindowController
 
         // ⭐ CE-1137 — the scene heard from the 3-D camera outside FPS (off by default, saved in the operator's audio.json). 🔒 User,
         //   2026-10-16: "a menu settings for enabling sounds in 3d map non-FPS mode heard from the camera position".
-        wm.GlobalMenu.RegisterCheckableItem(
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterToggle(wm.GlobalMenu, wm.ShellCommands, "settings.sound-3d-camera",
             GlobalMenuRegistry.SettingsMenuPath + "/Sound in the 3-D view (from the camera)",
             () => Hrot.UI.Common.Audio.AudioPreferences.CameraSound,
             v => Hrot.UI.Common.Audio.AudioPreferences.CameraSound = v);
 
-        wm.GlobalMenu.RegisterItem(GlobalMenuRegistry.SettingsMenuPath + "/Layout/Save current as default", () =>
+        Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(wm.GlobalMenu, wm.ShellCommands, "settings.layout.save-default", GlobalMenuRegistry.SettingsMenuPath + "/Layout/Save current as default", () =>
         {
             // ⭐⭐ Flush BOTH halves first — 📌 "the layout" is the pair, and saving one of them is the
             //    half-reset this batch exists to end.
@@ -500,15 +500,12 @@ internal sealed class LocalWindowController
                 ? $"[Layout] Saved the current layout as the shipped default "
                 + $"({LayoutPaths.TryFindSourceLayoutDirectory(LayoutName)}). Commit it to share it."
                 : "[Layout] Could not save as default — no source tree was found above the executable.");
-        });
-
+        },
         // ⛔ The command STAYS VISIBLE outside a checkout and says why it cannot run.
-        var saveNode = wm.GlobalMenu.Root
-            .Children["View"].Children["Settings"].Children["Layout"].Children["Save current as default"];
-        saveNode.GetEnabled    = () => LayoutPaths.TryFindSourceLayoutDirectory(LayoutName) != null;
-        saveNode.DynamicLabel  = () => LayoutPaths.TryFindSourceLayoutDirectory(LayoutName) != null
+        enabled: () => LayoutPaths.TryFindSourceLayoutDirectory(LayoutName) != null,
+        dynamicLabel: () => LayoutPaths.TryFindSourceLayoutDirectory(LayoutName) != null
             ? "Save current as default"
-            : "Save current as default (unavailable — not running from the source tree)";
+            : "Save current as default (unavailable — not running from the source tree)");
     }
 
     internal void CloseLocalWindow()

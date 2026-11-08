@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07) — K1 BUILT, as-built in §5a; K2 · K3 · K7 BUILT (§6, §6c, §6d, ui 2026-11-08); ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
-updated: 2026-11-08 (K2 rest + K3 + K7 BUILT — §6 / §6c / §6d, ui Z-5) · 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
+updated: 2026-11-08 (K5 — §6e, ui Z-6) · 2026-11-08 (K2 rest + K3 + K7 BUILT — §6 / §6c / §6d, ui Z-5) · 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
 current-answer: §2 the model · §3 stages · §4 questions with leans · §5 the K1 build design (homes, the chord, the id, the per-frame call) · §6 / §6c / §6d the map: hat + camera scopes, one-level Esc, the mouse gestures (as built)
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
@@ -179,7 +179,7 @@ forwards, so a remote viewer gets exactly the same map keys as the local map, an
 | **K2** ✅ | the map: hat scopes before the map scope; the map menu letters declared on the actions (fixes CE-4281); `MenuShortcuts` becomes the router's map scope — ⭐ **BUILT** (§6, as built; R-4169: letters stay on while following) |
 | **K3** ✅ | central Esc (Tool Model step 6) — ⭐ **BUILT as ONE-LEVEL ownership (§6c)**; ⛔ "gizmos stop reading Esc" NOT done — superseded by §2.4 and Tool Model Q27-E (the gizmo keeps its own cleanup), see §6c |
 | **K4** | the FPS station, the timeline, IG pan / zoom / undo, debug F-keys onto bindings (Hold / Axis kinds for the held ones) |
-| **K5** | `IEditorCommands` and `RegisterItem` closures as actions; buttons and keys call action ids; the dead seam deleted |
+| **K5** ✅ *(BUILT, §6e)* | `IEditorCommands` and `RegisterItem` closures as actions; buttons and keys call action ids; the dead seam deleted |
 | **K7** ✅ *(R-4163; BUILT §6d)* | **every user input, not only keys**: mouse gestures on the map (left / right click on an entity, on ground, a drag, Shift / Ctrl variants) become bindings in the same scope chain; the map scope binds the selection rules (Action Catalogue §8) and *right click = the menu*; the **RTS scope** overrides only what it changes (§6b); `RtsCommandGizmo`'s hand-written mouse handling becomes its bindings | a rail per scope: the same click resolves to the menu in the map scope and to Move / Attack in the RTS scope; an unbound key (2-D / 3-D, Ctrl+S) still works in RTS |
 | **K6** | the Keyboard shortcuts window; user overrides in a settings file; rebind UI later |
 
@@ -474,3 +474,41 @@ graph TD
 ⛔ SUPERSEDED: Entity Control §8a's *"Esc leaves"* RTS tool and Seats and Hats Q6's *Esc → out of Command*.
 
 ⭐ **R-4169 (user, `2026-11-08`): letters stay on while following** — 🔒 *"Yes, letters stay on while following."* The map letters stand down only for the Embodied (first person) and Direct (director) hats, never for the follow camera (Observe); a follow camera's own keys, if any, are a camera scope in front of the map scope (R-4163).
+
+### 6e. ⭐ K5 — a menu item that runs code NAMES AN ACTION *(ui, `2026-11-08`; built)*
+
+INVENTORY: `scripts/cbm.sh search_code RegisterItem(` + grep ⇒ **9** production `GlobalMenu.RegisterItem(path, closure)` calls (`WindowManager` ×1 · `LocalWindowController` ×2 · `ReplayBrowserSubsystem` ×4 · `EditorSubsystem` ×3 — the inventory's "10" counted the adapter's own call) and **2** `RegisterCheckableItem(path, get, set)` closures (`LocalWindowController`); `RegisterContributor` ×5 (id-based, already actions); `IShellCommandRegistrar.RegisterShortcut` — **0 callers**. Buttons: **409** raw `ImGui.Button / MenuItem / SmallButton` sites in `Hrot/` + `FDP/` — ⛔ NOT converted: a panel-local button (Apply, OK, a row's trash can) is not an application command; what K5 converts is every command a MENU or KEY reaches. Keys that call methods (the Player's Ctrl+Z / Ctrl+Y / F3) are **K4** (held / debug keys onto bindings), not K5.
+
+```mermaid
+classDiagram
+  direction LR
+  class ShellEditorCommands { <<existing, Fdp.Presentation>> ONE catalogue of shell commands: Register · Get · Invoke }
+  class EditorCommandDescriptor { <<existing>> Id · DisplayName · DefaultKey · IsEnabled · IsChecked · DynamicDisplayName }
+  class MenuCommandAdapter { <<existing>> Register(menu, commands, id, path) · RegisterAction NEW · RegisterToggle NEW }
+  class GlobalMenuRegistry { <<existing>> RegisterItem(path, closure) — no production caller any more }
+  class KeyRouter { <<existing>> Global scope reads the shell commands' DefaultKey }
+  ShellEditorCommands "1" o-- "*" EditorCommandDescriptor
+  MenuCommandAdapter ..> ShellEditorCommands : declares the command
+  MenuCommandAdapter ..> GlobalMenuRegistry : binds the item to Invoke(id)
+  KeyRouter ..> ShellEditorCommands : Invoke(id) on the chord
+```
+*What the picture shows that prose hid: the closure did not go away — it became the HANDLER of a command in the ONE catalogue the keymap already reads, so a key, a menu click, a toolbar slot and a remote call reach the same code; nothing had to be invented, `ShellEditorCommands` was under-adopted.*
+
+```mermaid
+sequenceDiagram
+  participant H as a host (Editor, Replay Browser, Player)
+  participant A as MenuCommandAdapter
+  participant C as ShellEditorCommands
+  participant M as GlobalMenuRegistry
+  H->>A: RegisterAction(menu, commands, "file.new-macro", path, run)
+  A->>C: Register(descriptor "file.new-macro", handler = run)
+  A->>M: RegisterItem(path, click → commands.Invoke("file.new-macro"))
+  Note over C,M: a click, Ctrl+key (DefaultKey) or Invoke(id) all run `run`
+```
+
+| | as built |
+|---|---|
+| the 9 + 2 sites | converted to `RegisterAction` / `RegisterToggle`: `shell.ui-settings` · `shell.exit` · `settings.layout.save-default` (its enabled / label now the command's) · `settings.layout.reset-on-start` · `settings.sound-3d-camera` · `replay.recording-info.<perspective>` · `replay.open-exercise.<p>` · `replay.load-fdp.<p>` · `replay.json-export.<p>` · `debug.reset-all-unit-settings` · `file.new-macro` · `file.save-selection-as-macro` |
+| the guard | rail `NoProductionMenuItemIsAClosureOnly` scans the production sources: a `GlobalMenu.RegisterItem(` / `RegisterCheckableItem(` outside the registry and the adapter fails |
+| the dead seam | `IShellCommandRegistrar.RegisterShortcut` deleted (interface, capture, mock) |
+| ⏭ | the map's `GlobalActionRegistry` ints and the shell's string ids stay two id spaces (`ActionRef.Global` / `Command`) — folding them is the catalogue's call (B-11), not K5's |

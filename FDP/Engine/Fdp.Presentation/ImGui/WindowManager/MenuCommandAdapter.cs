@@ -68,6 +68,34 @@ public static class MenuCommandAdapter
     }
 
     /// <summary>
+    /// ⭐⭐ B-10 K5 (docs/UX/DESIGN_Input_And_Commands.md §6e) — a menu item that runs code NAMES AN ACTION: this declares the command <paramref name="commandId"/> in the ONE shell catalogue
+    /// (<see cref="ShellEditorCommands"/>, the same one the keymap binds keys to, the toolbar and the HTTP surface invoke) and binds the item to it. ⛔ SUPERSEDES
+    /// <c>GlobalMenu.RegisterItem(path, closure)</c> in production code (rail <c>NoProductionMenuItemIsAClosureOnly</c>): the closure is now the ACTION's handler, so a key, a button or a
+    /// remote call reaches the very same code as the menu click.
+    /// </summary>
+    public static void RegisterAction(GlobalMenuRegistry menu, ShellEditorCommands commands, string commandId, string menuPath, Action run,
+        string? perspective = null, bool allowedInIdle = false, KeyBinding? key = null, Func<bool>? enabled = null, Func<string>? dynamicLabel = null)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (commands.Get(commandId) == null)
+            commands.Register(new EditorCommandDescriptor(commandId, LabelOf(menuPath), "Menu", null, null, key, enabled ?? (() => true), DynamicDisplayName: dynamicLabel), _ => run());
+        Register(menu, commands, commandId, menuPath, perspective, allowedInIdle);
+    }
+
+    /// <summary>⭐ B-10 K5 — the checkable form of <see cref="RegisterAction"/>: the command reads <paramref name="isChecked"/> and its handler flips it through <paramref name="set"/>.</summary>
+    public static void RegisterToggle(GlobalMenuRegistry menu, ShellEditorCommands commands, string commandId, string menuPath, Func<bool> isChecked, Action<bool> set,
+        string? perspective = null, KeyBinding? key = null)
+    {
+        ArgumentNullException.ThrowIfNull(isChecked);
+        ArgumentNullException.ThrowIfNull(set);
+        if (commands.Get(commandId) == null)
+            commands.Register(new EditorCommandDescriptor(commandId, LabelOf(menuPath), "Menu", null, null, key, () => true, isChecked), _ => set(!isChecked()));
+        Register(menu, commands, commandId, menuPath, perspective);
+    }
+
+    private static string LabelOf(string menuPath) => menuPath.Substring(menuPath.LastIndexOf('/') + 1);
+
+    /// <summary>
     /// Applies the shortcut text, enabled delegate, and dynamic label
     /// to the menu leaf node after it has been registered.
     /// </summary>
