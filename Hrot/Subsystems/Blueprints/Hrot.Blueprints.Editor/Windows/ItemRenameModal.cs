@@ -59,14 +59,15 @@ public sealed class ItemRenameModal
             _focusPending = false;
         }
 
+        NodeEditor.Core.Widgets.FormGrid.BeginField("bp_rename.rows", "Name");   // ⭐ CE-3396
         ImGui.SetNextItemWidth(240f);
         bool entered = ImGui.InputText("##bp_rename_name", ref _name, 128,
             ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
+        NodeEditor.Core.Widgets.FormGrid.EndField();
 
         bool canRename = !string.IsNullOrWhiteSpace(_name);
         if (!canRename)
-            ImGui.TextColored(new System.Numerics.Vector4(0.95f, 0.55f, 0.20f, 1f),
-                "Name cannot be empty.");
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine("Name cannot be empty.");
 
         ImGui.Separator();
 

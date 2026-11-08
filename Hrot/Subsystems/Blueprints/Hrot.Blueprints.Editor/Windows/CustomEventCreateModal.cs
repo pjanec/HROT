@@ -86,9 +86,10 @@ public sealed class CustomEventCreateModal
 
         var typeIds = BlueprintTypeSystem.SelectableTypeIds;
 
-        ImGui.TextUnformatted("Name");
+        NodeEditor.Core.Widgets.FormGrid.BeginField("bp_evt.rows", "Name");   // ⭐ CE-3396 — a label-first row
         ImGui.SetNextItemWidth(260f);
         ImGui.InputText("##bp_evt_name", ref _name, 128);
+        NodeEditor.Core.Widgets.FormGrid.EndField();
 
         ImGui.Separator();
         ImGui.TextUnformatted("Parameters");
@@ -128,7 +129,7 @@ public sealed class CustomEventCreateModal
 
         if (problem is not null)
         {
-            ImGui.TextColored(new System.Numerics.Vector4(0.95f, 0.55f, 0.20f, 1f), problem);
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine(problem);
         }
         else
         {

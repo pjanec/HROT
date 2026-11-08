@@ -128,10 +128,10 @@ public sealed class AssetRenameModal
             ImGui.TextDisabled("Every reference across BTree, HSM and Blueprint assets is updated.");
             ImGui.Separator();
 
-            ImGui.TextUnformatted("New name:");
-            ImGui.SameLine();
+            NodeEditor.Core.Widgets.FormGrid.BeginField("ai_asset_rename.rows", "New name");   // ⭐ CE-3396 — a label-first row
             ImGui.SetNextItemWidth(-1);
             ImGui.InputText("##ai_asset_rename_name", _buffer, (uint)_buffer.Length);
+            NodeEditor.Core.Widgets.FormGrid.EndField();
 
             ImGui.Separator();
             if (ImGui.Button("Preview…", new System.Numerics.Vector2(110, 0)))

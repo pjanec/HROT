@@ -49,10 +49,13 @@ public sealed class SaveSelectionAsMacroWindow : ManagedWindow
             {
                 ImGui.TextUnformatted("Save the selected entities as a macro under macros/");
                 string name = _flow.Name;
+                NodeEditor.Core.Widgets.FormGrid.BeginField("macro.rows", "Name");   // ⭐ CE-3396 — a label-first row
                 ImGui.SetNextItemWidth(320f);
-                if (ImGui.InputText("##macroname", ref name, 96, ImGuiInputTextFlags.EnterReturnsTrue)) { _flow.Name = name; _flow.Confirm(); }
+                bool entered = ImGui.InputText("##macroname", ref name, 96, ImGuiInputTextFlags.EnterReturnsTrue);
+                NodeEditor.Core.Widgets.FormGrid.EndField();
+                if (entered) { _flow.Name = name; _flow.Confirm(); }
                 else _flow.Name = name;
-                if (_flow.Message.Length > 0) ImGui.TextColored(new Vector4(1f, 0.45f, 0.35f, 1f), _flow.Message);
+                if (_flow.Message.Length > 0) NodeEditor.Core.Widgets.RowMarks.ErrorLine(_flow.Message);
                 if (ImGui.Button("Save##macro")) _flow.Confirm();
                 ImGui.SameLine();
                 if (ImGui.Button("Cancel##macro")) _flow.Cancel();
@@ -68,7 +71,7 @@ public sealed class SaveSelectionAsMacroWindow : ManagedWindow
                 {
                     ReferenceLines++;
                     ImGui.BulletText(o.Line);
-                    if (!o.CanParameterise && o.WhyNot is { } why) { BlockerLines++; ImGui.SameLine(); ImGui.TextColored(new Vector4(1f, 0.6f, 0.35f, 1f), "(" + why + ")"); }
+                    if (!o.CanParameterise && o.WhyNot is { } why) { BlockerLines++; ImGui.SameLine(); NodeEditor.Core.Widgets.RowMarks.WarningLine("(" + why + ")"); }
                 }
                 ImGui.Separator();
                 MakeParametersEnabled = plan.CanMakeParameters;

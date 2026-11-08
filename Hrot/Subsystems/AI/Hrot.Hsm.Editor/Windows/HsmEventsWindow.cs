@@ -252,9 +252,9 @@ public sealed class HsmEventsWindow
                 ImGuiWindowFlags.AlwaysAutoResize))
             {
                 ImGui.Text($"Rename event: {_pendingRenameEvent.Name}");
-                ImGui.Text("New name:");
-                ImGui.SameLine();
+                NodeEditor.Core.Widgets.FormGrid.BeginField("hsmev.rows", "New name");   // ⭐ CE-3396 — a label-first row
                 ImGui.InputText("##evname", _renameBuf, (uint)_renameBuf.Length);
+                NodeEditor.Core.Widgets.FormGrid.EndField();
 
                 // ⭐⭐ HSM-009 — RENAME NOW APPLIES. ⛔ This modal's only button used to be "Preview", which
                 //   showed a RefactorService preview in the Find Results window and then did nothing: there was
@@ -305,9 +305,9 @@ public sealed class HsmEventsWindow
         var modalOpen = true;
         if (ImGui.BeginPopupModal("New Event##hsmev", ref modalOpen, ImGuiWindowFlags.AlwaysAutoResize))
         {
-            ImGui.Text("Event name:");
-            ImGui.SameLine();
+            NodeEditor.Core.Widgets.FormGrid.BeginField("hsmev.rows", "Event name");
             ImGui.InputText("##newevname", _createBuf, (uint)_createBuf.Length);
+            NodeEditor.Core.Widgets.FormGrid.EndField();
 
             if (ImGui.Button("Create"))
             {

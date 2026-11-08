@@ -117,7 +117,7 @@ public sealed class PasteResponseModal
             _state.PastedText = _textBuf;
 
             if (_state.ParseError != null)
-                ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), _state.ParseError);
+                NodeEditor.Core.Widgets.RowMarks.ErrorLine(_state.ParseError);
 
             if (ImGui.Button("Apply"))
             {

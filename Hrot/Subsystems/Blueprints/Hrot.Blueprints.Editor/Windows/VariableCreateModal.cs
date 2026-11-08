@@ -162,7 +162,7 @@ public sealed class VariableCreateModal
 
         // FC-2/LV-4: Container — Single (scalar) or List (fixed-capacity). The discriminator
         // written to the asset is BlueprintTypeRef.Capacity (never IsArray — F7).
-        ImGui.TextUnformatted("Container");
+        NodeEditor.Core.Widgets.FormGrid.BeginField("var.props", "Container");   // ⭐ CE-3396 — label-first rows (the one label column)
         ImGui.SetNextItemWidth(220f);
         if (ImGui.BeginCombo("##bp_var_container", _isList ? "List (fixed)" : "Single"))
         {
@@ -170,18 +170,21 @@ public sealed class VariableCreateModal
             if (ImGui.Selectable("List (fixed)", _isList)) _isList = true;
             ImGui.EndCombo();
         }
+        NodeEditor.Core.Widgets.FormGrid.EndField();
 
         bool listElementManaged = false;
         if (_isList)
         {
-            ImGui.TextUnformatted("Capacity");
+            NodeEditor.Core.Widgets.FormGrid.BeginField("var.props", "Capacity");
             ImGui.SetNextItemWidth(220f);
             ImGui.InputInt("##bp_var_capacity", ref _capacity);
+            NodeEditor.Core.Widgets.FormGrid.EndField();
             _capacity = Math.Clamp(_capacity, 1, MaxCapacity);
 
-            ImGui.TextUnformatted("Initial Length");
+            NodeEditor.Core.Widgets.FormGrid.BeginField("var.props", "Initial Length");
             ImGui.SetNextItemWidth(220f);
             ImGui.InputInt("##bp_var_initlen", ref _initialLength);
+            NodeEditor.Core.Widgets.FormGrid.EndField();
             _initialLength = Math.Clamp(_initialLength, 0, _capacity);
 
             // Budget line: what this list costs in the instance's state bytes
@@ -192,8 +195,7 @@ public sealed class VariableCreateModal
 
             listElementManaged = typeId == BlueprintTypeSystem.String;
             if (listElementManaged)
-                ImGui.TextColored(new System.Numerics.Vector4(0.95f, 0.55f, 0.20f, 1f),
-                    "A fixed list needs a blittable element type — String is not supported.");
+                NodeEditor.Core.Widgets.RowMarks.ErrorLine("A fixed list needs a blittable element type — String is not supported.");
         }
 
         // Inline validation: blank name, or a name that collides (case-insensitively) with an
@@ -204,11 +206,9 @@ public sealed class VariableCreateModal
             && BlueprintDocumentFactory.IsDuplicateVariableName(_asset, _name);
 
         if (isBlank)
-            ImGui.TextColored(new System.Numerics.Vector4(0.95f, 0.55f, 0.20f, 1f),
-                "Name cannot be empty.");
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine("Name cannot be empty.");
         else if (isDuplicate)
-            ImGui.TextColored(new System.Numerics.Vector4(0.95f, 0.55f, 0.20f, 1f),
-                $"A variable named '{_name.Trim()}' already exists.");
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine($"A variable named '{_name.Trim()}' already exists.");
 
         ImGui.Separator();
 

@@ -41,6 +41,16 @@ public static class RowMarks
         ImGui.PopStyleColor();
     }
 
+    /// <summary>⭐ CE-3396 — the same line for a WARNING (a ⚠ and the reason in <see cref="IconPalette.Warning"/>): what does not block the action.</summary>
+    public static void WarningLine(string text)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, IconPalette.Warning);
+        ImGui.TextUnformatted(KitGlyph.Warning);
+        ImGui.SameLine(0f, 5f);
+        ImGui.TextUnformatted(text);
+        ImGui.PopStyleColor();
+    }
+
     /// <summary>The <i>set</i> box of an optional field (unchecked = not set, the control after it is disabled by the caller). True on the frame it was toggled.</summary>
     public static bool SetBox(string id, ref bool isSet)
     {

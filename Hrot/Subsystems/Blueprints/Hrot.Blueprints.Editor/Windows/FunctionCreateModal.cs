@@ -80,7 +80,7 @@ public sealed class FunctionCreateModal
         if (!ImGui.BeginPopupModal(_popupId, ref open, ImGuiWindowFlags.AlwaysAutoResize))
             return;
 
-        ImGui.TextUnformatted("Name");
+        NodeEditor.Core.Widgets.FormGrid.BeginField("bp_fn.rows", "Name");   // ⭐ CE-3396 — a label-first row
         if (_focusPending)
         {
             ImGui.SetKeyboardFocusHere();
@@ -89,10 +89,11 @@ public sealed class FunctionCreateModal
         ImGui.SetNextItemWidth(260f);
         bool submitted = ImGui.InputText(
             "##bp_fn_name", ref _name, 128, ImGuiInputTextFlags.EnterReturnsTrue);
+        NodeEditor.Core.Widgets.FormGrid.EndField();
 
         var problem = ValidationMessage(_asset, _name);
         if (problem is not null)
-            ImGui.TextColored(new System.Numerics.Vector4(0.95f, 0.55f, 0.20f, 1f), problem);
+            NodeEditor.Core.Widgets.RowMarks.ErrorLine(problem);
         else
             ImGui.TextDisabled("Inputs and outputs are edited in the Graph Signature window.");
 
