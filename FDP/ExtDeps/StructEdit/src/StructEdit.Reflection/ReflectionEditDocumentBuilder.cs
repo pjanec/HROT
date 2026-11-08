@@ -60,9 +60,10 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
         EditContext? context,
         IValueBinding? explicitBinding = null,
-        IValueBinding? parentBinding = null)
+        IValueBinding? parentBinding = null,
+        IReadOnlyList<Attribute>? inheritedAttributes = null)
     {
-        var node = BuildNodeCore(buffer, jsonPath, name, nodeType, nativeOffset, fi, pi, idAlloc, visited, providers, fieldEditors, context, explicitBinding, parentBinding);
+        var node = BuildNodeCore(buffer, jsonPath, name, nodeType, nativeOffset, fi, pi, idAlloc, visited, providers, fieldEditors, context, explicitBinding, parentBinding, inheritedAttributes);
         // ⭐ S8 (docs/DESIGN_Struct_Editor.md §6) — [EditReadOnly] is APPLIED: the member's node and its whole subtree are read-only (the table greys them, ⌖ still works)
         bool readOnly = (fi?.IsDefined(typeof(EditReadOnlyAttribute), true) ?? false) || (pi?.IsDefined(typeof(EditReadOnlyAttribute), true) ?? false);
         return readOnly ? AsReadOnly(node) : node;
@@ -91,8 +92,14 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
         EditContext? context,
         IValueBinding? explicitBinding,
-        IValueBinding? parentBinding)
+        IValueBinding? parentBinding,
+        IReadOnlyList<Attribute>? inheritedAttributes = null)
     {
+        // ⭐ CE-3400 — an ELEMENT of a list / array carries its container member's custom attributes (the picker attributes: <c>[HsmEventPicker]</c> on a <c>List&lt;ushort&gt;</c> names what each element IS), so the
+        //   catalogue's field rules match the element nodes too. Only the CUSTOM attributes: a display name / range / read-only of the list is the list's own.
+        var metadata = fi == null && pi == null && inheritedAttributes is { Count: > 0 }
+            ? new EditNodeMetadata { CustomAttributes = inheritedAttributes }
+            : ReadMetadata(fi, pi);
         bool isFixedBuffer = fi?.GetCustomAttribute<FixedBufferAttribute>() != null;
         var kind = isFixedBuffer ? EditNodeKind.FixedBuffer : DetermineKind(nodeType);
 
@@ -178,7 +185,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
 
                     children = BuildArrayElements(buffer, jsonPath, cb, elemType, idAlloc,
                         visited, providers, fieldEditors, context,
-                        containerNativeOffset: nativeOffset, elementSize: elemSize);
+                        containerNativeOffset: nativeOffset, elementSize: elemSize, elementAttributes: metadata.CustomAttributes);
                 }
                 break;
             }
@@ -214,7 +221,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
 
                     children = BuildArrayElements(buffer, jsonPath, fixedBinding, fixedBinding.ElementType, idAlloc,
                         visited, providers, fieldEditors, context,
-                        containerNativeOffset: nativeOffset, elementSize: elemSize);
+                        containerNativeOffset: nativeOffset, elementSize: elemSize, elementAttributes: metadata.CustomAttributes);
                 }
                 break;
             }
@@ -232,7 +239,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                         binding = cb;
                         children = BuildArrayElements(buffer, jsonPath, cb, elemType, idAlloc,
                             visited, providers, fieldEditors, context,
-                            containerNativeOffset: -1, elementSize: 0);
+                            containerNativeOffset: -1, elementSize: 0, elementAttributes: metadata.CustomAttributes);
                     }
                 }
                 break;
@@ -247,7 +254,6 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         if (binding == null && explicitBinding != null)
             binding = explicitBinding;
 
-        var metadata = ReadMetadata(fi, pi);
         return new EditNode(new EditNodeId(idAlloc.Next()), name, jsonPath, kind, nodeType, binding, children, metadata);
     }
 
@@ -348,7 +354,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
         EditContext? context,
         int containerNativeOffset = -1,
-        int elementSize = 0)
+        int elementSize = 0,
+        IReadOnlyList<Attribute>? elementAttributes = null)
     {
         int count = cb.Count;
         var result = new List<EditNode>(count);
@@ -364,7 +371,8 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                 nativeOffset: elemNativeOffset, fi: null, pi: null,
                 idAlloc, visited, providers, fieldEditors, context,
                 explicitBinding: elemBinding,
-                parentBinding: null));
+                parentBinding: null,
+                inheritedAttributes: elementAttributes));
         }
         return result;
     }
