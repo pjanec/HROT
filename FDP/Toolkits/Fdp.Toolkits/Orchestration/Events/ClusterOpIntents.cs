@@ -223,6 +223,12 @@ namespace Fdp.Toolkit.Orchestration
 
         /// <summary>⭐ CE-4210 MA-9 — <see cref="StorageOpType.SaveScenario"/> only: the macro header fields (the object <c>ScenarioHeaderJson.Write</c> produces) the slice header uses INSTEAD of the resident's. Null / empty = from the resident, as before.</summary>
         public string? HeaderJson;
+
+        /// <summary>⭐ CE-4330 ② — who asked (a station name), shown on the job; empty when not said.</summary>
+        public string? AskedBy;
+
+        /// <summary>⭐ CE-4330 ⑦ (R-4174) — a <see cref="StorageOpType.Delete"/> of an ARCHIVED exercise (its NAS folder), not a discard of an unarchived one.</summary>
+        public bool FromArchive;
     }
 
     /// <summary>

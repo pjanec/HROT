@@ -30,7 +30,7 @@ public sealed class StorageProcessManager
 
     // Archive export contexts keyed by the SerializeLocal transaction ID.
     // Set via ExportArchiveBegunEvent; consumed when the matching ClusterOpCompletedEvent arrives.
-    private readonly Dictionary<Guid, (Guid ArchiveRequestId, CancellationTokenSource Cts)>
+    private readonly Dictionary<Guid, (Guid ArchiveRequestId, CancellationTokenSource Cts, StorageTransferProgress? Progress)>
         _pendingArchiveExports = new();
 
     // CE-277(c2): SerializeLocal tx id → scenario name, for the SaveScenarioJson pull+merge path.
@@ -69,7 +69,7 @@ public sealed class StorageProcessManager
     {
         // Capture archive export contexts so we can route ClusterOpCompletedEvent correctly.
         foreach (var aev in _bus.ReadManaged<ExportArchiveBegunEvent>())
-            _pendingArchiveExports[aev.TransactionId] = (aev.ArchiveRequestId, aev.Cts);
+            _pendingArchiveExports[aev.TransactionId] = (aev.ArchiveRequestId, aev.Cts, aev.Progress);
 
         // CE-277(c2): map SaveScenarioJson fan-out tx → scenario name for the pull+merge path.
         foreach (var jev in _bus.ReadManaged<SaveScenarioJsonBegunEvent>())
@@ -82,41 +82,43 @@ public sealed class StorageProcessManager
         foreach (var iev in _bus.ReadManaged<ImportArchiveBegunEvent>())
         {
             var importRequestId = iev.RequestId;
-            _ = _gateway.PrefetchArchiveAsync(iev.ExerciseId, iev.Targets, _nasBasePath, iev.Cts.Token)
+            var importProgress  = iev.Progress;
+            importProgress?.SetTotals(iev.Targets.Count, 0);
+            _ = _gateway.PrefetchArchiveAsync(iev.ExerciseId, iev.Targets, _nasBasePath, iev.Cts.Token, importProgress)
                 .ContinueWith(t =>
                 {
                     if (t.IsCanceled)
-                    {
-                        _bus.PublishManaged(new ClusterOpCompletedEvent
-                        {
-                            RequestId  = importRequestId,
-                            StatusCode = OrchestrationStatusCode.Rejected,
-                        });
-                    }
+                        Answer(importRequestId, OrchestrationStatusCode.Rejected, "cancelled");
                     else if (t.IsFaulted)
                     {
-                        FdpLog<StorageProcessManager>.Error(
-                            "[StorageProcessManager] ImportArchive NAS prefetch failed: {0}",
-                            t.Exception?.GetBaseException().Message ?? "unknown error");
-                        _bus.PublishManaged(new ClusterOpCompletedEvent
-                        {
-                            RequestId  = importRequestId,
-                            StatusCode = OrchestrationStatusCode.Rejected,
-                        });
+                        var why = t.Exception?.GetBaseException().Message ?? "unknown error";
+                        FdpLog<StorageProcessManager>.Error("[StorageProcessManager] ImportArchive NAS prefetch failed: {0}", why);
+                        Answer(importRequestId, OrchestrationStatusCode.Rejected, "the import failed: " + why);
+                    }
+                    else if (t.Result.FailureCount > 0)
+                    {
+                        // ⭐ CE-4330 / CE-4331 ④ (Recording Storage §9) — the failure count is READ: an import that left a node without its file is not a success
+                        var why = $"{t.Result.FailureCount} of {t.Result.SuccessCount + t.Result.FailureCount} node(s) did not get their file";
+                        FdpLog<StorageProcessManager>.Error("[StorageProcessManager] ImportArchive: {0}.", why);
+                        Answer(importRequestId, OrchestrationStatusCode.Rejected, why);
                     }
                     else
-                    {
-                        _bus.PublishManaged(new ClusterOpCompletedEvent
-                        {
-                            RequestId  = importRequestId,
-                            StatusCode = OrchestrationStatusCode.Success,
-                        });
-                    }
+                        Answer(importRequestId, OrchestrationStatusCode.Success, null);
                 }, System.Threading.Tasks.TaskScheduler.Default);
         }
 
         foreach (var ev in _bus.ReadManaged<ClusterOpCompletedEvent>())
         {
+            // ⭐ CE-4330 ② — an archive whose node round failed, or found no recording, is ANSWERED (it used to wait for ever: its job would hold the queue)
+            if (_pendingArchiveExports.TryGetValue(ev.RequestId, out var roundCtx)
+                && ev.StatusCode is not (OrchestrationStatusCode.InProgress or OrchestrationStatusCode.Pending)
+                && (ev.StatusCode != OrchestrationStatusCode.Success || ev.ResultPayload is not List<FileManifestEntry> { Count: > 0 }))
+            {
+                _pendingArchiveExports.Remove(ev.RequestId);
+                Answer(roundCtx.ArchiveRequestId, OrchestrationStatusCode.Rejected,
+                    ev.StatusCode == OrchestrationStatusCode.Success ? "no node holds a recording of this exercise" : "the nodes could not hand over their recordings");
+                continue;
+            }
             if (ev.StatusCode != OrchestrationStatusCode.Success) continue;
             if (ev.ResultPayload is not List<FileManifestEntry> manifest) continue;
             if (manifest.Count == 0) continue;
@@ -128,47 +130,24 @@ public sealed class StorageProcessManager
                 var archRequestId = archCtx.ArchiveRequestId;
                 var archCts       = archCtx.Cts;
 
-                _ = _gateway.PullToNasAsync(manifest, _nasBasePath, archCts.Token)
+                _ = _gateway.PullToNasAsync(manifest, _nasBasePath, archCts.Token, archCtx.Progress)
                     .ContinueWith(pullTask =>
                     {
                         if (pullTask.IsCanceled)
-                        {
-                            _bus.PublishManaged(new ClusterOpCompletedEvent
-                            {
-                                RequestId  = archRequestId,
-                                StatusCode = OrchestrationStatusCode.Rejected,
-                            });
-                        }
+                            Answer(archRequestId, OrchestrationStatusCode.Rejected, "cancelled");
                         else if (pullTask.IsFaulted)
                         {
-                            FdpLog<StorageProcessManager>.Error(
-                                "[StorageProcessManager] ExportArchive NAS pull failed: {0}",
-                                pullTask.Exception?.GetBaseException().Message ?? "unknown error");
-                            _bus.PublishManaged(new ClusterOpCompletedEvent
-                            {
-                                RequestId  = archRequestId,
-                                StatusCode = OrchestrationStatusCode.Rejected,
-                            });
+                            var why = pullTask.Exception?.GetBaseException().Message ?? "unknown error";
+                            FdpLog<StorageProcessManager>.Error("[StorageProcessManager] ExportArchive NAS pull failed: {0}", why);
+                            Answer(archRequestId, OrchestrationStatusCode.Rejected, "the archive failed: " + why);
                         }
                         else if (pullTask.Result.IsFullSuccess)
-                        {
-                            _bus.PublishManaged(new ClusterOpCompletedEvent
-                            {
-                                RequestId     = archRequestId,
-                                StatusCode    = OrchestrationStatusCode.Success,
-                                ResultPayload = PulledFiles(manifest),   // ⭐ CE-4330 ① — the manifest written LAST lists these (AssetInventoryProcessManager)
-                            });
-                        }
+                            Answer(archRequestId, OrchestrationStatusCode.Success, PulledFiles(manifest));   // ⭐ CE-4330 ① — the manifest written LAST lists these (AssetInventoryProcessManager)
                         else
                         {
-                            FdpLog<StorageProcessManager>.Error(
-                                "[StorageProcessManager] ExportArchive NAS pull partial failure: {0} file(s) failed",
-                                pullTask.Result.FailureCount);
-                            _bus.PublishManaged(new ClusterOpCompletedEvent
-                            {
-                                RequestId  = archRequestId,
-                                StatusCode = OrchestrationStatusCode.Rejected,
-                            });
+                            var why = $"{pullTask.Result.FailureCount} of {manifest.Count} file(s) could not be copied";
+                            FdpLog<StorageProcessManager>.Error("[StorageProcessManager] ExportArchive NAS pull partial failure: {0}", why);
+                            Answer(archRequestId, OrchestrationStatusCode.Rejected, why);
                         }
                     }, System.Threading.Tasks.TaskScheduler.Default);
                 continue;
@@ -392,6 +371,9 @@ public sealed class StorageProcessManager
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { FdpLog<StorageProcessManager>.Warn("[StorageProcessManager] could not delete the autosave of '{0}': {1}", scenarioName, ex.Message); }
     }
+
+    private void Answer(Guid requestId, OrchestrationStatusCode code, object? payload)
+        => _bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = requestId, StatusCode = code, ResultPayload = payload });
 
     /// <summary>
     /// ⭐ CE-4330 ① — the files a full archive pull put on the NAS, by name inside the exercise folder, each with the size it has THERE (the bytes the

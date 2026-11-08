@@ -346,6 +346,48 @@ public sealed class StorageGatewayTests
                 if (Directory.Exists(d)) Directory.Delete(d, recursive: true);
         }
     }
+
+    /// <summary>
+    /// ⭐ CE-4330 ② / ⑤ — the archive's counted copy: every byte is counted into the job's progress, the copy keeps the source's write time (the C1
+    /// freshness skip compares it, as it did with <c>File.Copy</c>), and while the job GIVES WAY (a Live runs) it is held to its share of
+    /// <see cref="StorageGatewayModule.GiveWayBytesPerSecond"/>.
+    /// 🔴 Mutation: the give-way wait removed ⇒ the slow copy is as fast as the free one ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 30_000)]
+    public void CE4330_ACountedCopy_CountsItsBytes_KeepsTheWriteTime_AndGivesWayWhenAsked()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "fdp_ce4330c_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var src = Path.Combine(root, "node_1.fdp");
+            var bytes = new byte[3 * 1024 * 1024];
+            new Random(7).NextBytes(bytes);
+            File.WriteAllBytes(src, bytes);
+            var stamp = new DateTime(2020, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(src, stamp);
+
+            var free = new Fdp.Toolkit.Orchestration.StorageTransferProgress();
+            var t0 = System.Diagnostics.Stopwatch.StartNew();
+            StorageGatewayModule.CopyCounted(src, Path.Combine(root, "a.part"), free, CancellationToken.None);
+            var freeSeconds = t0.Elapsed.TotalSeconds;
+            Assert.Equal(bytes.Length, free.BytesDone);
+            Assert.Equal(stamp, File.GetLastWriteTimeUtc(Path.Combine(root, "a.part")));
+            Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(root, "a.part")));
+
+            var slow = new Fdp.Toolkit.Orchestration.StorageTransferProgress { GiveWay = true };
+            t0.Restart();
+            StorageGatewayModule.CopyCounted(src, Path.Combine(root, "b.part"), slow, CancellationToken.None);
+            // one thread's share is GiveWayBytesPerSecond / MaxParallelCopies: 3 MB at 2.5 MB/s ≈ 1.2 s (the first chunk is free)
+            double floor = 2.0 * 1024 * 1024 / (StorageGatewayModule.GiveWayBytesPerSecond / StorageGatewayModule.MaxParallelCopies);
+            Assert.True(t0.Elapsed.TotalSeconds >= floor * 0.9, $"giving way took {t0.Elapsed.TotalSeconds:F2} s (free: {freeSeconds:F2} s), expected ≥ {floor:F2} s");
+            Assert.Equal(bytes.Length, slow.BytesDone);
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
 }
 
 /// <summary>

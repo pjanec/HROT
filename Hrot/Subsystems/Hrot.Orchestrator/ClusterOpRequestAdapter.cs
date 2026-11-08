@@ -119,12 +119,15 @@ internal static class ClusterOpRequestAdapter
     public static ExecuteStorageOpIntent ToExecuteStorageOpIntent(ClusterOpRequest req)
     {
         Guid exerciseId = Guid.Empty;
+        string? askedBy = null; bool fromArchive = false;   // ⭐ CE-4330 ② / ⑦
         if (!string.IsNullOrWhiteSpace(req.PayloadJson))
         {
             try
             {
                 var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
                 exerciseId = dto?.ExerciseId ?? Guid.Empty;
+                askedBy = dto?.AskedBy;
+                fromArchive = dto?.FromArchive ?? false;
             }
             catch (JsonException) { }
         }
@@ -156,6 +159,8 @@ internal static class ClusterOpRequestAdapter
             ScenarioName = scenarioName,
             OnlyGuids    = onlyGuids,
             HeaderJson   = headerJson,
+            AskedBy      = askedBy,
+            FromArchive  = fromArchive,
         };
     }
 
