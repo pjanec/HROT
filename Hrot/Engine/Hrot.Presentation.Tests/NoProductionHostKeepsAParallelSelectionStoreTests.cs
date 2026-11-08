@@ -118,7 +118,19 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
             {
                 if (!IsProductionFile(file)) continue;
 
-                var lines = File.ReadAllLines(file);
+                var text = File.ReadAllText(file);
+                // ⭐⭐ CE-2426 (ui, 2026-11-08) — THE RECEIVER SET, DERIVED FROM DECLARATIONS, as the conduit scan below does. 🔴 The scan used to match ANY `.Selected =`; behaviors' B-17 P2 put
+                //    `_activeVertex { set => _session.Selected = value; }` in VertexEditGizmo and RouteWaypointGizmo — `ShapeEditSession.Selected` is a VERTEX INDEX, a different member
+                //    with the same name — and the rail read two "writers" of the entity cell and went red. ⚠ Text cannot tell a real reference from a same-named symbol (CLAUDE.md): so learn
+                //    which identifiers in THIS file hold a SharedEntitySelection and flag assignments through those alone. A file that never names the type cannot write the cell.
+                if (!text.Contains("SharedEntitySelection", StringComparison.Ordinal)) continue;
+                var cellNames = new HashSet<string>(StringComparer.Ordinal);
+                var lines = text.Split('\n');
+                foreach (var raw in lines)
+                    foreach (System.Text.RegularExpressions.Match hit in System.Text.RegularExpressions.Regex.Matches(raw, @"SharedEntitySelection[?\s]+(\w+)\s*[=;)]"))   // typed field / local / parameter
+                        cellNames.Add(hit.Groups[1].Value);
+                if (cellNames.Count == 0) continue;
+
                 for (int i = 0; i < lines.Length; i++)
                 {
                     var line = lines[i];
@@ -129,18 +141,21 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
                     if (trimmed.StartsWith("//") || trimmed.StartsWith("///") || trimmed.StartsWith("*"))
                         continue;
 
-                    // ⭐ An ASSIGNMENT to the cell, not a read: `.Selected =` but not `==`.
-                    int at = line.IndexOf(".Selected", StringComparison.Ordinal);
-                    while (at >= 0)
+                    // ⭐ An ASSIGNMENT to the cell, not a read: `<receiver>.Selected =` but not `==`.
+                    foreach (var name in cellNames)
                     {
-                        var rest = line[(at + ".Selected".Length)..].TrimStart();
-                        if (rest.StartsWith("=", StringComparison.Ordinal) &&
-                            !rest.StartsWith("==", StringComparison.Ordinal))
+                        int at = line.IndexOf(name + ".Selected", StringComparison.Ordinal);
+                        while (at >= 0)
                         {
-                            writers.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
-                            break;
+                            bool whole = at == 0 || !(char.IsLetterOrDigit(line[at - 1]) || line[at - 1] == '_');   // the WHOLE identifier, not the tail of a longer one
+                            var rest = line[(at + name.Length + ".Selected".Length)..].TrimStart();
+                            if (whole && rest.StartsWith("=", StringComparison.Ordinal) && !rest.StartsWith("==", StringComparison.Ordinal))
+                            {
+                                writers.Add($"{Path.GetRelativePath(root, file)}:{i + 1}");
+                                break;
+                            }
+                            at = line.IndexOf(name + ".Selected", at + 1, StringComparison.Ordinal);
                         }
-                        at = line.IndexOf(".Selected", at + 1, StringComparison.Ordinal);
                     }
                 }
             }

@@ -579,6 +579,12 @@ prior batch shipped the defect they describe.
 
 | ⛔ removed | ⭐ where the claim lives now |
 |---|---|
+### ⛔ A FOURTH TIME, `2026-11-08` — `CE-2426`: the FIRST half of the same rail had not been given the lesson
+
+📌 `OnlyTheHostForwardWritesTheAiEditorsEntityCell`'s first scan (the file set that assigns the cell) matched **any** `.Selected =`; only its second half (the store's conduit) derived its receivers from declarations. ⛔ behaviors' B-17 P2 put
+`_activeVertex { set => _session.Selected = value; }` in `VertexEditGizmo` / `RouteWaypointGizmo` — `ShapeEditSession.Selected` is a **vertex index**, a different member with the same name — and the rail read two "writers" of the cell and went red. ✅ **The rail was stale, the gizmos are right**:
+the first scan now learns, per file, the identifiers declared as `SharedEntitySelection` and flags `<receiver>.Selected =` through those alone (red-proved by a compiling mutation: a second production writer of the cell). ⚠ Still text: it cannot see a cell written through an alias it never declares.
+
 | `RuntimeInspectorWindowTests` · `RuntimeInspectorWindowDumpsItsStateTests` | the window's id, title, scope and pane COUNT — ⛔ all properties **of the window**, and they die with it |
 | `TheEmptyPanelSaysWhyTests`' two `TheRuntimeInspector_*` rails | ⭐ the two SENTENCES are still railed in the same file *(the shell decides them now)*; ⚠ **the per-KIND clause became a view PREDICATE** and is railed as one |
 | one id-override case, one DI resolution | the window is not constructed anywhere any more |
