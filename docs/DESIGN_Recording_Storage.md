@@ -2,7 +2,7 @@
 state: LIVE
 build-state: READY-TO-BUILD (CE-4330) — §1–§7 decided (R-4171, R-4172, R-4173); §8 the visual; Q8 (delete from the NAS) open, not part of CE-4330
 updated: 2026-11-08 (⭐ PROMOTED to the ONE owning design of recording files — moved from docs/DESIGN_Recording_Storage.md and retitled; the user: "it's probably a whole design document regarding the management of the recording files, importing and exporting")
-current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue; §7.4 decided) · ⭐ §8 the visual · ⭐ §9 an AAR on a different cluster · §9a placing the files by name, then kind (Q9)
+current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue; §7.4 decided) · ⭐ §8 the visual · ⭐ §9 an AAR on a different cluster · §9a placing the files by name, then kind (Q9) · §9b different ids: replay fine, going Live needs a re-stamp
 stale-below: nothing
 known-rot: none
 known-conflict: designs/mgmt-1/DESIGN.md §13 — written before the build; its §13.3 layout (/archives/, .fdprec + .meta.json, drill_manifest.json) is NOT the as-built ({NAS}/exercises/<id>/node_N.fdp + Orchestrator.json + scenario/, §1 here). This design is the current answer for WHAT happens to a recording; mgmt-1 §12.6/§13.1 stay the answer for HOW the gateway moves bytes.
@@ -407,13 +407,33 @@ flowchart TD
 ⛔ **Rejected:** matching by node id (ids are granted anew each run) · by role FLAG alone (a fused `Brain\|MuscleGround` node would "match" a pure Brain
 file and miss its kinematics) · putting two files on one node (one world per node) · re-labelling a file to another kind.
 
-⚠ **Not measured live:** a file restored on a node whose CURRENT id differs from the recorded one (the wire carries the current id, the world the
-recorded one). The design expects it to work (authority is recorded); ⭐ CE-4331's acceptance includes a cluster AAR with ids granted in a different
-order than recorded.
+#### 9b. ⭐ A file on a node with a DIFFERENT id — replay works; going LIVE from it does not *(measured `2026-11-08`)*
+
+| who decides "is it mine?" | uses | in a replay on a node with another id |
+|---|---|---|
+| every system and egress (`HasAuthority`) | `NetworkAuthority.PrimaryOwnerId == NetworkAuthority.LocalNodeId` and `DescriptorOwnership` owners `== LocalNodeId` — ⭐ **all three ids come from the FILE** (`AuthorityExtensions.cs:16-66`, `NetworkAuthority.cs:31`) | ✅ the node sees its recorded units as **its own** — ⛔ not unowned |
+| the listeners' ingress | stamps `PrimaryOwnerId = the writer's CURRENT id` (`EntityMasterIngressTranslator.cs:228-245`) | ✅ consistent: the owner is the node that sends |
+| the replaying node's own ingress | frozen inside its span (R-4007) | ✅ not consulted |
+
+⇒ ⭐ **a replay is unaffected.** ⛔ **Going from the replay into LIVE is not** (restart from a checkpoint, a branch, a review's *continue from
+here*): the restored world still names the RECORDED ids, while the node now lives under its CURRENT one — the master's roster, ownership grants and
+handovers (addressed by node id), entities created after the branch (stamped with the current id) and the listeners (who see the current writer id)
+all use the new id. The node keeps simulating its units (its components still say "mine"), but **one node answers to two ids**, and if two nodes
+swapped ids (recorded 2 ↔ 3), a handover to *node 3* reaches the wrong one. ⚠ Nothing re-stamps ids today (searched code + `docs/`: none).
+
+| ⭐ | |
+|---|---|
+| **within one session** (Live → AAR → back to Live) | the ids never changed — ✅ unaffected; this is the common case |
+| **an archived run on a later cluster** | ids may differ (granted anew, R-4009) ⇒ |
+| ⭐ **lean, CE-4331 ⑥** | **re-stamp at the branch**: the master knows the placement (recorded id → current id, §9a), and the restore that precedes Live rewrites `NetworkAuthority.{PrimaryOwnerId, LocalNodeId}` and every `DescriptorOwnership` owner through that ONE map, on every node · ⭐ until it is built: *Go Live from here* is **greyed** when any played file sits on a node whose id differs — *"the cluster's node ids differ from the recording"* |
+| ⛔ rejected | forcing the recorded ids on the nodes at the AAR (a node cannot change its id while running; ids of absent nodes would collide with new ones) |
+
+⭐ CE-4331's acceptance: a cluster AAR with ids granted in a different order than recorded (replay correct), and *Go Live* from it (greyed before ⑥,
+then correct ownership and a handover after ⑥).
 
 **CE-4331** (backend, small; ⛔ not in CE-4330): ① the metadata records the node's name, subsystem and roles · ② the master places the files by §9a
 and the import copies `node_<recorded>.fdp` to each chosen node under its own file name · ③ the AAR start names every unplaced file and every node
-that listens, asking only when something is unplaced · ④ the import reads its failure count · ⑤ a rail per row of the case table.
+that listens, asking only when something is unplaced · ④ the import reads its failure count · ⑤ a rail per row of the case table · ⑥ the id re-stamp before going Live from a replay (§9b), *Go Live* greyed until it is built.
 
 ---
 _coordinator lane, 2026-11-08_
