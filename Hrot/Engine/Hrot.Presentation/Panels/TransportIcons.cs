@@ -92,8 +92,9 @@ public static class TransportIcons
 
             case BtnShape.Pause:
             {
-                // Two white vertical bars.
-                uint col  = ImGui.GetColorU32(new Vector4(1f, 1f, 1f, alpha));
+                // Two vertical bars — white, or ⭐ CE-3409 the run's colour (D27: the glyph wears the indicator's colour)
+                var pt = playTint ?? new Vector4(1f, 1f, 1f, 1f);
+                uint col  = ImGui.GetColorU32(new Vector4(pt.X, pt.Y, pt.Z, alpha));
                 float bw  = MathF.Round(size * 0.18f);
                 float bx  = pos.X + pad;
                 float by  = pos.Y + pad;
@@ -171,10 +172,15 @@ public static class TransportIcons
     public static string FormatRate(float rate)
     {
         int rounded = (int)MathF.Round(rate * 10f);
-        return (rounded % 10 == 0)
+        // ⭐ CE-3409 — the toolbar reads this every frame: the text is built only when the SHOWN value changes (0 B steady)
+        if (rounded == _rateShown && _rateText is not null) return _rateText;
+        _rateShown = rounded;
+        return _rateText = (rounded % 10 == 0)
             ? $"{rounded / 10}x"
             : $"{rate.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}x";
     }
+    private static int _rateShown;
+    private static string? _rateText;
 
     /// <summary>
     /// Formats a duration in seconds as <c>HH:MM:SS.mmm</c>.
@@ -183,6 +189,12 @@ public static class TransportIcons
     public static string FormatTime(double totalSeconds)
     {
         var ts = TimeSpan.FromSeconds(totalSeconds);
-        return $"{(int)ts.TotalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}";
+        // ⭐ CE-3409 — built only when the shown value (to the millisecond) changes: a paused clock, a greyed ended Live, an idle toolbar allocate nothing
+        long shown = (long)(ts.Ticks / TimeSpan.TicksPerMillisecond);
+        if (shown == _timeShown && _timeText is not null) return _timeText;
+        _timeShown = shown;
+        return _timeText = $"{(int)ts.TotalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}.{ts.Milliseconds:D3}";
     }
+    private static long _timeShown;
+    private static string? _timeText;
 }

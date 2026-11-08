@@ -133,19 +133,13 @@ public sealed class MainToolbarTimeControlSection
     private static readonly ModeIndicator ReplayIndicator  = Indicator("mode/replay", "AAR");
 
     /// <summary>
-    /// ⭐ L-11 / CE-4319 (Scenario lifecycle LC-14) — the colour of ▶: the mode a press PLAYS, from the ONE indicator table — in Edit / Idle the ARMED
-    /// mode (Live green, Preview violet, AAR blue), during a run the run's own mode (a DAR amber). Null when nothing is known (the default green).
+    /// ⭐ CE-3409 (AQ108 §0 D27) — the colour of ▶ / ⏸: <b>the glyph wears the indicator's colour, never the button's background</b>. In Edit / Idle ▶ is the Preview, violet (the pen is the INDICATOR's — ▶ previews); in a run the run's own:
+    /// Preview violet, Live red when recorded / green when not (<paramref name="indicatorColour"/>, the shown indicator's), DAR amber, AAR blue. ⛔ Replaces L-11's rule (the ARMED mode's colour).
     /// </summary>
-    public static Vector4? PlayColour(TransportMode mode, RunArmed? armed) => mode switch
+    public static Vector4? PlayColour(TransportMode mode, Vector4? indicatorColour) => mode switch
     {
-        TransportMode.Edit or TransportMode.Idle => armed switch
-        {
-            RunArmed.Live    => ModeGlyph(TransportMode.Live)?.Color,
-            RunArmed.Preview => ModeGlyph(TransportMode.Preview)?.Color,
-            RunArmed.AAR     => ModeGlyph(TransportMode.Replay)?.Color,
-            _ => null,
-        },
-        _ => ModeGlyph(mode)?.Color,
+        TransportMode.Edit or TransportMode.Idle => ModeGlyph(TransportMode.Preview)?.Color,
+        _ => indicatorColour ?? ModeGlyph(mode)?.Color,
     };
 
     // ── ⭐ CE-3393 (📄 docs/UX/DESIGN_Scenario_Presets.md §5c, D8) — the narrow ▾ at ▶'s right: THE preset picker; it ARMS (✓), never the mode ──────────
@@ -585,6 +579,7 @@ public sealed class MainToolbarTimeControlSection
 
     /// <summary>The axis icon's letter: S = sim (pauses skipped), W = wall (pauses shown).</summary>
     public static string AxisFace(ReplayAxis axis) => axis == ReplayAxis.Sim ? "S" : "W";
+    private const string AxisSimId = "S##mt_axis", AxisWallId = "W##mt_axis";   // ⭐ CE-3409 — the button's label is a constant per axis (no per-frame concat)
 
     /// <summary>The axis icon's tooltip.</summary>
     public static string AxisTooltip(ReplayAxis axis)
@@ -643,7 +638,7 @@ public sealed class MainToolbarTimeControlSection
 
         // ── [Play/Pause] ───────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_pp", iconSize,
-                PlayPauseFace(isPaused), IsPlayEnabled, PlayColour(_facade.Mode, _choice?.Shown)))
+                PlayPauseFace(isPaused), IsPlayEnabled, PlayColour(_facade.Mode, _choice?.Indicator.Color)))
         {
             OnPlayPause();
         }
@@ -725,7 +720,7 @@ public sealed class MainToolbarTimeControlSection
         // ── [Axis] S / W ───────────────────────────────────────────────────
         ImGui.SameLine();
         ImGui.BeginDisabled(!IsAxisEnabled);
-        if (ImGui.SmallButton(AxisFace(_facade.Axis) + "##mt_axis")) OnToggleAxis();
+        if (ImGui.SmallButton(_facade.Axis == ReplayAxis.Sim ? AxisSimId : AxisWallId)) OnToggleAxis();
         ImGui.EndDisabled();
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(AxisTooltip(_facade.Axis));
 
@@ -787,10 +782,10 @@ public sealed class MainToolbarTimeControlSection
     {
         var mode = _facade.Mode;
         var chosen = _choice?.Indicator;
-        var ind = chosen is { } c ? new ModeIndicator(c.Glyph, c.Color, c.Word) : ModeGlyph(mode);
-        if (ind is null) { ImGui.Dummy(new Vector2(size, size)); return; }
-
-        var icon = chosen?.Glyph ?? ModeIcon(mode)!;
+        var plain = chosen is null ? ModeGlyph(mode) : null;   // a host with no run choice: the mode's fixed glyph (a shared instance)
+        if (chosen is null && plain is null) { ImGui.Dummy(new Vector2(size, size)); return; }
+        var icon = chosen?.Glyph ?? plain!.Glyph;
+        var color = chosen?.Color ?? plain!.Color;
         var style = ImGui.GetStyle();
         float caret = MathF.Max(5f, size * 0.22f);
         var button = new Vector2(ImGui.CalcTextSize(icon).X + style.FramePadding.X * 2f + caret + 6f, size);
@@ -806,12 +801,12 @@ public sealed class MainToolbarTimeControlSection
         var alpha = chosen is { } ch ? RunModeIndicator.Alpha(ch.Level, ImGui.GetTime()) : 1f;
         var ts = ImGui.CalcTextSize(icon);
         float glyphX = pos.X + (button.X - caret - 6f - ts.X) * 0.5f + 3f;
-        dl.AddText(new Vector2(glyphX, pos.Y + (size - ts.Y) * 0.5f), ImGui.GetColorU32(ind.Color with { W = alpha }), icon);
+        dl.AddText(new Vector2(glyphX, pos.Y + (size - ts.Y) * 0.5f), ImGui.GetColorU32(color with { W = alpha }), icon);
         // the ▾: a small triangle (no font glyph needed), neutral grey
         float cx = pos.X + button.X - caret * 0.5f - 4f, cy = pos.Y + size * 0.55f, half = caret * 0.5f;
         dl.AddTriangleFilled(new Vector2(cx - half, cy - half * 0.5f), new Vector2(cx + half, cy - half * 0.5f), new Vector2(cx, cy + half * 0.6f), ImGui.GetColorU32(new Vector4(0.7f, 0.7f, 0.74f, 1f)));
         if (hovered)
-            ImGui.SetTooltip(_choice is { } cc ? cc.IndicatorTooltip(mode == TransportMode.Review ? SecondsBehindLive() : null) : ind.Name);
+            ImGui.SetTooltip(_choice is { } cc ? cc.IndicatorTooltip(mode == TransportMode.Review ? SecondsBehindLive() : null) : plain!.Name);
 
         // ⭐ CE-3413 — the menu is built when it is asked for (a click) and while it is open — never per frame (the moves, the DAR rows and the ended menu allocate)
         if (clicked && ModeMenu() is not null) ImGui.OpenPopup("##mt_mode_popup");

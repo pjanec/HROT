@@ -182,6 +182,16 @@ already lands in today.*
 
 Rails: `RunIndicatorTests.R3_*`, `RunToolbarFrameRail.R3_*` (real frame, every ind.png row).
 
+**R-4 `CE-3409` ▶ wears the indicator's colour (ui):**
+
+| what | where | note |
+|---|---|---|
+| ▶ **and ⏸** glyph = the indicator's colour (Edit/Idle violet — the pen is the indicator's, ▶ previews; Live red/green; DAR amber; AAR blue); never the background; greyed in Live · ended | `MainToolbarTimeControlSection.PlayColour(mode, indicatorColour)` · `TransportIcons.DrawShape` (Pause takes the tint) | **replaces L-11 / CE-4319's armed-mode rule** |
+| ▾ presets only in Edit and the Live briefing | `ShowsPresetArrow` (R-1) | verified against ind.png: not in running Live, DAR, AAR |
+| toolbar frame = **0 B** in Edit / briefing / running / ended | `FormatTime` / `FormatRate` cache the shown value · `RunGate.From` shares the open gate · `AxisFace` ids constant · no `ModeIndicator` record per frame | rail `Hot_TheToolbarFrame…`; a RUNNING clock still builds one string per changed millisecond (the shown value changes) |
+
+Rails: `CE3409_PlayWearsTheIndicatorsColour`, `ColourIconsFrameRail.L11_PlayWearsTheIndicatorsColour…` (real frame, rewritten; stable 6/6 in the bigger filter — the old one's order flake was not root-caused).
+
 **Deviations / open.** (1) A host with **no scenario session** (SimHost, IG) keeps ▶ greyed in Edit (reason *"No scenario session on this host — nothing to preview from here"*): the armed mode used to be what greyed it. (2) A host with **no ender** keeps today's ■ in Live (leaves to editing). (3) *Exercise N* is not in the Close question (no number on the inventory). (4) *Restart from a checkpoint ▸* is greyed: the live run's marks are not on the cluster view (hosts may supply `CheckpointLabels` / `RestoreCheckpoint`). (5) The End question's second sentence now describes the debrief, not *"returns to editing"*. (6) HTTP `/run-mode` untouched (backend B-5): its rails that expect the old arm-only `Choose` are listed in the build report.
 
 ## 1. ⭐ The three rules — the spine

@@ -335,12 +335,11 @@ public sealed class RunControlsSwitchNowTests
     }
 
     /// <summary>
-    /// ⭐ Hot path: the toolbar draws every frame. R-1 / R-2 add NO per-frame allocation: with no menu open, no modal and no toast, every state (Edit, the briefing, a running Live, Live · ended) allocates the SAME as Edit —
-    /// the ⚠ pre-existing ~390 B / frame is the time and rate read-outs (<c>TransportIcons.FormatTime</c> / <c>FormatRate</c> build strings per frame; not touched here, listed in the report).
-    /// 🔴 Mutation: <c>ModeMenu()</c> built per frame again (the moves, the DAR rows, the ended menu) ⇒ every state is ~1.7 KB / frame (measured 175 200 B over 100 frames in Edit before the fix).
+    /// ⭐ Hot path (CE-3409): the toolbar draws every frame; with no menu open, no modal and no toast its steady-state frame allocates <b>0 B</b> in every state (Edit, the briefing, a running Live, Live · ended).
+    /// 🔴 Mutations: <c>ModeMenu()</c> built per frame ⇒ ~1.7 KB / frame; <c>TransportIcons.FormatTime</c> / <c>FormatRate</c> uncached ⇒ ~390 B / frame (measured).
     /// </summary>
     [Fact]
-    public void Hot_TheToolbarFrame_AddsNoPerFrameAllocation_InAnyState()
+    public void Hot_TheToolbarFrame_AllocatesNothingSteady_InEveryState()
     {
         using var fixture = new ImGuiTestFixture();
         fixture.NewFrame();
@@ -357,9 +356,10 @@ public sealed class RunControlsSwitchNowTests
         foreach (var (name, rig) in cases)
         {
             var section = Bar(rig);
+            var window = "alloc_toolbar_" + name;   // built once, outside the measured frames
             void Frame()
             {
-                ImGuiNET.ImGui.Begin("alloc_toolbar_" + name, ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
+                ImGuiNET.ImGui.Begin(window, ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
                 section.Render();
                 ImGuiNET.ImGui.End();
             }
@@ -369,8 +369,6 @@ public sealed class RunControlsSwitchNowTests
             bytesOf[name] = GC.GetAllocatedBytesForCurrentThread() - before;
         }
         fixture.Render();
-        foreach (var (name, bytes) in bytesOf)
-            Assert.True(bytes <= bytesOf["edit"] + 100 * 32, $"{name}: {bytes} B over 100 frames (Edit: {bytesOf["edit"]})");
-        Assert.True(bytesOf["edit"] <= 100 * 600, $"Edit: {bytesOf["edit"]} B over 100 frames — the time / rate strings only");
+        Assert.True(bytesOf.Values.All(b => b == 0), string.Join(" ", bytesOf.Select(kv => $"{kv.Key}={kv.Value}")));
     }
 }

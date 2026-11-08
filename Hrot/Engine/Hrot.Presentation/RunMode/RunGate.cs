@@ -23,12 +23,17 @@ public sealed record RunGate(bool Open, string? Reason, bool Loading, string Pro
     /// <summary>The gate of a host with no cluster view (a bare rig): nothing waits.</summary>
     public static RunGate AlwaysOpen { get; } = new(true, null, false, string.Empty, false, string.Empty, true);
 
+    private static readonly RunGate OpenWithInventory    = new(true, null, false, string.Empty, false, string.Empty, true);
+    private static readonly RunGate OpenWithoutInventory = new(true, null, false, string.Empty, false, string.Empty, false);
+
     /// <summary>The one derivation, from the node's view and the host's policy. <see langword="null"/> view ⇒ <see cref="AlwaysOpen"/>.</summary>
     public static RunGate From(ClusterView? view, HostGatePolicy policy)
     {
         if (view is null) return AlwaysOpen;
         var open = view.GateOpen(policy);
         var inError = view.IsInError;
+        // ⭐ CE-3409 — the controls read the gate several times a frame: an OPEN gate is one of two shared values (0 B), not a new record per read
+        if (open && !inError && view.ErrorReason.Length == 0) return view.HasInventory ? OpenWithInventory : OpenWithoutInventory;
         var progress = view.LoadProgress.Length > 0 ? view.LoadProgress : view.LocalStep;
         var loading = !open && !inError && (view.IsClusterLoading || view.IsLocalLoading);
         string? reason = null;

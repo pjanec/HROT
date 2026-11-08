@@ -833,18 +833,21 @@ public class MainToolbarTimeControlTests
         Assert.All(recorded.Items.Where(i => i.Label.StartsWith("DAR")), i => Assert.True(i.Enabled));
     }
 
-    /// <summary>⭐ L-11 / CE-4319 (LC-14) — ▶ is drawn in the colour of the mode a press PLAYS: in Edit the armed mode (Live green, Preview violet, AAR blue),
-    /// in a run the run's own (a DAR amber) — the ONE indicator table's colours. 🔴 Red-proof: <c>PlayColour</c> ignoring the armed mode ⇒ the Edit rows ⇒ red.</summary>
-    [Theory]
-    [InlineData(TransportMode.Edit, RunArmed.Live, TransportMode.Live)]
-    [InlineData(TransportMode.Edit, RunArmed.Preview, TransportMode.Preview)]
-    [InlineData(TransportMode.Idle, RunArmed.AAR, TransportMode.Replay)]
-    [InlineData(TransportMode.Review, RunArmed.Live, TransportMode.Review)]
-    [InlineData(TransportMode.Live, RunArmed.Preview, TransportMode.Live)]
-    public void CE4319_PlayIsDrawnInTheColourOfTheModeItPlays(TransportMode mode, RunArmed armed, TransportMode colourOf)
+    /// <summary>⭐ CE-3409 (R-4, D27; REPLACES L-11 / CE-4319) — ▶ / ⏸ wears the INDICATOR's colour: in Edit / Idle the Preview's violet (▶ previews), in a run the run's own (the indicator's: Live red / green by recording, a DAR amber, an AAR blue).
+    /// 🔴 Red-proof: <c>PlayColour</c> ignoring the indicator colour ⇒ the run rows ⇒ red.</summary>
+    [Fact]
+    public void CE3409_PlayWearsTheIndicatorsColour()
     {
-        Assert.Equal(MainToolbarTimeControlSection.ModeGlyph(colourOf)!.Color, MainToolbarTimeControlSection.PlayColour(mode, armed));
-        Assert.NotEqual(MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, RunArmed.Live), MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, RunArmed.Preview));
+        var violet = MainToolbarTimeControlSection.ModeGlyph(TransportMode.Preview)!.Color;
+        Assert.Equal(violet, MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, new System.Numerics.Vector4(1, 1, 0, 1)));   // the pen's yellow is NOT ▶'s colour
+        Assert.Equal(violet, MainToolbarTimeControlSection.PlayColour(TransportMode.Idle, null));
+        var red = new System.Numerics.Vector4(0.90f, 0.22f, 0.22f, 1f);
+        Assert.Equal(red, MainToolbarTimeControlSection.PlayColour(TransportMode.Live, red));
+        foreach (var (rig, colour) in new[] { (RunChoiceRig.With(ClusterState.OperatingLive, clock: 5), red),
+                                              (RunChoiceRig.With(ClusterState.OperatingLive, clock: 5, runNotRecorded: true), MainToolbarTimeControlSection.ModeGlyph(TransportMode.Live)!.Color),
+                                              (RunChoiceRig.With(ClusterState.OperatingReview, clock: 5), MainToolbarTimeControlSection.ModeGlyph(TransportMode.Review)!.Color),
+                                              (RunChoiceRig.With(ClusterState.OperatingReplay, clock: 5), MainToolbarTimeControlSection.ModeGlyph(TransportMode.Replay)!.Color) })
+            Assert.Equal(colour, MainToolbarTimeControlSection.PlayColour(rig.F.Mode, rig.Choice.Indicator.Color));
     }
 
     /// <summary>⭐ D11 — the status-bar note shows while a Preview or a Live run goes, and only then.</summary>
