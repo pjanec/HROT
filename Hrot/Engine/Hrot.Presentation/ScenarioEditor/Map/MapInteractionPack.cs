@@ -284,7 +284,7 @@ namespace Hrot.ScenarioEditor.Map
 
             // ⭐ CE-3328 — the click resolves in the world the map SHOWS (the Replay Browser's node / merged view), as the selection does.
             var selectionInteraction = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(
-                ctx.SelectionWorld ?? (() => ctx.World), bus, rubberBand, selection);
+                ctx.SelectionWorld ?? (() => ctx.World), bus, rubberBand, selection, MapGestureRouter.Shared);
             if (ctx.OnMapSelectionChanged != null)
                 selectionInteraction.OnSelectionChanged += ctx.OnMapSelectionChanged;
 
@@ -389,7 +389,7 @@ namespace Hrot.ScenarioEditor.Map
                         if ((int)Hrot.Common.Editing.StationMode.LevelOf(ctx.World) > (int)Hrot.Common.Editing.EditingLevel.Controller)   // ⭐ Seats H2 (CE-4279) — a Player / observer commands nothing
                             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
                         var id = GlobalGizmoManager.NewId();
-                        globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id), rtsMode));
+                        globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id), rtsMode, MapGestureRouter.Shared));
                         return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
                     });
                 actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleRtsCommand, (_, _) =>
