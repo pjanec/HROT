@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — Q1–Q5 for the user (E7, CE-4325, LC-20)
-updated: 2026-11-08 (first version)
+build-state: READY-TO-BUILD — Q1–Q5 decided 2026-11-08 (R-4177): §2 revised to the user's storage (notes.json + one managed topic + one CRUD message)
+updated: 2026-11-08 (Q1–Q5 decided; §2 storage revised; the timeline corner gains ⚑ and the S/W axis toggle)
 current-answer: §0 the idea · §1 measured · §2 the model (UML) · §3 what you see (mockup) · §4 decisions Q1–Q5
 stale-below: nothing
 known-rot: none
@@ -11,7 +11,7 @@ related-designs:
   - ../DESIGN_Checkpoint_And_Dry_Run_Restore.md — OWNS the checkpoint itself (R-3044: a named keyframe every node writes at one wall time; §1g CheckpointMark)
   - ../blueprints/Architect_Question_108_Run_Mode_Picker.md — D14: no checkpoint in an unrecorded run; R-4168: none in AAR
   - DESIGN_Scenario_Lifecycle_Review.md — LC-20 (this item), Q13
-  - ../DESIGN_Recording_Storage.md — OWNS the exercise record on the master (the ledger entry → Orchestrator.json on the NAS) where the note text lives
+  - ../DESIGN_Recording_Storage.md — OWNS the exercise folder and its transfers: notes.json travels with the recordings (archive, import, delete)
   - ../DESIGN_Director_Timeline_Editor.md — TE-4 / TE-21: bookmarks as a timeline marker row
   - DESIGN_Seats_And_Hats.md — the Observer seat lists "bookmarks, notes" (§2.2)
   - DESIGN_Review_Perspective.md — the AAR where the marks are listed
@@ -44,75 +44,83 @@ and `ReviewMark` (the recording's marks — ⭐ the ones that matter) · grep `M
 | the master's ONE per-exercise record: `RecordingLedgerEntry` (persisted, survives a master restart) → written to the NAS as `Orchestrator.json` at archive | `RecordingLedgerEntry.cs:8-14` · `AssetInventoryProcessManager.WriteExerciseSidecar` `:425-450` |
 | ⛔ nothing holds a NOTE, an author or the unit a mark is about; no list of marks; no key | — |
 
-## 2. The model — the MARK stays the checkpoint; the NOTE lives in the exercise record
+## 2. The model — the MARK stays the checkpoint; the NOTES are one `notes.json` with the recordings *(✅ R-4177)*
+
+🔒 User, `2026-11-08`: *"note might live in a simple json file which is managed together with the exercise recording"* · *"there could be some notes
+export step back to NAS when leaving Live/AAR … One managed DDS topic with a list of notes published by orchestrator, modified via single modification
+message (CRUD)"*.
+
+| ⭐ feasibility, measured | where |
+|---|---|
+| a managed DDS topic carrying a LIST of structs exists | `OrchestrationMessages.cs:196` (`List<FeatureOverrideWire>`), `:209`, EQS `:93` |
+| the "master republishes the whole thing on every change; TransientLocal + KeepLast 1 hands the newest to a late joiner" pattern exists | `OrchestrationMessages.cs:152, :217-222` |
+| the exercise folder already holds more than recordings (`Orchestrator.json`, `scenario/`) and travels as one | [mgmt-1 §13.3](../designs/mgmt-1/DESIGN.md), §13.3a |
+| one writer on the master, every station a reader | the master's `ClusterMaster` / `AssetInventoryProcessManager` (as for checkpoints and the ledger) |
 
 ```mermaid
 classDiagram
     direction LR
     class CheckpointMark { <<existing, every node's recording>> Label · Frame · WallTicks }
-    class ClusterMaster { <<existing>> StartCheckpoint(label) + note (NEW) }
-    class RecordingLedgerEntry { <<existing, master, persisted>> + Notes (NEW) }
-    class MarkNote { <<NEW record>> Label (the checkpoint) or AtSimSeconds · Name · Text · Author (seat · station) · Subject (unit id + name) · EditedUtc }
-    class ExerciseSidecar { <<existing, NAS Orchestrator.json>> + notes (NEW) }
-    class ClusterFacts { <<existing, replicated>> + MarkNotes of the run on show (NEW) }
-    class RunModeChoice { <<existing>> TakeCheckpoint(name, note, subject) }
+    class ClusterMaster { <<existing>> TakeCheckpoint (+ the note, NEW) · applies NoteEdit (NEW) }
+    class ExerciseNotes { <<NEW, master>> the run on show: List~Note~ · Load · Apply(edit) · Save }
+    class Note { <<NEW record>> Id · Mark (checkpoint label) or AtSimSeconds · Name · Text · Author (seat · station) · Subject (unit id + name) · EditedUtc }
+    class NotesFile { <<NEW>> exercises/&lt;id&gt;/notes.json — master staging in Live, the NAS after archive }
+    class ExerciseNotesTopic { <<NEW DDS, managed>> ExerciseId · List~NoteWire~ · TransientLocal, KeepLast 1 }
+    class NoteEditRequest { <<NEW DDS>> Add / Edit / Delete · Note · AskedBy }
     class MarkPopup { <<NEW>> B in Live · name · note · unit }
-    class MarksWindow { <<NEW>> the list: time · name · note · unit · who }
-    class TimelinePanel { <<existing>> ⚑ per checkpoint + a note dot (NEW) }
-    MarkPopup --> RunModeChoice
-    RunModeChoice --> ClusterMaster : TakeCheckpoint (existing op) + note
+    class MarksWindow { <<NEW>> the list · Add note here (AAR) }
+    class TimelinePanel { <<existing>> ⚑ + note dot (NEW) · corner: ⚑ and S/W (moved from the toolbar) }
+    MarkPopup --> ClusterMaster : TakeCheckpoint (existing op) + note
+    MarksWindow --> NoteEditRequest : edit · delete · add (AAR)
+    NoteEditRequest --> ClusterMaster
     ClusterMaster --> CheckpointMark : every node writes the keyframe
-    ClusterMaster --> RecordingLedgerEntry : stores the note (ONE writer)
-    RecordingLedgerEntry "1" *-- "*" MarkNote
-    RecordingLedgerEntry --> ExerciseSidecar : at archive
-    ClusterMaster --> ClusterFacts : publishes the notes
-    ClusterFacts --> MarksWindow
-    ClusterFacts --> TimelinePanel
+    ClusterMaster --> ExerciseNotes : ONE writer
+    ExerciseNotes "1" *-- "*" Note
+    ExerciseNotes --> NotesFile : saved locally on every change
+    ExerciseNotes --> ExerciseNotesTopic : republished on every change
+    ExerciseNotesTopic --> MarksWindow
+    ExerciseNotesTopic --> TimelinePanel
 ```
-*What the picture shows: nothing new moves through the recorders — the moment is the existing checkpoint; the words (and who, and which unit) are one record
-on the master, written once, editable without touching a recording.*
+*What the picture shows: the recorders change nothing — the moment is the existing checkpoint; the words are one JSON file with ONE writer, seen by every
+station through one topic and changed through one message.*
 
 ```mermaid
 sequenceDiagram
-    actor I as the instructor (Live)
-    participant P as MarkPopup (B)
-    participant C as RunModeChoice
-    participant M as the master
+    actor I as the instructor
+    participant P as MarkPopup / MarksWindow
+    participant M as the master (ExerciseNotes)
     participant N as every node
-    participant F as the cluster facts (every station)
-    I->>P: B — the moment is taken AT THE KEY PRESS
-    P->>C: TakeCheckpoint(name?, note?, subject = the selected unit)
-    C->>M: TakeCheckpoint (the existing op) + the note
-    M->>N: TakeSnapshot at T (existing) — keyframe + CheckpointMark
-    M->>M: ledger entry += MarkNote (persisted)
-    M->>F: MarkNotes
-    Note over I,F: ⚑ on every station's timeline · the Marks window lists it
-    I->>P: Enter (or nothing — the popup closes by itself after 4 s, the mark stays)
+    participant T as ExerciseNotes topic (every station)
+    participant S as the NAS (storage gateway)
+    Note over I,S: Live
+    I->>P: B (the moment = the key press) · name, note, unit
+    P->>M: TakeCheckpoint + the note (existing op)
+    M->>N: TakeSnapshot at T (existing)
+    M->>M: notes += note · save notes.json (master staging)
+    M->>T: the whole list
+    Note over I,S: ⏏ Close · Archive — notes.json goes WITH the recordings (it is in the manifest)
+    Note over I,S: AAR (imported)
+    M->>M: load notes.json (imported with the recordings)
+    M->>T: the whole list
+    I->>P: Add note here / edit / delete
+    P->>M: NoteEditRequest (CRUD)
+    M->>M: apply · save locally
+    M->>T: the whole list
+    Note over I,S: leaving AAR
+    M->>S: write notes.json back (a small storage job, §7 of Recording storage)
 ```
-
-```mermaid
-graph TD
-    K["Keymap: B = Mark (Live, recorded)"] --> RC["RunModeChoice.TakeCheckpoint (existing)"]
-    RC --> CM["ClusterMaster (existing op TakeCheckpoint)"]
-    CM --> REC["each node's recorder: keyframe + CheckpointMark (existing)"]
-    CM --> LED["RecordingLedgerEntry.Notes (NEW) — master, persisted"]
-    LED --> NAS["Orchestrator.json notes (NEW) — at archive"]
-    CM --> FACTS["cluster facts: MarkNotes (NEW)"]
-    FACTS --> TL["TimelinePanel ⚑ + note dot (every host)"]
-    FACTS --> MW["MarksWindow (NEW, every host with a timeline)"]
-    NAS --> RB["Replay Browser: reads the notes beside the files (read-only)"]
-```
-*Who reads what, on which host: the cluster facts reach every station; the standalone Replay Browser has no master, so it reads the archived sidecar.*
 
 | rule | |
 |---|---|
-| **B in Live = a mark, at once** | the checkpoint is requested at the key press (no dialog in the way); a small popup opens for an OPTIONAL name and note and the unit (pre-filled: the selected one); ignoring it keeps the mark |
-| **unnamed** | the existing automatic label, shown as *Mark 3 · 12:31* |
-| **in DAR** | marks are listed and seekable; ⚑ B takes a checkpoint of the LIVE point (as today) |
-| **in AAR** | listed, seekable (a seek to the mark's time), *Restart from here* (existing); notes editable — Q2 |
+| **ONE writer** | the master applies every edit in arrival order (two stations editing one note: the later wins); every station reads the topic |
+| **saved at once, exported on leaving** | every change is saved to the local copy; the NAS copy is written when the AAR is left (a small storage job — it shows in the status bar like any other); a master that dies first pushes it at its next start |
+| **with the recordings** | `notes.json` is part of the exercise folder: archived, imported, deleted with it (Recording storage §3, §5, R-4174); the standalone Replay Browser reads it beside the files (read-only) |
+| **B in Live = a mark, at once** | the checkpoint is requested at the key press; the popup only asks for the optional words; ignoring it keeps an unnamed mark (*Mark 3 · 12:31*) |
+| **in AAR** | *Add note here* = a note at a TIME (no ⚑, not restorable — R-4168); every note editable and deletable |
 | **an unrecorded Live** | B greyed: *"no recording — nothing to mark"* (D14, R-4168) |
-| **a branch** | the parent's marks before the branch point stay (as checkpoints already do) and their notes come with them |
-| **who** | Author, Instructor, Observer (Seats §2.2); ⛔ not a Player — Q4 |
+| **a branch** | the parent's marks before the branch point stay (as checkpoints do) and their notes are copied into the child's `notes.json` |
+| **who** | Author, Instructor, Observer (Seats §2.2); not a Player |
+| ⭐ **the timeline's corner** | two small icons at the top right of the Event Timeline: **⚑** (mark now in Live · *Add note here* in AAR) and **S / W** — the sim / wall axis toggle (R-3058) **moved there from the main toolbar** (`MainToolbarTimeControlSection.cs:720`); it still sets the axis for the whole session |
 
 ## 3. What you see — [`recording-marks-visual.svg`](recording-marks-visual.svg)
 
@@ -121,15 +129,18 @@ graph TD
 Generated by `scripts/gen-bookmarks-mockup.py` (house style). Scope: the mark popup, the timeline's ⚑ with a note dot and its tooltip, the Marks
 window; the toolbar, the map and the rest of the timeline are context, drawn unchanged (R-4151).
 
-## 4. Decisions — leans
+## 4. Decisions — ✅ the user, `2026-11-08` (R-4177)
 
-| # | question | ⭐ lean | rejected — one line |
-|---|---|---|---|
-| **Q1** | where the note lives | **the master's exercise record** (ledger → `Orchestrator.json`): one writer, editable later, never rewrites a recording | in every node's `CheckpointMark` — N copies, and editing means rewriting N recording sidecars |
-| **Q2** | notes in the AAR (the debrief) | **yes — edit a mark's note, and add a NOTE at any moment** (a note with a time, no ⚑, not restorable — R-4168 keeps checkpoints out of AAR) | read-only in AAR: the debrief is when an instructor writes most |
-| **Q3** | the key | **B** (free in the key inventory; the keymap refuses a clash at start-up); Ctrl+S in a run stays *checkpoint* (built) | Ctrl+B — two hands for the most frequent Live action |
-| **Q4** | who may mark | **Author, Instructor, Observer** | Players too — a trainee's flags in the instructor's list; later, if wanted, as a separate *"for the debrief"* request |
-| **Q5** | the unit a mark is about | **the selected unit at the key press**, changeable in the popup; in the review a click on the mark seeks AND selects it | none — the instructor names it in the text |
+| # | ✅ decided |
+|---|---|
+| **Q1** | the notes are a simple JSON file managed with the exercise recording (`notes.json` in the exercise folder) |
+| **Q2** | AAR edits in full (add / edit / delete); the master holds the list, publishes it on ONE managed topic, changed by ONE CRUD message; written back to the NAS on leaving the AAR |
+| **Q3** | **B**, and a small ⚑ on the timeline's top-right corner — where the **S / W** axis toggle moves too |
+| **Q4** | Author, Instructor, Observer |
+| **Q5** | the selected unit, changeable in the popup |
+
+⛔ Rejected: the note inside every node's `CheckpointMark` (N copies, rewriting recordings to edit) · the note in `Orchestrator.json` (a different
+document's job; a separate file keeps the notes' one writer simple).
 
 ⚠ **Not measured:** the cost of a keyframe per mark on a long run (every mark is a full keyframe on every node). Expected small next to the periodic
 keyframes; the build measures one mark's size on the largest scenario and reports it.

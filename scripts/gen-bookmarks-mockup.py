@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mockup_kit import Svg, C, FA, render, text_width
 
 FLAG, NOTE, SEEK, REST, PENCIL, USERG = 0xf024, 0xf249, 0xf064, 0xf2ea, 0xf304, 0xf007
-W, H = 1240, 700
+W, H = 1240, 714
 s = Svg(W, H, "Bookmarks and notes — ⚑ mark a moment in Live, find it in the review (DESIGN_Bookmarks_And_Notes.md)")
 
 # ── ① Live: the main bar (context) + the timeline with marks ─────────────────────────────────────────────
@@ -22,6 +22,10 @@ s.text(X0 + SW - 10, Y0 + 20, "context: AQ108 §0, unchanged", C.NOTE, 11, "end"
 
 TY = Y0 + 40
 s.rect(X0, TY, SW, 120, C.BG, stroke=C.BORDER); s.rect(X0, TY, SW, 20, C.TITLE); s.text(X0 + 8, TY + 14, "Event Timeline")
+# ★ R-4177 — the corner: ⚑ (mark now · Add note here in AAR) and S / W (the axis toggle, moved from the main toolbar)
+cx = X0 + SW - 58
+s.rect(cx, TY + 2, 24, 16, C.BTN, rx=3); s.glyph(FLAG, cx + 6, TY + 4, "#60C0F0", 11)
+s.rect(cx + 28, TY + 2, 24, 16, C.BTN, rx=3); s.text(cx + 40, TY + 14, "S", C.TXT, 11.5, "middle")
 rx0, rx1 = X0 + 110, X0 + SW - 14
 s.rect(rx0, TY + 26, rx1 - rx0, 22, "#16161B")
 for i in range(7):
@@ -39,10 +43,11 @@ s.line(rx0 + (rx1 - rx0) * 0.67, TY + 24, rx0 + (rx1 - rx0) * 0.67, TY + 116, C.
 tx = rx0 + (rx1 - rx0) * 0.41
 s.tooltip(tx + 12, TY + 40, 380, ["⚑ Bridge crossed · 7:43", "\"Alpha 1-2 crossed without cover — discuss\"",
                                  "Alpha 1-2 · Instructor-1"], edge="#60C0F0")
-s.note(X0, TY + 136, ["⚑ = a checkpoint (built) · the amber dot = it has a note · hover: name, note, unit, who · double-click: seek (in DAR / AAR)"], C.NOTE, 11)
+s.note(X0, TY + 136, ["⚑ = a checkpoint (built) · the amber dot = it has a note · hover: name, note, unit, who · double-click: seek (in DAR / AAR)",
+                    "the title bar's corner: ⚑ = mark now (B), in AAR Add note here · S / W = the sim / wall axis, MOVED here from the main toolbar (R-4177)"], C.NOTE, 11)
 
 # ── ② the mark popup ───────────────────────────────────────────────────────────────────────────────────
-Y2 = TY + 170
+Y2 = TY + 184
 s.separator_text(20, Y2, "② B — the moment is taken at the key press; this asks only for the optional words", 600)
 PX, PY, PW, PH = 20, Y2 + 24, 580, 196
 s.rect(PX + 4, PY + 4, PW, PH, "#000000", op=0.35, rx=3)
