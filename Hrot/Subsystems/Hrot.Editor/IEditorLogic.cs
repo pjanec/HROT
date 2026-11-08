@@ -50,6 +50,9 @@ public interface IEditorLogic
     /// </summary>
     Hrot.UI.Common.RunMode.ScenarioDoor? Door => null;
 
+    /// <summary>⭐ CE-3407 — the ONE "can I save" answer of this host's scenario session (<c>IScenarioSession.SaveDisabledReason</c>: the cluster, then the variant); null = it may save. A default member: a fake saves.</summary>
+    string? SaveDisabledReason => null;
+
     /// <summary>
     /// Saves the current world state to the scenario most recently loaded via
     /// <see cref="LoadScenarioByName"/>. When no scenario is loaded, does nothing.

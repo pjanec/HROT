@@ -55,7 +55,7 @@ namespace Hrot.Editor.DebugApi
             Hint:    "No params. Example: get_status({}). load = this node's heartbeat phase/step (e.g. \"3-D map: terrain\" while its map builds); runGate = the gate its controls read; loadingScreen = what its waiting screen says; each null where the host has none.",
             Notes: new[]
             {
-                "⭐ CE-4097 (AQ108 D22) — `armedMode` is what the toolbar's ▶ would run from editing on this host: preview | live | aar (set_run_mode changes it); null when the host has no run choice. play / step never follow it.",
+                "⭐ CE-3411 (AQ108 §0 R1′) — `armedMode` is the mode the cluster is in (or switching to): preview (stands for editing) | live | aar (set_run_mode switches it); null when the host has no run choice. play / step never follow it. ⭐ CE-3407 — `canSave` / `cannotSave` are the ONE save answer (the cluster: an error or any state but editing, then the variant) where the host has a scenario session.",
                 "Use this to verify the runner is alive and check current run state before driving the sim.",
                 "`recording` is whether the run the cluster shows is RECORDED: true in a live run, a review (DAR) or a recording (AAR) that has its recording; false in Idle / Edit / Preview and in a live run loaded with 'Record live runs' off (set_run_settings). When it is false in a live run, checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) answer 409 \"this run was not recorded\".",
                 "`scenarioDirty` is the LAST check round's verdict (check_unsaved): true = the scenario open for editing has unsaved changes, false = saved; null when no round ran, or the cluster left editing since. Reading it NEVER runs a round — call check_unsaved for a fresh answer.",
@@ -1365,7 +1365,7 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/run-mode")] = new RouteDoc(
             Tool:    "set_run_mode",
             Group:   "D — Sim / preview / time",
-            Summary: "⭐ CE-4097 (AQ108 D22) — arm what the toolbar's ▶ will run from editing: preview | live | aar (the run-mode indicator's menu, for agents that drive the UI). It changes ONLY the armed mode; play, step and stop never follow it.",
+            Summary: "⭐ CE-3411 (AQ108 §0 R1′ — switch now) — SWITCH the cluster's mode, as the run-mode indicator's menu does: preview (back to editing) | live (the scenario loads Live, paused at 0:00 — the briefing) | aar (the last exercise's recording, at its start). play / step / stop never follow it.",
             Returns: "{ armedMode, mode }; 409 (with the confirmation's text) when the indicator would ask first and confirm was not sent; 409 when the move cannot be made.",
             Hint:    "Req: armed (preview | live | aar). Optional: confirm (bool) — accept the confirmation the indicator would show. Example: set_run_mode({armed:\"live\"})",
             Params: new RouteParam[]
@@ -1375,11 +1375,11 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
-                "From editing (or Idle) arming loses nothing and never asks. While a run goes, arming another mode ends the run and is confirmed — pass confirm:true to accept it.",
-                "get_status → armedMode reads the result. CGF / the all-in-one / the server default to live, the editor to preview.",
+                "From editing the switch goes at once (unsaved edits: the door's question, as a load). While a run goes, switching ends the run and is confirmed — pass confirm:true to accept it.",
+                "get_status → armedMode is the mode the cluster is in (or switching to) — preview stands for editing. CGF / the all-in-one / the server start in live, the editor in preview.",
             },
             ExampleArgsJson: "{\"armed\":\"live\"}",
-            ExampleGist: "arm live for the next play"),
+            ExampleGist: "switch the cluster to Live (paused at the start)"),
 
         [("POST", "/sim/pause")] = new RouteDoc(
             Tool:    "pause",

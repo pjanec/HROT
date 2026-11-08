@@ -303,4 +303,27 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
 
         loadRepo.Dispose();
     }
+
+    /// <summary>
+    /// ⭐ CE-3407 — the editor hands HTTP (<c>DebugApiService.CannotSave</c>: <c>/status.canSave</c>, the <c>/scenario/save</c> 409) its session's ONE save reason, not the variant gate alone:
+    /// a cluster in Preview refuses with <see cref="Hrot.Editor.AiShared.Scenarios.SaveRefusal.Preview"/>; Edit answers null.
+    /// 🔴 Red-proof: <c>EditorApplication.SaveDisabledReason</c> removed ⇒ the interface default (null) answers ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3407_TheEditorHandsHttpItsSessionsOneSaveReason()
+    {
+        var orchestration = new FdpEventBus();
+        var view = new Fdp.Toolkit.Orchestration.ClusterView(orchestration);
+        IEditorLogic app = new EditorApplication(EditorBootstrap.CreateFileService(), new FdpEventBus(), orchestration, () => view, CreateRepo());
+        void ClusterIs(Fdp.Toolkit.Orchestration.ClusterState s)
+        {
+            orchestration.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = s });
+            orchestration.SwapBuffers();
+            view.Update();
+        }
+        ClusterIs(Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview);
+        Assert.Equal(Hrot.Editor.AiShared.Scenarios.SaveRefusal.Preview, app.SaveDisabledReason);
+        ClusterIs(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit);
+        Assert.Null(app.SaveDisabledReason);
+    }
 }
