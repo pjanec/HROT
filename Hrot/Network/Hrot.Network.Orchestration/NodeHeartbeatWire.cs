@@ -29,6 +29,7 @@ public static class NodeHeartbeatWire
         NodeName          = hb.NodeName ?? string.Empty,   // ⭐ CE-3354 ②
         FeaturesOn        = hb.FeaturesOn ?? new List<string>(),   // ⭐ Node Features F-16
         FeatureErrors     = hb.FeatureErrors ?? new List<string>(),   // ⭐ Node Features F-26
+        LocalRecordings   = hb.LocalRecordings ?? new List<string>(),   // ⭐ CE-4330 ③ fact ③
         // CE-286 (C-roles): heartbeat no longer carries the role mask — roles travel as fdp.role.* capability tokens on the durable NodeCapabilities descriptor.
     };
 
@@ -46,5 +47,6 @@ public static class NodeHeartbeatWire
         NodeName      = string.IsNullOrEmpty(hb.NodeName) ? null : hb.NodeName,   // ⭐ CE-3354 ②
         FeaturesOn    = hb.FeaturesOn is { Count: > 0 } ? new List<string>(hb.FeaturesOn) : null,   // ⭐ Node Features F-16
         FeatureErrors = hb.FeatureErrors is { Count: > 0 } ? new List<string>(hb.FeatureErrors) : null,   // ⭐ Node Features F-26
+        LocalRecordings = hb.LocalRecordings is { Count: > 0 } ? new List<string>(hb.LocalRecordings) : null,   // ⭐ CE-4330 ③ fact ③
     };
 }

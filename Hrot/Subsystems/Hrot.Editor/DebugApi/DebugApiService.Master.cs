@@ -403,6 +403,118 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["label"] = label }, null, null);
         }
 
+        // ── ⭐⭐ CE-4330 ⑩ (📄 docs/DESIGN_Recording_Storage.md §7.2, §7.4) — the storage jobs over HTTP: the list every station sees, and every ask ─────
+
+        /// <summary>The cluster's storage jobs as this host's cluster view last heard them (fact ①); null where there is no view.</summary>
+        private StorageJob[]? StorageJobsOrNull => (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.StorageJobs;
+
+        /// <summary>⭐ Q7 — Cancel / Resume belong to the Author and Instructor seats (the master does not see seats; the asking station refuses).</summary>
+        private string? StorageSeatRefusal()
+        {
+            var seat = _sessionSeat ?? Hrot.Common.Infrastructure.Seat.Author;
+            return seat is Hrot.Common.Infrastructure.Seat.Author or Hrot.Common.Infrastructure.Seat.Instructor ? null
+                 : $"a {seat} seat cannot cancel or resume a transfer (the Author and Instructor seats can)";
+        }
+
+        private static JsonObject JobJson(StorageJob j) => new()
+        {
+            ["jobId"] = j.JobId.ToString(), ["kind"] = j.Kind.ToString().ToLowerInvariant(), ["exerciseId"] = ((Guid)j.ExerciseId).ToString(),
+            ["state"] = j.State.ToString(), ["filesDone"] = j.FilesDone, ["filesTotal"] = j.FilesTotal, ["bytesDone"] = j.BytesDone, ["bytesTotal"] = j.BytesTotal,
+            ["givingWay"] = j.GivingWay, ["askedBy"] = j.AskedBy, ["reason"] = j.Reason,
+        };
+
+        /// <summary><c>GET /storage/jobs</c> — every archive / import / delete job of the cluster (active first, then the newest ended).</summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) ListStorageJobs()
+        {
+            var jobs = StorageJobsOrNull;
+            if (jobs is null) return (null, "No subsystem on this host keeps the cluster's read model (a ClusterView) that carries the storage jobs.", DebugApiHints.Panel);
+            var arr = new JsonArray();
+            foreach (var j in jobs) arr.Add(JobJson(j));
+            return (new JsonObject { ["count"] = arr.Count, ["jobs"] = arr }, null, null);
+        }
+
+        /// <summary>
+        /// <c>POST /exercises/{id}/archive</c> · <c>/import</c> · <c>DELETE /archive/{id}?confirm=true</c> · <c>POST /storage/jobs/{job}/resume</c> — one storage ask
+        /// (<see cref="StorageIntents"/>, the one construction); the master queues it, joins a running job of the same exercise, or refuses with the reason
+        /// (its status carries the answer: <c>GET /storage/jobs</c>).
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) AskStorage(string? idText, StorageJobKind kind, bool confirmed = true)
+        {
+            if (!Guid.TryParse(idText, out var id) || id == Guid.Empty)
+                return (null, $"'{idText}' is not an exercise id (GET /exercises lists them).", DebugApiHints.Scenario, 400);
+            if (kind == StorageJobKind.Delete && !confirmed)
+                return (null, $"Deleting exercise {id} from the archive cannot be undone — send confirm=true to delete it.", DebugApiHints.Scenario, 409);
+            var master = MasterOrNull;
+            if (master is null) return (null, NoMaster, DebugApiHints.Panel, 503);
+            var intent = kind switch
+            {
+                StorageJobKind.Import => StorageIntents.Import(id, "http"),
+                StorageJobKind.Delete => StorageIntents.DeleteFromArchive(id, "http"),
+                _                     => StorageIntents.Archive(id, "http"),
+            };
+            master.Storage(intent);
+            return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["exerciseId"] = id.ToString(), ["kind"] = kind.ToString().ToLowerInvariant() }, null, null, 200);
+        }
+
+        /// <summary><c>POST /storage/jobs/{job}/cancel</c> — the existing <c>CancelOperation</c> (Q7: Author / Instructor seats).</summary>
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) CancelStorageJob(string? jobText)
+        {
+            if (StorageSeatRefusal() is { } seat) return (null, seat, DebugApiHints.Scenario, 403);
+            if (!Guid.TryParse(jobText, out var job)) return (null, $"'{jobText}' is not a job id (GET /storage/jobs lists them).", DebugApiHints.Scenario, 400);
+            var master = MasterOrNull;
+            if (master is null) return (null, NoMaster, DebugApiHints.Panel, 503);
+            master.Cancel(new CancelOperationIntent { TargetRequestId = job });
+            return (new JsonObject { ["published"] = true, ["jobId"] = job.ToString() }, null, null, 200);
+        }
+
+        /// <summary><c>POST /storage/jobs/{job}/resume</c> — a failed / cancelled archive asked again (a new job; the pull skips the files already whole). Q7 seats.</summary>
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) ResumeStorageJob(string? jobText)
+        {
+            if (StorageSeatRefusal() is { } seat) return (null, seat, DebugApiHints.Scenario, 403);
+            if (!Guid.TryParse(jobText, out var jobId)) return (null, $"'{jobText}' is not a job id (GET /storage/jobs lists them).", DebugApiHints.Scenario, 400);
+            StorageJob? job = null;
+            foreach (var j in StorageJobsOrNull ?? Array.Empty<StorageJob>()) if (j.JobId == jobId) job = j;
+            if (job is null) return (null, $"No storage job {jobId} (GET /storage/jobs lists them).", DebugApiHints.Scenario, 404);
+            if (job.Kind != StorageJobKind.Archive || job.State is not (StorageJobState.Failed or StorageJobState.Cancelled))
+                return (null, $"Only a failed or cancelled archive resumes (job {jobId} is a {job.Kind}, {job.State}).", DebugApiHints.Scenario, 409);
+            return AskStorage(((Guid)job.ExerciseId).ToString(), StorageJobKind.Archive);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4330 ⑥ (📄 docs/DESIGN_Recording_Storage.md §3 P1, Q1 / Q3) — <c>POST /session/close {recording?: archive|keep|discard}</c>: ⏏ <i>Close the
+        /// session</i> (the station's ONE close step, <see cref="Hrot.UI.Common.RunMode.RunModeChoice.CloseSession"/>: every node to Idle, the recording
+        /// finalised) and then what the answer says about the run's recording (<see cref="SessionClose.IntentFor"/>, the one model): Archive (the default,
+        /// Q1) queues a storage job, Keep leaves it on the nodes, Discard removes it. ⛔ A run that was not recorded takes no answer (Q3) — it simply closes.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) CloseSession(JsonNode? body)
+        {
+            var choice = RunChoiceOrNull;
+            if (choice is null)
+                return (null, "No run-mode choice on this host's time facade (the Replay Browser and a host with no time facade have none).", DebugApiHints.Panel, 503);
+            if (_time.Mode != Hrot.UI.Common.Facades.TransportMode.Live)
+                return (null, "There is no live session to close (POST /session/close closes a Live run).", DebugApiHints.Scenario, 409);
+            var answer = SessionClose.DefaultAnswer;
+            if (body?["recording"] is { } given)
+            {
+                var text = given is JsonValue v && v.TryGetValue(out string? w) ? w : null;
+                if (!SessionClose.TryParse(text, out answer))
+                    return (null, "recording is archive | keep | discard (default archive): {\"recording\": \"keep\"}.", DebugApiHints.Scenario, 400);
+            }
+            bool recorded = RunNotRecordedOrNull != true;
+            choice.CloseSession();
+            var exercise = choice.LastExercise ?? Guid.Empty;
+            var intent = recorded && exercise != Guid.Empty ? SessionClose.IntentFor(answer, exercise, "http") : null;
+            if (intent is { } i) MasterOrNull?.Storage(i);
+            return (new JsonObject
+            {
+                ["closed"] = true,
+                ["exerciseId"] = exercise == Guid.Empty ? null : exercise.ToString(),
+                ["recorded"] = recorded,
+                ["recording"] = recorded && exercise != Guid.Empty ? answer.ToString().ToLowerInvariant() : null,
+                ["requestId"] = intent?.RequestId.ToString(),
+            }, null, null, 200);
+        }
+
         /// <summary><c>GET /exercises</c> — what the master can replay (its exercise inventory), newest first.</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) ListExercises()
         {

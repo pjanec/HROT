@@ -118,20 +118,6 @@ internal static class ClusterOpRequestAdapter
     /// </summary>
     public static ExecuteStorageOpIntent ToExecuteStorageOpIntent(ClusterOpRequest req)
     {
-        Guid exerciseId = Guid.Empty;
-        string? askedBy = null; bool fromArchive = false;   // ⭐ CE-4330 ② / ⑦
-        if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-        {
-            try
-            {
-                var dto = JsonSerializer.Deserialize<ArchivePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default);
-                exerciseId = dto?.ExerciseId ?? Guid.Empty;
-                askedBy = dto?.AskedBy;
-                fromArchive = dto?.FromArchive ?? false;
-            }
-            catch (JsonException) { }
-        }
-
         var opType = req.OperationType switch
         {
             ClusterOpType.ExportArchive    => StorageOpType.Export,
@@ -151,17 +137,14 @@ internal static class ClusterOpRequestAdapter
         if (opType is StorageOpType.SaveScenario or StorageOpType.CreateBlankScenario)
             (scenarioName, onlyGuids, headerJson) = Hrot.Network.Orchestration.SaveScenarioRequestJson.Decode(req.PayloadJson);   // ⭐ CE-4210 MA-9 — the one decoding
 
-        return new ExecuteStorageOpIntent
-        {
-            RequestId    = req.RequestId,
-            Operation    = opType,
-            ExerciseId   = (Fdp.Core.ExerciseId)(exerciseId),
-            ScenarioName = scenarioName,
-            OnlyGuids    = onlyGuids,
-            HeaderJson   = headerJson,
-            AskedBy      = askedBy,
-            FromArchive  = fromArchive,
-        };
+        // ⭐ CE-4330 — the archive / import / delete payload has ONE decoding (ArchivePayloadJson), shared with the master's DDS translator
+        var intent = opType is StorageOpType.SaveScenario or StorageOpType.CreateBlankScenario
+            ? new ExecuteStorageOpIntent { RequestId = req.RequestId, Operation = opType }
+            : Hrot.Network.Orchestration.ArchivePayloadJson.Decode(req.RequestId, opType, req.PayloadJson);
+        intent.ScenarioName = scenarioName;
+        intent.OnlyGuids    = onlyGuids;
+        intent.HeaderJson   = headerJson;
+        return intent;
     }
 
     /// <summary>

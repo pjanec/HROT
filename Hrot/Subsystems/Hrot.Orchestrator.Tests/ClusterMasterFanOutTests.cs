@@ -57,6 +57,47 @@ public sealed class ClusterMasterFanOutTests
         bus.SwapBuffers();
     }
 
+    private static void Beat(FdpEventBus bus, ClusterMaster master, int nodeId, params string[] recordings)
+    {
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = (Fdp.Core.NodeId)(nodeId), SubsystemName = "SimHost", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            LocalRecordings = recordings.Length == 0 ? null : new System.Collections.Generic.List<string>(recordings),
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ③ fact ③ — the master keeps each node's reported recordings: <c>NodesHolding(exercise)</c> lists the nodes that hold it (ascending), follows a node's NEWER report, drops a node that reports none, and ignores a node that left the roster.
+    /// A beat whose list did not change is not re-parsed. 🔴 Mutations (each compiles): <c>IngestHeartbeats</c> not calling <c>NoteLocalRecordings</c> ⇒ the first cell reds; the roster filter removed from <c>NodesHolding</c> ⇒ the last cell reds;
+    /// the change test replaced by "always same" ⇒ the newer-report cell reds.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4330_NodesHolding_FollowsEachNodesReport_AndOnlyForNodesInTheRoster()
+    {
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
+        var a = Guid.NewGuid(); var b = Guid.NewGuid();
+        Beat(bus, exercise, 2, $"{a:D}:200");
+        Beat(bus, exercise, 1, $"{a:D}:100", $"{b:D}:5");
+        Assert.Equal(new[] { 1, 2 }, exercise.NodesHolding(a).Select(n => n.Value));
+        Assert.Equal(new[] { 1 }, exercise.NodesHolding(b).Select(n => n.Value));
+        Assert.Empty(exercise.NodesHolding(Guid.NewGuid()));
+        Assert.Equal(100L, exercise.HeldBytes(1, a));
+        Beat(bus, exercise, 1, $"{a:D}:100", $"{b:D}:5");                         // the same report: nothing to do
+        Assert.Equal(new[] { 1, 2 }, exercise.NodesHolding(a).Select(n => n.Value));
+
+        Beat(bus, exercise, 1, $"{b:D}:5");                                        // node 1 no longer holds a
+        Assert.Equal(new[] { 2 }, exercise.NodesHolding(a).Select(n => n.Value));
+        Beat(bus, exercise, 2);                                                    // node 2 holds nothing now
+        Assert.Empty(exercise.NodesHolding(a));
+        Beat(bus, exercise, 2, $"{a:D}:300");
+        Assert.Equal(300L, exercise.HeldBytes(2, a));
+        exercise.NodeRoster.Remove(2);                                             // node 2 left
+        Assert.Empty(exercise.NodesHolding(a));
+    }
+
     // ── CGF1-S0502: PrepareLive fan-out ───────────────────────────────────────
 
     /// <summary>

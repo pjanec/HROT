@@ -2210,6 +2210,76 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"id\":\"00000000-0000-0000-0000-000000000000\"}",
             ExampleGist: "discard a recording"),
 
+        [("GET", "/storage/jobs")] = new RouteDoc(
+            Tool:    "list_storage_jobs",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4330 ⑩ — the cluster's storage jobs (archive / import / delete-from-archive) as every station sees them: active first in queue order, then the newest ended. One transfer runs at a time; a second ask for the same exercise joins its job.",
+            Returns: "{ count, jobs: [{ jobId, kind, exerciseId, state, filesDone, filesTotal, bytesDone, bytesTotal, givingWay, askedBy, reason }] }",
+            Hint:    "No params.",
+            Params: new RouteParam[] {  },
+            ExampleArgsJson: "{}",
+            ExampleGist: "list the transfers"),
+
+        [("POST", "/exercises/{id}/archive")] = new RouteDoc(
+            Tool:    "archive_exercise",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4330 ⑩ — archive an exercise to the NAS: a storage job (queued behind a running one, or joined when the exercise already has one). Also RESUMES an incomplete archive: the files already whole are skipped.",
+            Returns: "{ published, requestId, exerciseId, kind }; the outcome: list_storage_jobs.",
+            Hint:    "Req: id (path, an exerciseId from list_exercises).",
+            Params: new RouteParam[] { new("id", "string", true, "The exercise (list_exercises)") },
+            ExampleArgsJson: "{\"id\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "archive a recording"),
+
+        [("POST", "/exercises/{id}/import")] = new RouteDoc(
+            Tool:    "import_exercise",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4330 ⑩ — import an archived exercise from the NAS to the nodes (a storage job; joins a running import of it).",
+            Returns: "{ published, requestId, exerciseId, kind }; the outcome: list_storage_jobs.",
+            Hint:    "Req: id (path, an archived exerciseId).",
+            Params: new RouteParam[] { new("id", "string", true, "The archived exercise") },
+            ExampleArgsJson: "{\"id\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "import a recording"),
+
+        [("DELETE", "/archive/{id}")] = new RouteDoc(
+            Tool:    "delete_archived_exercise",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4330 ⑦ (R-4174) — delete an ARCHIVED exercise from the NAS (a storage job). Cannot be undone: without confirm=true it answers 409 with the question.",
+            Returns: "{ published, requestId, exerciseId, kind }; 409 without confirm=true.",
+            Hint:    "Req: id (path), confirm=true (query).",
+            Params: new RouteParam[] { new("id", "string", true, "The archived exercise"), new("confirm", "bool", true, "true to delete") },
+            ExampleArgsJson: "{\"id\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "delete from the archive"),
+
+        [("POST", "/storage/jobs/{job}/cancel")] = new RouteDoc(
+            Tool:    "cancel_storage_job",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4330 ⑩ (Q7) — cancel a storage job: a queued one ends at once, a running one stops and its partial files are deleted. Author and Instructor seats only.",
+            Returns: "{ published, jobId }; 403 on another seat.",
+            Hint:    "Req: job (path, a jobId from list_storage_jobs).",
+            Params: new RouteParam[] { new("job", "string", true, "The job (list_storage_jobs)") },
+            ExampleArgsJson: "{\"job\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "cancel a transfer"),
+
+        [("POST", "/storage/jobs/{job}/resume")] = new RouteDoc(
+            Tool:    "resume_storage_job",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4330 ⑩ (Q7) — ask a failed or cancelled ARCHIVE again (a new job; the files already whole are skipped). Author and Instructor seats only.",
+            Returns: "{ published, requestId, exerciseId, kind }; 409 for a job that is not a failed / cancelled archive; 403 on another seat.",
+            Hint:    "Req: job (path).",
+            Params: new RouteParam[] { new("job", "string", true, "The failed / cancelled archive job") },
+            ExampleArgsJson: "{\"job\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "resume an archive"),
+
+        [("POST", "/session/close")] = new RouteDoc(
+            Tool:    "close_session",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4330 ⑥ (Recording Storage §3 P1) — close the live session (every node to Idle) and say what happens to its recording: archive (the default) queues an archive job, keep leaves it on the nodes, discard removes it. A run that was not recorded just closes.",
+            Returns: "{ closed, exerciseId, recorded, recording, requestId }; 409 when no live session runs.",
+            Hint:    "Opt: recording (archive | keep | discard).",
+            Params: new RouteParam[] { new("recording", "string", false, "archive (default) | keep | discard") },
+            ExampleArgsJson: "{\"recording\":\"archive\"}",
+            ExampleGist: "close the session"),
+
         [("GET", "/run-settings")] = new RouteDoc(
             Tool:    "get_run_settings",
             Group:   "I — Replay",

@@ -823,4 +823,56 @@ public sealed class TheClusterControlRoutesTests
         Assert.StartsWith("No subsystem", svc.EnterReplay(null).Error);
         Assert.StartsWith("No subsystem", svc.StopReplay().Error);
     }
+
+    /// <summary>
+    /// ⭐ CE-4330 ⑩ — every storage ask is ONE intent to the master, built by the one construction (StorageIntents): archive and import of an exercise,
+    /// a delete from the ARCHIVE only with confirm (409 and nothing sent without it), a cancel by job id; malformed ids send nothing.
+    /// 🔴 Mutation: the delete's confirm check removed ⇒ the unconfirmed delete is sent ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_EveryStorageAsk_IsOneIntentToTheMaster_AndADeleteFromTheArchiveNeedsConfirm()
+    {
+        var svc = Host();
+        var id = Older.ExerciseId.ToString();
+        Assert.Null(svc.AskStorage(id, StorageJobKind.Archive).Error);
+        Assert.Null(svc.AskStorage(id, StorageJobKind.Import).Error);
+        var refused = svc.AskStorage(id, StorageJobKind.Delete, confirmed: false);
+        Assert.Equal(409, refused.Status);
+        Assert.Null(svc.AskStorage(id, StorageJobKind.Delete, confirmed: true).Error);
+        Assert.Equal(400, svc.AskStorage("nope", StorageJobKind.Archive).Status);
+
+        Assert.Equal(3, _master.Sent.Count);
+        var archive = Assert.IsType<ExecuteStorageOpIntent>(_master.Sent[0]);
+        var import  = Assert.IsType<ExecuteStorageOpIntent>(_master.Sent[1]);
+        var delete  = Assert.IsType<ExecuteStorageOpIntent>(_master.Sent[2]);
+        Assert.Equal((StorageOpType.Export, false), (archive.Operation, archive.FromArchive));
+        Assert.Equal(StorageOpType.Import, import.Operation);
+        Assert.Equal((StorageOpType.Delete, true), (delete.Operation, delete.FromArchive));
+        Assert.Equal(Older.ExerciseId, delete.ExerciseId);
+
+        var job = Guid.NewGuid();
+        Assert.Null(svc.CancelStorageJob(job.ToString()).Error);
+        Assert.Equal(job, Assert.IsType<CancelOperationIntent>(_master.Sent[^1]).TargetRequestId);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ⑥ (§3 P1, Q1 / Q3) — the close question's ONE model: Archive is the default and first, no question for a run not recorded, and each
+    /// answer's storage request (Archive ⇒ an export, Discard ⇒ a discard of the UNARCHIVED copy, Keep ⇒ nothing).
+    /// 🔴 Mutation: Question asking for an unrecorded run ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_TheCloseQuestion_DefaultsToArchive_AndAsksNothingForAnUnrecordedRun()
+    {
+        var ex = Guid.NewGuid();
+        Assert.Equal(SessionCloseAnswer.Archive, SessionClose.DefaultAnswer);
+        Assert.Equal(SessionCloseAnswer.Archive, SessionClose.Answers[0]);
+        Assert.Null(SessionClose.Question(recorded: false, ex, "18:40", "hill"));
+        Assert.Contains("Archive to NAS", SessionClose.Question(recorded: true, ex, "18:40", "hill"));
+        Assert.Equal(StorageOpType.Export, SessionClose.IntentFor(SessionCloseAnswer.Archive, ex)!.Value.Operation);
+        var discard = SessionClose.IntentFor(SessionCloseAnswer.Discard, ex)!.Value;
+        Assert.Equal((StorageOpType.Delete, false), (discard.Operation, discard.FromArchive));
+        Assert.Null(SessionClose.IntentFor(SessionCloseAnswer.Keep, ex));
+        Assert.True(SessionClose.TryParse("KEEP", out var keep) && keep == SessionCloseAnswer.Keep);
+        Assert.False(SessionClose.TryParse("later", out _));
+    }
 }

@@ -181,6 +181,36 @@ public record ArchivePayloadDto(
 );
 
 /// <summary>
+/// ⭐ CE-4330 ② — the ONE encoding of an archive / import / delete request's payload (<see cref="ArchivePayloadDto"/>): the station's egress encodes, the
+/// master's DDS translator and its in-process adapter decode through here — 🔴 measured: the two decoders read only the id, so a delete-from-archive
+/// asked on another station arrived as a plain discard.
+/// </summary>
+public static class ArchivePayloadJson
+{
+    public static string Encode(Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent intent)
+        => System.Text.Json.JsonSerializer.Serialize(new ArchivePayloadDto(intent.ExerciseId, intent.AskedBy, intent.FromArchive), OrchestrationJsonOptions.Default);
+
+    /// <summary>The request's intent: <paramref name="operation"/> on the payload's exercise, with who asked and (a delete) whether it is the archive's copy.</summary>
+    public static Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent Decode(System.Guid requestId, Fdp.Toolkit.Orchestration.StorageOpType operation, string? json)
+    {
+        ArchivePayloadDto? dto = null;
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try { dto = System.Text.Json.JsonSerializer.Deserialize<ArchivePayloadDto>(json, OrchestrationJsonOptions.Default); }
+            catch (System.Text.Json.JsonException) { }
+        }
+        return new Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent
+        {
+            RequestId   = requestId,
+            Operation   = operation,
+            ExerciseId  = (Fdp.Core.ExerciseId)(dto?.ExerciseId ?? System.Guid.Empty),
+            AskedBy     = dto?.AskedBy,
+            FromArchive = dto?.FromArchive ?? false,
+        };
+    }
+}
+
+/// <summary>
 /// Payload DTO for <c>ClusterOpType.LoadZone</c> DDS requests — ONE zone per request
 /// (📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.3).
 ///

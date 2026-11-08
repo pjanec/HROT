@@ -64,6 +64,22 @@ namespace Fdp.Toolkit.Orchestration
             return new Status(true, false, files.Count, present);
         }
 
+        /// <summary>
+        /// ⭐ CE-4330 ③ fact ② — the inventory's word for <paramref name="exerciseDirectory"/>: <see cref="ArchiveNasState.None"/> when the NAS holds nothing of it,
+        /// <see cref="ArchiveNasState.Complete"/> by <see cref="Read"/>, else <see cref="ArchiveNasState.Incomplete"/> with the files present of the total
+        /// (no manifest yet ⇒ the whole recordings present, of an unknown total 0).
+        /// </summary>
+        public static (ArchiveNasState State, int Files, int Total) StateOf(string exerciseDirectory)
+        {
+            if (!Directory.Exists(exerciseDirectory)) return (ArchiveNasState.None, 0, 0);
+            var status = Read(exerciseDirectory);
+            if (status.Complete) return (ArchiveNasState.Complete, status.Legacy ? 0 : status.FilesPresent, status.FilesTotal);
+            if (status.HasManifest) return (ArchiveNasState.Incomplete, status.FilesPresent, status.FilesTotal);
+            int whole = Directory.GetFiles(exerciseDirectory, "*.fdp", new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive }).Length;
+            int partial = Directory.GetFiles(exerciseDirectory, "*" + PartSuffix).Length;
+            return whole + partial == 0 ? (ArchiveNasState.None, 0, 0) : (ArchiveNasState.Incomplete, whole, 0);
+        }
+
         /// <summary>Puts <paramref name="files"/> on <paramref name="sidecar"/> as its file list.</summary>
         public static void SetFiles(JsonObject sidecar, IReadOnlyList<ArchivedFile> files)
         {
