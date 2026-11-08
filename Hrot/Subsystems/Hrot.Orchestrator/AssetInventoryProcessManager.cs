@@ -64,6 +64,9 @@ public sealed class AssetInventoryProcessManager
     /// </summary>
     public void Tick()
     {
+        // ⭐ CE-3410 (AQ108 §0 D28 / D33) — did the live run's clock ever advance? Sampled every frame the cluster was Live (the previous frame's state, so the last Live frame counts).
+        if (_lastState == ClusterState.OperatingLive && _currentRecording != null && ClockAdvancing?.Invoke() == true) _liveRan = true;
+
         foreach (var intent in _bus.ReadManaged<TransitionStateIntent>())
         {
             if (intent.TargetState == ClusterState.OperatingLive)
@@ -87,11 +90,21 @@ public sealed class AssetInventoryProcessManager
                 _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow, TimeSpan.Zero,
                     (Fdp.Core.ExerciseId)(parent), _pendingBranch?.Ticks ?? 0);
                 _pendingBranch = null;
+                // ⭐ CE-3410 — a run RESUMED (back from DAR) already holds a ledger entry: it ran, and is never dropped
+                _liveRan = _unarchivedLedger.ContainsKey(ev.ExerciseId);
                 SnapshotScenario(ev.ExerciseId, _pendingScenarioId, parent, _currentRecording.StartTimeUtc);
             }
             else if (_lastState == ClusterState.OperatingLive && ev.CurrentState != ClusterState.OperatingLive)
             {
-                if (_currentRecording != null && _currentRecording.ExerciseId != Guid.Empty)
+                if (_currentRecording != null && _currentRecording.ExerciseId != Guid.Empty && !_liveRan && ClockAdvancing != null)
+                {
+                    // ⭐⭐ CE-3410 (AQ108 §0 D28 / D33) — a Live left before its clock ever ran (a cancelled briefing, a switch away from Live) leaves NO recording: the master minted the
+                    //   exercise at the load (CE-3310) and its first keyframe was written then (CE-3313), so it would list an empty exercise. ⛔ No ledger entry ⇒ never listed (the inventory
+                    //   reads only the ledger); its scenario copy and staging directories go through the one deleter (CE-3218), as a discard does (CE-4090 D15).
+                    FdpLog<AssetInventoryProcessManager>.Info("[AssetInventory] CE-3410: live run {0} never ran — dropped, not listed.", _currentRecording.ExerciseId);
+                    Discard(_currentRecording.ExerciseId);
+                }
+                else if (_currentRecording != null && _currentRecording.ExerciseId != Guid.Empty)
                 {
                     var duration = DateTime.UtcNow - _currentRecording.StartTimeUtc;
                     _currentRecording = _currentRecording with { Duration = duration };
@@ -200,11 +213,25 @@ public sealed class AssetInventoryProcessManager
     public bool DeleteExercise(Guid exerciseId)
     {
         if (!_unarchivedLedger.Remove(exerciseId)) return false;
+        Discard(exerciseId);
+        return true;
+    }
+
+    /// <summary>The files of a discarded exercise: its ledger file, its scenario copy and its staging directories (<see cref="ExerciseRetention.Delete"/>, CE-3218).</summary>
+    /// <remarks>⚠ A node still flushing its recorder after the unload may leave a file behind; it is never LISTED (the inventory reads the ledger) and retention sweeps it.</remarks>
+    private void Discard(Guid exerciseId)
+    {
         DeleteLedgerEntry(exerciseId);
         ExerciseRetention.Delete(_stagingRoot, exerciseId, msg => FdpLog<AssetInventoryProcessManager>.Info("{0}", msg));
         _lastInventoryScan = DateTime.MinValue;   // the next Tick republishes: the inventory stops offering it at once
-        return true;
     }
+
+    /// <summary>
+    /// ⭐ CE-3410 (AQ108 §0 D28) — is the cluster clock advancing this frame? Set by the host that owns the time controller (<c>OrchestratorCore</c>, like the master's
+    /// <c>SimSeconds</c>); <see langword="null"/> ⇒ every live run counts as run (nothing is dropped).
+    /// </summary>
+    public Func<bool>? ClockAdvancing { get; set; }
+    private bool _liveRan;
 
     private void HydrateLedger()
     {
