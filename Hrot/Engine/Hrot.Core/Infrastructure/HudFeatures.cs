@@ -40,7 +40,7 @@ public static class HudFeatures
     public const string ScorePopups = "game.score-popups";
     /// <summary>Game HUD: a gold marker over a man carrying a bounty.</summary>
     public const string BountyMarker = "game.bounty-marker";
-    /// <summary>⭐ G1 (CE-4231) — Game HUD: the scoreboard while the scoreboard key (K) is held.</summary>
+    /// <summary>⭐ G1 (CE-4231) — Game HUD: the scoreboard while the scoreboard key (Tab) is held (R-3076).</summary>
     public const string Scoreboard = "game.scoreboard";
 
     /// <summary>⭐ CE-4246 (rules runnable ⑨b; PH-3) — the coaching hint: a one-line hint at the bottom of the possessed man's view, the first leaf not yet true of a rule about him (its <c>RuleLeaves</c>; needs the node feature <c>ui.rules-live-values</c>). <b>OFF by default</b> on every host.</summary>
@@ -66,7 +66,7 @@ public static class HudFeatures
         yield return FeatureDeclaration.Switch(HitMarker, "A cross round the crosshair when you hit someone (red when he is down)", FeatureChange.Live, _ => playerDefault);
         yield return FeatureDeclaration.Switch(DamageArc, "A red arc at the screen edge toward who hit you", FeatureChange.Live, _ => playerDefault);
         yield return FeatureDeclaration.Switch(KillCam, "When the held unit is killed: the fall screen and the 3 s kill cam from the shooter's eye", FeatureChange.Live, _ => playerDefault);
-        yield return FeatureDeclaration.Switch(SquadTakeoverAfterDeath, "After death, Tab takes a living squad mate", FeatureChange.Live, _ => playerDefault);
+        yield return FeatureDeclaration.Switch(SquadTakeoverAfterDeath, "After death, J takes a living squad mate", FeatureChange.Live, _ => playerDefault);
         yield return FeatureDeclaration.Switch(SpreadRing, "The weapon's real spread as a ring round the crosshair", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(NearMiss, "A round passing your ear darkens the screen edges", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(Messages, "Messages to the player: a timed subtitle at the bottom, and a log on N", FeatureChange.Live, _ => true);
@@ -78,7 +78,7 @@ public static class HudFeatures
         yield return FeatureDeclaration.Switch(KillFeed, "The kill feed: the last five downings, killer to victim", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(ScorePopups, "Game HUD: score pop-ups and the kill streak under them", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(BountyMarker, "Game HUD: a gold marker over a man with a bounty on him", FeatureChange.Live, _ => true);
-        yield return FeatureDeclaration.Switch(Scoreboard, "Game HUD: the scoreboard while K is held", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(Scoreboard, "Game HUD: the scoreboard while Tab is held", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(Coaching, "Training HUD: a one-line coaching hint - the first condition of a rule about you that does not hold yet (needs ui.rules-live-values)", FeatureChange.Live, _ => false);
         yield return FeatureDeclaration.Switch(GamePalette, "Game master's palette: run an action by hand, set a side's skill", FeatureChange.Live, _ => !playerDefault);
     }

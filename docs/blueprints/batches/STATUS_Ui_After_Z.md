@@ -10,10 +10,10 @@
 | U-5 | CE-4335 | End exercise greyed outside Live | DONE | `03f787977` | `InstructorEnd.RunRefusal` by transport mode, wired to both End controls by the rules bundle; Live · ended keeps its own words, AAR not drawn; rails per mode (pure, bundle wiring, real window frame) |
 | U-6 | CE-4336 | Data breakpoints: condition first | DONE | `ab4894875` | *Add* opens the condition editor over a draft, row only on commit; *Show condition* was hidden below an unbounded table (measured) — the list now keeps a bounded height; rails for both |
 | U-7 | CE-4338 | Brain tab expander icons | DONE | `98d948775` | `EntityBrainView.SectionIconKey` maps each section id to a glyph of the one map (new `section/debug`); frame rail over a unit and a commander, every section open |
-| U-8 | CE-4339 | 3-D placement direction line | QUEUED | — | |
-| U-9 | CE-4340 | 3-D hover pick volume | QUEUED | — | measure first |
+| U-8 | CE-4339 | 3-D placement direction line | DONE | `SHA_U8` | `PlacementDirectionLine` (one drawer) in the placement tool and Paste; the placement ghost now stands at the press point while dragging; rails: both tools headless + the real tool through the 3-D gizmo layer in a frame |
+| U-9 | CE-4340 | 3-D hover pick volume | DONE | `SHA_U9` | measured: the hover read the hidden 2-D camera's zoom + the 2-D footprint box — a 0.5 m man answered from 5–23 m (13–202 px); `PickEntity` in 3-D now = the camera's own ray pick (drawn box + 6 px); a 3-D click-select is unchanged (follow-up) |
 | U-10 | CE-4325 | E7 bookmarks and notes | QUEUED | — | |
 | U-11 | CE-4330 ui | recording-storage UI as facts land | QUEUED | — | |
-| U-12 | CE-4129 · CE-4280 · CE-4273 | small rows | QUEUED | — | |
+| U-12 | CE-4129 · CE-4280 · CE-4273 | small rows | DONE (CE-4273 half) | `SHA_U12` | CE-4129: the raw transport obeys the run gate (`PlayRefusal`), `/sim/play` says `refused`, an empty world in a run says so · CE-4280: HUD texts Tab / J, railed from the keymap · CE-4273: script hold-still + wait-gone railed with a fake API; ⚠ the Car's picture needs a run against a live editor (row stays open) |
 
 Gates after U-1…U-3: Presentation (Xvfb) 1910 / 6 — CE1039 / CE1380 / CE1227 known, `NoProductionHostKeepsAParallelSelectionStore…OnlyTheHostForwardWrites…` red at base `148b0a461` (VertexEditGizmo / RouteWaypointGizmo writes, pre-existing — not ui's batch), 2 load-flaky (CE4318, StringFieldTyping 0 B); Fdp.Presentation 821/0.

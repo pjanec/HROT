@@ -1129,11 +1129,16 @@ namespace Hrot.Editor.DebugApi
         /// <summary><c>POST /sim/play</c> — explicit resume; idempotent (never blind-toggles) (main thread).</summary>
         public JsonNode Play()
         {
+            // ⭐ U-12 (CE-4129) — ▶ is refused while the node's run gate is closed (a scenario load is still running): the transport does not act, and the answer SAYS why (it used to answer "ok" with the world still empty)
+            if (_time.RunChoice?.ClosedReason is { } refused)
+                return GetSimState() is JsonObject refusedState ? Refused(refusedState, refused) : GetSimState();
             // IsPaused is true when not-in-preview OR paused; toggling moves toward "running".
             if (_time.IsPaused)
                 _time.TogglePlayPause();
             return GetSimState();
         }
+
+        private static JsonNode Refused(JsonObject state, string why) { state["refused"] = why; return state; }
 
         /// <summary><c>POST /sim/pause</c> — explicit pause; idempotent (main thread).</summary>
         public JsonNode Pause()

@@ -434,6 +434,27 @@ def spawn_one(tkb, origin):
     return None, "the spawn request was never served"
 
 
+def hold_still(nid, origin):
+    """⭐ U-12 / CE-4273 — pin the subject: any order it was given cancelled, its velocity zero and its pose back at where it was spawned (x, y of `origin`; its own settled z). A vehicle that starts driving the moment the sim is stepped
+    (the `Car`, 8806) otherwise moves between the spawn's steps and the two captures, and the crop (the pixels that differ between the shot with it and the shot without it) then holds the car TWICE or off the frame. A fix in the script, never in the type.
+    Best effort: a route that refuses (a type with no such component) is not an error — the captures run all the same."""
+    udc.call("DELETE", f"/entities/{nid}/order", {})
+    comps = (body_of(udc.call("GET", f"/entities/{nid}")) or {}).get("Components") or {}
+    z = ((comps.get("SimTransform") or {}).get("Position") or {}).get("Z", origin[2])
+    udc.call("POST", f"/entities/{nid}/component", {"componentType": "SimVelocity", "patch": {"Linear": {"X": 0.0, "Y": 0.0, "Z": 0.0}}})
+    udc.call("POST", f"/entities/{nid}/component", {"componentType": "SimTransform", "patch": {"Position": {"X": origin[0], "Y": origin[1], "Z": z}}})
+
+
+def wait_gone(nids, before_steps=3, tries=8):
+    """⭐ U-12 / CE-4273 — step until none of `nids` is in GET /entities any more: a removal is a request the sim serves, and a vehicle still driving through its last ticks put a second car in the empty-view shot."""
+    for _ in range(tries):
+        udc.call("POST", "/sim/step", {"count": before_steps})
+        live = {r["networkId"] for r in (body_of(udc.call("GET", "/entities")) or [])}
+        if not any(n in live for n in nids):
+            return True
+    return False
+
+
 def shoot_type(tkb, origin, path, view):
     """One pass: spawn, capture large from `view` (or a view framed from the entity's own data), remove it, capture the same view empty,
     crop to the difference. A drawing too small to crop sharply returns ("small", ...) with the view zoomed onto it, for a second pass."""
@@ -441,6 +462,7 @@ def shoot_type(tkb, origin, path, view):
     if not nids:
         return ("failed", why), view, None
     try:
+        hold_still(nids[0], origin)                        # ⭐ CE-4273 — held still BEFORE it is framed and shot
         if view is None:
             comps = (body_of(udc.call("GET", f"/entities/{nids[0]}")) or {}).get("Components") or {}
             pos = (comps.get("SimTransform") or {}).get("Position") or origin
@@ -455,7 +477,7 @@ def shoot_type(tkb, origin, path, view):
     finally:
         for nid in nids:                                   # the same view with nothing in it: the difference is what the entity DREW
             udc.call("DELETE", f"/entities/{nid}")
-        udc.call("POST", "/sim/step", {"count": 3})
+        wait_gone(nids)                                    # ⭐ CE-4273 — until it is really gone (not a fixed 3 steps)
     good, why = shoot(path + ".bg.png", eye, target, BIG_W, BIG_H)
     if not good:
         return ("failed", why), view, None
