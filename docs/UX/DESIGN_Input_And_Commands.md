@@ -556,6 +556,11 @@ sequenceDiagram
 | fidelity, measured | rail `OnARealFrame_CtrlKOpensTheWindow…` reads the drawn positions on a real ImGui frame: the search box above the first row, one x for every row's chord and action column, rows going down; ⚠ no pixel render was made (no SVG rasteriser on this machine) — the layout is asserted, the picture is the SVG |
 | rails | `ShortcutsWindowTests` (rows by scope + filter, 0 B steady, real frame + Ctrl+K + measured layout) · `MenuOrdersTests.K6_TheMapLettersAndGestures…` — each red-proved by a compiling mutation |
 
+⭐ **R-4176 (user-approved, `2026-11-08`) — where the item lives:** *Edit ▸ Keyboard shortcuts…* where the host's Edit menu offers anything else, else
+*Help ▸ Keyboard shortcuts…* — ONE command, two paths, decided per frame by `WindowManager.EditMenuHoldsOtherItems` (`SetLayout` visibility); a host with no
+Edit menu (Player, Replay Browser, SimHost …) gets none just for it. ⛔ SUPERSEDED: K6's "every host gets an Edit menu". `WindowManager.BarMenuShows` is the
+draw loop's one "header shows" test, shared with the rails. Rail `TopLevelMenuOrderTests.R4176_…` (red-proved). Per-user overrides + *Rebind…*: PARKED (R-4176 #4).
+
 ### 6g. ⭐ K4 — held inputs are READ through the keymap: Hold and Axis rows *(ui, `2026-11-08`; ⭐ BUILT the same day — as built at the end of this section)*
 
 INVENTORY: `scripts/cbm.sh search_graph .*(Keymap|KeyRouter|Binding|Gesture|Axis|InputAction|CameraDriver|FirstPerson|Fps|Possession|Debug.*Key).*` Class ⇒ the K1 `Keymap` /
