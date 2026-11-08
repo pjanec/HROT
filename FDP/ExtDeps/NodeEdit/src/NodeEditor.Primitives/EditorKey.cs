@@ -21,4 +21,25 @@ public enum EditorKey
 
     LeftBracket, RightBracket, Comma, Period, Slash,
     Minus, Equals, Apostrophe,
+
+    // ⭐ B-10 K4 (docs/UX/DESIGN_Input_And_Commands.md §6g) — appended, so existing values do not move. A keymap chord names ANY user input, not only a
+    // keyboard key: the keypad's + / −, a mouse button (Hold), and a mouse VALUE (Axis: the wheel, the movement).
+    /// <summary>Keypad +.</summary>
+    KpAdd,
+    /// <summary>Keypad −.</summary>
+    KpSubtract,
+    /// <summary>The left mouse button (Press / Hold).</summary>
+    MouseLeft,
+    /// <summary>The right mouse button (Press / Hold).</summary>
+    MouseRight,
+    /// <summary>The middle mouse button (Press / Hold).</summary>
+    MouseMiddle,
+    /// <summary>The vertical wheel — an AXIS source (the notches this frame).</summary>
+    MouseWheel,
+    /// <summary>The horizontal wheel — an AXIS source.</summary>
+    MouseWheelH,
+    /// <summary>Mouse movement along X (px this frame) — an AXIS source.</summary>
+    MouseDeltaX,
+    /// <summary>Mouse movement along Y (px this frame) — an AXIS source.</summary>
+    MouseDeltaY,
 }
