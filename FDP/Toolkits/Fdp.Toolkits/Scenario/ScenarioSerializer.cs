@@ -704,6 +704,36 @@ namespace Fdp.Toolkit.Scenario
 
         // ── GuidResolver implementations ─────────────────────────────────────────
 
+        /// <summary>
+        /// ⭐ CE-4326 (Presets §9a.2) — a resolver over a LIVE world, both ways: an entity ↔ its <see cref="EntityGuid"/> (the file key, CE-4153). For a
+        /// round trip of ONE entity in place (serialize → bind → inject the changed keys back), where a save map and a load map are the same world.
+        /// </summary>
+        public static IGuidResolver ResolverFor(EntityRepository repo)
+        {
+            if (repo == null) throw new ArgumentNullException(nameof(repo));
+            var toGuid = new Dictionary<Entity, Guid>();
+            var toEntity = new Dictionary<Guid, Entity>();
+            if (repo.IsComponentTypeRegistered<EntityGuid>())
+                foreach (var e in repo.Query().With<EntityGuid>().Build())
+                {
+                    var g = repo.GetComponentRO<EntityGuid>(e).Value;
+                    toGuid[e] = g;
+                    toEntity[g] = e;
+                }
+            return new WorldResolver(new SaveResolver(toGuid), new LoadResolver(toEntity));
+        }
+
+        private sealed class WorldResolver : IGuidResolver
+        {
+            private readonly SaveResolver _save;
+            private readonly LoadResolver _load;
+            public WorldResolver(SaveResolver save, LoadResolver load) { _save = save; _load = load; }
+            public string Resolve(Entity entity) => _save.Resolve(entity);
+            public Entity Resolve(string guidStr) => _load.Resolve(guidStr);
+            public bool TryResolve(Entity entity, out string guid) => _save.TryResolve(entity, out guid);
+        }
+
+
         private sealed class SaveResolver : IGuidResolver
         {
             private readonly Dictionary<Entity, Guid> _entityToGuid;

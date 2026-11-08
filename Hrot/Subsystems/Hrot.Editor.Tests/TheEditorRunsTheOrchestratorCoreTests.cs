@@ -91,6 +91,28 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-4326</c> (Presets §9a.2, the silent-default rule) — the host HOLDS a scenario serializer (its save / load handlers use it), so it must hand it
+    /// to its dry run too: a Preview's preset binds its params through it. Asserted on the CONSTRUCTED editor's dry run — the one production
+    /// <c>Compose</c> caller (<c>NodeBootstrapper</c>) forwards it. 🔴 Red-proof: <c>ScenarioSerializer = scenarioSerializer</c> removed from
+    /// <c>NodeBootstrapper</c>'s inputs ⇒ null ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4326_TheEditorsDryRun_IsHandedItsScenarioSerializer()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true });
+        try
+        {
+            Assert.NotNull(editor.DryRunForTest);
+            Assert.NotNull(editor.DryRunForTest!.ScenarioSerializer);
+        }
+        finally
+        {
+            editor.Shutdown();
+        }
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3330</c> — the editor has NO timeline of its own: on a real headless editor its live index IS its node context's
     /// (<c>Timeline</c>, E-1); frames of the editor (<c>Update</c>, the clock running) step it, so a unit that gains a network id in its world
     /// lands in that index (E-2, red-proof: the editor's <c>_node?.StepTimeline()</c> behind a runtime-false guard); and the access its

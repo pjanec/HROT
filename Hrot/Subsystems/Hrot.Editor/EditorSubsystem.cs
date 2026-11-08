@@ -687,6 +687,9 @@ namespace Hrot.Editor
         /// <summary>CE-4054 test hook: the preview controller <c>/status</c> reads <c>inPreview</c> from.</summary>
         internal IPreviewController? PreviewControllerForTest => _previewController;
 
+        /// <summary>⭐ CE-4326 §9a.2 test hook: the node's dry run (a preset's params are bound through ITS serializer — the forwarding rail reads it).</summary>
+        internal Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler? DryRunForTest => _clusterHandlers?.DryRun;
+
         /// <summary>Q86 test hook: this node's clock (the editor's own master — Q86 keeps it here).</summary>
         internal MasterSyncController? TimeControllerForTest => _timeController;
 
