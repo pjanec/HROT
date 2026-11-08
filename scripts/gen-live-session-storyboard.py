@@ -17,7 +17,7 @@ PW, PH = 620, 300          # one panel
 GX, GY = 30, 64            # grid origin
 COLS = 2
 W = GX * 2 + PW * COLS + 40
-H = 64 + 4 * (PH + 76) + 40
+H = 64 + 5 * (PH + 76) + 40
 s = Svg(W, H, "A live training session — from the Start screen to the debrief and back",
         "Scope: the Start screen, the run controls (indicator · ▶ · ■ · Save) and the two questions. The map and panels are context — unchanged.")
 
@@ -82,22 +82,32 @@ def modal(x, y, w, title, body, buttons):
         bx += bw + 8
 
 
+def recent_row(x, ry, name, sub, has_run, author=True, selected=False):
+    s.rect(x + 210, ry, 400, 46, C.NEUTRALSEL if selected else C.NEUTRAL, rx=4, stroke="#C8C8D4" if selected else C.BORDER)
+    s.text(x + 222, ry + 18, name, C.TXT, 12.5)
+    s.text(x + 222, ry + 35, sub, C.NOTE, 10.5)
+    bx = x + 400
+    s.rect(bx, ry + 12, 62, 22, C.BTN, rx=3); s.glyph(CIRCLE, bx + 6, ry + 17, RED, 11); s.text(bx + 21, ry + 27, "Live", C.TXT, 11)
+    bx += 66
+    s.rect(bx, ry + 12, 62, 22, C.BTN, rx=3, op=1 if author else 0.45); s.glyph(FA.PEN, bx + 6, ry + 17, YELLOW, 11, op=1 if author else 0.4)
+    s.text(bx + 21, ry + 27, "Edit", C.TXT if author else C.DIS, 11)
+    bx += 66
+    s.rect(bx, ry + 12, 62, 22, C.BTN, rx=3, op=1 if has_run else 0.45); s.glyph(FA.PLAY, bx + 6, ry + 17, BLU, 11, op=1 if has_run else 0.4)
+    s.text(bx + 21, ry + 27, "AAR", C.TXT if has_run else C.DIS, 11)
+
+
 # ① Idle — the Start screen
 x, y = panel(0, "① IDLE — the Start screen (nothing loaded)",
              "The editor UI waits behind the Start screen; run controls hidden. Recent = one click back into a scenario, already in the mode you pick.")
 s.rect(x, y, PW, PH, "#14181D")
 s.text(x + PW / 2, y + 40, "HROT", C.TXT, 22, anchor="middle", weight="bold")
 for i, (lbl, g) in enumerate((("New scenario…", FA.PLUS), ("Open scenario…", FA.FOLDER_OPEN), ("Open recording…", FA.CLOCK_BACK))):
-    s.button(x + 40, y + 70 + i * 30, 180, lbl, glyph=g, gc=C.SUB)
-s.text(x + 260, y + 66, "Recent", C.NOTE, 11.5)
-recent = (("Night attack", "Live · 10 min ago · exercise 3"), ("Bridgehead", "edited yesterday"), ("Crossfire", "Live · 2 days ago"))
-for i, (n, sub) in enumerate(recent):
-    ry = y + 74 + i * 52
-    s.rect(x + 250, ry, 350, 46, C.NEUTRAL, rx=4, stroke=C.BORDER)
-    s.text(x + 272, ry + 18, n, C.TXT, 12.5)
-    s.text(x + 272, ry + 35, sub, C.NOTE, 10.5)
-    s.rect(x + 440, ry + 12, 66, 22, C.BTN, rx=3); s.glyph(CIRCLE, x + 447, ry + 17, RED, 11); s.text(x + 462, ry + 27, "Live", C.TXT, 11)
-    s.rect(x + 512, ry + 12, 66, 22, C.BTN, rx=3); s.glyph(FA.PEN, x + 519, ry + 17, YELLOW, 11); s.text(x + 535, ry + 27, "Edit", C.TXT, 11)
+    s.button(x + 20, y + 70 + i * 30, 170, lbl, glyph=g, gc=C.SUB)
+s.text(x + 210, y + 66, "Recent  —  Live · Edit (author seat only) · AAR of the latest run", C.NOTE, 11)
+recent_row(x, y + 74, "Night attack", "Live · 10 min ago · exercise 3", True)
+recent_row(x, y + 126, "Bridgehead", "edited yesterday · never run", False)
+recent_row(x, y + 178, "Crossfire", "Live · 2 days ago · exercise 7", True)
+s.text(x + 210, y + 248, "On a Player / Instructor station: Edit greyed — 'editing needs an author seat'", C.NOTE, 10.5)
 
 # ② Edit
 x, y = panel(1, "② EDIT — Recent ▸ Edit (or Open scenario)",
@@ -161,15 +171,45 @@ x, y = panel(7, "⑧ IDLE again — repeat in one click",
 s.rect(x, y, PW, PH, "#14181D")
 s.text(x + PW / 2, y + 40, "HROT", C.TXT, 22, anchor="middle", weight="bold")
 for i, (lbl, g) in enumerate((("New scenario…", FA.PLUS), ("Open scenario…", FA.FOLDER_OPEN), ("Open recording…", FA.CLOCK_BACK))):
-    s.button(x + 40, y + 70 + i * 30, 180, lbl, glyph=g, gc=C.SUB)
-s.text(x + 260, y + 66, "Recent", C.NOTE, 11.5)
-ry = y + 74
-s.rect(x + 250, ry, 350, 46, C.NEUTRALSEL, rx=4, stroke="#C8C8D4")
-s.text(x + 272, ry + 18, "Night attack", C.TXT, 12.5)
-s.text(x + 272, ry + 35, "Live · just now · exercise 3", C.NOTE, 10.5)
-s.rect(x + 440, ry + 12, 66, 22, C.BTNSEL, rx=3); s.glyph(CIRCLE, x + 447, ry + 17, RED, 11); s.text(x + 462, ry + 27, "Live", C.TXT, 11)
-s.rect(x + 512, ry + 12, 66, 22, C.BTN, rx=3); s.glyph(FA.PEN, x + 519, ry + 17, YELLOW, 11); s.text(x + 535, ry + 27, "Edit", C.TXT, 11)
-s.text(x + 272, ry + 70, "+ the AAR of exercise 3:  Open recording… (top of its list)", C.NOTE, 10.5)
+    s.button(x + 20, y + 70 + i * 30, 170, lbl, glyph=g, gc=C.SUB)
+s.text(x + 210, y + 66, "Recent", C.NOTE, 11)
+recent_row(x, y + 74, "Night attack", "Live · just now · exercise 3", True, selected=True)
+recent_row(x, y + 126, "Bridgehead", "edited yesterday · never run", False)
+s.text(x + 210, y + 196, "Night attack ▸ AAR = the replay of exercise 3, at its start", C.NOTE, 10.5)
+
+# ⑨ the PLAYER's station during the briefing
+x, y = panel(8, "⑨ PLAYER station · during the briefing (Live paused at 0:00) — RESERVED",
+             "Shown on Player seats while Live waits at 0:00; hides on ▶. Today's content: the scenario's description + MY side's / role's objectives. Later: the scenario's briefing PICTURE BOOK per role (CE-3417).")
+s.rect(x, y, PW, PH, "#151A20")
+s.text(x + 20, y + 30, "Night attack — briefing", C.TXT, 15, weight="bold")
+s.text(x + 20, y + 50, "You are: Blue · Alpha 1-1 · rifleman", C.SUB, 11.5)
+s.text(x + 20, y + 76, "Mission", C.NOTE, 11)
+s.text(x + 20, y + 94, "Seize the bridge before dawn and hold it until relieved.", C.SUB, 11.5)
+s.text(x + 20, y + 120, "Your objectives", C.NOTE, 11)
+for i, t in enumerate(("Hold the bridge (required)", "No civilian harm", "Report contact within 30 s")):
+    s.glyph(FA.FLAG_CHECKERED, x + 22, y + 130 + i * 20, C.SUB, 11); s.text(x + 40, y + 141 + i * 20, t, C.SUB, 11.5)
+s.rect(x + 330, y + 70, 270, 160, "#20262B", stroke=C.SEP, rx=4, dash="4,3")
+s.text(x + 465, y + 140, "picture book — page 1 / 4", C.NOTE, 11, anchor="middle")
+s.text(x + 465, y + 158, "(the scenario's briefing section, to be designed)", C.NOTE, 10, anchor="middle")
+s.text(x + 345, y + 222, "◀", C.SUB, 13); s.text(x + 585, y + 222, "▶", C.SUB, 13)
+s.text(x + 20, y + PH - 16, "waiting for the instructor to start…", C.NOTE, 11)
+
+# ⑩ the PLAYER's station after the end — two profiles
+x, y = panel(9, "⑩ PLAYER station · Live ENDED — MY summary (training · game)",
+             "Shown on Player seats the moment the exercise ends (built today as Window ▸ Trainee debrief / Game summary — open them automatically). Later: per-role content.")
+s.rect(x, y, PW, PH, "#151A20")
+s.text(x + 20, y + 26, "TRAINING profile", C.NOTE, 11)
+s.text(x + 20, y + 48, "Alpha 1-1 — GO (score 78 · pass 70)", C.GREEN, 12)
+for i, (t, ok) in enumerate((("Hold the bridge", True), ("No civilian harm", True), ("Report contact < 30 s", False))):
+    s.text(x + 20, y + 72 + i * 20, ("GO      " if ok else "NO-GO  ") + t, C.SUB if ok else C.RED, 11.5)
+s.text(x + 20, y + 146, "went well: cover discipline", C.SUB, 11); s.text(x + 20, y + 164, "work on: report timing", C.SUB, 11)
+s.line(x + 310, y + 16, x + 310, y + PH - 16)
+s.text(x + 325, y + 26, "GAME profile", C.NOTE, 11)
+s.text(x + 325, y + 48, "Blue wins  250 : 180", C.GREEN, 12)
+s.text(x + 325, y + 72, "you   K 7 · D 3 · A 2 · 1 240 pts", C.SUB, 11.5)
+s.text(x + 325, y + 92, "#2 of 12", C.SUB, 11.5)
+s.text(x + 325, y + 116, "awards: Bridge keeper · Sharpshooter", C.AMBER, 11)
+s.text(x + 20, y + PH - 16, "the profile is the scenario's feature set (SR-112); data = the replicated results — nothing summed on the station", C.NOTE, 10.5)
 
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "UX", "live-session-storyboard.svg")
 s.save(out)
