@@ -1,0 +1,15 @@
+<!--STATUS state: LIVE · updated: 2026-11-08 · current-answer: the table -->
+# STATUS — backend, the next batch ([HANDOFF](HANDOFF_Coordinator_To_Backend_Next.md), dispatched at `4600ebcd9`)
+
+⭐ Supersedes the unstarted rest of `HANDOFF_Coordinator_To_Backend_After_Mission_Plan` (its X-2 … X-5 = Y-3 … Y-6). The run-controls batch: [STATUS_Run_Controls_Backend](STATUS_Run_Controls_Backend.md) (B-1 … B-5 DONE; B-6 answered here as Y-1).
+
+| item | id | state | sha | notes |
+|---|---|---|---|---|
+| Y-1 | CE-4326 | QUEUED | — | Preview with a preset IN PLACE (Presets §9, R-4168) |
+| Y-2 | CE-3411 rest | DONE | `41ce0418e` | `/run-mode` out of Edit: the unsaved check round + HTTP's refusing asker via ui's `Choose(target, asker, answered)` — done before this handoff landed |
+| Y-3 | CE-4298 rest | IN PROGRESS (worker) | — | the Wait-task load warning |
+| Y-4 | — | IN PROGRESS | — | root-causing `EntityMission_MovesEntity` (tracked as CE-2153, behaviors, no cause yet) |
+| Y-5 | CE-4099 | QUEUED | — | autosave, A0 gate first |
+| Y-6 | — | QUEUED | — | the pre-existing reds, one line each |
+| Y-7 | CE-4327 | QUEUED | — | the stale owner after a handover |
+| Y-8 | CE-3399…3404 | QUEUED | — | struct-editor follow-ups, small first |

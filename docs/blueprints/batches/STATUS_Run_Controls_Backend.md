@@ -4,9 +4,9 @@
 | item | id | state | sha | what ui can now use / notes |
 |---|---|---|---|---|
 | B-1 | CE-3407 | DONE | `509485b9b` | ⭐ `IScenarioSession.SaveDisabledReason` is THE answer: cluster error · any state but `OperatingEdit` (`SaveRefusal` constants: Preview / Live / Review / Replay / Idle / busy) · then the variant. Read it for the pen and the Save slot (R-3, R-5); 0 B per read. `SaveAs` / `SaveCurrent` keep only the variant backstop (New-from-recipe saves while Idle). File › Save as Recipe now gated too |
-| B-2 | CE-3410 | DONE | (see log) | an unrun Live (clock never advanced) writes no ledger entry ⇒ never listed; a run resumed from DAR is kept |
+| B-2 | CE-3410 | DONE (fixed twice) | `0b24f1bf2` + branch fix | ⚠ ui's editor rails caught it: the clock read was always 0-delta; branches are kept | an unrun Live (clock never advanced) writes no ledger entry ⇒ never listed; a run resumed from DAR is kept |
 | B-3 | CE-3415 | DONE | `dfdc52985` | `ClusterView.StartLiveImmediately` / `RunModeChoice.StartImmediatelySetting`; `SendRunSettings(…, startLiveImmediately)`; Orchestrator panel checkbox; `/run-settings {startLiveImmediately}` |
 | B-4 | CE-3414 | DONE | `1894b560e` | Start screen Recent rows |
-| B-5 | CE-3411 | PART DONE | (this commit) | `/run-mode` switches (ui's `Choose`); docs + MCP catalog say so; `/status.canSave` and the `/scenario/save` 409 read the ONE save reason (`IEditorLogic.SaveDisabledReason`). ⏳ the HTTP asker on the switch out of Edit waits on ui's [REQUEST](NOTE_Backend_To_Ui_Choose_With_Http_Asker.md) |
+| B-5 | CE-3411 | DONE | (log) | `/run-mode` switches with HTTP's refusing asker (ui's `Choose` overload); `/status.canSave` + the save 409 read the one reason; MCP catalog regenerated |
 | B-6 | — | SKIPPED — needs user | — | QUESTION [NOTE_Backend_To_Coordinator_Preview_Run_Setup_Question](NOTE_Backend_To_Coordinator_Preview_Run_Setup_Question.md): the setup is applied only by a load (DOM-level); lean (B) preview the saved scenario with the setup. ui's L-10 stays ⏳ |
 | ui REQUEST | — | DONE | `09eae2dba` | [live checkpoint labels](NOTE_Ui_To_Backend_Live_Checkpoint_Labels.md): the master keeps the marks of the exercise now recording and publishes them on the replay-session topic in Live; ANSWER note when built |
