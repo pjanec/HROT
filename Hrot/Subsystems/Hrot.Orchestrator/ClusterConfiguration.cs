@@ -54,6 +54,12 @@ public sealed record ClusterConfiguration
     /// </remarks>
     public string NasBasePath { get; init; } = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot();
 
+    /// <summary>
+    /// ⭐ CE-4325 (E7) — the master's own staging root (<c>{root}/nodes/node-0/exercises/&lt;id&gt;/notes.json</c> holds the notes of the exercise on show while it runs). Default: the process's one staging root
+    /// (<c>OrchestrationConstants.ResolveStagingRoot()</c>); a test points it at a temp folder.
+    /// </summary>
+    public string StagingRoot { get; init; } = Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot();
+
     /// <summary>⭐ The TKB name every deployment uses unless configured otherwise — the one name in use today.</summary>
     public const string DefaultTkbName = "HrotDefault";
 

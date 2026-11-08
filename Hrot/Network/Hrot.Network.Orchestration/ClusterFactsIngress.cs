@@ -27,6 +27,7 @@ public sealed class ClusterFactsIngress : IDisposable
     private readonly DdsReader<AssetInventoryTopic>?  _inventoryReader;
     private readonly DdsReader<ReplaySessionTopic>?   _sessionReader;
     private readonly DdsReader<StorageJobsTopic>?     _storageJobsReader;   // ⭐ CE-4330 ③ fact ① — the master's storage job list
+    private readonly DdsReader<ExerciseNotesTopic>?   _notesReader;         // ⭐ CE-4325 — the exercise's notes
     private readonly DdsReader<ClusterOpStatus>?      _opStatusReader;
     private readonly DdsReader<OrchestratorContextTopic>? _contextReader;   // ⭐ CE-3344 — the master's in-sync set (R-4006), carried by the context plane
     private string? _lastInSyncJson;   // the set last published, so the echo of the master's own write on a shared bus ends after one round
@@ -39,8 +40,10 @@ public sealed class ClusterFactsIngress : IDisposable
         DdsReader<ReplaySessionTopic>?   sessionReader   = null,
         DdsReader<ClusterOpStatus>?      opStatusReader  = null,
         DdsReader<OrchestratorContextTopic>? contextReader = null,
-        DdsReader<StorageJobsTopic>?     storageJobsReader = null)
+        DdsReader<StorageJobsTopic>?     storageJobsReader = null,
+        DdsReader<ExerciseNotesTopic>?   notesReader = null)
     {
+        _notesReader = notesReader;
         _contextReader   = contextReader;
         _storageJobsReader = storageJobsReader;
         _bus             = bus ?? throw new ArgumentNullException(nameof(bus));
@@ -60,7 +63,8 @@ public sealed class ClusterFactsIngress : IDisposable
             new DdsReader<ReplaySessionTopic>(participant),
             new DdsReader<ClusterOpStatus>(participant),
             new DdsReader<OrchestratorContextTopic>(participant),
-            new DdsReader<StorageJobsTopic>(participant));
+            new DdsReader<StorageJobsTopic>(participant),
+            new DdsReader<ExerciseNotesTopic>(participant));
     }
 
     /// <summary>Reads the four fact topics and publishes their events. Call once per frame, before the bus swap.</summary>
@@ -102,6 +106,15 @@ public sealed class ClusterFactsIngress : IDisposable
             foreach (var s in l)
                 if (s.IsValid && Hrot.Network.Orchestration.StorageJobsWire.FromTopic(s.Data) is { } jobs)
                     _bus.PublishManaged(new StorageJobsUpdateEvent { Jobs = jobs });
+        }
+
+        // ⭐ CE-4325 — ExerciseNotesTopic → ExerciseNotesUpdateEvent (the exercise's notes, every station's timeline and Marks window)
+        if (_notesReader != null)
+        {
+            using var l = _notesReader.Take();
+            foreach (var s in l)
+                if (s.IsValid && Hrot.Network.Orchestration.ExerciseNotesWire.FromTopic(s.Data) is { } notes)
+                    _bus.PublishManaged(new ExerciseNotesUpdateEvent { ExerciseId = (Fdp.Core.ExerciseId)s.Data.ExerciseId, Notes = notes });
         }
 
         // ⭐ CE-3344 (R-3069) — the master's InSync set (durable, one producer) → InSyncSetChangedEvent, so the node's ClusterView knows whether THIS node is in sync.

@@ -23,13 +23,16 @@ public sealed class EventTimelineWindow : ManagedWindow
     private readonly Func<ITimelineSource?> _source;
     private readonly ITimelineCursor _cursor;
     private readonly Func<IReadOnlyList<TimelineLaneDescriptor>> _lanes;
+    private readonly ITimelineCorner? _corner;
 
     /// <param name="lanes">The registered lanes to show — the host's <c>TimelineLaneCatalog.Lanes(context)</c> (R-4079).</param>
     /// <param name="onSelect">⭐ <c>CE-3330</c> (R-4087 addendum 5) — a left click on an event: the host requests the ONE selection.</param>
     /// <param name="rowMenu">⭐ <c>CE-3330</c> (addendum 4) — the row's own menu items: the host's <c>TimelineLaneCatalog.MenuItems</c>.</param>
+    /// <param name="corner">⭐ CE-4325 (E7) — the two icons at the title bar's top right: ⚑ (mark / add a note) and S / W (the axis). Null = none (a host with neither).</param>
     public EventTimelineWindow(string id, string title, string owningPerspective, TimelinePanel panel, Func<ITimelineSource?> source,
         ITimelineCursor cursor, Func<IReadOnlyList<TimelineLaneDescriptor>> lanes, Vector4 titleBarColor,
-        Action<TimelineEvent>? onSelect = null, Func<TimelineMenuContext, IReadOnlyList<TimelineMenuItem>>? rowMenu = null)
+        Action<TimelineEvent>? onSelect = null, Func<TimelineMenuContext, IReadOnlyList<TimelineMenuItem>>? rowMenu = null,
+        ITimelineCorner? corner = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _panel = panel;
@@ -38,6 +41,7 @@ public sealed class EventTimelineWindow : ManagedWindow
         _source = source;
         _cursor = cursor;
         _lanes = lanes;
+        _corner = corner;
         TitleBarColor = titleBarColor;
         IsOpen = true;
         PanelSnapshot.DeclareInstrumented(Id);
@@ -59,6 +63,31 @@ public sealed class EventTimelineWindow : ManagedWindow
     public static readonly System.Numerics.Vector2 FirstSize = new(1100f, 320f);
 
     protected override void BeforeBegin() => ImGui.SetNextWindowSize(FirstSize, ImGuiCond.FirstUseEver);
+
+    /// <summary>⭐ CE-4325 — where the corner's two icons were drawn last frame (screen pixels; null = not drawn): the ⚑ and the S / W — for the frame rails that press them.</summary>
+    public (Vector2 Mark, Vector2 Axis)? LastCornerAt { get; private set; }
+
+    /// <summary>⭐ CE-4325 — the ⚑ and S / W in the title bar, right to left: S / W nearest the pin, ⚑ beside it (the mockup's order: ⚑ then S).</summary>
+    protected override void DrawTitleBarCorner(float rightEdgeX, float titleBarY, float size)
+    {
+        LastCornerAt = null;
+        if (_corner == null) return;
+        float x = rightEdgeX;
+        Vector2 axisAt = default, markAt = default;
+        if (_corner.HasAxis)
+        {
+            if (TitleBarIcon("##tl_axis", _corner.AxisFace, ref x, titleBarY, size, _corner.AxisEnabled, filled: false, colour: 0xFFE0E0E0u, tooltip: _corner.AxisTip)) _corner.OnToggleAxis();
+            axisAt = new Vector2(x + size * 0.5f, titleBarY + size * 0.5f);
+        }
+        if (_corner.HasMark)
+        {
+            bool enabled = _corner.MarkDisabledReason == null;
+            if (TitleBarIcon("##tl_mark", Fdp.Presentation.Fonts.IconsFontAwesome6.Flag, ref x, titleBarY, size, enabled, filled: false, colour: 0xFFF0C060u,
+                    tooltip: _corner.MarkTip)) _corner.OnMark();
+            markAt = new Vector2(x + size * 0.5f, titleBarY + size * 0.5f);
+        }
+        LastCornerAt = (markAt, axisAt);
+    }
 
     /// <summary>The window's size at the last draw (rails).</summary>
     public System.Numerics.Vector2 LastWindowSize { get; private set; }

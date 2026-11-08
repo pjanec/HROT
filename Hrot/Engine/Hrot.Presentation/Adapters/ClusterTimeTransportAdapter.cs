@@ -252,6 +252,19 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     /// <summary>The session layer as the node's <see cref="ClusterView"/> last heard it (inactive before the first sample; <see langword="null"/> with no node).</summary>
     public ReplaySession? Session => View?.ReplaySession;
 
+    /// <summary>⭐ CE-4325 — the bus this facade publishes on and the view it reads, for the rails that put a REAL host's facade into a state (Live with marks) — ⛔ production never reads these.</summary>
+    internal FdpEventBus BusForTest => _bus;
+    internal ClusterView? ViewForTest => View;
+
+    /// <summary>⭐ CE-4325 — the exercise's notes off the node's one <see cref="ClusterView"/> (empty with no node).</summary>
+    public ExerciseNote[] Notes => View?.Notes ?? Array.Empty<ExerciseNote>();
+
+    /// <summary>⭐ CE-4325 — the ONE note CRUD message, on the bus (the egress translator carries it to the master on a station).</summary>
+    public void EditNote(NoteEditKind kind, ExerciseNote note) => _bus.PublishManaged(new NoteEditIntent { RequestId = Guid.NewGuid(), Kind = kind, Note = note });
+
+    /// <summary>⭐ CE-4325 — a mark is the existing checkpoint, named by the client so its note can ride it.</summary>
+    public void TakeMark(string label) => _bus.PublishManaged(new TakeCheckpointIntent { RequestId = Guid.NewGuid(), Label = label });
+
     // ── ⭐ CE-4097 (AQ108 §2.8) — the run choice and the raw transport it stands on ──────────────────────────────────
 
     /// <summary>⭐ The host's run choice (what ▶ runs, R1–R3); <see langword="null"/> until <see cref="AttachRunChoice"/>.</summary>

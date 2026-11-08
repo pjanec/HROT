@@ -8,6 +8,39 @@ namespace Fdp.Presentation.Panels.Timeline;
 public enum TimelineMode { None, Live, Review, Replay }
 
 /// <summary>
+/// ⭐ CE-4325 (E7, docs/UX/DESIGN_Bookmarks_And_Notes.md §3) — one NOTE the ruler shows: an amber dot beside its mark's ⚑ (<paramref name="Mark"/> = the checkpoint label), or alone at its time (an AAR note, <paramref name="Mark"/> empty).
+/// <paramref name="Title"/> / <paramref name="Text"/> / <paramref name="Detail"/> are the tooltip's three lines (name · time, the words, unit · who); the host words them, the panel only draws.
+/// </summary>
+public readonly record struct TimelineNote(long WallTicks, string Mark, string Title, string Text, string Detail);
+
+/// <summary>
+/// ⭐ CE-4325 (E7, docs/UX/DESIGN_Bookmarks_And_Notes.md §3, R-4177) — the two small icons at the TOP RIGHT of the Event Timeline's title bar, drawn by the window and bound by the host: <b>⚑</b> (mark now in Live · <i>Add note here</i> in an AAR)
+/// and <b>S / W</b> (the sim / wall axis of the whole session — moved here from the main toolbar). ⛔ The window knows no run mode: every word, state and action is the binding's.
+/// </summary>
+public interface ITimelineCorner
+{
+    /// <summary>Whether the ⚑ is shown at all (a host with no marks: false).</summary>
+    bool HasMark { get; }
+    /// <summary>The ⚑'s tooltip — ⭐ already worded with the reason when it is greyed (the window draws it as is; a cached string, 0 B per frame).</summary>
+    string MarkTip { get; }
+    /// <summary>Why the ⚑ is greyed now (null = it acts).</summary>
+    string? MarkDisabledReason { get; }
+    /// <summary>The ⚑ was pressed.</summary>
+    void OnMark();
+
+    /// <summary>Whether the S / W toggle is shown.</summary>
+    bool HasAxis { get; }
+    /// <summary>"S" (sim) or "W" (wall).</summary>
+    string AxisFace { get; }
+    /// <summary>The toggle's tooltip.</summary>
+    string AxisTip { get; }
+    /// <summary>Whether the toggle acts now.</summary>
+    bool AxisEnabled { get; }
+    /// <summary>The toggle was pressed: S ⇄ W for the whole session.</summary>
+    void OnToggleAxis();
+}
+
+/// <summary>
 /// ⭐ <c>CE-1302</c> (docs/DESIGN_Director_Timeline_Editor.md §9 TL-2) — how the timeline panel learns where time is and moves it. A
 /// one-method adapter each host binds to ITS OWN transport — ⛔ never a second transport, no state of its own. All times are the
 /// recording's wall-clock ticks (TL-4).
@@ -45,6 +78,9 @@ public interface ITimelineCursor
     /// <summary>⭐ <c>CE-3330</c> E2 — the session's named checkpoints (their <c>WallTicks</c> are this cursor's ticks); drawn as flags on the ruler.</summary>
     System.Collections.Generic.IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> Checkpoints
         => System.Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+
+    /// <summary>⭐ CE-4325 — the exercise's notes (wall ticks of THIS cursor), drawn as amber dots on the ruler; their tooltips are the host's words. Empty by default (a host with no notes).</summary>
+    System.Collections.Generic.IReadOnlyList<TimelineNote> Notes => System.Array.Empty<TimelineNote>();
 
     /// <summary>⭐ <c>CE-3330</c> E2 — whether the host can enter a review of its live run (the menu's "Review from here").</summary>
     bool CanReview => false;

@@ -55,6 +55,7 @@ public sealed class ClusterOpMasterTranslator
     private readonly DdsWriter<ReplaySessionTopic>?  _sessionWriter;   // ⭐ CE-3329 rows 32, 45 — the session layer
     private readonly DdsWriter<GeoReference>?       _geoReferenceWriter;   // ⭐ AQ107 C — the NED wire's frame origin
     private readonly DdsWriter<StorageJobsTopic>?   _storageJobsWriter;    // ⭐ CE-4330 ③ fact ① — the master's storage job list
+    private readonly DdsWriter<ExerciseNotesTopic>? _notesWriter;          // ⭐ CE-4325 — the exercise's notes
     private readonly FdpEventBus                    _bus;
     private readonly JsonSerializerOptions          _jsonOptions;
 
@@ -68,7 +69,8 @@ public sealed class ClusterOpMasterTranslator
         DdsWriter<ClusterStateTopic>?   clusterStateWriter = null,
         DdsWriter<ReplaySessionTopic>?  sessionWriter = null,
         DdsWriter<GeoReference>?        geoReferenceWriter = null,
-        DdsWriter<StorageJobsTopic>?    storageJobsWriter = null)
+        DdsWriter<StorageJobsTopic>?    storageJobsWriter = null,
+        DdsWriter<ExerciseNotesTopic>?  notesWriter = null)
     {
         _requestReader     = requestReader     ?? throw new ArgumentNullException(nameof(requestReader));
         _statusWriter      = statusWriter      ?? throw new ArgumentNullException(nameof(statusWriter));
@@ -79,6 +81,7 @@ public sealed class ClusterOpMasterTranslator
         _sessionWriter      = sessionWriter;
         _geoReferenceWriter = geoReferenceWriter;
         _storageJobsWriter  = storageJobsWriter;
+        _notesWriter        = notesWriter;
     }
 
     /// <summary>Processes one frame: ingests DDS requests and publishes completed statuses.</summary>
@@ -134,6 +137,11 @@ public sealed class ClusterOpMasterTranslator
         if (_storageJobsWriter != null)
             foreach (var ev in _bus.ReadManaged<StorageJobsPublishedEvent>())
                 _storageJobsWriter.Write(StorageJobsWire.ToTopic(ev.Jobs));
+
+        // ── ⭐ CE-4325 — Egress: Bus ExerciseNotesPublishedEvent → DDS ExerciseNotesTopic (TransientLocal: a late joiner gets the newest list)
+        if (_notesWriter != null)
+            foreach (var ev in _bus.ReadManaged<ExerciseNotesPublishedEvent>())
+                _notesWriter.Write(ExerciseNotesWire.ToTopic(ev.ExerciseId, ev.Notes));
 
         // ── ⭐ AQ107 C — Egress: Bus GeoReferencePublishedEvent → DDS GeoReference (retained: a late gateway gets the newest origin)
         if (_geoReferenceWriter != null)
@@ -311,6 +319,10 @@ public sealed class ClusterOpMasterTranslator
                 });
                 break;
             }
+
+            case NedClusterOpType.EditExerciseNote:   // ⭐ CE-4325 — the ONE note CRUD message
+                _bus.PublishManaged(NoteEditPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
 
             case NedClusterOpType.CheckUnsavedChanges:   // ⭐ CE-4093 D20
                 _bus.PublishManaged(new CheckUnsavedIntent { RequestId = req.RequestId });

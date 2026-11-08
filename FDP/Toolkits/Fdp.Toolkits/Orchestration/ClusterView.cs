@@ -205,6 +205,12 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ CE-4330 ③ fact ① — the cluster's storage jobs (every station's status bar): the master's list as its last <see cref="StorageJobsUpdateEvent"/> said; empty before one.</summary>
         public StorageJob[] StorageJobs { get; private set; } = Array.Empty<StorageJob>();
 
+        /// <summary>⭐ CE-4325 (E7, R-4177) — the notes of the exercise on show (every station's timeline dots and Marks window): the master's list as its last <see cref="ExerciseNotesUpdateEvent"/> said; empty before one.</summary>
+        public ExerciseNote[] Notes { get; private set; } = Array.Empty<ExerciseNote>();
+
+        /// <summary>⭐ CE-4325 — the exercise <see cref="Notes"/> belong to (empty before the master said).</summary>
+        public ExerciseId NotesExerciseId { get; private set; }
+
         // ── op outcomes ───────────────────────────────────────────────────────
 
         /// <summary>
@@ -239,6 +245,7 @@ namespace Fdp.Toolkit.Orchestration
             DrainInventory();
             DrainReplaySession();
             DrainStorageJobs();
+            DrainNotes();
             DrainOpOutcomes();
         }
 
@@ -309,6 +316,15 @@ namespace Fdp.Toolkit.Orchestration
         {
             foreach (var ev in _bus!.ReadManaged<StorageJobsUpdateEvent>())
                 StorageJobs = ev.Jobs ?? Array.Empty<StorageJob>();   // TransientLocal, KeepLast 1: the newest list is the list
+        }
+
+        private void DrainNotes()
+        {
+            foreach (var ev in _bus!.ReadManaged<ExerciseNotesUpdateEvent>())
+            {
+                Notes = ev.Notes ?? Array.Empty<ExerciseNote>();   // TransientLocal, KeepLast 1: the newest list is the list
+                NotesExerciseId = ev.ExerciseId;
+            }
         }
 
         private void DrainOpOutcomes()

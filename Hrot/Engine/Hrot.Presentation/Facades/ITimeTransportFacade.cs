@@ -105,6 +105,17 @@ public interface ITimeTransportFacade
     /// <see cref="Hrot.UI.Common.RunMode.UserTransport"/>; <see cref="Stop"/> delegates to the choice itself (<c>POST /sim/stop</c> = ■).
     /// </summary>
     Hrot.UI.Common.RunMode.RunModeChoice? RunChoice => null;
+
+    // ── ⭐ CE-4325 (E7, R-4177, 📄 docs/UX/DESIGN_Bookmarks_And_Notes.md §2) — the exercise's notes: read off the node's ONE ClusterView, changed through the ONE CRUD message ──
+
+    /// <summary>The notes of the exercise on show, as the master last published them (a NEW array per change); empty where the host has none.</summary>
+    Fdp.Toolkit.Orchestration.ExerciseNote[] Notes => System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseNote>();
+
+    /// <summary>Asks the master to add / edit / delete a note — the ONE message. No-op where the host has no master to ask.</summary>
+    void EditNote(Fdp.Toolkit.Orchestration.NoteEditKind kind, Fdp.Toolkit.Orchestration.ExerciseNote note) { }
+
+    /// <summary>Takes a checkpoint named <paramref name="label"/> (a MARK — the existing <c>TakeCheckpointIntent</c>, the moment is the one the master names). No-op where the host has no master.</summary>
+    void TakeMark(string label) { }
 }
 
 /// <summary>⭐ CE-3329 row 21 — what the cluster shows (the facade's <see cref="ITimeTransportFacade.Mode"/>).</summary>

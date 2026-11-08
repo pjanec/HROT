@@ -172,6 +172,14 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = LabelJson(intent.Label),
             });
 
+        foreach (var intent in _bus.ReadManaged<NoteEditIntent>())   // ⭐ CE-4325 — the ONE note CRUD message
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.EditExerciseNote,
+                PayloadJson   = JsonSerializer.Serialize(NoteEditPayloadDto.From(intent), OrchestrationJsonOptions.Default),
+            });
+
         foreach (var intent in _bus.ReadManaged<CheckUnsavedIntent>())   // ⭐ CE-4093 D20 — no payload
             _writer.Write(new ClusterOpRequest
             {

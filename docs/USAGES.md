@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-30 (first version — coordinator, at the user's request)
+updated: 2026-11-08 (U-15 — ui) · 2026-10-30 (first version — coordinator, at the user's request)
 current-answer: the whole file — §1 the picture, §2 the usages, §3 how to add one
 stale-below: none
 known-rot: the status marks are a 2026-10-30 snapshot; each row's evidence link wins
@@ -65,6 +65,7 @@ and the same file serves the trainer, QA, the documentation and the film-maker, 
 | ⭐ **one row per usage, in the reader's words** | what someone DOES with the engine and what it saves them — ⛔ not a feature name (that belongs in [CAPABILITIES.md](CAPABILITIES.md)) |
 | ⭐⭐ **the status links its evidence** | a tracker row, a design section, a report, a film. ⛔ No link ⇒ at most 🔧 |
 | ⭐⭐ **say the gap** | ⚠ names what is missing, with its tracker row. ⛔ A usage that only works in a demo setup says so |
-| ⭐ **any lane adds a row when its work makes a usage real** | the same commit that proves it; next free id `U-13` |
+| ⭐ **any lane adds a row when its work makes a usage real** | the same commit that proves it; next free id `U-16` |
 | **U-13** | **The trainee and the player see the exercise from inside it.** Possess a man and the HUD shows what a training run asks (mission objectives with progress, *my standards* against target) or a game needs (tickets, capture points, round time, kill feed, streak) — the same status data the instructor's rules view reads | trainees, players, instructors | a separate HUD per scenario type; asking the instructor how it is going | ⚠ built `2026-11-03` and seen live on `showcase-bridgehead` / `showcase-crossfire` (CE-4226..4228, [DESIGN_Player_HUD_And_Debrief §6](DESIGN_Player_HUD_And_Debrief.md)); gap: a scenario cannot yet switch the other profile's elements off (CE-4229) |
 | **U-14** | **After the exercise or the round, the trainee and the players read their own result.** The trainee debrief: each standard GO / NO-GO against the group's mean, went well / work on, his moments with a seek into the recording. The round summary: winner, scoreboard, awards, your best moment. Both open on a recording | trainees, instructors, players | the instructor reading numbers out of a log in the debrief room | ⚠ built `2026-11-03` (CE-4231, [DESIGN_Player_HUD_And_Debrief §7](DESIGN_Player_HUD_And_Debrief.md)); gaps: best moment falls back to the kill burst (CE-4232), no head mark / replay-from-my-eyes / progress across runs (CE-4233) |
+| **U-15** | **The instructor marks a moment in the live run and finds it in the debrief.** One key (B) marks the instant — a restorable checkpoint — and a small popup takes an optional name, note and the selected unit; every station's timeline shows the ⚑ at once, the Marks window lists marks and notes (seek, edit, restart from a mark), and in the AAR the instructor adds notes at a time. The notes travel with the recording (`notes.json`) | instructors, observers, trainees at the debrief | scribbling times on paper during the exercise, then hunting for them in the replay | ⚠ built and railed ([Bookmarks and notes §5](UX/DESIGN_Bookmarks_And_Notes.md), CE-4325): the mark, the one CRUD message, the Marks window, `notes.json` on leaving; gaps — the standalone Replay Browser does not read the notes yet, a failed NAS write-back is not retried (CE-1467) |

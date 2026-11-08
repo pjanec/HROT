@@ -342,6 +342,29 @@ public sealed class TimelinePanel
         if (hovered && (Math.Abs(mx - b0) <= EdgeGrabPx || Math.Abs(mx - b1) <= EdgeGrabPx)) ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEW);
     }
 
+    // ── ⭐ CE-4325 (E7) — the notes on the ruler ─────────────────────────────────────────────────────────────────
+
+    private const uint NoteColour = 0xFF30B0F0;          // ABGR — the amber of a note (the Marks window's note glyph)
+    private const uint FlagColour = 0xFFF0C060;          // ABGR — the blue of a mark (⭐ CE-4325: the mockup's ⚑ is blue, the note dot beside it amber — it was amber, which hid the dot)
+    private long _markHitTicks = long.MinValue;           // the mark / note under the mouse this frame (the ruler's double-click seeks to it)
+
+    /// <summary>The note riding mark <paramref name="label"/>, or −1. An index loop: the ruler draws every frame.</summary>
+    private static int NoteOfMark(IReadOnlyList<TimelineNote> notes, string label)
+    {
+        for (int i = 0; i < notes.Count; i++) if (notes[i].Mark.Length > 0 && string.Equals(notes[i].Mark, label, StringComparison.Ordinal)) return i;
+        return -1;
+    }
+
+    /// <summary>The tooltip of a note: a framed block of three lines — name · time, the words, unit · who (only on hover).</summary>
+    private static void NoteTooltip(in TimelineNote n)
+    {
+        ImGui.BeginTooltip();
+        ImGui.TextUnformatted(n.Title);
+        if (n.Text.Length > 0) ImGui.TextUnformatted("\"" + n.Text + "\"");
+        if (n.Detail.Length > 0) ImGui.TextUnformatted(n.Detail);
+        ImGui.EndTooltip();
+    }
+
     // ── the ruler ────────────────────────────────────────────────────────────────────────────────────────────
 
     private void DrawRuler(ImDrawListPtr dl, TimelineIndex index, float width, long now, ITimelineCursor? cursor)
@@ -374,14 +397,38 @@ public sealed class TimelinePanel
             }
 
         // ⭐ CE-3330 E2 (§2e) — the session's named checkpoints: a flag on the ruler, its label in a tooltip (off-screen ones are not drawn)
+        // ⭐ CE-4325 (E7) — a mark's NOTE: an amber dot beside its flag and the note's words in the tooltip (name · time / the words / unit · who); an AAR note (no flag) is a dot of its own.
+        //   Index loops over the lists — the ruler draws every frame (0 B steady). Double-click on one seeks there where the cursor can (R-3059: a click selects, never seeks — this is the explicit gesture).
+        _markHitTicks = long.MinValue;
         if (cursor != null)
-            foreach (var cp in cursor.Checkpoints)
+        {
+            var marks = cursor.Checkpoints;
+            var notes = cursor.Notes;
+            float mouseX = ImGui.GetIO().MousePos.X - p.X;
+            for (int ci = 0; ci < marks.Count; ci++)
             {
+                var cp = marks[ci];
                 float xc = w.XOf(cp.WallTicks, width);
                 if (xc < 0 || xc > width) continue;
-                dl.AddText(p + new Vector2(xc - 3, 0), 0xFF60C0F0, Fdp.Presentation.Fonts.IconsFontAwesome6.Flag);
-                if (hovered && Math.Abs(ImGui.GetIO().MousePos.X - p.X - xc) <= 5) ImGui.SetTooltip(cp.Label);
+                dl.AddText(p + new Vector2(xc - 3, 0), FlagColour, Fdp.Presentation.Fonts.IconsFontAwesome6.Flag);
+                int ni = NoteOfMark(notes, cp.Label);
+                if (ni >= 0) dl.AddCircleFilled(p + new Vector2(xc + 7, 3), 3f, NoteColour);
+                if (hovered && Math.Abs(mouseX - xc) <= 5)
+                {
+                    _markHitTicks = cp.WallTicks;
+                    if (ni >= 0) NoteTooltip(notes[ni]); else ImGui.SetTooltip(cp.Label);
+                }
             }
+            for (int ni = 0; ni < notes.Count; ni++)
+            {
+                var n = notes[ni];
+                if (n.Mark.Length > 0) continue;   // on a mark: drawn with it above
+                float xn2 = w.XOf(n.WallTicks, width);
+                if (xn2 < 0 || xn2 > width) continue;
+                dl.AddCircleFilled(p + new Vector2(xn2, RulerHeight - 8), 3.5f, NoteColour);
+                if (hovered && Math.Abs(mouseX - xn2) <= 5) { _markHitTicks = n.WallTicks; NoteTooltip(n); }
+            }
+        }
 
         // ⭐ CE-3330 E5 (DAR §12n) — the MASTER's loop as a bracket on the ruler: every host draws it, whoever set it
         if (_loop is { } lp && lp.To > lp.From)
@@ -415,7 +462,11 @@ public sealed class TimelinePanel
         if (WheelZoom() is var wheel and not 0f)   // ⭐ T4 / T5 — the wheel zooms over the ruler, proportional to the delta (Shift+wheel is the pan's: its own row shadows the zoom's)
             _view.Zoom(mx, width, TimelineView.WheelFactor(wheel));
         bool offscreenArrow = (xn < 0 && mx <= 10) || (xn > width && mx >= width - 10);
-        if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) { _view.Fit(); _drag = Drag.None; return; }   // fit all
+        if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            if (_markHitTicks != long.MinValue && canSeek) { cursor!.Seek(_markHitTicks); _drag = Drag.None; return; }   // ⭐ CE-4325 — double-click a mark / note: seek there
+            _view.Fit(); _drag = Drag.None; return;   // fit all
+        }
         if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
         {
             if (offscreenArrow) { _view.Reveal(now); return; }

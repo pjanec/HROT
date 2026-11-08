@@ -31,6 +31,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
     private readonly DdsWriter<ReplaySessionTopic>                      _sessionWriter;   // ⭐ CE-3329 rows 32, 45
     private readonly DdsWriter<GeoReference>                            _geoReferenceWriter;   // ⭐ AQ107 C — the NED wire's frame origin
     private readonly DdsWriter<StorageJobsTopic>                        _storageJobsWriter;   // ⭐ CE-4330 ③ fact ① — the master's storage job list
+    private readonly DdsWriter<ExerciseNotesTopic>                      _notesWriter;         // ⭐ CE-4325 — the exercise's notes
     // Per-node command writers, created on demand and cached.
     private readonly Dictionary<int, DdsWriter<NodeOpCommand>>         _commandWriters = new();
     // ⭐ Q86 §4-B — the Context Plane (mgmt-1 §1.2): written from the bus event, never by the handler itself.
@@ -57,11 +58,12 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _sessionWriter       = new DdsWriter<ReplaySessionTopic>(_participant);
         _geoReferenceWriter  = new DdsWriter<GeoReference>(_participant);
         _storageJobsWriter   = new DdsWriter<StorageJobsTopic>(_participant);
+        _notesWriter         = new DdsWriter<ExerciseNotesTopic>(_participant);
         _contextWriter       = new DdsWriter<OrchestratorContextTopic>(_participant);
         _nodeIdRequestReader = new DdsReader<NodeIdRequest>(_participant);
         _nodeIdGrantWriter   = new DdsWriter<NodeIdGrant>(_participant);
         _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
-            _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter, _sessionWriter, _geoReferenceWriter, _storageJobsWriter);
+            _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter, _sessionWriter, _geoReferenceWriter, _storageJobsWriter, _notesWriter);
         _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(
             GetOrCreateCommandWriter, _nodeOpStatusReader, _bus);
     }
@@ -161,6 +163,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _sessionWriter.Dispose();
         _geoReferenceWriter.Dispose();
         _storageJobsWriter.Dispose();
+        _notesWriter.Dispose();
         _contextWriter.Dispose();
         _nodeIdRequestReader.Dispose();
         _nodeIdGrantWriter.Dispose();

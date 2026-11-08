@@ -89,6 +89,10 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⭐ New scenario N2 (docs/UX/DESIGN_New_Scenario_And_Recipe.md, R-4135) — write a BLANK scenario (header only, naming its terrain) at the master, from any host.
         //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-11-07 — the next free value in BOTH enums. Payload: SaveScenarioRequestJson (name + header {"terrainName": …}).
         CreateBlankScenario = 27,
+
+        // ⭐ CE-4325 (E7, R-4177, docs/UX/DESIGN_Bookmarks_And_Notes.md §2) — the ONE note CRUD message (add / edit / delete a note of the exercise on show), from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-11-08 — the next free value in BOTH enums. Payload: NoteEditPayloadDto.
+        EditExerciseNote = 28,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
@@ -243,6 +247,24 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsKey] public int NodeId;
         /// <summary>The whole list, <c>Fdp.Toolkit.Orchestration.StorageJob[]</c> as JSON (variable length).</summary>
         [DdsManaged] public string JobsJson;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4325 (E7, R-4177, docs/UX/DESIGN_Bookmarks_And_Notes.md §2) — THE EXERCISE'S NOTES: the master's list of the notes (and their marks' words) of the exercise on show, what every station's timeline dots
+    /// and Marks window draw. One producer (the master, <see cref="NodeId"/> 0); the master republishes the whole list on every change, TransientLocal + KeepLast 1 hands the newest to a late joiner.
+    /// Changed through ONE message (the <c>EditExerciseNote</c> cluster op). Mirrors <see cref="StorageJobsTopic"/>.
+    /// </summary>
+    [DdsTopic]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct ExerciseNotesTopic
+    {
+        /// <summary>The producer: 0 = the master.</summary>
+        [DdsKey] public int NodeId;
+        /// <summary>The exercise the notes belong to.</summary>
+        public Guid ExerciseId;
+        /// <summary>The whole list, <c>Fdp.Toolkit.Orchestration.ExerciseNote[]</c> as JSON (variable length).</summary>
+        [DdsManaged] public string NotesJson;
     }
 
     /// <summary>

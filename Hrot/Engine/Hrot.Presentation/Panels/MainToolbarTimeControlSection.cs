@@ -628,20 +628,25 @@ public sealed class MainToolbarTimeControlSection
 
     /// <summary>The axis icon's letter: S = sim (pauses skipped), W = wall (pauses shown).</summary>
     public static string AxisFace(ReplayAxis axis) => axis == ReplayAxis.Sim ? "S" : "W";
-    private const string AxisSimId = "S##mt_axis", AxisWallId = "W##mt_axis";   // ⭐ CE-3409 — the button's label is a constant per axis (no per-frame concat)
 
     /// <summary>The axis icon's tooltip.</summary>
     public static string AxisTooltip(ReplayAxis axis)
         => axis == ReplayAxis.Sim ? "Sim time — pauses skipped" : "Wall time — pauses shown";
 
     /// <summary>The axis toggles only where a session runs: Live, Review, Replay.</summary>
-    public bool IsAxisEnabled => _facade.Mode is TransportMode.Live or TransportMode.Review or TransportMode.Replay;
+    public bool IsAxisEnabled => AxisEnabledIn(_facade.Mode);
+
+    /// <summary>⭐ CE-4325 — the ONE rule (the timeline corner's S / W reads it too): the axis toggles only where a session runs.</summary>
+    public static bool AxisEnabledIn(TransportMode mode) => mode is TransportMode.Live or TransportMode.Review or TransportMode.Replay;
 
     /// <summary>An axis-icon click: S ⇄ W for the whole session (R-3058).</summary>
-    public void OnToggleAxis()
+    public void OnToggleAxis() => ToggleAxis(_facade);
+
+    /// <summary>⭐ CE-4325 — the ONE toggle: S ⇄ W for the whole session. The toolbar had the button; the Event Timeline's corner has it now — both call here.</summary>
+    public static void ToggleAxis(ITimeTransportFacade facade)
     {
-        if (!IsAxisEnabled) return;
-        _facade.SetAxis(_facade.Axis == ReplayAxis.Sim ? ReplayAxis.Wall : ReplayAxis.Sim);
+        if (!AxisEnabledIn(facade.Mode)) return;
+        facade.SetAxis(facade.Axis == ReplayAxis.Sim ? ReplayAxis.Wall : ReplayAxis.Sim);
     }
 
     // ── Render helpers ────────────────────────────────────────────────
@@ -760,12 +765,7 @@ public sealed class MainToolbarTimeControlSection
             ImGui.EndPopup();
         }
 
-        // ── [Axis] S / W ───────────────────────────────────────────────────
-        ImGui.SameLine();
-        ImGui.BeginDisabled(!IsAxisEnabled);
-        if (ImGui.SmallButton(_facade.Axis == ReplayAxis.Sim ? AxisSimId : AxisWallId)) OnToggleAxis();
-        ImGui.EndDisabled();
-        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(AxisTooltip(_facade.Axis));
+        // ── [Axis] S / W — ⭐ CE-4325 (E7, R-4177 Q3): MOVED to the Event Timeline's title-bar corner (TimelineCornerBinding), beside the ⚑; it still sets the axis for the whole session ──
 
         // ── ⭐ CE-4097 — the note after ■ in Live, and the one confirmation shape (R3) ─────────────────────────────────
         if (_choice?.Toast is { } toast)

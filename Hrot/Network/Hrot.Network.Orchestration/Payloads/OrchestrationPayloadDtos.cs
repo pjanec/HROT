@@ -336,6 +336,34 @@ public record SetReplayLoopPayloadDto(
     }
 }
 
+/// <summary>⭐ CE-4325 (E7, R-4177) — payload of <c>ClusterOpType.EditExerciseNote</c>: the verb and the note. The ONE encoding of the note CRUD message.</summary>
+public record NoteEditPayloadDto(
+    [property: JsonPropertyName("Kind")]
+    string Kind,
+    [property: JsonPropertyName("Note")]
+    Fdp.Toolkit.Orchestration.ExerciseNote? Note)
+{
+    /// <summary>The ONE encoding of a note edit on the wire.</summary>
+    public static NoteEditPayloadDto From(Fdp.Toolkit.Orchestration.NoteEditIntent intent) => new(intent.Kind.ToString(), intent.Note);
+
+    /// <summary>The ONE decoding (the master's translator). Unreadable ⇒ an intent with no note, which the master refuses.</summary>
+    public static Fdp.Toolkit.Orchestration.NoteEditIntent Decode(Guid requestId, string? json)
+    {
+        var intent = new Fdp.Toolkit.Orchestration.NoteEditIntent { RequestId = requestId };
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(json)
+                && System.Text.Json.JsonSerializer.Deserialize<NoteEditPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto)
+            {
+                if (Enum.TryParse<Fdp.Toolkit.Orchestration.NoteEditKind>(dto.Kind, ignoreCase: true, out var kind)) intent.Kind = kind;
+                intent.Note = dto.Note!;
+            }
+        }
+        catch (System.Text.Json.JsonException) { }
+        return intent;
+    }
+}
+
 /// <summary>Payload DTO for <c>ClusterOpType.StepTime</c> DDS requests.</summary>
 public record StepTimePayloadDto(
     [property: JsonPropertyName("FixedDelta")]

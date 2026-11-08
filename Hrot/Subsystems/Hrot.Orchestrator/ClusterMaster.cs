@@ -376,6 +376,7 @@ public sealed partial class ClusterMaster : IDisposable
         ProcessManageEpisodeIntents();
         ProcessStorageOpIntents();
         ProcessTakeCheckpointIntents();
+        ProcessNoteEditIntents();   // ⭐ CE-4325 — the ONE note CRUD message (and the list following the exercise on show)
         ProcessUnsavedCheckIntents();   // ⭐ CE-4093 D20
         TickAutosave();                 // ⭐ CE-4099 (AQ108 §4c A1) — after the check intents: its own check round is one more
         ProcessSeekReplayIntents();
@@ -567,6 +568,10 @@ public sealed partial class ClusterMaster : IDisposable
 
             case ClusterOpType.SetReplayLoop:   // ⭐ CE-3329 §12n
                 ProcessSetReplayLoopIntent(SetReplayLoopPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
+            case ClusterOpType.EditExerciseNote:   // ⭐ CE-4325 — the ONE note CRUD message
+                ProcessNoteEdit(NoteEditPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
 
             case ClusterOpType.CancelOperation:
@@ -1005,6 +1010,11 @@ public sealed partial class ClusterMaster : IDisposable
     {
         _activeExerciseId  = payload.NewExerciseId;   // D18 — the cluster records a new exercise from here
         TruncateLiveCheckpointsAt(payload.Label);   // the new exercise inherits the marks up to X
+        {   // ⭐ CE-4325 — and the notes riding them
+            var kept = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var m in _liveCheckpoints) kept.Add(m.Label);
+            BranchNotes(payload.NewExerciseId, kept);
+        }
         _currentExerciseId = payload.NewExerciseId;
         FanOutNodeOp(NodeOpType.RestoreSnapshot, roundTx, payload, targets);
         _pendingTransactions[roundTx] = new GenericTransactionTracker

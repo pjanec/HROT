@@ -106,7 +106,7 @@ public sealed class TimelinePanelFrameRail
     private static int DrawAndShoot(UiFrameSession frame, TimelinePanel panel, ITimelineSource source, ITimelineCursor cursor, string name, TimelineLaneDescriptor lane)
         => DrawAndShoot(frame, panel, source, cursor, name, TimelinePanel.ColorOf(lane));
 
-    private static int DrawAndShoot(UiFrameSession frame, TimelinePanel panel, ITimelineSource source, ITimelineCursor cursor, string name, uint abgr)
+    private static int DrawAndShoot(UiFrameSession frame, TimelinePanel panel, ITimelineSource source, ITimelineCursor cursor, string name, uint abgr, int step = 2)
     {
         frame.StepN(4, () =>
         {
@@ -123,8 +123,8 @@ public sealed class TimelinePanelFrameRail
         {
             uint c = abgr;                                                // ABGR
             int r = (int)(c & 0xFF), g = (int)((c >> 8) & 0xFF), b = (int)((c >> 16) & 0xFF), hits = 0;
-            for (int y = 0; y < image.Height; y += 2)
-                for (int x = 0; x < image.Width; x += 2)
+            for (int y = 0; y < image.Height; y += step)
+                for (int x = 0; x < image.Width; x += step)
                 {
                     var p = Raylib.GetImageColor(image, x, y);
                     if (Math.Abs(p.R - r) + Math.Abs(p.G - g) + Math.Abs(p.B - b) < 60) hits++;
@@ -524,9 +524,13 @@ public sealed class TimelinePanelFrameRail
 
         using var frame = UiFrameHarness.Begin(1280, 300);
         const uint LiveColour = 0xFF40C0FF;   // the live point's line (ABGR), a colour no lane uses
-        int live = DrawAndShoot(frame, new TimelinePanel(), full, withLive, "timeline-4-review-session-layer.png", LiveColour);
-        int none = DrawAndShoot(frame, new TimelinePanel(), full, without, "timeline-5-review-no-live-point.png", LiveColour);
+        const uint FlagColour = 0xFFF0C060;   // ⭐ CE-4325 — the mark's ⚑ is the mockup's BLUE now (it was amber: close enough to the live point's line that its pixels were counted as the line's — a pass by accident)
+        int live = DrawAndShoot(frame, new TimelinePanel(), full, withLive, "timeline-4-review-session-layer.png", LiveColour, step: 1);
+        int none = DrawAndShoot(frame, new TimelinePanel(), full, without, "timeline-5-review-no-live-point.png", LiveColour, step: 1);
         Assert.True(live > none + 10, $"the live point's line did not draw ({live} px with it, {none} without)");
+        int flag = DrawAndShoot(frame, new TimelinePanel(), full, withLive, "timeline-4b-review-flag.png", FlagColour, step: 1);
+        int noFlag = DrawAndShoot(frame, new TimelinePanel(), full, without, "timeline-5b-review-no-flag.png", FlagColour, step: 1);
+        Assert.True(flag > noFlag + 6, $"the checkpoint's flag did not draw ({flag} px with it, {noFlag} without)");
     }
 
     /// <summary>

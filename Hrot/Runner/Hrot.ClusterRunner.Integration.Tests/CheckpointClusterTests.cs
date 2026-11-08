@@ -111,6 +111,73 @@ public sealed class CheckpointClusterTests : IDisposable
         Assert.True(spreadMs <= 250, $"the nodes' checkpoint keyframes are {spreadMs:F0} ms apart — one wall time should land within a frame or two");
     }
 
+    /// <summary>
+    /// ⭐ CE-4325 (E7, docs/UX/DESIGN_Bookmarks_And_Notes.md §4 "Not measured") — what ONE MARK costs on the LARGEST scenario: a mark is a checkpoint, i.e. one full keyframe on EVERY recording node. Loads <c>scenarios/perf-stress</c>
+    /// (the biggest scenario by far: a 601 KB <c>scenario.json</c> — the next is 64 KB), lets the recordings run, then measures each node's recording file growth over a baseline window and over an equal window holding ONE mark
+    /// (taken the way B takes it: <c>TakeCheckpoint</c> with a <i>Mark n · m:ss</i> label). The mark's size = growth with the mark − growth without. The numbers go to the test output and to <c>$TMP/e7-mark-size.txt</c>.
+    /// ⚠ Not a gate on a number: the recorder writes in chunks and the baseline window moves, so the figure is an estimate; the assertion is only that the mark added bytes on every recording node.
+    /// </summary>
+    [Fact]
+    public async Task E7_AMark_OnTheLargestScenario_AddsOneKeyframeToEveryRecordingNode_AndItsSizeIsMeasured()
+    {
+        var source = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, "scenarios", "perf-stress");
+        var markLabel = "Mark 1 · 0:30";
+        var exercise = Guid.NewGuid();
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        foreach (var f in Directory.EnumerateFiles(source)) File.Copy(f, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), Path.GetFileName(f)), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId + 5);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new { TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = exercise }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 8000), "the cluster must go live on the largest scenario");
+        harness.PumpFrames(120);
+
+        // a LIVE recording has no .meta.json yet (the sidecar is written at its end): find the .fdp files of this exercise's folders on every node's staging
+        Dictionary<string, long> Sizes()
+        {
+            var root = OrchestrationConstants.ResolveStagingRoot();
+            if (!Directory.Exists(root)) return new();
+            return Directory.EnumerateDirectories(root, exercise.ToString(), SearchOption.AllDirectories)
+                .Where(d => Path.GetFileName(Path.GetDirectoryName(d)) == OrchestrationConstants.ExercisesDirectoryName)
+                .SelectMany(d => Directory.EnumerateFiles(d, "*.fdp")).ToDictionary(f => f, f => new FileInfo(f).Length);
+        }
+        void Run(double seconds) { var c = Stopwatch.StartNew(); while (c.Elapsed < TimeSpan.FromSeconds(seconds)) harness.PumpFrames(1); }
+
+        Assert.True(harness.PumpUntil(() => Sizes().Count > 0, timeoutFrames: 3000), "the recordings must start");
+        Run(2);
+        var s0 = Sizes(); Run(4); var s1 = Sizes();                                     // a baseline window
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint,
+            PayloadJson = JsonSerializer.Serialize(new { label = markLabel }),
+        });
+        Run(4); var s2 = Sizes();                                                       // an equal window holding ONE mark
+        if (s0.Count == 0)
+        {
+            var root0 = OrchestrationConstants.ResolveStagingRoot();
+            _out.WriteLine($"[E7] no .fdp of exercise {exercise} under {root0}; the root holds: {string.Join(" | ", Directory.Exists(root0) ? Directory.EnumerateDirectories(root0, "*", SearchOption.AllDirectories).Where(d => d.Contains("exercises")).Take(12) : Array.Empty<string>())}");
+        }
+        Assert.NotEmpty(s0);
+
+        long total = 0; var lines = new List<string>();
+        foreach (var f in s0.Keys.OrderBy(x => x))
+        {
+            long baseline = s1[f] - s0[f], withMark = s2[f] - s1[f], mark = withMark - baseline; total += mark;
+            lines.Add($"{Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(f)))}/{Path.GetFileName(f)}: file {s2[f]:N0} B · +{baseline:N0} B per window without a mark, +{withMark:N0} B with one ⇒ the mark ≈ {mark:N0} B");
+        }
+        string report = $"[E7] ONE mark on scenarios/perf-stress (scenario.json {new FileInfo(Path.Combine(source, "scenario.json")).Length:N0} B), {s0.Count} recording node(s): ≈ {total:N0} B in all ({total / 1048576.0:F2} MiB)\n  " + string.Join("\n  ", lines);
+        _out.WriteLine(report);
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "e7-mark-size.txt"), report);
+        Assert.True(s2.All(kv => kv.Value > s1[kv.Key]), "every recording node's file grew over the mark's window");
+    }
+
     // ── ⭐⭐ CE-3299 B4 (§1h) — RESTORE: every node goes back to its keyframe and records on as a new exercise ──
 
     private static IEnumerable<(string Path, RecordingMetadata Meta)> Recordings(Guid exercise)

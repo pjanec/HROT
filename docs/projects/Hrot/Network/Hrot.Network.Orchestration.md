@@ -47,7 +47,7 @@ The assembly provides five major services:
 
 4a. **Cluster-facts ingress** (CE-1436) -- `ClusterFactsIngress` is the ONE reader
    of the cluster's FACT topics (`ClusterStateTopic`, `AssetInventoryTopic`,
-   `ReplaySessionTopic`, `StorageJobsTopic`, `ClusterOpStatus`); each is decoded once (`StateOf`,
+   `ReplaySessionTopic`, `StorageJobsTopic`, `ExerciseNotesTopic`, `ClusterOpStatus`); each is decoded once (`StateOf`,
    `InventoryOf`, `DecodeResult`, `OpCompletedOf`) and published as the bus event
    the node's `ClusterView` folds. BOTH `NodeOpSlaveTranslator` (every ECS node) and
    `OrchestrationObserverTranslator` (ExCon) own one. See `docs/DESIGN_Cluster_View.md`.

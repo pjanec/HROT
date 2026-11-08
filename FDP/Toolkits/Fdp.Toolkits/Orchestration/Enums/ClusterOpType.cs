@@ -78,5 +78,9 @@ namespace Fdp.Toolkit.Orchestration
         // ⭐ New scenario N2 (docs/UX/DESIGN_New_Scenario_And_Recipe.md, R-4135) — write a BLANK scenario (header only, naming its terrain) at the master, from any host.
         //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-11-07 — the next free value in BOTH enums. Payload: SaveScenarioRequestJson (name + header {"terrainName": …}).
         CreateBlankScenario = 27,
+
+        // ⭐ CE-4325 (E7, R-4177, docs/UX/DESIGN_Bookmarks_And_Notes.md §2) — the ONE note CRUD message (add / edit / delete a note of the exercise on show), from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-11-08 — the next free value in BOTH enums. Payload: NoteEditPayloadDto.
+        EditExerciseNote = 28,
     }
 }

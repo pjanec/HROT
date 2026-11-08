@@ -240,6 +240,12 @@ public sealed class RunModeChoice
     }
     private (EditorNotification Notification, DateTime ExpiresAt)? _current;
 
+    /// <summary>⭐ CE-4325 — whether the run on show is recorded (a mark needs a recording: a checkpoint is a keyframe of it).</summary>
+    public bool RunIsRecorded => _transport.RecordsLiveRuns;
+
+    /// <summary>⭐ CE-4325 — a word on the ONE toast (the mark popup's <i>Marked 12:31.4</i> follows it).</summary>
+    public void Announce(string text) => Notify(text);
+
     private void Notify(string text, bool offersReplay = false)
         => Toasts.Enqueue(new EditorNotification("run-mode", NotificationSeverity.Info, text, null, ToastLifetime,
             offersReplay ? new[] { new NotificationAction("AAR", ReplayActionId) } : null));
