@@ -224,7 +224,7 @@ entering, any layout by hand, the previous one back on leaving.*
 | **V4** ✅ | the Review LAYOUT and its automatic switch (D10), the same layout as the RB's default | side by side with `review-perspective-visual.svg` (R-4146) *(built — see AS BUILT — V4)* |
 | **V5** | ✅ M1 measured (§6.2, §6.8) | done `2026-11-08` |
 | **V6** ✅ | **`ReviewSource`** (D6, D7): a group opens Merged (default) or a part; the picker's rows; **the status bar's source segment** (D9) | the EMPTY-world bug gone: a 4-file exercise opens merged in the all-in-one editor; a CGF-only behaviour state readable in Details; a part plays; Merged steps *(built — see AS BUILT — V6)* |
-| **V7** | search hits and breakpoint stops as Event Timeline lanes | a click seeks |
+| **V7** ✅ | search hits and breakpoint stops as Event Timeline ROWS *(not lanes — query results and session events are not recorded events)* | a click seeks *(built — see AS BUILT — V7)* |
 
 ### AS BUILT — V1 *(behaviors, `2026-11-08`)*
 
@@ -389,6 +389,46 @@ classDiagram
 | D10 | a group open counts as an AAR entry (`inAar` of the layout switch and the segment `|| reviewSource.IsOpen`); in practice the cluster is in AAR as well |
 | deviations | the **⧉** glyph and the role names (*CGF ×2, SimHost, Player*): the UI font has no ⧉ and a sidecar carries no node role — the text says *Merged* and *Node N* (`nodeName` is a seam for a host that knows roles). The toolbar's own ▶ (`MainToolbarTimeControlSection`, ui's) is not greyed in Merged: the segment draws its own greyed ▶ with the reason (smallest seam for greying THE ▶ is in the NOTE) |
 | rails | `TheReviewSourceTests` (Editor.Tests, 13): a 4-file group opens MERGED in a world that held nothing, entity count = the merge's · a component only CGF's files hold is in it · this node's part ⇒ the source stays out · the picker's notes · `SelectPart` fills from one part and plays · Merged steps ±1 / scrubs, ▶ greyed with the reason · the selection follows · each status text · a load failure is stated · the review windows' files · the editor composes it (status at the left, combo, selector) · the frame under `xvfb-run -a` (`HROT_RAIL_SHOTS`). `V6_BuildInto_…` (Fdp.Toolkits.Tests) · `V6_ARowSaysWhatYouGet_…` (the picker). Red-proofs: `OnRecordingOpened` never taking a group (the empty world returns) ⇒ 10 red; `CanPlay` true ⇒ the ▶ rail red |
+
+### AS BUILT — V7 *(behaviors, `2026-11-08`)*
+
+The Event Timeline gets two review rows. ⛔ **Not lanes** (an `IndexedLaneDefinition` is READ from a recording; hits are a query's result and stops are session events) — the Tasks rows' precedent: `ITimelineTrack` through `TimelinePanel.AddTracks`.
+
+```mermaid
+classDiagram
+    direction LR
+    class ReviewTimelineTracks { <<NEW, AiShared/Review>> Tracks() · ClickHit(i) · ClickStop(i) · rows review:hits, review:stops }
+    class ReviewStopLog { <<NEW>> Stops · Version · Add(wallTicks, label, netId) }
+    class ReplaySearchPanel { <<existing>> NEW Hits · ResultsVersion · ActivateHit(i) }
+    class FileReview { <<V2>> SeekToHit now pushes a waypoint (History) }
+    class IReplayTransport { <<V3>> Seek · Waypoints }
+    class TimelinePanel { <<existing>> AddTracks }
+    class DataBreakpointManager { <<existing>> OnBreakpointHit · PausedTick }
+    class EditorSubsystem { <<host>> }
+    class ReplayBrowserSubsystem { <<host>> }
+    ReviewTimelineTracks --> ReplaySearchPanel : the hits
+    ReviewTimelineTracks --> ReviewStopLog : the stops
+    ReviewTimelineTracks ..> IReplayTransport : a stop's click seeks, a waypoint
+    ReplaySearchPanel ..> FileReview : ActivateHit = the row's own click (SeekToHit)
+    EditorSubsystem *-- ReviewTimelineTracks
+    EditorSubsystem *-- ReviewStopLog
+    EditorSubsystem ..> DataBreakpointManager : OnBreakpointHit adds a stop
+    ReplayBrowserSubsystem *-- ReviewTimelineTracks : no stops (a recording has no manager)
+    TimelinePanel o-- ReviewTimelineTracks : AddTracks, beside the Tasks rows
+```
+*What the picture shows: ONE class both hosts compose; the hit path is the grid's own click path, not a second one; only the editor has a stop log, because only it has a breakpoint manager.*
+
+| what | as built |
+|---|---|
+| the rows | `ReviewTimelineTracks` (`Hrot/Editor/Hrot.Editor.AiShared/Review/`): **Search hits** (a Pinned-diamond marker per hit at its frame — sim seconds through the index's `FrameSim` — labelled *entity · what matched*) and **Breakpoint stops** (a marker per stop, labelled *unit · breakpoint · condition sentence · behaviour step*). A row with no markers is not in the list. At most 5 000 hit markers; the row's status then says *first N of M* |
+| the hits | `ReplaySearchPanel` gained `Hits` (a cached snapshot of the grid's rows — lifecycle hits by start frame), `ResultsVersion` (moves when a search starts, lands or fails) and `ActivateHit(i)` = a click on that grid row. ⭐ Rebuilt only when the version moves — no per-frame recompute |
+| a click on a hit | `ActivateHit` ⇒ the host's ONE hit path, unchanged: the editor's `FileReview.SeekToHit` (the host's seek, then select by network id with the V2 retry), the Replay Browser's `matchIntent` (waypoints + manager seek + selection history). **Editor addition:** `SeekToHit` now pushes a history waypoint (where you were, then where you went) through `ReviewFileServices.History` = the transport's `Waypoints` — the drawer's own `RecordJump` shape, so ◀ walks a hit like a seek-bar jump |
+| the stops | the editor's `EditorSubsystem` hangs `ReviewStopLog.Add(manager.PausedTick, …)` on `DataBreakpointManager.OnBreakpointHit`. **Measured:** the manager has no replay awareness (no guard in `DataBreakpointSystem` / `OnHit`); a stop knows its moment as `PausedTick` = `GlobalTime.TotalWallTicks`, the very stamp `LiveTimelineSource.Step` gives the index's frames, so the frame is `index.FrameAt(PausedTick)` — placeable on a live index and on a replayed one. The Replay Browser has no `DataBreakpointManager` ⇒ its host passes no stop log ⇒ no stops row there |
+| a click on a stop | seeks through `IReplayTransport` when a recording is loaded (a waypoint, then `Seek(frame)`), then selects the stop's unit by network id; with no recording (a live run) it only selects |
+| composition | the editor composes it with the review bundle — before the headless guard, so it is railed — over `_node.ShownTimeline`; the Replay Browser beside its Tasks rows over its recording's index. `TimelinePanel.AddTracks` for both |
+| 0 B | `Tracks()` compares four values (index, search version, stop version, scan progress while the index is incomplete) and returns the same list; 1 000 steady calls allocate 0 B |
+| deviations | the hit label's entity is the reader handle the results grid shows (`index:generation`), not the unit's name — a name needs the file read at every hit's frame (a reader seek per marker); the grid shows the same |
+| rails | `TheReviewTimelineTracksTests` (AiShared.Tests, 5): N hits ⇒ N markers at their frames, none ⇒ no row · a hit's click seeks the host with the frame, is a waypoint and selects · the stops row grows on a hit, placed by wall ticks, a click seeks through the transport and selects · a steady frame rebuilds nothing, 0 B · the frame under `xvfb-run -a` (`HROT_RAIL_SHOTS`, both colours drawn). `V7_TheEditorComposesTheReviewRows_…` (Editor.Tests: a manager hit adds a stop at its frame; the row reaches the panel) · `V7_TheReplayBrowser_ComposesTheReviewRows_…` (ReplayBrowser.Tests). Red-proofs: a stop's click not seeking ⇒ red; `Tracks()` rebuilding every call ⇒ the 0 B rail red |
 
 ## 5. Decisions
 

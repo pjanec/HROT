@@ -25,6 +25,9 @@ using Fdp.Core.Serialization;
 /// <summary>⭐ One match row, projected by hand (entity flattened to index/generation).</summary>
 public sealed record ReplaySearchResultRowViewModel(int FrameIndex, long WallClockTicks, int EntityIndex, int EntityGeneration, string ContextMessage);
 
+/// <summary>⭐ R-6 / V7 (docs/UX/DESIGN_Review_Perspective.md §4 V7) — one search hit as the Event Timeline draws it: the frame it is at, the entity handle (of the throwaway reader, as the results grid shows it) and what matched.</summary>
+public readonly record struct SearchHit(int Frame, Entity Entity, string Context);
+
 /// <summary>⭐ One lifecycle-match row, projected by hand.</summary>
 public sealed record ReplaySearchLifecycleRowViewModel(int EntityIndex, int EntityGeneration, int StartFrame, int EndFrame, string MatchContext);
 
@@ -87,6 +90,41 @@ public sealed class ReplaySearchPanel
 
     /// <summary>Set by the subsystem after loading a recording file.</summary>
     public string? CurrentFilePath { get; set; }
+
+    // ⭐ R-6 / V7 — the hits as the Event Timeline's "Search hits" row reads them: a snapshot rebuilt only when a search lands (the version moves), never per frame
+    private int _resultsVersion;
+    private SearchHit[] _hits = Array.Empty<SearchHit>();
+    private int _hitsVersion;
+
+    /// <summary>⭐ R-6 / V7 — moves whenever the results change (a search started, landed or failed). A reader compares it and rebuilds only then.</summary>
+    public int ResultsVersion => Volatile.Read(ref _resultsVersion);
+
+    /// <summary>⭐ R-6 / V7 — the shown hits (a lifecycle search's by its start frame), the SAME rows the results grid lists. ⭐ A cached snapshot: rebuilt only when <see cref="ResultsVersion"/> moved, 0 B otherwise.</summary>
+    public IReadOnlyList<SearchHit> Hits
+    {
+        get
+        {
+            lock (_resultsLock)
+            {
+                if (_hitsVersion == _resultsVersion) return _hits;
+                var list = new SearchHit[_results.Count + _lifecycleResults.Count];
+                int n = 0;
+                for (int i = 0; i < _results.Count; i++) list[n++] = new SearchHit(_results[i].FrameIndex, _results[i].Entity, _results[i].ContextMessage);
+                for (int i = 0; i < _lifecycleResults.Count; i++) list[n++] = new SearchHit(_lifecycleResults[i].StartFrame, _lifecycleResults[i].Entity, _lifecycleResults[i].MatchContext);
+                _hitsVersion = _resultsVersion;
+                return _hits = list;
+            }
+        }
+    }
+
+    /// <summary>⭐ R-6 / V7 — a click on hit <paramref name="index"/> of <see cref="Hits"/> does what a click on its row in the grid does: the host's ONE match path (seek + select). False when out of range.</summary>
+    public bool ActivateHit(int index)
+    {
+        var hits = Hits;
+        if ((uint)index >= (uint)hits.Count) return false;
+        _onMatchSelected(hits[index].Frame, hits[index].Entity);
+        return true;
+    }
 
     /// <summary>⭐ R-2 / V2 (docs/UX/DESIGN_Review_Perspective.md §4) — when the host returns text, the panel draws only that (a host with no recording to search says so: <i>"Open an exercise recording (AAR) to search"</i>). Null / returning null ⇒ the panel draws as ever.</summary>
     public Func<string?>? UnavailableReason { get; set; }
@@ -280,6 +318,12 @@ public sealed class ReplaySearchPanel
 
     /// <summary>⭐ CE-3378 — the drawer the Expert view builds for <paramref name="session"/> (the forwarding rail asks its catalogue). For unit testing only.</summary>
     internal ComponentEditDrawer DrawerFor(IEditSession session) => BuildDrawer(session);
+
+    /// <summary>⭐ R-6 / V7 — lands a search's results as a finished search does (the version moves). For unit testing only.</summary>
+    internal void SetResultsForTest(IReadOnlyList<SearchResultDto> results, IReadOnlyList<LifecycleSearchResultDto>? lifecycle = null)
+    {
+        lock (_resultsLock) { _results = results; _lifecycleResults = lifecycle ?? Array.Empty<LifecycleSearchResultDto>(); _resultsVersion++; }
+    }
 
     /// <summary>Simulates clicking a seek (Frame N) button. For unit testing only.</summary>
     internal void InvokeSeekRequested(int frameIndex) => _onSeekRequested(frameIndex);
@@ -550,8 +594,7 @@ public sealed class ReplaySearchPanel
                 _validationError = string.Empty;
                 _validationErrorTimer = 0f;
                 _statusLine       = "Searching...";
-                _results          = Array.Empty<SearchResultDto>();
-                _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
+                lock (_resultsLock) { _results = Array.Empty<SearchResultDto>(); _lifecycleResults = Array.Empty<LifecycleSearchResultDto>(); _resultsVersion++; }
 
                 _searchCts?.Dispose();
                 _searchCts = new CancellationTokenSource();
@@ -578,7 +621,7 @@ public sealed class ReplaySearchPanel
                             var r = _searchService.ExecuteLifecycleSearch(path, pred, entityFilter, token);
                             lock (_resultsLock)
                             {
-                                _lifecycleResults = r;
+                                _lifecycleResults = r; _resultsVersion++;
                                 _statusLine = token.IsCancellationRequested
                                     ? $"Search cancelled. Yielded {r.Count} partial result(s)."
                                     : $"Found {r.Count} lifecycle event(s).";
@@ -588,7 +631,7 @@ public sealed class ReplaySearchPanel
                         {
                             lock (_resultsLock)
                             {
-                                _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
+                                _lifecycleResults = Array.Empty<LifecycleSearchResultDto>(); _resultsVersion++;
                                 _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
                             }
                         }
@@ -604,7 +647,7 @@ public sealed class ReplaySearchPanel
                             var r = _searchService.ExecuteSearch(path, pred, entityFilter, token);
                             lock (_resultsLock)
                             {
-                                _results = r;
+                                _results = r; _resultsVersion++;
                                 _statusLine = token.IsCancellationRequested
                                     ? $"Search cancelled. Yielded {r.Count} partial result(s)."
                                     : $"Found {r.Count} result(s).";
@@ -614,7 +657,7 @@ public sealed class ReplaySearchPanel
                         {
                             lock (_resultsLock)
                             {
-                                _results = Array.Empty<SearchResultDto>();
+                                _results = Array.Empty<SearchResultDto>(); _resultsVersion++;
                                 _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
                             }
                         }

@@ -86,6 +86,9 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
     /// <summary>⭐ W-1 / P-8 8c-2 — the Event Timeline's Tasks rows (forwarding rails).</summary>
     internal Hrot.Presentation.Orders.TasksTimelineTracks? TasksTracks { get; private set; }
+    internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
+    /// <summary>⭐ R-6 / V7 — the Event Timeline's Search hits row (the ONE class both hosts compose); a recording has no breakpoint manager, so no stops row.</summary>
+    internal Hrot.Editor.AiShared.Review.ReviewTimelineTracks? ReviewTracks { get; private set; }
     // ⭐ CE-3330 E6 — the ONE reopen-on-path-or-catalogue-change holder (shared with every ECS node's cluster-replay timeline)
     private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot? _timelineSlotField;
     private Fdp.Toolkit.ReplayBrowser.Timeline.RecordingTimelineSlot _timelineSlot => _timelineSlotField ??=
@@ -982,6 +985,13 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             TasksTracks = new Hrot.Presentation.Orders.TasksTimelineTracks(() => _timelineSource, () => _activeRepo,
                 () => Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_activeRepo, _inspectorState?.SelectedEntity), n => SelectNetworkEntity(n));
             _eventTimeline.AddTracks(TasksTracks.Tracks);
+        }
+        // ⭐ R-6 / V7 — the Search hits row: a marker per hit of THIS panel, a click runs the panel's own row-click path (waypoint + seek + select)
+        if (ReviewTracks == null)
+        {
+            ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _timelineSource, searchPanel, stops: null,
+                transport: () => timelinePanel, selectUnit: n => SelectNetworkEntity(n));
+            _eventTimeline.AddTracks(ReviewTracks.Tracks);
         }
 
         // ⭐⭐ CE-4292 (Rules bundle R3) — the rules windows on a RECORDING: the ONE bundle every host composes (Rules · Mission summary · Trainee debrief ·

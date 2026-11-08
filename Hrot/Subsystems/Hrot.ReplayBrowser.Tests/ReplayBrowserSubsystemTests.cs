@@ -212,6 +212,25 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     // ── FND-T12: 5 windows registered, all PerspectiveBound, all "ReplayBrowser" ─
 
     /// <summary>
+    /// ⭐ R-6 / V7 — the Replay Browser composes the Event Timeline's review rows (the ONE <c>ReviewTimelineTracks</c>, beside the Tasks rows) over ITS search panel; a recording has no breakpoint manager, so
+    /// the class is built with no stops. 🔴 Red-proof: no <c>AddTracks(ReviewTracks.Tracks)</c> ⇒ one source instead of two ⇒ red.
+    /// </summary>
+    [Fact]
+    public void V7_TheReplayBrowser_ComposesTheReviewRows_OverItsSearchPanel()
+    {
+        var wm = new WindowManager(new IconAtlas(IntPtr.Zero, 512, 512));
+        var timelinePanel = new Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel(null, () => 0, new StubExportService(), new StubFileDialogService(), new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(), new InspectorState());
+        var searchPanel = new Fdp.Presentation.Panels.ReplayBrowser.ReplaySearchPanel(new NopPanelEditService(), new NopPanelSearchService(), _ => { }, _ => { }, (_, _) => { });
+        _subsystem.RegisterWindowsCore(wm, timelinePanel, new Fdp.Presentation.Panels.EntityInspectorPanel(), new Fdp.Presentation.Panels.ReplayBrowser.ComponentDiffPanel(),
+            new Fdp.Presentation.Panels.EventBrowserPanel(new StubHistoryService()), searchPanel);
+
+        Assert.NotNull(_subsystem.TasksTracks);
+        Assert.NotNull(_subsystem.ReviewTracks);
+        Assert.Equal(2, _subsystem.EventTimelineForTest.ExtraTrackSourceCount);   // the Tasks rows and the review rows
+        Assert.Empty(_subsystem.ReviewTracks!.Tracks());                          // no recording / no hits ⇒ no row
+    }
+
+    /// <summary>
     /// FND-T12: RegisterWindowsCore registers exactly 6 windows (CE-1150 / CE-1244); all are
     /// PerspectiveBound scope; all belong to the "ReplayBrowser" perspective.
     /// </summary>

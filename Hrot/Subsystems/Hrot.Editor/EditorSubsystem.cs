@@ -280,6 +280,10 @@ namespace Hrot.Editor
         private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
         /// <summary>⭐ W-1 / P-8 8c-2 — the Event Timeline's Tasks rows (forwarding rails).</summary>
         internal Hrot.Presentation.Orders.TasksTimelineTracks? TasksTracks { get; private set; }
+        /// <summary>⭐ R-6 / V7 — the Event Timeline's Search hits and Breakpoint stops rows (the ONE class both hosts compose).</summary>
+        internal Hrot.Editor.AiShared.Review.ReviewTimelineTracks? ReviewTracks { get; private set; }
+        /// <summary>⭐ R-6 / V7 — the data-breakpoint stops of this session (what the Breakpoint stops row draws).</summary>
+        internal Hrot.Editor.AiShared.Review.ReviewStopLog ReviewStops { get; } = new();
 
         /// <summary>⭐ CE-3330 — the live event timeline's index: the node context's (null before Initialize / after Shutdown).</summary>
         internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? LiveTimeline => _node?.Timeline;
@@ -5072,7 +5076,8 @@ namespace Hrot.Editor
                     Serializer:     reviewSerializer,
                     Behaviors:      _behaviorRegistry,
                     Blueprints:     _blueprintRegistry,
-                    Reader:         _ownPartReplay.Reader));
+                    Reader:         _ownPartReplay.Reader,
+                    History:        () => _reviewTransport?.Waypoints));   // ⭐ R-6 / V7 — a hit is a history waypoint
                 var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host(Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, "editor_review_", EditorWindowColor.TitleBar, () => _world));
                 Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { reviewBundle }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
                 reviewBundle.FrameDiff.IsOpen = false; reviewBundle.ReplaySearch.IsOpen = false;   // listed in the Window menu, closed until opened
@@ -5105,6 +5110,27 @@ namespace Hrot.Editor
                     reviewSource.Update(Math.Min(dt, 0.25));
                 });
                 _reviewBundle = reviewBundle;
+            }
+
+            // ⭐ R-6 / V7 — (composed with the review bundle, before the headless guard, so it is railed) Search hits (the review search panel's) and Breakpoint stops (this session's) as Event Timeline rows; a click seeks through the AAR transport / the panel's hit path and selects
+            if (ReviewTracks == null)
+            {
+                ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _node?.ShownTimeline, _fileReview?.SearchPanel, ReviewStops,
+                    transport: () => _reviewTransport, selectUnit: n => SelectNetworkEntity(n));
+                _eventTimeline.AddTracks(ReviewTracks.Tracks);
+                if (_bpManager is { } stopManager)
+                    stopManager.OnBreakpointHit += (bp, entity) =>
+                    {
+                        string who = "";
+                        int net = 0;
+                        if (!entity.IsNull && _world is { } w && w.IsAlive(entity))
+                        {
+                            who = w.IsComponentTypeRegistered<Fdp.Core.EntityInfo>() && w.HasComponent<Fdp.Core.EntityInfo>(entity) && w.GetComponentRO<Fdp.Core.EntityInfo>(entity).Name.ToString() is { Length: > 0 } nm ? nm + " · " : "";
+                            if (_entityMap != null) _entityMap.TryGetNetworkId(entity, out net);
+                        }
+                        string what = Hrot.Diagnostics.Breakpoints.BreakpointConditionSummarizer.Summarize(bp.Condition);
+                        ReviewStops.Add(stopManager.PausedTick, who + bp.DisplayName + (what.Length > 0 ? " · " + what : "") + (stopManager.LastHitDetail is { Length: > 0 } d ? " · " + d : ""), net);
+                    };
             }
 
             // ⭐⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D1 / D10 / D11) — the Review LAYOUT: the bundle's windows are owned by it; Details, the Event Timeline, the Mission summary and the data

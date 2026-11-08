@@ -11,6 +11,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="FDP.Toolkit_ImGui.Tests" />
     <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
+    <InternalsVisibleTo Include="Hrot.Editor.AiShared.Tests" />   <!-- R-6 / V7 — the review rows' rails load a search's results without drawing the panel -->
+    <InternalsVisibleTo Include="Hrot.Editor.Tests" />
+    <InternalsVisibleTo Include="Hrot.ReplayBrowser.Tests" />
     <InternalsVisibleTo Include="Hrot.Presentation.Tests" />   <!-- CE-3403 — the frame rail of the raw inspector window lives where the GL frame harness does -->
   </ItemGroup>
 
