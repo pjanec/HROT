@@ -1,20 +1,78 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — §1–§6 decided (R-4171, R-4172); §7 the distributed model added 2026-11-08 — Q5–Q7 for the user
-updated: 2026-11-08 (first version — the user: "I think we might be missing some recording collection step at the end of the live exercise")
-current-answer: §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · ⭐ §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · ⭐ §7 the distributed model (jobs, facts, one queue)
+build-state: DESIGN — §1–§6 decided (R-4171, R-4172); §7 the distributed model — Q5–Q7 for the user; §00 scope added 2026-11-08
+updated: 2026-11-08 (⭐ PROMOTED to the ONE owning design of recording files — moved from docs/DESIGN_Recording_Storage.md and retitled; the user: "it's probably a whole design document regarding the management of the recording files, importing and exporting")
+current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue)
 stale-below: nothing
 known-rot: none
-known-conflict: none
+known-conflict: designs/mgmt-1/DESIGN.md §13 — written before the build; its §13.3 layout (/archives/, .fdprec + .meta.json, drill_manifest.json) is NOT the as-built ({NAS}/exercises/<id>/node_N.fdp + Orchestrator.json + scenario/, §1 here). This design is the current answer for WHAT happens to a recording; mgmt-1 §12.6/§13.1 stay the answer for HOW the gateway moves bytes.
 related-designs:
-  - ../designs/mgmt-1/DESIGN.md — OWNS the archive export / import (§13, the storage gateway pattern, ExportArchive = 6, ImportArchive = 7)
-  - ../blueprints/Architect_Question_108_Run_Mode_Picker.md — §0 R2″ (Live ends in two steps — ⏏ Close the session asks here), D15 (discard), CE-4100 (ask to keep recordings)
-  - DESIGN_Scenario_Lifecycle_Review.md — LC-19 (the recording picker), LC-21 (recordings out of TEMP)
-  - DESIGN_Review_Perspective.md — a participant group opens merged: it needs every node's file in ONE place
-  - ../DESIGN_Distributed_Scenario_Persistence.md — the same pull pattern for scenario saves
+  - designs/mgmt-1/DESIGN.md — OWNS the transport: §12.4 the SMB pull gateway, §12.6 StorageGatewayModule, §13.1 the export phases, §13.3a the scenario copy taken at Live start (CE-3119)
+  - blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the run controls: §0 R2″ (Live ends in two steps — ⏏ Close asks here), D15 (discard), CE-4100 (ask to keep recordings)
+  - UX/DESIGN_Scenario_Lifecycle_Review.md — LC-19 (the recording picker), LC-21 (recordings out of TEMP)
+  - UX/DESIGN_Review_Perspective.md — OWNS opening a run: a participant group opens merged and needs every node's file in ONE place
+  - DESIGN_Checkpoint_And_Dry_Run_Restore.md — OWNS checkpoints INSIDE a recording (D13: no trim inside a recording; ExerciseRetention.Prune is the only clean-up)
+  - designs/file-sync-1/Detailed Design.md — OWNS the deployment's ARTIFACT distribution (manifests, publish gate); the source of "operator-triggered deletion only", which §6 keeps
+  - DESIGN_Artifact_Staging.md — OWNS staging the TKB / terrain from the shared root to the nodes (the same staging tree the recordings live in)
+  - DESIGN_Distributed_Scenario_Persistence.md — the same pull pattern for scenario saves
 -->
 
-# DESIGN — collecting a live exercise's recordings: archive, keep or discard at the end
+# DESIGN — recording storage: where a recording lives, and how it moves (collect · archive · import · cache · discard)
+
+## 00. ⭐ Scope — the ONE owning design of recording files *(`2026-11-08`)*
+
+🔒 User: *"it's probably a whole design document regarding the management of the recording files, importing and exporting. Maybe there is already one
+from the old times when the existing features were implemented, but now we are adding something more."*
+
+**Searched** (`grep` over `docs/` + `.dev/` for `ExportArchive|ImportArchive|StorageGateway|SMB Pull|ExerciseRetention|PrefetchArchive|HydrateLedger`, ~30 files
+ranked by hits): ⛔ **no single owning design existed** — the pieces were spread over five places, none covering the whole life of a recording:
+
+| piece | where it was | covers | why it was not enough |
+|---|---|---|---|
+| the gateway and the export / import phases | [mgmt-1 §12.4–§13](designs/mgmt-1/DESIGN.md) (`.dev/_DONE/mgmt-1`, cgf-1 near-copy) | HOW bytes move (one outbound NAS connection) | written before the build: its §13.3 layout is not the as-built; nothing about WHEN an archive runs, partial archives, status, concurrency or local copies |
+| the scenario copy in the archive | mgmt-1 §13.3a (CE-3119) | the `scenario/` folder | one artefact |
+| keep / discard at the end | [AQ108](blueprints/Architect_Question_108_Run_Mode_Picker.md) D15, CE-4100 | the question and `DeleteExercise` (unarchived only) | no archive step |
+| pruning old exercises | CE-3218 (tracker row + `ExerciseRetention.cs` doc comment only — ⛔ no design) | the disk not filling | count only, by exercise |
+| "operator-triggered deletion only" | [file-sync-1](designs/file-sync-1/Detailed%20Design.md) | artifacts | a different subsystem; its principle is reused |
+
+⇒ ⭐ **This document is now the owner** (moved from `docs/DESIGN_Recording_Storage.md`). mgmt-1 keeps the transport; this one owns **what happens
+to a recording, where it is, and what every station knows about it.**
+
+### The life of a recording
+
+```mermaid
+stateDiagram-v2
+  state "Recording — each node writes its own .fdp" as Rec
+  state "On the nodes, UNARCHIVED (the ledger) — the only copy" as Un
+  state "Archiving — a storage job (§7)" as Arc
+  state "On the NAS, INCOMPLETE (no manifest yet) — resumable" as Inc
+  state "On the NAS, COMPLETE (manifest written last)" as Nas
+  state "Local CACHE copy (newest N)" as Cache
+  state "Importing — a storage job (§7)" as Imp
+  state "Gone" as Gone
+  [*] --> Rec : Live starts (recording on)
+  Rec --> Un : Live ends
+  Un --> Arc : ⏏ Close · Archive (the default)
+  Un --> Un : Keep (stays on the nodes)
+  Un --> Gone : Discard (DeleteExercise, existing)
+  Arc --> Nas : every file verified
+  Arc --> Inc : failure · cancel · a node offline · a crash
+  Inc --> Arc : Resume (§3 P5)
+  Nas --> Cache : the nodes' copies become a cache
+  Cache --> Nas : evicted (oldest beyond N, or low disk — §6)
+  Nas --> Imp : opened on a station that lacks it
+  Imp --> Cache : done
+  Cache --> Cache : opened — no import (cache hit)
+```
+*What the picture shows that the sections below spread out: a recording is ALWAYS in exactly one of two safe places — the only copy on the nodes
+(never removed automatically) or complete on the NAS (local copies are disposable). Every arrow out of those two is a storage job (§7), visible on
+every station.*
+
+| ⛔ gap the picture exposes | lean |
+|---|---|
+| **no way to DELETE a run from the NAS** — `DeleteExercise` removes only an UNARCHIVED one (`AssetInventoryProcessManager.cs:220-225`, returns false for an archived id) | **Q8** — an operator-only *Delete from archive* through the gateway (a storage job of kind Delete), never automatic; ⭐ not part of CE-4330 — file it when wanted |
+
+## 0. Why
 
 ## 0. Why
 
@@ -99,7 +157,7 @@ valid because when we start the AAR, we might always want to import the files fr
 
 | measured | where |
 |---|---|
-| the platform ALREADY forbids nodes to touch the NAS: a Windows client OS accepts **~20 inbound SMB connections**, so ONE storage gateway (with the master) does every NAS read and write over its own OUTBOUND connection — the *SMB Pull Gateway* pattern | [mgmt-1 §12.4](../designs/mgmt-1/DESIGN.md) (*"~20 on client SKUs causes cascading connection failures"*), `:2371` |
+| the platform ALREADY forbids nodes to touch the NAS: a Windows client OS accepts **~20 inbound SMB connections**, so ONE storage gateway (with the master) does every NAS read and write over its own OUTBOUND connection — the *SMB Pull Gateway* pattern | [mgmt-1 §12.4](designs/mgmt-1/DESIGN.md) (*"~20 on client SKUs causes cascading connection failures"*), `:2371` |
 | the import exists: `ImportArchive` → the gateway reads `{NAS}/exercises/<id>/node_N.fdp` and PUSHES each node its own file into its staging (`PrefetchArchiveAsync`) | `StorageGatewayModule.cs:701-725` · `StorageProcessManager.cs:71-75` |
 
 ⭐ **Decision (lean, matching the user's last thought): every opener IMPORTS first, never reads the NAS directly.**
