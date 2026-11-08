@@ -220,7 +220,7 @@ entering, any layout by hand, the previous one back on leaving.*
 |---|---|---|
 | **V1** | `ReviewBundle` + `ReviewHostServices`; the RB composes it (its four registrations deleted) | the RB's window-set golden unchanged; its frame rails green |
 | **V2** ✅ | the editor composes it (own-part AAR): Frame diff and Replay search, openable in any layout *(built — see AS BUILT — V2)* | a search hit seeks and selects; 0 B per steady frame |
-| **V3** | **the ONE AAR transport** (D8): `IReplayTransport` + the RB's drawer as the editor's AAR segment — history, step ± with scrub, the seek bar; the RB unchanged in look | side by side with the mockup's toolbar; step back in the editor = a cluster seek; 0 B steady |
+| **V3** ✅ | **the ONE AAR transport** (D8): `IReplayTransport` + the RB's drawer as the editor's AAR segment — history, step ± with scrub, the seek bar; the RB unchanged in look | side by side with the mockup's toolbar; step back in the editor = a cluster seek; 0 B steady *(built — see AS BUILT — V3)* |
 | **V4** | the Review LAYOUT and its automatic switch (D10), the same layout as the RB's default | side by side with `review-perspective-visual.svg` (R-4146) |
 | **V5** | ✅ M1 measured (§6.2, §6.8) | done `2026-11-08` |
 | **V6** | **`ReviewSource`** (D6, D7): a group opens Merged (default) or a part; the picker's rows; **the status bar's source segment** (D9) | the EMPTY-world bug gone: a 4-file exercise opens merged in the all-in-one editor; a CGF-only behaviour state readable in Details; a part plays; Merged steps |
@@ -272,6 +272,40 @@ classDiagram
 | 0 B | `ComponentDiffPanel` allocated per steady frame (row labels interpolated each frame; interface `foreach` boxed the enumerator) — labels cached per diff, loops indexed ⇒ diff, search and `Update` measured **0 B** with a unit selected and with none, in AAR and outside it |
 | deviation | **Recording info / JSON export** are manager-bound panels (the Replay Browser's federation); the editor has no federation in an own-part AAR, so they open and say *"No recording loaded"* until V6's `ReviewSource` fills them. No File-menu items for them in the editor yet |
 | rails | `TheFileReviewTests` (AiShared.Tests: outside-AAR message, hit seeks + selects with retry, diff reads the file, 0 B), `TheEditorComposesTheReviewBundleTests` (Editor.Tests: the four windows, closed, "say so" outside AAR; a hit goes through `OwnPartReplay`'s seek with the frame's moment and selects the unit). Red-proofs: hit not seeking ⇒ red; an allocation in `Update` ⇒ red |
+
+### AS BUILT — V3 *(behaviors, `2026-11-08`)*
+
+The transport's ONE drawer moved out of `ReplayTimelinePanel` and calls only a seam; the Replay Browser and the editor's AAR segment are two profiles of it.
+
+```mermaid
+classDiagram
+    direction LR
+    class IReplayTransport { <<NEW, Fdp.Presentation>> CurrentFrame · TotalFrames · Seek(frame) · Step(±1) · IsPlaying / Play / Pause · Rate · CanPlay · Waypoints · SecondsOf · FrameTimes · axis inputs }
+    class ReplayTransportDrawer { <<NEW, moved out of the panel>> Draw(iconSize) · profile ReplayTransportParts · LastDrawn · LastSeekBar }
+    class ReplayTimelinePanel { <<existing>> implements IReplayTransport over FederatedReplayManager · DrawTransport = drawer.Draw }
+    class OwnPartReplayTransport { <<NEW, Hrot.Editor/Review>> Seek / Step = OwnPartReplay.SeekToFrame }
+    class AarTransportSegment { <<NEW, Hrot.Editor/Review>> toolbar entry AarTransport, sortOrder 12, only while the run mode is AAR }
+    class OwnPartReplay { <<V2>> the editor's ONE seek }
+    class MainToolbarTimeControlSection { <<ui's, UNTOUCHED>> ▶ ⏸ ■ · rate · axis · step forward }
+    ReplayTransportDrawer --> IReplayTransport
+    ReplayTimelinePanel ..|> IReplayTransport
+    ReplayTimelinePanel *-- ReplayTransportDrawer : All
+    OwnPartReplayTransport ..|> IReplayTransport
+    OwnPartReplayTransport --> OwnPartReplay
+    AarTransportSegment *-- ReplayTransportDrawer : AarSegment
+    AarTransportSegment --> OwnPartReplayTransport
+```
+*What the picture shows: one drawer, two implementations of the seam, two profiles — and the editor's segment sits BESIDE ui's time control (its own toolbar entry), never inside it.*
+
+| what | as built |
+|---|---|
+| the seam | `IReplayTransport` (`FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/IReplayTransport.cs`): the design's `Seek · Step(±1) · Play / Pause · Rate · Waypoints · CanPlay` plus what the drawer read from the manager before — `HasRecording`, `CurrentFrame`, `TotalFrames`, `PlayDisabledReason` (the Merged View text), `SecondsOf` / `FrameTimes` (the seek bar's labels and tooltip) and the axis inputs (`HasAxisToggle` · `AxisIsSim` · `HasSimAxis` · `SimAxisActive` · `ToggleAxis`). `Waypoints` is the existing `PlaybackHistoryTracker` |
+| the drawer | `ReplayTransportDrawer` (same folder) = the panel's `DrawRow1_Transport` + `DrawSeekBar` moved whole and made to call ONLY the seam; hold-to-scrub, the rate combo, the seek bar's per-frame label cache are unchanged. `ReplayTimelinePanel.DrawTransport` = `drawer.Draw`; the panel implements the seam (explicitly) over its manager — the Replay Browser's behaviour is today's. Widget ids keep the `rb` prefix |
+| profiles | `ReplayTransportParts` flags: the Replay Browser `All`; the editor's segment `AarSegment` = `History \| StepBack \| SeekBar`. `LastDrawn` reports what a draw really drew (the rails read it) |
+| history | ⭐ the DRAWER records a waypoint on every JUMP through the seam (rewind; the START of a seek-bar scrub — current frame, then the target), so ◀ returns to where the scrub began; steps and hold-to-scrub are not jumps. **Deviation from "the RB unchanged":** the Replay Browser's seek bar and rewind now also push waypoints (before, only selection / search jumps did) — one drawer, one behaviour |
+| the editor | `OwnPartReplayTransport` (`Hrot/Subsystems/Hrot.Editor/Review/`): frame = `OwnPartReplay.CurrentFrame()`, `Seek` = `OwnPartReplay.SeekToFrame` (a cluster seek), **`Step(-1)` = a seek to the previous frame**; play / pause / rate delegate to the toolbar's facade (the segment does not draw them); the sim seconds in the tooltip come from the replay position (NaN ⇒ omitted: `DetailText` skips it). `AarTransportSegment` registers the entry `AarTransport` (sortOrder 12: after the time control 0–9 and its separator 10, before Problems 15 and the perspective group 20–29), draws nothing unless `RunModeChoice.Shown == AAR`, bar capped at 360 px. `EditorSubsystem` composes it beside the review bundle. ⛔ `MainToolbarTimeControlSection` is not touched — no duplicate had to be accepted, so no request note to ui |
+| 0 B | the segment measured **0 B** per steady frame (in AAR and hidden) |
+| rails | `TheAarTransportSegmentTests` (Hrot.Editor.Tests: step back = a cluster seek to current-1; the editor registers `AarTransport` with the AAR profile; draws only history · step back · the seek bar and nothing outside AAR; a click on the bar is a waypoint and ◀ seeks back; 0 B). The Replay Browser's `RBUX1_*` / `CE4261_*` frame rails run through the drawer unchanged (RBUX1 also asserts the full profile). Red-proofs: segment profile `All` (a duplicate ▶) ⇒ 2 red; `Step` not seeking ⇒ red |
 
 ## 5. Decisions
 

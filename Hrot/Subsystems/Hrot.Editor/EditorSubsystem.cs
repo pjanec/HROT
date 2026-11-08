@@ -348,6 +348,8 @@ namespace Hrot.Editor
         // ⭐ R-2 / V2 — the Review bundle's own-part replay access, the analysis over its file, and the bundle (see RegisterWindows)
         private Hrot.Editor.Review.OwnPartReplay? _ownPartReplay;
         private Hrot.Editor.AiShared.Review.FileReview? _fileReview;
+        private Hrot.Editor.Review.AarTransportSegment? _aarTransport;
+        internal Hrot.Editor.Review.AarTransportSegment? AarTransportForTest => _aarTransport;
         private Hrot.Editor.AiShared.Review.ReviewBundle? _reviewBundle;
         private Hrot.Presentation.DebugApi.IClusterMasterControl? _reviewMaster;
         internal Hrot.Editor.AiShared.Review.ReviewBundle? ReviewBundleForTest => _reviewBundle;
@@ -5029,6 +5031,12 @@ namespace Hrot.Editor
                 reviewBundle.FrameDiff.IsOpen = false; reviewBundle.ReplaySearch.IsOpen = false;   // listed in the Window menu, closed until opened
                 var reviewFiles = _fileReview; var reviewDiff = reviewBundle.FrameDiff;
                 windowManager.RegisterFrameOverlay(() => reviewFiles.Update(reviewDiff.IsOpen));
+                // ⭐⭐ R-3 / V3 (docs/UX/DESIGN_Review_Perspective.md §3 D8) — the editor's AAR segment of the ONE transport: its OWN toolbar entry (ui's time control is untouched), the Replay Browser's drawer
+                //   over OwnPartReplay (the ONE seek), shown only while the run mode is AAR
+                _aarTransport = new Hrot.Editor.Review.AarTransportSegment(
+                    new Hrot.Editor.Review.OwnPartReplayTransport(_ownPartReplay, () => _timeTransport),
+                    inAar: () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR);
+                if (windowManager.MainToolbar is { } aarToolbar) _aarTransport.RegisterInto(aarToolbar);
                 _reviewBundle = reviewBundle;
             }
 
