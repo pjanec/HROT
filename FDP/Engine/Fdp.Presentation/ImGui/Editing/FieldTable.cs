@@ -165,6 +165,11 @@ public sealed class FieldTable : IStructTableTarget
     private readonly HashSet<string> _collapsed = new();
     private Vector2[] _tailMin = new Vector2[8], _tailMax = new Vector2[8];
 
+    // delete confirm (a row something uses): the text is built when the confirm opens
+    private bool _openConfirm, _confirmed, _confirmShown;
+    private string? _confirmName, _confirmText;
+    private Vector2 _confMin, _confMax, _cancMin, _cancMax;
+
     private string? _addLabelFor, _addText;
     private static readonly string[] Numbers = BuildNumbers(256);
     private static string[] BuildNumbers(int n) { var a = new string[n]; for (int i = 0; i < n; i++) a[i] = i.ToString(); return a; }
@@ -222,6 +227,10 @@ public sealed class FieldTable : IStructTableTarget
     public string? SelectedName => _sel >= 0 && _sel < _rows.Length ? _rows[_sel].Name : null;
     /// <summary>The value node of a row in the table's current declared document (what its cell draws).</summary>
     public EditNode? ValueNode(string name) { int i = IndexOf(name); return i < 0 || _session is null ? null : _session.Document.Root.Children[i]; }
+    /// <summary>The delete confirm now open ("Used by N nodes — delete?"), or null.</summary>
+    public string? DeleteConfirm => _confirmShown ? _confirmText : null;
+    /// <summary>Where the open confirm's Delete / Cancel buttons were drawn.</summary>
+    public ((Vector2 Min, Vector2 Max) Delete, (Vector2 Min, Vector2 Max) Cancel) ConfirmButtons => ((_confMin, _confMax), (_cancMin, _cancMax));
     /// <summary>The table's type picker is open for this row (null when closed).</summary>
     public string? PickerRow => _pickRow >= 0 && _pickRow < _rows.Length && _picking ? _rows[_pickRow].Name : null;
     private bool _picking;
@@ -395,6 +404,7 @@ public sealed class FieldTable : IStructTableTarget
         if (_errText != null && _errRow == "") RowMarks.ErrorLine(_errText);
 
         DrawPicker(decls);
+        DrawConfirm();
 
         // the keys act on the selected row while this window has the focus (nothing here reads a key — the router runs the scope)
         if (!_fill && _sel >= 0 && _renameIdx < 0 && ImGuiApi.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)) StructTableFocus.Set(this);
@@ -469,6 +479,24 @@ public sealed class FieldTable : IStructTableTarget
         _renameIdx = i; _renameOld = _rows[i].Name; _rename.Set(_renameOld);
         _renameFocus = true; _renameSeen = false; _renameFrames = 0;
         _sel = i;
+    }
+
+    // ── the delete confirm ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]  // R-2084: tier-0 JIT boxes struct arguments
+    private void DrawConfirm()
+    {
+        if (_openConfirm) { _openConfirm = false; ImGuiApi.OpenPopup("Delete##fieldconfirm"); }
+        _confirmShown = false;
+        if (!ImGuiApi.BeginPopupModal("Delete##fieldconfirm", ImGuiWindowFlags.AlwaysAutoResize)) return;
+        _confirmShown = true;
+        ImGuiApi.TextUnformatted(_confirmText!);
+        if (ImGuiApi.Button("Delete")) { _confirmed = true; int i = IndexOf(_confirmName!); if (i >= 0) Queue(Op.Remove, i); ImGuiApi.CloseCurrentPopup(); }
+        _confMin = ImGuiApi.GetItemRectMin(); _confMax = ImGuiApi.GetItemRectMax();
+        ImGuiApi.SameLine();
+        if (ImGuiApi.Button("Cancel") || ImGuiApi.IsKeyPressed(ImGuiKey.Escape)) ImGuiApi.CloseCurrentPopup();
+        _cancMin = ImGuiApi.GetItemRectMin(); _cancMax = ImGuiApi.GetItemRectMax();
+        ImGuiApi.EndPopup();
     }
 
     // ── the ⋮ menu ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -658,6 +686,13 @@ public sealed class FieldTable : IStructTableTarget
             case Op.Remove:
             {
                 string name = _rows[i].Name; int before = _rows.Length;
+                // a row something uses asks first (every host): "Used by N nodes — delete?"; a free row goes at once
+                bool confirmed = _confirmed; _confirmed = false;
+                if (!confirmed && decls.UsedBy(name) is > 0 and var used)
+                {
+                    _confirmName = name; _confirmText = $"Used by {used} node{(used == 1 ? "" : "s")} — delete?"; _openConfirm = true;
+                    break;
+                }
                 if (decls.Remove(name)) { _errText = null; _sel = Math.Min(i, before - 2); } else Fail(name, decls);
                 break;
             }

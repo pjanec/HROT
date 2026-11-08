@@ -352,7 +352,13 @@ public sealed class FieldTableFrameRail
         r.Steady();
         r.Click(r.NameCenter("weather")); r.Frames(2);                              // select (the window takes the focus)
         r.Press(EditorKey.Delete, KeyModifiers.None);
-        Assert.Equal("enemyStrength,weather,callsign", r.D.Names());                // used by 2 ⇒ refused …
+        Assert.Equal("Used by 2 nodes — delete?", r.Table.DeleteConfirm);           // used by 2 ⇒ ASKS first (nothing is called yet) …
+        int calls = r.D.Calls;
+        r.Click((r.Table.ConfirmButtons.Cancel.Min + r.Table.ConfirmButtons.Cancel.Max) / 2f); r.Frames(3);
+        Assert.Null(r.Table.DeleteConfirm); Assert.Equal(calls, r.D.Calls);         // Cancel: nothing happened
+        r.Press(EditorKey.Delete, KeyModifiers.None);
+        r.Click((r.Table.ConfirmButtons.Delete.Min + r.Table.ConfirmButtons.Delete.Max) / 2f); r.Frames(3);
+        Assert.Equal("enemyStrength,weather,callsign", r.D.Names());                // confirmed ⇒ the source's own refusal still applies …
         Assert.Equal("weather", r.Table.Error!.Value.Row);                          // … and says why under its row
         Assert.Equal("'weather' is still bound by 2 field(s). Unbind them first.", r.Table.Error!.Value.Text);
         Shot(r, "fieldtable-delete-refused.png");
@@ -368,6 +374,7 @@ public sealed class FieldTableFrameRail
         r.Click(r.NameCenter("callsign")); r.Frames(2);
         r.Press(EditorKey.Delete, KeyModifiers.None);                               // free ⇒ gone
         Assert.Equal("enemyStrength,weather,weather1", r.D.Names());
+        Assert.Null(r.Table.DeleteConfirm);                                         // … without asking
         Assert.Null(r.Table.Error);
     }
 
