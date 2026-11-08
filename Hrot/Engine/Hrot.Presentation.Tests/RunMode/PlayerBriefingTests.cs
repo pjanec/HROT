@@ -118,6 +118,23 @@ public sealed class PlayerBriefingTests : IDisposable
         Assert.Contains("Secure the road", b.Content.Objectives);
     }
 
+    /// <summary>
+    /// ⭐ A Player node's REPLICATED world holds no description singleton (the load step stamps it on the Brain only): the title and the Mission come from the run's scenario and its file's header,
+    /// read once per change, not per frame. 🔴 Mutation: <c>Rebuild</c> ignoring <c>RunScenario</c> ⇒ the title is "Briefing" and the Mission empty ⇒ red.
+    /// </summary>
+    [Fact]
+    public void OnAPlayersReplicatedWorld_TheTitleAndMissionComeFromTheRunsScenarioFile()
+    {
+        _man = Man(7, "Alpha 1-1", ForceId.Friend);
+        _w.AddComponent(_man, new PossessedBy());
+        int reads = 0;
+        var b = new PlayerBriefing { DescriptionOf = name => { reads++; return name == "night-attack" ? "Seize the bridge." : null; }, RunScenario = "night-attack" };
+        for (int i = 0; i < 10; i++) b.Refresh(_w);
+        Assert.Equal("night-attack — briefing", b.Content.Title);
+        Assert.Equal("Seize the bridge.", b.Content.Mission);
+        Assert.Equal(1, reads);                               // the file is read on a change only
+    }
+
 
     // ── in a real frame ───────────────────────────────────────────────────────────────────
 

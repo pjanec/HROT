@@ -714,6 +714,9 @@ public sealed class RunModeChoice
 
     private string? ScenarioOfRun() => _transport.ActiveExerciseScenario ?? _control?.LoadedScenarioName;
 
+    /// <summary>The scenario of the current run (the cluster's active exercise, else the loaded one), or null — what the Player's briefing names (its world holds no resident description).</summary>
+    public string? RunScenario => ScenarioOfRun();
+
     // ── the indicator's menu (R1: the ONLY place Armed changes) ──────────────────────────
 
     /// <summary>

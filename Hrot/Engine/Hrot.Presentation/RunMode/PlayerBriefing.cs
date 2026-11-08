@@ -38,7 +38,28 @@ public sealed class PlayerBriefing
 
     private EntityRepository? _world;
     private EntityQuery? _holds, _statuses;
-    private Entity _unit; private int _statusCount = -1; private object? _resident;
+    private Entity _unit; private int _statusCount = -1; private object? _resident; private string? _runScenario;
+
+    /// <summary>
+    /// ⭐ The scenario of the run (the cluster's active exercise), set by <see cref="Draw"/>: a Player node receives a REPLICATED world — the description singleton
+    /// (<see cref="ScenarioDescriptionResident"/>) is stamped by the load step on the Brain only — so the title and the Mission fall back to the run's scenario name and its file's header.
+    /// </summary>
+    public string? RunScenario { get => _runScenario; set => _runScenario = value; }
+
+    /// <summary>The description of a scenario by name when no resident one is in the world: default = its header in the shared scenarios folder (null when the host has none). Rails inject one.</summary>
+    public Func<string, string?> DescriptionOf { get; set; } = FileDescriptionOf;
+
+    private static string? FileDescriptionOf(string scenario)
+    {
+        try
+        {
+            var file = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedScenariosRoot(), scenario),
+                Fdp.Toolkit.Orchestration.ContentLayout.ScenarioFileName);
+            return System.IO.File.Exists(file) ? ScenarioDescription.Read(System.IO.File.ReadAllText(file)) : null;
+        }
+        catch (Exception) { return null; }   // no scenarios folder on this host ⇒ no Mission text
+    }
+    private string? _scenarioSeen;
     private BriefingContent _content = BriefingContent.Empty;
     private bool _wasShown;
 
@@ -94,8 +115,8 @@ public sealed class PlayerBriefing
         int count = 0;
         if (_statuses != null) foreach (var _ in _statuses) count++;
         object? resident = world.HasSingletonManaged<ScenarioDescriptionResident>() ? world.GetSingletonManaged<ScenarioDescriptionResident>() : null;
-        if (unit == _unit && count == _statusCount && ReferenceEquals(resident, _resident) && Rebuilds > 0) return;
-        _unit = unit; _statusCount = count; _resident = resident;
+        if (unit == _unit && count == _statusCount && ReferenceEquals(resident, _resident) && ReferenceEquals(_runScenario, _scenarioSeen) && Rebuilds > 0) return;
+        _unit = unit; _statusCount = count; _resident = resident; _scenarioSeen = _runScenario;
         Rebuilds++;
         Rebuild(world, unit, resident);
     }
@@ -110,7 +131,9 @@ public sealed class PlayerBriefing
             objectives = TrainingHud.Build(RulesReader.Read(world, includeAuthored: false), view, Fdp.Toolkit.Time.SimClock.Of(world).TotalTime, e => MissionSummaryModel.SideOfRule(world, e)).Objectives;
         var role = !view.IsNone && world.HasComponent<UnitSubordinate>(unit) ? world.GetComponentRO<UnitSubordinate>(unit).Designation : TacticalDesignation.Undefined;
         string unitName = view.IsNone ? "" : RulesModel.NameOf(world, unit, view.UnitNetId);
-        _content = Build(resid?.Name ?? "", string.IsNullOrEmpty(resid?.Text) ? null : resid!.Text, view, unitName, role, objectives);
+        string name = !string.IsNullOrEmpty(resid?.Name) ? resid!.Name : _runScenario ?? "";
+        string? text = !string.IsNullOrEmpty(resid?.Text) ? resid!.Text : name.Length > 0 ? DescriptionOf(name) : null;   // ⭐ the Player's replicated world holds no resident: the file's header (read on a change only)
+        _content = Build(name, text, view, unitName, role, objectives);
     }
 
     // ── the draw ──────────────────────────────────────────────────────────────────────────
@@ -120,6 +143,7 @@ public sealed class PlayerBriefing
     {
         bool shows = Shows(choice);
         if (!shows) { _wasShown = false; return; }
+        if (!_wasShown) _runScenario = choice!.RunScenario;   // read on the screen's appearance only (the cluster's inventory lookup allocates; a briefing's scenario cannot change without leaving the briefing)
         _wasShown = true;
         Refresh(world);
         DrawContent(_content);
