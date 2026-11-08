@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Presentation.Icons;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 
 namespace Hrot.UI.Common.Panels;
 

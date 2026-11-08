@@ -792,7 +792,7 @@ public sealed class MainToolbarTimeControlSection
     private void DrawConfirmation() => ConfirmationModal.Draw(_choice?.Pending);
 
     /// <summary>
-    /// ⭐ CE-3406 (AQ108 §0 D1′ + D29) — the mode indicator, drawn as a BUTTON in the kit's glyph-button look (<see cref="GlyphWidgets"/>: neutral background, lighter on hover) with a small ▾ (it opens the mode menu), the hand cursor and the
+    /// ⭐ CE-3406 (AQ108 §0 D1′ + D29) — the mode indicator, drawn as a BUTTON through the ONE icon-button chrome (<see cref="IconButtonChrome"/>: transparent at rest, a white frame on hover) with a small ▾ (it opens the mode menu), the hand cursor and the
     /// tooltip. The glyph is the CURRENT mode (<see cref="RunModeChoice.Indicator"/>): steady, or blinking while the run plays — no dim level. Zero allocation while nothing is hovered.
     /// </summary>
     /// <summary>⭐ CE-4329 — the screen rectangles of the run-mode indicator and of ▶ as last drawn (a rail's measurement).</summary>
@@ -817,8 +817,6 @@ public sealed class MainToolbarTimeControlSection
         bool hovered = ImGui.IsItemHovered();
         if (hovered) ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
         var dl = ImGui.GetWindowDrawList();
-        dl.AddRectFilled(pos, pos + button, ImGui.GetColorU32(hovered ? GlyphWidgets.NeutralHovered : GlyphWidgets.Neutral), style.FrameRounding);
-        if (hovered) dl.AddRect(pos, pos + button, ImGui.GetColorU32(GlyphWidgets.SelectedFrame), style.FrameRounding);
         var alpha = chosen is { } ch ? RunModeIndicator.Alpha(ch.Level, ImGui.GetTime()) : 1f;
         var ts = ImGui.CalcTextSize(icon);
         float glyphX = pos.X + (button.X - caret - 6f - ts.X) * 0.5f + 3f;
@@ -826,6 +824,7 @@ public sealed class MainToolbarTimeControlSection
         // the ▾: a small triangle (no font glyph needed), neutral grey
         float cx = pos.X + button.X - caret * 0.5f - 4f, cy = pos.Y + size * 0.55f, half = caret * 0.5f;
         dl.AddTriangleFilled(new Vector2(cx - half, cy - half * 0.5f), new Vector2(cx + half, cy - half * 0.5f), new Vector2(cx, cy + half * 0.6f), ImGui.GetColorU32(new Vector4(0.7f, 0.7f, 0.74f, 1f)));
+        IconButtonChrome.DrawHoverFrame(dl, pos, button, hovered);   // ⭐ CE-4333 — the ONE icon-button chrome: transparent at rest, the white inset frame on hover (⛔ was a neutral box of its own, CE-3406)
         if (hovered)
             ImGui.SetTooltip(_choice is { } cc ? cc.IndicatorTooltip(mode == TransportMode.Review ? SecondsBehindLive() : null) : plain!.Name);
 

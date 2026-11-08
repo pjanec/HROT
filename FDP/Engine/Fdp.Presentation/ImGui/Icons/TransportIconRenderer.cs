@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 
 namespace Fdp.Presentation.Icons;
 

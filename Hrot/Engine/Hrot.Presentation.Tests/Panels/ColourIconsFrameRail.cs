@@ -176,15 +176,18 @@ public sealed class ColourIconsFrameRail
         try
         {
             Color BgOf(int i) => Raylib.GetImageColor(shot, (int)rects[i].Min.X + 3, (int)rects[i].Min.Y + 3);
-            Assert.True(Near(BgOf(0), new Vector4(0x1C / 255f, 0x1C / 255f, 0x22 / 255f, 1f), 6), "an unselected option's background is #1C1C22");
-            Assert.True(Near(BgOf(1), new Vector4(0x34 / 255f, 0x34 / 255f, 0x3E / 255f, 1f), 6), "the selected option's background is #34343E");
-            int frameHits = Extent(shot, (int)rects[1].Min.X - 1, (int)rects[1].Min.Y + 4, (int)rects[1].Min.X + 3, (int)rects[1].Max.Y - 4, p => p.R > 140 && p.G > 140 && p.B > 140).Count;
-            Assert.True(frameHits > 4, $"the selected option has a light frame ({frameHits} px)");
+            // ⭐ CE-4333 — ONE chrome: transparent at rest (an unselected option shows the window), the accent fill for the selected one, NO frame until hovered
+            var win = Raylib.GetImageColor(shot, 450, 120);
+            Assert.True(Near(BgOf(0), new Vector4(win.R / 255f, win.G / 255f, win.B / 255f, 1f), 4), "an unselected option has no fill of its own (transparent at rest)");
+            var selBg = BgOf(1);
+            Assert.True(selBg.B > selBg.R + 40 && Math.Abs(selBg.B - win.B) > 20, $"the selected option is filled with the accent ({selBg.R},{selBg.G},{selBg.B} on {win.R},{win.G},{win.B})");
+            int frameHits = Extent(shot, (int)rects[1].Min.X - 1, (int)rects[1].Min.Y + 4, (int)rects[1].Min.X + 3, (int)rects[1].Max.Y - 4, p => p.R > 200 && p.G > 200 && p.B > 200).Count;
+            Assert.True(frameHits == 0, $"no hover frame while nothing is hovered ({frameHits} px)");
 
             int Full(int i, Vector4 col) => Extent(shot, (int)rects[i].Min.X, (int)rects[i].Min.Y, (int)rects[i].Max.X, (int)rects[i].Max.Y, p => Near(p, col, 22)).Count;
             Assert.True(Full(1, b.Color) >= 8, "the selected option's glyph is at full strength in ITS colour (orange)");
             Assert.True(Full(0, a.Color) == 0, "an unselected option is NOT at full strength...");
-            var dimmed = Vector4.Lerp(new Vector4(0x1C / 255f, 0x1C / 255f, 0x22 / 255f, 1f), a.Color, GlyphWidgets.UnselectedAlpha);
+            var dimmed = Vector4.Lerp(new Vector4(win.R / 255f, win.G / 255f, win.B / 255f, 1f), a.Color, GlyphWidgets.UnselectedAlpha);
             Assert.True(Extent(shot, (int)rects[0].Min.X, (int)rects[0].Min.Y, (int)rects[0].Max.X, (int)rects[0].Max.Y, p => Near(p, dimmed, 22)).Count >= 8, "...it keeps its own colour (teal) at ~60 %");
             Assert.True(Extent(shot, (int)rects[2].Min.X, (int)rects[2].Min.Y, (int)rects[2].Max.X, (int)rects[2].Max.Y, p => p.B > p.R + 25 && p.R > 60).Count >= 8, "the third option is violet-ish, not grey");
         }
