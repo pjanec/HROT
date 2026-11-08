@@ -31,6 +31,8 @@ namespace Fdp.Tests.Serialization
             ["FDP/ExtDeps/FastBTree/src/Fbt.Kernel/Serialization/TreeCompiler.cs"] = (1, "FastBTree is an external library with no Fdp.Core reference"),
             ["FDP/ExtDeps/GizmoMap/GizmoMap.Example/Scenarios/DemoSceneGenerator.cs"] = (1, "GizmoMap is an external library with no Fdp.Core reference"),
             ["FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/MainMenuAdapter.cs"] = (1, "GizmoMap is an external library with no Fdp.Core reference"),
+            ["FDP/ExtDeps/NodeEdit/src/NodeEditor.UI/Picker/RecentStore.cs"] = (1, "NodeEdit is an external library with no Fdp.Core reference; the picker's per-user Recent file (CE-4098)"),
+            ["FDP/ExtDeps/NodeEdit/src/NodeEditor.UI/Picker/PickerViewStore.cs"] = (1, "NodeEdit is an external library with no Fdp.Core reference; the picker's per-user view file (CE-4168)"),
             ["FDP/ExtDeps/StructEdit/src/StructEdit.Core/Memory/BoxedStructEditBuffer.cs"] = (1, "StructEdit is an external library with no Fdp.Core reference"),
             ["FDP/ExtDeps/StructEdit/src/StructEdit.Core/Memory/ManagedObjectEditBuffer.cs"] = (1, "StructEdit is an external library with no Fdp.Core reference"),
             ["FDP/ExtDeps/StructEdit/src/StructEdit.Core/IContainerOps.cs"] = (1, "StructEdit is an external library with no Fdp.Core reference; an in-memory element clone (fields included), never persisted"),

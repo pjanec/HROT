@@ -92,11 +92,14 @@ public sealed class RecentStore
     public string ToJson()
         => JsonSerializer.Serialize(
             new Dto { Version = FormatVersion, Lists = _data.ToDictionary(kv => kv.Key, kv => kv.Value.ToList()) },
-            new JsonSerializerOptions { WriteIndented = true });
+            Indented);
+
+    // ONE options instance (an external library with no Fdp.Core reference — exempted in OneSharedJsonOptionsTests); cached, never per call
+    private static readonly JsonSerializerOptions Indented = new JsonSerializerOptions { WriteIndented = true };
 
     private void ReadJson(string json)
     {
-        var dto = JsonSerializer.Deserialize<Dto>(json);
+        var dto = JsonSerializer.Deserialize<Dto>(json, Indented);
         if (dto?.Lists is null) return;
         foreach (var (context, items) in dto.Lists)
         {
