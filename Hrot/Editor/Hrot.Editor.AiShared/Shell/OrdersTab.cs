@@ -160,7 +160,7 @@ public sealed class OrdersTab : IDetailsViewInstance
         // The ops go to the EXISTING draft edits (OrdersPlanEdits.Move, draft.Tasks.RemoveAt, the add menu's NewWait / NewOrder / NewBehaviour).
         _summaries.Clear();
         int hash = rows.Count;
-        for (int i = 0; i < rows.Count; i++) { string line = rows[i].Sentence + (rows[i].Problem is { } pr ? "  ! " + pr : ""); _summaries.Add(line); hash = HashCode.Combine(hash, line); }
+        for (int i = 0; i < rows.Count; i++) { string line = rows[i].Sentence + (rows[i].Problem is { } pr ? "  ! " + pr : ""); _summaries.Add(line); hash = Fdp.Core.StableHash.Combine(hash, unchecked((int)Fdp.Core.StableHash.Fnv1a32(line)), 0); }   // the list's change key: stable across processes (the lint's rule), though it never persists
         ListBlock.Begin("tasks", _summaries, TaskOptions, hash);
         for (int v = 0; v < ListBlock.VisibleCount; v++)
         {

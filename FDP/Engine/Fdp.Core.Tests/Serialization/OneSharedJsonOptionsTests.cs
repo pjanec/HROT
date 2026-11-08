@@ -33,6 +33,8 @@ namespace Fdp.Tests.Serialization
             ["FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/MainMenuAdapter.cs"] = (1, "GizmoMap is an external library with no Fdp.Core reference"),
             ["FDP/ExtDeps/StructEdit/src/StructEdit.Core/Memory/BoxedStructEditBuffer.cs"] = (1, "StructEdit is an external library with no Fdp.Core reference"),
             ["FDP/ExtDeps/StructEdit/src/StructEdit.Core/Memory/ManagedObjectEditBuffer.cs"] = (1, "StructEdit is an external library with no Fdp.Core reference"),
+            ["FDP/ExtDeps/StructEdit/src/StructEdit.Core/IContainerOps.cs"] = (1, "StructEdit is an external library with no Fdp.Core reference; an in-memory element clone (fields included), never persisted"),
+            ["FDP/ExtDeps/StructEdit/src/StructEdit.Core/Defaults/FieldDefaults.cs"] = (1, "StructEdit is an external library with no Fdp.Core reference; the \"same value\" text compare of a change check, never persisted"),
             // netstandard2.0 assemblies (read by the source generators) cannot reference net8.0 Fdp.Core. Their enums are strict
             // (JsonStringEnumConverter with integers refused, R-2007).
             ["Hrot/Subsystems/AI/Hrot.AiEditor.Persistence/BTree/BTreeJsonServices.cs"] = (1, "netstandard2.0, cannot reference Fdp.Core; the BTree asset format"),
