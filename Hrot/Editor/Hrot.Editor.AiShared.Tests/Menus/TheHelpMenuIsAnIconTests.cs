@@ -48,7 +48,7 @@ public sealed class TheHelpMenuIsAnIconTests
         var inner = wm.MenuIcons;
         wm.MenuIcons = (string key, out nint t, out System.Numerics.Vector2 a, out System.Numerics.Vector2 b) => { asked.Add(key); return inner(key, out t, out a, out b); };
 
-        var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective)).Where(wm.BarMenuShows).ToList();   // the bar as DRAWN (R-4176: no Edit header just for Keyboard shortcuts)
+        var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective)).Where(wm.BarMenuShows).ToList();   // the bar as DRAWN (R-4178: no Edit header just for Keyboard shortcuts (it is under View ▸ Settings))
         Assert.Equal(new[] { "File", "View", "Debug", "Mission", "Help" }, bar.Select(m => m.Name));
         Assert.DoesNotContain(bar, m => m.Name == "Windows");
         var help = bar.Last();

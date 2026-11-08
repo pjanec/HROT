@@ -183,22 +183,29 @@ public class TopLevelMenuOrderTests
     /// Settings/… and Perspective/… re-parented under View — nothing dropped, nothing duplicated, no other menu touched.
     /// ✅ Red-proof: dropping the "UI Scale &amp; Fonts…" registration, or a perspective from the switcher ⇒ red.</summary>
     /// <summary>
-    /// ⭐ R-4176 (user-approved) — the shell's Keyboard shortcuts item lives in Edit where the host's Edit menu holds something else, else under Help; never both,
-    /// and no Edit menu exists just for it. 🔴 Red-proof: the Help path's visibility always true ⇒ both shown ⇒ red.
+    /// ⭐ R-4178 (CE-4337; supersedes R-4176) — the shell's Keyboard shortcuts item lives at ONE path, View ▸ Settings ▸ Keyboard shortcuts…, on every host: with no Edit menu, and with one; and neither an Edit nor a Help
+    /// copy exists (no Edit header is drawn for it).
+    /// 🔴 Red-proof: the registration back at <c>"Help/Keyboard shortcuts…"</c> ⇒ the View path is missing ⇒ red.
     /// </summary>
     [Fact]
-    public void R4176_KeyboardShortcuts_UnderEditWhenTheHostHasAnEditMenu_ElseUnderHelp()
+    public void R4178_KeyboardShortcuts_AreInViewSettings_OnEveryHost_AndNowhereElse()
     {
         var wm = WmWithPerspectives();
         string[] Paths() => wm.GlobalMenu.BuildViewModel(wm.CurrentPerspective).Items.Where(i => i.Kind == "item" && i.Visible).Select(i => i.Path).ToArray();
+        string path = GlobalMenuRegistry.SettingsMenuPath + "/Keyboard shortcuts…";
+        Assert.Equal(path, Fdp.Presentation.WindowManager.WindowManager.ShortcutsMenuPath);
 
-        Assert.Contains(Fdp.Presentation.WindowManager.WindowManager.ShortcutsInHelp, Paths());
-        Assert.DoesNotContain(Fdp.Presentation.WindowManager.WindowManager.ShortcutsInEdit, Paths());
+        void OnlyHere()
+        {
+            Assert.Contains(path, Paths());
+            Assert.DoesNotContain(Paths(), p => p.EndsWith("Keyboard shortcuts…") && p != path);   // not under Edit, not under Help
+            Assert.Single(Paths(), p => p.EndsWith("Keyboard shortcuts…"));
+        }
+        OnlyHere();
         Assert.DoesNotContain(wm.GlobalMenu.TopLevelMenus(), m => m.Name == "Edit" && wm.HasVisibleDescendant(m));   // no Edit header drawn just for it
 
-        wm.GlobalMenu.RegisterItem("Edit/Undo", () => { });   // a host with an Edit menu (the editor's Undo / Redo / History…)
-        Assert.Contains(Fdp.Presentation.WindowManager.WindowManager.ShortcutsInEdit, Paths());
-        Assert.DoesNotContain(Fdp.Presentation.WindowManager.WindowManager.ShortcutsInHelp, Paths());
+        wm.GlobalMenu.RegisterItem("Edit/Undo", () => { });   // a host with an Edit menu (the editor's Undo / Redo / History…): the item does NOT move there
+        OnlyHere();
     }
 
     [Fact]
@@ -217,7 +224,7 @@ public class TopLevelMenuOrderTests
             "Perspective/Player", "Perspective/Scenario",
             "Windows/Player/w-Player", "Windows/Scenario/w-Scn",
             "Help/About",
-            "Help/Keyboard shortcuts…",   // ⭐ B-10 K6 / R-4176 — the shell's own item (Ctrl+K): under Help on a host with no Edit menu
+            "Settings/Keyboard shortcuts…",   // ⭐ B-10 K6 / R-4178 — the shell's own item (Ctrl+K): one path, under Settings (re-homed under View)
         };
         string Rehome(string p) => p.StartsWith("Settings/") || p.StartsWith("Perspective/") || p.StartsWith("Windows/") ? "View/" + p : p;   // ⭐ CE-4114: + Windows
 
