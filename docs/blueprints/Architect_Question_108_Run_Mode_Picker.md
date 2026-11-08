@@ -204,6 +204,17 @@ Rails: `SaveSlotTests.R5_*` (descriptors per mode + the REAL adapter on a real f
 
 **Deviations / open.** (1) A host with **no scenario session** (SimHost, IG) keeps ▶ greyed in Edit (reason *"No scenario session on this host — nothing to preview from here"*): the armed mode used to be what greyed it. (2) A host with **no ender** keeps today's ■ in Live (leaves to editing). (3) *Exercise N* is not in the Close question (no number on the inventory). (4) *Restart from a checkpoint ▸* is greyed: the live run's marks are not on the cluster view (hosts may supply `CheckpointLabels` / `RestoreCheckpoint`). (5) The End question's second sentence now describes the debrief, not *"returns to editing"*. (6) HTTP `/run-mode` untouched (backend B-5): its rails that expect the old arm-only `Choose` are listed in the build report.
 
+**R-7 `CE-3416` the Player's briefing screen (ui):**
+
+| what | where | note |
+|---|---|---|
+| shown while `LiveBriefing` (Live, paused, clock 0, not ended); gone on ▶ | `PlayerBriefing.Shows` ← `RunModeChoice.LiveBriefing` · drawn in `PlayerApplication.DrawUI` next to `ReviewBanner` (L-5) | **Player host only** (the IG): D32 *"Player seats show a briefing screen"* + LC-18 / L-5 precedent |
+| title `<scenario> — briefing` · `You are: <side> · <unit> · <role>` · Mission · Your objectives (flag shapes) · reserved picture-book frame (dashed, `page 1 / 4`, inert ◀ ▶) · footer *waiting for the instructor to start…* | `PlayerBriefing.Build` / `DrawContent` | ⛔ nothing behind the frame (CE-3417) |
+| data: description + name = `ScenarioDescriptionResident`; side / unit = `PlayerView` (the held unit); role = `UnitSubordinate.Designation`; objectives = `RulesReader` → `TrainingHud.Build` (my side only, required first) | `PlayerBriefing.Rebuild` | ONE reader (R-174); no second query |
+| 0 B steady: rebuilt only when the world, the held unit, the objective-status count or the resident object changes | `Refresh` (+ `Rebuild` split out: a lambda capturing `world` made the compiler allocate 24 B on entry) | Mission capped at 1400 chars (one ImGui stack buffer) |
+
+Rails: `PlayerBriefingTests` (states, content, rebuild-on-change, real frame + 0 B + ▶ hides). **Open:** nobody held yet ⇒ *"not assigned to a unit yet"* and no objectives (they are by my side); the title is the scenario id (no display name in the header).
+
 ## 1. ⭐ The three rules — the spine
 
 | # | rule | why it makes the rest predictable |

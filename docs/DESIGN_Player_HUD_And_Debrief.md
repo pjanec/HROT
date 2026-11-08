@@ -242,3 +242,10 @@ classDiagram
 | `hud.coaching` (PH-3, CE-4246) | `HudFeatures.Coaching`, **OFF by default on every host**; `CoachingHint.Build`: the first leaf not holding yet of a live trigger whose Subject is me (`RuleLeaves`, needs `ui.rules-live-values`), one line under the right column | ⚠ lean: "his standards" read as triggers about him — measures carry no leaves; no shipped scenario has such a rule |
 
 | round clock on EVERY node (CE-4238) | ⛔ SUPERSEDED the `RulesModel.EndsExercise` read of the authored `do` (§8 / the row above): `GameHud.Build` takes the soonest ARMED trigger with `ObjectiveStatus.EndsExercise == 1` (behaviors, `40eb596ec`; replicated, so a Player node counts down too); the BehaviorStartRecord read is deleted | Rail `PlayerHudTests.TheRoundClock_CountsDownToTheTriggerThatEndsTheExercise` (red-proved: the bit ignored ⇒ the crate drop wins) |
+
+## 10. AS BUILT — the Player's briefing screen *(ui, `2026-11-08`; CE-3416, AQ108 §0 D32)*
+
+| what | where | note |
+|---|---|---|
+| while Live waits at 0:00 the Player shows the scenario's description, who I am and MY side's objectives (the training HUD's own list, `TrainingHud.Build`) + a reserved picture-book frame | `Hrot.UI.Common.RunMode.PlayerBriefing` (`PlayerApplication.DrawUI`) | hides on ▶; 0 B steady; rail `PlayerBriefingTests` |
+

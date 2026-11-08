@@ -1128,6 +1128,7 @@ public class PlayerApplication : IDisposable
     {
         _playerMapInteraction?.DrawOperatorUi();   // ⛔ OpenPicker only queues (CE-1017) · ⭐ CE-1059 the order form
         Hrot.UI.Common.RunMode.ReviewBanner.Draw(RunControls?.Mode);   // ⭐ CE-4321 (L-5, LC-16) — "REVIEW — the exercise is paused" for the whole DAR
+        _briefing.Draw(RunControls?.RunChoice, _world);   // ⭐ R-7 / CE-3416 (AQ108 §0 D32, story ⑨) — the briefing screen while Live waits at 0:00; hides on ▶
 
         _fdpRepoAdapter ??= new FdpRepositoryAdapter(_world);
 
@@ -1575,6 +1576,7 @@ public class PlayerApplication : IDisposable
 
     /// <summary>⭐ CE-1445 — this node's run controls (transport + choice, Player policy), from <c>NodeRunControls.For</c>; <see langword="null"/> before <c>InitializeEmbedded</c> built the context and after <c>Shutdown</c>.</summary>
     internal Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? RunControls { get; private set; }
+    private readonly Hrot.UI.Common.RunMode.PlayerBriefing _briefing = new();
 
     /// <summary>⭐ The node's context — what the ONE ECS-node debug surface (<c>EcsNodeDebugProvider</c>) derives from.</summary>
     internal Hrot.Common.Infrastructure.HrotNodeContext? NodeContext => _context;
