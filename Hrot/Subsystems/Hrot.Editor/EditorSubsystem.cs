@@ -396,6 +396,8 @@ namespace Hrot.Editor
         private ScenarioOrbatAdapter?             _orbatAdapter;
         private ScenarioMapConfigAdapter?         _mapConfigAdapter;
         private CanvasMapPickAdapter?           _mapPickAdapter;
+        /// <summary>⭐ CE-3402 (Y-8) — the Details forms' pick context: ONE broker, built on first use (the map adapter is resolved at request time).</summary>
+        internal Hrot.Presentation.Facades.MapPickBroker FormsPick => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter) { EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers) };
         private Hrot.Presentation.Facades.MapPickBroker? _formsPick;   // ⭐ U-23 / D4 — the Details forms' pick context (a list's add)
         private EditorZoneAdapter?              _zoneAdapter;
         private EditorPreviewController?        _previewController;
@@ -444,8 +446,9 @@ namespace Hrot.Editor
         /// what the map holds (the loaded preset by ARGS — <c>PresetText.IsLoaded</c> — and whether it can be saved), whether the scenario uses variants (any entity keeps its <c>VariantForms</c>), and
         /// <i>Preview this preset</i> (Preview armed, the preset armed, ▶).
         /// </summary>
-        private Hrot.Editor.Scenario.ParametersDrawer WireParametersDrawer(Hrot.Editor.Scenario.ParametersDrawer drawer)
+        internal Hrot.Editor.Scenario.ParametersDrawer WireParametersDrawer(Hrot.Editor.Scenario.ParametersDrawer drawer)
         {
+            drawer.Picks = () => FormsPick;   // ⭐ CE-3402 (Y-8) — the editor's ONE pick broker (the Details forms'): a link-type parameter default picks on the map
             drawer.MapHolds = () =>
             {
                 if (_editorApp is null || _world is null) return null;
@@ -3280,7 +3283,7 @@ namespace Hrot.Editor
                 EventFocus:     _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
                 SelectNetworkEntity: n => SelectNetworkEntity(n),
                 Rules:          () => _rulesWindow,     // ⭐ U-18 / RX2 — the rule's detail in Details, through the one window
-                Pick:           () => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter) { EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers) },   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
+                Pick:           () => FormsPick,   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
                 ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry)));   // ⭐ P-7 7b — a task's fields
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
