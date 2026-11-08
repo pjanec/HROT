@@ -1080,11 +1080,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         };
 
         // Build search services.
-        var editSvc = new ComponentEditServiceBuilder()
-            .RegisterFieldEditor<Type>(new Fdp.Presentation.Editing.TypeFieldEditor())
-            .RegisterFieldEditor<Fdp.Toolkit.Replication.AreaLink>(new Fdp.Presentation.Editing.PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.AreaLink)))   // ⭐ CE-4206 R2 — the area is the ONE AreaLink leaf
-            .RegisterFieldEditor<SearchPredicateDto>(new Fdp.Presentation.Editing.PredicateValueFieldEditor())
-            .Build();
+        var editSvc = Hrot.Editor.AiShared.Review.ReviewSearchServices.BuildEditService();   // ⭐ R-2 / V2 — the ONE search edit service (was built inline here; the editor's review windows use it too)
         // See BP-29: the registry is what makes BlueprintVariablePredicateDto evaluable.
         var predicateCompiler = new PredicateCompiler(editSvc, _behaviorRegistry, _blueprintRegistry);
         var eventScannerCompiler = new EventScannerCompiler(editSvc);
