@@ -71,4 +71,31 @@ public sealed class NodeIdAllocatorTests
         Assert.Equal((4242, NodeIdAllocator.FirstDynamicId, false), (grant.ProcessId, grant.NodeId, grant.Refused));
         Assert.Equal(master.SessionId, grant.SessionId);
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-4331 ⑥ (📄 docs/DESIGN_Recording_Storage.md §9b) — a node that says its KIND gets the lowest free id of its kind's range (NodeIdRanges): two CGFs
+    /// get 400 and 401, a Player 100; the same cluster relaunched under a new master gets the same ids (a new allocator, nothing remembered);
+    /// a replacement for a gone CGF under a new master takes the vacant 400; its previous id wins when it is free.
+    /// 🔴 Mutation: the range loop removed ⇒ every node gets a dynamic id (10000+) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4331_ANodeOfAKind_GetsTheLowestFreeIdOfItsRange_AndTheSameIdsComeBackOnARelaunch()
+    {
+        var a = new NodeIdAllocator();
+        Assert.Equal(400, a.Grant("pc1", 10, 0, 0, NoneLive, "CGF").NodeId.Value);
+        Assert.Equal(401, a.Grant("pc2", 11, 0, 0, NoneLive, "cgf").NodeId.Value);
+        Assert.Equal(100, a.Grant("pc3", 12, 0, 0, NoneLive, "Player").NodeId.Value);
+        Assert.Equal(1,   a.Grant("pc4", 13, 0, 0, NoneLive, "SimHost").NodeId.Value);
+
+        var relaunch = new NodeIdAllocator();   // a new session: other pids, nothing remembered
+        Assert.Equal(400, relaunch.Grant("pc1", 20, 0, 0, NoneLive, "CGF").NodeId.Value);
+        Assert.Equal(401, relaunch.Grant("pc2", 21, 0, 0, NoneLive, "CGF").NodeId.Value);
+
+        var replaced = new NodeIdAllocator();   // pc1 died; a new computer of the kind joins while pc2 (401) runs
+        Assert.Equal(401, replaced.Grant("pc2", 30, 0, preferredId: 401, NoneLive, "CGF").NodeId.Value);   // its previous id first
+        Assert.Equal(400, replaced.Grant("pc9", 31, 0, 0, id => id == 401, "CGF").NodeId.Value);           // the vacant slot
+
+        var full = new NodeIdAllocator();
+        Assert.Equal(NodeIdAllocator.FirstDynamicId, full.Grant("pc", 1, 0, 0, id => id >= 400 && id < 500, "CGF").NodeId.Value);   // a full range ⇒ dynamic
+    }
 }

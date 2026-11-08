@@ -798,18 +798,7 @@ class Program
     /// </summary>
     internal static int ResolveAppNodeId(string subsystemName, int baseNodeId)   // ⭐ CE-4332 — internal for the per-arm rail
     {
-        int offset = subsystemName.ToUpperInvariant() switch
-        {
-            "SIMHOST"      => 1,
-            "PLAYER"       => 100,   // ⭐ CE-4332 (Recording Storage §9b) — was "Player": the switch compares UPPER-case, so a Player fell to 600
-            "ORCHESTRATOR" => 300,
-            "CGF"          => 400,
-            "CI"           => 500,
-            "TRAFFIC"      => 800,   // ⭐ AQ93 N1 — the SUMO traffic node (several may run: give each its own -n base)
-            // ST-015: the "STRIDEMOCK" => 700 arm went with the subsystem. Not in the dispatch's
-            // table, which recorded Program.cs:256 as the only StrideMock line in this file.
-            _              => 600,
-        };
+        int offset = Hrot.Orchestrator.NodeIdRanges.OffsetOf(subsystemName);   // ⭐ CE-4331 ⑥ — the ONE table, shared with the master's grants
         return baseNodeId + offset;
     }
 
