@@ -347,7 +347,7 @@ camera state exists; the cut is the runner's own key change.*
 | the toggle | *Director camera* (Director window, beside *Pilot view*): off ⇒ never taken back for the rest of the playback; the window says *"You have the camera — the director retakes it at its next shot"* |
 | a capture | `CameraLocked` (set with a capture, cleared by `Release`) — a captured film is always the program |
 
-⏸ **H4a — HELD for the user (R-4156):** §2.5 also says *"after releasing a unit, from the unit's eye … ⛔ no snap-back by default"* with *Back to my view*.
+✅ **H4a — DECIDED (R-4167, user `2026-11-08`: *"Q3 Lean accepted"*): keep today's return to the map for possession; *Back to my view* only after a director take.** Was: ⏸ **H4a — HELD for the user (R-4156):** §2.5 also says *"after releasing a unit, from the unit's eye … ⛔ no snap-back by default"* with *Back to my view*.
 ⚠ That reverses possession's measured behaviour, pinned by ~8 rails (`PossessionStationTests` — *"back to the 2-D map it was in"*, *"the map as he had it"*),
 and the user's own words in §2.5 are about the DIRECTOR. ⇒ **Question:** should releasing a unit keep the view at the unit's eye (+ a *Back to my view* key),
 or keep today's return to the map you had? ⭐ Lean: **keep today's return** for possession (a trainee expects to come back to the map) and offer *Back to my
