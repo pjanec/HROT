@@ -262,10 +262,11 @@ public static class ScenarioMenuCommands
             registerCommand, menu, commands, closedReason,
             SaveAsRecipeId, "Save Scenario as Recipe…", FileMenuLayout.SaveScenarioAsRecipe,
             "Save the scenario as a recipe New Scenario offers",
-            isEnabled: () => openSaveAsDialog != null,
+            isEnabled: () => openSaveAsDialog != null && session.SaveDisabledReason is null,   // ⭐ CE-3407 — the same one answer as Save / Save As
             handler: _ => (openSaveAsRecipeDialog ?? openSaveAsDialog)?.Invoke(name => session.SaveAs(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName(name))),
             dynamicDisplayName: openSaveAsDialog != null
-                ? () => string.IsNullOrWhiteSpace(session.LoadedScenarioName) ? "Save Scenario as Recipe…" : SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName) + " as Recipe…"
+                ? () => (string.IsNullOrWhiteSpace(session.LoadedScenarioName) ? "Save Scenario as Recipe…" : SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName) + " as Recipe…")
+                        + (session.SaveDisabledReason is { } noSave ? " (unavailable — " + noSave + ")" : "")
                 : Unavailable("Save Scenario as Recipe…", false, NoSaveAsReason));
 
         RegisterCommand(

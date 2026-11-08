@@ -96,4 +96,81 @@ public sealed class EditorScenarioSessionSaveTests
 
         Assert.Empty(bus.ReadManaged<ExecuteStorageOpIntent>());
     }
+
+    // ── ⭐ CE-3407 (AQ108 §0 D27, R-3083) — ONE "can I save" answer: the cluster (an error, any state but Edit) before the variant gate ──────────────
+
+    private static (EditorScenarioSession Session, ClusterView View, FdpEventBus Bus) FollowingSession()
+    {
+        var bus = new FdpEventBus();
+        var view = new ClusterView(bus);
+        var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
+        return (new EditorScenarioSession(fileService, bus, () => view, new EntityRepository(), () => FakeRoot), view, bus);
+    }
+
+    private static void ClusterIs(FdpEventBus bus, ClusterView view, ClusterState state, string? error = null)
+    {
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ErrorReason = error });
+        bus.SwapBuffers();
+        view.Update();
+    }
+
+    /// <summary>
+    /// ⭐ CE-3407 — only Edit saves the scenario: Preview, Live, DAR, AAR, Idle and the moves between them each give their reason; a healthy Edit gives none.
+    /// 🔴 Red-proof (compiles): <c>SaveDisabledReason</c> without its <c>SaveRefusal.Of</c> line ⇒ every non-Edit row answers null ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(ClusterState.OperatingEdit, null)]
+    [InlineData(ClusterState.OperatingPreview, SaveRefusal.Preview)]
+    [InlineData(ClusterState.OperatingLive, SaveRefusal.Live)]
+    [InlineData(ClusterState.OperatingReview, SaveRefusal.Review)]
+    [InlineData(ClusterState.OperatingReplay, SaveRefusal.Replay)]
+    [InlineData(ClusterState.Idle, SaveRefusal.NoScene)]
+    [InlineData(ClusterState.LoadingLive, SaveRefusal.Busy)]
+    public void CE3407_OnlyEditSavesTheScenario_EveryOtherStateSaysWhy(ClusterState state, string? why)
+    {
+        var (session, view, bus) = FollowingSession();
+        ClusterIs(bus, view, state);
+        Assert.Equal(why, ((IScenarioSession)session).SaveDisabledReason);
+    }
+
+    /// <summary>⭐ CE-3407 — a cluster in error (CE-3345) refuses the save even in Edit, and names the error; the error wins over the variant.</summary>
+    [Fact]
+    public void CE3407_AClusterInError_RefusesTheSave_AndNamesTheError()
+    {
+        var (session, view, bus) = FollowingSession();
+        ClusterIs(bus, view, ClusterState.OperatingEdit, "node 3 failed to load terrain");
+        Assert.Equal("the cluster is in error: node 3 failed to load terrain", ((IScenarioSession)session).SaveDisabledReason);
+        ClusterIs(bus, view, ClusterState.OperatingEdit);
+        Assert.Null(((IScenarioSession)session).SaveDisabledReason);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3407 — the cluster half gates the SURFACES only: <c>SaveAs</c> still publishes while the cluster is Idle, because <c>New from a recipe</c> calls it the moment its
+    /// open went out (the master orders the save after the load). 🔴 Red-proof: <c>SaveAs</c> guarding on <c>SaveDisabledReason</c> ⇒ nothing published ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3407_SaveAsRightAfterAnOpen_StillGoesOut_WhileTheClusterIsIdle()
+    {
+        var (session, view, bus) = FollowingSession();
+        ClusterIs(bus, view, ClusterState.Idle);
+        Assert.NotNull(((IScenarioSession)session).SaveDisabledReason);   // the menu greys it …
+        session.SaveAs("area/new_from_seed");                            // … but the seed's save-as is not a surface
+        bus.SwapBuffers();
+        Assert.Single(bus.ReadManaged<ExecuteStorageOpIntent>());
+    }
+
+    /// <summary>⭐ CE-3407 — the toolbar reads the reason every frame: 0 B per steady read (R-2084), in Edit and in a run.</summary>
+    [Fact]
+    public void CE3407_ReadingTheReason_AllocatesNothing()
+    {
+        var (session, view, bus) = FollowingSession();
+        foreach (var state in new[] { ClusterState.OperatingEdit, ClusterState.OperatingLive })
+        {
+            ClusterIs(bus, view, state);
+            _ = ((IScenarioSession)session).SaveDisabledReason;   // warm (the variant gate's first walk)
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) _ = ((IScenarioSession)session).SaveDisabledReason;
+            Assert.Equal(0, System.GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+    }
 }

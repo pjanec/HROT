@@ -58,6 +58,8 @@ public sealed class ScenarioMenuTests
         public readonly List<string> OpenForEditCalls = new();
         public readonly List<string> LoadForLiveCalls = new();
         public string? LoadedScenarioNameValue;
+        public string? NoSave;   // ⭐ CE-3407 — the one save reason the surfaces read
+        string? IScenarioSession.SaveDisabledReason => NoSave;
 
         public IReadOnlyList<SidecarFileInfo> MigrationSidecars { get; set; } = Array.Empty<SidecarFileInfo>();
 
@@ -498,6 +500,25 @@ public sealed class ScenarioMenuTests
     /// <i>Save Scenario 'x'</i> / <i>… As…</i> stay — so the menu never shows two items saving the scenario. A host with no document saver (the Orchestrator: null) never draws them. The scenario items NAME the scenario.
     /// 🔴 Mutation: the <c>Save or SaveAs</c> rule dropped from <c>FileMenuLayout.Apply</c> ⇒ File/Save drawn with no document ⇒ red.
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-3407 (AQ108 §0 D27) — File › Save, Save As and Save as Recipe read the ONE <see cref="IScenarioSession.SaveDisabledReason"/>: greyed together, Save naming the reason.
+    /// 🔴 Red-proof: Save as Recipe's <c>isEnabled</c> without the reason (as it was) ⇒ it stays enabled ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3407_EverySaveItem_ReadsTheOneReason()
+    {
+        var session = new FakeScenarioSession { State = ClusterState.OperatingEdit, LoadedScenarioNameValue = "hill-attack" };
+        var commands = new RecordingCommandSet();
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), new GlobalMenuRegistry(), commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { });
+        string[] ids = { ScenarioMenuCommands.SaveId, ScenarioMenuCommands.SaveAsId, ScenarioMenuCommands.SaveAsRecipeId };
+        foreach (var id in ids) Assert.True(commands.Get(id)!.IsEnabled(), id);
+
+        session.NoSave = "a live run is not the scenario — Save takes a checkpoint";
+        foreach (var id in ids) Assert.False(commands.Get(id)!.IsEnabled(), id);
+        Assert.Contains(session.NoSave, commands.Get(ScenarioMenuCommands.SaveId)!.DynamicDisplayName!());
+        Assert.Contains(session.NoSave, commands.Get(ScenarioMenuCommands.SaveAsRecipeId)!.DynamicDisplayName!());
+    }
+
     [Fact]
     public void CE1443_TheShellSave_IsDrawnOnlyForADocument_AndTheScenarioItemsNameTheScenario()
     {
