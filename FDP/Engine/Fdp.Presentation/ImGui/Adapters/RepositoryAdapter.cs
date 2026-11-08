@@ -69,16 +69,19 @@ namespace Fdp.Presentation.Adapters
 
         public void SetComponent(Entity e, Type componentType, object componentData)
         {
-            // ⭐ CE-3386 (docs/DESIGN_Struct_Editor.md §10.4) — an inspector write is ONE step of the editor's history where one is recorded (Edit mode: the
-            //   recorder is installed and on; Live / Preview / replay: no recorder, or it is off ⇒ the bracket is a no-op). Managed and unmanaged alike: the step is the world before / after.
-            EditSteps.Begin(_repo, "Edit " + componentType.Name);
-            try
-            {
-                if (e == SingletonEntity)
-                    RepoReflector.SetSingleton(_repo, componentType, componentData);
-                else
-                    RepoReflector.SetComponent(_repo, e, componentType, componentData);
-            }
+            if (e == SingletonEntity)
+                RepoReflector.SetSingleton(_repo, componentType, componentData);
+            else
+                RepoReflector.SetComponent(_repo, e, componentType, componentData);
+        }
+
+        /// <summary>⭐ CE-3386 (docs/DESIGN_Struct_Editor.md §10.4) — the inspector's write is ONE step of the editor's history where one is recorded (Edit mode: the recorder
+        /// is installed and on; Live / Preview / replay: no recorder, or it is off ⇒ the bracket is a no-op). Managed and unmanaged alike: the step is the world before / after.
+        /// ⛔ Only the user's own commit calls this — a plain <see cref="SetComponent"/> made inside another step (ParamUsage.Rename under a parameter rename) records nothing.</summary>
+        public void SetComponentAsUserStep(Entity e, Type componentType, object componentData, string label)
+        {
+            EditSteps.Begin(_repo, label);
+            try { SetComponent(e, componentType, componentData); }
             catch { EditSteps.Cancel(_repo); throw; }
             EditSteps.End(_repo);
         }

@@ -414,7 +414,7 @@ public class ComponentReflector
             {
                 object newState = _inPlaceEditSession!.Commit();
                 if (session.IsAlive(e))
-                    session.SetComponent(e, type, newState);
+                    session.SetComponentAsUserStep(e, type, newState, "Edit " + type.Name);   // ⭐ CE-3386 — one undo step in Edit mode
                 CloseInPlaceEdit();
             }
             catch (EditValidationException ex)

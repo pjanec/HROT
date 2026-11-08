@@ -16,6 +16,11 @@ namespace Fdp.Presentation.Abstractions
         bool HasComponent(Entity e, Type componentType);
         object? GetComponent(Entity e, Type componentType);
         void SetComponent(Entity e, Type componentType, object componentData);
+
+        /// <summary>⭐ CE-3386 (docs/DESIGN_Struct_Editor.md §10.4) — the write of a USER action (the inspector's OK): one step of the editor's history where one is
+        /// recorded. ⛔ Not every write: <see cref="SetComponent"/> stays a plain write, because a write made INSIDE another step's apply / undo (a parameter rename
+        /// rewriting its bindings) must never record a step of its own. Default: the plain write.</summary>
+        void SetComponentAsUserStep(Entity e, Type componentType, object componentData, string label) => SetComponent(e, componentType, componentData);
         
         IEnumerable<Type> GetAllComponentTypes();
 

@@ -171,7 +171,7 @@ internal sealed class ComponentEditWindow : ManagedWindow
 
             var ls = _sessionGetter();
             if (ls != null && ls.IsAlive(_targetEntity))
-                ls.SetComponent(_targetEntity, _componentType, newState);
+                ls.SetComponentAsUserStep(_targetEntity, _componentType, newState, "Edit " + _componentType.Name);   // ⭐ CE-3386 — one undo step in Edit mode
             CloseAndCleanup();
         }
         catch (EditValidationException ex)

@@ -33,9 +33,16 @@ public sealed class EditHistory
     /// <summary>Applies the step and records it (a later step discards the redo tail).</summary>
     public void Do(string label, Action apply, Action undo)
     {
-        apply();
+        Run(apply);
         Push(label, apply, undo);
     }
+
+    /// <summary>⭐ CE-3386 — true while a step's apply / undo / redo runs: a world write made by it is PART of that step, so the world recorder records nothing
+    /// (a Push from inside an Undo would cut the redo tail the undo stands in).</summary>
+    public bool Applying => _applying > 0;
+    private int _applying;
+
+    private void Run(Action a) { _applying++; try { a(); } finally { _applying--; } }
 
     /// <summary>Records a step that has ALREADY been applied (its apply was the caller's own, e.g. one that can be refused).</summary>
     public void Push(string label, Action redo, Action undo) => Push(label, redo, undo, null);
@@ -50,8 +57,8 @@ public sealed class EditHistory
         Version++;
     }
 
-    public bool Undo() { if (!CanUndo) return false; _done[--_at].Undo(); Version++; return true; }
-    public bool Redo() { if (!CanRedo) return false; _done[_at++].Redo(); Version++; return true; }
+    public bool Undo() { if (!CanUndo) return false; Run(_done[--_at].Undo); Version++; return true; }
+    public bool Redo() { if (!CanRedo) return false; Run(_done[_at++].Redo); Version++; return true; }
 
     /// <summary>⭐ U5 — the current position is the saved state.</summary>
     public void MarkSaved() { _savedAt = _at; Version++; }

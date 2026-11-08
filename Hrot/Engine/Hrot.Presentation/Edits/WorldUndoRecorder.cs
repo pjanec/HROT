@@ -51,7 +51,7 @@ public sealed class WorldUndoRecorder : IEditStepRecorder
     {
         if (_depth++ > 0) return;                 // nested: the outer bracket is the step
         _open = false;
-        if (!_recording()) return;
+        if (!_recording() || _history.Applying) return;   // ⭐ CE-3386 — a write inside another step's apply / undo / redo is part of THAT step
         label = string.IsNullOrWhiteSpace(label) ? "Edit" : label;
         if (label == _lastLabel && _history.Version == _lastVersion && _now() - _lastEnd <= CoalesceSeconds) { _label = label; return; }   // joins the last step
         _before = _ring.Capture(repo);
