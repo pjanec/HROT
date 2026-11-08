@@ -338,7 +338,10 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("ResolvedCapabilities = plan", bootstrapper);
             Assert.Contains(".Resolve(role)", bootstrapper);   // ⭐ CE-4270 B7a — the declared role
             // ⭐ CE-4013 — through the ONE shared walk, every phase of it, owned by the base; CGF runs no walk of its own.
-            Assert.Contains("new NodeCapabilityWalk(ResolveCapabilities(", baseSource);
+            // ⭐ CE-4293 — the walk takes the host's resolved list with the extensions appended last (NodeExtensions.CapabilitiesFor) — still ONE walk from ResolveCapabilities
+            Assert.Contains("var hostCapabilities = ResolveCapabilities(", baseSource);
+            Assert.Contains("NodeExtensions.CapabilitiesFor(", baseSource);
+            Assert.Contains("new NodeCapabilityWalk(composedCapabilities)", baseSource);
             Assert.Contains("_walk!.PopulateSystems(", baseSource);
             Assert.Contains("_walk!.ProvideModules()", baseSource);
             Assert.Contains("_walk!.AssertComplete(", baseSource);

@@ -44,14 +44,10 @@ namespace Fdp.Toolkit.Scenario
         private readonly List<int> _named = new();                    // ⭐ N-5 — the picker's rows: named entities, by name
         private readonly Dictionary<int, long> _tkbOf = new();         // ⭐ CE-3399 (Y-8) — each id's TKB type (the <c>tkb:&lt;type&gt;</c> preset)
         private readonly Dictionary<int, Entity> _entityOf = new();   // ⭐ CE-3399 (Y-8) — id → entity, for the host's layer filter (built at the rebuild)
-        private readonly Dictionary<string[], Admission> _admitted = new(ByReference.Instance);   // ⭐ CE-3399 (Y-8) — one admitted-id set per PRESET ARRAY (the attribute's own instance), rebuilt when the scope is
+        private readonly PresetSetCache<Admission> _admitted = new();   // ⭐ CE-3399 (Y-8) — one admitted-id set per DISTINCT preset set (by content: a document rebuild's new arrays share it), rebuilt when the scope is
         private sealed class Admission { public int Generation = -1; public readonly HashSet<int> Ids = new(); }
-        private sealed class ByReference : IEqualityComparer<string[]>
-        {
-            public static readonly ByReference Instance = new();
-            public bool Equals(string[]? a, string[]? b) => ReferenceEquals(a, b);
-            public int GetHashCode(string[] a) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(a);
-        }
+        /// <summary>How many distinct preset sets the scope holds an admitted set for (a rail: it does not grow per document rebuild).</summary>
+        public int AdmissionSetCount => _admitted.Count;
 
         /// <summary>⭐ CE-3399 (Y-8) — the host's LAYER filter (<c>[MapPickableEntity("road_graphs")]</c> names map layers): given the layer presets, the predicate the map pick uses; null = those presets do not narrow. The scope knows the TKB-type presets itself.</summary>
         public Func<EntityRepository, string[], Func<Entity, bool>?>? LayerFilter { get; set; }
@@ -282,7 +278,7 @@ namespace Fdp.Toolkit.Scenario
         {
             if (presets == null || presets.Length == 0) return true;
             Refresh();
-            if (!_admitted.TryGetValue(presets, out var a)) _admitted[presets] = a = new Admission();
+            var a = _admitted.Of(presets);
             if (a.Generation != Rebuilds)
             {
                 a.Generation = Rebuilds; a.Ids.Clear();

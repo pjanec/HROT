@@ -32,8 +32,9 @@ namespace Hrot.SimHost.Tests
                 return $"{p[0]!.GetValue<double>():0},{p[1]!.GetValue<double>():0}";
             }
             var villagers = ents.Select(x => x["EntityInfo"]?["Name"]?.GetValue<string>()).Where(n => n != null && n.StartsWith("Villager", StringComparison.Ordinal));
-            Assert.DoesNotContain("\"Positions\"", dom.ToJsonString());
-            Assert.DoesNotContain("\"Presence\"", dom.ToJsonString());
+            // ⭐ the forms are stripped from the ENTITY (a load builds what was decided); CE-3374 keeps the authored forms in the VariantForms holder,
+            //   so they may appear THERE (that is what an edit save writes back) — never as the entity's own keys
+            Assert.All(ents, x => Assert.False(x.ContainsKey("Positions") || x.ContainsKey("Presence"), "a variant form left on the entity"));
             return $"outpost {At("Red outpost")} | qrf {At("QRF start")} | {string.Join(",", villagers.OrderBy(n => n, StringComparer.Ordinal))}";
         }
 
