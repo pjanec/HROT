@@ -78,8 +78,9 @@ public sealed class TheMenuBarIsOneTreeTests
         wm.RegisterWindow(new Blank("w1", "Scenario"));
         wm.SwitchPerspective("Scenario");
         Assert.Equal(new[] { "wm/perspective", "wm/windows", "wm/help" }, wm.GlobalMenu.Contributors.Select(c => c.Id));
-        var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective)).Select(m => m.Name).ToArray();
-        Assert.Equal(new[] { "Edit", "View", "Help" }, bar);   // ⭐ B-10 K6: Edit holds the shell's Keyboard shortcuts…   // ⭐ CE-4114: Windows is a submenu of View
+        var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective))
+            .Where(wm.BarMenuShows).Select(m => m.Name).ToArray();   // the bar as DRAWN (no dead headers, UXI-05)
+        Assert.Equal(new[] { "View", "Help" }, bar);   // ⭐ R-4176: no Edit menu just for Keyboard shortcuts (it is under Help here)   // ⭐ CE-4114: Windows is a submenu of View
         var viewParts = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective)).Single(m => m.Name == "View").Parts;
         Assert.Contains(viewParts, p => p.Item.Children!.Any(c => c.Label == "Windows"));   // View ▸ Windows, contributed by wm/windows
 
