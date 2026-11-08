@@ -98,4 +98,31 @@ public sealed class ConditionWhoFieldFrameRail : IDisposable
         Assert.Equal(SubjectKind.One, who.Kind);
         Assert.Equal(bravo, who.One.Ref);
     }
+
+    /// <summary>⭐ CE-3404 — a row whose fact has a VALUE chip built from text (<c>strength</c>: "50 %") allocates nothing in a steady frame: the chip text is built with the row's view, not per frame.
+    /// 🔴 Red-proof (compiles): the chip text built in <c>FactValuePopupChip</c> again ⇒ 64 B ⇒ red.</summary>
+    [SkippableFact]
+    public void AStrengthRow_AllocatesNothingInASteadyFrame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        Spawn(41, "Alpha 1-1");
+        var ctx = new Ctx { Scope = new LiveRefScope(_repo, () => 0) };
+        var editor = new ConditionEditor();
+        SearchPredicateDto? value = RowProjection.ToDto(new[] { new ConditionRow(Subject.Thing(EntityLink.None), "strength") });
+        using var frame = UiFrameHarness.Begin(900, 500);
+        new EditorFontService().Initialize(1f, 1f);
+        long bytes = -1;
+        void Draw()
+        {
+            ImGui.SetNextWindowPos(new Vector2(10, 10)); ImGui.SetNextWindowSize(new Vector2(880, 460));
+            ImGui.Begin("##cond", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            editor.Draw("c", ref value, ctx);
+            bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            ImGui.End();
+        }
+        for (int k = 0; k < 3; k++) { frame.StepN(15, Draw); System.Threading.Thread.Sleep(220); }
+        frame.StepN(5, Draw);
+        Assert.True(bytes == 0, $"a steady strength row allocates nothing ({bytes} bytes)");
+    }
 }

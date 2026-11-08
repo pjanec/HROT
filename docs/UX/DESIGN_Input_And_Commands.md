@@ -360,3 +360,5 @@ graph TD
 *What it shows: RTS changes the meaning of a click by sitting IN FRONT of the map scope — the map's own bindings are never copied, and keys and mouse share one chain.*
 
 ⛔ SUPERSEDED: Entity Control §8a's *"Esc leaves"* RTS tool and Seats and Hats Q6's *Esc → out of Command*.
+
+⭐ **R-4169 (user, `2026-11-08`): letters stay on while following** — 🔒 *"Yes, letters stay on while following."* The map letters stand down only for the Embodied (first person) and Direct (director) hats, never for the follow camera (Observe); a follow camera's own keys, if any, are a camera scope in front of the map scope (R-4163).

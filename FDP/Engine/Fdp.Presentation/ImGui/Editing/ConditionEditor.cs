@@ -79,6 +79,8 @@ public sealed class ConditionEditor
 
     private sealed class RowView
     {
+        /// <summary>⭐ CE-3404 — the value chip's text, built when the row's view is (a change rebuilds it), never per frame; null = the fact has no value chip.</summary>
+        public string? ValueChip;
         public string Who = "", Fact = "", Value = "", Sentence = "", WhoPath = "", UnitPath = "", AreaPath = "", AreaThingPath = "";
         public Vector2 WhoMin, WhoMax;
         public IconGlyph? WhoIcon, FactIcon;
@@ -167,6 +169,7 @@ public sealed class ConditionEditor
                 v.Fact = Verb(r.Fact, r.Negated) ?? fact.Words(r.Values, r.Negated);   // a fact with a value chip shows its verb only: the value is the next chip (§4)
                 v.FactIcon = NodeEditor.Core.Widgets.Icons.TryGet(fact.IconKey, out var g) ? g : null;
                 v.Value = ValueText(r, refs);
+                v.ValueChip = ValueChipText(r, v.Value);
                 v.Problem = ProblemOf(r);
                 Problem ??= v.Problem;
             }
@@ -355,19 +358,22 @@ public sealed class ConditionEditor
         return changed;
     }
 
+    /// <summary>⭐ CE-3404 — the value chip's text of a row (null = its fact has none); called when a row's view is rebuilt.</summary>
+    private static string? ValueChipText(ConditionRow r, string insideText) => r.Fact switch
+    {
+        "inside" => insideText,
+        "strength" or "ammunition" => FactCatalogue.Num(r.Values.Number * 100) + " %",
+        "side" => FactCatalogue.SideName(r.Values.Side),
+        "objective-state" => ((ObjectiveState)r.Values.State).ToString().ToLowerInvariant(),
+        "fired" => FactCatalogue.Num(Math.Max(1, r.Values.Number)) + " times",
+        "time" => FactCatalogue.TimeWords(r.Values.Number, r.Values.Number2),
+        _ => null,
+    };
+
     /// <summary>The value blank of facts that have one: the area, a percentage, a side, an objective state, a count, a time.</summary>
     private bool FactValuePopupChip(ref ConditionRow r, IMapPickContext? ctx, LiveRefScope? refs, RowView v)
     {
-        string? text = r.Fact switch
-        {
-            "inside" => v.Value,
-            "strength" or "ammunition" => FactCatalogue.Num(r.Values.Number * 100) + " %",
-            "side" => FactCatalogue.SideName(r.Values.Side),
-            "objective-state" => ((ObjectiveState)r.Values.State).ToString().ToLowerInvariant(),
-            "fired" => FactCatalogue.Num(Math.Max(1, r.Values.Number))  + " times",
-            "time" => FactCatalogue.TimeWords(r.Values.Number, r.Values.Number2),
-            _ => null,
-        };
+        string? text = v.ValueChip;   // ⭐ CE-3404 — built with the row's view (R-2084: no string work per frame)
         if (text == null) return false;
         ImGuiApi.SameLine();
         IconGlyph? icon = r.Fact == "inside" ? NodeEditor.Core.Widgets.Icons.Get("form/pick") : null;

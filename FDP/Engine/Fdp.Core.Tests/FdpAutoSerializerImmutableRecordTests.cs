@@ -44,6 +44,15 @@ namespace Fdp.Tests
 
         public sealed record Inner(int A, float B);
 
+        /// <summary>⭐ CE-4326 — nullable VALUE members (the shape of <c>VariantForms.Presence</c>).</summary>
+        public sealed record NullableRecord
+        {
+            public double? Presence { get; init; }
+            public int? Count { get; init; }
+            public System.Guid? Owner { get; init; }
+            public string? Name { get; init; }
+        }
+
         public sealed record NestedRecord
         {
             public IReadOnlyList<Inner> Items { get; init; } = System.Array.Empty<Inner>();
@@ -58,6 +67,19 @@ namespace Fdp.Tests
             ms.Position = 0;
             using var r = new BinaryReader(ms);
             return FdpAutoSerializer.Deserialize<T>(r);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4326 — a nullable VALUE member round-trips, set and null. 🔴 Before the fix every <c>T?</c> came back null (the recursive struct case wrote
+        /// Nullable's settable members — none): measured as <c>VariantForms.Presence</c> lost through a Preview's keyframe. Red-proof: drop the Nullable case ⇒ red.
+        /// </summary>
+        [Fact]
+        public void ANullableValueMember_RoundTrips_SetAndNull()
+        {
+            var set = new NullableRecord { Presence = 0.5, Count = 3, Owner = System.Guid.NewGuid(), Name = "x" };
+            Assert.Equal(set, RoundTrip(set));
+            var none = new NullableRecord { Name = null };
+            Assert.Equal(none, RoundTrip(none));
         }
 
         [Fact]

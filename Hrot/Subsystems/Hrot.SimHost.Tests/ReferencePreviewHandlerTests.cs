@@ -67,6 +67,55 @@ namespace Hrot.SimHost.Tests
             DomainPayload = new EditLoadHandlerPayload(ScenarioId: null, TargetState: target),
         };
 
+        /// <summary>
+        /// ⭐⭐ CE-4326 (Presets §9a) — a Preview WITH a preset: the LoadingPreview payload's args are applied IN PLACE after the keyframe (an entity whose presence
+        /// roll fails is gone during the Preview), and the rewind brings the authored world back WHOLE — the entity, its place and its authored forms (a NoReplay
+        /// component) — so a later save still writes the scenario as authored. A Preview with no args applies nothing.
+        /// 🔴 Red-proof (compiles): the applier called BEFORE the capture ⇒ the rewind restores the preset world ⇒ the entity stays gone ⇒ red.
+        /// </summary>
+        [Fact]
+        public async Task CE4326_APresetPreview_AppliesInPlaceAfterTheKeyframe_AndTheRewindRestoresTheAuthoredWorld()
+        {
+            _liveRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            _liveRepo.RegisterManagedComponent<Fdp.Toolkit.Scenario.VariantForms>();
+            var guid = Guid.Parse("cccc0000-0000-4000-8000-000000000002");
+            var maybe = _liveRepo.CreateEntity();
+            _liveRepo.AddComponent(maybe, new Fdp.Toolkit.Scenario.EntityGuid(guid));
+            _liveRepo.SetManagedComponent(maybe, new Fdp.Toolkit.Scenario.VariantForms { Variant = 0, Presence = 0.5 });
+            _liveRepo.SetComponent(maybe, new PreviewTestPos { X = 7f });
+            int v = 1;   // a variant whose roll REMOVES it — found with the load's own decision
+            while (Fdp.Toolkit.Scenario.ScenarioVariants.IsPresent(v, Guid.Empty, guid.ToString(), 0.5)) v++;
+
+            var handler = new ReferencePreviewHandler(_liveRepo);
+            var enter = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(), Operation = NodeOpType.PrepareState,
+                DomainPayload = new EditLoadHandlerPayload(ScenarioId: null, TargetState: ClusterState.LoadingPreview, ScenarioArgsJson: "{\"$variant\": " + v + "}"),
+            };
+            await handler.PrepareAsync(enter, default);
+            handler.Commit(enter, _liveRepo);
+            Assert.Equal(1, handler.LastPresetApplied!.Value.Removed);
+            Assert.False(_liveRepo.IsAlive(maybe));                                   // the Preview runs the preset's world
+
+            var exit = MakePrepareStateCmd(ClusterState.UnloadingPreview);
+            await handler.PrepareAsync(exit, default);
+            handler.Commit(exit, _liveRepo);
+            Entity back = TheOneWithAGuid(_liveRepo);
+            Assert.True(_liveRepo.IsAlive(back));                                      // the rewind brings it back …
+            Assert.Equal(7f, _liveRepo.GetComponent<PreviewTestPos>(back).X);
+            var forms = ((Fdp.ModuleHost.Abstractions.ISimulationView)_liveRepo).GetManagedComponentRO<Fdp.Toolkit.Scenario.VariantForms>(back);
+            Assert.NotNull(forms);                                                     // … with its authored forms (NoReplay)
+            Assert.Equal(0, forms!.Variant);
+            Assert.Equal(0.5, forms.Presence);
+        }
+
+        private static Entity TheOneWithAGuid(EntityRepository repo)
+        {
+            Entity back = default;
+            foreach (var e in repo.Query().With<Fdp.Toolkit.Scenario.EntityGuid>().Build()) back = e;
+            return back;
+        }
+
         // ── S0309-T1: LoadingPreview captures live state ───────────────────────
 
         /// <summary>

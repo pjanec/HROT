@@ -703,7 +703,20 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/preview/enter", ctx =>
             {
                 bool startPaused = ctx.Body?["startPaused"]?.GetValue<bool>() ?? false;
-                return PublishAndAwait(ctx, s => s.EnterPreview(startPaused), Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview);
+                // ⭐ CE-4326 (Presets §9a) — a Preview WITH a run setup, applied in place on every node: {args} and/or {variant: n}, or {preset: name} of the open scenario
+                string? presetArgs = ctx.Body?["args"] is System.Text.Json.Nodes.JsonObject argsObj ? argsObj.ToJsonString() : null;
+                if (ctx.Body?["variant"] is System.Text.Json.Nodes.JsonValue vv && vv.TryGetValue<int>(out int vn))
+                {
+                    var o = presetArgs is null ? new System.Text.Json.Nodes.JsonObject() : (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(presetArgs)!;
+                    o[Fdp.Toolkit.Scenario.ScenarioVariants.ArgName] = vn;
+                    presetArgs = o.ToJsonString();
+                }
+                if (ctx.Body?["preset"] is System.Text.Json.Nodes.JsonValue pn && pn.TryGetValue<string>(out var presetName) && !string.IsNullOrWhiteSpace(presetName))
+                {
+                    if (presetArgs is not null) return Task.FromResult(Fail(400, "send either preset or args / variant, not both.", DebugApiHints.Scenario));
+                    return PresetPreview(ctx, startPaused, presetName);
+                }
+                return PublishAndAwait(ctx, s => s.EnterPreview(startPaused, presetArgs), Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview);
             }));
             _routes.Add(new("POST", "/preview/exit", ctx =>
                 PublishAndAwait(ctx, s => s.ExitPreview(), Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
@@ -2422,6 +2435,18 @@ namespace Hrot.Editor.DebugApi
             if (failure is not null) return (failure, null);
             if (outcome!.Result is not { Changed: true } changed) return (null, null);   // unchanged — or the master refused (the state moved): nothing to lose
             return (null, new DebugApiService.HttpUnsavedGate(Hrot.UI.Common.RunMode.UnsavedAnswer.Changed, string.Join(",", changed.ChangedNodes), Discard: false));
+        }
+
+        /// <summary>⭐ CE-4326 — <c>POST /preview/enter {preset}</c>: the open scenario's preset resolved through the ONE resolver (<c>PresetArgs</c>), then the same Preview.</summary>
+        private async Task<RouteResult> PresetPreview(RequestContext ctx, bool startPaused, string presetName)
+        {
+            var (args, error) = await _jobQueue.RunOnMainThread(() =>
+            {
+                var s = Service();
+                return s.LoadedScenarioNameOrNull() is { } open ? s.PresetArgs(open, presetName) : (null, "no scenario is open: a preset belongs to the open scenario");
+            }).ConfigureAwait(false);
+            if (error is not null) return Fail(404, error, DebugApiHints.Scenario);
+            return await PublishAndAwait(ctx, s => s.EnterPreview(startPaused, args), Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview).ConfigureAwait(false);
         }
 
         private DebugApiService Service()
