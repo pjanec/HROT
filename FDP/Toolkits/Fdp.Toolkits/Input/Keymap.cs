@@ -120,6 +120,64 @@ public sealed class Keymap
         return true;
     }
 
+    // ── ⭐ B-10 K7 (§6b) — the mouse gestures: rows of the SAME keymap, in the same scope chain ────────────────────────────
+    private readonly List<GestureEntry> _gestures = new();
+    private readonly HashSet<(InputScope, string?, MapGesture)> _gestureDeclared = new();
+
+    /// <summary>How many gesture rows.</summary>
+    public int GestureCount => _gestures.Count;
+
+    /// <summary>The gesture row at <paramref name="index"/>.</summary>
+    public GestureEntry GestureAt(int index) => _gestures[index];
+
+    /// <summary>Adds a gesture row; idempotent per (scope, qualifier, gesture). Returns whether a row was added.</summary>
+    public bool DeclareGesture(GestureEntry entry)
+    {
+        if (!_gestureDeclared.Add((entry.Scope, entry.Qualifier, entry.Gesture))) return false;
+        _gestures.Add(entry);
+        return true;
+    }
+
+    /// <summary>
+    /// The row of (<paramref name="scope"/>, <paramref name="qualifier"/>) that answers <paramref name="actual"/> (its <see cref="MapGesture.Target"/> the ONE thing hit):
+    /// same button and kind, every modifier the row names held, the hit target inside the row's mask — the row naming the MOST modifiers wins (Shift+click
+    /// beats click). An index loop, no allocation.
+    /// </summary>
+    public bool TryFindGesture(InputScope scope, string? qualifier, in MapGesture actual, out GestureEntry entry)
+    {
+        entry = default;
+        int bestMods = -1;
+        for (int i = 0; i < _gestures.Count; i++)
+        {
+            var e = _gestures[i];
+            if (e.Scope != scope || e.Gesture.Button != actual.Button || e.Gesture.Kind != actual.Kind) continue;
+            if (!string.Equals(e.Qualifier, qualifier, StringComparison.Ordinal)) continue;
+            if ((e.Gesture.Target & actual.Target) == 0) continue;
+            var need = e.Gesture.Modifiers;
+            if ((need & ~actual.Modifiers) != 0) continue;
+            int n = ((int)need & 1) + (((int)need >> 1) & 1) + (((int)need >> 2) & 1);
+            if (n > bestMods) { bestMods = n; entry = e; }
+        }
+        return bestMods >= 0;
+    }
+
+    /// <summary>⭐ §6b — every gesture bound to two DIFFERENT actions where both apply at once: the same scope and qualifier, button, kind and modifiers, with overlapping target masks.</summary>
+    public IReadOnlyList<GestureConflict> ValidateGestures()
+    {
+        var conflicts = new List<GestureConflict>();
+        for (int i = 0; i < _gestures.Count; i++)
+            for (int j = i + 1; j < _gestures.Count; j++)
+            {
+                var a = _gestures[i];
+                var b = _gestures[j];
+                if (a.Scope == b.Scope && string.Equals(a.Qualifier, b.Qualifier, StringComparison.Ordinal)
+                    && a.Gesture.Button == b.Gesture.Button && a.Gesture.Kind == b.Gesture.Kind && a.Gesture.Modifiers == b.Gesture.Modifiers
+                    && (a.Gesture.Target & b.Gesture.Target) != 0 && !a.Action.Equals(b.Action))
+                    conflicts.Add(new GestureConflict(a, b));
+            }
+        return conflicts;
+    }
+
     /// <summary>Whether (scope, window kind, action) already has a row — lets a per-frame declarer skip the work without allocating.</summary>
     public bool IsDeclared(InputScope scope, string? windowKind, ActionRef action) => _declared.Contains((scope, windowKind, action));
 

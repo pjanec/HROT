@@ -158,8 +158,8 @@ namespace Hrot.Common.Actions
         /// <summary>
         /// One order's unit-menu row, or null when it is not offered here. ⭐ <c>CE-1059</c> (§13.12 O5) — an order the gesture cannot complete
         /// (<see cref="Hrot.Common.Orders.OrderPick.Several"/>) needs the ORDER FORM: <c>Name…</c> where this world has one (<paramref name="form"/>),
-        /// hidden elsewhere. An order that needs a pick is disabled on a heavily damaged unit. ⚠ The shortcut is still derived from the order's
-        /// first letter (design §2.1 "no auto-derived letters" — B-11 A3 / B-10 K5 declare it).
+        /// hidden elsewhere. An order that needs a pick is disabled on a heavily damaged unit. ⭐ The shortcut is the order's DECLARED letter
+        /// (<see cref="OrderShortcuts"/>, B-10 K2) — never derived from its name.
         /// </summary>
         public static ContextMenuItemDto? OrderItem(Hrot.Common.Orders.OrderInfo o, bool degraded, bool form)
         {
@@ -167,8 +167,18 @@ namespace Hrot.Common.Actions
                 return form ? new ContextMenuItemDto { Id = o.ActionId, Label = o.Name + "…" } : null;
             return degraded && o.Pick != Hrot.Common.Orders.OrderPick.None
                 ? new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Enabled = false, Tooltip = "Cannot " + o.Name.ToLowerInvariant() + ": unit is heavily damaged" }
-                : new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Shortcut = o.Name.Substring(0, 1) };
+                : new ContextMenuItemDto { Id = o.ActionId, Label = o.Name, Shortcut = OrderShortcuts.TryGetValue(o.Name, out var letter) ? letter : null };
         }
+
+        /// <summary>
+        /// ⭐ B-10 K2 (docs/UX/DESIGN_Input_And_Commands.md §6, CE-4281) — the letter each order DECLARES on the map (the unit menu shows it, <c>MenuShortcuts</c> runs it).
+        /// ⛔ SUPERSEDES the letter derived from the order's first character: two orders starting alike collided silently. An order with no entry shows NO letter,
+        /// and the rail <c>OrderLettersAreDeclaredAndDistinct</c> names it — a new order must declare one here, distinct from the unit menu's other letters.
+        /// </summary>
+        public static readonly IReadOnlyDictionary<string, string> OrderShortcuts = new Dictionary<string, string>
+        {
+            ["Move"] = "M", ["Attack"] = "A", ["Hold"] = "H", ["Strike"] = "S", ["ObserveFire"] = "O",
+        };
 
         // ── the context, and the cache (as the old per-flag unit menus) ──────────────────────────────────────────────────────────────
 

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — §1–§6 decided (R-4171, R-4172); §7 the distributed model — Q5–Q7 for the user; §00 scope added 2026-11-08
+build-state: READY-TO-BUILD (CE-4330) — §1–§7 decided (R-4171, R-4172, R-4173); §8 the visual; Q8 (delete from the NAS) open, not part of CE-4330
 updated: 2026-11-08 (⭐ PROMOTED to the ONE owning design of recording files — moved from docs/DESIGN_Recording_Storage.md and retitled; the user: "it's probably a whole design document regarding the management of the recording files, importing and exporting")
-current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue)
+current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue; §7.4 decided) · ⭐ §8 the visual · ⭐ §9 an AAR on a different cluster (Q9)
 stale-below: nothing
 known-rot: none
 known-conflict: designs/mgmt-1/DESIGN.md §13 — written before the build; its §13.3 layout (/archives/, .fdprec + .meta.json, drill_manifest.json) is NOT the as-built ({NAS}/exercises/<id>/node_N.fdp + Orchestrator.json + scenario/, §1 here). This design is the current answer for WHAT happens to a recording; mgmt-1 §12.6/§13.1 stay the answer for HOW the gateway moves bytes.
@@ -70,7 +70,7 @@ every station.*
 
 | ⛔ gap the picture exposes | lean |
 |---|---|
-| **no way to DELETE a run from the NAS** — `DeleteExercise` removes only an UNARCHIVED one (`AssetInventoryProcessManager.cs:220-225`, returns false for an archived id) | **Q8** — an operator-only *Delete from archive* through the gateway (a storage job of kind Delete), never automatic; ⭐ not part of CE-4330 — file it when wanted |
+| **no way to DELETE a run from the NAS** — `DeleteExercise` removes only an UNARCHIVED one (`AssetInventoryProcessManager.cs:220-225`, returns false for an archived id) | ✅ **Q8 decided (R-4174)**: *Delete from archive* wherever NAS runs are listed (the picker's ⋮, the orchestrator panel), behind a confirmation dialog (§8 ⑦); a storage job of kind **Delete** (one at a time, like the rest); the cached copies go too; Author / Instructor; refused while a transfer of that run is queued or running. Part of CE-4330 |
 
 ## 0. Why
 
@@ -137,7 +137,7 @@ written LAST, so anything without it is visibly incomplete.*
 | **P3** | **closing the app during an archive asks**: *"Exercise 3 is still being archived (2 of 4 files). Wait · Close anyway — the exercise stays on the nodes and the archive resumes next time"* — the editor's existing exit prompt gains this line | G5 |
 | **P4** | **complete = a manifest written LAST**: the sidecar lists every file with its size; files land as `*.fdp.part` and are renamed when whole; the NAS scan counts an exercise ARCHIVED only when the manifest is present AND every listed file matches — otherwise it is **INCOMPLETE** | G3, G4 |
 | **P5** | **an incomplete archive RESUMES — where** (the user: *"Where can we select the option to continue?"*): ① **by itself** — the master re-tries every incomplete archive whose exercise its ledger still holds, at start-up and whenever the missing node comes back (the files are still on the nodes: they are deleted only after a VERIFIED archive, Q2); ② **the status bar** says it while it waits: *"⚠ Exercise 3 archive incomplete — waiting for node-3 (2 of 4 files)"*, a click opens the details with *Resume now*; ③ **the recording picker's row**: *"⚠ incomplete — 3 of 4 files · Resume archive"*; ④ **the orchestrator panel**'s archive list, the same action. ⭐ It re-runs the SAME pull — it already skips a file of the same size and time | G3 |
-| **P6** | **the picker lists both**: *on the nodes* and *archived*; opening an archived one in a cluster runs the EXISTING `ImportArchive` first (a prefetch, with the same status-bar progress); the all-in-one editor and the Replay Browser open the NAS files directly (a participant group, merged — Review perspective) | G2 |
+| **P6** | **the picker lists both**: *on the nodes* and *archived* (with where each is — §7.3, §8 ⑤); opening an archived one IMPORTS first everywhere (§5 — ⛔ SUPERSEDED: this row first said the all-in-one editor and the Replay Browser read the NAS files directly) | G2 |
 
 ## 4. Decisions — ✅ the user, `2026-11-08` (R-4171)
 
@@ -242,7 +242,7 @@ connect — unnecessary once nothing but the gateway connects.
 | ⭐ rule | |
 |---|---|
 | **ONE runner — the master's storage gateway** runs every archive, import and discard (as today); any station ASKS with the existing ops (`ExportArchive`, `ImportArchive`, `DeleteExercise`, `CancelOperation`) — ⛔ no node copies anything on its own | the gateway pattern (§5) |
-| **a STORAGE JOB per request**, kept by the master in ONE queue: `{ JobId (the request id), Kind (Archive / Import / Discard), ExerciseId, State (Queued / Running / WaitingForNode / Done / Failed / Cancelled), FilesDone / FilesTotal, BytesDone / BytesTotal, WaitingFor (a node), AskedBy (a station) }` | NEW — the master's `StorageJobQueue` |
+| **a STORAGE JOB per request**, kept by the master in ONE queue: `{ JobId (the request id), Kind (Archive / Import / Discard / Delete — R-4174), ExerciseId, State (Queued / Running / WaitingForNode / Done / Failed / Cancelled), FilesDone / FilesTotal, BytesDone / BytesTotal, WaitingFor (a node), AskedBy (a station) }` | NEW — the master's `StorageJobQueue` |
 | **fact ① `StorageJobs`** — the queue, replicated on the cluster facts (as the inventory is), on every change and at most a few times a second while bytes move | NEW field on the facts every node already reads ⇒ every station's status bar shows the same jobs |
 | **fact ② where each exercise is** — `ExerciseInventoryItem` gains: *original on the nodes* (the ledger), *on the NAS: complete / incomplete N of M* (the manifest, §3 P4), *cached on: [nodes]* | NEW fields on the item every node already receives |
 | **fact ③ a node's local recordings** — each node reports the exercise folders in its staging (id + size), on change | NEW field on the node's status the master already reads ⇒ the master knows who needs an import (§7.3) |
@@ -317,13 +317,53 @@ stateDiagram-v2
 | **the orchestrator panel** | the same job list (the monitor) |
 | **the import dialog** (§5a) | the ONE job's progress — ⭐ so a station that joined sees the same numbers |
 
-### 7.4 Questions — leans
+### 7.4 Decisions — ✅ the user, `2026-11-08` (R-4173)
 
-| # | question | ⭐ lean | rejected — one line |
-|---|---|---|---|
-| **Q5** | a transfer while a NEW Live runs | **it continues** (it reads finished files), the status bar shows it — the instructor can cancel; ⚠ measure the effect on a live run's network before building | paused during Live: an archive could stay incomplete for days |
-| **Q6** | one transfer at a time, or several | **one at a time** (the gateway's single NAS connection, predictable bandwidth) — others Queued | parallel: the NAS connection limit and the bandwidth (mgmt-1 §12.4) |
-| **Q7** | who may cancel | **Author and Instructor seats** (the seat gate, H2) | anyone: a trainee station could cancel the archive |
+🔒 User: *"Live runs shouldn't be restricted or limited by pending import or export. Up to one transfer at a time. Q7, yes. We will need some visual
+design for the dialogues and the status bar and the indication whatsoever."*
+
+| # | ✅ decision | ⭐ what it means for the build |
+|---|---|---|
+| **Q5** | **a Live is never restricted or limited by a transfer** | ⭐ starting a Live never waits for, asks about or cancels a job; ⭐ while a Live runs the job GIVES WAY (a lower rate — the status bar's clock mark) and speeds up after. Acceptance: a live run's frame time and DDS latency with a transfer running = without (measured by the build, numbers in the report) |
+| **Q6** | **at most one transfer at a time** | the queue (§7.2): the head job runs, the rest are *Queued* in order |
+| **Q7** | **Cancel / Resume: the Author and Instructor seats** | from any station; greyed on another seat with the reason |
+| **Q8** | ✅ **Delete from archive, behind a confirmation** (R-4174) — 🔒 *"somewhere where we are listing the recordings on NAS, there should be an option to delete them, Guarded with a confirmation dialog"* | §00, §8 ⑦; StorageJob.Kind gains **Delete** |
+
+## 8. ⭐ The visual — [`UX/recording-storage-visual.svg`](UX/recording-storage-visual.svg)
+
+Generated by `scripts/gen-recording-storage-mockup.py` (house style, `mockup_kit`). ⭐ It is the acceptance spec for the build's look (R-4138):
+① the status bar's transfer segment in its six states · ② the Transfers popover (= the orchestrator panel's list) · ③ ⏏ Close the session —
+Archive / Keep / Discard · ④ the import dialog (joined, Continue in background) · ⑤ the picker's location chips · ⑥ the quit guard, asked
+only where the transfer runs · ⑦ Delete from the archive (R-4174). Scope: only these; the rest of the editor is context, drawn unchanged (R-4151).
+
+![recording storage](UX/recording-storage-visual.svg)
+
+## 9. ⭐ An AAR on a DIFFERENT cluster — fewer, more or other nodes than recorded *(measured `2026-11-08`)*
+
+🔒 User: *"what happens if we want to run a replay AAR on different number of nodes than there were when the recordings were produced?"*
+
+| measured | where |
+|---|---|
+| **every ECS node records the WHOLE world it sees** (its own entities and the replicas of everyone else's) — Plan A | R-4012; `RecordingMetadata.NodeId` (`RecordingMetadata.cs:61`) — ⛔ the node's ROLE is not recorded |
+| **an import fetches one file per node of the CURRENT cluster, by node id**: node *k* gets `node_k.fdp` | `ClusterMaster.BuildNodeDistributionTargetsForExercise` `:2676-2692` (the active roster) · `StorageGatewayModule.PrefetchArchiveAsync` `:703-740` |
+| **a node with no file is a LISTENER**: restores nothing, takes the world from the replaying nodes' flood | `ReplayModule.cs:78-86` (R-4012, Q91 §4-P) |
+| ⚠ **an import answers *Success* even when files failed** — the failure count is not read | `StorageProcessManager.cs:96-104` |
+| the all-in-one editor and the Replay Browser open ALL the files in ONE merged world | [Review perspective](UX/DESIGN_Review_Perspective.md) §2.2 |
+
+| the cluster at AAR time | ⭐ what happens today | ⭐ what changes (proposal) |
+|---|---|---|
+| **the same nodes** | each restores its own recording | — |
+| **FEWER** (node 4 is gone) | node 4's file is never fetched. The world is still COMPLETE — every other node recorded node 4's entities as replicas. ⛔ Lost: what only node 4 held (its units' brain / task state, its local-only components, its own view) | the AAR start says it: *"node 4 (CGF-2) is not in this cluster — its units replay as seen by the others; their brains are not inspectable"* · the full detail is one click away: open the run on the all-in-one editor / Replay Browser (merged, every file) |
+| **MORE** (a new node 6) | node 6 has no file ⇒ a listener: it shows the world the replaying nodes send | — (a display station joining an AAR is the normal case) |
+| **OTHER nodes under the SAME ids** (node 2 was a SimHost, now an IG) | ⛔ node 2 gets the SimHost's file and replays it — nothing checks | **record the node's role** in the metadata and, at import, give a file only to a node of the SAME role; otherwise the node listens and the start names the mismatch |
+| **a file missing on the NAS** | the node silently listens (the import says Success) | the job reports *"3 of 4 files"* (§7) and the AAR start names the missing node |
+
+⭐ **Why this is enough — and no re-mapping is needed:** a recording is not a node's *share* of the world, it is a node's *view* of all of it.
+Any one file replays the whole exercise; more files add only what each node alone knew. ⇒ an AAR on any cluster shape shows the full world;
+⛔ re-assigning node 4's file to another node is rejected — that node would replay node 4's world on top of its own (two restores, one world).
+
+**Q9** — ⭐ lean: the three proposal cells above as **CE-4331** (the role in the metadata + the import matches by role · the participant check at
+the AAR start · the import's failure count read) — small, backend; ⛔ not in CE-4330.
 
 ---
 _coordinator lane, 2026-11-08_

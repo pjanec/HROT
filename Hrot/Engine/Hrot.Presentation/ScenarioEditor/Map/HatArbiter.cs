@@ -56,6 +56,13 @@ namespace Hrot.ScenarioEditor.Map
             _ => "Observe",
         };
 
+        /// <summary>⭐ B-10 K3 — an armed modal tool (a pick, a placement, an edit — everything but the RTS command tool, which is the Command hat itself) holds Esc: the press is ITS level.</summary>
+        public bool ToolHoldsEscape => _tools.ActiveModal is { } top && top.Id != Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand;
+
+        /// <summary>⭐ B-10 K3 (📄 DESIGN_Input_And_Commands.md §6c) — who one Esc press on the map goes to NOW: <see cref="EscapeChain.Resolve"/> over this station's tool and hat.</summary>
+        /// <param name="cameraOwnsEscape">A camera driver that is not a hat (a follow) is on and hands the camera back on Esc.</param>
+        public EscapeLevel EscapeLevel(bool cameraOwnsEscape) => EscapeChain.Resolve(ToolHoldsEscape, cameraOwnsEscape, Active);
+
         /// <summary>The arbiter of <paramref name="world"/>'s map, or null (no map).</summary>
         public static HatArbiter? Of(EntityRepository? world) => MapUiStates.HatsOf(world);
 
