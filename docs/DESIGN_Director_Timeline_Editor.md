@@ -1206,6 +1206,8 @@ edit), its GizmoMap twin, NodeEditor's `UndoStack` (graph commands only) and Blu
 | an edit is undoable by an EXISTING stack | ✅ `GizmoUndoStack.Push(IGizmoUndoRecord)` (Fdp.Toolkits, reachable) | ✅ TE-14 ("no fifth") |
 | a drag never moves the world | — | ✅ §2c row 2 |
 
+> ⛔ **SUPERSEDED `2026-11-08` (U4, ui — [Edit-mode undo §1.5](UX/DESIGN_Edit_Mode_Undo.md)):** the take editor's undo (TE-14) no longer rides a `GizmoUndoStack`: `TakeEditor` pushes ONE named closure step per edit onto the editor's ONE `EditHistory` (`TakeEditRecord` is gone; the session's `UndoStack` is its `History`). The diagrams below show the T3 build and are history for that one seam.
+
 ```mermaid
 classDiagram
   direction LR

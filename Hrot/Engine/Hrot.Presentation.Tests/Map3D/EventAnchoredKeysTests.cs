@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
+using Hrot.Presentation.Edits;
 using Fdp.Toolkit.ReplayBrowser.Timeline;
 using Hrot.UI.Common.Map3D.Director;
 using Xunit;
@@ -50,7 +50,7 @@ public sealed class EventAnchoredKeysTests : IDisposable
         File.WriteAllText(path, """{"keys":[{"at":0.1,"lookAt":[1,2,3],"distance":60}]}""");
         var loaded = _store.Load("sc", "main");
         Assert.True(loaded.Ok, string.Join("; ", loaded.Problems));
-        var editor = new TakeEditor(_store, loaded.Value!, new GizmoUndoStack());
+        var editor = new TakeEditor(_store, loaded.Value!, new EditHistory());
         Func<double, EventAnchor?>? at = index is null ? null : sim => EventAnchors.NearestBefore(index, sim, NameOf);
         return (editor, new DirectorTracks(editor, () => new CameraSpec { LookAt = new Vector3(5, 0, 0), Distance = 40 }, null, at));
     }
@@ -134,7 +134,7 @@ public sealed class EventAnchoredKeysTests : IDisposable
         Assert.Equal(0.4, key.At.Offset, 6);
         Assert.Equal("Tank", take.Anchors["shot:Tank#2"].By);
         Assert.Equal(2, take.Anchors["shot:Tank#2"].N);
-        var reopened = new TakeEditor(_store, take, new GizmoUndoStack());
+        var reopened = new TakeEditor(_store, take, new EditHistory());
         Assert.Equal(1.4, reopened.Resolve(key.At)!.Value, 6);
     }
 
@@ -172,13 +172,13 @@ public sealed class EventAnchoredKeysTests : IDisposable
     public void CE1303_CR6_UndoingK_RemovesTheKeyAndItsAnchorTogether()
     {
         var (editor, tracks) = Open(Shots());
-        var undo = new GizmoUndoStack();
+        var undo = new EditHistory();
         editor = new TakeEditor(_store, editor.Take, undo);
         tracks = new DirectorTracks(editor, () => new CameraSpec { LookAt = Vector3.Zero }, null, sim => EventAnchors.NearestBefore(Shots(), sim, NameOf));
 
         Assert.True(tracks.Camera.Key('K', 1.4));
         Assert.Single(editor.Take.Anchors);
-        undo.Undo(null!);
+        undo.Undo();
 
         Assert.Empty(editor.Take.Anchors);
         Assert.Null(editor.Take.Baked);

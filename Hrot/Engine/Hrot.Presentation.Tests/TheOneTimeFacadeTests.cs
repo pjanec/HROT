@@ -988,7 +988,7 @@ public sealed class TheOneTimeFacadeTests
         var aar = With(ClusterState.OperatingReplay, RunArmed.Live);
         Assert.True(SaveRoute(aar.Choice, aar.C));
         Assert.Empty(aar.C.Calls);                                          // nothing published, nothing written
-        Assert.Contains("recording cannot take a checkpoint", aar.Choice.Toast!.Title);
+        Assert.Contains(RunModeChoice.AarCheckpointReason, aar.Choice.Toast!.Title);   // ⭐ Z-1 (R-4168)
 
         var unrecorded = With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true);
         Assert.True(SaveRoute(unrecorded.Choice, unrecorded.C));

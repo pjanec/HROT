@@ -338,7 +338,7 @@ public sealed class ClusterTimelineCursorTests
         Assert.DoesNotContain(items, i => i.Label.StartsWith("AAR from"));  // already in one
         var cp = Assert.Single(items, i => i.Label.StartsWith("Take checkpoint here"));
         Assert.False(cp.Enabled);
-        Assert.Contains("recording cannot take a checkpoint", cp.Label);
+        Assert.Contains(RunModeChoice.AarCheckpointReason, cp.Label);   // ⭐ Z-1 (R-4168)
 
         var live = Assert.Single(items, i => i.Label == "Go live from 0:08");
         live.Run();

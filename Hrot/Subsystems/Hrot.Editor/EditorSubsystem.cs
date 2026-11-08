@@ -315,6 +315,13 @@ namespace Hrot.Editor
 
         private bool _undoRecorderInstalled, _undoSessionWired;
 
+        /// <summary>⭐ U5 — Edit ▸ History… (null until the windows are registered).</summary>
+        private Hrot.Presentation.Windows.EditHistoryWindow? _historyWindow;
+        internal Hrot.Presentation.Windows.EditHistoryWindow? HistoryWindow => _historyWindow;
+
+        /// <summary>⭐ B-14 — the station is in Edit mode (the only mode undo works in, R-4120).</summary>
+        private bool InEditMode => _world is { } uw && Hrot.Common.Editing.StationMode.Of(uw) == Hrot.Common.Editing.EditingMode.Edit;
+
         /// <summary>⭐ B-14 / Edit-mode undo U2 + U5 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.2) — the world's step recorder writes world steps onto the ONE
         /// <see cref="EditHistory"/> (Edit mode only); the session's Save marks the clean point and an open / create / clear (or a Live load) starts over.
         /// Called where the world + ring and where the session come into being (either order); each half once.</summary>
@@ -1601,7 +1608,8 @@ namespace Hrot.Editor
                     // ⭐ CE-4059 (§11q D1) — the drafter over the index the Event Timeline shows, a take of the loaded scenario
                     Index:     () => _node?.ShownTimeline?.Index,
                     Scenario:  () => _editorLogic?.LoadedScenarioName,
-                    IndexComplete: () => _node?.ShownTimeline?.IsComplete ?? false));   // ⭐ CE-4121 — the live source: always complete
+                    IndexComplete: () => _node?.ShownTimeline?.IsComplete ?? false,   // ⭐ CE-4121 — the live source: always complete
+                    History:   EditHistory));   // ⭐ U4 — the take editor's steps ride the editor's ONE history (Edit ▸ Undo / Redo / History)
                 _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 
@@ -3891,7 +3899,8 @@ namespace Hrot.Editor
 
             // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
             Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,
-                inEdit: () => _world is { } uw && Hrot.Common.Editing.StationMode.Of(uw) == Hrot.Common.Editing.EditingMode.Edit);
+                inEdit: () => InEditMode,
+                showHistory: () => _historyWindow?.Show());   // ⭐ U5 — Edit ▸ History…
 
             Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
                 register:          windowManager.ShellCommands.Register,
@@ -4914,6 +4923,8 @@ namespace Hrot.Editor
             {
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.UndoId, "Edit/Undo");
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.RedoId, "Edit/Redo");
+                if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.EditUndoCommands.HistoryId) != null)   // ⭐ U5 — right under Redo
+                    MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.HistoryId, "Edit/History…");
             }
 
             // ─────────────────────────────────────────────────────────────────────────
@@ -4979,6 +4990,10 @@ namespace Hrot.Editor
                 Actions: () => HostActions));   // ⭐ CE-4308 — the map menu's rule entries (silent-default rule: the editor holds them)
             _rulesWindow = rules.Rules; _rulesBundle = rules;
             Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+            // ⭐ U5 (Edit mode undo) — Edit ▸ History…: the ONE EditHistory's steps, a click goes to one
+            _historyWindow = new Hrot.Presentation.Windows.EditHistoryWindow(EditHistory, () => InEditMode, "edit_history", "Scenario", EditorWindowColor.TitleBar);
+            windowManager.RegisterWindow(_historyWindow);
 
             // ⭐ CE-4318 (L-6, Scenario Lifecycle LC-13) — the ONE Problems window over backend's ScenarioProblems; its count on the toolbar (nothing when there are none)
             _problemsWindow = new Hrot.Presentation.Windows.ProblemsWindow(() => _world, n => SelectNetworkEntity(n), "problems", "Scenario", EditorWindowColor.TitleBar);

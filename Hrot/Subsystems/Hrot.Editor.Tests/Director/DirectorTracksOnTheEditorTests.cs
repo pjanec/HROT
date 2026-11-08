@@ -53,11 +53,14 @@ public sealed class DirectorTracksOnTheEditorTests
 
             camera.Move("key:0", 3.5, commit: true);               // a drag released on the panel
             Assert.Equal(3.5, camera.Items[0].From);
-            Assert.True(session.UndoStack.CanUndo);
+            Assert.True(session.CanUndo);
+            Assert.Equal("Move camera key", editor.EditHistory.UndoLabel);   // ⭐ U4 — ONE named step on the editor's ONE history (Edit ▸ Undo shows it)
+            Assert.False(editor.EditHistory.IsDirty);               // ... a take is a file of its own: it does not dirty the scenario
+            Assert.Null(panel.Undo);                                // ... and the panel's own chord is off (Ctrl+Z reaches the history through Edit ▸ Undo: no double undo)
 
-            panel.Undo!();                                          // what Ctrl+Z on the panel calls
+            Assert.True(editor.EditHistory.Undo());                 // what Edit ▸ Undo / Ctrl+Z calls
             Assert.Equal(2d, camera.Items[0].From);
-            panel.Redo!();
+            Assert.True(editor.EditHistory.Redo());
             Assert.Equal(3.5, camera.Items[0].From);
 
             Assert.Equal(file, session.Save());
@@ -65,7 +68,10 @@ public sealed class DirectorTracksOnTheEditorTests
 
             session.Close();
             Assert.Empty(panel.Tracks!());
-            Assert.False(session.UndoStack.CanUndo);                // a closed take leaves no history behind
+            Assert.False(session.CanUndo);                // a closed take leaves nothing to undo ...
+            Assert.False(editor.EditHistory.CanUndo);
+            Assert.Equal(1, editor.EditHistory.Count);    // ... its step stays on the history, greyed (it would restore a take nobody has open)
+            Assert.False(editor.EditHistory.StepAvailable(0));
         }
         finally
         {

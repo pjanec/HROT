@@ -196,7 +196,7 @@ Rails: `CE3409_PlayWearsTheIndicatorsColour`, `ColourIconsFrameRail.L11_PlayWear
 
 | what | where | note |
 |---|---|---|
-| ONE button, ONE slot (`shell.save`): floppy in Edit (greyed + reason tooltip when not saveable, and in a Preview) · amber FLAG in Live / DAR / AAR = take a checkpoint (greyed with `CheckpointDisabledReason`; an AAR keeps *a recording cannot take a checkpoint…*) | `ShellSaveCommands.Register(runChoice:)` · `RunModeChoice.SaveSlotDisabledReason` / `SaveSlotTakesCheckpoint` · new `EditorCommandDescriptor.DynamicGlyph` drawn by `ToolbarCommandAdapter` | editor and CGF pass their run choice; hosts with none keep today's slot |
+| ONE button, ONE slot (`shell.save`): floppy in Edit (greyed + reason tooltip when not saveable, and in a Preview) · amber FLAG in Live / DAR / AAR = take a checkpoint (greyed with `CheckpointDisabledReason`; an AAR: ~~*a recording cannot take a checkpoint…*~~ ⭐ Z-1 (R-4168): *a recording already holds every moment — use Go live from here*) | `ShellSaveCommands.Register(runChoice:)` · `RunModeChoice.SaveSlotDisabledReason` / `SaveSlotTakesCheckpoint` · new `EditorCommandDescriptor.DynamicGlyph` drawn by `ToolbarCommandAdapter` | editor and CGF pass their run choice; hosts with none keep today's slot |
 | pen, slot and File ▸ Save read ONE answer | `IRunScenarioControl.SaveDisabledReason` ← `EditorScenarioSession.SaveDisabledReason` | rail asserts pen colour + slot reason agree |
 | Ctrl+S in a run still checkpoints (the save intercept) | unchanged | ⚠ a GREYED slot also greys Ctrl+S: in an AAR the *"No checkpoint: …"* toast no longer shows (the slot's tooltip carries the reason) |
 
@@ -234,7 +234,7 @@ Rails: `ThePlayersSummaryOpensAtTheEndTests` (4) · `TheRulesBundleTests.L2_TheP
 | ind | Edit HOVERED | ✔ lighter button + frame + tooltip (mouse driven on the real frame) |
 | ind | Live briefing · running · not recorded | ✔ ● red / green, ■ and ⏪ dim in the briefing. Deviation kept: not-recorded Live greys the Save flag (picture: amber) — a checkpoint needs a recording (R-5) |
 | ind | Live ENDED | **fixed**: ■ is ⏏ = FA right-from-bracket, light (was a green eject triangle); ▶ greyed, ⏪ amber ✔ |
-| ind | DAR · AAR | **fixed**: DAR's ⏏ is the same glyph; ✔ rest. Deviation kept: AAR flag greyed (picture amber) — a recording cannot take a checkpoint (R-5). Tooltip omits *exercise N* (no number on the wire) |
+| ind | DAR · AAR | **fixed**: DAR's ⏏ is the same glyph; ✔ rest. AAR flag greyed (picture amber) — ✅ ruled by R-4168 (no checkpoints in AAR or an unrecorded Live); tooltip *a recording already holds every moment — use Go live from here* (Z-1). Tooltip omits *exercise N* (no number on the wire) |
 | story ② | Edit menu | **fixed**: Edit pen · Live ● (red / green) · AAR ▶ glyphs. Run to … / Close are asserted by their own rails (this rig has no controller / door) |
 | story ③ ④ | briefing · running toolbars | ✔ (= ind rows) |
 | story ⑤ | *End the exercise?* | **fixed**: text as pictured; buttons **End the exercise / Keep running** — the house last button (Esc / ✕) now carries the worded label (`WithCancel(cancelLabel)`). Deviation kept: modal sits under the toolbar, not centred |

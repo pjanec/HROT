@@ -73,6 +73,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4328**, **R-4169**. ⭐ Mission plan dispatched: HANDOFF_Coordinator_To_Lanes_Mission_Plan.md (P-1…P-8 = CE-4295, CE-4298…CE-4304; R-4161).
+Ids: coordinator next free **CE-4328**, **R-4170**. ⭐ Mission plan dispatched: HANDOFF_Coordinator_To_Lanes_Mission_Plan.md (P-1…P-8 = CE-4295, CE-4298…CE-4304; R-4161).
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).

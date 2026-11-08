@@ -2,15 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.Panels.Timeline;
-using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
+using Hrot.Presentation.Edits;
 
 namespace Hrot.UI.Common.Map3D.Director
 {
     /// <summary>
     /// ⭐ <c>CE-1364</c> T3 (docs/DESIGN_Director_Timeline_Editor.md §10, T-L2 / T-L3) — the take OPEN in the editor: ONE <see cref="TakeEditor"/> per open take,
     /// shared by the Director window (open · save · close) and the Event Timeline panel (its <see cref="Tracks"/>), so a drag on the panel and a click in the
-    /// window are the same edit path. It also owns the editor's <see cref="GizmoUndoStack"/> for take edits — the editor had none; this is the one stack
-    /// (T-L2: no fifth kind), reached by the panel's Ctrl+Z / Ctrl+Y and by <see cref="UndoLast"/> / <see cref="RedoLast"/>.
+    /// window are the same edit path. Its take edits are document steps on the host's ONE <see cref="EditHistory"/>
+    /// (⭐ U4, docs/UX/DESIGN_Edit_Mode_Undo.md Q3 / Q6: the editor passes its own, so Edit ▸ Undo / Redo / History show them; a host without one — the Replay Browser —
+    /// gets a private history), reached by the panel's Ctrl+Z / Ctrl+Y and by <see cref="UndoLast"/> / <see cref="RedoLast"/> (which act on a TAKE step only).
     /// <para>The playback rate (<see cref="Speed"/>) lives here too: the window's slider and the tracks' J / L are one number, handed to the runner while it plays.</para>
     /// </summary>
     public sealed class DirectorTakeSession
@@ -25,17 +26,23 @@ namespace Hrot.UI.Common.Map3D.Director
         private DirectorTracks? _tracks;
 
         /// <param name="eventAt">⭐ CR-6: the nearest event of THIS host's timeline index at or before a sim second (K hangs the new key on it); null = no index.</param>
-        public DirectorTakeSession(Func<TakeStore?> store, Func<DirectorRunner?> runner, Func<CameraSpec?> pilot, Func<double, EventAnchor?>? eventAt = null)
+        /// <param name="history">⭐ U4 — the host's ONE edit history; null ⇒ a private one (no shared history on this host).</param>
+        public DirectorTakeSession(Func<TakeStore?> store, Func<DirectorRunner?> runner, Func<CameraSpec?> pilot, Func<double, EventAnchor?>? eventAt = null, EditHistory? history = null)
         {
             _store = store; _runner = runner; _pilot = pilot; _eventAt = eventAt;
+            History = history ?? new EditHistory();
+            SharedHistory = history != null;
         }
 
         /// <summary>⭐ <c>CE-1305</c> (§11v T2) — a shot template's camera for a key hung on an event (<see cref="DirectorDrafts.TemplateCamera"/>); set by
         /// <see cref="DirectorPack.Attach"/> where the host has a drafter, null otherwise (no templates offered).</summary>
         public Func<EventAnchor, ShotTemplate, double, CameraSpec?>? Templates { get; set; }
 
-        /// <summary>The editor's undo stack for take edits.</summary>
-        public GizmoUndoStack UndoStack { get; } = new();
+        /// <summary>⭐ U4 — the history the take edits are steps of (the host's ONE, or a private one).</summary>
+        public EditHistory History { get; }
+
+        /// <summary>The history is the host's shared one: its Edit ▸ Undo / Redo keys already reach the take steps.</summary>
+        public bool SharedHistory { get; }
 
         public TakeEditor? Editor { get; private set; }
         public string? Scenario => Editor?.Take.Scenario;
@@ -75,7 +82,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_store() is not { } store) return new[] { "no take store on this host" };
             var loaded = store.Load(scenario, take);
             if (loaded.Value is null) return loaded.Problems;
-            OpenEditor(new TakeEditor(store, loaded.Value, UndoStack));
+            OpenEditor(new TakeEditor(store, loaded.Value, History, owner: this));
             return Array.Empty<string>();
         }
 
@@ -89,7 +96,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (draft is null) throw new ArgumentNullException(nameof(draft));
             if (Editor is { Dirty: true } open)
                 return new[] { $"'{open.Take.Scenario}/{open.Take.Name}' has unsaved edits — save or close it first" };
-            OpenEditor(new TakeEditor(_store(), draft, UndoStack, unsaved: true));
+            OpenEditor(new TakeEditor(_store(), draft, History, unsaved: true, owner: this));
             return Array.Empty<string>();
         }
 
@@ -101,7 +108,7 @@ namespace Hrot.UI.Common.Map3D.Director
 
         private void OpenEditor(TakeEditor editor)
         {
-            UndoStack.Clear();
+            Editor?.Retire();   // ⭐ U4 — the previous take's steps stay on the history, greyed
             Editor = editor;
             // CR-7 (§11q K3) — the segment on screen while the runner plays THIS take (K / update key from view scope a key to a replay)
             _tracks = new DirectorTracks(editor, _pilot, StepRate, _eventAt,
@@ -116,15 +123,16 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>Closes the open take, dropping its unsaved edits and its undo history.</summary>
         public void Close()
         {
+            Editor?.Retire();   // ⭐ U4 — its steps stay on the history, greyed: a closed take leaves nothing to undo
             Editor = null; _tracks = null;
-            UndoStack.Clear();
         }
 
-        public bool CanUndo => UndoStack.CanUndo;
-        public bool CanRedo => UndoStack.CanRedo;
+        /// <summary>The newest step is a take edit that can be undone (a world step on top is Edit ▸ Undo's, not the take window's).</summary>
+        public bool CanUndo => History.CanUndo && ReferenceEquals(History.UndoOwner, this);
+        public bool CanRedo => History.CanRedo && ReferenceEquals(History.RedoOwner, this);
 
-        /// <summary>Undoes the last take edit (the take's records ignore the command buffer — T-L2's wart).</summary>
-        public void UndoLast() => UndoStack.Undo(null!);
-        public void RedoLast() => UndoStack.Redo(null!);
+        /// <summary>Undoes the last take edit.</summary>
+        public void UndoLast() { if (CanUndo) History.Undo(); }
+        public void RedoLast() { if (CanRedo) History.Redo(); }
     }
 }
