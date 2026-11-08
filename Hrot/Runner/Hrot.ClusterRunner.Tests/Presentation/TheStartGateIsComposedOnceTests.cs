@@ -380,6 +380,30 @@ public class TheStartGateIsComposedOnceTests
     }
 
     /// <summary>
+    /// ⭐ CE-4330 ui half (recording storage §7.3, §8 ①) — the storage TRANSFER segment is composed EXACTLY ONCE per process by <c>ComposeRunControls</c>, beside the seat · hat text it sits left of, for every host with a run-controls owner;
+    /// a process with no owner has none. 🔴 Mutation: <c>ComposeRunControls</c> not registering it ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_TheStorageSegment_IsComposedOnce_BesideTheSeatText_ForEveryHostWithARunControlsOwner()
+    {
+        var editor = new RunHost("Editor", RunHostKind.Editor, operatorHost: true);
+        var cgf = new RunHost("CGF", RunHostKind.Cgf, operatorHost: true);
+        var (ctrl, wm) = Composed(editor, cgf);
+        Assert.NotNull(ctrl.StorageSection);
+        Assert.Equal(1, wm.StatusBar.SectionIds.Count(id => id == Hrot.UI.Common.Panels.StorageStatusBarSection.SectionId));
+        var ids = wm.StatusBar.SectionIds.ToList();
+        Assert.True(ids.IndexOf(Hrot.UI.Common.Panels.StorageStatusBarSection.SectionId) >= 0 && Hrot.UI.Common.Panels.StorageStatusBarSection.SortOrder < Hrot.UI.Common.Panels.StationSeatStatusBarSection.SortOrder,
+            "the segment sorts just before the seat text it sits left of");
+
+        var player = new RunHost("Player", RunHostKind.Player, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
+        Assert.NotNull(Composed(player).Ctrl.StorageSection);
+
+        var (none, bare) = Composed(new MockSubsystem("Player"));
+        Assert.Null(none.StorageSection);
+        Assert.DoesNotContain(Hrot.UI.Common.Panels.StorageStatusBarSection.SectionId, bare.StatusBar.SectionIds);
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-1445</c> (R-1044, §11.8 ③) S2 — a process whose ONLY run-controls host is a Player (the IG) composes the loading / waiting screen (Player policy) and the error section ONCE over its choice, and
     /// registers NO toolbar time control (the role's explicit suppression: it issues no ticks).
     /// 🔴 Mutation: <c>ComposeRunControls</c> ignoring <c>SuppressTimeControl</c> ⇒ the toolbar-entries cell reds; passing no policy to <c>LoadingScreen.Register</c> ⇒ the <c>IsPlayer</c> cell reds.
@@ -530,7 +554,8 @@ public class TheStartGateIsComposedOnceTests
             //   with its reason (⛔ was: enabled and bound to the session's ClearWorld — the test predated CE-4140)
             var newScenario = Assert.Single(model.Buttons, b => b.Label.StartsWith("New Scenario…", StringComparison.Ordinal));
             Assert.False(newScenario.Enabled);
-            Assert.Contains("no scenario recipes", newScenario.Label);
+            Assert.Equal("New Scenario…", newScenario.Label);                       // ⭐ U-1: the reason is NOT in the label…
+            Assert.Contains("no scenario recipes", newScenario.Why);                // …it is the tooltip (the test predated U-1 and read it from the label)
             var session = orch.ScenarioSessionForTest!;
 
             // Load Scenario… → the scenario picker over the master's inventory; a pick LOADS into the cluster's armed mode (R-1043: Live, this cluster's master default) through the door (the request goes out)

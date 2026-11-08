@@ -105,6 +105,31 @@ public interface ITimeTransportFacade
     /// <see cref="Hrot.UI.Common.RunMode.UserTransport"/>; <see cref="Stop"/> delegates to the choice itself (<c>POST /sim/stop</c> = ■).
     /// </summary>
     Hrot.UI.Common.RunMode.RunModeChoice? RunChoice => null;
+
+    // ── ⭐ CE-4325 (E7, R-4177, 📄 docs/UX/DESIGN_Bookmarks_And_Notes.md §2) — the exercise's notes: read off the node's ONE ClusterView, changed through the ONE CRUD message ──
+
+    /// <summary>The notes of the exercise on show, as the master last published them (a NEW array per change); empty where the host has none.</summary>
+    Fdp.Toolkit.Orchestration.ExerciseNote[] Notes => System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseNote>();
+
+    /// <summary>Asks the master to add / edit / delete a note — the ONE message. No-op where the host has no master to ask.</summary>
+    void EditNote(Fdp.Toolkit.Orchestration.NoteEditKind kind, Fdp.Toolkit.Orchestration.ExerciseNote note) { }
+
+    // ── ⭐ CE-4330 ui half (📄 docs/DESIGN_Recording_Storage.md §7.2, §7.3) — the storage jobs: read off the node's ONE ClusterView, asked through the existing ops ──
+
+    /// <summary>The cluster's storage jobs as the master last published them (fact ①); empty where the host has none.</summary>
+    Fdp.Toolkit.Orchestration.StorageJob[] StorageJobs => System.Array.Empty<Fdp.Toolkit.Orchestration.StorageJob>();
+
+    /// <summary>Cancels a storage job (<c>CancelOperation(JobId)</c>). No-op where the host has no master to ask.</summary>
+    void CancelStorageJob(System.Guid jobId) { }
+
+    /// <summary>Sends a storage ask (an <c>ExecuteStorageOpIntent</c> built by <c>StorageIntents</c>); returns its request id (empty where nothing was sent).</summary>
+    System.Guid AskStorage(Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent ask) => System.Guid.Empty;
+
+    /// <summary>The master's refusal of storage ask <paramref name="requestId"/> (its op's failure reason), or null while it has not ended / when it succeeded.</summary>
+    string? StorageAskRefusal(System.Guid requestId) => null;
+
+    /// <summary>Takes a checkpoint named <paramref name="label"/> (a MARK — the existing <c>TakeCheckpointIntent</c>, the moment is the one the master names). No-op where the host has no master.</summary>
+    void TakeMark(string label) { }
 }
 
 /// <summary>⭐ CE-3329 row 21 — what the cluster shows (the facade's <see cref="ITimeTransportFacade.Mode"/>).</summary>

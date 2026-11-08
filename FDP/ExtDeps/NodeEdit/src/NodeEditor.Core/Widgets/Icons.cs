@@ -30,6 +30,18 @@ public static class Icons
             case "orbat/unit": icon = new("\uf0c0", IconPalette.Teal); return true;   // Users — a unit that takes subordinates
             case "orbat/part": icon = new("\uf013", IconPalette.Grey); return true;   // Gear — a part of a vehicle (sensor, weapon mount)
             case "orbat/group": icon = new("\uf07c", IconPalette.Amber); return true;   // FolderOpen — Saved / Transient
+            // ⭐ CE-4325 (E7, recording-marks-visual.svg) — a MARK (a checkpoint, blue flag) and a NOTE at a bare time (an AAR note, amber sticky note)
+            case "mark/flag": icon = new("\uf024", IconPalette.Blue); return true;   // Flag
+            case "mark/note": icon = new("\uf249", IconPalette.Amber); return true;   // NoteSticky
+            // ⭐ CE-4330 ui half (recording-storage-visual.svg ①②) — the transfer segment and the Transfers list: an archive up (blue), an import down (teal), ready (green), stopped part-way (amber), slowed for a Live (amber clock), resume, delete
+            case "storage/archive": icon = new("\uf093", IconPalette.Blue); return true;   // Upload
+            case "storage/import": icon = new("\uf019", IconPalette.Teal); return true;   // Download
+            case "storage/ready": icon = new("\uf058", IconPalette.Green); return true;   // CircleCheck
+            case "storage/incomplete": icon = new("\uf071", IconPalette.Amber); return true;   // TriangleExclamation
+            case "storage/giveway": icon = new("\uf017", IconPalette.Amber); return true;   // Clock
+            case "storage/resume": icon = new("\uf021", IconPalette.Amber); return true;   // ArrowsRotate
+            case "storage/delete": icon = new("\uf1f8", IconPalette.Red); return true;   // Trash
+            case "storage/cancel": icon = new("\uf00d", IconPalette.Red); return true;   // Xmark
             case "details/layout-stacked": icon = new("\uf5fd", IconPalette.Violet); return true;   // LayerGroup
             case "details/layout-tabs": icon = new("\uf0db", IconPalette.Blue); return true;   // TableColumns
             case "details/float": icon = new("\uf35d", IconPalette.Blue); return true;   // UpRightFromSquare

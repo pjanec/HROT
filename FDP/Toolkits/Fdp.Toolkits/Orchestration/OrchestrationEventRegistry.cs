@@ -23,6 +23,9 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<AssetInventoryUpdateEvent>();
             bus.RegisterManaged<StorageJobsPublishedEvent>();   // ⭐ CE-4330 ② — the master's job list, to the DDS writer
             bus.RegisterManaged<StorageJobsUpdateEvent>();      // ⭐ CE-4330 ③ fact ① — folded by every host
+            bus.RegisterManaged<ExerciseNotesPublishedEvent>();   // ⭐ CE-4325 — the master's note list, to the DDS writer
+            bus.RegisterManaged<ExerciseNotesUpdateEvent>();      // ⭐ CE-4325 — folded by every host
+            bus.RegisterManaged<NoteEditIntent>();                // ⭐ CE-4325 — the ONE CRUD message
             bus.RegisterManaged<EpisodeStateChangedEvent>();
             bus.RegisterManaged<ClusterOpIntent>();
 

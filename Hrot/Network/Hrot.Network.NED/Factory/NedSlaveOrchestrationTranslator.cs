@@ -39,7 +39,8 @@ internal sealed class NedSlaveOrchestrationTranslator : ISlaveOrchestrationTrans
             sessionReader:      new DdsReader<ReplaySessionTopic>(participant),      // ⭐ CE-3329 — the replay's session layer
             opStatusReader:     new DdsReader<ClusterOpStatus>(participant),         // ⭐ CE-1436 — how the master's ops ended (the check round's answer), on every node
             contextReader:      new DdsReader<OrchestratorContextTopic>(participant), // ⭐ CE-3344 — the master's in-sync set, so the node's ClusterView knows whether it is in sync
-            storageJobsReader:  new DdsReader<StorageJobsTopic>(participant));        // ⭐ CE-4330 ③ fact ① — the master's storage jobs, for every station's status bar
+            storageJobsReader:  new DdsReader<StorageJobsTopic>(participant),         // ⭐ CE-4330 ③ fact ① — the master's storage jobs, for every station's status bar
+            notesReader:        new DdsReader<ExerciseNotesTopic>(participant));      // ⭐ CE-4325 — the exercise's notes, for every station's timeline and Marks window
 
         _fileReceiver = new Hrot.Network.NED.Transfer.DdsFileReceiver(participant, nodeId, NodeRoot(nodeId));
 

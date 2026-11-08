@@ -78,6 +78,8 @@ public sealed class StartSurfaceWindow : ManagedWindow
         bool on = a.Enabled();
         string full = a.Label();
         string name = a.Name.Length > 0 ? a.Name : full;
+        // ⭐ a host may word the greyed label from a longer name than the item's registered one (the Orchestrator's "New Scenario…" is registered under "Scenario…"): the plain name is then the label up to its reason's parenthesis
+        if (!on && !full.StartsWith(name, StringComparison.Ordinal) && full.IndexOf(" (", StringComparison.Ordinal) is > 0 and var cut) name = full.Substring(0, cut);
         return new StartButton(on ? full : name, on, a.Invoke, on ? null : ReasonOf(name, full), null, a.CommandId, a.IconKey);
     }
 

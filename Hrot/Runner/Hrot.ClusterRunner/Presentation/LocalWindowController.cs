@@ -140,6 +140,9 @@ internal sealed class LocalWindowController
     /// <summary>⭐ CE-4329 — the process's ONE seat · hat status-bar section (null before <see cref="ComposeRunControls"/> or with no run-controls owner).</summary>
     internal Hrot.UI.Common.Panels.StationSeatStatusBarSection? SeatSection { get; private set; }
 
+    /// <summary>⭐ CE-4330 ui half — the process's ONE storage-transfer status-bar segment + Transfers popover (null before <see cref="ComposeRunControls"/> or with no run-controls owner).</summary>
+    internal Hrot.UI.Common.Panels.StorageStatusBarSection? StorageSection { get; private set; }
+
     /// <summary>⭐ CE-1442 — the process's ONE cluster-error status-bar section.</summary>
     internal Hrot.UI.Common.Panels.ClusterErrorStatusBarSection? ErrorSection { get; private set; }
 
@@ -164,6 +167,15 @@ internal sealed class LocalWindowController
             Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice, runSetupLines: () => owner.RunSetupLines, runTo: owner.RunTo);   // ⭐ AQ108 D24 · W-4 Run to …
         // ⭐ CE-4329 (R-4170) — the owner's seat · hat at the status bar's RIGHT end (it left the toolbar: the indicator is one glyph button again), composed ONCE here: every host with a seat shows it
         if (owner is not null) SeatSection = Hrot.UI.Common.Panels.StationSeatStatusBarSection.Register(wm.StatusBar, () => owner.World);
+        // ⭐⭐ CE-4330 ui half (docs/DESIGN_Recording_Storage.md §7.3, §8 ①) — the storage TRANSFER segment, composed ONCE here beside the seat · hat text it sits left of (the master's job list is replicated on every station's ClusterView): every host that owns run controls shows the same job.
+        if (owner?.Transport is { } storageTransport && owner.RunChoice is { } storageChoice)
+        {
+            var seatOf = new Func<Hrot.Common.Infrastructure.Seat>(() => SeatOf(owner.World));
+            var transfers = new Hrot.UI.Common.Storage.StorageTransfers(storageTransport, seatOf, () => owner.StationName, exercise => storageChoice.OpenRecording(exercise));
+            var status = new Hrot.UI.Common.Storage.StorageStatus(() => storageTransport.StorageJobs, () => owner.StationName, () => ImGuiNET.ImGui.GetTime());
+            StorageSection = Hrot.UI.Common.Panels.StorageStatusBarSection.Register(wm.StatusBar, status, transfers,
+                reserveRight: () => SeatSection?.Line() is { } seatLine ? ImGuiNET.ImGui.CalcTextSize(seatLine).X + ImGuiNET.ImGui.GetStyle().ItemSpacing.X : 0f);
+        }
         // ⭐⭐ CE-1442 (U1, §11.7 ④) — the loading screen and the cluster-error indicator are composed HERE, once, over the same owner's choice: a host cannot lack them or draw a second one
         if (owner?.RunChoice is { } ownerChoice)
         {

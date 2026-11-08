@@ -244,6 +244,13 @@ public abstract class ManagedWindow
         if (Scope == WindowScope.PerspectiveBound && !flags.HasFlag(ImGuiWindowFlags.NoTitleBar))
             DrawTitleBarPinButton(perspectiveActive);
 
+        // Step 7b — ⭐ CE-4325 (E7): a window's own icons in the title bar, to the LEFT of the pin (the Event Timeline's ⚑ and S / W). Nothing by default.
+        if (!flags.HasFlag(ImGuiWindowFlags.NoTitleBar))
+        {
+            float fhc = Gui.GetFrameHeight();
+            DrawTitleBarCorner(Gui.GetWindowPos().X + Gui.GetWindowWidth() - 2f * fhc, Gui.GetWindowPos().Y, fhc);
+        }
+
         // Step 8 — optional local menu bar.
         if (HasMenuBar && Gui.BeginMenuBar())
         {
@@ -272,6 +279,40 @@ public abstract class ManagedWindow
     /// call. Called internally by <c>WindowManager.FocusWindow()</c>.
     /// </summary>
     internal void RequestFocus() => _focusRequested = true;
+
+    // ── Title-bar corner (⭐ CE-4325) ───────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ CE-4325 (E7) — a window draws its own small icons in the title bar, RIGHT-aligned to <paramref name="rightEdgeX"/> (the pin's left edge) and going left, each <paramref name="size"/> square. Called every
+    /// frame after <c>Begin</c>; the base draws none. Use <see cref="TitleBarIcon"/> for each.
+    /// </summary>
+    protected virtual void DrawTitleBarCorner(float rightEdgeX, float titleBarY, float size) { }
+
+    /// <summary>
+    /// ⭐ CE-4325 — one title-bar icon button: a text face (a glyph or a letter) in a <paramref name="size"/> square whose right edge is <paramref name="rightX"/>, which then moves left by one square. Same
+    /// clip trick as the pin (the title bar is outside the content clip rect). Returns true when pressed (and enabled). The tooltip shows on hover, also while disabled (the reason).
+    /// </summary>
+    protected static bool TitleBarIcon(string id, string face, ref float rightX, float titleBarY, float size, bool enabled, bool filled, uint colour, string tooltip)
+    {
+        float x = rightX - size;
+        rightX = x;
+        var saved = Gui.GetCursorScreenPos();
+        var wp = Gui.GetWindowPos();
+        Gui.PushClipRect(new Vector2(wp.X, titleBarY), new Vector2(wp.X + Gui.GetWindowWidth(), titleBarY + size), false);
+        Gui.SetCursorScreenPos(new Vector2(x, titleBarY));
+        bool clicked = Gui.InvisibleButton(id, new Vector2(size, size));
+        bool hovered = Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
+        var dl = Gui.GetWindowDrawList();
+        if (filled || hovered)
+            dl.AddRectFilled(new Vector2(x + 1, titleBarY + 1), new Vector2(x + size - 1, titleBarY + size - 1), filled ? 0x80A06030u : 0x40FFFFFFu, 3f);
+        var ts = Gui.CalcTextSize(face);
+        uint c = enabled ? colour : (colour & 0x00FFFFFFu) | 0x70000000u;
+        dl.AddText(new Vector2(x + (size - ts.X) * 0.5f, titleBarY + (size - ts.Y) * 0.5f), c, face);
+        if (hovered && tooltip.Length > 0) Gui.SetTooltip(tooltip);
+        Gui.PopClipRect();
+        Gui.SetCursorScreenPos(saved);
+        return clicked && enabled;
+    }
 
     // ── Private title-bar helpers ──────────────────────────────────────────────
 

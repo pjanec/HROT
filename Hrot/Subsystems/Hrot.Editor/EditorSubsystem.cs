@@ -371,6 +371,10 @@ namespace Hrot.Editor
         private readonly Dictionary<Hrot.Editor.AiShared.Review.ReviewLayout.Role, string> _reviewIds = new();
         internal Hrot.Editor.AiShared.Review.ReviewLayoutSwitch? ReviewSwitchForTest => _reviewSwitch;
         private Hrot.Presentation.DebugApi.IClusterMasterControl? _reviewMaster;
+        /// <summary>⭐ CE-4325 (E7) — this host's ONE marks controller (B, the timeline corner's ⚑, the popup, the Marks window); null before the windows are registered. For the frame rails and the HTTP surface.</summary>
+        internal Hrot.UI.Common.Marks.MarksController? MarksController { get; private set; }
+        /// <summary>⭐ CE-4325 — the Event Timeline's cursor (set where that window registers): a click on a Marks row seeks through it. Null in a headless editor (no timeline there).</summary>
+        internal Fdp.Presentation.Panels.Timeline.ITimelineCursor? MarksCursor { get; private set; }
         internal Hrot.Editor.AiShared.Review.ReviewBundle? ReviewBundleForTest => _reviewBundle;
         internal Hrot.Editor.AiShared.Review.FileReview? FileReviewForTest => _fileReview;
 
@@ -550,6 +554,7 @@ namespace Hrot.Editor
 
         // ⭐ CE-1437 (AQ108 §2.10) — the editor OFFERS its transport + choice; the window composer registers the ONE toolbar time control (this host no longer does).
         Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Editor;
+        string Hrot.UI.Common.RunMode.IProvidesRunControls.StationName => NodeName;   // ⭐ CE-4330 ui half — a transfer this station asked for is marked (yours)
         Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _timeTransport;
         Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _timeTransport?.RunChoice;
         /// <summary>⭐ AQ108 D24 — the running scenario's variant and changed params, for the mode indicator's menu (from what the load stamped resident).</summary>
@@ -5174,6 +5179,39 @@ namespace Hrot.Editor
             windowManager.RegisterWindow(_problemsWindow);
             windowManager.MainToolbar?.RegisterEntry("ProblemsCount", sortOrder: ProblemsCountSortOrder, declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight, _problemsWindow.DrawToolbarCount);
 
+            // ⭐⭐ CE-4325 (E7, R-4177) — bookmarks and notes: ONE controller (B / the ⚑ in the timeline's corner → a mark in Live, a note at a time in a DAR / AAR), the popup, the Marks window; the S / W axis toggle moved into the same corner
+            var marksTransport = _timeTransport;   // ⭐ CE-3329 row 21 — the one facade
+            if (marksTransport != null)
+            {
+                var markCandidates = new List<Hrot.UI.Common.Marks.MarkSubject>(1);
+                Hrot.UI.Common.Marks.MarkSubject? SelectedUnit()
+                {
+                    if (SelectedNetworkId() is not { } net || _world is not { } mw || _selectionState?.PrimarySelected is not { } sel) return null;
+                    return new Hrot.UI.Common.Marks.MarkSubject(net, mw.HasComponent<EntityInfo>(sel) && mw.GetComponentRO<EntityInfo>(sel).Name.ToString() is { Length: > 0 } nm ? nm : "unit " + net);
+                }
+                string stationName = null!; Hrot.Common.Infrastructure.Seat stationSeat = (Hrot.Common.Infrastructure.Seat)255;
+                string Station()
+                {
+                    var seat = Hrot.Common.Infrastructure.StationSeat.Of(_node?.Features);
+                    if (seat != stationSeat || stationName == null) { stationName = $"{seat}-{EditorNodeId}"; stationSeat = seat; }
+                    return stationName;
+                }
+                var marks = new Hrot.UI.Common.Marks.MarksController(marksTransport, () => Hrot.Common.Infrastructure.StationSeat.Of(_node?.Features), Station, SelectedUnit, () => ImGuiNET.ImGui.GetTime());
+                MarksController = marks;
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.MarksWindow("editor_marks", "Scenario", EditorWindowColor.TitleBar, marks, () => MarksCursor, n => SelectNetworkEntity((int)n)));
+                windowManager.RegisterWindow(new Hrot.Presentation.Windows.MarkPopupWindow("editor_mark_popup", "Scenario", EditorWindowColor.TitleBar, marks, () =>
+                {
+                    markCandidates.Clear();
+                    if (SelectedUnit() is { } u) markCandidates.Add(u);
+                    return markCandidates;
+                }));
+                // ⭐ B — the ONE key: a shell command, so the keymap shows it (Keyboard shortcuts) and a key / button / HTTP call run the very same code
+                windowManager.ShellCommands.Register(new NodeEditor.Core.Action.EditorCommandDescriptor("marks.mark", "Mark this moment", "Run",
+                    "Take a mark (a checkpoint) in a recorded Live run — in a DAR / AAR add a note at the playhead (B)", "mark/flag",
+                    new NodeEditor.Core.Action.KeyBinding(NodeEditor.Primitives.EditorKey.B, NodeEditor.Primitives.KeyModifiers.None), () => marks.MarkDisabledReason == null),
+                    _ => marks.Mark());
+            }
+
             if (_headless) return;
 
             // ?? Shared UI panels ??????????????????????????????????????????????
@@ -5206,11 +5244,16 @@ namespace Hrot.Editor
             //   node's OWN recording (HrotNodeContext.ShownTimeline; null while the recording is not loaded yet). ⛔ No null-in-Replay hack.
             var timelineTransport = _timeTransport;   // ⭐ CE-3329 row 21 — the one facade
             Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> timelineSource = () => _node?.ShownTimeline;
+            var timelineCursor = new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource);
+            MarksCursor = timelineCursor;   // ⭐ CE-4325 — the Marks window seeks through the SAME cursor the timeline draws
+            // ⭐ CE-4325 (E7) — the corner (⚑ and S / W) of THIS window; the marks controller itself is composed before the headless guard (railed), above
+            var timelineCorner = timelineTransport != null && MarksController is { } timelineMarks ? new Hrot.UI.Common.Marks.TimelineCornerBinding(timelineMarks, timelineTransport) : null;
             windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
                 "editor_event_timeline", "Event Timeline", "Scenario", _eventTimeline, timelineSource,
-                new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
+                timelineCursor,
                 () => _node?.TimelineLanes.Lanes(_node.ShownTimelineContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor>(), EditorWindowColor.TitleBar,
-                onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>())
+                onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>(),
+                corner: timelineCorner)
             { IsOpen = false });
             // ⭐ W-1 / P-8 8c-2 (Mission plan E4) — the ONE Tasks row (all units) + the selection's task bars, over the same shown timeline
             if (TasksTracks == null)
