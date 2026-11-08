@@ -345,7 +345,7 @@ public sealed class DrafterTests
             session.Templates = drafts.TemplateCamera;
             Assert.Empty(session.OpenDraft(new Take { Scenario = "sc", Name = "t", Keys = new[] { new CameraKey { At = new AtExpr(0), Camera = new CameraSpec { LookAt = Vector3.Zero, Distance = 10 } } } }));
             var tracks = session.Director!;
-            var undo = session.UndoStack;
+            var undo = session.History;
             undo.Clear();
 
             var early = tracks.Camera.MenuItems(null, 5d).ToList();                       // nothing before 5 s to frame
@@ -366,7 +366,7 @@ public sealed class DrafterTests
             Assert.Equal(expected, keys[1].Camera);
             Assert.Equal(expected.Fov, keys[1].Fov);
 
-            Assert.Equal("Add camera key", undo.UndoDescription);                          // ONE step …
+            Assert.Equal("Add camera key", undo.UndoLabel);                          // ONE step …
             session.UndoLast();
             Assert.Single(session.Editor.Take.Keys);
             Assert.False(undo.CanUndo);                                                     // … and nothing else to undo

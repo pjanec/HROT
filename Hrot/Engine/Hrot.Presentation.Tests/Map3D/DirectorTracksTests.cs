@@ -5,7 +5,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Fdp.Presentation.Panels.Timeline;
-using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
+using Hrot.Presentation.Edits;
 using Fdp.Toolkit.Vis3D;
 using Hrot.UI.Common.Map3D.Director;
 using Xunit;
@@ -14,7 +14,7 @@ namespace Hrot.Presentation.Tests.Map3D;
 
 /// <summary>
 /// ⭐ <c>CE-1364</c> T3 (docs/DESIGN_Director_Timeline_Editor.md §10) — the director's tracks: the <see cref="TakeEditor"/> (one edit path, undo on the
-/// <see cref="GizmoUndoStack"/>, save through <see cref="TakeStore"/>) and the Camera / Time tracks over it. The editor-level rail (the open take on the
+/// <see cref="EditHistory"/>, save through <see cref="TakeStore"/>) and the Camera / Time tracks over it. The editor-level rail (the open take on the
 /// panel, undo through the editor's stack) is <c>Hrot.Editor.Tests</c>'s <c>CE1364_T3_*</c>.
 /// </summary>
 public sealed class DirectorTracksTests : IDisposable
@@ -47,11 +47,11 @@ public sealed class DirectorTracksTests : IDisposable
                   {"at":6,"seconds":2,"follow":"Tank 1","distance":10,"to":{"distance":20}}]}
         """;
 
-    private (TakeEditor Editor, DirectorTracks Tracks, GizmoUndoStack Undo) Open(string name, Func<CameraSpec?>? pilot = null, Action<int>? rate = null)
+    private (TakeEditor Editor, DirectorTracks Tracks, EditHistory Undo) Open(string name, Func<CameraSpec?>? pilot = null, Action<int>? rate = null)
     {
         var loaded = _store.Load("sc", name);
         Assert.True(loaded.Ok, string.Join("; ", loaded.Problems));
-        var undo = new GizmoUndoStack();
+        var undo = new EditHistory();
         var editor = new TakeEditor(_store, loaded.Value!, undo);
         return (editor, new DirectorTracks(editor, pilot ?? (() => null), rate), undo);
     }
@@ -127,7 +127,7 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.Equal(2d, tracks.Camera.Items[0].From);            // ... and back where the take says when the drag is gone
     }
 
-    /// <summary>Undo puts the previous time back, Redo re-applies it — through the <see cref="GizmoUndoStack"/> (T-L2).
+    /// <summary>Undo puts the previous time back, Redo re-applies it — through the <see cref="EditHistory"/> (T-L2).
     /// 🔴 Mutation: <c>TakeEditRecord.Undo</c> restoring the AFTER take ⇒ the undo assertion fails.</summary>
     [Fact]
     public void CE1364_T3_Undo_RestoresThePreviousTime_AndRedoReappliesIt()
@@ -137,13 +137,13 @@ public sealed class DirectorTracksTests : IDisposable
 
         tracks.Camera.Move("key:0", 4, commit: true);
         Assert.Equal(4d, tracks.Camera.Items[0].From);
-        Assert.Equal("Move camera key", undo.UndoDescription);
+        Assert.Equal("Move camera key", undo.UndoLabel);
 
-        undo.Undo(null!);
+        undo.Undo();
         Assert.Equal(2d, tracks.Camera.Items[0].From);
         Assert.False(editor.Dirty);   // back at the file's own take
 
-        undo.Redo(null!);
+        undo.Redo();
         Assert.Equal(4d, tracks.Camera.Items[0].From);
         Assert.True(editor.Dirty);
     }
@@ -223,8 +223,8 @@ public sealed class DirectorTracksTests : IDisposable
         item.Run();
 
         Assert.Equal(new[] { 2d, 13d }, tracks.Camera.Items.Select(i => i.From));
-        Assert.Equal("Delete camera key", undo.UndoDescription);
-        undo.Undo(null!);
+        Assert.Equal("Delete camera key", undo.UndoLabel);
+        undo.Undo();
         Assert.Equal(new[] { 2d, 5d, 13d }, tracks.Camera.Items.Select(i => i.From));
         Assert.Equal(3, editor.Take.Keys.Count);
     }
@@ -275,7 +275,7 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.True(editor.Apply(new TakeEdit.MoveSegment(0, SegmentEdge.From, 9)));
         Assert.Equal(6d - TakeEditor.MinSegmentSeconds, tracks.Time.Items[0].From, 9);   // an edge never crosses the other (CE-1364: it stops one minimum length short)
         Assert.Equal(6d, tracks.Time.Items[0].To!.Value);
-        undo.Undo(null!); undo.Undo(null!); undo.Undo(null!);
+        undo.Undo(); undo.Undo(); undo.Undo();
         Assert.Equal((8d, 12d), (tracks.Time.Items[1].From, tracks.Time.Items[1].To!.Value));
     }
 
@@ -313,7 +313,7 @@ public sealed class DirectorTracksTests : IDisposable
         tracks.Time.Move("seg:0", 7, commit: true, TrackItemPart.EndEdge);
         Assert.Equal((0d, 7d), (tracks.Time.Items[0].From, tracks.Time.Items[0].To!.Value));
 
-        undo.Undo(null!); undo.Undo(null!);
+        undo.Undo(); undo.Undo();
         Assert.Equal(new[] { (0d, 4d), (8d, 12d) }, tracks.Time.Items.Select(i => (i.From, i.To!.Value)));
     }
 
@@ -359,9 +359,9 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.Equal((5.5, 5.5 + TakeEditor.DefaultSegmentSeconds, 1d, SegmentGap.Cut), (seg.From.Offset, seg.To.Offset, seg.Speed, seg.Gap));
         Assert.True(tracks.Time.Items[1].Selected);
         Assert.False(FilmTimeMap.Of(editor.Take, _ => null).Segments.Any(s => s.Back));
-        Assert.Equal("Add time segment", undo.UndoDescription);
+        Assert.Equal("Add time segment", undo.UndoLabel);
 
-        undo.Undo(null!);
+        undo.Undo();
         Assert.Equal(2, editor.Take.Segments.Count);
         Assert.Equal(2, tracks.Time.Items.Count);
         Assert.DoesNotContain(tracks.Time.MenuItems("seg:0", 1.0), m => m.Label.StartsWith("Add", StringComparison.Ordinal));
@@ -379,8 +379,8 @@ public sealed class DirectorTracksTests : IDisposable
         del.Run();
 
         Assert.Equal(new[] { (8d, 12d) }, tracks.Time.Items.Select(i => (i.From, i.To!.Value)));
-        Assert.Equal("Delete time segment", undo.UndoDescription);
-        undo.Undo(null!);
+        Assert.Equal("Delete time segment", undo.UndoLabel);
+        undo.Undo();
         Assert.Equal(new[] { (0d, 4d), (8d, 12d) }, tracks.Time.Items.Select(i => (i.From, i.To!.Value)));
         Assert.Equal(3, editor.Take.Keys.Count);   // the camera keys were never touched
     }
@@ -441,11 +441,11 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.Equal("Delete subtitle", del.Label);
         del.Run();
         Assert.Empty(editor.Take.Subtitles);
-        Assert.Equal("Delete subtitle", undo.UndoDescription);
+        Assert.Equal("Delete subtitle", undo.UndoLabel);
         foreach (var expected in new[] { "Delete subtitle", "Change subtitle", "Move subtitle", "Move subtitle", "Add subtitle" })
         {
-            Assert.Equal(expected, undo.UndoDescription);
-            undo.Undo(null!);
+            Assert.Equal(expected, undo.UndoLabel);
+            undo.Undo();
         }
         Assert.Empty(editor.Take.Subtitles);
         Assert.Equal(3, editor.Take.Keys.Count);                       // the camera keys were never touched
@@ -496,8 +496,8 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.Equal(pilot, editor.Take.Keys[1].Camera);
         Assert.Equal(33f, editor.Take.Keys[1].Fov);
         Assert.Equal(before.At, editor.Take.Keys[1].At);
-        Assert.Equal("Update key from view", undo.UndoDescription);
-        undo.Undo(null!);
+        Assert.Equal("Update key from view", undo.UndoLabel);
+        undo.Undo();
         Assert.Equal(before, editor.Take.Keys[1]);
 
         tracks.Camera.Select("seg:0");                                         // no key selected: the key on screen at 6 s is key 1 (at 5)
@@ -527,8 +527,8 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.Equal(1, tracks.SelectedSegment);
         Assert.True(editor.Apply(new TakeEdit.SetSegment(1, editor.Take.Segments[1] with { Speed = 0.5 })));
         Assert.Equal("replay x0.5", tracks.Time.Items[1].Label);
-        undo.Undo(null!);
-        undo.Undo(null!);
+        undo.Undo();
+        undo.Undo();
         Assert.Equal(2, editor.Take.Segments.Count);
     }
 
@@ -545,7 +545,7 @@ public sealed class DirectorTracksTests : IDisposable
         Write("main", V2);
         var pilot = Look(77f);
         var loaded = _store.Load("sc", "main").Value!;
-        var undo = new GizmoUndoStack();
+        var undo = new EditHistory();
         var editor = new TakeEditor(_store, loaded, undo);
         FilmSegment? onScreen = null;
         var tracks = new DirectorTracks(editor, () => pilot, segmentNow: () => onScreen);
@@ -581,9 +581,9 @@ public sealed class DirectorTracksTests : IDisposable
 
         Assert.True(editor.Apply(new TakeEdit.RemoveSegment(1)));                       // the replay goes, and its keys with it
         Assert.DoesNotContain(editor.Take.Keys, k => k.Segment != null);
-        undo.Undo(null!);
+        undo.Undo();
         Assert.Equal(2, editor.Take.Keys.Count(k => k.Segment == "s1"));
-        undo.Undo(null!); undo.Undo(null!); undo.Undo(null!); undo.Undo(null!); undo.Undo(null!);   // remove-key, K, K, U, U
+        undo.Undo(); undo.Undo(); undo.Undo(); undo.Undo(); undo.Undo();   // remove-key, K, K, U, U
         Assert.Null(editor.Take.Segments[1].Id);                                        // the id came with the first scoped key's undo step
         Assert.DoesNotContain(editor.Take.Keys, k => k.Segment != null);
     }
@@ -615,7 +615,7 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.Equal(new[] { "2-D map here", "3-D map here" }, add.Select(m => m.Label));
         add[0].Run();
         Assert.Equal(3, editor.Take.Views.Count);                                      // ⭐ the read items AND the new one, one step
-        Assert.Equal("Add view change", undo.UndoDescription);
+        Assert.Equal("Add view change", undo.UndoLabel);
         Assert.Equal(2, tracks.SelectedView);
         Assert.Equal((3d, (bool?)true), (editor.Take.Views[2].At.Offset, editor.Take.Views[2].TwoD));
         Assert.Contains(tracks.View.Items, i => i.Id == "view:2" && i.Label == "2-D" && i.Selected);
@@ -639,8 +639,8 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.Equal(2, editor.Take.Views.Count);
         foreach (var expected in new[] { "Delete view change", "Change view", "Change view", "Move view change", "Add view change" })
         {
-            Assert.Equal(expected, undo.UndoDescription);
-            undo.Undo(null!);
+            Assert.Equal(expected, undo.UndoLabel);
+            undo.Undo();
         }
         Assert.Empty(editor.Take.Views);
         Assert.Equal(2, editor.Take.Shots.Count);                                      // the shots (and their layers) were never touched
@@ -683,8 +683,8 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.Empty(editor.Take.Graphics);
         foreach (var expected in new[] { "Delete graphic", "Change graphic", "Move graphic", "Move graphic", "Add graphic" })
         {
-            Assert.Equal(expected, undo.UndoDescription);
-            undo.Undo(null!);
+            Assert.Equal(expected, undo.UndoLabel);
+            undo.Undo();
         }
         Assert.Empty(editor.Take.Graphics);
 
