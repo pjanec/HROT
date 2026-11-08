@@ -321,4 +321,68 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
         Assert.True(hintPx > 60, $"the hint is drawn on the map ({hintPx} light px)");
         Console.WriteLine("P2 frame: " + png);
     }
+    /// <summary>
+    /// ⭐ B-17 P4 fidelity (R-4146; mockup <c>map-interaction-visual.svg</c> panel B) — a PENDING PICK on a real frame: the banner at the top of the map (<c>[Cancel]</c> in amber, the prompt in white),
+    /// the sky-blue crosshair at the cursor, and a refused click's reason flashed beside it. Renders <c>pending-pick.png</c> under <c>HROT_RAIL_SHOTS</c> (⛔ never committed). Skips without a display
+    /// (run under <c>xvfb-run -a</c>).
+    /// </summary>
+    [SkippableFact]
+    public void P4_APendingPick_OnARealFrame_ShowsTheBannerTheCrosshairAndTheFlash()
+    {
+        Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(800, 420);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        var canvas = new MapCanvas(input: null);
+        var camera = new MapCamera();
+        const float zoom = 2f;
+        var target = new Vector2(-800f / 2f / zoom, 380f / 2f / zoom);
+        camera.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas.Camera = camera;
+        var buffer = new DebugPrimitiveBuffer();
+        var global = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(buffer);
+        var tools = new ToolController(() => global, () => null);
+        var pickers = new PickerToolHost(() => tools, () => global);
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new FdpEventBus(), camera: camera);
+        canvas.AddLayer(gizmos);
+        _ = pickers.RunPickAsync<int>(ScenarioToolIds.PickEntity,
+            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(_ => new Entity(9, 1), new NoMatch(), _ => tcs.TrySetResult(1), () => tcs.TrySetCanceled(), remove,
+                onRejected: _ => pickers.Reject("pick a unit, not a graphic")),
+            default, "Pick a unit for Target");
+        using var repo = new EntityRepository();
+        repo.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoDragUpdateEvent>();
+        repo.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMouseEvent>();
+        repo.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoKeyEvent>();
+        repo.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoDragUpdateEvent { WorldPos = new Vector3(-60, 40, 0) });
+        repo.Bus.SwapBuffers();
+        global.Execute(repo, 0.016f);                       // the cursor reaches the picker
+        pickers.Reject("pick a unit, not a graphic");
+        buffer.Clear();
+        global.Execute(repo, 0.016f);                       // the frame that draws the banner, the crosshair and the flash
+        gizmos.Update(0.016f);
+        frame.StepN(3, () => canvas.Draw());
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-pending-pick");
+        System.IO.Directory.CreateDirectory(dir);
+        string png = System.IO.Path.Combine(dir, "pending-pick.png");
+        frame.Screenshot(png);
+        var image = Raylib_cs.Raylib.LoadImage(png);
+        int amber = 0, white = 0, flash = 0;
+        try
+        {
+            for (int y = 0; y < 380; y++)
+                for (int x = 0; x < image.Width; x++)
+                {
+                    var c = Raylib_cs.Raylib.GetImageColor(image, x, y);
+                    if (y < 40 && c.R > 200 && c.G > 150 && c.G < 230 && c.B < 130) amber++;       // [Cancel]
+                    if (y < 40 && c.R > 220 && c.G > 220 && c.B > 220) white++;                     // the prompt
+                    if (y >= 40 && c.R > 220 && c.G < 150 && c.B < 140) flash++;                    // the refusal (red text) and the red crosshair arms
+                }
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(image); }
+        Assert.True(amber > 15, $"[Cancel] is drawn ({amber} amber px)");
+        Assert.True(white > 60, $"the prompt is drawn ({white} white px)");
+        Assert.True(flash > 20, $"the refusal flashes at the cursor ({flash} red px)");
+        Console.WriteLine("P4 frame: " + png);
+    }
+
+    private sealed class NoMatch : Fdp.Toolkit.Vis2D.Abstractions.IEntityFilter { public bool IsMatch(Entity e) => false; }
 }

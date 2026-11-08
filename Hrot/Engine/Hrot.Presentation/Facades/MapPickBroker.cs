@@ -124,7 +124,7 @@ public sealed class MapPickBroker : IMapPickContext
         var service = _pickService();
         if (service == null) return;
         _pendingPath      = jsonPath;
-        _entityPickTask   = service.PickEntityAsync(filterPresets);
+        _entityPickTask   = service.PickEntityAsync(filterPresets, Hrot.ScenarioEditor.Tools.PickPrompts.For("a unit", jsonPath));   // ⭐ B-17 P4 — the banner names the asking field
         _locationPickTask = null;
         _areaEditTask     = null;
     }
@@ -135,7 +135,7 @@ public sealed class MapPickBroker : IMapPickContext
         var service = _pickService();
         if (service == null) return;
         _pendingPath      = jsonPath;
-        _locationPickTask = service.PickLocalAsync();   // ⭐ S0 item 5: local metres, written as a PointLink
+        _locationPickTask = service.PickLocalAsync(Hrot.ScenarioEditor.Tools.PickPrompts.For("a point", jsonPath));   // ⭐ B-17 P4 banner;  ⭐ S0 item 5: local metres, written as a PointLink
         _entityPickTask   = null;
         _areaEditTask     = null;
     }

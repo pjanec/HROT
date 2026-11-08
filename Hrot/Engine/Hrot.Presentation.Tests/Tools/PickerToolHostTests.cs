@@ -240,9 +240,248 @@ namespace Hrot.Presentation.Tests.Tools
             Assert.False(fx.Pickers.TryOfferEntity(new Fdp.Core.Entity(2, 1)));   // nothing armed
 
             var task = ArmEntityPick(fx);
-            fx.Pickers.PushPicker(ScenarioToolIds.PickLocation, _ => new ToolProbe());   // a location pick over it
+            // ⭐ B-17 P4: a second PICK now replaces the first, so the buried case is a non-pick modal pushed over it (the overlay of a drawing tool)
+            fx.Controller.Register(new ToolDescriptor("overlay", "overlay", ToolModality.Modal, ToolArbiter.Global),
+                _ => { fx.Global.Register(GlobalGizmoManager.NewId(), new ToolProbe()); return ToolActivationOutcome.Armed; });
+            fx.Controller.PushModal("overlay");   // something over it
             Assert.False(fx.Pickers.TryOfferEntity(new Fdp.Core.Entity(2, 1)));
             Assert.False(task.IsCompleted);
         }
-}
+
+        // ── ⭐ B-17 P4 — the pick is visible (docs/UX/DESIGN_Map_Interaction.md §2.3, §2.5 D12) ─────────────────────────
+
+        private static readonly Fdp.Toolkit.Vis2D.Abstractions.IEntityFilter RefuseAll = new Refuse();
+        private sealed class Refuse : Fdp.Toolkit.Vis2D.Abstractions.IEntityFilter { public bool IsMatch(Entity e) => false; }
+
+        /// <summary>A real manager + controller + host, a world whose bus carries the terminal's events, a settable clock and mouse.</summary>
+        private sealed class P4Fx : IDisposable
+        {
+            public readonly DebugPrimitiveBuffer Buffer = new();
+            public readonly GlobalGizmoManager   Global;
+            public readonly ToolController       Controller;
+            public readonly PickerToolHost       Pickers;
+            public readonly EntityRepository     Repo = new();
+            public double Now;
+            public Vector2? Mouse;
+
+            public P4Fx()
+            {
+                Global     = new GlobalGizmoManager(Buffer);
+                Controller = new ToolController(() => Global, () => null);
+                Pickers    = new PickerToolHost(() => Controller, () => Global, mouseScreen: () => Mouse, clock: () => Now);
+                Repo.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoDragUpdateEvent>();
+                Repo.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMouseEvent>();
+                Repo.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoKeyEvent>();
+            }
+
+            public void Dispose() => Repo.Dispose();
+
+            /// <summary>One frame: the events published so far reach the focused gizmo; returns what it drew (text, screen-space?).</summary>
+            public (string Text, bool Screen)[] Frame()
+            {
+                Repo.Bus.SwapBuffers();
+                Buffer.Clear();
+                Global.Execute(Repo, 0.016f);
+                return Buffer.GetFrame().ToArray().Where(q => q.Shape == DebugPrimitiveShape.Text)
+                    .Select(q => (q.StringHash != 0 ? Buffer.InternMap.TryResolve(q.StringHash)! : q.TextContent.ToString(), q.Space == CoordinateSpace.Screen)).ToArray();
+            }
+
+            public void Move(float x, float y) => Repo.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoDragUpdateEvent { WorldPos = new Vector3(x, y, 0f) });
+            public void Click(float x, float y)
+            {
+                Repo.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMouseEvent { Button = MapMouseButton.Left, IsPressed = true, WorldPos = new Vector3(x, y, 0f) });
+                Repo.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMouseEvent { Button = MapMouseButton.Left, IsPressed = false, WorldPos = new Vector3(x, y, 0f) });
+            }
+            public void Esc() => Repo.Bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoKeyEvent { Key = MapKeyboardKey.Escape, IsPressed = true });
+
+            public Task<Vector2> PickPoint(string prompt, CancellationToken ct = default)
+                => Pickers.RunPickAsync<Vector2>(ScenarioToolIds.PickLocation,
+                    (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
+                        onPicked: w => tcs.TrySetResult(w), onRemove: remove, onCancelled: () => tcs.TrySetCanceled()),
+                    ct, prompt);
+
+            public Task<int> PickUnit(string prompt, Func<Vector2, Entity> hit)
+                => Pickers.RunPickAsync<int>(ScenarioToolIds.PickEntity,
+                    (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
+                        hitTest: hit, filter: RefuseAll, onPicked: _ => tcs.TrySetResult(1), onCancelled: () => tcs.TrySetCanceled(), onRemove: remove,
+                        onRejected: _ => Pickers.Reject("pick a unit, not a graphic")),
+                    default, prompt);
+        }
+
+        /// <summary>
+        /// ⭐ B-17 P4 — the prompt reaches the banner: <c>[Cancel]</c> and the prompt are drawn as SCREEN-SPACE gizmo text (a remote terminal draws them too), while the pick is pending, and gone when it ends.
+        /// Red-proof: the host not wrapping the picker in the banner gizmo ⇒ no text is drawn.
+        /// </summary>
+        [Fact]
+        public void P4_ThePrompt_ReachesTheBannerPrimitives_WhilePending()
+        {
+            using var fx = new P4Fx();
+            var pick = fx.PickPoint("Pick a point for Move to");
+            Assert.Equal("Pick a point for Move to", fx.Pickers.Prompt);
+            var texts = fx.Frame();
+            Assert.Contains(("[Cancel]", true), texts);
+            Assert.Contains(("Pick a point for Move to", true), texts);
+            fx.Click(5, 6);
+            fx.Frame();
+            Assert.True(pick.IsCompletedSuccessfully);
+            Assert.Null(fx.Pickers.Prompt);
+            Assert.DoesNotContain(fx.Frame(), t => t.Text == "[Cancel]");
+        }
+
+        /// <summary>⭐ B-17 P4 — a pick with no prompt of its own gets its tool's default words; the field's path becomes <i>"Pick a point for Move to"</i>.</summary>
+        [Fact]
+        public void P4_ThePromptWords_AreTheFieldsOrTheToolsDefault()
+        {
+            Assert.Equal("Pick a point for Move to", PickPrompts.For("a point", "Orders[0].MoveTo"));
+            Assert.Equal("Pick a unit for Target unit", PickPrompts.For("a unit", "Target_unit"));
+            Assert.Equal("Pick a unit", PickPrompts.For("a unit", null));
+            using var fx = new P4Fx();
+            _ = fx.Pickers.RunPickAsync<int>(ScenarioToolIds.PickEntity,
+                (tcs, remove) => new ToolProbe(), default);
+            Assert.Equal(PickPrompts.DefaultFor(ScenarioToolIds.PickEntity), fx.Pickers.Prompt);
+        }
+
+        /// <summary>⭐ B-17 P4 — a left click on the banner's [Cancel] cancels the pick (the asking field's await completes CANCELLED, which is what clears its Picking mark) and does NOT place a point; the tool underneath resumes.</summary>
+        [Fact]
+        public async Task P4_CancelOnTheBanner_CancelsThePick_AndResumesTheToolUnderneath()
+        {
+            using var fx = new P4Fx();
+            var probe = new ToolProbe();
+            fx.Controller.Register(new ToolDescriptor("route", "route", ToolModality.Modal, ToolArbiter.Global),
+                _ => { fx.Global.Register(GlobalGizmoManager.NewId(), probe); return ToolActivationOutcome.Armed; });
+            Assert.True(fx.Controller.Activate("route"));
+
+            var pick = fx.PickPoint("Pick a point for Move to");
+            Assert.False(probe.IsFocused);
+            fx.Mouse = new Vector2(30, 18);                // on [Cancel]
+            fx.Click(100, 100);
+            fx.Frame();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pick);
+            Assert.Null(fx.Pickers.Prompt);
+            Assert.Equal("route", fx.Controller.ActiveModal?.Id);
+            Assert.True(probe.IsFocused);                   // the suspended tool resumes
+        }
+
+        /// <summary>⭐ B-17 P4 — the same click anywhere else is the pick (and Esc still cancels).</summary>
+        [Fact]
+        public async Task P4_AClickOffTheBanner_PicksThePoint_AndEscStillCancels()
+        {
+            using var fx = new P4Fx();
+            var pick = fx.PickPoint("Pick a point for Move to");
+            fx.Mouse = new Vector2(400, 300);
+            fx.Click(7, 8);
+            fx.Frame();
+            Assert.Equal(new Vector2(7, 8), await pick);
+
+            var second = fx.PickPoint("Pick again");
+            fx.Esc();
+            fx.Frame();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+        }
+
+        /// <summary>
+        /// ⭐ B-17 P4 — a click the entity picker refuses flashes its reason at the cursor for 1.5 s, and the pick stays pending (then the flash is gone).
+        /// Red-proof: the picker not reporting the refusal ⇒ Rejected stays null.
+        /// </summary>
+        [Fact]
+        public void P4_ARejectedClick_FlashesTheReason_AndThePickStaysPending()
+        {
+            using var fx = new P4Fx();
+            var graphic = new Entity(7, 1);
+            var pick = fx.PickUnit("Pick a unit for Target", _ => graphic);
+            fx.Mouse = new Vector2(400, 300);
+            fx.Move(50, 60);
+            fx.Frame();
+            Assert.Null(fx.Pickers.Rejected);
+            fx.Now = 10.0;
+            fx.Click(50, 60);
+            fx.Frame();                       // the click is handled
+            var texts = fx.Frame();           // and the next frame draws the flash
+            Assert.Equal("pick a unit, not a graphic", fx.Pickers.Rejected?.Reason);
+            Assert.Contains(("pick a unit, not a graphic", false), texts);   // drawn at the cursor (world space)
+            Assert.False(pick.IsCompleted);                                    // the pick stays
+            Assert.Equal("Pick a unit for Target", fx.Pickers.Prompt);
+            fx.Now = 10.0 + PickerToolHost.FlashSeconds + 0.1;
+            Assert.Null(fx.Pickers.Rejected);
+            Assert.DoesNotContain(fx.Frame(), t => t.Text == "pick a unit, not a graphic");
+        }
+
+        /// <summary>⭐ B-17 P4 — an entity OFFERED to the pick (an ORBAT row) that the filter refuses flashes too, and the pick stays.</summary>
+        [Fact]
+        public void P4_ARefusedOffer_Flashes()
+        {
+            using var fx = new P4Fx();
+            var pick = fx.Pickers.RunPickAsync<int>(ScenarioToolIds.PickEntity,
+                (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(_ => Entity.Null, RefuseAll, _ => tcs.TrySetResult(1), () => tcs.TrySetCanceled(), remove),
+                default, "Pick a unit for Target");
+            Assert.False(fx.Pickers.TryOfferEntity(new Entity(3, 1)));
+            Assert.NotNull(fx.Pickers.Rejected);
+            Assert.False(pick.IsCompleted);
+        }
+
+        /// <summary>
+        /// ⭐ B-17 P4 — a second pick request REPLACES the first: the first's await completes cancelled, a notice names it (<i>"replaced: Pick a point for …"</i>, drawn under the banner,
+        /// gone after a few seconds), the second is the live one, and the tool underneath is still suspended once (not twice).
+        /// Red-proof: not cancelling the first ⇒ its task hangs and the notice is missing.
+        /// </summary>
+        [Fact]
+        public async Task P4_ASecondRequest_ReplacesTheFirst_WithANotice()
+        {
+            using var fx = new P4Fx();
+            var probe = new ToolProbe();
+            fx.Controller.Register(new ToolDescriptor("route", "route", ToolModality.Modal, ToolArbiter.Global),
+                _ => { fx.Global.Register(GlobalGizmoManager.NewId(), probe); return ToolActivationOutcome.Armed; });
+            Assert.True(fx.Controller.Activate("route"));
+
+            var first = fx.PickPoint("Pick a point for Move to");
+            fx.Now = 1.0;
+            var second = fx.Pickers.RunPickAsync<int>(ScenarioToolIds.PickEntity,
+                (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(_ => Entity.Null, RefuseAll, _ => tcs.TrySetResult(1), () => tcs.TrySetCanceled(), remove),
+                default, "Pick a unit for Target");
+
+            Assert.True(await Task.WhenAny(first, Task.Delay(2000)) == first, "the first pick's await must complete (cancelled), not hang");
+            Assert.True(first.IsCanceled);
+            Assert.False(second.IsCompleted);
+            Assert.Equal("Pick a unit for Target", fx.Pickers.Prompt);
+            Assert.Equal("replaced: Pick a point for Move to", fx.Pickers.Notice);
+            Assert.Contains(("replaced: Pick a point for Move to", true), fx.Frame());
+            Assert.Equal(ScenarioToolIds.PickEntity, fx.Controller.ActiveModal?.Id);
+            fx.Now = 1.0 + PickerToolHost.NoticeSeconds + 0.1;
+            Assert.Null(fx.Pickers.Notice);
+
+            fx.Esc();                                       // the one Esc ends the live pick and the route comes back (it was suspended once, not stacked)
+            fx.Frame();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+            Assert.Equal("route", fx.Controller.ActiveModal?.Id);
+            Assert.True(probe.IsFocused);
+        }
+
+        /// <summary>⭐ B-17 P4 — the form side: Cancel on the banner completes the broker's pending pick (its Picking mark clears — <c>IsPickPendingFor</c> goes false) and the next field's pick is then free.</summary>
+        [Fact]
+        public void P4_CancelOnTheBanner_ClearsTheFormsPickingMark()
+        {
+            using var fx = new P4Fx();
+            var service = new HostBackedPickService(fx);
+            var broker = new Hrot.Presentation.Facades.MapPickBroker(() => service);
+            broker.RequestLocationPick("Orders[0].MoveTo");
+            Assert.True(broker.IsPickPendingFor("Orders[0].MoveTo"));
+            Assert.Equal("Pick a point for Move to", fx.Pickers.Prompt);   // the asking field's words
+            fx.Mouse = new Vector2(30, 18);
+            fx.Click(1, 1);
+            fx.Frame();
+            Assert.False(broker.IsPickPendingFor("Orders[0].MoveTo"));
+        }
+
+        private sealed class HostBackedPickService : Hrot.UI.Common.Facades.IMapPickService
+        {
+            private readonly P4Fx _fx;
+            public HostBackedPickService(P4Fx fx) => _fx = fx;
+            public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default) => throw new NotSupportedException();
+            public Task<Fdp.Core.WorldPoint> PickLocalAsync(string? prompt, CancellationToken ct = default)
+                => _fx.PickPoint(prompt ?? "?", ct).ContinueWith(t => new Fdp.Core.WorldPoint(t.Result.X, t.Result.Y, 0f), TaskContinuationOptions.OnlyOnRanToCompletion);
+            public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) => throw new NotSupportedException();
+            public Task<System.Collections.Generic.IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default) => throw new NotSupportedException();
+        }
+    }
 }

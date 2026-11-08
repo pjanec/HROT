@@ -297,7 +297,7 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 | **P1** | the armed tool is visible: `ToolDescriptor.Hint`, `ToolController.ActiveHint`, the toolbar reads `ActiveModal` (Tool Model step 5, CE-259m), `ToolStatusSection`, the on-map hint as gizmo primitives | ui | the toolbar marks the tool on every host; the hint is drawn on a remote terminal |
 | **P2** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P2* below) `ShapeEditSession`; the four drawing gizmos move onto it; the D11 convention; the drawing menu as three catalogue actions | ui (+ backend for the gizmo side) | each gizmo: Enter / ✓ / menu finish, Esc cancels, Backspace, too-few points keeps the tool |
 | **P3** | placement: ① **measure CE-4272 first** (does an A-10C spawned at 300 m fly on?); ② `PlacementSession` — airborne by `Mobility`, 2-D level choice from `SurfacesAt`, optional heading drag; ③ Create through `Edits.Submit` | ui + backend (CE-4272) | an A-10C placed on the map is airborne at cruise; a click on a 3-storey house offers 3 levels |
-| **P4** | the pick banner, rejection flash, replace notice in `PickerToolHost` | ui | a pick is visible with the form scrolled away; Cancel on the banner clears the field |
+| **P4** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P4* below) the pick banner, rejection flash, replace notice in `PickerToolHost` | ui | a pick is visible with the form scrolled away; Cancel on the banner clears the field |
 | **P5** | multi-select modifiers (Shift / Ctrl / Shift-drag / Alt-click); `GroupTransform` for move and rotate | ui | rotate 5 placed units about each centre and about the group centre: one undo step |
 | **P6** | shapes and routes: the centre handle on every kind (routes included), segment insert, Delete | ui | ROUTES1 §11.1 rails, minus the right-click commit |
 | **P7** | the gizmo look review (§2.6), approved by the user before it is built | ui | the frame rails under `xvfb-run` |
@@ -446,6 +446,45 @@ the three finish doors, Esc / menu cancel, Backspace, right-click ends nothing a
 `P2_*`; `GlobalGizmoManagerTests.B17P2_*` (menu bound to the tool id, click anchored); `DebugGizmoLayerGizmoTests.B17P2_*` (`ResolveMenuAnchor`); `TheMenusAreGoldenTests`
 `P2_TheDrawingMenu_IsTheGolden_InEveryMode` (new `Goldens/menus.drawing.golden.txt`; the entity goldens did not move); `TheArmedToolIsVisibleTests.P2_AnAreaBeingDrawn_OnARealFrame_ShowsTheTickAndTheHint`
 (`drawing-area.png` under `HROT_RAIL_SHOTS`, never committed). Existing rails that finished by right-click (`AreaAuthoringArmTests`, Editor `AdapterTests` ×2) now finish by Enter.
+
+### ⭐ AS-BUILT — P4 *(behaviors, `2026-11-08`, B-17)* — the pending pick is visible
+
+INVENTORY: grep `PickPointAsync` ⇒ **0** (the name in the brief; the picks are `PickLocalAsync` / `PickLocationAsync` / `PickEntityAsync` / `PickAreaEntitiesAsync` on `IMapPickService`, run by `PickerToolHost.RunPickAsync` / `PushPicker`);
+callers of the asking field: `MapPickBroker.RequestEntityPick` / `RequestLocationPick` (every form, by JSON path) and `MenuOrders` (order / embark / designate picks). The pickers already drew a crosshair (`FdpLocationPickerGizmo`, `EntityPickerGizmo` — CE-1065 / CE-1337), so the cursor was not new work.
+
+```mermaid
+classDiagram
+  class PickerToolHost { <<existing>> +Prompt +Rejected +Notice +Reject(reason) +CancelPending() RunPickAsync(…, prompt) PushPicker(…, prompt) }
+  class PendingPick { <<NEW internal>> Prompt · Notice · RejectedReason · CursorWorld · Inner · Cancel() }
+  class PickBannerGizmo { <<NEW internal · IEntityStatefulGizmo decorator>> draws the banner · hit-tests [Cancel] · forwards the rest }
+  class PickPrompts { <<NEW>> For(what, jsonPath) · DefaultFor(toolId) }
+  class FdpLocationPickerGizmo { <<existing>> crosshair · Esc / right-click cancel }
+  class EntityPickerGizmo { <<existing>> +onRejected }
+  class IMapPickService { <<existing>> +PickLocalAsync(prompt) +PickEntityAsync(presets, prompt) }
+  class MapPickBroker { <<existing>> IsPickPendingFor = the form's Picking mark }
+  PickerToolHost o-- PendingPick : at most ONE
+  PickerToolHost ..> PickBannerGizmo : wraps the picker it arms
+  PickBannerGizmo --> FdpLocationPickerGizmo : forwards
+  PickBannerGizmo --> EntityPickerGizmo : forwards
+  PickBannerGizmo ..> PendingPick
+  MapPickBroker ..> IMapPickService : prompt = PickPrompts.For
+  IMapPickService ..> PickerToolHost : CanvasMapPickAdapter
+  EntityPickerGizmo ..> PickerToolHost : onRejected → Reject
+```
+*What the picture shows: the banner is a decorator on the picker the host already arms, so it is drawn by every host that picks and by every terminal (gizmo primitives, no ImGui); the asking field gets its words in through the service's new overloads, and its Picking mark is the task the picker completes — so Cancel needs no form code.*
+
+| decision | why |
+|---|---|
+| **Cancel = the picker's own Esc** (`PendingPick.Cancel` sends `Escape` to the inner gizmo, then `Remove`, then completes the caller's await as cancelled) | every picker already ends itself and completes its caller on Esc; the form's Picking mark (`IsPickPendingFor`) is a poll on that task, so it clears at once. No per-kind cancel code, no form involvement ⇒ **a form cannot be unreachable** |
+| the banner is `[Cancel]` (amber) + the prompt (white), SCREEN-SPACE gizmo text at the map's top-left (x 16 / 100, y 12 px); a notice line under it; the refusal in red at the cursor | only text can be drawn in screen space (the builder has no screen-space line / box), so the button is the bracketed word; its hit area is a fixed pixel box on the canvas's mouse position (`PickerToolHost.mouseScreen`, given by `CanvasMapPickAdapter`). A host that gives no mouse still shows the banner; Esc cancels |
+| ⚠ deviation from the mockup: no backdrop panel behind the banner and no button box | same as P1's cursor hint — a backdrop is P7's look review |
+| `Prompt` words: the form's field (`"Orders[0].MoveTo"` ⇒ *"Pick a point for Move to"*), `MenuOrders` its order's `PickField`, else the tool's default (*"Pick a point on the map"*) | `IMapPickService` gained default-method overloads (`PickLocalAsync(prompt)`, `PickEntityAsync(presets, prompt)`) that delegate to the old ones, so no other implementer changed |
+| a refused click: `EntityPickerGizmo.onRejected` (a click on an entity the filter excludes) ⇒ *"pick a unit, not a graphic"* (no identity) or *"that is the wrong kind here"*; an ORBAT row offered to `TryOfferEntity` and refused ⇒ *"that is not a valid pick here"*; flashed 1.5 s, the pick stays | a click on empty map does nothing and says nothing (as before) |
+| ⭐ a second PROMPTED pick request **replaces** the first (cancelled through its own Esc, its await completes cancelled) and the new banner says *"replaced: Pick a point for …"* for 3 s; a pick with no prompt (the area-shape editor) neither replaces nor is replaced | the old behaviour left the first picker suspended under the second, and a form waiting on it forever. ⛔ SUPERSEDES the stacking of two different picks: `NoPickOrASuspendedPick_RefusesAnOffer` now buries the entity pick under a non-pick modal instead of a location pick |
+| the tool under the pick still suspends once and resumes after any end of the pick (click, Esc, Cancel, replacement) | unchanged `PushModal` / `Remove` |
+| ⚠ not done: the form field's own highlight beyond the existing Picking mark (it already shows while the task is pending — nothing added); the 3-D map's renderer may not draw screen-space gizmo text (the banner is on the 2-D map and the local FDP layer; a remote viewer's own renderer does not yet set `GizmoTextDraw.Strings`, as P1 noted) | |
+
+Rails: `PickerToolHostTests` `P4_*` (the prompt reaches the banner primitives; the field words; Cancel on the banner cancels and the tool underneath resumes; a click off the banner still picks and Esc cancels; a rejected click flashes and the pick stays; a refused offer flashes; a second request replaces the first with a notice; Cancel clears the broker's Picking mark); `TheArmedToolIsVisibleTests.P4_APendingPick_OnARealFrame_ShowsTheBannerTheCrosshairAndTheFlash` (`pending-pick.png` under `HROT_RAIL_SHOTS`, never committed).
 
 ## 4. Questions — ✅ all eight APPROVED as leaned (R-4134, user `2026-11-06`: *"Okay, accept it."*)
 

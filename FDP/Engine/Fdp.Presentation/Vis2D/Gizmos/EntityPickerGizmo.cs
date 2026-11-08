@@ -44,6 +44,7 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
     private readonly Action<Entity>        _onPicked;
     private readonly Action                _onCancelled;
     private readonly Action                _onRemove;
+    private readonly Action<Entity>?       _onRejected;
 
     private Vector2 _mouseWorldPos;
     private Entity  _hoveredEntity = Entity.Null;
@@ -94,13 +95,15 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
         Fdp.Toolkit.Vis2D.Abstractions.IEntityFilter filter,
         Action<Entity>        onPicked,
         Action                onCancelled,
-        Action                onRemove)
+        Action                onRemove,
+        Action<Entity>?       onRejected = null)
     {
         _hitTest     = hitTest     ?? throw new ArgumentNullException(nameof(hitTest));
         _filter      = filter      ?? throw new ArgumentNullException(nameof(filter));
         _onPicked    = onPicked    ?? throw new ArgumentNullException(nameof(onPicked));
         _onCancelled = onCancelled ?? throw new ArgumentNullException(nameof(onCancelled));
         _onRemove    = onRemove    ?? throw new ArgumentNullException(nameof(onRemove));
+        _onRejected  = onRejected;   // ⭐ B-17 P4 — a click on something the filter refuses is reported, the pick stays
     }
 
     // ---- IEntityStatefulGizmo -- draw ----------------------------------------
@@ -163,6 +166,7 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
                 _onRemove();            // ⭐ remove first: a pool-thread continuation must see the tool underneath restored
                 _onPicked(picked);
             }
+            else if (!_hoveredEntity.IsNull) _onRejected?.Invoke(_hoveredEntity);   // ⭐ B-17 P4 — over something, but not a valid target
         }
         else if (button == MapMouseButton.Right && isPressed)
         {

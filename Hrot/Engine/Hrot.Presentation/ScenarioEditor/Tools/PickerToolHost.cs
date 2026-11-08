@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -38,6 +39,18 @@ namespace Hrot.ScenarioEditor.Tools
         private readonly Func<ToolController?>     _tools;
         private readonly Func<GlobalGizmoManager?> _global;
         private readonly Action<string>?           _report;
+        private readonly Func<Vector2?>?           _mouseScreen;
+        private readonly Func<double>              _clock;
+
+        /// <summary>⭐ B-17 P4 — how long a refused click's reason stays at the cursor.</summary>
+        public const double FlashSeconds = 1.5;
+        /// <summary>⭐ B-17 P4 — how long <i>"replaced: …"</i> stays under the banner.</summary>
+        public const double NoticeSeconds = 3.0;
+        /// <summary>The banner's screen position (pixels, from the map's top-left): the [Cancel] button, then the prompt after it. 📐 The button box is the word's: about 8 px a letter at the 13 px gizmo font.</summary>
+        public const float CancelLeftPx = 16f, PromptLeftPx = 100f, BannerTopPx = 12f, CancelWidthPx = 76f, CancelHeightPx = 20f;
+
+        /// <summary>⭐ B-17 P4 — the pick in progress (null: none).</summary>
+        private PendingPick? _pending;
 
         /// <summary>
         /// ⚠⚠ The controller this host has already registered its picker tools on.
@@ -74,11 +87,15 @@ namespace Hrot.ScenarioEditor.Tools
         public PickerToolHost(
             Func<ToolController?>     tools,
             Func<GlobalGizmoManager?> global,
-            Action<string>?           report = null)
+            Action<string>?           report = null,
+            Func<Vector2?>?           mouseScreen = null,
+            Func<double>?             clock = null)
         {
             _tools  = tools  ?? throw new ArgumentNullException(nameof(tools));
             _global = global ?? throw new ArgumentNullException(nameof(global));
             _report = report;
+            _mouseScreen = mouseScreen;
+            _clock = clock ?? (() => System.Diagnostics.Stopwatch.GetTimestamp() / (double)System.Diagnostics.Stopwatch.Frequency);
 
             // ⛔ Before any pick is requested a picker tool has nothing to arm — it REPORTS rather than
             //   pretending (ruling 49: registered-and-explained beats absent).
@@ -103,6 +120,59 @@ namespace Hrot.ScenarioEditor.Tools
         /// </summary>
         /// <summary>⭐ B-17 P2 — the host's tool controller (null on a host without one), for a picker tool that puts a line on the hint (<c>DrawingMenu.Attach</c>).</summary>
         public ToolController? Tools => _tools();
+
+        /// <summary>⭐ B-17 P4 — the words of the pick in progress (<c>"Pick a point for Move to"</c>), or null when none (or a drawing, which is not a pick).</summary>
+        public string? Prompt => _pending?.Prompt;
+
+        /// <summary>⭐ B-17 P4 — the click the pending pick refused, for <see cref="FlashSeconds"/> after it; null otherwise.</summary>
+        public PickRejection? Rejected
+            => _pending is { RejectedReason: { } r } p && _clock() - p.RejectedAt < FlashSeconds ? new PickRejection(r, p.RejectedAt) : null;
+
+        /// <summary>⭐ B-17 P4 — <i>"replaced: …"</i>, for <see cref="NoticeSeconds"/> after a request replaced the pick before it; null otherwise.</summary>
+        public string? Notice => _pending is { } p ? NoticeOf(p) : null;
+
+        internal string? NoticeOf(PendingPick p) => p.Notice is { } n && _clock() - p.NoticeAt < NoticeSeconds ? n : null;
+
+        /// <summary>⭐ B-17 P4 — refuses a click on the pending pick: <paramref name="reason"/> flashes at the cursor and the pick stays pending. False with no pick.</summary>
+        public bool Reject(string reason)
+        {
+            if (_pending is not { } p) return false;
+            p.RejectedReason = reason; p.RejectedAt = _clock();
+            return true;
+        }
+
+        /// <summary>⭐ B-17 P4 — the mouse is on the banner's [Cancel] (screen pixels; false when the host gave no mouse).</summary>
+        internal bool OverCancel()
+            => _mouseScreen?.Invoke() is { } m
+               && m.X >= CancelLeftPx - 4f && m.X <= CancelLeftPx + CancelWidthPx
+               && m.Y >= BannerTopPx - 4f && m.Y <= BannerTopPx - 4f + CancelHeightPx;
+
+        /// <summary>⭐ B-17 P4 — cancels the pending pick as its Cancel / Esc does (the field's await completes cancelled). False with no pick.</summary>
+        public bool CancelPending()
+        {
+            if (_pending is not { } p) return false;
+            p.Cancel();
+            return true;
+        }
+
+        /// <summary>A pick with a prompt replaces the one before it (cancelled, its caller's await completed cancelled); returns the replaced prompt.</summary>
+        private string? ReplacePending(string? prompt)
+        {
+            if (prompt == null || _pending is not { Prompt: { } old } p) return null;
+            p.Cancel();
+            return old;
+        }
+
+        /// <summary>The pick record around a built gizmo, and the gizmo to register (wrapped with the banner when it has a prompt).</summary>
+        private PendingPick Begin(string toolId, string? prompt, string? replaced, IEntityStatefulGizmo inner, Action remove, out IEntityStatefulGizmo toArm)
+        {
+            var pick = new PendingPick { ToolId = toolId, Prompt = prompt, Inner = inner };
+            if (replaced != null) { pick.Notice = "replaced: " + replaced; pick.NoticeAt = _clock(); }
+            pick.Remove = remove;
+            _pending = pick;
+            toArm = prompt == null ? inner : new PickBannerGizmo(inner, pick, this);
+            return pick;
+        }
 
         private ToolController? EnsureRegistered()
         {
@@ -142,9 +212,11 @@ namespace Hrot.ScenarioEditor.Tools
         public Task<T> RunPickAsync<T>(
             string                                                    toolId,
             Func<TaskCompletionSource<T>, Action, IEntityStatefulGizmo> createGizmo,
-            CancellationToken                                          ct = default)
+            CancellationToken                                          ct = default,
+            string?                                                    prompt = null)
         {
             if (createGizmo == null) throw new ArgumentNullException(nameof(createGizmo));
+            prompt ??= PickPrompts.DefaultFor(toolId);
 
             var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -158,6 +230,7 @@ namespace Hrot.ScenarioEditor.Tools
                 return tcs.Task;
             }
 
+            string? replaced = ReplacePending(prompt);   // ⭐ B-17 P4 — a second request replaces the first, with a notice
             long id = GlobalGizmoManager.NewId();
 
             // ⚠⚠ Assigned below; captured here so Remove can pop. 🔴 The POP MUST HAPPEN WHEN THE GIZMO
@@ -169,6 +242,7 @@ namespace Hrot.ScenarioEditor.Tools
             void Remove()
             {
                 if (ReferenceEquals(_livePicker, gizmo)) { _livePicker = null; _livePickerTool = null; }   // ⭐ CE-1346
+                if (_pending != null && ReferenceEquals(_pending.Inner, gizmo)) _pending = null;   // ⭐ B-17 P4
                 _global()?.Unregister(id);
                 // ⭐ Idempotent (ModalScope.Dispose guards, and PopModalAt re-checks depth), so it is safe
                 //   that Unregister→Dispose→onRemove can re-enter this.
@@ -177,12 +251,14 @@ namespace Hrot.ScenarioEditor.Tools
 
             gizmo = createGizmo(tcs, Remove);
             Track(toolId, gizmo);
+            var pending = Begin(toolId, prompt, replaced, gizmo, Remove, out var toArm);
+            pending.CancelCaller = () => tcs.TrySetCanceled();
 
             _pendingArm[toolId] = () =>
             {
                 var g = _global();
                 if (g == null) return ToolActivationOutcome.Unserviceable;
-                g.Register(id, gizmo);
+                g.Register(id, toArm);
                 return ToolActivationOutcome.Armed;
             };
 
@@ -255,9 +331,11 @@ namespace Hrot.ScenarioEditor.Tools
         /// <returns><see langword="true"/> when the picker armed.</returns>
         public bool PushPicker(
             string                                toolId,
-            Func<Action, IEntityStatefulGizmo>    createGizmo)
+            Func<Action, IEntityStatefulGizmo>    createGizmo,
+            string?                               prompt = null)
         {
             if (createGizmo == null) throw new ArgumentNullException(nameof(createGizmo));
+            prompt ??= PickPrompts.DefaultFor(toolId);
 
             var manager = _global();
             if (manager == null)
@@ -266,6 +344,7 @@ namespace Hrot.ScenarioEditor.Tools
                 return false;
             }
 
+            string? replaced = ReplacePending(prompt);   // ⭐ B-17 P4
             long id = GlobalGizmoManager.NewId();
             IDisposable? scopeRef = null;
 
@@ -274,18 +353,20 @@ namespace Hrot.ScenarioEditor.Tools
             void Remove()
             {
                 if (ReferenceEquals(_livePicker, gizmo)) { _livePicker = null; _livePickerTool = null; }   // ⭐ CE-1346
+                if (_pending != null && ReferenceEquals(_pending.Inner, gizmo)) _pending = null;   // ⭐ B-17 P4
                 _global()?.Unregister(id);
                 scopeRef?.Dispose();   // ⭐ idempotent — see RunPickAsync
             }
 
             gizmo = createGizmo(Remove);
             Track(toolId, gizmo);
+            Begin(toolId, prompt, replaced, gizmo, Remove, out var toArm);
 
             _pendingArm[toolId] = () =>
             {
                 var g = _global();
                 if (g == null) return ToolActivationOutcome.Unserviceable;
-                g.Register(id, gizmo);
+                g.Register(id, toArm);
                 return ToolActivationOutcome.Armed;
             };
 
@@ -318,7 +399,9 @@ namespace Hrot.ScenarioEditor.Tools
         {
             if (_livePicker is not { } picker) return false;
             if (_tools() is { } tools && tools.ActiveModal is { } active && active.Id != _livePickerTool) return false;   // suspended
-            return picker.TryPick(entity);
+            if (picker.TryPick(entity)) return true;
+            Reject("that is not a valid pick here");   // ⭐ B-17 P4 — the filter refused it: say so, the pick stays
+            return false;
         }
 
         /// <summary>Returned when no arbiter was wired — disposing it must be safe and do nothing.</summary>

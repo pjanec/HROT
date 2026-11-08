@@ -81,6 +81,12 @@ public interface IMapPickService
     /// <param name="ct">Optional cancellation token.</param>
     Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default);
 
+    /// <summary>⭐ B-17 P4 — <see cref="PickLocalAsync(CancellationToken)"/> with the banner's words (<c>"Pick a point for Move to"</c>, <see cref="Hrot.ScenarioEditor.Tools.PickPrompts"/>). A service with no banner ignores it.</summary>
+    Task<Fdp.Core.WorldPoint> PickLocalAsync(string? prompt, CancellationToken ct = default) => PickLocalAsync(ct);
+
+    /// <summary>⭐ B-17 P4 — <see cref="PickEntityAsync(string[], CancellationToken)"/> with the banner's words. A service with no banner ignores it.</summary>
+    Task<int> PickEntityAsync(string[]? filterPresets, string? prompt, CancellationToken ct = default) => PickEntityAsync(filterPresets, ct);
+
     /// <summary>
     /// Requests an area entity pick from the operator, returning all entities within the
     /// operator-drawn selection rectangle, optionally filtered by layer preset names.

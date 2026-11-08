@@ -76,7 +76,8 @@ public sealed class CanvasMapPickAdapter : IMapPickService
         _areaGizmo          = areaGizmo;
         _globalGizmoManager = globalGizmoManager;
         _pickers            = new Hrot.ScenarioEditor.Tools.PickerToolHost(
-            tools ?? (() => null), () => _globalGizmoManager);
+            tools ?? (() => null), () => _globalGizmoManager,
+            mouseScreen: () => _canvas.Input?.MousePosition);   // ⭐ B-17 P4 — the banner's [Cancel] is hit-tested on it
     }
 
     /// <summary>⭐ U-10 — the preview service the map attach put on this canvas (<see cref="Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers"/>).</summary>
@@ -142,17 +143,23 @@ public sealed class CanvasMapPickAdapter : IMapPickService
 
     /// <inheritdoc/>
     /// <remarks>⭐ S0 item 5 — the clicked world point as it is (local metres, Z 0): no geodetic conversion.</remarks>
-    public Task<Fdp.Core.WorldPoint> PickLocalAsync(CancellationToken ct = default)
+    public Task<Fdp.Core.WorldPoint> PickLocalAsync(CancellationToken ct = default) => PickLocalAsync(null, ct);
+
+    /// <inheritdoc/>
+    public Task<Fdp.Core.WorldPoint> PickLocalAsync(string? prompt, CancellationToken ct = default)
         => _pickers.RunPickAsync<Fdp.Core.WorldPoint>(
             Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
             (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
                 onPicked: worldPos => tcs.TrySetResult(new Fdp.Core.WorldPoint(worldPos.X, worldPos.Y, 0f)),
                 onRemove: remove,
                 onCancelled: () => tcs.TrySetCanceled()),
-            ct);
+            ct, prompt);
 
     /// <inheritdoc/>
-    public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default)
+    public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) => PickEntityAsync(filterPresets, null, ct);
+
+    /// <inheritdoc/>
+    public Task<int> PickEntityAsync(string[]? filterPresets, string? prompt, CancellationToken ct = default)
     {
         var filter = _filterFactory.CreateFilter(filterPresets ?? Array.Empty<string>());
 
@@ -173,9 +180,16 @@ public sealed class CanvasMapPickAdapter : IMapPickService
                     tcs.TrySetResult(networkId);
                 },
                 onCancelled: () => tcs.TrySetCanceled(),
-                onRemove:    remove),
-            ct);
+                onRemove:    remove,
+                onRejected:  e => _pickers.Reject(RefusalOf(e))),   // ⭐ B-17 P4 — flashed at the cursor, the pick stays
+            ct, prompt);
     }
+
+    /// <summary>⭐ B-17 P4 — why a click on <paramref name="entity"/> was refused: an unit that the filter excludes (wrong kind), or a graphic with no identity.</summary>
+    private string RefusalOf(Fdp.Core.Entity entity)
+        => _repo != null && _repo.IsAlive(entity) && _repo.HasComponent<NetworkIdentity>(entity)
+            ? "that is the wrong kind here"
+            : "pick a unit, not a graphic";
 
     /// <summary>⭐ <c>CE-1346</c> — offers an entity picked elsewhere (an ORBAT row) to this map's entity pick in progress
     /// (<see cref="Hrot.ScenarioEditor.Tools.PickerToolHost.TryOfferEntity"/>); false when none takes it.</summary>

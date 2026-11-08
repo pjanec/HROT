@@ -109,7 +109,7 @@ namespace Hrot.ScenarioEditor.Map
                 _location = null;
                 _unit = TryNetworkId(unit, out int id) ? id : 0;
                 _embarking = unit;
-                _enemy = pick.PickEntityAsync(null);
+                _enemy = pick.PickEntityAsync(null, "Pick the vehicle to embark");
             });
         }
 
@@ -134,8 +134,8 @@ namespace Hrot.ScenarioEditor.Map
             if (_draft.IsComplete) { Report(Send(_draft)); return; }
             switch (order.Pick)
             {
-                case OrderPick.Point:  _location = pick.PickLocalAsync(); break;
-                case OrderPick.Entity: _enemy = pick.PickEntityAsync(order.PickTarget?.Presets is { Count: > 0 } p ? System.Linq.Enumerable.ToArray(p) : null); break;
+                case OrderPick.Point:  _location = pick.PickLocalAsync(Hrot.ScenarioEditor.Tools.PickPrompts.For("a point", order.PickField ?? order.Name)); break;   // ⭐ B-17 P4 — the banner names the field
+                case OrderPick.Entity: _enemy = pick.PickEntityAsync(order.PickTarget?.Presets is { Count: > 0 } p ? System.Linq.Enumerable.ToArray(p) : null, Hrot.ScenarioEditor.Tools.PickPrompts.For("a unit", order.PickField ?? order.Name)); break;
                 default: OpenForm(_world, _draft); break;
             }
         }
@@ -178,13 +178,13 @@ namespace Hrot.ScenarioEditor.Map
             _designating = kind;
             _location = null;
             _enemy = null;
-            if (kind == DesignationKind.MapPoint) _location = pick.PickLocalAsync();
+            if (kind == DesignationKind.MapPoint) _location = pick.PickLocalAsync("Pick the point to designate");
             else _enemy = pick.PickEntityAsync(kind switch
             {
                 DesignationKind.Route => new[] { OrderDesignations.RoutePreset },
                 DesignationKind.Area => new[] { OrderDesignations.AreaPreset },
                 _ => null,
-            });
+            }, "Pick the " + (kind == DesignationKind.Route ? "route" : kind == DesignationKind.Area ? "area" : "target") + " to designate");
         }
 
         /// <summary>Turns a completed pick into its order (or ⭐ <c>CE-2149</c> its designation); a cancelled or failed pick does nothing.</summary>
