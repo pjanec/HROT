@@ -38,14 +38,31 @@ public static class ShapeDoneMark
         Draw(draw, session.DonePosition, session.DoneHalfSize);
     }
 
-    /// <summary>Draws the button centred at <paramref name="done"/>, unit <paramref name="d"/> (world metres): the box, a tick at its left, the word.</summary>
+    /// <summary>The 2-D map only: <c>Map2D | FlatOnly</c> — a 3-D pass never draws a FlatOnly primitive, and the 2-D renderer skips one without Map2D (<c>DebugPrimitiveRenderer2D.cs:119</c>).</summary>
+    private const PipelineTarget Flat = PipelineTarget.Map2D | PipelineTarget.FlatOnly;
+
+    /// <summary>
+    /// Draws the button centred at <paramref name="done"/>, unit <paramref name="d"/> (world metres). ⭐ B-17 P7-C — TWO looks, one per view, so neither is wrong in the other:
+    /// <b>2-D</b> (<see cref="Flat"/>): the world-metre box (the click rectangle, <see cref="Hit"/>), a tick at its left and the word. <b>3-D</b> (<see cref="PipelineTarget.Viewport3D"/>): the same word as a constant-pixel
+    /// <see cref="GizmoTextStyle.Button"/> at the anchor — a world-metre box draped over relief in perspective is a slab. ⚠ The click is still tested in world metres around <paramref name="done"/>
+    /// (no zoom reaches a raw-input gizmo: its events carry only the world point and cross the wire), so in 3-D the drawn pixel button and the click rectangle are the same place but not the same size.
+    /// </summary>
     public static void Draw(IDebugDrawBuilder draw, Vector2 done, float d)
     {
-        draw.DrawBox2D(done, new Vector2(HalfWidth(d), HalfHeight(d)), ButtonBorder, 0f, 1f, SizeMode.WorldMeters, fillColor: ButtonBlue);   // the 1 px border is an outline (pixels), the fill is world metres
+        draw.DrawBox2D(done, new Vector2(HalfWidth(d), HalfHeight(d)), ButtonBorder, 0f, 1f, SizeMode.WorldMeters, target: Flat, fillColor: ButtonBlue);   // the 1 px border is an outline (pixels), the fill is world metres
         float tx = done.X - HalfWidth(d) * 0.78f;   // the tick: two strokes inside the left end
-        draw.DrawLine(new Vector3(tx - d * 0.45f, done.Y, 0f), new Vector3(tx - d * 0.1f, done.Y - d * 0.45f, 0f), Green, 2f);
-        draw.DrawLine(new Vector3(tx - d * 0.1f, done.Y - d * 0.45f, 0f), new Vector3(tx + d * 0.5f, done.Y + d * 0.45f, 0f), Green, 2f);
+        draw.DrawLine(new Vector3(tx - d * 0.45f, done.Y, 0f), new Vector3(tx - d * 0.1f, done.Y - d * 0.45f, 0f), Green, 2f, SizeMode.ScreenPixels, Flat);
+        draw.DrawLine(new Vector3(tx - d * 0.1f, done.Y - d * 0.45f, 0f), new Vector3(tx + d * 0.5f, done.Y + d * 0.45f, 0f), Green, 2f, SizeMode.ScreenPixels, Flat);
         // the word, to the right of the tick; the text is screen-sized (13 px), so lift it by half its height to centre it on the box
-        draw.DrawText(done.X - HalfWidth(d) * 0.4f, done.Y, new Fdp.Core.FixedString32("Done"), Label, lineOffsetPx: -7f);
+        Word(draw, done.X - HalfWidth(d) * 0.4f, done.Y, GizmoTextStyle.Plain, Flat);
+        // 3-D: the button as one constant-pixel Button-style text at the anchor
+        Word(draw, done.X - d, done.Y, GizmoTextStyle.Button, PipelineTarget.Viewport3D);
+    }
+
+    private static void Word(IDebugDrawBuilder draw, float x, float y, GizmoTextStyle style, PipelineTarget target)
+    {
+        var p = DebugPrimitive.MakeText(x, y, new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("Done"), Label, lineOffsetPx: -7f, style: style);
+        p.TargetView = target;
+        draw.EmitRaw(in p);
     }
 }

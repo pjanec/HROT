@@ -166,7 +166,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             //   turned to the pending heading with a notch at the front; an aircraft stands at its altitude over a drop line and a ground ring (its shadow).
             float lift = _session.AirborneHeight ?? 0f;
             DrawFootprint(draw, ghostColor, ghostAt, dragYaw ?? (MathF.PI / 2f));   // north until a drag sets the heading (PlacementSession.FacingNorth)
-            DrawGhostBox(view, draw, ghostColor, lift > 0f ? new Vector3(ghostAt.X, ghostAt.Y, ghostAt.Z + lift) : ghostAt);
+            DrawGhostBox(view, draw, ghostColor, lift > 0f ? new Vector3(ghostAt.X, ghostAt.Y, ghostAt.Z + lift) : ghostAt, dragYaw ?? (MathF.PI / 2f));
             if (lift > 0f) DrawAircraftShadow(draw, ghostColor, ghostAt, lift);
             if (_macroPreview?.Invoke() is { } preview) MacroGhostDraw.Draw(draw, preview, ghostAt);   // ⭐ CE-4244 MP-2 (a) — what the click would create
             PlacementDirectionLine.Draw(draw, _session, _cursorWorld);
@@ -235,24 +235,31 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// it shows the body where it will land (a roof, a slope); in 2-D its edges collapse onto the type's footprint.
         /// ⚠ A wire box, not the translucent shape kit the design names: a gizmo emits primitives, and a kit mesh is not one.
         /// </summary>
-        private void DrawGhostBox(ISimulationView view, IDebugDrawBuilder draw, Rgba32 colour, Vector3 centre)
+        private static Vector3 Corner(Vector3 centre, float cs, float sn, float lx, float ly, float z) => new(centre.X + lx * cs - ly * sn, centre.Y + lx * sn + ly * cs, z);
+        private static void Edge(IDebugDrawBuilder draw, Vector3 a, Vector3 b, Rgba32 colour) => draw.DrawLine(a, b, colour, 1f, SizeMode.ScreenPixels, PipelineTarget.Viewport3D);
+
+        private void DrawGhostBox(ISimulationView view, IDebugDrawBuilder draw, Rgba32 colour, Vector3 centre, float yawRad)
         {
             if (_bodyLook is not { } look) return;   // resolved once by EnsureType
             if (look.Family == Hrot.UI.Common.Map3D.VisualFamily.Unit) return;
             var h = look.Size / 2f;
             float z0 = centre.Z, z1 = centre.Z + look.Size.Z;
-            // the 12 edges of the box, with no span / array (a steady frame allocates nothing): the two rectangles (z0, z1) and the four verticals
+            // ⭐ B-17 P7-C — the 3-D view's box only (PipelineTarget.Viewport3D: the 2-D renderer skips a primitive without Map2D, DebugPrimitiveRenderer2D.cs:119), turned to the SAME heading as
+            //   the footprint (the size's X runs along the heading). ONE outline per view: 2-D shows the footprint box alone.
+            float cs = MathF.Cos(yawRad), sn = MathF.Sin(yawRad);
+            // the 12 edges, with no span / array (a steady frame allocates nothing): the two rectangles (z0, z1) and the four verticals
             for (int level = 0; level < 2; level++)
             {
                 float z = level == 0 ? z0 : z1;
-                var a = new Vector3(centre.X - h.X, centre.Y - h.Y, z); var b = new Vector3(centre.X + h.X, centre.Y - h.Y, z);
-                var c = new Vector3(centre.X + h.X, centre.Y + h.Y, z); var d = new Vector3(centre.X - h.X, centre.Y + h.Y, z);
-                draw.DrawLine(a, b, colour, 1f); draw.DrawLine(b, c, colour, 1f); draw.DrawLine(c, d, colour, 1f); draw.DrawLine(d, a, colour, 1f);
+                var a = Corner(centre, cs, sn, -h.X, -h.Y, z); var b = Corner(centre, cs, sn, h.X, -h.Y, z);
+                var c = Corner(centre, cs, sn, h.X, h.Y, z); var d = Corner(centre, cs, sn, -h.X, h.Y, z);
+                Edge(draw, a, b, colour); Edge(draw, b, c, colour); Edge(draw, c, d, colour); Edge(draw, d, a, colour);
             }
-            draw.DrawLine(new Vector3(centre.X - h.X, centre.Y - h.Y, z0), new Vector3(centre.X - h.X, centre.Y - h.Y, z1), colour, 1f);
-            draw.DrawLine(new Vector3(centre.X + h.X, centre.Y - h.Y, z0), new Vector3(centre.X + h.X, centre.Y - h.Y, z1), colour, 1f);
-            draw.DrawLine(new Vector3(centre.X + h.X, centre.Y + h.Y, z0), new Vector3(centre.X + h.X, centre.Y + h.Y, z1), colour, 1f);
-            draw.DrawLine(new Vector3(centre.X - h.X, centre.Y + h.Y, z0), new Vector3(centre.X - h.X, centre.Y + h.Y, z1), colour, 1f);
+            for (int i = 0; i < 4; i++)
+            {
+                float lx = (i & 1) == 0 ? -h.X : h.X, ly = (i & 2) == 0 ? -h.Y : h.Y;
+                Edge(draw, Corner(centre, cs, sn, lx, ly, z0), Corner(centre, cs, sn, lx, ly, z1), colour);
+            }
         }
 
         // IEntityStatefulGizmo — interaction

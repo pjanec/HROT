@@ -310,7 +310,7 @@ public class RouteWaypointGizmoTests : IDisposable
         public readonly List<Vector3> Ends = new();
         public readonly List<Vector2> HandleCentres = new();
 
-        public void EmitRaw(in DebugPrimitive prim) { Handles++; HandleCentres.Add(new Vector2(prim.BoxCenterX, prim.BoxCenterY)); }
+        public void EmitRaw(in DebugPrimitive prim) { if (prim.Shape != DebugPrimitiveShape.Box2D) return; Handles++; HandleCentres.Add(new Vector2(prim.BoxCenterX, prim.BoxCenterY)); }
         public void DrawContextMenuBinding(int networkId, string menuJson) => MenuBindings++;
 
         public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,

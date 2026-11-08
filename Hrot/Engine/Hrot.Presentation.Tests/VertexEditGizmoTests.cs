@@ -29,7 +29,7 @@ public class VertexEditGizmoTests : IDisposable
         public int Handles;        // the AFFORDANCE — one raw Box2D per vertex
         public int MenuBindings;   // the handle-anchored context menu
 
-        public void EmitRaw(in DebugPrimitive prim) => Handles++;
+        public void EmitRaw(in DebugPrimitive prim) { if (prim.Shape == DebugPrimitiveShape.Box2D) Handles++; }   // ⭐ P7-C: a handle's pick box only (the Done button's 3-D word is an EmitRaw Text too)
         public void DrawContextMenuBinding(int networkId, string menuJson) => MenuBindings++;
 
         public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,
@@ -406,7 +406,7 @@ public class VertexEditGizmoTests : IDisposable
     private sealed class IdDraw : Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder
     {
         public readonly List<(uint Id, float X, float Y)> Handles = new();
-        public void EmitRaw(in DebugPrimitive prim) => Handles.Add((prim.SubElementId, prim.BoxCenterX, prim.BoxCenterY));
+        public void EmitRaw(in DebugPrimitive prim) { if (prim.Shape == DebugPrimitiveShape.Box2D) Handles.Add((prim.SubElementId, prim.BoxCenterX, prim.BoxCenterY)); }
         public void DrawContextMenuBinding(int networkId, string menuJson) { }
         public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f, SizeMode m = SizeMode.ScreenPixels, PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
         public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f, SizeMode m = SizeMode.ScreenPixels, PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }

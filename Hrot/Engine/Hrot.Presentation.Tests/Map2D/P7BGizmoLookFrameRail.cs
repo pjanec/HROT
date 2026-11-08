@@ -242,6 +242,9 @@ public sealed class P7BGizmoLookFrameRail
         {
             int teal = Count(image, 0, 0, image.Width, image.Height, c => Near(c, 0x3E, 0xC6, 0xB0, 24));
             int amber = Count(image, 0, 0, image.Width, image.Height, c => Near(c, 0xF2, 0xC0, 0x33, 12));
+            // ⭐ P7-C — the Done button is a constant-pixel Button text in 3-D (about 40 × 20 px), not the world-metre slab (thousands of px)
+            int blue = Count(image, 0, 0, image.Width, image.Height, c => Near(c, 0x23, 0x41, 0x5F, 8));
+            Assert.InRange(blue, 150, 1500);
             Assert.True(teal > 150, $"the drawn area's teal outline and points are in the 3-D frame ({teal} px)");
             Assert.True(amber > 20, $"a grabbed handle's amber square is in the 3-D frame ({amber} px)");
         }

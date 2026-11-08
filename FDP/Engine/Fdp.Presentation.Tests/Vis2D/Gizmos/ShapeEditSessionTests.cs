@@ -141,7 +141,11 @@ public class ShapeEditSessionTests
         Assert.False(s.HitDone(c + new Vector2(hw + 0.01f, 0f)));
         Assert.False(s.HitDone(c + new Vector2(0f, hh + 0.01f)));
         Assert.Equal(2, frame.Count(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Line));   // the tick
-        var word = Assert.Single(frame, p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text);
+        // ⭐ P7-C — one look per view: the box, tick and plain word are 2-D only (FlatOnly ⇒ a 3-D pass never draws them); the 3-D view gets ONE constant-pixel Button-style word
+        Assert.All(frame.Where(p => p.Shape != Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text), p => Assert.True((p.TargetView & Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.FlatOnly) != 0 && (p.TargetView & Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Map2D) != 0));
+        var three = Assert.Single(frame, p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text && p.TargetView == Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Viewport3D);
+        Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.GizmoTextStyle.Button, three.TextStyle);
+        var word = Assert.Single(frame, p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text && p.TargetView != Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.Viewport3D);
         Assert.Equal("Done", word.TextContent.ToString());
         Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.GizmoTextStyle.Plain, word.TextStyle);
         Assert.InRange(word.TextX, c.X - hw, c.X + hw);   // the word starts inside the box

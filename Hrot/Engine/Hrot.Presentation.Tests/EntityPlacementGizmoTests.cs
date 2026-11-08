@@ -91,6 +91,12 @@ public class EntityPlacementGizmoTests
         Assert.Equal(90f, box.BoxAngleDeg, 2);              // north until a drag sets the heading
         Assert.Equal(LineStyle.Dashed, box.LineStyle);
         Assert.Equal(100, box.FillColor.A);
+        // ⭐ P7-C — ONE outline per view: the U-8 wire box is 3-D only (the 2-D renderer skips a primitive without Map2D) and is turned to the SAME heading as the footprint
+        var wire = frame.Where(p => p.Shape == DebugPrimitiveShape.Line).ToArray();
+        Assert.NotEmpty(wire);
+        Assert.True(MathF.Abs(wire[0].LineEnd.X - wire[0].LineStart.X) < 1e-3f, "north: the box's length edge runs north (turned like the footprint), not east");
+        Assert.All(wire, p => Assert.Equal(PipelineTarget.Viewport3D, p.TargetView));
+        Assert.All(frame.Where(p => p.Shape != DebugPrimitiveShape.Line && p.Shape != DebugPrimitiveShape.Text), p => Assert.NotEqual(0, (int)(p.TargetView & PipelineTarget.Map2D)));
         var notch = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.FilledTriangle);
         Assert.True(notch.TriC.Y > 200f + 4f, "the notch tip is beyond the front (north) edge");
 
