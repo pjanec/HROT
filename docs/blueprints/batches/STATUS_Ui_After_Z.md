@@ -9,7 +9,7 @@
 | U-4 | CE-4334 | ORBAT row icons | DONE | `cdf40c359` | `IconKey` on the node, set by the adapter from components; 3 new `orbat/*` keys; rail over the real panel in all three relations, red-proved |
 | U-5 | CE-4335 | End exercise greyed outside Live | DONE | `03f787977` | `InstructorEnd.RunRefusal` by transport mode, wired to both End controls by the rules bundle; Live · ended keeps its own words, AAR not drawn; rails per mode (pure, bundle wiring, real window frame) |
 | U-6 | CE-4336 | Data breakpoints: condition first | DONE | `ab4894875` | *Add* opens the condition editor over a draft, row only on commit; *Show condition* was hidden below an unbounded table (measured) — the list now keeps a bounded height; rails for both |
-| U-7 | CE-4338 | Brain tab expander icons | DONE | `SHA_U7` | `EntityBrainView.SectionIconKey` maps each section id to a glyph of the one map (new `section/debug`); frame rail over a unit and a commander, every section open |
+| U-7 | CE-4338 | Brain tab expander icons | DONE | `98d948775` | `EntityBrainView.SectionIconKey` maps each section id to a glyph of the one map (new `section/debug`); frame rail over a unit and a commander, every section open |
 | U-8 | CE-4339 | 3-D placement direction line | QUEUED | — | |
 | U-9 | CE-4340 | 3-D hover pick volume | QUEUED | — | measure first |
 | U-10 | CE-4325 | E7 bookmarks and notes | QUEUED | — | |
