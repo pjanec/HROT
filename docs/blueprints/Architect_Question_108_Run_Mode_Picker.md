@@ -149,7 +149,9 @@ already lands in today.*
 | ▶ colour from the indicator (recording red / green) | `MainToolbarTimeControlSection.PlayColour` |
 | ▾ in Edit and Live-paused-at-start only | `ShowsPresetArrow` |
 | Save: the floppy / the flag / greyed, one reason | the shell's Save slot (`ShellSaveCommands`, `shell/save` icon), `IScenarioSession.SaveDisabledReason` |
-| the empty exercise dropped | `ClusterMaster` (exercise end without the clock advancing) |
+| ✅ **AS-BUILT `2026-11-08` (backend, CE-3407)** — the ONE reason | `SaveRefusal.Of(ClusterView)` (`Hrot.Editor.AiShared/Scenarios/SaveRefusal.cs`: cluster error, then any state but `OperatingEdit` — constant texts, 0 B per read) before the variant gate, in `EditorScenarioSession.SaveDisabledReason`; File › Save / Save As / **Save as Recipe** read it. ⚠ Deviation: `SaveAs` / `SaveCurrent` keep ONLY the variant backstop — *New from a recipe* calls `SaveAs` the moment its open went out, while the cluster may still be Idle (the master orders the save after the load); the cluster half gates the surfaces. A view that never followed a cluster state refuses nothing |
+| ~~the empty exercise dropped~~ ⛔ SUPERSEDED as to WHERE | ~~`ClusterMaster` (exercise end without the clock advancing)~~ |
+| ✅ **AS-BUILT `2026-11-08` (backend, CE-3410)** — the empty exercise dropped | `AssetInventoryProcessManager` (not the master: the inventory LISTS only its ledger, and writes the entry when the cluster leaves Live): `ClockAdvancing` (`OrchestratorCore`: `TimeReads.GetCurrentState().IsAdvancing`) sampled every Live frame; a run left with no advancing frame writes NO ledger entry and its files go through the one deleter (`Discard`, shared with D15's `DeleteExercise`). A run RESUMED from DAR already holds an entry ⇒ never dropped |
 | `POST /run-mode {armed}` switches (same unsaved rule, 409 + the question unless `confirm:true`); `GET /status.armedMode` = the current mode; MCP catalog + skill regenerated | `DebugApiHost` / `DebugApiService.SetRunMode` |
 | the cluster's armed-mode fact (D12a, R-3068) stays — it is what a LOAD goes into (R-1043); the indicator switch now sets it AND loads | `ClusterMaster.ArmedMode` |
 
