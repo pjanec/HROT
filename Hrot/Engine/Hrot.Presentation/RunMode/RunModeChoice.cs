@@ -71,8 +71,10 @@ public sealed class RunModeChoice
     /// <summary>⭐ CE-3414 (AQ108 §0 D31) — the master's recordings inventory (local, archived, unarchived-local); the same arrays until a new inventory arrives.</summary>
     public (ExerciseInventoryItem[] Local, ExerciseInventoryItem[] Archived, ExerciseInventoryItem[] UnarchivedLocal) InventoryExercises => _transport.InventoryExercises;
     public bool? StartImmediatelySetting => _transport.StartImmediatelySetting;
+    /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes (0 = off; null = no cluster view here).</summary>
+    public int? AutosaveMinutesSetting => _transport.AutosaveMinutesSetting;
     /// <summary>⭐ CE-4100 ① — set the cluster's run settings; a null argument leaves that one as it is.</summary>
-    public void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null) => _transport.SendRunSettings(recordLiveRuns, askToKeepRecordings, startLiveImmediately);
+    public void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null, int? autosaveMinutes = null) => _transport.SendRunSettings(recordLiveRuns, askToKeepRecordings, startLiveImmediately, autosaveMinutes);
 
     /// <summary>⭐ <c>CE-1437</c> — this host has a scenario session (an <i>operator</i> host: editor, CGF); false on SimHost / IG. Read by the run-controls pick rule.</summary>
     public bool HasScenarioControl => _control is not null;
@@ -119,6 +121,7 @@ public sealed class RunModeChoice
         {
             _door = (control as IHasScenarioDoor)?.Door ?? new ScenarioDoor(control, () => transport.Mode);
             _door.Bind(() => transport.Mode, _unsaved, _asker);
+            _door.Notify = text => Notify(text);   // ⭐ CE-4099 A7 — "the autosave was not offered" goes to the ONE toast
             _door.RecordingOpening = exercise => LastExercise = exercise;   // bookkeeping for EVERY caller
             // ⭐⭐ CE-1443 (R-1043) — a scenario LOAD goes into the cluster's CURRENT armed mode: the door asks THIS choice (one resolver, below). ⛔ No open sends an armed mode (CE-3341 decision ③ withdrawn); only the indicator's Choose does.
             _door.LoadTarget = () => LoadTarget;

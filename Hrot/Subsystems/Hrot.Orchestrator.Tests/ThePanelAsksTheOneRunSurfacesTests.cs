@@ -107,6 +107,40 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         Assert.True(r.Controls.StartImmediately);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4099</c> phase 2 (AQ108 §4c.1) — <b>the Autosave combo</b>: it READS the broadcast interval (0 = Off, also before the first broadcast), a pick publishes ONE <c>SetRunSettingsIntent</c> with ONLY
+    /// <c>AutosaveMinutes</c> set, and the other settings' sends leave it null (= no change). The offered choices are Off · 1 · 2 · 5 · 10.
+    /// 🔴 Mutations: <c>SetAutosaveMinutes</c> sending nothing ⇒ the single-intent assert; <c>SetStartImmediately</c> also sending a number ⇒ <c>AutosaveMinutes</c> not null; the reading returning a constant ⇒ the broadcast assert;
+    /// the adapter not copying the field into the intent ⇒ the 5 assert.
+    /// </summary>
+    [Fact]
+    public void TheAutosaveCombo_ReadsTheBroadcast_AndSendsOnlyItsOwnField()
+    {
+        var r = With(ClusterState.OperatingEdit);
+        Assert.Equal(0, r.Controls.AutosaveMinutes);                                              // before any broadcast: Off
+        Assert.Equal("Off", ClusterPanelRunControls.AutosaveLabel(r.Controls.AutosaveMinutes!.Value));
+        Assert.Equal(new[] { 0, 1, 2, 5, 10 }, ClusterPanelRunControls.AutosaveChoices);
+
+        r.Controls.SetAutosaveMinutes(5);
+        var five = Assert.Single(Sent<SetRunSettingsIntent>(r.Bus));
+        Assert.Equal(5, five.AutosaveMinutes);
+        Assert.Null(five.RecordLiveRuns); Assert.Null(five.AskToKeepRecordings); Assert.Null(five.StartLiveImmediately); Assert.Null(five.Armed);
+
+        r.Controls.SetStartImmediately(true);                                                     // another setting's send leaves the interval alone
+        Assert.Null(Assert.Single(Sent<SetRunSettingsIntent>(r.Bus)).AutosaveMinutes);
+        r.Controls.SetRecordLiveRuns(false);
+        Assert.Null(Assert.Single(Sent<SetRunSettingsIntent>(r.Bus)).AutosaveMinutes);
+
+        r.Controls.SetAutosaveMinutes(0);                                                         // Off is 0, not null
+        Assert.Equal(0, Assert.Single(Sent<SetRunSettingsIntent>(r.Bus)).AutosaveMinutes);
+
+        r.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, AutosaveMinutes = 5 });
+        r.Bus.SwapBuffers(); r.View.Update(); r.Adapter.Update(); r.Bus.SwapBuffers();
+        Assert.Equal(5, r.Controls.AutosaveMinutes);
+        Assert.Equal("5 minutes", ClusterPanelRunControls.AutosaveLabel(5));
+        Assert.Equal("1 minute", ClusterPanelRunControls.AutosaveLabel(1));
+    }
+
     /// <summary>No cluster view on the host ⇒ the toggles are disabled and read null (never a silent default send).</summary>
     [Fact]
     public void TheRunSettingsToggles_AreDisabled_WithoutAClusterView()
@@ -119,6 +153,7 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         Assert.False(controls.RunSettingsEnabled);
         Assert.Null(controls.RecordLiveRuns);
         Assert.Null(controls.AskToKeepRecordings);
+        Assert.Null(controls.AutosaveMinutes);   // ⭐ CE-4099 phase 2 — no view: null, never a silent Off
     }
 
     // ── pause / resume / step: the USER's ▶, not the raw toggle ───────────────────────────────

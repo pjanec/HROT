@@ -419,4 +419,132 @@ public sealed class RunControlsSwitchNowTests
         rig.Choice.RestoreCheckpoint!("contact");
         Assert.Equal("contact", Assert.Single(Sent<Fdp.Toolkit.Orchestration.RestoreCheckpointIntent>(rig)).Label);
     }
+
+    // ── ⭐ CE-4099 (AQ108 §4c A7) — the recovery prompt: "Recover unsaved changes from HH:mm?" through the door's ONE asker ─────────────────────────────
+
+    private static readonly DateTime AutosaveAt = new(2026, 11, 8, 14, 41, 0, DateTimeKind.Utc);
+
+    /// <summary>A door-owning rig (Idle, Preview armed ⇒ Load = open for editing) whose door reads <paramref name="status"/> as the scenario's autosave; <paramref name="lookups"/> counts the reads.</summary>
+    private static (Rig Rig, ScenarioDoor Door, int[] Lookups) RecoveryRig(AutosaveFiles.Status status, ClusterState state = ClusterState.Idle, UnsavedAnswer answer = UnsavedAnswer.Unchanged)
+    {
+        var rig = With(state, RunArmed.Preview, answer, withDoor: true);
+        var door = ((FakeDoorControl)rig.C).Door;
+        var lookups = new[] { 0 };
+        door.AutosaveOf = name => { lookups[0]++; return status; };
+        return (rig, door, lookups);
+    }
+
+    private static AutosaveFiles.Status Exists(bool stale = false) => new(true, AutosaveAt, stale, "autosave.json");
+
+    /// <summary>
+    /// An open for editing of a scenario with a recoverable autosave ASKS — <i>Recover unsaved changes from HH:mm?</i> (the autosave's time on the operator's clock), buttons <i>Recover</i> / <i>Open the saved one</i> + the house Cancel, on the
+    /// ONE pending confirmation — and nothing opens until an answer. File ▸ Open, Recent and the pickers all call <c>Load</c>, which resolves to this open (Preview armed).
+    /// 🔴 Mutations: <c>OfferRecovery</c> always opening (no question) ⇒ <c>Pending</c> null; the text without the time ⇒ the text assert; a third button or no Cancel ⇒ the labels assert.
+    /// </summary>
+    [Fact]
+    public void CE4099_AnOpenWithARecoverableAutosave_AsksWithTheTime_AndOpensNothingYet()
+    {
+        var (rig, door, lookups) = RecoveryRig(Exists());
+        door.Load("alpha");                                                         // the File ▸ Open / Recent / picker path: Load ⇒ Open in Preview armed
+        Assert.Equal(1, lookups[0]);
+        var q = rig.Choice.Pending!;
+        Assert.Equal($"Recover unsaved changes from {AutosaveAt.ToLocalTime():HH:mm}?", q.Text);
+        Assert.Equal(new[] { "Recover", "Open the saved one", "Cancel" }, q.Buttons.Select(b => b.Label));
+        Assert.Empty(rig.C.Calls);
+    }
+
+    /// <summary><i>Recover</i> ⇒ the open carries the recovery flag (and a preset's args when it had them).
+    /// 🔴 Mutation: the Recover button opening without the flag ⇒ the call is the plain <c>OpenForEdit:alpha</c>.</summary>
+    [Fact]
+    public void CE4099_Recover_OpensWithTheRecoveryFlag()
+    {
+        var (rig, door, _) = RecoveryRig(Exists());
+        door.Open("alpha");
+        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[0]);
+        Assert.Equal(new[] { "OpenForEdit:alpha::recover=True" }, rig.C.Calls);
+        Assert.Null(rig.Choice.Pending);
+
+        rig.C.Calls.Clear();
+        door.Open("beta", argsJson: "{\"variant\":\"x\"}");
+        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[0]);
+        Assert.Equal(new[] { "OpenForEdit:beta:{\"variant\":\"x\"}:recover=True" }, rig.C.Calls);
+    }
+
+    /// <summary><i>Open the saved one</i> ⇒ the plain open, no flag; Cancel ⇒ nothing opens.
+    /// 🔴 Mutations: the second button opening WITH the flag ⇒ the call differs; Cancel not being the last button / opening ⇒ a call appears.</summary>
+    [Fact]
+    public void CE4099_OpenTheSavedOne_HasNoFlag_AndCancelOpensNothing()
+    {
+        var (rig, door, _) = RecoveryRig(Exists());
+        door.Open("alpha");
+        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[1]);
+        Assert.Equal(new[] { "OpenForEdit:alpha" }, rig.C.Calls);
+
+        rig.C.Calls.Clear();
+        door.Open("alpha");
+        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[2]);   // the house Cancel
+        Assert.Empty(rig.C.Calls);
+        Assert.Null(rig.Choice.Pending);
+    }
+
+    /// <summary>A STALE autosave is not offered: the open proceeds as the plain open and the one toast says it was not offered and why (the refusal's words).
+    /// 🔴 Mutation: the stale branch asking anyway ⇒ <c>Pending</c> not null; not notifying ⇒ the toast assert.</summary>
+    [Fact]
+    public void CE4099_AStaleAutosave_IsNotOffered_TheOpenGoesAheadAndTheToastSaysWhy()
+    {
+        var (rig, door, _) = RecoveryRig(Exists(stale: true));
+        door.Open("alpha");
+        Assert.Null(rig.Choice.Pending);
+        Assert.Equal(new[] { "OpenForEdit:alpha" }, rig.C.Calls);
+        var toast = rig.Choice.Toast!;
+        Assert.Contains("alpha", toast.Title);
+        Assert.Contains("not offered", toast.Title);
+        Assert.Contains("stale", toast.Title);
+    }
+
+    /// <summary>No autosave (or a door with no lookup) ⇒ the plain open, no question, no toast.
+    /// 🔴 Mutation: <c>if (!st.Exists)</c> removed ⇒ a question about a file that is not there.</summary>
+    [Fact]
+    public void CE4099_NoAutosave_IsThePlainOpen()
+    {
+        var (rig, door, lookups) = RecoveryRig(new AutosaveFiles.Status(false, default, false, "autosave.json"));
+        door.Open("alpha");
+        Assert.Equal(1, lookups[0]);
+        Assert.Null(rig.Choice.Pending);
+        Assert.Null(rig.Choice.Toast);
+        Assert.Equal(new[] { "OpenForEdit:alpha" }, rig.C.Calls);
+
+        var bare = With(ClusterState.Idle, RunArmed.Preview, withDoor: true);       // no lookup seam set
+        ((FakeDoorControl)bare.C).Door.Open("alpha");
+        Assert.Null(bare.Choice.Pending);
+        Assert.Equal(new[] { "OpenForEdit:alpha" }, bare.C.Calls);
+    }
+
+    /// <summary>HTTP's asker (nobody to ask) never gets the question, and the door does not even read the autosave: the open is plain — HTTP keeps its explicit <c>recoverAutosave</c> flag.
+    /// 🔴 Mutation: <c>CanPrompt</c> true on <c>RefusingAsker</c> ⇒ the autosave is read and the question is put to HTTP (its refusal fills, the open never goes).</summary>
+    [Fact]
+    public void CE4099_HttpAsker_NeverGetsTheQuestion_AndKeepsItsExplicitFlag()
+    {
+        var (rig, door, lookups) = RecoveryRig(Exists());
+        var http = new RefusingAsker();
+        door.Open("alpha", http, UnsavedAnswer.Unchanged);
+        Assert.Equal(0, lookups[0]);
+        Assert.Null(http.Refusal);
+        Assert.Null(rig.Choice.Pending);
+        Assert.Equal(new[] { "OpenForEdit:alpha" }, rig.C.Calls);
+    }
+
+    /// <summary>The door's own questions come first: over unsaved edits <i>Save / Discard / Cancel</i> is asked, and only after the answer that lets the open through does the recovery question follow.
+    /// 🔴 Mutation: <c>OfferRecovery</c> called before <c>Admit</c> ⇒ the first question is the recovery one.</summary>
+    [Fact]
+    public void CE4099_TheUnsavedQuestionComesFirst_ThenTheRecoveryQuestion()
+    {
+        var (rig, door, lookups) = RecoveryRig(Exists(), ClusterState.OperatingEdit, UnsavedAnswer.Changed);
+        door.Open("alpha");
+        Assert.Equal(new[] { "Save", "Discard", "Cancel" }, rig.Choice.Pending!.Buttons.Select(b => b.Label));
+        Assert.Equal(0, lookups[0]);
+        rig.Choice.Pending.Resolve(rig.Choice.Pending.Buttons[1]);                  // Discard
+        Assert.Equal(new[] { "Recover", "Open the saved one", "Cancel" }, rig.Choice.Pending!.Buttons.Select(b => b.Label));
+        Assert.Empty(rig.C.Calls);
+    }
 }

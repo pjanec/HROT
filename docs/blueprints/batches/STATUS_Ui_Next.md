@@ -17,3 +17,12 @@
 ## End of batch (ui, 2026-11-08)
 
 Full `Hrot.Presentation.Tests` under Xvfb after Z-8: 1847 pass / 4 fail — 3 pre-existing (CE1039, CE1380, CE1227) + K4's 0 B rail, which failed 4/4 inside its class run from JIT tiering; fixed in the rail (`K4 rail` commit, red-proved). The worker's "200 reds under xvfb" was a concurrent-run artefact: not reproduced.
+
+## After the batch (ui, 2026-11-08)
+
+| item | state | sha | notes |
+|---|---|---|---|
+| R-4176 #3 | DONE | (see log) | Keyboard shortcuts: Edit where a host has an Edit menu, else Help; `WindowManager.BarMenuShows` = the one no-dead-header test; Fdp.Presentation 809/0, AiShared menu 267/0 |
+| backend REQUEST autosave setting (CE-4099) | DONE | `20703d71a` | combo Off · 1 · 2 · 5 · 10 min under Start immediately (`ClusterScenarioPanel`) |
+| backend REQUEST autosave recovery (CE-4099 A7) | DONE | `58ccf483b` | the door offers *Recover unsaved changes from HH:mm?* on an edit open (HTTP / director askers never asked); session pass-through `OpenForEdit(…, recoverAutosave)` — a cross-lane one-liner in `EditorScenarioSession`; [ANSWER](NOTE_Ui_To_Backend_Autosave_Answer.md). Gates: Presentation 1858 / 3 base, Editor 863/0, Orchestrator 446/0, ClusterRunner 409 / same 6 as base |
+| CE-3343 rail | DONE | (see log) | ui's K4 / K5 scan rails use `TestRepo.Root` |
