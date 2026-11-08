@@ -425,4 +425,44 @@ public sealed class ClusterMasterArchiveTests
         Inventory(bus, master, cut);
         Assert.Single(master.StorageJobs.Jobs);   // ⛔ the operator cancelled it: not resumed by itself
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-4331 ③ / ⑥ (§9a, §9b) — an import's placement is remembered: the job every station sees NAMES the file that is not played and the node that
+    /// listens (the AAR start), and going LIVE from a replay of that exercise is REFUSED (a recorded node has no node here); with a placement where every
+    /// file plays on its own id, Go Live is not refused here.
+    /// 🔴 Mutation: GoLiveRefusal returning null ⇒ the branch is not refused ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4331_TheImportsPlacementIsNamedOnTheJob_AndGoLiveIsRefusedWhenARecordedNodeIsMissing()
+    {
+        var bus = new FdpEventBus();
+        using var master = MasterWithOneNode(bus);
+        var ex = Guid.NewGuid();
+        var import = Ask(master, ClusterOpType.ImportArchive, ex);
+        master.Tick();
+        var placement = new Placement(
+            new[] { new PlacedFile(new RecordedFile("node_1.fdp", 1, "cgf-a", "CGF", 1), 1) },
+            new[] { new RecordedFile("node_2.fdp", 2, "cgf-b", "CGF", 1) },
+            new[] { 7 });
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = import, StatusCode = OrchestrationStatusCode.Success, ResultPayload = placement });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var job = master.StorageJobs.Find(import)!;
+        Assert.Equal(StorageJobState.Done, job.State);
+        Assert.Contains("not played: cgf-b (CGF)", job.Reason);
+        Assert.Contains("listening", job.Reason);
+        Assert.Same(placement, master.PlacementOf(ex));
+
+        var flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        typeof(ClusterMaster).GetField("_currentDsmState", flags)!.SetValue(master, ClusterState.OperatingReplay);
+        typeof(ClusterMaster).GetField("_activeExerciseId", flags)!.SetValue(master, ex);
+        var goLive = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = goLive, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var refused = Statuses(bus)[goLive];
+        Assert.Equal(OrchestrationStatusCode.Rejected, refused.Code);
+        Assert.Contains("cgf-b's recording has no node here", (string)refused.Payload!);
+
+        Assert.Null(ClusterMaster.PlacementNote(new Placement(placement.Placed, Array.Empty<RecordedFile>(), Array.Empty<int>())));   // all on their own ids: nothing to say
+    }
 }

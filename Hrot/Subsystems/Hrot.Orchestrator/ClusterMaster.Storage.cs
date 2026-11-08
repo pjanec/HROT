@@ -158,6 +158,56 @@ public sealed partial class ClusterMaster
     /// Every frame: the running job's end (its own request's final status, published by the transfer), its numbers, giving way while a Live runs
     /// (Q5), the next job, and the list to the stations.
     /// </summary>
+    private readonly Dictionary<Guid, Placement> _placements = new();   // ⭐ CE-4331 — the last import's placement per exercise
+
+    /// <summary>⭐ CE-4331 ③ / ⑥ — how exercise <paramref name="exerciseId"/>'s recordings were last placed on this cluster (null when it was not imported here).</summary>
+    public Placement? PlacementOf(Guid exerciseId) => _placements.TryGetValue(exerciseId, out var p) ? p : null;
+
+    /// <summary>
+    /// ⭐ CE-4331 ③ (§9, §9a) — what the AAR start says about a placement, on the job every station sees: the files that are NOT played (their units
+    /// replay as the other nodes saw them; their brains are not inspectable) and the nodes that only listen. Null when every file plays on its own node.
+    /// </summary>
+    internal static string? PlacementNote(Placement placement)
+    {
+        if (placement.Unplaced.Count == 0 && placement.Listeners.Count == 0) return null;
+        var sb = new System.Text.StringBuilder();
+        if (placement.Unplaced.Count > 0)
+        {
+            sb.Append("not played: ");
+            for (int i = 0; i < placement.Unplaced.Count; i++)
+            {
+                var f = placement.Unplaced[i];
+                if (i > 0) sb.Append(", ");
+                sb.Append(string.IsNullOrEmpty(f.Name) ? $"node {f.RecordedNodeId}" : f.Name);
+                if (!string.IsNullOrEmpty(f.Subsystem)) sb.Append(" (").Append(f.Subsystem).Append(')');
+            }
+            sb.Append(" — no node of its kind here: its units replay as the other nodes saw them; their brains are not inspectable");
+        }
+        if (placement.Listeners.Count > 0)
+        {
+            if (sb.Length > 0) sb.Append("; ");
+            sb.Append("listening (no recording of their own): node");
+            if (placement.Listeners.Count > 1) sb.Append('s');
+            for (int i = 0; i < placement.Listeners.Count; i++) sb.Append(i == 0 ? " " : ", ").Append(placement.Listeners[i]);
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// ⭐ CE-4331 ⑥ (§9b) — why going LIVE from a replay of <paramref name="exerciseId"/> is refused here, or null: a recorded node with no node of this cluster
+    /// (its units would be owned by nobody), or a recording that plays on a node with ANOTHER id (one node would answer to two ids). The replay itself works.
+    /// </summary>
+    internal string? GoLiveRefusal(Guid exerciseId)
+    {
+        if (!_placements.TryGetValue(exerciseId, out var p)) return null;
+        foreach (var f in p.Unplaced)
+            return $"node {(string.IsNullOrEmpty(f.Name) ? f.RecordedNodeId.ToString() : f.Name)}'s recording has no node here — going Live needs the same cluster";
+        foreach (var placed in p.Placed)
+            if (placed.File.RecordedNodeId != placed.NodeId)
+                return $"node {(string.IsNullOrEmpty(placed.File.Name) ? placed.File.RecordedNodeId.ToString() : placed.File.Name)}'s recording plays on a node with another id ({placed.NodeId}) — going Live needs the same cluster";
+        return null;
+    }
+
     private readonly HashSet<Guid> _autoResumed = new();   // ⑧ — exercises already resumed (or just failed) since the roster last grew
     private readonly HashSet<Guid> _cancelledArchives = new();   // ⑧ — an archive the operator CANCELLED is never resumed by itself (this session)
     private int _rosterSizeAtResume;
@@ -197,7 +247,13 @@ public sealed partial class ClusterMaster
                 if (ev.RequestId != run.JobId) continue;
                 if (ev.StatusCode == OrchestrationStatusCode.Success)
                 {
-                    EndStorageJob(run.JobId, StorageJobState.Done, null, answerOwn: false);
+                    string? note = null;
+                    if (run.Kind == StorageJobKind.Import && ev.ResultPayload is Placement placed)
+                    {
+                        _placements[(Guid)run.ExerciseId] = placed;   // ⭐ CE-4331 — what the AAR start names, and what Go Live checks
+                        note = PlacementNote(placed);
+                    }
+                    EndStorageJob(run.JobId, StorageJobState.Done, note, answerOwn: false);
                     break;
                 }
                 if (ev.StatusCode is OrchestrationStatusCode.Rejected or OrchestrationStatusCode.Failure or OrchestrationStatusCode.Cancelled or OrchestrationStatusCode.Timeout)
