@@ -60,6 +60,17 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// </summary>
         public NodeId NodeId { get; set; } = (Fdp.Core.NodeId)(0);
 
+        /// <summary>⭐ CE-4331 ① (📄 docs/DESIGN_Recording_Storage.md §9a) — the recording node's NAME (unique in its cluster; a configured name stays across runs) —
+        /// an AAR on a later cluster places this file on the node of the same name first. Empty in a recording made before CE-4331.</summary>
+        public string NodeName { get; set; } = "";
+
+        /// <summary>⭐ CE-4331 ① — the recording node's SUBSYSTEM (<c>CGF</c>, <c>SimHost</c>, <c>IG</c>, <c>Player</c>, …): with <see cref="Roles"/> its KIND, which a
+        /// placement must match (§9a). Empty in a recording made before CE-4331.</summary>
+        public string Subsystem { get; set; } = "";
+
+        /// <summary>⭐ CE-4331 ① — the recording node's roles (the <c>NodeRole</c> flags, as an int); 0 = not recorded.</summary>
+        public int Roles { get; set; }
+
         /// <summary>
         /// ⭐ <c>CE-3126</c> (R-229) — the terrain resident while recording (the name the scenario resolved it by), so a
         /// replay can load it again. Empty when no terrain was loaded, and for recordings that pre-date this field.

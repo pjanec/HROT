@@ -291,6 +291,25 @@ namespace Fdp.Toolkit.Replay.Tests
         private static string MetaOf(string path) => File.ReadAllText(path + ".meta.json");
 
         /// <summary>
+        /// ⭐ CE-4331 ① (Recording Storage §9a) — a recording's metadata names the node that made it: name, subsystem and roles (what an AAR on another cluster
+        /// places by). 🔴 Mutation: RegisterSystems not copying them ⇒ empty in the sidecar ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4331_ARecordingSaysWhichNodeMadeIt_NameSubsystemAndRoles()
+        {
+            var path = Path.Combine(_tempDir, "who.fdp");
+            var module = new RecordingModule(new RecordingConfiguration
+            {
+                FilePath = path, ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(401),
+                NodeName = "cgf-east", Subsystem = "CGF", Roles = 5,
+            });
+            module.RegisterSystems(new CapturingSystemRegistry());
+            module.Dispose();
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(path));
+            Assert.Equal(("cgf-east", "CGF", 5), (meta.NodeName, meta.Subsystem, meta.Roles));
+        }
+
+        /// <summary>
         /// ⭐ backend `2026-10-26` (run C) — a recording keeps ONE timeline: a frame whose clock reads 0 (the editor's clock is reset
         /// during the unload into a replay) is stamped on the recording's own timeline, ⛔ never with <c>DateTime.UtcNow</c>.
         /// 📌 Measured on the editor before: the last frame read 639 285 980 141 771 635 ticks after frames near 1.7e8, so the replay's

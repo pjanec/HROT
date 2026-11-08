@@ -28,6 +28,21 @@ public sealed class PlayerRecordsAndArchivesTests : System.IDisposable
         Assert.NotNull(_app.TestHook_RecordReplayController);
     }
 
+    /// <summary>
+    /// ⭐ CE-4331 ① (Recording Storage §9a) — the ONE composition hands the recording controller the node's identity, so every recording says which node made it:
+    /// its name and subsystem as the heartbeat says them (an AAR on another cluster places files by name, then by kind). Silent-default rule: asserted on the
+    /// CONSTRUCTED controller. 🔴 Mutation: Compose not setting RecordingSubsystem ⇒ empty ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4331_ThePlayersRecordingController_CarriesTheNodesNameAndSubsystem()
+    {
+        var c = _app.TestHook_RecordReplayController!;
+        var slave = _app.TestHook_ClusterSlave!;
+        Assert.Equal(slave.SubsystemName, c.RecordingSubsystem);
+        Assert.False(string.IsNullOrEmpty(c.RecordingSubsystem));
+        Assert.Equal(slave.NodeName, c.RecordingNodeName);
+    }
+
     [Fact]
     public void Player_registers_the_archive_handler_so_an_export_includes_its_recording()
     {
