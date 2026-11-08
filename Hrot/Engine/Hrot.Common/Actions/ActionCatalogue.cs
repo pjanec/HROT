@@ -60,6 +60,9 @@ namespace Hrot.Common.Actions
         /// <summary>The row's style ("destructive"), or null.</summary>
         public string? Style { get; init; }
 
+        /// <summary>⭐ A7 — this action's <see cref="Modes"/> and <see cref="Level"/> as the ONE availability declaration a Details tab shares.</summary>
+        public ActionAvailability Availability => new(Modes, 0, Level);
+
         /// <summary>A dynamic row for this context (label, enabled, tooltip, children, checked), or null when not offered here.</summary>
         public Func<ActionContext, ContextMenuItemDto?>? Offer { get; init; }
 
@@ -95,7 +98,7 @@ namespace Hrot.Common.Actions
         /// <summary>⭐ Seats H2 — why this station may not run <paramref name="decl"/> here (greyed with it), or null. The ONE rule the composer applies.</summary>
         public string? SeatRefusal(ActionDecl decl)
         {
-            if ((int)Level > (int)decl.Level) return SeatText(Level);
+            if (ActionAvailability.LevelRefusal(decl.Level, Level) is { } why) return why;
             if (Level == EditingLevel.Instructor && Mode == EditingMode.Edit && decl.Group is ActionGroup.Edit or ActionGroup.Destructive)
                 return HrotEditGate.InstructorDoesNotAuthor;
             if (decl.SideScoped && Side is ForceId side && Target == ActionTarget.Unit && UnitSide != side)

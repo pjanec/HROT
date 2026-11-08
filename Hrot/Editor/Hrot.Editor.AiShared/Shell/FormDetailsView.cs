@@ -61,9 +61,16 @@ public static class FormDetailsViewDescriptor
             Rank:      34,
             AppliesTo: ctx => world() is { } w && (form.WorldTarget != null
                 ? ctx.Entities.Count == 0 && !form.WorldTarget(w).IsNull                 // the Scenario form: nothing selected
-                : ctx.Entities.Count > 0 && OffersAll(form, w, ctx)),
-            Create:    () => instance);
+                : ctx.Entities.Count > 0 && (PureRequires(form) || OffersAll(form, w, ctx))),
+            Create:    () => instance)
+        {
+            // ⭐ B-11 A7 — a form offered by its `Requires` alone declares them on the TAB (the registry ANDs them over the selection); a form with an
+            //   any-of `Offers` (Shape) keeps that predicate in AppliesTo — a requirement list cannot say "this or that"
+            Requires = PureRequires(form) ? form.Requires : System.Array.Empty<Type>(),
+        };
     }
+
+    private static bool PureRequires(FormDecl form) => form.WorldTarget == null && form.Offers == null && form.Requires.Count > 0;
 
     private static bool OffersAll(FormDecl form, EntityRepository w, DetailsContext ctx)
     {

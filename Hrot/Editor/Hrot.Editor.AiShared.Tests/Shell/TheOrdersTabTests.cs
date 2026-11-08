@@ -367,7 +367,7 @@ public sealed class TheOrdersTabEditsTests
 
     private static DetailsViewRegistry Catalogue(Func<Hrot.UI.Common.Facades.IMissionEditorService?> svc, Fdp.Core.EntityRepository w)
     {
-        var views = new DetailsViewRegistry();
+        var views = new DetailsViewRegistry { ComponentProbe = DetailsViewRegistry.ProbeFor(() => w) };   // ⭐ A7 — the tab declares Requires; the host's registry asks its world
         views.Add(OrdersTabDescriptor.For(svc, () => w));
         return views;
     }

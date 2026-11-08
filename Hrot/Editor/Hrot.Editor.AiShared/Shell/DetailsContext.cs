@@ -33,13 +33,18 @@ namespace Hrot.Editor.AiShared.Shell;
 /// <param name="Asset">⚠ The active asset, or <see langword="null"/> when no document is open.</param>
 /// <param name="Perspective">⭐ Which workspace asked — <c>Blueprint</c> · <c>BTree</c> · <c>HSM</c> · …</param>
 /// <param name="Mode">⭐ The run state — 📌 <c>R-111</c>: <i>"the mode joins the context; one view, many modes."</i></param>
+/// <param name="Station">⭐ B-11 A7 — the station's <see cref="Hrot.Common.Editing.EditingMode"/> (from <c>StationMode</c>, the ONE derivation the edit gate and the
+///   menus read): what a tab's <c>Availability.Modes</c> is evaluated against. ⛔ Not a third mode vocabulary — <see cref="Mode"/> stays the graph views' run state.</param>
+/// <param name="Level">⭐ B-11 A7 — the station's seat level (D4): what a tab's <c>Availability.Level</c> is evaluated against.</param>
 public sealed record DetailsContext(
     SelectionOrigin                   Focus,
     IReadOnlyList<IAssetSubSelection> Selection,
     IReadOnlyList<Entity>             Entities,
     IEditableAsset?                   Asset,
     string                            Perspective,
-    VariableRunState                  Mode)
+    VariableRunState                  Mode,
+    Hrot.Common.Editing.EditingMode   Station = Hrot.Common.Editing.EditingMode.Edit,
+    Hrot.Common.Editing.EditingLevel  Level   = Hrot.Common.Editing.EditingLevel.Full)
 {
     /// <summary>⭐ The empty lists, hoisted — see <see cref="Empty"/> for why the INSTANCE matters.</summary>
     private static readonly IReadOnlyList<IAssetSubSelection> NoSelection = Array.Empty<IAssetSubSelection>();
@@ -86,7 +91,9 @@ public static class DetailsContextBuilder
         EditorSelectionStore store,
         string               perspective,
         VariableRunState     mode,
-        IEntitySelectionSource? entities = null)
+        IEntitySelectionSource? entities = null,
+        Hrot.Common.Editing.EditingMode  station = Hrot.Common.Editing.EditingMode.Edit,
+        Hrot.Common.Editing.EditingLevel level   = Hrot.Common.Editing.EditingLevel.Full)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(perspective);
@@ -100,7 +107,9 @@ public static class DetailsContextBuilder
             Entities:    (entities ?? EmptyEntitySelection.Instance).Selected(),
             Asset:       store.ActiveAsset,
             Perspective: perspective,
-            Mode:        mode);
+            Mode:        mode,
+            Station:     station,
+            Level:       level);
     }
 
 }

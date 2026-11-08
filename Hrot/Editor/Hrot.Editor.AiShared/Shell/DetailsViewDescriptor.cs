@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Hrot.Common.Actions;
 
 namespace Hrot.Editor.AiShared.Shell;
 
@@ -42,7 +44,33 @@ public sealed record DetailsViewDescriptor(
     string                        Title,
     int                           Rank,
     Func<DetailsContext, bool>    AppliesTo,
-    Func<IDetailsViewInstance>    Create);
+    Func<IDetailsViewInstance>    Create)
+{
+    /// <summary>
+    /// ⭐⭐ B-11 A7 (📄 docs/UX/DESIGN_Action_Catalogue.md §2.1, Editing UX §3.2 / D2) — the components EVERY selected entity must carry for this tab
+    /// to apply (AND over the selection, AQ26); empty = none required. Declared as DATA, so a rail reads what a tab needs, and checked by
+    /// <see cref="DetailsViewRegistry.Evaluate"/> through the registry's component probe — ⛔ not re-spelled in <see cref="AppliesTo"/>. A registry
+    /// with no probe cannot ask, so a tab with a requirement is NOT offered there (a host that cannot ask must not claim yes).
+    /// </summary>
+    public IReadOnlyList<Type> Requires { get; init; } = Array.Empty<Type>();
+
+    /// <summary>
+    /// ⭐⭐ B-11 A7 — the modes the tab is offered / greyed in, and the lowest station level that may use it: the SAME declaration an
+    /// <c>ActionDecl</c> carries (<c>ActionAvailability</c>; the mode is <c>Hrot.Common.Editing.EditingMode</c> read from <c>StationMode</c>).
+    /// Default: every mode, to every station.
+    /// </summary>
+    public ActionAvailability Availability { get; init; } = ActionAvailability.Always;
+
+    /// <summary>
+    /// ⭐ B-11 A7 (D2: "host services become capabilities every host passes or the tab greys") — whether THIS host binds what the tab needs (the
+    /// mission facade for Orders). False ⇒ a tab that otherwise applies is shown GREYED, "not available on this station" (the A2 rule for an
+    /// action with no handler). Null = always bound.
+    /// </summary>
+    public Func<bool>? Bound { get; init; }
+
+    /// <summary>The reason a tab with no binding on this host is greyed — the same words as an action with no handler (A2).</summary>
+    public const string NotBoundReason = "Not available on this station";
+}
 
 /// <summary>
 /// ⭐⭐ <b><c>L1.1</c> — one LIVE view, owned by one window.</b> 📄 §2's <c>classDiagram</c>.

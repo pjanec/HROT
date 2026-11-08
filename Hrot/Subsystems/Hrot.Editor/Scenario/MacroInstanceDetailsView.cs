@@ -142,8 +142,13 @@ public static class MacroInstanceDetailsViewDescriptor
             Id:        ViewId,
             Title:     "Macro",
             Rank:      Rank,
-            AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx)
-                           && world() is { } w && w.IsAlive(ctx.Entities[0]) && w.HasManagedComponent<MacroInstance>(ctx.Entities[0]),
-            Create:    () => instance);
+            AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx) && world() is { } w && w.IsAlive(ctx.Entities[0]),
+            Create:    () => instance)
+        {
+            // ⭐ B-11 A7 (Editing UX §3.3 "Composition (Macro): Edit edit · Live – · Review view") — declared, not coded: an entity that is a macro instance;
+            //   offered while authoring and on a recording, never in a run (a Preview is a throw-away run of the authored scenario, so it follows Live)
+            Requires     = new[] { typeof(MacroInstance) },
+            Availability = new Hrot.Common.Actions.ActionAvailability(Hrot.Common.Actions.ActionModes.InEdit | Hrot.Common.Actions.ActionModes.InReview),
+        };
     }
 }
