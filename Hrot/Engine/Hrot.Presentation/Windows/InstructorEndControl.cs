@@ -22,7 +22,22 @@ public sealed class InstructorEndControl : Hrot.UI.Common.RunMode.IExerciseEnder
     public string? Message { get; private set; }
     /// <summary>True while the confirmation is up.</summary>
     public bool Confirming => _open;
-    public InstructorEnd.Offer Offer => InstructorEnd.Of(_world(), _blocked(), CreateOneShot == null ? InstructorEnd.NoTrigger : SeatRefusal?.Invoke());
+    public InstructorEnd.Offer Offer
+    {
+        get
+        {
+            var offer = InstructorEnd.Of(_world(), _blocked(), CreateOneShot == null ? InstructorEnd.NoTrigger : SeatRefusal?.Invoke());
+            // ⭐ U-5 (CE-4335) — outside a Live run End is greyed with the reason (the exercise that has ended keeps its own "already ended")
+            return RunRefusal?.Invoke() is { } why && offer.DisabledReason != InstructorEnd.Ended ? offer with { DisabledReason = why } : offer;
+        }
+    }
+
+    /// <summary>⭐ U-5 (CE-4335, AQ108 §0) — why the host's run state is not a running Live exercise (null = it is, or the host has no transport): set by the rules bundle from the host's transport
+    /// (<see cref="InstructorEnd.RunRefusal(Hrot.UI.Common.Facades.ITimeTransportFacade?)"/>), so the Rules toolbar and the Mission summary share ONE rule.</summary>
+    public Func<string?>? RunRefusal { get; set; }
+
+    /// <summary>The End button's rectangle as drawn this frame (a frame rail reads it; default when not drawn — a recording).</summary>
+    public (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max) DrawnButton { get; private set; }
 
     /// <summary>⭐ CE-4322 (L-3, LC-17) — the host's way to create a one-shot trigger (the Game master's one path), so End works on a scenario with NO
     /// <c>instructor-end</c> rule: it runs <see cref="InstructorEnd.EndStep"/> (<i>"Ended by the instructor"</i>). Null = this host cannot (End stays disabled there).
@@ -77,6 +92,7 @@ public sealed class InstructorEndControl : Hrot.UI.Common.RunMode.IExerciseEnder
         var offer = Offer;
         if (!offer.Available) ImGui.BeginDisabled();
         if (ImGui.Button(_button)) { Ask(); ImGui.OpenPopup(_modal); }
+        DrawnButton = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         if (!offer.Available) { ImGui.EndDisabled(); if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(offer.DisabledReason); }
         bool open = _open;
         if (ImGui.BeginPopupModal(_modal, ref open, ImGuiWindowFlags.AlwaysAutoResize))

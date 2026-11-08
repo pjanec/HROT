@@ -633,8 +633,38 @@ public sealed class EntityBrainView : IDetailsViewInstance
     private static bool Section(string label, string id)
     {
         if (ExpandForRail) ImGui.SetNextItemOpen(true, ImGuiCond.Once);
-        return NodeEditor.Core.Widgets.SectionHeader.Draw($"brain.{id}", label, "tab/brain");
+        string icon = SectionIconKey(id);
+        bool open = NodeEditor.Core.Widgets.SectionHeader.Draw($"brain.{id}", label, icon);
+        if (RecordSections) DrawnSections.Add((id, icon, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+        return open;
     }
+
+    /// <summary>⭐ U-7 (CE-4338, Colour Icons; UI Conventions §4 — CHEVRON · coloured ICON · LABEL) — the icon of what a section is ABOUT, from the ONE glyph map (<see cref="NodeEditor.Core.Widgets.Icons"/>): doing → play, right now → clock, squad → people, why → question,
+    /// knows → eye, recent changes → history, settings → gear, running behaviours → bolt-on-play, show on map → pin, debug → bug, command picture → sitemap, contacts → magnifier, reports → file, orders → route; a blueprint section embedded by the host → the blueprint bolt.
+    /// ⛔ It was the pink brain on every one (the tab's own icon). An unknown id keeps the brain — a section nobody mapped is still the tab's.</summary>
+    public static string SectionIconKey(string id) => id switch
+    {
+        "doing" => "tab/do",
+        "now" => "section/time",
+        "squad" => "orbat/unit",
+        "why" => "doc/condition",
+        "knows" => "mode/preview",
+        "changes" => "tab/history",
+        "settings" => "tab/settings",
+        "running" => "task/running",
+        "map" => "form/map-pick",
+        "debug" => "section/debug",
+        "picture" => "orbat/command",
+        "contacts" => "section/search",
+        "reports" => "doc/other",
+        "orders" => "tab/orders",
+        _ when id.StartsWith("embed.", StringComparison.Ordinal) => "doc/blueprint",
+        _ => "tab/brain",
+    };
+
+    /// <summary>⭐ U-7 rail seam — records each section header this view draws (id, its icon key, its rectangle) while <see cref="RecordSections"/> is on.</summary>
+    internal static readonly List<(string Id, string IconKey, Vector2 Min, Vector2 Max)> DrawnSections = new();
+    internal static bool RecordSections;
 
     private readonly BrainSettingRegistry _settings = BrainSettingRegistry.Default;
 

@@ -257,6 +257,40 @@ public sealed class RunnableRulesTests : IDisposable
         finally { Fdp.Toolkit.Replay.ReplayState.Leave(_world); }
     }
 
+    /// <summary>⭐ U-5 (CE-4335, AQ108 §0) — ONE rule for the End control by run mode: only a running Live exercise lets it through; the briefing is the SAME fact ■ / ⏪ read (<c>RunModeChoice.IsBriefing</c>).
+    /// ✅ Red-proof: the Edit arm returning null ⇒ red.</summary>
+    [Theory]
+    [InlineData(Hrot.UI.Common.Facades.TransportMode.Idle, true, 0.0, "no exercise is loaded")]
+    [InlineData(Hrot.UI.Common.Facades.TransportMode.Edit, true, 0.0, "no exercise is running - End applies to a Live run")]
+    [InlineData(Hrot.UI.Common.Facades.TransportMode.Preview, false, 5.0, "a preview is not an exercise - stop the preview instead")]
+    [InlineData(Hrot.UI.Common.Facades.TransportMode.Live, true, 0.0, "the exercise has not started - press play first")]
+    [InlineData(Hrot.UI.Common.Facades.TransportMode.Live, false, 0.0, null)]            // running (the clock has not ticked yet, but it is not paused)
+    [InlineData(Hrot.UI.Common.Facades.TransportMode.Live, true, 12.0, null)]            // paused mid-exercise: still a Live run
+    [InlineData(Hrot.UI.Common.Facades.TransportMode.Live, false, 90.0, null)]
+    [InlineData(Hrot.UI.Common.Facades.TransportMode.Review, true, 30.0, "a recording is shown - End applies to the live run")]
+    [InlineData(Hrot.UI.Common.Facades.TransportMode.Replay, false, 30.0, "a recording is shown - End applies to the live run")]
+    public void U5_TheEndControl_IsGreyedOutsideARunningLive_OneRulePerMode(Hrot.UI.Common.Facades.TransportMode mode, bool paused, double total, string? reason)
+    {
+        EndTrigger();
+        Assert.Equal(reason, InstructorEnd.RunRefusal(mode, paused, total));
+        var c = new InstructorEndControl(() => _world, () => null) { RunRefusal = () => InstructorEnd.RunRefusal(mode, paused, total) };
+        Assert.Equal(reason, c.Offer.DisabledReason);
+        Assert.Equal(reason == null, c.CanEnd);
+        Assert.Equal(reason == null, c.Ask());                               // greyed ⇒ the click asks nothing
+        Assert.Equal(reason == null, c.Confirming);
+    }
+
+    /// <summary>⭐ U-5 — an exercise that has ENDED keeps its own words ("already ended") even where the run state would also refuse; a host with no transport adds no refusal of its own.</summary>
+    [Fact]
+    public void U5_AnEndedExercise_KeepsItsOwnReason_AndAHostWithNoTransportAddsNone()
+    {
+        EndTrigger();
+        var done = _world.CreateEntity(); _world.AddComponent(done, new ExerciseResult { Phase = ExercisePhase.Ended });
+        var c = new InstructorEndControl(() => _world, () => null) { RunRefusal = () => InstructorEnd.RunRefusal(Hrot.UI.Common.Facades.TransportMode.Live, true, 0) };
+        Assert.Equal(InstructorEnd.Ended, c.Offer.DisabledReason);
+        Assert.Null(InstructorEnd.RunRefusal((Hrot.UI.Common.Facades.ITimeTransportFacade?)null));
+    }
+
     /// <summary>⭐ R-4156 — the Mission summary on a recording says where the playhead is: "at 0:39 of 1:06".</summary>
     [Fact]
     public void QB4_TheSummary_SaysWhereInTheRecording()

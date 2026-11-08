@@ -75,7 +75,14 @@ public sealed class ConditionEditorHostsFrameRail
         public bool HasStatefulTrackers => false;
         public ISimulationView ActiveView => throw new NotImplementedException();
         public DpBpId Add(DpBreakpoint bp) => bp.Id;
-        public DpBpId AddBreakpoint(SearchPredicateDto cond, Entity? filter = null, int thresh = 1, string name = "", Guid? srcId = null) => DpBpId.Invalid;
+        public readonly List<SearchPredicateDto> Added = new();
+        public DpBpId AddBreakpoint(SearchPredicateDto cond, Entity? filter = null, int thresh = 1, string name = "", Guid? srcId = null)
+        {
+            var id = Id(100 + Added.Count);
+            Added.Add(cond);
+            Bps.Add(new DpBreakpoint { Id = id, Enabled = true, Condition = cond });
+            return id;
+        }
         public void Remove(DpBpId id) { }
         public void SetEnabled(DpBpId id, bool e) { }
         public void UpdateCondition(DpBpId id, SearchPredicateDto? c)
@@ -167,5 +174,102 @@ public sealed class ConditionEditorHostsFrameRail
         Assert.StartsWith("Choose an area", bps.ConditionProblem);
         Assert.StartsWith("Choose an area", search.ConditionProblem);
         Assert.Empty(manager.Updates);
+    }
+
+    private static string U6Shot(string name)   // evidence, never committed
+    {
+        string dir = Environment.GetEnvironmentVariable("HROT_FRAME_SCREENSHOTS") is { Length: > 0 } d ? d : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-frames");
+        System.IO.Directory.CreateDirectory(dir);
+        return System.IO.Path.Combine(dir, name);
+    }
+
+    private static (DataBreakpointManagerPanel Panel, Manager Manager, Hrot.Editor.UiFrameRail.UiFrameSession Frame, Action<int> Step) U6Rig(int rows, out DpBpId[] ids)
+    {
+        var manager = new Manager();
+        ids = new DpBpId[rows];
+        for (int i = 0; i < rows; i++)
+        {
+            ids[i] = Id(i + 1);
+            manager.Bps.Add(new DpBreakpoint { Id = ids[i], Enabled = true, Condition = new ScenarioTimePredicateDto { FromSeconds = 60 * (i + 1) } });
+        }
+        var panel = new DataBreakpointManagerPanel(manager, new TemporalStatusBannerState());
+        var frame = UiFrameHarness.Begin(900, 420);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        void Step(int n)
+        {
+            for (int i = 0; i < n; i++)
+                frame.Step(() =>
+                {
+                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(900, 420));
+                    ImGui.Begin("Breakpoints", ImGuiWindowFlags.NoCollapse);
+                    panel.DrawContent();
+                    ImGui.End();
+                });
+        }
+        return (panel, manager, frame, Step);
+    }
+
+    /// <summary>⭐ U-6 (CE-4336; the user's report: "Add puts a New breakpoint row in the list at once, and Show condition does nothing") — <i>+ Add</i> opens the CONDITION first: no row exists until <i>Add breakpoint</i> (held while nothing is chosen),
+    /// the editor is ON SCREEN (inside the window, under the list), <i>Cancel</i> adds nothing, and the committed row is selected with its condition showing. Real panel, real frame (900 x 420, three rows). 🔴 Red-proof (compiles): the toolbar's "+ Add"
+    /// handler adding a "New Breakpoint" row at once (the old <c>AddBreakpoint</c>) ⇒ the "no row yet" assertion goes red.</summary>
+    [SkippableFact]
+    public void U6_Add_OpensTheConditionFirst_NoRowUntilCommitted_TheEditorIsOnScreen()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (panel, manager, frame, step) = U6Rig(3, out var ids);
+        using var _ = frame;
+        step(4);
+        Assert.False(panel.Adding);
+        panel.StartAdd();
+        step(5);
+        Assert.True(panel.Adding);
+        Assert.Equal(3, manager.Bps.Count);                                   // no "New Breakpoint" row: the condition comes first
+        Assert.Empty(manager.Added);
+        Assert.True(panel.ConditionTop > 0f && panel.ConditionTop < 420f - 40f, $"the new-breakpoint editor starts inside the window ({panel.ConditionTop:0} of 420)");
+        Assert.True(panel.GridRect.Max.Y <= panel.ConditionTop + 1f, "the list ends above the editor, never under it");
+        Assert.False(panel.CommitAdd());                                      // nothing chosen yet: "Add breakpoint" holds
+        frame.Screenshot(U6Shot("breakpoints-add-condition-first.png"));
+
+        panel.AddDraft = new ScenarioTimePredicateDto { FromSeconds = 300 };  // what the editor's rows would write
+        step(3);
+        Assert.Single(panel.ConditionRows);
+        Assert.True(panel.CommitAdd());
+        step(4);
+        Assert.False(panel.Adding);
+        Assert.Single(manager.Added);
+        Assert.Equal(4, manager.Bps.Count);
+        Assert.Equal(manager.Bps[3].Id, panel.SelectedId);                    // the new row is selected, its condition showing, on screen
+        Assert.True(panel.ConditionTop > 0f && panel.ConditionTop < 420f - 40f);
+
+        panel.StartAdd(); step(3);
+        panel.CancelAdd(); step(2);
+        Assert.False(panel.Adding);
+        Assert.Equal(4, manager.Bps.Count);                                   // Cancel adds nothing
+    }
+
+    /// <summary>⭐ U-6 (CE-4336) — the row menu's <i>Show condition</i> works on ANY row (not only a selected one): each of three rows shows its own condition ON SCREEN under the list (it used to draw below a table that filled the window), and a second pick hides it.
+    /// 🔴 Red-proof (compiles): the list drawn with no bounded height ⇒ the editor lands below the window ⇒ red.</summary>
+    [SkippableFact]
+    public void U6_ShowCondition_WorksOnAnyRow_AndTheEditorIsOnScreen()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (panel, manager, frame, step) = U6Rig(3, out var ids);
+        using var _ = frame;
+        step(4);
+        Assert.Equal(0f, panel.ConditionTop);                                 // nothing shown yet
+        for (int i = 2; i >= 0; i--)                                          // the LAST row first: it was never the selected one
+        {
+            panel.ToggleCondition(ids[i]);
+            step(4);
+            Assert.Equal(ids[i], panel.SelectedId);
+            Assert.True(panel.ConditionTop > 0f && panel.ConditionTop < 420f - 40f, $"row {i}: the condition editor is on screen ({panel.ConditionTop:0} of 420)");
+            Assert.True(panel.GridRect.Max.Y <= panel.ConditionTop + 1f, $"row {i}: the list ends above it");
+            Assert.Single(panel.ConditionRows);
+            Assert.Contains($"after {i + 1}:00", panel.ConditionRows[0]);      // ITS condition, not another row's
+            if (i == 2) frame.Screenshot(U6Shot("breakpoints-show-condition-last-row.png"));
+        }
+        panel.ToggleCondition(ids[0]);                                        // a second pick on the row whose condition shows hides it
+        step(3);
+        Assert.Equal(0f, panel.ConditionTop);
     }
 }

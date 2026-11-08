@@ -146,7 +146,7 @@ namespace Hrot.UI.Common.Adapters
                 {
                     var members = children[idx];
                     result.Add(new OrbatNodeViewModel(idx, $"{(idx == GroupSavedId ? ScenarioHierarchyAdapter.Saved : ScenarioHierarchyAdapter.Transient)} ({members.Count})",
-                        depth, HasChildren: members.Count > 0, IsPendingDelete: false, CanAcceptSubordinates: false, IsGroup: true));
+                        depth, HasChildren: members.Count > 0, IsPendingDelete: false, CanAcceptSubordinates: false, IsGroup: true, IconKey: "orbat/group"));
                     if (expandedNodes.Contains(idx) || !string.IsNullOrEmpty(filterText))   // a filter opens the groups so its matches show
                         foreach (var child in members) CollectNodes(child, depth + 1);
                     return;
@@ -171,7 +171,8 @@ namespace Hrot.UI.Common.Adapters
                         IsPendingDelete: false,
                         CanAcceptSubordinates: Relation == EntityTreeRelation.Command && _world.HasComponent<UnitRoster>(entity),   // ⭐ CE-4213: Structure has no drop targets
                         NetworkId:      NetworkIdOf(entity),
-                        IsDestroyed:    IsDestroyed(entity)));   // ⭐ CE-1350
+                        IsDestroyed:    IsDestroyed(entity),   // ⭐ CE-1350
+                        IconKey:        IconKeyOf(entity)));   // ⭐ U-4 (CE-4334)
                 }
 
                 // Expand children only if this node is expanded (or no expand filter is active)
@@ -247,6 +248,16 @@ namespace Hrot.UI.Common.Adapters
                 && _world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                 && _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity))
                 _bus.Publish(new SelectEntityCommand { NetworkId = _world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value });
+        }
+
+        /// <summary>⭐ U-4 (CE-4334, UI Conventions §2) — the row's icon by what the entity IS, from its components (one string constant per kind: nothing is built per frame): a macro instance → the Scenario puzzle piece,
+        /// a part of a vehicle → a gear, a unit that takes subordinates → the unit's people, anything else → the entity cube.</summary>
+        private string IconKeyOf(Entity entity)
+        {
+            if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.MacroExpansionStatus>() && _world.HasComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>(entity)) return "orbat/scenario";
+            if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>() && _world.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(entity)) return "orbat/part";
+            if (_world.IsComponentTypeRegistered<UnitRoster>() && _world.HasComponent<UnitRoster>(entity)) return "orbat/unit";
+            return "thing/entity";
         }
 
         private bool IsDestroyed(Entity entity)

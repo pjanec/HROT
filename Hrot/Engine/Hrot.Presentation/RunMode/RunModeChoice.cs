@@ -153,7 +153,10 @@ public sealed class RunModeChoice
     public bool LiveEnded => _ended && _transport.Mode == TransportMode.Live;
 
     /// <summary>⭐ CE-3413 — Live, never ran: the briefing (paused, the sim clock at 0). ■ has nothing to stop there and ⏪ Review nothing to look at; ▾ presets reload it.</summary>
-    public bool LiveBriefing => _transport.Mode == TransportMode.Live && _transport.IsPaused && _transport.TotalTime <= 0 && !_ended;
+    public bool LiveBriefing => IsBriefing(_transport.Mode, _transport.IsPaused, _transport.TotalTime) && !_ended;
+
+    /// <summary>⭐ U-5 (CE-4335) — the briefing's one definition (Live, paused, the sim clock at 0), shared with <c>InstructorEnd.RunRefusal</c>; the ended check stays with the caller that holds it.</summary>
+    public static bool IsBriefing(TransportMode mode, bool paused, double totalTime) => mode == TransportMode.Live && paused && totalTime <= 0;
 
     /// <summary>⭐ CE-3413 — why ■ cannot be pressed now (null = it can): the briefing has nothing to stop (greyed, like a ■ in Edit).</summary>
     public string? StopDisabledReason => LiveBriefing ? "nothing to stop — the exercise has not started" : null;

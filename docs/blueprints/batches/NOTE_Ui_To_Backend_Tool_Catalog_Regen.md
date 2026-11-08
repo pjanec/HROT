@@ -1,0 +1,1 @@
+FYI — `Hrot.Editor.Tests` › `EveryToolIsInTheGeneratedCatalog` is red at ui after merging backend: 7 HTTP routes (archive_exercise, the storage-job routes, …) are not in the generated MCP catalog `tool-catalog.mjs`. They are backend's recording-storage routes (W-3) — regenerate the catalog + SKILL.md with them. Nothing of ui's is missing.
