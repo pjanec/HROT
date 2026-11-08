@@ -217,7 +217,7 @@ public class WindowManager
         win.IsOpen = true;
 
         if (win.Scope == WindowScope.PerspectiveBound
-            && win.OwningPerspective != CurrentPerspective)
+            && !win.BelongsTo(CurrentPerspective))
         {
             win.IsPinned = true;
         }
@@ -352,6 +352,17 @@ public class WindowManager
         return true;
     }
 
+    /// <summary>
+    /// ⭐ R-4 / V4 (D10) — while Start shows, retargets what leaving it restores (<see cref="RememberedPerspective"/>): the Review layout's switch ends an AAR that closed into Idle and
+    /// must put the PRE-AAR layout back, not the Review one Start remembered. ⛔ A no-op unless Start is showing and <paramref name="perspective"/> is claimed. Returns whether it retargeted.
+    /// </summary>
+    public bool RetargetRememberedPerspective(string perspective)
+    {
+        if (!IsStartShowing || !GetPerspectives().Contains(perspective)) return false;
+        RememberedPerspective = perspective;
+        return true;
+    }
+
     private bool ApplyPerspective(string newPerspective, out string? reason)
     {
         reason = null;
@@ -377,6 +388,51 @@ public class WindowManager
         CurrentPerspective = newPerspective;
         OnPerspectiveChanged?.Invoke(old, newPerspective);
         return true;
+    }
+
+    private DockPreset? _pendingDockPreset;
+    private bool _pendingDockRespectsIni;
+
+    /// <summary>⭐ R-4 / V4 — the preset waiting for the host's next dockspace frame, or null (rails).</summary>
+    public DockPreset? PendingDockPreset => _pendingDockPreset;
+
+    /// <summary>
+    /// ⭐ R-4 / V4 (D10 / D11) — asks for <paramref name="preset"/> to be laid out by the host's next dockspace frame (<see cref="ApplyPendingDockPreset"/>). With
+    /// <paramref name="keepSavedPlacement"/> a layout the ini already carries for those windows wins (the preset is then dropped, never rearranging a saved arrangement).
+    /// </summary>
+    public void RequestDockPreset(DockPreset preset, bool keepSavedPlacement = true)
+    {
+        _pendingDockPreset = preset ?? throw new ArgumentNullException(nameof(preset));
+        _pendingDockRespectsIni = keepSavedPlacement;
+    }
+
+    /// <summary>
+    /// ⭐ R-4 / V4 — called by the host's frame loop right after it submits the dockspace (<paramref name="dockspaceId"/>): lays the requested preset out, once. Returns
+    /// <see langword="true"/> when it did. A no-op with nothing requested.
+    /// </summary>
+    public bool ApplyPendingDockPreset(uint dockspaceId, string? iniText = null)
+    {
+        if (_pendingDockPreset is not { } preset) return false;
+        _pendingDockPreset = null;
+        if (_pendingDockRespectsIni && preset.IsPlacedIn(iniText ?? ReadIni())) return false;
+        return preset.Apply(dockspaceId);
+    }
+
+    /// <summary>The settings ImGui holds now — what it loaded from the ini plus what it has placed since (every window's <c>DockId</c>, windows not yet drawn included).</summary>
+    private static string ReadIni()
+    {
+        try { return Gui.SaveIniSettingsToMemory(); }
+        catch { return string.Empty; }
+    }
+
+    /// <summary>
+    /// ⭐ R-4 / V4 — shows the registered window <paramref name="id"/> in <paramref name="perspective"/> as well as in its owner's
+    /// (<see cref="ManagedWindow.AlsoShowIn"/>). Silent no-op for an unknown id. ⛔ Does NOT make <paramref name="perspective"/> a claimed
+    /// perspective — only an owning window does (<see cref="GetPerspectives"/>).
+    /// </summary>
+    public void AlsoShowWindowIn(string id, string perspective)
+    {
+        if (_windows.TryGetValue(id, out var win)) win.AlsoShowIn(perspective);
     }
 
     /// <summary>

@@ -182,7 +182,7 @@ public sealed class EntityDetailsBundle : IUiBundle
     public static DetailsWindow? ActiveDetails(WindowManager windows)
     {
         foreach (var id in windows.RegisteredWindowIds)
-            if (windows.TryGetWindow(id, out var w) && w is DetailsWindow d && d.OwningPerspective == windows.CurrentPerspective)
+            if (windows.TryGetWindow(id, out var w) && w is DetailsWindow d && d.BelongsTo(windows.CurrentPerspective))
                 return d;
         return null;
     }

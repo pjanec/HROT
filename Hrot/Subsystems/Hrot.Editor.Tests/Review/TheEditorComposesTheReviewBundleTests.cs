@@ -65,7 +65,7 @@ public sealed class TheEditorComposesTheReviewBundleTests : IDisposable
             Assert.NotNull(bundle);
             foreach (var id in new[] { "editor_review_diff", "editor_review_search", "rb_recording_info", "rb_json_export" })
                 Assert.True(windows.TryGetWindow(id, out var w) && !w.IsOpen, id + " is registered and closed");
-            Assert.Equal("Scenario", bundle!.FrameDiff.OwningPerspective);
+            Assert.Equal("Review", bundle!.FrameDiff.OwningPerspective);   // R-4 / V4: the bundle belongs to the Review layout
 
             var review = editor.FileReviewForTest!;
             Assert.Null(review.FilePath);                                                    // no replay ⇒ no file

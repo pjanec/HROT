@@ -746,6 +746,8 @@ class Program
                     ImGuiNET.ImGui.DockSpace(mainDockId,
                         DockspaceLayout.CentralSize(viewport.WorkSize.X, viewport.WorkSize.Y, toolbarHeight, statusBarHeight),
                         ImGuiNET.ImGuiDockNodeFlags.PassthruCentralNode);
+                    // ⭐ R-4 / V4 — a dock preset a host asked for (the Review layout) is laid out here, right after the dockspace exists, once
+                    windowCtrl.WindowManager!.ApplyPendingDockPreset(mainDockId);
                     // ⭐ CE-1140 / CE-1145 — where the map is SEEN (the dockspace's open hole), for the overlays that want a visible corner
                     Fdp.Presentation.WindowManager.OpenMapArea.ReportCentralNodeOf(mainDockId, viewport.Size);
                     ImGuiNET.ImGui.End();

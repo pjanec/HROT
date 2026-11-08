@@ -351,6 +351,9 @@ namespace Hrot.Editor
         private Hrot.Editor.Review.AarTransportSegment? _aarTransport;
         internal Hrot.Editor.Review.AarTransportSegment? AarTransportForTest => _aarTransport;
         private Hrot.Editor.AiShared.Review.ReviewBundle? _reviewBundle;
+        private Hrot.Editor.AiShared.Review.ReviewLayoutSwitch? _reviewSwitch;
+        private readonly Dictionary<Hrot.Editor.AiShared.Review.ReviewLayout.Role, string> _reviewIds = new();
+        internal Hrot.Editor.AiShared.Review.ReviewLayoutSwitch? ReviewSwitchForTest => _reviewSwitch;
         private Hrot.Presentation.DebugApi.IClusterMasterControl? _reviewMaster;
         internal Hrot.Editor.AiShared.Review.ReviewBundle? ReviewBundleForTest => _reviewBundle;
         internal Hrot.Editor.AiShared.Review.FileReview? FileReviewForTest => _fileReview;
@@ -3609,6 +3612,9 @@ namespace Hrot.Editor
             // ⭐⭐ CE-1243 MB-4 — this host's map menus join the ONE menu bar as a contributor (Scenario, where the map is).
             Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "editor/map-menus", "Scenario",
                 () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
+            // ⭐ R-4 / V4 — the map is in the Review layout too: the same menus there (only the current perspective's contributor is asked, so the gizmo layer's menu is consumed once)
+            Hrot.ScenarioEditor.Map.MapInteractionPack.RegisterMainMenu(windowManager.GlobalMenu, "editor/map-menus-review", Hrot.Editor.AiShared.Review.ReviewLayout.Perspective,
+                () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
             // ⭐ CE-1329 (Brain View §12r BV-71) — forget every unit's remembered debug settings (pins, traces, the followed unit) of the
             //   loaded scenario; the Brain tab's Debug section resets one unit
             Fdp.Presentation.WindowManager.MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "debug.reset-all-unit-settings", GlobalMenuRegistry.SettingsMenuPath + "/Reset all debug settings for this scenario", () =>
@@ -5026,7 +5032,7 @@ namespace Hrot.Editor
                     Behaviors:      _behaviorRegistry,
                     Blueprints:     _blueprintRegistry,
                     Reader:         _ownPartReplay.Reader));
-                var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host("Scenario", "editor_review_", EditorWindowColor.TitleBar, () => _world));
+                var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host(Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, "editor_review_", EditorWindowColor.TitleBar, () => _world));
                 Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { reviewBundle }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
                 reviewBundle.FrameDiff.IsOpen = false; reviewBundle.ReplaySearch.IsOpen = false;   // listed in the Window menu, closed until opened
                 var reviewFiles = _fileReview; var reviewDiff = reviewBundle.FrameDiff;
@@ -5038,6 +5044,38 @@ namespace Hrot.Editor
                     inAar: () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR);
                 if (windowManager.MainToolbar is { } aarToolbar) _aarTransport.RegisterInto(aarToolbar);
                 _reviewBundle = reviewBundle;
+            }
+
+            // ⭐⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D1 / D10 / D11) — the Review LAYOUT: the bundle's windows are owned by it; Details, the Event Timeline, the Mission summary and the data
+            //   breakpoints are the Scenario layout's windows, SHARED (shown in both, never copied); the first time Review comes up its windows open and the ONE preset (ReviewLayout, the Replay Browser's
+            //   too) docks them around the map. It switches by itself on an AAR of THIS all-in-one node — ⛔ never a cluster station's. Composed before the headless guard (railed); the timeline joins it where it registers.
+            if (_reviewBundle != null)
+            {
+                var reviewIds = _reviewIds;
+                void Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role role, string? id) { if (id != null && windowManager.TryGetWindow(id, out _)) reviewIds[role] = id; }
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.MissionSummary, _rulesBundle?.MissionSummary.Id);
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details, "scenario_details");
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.FrameDiff, _reviewBundle.FrameDiff.Id);
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Search, _reviewBundle.ReplaySearch.Id);
+                Place(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Breakpoints, "editor_bp_manager");
+                Hrot.Editor.AiShared.Review.ReviewLayout.ShareWindows(windowManager, reviewIds);
+                                bool reviewLaidOut = false;
+                windowManager.OnPerspectiveChanged += (_, now) =>
+                {
+                    if (now != Hrot.Editor.AiShared.Review.ReviewLayout.Perspective || reviewLaidOut) return;
+                    reviewLaidOut = true;
+                    Hrot.Editor.AiShared.Review.ReviewLayout.OpenWindows(windowManager, reviewIds);
+                    windowManager.RequestDockPreset(Hrot.Editor.AiShared.Review.ReviewLayout.PresetFor(reviewIds));
+                };
+                _reviewSwitch = new Hrot.Editor.AiShared.Review.ReviewLayoutSwitch(
+                    inAar:         () => _timeTransport?.RunChoice?.Shown == Hrot.UI.Common.RunMode.RunArmed.AAR,
+                    allInOne:      () => _networkFactory is OfflineNetworkFactory,   // ⭐ the editor is a one-node cluster (ruling 66): no real node around it ⇒ its AAR is analysis; a networked node's is the debrief
+                    current:       () => windowManager.CurrentPerspective,
+                    trySwitch:     p => windowManager.TrySwitchPerspective(p, out _),
+                    startShowing:  () => windowManager.IsStartShowing,
+                    retargetStart: windowManager.RetargetRememberedPerspective);
+                var reviewSwitch = _reviewSwitch;
+                windowManager.RegisterFrameOverlay(reviewSwitch.Update);
             }
 
             // ⭐ U5 (Edit mode undo) — Edit ▸ History…: the ONE EditHistory's steps, a click goes to one
@@ -5093,6 +5131,13 @@ namespace Hrot.Editor
                 TasksTracks = new Hrot.Presentation.Orders.TasksTimelineTracks(timelineSource, () => _world,
                     () => Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_world, _selectionState?.PrimarySelected), n => SelectNetworkEntity(n));
                 _eventTimeline.AddTracks(TasksTracks.Tracks);
+            }
+
+            // ⭐ R-4 / V4 — the Event Timeline is the last window the Review layout names (registered after the headless guard)
+            if (_reviewBundle != null && _reviewIds.ContainsKey(Hrot.Editor.AiShared.Review.ReviewLayout.Role.Details))
+            {
+                _reviewIds[Hrot.Editor.AiShared.Review.ReviewLayout.Role.EventTimeline] = "editor_event_timeline";
+                windowManager.AlsoShowWindowIn("editor_event_timeline", Hrot.Editor.AiShared.Review.ReviewLayout.Perspective);
             }
 
             // ⭐⭐ CE-4247 (rules runnable ⑨c; Node Features F-11 / S2) — Window ▸ Features: nodes × features from the master's roster; a tick replaces the cluster's override list through the run settings
