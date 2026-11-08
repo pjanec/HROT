@@ -79,7 +79,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var before = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneCatalog()
             .Register(new Fdp.Toolkit.Replication.ReplicationTimelineLanes())
             .Register(new Fdp.Toolkit.Combat.CombatTimelineLanes())
-            .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes());
+            .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes())
+            .Register(new Fdp.Toolkit.ScenarioRules.ScenarioRulesTimelineLanes());   // ⭐ SR-103 / RV-4 + S4 score history (behaviors)
         Assert.Equal(before.Lanes(ctx).Select(l => l.Id), _subsystem.TimelineLanes.Lanes(ctx).Select(l => l.Id));
 
         string root = TestRepo.Root;
@@ -657,7 +658,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             var vm = Fdp.Presentation.Panels.Timeline.TimelinePanelViewModel.Build("rb_event_timeline", "event-timeline", source, cursor,
                 new Fdp.Presentation.Panels.Timeline.TimelineWindow(cursor.ExtentFrom, cursor.ExtentTo),
                 _subsystem.TimelineLanes.Lanes(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(Recording: true)));
-            Assert.Equal(9, vm.Total.Count);                                  // ⭐ R-4079: the registered lanes the panel shows — the three toolkits' nine; ⭐ CE-4117: the five hidden state lanes (TimelineLaneDescriptor.Hidden) are registered but not counted
+            Assert.Equal(12, vm.Total.Count);                                 // ⭐ R-4079: the registered lanes the panel shows — the three toolkits' nine + ⭐ (behaviors, 2026-11-03) combat.downed (CE-3364) and the rules' Objectives + Triggers (SR-103; the Score lane is hidden); ⭐ CE-4117: the five hidden state lanes (TimelineLaneDescriptor.Hidden) are registered but not counted
             Assert.True(vm.IsComplete && vm.CanSeek);
             Assert.Equal(2_000_000L, vm.Now);
 
