@@ -15,7 +15,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: the next batch
 
-**For:** backend. **From:** coordinator. **Dispatched at `<sha of the commit adding this file>`**. ⭐ Scope FROZEN there. Merge `coordinator` and
+**For:** backend. **From:** coordinator. **Dispatched at `4600ebcd9`**. ⭐ Scope FROZEN there. Merge `coordinator` and
 `ui` first (restore after), push `chore: started HANDOFF_Coordinator_To_Backend_Next at <sha>`, then the [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md):
 status file after every item, fetch and merge `ui` after every item. ⛔⛔ Anything needing the user is skipped (R-4156).
 
