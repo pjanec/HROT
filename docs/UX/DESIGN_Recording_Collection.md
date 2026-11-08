@@ -2,7 +2,7 @@
 state: LIVE
 build-state: READY-TO-BUILD — Q1–Q4 answered by the user (R-4171, 2026-11-08); §5 opening an archived run = always IMPORT
 updated: 2026-11-08 (first version — the user: "I think we might be missing some recording collection step at the end of the live exercise")
-current-answer: §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · ⭐ §5 opening from the NAS — always import
+current-answer: §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · ⭐ §5 opening from the NAS — always import · §5a wait or background · §6 the local cache
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -86,7 +86,8 @@ written LAST, so anything without it is visibly incomplete.*
 | # | | |
 |---|---|---|
 | **Q1** | the default answer at the end | ✅ **Archive to NAS** — 🔒 *"Yes, the default answer is to archive to NAS."* |
-| **Q2** | after a VERIFIED archive, delete the nodes' local copies | ✅ yes — 🔒 *"once archived securely, we delete the on-the-node recordings"* |
+| ~~Q2~~ | ~~after a VERIFIED archive, delete the nodes' local copies~~ (🔒 *"once archived securely, we delete the on-the-node recordings"*) | ⛔ SUPERSEDED by Q2′ (R-4172) |
+| **Q2′** | the local copies after a verified archive | ✅ **kept as a CACHE: the newest N stay, older ones go — and only an ARCHIVED one is ever removed** (§6) — 🔒 *"Maybe my previous lean to delete the recordings immediately from local storage is not a good idea unless there is not enough space. I think the older recordings might be deleted only, but a few of recent ones, they should stay."* |
 | **Q3** | a run not recorded | ✅ no question — 🔒 *"if we are not recording, we cannot ask if we want to archive. So, no question if no recording."* HTTP passes the answer |
 | **Q4** | the all-in-one editor | ✅ the same — 🔒 *"the all-in-one editor is no difference. It also copies to NAS."* |
 
@@ -116,7 +117,49 @@ valid because when we start the AAR, we might always want to import the files fr
 | the all-in-one editor (a participant group) | the gateway (in-process) copies ALL the files to the local staging, then the merged Review opens them |
 | the standalone Replay Browser | the same: a local copy, then open |
 | ⭐ a run already local and matching the manifest | no copy — the import is skipped |
-| the local copy afterwards | a CACHE: retention removes it later; the NAS stays the record |
+| the local copy afterwards | a CACHE (§6): the newest stay, so a recent run opens with NO import |
+
+### 5a. ⭐ The import never blocks the station — wait, or let it run in the background *(the user, `2026-11-08`)*
+
+🔒 *"the user is allowed to put this import to the background, and it's indicated on the status bar, or he can decide to wait, and once the files have been imported, then the actual loading happens automatically"*
+
+```mermaid
+stateDiagram-v2
+  state "Open Exercise Recording… — a run not on this station" as O
+  state "Importing (modal): Continue in background · Cancel" as W
+  state "Importing in the background (status bar)" as B
+  state "Loading the AAR (the existing loading screen — blocking)" as L
+  state "Ready — the status bar offers Open" as R
+  O --> L : the files are already local (cache hit)
+  O --> W : not local — import starts
+  W --> L : the import finishes while you wait — the load starts BY ITSELF
+  W --> B : Continue in background
+  W --> O : Cancel — the partial files (.part) are deleted
+  B --> R : the import finishes
+  R --> L : the status bar's Open (never by itself — you may be busy)
+```
+*What it shows: the long part (the copy) is optional to wait for; the short part (the load) always shows the existing blocking loading screen,
+and it starts by itself only when you chose to wait.*
+
+| rule | |
+|---|---|
+| **the import dialog** | *"Importing exercise 3 from the NAS — 2 of 4 files, 1.2 / 3.1 GB · ~40 s"* · **Continue in background** · **Cancel**; while it shows, the station is NOT frozen — the dialog is the progress, the rest of the UI stays usable (only another AAR open is refused, said) |
+| **in the background** | the status bar: *"⇩ Importing exercise 3 — 2 of 4 files"*; when done *"✓ Exercise 3 ready — Open"*; ⛔ never switches mode by itself — the user may be editing |
+| **the load** | the EXISTING loading screen (blocking, as today) |
+| **closing the app during an import** | the close guard (P3) names it; closing CANCELS the import (no partial file stays: `.part`), nothing on the NAS is touched |
+
+## 6. ⭐ The local cache — the newest stay, never an un-archived one *(R-4172)*
+
+| rule | |
+|---|---|
+| ⛔ **an UN-archived recording is never removed automatically** | it is the only copy (the operator's Keep / Discard decides) |
+| ⭐ **an ARCHIVED recording's local copy is a cache** | the newest **N** stay (default 5 — `FDP_KEEP_EXERCISES` / `--keep-exercises`, the existing `ExerciseRetention`), older ones are removed |
+| **space** | when a disk's free space drops below a threshold (default 10 %), the OLDEST archived copies go first until it is above — never an un-archived one |
+| **when** | after each archive completes and at start-up (the existing retention pass) |
+| **an import** | lands in the same cache — a run opened once stays local while it is among the newest |
+
+⚠ This keeps the platform's rule *"recordings are user data — operator-triggered deletion only"* (`ExerciseRetention.cs:13-16`, file-sync design): what
+is removed is always a COPY whose record is on the NAS.
 
 ⛔ **Rejected:** direct reads from the NAS share — the ~20-connection limit on a Windows NAS and slow seeking; auto-detecting how many nodes will
 connect — unnecessary once nothing but the gateway connects.
