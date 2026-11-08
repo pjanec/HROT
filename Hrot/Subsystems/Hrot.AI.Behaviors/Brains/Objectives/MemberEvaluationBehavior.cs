@@ -71,7 +71,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 Common = ObjectiveCommonBlock.From(in authored.Common), Library = new FixedString64(Folder(authored.Library)),
                 Members = (byte)(Is(authored.Members, "side") ? 1 : 0), Aggregate = (byte)(Is(authored.Aggregate, "points") ? 1 : 0),
             };
-            string overrides = authored.Overrides is { Count: > 0 } ? JsonSerializer.Serialize(authored.Overrides) : "{}";
+            string overrides = authored.Overrides is { Count: > 0 } ? JsonSerializer.Serialize(authored.Overrides, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed) : "{}";
             if (world != null && world.IsAlive(self)) world.SetManagedComponent(self, new ActionArgs(new[] { overrides }));
         }
 
@@ -302,7 +302,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             if (!world.HasManagedComponent<ActionArgs>(self)) return new();
             var items = ((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items;
             if (items.Count <= OverridesItem || string.IsNullOrWhiteSpace(items[OverridesItem])) return new();
-            try { return JsonSerializer.Deserialize<Dictionary<string, string>>(items[OverridesItem]) ?? new(); }
+            try { return JsonSerializer.Deserialize<Dictionary<string, string>>(items[OverridesItem], Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed) ?? new(); }
             catch (JsonException) { return new(); }
         }
 

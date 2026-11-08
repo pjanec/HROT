@@ -247,6 +247,7 @@ public sealed class CatalogTests
         Assert.Contains("Point",           dataNames);   // AQ89 — the point a blind burst aims at
         Assert.Contains("Operator",        dataNames);   // CE-3172 S4d — operator fire
         Assert.Contains("Trigger",         dataNames);   // CE-3172 S4d
+        Assert.DoesNotContain("AlongBarrel", dataNames); // a read-only derived property (CE-4143) is no input pin — NodePinSchema projects read/write properties only
         Assert.Equal(8, dataPins.Count);                 // went stale again on 2026-10-11 (AQ89 + CE-3172 added four fields)
     }
 

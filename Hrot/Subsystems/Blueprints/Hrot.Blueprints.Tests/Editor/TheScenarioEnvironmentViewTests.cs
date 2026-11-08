@@ -76,8 +76,14 @@ public sealed class TheScenarioEnvironmentViewTests
     {
         using var world = new EntityRepository();
         world.RegisterComponent<ScenarioClock>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
         var env = world.CreateEntity();
         world.AddComponent(env, ScenarioClock.Default);
+        world.AddComponent(env, new Fdp.Toolkit.Replication.Components.NetworkIdentity(5));
+        // ⭐ edit framework F1 (ui B-2, 97892dd32): the start time goes through Edits.Submit — the router applies it where this world owns
+        //   the clock COMPONENT (the ownership systems set it in production), as ScenarioClockEditTests does. Red since F1 without it (CE-2422).
+        world.SetAuthority<ScenarioClock>(env, true);
         var view = new ScenarioEnvironmentView(() => world, () => null, (_, _) => { });
 
         view.StartText = "2025-12-24 18:45";

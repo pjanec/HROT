@@ -1467,6 +1467,9 @@ internal static class NodePinSchema
             {
                 if (prop.GetIndexParameters().Length > 0) continue; // skip indexers
                 if (!prop.CanRead) continue;
+                // ⭐ read/WRITE only (this method's own contract): the members become INPUT pins, and a read-only derived property
+                //   (AimAndFireParams.AlongBarrel, CE-4143) has nothing to write — projected, it was a dead 9th pin (the CatalogTests count rail).
+                if (prop.SetMethod is not { IsPublic: true }) continue;
                 var typeFqn = EnumStampedTypeFqn(prop.PropertyType);
                 result.Add((prop.Name, typeFqn));
             }

@@ -96,9 +96,15 @@ public sealed class SubTickRestoreRegistrationTests
         // When SyncFrom(repo) is called without includeTransient, the scratch repo
         // does NOT register NoSnapshotProbe. The keyframe contains NoSnapshotProbe data,
         // so RestoreTo → ApplyFrame → ApplyChunkData throws InvalidOperationException.
+        // ⭐ SUPERSEDED premise (2026-11-08): this path USED to throw (the scratch lacked the type). Since CE-3299 B5 (D10, PlaybackSystem
+        //   .ApplyChunkData) playback REGISTERS a type it meets on first use — as a fresh process restoring a checkpoint must — so the old
+        //   seeding now restores too. Pinned as designed: no throw, the type registered, its value restored. (Was Assert.Throws — red since.)
         using var bad = new EntityRepository();
-        bad.SyncFrom(repo); // OLD seeding — omits NoSnapshotProbe
-        Assert.Throws<InvalidOperationException>(() => sut.RestoreTo(0, bad));
+        bad.SyncFrom(repo); // OLD seeding — omits NoSnapshotProbe; playback registers it on first use
+        sut.RestoreTo(0, bad);
+        var restoredInBad = new Entity(entity.Index, entity.Generation);
+        Assert.True(bad.HasComponent<NoSnapshotProbe>(restoredInBad), "playback registers a type it meets on first use (CE-3299 B5)");
+        Assert.Equal(42, bad.GetComponent<NoSnapshotProbe>(restoredInBad).V);
 
         // ── Step 5: Prove the fix ─────────────────────────────────────────────
 
