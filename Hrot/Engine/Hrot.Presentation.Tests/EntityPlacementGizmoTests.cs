@@ -53,6 +53,46 @@ public class EntityPlacementGizmoTests
         Assert.Equal(3f, radius);   // CE-1337
     }
 
+    /// <summary>⭐ U-8 (CE-4339) — while a heading drag is down the placement tool draws a DIRECTION LINE from the press point toward the cursor (a main line and an arrow head), and its ghost stands at the press point (where the entity will land); button up: none.
+    /// 🔴 Red-proof (compiles): the tool not calling <c>PlacementDirectionLine.Draw</c> ⇒ no amber line ⇒ red.</summary>
+    [Fact]
+    public void U8_TheHeadingDrag_DrawsADirectionLine_FromThePressPoint_TheGhostStandsAtThePress()
+    {
+        var (_, gizmo) = CreateGizmo();
+        var world = new Fdp.Core.EntityRepository();
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        int Lines(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer b, out System.Numerics.Vector3 start, out System.Numerics.Vector3 end, out System.Numerics.Vector3 ghost)
+        {
+            int n = 0; start = end = ghost = default;
+            foreach (var p in b.GetFrame())
+            {
+                if (p.Shape == DebugPrimitiveShape.Line && p.Color.R == Hrot.ScenarioEditor.Gizmos.PlacementDirectionLine.Colour.R && p.Color.G == Hrot.ScenarioEditor.Gizmos.PlacementDirectionLine.Colour.G)
+                { if (n == 0) { start = p.LineStart; end = p.LineEnd; } n++; }
+                if (p.Shape == DebugPrimitiveShape.Sphere) ghost = p.SphereCenter;
+            }
+            return n;
+        }
+
+        gizmo.OnDragUpdate(new System.Numerics.Vector3(100f, 200f, 0f));
+        gizmo.UpdateAndDraw(world, 0f, buffer);
+        Assert.Equal(0, Lines(buffer, out _, out _, out var ghost0));            // button up: no direction line
+        Assert.Equal(new System.Numerics.Vector3(100f, 200f, 0f), ghost0);        // the ghost follows the cursor
+
+        gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, true, new System.Numerics.Vector3(100f, 200f, 0f));
+        gizmo.OnDragUpdate(new System.Numerics.Vector3(100f, 100f, 0f));          // dragged 100 m south
+        buffer.Clear();
+        gizmo.UpdateAndDraw(world, 0f, buffer);
+        Assert.Equal(3, Lines(buffer, out var start, out var end, out var ghost));   // the line and the two strokes of its head
+        Assert.Equal(new System.Numerics.Vector3(100f, 200f, 0f), start);          // from the press (the placement centre)...
+        Assert.Equal(new System.Numerics.Vector3(100f, 100f, 0f), end);            // ...toward the cursor
+        Assert.Equal(new System.Numerics.Vector3(100f, 200f, 0f), ghost);          // and the ghost stands at the press, where the entity lands
+
+        buffer.Clear();
+        gizmo.OnDragUpdate(new System.Numerics.Vector3(101f, 199f, 0f));           // inside the 3 m click threshold: still a click, no heading, no line
+        gizmo.UpdateAndDraw(world, 0f, buffer);
+        Assert.Equal(0, Lines(buffer, out _, out _, out _));
+    }
+
     // ⭐ CE-259ax G2 — the resolver was accepted and DROPPED (`_ = _nameResolver`). It now rides on the command as an EntityInfo.
     [Fact]
     public void CE259ax_G2_TheNameResolver_IsHonoured_NotDropped()

@@ -160,9 +160,12 @@ namespace Hrot.ScenarioEditor.Gizmos
             var ghostColor = GetAffiliationColor(_affiliationForDisplay);
             ghostColor.A = GhostAlpha;
 
-            draw.DrawSphere(_cursorWorld, GhostRadiusPx, ghostColor);
-            DrawGhostBox(view, draw, ghostColor);
-            if (_macroPreview?.Invoke() is { } preview) MacroGhostDraw.Draw(draw, preview, _cursorWorld);   // ⭐ CE-4244 MP-2 (a) — what the click would create
+            // ⭐ U-8 (CE-4339) — while a heading drag is down the entity lands at the PRESS point, so the ghost stands there (it used to follow the cursor) and a direction line runs from it toward the cursor
+            var ghostAt = _session.Pending(_cursorWorld).At;
+            draw.DrawSphere(ghostAt, GhostRadiusPx, ghostColor);
+            DrawGhostBox(view, draw, ghostColor, ghostAt);
+            if (_macroPreview?.Invoke() is { } preview) MacroGhostDraw.Draw(draw, preview, ghostAt);   // ⭐ CE-4244 MP-2 (a) — what the click would create
+            PlacementDirectionLine.Draw(draw, _session, _cursorWorld);
             // ⭐ CE-1017 S2: the type's NAME (it used to be the bare TKB number), and while the tool stays armed
             //   the hint that says how to finish.
             draw.DrawTextLong(
@@ -197,7 +200,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// it shows the body where it will land (a roof, a slope); in 2-D its edges collapse onto the type's footprint.
         /// ⚠ A wire box, not the translucent shape kit the design names: a gizmo emits primitives, and a kit mesh is not one.
         /// </summary>
-        private void DrawGhostBox(ISimulationView view, IDebugDrawBuilder draw, Rgba32 colour)
+        private void DrawGhostBox(ISimulationView view, IDebugDrawBuilder draw, Rgba32 colour, Vector3 centre)
         {
             if (view is not Fdp.Core.EntityRepository repo || !repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return;
             var tkb = repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
@@ -205,10 +208,10 @@ namespace Hrot.ScenarioEditor.Gizmos
             var look = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(template);
             if (look.Family == Hrot.UI.Common.Map3D.VisualFamily.Unit) return;
             var h = look.Size / 2f;
-            float z0 = _cursorWorld.Z, z1 = _cursorWorld.Z + look.Size.Z;
+            float z0 = centre.Z, z1 = centre.Z + look.Size.Z;
             Span<Vector3> c = stackalloc Vector3[8];
             for (int i = 0; i < 8; i++)
-                c[i] = new Vector3(_cursorWorld.X + ((i & 1) == 0 ? -h.X : h.X), _cursorWorld.Y + ((i & 2) == 0 ? -h.Y : h.Y),
+                c[i] = new Vector3(centre.X + ((i & 1) == 0 ? -h.X : h.X), centre.Y + ((i & 2) == 0 ? -h.Y : h.Y),
                                    (i & 4) == 0 ? z0 : z1);
             ReadOnlySpan<int> edges = stackalloc int[] { 0, 1, 1, 3, 3, 2, 2, 0, 4, 5, 5, 7, 7, 6, 6, 4, 0, 4, 1, 5, 2, 6, 3, 7 };
             for (int k = 0; k < edges.Length; k += 2) draw.DrawLine(c[edges[k]], c[edges[k + 1]], colour, 1f);
