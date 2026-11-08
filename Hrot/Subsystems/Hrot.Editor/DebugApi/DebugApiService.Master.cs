@@ -128,7 +128,7 @@ namespace Hrot.Editor.DebugApi
         /// (for agents that drive the UI). Where the indicator would ASK first (a run would end) the route answers 409 with the confirmation's text, and does the move only when
         /// <c>confirm: true</c> accepts it — ⛔ an agent never confirms by accident. ⭐ The armed mode is the ONLY thing it sets; ▶ ⏸ ■ and the HTTP time routes never follow it.
         /// </summary>
-        public (JsonNode? Result, string? Error, string? HintCategory, int Status) SetRunMode(JsonNode? body)
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) SetRunMode(JsonNode? body, HttpUnsavedGate? gate = null)
         {
             var choice = RunChoiceOrNull;
             if (choice is null)
@@ -142,7 +142,11 @@ namespace Hrot.Editor.DebugApi
             if (move is null) return (null, "A DAR has its own exit (POST /review/exit); the armed mode cannot be changed inside it.", DebugApiHints.Scenario, 409);
             if (!move.Enabled) return (null, $"{target} cannot be armed now: {move.DisabledReason}.", DebugApiHints.Scenario, 409);
 
-            choice.Choose(target);
+            // ⭐ CE-3411 — HTTP's refusing asker (CE-4101): a switch out of Edit is decided by the door AT ONCE — a loss refused with the 409 text, discardUnsaved accepted —
+            //   ⛔ never a Save / Discard / Cancel left standing in the operator's UI (ui's Choose overload, NOTE_Ui_To_Backend_Choose_With_Asker_Answer)
+            var asker = HttpAsker(gate);
+            choice.Choose(target, asker, gate?.Answer ?? Hrot.UI.Common.RunMode.UnsavedAnswer.Unchanged);
+            if (asker.Refusal is { } refused) return (null, refused, DebugApiHints.Scenario, 409);
             if (choice.Pending is { } pending)
             {
                 if (!confirm)

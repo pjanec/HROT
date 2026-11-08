@@ -35,7 +35,7 @@ public sealed class TheRunModeRoutesTests : IDisposable
 
     private sealed class Control : IRunScenarioControl
     {
-        public string? LoadedScenarioName => "hill-attack";
+        public string? LoadedScenarioName { get; set; } = "hill-attack";
         public readonly List<string> Calls = new();
         public void LoadForLive(string scenarioName) => Calls.Add($"LoadForLive:{scenarioName}");
         public void OpenForEdit(string scenarioName) => Calls.Add($"OpenForEdit:{scenarioName}");
@@ -252,6 +252,26 @@ public sealed class TheRunModeRoutesTests : IDisposable
         Assert.Equal(new[] { "OpenForEdit:hill-attack" }, live.C.Calls);     // the confirmed move: the live run ended, the scenario reopens
         Assert.Equal(RunArmed.Preview, live.F.RunChoice.Armed);
         Assert.Equal(ClusterArmedMode.Preview, Assert.Single(Sent<SetRunSettingsIntent>(live.Bus)).Armed);   // the confirmed move arms through the same op
+    }
+
+    /// <summary>
+    /// ⭐ CE-3411 (AQ108 §0 R1′) — a switch out of Edit over HTTP is decided by the door AT ONCE with HTTP's refusing asker: a never-saved scenario cannot go Live
+    /// (409 with the choice's own words), nothing is loaded and NO question is left standing in the operator's UI.
+    /// 🔴 Red-proof: <c>SetRunMode</c> calling <c>Choose(target)</c> (the UI's asker) ⇒ 200 and <c>Pending</c> set ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task CE3411_ASwitchOutOfEdit_IsDecidedForHttp_NoQuestionLeftInTheUi()
+    {
+        var edit = Adapter(ClusterState.OperatingEdit, RunArmed.Preview);
+        edit.C.LoadedScenarioName = null;   // never saved
+        var (host, queue, url) = Start(edit.F, ClusterState.OperatingEdit);
+        using var h = host;
+
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"live"}""")));
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        Assert.Contains(RunModeChoice.NeverSavedLiveText, body["error"]!.GetValue<string>());
+        Assert.Null(edit.F.RunChoice!.Pending);   // the operator's UI asks nothing
+        Assert.Empty(edit.C.Calls);
     }
 
     /// <summary>⭐ A host with no run choice on its facade answers <c>armedMode: null</c> in <c>/status</c> and 503 to <c>/run-mode</c> — absent and explained, never a made-up default.</summary>

@@ -561,7 +561,19 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("POST", "/sim/play",      _   => RunMain(s => s.Play())));
             // ⭐⭐ CE-4097 part two (AQ108 D22) — ■ = the toolbar's ■ (ONE ITimeTransportFacade.Stop), and the armed run mode, both explicit: /sim/play and /sim/step never follow it.
             _routes.Add(new("POST", "/sim/stop",      _   => RunMainResult(s => { var (r, e, h, st) = s.Stop(); return e is null ? Ok(r) : Fail(st, e, h); })));
-            _routes.Add(new("POST", "/run-mode",      ctx => RunMainResult(s => { var (r, e, h, st) = s.SetRunMode(ctx.Body); return e is null ? Ok(r) : Fail(st, e, h); })));
+            // ⭐ CE-3411 (AQ108 §0 R1′) — a switch out of Edit LOADS (Live) or opens a recording (AAR): the same unsaved check round the load routes run (discardUnsaved skips it), and the door decides at once with HTTP's refusing asker
+            _routes.Add(new("POST", "/run-mode",      async ctx =>
+            {
+                var armed = ctx.Body?["armed"] is JsonValue av && av.TryGetValue(out string? w) ? w : null;
+                DebugApiService.HttpUnsavedGate? gate = null;
+                if (string.Equals(armed, "live", StringComparison.OrdinalIgnoreCase) || string.Equals(armed, "aar", StringComparison.OrdinalIgnoreCase))
+                {
+                    var (failure, g) = await ResolveUnsavedGateAsync(ctx, null, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive).ConfigureAwait(false);
+                    if (failure is not null) return failure.Value;
+                    gate = g;
+                }
+                return await RunMainResult(s => { var (r, e, h, st) = s.SetRunMode(ctx.Body, gate); return e is null ? Ok(r) : Fail(st, e, h); }).ConfigureAwait(false);
+            }));
             // ⭐⭐⭐ CE-104 — THE PAUSE ACK MEANS *APPLIED*, NOT *ACCEPTED*.
             //
             // 📐 Measured `2026-08-28` on --mode all: pause answered ok:true and the very next /status still
