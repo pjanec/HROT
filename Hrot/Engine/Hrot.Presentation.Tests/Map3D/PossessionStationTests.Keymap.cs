@@ -195,9 +195,17 @@ public sealed partial class PossessionStationTests
                 if (keys.Pressed(EmbodiedKeys.TeamNext)) sink++;
             }
             for (int i = 0; i < 3; i++) Pass();   // warm: the rows of each action are found once per keymap version
-            long a = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 200; i++) Pass();
-            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - a);
+            // ⚠ measured: inside a full class run the JIT's tiering (call counting / tier-up of the readers) allocates on THIS thread for a few hundred calls
+            //   (112 … 4120 B, 0 with DOTNET_TieredCompilation=0). A real per-frame allocation shows in EVERY window; the runtime's settles ⇒ the steady cost is the
+            //   smallest of several 200-pass windows, and it must be 0.
+            long steady = long.MaxValue;
+            for (int round = 0; round < 8 && steady != 0; round++)
+            {
+                long a = GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 200; i++) Pass();
+                steady = Math.Min(steady, GC.GetAllocatedBytesForCurrentThread() - a);
+            }
+            Assert.Equal(0L, steady);
             Assert.True(sink > 0f);
         }
     }
