@@ -281,6 +281,7 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
         "Fdp.Toolkit.Time.LifespanSystem",
         "Hrot.ScenarioEditor.Map.MenuOrders",
         "Hrot.ScenarioEditor.Map.MenuShortcuts",
+        "Hrot.ScenarioEditor.Map.HatArbiter",        // ⭐ B-16 H3 (DESIGN_Seats_And_Hats §3.3) — the map's ONE hat, scheduled with the map's interaction systems (reviewed: after the menus, before the global action dispatch)
         "Hrot.Common.Systems.GlobalActionDispatchSystem"
     };
 }

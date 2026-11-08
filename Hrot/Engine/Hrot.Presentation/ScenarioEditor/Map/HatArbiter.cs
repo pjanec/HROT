@@ -10,6 +10,9 @@ namespace Hrot.ScenarioEditor.Map
     /// and stands RTS down while a unit is driven (R-4163: release returns to it). Scheduled with the map's interaction systems ⇒ every map host, by construction.
     /// ⭐ Hot path: reads fields and a closure, allocates nothing.
     /// </summary>
+    // ⭐ CE-3293 gate (R-3036: no default) — a UI derivation that must follow the station while paused, as the map's other interaction systems (SelectionInteractionSystemAdapter, ToolActivationDrainSystem).
+    //   It was added without one (B-16 H3) ⇒ every headless editor boot threw.
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class HatArbiter : IEcsModuleSystem
     {
         private readonly EntityRepository _world;

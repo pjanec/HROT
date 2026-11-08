@@ -1554,7 +1554,9 @@ namespace Hrot.Editor.DebugApi
         public JsonNode SaveScenario(string name) => SaveScenario(name, null, null);
 
         /// <summary>⭐ CE-3394 — why this host's world may not be saved as the scenario (<c>ScenarioSaveGate</c>), null when it may.</summary>
-        public string? CannotSave() => Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(_world);
+        /// <remarks>⚠ A host with NO world of its own (a cluster host forwarding the save intent) cannot judge ⇒ null: the saving node's own session refuses a variant world
+        /// (<c>IScenarioSession.SaveDisabledReason</c>). ⛔ It read <c>_world</c>, which THROWS (501) there — that broke <c>/scenario/save</c> on such a host.</remarks>
+        public string? CannotSave() => (_editorWorld ?? _dispatcher?.World) is { } w ? Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(w) : null;
 
         /// <summary>⭐ CE-4210 MA-9 — the same save with the optional entity filter and macro header (<c>POST /scenario/save {name, onlyGuids?, header?}</c>).</summary>
         public JsonNode SaveScenario(string name, Guid[]? onlyGuids, string? headerJson)

@@ -112,6 +112,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroExpandedWith>();     // ⭐ macros S3a ⑥ — the reconcile's baseline (transient)  // ⭐ macros S3a ④ — the wait of one expansion (transient)
         world.RegisterManagedComponent<Fdp.Toolkit.Scenario.ParamBindings>();  // ⭐ macros S3a ① (SR-161) — scalar bindings to params; NoReplay, saved by its translator
         world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>();       // ⭐ macros S3a ③ (SR-170) — a macro instance (dtMacroInstance); saved by its translator
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.VariantForms>();        // ⭐ CE-3374 (macros §17.1) — the authored variant forms of an instance (NoReplay); a variant scenario's spawn writes it (it threw: never registered)
         world.RegisterComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>();       // ⭐ macros S3a ③ (SR-175) — the expansion verdict (dtMacroExpansionStatus); NoScenario
         world.RegisterComponent<Fdp.Toolkit.Scenario.MacroOrigin>();                // ⭐ macros S3a ③ (SR-178) — an expanded entity's origin (dtMacroOrigin); NoScenario
         world.RegisterComponent<Fdp.Toolkit.Motion.EjectionDone>();             // ⭐ R-3039 S1 — this aircraft's crew has ejected (EjectionSystem)
