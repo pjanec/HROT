@@ -442,7 +442,7 @@ public sealed partial class ComponentEditDrawer
             if (DrawCellNode(node, inputWidth, out bool cellChanged)) changed = cellChanged;
             else
             {
-                value = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
+                value = node.Kind is EditNodeKind.Enum or EditNodeKind.Boolean ? BoxedOf(node) : node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);   // ⭐ CE-3403 — no boxing per frame for the two kinds that box
                 changed = DrawPrimitiveInput(node.ClrType, ref value!, node);
                 if (changed && !ro) node.Binding?.SetBoxed(value);
             }

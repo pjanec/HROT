@@ -11,6 +11,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="FDP.Toolkit_ImGui.Tests" />
     <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
+    <InternalsVisibleTo Include="Hrot.Presentation.Tests" />   <!-- CE-3403 — the frame rail of the raw inspector window lives where the GL frame harness does -->
   </ItemGroup>
 
   <ItemGroup>
