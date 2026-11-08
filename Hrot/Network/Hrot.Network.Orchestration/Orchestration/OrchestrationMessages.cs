@@ -196,6 +196,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public List<FeatureOverrideWire> FeatureOverrides;
         /// <summary>⭐ CE-3415 (AQ108 §0 D31) — 1 = the cluster's <i>Start immediately</i> SETTING is ON; 0 = OFF, or an older sender (the default). ⭐ APPENDED LAST (R-42); additive on the wire.</summary>
         public int StartLiveImmediately;
+        /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes; 0 = off, or an older sender (the default). ⭐ APPENDED LAST (R-42); additive on the wire.</summary>
+        public int AutosaveMinutes;
     }
 
     /// <summary>⭐ Node Features F-16 (R-134) — the wire twin of <c>FeatureOverrideSpec</c>; only the translators convert.</summary>

@@ -377,6 +377,7 @@ public sealed partial class ClusterMaster : IDisposable
         ProcessStorageOpIntents();
         ProcessTakeCheckpointIntents();
         ProcessUnsavedCheckIntents();   // ⭐ CE-4093 D20
+        TickAutosave();                 // ⭐ CE-4099 (AQ108 §4c A1) — after the check intents: its own check round is one more
         ProcessSeekReplayIntents();
         ProcessCancelOperationIntents();
         ProcessDiagnosticDumpIntents();
@@ -1548,6 +1549,7 @@ public sealed partial class ClusterMaster : IDisposable
                 ScenarioId    = prefetchScenarioId,
                 ActiveNodeIds = new List<int>(_roster.ActiveNodes.Keys),
                 NodeCapabilities = ActiveNodeCapabilities(),
+                RecoverAutosave = intent.RecoverAutosave,   // ⭐ CE-4099 A7
             });
 
             FdpLog<ClusterMaster>.Info(
@@ -1578,7 +1580,7 @@ public sealed partial class ClusterMaster : IDisposable
 
         // ⚠ §7.2a — the optimistic advance belongs HERE, not at planning time.
         _currentDsmState = resolvedTarget;
-        NoteLoadForUnsavedCheck(resolvedTarget, intent.ScenarioId);   // ⭐ CE-4093 — a new scenario (or none): the old save failure / answer no longer apply
+        NoteLoadForUnsavedCheck(resolvedTarget, intent.ScenarioId, intent.RecoverAutosave);   // ⭐ CE-4093 — a new scenario (or none): the old save failure / answer no longer apply
         // ⭐ CE-3329 §12n — a new session starts unlooped: a stale bracket from the last exercise is never enforced.
         if (!ClusterStates.IsReplaying((FdpClusterState)(int)resolvedTarget)) _replayLoop = null;
 
@@ -2318,6 +2320,7 @@ public sealed partial class ClusterMaster : IDisposable
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
             StartLiveImmediately = StartLiveImmediately,   // ⭐ CE-3415 (AQ108 §0 D31)
+            AutosaveMinutes = AutosaveMinutes,   // ⭐ CE-4099 phase 2
             FeatureOverrides = FeatureOverrides.ToArray(),   // ⭐ Node Features F-16
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
@@ -2338,6 +2341,7 @@ public sealed partial class ClusterMaster : IDisposable
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
             StartLiveImmediately = StartLiveImmediately,   // ⭐ CE-3415 (AQ108 §0 D31)
+            AutosaveMinutes = AutosaveMinutes,   // ⭐ CE-4099 phase 2
             FeatureOverrides = FeatureOverrides.ToArray(),   // ⭐ Node Features F-16
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043

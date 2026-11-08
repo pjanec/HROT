@@ -74,6 +74,13 @@ public sealed class ClusterViewTests
         HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall });
         Assert.False(view.StartLiveImmediately);
 
+        // CE-4099 phase 2 - Autosave minutes: 0 (off) before any broadcast, the master's word after, 0 again for a sender that never sets it
+        Assert.Equal(0, view.AutosaveMinutes);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall, AutosaveMinutes = 5 });
+        Assert.Equal(5, view.AutosaveMinutes);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall });
+        Assert.Equal(0, view.AutosaveMinutes);
+
         HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
         Assert.True(view.MasterGone);
         Assert.True(view.HasFollowedState);                       // a master WAS heard

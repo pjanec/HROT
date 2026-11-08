@@ -145,12 +145,24 @@ public sealed class AssetPrefetchProcessManager
             //   gateway below finds it; a stager that throws fails the load like any scenario that is not there.
             var scenarioId = intent.ScenarioId;
             var stager     = SourceStager;
+            // ⭐⭐ CE-4099 (AQ108 §4c A7, §4c.3) — a RECOVERY load: the scenario's autosave is delivered as its scenario.json (read and checked on the worker;
+            //   none / stale ⇒ the load fails with the reason). Otherwise the folder as it is, exactly as before.
+            bool recover = intent.RecoverAutosave;
+            string nas = _nasBasePath;
+            System.Threading.Tasks.Task<GatewayResult> CopyAsync() => !recover
+                ? _gateway.PrefetchScenarioAsync(scenarioId, targets, nas, _tkbName, copy.Token)
+                : System.Threading.Tasks.Task.Run(() =>
+                {
+                    var autosave = AutosaveFiles.Read(nas, scenarioId, Fdp.Toolkit.Scenario.ScenarioDescription.HashOf);
+                    if (autosave.Refusal is { } why) throw new InvalidOperationException($"cannot recover '{scenarioId}': {why}");
+                    return _gateway.PrefetchScenarioAsync(scenarioId, targets, nas, _tkbName, copy.Token, scenarioFileFrom: autosave.DataPath);
+                });   // Task.Run of a Task-returning lambda already unwraps
             var copying = stager == null
-                ? _gateway.PrefetchScenarioAsync(scenarioId, targets, _nasBasePath, _tkbName, copy.Token)
+                ? CopyAsync()
                 : System.Threading.Tasks.Task.Run(() => stager(scenarioId))
                     .ContinueWith(staged => staged.IsFaulted
                             ? System.Threading.Tasks.Task.FromException<GatewayResult>(staged.Exception!.GetBaseException())
-                            : _gateway.PrefetchScenarioAsync(scenarioId, targets, _nasBasePath, _tkbName, copy.Token),
+                            : CopyAsync(),
                         System.Threading.Tasks.TaskScheduler.Default)
                     .Unwrap();
             _ = copying

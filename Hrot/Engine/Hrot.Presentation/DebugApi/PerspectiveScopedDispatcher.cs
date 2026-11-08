@@ -308,6 +308,10 @@ public sealed class PerspectiveScopedDispatcher
     public bool? StartLiveImmediatelyAnyNode
         => Active()?.StartLiveImmediately ?? _providers.Select(p => p.StartLiveImmediately).FirstOrDefault(x => x is not null);
 
+    /// <summary>⭐ CE-4099 phase 2 — the cluster's <i>Autosave</i> interval in minutes, from the active node else any node (one cluster, one fact).</summary>
+    public int? AutosaveMinutesAnyNode
+        => Active()?.AutosaveMinutes ?? _providers.Select(p => p.AutosaveMinutes).FirstOrDefault(x => x is not null);
+
     /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode from the active node else any node (one cluster, one fact).</summary>
     public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedModeAnyNode
         => Active()?.ArmedMode ?? _providers.Select(p => p.ArmedMode).FirstOrDefault(x => x is not null);

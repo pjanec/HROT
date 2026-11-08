@@ -1020,4 +1020,35 @@ public class MainToolbarTimeControlTests
         if (dir is { Length: > 0 }) frame.Screenshot(System.IO.Path.Combine(dir, "runto-popup.png"));
         Assert.False(section.RunToOpenRequested);   // the popup took the request
     }
+
+    /// <summary>
+    /// ⭐ CE-4317 (L-10) — the Edit menu with <i>Run setup ▸</i> on a real frame (fidelity: <c>HROT_RAIL_SHOTS</c> renders <c>runsetup-menu.png</c>; the harness has no mouse, so the sub-menu is not drawn). The entry's row sits after <i>Run to …</i> and before Close, on the other rows' glyph column. Skipped without a display (<c>xvfb-run -a</c>) — ⛔ a skip is not a gate row.
+    /// </summary>
+    [Xunit.SkippableFact]
+    public void L10_TheRunSetupEntry_OnARealFrame()
+    {
+        Xunit.Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
+        rig.Choice.PresetsOf = _ => new[] { new Fdp.Toolkit.Scenario.ScenarioPreset(Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName, Fdp.Toolkit.Scenario.PresetVariant.AsAuthored),
+                                            new Fdp.Toolkit.Scenario.ScenarioPreset("Easy", Fdp.Toolkit.Scenario.PresetVariant.AsAuthored, new System.Text.Json.Nodes.JsonObject { ["count"] = 5 }),
+                                            new Fdp.Toolkit.Scenario.ScenarioPreset("Night attack", new Fdp.Toolkit.Scenario.PresetVariant(Fdp.Toolkit.Scenario.PresetVariantKind.Number, 3)) };
+        var section = new MainToolbarTimeControlSection(rig.F, choice: rig.Choice, runTo: RunToOver(rig.F, rig.Choice));
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(720, 360);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        bool openMenu = true;
+        void Draw()
+        {
+            ImGuiNET.ImGui.SetNextWindowPos(System.Numerics.Vector2.Zero); ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(720, 40));
+            ImGuiNET.ImGui.Begin("##toolbar", ImGuiNET.ImGuiWindowFlags.NoDecoration);
+            if (openMenu) { ImGuiNET.ImGui.OpenPopup("##mt_mode_popup"); openMenu = false; }
+            section.Render();
+            ImGuiNET.ImGui.End();
+        }
+        for (int i = 0; i < 3; i++) frame.Step(Draw);
+        var dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS");
+        if (dir is { Length: > 0 }) frame.Screenshot(System.IO.Path.Combine(dir, "runsetup-menu.png"));
+        var model = section.ModeMenu()!;
+        Assert.Equal(MainToolbarTimeControlSection.RunSetupLabel, model.Items[^3].Label);
+        Assert.Equal("Close", model.Items[^1].Label);
+    }
 }

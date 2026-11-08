@@ -118,8 +118,13 @@ public class WindowManager
         // ⭐⭐ B-10 K6 (§6f) — Edit ▸ Keyboard shortcuts… (Ctrl+K): every binding of the ONE keymap (menus-visual.svg panel C)
         _shortcutsWindow = new KeyboardShortcutsWindow(Fdp.Toolkit.Input.Keymap.Process);
         RegisterWindow(_shortcutsWindow);
-        MenuCommandAdapter.RegisterAction(GlobalMenu, _shellCommands, KeyboardShortcutsWindow.CommandId, "Edit/Keyboard shortcuts…", () => _shortcutsWindow.Show(),
+        MenuCommandAdapter.RegisterAction(GlobalMenu, _shellCommands, KeyboardShortcutsWindow.CommandId, ShortcutsInEdit, () => _shortcutsWindow.Show(),
             key: new NodeEditor.Core.Action.KeyBinding(NodeEditor.Primitives.EditorKey.K, NodeEditor.Primitives.KeyModifiers.Ctrl));
+        // ⭐ R-4176 (user-approved ui lean) — ONE command, two homes: Edit ▸ Keyboard shortcuts… where the host's Edit menu holds anything else, else
+        //   Help ▸ Keyboard shortcuts… — a host with no Edit menu (Player, Replay Browser, SimHost …) gets none just for this item. Decided by construction, per frame.
+        MenuCommandAdapter.Register(GlobalMenu, _shellCommands, KeyboardShortcutsWindow.CommandId, ShortcutsInHelp, allowedInIdle: false);
+        GlobalMenu.SetLayout(ShortcutsInEdit, order: 1000, visible: EditMenuHoldsOtherItems);
+        GlobalMenu.SetLayout(ShortcutsInHelp, order: 1000, visible: () => !EditMenuHoldsOtherItems());
 
         // ⭐⭐ CE-1243 MB-3 (docs/UX/UX_Feature_Menu_Follows_Focus.md §MB) — the shell's own per-frame menus are CONTRIBUTORS of the one
         //    menu tree, drawn by the same walk and the same rows as every registered item. ⛔ SUPERSEDED: RenderPerspectiveMenu (a
@@ -864,8 +869,8 @@ public class WindowManager
                 Gui.SameLine();
                 Gui.SetCursorPosX(x);
             }
-            bool treeShows = menu.Node is { } n && (n.Children.Count > 0 ? HasVisibleDescendant(n) : GlobalMenu.Offers(n, CurrentPerspective));
-            if (!treeShows && menu.Parts.Count == 0) continue;   // ⛔ UXI-05: no dead headers
+            bool treeShows = TreeShows(menu);
+            if (!treeShows && menu.Parts.Count == 0) continue;   // ⛔ UXI-05: no dead headers — the ONE rule, BarMenuShows
 
             bool isLeaf = (menu.Node == null || menu.Node.Children.Count == 0)
                           && menu.Parts.All(p => p.Item.Children is not { Length: > 0 });
@@ -961,6 +966,26 @@ public class WindowManager
     /// <para>⚠ Recursive and per-frame. ⭐ Cheap: the trie is a handful of nodes deep and a few dozen
     /// wide, and it short-circuits on the first visible descendant.</para>
     /// </summary>
+    private bool TreeShows(BarMenu menu) => menu.Node is { } n && (n.Children.Count > 0 ? HasVisibleDescendant(n) : GlobalMenu.Offers(n, CurrentPerspective));
+
+    /// <summary>⭐ UXI-05 — whether the bar DRAWS <paramref name="menu"/>'s header (a tree item it offers, or a contributor's part) — the draw loop's own test, for rails that read the bar model.</summary>
+    public bool BarMenuShows(BarMenu menu) => TreeShows(menu) || menu.Parts.Count > 0;
+
+    /// <summary>⭐ R-4176 — the two menu paths of the shell's Keyboard shortcuts item.</summary>
+    public const string ShortcutsInEdit = "Edit/Keyboard shortcuts…", ShortcutsInHelp = "Help/Keyboard shortcuts…";
+
+    /// <summary>⭐ R-4176 — the host's Edit menu offers something besides Keyboard shortcuts (then the item lives there; else under Help). Index-free walk, no allocation.</summary>
+    internal bool EditMenuHoldsOtherItems()
+    {
+        if (!GlobalMenu.Root.Children.TryGetValue("Edit", out var edit)) return false;
+        foreach (var child in edit.Children.Values)
+        {
+            if (child.IsSeparator || child.Name == "Keyboard shortcuts…") continue;
+            if (child.Children.Count > 0 ? HasVisibleDescendant(child) : GlobalMenu.Offers(child, CurrentPerspective)) return true;
+        }
+        return false;
+    }
+
     internal bool HasVisibleDescendant(MenuItemNode node)
     {
         foreach (var child in node.Children.Values)

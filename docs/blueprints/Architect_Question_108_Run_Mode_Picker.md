@@ -165,7 +165,7 @@ already lands in today.*
 | Preview running → Live / AAR: stop (restore), then the switch once Edit is heard | `_switchWhenEdit` in `OnClusterState` | the Preview's own question is unchanged |
 | ▶ in Edit = always the Preview; ▶ in a paused Live = the facade's resume | `Play` · `UserTransport` | no armed dispatch; the `PlayLive` check round is gone (the door asks) |
 | Edit shows the authoring item (`RunArmed.Preview` labelled **Edit**), not the armed mode | `Shown` · `Moves` | glyph (pen / eye) is R-3 |
-| ▾ presets: Edit (▶ previews with it) and the Live briefing (reloads Live with it); never in a run / DAR / AAR | `ShowsPresetArrow` · `ArmPreset` · `PresetMode` | Live presets are armed only from the briefing |
+| ▾ presets: Edit (▶ previews with it — ⭐ CE-4317: IN PLACE on the edit world, no reopen, unless the world holds another preset) and the Live briefing (reloads Live with it); never in a run / DAR / AAR | `ShowsPresetArrow` · `ArmPreset` · `PresetMode` | Live presets are armed only from the briefing |
 | ■ → *End the exercise?* → `End()` only; world stays in Live | `Stop` | `_stopAfterEnd`, `StoppingAfterEnd`, `StopAfterEndFrames` removed |
 | **Live · ended** derived: `OperatingLive` + `IExerciseEnder.HasEnded` (replicated `ExerciseResult.Phase == Ended`) | `LiveEnded` · `InstructorEndControl.HasEnded` | refreshed once per frame in `Update`; no FSM state |
 | ▶ greyed (words from D30); ■ = ⏏ (`StopFaceNow`) → *Close the live session?* → `ScenarioDoor.Leave(Close)` → keep question + toast | `PlayDisabledReason` · `AskToClose` · `CloseSession` · `AfterLiveEnded` | `ScenarioDoor.CanLeave` added; a session with no door OUT sends the same Idle intent |
@@ -178,7 +178,7 @@ already lands in today.*
 |---|---|---|
 | current mode only, no dim level: Edit pen (yellow) / eye steady (`SaveDisabledReason` ≠ null) · Preview eye (blinks) · Live ● red/green (steady paused, blinks running) · ended = `FlagCheckered` · DAR amber ⟲ · AAR blue ▶ | `RunModeChoice.Indicator` (interned: 0 B per read) | `IRunScenarioControl.SaveDisabledReason` = the session's ONE answer (pen, Save slot, File ▸ Save) |
 | drawn as a glyph button: neutral bg, lighter + frame on hover, small ▾ (triangle), hand cursor, tooltip | `MainToolbarTimeControlSection.DrawModeIndicator` · `GlyphWidgets.Neutral*` | tooltips = ind.png column 3 (`IndicatorTooltip`); *exercise N* omitted (no number) |
-| Edit menu: Edit ✓ · Live · AAR — open a recording… · Run to … · Close | `Moves` · `ModeMenu` · `CloseScenario` | menu built on click / while open only |
+| Edit menu: Edit ✓ · Live · AAR — open a recording… · Run to … · ⭐ CE-4317 *Run setup ▸ Preview · Live* (a scenario with presets; arms per mode, ▶ previews it in place — [Presets §9b](../UX/DESIGN_Scenario_Presets.md)) · Close | `Moves` · `ModeMenu` · `CloseScenario` | menu built on click / while open only |
 | pen colour `IconPalette.Yellow` | `Icons "mode/edit"` | was grey |
 
 Rails: `RunIndicatorTests.R3_*`, `RunToolbarFrameRail.R3_*` (real frame, every ind.png row).
@@ -1647,7 +1647,7 @@ sequenceDiagram
 
 **Cost (asked by the review):** one capture per node per interval — ≈30 ms (`uc-urban-battle` 6.8 MiB keyframe, Debug; §4a measured capture ≈33 ms) every 2 min = one frame hitch per node per interval, ONLY while editing (the clock is stopped). The JSON extraction and the write run on the worker. ⛔ Never in Live, Preview or AAR — no autosave runs outside `OperatingEdit` (A1).
 
-`build-state` for §4c: ⛔ **BLOCKED — A0 FAILED as designed (measured `2026-11-08`); an amendment that holds is measured and awaits the user** (QUESTION: [NOTE_Backend_To_Coordinator_CE4099_A0_Failed](batches/NOTE_Backend_To_Coordinator_CE4099_A0_Failed.md)). ⛔ HISTORY: *READY-TO-BUILD, gated on A0 (the review accepted A0–A7; A8 added at its request).*
+`build-state` for §4c: ✅ **BUILT (`aecbad03e` + `afaaaecba`) on the §4c.1 amendment (option A, user-approved); A8 not needed (§4c.2)** — ⛔ HISTORY: *BLOCKED — A0 FAILED as designed; an amendment that holds is measured and awaits the user* (QUESTION: [NOTE_Backend_To_Coordinator_CE4099_A0_Failed](batches/NOTE_Backend_To_Coordinator_CE4099_A0_Failed.md)). ⛔ HISTORY: *READY-TO-BUILD, gated on A0 (the review accepted A0–A7; A8 added at its request).*
 
 #### 4c.1 ⛔ A0 MEASURED (`2026-11-08`, backend) — the designed gate FAILS; the amended one HOLDS
 
@@ -1679,6 +1679,76 @@ current world — 🔒 the user restated R-2037 here: *"the terrain on brain sho
 muscle knows the current state of potentially changing world"*. The save writes door states FROM `DoorState` (the current state, owned by its
 authority) and compares them only with the authored file values. "Shared" = the sandbox points at the editor's already-loaded, read-only objects
 instead of copying them.
+
+#### 4c.2 ✅ AS-BUILT phase 1 (`2026-11-08`, backend) — the autosave round (A1–A6 with the §4c.1 amendment)
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster.TickAutosave (OperatingEdit)
+  participant N as HrotScenarioSaveHandler (frame thread)
+  participant W as worker (KeyframeSandbox)
+  participant S as StorageProcessManager
+  M->>M: AutosaveEvery passed (default 2 min) · no save / autosave in flight
+  M->>N: CheckUnsaved round (StartUnsavedCheck, then: OnAutosaveCheck)
+  alt every node unchanged
+    Note over M: nothing written
+  else changed
+    M->>S: SaveScenarioJsonBegunEvent {Autosave}
+    M->>N: SerializeLocal {name, Autosave:true}
+    N->>N: ScenarioAutosaveCore.Take — keyframe (All + singletons), the header, TerrainWorld by reference, registry revision
+    N->>W: Task.Run
+    W->>W: KeyframeSandbox.Rebuild → ScenarioSaveCore.BuildDom → .autosave/scenario.json (revision moved ⇒ discarded)
+    W-->>N: manifest → <scenario>/.autosave/.slices/node_N.json
+    N-->>M: ACK · BaselineAfterSaveHandler: NO re-baseline
+    M->>S: pull → MergeAutosaveSlices → .autosave/autosave.json + autosave.meta.json {at, savedHash}
+  end
+  Note over S: a real save that completes → DeleteAutosave (A6)
+```
+
+*What the picture shows that prose hid:* the autosave is the save round with one flag — the only new code is the capture/sandbox pair, the master's
+timer, and the merge's destination; every node path, the wire and the merge core are the save's own.
+
+| piece | where |
+|---|---|
+| the timer + the check first (A1) | `ClusterMaster.Autosave.cs`: `AutosaveEvery` (default 2 min, `Zero` = off), the interval starts when editing does; skipped while a real save runs; a check / round that never answers is given up after 120 s (never blocks the session) |
+| the flag (A2) | `ScenarioSaveHandlerPayload.Autosave` · wire `NodeTransitionPayloadDto.Autosave` (written only when true) · `SaveScenarioJsonBegunEvent.Autosave` |
+| not a save (A3) | not registered as a save round ⇒ `SaveFailedSinceLoad` untouched · `BaselineAfterSaveHandler.Commit` returns early · a failure only logs |
+| capture + worker (A4, §4c.1) | `ScenarioAutosaveCore.Take` (frame) / `ToJson` (worker) · `KeyframeSandbox` (Fdp.Toolkits Replay — also what the A0 rail runs) · `BehaviorRegistry.Revision` (bumped by every mutator) ⇒ a hot reload during the extraction discards it |
+| files (A5) / delete on save (A6) | `StorageProcessManager.MergeAutosaveSlices` / `DeleteAutosave` |
+| rails | `ClusterMasterUnsavedCheckTests.CE4099_*` (3) · `StorageProcessManagerTests.CE4099_*` · `HrotScenarioSaveHandlerTests.CE4099_*` (3) · `NodeOpSlaveTranslatorTests.CE4099_*` · the A0 rail now also asserts the PRODUCTION autosave equals the live save |
+
+| deviation / finding | why |
+|---|---|
+| ⛔ **A8 (never-saved scenarios) is not needed** | 📐 *New Scenario…* is New FROM A RECIPE (CE-4140): the recipe picker, then the Save-As naming, then `ScenarioNewAssetService.CreateNew` SAVES the copy under the new name (`ScenarioMenuCommands.cs:190`). Every scenario open for editing therefore has its folder and `scenario.json` — A5's home always exists. A8 stays recorded as history |
+| ✅ A1's `autosaveMinutes`: built, ``afaaaecba`` | CE-3415's shape end to end: `SetRunSettingsIntent.AutosaveMinutes` (`int?`, null = no change) → `SetRunSettingsPayloadDto` → master `AutosaveMinutes` ⇄ `AutosaveEvery` (minutes → `TimeSpan`, 0 / negative = off, default 2) → broadcast `ClusterStateTransitionedEvent` / `ClusterStateUpdateEvent` / `ClusterStateTopic.AutosaveMinutes` (appended, R-42) → `ClusterView` / `ClusterUiCache` / `ClusterSlave`; `GET /run-settings` shows `autosaveMinutes`, `POST /run-settings {autosaveMinutes}` takes a whole number >= 0 (400 otherwise); MCP catalog + SKILL.md regenerated. No UI widget (ui: [`NOTE_Backend_To_Ui_Autosave_Setting.md`](batches/NOTE_Backend_To_Ui_Autosave_Setting.md)). Rails: `ClusterMasterRunRecordingTests.CE4099_AutosaveMinutes_…` · `ClusterMasterUnsavedCheckTests.CE4099_AutosaveMinutes_…` (0 ⇒ no check round) · `TranslatorDtoTests` · `NodeOpSlaveTranslatorTests.CE4099_TheClusterStateBroadcast_…` · `ClusterViewTests` · `TheRunRecordingGatesAnswer409Tests` (GET / POST). Red-proof: `ProcessSetRunSettingsIntent` not applying it ⇒ both master rails red |
+| ✅ phase 2 (`afaaaecba`) | A1's `autosaveMinutes` run setting and A7 recovery — §4c.3 is its as-built (route as a query: `GET /scenario/autosave?name=`; the UI prompt and the session door are ui's, note sent) |
+
+#### 4c.3 Phase 2 — A7 RECOVERY, decided (`2026-11-08`, backend)
+
+```mermaid
+sequenceDiagram
+  participant U as host (HTTP / ui's prompt)
+  participant M as ClusterMaster
+  participant P as AssetPrefetchProcessManager
+  participant G as StorageGatewayModule
+  U->>U: GET /scenario/autosave?name= → {exists, at, stale, recoverable} (stale ⇒ reported, not offered)
+  U->>M: POST /scenario/load/edit {name, recoverAutosave:true} → TransitionStateIntent.RecoverAutosave
+  M->>P: the prefetch of {name}, RecoverAutosave
+  P->>G: PrefetchScenarioAsync(name, …, scenarioFileFrom: <name>/.autosave/autosave.json)
+  G->>G: every file of the folder as today, but scenario.json delivered FROM the autosave
+  M->>M: the load resolves into editing ⇒ RecoveredAutosaveSinceLoad (the check round says CHANGED until a real save)
+```
+
+*What the picture shows that prose hid:* the scenario keeps its NAME and FOLDER — only the bytes the nodes stage for ONE load come from the autosave; nothing
+on the NAS is renamed or overwritten, so declining the recovery (a plain open) loads the saved file as before.
+
+| piece | decision |
+|---|---|
+| the substitute | `PrefetchScenarioAsync(…, scenarioFileFrom)` — the ONE place a scenario folder reaches the nodes; ⛔ not a second staging path, not a renamed copy in `opened/` |
+| the master's fact | `RecoveredAutosaveSinceLoad` folds into the check round exactly like `SaveFailedSinceLoad` (changed until a save completes; a new load clears it) |
+| stale | `savedHash` ≠ the hash of today's `scenario.json` ⇒ `GET` answers `{at, stale:true}`; `POST {recoverAutosave}` refuses a stale or missing autosave (409 + the reason) |
+| ui | the prompt on Open / the start surface (*"Recover unsaved changes from 14:41?"*) is ui's; backend sends a NOTE with the two routes |
+
 
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓

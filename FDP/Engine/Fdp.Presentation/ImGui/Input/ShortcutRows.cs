@@ -37,7 +37,7 @@ public sealed class ShortcutRows
         for (int i = 0; i < _keymap.Count; i++)
         {
             var e = _keymap[i];
-            Add(new ShortcutRow(ScopeText(e.Scope, e.WindowKind), e.Chord.ToString(), _keymap.LabelOf(e.Action), false), e.Scope, filter);
+            Add(new ShortcutRow(ScopeText(e.Scope, e.WindowKind), BindingText(e), _keymap.LabelOf(e.Action), false), e.Scope, filter);
         }
         for (int i = 0; i < _keymap.GestureCount; i++)
         {
@@ -57,10 +57,50 @@ public sealed class ShortcutRows
         _rows.Add(row);
     }
 
+    /// <summary>
+    /// ⭐ B-10 K4 (§6g) — a row's chord as the user says it, with its KIND: a Press is the chord alone (<c>Ctrl+Z</c>); a Hold says <c>(hold)</c> (<c>Shift (hold)</c>, <c>Right button (hold)</c>);
+    /// an Axis says what it adds (<c>W (axis +1)</c>, <c>Wheel (axis)</c>, <c>Mouse X (axis −1)</c>).
+    /// </summary>
+    public static string BindingText(KeymapEntry e)
+    {
+        string chord = ChordWords(e.Chord);
+        return e.Trigger switch
+        {
+            KeyTrigger.Hold => chord + " (hold)",
+            KeyTrigger.Axis => chord + (e.Scale == 1f ? " (axis)" : e.Scale > 0f ? " (axis +" + e.Scale.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ")"
+                                                                                  : " (axis \u2212" + (-e.Scale).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ")"),
+            _ => chord,
+        };
+    }
+
+    private static string ChordWords(NodeEditor.Core.Action.KeyBinding chord)
+    {
+        string key = chord.Key switch
+        {
+            NodeEditor.Primitives.EditorKey.Unknown => "",
+            NodeEditor.Primitives.EditorKey.MouseLeft => "Left button",
+            NodeEditor.Primitives.EditorKey.MouseRight => "Right button",
+            NodeEditor.Primitives.EditorKey.MouseMiddle => "Middle button",
+            NodeEditor.Primitives.EditorKey.MouseWheel => "Wheel",
+            NodeEditor.Primitives.EditorKey.MouseWheelH => "Horizontal wheel",
+            NodeEditor.Primitives.EditorKey.MouseDeltaX => "Mouse X",
+            NodeEditor.Primitives.EditorKey.MouseDeltaY => "Mouse Y",
+            NodeEditor.Primitives.EditorKey.KpAdd => "Keypad +",
+            NodeEditor.Primitives.EditorKey.KpSubtract => "Keypad -",
+            _ => chord.Key.ToString(),
+        };
+        string mods = ModifierWords(chord.Modifiers);   // Ctrl+Shift+ — the order KeyBinding.ToString uses
+        return key.Length == 0 ? mods.TrimEnd('+') : mods + key;
+    }
+
+    private static string ModifierWords(NodeEditor.Primitives.KeyModifiers m)
+        => ((m & NodeEditor.Primitives.KeyModifiers.Ctrl) != 0 ? "Ctrl+" : "") + ((m & NodeEditor.Primitives.KeyModifiers.Shift) != 0 ? "Shift+" : "")
+         + ((m & NodeEditor.Primitives.KeyModifiers.Alt) != 0 ? "Alt+" : "") + ((m & NodeEditor.Primitives.KeyModifiers.Super) != 0 ? "Super+" : "");
+
     /// <summary>The scope's wording: <c>Everywhere</c> · <c>In &lt;window kind&gt;</c> · <c>Map</c> / <c>Map · unit</c> · <c>&lt;Hat&gt; hat</c>.</summary>
     public static string ScopeText(InputScope scope, string? qualifier) => scope switch
     {
-        InputScope.Global => "Everywhere",
+        InputScope.Global => qualifier == "debug" ? "Debug keys" : "Everywhere",
         InputScope.FocusedWindow => "In " + (qualifier ?? "a window"),
         InputScope.Map => qualifier == null ? "Map" : "Map · " + qualifier,
         InputScope.Hat => (qualifier ?? "the") + " hat",
@@ -69,7 +109,7 @@ public sealed class ShortcutRows
     };
 
     // Everywhere first, then the focused windows, the map, the hats; then by binding.
-    private static int Order(string scope) => scope == "Everywhere" ? 0 : scope.StartsWith("In ", StringComparison.Ordinal) ? 1 : scope.StartsWith("Map", StringComparison.Ordinal) ? 2 : 3;
+    private static int Order(string scope) => scope == "Everywhere" || scope == "Debug keys" ? 0 : scope.StartsWith("In ", StringComparison.Ordinal) ? 1 : scope.StartsWith("Map", StringComparison.Ordinal) ? 2 : 3;
     private static int Compare(ShortcutRow a, ShortcutRow b)
     {
         int c = Order(a.Scope).CompareTo(Order(b.Scope));

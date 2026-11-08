@@ -7,7 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: AQ108 D24 (the Live default variant is RANDOM) — reconciled by D7 below, awaits the user · R-3061 / AQ108 D17 (Preview = violet ◐) and
   DESIGN_Colour_Icons.md "Not touched: the mode indicator" — the user replaced ◐ with an eye on 2026-11-07 (D9); fold into AQ108 §1a with the old rule
-  under HISTORY when built · LC-11 / CE-4317 (the Run setup on the mode menu, ui, started) — re-scoped by D8 (one picker: the split ▶)
+  under HISTORY when built · LC-11 / CE-4317 (the Run setup on the mode menu) — re-scoped by D8 (one picker) and BUILT as §9b (ui): ▶ previews in place; the menu's Run setup ▸ arms per mode
 related-designs:
   - docs/DESIGN_Struct_Editor.md — the library the preset editor is built on (step 6)
   - docs/DESIGN_Scenario_Macros.md — §17.1 OWNS the VariantForms holder (CE-3374) that makes a variant-0 world saveable; §5 / §14 SR-168 OWN the bindings that keep a parameter's binding across a save; SR-32 owns MACRO presets (a different concept, D1)
@@ -443,3 +443,16 @@ kept man keeps everything the run gave him that the args did not touch.
 | the write | `SetKept` → `EntityComponentReflector.SetComponent` (the spawner's setter; a managed value is the expansion's NEW object). ⛔ A component this node does not own is NOT written into the replica — said in the log (`MoveKept`'s split-authority finding); the transform keeps its owner-request route |
 | the chain end to end | a preset's param bound onto the instance's args (`"MacroInstance.Args.<p>"`) → part ② re-injects the `MacroInstance` (a new record) → this reconcile. ⭐ No fallback to the load path was needed |
 | rail | `MacroExpanderTests.CE4326_P2_AnArgBoundIntoAKeptChildsComponent_ReachesIt_AndNothingElseIsWritten` (`Health.Max` bound to `hp` — standing in for a behaviour's args, which ride the same `InitialComponents`; an unchanged `TkbIdentity` is not written) |
+
+### 9b. ✅ AS-BUILT — the ui half: ▶ previews in place; *Run setup ▸* on the mode menu (CE-4317 = L-10, ui, `2026-11-08`) — `build-state: BUILT`
+
+| what | where | note |
+|---|---|---|
+| the run setup rides the dry run: `IRunTransport.EnterDryRun(startPaused, presetArgs)` → `DryRunIntents.Enter(startPaused, presetArgs)` | `RunModeTypes.cs` · `ClusterTimeTransportAdapter` | ⭐ ONE construction; null = the default Preview, the intent byte-identical to before |
+| ▶ (and Step, and *Run to …*) with an armed non-default preset: the args go in the intent — **no reopen, no save, no reload** | `RunModeChoice.Play` · `EnterPreviewPaused` · `PreviewArgs` | the CE-3393 reopen-then-preview is gone for an authored world — a behaviour change |
+| ⚠ the reopen SURVIVES in one case: the world already holds ANOTHER non-default preset (its variant is baked in; an in-place apply needs the authored world under it), or Default is armed over such a world | `PreviewArgs(out reopen)` | named here as §9's *"only if a part cannot be applied in place"*; the world already holding the armed preset = the plain Preview (as before) |
+| mode menu (Edit and the Live briefing): **Run setup ▸ Preview ▸ presets · Live ▸ presets · Edit presets…** (✓ = the armed one per mode); the briefing shows Live's list alone | `MainToolbarTimeControlSection.RunSetupItem` · `RunModeChoice.ArmPresetFor` | choosing ARMS for that mode (D11 store), ⛔ never the mode; Live in the briefing reloads with it (as the ▾ does); only for a scenario with a preset besides Default (like the ▾) |
+| ⚠ deviation from the handoff's wording *"opens the existing run-setup editor"* | — | no such editor remains: D24's expander was SUPERSEDED by the presets (CE-3392, §5b), and D8 forbids a second picker. ⇒ the entry reuses the ▾'s preset list (one wording, one store); params / variants are authored in *Edit presets…* (§5a) — no second editor |
+
+Rails: `RunSetupTests.Preview_WithAnArmedPreset_IsAppliedInPlace_*` · `Preview_OfTheDefaultPreset_SendsNoArgs_*` · `StepAndRunTo_*` · `Preview_WhenTheWorldHoldsAnotherPreset_Reopens…` · `TheEditMenu_OffersRunSetup_*` · `TheLiveBriefing_OffersRunSetupForLive_*`;
+`MainToolbarTimeControlTests.L10_TheRunSetupEntry_OnARealFrame` (frame); ⭐ the acceptance — `ReferencePreviewHandlerTests.CE4317_APresetPreview_ShowsAnUnsavedEdit_AndStopLeavesTheEditWorldUntouched` (the Preview's world = the unsaved edit + the preset, the edit world whole after ■).

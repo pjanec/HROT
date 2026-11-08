@@ -277,6 +277,16 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Null(plain.HeaderJson);
     }
 
+    /// <summary>⭐ CE-4099 (AQ108 §4c A2) — the autosave flag survives the wire; a payload without it is a real save (false), exactly as before.
+    /// 🔴 Red-proof (compiles): the slave not passing <c>dto.Autosave</c> ⇒ false ⇒ red.</summary>
+    [Fact]
+    public void CE4099_DeserializeNodePayload_SerializeLocal_CarriesTheAutosaveFlag()
+    {
+        var auto = Assert.IsType<ScenarioSaveHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(NedNodeOpType.SerializeLocal, "{\"ScenarioId\":\"scn\",\"Autosave\":true}"));
+        Assert.True(auto.Autosave);
+        Assert.False(Assert.IsType<ScenarioSaveHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(NedNodeOpType.SerializeLocal, "{\"ScenarioId\":\"scn\"}")).Autosave);
+    }
+
     [Fact]
     public void DeserializeNodePayload_SerializeLocal_ExerciseId_RebuildsArchivePayload()
     {
@@ -415,6 +425,19 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(wire, topic.StartLiveImmediately);
         Assert.Equal(on, ClusterFactsIngress.StateOf(topic).StartLiveImmediately);
         Assert.False(ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).StartLiveImmediately);
+    }
+
+    /// <summary>⭐ CE-4099 phase 2 — <i>Autosave</i> minutes ride the cluster-state broadcast both ways (APPENDED last, R-42); an older sender's topic reads 0 (off). 🔴 Mutation: <c>StateOf</c> not mapping it ⇒ red.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    [InlineData(45)]
+    public void CE4099_TheClusterStateBroadcast_CarriesAutosaveMinutes_BothWays(int minutes)
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.Idle, AutosaveMinutes = minutes });
+        Assert.Equal(minutes, topic.AutosaveMinutes);
+        Assert.Equal(minutes, ClusterFactsIngress.StateOf(topic).AutosaveMinutes);
+        Assert.Equal(0, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).AutosaveMinutes);
     }
 
     /// <summary>⭐ R-1043 — the mode of the last scenario load rides the cluster-state broadcast both ways; an older sender's (field never set) reads Live.</summary>

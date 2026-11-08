@@ -225,9 +225,20 @@ public sealed class StorageGatewayModule
                             }
                         }
 
-                        partial.Add(destPath);
-                        File.Copy(entry.SourceUnc, destPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
+                        // ⭐ CE-4330 ① (Recording Storage §3 P4) — the copy lands as <name>.part and is renamed when whole: a file under
+                        //   its real name is always complete (a cut transfer leaves only a .part, which the cancel / the next pull removes).
+                        var partPath = destPath + Fdp.Toolkit.Orchestration.ArchiveManifest.PartSuffix;
+                        partial.Add(partPath);
+                        try
+                        {
+                            File.Copy(entry.SourceUnc, partPath, overwrite: true);
+                            File.Move(partPath, destPath, overwrite: true);
+                        }
+                        catch
+                        {
+                            try { File.Delete(partPath); } catch { /* best-effort */ }
+                            throw;
+                        }
                         Interlocked.Increment(ref successCount);
                     }
                     catch (Exception)
@@ -309,17 +320,20 @@ public sealed class StorageGatewayModule
         IReadOnlyList<NodeDistributionTarget> targets,
         string nasBasePath,
         string? tkbName = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? scenarioFileFrom = null)
         // ⭐ R-4001 — ALL of it on a worker, the NAS directory scan included: the saga calls this from the frame thread,
         //   and a transfer that finishes at once would otherwise resume the rest of the chain there.
-        => Task.Run(() => PrefetchScenarioCoreAsync(scenarioId, targets, nasBasePath, tkbName, ct), ct);
+        => Task.Run(() => PrefetchScenarioCoreAsync(scenarioId, targets, nasBasePath, tkbName, ct, scenarioFileFrom), ct);
 
+    /// <param name="scenarioFileFrom">⭐ CE-4099 (AQ108 §4c A7) — deliver THIS file as the folder's <c>scenario.json</c> (a recovered autosave); null = the folder's own.</param>
     private async Task<GatewayResult> PrefetchScenarioCoreAsync(
         string scenarioId,
         IReadOnlyList<NodeDistributionTarget> targets,
         string nasBasePath,
         string? tkbName,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? scenarioFileFrom = null)
     {
         if (string.IsNullOrWhiteSpace(scenarioId)) throw new ArgumentNullException(nameof(scenarioId));
         if (targets == null)                        throw new ArgumentNullException(nameof(targets));
@@ -352,9 +366,12 @@ public sealed class StorageGatewayModule
 
         // ⭐ P6 — every slice to every target through the provider, ONE request per file (bundled: every target in it).
         //   A target already holding the file (same length + mtime — including the NAS file itself) is skipped.
-        foreach (var srcFile in files)
+        foreach (var file in files)
         {
-            var status = await DeliverFileAsync(_provider, srcFile, Path.GetFileName(srcFile),
+            // ⭐ CE-4099 A7 — the recovered autosave stands in for scenario.json; every other file of the folder goes as it is
+            var srcFile = scenarioFileFrom != null && string.Equals(Path.GetFileName(file), ContentLayout.ScenarioFileName, StringComparison.OrdinalIgnoreCase)
+                ? scenarioFileFrom : file;
+            var status = await DeliverFileAsync(_provider, srcFile, Path.GetFileName(file),
                 distinctTargets.Select(t => (t.NodeId, t.DestinationPath)), ct).ConfigureAwait(false);
             success += status.FilesDone + status.FilesSkipped;
             failure += status.FilesFailed;
@@ -786,7 +803,8 @@ public sealed class StorageGatewayModule
 
     /// <summary>
     /// Returns the names of subdirectories under <paramref name="nasRoot"/> that
-    /// contain at least one <c>*.fdp</c> file. Represents exercises archived to NAS.
+    /// contain at least one <c>*.fdp</c> file AND a complete manifest (<see cref="Fdp.Toolkit.Orchestration.ArchiveManifest"/>, CE-4330 ①).
+    /// Represents exercises archived to NAS.
     /// Returns an empty list if <paramref name="nasRoot"/> does not exist.
     /// </summary>
     public IReadOnlyList<ExerciseInventoryItem> ScanNasExercises(string nasRoot)
@@ -802,6 +820,8 @@ public sealed class StorageGatewayModule
         {
             if (Directory.GetFiles(d, "*.fdp", fdpMatch).Length == 0) continue;
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
+            // ⭐ CE-4330 ① (§3 P4) — ARCHIVED only with its manifest written and every listed file whole; anything else is INCOMPLETE (not listed here)
+            if (!Fdp.Toolkit.Orchestration.ArchiveManifest.Read(d).Complete) continue;
 
             DateTime startTime = Directory.GetCreationTimeUtc(d);
             TimeSpan duration = TimeSpan.Zero;

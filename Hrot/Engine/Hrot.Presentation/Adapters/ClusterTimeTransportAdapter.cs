@@ -344,7 +344,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
 
     void IRunTransport.StopRaw() => StopRaw();
 
-    void IRunTransport.EnterDryRun(bool startPaused) => _bus.PublishManaged(DryRunIntents.Enter(startPaused));
+    void IRunTransport.EnterDryRun(bool startPaused, string? presetArgs) => _bus.PublishManaged(DryRunIntents.Enter(startPaused, presetArgs));   // ⭐ CE-4317 — the run setup rides the ONE construction
 
     void IRunTransport.Resume() => _bus.PublishManaged(new ResumeTimeIntent());
 

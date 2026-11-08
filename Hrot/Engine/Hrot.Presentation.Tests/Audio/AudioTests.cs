@@ -15,6 +15,7 @@ using Hrot.Core.Tkb;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.UI.Common.Audio;
+using DebugKeys = Hrot.UI.Common.DebugKeys;
 using Hrot.UI.Common.Effects;
 using Xunit;
 
@@ -551,6 +552,43 @@ public sealed class AudioTests
             System.IO.File.WriteAllText(path, "{ not json");
             Assert.Equal(0.8f, AudioSettings.Load(path).Master, 3);
             Assert.Equal(AudioSettings.CategoryCount, AudioSettings.Load(null).Categories.Length);
+        }
+        finally { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ B-10 K4 (docs/UX/DESIGN_Input_And_Commands.md §6g) — the audio F-keys are DEBUG rows of the keymap's Global scope (the Keyboard shortcuts window's <i>Debug keys</i>), read by the layer
+    /// through a reader: today's keys still work (<c>CE1120_…</c> above), a rebind in the keymap MOVES the effect (F8 mute → F5: F8 no longer mutes), and the rows are declared with their labels.
+    /// ✅ Red-proof (compiles): <c>_keys.Pressed(DebugKeys.AudioMute)</c> put back to <c>_keyPressed(KeyboardKey.F8)</c> ⇒ the rebound F5 does not mute.
+    /// </summary>
+    [Fact]
+    public void K4_TheAudioFKeysAreKeymapRows_AndARebindMovesTheEffect()
+    {
+        var (world, tkb) = World();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"hrot-audio-{Guid.NewGuid():N}.json");
+        try
+        {
+            var pressed = new HashSet<Raylib_cs.KeyboardKey>();
+            var map = new Fdp.Toolkit.Input.Keymap();
+            var layer = new AudioLayer(() => world, () => tkb, () => me, () => North, () => new NullAudioOutput(), k => pressed.Contains(k), () => path, keymap: map);
+            void Press(Raylib_cs.KeyboardKey key) { pressed.Clear(); pressed.Add(key); layer.Update(0.016f); pressed.Clear(); }
+            layer.Update(0.016f);
+
+            Assert.Empty(map.Validate());
+            Assert.Equal("Audio: mute", map.LabelOf(DebugKeys.AudioMute));
+            Press(Raylib_cs.KeyboardKey.F8);
+            Assert.True(layer.Muted);                                                  // today's key, through the row
+            Press(Raylib_cs.KeyboardKey.F8);
+            Assert.False(layer.Muted);
+
+            Assert.Equal(1, map.Unbind(Fdp.Toolkit.Input.InputScope.Global, DebugKeys.Qualifier, DebugKeys.AudioMute));
+            map.Declare(new Fdp.Toolkit.Input.KeymapEntry(new NodeEditor.Core.Action.KeyBinding(NodeEditor.Primitives.EditorKey.F5, NodeEditor.Primitives.KeyModifiers.None),
+                Fdp.Toolkit.Input.InputScope.Global, DebugKeys.Qualifier, DebugKeys.AudioMute));
+            Press(Raylib_cs.KeyboardKey.F8);
+            Assert.False(layer.Muted);                                                 // the old key does nothing
+            Press(Raylib_cs.KeyboardKey.F5);
+            Assert.True(layer.Muted);                                                  // the new one mutes
         }
         finally { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
     }

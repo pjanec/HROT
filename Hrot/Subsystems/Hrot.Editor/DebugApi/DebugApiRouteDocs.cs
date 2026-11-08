@@ -1518,6 +1518,8 @@ namespace Hrot.Editor.DebugApi
                 new("discardUnsaved", "boolean", false, "Load even though the open scenario has unsaved changes (they are lost). Without it a load of ANOTHER scenario over unsaved edits answers 409.",
                     DefaultJson: "false"),
                 new("preset", "string", false, "⭐ CE-3375 — load with this preset (list_scenario_presets): its param overrides and its variant. Not with args / variant. A preset that is not as authored loads a world that cannot be saved (status canSave:false)."),
+                new("recoverAutosave", "boolean", false, "⭐ CE-4099 (AQ108 §4c A7) — open the scenario's AUTOSAVE (get_scenario_autosave) instead of its saved file: same name and folder, the world reads as unsaved until a save. 409 when there is none or it is stale (the scenario was saved since).",
+                    DefaultJson: "false"),
             },
             Notes: new[]
             {
@@ -1563,6 +1565,22 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{\"name\":\"test-move\",\"waitForReady\":true}",
             ExampleGist: "load test-move live across the cluster and wait for ready"),
+
+        [("GET", "/scenario/autosave")] = new RouteDoc(
+            Tool:    "get_scenario_autosave",
+            Group:   "E — Scenario",
+            Summary: "Whether a scenario has an autosave to recover, from when, and whether it is stale.",
+            Returns: "ok:true envelope with name, exists, at (UTC ISO-8601 or null), stale, recoverable, reason (why not recoverable, or null).",
+            Hint:    "Req: name (query). Example: get_scenario_autosave({name:\"test-move\"}) then load_scenario_edit({name:\"test-move\",recoverAutosave:true,waitForReady:true}).",
+            Params: new RouteParam[]
+            {
+                new("name", "string", true, "Scenario name (relative path; may contain '/')."),
+            },
+            Notes: new[]
+            {
+                "⭐ CE-4099 (AQ108 §4c) — while a scenario is open for editing the cluster autosaves it every 2 minutes when it changed, into <scenario>/.autosave/ (never its scenario.json); a real save deletes the autosave.",
+                "stale:true — the scenario was saved (elsewhere) after the autosave was taken: reported, never offered.",
+            }),
 
         [("POST", "/scenario/check-unsaved")] = new RouteDoc(
             Tool:    "check_unsaved",
@@ -2196,7 +2214,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_run_settings",
             Group:   "I — Replay",
             Summary: "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does) and ⭐ CE-3341 armed (preview | live | aar — the CLUSTER's armed mode, what ▶ runs next; ONE fact on every host, the default is live). The same answer on every host.",
-            Returns: "{ recordLiveRuns, armed, askToKeepRecordings, startLiveImmediately }",   // ⭐ CE-4100 — askToKeepRecordings: the operator UI's Keep / Discard prompt at ■ in Live (default false)
+            Returns: "{ recordLiveRuns, armed, askToKeepRecordings, startLiveImmediately, autosaveMinutes }",   // ⭐ CE-4100 — askToKeepRecordings: the operator UI's Keep / Discard prompt at ■ in Live (default false)
             Hint:    "No params. get_status → recording says whether the run on screen is recorded. Example: get_run_settings({})",
             Notes: new[] { "A set_run_settings is visible here once the master has broadcast it (a frame or two)." },
             ExampleArgsJson: "{}",
@@ -2206,14 +2224,15 @@ namespace Hrot.Editor.DebugApi
             Tool:    "set_run_settings",
             Group:   "I — Replay",
             Summary: "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 \"this run was not recorded\". Live does not imply recording. ⭐ CE-3341 (AQ108 D12a): also the cluster's ARMED mode (armed: preview | live | aar) — the same op the operator UI sends; every host's run-mode indicator follows it.",
-            Returns: "{ published, requestId, recordLiveRuns?, armed?, askToKeepRecordings?, startLiveImmediately?, note }",
-            Hint:    "At least one of: recordLiveRuns (bool), armed (preview|live|aar), askToKeepRecordings (bool), startLiveImmediately (bool); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
+            Returns: "{ published, requestId, recordLiveRuns?, armed?, askToKeepRecordings?, startLiveImmediately?, autosaveMinutes?, note }",
+            Hint:    "At least one of: recordLiveRuns (bool), armed (preview|live|aar), askToKeepRecordings (bool), startLiveImmediately (bool), autosaveMinutes (whole number >= 0; 0 = off); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
             Params: new RouteParam[]
             {
                 new("recordLiveRuns", "boolean", false, "Whether a live run starts a recording (the cluster's default is true); absent = unchanged"),
                 new("armed", "string", false, "The cluster's armed run mode: preview | live | aar (default live); absent = unchanged. ⛔ No load route sends one (D22)"),
                 new("askToKeepRecordings", "boolean", false, "⭐ CE-4100 (AQ108 D15) — whether the operator UI asks Keep / Discard when a live run ends (default false: keep silently); absent = unchanged"),
                 new("startLiveImmediately", "boolean", false, "⭐ CE-3415 (AQ108 D31) — a Live load resumes by itself instead of pausing at 0:00 for the briefing (default false); absent = unchanged"),
+                new("autosaveMinutes", "number", false, "⭐ CE-4099 phase 2 (AQ108 §4c.2 A1) — how often (whole minutes) the master autosaves the scenario being EDITED (the check round first, then the save round into .autosave/); 0 = off (default 2); absent = unchanged"),
             },
             Notes: new[]
             {

@@ -402,6 +402,55 @@ public sealed class StorageGatewayTkbConsensusTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-4099 (AQ108 §4c A7) — a RECOVERY prefetch delivers the autosave AS the node's <c>scenario.json</c>; every other file of the folder goes as it
+    /// is; the NAS folder is not touched. Then the shared staleness rule (<see cref="AutosaveFiles.Read"/>): fresh while <c>scenario.json</c> is the one it
+    /// was based on, stale once it changed. 🔴 Red-proof (compiles): the gateway ignoring <c>scenarioFileFrom</c> ⇒ the saved text arrives ⇒ red.
+    /// </summary>
+    [Fact]
+    public async Task CE4099_ARecoveryPrefetch_DeliversTheAutosaveAsScenarioJson_AndStalenessIsTheSavedFilesHash()
+    {
+        var nasDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var destDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(destDir);
+        try
+        {
+            var srcDir = MakeScenarioDir(nasDir, "rec");
+            const string saved = "{\"Header\":{\"SubsystemType\":\"Hrot.Scenario\"},\"Entities\":{}}";
+            const string edited = "{\"Header\":{\"SubsystemType\":\"Hrot.Scenario\"},\"Entities\":{\"aaaa0000-0000-4000-8000-000000000001\":{}}}";
+            WriteJson(Path.Combine(srcDir, "scenario.json"), saved);
+            WriteJson(Path.Combine(srcDir, "notes.json"), "{}");
+            var autosaveDir = Path.Combine(srcDir, AutosaveFiles.Folder);
+            Directory.CreateDirectory(autosaveDir);
+            File.WriteAllText(Path.Combine(autosaveDir, AutosaveFiles.DataFile), edited);
+            File.WriteAllText(Path.Combine(autosaveDir, AutosaveFiles.MetaFile),
+                "{\"at\":\"2026-11-08T14:41:00.0000000Z\",\"savedHash\":\"" + Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(saved) + "\"}");
+
+            var status = AutosaveFiles.Read(nasDir, "rec", Fdp.Toolkit.Scenario.ScenarioDescription.HashOf);
+            Assert.True(status.Exists && !status.Stale && status.Refusal is null);
+            Assert.Equal(new DateTime(2026, 11, 8, 14, 41, 0, DateTimeKind.Utc), status.AtUtc);
+
+            var targets = new List<NodeDistributionTarget> { new() { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = destDir } };
+            var result = await new StorageGatewayModule().PrefetchScenarioAsync("rec", targets, nasDir, scenarioFileFrom: status.DataPath);
+
+            Assert.True(result.IsFullSuccess);
+            Assert.Equal(edited, File.ReadAllText(Path.Combine(destDir, "scenario.json")));     // the autosave stands in
+            Assert.True(File.Exists(Path.Combine(destDir, "notes.json")));                       // the rest of the folder as it is
+            Assert.Equal(saved, File.ReadAllText(Path.Combine(srcDir, "scenario.json")));       // the NAS is untouched
+
+            WriteJson(Path.Combine(srcDir, "scenario.json"), saved.Replace("Entities", "entities"));   // saved elsewhere since
+            var stale = AutosaveFiles.Read(nasDir, "rec", Fdp.Toolkit.Scenario.ScenarioDescription.HashOf);
+            Assert.True(stale.Stale);
+            Assert.NotNull(stale.Refusal);
+            Assert.NotNull(AutosaveFiles.Read(nasDir, "nothing-here", Fdp.Toolkit.Scenario.ScenarioDescription.HashOf).Refusal);
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir)) Directory.Delete(nasDir, recursive: true);
+            if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
+        }
+    }
+
     // ── Test 2 ────────────────────────────────────────────────────────────────
 
     /// <summary>

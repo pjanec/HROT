@@ -34,6 +34,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
     private ClusterState _state = ClusterState.OperatingLive;
     private bool? _notRecorded = true;
     private bool? _settingOff = false;   // the broadcast's RecordLiveRunsOff
+    private int? _autosave = 2;   // CE-4099 phase 2 — the broadcast's AutosaveMinutes
     private bool? _startNow = false;   // CE-3415 — the broadcast's StartLiveImmediately
     private bool? _askToKeep = false;   // CE-4100 — the broadcast's AskToKeepRecordings
     private ClusterArmedMode? _armed;     // CE-3341 — the broadcast's armed mode (null = this node keeps none: the route answers the default, live)
@@ -46,7 +47,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
             new ISubsystemDebugProvider[]
             {
                 new SubsystemDebugProvider("Player", "Player"),
-                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff, askToKeepRecordings: () => _askToKeep, startLiveImmediately: () => _startNow, armedMode: () => _armed),
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff, askToKeepRecordings: () => _askToKeep, startLiveImmediately: () => _startNow, autosaveMinutes: () => _autosave, armedMode: () => _armed),
             },
             currentPerspective: () => "CGF", acksPending: null);
         var service = new DebugApiService(dispatcher, clusterState: () => _state);
@@ -231,6 +232,30 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
         _master.Sent.Clear();
         (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"startLiveImmediately":"yes"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Empty(_master.Sent);
+
+        // ── CE-4099 phase 2 — "Autosave": minutes, 0 = off, the same route, the same op ──────────────────────────────────────────────────────
+        (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.Equal(2, body["data"]!["autosaveMinutes"]!.GetValue<int>());                                          // the master's default, off the broadcast
+        _autosave = 0;
+        (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.Equal(0, body["data"]!["autosaveMinutes"]!.GetValue<int>());
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"autosaveMinutes":5}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        var autoOp = Assert.IsType<SetRunSettingsIntent>(Assert.Single(_master.Sent));
+        Assert.Equal(5, autoOp.AutosaveMinutes);
+        Assert.Null(autoOp.RecordLiveRuns); Assert.Null(autoOp.AskToKeepRecordings); Assert.Null(autoOp.Armed); Assert.Null(autoOp.StartLiveImmediately);
+        Assert.Equal(5, body["data"]!["autosaveMinutes"]!.GetValue<int>());
+        _master.Sent.Clear();
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"autosaveMinutes":0}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(0, Assert.IsType<SetRunSettingsIntent>(Assert.Single(_master.Sent)).AutosaveMinutes);        // 0 is a value (off), not "absent"
+        _master.Sent.Clear();
+        foreach (var bad in new[] { """{"autosaveMinutes":-1}""", """{"autosaveMinutes":"5"}""", """{"autosaveMinutes":1.5}""" })
+        {
+            (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-settings", Json(bad)));
+            Assert.Equal(HttpStatusCode.BadRequest, status);
+        }
         Assert.Empty(_master.Sent);
     }
 }

@@ -36,6 +36,13 @@ public sealed class StorageProcessManager
     // CE-277(c2): SerializeLocal tx id → scenario name, for the SaveScenarioJson pull+merge path.
     private readonly Dictionary<Guid, string> _pendingSaveScenarioJson = new();
 
+    // ⭐ CE-4099 — the subset of those rounds that are AUTOSAVES.
+    private readonly HashSet<Guid> _pendingAutosaves = new();
+
+
+    /// <summary>The wall clock an autosave's meta stamps (<c>at</c>); a rail sets it.</summary>
+    internal Func<DateTime> UtcNow { get; set; } = () => DateTime.UtcNow;
+
     /// <summary>The <c>$meta.docType</c> our hosts stamp on a scenario slice — matches
     /// <c>HrotScenarioSaveHandler.ScenarioDocType</c>. A slice with any other tag is foreign (e.g. ExCon).</summary>
     private const string ScenarioDocType = "Hrot.Scenario";
@@ -66,7 +73,10 @@ public sealed class StorageProcessManager
 
         // CE-277(c2): map SaveScenarioJson fan-out tx → scenario name for the pull+merge path.
         foreach (var jev in _bus.ReadManaged<SaveScenarioJsonBegunEvent>())
+        {
             _pendingSaveScenarioJson[jev.TransactionId] = jev.ScenarioName;
+            if (jev.Autosave) _pendingAutosaves.Add(jev.TransactionId);
+        }
 
         // ImportArchive: prefetch files from NAS to per-node staging directories.
         foreach (var iev in _bus.ReadManaged<ImportArchiveBegunEvent>())
@@ -144,8 +154,9 @@ public sealed class StorageProcessManager
                         {
                             _bus.PublishManaged(new ClusterOpCompletedEvent
                             {
-                                RequestId  = archRequestId,
-                                StatusCode = OrchestrationStatusCode.Success,
+                                RequestId     = archRequestId,
+                                StatusCode    = OrchestrationStatusCode.Success,
+                                ResultPayload = PulledFiles(manifest),   // ⭐ CE-4330 ① — the manifest written LAST lists these (AssetInventoryProcessManager)
                             });
                         }
                         else
@@ -170,13 +181,28 @@ public sealed class StorageProcessManager
                 _pendingSaveScenarioJson.Remove(ev.RequestId);
                 var saveTxId = ev.RequestId;
                 var scnManifest = new List<FileManifestEntry>(manifest);
+                if (_pendingAutosaves.Remove(saveTxId))
+                {
+                    // ⭐ CE-4099 — an AUTOSAVE: merged into .autosave/, a failure only logged (A3: never a 409, never a toast, the master's unsaved fact untouched)
+                    _ = _gateway.PullToNasAsync(scnManifest, _nasBasePath)
+                        .ContinueWith(pullTask =>
+                        {
+                            if (pullTask.IsCompletedSuccessfully && pullTask.Result.IsFullSuccess)
+                            {
+                                try { MergeAutosaveSlices(scenarioName, scnManifest); }
+                                catch (Exception ex) { FdpLog<StorageProcessManager>.Warn("[StorageProcessManager] autosave merge '{0}' failed: {1}", scenarioName, ex.Message); }
+                            }
+                            else FdpLog<StorageProcessManager>.Warn("[StorageProcessManager] autosave pull '{0}' failed — skipped; the next interval takes it.", scenarioName);
+                        }, System.Threading.Tasks.TaskScheduler.Default);
+                    continue;
+                }
                 _ = _gateway.PullToNasAsync(scnManifest, _nasBasePath)
                     .ContinueWith(pullTask =>
                     {
                         bool saved = false;   // ⭐ CE-4093 — the master learns whether the file on disk is current
                         if (pullTask.IsCompletedSuccessfully && pullTask.Result.IsFullSuccess)
                         {
-                            try { MergeScenarioSlices(scenarioName, scnManifest); saved = true; }
+                            try { MergeScenarioSlices(scenarioName, scnManifest); saved = true; DeleteAutosave(scenarioName); }   // ⭐ CE-4099 A6 — a completed save makes the autosave obsolete
                             catch (Exception ex)
                             {
                                 FdpLog<StorageProcessManager>.Error(
@@ -323,6 +349,63 @@ public sealed class StorageProcessManager
             FdpLog<StorageProcessManager>.Warn(
                 "[StorageProcessManager] could not clean staging slices for '{0}': {1}", scenarioName, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4099 (AQ108 §4c A5) — an autosave's slices merged by the SAME core into <c>&lt;scenario&gt;/.autosave/autosave.json</c>, with
+    /// <c>autosave.meta.json {at, savedHash}</c>: <c>savedHash</c> = the hash of the <c>scenario.json</c> it was based on (A7: a recovery is offered only
+    /// while that file is unchanged — saved elsewhere since ⇒ stale, reported, not offered). Foreign slices are not kept for an autosave.
+    /// </summary>
+    internal void MergeAutosaveSlices(string scenarioName, List<FileManifestEntry> manifest)
+    {
+        var scenarioDir = ContentLayout.ResolveScenarioDirectory(_nasBasePath, scenarioName);
+        var autosaveDir = Path.Combine(scenarioDir, AutosaveFiles.Folder);
+        var slices = new List<ScenarioSlice>();
+        foreach (var entry in manifest)
+        {
+            if (!string.Equals(entry.DocType, ScenarioDocType, StringComparison.Ordinal)) continue;
+            var pulledPath = Path.Combine(_nasBasePath, entry.RelativeDest);
+            if (File.Exists(pulledPath) && JsonNode.Parse(File.ReadAllText(pulledPath)) is JsonObject dom)
+                slices.Add(new ScenarioSlice((Fdp.Core.NodeId)(ParseNodeId(entry.RelativeDest)), ScenarioDocType, dom));
+        }
+        if (slices.Count == 0) return;
+        var result = ScenarioMergeCore.Merge(slices, ScenarioDocType);
+        if (result.CanonicalDom == null) return;
+        Directory.CreateDirectory(autosaveDir);
+        File.WriteAllText(Path.Combine(autosaveDir, AutosaveFiles.DataFile), result.CanonicalDom.ToJsonString(FdpJsonOptionsRegistry.DefaultRelaxed));
+        var saved = Path.Combine(scenarioDir, ContentLayout.ScenarioFileName);
+        var meta = new JsonObject
+        {
+            ["at"] = UtcNow().ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            ["savedHash"] = File.Exists(saved) ? Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(saved)) : "",
+        };
+        File.WriteAllText(Path.Combine(autosaveDir, AutosaveFiles.MetaFile), meta.ToJsonString());
+        try { Directory.Delete(Path.Combine(autosaveDir, ".slices"), recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        FdpLog<StorageProcessManager>.Info("[StorageProcessManager] autosaved '{0}' ({1} slice(s)).", scenarioName, slices.Count);
+    }
+
+    /// <summary>⭐ CE-4099 (AQ108 §4c A6) — a real save completed: the scenario's autosave is obsolete.</summary>
+    internal void DeleteAutosave(string scenarioName)
+    {
+        var dir = AutosaveFiles.DirectoryOf(_nasBasePath, scenarioName);
+        try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        { FdpLog<StorageProcessManager>.Warn("[StorageProcessManager] could not delete the autosave of '{0}': {1}", scenarioName, ex.Message); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4330 ① — the files a full archive pull put on the NAS, by name inside the exercise folder, each with the size it has THERE (the bytes the
+    /// manifest vouches for).
+    /// </summary>
+    internal ArchivePullResult PulledFiles(List<FileManifestEntry> manifest)
+    {
+        var files = new List<ArchivedFile>(manifest.Count);
+        foreach (var entry in manifest)
+        {
+            var path = Path.Combine(_nasBasePath, entry.RelativeDest);
+            if (File.Exists(path)) files.Add(new ArchivedFile(Path.GetFileName(path), new FileInfo(path).Length));
+        }
+        return new ArchivePullResult(files);
     }
 
     /// <summary>Parses the node id from a per-node slice RelativeDest (<c>.../.slices/node_&lt;id&gt;.json</c>).</summary>

@@ -42,6 +42,13 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster-wide <i>Start immediately</i> setting: a LIVE load of a scenario resumes by itself even when it asked to start paused (default OFF — pause at 0:00 for the briefing). Read at the load's success (<see cref="RunsWhenLoaded"/>); Preview is unaffected.</summary>
     public bool StartLiveImmediately { get; set; }
 
+    /// <summary>⭐ CE-4099 phase 2 (AQ108 §4c.2 A1) — the cluster-wide <i>Autosave</i> interval in whole minutes (what goes on the broadcast): <see cref="AutosaveEvery"/> rounded UP, 0 = off. Setting it maps minutes → <see cref="AutosaveEvery"/>; default 2.</summary>
+    public int AutosaveMinutes
+    {
+        get => AutosaveEvery <= TimeSpan.Zero ? 0 : (int)Math.Ceiling(AutosaveEvery.TotalMinutes);
+        set => AutosaveEvery = value <= 0 ? TimeSpan.Zero : TimeSpan.FromMinutes(value);
+    }
+
     /// <summary>⭐ Node Features F-16 — the cluster's feature overrides, held by the MASTER and broadcast with the cluster state; stamped per node onto each LOAD's payload.</summary>
     public IReadOnlyList<FeatureOverrideSpec> FeatureOverrides { get; private set; } = Array.Empty<FeatureOverrideSpec>();
 
@@ -130,6 +137,7 @@ public sealed partial class ClusterMaster
         if (intent.Armed is { } armed) ArmedMode = armed;
         if (intent.AskToKeepRecordings is { } ask) AskToKeepRecordings = ask;   // ⭐ AQ108 D15 (CE-4100 ①)
         if (intent.StartLiveImmediately is { } startNow) StartLiveImmediately = startNow;   // ⭐ CE-3415 (AQ108 §0 D31)
+        if (intent.AutosaveMinutes is { } autosave) AutosaveMinutes = autosave;   // ⭐ CE-4099 phase 2 — null = no change, 0 = off
         if (intent.FeatureOverrides is { } featureOverrides)   // ⭐ Node Features F-8/F-16 — null = no change, empty = none; refused whole when a node lacks the feature
         {
             if (FeatureOverrideRefusal(featureOverrides) is { } refusal)
@@ -142,6 +150,7 @@ public sealed partial class ClusterMaster
         }
         PublishClusterState(_currentDsmState);   // every host reads the settings off the broadcast, so tell them now
         FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090/CE-3341: run settings now: Record live runs {0} (from the next live load), armed mode {1}, ask to keep recordings {2}, start immediately {3}.", RecordLiveRuns, ArmedMode, AskToKeepRecordings, StartLiveImmediately);
+        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4099: run settings now: autosave {0} min (0 = off).", AutosaveMinutes);
         PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
     }
 

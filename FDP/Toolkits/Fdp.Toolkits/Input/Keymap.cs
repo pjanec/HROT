@@ -24,14 +24,17 @@ public enum InputScope
     Global,
 }
 
-/// <summary>How a binding fires (K1 routes <see cref="Press"/> only; Hold and Axis are the map's movement keys, K2).</summary>
+/// <summary>
+/// How a binding fires. The K1 router dispatches <see cref="Press"/> only; <see cref="Hold"/> and <see cref="Axis"/> are STATE a surface READS each frame through a
+/// <c>KeymapReader</c> (K4, §6g) — never dispatched as actions.
+/// </summary>
 public enum KeyTrigger
 {
     /// <summary>Once, on the frame the chord goes down (no repeat).</summary>
     Press,
-    /// <summary>Every frame while held.</summary>
+    /// <summary>Active while the chord is held (sprint, the trigger, a look button). A chord with no key and only modifiers (<c>Shift</c>) is held while that modifier is.</summary>
     Hold,
-    /// <summary>A continuous value (WASD movement).</summary>
+    /// <summary>A value: a key adds its <see cref="KeymapEntry.Scale"/> while down (W / S), a mouse value (the wheel, the movement) is multiplied by it.</summary>
     Axis,
 }
 
@@ -80,7 +83,8 @@ public readonly struct ActionRef : IEquatable<ActionRef>
 /// <param name="WindowKind">For <see cref="InputScope.FocusedWindow"/>: the window kind it belongs to; null elsewhere.</param>
 /// <param name="Action">What it runs.</param>
 /// <param name="Trigger">How it fires.</param>
-public readonly record struct KeymapEntry(KeyBinding Chord, InputScope Scope, string? WindowKind, ActionRef Action, KeyTrigger Trigger = KeyTrigger.Press);
+/// <param name="Scale">For <see cref="KeyTrigger.Axis"/>: what this chord contributes (W = +1, S = −1; a mouse value is multiplied by it). Ignored by Press / Hold.</param>
+public readonly record struct KeymapEntry(KeyBinding Chord, InputScope Scope, string? WindowKind, ActionRef Action, KeyTrigger Trigger = KeyTrigger.Press, float Scale = 1f);
 
 /// <summary>A chord bound to two different actions where both apply at once.</summary>
 /// <param name="First">The entry declared first.</param>
@@ -122,7 +126,27 @@ public sealed class Keymap
 
     /// <summary>The label of <paramref name="action"/>, else its id.</summary>
     public string LabelOf(ActionRef action) => _labels.TryGetValue(action, out var l) ? l : action.ToString();
-    private readonly HashSet<(InputScope, string?, ActionRef)> _declared = new();
+    private readonly HashSet<(InputScope, string?, ActionRef, KeyBinding, KeyTrigger)> _declared = new();
+    private readonly HashSet<(InputScope, string?, ActionRef)> _declaredActions = new();
+
+    /// <summary>
+    /// ⭐ B-10 K4 (§6g) — takes every KEY row of <paramref name="action"/> out of (<paramref name="scope"/>, <paramref name="windowKind"/>), so a rebind is "unbind, declare the new chord".
+    /// ⚠ The action stays <see cref="IsDeclared">declared</see> in that place: a declarer that guards on <see cref="IsDeclared"/> will not put the default back. Returns how many rows went.
+    /// </summary>
+    public int Unbind(InputScope scope, string? windowKind, ActionRef action)
+    {
+        int removed = 0;
+        for (int i = _entries.Count - 1; i >= 0; i--)
+        {
+            var e = _entries[i];
+            if (e.Scope != scope || !string.Equals(e.WindowKind, windowKind, StringComparison.Ordinal) || !e.Action.Equals(action)) continue;
+            _declared.Remove((e.Scope, e.WindowKind, e.Action, e.Chord, e.Trigger));
+            _entries.RemoveAt(i);
+            removed++;
+        }
+        if (removed > 0) Version++;
+        return removed;
+    }
 
     /// <summary>How many rows.</summary>
     public int Count => _entries.Count;
@@ -131,12 +155,14 @@ public sealed class Keymap
     public KeymapEntry this[int index] => _entries[index];
 
     /// <summary>
-    /// Adds a row. ⭐ Idempotent per (scope, window kind, action): a second declaration of the same action in the same place is ignored, so a
-    /// declarer may re-declare every time it sees a command set. Returns whether a row was added.
+    /// Adds a row. ⭐ Idempotent per (scope, window kind, action, chord, trigger): declaring the same row again is ignored, so a
+    /// declarer may re-declare every time it sees a command set; ⭐ K4 — one action may have SEVERAL chords (Q or Space climbs; = or keypad + zooms), each its own row.
+    /// Returns whether a row was added.
     /// </summary>
     public bool Declare(KeymapEntry entry)
     {
-        if (!_declared.Add((entry.Scope, entry.WindowKind, entry.Action))) return false;
+        if (!_declared.Add((entry.Scope, entry.WindowKind, entry.Action, entry.Chord, entry.Trigger))) return false;
+        _declaredActions.Add((entry.Scope, entry.WindowKind, entry.Action));
         _entries.Add(entry);
         Version++;
         return true;
@@ -202,7 +228,7 @@ public sealed class Keymap
     }
 
     /// <summary>Whether (scope, window kind, action) already has a row — lets a per-frame declarer skip the work without allocating.</summary>
-    public bool IsDeclared(InputScope scope, string? windowKind, ActionRef action) => _declared.Contains((scope, windowKind, action));
+    public bool IsDeclared(InputScope scope, string? windowKind, ActionRef action) => _declaredActions.Contains((scope, windowKind, action));
 
     /// <summary>
     /// The first row in <paramref name="scope"/> (and, for <see cref="InputScope.FocusedWindow"/>, <paramref name="windowKind"/>) whose chord is
