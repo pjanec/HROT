@@ -65,6 +65,7 @@ public static class MenuCommandAdapter
 
         // Apply shortcut and enabled state to the leaf node.
         ApplyLeafNode(menu, menuPath, descriptor);
+        if (FindNode(menu.Root, menuPath) is { } leaf) leaf.CommandId = commandId;   // ⭐ U-1 — the start surface keys an action's look on the command, not the label
     }
 
     /// <summary>

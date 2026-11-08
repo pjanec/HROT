@@ -3,7 +3,7 @@
 
 | item | id | what | state | sha | notes |
 |---|---|---|---|---|---|
-| U-1 | — | Start screen on the REAL editor | IN PROGRESS | — | |
+| U-1 | — | Start screen on the REAL editor | DONE | 4600fcd03 | look keyed on command id (`MenuItemNode.CommandId`); reason to tooltip; widths measured; glyph then words; heading wraps; rail `TheStartScreenOnTheRealEditorTests` at scale 1 and 1.5 |
 | U-2 | CE-4333 | ONE icon-button chrome | QUEUED | — | |
 | U-3 | CE-4337 | Keyboard shortcuts → View ▸ Settings | QUEUED | — | supersedes R-4176 #3 build |
 | U-4 | CE-4334 | ORBAT row icons | QUEUED | — | |
