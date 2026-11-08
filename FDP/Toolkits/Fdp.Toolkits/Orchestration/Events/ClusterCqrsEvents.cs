@@ -225,6 +225,8 @@ namespace Fdp.Toolkit.Orchestration
         public int ProcessId;
         public int ForcedId;
         public int PreferredId;
+        /// <summary>⭐ CE-4331 ⑥ — the asking node's kind (<c>CGF</c>, <c>Player</c>, …); null / empty = a dynamic id.</summary>
+        public string? SubsystemName;
     }
 
     /// <summary>⭐⭐ <c>C1</c> — the master's answer to a <see cref="NodeIdRequestEvent"/>.</summary>

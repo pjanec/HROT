@@ -167,13 +167,17 @@ class Program
                      && !config.RequestedSubsystems.Contains("replaybrowser", StringComparer.OrdinalIgnoreCase);
             if (asks)
             {
+                // ⭐ CE-4331 ⑥ (§9b) — the node says its KIND (the master grants inside the kind's range) and the id it held last time (granted again when free).
+                var askedKind = config.RequestedSubsystems.Single();
+                var idRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot();
                 var grant = Hrot.Network.NED.Factory.NodeIdBroker.AwaitGrant(
-                    (uint)config.DomainId, forcedId: 0, preferredId: 0, Console.WriteLine);
+                    (uint)config.DomainId, forcedId: 0, preferredId: Fdp.Toolkit.Orchestration.NodeIdMemory.Read(idRoot, askedKind), Console.WriteLine, askedKind);
                 if (grant.Refused)
                 {
                     Console.Error.WriteLine($"[Runner] The cluster master refused a node id: {grant.Reason}");
                     return 1;
                 }
+                Fdp.Toolkit.Orchestration.NodeIdMemory.Write(idRoot, askedKind, grant.NodeId);
                 grantedNodeId = grant.NodeId;
                 Console.WriteLine($"[Runner] C1: the cluster master granted node id {grant.NodeId} (session {grant.SessionId}).");
             }
