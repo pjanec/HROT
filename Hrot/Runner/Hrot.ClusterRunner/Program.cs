@@ -796,12 +796,12 @@ class Program
     /// subsystem in a multi-process cluster receives a distinct ID.
     /// Returns 0 (legacy fallback) when <paramref name="baseNodeId"/> is 0.
     /// </summary>
-    private static int ResolveAppNodeId(string subsystemName, int baseNodeId)
+    internal static int ResolveAppNodeId(string subsystemName, int baseNodeId)   // ⭐ CE-4332 — internal for the per-arm rail
     {
-        int offset = subsystemName.ToUpper() switch
+        int offset = subsystemName.ToUpperInvariant() switch
         {
             "SIMHOST"      => 1,
-            "Player"           => 100,
+            "PLAYER"       => 100,   // ⭐ CE-4332 (Recording Storage §9b) — was "Player": the switch compares UPPER-case, so a Player fell to 600
             "ORCHESTRATOR" => 300,
             "CGF"          => 400,
             "CI"           => 500,
