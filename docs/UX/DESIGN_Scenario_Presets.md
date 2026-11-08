@@ -274,7 +274,7 @@ applied only by the LOAD — `ScenarioParams.Prepare` + `ScenarioVariants.Apply`
 **The fallback (D)**, only where P2 says so: the autosave round (D23) turns the in-memory edit world (unsaved edits included) into scenario JSON,
 the load applies the preset to it, the Preview runs it, Stop rewinds. Slower, still with the edits.
 
-### 9a. ⭐ CE-4326 — the build (backend, `2026-11-08`) — `build-state: BUILDING` (part ① BUILT; ② params and ③ P2 next)
+### 9a. ⭐ CE-4326 — the build (backend, `2026-11-08`) — `build-state: BUILT` (parts ① ② ③ — §9a.1 … §9a.3)
 
 **INVENTORY** *(`2026-11-08`: the graph index was stale — `search_graph` found no `VariantForms`; re-indexed in the background; ⚠ these rows are
 grep + reading, coverage unchecked)*: the load's variant decisions — `ScenarioVariants.Roll` / `Pick` / `ChoicesOf` / `PositionsOf`, composed inline in
@@ -376,4 +376,70 @@ graph TD
 |---|---|
 | ⛔ no `PresetApplier` host seam — the handler calls `PresetInPlace` directly | both live in `Fdp.Toolkits`: every host has it by construction (the silent-default rule needs no seam to forward) |
 | ⚠ found and fixed on the way: `FdpAutoSerializer` wrote a nullable value member (`double?`) as NOTHING | the rewind brought a removed entity back with `VariantForms.Presence` null — a save after the Preview would have lost the authored presence. Fixed in the serializer (CE-3305's shape); no recording carried a `T?`, so no format change |
-| ⏳ params (variant 0 presets, part ②) and P2 (a param inside a macro's behaviour args) | not built yet: today a pen preset's params reach only `ScenarioDescriptionResident.Args` (what a macro re-expansion reads), not the bound fields of authored entities |
+| ~~⏳ params (part ②) · P2 (part ③)~~ | built — §9a.2, §9a.3 |
+
+#### 9a.2 ✅ AS-BUILT part ② (`2026-11-08`) — a preset's PARAMS, in place, through the host's serializer
+
+```mermaid
+sequenceDiagram
+  participant H as ReferencePreviewHandler
+  participant P as PresetInPlace
+  participant S as ScenarioSerializer (the host's)
+  participant B as ParamBinder (the one binder)
+  participant W as world
+  H->>P: Apply(world, args, serializer)
+  P->>P: ScenarioParams.Resolve → source (the load's overlay)
+  P->>P: ApplyVariant (part ①) — first, as the load does
+  loop each entity with ParamBindings
+    P->>S: SerializeEntity(world, e, ResolverFor(world), saveable mask)
+    S-->>P: the entity as the file holds it
+    P->>B: ApplyBindings(entityJson, source)
+    P->>S: DeserializeWith(only the CHANGED components)
+    S->>W: new values (a managed one is a NEW object)
+  end
+  P-->>H: Result{…, Bound, Unbound}
+```
+
+*What the picture shows that prose hid:* the bindings (③) are paths over the **file's** component JSON (`"Behavior.Params.Speed"` steps into a translator's
+key), so the in-place writer must see the entity **as the file holds it** — only the host's serializer can produce that. ⇒ the same binder runs on the
+same shape the load gives it; ⛔ no second path walker over live components.
+
+| what | where / why |
+|---|---|
+| the round trip | `PresetInPlace.ApplyParams` — serialize the bound entity, `ParamBinder.ApplyBindings` (the load's call), inject back **only the changed keys** (a translator re-run on an untouched key could reset live state; a managed value injected is a NEW object, so the keyframe — which holds managed components by reference — is untouched and the rewind restores it) |
+| the resolver | `ScenarioSerializer.ResolverFor(world)` — entity ↔ `EntityGuid` both ways (the file key, CE-4153) |
+| the seam (⚠ a deviation from §9a.1's *"no host seam"*) | `ReferencePreviewHandler(…, scenarioSerializer)` ← `EcsHostClusterHandlerInputs.ScenarioSerializer` ← `NodeBootstrapper` (the ONE production `Compose` caller, which already holds the serializer for the save / load handlers). A host with none counts its bound entities in `Result.Unbound` and the Preview logs a warning — never silent |
+| refusals | a bad path / a missing param throws in the binder exactly as at load ⇒ `Result.Refused` (the keyframe rewinds anything already written) |
+| rail | `VariantFormsTests.CE4326_APresetsParams_AppliedInPlace_EqualTheLoadWithThatPreset` (the load with the preset = the defaults' world + the preset in place; unbound field and entity untouched; binding kept, SR-168; no serializer ⇒ `Unbound = 1`) |
+| ⚠ not in place | the `"^name"` forms (①) and a node's `Bind` map (②) on **top-level** scenario entities — the load binds them on the extracted values (`ScenarioEntityWalk`, Hrot-side). 📐 Measured: **no `scenarios/*/scenario.json` uses one** (`grep '"\^[A-Za-z]'` hits only `macros/`), and inside a macro they re-bind on re-expansion — that is P2, part ③ |
+
+#### 9a.3 ✅ AS-BUILT part ③ (`2026-11-08`) — P2: a param reaches a macro's KEPT children
+
+```mermaid
+sequenceDiagram
+  participant P as PresetInPlace (part ②)
+  participant W as world
+  participant M as MacroExpansionSystem.MaybeReconcile (the ONE reconcile)
+  participant X as MacroExpander
+  P->>W: MacroInstance replaced (its Args bound: "MacroInstance.Args.hp")
+  M->>X: Expand(old args) → before · Expand(new args) → now
+  loop each child, by GUID
+    alt kept
+      M->>W: SimTransform (MoveKept) + EntityInfo — as before
+      M->>W: + every OTHER component whose value the args changed (ArgsChanged → SetKept) «NEW»
+    else new / gone
+      M->>W: create / destroy — as before
+    end
+  end
+```
+
+*What the picture shows that prose hid:* the old reconcile already expanded BOTH sets (old args, new args) — it used the old one only to tell
+"destroyed by the run" from "no longer made". ⭐ The same pair now says **what the args changed** per kept child, so nothing new is computed and a
+kept man keeps everything the run gave him that the args did not touch.
+
+| what | where / why |
+|---|---|
+| the delta | `MacroExpansionSystem.ArgsChanged` — the child as the old args made it vs the new one: value equality, or the JSON of a class without it (two expansions = two objects). ⛔ Never re-applied: `EntityGuid`, `MacroOrigin`, the expansion's own bookkeeping |
+| the write | `SetKept` → `EntityComponentReflector.SetComponent` (the spawner's setter; a managed value is the expansion's NEW object). ⛔ A component this node does not own is NOT written into the replica — said in the log (`MoveKept`'s split-authority finding); the transform keeps its owner-request route |
+| the chain end to end | a preset's param bound onto the instance's args (`"MacroInstance.Args.<p>"`) → part ② re-injects the `MacroInstance` (a new record) → this reconcile. ⭐ No fallback to the load path was needed |
+| rail | `MacroExpanderTests.CE4326_P2_AnArgBoundIntoAKeptChildsComponent_ReachesIt_AndNothingElseIsWritten` (`Health.Max` bound to `hp` — standing in for a behaviour's args, which ride the same `InitialComponents`; an unchanged `TkbIdentity` is not written) |

@@ -66,21 +66,7 @@ public static class EntityListSource
     }
 
     /// <summary>The TKB type a <c>tkb:&lt;type&gt;</c> preset names (0 = none), and the remaining layer presets.</summary>
-    internal static int TkbTypeOf(string[]? presets, out string[]? layerPresets)
-    {
-        layerPresets = presets;
-        if (presets == null) return 0;
-        int type = 0, kept = 0;
-        var rest = new string[presets.Length];
-        foreach (var p in presets)
-        {
-            if (p.StartsWith("tkb:", StringComparison.OrdinalIgnoreCase) && int.TryParse(p.AsSpan(4), NumberStyles.Integer, CultureInfo.InvariantCulture, out int t) && t > 0) type = t;
-            else rest[kept++] = p;
-        }
-        if (type == 0) return 0;
-        layerPresets = kept == 0 ? null : rest[..kept];
-        return type;
-    }
+    internal static int TkbTypeOf(string[]? presets, out string[]? layerPresets) => Fdp.Toolkit.Scenario.LiveRefScope.TkbTypeOf(presets, out layerPresets);   // ⭐ CE-3399 — the ONE parse (the scope's)
 
     /// <summary>The picker request for <see cref="Entries"/> (built lazily, so the list is fresh when it opens).</summary>
     public static PickerRequest Request(EntityRepository world, string[]? presets, ICollection<int>? exclude = null)

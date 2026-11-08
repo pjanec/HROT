@@ -325,6 +325,20 @@ public sealed class HsmPickerDrawerTests
         types.DrawerOf(typeof(ushort)).Should().BeOfType<HsmSyncGroupPickerDrawer>();
     }
 
+    /// <summary>⭐ CE-3400 (Y-8) — a state's <i>Deferred events</i> (<c>[HsmEventPicker] List&lt;ushort&gt; DeferredEventIds</c>): each ELEMENT of the list draws the event picker, not the sync-group combo — the document builder hands a list member's custom
+    /// attributes to its element nodes, and a plain <c>List&lt;ushort&gt;</c> (no attribute) still gets the plain element drawer. 🔴 Red-proof: the builder not passing the attributes ⇒ the element resolves to <c>HsmSyncGroupPickerDrawer</c> ⇒ red.</summary>
+    [Fact]
+    public void CE3400_ADeferredEventsElement_DrawsTheEventPicker()
+    {
+        var types   = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset());
+        var service = Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build();
+        using var session = service.Open(new StateFacet { DeferredEventIds = new System.Collections.Generic.List<ushort> { 1, 2 } }, typeof(StateFacet), StructEdit.Core.EditScope.WholeComponent, new StructEdit.Core.EditContext());
+        var list = session.Document.Root.Children.Single(c => c.Name == nameof(StateFacet.DeferredEventIds));
+        list.Children.Should().HaveCount(2);
+        foreach (var element in list.Children)
+            types.DrawerFor(element).Should().BeOfType<HsmEventPickerDrawer>("the list member\'s [HsmEventPicker] names what each element is");
+    }
+
     /// <summary>⭐ CE-1008 (AI_Editor_Shared_Infrastructure §7.1b) — the HSM factory forwards the host's picker to the binding, the state
     /// and the event pickers — one shared choice field.</summary>
     [Fact]

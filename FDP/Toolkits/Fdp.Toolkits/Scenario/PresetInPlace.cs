@@ -18,14 +18,19 @@ namespace Fdp.Toolkit.Scenario
     /// </remarks>
     public static class PresetInPlace
     {
-        /// <summary>What an application changed (the Preview's note and the rails read it).</summary>
-        public readonly record struct Result(int Removed, int Placed, int MacrosChosen, string? Refused);
+        /// <summary>What an application changed (the Preview's note and the rails read it). <see cref="Bound"/> — entities whose
+        /// <see cref="ParamBindings"/> took the preset's values; <see cref="Unbound"/> — entities carrying bindings the host could not apply in place
+        /// (no scenario serializer handed over — the Preview note names them).</summary>
+        public readonly record struct Result(int Removed, int Placed, int MacrosChosen, string? Refused, int Bound = 0, int Unbound = 0);
 
         /// <summary>
         /// Applies the run setup <paramref name="argsJson"/> (a JSON object: params and the reserved <c>$variant</c>) to <paramref name="world"/>.
         /// A setup the scenario refuses (an undeclared arg, a malformed form) changes nothing and says why in <see cref="Result.Refused"/>.
         /// </summary>
-        public static Result Apply(EntityRepository world, string? argsJson)
+        /// <param name="serializer">⭐ §9a.2 — the host's scenario serializer: the param bindings (③, paths over the scenario file's component JSON) are
+        /// applied by a round trip of each bound entity through it — the SAME binder the load runs on the file. Null ⇒ nothing bound, counted in
+        /// <see cref="Result.Unbound"/>.</param>
+        public static Result Apply(EntityRepository world, string? argsJson, ScenarioSerializer? serializer = null)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             if (string.IsNullOrWhiteSpace(argsJson)) return default;
@@ -34,7 +39,13 @@ namespace Fdp.Toolkit.Scenario
             try { prepared = ScenarioParams.Resolve(ScenarioDescription.HeaderOf(world), argsJson, null, "the preview's preset", variant); }
             catch (ScenarioParams.ArgsRefused r) { return new Result(0, 0, 0, r.Message); }
 
-            var result = variant != 0 ? ApplyVariant(world, variant) : default;
+            var result = variant != 0 ? ApplyVariant(world, variant) : default;   // ⭐ the load's order: variant first (a removed entity binds nothing)
+            try
+            {
+                var (bound, unbound) = ApplyParams(world, serializer, prepared.Source);
+                result = result with { Bound = bound, Unbound = unbound };
+            }
+            catch (InvalidOperationException ex) { return result with { Refused = ex.Message }; }   // a load would refuse it too (a bad path, a missing param)
             SetResidentArgs(world, prepared.EffectiveJson);   // the expander reads the run's variant from here (a re-expanded macro rolls with it)
             return result;
         }
@@ -79,6 +90,38 @@ namespace Fdp.Toolkit.Scenario
             }
             foreach (var e in absent) world.DestroyEntity(e);
             return new Result(absent.Count, placed, macros, null);
+        }
+
+        /// <summary>
+        /// ⭐ §9a.2 — ③ in place: each entity with <see cref="ParamBindings"/> is serialized (the saveable components, as a save writes them), bound by
+        /// <see cref="ParamBinder.ApplyBindings"/> (the load's own call), and ONLY the components whose JSON changed are injected back — as NEW values, so a
+        /// managed component the keyframe holds by reference is never touched (the rewind restores it).
+        /// </summary>
+        private static (int Bound, int Unbound) ApplyParams(EntityRepository world, ScenarioSerializer? serializer, IParamSource source)
+        {
+            if (!world.IsComponentTypeRegistered<EntityGuid>() || !world.GetRegisteredComponentTypes().ContainsKey(typeof(ParamBindings))) return default;
+            var targets = new List<Entity>();
+            foreach (var e in world.Query().WithManaged<ParamBindings>().With<EntityGuid>().Build()) targets.Add(e);
+            if (targets.Count == 0) return default;
+            if (serializer == null) return (0, targets.Count);
+
+            var resolver = ScenarioSerializer.ResolverFor(world);
+            var mask = world.GetSaveableMask();
+            int bound = 0;
+            foreach (var e in targets)
+            {
+                var node = serializer.SerializeEntity(world, e, resolver, mask);
+                var before = (JsonObject)node.DeepClone();
+                if (!ParamBinder.ApplyBindings(node, source)) continue;
+                var changed = new JsonObject();
+                foreach (var (k, v) in node)
+                    if (!JsonNode.DeepEquals(before[k], v)) changed[k] = v?.DeepClone();
+                string key = world.GetComponentRO<EntityGuid>(e).Value.ToString();
+                serializer.DeserializeWith(world, new JsonObject { ["Entities"] = new JsonObject { [key] = changed } }, resolver,
+                                           new Dictionary<string, Entity> { [key] = e });
+                bound++;
+            }
+            return (bound, 0);
         }
 
         private static void SetResidentArgs(EntityRepository world, string effective)

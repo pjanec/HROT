@@ -194,6 +194,8 @@ namespace Fdp.Core.FlightRecorder
             // ref access without going through SetLifecycleState/AddComponent) are not
             // captured in delta frames. Proper fix: also check the cold NativeChunkTable
             // per-chunk version separately. Tracked in DEBT-TRACKER D004.
+            // ⭐ CE-4327 — SetAuthority (the ownership handover) now stamps LastChangeTick on a real change, so a handover IS captured;
+            // only a direct cold write that bypasses every setter is not.
             for (int c = 0; c < indexTotalChunks; c++)
             {
                if ((c + 1) * indexCapacity <= MinRecordableId) continue;

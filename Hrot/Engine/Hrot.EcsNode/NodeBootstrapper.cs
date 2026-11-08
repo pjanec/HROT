@@ -380,6 +380,7 @@ namespace Hrot.SimHost
                 LoadProviders      = loadProviders,
                 ScenarioHandlers   = handlersToRegister,
                 ScenarioSaveHandler = scenarioSaveHandler,
+                ScenarioSerializer = scenarioSerializer,   // ⭐ CE-4326 §9a.2 — a Preview's preset binds its params through it (silent-default rule)
                 TerrainService     = TerrainLoadService,
                 TerrainStagingRoot = localTempRoot,
             });

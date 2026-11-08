@@ -36,6 +36,8 @@ public sealed class ParametersDrawer
     public Action<string>? PreviewPreset { get; set; }
     /// <summary>True when the scenario uses variants (the Variant row is only drawn then).</summary>
     public Func<bool>? UsesVariants { get; set; }
+    /// <summary>⭐ CE-3402 (Y-8) — the pick context of the table's value cells (a link-type default — EntityLink / PointLink / AreaLink — gets <i>Pick on the map</i> and ⌖ show-on-map; Field Declaration §6 D9). The host passes its ONE broker; null = no map affordance.</summary>
+    public Func<Fdp.Presentation.Editing.IMapPickContext?>? Picks { get; set; }
 
     private string _shown = ScenarioPreset.DefaultName;
     private int _seenRevision = -1;
@@ -171,7 +173,7 @@ public sealed class ParametersDrawer
             if (_presetSettingsFor != _shown) { _presetSettingsFor = _shown; _presetSettings = Settings("Value · " + _shown, showDefaults: true); }
             settings = _presetSettings!;
         }
-        _table.Draw(_view, settings, null);
+        _table.Draw(_view, settings, Picks?.Invoke());
         // ⛔ B-14 — Ctrl+Z / Ctrl+Y are the shell's Edit ▸ Undo / Redo now (the ONE key mechanism over the SAME history): the drawer's own chord would undo twice.
     }
 

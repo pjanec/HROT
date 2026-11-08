@@ -216,5 +216,77 @@ namespace Fdp.Toolkits.Tests.Scenario
             foreach (var x in repo.Query().WithManaged<VariantForms>().Build()) back = ((ISimulationView)repo).GetManagedComponentRO<VariantForms>(x);
             Assert.Equal(authored, back);
         }
+
+        // ── ⭐ CE-4326 part ② (Presets §9a.2) — a preset's PARAMS applied in place through the host's serializer ─────────────────────────────
+
+        /// <summary>A bound scalar (the test's own component, so the rail owns its shape).</summary>
+        [ComponentId(492)]   // test-local (GlobalComponentIds notes it as taken)
+        public struct PresetSpeed { public float Speed; public int Lane; }
+
+        private const string BoundFile = """
+            { "Header": { "SubsystemType": "Hrot.Scenario", "Params": [ { "Name": "speed", "TypeId": "float", "Default": 1.5 } ] },
+              "Entities": {
+                "dddd0000-0000-4000-8000-000000000001": { "PresetSpeed": {"Speed": 0, "Lane": 7},
+                    "ParamBindings": {"Bindings": {"PresetSpeed.Speed": "speed"}} },
+                "dddd0000-0000-4000-8000-000000000002": { "PresetSpeed": {"Speed": 9, "Lane": 3} } } }
+            """;
+
+        private static ScenarioSerializer BoundSerializer()
+            => new ScenarioSerializerBuilder("Hrot.Scenario").RegisterTranslator(new ParamBindingsTranslator()).Build();
+
+        /// <summary>The world a load WITH <paramref name="args"/> builds: the file prepared by the load's own routine, then deserialized.</summary>
+        private static EntityRepository BoundWorld(string? args)
+        {
+            var dom = (JsonObject)JsonNode.Parse(BoundFile)!;
+            var header = ScenarioHeaderJson.Read(dom);
+            var prepared = ScenarioParams.Prepare(dom, header, args, null, "scenario 'bound'");
+            var repo = new EntityRepository();
+            repo.RegisterComponent<EntityGuid>();
+            repo.RegisterComponent<PresetSpeed>();
+            repo.RegisterManagedComponent<ParamBindings>();
+            repo.RegisterManagedComponent<ScenarioDescriptionResident>();
+            BoundSerializer().Deserialize(repo, dom);
+            ScenarioDescription.Stamp(repo, null, "bound", null, prepared.EffectiveJson, ScenarioDescription.HeaderJsonOf(header));
+            return repo;
+        }
+
+        private static string Speeds(EntityRepository repo)
+        {
+            var rows = new List<string>();
+            foreach (var e in repo.Query().With<EntityGuid>().Build())
+            {
+                var s = repo.GetComponentRO<PresetSpeed>(e);
+                rows.Add($"{repo.GetComponentRO<EntityGuid>(e).Value} {s.Speed} {s.Lane} pb={repo.HasManagedComponent<ParamBindings>(e)}");
+            }
+            rows.Sort(System.StringComparer.Ordinal);
+            return string.Join("\n", rows);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4326 part ② gate P1 — a pen preset's PARAMS applied in place (the authored world, loaded with the defaults) equal the load WITH that preset:
+        /// the bound field takes the preset's value, the unbound field and the unbound entity keep theirs, the binding stays (SR-168). And without the host's
+        /// serializer nothing is bound — counted, never silent.
+        /// 🔴 Red-proof (compiles): <c>ApplyParams</c> skipping the inject (<c>continue</c> before <c>DeserializeWith</c>) ⇒ the speed stays 1.5 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4326_APresetsParams_AppliedInPlace_EqualTheLoadWithThatPreset()
+        {
+            const string preset = "{\"speed\": 4.25}";
+            using var loaded = BoundWorld(preset);
+            using var inPlace = BoundWorld(null);
+            Assert.Contains(" 1.5 7 ", Speeds(inPlace));   // the authored world holds the default
+
+            var result = PresetInPlace.Apply(inPlace, preset, BoundSerializer());
+            Assert.Null(result.Refused);
+            Assert.Equal(1, result.Bound);
+            Assert.Equal(0, result.Unbound);
+            Assert.Equal(Speeds(loaded), Speeds(inPlace));
+            Assert.Contains(" 4.25 7 pb=True", Speeds(inPlace));
+
+            using var noHost = BoundWorld(null);
+            var bare = PresetInPlace.Apply(noHost, preset);
+            Assert.Equal((0, 1), (bare.Bound, bare.Unbound));
+            Assert.Contains(" 1.5 7 ", Speeds(noHost));
+        }
     }
 }

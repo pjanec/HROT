@@ -1,4 +1,4 @@
-# Generates docs/UX/review-perspective-visual.svg — DESIGN_Review_Perspective.md: the editor in AAR, laid out as the Review perspective —
+# Generates docs/UX/review-perspective-visual.svg — DESIGN_Review_Perspective.md (fourth pass): the editor in AAR — the ONE AAR transport, the status bar's source,
 # the Replay Browser's analysis windows over the editor's ONE world (CE-3419, first iteration). Scope: the perspective's layout and the four
 # windows it adds; the run controls are AQ108 §0's (drawn as context, unchanged); the map content is context.
 import os, sys
@@ -15,17 +15,26 @@ s.rect(X0, Y0, SW, 30, "#1E1E22")
 mx = X0 + 10
 for m in ["File", "Edit", "View", "Scenario"]:
     s.text(mx, Y0 + 20, m, C.TXT, 12.5); mx += text_width(m, 12.5) + 18
-bx = mx + 30
+bx = mx + 24
+# AQ108 §0 (context): the indicator — AAR, blue ▶ — a glyph button with ▾
 s.rect(bx, Y0 + 5, 34, 21, C.BTN, rx=3); s.glyph(FA.PLAY, bx + 6, Y0 + 9, C.BLUE, 13); s.text(bx + 25, Y0 + 20, "▾", C.TXT, 11)
-bx += 44
-for cp, col in [(FA.PLAY, C.BLUE), (0xf04d, C.GREY)]:
-    s.rect(bx, Y0 + 5, 24, 21, C.BTN, rx=3); s.glyph(cp, bx + 5, Y0 + 9, col, 13); bx += 30
-s.text(bx + 6, Y0 + 20, "12:31 / 18:40  AAR · Night attack · exercise 3", C.TXT, 12)
-# ★ the SOURCE switch (D6′): what fills the ONE world
+bx += 42
+# ★ D8 — the ONE AAR transport (the Replay Browser's drawer): history ◀ ▶ · rewind · step ◀ · ▶ (greyed: merged steps / scrubs) · step ▶ · ■ · rate · axis
+for cp, col, en in [(0xf060, "#3EC6B0", True), (0xf061, "#3EC6B0", True), (0xf049, C.GREY, True), (0xf048, C.TXT, True),
+                    (FA.PLAY, C.BLUE, False), (0xf051, C.TXT, True), (0xf04d, C.GREY, True)]:
+    s.rect(bx, Y0 + 5, 24, 21, C.BTN, rx=3); s.glyph(cp, bx + 5, Y0 + 9, col if en else "#4A4F5A", 12); bx += 27
+s.rect(bx + 2, Y0 + 5, 48, 21, C.FRAME, rx=3); s.text(bx + 8, Y0 + 20, "1.0x▾", C.TXT, 11.5); bx += 54
+s.rect(bx, Y0 + 5, 20, 21, C.BTN, rx=3); s.text(bx + 10, Y0 + 20, "S", C.TXT, 12, "middle"); bx += 28
+# ★ the seek bar (no ticks, R-4155) up to the Source combo
+sx0 = bx + 4; s.text(sx0, Y0 + 20, "12:31", C.TXT, 12); sx0 += 40
+sx1 = X0 + SW - 470 - 50
+s.rect(sx0, Y0 + 12, sx1 - sx0, 6, "#2A2A33", rx=3); pxs = sx0 + (sx1 - sx0) * 0.67
+s.rect(sx0, Y0 + 12, pxs - sx0, 6, C.ACC, rx=3); s.o.append(f"<circle cx='{pxs}' cy='{Y0 + 15}' r='6' fill='{C.TXT}'/>")
+s.text(sx1 + 6, Y0 + 20, "18:40", C.DIS, 12)
+# the compact SOURCE combo — only while a participant GROUP is open (D9)
 sx = X0 + SW - 470
-s.text(sx, Y0 + 20, "Source", C.SUB, 12)
-s.rect(sx + 48, Y0 + 5, 170, 21, C.FRAME, rx=3, stroke="#3EC6B0"); s.glyph(0xf0e8, sx + 55, Y0 + 9, C.TEAL, 12)
-s.text(sx + 74, Y0 + 20, "Merged · 4 parts", C.TXT, 12); s.text(sx + 206, Y0 + 20, "▾", C.TXT, 11)
+s.rect(sx + 20, Y0 + 5, 200, 21, C.FRAME, rx=3, stroke="#3EC6B0"); s.glyph(0xf0e8, sx + 27, Y0 + 9, C.TEAL, 12)
+s.text(sx + 46, Y0 + 20, "Merged · 4 participants", C.TXT, 12); s.text(sx + 208, Y0 + 20, "▾", C.TXT, 11)
 # ★ the perspective switch: Scenario · Review
 px = X0 + SW - 230
 s.text(px - 8, Y0 + 20, "", C.DIS, 11)
@@ -70,7 +79,7 @@ for comp, old, new in [("Health.Current", "62", "40"), ("Weapon.Ammo", "18", "15
 s.text(AX + 10, ry + 16, "◀ previous change    next change ▶", C.ACC, 11.5)
 
 # ── bottom: the Event Timeline (unchanged) + Search results strip ──
-TX, TY, TW, TH = X0, Y0 + 390, SW, 250
+TX, TY, TW, TH = X0, Y0 + 390, SW, 226
 s.rect(TX, TY, TW, TH, C.BG, stroke=C.BORDER); s.rect(TX, TY, TW, 20, C.TITLE); s.text(TX + 8, TY + 14, "Event Timeline")
 rx0, rx1 = TX + 110, TX + TW - 14
 for i in range(7):
@@ -84,6 +93,13 @@ for i, (name, col, evs) in enumerate(lanes):
 s.line(rx0 + (rx1 - rx0) * 0.67, TY + 30, rx0 + (rx1 - rx0) * 0.67, TY + TH - 6, C.RED, sw=1.5)
 s.note(TX + 12, TY + TH - 40, ["★ the search's hits and a data breakpoint's stops become timeline lanes; a click seeks there"], C.NOTE, 11)
 
+# ── ★ D9 — the STATUS BAR: the source (left) · the seat and hat (right — CE-4329, moved off the toolbar, a separate item) ──
+SBY = Y0 + SH - 22
+s.rect(X0, SBY, SW, 22, "#16161B", stroke=C.BORDER)
+s.glyph(0xf0e8, X0 + 8, SBY + 5, C.TEAL, 12); s.text(X0 + 26, SBY + 15, "Merged · 4 participants (CGF ×2, SimHost, Player) — step / scrub", "#3EC6B0", 11.5)
+s.text(X0 + 470, SBY + 15, "·  AAR · Night attack · exercise 3", C.SUB, 11.5)
+s.text(X0 + SW - 10, SBY + 15, "Author · Observe", C.SUB, 11.5, "end")
+
 # ── the File menu addition ──
 s.menu(X0 + 8, Y0 + 30, 300, [("#", "File"), ("Open Exercise Recording…", None, 0xf1da, C.BLUE), ("Recording info", None, 0xf05a, C.GREY),
                              ("Export to JSON…", None, 0xf56e, C.GREY)])
@@ -91,12 +107,11 @@ s.menu(X0 + 8, Y0 + 30, 300, [("#", "File"), ("Open Exercise Recording…", None
 s.menu(sx + 48, Y0 + 30, 290, [("#", "Source of the world"), ("Merged — every part (step / scrub)", None, 0xf0e8, C.TEAL),
                               ("CGF-1's part", None, 0xf544, C.BLUE), ("SimHost-1's part", None, 0xf1b2, C.AMBER), "---", ("Offsets…  (expert)", None, 0xf1de, C.GREY)])
 NY = Y0 + SH + 18
-s.note(20, NY, ["★ ONE world (the ALL-IN-ONE editor, or the standalone Replay Browser — never a real cluster's AAR, which is the trainees' debrief): the search, the frame diff and",
-                "   the change finder read the RECORDING FILE in throwaway background readers — the way the editor's HTTP API already searches (no second visible world).",
-                "★ Review is a perspective (a window layout), entered when a recording opens for analysis; the same layout is the Replay Browser's default (Q-B3).",
-                "★ Source (D6): several participant files open MERGED by default — each component from the node that owned it (a brain's state from CGF); a node's part plays;",
-                "   merged steps / scrubs only. The parts are HIDDEN worlds; the editor still shows one (Q-B6).",
-                "   Unchanged, drawn as context: the run controls (AQ108 §0), the rules bundle, Details, the Event Timeline's own lanes."], C.SUB, 12)
+s.note(20, NY, ["★ ONE AAR (D1). The SOURCE follows the files: a group opens MERGED, said in the status bar (D9). The TRANSPORT is the Replay Browser's one drawer (D8) —",
+                "   history, step back / forward with scrub, the seek bar; ▶ greyed while merged (step / scrub only). The LAYOUT (Scenario · Review) only docks windows.",
+                "★ Search, frame diff and the change finder read the FILES in throwaway readers — no second visible world. Review switches in by itself on an all-in-one AAR",
+                "   or a group (D10); switching to Scenario mid-AAR keeps the replay, the source, the status bar and the transport.",
+                "   Unchanged, drawn as context: the indicator (AQ108 §0), the rules bundle, Details, the Event Timeline's own lanes. Seat · hat moved to the status bar (CE-4329)."], C.SUB, 12)
 
 # ── ★ how you get here (§3a) ──
 BY = Y0 + SH + 130

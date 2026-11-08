@@ -193,4 +193,18 @@ public sealed class ThePresetEditorTests
         Click(step, (drawer.PreviewRect.Min + drawer.PreviewRect.Max) / 2f);
         Assert.Equal("Preset 1", previewed);
     }
+
+    /// <summary>⭐ CE-3402 (Y-8; Field Declaration §6 D9) — the editor wires its ONE pick broker into the parameters drawer: the drawer's table draws with a pick context, so a link-type default has <i>Pick on the map</i> (the silent-default rule: the host HOLDS the broker, the drawer must be handed it).
+    /// 🔴 Mutation: <c>WireParametersDrawer</c> not setting <c>Picks</c> ⇒ the context is null ⇒ red.</summary>
+    [Fact]
+    public void TheEditorsParametersDrawer_IsHandedTheEditorsPickBroker()
+    {
+        var (repo, _, drawer) = Fixture(); using var _r = repo;
+        var editor = new Hrot.Editor.EditorSubsystem();
+        Assert.Null(drawer.Picks);                                              // a bare drawer has none
+        var wired = editor.WireParametersDrawer(drawer);
+        Assert.Same(drawer, wired);
+        Assert.Same(editor.FormsPick, wired.Picks!());                          // the SAME broker the Details forms use
+        Assert.Same(editor.FormsPick, wired.Picks!());                          // one, not a new one per call
+    }
 }
