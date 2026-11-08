@@ -94,6 +94,51 @@ public sealed class HatArbiterTests : IDisposable
         Assert.False(MapUiStates.RtsOf(_w)!.StoodDown);
     }
 
+    /// <summary>
+    /// ⭐⭐ B-10 K3 (docs/UX/DESIGN_Input_And_Commands.md §6c) — ONE Esc goes ONE level out, innermost first: an armed tool → the camera scope (a follow) → the hat (Embodied / Direct step
+    /// out) → RTS STOPS (R-4163: Esc never leaves it). A pick pushed over RTS takes the press and RTS is untouched under it.
+    /// 🔴 Red-proof (compiles): <c>ToolHoldsEscape</c> counting the RTS tool as a tool ⇒ the first Esc after arming RTS answers Tool instead of RtsStops ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false, Hat.Observe, EscapeLevel.Tool)]
+    [InlineData(true, true, Hat.Command, EscapeLevel.Tool)]            // a tool before the camera, before the hat
+    [InlineData(false, true, Hat.Observe, EscapeLevel.Camera)]
+    [InlineData(false, true, Hat.Command, EscapeLevel.Camera)]         // a follow lets go first; the NEXT press meets RTS
+    [InlineData(false, false, Hat.Embodied, EscapeLevel.Hat)]
+    [InlineData(false, false, Hat.Direct, EscapeLevel.Hat)]
+    [InlineData(false, false, Hat.Command, EscapeLevel.RtsStops)]
+    [InlineData(false, false, Hat.Edit, EscapeLevel.Nothing)]
+    [InlineData(false, false, Hat.Observe, EscapeLevel.Nothing)]
+    public void K3_OneEscPress_GoesToOneLevel(bool tool, bool camera, Hat hat, EscapeLevel expected)
+        => Assert.Equal(expected, EscapeChain.Resolve(tool, camera, hat));
+
+    [Fact]
+    public void K3_TheStationsEsc_StopsAtRts_AToolPushedOverItTakesThePress_NothingLeavesRts()
+    {
+        _mode = EditingMode.Live;
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w });
+        mi.MenuOrders.PickService = () => new NoPick();
+        mi.Tools.Register(new ToolDescriptor("test.pick", "Pick", ToolModality.Modal, ToolArbiter.Global), _ => ToolActivationOutcome.Armed);
+        Assert.Equal(EscapeLevel.Nothing, mi.Hats.EscapeLevel(cameraOwnsEscape: false));
+
+        Assert.True(mi.Tools.Activate(ScenarioToolIds.RtsCommand));
+        Assert.Equal(Hat.Command, mi.Hats.Active);
+        Assert.False(mi.Hats.ToolHoldsEscape, "RTS is the hat itself, not a tool inside it");
+        Assert.Equal(EscapeLevel.RtsStops, mi.Hats.EscapeLevel(false));
+        Assert.Equal(EscapeLevel.Camera, mi.Hats.EscapeLevel(true));
+
+        using (mi.Tools.PushModal("test.pick"))
+        {
+            Assert.True(mi.Hats.ToolHoldsEscape);
+            Assert.Equal(EscapeLevel.Tool, mi.Hats.EscapeLevel(true));          // the pick first, even while following
+        }
+        Assert.Equal(ScenarioToolIds.RtsCommand, mi.Tools.ActiveModal?.Id);     // popped one level: RTS is back
+        Assert.Equal(EscapeLevel.RtsStops, mi.Hats.EscapeLevel(false));
+
+        mi.Hats.Embodied = true;
+        Assert.Equal(EscapeLevel.Hat, mi.Hats.EscapeLevel(false));              // first person: the hat steps out (the driver releases the unit)
+    }
+
     /// <summary>⭐ CE-4329 (R-4170) — the seat · hat line is the STATUS BAR's now (was the toolbar's): rebuilt only when either changes (the same string otherwise — no allocation per frame).</summary>
     [Fact]
     public void TheStatusBarLine_ShowsTheSeatAndTheHat()

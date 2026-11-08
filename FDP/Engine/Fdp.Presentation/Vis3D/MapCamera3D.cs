@@ -96,6 +96,15 @@ namespace Fdp.Toolkit.Vis3D
         /// must not fire. A driver says which (<see cref="ICameraDriver.OwnsKey"/>); the free camera owns W A S D E Q while it flies (the right
         /// button held). ⛔ Every other key falls through — the camera overrides only what it uses.
         /// </summary>
+        /// <summary>
+        /// ⭐ B-10 K3 (§6c) — whether Esc is the CAMERA's this press: false while an armed tool holds it (one level out — a tool inside the hat first). Set by the host
+        /// that knows its tools; null = always (a standalone camera).
+        /// </summary>
+        public Func<bool>? EscapeFree { get; set; }
+
+        /// <summary>Whether a driver may take Esc this press (see <see cref="EscapeFree"/>).</summary>
+        public bool EscapeIsFree => EscapeFree?.Invoke() ?? true;
+
         public bool OwnsKey(MapKeyboardKey key)
         {
             if (_driver != null) return _driver.OwnsKey(key);

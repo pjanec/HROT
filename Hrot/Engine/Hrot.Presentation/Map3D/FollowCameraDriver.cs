@@ -117,7 +117,8 @@ public sealed class FollowCameraDriver : ICameraDriver
 
     public bool HandleInput(MapCamera3D camera, IInputProvider input)
     {
-        if (input.IsKeyPressed((MapKeyboardKey)Raylib_cs.KeyboardKey.Escape)
+        // ⭐ B-10 K3 — one level out: Esc is an armed tool's while one is armed (it cancels the tool, the follow stays); W A S D and the map drag are the camera's own
+        if ((input.IsKeyPressed((MapKeyboardKey)Raylib_cs.KeyboardKey.Escape) && camera.EscapeIsFree)
             || input.IsKeyDown((MapKeyboardKey)Raylib_cs.KeyboardKey.W) || input.IsKeyDown((MapKeyboardKey)Raylib_cs.KeyboardKey.A)
             || input.IsKeyDown((MapKeyboardKey)Raylib_cs.KeyboardKey.S) || input.IsKeyDown((MapKeyboardKey)Raylib_cs.KeyboardKey.D)
             || input.IsMouseButtonDown(MapMouseButton.Middle))   // a map drag (UC-2)

@@ -98,6 +98,31 @@ public sealed partial class PossessionStationTests
         }
     }
 
+    /// <summary>
+    /// ⭐ B-10 K3 (docs/UX/DESIGN_Input_And_Commands.md §6c) — one level out: while an armed tool holds Esc the follow camera does NOT also let go (the press cancels the tool, the
+    /// follow stays); the next press, with no tool, lets go. W A S D are the camera's own and unaffected.
+    /// 🔴 Red-proof (compiles): the driver ignoring <c>camera.EscapeIsFree</c> ⇒ the camera is handed back with the tool still armed ⇒ red.
+    /// </summary>
+    [Fact]
+    public void K3_AFollow_YieldsEscToAnArmedTool_ThenLetsGoOnTheNext()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            bool toolArmed = true;
+            var cam = new MapCamera3D { ViewportOverride = Viewport, GroundHeight = (_, _) => 0f, EscapeFree = () => !toolArmed };
+            cam.Update(0.016f);
+            cam.Driver = new FollowCameraDriver(() => w, unit, bodies: null);
+            var esc = new Input();
+            esc.Pressed.Add((int)MapKeyboardKey.Escape);
+            cam.HandleInput(esc);
+            Assert.NotNull(cam.Driver);                                    // the tool took the press
+            toolArmed = false;                                             // the tool is gone
+            cam.HandleInput(esc);
+            Assert.Null(cam.Driver);                                       // the next press lets go
+        }
+    }
+
     /// <summary>⭐ CE-1339 — Esc from a follow leaves the free camera where the follow was: the eye does not drop to the ground.
     /// ✅ Red-proof: the driver setter's look-at match dropped ⇒ the eye falls to ~1 m (the relief re-pin).</summary>
     [Fact]

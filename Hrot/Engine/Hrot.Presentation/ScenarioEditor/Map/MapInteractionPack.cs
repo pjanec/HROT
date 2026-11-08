@@ -553,6 +553,8 @@ namespace Hrot.ScenarioEditor.Map
             if (LayerControlOf.TryGetValue(buffer, out var layerControl)) layerControl.Is3D = () => viewSwitch.Is3D;
             // ⭐ CE-1054 — one terrain resolution per tick, not one per draped point (the 3-D map ran at ~1 FPS)
             viewSwitch.Camera3D.GroundHeight = new Hrot.UI.Common.Map3D.CachedGroundHeight(worldProvider).At;
+            // ⭐ B-10 K3 (§6c) — one level out: while an armed tool holds Esc, a follow camera does not also hand the camera back
+            viewSwitch.Camera3D.EscapeFree = () => !(HatArbiter.Of(worldProvider())?.ToolHoldsEscape ?? false);
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
             // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — articulated kits are posed by their turret part's TurretPose.
