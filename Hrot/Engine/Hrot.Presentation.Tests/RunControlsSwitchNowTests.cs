@@ -143,7 +143,7 @@ public sealed class RunControlsSwitchNowTests
         Bar(rig).OnStop();
         var ask = rig.Choice.Pending!;
         Assert.Equal("End the exercise?", ask.Title);
-        Assert.Equal(new[] { "End the exercise", RunModeConfirmation.CancelLabel }, ask.Buttons.Select(b => b.Label));
+        Assert.Equal(new[] { "End the exercise", "Keep running" }, ask.Buttons.Select(b => b.Label));
         ask.Resolve(ask.Buttons[1]);
         Assert.Equal(0, ender.Ended);
         Bar(rig).OnStop();

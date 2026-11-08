@@ -128,17 +128,12 @@ public static class TransportIcons
 
             case BtnShape.Eject:
             {
-                // ⏏ green: an up-pointing triangle over a bar — "Back to live" (DAR §9a).
-                uint col = ImGui.GetColorU32(new Vector4(0.20f, 0.78f, 0.20f, alpha));
-                float barH = MathF.Round(size * 0.14f);
-                float baseY = size * 0.58f - pad * 0.3f;
-                dl.AddTriangleFilled(
-                    pos + new Vector2(pad, baseY),
-                    pos + new Vector2(size - pad, baseY),
-                    pos + new Vector2(size * 0.5f, pad), col);
-                dl.AddRectFilled(
-                    pos + new Vector2(pad, size - pad - barH),
-                    pos + new Vector2(size - pad, size - pad), col);
+                // ⭐ R-8 / CE-3412 (D30, ind.png) — ⏏ is the FA "right-from-bracket" (arrow leaving a bracket), light on the button: "Close the session" in Live · ended, "back to live" in a DAR.
+                //   ⛔ was a green eject triangle. The glyph is the UI font's merged FontAwesome; 0 B (a const string).
+                uint col = ImGui.GetColorU32(new Vector4(0.84f, 0.90f, 1f, alpha));
+                const string glyph = Fdp.Presentation.Fonts.IconsFontAwesome6.RightFromBracket;
+                var sz = ImGui.CalcTextSize(glyph);
+                dl.AddText(new Vector2(pos.X + MathF.Round((size - sz.X) / 2f), pos.Y + MathF.Round((size - sz.Y) / 2f)), col, glyph);
                 break;
             }
 

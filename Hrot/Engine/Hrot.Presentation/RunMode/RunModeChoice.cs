@@ -567,9 +567,9 @@ public sealed class RunModeChoice
             case TransportMode.Live when _control is not null:
                 if (LiveEnded) { AskToClose(); break; }
                 if (_transport.Ender is { CanEnd: true } ender)
-                    Ask("End the exercise?", "End the exercise? The objectives are evaluated and the results shown; the world stays paused at the end for the debrief. Cancel keeps it running.",
+                    _asker.Show("End the exercise?", "The objectives are evaluated and the results shown. The world stays paused at the end for the debrief. Keep running cancels.", "Keep running",
                         new RunModeConfirmation.Button("End the exercise", () => ender.End()));
-                    // ⚠ LC-17 words the second button "Keep running": the house confirmation's own last button (Cancel) IS that — a second do-nothing button would duplicate it
+                    // ⭐ R-8 (story ⑤, LC-17): the house confirmation's LAST button (Cancel, what Esc / ✕ press) is worded "Keep running" — one do-nothing button, not two
                 else StopLive();
                 break;
             case TransportMode.Replay:
@@ -920,6 +920,9 @@ public sealed class RunModeChoice
 
     // ONE colour table: the toolbar's (§9a — Preview violet, Review amber, Replay blue; Live's green is the not-recording one); only the recording RED is new
     private static Vector4 ColorOf(TransportMode mode) => MainToolbarTimeControlSection.ModeGlyph(mode)!.Color;
+    /// <summary>⭐ R-8 — Live's colour as the indicator wears it: red when the run is recorded, green when not (the menus' Live ● follow it).</summary>
+    public Vector4 LiveColour => _transport.RecordsLiveRuns ? RecordingRed : ColorOf(TransportMode.Live);
+
     private static readonly Vector4 RecordingRed = new(0.90f, 0.22f, 0.22f, 1f);
 
     private static readonly List<RunModeIndicator> Interned = new();

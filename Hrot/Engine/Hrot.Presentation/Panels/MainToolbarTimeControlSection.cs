@@ -385,7 +385,10 @@ public sealed class MainToolbarTimeControlSection
         {
             var target = move.Target;
             var label = move.DisabledReason is { } why ? $"{move.Label} — {why}" : move.Label;
-            items.Add(new(label, move.IsShown ? () => { } : () => _choice.Choose(target), move.Enabled, Selected: move.IsShown));   // ⭐ CE-4111: the shown item does nothing (no Choose)
+            // ⭐ R-8 (story ②): each mode's own glyph in its own colour — pen yellow · Live ● red / green · AAR ▶ blue
+            var icon = target switch { RunArmed.Live => ModeGlyph(TransportMode.Live), RunArmed.Preview => ModeGlyph(TransportMode.Edit), _ => ModeGlyph(TransportMode.Replay) };
+            items.Add(new(label, move.IsShown ? () => { } : () => _choice.Choose(target), move.Enabled, Selected: move.IsShown,
+                Glyph: icon?.Glyph, GlyphColor: target == RunArmed.Live ? _choice.LiveColour : icon?.Color));   // ⭐ CE-4111: the shown item does nothing (no Choose)
         }
         var header = legacy?.Header ?? (_facade.Mode is TransportMode.Edit or TransportMode.Idle
             ? "Edit · ▶ previews"
@@ -401,7 +404,7 @@ public sealed class MainToolbarTimeControlSection
     /// </summary>
     private ModeMenuModel EndedMenu(RunModeChoice c)
     {
-        var live = ModeGlyph(TransportMode.Live)!.Color;
+        var live = c.LiveColour;   // ⭐ R-8 — red when recorded, as the indicator
         var labels = c.CheckpointLabels?.Invoke() ?? Array.Empty<string>();
         var checkpoints = new List<ModeMenuItem>();
         foreach (var label in labels) { var l = label; checkpoints.Add(new(l, () => c.RestoreCheckpoint?.Invoke(l), c.RestoreCheckpoint is not null)); }
@@ -410,7 +413,8 @@ public sealed class MainToolbarTimeControlSection
         var items = new List<ModeMenuItem>
         {
             new("Run again (same scenario → the briefing)", c.RunAgain, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Circle, GlyphColor: live),
-            new(checkpoints.Count > 0 ? "Restart from a checkpoint" : "Restart from a checkpoint — none listed for this run", null, Enabled: checkpoints.Count > 0, Children: checkpoints),
+            new(checkpoints.Count > 0 ? "Restart from a checkpoint" : "Restart from a checkpoint — none listed for this run", null, Enabled: checkpoints.Count > 0, Children: checkpoints,
+                Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Flag, GlyphColor: NodeEditor.Core.Widgets.IconPalette.Amber),   // ⭐ R-8 — the amber checkpoint flag, as story ⑥
             new("DAR — look back…", null, Enabled: dar.Count > 0, Children: dar, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft, GlyphColor: ModeGlyph(TransportMode.Review)!.Color),
             new(aarWhy is null ? "AAR — full replay of this exercise" : $"AAR — full replay of this exercise — {aarWhy}", c.ReplayEndedExercise, Enabled: aarWhy is null,
                 Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Play, GlyphColor: ModeGlyph(TransportMode.Replay)!.Color),
