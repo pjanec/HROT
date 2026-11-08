@@ -538,6 +538,17 @@ namespace Fdp.Core.FlightRecorder
                 return GenerateWriteExpression(storage, Expression.Convert(valueAccess, storage), writer);
             }
 
+            // ⭐ CE-4326 — a NULLABLE value type (double?, int? …) as [bool HasValue][value]. ⛔ It fell to the recursive struct case, which writes the
+            //   settable members of Nullable<T> — none — so every T? came back null (measured: VariantForms.Presence lost through a dry run's keyframe).
+            //   📐 No recorded component or event carried one when this was added (a scan, 2026-11-08), so no recording's bytes change.
+            if (Nullable.GetUnderlyingType(type) is { } nullableOf)
+            {
+                var has = Expression.Property(valueAccess, "HasValue");
+                return Expression.Block(
+                    CallWrite(writer, typeof(bool), has),
+                    Expression.IfThen(has, GenerateWriteExpression(nullableOf, Expression.Property(valueAccess, "Value"), writer)));
+            }
+
             // CASE A3: Entity Handle (8-byte blit)
             if (type == typeof(Fdp.Core.Entity))
             {
@@ -659,6 +670,13 @@ namespace Fdp.Core.FlightRecorder
             // ⭐ CE-4200 — see the write side: a semantic value type is read as its storage type and converted in.
             if (Fdp.Core.SemanticValueTypes.IsSemantic(type))
                 return Expression.Convert(GenerateReadExpression(Fdp.Core.SemanticValueTypes.StorageTypeOf(type), reader), type);
+
+            // ⭐ CE-4326 — see the write side: [bool HasValue][value].
+            if (Nullable.GetUnderlyingType(type) is { } nullableOf)
+                return Expression.Condition(
+                    Expression.Call(reader, typeof(BinaryReader).GetMethod("ReadBoolean")!),
+                    Expression.Convert(GenerateReadExpression(nullableOf, reader), type),
+                    Expression.Default(type));
 
             // CASE A3: Entity Handle (8-byte blit)
             if (type == typeof(Fdp.Core.Entity))
