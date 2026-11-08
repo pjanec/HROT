@@ -1646,7 +1646,31 @@ sequenceDiagram
 
 **Cost (asked by the review):** one capture per node per interval — ≈30 ms (`uc-urban-battle` 6.8 MiB keyframe, Debug; §4a measured capture ≈33 ms) every 2 min = one frame hitch per node per interval, ONLY while editing (the clock is stopped). The JSON extraction and the write run on the worker. ⛔ Never in Live, Preview or AAR — no autosave runs outside `OperatingEdit` (A1).
 
-`build-state` for §4c: **READY-TO-BUILD, gated on A0** (the review accepted A0–A7; A8 added at its request).
+`build-state` for §4c: ⛔ **BLOCKED — A0 FAILED as designed (measured `2026-11-08`); an amendment that holds is measured and awaits the user** (QUESTION: [NOTE_Backend_To_Coordinator_CE4099_A0_Failed](batches/NOTE_Backend_To_Coordinator_CE4099_A0_Failed.md)). ⛔ HISTORY: *READY-TO-BUILD, gated on A0 (the review accepted A0–A7; A8 added at its request).*
+
+#### 4c.1 ⛔ A0 MEASURED (`2026-11-08`, backend) — the designed gate FAILS; the amended one HOLDS
+
+📐 Rail `TheWorldChangeCheckOnTheEditorTests.CE4099_A0_ASaveOfAKeyframeSandbox_IsByteIdenticalToTheLiveSave` (Editor.Tests): each scenario loaded into a real
+headless editor; `ScenarioSaveCore.BuildDom` on the live world vs on a sandbox repo (the live world's types registered) rebuilt by `WorldKeyframes.Apply`.
+
+| capture | `uc-urban-battle` (682) | `pc-defend-house` (160) | `showcase-bridgehead` (147) |
+|---|---|---|---|
+| ⛔ **as designed** — Recording types, singletons ON | DIFFERS: header (`TerrainName`, `Description` null) + every door written | same | header (`Description`, `Features`) + `VariantForms` Presence×6 / Positions×2 lost |
+| All types, singletons ON | header + doors | header + doors | header |
+| All types + the header built on the FRAME thread | doors only (`TerrainObjects` section: every door) | doors only | ✅ identical |
+| ⭐ **All types + header on the frame + CONTENT singletons shared by reference** | (see the rail) | (see the rail) | ✅ identical |
+
+| why it fails | measured |
+|---|---|
+| the header reads `ScenarioDescriptionResident` / the resident terrain name — **NoReplay content singletons** a keyframe never carries, singletons ON or not | `ScenarioSaveCore.HeaderOf` → `ScenarioDescription.HeaderOf` / `TerrainDefinition.ResidentName` |
+| the doors section skips a door *"as authored"* by comparing with `TerrainWorld` (NoReplay content) — absent ⇒ every door is written | `TerrainObjectsSection.Write:45` |
+| the Recording type set drops NoReplay **saved** components (`VariantForms`) | the design's capture choice |
+| ⚠ the worker half (A4): the serializer holds no mutable state (fields readonly; `FdpAutoSerializer.Build` only at construction), BUT its translators read `BehaviorRegistry` (plain `Dictionary`s) which a behaviour **hot reload** writes on the frame thread | `BehaviorRegistry.cs:369-407`; `AiHotReloadCoordinator` |
+
+⭐ **The amendment (lean):** capture `KeyframeTypes.All` with singletons; build the header on the frame thread with the capture (it reads singletons only — µs);
+hand the sandbox the live world's read-only CONTENT singletons (`TerrainWorld`, …) by reference; and skip / defer an autosave while a hot reload is pending
+(or extract on the frame thread when one ran since the capture).
+
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
 
