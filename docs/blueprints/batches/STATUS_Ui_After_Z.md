@@ -20,3 +20,7 @@
 Gates after U-1…U-3: Presentation (Xvfb) 1910 / 6 — CE1039 / CE1380 / CE1227 known, `NoProductionHostKeepsAParallelSelectionStore…OnlyTheHostForwardWrites…` red at base `148b0a461` (VertexEditGizmo / RouteWaypointGizmo writes, pre-existing — not ui's batch), 2 load-flaky (CE4318, StringFieldTyping 0 B); Fdp.Presentation 821/0.
 
 Gates after U-4…U-12: Presentation (Xvfb) 1933 / 5 (4 known + RouteWaypointGizmo CE1096 load-flaky), Editor 868 / 1 (`EveryToolIsInTheGeneratedCatalog` — backend's new storage routes missing from the MCP catalog: [FYI note](NOTE_Ui_To_Backend_Tool_Catalog_Regen.md)), AiShared 2326 / 1 (CE1325 load-flaky). Filed `CE-1466` (3-D click-select still on the 2-D footprints, found in U-9). ⚠ CE-4273: the script half built; the Car's thumbnail itself needs a run against a live editor (`scripts/thumbnails.py --types Car --pack`) — row stays open.
+
+## ⭐ RESUME HERE (if this session was stopped)
+
+U-1 … U-9, U-12 DONE (CE-4273 car thumbnail needs a live-editor run). In flight (one worker, committing + pushing after every small green step): **U-10** (CE-4325 bookmarks, DESIGN_Bookmarks_And_Notes) → **U-11** (CE-4330 ui half: status-bar segment + Transfers popover over `ClusterView.StorageJobs`; picker chips / dialogs wait for backend facts ② ③ ⑥) → **CE-2426** (selection-cell rail: gizmo writes vs stale rail). Read the PART rows above, `git log --oneline origin/ui -15`, then continue the first item not DONE. Open follow-ups: CE-1466 (3-D click-select on 2-D footprints).
