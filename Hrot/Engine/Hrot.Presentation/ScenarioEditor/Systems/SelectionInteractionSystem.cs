@@ -57,6 +57,19 @@ public sealed class SelectionInteractionSystem
     /// </summary>
     private const MapMouseButton ButtonMask = (MapMouseButton)0xFF;
 
+    // ⭐ B-17 P5 — Shift-drag band: the band ADDS to the selection (a plain band replaces it).
+    private bool    _boxAdds;
+
+    // ⭐ B-17 P5 — a plain press on a member of a MULTI-selection must not narrow it before we know whether it is a click or the start of a
+    //   drag (a drag on any selected unit moves them ALL — GroupTransform): the narrowing waits for the release and only happens when
+    //   nothing was dragged. ⚠ Still "a left-click on a member of a five-selection narrows it to that one" — at the release.
+    private Entity _pendingNarrow = Entity.Null;
+    private Vector3 _pendingNarrowPos;
+    private bool   _pendingDragged;
+
+    // ⭐ B-17 P5 — Alt-click cycling: the unit the last Alt-click chose (a request is served a frame later, so the selection cannot say).
+    private Entity _cycleLast = Entity.Null;
+
     // Rubber-band selection tracking.
     private bool    _isBoxSelecting;
     private Vector2 _boxStart;
@@ -138,8 +151,12 @@ public sealed class SelectionInteractionSystem
 
                 // Empty-space press: begin rubber-band selection — ⭐ K7: when the map scope binds a left DRAG on ground to the band.
                 var drag = new MapGesture(button, GestureKind.Drag, ModifiersOf(evt.Button), GestureTarget.Ground);
-                if (!_gestures.ResolveMap(in drag, out var bandRow) || !MapGestureIds.Is(bandRow, MapGestureIds.Band)) continue;
+                if (!_gestures.ResolveMap(in drag, out var bandRow)) continue;
+                bool bandAdds = MapGestureIds.Is(bandRow, MapGestureIds.BandAdd);
+                if (!bandAdds && !MapGestureIds.Is(bandRow, MapGestureIds.Band)) continue;
                 _isBoxSelecting = true;
+                _boxAdds = bandAdds;
+                _pendingNarrow = Entity.Null;
                 _boxStart   = new Vector2(evt.WorldPos.X, evt.WorldPos.Y);
                 _boxCurrent = _boxStart;
                 if (_rubberBandState != null)
@@ -169,7 +186,34 @@ public sealed class SelectionInteractionSystem
                     OnSelectionChanged?.Invoke(entity, evt.WorldPos);
                     continue;
                 }
-                if (!MapGestureIds.Is(row, MapGestureIds.Select) && !MapGestureIds.Is(row, MapGestureIds.MenuEntity)) continue;   // the menu / band rows are not selection effects
+                bool isAdd = MapGestureIds.Is(row, MapGestureIds.SelectAdd), isToggle = MapGestureIds.Is(row, MapGestureIds.SelectToggle), isCycle = MapGestureIds.Is(row, MapGestureIds.SelectCycle);
+                if (!isAdd && !isToggle && !isCycle && !MapGestureIds.Is(row, MapGestureIds.Select) && !MapGestureIds.Is(row, MapGestureIds.MenuEntity)) continue;   // the menu / band rows are not selection effects
+                _pendingNarrow = Entity.Null;
+
+                // ⭐ B-17 P5 — the modifier rows (declared in MapGestureBindings, never keys checked here): Shift adds · Ctrl toggles · Alt cycles the overlapped units.
+                if (isAdd)    { Request(SelectionChangeRequest.AddTo(entity, "Map.ShiftClick")); OnSelectionChanged?.Invoke(entity, evt.WorldPos); continue; }
+                if (isToggle)
+                {
+                    Request(_selection.IsSelected(entity) ? SelectionChangeRequest.RemoveFrom(entity, "Map.CtrlClick") : SelectionChangeRequest.AddTo(entity, "Map.CtrlClick"));
+                    OnSelectionChanged?.Invoke(entity, evt.WorldPos);
+                    continue;
+                }
+                if (isCycle)
+                {
+                    var next = NextOverlapped(entity, evt.WorldPos);
+                    _cycleLast = next;
+                    Request(SelectionChangeRequest.ReplaceWith(next, "Map.AltClick"));
+                    OnSelectionChanged?.Invoke(next, evt.WorldPos);
+                    continue;
+                }
+                _cycleLast = Entity.Null;
+
+                // ⭐ B-17 P5 — a plain LEFT press on a member of a multi-selection waits for the release (see _pendingNarrow).
+                if (!isRight && target == GestureTarget.Selected && _selection.SelectedEntities.Count > 1)
+                {
+                    _pendingNarrow = entity; _pendingNarrowPos = evt.WorldPos; _pendingDragged = false;
+                    continue;
+                }
 
                 // ⭐⭐⭐ UXI-11 S-4 — A MAP CLICK IS A REQUEST NOW, like every other surface.
                 // 🔴 This closes a defect S-3 introduced: the hand-syncs that pointed each host's
@@ -179,8 +223,7 @@ public sealed class SelectionInteractionSystem
                 //    for all of them at once, because the request system is what announces.
                 // ⚠ The callback still fires IMMEDIATELY: it means "the operator clicked this
                 //   entity", which is true now — ⛔ not "the selection is X", which is true next frame.
-                // TODO(P2): read the modifier masks below for multi-select (Shift => Add, Ctrl =>
-                //   toggle). MapMouseButton already carries them; nothing else is missing.
+                // ⭐ B-17 P5 — the modifier masks are read ABOVE (Shift => Add, Ctrl => toggle, Alt => cycle), through the map scope's rows.
                 Request(SelectionChangeRequest.ReplaceWith(entity,
                     isRight ? "Map.RightClick" : "Map.Click"));
                 OnSelectionChanged?.Invoke(entity, evt.WorldPos);
@@ -190,6 +233,7 @@ public sealed class SelectionInteractionSystem
         // Rubber-band position update.
         foreach (ref readonly var evt in _interactionBus.Read<GizmoDragUpdateEvent>())
         {
+            if (!_pendingNarrow.IsNull) _pendingDragged = true;   // ⭐ B-17 P5 — the press became a drag: the selection stays whole, the drag moves it all
             if (!_isBoxSelecting) continue;
             _boxCurrent = new Vector2(evt.WorldPos.X, evt.WorldPos.Y);
             if (_rubberBandState != null)
@@ -204,6 +248,15 @@ public sealed class SelectionInteractionSystem
         // Commit: finalise rubber-band selection (or treat tiny drag as deselect).
         foreach (ref readonly var evt in _interactionBus.Read<GizmoInteractionCommitEvent>())
         {
+            if (!_pendingNarrow.IsNull)
+            {
+                var pending = _pendingNarrow; _pendingNarrow = Entity.Null;
+                if (!_pendingDragged && _world.IsAlive(pending))
+                {
+                    Request(SelectionChangeRequest.ReplaceWith(pending, "Map.Click"));
+                    OnSelectionChanged?.Invoke(pending, _pendingNarrowPos);
+                }
+            }
             if (!_isBoxSelecting) continue;
             _isBoxSelecting = false;
             if (_rubberBandState != null) _rubberBandState.IsActive = false;
@@ -213,6 +266,7 @@ public sealed class SelectionInteractionSystem
         // Cancel: abort rubber-band.
         foreach (ref readonly var evt in _interactionBus.Read<GizmoInteractionCancelEvent>())
         {
+            _pendingNarrow = Entity.Null;
             if (!_isBoxSelecting) continue;
             _isBoxSelecting = false;
             if (_rubberBandState != null) _rubberBandState.IsActive = false;
@@ -312,8 +366,12 @@ public sealed class SelectionInteractionSystem
                 inBox.Add(e);
         }
 
-        Request(SelectionChangeRequest.ReplaceWith(inBox, "Map.RubberBand"));
+        RequestBand(inBox);
     }
+
+    /// <summary>⭐ B-17 P5 — the band's result: a Shift-band ADDS to the selection, a plain band replaces it.</summary>
+    private void RequestBand(List<Entity> inBox)
+        => Request(_boxAdds ? SelectionChangeRequest.AddTo(inBox, "Map.RubberBand.Add") : SelectionChangeRequest.ReplaceWith(inBox, "Map.RubberBand"));
 
     /// <summary>⭐ CE-1136 — the 3-D band: a drag under <see cref="ScreenClickPixels"/> is a click on empty space (clears); otherwise every
     /// entity with a <see cref="NetworkIdentity"/> whose position projects inside the screen rectangle (and lies in front of the eye).</summary>
@@ -333,16 +391,42 @@ public sealed class SelectionInteractionSystem
             if (projector(_world.GetComponentRO<SimTransform>(e).Position) is not { } p) continue;
             if (p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y) inBox.Add(e);
         }
-        Request(SelectionChangeRequest.ReplaceWith(inBox, "Map.RubberBand"));
+        RequestBand(inBox);
     }
 
     /// <summary>⭐ B-10 K7 — a click on empty ground: cleared when the map scope's left click on ground is <c>map.clear</c> (R-4163).</summary>
     private void EmptyClick()
     {
+        if (_boxAdds) return;   // ⭐ B-17 P5 — a Shift-drag that did not go anywhere adds nothing and clears nothing
         var click = new MapGesture(GestureButton.Left, GestureKind.Click, GestureModifiers.None, GestureTarget.Ground);
         if (!_gestures.ResolveMap(in click, out var row) || !MapGestureIds.Is(row, MapGestureIds.Clear)) return;
         Request(SelectionChangeRequest.ClearAll("Map.EmptyClick"));
         OnSelectionChanged?.Invoke(Entity.Null, new Vector3(_boxStart.X, _boxStart.Y, 0f));
+    }
+
+    /// <summary>
+    /// ⭐ B-17 P5 — Alt-click: the units OVERLAPPED under <paramref name="at"/> are those whose own pick area (<c>EntityFootprint.InteractionRadiusMetres</c>, the same query
+    /// select and drag use) contains the point; they are cycled in entity-index order. The first Alt-click gives the unit that was picked, each next one the next unit; the
+    /// reference is the unit the last Alt-click chose, else the primary selection. ⚠ The pick itself names ONE unit (the terminal's hit-test), so the set comes from the world.
+    /// </summary>
+    private Entity NextOverlapped(Entity picked, Vector3 at)
+    {
+        var hits = new List<Entity>();
+        foreach (var e in _world.Query().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build())
+        {
+            if (!_world.IsAlive(e) || !_world.HasComponent<NetworkIdentity>(e)) continue;
+            var p = _world.GetComponentRO<SimTransform>(e).Position;
+            float r = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(_world, e);
+            if (e == picked || (Math.Abs(p.X - at.X) <= r && Math.Abs(p.Y - at.Y) <= r)) hits.Add(e);
+        }
+        if (hits.Count < 2) return picked;
+        hits.Sort((a, b) => a.Index.CompareTo(b.Index));
+
+        Entity reference = !_cycleLast.IsNull && hits.Contains(_cycleLast) ? _cycleLast
+                         : _selection.PrimarySelected is { } primary && !primary.IsNull && hits.Contains(primary) ? primary
+                         : Entity.Null;
+        if (reference.IsNull) return picked;
+        return hits[(hits.IndexOf(reference) + 1) % hits.Count];
     }
 
     /// <summary>The modifiers the terminal packed into the button's high bits (<see cref="MapMouseButton.ShiftMask"/> …).</summary>

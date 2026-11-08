@@ -266,6 +266,7 @@ namespace Hrot.ScenarioEditor.Map
             var selection = ctx.SelectionWorld is { } selectionWorld
                 ? new Hrot.ScenarioEditor.Selection.EcsSelectionState(selectionWorld)   // ⭐ CE-3327 RB-7 — a host that switches its shown world
                 : new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
+            MapUiStates.Set(ctx.World, (Fdp.Toolkit.Vis2D.Abstractions.ISelectionState)selection);   // ⭐ B-17 P5 — the drag / rotate gizmos find the ONE selection from the world (GroupTransform); ⛔ none builds its own
 
             // ⭐⭐⭐ THE MARQUEE, BUILT AND DRAWN HERE SO ALL FIVE HOSTS HAVE ONE.
             // 🔒 User ruling, 2026-09-20: "any perspective showing 2d map should support marquee and

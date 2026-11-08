@@ -235,7 +235,8 @@ namespace Hrot.ScenarioEditor.Tools
                         g.DeactivateGizmo(e);
                         controller.NotifyToolEnded(ScenarioToolIds.Rotate, e);
                     },
-                    writer:   EntityWriteRouter.For(w)));
+                    writer:   EntityWriteRouter.For(w),
+                    onHint:   controller.SetHint));   // ⭐ B-17 P5 — a group rotate names its Tab toggle in the tool's hint
                 return ToolActivationOutcome.Armed;
             }
         }

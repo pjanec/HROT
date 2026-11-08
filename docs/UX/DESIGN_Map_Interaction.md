@@ -298,7 +298,7 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 | **P2** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P2* below) `ShapeEditSession`; the four drawing gizmos move onto it; the D11 convention; the drawing menu as three catalogue actions | ui (+ backend for the gizmo side) | each gizmo: Enter / ✓ / menu finish, Esc cancels, Backspace, too-few points keeps the tool |
 | **P3** | placement: ① **measure CE-4272 first** (does an A-10C spawned at 300 m fly on?); ② `PlacementSession` — airborne by `Mobility`, 2-D level choice from `SurfacesAt`, optional heading drag; ③ Create through `Edits.Submit` | ui + backend (CE-4272) | an A-10C placed on the map is airborne at cruise; a click on a 3-storey house offers 3 levels |
 | **P4** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P4* below) the pick banner, rejection flash, replace notice in `PickerToolHost` | ui | a pick is visible with the form scrolled away; Cancel on the banner clears the field |
-| **P5** | multi-select modifiers (Shift / Ctrl / Shift-drag / Alt-click); `GroupTransform` for move and rotate | ui | rotate 5 placed units about each centre and about the group centre: one undo step |
+| **P5** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P5* below) multi-select modifiers (Shift / Ctrl / Shift-drag / Alt-click); `GroupTransform` for move and rotate | ui | rotate 5 placed units about each centre and about the group centre: one undo step |
 | **P6** | shapes and routes: the centre handle on every kind (routes included), segment insert, Delete | ui | ROUTES1 §11.1 rails, minus the right-click commit |
 | **P7** | the gizmo look review (§2.6), approved by the user before it is built | ui | the frame rails under `xvfb-run` |
 
@@ -485,6 +485,46 @@ classDiagram
 | ⚠ not done: the form field's own highlight beyond the existing Picking mark (it already shows while the task is pending — nothing added); the 3-D map's renderer may not draw screen-space gizmo text (the banner is on the 2-D map and the local FDP layer; a remote viewer's own renderer does not yet set `GizmoTextDraw.Strings`, as P1 noted) | |
 
 Rails: `PickerToolHostTests` `P4_*` (the prompt reaches the banner primitives; the field words; Cancel on the banner cancels and the tool underneath resumes; a click off the banner still picks and Esc cancels; a rejected click flashes and the pick stays; a refused offer flashes; a second request replaces the first with a notice; Cancel clears the broker's Picking mark); `TheArmedToolIsVisibleTests.P4_APendingPick_OnARealFrame_ShowsTheBannerTheCrosshairAndTheFlash` (`pending-pick.png` under `HROT_RAIL_SHOTS`, never committed).
+
+### ⭐ AS-BUILT — P5 *(behaviors, `2026-11-08`, B-17 — ui's files)* — multi-select modifiers and `GroupTransform`
+
+INVENTORY: `scripts/cbm.sh search_graph name_pattern=".*Selection.*"` (class / interface) and grep `SelectionChangeRequest` ⇒ ONE request type (`Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest`, modes Replace / Add / Remove / Clear — **Add and Remove already existed**, only the factories were missing),
+ONE writer (`SelectionRequestSystem`), ONE map-click system (`SelectionInteractionSystem`); the modifier masks already reached it (`ModifiersOf`); the RTS scope already declared Shift = add (`RtsSelectAdd`, in front of the map scope).
+Entity menu: Delete and every order are `ActionExecution.PerEntity` / read the selection already (A4, R-4162) and the Delete key deletes every selected unit — nothing to change. ⚠ **There is no "change side" row in the entity menu** (grep `ChangeSide` / `SetSide` ⇒ only `PlayableOps` / the DebugApi) — that sub-item is not built (nothing to widen). Graph coverage could not be checked (no `check_index_coverage` over the CLI).
+
+```mermaid
+classDiagram
+  class MapGestureBindings { <<existing · map scope rows>> +SelectAdd Shift-click +SelectToggle Ctrl-click +SelectCycle Alt-click +BandAdd Shift-drag }
+  class SelectionInteractionSystem { <<existing>> reads the row ⇒ one SelectionChangeRequest ; pending narrow ; NextOverlapped }
+  class SelectionChangeRequest { <<existing>> +AddTo +RemoveFrom ★factories }
+  class GroupTransform { <<NEW · Gizmos/GroupTransform.cs>> ForGrab · Begin · PreviewMove · PreviewRotate(each|AboutCentre) · Commit · Cancel · Move · Rotate }
+  class EntityDragGizmo { <<existing>> a drag on a member moves the group }
+  class EntityRotatorGizmo { <<existing>> Tab: each / group centre · ring round the group }
+  class MapUiStates { <<existing>> +SelectionOf(world) ★ }
+  class EditSteps { <<existing>> one Begin/End = one undo step }
+  class IEntityComponentWriter { <<existing>> }
+  MapGestureBindings ..> SelectionInteractionSystem : rows
+  SelectionInteractionSystem ..> SelectionChangeRequest
+  EntityDragGizmo --> GroupTransform
+  EntityRotatorGizmo --> GroupTransform
+  GroupTransform --> MapUiStates : the pack's ONE selection
+  GroupTransform ..> EditSteps : ONE step per gesture
+  GroupTransform ..> IEntityComponentWriter : one write per unit
+```
+*What the picture shows: the modifier rows live in the keymap (the system resolves a row, never a key); the drag and rotate gizmos share ONE `GroupTransform`, which finds the pack's one selection from the world (no gizmo builds its own — `OnlyTheSharedPackConstructsTheSelection`) and brackets the whole gesture as one step.*
+
+| decision | why |
+|---|---|
+| four new map-scope rows: **Shift+click `map.select.add` · Ctrl+click `map.select.toggle` · Alt+click `map.select.cycle` · Shift+drag-from-ground `map.band.add`** | `Keymap.TryFindGesture` takes the row naming most modifiers, so a plain click keeps `map.select`; the RTS scope keeps its own rows in front. A Shift-drag that goes nowhere neither adds nor clears |
+| **Alt-click cycles the units whose own pick area (`EntityFootprint.InteractionRadiusMetres`, the select / drag query) contains the point**, in entity-index order; the first Alt-click gives the picked unit, each next one the next, wrapping | the terminal's pick names ONE unit, so the overlap set comes from the world; the reference is the unit the last Alt-click chose (a request is served a frame later), else the primary selection |
+| ⭐ **a plain press on a member of a multi-selection narrows at the RELEASE, and only if nothing was dragged** (`_pendingNarrow`) | "drag on any selected unit moves them ALL" needs the selection whole during the press; the old immediate narrow collapsed it first. A click is unchanged for the operator (`LeftClickingAnEntityInsideTheSelection_StillNarrowsTheSelectionToIt` now releases) |
+| `GroupTransform.ForGrab(repo, selection, writer, grabbed)` is null unless the grabbed unit is one of ≥ 2 selected transformable units; **`Begin` takes the "before" (`EditSteps.Begin`), previews write the local components from the ORIGINALS (idempotent), `Commit` writes one `IEntityComponentWriter.Write` per unit inside the same step, `Cancel` restores the originals and records nothing** | ONE edit = ONE undo step, never N; a unit the router refuses is put back |
+| Move writes `Position.X/Y` per unit; Rotate Each writes `Heading` only (compass degrees, as the rotator always did); Rotate AboutCentre writes `Position.X/Y` + `Heading`. Angles are math yaw radians (CCW); the angle of a rotate gesture is `yaw(cursor from the pivot) − the grabbed unit's yaw` | each unit's heading +θ; the group swings rigidly round the **centroid of the units** |
+| the mode toggle is **Tab**, named in the hint (*"drag: rotate · Tab: each / group centre (now: each) · right-click or Esc: cancel"*, stated each frame through `ToolController.SetHint`); a ring round the group (radius = farthest unit + 3 m) is drawn in group mode, the arrow runs from the pivot, the label says *group / each ±N deg* | ⚠ deviation from the brief's "R": **R is the Rotate tool's own shortcut** — pressing it would re-arm (reset) this gizmo. `Tab` already exists in `MapKeyboardKey` |
+| the selection reaches the gizmos through **`MapUiStates.SelectionOf(world)`**, registered by `MapInteractionPack` | `OnlyTheSharedPackConstructsTheSelection` forbids a second `EcsSelectionState`; no host wiring, so no host can forget it (none registered ⇒ the single-unit gesture, as before) |
+| ⚠ not done / not verified live: the rotator toggles on `Tab` as the layer's typed-key stream delivers it (verified on the gizmo level, not with a live key); no live preview of the rotate (the arrow and ring only, as the single rotate); the 3-D map has no group ring (the rotate gizmo draws on the 2-D map) | |
+
+Rails: `GroupTransformTests` (Presentation.Tests/Edits) — drag moves 3 of the selected by the same delta and only them · cancel puts all back · writer gets one write per unit · rotate 5 **each** (headings +θ, positions unchanged) and **about the group centre** (rigid swing about the centroid, headings +θ), each **one undo step** that restores all 5 · single unit = the ordinary rotate · the hint names Tab · the pack registers the one selection · frame `P5_AGroupRotate_OnARealFrame_ShowsTheRingRoundTheGroup` (`group-rotate.png` under `HROT_RAIL_SHOTS`, never committed; the ring present in group mode, absent in each mode); `SelectionInteractionSystemTests` `B17P5_*` (Shift adds · Ctrl toggles · Shift-band adds, plain band replaces · an empty Shift-drag clears nothing · Alt-click cycles 3 overlapped and wraps · narrow-at-release / drag keeps the selection).
 
 ## 4. Questions — ✅ all eight APPROVED as leaned (R-4134, user `2026-11-06`: *"Okay, accept it."*)
 

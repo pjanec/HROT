@@ -19,6 +19,14 @@ namespace Hrot.ScenarioEditor.Map
         public const string Clear = "map.clear";
         /// <summary>Left press-and-drag from empty ground: the rubber band.</summary>
         public const string Band = "map.band";
+        /// <summary>⭐ B-17 P5 — Shift + left click on an entity: it joins the selection.</summary>
+        public const string SelectAdd = "map.select.add";
+        /// <summary>⭐ B-17 P5 — Ctrl + left click on an entity: it joins the selection, or leaves it when it is already in.</summary>
+        public const string SelectToggle = "map.select.toggle";
+        /// <summary>⭐ B-17 P5 — Alt + left click: the next of the units overlapped under the cursor becomes the selection (each Alt-click the next).</summary>
+        public const string SelectCycle = "map.select.cycle";
+        /// <summary>⭐ B-17 P5 — Shift + press-and-drag from empty ground: the band ADDS its units to the selection.</summary>
+        public const string BandAdd = "map.band.add";
         /// <summary>Right click on an entity of the selection: its menu, for the whole selection — the selection is unchanged (Action Catalogue §8 A4).</summary>
         public const string MenuSelection = "map.menu.selection";
         /// <summary>Right click on an entity outside the selection: it becomes the selection alone, and its menu opens.</summary>
@@ -71,6 +79,8 @@ namespace Hrot.ScenarioEditor.Map
         private static void DeclareGestures(Keymap keymap)
         {
             Label(keymap, MapGestureIds.Select, "Select it alone"); Label(keymap, MapGestureIds.Clear, "Clear the selection"); Label(keymap, MapGestureIds.Band, "Box select");
+            Label(keymap, MapGestureIds.SelectAdd, "Add to the selection"); Label(keymap, MapGestureIds.SelectToggle, "Toggle in the selection");
+            Label(keymap, MapGestureIds.SelectCycle, "Select the next overlapped unit"); Label(keymap, MapGestureIds.BandAdd, "Box select, adding");
             Label(keymap, MapGestureIds.MenuSelection, "Menu for the selection"); Label(keymap, MapGestureIds.MenuEntity, "Select it and open its menu"); Label(keymap, MapGestureIds.MenuEmpty, "Menu for empty space");
             Label(keymap, MapGestureIds.RtsSelect, "RTS: select"); Label(keymap, MapGestureIds.RtsSelectAdd, "RTS: add to the selection"); Label(keymap, MapGestureIds.RtsMove, "RTS: move here");
             Label(keymap, MapGestureIds.RtsAttack, "RTS: attack"); Label(keymap, MapGestureIds.RtsAttackForce, "RTS: attack whatever is there");
@@ -78,6 +88,11 @@ namespace Hrot.ScenarioEditor.Map
             keymap.DeclareGesture(Map(GestureButton.Left, GestureKind.Click, GestureTarget.AnyEntity, MapGestureIds.Select));
             keymap.DeclareGesture(Map(GestureButton.Left, GestureKind.Click, GestureTarget.Ground, MapGestureIds.Clear));
             keymap.DeclareGesture(Map(GestureButton.Left, GestureKind.Drag, GestureTarget.Ground, MapGestureIds.Band));
+            // ⭐ B-17 P5 (DESIGN_Map_Interaction §2.5 "multi-select") — the modifier rows; the most specific row wins (Keymap.TryFindGesture), so a plain click keeps its row above
+            keymap.DeclareGesture(Map(GestureButton.Left, GestureKind.Click, GestureTarget.AnyEntity, MapGestureIds.SelectAdd, GestureModifiers.Shift));
+            keymap.DeclareGesture(Map(GestureButton.Left, GestureKind.Click, GestureTarget.AnyEntity, MapGestureIds.SelectToggle, GestureModifiers.Ctrl));
+            keymap.DeclareGesture(Map(GestureButton.Left, GestureKind.Click, GestureTarget.AnyEntity, MapGestureIds.SelectCycle, GestureModifiers.Alt));
+            keymap.DeclareGesture(Map(GestureButton.Left, GestureKind.Drag, GestureTarget.Ground, MapGestureIds.BandAdd, GestureModifiers.Shift));
             keymap.DeclareGesture(Map(GestureButton.Right, GestureKind.Click, GestureTarget.Selected, MapGestureIds.MenuSelection));
             keymap.DeclareGesture(Map(GestureButton.Right, GestureKind.Click, EntityOrHostile, MapGestureIds.MenuEntity));
             keymap.DeclareGesture(Map(GestureButton.Right, GestureKind.Click, GestureTarget.Ground, MapGestureIds.MenuEmpty));

@@ -51,6 +51,9 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     //      one-node editor. 📌 A production caller that HAS a writer must pass it — the definition does.
     private readonly IEntityComponentWriter? _writer;
 
+    // ⭐ B-17 P5 — a drag on a unit of a MULTI-selection moves them ALL: the group is taken at the press, the gesture is ONE undo step.
+    private GroupTransform? _group;
+
     private bool    _isDragging;
     private Vector3 _originalPos;
     private Vector3 _currentDragPos;
@@ -151,16 +154,23 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         _dragOffset     = _originalPos - worldPos;
         _currentDragPos = _originalPos;
         _isDragging     = false;   // drag starts only when OnDragUpdate fires
+        _group = _view is EntityRepository repo && Hrot.ScenarioEditor.Map.MapUiStates.SelectionOf(repo) is { } selection
+            ? GroupTransform.ForGrab(repo, selection, _writer, _entity)
+            : null;
     }
 
     public void OnDragUpdate(Vector3 worldPos)
     {
         if (!_view.IsAlive(_entity)) return;
         // ⭐ B-14 / undo U2 — the preview writes the world directly, so the step's "before" is taken HERE, before the first preview write
-        if (!_isDragging) Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_view as EntityRepository, "Move");
+        if (!_isDragging)
+        {
+            if (_group == null || !_group.Begin("Move")) { _group = null; Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_view as EntityRepository, "Move"); }
+        }
         _isDragging     = true;
         _currentDragPos = worldPos + _dragOffset;
-        ApplyPosition(_currentDragPos);
+        if (_group != null) _group.PreviewMove(new Vector2(_currentDragPos.X - _originalPos.X, _currentDragPos.Y - _originalPos.Y));
+        else ApplyPosition(_currentDragPos);
     }
 
     public void OnCommit(Vector3 worldPos)
@@ -169,6 +179,20 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
 
         if (_isDragging)
         {
+            if (_group != null)
+            {
+                // ⭐ B-17 P5 — the whole selection commits as ONE gesture (one step, one write per unit)
+                var members = _group.Members;
+                _group.Commit();
+                foreach (var m in members)
+                    if (_view.IsAlive(m) && _view.HasComponent<SimTransform>(m))
+                    {
+                        var p = _group.PositionOf(m);
+                        OnDragCommitted?.Invoke(m, new Vector2(p.X, p.Y));
+                    }
+                _group = null;
+            }
+            else
             try
             {
                 CommitPosition(_currentDragPos);
@@ -183,6 +207,7 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     public void OnCancel()
     {
         if (!_view.IsAlive(_entity)) { CloseAbandoned(); return; }
+        if (_group != null) { _group.Cancel(); _group = null; _isDragging = false; return; }
         if (_isDragging) Fdp.Toolkit.Replication.Edits.EditSteps.Cancel(_view as EntityRepository);
         _isDragging = false;
         ApplyPosition(_originalPos);
@@ -191,6 +216,7 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     /// <summary>The entity died mid-drag: the open step is abandoned (never left open — it would swallow every later step).</summary>
     private void CloseAbandoned()
     {
+        if (_group != null) { _group.Cancel(); _group = null; _isDragging = false; return; }
         if (_isDragging) Fdp.Toolkit.Replication.Edits.EditSteps.Cancel(_view as EntityRepository);
         _isDragging = false;
     }

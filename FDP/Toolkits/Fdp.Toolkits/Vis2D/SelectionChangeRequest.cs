@@ -74,6 +74,18 @@ public sealed class SelectionChangeRequest
     public static SelectionChangeRequest ReplaceWith(IReadOnlyList<Entity> entities, string? reason = null)
         => new() { Entities = entities, Mode = SelectionChangeMode.Replace, Reason = reason };
 
+    /// <summary>⭐ B-17 P5 — the entity joins the selection (Shift-click).</summary>
+    public static SelectionChangeRequest AddTo(Entity entity, string? reason = null)
+        => new() { Entities = new[] { entity }, Mode = SelectionChangeMode.Add, Reason = reason };
+
+    /// <summary>⭐ B-17 P5 — a set joins the selection (a Shift-band).</summary>
+    public static SelectionChangeRequest AddTo(IReadOnlyList<Entity> entities, string? reason = null)
+        => new() { Entities = entities, Mode = SelectionChangeMode.Add, Reason = reason };
+
+    /// <summary>⭐ B-17 P5 — the entity leaves the selection (Ctrl-click on a selected one).</summary>
+    public static SelectionChangeRequest RemoveFrom(Entity entity, string? reason = null)
+        => new() { Entities = new[] { entity }, Mode = SelectionChangeMode.Remove, Reason = reason };
+
     /// <summary>Empty the selection.</summary>
     public static SelectionChangeRequest ClearAll(string? reason = null)
         => new() { Mode = SelectionChangeMode.Clear, Reason = reason };

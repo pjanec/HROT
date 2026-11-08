@@ -686,6 +686,11 @@ public class SelectionInteractionSystemTests
         PublishStartedEvent(b);                     // ⭐ LEFT, the default
         _system.Tick(0f);
         ServeRequests();
+        // ⭐ B-17 P5 — the narrowing waits for the RELEASE (a drag on a member moves the whole selection); a click is press + release
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        ServeRequests();
 
         Assert.False(_world.GetComponent<SelectionState>(a).IsSelected);
         Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
@@ -816,5 +821,130 @@ public class SelectionInteractionSystemTests
 
         var request = Assert.Single(shown.Bus.ReadManaged<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest>());
         Assert.Equal(unit, Assert.Single(request.Entities));
+    }
+
+    // ── ⭐ B-17 P5 (DESIGN_Map_Interaction §2.5 "multi-select") — the modifier gestures, declared in the map scope's rows ──────────────────────────
+
+    private const MapMouseButton ShiftLeft = MapMouseButton.Left | MapMouseButton.ShiftMask;
+    private const MapMouseButton CtrlLeft  = MapMouseButton.Left | MapMouseButton.CtrlMask;
+    private const MapMouseButton AltLeft   = MapMouseButton.Left | MapMouseButton.AltMask;
+
+    private Entity UnitAt(float x, float y)
+    {
+        var e = CreateSelectableEntity();
+        _world.SetComponent(e, new SimTransform { Position = new Vector3(x, y, 0f) });
+        return e;
+    }
+
+    private void Select(params Entity[] es)
+    {
+        _world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(es, "test"));
+        ServeRequests();
+    }
+
+    private bool Sel(Entity e) => _world.GetComponent<SelectionState>(e).IsSelected;
+
+    private void Click(Entity e, MapMouseButton button, Vector3 at = default)
+    {
+        PublishStartedEvent(e, at, button);
+        _system.Tick(0f);
+        ServeRequests();
+    }
+
+    private void Release()
+    {
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        ServeRequests();
+    }
+
+    private void Band(MapMouseButton button, Vector3 from, Vector3 to)
+    {
+        PublishStartedEvent(Entity.Null, from, button);
+        _system.Tick(0f);
+        _world.Bus.Publish(new GizmoDragUpdateEvent { Token = default, WorldPos = to });
+        _world.Bus.SwapBuffers();
+        _system.Tick(0f);
+        Release();
+    }
+
+    /// <summary>🔴 Red-proof (compiles): the SelectAdd row resolved as Select (replace) ⇒ A drops out ⇒ red.</summary>
+    [Fact]
+    public void B17P5_ShiftClick_AddsToTheSelection()
+    {
+        var a = UnitAt(0, 0); var b = UnitAt(50, 0);
+        Select(a);
+        Click(b, ShiftLeft);
+        Assert.True(Sel(a)); Assert.True(Sel(b));
+    }
+
+    [Fact]
+    public void B17P5_CtrlClick_TogglesAUnit_InWhenOut_OutWhenIn()
+    {
+        var a = UnitAt(0, 0); var b = UnitAt(50, 0);
+        Select(a);
+        Click(b, CtrlLeft);
+        Assert.True(Sel(a)); Assert.True(Sel(b));
+        Click(a, CtrlLeft);
+        Assert.False(Sel(a)); Assert.True(Sel(b));
+    }
+
+    [Fact]
+    public void B17P5_ShiftBand_AddsToTheSelection_APlainBandReplacesIt()
+    {
+        var a = UnitAt(500, 500); var b = UnitAt(5, 5); var c = UnitAt(8, 2);
+        Select(a);
+        Band(ShiftLeft, new Vector3(-10, -10, 0), new Vector3(20, 20, 0));
+        Assert.True(Sel(a)); Assert.True(Sel(b)); Assert.True(Sel(c));
+
+        Band(MapMouseButton.Left, new Vector3(-10, -10, 0), new Vector3(20, 20, 0));
+        Assert.False(Sel(a)); Assert.True(Sel(b)); Assert.True(Sel(c));
+    }
+
+    [Fact]
+    public void B17P5_AShiftDragThatGoesNowhere_ClearsNothing()
+    {
+        var a = UnitAt(0, 0);
+        Select(a);
+        Band(ShiftLeft, new Vector3(100, 100, 0), new Vector3(100.5f, 100.5f, 0));
+        Assert.True(Sel(a));
+    }
+
+    [Fact]
+    public void B17P5_AltClick_CyclesTheOverlappedUnits_OneMorePerClick_ThenWrapsRound()
+    {
+        var u1 = UnitAt(10, 10); var u2 = UnitAt(10.2f, 10f); var u3 = UnitAt(10f, 10.3f);
+        var far = UnitAt(900, 900);
+        var at = new Vector3(10, 10, 0);
+
+        var seen = new List<Entity>();
+        for (int i = 0; i < 4; i++)
+        {
+            Click(u1, AltLeft, at);   // the terminal's pick names the same (top) unit each time
+            foreach (var e in new[] { u1, u2, u3 }) if (Sel(e)) seen.Add(e);
+            Assert.False(Sel(far));
+        }
+        Assert.Equal(new[] { u1, u2, u3, u1 }, seen);   // index order, wrapping, exactly one selected each time
+    }
+
+    /// <summary>A plain click on a member of a multi-selection still narrows it — but at the RELEASE, so a drag can move them all; a drag leaves it whole.</summary>
+    [Fact]
+    public void B17P5_APlainPressOnAMember_NarrowsAtTheRelease_ADragKeepsTheSelectionWhole()
+    {
+        var a = UnitAt(0, 0); var b = UnitAt(50, 0); var c = UnitAt(100, 0);
+        Select(a, b, c);
+
+        Click(b, MapMouseButton.Left);
+        Assert.True(Sel(a) && Sel(b) && Sel(c));        // pressed, not released: nothing narrowed yet
+        Release();
+        Assert.False(Sel(a)); Assert.True(Sel(b)); Assert.False(Sel(c));
+
+        Select(a, b, c);
+        Click(b, MapMouseButton.Left);
+        _world.Bus.Publish(new GizmoDragUpdateEvent { Token = default, WorldPos = new Vector3(60, 0, 0) });
+        _world.Bus.SwapBuffers(); _system.Tick(0f);
+        Release();
+        Assert.True(Sel(a) && Sel(b) && Sel(c));        // dragged: the whole selection stays for the group move
     }
 }

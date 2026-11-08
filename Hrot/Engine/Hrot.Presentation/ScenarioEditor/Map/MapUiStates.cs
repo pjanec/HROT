@@ -35,6 +35,12 @@ namespace Hrot.ScenarioEditor.Map
         public static void Set(EntityRepository world, Hrot.ScenarioEditor.Tools.ToolController tools) => Tools.AddOrUpdate(world, tools);
         public static Hrot.ScenarioEditor.Tools.ToolController? ToolsOf(EntityRepository? world) => world != null && Tools.TryGetValue(world, out var t) ? t : null;
 
+        // ⭐ B-17 P5 (DESIGN_Map_Interaction §2.1 GroupTransform) — the map's ONE selection, found from the world by the drag and rotate gizmos so a gesture on a
+        //   unit of a multi-selection moves / turns them all; ⛔ no gizmo constructs a selection of its own (NoProductionHostKeepsAParallelSelectionStore…). None ⇒ no group: the single-unit gesture.
+        private static readonly ConditionalWeakTable<EntityRepository, Fdp.Toolkit.Vis2D.Abstractions.ISelectionState> Selections = new();
+        public static void Set(EntityRepository world, Fdp.Toolkit.Vis2D.Abstractions.ISelectionState selection) => Selections.AddOrUpdate(world, selection);
+        public static Fdp.Toolkit.Vis2D.Abstractions.ISelectionState? SelectionOf(EntityRepository? world) => world != null && Selections.TryGetValue(world, out var s) ? s : null;
+
         public static void Set(EntityRepository world, Fdp.Toolkit.Vis2D.MapCanvas canvas) => Canvases.AddOrUpdate(world, canvas);
         public static Fdp.Toolkit.Vis2D.MapCanvas? CanvasOf(EntityRepository? world) => world != null && Canvases.TryGetValue(world, out var c) ? c : null;
     }

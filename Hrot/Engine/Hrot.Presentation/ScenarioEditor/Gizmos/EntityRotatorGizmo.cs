@@ -33,6 +33,13 @@ namespace Hrot.ScenarioEditor.Gizmos
         //      📌 A production caller that HAS a writer must pass it — CgfSubsystem does.
         private readonly IEntityComponentWriter? _writer;
 
+        // ⭐ B-17 P5 (DESIGN_Map_Interaction §2.1 / §2.5 "placing — heading") — on a MULTI-selection the rotate turns them all, ONE gesture / ONE undo step:
+        //   each about its own centre (headings only) or the whole group about its centre; Tab toggles, the hint says so.
+        private readonly GroupTransform? _group;
+        private readonly Action<string?>? _onHint;
+        private GroupRotateMode _mode = GroupRotateMode.Each;
+        private float _yaw0;
+
         private Vector3 _entityPos;
         private Vector3 _currentCursorPos;
         private float _currentYawRad;
@@ -49,7 +56,8 @@ namespace Hrot.ScenarioEditor.Gizmos
             ISimulationView view,
             Entity entity,
             Action onRemove,
-            IEntityComponentWriter? writer = null)
+            IEntityComponentWriter? writer = null,
+            Action<string?>? onHint = null)
         {
             _writer = writer;
             _repo    = view as EntityRepository
@@ -63,14 +71,38 @@ namespace Hrot.ScenarioEditor.Gizmos
                 _entityPos = tf.Position;
                 _currentCursorPos = _entityPos;
                 _currentYawRad = SimMath.ExtractYaw(tf.Rotation);
+                _yaw0 = _currentYawRad;
             }
+            _onHint = onHint;
+            _group = Hrot.ScenarioEditor.Map.MapUiStates.SelectionOf(_repo) is { } selection
+                ? GroupTransform.ForGrab(_repo, selection, writer, entity)
+                : null;
+            if (_group != null) _centre = _group.Centre;
         }
+
+        private Vector2 _centre;
+
+        /// <summary>⭐ B-17 P5 — how a group rotate turns the selection now (<see cref="GroupRotateMode.Each"/> until Tab); meaningless for one unit.</summary>
+        public GroupRotateMode Mode => _mode;
+
+        /// <summary>⭐ B-17 P5 — whether this rotate acts on a multi-selection.</summary>
+        public bool IsGroup => _group != null;
+
+        /// <summary>⭐ B-17 P5 — the tool's line while a group is selected (P1's hint): names the key and the mode in force.</summary>
+        public string? Hint => _group == null ? null
+            : "drag: rotate · Tab: each / group centre (now: " + (_mode == GroupRotateMode.Each ? "each" : "group centre") + ") · right-click or Esc: cancel";
 
         // Draws a yellow heading arrow from the entity center in the current yaw direction.
         // Called every frame regardless of focus state.
         public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
             if (!_active) return;
+            if (_group != null)
+            {
+                _onHint?.Invoke(Hint);
+                DrawGroup(draw);
+                return;
+            }
             draw.DrawLine(_entityPos, _currentCursorPos, Rgba32.Yellow, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
 
             float compassDeg = SimMath.YawRadToCompassDeg(_currentYawRad);
@@ -80,10 +112,30 @@ namespace Hrot.ScenarioEditor.Gizmos
             draw.DrawTextLong(midX, midY + 15f, label, Rgba32.White);
         }
 
+        // ⭐ B-17 P5 — the group's picture: a ring round the whole group in group-centre mode, an arrow from the pivot to the cursor, and the angle.
+        private void DrawGroup(IDebugDrawBuilder draw)
+        {
+            bool about = _mode == GroupRotateMode.AboutCentre;
+            var pivot = about ? new Vector3(_centre.X, _centre.Y, 0f) : _entityPos;
+            if (about) draw.DrawSphere(pivot, MathF.Max(_group!.Radius + 3f, 6f), Rgba32.Yellow, thickness: 1f);   // thickness ⇒ an outline only (CE-3154)
+            draw.DrawLine(pivot, _currentCursorPos, Rgba32.Yellow, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
+            float deg = (_currentYawRad - _yaw0) * (180f / MathF.PI);
+            deg -= 360f * MathF.Round(deg / 360f);   // −180…180
+            draw.DrawTextLong((pivot.X + _currentCursorPos.X) * 0.5f, (pivot.Y + _currentCursorPos.Y) * 0.5f + 15f,
+                (about ? "group " : "each ") + $"{deg:+0;-0;0}deg", Rgba32.White);
+        }
+
         // DragUpdate: recompute heading from the cursor world position.
         public void OnDragUpdate(Vector3 worldPos)
         {
             _currentCursorPos = worldPos;
+            if (_group != null && _mode == GroupRotateMode.AboutCentre)
+            {
+                // the angle is measured at the GROUP's centre; the grabbed unit's heading follows the cursor from there
+                float gx = worldPos.X - _centre.X, gy = worldPos.Y - _centre.Y;
+                if (MathF.Abs(gx) > 0.001f || MathF.Abs(gy) > 0.001f) _currentYawRad = MathF.Atan2(gy, gx);
+                return;
+            }
             float dx = worldPos.X - _entityPos.X;
             float dy = worldPos.Y - _entityPos.Y;
             if (MathF.Abs(dx) > 0.001f || MathF.Abs(dy) > 0.001f)
@@ -99,9 +151,14 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (button == MapMouseButton.Left && !isPressed)
             {
                 // ⭐ B-14 / undo U2 — the rotation is ONE step (it writes once, at the release)
-                Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_repo, "Rotate");
-                try { CommitRotation(); }
-                finally { Fdp.Toolkit.Replication.Edits.EditSteps.End(_repo); }
+                if (_group != null)
+                    _group.Rotate(_currentYawRad - _yaw0, _mode);   // ⭐ B-17 P5 — the whole selection, ONE step
+                else
+                {
+                    Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_repo, "Rotate");
+                    try { CommitRotation(); }
+                    finally { Fdp.Toolkit.Replication.Edits.EditSteps.End(_repo); }
+                }
                 RequestRemove();
             }
             else if (button == MapMouseButton.Right && isPressed)
@@ -116,6 +173,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (!_active) return;
             if (key == MapKeyboardKey.Escape && isPressed)
                 RequestRemove();
+            // ⭐ B-17 P5 — Tab toggles each / about the group centre. ⛔ Not "R": R is the Rotate tool's own shortcut and would re-arm (reset) this gizmo.
+            else if (key == MapKeyboardKey.Tab && isPressed && _group != null)
+                _mode = _mode == GroupRotateMode.Each ? GroupRotateMode.AboutCentre : GroupRotateMode.Each;
         }
 
         // These are unused for this exclusive-capture gizmo.
