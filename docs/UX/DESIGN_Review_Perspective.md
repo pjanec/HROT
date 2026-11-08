@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — first iteration; the user's answers folded in (2026-11-08); open: M1 (measure) and Q8 (the merge's managed-component gap)
+build-state: DESIGN — the perspective's first iteration (§3–§5) + a better merge recorded complete and UNSCHEDULED (§6: M1–M6 measured, I1–I9, Q9–Q14)
 updated: 2026-11-08 (third pass — the user: the perspective is for the ALL-IN-ONE editor and the standalone Replay Browser, never a cluster AAR (a debrief); merged by default when the files hold several participants; DAR unrelated; the merge measured — §2.2) · 2026-11-08 (second pass — Federation as the SOURCE of the editor's one world) · 2026-11-08 (first version — CE-3419)
-current-answer: §1 measured · §2 how Federation and the merge work · §3 the design · §4 stages · §5 decisions · ⭐ §6 a better merge (ideas I1–I7, the user: "what exists now is not carved in stone")
+current-answer: §1 measured · §2 how Federation and the merge work · §3 the design · §4 stages · §5 decisions · ⭐ §6 a better merge — the full idea, measured, unscheduled (I1–I9, Q9–Q14, appendices §6.8 / §6.9)
 stale-below: nothing
 known-rot: ⛔ first pass: "Federation does not fit the editor" / "standalone only" — WITHDRAWN (§2.4) · ⛔ second pass: the "this station's part" source during a CLUSTER AAR, G2 (read-only), Q5 (DAR), Q6 (per-station switch in a cluster) — WITHDRAWN by the user (§2.4) · the first pass cited R-4010 for "each node replays its own recording" — wrong id; the rule is W5 in DESIGN_Replay_Time_Axis_And_Review
 known-conflict: none
@@ -174,7 +174,7 @@ merged source steps / scrubs only. The dotted edge: a real cluster's AAR is the 
 | **V2** | the editor composes it — its own run's file: Frame diff and Replay search | a search hit seeks and selects; 0 B per steady frame |
 | **V3** | the Review perspective (layout of the mockup), the same layout as the RB's default | side by side with `review-perspective-visual.svg` (R-4146) |
 | **V4** | search hits and breakpoint stops as Event Timeline lanes | a click seeks |
-| **V5** | **M1** measured (§2.2) — the recorded managed components the merge loses | a list in this design; the round-trip rail per node |
+| **V5** | ✅ M1 measured (§6.2, §6.8) — 30 recorded managed components without a translator | done `2026-11-08` |
 | **V6** | `ReviewSource` in the editor: a participant group → Merged (default, D7) or a node's part (the Source switch, D6), deserialized into the one world (D8) | a CGF-only behaviour state readable in Details on Merged; a node's part plays; Merged steps |
 
 ## 5. Decisions — the user's answers, and the one open question
@@ -187,37 +187,228 @@ merged source steps / scrubs only. The dotted edge: a real cluster's AAR is the 
 | **Q4′** (= RB Q-B6) | Federation in the editor, as the source of its one world | ✅ |
 | **Q7** | the default | ✅ 🔒 *"If there are multiple participants that produced their own [.fdp] file … we by default open in merged mode"* |
 | ~~Q5 · Q6~~ | DAR · per-station switching in a cluster | ⛔ withdrawn (§2.4) |
-| **Q8** ⏳ *(see §6 — I1 makes it moot)* | **the merge's managed-component gap (§2.2)** — keep the JSON merge for the first iteration and FILL the gap found by M1 (a translator, or a recording-exact copy for those types), or replace the step between the sandboxes and the merged world by a BINARY component copy with a reference remap | ⭐ **lean: keep the JSON merge now, measure M1, then decide** — it is built, tested and correct for unmanaged state; a binary merge is a second implementation to justify with M1's numbers. ⛔ rejected: building the binary merge before knowing what is lost |
+| **Q8** ⏳ *(answered by §6 I1 if adopted — the binary merge has no translator in the path)* | **the merge's managed-component gap (§2.2)** — keep the JSON merge for the first iteration and FILL the gap found by M1 (a translator, or a recording-exact copy for those types), or replace the step between the sandboxes and the merged world by a BINARY component copy with a reference remap | ⭐ **lean: keep the JSON merge now, measure M1, then decide** — it is built, tested and correct for unmanaged state; a binary merge is a second implementation to justify with M1's numbers. ⛔ rejected: building the binary merge before knowing what is lost |
 
 
-## 6. ⭐ A better merge — ideas *(coordinator, `2026-11-08`; the user: "If you see something that can be improved on the federation mode, how to do the merging … don't hesitate to come up with ideas. What exists now is not carved in stone.")*
+## 6. ⭐ A better merge — the full idea *(coordinator, `2026-11-08`, NOT scheduled — recorded complete so it can be evaluated or built at any time)*
 
-**Measured for these ideas:** every node's frame index carries the recorded SIM time per frame (`AsyncRecorder.StampIndex`, `AsyncRecorder.cs:199`,
-format v7), and the cluster's sim time is one clock; a recorded frame restores MANAGED components too — the playback has a restorer per managed type
-(`PlaybackSystem.cs:17-18`) — so each node's hidden sandbox already holds every component EXACTLY; only the step between the sandboxes and the merged
-world (JSON, §2.2) loses anything. Managed components are immutable and replaced whole (CLAUDE.md, user `2026-11-02`).
+🔒 User: *"If you see something that can be improved on the federation mode, how to do the merging … don't hesitate to come up with ideas. What
+exists now is not carved in stone."* → *"We are not going to implement it right now … record it as a full idea with everything. Do the measurement
+before."* ⭐ **No slicing, no priorities here** — §6.4 lists every part; §6.7 the questions. ⭐ The ideas apply to the ONE merge both hosts use
+(`Fdp.Toolkits/ReplayBrowser/Federation`) — the standalone Replay Browser and the editor's `ReviewSource` alike.
 
-| # | idea | what it fixes | cost / risk |
+### 6.1 What today's merge is *(§2.2, measured)*
+
+N hidden sandboxes filled BINARY from each node's `.fdp` → per networked entity, each node's owned, not-yet-taken components serialized to JSON by
+the SCENARIO serializer → one DOM → deserialized into a NEW repository every step. Correct for unmanaged components; ⛔ managed ones only through a
+translator; ⛔ a whole-world JSON round-trip per step (no Play); ⛔ a new repository per step (entity handles change).
+
+### 6.2 The measurements *(`2026-11-08`)*
+
+| # | question | result | how |
 |---|---|---|---|
-| **I1** | ⭐ **a BINARY merge**: for each networked entity, copy each owned component straight from the owner's sandbox into the merged world — unmanaged by value, **managed by REFERENCE** (safe: immutable, replaced whole); only `Entity`-typed fields need a remap (network ids and `EntityLink` keys are global already) | ⭐ the managed-component gap (§2.2, Q8) disappears by construction — no translator in the path; no JSON | ⚠ **M2**: count the recorded components with raw `Entity` fields (the remap list); the scenario serializer's resolver already knows how to walk them |
-| **I2** | ⭐ **a PERSISTENT merged world, updated in place**: one target entity per network id, created on first sight and kept (destroyed when the entity dies in every node) — instead of a NEW repository per step | ⭐ entity handles stay valid across steps: the selection, Details, the frame diff and timeline references survive a step (today the RB re-resolves the network id each time); and the editor's ONE world (D8) is the target naturally | low — the correlation map is already built per step (§2.2 ①) |
-| **I3** | ⭐ **an INCREMENTAL merge** from I1 + I2: copy only the chunks whose version changed since the last step (the frames ARE deltas; the playback bumps chunk versions) | ⭐ the merged view can **PLAY** — today it steps / scrubs only because each step re-serializes the whole world | ⚠ measure the per-frame cost on the largest exercise; must meet 0 B steady (R-2084) |
-| **I4** | ⭐ **align the participants by recorded SIM time**, not by wall-clock ticks + manual offsets | the offsets panel stops being needed in the normal case (it stays as the expert override for a node whose clock was really off) | low — the index already has it |
-| **I5** | **a "views" lens — what each node BELIEVED**: for the selected entity, Details shows each replicated component's value at the OWNER and at every node holding a replica, and the timeline marks the frames where a replica DIFFERS from its owner beyond ε (`ComponentDiffService` already compares) | ⭐ the desync analysis Federation exists for, in one place — today you flip between single-node views and compare by eye | medium — a Details section + one timeline lane |
-| **I6** | **federated SEARCH**: run the search on each participant file and keep, per hit, only components that node OWNED at that frame; union by network id | search works in Merged (today disabled there) | medium — the search already runs per file |
-| **I7** | **local entities from EVERY node**, tagged by node, with a per-node filter — instead of one "provider" node | effects from SimHost AND markers from CGF both visible | low |
+| **M1** | which RECORDED managed components does today's merge lose (no scenario translator)? | **62 managed component types, 41 recorded, 30 with NO translator** — among them brain / order state: `BehaviorStartRecord`, `SopStartRecord`, `PausedTask`, `SubordinateOrders`, `PendingUnitCommand`, `SensorCapability`, `SensorConfigPayload`, `AirPath`, `ActionArgs`, `DescriptorOwnership`, `MapSymbolOverride`; the rest are per-node services / caches that should NOT merge anyway (`TerrainWorld`, `TrafficNetCache`, `NetworkEntityMap`, `EgressPublicationState` …) — full table §6.8 | `scripts/probe-recorded-components.py` (source parse of every `[ComponentId]` type) + grep of the 28 `IEntityScenarioTranslator` files |
+| **M2** | which recorded components hold a RAW `Entity` (a node-local handle that must be remapped across worlds)? | **30 types, 28 recorded** — weapons (`AmmoLoadout`, `WeaponTask`, `WeaponPosture`), munitions (`BallisticProjectile`, `GuidedRound`, `HeldFuze`, `Decoy`), hierarchy (`HierarchyNode`, `VisHierarchyNode`, `UnitRoster`, `ChildMap`), carriage (`IsEmbarkedTag`, `PassengerBuffer`, `Custody`, `IsAssistingTag`), AI (`EqsSensor`, `LookState`, `SquadLeadership`, `SubordinateOrders`, `Utterance`, `ActionStatus`, `RecentDetonations`), routes (`PersonalRouteRef`), effects (`EffectAnchor`, `Descent`), parts (`PartMetadata`); plus node-local indices that must NOT merge (`SpatialGridData`, `NetworkEntityMap`, `ZoneEnvironmentData`) — full table §6.9 | the same probe (direct fields and one level of nested structs) |
+| **M3** | is the OWNER (the authority mask the merge selects by) reliably in the recording? | ⚠ **NOT always.** `AuthorityMask` lives in the entity's cold metadata (`EntityMetadataCold.cs:17`); the recorder writes a cold chunk only when the chunk had a STRUCTURAL change (`RecorderSystem.cs:191-196`, debt **D004**), and `SetAuthority` changes the mask WITHOUT stamping one (`EntityRepository.cs:1281, 1304`) ⇒ after an ownership HANDOVER the recording can carry the old owner until the next keyframe — today's merge and any merge built on the mask inherit it. The ownership COMPONENTS (`NetworkAuthority`, `DescriptorOwnership`) are ordinary recorded components | read |
+| **M4** | can a merge know what CHANGED since its last step? | ✅ every chunk a frame restores is stamped with the frame's tick: `repo.SetGlobalVersion(tick)` then `table.SetChunk(chunk, data, repo.GlobalVersion)` (`PlaybackSystem.cs:35, 411`); `GetChunkVersion(chunk)` on both table kinds (`NativeChunkTable.cs:86`, `ManagedComponentTable.cs:258`) | read |
+| **M5** | is it safe to SHARE a managed component object between a sandbox and the merged world? | ✅ playback restores managed chunks from BYTES through a per-type restorer (`PlaybackSystem.cs:17-18`) ⇒ fresh objects per applied chunk — a sandbox never mutates an object the merged world holds; and managed components are immutable, replaced whole (CLAUDE.md, user `2026-11-02`) | read |
+| **M6** | can the participants be aligned without manual offsets? | ✅ every frame's index carries the recorded SIM time (format v7, `AsyncRecorder.StampIndex`, `AsyncRecorder.cs:199, 277-324`); `ReplayTimeMap.FromRecording` maps wall ↔ sim per file (`ReplayTimeMap.cs:68`); the cluster's sim time is one clock. Today `FederatedReplayManager` seeks by `BaseWallTicks` + per-node offsets (`:38-41, 126-168`) | read |
 
-⭐ **Lean:** I1 + I2 + I4 as the merge of the FIRST iteration (they replace the JSON step and make the managed gap moot, so M1 / Q8 become a
-cross-check instead of a decision); I3 next (merged PLAY); I5 – I7 after, as the analysis grows. ⛔ **Rejected:** keeping the JSON merge and
-patching translators type by type — it fights the scenario serializer's purpose (saving authored state) forever. **Blast radius:** the merge lives in
-`Fdp.Toolkits/ReplayBrowser/Federation` — the standalone Replay Browser gets the same improvement (one implementation, two hosts); its
-`frankenstein` design §7 is superseded where I1 / I2 replace §7.4 – §7.5.
+### 6.3 The idea, in one picture
 
-| # | question for the user | ⭐ lean |
+```mermaid
+classDiagram
+    direction LR
+    class FederatedReplayManager { <<existing, changed>> the hidden sandboxes · SeekAll by SIM time (I4) · offsets = override }
+    class MergeTarget { <<NEW>> ONE persistent world (a new repo, or the editor's own — D8) · netId → entity map (I2) }
+    class BinaryMerger { <<NEW, replaces the JSON step>> per entity, per owned component: copy (I1) · only changed chunks (I3) }
+    class OwnershipSource { <<NEW>> who owns each component at this frame — the recorded ownership COMPONENTS, the mask as a cross-check (I8) }
+    class EntityRemap { <<NEW>> the M2 list: raw Entity fields → the target's entities }
+    class ViewsLens { <<NEW>> owner value vs every replica's value (I5) }
+    class FederatedSearch { <<NEW>> per-file search, filtered by ownership, unioned (I6) }
+    class TransientMasterBuilder { <<existing>> kept as the cross-check oracle (§6.6) }
+    FederatedReplayManager --> BinaryMerger : sandboxes
+    BinaryMerger --> OwnershipSource
+    BinaryMerger --> EntityRemap
+    BinaryMerger --> MergeTarget
+    ViewsLens --> FederatedReplayManager
+    FederatedSearch --> OwnershipSource
+```
+*What the picture shows: the JSON step is replaced by a direct copy into ONE persistent target; ownership becomes its own piece (so M3's gap is
+fixed in one place); the old builder stays only as a test oracle.*
+
+```mermaid
+sequenceDiagram
+    participant U as a seek / step / play tick
+    participant M as FederatedReplayManager
+    participant S as each node's sandbox
+    participant O as OwnershipSource
+    participant B as BinaryMerger
+    participant T as MergeTarget (one world)
+    U->>M: go to sim time t (I4)
+    M->>S: each node: the frame at t (its own time map) — ApplyFrame, binary
+    B->>S: which chunks changed since the last merge (GetChunkVersion, M4)
+    B->>O: who owns each changed component at t
+    loop per changed entity, per owned component
+        B->>T: unmanaged — copy the value · managed — share the object (M5)
+        B->>T: remap raw Entity fields (EntityRemap, the M2 list)
+    end
+    B->>T: entities born / dead since the last merge — create / destroy (netId map, I2)
+    T-->>U: the shown world, same entity handles as before
+```
+*What it shows: a step costs the CHANGED components only — a seek backwards (a keyframe restore) changes everything and is a full pass, still with
+no JSON.*
+
+### 6.4 Every part of the idea
+
+| # | part | what it fixes | ⚠ risk / what it needs |
+|---|---|---|---|
+| **I1** | **binary copy** of each owned component from its owner's sandbox — unmanaged by value, managed by reference (M5) — into the target's OWN entities (not a chunk merge, §6.10) | the M1 gap disappears: no translator in the path, every recorded component kept exactly | the M2 remap list must be complete (incl. inline arrays — D03); reuse the auto-serializer's per-type field knowledge for the remap, not a second walker; keep the paradox rule (§6.10) |
+| **I2** | **one persistent target world** with a netId → entity map; entities created on first sight, destroyed when gone from every node | stable handles: selection, Details, the frame diff, timeline references survive a step; the editor's one world is the target directly (D8) | an entity that changes owner keeps its target entity (the map is by network id) |
+| **I3** | **incremental**: copy only chunks whose version changed since the last merge (M4) | the merged view can **PLAY** | measure the per-frame cost on the largest exercise; 0 B steady (R-2084) — the remap and the copy must not allocate |
+| **I4** | **align by recorded sim time** (M6); the per-node offsets stay as an expert override | no manual offsets in the normal case | a node that recorded no sim time (older format) falls back to wall ticks + offsets |
+| **I5** | **the views lens**: for the selected entity, each replicated component's value at the OWNER and at every node holding a replica; a timeline lane marks frames where a replica differs beyond ε (`ComponentDiffService`) | what each node BELIEVED — the desync analysis Federation exists for | a Details section + one lane |
+| **I6** | **federated search**: the search per participant file, each hit kept only for components that node owned at that frame, unioned by network id | search works in Merged (disabled there today) | ownership per frame needs I8 to be reliable |
+| **I7** | **local entities from EVERY node**, tagged by node, with a per-node filter | effects from SimHost and markers from CGF both visible (today one "provider" node) | entities with no network id cannot correlate — each stays its node's |
+| **I8** | **ownership from the recorded ownership COMPONENTS** (`NetworkAuthority.PrimaryOwnerId`, `DescriptorOwnership` per descriptor), the cold mask as a cross-check; and fix **D004** at the recorder (write a cold chunk when its version moved, as the debt note proposes) | M3: after a handover the merge picks the right owner | D004 is a recorder change — every recording benefits; older recordings keep the gap |
+| **I9** | **an exclusion list of node-LOCAL components** that must never merge (spatial grids, network maps, caches, terrain services — the M1 / M2 tables mark them) | no node's private index or cache leaks into the merged world | the list must be maintained — a `[DataPolicy]` flag (e.g. `NodeLocal`) is the durable form |
+
+### 6.5 What it changes, and what it supersedes
+
+| | |
+|---|---|
+| code | `Fdp.Toolkits/ReplayBrowser/Federation`: `FederatedReplayManager` (sim-time seek), NEW `BinaryMerger` / `MergeTarget` / `OwnershipSource` / `EntityRemap`; `TransientMasterBuilder` kept as the oracle; the RB's `RebindActiveRepo` on every step goes (the target is persistent); the recorder (D004) |
+| designs | [replay-browser-frankenstein](../designs/replay-browser-frankenstein/DESIGN.md) §7.4–§7.5 (the JSON DOM) and §9 (merged view = no Play) would be SUPERSEDED where adopted; §7.3's rule (owned AND not already taken, primary owner first) is KEPT — I8 only changes where "owned" is read |
+| this design | §3 D8 (deserialize into the editor's world) becomes "the editor's world IS the merge target"; §5 Q8 is answered by I1 |
+
+### 6.6 How it would be proven
+
+| proof | |
+|---|---|
+| **oracle rail** | for each fixture exercise, every UNMANAGED component of the binary merge equals the JSON merge's (today's builder) — any difference is a bug in one of them |
+| **owner rail** | per node: in the merged world, every component that node owned equals that node's own sandbox, field by field (managed included) |
+| **remap rail** | every `Entity` field in the merged world resolves to a merged entity (the M2 list, plus the probe re-run as a rail so a new type cannot slip in) |
+| **handover rail** | a recorded ownership handover: the merged world takes the component from the NEW owner from the handover frame on (I8 / D004) |
+| **play rail** | 0 B per steady merged frame; the per-frame cost on the largest exercise, measured and written here |
+
+### 6.7 Open questions — leans, no scheduling
+
+| # | question | ⭐ lean |
 |---|---|---|
-| **Q9** | adopt I1 + I2 + I4 for the first iteration (binary, persistent, sim-time-aligned) instead of the JSON merge | **yes** |
-| **Q10** | I3 (merged PLAY) next | **yes** |
-| **Q11** | I5 – I7 as later stages | **yes, in that order** |
+| **Q9** | adopt the binary merge (I1, I2, I9) in place of the JSON step | **yes** — it removes the M1 gap by construction and makes I3 possible |
+| **Q10** | merged PLAY (I3) | **yes**, once measured against R-2084 |
+| **Q11** | sim-time alignment (I4), offsets kept as override | **yes** |
+| **Q12** | ownership from the recorded components + fix D004 at the recorder (I8) | **yes** — the recorder fix helps every recording, not only this view |
+| **Q13** | the views lens (I5), federated search (I6), local entities from every node (I7) | **yes** — they are what makes Federation an analysis tool |
+| **Q14** | a `NodeLocal` data policy for components that must never merge (I9) | **yes** — a flag beats a hand-kept list |
+
+### 6.8 Appendix — M1: every recorded managed component and its scenario translator
+
+| component | kind | data policy | translator | file |
+|---|---|---|---|---|
+| `ActionArgs` | record | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/ScenarioRules/Actions/ActionComponents.cs` |
+| `ActiveMissionPlan` | record | NoPreview | MissionPlanTranslator.cs | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/DomainMissionPlan.cs` |
+| `AirPath` | record | NoPreview | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Motion/AirRoute.cs` |
+| `BehaviorStartRecord` | record | NoPreview | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorStartRecord.cs` |
+| `BinaryGhostStore` | record | NoPreview | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Replication/Components/BinaryGhostStore.cs` |
+| `BpManagedCollectionDemo` | record | NoPreview | ⛔ none | `Hrot/Subsystems/Hrot.AI.Behaviors/Components/BpManagedCollectionDemo.cs` |
+| `CanvasContextMenuState` | class | — | ⛔ none | `Hrot/Engine/Hrot.Core/Components/Map/CanvasContextMenuState.cs` |
+| `ChildMap` | record | NoPreview | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Replication/Components/ChildMap.cs` |
+| `DescriptorOwnership` | record | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Replication/Components/DescriptorOwnership.cs` |
+| `EditablePolyline` | record | — | EditablePolylineTranslator.cs, RoutePlanTranslator.cs | `Hrot/Engine/Hrot.Core/Components/Map/EditablePolyline.cs` |
+| `EgressPublicationState` | class | — | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Replication/Utilities/SmartEgressUtil.cs` |
+| `InitialBlueprintsIntent` | class | — | BlueprintStateTranslator.cs | `Hrot/Engine/Hrot.Core/Scenario/Genesis/GenesisIntentComponents.cs` |
+| `InitialHierarchyIntent` | class | — | VisHierarchyNodeTranslator.cs | `Hrot/Engine/Hrot.Core/Scenario/Genesis/GenesisIntentComponents.cs` |
+| `InitialPassengersIntent` | class | — | PassengerBufferTranslator.cs | `Hrot/Engine/Hrot.Core/Scenario/Genesis/GenesisIntentComponents.cs` |
+| `InitialRouteIntent` | class | — | PersonalRouteRefTranslator.cs | `Hrot/Engine/Hrot.Core/Scenario/Genesis/GenesisIntentComponents.cs` |
+| `InitialTargetsIntent` | class | — | TargetMemoryTranslator.cs | `Hrot/Engine/Hrot.Core/Scenario/Genesis/GenesisIntentComponents.cs` |
+| `InitialUnitSubordinateIntent` | class | — | UnitSubordinateTranslator.cs | `Hrot/Engine/Hrot.Core/Scenario/Genesis/GenesisIntentComponents.cs` |
+| `InitialVehicleIntent` | class | — | IsEmbarkedTagTranslator.cs | `Hrot/Engine/Hrot.Core/Scenario/Genesis/GenesisIntentComponents.cs` |
+| `MacroInstance` | record | Default | MacroInstanceTranslator.cs, VariantForms.cs | `FDP/Toolkits/Fdp.Toolkits/Scenario/Macros/MacroTypes.cs` |
+| `MapSymbolOverride` | record | NoScenario | ⛔ none | `Hrot/Engine/Hrot.Core/Components/Map/MapSymbolOverride.cs` |
+| `NetworkAckPeerSet` | record | NoPreview | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Replication/Components/NetworkComponents.cs` |
+| `NetworkEntityMap` | class | — | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Replication/Services/NetworkEntityMap.cs` |
+| `PausedTask` | record | NoPreview | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/PausedTask.cs` |
+| `PendingAuthorityGrants` | record | NoPreview | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Replication/Components/PendingAuthorityGrants.cs` |
+| `PendingUnitCommand` | record | — | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/PendingUnitCommand.cs` |
+| `Program` | class | — | ⛔ none | `FDP/Engine/Fdp.Core.Benchmarks/QueryDeltaBenchmarks.cs` |
+| `RoutePlan` | record | NoPreview | RoutePlanTranslator.cs | `Hrot/Engine/Hrot.Core/Components/Map/RoutePlan.cs` |
+| `ScenarioDescriptionResident` | class | — | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Scenario/ScenarioDescription.cs` |
+| `SensorCapability` | record | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Perception/Components/SensorComponents.cs` |
+| `SensorConfigPayload` | record | NoPreview | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Perception/Components/SensorComponents.cs` |
+| `SimCombatDef` | record | NoPreview | ⛔ none | `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/SimCombatDef.cs` |
+| `SopStartRecord` | record | NoPreview | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/SopState.cs` |
+| `SubordinateOrders` | record | NoPreview | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/SubordinateOrders.cs` |
+| `TerrainDefinition` | class | — | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainDefinition.cs` |
+| `TerrainObjectKey` | record | NoScenario | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainObjects.cs` |
+| `TerrainWorld` | class | — | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainWorld.cs` |
+| `TkbCompositionDef` | record | NoPreview | ⛔ none | `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/TkbCompositionDef.cs` |
+| `TrafficFrame` | class | — | ⛔ none | `Hrot/Engine/Hrot.Traffic/TrafficFrame.cs` |
+| `TrafficNetCache` | class | — | ⛔ none | `Hrot/Engine/Hrot.Traffic/TrafficNetCache.cs` |
+| `WorldSurveyAnswer` | class | — | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Perception/Survey/WorldSurveyModel.cs` |
+| `WorldSurveyRequest` | record | — | ⛔ none | `FDP/Toolkits/Fdp.Toolkits/Perception/Survey/WorldSurveyModel.cs` |
+
+### 6.9 Appendix — M2: every component with a raw `Entity` field
+
+| component | kind | data policy | recorded | the field | file |
+|---|---|---|---|---|---|
+| `ActionStatus` | struct | NoScenario | recorded | `ActionStatus→ActionStatusRow.Entity` | `FDP/Toolkits/Fdp.Toolkits/Behavior/Diagnostics/ActionStatus.cs` |
+| `AmmoLoadout` | struct | Default | recorded | `AmmoLoadout.Entity` | `FDP/Toolkits/Fdp.Toolkits/Combat/Components/AmmoLoadout.cs` |
+| `BallisticProjectile` | struct | Default | recorded | `BallisticProjectile.Entity` | `FDP/Toolkits/Fdp.Toolkits/Combat/Components/CombatComponents.cs` |
+| `ChildMap` | record | NoPreview | recorded | `ChildMap.IReadOnlyDictionary<int, Entity>` | `FDP/Toolkits/Fdp.Toolkits/Replication/Components/ChildMap.cs` |
+| `Custody` | struct | NoScenario | recorded | `Custody.Entity` | `FDP/Toolkits/Fdp.Toolkits/Civilians/Custody.cs` |
+| `Decoy` | struct | NoScenario | recorded | `Decoy.Entity` | `FDP/Toolkits/Fdp.Toolkits/Combat/Components/AirDefenceComponents.cs` |
+| `Descent` | struct | NoScenario | recorded | `Descent.Entity` | `FDP/Toolkits/Fdp.Toolkits/Motion/Descent.cs` |
+| `EffectAnchor` | struct | NoScenario | NoPreview | recorded | `EffectAnchor.Entity` | `Hrot/Engine/Hrot.Core/Components/Map/EffectComponents.cs` |
+| `EqsSensor` | struct | Default | recorded | `EqsSensor.Entity` | `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsComponents.cs` |
+| `GuidedRound` | struct | NoScenario | recorded | `GuidedRound.Entity` | `FDP/Toolkits/Fdp.Toolkits/Combat/Components/GuidedRound.cs` |
+| `HeldFuze` | struct | NoScenario | recorded | `HeldFuze.Entity` | `FDP/Toolkits/Fdp.Toolkits/Combat/RoundPickUp.cs` |
+| `HierarchyNode` | struct | Default | recorded | `HierarchyNode.Entity` | `FDP/Engine/Fdp.Core/HierarchyNode.cs` |
+| `IsAssistingTag` | struct | Fdp.Core.NoScenario | recorded | `IsAssistingTag.Entity` | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/InteractionComponents.cs` |
+| `IsEmbarkedTag` | struct | Default | recorded | `IsEmbarkedTag.Entity` | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/InteractionComponents.cs` |
+| `LookState` | struct | NoScenario | recorded | `LookState.Entity` | `FDP/Toolkits/Fdp.Toolkits/Perception/Look/LookState.cs` |
+| `NetworkEntityMap` | class | — | recorded | `NetworkEntityMap.ConcurrentDictionary<int, Entity>` | `FDP/Toolkits/Fdp.Toolkits/Replication/Services/NetworkEntityMap.cs` |
+| `PartMetadata` | struct | Default | recorded | `PartMetadata.Entity` | `FDP/Toolkits/Fdp.Toolkits/Replication/Components/PartMetadata.cs` |
+| `PassengerBuffer` | struct | Default | recorded | `public Entity` | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/InteractionComponents.cs` |
+| `PersonalRouteRef` | struct | Default | recorded | `PersonalRouteRef.Entity` | `Hrot/Engine/Hrot.Core/Components/Map/PersonalRouteRef.cs` |
+| `RecentDetonations` | struct | NoScenario | recorded | `RecentDetonations→RecentBurstSlots→RecentBurst.Entity` | `FDP/Toolkits/Fdp.Toolkits/Combat/RecentDetonations.cs` |
+| `SpatialGridData` | struct | — | recorded | `SpatialGridData→SpatialHashGrid.NativeArray<Entity>` | `FDP/Toolkits/Fdp.Toolkits/CarKinem/Spatial/SpatialGridData.cs` |
+| `SquadDrillTrace` | class | Transient | not recorded | `SquadDrillTrace.Entity` | `FDP/Toolkits/Fdp.Toolkits/Squad/State/SquadDrillTrace.cs` |
+| `SquadLeadership` | struct | NoScenario | recorded | `SquadLeadership.Entity` | `FDP/Toolkits/Fdp.Toolkits/Squad/SquadLeadership.cs` |
+| `SubordinateOrders` | record | NoPreview | NoScenario | recorded | `SubordinateOrders.Entity` | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/SubordinateOrders.cs` |
+| `UnitRoster` | struct | — | recorded | `UnitRoster.Entity` | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs` |
+| `Utterance` | struct | NoScenario | recorded | `Utterance.Entity` | `FDP/Toolkits/Fdp.Toolkits/Civilians/Speech.cs` |
+| `VisHierarchyNode` | struct | Default | recorded | `VisHierarchyNode.Entity` | `FDP/Engine/Fdp.Presentation/Vis2D/Components/HierarchyComponents.cs` |
+| `WeaponPosture` | struct | Default | recorded | `WeaponPosture.Entity` | `FDP/Toolkits/Fdp.Toolkits/Combat/Components/WeaponPosture.cs` |
+| `WeaponTask` | struct | Default | recorded | `WeaponTask.Entity` | `FDP/Toolkits/Fdp.Toolkits/Combat/Components/WeaponTask.cs` |
+| `ZoneEnvironmentData` | struct | — | recorded | `ZoneEnvironmentData→TerrainQueryRequest.Entity` | `FDP/Toolkits/Fdp.Toolkits/CarKinem/ZoneEnvironmentData.cs` |
+
+⚠ Both appendices come from a SOURCE parse (`scripts/probe-recorded-components.py`), not reflection: "recorded" = no `NoReplay` / `Transient`
+policy; a component registered without `[ComponentId]`, or an `Entity` nested deeper than one struct, is missed — re-run the probe (and confirm by
+reflection) before building.
+
+### 6.10 Why JSON was chosen back then — and what the binary idea must not lose *(read `2026-11-08`)*
+
+🔒 User: *"I'm wondering why the JSON-based merging was selected back then … Might be interesting to find out if we are not missing something important."*
+Sources: the design talk `.dev/_DONE/replay-browser-frankenstein/merged-view.md` (the spec + the NotebookLM review) · its `DESIGN.md` · `DEBT-TRACKER.md`.
+
+| the reason, as recorded | where | does it still hold for I1? |
+|---|---|---|
+| **a RAW-MEMORY merge corrupts the world**: `.fdp` stores whole 64 KB chunks and `EntityIndex` arrays whose `Entity.Index` is node-local (*"index 42 on the Brain might be a tank; on the Muscle a tree"*) — merging chunks breaks the free list and the layout | `merged-view.md:27`, review `:124-130` | ✅ still true — and **I1 is NOT a chunk merge**: it creates its own entities in the target and copies component VALUES per entity, so the layout is the target's own |
+| **REUSE the remap that exists**: the scenario serializer already routes every `Entity` handle through `IGuidResolver` (the machinery scenario loading uses) — *"we are reusing it, not building it"* | `merged-view.md:79-84` | ⚠ **this is I1's real cost**: a binary copy needs its OWN remap of the M2 fields (28 types) — the reason JSON was the cheaper build. Look first for a way to reuse the auto-serializer's compiled per-type knowledge of where the `Entity` fields are, rather than writing a second walker (the shared-and-unified rule) |
+| **correctness over speed — the user rejected a fast path**: a "Tier 1" inspector-level federation (read each owner's slice in place, no copy) was proposed and refused: *"I do not want any tier 1 … I need "correct" merged view, not fast but broken one"* — it could not make cross-node references valid, so gizmos and hierarchy tools would read garbage | review `:134-212` | ✅ **I1 keeps the rule** — every reference is remapped into ONE concrete repository; I1 changes only HOW the values get there. The oracle and remap rails (§6.6) are what prove it stays "correct" |
+| slow was ACCEPTED, not wanted — *"step-by-step offline analysis, not 60 Hz playback"* | `merged-view.md:82` | I3 removes a cost that was only tolerated |
+
+**What the record shows was NOT considered — the things this idea adds:**
+
+| | |
+|---|---|
+| **managed components** | never discussed: the design assumed *"existing translator + auto-serializer code paths"* cover every component (`DESIGN.md:342`). M1 shows 30 recorded managed types with no translator — an oversight, not a decision |
+| **the owner source** | the SPEC said authority is read from `NetworkAuthority` and `DescriptorOwnership` per component (`merged-view.md:77`, review `:206, 243`); the built design switched to the cold `AuthorityMask` as *"the existing field"* (`DESIGN.md` §7.3) — which is where M3's stale owner after a handover comes from. ⭐ I8 RETURNS to the spec's source |
+| **entity handles inside inline arrays** | the batch's own debt D03: the test for an inline-array `Entity` handle through the JSON path was never written — unverified even today; the I1 remap must cover it AND the oracle rail must include such a type |
+
+**What must be carried into I1 unchanged:** the paradox rule — a reference whose target does not exist in the merged world becomes `Entity.Null`
+AND is flagged (design §7.6) — the remap must not throw, and must not hide it.
 
 ---
 _coordinator lane, 2026-11-08_

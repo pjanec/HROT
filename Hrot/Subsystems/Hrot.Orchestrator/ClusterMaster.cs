@@ -1001,6 +1001,7 @@ public sealed partial class ClusterMaster : IDisposable
     private void CommitRestore(Guid requestId, RestoreCheckpointPayload payload, Guid roundTx, List<int> targets)
     {
         _activeExerciseId  = payload.NewExerciseId;   // D18 — the cluster records a new exercise from here
+        TruncateLiveCheckpointsAt(payload.Label);   // the new exercise inherits the marks up to X
         _currentExerciseId = payload.NewExerciseId;
         FanOutNodeOp(NodeOpType.RestoreSnapshot, roundTx, payload, targets);
         _pendingTransactions[roundTx] = new GenericTransactionTracker
@@ -2598,6 +2599,7 @@ public sealed partial class ClusterMaster : IDisposable
                 ?? (tracker.ResultFromResponses ? ResponsesByNode(tracker.NodeResponses) : TryAggregate(txId, tracker.NodeResponses));
             if (tracker.RefineResult != null) aggregated = tracker.RefineResult(aggregated);   // ⭐ CE-4093
             NoteRoundCompletedForUnsavedCheck(txId, failed: false, aggregated);
+            if (aggregated is CheckpointPayload taken) NoteLiveCheckpoint(taken);   // ⭐ ui REQUEST (R2″) — the live run's checkpoint list
             PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
             // ⭐⭐ CE-3354 (R-3075) — LOAD AND RUN: the round succeeded on EVERY node (each acknowledged only when its load chain resolved — §11.10a),
             //   so the clock runs now. ⛔ HISTORY: GlobalContextProcessManager resumed on the announced STATE, which the master advances at the round's

@@ -744,11 +744,11 @@ namespace Hrot.Editor.DebugApi
                 // ⭐⭐ CE-4093 (AQ108 D22) — the LAST check round's verdict (true = the open scenario has unsaved changes); null when none ran or the cluster
                 //   left editing since. ⛔ Reading it never runs a round — POST /scenario/check-unsaved does.
                 ["scenarioDirty"] = ScenarioDirtyOrNull,
-                // ⭐⭐ CE-4097 part two (AQ108 D22) — what ▶ would run from editing on this host: preview | live | aar (null: this host has no run choice). Read-only; POST /run-mode sets it.
+                // ⭐⭐ CE-3411 (AQ108 §0 R1′) — the mode the cluster is in or switching to: preview (= editing) | live | aar (null: this host has no run choice). POST /run-mode switches it.
                 ["armedMode"]    = TryRead(() => (JsonNode?)ArmedModeText()),
                 // ⭐ CE-3375 (presets D10) — may the loaded world be saved: true, or false + `cannotSave` (the ONE gate, ScenarioSaveGate — the pen and the Save button ask it too)
-                ["canSave"]      = TryRead(() => (JsonNode?)(Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(_world) is null)),
-                ["cannotSave"]   = TryRead(() => (JsonNode?)Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(_world)),
+                ["canSave"]      = TryRead(() => (JsonNode?)(CannotSave() is null)),   // ⭐ CE-3407 — the ONE answer (was the variant gate alone)
+                ["cannotSave"]   = TryRead(() => (JsonNode?)CannotSave()),
                 // ⭐⭐ CE-3344 (R-3069) — cluster READY from this host (ClusterView.CanOperate): true = the cluster routes work; false + `notOperable` = they answer 409 with that reason;
                 //   absent when this host keeps no cluster read model. ⭐ What a test harness polls before it drives the cluster.
                 ["canOperate"]   = ClusterNotOperableReasonKnown() is { } known ? (JsonNode?)(known.Reason is null) : null,
@@ -1559,7 +1559,12 @@ namespace Hrot.Editor.DebugApi
         /// <summary>⭐ CE-3394 — why this host's world may not be saved as the scenario (<c>ScenarioSaveGate</c>), null when it may.</summary>
         /// <remarks>⚠ A host with NO world of its own (a cluster host forwarding the save intent) cannot judge ⇒ null: the saving node's own session refuses a variant world
         /// (<c>IScenarioSession.SaveDisabledReason</c>). ⛔ It read <c>_world</c>, which THROWS (501) there — that broke <c>/scenario/save</c> on such a host.</remarks>
-        public string? CannotSave() => (_editorWorld ?? _dispatcher?.World) is { } w ? Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(w) : null;
+        /// <remarks>⭐ CE-3407 — a host with a scenario session answers ITS one reason (the cluster, then the variant) — the same the pen, the Save slot and File › Save read; a host without one keeps the world's variant gate.</remarks>
+        public string? CannotSave()
+        {
+            if (_editorLogic is not null) return _editorLogic.SaveDisabledReason;
+            return (_editorWorld ?? _dispatcher?.World) is { } w ? Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(w) : null;
+        }
 
         /// <summary>⭐ CE-4210 MA-9 — the same save with the optional entity filter and macro header (<c>POST /scenario/save {name, onlyGuids?, header?}</c>).</summary>
         public JsonNode SaveScenario(string name, Guid[]? onlyGuids, string? headerJson)

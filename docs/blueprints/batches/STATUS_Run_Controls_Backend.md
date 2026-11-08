@@ -7,6 +7,6 @@
 | B-2 | CE-3410 | DONE | (see log) | an unrun Live (clock never advanced) writes no ledger entry ⇒ never listed; a run resumed from DAR is kept |
 | B-3 | CE-3415 | DONE | `dfdc52985` | `ClusterView.StartLiveImmediately` / `RunModeChoice.StartImmediatelySetting`; `SendRunSettings(…, startLiveImmediately)`; Orchestrator panel checkbox; `/run-settings {startLiveImmediately}` |
 | B-4 | CE-3414 | DONE | `1894b560e` | Start screen Recent rows |
-| B-5 | CE-3411 | IN PROGRESS | — | ui R-1 merged (`48c58d65b`) |
+| B-5 | CE-3411 | PART DONE | (this commit) | `/run-mode` switches (ui's `Choose`); docs + MCP catalog say so; `/status.canSave` and the `/scenario/save` 409 read the ONE save reason (`IEditorLogic.SaveDisabledReason`). ⏳ the HTTP asker on the switch out of Edit waits on ui's [REQUEST](NOTE_Backend_To_Ui_Choose_With_Http_Asker.md) |
 | B-6 | — | SKIPPED — needs user | — | QUESTION [NOTE_Backend_To_Coordinator_Preview_Run_Setup_Question](NOTE_Backend_To_Coordinator_Preview_Run_Setup_Question.md): the setup is applied only by a load (DOM-level); lean (B) preview the saved scenario with the setup. ui's L-10 stays ⏳ |
-| ui REQUEST | — | QUEUED | — | [live checkpoint labels](NOTE_Ui_To_Backend_Live_Checkpoint_Labels.md): the master keeps the marks of the exercise now recording and publishes them on the replay-session topic in Live; ANSWER note when built |
+| ui REQUEST | — | DONE | `09eae2dba` | [live checkpoint labels](NOTE_Ui_To_Backend_Live_Checkpoint_Labels.md): the master keeps the marks of the exercise now recording and publishes them on the replay-session topic in Live; ANSWER note when built |

@@ -140,6 +140,9 @@ public sealed class EditorApplication : IEditorLogic
     /// <inheritdoc/>
     public Hrot.UI.Common.RunMode.ScenarioDoor Door => _session.Door;
 
+    /// <inheritdoc/>
+    public string? SaveDisabledReason => _session.SaveDisabledReason;   // ⭐ CE-3407 — HTTP reads the same answer as the pen and the menu
+
     /// <summary>⭐ CE-4101 — the session's RAW verbs, for <c>AttachRunChoice</c> only.</summary>
     public Hrot.UI.Common.RunMode.IRunScenarioControl RunControl => _session.RunControl;
 
