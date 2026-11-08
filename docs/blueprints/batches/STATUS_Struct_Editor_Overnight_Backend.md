@@ -30,3 +30,17 @@ Design: [`DESIGN_Struct_Editor.md`](../../DESIGN_Struct_Editor.md). ui and behav
 | N-11 CE-3396 form rows + error lines | DONE | `5809a6971`, `a1203d7e4`, `c02e0b85e` | worker — 10 modals, 6 node drawers, 4 panels → label-first FormGrid rows + RowMarks.ErrorLine (new `RowMarks.WarningLine` for non-blocking); kept with reasons: RuleDetails :395 (a view option) / :517 (inputs inside a sentence), ClusterScenarioPanel headings + transport rows. Gates: Hrot.Editor 855/0 · AiShared 2282/2282 · Blueprints 4238 + 4 known · Hrot.Presentation 1733 + 3 known + 1 flake (FormRowFrameRail, green alone ×2). ⚠ Found + FIXED: `Fdp.Presentation.Tests` host crashed in `StartGateTests.WhileStartShows_…` (the Start wallpaper uploaded with no GL context; red at base `f11cc21ce`) ⇒ every later test silently unrun. Guarded; the project now runs **782/0** (557–630 counted before) |
 
 Gate rows so far: `StructEdit.Tests` 227 / 1 failed — `DocumentBuilderTests.Build_CircularReference_CircularFieldIsUnsupported`, **pre-existing** (fails alone at `f11cc21ce` in a clean worktree). `Hrot.Editor.Tests` filtered (routes / API / status / capability / extensions): 1 red — `TheEditorComposesNodeExtensionsTests.CE4293_…`, **pre-existing** (fails alone at `f11cc21ce`); `TriggerAdvertisesItsAuthoredKeys` pre-existing (resume doc).
+
+## Final gate — HEAD after N-11 (`2026-11-08`), every project built at HEAD, xvfb
+
+| project | result |
+|---|---|
+| Hrot.Editor.Tests (full) | **855 / 0** (3 skipped) — was 19 red before `4b5e00765` |
+| Fdp.Presentation.Tests (full) | **782 / 0** — the run no longer aborts (`StartSurfaceWindow` guard) |
+| Hrot.Editor.AiShared.Tests (full) | 2282 / 0 (worker, after N-11) |
+| Hrot.Hsm.Editor.Tests · Hrot.BTree.Editor.Tests (full) | 675 / 0 · 679 / 0 |
+| NodeEditor.Core.Tests · NodeEditor.UI.Tests (full) | 224 / 0 · 195 / 0 |
+| Fdp.Toolkits.Tests (`~Scenario`) | 293 / 0 |
+| StructEdit.Tests (full) | 227 / 1 — `Build_CircularReference_…`, red at base `f11cc21ce` |
+| Hrot.Blueprints.Tests (full) | 4238 / 4 — `CatalogTests.ChannelCommandPins`, `SubTickRestoreRegistrationTests`, `CE2083_SopOrderNodeTests`, `TheScenarioEnvironmentViewTests.CE1161` — red at base `6cbeda699` (N-6 report) |
+| Hrot.Presentation.Tests (full) | 1733 / 4 — `OneWindowPerProcessTests.CE1039`, `FilmFrameRail.CE1380`, `Map3DFrameRail.CE1227` red at base `6cbeda699`; `FormRowFrameRail.EveryRowState_…` once, green alone ×2 (flake) |
