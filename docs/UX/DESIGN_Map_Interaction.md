@@ -313,7 +313,7 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 | **P4** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P4* below) the pick banner, rejection flash, replace notice in `PickerToolHost` | ui | a pick is visible with the form scrolled away; Cancel on the banner clears the field |
 | **P5** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P5* below) multi-select modifiers (Shift / Ctrl / Shift-drag / Alt-click); `GroupTransform` for move and rotate | ui | rotate 5 placed units about each centre and about the group centre: one undo step |
 | **P6** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P6* below) shapes and routes: the centre handle on every kind (routes included), segment insert, Delete | ui | ROUTES1 §11.1 rails, minus the right-click commit |
-| **P7** | the gizmo look review (§2.6), approved by the user before it is built | ui | the frame rails under `xvfb-run` |
+| **P7** | ✅ BUILT (behaviors, 2026-11-08 — *⭐ P7 — the build* below) the gizmo look review (§2.6), approved by the user before it is built | ui | the frame rails under `xvfb-run` |
 
 Order: P1 → P2 → P3 (P3's measurement can start at once) → P4 → P5 → P6 → P7. P2 depends on the action catalogue's first stage (A1),
 
@@ -584,7 +584,7 @@ classDiagram
 
 Rails: `ShapeEditSessionTests` `P6_*` (centre drag from the originals / cancel / no-move · `SegmentAt` finds the segment, not a vertex or the centre, closing segment, route · `DeleteSelectedPoint` holds the minimum · **Delete is a keymap row, a rebind moves it**); `VertexEditGizmoTests` / `RouteWaypointGizmoTests` `P6_*` (the centre handle drawn at the mean · centre drag moves every point and is ONE undo step with undo / redo · Esc cancels clean, a click on the handle is no edit · a segment click inserts between the right two (route: height along the leg) as one step, a vertex / centre / open-ground click inserts nothing · Delete removes the selected one as one step, the press is ignored · Delete at the minimum refuses with the reason on the tool's hint, then a touch clears it); `SelectionInteractionSystemTests.B17P6_*` (Delete destroys nothing while a tool holds the keyboard); `TheArmedToolIsVisibleTests.P6_TheEditToolsHints_…` + frame `P6_ARouteBeingEdited_OnARealFrame_…` (`editing-route.png` under `HROT_RAIL_SHOTS`, never committed: waypoints, the selected one red, the amber centre handle, the ✓, the hint). Red-proofs: a write-back per drag update ⇒ the centre-drag one-step rails (vertex and route) red · the minimum check dropped ⇒ the Delete-at-the-minimum rails red · `ToolOwnsKeys` ignored ⇒ `B17P6_*` red · the keymap lookup replaced by a key compare ⇒ `P6_Delete_IsAKeymapRow…` red.
 
-### ⭐ P7 — the build *(behaviors, `2026-11-08`, B-17 — approved by the user: "Approved build.it")* — `build-state: BUILDING`
+### ⭐ P7 — the build *(behaviors, `2026-11-08`, B-17 — approved by the user: "Approved build.it")* — `build-state: BUILT` (P7-A `732c0b061`, P7-B `05dc20dc9`, P7-C `a55826a9a`)
 
 INVENTORY *(measured before drawing)*: `search_graph name_pattern=".*(Symbol|Footprint|Silhouette).*" label=Class` ⇒ `EntityFootprint` (Fdp.Toolkits,
 the 2-D symbol's L × W rule) + the placement ghost's own box (`EntityPlacementGizmo.DrawGhostBox`, sized by `EntityBodyLayer3D.Resolve`, U-8);
