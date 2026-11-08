@@ -274,7 +274,7 @@ applied only by the LOAD — `ScenarioParams.Prepare` + `ScenarioVariants.Apply`
 **The fallback (D)**, only where P2 says so: the autosave round (D23) turns the in-memory edit world (unsaved edits included) into scenario JSON,
 the load applies the preset to it, the Preview runs it, Stop rewinds. Slower, still with the edits.
 
-### 9a. ⭐ CE-4326 — the build (backend, `2026-11-08`) — `build-state: BUILDING`
+### 9a. ⭐ CE-4326 — the build (backend, `2026-11-08`) — `build-state: BUILDING` (part ① BUILT; ② params and ③ P2 next)
 
 **INVENTORY** *(`2026-11-08`: the graph index was stale — `search_graph` found no `VariantForms`; re-indexed in the background; ⚠ these rows are
 grep + reading, coverage unchecked)*: the load's variant decisions — `ScenarioVariants.Roll` / `Pick` / `ChoicesOf` / `PositionsOf`, composed inline in
@@ -362,3 +362,18 @@ graph TD
 
 ⭐ Build order: ① the variant part + the flow (args reach every node's handler) — ② the params part — ③ P2. Each with its equality rail
 (*load with preset* = *in place on the authored world*).
+
+#### 9a.1 ✅ AS-BUILT part ① (`2026-11-08`) — the variant part and the flow
+
+| what | where |
+|---|---|
+| the shared decisions | `ScenarioVariants.IsPresent` (extracted from `Apply`) · `ScenarioParams.Resolve` (the param source + effective args, extracted from `Prepare`) — both now called by the load AND by `PresetInPlace` |
+| the world writer | `Fdp.Toolkit.Scenario.PresetInPlace.Apply(world, args)` → `Result{Removed, Placed, MacrosChosen, Refused}`: destroys a failed presence roll, sets the chosen place / heading, replaces `MacroInstance` with the chosen macro (`with`), records the choices in `VariantForms`, sets `ScenarioDescriptionResident.Args` (the expander's variant source) |
+| the flow | `DryRunIntents.Enter(startPaused, presetArgs)` → `TransitionStateIntent.ScenarioArgsJson` → `ClusterMaster` puts it on the `LoadingPreview` step (`EditLoadHandlerPayload.ScenarioArgsJson`) → `ReferencePreviewHandler` applies it right after the capture; HTTP `POST /preview/enter {args \| variant \| preset}` |
+| rails | `VariantFormsTests.CE4326_APresetAppliedInPlace_EqualsTheLoadWithThatPreset_ForEveryVariant` (P1: 200 variants, both roll branches) · `…_DefaultChangesNothing_AnUndeclaredArgIsRefused…` · `…_VariantForms_SurviveTheDryRunKeyframe` (both capture sets) · `ReferencePreviewHandlerTests.CE4326_APresetPreview_AppliesInPlaceAfterTheKeyframe_AndTheRewindRestoresTheAuthoredWorld` |
+
+| deviation from the diagrams above | why |
+|---|---|
+| ⛔ no `PresetApplier` host seam — the handler calls `PresetInPlace` directly | both live in `Fdp.Toolkits`: every host has it by construction (the silent-default rule needs no seam to forward) |
+| ⚠ found and fixed on the way: `FdpAutoSerializer` wrote a nullable value member (`double?`) as NOTHING | the rewind brought a removed entity back with `VariantForms.Presence` null — a save after the Preview would have lost the authored presence. Fixed in the serializer (CE-3305's shape); no recording carried a `T?`, so no format change |
+| ⏳ params (variant 0 presets, part ②) and P2 (a param inside a macro's behaviour args) | not built yet: today a pen preset's params reach only `ScenarioDescriptionResident.Args` (what a macro re-expansion reads), not the bound fields of authored entities |

@@ -87,12 +87,14 @@ public static class ReplaySessionIntents
 /// </summary>
 public static class DryRunIntents
 {
-    /// <summary>Enter the dry run — running (the master resumes the clock when it lands) or paused at its first frame.</summary>
-    public static TransitionStateIntent Enter(bool startPaused) => new()
+    /// <summary>Enter the dry run — running (the master resumes the clock when it lands) or paused at its first frame. ⭐ CE-4326 (Presets §9a):
+    /// <paramref name="presetArgs"/> = a run setup (a preset's args) every node applies IN PLACE after its keyframe; null = as authored.</summary>
+    public static TransitionStateIntent Enter(bool startPaused, string? presetArgs = null) => new()
     {
-        TransactionId = Guid.NewGuid(),
-        TargetState   = ClusterState.OperatingPreview,
-        TimeMode      = startPaused ? "Deterministic" : "Continuous",
+        TransactionId    = Guid.NewGuid(),
+        TargetState      = ClusterState.OperatingPreview,
+        TimeMode         = startPaused ? "Deterministic" : "Continuous",
+        ScenarioArgsJson = string.IsNullOrWhiteSpace(presetArgs) ? null : presetArgs,
     };
 
     /// <summary>Leave the dry run: the world rewinds, the master puts the clock back and pauses (back in edit).</summary>

@@ -82,6 +82,11 @@ namespace Fdp.Toolkit.Scenario
         public static double Roll(int variant, Guid salt, string key, string what)
             => StableHash.Fnv1a32($"{variant}|{salt:N}|{key}|{what}") / 4294967296.0;
 
+        /// <summary>⭐ CE-4326 (P1) — does an entity with authored <paramref name="presence"/> (0..1) exist in <paramref name="variant"/>? Variant 0 ⇒ always. The ONE presence
+        /// decision: the load's JSON writer (<see cref="Apply"/>) and a Preview's world writer (<see cref="PresetInPlace"/>) both ask it.</summary>
+        public static bool IsPresent(int variant, Guid salt, string key, double presence)
+            => variant == 0 || Roll(variant, salt, key, "presence") < presence;
+
         /// <summary>The macro names an instance's <c>Macro</c> value offers (one string, or a list of strings / <c>{macro, weight}</c>).</summary>
         public static List<(string Macro, double Weight)> ChoicesOf(JsonNode? macro)
         {
@@ -166,7 +171,7 @@ namespace Fdp.Toolkit.Scenario
                     if (p < 0 || p > 1) throw new ScenarioParams.ArgsRefused($"{here}: entity {key}'s Presence {p} is not within 0..1");
                     entity.Remove(pk);
                     presence = p;
-                    if (variant != 0 && Roll(variant, salt, key, "presence") >= p) { absent.Add(key); continue; }
+                    if (!IsPresent(variant, salt, key, p)) { absent.Add(key); continue; }
                 }
                 string? posKey = FindKey(entity, PositionsKey);
                 if (posKey != null)

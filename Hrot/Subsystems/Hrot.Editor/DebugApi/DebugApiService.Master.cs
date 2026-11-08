@@ -351,14 +351,14 @@ namespace Hrot.Editor.DebugApi
         public bool IsEditingScenario => CurrentClusterStateOrNull() == ClusterState.OperatingEdit;
 
         /// <summary><c>POST /preview/enter {startPaused?}</c> — the cluster's dry run (<c>OperatingPreview</c>). ⛔ Never recorded (R-3053).</summary>
-        public (JsonNode? Result, string? Error, string? HintCategory) EnterPreview(bool startPaused = false)
+        public (JsonNode? Result, string? Error, string? HintCategory) EnterPreview(bool startPaused = false, string? presetArgs = null)
         {
             if (CurrentClusterStateOrNull() == ClusterState.OperatingPreview)
                 return (new JsonObject { ["published"] = false, ["target"] = nameof(ClusterState.OperatingPreview), ["note"] = "Already in preview." }, null, null);
             // ⭐⭐ CE-1440 (R-3066 audit #11) — the ONE construction of the dry run's intent (the toolbar's ▶ from Edit builds it too).
             //   ⚠ Behaviour change: a RUNNING preview now says TimeMode "Continuous" (it was null ⇒ the master left the clock paused:
             //   GlobalContextProcessManager resumes a preview only on "Continuous"), so POST /preview/enter {startPaused:false} runs, as ▶ does.
-            return PublishTransition(Hrot.UI.Common.Facades.DryRunIntents.Enter(startPaused));
+            return PublishTransition(Hrot.UI.Common.Facades.DryRunIntents.Enter(startPaused, presetArgs));   // ⭐ CE-4326 — the run setup, applied in place on every node
         }
 
         /// <summary><c>POST /preview/exit</c> — back to <c>OperatingEdit</c>: the dry run is rewound.</summary>

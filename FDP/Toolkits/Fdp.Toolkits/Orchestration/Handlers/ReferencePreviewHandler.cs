@@ -149,7 +149,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             switch (target)
             {
                 case ClusterState.LoadingPreview:
-                    LoadingPreviewCommit();
+                    LoadingPreviewCommit((intent.DomainPayload as EditLoadHandlerPayload?)?.ScenarioArgsJson);
                     break;
 
                 case ClusterState.UnloadingPreview:
@@ -173,9 +173,13 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// </summary>
         public WorldKeyframe? TestHook_Keyframe => _keyframe;
 
+        /// <summary>⭐ CE-4326 — what the last Preview's preset changed (null before any preset Preview).</summary>
+        public Fdp.Toolkit.Scenario.PresetInPlace.Result? LastPresetApplied { get; private set; }
+
         // ── Private helpers ────────────────────────────────────────────────────
 
-        private void LoadingPreviewCommit()
+        /// <param name="presetArgs">⭐ CE-4326 (Presets §9a) — the Preview's run setup (a preset's args); null / empty = as authored (nothing applied, nothing paid).</param>
+        private void LoadingPreviewCommit(string? presetArgs = null)
         {
             if (_liveRepo == null)
             {
@@ -198,6 +202,19 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             _keyframe = WorldKeyframes.Capture(_liveRepo, _capture);
 
             _bracket?.Capture();
+
+            // ⭐⭐ CE-4326 (Presets §9 / §9a, R-4168) — a Preview WITH a preset: applied IN PLACE, AFTER the capture, so the rewind puts the authored world
+            //   (unsaved edits included) back with nothing new. The load's own decisions (PresetInPlace — P1). Default: not called.
+            if (!string.IsNullOrWhiteSpace(presetArgs))
+            {
+                var applied = Fdp.Toolkit.Scenario.PresetInPlace.Apply(_liveRepo, presetArgs);
+                LastPresetApplied = applied;
+                if (applied.Refused is { } why)
+                    FdpLog<ReferencePreviewHandler>.Warn("[ReferencePreviewHandler] LoadingPreview: the preset was refused — {0}; the Preview runs as authored.", why);
+                else
+                    FdpLog<ReferencePreviewHandler>.Info("[ReferencePreviewHandler] LoadingPreview: preset applied in place — {0} removed, {1} placed, {2} macro(s) chosen.",
+                        applied.Removed, applied.Placed, applied.MacrosChosen);
+            }
 
             FdpLog<ReferencePreviewHandler>.Info(
                 "[ReferencePreviewHandler] LoadingPreview: snapshot captured.");
