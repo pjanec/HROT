@@ -69,7 +69,12 @@ public sealed class EntityDetailsBundle : IUiBundle
             perspectiveName: host.Perspective,
             selectionStore:  host.SelectionStore ?? new EditorSelectionStore(),
             runState:        host.RunState,
-            entitySelection: new WorldEntitySelectionSource(host.World));
+            entitySelection: new WorldEntitySelectionSource(host.World),
+            // ⭐ B-11 A7 — the station's mode and seat level, from the ONE StationMode the edit gate and the menus read (Edit / Full where none is installed)
+            station:         () => host.World() is { } w ? (Hrot.Common.Editing.StationMode.Of(w), Hrot.Common.Editing.StationMode.LevelOf(w))
+                                                         : (Hrot.Common.Editing.EditingMode.Edit, Hrot.Common.Editing.EditingLevel.Full));
+        // ⭐ B-11 A7 — a tab's Requires is asked of THIS host's world (AND over the selection)
+        Workspace.DetailsViews.ComponentProbe = DetailsViewRegistry.ProbeFor(host.World);
         // ⭐ A raw decoder: no blueprint session to decode through here (the honest default, as on the Editor's Scenario before).
         Window = new DetailsWindow(
             id:                host.WindowId,
@@ -83,10 +88,13 @@ public sealed class EntityDetailsBundle : IUiBundle
         // ⭐ U-23 (DESIGN_Details_Forms §2.4, D3) — a tab per DECLARED form, on every host that composes this bundle (read-only on a recording, one rule)
         Hrot.Presentation.Forms.HrotForms.EnsureRegistered();
         foreach (var form in Fdp.Presentation.Forms.FormCatalogue.All) Workspace.DetailsViews.Add(FormDetailsViewDescriptor.For(form, host.World, host.Pick));
-        if (host.Rules != null) Workspace.DetailsViews.Add(RuleDetailsTabDescriptor.For(host.Rules));   // ⭐ U-18 / RX2
-        if (host.Missions != null) Workspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.For(host.Missions, host.World, host.Pick, host.ParamsTypeOf, host.Host));   // ⭐ P-8 8b — its New rule… asks the host   // ⭐ P-7 / 7a — the Orders tab
-        if (host.EventFocus is { } focus)   // ⭐ CE-4263 — a clicked timeline event shows the EVENT (rank 1: first among the entity views)
-            Workspace.DetailsViews.Add(EventDetailsViewDescriptor.For(host.World, focus, host.SelectNetworkEntity ?? (_ => { })));
+        // ⭐ B-11 A7 / D2 — EVERY host registers the SAME tabs; a host service it does not pass is a capability it lacks, not a missing registration:
+        //   the Rules / Event tabs then never apply (no host to ask, no focused event), and the Orders tab applies but is GREYED "not available on this station"
+        //   (DetailsViewDescriptor.Bound). ⛔ SUPERSEDED: `if (host.Rules != null)` / `if (host.Missions != null)` / `if (host.EventFocus is { } focus)` around the Add.
+        Workspace.DetailsViews.Add(RuleDetailsTabDescriptor.For(host.Rules ?? NoRules));   // ⭐ U-18 / RX2
+        Workspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.For(host.Missions ?? NoMissions, host.World, host.Pick, host.ParamsTypeOf, host.Host));   // ⭐ P-8 8b — its New rule… asks the host   // ⭐ P-7 / 7a — the Orders tab
+        // ⭐ CE-4263 — a clicked timeline event shows the EVENT (rank 1: first among the entity views); a host with no focus has an empty one (never applies)
+        Workspace.DetailsViews.Add(EventDetailsViewDescriptor.For(host.World, host.EventFocus ?? new TimelineEventFocus(), host.SelectNetworkEntity ?? (_ => { })));
         Workspace.DetailsViews.Add(EntityObjectivesViewDescriptor.For(host.World, host.OpenRule));   // ⭐ CE-4216 RV-7 — objectives about this unit, every host   // ⭐ CE-1247 — the IG's former card, every host
         // ⭐ CE-1248 (BV-1) — the Brain tab, every host; behaviour names through the registry the host already publishes for the renderers
         Workspace.DetailsViews.Add(EntityBrainViewDescriptor.For(host.World,
@@ -98,6 +106,9 @@ public sealed class EntityDetailsBundle : IUiBundle
             // ⭐ CE-1316 / CE-1314 — the views a host draws INSIDE the tab (the editor: the AI tab's editing, the Entity Blueprints panel)
             embeds:     () => BrainSections));
     }
+
+    private static readonly Func<Hrot.UI.Common.Rules.IRuleDetailsHost?> NoRules = static () => null;
+    private static readonly Func<Hrot.UI.Common.Facades.IMissionEditorService?> NoMissions = static () => null;
 
     /// <summary>⭐ <c>CE-1316</c> / <c>CE-1314</c> — views the Brain tab draws as its own sections; a host adds them HERE instead of as
     /// separate tabs (the editor's AI editing and Entity Blueprints panel). Empty on a host that adds none.</summary>

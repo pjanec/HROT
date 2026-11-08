@@ -34,6 +34,7 @@ namespace Hrot.Editor.AiShared.Shell;
 public sealed class PerspectiveWorkspace
 {
     private readonly Func<VariableRunState> _runState;
+    private readonly Func<(Hrot.Common.Editing.EditingMode Mode, Hrot.Common.Editing.EditingLevel Level)>? _station;   // ⭐ A7 — the station's mode + seat level, null = Edit / Full
     private readonly System.Collections.Generic.HashSet<IDetailsViewSource> _viewSources = new();
 
     /// <param name="perspectiveName">
@@ -57,8 +58,10 @@ public sealed class PerspectiveWorkspace
         EditorSelectionStore    selectionStore,
         Func<VariableRunState>  runState,
         IEntitySelectionSource? entitySelection = null,
-        StagedWriteView?        stagedWrites    = null)
+        StagedWriteView?        stagedWrites    = null,
+        Func<(Hrot.Common.Editing.EditingMode Mode, Hrot.Common.Editing.EditingLevel Level)>? station = null)
     {
+        _station        = station;
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("A workspace must name its perspective.", nameof(perspectiveName));
 
@@ -93,8 +96,10 @@ public sealed class PerspectiveWorkspace
     /// *"<c>L6.1</c> moves one method."</c> ⭐ This is that move; ⛔ the body is unchanged.</para>
     /// </summary>
     public DetailsContext BuildContext()
-        => DetailsContextBuilder.Build(
-            SelectionStore, PerspectiveName, _runState(), EntitySelection);
+    {
+        var (mode, level) = _station is null ? (Hrot.Common.Editing.EditingMode.Edit, Hrot.Common.Editing.EditingLevel.Full) : _station();
+        return DetailsContextBuilder.Build(SelectionStore, PerspectiveName, _runState(), EntitySelection, mode, level);
+    }
 
     /// <summary>⭐ The live source a shell holds — re-asks <see cref="BuildContext"/> every frame.</summary>
     public LiveContextSource ContextSource() => new(BuildContext);

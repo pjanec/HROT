@@ -77,26 +77,98 @@ public sealed class DetailsViewRegistry
     /// resolve deterministically instead of by list-internals. ⛔ A designer must not see the default
     /// flip between runs.</para>
     /// </summary>
-    public IReadOnlyList<DetailsViewDescriptor> OfferSet(DetailsContext context)
+    public IReadOnlyList<DetailsViewDescriptor> OfferSet(DetailsContext context) => Evaluate(context).Offered;
+
+    /// <summary>
+    /// ⭐⭐ B-11 A7 — a tab that applies to the selection but is shown GREYED, with the reason (a mode that greys it, a seat below its level, a host
+    /// that does not bind what it needs). Hidden tabs are in neither list.
+    /// </summary>
+    public readonly record struct GreyedTab(DetailsViewDescriptor View, string Reason);
+
+    /// <summary>⭐ B-11 A7 — the registry's answer for one context: the tabs offered (<c>Rank</c>-ordered) and the tabs greyed (same order).</summary>
+    public readonly record struct Offer(IReadOnlyList<DetailsViewDescriptor> Offered, IReadOnlyList<GreyedTab> Greyed);
+
+    private static readonly IReadOnlyList<GreyedTab> NoGreyed = Array.Empty<GreyedTab>();
+
+    /// <summary>
+    /// ⭐⭐ B-11 A7 — how the registry asks whether a selected entity carries a component (AND over the selection, <see cref="DetailsViewDescriptor.Requires"/>).
+    /// Set by the host's bundle from its world. ⚠ Null ⇒ the registry cannot ask, so a tab that declares a requirement is not offered.
+    /// </summary>
+    public Func<Fdp.Core.Entity, Type, bool>? ComponentProbe { get; set; }
+
+    /// <summary>
+    /// ⭐⭐⭐ B-11 A7 — <b>the ONE evaluation of a tab's offer</b>: <c>AppliesTo</c> (the view's own predicate) → <c>Requires</c> (AND over the selection)
+    /// → <c>Availability</c> (the station's <c>EditingMode</c> and seat level, from the context) → <c>Bound</c> (does this host bind what the tab needs).
+    /// A tab that fails the first two is not about this selection (hidden); the last two can only GREY it. Same for every host, because every host
+    /// registers the same descriptors in <c>EntityDetailsBundle</c>.
+    /// <para>⚠ Cheap: plain loops over the descriptor list and the selection, constant reasons — the only allocations are the result lists, and the
+    /// greyed list exists only when something is greyed.</para>
+    /// </summary>
+    public Offer Evaluate(DetailsContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         List<DetailsViewDescriptor>? offered = null;
-        foreach (var d in _descriptors)
+        List<GreyedTab>? greyed = null;
+        for (int i = 0; i < _descriptors.Count; i++)
         {
+            var d = _descriptors[i];
             // ⛔ Deliberately UNGUARDED: a predicate that throws is a defect in that view, and
             //    swallowing it here would turn a broken view into a silently missing one.
-            if (d.AppliesTo(context)) (offered ??= new List<DetailsViewDescriptor>()).Add(d);
+            if (!d.AppliesTo(context)) continue;
+            if (d.Requires.Count > 0 && !RequirementsMet(d, context)) continue;
+            var verdict = d.Availability.Evaluate(context.Station, context.Level);
+            if (verdict.State == Hrot.Common.Actions.ActionOffer.Hidden) continue;
+            if (verdict.State == Hrot.Common.Actions.ActionOffer.Offered && d.Bound is { } bound && !bound())
+                verdict = new Hrot.Common.Actions.AvailabilityVerdict(Hrot.Common.Actions.ActionOffer.Greyed, DetailsViewDescriptor.NotBoundReason);
+            if (verdict.State == Hrot.Common.Actions.ActionOffer.Offered) (offered ??= new List<DetailsViewDescriptor>(_descriptors.Count)).Add(d);   // ⭐ sized once: no growth copies
+            else (greyed ??= new List<GreyedTab>()).Add(new GreyedTab(d, verdict.Reason ?? DetailsViewDescriptor.NotBoundReason));
         }
 
-        if (offered is null) return Array.Empty<DetailsViewDescriptor>();
+        if (offered is null && greyed is null) return new Offer(Array.Empty<DetailsViewDescriptor>(), NoGreyed);
 
-        // ⛔⛔ NOT List.Sort — it is INTROSORT and therefore UNSTABLE, so equal ranks would come back
-        //    in an order that depends on list internals and could differ between runs. ⚠ That is
-        //    exactly the flip a designer must never see.
-        // ⭐ LINQ's OrderByDescending IS documented stable ⇒ equal ranks keep registration order.
-        return System.Linq.Enumerable.ToList(
-            System.Linq.Enumerable.OrderByDescending(offered, static d => d.Rank));
+        // ⛔⛔ NOT List.Sort — it is INTROSORT and therefore UNSTABLE, so equal ranks would come back in an order that depends on list internals and
+        //    could differ between runs. ⚠ That is exactly the flip a designer must never see. ⭐ A stable insertion sort (a handful of tabs; no LINQ).
+        if (offered != null)
+            for (int i = 1; i < offered.Count; i++)
+            {
+                var x = offered[i]; int j = i - 1;
+                while (j >= 0 && offered[j].Rank < x.Rank) { offered[j + 1] = offered[j]; j--; }
+                offered[j + 1] = x;
+            }
+        if (greyed != null)
+            for (int i = 1; i < greyed.Count; i++)
+            {
+                var x = greyed[i]; int j = i - 1;
+                while (j >= 0 && greyed[j].View.Rank < x.View.Rank) { greyed[j + 1] = greyed[j]; j--; }
+                greyed[j + 1] = x;
+            }
+        return new Offer(offered ?? (IReadOnlyList<DetailsViewDescriptor>)Array.Empty<DetailsViewDescriptor>(), greyed ?? NoGreyed);
+    }
+
+    /// <summary>
+    /// ⭐ B-11 A7 — the standard <see cref="ComponentProbe"/> over a host's world (re-asked per call: a replay swaps the world). Allocation-free:
+    /// the type's registry id, then one bit of the entity's component mask. An unregistered type, a dead entity or no world answers false.
+    /// </summary>
+    public static Func<Fdp.Core.Entity, Type, bool> ProbeFor(Func<Fdp.Core.EntityRepository?> world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return (entity, type) =>
+        {
+            if (world() is not { } w) return false;
+            int id = Fdp.Core.ComponentTypeRegistry.GetId(type);
+            return id >= 0 && w.HasComponentByTypeId(entity, id);
+        };
+    }
+
+    /// <summary>⭐ AND over the selection: every selected entity carries every required component (an empty selection carries nothing).</summary>
+    private bool RequirementsMet(DetailsViewDescriptor d, DetailsContext context)
+    {
+        if (ComponentProbe is not { } probe || context.Entities.Count == 0) return false;
+        for (int e = 0; e < context.Entities.Count; e++)
+            for (int r = 0; r < d.Requires.Count; r++)
+                if (!probe(context.Entities[e], d.Requires[r])) return false;
+        return true;
     }
 
     /// <summary>

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level; ✅ §5 Q1–Q5 APPROVED by the user 2026-11-06 (R-4125); the building lanes detail it during implementation (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 1: E9 + E1 core)
+updated: 2026-11-08 (A7 built, §10) · 2026-11-06 (first version — coordinator; editing-UX design queue item 1: E9 + E1 core)
 current-answer: §2 the model (diagrams) · §3 how it reconciles the earlier designs · §4 the stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
@@ -214,7 +214,7 @@ offer (hot path R-2084: the per-frame cost is zero). The graph editors' menus (d
 | **A4** | multi-selection: AND over the selection, `PerEntity` / `Selection`; the inspector's multi menu; `MenuShortcuts` on all selected | rails per rule |
 | **A5** | inspector closures → actions (Rename, Delete unified wording); the canvas menu as target `Ground` | one wording per action across surfaces |
 | **A6** | timeline + mode indicator: targets `Event` / `Moment` / `Range` / `Playhead` / `Rule`; the run-mode moves declared once, worded once | — |
-| **A7** | Details tabs: `Requires` / `Modes` / `Level` on `DetailsViewDescriptor`; tabs registered once in `EntityDetailsBundle` (D2) | the tab offer per entity kind × host is a golden — identical across hosts |
+| **A7** ✅ | Details tabs: `Requires` / `Modes` / `Level` on `DetailsViewDescriptor`; tabs registered once in `EntityDetailsBundle` (D2) — **built, §10** | the tab offer per entity kind × host is a golden — identical across hosts |
 | **A8** | station levels (D4) read by the composer | needs the node feature (E10 / D4 design) |
 | later | graph editors' menus through the composer (§5 Q3) | — |
 
@@ -502,3 +502,47 @@ sequenceDiagram
 **Goldens:** `Goldens/runmode.golden.txt` — the composed rows per target × mode (declarations only, `Time` = `3:12`). **Rails:**
 `TheRunModeMovesAreDeclaredOnceTests` (the words are the same on the timeline and the indicator; the panel draws no DAR of its own when the cursor
 composes; the Run group comes first and moves no older golden).
+
+## 10. ⭐ A7 — Details tabs declare `Requires` / `Modes` / `Level`, registered once *(ui, `2026-11-08`, Z-3 of `HANDOFF_Coordinator_To_Ui_Next.md`; `build-state: BUILT`)*
+
+INVENTORY: `scripts/cbm.sh search_graph name_pattern=".*(DetailsViewDescriptor|DetailsView|ActionDecl|ActionCatalogue|StationMode|EditingMode|Requires).*"` Class (72) / Interface (5);
+`search_code "new DetailsViewDescriptor"` (33 files). Registration sites: **`EntityDetailsBundle`** (Components, Summary, a tab per `FormDecl`, Rules, Orders, Event, Objectives,
+Brain — composed by all six hosts: editor, CGF, Replay Browser, SimHost, Player, Stride mode 2), the editor's own adds to the same workspace (Playable, Macro, Scenario,
+Zones; the AI tab and Entity Blueprints are Brain *sections*), and the graph perspectives' registrars (Variables, Runtime, Node properties, Utility, Parameter sync,
+Blackboard, Blueprint node, Graph signature, HSM events). ⚠ Coverage not checkable through the CLI.
+
+```mermaid
+classDiagram
+  direction LR
+  class ActionAvailability { <<NEW record struct, Hrot.Common.Actions>> Offered : ActionModes · Greyed : ActionModes · Level : EditingLevel · GreyReason · Evaluate(EditingMode, EditingLevel) AvailabilityVerdict · LevelRefusal(need, station) }
+  class ActionDecl { <<existing>> Modes · Level · Availability }
+  class DetailsViewDescriptor { <<existing>> + Requires : Type[] · Availability · Bound : Func~bool~ }
+  class DetailsViewRegistry { <<existing>> Evaluate(ctx) Offer · ComponentProbe · ProbeFor(world) }
+  class DetailsContext { <<existing>> + Station : EditingMode · Level : EditingLevel }
+  class StationMode { <<existing>> Of(view) · LevelOf(view) }
+  class EntityDetailsBundle { <<existing>> the ONE registrar of the entity tabs }
+  ActionDecl --> ActionAvailability : Availability
+  DetailsViewDescriptor --> ActionAvailability
+  DetailsViewRegistry ..> DetailsViewDescriptor : AppliesTo → Requires → Availability → Bound
+  DetailsViewRegistry ..> DetailsContext
+  EntityDetailsBundle --> DetailsViewRegistry : registers, sets the probe
+  EntityDetailsBundle --> StationMode : the workspace reads mode + level
+```
+*What the picture shows that prose hid: a tab and an action share ONE availability type and ONE level rule (`ActionAvailability.LevelRefusal`, also called by `ActionContext.SeatRefusal`); the mode is
+the existing `StationMode`, the context just carries it — no third vocabulary. `Evaluate` is the one place a tab's offer is decided.*
+
+| | as built |
+|---|---|
+| order of the checks | `AppliesTo` (the view's own predicate) → `Requires` (AND over the selection; an empty selection or a registry with no probe carries nothing) → `Availability` (mode: Hidden · Greyed with its reason; then level: Greyed with the seat's reason) → `Bound` (not bound on this host: Greyed "Not available on this station", the A2 words) |
+| where | `DetailsViewRegistry.Evaluate` returns `Offer(Offered, Greyed)`; `OfferSet` is its `Offered`; `DetailsViewSelector.Choice` carries `Greyed`; the tab bar draws them after the offered tabs, disabled, reason on hover (`BeginDisabled` + `AllowWhenDisabled` tooltip — the precedent of `SimHostControlPanels` / `ParametersDrawer`); the panel dump lists `GreyedViews` ("id: reason") |
+| every host, the same tabs | `EntityDetailsBundle` registers Rules, Orders and Event **unconditionally** (⛔ SUPERSEDED: `if (host.Rules != null)` / `if (host.Missions != null)` / `if (host.EventFocus is { } …)` around the `Add`). A host that does not pass the service has a capability gap: Rules / Event never apply (nothing to ask), **Orders applies but is greyed** (`Bound`) |
+| declared | **Forms** `Requires = form.Requires` when the form is offered by its components alone (Shape's any-of `Offers` stays a predicate); **Orders** `Requires NetworkIdentity`, `Level Controller` (the Orders group, Editing UX §3.6), `Bound` = the host has a mission facade; **Macro** `Requires MacroInstance`, `Modes InEdit ∣ InReview` (Editing UX §3.3: Live "–"; Preview follows Live) |
+| the context | `DetailsContext` gained `Station : EditingMode` and `Level : EditingLevel` (trailing, defaulted Edit / Full); `PerspectiveWorkspace` fills them from `StationMode.Of/LevelOf(world)`, so the Details panel follows the same mode the edit gate and the menus read. `Mode : VariableRunState` stays the graph views' run state (§5 Q1's full replacement is a separate, larger change — ⏭) |
+| ⛔ not declared | **Playable** (a toggle that ADDS the component — requiring it would hide the way to add it), **Summary**, **Components**, **Objectives**, **Brain**, **Rule**, **Event**: their applicability is a semantic predicate of their own, no mode / level rule is in the design for them. ⏭ **Level of Components** (the raw editor is "a debugging tool", R-4120 — `Debug` group = Full) is a policy call, not built |
+| editor-only tabs | Scenario, Zones, Macro, Playable stay registered by `EditorSubsystem` (they need editor-only services); they carry the same declaration |
+
+**Golden:** `Hrot.Editor.AiShared.Tests/Windows/Goldens/details-tabs.golden.txt` — the offer per 8 selections × 4 hosts × 4 modes (Author seat) + 5 seats. **Rails:** `TheDetailsTabsDeclareWhatTheyNeedTests`
+(the golden; the same registration list on every host and offers that differ only by the greyed Orders; `Requires` AND over a selection incl. a managed component; Modes Offered / Greyed / Hidden;
+Level greys with the seat's reason; an unbound tab greys, an inapplicable one is absent; Rank order stable; 0 B per tab). Red-proofs: the Crew form's `Requires` dropped ⇒ golden red (line 5); Orders' `Level`
+set to `None` ⇒ golden red (the seat rows).
+

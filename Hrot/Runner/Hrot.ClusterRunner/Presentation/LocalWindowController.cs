@@ -127,6 +127,9 @@ internal sealed class LocalWindowController
     /// <summary>⭐ Player Join D-4 — the process's ONE deploy screen (the Player host only; null otherwise).</summary>
     internal Hrot.UI.Common.Panels.DeployScreen? DeployScreen { get; private set; }
 
+    /// <summary>⭐ CE-4329 — the process's ONE seat · hat status-bar section (null before <see cref="ComposeRunControls"/> or with no run-controls owner).</summary>
+    internal Hrot.UI.Common.Panels.StationSeatStatusBarSection? SeatSection { get; private set; }
+
     /// <summary>⭐ CE-1442 — the process's ONE cluster-error status-bar section.</summary>
     internal Hrot.UI.Common.Panels.ClusterErrorStatusBarSection? ErrorSection { get; private set; }
 
@@ -148,8 +151,9 @@ internal sealed class LocalWindowController
         var owner = PickRunControls(_subsystems.OfType<IProvidesRunControls>());
         RunControlsOwner = owner;
         if (owner?.Transport is { } transport && !owner.SuppressTimeControl)   // ⭐ CE-1445 — a role suppresses EXPLICITLY (the Player issues no ticks), never by lacking the control
-            Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice, runSetupLines: () => owner.RunSetupLines, runTo: owner.RunTo,
-                stationWorld: () => owner.World);   // ⭐ Seats H3 — the indicator shows the owner's seat · hat   // ⭐ AQ108 D24 · W-4 Run to …
+            Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice, runSetupLines: () => owner.RunSetupLines, runTo: owner.RunTo);   // ⭐ AQ108 D24 · W-4 Run to …
+        // ⭐ CE-4329 (R-4170) — the owner's seat · hat at the status bar's RIGHT end (it left the toolbar: the indicator is one glyph button again), composed ONCE here: every host with a seat shows it
+        if (owner is not null) SeatSection = Hrot.UI.Common.Panels.StationSeatStatusBarSection.Register(wm.StatusBar, () => owner.World);
         // ⭐⭐ CE-1442 (U1, §11.7 ④) — the loading screen and the cluster-error indicator are composed HERE, once, over the same owner's choice: a host cannot lack them or draw a second one
         if (owner?.RunChoice is { } ownerChoice)
         {

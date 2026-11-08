@@ -43,9 +43,8 @@ public sealed class MainToolbarTimeControlSection
     /// choice's moves (each with its confirmation, drawn as a modal), ▶ ■ keep calling the facade. ⛔ A host that HAS one must pass it.</param>
     /// <param name="runTo">⭐ W-4 (LC-10) — the host's <see cref="RunToController"/>: the mode menu offers <i>Run to …</i> in Edit and Preview. ⛔ A host that HAS one must pass it.</param>
     public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null, RunModeChoice? choice = null, Func<IReadOnlyList<string>>? runSetupLines = null,
-        RunToController? runTo = null, Func<Fdp.Core.EntityRepository?>? stationWorld = null)
+        RunToController? runTo = null)
     {
-        _stationWorld = stationWorld;
         _runTo = runTo;
         _runSetupLines = runSetupLines;
         _facade = facade;
@@ -631,14 +630,7 @@ public sealed class MainToolbarTimeControlSection
         // ── [Mode indicator] — opens its menu, never acts (R-3061) ─────────
         DrawModeIndicator(iconSize);
         ImGui.SameLine();
-        // ⭐ Seats H3 (§2.3 "the mode indicator shows the run mode, the seat and the hat") — "Instructor · Command" beside the mode glyph
-        if (StationLine() is { } station)
-        {
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextDisabled(station);
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip("This station's seat · what you are doing now (the hat)");
-            ImGui.SameLine();
-        }
+        // ⭐ R-4170 (CE-4329) — the indicator is ONE glyph button next to ▶ (AQ108 D29); the seat · hat text is the status bar's (StationSeatStatusBarSection).
 
         // ── [Play/Pause] ───────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_pp", iconSize,
@@ -646,6 +638,7 @@ public sealed class MainToolbarTimeControlSection
         {
             OnPlayPause();
         }
+        PlayRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip((_facade.Mode == TransportMode.Edit ? _choice?.PlayDisabledReason : _choice?.RunPlayDisabledReason) is { } playWhy
                 ? playWhy                    // the gate's reason; ⭐ CE-3413 Live · ended: "the exercise has ended — restart from a checkpoint to train again"
@@ -752,36 +745,13 @@ public sealed class MainToolbarTimeControlSection
     /// <summary>⭐ CE-4097 — draws <see cref="RunModeChoice.Pending"/> through the ONE modal helper (CE-1438): its text and buttons; closing it (Esc / ✕) is Cancel, the last button.</summary>
     private void DrawConfirmation() => ConfirmationModal.Draw(_choice?.Pending);
 
-    private readonly Func<Fdp.Core.EntityRepository?>? _stationWorld;
-    private Hrot.Common.Infrastructure.Seat _lineSeat;
-    private Hrot.Common.Editing.Hat _lineHat;
-    private string? _line;
-
-    /// <summary>⭐ Seats H3 — the seat · hat line of the station's world, or null (no world / no map); rebuilt only when either changes (0 B per frame).</summary>
-    internal string? StationLine()
-    {
-        if (_stationWorld?.Invoke() is not { } w || Hrot.ScenarioEditor.Map.HatArbiter.Of(w) is not { } hats) return null;
-        var seat = w.HasSingletonManaged<Hrot.Common.Editing.StationMode>() ? w.GetSingletonManaged<Hrot.Common.Editing.StationMode>()!.Seat : Hrot.Common.Infrastructure.Seat.Author;
-        var hat = hats.Active;
-        if (_line == null || seat != _lineSeat || hat != _lineHat)
-        {
-            _lineSeat = seat; _lineHat = hat;
-            _line = SeatWord(seat) + " · " + Hrot.ScenarioEditor.Map.HatArbiter.WordOf(hat);
-        }
-        return _line;
-    }
-
-    /// <summary>⭐ Seats H3 — a seat as the indicator words it.</summary>
-    public static string SeatWord(Hrot.Common.Infrastructure.Seat seat) => seat switch
-    {
-        Hrot.Common.Infrastructure.Seat.SideController => "Side controller",
-        _ => seat.ToString(),
-    };
-
     /// <summary>
     /// ⭐ CE-3406 (AQ108 §0 D1′ + D29) — the mode indicator, drawn as a BUTTON in the kit's glyph-button look (<see cref="GlyphWidgets"/>: neutral background, lighter on hover) with a small ▾ (it opens the mode menu), the hand cursor and the
     /// tooltip. The glyph is the CURRENT mode (<see cref="RunModeChoice.Indicator"/>): steady, or blinking while the run plays — no dim level. Zero allocation while nothing is hovered.
     /// </summary>
+    /// <summary>⭐ CE-4329 — the screen rectangles of the run-mode indicator and of ▶ as last drawn (a rail's measurement).</summary>
+    internal (Vector2 Min, Vector2 Max) IndicatorRect, PlayRect;
+
     private void DrawModeIndicator(float size)
     {
         var mode = _facade.Mode;
@@ -796,6 +766,7 @@ public sealed class MainToolbarTimeControlSection
         button.X = MathF.Max(button.X, size + caret + 4f);
         var pos = ImGui.GetCursorScreenPos();
         bool clicked = ImGui.InvisibleButton("##mt_mode", button);
+        IndicatorRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());   // ⭐ CE-4329 — a rail reads the gap to ▶ (nothing may sit between them)
         _runToAnchor = new Vector2(pos.X, pos.Y + size + 2);
         bool hovered = ImGui.IsItemHovered();
         if (hovered) ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);

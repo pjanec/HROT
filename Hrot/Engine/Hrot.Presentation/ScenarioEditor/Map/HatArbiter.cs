@@ -32,7 +32,11 @@ namespace Hrot.ScenarioEditor.Map
         public bool Directing { get; set; }
 
         /// <summary>The hat now: Embodied &gt; Direct &gt; Command (RTS armed, running) &gt; Edit (Edit mode) &gt; Observe.</summary>
-        public Hat Active => Derive(Embodied, Directing, MapUiStates.RtsOf(_world)?.Armed == true, StationMode.Of(_world));
+        public Hat Active => Clamp(StationMode.SeatOf(_world), Derive(Embodied, Directing, MapUiStates.RtsOf(_world)?.Armed == true, StationMode.Of(_world)));
+
+        /// <summary>⭐ Seats H6 (§2.2 "hats allowed") — a hat the SEAT may not wear falls to Observe, the home hat: a Side controller never wears Edit or Embodied, an Observer only Observe,
+        /// an Instructor not Edit. ⭐ ONE table (<see cref="SeatHats"/>), the same the menu, the catalogue and the HTTP session read.</summary>
+        public static Hat Clamp(Hrot.Common.Infrastructure.Seat seat, Hat hat) => SeatHats.Allows(seat, hat) ? hat : Hat.Observe;
 
         /// <summary>The ONE precedence (§3.3).</summary>
         public static Hat Derive(bool embodied, bool directing, bool rtsArmed, EditingMode mode)

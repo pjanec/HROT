@@ -1,0 +1,144 @@
+# Details tab offer — id (Rank order), [greyed: reason] last. Hosts × modes at the Author seat; the seat rows at the end.
+
+== host: editor / cgf (every service) ==
+Edit | nothing selected | (none)
+Edit | a bare entity | summary · components
+Edit | a munition (identity, no orders) | summary · components
+Edit | a unit | form.unit · orders · components
+Edit | a unit with a brain | form.unit · brain · orders · components
+Edit | a carrier (passengers) | form.unit · form.crew · orders · components
+Edit | two units | form.unit
+Edit | a unit and a carrier | form.unit
+Preview | nothing selected | (none)
+Preview | a bare entity | summary · components
+Preview | a munition (identity, no orders) | summary · components
+Preview | a unit | form.unit · orders · components
+Preview | a unit with a brain | form.unit · brain · orders · components
+Preview | a carrier (passengers) | form.unit · form.crew · orders · components
+Preview | two units | form.unit
+Preview | a unit and a carrier | form.unit
+Live | nothing selected | (none)
+Live | a bare entity | summary · components
+Live | a munition (identity, no orders) | summary · components
+Live | a unit | form.unit · orders · components
+Live | a unit with a brain | form.unit · brain · orders · components
+Live | a carrier (passengers) | form.unit · form.crew · orders · components
+Live | two units | form.unit
+Live | a unit and a carrier | form.unit
+Review | nothing selected | (none)
+Review | a bare entity | summary · components
+Review | a munition (identity, no orders) | summary · components
+Review | a unit | form.unit · orders · components
+Review | a unit with a brain | form.unit · brain · orders · components
+Review | a carrier (passengers) | form.unit · form.crew · orders · components
+Review | two units | form.unit
+Review | a unit and a carrier | form.unit
+
+== host: replay browser (rules, event focus) ==
+Edit | nothing selected | (none)
+Edit | a bare entity | summary · components
+Edit | a munition (identity, no orders) | summary · components
+Edit | a unit | form.unit · components · orders [greyed: Not available on this station]
+Edit | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Edit | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Edit | two units | form.unit
+Edit | a unit and a carrier | form.unit
+Preview | nothing selected | (none)
+Preview | a bare entity | summary · components
+Preview | a munition (identity, no orders) | summary · components
+Preview | a unit | form.unit · components · orders [greyed: Not available on this station]
+Preview | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Preview | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Preview | two units | form.unit
+Preview | a unit and a carrier | form.unit
+Live | nothing selected | (none)
+Live | a bare entity | summary · components
+Live | a munition (identity, no orders) | summary · components
+Live | a unit | form.unit · components · orders [greyed: Not available on this station]
+Live | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Live | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Live | two units | form.unit
+Live | a unit and a carrier | form.unit
+Review | nothing selected | (none)
+Review | a bare entity | summary · components
+Review | a munition (identity, no orders) | summary · components
+Review | a unit | form.unit · components · orders [greyed: Not available on this station]
+Review | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Review | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Review | two units | form.unit
+Review | a unit and a carrier | form.unit
+
+== host: simhost / player (pick only) ==
+Edit | nothing selected | (none)
+Edit | a bare entity | summary · components
+Edit | a munition (identity, no orders) | summary · components
+Edit | a unit | form.unit · components · orders [greyed: Not available on this station]
+Edit | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Edit | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Edit | two units | form.unit
+Edit | a unit and a carrier | form.unit
+Preview | nothing selected | (none)
+Preview | a bare entity | summary · components
+Preview | a munition (identity, no orders) | summary · components
+Preview | a unit | form.unit · components · orders [greyed: Not available on this station]
+Preview | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Preview | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Preview | two units | form.unit
+Preview | a unit and a carrier | form.unit
+Live | nothing selected | (none)
+Live | a bare entity | summary · components
+Live | a munition (identity, no orders) | summary · components
+Live | a unit | form.unit · components · orders [greyed: Not available on this station]
+Live | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Live | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Live | two units | form.unit
+Live | a unit and a carrier | form.unit
+Review | nothing selected | (none)
+Review | a bare entity | summary · components
+Review | a munition (identity, no orders) | summary · components
+Review | a unit | form.unit · components · orders [greyed: Not available on this station]
+Review | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Review | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Review | two units | form.unit
+Review | a unit and a carrier | form.unit
+
+== host: stride (nothing) ==
+Edit | nothing selected | (none)
+Edit | a bare entity | summary · components
+Edit | a munition (identity, no orders) | summary · components
+Edit | a unit | form.unit · components · orders [greyed: Not available on this station]
+Edit | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Edit | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Edit | two units | form.unit
+Edit | a unit and a carrier | form.unit
+Preview | nothing selected | (none)
+Preview | a bare entity | summary · components
+Preview | a munition (identity, no orders) | summary · components
+Preview | a unit | form.unit · components · orders [greyed: Not available on this station]
+Preview | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Preview | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Preview | two units | form.unit
+Preview | a unit and a carrier | form.unit
+Live | nothing selected | (none)
+Live | a bare entity | summary · components
+Live | a munition (identity, no orders) | summary · components
+Live | a unit | form.unit · components · orders [greyed: Not available on this station]
+Live | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Live | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Live | two units | form.unit
+Live | a unit and a carrier | form.unit
+Review | nothing selected | (none)
+Review | a bare entity | summary · components
+Review | a munition (identity, no orders) | summary · components
+Review | a unit | form.unit · components · orders [greyed: Not available on this station]
+Review | a unit with a brain | form.unit · brain · components · orders [greyed: Not available on this station]
+Review | a carrier (passengers) | form.unit · form.crew · components · orders [greyed: Not available on this station]
+Review | two units | form.unit
+Review | a unit and a carrier | form.unit
+
+== seats (editor / cgf host, Live, a unit) ==
+Author | a unit | form.unit · orders · components
+Instructor | a unit | form.unit · orders · components
+SideController | a unit | form.unit · orders · components
+Observer | a unit | form.unit · components · orders [greyed: this station is an observer]
+Player | a unit | form.unit · components · orders [greyed: not for this station's seat (a player or a reviewer)]

@@ -67,8 +67,12 @@ public sealed class OrdersTab : IDetailsViewInstance
 
     /// <summary>The rows for <paramref name="entity"/>, read now (headless).</summary>
     /// <summary>7b — a unit with no plan still gets the tab when it can be ordered (an order offered for its type) and the host has the facade.</summary>
-    public bool CanTakeAPlan(Entity entity)
-        => _missions() != null && _world() is { } w && w.IsAlive(entity) && w.HasComponent<NetworkIdentity>(entity)
+    public bool CanTakeAPlan(Entity entity) => _missions() != null && WouldTakeAPlan(entity);
+
+    /// <summary>⭐ B-11 A7 — the unit could be ordered (an order offered for its type), whether or not THIS host binds the facade: what lets the tab be GREYED
+    /// ("not available on this station") on a host without one, instead of missing.</summary>
+    public bool WouldTakeAPlan(Entity entity)
+        => _world() is { } w && w.IsAlive(entity) && w.HasComponent<NetworkIdentity>(entity)
            && Hrot.Common.Orders.OrderMenu.OfferedFor(w.GetDisType(entity)).Count > 0;
 
     public IReadOnlyList<OrdersTaskRow> RowsFor(Entity entity)
@@ -498,7 +502,13 @@ public static class OrdersTabDescriptor
             Id:        Id,
             Title:     "Orders",
             Rank:      32,
-            AppliesTo: ctx => ctx.Entities.Count == 1 && (instance.RowsFor(ctx.Entities[0]).Count > 0 || instance.CanTakeAPlan(ctx.Entities[0])),
-            Create:    () => instance);
+            AppliesTo: ctx => ctx.Entities.Count == 1 && (instance.RowsFor(ctx.Entities[0]).Count > 0 || instance.WouldTakeAPlan(ctx.Entities[0])),
+            Create:    () => instance)
+        {
+            // ⭐ B-11 A7 (Editing UX §3.6 "order … a brain": Orders group = a side Controller; every mode, view-only on a recording) — declared, not coded
+            Requires     = new[] { typeof(NetworkIdentity) },
+            Availability = new Hrot.Common.Actions.ActionAvailability(Hrot.Common.Actions.ActionModes.Always, Level: Hrot.Common.Editing.EditingLevel.Controller),
+            Bound        = () => missions() != null,   // ⭐ D2 — a host with no mission facade shows the tab greyed
+        };
     }
 }

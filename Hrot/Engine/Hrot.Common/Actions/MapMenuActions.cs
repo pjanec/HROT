@@ -75,6 +75,7 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.Possess, "Possess (FPS)", ActionGroup.Orders, First + 3, Unit)
             {
                 Modes = ActionModes.Running,
+                NeedsHat = Hat.Embodied,   // ⭐ Seats H6 — a Side controller / Observer seat sees it greyed: "…cannot possess a unit"
                 Shortcut = "P",
                 Offer = ctx => !ctx.Unit.Orders || ctx.Unit.IsUnit ? null
                     : ctx.Unit.Manned
@@ -171,7 +172,7 @@ namespace Hrot.Common.Actions
 
         // ── the context, and the cache (as the old per-flag unit menus) ──────────────────────────────────────────────────────────────
 
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(ActionTarget Target, int Flags, ulong Dis, bool Unit), string> Menus = new();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(ActionTarget Target, long Flags, ulong Dis, bool Unit), string> Menus = new();
         private static object? _menusBuiltFor;
 
         /// <summary>
@@ -197,7 +198,7 @@ namespace Hrot.Common.Actions
             int flags = ctx.Target != ActionTarget.Unit ? 0
                 : (u.Degraded ? 1 : 0) | (u.Brain ? 2 : 0) | (u.Orders ? 4 : 0) | (u.Form ? 8 : 0) | (u.Manned ? 16 : 0)
                   | ((int)u.Embark << 5) | ((int)u.Pins << 8) | (u.TraceOn ? 1 << 24 : 0) | (u.Plan ? 1 << 25 : 0);
-            var key = (ctx.Target, flags | (modeBits << 26), u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);
+            var key = (ctx.Target, (long)flags | ((long)modeBits << 26) | (SeatHats.Allows(ctx.Seat, Hat.Embodied) ? 0L : 1L << 40), u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);   // ⭐ H6 — the seat's hats grey Possess: part of the key
             return Menus.GetOrAdd(key, _ => MenuComposer.Json(ctx));
         }
 
@@ -210,15 +211,16 @@ namespace Hrot.Common.Actions
             var mode = StationMode.Of(view);   // ⭐ B-11 A3 — the ONE station mode (the gate reads the same)
             var level = StationMode.LevelOf(view);   // ⭐ Seats H2 — and the ONE seat: its level and side bound what the menu offers
             var side = StationMode.SideOf(view);
+            var seat = StationMode.SeatOf(view);   // ⭐ Seats H6
 
             if (view.HasManagedComponent<EditablePolyline>(entity))
             {
                 bool isZone = view.HasComponent<TkbIdentity>(entity)   // ⭐ CE-3024 — a terrain zone is an area that can also be LOADED
                     && view.GetComponentRO<TkbIdentity>(entity).TkbType == Hrot.Map.Common.TkbEntityTypes.TerrainZone;
-                return new ActionContext(view, entity, isZone ? ActionTarget.Zone : ActionTarget.Area, mode, default) { Level = level, Side = side };
+                return new ActionContext(view, entity, isZone ? ActionTarget.Zone : ActionTarget.Area, mode, default) { Level = level, Side = side, Seat = seat };
             }
             if (view.HasManagedComponent<RoutePlan>(entity))
-                return new ActionContext(view, entity, ActionTarget.Route, mode, default) { Level = level, Side = side };
+                return new ActionContext(view, entity, ActionTarget.Route, mode, default) { Level = level, Side = side, Seat = seat };
 
             // ⭐ CE-196 — "degraded" is at or below half health; ⚠ Max <= 0 leaves it healthy.
             bool degraded = false;
@@ -245,7 +247,7 @@ namespace Hrot.Common.Actions
             return new ActionContext(view, entity, ActionTarget.Unit, mode,
                 new UnitFacts(degraded, brain, orders, dis, isUnit, form && orders, manned && orders, embark, pins, traceOn,
                     Plan: view.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(entity)))
-                { Level = level, Side = side, UnitSide = unitSide };
+                { Level = level, Side = side, UnitSide = unitSide, Seat = seat };
         }
     }
 }
