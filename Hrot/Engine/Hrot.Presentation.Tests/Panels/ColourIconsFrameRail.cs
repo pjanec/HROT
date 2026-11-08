@@ -155,7 +155,7 @@ public sealed class ColourIconsFrameRail
         using var frame = UiFrameHarness.Begin(500, 150);
         RealFonts();
         var a = Icons.Get("orbat/command"); var b = Icons.Get("orbat/structure"); var c = Icons.Get("orbat/scenario");
-        int sel = 1; var rects = new (Vector2 Min, Vector2 Max)[3]; long bytes = -1;
+        int sel = 1; var rects = new (Vector2 Min, Vector2 Max)[3]; long bytes = -1; (Vector2, Vector2) lastButton = default;
         void Draw()
         {
             ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(500, 150));
@@ -164,7 +164,7 @@ public sealed class ColourIconsFrameRail
             if (GlyphWidgets.GlyphToggle("##a", a, sel == 0)) sel = 0; rects[0] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax()); ImGui.SameLine();
             if (GlyphWidgets.GlyphToggle("##b", b, sel == 1)) sel = 1; rects[1] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax()); ImGui.SameLine();
             if (GlyphWidgets.GlyphToggle("##c", c, sel == 2)) sel = 2; rects[2] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax()); ImGui.SameLine();
-            GlyphWidgets.GlyphButton("##d", Icons.Get("details/pin"));
+            GlyphWidgets.GlyphButton("##d", Icons.Get("details/pin")); lastButton = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
             bytes = GC.GetAllocatedBytesForCurrentThread() - before;
             ImGui.End();
         }
@@ -192,6 +192,24 @@ public sealed class ColourIconsFrameRail
             Assert.True(Extent(shot, (int)rects[2].Min.X, (int)rects[2].Min.Y, (int)rects[2].Max.X, (int)rects[2].Max.Y, p => p.B > p.R + 25 && p.R > 60).Count >= 8, "the third option is violet-ish, not grey");
         }
         finally { Raylib.UnloadImage(shot); }
+
+        // ⭐ CE-4333 — hovering an UNSELECTED option and the plain button draws the same white inset frame (the one chrome), the selected one keeps its fill; evidence: colour-icons-switch-hover.png
+        foreach (var i in new[] { 0, 3 })
+        {
+            var r = i < 3 ? rects[i] : (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+            if (i == 3) r = lastButton;
+            ImGui.GetIO().AddMousePosEvent((r.Item1.X + r.Item2.X) / 2f, (r.Item1.Y + r.Item2.Y) / 2f);
+            Raylib.SetMousePosition((int)((r.Item1.X + r.Item2.X) / 2f), (int)((r.Item1.Y + r.Item2.Y) / 2f));
+            for (int k = 0; k < 4; k++) frame.Step(Draw);
+            var hs = Raylib.LoadImageFromScreen();
+            try
+            {
+                int white = Extent(hs, (int)r.Item1.X, (int)r.Item1.Y + 4, (int)r.Item1.X + 4, (int)r.Item2.Y - 4, p => p.R > 215 && p.G > 215 && p.B > 215).Count;
+                Assert.True(white > 8, $"hovering draws the white frame ({white} px) — element {i}");
+                if (i == 0) Shoot(frame, "colour-icons-switch-hover.png");
+            }
+            finally { Raylib.UnloadImage(hs); }
+        }
     }
 
     // ── the sheet (evidence: every key, drawn) ───────────────────────────────────────────────────────────────────
