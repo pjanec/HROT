@@ -102,6 +102,7 @@ public static class Icons
             case "section/list": icon = new("\uf03a", IconPalette.Teal); return true;   // List
             case "section/search": icon = new("\uf002", IconPalette.Blue); return true;   // MagnifyingGlass
             case "section/selection": icon = new("\uf0ae", IconPalette.Blue); return true;   // ListCheck
+            case "section/debug": icon = new("\uf188", IconPalette.Red); return true;   // Bug — ⭐ U-7 (CE-4338): the Brain tab's Debug section
             default: icon = Unknown; return false;
         }
     }
@@ -191,6 +192,7 @@ public static class Icons
         "section/render",
         "section/list",
         "section/search",
-        "section/selection"
+        "section/selection",
+        "section/debug"
     };
 }
