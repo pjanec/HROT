@@ -28,7 +28,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
             // ⛔ R-2084 (measured 2026-11-07, A5) — Utf8.FromUtf16 is static: an Encoder per construction allocated 48 B, i.e. every gizmo label every frame.
             //   It stops at a whole character when the buffer is full, as the encoder did.
+#if NETCOREAPP3_0_OR_GREATER
             System.Text.Unicode.Utf8.FromUtf16(str.AsSpan(), buffer.Slice(0, MaxLength), out _, out int bytesUsed, replaceInvalidSequences: true, isFinalBlock: true);
+#else
+            // netstandard2.1 has no System.Text.Unicode.Utf8 (a Visual Studio build of this TFM failed, 2026-11-08). The span overloads of
+            // Encoding.UTF8 allocate nothing; shorten by whole characters (never half a surrogate pair) until the bytes fit.
+            ReadOnlySpan<char> chars = str.AsSpan();
+            int n = chars.Length;
+            while (n > 0 && System.Text.Encoding.UTF8.GetByteCount(chars.Slice(0, n)) > MaxLength)
+            {
+                n--;
+                if (n > 0 && char.IsHighSurrogate(chars[n - 1])) n--;
+            }
+            int bytesUsed = System.Text.Encoding.UTF8.GetBytes(chars.Slice(0, n), buffer.Slice(0, MaxLength));
+#endif
             buffer[bytesUsed] = 0;
         }
 
