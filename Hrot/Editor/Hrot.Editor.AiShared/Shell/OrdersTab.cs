@@ -157,14 +157,24 @@ public sealed class OrdersTab : IDetailsViewInstance
         PollCommit();
         var draft = EnsureDraft(net);
         MissionPlanQueue? queue = w.IsComponentTypeRegistered<MissionPlanQueue>() && w.HasComponent<MissionPlanQueue>(entity) ? w.GetComponentRO<MissionPlanQueue>(entity) : null;
-        var rows = LastRows = OrdersPlanModel.RowsOf(draft, _dirty ? null : queue);
+        // ⭐ CE-3403 — the rows (every task\'s sentence parses its conditions) and the list\'s summaries are rebuilt ONLY when the plan or the queue changed: a steady frame builds nothing (R-2084)
+        var queueNow = _dirty ? null : queue;
+        uint sig = PlanSignature(draft, queueNow);
+        if (!ReferenceEquals(draft, _rowsFor) || sig != _rowsSig)
+        {
+            _rowsFor = draft; _rowsSig = sig;
+            var built = LastRows = OrdersPlanModel.RowsOf(draft, queueNow);
+            _summaries.Clear();
+            int h = built.Count;
+            for (int i = 0; i < built.Count; i++) { string line = built[i].Sentence + (built[i].Problem is { } pr ? "  ! " + pr : ""); _summaries.Add(line); h = Fdp.Core.StableHash.Combine(h, unchecked((int)Fdp.Core.StableHash.Fnv1a32(line)), 0); }
+            _summariesHash = h;
+        }
+        var rows = LastRows;
         var svc = _missions();
         if (rows.Count == 0) ImGui.TextDisabled("No plan — this unit runs its standing behaviour.");
-        // ⭐ CE-3395 — the plan's tasks are the kit's LIST block: one summary row per task (⋮⋮ drag · number · state glyph · the sentence · ⋮ menu), the task's fields / then / give-up open under the row; Add at the end opens the add menu.
-        // The ops go to the EXISTING draft edits (OrdersPlanEdits.Move, draft.Tasks.RemoveAt, the add menu's NewWait / NewOrder / NewBehaviour).
-        _summaries.Clear();
-        int hash = rows.Count;
-        for (int i = 0; i < rows.Count; i++) { string line = rows[i].Sentence + (rows[i].Problem is { } pr ? "  ! " + pr : ""); _summaries.Add(line); hash = Fdp.Core.StableHash.Combine(hash, unchecked((int)Fdp.Core.StableHash.Fnv1a32(line)), 0); }   // the list's change key: stable across processes (the lint's rule), though it never persists
+        // ⭐ CE-3395 — the plan\'s tasks are the kit\'s LIST block: one summary row per task (⋮⋮ drag · number · state glyph · the sentence · ⋮ menu), the task\'s fields / then / give-up open under the row; Add at the end opens the add menu.
+        // The ops go to the EXISTING draft edits (OrdersPlanEdits.Move, draft.Tasks.RemoveAt, the add menu\'s NewWait / NewOrder / NewBehaviour).
+        int hash = _summariesHash;
         ListBlock.Begin("tasks", _summaries, TaskOptions, hash);
         for (int v = 0; v < ListBlock.VisibleCount; v++)
         {
@@ -187,7 +197,6 @@ public sealed class OrdersTab : IDetailsViewInstance
             ListBlock.ItemEnd();
         }
         var taskOp = ListBlock.End();
-        MenuRects.Clear();
         ApplyTaskOp(draft, taskOp);
 
         if (ImGui.BeginPopup("orders_add"))
@@ -231,7 +240,28 @@ public sealed class OrdersTab : IDetailsViewInstance
     }
 
     private readonly List<string> _summaries = new();
-    internal List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> MenuRects { get; } = new();
+    private MissionPlan? _rowsFor; private uint _rowsSig; private int _summariesHash;
+
+    /// <summary>⭐ CE-3403 — a cheap content signature of the plan and its running state (task ids, behaviours, every trigger\'s type and params, each task\'s state): allocation-free; equal ⇒ the rows are the cached ones.</summary>
+    private static uint PlanSignature(MissionPlan plan, MissionPlanQueue? queue)
+    {
+        uint h = Fdp.Core.StableHash.Add(2166136261u, plan.Tasks.Count);
+        for (int i = 0; i < plan.Tasks.Count; i++)
+        {
+            var t = plan.Tasks[i];
+            h = Fdp.Core.StableHash.Add(h, t.TaskId.GetHashCode());
+            h = Fdp.Core.StableHash.Add(h, unchecked((int)Fdp.Core.StableHash.Fnv1a32(t.BehaviorId ?? "")));
+            var triggers = t.Triggers;
+            if (triggers != null)
+                for (int k = 0; k < triggers.Count; k++)
+                {
+                    h = Fdp.Core.StableHash.Add(h, unchecked((int)Fdp.Core.StableHash.Fnv1a32(triggers[k].Type ?? "")));
+                    h = Fdp.Core.StableHash.Add(h, unchecked((int)Fdp.Core.StableHash.Fnv1a32(triggers[k].Params ?? "")));
+                }
+            h = Fdp.Core.StableHash.Add(h, (int)OrdersPlanModel.StateOf(i, queue));
+        }
+        return h;
+    }
     private static readonly ListOptions TaskOptions = new()
     {
         AddLabel = "Add task",

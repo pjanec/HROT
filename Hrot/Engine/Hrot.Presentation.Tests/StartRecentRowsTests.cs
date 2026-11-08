@@ -104,4 +104,19 @@ public sealed class StartRecentRowsTests
         for (int i = 0; i < 1000; i++) f.Rows.Rows();
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);            // ⭐ R-2084
     }
+
+    /// <summary>⭐ Storyboard ⑧ — the row whose run ENDED last (within the just-run window) is highlighted and carries the hint; an older run is not. 🔴 Red-proof: the window ignored ⇒ the old row highlights ⇒ red.</summary>
+    [Fact]
+    public void TheJustRunRow_IsTheOneWhoseRunEndedLast_AndOnlyWithinTheWindow()
+    {
+        var f = new Fixture();
+        f.Inventory(new[] { "alpha", "bravo" }, new[] { f.Run(OldRun, "alpha", 300), f.Run(NewRun, "bravo", 5) });
+        f.Store.Push(Ctx, Key("alpha")); f.Store.Push(Ctx, Key("bravo"));
+        var rows = f.Rows.Rows();
+        Assert.Equal(("bravo", true), (rows[0].Name, rows[0].JustRun));
+        Assert.Equal("bravo" + StartRecentRows.JustRunHint, rows[0].Hint);
+        Assert.False(rows[1].JustRun); Assert.Null(rows[1].Hint);
+        f.Now = f.Now.AddMinutes(30);                                                    // 35 min after its start: no longer "just"
+        Assert.All(f.Rows.Rows(), r => Assert.False(r.JustRun));
+    }
 }

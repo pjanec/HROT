@@ -26,6 +26,20 @@ public sealed partial class ComponentEditDrawer
         public int Epoch = -1;
         public bool Active, IsSet, OpenBound;
         public ulong Mask;
+        /// <summary>⭐ CE-3403 — the boxed value of an enum / bool row, read when the table\'s epoch moves (a boxed byte-sized enum is 24 B: reading it every frame allocated, R-2084).</summary>
+        public object? Boxed;
+    }
+
+    /// <summary>⭐ CE-3403 — the row\'s value for the plain-primitive path: boxed once per epoch (like the number cells\' text), never per frame.</summary>
+    private object? BoxedOf(EditNode node)
+    {
+        var st = CellOf(node);
+        if (st.Epoch != _epoch || st.Boxed == null)
+        {
+            st.Boxed = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
+            st.Epoch = _epoch;
+        }
+        return st.Boxed;
     }
 
     private readonly Dictionary<int, CellState> _cells = new();

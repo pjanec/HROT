@@ -135,6 +135,9 @@ internal sealed class ComponentEditWindow : ManagedWindow
     /// Used by unit tests (T-CE08b, T-CE08c, T-CE08d, T-CE08e) to verify state
     /// transitions without requiring an ImGui context.
     /// </summary>
+    /// <summary>⭐ CE-3403 — the window\'s BODY (the table, the error line, OK / Cancel) without the window chrome, for a frame rail (the chrome\'s pin button crashes a GL test host).</summary>
+    internal void DrawBodyForRail() => DrawClientArea();
+
     internal void ExecuteDrawLogic()
     {
         var liveCheck = _sessionGetter();
@@ -201,7 +204,7 @@ internal sealed class ComponentEditWindow : ManagedWindow
 
         // ⭐⭐⭐ U-obs-5 — BUILD · CAPTURE, after the rebuild (so RebuildState/dirty reflect this
         // frame's truth) and before any ImGui call.
-        BuildAndPublish();
+        if (PanelSnapshot.CaptureEnabled) BuildAndPublish();   // ⭐ CE-3403 — the view model (a record + strings) is built only while a capture is on, not every frame (R-2084)
 
         // 3. ⭐ CE-3386 — the ONE two-column struct table (Field · Value) every struct host draws in.
         if (StructTable.Begin("##cedit"))
