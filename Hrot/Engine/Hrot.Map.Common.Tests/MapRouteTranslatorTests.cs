@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Messages;
@@ -515,6 +516,90 @@ public class MapRouteTranslatorTests
             });
         }
         return new MapRoute { EntityId = entityId, Points = points, IsLoop = isLoop };
+    }
+
+    // ── ⭐ CE-4284 — a route edited on a node that does not own it ───────────────────────────────────────────────────────
+
+    private sealed class AckSink : IDdsWriter<UpdateEntityDescriptorAck>
+    {
+        public List<UpdateEntityDescriptorAck> Acks { get; } = new();
+        public void Write(UpdateEntityDescriptorAck sample) => Acks.Add(sample);
+        public void DisposeInstance(UpdateEntityDescriptorAck key) { }
+    }
+
+    private static (EntityRepository World, Entity Entity, NetworkEntityMap Map) RouteNode(int localNode, RoutePlan plan)
+    {
+        const int Net = 7;
+        var world = CreateEcsWorld();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new NetworkIdentity(Net));
+        world.AddComponent(e, new NetworkAuthority(primaryOwnerId: 1, localNodeId: localNode));   // node 1 owns the route
+        world.SetManagedComponent(e, plan);
+        var map = new NetworkEntityMap();
+        map.Register(Net, e);
+        return (world, e, map);
+    }
+
+    private static RoutePlan Route(params float[] xs) => new RoutePlan().WithWaypoints(wps =>
+    {
+        foreach (var x in xs) wps.Add(new RouteWaypoint { Position = new Vector3(x, 2f * x, 0f), TargetSpeed = 4f, Hold = Fdp.Toolkit.Navigation.RouteHold.Seconds, HoldSeconds = 3f });
+    });
+
+    /// <summary>
+    /// ⭐ CE-4284 — the whole round on two nodes: a route edited on a station that does NOT own it (the gizmo's write: the local plan + an
+    /// <see cref="UpdateEntityCommand"/>) goes to the owner as ONE <c>UpdateEntityDescriptorRequest(dtMapRoute)</c>; the owner applies it and answers;
+    /// the owner's publish carries it back; the requester's route then reads the edit — it STAYS. The owner's own edit sends no request (its
+    /// publish is the route topic). 🔴 Mutation: the egress ignores a <see cref="RoutePlan"/> (the old code) ⇒ no request, the owner keeps the old
+    /// route and its publish overwrites the edit ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4284_ARouteEditedOnANonOwner_ReachesTheOwner_AndStays()
+    {
+        var original = Route(10f, 20f);
+        var edited = Route(10f, 25f, 40f);
+        var owner = RouteNode(localNode: 1, original);
+        var requester = RouteNode(localNode: 2, original);
+
+        // ① the requester edits (RouteWaypointGizmo.WriteBackAndPublish's two steps)
+        requester.World.SetManagedComponent(requester.Entity, edited);
+        requester.World.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand
+        {
+            NetworkId = 7, ComponentsToUpdate = new List<object> { edited }, RequestId = System.Guid.NewGuid(),
+        });
+        requester.World.Bus.SwapBuffers();
+        var sent = new CapturingWriter<UpdateEntityDescriptorRequest>();
+        new UpdateEntityCommandEgressTranslator(sent, requester.World.Bus, requester.Map, localNodeId: 2).PollIngress(null!, requester.World);
+        var req = Assert.Single(sent.Publishes);
+        Assert.Equal(EDescriptorType.dtMapRoute, req.DescriptorType);
+        Assert.Equal(3, req.Payload.MapRoute.Points!.Count);
+
+        // ② the owner applies it and answers Success
+        var acks = new AckSink();
+        using (var participant = new CycloneDDS.Runtime.DdsParticipant(219u))
+        using (var system = new UpdateEntityDescriptorRequestSystem(participant, owner.Map, acks))
+            system.ProcessRequest(req, owner.World);
+        var ownerPlan = ((ISimulationView)owner.World).GetManagedComponentRO<RoutePlan>(owner.Entity);
+        Assert.Equal(new[] { 10f, 25f, 40f }, ownerPlan.Waypoints.Select(w => w.Position.X).ToArray());
+        Assert.Equal(Fdp.Toolkit.Navigation.RouteHold.Seconds, ownerPlan.Waypoints[1].Hold);   // the whole waypoint, not just X/Y
+        Assert.Equal(original.Waypoints[1].HoldSeconds, ownerPlan.Waypoints[1].HoldSeconds);
+        Assert.Equal((int)NedStatusCode.Success, Assert.Single(acks.Acks).ErrorCode);
+
+        // ③ the owner's publish carries it to every node; the requester's route reads the edit
+        var topic = new CapturingWriter<MapRoute>();
+        new MapRouteEgressTranslator(topic, owner.Map).ScanAndPublish(owner.World);
+        new MapRouteIngressTranslator(null, requester.Map).ApplyToEntity(requester.Entity, Assert.Single(topic.Publishes), requester.World);
+        var stays = ((ISimulationView)requester.World).GetManagedComponentRO<RoutePlan>(requester.Entity);
+        Assert.Equal(new[] { 10f, 25f, 40f }, stays.Waypoints.Select(w => w.Position.X).ToArray());
+
+        // the OWNER's own edit sends no request: its route topic is the publish
+        owner.World.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand
+        {
+            NetworkId = 7, ComponentsToUpdate = new List<object> { edited }, RequestId = System.Guid.NewGuid(),
+        });
+        owner.World.Bus.SwapBuffers();
+        var fromOwner = new CapturingWriter<UpdateEntityDescriptorRequest>();
+        new UpdateEntityCommandEgressTranslator(fromOwner, owner.World.Bus, owner.Map, localNodeId: 1).PollIngress(null!, owner.World);
+        Assert.Empty(fromOwner.Publishes);
     }
 
     // ── Test doubles ─────────────────────────────────────────────────────────

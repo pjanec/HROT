@@ -50,6 +50,18 @@ public sealed record NodeDistributionTarget
     /// Empty = none (every non-Brain node, and any node that advertised none).
     /// </summary>
     public IReadOnlyList<AssetSyncTarget> AssetSyncs { get; init; } = Array.Empty<AssetSyncTarget>();
+
+    /// <summary>⭐ CE-4331 ② (§9a) — an import's placement: the node's name and kind (subsystem + roles) as its heartbeat says them.</summary>
+    public string NodeName { get; init; } = string.Empty;
+
+    /// <inheritdoc cref="NodeName"/>
+    public string Subsystem { get; init; } = string.Empty;
+
+    /// <inheritdoc cref="NodeName"/>
+    public int Roles { get; init; }
+
+    /// <summary>⭐ CE-4330 ④ — the node already holds this exercise (fact ③): placed like any node, but nothing is pushed to it.</summary>
+    public bool AlreadyHolds { get; init; }
 }
 
 /// <summary>One behaviour-asset tree a node receives: <paramref name="Kind"/> from <c>{nas}/assets/&lt;kind&gt;</c> into
@@ -87,6 +99,9 @@ public sealed class GatewayResult
 
     /// <summary><c>true</c> when every file in the batch succeeded.</summary>
     public bool IsFullSuccess => FailureCount == 0;
+
+    /// <summary>⭐ CE-4331 ② — an import's placement (which file plays on which node, what is not played, who listens); null for other transfers.</summary>
+    public Fdp.Toolkit.Orchestration.Placement? Placement { get; init; }
 }
 
 /// <summary>
@@ -787,35 +802,34 @@ public sealed class StorageGatewayModule
                 $"[Gateway] PrefetchArchive: NAS source directory '{sourceDir}' does not exist. " +
                 $"Ensure exercise '{exerciseId}' is archived to the NAS before issuing a replay prefetch.");
 
-        // ⭐ CE-4330 / CE-4331 (§9) — a node with no recording of its own in the archive LISTENS (it restores nothing and takes the world from the
-        //   replaying nodes): it is not sent anything and is not a failure. ⛔ Only a file that exists and does not arrive counts as failed.
-        var withFile = new List<NodeDistributionTarget>(targets.Count);
-        foreach (var target in targets)
-            if (File.Exists(Path.Combine(sourceDir, OrchestrationConstants.GetNodeRecordingFileName(target.NodeId)))) withFile.Add(target);
-        targets = withFile;
+        // ⭐⭐ CE-4331 ② (§9a) — the ONE placement: each recorded file (its own metadata says which node made it) goes to the node of the same NAME and
+        //   kind, else the next free node of the same KIND; ⛔ never across kinds; nodes left without a file LISTEN (not pushed anything, not a failure —
+        //   CE-4330 §9). A placed file is copied under the CHOSEN node's own file name. Nothing placeable ⇒ refused (the caller says why).
+        var placement = Fdp.Toolkit.Orchestration.RecordingPlacement.Place(ReadRecordedFiles(sourceDir), PlacementNodesOf(targets));
+        if (placement.Refused) return new GatewayResult { SuccessCount = 0, FailureCount = 0, Placement = placement };
+        var byNode = new Dictionary<int, NodeDistributionTarget>(targets.Count);
+        foreach (var t in targets) byNode[t.NodeId.Value] = t;
+        var sends = new List<(NodeDistributionTarget Target, string Source)>(placement.Placed.Count);
+        foreach (var (file, nodeId) in placement.Placed)
+            if (byNode.TryGetValue(nodeId, out var t) && !t.AlreadyHolds) sends.Add((t, Path.Combine(sourceDir, file.FileName)));   // ⭐ CE-4330 ④ — a holder is not pushed to
 
-        // ⭐ P6 — through the provider: each node gets ITS OWN recording (and the schema manifest beside it, so replay
-        //   validation succeeds), one request per node.
-        var pushes = targets.Select(target =>
+        // ⭐ P6 — through the provider: each node gets the recording placed on it (and its schema manifest beside it, so replay validation succeeds),
+        //   one request per node.
+        var pushes = sends.Select(send =>
         {
-            var srcPath  = Path.Combine(sourceDir, OrchestrationConstants.GetNodeRecordingFileName(target.NodeId));
-            var destName = Path.GetFileName(target.DestinationPath);
-            var items = new List<TransferItem> { new(srcPath, destName) };
-            if (File.Exists(srcPath + ".meta.json")) items.Add(new TransferItem(srcPath + ".meta.json", destName + ".meta.json"));
+            var destName = Path.GetFileName(send.Target.DestinationPath);
+            var items = new List<TransferItem> { new(send.Source, destName) };
+            if (File.Exists(send.Source + ".meta.json")) items.Add(new TransferItem(send.Source + ".meta.json", destName + ".meta.json"));
             return DeliverAsync(_provider,
-                new[] { new TransferTarget(target.NodeId, Path.GetDirectoryName(target.DestinationPath) ?? string.Empty) },
+                new[] { new TransferTarget(send.Target.NodeId, Path.GetDirectoryName(send.Target.DestinationPath) ?? string.Empty) },
                 items, ct);
         }).ToList();
 
         if (progress != null)
         {
             long bytes = 0;
-            foreach (var target in targets)
-            {
-                var src = Path.Combine(sourceDir, OrchestrationConstants.GetNodeRecordingFileName(target.NodeId));
-                if (File.Exists(src)) bytes += new FileInfo(src).Length;
-            }
-            progress.SetTotals(targets.Count, bytes);
+            foreach (var send in sends) if (File.Exists(send.Source)) bytes += new FileInfo(send.Source).Length;
+            progress.SetTotals(sends.Count, bytes);
         }
 
         int successCount = 0, failureCount = 0;
@@ -828,14 +842,45 @@ public sealed class StorageGatewayModule
                 successCount++;
                 if (progress != null)
                 {
-                    var src = Path.Combine(sourceDir, OrchestrationConstants.GetNodeRecordingFileName(targets[i].NodeId));
-                    if (File.Exists(src)) progress.AddBytes(new FileInfo(src).Length);
+                    if (File.Exists(sends[i].Source)) progress.AddBytes(new FileInfo(sends[i].Source).Length);
                     progress.FileDone();
                 }
             }
         }
 
-        return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
+        return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount, Placement = placement };
+    }
+
+    /// <summary>⭐ CE-4331 ② — the recorded files of an archived exercise with who made each (its <c>.meta.json</c>; none ⇒ a legacy file: its id only).</summary>
+    internal static List<Fdp.Toolkit.Orchestration.RecordedFile> ReadRecordedFiles(string exerciseDir)
+    {
+        var list = new List<Fdp.Toolkit.Orchestration.RecordedFile>();
+        foreach (var path in Directory.GetFiles(exerciseDir, "*.fdp", new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive }))
+        {
+            var name = Path.GetFileName(path);
+            if (!TryParseForeignNodeId(name, out var recordedId)) continue;   // node_<id>.fdp only
+            string nodeName = "", subsystem = ""; int roles = 0;
+            var metaPath = path + ".meta.json";
+            if (File.Exists(metaPath))
+            {
+                try
+                {
+                    var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(metaPath));
+                    (nodeName, subsystem, roles) = (meta.NodeName ?? "", meta.Subsystem ?? "", meta.Roles);
+                }
+                catch (Exception) { /* an unreadable sidecar: a legacy file */ }
+            }
+            list.Add(new Fdp.Toolkit.Orchestration.RecordedFile(name, recordedId, nodeName, subsystem, roles));
+        }
+        list.Sort((x, y) => x.RecordedNodeId.CompareTo(y.RecordedNodeId));
+        return list;
+    }
+
+    private static List<Fdp.Toolkit.Orchestration.PlacementNode> PlacementNodesOf(IReadOnlyList<NodeDistributionTarget> targets)
+    {
+        var nodes = new List<Fdp.Toolkit.Orchestration.PlacementNode>(targets.Count);
+        foreach (var t in targets) nodes.Add(new Fdp.Toolkit.Orchestration.PlacementNode(t.NodeId.Value, t.NodeName, t.Subsystem, t.Roles));
+        return nodes;
     }
 
     /// <summary>

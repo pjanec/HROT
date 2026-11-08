@@ -8,6 +8,7 @@ using Fdp.Modules.Geographic;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
@@ -94,8 +95,13 @@ namespace Hrot.Map.Common.Replication.Egress
                     {
                         ProcessOverlayUpdate(updateCmd.NetworkId, updateCmd.RequestId, polyline, view);
                     }
-                    // RoutePlan: version already bumped; MapRouteEgressTranslator.ScanAndPublish
-                    // detects the change and publishes MapRoute DDS topic automatically.
+                    else if (component is RoutePlan plan)
+                    {
+                        // ⭐ CE-4284 — on the route's OWNER the edit is already the published value (MapRouteEgressTranslator sees the new
+                        //   version). ⛔ On any other node it never left: MapRouteEgress publishes only with authority, so the edit stayed local
+                        //   and the owner's next sample overwrote it. ⇒ a non-owner sends it to the owner, as an area's points already go.
+                        ProcessRouteUpdate(updateCmd.NetworkId, updateCmd.RequestId, plan, view);
+                    }
                 }
             }
         }
@@ -107,6 +113,28 @@ namespace Hrot.Map.Common.Replication.Egress
         public void Dispose(int networkEntityId) { }
 
         // ── Private helpers ───────────────────────────────────────────────────
+
+        private void ProcessRouteUpdate(int networkId, Guid requestId, RoutePlan plan, ISimulationView view)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return;
+            long routeKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtMapRoute, 0);
+            if (view.HasAuthority(entity, routeKey)) return;   // the owner publishes it itself
+
+            _writer.Write(new UpdateEntityDescriptorRequest
+            {
+                RequestId      = requestId == Guid.Empty ? Guid.NewGuid() : requestId,
+                EntityId       = networkId,
+                DescriptorType = EDescriptorType.dtMapRoute,
+                PartId         = 0,
+                CurrentVersion = 0,
+                Payload        = new EntityDescriptorUnion
+                {
+                    _d       = EDescriptorType.dtMapRoute,
+                    MapRoute = Hrot.Map.Common.Replication.MapRouteWire.ToSample(networkId, plan),   // the one encoding
+                },
+            });
+            SentSampleCount++;
+        }
 
         private void ProcessOverlayUpdate(
             int networkId, Guid requestId,

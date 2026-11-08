@@ -96,7 +96,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         // â”€â”€ Request handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private void ProcessRequest(UpdateEntityDescriptorRequest req, ISimulationView view)
+        internal void ProcessRequest(UpdateEntityDescriptorRequest req, ISimulationView view)   // internal: the CE-4284 rail drives one request without DDS
         {
             // 1. Resolve entity from network ID.
             if (!_entityMap.TryGetEntity(req.EntityId, out var entity))
@@ -115,6 +115,10 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 case EDescriptorType.dtMapVisualOverlay:
                     ProcessMapVisualOverlayUpdate(req, entity, view);
+                    break;
+
+                case EDescriptorType.dtMapRoute:   // ⭐ CE-4284 — a route edited on a non-owner
+                    ProcessMapRouteUpdate(req, entity, view);
                     break;
 
                 default:
@@ -170,6 +174,29 @@ namespace Hrot.Map.Common.Replication.Ingress
                 EntityId  = entityId,
                 ErrorCode = (int)errorCode,
             });
+        }
+
+        /// <summary>⭐ CE-4284 — a route edited on a node that does not own it: the owner applies it (the one decoding, <see cref="MapRouteWire"/>);
+        /// its new <see cref="RoutePlan"/> version is then published to every node by <c>MapRouteEgressTranslator</c>.</summary>
+        private void ProcessMapRouteUpdate(UpdateEntityDescriptorRequest req, Entity entity, ISimulationView view)
+        {
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
+            if (!view.HasAuthority(entity, packedKey))
+            {
+                FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
+                    "[UpdDescReq] Not authoritative for MapRoute on Entity {0}. Ignoring.", req.EntityId);
+                return;
+            }
+
+            var repo = (EntityRepository)view;
+            var current = repo.HasManagedComponent<RoutePlan>(entity) ? view.GetManagedComponentRO<RoutePlan>(entity) : new RoutePlan();
+            var route = req.Payload.MapRoute;
+            var plan = MapRouteWire.Apply(current, in route);
+            repo.SetManagedComponent(entity, plan);
+
+            FdpLog<UpdateEntityDescriptorRequestSystem>.Info(
+                "[UpdDescReq] Applied MapRoute update for NetID {0} waypoints={1}.", req.EntityId, plan.Waypoints.Count);
+            WriteAck(req.RequestId, req.EntityId, NedStatusCode.Success);
         }
 
         private void ProcessMapVisualOverlayUpdate(UpdateEntityDescriptorRequest req, Entity entity, ISimulationView view)

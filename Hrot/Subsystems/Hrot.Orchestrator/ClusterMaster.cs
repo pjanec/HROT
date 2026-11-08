@@ -1397,6 +1397,14 @@ public sealed partial class ClusterMaster : IDisposable
             return;
         }
 
+        // ⭐ CE-4331 ⑥ (§9b) — Go Live from a replay needs the SAME cluster: refused when a recorded node has no node here or plays on another id
+        if (ClusterStates.IsReplaying(showing) && intent.TargetState == FdpClusterState.OperatingLive && GoLiveRefusal(_activeExerciseId) is { } notHere)
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] CE-4331: going Live {0} REJECTED — {1}.", requestId, notHere);
+            PublishOpStatus(requestId, OrchestrationStatusCode.Rejected, notHere);
+            return;
+        }
+
         // ⭐⭐ R-3055 (the R-3049 rule, for a replay) — a replay whose request names no exercise gets one from the MASTER: the run in
         //    progress when the cluster is live (the planner ends it on the way in), else the newest finished one. ⛔ It used to be chosen
         //    by the asker from a cached inventory, so the same request worked on the editor and was refused on CGF.

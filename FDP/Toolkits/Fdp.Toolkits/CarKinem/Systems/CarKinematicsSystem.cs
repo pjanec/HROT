@@ -471,14 +471,10 @@ namespace CarKinem.Systems
                 speedSign < 0f);
 
             // Cornering speed limit
-            float maxCorneringSpeed = float.MaxValue;
-            if (MathF.Abs(steerAngle) > 0.01f)
-            {
-                // Radius = L / sin(delta)
-                float turnRadius = @params.WheelBase / MathF.Abs(MathF.Sin(steerAngle));
-                // V_max = sqrt(a_lat_max * R)
-                maxCorneringSpeed = MathF.Sqrt(@params.MaxLatAccel * turnRadius);
-            }
+            // ⭐ CE-4345 — the inverse of the integrator's steer limit (BicycleModel.SteerLimit), one relation for both: R = L / tan δ, v ≤ √(a·R)
+            float maxCorneringSpeed = MathF.Abs(steerAngle) > 0.01f
+                ? BicycleModel.MaxCorneringSpeed(steerAngle, @params.WheelBase, @params.MaxLatAccel)
+                : float.MaxValue;
 
             float finalTargetSpeed = MathF.Min(targetSpeedAfterAvoidance, maxCorneringSpeed) * speedSign;
             if (person)
@@ -515,10 +511,10 @@ namespace CarKinem.Systems
             }
             else
             {
-                BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase,
+                yawRate = BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase,
                     nav.ReverseAllowed == 1 ? @params.MaxSpeedRev : 0f,   // ⭐ CE-2167 (V5) — reverse when allowed
-                    @params.MaxSpeedFwd > 0f ? @params.MaxSpeedFwd : float.MaxValue);   // 0 = an unknown profile (CE-103): no cap
-                yawRate = (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle);
+                    @params.MaxSpeedFwd > 0f ? @params.MaxSpeedFwd : float.MaxValue,   // 0 = an unknown profile (CE-103): no cap
+                    @params.MaxLatAccel);   // ⭐ CE-4345 — the turn falls with speed
             }
 
             // ⭐ CE-2304 — an AI WALKER's step stays on the walkable mesh too (CE-3181's rule for an operator's, ManualMotion.KeepOnNavmesh):
@@ -618,9 +614,8 @@ namespace CarKinem.Systems
             float accel = SpeedController.CalculateAcceleration(state.Speed, target, p.AccelGain, p.MaxAccel, p.MaxDecel);
             float steer = ft.RecoverSteer * p.MaxSteerAngle;
             var before = pos2D;
-            BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steer, accel, dt, p.WheelBase,
-                ft.RecoverDir < 0 ? -target : 0f, p.MaxSpeedFwd > 0f ? p.MaxSpeedFwd : float.MaxValue);
-            float yawRate = (state.Speed / p.WheelBase) * MathF.Tan(steer);
+            float yawRate = BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steer, accel, dt, p.WheelBase,
+                ft.RecoverDir < 0 ? -target : 0f, p.MaxSpeedFwd > 0f ? p.MaxSpeedFwd : float.MaxValue, p.MaxLatAccel);
             bool held = FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D, fwd2D * state.Speed, yawRate, false, dt, hull: p);
             var at = new Vector2(tf.Position.X, tf.Position.Y);
             ft.RecoverMetres += Vector2.Distance(before, at);

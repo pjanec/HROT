@@ -236,7 +236,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]   // keyed + durable = a descriptor: a master that leaves does not retract the list (TheDescriptorTopicsDoNotAutodispose…)
     public partial struct StorageJobsTopic
     {
         /// <summary>The producer: 0 = the master.</summary>
@@ -441,6 +441,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         public int ForcedId;
         /// <summary>The id the process held before (0 = none) — granted again when free.</summary>
         public int PreferredId;
+        /// <summary>⭐ CE-4331 ⑥ (docs/DESIGN_Recording_Storage.md §9b) — the asking node's KIND (<c>CGF</c>, <c>Player</c>, …): the master grants inside that kind's range. Empty = a dynamic id (an older sender). ⭐ APPENDED LAST (R-42); additive.</summary>
+        [DdsManaged] public string SubsystemName;
     }
 
     /// <summary>⭐⭐ <c>C1</c> — the master's answer, on the same key as the request.</summary>

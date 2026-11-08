@@ -115,7 +115,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
             ? ((ISimulationView)repo).GetManagedComponentRO<RoutePlan>(entity)
             : new RoutePlan();
 
-        repo.SetManagedComponent(entity, ApplyWaypoints(routePlan with { IsLoop = mapRoute.IsLoop }, mapRoute));
+        repo.SetManagedComponent(entity, MapRouteWire.Apply(routePlan, in mapRoute));
     }
 
     public void Dispose(int networkEntityId)
@@ -155,32 +155,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
             ? view.GetManagedComponentRO<RoutePlan>(entity)
             : new RoutePlan();
 
-        cmd.SetManagedComponent(entity, ApplyWaypoints(routePlan with { IsLoop = data.IsLoop }, data));
-    }
-
-    private RoutePlan ApplyWaypoints(RoutePlan routePlan, MapRoute data)
-    {
-        return routePlan.WithWaypoints(wps =>
-        {
-            wps.Clear();
-            if (data.Points != null)
-            {
-                foreach (var wp in data.Points)
-                {
-                    wps.Add(new RouteWaypoint
-                    {
-                        Position      = EnuWire.FromWire(wp.Position),   // ⭐ AQ107 B — local ENU, copied
-                        TargetSpeed   = (float)wp.SpeedMetersPerSec,
-                        ExtensionJson = string.IsNullOrEmpty(wp.ExtensionJson) ? null : wp.ExtensionJson,
-                        Kind          = (Fdp.Toolkit.Navigation.RouteWaypointKind)wp.Kind,   // ⭐ Air Ops B1
-                        HeightAgl     = wp.HeightAgl,
-                        Hold          = (Fdp.Toolkit.Navigation.RouteHold)wp.Hold,
-                        HoldSeconds   = wp.HoldSeconds,
-                        HoldUnit      = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(wp.HoldUnit)),   // S9'
-                    });
-                }
-            }
-        });
+        cmd.SetManagedComponent(entity, MapRouteWire.Apply(routePlan, in data)   /* ⭐ CE-4284 — the one decoding */);
     }
 
     /// <summary>
