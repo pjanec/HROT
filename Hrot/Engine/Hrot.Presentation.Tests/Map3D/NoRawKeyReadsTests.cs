@@ -31,9 +31,7 @@ public sealed class NoRawKeyReadsTests
     [Fact]
     public void NoSurfaceReadsARawKey()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root != null && !File.Exists(Path.Combine(root.FullName, "HROT.sln"))) root = root.Parent;
-        Assert.NotNull(root);
+        var root = new DirectoryInfo(Fdp.Testing.TestRepo.Root);   // CE-3343: the ONE test-side repository-root walk-up
         var offenders = new List<string>();
         foreach (var (rel, allowed) in Files)
         {
@@ -60,9 +58,7 @@ public sealed class NoRawKeyReadsTests
     [Fact]
     public void TheTimelineReadsNoKeyAndNoWheelRaw()
     {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root != null && !File.Exists(Path.Combine(root.FullName, "HROT.sln"))) root = root.Parent;
-        Assert.NotNull(root);
+        var root = new DirectoryInfo(Fdp.Testing.TestRepo.Root);   // CE-3343: the ONE test-side repository-root walk-up
         var keys = new Regex(@"\b(IsKeyDown|IsKeyPressed|IsKeyReleased|MouseWheel|MouseWheelH|KeyCtrl|KeyAlt|IsMouseDragging)\b|KeyShift");
         var offenders = new List<string>();
         int n = 0;
