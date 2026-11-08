@@ -8,7 +8,7 @@
 | U-3 | CE-4337 | Keyboard shortcuts → View ▸ Settings | DONE | `0d0815365` | one path `WindowManager.ShortcutsMenuPath`; the R-4176 two-path machinery removed; mockup + Input §6f |
 | U-4 | CE-4334 | ORBAT row icons | DONE | `cdf40c359` | `IconKey` on the node, set by the adapter from components; 3 new `orbat/*` keys; rail over the real panel in all three relations, red-proved |
 | U-5 | CE-4335 | End exercise greyed outside Live | DONE | `03f787977` | `InstructorEnd.RunRefusal` by transport mode, wired to both End controls by the rules bundle; Live · ended keeps its own words, AAR not drawn; rails per mode (pure, bundle wiring, real window frame) |
-| U-6 | CE-4336 | Data breakpoints: condition first | QUEUED | — | |
+| U-6 | CE-4336 | Data breakpoints: condition first | DONE | `SHA_U6` | *Add* opens the condition editor over a draft, row only on commit; *Show condition* was hidden below an unbounded table (measured) — the list now keeps a bounded height; rails for both |
 | U-7 | CE-4338 | Brain tab expander icons | QUEUED | — | |
 | U-8 | CE-4339 | 3-D placement direction line | QUEUED | — | |
 | U-9 | CE-4340 | 3-D hover pick volume | QUEUED | — | measure first |

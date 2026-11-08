@@ -48,6 +48,9 @@ public sealed class DataBreakpointManagerPanel
     /// <summary>⭐ U-16 / C5 (DESIGN_Condition_Editor §6) — the friendly view of the selected breakpoint's condition: the ONE condition editor in the Breakpoint context (the facts plus the debugging kinds; a kind with no fact reads back as one Custom row).</summary>
     private readonly Fdp.Presentation.Editing.ConditionEditor _conditions = new(Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionContexts.Breakpoint);
     private bool _expert;
+    // ⭐ U-6 (CE-4336) — "+ Add" opens the CONDITION first: the draft lives here, no row exists until the person presses "Add breakpoint"
+    private bool _adding;
+    private SearchPredicateDto? _addDraft;
     private BreakpointId _draftOf;
     private SearchPredicateDto? _draftBase, _draft;
 
@@ -87,6 +90,7 @@ public sealed class DataBreakpointManagerPanel
     /// </summary>
     public void DrawContent()
     {
+        ConditionTop = 0f;
         DrawToolbar();
         DrawGrid();
         DrawPredicateEditor();
@@ -115,13 +119,32 @@ public sealed class DataBreakpointManagerPanel
 
     // ── Internal action seams (used by tests) ─────────────────────────────────
 
-    /// <summary>Adds a new breakpoint with the default predicate. Mirrors the "+Add" toolbar button.</summary>
-    internal void AddBreakpoint()
+    /// <summary>⭐ U-6 (CE-4336) — the "+ Add" toolbar button: opens the condition editor FIRST (over the host's default condition when it has one, else an empty one); ⛔ no row is added until <see cref="CommitAdd"/> — a breakpoint
+    /// with no condition chosen never lands in the list as "New Breakpoint".</summary>
+    internal void StartAdd()
     {
-        var dto = _createDefaultPredicate?.Invoke() ?? new PropertyMatchDto();
-        var id = _manager.AddBreakpoint(dto, displayName: "New Breakpoint");
-        _selectedId = id;
+        _adding = true;
+        _addDraft = _createDefaultPredicate?.Invoke();
+        _showCondition = false;
     }
+
+    /// <summary>Whether the new-breakpoint condition editor is open.</summary>
+    internal bool Adding => _adding;
+
+    /// <summary>"Add breakpoint": adds the drafted condition, selects the new row (its condition then shows), closes the new-breakpoint editor. False when there is nothing valid to add (no condition, or a blank left unfilled).</summary>
+    internal bool CommitAdd()
+    {
+        if (!_adding || _addDraft == null || _conditions.Problem != null) return false;
+        var id = _manager.AddBreakpoint(_addDraft);   // ⭐ no display name: the row reads as the condition's own sentence
+        _selectedId = id;
+        _showCondition = true;
+        _adding = false;
+        _addDraft = null;
+        return true;
+    }
+
+    /// <summary>"Cancel": closes the new-breakpoint editor; nothing was added.</summary>
+    internal void CancelAdd() { _adding = false; _addDraft = null; }
 
     /// <summary>Removes the currently selected breakpoint. Mirrors the "-Remove" toolbar button.</summary>
     internal void RemoveSelected()
@@ -164,7 +187,7 @@ public sealed class DataBreakpointManagerPanel
     private void DrawToolbar()
     {
         if (ImGuiApi.Button("+ Add"))
-            AddBreakpoint();
+            StartAdd();
         ImGuiApi.SameLine();
         // ⭐ CE-1285 — ⛔ the "- Remove" button is gone: a row's own menu deletes it (🔒 user: "the button on top … can be removed once we
         //   have context menu"). ⭐ Q44-A: one list, a Kind FILTER (not tabs, which would re-split it)
@@ -190,7 +213,13 @@ public sealed class DataBreakpointManagerPanel
     {
         const ImGuiTableFlags flags =
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.Resizable;
-        if (!ImGuiApi.BeginTable("##bpgrid", 5, flags)) return;
+        // ⭐ U-6 (CE-4336) — a scrolling table with no height fills the WHOLE window and pushes the condition editor below it out of sight: while an editor shows (the new-breakpoint one, or a row's condition)
+        //   the list keeps a bounded share so the editor is on screen. 📐 measured: Show condition "did nothing" because the editor drew below an unbounded table.
+        bool editorBelow = _adding || (_showCondition && _selectedId.IsValid);
+        float listHeight = editorBelow ? Math.Max(90f, ImGuiApi.GetContentRegionAvail().Y * 0.35f) : 0f;
+        GridRect = default;
+        var gridTop = ImGuiApi.GetCursorScreenPos();
+        if (!ImGuiApi.BeginTable("##bpgrid", 5, flags, new Vector2(0f, listHeight))) return;
         ImGuiApi.TableSetupColumn("##en",  ImGuiTableColumnFlags.WidthFixed, 20f);
         ImGuiApi.TableSetupColumn("Kind",  ImGuiTableColumnFlags.WidthFixed, 60f);
         ImGuiApi.TableSetupColumn("Breakpoint", ImGuiTableColumnFlags.WidthStretch);
@@ -228,7 +257,8 @@ public sealed class DataBreakpointManagerPanel
             {
                 _selectedId = bp.Id;
                 if (ImGuiApi.MenuItem(bp.Enabled ? "Disable" : "Enable")) ToggleEnabled(bp.Id);
-                if (ImGuiApi.MenuItem("Show condition")) _showCondition = true;
+                // ⭐ U-6 (CE-4336) — on ANY row (it selects the row first); a second pick on the row whose condition shows hides it
+                if (ImGuiApi.MenuItem("Show condition", null, _showCondition && _selectedId == bp.Id)) ToggleCondition(bp.Id);
                 if (bp.FilterEntity is { } unit && _selectEntity != null && ImGuiApi.MenuItem("Select the unit")) _selectEntity(unit);
                 ImGuiApi.Separator();
                 if (ImGuiApi.MenuItem("Delete")) toDelete = bp.Id;
@@ -242,6 +272,7 @@ public sealed class DataBreakpointManagerPanel
             ImGuiApi.PopID();
         }
         ImGuiApi.EndTable();
+        GridRect = (gridTop, ImGuiApi.GetCursorScreenPos());   // the list's top-left and the line under it
         if (toDelete is { } d)
         {
             _manager.Remove(d);
@@ -256,7 +287,9 @@ public sealed class DataBreakpointManagerPanel
     /// </summary>
     private void DrawPredicateEditor()
     {
+        if (_adding) { DrawNewBreakpointEditor(); return; }
         if (!_selectedId.IsValid || !_showCondition) return;   // ⭐ CE-1285 — shown on double-click / "Show condition"
+        ConditionTop = ImGuiApi.GetCursorScreenPos().Y;
 
         var bp = _manager.AllBreakpoints.FirstOrDefault(b => b.Id == _selectedId);
         if (bp == null) return;
@@ -308,6 +341,30 @@ public sealed class DataBreakpointManagerPanel
         }
     }
 
+    /// <summary>⭐ U-6 (CE-4336) — the new-breakpoint editor: the SAME friendly condition editor as a row's, over the draft; "Add breakpoint" holds while a blank is unfilled or nothing is chosen (the reason beside it).</summary>
+    private void DrawNewBreakpointEditor()
+    {
+        ConditionTop = ImGuiApi.GetCursorScreenPos().Y;
+        ImGuiApi.SeparatorText("New breakpoint - when should it stop?");
+        _conditions.Draw("bp-new", ref _addDraft, PickContext);
+        FriendlyDraws++;
+        bool blank = _conditions.Problem != null;
+        bool empty = _addDraft == null;
+        ImGuiApi.BeginDisabled(blank || empty);
+        if (ImGuiApi.Button("Add breakpoint")) CommitAdd();
+        ImGuiApi.EndDisabled();
+        ImGuiApi.SameLine();
+        if (ImGuiApi.Button("Cancel")) CancelAdd();
+        if (blank) { ImGuiApi.SameLine(); ImGuiApi.TextDisabled(_conditions.Problem!); }
+        else if (empty) { ImGuiApi.SameLine(); ImGuiApi.TextDisabled("choose a condition first"); }
+    }
+
+    /// <summary>The screen Y where the condition editor (a row's, or the new-breakpoint one) started this frame; 0 when none was drawn (a rail checks it is inside the window).</summary>
+    internal float ConditionTop { get; private set; }
+
+    /// <summary>The breakpoint list's rectangle as drawn this frame (a rail reads it).</summary>
+    internal (Vector2 Min, Vector2 Max) GridRect { get; private set; }
+
     /// <summary>How many frames drew the friendly view (rails: it stops counting while the Expert view shows).</summary>
     internal int FriendlyDraws { get; private set; }
     /// <summary>The friendly view's sentence rows as drawn (rails).</summary>
@@ -316,6 +373,18 @@ public sealed class DataBreakpointManagerPanel
     internal string? ConditionProblem => _expert ? null : _conditions.Problem;
     /// <summary>Whether the Expert (read-only listing) view is showing.</summary>
     internal bool ExpertView { get => _expert; set => _expert = value; }
+    /// <summary>⭐ U-6 (CE-4336) — the row menu's <i>Show condition</i>: on ANY row (it selects the row), a second pick on the row whose condition shows hides it. The new-breakpoint editor closes (one editor below the list).</summary>
+    internal void ToggleCondition(BreakpointId id)
+    {
+        bool shownHere = _showCondition && _selectedId == id;
+        _selectedId = id;
+        _showCondition = !shownHere;
+        if (_showCondition) _adding = false;
+    }
+
+    /// <summary>The new-breakpoint draft (a rail fills it as the condition editor's clicks would).</summary>
+    internal SearchPredicateDto? AddDraft { get => _addDraft; set => _addDraft = value; }
+
     /// <summary>Selects a breakpoint and opens its condition (a seam for rails; the UI does it with a double-click).</summary>
     internal void ShowCondition(BreakpointId id) { _selectedId = id; _showCondition = true; }
 
