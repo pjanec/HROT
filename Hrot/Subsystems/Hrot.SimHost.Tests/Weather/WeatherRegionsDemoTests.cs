@@ -27,7 +27,9 @@ public sealed class WeatherRegionsDemoTests
         using var w = new EntityRepository();
         SimHostComponentRegistry.RegisterAll(w);
         HrotScenarioSerializerFactory.Build(new Fdp.Toolkit.Behavior.BehaviorRegistry())
-            .Deserialize(w, File.ReadAllText(Path.Combine(TestRepo.Root, "scenarios", "ua-weather-regions", "scenario.json")));
+            // ⭐ CE-4154 — as the load does (ScenarioLoadStep): Header.World becomes the World Environment entity (the clock lives there) BEFORE the entities are read
+            .Deserialize(w, Fdp.Toolkit.Scenario.ScenarioWorldSection.InjectEntity(
+                File.ReadAllText(Path.Combine(TestRepo.Root, "scenarios", "ua-weather-regions", "scenario.json")), Hrot.Map.Common.TkbEntityTypes.WorldEnvironment));
 
         int regions = 0, outlined = 0;
         foreach (var e in w.Query().With<WeatherConditions>().With<SimTransform>().Build())
