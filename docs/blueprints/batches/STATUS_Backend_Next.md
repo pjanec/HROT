@@ -7,7 +7,7 @@
 |---|---|---|---|---|
 | Y-1 | CE-4326 | QUEUED | — | Preview with a preset IN PLACE (Presets §9, R-4168) |
 | Y-2 | CE-3411 rest | DONE | `41ce0418e` | `/run-mode` out of Edit: the unsaved check round + HTTP's refusing asker via ui's `Choose(target, asker, answered)` — done before this handoff landed |
-| Y-3 | CE-4298 rest | IN PROGRESS (worker) | — | the Wait-task load warning |
+| Y-3 | CE-4298 rest | DONE | `b58665b79` | `MissionControlExecutionSystem.TryBuildQueue` (the one place every plan resolves) warns once for a Wait with no then, naming the entity and the task; rail `MissionControlExecutionSystemTests.CE4298_*` (red-proved); §5.10 updated; CE-4298 closed |
 | Y-4 | CE-2153 | FILED with cause | (this commit) | ⭐ the mission chain works; the HARNESS cannot path: `PathToPoint` holds until a path (CE-3176) and `SimHostInstance` has no solver and no navmesh. Fix named in the row (solver + flat test navmesh in the harness, or a Direct move in the test) |
 | Y-5 | CE-4099 | QUEUED | — | autosave, A0 gate first |
 | Y-6 | — | QUEUED | — | the pre-existing reds, one line each |
