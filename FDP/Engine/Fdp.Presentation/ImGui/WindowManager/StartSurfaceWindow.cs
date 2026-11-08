@@ -208,7 +208,14 @@ public sealed class StartSurfaceWindow : ManagedWindow
             string? hint = null;
             for (int i = 0; i < recent.Count; i++) { DrawRecentRow(i, recent[i], rx, rightW, wpos); if (recent[i].JustRun && recent[i].Hint is { } h) hint = h; }
             if (hint != null) { Gui.SetCursorPosX(rx); Gui.TextDisabled(hint); }
-            if (Gui.GetCursorPosY() < leftBottom) Gui.SetCursorPosY(leftBottom);
+            if (Gui.GetCursorPosY() < leftBottom)
+            {
+                // ⛔ a SetCursorPos that ends the window must be followed by an item, or ImGui asserts "Code uses SetCursorPos()/SetCursorScreenPos()
+                //   to extend window/parent boundaries" (seen on Windows at start-up, 2026-11-08). The empty Dummy validates the extent; placed one
+                //   ItemSpacing higher so the cursor lands exactly on leftBottom (the block height below is unchanged).
+                Gui.SetCursorPosY(leftBottom - style.ItemSpacing.Y);
+                Gui.Dummy(Vector2.Zero);
+            }
         }
         Gui.PopStyleColor(3);
         _blockHeight = Gui.GetCursorPosY() - startY - style.ItemSpacing.Y;
