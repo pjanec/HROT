@@ -19,8 +19,15 @@ public sealed class EntityBoxPicker : IPicker3D
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
 
-    public EntityBoxPicker(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb, EntityBodyLayer3D bodies)
+    /// <summary>⭐ U-9 (CE-4340) — the pixel margin added round the drawn box, so a far, tiny entity can still be hovered / picked: the hit box is the drawn box plus this many SCREEN pixels (not metres).</summary>
+    public const float MarginPixels = 6f;
+
+    private readonly Func<Vector3, float>? _metresPerPixelAt;
+
+    /// <param name="metresPerPixelAt">⭐ U-9 — the camera's metres per pixel at a world point (<c>1 / MapCamera3D.ZoomAt</c>); null ⇒ the exact drawn box, no margin (headless rails).</param>
+    public EntityBoxPicker(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb, EntityBodyLayer3D bodies, Func<Vector3, float>? metresPerPixelAt = null)
     {
+        _metresPerPixelAt = metresPerPixelAt;
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _tkb = tkb ?? throw new ArgumentNullException(nameof(tkb));
         _bodies = bodies ?? throw new ArgumentNullException(nameof(bodies));
@@ -45,7 +52,9 @@ public sealed class EntityBoxPicker : IPicker3D
         {
             if (e == _bodies.FirstPerson) continue;   // ⭐ CE-1080 — the eye is inside the operator's own body: never pick it
             if (!_bodies.TryGetBox(world, e, tkb, out var centre, out var rotation, out var half)) continue;
-            if (!RayBox.Intersect(origin, direction, centre, rotation, half, out float t) || t > best) continue;
+            // ⭐ U-9 (CE-4340) — the drawn box plus a few PIXELS of margin at the box's depth: tight on a near body, a few metres on a far one (a screen tolerance, never a world one)
+            float margin = _metresPerPixelAt is null ? 0f : MarginPixels * _metresPerPixelAt(centre);
+            if (!RayBox.Intersect(origin, direction, centre, rotation, half + new Vector3(margin), out float t) || t > best) continue;
             best = t;
             int net = hasNet && world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : 0;
             hit = new PickResult(world.GetComponentRO<SimTransform>(e).Position, PickKind.Entity, t, net);
