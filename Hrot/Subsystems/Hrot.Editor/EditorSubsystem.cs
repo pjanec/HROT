@@ -511,6 +511,7 @@ namespace Hrot.Editor
 
         // ⭐ CE-1437 (AQ108 §2.10) — the editor OFFERS its transport + choice; the window composer registers the ONE toolbar time control (this host no longer does).
         Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Editor;
+        string Hrot.UI.Common.RunMode.IProvidesRunControls.StationName => NodeName;   // ⭐ CE-4330 ui half — a transfer this station asked for is marked (yours)
         Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _timeTransport;
         Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _timeTransport?.RunChoice;
         /// <summary>⭐ AQ108 D24 — the running scenario's variant and changed params, for the mode indicator's menu (from what the load stamped resident).</summary>

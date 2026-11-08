@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (CE-4330) — §1–§7 decided (R-4171, R-4172, R-4173); §8 the visual; Q8 (delete from the NAS) open, not part of CE-4330
+build-state: BUILDING (CE-4330) — backend half BUILT (§10); the ui half's segment + Transfers popover BUILT (§11), its dialogs / chips waiting — §1–§7 decided (R-4171, R-4172, R-4173); §8 the visual; Q8 (delete from the NAS) open, not part of CE-4330
 updated: 2026-11-08 (⭐ PROMOTED to the ONE owning design of recording files — moved from docs/DESIGN_Recording_Storage.md and retitled; the user: "it's probably a whole design document regarding the management of the recording files, importing and exporting")
 current-answer: ⭐ §00 scope + the life of a recording (what this owns, what neighbours own) · §1 measured · §2 the gaps · §3 the proposal (P5 where you resume) · §4 decisions · §5 opening from the NAS — always import · §5a wait or background · §6 the local cache · §7 the distributed model (jobs, facts, one queue; §7.4 decided) · ⭐ §8 the visual · ⭐ §9 an AAR on a different cluster · §9a placing the files by name, then kind (Q9) · §9b different ids: replay fine; stable ids, else no Go Live
 stale-below: nothing
@@ -458,5 +458,49 @@ that listens, asking only when something is unplaced · ④ the import reads its
 | **⑧ resume by itself** (P5 ①) | the master reads the inventory on its bus: an exercise on the nodes whose NAS copy is INCOMPLETE and that no job holds gets an Archive job (`AskedBy` "resume"); once per exercise, again whenever the roster grows (the missing node may be back); a FAILED one waits for that; one the operator CANCELLED is never resumed by itself (this session). ⚠ Not persisted: "at start-up" is the first inventory after the master starts | `ClusterMaster.Storage.ResumeIncompleteArchives` · rail `CE4330_AnIncompleteArchiveResumesByItself_*` |
 | **④ the local cache** (§6) | `ExerciseRetention.PruneArchivedCopies(exercisesDir, keepNewest, archived, minFreeFraction = 0.10)` is THE node cache rule (the scratch-root `Prune` is a different rule, unchanged): the newest N stay (`FDP_KEEP_EXERCISES` when > 0, else `CacheDefaultKeep` = 5); older ones go only when ARCHIVED (in the master's inventory); while the disk's free fraction is under 10 % the OLDEST archived copy goes next, even inside the newest N; an un-archived recording is never removed; a folder in use is skipped. Trigger: `ClusterSlave` compares the REFERENCE of `View.ArchivedExercises` each frame and runs one pass on the thread pool over its own `GetNodeExercisesRoot` (the root `LocalRecordingsScanner` reads), at most one at a time. ⚠ The master republishes the inventory every 5 s as a new array ⇒ in practice a pass (a directory listing, off the frame) about every 5 s | `ExerciseRetention.cs` · `ClusterSlave.CheckArchiveCache` · rails `ExerciseRetentionTests.CE4330_*` (3), `ClusterSlaveTests.CE4330_ANewArchivedInventory_*` |
 
+## 11. ⭐ As built — the ui half of CE-4330 *(ui, `2026-11-08`, U-11)*
+
+⭐ INVENTORY (`scripts/cbm.sh search_graph` `.*(StorageJob|Transfer|StatusBar|Archive).*` Class → 33 rows; `search_code StorageJobs` → 65 matches / 30 files): **no UI class for transfers existed** — only the backend's job model and the status-bar precedents
+(`ClusterErrorStatusBarSection`, `StationSeatStatusBarSection`, `RunNoteStatusBarSection`). ⚠ `check_index_coverage` is not available through the CLI. Reused as drawn: `ClusterView.StorageJobs` (fact ①, on every station), `StorageIntents` (the one construction of every ask),
+`CancelOperation(JobId)`, `ClusterView.OutcomeOf` (the master's refusal), `StatusBarManager`, `IconButton`-style glyph colours (`Icons`).
+
+```mermaid
+graph TD
+    subgraph MASTER["the master (backend)"]
+        Q["StorageJobQueue — ONE writer"] -->|"StorageJobsPublishedEvent → StorageJobsTopic (fact ①)"| TOPIC((replicated))
+    end
+    TOPIC --> CV["every station: ClusterView.StorageJobs"]
+    subgraph STATION["every host that owns run controls — composed ONCE in LocalWindowController.ComposeRunControls"]
+        CV --> FAC["ClusterTimeTransportAdapter.StorageJobs"]
+        FAC --> ST["StorageStatus — the six-state model, rebuilt only when the job array changes"]
+        FAC --> TR["StorageTransfers — Cancel / Resume (Author, Instructor seats) · Open · the master's refusal"]
+        ST --> SEC["StorageStatusBarSection (order 190) — the segment, LEFT of the seat · hat text (200)"]
+        TR --> SEC
+        SEC -->|"click"| POP["Transfers popover — every job, Cancel / Resume"]
+        SEAT["StationSeatStatusBarSection (order 200)"] -.->|"its width is reserved"| SEC
+        SRC["Review source segment (the bar's LEFT end)"] -.->|"never touched"| SEC
+    end
+    TR -->|"CancelOperationIntent(JobId)"| Q
+    TR -->|"ExecuteStorageOpIntent = StorageIntents.Archive (Resume)"| Q
+    PICK["picker location chips · import dialog · close-the-session dialog · quit guard · delete-from-archive confirmation"] -.->|"NOT BUILT (waiting — see below)"| TR
+    classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33;
+    class PICK dead;
+```
+*What the picture shows that the prose hid: the segment and the popover read ONE list (the master's, replicated) and ask through the two ops that already exist; the dashed box is every surface of §8 that is NOT here yet.*
+
+| §8 | as built | where |
+|---|---|---|
+| **① the segment, six states** | nothing running (draws nothing) · archiving (yours) with the numbers, a progress bar, *(yours)*, *+N queued* · archiving while a Live runs (the clock mark, *slowed while Live runs*) · importing (another station asked) · an import that just finished (*Exercise 5 ready* + **Open**, 20 s on this client's clock — an import already ended when the station started is history, never flashed) · an archive stopped part-way (*incomplete — 3 of 4 files (reason)* + **Resume**, until a later job for the exercise supersedes it). Progress numbers in the TOTAL's unit (*1.2 / 3.1 GB*) | `StorageStatus` · `StorageStatusBarSection` · rails `TheTransfersTests` (the six states from real `StorageJob` values through a real `ClusterView`, the frame, 0 B steady) |
+| **② the Transfers popover** | every job (active first, then the newest ended) with its icon, title *Archive · exercise 3a3a3a3a*, state line, and **Cancel** (queued / running) or **Resume** (a failed / cancelled archive); the footer names the seat rule; the master's refusal of the last ask in red | `StorageStatusBarSection.DrawPopover` |
+| **Q7 seats** | Cancel / Resume only on the Author and Instructor seats; greyed with *"needs the Author or Instructor seat"* elsewhere (tooltip) | `StorageTransfers.SeatRefusal` |
+| **refusals as the reason** | the op's failure text off the view's outcome ring (*"exercise 2c2c2c2c is being archived"*) | `ITimeTransportFacade.StorageAskRefusal` · `ClusterView.OutcomeOf` |
+| composition | ONE segment per process beside the seat text; the station's name (`IProvidesRunControls.StationName`: the editor's node name) is the ask's `AskedBy` and what *(yours)* compares | `LocalWindowController.ComposeRunControls` · rail `CE4330_TheStorageSegment_IsComposedOnce…` |
+
+⭐ **Waiting — built once their model is used** *(⚠ the list below was "waiting on backend facts ② ③ ⑥"; those facts LANDED in `7a9016887` while this was being built, so every row is now unblocked by backend)*: ⑤ the picker's location chips (fact ② `NasState`, fact ③ `LocalRecordings` /
+`NodesHolding`) · ④ the import dialog (*Continue in background*) · ③ the close-the-session dialog (the `SessionClose` model, fact ⑥) · ⑥ the quit guard · ⑦ the delete-from-archive confirmation (`StorageIntents.DeleteFromArchive`; the popover lists jobs, not archived exercises, so it does not reach it) ·
+the orchestrator panel's job list (the same popover content).
+
+⚠ **Deviations:** the segment's exercise is named by the first 8 hex digits of its id (the master's own words), not the mockup's ordinal *"exercise 3"* — an ordinal needs the inventory's numbering, which no fact carries. *(yours)* is shown on the running state only. The six-state "Ready" clock is the client's (the job record carries no end time).
+
 ---
-_coordinator lane, 2026-11-08_
+_coordinator lane, 2026-11-08 · §11 ui lane, 2026-11-08_

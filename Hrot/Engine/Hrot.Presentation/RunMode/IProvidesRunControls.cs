@@ -20,6 +20,9 @@ public interface IProvidesRunControls
     /// </summary>
     Fdp.Toolkit.Orchestration.HostGatePolicy GatePolicy => HostGatePolicies.For(HostKind);
 
+    /// <summary>⭐ CE-4330 ui half — this station's NAME on the cluster (the status bar marks a transfer it asked for <i>(yours)</i>; its asks carry it as <c>AskedBy</c>). Default: the host kind; the editor answers its node name.</summary>
+    string StationName => HostKind.ToString();
+
     /// <summary>The host's transport; <see langword="null"/> while it has none (before its bus exists / headless) — the host then offers nothing.</summary>
     ITimeTransportFacade? Transport { get; }
 
