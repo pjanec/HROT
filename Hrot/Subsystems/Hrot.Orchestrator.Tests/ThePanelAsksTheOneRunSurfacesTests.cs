@@ -80,6 +80,12 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         Assert.True(r.Controls.RunSettingsEnabled);
         Assert.True(r.Controls.RecordLiveRuns);
         Assert.False(r.Controls.AskToKeepRecordings);
+        Assert.False(r.Controls.StartImmediately);
+
+        r.Controls.SetStartImmediately(true);   // ⭐ CE-3415 — ONE intent with ONLY its field
+        var startNow = Assert.Single(Sent<SetRunSettingsIntent>(r.Bus));
+        Assert.True(startNow.StartLiveImmediately);
+        Assert.Null(startNow.RecordLiveRuns); Assert.Null(startNow.AskToKeepRecordings); Assert.Null(startNow.Armed);
 
         r.Controls.SetAskToKeepRecordings(true);
         var ask = Assert.Single(Sent<SetRunSettingsIntent>(r.Bus));
@@ -94,10 +100,11 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         Assert.Null(rec.Armed);
 
         // the master's broadcast flips what the toggles read
-        r.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, RecordLiveRunsOff = true, AskToKeepRecordings = true });
+        r.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, RecordLiveRunsOff = true, AskToKeepRecordings = true, StartLiveImmediately = true });
         r.Bus.SwapBuffers(); r.View.Update(); r.Adapter.Update(); r.Bus.SwapBuffers();
         Assert.False(r.Controls.RecordLiveRuns);
         Assert.True(r.Controls.AskToKeepRecordings);
+        Assert.True(r.Controls.StartImmediately);
     }
 
     /// <summary>No cluster view on the host ⇒ the toggles are disabled and read null (never a silent default send).</summary>

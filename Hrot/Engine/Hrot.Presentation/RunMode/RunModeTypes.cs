@@ -433,8 +433,10 @@ public interface IRunTransport
     bool? RecordLiveRunsSetting { get; }
     /// <summary>⭐ CE-4100 ① — the cluster's <i>Ask to keep recordings</i> setting (<c>ClusterView.AskToKeepRecordings</c>); <see langword="null"/> when no view.</summary>
     bool? AskToKeepSetting { get; }
+    /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting (<c>ClusterView.StartLiveImmediately</c>); <see langword="null"/> when no view.</summary>
+    bool? StartImmediatelySetting { get; }
     /// <summary>⭐ CE-4100 ① — publish the run settings (<c>SetRunSettingsIntent</c>, the ONE intent <see cref="SendArmed"/> uses): a <see langword="null"/> argument is "no change".</summary>
-    void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings);
+    void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings, bool? startLiveImmediately = null);
 
     /// <summary>⭐⭐⭐ <c>CE-1442</c> (U1, §11.7 ①) — the ONE run gate: built by the adapter from the node's <c>ClusterView</c> and the host's <see cref="HostGatePolicy"/> (<see cref="RunGate.From"/>); no view ⇒ <see cref="RunGate.AlwaysOpen"/>.</summary>
     RunGate Gate { get; }

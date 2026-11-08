@@ -67,6 +67,13 @@ public sealed class ClusterViewTests
         HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall });   // a sender that never sets it reads OFF again
         Assert.False(view.AskToKeepRecordings);
 
+        // CE-3415 (AQ108 D31) - Start immediately is one more field of the same fold
+        Assert.False(view.StartLiveImmediately);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall, StartLiveImmediately = true });
+        Assert.True(view.StartLiveImmediately);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall });
+        Assert.False(view.StartLiveImmediately);
+
         HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
         Assert.True(view.MasterGone);
         Assert.True(view.HasFollowedState);                       // a master WAS heard

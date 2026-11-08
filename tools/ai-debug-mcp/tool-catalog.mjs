@@ -2519,7 +2519,7 @@ export const TOOLS_CATALOG = [
       "path": "/run-settings"
     },
     "params": [],
-    "returns": "{ recordLiveRuns, armed, askToKeepRecordings }",
+    "returns": "{ recordLiveRuns, armed, askToKeepRecordings, startLiveImmediately }",
     "notes": [
       "A set_run_settings is visible here once the master has broadcast it (a frame or two)."
     ],
@@ -2557,9 +2557,15 @@ export const TOOLS_CATALOG = [
         "type": "boolean",
         "required": false,
         "description": "⭐ CE-4100 (AQ108 D15) — whether the operator UI asks Keep / Discard when a live run ends (default false: keep silently); absent = unchanged"
+      },
+      {
+        "name": "startLiveImmediately",
+        "type": "boolean",
+        "required": false,
+        "description": "⭐ CE-3415 (AQ108 D31) — a Live load resumes by itself instead of pausing at 0:00 for the briefing (default false); absent = unchanged"
       }
     ],
-    "returns": "{ published, requestId, recordLiveRuns?, armed?, askToKeepRecordings?, note }",
+    "returns": "{ published, requestId, recordLiveRuns?, armed?, askToKeepRecordings?, startLiveImmediately?, note }",
     "notes": [
       "The scenario verifier always records, whatever this says.",
       "A replay → live branch follows the setting like any live run."
@@ -2570,7 +2576,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "run live without recording"
     },
-    "hint": "At least one of: recordLiveRuns (bool), armed (preview|live|aar), askToKeepRecordings (bool); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
+    "hint": "At least one of: recordLiveRuns (bool), armed (preview|live|aar), askToKeepRecordings (bool), startLiveImmediately (bool); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
     "manualVerify": false
   },
 

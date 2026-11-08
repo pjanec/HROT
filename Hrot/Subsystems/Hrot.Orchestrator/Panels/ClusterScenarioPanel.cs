@@ -597,7 +597,7 @@ public sealed class ClusterScenarioPanel
     }
 
     /// <summary>⭐ CE-4100 ① — the cluster's run settings, through <see cref="ClusterPanelRunControls"/> (the ONE sender): <i>Record live runs</i> and <i>Ask to keep recordings</i>; enabled whenever this host has a cluster view.</summary>
-    private static readonly string[] ClusterLabels = { "Start Paused (Live/Preview)", "Record live runs", "Ask to keep recordings" };
+    private static readonly string[] ClusterLabels = { "Start Paused (Live/Preview)", "Record live runs", "Ask to keep recordings", "Start immediately" };
 
     private void RenderRunSettings(bool disableAll)
     {
@@ -606,6 +606,7 @@ public sealed class ClusterScenarioPanel
         if (!enabled) ImGui.BeginDisabled();
         bool record = controls?.RecordLiveRuns ?? true;
         bool ask = controls?.AskToKeepRecordings ?? false;
+        bool startNow = controls?.StartImmediately ?? false;
         if (FormGrid.Begin("orc.cluster", ClusterLabels))
         {
             FormGrid.Row("Record live runs");
@@ -614,6 +615,9 @@ public sealed class ClusterScenarioPanel
             FormGrid.Row("Ask to keep recordings");
             if (ImGui.Checkbox("##OrcAskKeep", ref ask)) controls!.SetAskToKeepRecordings(ask);
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("At ■ in a recorded live run, ask: Keep / Discard. Off: keep silently.");
+            FormGrid.Row("Start immediately");
+            if (ImGui.Checkbox("##OrcStartNow", ref startNow)) controls!.SetStartImmediately(startNow);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("a Live load starts running at once — no briefing pause");
             FormGrid.End();
         }
         if (!enabled) ImGui.EndDisabled();

@@ -149,6 +149,34 @@ public sealed class ClusterMasterLoadAndRunTests
         Assert.Equal(0, Resumes(bus));
     }
 
+    /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster setting <i>Start immediately</i>: a live load that asked to start paused runs by itself on its round's success when it is ON, and stays paused when it is OFF (the default).
+    /// 🔴 Mutation: <c>RunsWhenLoaded</c> ignoring <c>startLiveImmediately</c> ⇒ the ON case reads 0 resumes ⇒ red.</summary>
+    [Theory(Timeout = 10_000)]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void CE3415_AStartPausedLiveLoad_ResumesByItself_OnlyWhenStartImmediatelyIsOn(bool startImmediately, int expectedResumes)
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, Config());
+        Heartbeat(bus, master, 1);
+        Assert.False(master.StartLiveImmediately);                                    // the default
+        bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), StartLiveImmediately = startImmediately });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Equal(startImmediately, master.StartLiveImmediately);
+        var ops = Request(bus, master, "{\"TargetState\":\"OperatingLive\",\"ScenarioId\":\"s1\",\"TimeMode\":\"Deterministic\"}", "s1");
+        Answer(bus, master, ops, nodeId: 1);
+        Assert.Equal(expectedResumes, Resumes(bus));
+    }
+
+    /// <summary>⭐ CE-3415 — Preview is unaffected by the setting: a dry run that did not ask to run stays paused with it ON.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3415_APreview_IsUnaffected_ByStartImmediately()
+    {
+        var steps = new ISysOpStep[] { new TransitionStep(ClusterState.LoadingLive) };
+        var intent = new TransitionStateIntent { TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview, ScenarioId = "s1" };
+        Assert.False(ClusterMaster.RunsWhenLoaded(intent, steps, ClusterState.OperatingPreview, startLiveImmediately: true));
+    }
+
     /// <summary>⭐ Q86 §4-G, re-homed — a load whose round FAILS never runs (it ends in Idle, CE-3345).</summary>
     [Fact(Timeout = 10_000)]
     public void CE3354_ALiveLoad_WhoseRoundFails_NeverRuns()

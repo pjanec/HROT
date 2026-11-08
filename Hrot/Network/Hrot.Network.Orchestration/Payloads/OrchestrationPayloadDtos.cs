@@ -109,10 +109,12 @@ public record SetRunSettingsPayloadDto(
     [property: JsonPropertyName("AskToKeepRecordings")]
     bool? AskToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①) — appended; absent = no change
     [property: JsonPropertyName("FeatureOverrides")]
-    FeatureOverrideDto[]? FeatureOverrides = null)   // ⭐ Node Features F-16 — appended; absent = no change, empty = none
+    FeatureOverrideDto[]? FeatureOverrides = null,   // ⭐ Node Features F-16 — appended; absent = no change, empty = none
+    [property: JsonPropertyName("StartLiveImmediately")]
+    bool? StartLiveImmediately = null)   // ⭐ CE-3415 (AQ108 §0 D31) — appended; absent = no change
 {
     public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed, intent.AskToKeepRecordings,
-        intent.FeatureOverrides?.Select(o => new FeatureOverrideDto(o.Feature, o.Nodes.ToArray(), o.Json)).ToArray());
+        intent.FeatureOverrides?.Select(o => new FeatureOverrideDto(o.Feature, o.Nodes.ToArray(), o.Json)).ToArray(), intent.StartLiveImmediately);
 
     /// <summary>⭐ The ONE decoding (the master's translator): an unreadable payload changes nothing (both fields null).
     /// ⚠ CE-3341 changed this: before it, an unreadable payload meant "recording ON"; a no-op is the safer answer now that the op also carries the armed mode.</summary>
@@ -128,6 +130,7 @@ public record SetRunSettingsPayloadDto(
                     intent.RecordLiveRuns = dto.RecordLiveRuns;
                     intent.Armed = dto.Armed;
                     intent.AskToKeepRecordings = dto.AskToKeepRecordings;
+                    intent.StartLiveImmediately = dto.StartLiveImmediately;
                     intent.FeatureOverrides = dto.FeatureOverrides?.Select(o => new Fdp.Toolkit.Orchestration.FeatureOverrideSpec(o.Feature ?? "", o.Nodes ?? System.Array.Empty<string>(), o.Json ?? "")).ToArray();
                 }
             }

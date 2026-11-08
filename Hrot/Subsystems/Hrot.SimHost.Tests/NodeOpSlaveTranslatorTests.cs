@@ -405,6 +405,18 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.False(ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).AskToKeepRecordings);
     }
 
+    /// <summary>⭐ CE-3415 (AQ108 D31) — <i>Start immediately</i> rides the cluster-state broadcast both ways (APPENDED last, R-42); an older sender's topic reads OFF. 🔴 Mutation: <c>StateOf</c> not mapping it ⇒ red.</summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void CE3415_TheClusterStateBroadcast_CarriesStartLiveImmediately_BothWays(bool on, int wire)
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.Idle, StartLiveImmediately = on });
+        Assert.Equal(wire, topic.StartLiveImmediately);
+        Assert.Equal(on, ClusterFactsIngress.StateOf(topic).StartLiveImmediately);
+        Assert.False(ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).StartLiveImmediately);
+    }
+
     /// <summary>⭐ R-1043 — the mode of the last scenario load rides the cluster-state broadcast both ways; an older sender's (field never set) reads Live.</summary>
     [Fact]
     public void R1043_TheLastLoadMode_RidesTheBroadcastBothWays_AndAnOlderSenderReadsLive()

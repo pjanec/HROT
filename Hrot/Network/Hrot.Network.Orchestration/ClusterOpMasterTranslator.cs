@@ -41,6 +41,7 @@ public sealed class ClusterOpMasterTranslator
         ClusterPlayReady = ev.ClusterPlayReady,              // ⭐ CE-3345 R-3070
         LoadProgress     = ev.LoadProgress ?? string.Empty,
         AskToKeepRecordings = ev.AskToKeepRecordings ? 1 : 0,   // ⭐ AQ108 D15 (CE-4100 ①)
+        StartLiveImmediately = ev.StartLiveImmediately ? 1 : 0, // ⭐ CE-3415 (AQ108 §0 D31)
         LastLoadRequestId = ev.LastLoadRequestId,                  // ⭐ CE-3354 ⑦
         LastLoadScenario = ev.LastLoadScenario ?? string.Empty,
         FeatureOverrides = FeatureOverrideWires.ToWire(ev.FeatureOverrides),   // ⭐ Node Features F-16

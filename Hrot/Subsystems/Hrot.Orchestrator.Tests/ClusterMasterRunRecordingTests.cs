@@ -209,6 +209,29 @@ public sealed class ClusterMasterRunRecordingTests
         Assert.False(master.RecordLiveRuns);
     }
 
+    /// <summary>⭐ CE-3415 (AQ108 §0 D31) — <i>Start immediately</i>: OFF by default, set by the op, broadcast at once, left alone by an op that does not carry it.
+    /// 🔴 Mutation: the master not copying <c>StartLiveImmediately</c> into the broadcast ⇒ the broadcast assert fails.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3415_StartLiveImmediately_DefaultsOff_IsSetByTheOp_RidesTheBroadcast_AndAnOpThatDoesNotCarryItLeavesItAlone()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
+        ClusterStateUpdateEvent? Last()
+        {
+            ClusterStateUpdateEvent? last = null;
+            foreach (var e in bus.ReadManaged<ClusterStateUpdateEvent>()) last = e;
+            return last;
+        }
+        Assert.False(master.StartLiveImmediately);
+        bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), StartLiveImmediately = true });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.True(master.StartLiveImmediately);
+        Assert.True(Last()!.Value.StartLiveImmediately);
+        SetSetting(master, bus, false);                          // an op carrying only RecordLiveRuns
+        Assert.True(master.StartLiveImmediately);
+        Assert.True(Last()!.Value.StartLiveImmediately);
+    }
+
     // ── 4 — the verifier ──────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>⭐ §5a — the scenario verifier compares a RECORDING against a golden: its live load (<c>ForceRecording</c>) records even with the

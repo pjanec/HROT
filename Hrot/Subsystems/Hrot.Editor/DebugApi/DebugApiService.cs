@@ -75,6 +75,7 @@ namespace Hrot.Editor.DebugApi
         private readonly Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? _editorArmedMode;   // CE-3341 — the cluster's armed mode, from the in-process master's broadcast
         private readonly Func<bool?>? _editorRecordLiveRunsOff;   // CE-4090 — the setting, from the in-process master's broadcast
         private readonly Func<bool?>? _editorAskToKeepRecordings;   // CE-4100 — the same, for the Ask-to-keep setting
+        private readonly Func<bool?>? _editorStartLiveImmediately;   // CE-3415 — the same, for the Start-immediately setting
         private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?>? _editorClusterView;   // CE-3344 — the in-process node's ONE cluster read model (the 409 gate)
         private readonly Func<bool?>? _editorRunNotRecorded;   // CE-4090 — the in-process master's "this run was not recorded"
         private readonly Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? _editorUnsavedCheck;   // CE-4093 — the in-process master's check round answer
@@ -580,6 +581,7 @@ namespace Hrot.Editor.DebugApi
             Func<bool?>? runNotRecorded = null,
             Func<bool?>? recordLiveRunsOff = null,
             Func<bool?>? askToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①)
+            Func<bool?>? startLiveImmediately = null,   // ⭐ CE-3415 (AQ108 §0 D31)
             Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? armedMode = null,   // ⭐ CE-3341
             // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer + last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS them.
             Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
@@ -590,6 +592,7 @@ namespace Hrot.Editor.DebugApi
             _editorClusterView = clusterView;
             _editorRecordLiveRunsOff = recordLiveRunsOff;
             _editorAskToKeepRecordings = askToKeepRecordings;
+            _editorStartLiveImmediately = startLiveImmediately;
             _editorArmedMode = armedMode;
             _editorRunNotRecorded = runNotRecorded;
             _editorUnsavedCheck = unsavedCheck;

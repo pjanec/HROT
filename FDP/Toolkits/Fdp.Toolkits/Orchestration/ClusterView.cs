@@ -63,6 +63,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, as the master's last broadcast said (false = OFF, also before a broadcast and for a sender that does not set it).</summary>
         public bool AskToKeepRecordings { get; private set; }
 
+        /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting is ON, as the master's last broadcast said (false before a broadcast and for a sender that does not set it).</summary>
+        public bool StartLiveImmediately { get; private set; }
+
         /// <summary>⭐ Node Features F-16 — the cluster's feature overrides, off the master's broadcast; empty = none. A NEW list object per broadcast, so a reader can compare references.</summary>
         public IReadOnlyList<FeatureOverrideSpec> FeatureOverrides { get; private set; } = Array.Empty<FeatureOverrideSpec>();
 
@@ -252,6 +255,7 @@ namespace Fdp.Toolkit.Orchestration
                     RunNotRecorded = ev.RunNotRecorded;        // ⭐ CE-4090 D14
                     RecordLiveRunsOff = ev.RecordLiveRunsOff;
                     AskToKeepRecordings = ev.AskToKeepRecordings;   // ⭐ AQ108 D15 (CE-4100 ①)
+                    StartLiveImmediately = ev.StartLiveImmediately;   // ⭐ CE-3415 (AQ108 §0 D31)
                     FeatureOverrides = ev.FeatureOverrides ?? Array.Empty<FeatureOverrideSpec>();   // ⭐ Node Features F-16
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
                     LastLoadMode = ev.LastLoadMode;            // ⭐ R-1043

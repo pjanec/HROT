@@ -34,6 +34,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
     private ClusterState _state = ClusterState.OperatingLive;
     private bool? _notRecorded = true;
     private bool? _settingOff = false;   // the broadcast's RecordLiveRunsOff
+    private bool? _startNow = false;   // CE-3415 — the broadcast's StartLiveImmediately
     private bool? _askToKeep = false;   // CE-4100 — the broadcast's AskToKeepRecordings
     private ClusterArmedMode? _armed;     // CE-3341 — the broadcast's armed mode (null = this node keeps none: the route answers the default, live)
 
@@ -45,7 +46,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
             new ISubsystemDebugProvider[]
             {
                 new SubsystemDebugProvider("Player", "Player"),
-                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff, askToKeepRecordings: () => _askToKeep, armedMode: () => _armed),
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff, askToKeepRecordings: () => _askToKeep, startLiveImmediately: () => _startNow, armedMode: () => _armed),
             },
             currentPerspective: () => "CGF", acksPending: null);
         var service = new DebugApiService(dispatcher, clusterState: () => _state);
@@ -213,6 +214,22 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
         Assert.True(body["data"]!["askToKeepRecordings"]!.GetValue<bool>());
         _master.Sent.Clear();
         (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"askToKeepRecordings":"yes"}""")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Empty(_master.Sent);
+
+        // ── CE-3415 (AQ108 D31) — "Start immediately": the same route, the same op ─────────────────────────────────────────────────────────────
+        (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.False(body["data"]!["startLiveImmediately"]!.GetValue<bool>());                                       // the master's default
+        _startNow = true;
+        (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.True(body["data"]!["startLiveImmediately"]!.GetValue<bool>());
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"startLiveImmediately":true}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        var startOp = Assert.IsType<SetRunSettingsIntent>(Assert.Single(_master.Sent));
+        Assert.Equal(true, startOp.StartLiveImmediately);
+        Assert.Null(startOp.RecordLiveRuns); Assert.Null(startOp.AskToKeepRecordings); Assert.Null(startOp.Armed);
+        _master.Sent.Clear();
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"startLiveImmediately":"yes"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
         Assert.Empty(_master.Sent);
     }

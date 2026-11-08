@@ -93,6 +93,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool? AskToKeepRecordings;
         /// <summary>⭐ Node Features F-16 — the cluster's feature overrides (the whole list); <see langword="null"/> = no change, empty = none.</summary>
         public FeatureOverrideSpec[]? FeatureOverrides;
+        /// <summary>⭐ CE-3415 (AQ108 §0 D31) — the cluster's <i>Start immediately</i> setting: a Live load resumes by itself instead of pausing at 0:00 for the briefing; <see langword="null"/> = no change.</summary>
+        public bool? StartLiveImmediately;
     }
 
     /// <summary>
