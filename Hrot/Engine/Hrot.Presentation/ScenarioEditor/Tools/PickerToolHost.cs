@@ -46,8 +46,14 @@ namespace Hrot.ScenarioEditor.Tools
         public const double FlashSeconds = 1.5;
         /// <summary>⭐ B-17 P4 — how long <i>"replaced: …"</i> stays under the banner.</summary>
         public const double NoticeSeconds = 3.0;
-        /// <summary>The banner's screen position (pixels, from the map's top-left): the [Cancel] button, then the prompt after it. 📐 The button box is the word's: about 8 px a letter at the 13 px gizmo font.</summary>
-        public const float CancelLeftPx = 16f, PromptLeftPx = 100f, BannerTopPx = 12f, CancelWidthPx = 76f, CancelHeightPx = 20f;
+        /// <summary>The banner's screen position (pixels, from the map's top-left): the Cancel button, then the prompt after it. ⭐ B-17 P7 ④ — <c>CancelLeftPx</c> /
+        /// <c>BannerTopPx</c> are where the WORD is drawn; the button box is the word plus the drawer's padding (<c>GizmoTextDraw.PadX/PadY</c>) — ONE definition,
+        /// <see cref="CancelBoxLeftPx"/> … <see cref="CancelBoxBottomPx"/>, which <see cref="OverCancel"/> tests. 📐 "Cancel" at the 13 px gizmo font is ~45 px wide (Roboto advances + 1 px spacing).</summary>
+        public const float CancelLeftPx = 16f, PromptLeftPx = 100f, BannerTopPx = 12f, CancelTextWidthPx = 45f, GizmoTextHeightPx = 13f;
+        public const float CancelBoxLeftPx = CancelLeftPx - GizmoMap.Presentation.GizmoTextDraw.PadX;
+        public const float CancelBoxRightPx = CancelLeftPx + CancelTextWidthPx + GizmoMap.Presentation.GizmoTextDraw.PadX;
+        public const float CancelBoxTopPx = BannerTopPx - GizmoMap.Presentation.GizmoTextDraw.PadY;
+        public const float CancelBoxBottomPx = BannerTopPx + GizmoTextHeightPx + GizmoMap.Presentation.GizmoTextDraw.PadY;
 
         /// <summary>⭐ B-17 P4 — the pick in progress (null: none).</summary>
         private PendingPick? _pending;
@@ -144,8 +150,8 @@ namespace Hrot.ScenarioEditor.Tools
         /// <summary>⭐ B-17 P4 — the mouse is on the banner's [Cancel] (screen pixels; false when the host gave no mouse).</summary>
         internal bool OverCancel()
             => _mouseScreen?.Invoke() is { } m
-               && m.X >= CancelLeftPx - 4f && m.X <= CancelLeftPx + CancelWidthPx
-               && m.Y >= BannerTopPx - 4f && m.Y <= BannerTopPx - 4f + CancelHeightPx;
+               && m.X >= CancelBoxLeftPx && m.X <= CancelBoxRightPx
+               && m.Y >= CancelBoxTopPx && m.Y <= CancelBoxBottomPx;
 
         /// <summary>⭐ B-17 P4 — cancels the pending pick as its Cancel / Esc does (the field's await completes cancelled). False with no pick.</summary>
         public bool CancelPending()

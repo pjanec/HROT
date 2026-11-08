@@ -337,16 +337,11 @@ namespace GizmoMap.Presentation
                         }
                         else
                         {
-                            int segments = Math.Max(16, (int)(scaledRadius * 2f));
-                            float step = (MathF.PI * 2f) / segments;
-                            for (int i = 0; i < segments; i++)
-                            {
-                                float a0 = i * step;
-                                float a1 = (i + 1) * step;
-                                var p0 = center + new Vector2(MathF.Cos(a0), MathF.Sin(a0)) * scaledRadius;
-                                var p1 = center + new Vector2(MathF.Cos(a1), MathF.Sin(a1)) * scaledRadius;
-                                DrawStyledLine(p0, p1, scaledThickness, color, prim.LineStyle, geomScale);
-                            }
+                            // ⭐ B-17 P7 ⑤ — a DASHED / DOTTED ring: the pattern runs round the CIRCUMFERENCE, in screen pixels (the outline is pixels, CE-3154).
+                            //   ⛔ Was: 2 chords per metre each drawn through DrawStyledLine, whose dash (8 px, 8 m for a world-metre sphere) was longer than every
+                            //   chord ⇒ every chord was drawn whole ⇒ a "dashed" ring was a solid one.
+                            float unit = screenSpace || zoom <= 0f ? 1f : 1f / zoom;
+                            DrawStyledRing(center, scaledRadius, scaledThickness, color, prim.LineStyle, unit);
                         }
                     }
                     break;
@@ -459,14 +454,14 @@ namespace GizmoMap.Presentation
                             Rlgl.PushMatrix();
                             Rlgl.Translatef(prim.TextX, prim.TextY, 0f);
                             Rlgl.Scalef(1f, -1f, 1f);
-                            Raylib.DrawTextEx(font, str, new Vector2(0f, offsetY), px * invZoom, 1f * invZoom, color);
+                            GizmoTextDraw.DrawStyled(font, str, new Vector2(0f, offsetY), px * invZoom, 1f * invZoom, invZoom, prim.TextStyle, color);
                             Rlgl.PopMatrix();
                         }
                         else
                         {
-                            Raylib.DrawTextEx(
+                            GizmoTextDraw.DrawStyled(
                                 font, str, new Vector2(prim.TextX, prim.TextY + offsetY),
-                                px * invZoom, 1f * invZoom, color);
+                                px * invZoom, 1f * invZoom, invZoom, prim.TextStyle, color);
                         }
                     }
                     break;
@@ -666,6 +661,30 @@ namespace GizmoMap.Presentation
                 var segEnd = start + normDir * segEndDist;
                 Raylib.DrawLineEx(segStart, segEnd, thickness, color);
                 currentDist += dashLen + gapLen;
+            }
+        }
+
+        /// <summary>⭐ B-17 P7 ⑤ — a ring as <c>N</c> dashes round the circumference, each a short polyline; the dash / gap lengths are <paramref name="unit"/> × 8 / 8 (dashed) or 3 / 4 (dotted). Allocation-free.</summary>
+        internal static void DrawStyledRing(Vector2 centre, float radius, float thickness, Color color, LineStyle style, float unit)
+        {
+            if (radius <= 0f) return;
+            float dash = (style == LineStyle.Dashed ? 8f : 3f) * unit, gap = (style == LineStyle.Dashed ? 8f : 4f) * unit;
+            float circumference = MathF.PI * 2f * radius;
+            int pairs = Math.Max(3, (int)MathF.Round(circumference / (dash + gap)));
+            float span = MathF.PI * 2f / pairs;
+            float dashAngle = span * dash / (dash + gap);
+            int chords = Math.Clamp((int)MathF.Ceiling(dashAngle / 0.25f), 1, 8);
+            for (int i = 0; i < pairs; i++)
+            {
+                float a = i * span;
+                var prev = centre + new Vector2(MathF.Cos(a), MathF.Sin(a)) * radius;
+                for (int k = 1; k <= chords; k++)
+                {
+                    float b = a + dashAngle * k / chords;
+                    var next = centre + new Vector2(MathF.Cos(b), MathF.Sin(b)) * radius;
+                    Raylib.DrawLineEx(prev, next, thickness, color);
+                    prev = next;
+                }
             }
         }
 

@@ -27,7 +27,7 @@ public sealed record ShapeMenu(string Json, Func<int, ShapeCommand?> Map);
 
 /// <summary>
 /// ⭐⭐ B-17 P2 (📄 docs/UX/DESIGN_Map_Interaction.md §2.1, §2.2, §2.5 — D11) — THE ONE drawing core: a list of points and the finish / cancel convention.
-/// Enter, the on-map ✓ or the menu's <i>Finish</i> all reach <see cref="Finish"/>; Esc reaches <see cref="Cancel"/>; Backspace is <see cref="RemoveLast"/>;
+/// Enter, the on-map Done button or the menu's <i>Finish</i> all reach <see cref="Finish"/>; Esc reaches <see cref="Cancel"/>; Backspace is <see cref="RemoveLast"/>;
 /// right-click is the MENU (the gizmo does nothing with it); too few points ⇒ <see cref="Finish"/> says why and the tool stays armed. Pure — no
 /// drawing, no input device: each gizmo (<see cref="PointSequenceGizmo"/>, <see cref="AreaShapeGizmo"/>, and the editors of a drawn shape and a route in
 /// Hrot.Presentation) keeps only its own drawing and its own result type. ⛔ A second copy of any of this in a gizmo is the defect the class exists to prevent.
@@ -84,7 +84,7 @@ public sealed class ShapeEditSession
     public ShapeMenu? Menu { get; set; }
 
     /// <summary>The keys, as the hint line says them — the minimum and the finish, undo and cancel keys.</summary>
-    public string KeysHint => $"click: add point · Enter / ✓: finish ({MinPoints}+) · Backspace: undo point · Esc: cancel";
+    public string KeysHint => $"click: add point · Enter / Done: finish ({MinPoints}+) · Backspace: undo point · Esc: cancel";
 
     // ── editing the points ──────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -356,7 +356,7 @@ public sealed class ShapeEditSession
     /// <summary>How near a click must be to the first point to close an area (m): a tenth of the extent, between 2 and 40.</summary>
     public float FirstPointRadius => Math.Clamp(Extent * 0.1f, 2f, 40f);
 
-    /// <summary>The ✓'s half size (m).</summary>
+    /// <summary>The Done button's unit <c>d</c> (m): its half height is <c>1.1 d</c>, its half width <c>3.2 d</c> (<see cref="ShapeDoneMark"/>).</summary>
     public float DoneHalfSize => Math.Clamp(FirstPointRadius * 0.8f, 2f, 12f);
 
     /// <summary>Where the ✓ sits: beside the bounding box's top-right corner, clear of every point. Meaningful with at least one point.</summary>
@@ -366,7 +366,7 @@ public sealed class ShapeEditSession
         {
             if (_points.Count == 0) return Vector2.Zero;
             Bounds(out _, out var max);
-            return max + new Vector2(DoneHalfSize * 3f, DoneHalfSize * 3f);
+            return max + ShapeDoneMark.Offset(DoneHalfSize);
         }
     }
 
@@ -374,9 +374,7 @@ public sealed class ShapeEditSession
     public bool HitDone(Vector2 at)
     {
         if (_points.Count == 0) return false;
-        var d = DonePosition;
-        float h = DoneHalfSize;
-        return MathF.Abs(at.X - d.X) <= h && MathF.Abs(at.Y - d.Y) <= h;
+        return ShapeDoneMark.Hit(DonePosition, DoneHalfSize, at);   // ⭐ B-17 P7 ⑥c — the button's own rectangle, the ONE definition
     }
 
     /// <summary>Does <paramref name="at"/> hit the first point of a CLOSED shape that already has enough points — the click that closes it? (With fewer

@@ -44,7 +44,7 @@ namespace Hrot.Player.Tests.Gizmos
             => ArrowCalls.Add((from, to, color));
 
         public void DrawText(float x, float y, FixedString32 text, Rgba32 color,
-            CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f)
+            CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain)
             => TextCalls.Add((x, y, text, color));
 
         public void DrawLine(Vector3 start, Vector3 end, Rgba32 color,
@@ -68,7 +68,7 @@ namespace Hrot.Player.Tests.Gizmos
             PipelineTarget target = PipelineTarget.All, byte layer = 0, LineStyle style = LineStyle.Solid) { }
 
         public void DrawTextLong(float x, float y, string text, Rgba32 color,
-            CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
+            CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain) { }
 
         public void DrawEntityLocal(int anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0) { }

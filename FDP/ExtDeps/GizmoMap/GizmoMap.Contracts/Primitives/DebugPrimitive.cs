@@ -87,6 +87,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         //     DebugPrimitiveBuffer.DrawText (both copies). Consumers: DebugPrimitiveRenderer2D:345,:360.
         [FieldOffset(12)] public short LineOffsetPx;
         [FieldOffset(14)] public SizeMode SizeMode;
+        // ⭐ B-17 P7 ⑥ — the SAME byte, read as a Text's box style. A Text never reads SizeMode (DebugPrimitiveRenderer2D "SizeMode is intentionally
+        //   not consulted for text scaling"; measured: no Text producer sets it), so the byte is free for Text ONLY — ⛔ do not read it for any other shape.
+        [FieldOffset(14)] public GizmoTextStyle TextStyle;
         [FieldOffset(15)] public byte ZIndex;           // intra-layer sort; 0=background
         [FieldOffset(16)] public ushort ThicknessU16;   // thickness * 10 (max 6553.5)
         [FieldOffset(18)] public byte MinZoomLod;        // 0=no limit; n*0.25=min zoom
@@ -445,7 +448,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             CoordinateSpace space = CoordinateSpace.World,
             byte layer = 0,
             float fontSizePx = 0f,
-            float lineOffsetPx = 0f)
+            float lineOffsetPx = 0f,
+            GizmoTextStyle style = GizmoTextStyle.Plain)
         {
             var p = default(DebugPrimitive);
             p.Shape       = DebugPrimitiveShape.Text;
@@ -465,6 +469,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // Signed: negative moves the line UP, positive DOWN.
             if (lineOffsetPx != 0f)
                 p.LineOffsetPx = (short)lineOffsetPx;
+            p.TextStyle = style;   // ⭐ B-17 P7 ⑥ — offset 14, Text only
             return p;
         }
 

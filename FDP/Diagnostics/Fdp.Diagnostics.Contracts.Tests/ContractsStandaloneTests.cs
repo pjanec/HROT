@@ -403,6 +403,42 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
         }
 
+        // ---- B-17 P7 ⑥: TextStyle, the Text-only alias at offset 14 ----------------------------------------
+        // 📄 docs/UX/DESIGN_Map_Interaction.md "P7 — the build". Added into this suite -- SC-FONT-TEXT-* already owns the text primitive.
+
+        // SC-FONT-TEXT-7: a Text with Backdrop / Button round-trips through every writer (MakeText, DrawText, DrawTextLong) and a plain one stays Plain.
+        // 🔴 RED-PROOF (compiles): DrawTextLong not storing `p.TextStyle = style` ⇒ the interned line comes back Plain.
+        [Fact]
+        public void SC_FONT_TEXT_7_TextStyle_RoundTripsThroughEveryTextWriter()
+        {
+            var white = new Rgba32(255, 255, 255, 255);
+            Assert.Equal(GizmoTextStyle.Plain, DebugPrimitive.MakeText(0f, 0f, new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("a"), white).TextStyle);
+            Assert.Equal(GizmoTextStyle.Backdrop, DebugPrimitive.MakeText(0f, 0f, new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("a"), white, style: GizmoTextStyle.Backdrop).TextStyle);
+
+            var buffer = new DebugPrimitiveBuffer(capacity: 8);
+            buffer.DrawText(0f, 0f, "short", white, style: GizmoTextStyle.Button);
+            buffer.DrawTextLong(0f, 0f, "a longer interned line of text", white, style: GizmoTextStyle.Backdrop);
+            buffer.DrawTextLong(0f, 0f, "a plain interned line of text", white);
+            var frame = buffer.GetFrame();
+            Assert.Equal(GizmoTextStyle.Button, frame[0].TextStyle);
+            Assert.Equal(GizmoTextStyle.Backdrop, frame[1].TextStyle);
+            Assert.Equal(GizmoTextStyle.Plain, frame[2].TextStyle);
+            // the line offset and the font size next to it are untouched by the style byte
+            var both = DebugPrimitive.MakeText(0f, 0f, new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("a"), white, fontSizePx: 11f, lineOffsetPx: -30f, style: GizmoTextStyle.Backdrop);
+            Assert.Equal((short)-30, both.LineOffsetPx);
+            Assert.Equal((ushort)11, both.ThicknessU16);
+        }
+
+        // SC-FONT-TEXT-7b: the style byte IS SizeMode's byte (offset 14) -- the layout stays 64 B, and ⛔ a non-Text primitive must never read it as a style.
+        [Fact]
+        public void SC_FONT_TEXT_7b_TextStyle_AliasesSizeMode_AtOffset14_AndTheLayoutStays64()
+        {
+            var p = default(DebugPrimitive);
+            p.TextStyle = GizmoTextStyle.Button;
+            Assert.Equal((byte)GizmoTextStyle.Button, (byte)p.SizeMode);
+            Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
+        }
+
         // ---- S7: the EntityLocal anchor key is 32 bits wide ---------------------
         // 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6 (S7); CE-259z.
 

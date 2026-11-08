@@ -72,7 +72,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             CoordinateSpace space = CoordinateSpace.World,
             byte layer = 0,
             float fontSizePx = 0f,
-            float lineOffsetPx = 0f);
+            float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain);
 
         // Interns full managed string for text exceeding 31 chars; emits StringHash != 0.
         // The first 31 chars are stored inline as a preview fallback.
@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             CoordinateSpace space = CoordinateSpace.World,
             byte layer = 0,
             float fontSizePx = 0f,
-            float lineOffsetPx = 0f);
+            float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain);
 
         void DrawEntityBadge(
             Entity target, FixedString32 richText,

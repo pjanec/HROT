@@ -112,11 +112,42 @@ public class ShapeEditSessionTests
         var s = Area(); Fill(s, 3);
         var d = s.DonePosition;
         foreach (var p in s.Points) Assert.True(Vector2.Distance(p, d) > s.DoneHalfSize * 2f, "the ✓ never sits on a point");
-        Assert.Contains("Enter / ✓: finish (3+)", s.KeysHint);
+        Assert.Contains("Enter / Done: finish (3+)", s.KeysHint);
         Assert.Contains("Backspace: undo point", s.KeysHint);
         Assert.Contains("Esc: cancel", s.KeysHint);
         Assert.False(new ShapeEditSession(1, false).HitDone(Vector2.Zero));       // no points: no ✓ to hit
     }
+    /// <summary>
+    /// ⭐ B-17 P7 ⑥c — the Done BUTTON is ONE rectangle: the Box2D <see cref="ShapeDoneMark"/> draws is centred on <c>DonePosition</c> with the half extents <c>HalfWidth × HalfHeight</c>
+    /// (wider than tall) and a click anywhere inside it — even at its far corner — is <c>HitDone</c>, one just outside is not; the word is plain "Done" text beside a green tick.
+    /// 🔴 Red-proof (compiles): <c>HitDone</c> back to a square of <c>DoneHalfSize</c> ⇒ the corner assertion goes red.
+    /// </summary>
+    [Fact]
+    public void P7_TheDoneButton_IsOneRectangle_ThatIsDrawnAndThatIsHit()
+    {
+        var s = Area(); Fill(s, 3);
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        ShapeDoneMark.Draw(buffer, s);
+        var frame = buffer.GetFrame().ToArray();
+        var box = Assert.Single(frame, p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Box2D);
+        var c = s.DonePosition; float d = s.DoneHalfSize;
+        Assert.Equal(c.X, box.BoxCenterX, 3); Assert.Equal(c.Y, box.BoxCenterY, 3);
+        Assert.Equal(ShapeDoneMark.HalfWidth(d), box.BoxExtentX, 3);
+        Assert.Equal(ShapeDoneMark.HalfHeight(d), box.BoxExtentY, 3);
+        Assert.True(box.BoxExtentX > box.BoxExtentY * 2f, "a button: wider than tall");
+        float hw = box.BoxExtentX, hh = box.BoxExtentY;
+        Assert.True(s.HitDone(c + new Vector2(hw - 0.01f, hh - 0.01f)));
+        Assert.True(s.HitDone(c - new Vector2(hw - 0.01f, hh - 0.01f)));
+        Assert.False(s.HitDone(c + new Vector2(hw + 0.01f, 0f)));
+        Assert.False(s.HitDone(c + new Vector2(0f, hh + 0.01f)));
+        Assert.Equal(2, frame.Count(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Line));   // the tick
+        var word = Assert.Single(frame, p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text);
+        Assert.Equal("Done", word.TextContent.ToString());
+        Assert.Equal(Fdp.Toolkit.Diagnostics.Gizmos.GizmoTextStyle.Plain, word.TextStyle);
+        Assert.InRange(word.TextX, c.X - hw, c.X + hw);   // the word starts inside the box
+        foreach (var p in s.Points) Assert.False(ShapeDoneMark.Hit(c, d, p), "the button never covers a point");
+    }
+
     // ── ⭐ B-17 P6 — the editing handles (📄 DESIGN_Map_Interaction §2.5 "editing a shape or route") ─────────────────────────────────────
 
     private static ShapeEditSession Triangle()

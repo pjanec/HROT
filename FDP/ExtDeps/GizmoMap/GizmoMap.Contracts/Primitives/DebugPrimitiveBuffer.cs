@@ -172,9 +172,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             CoordinateSpace space = CoordinateSpace.World,
             byte layer = 0,
             float fontSizePx = 0f,
-            float lineOffsetPx = 0f)
+            float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain)
         {
-            Append(DebugPrimitive.MakeText(x, y, text, color, space, layer, fontSizePx, lineOffsetPx));
+            Append(DebugPrimitive.MakeText(x, y, text, color, space, layer, fontSizePx, lineOffsetPx, style));
         }
 
         public void DrawTextLong(
@@ -182,7 +182,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             CoordinateSpace space = CoordinateSpace.World,
             byte layer = 0,
             float fontSizePx = 0f,
-            float lineOffsetPx = 0f)
+            float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain)
         {
             uint hash = StringInternMap.Fnv1a32(text);
             _internMap.Intern(hash, text);   // idempotent; allocates only on first call
@@ -205,6 +205,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // Offset 12 carries the screen-pixel line offset for Text primitives (S6, signed).
             if (lineOffsetPx != 0f)
                 p.LineOffsetPx = (short)lineOffsetPx;
+            p.TextStyle = style;   // ⭐ B-17 P7 ⑥ — offset 14, Text only
             Append(p);
         }
 

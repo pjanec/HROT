@@ -155,6 +155,21 @@ public class AreaShapeGizmoTests
         Assert.Equal(2, cancelled);
     }
 
+    /// <summary>⭐ B-17 P7 ⑥c — the area gizmo's Done button is the SAME rectangle <see cref="ShapeDoneMark"/> draws: a press at the button's far corner finishes, one just outside does not.</summary>
+    [Fact]
+    public void P7_TheDoneButtonOfAnArea_IsHitOverItsWholeRectangle()
+    {
+        var shape = AreaLink.Circle(Origin, 20f);
+        var c = AreaShapeHandles.DonePosition(shape); float d = AreaShapeHandles.DoneHalfSize(shape);
+        Assert.True(AreaShapeHandles.HitDone(shape, c + new Vector2(ShapeDoneMark.HalfWidth(d) - 0.01f, ShapeDoneMark.HalfHeight(d) - 0.01f)));
+        Assert.False(AreaShapeHandles.HitDone(shape, c + new Vector2(ShapeDoneMark.HalfWidth(d) + 0.01f, 0f)));
+        Assert.False(AreaShapeHandles.HitDone(shape, c + new Vector2(0f, ShapeDoneMark.HalfHeight(d) + 0.01f)));
+        AreaLink? done = null;
+        var g = new AreaShapeGizmo(shape, a => done = a, () => { }, () => { });
+        Press(g, c + new Vector2(ShapeDoneMark.HalfWidth(d) * 0.9f, 0f));   // on the button's right end, where the old square was not
+        Assert.Equal(shape, done);
+    }
+
     /// <summary>⭐ B-17 P2 (D11) — right-click is the MENU: it ends NOTHING (it used to cancel). The gizmo advertises its menu for the layer to open.</summary>
     [Fact]
     public void D11_A_right_click_ends_nothing_and_the_gizmo_has_a_menu_to_open()

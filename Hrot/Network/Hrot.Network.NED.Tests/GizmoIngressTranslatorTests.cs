@@ -161,5 +161,14 @@ namespace Hrot.DDS.DataModel.Tests
             Assert.Equal(0xDEADBEEFu, prim.StringHash);
             Assert.Equal((short)-30,  prim.LineOffsetPx);
         }
+
+        // B-17 P7 ⑥: a Text's box style (offset 14, aliasing SizeMode) survives the ingress — a remote terminal draws the same backdrop / button.
+        [Fact]
+        public void P7_ReceivedText_KeepsItsTextStyle()
+        {
+            var p = DebugPrimitive.MakeText(1f, 2f, new FixedString32("hi"), new Rgba32(255, 255, 255, 255), style: GizmoTextStyle.Button);
+            p.TargetView = PipelineTarget.Map2D;
+            Assert.Equal(GizmoTextStyle.Button, Ingest(p).GetFrame()[0].TextStyle);
+        }
     }
 }

@@ -45,9 +45,9 @@ public class VertexEditGizmoTests : IDisposable
             Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
         public void DrawArrow(Vector3 f, Vector3 t, Rgba32 c, float h = 1f, byte l = 0) { }
         public void DrawText(float x, float y, Fdp.Core.FixedString32 t, Rgba32 c,
-            CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
+            CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain) { }
         public void DrawTextLong(float x, float y, string t, Rgba32 c,
-            CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
+            CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain) { }
         public void DrawEntityBadge(Entity e, Fdp.Core.FixedString32 rt,
             PipelineTarget tg = PipelineTarget.All) { }
         public void DrawEntityLocal(int a, Vector3 ls, Vector3 le,
@@ -412,8 +412,8 @@ public class VertexEditGizmoTests : IDisposable
         public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f, SizeMode m = SizeMode.ScreenPixels, PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
         public void DrawSphere(Vector3 c, float r, Rgba32 col, float thickness = 0f, SizeMode sm2 = SizeMode.WorldMeters, PipelineTarget tg = PipelineTarget.All, byte l = 0, Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
         public void DrawArrow(Vector3 f, Vector3 t, Rgba32 c, float h = 1f, byte l = 0) { }
-        public void DrawText(float x, float y, Fdp.Core.FixedString32 t, Rgba32 c, CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
-        public void DrawTextLong(float x, float y, string t, Rgba32 c, CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
+        public void DrawText(float x, float y, Fdp.Core.FixedString32 t, Rgba32 c, CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain) { }
+        public void DrawTextLong(float x, float y, string t, Rgba32 c, CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain) { }
         public void DrawEntityBadge(Entity e, Fdp.Core.FixedString32 rt, PipelineTarget tg = PipelineTarget.All) { }
         public void DrawEntityLocal(int a, Vector3 ls, Vector3 le, Rgba32 c, float t = 1f, byte l = 0) { }
         public void DrawEntityLocalInteractive(int a, Vector3 ls, Vector3 le, Rgba32 c, ushort sid, float t = 1f, byte l = 0) { }

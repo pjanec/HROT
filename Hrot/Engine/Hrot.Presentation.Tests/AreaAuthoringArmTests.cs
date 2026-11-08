@@ -461,7 +461,7 @@ public sealed class AreaAuthoringArmTests
         tools.Register(new ToolDescriptor("draw-area", "Draw Area", ToolModality.Modal, ToolArbiter.Global, Hint: DrawingMenu.AreaHint),
             _ => arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, _ => { })));
         Assert.True(tools.Activate("draw-area"));
-        Assert.Contains("Enter / ✓: finish (3+)", tools.ActiveHint);   // the hint names the minimum and the keys
+        Assert.Contains("Enter / Done: finish (3+)", tools.ActiveHint);   // the hint names the minimum and the keys
 
         var g = arm.ActiveGizmo!;
         Click(g, ThreePoints[0]); Click(g, ThreePoints[1]);

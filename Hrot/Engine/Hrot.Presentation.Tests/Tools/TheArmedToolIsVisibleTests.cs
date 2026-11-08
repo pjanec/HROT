@@ -57,7 +57,7 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
             Assert.Contains("the centre (moves all)", hint);
             Assert.Contains("click a segment: add", hint);
             Assert.Contains("Del: delete", hint);
-            Assert.Contains("Enter / ✓: done", hint);
+            Assert.Contains("Enter / Done: done", hint);
         }
         Assert.Equal(DrawingMenu.EditShapeHint, mi.Tools.DescriptorOf(ScenarioToolIds.Edit)!.Hint);
         Assert.Equal(DrawingMenu.EditRouteHint, mi.Tools.DescriptorOf(ScenarioToolIds.Route)!.Hint);
@@ -148,9 +148,10 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
         new ToolHintGizmo().Draw(_world, buffer);
         var p = buffer.GetFrame().ToArray().Single(q => q.Shape == DebugPrimitiveShape.Text);
         string onMap = buffer.InternMap.TryResolve(p.StringHash)!;
-        Assert.DoesNotContain("✓", onMap);
-        Assert.Contains("Enter / tick: finish (3+)", onMap);
-        Assert.Contains("Enter / ✓: finish (3+)", mi.Tools.ActiveHint);   // the status line keeps the real glyph
+        Assert.DoesNotContain("✓", onMap);   // ⭐ B-17 P7 ⑥ — Roboto has no ✓: the hint says "Done", the same word as the on-map button
+        Assert.Contains("Enter / Done: finish (3+)", onMap);
+        Assert.Contains("Enter / Done: finish (3+)", mi.Tools.ActiveHint);   // one wording on the map and on the status line
+        Assert.Equal(GizmoTextStyle.Backdrop, p.TextStyle);                   // ⭐ B-17 P7 ⑥ — and it is drawn on a backdrop
     }
 
     /// <summary>
@@ -475,13 +476,13 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
                 for (int x = 0; x < image.Width; x++)
                 {
                     var c = Raylib_cs.Raylib.GetImageColor(image, x, y);
-                    if (y < 40 && c.R > 200 && c.G > 150 && c.G < 230 && c.B < 130) amber++;       // [Cancel]
+                    if (y < 40 && System.Math.Abs(c.R - 0x23) < 10 && System.Math.Abs(c.G - 0x41) < 10 && System.Math.Abs(c.B - 0x5F) < 10) amber++;   // ⭐ B-17 P7 ④ — Cancel is a Button box now (0x23415F)
                     if (y < 40 && c.R > 220 && c.G > 220 && c.B > 220) white++;                     // the prompt
                     if (y >= 40 && c.R > 220 && c.G < 150 && c.B < 140) flash++;                    // the refusal (red text) and the red crosshair arms
                 }
         }
         finally { Raylib_cs.Raylib.UnloadImage(image); }
-        Assert.True(amber > 15, $"[Cancel] is drawn ({amber} amber px)");
+        Assert.True(amber > 300, $"Cancel is drawn as a button box ({amber} button-blue px)");
         Assert.True(white > 60, $"the prompt is drawn ({white} white px)");
         Assert.True(flash > 20, $"the refusal flashes at the cursor ({flash} red px)");
         Console.WriteLine("P4 frame: " + png);

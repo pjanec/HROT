@@ -218,11 +218,7 @@ internal sealed class RaylibPresentationShell : IPresentationShell
 
     public void LoadGizmoFont()
     {
-        byte[] ttf = Fdp.Presentation.Fonts.EmbeddedFontResources.GetRobotoRegularTtfBytes();
-        // Load at 32-pixel base size for crisp downscaling to 9–13 px gizmo text.
-        // glyphCount = 0 → load the default character set (covers ASCII + Latin).
-        _gizmoFont = Raylib_cs.Raylib.LoadFontFromMemory(".ttf", ttf, 32, null, 0);
-        Raylib_cs.Raylib.SetTextureFilter(_gizmoFont.Texture, Raylib_cs.TextureFilter.Bilinear);
-        GizmoMap.Presentation.DebugPrimitiveRenderer2D.TextFont = _gizmoFont;
+        // ⭐ B-17 P7 ⑥b — the ONE loader (Roboto 32 px, ASCII + · ° — – × …), shared with PlayerApplication; it registers the font too.
+        _gizmoFont = Fdp.Presentation.Fonts.GizmoFont.Load();
     }
 }

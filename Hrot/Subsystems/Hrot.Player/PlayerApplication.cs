@@ -568,11 +568,8 @@ public class PlayerApplication : IDisposable
     /// </summary>
     private static void LoadAndRegisterGizmoFont()
     {
-        byte[] ttf = Fdp.Presentation.Fonts.EmbeddedFontResources.GetRobotoRegularTtfBytes();
-        // 32-pixel base size gives crisp downscaling to 9–13 px gizmo labels.
-        var font = Raylib.LoadFontFromMemory(".ttf", ttf, 32, null, 0);
-        Raylib.SetTextureFilter(font.Texture, TextureFilter.Bilinear);
-        GizmoMap.Presentation.DebugPrimitiveRenderer2D.TextFont = font;
+        // ⭐ B-17 P7 ⑥b — the ONE loader (Roboto 32 px, ASCII + · ° — – × …), shared with RaylibPresentationShell; it registers the font too.
+        Fdp.Presentation.Fonts.GizmoFont.Load();
     }
 
 

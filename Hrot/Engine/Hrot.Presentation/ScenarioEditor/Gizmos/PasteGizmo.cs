@@ -57,7 +57,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             var (at, heading) = PendingAt(_cursor);
             float turn = -(heading - _clipboard.Heading.Degrees) * (MathF.PI / 180f);   // compass is clockwise; the draw turns counter-clockwise
             MacroGhostDraw.Draw(draw, _preview, at, turn);
-            draw.DrawTextLong(at.X, at.Y - 18f, _hint, Rgba32.White);
+            draw.DrawTextLong(at.X, at.Y - 18f, _hint, Rgba32.White, style: GizmoTextStyle.Backdrop);
         }
 
         public void OnDragUpdate(Vector3 worldPos) => _cursor = worldPos;

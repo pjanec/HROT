@@ -77,10 +77,11 @@ namespace Hrot.ScenarioEditor.Gizmos
             _group = Hrot.ScenarioEditor.Map.MapUiStates.SelectionOf(_repo) is { } selection
                 ? GroupTransform.ForGrab(_repo, selection, writer, entity)
                 : null;
-            if (_group != null) _centre = _group.Centre;
+            if (_group != null) { _centre = _group.Centre; _aboutRing = MathF.Max(_group.Radius + 3f, 6f); }   // ⭐ once: the units do not move during the drag, and Radius walks the members (an allocating enumerator) — not per frame
         }
 
         private Vector2 _centre;
+        private float _aboutRing = 6f;
 
         /// <summary>⭐ B-17 P5 — how a group rotate turns the selection now (<see cref="GroupRotateMode.Each"/> until Tab); meaningless for one unit.</summary>
         public GroupRotateMode Mode => _mode;
@@ -89,8 +90,9 @@ namespace Hrot.ScenarioEditor.Gizmos
         public bool IsGroup => _group != null;
 
         /// <summary>⭐ B-17 P5 — the tool's line while a group is selected (P1's hint): names the key and the mode in force.</summary>
-        public string? Hint => _group == null ? null
-            : "drag: rotate · Tab: each / group centre (now: " + (_mode == GroupRotateMode.Each ? "each" : "group centre") + ") · right-click or Esc: cancel";
+        public string? Hint => _group == null ? null : _mode == GroupRotateMode.Each ? HintEach : HintAbout;   // ⭐ constants: the hint is read every frame, so it must not concatenate (0 B steady)
+        private const string HintEach = "drag: rotate · Tab: each / group centre (now: each) · right-click or Esc: cancel";
+        private const string HintAbout = "drag: rotate · Tab: each / group centre (now: group centre) · right-click or Esc: cancel";
 
         // Draws a yellow heading arrow from the entity center in the current yaw direction.
         // Called every frame regardless of focus state.
@@ -105,24 +107,62 @@ namespace Hrot.ScenarioEditor.Gizmos
             }
             draw.DrawLine(_entityPos, _currentCursorPos, Rgba32.Yellow, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
 
-            float compassDeg = SimMath.YawRadToCompassDeg(_currentYawRad);
-            string label = $"{compassDeg:F0}deg";
             float midX = (_entityPos.X + _currentCursorPos.X) * 0.5f;
             float midY = (_entityPos.Y + _currentCursorPos.Y) * 0.5f;
-            draw.DrawTextLong(midX, midY + 15f, label, Rgba32.White);
+            draw.DrawTextLong(midX, midY + 15f, LabelFor(unit: true, about: false, (int)MathF.Round(SimMath.YawRadToCompassDeg(_currentYawRad))), Rgba32.White, style: GizmoTextStyle.Backdrop);
         }
 
-        // ⭐ B-17 P5 — the group's picture: a ring round the whole group in group-centre mode, an arrow from the pivot to the cursor, and the angle.
+        // ⭐ B-17 P7 ⑤ (sheet map-gizmo-look-2.svg row ⑤) — the group's picture: an amber DASHED ring round the pivot, the swept wedge from where the drag started (a fan of
+        //   translucent triangles), the start ray dashed and the current ray solid, a knob where the current ray meets the ring, and the angle on a backdrop.
+        //   ⛔ "Shift: 15° steps" is NOT in the label: the rotator has no Shift snapping (grep), so the label does not promise it.
+        private static readonly Rgba32 Amber = new(0xF2, 0xC0, 0x33, 255);
+        private static readonly Rgba32 AmberWedge = new(0xF2, 0xC0, 0x33, 40);
+        private const int MaxWedgeTriangles = 24;
+        private const float EachRingRadius = 6f;
+
         private void DrawGroup(IDebugDrawBuilder draw)
         {
             bool about = _mode == GroupRotateMode.AboutCentre;
             var pivot = about ? new Vector3(_centre.X, _centre.Y, 0f) : _entityPos;
-            if (about) draw.DrawSphere(pivot, MathF.Max(_group!.Radius + 3f, 6f), Rgba32.Yellow, thickness: 1f);   // thickness ⇒ an outline only (CE-3154)
-            draw.DrawLine(pivot, _currentCursorPos, Rgba32.Yellow, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
-            float deg = (_currentYawRad - _yaw0) * (180f / MathF.PI);
-            deg -= 360f * MathF.Round(deg / 360f);   // −180…180
-            draw.DrawTextLong((pivot.X + _currentCursorPos.X) * 0.5f, (pivot.Y + _currentCursorPos.Y) * 0.5f + 15f,
-                (about ? "group " : "each ") + $"{deg:+0;-0;0}deg", Rgba32.White);
+            float ring = about ? _aboutRing : EachRingRadius;
+            draw.DrawSphere(pivot, ring, Amber, thickness: 1f, style: LineStyle.Dashed);   // thickness ⇒ an outline only (CE-3154)
+
+            float sweep = _currentYawRad - _yaw0;
+            sweep -= 2f * MathF.PI * MathF.Round(sweep / (2f * MathF.PI));   // −π…π
+            int tris = Math.Clamp((int)MathF.Ceiling(MathF.Abs(sweep) / (2f * MathF.PI / MaxWedgeTriangles)), 1, MaxWedgeTriangles);
+            var centre2 = new Vector2(pivot.X, pivot.Y);
+            var prev = centre2 + new Vector2(MathF.Cos(_yaw0), MathF.Sin(_yaw0)) * ring;
+            for (int i = 1; i <= tris; i++)
+            {
+                float a = _yaw0 + sweep * i / tris;
+                var next = centre2 + new Vector2(MathF.Cos(a), MathF.Sin(a)) * ring;
+                draw.DrawFilledTriangle(centre2, prev, next, AmberWedge);
+                prev = next;
+            }
+            var startEnd = new Vector3(centre2.X + MathF.Cos(_yaw0) * ring, centre2.Y + MathF.Sin(_yaw0) * ring, 0f);
+            var nowEnd = new Vector3(centre2.X + MathF.Cos(_currentYawRad) * ring, centre2.Y + MathF.Sin(_currentYawRad) * ring, 0f);
+            draw.DrawLine(pivot, startEnd, Amber, thickness: 1f, sizeMode: SizeMode.ScreenPixels, style: LineStyle.Dashed);
+            draw.DrawLine(pivot, nowEnd, Amber, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
+            draw.DrawSphere(pivot, 3f, Rgba32.White, sizeMode: SizeMode.ScreenPixels);   // the pivot dot
+            draw.DrawSphere(nowEnd, 5f, Amber, sizeMode: SizeMode.ScreenPixels);          // the knob
+            draw.DrawTextLong(nowEnd.X, nowEnd.Y, LabelFor(unit: false, about, (int)MathF.Round(sweep * (180f / MathF.PI))), Rgba32.White,
+                lineOffsetPx: -26f, style: GizmoTextStyle.Backdrop);
+        }
+
+        // ⭐ B-17 P7 ⑤ — the label text, rebuilt only when the whole-degree value or the mode changes (the old code interpolated a new string EVERY frame:
+        //   a steady frame must allocate 0 B — the hot-path rule).
+        private string? _label;
+        private int _labelDeg = int.MinValue;
+        private int _labelKind = -1;
+        private string LabelFor(bool unit, bool about, int deg)
+        {
+            int kind = unit ? 0 : about ? 1 : 2;
+            if (_label == null || deg != _labelDeg || kind != _labelKind)
+            {
+                _labelDeg = deg; _labelKind = kind;
+                _label = unit ? deg + "°" : (about ? "group " : "each ") + deg.ToString("+0;-0;0") + "°";
+            }
+            return _label;
         }
 
         // DragUpdate: recompute heading from the cursor world position.

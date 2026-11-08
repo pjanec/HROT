@@ -319,13 +319,74 @@ namespace Hrot.Presentation.Tests.Tools
             var pick = fx.PickPoint("Pick a point for Move to");
             Assert.Equal("Pick a point for Move to", fx.Pickers.Prompt);
             var texts = fx.Frame();
-            Assert.Contains(("[Cancel]", true), texts);
+            Assert.Contains(("Cancel", true), texts);
             Assert.Contains(("Pick a point for Move to", true), texts);
             fx.Click(5, 6);
             fx.Frame();
             Assert.True(pick.IsCompletedSuccessfully);
             Assert.Null(fx.Pickers.Prompt);
-            Assert.DoesNotContain(fx.Frame(), t => t.Text == "[Cancel]");
+            Assert.DoesNotContain(fx.Frame(), t => t.Text == "Cancel");
+        }
+
+        /// <summary>
+        /// ⭐ B-17 P7 ④ — the banner's look: <c>Cancel</c> is a <see cref="GizmoTextStyle.Button"/>, the prompt a <see cref="GizmoTextStyle.Backdrop"/>, the refusal at the cursor a Backdrop, and while a pick is pending a CROSSHAIR of two
+        /// screen-pixel bars (18 × 2 px, white with a dark outline) stands at the cursor's world point; ⛔ none of it once the pick ends. The steady frame allocates 0 B (a hot-path rule). 🔴 Red-proofs (compile): <c>DrawCrosshair</c> not called ⇒
+        /// no bars; the Cancel left as Plain ⇒ the style assert goes red.
+        /// </summary>
+        [Fact]
+        public void P7_TheBanner_IsBackdropAndButton_AndACrosshairStandsAtTheCursor_At0BSteady()
+        {
+            using var fx = new P4Fx();
+            var pick = fx.PickUnit("Pick a unit for Target", _ => new Entity(9, 1));   // a hit the filter refuses ⇒ the rejection flash
+            fx.Move(40, 50);
+            fx.Frame();         // the cursor reaches the picker
+            fx.Click(41, 51);   // refused: a graphic, not a unit — flashes the reason at the cursor
+            fx.Frame();         // the click is handled
+            fx.Frame();         // and this frame draws the flash
+            var frame = fx.Buffer.GetFrame().ToArray();
+            string TextOfPrim(DebugPrimitive q) => q.StringHash != 0 ? fx.Buffer.InternMap.TryResolve(q.StringHash)! : q.TextContent.ToString();
+            DebugPrimitive Text(string s) => frame.SingleOrDefault(q => q.Shape == DebugPrimitiveShape.Text && TextOfPrim(q) == s) is { Shape: DebugPrimitiveShape.Text } hit ? hit
+                : throw new Xunit.Sdk.XunitException($"no text '{s}' in the frame; texts: " + string.Join(" | ", frame.Where(q => q.Shape == DebugPrimitiveShape.Text).Select(TextOfPrim)));
+            Assert.Equal(GizmoTextStyle.Button, Text("Cancel").TextStyle);
+            Assert.Equal(GizmoTextStyle.Backdrop, Text("Pick a unit for Target").TextStyle);
+            Assert.Equal(GizmoTextStyle.Backdrop, Text("pick a unit, not a graphic").TextStyle);
+
+            var bars = frame.Where(q => q.Shape == DebugPrimitiveShape.Box2D).ToArray();
+            Assert.Equal(2, bars.Length);
+            foreach (var b in bars)
+            {
+                Assert.Equal(SizeMode.ScreenPixels, b.SizeMode);                       // constant pixel size at every zoom, in 2-D and in 3-D
+                Assert.Equal(41f, b.BoxCenterX); Assert.Equal(51f, b.BoxCenterY);      // at the cursor's world point
+            }
+            Assert.Contains(bars, b => b.BoxExtentX == 9f && b.BoxExtentY == 1f);     // 18 × 2 px
+            Assert.Contains(bars, b => b.BoxExtentX == 1f && b.BoxExtentY == 9f);     // 2 × 18 px
+
+            fx.Frame();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            fx.Buffer.Clear();
+            fx.Global.Execute(fx.Repo, 0.016f);
+            long delta = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.True(delta == 0, $"the pending-pick banner + crosshair allocates {delta} B in a steady frame");
+
+            fx.Esc(); fx.Frame(); fx.Frame();   // Esc is handled, then a frame with no pick
+            Assert.DoesNotContain(fx.Buffer.GetFrame().ToArray(), q => q.Shape == DebugPrimitiveShape.Box2D);   // no crosshair once the pick has ended
+        }
+
+        /// <summary>⭐ B-17 P7 ④ — the Cancel hit area is the Button box the drawer paints: the word plus its padding (ONE definition, <see cref="PickerToolHost.CancelBoxLeftPx"/> …).</summary>
+        [Fact]
+        public void P7_TheCancelHitArea_IsTheButtonBox()
+        {
+            Assert.Equal(GizmoMap.Presentation.GizmoTextDraw.PadX, PickerToolHost.CancelLeftPx - PickerToolHost.CancelBoxLeftPx);
+            Assert.Equal(GizmoMap.Presentation.GizmoTextDraw.PadY, PickerToolHost.BannerTopPx - PickerToolHost.CancelBoxTopPx);
+            Assert.True(PickerToolHost.CancelBoxRightPx < PickerToolHost.PromptLeftPx - GizmoMap.Presentation.GizmoTextDraw.PadX, "the button box ends before the prompt's own box begins");
+            using var fx = new P4Fx();
+            _ = fx.PickPoint("p");
+            fx.Mouse = new Vector2(PickerToolHost.CancelBoxRightPx - 1f, PickerToolHost.CancelBoxBottomPx - 1f);   // inside the box's far corner
+            Assert.True(fx.Pickers.OverCancel());
+            fx.Mouse = new Vector2(PickerToolHost.CancelBoxRightPx + 1f, PickerToolHost.BannerTopPx);
+            Assert.False(fx.Pickers.OverCancel());
+            fx.Mouse = new Vector2(PickerToolHost.CancelLeftPx, PickerToolHost.CancelBoxBottomPx + 1f);
+            Assert.False(fx.Pickers.OverCancel());
         }
 
         /// <summary>⭐ B-17 P4 — a pick with no prompt of its own gets its tool's default words; the field's path becomes <i>"Pick a point for Move to"</i>.</summary>

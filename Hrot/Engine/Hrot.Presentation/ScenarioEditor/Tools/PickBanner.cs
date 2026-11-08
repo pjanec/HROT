@@ -42,12 +42,16 @@ namespace Hrot.ScenarioEditor.Tools
     /// ⭐ B-17 P4 — wraps a picker gizmo and draws its banner as GIZMO PRIMITIVES (so every terminal, a remote viewer too, shows it — §2.4):
     /// <c>[Cancel]  Pick a point for Move to</c> at the top of the map (screen-space text), <c>replaced: …</c> under it for a few seconds,
     /// and the refusal of a click flashed at the cursor. A left click on <c>[Cancel]</c> cancels the pick; every other event goes to the picker.
-    /// ⚠ The map's gizmo text has no backdrop and no button box (only text can be drawn in screen space) — the button is the bracketed word.
+    /// ⭐ B-17 P7 ④ — the gap is CLOSED: the prompt, the notice and the refusal are <see cref="GizmoTextStyle.Backdrop"/> text, <c>Cancel</c> is a
+    /// <see cref="GizmoTextStyle.Button"/>, and a crosshair of two pixel bars follows the cursor while the pick is pending (gizmo primitives, not the OS cursor —
+    /// the gizmo runs where the edit runs, so a remote terminal would otherwise not show it).
     /// </summary>
     internal sealed class PickBannerGizmo : IEntityStatefulGizmo
     {
         private static readonly Rgba32 PromptColour = new(255, 255, 255, 255);
-        private static readonly Rgba32 CancelColour = new(255, 196, 80, 255);
+        private static readonly Rgba32 CancelColour = new(255, 255, 255, 255);
+        private static readonly Rgba32 CrossFill = new(255, 255, 255, 255);
+        private static readonly Rgba32 CrossOutline = new(20, 20, 24, 255);
         private static readonly Rgba32 NoticeColour = new(180, 190, 205, 255);
         private static readonly Rgba32 RejectColour = new(255, 110, 100, 255);
 
@@ -71,12 +75,22 @@ namespace Hrot.ScenarioEditor.Tools
         {
             _inner.UpdateAndDraw(view, deltaTime, draw);
             if (_pick.Prompt is not { } prompt) return;
-            draw.DrawTextLong(PickerToolHost.CancelLeftPx, PickerToolHost.BannerTopPx, "[Cancel]", CancelColour, CoordinateSpace.Screen);
-            draw.DrawTextLong(PickerToolHost.PromptLeftPx, PickerToolHost.BannerTopPx, prompt, PromptColour, CoordinateSpace.Screen);
+            draw.DrawTextLong(PickerToolHost.CancelLeftPx, PickerToolHost.BannerTopPx, "Cancel", CancelColour, CoordinateSpace.Screen, style: GizmoTextStyle.Button);
+            draw.DrawTextLong(PickerToolHost.PromptLeftPx, PickerToolHost.BannerTopPx, prompt, PromptColour, CoordinateSpace.Screen, style: GizmoTextStyle.Backdrop);
             if (_host.NoticeOf(_pick) is { } notice)
-                draw.DrawTextLong(PickerToolHost.PromptLeftPx, PickerToolHost.BannerTopPx + 18f, notice, NoticeColour, CoordinateSpace.Screen);
+                draw.DrawTextLong(PickerToolHost.PromptLeftPx, PickerToolHost.BannerTopPx + 22f, notice, NoticeColour, CoordinateSpace.Screen, style: GizmoTextStyle.Backdrop);
             if (_host.Rejected is { } rejected)
-                draw.DrawTextLong(_pick.CursorWorld.X, _pick.CursorWorld.Y, rejected.Reason, RejectColour, lineOffsetPx: 22f);
+                draw.DrawTextLong(_pick.CursorWorld.X, _pick.CursorWorld.Y, rejected.Reason, RejectColour, lineOffsetPx: 22f, style: GizmoTextStyle.Backdrop);
+            DrawCrosshair(draw, _pick.CursorWorld);
+        }
+
+        /// <summary>⭐ B-17 P7 ④ — the pick cursor: two thin bars (18 × 2 px) in SCREEN pixels at the cursor's world point, white with a dark outline, so the
+        /// crosshair keeps its size at every zoom (a ScreenPixels Box2D is scaled by 1/zoom by the 2-D renderer and draped at constant size by the 3-D one).</summary>
+        internal const float CrossHalfLongPx = 9f, CrossHalfShortPx = 1f;
+        private static void DrawCrosshair(IDebugDrawBuilder draw, Vector2 at)
+        {
+            draw.DrawBox2D(at, new Vector2(CrossHalfLongPx, CrossHalfShortPx), CrossOutline, 0f, 1f, SizeMode.ScreenPixels, fillColor: CrossFill);
+            draw.DrawBox2D(at, new Vector2(CrossHalfShortPx, CrossHalfLongPx), CrossOutline, 0f, 1f, SizeMode.ScreenPixels, fillColor: CrossFill);
         }
 
         public void OnDragUpdate(Vector3 worldPos)
@@ -87,6 +101,7 @@ namespace Hrot.ScenarioEditor.Tools
 
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
+            _pick.CursorWorld = new Vector2(worldPos.X, worldPos.Y);   // a click carries the cursor too — the crosshair never lags a hover
             if (button == MapMouseButton.Left && _pick.Prompt != null && _host.OverCancel())
             {
                 if (!isPressed) _pick.Cancel();   // the release is the click, as every picker takes it

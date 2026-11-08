@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Core;
 using Fdp.Core;
@@ -269,6 +270,88 @@ public sealed class GroupTransformTests : IDisposable
         Assert.NotNull(Hrot.ScenarioEditor.Map.MapUiStates.SelectionOf(world));
     }
 
+    // ── ⭐ B-17 P7 ⑤ — the look of the rotate ─────────────────────────────────────────────────────────────────────────────────────────────
+
+    private static string TextOf(DebugPrimitiveBuffer b, DebugPrimitive p) => p.StringHash != 0 ? b.InternMap.TryResolve(p.StringHash)! : p.TextContent.ToString();
+
+    /// <summary>
+    /// ⭐ B-17 P7 ⑤ (sheet <c>map-gizmo-look-2.svg</c> row ⑤) — a group rotate draws an amber DASHED ring round the pivot, a translucent amber wedge from the start angle to now (a fan of ≤ 24 triangles), the start ray dashed and the current ray solid,
+    /// a screen-pixel knob where the current ray meets the ring, and the label <c>group −47°</c> on a backdrop (⛔ no "Shift: 15° steps": the rotator has no Shift snapping). Each mode says <c>each …</c>.
+    /// 🔴 Red-proofs (compile): the ring left Solid ⇒ the Dashed assert; the label as Plain ⇒ the Backdrop assert; no wedge ⇒ the triangle count.
+    /// </summary>
+    [Fact]
+    public void P7_ARotate_DrawsDashedAmberRing_Wedge_Rays_Knob_AndABackdropLabel()
+    {
+        Pick(0, 1, 2, 3, 4);
+        var r = Rotator(grabbed: 4);
+        r.OnKeyEvent(MapKeyboardKey.Tab, true);
+        r.OnDragUpdate(new Vector3(90, 150, 0));
+        var buffer = new DebugPrimitiveBuffer();
+        r.UpdateAndDraw(_world, 0.016f, buffer);
+        var frame = buffer.GetFrame().ToArray();
+
+        var ring = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.Sphere && p.LineStyle == LineStyle.Dashed);
+        Assert.Equal(0xF2, ring.Color.R); Assert.Equal(0xC0, ring.Color.G); Assert.Equal(0x33, ring.Color.B);
+        Assert.True(ring.ThicknessU16 > 0, "an outline only, no disc");
+        int tris = frame.Count(p => p.Shape == DebugPrimitiveShape.FilledTriangle);
+        Assert.InRange(tris, 1, 24);
+        Assert.All(frame.Where(p => p.Shape == DebugPrimitiveShape.FilledTriangle), p => Assert.True(p.Color.A is > 0 and < 100, "translucent"));
+        var lines = frame.Where(p => p.Shape == DebugPrimitiveShape.Line).ToArray();
+        Assert.Contains(lines, p => p.LineStyle == LineStyle.Dashed);   // the start ray
+        Assert.Contains(lines, p => p.LineStyle == LineStyle.Solid);    // the current ray
+        Assert.Contains(frame, p => p.Shape == DebugPrimitiveShape.Sphere && p.SizeMode == SizeMode.ScreenPixels && p.SphereRadius == 5f);   // the knob
+        var label = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.Text);
+        string text = TextOf(buffer, label);
+        Assert.Matches(@"^group [+\-−]?\d+°$", text);
+        Assert.DoesNotContain("Shift", text);
+        Assert.Equal(GizmoTextStyle.Backdrop, label.TextStyle);
+
+        r.OnKeyEvent(MapKeyboardKey.Tab, true);   // back to each
+        buffer.Clear(); r.UpdateAndDraw(_world, 0.016f, buffer);
+        Assert.StartsWith("each ", TextOf(buffer, Assert.Single(buffer.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.Text)));
+    }
+
+    /// <summary>⭐ B-17 P7 ⑤ — the single-unit rotate keeps its line and says <c>46°</c> (the degree sign, not "deg") on a backdrop.</summary>
+    [Fact]
+    public void P7_ASingleUnitRotate_SaysTheCompassBearingWithTheDegreeSign_OnABackdrop()
+    {
+        Pick(2);
+        var r = Rotator(grabbed: 2);
+        r.OnDragUpdate(new Vector3(0, 40, 0));
+        var buffer = new DebugPrimitiveBuffer();
+        r.UpdateAndDraw(_world, 0.016f, buffer);
+        var label = Assert.Single(buffer.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.Text);
+        Assert.Matches(@"^\d+°$", TextOf(buffer, label));
+        Assert.Equal(GizmoTextStyle.Backdrop, label.TextStyle);
+    }
+
+    /// <summary>
+    /// ⭐ B-17 P7 ⑤ — HOT PATH: a steady rotate frame allocates 0 B, in group mode (both modes) and for one unit — the label string is cached per whole degree (it was a new <c>$"…deg"</c> EVERY frame), and the hint is a constant.
+    /// 🔴 Red-proof (compiles): <c>LabelFor</c> rebuilding its string every call ⇒ the delta goes red.
+    /// </summary>
+    [Fact]
+    public void P7_ASteadyRotateFrame_Allocates0B()
+    {
+        Pick(0, 1, 2, 3, 4);
+        var hints = 0;
+        foreach (var (group, tab) in new[] { (true, false), (true, true), (false, false) })
+        {
+            if (!group) Pick(2);
+            var r = group ? Rotator(grabbed: 4, hint: _ => hints++) : Rotator(grabbed: 2);
+            if (tab) r.OnKeyEvent(MapKeyboardKey.Tab, true);
+            r.OnDragUpdate(new Vector3(90, 150, 0));
+            var buffer = new DebugPrimitiveBuffer();
+            r.UpdateAndDraw(_world, 0.016f, buffer);   // warm: the buffer, the interned label
+            buffer.Clear(); r.UpdateAndDraw(_world, 0.016f, buffer);
+            buffer.Clear();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            r.UpdateAndDraw(_world, 0.016f, buffer);
+            long delta = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.True(delta == 0, $"a steady rotate frame (group={group}, aboutCentre={tab}) allocates {delta} B");
+        }
+        Assert.True(hints > 0);
+    }
+
     // ── the picture ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -312,15 +395,43 @@ public sealed class GroupTransformTests : IDisposable
                     for (int x = 0; x < image.Width; x++)
                     {
                         var c = Raylib_cs.Raylib.GetImageColor(image, x, y);
-                        if (c.R > 200 && c.G > 200 && c.B < 80) yellow++;
+                        if (c.R > 200 && c.G is > 150 and < 235 && c.B < 110) yellow++;   // ⭐ B-17 P7 ⑤ — the amber (0xF2C033) of the dashed ring, the rays and the knob
                     }
             }
             finally { Raylib_cs.Raylib.UnloadImage(image); }
             Console.WriteLine("P5 frame: " + png);
+            if (group)
+            {
+                // ⭐ B-17 P7 ⑤ — the ring is DASHED: sampled at 120 angles on its circle (group centre = screen (400,190) here), amber is on for about half of them, never all and never none.
+                //   🔴 Red-proof (compiles): DrawStyledRing drawing every dash with no gap (dashAngle = span) ⇒ every sample is amber ⇒ red.
+                float radiusPx = (new GroupTransform(_world, _selection).Radius + 3f) * zoom;
+                int on = 0;
+                var img = Raylib_cs.Raylib.LoadImage(png);
+                try
+                {
+                    for (int i = 0; i < 120; i++)
+                    {
+                        float a = i * MathF.PI * 2f / 120f;
+                        int x = (int)MathF.Round(400f + MathF.Cos(a) * radiusPx), y = (int)MathF.Round(190f - MathF.Sin(a) * radiusPx);
+                        bool hit = false;
+                        for (int dy = -1; dy <= 1 && !hit; dy++)
+                            for (int dx = -1; dx <= 1 && !hit; dx++)
+                            {
+                                var c = Raylib_cs.Raylib.GetImageColor(img, x + dx, y + dy);
+                                if (c.R > 200 && c.G is > 150 and < 235 && c.B < 110) hit = true;
+                            }
+                        if (hit) on++;
+                    }
+                }
+                finally { Raylib_cs.Raylib.UnloadImage(img); }
+                Assert.InRange(on, 30, 90);
+            }
             return yellow;
         }
         int each = Yellow("group-rotate-each", group: false);
         int about = Yellow("group-rotate", group: true);
-        Assert.True(about > each + 150, $"the ring round the group is drawn in group mode ({about} yellow px vs {each} in each mode)");
+        // ⭐ B-17 P7 ⑤ — BOTH modes draw the amber dashed ring + wedge + knob now (each mode: a small ring round the grabbed unit; group mode: the ring round the whole group, which is larger)
+        Assert.True(each > 120, $"each mode draws its ring, wedge and knob ({each} amber px)");
+        Assert.True(about > each + 150, $"the ring round the group is larger in group mode ({about} amber px vs {each} in each mode)");
     }
 }
