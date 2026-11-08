@@ -95,6 +95,17 @@ public static class PresentationComponentRegistry
         //    this registry and the panels can see.
         // ⚠ Registered HERE and not inline in a host, for the reason the block above records: an
         //   adopter publishing into a bus that never heard of the event THROWS under strict mode.
+        RegisterSelectionEvents(world);
+    }
+
+    /// <summary>
+    /// ⭐ The selection REQUEST and NOTIFICATION (UXI-11 S-2/S-3). Called by <see cref="RegisterAll"/> AND by <c>MapInteractionPack.Build</c> on the
+    /// map's world: the pack's <c>SelectionInteractionSystem</c> publishes the request on every map host, and a host that never calls
+    /// <see cref="RegisterAll"/> (the Player) threw <i>"Strict Mode Violation: Managed event type 'SelectionChangeRequest' was published without being
+    /// explicitly registered"</i> on its first empty click (user report, 2026-11-08). Registration is get-or-create, so calling it twice is safe.
+    /// </summary>
+    public static void RegisterSelectionEvents(EntityRepository world)
+    {
         world.RegisterManagedEvent<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest>();
         world.RegisterManagedEvent<Fdp.Toolkit.Vis2D.Abstractions.SelectionChangedNotification>();
     }
