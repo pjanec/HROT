@@ -202,7 +202,7 @@ Rails: `CE3409_PlayWearsTheIndicatorsColour`, `ColourIconsFrameRail.L11_PlayWear
 
 Rails: `SaveSlotTests.R5_*` (descriptors per mode + the REAL adapter on a real frame: amber flag / dimmed flag; the floppy is an atlas sprite — no atlas on a rail frame, so its pixels are not checked).
 
-**Deviations / open.** (1) A host with **no scenario session** (SimHost, IG) keeps ▶ greyed in Edit (reason *"No scenario session on this host — nothing to preview from here"*): the armed mode used to be what greyed it. (2) A host with **no ender** keeps today's ■ in Live (leaves to editing). (3) *Exercise N* is not in the Close question (no number on the inventory). (4) *Restart from a checkpoint ▸* is greyed: the live run's marks are not on the cluster view (hosts may supply `CheckpointLabels` / `RestoreCheckpoint`). (5) The End question's second sentence now describes the debrief, not *"returns to editing"*. (6) HTTP `/run-mode` untouched (backend B-5): its rails that expect the old arm-only `Choose` are listed in the build report.
+**Deviations / open.** (1) A host with **no scenario session** (SimHost, IG) keeps ▶ greyed in Edit (reason *"No scenario session on this host — nothing to preview from here"*): the armed mode used to be what greyed it. (2) A host with **no ender** keeps today's ■ in Live (leaves to editing). (3) *Exercise N* is not in the Close question (no number on the inventory). ~~(4) *Restart from a checkpoint ▸* is greyed: the live run's marks are not on the cluster view~~ ✅ **RESOLVED** (backend's ANSWER, `ClusterView.ReplaySession.Checkpoints` in Live): `ClusterTimeTransportAdapter.AttachRunChoice` fills `CheckpointLabels` (rebuilt per new array, 0 B steady) and `RestoreCheckpoint` (→ `RestoreCheckpointIntent { Label }`) on an operator host; greyed *"none listed for this run"* only while the run has none (rail `R2_RestartFromACheckpoint_…`). (5) The End question's second sentence now describes the debrief, not *"returns to editing"*. (6) HTTP `/run-mode` untouched (backend B-5): its rails that expect the old arm-only `Choose` are listed in the build report.
 
 **R-7 `CE-3416` the Player's briefing screen (ui):**
 
@@ -225,6 +225,25 @@ Rails: `PlayerBriefingTests` (states, content, rebuild-on-change, real frame + 0
 | the Player registers the game summary too (L-2 had the debrief alone) | `RulesBundle.RegisterInto` | no rules / instructor's Mission summary on the Player |
 
 Rails: `ThePlayersSummaryOpensAtTheEndTests` (4) · `TheRulesBundleTests.L2_ThePlayersSet…` (updated). **Open (needs user, lean stated):** with BOTH profiles on and BOTH windows having content (a scenario with standards AND a score) both open — lean: keep (PH-8 puts a scenario's preset in charge of switching the other profile off).
+
+**R-8 `CE-3412` fidelity pass (ui):** every state rendered from the real code (`SaveSlotTests.R8_*` → `r8-*.png`, `RunToolbarFrameRail`, `ce3414-start-recent.png`; never in git) beside `ind.png` / `story.png`.
+
+| picture | state | result |
+|---|---|---|
+| ind | Edit saveable · variant (eye, Save greyed + reason) · Preview running | ✔ glyph, colour, ▶ ⏸ ■, Save, tooltip words. Deviation kept: ▾ only when the scenario HAS presets (R-1); the floppy is an atlas sprite — the rail frame has none (text fallback) |
+| ind | Edit HOVERED | ✔ lighter button + frame + tooltip (mouse driven on the real frame) |
+| ind | Live briefing · running · not recorded | ✔ ● red / green, ■ and ⏪ dim in the briefing. Deviation kept: not-recorded Live greys the Save flag (picture: amber) — a checkpoint needs a recording (R-5) |
+| ind | Live ENDED | **fixed**: ■ is ⏏ = FA right-from-bracket, light (was a green eject triangle); ▶ greyed, ⏪ amber ✔ |
+| ind | DAR · AAR | **fixed**: DAR's ⏏ is the same glyph; ✔ rest. Deviation kept: AAR flag greyed (picture amber) — a recording cannot take a checkpoint (R-5). Tooltip omits *exercise N* (no number on the wire) |
+| story ② | Edit menu | **fixed**: Edit pen · Live ● (red / green) · AAR ▶ glyphs. Run to … / Close are asserted by their own rails (this rig has no controller / door) |
+| story ③ ④ | briefing · running toolbars | ✔ (= ind rows) |
+| story ⑤ | *End the exercise?* | **fixed**: text as pictured; buttons **End the exercise / Keep running** — the house last button (Esc / ✕) now carries the worded label (`WithCancel(cancelLabel)`). Deviation kept: modal sits under the toolbar, not centred |
+| story ⑥ | ended toolbar + menu | **fixed**: *Run again* ● in Live's colour (was always green), *Restart from a checkpoint ▸* amber flag; rest ✔ |
+| story ⑦ | *Close the live session?* | ✔ words and buttons. Deviation kept: *This exercise of X is kept* (no exercise number) |
+| story ⑨ ⑩ | briefing · own summary | ✔ (R-7 / R-6) |
+| story ① ⑧ | Start screen + Recent | backend's `StartSurfaceWindow`, not edited — differences in the note to backend |
+
+Rails (red-proved): `R8_EveryStateOfIndPng…` (⏏ glyph pixels, no green) · `R8_TheMenusAndDialogsOfTheStory…` (dialog buttons, menu glyphs) · `TheOneTimeFacadeTests.CE4322…` / `RunControlsSwitchNowTests.R2…` (Keep running).
 
 ## 1. ⭐ The three rules — the spine
 

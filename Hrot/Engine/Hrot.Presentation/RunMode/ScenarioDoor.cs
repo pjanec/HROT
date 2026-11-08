@@ -93,7 +93,11 @@ public sealed class ConfirmingAsker : IDoorAsker
 
     /// <summary>Sets <see cref="Pending"/> to <paramref name="actions"/> followed by Cancel.</summary>
     public void Show(string title, string text, params RunModeConfirmation.Button[] actions)
-        => Pending = RunModeConfirmation.WithCancel(text, done => { if (ReferenceEquals(Pending, done)) Pending = null; }, title, "mt_run_confirm", actions);
+        => Show(title, text, RunModeConfirmation.CancelLabel, actions);
+
+    /// <summary>⭐ R-8 — the same with the closing button worded <paramref name="cancelLabel"/> (<i>Keep running</i>).</summary>
+    public void Show(string title, string text, string cancelLabel, params RunModeConfirmation.Button[] actions)
+        => Pending = RunModeConfirmation.WithCancel(text, done => { if (ReferenceEquals(Pending, done)) Pending = null; }, title, "mt_run_confirm", cancelLabel, actions);
 }
 
 /// <summary>

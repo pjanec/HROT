@@ -143,7 +143,7 @@ public sealed class RunControlsSwitchNowTests
         Bar(rig).OnStop();
         var ask = rig.Choice.Pending!;
         Assert.Equal("End the exercise?", ask.Title);
-        Assert.Equal(new[] { "End the exercise", RunModeConfirmation.CancelLabel }, ask.Buttons.Select(b => b.Label));
+        Assert.Equal(new[] { "End the exercise", "Keep running" }, ask.Buttons.Select(b => b.Label));
         ask.Resolve(ask.Buttons[1]);
         Assert.Equal(0, ender.Ended);
         Bar(rig).OnStop();
@@ -399,5 +399,24 @@ public sealed class RunControlsSwitchNowTests
         var rig = With(ClusterState.OperatingEdit, RunArmed.Preview, UnsavedAnswer.Changed);
         rig.Choice.Choose(RunArmed.Live);
         Assert.Equal(new[] { "Save", "Discard", "Cancel" }, rig.Choice.Pending!.Buttons.Select(b => b.Label));
+    }
+
+    /// <summary>
+    /// ⭐ CE-3413 + backend's ANSWER — Live · ended's <i>Restart from a checkpoint ▸</i> lists the live run's checkpoints from the session layer (<c>ClusterView.ReplaySession.Checkpoints</c>) and a pick publishes
+    /// <c>RestoreCheckpointIntent { Label }</c>; the labels are rebuilt only when a new array arrives. 🔴 Mutation: <c>AttachRunChoice</c> not setting <c>CheckpointLabels</c> ⇒ empty ⇒ red.
+    /// </summary>
+    [Fact]
+    public void R2_RestartFromACheckpoint_ListsTheLiveRunsCheckpoints_AndRestoresThePick()
+    {
+        var (rig, _) = RunningLive();
+        var marks = new[] { new Fdp.Core.FlightRecorder.Metadata.CheckpointMark { Label = "before the bridge" }, new Fdp.Core.FlightRecorder.Metadata.CheckpointMark { Label = "contact" } };
+        rig.Bus.PublishManaged(new Fdp.Toolkit.Orchestration.ReplaySessionUpdateEvent { Session = new Fdp.Toolkit.Orchestration.ReplaySession { Checkpoints = marks } });
+        Hear(rig, ClusterState.OperatingLive);
+        var labels = rig.Choice.CheckpointLabels!();
+        Assert.Equal(new[] { "before the bridge", "contact" }, labels);
+        Assert.Same(labels, rig.Choice.CheckpointLabels!());   // steady: the same array, nothing rebuilt
+        Sent<Fdp.Toolkit.Orchestration.RestoreCheckpointIntent>(rig);
+        rig.Choice.RestoreCheckpoint!("contact");
+        Assert.Equal("contact", Assert.Single(Sent<Fdp.Toolkit.Orchestration.RestoreCheckpointIntent>(rig)).Label);
     }
 }

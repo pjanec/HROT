@@ -293,7 +293,11 @@ public sealed class RunModeConfirmation
 
     /// <summary>⭐ The one way to build one: <paramref name="actions"/> then a Cancel that does nothing.</summary>
     public static RunModeConfirmation WithCancel(string text, Action<RunModeConfirmation>? done, string title, string popupId, params Button[] actions)
-        => new(text, actions.Append(new Button(CancelLabel, null)).ToArray(), done, title, popupId);
+        => WithCancel(text, done, title, popupId, CancelLabel, actions);
+
+    /// <summary>⭐ R-8 / CE-3412 — the same, the closing do-nothing button worded <paramref name="cancelLabel"/> (story ⑤: <i>Keep running</i>). It is still the LAST button and still what Esc / ✕ press.</summary>
+    public static RunModeConfirmation WithCancel(string text, Action<RunModeConfirmation>? done, string title, string popupId, string cancelLabel, params Button[] actions)
+        => new(text, actions.Append(new Button(cancelLabel, null)).ToArray(), done, title, popupId);
 
     /// <summary>What will happen, in the user's words (AQ108 §3).</summary>
     public string Text { get; }

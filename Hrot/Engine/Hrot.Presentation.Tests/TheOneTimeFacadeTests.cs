@@ -424,8 +424,8 @@ public sealed class TheOneTimeFacadeTests
         live.F.Ender = ender;
         live.F.Stop();
         var ask = live.Choice.Pending!;
-        Assert.Equal(new[] { "End the exercise", RunModeConfirmation.CancelLabel }, ask.Buttons.Select(b => b.Label));   // Cancel = keep running
-        Assert.Contains("Cancel keeps it running", ask.Text);
+        Assert.Equal(new[] { "End the exercise", "Keep running" }, ask.Buttons.Select(b => b.Label));   // ⭐ R-8: the closing button is worded as story ⑤ says
+        Assert.Contains("Keep running cancels", ask.Text);
         Assert.Empty(live.C.Calls);                                                   // nothing yet
         ask.Resolve(ask.Buttons[1]);                                                  // Cancel: keep running
         Assert.Empty(live.C.Calls);

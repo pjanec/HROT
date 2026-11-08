@@ -273,8 +273,32 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
             new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus), unsavedReads);
         _run = new RunModeChoice(this, control, unsaved);
         _run.AskToKeep = () => View?.AskToKeepRecordings == true;   // ⭐ CE-4100 ① — the cluster's "ask to keep recordings" setting, off the master's broadcast (ClusterView)
+        if (control is not null)
+        {
+            // ⭐ CE-3413 (R-2, AQ108 §0 R2″) + backend's ANSWER — "Restart from a checkpoint ▸": the live run's checkpoints ride the session layer (ClusterView.ReplaySession.Checkpoints, a NEW array per
+            //   change, oldest first); the restore is the existing RestoreCheckpointIntent (what IScenarioSession.RestoreCheckpoint publishes). Only on an operator host (a scenario session).
+            _run.CheckpointLabels = LiveCheckpointLabels;
+            _run.RestoreCheckpoint = label => _bus.PublishManaged(new RestoreCheckpointIntent { RequestId = Guid.NewGuid(), Label = label });
+        }
         _run.OnClusterState(_currentState);   // the state the view held before the choice existed
         return _run;
+    }
+
+    private Fdp.Core.FlightRecorder.Metadata.CheckpointMark[]? _marksSeen;
+    private string[] _markLabels = Array.Empty<string>();
+
+    /// <summary>⭐ CE-3413 — the labels of the live run's checkpoints (oldest first); rebuilt only when the session layer publishes a new array (0 B per steady read). None outside Live.</summary>
+    private IReadOnlyList<string> LiveCheckpointLabels()
+    {
+        if (_currentState != ClusterState.OperatingLive || View?.ReplaySession?.Checkpoints is not { } marks) return Array.Empty<string>();
+        if (!ReferenceEquals(marks, _marksSeen))
+        {
+            _marksSeen = marks;
+            var labels = new string[marks.Length];
+            for (int i = 0; i < labels.Length; i++) labels[i] = marks[i].Label ?? "";
+            _markLabels = labels;
+        }
+        return _markLabels;
     }
 
     /// <summary>⭐ CE-4090 — runs are recorded: in a live run / DAR / AAR the run is not flagged <c>RunNotRecorded</c>; before one, the "Record live runs" setting is on.</summary>
