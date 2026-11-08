@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4134); the building lane (ui, backend for the gizmo side) details it (R-4123)
-updated: 2026-11-08 (P2 as-built — behaviors) · 2026-11-07 (P1 as-built — behaviors) · 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
+updated: 2026-11-08 (P6 as-built — behaviors) · 2026-11-08 (P2 as-built — behaviors) · 2026-11-07 (P1 as-built — behaviors) · 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
@@ -299,7 +299,7 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 | **P3** | placement: ① **measure CE-4272 first** (does an A-10C spawned at 300 m fly on?); ② `PlacementSession` — airborne by `Mobility`, 2-D level choice from `SurfacesAt`, optional heading drag; ③ Create through `Edits.Submit` | ui + backend (CE-4272) | an A-10C placed on the map is airborne at cruise; a click on a 3-storey house offers 3 levels |
 | **P4** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P4* below) the pick banner, rejection flash, replace notice in `PickerToolHost` | ui | a pick is visible with the form scrolled away; Cancel on the banner clears the field |
 | **P5** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P5* below) multi-select modifiers (Shift / Ctrl / Shift-drag / Alt-click); `GroupTransform` for move and rotate | ui | rotate 5 placed units about each centre and about the group centre: one undo step |
-| **P6** | shapes and routes: the centre handle on every kind (routes included), segment insert, Delete | ui | ROUTES1 §11.1 rails, minus the right-click commit |
+| **P6** | ✅ BUILT (behaviors, 2026-11-08 — *AS-BUILT — P6* below) shapes and routes: the centre handle on every kind (routes included), segment insert, Delete | ui | ROUTES1 §11.1 rails, minus the right-click commit |
 | **P7** | the gizmo look review (§2.6), approved by the user before it is built | ui | the frame rails under `xvfb-run` |
 
 Order: P1 → P2 → P3 (P3's measurement can start at once) → P4 → P5 → P6 → P7. P2 depends on the action catalogue's first stage (A1),
@@ -438,7 +438,7 @@ back as the ordinary `GizmoMenuActionEvent`, anchored at the tool id (global too
 | the on-map ✓ is `ShapeDoneMark`, drawn by all four (sized from the shape, as `AreaShapeHandles` sized it) | one drawing; `PointSequenceGizmo` / the editors hit-test it with `Session.HitDone` (a left click, delivered raw — the terminal sends them while the tool holds exclusive input) |
 | hints: `DrawingMenu.AreaHint` / `RouteHint` = the session's `KeysHint` — *"click: add point · Enter / ✓: finish (3+) · Backspace: undo point · Esc: cancel"*; Edit Shape / Edit Route: *"drag a vertex · Enter / ✓: done · right-click: menu · Esc: undo the drag and stop"* | the words come from the session, so descriptor and gizmo say one thing |
 | one finish = ONE edit, as before | a drawn area / route: `onFinish` → `ScenarioSpawnAdapter.Request` → one `Edits.Submit(Create)`; an area shape: the form's own edit; the editors: the one write-back + `UpdateEntityCommand` they always did |
-| ⚠ not done (P6): the centre handle on a polyline / route (the session's `MoveAll` exists, no handle yet), click-a-segment insert (`InsertOnSegment` exists), the Delete key. The remote viewer's own layer does not yet open the tool menu (its renderer is not the FDP layer) | stage P6 owns the editing handles |
+| ⛔ SUPERSEDED by *AS-BUILT — P6* below (the centre handle, click-a-segment insert and the Delete key are built). ⚠ The remote viewer's own layer does not yet open the tool menu (its renderer is not the FDP layer) | stage P6 owns the editing handles |
 | ⚠ `Backspace` (259) reaches a gizmo only as the layer's typed-key stream delivers it (the same path as every key); added `MapKeyboardKey.Backspace` to the contract | verified on the session and gizmo level, not with a live key |
 
 Rails: `ShapeEditSessionTests` (Fdp.Presentation.Tests — the convention itself); `AreaShapeGizmoTests` `D11_*`; `AreaAuthoringArmTests` `P2_*` (the area / route gizmo through the arm:
@@ -525,6 +525,44 @@ classDiagram
 | ⚠ not done / not verified live: the rotator toggles on `Tab` as the layer's typed-key stream delivers it (verified on the gizmo level, not with a live key); no live preview of the rotate (the arrow and ring only, as the single rotate); the 3-D map has no group ring (the rotate gizmo draws on the 2-D map) | |
 
 Rails: `GroupTransformTests` (Presentation.Tests/Edits) — drag moves 3 of the selected by the same delta and only them · cancel puts all back · writer gets one write per unit · rotate 5 **each** (headings +θ, positions unchanged) and **about the group centre** (rigid swing about the centroid, headings +θ), each **one undo step** that restores all 5 · single unit = the ordinary rotate · the hint names Tab · the pack registers the one selection · frame `P5_AGroupRotate_OnARealFrame_ShowsTheRingRoundTheGroup` (`group-rotate.png` under `HROT_RAIL_SHOTS`, never committed; the ring present in group mode, absent in each mode); `SelectionInteractionSystemTests` `B17P5_*` (Shift adds · Ctrl toggles · Shift-band adds, plain band replaces · an empty Shift-drag clears nothing · Alt-click cycles 3 overlapped and wraps · narrow-at-release / drag keeps the selection).
+
+### ⭐ AS-BUILT — P6 *(behaviors, `2026-11-08`, B-17 — ui's files: the two editors, `SelectionInteractionSystem`, `MapInteractionPack`, `DrawingMenu`, `ScenarioToolRegistrations`)* — the editing handles
+
+INVENTORY: `scripts/cbm.sh search_graph name_pattern=".*(Vertex|Waypoint|ShapeEdit|PointSequence|AreaShape).*"` (class) ⇒ the editors are `VertexEditGizmo` (a drawn area / zone's `EditablePolyline`) and `RouteWaypointGizmo` (a `RoutePlan`); `AreaShapeGizmo`'s circle / rectangle already had their ONE centre handle in P2 (the centre IS the shape's point); `PointSequenceGizmo` is the drawing tool, not an editor. Delete key: `SelectionInteractionSystem` destroyed the SELECTED entities on every Delete release — the editors' target is usually that selected entity. Graph coverage could not be checked (no `check_index_coverage` over the CLI).
+
+```mermaid
+classDiagram
+  class ShapeEditSession { <<existing · P2 · grown>> ★Centre · ★BeginCentreDrag / UpdateCentreDrag / EndCentreDrag / CancelCentreDrag · ★SegmentAt / InsertAtClick · ★DeleteSelectedPoint (holds MinPoints) · ★IsDeleteKey }
+  class ShapeEditKeys { <<NEW · Fdp.Presentation/Vis2D/Gizmos>> DeletePointId · Declare(keymap) · Is(keymap, key, id) }
+  class Keymap { <<existing · THE process keymap>> scope Map · qualifier shape-edit }
+  class VertexEditGizmo { <<existing>> centre handle · segment click · Delete }
+  class RouteWaypointGizmo { <<existing>> centre handle · segment click · Delete }
+  class EditSteps { <<existing>> one Begin/End = one undo step }
+  class SelectionInteractionSystem { <<existing>> ★ToolOwnsKeys }
+  class MapInteractionPack { <<existing>> sets ToolOwnsKeys from the one focus slot }
+  class DrawingMenu { <<existing>> ★EditShapeHint · ★EditRouteHint }
+  VertexEditGizmo --> ShapeEditSession
+  RouteWaypointGizmo --> ShapeEditSession
+  ShapeEditSession ..> ShapeEditKeys : IsDeleteKey
+  ShapeEditKeys ..> Keymap : a row, rebindable
+  VertexEditGizmo ..> EditSteps : every write-back, labelled
+  RouteWaypointGizmo ..> EditSteps : every write-back, labelled
+  MapInteractionPack ..> SelectionInteractionSystem : Delete is the tool's while it holds raw input
+```
+*What the picture shows: the new behaviour lives in the ONE session (centre drag, segment hit-test, the minimum-held delete); the editors only keep their parallel data (a route's speeds and heights) and bracket each write-back as one step. Delete is a keymap row asked through the session — and the selection system stands down on it while an editor holds the keyboard, or it would also destroy the selected route.*
+
+| decision | why |
+|---|---|
+| **centre handle** = a Box2D at the mean of the points, `SubElementId = ShapeEditSession.CentreHandleId` (65535; vertex `i` is `i + 1`), amber; its drag is `BeginCentreDrag` / `UpdateCentreDrag` (always from the originals, so idempotent) / `EndCentreDrag` (true only when something moved — a click on it is no edit); a route's waypoints keep speed and height (only X / Y shift) | ONE gesture for every kind: area / zone / polyline (`VertexEditGizmo`), route (`RouteWaypointGizmo`), circle / rectangle (`AreaShapeGizmo`, P2) |
+| **click a segment** inserts a point (the click projected ONTO the segment; a route's new waypoint takes the height along the leg and the leg's speed), selected. `SegmentAt` excludes a click within `HandleClearRadius` (extent / 25, 3…20 m) of a vertex or the centre, and the ✓ is checked first; `SegmentHitRadius` = extent / 30, 1.5…15 m. A closed shape's closing segment counts, a route's does not exist | the world-unit tolerance (the gizmos know no zoom) mirrors the first-point / ✓ radii P2 already sized from the shape |
+| **Delete** = `ShapeEditSession.IsDeleteKey` ⇒ the ROW `shape.delete.point` (scope Map, qualifier `shape-edit`, default chord Delete, label *Delete the selected point*) of the process keymap — never a key compared in a gizmo; a rebind moves it. It acts on the **release** (the map's key poll guarantees a release for Delete; one press deletes one point) | the P5 pattern: gestures / keys are rows. Enter / Esc / Backspace stay the session's own (P2) |
+| Delete (and the menu's *Delete point*) **holds the minimum**: area / zone 3, route 2 — nothing removed, nothing recorded, `Session.Reason` ("an area needs 3 points - the last ones stay") on the tool's hint line via `MapUiStates.ToolsOf(world).SetHint`, cleared when a handle is touched again | P2's TooFew pattern |
+| ⭐ every write-back is ONE bracketed edit (`EditSteps.Begin/End`, labels *Move point · Move shape · Move route · Move waypoint · Insert point · Delete waypoint …* — distinct, so two quick different edits do not coalesce); the preview stays in memory (the "before" is the world as it still is); a write-back that changes nothing (a click that selects, Enter with no change) records NOTHING | "each finished drag = one edit, one undo step". ⚠ before P6 the editors recorded no undo step at all |
+| ⭐ **cross-cutting:** `SelectionInteractionSystem.ToolOwnsKeys` (set by `MapInteractionPack` to *"the focus slot holds a gizmo that wants raw input"*) — while true, the Delete release does not destroy the selected entities | the editors' target is usually the selected entity: without it Delete removed the point AND deleted the route |
+| the Edit Shape / Edit Route hints: `DrawingMenu.EditShapeHint` / `EditRouteHint` — *"drag a vertex or the centre (moves all) · click a segment: add · Del: delete · Enter / ✓: done · right-click: menu · Esc: undo the drag and stop"* | the status line fits it at 800 px; ⛔ the right-click COMMIT of ROUTES1 §11.1 stays overruled (D11) |
+| ⚠ not verified live: `Delete` as the live key stream delivers it (verified on the gizmo + session level and through the keymap row); no 3-D editing handles (the editors draw on the 2-D map, as before — P7 reviews the looks) | |
+
+Rails: `ShapeEditSessionTests` `P6_*` (centre drag from the originals / cancel / no-move · `SegmentAt` finds the segment, not a vertex or the centre, closing segment, route · `DeleteSelectedPoint` holds the minimum · **Delete is a keymap row, a rebind moves it**); `VertexEditGizmoTests` / `RouteWaypointGizmoTests` `P6_*` (the centre handle drawn at the mean · centre drag moves every point and is ONE undo step with undo / redo · Esc cancels clean, a click on the handle is no edit · a segment click inserts between the right two (route: height along the leg) as one step, a vertex / centre / open-ground click inserts nothing · Delete removes the selected one as one step, the press is ignored · Delete at the minimum refuses with the reason on the tool's hint, then a touch clears it); `SelectionInteractionSystemTests.B17P6_*` (Delete destroys nothing while a tool holds the keyboard); `TheArmedToolIsVisibleTests.P6_TheEditToolsHints_…` + frame `P6_ARouteBeingEdited_OnARealFrame_…` (`editing-route.png` under `HROT_RAIL_SHOTS`, never committed: waypoints, the selected one red, the amber centre handle, the ✓, the hint). Red-proofs: a write-back per drag update ⇒ the centre-drag one-step rails (vertex and route) red · the minimum check dropped ⇒ the Delete-at-the-minimum rails red · `ToolOwnsKeys` ignored ⇒ `B17P6_*` red · the keymap lookup replaced by a key compare ⇒ `P6_Delete_IsAKeymapRow…` red.
 
 ## 4. Questions — ✅ all eight APPROVED as leaned (R-4134, user `2026-11-06`: *"Okay, accept it."*)
 

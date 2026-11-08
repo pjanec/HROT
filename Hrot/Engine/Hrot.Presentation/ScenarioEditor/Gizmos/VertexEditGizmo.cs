@@ -7,6 +7,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Edits;
 using Fdp.Toolkit.Vis2D.Gizmos;
 using Hrot.Common.Actions;
 using Hrot.ScenarioEditor.Tools;
@@ -47,6 +48,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         private static readonly Rgba32 IdleColor   = new Rgba32(0, 210, 120, 220);
         private static readonly Rgba32 ActiveColor = Rgba32.Red;
         private static readonly Rgba32 EdgeColor   = new Rgba32(255, 255, 0, 255);
+        private static readonly Rgba32 CentreColor = new Rgba32(255, 170, 0, 230);   // ⭐ B-17 P6 — the centre handle (moves the whole shape)
 
         private readonly EntityRepository _repo;
         private readonly Entity           _entity;
@@ -82,6 +84,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             _networkId = networkId;
             _onRemove  = onRemove ?? throw new ArgumentNullException(nameof(onRemove));
             _session.Menu = new ShapeMenu(MenuJson, DrawingMenu.CommandOf);   // the SAME ids the menu rows carry
+            _session.ReasonChanged += reason => Hrot.ScenarioEditor.Map.MapUiStates.ToolsOf(_repo)?.SetHint(reason);   // ⭐ B-17 P6 — "an area needs 3 points" replaces the hint until the next handle is touched
 
             _originOffset = Vector2.Zero;
             if (_repo.HasComponent<SimTransform>(_entity))
@@ -100,6 +103,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                     foreach (var p in poly.Points)
                         abs.Add(_originOffset + p);
                     _session.Load(abs);
+                    _written = new List<Vector2>(_session.Points);
                 }
             }
         }
@@ -159,11 +163,34 @@ namespace Hrot.ScenarioEditor.Gizmos
                 draw.EmitRaw(in prim);
             }
 
+            // ⭐ B-17 P6 — the CENTRE handle: dragging it moves the WHOLE shape.
+            var centre = _session.Centre;
+            var cprim = default(DebugPrimitive);
+            cprim.Shape        = DebugPrimitiveShape.Box2D;
+            cprim.Space        = CoordinateSpace.World;
+            cprim.TargetView   = PipelineTarget.Map2D;
+            cprim.BoxCenterX   = centre.X;
+            cprim.BoxCenterY   = centre.Y;
+            cprim.BoxExtentX   = 8f;
+            cprim.BoxExtentY   = 8f;
+            cprim.Color        = CentreColor;
+            cprim.SubElementId = (ushort)ShapeEditSession.CentreHandleId;
+            cprim.BoxAnchorId  = _networkId;
+            draw.EmitRaw(in cprim);
+
             ShapeDoneMark.Draw(draw, _session);   // ⭐ B-17 P2 — the on-map ✓
         }
 
         public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos)
         {
+            _session.ClearReason();
+            if (token.SubElementId == ShapeEditSession.CentreHandleId)
+            {
+                // ⭐ B-17 P6 — the centre handle: the whole shape moves with the cursor
+                _activeVertex = -1;
+                _session.BeginCentreDrag(new Vector2(worldPos.X, worldPos.Y));
+                return;
+            }
             int idx = (int)token.SubElementId - 1;
             if (idx < 0 || idx >= _points.Count) return;
             _activeVertex = idx;
@@ -172,19 +199,27 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void OnDragUpdate(Vector3 worldPos)
         {
+            if (_session.CentreDragging) { _session.UpdateCentreDrag(new Vector2(worldPos.X, worldPos.Y)); return; }
             if (_activeVertex < 0 || _activeVertex >= _points.Count) return;
             _session.Set(_activeVertex, new Vector2(worldPos.X, worldPos.Y));
         }
 
         public void OnCommit(Vector3 worldPos)
         {
+            // ⭐ B-17 P6 — a centre drag is ONE edit (a click on the handle that moved nothing is none)
+            if (_session.CentreDragging)
+            {
+                if (_session.EndCentreDrag()) WriteBackAndPublish("Move shape");
+                return;
+            }
             // Finalize the drag. Do NOT call _onRemove; marker stays for more vertex edits.
-            WriteBackAndPublish();
-            _activeVertex = -1;
+            WriteBackAndPublish("Move point");
+            // ⭐ B-17 P6 — and the vertex STAYS SELECTED (drawn red): Delete removes it. (Esc / a deletion clears it.)
         }
 
         public void OnCancel()
         {
+            if (_session.CentreDragging) _session.CancelCentreDrag();
             if (_activeVertex >= 0 && _activeVertex < _points.Count)
                 _session.Set(_activeVertex, _savedPos);
             _activeVertex = -1;
@@ -199,26 +234,36 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (actionId == 1) // Insert after
             {
                 _session.InsertMidpointAfter(_activeVertex);
-                WriteBackAndPublish();
+                WriteBackAndPublish("Insert point");
             }
             else if (actionId == 2) // Delete
-            {
-                _session.DeleteSelected();
-                WriteBackAndPublish();
-            }
+                DeleteSelectedPoint();
+        }
+
+        /// <summary>⭐ B-17 P6 — the Delete key and the menu's Delete point: the ONE removal, held at the shape's minimum (the reason goes to the hint, nothing is removed).</summary>
+        private void DeleteSelectedPoint()
+        {
+            int before = _points.Count;
+            _session.DeleteSelectedPoint();
+            if (_points.Count != before) WriteBackAndPublish("Delete point");
         }
 
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
             // ⭐ B-17 P2 (D11) — right-click is the MENU: it no longer writes back and exits. The on-map ✓ (a left click) finishes.
-            if (button == MapMouseButton.Left && !isPressed && _session.HitDone(new Vector2(worldPos.X, worldPos.Y)))
-                Resolve(_session.Finish());
+            if (button != MapMouseButton.Left || isPressed) return;
+            var at = new Vector2(worldPos.X, worldPos.Y);
+            if (_session.HitDone(at)) { Resolve(_session.Finish()); return; }
+            // ⭐ B-17 P6 — a click on a SEGMENT (not on a vertex, the centre or the ✓) inserts a point there: one edit, and it is the selected point
+            if (!_session.CentreDragging && _session.InsertAtClick(at) >= 0) { _session.ClearReason(); WriteBackAndPublish("Insert point"); }
         }
 
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
         {
             // Enter finishes · Esc cancels (undo the drag in progress, then stop). ⛔ Backspace is not here: an editor has no "last point".
             if (key == MapKeyboardKey.Backspace) return;
+            // ⭐ B-17 P6 — Delete is a ROW of the keymap (ShapeEditKeys), asked through the session; it removes the selected point
+            if (_session.IsDeleteKey(key, isPressed)) { DeleteSelectedPoint(); return; }
             Resolve(_session.OnKey(key, isPressed));
         }
 
@@ -227,7 +272,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (outcome == ShapeOutcome.Finished)
             {
-                WriteBackAndPublish();
+                WriteBackAndPublish("Edit shape");
                 _activeVertex = -1;
                 _onRemove();
             }
@@ -241,6 +286,19 @@ namespace Hrot.ScenarioEditor.Gizmos
         public void Dispose() { }
 
         // ---- private helpers ---------------------------------------------------
+
+        // ⭐ B-17 P6 — every write-back is ONE bracketed edit (EditSteps): a finished drag, an insert, a delete = one undo step each (the preview is in-memory,
+        //   so the step's "before" is the world as it still is). Distinct labels, so two quick different edits do not coalesce.
+        private void WriteBackAndPublish(string label)
+        {
+            if (_written != null && System.Linq.Enumerable.SequenceEqual(_points, _written)) return;   // nothing changed since the last write: no edit, no undo step
+            EditSteps.Begin(_repo, label);
+            try { WriteBackAndPublish(); }
+            finally { EditSteps.End(_repo); }
+            _written = new List<Vector2>(_points);
+        }
+
+        private List<Vector2>? _written;   // the points as last written back (or loaded) — a write-back that changes nothing is no edit
 
         private void WriteBackAndPublish()
         {

@@ -7,6 +7,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Edits;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Hrot.ScenarioEditor.Gizmos;
@@ -172,6 +173,7 @@ public class VertexEditGizmoTests : IDisposable
 
     /// <summary>
     /// OnMenuAction(2) after selecting vertex 0 removes that vertex; Points.Count decreases by 1.
+    /// ⭐ B-17 P6: an area keeps its 3 points — so the area is first given a 4th (the same hold the Delete key has: <c>P6_DeleteAtTheMinimum_Refuses_…</c>).
     /// </summary>
     [Fact]
     public void OnMenuAction_Delete_RemovesVertex()
@@ -179,10 +181,14 @@ public class VertexEditGizmoTests : IDisposable
         using var gizmo = CreateGizmo();
 
         gizmo.OnInteractionStarted(Token(1), Vector3.Zero); // vertex 0
+        gizmo.OnMenuAction(1); // insert after → 4 points
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero); // vertex 0 again
         gizmo.OnMenuAction(2); // delete
 
         var poly = ((ISimulationView)_repo).GetManagedComponentRO<EditablePolyline>(_entity);
-        Assert.Equal(2, poly.Points.Count);
+        Assert.Equal(3, poly.Points.Count);
+        gizmo.OnMenuAction(2); // delete at the minimum (nothing selected now / 3 points) — refused or no-op
+        Assert.Equal(3, ((ISimulationView)_repo).GetManagedComponentRO<EditablePolyline>(_entity).Points.Count);
     }
 
     // -- §4.7i — A SUSPENDED TOOL DRAWS ITS WORK, NOT ITS HANDLES (user ruling, 2026-09-10) --
@@ -204,7 +210,7 @@ public class VertexEditGizmoTests : IDisposable
         var draw = new NullDraw();
         gizmo.UpdateAndDraw(_repo, 0.016f, draw);
 
-        Assert.Equal(3, draw.Handles);        // one per vertex
+        Assert.Equal(3 + 1, draw.Handles);    // one per vertex, and (B-17 P6) the centre handle
         Assert.Equal(1, draw.MenuBindings);
         Assert.True(draw.Lines > 0, "the edited shape must be drawn");
     }
@@ -248,7 +254,7 @@ public class VertexEditGizmoTests : IDisposable
         var draw = new NullDraw();
         gizmo.UpdateAndDraw(_repo, 0.016f, draw);
 
-        Assert.Equal(3, draw.Handles);
+        Assert.Equal(3 + 1, draw.Handles);   // the three vertices and (B-17 P6) the centre handle
         Assert.Equal(1, draw.MenuBindings);
     }
 
@@ -322,5 +328,182 @@ public class VertexEditGizmoTests : IDisposable
         var rows = System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto[]>(
             gizmo.Session.Menu!.Json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
         Assert.Equal(new[] { "Insert point after", "Delete point", null, "Finish", "Cancel" }, rows.Select(r => r.Label).ToArray());
+    }
+    // ── ⭐ B-17 P6 — the centre handle, click a segment = insert, Delete = remove the selected point (each one edit, one undo step) ────────────
+
+    private sealed class UndoRig
+    {
+        public readonly Hrot.Presentation.Edits.EditHistory History = new();
+        public double Now;
+        public UndoRig(EntityRepository repo)
+        {
+            repo.Tick();
+            EditSteps.Install(repo, new Hrot.Presentation.Edits.WorldUndoRecorder(History, new Fdp.Toolkit.Replay.WorldSnapshotRing(), () => true, () => Now));
+        }
+    }
+
+    private static readonly Vector2[] Original = { new(10f, 10f), new(20f, 20f), new(30f, 10f) };
+
+    /// <summary>The centre handle moves EVERY vertex by the cursor's travel and the finished drag is ONE edit and ONE undo step — however many updates it took.
+    /// 🔴 Red-proof (compiles): <c>OnDragUpdate</c> also calling <c>WriteBackAndPublish("Move shape")</c> ⇒ N steps, one Undo restores only the last ⇒ red.</summary>
+    [Fact]
+    public void P6_TheCentreHandle_MovesEveryVertex_AsOneEditAndOneUndoStep()
+    {
+        var rig = new UndoRig(_repo);
+        using var gizmo = CreateGizmo();
+        var centre = gizmo.Session.Centre;
+        gizmo.OnInteractionStarted(Token(Fdp.Toolkit.Vis2D.Gizmos.ShapeEditSession.CentreHandleId), new Vector3(centre.X, centre.Y, 0f));
+        foreach (var step in new[] { 10f, 20f, 30f })
+        {
+            rig.Now += 5.0;                                          // beyond the coalescing second: N edits would be N steps
+            gizmo.OnDragUpdate(new Vector3(centre.X + step, centre.Y + step * 2f, 0f));
+        }
+        gizmo.OnCommit(Vector3.Zero);
+
+        Assert.Equal(Original.Select(p => p + new Vector2(30f, 60f)).ToList(), Points());
+        Assert.Equal(1, rig.History.Count);
+        Assert.True(rig.History.Undo());
+        Assert.Equal(Original.ToList(), Points());
+        Assert.True(rig.History.Redo());
+        Assert.Equal(Original.Select(p => p + new Vector2(30f, 60f)).ToList(), Points());
+    }
+
+    /// <summary>Esc during a centre drag puts every vertex back and writes nothing; a click on the handle that moved nothing is no edit.</summary>
+    [Fact]
+    public void P6_TheCentreDrag_CancelsClean_AndAClickOnTheHandleIsNoEdit()
+    {
+        var rig = new UndoRig(_repo);
+        int removed = 0;
+        using var gizmo = CreateGizmo(() => removed++);
+        var c = gizmo.Session.Centre;
+        gizmo.OnInteractionStarted(Token(Fdp.Toolkit.Vis2D.Gizmos.ShapeEditSession.CentreHandleId), new Vector3(c.X, c.Y, 0f));
+        gizmo.OnDragUpdate(new Vector3(c.X + 99f, c.Y + 99f, 0f));
+        gizmo.OnKeyEvent(MapKeyboardKey.Escape, true);
+        Assert.Equal(1, removed);
+        Assert.Equal(Original.ToList(), gizmo.Session.Points.ToList());
+        Assert.Equal(Original.ToList(), Points());
+
+        using var g2 = CreateGizmo();
+        g2.OnInteractionStarted(Token(Fdp.Toolkit.Vis2D.Gizmos.ShapeEditSession.CentreHandleId), new Vector3(c.X, c.Y, 0f));
+        g2.OnCommit(Vector3.Zero);
+        Assert.Equal(0, rig.History.Count);
+    }
+
+    /// <summary>The centre handle is DRAWN, as one more Box2D handle at the vertices' mean carrying its own sub-element id.</summary>
+    [Fact]
+    public void P6_TheCentreHandleIsDrawn_AtTheMean_WithItsOwnId()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.SetFocus(true);
+        var draw = new IdDraw();
+        gizmo.UpdateAndDraw(_repo, 0.016f, draw);
+        var centre = draw.Handles.Single(h => h.Id == Fdp.Toolkit.Vis2D.Gizmos.ShapeEditSession.CentreHandleId);
+        Assert.Equal(20f, centre.X, precision: 3);
+        Assert.Equal(40f / 3f, centre.Y, precision: 3);
+        Assert.Equal(3, draw.Handles.Count(h => h.Id != Fdp.Toolkit.Vis2D.Gizmos.ShapeEditSession.CentreHandleId));
+    }
+
+    private sealed class IdDraw : Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder
+    {
+        public readonly List<(uint Id, float X, float Y)> Handles = new();
+        public void EmitRaw(in DebugPrimitive prim) => Handles.Add((prim.SubElementId, prim.BoxCenterX, prim.BoxCenterY));
+        public void DrawContextMenuBinding(int networkId, string menuJson) { }
+        public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f, SizeMode m = SizeMode.ScreenPixels, PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
+        public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f, SizeMode m = SizeMode.ScreenPixels, PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
+        public void DrawSphere(Vector3 c, float r, Rgba32 col, float thickness = 0f, SizeMode sm2 = SizeMode.WorldMeters, PipelineTarget tg = PipelineTarget.All, byte l = 0, Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
+        public void DrawArrow(Vector3 f, Vector3 t, Rgba32 c, float h = 1f, byte l = 0) { }
+        public void DrawText(float x, float y, Fdp.Core.FixedString32 t, Rgba32 c, CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
+        public void DrawTextLong(float x, float y, string t, Rgba32 c, CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
+        public void DrawEntityBadge(Entity e, Fdp.Core.FixedString32 rt, PipelineTarget tg = PipelineTarget.All) { }
+        public void DrawEntityLocal(int a, Vector3 ls, Vector3 le, Rgba32 c, float t = 1f, byte l = 0) { }
+        public void DrawEntityLocalInteractive(int a, Vector3 ls, Vector3 le, Rgba32 c, ushort sid, float t = 1f, byte l = 0) { }
+    }
+
+    /// <summary>A click on a SEGMENT inserts a point exactly on it, between its two vertices (the closing segment appends), and selects it: one edit, one undo step. A click on a vertex, the
+    /// centre or open ground inserts nothing.</summary>
+    [Fact]
+    public void P6_AClickOnASegment_InsertsBetweenTheRightTwoPoints_OneUndoStep_AndNothingElseDoes()
+    {
+        var rig = new UndoRig(_repo);
+        using var gizmo = CreateGizmo();
+        void Click(float x, float y) => gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(x, y, 0f));
+
+        Click(10.5f, 10.4f);   // on vertex 0
+        Click(20f, 13.3f);     // on the centre handle
+        Click(15f, 40f);       // open ground
+        Assert.Equal(0, rig.History.Count);
+        Assert.Equal(3, Points().Count);
+
+        Click(15.5f, 14.5f);   // 0.7 m off the first segment (10,10)-(20,20)
+        var after = Points();
+        Assert.Equal(4, after.Count);
+        Assert.Equal(new Vector2(10f, 10f), after[0]);
+        Assert.Equal(15f, after[1].X, precision: 3);               // projected ONTO the segment
+        Assert.Equal(15f, after[1].Y, precision: 3);
+        Assert.Equal(new Vector2(20f, 20f), after[2]);
+        Assert.Equal(1, gizmo.Session.Selected);
+        Assert.Equal(1, rig.History.Count);
+
+        rig.Now += 5.0;
+        Click(25f, 10.3f);     // the closing segment (30,10)-(10,10): appends
+        Assert.Equal(5, Points().Count);
+        Assert.Equal(25f, Points()[4].X, precision: 3);
+        Assert.Equal(2, rig.History.Count);
+
+        Assert.True(rig.History.Undo());
+        Assert.Equal(4, Points().Count);
+        Assert.True(rig.History.Undo());
+        Assert.Equal(Original.ToList(), Points());
+    }
+
+    /// <summary>Delete (a row of the keymap) removes the selected vertex — one edit, one undo step; nothing selected ⇒ nothing happens.
+    /// 🔴 Red-proof (compiles): <c>DeleteSelectedPoint</c> not calling <c>WriteBackAndPublish</c> ⇒ the stored polyline keeps 4 points ⇒ red.</summary>
+    [Fact]
+    public void P6_Delete_RemovesTheSelectedVertex_OneUndoStep()
+    {
+        var rig = new UndoRig(_repo);
+        using var gizmo = CreateGizmo();
+        gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(15.5f, 14.5f, 0f));      // insert → 4 points, the new one selected
+        rig.Now += 5.0;
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, true);                                       // a press is not the row's event
+        Assert.Equal(4, Points().Count);
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, false);                                      // the release
+        Assert.Equal(Original.ToList(), Points());
+        Assert.Equal(-1, gizmo.Session.Selected);
+        Assert.Equal(2, rig.History.Count);
+        Assert.True(rig.History.Undo());
+        Assert.Equal(4, Points().Count);
+
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, false);                                      // nothing is selected now ⇒ nothing happens
+        Assert.Equal(4, Points().Count);
+        Assert.Equal(2, rig.History.Count);
+    }
+
+    /// <summary>Delete at the MINIMUM (an area keeps 3 points) removes nothing, records nothing, and says why — on the tool's hint line. 🔴 Red-proof (compiles): the
+    /// minimum check removed from <c>DeleteSelectedPoint</c> ⇒ the area drops to 2 points ⇒ red.</summary>
+    [Fact]
+    public void P6_DeleteAtTheMinimum_Refuses_WithTheReasonInTheHint()
+    {
+        var rig = new UndoRig(_repo);
+        var global = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer());
+        var tools = new Hrot.ScenarioEditor.Tools.ToolController(() => global, () => null);
+        tools.Register(new Hrot.ScenarioEditor.Tools.ToolDescriptor("p6-edit", "Edit", Hrot.ScenarioEditor.Tools.ToolModality.Modal, Hrot.ScenarioEditor.Tools.ToolArbiter.None, Hint: "the tool's hint"),
+                       _ => Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed);
+        Assert.True(tools.Activate("p6-edit"));
+        Hrot.ScenarioEditor.Map.MapUiStates.Set(_repo, tools);
+
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(2), Vector3.Zero);
+        gizmo.OnCommit(Vector3.Zero);                                                        // a click: vertex 1 is selected
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, false);
+
+        Assert.Equal(3, Points().Count);
+        Assert.Equal(3, gizmo.Session.Points.Count);
+        Assert.Equal(1, gizmo.Session.Selected);
+        Assert.Equal(0, rig.History.Count);
+        Assert.Contains("needs 3 points", gizmo.Session.Reason);
+        Assert.Equal(gizmo.Session.Reason, tools.ActiveHint);
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);                                  // touching a handle again clears it
+        Assert.Equal("the tool's hint", tools.ActiveHint);
     }
 }

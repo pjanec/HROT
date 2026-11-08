@@ -7,6 +7,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Edits;
 using Fdp.Toolkit.Vis2D.Gizmos;
 using Hrot.Common.Actions;
 using Hrot.Map.Common.Components;
@@ -34,6 +35,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         private static readonly Rgba32 IdleColor   = new Rgba32(0, 160, 255, 220);
         private static readonly Rgba32 ActiveColor = Rgba32.Red;
+        private static readonly Rgba32 CentreColor = new Rgba32(255, 170, 0, 230);   // ⭐ B-17 P6 — the centre handle (moves every waypoint)
 
         // Tracks the single active instance so WaypointEditorPanel can bind.
         public static RouteWaypointGizmo? Current { get; private set; }
@@ -100,6 +102,8 @@ namespace Hrot.ScenarioEditor.Gizmos
             foreach (var wp in _waypoints) xy.Add(new Vector2(wp.Position.X, wp.Position.Y));
             _session.Load(xy);
             _session.Menu = new ShapeMenu(MenuJson, DrawingMenu.CommandOf);   // the SAME ids the menu rows carry
+            _session.ReasonChanged += reason => Hrot.ScenarioEditor.Map.MapUiStates.ToolsOf(_repo)?.SetHint(reason);   // ⭐ B-17 P6 — "a route needs 2 points" replaces the hint until the next handle is touched
+            _written = new List<RouteWaypoint>(_waypoints);
 
             Current = this;
         }
@@ -133,6 +137,21 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             ShapeDoneMark.Draw(draw, _session);   // ⭐ B-17 P2 — the on-map ✓
 
+            // ⭐ B-17 P6 — the CENTRE handle (the waypoints' mean): dragging it moves every waypoint
+            var centre = _session.Centre;
+            var cprim = default(DebugPrimitive);
+            cprim.Shape        = DebugPrimitiveShape.Box2D;
+            cprim.Space        = CoordinateSpace.World;
+            cprim.TargetView   = PipelineTarget.Map2D;
+            cprim.BoxCenterX   = centre.X;
+            cprim.BoxCenterY   = centre.Y;
+            cprim.BoxExtentX   = 8f;
+            cprim.BoxExtentY   = 8f;
+            cprim.Color        = CentreColor;
+            cprim.SubElementId = (ushort)ShapeEditSession.CentreHandleId;
+            cprim.BoxAnchorId  = _networkId;
+            draw.EmitRaw(in cprim);
+
             for (int i = 0; i < _waypoints.Count; i++)
             {
                 bool isActive = (i == _activeVertex);
@@ -156,6 +175,15 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos)
         {
+            _session.ClearReason();
+            if (token.SubElementId == ShapeEditSession.CentreHandleId)
+            {
+                // ⭐ B-17 P6 — the centre handle: every waypoint moves with the cursor (their heights stay)
+                _activeVertex = -1;
+                _centreOrigin = _waypoints.ToArray();
+                _session.BeginCentreDrag(new Vector2(worldPos.X, worldPos.Y));
+                return;
+            }
             int idx = (int)token.SubElementId - 1;
             if (idx < 0 || idx >= _waypoints.Count) return;
             _activeVertex  = idx;
@@ -164,6 +192,19 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void OnDragUpdate(Vector3 worldPos)
         {
+            if (_session.CentreDragging)
+            {
+                var at = new Vector2(worldPos.X, worldPos.Y);
+                _session.UpdateCentreDrag(at);
+                var d = _session.CentreDragDelta(at);
+                for (int i = 0; i < _waypoints.Count && _centreOrigin != null && i < _centreOrigin.Length; i++)
+                {
+                    var o = _centreOrigin[i];
+                    o.Position = new Vector3(o.Position.X + d.X, o.Position.Y + d.Y, o.Position.Z);
+                    _waypoints[i] = o;
+                }
+                return;
+            }
             if (_activeVertex < 0 || _activeVertex >= _waypoints.Count) return;
             var wp = _waypoints[_activeVertex];
             // ⭐ CE-2172 — the map's X / Y are the waypoint's; its height (Z) is not the drag's to change
@@ -177,14 +218,27 @@ namespace Hrot.ScenarioEditor.Gizmos
             // Finalize drag. Marker stays so more waypoints can be edited.
             // ⭐ CE-1096 (ROUTES1 §11.4 W-4) — and the waypoint STAYS SELECTED: a click is a press and a release, so deselecting here
             //   left the waypoint panel empty the moment the mouse came up (Escape / a deletion clear it)
-            WriteBackAndPublish();
+            if (_session.CentreDragging)
+            {
+                // ⭐ B-17 P6 — a centre drag is ONE edit (a click on the handle that moved nothing is none)
+                if (_session.EndCentreDrag()) WriteBackAndPublish("Move route");
+                _centreOrigin = null;
+                return;
+            }
+            WriteBackAndPublish("Move waypoint");
         }
 
         /// <summary>⭐ CE-1096 (W-3) — the waypoint panel changed a field: the route written back and published, as a drag's end does.</summary>
-        public void CommitEdits() => WriteBackAndPublish();
+        public void CommitEdits() { WriteBackAndPublish(); _written = new List<RouteWaypoint>(_waypoints); }
 
         public void OnCancel()
         {
+            if (_session.CentreDragging)
+            {
+                _session.CancelCentreDrag();
+                if (_centreOrigin != null) for (int i = 0; i < _waypoints.Count && i < _centreOrigin.Length; i++) _waypoints[i] = _centreOrigin[i];
+                _centreOrigin = null;
+            }
             if (_activeVertex >= 0 && _activeVertex < _waypoints.Count)
             {
                 _waypoints[_activeVertex] = _savedWaypoint;
@@ -211,28 +265,51 @@ namespace Hrot.ScenarioEditor.Gizmos
                 };
                 _waypoints.Insert(at + 1, newWp);
                 _session.InsertOnSegment(at, new Vector2(midPos.X, midPos.Y));
-                WriteBackAndPublish();
+                WriteBackAndPublish("Insert waypoint");
             }
             else if (actionId == 2) // Delete
-            {
-                _waypoints.RemoveAt(_activeVertex);
-                _session.DeleteSelected();
-                WriteBackAndPublish();
-            }
+                DeleteSelectedWaypoint();
+        }
+
+        /// <summary>⭐ B-17 P6 — the Delete key and the menu's Delete waypoint: the ONE removal, held at the route's minimum (the reason goes to the hint, nothing is removed).</summary>
+        private void DeleteSelectedWaypoint()
+        {
+            int at = _activeVertex;
+            if (at < 0 || at >= _waypoints.Count) return;
+            if (_session.DeleteSelectedPoint() != ShapeOutcome.None || _session.Points.Count == _waypoints.Count) return;   // refused (too few): nothing removed
+            _waypoints.RemoveAt(at);
+            WriteBackAndPublish("Delete waypoint");
         }
 
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
             // ⭐ B-17 P2 (D11; overrules ROUTES1 §11.1's right-click commit) — right-click is the MENU: it no longer writes back and exits.
             //   The on-map ✓ (a left click) finishes.
-            if (button == MapMouseButton.Left && !isPressed && _session.HitDone(new Vector2(worldPos.X, worldPos.Y)))
-                Resolve(_session.Finish());
+            if (button != MapMouseButton.Left || isPressed) return;
+            var click = new Vector2(worldPos.X, worldPos.Y);
+            if (_session.HitDone(click)) { Resolve(_session.Finish()); return; }
+            // ⭐ B-17 P6 — a click on a SEGMENT (not on a waypoint, the centre or the ✓) inserts a waypoint there: one edit, and it is the selected one
+            if (_session.CentreDragging) return;
+            int seg = _session.SegmentAt(click, out var on);
+            if (seg < 0) return;
+            int next = (seg + 1) % _waypoints.Count;
+            var a = _waypoints[seg].Position; var b = _waypoints[next].Position;
+            var ab = new Vector2(b.X - a.X, b.Y - a.Y);
+            float len2 = ab.LengthSquared();
+            float t = len2 <= 1e-9f ? 0f : System.Math.Clamp(Vector2.Dot(on - new Vector2(a.X, a.Y), ab) / len2, 0f, 1f);
+            var newWp = new RouteWaypoint { Position = a + (b - a) * t, TargetSpeed = _waypoints[seg].TargetSpeed };   // the height along the leg too
+            _waypoints.Insert(seg + 1, newWp);
+            _session.InsertOnSegment(seg, new Vector2(newWp.Position.X, newWp.Position.Y));
+            _session.ClearReason();
+            WriteBackAndPublish("Insert waypoint");
         }
 
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
         {
             // Enter finishes · Esc cancels (undo the drag in progress, then stop). ⛔ Backspace is not here: an editor has no "last point".
             if (key == MapKeyboardKey.Backspace) return;
+            // ⭐ B-17 P6 — Delete is a ROW of the keymap (ShapeEditKeys), asked through the session; it removes the selected waypoint
+            if (_session.IsDeleteKey(key, isPressed)) { DeleteSelectedWaypoint(); return; }
             Resolve(_session.OnKey(key, isPressed));
         }
 
@@ -241,7 +318,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (outcome == ShapeOutcome.Finished)
             {
-                WriteBackAndPublish();
+                WriteBackAndPublish("Edit route");
                 _onRemove();
             }
             else if (outcome == ShapeOutcome.Cancelled)
@@ -259,6 +336,27 @@ namespace Hrot.ScenarioEditor.Gizmos
         }
 
         // ---- private helpers ---------------------------------------------------
+
+        // ⭐ B-17 P6 — every write-back is ONE bracketed edit (EditSteps): a finished drag, an insert, a delete = one undo step each (the preview is in-memory,
+        //   so the step's "before" is the world as it still is). Distinct labels, so two quick different edits do not coalesce. A write-back that changes nothing is no edit.
+        private void WriteBackAndPublish(string label)
+        {
+            if (_written != null && SameWaypoints(_waypoints, _written)) return;
+            EditSteps.Begin(_repo, label);
+            try { WriteBackAndPublish(); }
+            finally { EditSteps.End(_repo); }
+            _written = new List<RouteWaypoint>(_waypoints);
+        }
+
+        private List<RouteWaypoint>? _written;       // the waypoints as last written back (or loaded)
+        private RouteWaypoint[]? _centreOrigin;      // the waypoints as a centre drag found them (their speeds and heights ride along)
+
+        private static bool SameWaypoints(List<RouteWaypoint> a, List<RouteWaypoint> b)
+        {
+            if (a.Count != b.Count) return false;
+            for (int i = 0; i < a.Count; i++) if (!a[i].Equals(b[i])) return false;
+            return true;
+        }
 
         private void WriteBackAndPublish()
         {

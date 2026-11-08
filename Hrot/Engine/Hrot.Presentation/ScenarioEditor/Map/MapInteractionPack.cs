@@ -288,6 +288,7 @@ namespace Hrot.ScenarioEditor.Map
                 ctx.SelectionWorld ?? (() => ctx.World), bus, rubberBand, selection, MapGestureRouter.Shared);
             if (ctx.OnMapSelectionChanged != null)
                 selectionInteraction.OnSelectionChanged += ctx.OnMapSelectionChanged;
+            selectionInteraction.ToolOwnsKeys = () => focus.Holder is { WantsRawInput: true };   // ⭐ B-17 P6 — while a tool holds the keyboard (the shape / route editors), Delete is its, not the selection's
 
             // ⚠ ORDER IS LOAD-BEARING and the pack cannot enforce it — the host schedules. Requests must
             //   apply BEFORE the announcement is consumed, or a cause and its consequence land a frame

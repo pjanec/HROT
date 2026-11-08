@@ -84,6 +84,13 @@ public sealed class SelectionInteractionSystem
     /// </summary>
     public Action<Entity, System.Numerics.Vector3>? OnSelectionChanged;
 
+    /// <summary>
+    /// ⭐ B-17 P6 — whether a tool holds the keyboard (an exclusive gizmo that wants raw input — the shape and route editors): while it does, Delete is THE TOOL'S
+    /// (it deletes the selected point) and this system does not also destroy the selected entities. Null = no such arbiter (a bare host or a rail): Delete deletes, as before.
+    /// <c>MapInteractionPack</c> sets it from the one focus slot.
+    /// </summary>
+    public Func<bool>? ToolOwnsKeys { get; set; }
+
     public SelectionInteractionSystem(
         EntityRepository world,
         FdpEventBus interactionBus,
@@ -276,6 +283,7 @@ public sealed class SelectionInteractionSystem
         foreach (ref readonly var key in _interactionBus.Read<GizmoKeyEvent>())
         {
             if (key.Key != MapKeyboardKey.Delete || key.IsPressed) continue;
+            if (ToolOwnsKeys?.Invoke() == true) continue;   // ⭐ B-17 P6 — a tool that takes raw input owns Delete (the shape / route editors delete a POINT with it, never the selected unit or route)
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(_world)) continue;   // ⭐ DAR F7 — a recording is not edited
 
             var toDestroy = new List<Entity>();

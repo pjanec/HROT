@@ -97,14 +97,14 @@ namespace Hrot.ScenarioEditor.Tools
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Edit, "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped,
                                    ShowOnToolbar: true, ToggleOnReactivate: true,
-                                   Hint: "drag a vertex · Enter / ✓: done · right-click: menu · Esc: undo the drag and stop", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),
+                                   Hint: DrawingMenu.EditShapeHint, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),
                 target => ToggleEntityGizmo<EditablePolyline>(target, EditorTool.Edit,
                     (w, e, netId, onRemove) => new VertexEditGizmo(w, e, netId, onRemove)));
 
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Route, "Edit Route", ToolModality.Modal, ToolArbiter.EntityScoped,
                                    ShowOnToolbar: true, ToggleOnReactivate: true,
-                                   Hint: "drag a waypoint · Enter / ✓: done · right-click: menu · Esc: undo the drag and stop", Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Route),
+                                   Hint: DrawingMenu.EditRouteHint, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Route),
                 target => ToggleEntityGizmo<RoutePlan>(target, EditorTool.Route,
                     (w, e, netId, onRemove) => new RouteWaypointGizmo(w, e, netId, onRemove)));
 

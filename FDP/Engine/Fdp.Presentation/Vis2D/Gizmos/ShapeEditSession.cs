@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Fdp.Toolkit.Input;
 
 namespace Fdp.Toolkit.Vis2D.Gizmos;
 
@@ -157,6 +158,133 @@ public sealed class ShapeEditSession
         foreach (var p in points) { _points.Add(p); _heights.Add(0f); }
         Selected = -1;
     }
+
+    // ── ⭐ B-17 P6 — the editing handles: the centre (moves the WHOLE shape), a click on a segment (inserts), Delete (removes the selected point) ──────────
+
+    /// <summary>The <c>SubElementId</c> of the CENTRE handle (vertex <c>i</c> is <c>i + 1</c>; 0 is "no handle").</summary>
+    public const uint CentreHandleId = ushort.MaxValue;
+
+    /// <summary>The centre handle's place: the mean of the points (a route's waypoints included). Zero with no points.</summary>
+    public Vector2 Centre
+    {
+        get
+        {
+            if (_points.Count == 0) return Vector2.Zero;
+            var sum = Vector2.Zero;
+            foreach (var p in _points) sum += p;
+            return sum / _points.Count;
+        }
+    }
+
+    private Vector2[]? _dragOrigin;
+    private Vector2 _grab;
+
+    /// <summary>True between <see cref="BeginCentreDrag"/> and its end / cancel.</summary>
+    public bool CentreDragging => _dragOrigin != null;
+
+    /// <summary>The centre handle is grabbed at <paramref name="at"/>: the points as they are now are the drag's originals.</summary>
+    public void BeginCentreDrag(Vector2 at)
+    {
+        _dragOrigin = _points.ToArray();
+        _grab = at;
+    }
+
+    /// <summary>The cursor is at <paramref name="at"/>: every point sits at its original plus the cursor's travel (idempotent — always from the originals).</summary>
+    public void UpdateCentreDrag(Vector2 at)
+    {
+        if (_dragOrigin == null) return;
+        var delta = at - _grab;
+        for (int i = 0; i < _points.Count && i < _dragOrigin.Length; i++) _points[i] = _dragOrigin[i] + delta;
+    }
+
+    /// <summary>The cursor's travel since the grab (zero outside a drag) — what a host with parallel per-point data applies to it.</summary>
+    public Vector2 CentreDragDelta(Vector2 at) => _dragOrigin == null ? Vector2.Zero : at - _grab;
+
+    /// <summary>Ends the centre drag; true when the shape actually moved (a click on the handle is no edit).</summary>
+    public bool EndCentreDrag()
+    {
+        if (_dragOrigin == null) return false;
+        bool moved = false;
+        for (int i = 0; i < _points.Count && i < _dragOrigin.Length; i++) if (_points[i] != _dragOrigin[i]) { moved = true; break; }
+        _dragOrigin = null;
+        return moved;
+    }
+
+    /// <summary>Puts every point back to where the centre drag found it (Esc) and ends the drag.</summary>
+    public void CancelCentreDrag()
+    {
+        if (_dragOrigin == null) return;
+        for (int i = 0; i < _points.Count && i < _dragOrigin.Length; i++) _points[i] = _dragOrigin[i];
+        _dragOrigin = null;
+    }
+
+    /// <summary>How near (m) a click must be to a segment to mean "insert here": a thirtieth of the extent, between 1.5 and 15.</summary>
+    public float SegmentHitRadius => Math.Clamp(Extent / 30f, 1.5f, 15f);
+
+    /// <summary>How near (m) a click may be to a vertex or the centre handle and still be THAT handle's, never a segment's: a twenty-fifth of the extent, between 3 and 20.</summary>
+    public float HandleClearRadius => Math.Clamp(Extent / 25f, 3f, 20f);
+
+    /// <summary>The number of segments: every consecutive pair, plus the closing one of a closed shape.</summary>
+    public int SegmentCount => _points.Count < 2 ? 0 : Closed && _points.Count >= 3 ? _points.Count : _points.Count - 1;
+
+    /// <summary>
+    /// The segment a click at <paramref name="at"/> means (the segment from that point to the next), -1 when it is on none — or on a vertex or the centre handle,
+    /// which are those handles' clicks. <paramref name="onSegment"/> is the click projected onto the segment (the point an insert places).
+    /// </summary>
+    public int SegmentAt(Vector2 at, out Vector2 onSegment)
+    {
+        onSegment = at;
+        if (_points.Count < 2) return -1;
+        float clear = HandleClearRadius;
+        foreach (var p in _points) if (Vector2.Distance(at, p) <= clear) return -1;
+        if (Vector2.Distance(at, Centre) <= clear) return -1;
+        int best = -1; float bestD = SegmentHitRadius;
+        for (int i = 0; i < SegmentCount; i++)
+        {
+            var a = _points[i]; var b = _points[(i + 1) % _points.Count];
+            var ab = b - a; float len2 = ab.LengthSquared();
+            float t = len2 <= 1e-9f ? 0f : Math.Clamp(Vector2.Dot(at - a, ab) / len2, 0f, 1f);
+            var q = a + ab * t;
+            float d = Vector2.Distance(at, q);
+            if (d <= bestD) { bestD = d; best = i; onSegment = q; }
+        }
+        return best;
+    }
+
+    /// <summary>A click at <paramref name="at"/> on a segment inserts a point there (selected); returns its index, -1 when the click is on no segment.</summary>
+    public int InsertAtClick(Vector2 at)
+    {
+        int seg = SegmentAt(at, out var on);
+        return seg < 0 ? -1 : InsertOnSegment(seg, on);
+    }
+
+    /// <summary>
+    /// ⭐ Delete: removes the selected point — unless that would drop below <see cref="MinPoints"/>: then nothing is removed and <see cref="Reason"/> says why
+    /// (<see cref="ShapeOutcome.TooFew"/>, as <see cref="Finish"/>). <see cref="ShapeOutcome.None"/> with no selected point, or after a removal (check <see cref="Points"/>).
+    /// </summary>
+    public ShapeOutcome DeleteSelectedPoint()
+    {
+        if (Ended || Selected < 0 || Selected >= _points.Count) return ShapeOutcome.None;
+        if (_points.Count - 1 < MinPoints)
+        {
+            Reason = $"{Noun} needs {MinPoints} points - the last ones stay";
+            return ShapeOutcome.TooFew;
+        }
+        DeleteSelected();
+        Reason = null;
+        return ShapeOutcome.None;
+    }
+
+    /// <summary>Clears the too-few reason (an editor does when the operator touches a handle again).</summary>
+    public void ClearReason() => Reason = null;
+
+    /// <summary>The keymap the session reads its keys from: THE process keymap, with the shape-edit rows declared.</summary>
+    public Keymap Keys { get; set; } = ShapeEditKeys.Process();
+
+    /// <summary>Is this key event the <b>delete the selected point</b> row of the keymap? (Declared once as <see cref="ShapeEditKeys.DeletePointId"/>, never a key compared here.)
+    /// ⚠ It acts on the RELEASE (<paramref name="isPressed"/> false): the map's key poll guarantees a release for the structural keys (Delete among them — the same event
+    /// <c>SelectionInteractionSystem</c> deletes units on) and a held key then deletes one point, not a run of them.</summary>
+    public bool IsDeleteKey(MapKeyboardKey key, bool isPressed) => !isPressed && ShapeEditKeys.Is(Keys, key, ShapeEditKeys.DeletePointId);
 
     // ── the convention ──────────────────────────────────────────────────────────────────────────────────────────────────
 

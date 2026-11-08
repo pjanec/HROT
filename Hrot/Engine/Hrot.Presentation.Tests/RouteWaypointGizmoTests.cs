@@ -336,4 +336,131 @@ public class RouteWaypointGizmoTests : IDisposable
         public void DrawEntityLocalInteractive(int a, Vector3 ls, Vector3 le,
             Rgba32 c, ushort sid, float t = 1f, byte l = 0) { }
     }
+    // ── ⭐ B-17 P6 — the centre handle, click a segment = insert, Delete = remove the selected waypoint (each one edit, one undo step) ─────
+
+    private sealed class UndoRig
+    {
+        public readonly Hrot.Presentation.Edits.EditHistory History = new();
+        public double Now;
+        public UndoRig(EntityRepository repo)
+        {
+            repo.Tick();
+            Fdp.Toolkit.Replication.Edits.EditSteps.Install(repo, new Hrot.Presentation.Edits.WorldUndoRecorder(History, new Fdp.Toolkit.Replay.WorldSnapshotRing(), () => true, () => Now));
+        }
+    }
+
+    private static readonly Vector3[] Original = { new(10f, 10f, 0f), new(20f, 20f, 0f), new(30f, 10f, 120f) };
+
+    /// <summary>The route's centre handle moves EVERY waypoint (their heights stay) and the finished drag is ONE edit and ONE undo step, however many updates it took.
+    /// 🔴 Red-proof (compiles): <c>OnDragUpdate</c> also calling <c>WriteBackAndPublish("Move route")</c> ⇒ N steps, one Undo restores only the last ⇒ red.</summary>
+    [Fact]
+    public void P6_TheCentreHandle_MovesEveryWaypoint_AsOneEditAndOneUndoStep()
+    {
+        var rig = new UndoRig(_repo);
+        using var gizmo = CreateGizmo();
+        var c = gizmo.Session.Centre;
+        Assert.Equal(20f, c.X, precision: 3);
+        gizmo.OnInteractionStarted(Token((uint)Fdp.Toolkit.Vis2D.Gizmos.ShapeEditSession.CentreHandleId), new Vector3(c.X, c.Y, 0f));
+        foreach (var step in new[] { 10f, 20f, 30f })
+        {
+            rig.Now += 5.0;                                          // beyond the coalescing second: N edits would be N steps
+            gizmo.OnDragUpdate(new Vector3(c.X + step, c.Y - step, 0f));
+        }
+        gizmo.OnCommit(Vector3.Zero);
+
+        var moved = Original.Select(p => new Vector3(p.X + 30f, p.Y - 30f, p.Z)).ToList();
+        Assert.Equal(moved, Positions());
+        Assert.Equal(120f, Positions()[2].Z);                        // the flyer keeps its height
+        Assert.Equal(1, rig.History.Count);
+        Assert.True(rig.History.Undo());
+        Assert.Equal(Original.ToList(), Positions());
+        Assert.True(rig.History.Redo());
+        Assert.Equal(moved, Positions());
+    }
+
+    /// <summary>Esc during a centre drag puts every waypoint back and writes nothing.</summary>
+    [Fact]
+    public void P6_TheCentreDrag_CancelsClean()
+    {
+        var rig = new UndoRig(_repo);
+        int removed = 0;
+        using var gizmo = CreateGizmo(() => removed++);
+        var c = gizmo.Session.Centre;
+        gizmo.OnInteractionStarted(Token((uint)Fdp.Toolkit.Vis2D.Gizmos.ShapeEditSession.CentreHandleId), new Vector3(c.X, c.Y, 0f));
+        gizmo.OnDragUpdate(new Vector3(c.X + 99f, c.Y + 99f, 0f));
+        gizmo.OnKeyEvent(MapKeyboardKey.Escape, true);
+        Assert.Equal(1, removed);
+        Assert.Equal(Original.ToList(), Positions());
+        Assert.Equal(0, rig.History.Count);
+        // the next drag of a waypoint starts from the original, not from the cancelled drag
+        using var g2 = CreateGizmo();
+        g2.OnInteractionStarted(Token(1), Vector3.Zero);
+        g2.OnDragUpdate(new Vector3(11f, 12f, 0f));
+        g2.OnCommit(Vector3.Zero);
+        Assert.Equal(new Vector3(11f, 12f, 0f), Positions()[0]);
+        Assert.Equal(Original[1], Positions()[1]);
+    }
+
+    /// <summary>A click on a SEGMENT inserts a waypoint on it, between the right two (its height along the leg), and selects it: one edit, one undo step; a click on a waypoint,
+    /// the centre or open ground inserts nothing. A loop route's closing leg appends.</summary>
+    [Fact]
+    public void P6_AClickOnASegment_InsertsBetweenTheRightTwoWaypoints_OneUndoStep_AndNothingElseDoes()
+    {
+        var rig = new UndoRig(_repo);
+        using var gizmo = CreateGizmo();
+        void Click(float x, float y) => gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(x, y, 0f));
+
+        Click(10.5f, 10.4f);   // on waypoint 0
+        Click(20f, 13.3f);     // on the centre handle
+        Click(15f, 40f);       // open ground
+        Assert.Equal(0, rig.History.Count);
+        Assert.Equal(3, Positions().Count);
+
+        Click(25.4f, 14.6f);   // the second leg (20,20)-(30,10), 0.6 m off it, a little past its middle
+        var after = Positions();
+        Assert.Equal(4, after.Count);
+        Assert.Equal(Original[0], after[0]);
+        Assert.Equal(Original[1], after[1]);
+        Assert.Equal(25.4f, after[2].X, precision: 1);
+        Assert.Equal(14.6f, after[2].Y, precision: 1);
+        Assert.InRange(after[2].Z, 60f, 70f);                       // 0 → 120 along the leg, a little past the middle (t = 0.54)
+        Assert.Equal(Original[2], after[3]);
+        Assert.Equal(2, gizmo.SelectedVertexIndex);
+        Assert.Equal(4, gizmo.Session.Points.Count);
+        Assert.Equal(1, rig.History.Count);
+
+        Assert.True(rig.History.Undo());
+        Assert.Equal(Original.ToList(), Positions());
+    }
+
+    /// <summary>Delete (a row of the keymap) removes the selected waypoint — one edit, one undo step; at the route's minimum (2) it refuses, removes nothing, records nothing and says why.
+    /// 🔴 Red-proof (compiles): the minimum check removed from <c>ShapeEditSession.DeleteSelectedPoint</c> ⇒ the route drops to 1 waypoint ⇒ red.</summary>
+    [Fact]
+    public void P6_Delete_RemovesTheSelectedWaypoint_AndRefusesAtTheMinimum_WithTheReason()
+    {
+        var rig = new UndoRig(_repo);
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(2), Vector3.Zero);
+        gizmo.OnCommit(Vector3.Zero);                                // a click selects waypoint 1
+        Assert.Equal(1, gizmo.SelectedVertexIndex);
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, true);               // the press is not the row's event
+        Assert.Equal(3, Positions().Count);
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, false);
+        Assert.Equal(new[] { Original[0], Original[2] }, Positions().ToArray());
+        Assert.Equal(2, gizmo.Session.Points.Count);
+        Assert.Equal(1, rig.History.Count);
+        Assert.True(rig.History.Undo());
+        Assert.Equal(Original.ToList(), Positions());
+
+        // the gizmo still holds the 2-waypoint working copy: delete once more ⇒ refused
+        rig.Now += 5.0;
+        gizmo.OnInteractionStarted(Token(1), Vector3.Zero);
+        gizmo.OnCommit(Vector3.Zero);
+        int stepsBefore = rig.History.Count;
+        gizmo.OnKeyEvent(MapKeyboardKey.Delete, false);
+        Assert.Equal(2, gizmo.Session.Points.Count);
+        Assert.Contains("needs 2 points", gizmo.Session.Reason);
+        Assert.Equal(stepsBefore, rig.History.Count);
+        Assert.Equal(0, gizmo.SelectedVertexIndex);                  // still selected: nothing removed
+    }
 }

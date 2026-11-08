@@ -45,6 +45,24 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
         public bool IsKeyboardCaptured => false;
     }
 
+    /// <summary>⭐ B-17 P6 — the Edit Shape / Edit Route tools' hints name the new handles and keys (the centre handle, a segment click, Del), and the pack's one selection system stands
+    /// down on Delete while a tool holds the keyboard (a focused raw-input gizmo) — the Delete key is the editor's. 🔴 Red-proof: the hint constants reverted ⇒ red.</summary>
+    [Fact]
+    public void P6_TheEditToolsHints_NameTheCentreTheSegmentClickAndDelete()
+    {
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+        foreach (var id in new[] { ScenarioToolIds.Edit, ScenarioToolIds.Route })
+        {
+            var hint = mi.Tools.DescriptorOf(id)!.Hint!;
+            Assert.Contains("the centre (moves all)", hint);
+            Assert.Contains("click a segment: add", hint);
+            Assert.Contains("Del: delete", hint);
+            Assert.Contains("Enter / ✓: done", hint);
+        }
+        Assert.Equal(DrawingMenu.EditShapeHint, mi.Tools.DescriptorOf(ScenarioToolIds.Edit)!.Hint);
+        Assert.Equal(DrawingMenu.EditRouteHint, mi.Tools.DescriptorOf(ScenarioToolIds.Route)!.Hint);
+    }
+
     /// <summary>
     /// ⭐ Every tool the shared registrations arm on a map (bar the plain Select) carries a hint and an icon; the active hint is the descriptor's,
     /// a gizmo's own line overrides it, and arming another tool clears the override and the cursor claim. 🔴 Red-proof: the override not cleared
@@ -321,6 +339,91 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
         Assert.True(hintPx > 60, $"the hint is drawn on the map ({hintPx} light px)");
         Console.WriteLine("P2 frame: " + png);
     }
+    /// <summary>
+    /// ⭐ B-17 P6 fidelity — a route BEING EDITED on a real frame: the waypoint handles, the SELECTED waypoint drawn red, the amber CENTRE handle at the waypoints' mean, the green ✓, and the
+    /// Edit Route hint naming the centre, the segment click and Del. Renders <c>editing-route.png</c> under <c>HROT_RAIL_SHOTS</c> (⛔ never committed); asserts the red and the amber handles are
+    /// drawn. Skips without a display (run under <c>xvfb-run -a</c>).
+    /// </summary>
+    [SkippableFact]
+    public void P6_ARouteBeingEdited_OnARealFrame_ShowsTheCentreHandleAndTheSelectedWaypoint()
+    {
+        Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+        mi.Tools.Register(new ToolDescriptor("p6-edit-route", "Edit Route", ToolModality.Modal, ToolArbiter.None, ShowOnToolbar: true,
+                                             Hint: DrawingMenu.EditRouteHint, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.Route), _ => ToolActivationOutcome.Armed);
+        using var routeWorld = new EntityRepository();
+        Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(routeWorld);
+        routeWorld.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
+        var entity = routeWorld.CreateEntity();
+        routeWorld.AddComponent(entity, default(Fdp.Core.SimTransform));
+        routeWorld.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 77 });
+        routeWorld.SetManagedComponent(entity, new Hrot.Map.Common.Components.RoutePlan().WithWaypoints(w =>
+        {
+            foreach (var p in new[] { new Vector2(-120, -50), new Vector2(-30, 30), new Vector2(70, -20) })
+                w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(p.X, p.Y, 0f), TargetSpeed = 5f });
+        }));
+
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(800, 420);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        var canvas = new MapCanvas(input: null);
+        var camera = new MapCamera();
+        const float zoom = 2f;
+        var target = new Vector2(-800f / 2f / zoom, 380f / 2f / zoom);
+        camera.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        canvas.Camera = camera;
+        var readout = new MapCursorReadout();
+        canvas.AddResource(readout);
+        canvas.AddResource(new MapToolsLink(() => MapUiStates.ToolsOf(_world)));
+        MapUiStates.Set(_world, canvas);
+        readout.Set(new MapCursorSample(new Vector3(-60, -60, 0), false, 0, 0, 0));
+        var buffer = new DebugPrimitiveBuffer();
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new FdpEventBus(), camera: camera);
+        canvas.AddLayer(gizmos);
+        Assert.True(mi.Tools.Activate("p6-edit-route"));
+
+        using var editor = new RouteWaypointGizmo(routeWorld, entity, 77, () => { });
+        editor.SetFocus(true);
+        editor.OnInteractionStarted(new Fdp.Toolkit.Diagnostics.Gizmos.GizmoPickToken { AnchorId = 77, SubElementId = 2 }, Vector3.Zero);   // the middle waypoint, selected
+        editor.OnCommit(Vector3.Zero);
+        editor.UpdateAndDraw(routeWorld, 0.016f, buffer);
+        new ToolHintGizmo().Draw(_world, buffer);
+        gizmos.Update(0.016f);
+        var section = new ToolStatusSection(() => canvas);
+        void Draw()
+        {
+            canvas.Draw();
+            ImGuiNET.ImGui.SetNextWindowPos(new Vector2(0, 390)); ImGuiNET.ImGui.SetNextWindowSize(new Vector2(800, 30));
+            ImGuiNET.ImGui.Begin("status", ImGuiNET.ImGuiWindowFlags.NoDecoration);
+            section.Render();
+            ImGuiNET.ImGui.End();
+        }
+        frame.StepN(3, Draw);
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-editing-route");
+        System.IO.Directory.CreateDirectory(dir);
+        string png = System.IO.Path.Combine(dir, "editing-route.png");
+        frame.Screenshot(png);
+        var image = Raylib_cs.Raylib.LoadImage(png);
+        int red = 0, amber = 0, blue = 0, green = 0;
+        try
+        {
+            for (int y = 0; y < 380; y++)
+                for (int x = 0; x < image.Width; x++)
+                {
+                    var c = Raylib_cs.Raylib.GetImageColor(image, x, y);
+                    if (c.R > 200 && c.G < 60 && c.B < 60) red++;                                       // the selected waypoint
+                    if (c.R > 200 && c.G > 130 && c.G < 200 && c.B < 70) amber++;                       // the centre handle
+                    if (c.R < 60 && c.G > 120 && c.B > 200) blue++;                                     // an idle waypoint
+                    if (Math.Abs(c.R - 90) + Math.Abs(c.G - 220) + Math.Abs(c.B - 110) < 60) green++;   // the ✓
+                }
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(image); }
+        Assert.True(red > 20, $"the selected waypoint is drawn red ({red} px)");
+        Assert.True(amber > 20, $"the centre handle is drawn amber ({amber} px)");
+        Assert.True(blue > 20, $"the other waypoints are drawn ({blue} px)");
+        Assert.True(green > 40, $"the ✓ is drawn ({green} px)");
+        Console.WriteLine("P6 frame: " + png);
+    }
+
     /// <summary>
     /// ⭐ B-17 P4 fidelity (R-4146; mockup <c>map-interaction-visual.svg</c> panel B) — a PENDING PICK on a real frame: the banner at the top of the map (<c>[Cancel]</c> in amber, the prompt in white),
     /// the sky-blue crosshair at the cursor, and a refused click's reason flashed beside it. Renders <c>pending-pick.png</c> under <c>HROT_RAIL_SHOTS</c> (⛔ never committed). Skips without a display

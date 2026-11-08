@@ -772,6 +772,29 @@ public class SelectionInteractionSystemTests
         public void Dispose() { Disposed = true; }
     }
 
+    /// <summary>⭐ B-17 P6 — while a tool holds the keyboard (the shape / route editors), Delete is the TOOL'S (it deletes a point): the selected unit or route is NOT also destroyed.
+    /// 🔴 Red-proof (compiles): the <c>ToolOwnsKeys</c> check removed ⇒ the entity is destroyed ⇒ red.</summary>
+    [Fact]
+    public void B17P6_TheDeleteKey_DestroysNothing_WhileAToolHoldsTheKeyboard_AndDoesAgainWhenItLetsGo()
+    {
+        var entity = CreateSelectableEntity();
+        _world.SetComponent(entity, new SelectionState { IsSelected = true, IsPrimarySelection = true });
+        bool held = true;
+        _system.ToolOwnsKeys = () => held;
+
+        PublishKeyEvent(MapKeyboardKey.Delete, isPressed: false);
+        _system.Tick(0f);
+        _world.Bus.SwapBuffers();
+        Assert.Empty(_world.Bus.ReadManaged<DestroyEntityCommand>());
+        Assert.True(_world.IsAlive(entity));
+
+        held = false;
+        PublishKeyEvent(MapKeyboardKey.Delete, isPressed: false);
+        _system.Tick(0f);
+        _world.Bus.SwapBuffers();
+        Assert.Single(_world.Bus.ReadManaged<DestroyEntityCommand>());
+    }
+
     /// <summary>⭐ DAR F7 — the Delete key edits no recording: while the world shows a review or a replay it destroys nothing.</summary>
     [Fact]
     public void DARF7_TheDeleteKey_DestroysNothing_WhileTheWorldShowsARecording()

@@ -22,6 +22,12 @@ namespace Hrot.ScenarioEditor.Tools
         /// <summary>The Draw Route tool's hint (2 points).</summary>
         public static readonly string RouteHint = HintFor(2);
 
+        /// <summary>⭐ B-17 P6 — the Edit Shape tool's hint: the vertex and centre handles, the segment click, Delete, the finish and cancel keys (the descriptor and the rails say one line).</summary>
+        public const string EditShapeHint = "drag a vertex or the centre (moves all) · click a segment: add · Del: delete · Enter / ✓: done · right-click: menu · Esc: undo the drag and stop";
+
+        /// <summary>⭐ B-17 P6 — the Edit Route tool's hint (the same handles on a route's waypoints).</summary>
+        public const string EditRouteHint = "drag a waypoint or the centre (moves all) · click a segment: add · Del: delete · Enter / ✓: done · right-click: menu · Esc: undo the drag and stop";
+
         /// <summary>What a catalogue row's id means to a session; null for an id that is not a drawing row.</summary>
         public static ShapeCommand? CommandOf(int actionId) => actionId switch
         {
