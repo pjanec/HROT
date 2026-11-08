@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using Fdp.Presentation.Editing;
 using Fdp.Toolkit.ScenarioRules.Actions;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 using StructEdit.Core;
@@ -151,6 +152,7 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
     private sealed class Row
     {
         public string Act = "";
+        public System.Text.Json.Nodes.JsonObject? ArgsRef; public bool ArgsRefSet;   // the Args object the row was synced from (a steady frame compares the reference, not the text)
         public string ArgsJson = "{}";          // the step's args as the document holds them (what a mismatch is told by)
         public ActionEntry? Entry;
         public IEditSession? Session;
@@ -167,9 +169,27 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
     private ActionEntry? _pendingAdd;
     /// <summary>Where the buttons were drawn last frame (screen space) — a frame rail clicks them.</summary>
     internal (Vector2 Min, Vector2 Max) AddRect { get; private set; }
-    internal List<(Vector2 Min, Vector2 Max)> UpRects { get; } = new();
-    internal List<(Vector2 Min, Vector2 Max)> DownRects { get; } = new();
-    internal List<(Vector2 Min, Vector2 Max)> RemoveRects { get; } = new();
+    /// <summary>Where each row's ⋮ menu button was drawn last frame (a rail clicks it, then the menu row).</summary>
+    internal List<(Vector2 Min, Vector2 Max)> MenuRects { get; } = new();
+    private static readonly ListOptions StepOptions = new()
+    {
+        AddLabel = "Add step",
+        Disabled = ListCmd.InsertAbove | ListCmd.InsertBelow | ListCmd.Duplicate | ListCmd.Copy | ListCmd.Paste | ListCmd.Reset,   // the edits the model has: Move · Remove · Add
+    };
+    private readonly List<string> _sentences = new();
+    private int _sentenceVersion;
+    private IReadOnlyList<string> Sentences(int count)
+    {
+        // rebuilt only when a row's text changed (Sync bumps the version); ListBlock caches the texts by it
+        if (_sentences.Count != count || _sentencesDirty)
+        {
+            _sentences.Clear();
+            for (int i = 0; i < count; i++) _sentences.Add(_rows[i].Sentence + (_rows[i].Problem != null ? " (" + _rows[i].Problem + ")" : ""));
+            _sentencesDirty = false; _sentenceVersion++;
+        }
+        return _sentences;
+    }
+    private bool _sentencesDirty = true;
     private ActionListProbe _probe = new(Array.Empty<string>(), 0, null, false);
 
     public ActionListFieldDrawer(IComponentEditService service, ActionListContext context)
@@ -198,58 +218,48 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
         if (_pendingAdd is { } add) { list = ActionListEdit.Added(list, add); _pendingAdd = null; changed = true; }
         Sync(list);
 
-        var shown = new List<string>(list.Count);
-        var noted = new List<string>();
-        UpRects.Clear(); DownRects.Clear(); RemoveRects.Clear();
-        // the add button leads the list: a long list scrolls, and the button must stay reachable
-        bool canAdd = _ctx.OpenPicker != null;
-        if (!canAdd) ImGui.BeginDisabled();
-        if (ImGui.Button("+ Add step"))
-            _ctx.OpenPicker!(ActionListEdit.Request(), result => { if (result.First?.Tag is ActionEntry e) _pendingAdd = e; });
-        AddRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
-        if (!canAdd) { ImGui.EndDisabled(); if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip("this host has no picker"); }
-        if (_ctx.RunningStep > 0 && _ctx.StepCount > 0) { ImGui.SameLine(); ImGui.TextDisabled($"step {_ctx.RunningStep} / {_ctx.StepCount}"); }
-
-        if (list.Count == 0) ImGui.TextDisabled("(no steps: the trigger does nothing when it fires)");
-        int? delete = null, up = null, down = null;
-        for (int i = 0; i < list.Count; i++)
+        bool stale = false;
+        string? barNow = _ctx.Bar?.Invoke();
+        if (!string.Equals(barNow, _barSeen, StringComparison.Ordinal)) { stale = true; _barSeen = barNow; }
+        for (int i = 0; i < list.Count; i++)   // the notes, once before the rows: a change makes the probe's texts stale (a steady frame builds none)
         {
+            string? n0 = _ctx.NoteOf?.Invoke(list[i]);
+            while (_noteNow.Count <= i) _noteNow.Add(null);
+            _noteNow[i] = n0;
+            if (!string.Equals(i < _noteSeen.Count ? _noteSeen[i] : null, n0, StringComparison.Ordinal)) stale = true;
+        }
+        stale |= _sentencesDirty || _shownCount != list.Count || _shownRun != _ctx.RunningStep || !ReferenceEquals(_shownFail, _ctx.FailedReason) || _shownSteps != _ctx.StepCount;
+        if (stale) _noted.Clear();
+        var shown = _shown; var noted = _noted;
+        MenuRects.Clear();
+        // ⭐ CE-3395 — the do list is the kit's LIST block: one summary row per step (⋮⋮ drag · number · the step's sentence · ⋮ menu), the args form opens under the row; Add at the end opens the ONE picker. The ops go to the EXISTING edits (ActionListEdit).
+        bool canAdd = _ctx.OpenPicker != null;
+        if (_ctx.RunningStep > 0 && _ctx.StepCount > 0) ImGui.TextDisabled($"step {_ctx.RunningStep} / {_ctx.StepCount}");
+        if (list.Count == 0) ImGui.TextDisabled("(no steps: the trigger does nothing when it fires)");
+        if (!canAdd) ImGui.TextDisabled("this host has no picker: steps cannot be added here");
+        ListBlock.Begin("steps", Sentences(list.Count), StepOptions, _sentenceVersion);
+        int? delete = null, up = null, down = null, moveFrom = null, moveTo = null;
+        for (int v = 0; v < ListBlock.VisibleCount; v++)
+        {
+            int i = ListBlock.VisibleIndex(v);
+            if (i >= list.Count) break;
             var row = _rows[i];
-            ImGui.PushID(i);
             bool marked = _ctx.RunningStep == i + 1;
-            DrawMarker(marked, marked && _ctx.FailedReason != null);
-            ImGui.SameLine();
-            // ⭐ CE-4307 — the buttons first, at a fixed place: the step's sentence can be long and would push them off the panel
-            ImGui.TextUnformatted(Number(i));
-            ImGui.SameLine();
-            if (i == 0) ImGui.BeginDisabled();
-            if (ImGui.SmallButton("^")) up = i;
-            UpRects.Add((ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
-            if (i == 0) ImGui.EndDisabled();
-            ImGui.SameLine();
-            if (i == list.Count - 1) ImGui.BeginDisabled();
-            if (ImGui.SmallButton("v")) down = i;
-            DownRects.Add((ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
-            if (i == list.Count - 1) ImGui.EndDisabled();
-            ImGui.SameLine();
-            if (ImGui.SmallButton("x")) delete = i;
-            RemoveRects.Add((ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Remove this step");
-            ImGui.SameLine(0f, 12f);
-            ImGui.TextWrapped(row.Sentence);   // ⭐ CE-4307 (RX5) — the step as words (ActionSentence)
-            if (row.Entry != null && ImGui.IsItemHovered()) ImGui.SetTooltip(row.Entry.Fqn);
+            IconGlyph? mark = marked ? new IconGlyph("\uf04b", marked && _ctx.FailedReason != null ? IconPalette.Error : IconPalette.Orange) : null;   // the running step's ▶ (orange; red once it failed)
+            bool open = ListBlock.ItemBegin(i, mark);
+            MenuRects.Add((KitProbe.TryGet(KitProbe.ListMenuButton, out var mn, out var mx) ? mn : default, mx));
             if (marked && _ctx.FailedReason != null) ImGui.TextColored(new Vector4(0.9f, 0.4f, 0.35f, 1f), "failed: " + _ctx.FailedReason);
-            if (_ctx.Preview != null && IsInsertMacro(list[i])) DrawPreviewBar(list[i], noted);   // ⭐ CE-4244
-            if (_ctx.NoteOf?.Invoke(list[i]) is { } note) { ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]); ImGui.TextWrapped(note); ImGui.PopStyleColor(); noted.Add($"{i + 1}. {note}"); }   // ⭐ CE-4241
-            shown.Add((marked ? "> " : "") + $"{i + 1}. {row.Sentence}" + (row.Problem != null ? $" ({row.Problem})" : ""));
+            if (_ctx.Preview != null && IsInsertMacro(list[i])) DrawPreviewBar(list[i], stale ? noted : null);   // ⭐ CE-4244
+            string? note = _noteNow[i];   // ⭐ CE-4241
+            if (note is { }) { ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]); ImGui.TextWrapped(note); ImGui.PopStyleColor(); if (stale) noted.Add($"{i + 1}. {note}"); }
+            if (row.Problem != null) ImGui.TextColored(new Vector4(0.9f, 0.7f, 0.3f, 1f), row.Problem);
 
-            if (row.Problem == null && ActionListEdit.IsOrder(row.Act) && DrawOrderKind(list[i]) is { } kind)   // ⭐ CE-4307 (RX5) — Order by order KIND
+            if (open && row.Problem == null && ActionListEdit.IsOrder(row.Act) && DrawOrderKind(list[i]) is { } kind)   // ⭐ CE-4307 (RX5) — Order by order KIND
             {
                 list = ActionListEdit.WithOrderKind(list, i, kind);
                 changed = true;
             }
-            if (row.Problem != null) ImGui.TextColored(new Vector4(0.9f, 0.7f, 0.3f, 1f), row.Problem);
-            else if (row.Session is { } session)
+            if (open && row.Problem == null && row.Session is { } session)
             {
                 if (Fdp.Presentation.Editing.StructTable.Begin("##args"))
                 {
@@ -258,30 +268,66 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
                     row.Drawer.DrawRoot(session.Document.Root);
                     Fdp.Presentation.Editing.StructTable.End();
                 }
-                if (session.IsDirty && row.Entry != null)
+            }
+            if (row.Problem == null && row.Session is { IsDirty: true } dirty && row.Entry != null)   // an edit commits whether or not the row is open (a rail edits the session directly)
+            {
+                string json = BehaviorParamsForm.CommitToJson(dirty, row.Entry.ParamsType);
+                if (json != row.Committed)
                 {
-                    string json = BehaviorParamsForm.CommitToJson(session, row.Entry.ParamsType);
-                    if (json != row.Committed)
-                    {
-                        row.Committed = json;
-                        var args = ActionListEdit.MergeArgs(list[i].Args, json);
-                        list = ActionListEdit.WithArgs(list, i, args);
-                        row.ArgsJson = args.ToJsonString();
-                        changed = true;
-                    }
+                    row.Committed = json;
+                    var args = ActionListEdit.MergeArgs(list[i].Args, json);
+                    list = ActionListEdit.WithArgs(list, i, args);
+                    row.ArgsJson = args.ToJsonString(); row.ArgsRef = args;
+                    changed = true;
                 }
             }
-            ImGui.Separator();
-            ImGui.PopID();
+            ListBlock.ItemEnd();
+        }
+        var op = ListBlock.End();
+        AddRect = KitProbe.TryGet(KitProbe.ListAdd, out var amin, out var amax) ? (amin, amax) : default;
+        switch (op.Kind)
+        {
+            case ListOpKind.Add: if (canAdd) _ctx.OpenPicker!(ActionListEdit.Request(), result => { if (result.First?.Tag is ActionEntry e) _pendingAdd = e; }); break;
+            case ListOpKind.Delete: delete = op.Index; break;
+            case ListOpKind.MoveUp: up = op.Index; break;
+            case ListOpKind.MoveDown: down = op.Index; break;
+            case ListOpKind.Move: moveFrom = op.Index; moveTo = op.Target; break;
         }
 
         if (delete is { } d) { list = ActionListEdit.Removed(list, d); changed = true; }
         else if (up is { } u) { list = ActionListEdit.Moved(list, u, -1); changed = true; }
         else if (down is { } dn) { list = ActionListEdit.Moved(list, dn, +1); changed = true; }
+        else if (moveFrom is { } mf && moveTo is { } mt)
+        {
+            int at = mf;   // a drag moves by single steps through the same edit
+            while (at < mt) { list = ActionListEdit.Moved(list, at, +1); at++; }
+            while (at > mt) { list = ActionListEdit.Moved(list, at, -1); at--; }
+            changed = mf != mt;
+        }
 
-        _probe = new ActionListProbe(shown, _ctx.RunningStep, _ctx.RunningStep > 0 && _ctx.StepCount > 0 ? $"step {_ctx.RunningStep} / {_ctx.StepCount}" : null, canAdd, noted);
+        if (stale || _probe.AddEnabled != canAdd) RebuildProbe(list, canAdd);
+        _noteSeen.Clear(); for (int i = 0; i < list.Count; i++) _noteSeen.Add(_noteNow[i]);
         if (changed) value = list;
         return changed;
+    }
+
+    // the probe's texts, rebuilt only when a row's text, the running step or a note moved — a steady frame builds nothing (R-2084)
+    private readonly List<string> _shown = new(), _noted = new();
+    private readonly List<string?> _noteSeen = new(), _noteNow = new();
+    private string? _barSeen;
+    private int _shownCount = -1, _shownRun = -1, _shownSteps = -1;
+    private string? _shownFail;
+
+    private void RebuildProbe(List<ActionStep> list, bool canAdd)
+    {
+        _shown.Clear();
+        for (int i = 0; i < list.Count && i < _rows.Count; i++)
+        {
+            var row = _rows[i];
+            _shown.Add((_ctx.RunningStep == i + 1 ? "> " : "") + $"{i + 1}. {row.Sentence}" + (row.Problem != null ? $" ({row.Problem})" : ""));
+        }
+        _shownCount = list.Count; _shownRun = _ctx.RunningStep; _shownFail = _ctx.FailedReason; _shownSteps = _ctx.StepCount;
+        _probe = new ActionListProbe(_shown, _ctx.RunningStep, _ctx.RunningStep > 0 && _ctx.StepCount > 0 ? $"step {_ctx.RunningStep} / {_ctx.StepCount}" : null, canAdd, _noted);
     }
 
     /// <summary>⭐ CE-4307 (RX5, DESIGN_Rule_Editor_UX §2.4) — the order kinds as the mission plan offers them (<c>OrderMenu.Orders</c>, the ONE list); a behaviour
@@ -314,7 +360,7 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
     internal string? PreviewButtons { get; private set; }
 
     /// <summary>⭐ CE-4244 (MP-2 b) — <i>Preview</i> on an <c>InsertMacro</c> step; while one is open its text, <i>Insert now</i> (live only) and <i>Close</i>. Nothing exists until <i>Insert now</i>.</summary>
-    private void DrawPreviewBar(ActionStep step, List<string> noted)
+    private void DrawPreviewBar(ActionStep step, List<string>? noted)
     {
         string? bar = _ctx.Bar?.Invoke();
         if (ImGui.SmallButton("Preview")) _ctx.Preview!(step);
@@ -329,7 +375,7 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
         CloseRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         ImGui.TextDisabled(bar);   // its own line: the panel is narrow, the buttons must stay reachable
         PreviewButtons = $"Preview | {bar} | Insert now{(refusal != null ? $" (disabled: {refusal})" : "")} | Close";
-        noted.Add(PreviewButtons);
+        noted?.Add(PreviewButtons);
     }
 
     internal (Vector2 Min, Vector2 Max) PreviewRect { get; private set; }
@@ -339,19 +385,23 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
     /// <summary>Keeps one row per step: a row whose act or args no longer match the document (a reorder, an undo, an external change) reopens its form.</summary>
     private void Sync(List<ActionStep> list)
     {
-        while (_rows.Count > list.Count) { _rows[^1].Session?.Dispose(); _rows.RemoveAt(_rows.Count - 1); }
+        while (_rows.Count > list.Count) { _rows[^1].Session?.Dispose(); _rows.RemoveAt(_rows.Count - 1); _sentencesDirty = true; }
         for (int i = 0; i < list.Count; i++)
         {
-            string act = list[i].Act, args = list[i].Args?.ToJsonString() ?? "{}";
-            if (i < _rows.Count && _rows[i].Act == act && _rows[i].ArgsJson == args) continue;
-            if (i < _rows.Count) { _rows[i].Session?.Dispose(); _rows[i] = Open(act, args); }
-            else _rows.Add(Open(act, args));
+            string act = list[i].Act;
+            // the document is replaced whole on every edit (ActionListEdit), so the SAME Args object is the same text: a steady frame serialises nothing (R-2084)
+            if (i < _rows.Count && _rows[i].Act == act && ReferenceEquals(_rows[i].ArgsRef, list[i].Args) && _rows[i].ArgsRefSet) continue;
+            string args = list[i].Args?.ToJsonString() ?? "{}";
+            if (i < _rows.Count && _rows[i].Act == act && _rows[i].ArgsJson == args) { _rows[i].ArgsRef = list[i].Args; _rows[i].ArgsRefSet = true; continue; }
+            _sentencesDirty = true;
+            if (i < _rows.Count) { _rows[i].Session?.Dispose(); _rows[i] = Open(act, args, list[i].Args); }
+            else _rows.Add(Open(act, args, list[i].Args));
         }
     }
 
-    private Row Open(string act, string argsJson)
+    private Row Open(string act, string argsJson, System.Text.Json.Nodes.JsonObject? argsRef)
     {
-        var row = new Row { Act = act, ArgsJson = argsJson, Entry = ActionListEdit.EntryOf(act) };
+        var row = new Row { Act = act, ArgsJson = argsJson, ArgsRef = argsRef, ArgsRefSet = true, Entry = ActionListEdit.EntryOf(act) };
         try { row.Sentence = Hrot.UI.Common.Rules.ActionSentence.Of(new ActionStep { Act = act, Args = System.Text.Json.Nodes.JsonNode.Parse(argsJson) as System.Text.Json.Nodes.JsonObject }, _ctx.Refs); }
         catch (System.Text.Json.JsonException) { row.Sentence = act; }
         if (row.Entry == null) { row.Problem = $"unknown action '{act}'"; return row; }

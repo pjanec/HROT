@@ -8,6 +8,7 @@ using MissionTask = Hrot.Core.Mission.MissionTask;
 using MissionPlan = Hrot.Core.Mission.MissionPlan;
 using Hrot.UI.Common.Facades;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 
 namespace Hrot.Editor.AiShared.Shell;
 
@@ -155,39 +156,36 @@ public sealed class OrdersTab : IDetailsViewInstance
         var rows = LastRows = OrdersPlanModel.RowsOf(draft, _dirty ? null : queue);
         var svc = _missions();
         if (rows.Count == 0) ImGui.TextDisabled("No plan — this unit runs its standing behaviour.");
-        int remove = -1, up = -1, down = -1;
-        for (int i = 0; i < rows.Count; i++)
+        // ⭐ CE-3395 — the plan's tasks are the kit's LIST block: one summary row per task (⋮⋮ drag · number · state glyph · the sentence · ⋮ menu), the task's fields / then / give-up open under the row; Add at the end opens the add menu.
+        // The ops go to the EXISTING draft edits (OrdersPlanEdits.Move, draft.Tasks.RemoveAt, the add menu's NewWait / NewOrder / NewBehaviour).
+        _summaries.Clear();
+        int hash = rows.Count;
+        for (int i = 0; i < rows.Count; i++) { string line = rows[i].Sentence + (rows[i].Problem is { } pr ? "  ! " + pr : ""); _summaries.Add(line); hash = HashCode.Combine(hash, line); }
+        ListBlock.Begin("tasks", _summaries, TaskOptions, hash);
+        for (int v = 0; v < ListBlock.VisibleCount; v++)
         {
+            int i = ListBlock.VisibleIndex(v);
+            if (i >= rows.Count) break;
             var r = rows[i];
             var task = draft.Tasks[i];
-            ImGui.PushID(i);
-            ImGui.TextColored(ColourOf(r.State), $"{i + 1}.");
-            ImGui.SameLine();
-            ImGui.TextUnformatted(r.Sentence);
-            if (r.Problem is { } why) { ImGui.SameLine(); ImGui.TextColored(new System.Numerics.Vector4(1f, 0.55f, 0.2f, 1f), "⚠"); if (ImGui.IsItemHovered()) ImGui.SetTooltip(why); }
-            ImGui.SameLine();
-            if (ImGui.SmallButton("↑")) up = i;
-            ImGui.SameLine();
-            if (ImGui.SmallButton("↓")) down = i;
-            ImGui.SameLine();
-            if (ImGui.SmallButton("✕")) remove = i;
+            bool open = ListBlock.ItemBegin(i, new IconGlyph("\uf111", ColourOf(r.State)));   // a dot in the task's state colour
+            if (r.Problem is { } why) { ImGui.TextColored(new System.Numerics.Vector4(1f, 0.55f, 0.2f, 1f), "⚠ " + why); }
             if (!_dirty && r.State is OrdersTaskState.Planned && svc != null && queue != null)
             {
-                ImGui.SameLine();
                 if (ImGui.SmallButton("Jump")) _ = svc.SendControlCommandAsync(net, eMissionCommandType.CMD_JUMP_TO_TASK, r.TaskId);
             }
-            ImGui.Indent();
-            if (DrawFields(task)) _dirty = true;
-            if (DrawThen(task, entity, net)) _dirty = true;
-            if (DrawGiveUp(task)) _dirty = true;
-            ImGui.Unindent();
-            ImGui.PopID();
+            if (open)
+            {
+                if (DrawFields(task)) _dirty = true;
+                if (DrawThen(task, entity, net)) _dirty = true;
+                if (DrawGiveUp(task)) _dirty = true;
+            }
+            ListBlock.ItemEnd();
         }
-        if (remove >= 0) { draft.Tasks.RemoveAt(remove); _dirty = true; }
-        if (up >= 0) { OrdersPlanEdits.Move(draft, up, -1); _dirty = true; }
-        if (down >= 0) { OrdersPlanEdits.Move(draft, down, +1); _dirty = true; }
+        var taskOp = ListBlock.End();
+        MenuRects.Clear();
+        ApplyTaskOp(draft, taskOp);
 
-        if (ImGui.Button("+ Add task")) ImGui.OpenPopup("orders_add");
         if (ImGui.BeginPopup("orders_add"))
         {
             if (ImGui.Selectable("Wait")) { draft.Tasks.Add(OrdersPlanEdits.NewWait()); _dirty = true; }   // E9: Wait first
@@ -226,6 +224,34 @@ public sealed class OrdersTab : IDetailsViewInstance
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Apply your plan over theirs.");
         }
         else if (_status is { } st) ImGui.TextDisabled(st);
+    }
+
+    private readonly List<string> _summaries = new();
+    internal List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> MenuRects { get; } = new();
+    private static readonly ListOptions TaskOptions = new()
+    {
+        AddLabel = "Add task",
+        Disabled = ListCmd.InsertAbove | ListCmd.InsertBelow | ListCmd.Duplicate | ListCmd.Copy | ListCmd.Paste | ListCmd.Reset,   // the edits the plan has: Move · Remove · Add
+    };
+
+    /// <summary>The list's op applied to the draft's EXISTING edits (a drag moves by single steps through <see cref="OrdersPlanEdits.Move"/>); <i>Add</i> opens the add menu.</summary>
+    internal void ApplyTaskOp(MissionPlan draft, ListOp op)
+    {
+        switch (op.Kind)
+        {
+            case ListOpKind.Add: ImGui.OpenPopup("orders_add"); break;
+            case ListOpKind.Delete when op.Index >= 0 && op.Index < draft.Tasks.Count: draft.Tasks.RemoveAt(op.Index); _dirty = true; break;
+            case ListOpKind.MoveUp: OrdersPlanEdits.Move(draft, op.Index, -1); _dirty = true; break;
+            case ListOpKind.MoveDown: OrdersPlanEdits.Move(draft, op.Index, +1); _dirty = true; break;
+            case ListOpKind.Move:
+            {
+                int at = op.Index;
+                while (at < op.Target) { OrdersPlanEdits.Move(draft, at, +1); at++; }
+                while (at > op.Target) { OrdersPlanEdits.Move(draft, at, -1); at--; }
+                _dirty = op.Index != op.Target || _dirty;
+                break;
+            }
+        }
     }
 
     /// <summary>⭐ P-7 7d — the pick context scoped to one task (its fields, or its <i>then</i> condition); null when the host gives none.</summary>

@@ -495,6 +495,7 @@ public sealed class RulesWindowFrameRail : IDisposable
                     ImGui.End();
                 });
         }
+        (Vector2 Min, Vector2 Max) Slot(int slot) { NodeEditor.Core.Widgets.KitProbe.TryGet(slot, out var a, out var b); return (a, b); }
         void Click((Vector2 Min, Vector2 Max) r)
         {
             var at = (r.Min + r.Max) / 2f;
@@ -519,8 +520,10 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.Equal("rules.add-step", asked!.ContextKey);
         Assert.Equal(4, window.Probe.Editor!.Steps!.Count);
         Assert.True(window.Probe.Editor.Dirty);
-        Click(window.Details.Steps.UpRects[3]);                                                             // the new step up one
-        Click(window.Details.Steps.RemoveRects[0]);                                                         // the first one out
+        Click(window.Details.Steps.MenuRects[3]);                                                           // ⭐ CE-3395 — the new step's ⋮ menu: Move up
+        Click(Slot(NodeEditor.Core.Widgets.KitProbe.MenuRow + 3));
+        Click(window.Details.Steps.MenuRects[0]);                                                           // the first one's ⋮ menu: Delete
+        Click(Slot(NodeEditor.Core.Widgets.KitProbe.MenuRow + 8));
         Assert.Equal(3, window.Probe.Editor!.Steps!.Count);
         frame.Screenshot(ShotPath("rules-8-do-edited.png"));
 

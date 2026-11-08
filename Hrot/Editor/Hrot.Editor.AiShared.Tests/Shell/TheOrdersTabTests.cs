@@ -481,4 +481,16 @@ public sealed class TheOrdersTabEditsTests
 
         Assert.Null(new OrdersTab(() => null, () => null).PickFor(a, then: false));  // no host pick ⇒ no pick
     }
+
+    /// <summary>⭐ CE-3395 — the tasks LIST's ops (kit ⋮ menu / drag) go to the draft's EXISTING edits: Move reorders by single steps, Delete removes, and both mark the plan dirty.</summary>
+    [Fact]
+    public void TheTaskListOps_MoveAndDelete_ActOnTheDraft()
+    {
+        var tab = new OrdersTab(() => null, () => null);
+        var plan = new MissionPlan { Tasks = { new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Move" }, new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Attack" }, new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Hold" } } };
+        tab.ApplyTaskOp(plan, new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Move, 0, 2));
+        Assert.Equal(new[] { "Order.Attack", "Order.Hold", "Order.Move" }, plan.Tasks.Select(t => t.BehaviorId).ToArray());
+        tab.ApplyTaskOp(plan, new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Delete, 1));
+        Assert.Equal(new[] { "Order.Attack", "Order.Move" }, plan.Tasks.Select(t => t.BehaviorId).ToArray());
+    }
 }

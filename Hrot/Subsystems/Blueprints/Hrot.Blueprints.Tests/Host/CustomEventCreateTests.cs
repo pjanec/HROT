@@ -305,4 +305,20 @@ public sealed class CustomEventCreateTests
         Assert.NotNull(message);
         Assert.Contains("Damage", message);
     }
+
+    /// <summary>⭐ CE-3395 — the payload GRID's ops (the kit's ⋮ menu / drag) go to the modal's own parameter list: Add appends, Move reorders, Delete removes.</summary>
+    [Fact]
+    public void Modal_ParameterGridOps_AddMoveDelete_ActOnThePayloadOrder()
+    {
+        var modal = new CustomEventCreateModal((_, _) => { });
+        modal.Open();
+        var types = new[] { "System.Single", "System.Int32" };
+        for (int i = 0; i < 3; i++) modal.ApplyParameterOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Add));
+        var names = modal.Payload(types).Select(p => p.Name).ToArray();
+        Assert.Equal(3, names.Length);
+        modal.ApplyParameterOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Move, 0, 2));
+        Assert.Equal(new[] { names[1], names[2], names[0] }, modal.Payload(types).Select(p => p.Name).ToArray());
+        modal.ApplyParameterOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Delete, 1));
+        Assert.Equal(new[] { names[1], names[0] }, modal.Payload(types).Select(p => p.Name).ToArray());
+    }
 }

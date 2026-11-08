@@ -419,7 +419,9 @@ public static class ListBlock
             return;
         }
         bool pick = opt.Kinds.Length > 1;
-        if (Chip.Draw("##add", opt.AddLabel, new IconGlyph(KitGlyph.Plus, IconPalette.Green), 220f, pick ? ChipEnd.Dropdown : ChipEnd.None) == ChipHit.Body)
+        var addHit = Chip.Draw("##add", opt.AddLabel, new IconGlyph(KitGlyph.Plus, IconPalette.Green), 220f, pick ? ChipEnd.Dropdown : ChipEnd.None);
+        KitProbe.Set(KitProbe.ListAdd, ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        if (addHit == ChipHit.Body)
         {
             if (pick) ImGui.OpenPopup("##kinds");
             else if (op.Kind == ListOpKind.None) op = new ListOp(ListOpKind.Add, count, 0);

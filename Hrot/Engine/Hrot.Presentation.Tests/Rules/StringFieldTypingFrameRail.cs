@@ -59,4 +59,31 @@ public sealed class StringFieldTypingFrameRail
         string json = list[0].Args?.ToJsonString() ?? "{}";
         Assert.Contains("hello", json);
     }
+
+    /// <summary>⭐ CE-3395 — the step list is the kit's ListBlock; a steady frame (rows closed, nothing moving) allocates nothing (R-2084).</summary>
+    [SkippableFact]
+    public void TheStepList_AsAListBlock_AllocatesNothingInASteadyFrame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        _ = typeof(Hrot.AI.Behaviors.Brains.Objectives.ObjectiveStateKeepers).Assembly;
+        var drawer = new ActionListFieldDrawer(ComponentEditServices.CreateBuilder().Build(), new ActionListContext());
+        object value = new List<ActionStep> { new() { Act = "Message", Args = new JsonObject() }, new() { Act = "Message", Args = new JsonObject() } };
+        using var frame = UiFrameHarness.Begin(1000, 700);
+        long bytes = -1;
+        void Draw()
+        {
+            ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(980, 680));
+            if (ImGui.Begin("rail"))
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                drawer.DrawInput(ref value, null!);
+                bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            }
+            ImGui.End();
+        }
+        for (int k = 0; k < 3; k++) { frame.StepN(15, Draw); System.Threading.Thread.Sleep(220); }
+        frame.StepN(5, Draw);
+        Assert.Equal(2, drawer.MenuRects.Count);
+        Assert.True(bytes == 0, "a steady step list allocated " + bytes + " B");
+    }
 }

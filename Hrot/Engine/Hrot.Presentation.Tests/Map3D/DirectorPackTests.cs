@@ -119,6 +119,12 @@ public sealed class DirectorPackTests : IDisposable
 
         Assert.Equal(DirectorRenders.NoRenderer, pack.Window.QueueRender(playing));          // headless: refused, with the reason
         Assert.Empty(pack.Renders.Jobs);
+
+        // ⭐ CE-3395 — the reel GRID's ops (kit ⋮ menu / drag) go to the composer's own edits
+        pack.Window.ApplyReelOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Move, 0, 1));
+        Assert.Equal(new[] { "s-a/main", "s-b/wide" }, pack.Window.ReelToPlay(saved)!.Items.Select(i => i.Scenario + "/" + i.Take));
+        pack.Window.ApplyReelOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Delete, 0));
+        Assert.Equal(new[] { "s-b/wide" }, pack.Window.ReelToPlay(saved)!.Items.Select(i => i.Scenario + "/" + i.Take));
     }
 
     // ── CE-1303 P2a (§11m) — CR-4 on a host that CANNOT seek (the editor's kind: a live run, R-3034) ─────────────────────────────────────

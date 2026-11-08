@@ -93,43 +93,34 @@ public sealed class CustomEventCreateModal
         ImGui.Separator();
         ImGui.TextUnformatted("Parameters");
 
-        // Materialised index loop: a row can remove itself mid-draw.
-        int removeAt = -1;
-        for (int i = 0; i < _parameters.Count; i++)
+        // ⭐ CE-3395 — the payload is the kit's GRID block (⋮⋮ drag, ⋮ menu: Move up / down · Delete, Add under it); its ops go to the modal's own `_parameters` list. The payload ORDER is the parameter order.
+        if (NodeEditor.Core.Widgets.GridBlock.Begin("##evtparams", ParamHeaders, _parameters.Count, ParamOptions))
         {
-            ImGui.PushID(i);
-
-            var (pName, pTypeIndex) = _parameters[i];
-
-            ImGui.SetNextItemWidth(140f);
-            if (ImGui.InputText("##pname", ref pName, 128))
-                _parameters[i] = (pName, pTypeIndex);
-
-            ImGui.SameLine();
-            ImGui.SetNextItemWidth(110f);
-            var typeId = typeIds[Math.Clamp(pTypeIndex, 0, typeIds.Count - 1)];
-            if (ImGui.BeginCombo("##ptype", ShortName(typeId)))
+            for (int i = 0; i < _parameters.Count; i++)
             {
-                for (int t = 0; t < typeIds.Count; t++)
+                NodeEditor.Core.Widgets.GridBlock.Row(i);
+                var (pName, pTypeIndex) = _parameters[i];
+
+                NodeEditor.Core.Widgets.GridBlock.Cell(0);
+                if (ImGui.InputText("##pname", ref pName, 128))
+                    _parameters[i] = (pName, pTypeIndex);
+
+                NodeEditor.Core.Widgets.GridBlock.Cell(1);
+                var typeId = typeIds[Math.Clamp(pTypeIndex, 0, typeIds.Count - 1)];
+                if (ImGui.BeginCombo("##ptype", ShortName(typeId)))
                 {
-                    bool selected = t == pTypeIndex;
-                    if (ImGui.Selectable(ShortName(typeIds[t]), selected))
-                        _parameters[i] = (pName, t);
-                    if (selected) ImGui.SetItemDefaultFocus();
+                    for (int t = 0; t < typeIds.Count; t++)
+                    {
+                        bool selected = t == pTypeIndex;
+                        if (ImGui.Selectable(ShortName(typeIds[t]), selected))
+                            _parameters[i] = (pName, t);
+                        if (selected) ImGui.SetItemDefaultFocus();
+                    }
+                    ImGui.EndCombo();
                 }
-                ImGui.EndCombo();
             }
-
-            ImGui.SameLine();
-            if (ImGui.SmallButton("x")) removeAt = i;
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Remove this parameter");
-
-            ImGui.PopID();
         }
-        if (removeAt >= 0) _parameters.RemoveAt(removeAt);
-
-        if (ImGui.SmallButton("+ Parameter"))
-            _parameters.Add((MakeUniqueParameterName(), 0));
+        ApplyParameterOp(NodeEditor.Core.Widgets.GridBlock.End());
 
         // Live validation. Every rule here is also enforced by CreateCustomEvent, which is the
         // authoritative guard — this is the half that tells the user *why* before they click.
@@ -167,7 +158,7 @@ public sealed class CustomEventCreateModal
 
     // ── Headless helpers ──────────────────────────────────────────────────────
 
-    private IReadOnlyList<(string Name, string TypeId)> Payload(IReadOnlyList<string> typeIds)
+    internal IReadOnlyList<(string Name, string TypeId)> Payload(IReadOnlyList<string> typeIds)
         => _parameters
             .Select(p => (p.Name, typeIds[Math.Clamp(p.TypeIndex, 0, typeIds.Count - 1)]))
             .ToList();
@@ -212,6 +203,30 @@ public sealed class CustomEventCreateModal
 
         return null;
     }
+
+    private static readonly string[] ParamHeaders = { "Name", "Type" };
+    private static readonly NodeEditor.Core.Widgets.ListOptions ParamOptions = new()
+    {
+        AddLabel = "Parameter",
+        Disabled = NodeEditor.Core.Widgets.ListCmd.InsertAbove | NodeEditor.Core.Widgets.ListCmd.InsertBelow | NodeEditor.Core.Widgets.ListCmd.Duplicate
+                 | NodeEditor.Core.Widgets.ListCmd.Copy | NodeEditor.Core.Widgets.ListCmd.Paste | NodeEditor.Core.Widgets.ListCmd.Reset,
+    };
+
+    /// <summary>The grid's op applied to the modal's parameter list (the payload).</summary>
+    internal void ApplyParameterOp(NodeEditor.Core.Widgets.ListOp op)
+    {
+        switch (op.Kind)
+        {
+            case NodeEditor.Core.Widgets.ListOpKind.MoveUp when op.Index > 0: Swap(op.Index, op.Index - 1); break;
+            case NodeEditor.Core.Widgets.ListOpKind.MoveDown when op.Index < _parameters.Count - 1: Swap(op.Index, op.Index + 1); break;
+            case NodeEditor.Core.Widgets.ListOpKind.Move when op.Index >= 0 && op.Index < _parameters.Count && op.Target >= 0 && op.Target < _parameters.Count:
+            { var p = _parameters[op.Index]; _parameters.RemoveAt(op.Index); _parameters.Insert(op.Target, p); break; }
+            case NodeEditor.Core.Widgets.ListOpKind.Delete when op.Index >= 0 && op.Index < _parameters.Count: _parameters.RemoveAt(op.Index); break;
+            case NodeEditor.Core.Widgets.ListOpKind.Add: _parameters.Add((MakeUniqueParameterName(), 0)); break;
+        }
+    }
+
+    private void Swap(int a, int b) => (_parameters[a], _parameters[b]) = (_parameters[b], _parameters[a]);
 
     private static string ShortName(string typeId)
     {

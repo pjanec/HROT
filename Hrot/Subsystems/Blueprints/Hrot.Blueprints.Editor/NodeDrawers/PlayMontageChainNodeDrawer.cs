@@ -343,80 +343,71 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
         ImGui.Text($"Chain entries: {_chainCount}/8");
         ImGui.Separator();
 
-        // Draw each entry
-        for (int i = 0; i < _chainCount; i++)
+        // ⭐ CE-3395 — the chain is the kit's GRID block: ⋮⋮ drag to reorder, the ⋮ menu (Move up / down · Delete), Add under it. The ops go to the EXISTING model (MoveChainEntryUp / Down, RemoveChainEntry, AddChainEntry).
+        if (NodeEditor.Core.Widgets.GridBlock.Begin("##chain", ChainHeaders, _chainCount, ChainOptions))
         {
-            ImGui.PushID(i);
-            
-            var montageId = _chainedMontages[i];
-            
-            // Find and display montage name
-            string displayName = "None";
-            if (montageId != 0 && montages.Any())
+            for (int i = 0; i < _chainCount; i++)
             {
-                var montage = montages.FirstOrDefault(m => 
-                    StableIdHasher.ComputeMontageAssetId(m.Name) == montageId);
-                if (montage != null)
-                    displayName = montage.Name;
-            }
+                NodeEditor.Core.Widgets.GridBlock.Row(i);
+                NodeEditor.Core.Widgets.GridBlock.Cell(0);
 
-            // Montage selector combo
-            int selectedIdx = Array.IndexOf(montageNames, displayName);
-            if (selectedIdx < 0) selectedIdx = 0;
+                var montageId = _chainedMontages[i];
 
-            if (ImGui.Combo($"##Montage{i}", ref selectedIdx, montageNames, montageNames.Length))
-            {
-                if (selectedIdx >= 0 && selectedIdx < montageNames.Length)
+                // Find and display montage name
+                string displayName = "None";
+                if (montageId != 0 && montages.Any())
                 {
-                    var selectedMontage = montages[selectedIdx];
-                    var newId = StableIdHasher.ComputeMontageAssetId(selectedMontage.Name);
-                    SetChainMontageId(i, newId);
+                    var montage = montages.FirstOrDefault(m =>
+                        StableIdHasher.ComputeMontageAssetId(m.Name) == montageId);
+                    if (montage != null)
+                        displayName = montage.Name;
+                }
+
+                // Montage selector combo
+                int selectedIdx = Array.IndexOf(montageNames, displayName);
+                if (selectedIdx < 0) selectedIdx = 0;
+
+                if (ImGui.Combo($"##Montage{i}", ref selectedIdx, montageNames, montageNames.Length))
+                {
+                    if (selectedIdx >= 0 && selectedIdx < montageNames.Length)
+                    {
+                        var selectedMontage = montages[selectedIdx];
+                        var newId = StableIdHasher.ComputeMontageAssetId(selectedMontage.Name);
+                        SetChainMontageId(i, newId);
+                    }
                 }
             }
-
-            // Move up button
-            ImGui.SameLine();
-            ImGui.BeginDisabled(i == 0);
-            if (ImGui.Button("↑"))
-            {
-                MoveChainEntryUp(i);
-            }
-            ImGui.EndDisabled();
-            
-            // Move down button
-            ImGui.SameLine();
-            ImGui.BeginDisabled(i == _chainCount - 1);
-            if (ImGui.Button("↓"))
-            {
-                MoveChainEntryDown(i);
-            }
-            ImGui.EndDisabled();
-            
-            // Remove button
-            ImGui.SameLine();
-            if (ImGui.Button("✕"))
-            {
-                RemoveChainEntry(i);
-                ImGui.PopID();
-                continue;
-            }
-            
-            ImGui.PopID();
         }
+        var op = NodeEditor.Core.Widgets.GridBlock.End();
+        ApplyChainOp(op);
 
-        ImGui.Separator();
+        if (_chainCount >= 8) ImGui.TextDisabled("Chain full (8/8)");
+    }
 
-        // Add button
-        if (_chainCount < 8)
+    private static readonly string[] ChainHeaders = { "Montage" };
+    private static readonly NodeEditor.Core.Widgets.ListOptions ChainOptions = new()
+    {
+        AddLabel = "Add entry",
+        Disabled = NodeEditor.Core.Widgets.ListCmd.InsertAbove | NodeEditor.Core.Widgets.ListCmd.InsertBelow | NodeEditor.Core.Widgets.ListCmd.Duplicate
+                 | NodeEditor.Core.Widgets.ListCmd.Copy | NodeEditor.Core.Widgets.ListCmd.Paste | NodeEditor.Core.Widgets.ListCmd.Reset,
+    };
+
+    /// <summary>The grid's op applied to the chain's own model (a drag moves by single steps; Add only while there is room).</summary>
+    internal void ApplyChainOp(NodeEditor.Core.Widgets.ListOp op)
+    {
+        switch (op.Kind)
         {
-            if (ImGui.Button("Add Entry"))
+            case NodeEditor.Core.Widgets.ListOpKind.MoveUp: MoveChainEntryUp(op.Index); break;
+            case NodeEditor.Core.Widgets.ListOpKind.MoveDown: MoveChainEntryDown(op.Index); break;
+            case NodeEditor.Core.Widgets.ListOpKind.Move:
             {
-                AddChainEntry();
+                int from = op.Index;
+                while (from < op.Target) MoveChainEntryDown(from++);
+                while (from > op.Target) MoveChainEntryUp(from--);
+                break;
             }
-        }
-        else
-        {
-            ImGui.TextDisabled("Chain full (8/8)");
+            case NodeEditor.Core.Widgets.ListOpKind.Delete: RemoveChainEntry(op.Index); break;
+            case NodeEditor.Core.Widgets.ListOpKind.Add: if (_chainCount < 8) AddChainEntry(); break;
         }
     }
 

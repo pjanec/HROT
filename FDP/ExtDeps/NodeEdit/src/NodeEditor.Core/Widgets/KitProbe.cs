@@ -29,6 +29,9 @@ public static class KitProbe
     /// <summary>76 = the last entity field's chip (closed).</summary>
     public const int EntityChip = 76;
 
+    /// <summary>77 = the last list / grid's <i>Add</i> chip.</summary>
+    public const int ListAdd = 77;
+
     private static readonly Vector4[] Rects = new Vector4[80];
     private static readonly bool[] Has = new bool[80];
 

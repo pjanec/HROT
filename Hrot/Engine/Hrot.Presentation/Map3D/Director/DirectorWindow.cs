@@ -441,6 +441,28 @@ namespace Hrot.UI.Common.Map3D.Director
         public int RenderSize { get; set; } = 1;
         public int RenderRate { get; set; } = 2;
 
+        private static readonly string[] ReelHeaders = { "take", "title", "chapter card" };
+        private static readonly NodeEditor.Core.Widgets.ListOptions ReelOptions = new()
+        {
+            AddLabel = "Add take",
+            Disabled = NodeEditor.Core.Widgets.ListCmd.InsertAbove | NodeEditor.Core.Widgets.ListCmd.InsertBelow | NodeEditor.Core.Widgets.ListCmd.Duplicate
+                     | NodeEditor.Core.Widgets.ListCmd.Copy | NodeEditor.Core.Widgets.ListCmd.Paste | NodeEditor.Core.Widgets.ListCmd.Reset,
+        };
+        private (string Scenario, string Take)? _addPick;
+
+        /// <summary>The reel grid's op applied to the composer (a test seam).</summary>
+        internal void ApplyReelOp(NodeEditor.Core.Widgets.ListOp op)
+        {
+            switch (op.Kind)
+            {
+                case NodeEditor.Core.Widgets.ListOpKind.MoveUp: Composer.Move(op.Index, op.Index - 1); break;
+                case NodeEditor.Core.Widgets.ListOpKind.MoveDown: Composer.Move(op.Index, op.Index + 1); break;
+                case NodeEditor.Core.Widgets.ListOpKind.Move: Composer.Move(op.Index, op.Target); break;
+                case NodeEditor.Core.Widgets.ListOpKind.Delete: Composer.Remove(op.Index); break;
+                case NodeEditor.Core.Widgets.ListOpKind.Add: if (_addPick is { } pick) Composer.Add(pick.Scenario, pick.Take); break;
+            }
+        }
+
         private string _newReelName = "";
         private int _addScenario, _addTake;
         private (int Index, string Title, string Card)? _itemEdit;
@@ -494,53 +516,7 @@ namespace Hrot.UI.Common.Map3D.Director
                 FormGrid.End();
             }
 
-            if (ImGui.BeginTable("##reelitems", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
-            {
-                ImGui.TableSetupColumn("#");
-                ImGui.TableSetupColumn("take");
-                ImGui.TableSetupColumn("title");
-                ImGui.TableSetupColumn("chapter card");
-                ImGui.TableSetupColumn("");
-                for (int i = 0; i < reel.Items.Count; i++)
-                {
-                    var it = reel.Items[i];
-                    ImGui.PushID(i);
-                    ImGui.TableNextRow();
-                    ImGui.TableNextColumn();
-                    ImGui.Text($"{i + 1}");
-                    ImGui.TableNextColumn();
-                    ImGui.TextUnformatted($"{it.Scenario}/{it.Take}");
-                    // ⭐ CE-1391 — the recording the item plays over (its own; none: the one the play starts on)
-                    if (it.Recording is { } rec)
-                    {
-                        ImGui.SameLine();
-                        ImGui.TextDisabled("@ " + System.IO.Path.GetFileName(rec.TrimEnd('/', '\\')));
-                        if (ImGui.IsItemHovered()) ImGui.SetTooltip(rec);
-                    }
-                    var (_, t, c) = _itemEdit is { } e && e.Index == i ? e : (i, it.Title ?? "", it.ChapterCard ?? "");
-                    ImGui.TableNextColumn();
-                    ImGui.SetNextItemWidth(-1f);
-                    if (ImGui.InputText("##title", ref t, 256)) _itemEdit = (i, t, c);
-                    if (ImGui.IsItemDeactivatedAfterEdit()) { Composer.SetItem(i, it with { Title = t.Length == 0 ? null : t }); _itemEdit = null; }
-                    ImGui.TableNextColumn();
-                    ImGui.SetNextItemWidth(-1f);
-                    if (ImGui.InputText("##card", ref c, 256)) _itemEdit = (i, t, c);
-                    if (ImGui.IsItemDeactivatedAfterEdit()) { Composer.SetItem(i, it with { ChapterCard = c.Length == 0 ? null : c }); _itemEdit = null; }
-                    ImGui.TableNextColumn();
-                    ImGui.BeginDisabled(i == 0);
-                    if (ImGui.SmallButton("Up")) Composer.Move(i, i - 1);
-                    ImGui.EndDisabled();
-                    ImGui.SameLine();
-                    ImGui.BeginDisabled(i == reel.Items.Count - 1);
-                    if (ImGui.SmallButton("Down")) Composer.Move(i, i + 1);
-                    ImGui.EndDisabled();
-                    ImGui.SameLine();
-                    if (ImGui.SmallButton("Remove")) Composer.Remove(i);
-                    ImGui.PopID();
-                }
-                ImGui.EndTable();
-            }
-
+            _addPick = null;
             var all = store.AllTakes();
             if (all.Count > 0)
             {
@@ -553,10 +529,36 @@ namespace Hrot.UI.Common.Map3D.Director
                 ImGui.SameLine();
                 ImGui.SetNextItemWidth(120f);
                 ImGui.Combo("##addtake", ref _addTake, takes, takes.Length);
-                ImGui.SameLine();
-                if (ImGui.Button("Add take")) Composer.Add(scenarios[_addScenario], takes[_addTake]);
+                _addPick = (scenarios[_addScenario], takes[_addTake]);   // ⭐ CE-3395 — the grid's Add button adds THIS take
             }
             else ImGui.TextDisabled("No takes to add (scenarios/<name>/takes/*.take.json).");
+            // ⭐ CE-3395 — the reel's items are the kit's GRID block (⋮⋮ drag, ⋮ menu: Move up / down · Delete); its ops go to the composer's own Move / Remove / Add.
+            if (NodeEditor.Core.Widgets.GridBlock.Begin("##reelitems", ReelHeaders, reel.Items.Count, ReelOptions))
+            {
+                for (int i = 0; i < reel.Items.Count; i++)
+                {
+                    var it = reel.Items[i];
+                    NodeEditor.Core.Widgets.GridBlock.Row(i);
+                    NodeEditor.Core.Widgets.GridBlock.Cell(0);
+                    ImGui.AlignTextToFramePadding();
+                    ImGui.TextUnformatted($"{it.Scenario}/{it.Take}");
+                    // ⭐ CE-1391 — the recording the item plays over (its own; none: the one the play starts on)
+                    if (it.Recording is { } rec)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextDisabled("@ " + System.IO.Path.GetFileName(rec.TrimEnd('/', '\\')));
+                        if (ImGui.IsItemHovered()) ImGui.SetTooltip(rec);
+                    }
+                    var (_, t, c) = _itemEdit is { } e && e.Index == i ? e : (i, it.Title ?? "", it.ChapterCard ?? "");
+                    NodeEditor.Core.Widgets.GridBlock.Cell(1);
+                    if (ImGui.InputText("##title", ref t, 256)) _itemEdit = (i, t, c);
+                    if (ImGui.IsItemDeactivatedAfterEdit()) { Composer.SetItem(i, it with { Title = t.Length == 0 ? null : t }); _itemEdit = null; }
+                    NodeEditor.Core.Widgets.GridBlock.Cell(2);
+                    if (ImGui.InputText("##card", ref c, 256)) _itemEdit = (i, t, c);
+                    if (ImGui.IsItemDeactivatedAfterEdit()) { Composer.SetItem(i, it with { ChapterCard = c.Length == 0 ? null : c }); _itemEdit = null; }
+                }
+            }
+            ApplyReelOp(NodeEditor.Core.Widgets.GridBlock.End());
             ImGui.BeginDisabled(!Composer.Dirty || reel.Items.Count == 0);
             if (ImGui.Button("Save reel")) _message = Composer.Save(out var problem) is { } path ? "saved " + path : problem;
             ImGui.EndDisabled();

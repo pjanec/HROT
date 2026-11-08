@@ -165,6 +165,22 @@ public sealed class PlayMontageChainNodeDrawerTests
         Assert.True(session.IsDirty);
     }
 
+    /// <summary>⭐ CE-3395 — the chain GRID's ops go to the session's own model: Move reorders (by single steps), Delete removes, Add stops at 8.</summary>
+    [Fact]
+    public void Session_ChainGridOps_MoveDeleteAdd_ActOnTheChain()
+    {
+        var drawer = MakeDrawer();
+        var session = (PlayMontageChainNodeSession)drawer.CreateSession(new BranchNode { Id = Guid.NewGuid() }, MakeInstanceAsset());
+        for (int i = 0; i < 3; i++) { session.AddChainEntry(); session.SetChainMontageId(i, 10 + i); }
+        session.ApplyChainOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Move, 0, 2));
+        Assert.Equal(new[] { 11, 12, 10 }, new[] { session.GetChainMontageId(0), session.GetChainMontageId(1), session.GetChainMontageId(2) });
+        session.ApplyChainOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Delete, 1));
+        Assert.Equal(2, session.GetChainCount());
+        Assert.Equal(10, session.GetChainMontageId(1));
+        for (int i = 0; i < 10; i++) session.ApplyChainOp(new NodeEditor.Core.Widgets.ListOp(NodeEditor.Core.Widgets.ListOpKind.Add));
+        Assert.Equal(8, session.GetChainCount());
+    }
+
     [Fact]
     public void Session_AddChainEntry_DisabledAt8()
     {
