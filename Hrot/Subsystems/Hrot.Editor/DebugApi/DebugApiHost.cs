@@ -1666,6 +1666,25 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/attributes/schema", _ =>
                 Task.FromResult(Ok(Service().GetAttributesSchema()))));
 
+            // ⭐ R-1 (AR-8) — the READ twins of the two write routes below: the vocabulary's attributes (through AttributeReaders) and a raw field (through ComponentJsonPath)
+            _routes.Add(new("GET", "/entities/{networkId}/attributes", async ctx =>
+            {
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                // ?path=a&path=b (the listener joins repeats with a comma; a path never contains one)
+                var paths = ctx.Query("path")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var (node, error, status) = await _jobQueue.RunOnMainThread(() => Service().GetEntityAttributes(id, paths)).ConfigureAwait(false);
+                return error != null ? Fail(status, error, status == 404 ? DebugApiHints.Entity : null) : Ok(node);
+            }));
+            _routes.Add(new("GET", "/entities/{networkId}/field", async ctx =>
+            {
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var path = ctx.Query("path");
+                var (node, error, status) = await _jobQueue.RunOnMainThread(() => Service().GetEntityField(id, path)).ConfigureAwait(false);
+                return error != null ? Fail(status, error, status == 404 ? DebugApiHints.Entity : null) : Ok(node);
+            }));
+
             _routes.Add(new("POST", "/entities/{networkId}/attribute", async ctx =>
             {
                 if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
