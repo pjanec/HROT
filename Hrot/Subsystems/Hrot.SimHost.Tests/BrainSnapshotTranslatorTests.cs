@@ -135,8 +135,7 @@ namespace Hrot.SimHost.Tests
             var b = new Node(registry);
             var unit = b.Unit();
             b.Repo.SetManagedComponent(unit, new InitialBrainIntent { Behavior = new SavedBrainSlot { Name = "Idle", Params = "{}", Origin = BehaviorOrigin.Superior } });
-            if (!b.Repo.IsComponentTypeRegistered<Hrot.Common.Serializers.InitialVehicleIntent>())
-                b.Repo.RegisterManagedComponent<Hrot.Common.Serializers.InitialVehicleIntent>();
+            try { Hrot.Map.Common.GenesisIntentRegistry.RegisterAll(b.Repo); } catch (System.InvalidOperationException) { }   // the production registration (may already be done)
             b.Repo.SetManagedComponent(unit, new Hrot.Common.Serializers.InitialVehicleIntent { Seat = 0 });
 
             b.Frame(); b.Frame();
