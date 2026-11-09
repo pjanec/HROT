@@ -555,6 +555,32 @@ no JSON.*
 | **Q13** ✅ R-4181 | the views lens (I5), federated search (I6), local entities from every node (I7) | **yes** — they are what makes Federation an analysis tool |
 | **Q14** ✅ R-4181 | a `NodeLocal` data policy for components that must never merge (I9) | **yes** — a flag beats a hand-kept list |
 
+### 6.11 ⭐ Closed for the build *(`2026-11-09` — everything G-7 needs, so the lane builds without a question)*
+
+🔒 User: *"I need the behavior to work without questions, if there is anything still open lets finish the design here first."*
+
+| measured | where |
+|---|---|
+| the per-node offsets today are MANUAL (`SetNodeOffset`, default 0) | `FederatedReplayManager.cs:41-174` |
+| every slave MEASURES its round trip to the master during Live (NTP-style, smoothed), but it is NOT recorded (`TimeSyncOffsetCalculatedEvent` is NoReplay) | `SlaveSyncController.cs:231-262` · `TimeBusEvents.cs:70-78` |
+| a numeric ε already exists for "this value changed" | `ComponentDiffService` (ε 0.001, rail DIF-T04) |
+
+| # | decision | ⭐ lean | rejected — one line |
+|---|---|---|---|
+| **M-1** | where the latency offset (R-4181) comes from | **recorded**: each node writes its measured one-way latency to the master (half the smoothed round trip) into its recording metadata; the merge applies it by default; *Offsets…* (the Federation window, debug — rows named by role, Q-B6) shows it and overrides it; the master's own node is 0; a recording without it = 0 + manual | manual only (today): nobody knows the number · estimated from the data: guesswork |
+| **M-2** | one value or a curve | **one value per node per recording** (the median over the run) | a time-varying curve: no measured need |
+| **M-3** | the sign | **decided by a rail, not here**: a cause on one node (a shot) precedes its effect on another (the hit) in the merged timeline | — |
+| **M-4** | "differs" (I5) | the **existing** `ComponentDiffService` ε — ONE implementation | a second tolerance |
+| **M-5** | the views lens UI (I5) | **Details ▸ a component ▸ *By node***: the owner (crown) and each replica, amber where it differs; **one timeline lane *Replica differs · <unit>*** for the selected unit, click = seek (mockup ① ②) | a separate window |
+| **M-6** | local entities (I7) | from every node, tagged *"local to <node>"* in Details; **the Source menu's *Local entities shown from* checkboxes** (mockup ③), default: every node's on | one "provider" node (today) |
+| **M-7** | ▶ in Merged (I3) | **S4 enables it** (0 B steady, R-2084); until S4 lands ui's A-9 greys it with the reason — S4 removes that reason (the same gate, no second rule) | — |
+| **M-8** | an entity whose owner changes (I2, I8) | the merged entity KEEPS its identity (network id); its components switch source at the handover frame | a new entity per owner |
+| **M-9** | where it runs | the all-in-one editor and the standalone Replay Browser (D2); ⛔ not a cluster AAR | — |
+
+⭐ Mockup: [`better-merge-visual.svg`](better-merge-visual.svg) (`scripts/gen-better-merge-mockup.py`) — the acceptance spec for M-5, M-6, M-7 (R-4138).
+
+![the better merge](better-merge-visual.svg)
+
 ### 6.8 Appendix — M1: every recorded managed component and its scenario translator
 
 | component | kind | data policy | translator | file |
