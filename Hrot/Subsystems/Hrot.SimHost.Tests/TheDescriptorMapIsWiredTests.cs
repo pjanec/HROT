@@ -213,6 +213,20 @@ public class TheDescriptorMapIsWiredTests
     }
 
     /// <summary>
+    /// ⭐ CE-3420 (X-5) — the mirror above is only as true as the PRODUCTION translators: the ones that can be built without a live participant
+    /// are built here and must declare the component the mirror pairs them with (📌 the mirror had lost CombatProficiency while production declared
+    /// it, and WeaponPosture / PartDamage were declared by neither). 🔴 Mutation: drop a translator's TargetComponentIds ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3420_TheProductionTranslators_DeclareWhatTheMirrorPairs()
+    {
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        Assert.Contains(GlobalComponentIds.CombatProficiency, new Hrot.Map.Common.Replication.Egress.EntityCombatProficiencyEgressTranslator(null).TargetComponentIds);
+        Assert.Contains(GlobalComponentIds.WeaponPosture, new Hrot.Map.Common.Replication.Egress.EntityWeaponPostureEgressTranslator(null, map).TargetComponentIds);
+        Assert.Contains(GlobalComponentIds.PartDamage, new Hrot.Map.Common.Replication.Egress.EntityPartDamageEgressTranslator(null).TargetComponentIds);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>And an EMPTY map is a legitimate state — the networkless host must still work.</b>
     ///
     /// <para>🔒 Standing constraint: the editor is *"a networkless, all-in-one in-process solution by

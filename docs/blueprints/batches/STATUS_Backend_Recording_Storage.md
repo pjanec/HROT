@@ -27,7 +27,8 @@ Gates (V): `Hrot.Map.Common.Tests` 88/88 · `Hrot.SimHost.Tests` (`UpdateEntityD
 | X-3 CE-4346 | Start editable · *Local time offset* · weather layers whole to the owner (dtWeather request) | ✅ backend half | NOTE to ui; Details forms Part 2 as-built |
 | — (behaviors note) | `/run-mode` from Edit waits for the live load it starts (the next load was rejected inside its park) | ✅ | NOTE to behaviors; RUNBOOK_Filming §0b |
 | X-4 CE-2153 | the SimHost integration harness paths (solver + engine-backed nav module + flat navmesh) | ✅ | `EntityMission_MovesEntity` green, project 50/50 |
-| X-5…X-6 | | next | |
+| X-5 CE-3420 | descriptor coverage: Proficiency mirror, WeaponPosture + PartDamage declared, Temperament brain-local (TS-8) | ✅ | rail CE3420_* |
+| X-6 | | next | |
 
 **Reds seen in `Hrot.ClusterRunner.Tests` (full run, `2026-11-08`), not from this batch** — none touches a storage file; owners named: `EveryReplayWriterIsGatedTests` (`EditorPerceptionSetupSystem`, ui/editor) · `EverySystemForgetsTheLastWorldTests` (`RuleEditSystem`, `RuleLeafSampler` — behaviors; `MacroExpansionSystem` — macros) · `EverySystemStateFieldIsClassifiedTests` ×2 (185 unclassified fields / 45 class-B translators — mixed, mostly replication) · `CgfSubsystemTests.CE1446_TheKernelRunsItsSystemsInTheSharedBootstrappersOrder` (`MacroExpansionSystem` newly in the order) · `HrotNodeBuilderTests.CE1436_CgfShapedHost_*` · `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_*` (looks for a "New Scenario…" button no code builds any more — ui's Start-screen rework). ⚠ Not checked against a base sha.
 

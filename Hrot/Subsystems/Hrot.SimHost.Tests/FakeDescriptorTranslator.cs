@@ -77,5 +77,16 @@ internal sealed class FakeDescriptorTranslator : IDescriptorTranslator
             new FakeDescriptorTranslator(
                 (long)Hrot.NED.Descriptors.EDescriptorType.dtWeather,
                 GlobalComponentIds.WeatherConditions),
+            // ⭐ CE-3420 (X-5) — the three production pairings this mirror lacked: EntityCombatProficiencyEgressTranslator (dt 150, declared since
+            //   B-4), EntityWeaponPostureEgressTranslator and EntityPartDamageEgressTranslator (declared by X-5). CombatTemperament is BRAIN-LOCAL (TS-8).
+            new FakeDescriptorTranslator(
+                (long)Hrot.NED.Descriptors.EDescriptorType.dtCombatProficiency,
+                GlobalComponentIds.CombatProficiency),
+            new FakeDescriptorTranslator(
+                (long)Hrot.NED.Descriptors.EDescriptorType.dtWeaponPosture,
+                GlobalComponentIds.WeaponPosture),
+            new FakeDescriptorTranslator(
+                (long)Hrot.NED.Descriptors.EDescriptorType.dtPartDamage,
+                GlobalComponentIds.PartDamage),
         });
 }
