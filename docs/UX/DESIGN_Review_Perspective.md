@@ -443,7 +443,7 @@ classDiagram
 | ~~Q5 · Q6~~ | DAR · per-station switching in a cluster | ⛔ withdrawn |
 | **Q8** ⏳ *(answered by §6 I1 if adopted)* | the merge's managed-component gap (§2.2) | ⭐ lean: today's JSON merge for V6; §6 decides later |
 
-## 6. ⭐ A better merge — the full idea *(coordinator, `2026-11-08`, NOT scheduled — recorded complete so it can be evaluated or built at any time)*
+## 6. ⭐ A better merge — the full idea *(coordinator, `2026-11-08`; ⭐ SCHEDULED `2026-11-09` to behaviors — [HANDOFF_Coordinator_To_Behaviors_Next_2](../blueprints/batches/HANDOFF_Coordinator_To_Behaviors_Next_2.md) G-7, CE-4354 — gated on the user's Q9–Q14)*
 
 🔒 User: *"If you see something that can be improved on the federation mode, how to do the merging … don't hesitate to come up with ideas. What
 exists now is not carved in stone."* → *"We are not going to implement it right now … record it as a full idea with everything. Do the measurement
@@ -519,7 +519,7 @@ no JSON.*
 | **I1** | **binary copy** of each owned component from its owner's sandbox — unmanaged by value, managed by reference (M5) — into the target's OWN entities (not a chunk merge, §6.10) | the M1 gap disappears: no translator in the path, every recorded component kept exactly | the M2 remap list must be complete (incl. inline arrays — D03); reuse the auto-serializer's per-type field knowledge for the remap, not a second walker; keep the paradox rule (§6.10) |
 | **I2** | **one persistent target world** with a netId → entity map; entities created on first sight, destroyed when gone from every node | stable handles: selection, Details, the frame diff, timeline references survive a step; the editor's one world is the target directly (D8) | an entity that changes owner keeps its target entity (the map is by network id) |
 | **I3** | **incremental**: copy only chunks whose version changed since the last merge (M4) | the merged view can **PLAY** | measure the per-frame cost on the largest exercise; 0 B steady (R-2084) — the remap and the copy must not allocate |
-| **I4** | **align by recorded sim time** (M6); the per-node offsets stay as an expert override | no manual offsets in the normal case | a node that recorded no sim time (older format) falls back to wall ticks + offsets |
+| **I4** | **align by recorded sim time** (M6) **plus a per-node offset for the network latency between nodes, applied the SAME to sim time and wall time** (✏ R-4181 — SUPERSEDES "offsets only as an expert override") | no manual offsets in the normal case | a node that recorded no sim time (older format) falls back to wall ticks + offsets |
 | **I5** | **the views lens**: for the selected entity, each replicated component's value at the OWNER and at every node holding a replica; a timeline lane marks frames where a replica differs beyond ε (`ComponentDiffService`) | what each node BELIEVED — the desync analysis Federation exists for | a Details section + one lane |
 | **I6** | **federated search**: the search per participant file, each hit kept only for components that node owned at that frame, unioned by network id | search works in Merged (disabled there today) | ownership per frame needs I8 to be reliable |
 | **I7** | **local entities from EVERY node**, tagged by node, with a per-node filter | effects from SimHost and markers from CGF both visible (today one "provider" node) | entities with no network id cannot correlate — each stays its node's |
@@ -548,12 +548,12 @@ no JSON.*
 
 | # | question | ⭐ lean |
 |---|---|---|
-| **Q9** | adopt the binary merge (I1, I2, I9) in place of the JSON step | **yes** — it removes the M1 gap by construction and makes I3 possible |
-| **Q10** | merged PLAY (I3) | **yes**, once measured against R-2084 |
-| **Q11** | sim-time alignment (I4), offsets kept as override | **yes** |
-| **Q12** | ownership from the recorded components + fix D004 at the recorder (I8) | **yes** — the recorder fix helps every recording, not only this view |
-| **Q13** | the views lens (I5), federated search (I6), local entities from every node (I7) | **yes** — they are what makes Federation an analysis tool |
-| **Q14** | a `NodeLocal` data policy for components that must never merge (I9) | **yes** — a flag beats a hand-kept list |
+| **Q9** ✅ R-4181 | adopt the binary merge (I1, I2, I9) in place of the JSON step | **yes** — it removes the M1 gap by construction and makes I3 possible |
+| **Q10** ✅ R-4181 | merged PLAY (I3) | **yes**, once measured against R-2084 |
+| **Q11** ✏ R-4181 | sim-time alignment (I4), offsets kept as override | ✏ **align by recorded sim time AND apply a per-node OFFSET — the network latency between nodes — the SAME offset to sim time and to wall time** (user: *"offset is needed because of network latency between node, applied same to sim time as well as wall time"*); ~~offsets only as an expert override~~ |
+| **Q12** ✅ R-4181 | ownership from the recorded components + fix D004 at the recorder (I8) | **yes** — the recorder fix helps every recording, not only this view |
+| **Q13** ✅ R-4181 | the views lens (I5), federated search (I6), local entities from every node (I7) | **yes** — they are what makes Federation an analysis tool |
+| **Q14** ✅ R-4181 | a `NodeLocal` data policy for components that must never merge (I9) | **yes** — a flag beats a hand-kept list |
 
 ### 6.8 Appendix — M1: every recorded managed component and its scenario translator
 
