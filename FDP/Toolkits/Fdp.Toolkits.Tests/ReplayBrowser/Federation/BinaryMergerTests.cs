@@ -1058,6 +1058,35 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             Assert.Equal(new[] { 5, 6 }, frames);
         }
 
+        // ── §6.13 — the replica WATCH scan: persistent disagreement only ──────────────────────────────
+
+        private static ReplicaWatchItem XItem(double tolerance) => new("DummyPosition.X", 0, true, tolerance, 0xFF33B3FF, "X");
+
+        /// <summary>⭐ RW-2/RW-3: a wrong value for 1 s is a span with the right start/end/values; for 0.1 s (one frame) none; within the tolerance none.
+        /// 🔴 Red-proof: ignore the threshold in <c>ScanWatchSpans</c> ⇒ the 0.1 s blip (frame 15) shows as a span.</summary>
+        [Fact]
+        public void Watch_APersistentWrongValueIsASpan_ABlipAndAValueWithinToleranceAreNot()
+        {
+            // the owner (node 1) has X = frame; node 2 believes 100 at frames 3..12 (1 s), 100 at frame 15 only (0.1 s), and is 0.3 off at frames 17..19 (within 0.5)
+            var (p1, p2) = RecordReplicaGroup(20, f => f is >= 3 and <= 12 ? 100f : f == 15 ? 100f : f >= 17 ? f + 0.3f : f);
+            var views = new ReplicaViews(new OwnershipSource(), _serializer);
+
+            var spans = views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { XItem(0.5) }, 0.2);
+
+            var span = Assert.Single(spans);
+            Assert.Equal(0, span.Item);
+            Assert.Equal((3, 12), (span.StartFrame, span.EndFrame));
+            Assert.Equal(1.0, span.Duration, 3);
+            Assert.Equal(0.3, span.StartSeconds, 3);
+            Assert.Equal(1, span.OwnerNode);
+            Assert.Equal("3", span.OwnerValue);
+            Assert.Equal((2, "100"), Assert.Single(span.Believers));
+            // the tolerance matters: exact ⇒ the 0.3 drift of frames 17..19 (0.3 s) is a span too
+            Assert.Equal(2, views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { XItem(0) }, 0.2).Count);
+            // the threshold matters: 0 ms ⇒ the blip shows as well
+            Assert.Equal(2, views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { XItem(0.5) }, 0).Count);
+        }
+
         // ── S5 · I6 — the federated search: per file, owned components only, unioned by network id ──────
 
         private static FederatedSearch NewFederatedSearch(OwnershipSource ownership)
