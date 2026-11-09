@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); ONE question left (§5.4 ②: unit counts / where units path — the lean stands until answered); §6 re-bases the stages on Terrain World §9
+build-state: DESIGN — the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings PROPOSED (Q-D1…Q-D4); §6 re-bases the stages on Terrain World §9
 updated: 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
+current-answer: ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
-known-rot: the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
+known-rot: §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
 related-designs:
   - DESIGN_Terrain_World.md — ⭐ THE owning terrain design (the world file, the ONE TerrainWorld model); ⭐ its §9 SPARSE TERRAIN (S1–S7 approved, R-4051; CE-4011 outer ground, CE-4012 insets, deferred) is the frame this import builds on
@@ -42,7 +42,7 @@ import feeds the SAME interfaces (heights, surfaces, per-purpose traces) and add
 | UTM ↔ WGS84 maths EXISTS (the SUMO net placement) | `Hrot/Engine/Hrot.Traffic/Utm.cs` (`ToGeodetic`, `FromGeodetic`), `SumoNetPlacement.cs:55-66` |
 | ✏ (corrected by §5.3) the ground is ONE height grid per terrain — an ESRI ASCII `.asc` loaded into one `float[]` (`basic-desert`, `highway-rest` use it) — plus walkable meshes; outside the terrain a procedural hilly band (`BeyondGround`). ⛔ What is missing is a TILED / large grid: 6 × 6 km at 1 m is 36 M floats (144 MB) in one array, and an equally large render mesh | `TerrainHeightGrid.cs:14-31, :187` · `TerrainWorldParser.cs:81` · `DESIGN_Terrain_Height.md` (CE-1034) · `BeyondGround.cs` |
 | buildings are GeoJSON footprints extruded to a height (`*.world.geojson`; the largest, demo-city, 84 KB) + optional `houses.json` | `assets/terrain/*` |
-| ⛔ **fixed grids sized for ~1.5 km**: the collider hash 300 × 300 × 5 m from −750 m; the perception grid 200 × 200 × 5 m | `SpatialHashConstants.cs`, `PerceptionConstants.cs:81-84` |
+| ✏ (corrected `2026-11-09`) the grids ALREADY follow the terrain: `SpatialGridFit` rebases each grid's origin and CELL SIZE to the terrain's bounds with a FIXED cell count (Terrain World §4.4, CE-3018) — the collider grid 300 × 300, the perception grid 200 × 200 ⇒ at 6 km the cells grow to ≈ 20 m and ≈ 30 m (density, not coverage, is the question) | `SpatialHashConstants.cs`, `PerceptionConstants.cs:81-84`, Terrain World §4.4 |
 | the navmesh is TILED (24 m tiles) but BAKED AT LOAD; a cold bake already ejects SimHost | `RecastNavmeshBaker.cs:110-113` · CE-4033 |
 | terrains reach every node through the NAS staging copy | `DESIGN_Artifact_Staging.md` |
 
@@ -184,12 +184,83 @@ STATUS lines read; `grep -l TerrainWorld docs` (40 files); `.dev/_DONE/{navig-2,
 
 0. **CE-4011 + CE-4012** — Terrain World §9 S1 (outer ground) and S2–S4 (insets, per-inset ground and navmesh): the approved, deferred groundwork
 1. `UtmTransform` + the terrain's frame (e0/n0 = the source engine's origin)
-2. the collider and perception grids sized from the terrain's bounds
+2. the collider and perception grids at 6 km: they already fit the terrain (§4.4) — check the cell SIZES (≈ 20 m / 30 m with today's counts) against 1 000 soldiers, and raise the counts if a rail shows crowding
 3. the TILED store inside one large inset's `TerrainHeightGrid` + the importer's height path (1 m), the 3-D LOD, the 2-D hillshade
 4. the building generator (1 988 enterable templates: open floors + one stair ramp, openings at the source points — R-4186), measured against Building Interiors' door systems at that scale; ✅ the complete door / window point set is prepared in the input set (outside this repo)
 5. the other layers (the SUMO crop + anchor, walls, derived forest surfaces)
 6. the importer pre-fills the `NavTileCache` per inset (interiors included)
 7. the importer as a repeatable tool; ⛔ the converted terrain never in git
+
+
+## 7. ✅ Decided `2026-11-09` — paths and units *(R-4187)*
+
+🔒 User: *"A walkable anywhere, outdoors and inside, computed once, no more than 1,000 soldiers, but cars, aircraft, anti-aircraft. This needs to
+work. For the soldiers, they do not need to see across the whole city … They are interesting just a few hundred meters away from each other. But the
+aircraft should see them, and the anti-aircraft should see the aircraft."*
+
+| decision | ⇒ for the build |
+|---|---|
+| **walkable everywhere — outdoors and inside every house — computed ONCE** | the importer pre-fills the `NavTileCache` for the whole inset, every layer (infantry, vehicles), interiors included (§6.1 stage 6) |
+| **≤ 1 000 soldiers, plus cars, aircraft and anti-aircraft** | the collider and perception grids at 6 km (stage 2) are checked against this load |
+| **soldiers sense each other to a few hundred metres** | the perception grid's ≈ 30 m cells at 6 km are fine for that range |
+| **aircraft see ground units; anti-aircraft sees aircraft — kilometres, across the whole area** | ⚠ to MEASURE in stage 2: how the air sensors (`SensorModality.Radar`, the Air Operations design) find targets beyond the soldiers' local grid — air ↔ ground and AA ↔ air must not depend on a few-hundred-metre grid; with a handful of aircraft a direct list is cheap |
+
+## 8. ✏ PROPOSAL — DESTRUCTIBLE BUILDINGS *(coordinator, `2026-11-09`; D-1…D-8 leans, Q-D1…Q-D4 for the user)*
+
+🔒 User: *"I would like to support destructible buildings. That means that the building can lose some of its walls. I'm not sure how we could do that
+exactly, maybe by removing that part of wall and making it a window, actually a big one. I'm not sure if we can actually remove floor. The destruction
+is usually the outcome of a bomb explosion or sometimes a breach using some explosive hitting the wall. Could be a tank shell, artillery shell, or
+some missile hit."*
+
+| measured — what already exists | where |
+|---|---|
+| ⭐ a wall is a `TerrainWallPanel` (segment, thickness, base..top) with an `Openings[]` list — doors and windows ARE openings | `TerrainBuildings.cs:39-61` · [Building Interiors](DESIGN_Building_Interiors.md) §2 (`TerrainWallPanel *-- TerrainOpening`) |
+| ⭐ the building design already NAMES this: *"E3 damage to the building itself — v1: a door can be Destroyed (already a `DoorState`); wall breaching = changing geometry at runtime → later"*, waiting on the navmesh's P2 | Building Interiors `:38, :365` |
+| ⭐ runtime GEOMETRY change is DESIGNED and half BUILT: *"a breached wall, a crater, a collapsed building — copy-on-write: rebuild off-thread, swap one immutable snapshot"* — P1 the snapshot ✅, P2 tiles + `NavTileCache` ✅, P3 replan (with 5d) not built; the CHANGE itself (AQ81 T6) not built | [Navigation v2](designs/navig-2/Navigation_Design_v2_0.md) §14 (R-218) |
+| a blast already acts on doors (a door can be destroyed by a blast) and a tall wall already shades a blast | `AreaEffectSystem.cs:346` · `AreaEffect.cs:93-96` |
+| a hit already crosses walls by penetration vs the material's resistance | [Terrain Combat Tuning](DESIGN_Terrain_Combat_Tuning.md) §3 |
+| destruction is the MUSCLE's: the brain never reads world geometry | R-2037 |
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainWallPanel { <<existing, content>> segment · thickness · BaseZ..TopZ · Openings[] (doors, windows) }
+    class WallBreaches { <<NEW component, world state>> on a per-building entity made at the FIRST breach · fixed list of breaches: panel · along-wall from..to · z from..to · Passage? }
+    class BreachRule { <<NEW, Muscle>> warhead × the panel's material ⇒ a breach rectangle or nothing }
+    class AreaEffectSystem { <<existing>> blasts — doors today, + panels }
+    class ImpactOnWall { <<existing path>> a penetrating hit on a panel (shell, missile, charge) }
+    class WorldTrace { <<existing, behind IWorldQuery>> sight and fire read panels + LIVE breaches, as doors' live state }
+    class NavmeshRebuild { <<existing design, Nav v2 §14>> touched tiles rebuilt off-thread, snapshot swapped }
+    AreaEffectSystem --> BreachRule
+    ImpactOnWall --> BreachRule
+    BreachRule --> WallBreaches : adds a breach
+    WallBreaches ..> WorldTrace : read at query time
+    WallBreaches ..> NavmeshRebuild : a PASSAGE breach triggers
+    TerrainWallPanel ..> WorldTrace
+```
+*What it shows: a breach is the user's "big window" — ONE more opening on the existing wall panel, kept as WORLD STATE (recorded, replicated, saved,
+restored by a checkpoint) beside the static content, exactly as a door's live state sits beside its static definition. Sight and fire see it at once;
+only a breach big enough to walk through touches the navmesh, through the copy-on-write rebuild Navigation v2 §14 already designs.*
+
+| # | ⭐ lean | rejected — one line |
+|---|---|---|
+| **D-1** | **a breach = an extra opening on a wall panel** (the user's "big window"): a rectangle clipped to the panel and its storey | deleting the panel: a wall is rarely gone whole; a new geometry kind beside openings |
+| **D-2** | a breach whose bottom reaches the floor and is ≥ 0.8 × 1.8 m is a **PASSAGE** (walkable — the navmesh changes); smaller is a **HOLE** (sight and fire only, no navmesh change) | every breach walkable: a shell-sized hole is not a door |
+| **D-3** | **world state**: a `WallBreaches` component (UNMANAGED, a fixed list per building — recorded, R-2084 / new-components rule) on a per-building entity created only at the FIRST breach ⇒ 1 988 houses cost nothing until one is hit; owned by the Muscle that decided it; replicated, saved with the scenario (a scenario may start pre-breached), restored by a checkpoint | breaches in the terrain content: content is NoReplay (R-3043) — a replay would show the walls whole |
+| **D-4** | **who breaches — the Muscle, by ONE rule** (warhead × the panel's material): a blast near a wall (bombs, artillery, a breaching charge) through `AreaEffectSystem` (doors already), a penetrating hit (tank shell, missile) at its hit point | the brain asks for a breach: R-2037 |
+| **D-5** | **size by warhead** (tunable data, the material's resistance scales it): breaching charge ≈ a 1 × 2 m passage · tank / missile ≈ a 1–1.5 m hole · artillery shell ≈ 2–3 m · a heavy bomb close by ≈ the whole panel of that storey | one size for every weapon |
+| **D-6** | sight and fire read the live breaches at QUERY time (as `DoorAwareQueryFilter` reads live doors); a passage triggers Nav v2 §14's copy-on-write rebuild of the touched tiles (seconds, off the frame) — building **P3 replan** (5d) is part of this work | rebuilding the navmesh on the frame: the CE-4033 stall |
+| **D-7** | ⛔ **no floor removal in v1**; the heavy case — enough damage to bring a building down — is a later stage: the building becomes a RUBBLE mound (a non-enterable obstacle), units inside are casualties | removing floor slabs: units falling, stairs left hanging, a navmesh that changes storey by storey — weeks for a rare case |
+| **D-8** | the EXTERNAL visual engine must draw the breach — HROT publishes `WallBreaches` like any replicated state; how that engine consumes it is outside this repo | — |
+
+| # | question for the user | lean |
+|---|---|---|
+| **Q-D1** | walls only in v1 (holes and passages), the building collapse to rubble as a later stage, no floor removal? | yes |
+| **Q-D2** | the sizes per warhead (D-5) as the starting table, tuned in data? | yes |
+| **Q-D3** | breaches persist for the whole exercise (no repair), are saved with a scenario and restored by checkpoints? | yes |
+| **Q-D4** | does it apply to every building (the imported 1 988 and today's authored ones), or only to the imported terrain? | every building — one rule |
+
+⇒ it is its own stage (after the importer's buildings, stage 4), and it also delivers Building Interiors' E3 for today's terrains.
 
 ---
 _source-data session, 2026-11-09_
