@@ -351,10 +351,11 @@ namespace Hrot.SimHost.Tests
         /// 📌 Measured: <c>ua-technical-scoot</c>'s technicals ended <c>LandPlatformAttack</c> with Success at 0.03 s and never fired.
         /// The memory then LOSES the seeded contact (📐 live: gone by the second tick) — the cycle still waits (Running) while the named
         /// target is in the fight. 🔴 Red-proofs: drop the <c>block.Fight.DesignatePacked</c> line in <c>ResolveAttack</c> ⇒ the first assert
-        /// fails; drop the named-target wait in <c>VehicleFightFromCover</c> ⇒ the second Running sees Success.
+        /// fails; drop the named-target wait in <c>VehicleFightFromCover</c> ⇒ the second Running sees Success; seed only the first time in
+        /// <c>PostureNodes.Designate</c> ⇒ the re-seed assert fails.
         /// </summary>
         [Fact]
-        public void CE2232_AnAttackOrder_GivesTheCycleItsNamedTarget_AndItWaitsWhileNothingIsRemembered()
+        public unsafe void CE2232_AnAttackOrder_GivesTheCycleItsNamedTarget_AndItWaitsWhileNothingIsRemembered()
         {
             var named = new Duel(Technical(), seen: false);
             named.Repo.GetComponentRW<TargetMemory>(named.Self).Count = 0;   // knows nothing yet
@@ -369,6 +370,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Running, named.Step());
             named.Repo.GetComponentRW<TargetMemory>(named.Self).Count = 0;   // 📐 live: the seeded contact is gone from memory by the next tick
             Assert.Equal(NodeStatus.Running, named.Step());                   // still the attack: the named target is in the fight
+            var mem = named.Repo.GetComponentRO<TargetMemory>(named.Self);
+            Assert.True(mem.Count > 0 && mem.EntityIds[0] == (long)named.Enemy.PackedValue, "the named target is seeded again once it is not remembered");
 
             var unnamed = new Duel(Technical(), seen: false);
             unnamed.Repo.GetComponentRW<TargetMemory>(unnamed.Self).Count = 0;
