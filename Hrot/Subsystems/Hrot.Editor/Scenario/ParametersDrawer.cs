@@ -13,7 +13,7 @@ namespace Hrot.Editor.Scenario;
 /// <summary>
 /// ⭐ CE-4210 P2 (MA-5) → ⭐ CE-4253 → ⭐ N-6 (CE-3383) — the scenario / macro's PARAMETERS editor: the ONE Define table (<see cref="FieldTable"/>) over the declared params
 /// (<see cref="HeaderParamsSchemaSource"/> through <see cref="SchemaSourceDeclarations"/>); every edit — a rename moves the declaration and every binding in ONE step — is the source's own, with its ONE undo history (the shell's Edit ▸ Undo / Redo).
-/// ⭐ CE-4253 — this body is a DRAWER the Details ▸ Scenario view calls inside its collapsible <i>Parameters</i> header (<see cref="ScenarioEnvironmentView"/>).
+/// ⭐ CE-4253 — this body is a DRAWER the Details ▸ Scenario view calls inside its collapsible <i>Parameters</i> header (⭐ CE-4346: now <see cref="DrawHeader"/>, under the ONE Scenario tab — the form).
 /// </summary>
 /// <summary>What the loaded map holds, for the <i>"The map holds: …"</i> line: the preset whose args the world was loaded with, whether the world can be edited and saved, and why not.</summary>
 public readonly record struct MapHolding(string PresetName, bool Editable, string? Reason);
@@ -31,6 +31,22 @@ public sealed class ParametersDrawer
 
     // ⭐ CE-3391 — the host's three seams (the silent-default rule: EditorSubsystem passes all of them; a null one simply hides its line / greys its button)
     /// <summary>What the map holds (the loaded preset, editable?, why not) — read at most twice a second.</summary>
+    /// <summary>
+    /// ⭐ CE-4253 / CE-4346 — the scenario's PARAMETERS as a collapsible header, CLOSED by default (🔒 user: <i>"a collapsible header, by default collapsed, called
+    /// parameters … the same editor that now opens in a separate panel"</i>), drawn under the ONE Scenario tab (the form). Opened for a frame when something
+    /// asked (<see cref="RequestOpen"/>). ⛔ SUPERSEDED: it lived in the retired raw Scenario view (<c>ScenarioEnvironmentView</c>).
+    /// </summary>
+    public void DrawHeader()
+    {
+        ImGuiNET.ImGui.Separator();
+        if (ConsumeOpenRequest()) ImGuiNET.ImGui.SetNextItemOpen(true, ImGuiNET.ImGuiCond.Always);
+        HeaderOpen = NodeEditor.Core.Widgets.SectionHeader.Draw("hdr.parameters", "Parameters", "section/params");
+        if (HeaderOpen) Draw();
+    }
+
+    /// <summary>For rails: whether the Parameters header was open on the last draw.</summary>
+    internal bool HeaderOpen { get; private set; }
+
     public Func<MapHolding?>? MapHolds { get; set; }
     /// <summary>The <i>Preview this preset</i> button: the host arms Preview with the preset and plays.</summary>
     public Action<string>? PreviewPreset { get; set; }

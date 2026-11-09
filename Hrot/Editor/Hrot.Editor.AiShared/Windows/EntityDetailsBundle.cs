@@ -41,7 +41,8 @@ public sealed record EntityDetailsHostServices(
     Func<Hrot.UI.Common.Rules.IRuleDetailsHost?>? Rules = null,   // ⭐ U-18 / RX2 — the host's Rules window: a rule's detail as the Rule Details tab (⛔ a host with the window must pass it)
     Func<Fdp.Presentation.Editing.IMapPickContext?>? Pick = null,
     Func<Hrot.UI.Common.Facades.IMissionEditorService?>? Missions = null,   // ⭐ P-7 / CE-4303 — the host's mission facade: the Orders tab (a host that edits plans passes it)
-    Func<string, Type?>? ParamsTypeOf = null);   // ⭐ P-7 7b — the host's behaviour → params type (its registry knows blueprint behaviours too); a host with a registry passes it   // ⭐ U-23 / D4 — the host's pick context: a form list's add (Put aboard…) picks through it (⛔ a host with a pick broker must pass it)
+    Func<string, Type?>? ParamsTypeOf = null,
+    Action? ScenarioFooter = null);   // ⭐ CE-4346 — drawn under the ONE Scenario tab (the form): the editor's Parameters header; ⛔ a host with a parameter editor must pass it   // ⭐ P-7 7b — the host's behaviour → params type (its registry knows blueprint behaviours too); a host with a registry passes it   // ⭐ U-23 / D4 — the host's pick context: a form list's add (Put aboard…) picks through it (⛔ a host with a pick broker must pass it)
 
 /// <summary>
 /// ⭐⭐⭐ <c>CE-1150</c> (canvas-context-menu-design §12) — <b>the Details panel of an ECS host, and the actions that open it.</b>
@@ -87,7 +88,8 @@ public sealed class EntityDetailsBundle : IUiBundle
         Workspace.DetailsViews.Add(EntitySummaryViewDescriptor.For(host.World));
         // ⭐ U-23 (DESIGN_Details_Forms §2.4, D3) — a tab per DECLARED form, on every host that composes this bundle (read-only on a recording, one rule)
         Hrot.Presentation.Forms.HrotForms.EnsureRegistered();
-        foreach (var form in Fdp.Presentation.Forms.FormCatalogue.All) Workspace.DetailsViews.Add(FormDetailsViewDescriptor.For(form, host.World, host.Pick));
+        foreach (var form in Fdp.Presentation.Forms.FormCatalogue.All)
+            Workspace.DetailsViews.Add(FormDetailsViewDescriptor.For(form, host.World, host.Pick, after: form.WorldTarget != null ? host.ScenarioFooter : null));   // ⭐ CE-4346 — the Scenario form is THE Scenario tab
         // ⭐ B-11 A7 / D2 — EVERY host registers the SAME tabs; a host service it does not pass is a capability it lacks, not a missing registration:
         //   the Rules / Event tabs then never apply (no host to ask, no focused event), and the Orders tab applies but is GREYED "not available on this station"
         //   (DetailsViewDescriptor.Bound). ⛔ SUPERSEDED: `if (host.Rules != null)` / `if (host.Missions != null)` / `if (host.EventFocus is { } focus)` around the Add.

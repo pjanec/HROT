@@ -665,6 +665,42 @@ public sealed class TheUnitFormDrawsTests
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-inline.png"));
     }
 
+    /// <summary>⭐ CE-4346 — the ONE Scenario tab on a real frame: the form in its sections (Scenario time · Terrain · Global weather) and, under the weather rows, the
+    /// wind levels and cloud layers each in its own table (one row per level / layer, the World Environment's lists). Renders <c>ce4346-scenario-tab.png</c> under
+    /// <c>HROT_RAIL_SHOTS</c> (default the temp folder's <c>hrot-frames</c>). 🔴 Mutation: the Scenario form's <c>After</c> dropped ⇒ no layer rows ⇒ red.</summary>
+    [SkippableFact]
+    public unsafe void CE4346_TheScenarioTab_DrawsItsSections_AndTheWeatherLayers()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>(); world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();
+        var env = world.CreateEntity();
+        world.AddComponent(env, new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = new DateTime(2026, 6, 1, 6, 0, 0, DateTimeKind.Utc).Ticks, DisplayUtcOffsetMinutes = 120 });
+        var wx = new Fdp.Toolkit.Weather.WeatherConditions { GroundTemperatureC = 21, VisibilityM = 8000, SeaLevelPressureHpa = 1013 };
+        wx.AddWind(10f, 270f, 4f, 7f); wx.AddWind(1500f, 290f, 12f, 0f);
+        wx.AddCloud(1500f, 600f, 4, Fdp.Toolkit.Weather.CloudKind.Cumulus);
+        world.AddComponent(env, wx);
+        HrotForms.EnsureRegistered();
+        Assert.Equal(env, HrotForms.Scenario.WorldTarget!(world));
+        var view = new FormView();
+        using var frame = UiFrameHarness.Begin(640, 640);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        frame.StepN(4, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(600, 600));
+            ImGui.Begin("Details##scenario-tab");
+            view.Draw(HrotForms.Scenario, world, new[] { env }, editable: true);
+            ImGui.End();
+        });
+        Assert.Equal(2, Hrot.UI.Common.Weather.WeatherLayersEditor.DrawnWindRows);
+        Assert.Equal(1, Hrot.UI.Common.Weather.WeatherLayersEditor.DrawnCloudRows);
+        Assert.Equal(new[] { "Scenario time", "Terrain", "Global weather" }, HrotForms.Scenario.Fields.Where(f => f.Section != null).Select(f => f.Section!).ToArray());
+        var dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-frames");
+        System.IO.Directory.CreateDirectory(dir);
+        frame.Screenshot(System.IO.Path.Combine(dir, "ce4346-scenario-tab.png"));
+    }
+
     /// <summary>⭐ U-23 / D5 — the <b>Scenario</b> form is the WORLD form: its target is the World Environment (the clock + the global weather); the start reads as a
     /// date, the global weather through the SAME rows as a region's. 🔴 Red-proof (compiles): <c>WorldTarget</c> returning <c>Entity.Null</c> ⇒ red.</summary>
     [Fact]

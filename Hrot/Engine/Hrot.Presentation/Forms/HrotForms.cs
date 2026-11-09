@@ -606,8 +606,8 @@ public static class HrotForms
 
     private static readonly string[] Precipitations = { "None", "Drizzle", "Rain", "Snow", "Sleet", "Hail" };   // Weather.PrecipitationKind
 
-    private static FormField WeatherNumber(string label, string attribute, string unit, Func<EntityRepository, Entity, double> read, double min = double.MinValue, double max = double.MaxValue, bool expert = false)
-        => new() { Label = label, Attribute = attribute, Unit = unit, Min = min, Max = max, Expert = expert, Has = HasWeather, ReadNumber = read };
+    private static FormField WeatherNumber(string label, string attribute, string unit, Func<EntityRepository, Entity, double> read, double min = double.MinValue, double max = double.MaxValue, bool expert = false, string? section = null)
+        => new() { Label = label, Attribute = attribute, Unit = unit, Min = min, Max = max, Expert = expert, Has = HasWeather, ReadNumber = read, Section = section };
 
     /// <summary>
     /// ⭐ D4 — the <b>Crew &amp; cargo</b> form (§3; §4.0a part 4): offered for a carrier (<c>PassengerBuffer</c>). One row per OCCUPIED seat — its role
@@ -705,12 +705,13 @@ public static class HrotForms
             new FormField { Label = "Facing", Attribute = "SpawnArea.FacingDeg", Unit = "°", Min = 0, Max = 360, Has = HasSpawn, ReadNumber = (w, e) => w.GetComponentRO<Hrot.Common.SpawnArea>(e).FacingDeg },
             // the region's weather: the ONE weather row set (WeatherRows), shared with the Scenario form
         }, WeatherRows()),
+        After = Hrot.UI.Common.Weather.WeatherLayersEditor.Draw,   // ⭐ CE-4346 — a weather region's levels / layers: the same editor as the global weather (nothing drawn for a spawn area)
     };
 
     /// <summary>The authored weather scalars as form rows — ONE set, used by the Shape form (a weather region) and the Scenario form (the global weather).</summary>
-    private static FormField[] WeatherRows() => new[]
+    private static FormField[] WeatherRows(string? section = null) => new[]
     {
-            WeatherNumber("Temperature", "Weather.GroundTemperatureC", "°C", (w, e) => Weather(w, e).GroundTemperatureC, -80, 70),
+            WeatherNumber("Temperature", "Weather.GroundTemperatureC", "°C", (w, e) => Weather(w, e).GroundTemperatureC, -80, 70, section: section),
             WeatherNumber("Pressure", "Weather.SeaLevelPressureHpa", "hPa", (w, e) => Weather(w, e).SeaLevelPressureHpa, 800, 1100),
             WeatherNumber("Humidity", "Weather.RelativeHumidity", "(0-1)", (w, e) => Weather(w, e).RelativeHumidity, 0, 1),   // stored 0…1 (W-7)
             WeatherNumber("Visibility", "Weather.VisibilityM", "m", (w, e) => Weather(w, e).VisibilityM, 0),
@@ -797,15 +798,17 @@ public static class HrotForms
         {
             // ⭐ CE-4346 (X-3) — the start is EDITABLE: it was greyed because a text row with no attribute and no Apply is read-only (FormField.ReadOnly). It writes
             //   through the existing ScenarioStartUtcTicks attribute (ScenarioClockEdit.SetStartUtc — the router writes on the owner, asks it elsewhere).
-            new FormField { Label = "Start", Kind = FieldKind.Text, Has = HasClock, ReadText = (w, e) => StartText(w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).StartUtcTicks),
+            new FormField { Label = "Start", Section = "Scenario time", Kind = FieldKind.Text, Has = HasClock, ReadText = (w, e) => StartText(w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).StartUtcTicks),
                             Apply = (w, _, _, text) => ApplyStart(w, text) },
             // ⭐ CE-4346 — the user's name for ScenarioClock.DisplayUtcOffsetMinutes ("Clock offset" meant nothing to a user): the theatre's LOCAL time, minutes from UTC; display only.
             new FormField { Label = "Local time offset", Attribute = "ScenarioUtcOffsetMinutes", Unit = "min", Min = -720, Max = 840, Has = HasClock,
                             ReadNumber = (w, e) => w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).DisplayUtcOffsetMinutes },
             // ⭐ New scenario N4 (📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §4, R-4124 / R-4135) — the terrain, READ-ONLY (no attribute): chosen when the
             //   scenario was created, never changed. Read from the TerrainDefinition singleton every host's terrain commit publishes (the name the scenario resolved by).
-            new FormField { Label = "Terrain", Kind = FieldKind.Text, Has = HasTerrain, ReadText = (w, _) => TerrainText(w) },
-        }, WeatherRows()),
+            new FormField { Label = "Terrain", Section = "Terrain", Kind = FieldKind.Text, Has = HasTerrain, ReadText = (w, _) => TerrainText(w) },
+        }, WeatherRows("Global weather")),
+        // ⭐ CE-4346 — the global weather's wind levels and cloud layers, each with its own editor (lists travel whole: Hrot.UI.Common.Weather.WeatherEdit)
+        After = Hrot.UI.Common.Weather.WeatherLayersEditor.Draw,
     };
 
     private static FormField Character(string label, string attribute, string? section, Func<EntityRepository, Entity, bool> Has, Func<EntityRepository, Entity, double> read, Func<EntityRepository, Entity, double?> type)
