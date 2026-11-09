@@ -3,6 +3,7 @@ state: LIVE
 build-state: APPROVED by the user 2026-11-09 — plan: docs/superpowers/plans/2026-11-09-terrain-synth.md
 updated: 2026-11-09 (source-data session)
 related-designs:
+  - PLAN_Large_Terrain.md — uses this tool's `full` set as the scale terrain for the load / performance work (scale lane) and the importer (import lane)
   - DESIGN_Terrain_Import_UTM.md §10 — the import input set this tool writes (format, frame, bounds); §10.6 unique buildings; §10.7 the real set's numbers
 -->
 
