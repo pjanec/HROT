@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: ⛔ first pass: "Federation does not fit the editor" / "standalone only" — WITHDRAWN (§2.4) · ⛔ second pass: the "this station's part" source during a CLUSTER AAR, G2 (read-only), Q5 (DAR), Q6 (per-station switch in a cluster) — WITHDRAWN by the user (§2.4) · the first pass cited R-4010 for "each node replays its own recording" — wrong id; the rule is W5 in DESIGN_Replay_Time_Axis_And_Review
 known-conflict: none
 related-designs:
+  - DESIGN_Details_Forms.md — owns the forms and names the vocabulary's READ side (§2.4); §6.13a here builds it (AttributeReaders)
   - DESIGN_Replay_Browser_UX.md — OWNS the standalone Replay Browser's UX; its Q-B3 (default layout) and Q-B6 (Federation) are answered here (§5)
   - ../designs/replay-browser-frankenstein/DESIGN.md — OWNS Federation and the merged view (§7 the synthesis); §2.2 here measures what it keeps and loses
   - ../DESIGN_Replay_Time_Axis_And_Review.md — OWNS DAR / AAR in a cluster (a debrief, W5: each node replays its own recording) — NOT this perspective's case
@@ -876,14 +877,119 @@ reflection) before building.
 
 | | decision (lean) | instead of |
 |---|---|---|
-| **RW-1** what is watched | ⭐ **the user picks**: an eye at the right end of a component header in Details (merged view, networked unit); the lane's gear lists the watch, ✕ removes, *Watch another component…* adds | every recorded component (as S5 built it) |
+| **RW-1** what is watched | ⭐ **the user picks ATTRIBUTES** (user, `2026-11-09`): an eye on an attribute row in Details (merged view, networked unit) — read through the vocabulary's reader (§6.13a); the lane's gear lists the watch, ✕ removes, *Watch another…* adds a vocabulary attribute or (expert) a component field by path | every recorded component (as S5 built it) · whole components |
 | **RW-2** what marks | ⭐ **persistent disagreement only**: a span while some node differs from the owner beyond the component's tolerance for longer than the threshold; hover = who believed what, click = seek | a tick on every differing frame |
 | **RW-3** threshold | ⭐ one per lane, **200 ms default** (≈ 2 × the time-sync tolerance) | per component |
-| **RW-4** tolerance | ⭐ per watched component: **exact** for discrete values; a size in its unit for a continuous one (Position 0.5 m default, heading in degrees) | the one ε 0.001 for everything |
+| **RW-4** tolerance | ⭐ per watched attribute (in its unit): **exact** for discrete values; a size in its unit for a continuous one (Position 0.5 m default, heading in degrees) | the one ε 0.001 for everything |
 | **RW-5** scope | ⭐ per selected unit, its own watch list, **empty by default ⇒ no lane** | always on |
 | **RW-6** By node | unchanged: the instant view (amber = differs now beyond ε), the eye added to its header | — |
 
 ⏳ Open for the user: the threshold's default (200 ms) and whether a watch list should follow the COMPONENT across units (watch Health on every unit) instead of per unit.
+
+### 6.13a ⭐ The attribute READER — the vocabulary's read side, built first *(behaviors, `2026-11-09`, `build-state: DESIGN`)*
+
+> 🔒 **User, `2026-11-09`:** *"are we picking whole components or concrete attributes? entity attributes would make sense (the diff tolerance is set per single value) … we for sure have the opposite - how to write an attribute into a set of components"* · *"design the reader first, the more unification and sharing, the better"*
+
+**Design basis.** `DESIGN_Details_Forms.md` §2.4 already says *"a row reads only the world (components, **the attribute vocabulary's READ side**)"*, and its class diagram gives `FormRow.Read(world, entity) → value`. ⛔ As built, that read side does not exist: the vocabulary (`AttributeVocabulary.All`, Q59 — *"the ONE declaration of what an entity attribute IS"*) has a JSON setter and a binary handler per attribute and **no reader**; reading lives in **27 per-field delegates** in `HrotForms.cs`. ⇒ this section builds the planned read side, and the forms and the replica watch both read through it.
+
+**INVENTORY** (queries run `2026-11-09`: `grep AttributeVocabulary.All` · `grep ReadNumber|ReadText` · `scripts/cbm.sh search_code "bindable"` · `grep "static class FormAttributes"` · `grep FindKey|At(`):
+
+| what | where | count |
+|---|---|---|
+| the vocabulary (path, id, kind, component) | `Fdp.Toolkits/Replication/Attributes/AttributeVocabulary.cs` | 46 rows (incl. wildcards `Ammo.*`, `Damage.Part.*` with a sub-index) |
+| JSON setters | `AttributeCompilerFactory.Build` (helpers `FormAttributes.Set*`) | one per row |
+| binary handlers | `*AttributeInstaller` (`SimTransform…`, `ScenarioClock…`, `CivilianFright…`, `EntityData…`, `SimTransformHeading…`) | one per row |
+| the rail that keeps the tables in step | `Hrot.SimHost.Tests/TheFourRoutingTablesAgreeTests.cs` | — |
+| **readers** | ⛔ none in the vocabulary · `FormField.ReadNumber` / `ReadText` per form field (`FormDecl.cs:24-26`, `HrotForms.cs`) | 27 |
+| JSON path walkers over a component's JSON | `ParamBind.FindKey` + `SetPath` (`ParamBinding.cs:222, :272`) · `ScenarioVariants.FindKey` (`:246`) · `ScenarioVerification.At` (`Hrot.Editor/Director`, `:290`) | ⚠ 3 copies |
+
+```mermaid
+classDiagram
+  class AttributeVocabulary {
+    <<existing · Q59>>
+    All : AttributeDefinition[46]
+  }
+  class AttributeDefinition {
+    <<existing>>
+    JsonPath · AttributeId · Kind · Component · BrainLocal
+  }
+  class AttributeReaders {
+    <<NEW · beside the setters>>
+    TryRead(repo, entity, id, subIndex, out AttributeValue) bool
+    Of(jsonPath) AttributeId
+  }
+  class AttributeCompilerFactory { <<existing>> JSON setters }
+  class BinaryInstallers { <<existing>> binary handlers }
+  class AttributeValue {
+    <<existing · + Text>>
+    Kind · Int · Long · Float · Double · Bool · String
+    Text : FixedString64 NEW
+  }
+  class FormField {
+    <<existing>>
+    Attribute · SubIndex
+    ReadNumber / ReadText : default = AttributeReaders
+  }
+  class ReplicaWatch {
+    <<NEW · §6.13>>
+    reads each node's copy through AttributeReaders
+  }
+  class ComponentJsonPath {
+    <<NEW · one walker>>
+    Get(json, path) · Set(json, path, value)
+  }
+  class FourRoutingTablesRail { <<existing rail · + reader table + round-trip>> }
+  AttributeVocabulary "1" *-- "46" AttributeDefinition
+  AttributeReaders ..> AttributeVocabulary : one reader per row
+  AttributeCompilerFactory ..> AttributeVocabulary
+  BinaryInstallers ..> AttributeVocabulary
+  AttributeReaders ..> AttributeValue
+  FormField ..> AttributeReaders : reads
+  ReplicaWatch ..> AttributeReaders : reads
+  ReplicaWatch ..> ComponentJsonPath : expert path entry
+  FourRoutingTablesRail ..> AttributeReaders : every row has one · set then read agrees
+```
+
+*What the picture shows that prose hid:* the vocabulary becomes the ONE place both directions hang from — write (JSON + binary) and read — and the two consumers (forms, watch) cannot read an attribute differently. The three JSON path walkers collapse into `ComponentJsonPath` (the param binder's write, verify's read, the variants' lookup, and the watch's expert entry).
+
+```mermaid
+sequenceDiagram
+  participant F as FormView (each frame, Details open)
+  participant W as ReplicaWatch (background scan)
+  participant R as AttributeReaders
+  participant E as a node's world (live or a sandbox)
+  F->>R: TryRead(world, unit, Health.Current, 0)
+  R->>E: GetComponentRO<Health>(unit).Current
+  R-->>F: AttributeValue{Double 0} — 0 B
+  W->>R: TryRead(sandbox of node N, unit, Health.Current, 0)
+  R-->>W: the value node N believed
+  W->>W: differs from the owner's beyond the tolerance for longer than the threshold → a span
+```
+
+```mermaid
+graph TD
+  V[AttributeVocabulary · Fdp.Toolkits] --> RD[AttributeReaders · Fdp.Toolkits]
+  V --> ST[JSON setters + binary handlers]
+  RD -->|every frame while Details is open| FV[FormView · Fdp.Presentation]
+  RD -->|background, per watched attribute| RW[ReplicaWatch · Fdp.Toolkits ReplayBrowser]
+  CP[ComponentJsonPath · Fdp.Toolkits Scenario] --> PB[ParamBinding write]
+  CP --> SV[ScenarioVerification read · Hrot.Editor]
+  CP --> SVR[ScenarioVariants]
+  CP --> RW
+```
+
+*The module picture's point:* the reader lives in `Fdp.Toolkits` beside the vocabulary, so the editor, the Replay Browser and CGF read it without depending on a presentation assembly; `FormView` calls it every frame, so it is on the hot path (R-2084).
+
+| | decision (lean) | instead of |
+|---|---|---|
+| **AR-1** | ⭐ the reader is a TABLE beside the setters (`AttributeReaders`, one entry per vocabulary row, keyed by `AttributeId`, sub-index for the wildcards), not a field on `AttributeDefinition` — same reason Q59 kept the setters apart: per-attribute logic, a delegate per row | a `Read` property on the record (the record would need `Hrot.*` component delegates in a pure-metadata list) |
+| **AR-2** | ⭐ returns the existing `AttributeValue` (+ a `FixedString64 Text` for text attributes, so a form reading a Name each frame allocates nothing) | a new value type · `string` (allocates per frame) |
+| **AR-3** | ⭐ `TheFourRoutingTablesAgreeTests` gains the fifth table: every row has a reader, AND **set then read agrees** for each attribute (the setter and the reader cannot drift) | a separate reader rail |
+| **AR-4** | ⭐ `FormField.ReadNumber` / `ReadText` default to the reader when `Attribute` is set; the 27 delegates go, except the DERIVED rows the vocabulary cannot read (kept, named) | keeping both (two readings of one attribute) |
+| **AR-5** | ⭐ one `ComponentJsonPath.Get/Set` in `Fdp.Toolkits/Scenario` replaces the three walkers (case-insensitive keys, a number part indexes an array on read; the param binder's "no index on write" rule stays its own check) | leaving three copies |
+| **AR-6** | ⭐ the watch's expert entry for a value outside the vocabulary (capabilities, embarkation) reads by `ComponentJsonPath` over the component JSON the lens already makes | growing the vocabulary for read-only values |
+
+**Stages:** R-1 `AttributeReaders` + `AttributeValue.Text` + the rail (AR-1…3) · R-2 the forms read through it (AR-4; the forms' frame rails must stay green, 0 B) · R-3 `ComponentJsonPath` (AR-5) · then the watch (§6.13, attributes not components).
 
 ### 6.10 Why JSON was chosen back then — and what the binary idea must not lose *(read `2026-11-08`)*
 

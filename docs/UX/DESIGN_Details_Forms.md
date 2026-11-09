@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Review_Perspective.md §6.13a — BUILDS the attribute vocabulary's READ side this design's §2.4 names (AttributeReaders); the forms' 27 per-field readers route through it (AR-4)
   - docs/DESIGN_Struct_Editor.md — the one value library; a form row's value is its leaf (S10 keeps forms as FormDecl)
   - DESIGN_Replay_Browser_UX.md — the Replay Browser's layout docks Details right
   - DESIGN_Show_On_Map.md — the ⌖ at the end of every row whose type has a place on the map (read-only rows too)
