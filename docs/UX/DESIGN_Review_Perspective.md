@@ -607,6 +607,83 @@ practical reason for the time offsets. Does the original design says anything ab
 
 ![the better merge](better-merge-visual.svg)
 
+### 6.12 ⭐ The build — modules, classes, stages *(behaviors, `2026-11-09`, G-7 / CE-4354 — `build-state: BUILDING`)*
+
+INVENTORY *(measured)*: `search_graph name_pattern=".*(Federat|TransientMaster|ReviewSource|MergedView|Sandbox).*" label=Class` ⇒ the merge is
+ONE class, `TransientMasterBuilder` (`Build` = a new repo; `BuildInto` = into a given one), called by TWO hosts each step:
+`ReplayBrowserSubsystem.BuildAndBindTransientMaster` (`:617-641`, a NEW repository + `RebindActiveRepo` every step) and
+`ReviewSource.RefillMerged` (`Hrot.Editor/Review/ReviewSource.cs:309-322`, `_clearWorld()` then `BuildInto` the editor's own world every step).
+`search_graph ".*(EntityField|Remap|EntityRefWalk|FieldLayout|EntityOffsets).*"` ⇒ `EntityRefRemap` walks NETWORK-id references
+(`EntityRef` / `EntityLink`), not raw `Entity`; the raw-`Entity` field knowledge per type is in `FdpAutoSerializer` (scalar fields `:417`,
+`[InlineArray]` of `Entity` `:101, :460` — CE-467). Seek alignment today: `FederatedReplayManager` by `BaseWallTicks` + manual per-node offsets
+(`SetNodeOffset`, `:38-174`) — ⭐ already what R-4183 / §6.11a decided; S3 adds only the slider. Graph coverage could not be checked.
+
+```mermaid
+graph TD
+  subgraph RBP["Replay Browser process"]
+    RBS["ReplayBrowserSubsystem — every seek, step, play tick"] -->|Merge mgr, target| BM
+    RBS -. once, on group load .-> MT1["the merged repo: created ONCE, bound ONCE"]
+  end
+  subgraph EDP["Editor process — Review, Merged source"]
+    RS["ReviewSource.OnManagerTime — every seek, step, play tick"] -->|Merge mgr, editor world| BM
+    WB["world boundary: a group re-opened, the source switched"] -->|Reset| BM
+  end
+  BM["BinaryMerger — the ONE merge (Fdp.Toolkits ReplayBrowser Federation)"] --> OS[OwnershipSource]
+  BM --> RP[EntityRemapPlan — from FdpAutoSerializer's field discovery]
+  BM --> FRM[FederatedReplayManager — the per-node sandboxes, seeked by wall ticks + manual offsets]
+  TMB["TransientMasterBuilder — kept: the ORACLE in rails only"]:::dead
+  classDef dead fill:#444,stroke:#999,color:#ddd
+```
+
+*What the module picture shows: the two hosts call ONE `BinaryMerger.Merge(manager, target)` from the place they call `TransientMasterBuilder`
+today; the target is PERSISTENT on both (the Replay Browser binds its repo once; the editor stops clearing its world per step) and only a world
+boundary resets the merger's maps. `TransientMasterBuilder` leaves the hosts and lives on as the oracle the rails compare against (grey).*
+
+```mermaid
+classDiagram
+  direction LR
+  class BinaryMerger {
+    <<NEW · Fdp.Toolkits/ReplayBrowser/Federation>>
+    +Merge(FederatedReplayManager, EntityRepository target)
+    +Reset()
+    -MergeTarget map
+    -copy per owned component (S1 full pass · S4 changed chunks only)
+  }
+  class MergeTarget {
+    <<NEW>>
+    netId → target Entity (I2)
+    (node, local Entity) → target Entity (I7, provider node until S5)
+    born / gone since the last merge
+  }
+  class EntityRemapPlan {
+    <<NEW — built once per type FROM FdpAutoSerializer's field discovery (no second walker)>>
+    raw Entity field offsets · InlineArray elements (D03)
+    +Remap(ref T, Func~Entity,Entity~)
+  }
+  class OwnershipSource {
+    <<NEW>>
+    S1: today's rule (owned AND not taken, primary first — frankenstein §7.3)
+    S2: NetworkAuthority / DescriptorOwnership, the mask a cross-check (I8)
+  }
+  class DataPolicy { <<EXISTING enum>> +NodeLocal (NEW flag, I9 / Q14) }
+  class TransientMasterBuilder { <<EXISTING — oracle>> }
+  BinaryMerger --> MergeTarget
+  BinaryMerger --> EntityRemapPlan
+  BinaryMerger --> OwnershipSource
+  BinaryMerger ..> DataPolicy : skips NodeLocal
+```
+
+| stage | builds | the proof (§6.6) |
+|---|---|---|
+| **S1** | I1 binary copy (unmanaged by value; managed by reference, or a NEW instance when the type holds a raw `Entity` — immutable records, CLAUDE.md) · I2 one persistent target + `MergeTarget` · I9 `DataPolicy.NodeLocal` on the M1 / M2 node-local types, skipped · both hosts switched to `BinaryMerger` (full pass per step) · `TransientMasterBuilder` kept | the **oracle** rail (every unmanaged component equals the JSON merge's), the **owner** rail, the **remap** rail (+ the M2 probe as a rail) |
+| **S2** | I8 `OwnershipSource` from the recorded ownership components | the **handover** rail (CE-4327 recordings) |
+| **S3** | the *Offsets…* slider in the Federation window (`SetNodeOffset`, default 0, per node, applied to that node's wall stamps) | a rail: an offset moves that node's frame choice |
+| **S4** | I3 incremental (only chunks whose version moved, M4) ⇒ ▶ in Merged (ui's A-9 reason removed) | the **play** rail: 0 B per steady merged frame (R-2084), the cost on the largest exercise written here |
+| **S5** | I5 the views lens (Details *By node*, the *Replica differs* lane, `ComponentDiffService` ε) · I6 federated search · I7 local entities from every node (the Source menu's checkboxes) | the mockup's states side by side (R-4146) |
+
+⛔ §6.10 holds in every stage: never a raw chunk / `EntityIndex` copy (indices are node-local) — every copy goes entity by entity into the
+target's own entities; correctness over speed.
+
 ### 6.8 Appendix — M1: every recorded managed component and its scenario translator
 
 | component | kind | data policy | translator | file |
