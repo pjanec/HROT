@@ -577,6 +577,25 @@ no JSON.*
 | **M-8** | an entity whose owner changes (I2, I8) | the merged entity KEEPS its identity (network id); its components switch source at the handover frame | a new entity per owner |
 | **M-9** | where it runs | the all-in-one editor and the standalone Replay Browser (D2); ⛔ not a cluster AAR | — |
 
+#### 6.11a ✏ PROPOSAL `2026-11-09` — alignment and offsets, re-measured *(supersedes M-1, M-2, M-3 and I4's "align by sim time" when the user approves — R-4183)*
+
+🔒 User: *"Why aligning merged data by sim time and not wall time? What if something changes while sim paused? … I'm still trying to find out a
+practical reason for the time offsets. Does the original design says anything about it?"*
+
+| measured | where |
+|---|---|
+| ⛔ sim time is NOT a unique key: the recorder keeps writing while sim time is paused (edits, graphics, objective marks) — many frames share one sim time | mgmt-1 §8.12 "Always Recording" |
+| ⭐ every frame is stamped with the CLUSTER's frame-locked wall clock (`GlobalTime.TotalWallTicks`, which the slaves follow), not a local clock | `AsyncRecorder.cs:158, :223, :323` · R-4012 (a replay covers by `WallClockTicks`) · the cluster replay seeks by wall ticks (`ClusterMaster.RelativeTicksForSim`) |
+| the half round trip is NOT the replication path (it lacks the owner's send phase and up to one receiver tick) | `SlaveTimeSyncTranslator.cs:108-127` (t1 / t4 on the main thread, the master's hold subtracted) |
+| ⭐ the ORIGINAL intent of the offsets: *"optional interactively adjustable time offset for different node's recordings to compensate for slight time shift between nodes"* (the user, the frankenstein talk) — the residual CLOCK shift, not replication latency | `.dev/_DONE/replay-browser-frankenstein/merged-view.md:37, :122` |
+
+| # | ✏ lean | rejected — one line |
+|---|---|---|
+| **A1** | **align the merge by the recorded frame-locked WALL ticks** (one shared clock; pauses included); sim time is a display axis only | by sim time: ambiguous through every pause |
+| **A2** | **owned data: no offset** (the user agreed) — the per-node CLOCK offset stays what it was designed as: optional, manual, expert (the Federation window), default 0, for a node whose clock sync was poor or a recording that predates it | a measured default: the frame-locked clock already removes the shift |
+| **A3** | **replication LAG is a separate, measured number, used only by the views lens** (I5): *Measure lag* on the selected replicated component — over a window, every change of the replica is matched to the owner's matching earlier change; lag = the median gap. Works for a component sent only on change or by heartbeat (only changes count); too few changes ⇒ *"not enough changes to measure"*. The lens then compares the replica with the owner one lag earlier ⇒ *late* (matches after the lag) vs *wrong* (never matches) | half the round trip: wrong path · positions only: a component the user selected is the better evidence |
+| **A4** | the M-4 ε and the M-5 / M-6 UI stand; the lens shows *"lag 37 ms (measured on Position, 212 changes)"* beside *By node* | — |
+
 ⭐ Mockup: [`better-merge-visual.svg`](better-merge-visual.svg) (`scripts/gen-better-merge-mockup.py`) — the acceptance spec for M-5, M-6, M-7 (R-4138).
 
 ![the better merge](better-merge-visual.svg)
