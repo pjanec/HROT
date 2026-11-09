@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — a plan for the user (Q-L1…Q-L4); no work dispatched yet
 updated: 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §7 REVISED (user): the scale terrain from existing templates now (§7.1), when trees and destruction kick in (§7.2) · §4 the work items (P-0…P-6, U-1/U-2 unchanged) · §6 questions
+current-answer: ⭐ §9 the OSM importer goes through the importer, built in parallel · ⭐ §8 DECIDED R-4192 (budgets, backend, no new lane) · §7 REVISED (user): the scale terrain from existing templates now (§7.1), when trees and destruction kick in (§7.2) · §4 the work items (P-0…P-6, U-1/U-2 unchanged) · §6 questions
 stale-below: §2 'thin import first' and §3's arrows from the import lane to P-4 / P-5 — superseded by §7
 known-rot: none
 known-conflict: none
@@ -173,3 +173,48 @@ it at once. P-1 (the 1 m height store) starts in parallel; the scale terrain swi
 
 ⇒ ⭐ the importer lane (I-1, then the full building generator, woods, prefill) proceeds without blocking anything; its output replaces the scale
 terrain for the FINAL measurement (real-like unique houses) — the numbers should match, since nothing is shared per template.
+
+## 8. ✅ DECIDED `2026-11-09` (R-4192) — budgets and lanes
+
+🔒 User, `2026-11-09`: *"The budget is fine. Approved. We will use the backend lane, no new lanes. 4 lanes in total is more than enough."*
+
+| | |
+|---|---|
+| **Q-L2 budgets** | ✅ load ≤ 30 s warm (navmesh from the cache) · sim frame ≤ 10 ms at 60 Hz with 1 000 soldiers + 50 vehicles + 10 aircraft · 0 B garbage per steady frame · ≤ 4 GB per node · 3-D ≥ 30 fps |
+| **Q-L1 lanes** | ✅ **the scale work goes to `backend`; NO new lane** (⛔ §6's `terrain` lane / `CE-5000` block withdrawn) |
+
+## 9. The OSM importer — through the importer, built in parallel *(coordinator, `2026-11-09`; the user: "Is that something that needs to go through the importer, or is it something that generates the hrot terrain directly? This affects whether we can start building the OpenStreetMap importer in parallel.")*
+
+```mermaid
+graph LR
+  REAL["real input set"] --> IS
+  SYN["hrot-terrain-synth"] --> IS
+  OSM["Hrot.Terrain.Osm (fetch, stages, preview)"] --> IS
+  IS["the input set (§10 format) — model, writers, READER, conformance checks: Hrot.Terrain.InputSet"] --> IMP["the importer — ONE translator into HROT"]
+  IMP --> TER["assets/terrain/(name)/"]
+  WIZ["editor wizard"] --> OSM
+  WIZ -. "last step only" .-> IMP
+```
+*What the picture shows: three producers, one format, one translator. The OSM library touches HROT's terrain format nowhere — its only
+contract is the input set, which already exists and is checked; the wizard reaches the importer only in its last step.*
+
+**Decision: through the importer.** **Rejected:** OSM writing the HROT terrain directly — it would be a SECOND copy of everything the importer
+does (points → walls with openings, party walls, pitched caps, the height store, the woods grid, the navmesh prefill); the two would drift,
+and every importer fix would have to be made twice.
+
+**⇒ it CAN be built in parallel, now.** Nothing in O-0…O-2 needs the importer:
+
+| OSM stage | needs | in parallel? |
+|---|---|---|
+| O-0 extract `Hrot.Terrain.InputSet` — ⭐ **add the READER and the conformance checks there**, so the importer reads the set through the same code the producers write it with | the synth tool | ✅ now — and it is the importer's first dependency too |
+| O-1 fetch + parse + buildings / vegetation / walls / water + CLI | the shared `Utm` class (I-1, small — first) | ✅ |
+| O-2 heights from the DEM, roads via netconvert | O-1 | ✅ |
+| O-3 the editor wizard — area, options, preview, progress | O-2 | ✅ up to writing the input set |
+| O-3 last step "open in New Scenario" | the importer (`ITerrainImporter`) | ⏳ the only wait; the wizard stops after writing the set until then (as §5.8 of the OSM design already says) |
+
+⚠ **The one thing that must hold**: the input-set format is frozen at `schemaVersion: 1` plus the optional files (UTM §10, §10.9). A change is
+made in `Hrot.Terrain.InputSet` once and both sides follow. ⭐ The OSM tests check their output with the same conformance checks, so an OSM
+set that passes them imports.
+
+📐 Measured for the window rule: Building Interiors dropped its facade rules (rev-1 B7, `DESIGN_Building_Interiors.md:168` — "explicit openings
+are clearer") ⇒ the OSM library's door / window rules (OSM design §5.5) are the ONLY such rules in the repo — no duplicate.

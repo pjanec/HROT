@@ -3,6 +3,7 @@ state: LIVE
 build-state: DESIGN — reviewed (builder check + coordinator review F-1…F-11, folded in 2026-11-09), Q-O1…Q-O9 answered; map background / imagery LEFT OPEN for the user (§8)
 updated: 2026-11-09 (source-data session)
 related-designs:
+  - PLAN_Large_Terrain.md — §9: this pipeline goes THROUGH the importer and is built in parallel; O-0 adds the input-set READER + conformance checks to Hrot.Terrain.InputSet
   - DESIGN_Terrain_Import_UTM.md §10 — the import input set (the target format of this tool)
   - DESIGN_Terrain_Synth.md — the synthetic generator of the same input set
   - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §11.3 — SUMO net placement (anchor), terrain-from-sumo.py
