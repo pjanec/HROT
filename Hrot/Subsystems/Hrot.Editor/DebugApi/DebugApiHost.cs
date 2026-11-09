@@ -574,7 +574,28 @@ namespace Hrot.Editor.DebugApi
                     if (failure is not null) return failure.Value;
                     gate = g;
                 }
-                return await RunMainResult(s => { var (r, e, h, st) = s.SetRunMode(ctx.Body, gate); return e is null ? Ok(r) : Fail(st, e, h); }).ConfigureAwait(false);
+                // ⭐ behaviors' NOTE_Behaviors_To_Backend_Editor_Live_Load_Rejected (📐 measured 2026-11-09): from Edit, arming Live STARTS the live load,
+                //   which parks ~0.1 s for its staging (L8); the route answered at once, so a caller's next load landed while it was parked and was REJECTED
+                //   (one parked transition at most, §7.2c). ⇒ a switch that loads is awaited here, like the load routes' waitForReady — the answer means "loaded".
+                bool loads = string.Equals(armed, "live", StringComparison.OrdinalIgnoreCase)
+                             && await _jobQueue.RunOnMainThread(() => Service().InEdit()).ConfigureAwait(false);
+                var set = await RunMainResult(s => { var (r, e, h, st) = s.SetRunMode(ctx.Body, gate); return e is null ? Ok(r) : Fail(st, e, h); }).ConfigureAwait(false);
+                if (!loads || set.Status != 200) return set;
+                // ⚠ a switch that only ARMS (no scenario open, a host whose door does not load) leaves the cluster in Edit: give the load 2 s to start
+                //   (📐 it started ~10 ms after the arm live), and wait for Live only once the cluster has left Edit.
+                var sw = Stopwatch.StartNew();
+                while (await _jobQueue.RunOnMainThread(() => Service().PollClusterStateIs(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)).ConfigureAwait(false))
+                {
+                    if (sw.Elapsed.TotalSeconds > 2) return set;
+                    await Task.Delay(20).ConfigureAwait(false);
+                }
+                while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
+                {
+                    if (await _jobQueue.RunOnMainThread(() => Service().PollClusterStateIs(Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)).ConfigureAwait(false))
+                        return set;
+                    await Task.Delay(50).ConfigureAwait(false);
+                }
+                return Fail(504, $"Live was armed, but the live load it started did not reach OperatingLive within {ScenarioReadyTimeoutSeconds}s.");
             }));
             // ⭐⭐⭐ CE-104 — THE PAUSE ACK MEANS *APPLIED*, NOT *ACCEPTED*.
             //

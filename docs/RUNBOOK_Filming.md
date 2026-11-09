@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 doc-type: runbook (how to film the 3-D map — not a design; the design and its UML are Map 3D Mode §6ab)
-updated: 2026-11-06 (§8 thumbnails — CE-4268 / CE-4271) · 2026-10-30 (§0b — CE-3354: one-call load-and-run, the filming node's 3-D map in its load) · 2026-10-30 (§0b traps from the film pilot: paused live load, launch order, wait for the index, CE-4118 / CE-4119) · 2026-10-29 (§0b record a live run in the editor, film it in the Replay Browser — the HTTP sequence, measured CE-4102) · 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
+updated: 2026-11-09 (§0b — arming Live from Edit loads Live; /run-mode waits for it) · 2026-11-06 (§8 thumbnails — CE-4268 / CE-4271) · 2026-10-30 (§0b — CE-3354: one-call load-and-run, the filming node's 3-D map in its load) · 2026-10-30 (§0b traps from the film pilot: paused live load, launch order, wait for the index, CE-4118 / CE-4119) · 2026-10-29 (§0b record a live run in the editor, film it in the Replay Browser — the HTTP sequence, measured CE-4102) · 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
 current-answer: this whole file — ⭐ §0a the film director (takes, reels, live or to film); ⭐ §0b record an exercise in the editor and film it in the Replay Browser; §0 film in --mode editor; §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
   film, §6 the traps.
 stale-below: nothing.
@@ -109,7 +109,7 @@ c() { if [ "$1" = POST ]; then curl -s --noproxy '*' -m 150 -X POST "http://loca
 
 ```bash
 c POST 8120 /scenario/load/edit '{"name":"hill-attack","waitForReady":true}'
-c POST 8120 /run-mode '{"armed":"live"}'                       # the indicator's move; GET /run-settings shows the cluster's armed mode
+c POST 8120 /run-mode '{"armed":"live","discardUnsaved":true}'  # FROM EDIT THIS LOADS LIVE (CE-3411) and answers once it is OperatingLive (2026-11-09)
 c POST 8120 /scenario/load/live '{"name":"hill-attack","waitForReady":true}'   # OperatingLive, running, recording:true in GET /status
 sleep 60                                                       # the run; GET /status → simTime
 c POST 8120 /sim/stop                                          # ■: back to editing at the start, Live stays armed, the exercise is on disk
@@ -143,6 +143,7 @@ above, played and never saved), a saved name (`"take":"main"`, `scenarios/<s>/ta
 | ⚠ `GET /exercises` listed `scenario: null` before `3f7785c24` | fixed: the scenario comes from the recording's sidecar |
 | ⛔ **a batch of renders must check the Replay Browser is ALIVE first, and abort on an EMPTY answer** | 📌 `2026-10-30`: the cloud machine restarted between turns, the Replay Browser was gone, and a script polling `/director/status` for `Done` waited 50 min per clip on empty answers — 73 min lost, nothing rendered. ⭐ Launch / wait for `/status` before the batch; `[ -z "$st" ] && exit 1` inside every wait |
 | ⚠ **a load sent before the cluster is ready is REFUSED** (`notOperable: "no cluster state has reached this node yet"`) — measured right after launch | wait for `GET /status` → `canOperate: true` before the first load (the readiness protocol, R-3072) |
+| ⛔ **from Edit, `POST /run-mode {armed:live}` IS a live load** — the next `/scenario/load/live` is a second (reloading) load | 📐 `2026-11-09` (behaviors' NOTE_Behaviors_To_Backend_Editor_Live_Load_Rejected): the route used to answer at once while its load was parked ~0.1 s for its staging, so the next load was REJECTED (the master parks at most one transition, L8 §7.2c). ⭐ Fixed: the route now waits for `OperatingLive` when it started a load. The explicit live load after it is optional (it reloads) — use it for `startPaused:false` / args |
 | ⚠ **the live load comes up PAUSED** by design (`startPaused` defaults to true, Q86 §4-G) | either send `POST /sim/play` after `/scenario/load/live {waitForReady:true}`, or load and run in ONE call: `{"name":…, "waitForReady":true, "startPaused":false}` — the master starts the clock when every node's load succeeded (CE-3354 / CE-4122 fixed `2026-10-30`; ⛔ before that `startPaused:false` stayed paused) |
 | ⭐ **film on a node whose 3-D map is IN the load** (CE-3354, R-3075) | once per session: `POST /run-settings {"mapInLoad":true}` on the filming node's own port (or `{"mapInLoadNodes":["film-cam"]}` by name — names in `GET /cluster/roster`; name a node with `--node-name film-cam`). Then `waitForReady` returns only when its 3-D map is built too; `GET /status.load.phase` = `Loaded`. From the command line: `-m editor --node-name film-cam -s <scenario> --play --map-in-load` |
 | ~~launching both in the same second crashed the editor on the shared `imgui.ini`~~ — ✅ fixed (CE-4116: the layout reset replaces the file by rename, retries, and keeps the existing layout if it still cannot) | the two may start together |
