@@ -183,8 +183,9 @@ related-designs:
 1. **Go Live greyed from a replay on another cluster** — waits on backend: [NOTE_Ui_To_Backend_GoLive_Refusal_Fact](batches/NOTE_Ui_To_Backend_GoLive_Refusal_Fact.md) (the master's `GoLiveRefusal` is not replicated; the job's `Reason` covers only part of it). The master's refusal is the gate meanwhile.
 2. **CE-4273** — the Car's thumbnail (`scripts/thumbnails.py --types Car --pack` against a live editor).
 3. **CE-1466** (3-D click-select hit-tests the 2-D footprints) · **CE-1467** (bookmark deviations).
-4. Backend flagged: `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_StartOffersOpenNewAndRecording_*` looks for a *"New Scenario…"* button no code builds any more — ui's to check.
-5. Merge `coordinator`, look for `To_Ui` notes.
+4. Merge `coordinator`, look for `To_Ui` notes.
+
+✅ **Checked, nothing to do:** backend's flag on `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_StartOffersOpenNewAndRecording_*` — it passes on a fresh build (it already reads the greyed *New Scenario…* by prefix + tooltip); the red backend saw was a stale `ClusterRunner.Tests` restore (`PlayerSubsystem` not found until `dotnet restore`).
 
 **Traps measured this session:** the frame harness's default font is ASCII-only (`—`, `·` draw as `?`) — a rail that cares initialises `EditorFontService` first (the transfers rails do) · editing a project while a background build of it runs gives phantom "no such member" errors — re-build before believing them · ClusterRunner needed `dotnet restore` after the backend merge (`DeployFlowSystem` / Hrot.Gameplay "not referenced").
 
