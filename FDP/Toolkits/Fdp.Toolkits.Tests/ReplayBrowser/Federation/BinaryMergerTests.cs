@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             prime.RegisterComponent<NetworkIdentity>();
             prime.RegisterComponent<NetworkAuthority>();
             prime.RegisterComponent<DummyPosition>();
+            prime.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             prime.RegisterComponent<GuidedTarget>();
             _serializer = new ScenarioSerializerBuilder("TestSubsystem").Build();
         }
@@ -572,6 +573,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<DummyPosition>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             repo.RegisterComponent<GuidedTarget>();
             repo.RegisterComponent<UnitRoster>();
             repo.RegisterComponent<MergerNodeLocalProbe>();
@@ -1074,6 +1076,34 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             Assert.Equal(2, views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { XItem(0) }, 0.2).Count);
             // the threshold matters: 0 ms ⇒ the blip shows as well
             Assert.Equal(2, views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { XItem(0.5) }, 0).Count);
+        }
+
+        /// <summary>⭐ RW-6 / RW-1 — a VOCABULARY attribute (<c>Health.Current</c>, not an expert path) is read through <c>AttributeReaders</c> on each node's sandbox: the by-node rows (owner first, the replica amber with its Δ) and the scan's span agree, the default tolerance of a unit-less attribute is exact.</summary>
+        [Fact]
+        public void Watch_AVocabularyAttribute_IsReadThroughAttributeReaders_ByNodeAndInTheScan()
+        {
+            Entity Unit(EntityRepository r, int node, float hp) { var u = OwnedUnit(r, 900, 1, node); r.AddComponent(u, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 300 }); return u; }
+            void Set(EntityRepository r, float hp) { var e = FindNet(r, 900); if (!e.IsNull) r.SetComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 300 }); }
+            var p1 = RecordPlay(1, 20, (r, f) => { if (f == 0) Unit(r, 1, 0); else Set(r, f); }, keyEvery: 0);
+            var p2 = RecordPlay(2, 20, (r, f) => { if (f == 0) Unit(r, 2, 0); else Set(r, f is >= 3 and <= 12 ? 300 : f); }, keyEvery: 0);   // node 2 believes full health for 1 s
+            var views = new ReplicaViews(new OwnershipSource(), _serializer);
+            var item = new ReplicaWatchItem("Health.Current", 0, false, ReplicaWatchItem.DefaultToleranceOf("Health.Current"), 0xFF0000FF, "Strength");
+            Assert.Equal(0d, item.Tolerance);                                              // a unit-less attribute: exact
+
+            using (var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 }))
+            {
+                manager.SetBaseWallTicks(Wall(5));
+                var view = views.ComputeItem(manager, 900, item)!;
+                Assert.Equal(new[] { 1, 2 }, view.Rows.Select(r => r.NodeId).ToArray());
+                Assert.Equal(new[] { true, false }, view.Rows.Select(r => r.IsOwner).ToArray());
+                Assert.Equal(new[] { "5", "300" }, view.Rows.Select(r => r.Value).ToArray());
+                Assert.Equal(new[] { false, true }, view.Rows.Select(r => r.Differs).ToArray());
+                Assert.Equal(295d, view.Rows[1].Delta, 3);
+                Assert.DoesNotContain(views.ComputeItem(manager, 900, item with { Tolerance = 1000 })!.Rows, r => r.Differs);
+            }
+            var span = Assert.Single(views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { item }, 0.2));
+            Assert.Equal((3, 12), (span.StartFrame, span.EndFrame));
+            Assert.Equal((2, "300"), Assert.Single(span.Believers));
         }
 
         // ── S5 · I6 — the federated search: per file, owned components only, unioned by network id ──────

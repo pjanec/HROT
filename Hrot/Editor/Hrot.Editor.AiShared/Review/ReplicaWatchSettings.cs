@@ -55,8 +55,16 @@ public sealed class ReplicaWatchSettings
             ImGui.SetNextItemWidth(110f);
             double tol = it.Tolerance;
             string unitText = UnitOf(it);
-            if (Fdp.Presentation.Editing.NumberInput.Double(ref tol, unitText) && tol >= 0)
-                watch.SetTolerance(unit, it.Path, it.SubIndex, tol);
+            if (tol == 0)
+            {
+                // ⭐ exact: the mockup's word, not a "0"; a click starts a size (the diff's ε), which the number field then edits
+                ImGui.PushStyleColor(ImGuiCol.Text, IconPalette.Muted);
+                if (ImGui.Button("exact", new System.Numerics.Vector2(110f, 0f))) watch.SetTolerance(unit, it.Path, it.SubIndex, ReplicaViews.Epsilon);
+                ImGui.PopStyleColor();
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Differs only when the values are not equal — click to allow a size");
+            }
+            else if (Fdp.Presentation.Editing.NumberInput.Double(ref tol, unitText))
+                watch.SetTolerance(unit, it.Path, it.SubIndex, Math.Max(0, tol));   // typing 0 returns to exact
             ImGui.SameLine();
             if (ImGui.SmallButton(IconsFontAwesome6.Xmark)) { remove = it.Path; removeSub = it.SubIndex; }
             ImGui.PopID();

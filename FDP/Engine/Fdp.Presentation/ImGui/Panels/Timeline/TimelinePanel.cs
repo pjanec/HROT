@@ -792,7 +792,7 @@ public sealed class TimelinePanel
         dl.PushClipRect(o, o + new Vector2(_labelWidth, RowHeight), true);
         if (plan.ArrowX is { } ax) dl.AddText(new Vector2(o.X + ax, ty), 0xFFC0C0C0, collapsed ? ">" : "v");
         if (plan.IconX is { } ix && h.Icon != null) dl.AddText(new Vector2(o.X + ix, ty), 0xFFE0C080, h.Icon);
-        dl.AddText(new Vector2(o.X + plan.TextX, ty), 0xFFA0A0A0, h.Text);
+        dl.AddText(new Vector2(o.X + plan.TextX, ty), h.TextColour ?? 0xFFA0A0A0, h.Text);
         float trailW = plan.TrailX != null && h.TrailingGlyph != null ? ImGui.CalcTextSize(h.TrailingGlyph).X : 0f;
         if (plan.TrailX is { } tx && h.TrailingGlyph != null) dl.AddText(new Vector2(o.X + tx, ty), 0xFFC0C0C0, h.TrailingGlyph);
         if (plan.StatusX is { } sx && h.Status != null) dl.AddText(new Vector2(o.X + sx, ty), h.StatusColour ?? 0xFFA0A0A0, h.Status);
