@@ -373,16 +373,27 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         /// <summary>⭐ CE-3171 — the same View menu plus "RTS command mode", where the map can order units
         /// (<see cref="Hrot.Common.Orders.OrdersOffered"/>; never in a replay).</summary>
-        private static readonly string MainMenuJsonWithOrders =
+        private static readonly string MainMenuJsonWithOrders = WithOrders(false);
+
+        /// <summary>⭐ CE-4347 (R-4163: RTS is a CHECKED mode) — the same menu with the RTS item checked; both strings are built once, the frame picks one.</summary>
+        private static readonly string MainMenuJsonWithOrdersChecked = WithOrders(true);
+
+        private static string WithOrders(bool rtsChecked) =>
             "[{\"label\":\"View\",\"priority\":30,\"children\":[{\"id\":"
             + GlobalActionIds.OpenLayerControl
             + ",\"label\":\"Tactical Map Layers...\"},{\"id\":"
             + GlobalActionIds.ToggleMap3D
             + ",\"label\":\"2-D / 3-D Map\"},{\"id\":"
             + GlobalActionIds.ToggleRtsCommand
-            + ",\"label\":\"RTS Command Mode\"},{\"id\":"
+            + ",\"label\":\"RTS Command Mode\",\"checked\":" + (rtsChecked ? "true" : "false") + "},{\"id\":"
             + GlobalActionIds.ToggleShoulderView
             + ",\"label\":\"First Person: Over the Shoulder\"}]}]";
+
+        /// <summary>⭐ CE-4347 — whether RTS command mode is on (the map pack wires it to the map's RTS state); unset = off.</summary>
+        public Func<bool>? RtsChecked { get; set; }
+
+        /// <summary>⭐ CE-4347 — the View menu this frame: with the RTS item when orders are offered, checked while RTS is on.</summary>
+        public static string MainMenuJsonFor(bool ordersOffered, bool rtsOn) => !ordersOffered ? MainMenuJson : rtsOn ? MainMenuJsonWithOrdersChecked : MainMenuJsonWithOrders;
 
         private readonly long _anchorId;   // a gizmo-manager TOOL id (NewId counter), not a network id
         private readonly FdpEventBus _interactionBus;
@@ -521,7 +532,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             draw.EmitRaw(in maskPrim);
 
             // Inject "View > Tactical Map Layers..." into the host main menu bar.
-            draw.DrawMainMenuBinding(Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view) ? MainMenuJsonWithOrders : MainMenuJson);   // ⭐ CE-3171
+            draw.DrawMainMenuBinding(MainMenuJsonFor(Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view), RtsChecked?.Invoke() == true));   // ⭐ CE-3171 · CE-4347
 
             // Emit StructInspector panel when editing is active.
             if (_isEditing)

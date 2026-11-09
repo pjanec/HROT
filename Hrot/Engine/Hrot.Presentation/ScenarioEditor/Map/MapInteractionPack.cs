@@ -554,7 +554,11 @@ namespace Hrot.ScenarioEditor.Map
                                           ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null);
             var viewSwitch = new Fdp.Toolkit.Vis3D.MapViewSwitch(canvas, canvas.Camera);
             // ⭐ CE-1203 FL-8 (§5e) — the layer control shows and applies the set of the view on screen
-            if (LayerControlOf.TryGetValue(buffer, out var layerControl)) layerControl.Is3D = () => viewSwitch.Is3D;
+            if (LayerControlOf.TryGetValue(buffer, out var layerControl))
+            {
+                layerControl.Is3D = () => viewSwitch.Is3D;
+                layerControl.RtsChecked = () => MapUiStates.RtsOf(worldProvider())?.Armed == true;   // ⭐ CE-4347 — View ▸ RTS command mode shows its checkmark (R-4163)
+            }
             // ⭐ CE-1054 — one terrain resolution per tick, not one per draped point (the 3-D map ran at ~1 FPS)
             viewSwitch.Camera3D.GroundHeight = new Hrot.UI.Common.Map3D.CachedGroundHeight(worldProvider).At;
             // ⭐ B-10 K3 (§6c) — one level out: while an armed tool holds Esc, a follow camera does not also hand the camera back

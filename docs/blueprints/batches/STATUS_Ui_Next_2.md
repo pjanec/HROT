@@ -14,7 +14,7 @@ related-designs:
 | A-3 | TODO | | |
 | A-4 | TODO | | |
 | A-5 | TODO | | |
-| A-6 | TODO | | |
+| A-6 | DONE | (this commit) | View ▸ RTS Command Mode carries `"checked"` from the map's RTS state (`LayerControlGizmo.RtsChecked`, wired in `MapInteractionPack.AttachMapLayers` to `RtsModeState.Armed`; the two menu strings built once). Rail `LayerControlGizmoTests.CE4347_ViewRtsCommandMode_ShowsItsCheckmark` |
 | A-7 | TODO | | |
 | A-8 | TODO | | |
 | A-9 | TODO | | |
