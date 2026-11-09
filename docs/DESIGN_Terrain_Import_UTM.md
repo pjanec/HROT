@@ -436,3 +436,25 @@ the same convention as `*.world.geojson`. Headings are compass degrees: 0 = nort
 | **Q-X4** | ✅ **deliver separately** as `buildings/unassigned.geojson`; stage 4 ignores them; a later item may attach them to walls (`walls.geojson`) | — |
 | **Q-X5** | ✅ **add `storeyZ: [...]` per building and keep the raw opening `z`** — HROT templates are built from storey heights (`storeys[].height`, e.g. `assets/buildings/house-2f.building.json`), so this is exactly the generator's input | Building Interiors §3a template shape |
 | **Q-X6** | ⭐ **four more, each optional with a default:** ① **`id` stable across re-exports** (scenarios, destruction state and the nav-tile cache refer to a building by it) — *required*; ② **`material`** per building (`brick`/`concrete`/`stone`/`mud`/`wood`) if the visual model tells it — default `brick`; it drives penetration and blast (Building Interiors §3c, §3d); ③ **opening `width`** (and window sill / head above the floor) if the model gives them — defaults door 0.9 m, window 1.2 m, sill 0.9 / head 2.1 (Building Interiors B7); ④ **a `version` / content hash per file in the manifest** so a re-export re-bakes only what changed (the nav-tile cache keys on its inputs) | Building Interiors §3c/§3d/B7; Navigation v2 `NavTileCache`. ⛔ entrance vs side door: not needed — every door is a door |
+
+### 10.3 ✅ Source side accepts §10.2 — and one correction: the real data bounds *(source-data session, `2026-11-09`)*
+
+**Accepted as answered:** Q-X1 (native ≈ 0.5 m), Q-X2 (neutral GeoJSON), Q-X3 (`roof` + `ridgeZ`), Q-X4 (`buildings/unassigned.geojson`), Q-X5 (`storeyZ` + raw opening `z`). Q-X6:
+
+| Q-X6 item | what the source side delivers |
+|---|---|
+| ① stable `id` | ✅ `id` = a hash of the footprint's rounded coordinates (stable across re-exports of the same source data; a building whose outline changes in the source gets a new id, which is correct) |
+| ② `material` | ✅ where the visual model makes it derivable (`brick` / `concrete` / `stone` / `wood` / `metal`); otherwise omitted → the generator's default `brick` |
+| ③ opening `width`, sill / head | ⛔ not available from the source — omitted → the generator's defaults (door 0.9 m, window 1.2 m, sill 0.9 / head 2.1) |
+| ④ `version` / content hash per file | ✅ in `manifest.json`: `files: { "<path>": { sha256, rows/features, prepared } }` |
+
+⚠ **Correction — the bounds.** The exported heights (verified tile by tile; door points sit a median 0.14 m above the ground) show that the source
+has REAL ground only over **x −7500 … −2000, y −1500 … 4000 = 5.5 × 5.5 km** (UTM E 364 500–370 000, N 6 041 500–6 047 000). The 500 m strips
+along the west and south edges of the earlier 6 × 6 km box have NO ground in the source (height 0, a cliff at the data edge), yet **184 buildings
+and ≈ 7 900 trees** stand there at ≈ 510 m — floating over nothing in the source too.
+
+| proposal | rejected |
+|---|---|
+| ⭐ `manifest.bounds = [-7500, -1500, -2000, 4000]` (5.5 × 5.5 km); the heights cover it (+ the apron the stitching gives); buildings, trees, roads and walls are CLIPPED to it (a building is kept when its footprint centroid is inside) → **≈ 1 800 buildings, ≈ 176 000 trees** | keeping the strip objects — they would stand on HROT's ground band 500 m below, or float |
+
+All other numbers in §5 / §9.5 were measured over the 6 × 6 km box; the manifest will carry the clipped counts.
