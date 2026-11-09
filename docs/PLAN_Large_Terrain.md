@@ -229,4 +229,4 @@ are clearer") ⇒ the OSM library's door / window rules (OSM design §5.5) are t
 
 ⭐ The importer (input set → HROT terrain) is backend's (L-6) — it is "large terrain" work, owns the height store and the navmesh, and the OSM
 wizard reaches it through `ITerrainImporter` only. The one cross-lane wait: L-6 needs the coordinator's CE-4371 + CE-4372 (built first); L-6 swaps with
-L-7 if they are not merged yet. Both batches start after their lane's `Next_3`.
+L-7 if they are not merged yet. ✏ backend does this batch FIRST, before its `Next_3`, deciding every engineering choice by measurement (🔒 user, 2026-11-09).

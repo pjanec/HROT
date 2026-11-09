@@ -1,13 +1,12 @@
 <!--STATUS
-state: LIVE — dispatched, not started (RE-STAMPED 2026-11-09, rule 1a: the input-set library and the shared Utm are built by the COORDINATOR, not ui; ITerrainImporter is already code; first stamp d6c44f6cd never reached backend)
+state: LIVE — dispatched, not started (RE-STAMPED again 2026-11-09, rule 1a: ⭐ FIRST, before Next_3 — user; earlier:  the input-set library and the shared Utm are built by the COORDINATOR, not ui; ITerrainImporter is already code; first stamp d6c44f6cd never reached backend)
 updated: 2026-11-09
 current-answer: the whole file
 -->
 
 # HANDOFF — coordinator → backend: the large terrain (scale, performance, the importer, trees)
 
-**For:** backend. **From:** coordinator. **Dispatched at `afd602395`** (re-stamped; first `d6c44f6cd`), scope frozen there. ⭐ **Start it when
-[`Next_3`](HANDOFF_Coordinator_To_Backend_Next_3.md) is done or every remaining item there is blocked.** Merge the other lanes first; push
+**For:** backend. **From:** coordinator. **Dispatched at `<STAMP>`** (re-stamped; earlier `afd602395`, `d6c44f6cd`), scope frozen there. ⭐⭐ **DO THIS FIRST — before [`Next_3`](HANDOFF_Coordinator_To_Backend_Next_3.md)** (🔒 user, `2026-11-09`: *"Tell backend to do the terrain first, autonomously taking decisions based on performance measurements"*). `Next_3` resumes after L-8 (or when every remaining item here is blocked). ⚠ behaviors' H-6 waits on `Next_3`'s B-0 — it stays blocked until then, by the user's order. Merge the other lanes first; push
 `chore: started HANDOFF_Coordinator_To_Backend_Large_Terrain at <sha>`; status file `STATUS_Backend_Large_Terrain.md`. Same
 [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md): a status file after every item, fetch and merge the other lanes after every item.
 ⛔⛔ **Never stop for a question** (R-4156): every decision below carries a lean — take it; a premise that fails stops THAT item only (R-106),
@@ -25,6 +24,16 @@ aircraft · 0 B garbage per steady frame · ≤ 4 GB per node · 3-D ≥ 30 fps 
 **📐 = DESIGN FIRST** — write the named section (diagram first: `classDiagram` + `sequenceDiagram` + a module graph showing WHO CALLS IT EACH
 FRAME, an `INVENTORY` of the graph queries you ran), validate the Mermaid, commit it, THEN build. You design it — no approval round; the leans
 below are the user-facing decisions already settled.
+
+### ⭐⭐ Deciding by MEASUREMENT — the rule for this whole batch *(🔒 user, `2026-11-09`)*
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **every engineering choice is settled by a measurement on `scale-1`, never by a question** | a lean above (16-bit vs float heights, tile size, load-all vs map, cell sizes, cadences, a coarse route) is the STARTING point: when a measurement says otherwise, take what the numbers say against the R-4192 budgets |
+| ⭐⭐ **two candidates and the cost to try both is small ⇒ build both behind one seam, measure, keep the winner, delete the loser** | ⛔ never two implementations left in the tree (the one-implementation rule) |
+| ⭐⭐ **write each decision into the owning design as a row: the options, the measured numbers (Release, the machine, N), the choice** | the numbers are the record the user reads in the morning — ⛔ a choice without its numbers is not done |
+| ⭐ **the budgets are the target; the user-level rulings are fixed** | ⛔ measurement never overrides R-4186…R-4192 (what houses, trees, destruction, units, budgets ARE) — only HOW they are built. A ruling that cannot meet a budget ⇒ a tracker row with the numbers, and go on |
+| ⭐ **optimise the biggest measured cost first** | L-4's table orders the fixes; ⛔ never optimise an unmeasured guess |
 
 | # | id | what | 📐 | done when |
 |---|---|---|---|---|
