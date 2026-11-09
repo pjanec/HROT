@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
 updated: 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §10 the import input set (§10.2 coordinator answers to Q-X1…Q-X6) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
+current-answer: ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · §10.4/§10.5 templates + placements at 1 m, Q-X7…Q-X9) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
 known-rot: §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
@@ -459,7 +459,7 @@ and ≈ 7 900 trees** stand there at ≈ 510 m — floating over nothing in the 
 
 All other numbers in §5 / §9.5 were measured over the 6 × 6 km box; the manifest will carry the clipped counts.
 
-### 10.4 PROPOSED — buildings as shared TEMPLATES + placements *(source-data session, `2026-11-09`; the user: "As our windows are not transparent and doors are closed, small differences are acceptable if it reduces data quite a lot" — for the coordinator: Q-X7…Q-X9)*
+### 10.4 ✅ ACCEPTED (§10.5) — buildings as shared TEMPLATES + placements *(source-data session, `2026-11-09`; the user: "As our windows are not transparent and doors are closed, small differences are acceptable if it reduces data quite a lot" — for the coordinator: Q-X7…Q-X9)*
 
 📐 **Measured** on the 1 806 buildings inside the §10.3 bounds (footprint, storeys and every door / window compared in the building's own frame;
 a house turned 180° counts as the same house):
@@ -492,3 +492,21 @@ Per-building state stays per building: `id`, destruction state, the navmesh bake
 | **Q-X7** | does the stage-4 generator take templates + placements (one `*.building.json` per template, buildings as `kind: building` Points with a `template` — the form `assets/terrain/*` already uses)? | yes — the existing form, ≈ 430 template files instead of 1 806 |
 | **Q-X8** | is 1 m the right tolerance, or should doors be tighter than windows (doors are walked through; windows are only looked out of)? | 1 m for both; `snapError` lets the importer flag outliers |
 | **Q-X9** | should a template's `height` / `roof` / `material` also be part of the grouping (two houses with the same plan but different heights stay separate)? | yes — height snapped to 1 m, roof and material exact |
+
+### 10.5 ✅ ANSWERS — coordinator, to §10.3 and §10.4 *(`2026-11-09`)*
+
+✅ **§10.3 accepted** — the bounds are the real 5.5 × 5.5 km (`[-7500, -1500, -2000, 4000]`), objects clipped by footprint centroid; the stage plan's "6 × 6 km" reads as this area.
+
+✅ **§10.4 accepted — templates + placements at 1 m.** 📐 Measured what HROT already does with that form:
+
+| fact | where |
+|---|---|
+| a `building` **Point** with `template`, `rotation`, `baseZ` and per-door state overrides IS the existing instance form; the template is looked up in `<terrain>/buildings/<name>.building.json`, then the shared `assets/buildings` | `FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainWorldParser.cs:116-137`, `TerrainAssets.cs:83` |
+| HROT's `rotation` = **degrees counter-clockwise from +x** — the source's `rotation` is a **compass** heading of +u ⇒ the generator converts (`hrot = 90 − compass`) | `TerrainBuildingExpander.cs:16,42` |
+| ⚠ every instance is still EXPANDED at load into its own walls, slabs and stairs (nav, sight and destruction need world-space geometry per building) ⇒ the gain is **≈ 430 template files instead of 1 806, a smaller input and a simpler generator — not run-time memory**; ⚠ the parser re-reads a template per instance — with ≈ 4 houses per template a parse cache in `TerrainAssets` is a cheap load-time item if loading shows it | `TerrainWorldParser.cs:124` |
+
+| # | answer |
+|---|---|
+| **Q-X7** | ✅ **yes** — one `<templateKey>.building.json` per template in the terrain's `buildings/` folder, and each house a `kind: building` Point with `template`, `rotation` (converted), `baseZ`, and its stable `id` as the label. The generator turns the template's openings (points) into HROT walls with openings (`at` along the wall, default widths, sill / head) |
+| **Q-X8** | ✅ **1 m for both** (closed doors, opaque windows — the user's premise). The importer **lists every house with `snapError` > 1 m** (there should be none) and, on the map, nothing else changes |
+| **Q-X9** | ✅ **yes** — height snapped to 1 m, **`storeyZ` snapped to 1 m too** (the template's floors are what soldiers stand on), roof and material exact (material drives penetration) |
