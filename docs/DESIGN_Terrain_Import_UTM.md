@@ -48,8 +48,8 @@ classDiagram
     class IGeographicTransform { <<existing seam>> SetOrigin · ToCartesian · ToGeodetic · Origin }
     class WGS84Transform { <<existing>> tangent plane (ENU) }
     class UtmTransform { <<NEW>> local = (E − E0, N − N0, h) · grid convergence for headings }
-    class Utm { <<existing, Hrot.Traffic → moved down to the toolkit>> ToGeodetic · FromGeodetic }
-    class TerrainDefinition { <<existing>> origin {lat, lon} OR utm {zone, hemisphere, e0, n0} (NEW) }
+    class Utm { <<existing, moved down to the toolkit>> ToGeodetic · FromGeodetic }
+    class TerrainDefinition { <<existing>> origin (lat, lon) or utm (zone, hemisphere, e0, n0) NEW }
     class TerrainHeightfield { <<NEW>> tiled binary heights · HeightAt(x, y) · tiles on demand }
     class BuildingSet { <<NEW cache>> footprints + heights, binary, beside the source }
     class TerrainImporter { <<NEW tool>> source → terrain folder: heights, buildings, baked navmesh }
