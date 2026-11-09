@@ -374,7 +374,7 @@ graph TD
 | **T-5** | **from the air**: the same per-metre rule — looking steeply down, the line runs through the canopy layer (default 15 m) ⇒ ground units under a wood are mostly hidden, at a wood's edge they are seen | a flat "hidden in woods" flag (no edge, no density) |
 | **T-6** | **fire**: inside woods a small stop chance per metre (most bullets pass); a lone trunk stops small arms; a guided missile needs the same clear sight line as its gunner, so woods block it beyond a short range; a blast fells lone trunks in its radius | — |
 | **T-7** | **canopy height**: one tunable default (15 m) per wood cell — the input has no heights | per-tree heights (not in the data) |
-| **T-8** | ⚠ **bushes, crops, small trees do not exist in HROT** (not in the input). The visual engine draws them, so someone may look "hidden" on screen and be seen by HROT. Accepted for stage 1; later, the ground-material map (§5) could add a low "scrub" concealment class | inventing bushes from nothing |
+| **T-8** | ⚠ **bushes, crops, small trees do not exist in HROT** (not in the input). The visual engine draws them, so someone may look "hidden" on screen and be seen by HROT. Accepted for stage 1; later, a land-cover layer (not in the input today) could add a low "scrub" concealment class | inventing bushes from nothing |
 
 **Stage:** trees join **stage 5** (the other layers). T-2's grid march joins **stage 2**'s sight-line measurement (a 3 km line through woods is the case to time).
 
@@ -386,3 +386,42 @@ graph TD
 | **Q-T2** | Tracked vehicles in woods: allowed, slow (speed cap ≈ 10 km/h) and expensive? | yes |
 | **Q-T3** | Only lone trees are destructible (≈ 12 000); woods stay as they are in stage 1? | yes |
 | **Q-T4** | Accept that bushes and crops seen in the visual engine give no cover in HROT for now? | yes, with the scrub class as a later item |
+
+## 10. PROPOSED — the import input set: the contract between the source side and the importer *(source-data session, `2026-11-09`; for the coordinator to accept or amend — Q-X1…Q-X6)*
+
+The source side prepares ONE folder per terrain on a local drive (⛔ never in git, Q-U5); the importer reads only this folder. Everything is in
+**local metres of the terrain's frame** (`utm {zone 32, N, e0 372000, n0 6043000}`, Q-U2): x east, y north, z up, z absolute (taken as-is, Q-U1) —
+the same convention as `*.world.geojson`. Headings are compass degrees: 0 = north (+y), 90 = east (+x), clockwise.
+
+```
+<input root>/<terrain>/
+  manifest.json          frame, bounds, versions, what each file holds
+  heights/heights.f32    float32 little-endian grid, row 0 = NORTH (ESRI BIL order)
+  heights/heights.hdr    ESRI BIL header (ncols, nrows, ulxmap, ulymap, xdim, ydim, nodata)
+  heights/heights.json   {originX, originY (south-west cell centre), cellSize, cols, rows, nodata}
+  buildings/buildings.geojson
+  trees/trees.csv        x,y,z_ground — already prepared (184 150 rows)
+  roads/roads.net.xml    the SUMO net cropped to the bounds (anchor in the manifest)
+  walls/walls.geojson    walls and fences, if any in the area
+  extra/tunnels.geojson, extra/powerlines.geojson   optional
+```
+
+| file | content | status |
+|---|---|---|
+| `manifest.json` | `{ schemaVersion: 1, name, frame: {utm: {zone: 32, hemisphere: "N", e0: 372000, n0: 6043000}}, bounds: [-8000, -2000, -2000, 4000], sumoAnchor: [139761.25, 162886.77], files: {…}, prepared: "<date>" }` | proposed |
+| heights | one STITCHED grid covering the bounds (+ a small apron), no holes; spacing per Q-X1 | to prepare |
+| `buildings.geojson` | FeatureCollection; one Feature per building: `Polygon` footprint (closed outer ring, counter-clockwise, no holes), `properties: { id, baseZ, height, openings: [ {type: "door"\|"window", x, y, z, heading, storey} ] }`. `baseZ` = ground at the lowest door; `height` = eaves/top above `baseZ` from the visual model; `z` of an opening = its reference point (door: floor level; window: ≈ 1 m above its storey's floor, measured); `heading` = the direction the opening faces (outwards); `storey` = 0-based. 1 988 buildings, 5 123 doors, 75 299 windows | doors/windows ready; heights + conversion to prepare |
+| `trees.csv` | `x,y,z_ground`, one row per tree; nothing else per tree exists (§9.5) | ✅ ready |
+| `roads.net.xml` | SUMO net cropped to the bounds; net − `sumoAnchor` == local | to prepare |
+| `walls.geojson` | `LineString` per wall / fence: `properties: {height, thickness, kind: "stone"\|"mud"\|"fence"}` | to prepare (if present) |
+
+### 10.1 Questions for the coordinator
+
+| # | question | ⭐ lean (source side) |
+|---|---|---|
+| **Q-X1** | heights: deliver the native ≈ 0.5 m (≈ 12 300² floats ≈ 600 MB) and let the importer resample, or deliver 1 m (6 000² ≈ 144 MB) ready to tile? | native ≈ 0.5 m — the importer owns the resampling, and wall-adjacent detail stays available |
+| **Q-X2** | buildings: is the neutral GeoJSON above right for the generator, or should the source side emit HROT's own `*.world.geojson` / `*.building.json` directly? | neutral GeoJSON — the generator (stage 4) owns the templates; the input stays engine-neutral |
+| **Q-X3** | roof shape: is flat-only fine, or should `properties` carry `roof: "flat"\|"pitched"` + ridge height? | add `roof` + `ridgeZ` when the model shows a pitched roof (cheap to provide) |
+| **Q-X4** | ≈ 1 900 door/window points belong to no footprint (mostly walls / annexes outside the simplified outline): drop them, or deliver them separately as `buildings/unassigned.geojson`? | deliver separately; the generator may ignore them |
+| **Q-X5** | an opening's `z`: door = floor level, window = its reference point (≈ 1 m above the floor) — or should the source side deliver explicit storey floor heights per building instead? | add `storeyZ: [...]` per building (floor height of each storey, derived on the source side); keep the raw opening `z` too |
+| **Q-X6** | anything else stage 4 / 5 needs from the source (e.g. per-building wall material class, entrance doors vs side doors)? | — |
