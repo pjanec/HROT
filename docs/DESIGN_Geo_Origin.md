@@ -7,6 +7,7 @@ stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the cl
 known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcWorldPosTranslator` (a DDS translator listed as a geo-transform holder) was removed with the BDC stack.
 known-conflict: none
 related-designs:
+  - DESIGN_Terrain_Import_UTM.md — PRELIMINARY: a second IGeographicTransform (UTM) for imported UTM terrains
   - blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the NED wire frame and the retained GeoReference topic that publishes this file's origin (§4 ⑩); this file owns where the origin comes from
   - docs/DESIGN_Map_3D_Mode.md §6ac — the map cursor's latitude / longitude / altitude in the status bar (CE-1289) reads this file's transform from the world singleton; OWNS the readout, not the origin
   - docs/designs/weather/DESIGN_Weather_And_Time.md — the sun position reads this file's geographic transform (latitude / longitude of a point)

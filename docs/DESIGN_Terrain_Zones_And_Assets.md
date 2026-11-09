@@ -23,6 +23,7 @@ known-rot: ⛔⛔ R-4018 (2026-10-15): §2.1e ⑤'s acquisition of Header.TkbNam
 known-conflict: none. This document REPLACES the zone half of docs/designs/packs-3/DESIGN.md
   (§2.B/§2.C/§2.E), which is already marked superseded there.
 related-designs:
+  - DESIGN_Terrain_Import_UTM.md — PRELIMINARY: importing large UTM terrains (heightfield, building set, offline navmesh)
   - docs/designs/weather/DESIGN_Weather_And_Time.md — the Weather Region is its own area type, as a zone is (§2.1's precedent)
   - DESIGN_Geo_Origin.md — CE-3126: the terrain file carries the geo origin; TerrainResidency.Commit sets it on every node.
   - DESIGN_Building_Interiors.md — enterable buildings as terrain content (parse-time macro)
