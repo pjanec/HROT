@@ -6,7 +6,7 @@ current-answer: the whole file
 
 # HANDOFF — coordinator → backend: the large terrain (scale, performance, the importer, trees)
 
-**For:** backend. **From:** coordinator. **Dispatched at `<STAMP>`** (re-stamped; earlier `afd602395`, `d6c44f6cd`), scope frozen there. ⭐⭐ **DO THIS FIRST — before [`Next_3`](HANDOFF_Coordinator_To_Backend_Next_3.md)** (🔒 user, `2026-11-09`: *"Tell backend to do the terrain first, autonomously taking decisions based on performance measurements"*). `Next_3` resumes after L-8 (or when every remaining item here is blocked). ⚠ behaviors' H-6 waits on `Next_3`'s B-0 — it stays blocked until then, by the user's order. Merge the other lanes first; push
+**For:** backend. **From:** coordinator. **Dispatched at `d02afdfb7`** (re-stamped; earlier `afd602395`, `d6c44f6cd`), scope frozen there. ⭐⭐ **DO THIS FIRST — before [`Next_3`](HANDOFF_Coordinator_To_Backend_Next_3.md)** (🔒 user, `2026-11-09`: *"Tell backend to do the terrain first, autonomously taking decisions based on performance measurements"*). `Next_3` resumes after L-8 (or when every remaining item here is blocked). ⚠ behaviors' H-6 waits on `Next_3`'s B-0 — it stays blocked until then, by the user's order. Merge the other lanes first; push
 `chore: started HANDOFF_Coordinator_To_Backend_Large_Terrain at <sha>`; status file `STATUS_Backend_Large_Terrain.md`. Same
 [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md): a status file after every item, fetch and merge the other lanes after every item.
 ⛔⛔ **Never stop for a question** (R-4156): every decision below carries a lean — take it; a premise that fails stops THAT item only (R-106),
