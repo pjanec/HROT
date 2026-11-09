@@ -349,6 +349,25 @@ namespace Hrot.SimHost.Tests
         /// (CE-174: a target never in sight is not chased), backs into the hide, and the run still ends. 🔴 Red-proof: drop the cap and
         /// the hull creeps on past x = 90.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2232</c> / CE-4035 G-5 — an ATTACK whose named target is still in the fight does not end because nothing is sensed yet
+        /// (the first frames of a run): the cycle waits (Running); with no target named, "nothing left to fight" still ends it (Success).
+        /// 📌 Measured: <c>ua-technical-scoot</c>'s technicals ended <c>LandPlatformAttack</c> with Success at 0.03 s and never fired.
+        /// 🔴 Red-proof: drop the named-target wait in <c>VehicleFightFromCover</c> ⇒ the first assert sees Success.
+        /// </summary>
+        [Fact]
+        public void CE2232_AnAttackOnANamedTarget_WaitsWhileNothingIsSensedYet()
+        {
+            var named = new Duel(Technical(), seen: false);
+            named.Repo.GetComponentRW<TargetMemory>(named.Self).Count = 0;   // knows nothing yet
+            named.P.DesignatePacked = (long)named.Enemy.PackedValue;
+            Assert.Equal(NodeStatus.Running, named.Step());
+
+            var unnamed = new Duel(Technical(), seen: false);
+            unnamed.Repo.GetComponentRW<TargetMemory>(unnamed.Self).Count = 0;
+            Assert.Equal(NodeStatus.Success, unnamed.Step());
+        }
+
         [Fact]
         public void CE2230_NoSightWithinTheCap_BacksIntoTheHide_AndTheRunEnds()
         {
