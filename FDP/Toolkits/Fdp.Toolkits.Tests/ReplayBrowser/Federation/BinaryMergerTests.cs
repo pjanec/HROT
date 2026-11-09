@@ -10,6 +10,7 @@ using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Scenario.Tests;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Terrain;
 using Xunit;
@@ -61,6 +62,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             repo.RegisterComponent<GuidedTarget>();
             repo.RegisterComponent<UnitRoster>();
             repo.RegisterComponent<MergerNodeLocalProbe>();
+            repo.RegisterComponent<DescriptorOwnership>();
             repo.RegisterComponent<ChildMap>();
             repo.RegisterComponent<TerrainObjectKey>();
             using (var rec = new AsyncRecorder(path, meta))
@@ -428,6 +430,106 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             merger.Merge(manager, bin);
             Assert.Equal(2, bin.EntityCount);
             Assert.Equal(2, merger.Target.LastCreated);
+        }
+
+        // ── S2 · I8 — ownership from the RECORDED components (the HANDOVER rail, §6.6) ───────────────
+
+        private const long HandoverDescriptor = 9001;
+
+        private static OwnershipSource RecordedOwnership()
+        {
+            var map = new DescriptorOwnershipMap();
+            map.RegisterFromTranslator(HandoverDescriptor, new[] { ComponentType<DummyPosition>.ID });   // the replication's own component → descriptor map
+            return new OwnershipSource(map);
+        }
+
+        /// <summary>
+        /// One entity (net 50) on BOTH nodes. Each node holds a position (node 1: X 10, node 2: X 20) and BOTH cold masks claim it — the stale-mask case (an older
+        /// recording, or any frame the cold table did not stamp). Only the recorded components tell who owns: the primary owner stays node 1 throughout; the
+        /// per-descriptor record names node 1 at frame 1 and node 2 from frame 2.
+        /// </summary>
+        private (string p1, string p2) RecordDescriptorHandover()
+        {
+            Action<EntityRepository, int, float, int> frame = (r, node, x, owner) =>
+            {
+                var e = FindNet(r, 50);
+                if (e.IsNull)
+                {
+                    e = Unit(r, 50);
+                    r.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = (Fdp.Core.NodeId)node });
+                    Own(r, e, new DummyPosition { X = x });
+                    r.AddComponent(e, new DescriptorOwnership());
+                }
+                r.SetManagedComponent(e, new DescriptorOwnership().WithOwner(OwnershipExtensions.PackKey(HandoverDescriptor, 0), owner));
+            };
+            var p1 = Record(1, r => frame(r, 1, 10f, 1), r => frame(r, 1, 10f, 2));
+            var p2 = Record(2, r => frame(r, 2, 20f, 1), r => frame(r, 2, 20f, 2));
+            return (p1, p2);
+        }
+
+        [Fact]
+        public void Handover_TheMergedComponentSwitchesToTheNewOwner_AtTheHandoverFrame_AndKeepsItsTargetEntity()
+        {
+            var (p1, p2) = RecordDescriptorHandover();
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+            using var bin = NewTarget();
+            var merger = new BinaryMerger(RecordedOwnership());
+
+            manager.SetBaseWallTicks(1_000_000L);
+            merger.Merge(manager, bin);
+            var before = FindNet(bin, 50);
+            Assert.Equal(10f, bin.GetComponent<DummyPosition>(before).X);                  // before the handover: the OLD owner's sandbox
+            Assert.True(merger.OwnershipDisagreements > 0, "the stale masks (both claim) disagree with the record, which names node 1 only");
+
+            manager.SetBaseWallTicks(2_000_000L);
+            merger.Merge(manager, bin);
+            var after = FindNet(bin, 50);
+            Assert.Equal(20f, bin.GetComponent<DummyPosition>(after).X);                   // ⭐ from the handover frame on: the NEW owner's sandbox
+            Assert.Equal(before, after);                                                   // ⭐ M-8: the entity keeps its target entity; only the source switched
+            Assert.True(merger.OwnershipDisagreements > 0);                                // node 1's mask still claims what the record gave away
+
+            manager.SetBaseWallTicks(1_000_000L);                                          // and back (a seek): the OLD owner again
+            merger.Merge(manager, bin);
+            Assert.Equal(10f, bin.GetComponent<DummyPosition>(FindNet(bin, 50)).X);
+        }
+
+        [Fact]
+        public void Handover_OfThePrimaryOwner_MovesEveryComponentTheRecordDoesNotPin()
+        {
+            // no per-descriptor entries and no map: only NetworkAuthority.PrimaryOwnerId (1 → 2 at frame 2) says who owns; the masks claim on both nodes throughout
+            Action<EntityRepository, int, float, int> frame = (r, node, x, primary) =>
+            {
+                var e = FindNet(r, 60);
+                if (e.IsNull) { e = Unit(r, 60); r.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = primary, LocalNodeId = (Fdp.Core.NodeId)node }); Own(r, e, new DummyPosition { X = x }); }
+                r.SetComponent(e, new NetworkAuthority { PrimaryOwnerId = primary, LocalNodeId = (Fdp.Core.NodeId)node });
+            };
+            var p1 = Record(1, r => frame(r, 1, 10f, 1), r => frame(r, 1, 10f, 2));
+            var p2 = Record(2, r => frame(r, 2, 20f, 1), r => frame(r, 2, 20f, 2));
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+            using var bin = NewTarget();
+            var merger = new BinaryMerger(new OwnershipSource());
+
+            manager.SetBaseWallTicks(1_000_000L);
+            merger.Merge(manager, bin);
+            Assert.Equal(10f, bin.GetComponent<DummyPosition>(FindNet(bin, 60)).X);
+            manager.SetBaseWallTicks(2_000_000L);
+            merger.Merge(manager, bin);
+            Assert.Equal(20f, bin.GetComponent<DummyPosition>(FindNet(bin, 60)).X);
+        }
+
+        [Fact]
+        public void Ownership_AnEntityWithNoRecordedOwnership_KeepsTheMaskRule()
+        {
+            // no NetworkAuthority anywhere (local / older recordings): node 2 owns by the mask alone, with a map in hand — the S1 rule, no disagreement counted
+            var p1 = Record(1, r => { var e = Unit(r, 70); r.AddComponent(e, new DummyPosition { X = 1 }); });                        // a ghost: held, not owned
+            var p2 = Record(2, r => { var e = Unit(r, 70); Own(r, e, new DummyPosition { X = 2 }); });
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+            manager.SetBaseWallTicks(1_000_000L);
+            using var bin = NewTarget();
+            var merger = new BinaryMerger(RecordedOwnership());
+            merger.Merge(manager, bin);
+            Assert.Equal(2f, bin.GetComponent<DummyPosition>(FindNet(bin, 70)).X);
+            Assert.Equal(0, merger.OwnershipDisagreements);
         }
 
         // ── NodeLocal / unrecorded types never merge ──────────────────────────────────────

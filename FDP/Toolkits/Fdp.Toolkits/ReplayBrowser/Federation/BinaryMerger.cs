@@ -66,6 +66,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         /// <summary>References of the LAST <see cref="Merge"/> that named no entity of the merged world (each became <see cref="Entity.Null"/>).</summary>
         public IReadOnlyList<MergeParadox> Paradoxes => _paradoxes;
 
+        /// <summary>⭐ S2 — components of the last <see cref="Merge"/> on which the recorded ownership components and the cold authority mask disagreed (the components won).</summary>
+        public int OwnershipDisagreements => _ownership.MaskDisagreements;
+
         /// <summary>Components written by the last <see cref="Merge"/>.</summary>
         public int LastComponentsCopied { get; private set; }
 
@@ -98,6 +101,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             _target.Begin(target);
             _paradoxes.Clear();
             LastComponentsCopied = 0;
+            _ownership.BeginPass();
 
             // ① correlate by NetworkIdentity (TransientMasterBuilder step 2)
             int netIdTypeId = ComponentTypeRegistry.GetId(typeof(NetworkIdentity));

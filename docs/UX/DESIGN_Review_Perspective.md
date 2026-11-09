@@ -707,6 +707,22 @@ classDiagram
 ⛔ §6.10 holds in every stage: never a raw chunk / `EntityIndex` copy (indices are node-local) — every copy goes entity by entity into the
 target's own entities; correctness over speed.
 
+#### AS-BUILT — S2 *(behaviors, `2026-11-09`, G-7 / CE-4354)* — I8: who owns a component is read from the RECORDED ownership components
+
+| built | where |
+|---|---|
+| `OwnershipSource.OwnedBy(repo, entity, nodeId)` (S1's override point): for an entity with a `NetworkAuthority`, a node owns a component it holds when **its own record** names it — `DescriptorOwnership.Map[(d,0)]` for the component's descriptor `d`, else `NetworkAuthority.PrimaryOwnerId` (the same two steps `AuthorityExtensions.HasAuthority` takes to decide who sends). A record naming no owner (≤ 0) falls to the cold mask for that component; an entity with no `NetworkAuthority` keeps S1's mask rule. The claim order (primary first, then node id) is unchanged | `FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Federation/OwnershipSource.cs:75` |
+| the component → descriptor lookup is the replication's ONE map: `DescriptorOwnershipMap.GetDescriptorsForComponentId`, injected through `new OwnershipSource(map)` — no second mapping | `OwnershipSource.cs:34` |
+| the cold mask is the CROSS-CHECK: components the record and the mask disagree on are counted (`OwnershipSource.MaskDisagreements`, `BinaryMerger.OwnershipDisagreements`, zeroed per `Merge`) and the record wins | `OwnershipSource.cs:37, :114` · `BinaryMerger.cs` |
+| the hosts' map: `NedOwnershipGroupBinding.ReviewMap` (`Apply` over an empty map, built once, read-only) — both hosts pass it | `Hrot.Network.NED/Replication/NedOwnershipGroupBinding.cs:57` · `ReplayBrowserSubsystem.cs:648` · `ReviewSource.cs:66` |
+| M-8: an entity whose owner changes keeps its target entity (the map is by network id since S1); its components switch source at the handover frame | rail below |
+| rails: the **handover** rail (a fixture whose masks are stale — both nodes claim — and only `DescriptorOwnership` moves, frame 1 → node 1, frame 2 → node 2: merged X is node 1's, then node 2's, the target entity unchanged, back to node 1 on a seek back) · primary-owner handover · no-record entity keeps the mask rule | `FDP/Toolkits/Fdp.Toolkits.Tests/ReplayBrowser/Federation/BinaryMergerTests.cs:471, :497, :521` |
+
+**Deviations / limits** *(all small)*:
+- ⚠ **`ReviewMap` knows only the group descriptors and explicit mappings** (`NedOwnershipGroupBinding.Apply`), not the translator-declared targets — those need a live module's translators, which neither review host has. A component of a descriptor it does not list is read from the primary owner (the creator's remainder). Adding a translator-derived mapping to the hosts is a later widening of the map, not of `OwnershipSource`.
+- The primary-owner handover rail is NOT discriminating on its own: the claim order (primary first) already makes the mask rule hand over when the primary moves. The descriptor-level rail is the one red-proved against "ignore the components".
+- The S1 oracle / owner / remap rails are unchanged and green: their fixtures hold no `NetworkAuthority`, so they stay on the mask rule and the JSON oracle (which uses the mask) still agrees. A fixture that records a handover legitimately differs from the JSON merge.
+
 ### 6.8 Appendix — M1: every recorded managed component and its scenario translator
 
 | component | kind | data policy | translator | file |

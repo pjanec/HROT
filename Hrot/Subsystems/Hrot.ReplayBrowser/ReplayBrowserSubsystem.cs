@@ -645,7 +645,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             _transientMaster?.Dispose();
             _transientMaster = new EntityRepository();
             RepositoryPriming.RegisterDiscoveredComponents(_transientMaster);   // every recorded component has a table (what Build primed per step)
-            _merger = new BinaryMerger();
+            _merger = new BinaryMerger(new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap));   // ⭐ S2 — owners from the recorded ownership components
         }
         _merger.Merge(_manager, _transientMaster);
         if (!ReferenceEquals(_activeRepo, _transientMaster)) RebindActiveRepo(_transientMaster);

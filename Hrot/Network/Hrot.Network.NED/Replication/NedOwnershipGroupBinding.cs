@@ -46,6 +46,25 @@ public static class NedOwnershipGroupBinding
     public static IReadOnlyDictionary<NodeRole, IReadOnlyList<long>> GroupDescriptors
         => _groupDescriptors ??= ComputeGroupDescriptors();
 
+    private static DescriptorOwnershipMap? _reviewMap;
+
+    /// <summary>
+    /// ⭐ G-7 S2 (I8, docs/UX/DESIGN_Review_Perspective.md §6.12) — the component → descriptor map the MERGED view (Replay Browser, editor Review) reads recorded
+    /// per-descriptor owners through (<c>OwnershipSource</c>): <see cref="Apply"/> over an empty map, i.e. every group descriptor and every explicit mapping,
+    /// built once and only read after. ⚠ It holds no translator-declared targets (those need a live module's translators): a component of a descriptor that is not
+    /// listed here is read from the entity's primary owner, the creator's remainder.
+    /// </summary>
+    public static DescriptorOwnershipMap ReviewMap
+    {
+        get
+        {
+            if (_reviewMap != null) return _reviewMap;
+            var map = new DescriptorOwnershipMap();
+            Apply(map);
+            return _reviewMap = map;
+        }
+    }
+
     private static IReadOnlyDictionary<NodeRole, IReadOnlyList<long>> ComputeGroupDescriptors()
     {
         var map = new DescriptorOwnershipMap();

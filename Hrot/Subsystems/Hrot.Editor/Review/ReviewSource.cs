@@ -63,7 +63,7 @@ public sealed class ReviewSource : IDisposable
     private bool _filling;
     // ⭐ G-7 / CE-4354 S1 — the ONE merge and the world-boundary flag: the world is cleared (and the merger's map forgotten) ONLY when something other than the merge
     //   wrote it (a group opened, the source was a part, the group closed) — never per step (D8: the editor's world IS the merge target).
-    private readonly BinaryMerger _merger = new();
+    private readonly BinaryMerger _merger = new(new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap));   // ⭐ S2 — owners from the recorded ownership components
     private bool _worldDirty = true;
     private string? _statusCache;
     private int _statusKey = -1;
