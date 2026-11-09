@@ -116,10 +116,10 @@ namespace Fdp.Toolkit.Orchestration
                 case NoteEditKind.Edit:
                     if (at < 0) { refusal = "no such note"; return false; }
                     _notes = (ExerciseNote[])_notes.Clone();
-                    _notes[at] = Stamp(note, nowUtc);
+                    _notes[at] = Stamp(KeepMoment(_notes[at], note), nowUtc);
                     return true;
                 default:   // Add
-                    if (at >= 0) { _notes = (ExerciseNote[])_notes.Clone(); _notes[at] = Stamp(note, nowUtc); return true; }
+                    if (at >= 0) { _notes = (ExerciseNote[])_notes.Clone(); _notes[at] = Stamp(KeepMoment(_notes[at], note), nowUtc); return true; }
                     var more = new ExerciseNote[_notes.Length + 1];
                     Array.Copy(_notes, more, _notes.Length);
                     more[^1] = Stamp(note.Id == Guid.Empty ? note with { Id = Guid.NewGuid() } : note, nowUtc);
@@ -130,10 +130,25 @@ namespace Fdp.Toolkit.Orchestration
 
         private static ExerciseNote Stamp(ExerciseNote n, DateTime nowUtc) => n with { EditedUtc = nowUtc };
 
+        /// <summary>⭐ CE-1467 (e) — an edit changes the WORDS (name, text, unit), never the moment the note rides: the mark's label is the one the master minted, which a station's
+        /// popup may not know (it asked for another).</summary>
+        private static ExerciseNote KeepMoment(ExerciseNote stored, ExerciseNote edit) => edit with { Mark = stored.Mark, AtSimSeconds = stored.AtSimSeconds };
+
         /// <summary>
         /// A branch from a recording keeps the parent's marks before the branch point — and their notes (copied into the child's own list): a note stays when it rides a mark in
         /// <paramref name="keptMarks"/>; a time note (an AAR note) does not (R-4168 — it has no moment to restore). Returns whether anything went.
         /// </summary>
+        /// <summary>
+        /// ⭐ CE-1467 (d) — a branch from a replay at <paramref name="branchWallTicks"/>: the notes of the marks EARLIER than it stay (the child's recording keeps the marks of the frames
+        /// before the branch, <c>RecordingModule.StartBranch</c>); a mark at or after it, a mark not in <paramref name="markWalls"/> and a time note go. Returns whether anything went.
+        /// </summary>
+        public bool RetainMarksBefore(IReadOnlyDictionary<string, long> markWalls, long branchWallTicks)
+        {
+            var keep = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var kv in markWalls) if (kv.Value < branchWallTicks) keep.Add(kv.Key);
+            return RetainMarks(keep);
+        }
+
         public bool RetainMarks(ICollection<string> keptMarks)
         {
             var keep = new List<ExerciseNote>(_notes.Length);

@@ -277,7 +277,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     public void EditNote(NoteEditKind kind, ExerciseNote note) => _bus.PublishManaged(new NoteEditIntent { RequestId = Guid.NewGuid(), Kind = kind, Note = note });
 
     /// <summary>⭐ CE-4325 — a mark is the existing checkpoint, named by the client so its note can ride it.</summary>
-    public void TakeMark(string label) => _bus.PublishManaged(new TakeCheckpointIntent { RequestId = Guid.NewGuid(), Label = label });
+    public void TakeMark(string label, ExerciseNote? note = null) => _bus.PublishManaged(new TakeCheckpointIntent { RequestId = Guid.NewGuid(), Label = label, Note = note });   // ⭐ CE-1467 (e) — the record rides the mark
 
     // ── ⭐ CE-4097 (AQ108 §2.8) — the run choice and the raw transport it stands on ──────────────────────────────────
 

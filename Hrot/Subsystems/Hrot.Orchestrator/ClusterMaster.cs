@@ -540,7 +540,7 @@ public sealed partial class ClusterMaster : IDisposable
                 break;
 
             case ClusterOpType.TakeCheckpoint:
-                StartCheckpoint(req.RequestId, LabelOf(req.PayloadJson));
+                StartCheckpoint(req.RequestId, LabelOf(req.PayloadJson), Hrot.Network.Orchestration.TakeCheckpointPayloadDto.NoteOf(req.PayloadJson));   // ⭐ CE-1467 (e)
                 break;
 
             case ClusterOpType.CollectCheckpoint:
@@ -868,7 +868,7 @@ public sealed partial class ClusterMaster : IDisposable
     private void ProcessTakeCheckpointIntents()
     {
         foreach (var intent in _eventBus.ReadManaged<TakeCheckpointIntent>())
-            StartCheckpoint(intent.RequestId, intent.Label);
+            StartCheckpoint(intent.RequestId, intent.Label, intent.Note);
         foreach (var intent in _eventBus.ReadManaged<CollectCheckpointIntent>())
             CollectCheckpoint(intent.RequestId, intent.Label);
         foreach (var intent in _eventBus.ReadManaged<RestoreCheckpointIntent>())
@@ -902,7 +902,7 @@ public sealed partial class ClusterMaster : IDisposable
 
     private int _checkpointSeq;
 
-    private void StartCheckpoint(Guid requestId, string? label)
+    private void StartCheckpoint(Guid requestId, string? label, ExerciseNote? note = null)
     {
         // ⭐ CE-4090 (AQ108 D14, §5a) — a checkpoint is a keyframe of the run's recording: no recording, no checkpoint — refused here,
         //   ⛔ not a throw on every node (ReferenceCheckpointHandler).
@@ -916,8 +916,10 @@ public sealed partial class ClusterMaster : IDisposable
         var payload = new CheckpointPayload(
             string.IsNullOrWhiteSpace(label)
                 ? $"cp{++_checkpointSeq}-{new DateTime(at == 0 ? DateTime.UtcNow.Ticks : at, DateTimeKind.Utc):HHmmss}"
-                : label!,
+                : UniqueCheckpointLabel(label!),   // ⭐ CE-1467 (e) — the master mints: a label taken (or in flight) gets a suffix, so a second station's B is never refused
             at);
+        _checkpointLabelsAsked.Add(payload.Label);
+        if (note != null) AddMarkNote(requestId, note with { Mark = payload.Label });   // ⭐ CE-1467 (e) — the mark's record, under the label actually used
         if (nodeIds.Count == 0)
         {
             PublishOpStatus(requestId, OrchestrationStatusCode.Success, payload);

@@ -136,9 +136,15 @@ public sealed class FederatedReplayCursor : ITimelineCursor
     /// <param name="togglePlay">⭐ <c>CE-3330</c> — the host's play / pause (null = the panel offers none).</param>
     /// <param name="timeMap">⭐ <c>CE-3330</c> T13 — the loaded group's wall ↔ sim map (null = none).</param>
     /// <param name="simAxis">⭐ <c>CE-3330</c> T13 — whether the viewer's axis is Sim (the Replay Browser keeps its own, R-3058).</param>
+    /// <param name="checkpoints">⭐ CE-1467 (a) — the recording's checkpoints (its ⚑ marks); null = none drawn.</param>
+    /// <param name="notes">⭐ CE-1467 (a) — the recording's notes as the ruler draws them (read beside the files); null = none.</param>
     public FederatedReplayCursor(Func<FederatedReplayManager?> manager, Func<int> nodeId, Func<bool>? isPlaying = null, Action? togglePlay = null,
-        Func<Fdp.Core.FlightRecorder.ReplayTimeMap?>? timeMap = null, Func<bool>? simAxis = null)
+        Func<Fdp.Core.FlightRecorder.ReplayTimeMap?>? timeMap = null, Func<bool>? simAxis = null,
+        Func<System.Collections.Generic.IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>>? checkpoints = null,
+        Func<System.Collections.Generic.IReadOnlyList<TimelineNote>>? notes = null)
     {
+        _checkpoints = checkpoints;
+        _notes = notes;
         _manager = manager;
         _nodeId = nodeId;
         _isPlaying = isPlaying;
@@ -149,6 +155,15 @@ public sealed class FederatedReplayCursor : ITimelineCursor
 
     private readonly Func<Fdp.Core.FlightRecorder.ReplayTimeMap?>? _timeMap;
     private readonly Func<bool>? _simAxis;
+    private readonly Func<System.Collections.Generic.IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>>? _checkpoints;
+    private readonly Func<System.Collections.Generic.IReadOnlyList<TimelineNote>>? _notes;
+
+    /// <summary>⭐ CE-1467 (a) — the recording's ⚑ marks (the host's), else none.</summary>
+    public System.Collections.Generic.IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> Checkpoints
+        => _checkpoints?.Invoke() ?? System.Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+
+    /// <summary>⭐ CE-1467 (a) — the recording's notes (read beside its files), else none.</summary>
+    public System.Collections.Generic.IReadOnlyList<TimelineNote> Notes => _notes?.Invoke() ?? System.Array.Empty<TimelineNote>();
     private Fdp.Core.FlightRecorder.ReplayTimeMap? _axisFor;
     private TimelineAxis _axis = TimelineAxis.Wall;
 

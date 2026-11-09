@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT — §5 is the as-built (CE-4325, `2026-11-08`); the open parts are listed there
+build-state: BUILT — §5 is the as-built (CE-4325, `2026-11-08`; the open parts closed by CE-1467, `2026-11-09`)
 updated: 2026-11-08 (BUILT: §5 as-built, module diagram, deviations; §2 stays the model it was built against) · 2026-11-08 (Q1–Q5 decided; §2 storage revised; the timeline corner gains ⚑ and the S/W axis toggle)
 current-answer: §5 the as-built (read it first) · §0 the idea · §1 measured · §2 the model (UML) · §3 what you see (mockup) · §4 decisions Q1–Q5
 stale-below: nothing
@@ -173,11 +173,9 @@ graph TD
         CMT["CommitRestore (a branch)"] -->|"RetainMarks"| EN
     end
     PUBE --> CVIEW
-    RB["standalone Replay Browser reads notes.json read-only"] -.->|"NOT BUILT — no master there"| NAS
-    classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33;
-    class RB dead;
+    RB["standalone Replay Browser — RecordingNotesFile reads notes.json beside the files (read-only: NotesReadOnlyReason) → Marks list · ⚑ + dots on its ruler"] -->|"CE-1467 (a)"| NAS
 ```
-*What the picture shows that the prose hid: the master's `Tick` is the ONLY caller of the list (one writer, one frame step); a station never touches a file — it asks through the one message and reads the one topic. The dashed edge is the one §2 promised and this build did not make.*
+*What the picture shows that the prose hid: the master's `Tick` is the ONLY caller of the list (one writer, one frame step); a station never touches a file — it asks through the one message and reads the one topic. The browser is the one reader that is not a station: it reads the file the master wrote, and changes nothing.*
 
 | as built | where |
 |---|---|
@@ -192,13 +190,13 @@ graph TD
 | §2 said | as built | why |
 |---|---|---|
 | `notes.json` is **in the archive manifest** | ⛔ **not listed** in `Orchestrator.json`'s size-checked file list; it sits beside the recordings | an AAR edit rewrites it AFTER the archive: a listed size would no longer match and a COMPLETE archive would read INCOMPLETE (`ArchiveManifest.Read`). The scan ignores it (no `.fdp`); *delete from archive* removes the folder, so it goes with it |
-| write-back is **"a small storage job" shown in the status bar** | the master writes the small file itself, at once, when the exercise leaves the screen | one file of kilobytes; a queued job with a status-bar row is the machinery for recordings. ⚠ the write is not retried: a failure leaves the master's staging copy and a log line |
-| "a master that dies first pushes it at its next start" | **not built** | needs a staged-but-not-exported marker; the staging copy survives, the export does not run again. Tracked on the row |
-| `ClusterMaster.TakeCheckpoint (+ the note, NEW)` | the existing `TakeCheckpointIntent` carries a client-chosen label (`Mark n · m:ss`, numbered past a taken one) and the words follow as ONE `Add` on **Done** | the master needs no new checkpoint code; ignoring the popup keeps an unnamed mark (nothing sent). ⚠ two stations pressing B in the same minute with the same count collide on the label and the second checkpoint is refused by the recording |
-| the popup's unit is **a combo of units** | a combo of the host's **current selection** (+ none) | the selection is what Q5 names; a full unit list is a picker (own design) |
-| "a branch copies the parent's notes before the branch point" | a restore (`CommitRestore`) keeps the notes riding the marks that stay; a branch from an AAR keeps those riding the marks the replay held — **not** cut at the branch time | the replay's branch point is not known to the master's list; an AAR time note is dropped (R-4168: no state to restore) |
-| the Replay Browser reads `notes.json` read-only | **not built** (the dashed edge) | the browser has no master; its own reader is a follow-up row |
-| *Discard* (an unarchived recording) | leaves the master's staging `notes.json` behind | tracked on the row |
+| write-back is **"a small storage job" shown in the status bar** | the master writes the small file itself, at once, when the exercise leaves the screen | one file of kilobytes; a queued job with a status-bar row is the machinery for recordings |
+| "a master that dies first pushes it at its next start" | ✅ **CE-1467 (b), `2026-11-09`**: every staging save writes `notes.nas-pending` beside it; a write-back that lands removes it; the master's first frame (`RetryPendingNotesWriteBacks`) writes back every exercise still marked and clears the marker (a failure keeps it for the next start) | ⛔ SUPERSEDED: *not built* |
+| `ClusterMaster.TakeCheckpoint (+ the note, NEW)` | ✅ **CE-1467 (e), `2026-11-09` — built as §2 drew it**: `TakeCheckpointIntent.Note` carries the mark's record (the wire: `TakeCheckpointPayloadDto` `{"label","note"}` — a plain checkpoint stays `{"label"}`); the master makes the label unique against the run's taken AND in-flight checkpoints (`UniqueCheckpointLabel`: `… (2)`) and adds the record under the label it used; an Edit changes the words, never the moment (`ExerciseNotes.KeepMoment`), so a popup holding the asked label edits the right note (by id) | ⛔ SUPERSEDED: the client-chosen label with the record as a second `Add` — two stations pressing B together collided and the second checkpoint was refused |
+| the popup's unit is **a combo of units** | ✅ **CE-1467 (f), `2026-11-09`**: with the host's pick context the Unit row is THE entity field (`ReferenceLeafDrawers.DrawEntityChip` — every named unit by name · side · distance, type to narrow, *Pick on the map*, *Clear*), scoped to the popup (`$.markPopup.unit`); pre-filled with the selection. Without a pick context: the selection combo, as before | ⛔ SUPERSEDED: *"a full unit list is a picker (own design)"* — the picker existed (the struct editor's) |
+| "a branch copies the parent's notes before the branch point" | ✅ **CE-1467 (d), `2026-11-09`**: a branch from an AAR keeps the notes of the marks EARLIER than the nodes' answered branch point (`LiveBranchResult.BranchWallTicks`; `ExerciseNotes.RetainMarksBefore`, the same `<` rule as `RecordingModule.StartBranch`'s frames); the answer may come before or after the child's list — both orders cut the same; a cluster that answers no point (listeners only) keeps every replay mark's note, as before | ⛔ SUPERSEDED: not cut at the branch time |
+| the Replay Browser reads `notes.json` read-only | ✅ **CE-1467 (a), `2026-11-09`**: `RecordingNotesFile` reads the open recording's folder (the kept exercise folder first, as its takes); the browser's facade answers `Notes` and `NotesReadOnlyReason` (every edit refused with it, `MarksController.SeatRefusal`); its Event Timeline draws the recording's ⚑ and the note dots (`FederatedReplayCursor` checkpoints / notes, through the ONE mapping `TimelineNotesCache` the editor's cursor now uses too); a read-only Marks list (`rb_marks`) | ⛔ SUPERSEDED: not built |
+| *Discard* (an unarchived recording) | ✅ **CE-1467 (c), `2026-11-09`**: `DiscardNotes` — the list (when on show), the staging copy and marker, and the NAS `notes.json` the run's end wrote, with that NAS folder when the notes were all it held (⛔ a folder holding anything else is never touched) | ⛔ SUPERSEDED: the staging copy (and the NAS copy) stayed behind |
 
 ⚠ **Measured:** the cost of a mark on the largest scenario (the open item of §4) — see the tracker row CE-4325 (one keyframe per recording node; `scenarios/perf-stress`).
 

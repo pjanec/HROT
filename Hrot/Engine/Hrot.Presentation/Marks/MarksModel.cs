@@ -116,3 +116,71 @@ public static class MarksModel
         return units;
     }
 }
+
+/// <summary>
+/// ⭐ CE-4325 (E7) · ⭐ CE-1467 (a) — <b>the ONE mapping of the notes to the ruler's dots</b> (an amber dot beside its mark's ⚑, or alone at an AAR note's time), every cursor's: the editor's
+/// <c>ClusterTimelineCursor</c> and the Replay Browser's. Rebuilt only when the notes, the marks or the map CHANGED (reference compare — 0 B in a steady frame, R-2084).
+/// </summary>
+public sealed class TimelineNotesCache
+{
+    private Fdp.Toolkit.Orchestration.ExerciseNote[]? _notesFor;
+    private IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>? _marksFor;
+    private Fdp.Core.FlightRecorder.ReplayTimeMap? _mapFor;
+    private Fdp.Presentation.Panels.Timeline.TimelineNote[] _cached = Array.Empty<Fdp.Presentation.Panels.Timeline.TimelineNote>();
+
+    public IReadOnlyList<Fdp.Presentation.Panels.Timeline.TimelineNote> Of(Fdp.Toolkit.Orchestration.ExerciseNote[]? notes,
+        IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> marks, Fdp.Core.FlightRecorder.ReplayTimeMap? map)
+    {
+        if (notes == null || notes.Length == 0) return Array.Empty<Fdp.Presentation.Panels.Timeline.TimelineNote>();
+        if (ReferenceEquals(notes, _notesFor) && ReferenceEquals(marks, _marksFor) && ReferenceEquals(map, _mapFor)) return _cached;
+        var list = new List<Fdp.Presentation.Panels.Timeline.TimelineNote>(notes.Length);
+        foreach (var n in notes)
+        {
+            if (n.OnMark && n.Name.Length == 0 && n.Text.Length == 0) continue;   // an unnamed mark: its ⚑ alone (the dot says "it has words")
+            long wall = 0; double sim = n.AtSimSeconds;
+            if (n.OnMark)
+            {
+                bool found = false;
+                for (int i = 0; i < marks.Count; i++)
+                    if (string.Equals(marks[i].Label, n.Mark, StringComparison.Ordinal)) { wall = marks[i].WallTicks; sim = marks[i].TotalTime; found = true; break; }
+                if (!found) continue;   // its checkpoint is not in this session (a branch dropped it): no moment to draw
+            }
+            else if (map is { HasSimTime: true }) wall = map.WallAt(n.AtSimSeconds);
+            else continue;
+            string name = n.Name.Length > 0 ? n.Name : n.OnMark ? n.Mark : "(note)";
+            string detail = n.SubjectName.Length > 0 ? (n.Author.Length > 0 ? n.SubjectName + " · " + n.Author : n.SubjectName) : n.Author;
+            list.Add(new Fdp.Presentation.Panels.Timeline.TimelineNote(wall, n.Mark, (n.OnMark ? "⚑ " : "") + name + " · " + MarksModel.FormatTime(sim), n.Text, detail));
+        }
+        _notesFor = notes; _marksFor = marks; _mapFor = map;
+        return _cached = list.ToArray();
+    }
+}
+
+/// <summary>
+/// ⭐ CE-1467 (a) (Bookmarks §2: <i>"the standalone Replay Browser reads it beside the files (read-only)"</i>) — the notes of a recording read from its exercise folder's <c>notes.json</c>
+/// (<see cref="Fdp.Toolkit.Orchestration.ExerciseNotes.FileName"/>, the file the master writes there). Re-read only when the folder or the file's time changed; a missing or unreadable file = no notes.
+/// ⛔ Read-only: nothing here writes (the browser has no master — the ONE writer).
+/// </summary>
+public sealed class RecordingNotesFile
+{
+    private string? _folder;
+    private DateTime _stamp;
+    private Fdp.Toolkit.Orchestration.ExerciseNote[] _notes = Array.Empty<Fdp.Toolkit.Orchestration.ExerciseNote>();
+    private double _checkedAt = double.NegativeInfinity;
+
+    /// <summary>The notes of the recording in <paramref name="folder"/> (null = none open). The file's time is looked at most once a second (<paramref name="now"/>, seconds).</summary>
+    public Fdp.Toolkit.Orchestration.ExerciseNote[] Of(string? folder, double now)
+    {
+        if (folder == null) { _folder = null; _notes = Array.Empty<Fdp.Toolkit.Orchestration.ExerciseNote>(); return _notes; }
+        bool sameFolder = string.Equals(folder, _folder, StringComparison.Ordinal);
+        if (sameFolder && now - _checkedAt < 1.0) return _notes;
+        _checkedAt = now;
+        var file = System.IO.Path.Combine(folder, Fdp.Toolkit.Orchestration.ExerciseNotes.FileName);
+        var stamp = System.IO.File.Exists(file) ? System.IO.File.GetLastWriteTimeUtc(file) : DateTime.MinValue;
+        if (sameFolder && stamp == _stamp) return _notes;
+        _folder = folder; _stamp = stamp;
+        var list = new Fdp.Toolkit.Orchestration.ExerciseNotes();
+        _notes = stamp != DateTime.MinValue && list.TryLoad(file, default) ? list.Notes : Array.Empty<Fdp.Toolkit.Orchestration.ExerciseNote>();
+        return _notes;
+    }
+}

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Fdp.Core;
 using Fdp.Toolkit.Scenario;
@@ -84,6 +85,28 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
         => KeptExerciseFolder
            ?? (PrimaryRecordingPath is { } path && Path.GetDirectoryName(Path.GetFullPath(path)) is { } dir
                ? dir : Path.Combine(Path.GetTempPath(), "hrot-replay-no-recording"));
+
+    // ── ⭐ CE-1467 (a) (Bookmarks §2) — the recording's notes, READ-ONLY beside its files: the browser has no master (the ONE writer) ──
+
+    private readonly Hrot.UI.Common.Marks.RecordingNotesFile _notesFile = new();
+    private readonly Hrot.UI.Common.Marks.TimelineNotesCache _rulerNotes = new();
+
+    /// <summary>Why the browser's notes cannot be changed — the Marks list and the popup say it.</summary>
+    internal const string NotesReadOnlyReason = "the Replay Browser shows a recording's notes read-only — they are changed in a DAR or an AAR on the cluster";
+
+    /// <summary>The folder whose <c>notes.json</c> belongs to the open recording: its kept exercise folder, else the folder the recording opened from (the master writes the notes there); null = none open.</summary>
+    internal string? NotesFolder
+        => KeptExerciseFolder ?? (PrimaryRecordingPath is { } path ? Path.GetDirectoryName(Path.GetFullPath(path)) : null);
+
+    /// <summary>The open recording's notes (re-read when the file changes; empty without one).</summary>
+    internal Fdp.Toolkit.Orchestration.ExerciseNote[] RecordingNotes => _notesFile.Of(NotesFolder, Environment.TickCount64 / 1000.0);
+
+    /// <summary>The open recording's ⚑ marks (its checkpoints).</summary>
+    internal IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> RecordingCheckpoints
+        => PrimaryMetadata?.Checkpoints ?? (IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>)Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
+
+    /// <summary>The notes as the Event Timeline's ruler draws them (the ONE mapping, cached).</summary>
+    internal IReadOnlyList<Fdp.Presentation.Panels.Timeline.TimelineNote> RulerNotes => _rulerNotes.Of(RecordingNotes, RecordingCheckpoints, CachedTimeMap);
 
     /// <summary>The kept (archived) folder of the open recording's exercise, when there is one (<see cref="RecordingsRoot"/>'s shared root).</summary>
     private string? KeptExerciseFolder

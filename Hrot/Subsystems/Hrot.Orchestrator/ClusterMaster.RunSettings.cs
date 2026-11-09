@@ -205,6 +205,7 @@ public sealed partial class ClusterMaster
             return;
         }
         bool deleted = ExerciseDeleter(intent.ExerciseId);
+        if (deleted) DiscardNotes(intent.ExerciseId);   // ⭐ CE-1467 (c) — its notes go with it (staging, marker, the NAS copy the run's end wrote)
         FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090: discard of exercise {0}: {1}.", intent.ExerciseId, deleted ? "deleted" : "unknown here");
         PublishOpStatus(intent.RequestId, deleted ? OrchestrationStatusCode.Success : OrchestrationStatusCode.Rejected,
                         deleted ? null : "no such unarchived exercise");

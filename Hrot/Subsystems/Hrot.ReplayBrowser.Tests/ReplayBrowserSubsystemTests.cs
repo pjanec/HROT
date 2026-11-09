@@ -269,9 +269,10 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         // ⭐ CE-1303 P2a — and the ONE film director's window (DirectorPack's, in this host's perspective — §11m D11).
         // ⭐ B-7 part 3 — rb_timeline (the Replay Timeline window) is RETIRED; File ▸ Recording info (rb_recording_info, closed) carries its file path and panel snapshot.
         // ⭐ AQ109 X5 — and the generic wire inspector (rb_wire_entities, closed; this host has no participant, so it says so).
+        // ⭐ CE-1467 (a) — and the Marks list (rb_marks), read-only: the recording's notes read beside its files.
         // ⭐ R-1 / V1 — THE WINDOW-SET GOLDEN (re-baselined at HEAD: it had gone stale-red — the rules bundle's four windows (rb_rules / rb_mission_summary / rb_trainee_debrief / rb_game_summary,
         //   CE-4292) and rb_json_export were missing — and the Review bundle's refactor was proved against it): the four review windows (rb_diff, rb_search, rb_recording_info, rb_json_export) come from ReviewBundle.
-        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_game_summary", "rb_json_export", "rb_mission_summary", "rb_recording_info", "rb_rules", "rb_search", "rb_trainee_debrief", "rb_wire_entities" },
+        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_game_summary", "rb_json_export", "rb_marks", "rb_mission_summary", "rb_recording_info", "rb_rules", "rb_search", "rb_trainee_debrief", "rb_wire_entities" },
                      windows.Keys.Where(k => k != "shell_keyboard_shortcuts").OrderBy(k => k, StringComparer.Ordinal).ToArray());   // the shell's own shortcuts window is the window manager's, not this host's
 
         foreach (var (_, win) in windows.Where(kv => kv.Key != "shell_keyboard_shortcuts"))
@@ -379,7 +380,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
 
-        Assert.Equal(14, windows.Keys.Count(k => k != "shell_keyboard_shortcuts"));   // ⭐ the golden above: AQ109 X5 · CE-1150 / CE-1244 / CE-1302 / CE-1303 P2a · CE-4292 (rules) · R-1 (the review bundle)
+        Assert.Equal(15, windows.Keys.Count(k => k != "shell_keyboard_shortcuts"));   // ⭐ the golden above: AQ109 X5 · CE-1150 / CE-1244 / CE-1302 / CE-1303 P2a · CE-4292 (rules) · R-1 (the review bundle) · CE-1467 (a) rb_marks
         Assert.False(windows.ContainsKey("rb_federation"));
     }
 
@@ -2667,6 +2668,38 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         provider.Master.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent { TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay });
         Assert.Equal(Path.Combine(keptDir, "node_1.fdp"), provider.ReplayRecordingPath);
         Assert.True(pack.Takes.Load("s-film", "main").Ok);                                    // the take is still there
+    }
+
+    /// <summary>
+    /// ⭐ CE-1467 (a) (Bookmarks §2: <i>"the standalone Replay Browser reads it beside the files (read-only)"</i>) — a recording opened from a folder holding the master's <c>notes.json</c>:
+    /// the browser's facade lists its notes, the Event Timeline's ruler draws the time note at its moment, and every edit is refused with the reason (no master — the ONE writer).
+    /// 🔴 Mutation: the facade's <c>Notes</c> back to the empty default ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1467_ARecordingsNotes_AreReadBesideItsFiles_AndShownReadOnly()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string root = Path.Combine(_tempDir, "notes-staging");
+        var exercise = Guid.NewGuid();
+        string nodeDir = Path.Combine(root, "nodes", "node-1", "exercises", exercise.ToString());
+        RecordFilmRun(nodeDir, 2d, exercise);
+        var list = new Fdp.Toolkit.Orchestration.ExerciseNotes();
+        list.Set((Fdp.Core.ExerciseId)exercise, new[] { new Fdp.Toolkit.Orchestration.ExerciseNote(Guid.NewGuid(), "", 1.0, "Ambush", "too early", "Observer-2") });
+        Assert.True(list.TrySave(Path.Combine(nodeDir, Fdp.Toolkit.Orchestration.ExerciseNotes.FileName)));
+
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.RecordingsRoot = root;
+        var provider = _subsystem.CreateDebugProvider()!;
+        provider.Master!.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent { TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay });
+
+        var transport = _subsystem.Transport;
+        Assert.Equal("too early", Assert.Single(transport.Notes).Text);
+        Assert.NotNull(transport.NotesReadOnlyReason);
+        Assert.Single(_subsystem.RulerNotes);                                         // the ruler's dot at its sim second
+        var marks = new Hrot.UI.Common.Marks.MarksController(transport, () => Hrot.Common.Infrastructure.Seat.Instructor, () => "x", () => null, () => 0);
+        Assert.Equal(transport.NotesReadOnlyReason, marks.SeatRefusal);              // even an Instructor seat cannot edit here
+        Assert.False(marks.AddNoteHere());
     }
 
     // ── ⭐ CE-4059 P3 (docs/DESIGN_Director_Timeline_Editor.md §11r) — recording=, stills, the MP4, over the shared director routes ──
