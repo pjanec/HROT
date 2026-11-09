@@ -3334,7 +3334,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_attributes_schema",
             Group:   "L — Mutation / fault injection",
             Summary: "Return all patchable attribute paths and their JSON Schema.",
-            Returns: "{ registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, Position.X/Y/Z (local ENU metres), Heading, …).",
+            Returns: "{ registeredPaths, schema, attributes:[{path, id, kind, unit, readable, wildcard}] } — the discoverable, authority-aware patch paths (Name, Affiliation, Position.X/Y/Z (local ENU metres), Heading, …); attributes adds each path's kind, its UNIT (m, °, °C, hPa, mm/h, rounds, 0-1 … or null) and whether get_entity_attributes can read it back.",
             Hint:    "No params. Example: get_attributes_schema({})",
             Notes: new[]
             {
@@ -3343,6 +3343,45 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{}",
             ExampleGist: "discover patchable attribute paths before calling patch_attribute"),
+
+        [("GET", "/entities/{networkId}/attributes")] = new RouteDoc(
+            Tool:    "get_entity_attributes",
+            Group:   "B — Queries",
+            Summary: "Read an entity's vocabulary attributes as the world has them now (the read twin of patch_attribute): path, value, kind and unit each.",
+            Returns: "{ networkId, attributes:[{ path, value, kind, unit }], notPresent:[path] }. kind is number · integer · string; unit is m, °, hPa … or null. A wildcard attribute is listed per sub-index it has (Ammo.0, Ammo.1, Damage.Part.3, Weapon.AimPoint.0…).",
+            Hint:    "Req: networkId (number). Opt: path (a vocabulary path; repeat or comma-join for several). Example: get_entity_attributes({networkId:1000,path:\"Health.Current\"})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("path", "string", false, "A vocabulary attribute path (Health.Current, Position.X, Ammo.2 …); repeat the parameter or comma-join. Omit for every attribute the entity has. Paths: get_attributes_schema."),
+            },
+            Notes: new[]
+            {
+                "Reads through the vocabulary's reader (AttributeReaders) — the SAME one the Details forms and the replica watch use, so the value is what they show: the EFFECTIVE proficiency and temperament, a weapon's aim target as a network id, a side as FORCE_FRIENDLY / FORCE_OPPOSING / FORCE_NEUTRAL.",
+                "A path the entity lacks (no such component, no such mount) is listed in notPresent, not an error; a path the vocabulary does not have is 400.",
+                "Also served by the Replay Browser, reading the replay's sandbox world.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000,\"path\":\"Health.Current\"}",
+            ExampleGist: "what is this unit's strength / ammunition / position right now?"),
+
+        [("GET", "/entities/{networkId}/field")] = new RouteDoc(
+            Tool:    "get_entity_field",
+            Group:   "B — Queries",
+            Summary: "Read one raw component field by path (the read twin of edit_component): Component.field.field, a number part indexes an array.",
+            Returns: "{ networkId, path, value } — value is the JSON the entity dump shows at that place (a scalar, an object or an array). 404 when nothing is there.",
+            Hint:    "Req: networkId (number), path (string). Example: get_entity_field({networkId:1000,path:\"SimTransform.Position.0\"})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID (long)"),
+                new("path", "string", true, "ComponentName.field[.field|.index…], keys case-insensitive (SimTransform.Position.0 (a point dumps as an array: 0 x · 1 y · 2 z), WeaponState.Ammo, Waypoints.2.Position). Component names: GET /entities/{networkId}."),
+            },
+            Notes: new[]
+            {
+                "For a value inside the attribute vocabulary prefer get_entity_attributes (typed, with its unit); this reads anything a component holds.",
+                "Walks the dump's own JSON with the one ComponentJsonPath walker. Also served by the Replay Browser, reading the replay's sandbox world.",
+            },
+            ExampleArgsJson: "{\"networkId\":1000,\"path\":\"SimTransform.Position.0\"}",
+            ExampleGist: "read any single component field of one unit"),
 
         [("POST", "/entities/{networkId}/attribute")] = new RouteDoc(
             Tool:    "patch_attribute",

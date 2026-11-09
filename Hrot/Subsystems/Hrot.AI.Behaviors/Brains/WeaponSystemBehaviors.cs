@@ -146,8 +146,8 @@ namespace Hrot.AI.Behaviors.Brains
             => block = Block(authored.Weapon.Ref, authored.Speed, world, pack: false);
 
         /// <summary>Put it down (Success at once when carrying nothing) · walk to it and take its Gunner seat · set it up and wait.</summary>
-        [Behavior(BehaviorNames.SetUpWeapon, Params = typeof(SetUpWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
-        [BTreeDefinition(BehaviorNames.SetUpWeapon, Curated = true, Group = "Library/Basic", ParamsType = typeof(WeaponTaskBlackboard))]
+        [Behavior(BehaviorNames.SetUpWeapon, Params = typeof(SetUpWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Sets a weapon up, ready to fire.")]
+        [BTreeDefinition(BehaviorNames.SetUpWeapon, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(WeaponTaskBlackboard))]
         public static BTreeBuilder<WeaponTaskBlackboard, BTreeContext> BuildSetUp()
             => new BTreeBuilder<WeaponTaskBlackboard, BTreeContext>()
                 .Sequence(steps => steps
@@ -156,8 +156,8 @@ namespace Hrot.AI.Behaviors.Brains
                     .Action(bb => bb.Deploy, WeaponSystemNodes.DeployWeapon));
 
         /// <summary>Pack it up and wait (Stowed) · step off it (Success at once when not aboard).</summary>
-        [Behavior(BehaviorNames.PackUpWeapon, Params = typeof(PackUpWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
-        [BTreeDefinition(BehaviorNames.PackUpWeapon, Curated = true, Group = "Library/Basic", ParamsType = typeof(WeaponTaskBlackboard))]
+        [Behavior(BehaviorNames.PackUpWeapon, Params = typeof(PackUpWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Breaks a weapon down for carrying.")]
+        [BTreeDefinition(BehaviorNames.PackUpWeapon, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(WeaponTaskBlackboard))]
         public static BTreeBuilder<WeaponTaskBlackboard, BTreeContext> BuildPackUp()
             => new BTreeBuilder<WeaponTaskBlackboard, BTreeContext>()
                 .Sequence(steps => steps
@@ -166,8 +166,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>Walk to it and pick it up — the casualty's <c>PickUp</c>: <c>Embarkation.TryEmbark</c> boards a portable weapon onto the
         /// carry station (a two-man weapon needs the team carry, T-c — refused here).</summary>
-        [Behavior(BehaviorNames.CarryWeapon, Params = typeof(CarryWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
-        [BTreeDefinition(BehaviorNames.CarryWeapon, Curated = true, Group = "Library/Basic", ParamsType = typeof(WeaponTaskBlackboard))]
+        [Behavior(BehaviorNames.CarryWeapon, Params = typeof(CarryWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Carries a crew-served weapon to a new place.")]
+        [BTreeDefinition(BehaviorNames.CarryWeapon, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(WeaponTaskBlackboard))]
         public static BTreeBuilder<WeaponTaskBlackboard, BTreeContext> BuildCarry()
             => new BTreeBuilder<WeaponTaskBlackboard, BTreeContext>()
                 .Action(bb => bb.Carry, CarryNodes.PickUp);

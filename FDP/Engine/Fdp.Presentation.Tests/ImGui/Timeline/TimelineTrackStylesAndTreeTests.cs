@@ -99,6 +99,10 @@ public sealed class TimelineTrackStylesAndTreeTests
         Assert.Equal(full.IconX + TrackLayout.IconPx, full.TextX);                                  // then the text
         Assert.Equal(240f - TrackLayout.LabelPadPx - 60f, full.StatusX);                            // the status ends at the right edge
 
+        var gear = TrackLayout.PlanHeader(new TrackHeader(0, "Replica watch", null, null, "E", false, "G", () => { }), 240f, 80f, 0f);   // ⭐ §6.13 — a trailing button sits right after the text
+        Assert.Equal(gear.TextX + 80f + TrackLayout.LabelPadPx, gear.TrailX);
+        Assert.Null(flat.TrailX);                                                                   // none declared ⇒ none planned
+
         var cramped = TrackLayout.PlanHeader(new TrackHeader(1, "A long rule name", "Active 6:10", null, null, false), 100f, 90f, 60f);
         Assert.Null(cramped.StatusX);                                                               // no room after the text: dropped, never over it
     }

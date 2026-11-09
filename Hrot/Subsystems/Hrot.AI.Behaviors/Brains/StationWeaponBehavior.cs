@@ -55,8 +55,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.StationWeapon, Params = typeof(StationWeaponParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
-        [BTreeDefinition(BehaviorNames.StationWeapon, Curated = true, Group = "Library/Orders", ParamsType = typeof(StationWeaponBlackboard))]
+        [Behavior(BehaviorNames.StationWeapon, Params = typeof(StationWeaponParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian, Description = "Stations a weapon at a place.")]
+        [BTreeDefinition(BehaviorNames.StationWeapon, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(StationWeaponBlackboard))]
         public static BTreeBuilder<StationWeaponBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<StationWeaponBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Params, bb => bb.State, Station);

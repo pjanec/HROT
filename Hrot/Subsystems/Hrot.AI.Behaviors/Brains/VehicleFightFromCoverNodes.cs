@@ -180,6 +180,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// H-6: the creep starts AT the lane start.</summary>
         public const float LaneApproachSpeed = 15f, LaneCreepSpeed = 5f, LaneMaxOvershootMetres = 50f, LaneCreepFromMetres = 15f;
 
+        /// <summary>⭐ CE-4136 (Next_3 H-2) — how far PAST its firing point a drive-out may creep on (m), along the hide → firing point line,
+        /// when it arrives (within <see cref="ArrivalRadius"/>) without seeing its target. 📐 Live <c>ua-technical-scoot</c>: the ATGM technical
+        /// stopped 2 m short of (170, 270.2), behind the block's corner — the tank only REPORTED — watched 8 s, scooted, never fired.</summary>
+        public const float FiringCreepMetres = 8f;
+
         /// <summary>⭐ CE-2230 — a lane exposure (<see cref="VehicleFightFromCoverParams.LaneDir"/> ≠ 0).</summary>
         public static bool Lane(in VehicleFightFromCoverParams p) => p.LaneDir.LengthSquared() > 1e-6f;
 
@@ -394,6 +399,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             ws.Waiting = 0;
             ws.FiringPoint = firing;
+            ws.Creeping = 0;   // ⭐ CE-4136 — a fresh drive-out
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius, source: MoveSource.CoverSearch) ? 1 : 0);   // T3 — front first
             ws.SeenSince = (SimInstant)0;   // CE-2216 — this exposure's clock starts on the way out
             ws.Phase = VehiclePhase.Exposing;
@@ -402,7 +408,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Exposing(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, ref FiringPositionMemory mem,
                                      Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
-            var status = Lane(in p) ? LaneStatus(ref ws, in p, self, world, in threat) : MoveStatus(world, self, ws.FiringPoint);
+            var status = Lane(in p) ? LaneStatus(ref ws, in p, self, world, in threat) : ExposureStatus(ref ws, in p, self, world, in threat);
             if (status == NodeStatus.Running)
             {
                 // ⭐ CE-2216 — the DRIVE OUT is part of the exposure: a dangerous threat that can see me starts the clock here, and the
@@ -438,6 +444,58 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>
+        /// ⭐ The ONE "stop where I first see it" step of a drive-out (the lane's rule, CE-2230, now shared with the firing point's — CE-4136): the
+        /// first tick the unit SEES its locked target (<see cref="SightNow.Sees"/>) it stops where it is and that spot becomes the firing point.
+        /// </summary>
+        private static bool StopIfSees(ref VehicleFightFromCoverState ws, Entity self, EntityRepository world, in ThreatAim threat, Vector3 at)
+        {
+            var target = PeekAndFireNodes.LockTarget(world, self, in threat);
+            if (target.IsNull || !SightNow.Sees(world, self, target)) return false;
+            LocomotionMoveTo.Stop(world, self);
+            ws.FiringPoint = at;
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4136 (Next_3 H-2) — the drive out to a FIRING POINT: arrival is <see cref="MoveStatus"/> (CE-2205, unchanged); arrived and the
+        /// target SEEN (or no target to look for) ⇒ Success as before; arrived WITHOUT a sight ⇒ it creeps on along the hide → firing point line
+        /// and stops the first tick it sees (<see cref="StopIfSees"/>, the lane's rule), and only past <see cref="FiringCreepMetres"/> beyond the
+        /// point is it "at the point, nothing to fire at" (Success ⇒ Watching, as before). 📌 Before: arrival alone was Success, so a hull that stopped short behind a corner watched and left.
+        /// </summary>
+        private static NodeStatus ExposureStatus(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, Entity self,
+                                                 EntityRepository world, in ThreatAim threat)
+        {
+            if (!world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
+            var at3 = world.GetComponentRO<SimTransform>(self).Position;
+            var at = new Vector2(at3.X, at3.Y);
+            var point = new Vector2(ws.FiringPoint.X, ws.FiringPoint.Y);
+            var dir = point - new Vector2(ws.HidePoint.X, ws.HidePoint.Y);
+            dir = dir.LengthSquared() > 1e-6f ? Vector2.Normalize(dir) : Vector2.Zero;
+            if (ws.Creeping == 1)
+            {
+                if (StopIfSees(ref ws, self, world, in threat, at3)) return NodeStatus.Success;
+                if (dir == Vector2.Zero || Vector2.Dot(at - point, dir) >= FiringCreepMetres)
+                {
+                    LocomotionMoveTo.Stop(world, self);
+                    return NodeStatus.Success;   // the cap: at the point, nothing to fire at
+                }
+                var creep = LocomotionMoveTo.Status(world, self);
+                return creep == NodeStatus.Running ? NodeStatus.Running : NodeStatus.Success;
+            }
+            var status = MoveStatus(world, self, ws.FiringPoint);   // the arrival test (CE-2205) — unchanged
+            if (status != NodeStatus.Success) return status;
+            var target = PeekAndFireNodes.LockTarget(world, self, in threat);
+            if (dir == Vector2.Zero || target.IsNull || SightNow.Sees(world, self, target)) return NodeStatus.Success;   // seen there (or nothing to look for): as before
+            // arrived, nothing seen: creep on past the point — a move point beyond the cap, so the cap (or a sight) ends it, never an arrival
+            ws.Creeping = 1;
+            var ahead = point + dir * (FiringCreepMetres + ArrivalRadius + 2f);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, new Vector3(ahead.X, ahead.Y, ws.FiringPoint.Z), p.CreepSpeed, ArrivalRadius,
+                                                      source: MoveSource.CoverSearch) ? 1 : 0);
+            if (ws.Moving == 0) { LocomotionMoveTo.Stop(world, self); return NodeStatus.Success; }
+            return NodeStatus.Running;
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2230</c> (hill attack §0, HA-2) — the LANE exposure's move: out to the lane start at the approach speed, then a creep
         /// along the lane — and the FIRST tick the unit SEES its locked target (<see cref="SightNow.Sees"/>, approach included) it stops
         /// where it is: Success, that spot the firing point. On a crest that is hull-down by construction — the eye sees out exactly when
@@ -451,13 +509,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
             var at3 = world.GetComponentRO<SimTransform>(self).Position;
             var at = new Vector2(at3.X, at3.Y);
-            var target = PeekAndFireNodes.LockTarget(world, self, in threat);
-            if (!target.IsNull && SightNow.Sees(world, self, target))
-            {
-                LocomotionMoveTo.Stop(world, self);
-                ws.FiringPoint = at3;
-                return NodeStatus.Success;
-            }
+            if (StopIfSees(ref ws, self, world, in threat, at3)) return NodeStatus.Success;
             var dir = Vector2.Normalize(p.LaneDir);
             float past = Vector2.Dot(at - p.LaneStart, dir);
             if (past > p.MaxOvershootMetres)

@@ -53,7 +53,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.Break, Params = typeof(BreakParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
+        [Behavior(BehaviorNames.Break, Params = typeof(BreakParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Breaks off and runs.")]
         [BTreeDefinition(BehaviorNames.Break, Curated = true, Group = "Library/Reactions", ParamsType = typeof(BreakBlackboard))]
         public static BTreeBuilder<BreakBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<BreakBlackboard, BTreeContext>()

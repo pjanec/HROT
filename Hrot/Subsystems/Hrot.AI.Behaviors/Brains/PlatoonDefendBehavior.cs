@@ -196,7 +196,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.PlatoonDefend, Params = typeof(PlatoonDefendParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [HsmDefinition(BehaviorNames.PlatoonDefend, Curated = true, Group = "Library/Platoon", ParamsType = typeof(PlatoonDefendBlackboard))]
+        [HsmDefinition(BehaviorNames.PlatoonDefend, Curated = true, Group = "Library/Combat", ParamsType = typeof(PlatoonDefendBlackboard))]
         public static StateMachineGraph BuildPlatoonDefend()
         {
             // ⭐ E-2 (Platoon §5) — two regions: 0 the phase (E-1), 1 the control. The control states only edit the plan (DA-62); region 0's

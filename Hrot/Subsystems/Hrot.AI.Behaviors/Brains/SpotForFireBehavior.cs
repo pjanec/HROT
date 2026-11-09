@@ -60,8 +60,8 @@ namespace Hrot.AI.Behaviors.Brains
             };
         }
 
-        [Behavior(BehaviorNames.SpotForFire, Params = typeof(SpotForFireOrder), Categories = BehaviorCategory.Infantry)]
-        [BTreeDefinition(BehaviorNames.SpotForFire, Curated = true, Group = "Library/Orders", ParamsType = typeof(SpotForFireBlackboard))]
+        [Behavior(BehaviorNames.SpotForFire, Params = typeof(SpotForFireOrder), Categories = BehaviorCategory.Infantry, Description = "Observes a target and calls indirect fire on it.")]
+        [BTreeDefinition(BehaviorNames.SpotForFire, Curated = true, Group = "Library/Combat", ParamsType = typeof(SpotForFireBlackboard))]
         public static BTreeBuilder<SpotForFireBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SpotForFireBlackboard, BTreeContext>()
                 .Action(bb => bb.Spot, Spot);

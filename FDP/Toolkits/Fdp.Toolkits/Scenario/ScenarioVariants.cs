@@ -163,7 +163,7 @@ namespace Fdp.Toolkit.Scenario
                 if (node is not JsonObject entity) continue;
                 // ⭐ CE-3374 (§17.1) — the AUTHORED forms, copied BEFORE they are stripped (the ONE writer of VariantForms); a save writes them back
                 double? presence = null; string? positionsJson = null; int positionChosen = 0; string? macroJson = null; int macroChosen = 0;
-                string? pk = FindKey(entity, PresenceKey);
+                string? pk = ComponentJsonPath.FindKey(entity, PresenceKey);
                 if (pk != null)
                 {
                     double p = entity[pk] is JsonValue pv && pv.TryGetValue<double>(out var pd) ? pd
@@ -173,7 +173,7 @@ namespace Fdp.Toolkit.Scenario
                     presence = p;
                     if (!IsPresent(variant, salt, key, p)) { absent.Add(key); continue; }
                 }
-                string? posKey = FindKey(entity, PositionsKey);
+                string? posKey = ComponentJsonPath.FindKey(entity, PositionsKey);
                 if (posKey != null)
                 {
                     var places = PositionsOf(entity[posKey]);
@@ -183,17 +183,17 @@ namespace Fdp.Toolkit.Scenario
                     entity.Remove(posKey);
                     positionChosen = Pick(places.ConvertAll(p => p.Weight), variant, salt, key, "position");
                     var place = places[positionChosen];
-                    string tk = FindKey(entity, "SimTransform") ?? "SimTransform";
+                    string tk = ComponentJsonPath.FindKey(entity, "SimTransform") ?? "SimTransform";
                     if (entity[tk] is not JsonObject t) entity[tk] = t = new JsonObject { ["Rotation"] = new JsonArray(0, 0, 0, 1) };
-                    t[FindKey(t, "Position") ?? "Position"] = new JsonArray(place.At[0], place.At[1], place.At[2]);
+                    t[ComponentJsonPath.FindKey(t, "Position") ?? "Position"] = new JsonArray(place.At[0], place.At[1], place.At[2]);
                     if (place.Heading is double h)
                     {
                         var q = WorldRotation.HeadingDegToQuaternion((float)h);
-                        t[FindKey(t, "Rotation") ?? "Rotation"] = new JsonArray(q.X, q.Y, q.Z, q.W);
+                        t[ComponentJsonPath.FindKey(t, "Rotation") ?? "Rotation"] = new JsonArray(q.X, q.Y, q.Z, q.W);
                     }
                 }
-                string? mk = FindKey(entity, MacroInstance.ComponentName);
-                if (mk != null && entity[mk] is JsonObject mi && FindKey(mi, "Macro") is { } macroKey && mi[macroKey] is JsonArray)
+                string? mk = ComponentJsonPath.FindKey(entity, MacroInstance.ComponentName);
+                if (mk != null && entity[mk] is JsonObject mi && ComponentJsonPath.FindKey(mi, "Macro") is { } macroKey && mi[macroKey] is JsonArray)
                 {
                     var choices = ChoicesOf(mi[macroKey]);
                     if (choices.Count == 0) throw new ScenarioParams.ArgsRefused($"{here}: entity {key}'s macro choice list is empty");
@@ -218,8 +218,8 @@ namespace Fdp.Toolkit.Scenario
         {
             if ((dom["entities"] ?? dom["Entities"]) is not JsonObject entities) return false;
             foreach (var (_, node) in entities)
-                if (node is JsonObject e && (FindKey(e, PresenceKey) != null || FindKey(e, PositionsKey) != null
-                    || (FindKey(e, MacroInstance.ComponentName) is { } mk && e[mk] is JsonObject mi && FindKey(mi, "Macro") is { } k && mi[k] is JsonArray)))
+                if (node is JsonObject e && (ComponentJsonPath.FindKey(e, PresenceKey) != null || ComponentJsonPath.FindKey(e, PositionsKey) != null
+                    || (ComponentJsonPath.FindKey(e, MacroInstance.ComponentName) is { } mk && e[mk] is JsonObject mi && ComponentJsonPath.FindKey(mi, "Macro") is { } k && mi[k] is JsonArray)))
                     return true;
             return false;
         }
@@ -243,10 +243,5 @@ namespace Fdp.Toolkit.Scenario
             return weights.Count - 1;
         }
 
-        private static string? FindKey(JsonObject o, string name)
-        {
-            foreach (var (k, _) in o) if (string.Equals(k, name, StringComparison.OrdinalIgnoreCase)) return k;
-            return null;
-        }
     }
 }

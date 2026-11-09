@@ -26,9 +26,9 @@ public enum TimelineTrackItemStyle : byte { Solid, Expected, Hatched, Pinned }
 
 /// <summary>
 /// ⭐ <c>CE-4167</c> X3 — a track row header: the label column becomes a TREE row. <paramref name="Depth"/> indents it; <paramref name="Collapsible"/> adds an expand arrow (a collapsed node hides the
-/// FOLLOWING tracks whose depth is greater — tracks arrive in tree order); <paramref name="Status"/> is right-aligned in <paramref name="StatusColour"/> (ABGR).
+/// FOLLOWING tracks whose depth is greater — tracks arrive in tree order); <paramref name="Status"/> is right-aligned in <paramref name="StatusColour"/> (ABGR). ⭐ <paramref name="TrailingGlyph"/> is a small button right AFTER the text (a settings gear): a click runs <paramref name="TrailingClick"/> and does not select the row — generic, the same shape as the leading <paramref name="Icon"/>.
 /// </summary>
-public sealed record TrackHeader(int Depth, string Text, string? Status = null, uint? StatusColour = null, string? Icon = null, bool Collapsible = false);
+public sealed record TrackHeader(int Depth, string Text, string? Status = null, uint? StatusColour = null, string? Icon = null, bool Collapsible = false, string? TrailingGlyph = null, Action? TrailingClick = null, uint? TextColour = null);
 
 /// <summary>⭐ <c>CE-1364</c> — which part of an item a gesture grabbed: the body (moves the whole item) or, on a segment, one of its two edges.</summary>
 public enum TrackItemPart : byte { Body, StartEdge, EndEdge }

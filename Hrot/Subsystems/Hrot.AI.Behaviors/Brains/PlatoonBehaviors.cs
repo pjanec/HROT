@@ -58,7 +58,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.PlatoonBound, Params = typeof(PlatoonBoundParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [HsmDefinition(BehaviorNames.PlatoonBound, Curated = true, Group = "Library/Platoon", ParamsType = typeof(PlatoonBoundBlackboard))]
+        [HsmDefinition(BehaviorNames.PlatoonBound, Curated = true, Group = "Library/Movement", ParamsType = typeof(PlatoonBoundBlackboard))]
         public static StateMachineGraph BuildPlatoonBound()
         {
             var builder = new HsmBuilder("PlatoonBound_HSM");
@@ -115,7 +115,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.PlatoonHold, Params = typeof(PlatoonHoldParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.PlatoonHold, Curated = true, Group = "Library/Platoon", ParamsType = typeof(PlatoonHoldBlackboard))]
+        [BTreeDefinition(BehaviorNames.PlatoonHold, Curated = true, Group = "Library/Orders", ParamsType = typeof(PlatoonHoldBlackboard))]
         public static BTreeBuilder<PlatoonHoldBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<PlatoonHoldBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);

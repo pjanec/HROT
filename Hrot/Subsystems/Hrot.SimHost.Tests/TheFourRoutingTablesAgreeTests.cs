@@ -420,6 +420,204 @@ public class TheFourRoutingTablesAgreeTests
         Assert.Empty(offenders);
     }
 
+    // ══ ⑥ R-1 (AR-3) — the FIFTH table: the READER. Every row has one, and set-then-read agrees ═════════════
+
+    private enum Want { Number, Text, Long, Unreadable }
+
+    /// <summary>
+    /// ⭐ <b>What each row reads back after its JSON setter ran on a fresh entity.</b> (path, sub-index, JSON, the kind of answer, the expected value.)
+    /// ⚠ Three rows' JSON setters CONSUME and IGNORE the value on a creation request (no world to judge in): <c>Weapon.AimTarget</c> (a live unit is needed — reads 0 = none),
+    /// <c>Damage.MobilityKill</c> (needs the unit's TYPE — a body with no Mobility zone has no such switch ⇒ unreadable) and the mounts 1–3 of <c>Ammo.*</c>
+    /// (child entities — so the sample sets mount 0). ⛔ Not a hole: the binary handlers apply them, the rail names the difference.
+    /// </summary>
+    private static readonly (string Path, int Sub, string Json, Want Want, double Number, string Text)[] ReadBack =
+    {
+        ("Name", 0, "{\"Name\":\"Charlie\"}", Want.Text, 0, "Charlie"),
+        ("Affiliation", 0, "{\"Affiliation\":\"FORCE_OPPOSING\"}", Want.Text, 0, "FORCE_OPPOSING"),
+        ("Position.X", 0, "{\"Position\":{\"X\":32.0}}", Want.Number, 32.0, ""),
+        ("Position.Y", 0, "{\"Position\":{\"Y\":34.0}}", Want.Number, 34.0, ""),
+        ("Position.Z", 0, "{\"Position\":{\"Z\":100.0}}", Want.Number, 100.0, ""),
+        ("Heading", 0, "{\"Heading\":90.0}", Want.Number, 90.0, ""),
+        ("ScenarioStartUtcTicks", 0, "{\"ScenarioStartUtcTicks\":638450000000000000}", Want.Long, 638450000000000000d, ""),
+        ("ScenarioUtcOffsetMinutes", 0, "{\"ScenarioUtcOffsetMinutes\":120}", Want.Number, 120, ""),
+        ("Fear", 0, "{\"Fear\":1.0}", Want.Number, 1.0, ""),
+        ("FrightFrom.X", 0, "{\"FrightFrom\":{\"X\":10.0}}", Want.Number, 10.0, ""),
+        ("FrightFrom.Y", 0, "{\"FrightFrom\":{\"Y\":20.0}}", Want.Number, 20.0, ""),
+        ("FrightFrom.Z", 0, "{\"FrightFrom\":{\"Z\":1.0}}", Want.Number, 1.0, ""),
+        ("Rule.Request", 0, "{\"Rule\":{\"Request\":2}}", Want.Number, 2, ""),
+        ("Rule.Seq", 0, "{\"Rule\":{\"Seq\":1}}", Want.Number, 1, ""),
+        ("Rule.Origin", 0, "{\"Rule\":{\"Origin\":1}}", Want.Number, 1, ""),
+        ("Rule.Params", 0, "{\"Rule\":{\"Params\":\"{}\"}}", Want.Text, 0, "{}"),
+        ("Rule.EditSeq", 0, "{\"Rule\":{\"EditSeq\":1}}", Want.Number, 1, ""),
+        ("Rule.EditOrigin", 0, "{\"Rule\":{\"EditOrigin\":3}}", Want.Number, 3, ""),
+        ("Health.Current", 0, "{\"Health\":{\"Current\":50.0}}", Want.Number, 50.0, ""),
+        ("Playable.Side", 0, "{\"Playable\":{\"Side\":\"FORCE_OPPOSING\"}}", Want.Text, 0, "FORCE_OPPOSING"),
+        ("Playable.SlotName", 0, "{\"Playable\":{\"SlotName\":\"Alpha\"}}", Want.Text, 0, "Alpha"),
+        ("SpawnArea.Side", 0, "{\"SpawnArea\":{\"Side\":\"FORCE_FRIENDLY\"}}", Want.Text, 0, "FORCE_FRIENDLY"),
+        ("SpawnArea.FacingDeg", 0, "{\"SpawnArea\":{\"FacingDeg\":90.0}}", Want.Number, 90.0, ""),
+        ("Ammo.*", 0, "{\"Ammo\":{\"0\":5}}", Want.Number, 5, ""),
+        ("Stance", 0, "{\"Stance\":1}", Want.Number, 1, ""),
+        ("Weapon.Posture", 0, "{\"Weapon\":{\"Posture\":2}}", Want.Number, 2, ""),
+        ("Weapon.AimPoint.*", 0, "{\"Weapon\":{\"AimPoint\":{\"0\":12.5}}}", Want.Number, 12.5, ""),
+        ("Weapon.AimTarget", 0, "{\"Weapon\":{\"AimTarget\":1}}", Want.Long, 0, ""),
+        ("Weapon.HeldItem", 0, "{\"Weapon\":{\"HeldItem\":1}}", Want.Number, 1, ""),
+        ("Damage.Part.*", 3, "{\"Damage\":{\"Part\":{\"3\":128}}}", Want.Number, 128, ""),
+        ("Damage.MobilityKill", 0, "{\"Damage\":{\"MobilityKill\":1}}", Want.Unreadable, 0, ""),
+        ("Proficiency", 0, "{\"Proficiency\":0.8}", Want.Number, 0.8, ""),
+        ("Temperament.RiskAcceptance", 0, "{\"Temperament\":{\"RiskAcceptance\":0.7}}", Want.Number, 0.7, ""),
+        ("Temperament.Obedience", 0, "{\"Temperament\":{\"Obedience\":0.6}}", Want.Number, 0.6, ""),
+        ("Temperament.Nerve", 0, "{\"Temperament\":{\"Nerve\":0.5}}", Want.Number, 0.5, ""),
+        ("Temperament.Resolve", 0, "{\"Temperament\":{\"Resolve\":0.4}}", Want.Number, 0.4, ""),
+        ("Weather.GroundTemperatureC", 0, "{\"Weather\":{\"GroundTemperatureC\":21.5}}", Want.Number, 21.5, ""),
+        ("Weather.LapseRateKPerKm", 0, "{\"Weather\":{\"LapseRateKPerKm\":6.0}}", Want.Number, 6.0, ""),
+        ("Weather.SeaLevelPressureHpa", 0, "{\"Weather\":{\"SeaLevelPressureHpa\":1008.0}}", Want.Number, 1008.0, ""),
+        ("Weather.RelativeHumidity", 0, "{\"Weather\":{\"RelativeHumidity\":0.4}}", Want.Number, 0.4, ""),
+        ("Weather.VisibilityM", 0, "{\"Weather\":{\"VisibilityM\":9000.0}}", Want.Number, 9000.0, ""),
+        ("Weather.FogTopM", 0, "{\"Weather\":{\"FogTopM\":300.0}}", Want.Number, 300.0, ""),
+        ("Weather.FogVisibilityM", 0, "{\"Weather\":{\"FogVisibilityM\":150.0}}", Want.Number, 150.0, ""),
+        ("Weather.Precipitation", 0, "{\"Weather\":{\"Precipitation\":2}}", Want.Number, 2, ""),
+        ("Weather.PrecipitationMmPerHour", 0, "{\"Weather\":{\"PrecipitationMmPerHour\":4.0}}", Want.Number, 4.0, ""),
+        ("Weather.FeatherM", 0, "{\"Weather\":{\"FeatherM\":500.0}}", Want.Number, 500.0, ""),
+    };
+
+    public static IEnumerable<object[]> ReadBackCases() => ReadBack.Select(r => new object[] { r.Path });
+
+    /// <summary>⭐ A fresh owned entity whose caps let the clamping setters keep the sample value (<c>Health.Max</c> 100, <c>WeaponState.MaxAmmo</c> 10).</summary>
+    private static (EntityRepository, Entity) EntityForReadBack()
+    {
+        var (repo, e) = OwnedEntity();
+        repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(e).Max = 100f;
+        repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(e).MaxAmmo = 10;
+        return (repo, e);
+    }
+
+    /// <summary>⭐⭐⭐ <b>AR-3 (a) — EVERY vocabulary row has a reader</b>, and the rail's own table names every row (a row added to the vocabulary reddens here until it has both).</summary>
+    [Fact]
+    public void EveryVocabularyRowHasAReader()
+    {
+        var missing = AttributeVocabulary.All.Where(d => !AttributeReaders.HasReader(d.AttributeId)).Select(d => d.JsonPath).ToArray();
+        Assert.True(missing.Length == 0, "no AttributeReaders entry for: " + string.Join(", ", missing));
+
+        Assert.Equal(
+            AttributeVocabulary.All.Select(d => d.JsonPath).OrderBy(p => p, StringComparer.Ordinal).ToArray(),
+            ReadBack.Select(r => r.Path).OrderBy(p => p, StringComparer.Ordinal).ToArray());
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>AR-3 (b) — SET THEN READ AGREES, for every row.</b> The row's JSON goes through the JSON compiler onto a fresh entity, the value is read back through
+    /// <see cref="AttributeReaders"/> and compared. 📌 The setter and the reader are two halves of one meaning: a setter that writes the wrong field, or a reader that reads
+    /// another, reddens HERE.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ReadBackCases))]
+    public void WhatTheJsonSetterWritesTheReaderReadsBack(string path)
+    {
+        var row = ReadBack.Single(r => r.Path == path);
+        var (repo, e) = EntityForReadBack();
+        var compiler = AttributeCompilerFactory.Build();
+        compiler.Compile(row.Json, compiler.CreatePatchContext(repo, e));
+
+        var def = AttributeVocabulary.All.Single(d => d.JsonPath == path);
+        bool ok = AttributeReaders.TryRead(repo, e, def.AttributeId, row.Sub, out var v);
+        if (row.Want == Want.Unreadable) { Assert.False(ok, $"'{path}' should not be readable on this entity"); return; }
+        Assert.True(ok, $"'{path}' read nothing after its setter ran");
+
+        switch (row.Want)
+        {
+            case Want.Text:
+                Assert.Equal(AttributeValueKind.CsString, v.Kind);
+                Assert.Equal(row.Text, path == "Rule.Params" ? v.StringValue : v.Text.ToString());
+                break;
+            case Want.Long:
+                Assert.Equal(AttributeValueKind.CsInt64, v.Kind);
+                Assert.Equal((long)row.Number, v.LongValue);
+                break;
+            default:
+                Assert.Equal(row.Number, FormAttributes.AsDouble(v), 3);
+                break;
+        }
+
+        // the same read, by the path as the world spells it
+        string spelled = path.EndsWith(".*", StringComparison.Ordinal) ? path[..^1] + row.Sub : path;
+        Assert.True(AttributeReaders.TryRead(repo, e, spelled, out var again), spelled);
+        Assert.Equal(v.Kind, again.Kind);
+    }
+
+    /// <summary>⭐ A path resolves to its id and sub-index: <c>Ammo.2</c> → (Ammo, 2), the wildcard's own spelling → sub-index 0, an unknown path → false.</summary>
+    [Fact]
+    public void APathResolvesToItsIdAndSubIndex()
+    {
+        Assert.True(AttributeReaders.TryResolve("Health.Current", out var id, out var sub));
+        Assert.Equal((AttributeIds.HealthCurrent, 0), (id, sub));
+        Assert.True(AttributeReaders.TryResolve("Ammo.2", out id, out sub));
+        Assert.Equal((AttributeIds.Ammo, 2), (id, sub));
+        Assert.True(AttributeReaders.TryResolve("Damage.Part.13", out id, out sub));
+        Assert.Equal((AttributeIds.DamagePart, 13), (id, sub));
+        Assert.True(AttributeReaders.TryResolve("Weapon.AimPoint.*", out id, out sub));
+        Assert.Equal((AttributeIds.WeaponAimPoint, 0), (id, sub));
+        Assert.False(AttributeReaders.TryResolve("Health.Nope", out _, out _));
+        Assert.False(AttributeReaders.TryResolve("Health.Current.4", out _, out _));
+    }
+
+    /// <summary>⭐ A wildcard lists the sub-indices the entity has; an entity without the component reads false everywhere.</summary>
+    [Fact]
+    public void AWildcardListsItsSubIndicesAndAMissingComponentReadsNothing()
+    {
+        var (repo, e) = EntityForReadBack();
+        var subs = new List<int>();
+        AttributeReaders.SubIndicesOf(repo, e, AttributeIds.Ammo, subs);
+        Assert.Equal(new[] { 0 }, subs);
+        subs.Clear();
+        AttributeReaders.SubIndicesOf(repo, e, AttributeIds.WeaponAimPoint, subs);
+        Assert.Equal(new[] { 0, 1, 2 }, subs);
+        subs.Clear();
+        AttributeReaders.SubIndicesOf(repo, e, AttributeIds.HealthCurrent, subs);
+        Assert.Equal(new[] { 0 }, subs);
+
+        var bare = repo.CreateEntity();
+        foreach (var d in AttributeVocabulary.All)
+            Assert.False(AttributeReaders.TryRead(repo, bare, d.AttributeId, 0, out _), d.JsonPath);
+        Assert.False(AttributeReaders.TryRead(repo, Entity.Null, AttributeIds.HealthCurrent, 0, out _));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>AR-3 (c) — 0 B.</b> A form reads through the reader every frame (R-2084): reading every row — numbers, the text rows (<c>Name</c>, <c>SlotName</c>, a force token)
+    /// and the managed <c>Rule.Params</c> — in a loop allocates nothing.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ReadBackCases))]
+    public void ReadingARowAllocatesNothing(string path)
+    {
+        var row = ReadBack.Single(r => r.Path == path);
+        var (repo, e) = EntityForReadBack();
+        var compiler = AttributeCompilerFactory.Build();
+        compiler.Compile(row.Json, compiler.CreatePatchContext(repo, e));
+        ushort id = AttributeVocabulary.All.Single(d => d.JsonPath == path).AttributeId;
+
+        for (int i = 0; i < 50; i++) AttributeReaders.TryRead(repo, e, id, row.Sub, out _);   // warm: JIT, statics
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 1000; i++) AttributeReaders.TryRead(repo, e, id, row.Sub, out _);
+        long after = GC.GetAllocatedBytesForCurrentThread();
+
+        Assert.True(after - before == 0, $"reading '{path}' allocated {after - before} B over 1000 reads (hot path: 0)");
+    }
+
+    /// <summary>⭐ <b>AR-7 — every row declares its unit</b>, or is on the short list of values that have none (a name, a code, a switch).</summary>
+    [Fact]
+    public void EveryRowDeclaresItsUnitOrIsOnTheListOfUnitless()
+    {
+        var unitless = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Name", "Affiliation", "Rule.Request", "Rule.Seq", "Rule.Origin", "Rule.Params", "Rule.EditSeq", "Rule.EditOrigin", "Health.Current",
+            "Playable.Side", "Playable.SlotName", "SpawnArea.Side", "Stance", "Weapon.Posture", "Weapon.AimTarget", "Weapon.HeldItem", "Damage.MobilityKill", "Weather.Precipitation",
+        };
+        foreach (var d in AttributeVocabulary.All)
+            Assert.True(unitless.Contains(d.JsonPath) == (d.Unit == null), $"'{d.JsonPath}': Unit = {d.Unit ?? "null"}");
+        Assert.Equal("m", AttributeVocabulary.All.Single(d => d.JsonPath == "Position.X").Unit);
+        Assert.Equal("°", AttributeVocabulary.All.Single(d => d.JsonPath == "SpawnArea.FacingDeg").Unit);
+        Assert.Equal("hPa", AttributeVocabulary.All.Single(d => d.JsonPath == "Weather.SeaLevelPressureHpa").Unit);
+    }
+
     // ══ helpers ══════════════════════════════════════════════════════════════════
 
     private static ListEmitter Emit(JsonToRecordCompiler compiler, string json)

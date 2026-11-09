@@ -597,8 +597,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the MoveToLocation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [Behavior(BehaviorNames.MoveToLocation, Params = typeof(global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]   // ⭐ CE-2134
-        [BTreeDefinition("MoveToLocation", Curated = true, Group = "Library/Basic", ParamsType = typeof(MoveToLocationParams))]
+        [Behavior(BehaviorNames.MoveToLocation, Params = typeof(global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian, Description = "Moves to a location.")]   // ⭐ CE-2134
+        [BTreeDefinition("MoveToLocation", Curated = true, Group = "Library/Movement", ParamsType = typeof(MoveToLocationParams))]
         public static BTreeBuilder<MoveToBlackboard, BTreeContext> BuildMoveToLocationTree()
         {
             return new BTreeBuilder<MoveToBlackboard, BTreeContext>()
@@ -608,8 +608,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FollowRoute BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [Behavior(BehaviorNames.FollowRoute, Params = typeof(global::Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
-        [BTreeDefinition("FollowRoute", Curated = true, Group = "Library/Basic", ParamsType = typeof(FollowRouteParams))]
+        [Behavior(BehaviorNames.FollowRoute, Params = typeof(global::Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Follows a route of points in order.")]   // ⭐ CE-2134
+        [BTreeDefinition("FollowRoute", Curated = true, Group = "Library/Movement", ParamsType = typeof(FollowRouteParams))]
         public static BTreeBuilder<FollowRouteBlackboard, BTreeContext> BuildFollowRouteTree()
         {
             return new BTreeBuilder<FollowRouteBlackboard, BTreeContext>()
@@ -619,8 +619,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the JoinFormation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [Behavior(BehaviorNames.JoinFormation, Params = typeof(global::Hrot.AI.Behaviors.Brains.CgfNodes.JoinFormationParams), Categories = BehaviorCategory.Infantry)]   // ⭐ CE-2134 — what the identity parse fills (BEH003)
-        [BTreeDefinition("JoinFormation", Curated = true, Group = "Library/Basic", ParamsType = typeof(JoinFormationParams))]
+        [Behavior(BehaviorNames.JoinFormation, Params = typeof(global::Hrot.AI.Behaviors.Brains.CgfNodes.JoinFormationParams), Categories = BehaviorCategory.Infantry, Description = "Takes its place in a formation and keeps it.")]   // ⭐ CE-2134 — what the identity parse fills (BEH003)
+        [BTreeDefinition("JoinFormation", Curated = true, Group = "Library/Movement", ParamsType = typeof(JoinFormationParams))]
         public static BTreeBuilder<JoinFormationBlackboard, BTreeContext> BuildJoinFormationTree()
         {
             return new BTreeBuilder<JoinFormationBlackboard, BTreeContext>()
@@ -631,7 +631,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Exposes the WanderMilitary BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
         [Behavior(BehaviorNames.WanderMilitary, Params = typeof(global::Hrot.Map.Definitions.Behavior.NoParams), Categories = BehaviorCategory.MilitaryApc)]   // ⭐ CE-2134
-        [BTreeDefinition("WanderMilitary", Curated = true, Group = "Library/Basic")]
+        [BTreeDefinition("WanderMilitary", Curated = true, Group = "Library/Movement")]
         // ⭐ P4-②: `byte` here, and it is the RAW-DELEGATE case so nothing is lost. A selector-form
         //   builder still needs a struct with fields (which is why the wrapper structs stay — §30.18);
         //   this tree binds a delegate directly, and that delegate now takes `ref byte`.
@@ -646,8 +646,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FireAtTarget BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [Behavior(BehaviorNames.FireAtTarget, Params = typeof(global::Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
-        [BTreeDefinition("FireAtTarget", Curated = true, Group = "Library/Basic", ParamsType = typeof(FireAtTargetParams))]
+        [Behavior(BehaviorNames.FireAtTarget, Params = typeof(global::Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Fires at a chosen target.")]   // ⭐ CE-2134
+        [BTreeDefinition("FireAtTarget", Curated = true, Group = "Library/Combat", ParamsType = typeof(FireAtTargetParams))]
         public static BTreeBuilder<FireAtTargetBlackboard, BTreeContext> BuildFireAtTargetTree()
         {
             return new BTreeBuilder<FireAtTargetBlackboard, BTreeContext>()

@@ -318,7 +318,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.CasualtyCare, Params = typeof(CasualtyCareParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.CasualtyCare, Curated = true, Group = "Library/Squad", ParamsType = typeof(CasualtyCareBlackboard))]
+        [BTreeDefinition(BehaviorNames.CasualtyCare, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(CasualtyCareBlackboard))]
         public static BTreeBuilder<CasualtyCareBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<CasualtyCareBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
@@ -349,7 +349,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.SquadRecover, Params = typeof(SquadRecoverParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.SquadRecover, Curated = true, Group = "Library/Squad", ParamsType = typeof(CasualtyCareBehavior.CasualtyCareBlackboard))]
+        [BTreeDefinition(BehaviorNames.SquadRecover, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(CasualtyCareBehavior.CasualtyCareBlackboard))]
         public static BTreeBuilder<CasualtyCareBehavior.CasualtyCareBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<CasualtyCareBehavior.CasualtyCareBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, CasualtyCareBehavior.Run);

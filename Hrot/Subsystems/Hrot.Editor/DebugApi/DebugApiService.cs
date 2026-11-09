@@ -3072,16 +3072,29 @@ namespace Hrot.Editor.DebugApi
 
         // ── Group L — Live Mutation / Fault Injection ─────────────────────────────
 
-        /// <summary>GET /attributes/schema — registered patchable paths + JSON Schema.</summary>
+        /// <summary>GET /attributes/schema — registered patchable paths + JSON Schema, + (R-1) per path: kind, unit, readable.</summary>
         public JsonNode GetAttributesSchema()
         {
             var paths = new JsonArray();
             foreach (var p in _attributeCompiler.RegisteredPaths)
                 paths.Add(p);
+            // ⭐ R-1 (AR-7/AR-8) — per path: its attribute id, kind, UNIT, and whether the vocabulary can READ it (GET /entities/{id}/attributes)
+            var attributes = new JsonArray();
+            foreach (var d in Fdp.Toolkit.Replication.Attributes.AttributeVocabulary.All)
+                attributes.Add(new JsonObject
+                {
+                    ["path"]     = d.JsonPath,
+                    ["id"]       = (int)d.AttributeId,
+                    ["kind"]     = KindWord(d.Kind),
+                    ["unit"]     = d.Unit,
+                    ["readable"] = Fdp.Toolkit.Replication.Attributes.AttributeReaders.HasReader(d.AttributeId),
+                    ["wildcard"] = IsWildcard(d),
+                });
             return new JsonObject
             {
                 ["registeredPaths"] = paths,
                 ["schema"]          = JsonNode.Parse(_attributeCompiler.ExportSchema()),
+                ["attributes"]      = attributes,
             };
         }
 

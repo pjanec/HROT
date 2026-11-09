@@ -20,6 +20,21 @@ internal sealed class PickerState
     /// <summary>All entries from the source (cached after first query).</summary>
     public PickerEntry[] AllEntries = [];
 
+    /// <summary>⭐ CE-4359 — moves whenever <see cref="Filtered"/> was rebuilt (a layout caches what it derived from it).</summary>
+    public int FilteredVersion;
+    /// <summary>⭐ CE-4359 — the request's root-folder order, entry-order flag and hide tick (see <see cref="PickerRequest"/>).</summary>
+    public IReadOnlyList<string>? FolderOrder;
+    public bool KeepEntryOrder;
+    public PickerHideToggle? HideToggle;
+    public bool ShowHidden;
+    /// <summary>The tick's text with the count of hidden entries (built once at open: 0 B per frame).</summary>
+    public string HideToggleText = "";
+    /// <summary>The checkbox's ImGui label (text + id suffix), built once at open.</summary>
+    public string HideToggleLabel = "";
+    /// <summary>The Tree layout's built model for <see cref="FilteredVersion"/> (an object: the builder is internal).</summary>
+    public object? TreeCache;
+    public int TreeCacheVersion = -1;
+
     /// <summary>Filtered and ranked entries for the current query.</summary>
     public List<RankedEntry> Filtered = [];
 
@@ -173,6 +188,8 @@ internal sealed class PickerState
     /// </summary>
     public List<int> RecentFilteredIndices()
     {
+        // ⭐ CE-4359 (HOT PATH) — the Tree layout asks every frame: rebuilt only when Filtered was (a new list + a sort closure per frame otherwise)
+        if (_recentCache is not null && _recentCacheVersion == FilteredVersion) return _recentCache;
         var recent = new List<int>();
         for (int i = 0; i < Filtered.Count; i++)
             if (Filtered[i].IsRecent) recent.Add(i);
@@ -181,8 +198,10 @@ internal sealed class PickerState
             int c = Filtered[a].RecentRank.CompareTo(Filtered[b].RecentRank);
             return c != 0 ? c : a.CompareTo(b);
         });
+        _recentCache = recent; _recentCacheVersion = FilteredVersion;
         return recent;
     }
+    private List<int>? _recentCache; private int _recentCacheVersion = -1;
 
     public void Refilter()
     {
@@ -191,8 +210,12 @@ internal sealed class PickerState
 
         var q = SearchText;
 
+        FilteredVersion++;
+        int order = -1;
         foreach (var entry in AllEntries)
         {
+            order++;
+            if (HideToggle is { } ht && !ShowHidden && ht.Hides(entry)) continue;
             // Architecturally critical: Project the full path to support VS-style deep hierarchy fuzzy matching
             string fullPath = string.IsNullOrEmpty(entry.Category)
                 ? entry.Name
@@ -217,7 +240,7 @@ internal sealed class PickerState
             int recentRank = Recent.RankOf(RecentContextOf(entry), entry.Id);
             bool isRec = recentRank >= 0;
 
-            Filtered.Add(new RankedEntry(entry, result.Score, adjustedPositions, isFav, isRec, recentRank));
+            Filtered.Add(new RankedEntry(entry, result.Score, adjustedPositions, isFav, isRec, recentRank) { Order = order });
         }
 
         // Sort: favorites first, then recents (the last picked first), then by score desc, then name asc.
@@ -228,6 +251,7 @@ internal sealed class PickerState
             if (a.IsRecent && a.RecentRank != b.RecentRank) return a.RecentRank.CompareTo(b.RecentRank);
             int scoreCmp = b.Score.CompareTo(a.Score);
             if (scoreCmp != 0) return scoreCmp;
+            if (KeepEntryOrder) return a.Order.CompareTo(b.Order);
             return string.Compare(a.Entry.Name, b.Entry.Name, StringComparison.OrdinalIgnoreCase);
         });
 
@@ -254,6 +278,7 @@ internal sealed class PickerState
         SelectedCategory        = "";
         SelectedChip            = "";
         Groups                  = null;
+        FolderOrder = null; KeepEntryOrder = false; HideToggle = null; ShowHidden = false; HideToggleText = ""; TreeCache = null; TreeCacheVersion = -1;
         TileWidthChanged        = false;
         VisibleFiltered         = [];
         GridColumns             = 1;
@@ -278,4 +303,8 @@ internal sealed record RankedEntry(
     IReadOnlyList<int> MatchPositions,
     bool IsFavorite,
     bool IsRecent,
-    int RecentRank = -1);
+    int RecentRank = -1)
+{
+    /// <summary>The entry's index in the request's list (⭐ CE-4359 — the order a request that keeps its order sorts by).</summary>
+    public int Order { get; init; }
+}

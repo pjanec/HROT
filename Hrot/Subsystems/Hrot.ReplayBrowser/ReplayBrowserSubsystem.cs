@@ -121,7 +121,10 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private ReplaySearchPanel? _searchPanel;
     private ReplicaViews? _replicaViews;                       // ⭐ G-7 S5 — the merged view's lens (By node, the Replica differs lane)
     private ByNodeSection? _byNodeSection;
-    private Hrot.Editor.AiShared.Review.ReplicaDifferLane? _replicaLane;
+    private Hrot.Editor.AiShared.Review.ReplicaWatchLane? _replicaLane;
+    private Hrot.Editor.AiShared.Review.ReplicaWatchKit? _watchKit;   // ⭐ §6.13 — the eye + the lane's settings popup
+        /// <summary>⭐ §6.13 — this session's replica watch (per unit items, the lane's threshold); session state, not saved.</summary>
+        internal Fdp.Toolkit.ReplayBrowser.Federation.ReplicaWatchList ReplicaWatch { get; } = new();
     private ScenarioSerializer _scenarioSerializer = null!;
     private BehaviorRegistry _behaviorRegistry = new();
     // Required by PredicateCompiler for BlueprintVariablePredicateDto; without it, blueprint
@@ -1008,11 +1011,12 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         if (ReviewTracks == null)
         {
             if (_replicaViews != null)   // wired with the delegates; a rail that registers the windows alone has no lens (and no lane)
-                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaDifferLane(_replicaViews, () => _viewMode == ViewMode.Merged ? _manager : null,
+                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, () => _viewMode == ViewMode.Merged ? _manager : null,
                     () => { int n = Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_activeRepo, _inspectorState?.SelectedEntity); return n > 0 ? n : null; },
                     n => null);
+            if (_replicaLane != null) _watchKit = new Hrot.Editor.AiShared.Review.ReplicaWatchKit(_replicaLane, () => _activeRepo, () => _byNodeSection);
             ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _timelineSource, searchPanel, stops: null,
-                transport: () => timelinePanel, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane);
+                transport: () => timelinePanel, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane) { Settings = _watchKit?.Settings };
             _eventTimeline.AddTracks(ReviewTracks.Tracks);
         }
 
@@ -1075,7 +1079,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                     OpenRule:    OpenRuleInRulesView,   // ⭐ CE-4216 RV-7
                     EventFocus:  _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
                     SelectNetworkEntity: n => SelectNetworkEntity(n),
-                    Rules:       () => _rulesWindow)),   // ⭐ U-18 / RX2 — read-only on a recording (the window's blocked reason)
+                    Rules:       () => _rulesWindow,   // ⭐ U-18 / RX2 — read-only on a recording (the window's blocked reason)
+                    RowTrailer:  () => _watchKit?.Eye)),   // ⭐ §6.13 — the replica watch's eye (the merged view only)
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
@@ -1161,6 +1166,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         _byNodeSection = new ByNodeSection(_replicaViews, () => _viewMode == ViewMode.Merged ? _manager : null,
             e => _activeRepo is { } r && r.IsAlive(e) && r.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? r.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
             n => _federationPanel?.NameOf(n) ?? "Node " + n);
+        _byNodeSection.Watch = ReplicaWatch;   // ⭐ RW-6 — the header eye and the attribute view share the session's watch
         _inspectorPanel!.Reflector.ComponentFooter = _byNodeSection.Draw;
         _inspectorPanel.EntityNote = e => _viewMode == ViewMode.Merged && _merger != null && _merger.Target.TryGetLocalNode(e, out int ln) ? "local to " + (_federationPanel?.NameOf(ln) ?? "Node " + ln) : null;
         // ⭐ CE-4206 R2 — the search area is edited through the ONE pick context (DESIGN_Map_Picking_Unification P4): a broker over a canvas adapter

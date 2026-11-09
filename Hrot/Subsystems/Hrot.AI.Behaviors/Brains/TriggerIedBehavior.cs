@@ -62,8 +62,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.TriggerIed, Params = typeof(TriggerIedParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
-        [BTreeDefinition(BehaviorNames.TriggerIed, Curated = true, Group = "Library/Orders", ParamsType = typeof(TriggerIedBlackboard))]
+        [Behavior(BehaviorNames.TriggerIed, Params = typeof(TriggerIedParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian, Description = "Triggers an improvised explosive device.")]
+        [BTreeDefinition(BehaviorNames.TriggerIed, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(TriggerIedBlackboard))]
         public static BTreeBuilder<TriggerIedBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<TriggerIedBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Params, bb => bb.State, Watch);

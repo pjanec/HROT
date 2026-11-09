@@ -77,7 +77,7 @@ public sealed class ReviewSource : IDisposable
     /// <param name="inReplay">The cluster is in AAR (false ⇒ an open group closes).</param>
     /// <param name="selection">The selected entity's network id (kept across a refill) — or null.</param>
     /// <param name="select">Selects an entity by network id.</param>
-    /// <param name="nodeName">A participant's name for the status bar; default <c>Node N</c> (the sidecar carries no role).</param>
+    /// <param name="nodeName">A participant's name for the status bar; default <c>NodeIdRanges.NameOf</c> — the kind from the id's range (the sidecar carries no role).</param>
     /// <param name="facade">The toolbar's time control, read: a part plays while it plays.</param>
     public ReviewSource(Func<EntityRepository?> world, Func<TransientMasterBuilder?> builder, Action clearWorld, Func<string> stagingRoot, int thisNode,
                         Func<bool> ready, Func<bool> inReplay, Func<int?>? selection = null, Func<int, bool>? select = null, Func<int, string>? nodeName = null,
@@ -92,7 +92,7 @@ public sealed class ReviewSource : IDisposable
         _inReplay = inReplay ?? throw new ArgumentNullException(nameof(inReplay));
         _selection = selection ?? (() => null);
         _select = select ?? (_ => false);
-        _nodeName = nodeName ?? (n => "Node " + n);
+        _nodeName = nodeName ?? Hrot.Orchestrator.NodeIdRanges.NameOf;   // ⭐ the role from the id's range (R-4175), so a recording's rows read "CGF-1" with its role icon
         _facade = facade ?? (() => null);
         Transport = new ReviewSourceTransport(this);
     }
@@ -465,8 +465,62 @@ public sealed class ReviewSource : IDisposable
         return _statusCache = $"{MergedLead} · {n} participant{(n == 1 ? "" : "s")} ({names}) — step / scrub";
     }
 
-    /// <summary>The label of a participant in the Source switch.</summary>
-    public string NameOf(int node) => _nodeName(node);
+    private readonly Dictionary<int, string> _names = new();
+    private readonly Dictionary<int, string> _partLabels = new();
+    private string? _faceLabel;
+    private ReviewSourceKind _faceKind = ReviewSourceKind.None;
+    private int _faceNode = int.MinValue, _faceCount = -1;
+
+    /// <summary>The label of a participant in the Source switch. Cached per node (a name is stable for a group): the menu and the face draw it every frame, 0 B.</summary>
+    public string NameOf(int node)
+    {
+        if (!_names.TryGetValue(node, out var name)) _names[node] = name = _nodeName(node);
+        return name;
+    }
+
+    /// <summary>⭐ Mockup ③ — a participant's menu row: <c>"CGF-1's part"</c>. Cached.</summary>
+    public string PartLabel(int node)
+    {
+        if (!_partLabels.TryGetValue(node, out var label)) _partLabels[node] = label = NameOf(node) + "'s part";
+        return label;
+    }
+
+    /// <summary>⭐ Mockup ③ — the NodeEditor.Core.Widgets.Icons key of a participant's ROLE icon (colour and glyph belong to the key, R-4139): CGF → <c>node/cgf</c> (robot, blue) · SimHost → <c>node/simhost</c> (cube, amber) · IG / Map →
+    /// <c>node/ig</c> · Player → <c>node/player</c> · any other <c>node/other</c>. 📐 A recording's sidecar carries no role, so the role is read from the participant's NAME (what the host calls it).</summary>
+    public string RoleKeyOf(int node)
+    {
+        string n = NameOf(node);
+        if (n.StartsWith("CGF", StringComparison.OrdinalIgnoreCase)) return "node/cgf";
+        if (n.StartsWith("SimHost", StringComparison.OrdinalIgnoreCase)) return "node/simhost";
+        if (n.StartsWith("IG", StringComparison.OrdinalIgnoreCase) || n.StartsWith("Map", StringComparison.OrdinalIgnoreCase)) return "node/ig";
+        if (n.StartsWith("Player", StringComparison.OrdinalIgnoreCase)) return "node/player";
+        return "node/other";
+    }
+
+    /// <summary>⭐ Mockup ③ — what the Source FACE says (status-bar segment, toolbar combo): <c>"Merged · 4 participants"</c> or the part's <c>"CGF-1's part"</c>; null while no group is open. Cached.</summary>
+    public string? FaceLabel
+    {
+        get
+        {
+            if (_open is null) return null;
+            int count = _open.Parts.Count;
+            if (_faceLabel is null || _faceKind != Kind || _faceNode != _partNode || _faceCount != count)
+            {
+                _faceKind = Kind; _faceNode = _partNode; _faceCount = count;
+                _faceLabel = Kind == ReviewSourceKind.Part ? PartLabel(_partNode) : $"{MergedLead} · {count} participant{(count == 1 ? "" : "s")}";
+            }
+            return _faceLabel;
+        }
+    }
+
+    /// <summary>⭐ The Source menu's <i>Offsets…</i> line was clicked: the host opens the Federation window (the manual offset sliders). Nothing subscribed ⇒ nothing happens.</summary>
+    public event Action? OffsetsRequested;
+
+    /// <summary>Raises <see cref="OffsetsRequested"/>.</summary>
+    public void RequestOffsets() => OffsetsRequested?.Invoke();
+
+    /// <summary>The Icons key of the face's glyph: the merged sitemap (teal) or the open part's role.</summary>
+    public string FaceIconKey => Kind == ReviewSourceKind.Part ? RoleKeyOf(_partNode) : "review/merged";
 
     internal static RecordingMetadata? ReadSidecar(string fdpPath)
     {

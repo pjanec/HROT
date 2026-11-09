@@ -311,7 +311,7 @@ namespace Hrot.AI.Behaviors.Brains
         };
 [Behavior(BehaviorNames.SquadDefend, Params = typeof(global::Hrot.Map.Definitions.Behavior.SquadDefendParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
-        [BTreeDefinition(BehaviorNames.SquadDefend, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadDefendBlackboard))]
+        [BTreeDefinition(BehaviorNames.SquadDefend, Curated = true, Group = "Library/Combat", ParamsType = typeof(SquadDefendBlackboard))]
         public static BTreeBuilder<SquadDefendBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadDefendBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);

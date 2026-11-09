@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: ⛔ first pass: "Federation does not fit the editor" / "standalone only" — WITHDRAWN (§2.4) · ⛔ second pass: the "this station's part" source during a CLUSTER AAR, G2 (read-only), Q5 (DAR), Q6 (per-station switch in a cluster) — WITHDRAWN by the user (§2.4) · the first pass cited R-4010 for "each node replays its own recording" — wrong id; the rule is W5 in DESIGN_Replay_Time_Axis_And_Review
 known-conflict: none
 related-designs:
+  - DESIGN_Details_Forms.md — owns the forms and names the vocabulary's READ side (§2.4); §6.13a here builds it (AttributeReaders)
   - DESIGN_Replay_Browser_UX.md — OWNS the standalone Replay Browser's UX; its Q-B3 (default layout) and Q-B6 (Federation) are answered here (§5)
   - ../designs/replay-browser-frankenstein/DESIGN.md — OWNS Federation and the merged view (§7 the synthesis); §2.2 here measures what it keeps and loses
   - ../DESIGN_Replay_Time_Axis_And_Review.md — OWNS DAR / AAR in a cluster (a debrief, W5: each node replays its own recording) — NOT this perspective's case
@@ -572,6 +573,9 @@ no JSON.*
 | **M-3** | the sign | **decided by a rail, not here**: a cause on one node (a shot) precedes its effect on another (the hit) in the merged timeline | — |
 | **M-4** | "differs" (I5) | the **existing** `ComponentDiffService` ε — ONE implementation | a second tolerance |
 | **M-5** | the views lens UI (I5) | ⭐ **BUILT (S5, `2026-11-09`)** — see *AS-BUILT — S5*. **Details ▸ a component ▸ *By node***: the owner (crown) and each replica, amber where it differs; **one timeline lane *Replica differs · <unit>*** for the selected unit, click = seek (mockup ① ②) | a separate window |
+
+> 📐 **MEASURED `2026-11-09` (real 4-node recording, `--mode all`, `ua-technical-scoot`, 9 shared units, 174 sampled frames):** as first built the lens marked **100 %** of frames for every unit — a DEFECT: `SerializeEntity` always runs the header-native translators, so each copy carried per-node header keys and `NetworkIdentity` / `EntityGuid` "differed" with Δ 0. ✅ Fixed (`ReplicaViews.Json` subtracts the header-only keys; rail `BinaryMergerTests.ByNode_AHeaderTranslatorsPerNodeKeys_NeverMakeACopyDiffer`, red-proved). After the fix: **every state component 0 %** (SimTransform, SimVelocity, Health, weapons, navigation, …); only `TargetMemory` (80 %) and `MissionPlanQueue` (100 %) differ, both by construction (entity references stored as raw per-node `long`s the lens cannot map). ⚠ `--mode all` replicates in one process (near-instant): a multi-process cluster's replicas LAG (A2/A3), so continuous motion against ε 0.001 is expected to mark whenever a unit moves — not measured. ⏳ Lane scope open with the user (lean: discrete state only; motion only lag-aware, A3).
+
 | **M-6** | local entities (I7) | ⭐ **BUILT (S5, `2026-11-09`)** — see *AS-BUILT — S5*. From every node, tagged *"local to <node>"* in Details; **the Source menu's *Local entities shown from* checkboxes** (mockup ③), default: every node's on | one "provider" node (today) |
 | **M-7** | ▶ in Merged (I3) | ⭐ **BUILT (S4, `2026-11-09`)** — ▶ plays in Merged (every participant steps, each frame merges incrementally, 0 B steady, R-2084); ui's A-9 reason is removed (`MergedPlayReason`, `HostPlayDisabledReason`, the Replay Browser's gate) — see *AS-BUILT — S4* | — |
 | **M-8** | an entity whose owner changes (I2, I8) | the merged entity KEEPS its identity (network id); its components switch source at the handover frame | a new entity per owner |
@@ -773,6 +777,9 @@ target's own entities; correctness over speed.
 
 **Deviations / limits:** Δ is a distance, not a unit ("1.2" not "1.2 m"). The lane is an `ITimelineTrack` row (like Search hits), not an `IndexedLaneDefinition`. Event and lifecycle searches have no component to attribute: events keep every hit; lifecycle runs on the primary file only. A hit's frame is the primary node's frame at its wall stamp minus the node offsets. Other per-node-by-construction components may show amber (only `NetworkAuthority` is excluded). `TransientMasterBuilder` (the oracle) still takes only the provider's locals.
 
+**Source popup rebuilt to mockup ③** *(behaviors, `2026-11-09`, user: "rebuild the popup to match mockup")* — `ReviewSourceSurfaces.cs`: `ReviewSourceSwitch.Draw` (header *Source of the world* · *Merged — every part* · one *"<name>'s part"* row per participant with its role icon in an icon cell at one x · *Local entities shown from* + one checkbox per node · *Offsets…* line), `ReviewSourceFace` (the toolbar combo's frame: glyph · *Merged · N participants* · chevron), the status bar's teal glyph before its text, `ReviewFederationWindowHost` (the editor's Federation window). The prior state — plain Selectables over `FederationPanel.DrawContent()` — is SUPERSEDED. ⛔ **The Single-Node / Merged radio is gone from the popup** (the rows are that choice): `FederationPanel.ShowModeRadio` / `ShowLocals` are off for the editor's window, which keeps only the offset sliders; the checkbox list is ONE component, `FederationPanel.DrawLocalEntities`, drawn by the Replay Browser's window and the editor's menu. Role icons are the `node/*` keys of `Icons` (CGF robot blue · SimHost cube amber · IG map teal · Player gamepad green · other server grey); `ReviewSource.PartLabel` / `FaceLabel` cache their strings (the open popup allocates 0 B, asserted). Rail: `TheReviewSourceTests.G7S5_TheSourceMenu_IsMockup3_…_Frame` (order, one icon x, pixels of the icon colours, no radio, Offsets… opens the window, 0 B).
+**Deviations from ③:** a participant's role is read from its NAME (a recording's sidecar carries none; the editor passes no names today, so rows read *Node N* with the grey server icon until a host supplies roles); the checkbox rows carry the node name only (what a node contributes is not known to the menu); the editor's Federation window is the Replay Browser's own `FederationWindow` class registered in the Review perspective (`editor_review_federation`), closed until *Offsets…*.
+
 ### 6.8 Appendix — M1: every recorded managed component and its scenario translator
 
 | component | kind | data policy | translator | file |
@@ -857,6 +864,204 @@ target's own entities; correctness over speed.
 ⚠ Both appendices come from a SOURCE parse (`scripts/probe-recorded-components.py`), not reflection: "recorded" = no `NoReplay` / `Transient`
 policy; a component registered without `[ComponentId]`, or an `Entity` nested deeper than one struct, is missed — re-run the probe (and confirm by
 reflection) before building.
+
+### 6.13 ⭐ The replica WATCH — the "Replica differs" lane rebuilt *(behaviors, `2026-11-09`, `build-state: BUILT — see AS-BUILT — the watch` )*
+
+> 🔒 **User, `2026-11-09`:** *"could we show the diff lane for user-picked set of components only? … I am still wondering what information does this lane bring to the user"* · *"let's do visual design first, how the component picking and persistence threshold look and how it integrates into the ui"*
+
+⭐ Mockup: [`replica-watch-visual.svg`](replica-watch-visual.svg) (`scripts/gen-replica-watch-mockup.py`).
+
+![replica watch](replica-watch-visual.svg)
+
+**Why it changes** (measured, §6.12 S5 note): replicas always catch up a few frames after every change (replication + the clock offset, A2), so an always-on lane over every component marks every change — a delayed change log, not information. ⭐ What the lane is FOR: **a node that believed something different for LONGER than replication explains** (a lost health update, a stuck weapon state, a handover two nodes disagree on, a drifted dead-reckoning) — the moments a node acted on wrong information.
+
+| | decision (lean) | instead of |
+|---|---|---|
+| **RW-1** what is watched | ⭐ **the user picks ATTRIBUTES** (user, `2026-11-09`): an eye on an attribute row in Details (merged view, networked unit) — read through the vocabulary's reader (§6.13a); the lane's gear lists the watch, ✕ removes, *Watch another…* adds a vocabulary attribute or (expert) a component field by path | every recorded component (as S5 built it) · whole components |
+| **RW-2** what marks | ⭐ **persistent disagreement only**: a span while some node differs from the owner beyond the component's tolerance for longer than the threshold; hover = who believed what, click = seek | a tick on every differing frame |
+| **RW-3** threshold | ⭐ one per lane, **200 ms default** (≈ 2 × the time-sync tolerance) | per component |
+| **RW-4** tolerance | ⭐ per watched attribute (in its unit): **exact** for discrete values; a size in its unit for a continuous one (Position 0.5 m default, heading in degrees) | the one ε 0.001 for everything |
+| **RW-5** scope | ⭐ per selected unit, its own watch list, **empty by default ⇒ no lane** | always on |
+| **RW-6** By node | unchanged: the instant view (amber = differs now beyond ε), the eye added to its header | — |
+
+⏳ Open for the user: the threshold's default (200 ms) and whether a watch list should follow the COMPONENT across units (watch Health on every unit) instead of per unit.
+
+### 6.13a ⭐ The attribute READER — the vocabulary's read side, built first *(behaviors, `2026-11-09`, `build-state: DESIGN`)*
+
+> 🔒 **User, `2026-11-09`:** *"are we picking whole components or concrete attributes? entity attributes would make sense (the diff tolerance is set per single value) … we for sure have the opposite - how to write an attribute into a set of components"* · *"design the reader first, the more unification and sharing, the better"*
+
+**Design basis.** `DESIGN_Details_Forms.md` §2.4 already says *"a row reads only the world (components, **the attribute vocabulary's READ side**)"*, and its class diagram gives `FormRow.Read(world, entity) → value`. ⛔ As built, that read side does not exist: the vocabulary (`AttributeVocabulary.All`, Q59 — *"the ONE declaration of what an entity attribute IS"*) has a JSON setter and a binary handler per attribute and **no reader**; reading lives in **27 per-field delegates** in `HrotForms.cs`. ⇒ this section builds the planned read side, and the forms and the replica watch both read through it.
+
+**INVENTORY** (queries run `2026-11-09`: `grep AttributeVocabulary.All` · `grep ReadNumber|ReadText` · `scripts/cbm.sh search_code "bindable"` · `grep "static class FormAttributes"` · `grep FindKey|At(`):
+
+| what | where | count |
+|---|---|---|
+| the vocabulary (path, id, kind, component) | `Fdp.Toolkits/Replication/Attributes/AttributeVocabulary.cs` | 46 rows (incl. wildcards `Ammo.*`, `Damage.Part.*` with a sub-index) |
+| JSON setters | `AttributeCompilerFactory.Build` (helpers `FormAttributes.Set*`) | one per row |
+| binary handlers | `*AttributeInstaller` (`SimTransform…`, `ScenarioClock…`, `CivilianFright…`, `EntityData…`, `SimTransformHeading…`) | one per row |
+| the rail that keeps the tables in step | `Hrot.SimHost.Tests/TheFourRoutingTablesAgreeTests.cs` | — |
+| **readers** | ⛔ none in the vocabulary · `FormField.ReadNumber` / `ReadText` per form field (`FormDecl.cs:24-26`, `HrotForms.cs`) | 27 |
+| JSON path walkers over a component's JSON | `ParamBind.FindKey` + `SetPath` (`ParamBinding.cs:222, :272`) · `ScenarioVariants.FindKey` (`:246`) · `ScenarioVerification.At` (`Hrot.Editor/Director`, `:290`) | ⭐ 1 walker — `ComponentJsonPath.Get/Set/FindKey` (R-3); ⛔ the old `ParamBind.FindKey`, `ScenarioVariants.FindKey`, `MacroValidator.FindKey` and `ScenarioVerification.At`'s own walk are deleted *(superseded: the 3 copies listed here)*; one more copy remains in `OccurrenceSlotWriter.FindKey` (`Hrot.Editor.AiShared`) |
+
+```mermaid
+classDiagram
+  class AttributeVocabulary {
+    <<existing · Q59>>
+    All : AttributeDefinition[46]
+  }
+  class AttributeDefinition {
+    <<existing>>
+    JsonPath · AttributeId · Kind · Component · BrainLocal
+  }
+  class AttributeReaders {
+    <<NEW · beside the setters>>
+    TryRead(repo, entity, id, subIndex, out AttributeValue) bool
+    Of(jsonPath) AttributeId
+  }
+  class AttributeCompilerFactory { <<existing>> JSON setters }
+  class BinaryInstallers { <<existing>> binary handlers }
+  class AttributeValue {
+    <<existing · + Text>>
+    Kind · Int · Long · Float · Double · Bool · String
+    Text : FixedString64 NEW
+  }
+  class FormField {
+    <<existing>>
+    Attribute · SubIndex
+    ReadNumber / ReadText : default = AttributeReaders
+  }
+  class ReplicaWatch {
+    <<NEW · §6.13>>
+    reads each node's copy through AttributeReaders
+  }
+  class ComponentJsonPath {
+    <<NEW · one walker>>
+    Get(json, path) · Set(json, path, value)
+  }
+  class FourRoutingTablesRail { <<existing rail · + reader table + round-trip>> }
+  AttributeVocabulary "1" *-- "46" AttributeDefinition
+  AttributeReaders ..> AttributeVocabulary : one reader per row
+  AttributeCompilerFactory ..> AttributeVocabulary
+  BinaryInstallers ..> AttributeVocabulary
+  AttributeReaders ..> AttributeValue
+  FormField ..> AttributeReaders : reads
+  ReplicaWatch ..> AttributeReaders : reads
+  ReplicaWatch ..> ComponentJsonPath : expert path entry
+  FourRoutingTablesRail ..> AttributeReaders : every row has one · set then read agrees
+```
+
+*What the picture shows that prose hid:* the vocabulary becomes the ONE place both directions hang from — write (JSON + binary) and read — and the two consumers (forms, watch) cannot read an attribute differently. The three JSON path walkers collapse into `ComponentJsonPath` (the param binder's write, verify's read, the variants' lookup, and the watch's expert entry).
+
+```mermaid
+sequenceDiagram
+  participant F as FormView (each frame, Details open)
+  participant W as ReplicaWatch (background scan)
+  participant R as AttributeReaders
+  participant E as a node's world (live or a sandbox)
+  F->>R: TryRead(world, unit, Health.Current, 0)
+  R->>E: GetComponentRO<Health>(unit).Current
+  R-->>F: AttributeValue{Double 0} — 0 B
+  W->>R: TryRead(sandbox of node N, unit, Health.Current, 0)
+  R-->>W: the value node N believed
+  W->>W: differs from the owner's beyond the tolerance for longer than the threshold → a span
+```
+
+```mermaid
+graph TD
+  V[AttributeVocabulary · Fdp.Toolkits] --> RD[AttributeReaders · Fdp.Toolkits]
+  V --> ST[JSON setters + binary handlers]
+  RD -->|every frame while Details is open| FV[FormView · Fdp.Presentation]
+  RD -->|background, per watched attribute| RW[ReplicaWatch · Fdp.Toolkits ReplayBrowser]
+  CP[ComponentJsonPath · Fdp.Toolkits Scenario] --> PB[ParamBinding write]
+  CP --> SV[ScenarioVerification read · Hrot.Editor]
+  CP --> SVR[ScenarioVariants]
+  CP --> RW
+```
+
+*The module picture's point:* the reader lives in `Fdp.Toolkits` beside the vocabulary, so the editor, the Replay Browser and CGF read it without depending on a presentation assembly; `FormView` calls it every frame, so it is on the hot path (R-2084).
+
+| | decision (lean) | instead of |
+|---|---|---|
+| **AR-1** | ⭐ the reader is a TABLE beside the setters (`AttributeReaders`, one entry per vocabulary row, keyed by `AttributeId`, sub-index for the wildcards), not a field on `AttributeDefinition` — same reason Q59 kept the setters apart: per-attribute logic, a delegate per row | a `Read` property on the record (the record would need `Hrot.*` component delegates in a pure-metadata list) |
+| **AR-2** | ⭐ returns the existing `AttributeValue` (+ a `FixedString64 Text` for text attributes, so a form reading a Name each frame allocates nothing) | a new value type · `string` (allocates per frame) |
+| **AR-3** | ⭐ `TheFourRoutingTablesAgreeTests` gains the fifth table: every row has a reader, AND **set then read agrees** for each attribute (the setter and the reader cannot drift) | a separate reader rail |
+| **AR-4** | ⭐ `FormField.ReadNumber` / `ReadText` default to the reader when `Attribute` is set; the 27 delegates go, except the DERIVED rows the vocabulary cannot read (kept, named) | keeping both (two readings of one attribute) |
+| **AR-5** | ⭐ one `ComponentJsonPath.Get/Set` in `Fdp.Toolkits/Scenario` replaces the three walkers (case-insensitive keys, a number part indexes an array on read; the param binder's "no index on write" rule stays its own check) | leaving three copies |
+| **AR-6** | ⭐ the watch's expert entry for a value outside the vocabulary (capabilities, embarkation) reads by `ComponentJsonPath` over the component JSON the lens already makes | growing the vocabulary for read-only values |
+
+| **AR-7** *(user, `2026-11-09`)* | ⭐ the UNIT moves onto the vocabulary attribute (`AttributeDefinition.Unit`, e.g. `Health.Current` → none, `Position.X` → `m`, `SpawnArea.FacingDeg` → `°`); the forms' `FormField.Unit` defaults to it, the schema and the watch's tolerance show it | the unit only in the forms (it belongs to the attribute) |
+| **AR-8** *(user, `2026-11-09`: "HTTP debug api … schema for attributes? and read/write paths? will be useful")* | ⭐ the HTTP read side, through the SAME reader: `GET /entities/{networkId}/attributes[?path=…]` (every vocabulary attribute the entity has; a wildcard returns per sub-index) · `GET /entities/{networkId}/field?path=Component.field.0` (the raw read, through `ComponentJsonPath` — the twin of the existing `POST …/component`) · `GET /attributes/schema` gains `readable` and `unit` per path. Existing: `GET /entities/{id}` (dump), `GET /attributes/schema`, `POST …/attribute` (write, owner-routed), `POST …/component` (raw write). Works on the Replay Browser's API too (it reads its sandbox) | clients walking the full dump |
+
+**Stages:** R-1 `AttributeReaders` + `AttributeValue.Text` + the rail + the units + the read routes (AR-1…3, AR-7, AR-8) · R-2 the forms read through it (AR-4; the forms' frame rails must stay green, 0 B) · R-3 `ComponentJsonPath` (AR-5) · then the watch (§6.13, attributes not components).
+
+#### ⭐ AS-BUILT — R-1 *(behaviors, `2026-11-09`, `build-state: R-1 BUILT · R-2 BUILT · R-3 DESIGN`)*
+
+AR-1, AR-2, AR-3, AR-7, AR-8 are built as drawn; the class / sequence / module diagrams above stand (`AttributeReaders`, `AttributeValue.Text`, the rail's fifth table, the read routes). Where the build says something the design did not, or differs:
+
+| what | as built | file |
+|---|---|---|
+| the reader | one `Reader` delegate per vocabulary row in a dictionary keyed by `AttributeId`; `TryRead(repo, e, id, sub, out v)`, `TryRead(repo, e, jsonPath, out v)` (a wildcard path as `Ammo.2`), `TryResolve(path)`, `SubIndicesOf(repo, e, id, list)` (the mounts present, the parts of the body, the axes), `DefinitionOf(id)` | `FDP/Toolkits/Fdp.Toolkits/Replication/Attributes/AttributeReaders.cs` |
+| semantics | the forms' readers where a form reads the attribute (the EFFECTIVE `Proficiency` / `Temperament`, `Weapon.AimTarget` as the target's NETWORK id, `Stance` = the INTENT, `Damage.Part` = the part's level); else the field the setter writes. A side (`Affiliation`, `Playable.Side`, `SpawnArea.Side`) reads back as the token the setter takes (`FORCE_FRIENDLY` / `FORCE_OPPOSING` / `FORCE_NEUTRAL`) — ⚠ the forms read a side as an INDEX (0 Blue · 1 Red · 2 Neutral): R-2 maps token → index in the form, it does not add a second reading | same |
+| `AttributeValue.Text` | `FixedString64`, `FromText`; `Rule.Params` also fills `StringValue` (the managed string, no copy) and `Text` with its first 40 chars | `Replication/Patching/EntityAttributeChange.cs` |
+| `Unit` | `AttributeDefinition.Unit` (positional, after `BrainLocal`), filled for 28 rows; the 18 rows with `null` are named in the rail (`EveryRowDeclaresItsUnitOrIsOnTheListOfUnitless`). Humidity is `0-1` (the form says `(0-1)`; R-2 reads it from the attribute) | `AttributeVocabulary.cs` |
+| `false` means | no such component, a dead entity, a sub-index the attribute does not have — ⚠ **deviation from the forms for `Damage.Part.*`**: a unit with a body but no `PartDamage` yet reads `0` for the parts its body has (the forms show 0 for it); `Damage.MobilityKill` is readable only on a unit whose body has a Mobility zone | same |
+| not per-frame | the mounts 1–3 of `Ammo.*` (`FormAttributes.TryFindMount` walks a query) and `SubIndicesOf` on a body — both user-action paths; every other read is 0 B (railed) | same |
+| rail (AR-3) | `TheFourRoutingTablesAgreeTests`: (a) every row has a reader and the rail's table names every row · (b) the row's JSON through the JSON compiler onto a fresh entity, read back through the reader · (c) 0 B per row (`GC.GetAllocatedBytesForCurrentThread`, 1000 reads, per row incl. the text rows) · units. ⚠ three setters consume-and-ignore on a creation request (`Weapon.AimTarget`, `Damage.MobilityKill`, the mounts 1–3 of `Ammo.*`) — the table says what each reads back instead | `Hrot/Subsystems/Hrot.SimHost.Tests/TheFourRoutingTablesAgreeTests.cs` |
+| HTTP (AR-8) | `GET /entities/{id}/attributes[?path=…]` (repeats comma-joined by the listener; `notPresent` lists what the entity lacks; 404 / 400) · `GET /entities/{id}/field?path=Component.field.0` (the dump's JSON through `ComponentJsonPath.Get`; ⚠ a point dumps as an ARRAY — `SimTransform.Position.0` is x) · `GET /attributes/schema` gains `attributes:[{path,id,kind,unit,readable,wildcard}]`. MCP: `get_entity_attributes`, `get_entity_field` (catalog + SKILL regenerated; served by the generic catalog rule). ✅ **The Replay Browser needs nothing extra** — it fills the provider of the SHARED `DebugApiHost`/`DebugApiService` (`ReplayBrowserSubsystem.DebugSurface.cs`), so the routes read its sandbox world through the same code | `Hrot.Editor/DebugApi/DebugApiService.Attributes.cs` · `DebugApiHost.cs` · `DebugApiRouteDocs.cs` · rails `Hrot.Editor.Tests/DebugApi/TheReadRoutesReadThroughTheVocabularyTests.cs` |
+| `ComponentJsonPath` | only `Get` so far (AR-5 first use); the three old walkers are untouched — R-3 replaces them and adds `Set` | `FDP/Toolkits/Fdp.Toolkits/Scenario/ComponentJsonPath.cs` |
+
+#### ⭐ AS-BUILT — R-2 *(behaviors, `2026-11-09`, `build-state: R-1 R-2 R-3 BUILT`)*
+
+AR-4 and AR-7 are built: a `FormField` with an `Attribute` and no explicit delegate reads through `AttributeReaders`; `FormField.Unit` defaults to the attribute's. The Details forms now read the vocabulary's READ side (`DESIGN_Details_Forms.md` §2.4 as drawn).
+
+| what | as built | file |
+|---|---|---|
+| the ONE default | `FormField.TryReadNumber` / `TryReadText` (explicit `ReadNumber` / `ReadText` wins, else the reader, id resolved once, `SubIndex` as the sub-index); `FormView.Refresh` and `RefreshType` call them; a `false` read = the row is not drawn for that entity (so a field with only an `Attribute` needs no `Has`). 0 B (railed) | `FDP/Engine/Fdp.Presentation/ImGui/Forms/FormDecl.cs`, `FormView.cs:238-243` |
+| a Choice over a text attribute | the reader's side token (`FORCE_*`) becomes the choice index through the field's own `ChoiceValue` (tokens built once) — ONE mapping, in `FormField.ChoiceIndexOf`; the three side fields share `HrotForms.SideChoiceValue` (writes the token) | `FormDecl.cs`, `HrotForms.cs` |
+| `Unit` | an explicit `Unit` wins; else a plain number (not a slider) takes `AttributeDefinition.Unit`. ⚠ visible change: the Damage rows now carry the vocabulary's `0-255`; Humidity shows `0-1` (was `(0-1)`) | `FormDecl.cs` |
+| removed | 25 read-delegate declaration sites (counting the shared `DamagePart` / `Character` / `WeatherNumber` helpers once; plus the `Has` that equalled the reader's presence): Name, Affiliation, Stance, Weapon.Posture, Weapon.HeldItem, Health.Current, Playable.SlotName, Playable.Side, 8 Damage.Part rows via `DamagePart`, Damage.MobilityKill (the `MobilityKilled` / `PartLevel` helpers go), SpawnArea.Side / FacingDeg, Proficiency + 4 Temperament (`Character` / `Trait` lose `read`, `Has`, `effective`), 10 weather rows (`WeatherNumber` loses `unit`, `read`, `Has`), ScenarioUtcOffsetMinutes | `HrotForms.cs` |
+| kept, each `// derived:` | Aimed at (a NAME, the attribute reads a network id) · Strength's `MaxOf` · Playable toggle (component presence) · Carried as (carry mode) · `TypeValue` of the Character rows (the type's value) · Position, Kind, DIS type, Shown as, Entity id, TKB template, Start, Terrain (no attribute). The damage rows keep their `Has` (the form's OFFER rule: the part is in the body — the reader answers for any valid part id once `PartDamage` exists) | `HrotForms.cs` |
+| deviation | Playable.Side / SpawnArea.Side wrote an int `ForceId` (the setter's ordinal path maps `ForceIdentifier`, not `ForceId`); they now write the token, as Affiliation always did — the reader and the form agree by construction | `HrotForms.cs` |
+| rail | `FormViewTests.R2_AFieldDeclaredWithOnlyAnAttribute_ShowsTheReadersValue_AndTheVocabulariesUnit` (red-proved: reader unwired); the Name / Strength fields of `FormViewTests.Form` declare only an `Attribute`, so `D1_ASteadyFrame_…_AllocatesNothing` and `TheUnitFormDrawsTests` (0 B Unit form) pin 0 B per frame through the default | `FDP/Engine/Fdp.Presentation.Tests/ImGui/Forms/FormViewTests.cs` |
+
+#### ⭐ AS-BUILT — R-3 *(behaviors, `2026-11-09`, `build-state: R-1 R-2 R-3 BUILT`)*
+
+AR-5 is built: one walker. `ComponentJsonPath` (`FDP/Toolkits/Fdp.Toolkits/Scenario/ComponentJsonPath.cs`) now has `Get`, `FindKey` and `Set`.
+
+| what | as built | file |
+|---|---|---|
+| `Set(JsonObject, path, value, out failedPart)` | keys ignore case, the last key is created, a step through a JSON string holding an object is walked and written back (`"Behavior.Params.Speed"`); returns `SetOutcome` `Changed / Unchanged / MissingStep / NotAnObject` + the failing part index (an enum, not exceptions, so each caller keeps its own message) | `ComponentJsonPath.cs` |
+| `ParamBinder.SetPath` | keeps its SR-161 "no index" and "`<Component>.<field>`" refusals, then calls `Set` and maps the outcome to its existing messages | `ParamBinding.cs:276` |
+| deleted copies | `ParamBind.FindKey`, `ParamBinder.Set`/`TryParseObject`, `ScenarioVariants.FindKey`, `MacroValidator.FindKey` (a fourth copy the design did not list) — all call `ComponentJsonPath.FindKey` | `ParamBinding.cs`, `ScenarioVariants.cs`, `Macros/MacroValidator.cs` |
+| `ScenarioVerification.At` | one-line delegate to `Get` (kept as the checks' public name). ⚠ visible change: keys now match ignoring case, and an empty path returns the node itself | `Hrot.Editor/Director/ScenarioVerification.cs:290` |
+| not done | `OccurrenceSlotWriter.FindKey` (`Hrot.Editor.AiShared/Variables`, `:126`) is a fifth copy in another assembly; `ParamBind.SetNested` (the node `Bind` path walker) still builds missing objects itself — a different rule (creates intermediates) | |
+| rail | `ParamBinderTests.ComponentJsonPathSet_KeepsTheBindersWalkRules` (red-proved: `FindKey` made case-sensitive) |  |
+
+#### ⭐ AS-BUILT — the watch *(behaviors, `2026-11-09`, `build-state: RW-1…RW-6 BUILT`)*
+
+RW-1 (eye, attribute or expert path), RW-2 (spans), RW-3 (one threshold, 200 ms), RW-4 (tolerance per item), RW-5 (per unit, empty ⇒ no lane), RW-6 (By node: the eye + the per-node attribute view) are built for BOTH hosts (the editor's Review, the Replay Browser's merged view) through the same classes. ⛔ SUPERSEDED: the always-on per-frame ticks (`ScanDifferingFrames`, `AnyReplicaDiffers`, the lane `ReplicaDifferLane`) are deleted — one lane, `ReplicaWatchLane`.
+
+| what | as built | file |
+|---|---|---|
+| model | `ReplicaWatchList` (per unit items + ONE threshold, `Version`; session state, never saved) · `ReplicaWatchItem` (path, sub-index, expert, tolerance, colour; default tolerance from the vocabulary: discrete exact, `m` 0.5, `°` 1, else ε) · `ReplicaSpan`. Lives in `Fdp.Toolkits` beside the lens (the scan needs `ReplicaViews`' private ownership/JSON helpers; the lane's two hosts both reference it) | `FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Federation/ReplicaWatch.cs` |
+| scan | `ReplicaViews.ScanWatchSpans(paths, offsets, primary, unit, items, thresholdSeconds, ct)` — own manager + node offsets (as the old scan); per item the owner of the attribute's component (`OwnershipSource`), each other node's value through `AttributeReaders` (expert item: `ComponentJsonPath.Get` over the component's JSON), beyond the tolerance ⇒ a run; a run ends at the first agreeing frame (a one-frame blip lasts one frame interval) and is kept only if `> threshold`. A replica lacking the value is not a disagreement | `ReplicaViews.cs` (`ScanWatchSpans`) |
+| lane | `ReplicaWatchLane` (background scan, restarts on selection / group / offsets / watch `Version`; 0 B steady `Update`) · `ReviewTimelineTracks` draws one `Segment` per span in the item's colour, header eye glyph, tooltip text per the design, click seeks to the span's start | `AiShared/Review/ReplicaWatchLane.cs`, `ReviewTimelineTracks.cs` |
+| eye | `IFormRowTrailer` on `FormView` (ONE generic hook; a 4th grid column only while the host offers it — `FormGrid.Begin(…, trailerSlot)`); `ReplicaWatchEye` is the host's implementation (merged view, one networked unit, attribute rows only); reaches the forms through `EntityDetailsHostServices.RowTrailer` → `FormDetailsViewDescriptor.For(trailer)` | `Fdp.Presentation/ImGui/Forms/FormView.cs`, `NodeEditor.Core/Widgets/FormGrid.cs`, `AiShared/Review/ReplicaWatchEye.cs` |
+| settings | `ReplicaWatchSettings` popup (rows eye·icon·label·tolerance·✕, threshold with "(default)", the note, a picker over the unit's vocabulary attributes, an expert path field), opened by the lane's menu entry **Replica watch settings…** | `AiShared/Review/ReplicaWatchSettings.cs`, `ReplicaWatchKit.cs` |
+| gear | `TrackHeader` gained a generic `TrailingGlyph` + `TrailingClick` (drawn right after the text, a click runs it and does not select the row; `TrackLayout.PlanHeader.TrailX`); the replica row declares the gear and the click asks for the popup. The context-menu entry stays | `Fdp.Presentation/ImGui/Panels/Timeline/{ITimelineTrack,TrackLayout,TimelinePanel}.cs`, `ReviewTimelineTracks.cs` |
+| By node (RW-6) | `ByNodeSection.DrawAttribute(entity, item)` = `<label> — by node`: the same rows as the component view, values from `ReplicaViews.ComputeItem` (the scan's reads: `AttributeReaders` per node sandbox, expert items through `ComponentJsonPath`), amber beyond the item's tolerance, teal header eye stops the watch. The component By node header got an eye too: it watches / unwatches the component's non-indexed vocabulary attributes together. `IFormRowTrailer.Footer` draws the sections under the form tab that declares the attribute | `ByNodeSection.cs`, `ReplicaViews.cs` (`ComputeItem`), `ReplicaWatchEye.cs` |
+
+**Fidelity check** (rendered under xvfb with `HROT_RAIL_SHOTS`, compared with `replica-watch-visual.svg`; shots are never committed): ① `watch-details-eye.png`, `rw6-attribute-by-node.png` · ② `g7s5-replica-lane.png` (eye before the label, gear after it, an amber span) · ③ `watch-settings.png`. Default tolerances: a unit-less attribute and an expert field are exact; `m` 0.5; `°` 1; other units ε.
+
+**Remaining deviations from the mockup:**
+- ⚠ The tolerance field shows `0` where the mockup shows the hint "exact" (the shared `NumberInput` has no hint form).
+- ⚠ The popup's row icon is one glyph per KIND (crosshair attribute, `</>` expert) in the item's lane colour — the mockup's per-attribute glyphs (heart, pin…) are not mapped.
+- ⚠ The lane label is the timeline's grey, not the mockup's teal; the popup has no title bar.
+- ⚠ A span's end is the last DIFFERING frame; the scan's duration test uses the interval to the next frame.
+- ⚠ The Details tables' grid id is shared between with/without trailer — ImGui rebuilds the table when the column count changes (merged-view toggle).
+- ⚠ The component-level By node eye skips wildcard attributes (`Ammo.*`, `Damage.Part.*`): their sub-indices need the unit's world; watch them from their form rows.
+- ⚠ Items added from the picker or by path show their path as label (a form-row eye uses the row's label).
+- ⚠ Rails: the real-frame rails need a display; the first window creation of a test process occasionally fails with "Raylib window did not become ready" (seen on the pre-existing `V2_EachWindowOpenWithNoInput…` too) — rerun.
 
 ### 6.10 Why JSON was chosen back then — and what the binary idea must not lose *(read `2026-11-08`)*
 

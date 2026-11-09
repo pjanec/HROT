@@ -10,7 +10,7 @@ namespace NodeEditor.UI.Picker;
 public sealed class PickerPaneContext
 {
     /// <summary>Inner width of the pane in pixels.</summary>
-    public float Width { get; init; }
+    public float Width { get; set; }
 
     /// <summary>Editor theme.</summary>
     public required IEditorTheme Theme { get; init; }

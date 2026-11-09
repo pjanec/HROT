@@ -48,7 +48,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The cycle beside the target's designation, in one Parallel (RequireOne — the attack ends when the target is down,
         /// or when the cycle ends: nothing left to fight, or no hide).</summary>
         [Behavior(BehaviorNames.VehicleFightFromCover, Params = typeof(NoParams), Categories = BehaviorCategory.MilitaryApc)]   // it takes nothing (P1): the cycle at its defaults
-        [BTreeDefinition(BehaviorNames.VehicleFightFromCover, Curated = true, Group = "Library/Vehicle", ParamsType = typeof(VehicleFightFromCoverBlackboard))]
+        [BTreeDefinition(BehaviorNames.VehicleFightFromCover, Curated = true, Group = "Library/Combat", ParamsType = typeof(VehicleFightFromCoverBlackboard))]
         public static BTreeBuilder<VehicleFightFromCoverBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<VehicleFightFromCoverBlackboard, BTreeContext>()
                 .Parallel(1, both => both

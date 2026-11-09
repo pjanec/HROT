@@ -32,8 +32,8 @@ namespace Fdp.Toolkit.Perception.Systems
     ///     applying a continuous <c>50 x deltaTime</c> score boost per second.
     ///   </item>
     /// </list>
-    /// All mutations go through <c>view.GetCommandBuffer().SetComponent&lt;TargetMemory&gt;</c>
-    /// -- never direct world writes.
+    /// ⭐ CE-2429 — on the live world the memory is written in place (the brains read it this frame, and a same-frame seed survives);
+    /// on a read-only snapshot view it goes through <c>view.GetCommandBuffer().SetComponent&lt;TargetMemory&gt;</c>.
     /// </para>
     /// <para>
     /// <b>Read-modify-write contract:</b>
@@ -207,9 +207,6 @@ namespace Fdp.Toolkit.Perception.Systems
                     if (mem.HasLastHealth == 0 || hp != mem.LastHealth) { mem.LastHealth = hp; mem.HasLastHealth = 1; changed = true; }
                 }
 
-                if (changed)
-                    ecb.SetComponent(entity, mem);
-
                 // ⭐ CE-3039 — the memory's edges, from the system that holds the memory (design §7.3). AllClear is reachable
                 //   since CE-3046 made the memory forget.
                 // ⭐ CE-2233 (CIV-0, docs/DESIGN_Civilians_And_Crowd_Control.md §5b) — the edges count THREATS, not contacts: a soldier
@@ -228,6 +225,17 @@ namespace Fdp.Toolkit.Perception.Systems
                 //   ids: a heard drone later SEEN is one contact (the sighting absorbs the heard slot, CE-3063), not a second alarm.
                 if (AirContacts.Count(view, in mem) > AirContacts.Count(view, in memRO))
                     ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AirThreat });
+
+                // ⭐ CE-2429 (Next_3 H-2) — on the LIVE world (the CGF adapter runs synchronously "immediately before CognitiveRuntimeModule, so
+                //   B-Trees evaluate against freshly decayed scores") the memory is written IN PLACE: the brains see this frame's evaluation,
+                //   and a seed a behaviour writes after it survives. 📐 Measured live (ua-technical-scoot): through the command buffer this whole
+                //   copy was played back AFTER the brain tick and erased the attack order's same-frame seed. A snapshot view keeps the buffer.
+                // ⚠ the write comes LAST: memRO is a reference into the live component, and the edges above compare it (before) with mem (now).
+                if (changed)
+                {
+                    if (view is EntityRepository live) live.GetComponentRW<TargetMemory>(entity) = mem;
+                    else ecb.SetComponent(entity, mem);
+                }
             }
             (_lastThreats, _nextThreats) = (_nextThreats, _lastThreats);
         }

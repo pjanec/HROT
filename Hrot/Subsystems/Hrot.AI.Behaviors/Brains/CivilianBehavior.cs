@@ -212,7 +212,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// panic. Wounded ⇒ Casualty from every state but Inside, first (priority) — a frightened wounded man lies down. Casualty and
         /// Inside have no way out (Inside ends in his deletion).</summary>
         [Behavior(BehaviorNames.CivilianHsm, Params = typeof(CivilianParamsJsonDto), Categories = BehaviorCategory.Civilian)]
-        [HsmDefinition(BehaviorNames.CivilianHsm, Curated = true, Group = "Library/Civilian", ParamsType = typeof(CivilianBlackboard))]
+        [HsmDefinition(BehaviorNames.CivilianHsm, Curated = true, Group = "Library/Crowd and surrender", ParamsType = typeof(CivilianBlackboard))]
         public static StateMachineGraph BuildCivilianMachine()
         {
             var builder = new HsmBuilder("CivilianHsm_HSM");
@@ -287,7 +287,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<c>CE2322_TheReaction_HasTheHsmsFearEdges</c>).
         /// </summary>
         [Behavior(BehaviorNames.CivilianReact, Params = typeof(NoParams), Categories = BehaviorCategory.Civilian)]
-        [HsmDefinition(BehaviorNames.CivilianReact, Curated = true, Group = "Library/Civilian", ParamsType = typeof(CivilianReactBlackboard))]
+        [HsmDefinition(BehaviorNames.CivilianReact, Curated = true, Group = "Library/Crowd and surrender", ParamsType = typeof(CivilianReactBlackboard))]
         public static StateMachineGraph BuildCivilianReact()
         {
             var builder = new HsmBuilder("CivilianReact_HSM");

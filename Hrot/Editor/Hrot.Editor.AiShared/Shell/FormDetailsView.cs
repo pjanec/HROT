@@ -17,9 +17,10 @@ public sealed class FormDetailsView : IDetailsViewInstance
     private readonly FormView _view = new();
     private readonly Func<Fdp.Presentation.Editing.IMapPickContext?>? _pick;
     private readonly Action? _after;
+    private readonly Func<IFormRowTrailer?>? _trailer;
 
     /// <param name="after">⭐ CE-4346 — the host's block under a WORLD form (the editor's Parameters header under the Scenario form); null = none.</param>
-    public FormDetailsView(FormDecl form, Func<EntityRepository?> world, Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Action? after = null) { _form = form; _world = world; _pick = pick; _after = after; }
+    public FormDetailsView(FormDecl form, Func<EntityRepository?> world, Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Action? after = null, Func<IFormRowTrailer?>? trailer = null) { _form = form; _world = world; _pick = pick; _after = after; _trailer = trailer; }
 
     /// <summary>The one view (rails, the panel probe).</summary>
     public FormView View => _view;
@@ -33,6 +34,7 @@ public sealed class FormDetailsView : IDetailsViewInstance
     public void Draw(DetailsContext context, string idScope)
     {
         if (_world() is not { } world) return;
+        _view.Trailer = _trailer?.Invoke();   // ⭐ §6.13 — the host's watch eye (null: no trailer column)
         _view.Pick = _pick?.Invoke();   // ⭐ U-23 / D4 — a list's add picks through the host's one pick context
         if (_form.WorldTarget != null)
         {
@@ -53,11 +55,11 @@ public sealed class FormDetailsView : IDetailsViewInstance
 /// <summary>⭐ U-23 — the descriptor of a form's tab: ranked just above Summary (35) by the form's <c>Order</c>.</summary>
 public static class FormDetailsViewDescriptor
 {
-    public static DetailsViewDescriptor For(FormDecl form, Func<EntityRepository?> world, Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Action? after = null)
+    public static DetailsViewDescriptor For(FormDecl form, Func<EntityRepository?> world, Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Action? after = null, Func<IFormRowTrailer?>? trailer = null)
     {
         ArgumentNullException.ThrowIfNull(form);
         ArgumentNullException.ThrowIfNull(world);
-        var instance = new FormDetailsView(form, world, pick, after);
+        var instance = new FormDetailsView(form, world, pick, after, trailer);
         return new DetailsViewDescriptor(
             Id:        "details." + form.Id,
             Title:     form.Title,

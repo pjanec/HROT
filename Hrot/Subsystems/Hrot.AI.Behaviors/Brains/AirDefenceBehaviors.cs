@@ -165,7 +165,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in NoParams authored, ref EngageAircraftBlackboard block, EntityRepository world, Entity self)
             => block = default;
 
-        [Behavior(BehaviorNames.EngageAircraft, Params = typeof(NoParams), Categories = BehaviorCategory.AllMilitary)]   // it takes nothing: the defaults
+        [Behavior(BehaviorNames.EngageAircraft, Params = typeof(NoParams), Categories = BehaviorCategory.AllMilitary, Description = "Engages hostile aircraft with the weapons it has.")]   // it takes nothing: the defaults
         [BTreeDefinition(BehaviorNames.EngageAircraft, Curated = true, Group = "Library/Combat", ParamsType = typeof(EngageAircraftBlackboard))]
         public static BTreeBuilder<EngageAircraftBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<EngageAircraftBlackboard, BTreeContext>()

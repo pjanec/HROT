@@ -34,19 +34,11 @@ public static class HrotForms
     // ── the side: Blue / Red / Neutral (ForceId 1 / 2 / 0) ──────────────────────────────────────────────────────────────────
 
     private static readonly string[] Sides = { "Blue", "Red", "Neutral" };
-    private static readonly ForceId[] SideForces = { ForceId.Friend, ForceId.Hostile, ForceId.Neutral };
     private static readonly string[] Affiliations = { "FORCE_FRIENDLY", "FORCE_OPPOSING", "FORCE_NEUTRAL" };   // what the Affiliation attribute takes (AttributeCompilerFactory)
 
-    private static double SideIndex(ForceId f) => f switch { ForceId.Friend => 0, ForceId.Hostile => 1, ForceId.Neutral => 2, _ => -1 };
-
-    /// <summary>A 32-byte fixed string as a 64-byte one — both are null-terminated UTF-8 buffers, so a copy of the 32 bytes (0 B; a field reads it every frame).</summary>
-    private static FixedString64 Widen(in FixedString32 s)
-    {
-        FixedString64 r = default;
-        System.Runtime.CompilerServices.Unsafe.CopyBlockUnaligned(ref System.Runtime.CompilerServices.Unsafe.As<FixedString64, byte>(ref r),
-            ref System.Runtime.CompilerServices.Unsafe.As<FixedString32, byte>(ref System.Runtime.CompilerServices.Unsafe.AsRef(in s)), 32);
-        return r;
-    }
+    /// <summary>⭐ R-2 — what the three side fields (Affiliation, Playable.Side, SpawnArea.Side) write for a choice: the force TOKEN. The default read (<see cref="FormField.TryReadNumber"/>) maps the reader's token
+    /// back to the choice index through this very function — ONE place, no per-field mapping. (Was an int ForceId on two of them; the setters take the token everywhere.)</summary>
+    private static AttributeValue SideChoiceValue(int i) => AttributeValue.FromString(i >= 0 && i < Affiliations.Length ? Affiliations[i] : null);
 
     private static readonly string[] Stances = { "Standing", "Crouched", "Prone" };
 
@@ -71,9 +63,6 @@ public static class HrotForms
         return false;
     }
 
-    private static double PartLevel(EntityRepository w, Entity e, int part)
-        => w.HasComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(e) ? w.GetComponentRO<Fdp.Toolkit.Physics.BodyParts.PartDamage>(e).LevelOf((byte)part) : 0;
-
     private static string PartName(EntityRepository w, Entity e, int part)
     {
         var plan = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(w, e)?.Plan ?? Fdp.Toolkit.Physics.BodyParts.BodyPlan.None;
@@ -94,7 +83,6 @@ public static class HrotForms
     {
         Label = PartWords[part], Expert = true, Attribute = "Damage.Part.*", SubIndex = (short)part, Min = 0, Max = 255,
         Has = (w, e) => HasPart(w, e, part),
-        ReadNumber = (w, e) => PartLevel(w, e, part),
         LabelFor = (w, e) => PartName(w, e, part),
     };
 
@@ -106,31 +94,12 @@ public static class HrotForms
         return false;
     }
 
-    /// <summary>1 when every part of every Mobility zone is at (or past) the zone's wounded threshold — what the switch sets; 0 otherwise.</summary>
-    private static double MobilityKilled(EntityRepository w, Entity e)
-    {
-        var zones = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(w, e)!.Zones;
-        bool any = false;
-        for (int k = 0; k < zones.Count; k++)
-        {
-            var z = zones[k];
-            if (z.Effect != WoundEffect.Mobility) continue;
-            for (int p = 0; p < Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts; p++)
-            {
-                if (!z.Has((byte)p)) continue;
-                any = true;
-                if (PartLevel(w, e, p) < Math.Clamp(z.WoundedAt, 0, 255)) return 0;
-            }
-        }
-        return any ? 1 : 0;
-    }
-
     private static readonly FormField[] DamageFields = BuildDamageFields();
     private static FormField[] BuildDamageFields()
     {
         var f = new FormField[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts + 1];
         for (int i = 0; i < Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts; i++) f[i] = DamagePart(i);
-        f[^1] = new FormField { Label = "Mobility kill", Kind = FieldKind.Toggle, Expert = true, Attribute = "Damage.MobilityKill", Has = HasMobilityZone, ReadNumber = MobilityKilled };
+        f[^1] = new FormField { Label = "Mobility kill", Kind = FieldKind.Toggle, Expert = true, Attribute = "Damage.MobilityKill", Has = HasMobilityZone };
         return f;
     }
 
@@ -145,69 +114,56 @@ public static class HrotForms
         Id = "form.unit", Title = "Unit", Order = 10, Requires = new[] { typeof(EntityInfo) },
         Fields = Concat(new[]
         {
-            new FormField { Label = "Name", Section = "Identity", Kind = FieldKind.Text, Attribute = "Name", ReadText = (w, e) => w.GetComponentRO<EntityInfo>(e).Name },
+            new FormField { Label = "Name", Section = "Identity", Kind = FieldKind.Text, Attribute = "Name" },
             new FormField
             {
                 Label = "Side", Kind = FieldKind.Choice, Attribute = "Affiliation", Choices = Sides,
-                ReadNumber = (w, e) => SideIndex(w.GetComponentRO<EntityInfo>(e).ForceId),
-                ChoiceValue = i => AttributeValue.FromString(i >= 0 && i < Affiliations.Length ? Affiliations[i] : null),
+                ChoiceValue = SideChoiceValue,
             },
             new FormField
             {
                 Label = "Posture", Section = "State", Kind = FieldKind.Choice, Attribute = "Stance", Choices = Stances,
-                Has = (w, e) => w.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>() && w.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(e),
-                ReadNumber = (w, e) => (int)w.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(e).TargetStance,
                 ChoiceValue = i => AttributeValue.FromInt(i),
             },
             // ⭐ U-24 / S5 (DESIGN_Initial_State §3) — the weapon's start state: posture and what is in hand (B-5 S2 attributes 70 / 73; the brain's owner applies them)
             new FormField
             {
                 Label = "Weapon", Kind = FieldKind.Choice, Attribute = "Weapon.Posture", Choices = WeaponPostures,
-                Has = HasWeaponPosture,
-                ReadNumber = (w, e) => (int)w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).Kind,
             },
             // ⭐ U-24 / S5 (details-forms-visual.svg) — Weapon [Aimed ▾] at [pick] on ONE row: the unit his weapon points at (Weapon.AimTarget, 72 — the target's network id, 0 clears; resolved on the applying node)
             new FormField
             {
                 Label = "Aimed at", Kind = FieldKind.Pick, Inline = true, InlineCaption = "at",
                 Has = HasWeaponPosture,
-                ReadText = AimTargetName,
+                ReadText = AimTargetName,   // derived: the picked unit's NAME — the attribute (Weapon.AimTarget) reads a network id
                 PickApply = AimAt,
                 Apply = (w, e, v, _) => { WriteAimTarget(w, e, 0, "Clear the aim"); return null; },
             },
             new FormField
             {
                 Label = "In hand", Kind = FieldKind.Choice, Attribute = "Weapon.HeldItem", Choices = HeldItems,
-                Has = HasWeaponPosture,
-                ReadNumber = (w, e) => (int)w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).HeldItem,
             },
             new FormField
             {
                 Label = "Strength", Attribute = "Health.Current", Min = 0,
-                Has = (w, e) => w.IsComponentTypeRegistered<Health>() && w.HasComponent<Health>(e),
-                ReadNumber = (w, e) => w.GetComponentRO<Health>(e).Current,
-                MaxOf = (w, e) => w.GetComponentRO<Health>(e).Max,   // reads "80 / 100"; the write stays Health.Current
+                MaxOf = (w, e) => w.GetComponentRO<Health>(e).Max,   // derived: the max — no attribute reads it   // reads "80 / 100"; the write stays Health.Current
             },
             new FormField
             {
                 // ⭐ U-23 part 5 — the make-playable toggle (was the Playable tab's): an owner-side add / remove, the ONE op (PlayableOps)
                 Label = "Playable", Kind = FieldKind.Toggle,
                 Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>(),
-                ReadNumber = (w, e) => w.HasComponent<Hrot.Common.Playable>(e) ? 1 : 0,
+                ReadNumber = (w, e) => w.HasComponent<Hrot.Common.Playable>(e) ? 1 : 0,   // derived: the PRESENCE of the component — no attribute reads that
                 Apply = (w, e, v, _) => PlayableOps.SetPlayable(w, e, v != 0) ? null : "not available",
             },
             new FormField
             {
                 Label = "Slot", Kind = FieldKind.Text, Inline = true, InlineCaption = "slot", Attribute = "Playable.SlotName",
-                Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>() && w.HasComponent<Hrot.Common.Playable>(e),
-                ReadText = (w, e) => Widen(w.GetComponentRO<Hrot.Common.Playable>(e).SlotName),
             },
             new FormField
             {
                 Label = "Playable for", Kind = FieldKind.Choice, Attribute = "Playable.Side", Choices = Sides,
-                Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>() && w.HasComponent<Hrot.Common.Playable>(e),
-                ReadNumber = (w, e) => SideIndex(w.GetComponentRO<Hrot.Common.Playable>(e).Side),
-                ChoiceValue = i => AttributeValue.FromInt(i >= 0 && i < SideForces.Length ? (int)SideForces[i] : 0),
+                ChoiceValue = SideChoiceValue,
             },
             // ⭐ U-24 / S5 (DESIGN_Initial_State §4.2) — Carried as: HOW the soldier carries him (Carried · Dragged · Stretcher). Shown only for a man a PERSON carries. Not an attribute: it re-issues the ONE embark
             //   (EmbarkOrders.Embark) with the new mode — Embarkation.TryEmbark re-carries a man already in his seat (backend NOTE_Backend_To_Ui_Carry_Mode_And_Damage_Built ①).
@@ -215,27 +171,25 @@ public static class HrotForms
             {
                 Label = "Carried as", Kind = FieldKind.Choice, Choices = CarriedAsWords,
                 Has = IsCarried,
-                ReadNumber = (w, e) => CarriedAsIndex(w, e),
+                ReadNumber = (w, e) => CarriedAsIndex(w, e),   // derived: the carry mode of the carrier's seat — no attribute
                 Apply = (w, e, v, _) => CarriedAs(w, e, (int)v),
             },
             // ⭐ U-24 / S6 (DESIGN_Initial_State §4.2) — the Character section: the EFFECTIVE value shown, a blue reset arrow when an authored value differs from the type's (a NEGATIVE write clears the authored bit)
             Character("Skill", "Proficiency", "Character",
-                Has: (w, e) => w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CombatProficiency>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>(e),
-                read: (w, e) => Fdp.Toolkit.Behavior.Components.ProficiencyOf.Value(w, e),
-                type: (w, e) =>
+                type: (w, e) =>   // derived: the TYPE's value (the reader gives the effective one)
                 {
                     var p = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CombatProficiency>(e);
                     if ((p.Set & Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet) == 0) return null;
                     return (p.Set & Fdp.Toolkit.Behavior.Components.CombatProficiency.UnitSet) != 0 ? p.Unit
                          : (p.Set & Fdp.Toolkit.Behavior.Components.CombatProficiency.TypeDefaultSet) != 0 ? p.TypeDefault : Fdp.Toolkit.Behavior.Components.ProficiencyOf.Regular;
                 }),
-            Trait("Bravery", "Temperament.RiskAcceptance", Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet, Fdp.Toolkit.Behavior.Components.TemperamentOf.RiskAcceptance,
+            Trait("Bravery", "Temperament.RiskAcceptance", Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet,
                 Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultRiskAcceptance, t => t.TypeRiskAcceptance),
-            Trait("Obedience", "Temperament.Obedience", Fdp.Toolkit.Behavior.Components.CombatTemperament.ObedienceSet, Fdp.Toolkit.Behavior.Components.TemperamentOf.Obedience,
+            Trait("Obedience", "Temperament.Obedience", Fdp.Toolkit.Behavior.Components.CombatTemperament.ObedienceSet,
                 Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultObedience, t => t.TypeObedience),
-            Trait("Nerve", "Temperament.Nerve", Fdp.Toolkit.Behavior.Components.CombatTemperament.NerveSet, Fdp.Toolkit.Behavior.Components.TemperamentOf.Nerve,
+            Trait("Nerve", "Temperament.Nerve", Fdp.Toolkit.Behavior.Components.CombatTemperament.NerveSet,
                 Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultNerve, t => t.TypeNerve),
-            Trait("Resolve", "Temperament.Resolve", Fdp.Toolkit.Behavior.Components.CombatTemperament.ResolveSet, Fdp.Toolkit.Behavior.Components.TemperamentOf.Resolve,
+            Trait("Resolve", "Temperament.Resolve", Fdp.Toolkit.Behavior.Components.CombatTemperament.ResolveSet,
                 Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultResolve, t => t.TypeResolve),
             // ⭐ U-23 part 5 — what the Summary tab showed (read-only, expert): position (rebuilt only after a move > 5 cm), kind, the DIS type (the colon form), the style's affiliation where it differs
             new FormField
@@ -606,8 +560,8 @@ public static class HrotForms
 
     private static readonly string[] Precipitations = { "None", "Drizzle", "Rain", "Snow", "Sleet", "Hail" };   // Weather.PrecipitationKind
 
-    private static FormField WeatherNumber(string label, string attribute, string unit, Func<EntityRepository, Entity, double> read, double min = double.MinValue, double max = double.MaxValue, bool expert = false, string? section = null)
-        => new() { Label = label, Attribute = attribute, Unit = unit, Min = min, Max = max, Expert = expert, Has = HasWeather, ReadNumber = read, Section = section };
+    private static FormField WeatherNumber(string label, string attribute, double min = double.MinValue, double max = double.MaxValue, bool expert = false, string? section = null)
+        => new() { Label = label, Attribute = attribute, Min = min, Max = max, Expert = expert, Section = section };
 
     /// <summary>
     /// ⭐ D4 — the <b>Crew &amp; cargo</b> form (§3; §4.0a part 4): offered for a carrier (<c>PassengerBuffer</c>). One row per OCCUPIED seat — its role
@@ -698,11 +652,10 @@ public static class HrotForms
         {
             new FormField
             {
-                Label = "Spawn side", Kind = FieldKind.Choice, Attribute = "SpawnArea.Side", Choices = Sides, Has = HasSpawn,
-                ReadNumber = (w, e) => SideIndex(w.GetComponentRO<Hrot.Common.SpawnArea>(e).Side),
-                ChoiceValue = i => AttributeValue.FromInt(i >= 0 && i < SideForces.Length ? (int)SideForces[i] : 0),
+                Label = "Spawn side", Kind = FieldKind.Choice, Attribute = "SpawnArea.Side", Choices = Sides,
+                ChoiceValue = SideChoiceValue,
             },
-            new FormField { Label = "Facing", Attribute = "SpawnArea.FacingDeg", Unit = "°", Min = 0, Max = 360, Has = HasSpawn, ReadNumber = (w, e) => w.GetComponentRO<Hrot.Common.SpawnArea>(e).FacingDeg },
+            new FormField { Label = "Facing", Attribute = "SpawnArea.FacingDeg", Min = 0, Max = 360 },
             // the region's weather: the ONE weather row set (WeatherRows), shared with the Scenario form
         }, WeatherRows()),
         After = Hrot.UI.Common.Weather.WeatherLayersEditor.Draw,   // ⭐ CE-4346 — a weather region's levels / layers: the same editor as the global weather (nothing drawn for a spawn area)
@@ -711,20 +664,20 @@ public static class HrotForms
     /// <summary>The authored weather scalars as form rows — ONE set, used by the Shape form (a weather region) and the Scenario form (the global weather).</summary>
     private static FormField[] WeatherRows(string? section = null) => new[]
     {
-            WeatherNumber("Temperature", "Weather.GroundTemperatureC", "°C", (w, e) => Weather(w, e).GroundTemperatureC, -80, 70, section: section),
-            WeatherNumber("Pressure", "Weather.SeaLevelPressureHpa", "hPa", (w, e) => Weather(w, e).SeaLevelPressureHpa, 800, 1100),
-            WeatherNumber("Humidity", "Weather.RelativeHumidity", "(0-1)", (w, e) => Weather(w, e).RelativeHumidity, 0, 1),   // stored 0…1 (W-7)
-            WeatherNumber("Visibility", "Weather.VisibilityM", "m", (w, e) => Weather(w, e).VisibilityM, 0),
+            WeatherNumber("Temperature", "Weather.GroundTemperatureC", -80, 70, section: section),
+            WeatherNumber("Pressure", "Weather.SeaLevelPressureHpa", 800, 1100),
+            WeatherNumber("Humidity", "Weather.RelativeHumidity", 0, 1),   // stored 0…1 (W-7)
+            WeatherNumber("Visibility", "Weather.VisibilityM", 0),
             new FormField
             {
-                Label = "Precipitation", Kind = FieldKind.Choice, Attribute = "Weather.Precipitation", Choices = Precipitations, Has = HasWeather,
-                ReadNumber = (w, e) => Weather(w, e).Precipitation, ChoiceValue = i => AttributeValue.FromInt(i),
+                Label = "Precipitation", Kind = FieldKind.Choice, Attribute = "Weather.Precipitation", Choices = Precipitations,
+                ChoiceValue = i => AttributeValue.FromInt(i),
             },
-            WeatherNumber("Rate", "Weather.PrecipitationMmPerHour", "mm/h", (w, e) => Weather(w, e).PrecipitationMmPerHour, 0),
-            WeatherNumber("Fog top", "Weather.FogTopM", "m", (w, e) => Weather(w, e).FogTopM, 0),
-            WeatherNumber("Fog visibility", "Weather.FogVisibilityM", "m", (w, e) => Weather(w, e).FogVisibilityM, 0),
-            WeatherNumber("Edge fade", "Weather.FeatherM", "m", (w, e) => Weather(w, e).FeatherM, 0),
-            WeatherNumber("Lapse rate", "Weather.LapseRateKPerKm", "K/km", (w, e) => Weather(w, e).LapseRateKPerKm, expert: true),
+            WeatherNumber("Rate", "Weather.PrecipitationMmPerHour", 0),
+            WeatherNumber("Fog top", "Weather.FogTopM", 0),
+            WeatherNumber("Fog visibility", "Weather.FogVisibilityM", 0),
+            WeatherNumber("Edge fade", "Weather.FeatherM", 0),
+            WeatherNumber("Lapse rate", "Weather.LapseRateKPerKm", expert: true),
     };
 
     private static FormField[] Join(FormField[] a, FormField[] b)
@@ -801,8 +754,7 @@ public static class HrotForms
             new FormField { Label = "Start", Section = "Scenario time", Kind = FieldKind.Text, Has = HasClock, ReadText = (w, e) => StartText(w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).StartUtcTicks),
                             Apply = (w, _, _, text) => ApplyStart(w, text) },
             // ⭐ CE-4346 — the user's name for ScenarioClock.DisplayUtcOffsetMinutes ("Clock offset" meant nothing to a user): the theatre's LOCAL time, minutes from UTC; display only.
-            new FormField { Label = "Local time offset", Attribute = "ScenarioUtcOffsetMinutes", Unit = "min", Min = -720, Max = 840, Has = HasClock,
-                            ReadNumber = (w, e) => w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).DisplayUtcOffsetMinutes },
+            new FormField { Label = "Local time offset", Attribute = "ScenarioUtcOffsetMinutes", Min = -720, Max = 840 },
             // ⭐ New scenario N4 (📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §4, R-4124 / R-4135) — the terrain, READ-ONLY (no attribute): chosen when the
             //   scenario was created, never changed. Read from the TerrainDefinition singleton every host's terrain commit publishes (the name the scenario resolved by).
             new FormField { Label = "Terrain", Section = "Terrain", Kind = FieldKind.Text, Has = HasTerrain, ReadText = (w, _) => TerrainText(w) },
@@ -811,13 +763,11 @@ public static class HrotForms
         After = Hrot.UI.Common.Weather.WeatherLayersEditor.Draw,
     };
 
-    private static FormField Character(string label, string attribute, string? section, Func<EntityRepository, Entity, bool> Has, Func<EntityRepository, Entity, double> read, Func<EntityRepository, Entity, double?> type)
-        => new FormField { Label = label, Section = section, Attribute = attribute, Min = 0, Max = 1, Slider = true, Has = Has, ReadNumber = read, TypeValue = type };
+    private static FormField Character(string label, string attribute, string? section, Func<EntityRepository, Entity, double?> type)
+        => new FormField { Label = label, Section = section, Attribute = attribute, Min = 0, Max = 1, Slider = true, TypeValue = type };   // the value is the reader's (the EFFECTIVE one); only the type's is derived
 
-    private static FormField Trait(string label, string attribute, byte bit, Func<Fdp.ModuleHost.Abstractions.ISimulationView, Entity, float> effective, float dflt, Func<Fdp.Toolkit.Behavior.Components.CombatTemperament, float> typeOf)
+    private static FormField Trait(string label, string attribute, byte bit, float dflt, Func<Fdp.Toolkit.Behavior.Components.CombatTemperament, float> typeOf)
         => Character(label, attribute, null,
-            (w, e) => w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CombatTemperament>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>(e),
-            (w, e) => effective(w, e),
             (w, e) =>
             {
                 var t = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CombatTemperament>(e);

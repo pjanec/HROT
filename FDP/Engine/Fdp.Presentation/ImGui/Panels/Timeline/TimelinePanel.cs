@@ -792,14 +792,18 @@ public sealed class TimelinePanel
         dl.PushClipRect(o, o + new Vector2(_labelWidth, RowHeight), true);
         if (plan.ArrowX is { } ax) dl.AddText(new Vector2(o.X + ax, ty), 0xFFC0C0C0, collapsed ? ">" : "v");
         if (plan.IconX is { } ix && h.Icon != null) dl.AddText(new Vector2(o.X + ix, ty), 0xFFE0C080, h.Icon);
-        dl.AddText(new Vector2(o.X + plan.TextX, ty), 0xFFA0A0A0, h.Text);
+        dl.AddText(new Vector2(o.X + plan.TextX, ty), h.TextColour ?? 0xFFA0A0A0, h.Text);
+        float trailW = plan.TrailX != null && h.TrailingGlyph != null ? ImGui.CalcTextSize(h.TrailingGlyph).X : 0f;
+        if (plan.TrailX is { } tx && h.TrailingGlyph != null) dl.AddText(new Vector2(o.X + tx, ty), 0xFFC0C0C0, h.TrailingGlyph);
         if (plan.StatusX is { } sx && h.Status != null) dl.AddText(new Vector2(o.X + sx, ty), h.StatusColour ?? 0xFFA0A0A0, h.Status);
         dl.PopClipRect();
         if (ImGui.IsWindowHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left)
             && ImGui.GetIO().MousePos is var m && m.X >= o.X && m.X < o.X + _labelWidth && m.Y >= o.Y && m.Y < o.Y + RowHeight)
         {
             bool onArrow = plan.ArrowX is { } arrowX && m.X < o.X + arrowX + 14f;
-            if (h.Collapsible && onArrow) SetCollapsed(track.Id, !collapsed);   // the arrow folds the node …
+            bool onTrail = plan.TrailX is { } tlx && m.X >= o.X + tlx - 2f && m.X < o.X + tlx + trailW + 2f;
+            if (onTrail && h.TrailingClick != null) h.TrailingClick();   // ⭐ the header's trailing button (the replica watch's gear)
+            else if (h.Collapsible && onArrow) SetCollapsed(track.Id, !collapsed);   // the arrow folds the node …
             else track.SelectRow();   // … a click elsewhere on the header picks the row (⭐ CE-4216)
         }
     }

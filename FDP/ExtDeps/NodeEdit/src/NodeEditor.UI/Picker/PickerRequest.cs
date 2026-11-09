@@ -23,6 +23,12 @@ public sealed record CategoryNode(string Name, IReadOnlyList<CategoryNode> Child
 public sealed record PickerGroupSidebar(IReadOnlyList<string> Order, string? RecentGroup = null);
 
 /// <summary>
+/// ⭐ Task picker (CE-4359) — a tick that reveals entries the picker hides by default (the task picker's <i>Show tests and demos (43)</i>): <paramref name="Hides"/> says which
+/// entries are hidden while it is off; the label is shown beside the search box with the count of hidden entries appended.
+/// </summary>
+public sealed record PickerHideToggle(string Label, Func<PickerEntry, bool> Hides);
+
+/// <summary>
 /// Caller-supplied input to open a picker via <see cref="PickerRegistry.OpenPicker"/>.
 /// Fully data-driven — the picker window renders items and emits the choice.
 /// </summary>
@@ -104,4 +110,17 @@ public sealed class PickerRequest
 
     /// <summary>⭐ CE-4142 (GL3) — show the group sidebar (and chips, tile-size slider) in the Grid layout. Null ⇒ the classic Grid.</summary>
     public PickerGroupSidebar? GroupSidebar { get; init; }
+
+    /// <summary>⭐ CE-4359 — Tree layout: the root folders in this order (a name not listed follows, alphabetical). Null ⇒ alphabetical.</summary>
+    public IReadOnlyList<string>? FolderOrder { get; init; }
+
+    /// <summary>⭐ CE-4359 — entries keep the order <see cref="ItemsProvider"/> gave them (within a folder, among equal matches) instead of name order: the task picker's fixed
+    /// <i>Move · Hold · Attack · Observe and fire</i>.</summary>
+    public bool KeepEntryOrder { get; init; }
+
+    /// <summary>⭐ CE-4359 — Tree layout: the folders (by full path) that start open; the others start closed.</summary>
+    public IReadOnlyList<string>? InitiallyOpenFolders { get; init; }
+
+    /// <summary>⭐ CE-4359 — a tick that reveals hidden entries (off by default); null ⇒ none.</summary>
+    public PickerHideToggle? HideToggle { get; init; }
 }

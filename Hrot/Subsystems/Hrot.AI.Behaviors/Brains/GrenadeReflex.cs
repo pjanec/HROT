@@ -206,7 +206,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.EvadeGrenade, Params = typeof(EvadeGrenadeParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian)]
+        [Behavior(BehaviorNames.EvadeGrenade, Params = typeof(EvadeGrenadeParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian, Description = "Dives away from a grenade.")]
         [BTreeDefinition(BehaviorNames.EvadeGrenade, Curated = true, Group = "Library/Reactions", ParamsType = typeof(EvadeGrenadeBlackboard))]
         public static BTreeBuilder<EvadeGrenadeBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<EvadeGrenadeBlackboard, BTreeContext>()

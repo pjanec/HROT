@@ -36,5 +36,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-4350</c> — components the entity must carry (equipment: the weapon a fire behaviour needs), the tabs' AND
         /// (<c>ComponentRequirements</c>). Null/empty ⇒ none.</summary>
         public Type[]? Requires { get; set; }
+
+        /// <summary>⭐ <c>CE-4359</c> — one plain sentence for the task picker's preview pane (what the behaviour does, for an instructor); null ⇒ the pane shows none. ONE field, on the behaviour.</summary>
+        public string? Description { get; set; }
     }
 }

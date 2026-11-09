@@ -42,7 +42,9 @@ public sealed record EntityDetailsHostServices(
     Func<Fdp.Presentation.Editing.IMapPickContext?>? Pick = null,
     Func<Hrot.UI.Common.Facades.IMissionEditorService?>? Missions = null,   // ⭐ P-7 / CE-4303 — the host's mission facade: the Orders tab (a host that edits plans passes it)
     Func<string, Type?>? ParamsTypeOf = null,
-    Action? ScenarioFooter = null);   // ⭐ CE-4346 — drawn under the ONE Scenario tab (the form): the editor's Parameters header; ⛔ a host with a parameter editor must pass it   // ⭐ P-7 7b — the host's behaviour → params type (its registry knows blueprint behaviours too); a host with a registry passes it   // ⭐ U-23 / D4 — the host's pick context: a form list's add (Put aboard…) picks through it (⛔ a host with a pick broker must pass it)
+    Action? ScenarioFooter = null,
+    Func<Fdp.Presentation.Forms.IFormRowTrailer?>? RowTrailer = null,
+    Func<NodeEditor.UI.Picker.PickerRegistry?>? Pickers = null);   // ⭐ CE-4359 — the host's shell picker registry: + Add task opens the task picker (null = the plain popup)   // ⭐ §6.13 — the host's row trailer on the Details forms (the replica watch's eye); null = none   // ⭐ CE-4346 — drawn under the ONE Scenario tab (the form): the editor's Parameters header; ⛔ a host with a parameter editor must pass it   // ⭐ P-7 7b — the host's behaviour → params type (its registry knows blueprint behaviours too); a host with a registry passes it   // ⭐ U-23 / D4 — the host's pick context: a form list's add (Put aboard…) picks through it (⛔ a host with a pick broker must pass it)
 
 /// <summary>
 /// ⭐⭐⭐ <c>CE-1150</c> (canvas-context-menu-design §12) — <b>the Details panel of an ECS host, and the actions that open it.</b>
@@ -89,12 +91,12 @@ public sealed class EntityDetailsBundle : IUiBundle
         // ⭐ U-23 (DESIGN_Details_Forms §2.4, D3) — a tab per DECLARED form, on every host that composes this bundle (read-only on a recording, one rule)
         Hrot.Presentation.Forms.HrotForms.EnsureRegistered();
         foreach (var form in Fdp.Presentation.Forms.FormCatalogue.All)
-            Workspace.DetailsViews.Add(FormDetailsViewDescriptor.For(form, host.World, host.Pick, after: form.WorldTarget != null ? host.ScenarioFooter : null));   // ⭐ CE-4346 — the Scenario form is THE Scenario tab
+            Workspace.DetailsViews.Add(FormDetailsViewDescriptor.For(form, host.World, host.Pick, after: form.WorldTarget != null ? host.ScenarioFooter : null, trailer: host.RowTrailer));   // ⭐ CE-4346 — the Scenario form is THE Scenario tab
         // ⭐ B-11 A7 / D2 — EVERY host registers the SAME tabs; a host service it does not pass is a capability it lacks, not a missing registration:
         //   the Rules / Event tabs then never apply (no host to ask, no focused event), and the Orders tab applies but is GREYED "not available on this station"
         //   (DetailsViewDescriptor.Bound). ⛔ SUPERSEDED: `if (host.Rules != null)` / `if (host.Missions != null)` / `if (host.EventFocus is { } focus)` around the Add.
         Workspace.DetailsViews.Add(RuleDetailsTabDescriptor.For(host.Rules ?? NoRules));   // ⭐ U-18 / RX2
-        Workspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.For(host.Missions ?? NoMissions, host.World, host.Pick, host.ParamsTypeOf, host.Host));   // ⭐ P-8 8b — its New rule… asks the host   // ⭐ P-7 / 7a — the Orders tab
+        Workspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.For(host.Missions ?? NoMissions, host.World, host.Pick, host.ParamsTypeOf, host.Host, host.Pickers));   // ⭐ P-8 8b — its New rule… asks the host   // ⭐ P-7 / 7a — the Orders tab
         // ⭐ CE-4263 — a clicked timeline event shows the EVENT (rank 1: first among the entity views); a host with no focus has an empty one (never applies)
         Workspace.DetailsViews.Add(EventDetailsViewDescriptor.For(host.World, host.EventFocus ?? new TimelineEventFocus(), host.SelectNetworkEntity ?? (_ => { })));
         Workspace.DetailsViews.Add(EntityObjectivesViewDescriptor.For(host.World, host.OpenRule));   // ⭐ CE-4216 RV-7 — objectives about this unit, every host   // ⭐ CE-1247 — the IG's former card, every host

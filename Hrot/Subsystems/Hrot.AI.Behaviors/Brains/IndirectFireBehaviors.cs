@@ -518,7 +518,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
         }
 
-        [Behavior(BehaviorNames.PersonObserveFire, Params = typeof(ObserveFireOrder), Categories = BehaviorCategory.Infantry)]
+        [Behavior(BehaviorNames.PersonObserveFire, Params = typeof(ObserveFireOrder), Categories = BehaviorCategory.Infantry, Description = "Observes a target and fires on it.")]
         [BTreeDefinition(BehaviorNames.PersonObserveFire, Curated = true, Group = "Library/Orders", ParamsType = typeof(PersonObserveFireBlackboard))]
         public static BTreeBuilder<PersonObserveFireBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<PersonObserveFireBlackboard, BTreeContext>()

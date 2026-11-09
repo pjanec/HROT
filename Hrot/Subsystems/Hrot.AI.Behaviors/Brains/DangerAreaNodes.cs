@@ -155,7 +155,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// speed into the crossing, <c>CrossWithin</c> into the "rush across" test. An empty params string (a null DTO) keeps the bake.
         /// </summary>
         [Hrot.Map.Definitions.Behavior.Behavior(Hrot.Map.Definitions.Behavior.BehaviorNames.DangerCrossing, Params = typeof(DangerCrossingParams),
-            Categories = Hrot.Map.Definitions.Behavior.BehaviorCategory.Infantry)]   // ⭐ CE-2132 — outranks the generated contract (CE-2134)
+            Categories = Hrot.Map.Definitions.Behavior.BehaviorCategory.Infantry, Description = "Crosses an exposed area quickly after checking it, then resumes.")]   // ⭐ CE-2132 — outranks the generated contract (CE-2134)
         [BehaviorResolver(Hrot.Map.Definitions.Behavior.BehaviorNames.DangerCrossing)]
         public static void ResolveDangerCrossing(in DangerCrossingParams authored, ref DangerCrossingConfig block, EntityRepository world, Entity self)
         {

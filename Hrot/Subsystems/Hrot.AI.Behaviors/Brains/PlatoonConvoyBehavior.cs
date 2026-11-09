@@ -101,7 +101,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.PlatoonConvoy, Params = typeof(PlatoonConvoyParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [HsmDefinition(BehaviorNames.PlatoonConvoy, Curated = true, Group = "Library/Platoon", ParamsType = typeof(PlatoonConvoyBlackboard))]
+        [HsmDefinition(BehaviorNames.PlatoonConvoy, Curated = true, Group = "Library/Movement", ParamsType = typeof(PlatoonConvoyBlackboard))]
         public static StateMachineGraph BuildPlatoonConvoy()
         {
             var builder = new HsmBuilder("PlatoonConvoy_HSM");

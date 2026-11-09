@@ -39,7 +39,7 @@ namespace Hrot.AI.Behaviors.Brains
             => roads is RoadUse.Prefer or RoadUse.StronglyPrefer ? SquadMarchManeuver.ShapeFile : SquadMarchManeuver.ShapeWedge;
 
         [Behavior(BehaviorNames.InfantrySquadMove, Params = typeof(MoveOrder), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 — the contract on the behaviour
-        [BTreeDefinition(BehaviorNames.InfantrySquadMove, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadMarchBehavior.SquadMarchBlackboard))]
+        [BTreeDefinition(BehaviorNames.InfantrySquadMove, Curated = true, Group = "Library/Orders", ParamsType = typeof(SquadMarchBehavior.SquadMarchBlackboard))]
         public static BTreeBuilder<SquadMarchBehavior.SquadMarchBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadMarchBehavior.SquadMarchBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, SquadMarchBehavior.Run);
@@ -56,7 +56,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.InfantrySquadHold, Params = typeof(HoldOrder), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 — the contract on the behaviour
-        [BTreeDefinition(BehaviorNames.InfantrySquadHold, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadHoldBehavior.SquadHoldBlackboard))]
+        [BTreeDefinition(BehaviorNames.InfantrySquadHold, Curated = true, Group = "Library/Orders", ParamsType = typeof(SquadHoldBehavior.SquadHoldBlackboard))]
         public static BTreeBuilder<SquadHoldBehavior.SquadHoldBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadHoldBehavior.SquadHoldBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, SquadHoldBehavior.Run);
@@ -75,7 +75,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.InfantrySquadAttack, Params = typeof(AttackOrder), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 — the contract on the behaviour
-        [BTreeDefinition(BehaviorNames.InfantrySquadAttack, Curated = true, Group = "Library/Squad", ParamsType = typeof(SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard))]
+        [BTreeDefinition(BehaviorNames.InfantrySquadAttack, Curated = true, Group = "Library/Orders", ParamsType = typeof(SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard))]
         public static BTreeBuilder<SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, SuppressAndManeuverBehavior.Run);

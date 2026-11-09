@@ -20,14 +20,17 @@ public sealed class FormField
     public FieldKind Kind { get; init; } = FieldKind.Number;
     /// <summary>The attribute this field writes, by its vocabulary path (<c>Health.Current</c>); null = read-only (a derived or file-header value).</summary>
     public string? Attribute { get; init; }
-    /// <summary>A number / a choice's index / a toggle (0 or 1): read from the world, 0 B. Null for a text field.</summary>
+    /// <summary>A number / a choice's index / a toggle (0 or 1): read from the world, 0 B. Null for a text field. ⭐ R-2 (AR-4): leave it null on a field that sets <see cref="Attribute"/> and the form reads the
+    /// vocabulary's reader (<see cref="AttributeReaders"/>) — set it only for a DERIVED value the vocabulary cannot read (a type default, a count, a text built from several components).</summary>
     public Func<EntityRepository, Entity, double>? ReadNumber { get; init; }
-    /// <summary>A text field's value as a fixed string (a struct — comparing it allocates nothing).</summary>
+    /// <summary>A text field's value as a fixed string (a struct — comparing it allocates nothing). ⭐ R-2: null on a field with an <see cref="Attribute"/> = the reader's text.</summary>
     public Func<EntityRepository, Entity, FixedString64>? ReadText { get; init; }
-    /// <summary>Whether this entity has the value at all (a component missing ⇒ the row is not drawn for it); null = always.</summary>
+    /// <summary>Whether this entity has the value at all (a component missing ⇒ the row is not drawn for it); null = always — ⭐ R-2: a field read through its attribute is drawn only where the reader has a value.</summary>
     public Func<EntityRepository, Entity, bool>? Has { get; init; }
-    /// <summary>The unit the number is written in (<c>s</c>, <c>m</c>, <c>%</c> …), from the semantic type.</summary>
-    public string? Unit { get; init; }
+    /// <summary>The unit the number is written in (<c>s</c>, <c>m</c>, <c>%</c> …). ⭐ R-2 (AR-7): when the field sets none, a plain number takes its attribute's own unit
+    /// (<see cref="AttributeDefinition.Unit"/>); a slider (the Character rows) shows none.</summary>
+    public string? Unit { get => _unit ?? (Kind == FieldKind.Number && !Slider ? Definition?.Unit : null); init => _unit = value; }
+    private readonly string? _unit;
     public double Min { get; init; } = double.MinValue;
     public double Max { get; init; } = double.MaxValue;
     /// <summary>A choice's options, in index order (the shown words).</summary>
@@ -65,6 +68,70 @@ public sealed class FormField
     public AttributeDefinition? Definition => _definition ??= Attribute == null ? null : FormCatalogue.AttributeOf(Attribute);
     private AttributeDefinition? _definition;
     public bool ReadOnly => Definition == null && Apply == null;
+
+    // ── ⭐ R-2 (AR-4, docs/UX/DESIGN_Review_Perspective.md §6.13a) — the ONE default read: a field with an Attribute and no explicit delegate reads through the vocabulary's reader ──
+
+    private ushort _attributeId; private bool _attributeResolved;
+    private FixedString64[]? _choiceTokens;
+
+    private bool TryReadAttribute(EntityRepository w, Entity e, out AttributeValue value)
+    {
+        if (!_attributeResolved)
+        {
+            _attributeResolved = true;
+            if (Attribute == null || !AttributeReaders.TryResolve(Attribute, out _attributeId, out _)) _attributeId = 0;
+        }
+        if (_attributeId == 0) { value = default; return false; }
+        return AttributeReaders.TryRead(w, e, _attributeId, SubIndex, out value);
+    }
+
+    /// <summary>The value as the number this field shows: explicit <see cref="ReadNumber"/>, else the attribute's reader (a text attribute of a Choice — a side's <c>FORCE_*</c> token — becomes the index of the choice
+    /// whose <see cref="ChoiceValue"/> writes it). <c>false</c> = the entity has no such value. 0 B.</summary>
+    public bool TryReadNumber(EntityRepository w, Entity e, out double number)
+    {
+        if (ReadNumber != null) { number = ReadNumber(w, e); return true; }
+        number = 0;
+        if (!TryReadAttribute(w, e, out var v)) return false;
+        number = v.Kind switch
+        {
+            AttributeValueKind.CsInt32 => v.IntValue,
+            AttributeValueKind.CsInt64 => v.LongValue,
+            AttributeValueKind.CsFloat32 => v.FloatValue,
+            AttributeValueKind.CsFloat64 => v.DoubleValue,
+            AttributeValueKind.Bool => v.BoolValue ? 1 : 0,
+            AttributeValueKind.CsString => ChoiceIndexOf(v.Text),
+            _ => 0,
+        };
+        return true;
+    }
+
+    /// <summary>The text this field shows: explicit <see cref="ReadText"/>, else the attribute's reader. 0 B.</summary>
+    public bool TryReadText(EntityRepository w, Entity e, out FixedString64 text)
+    {
+        if (ReadText != null) { text = ReadText(w, e); return true; }
+        text = default;
+        if (!TryReadAttribute(w, e, out var v)) return false;
+        text = v.Text;
+        return true;
+    }
+
+    /// <summary>The index of the choice that writes <paramref name="token"/> (its <see cref="ChoiceValue"/>'s string, else its word); -1 = none. The tokens are built once.</summary>
+    private int ChoiceIndexOf(in FixedString64 token)
+    {
+        if (Choices == null) return -1;
+        if (_choiceTokens == null)
+        {
+            var t = new FixedString64[Choices.Count];
+            for (int i = 0; i < t.Length; i++)
+            {
+                var cv = ChoiceValue != null ? ChoiceValue(i) : default;
+                t[i] = new FixedString64(cv.Kind == AttributeValueKind.CsString && cv.StringValue != null ? cv.StringValue : Choices[i]);
+            }
+            _choiceTokens = t;
+        }
+        for (int i = 0; i < _choiceTokens.Length; i++) if (_choiceTokens[i].Equals(token)) return i;
+        return -1;
+    }
 
     /// <summary>⭐ U-23 part 5 (docs/UX/DESIGN_Details_Forms.md §4.0a) — a field whose write is a DOMAIN op instead of an attribute (the Unit form's <i>Playable</i>
     /// toggle = the edit framework's owner-side add / remove of the component): called per selected entity with the new value; returns the refusal, or null.
