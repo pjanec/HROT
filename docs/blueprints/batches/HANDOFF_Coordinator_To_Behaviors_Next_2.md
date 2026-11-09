@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → behaviors: the next batch
 
-**For:** behaviors. **From:** coordinator. **Dispatched at `d751a3c02`** (re-stamped; first `bd4994196`), scope frozen there. Merge the other lanes first; push `chore: started
+**For:** behaviors. **From:** coordinator. **Dispatched at `1bd5747a2`** (re-stamped twice; first `bd4994196`), scope frozen there. Merge the other lanes first; push `chore: started
 HANDOFF_Coordinator_To_Behaviors_Next_2 at <sha>`; status file `STATUS_Behaviors_Next_2.md`. Same [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md): a status file after every item, fetch and merge the other lanes after every item. ⛔⛔ Never stop for a question (R-4156): an item that needs the user is SKIPPED with its question in its row; a failed premise stops that item only (R-106).
 
 | # | id | what | done when |
