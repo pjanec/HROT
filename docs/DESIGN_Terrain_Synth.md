@@ -48,3 +48,17 @@ statistics, from a seed — so the importer can be built, tested and tuned in th
 - `storeyZ` ascending, `storeyZ[0] == baseZ`; a door's `z` == its storey's floor; a window's `z` == its floor + 1.0; every heading points OUT of the footprint; `height` > top floor − `baseZ`; a pitched roof has `ridgeZ` > `baseZ + height`
 - trees: none inside a footprint or on a road; heights z ∈ [450, 980] except nodata
 - numbers are written with the invariant culture (a `cs-CZ` machine still writes `1.5`)
+
+## 4. Coordinator review *(`2026-11-09`; the importer side)*
+
+✅ **ACCEPTED as the importer's development terrain.** 📐 Measured here: the 53 tests pass; `tiny` (seed 1) generates in ≈ 1 s (1 025² heights, 40 buildings, 1 406 trees) and is byte-identical on a second run (`diff -r`); `full` (seed 1) generates in ≈ 16 s on this VM (495 MB) (11 265² heights, 1 800 buildings, 30 villages). The output's property names and frame notes match §10 of Terrain Import UTM (`GeoJsonWriter.cs:35-53`).
+
+| # | finding | lean |
+|---|---|---|
+| **S-1** | ⚠ **the synthetic set is CLEANER than the real one.** Real (§10.7): door points sit a median 0.11 m above the grid (98 % within −1.2…+3.6 m), **3 % of headings point INTO the footprint**, ≈ 1 unassigned point per house off any outline. Synthetic: every opening exactly on its wall, `z` exactly on the floor, every heading exactly outward (`BuildingGenerator.cs:273, 403, 413`) ⇒ the importer's tolerance code would never be exercised | ⭐ a `--noise real` option (default on for `full`, off for `tiny`): openings jittered off the wall by ≤ 0.3 m and in `z` by the measured spread, ≈ 3 % headings flipped, ≈ 1 % of doors on no wall. The conformance tests then check the CLEAN set only |
+| **S-2** | ⚠ **no touching houses**: placement keeps a 2 m gap (`BuildingGenerator.cs:293`). OSM towns (Terrain From OSM F-4) have terraces with shared walls | ⭐ a share of terraced rows (e.g. 10 % of village houses in rows of 3–6 sharing walls) so the party-wall rule is tested before OSM needs it |
+| **S-3** | ⚠ **`material` is never written** (the real set omits it too) ⇒ the importer's material path is untested | ⭐ write `material` on ≈ 30 % of buildings (brick / concrete / stone / wood) |
+| **S-4** | ⚠ **no `water/`, `vegetation/scrub`, `vegetation/woods`** (the optional files of UTM §10.8 / OSM F-3) | ⭐ an `--extras` option writing a pond, a river strip, scrub and woods polygons — off by default so `full` stays like the real set |
+| **S-5** | ✅ the synthetic FRAME (e0 500 000 / n0 5 600 000, bounds centred on 0) differs from the real one on purpose — the importer must read the frame and bounds from the manifest and assume nothing | keep |
+| **S-6** | ✅ §1 decision 7 — **do not commit a generated set**: `tiny` takes ≈ 1 s and is deterministic, so the importer's tests GENERATE it in a fixture (the synth library referenced in-process) | — |
+| **S-7** | ⚠ `roads.net.xml` needs `netconvert`; the importer's tests must not depend on it | ⭐ the importer reads only `roads.net.xml` (one reader — not also the plain files); its tests run the road stage when `netconvert` is present and SKIP it, reported, when not; dev machines install SUMO 1.20.0 by Terrain From OSM §9.1 |

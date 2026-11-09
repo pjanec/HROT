@@ -7,6 +7,8 @@ stale-below: nothing
 known-rot: §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
 related-designs:
+  - DESIGN_Terrain_Synth.md — OWNS hrot-terrain-synth, the deterministic SYNTHETIC input set: the importer's development and test terrain (§10.9)
+  - DESIGN_Terrain_From_OSM.md — OWNS the OpenStreetMap pipeline: a THIRD producer of the same §10 input set
   - DESIGN_Terrain_World.md — ⭐ THE owning terrain design (the world file, the ONE TerrainWorld model); ⭐ its §9 SPARSE TERRAIN (S1–S7 approved, R-4051; CE-4011 outer ground, CE-4012 insets, deferred) is the frame this import builds on
   - DESIGN_World_Query_Seam.md — OWNS IWorldQuery (R-253): every height / trace / LOS reader goes through it — the import adds DATA, never a second query path
   - designs/navig-2/Navigation_Design_v2_0.md — OWNS the navmesh bake (§14 P2: tiled, 24 m) and the BUILT NavTileCache (memory + local folder, keyed by each tile's input hash)
@@ -542,7 +544,7 @@ Per-building state stays per building: `id`, destruction state, the navmesh bake
 
 Checks: door points sit a median 0.11 m above the height grid (98 % within −1.2 … +3.6 m); 97 % of opening headings point out of their footprint.
 
-### 10.8 PROPOSED — two optional files for the input set *(source-data session, `2026-11-09`; from `DESIGN_Terrain_From_OSM.md` §5.6 — for the coordinator to accept)*
+### 10.8 ✅ ACCEPTED (coordinator, §10.9) — two optional files for the input set *(source-data session, `2026-11-09`; from `DESIGN_Terrain_From_OSM.md` §5.6 — for the coordinator to accept)*
 
 Terrains made from OpenStreetMap carry two layers the §10 set has no file for. Proposal: OPTIONAL files, listed in `manifest.files` like the
 others; `schemaVersion` stays 1; an importer that does not know a file ignores it and reports it as skipped.
@@ -553,3 +555,11 @@ others; `schemaVersion` stays 1; an importer that does not know a file ignores i
 | `vegetation/scrub.geojson` | `Polygon` features, `properties: { kind: "scrub"\|"heath" }` | the future low concealment class (§9.6 T-8) — once it exists |
 
 The synthetic generator and the real input set write neither (no water or scrub in them); the conformance checks treat both as optional.
+
+### 10.9 ✅ Coordinator, `2026-11-09` — §10.8 accepted, a third optional file, and the development terrain
+
+| # | decision |
+|---|---|
+| ① | ✅ `water/water.geojson` and `vegetation/scrub.geojson` accepted as optional files. ⚠ water is NOT "once supported": HROT already has water surfaces (`TerrainSurfaceType.Water`, unwalkable, drawn — `TerrainWorld.cs:17`) ⇒ the importer consumes it in stage 5 |
+| ② | ⭐ a third optional file, **`vegetation/woods.geojson`** — `Polygon`, `properties: { density }` (trees / ha). When present the importer takes the woods from it (R-4190's polygons + density grid) and `trees.csv` holds only trees outside woods; when absent (the real set) the importer clusters the points. Reason: OSM gives woods as polygons — turning them into points and clustering back is lossy (Terrain From OSM §13 F-3) |
+| ③ | ⭐ **the importer is developed and tested on the SYNTHETIC set** (`hrot-terrain-synth`, [DESIGN_Terrain_Synth.md](DESIGN_Terrain_Synth.md)): `tiny` generated in the tests' fixture (≈ 1 s, deterministic), `full` generated locally for performance work (≈ 16 s, ≈ 500 MB, under `artifacts/`, gitignored). The real set is used only to confirm on the user's machine. ⛔ the importer reads frame and bounds from the manifest — the synthetic frame differs on purpose |
