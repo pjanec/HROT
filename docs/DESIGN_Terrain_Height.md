@@ -10,6 +10,7 @@ known-rot: §7's rev-1 lean (Jolt; TerrainWorld's methods as the seam; Bepu reje
 known-conflict: none. (Resolved 2026-10-15: CE-3086 built basic-desert's ridge and wadi as TH-G's grid, §5d — the Utility demo
   design's ramp plan is superseded there.)
 related-designs:
+  - DESIGN_Terrain_Import_UTM.md — importing a 6 × 6 km UTM terrain: this design's TerrainHeightGrid gains a tiled binary store
   - DESIGN_Body_Geometry_And_Ground_Contact.md — the gear height and resting pose (pitch/roll on a slope) of a CG-referenced
     body; the motion model that grounds an aircraft (§4a, R-249) uses it.
   - DESIGN_World_Query_Seam.md — owns the engine-neutral interface (IWorldQuery) GroundHeightAt is exposed through, and the

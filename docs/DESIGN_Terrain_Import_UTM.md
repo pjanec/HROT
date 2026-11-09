@@ -1,12 +1,18 @@
 <!--STATUS
 state: LIVE
-build-state: PRELIMINARY — an idea with open questions (Q-U1…Q-U12); NOT ready to build. Answers expected from another session (the source data owner)
-updated: 2026-11-09 (first version — coordinator)
-current-answer: §0 why · §1 measured · §2 the idea (UML) · §3 the stages · §4 OPEN QUESTIONS · §5 ANSWERS (source-data session)
+build-state: DESIGN — the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings PROPOSED (Q-D1…Q-D4); §6 re-bases the stages on Terrain World §9
+updated: 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
+current-answer: ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
-known-rot: none
+known-rot: §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
 related-designs:
+  - DESIGN_Terrain_World.md — ⭐ THE owning terrain design (the world file, the ONE TerrainWorld model); ⭐ its §9 SPARSE TERRAIN (S1–S7 approved, R-4051; CE-4011 outer ground, CE-4012 insets, deferred) is the frame this import builds on
+  - DESIGN_World_Query_Seam.md — OWNS IWorldQuery (R-253): every height / trace / LOS reader goes through it — the import adds DATA, never a second query path
+  - designs/navig-2/Navigation_Design_v2_0.md — OWNS the navmesh bake (§14 P2: tiled, 24 m) and the BUILT NavTileCache (memory + local folder, keyed by each tile's input hash)
+  - blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — R7: the per-node tile cache, keyed geographically; zones as fidelity windows
+  - DESIGN_Terrain_Height.md — OWNS the terrain's height grid (TerrainHeightGrid, one .asc per terrain, CE-1034) this extends to a tiled store
+  - DESIGN_Building_Interiors.md — OWNS the *.building.json template (walls, storeys, doors, windows) the importer GENERATES for each house
   - DESIGN_Geo_Origin.md — OWNS the simulation's origin and IGeographicTransform (R-229); this adds a second, UTM implementation
   - DESIGN_Terrain_Zones_And_Assets.md — OWNS what a terrain is (the content pack, TerrainCatalog) and zones as windows onto it (R-146)
   - DESIGN_Artifact_Staging.md — OWNS getting terrain files from the NAS to every node (a 100–200 MB terrain rides it)
@@ -34,9 +40,9 @@ import feeds the SAME interfaces (heights, surfaces, per-purpose traces) and add
 | its ONE implementation is the tangent plane (ECEF → ENU at the origin) | `WGS84Transform.cs` |
 | the origin comes from the terrain (`terrain.json` `origin {lat, lon, alt}`) and is carried by a recording | `TerrainDefinition` · `RecordingMetadata.GeoOriginRecord` |
 | UTM ↔ WGS84 maths EXISTS (the SUMO net placement) | `Hrot/Engine/Hrot.Traffic/Utm.cs` (`ToGeodetic`, `FromGeodetic`), `SumoNetPlacement.cs:55-66` |
-| ⛔ **no heightmap**: the ground is walkable triangle meshes; outside the terrain a procedural hilly band (`BeyondGround`) | `TerrainWorld.cs`, `BeyondGround.cs` |
+| ✏ (corrected by §5.3) the ground is ONE height grid per terrain — an ESRI ASCII `.asc` loaded into one `float[]` (`basic-desert`, `highway-rest` use it) — plus walkable meshes; outside the terrain a procedural hilly band (`BeyondGround`). ⛔ What is missing is a TILED / large grid: 6 × 6 km at 1 m is 36 M floats (144 MB) in one array, and an equally large render mesh | `TerrainHeightGrid.cs:14-31, :187` · `TerrainWorldParser.cs:81` · `DESIGN_Terrain_Height.md` (CE-1034) · `BeyondGround.cs` |
 | buildings are GeoJSON footprints extruded to a height (`*.world.geojson`; the largest, demo-city, 84 KB) + optional `houses.json` | `assets/terrain/*` |
-| ⛔ **fixed grids sized for ~1.5 km**: the collider hash 300 × 300 × 5 m from −750 m; the perception grid 200 × 200 × 5 m | `SpatialHashConstants.cs`, `PerceptionConstants.cs:81-84` |
+| ✏ (corrected `2026-11-09`) the grids ALREADY follow the terrain: `SpatialGridFit` rebases each grid's origin and CELL SIZE to the terrain's bounds with a FIXED cell count (Terrain World §4.4, CE-3018) — the collider grid 300 × 300, the perception grid 200 × 200 ⇒ at 6 km the cells grow to ≈ 20 m and ≈ 30 m (density, not coverage, is the question) | `SpatialHashConstants.cs`, `PerceptionConstants.cs:81-84`, Terrain World §4.4 |
 | the navmesh is TILED (24 m tiles) but BAKED AT LOAD; a cold bake already ejects SimHost | `RecastNavmeshBaker.cs:110-113` · CE-4033 |
 | terrains reach every node through the NAS staging copy | `DESIGN_Artifact_Staging.md` |
 
@@ -50,38 +56,39 @@ classDiagram
     class UtmTransform { <<NEW>> local = (E − E0, N − N0, h) · grid convergence for headings }
     class Utm { <<existing, moved down to the toolkit>> ToGeodetic · FromGeodetic }
     class TerrainDefinition { <<existing>> origin (lat, lon) or utm (zone, hemisphere, e0, n0) NEW }
-    class TerrainHeightfield { <<NEW>> tiled binary heights · HeightAt(x, y) · tiles on demand }
-    class BuildingSet { <<NEW cache>> footprints + heights, binary, beside the source }
-    class TerrainImporter { <<NEW tool>> source → terrain folder: heights, buildings, baked navmesh }
+    class TerrainHeightGrid { <<existing, extended>> HeightAt(x, y) · today one .asc array · NEW a tiled binary store, tiles on demand }
+    class BuildingTemplate { <<existing format>> the building.json template · NEW one GENERATED per house, enterable }
+    class TerrainImporter { <<NEW tool, repeatable>> exported heights · building DB + model boxes · SUMO crop · walls · navmesh }
     IGeographicTransform <|.. WGS84Transform
     IGeographicTransform <|.. UtmTransform
     UtmTransform --> Utm
     TerrainDefinition --> UtmTransform : utm frame
-    TerrainDefinition --> TerrainHeightfield
-    TerrainDefinition --> BuildingSet
-    TerrainImporter --> TerrainHeightfield : writes
-    TerrainImporter --> BuildingSet : writes
+    TerrainDefinition --> TerrainHeightGrid
+    TerrainDefinition --> BuildingTemplate
+    TerrainImporter --> TerrainHeightGrid : writes tiles
+    TerrainImporter --> BuildingTemplate : generates
 ```
-*What it shows: the frame is ONE new implementation of the existing seam — nothing that uses positions changes; the size problem is in the TERRAIN
-data (a heightfield and a building set that do not exist today) and in the grids sized as constants.*
+*What it shows: the frame is ONE new implementation of the existing seam — nothing that uses positions changes; the height grid and the building
+template EXIST and are extended (tiled storage, generated templates); the grids sized as constants are the rest of the size problem.*
 
 | part | the idea |
 |---|---|
-| frame | a terrain declares `utm {zone, hemisphere, e0, n0}`; local x = E − E0, y = N − N0 (grid north), z = height; existing terrains keep the tangent plane |
-| heights | a tiled binary heightfield (e.g. 256 × 256 posts per tile, 16-bit heights + an offset/scale), loaded where heights are asked (Muscle, map hosts — ⛔ never the Brain, R-2037); the 3-D view renders it with LOD; the 2-D map gets a hillshade image |
-| buildings | imported once into a binary set (footprint, base, top, material, floors); rendered batched; JSON stays the source |
+| frame | a terrain declares `utm {zone, hemisphere, e0, n0}`; local x = E − E0, y = N − N0 (grid north), z = height; existing terrains keep the tangent plane. ⭐ For this terrain **e0/n0 = the source engine's own origin (32N, 372 000 / 6 043 000)** so both engines' local positions are numerically identical (§5 Q-U2); convergence (−1.6…−1.7°) only at a true-north gateway |
+| heights | the EXISTING `TerrainHeightGrid` gains a tiled binary store (e.g. 256 × 256 posts per tile, 16-bit + offset/scale), resampled from the input's float32 height raster at **1 m** (72 MB); loaded where heights are asked (Muscle, map hosts — ⛔ never the Brain, R-2037); the 3-D view renders it with LOD; the 2-D map gets a hillshade |
+| buildings | ✅ **ENTERABLE, OPEN FLOORS** (R-4186): the importer GENERATES a `*.building.json` per house (1 988): footprint → walls; each storey ONE empty floor slab + a stair `ramp` between storeys (the existing `TerrainWalkable` slab / ramp — Building Interiors `:71-97`); the ground floor at the door points' altitude, upper floors at their window points' altitude − a ≈ 0.9 m sill; door and window OPENINGS exactly at the source points (they sit where the visual engine draws the openings, so HROT's openings match); a flat roof; no partitions |
 | grids | the collider hash and the perception grid sized from the terrain's bounds, not constants |
 | navmesh | baked OFFLINE by the importer, stored with the terrain, loaded as a file (also closes CE-4033) |
 | sizes (estimate) | 6 × 6 km at 1 m posts = 36 M samples ≈ 72 MB (16-bit); at 2 m ≈ 18 MB; buildings unknown (Q-U3); the navmesh ≈ 62 500 tiles per layer — staged once per terrain version |
 
-## 3. The stages (sketch)
+## 3. The stages (revised to §5)
 
-1. `UtmTransform` + the terrain's frame declaration (small, independent)
-2. the grids sized from the terrain's bounds (needed for anything over ~1.5 km)
-3. the heightfield: format, height queries, 3-D rendering with LOD, the 2-D hillshade
-4. the building import + binary cache + batched rendering
-5. the offline navmesh bake stored with the asset
-6. the importer tool (source → terrain folder) and the staging of a large terrain
+1. `UtmTransform` + the terrain's frame declaration (e0/n0 = the source engine's origin) — small, independent
+2. the collider and perception grids sized from the terrain's bounds (the data area is x −8000…−2000, y −2000…4000)
+3. the tiled `TerrainHeightGrid` store + the importer's height path (input height raster → 1 m tiles), 3-D LOD, the 2-D hillshade
+4. the building GENERATOR (1 988 enterable `*.building.json`, doors / windows from the source points), batched rendering
+5. the other layers: the SUMO net cropped to the box with its anchor; walls from model instances; forest surfaces derived from tree positions
+6. the offline navmesh bake incl. the interiors, stored with the terrain
+7. the importer as a repeatable tool here; ⛔ the converted terrain never in git (§5 Q-U5)
 
 ## 4. OPEN QUESTIONS — for the session that knows the source data
 
@@ -132,6 +139,7 @@ This document stays generic: it describes the source only by its formats and con
 | **Q-U6** | HROT runs **alongside another engine that renders the full visual scene of the same terrain**; HROT's own hosts need an engineering view only: the 2-D map (+ hillshade, footprints) and the editor's 3-D view for checking; Stride not needed for this terrain | lean |
 | **Q-U7** | the whole 6 × 6 km is imported; where units must path is not stated — lean as §4 (everywhere, offline bake); the infantry navmesh inside 1 988 interiors is the expensive part | — (the user) |
 | **Q-U8** | **✅ decided: enterable.** The importer GENERATES each house as a `*.building.json` template: footprint → exterior walls, storeys = round(model height / 3 m), a floor slab per storey, DOOR openings at the source door points (position + heading → wall + offset; storey index → level), WINDOW openings at the source window points (sparse: 4 600 for 1 988 houses) plus generated ones along each facade per storey, a flat roof (sloped roofs approximated). Open: the INSIDE — open-plan storeys vs procedurally partitioned rooms + stairs (a room/stair generator is new work). Scale: 1 988 enterable houses vs 164 in demo-city — door entities and the interior navmesh grow with it | decided (enterable); interior layout = the user |
+| | 🔒 User, `2026-11-09`: *"I do not care about rooms on a floor. Can stay one big empty floor. At most we might need to add staircase ramp so soldier can go up."* → **✅ decided: each storey is ONE empty open floor + a stair `ramp` between storeys; no partitions.** The hard requirement is the OPENINGS: HROT soldiers enter through the same doors and look out of the same windows the visual engine draws, standing on matching floors. The input points sit where the openings are drawn. Doors are complete; the complete window set is prepared in the input set (outside this repo). Storey floors: ground floor = the door points' altitude; upper storeys = their window points' altitude − a standard sill (≈ 0.9 m). Doors in the visual engine are painted (never open) — accepted | decided |
 | **Q-U9** | a **repeatable tool** reading the input set; the building generator will be tuned iteratively | lean |
 | **Q-U10** | the other engine converts geodetic ↔ local with standard WGS84 UTM maths (zone forced to the terrain's), the same as `Utm.cs` → lat/lon at a gateway agrees to sub-mm. With e0/n0 from Q-U2 the two engines' local frames are IDENTICAL, so convergence never appears between them; it matters only where a heading is exchanged relative to TRUE north (DIS/HLA, lat/lon gateways) — apply the −1.6…−1.7° there | verified / lean |
 | **Q-U11** | not known here | — (the user) |
@@ -143,8 +151,116 @@ This document stays generic: it describes the source only by its formats and con
 
 ### 5.4 Still open — for the user
 
-1. the INSIDE of the generated houses: open-plan storeys, or a procedural room + stair layout (Q-U8)
+1. ~~the INSIDE of the generated houses: open-plan storeys, or a procedural room + stair layout (Q-U8)~~ ✅ decided `2026-11-09`: open floors + a stair ramp (Q-U8)
 2. expected unit counts / view distances (Q-U11) and where units must path (Q-U7)
+
+| # | ⭐ coordinator's lean `2026-11-09` | rejected — one line |
+|---|---|---|
+| 1 | **open-plan storeys + ONE stair per house first** (enterable, clearable, cheap to generate and to bake); a procedural room / corridor generator later, as its own stage, if the CQB drills need rooms | rooms first: new generator work before anything is enterable |
+| 2 | **paths everywhere outdoors + inside every generated house**, baked offline; unit counts and view distances decide the grid cell sizes in stage 2 — until known, size for the largest shipped scenario (`perf-stress`: 1 000 soldiers) | a partial navmesh: a unit ordered outside it silently cannot move |
+
+
+## 6. ⭐ The prior designs this builds on — the corpus sweep *(coordinator, `2026-11-09`; the user: "check the design documents for the related terrains so you do not repeat the error")*
+
+INVENTORY: the `docs/` file names matching terrain · height · building · nav · zone · ground · world · geo · staging · content (44 files), their
+STATUS lines read; `grep -l TerrainWorld docs` (40 files); `.dev/_DONE/{navig-2, map-features, stride-1}`; the classes confirmed in code
+(`TerrainHeightGrid`, `NavTileCache`, `Utm`). ⚠ `check_index_coverage` is not available through the CLI.
+
+| design | applies — how | ✏ what it changes in §2 / §3 |
+|---|---|---|
+| [Terrain World](DESIGN_Terrain_World.md) §2 (the world file), ⭐ §9 SPARSE TERRAIN (S1–S7 ✅ R-4051; CE-4011, CE-4012 deferred) | ✅ **directly**: S1 an `outer` ground block (flat / coarse grid / SUMO lattice) · S2 `insets[]`, each a rectangle with its own height grid and navmesh bounds · S3 the ground query picks the inset, else the outer ground, blended at the edge · S4 the mesh and navmesh PER INSET · S5 each inset an implicit fidelity zone · S6 every inset loaded at terrain load (streaming = the zone 2PC, later) · ⭐ S7 float local metres are precise enough to hundreds of km — **no double precision needed** | the 6 × 6 km area is **ONE INSET** (S2); Q-U12's "real data inside, a band outside" is **S1's outer ground**; ⇒ **CE-4011 + CE-4012 become PREREQUISITES of this import** (stage 0), not new inventions. What §9 does NOT cover and this design adds: a TILED height store INSIDE one large inset, the UTM frame, the building generator |
+| [Terrain Height](DESIGN_Terrain_Height.md) (CE-1034; §8 the ambient ground outside, A1–A4 ✅ R-4050) | ✅ the ONE `TerrainHeightGrid` (ESRI ASCII, one array) and the outer-ground height fallback (A1) and the straight open-ground legs between areas (A2) | the tiled store EXTENDS this class (as §2 now says); the outer ground's heights use §8 A1 |
+| [World Query Seam](DESIGN_World_Query_Seam.md) (WQ-A…WQ-H ✅ R-253; Bepu for objects, a plain grid for heights) | ✅ every height / trace / LOS reader (31 production files) goes through `IWorldQuery` | the import adds DATA behind the seam; ⛔ no reader learns about tiles or UTM |
+| [Navigation v2](designs/navig-2/Navigation_Design_v2_0.md) §14 P2 + [AQ71](blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md) R7 | ✅ the bake is tiled (24 m) and **`NavTileCache` is BUILT** (`NavTileCache.cs:35`: memory + a local folder, key = layer, tile x/z, the hash of the tile's inputs) | "bake offline" = the importer **pre-fills the tile cache** that ships with the terrain (same keys) — ⛔ not a second navmesh store |
+| [Terrain Zones and Assets](DESIGN_Terrain_Zones_And_Assets.md) (zones are windows, R-146; fidelity zones §11, R-4042) | ✅ the terrain is the content pack; an inset is an implicit fidelity zone (§9 S5) | nothing new |
+| [Building Interiors](DESIGN_Building_Interiors.md) | ✅ the `*.building.json` template the generator writes | the generator's output must pass the templates' own validation; 1 988 houses × doors is a scale its door / room systems have not seen — measure in stage 4 |
+| [Geo Origin](DESIGN_Geo_Origin.md) (R-229) | ✅ the ONE origin and `IGeographicTransform` | `UtmTransform` is its second implementation |
+| [Artifact Staging](DESIGN_Artifact_Staging.md) · [Content Layout](DESIGN_Content_Layout.md) | ✅ how a terrain reaches every node; where it lives | the terrain stays OUTSIDE git (Q-U5) — the content root is configured, not the repo copy |
+| [AQ93 SUMO](blueprints/Architect_Question_93_Sumo_Traffic_Node.md) E1 (R-4025) | ✅ `Utm.cs` and the net anchor | the SUMO crop + anchor of Q-U4 |
+| [Map 3D Mode](DESIGN_Map_3D_Mode.md) (`BeyondGround`, the apron) · [Terrain Combat Tuning](DESIGN_Terrain_Combat_Tuning.md) · [World Survey Sensor](DESIGN_World_Survey_Sensor.md) · [Body Geometry and Ground Contact](DESIGN_Body_Geometry_And_Ground_Contact.md) | ✅ consumers of the world model — unchanged by construction (they read `TerrainWorld` / `IWorldQuery`) | the 3-D view's LOD for a 6 km ground is new work in Map 3D Mode |
+| [PLAN 3D World and Realism](PLAN_3D_World_And_Realism.md) | ⛔ its roadmap has no large-terrain phase — this import is a new line in it | add it there when this design is approved |
+
+### 6.1 ✏ The stages, re-based on §9 *(supersedes §3's list)*
+
+0. **CE-4011 + CE-4012** — Terrain World §9 S1 (outer ground) and S2–S4 (insets, per-inset ground and navmesh): the approved, deferred groundwork
+1. `UtmTransform` + the terrain's frame (e0/n0 = the source engine's origin)
+2. the collider and perception grids at 6 km: they already fit the terrain (§4.4) — check the cell SIZES (≈ 20 m / 30 m with today's counts) against 1 000 soldiers, and raise the counts if a rail shows crowding
+3. the TILED store inside one large inset's `TerrainHeightGrid` + the importer's height path (1 m), the 3-D LOD, the 2-D hillshade
+4. the building generator (1 988 enterable templates: open floors + one stair ramp, openings at the source points — R-4186), measured against Building Interiors' door systems at that scale; ✅ the complete door / window point set is prepared in the input set (outside this repo)
+5. the other layers (the SUMO crop + anchor, walls, derived forest surfaces)
+6. the importer pre-fills the `NavTileCache` per inset (interiors included)
+7. the importer as a repeatable tool; ⛔ the converted terrain never in git
+
+
+## 7. ✅ Decided `2026-11-09` — paths and units *(R-4187)*
+
+🔒 User: *"A walkable anywhere, outdoors and inside, computed once, no more than 1,000 soldiers, but cars, aircraft, anti-aircraft. This needs to
+work. For the soldiers, they do not need to see across the whole city … They are interesting just a few hundred meters away from each other. But the
+aircraft should see them, and the anti-aircraft should see the aircraft."*
+
+| decision | ⇒ for the build |
+|---|---|
+| **walkable everywhere — outdoors and inside every house — computed ONCE** | the importer pre-fills the `NavTileCache` for the whole inset, every layer (infantry, vehicles), interiors included (§6.1 stage 6) |
+| **≤ 1 000 soldiers, plus cars, aircraft and anti-aircraft** | the collider and perception grids at 6 km (stage 2) are checked against this load |
+| **soldiers sense each other to a few hundred metres** | the perception grid's ≈ 30 m cells at 6 km are fine for that range |
+| **aircraft see ground units; anti-aircraft sees aircraft — kilometres, across the whole area** | ⚠ to MEASURE in stage 2: how the air sensors (`SensorModality.Radar`, the Air Operations design) find targets beyond the soldiers' local grid — air ↔ ground and AA ↔ air must not depend on a few-hundred-metre grid; with a handful of aircraft a direct list is cheap |
+
+## 8. ✏ PROPOSAL — DESTRUCTIBLE BUILDINGS *(coordinator, `2026-11-09`; D-1…D-8 leans, Q-D1…Q-D4 for the user)*
+
+🔒 User: *"I would like to support destructible buildings. That means that the building can lose some of its walls. I'm not sure how we could do that
+exactly, maybe by removing that part of wall and making it a window, actually a big one. I'm not sure if we can actually remove floor. The destruction
+is usually the outcome of a bomb explosion or sometimes a breach using some explosive hitting the wall. Could be a tank shell, artillery shell, or
+some missile hit."*
+
+| measured — what already exists | where |
+|---|---|
+| ⭐ a wall is a `TerrainWallPanel` (segment, thickness, base..top) with an `Openings[]` list — doors and windows ARE openings | `TerrainBuildings.cs:39-61` · [Building Interiors](DESIGN_Building_Interiors.md) §2 (`TerrainWallPanel *-- TerrainOpening`) |
+| ⭐ the building design already NAMES this: *"E3 damage to the building itself — v1: a door can be Destroyed (already a `DoorState`); wall breaching = changing geometry at runtime → later"*, waiting on the navmesh's P2 | Building Interiors `:38, :365` |
+| ⭐ runtime GEOMETRY change is DESIGNED and half BUILT: *"a breached wall, a crater, a collapsed building — copy-on-write: rebuild off-thread, swap one immutable snapshot"* — P1 the snapshot ✅, P2 tiles + `NavTileCache` ✅, P3 replan (with 5d) not built; the CHANGE itself (AQ81 T6) not built | [Navigation v2](designs/navig-2/Navigation_Design_v2_0.md) §14 (R-218) |
+| a blast already acts on doors (a door can be destroyed by a blast) and a tall wall already shades a blast | `AreaEffectSystem.cs:346` · `AreaEffect.cs:93-96` |
+| a hit already crosses walls by penetration vs the material's resistance | [Terrain Combat Tuning](DESIGN_Terrain_Combat_Tuning.md) §3 |
+| destruction is the MUSCLE's: the brain never reads world geometry | R-2037 |
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainWallPanel { <<existing, content>> segment · thickness · BaseZ..TopZ · Openings[] (doors, windows) }
+    class WallBreaches { <<NEW component, world state>> on a per-building entity made at the FIRST breach · fixed list of breaches: panel · along-wall from..to · z from..to · Passage? }
+    class BreachRule { <<NEW, Muscle>> warhead × the panel's material ⇒ a breach rectangle or nothing }
+    class AreaEffectSystem { <<existing>> blasts — doors today, + panels }
+    class ImpactOnWall { <<existing path>> a penetrating hit on a panel (shell, missile, charge) }
+    class WorldTrace { <<existing, behind IWorldQuery>> sight and fire read panels + LIVE breaches, as doors' live state }
+    class NavmeshRebuild { <<existing design, Nav v2 §14>> touched tiles rebuilt off-thread, snapshot swapped }
+    AreaEffectSystem --> BreachRule
+    ImpactOnWall --> BreachRule
+    BreachRule --> WallBreaches : adds a breach
+    WallBreaches ..> WorldTrace : read at query time
+    WallBreaches ..> NavmeshRebuild : a PASSAGE breach triggers
+    TerrainWallPanel ..> WorldTrace
+```
+*What it shows: a breach is the user's "big window" — ONE more opening on the existing wall panel, kept as WORLD STATE (recorded, replicated, saved,
+restored by a checkpoint) beside the static content, exactly as a door's live state sits beside its static definition. Sight and fire see it at once;
+only a breach big enough to walk through touches the navmesh, through the copy-on-write rebuild Navigation v2 §14 already designs.*
+
+| # | ⭐ lean | rejected — one line |
+|---|---|---|
+| **D-1** | **a breach = an extra opening on a wall panel** (the user's "big window"): a rectangle clipped to the panel and its storey | deleting the panel: a wall is rarely gone whole; a new geometry kind beside openings |
+| **D-2** | a breach whose bottom reaches the floor and is ≥ 0.8 × 1.8 m is a **PASSAGE** (walkable — the navmesh changes); smaller is a **HOLE** (sight and fire only, no navmesh change) | every breach walkable: a shell-sized hole is not a door |
+| **D-3** | **world state**: a `WallBreaches` component (UNMANAGED, a fixed list per building — recorded, R-2084 / new-components rule) on a per-building entity created only at the FIRST breach ⇒ 1 988 houses cost nothing until one is hit; owned by the Muscle that decided it; replicated, saved with the scenario (a scenario may start pre-breached), restored by a checkpoint | breaches in the terrain content: content is NoReplay (R-3043) — a replay would show the walls whole |
+| **D-4** | **who breaches — the Muscle, by ONE rule** (warhead × the panel's material): a blast near a wall (bombs, artillery, a breaching charge) through `AreaEffectSystem` (doors already), a penetrating hit (tank shell, missile) at its hit point | the brain asks for a breach: R-2037 |
+| **D-5** | **size by warhead** (tunable data, the material's resistance scales it): breaching charge ≈ a 1 × 2 m passage · tank / missile ≈ a 1–1.5 m hole · artillery shell ≈ 2–3 m · a heavy bomb close by ≈ the whole panel of that storey | one size for every weapon |
+| **D-6** | sight and fire read the live breaches at QUERY time (as `DoorAwareQueryFilter` reads live doors); a passage triggers Nav v2 §14's copy-on-write rebuild of the touched tiles (seconds, off the frame) — building **P3 replan** (5d) is part of this work | rebuilding the navmesh on the frame: the CE-4033 stall |
+| **D-7** | ⛔ **no floor removal in v1**; the heavy case — enough damage to bring a building down — is a later stage: the building becomes a RUBBLE mound (a non-enterable obstacle), units inside are casualties | removing floor slabs: units falling, stairs left hanging, a navmesh that changes storey by storey — weeks for a rare case |
+| **D-8** | the EXTERNAL visual engine must draw the breach — HROT publishes `WallBreaches` like any replicated state; how that engine consumes it is outside this repo | — |
+
+| # | question for the user | lean |
+|---|---|---|
+| **Q-D1** | walls only in v1 (holes and passages), the building collapse to rubble as a later stage, no floor removal? | yes |
+| **Q-D2** | the sizes per warhead (D-5) as the starting table, tuned in data? | yes |
+| **Q-D3** | breaches persist for the whole exercise (no repair), are saved with a scenario and restored by checkpoints? | yes |
+| **Q-D4** | does it apply to every building (the imported 1 988 and today's authored ones), or only to the imported terrain? | every building — one rule |
+
+⇒ it is its own stage (after the importer's buildings, stage 4), and it also delivers Building Interiors' E3 for today's terrains.
 
 ---
 _source-data session, 2026-11-09_
