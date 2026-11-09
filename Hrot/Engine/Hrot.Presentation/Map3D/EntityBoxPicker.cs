@@ -11,7 +11,7 @@ namespace Hrot.UI.Common.Map3D;
 /// collider (a bounding circle, too wide for a long vehicle, absent on some types). The hit point is the entity's OWN position,
 /// so the layers' 2-D pick boxes — centred on it — contain it and the input chain stays unchanged (§3.8).
 /// </summary>
-public sealed class EntityBoxPicker : IPicker3D
+public sealed class EntityBoxPicker : IBodyPicker3D
 {
     private readonly Func<EntityRepository?> _world;
     private readonly Func<ITkbDatabase?> _tkb;
@@ -34,6 +34,16 @@ public sealed class EntityBoxPicker : IPicker3D
     }
 
     public PickFilter Kind => PickFilter.Entities;
+
+    /// <summary>⭐ CE-1466 — whether the entity with <paramref name="networkId"/> is drawn as a body this picker hit-tests (so a 3-D press on it is the ray's, never its 2-D footprint's).</summary>
+    public bool HasBody(long networkId)
+    {
+        var world = _world();
+        if (world == null || networkId == 0 || networkId > int.MaxValue || !world.IsComponentTypeRegistered<TkbIdentity>()) return false;
+        var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, (int)networkId);   // the entity itself, not its carrier
+        if (e.IsNull || e == _bodies.FirstPerson || !world.IsAlive(e) || !world.HasComponent<TkbIdentity>(e)) return false;
+        return _bodies.TryGetBox(world, e, _tkb(), out _, out _, out _);
+    }
 
     public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit)
     {

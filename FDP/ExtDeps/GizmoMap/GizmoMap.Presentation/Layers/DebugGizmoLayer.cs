@@ -129,7 +129,8 @@ namespace GizmoMap.Presentation
             Func<Vector2, bool, Vector3>? screenToWorld = null,
             Func<Vector3, float>? zoomAt = null,
             Func<int>? nextTypedKey = null,
-            bool? keyboardCaptured = null)
+            bool? keyboardCaptured = null,
+            Func<long, bool>? rayOnlyAnchor = null)
         {
             var screenPos = Raylib.GetMousePosition();
             // ⭐ CE-1033 S2 (M19) — a host camera that knows height (the 3-D map) answers screen → world itself: the PICK point for
@@ -204,7 +205,7 @@ namespace GizmoMap.Presentation
             // Gate activation: ignore if ImGui is capturing the mouse
             if (_activeTool == null && !isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
-                var best = FindTopmostInteractivePrimitive(primitives, worldPos, pickZoom, exclusiveAnchorId);
+                var best = FindTopmostInteractivePrimitive(primitives, worldPos, pickZoom, exclusiveAnchorId, rayOnlyAnchor);
                 if (best.HasValue)
                 {
                     var hit = best.Value;
@@ -238,7 +239,7 @@ namespace GizmoMap.Presentation
                 {
                     long hitNetworkId = -1L; // canvas anchor fallback
 
-                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, pickZoom, exclusiveAnchorId);
+                    var best = FindTopmostInteractivePrimitive(primitives, worldPos, pickZoom, exclusiveAnchorId, rayOnlyAnchor);
                     if (best.HasValue)
                     {
                         var hit = best.Value;
@@ -586,11 +587,25 @@ namespace GizmoMap.Presentation
             return id != 0 ? id : (long?)null;
         }
 
+        /// <summary>
+        /// ⭐ CE-1466 — test seam for the 3-D press: <see cref="PickTopmostAnchorId"/> with the camera's <paramref name="rayOnlyAnchor"/> rule (an anchor
+        /// whose body the 3-D view DRAWS is hit only when the camera's ray hit that body). ⛔ <see cref="HandleInput"/> needs a live window.
+        /// </summary>
+        public static long? PickTopmostAnchorIdIn3D(
+            ReadOnlySpan<DebugPrimitive> primitives, Vector2 worldPos, float zoom, Func<long, bool> rayOnlyAnchor)
+        {
+            var best = FindTopmostInteractivePrimitive(primitives, worldPos, zoom, exclusiveAnchorId: null, rayOnlyAnchor);
+            if (!best.HasValue) return null;
+            long id = best.Value.BoxAnchorId;
+            return id != 0 ? id : (long?)null;
+        }
+
         private static DebugPrimitive? FindTopmostInteractivePrimitive(
             ReadOnlySpan<DebugPrimitive> primitives,
             Vector2 testPos,
             float zoom,
-            long? exclusiveAnchorId = null)
+            long? exclusiveAnchorId = null,
+            Func<long, bool>? rayOnlyAnchor = null)
         {
             DebugPrimitive? best = null;
             float bestDistSq = float.MaxValue;   // ⭐ CE-3147 — the nearest-wins tie-break among equal layers
@@ -602,6 +617,10 @@ namespace GizmoMap.Presentation
                 if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding || prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
 
                 if (prim.AnchorIndex == 0 && prim.SubElementId == 0 && prim.BoxAnchorId == 0) continue;
+                // ⭐⭐ CE-1466 — in 3-D an entity the view DRAWS as a body is hit by the camera's RAY (its drawn box + a few pixels), never by its 2-D
+                //   footprint at the ray's ground point: a press 3 m beside a 0.5 m man selected him (the 5 m symbol's 3 m half + 5 px). The host says
+                //   which anchors those are (null in 2-D ⇒ unchanged); a handle / area / route / tool anchor has no body and keeps this test.
+                if (rayOnlyAnchor != null && prim.BoxAnchorId != 0 && rayOnlyAnchor(prim.BoxAnchorId)) continue;
 
                 // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — ONE ID, AND IT IS THE NETWORK ID.
                 //   ⛔ This used to multiplex two addressing domains:

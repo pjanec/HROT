@@ -445,6 +445,19 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>The last pick (point with height, kind, entity id) — what the five former <c>z = 0</c> sites read (M19).</summary>
         public PickResult LastPick { get; private set; } = PickResult.None;
 
+        /// <summary>
+        /// ⭐ CE-1466 — whether a press may NOT hit <paramref name="networkId"/>'s 2-D pick box: it is drawn as a body (an <see cref="IBodyPicker3D"/> answers
+        /// for it) and the last pick's ray did not hit that body. The gizmo terminal skips such anchors, so a 3-D click selects what the ray hit — the
+        /// drawn box + a few pixels, as the hover (U-9, CE-4340) — never a unit whose footprint merely covers the ground point.
+        /// </summary>
+        public bool IsRayOnlyAnchor(long networkId)
+        {
+            if (LastPick.Kind == PickKind.Entity && LastPick.NetworkId == networkId) return false;
+            for (int i = 0; i < Pickers.Count; i++)
+                if (Pickers[i] is IBodyPicker3D bodies && bodies.HasBody(networkId)) return true;
+            return false;
+        }
+
         // One pick per (pixel, filter, camera pose) per frame: the canvas, the gizmo layer and the hover all ask for the same pixel.
         private Vector2 _cachePixel = new(float.NaN);
         private PickFilter _cacheFilter;
