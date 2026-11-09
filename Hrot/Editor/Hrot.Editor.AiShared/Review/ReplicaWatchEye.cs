@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Presentation.Fonts;
+using System;
 using Fdp.Presentation.Forms;
+using Fdp.Presentation.Panels.ReplayBrowser;
 
 namespace Hrot.Editor.AiShared.Review;
 
@@ -13,7 +15,9 @@ namespace Hrot.Editor.AiShared.Review;
 public sealed class ReplicaWatchEye : IFormRowTrailer
 {
     private readonly ReplicaWatchLane _lane;
-    public ReplicaWatchEye(ReplicaWatchLane lane) => _lane = lane;
+    private readonly Func<ByNodeSection?> _byNode;
+    /// <param name="byNode">The host's By node section (its attribute view draws the watched attributes' per-node values); may resolve to null.</param>
+    public ReplicaWatchEye(ReplicaWatchLane lane, Func<ByNodeSection?>? byNode = null) { _lane = lane; _byNode = byNode ?? (() => null); }
 
     public string Glyph => IconsFontAwesome6.Eye;
 
@@ -26,6 +30,20 @@ public sealed class ReplicaWatchEye : IFormRowTrailer
 
     public void Click(FormField field, IReadOnlyList<Entity> selection)
     {
-        if (field.Attribute != null) _lane.Watch.Toggle(_lane.Unit, field.Attribute, field.SubIndex);
+        if (field.Attribute != null) _lane.Watch.Toggle(_lane.Unit, field.Attribute, field.SubIndex, label: field.Label);
+    }
+
+    /// <summary>⭐ RW-6 — under the form: "&lt;attribute&gt; — by node" for each watched attribute THIS form declares (a watched attribute shows under its own tab).</summary>
+    public void Footer(FormDecl decl, IReadOnlyList<Entity> selection)
+    {
+        if (_byNode() is not { } section || selection.Count != 1) return;
+        var items = _lane.Watch.ItemsOf(_lane.Unit);
+        for (int i = 0; i < items.Count; i++)
+        {
+            var it = items[i];
+            bool here = false;
+            for (int f = 0; f < decl.Fields.Count && !here; f++) here = decl.Fields[f].Attribute == it.Path && decl.Fields[f].SubIndex == it.SubIndex;
+            if (here) section.DrawAttribute(selection[0], it);
+        }
     }
 }

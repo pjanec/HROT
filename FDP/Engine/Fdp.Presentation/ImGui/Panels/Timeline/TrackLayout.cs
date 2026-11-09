@@ -72,7 +72,7 @@ public static class TrackLayout
 
     // ── ⭐ CE-4167 X3 — tree rows ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-    public const float IndentPx = 12f, ArrowPx = 12f, IconPx = 14f, LabelPadPx = 4f;
+    public const float IndentPx = 12f, ArrowPx = 12f, IconPx = 19f, LabelPadPx = 4f;
 
     /// <summary>The label column's width: the flat <paramref name="flat"/> one unless some track has a <see cref="TrackHeader"/> (a tree needs room), then <paramref name="tree"/>.</summary>
     public static float LabelWidthFor(IReadOnlyList<ITimelineTrack>? tracks, float flat, float tree)
@@ -83,7 +83,11 @@ public static class TrackLayout
 
     /// <summary>Where a header's parts sit in a label column <paramref name="labelWidth"/> wide: the arrow, the icon, the text (x from the column's left) and the status (right-aligned by
     /// <paramref name="statusWidth"/>, null when there is none or it would not fit after the text).</summary>
-    public readonly record struct HeaderPlan(float? ArrowX, float? IconX, float TextX, float? StatusX);
+    public readonly record struct HeaderPlan(float? ArrowX, float? IconX, float TextX, float? StatusX)
+    {
+        /// <summary>The trailing button's x (right after the text), or null when the header has none.</summary>
+        public float? TrailX { get; init; }
+    }
 
     public static HeaderPlan PlanHeader(TrackHeader h, float labelWidth, float textWidth, float statusWidth)
     {
@@ -99,7 +103,7 @@ public static class TrackLayout
             float sx = labelWidth - LabelPadPx - statusWidth;
             if (sx >= textX + textWidth + LabelPadPx) statusX = sx;
         }
-        return new HeaderPlan(arrow, icon, textX, statusX);
+        return new HeaderPlan(arrow, icon, textX, statusX) { TrailX = h.TrailingGlyph is { Length: > 0 } ? textX + textWidth + LabelPadPx : null };
     }
 
     /// <summary>The tracks to DRAW: in the given (tree) order, minus those hidden by a collapsed node — a collapsible header whose id is in <paramref name="collapsed"/> hides the tracks after it that are

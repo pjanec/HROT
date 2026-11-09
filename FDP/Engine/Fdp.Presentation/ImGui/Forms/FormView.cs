@@ -35,6 +35,8 @@ public interface IFormRowTrailer
     string TipOf(int state);
     /// <summary>The trailer was clicked.</summary>
     void Click(FormField field, IReadOnlyList<Entity> selection);
+    /// <summary>⭐ RW-6 — drawn once under the form's rows (inside its window), only while <see cref="Available"/>: the host's own block for what the trailer toggled (the watched attributes' per-node values).</summary>
+    void Footer(FormDecl decl, IReadOnlyList<Entity> selection);
 }
 
 public sealed class FormView
@@ -140,6 +142,7 @@ public sealed class FormView
         if (selection.Count == 1)
             for (int li = 0; li < decl.Lists.Count; li++) DrawList(li, decl.Lists[li], world, selection[0], editable);
         if (selection.Count == 1) decl.After?.Invoke(world, selection[0], editable);   // ⭐ CE-4346 — the form's own block (the weather layers)
+        if (_trailerOn) Trailer!.Footer(decl, selection);
         if (!editable) ImGui.EndDisabled();
     }
 

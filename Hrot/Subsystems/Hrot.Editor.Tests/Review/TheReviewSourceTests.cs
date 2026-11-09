@@ -752,4 +752,46 @@ public sealed class TheReviewSourceTests : IDisposable
         string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } sd ? sd : "";
         if (dir != "") { Directory.CreateDirectory(dir); frame.Screenshot(Path.Combine(dir, "g7s5-details-by-node.png")); }
     }
+
+    /// <summary>
+    /// ⭐ §6.13 RW-6 (mockup ① "Strength — by node") — a WATCHED attribute shows its per-node values: the owner (crown) first, a replica beyond the item's tolerance amber with its Δ. The tolerance decides what is amber (7 apart: amber at 0.5, not at 10). 🔴 Red-proof: ignore the tolerance in <c>ReplicaViews.ComputeItem</c> ⇒ the tolerance-10 half shows node 4 amber.
+    /// </summary>
+    [SkippableFact]
+    public void RW6_AWatchedAttribute_ShowsItsPerNodeValues_AmberBeyondTolerance()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ReplicaGroup();
+        using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1 (Brain)", 3 => "SimHost-1 (Muscle)", _ => "IG-1 (Map2D)" });
+        rig.Open(_exercise);
+        var section = ByNode(rig);
+        section.Capture = true;
+        var watch = new ReplicaWatchList();
+        section.Watch = watch;
+        var unit = UnitOf(rig.World, 100);
+        var item = watch.Add(100, "ObjectiveStatus.ProgressCur", 0, expert: true, label: "Progress");
+
+        var views = new ReplicaViews(new OwnershipSource(), _serializer);
+        var view = views.ComputeItem(rig.Source.MergedManager!, 100, item)!;
+        Assert.Equal(new[] { 2, 3, 4 }, view.Rows.Select(r => r.NodeId).ToArray());
+        Assert.Equal(new[] { true, false, false }, view.Rows.Select(r => r.IsOwner).ToArray());
+        Assert.Equal(new[] { false, false, true }, view.Rows.Select(r => r.Differs).ToArray());
+        Assert.Equal(7d, view.Rows[2].Delta, 3);
+        watch.SetTolerance(100, "ObjectiveStatus.ProgressCur", 0, 10);
+        Assert.DoesNotContain(views.ComputeItem(rig.Source.MergedManager!, 100, watch.ItemsOf(100)[0])!.Rows, r => r.Differs);   // within the tolerance: nothing amber
+        watch.SetTolerance(100, "ObjectiveStatus.ProgressCur", 0, 0.5);
+
+        using var frame = UiFrameHarness.Begin(640, 260);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        frame.StepN(5, () =>
+        {
+            ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(640, 260));
+            ImGui.Begin("Details", ImGuiNET.ImGuiWindowFlags.NoCollapse);
+            section.DrawAttribute(unit, watch.ItemsOf(100)[0]);
+            ImGui.End();
+        });
+        Assert.Equal(new[] { 2, 3, 4 }, section.Rows.Select(r => r.Node).ToArray());
+        Assert.Equal(new[] { false, false, true }, section.Rows.Select(r => r.Amber).ToArray());
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } sd ? sd : "";
+        if (dir != "") { Directory.CreateDirectory(dir); frame.Screenshot(Path.Combine(dir, "rw6-attribute-by-node.png")); }
+    }
 }

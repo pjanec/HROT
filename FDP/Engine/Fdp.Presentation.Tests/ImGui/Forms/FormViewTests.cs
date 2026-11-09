@@ -151,6 +151,8 @@ public sealed class FormViewTests : IDisposable
         public int StateOf(FormField field, IReadOnlyList<Entity> selection) => field.Attribute == null ? 0 : On.Contains(field.Attribute) ? 2 : 1;
         public string TipOf(int state) => state == 2 ? "on" : "off";
         public void Click(FormField field, IReadOnlyList<Entity> selection) { if (!On.Remove(field.Attribute!)) On.Add(field.Attribute!); }
+        public int Footers;
+        public void Footer(FormDecl decl, IReadOnlyList<Entity> selection) => Footers++;
     }
 
     /// <summary>⭐ §6.13 (RW-1, mockup ①) — the host's row trailer (the watch eye): one at the end of every ATTRIBUTE row, none on a derived row, all at ONE x, a click toggles it, nothing is added when the host offers none,
@@ -186,6 +188,7 @@ public sealed class FormViewTests : IDisposable
         Assert.Equal(1, view.TrailerRects.Select(t => (int)t.Min.X).Distinct().Count());   // all at ONE x
         Assert.Contains("Health.Current", eyes.On);                                          // the click toggled Strength
         Assert.Equal(0, drawn);
+        Assert.True(eyes.Footers >= 12);                                                     // the host's footer is drawn under the rows every frame it is offered
 
         var plain = new FormView { CaptureLayout = true };                                   // no host trailer ⇒ no column, no rects
         using (var i2 = new ImGuiTestFixture()) { i2.NewFrame(); ImGuiNET.ImGui.Begin("D2"); plain.Draw(Form, _world, sel, true); ImGuiNET.ImGui.End(); i2.Render(); }

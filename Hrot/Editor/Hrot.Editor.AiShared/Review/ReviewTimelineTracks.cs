@@ -203,7 +203,9 @@ public sealed class ReviewTimelineTracks
 
         public void Clear() => _items.Clear();
         public void Add(TimelineTrackItem item) => _items.Add(item);
-        public void Head(string text, string status) { Label = text; Header = new TrackHeader(0, text, status, null, _kind == RowKind.Replica ? Fdp.Presentation.Fonts.IconsFontAwesome6.Eye : null); }   // ⭐ the watch's eye before the label
+        public void Head(string text, string status) { Label = text; Header = _kind == RowKind.Replica
+            ? new TrackHeader(0, text, status, null, Fdp.Presentation.Fonts.IconsFontAwesome6.Eye, false, Fdp.Presentation.Fonts.IconsFontAwesome6.Gear, () => _owner._replica?.OpenSettings())   // ⭐ the watch's eye before the label, the gear after it (mockup ②)
+            : new TrackHeader(0, text, status); }
 
         public void Select(string itemId)
         {

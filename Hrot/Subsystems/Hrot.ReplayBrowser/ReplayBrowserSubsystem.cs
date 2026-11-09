@@ -1014,7 +1014,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, () => _viewMode == ViewMode.Merged ? _manager : null,
                     () => { int n = Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_activeRepo, _inspectorState?.SelectedEntity); return n > 0 ? n : null; },
                     n => null);
-            if (_replicaLane != null) _watchKit = new Hrot.Editor.AiShared.Review.ReplicaWatchKit(_replicaLane, () => _activeRepo);
+            if (_replicaLane != null) _watchKit = new Hrot.Editor.AiShared.Review.ReplicaWatchKit(_replicaLane, () => _activeRepo, () => _byNodeSection);
             ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _timelineSource, searchPanel, stops: null,
                 transport: () => timelinePanel, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane) { Settings = _watchKit?.Settings };
             _eventTimeline.AddTracks(ReviewTracks.Tracks);
@@ -1166,6 +1166,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         _byNodeSection = new ByNodeSection(_replicaViews, () => _viewMode == ViewMode.Merged ? _manager : null,
             e => _activeRepo is { } r && r.IsAlive(e) && r.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? r.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
             n => _federationPanel?.NameOf(n) ?? "Node " + n);
+        _byNodeSection.Watch = ReplicaWatch;   // ⭐ RW-6 — the header eye and the attribute view share the session's watch
         _inspectorPanel!.Reflector.ComponentFooter = _byNodeSection.Draw;
         _inspectorPanel.EntityNote = e => _viewMode == ViewMode.Merged && _merger != null && _merger.Target.TryGetLocalNode(e, out int ln) ? "local to " + (_federationPanel?.NameOf(ln) ?? "Node " + ln) : null;
         // ⭐ CE-4206 R2 — the search area is edited through the ONE pick context (DESIGN_Map_Picking_Unification P4): a broker over a canvas adapter

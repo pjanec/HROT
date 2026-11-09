@@ -156,6 +156,55 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             public bool Open; public int OwnerNodeAtStart; public int StartFrame; public long StartWall; public string OwnerText = ""; public List<(int, string)> Believers = new();
         }
 
+        private static ResolvedItem? Resolve(ReplicaWatchItem item)
+        {
+            var r = new ResolvedItem { Item = item, TypeId = -1 };
+            if (!item.Expert && Fdp.Toolkit.Replication.Attributes.AttributeReaders.TryResolve(item.Path, out r.AttributeId, out var sub)
+                && Fdp.Toolkit.Replication.Attributes.AttributeReaders.DefinitionOf(r.AttributeId) is { } def)
+            { r.Sub = item.SubIndex != 0 ? item.SubIndex : sub; r.TypeId = ComponentTypeRegistry.GetId(def.Component); }
+            else if (item.Expert)
+            {
+                int dot = item.Path.IndexOf('.');
+                string comp = dot > 0 ? item.Path.Substring(0, dot) : item.Path;
+                r.Field = dot > 0 ? item.Path.Substring(dot + 1) : "";
+                for (int t = 0; t < FdpConfig.MAX_COMPONENT_TYPES && r.TypeId < 0; t++) if (ComponentTypeRegistry.GetType(t)?.Name == comp) r.TypeId = t;
+            }
+            return r.TypeId >= 0 ? r : null;
+        }
+
+        /// <summary>
+        /// ⭐ RW-6 — what every node believes of ONE watched item of <paramref name="netId"/> right now (Details ▸ <i>&lt;attribute&gt; — by node</i>): the OWNER's value first, then each replica's, a replica
+        /// marked differing beyond the item's tolerance (<see cref="ReplicaRow.Delta"/> is the numeric distance). Read through <c>AttributeReaders</c> on each node's sandbox (an expert item through <c>ComponentJsonPath</c>) — the
+        /// SAME reads the lane's scan makes. Allocates: cache it per merged frame like <see cref="Compute"/>. Null when no node holds the value.
+        /// </summary>
+        public ReplicaView? ComputeItem(FederatedReplayManager manager, long netId, ReplicaWatchItem item)
+        {
+            if (Resolve(item) is not { } r) return null;
+            var nodes = new List<NodeEntity>();
+            Holders(manager, netId, nodes);
+            if (nodes.Count == 0) return null;
+            int owner = OwnerOf(manager, nodes, r.TypeId, new List<BitMask512>());
+            var values = new List<(int Node, WatchValue V)>();
+            foreach (var n in nodes)
+            {
+                var json = r.Field != null ? Json(manager, n, r.TypeId) : null;
+                if (ReadWatch(manager.Contexts[n.NodeId].SandboxRepo, n.Entity, r, json) is { } v) values.Add((n.NodeId, v));
+            }
+            if (values.Count == 0) return null;
+            WatchValue? ownerValue = null;
+            foreach (var (node, v) in values) if (node == owner) ownerValue = v;
+            var rows = new List<ReplicaRow>(values.Count);
+            foreach (var (node, v) in values)
+            {
+                bool isOwner = node == owner;
+                bool differs = !isOwner && ownerValue is { } ov && WatchDiffers(ov, v, r.Item.Tolerance);
+                double delta = differs && ownerValue is { IsNumber: true } o2 && v.IsNumber ? Math.Abs(o2.Number - v.Number) : 0d;
+                rows.Add(new ReplicaRow(node, isOwner, v.Text, differs, delta));
+            }
+            rows.Sort((a, b) => a.IsOwner != b.IsOwner ? (a.IsOwner ? -1 : 1) : a.NodeId.CompareTo(b.NodeId));
+            return new ReplicaView(netId, ComponentTypeRegistry.GetType(r.TypeId)!, owner, rows);
+        }
+
         private static WatchValue? ReadWatch(EntityRepository repo, Entity e, ResolvedItem r, JsonObject? json)
         {
             if (r.Field == null)
@@ -191,21 +240,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         {
             var spans = new List<ReplicaSpan>();
             var resolved = new List<(ResolvedItem R, int Index)>();
-            for (int i = 0; i < items.Count; i++)
-            {
-                var r = new ResolvedItem { Item = items[i], TypeId = -1 };
-                if (!items[i].Expert && Fdp.Toolkit.Replication.Attributes.AttributeReaders.TryResolve(items[i].Path, out r.AttributeId, out var sub)
-                    && Fdp.Toolkit.Replication.Attributes.AttributeReaders.DefinitionOf(r.AttributeId) is { } def)
-                { r.Sub = items[i].SubIndex != 0 ? items[i].SubIndex : sub; r.TypeId = ComponentTypeRegistry.GetId(def.Component); }
-                else if (items[i].Expert)
-                {
-                    int dot = items[i].Path.IndexOf('.');
-                    string comp = dot > 0 ? items[i].Path.Substring(0, dot) : items[i].Path;
-                    r.Field = dot > 0 ? items[i].Path.Substring(dot + 1) : "";
-                    for (int t = 0; t < FdpConfig.MAX_COMPONENT_TYPES && r.TypeId < 0; t++) if (ComponentTypeRegistry.GetType(t)?.Name == comp) r.TypeId = t;
-                }
-                if (r.TypeId >= 0) resolved.Add((r, i));
-            }
+            for (int i = 0; i < items.Count; i++) if (Resolve(items[i]) is { } r) resolved.Add((r, i));
             if (resolved.Count == 0) return spans;
 
             using var m = FederatedReplayManager.LoadGroup(paths);

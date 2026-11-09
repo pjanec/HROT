@@ -14,14 +14,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         /// <summary>The lane's colours (ABGR), one per watched item in the order added.</summary>
         public static readonly uint[] Palette = { 0xFF33B3FF, 0xFFE0B04A, 0xFF7FC97F, 0xFFC490E0, 0xFF5A8CFF, 0xFFB4B43C };
 
-        /// <summary>The default tolerance of an attribute (RW-4): discrete (integer / bool / text) exact; a length 0.5 m, an angle 1°, any other continuous value the diff's ε.</summary>
+        /// <summary>The default tolerance of an attribute (RW-4): discrete (integer / bool / text) and unit-less values exact; a length 0.5 m, an angle 1°, any other continuous value the diff's ε.</summary>
         public static double DefaultToleranceOf(string path)
         {
-            if (!AttributeReaders.TryResolve(path, out var id, out _) || AttributeReaders.DefinitionOf(id) is not { } d) return ReplicaViews.Epsilon;   // expert path: a continuous guess
+            if (!AttributeReaders.TryResolve(path, out var id, out _) || AttributeReaders.DefinitionOf(id) is not { } d) return 0d;   // an expert field (outside the vocabulary): exact until the user sets a size
             return d.Kind switch
             {
                 AttributeValueKind.CsInt32 or AttributeValueKind.CsInt64 or AttributeValueKind.Bool or AttributeValueKind.CsString => 0d,
-                _ => d.Unit == "m" ? 0.5d : d.Unit == "°" ? 1d : ReplicaViews.Epsilon,
+                _ => d.Unit == null ? 0d : d.Unit == "m" ? 0.5d : d.Unit == "°" ? 1d : ReplicaViews.Epsilon,   // no unit (a level, a count of nothing in particular): exact
             };
         }
     }
@@ -81,10 +81,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         }
 
         /// <summary>The eye: watched ⇒ unwatched and back. Returns whether it is watched now.</summary>
-        public bool Toggle(long unit, string path, int subIndex = 0, bool expert = false)
+        public bool Toggle(long unit, string path, int subIndex = 0, bool expert = false, string? label = null)
         {
             if (IsWatched(unit, path, subIndex)) { Remove(unit, path, subIndex); return false; }
-            Add(unit, path, subIndex, expert); return true;
+            Add(unit, path, subIndex, expert, label); return true;
         }
 
         public void SetTolerance(long unit, string path, int subIndex, double tolerance)

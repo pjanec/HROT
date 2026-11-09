@@ -381,6 +381,104 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
         Assert.Empty(tracks.ReplicaItems);
     }
 
+    /// <summary>
+    /// ⭐ §6.13 (mockups ① and ③) — the lane's GEAR (a trailing button on the track header, generic) opens the settings popup; the popup lists the watched items (eye · icon · label · tolerance · ✕), the threshold "(default)" and the
+    /// note; the Details eye is one teal/grey glyph per attribute row. Renders <c>watch-settings.png</c> and <c>watch-details-eye.png</c> under <c>HROT_RAIL_SHOTS</c> (never in git).
+    /// 🔴 Red-proof: the header carrying no <c>TrailingClick</c> ⇒ the popup never opens.
+    /// </summary>
+    [SkippableFact]
+    public void RW5_TheGearOpensTheSettingsPopup()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (p1, p2) = RecordReplicaPair();
+        using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+        manager.SetBaseWallTicks(Zero);
+        var watch = new ReplicaWatchList();
+        watch.Add(100, "ReplicaProbe.X", 0, expert: true, label: "Probe");   // gives the lane a span (and so its row)
+        FederatedReplayManager? shown = manager;
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, () => shown, () => 100, n => "Bravo 2-3");
+        var f = new Fixture(_reader, p1);
+        var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
+        var kit = new ReplicaWatchKit(lane, () => null);
+        for (int i = 0; i < 400 && tracks.ReplicaItems.Count == 0; i++) { tracks.Tracks(); System.Threading.Thread.Sleep(25); }
+        tracks.Tracks();
+        var row = tracks.Tracks().FirstOrDefault(r => r.Id == ReviewTimelineTracks.ReplicaId);
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-review-rail");
+        Directory.CreateDirectory(dir);
+        Assert.NotNull(row);
+        Assert.NotNull(row!.Header!.TrailingClick);                                                  // the gear is declared by the row (generic hook)
+        Assert.Equal(Fdp.Presentation.Fonts.IconsFontAwesome6.Gear, row.Header.TrailingGlyph);
+        tracks.Settings = kit.Settings;   // only now: the popup draws inside an ImGui frame
+        row.Header.TrailingClick!();
+        shown = null;   // the popup draws without a scan running; the display-only items below are never scanned
+        watch.Add(100, "Health.Current", 0, label: "Strength");
+        watch.Add(100, "Ammo.*", 1, label: "Rounds · 7.62");
+        watch.Add(100, "Position.X", 0, label: "Position");
+        watch.Add(100, "ActorCapabilityState.Capabilities", 0, expert: true);
+
+
+        using (var frame = UiFrameHarness.Begin(640, 260))
+        {
+            new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+            bool open = false;
+            frame.StepN(4, () =>
+            {
+                ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(640, 260));
+                ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+                tracks.Tracks();                                                                       // draws the settings popup (once a frame)
+                open = ImGui.IsPopupOpen(ReplicaWatchSettings.PopupId);
+                ImGui.End();
+            });
+            Assert.True(open, "the gear's request opened the settings popup");
+            frame.Screenshot(Path.Combine(dir, "watch-settings.png"));
+        }
+    }
+
+    /// <summary>⭐ §6.13 mockup ① — the Details eye is one glyph per ATTRIBUTE row (teal where watched). Renders <c>watch-details-eye.png</c> under <c>HROT_RAIL_SHOTS</c>.</summary>
+    [SkippableFact]
+    public void RW1_TheDetailsEye_IsRenderedOnAttributeRows()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (p1, p2) = RecordReplicaPair();
+        using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+        manager.SetBaseWallTicks(Zero);
+        var watch = new ReplicaWatchList();
+        watch.Add(100, "Health.Current", 0, label: "Strength");
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, () => manager, () => 100, n => "Bravo 2-3");
+        var kit = new ReplicaWatchKit(lane, () => null);
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-review-rail");
+        Directory.CreateDirectory(dir);
+        var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new EntityInfo { Name = new FixedString64("Bravo 2-3") });
+        world.AddComponent(unit, new Fdp.Toolkit.Combat.Components.Health { Current = 0, Max = 300 });
+        var decl = new Fdp.Presentation.Forms.FormDecl
+        {
+            Id = "rail-watch", Title = "Unit", Requires = new[] { typeof(EntityInfo) },
+            Fields = new[]
+            {
+                new Fdp.Presentation.Forms.FormField { Label = "Name", Kind = Fdp.Presentation.Forms.FieldKind.Text, Attribute = "Name", Section = "State" },
+                new Fdp.Presentation.Forms.FormField { Label = "Strength", Attribute = "Health.Current", Min = 0, Max = 300 },
+            },
+        };
+        var view = new Fdp.Presentation.Forms.FormView { Trailer = kit.Eye, CaptureLayout = true };
+        using (var frame = UiFrameHarness.Begin(600, 200))
+        {
+            new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+            frame.StepN(5, () =>
+            {
+                ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(600, 200));
+                ImGui.Begin("Details — Bravo 2-3", ImGuiWindowFlags.NoCollapse);
+                view.Draw(decl, world, new[] { unit }, editable: false);
+                ImGui.End();
+            });
+            frame.Screenshot(Path.Combine(dir, "watch-details-eye.png"));
+        }
+        Assert.Equal(new[] { 0, 1 }, view.TrailerRects.Select(t => t.Field).ToArray());   // Name and Strength both attribute rows ⇒ an eye each (Strength is watched: teal)
+        world.Dispose();
+    }
+
     /// <summary>⭐ the lane on the REAL Event Timeline panel (mockup ②): its amber marks are drawn. Renders <c>g7s5-replica-lane.png</c> under <c>HROT_RAIL_SHOTS</c>.</summary>
     [SkippableFact]
     public void G7S5_TheReplicaWatchLane_OnARealTimelineFrame_DrawsItsSpan()

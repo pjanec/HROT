@@ -34,6 +34,7 @@ public sealed class ReplicaWatchSettings
     /// <summary>Once a frame: opens the popup when the gear asked, draws it while open.</summary>
     public void Draw()
     {
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;   // a headless caller of the tracks (no ImGui frame): nothing to draw
         if (_lane.TakeSettingsRequest()) ImGui.OpenPopup(PopupId);
         if (!ImGui.BeginPopup(PopupId)) return;
         long unit = _lane.Unit;
@@ -54,7 +55,7 @@ public sealed class ReplicaWatchSettings
             ImGui.SetNextItemWidth(110f);
             double tol = it.Tolerance;
             string unitText = UnitOf(it);
-            if (ImGui.InputDouble("##tol", ref tol, 0, 0, tol == 0 ? "exact" : "%.3g" + (unitText.Length > 0 ? " " + unitText : ""), ImGuiInputTextFlags.EnterReturnsTrue))
+            if (Fdp.Presentation.Editing.NumberInput.Double(ref tol, unitText) && tol >= 0)
                 watch.SetTolerance(unit, it.Path, it.SubIndex, tol);
             ImGui.SameLine();
             if (ImGui.SmallButton(IconsFontAwesome6.Xmark)) { remove = it.Path; removeSub = it.SubIndex; }
@@ -66,7 +67,7 @@ public sealed class ReplicaWatchSettings
         ImGui.SameLine();
         ImGui.SetNextItemWidth(80f);
         double ms = Math.Round(watch.ThresholdSeconds * 1000);
-        if (ImGui.InputDouble("##thr", ref ms, 0, 0, "%.0f ms", ImGuiInputTextFlags.EnterReturnsTrue)) watch.ThresholdSeconds = ms / 1000d;
+        if (Fdp.Presentation.Editing.NumberInput.Double(ref ms, "ms") && ms >= 0) watch.ThresholdSeconds = ms / 1000d;
         if (Math.Abs(watch.ThresholdSeconds - ReplicaWatchList.DefaultThresholdSeconds) < 1e-9) { ImGui.SameLine(); ImGui.TextDisabled("(default)"); }
         ImGui.TextColored(IconPalette.Muted, "≈ 2 × the time-sync tolerance: normal replication catch-up stays hidden");
         ImGui.Separator();

@@ -11,11 +11,12 @@ public sealed class ReplicaWatchKit
     public ReplicaWatchSettings Settings { get; }
 
     /// <param name="lane">The host's lane.</param>
+    /// <param name="byNode">The host's By node section (its attribute view and its header eye share this watch).</param>
     /// <param name="world">The world that holds the selected unit now (the shown merged world) — the attribute picker lists what the unit has.</param>
-    public ReplicaWatchKit(ReplicaWatchLane lane, Func<EntityRepository?> world)
+    public ReplicaWatchKit(ReplicaWatchLane lane, Func<EntityRepository?> world, Func<Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection?>? byNode = null)
     {
         Lane = lane;
-        Eye = new ReplicaWatchEye(lane);
+        Eye = new ReplicaWatchEye(lane, byNode);
         Settings = new ReplicaWatchSettings(lane, () =>
         {
             if (world() is not { } w || lane.Unit <= 0) return null;
