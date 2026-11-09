@@ -70,7 +70,7 @@
 <rect x='632' y='313' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
 <text x='660' y='327' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Player-1</text>
 <rect x='620' y='339' width='340' height='1' fill='#4A4A55' rx='0' opacity='1'/>
-<text x='632' y='359' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Offsets…  (expert — the measured latency is applied)</text>
+<text x='632' y='359' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Offsets…  (expert — a manual slider per node, default 0)</text>
 <text x='620' y='389' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a local entity is tagged with its node in Details ("local to SimHost-1")</text>
 <text x='620' y='403' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Offsets… opens the Federation window (debug): each node's measured latency, overridable</text>
 <text x='20' y='448' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>② the Event Timeline gains one lane for the selected unit (I5) · ④ ▶ plays in Merged (I3)</text>

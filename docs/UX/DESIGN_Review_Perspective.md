@@ -577,6 +577,32 @@ no JSON.*
 | **M-8** | an entity whose owner changes (I2, I8) | the merged entity KEEPS its identity (network id); its components switch source at the handover frame | a new entity per owner |
 | **M-9** | where it runs | the all-in-one editor and the standalone Replay Browser (D2); ⛔ not a cluster AAR | — |
 
+#### 6.11a ✅ DECIDED `2026-11-09` (R-4183) — alignment and offsets
+
+✅ **The user: *"Please let the offset just as a manual slider for this time, no auto detection."*** ⇒ **A1** stands (align by the recorded
+frame-locked WALL ticks; sim time is a display axis). **The per-node offset is a MANUAL slider** (the Federation window, *Offsets…*), default 0,
+applied to that node's wall stamps for alignment — the original design's intent. ⛔ No auto-detection this time: A2, A2a and A3 below are
+SUPERSEDED (kept as the record of what was measured); M-1, M-2, M-3 above are SUPERSEDED. The views lens (M-5) compares values at the same aligned
+frame. The sync's own precision is filed (CE-4355). The table below is the HISTORY of this decision.
+
+🔒 User: *"Why aligning merged data by sim time and not wall time? What if something changes while sim paused? … I'm still trying to find out a
+practical reason for the time offsets. Does the original design says anything about it?"*
+
+| measured | where |
+|---|---|
+| ⛔ sim time is NOT a unique key: the recorder keeps writing while sim time is paused (edits, graphics, objective marks) — many frames share one sim time | mgmt-1 §8.12 "Always Recording" |
+| ⭐ every frame is stamped with the CLUSTER's frame-locked wall clock (`GlobalTime.TotalWallTicks`, which the slaves follow), not a local clock | `AsyncRecorder.cs:158, :223, :323` · R-4012 (a replay covers by `WallClockTicks`) · the cluster replay seeks by wall ticks (`ClusterMaster.RelativeTicksForSim`) |
+| the half round trip is NOT the replication path (it lacks the owner's send phase and up to one receiver tick) | `SlaveTimeSyncTranslator.cs:108-127` (t1 / t4 on the main thread, the master's hold subtracted) |
+| ⭐ the ORIGINAL intent of the offsets: *"optional interactively adjustable time offset for different node's recordings to compensate for slight time shift between nodes"* (the user, the frankenstein talk) — the residual CLOCK shift, not replication latency | `.dev/_DONE/replay-browser-frankenstein/merged-view.md:37, :122` |
+
+| # | ✏ lean | rejected — one line |
+|---|---|---|
+| **A1** | **align the merge by the recorded frame-locked WALL ticks, each node's corrected by its estimated clock offset (A2)** (pauses included); sim time is a display axis only | by sim time: ambiguous through every pause |
+| **A2** ✏ | ⭐ **the per-node CLOCK offset is real and is ESTIMATED from the recording** (the user: *"the wall clock time is synced, but that syncing can have some offset"* — measured: the sync contract allows **80 ms** spread across nodes in continuous mode, ~5 frames, `SimTimeSyncIntegrationTests.cs:35-37`; its offset is NTP-style with t4 taken at the frame's ingress poll). **Estimate, NTP-style, from replicated changes in BOTH directions** between a node and the master's node: lag A→B = latency + e, lag B→A = latency − e ⇒ **e = (lag A→B − lag B→A) / 2**, using A3's change matching on every replicated component with enough changes. **e is applied to that node's wall stamps for ALIGNMENT** (it corrects the stamp, it does not delay the data — so "no latency offset on owned data" still holds); the Federation window shows e with its evidence and overrides it; no evidence ⇒ 0 + manual | a fixed 0: up to ~5 frames of cross-node causality can invert · half the round trip: the wrong path |
+| **A2a** ✏ | ⭐ **the evidence for Brain ↔ Muscle** (the user: *"we mostly need to measure the time offset between brain and muscle"*) — measured, both recorded (`DataPolicy.Default`) on both nodes and written RAW at the receiver's ingress: **Muscle → Brain: `SimVelocity`** (the Muscle owns the motion; the Brain's ingress sets the received linear velocity, `GeoSpatialIngressTranslator.cs:96-100`; the owner sends on a velocity change, `GeoSpatialEgressTranslator.cs:182-192`) · **Brain → Muscle: `NavigationIntent`** (the Brain owns it; the Muscle's ingress writes it as received, `NavigationIntentIngressTranslator.cs:85`). ⛔ NOT `SimTransform`: the Brain's dead reckoning blends the replica's position toward a projection every frame (`DeadReckoningSyncSystem.cs:115-131`), so its value is not the owner's · ⛔ NOT `NetworkTransform` / `NetworkVelocity`: `NoReplay`, not in the recording. Precision ≈ half a frame (each sample is frame-quantised); the median over every moving unit's changes. Assumes the latency is the same both ways (the NTP assumption). ⚠ not measured: the codec's velocity rounding (match within ε) and how many changes a typical exercise gives | positions: dead reckoning biases them · one direction only: cannot separate latency from clock error |
+| **A3** | **replication LAG is a separate, measured number, used only by the views lens** (I5): *Measure lag* on the selected replicated component — over a window, every change of the replica is matched to the owner's matching earlier change; lag = the median gap. Works for a component sent only on change or by heartbeat (only changes count); too few changes ⇒ *"not enough changes to measure"*. The lens then compares the replica with the owner one lag earlier ⇒ *late* (matches after the lag) vs *wrong* (never matches) | half the round trip: wrong path · positions only: a component the user selected is the better evidence |
+| **A4** | the M-4 ε and the M-5 / M-6 UI stand; the lens shows *"lag 37 ms (measured on Position, 212 changes)"* beside *By node* | — |
+
 ⭐ Mockup: [`better-merge-visual.svg`](better-merge-visual.svg) (`scripts/gen-better-merge-mockup.py`) — the acceptance spec for M-5, M-6, M-7 (R-4138).
 
 ![the better merge](better-merge-visual.svg)

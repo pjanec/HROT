@@ -44,7 +44,7 @@ s.rect(MX, cy - 4, 340, 4 * 24 + 40, C.POPUP, stroke=C.SEP)
 for i, (node, on) in enumerate([("CGF-1 — markers", True), ("SimHost-1 — effects", True), ("IG-1", False), ("Player-1", False)]):
     s.checkbox(MX + 12, cy + 2 + i * 24, on); s.text(MX + 40, cy + 16 + i * 24, node, C.TXT, 12)
 s.rect(MX, cy + 4 * 24 + 4, 340, 1, C.SEP)
-s.text(MX + 12, cy + 4 * 24 + 24, "Offsets…  (expert — the measured latency is applied)", C.SUB, 12)
+s.text(MX + 12, cy + 4 * 24 + 24, "Offsets…  (expert — a manual slider per node, default 0)", C.SUB, 12)
 s.note(MX, cy + 4 * 24 + 54, ["a local entity is tagged with its node in Details (\"local to SimHost-1\")",
                                "Offsets… opens the Federation window (debug): each node's measured latency, overridable"], C.NOTE, 11)
 
