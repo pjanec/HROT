@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — a plan for the user (Q-L1…Q-L4); no work dispatched yet
 updated: 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §9 the OSM importer goes through the importer, built in parallel · ⭐ §8 DECIDED R-4192 (budgets, backend, no new lane) · §7 REVISED (user): the scale terrain from existing templates now (§7.1), when trees and destruction kick in (§7.2) · §4 the work items (P-0…P-6, U-1/U-2 unchanged) · §6 questions
+current-answer: ⭐ §10 DISPATCHED (backend L-1…L-8, ui U-0…U-4) · ⭐ §9 the OSM importer goes through the importer, built in parallel · ⭐ §8 DECIDED R-4192 (budgets, backend, no new lane) · §7 REVISED (user): the scale terrain from existing templates now (§7.1), when trees and destruction kick in (§7.2) · §4 the work items (P-0…P-6, U-1/U-2 unchanged) · §6 questions
 stale-below: §2 'thin import first' and §3's arrows from the import lane to P-4 / P-5 — superseded by §7
 known-rot: none
 known-conflict: none
@@ -218,3 +218,14 @@ set that passes them imports.
 
 📐 Measured for the window rule: Building Interiors dropped its facade rules (rev-1 B7, `DESIGN_Building_Interiors.md:168` — "explicit openings
 are clearer") ⇒ the OSM library's door / window rules (OSM design §5.5) are the ONLY such rules in the repo — no duplicate.
+
+## 10. ✅ DISPATCHED `2026-11-09` — the work, by lane *(user: "the UI session to take the OpenStreetMap importer stuff and the backend session to take the large terrain related stuff … identify what everything needs designing first")*
+
+| lane | handoff | items (📐 design first · 🖼 mockup first) |
+|---|---|---|
+| **backend** | [HANDOFF_Coordinator_To_Backend_Large_Terrain](blueprints/batches/HANDOFF_Coordinator_To_Backend_Large_Terrain.md) | L-1 scale terrain (CE-4363) · L-2 📐 scale rig (CE-4364) · L-3 📐 height store (CE-4365) · L-4 measure + fix (CE-4366) · L-5 📐 ground sight pyramid (CE-4367) · L-6 📐 the importer (CE-4368) · L-7 📐 trees (CE-4369) · L-8 📐 destruction, design only (CE-4370) |
+| **ui** | [HANDOFF_Coordinator_To_Ui_Terrain_From_OSM](blueprints/batches/HANDOFF_Coordinator_To_Ui_Terrain_From_OSM.md) | U-0 📐 InputSet + reader + conformance (CE-4371) · U-1 shared Utm (CE-4372) · U-2 📐 OSM library + CLI (CE-4373) · U-3 📐 heights + roads (CE-4374) · U-4 🖼📐 wizard (CE-4375) |
+
+⭐ The importer (input set → HROT terrain) is backend's (L-6) — it is "large terrain" work, owns the height store and the navmesh, and the OSM
+wizard reaches it through `ITerrainImporter` only. The one cross-lane wait: L-6 needs ui's U-0 + U-1 (both first in ui's order); L-6 swaps with
+L-7 if they are not merged yet. Both batches start after their lane's `Next_3`.
