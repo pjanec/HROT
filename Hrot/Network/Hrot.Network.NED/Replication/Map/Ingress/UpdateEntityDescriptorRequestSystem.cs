@@ -121,6 +121,10 @@ namespace Hrot.Map.Common.Replication.Ingress
                     ProcessMapRouteUpdate(req, entity, view);
                     break;
 
+                case EDescriptorType.dtWeather:    // ⭐ CE-4346 (X-3) — the weather edited on a non-owner
+                    ProcessWeatherUpdate(req, entity, view);
+                    break;
+
                 default:
                     FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                         "[UpdDescReq] Ignoring unsupported DescriptorType {0} for Entity {1}.",
@@ -196,6 +200,28 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             FdpLog<UpdateEntityDescriptorRequestSystem>.Info(
                 "[UpdDescReq] Applied MapRoute update for NetID {0} waypoints={1}.", req.EntityId, plan.Waypoints.Count);
+            WriteAck(req.RequestId, req.EntityId, NedStatusCode.Success);
+        }
+
+        /// <summary>⭐ CE-4346 (X-3) — the weather edited on a node that does not own it: the owner applies it whole (the one decoding,
+        /// <c>EntityWeatherEgressTranslator.FromSample</c>); its <c>EntityWeatherEgressTranslator</c> then publishes the new value to every node.</summary>
+        private void ProcessWeatherUpdate(UpdateEntityDescriptorRequest req, Entity entity, ISimulationView view)
+        {
+            long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)req.DescriptorType, req.PartId);
+            if (!view.HasAuthority(entity, packedKey))
+            {
+                FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
+                    "[UpdDescReq] Not authoritative for Weather on Entity {0}. Ignoring.", req.EntityId);
+                return;
+            }
+
+            var repo = (EntityRepository)view;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>()) return;
+            var weather = Hrot.Map.Common.Replication.Egress.EntityWeatherEgressTranslator.FromSample(in req.Payload.Weather);
+            repo.SetComponent(entity, weather);
+
+            FdpLog<UpdateEntityDescriptorRequestSystem>.Info(
+                "[UpdDescReq] Applied Weather update for NetID {0} (wind levels {1}, cloud layers {2}).", req.EntityId, weather.WindCount, weather.CloudCount);
             WriteAck(req.RequestId, req.EntityId, NedStatusCode.Success);
         }
 

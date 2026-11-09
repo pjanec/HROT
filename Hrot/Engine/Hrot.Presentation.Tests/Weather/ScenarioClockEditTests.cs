@@ -71,6 +71,28 @@ public sealed class ScenarioClockEditTests : IDisposable
         Assert.NotEqual(Guid.Empty, ask.RequestId);
     }
 
+    /// <summary>
+    /// ⭐ CE-4346 (X-3) — the Scenario form's <i>Start</i> row is EDITABLE (it was greyed: a text row with no attribute and no Apply): it takes the text it
+    /// shows (<c>… UTC</c>) or the bare format, writes the start through the one edit, and refuses anything else with the format named.
+    /// 🔴 Mutation: drop the Start field's <c>Apply</c> ⇒ the row is ReadOnly ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4346_TheScenarioFormsStart_IsEditable_AndTakesTheTextItShows()
+    {
+        var env = Environment();
+        _w.SetAuthority<ScenarioClock>(env, true);   // the owner: the edit lands here (a non-owner's asks the owner — CE1161_ANonOwner_*)
+        var start = Hrot.Presentation.Forms.HrotForms.Scenario.Fields.First(f => f.Label == "Start");
+        Assert.False(start.ReadOnly);
+        Assert.Contains(Hrot.Presentation.Forms.HrotForms.Scenario.Fields, f => f.Label == "Local time offset");
+
+        Assert.Null(start.Apply!(_w, env, 0, "2026-03-04 05:06 UTC"));
+        Assert.Equal(new DateTime(2026, 3, 4, 5, 6, 0, DateTimeKind.Utc), _w.GetComponentRO<ScenarioClock>(env).StartUtc);
+        Assert.Null(start.Apply!(_w, env, 0, "2026-03-04 07:00"));
+        Assert.Equal(new DateTime(2026, 3, 4, 7, 0, 0, DateTimeKind.Utc), _w.GetComponentRO<ScenarioClock>(env).StartUtc);
+        Assert.Contains("yyyy-MM-dd HH:mm", start.Apply!(_w, env, 0, "tomorrow"));
+        Assert.Equal(new DateTime(2026, 3, 4, 7, 0, 0, DateTimeKind.Utc), _w.GetComponentRO<ScenarioClock>(env).StartUtc);   // a refused text writes nothing
+    }
+
     [Fact]
     public void CE1161_OnlyTheExactFormat_Parses_AndNoEnvironmentMeansNothingToEdit()
     {

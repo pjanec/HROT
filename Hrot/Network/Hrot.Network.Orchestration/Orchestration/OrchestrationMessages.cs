@@ -256,7 +256,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]   // keyed + durable = a descriptor, as StorageJobsTopic (TheDescriptorTopicsDoNotAutodispose…)
     public partial struct ExerciseNotesTopic
     {
         /// <summary>The producer: 0 = the master.</summary>

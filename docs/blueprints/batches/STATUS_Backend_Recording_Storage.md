@@ -24,7 +24,9 @@ Gates (V): `Hrot.Map.Common.Tests` 88/88 · `Hrot.SimHost.Tests` (`UpdateEntityD
 |---|---|---|---|
 | X-1 | CE-4345 | DONE | one steer limit in the one integrator (`BicycleModel.SteerLimit`, radius ≥ v²/`MaxLatAccel`); the possessed drive now integrates through `BicycleModel.Integrate`; the AI's cornering cap is the inverse. Rails `CarKinematicsSystemTests.CE4345_*` possessed + AI (red with the limit off); CarKinem 274/274; `Hrot.SimHost.Tests` Possession 12/12. Design Motion Domains §5i |
 | X-2 | CE-4344 | FILED on behaviors (measured) | the latch is `OperatorControlBehavior.OperateWeapon` (behaviors), not the weapon: [NOTE](NOTE_Backend_To_Behaviors_Possessed_Shot_Through_Reload.md) with the proposed patch and rail shape |
-| X-3…X-6 | | next | |
+| X-3 CE-4346 | Start editable · *Local time offset* · weather layers whole to the owner (dtWeather request) | ✅ backend half | NOTE to ui; Details forms Part 2 as-built |
+| — (behaviors note) | `/run-mode` from Edit waits for the live load it starts (the next load was rejected inside its park) | ✅ | NOTE to behaviors; RUNBOOK_Filming §0b |
+| X-4…X-6 | | next | |
 
 **Reds seen in `Hrot.ClusterRunner.Tests` (full run, `2026-11-08`), not from this batch** — none touches a storage file; owners named: `EveryReplayWriterIsGatedTests` (`EditorPerceptionSetupSystem`, ui/editor) · `EverySystemForgetsTheLastWorldTests` (`RuleEditSystem`, `RuleLeafSampler` — behaviors; `MacroExpansionSystem` — macros) · `EverySystemStateFieldIsClassifiedTests` ×2 (185 unclassified fields / 45 class-B translators — mixed, mostly replication) · `CgfSubsystemTests.CE1446_TheKernelRunsItsSystemsInTheSharedBootstrappersOrder` (`MacroExpansionSystem` newly in the order) · `HrotNodeBuilderTests.CE1436_CgfShapedHost_*` · `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_*` (looks for a "New Scenario…" button no code builds any more — ui's Start-screen rework). ⚠ Not checked against a base sha.
 

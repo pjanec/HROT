@@ -246,7 +246,7 @@ path, `EntityMaster` and the TKB derivation all work without a `SimTransform` (c
 Scenario Details view → [HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md](../../blueprints/batches/HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md)
 (with CE-3217). ⚠ **Not built:** a runtime WEATHER edit from a non-owning node has no attribute path yet (only the clock has one) — the
 editor owns the World Environment in edit mode and writes the component directly; a runtime weather change from another host is a
-follow-up (the attribute vocabulary or `UpdateEntityDescriptorRequestSystem`).
+follow-up (the attribute vocabulary or `UpdateEntityDescriptorRequestSystem`). ⭐ **AS-BUILT `2026-11-09` (CE-4346):** both, by kind — the scalars through the `Weather.*` attributes (D4), the whole value (wind levels + cloud layers) through `UpdateEntityDescriptorRequest(dtWeather)` → the owner's `UpdateEntityDescriptorRequestSystem.ProcessWeatherUpdate` (📄 [Details forms](../../UX/DESIGN_Details_Forms.md) Part 2's as-built line).
 
 **Rails:** `WeatherFieldTests` (Fdp.Toolkits — W-1 weights and smoothness, feather, W-2 wind across north, W-3 profile, the NOAA sun
 against the almanac, light bands, §4 temperature / pressure / density / irradiance / fog, W-4 UTC) · `WeatherRegionBlendTests`

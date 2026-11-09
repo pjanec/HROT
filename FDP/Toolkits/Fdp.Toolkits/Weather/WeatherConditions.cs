@@ -158,5 +158,48 @@ namespace Fdp.Toolkit.Weather
         {
             CloudBaseM[i] = baseM; CloudThicknessM[i] = thicknessM; CloudOctas[i] = octas; CloudKind[i] = (byte)kind;
         }
+
+        // ── ⭐ CE-4346 (X-3) — the LIST operations a layer editor needs: the ONE place a level / layer is added or removed (the form's list rows and
+        //    HTTP use these, then send the whole value to the owner — Details forms Q8). Counts stay within the fixed buffers; a remove closes the gap.
+
+        /// <summary>Appends a wind level; false when all <see cref="MaxWindLevels"/> are used.</summary>
+        public bool AddWind(float altitudeM, float fromDeg, float speedMps, float gustMps)
+        {
+            if (WindCount >= MaxWindLevels) return false;
+            SetWind(WindCount, altitudeM, fromDeg, speedMps, gustMps);
+            WindCount++;
+            return true;
+        }
+
+        /// <summary>Removes wind level <paramref name="i"/>, shifting the later ones down; false for an index not in use.</summary>
+        public bool RemoveWind(int i)
+        {
+            if (i < 0 || i >= WindCount) return false;
+            for (int k = i; k < WindCount - 1; k++)
+                SetWind(k, WindAltitudeM[k + 1], WindFromDeg[k + 1], WindSpeedMps[k + 1], WindGustMps[k + 1]);
+            WindCount--;
+            SetWind(WindCount, 0f, 0f, 0f, 0f);
+            return true;
+        }
+
+        /// <summary>Appends a cloud layer; false when all <see cref="MaxCloudLayers"/> are used.</summary>
+        public bool AddCloud(float baseM, float thicknessM, byte octas, CloudKind kind)
+        {
+            if (CloudCount >= MaxCloudLayers) return false;
+            SetCloud(CloudCount, baseM, thicknessM, Math.Min(octas, (byte)8), kind);
+            CloudCount++;
+            return true;
+        }
+
+        /// <summary>Removes cloud layer <paramref name="i"/>, shifting the later ones down; false for an index not in use.</summary>
+        public bool RemoveCloud(int i)
+        {
+            if (i < 0 || i >= CloudCount) return false;
+            for (int k = i; k < CloudCount - 1; k++)
+                SetCloud(k, CloudBaseM[k + 1], CloudThicknessM[k + 1], CloudOctas[k + 1], (Weather.CloudKind)CloudKind[k + 1]);
+            CloudCount--;
+            SetCloud(CloudCount, 0f, 0f, (byte)0, Weather.CloudKind.Stratus);
+            return true;
+        }
     }
 }

@@ -602,6 +602,77 @@ public class MapRouteTranslatorTests
         Assert.Empty(fromOwner.Publishes);
     }
 
+    /// <summary>
+    /// ⭐ CE-4346 (X-3) — the WEATHER goes the same way: a non-owner edits the layers (the list ops on a copy — a cloud layer added, a wind level
+    /// removed — then <c>WeatherEdit.Set</c>'s two steps), the egress sends ONE <c>UpdateEntityDescriptorRequest(dtWeather)</c> carrying the whole
+    /// weather, and the owner applies it (layers AND scalars) and answers Success; the owner's own edit sends no request.
+    /// 🔴 Mutation: the egress ignores a <see cref="Fdp.Toolkit.Weather.WeatherConditions"/> ⇒ no request ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4346_AWeatherEditedOnANonOwner_ReachesTheOwnerWhole_LayersIncluded()
+    {
+        var original = Fdp.Toolkit.Weather.WeatherConditions.Standard;   // one cumulus layer, calm
+        original.AddWind(500f, 270f, 5f, 8f);
+        var owner = WeatherNode(localNode: 1, original);
+        var requester = WeatherNode(localNode: 2, original);
+
+        // ① the requester edits: a stratus deck added, the wind level removed, the temperature changed
+        var edited = original;
+        Assert.True(edited.AddCloud(300f, 200f, 8, Fdp.Toolkit.Weather.CloudKind.Stratus));
+        Assert.True(edited.RemoveWind(0));
+        edited.GroundTemperatureC = 4f;
+        requester.World.SetComponent(requester.Entity, edited);
+        requester.World.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand
+        {
+            NetworkId = 7, ComponentsToUpdate = new List<object> { edited }, RequestId = System.Guid.NewGuid(),
+        });
+        requester.World.Bus.SwapBuffers();
+        var sent = new CapturingWriter<UpdateEntityDescriptorRequest>();
+        new UpdateEntityCommandEgressTranslator(sent, requester.World.Bus, requester.Map, localNodeId: 2).PollIngress(null!, requester.World);
+        var req = Assert.Single(sent.Publishes);
+        Assert.Equal(EDescriptorType.dtWeather, req.DescriptorType);
+        Assert.Equal(2, req.Payload.Weather.CloudCount);
+        Assert.Equal(0, req.Payload.Weather.WindCount);
+        Assert.Equal(300f, req.Payload.Weather.C1Base);                                    // the added layer rides the request whole
+        Assert.Equal(8, req.Payload.Weather.C1Octas);
+        Assert.Equal((byte)Fdp.Toolkit.Weather.CloudKind.Stratus, req.Payload.Weather.C1Kind);
+
+        // ② the owner applies it whole and answers Success
+        var acks = new AckSink();
+        using (var participant = new CycloneDDS.Runtime.DdsParticipant(219u))
+        using (var system = new UpdateEntityDescriptorRequestSystem(participant, owner.Map, acks))
+            system.ProcessRequest(req, owner.World);
+        var applied = owner.World.GetComponentRO<Fdp.Toolkit.Weather.WeatherConditions>(owner.Entity);
+        Assert.Equal(2, applied.CloudCount);
+        Assert.Equal(0, applied.WindCount);
+        Assert.Equal(4f, applied.GroundTemperatureC, 3);
+        Assert.Equal((int)NedStatusCode.Success, Assert.Single(acks.Acks).ErrorCode);
+
+        // the OWNER's own edit sends no request: its weather topic is the publish
+        owner.World.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand
+        {
+            NetworkId = 7, ComponentsToUpdate = new List<object> { edited }, RequestId = System.Guid.NewGuid(),
+        });
+        owner.World.Bus.SwapBuffers();
+        var fromOwner = new CapturingWriter<UpdateEntityDescriptorRequest>();
+        new UpdateEntityCommandEgressTranslator(fromOwner, owner.World.Bus, owner.Map, localNodeId: 1).PollIngress(null!, owner.World);
+        Assert.Empty(fromOwner.Publishes);
+    }
+
+    private static (EntityRepository World, Entity Entity, NetworkEntityMap Map) WeatherNode(int localNode, Fdp.Toolkit.Weather.WeatherConditions weather)
+    {
+        const int Net = 7;
+        var world = CreateEcsWorld();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>()) world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new NetworkIdentity(Net));
+        world.AddComponent(e, new NetworkAuthority(primaryOwnerId: 1, localNodeId: localNode));   // node 1 owns the weather
+        world.AddComponent(e, weather);
+        var map = new NetworkEntityMap();
+        map.Register(Net, e);
+        return (world, e, map);
+    }
+
     // ── Test doubles ─────────────────────────────────────────────────────────
 
     /// <summary>Simple in-memory writer that records all published samples.</summary>

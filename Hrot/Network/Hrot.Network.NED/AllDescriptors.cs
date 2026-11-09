@@ -225,5 +225,10 @@ namespace Hrot.NED.Descriptors
         [DdsCase(EDescriptorType.dtMacroInstance)]
         public EntityMacroInstance MacroInstance;
 
+        // ⭐ CE-4346 (X-3) — the weather (global or a region's) edited on a node that does not own it travels to the owner WHOLE, the way a route
+        //   does (Details forms Q8: a list — the wind levels, the cloud layers — is not a scalar attribute). One encoding: the dtWeather topic's.
+        [DdsCase(EDescriptorType.dtWeather)]
+        public EntityWeather Weather;
+
     }
 }

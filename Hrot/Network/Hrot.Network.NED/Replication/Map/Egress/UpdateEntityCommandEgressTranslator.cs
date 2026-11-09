@@ -102,6 +102,11 @@ namespace Hrot.Map.Common.Replication.Egress
                         //   and the owner's next sample overwrote it. ⇒ a non-owner sends it to the owner, as an area's points already go.
                         ProcessRouteUpdate(updateCmd.NetworkId, updateCmd.RequestId, plan, view);
                     }
+                    else if (component is Fdp.Toolkit.Weather.WeatherConditions weather)
+                    {
+                        // ⭐ CE-4346 (X-3) — the same for the weather: its wind levels and cloud layers are lists, so it travels whole (Q8).
+                        ProcessWeatherUpdate(updateCmd.NetworkId, updateCmd.RequestId, weather, view);
+                    }
                 }
             }
         }
@@ -131,6 +136,29 @@ namespace Hrot.Map.Common.Replication.Egress
                 {
                     _d       = EDescriptorType.dtMapRoute,
                     MapRoute = Hrot.Map.Common.Replication.MapRouteWire.ToSample(networkId, plan),   // the one encoding
+                },
+            });
+            SentSampleCount++;
+        }
+
+        /// <summary>⭐ CE-4346 (X-3) — a non-owner's weather edit, sent to the owner whole (the dtWeather topic's encoding).</summary>
+        private void ProcessWeatherUpdate(int networkId, Guid requestId, Fdp.Toolkit.Weather.WeatherConditions weather, ISimulationView view)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return;
+            long weatherKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtWeather, 0);
+            if (view.HasAuthority(entity, weatherKey)) return;   // the owner publishes it itself
+
+            _writer.Write(new UpdateEntityDescriptorRequest
+            {
+                RequestId      = requestId == Guid.Empty ? Guid.NewGuid() : requestId,
+                EntityId       = networkId,
+                DescriptorType = EDescriptorType.dtWeather,
+                PartId         = 0,
+                CurrentVersion = 0,
+                Payload        = new EntityDescriptorUnion
+                {
+                    _d      = EDescriptorType.dtWeather,
+                    Weather = Hrot.Map.Common.Replication.Egress.EntityWeatherEgressTranslator.ToSample(networkId, weather),   // the one encoding
                 },
             });
             SentSampleCount++;

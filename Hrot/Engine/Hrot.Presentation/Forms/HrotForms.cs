@@ -755,6 +755,17 @@ public static class HrotForms
         return _startText;
     }
 
+    /// <summary>⭐ CE-4346 — the Start row's write: the shown text (<c>2026-06-01 06:00 UTC</c>, the trailing <c>UTC</c> optional) parsed by the ONE parser
+    /// (<see cref="Hrot.UI.Common.Weather.ScenarioClockEdit.TryParse"/>) and written through its one edit; returns the refusal, or null.</summary>
+    internal static string? ApplyStart(EntityRepository w, string? text)
+    {
+        var t = (text ?? "").Trim();
+        if (t.EndsWith("UTC", StringComparison.OrdinalIgnoreCase)) t = t[..^3].TrimEnd();
+        if (!Hrot.UI.Common.Weather.ScenarioClockEdit.TryParse(t, out var utc))
+            return $"Write the start as {Hrot.UI.Common.Weather.ScenarioClockEdit.Format} (UTC)";
+        return Hrot.UI.Common.Weather.ScenarioClockEdit.SetStartUtc(w, utc) ? null : "The start time could not be written";
+    }
+
     private static string? _terrainName;
     private static FixedString64 _terrainText;
 
@@ -784,8 +795,12 @@ public static class HrotForms
         WorldTarget = WorldEnvironment,
         Fields = Join(new[]
         {
-            new FormField { Label = "Start", Kind = FieldKind.Text, Has = HasClock, ReadText = (w, e) => StartText(w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).StartUtcTicks) },
-            new FormField { Label = "Clock offset", Attribute = "ScenarioUtcOffsetMinutes", Unit = "min", Min = -720, Max = 840, Has = HasClock,
+            // ⭐ CE-4346 (X-3) — the start is EDITABLE: it was greyed because a text row with no attribute and no Apply is read-only (FormField.ReadOnly). It writes
+            //   through the existing ScenarioStartUtcTicks attribute (ScenarioClockEdit.SetStartUtc — the router writes on the owner, asks it elsewhere).
+            new FormField { Label = "Start", Kind = FieldKind.Text, Has = HasClock, ReadText = (w, e) => StartText(w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).StartUtcTicks),
+                            Apply = (w, _, _, text) => ApplyStart(w, text) },
+            // ⭐ CE-4346 — the user's name for ScenarioClock.DisplayUtcOffsetMinutes ("Clock offset" meant nothing to a user): the theatre's LOCAL time, minutes from UTC; display only.
+            new FormField { Label = "Local time offset", Attribute = "ScenarioUtcOffsetMinutes", Unit = "min", Min = -720, Max = 840, Has = HasClock,
                             ReadNumber = (w, e) => w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).DisplayUtcOffsetMinutes },
             // ⭐ New scenario N4 (📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §4, R-4124 / R-4135) — the terrain, READ-ONLY (no attribute): chosen when the
             //   scenario was created, never changed. Read from the TerrainDefinition singleton every host's terrain commit publishes (the name the scenario resolved by).
