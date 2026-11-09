@@ -50,7 +50,7 @@ public class CleanPinTests : IDisposable
     [Fact]
     public void Full_Seed1_OptionsOff_MatchesRecordedHashes()
     {
-        string dir = Run("--preset", "full", "--seed", "1", "--height-spacing", "8", "--noise", "none");
+        string dir = Run("--preset", "full", "--seed", "1", "--height-spacing", "8", "--noise", "none", "--terraces", "off");
         var expected = new Dictionary<string, string>
         {
             ["buildings/buildings.geojson"] = "9ed54f0e12caf5b0799b10dc97370e92e668cb8621fd1161997748d62788c049",

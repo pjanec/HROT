@@ -21,6 +21,9 @@ public sealed record BuildingOptions
 {
     /// <summary>Jitter the doors and windows like a real input set (position, height, a few flipped headings, a few loose doors).</summary>
     public bool Noise { get; init; }
+
+    /// <summary>Turn about 10 % of the houses into rows of 3 to 6 that share party walls.</summary>
+    public bool Terraces { get; init; }
 }
 
 /// <summary>
@@ -38,6 +41,7 @@ public static class BuildingGenerator
     {
         var g = new Generator(p, rng.Fork("buildings"), h, r);
         g.Run();
+        if (options.Terraces) g.Terraces(rng.Fork("terraces"));
         IReadOnlyList<Building> buildings = g.Buildings;
         if (options.Noise) buildings = OpeningNoise.Apply(buildings, rng.Fork("noise"));
         return (buildings, g.Unassigned);
@@ -49,13 +53,24 @@ public static class BuildingGenerator
     {
         public Pt A, B;
         public double Len, Dx, Dy, Heading;
+        public bool Shared;
     }
 
     private sealed class Placed
     {
         public List<Pt> Ring = new();
         public double MinX, MinY, MaxX, MaxY;
+        public bool Dead;
     }
+
+    // how a house was laid out, kept for the terrace pass
+    private sealed class Meta
+    {
+        public bool Rect, Row;
+        public double Ox, Oy, Tx, Ty, Nx, Ny, Depth;
+    }
+
+    private sealed record RowPreset(int Storeys, double Ftf, bool Pitched);
 
     private sealed class StreetEdge
     {
@@ -68,12 +83,14 @@ public static class BuildingGenerator
         private const double CellSize = 40.0;
 
         private readonly SynthProfile _p;
-        private readonly Rng _rng;
+        private Rng _rng;
         private readonly HeightField _h;
         private readonly RoadNetwork _r;
         private readonly List<Building> _buildings = new();
         private readonly List<Opening> _unassigned = new();
         private readonly List<Placed> _placed = new();
+        private readonly List<Meta> _meta = new();
+        private readonly List<int> _unassignedOwner = new();
         private readonly Dictionary<long, List<int>> _cells = new();
         private readonly double[] _storeyShares;
         private readonly double _sigma;
@@ -198,7 +215,8 @@ public static class BuildingGenerator
             if (OverlapsPlaced(ring)) return;
             if (TooCloseToRoad(walls)) return;
 
-            Accept(ring, walls, frontIdx, door, R2(ground));
+            var meta = new Meta { Rect = local.Count == 4, Ox = ox, Oy = oy, Tx = tx, Ty = ty, Nx = nx, Ny = ny, Depth = local.Max(q => q.Y) };
+            Accept(ring, walls, frontIdx, door, R2(ground), meta);
         }
 
         // local-frame outline: x along the street, y away from it; vertex 0 -> 1 is the front facade. CCW in the local frame.
@@ -325,6 +343,7 @@ public static class BuildingGenerator
             foreach (int i in Near(minX, minY, maxX, maxY))
             {
                 var o = _placed[i];
+                if (o.Dead) continue;
                 if (o.MaxX + 2.0 < minX || o.MinX - 2.0 > maxX || o.MaxY + 2.0 < minY || o.MinY - 2.0 > maxY) continue;
                 if (PolygonGap(ring, o.Ring) < 2.0) return true;
             }
@@ -374,9 +393,8 @@ public static class BuildingGenerator
 
         // ---- building details ----
 
-        private void Accept(List<Pt> ring, List<Wall> walls, int frontIdx, Pt door, double baseZ)
+        private (int Storeys, double Ftf) DrawFloors()
         {
-            // storeys
             double u = _rng.NextDouble(), c = 0;
             int storeys = _storeyShares.Length;
             for (int i = 0; i < _storeyShares.Length; i++)
@@ -386,11 +404,17 @@ public static class BuildingGenerator
             }
             double t = _rng.NextDouble();
             double ftf = Math.Round(Math.Clamp(_p.FloorToFloorMin + (_p.FloorToFloorMax - _p.FloorToFloorMin) * Math.Pow(t, 1.51), _p.FloorToFloorMin, _p.FloorToFloorMax), 2);
+            return (storeys, ftf);
+        }
+
+        private void Accept(List<Pt> ring, List<Wall> walls, int frontIdx, Pt door, double baseZ, Meta meta, RowPreset? preset = null)
+        {
+            var (storeys, ftf) = preset != null ? (preset.Storeys, preset.Ftf) : DrawFloors();
             var storeyZ = new List<double>();
             for (int i = 0; i < storeys; i++) storeyZ.Add(R2(baseZ + i * ftf));
             double height = R2(storeys * ftf);
 
-            bool pitched = _rng.NextDouble() < _p.PitchedShare;
+            bool pitched = preset?.Pitched ?? (_rng.NextDouble() < _p.PitchedShare);
             double? ridge = pitched ? R2(baseZ + height + _rng.Range(3, 5)) : null;
 
             // doors: (wall, storey, distance along the wall)
@@ -401,7 +425,7 @@ public static class BuildingGenerator
                 for (int attempt = 0; attempt < 6; attempt++)
                 {
                     int wi = _rng.Int(0, walls.Count);
-                    if (walls[wi].Len < 3.0) continue;
+                    if (walls[wi].Len < 3.0 || walls[wi].Shared) continue;
                     int storey = storeys > 1 && _rng.NextDouble() > 0.85 ? _rng.Int(1, storeys) : 0;
                     double along = _rng.Range(1.0, walls[wi].Len - 1.0);
                     if (doors.Any(d => d.Wall == wi && d.Storey == storey && Math.Abs(d.Along - along) < 1.5)) continue;
@@ -420,6 +444,7 @@ public static class BuildingGenerator
                 for (int wi = 0; wi < walls.Count; wi++)
                 {
                     var w = walls[wi];
+                    if (w.Shared) continue;
                     for (double along = 1.0; along <= w.Len - 1.0; along += _rng.Range(2.5, 3.0))
                     {
                         double a = along;
@@ -434,7 +459,7 @@ public static class BuildingGenerator
             {
                 int wi = _rng.Int(0, walls.Count);
                 var w = walls[wi];
-                if (w.Len < 3.0) continue;
+                if (w.Len < 3.0 || w.Shared) continue;
                 bool isDoor = _rng.NextDouble() < 0.3;
                 int storey = isDoor ? 0 : _rng.Int(0, storeys);
                 double along = _rng.Range(1.0, w.Len - 1.0);
@@ -443,6 +468,7 @@ public static class BuildingGenerator
                 double x = R2(w.A.X + w.Dx * along + nx * off), y = R2(w.A.Y + w.Dy * along + ny * off);
                 if (x < _p.MinX || x > _p.MaxX || y < _p.MinY || y > _p.MaxY) continue;
                 _unassigned.Add(new Opening(isDoor ? "door" : "window", x, y, R2(storeyZ[storey] + (isDoor ? 0.0 : 1.0)), w.Heading, storey));
+                _unassignedOwner.Add(_buildings.Count);
             }
 
             string id = MakeId(ring);
@@ -461,8 +487,135 @@ public static class BuildingGenerator
 
             var footprint = ring.Select(q => (q.X, q.Y)).ToList();
             footprint.Add(footprint[0]);
+            _meta.Add(meta);
             _buildings.Add(new Building(id, footprint, baseZ, height, pitched ? "pitched" : "flat", ridge, storeyZ, openings));
         }
+
+        // ---- terraced rows ----
+
+        private void Shuffle<T>(List<T> list)
+        {
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = _rng.Int(0, i + 1);
+                (list[i], list[j]) = (list[j], list[i]);
+            }
+        }
+
+        // Turns about a tenth of the houses into rows of 3 to 6 that share party walls, then trims plain houses so the total stays.
+        public void Terraces(Rng rng)
+        {
+            _rng = rng;
+            int target = _p.BuildingCount;
+            double wantRowHouses = 0.10 * target;
+            var candidates = Enumerable.Range(0, _buildings.Count).Where(i => _meta[i].Rect).ToList();
+            Shuffle(candidates);
+
+            var dead = new HashSet<int>();
+            int rowHouses = 0;
+            foreach (int ci in candidates)
+            {
+                if (rowHouses >= wantRowHouses) break;
+                rowHouses += TryRow(ci, dead);
+            }
+
+            int active = _buildings.Count - dead.Count;
+            if (active > target)
+            {
+                var plain = Enumerable.Range(0, _buildings.Count).Where(i => !dead.Contains(i) && !_meta[i].Row).ToList();
+                Shuffle(plain);
+                foreach (int i in plain)
+                {
+                    if (active <= target) break;
+                    dead.Add(i);
+                    active--;
+                }
+            }
+            Compact(dead);
+        }
+
+        private void Compact(HashSet<int> dead)
+        {
+            var keptBuildings = new List<Building>();
+            var remap = new Dictionary<int, int>();
+            for (int i = 0; i < _buildings.Count; i++)
+            {
+                if (dead.Contains(i)) continue;
+                remap[i] = keptBuildings.Count;
+                keptBuildings.Add(_buildings[i]);
+            }
+            var keptUnassigned = new List<Opening>();
+            var keptOwner = new List<int>();
+            for (int i = 0; i < _unassigned.Count; i++)
+            {
+                if (!remap.TryGetValue(_unassignedOwner[i], out int owner)) continue;
+                keptUnassigned.Add(_unassigned[i]);
+                keptOwner.Add(owner);
+            }
+            _buildings.Clear(); _buildings.AddRange(keptBuildings);
+            _unassigned.Clear(); _unassigned.AddRange(keptUnassigned);
+            _unassignedOwner.Clear(); _unassignedOwner.AddRange(keptOwner);
+        }
+
+        // Replaces house ci by a row of units on the same street, front line and depth. Returns the number of units (0 = not possible).
+        private int TryRow(int ci, HashSet<int> dead)
+        {
+            var m = _meta[ci];
+            int k = _rng.Int(3, 7);
+            var xs = new double[k + 1];
+            var widths = new double[k];
+            double total = 0;
+            for (int i = 0; i < k; i++) { widths[i] = R2(_rng.Range(5.5, 8.5)); total += widths[i]; }
+            xs[0] = -total / 2;
+            for (int i = 0; i < k; i++) xs[i + 1] = xs[i] + widths[i];
+
+            Pt W(double lx, double ly) => new Pt(R2(m.Ox + lx * m.Tx + ly * m.Nx), R2(m.Oy + lx * m.Ty + ly * m.Ny));
+            var bottom = new Pt[k + 1];
+            var top = new Pt[k + 1];
+            for (int i = 0; i <= k; i++) { bottom[i] = W(xs[i], 0); top[i] = W(xs[i], m.Depth); }
+
+            // the original house is replaced, so it must not count as an obstacle
+            _placed[ci].Dead = true;
+            var units = new List<(List<Pt> Ring, List<Wall> Walls, int Front, Pt Door, double BaseZ)>();
+            bool ok = true;
+            for (int i = 0; i < k && ok; i++)
+            {
+                var ring = new List<Pt> { bottom[i], bottom[i + 1], top[i + 1], top[i] };
+                if (SignedArea(ring) < 0) ring.Reverse();
+                if (!Admissible(ring)) { ok = false; break; }
+                var walls = MakeWalls(ring);
+                int front = walls.FindIndex(w => (w.A == bottom[i] && w.B == bottom[i + 1]) || (w.A == bottom[i + 1] && w.B == bottom[i]));
+                if (front < 0) { ok = false; break; }
+                var fw = walls[front];
+                var door = new Pt(R2((fw.A.X + fw.B.X) / 2), R2((fw.A.Y + fw.B.Y) / 2));
+                if (_h.IsNoData(door.X, door.Y)) { ok = false; break; }
+                float ground = _h.Sample(door.X, door.Y);
+                if (float.IsNaN(ground)) { ok = false; break; }
+                if (OverlapsPlaced(ring) || TooCloseToRoad(walls)) { ok = false; break; }
+                foreach (var w in walls)
+                {
+                    bool left = i > 0 && SameEdge(w, bottom[i], top[i]);
+                    bool right = i < k - 1 && SameEdge(w, bottom[i + 1], top[i + 1]);
+                    w.Shared = left || right;
+                }
+                units.Add((ring, walls, front, door, R2(ground)));
+            }
+            if (!ok)
+            {
+                _placed[ci].Dead = false;
+                return 0;
+            }
+
+            var (storeys, ftf) = DrawFloors();
+            bool pitched = _rng.NextDouble() < _p.PitchedShare;
+            var preset = new RowPreset(storeys, ftf, pitched);
+            dead.Add(ci);
+            foreach (var u in units)
+                Accept(u.Ring, u.Walls, u.Front, u.Door, u.BaseZ, new Meta { Row = true, Ox = m.Ox, Oy = m.Oy, Tx = m.Tx, Ty = m.Ty, Nx = m.Nx, Ny = m.Ny, Depth = m.Depth }, preset);
+            return k;
+        }
+
+        private static bool SameEdge(Wall w, Pt a, Pt b) => (w.A == a && w.B == b) || (w.A == b && w.B == a);
 
         private static string MakeId(List<Pt> ring)
         {

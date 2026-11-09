@@ -48,6 +48,7 @@ public static class ManifestWriter
             if (o.Trees is int trees) w.WriteNumber("trees", trees);
             // options are recorded when they are on (also by default), so a default-off set keeps its manifest
             if (o.Noise != null || o.NoiseEnabled) w.WriteString("noise", o.NoiseEnabled ? "real" : "none");
+            if (o.Terraces != null || o.TerracesEnabled) w.WriteString("terraces", o.TerracesEnabled ? "on" : "off");
             w.WriteEndObject();
             w.WriteEndObject();
 

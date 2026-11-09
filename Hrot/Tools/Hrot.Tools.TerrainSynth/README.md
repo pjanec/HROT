@@ -26,6 +26,7 @@ dotnet run --project Hrot/Tools/Hrot.Tools.TerrainSynth -- --preset tiny --seed 
 | `--buildings N` | number of buildings | preset |
 | `--trees N` | number of trees | preset |
 | `--noise real\|none` | jitter the doors and windows like a real input set (see Realism options) | `real` for `full`, `none` for `tiny` |
+| `--terraces on\|off` | about 10 % of the houses in terraced rows with shared walls | `on` for `full`, `off` for `tiny` |
 
 A bad argument prints the usage to stderr and exits with 2. A normal run prints one line per stage with its
 elapsed time and counts, and exits with 0.
@@ -60,6 +61,16 @@ from a random stream of its own, so switching an option off leaves the clean geo
 - about 1 % of the doors moved 1 to 3 m off any wall (outside the footprint, still in the building's openings).
 
 The manifest records `noise` under `generator.overrides` whenever it is on, also by default.
+
+`--terraces on` turns about 10 % of the village houses into rows of 3 to 6 houses that share party walls:
+
+- the row stands on the street line of the house it replaces, parallel to the street; a unit is 5.5 to 8.5 m wide;
+- two neighbours use the same two vertices for their shared edge (identical coordinates), their footprints touch but
+  do not overlap, and no door or window is placed on a shared wall;
+- the 2 m gap rule still applies between every pair of houses except along a shared edge;
+- plain houses are dropped at random afterwards so the total stays at the building count.
+
+The manifest records `terraces` under `generator.overrides` whenever it is on.
 
 ## Output
 
