@@ -37,7 +37,8 @@ public sealed record SynthProfile(
         2.6, 3.6, 2.95,
         2.6, 37,
         0.73, 4.0, 1.0,
-        176000, 0.45, 65, 6, 0.07,
+        // woods mean density per hectare (the 65 seen in the source is a median over every tree-bearing hectare)
+        176000, 0.45, 115, 6, 0.07,
         new Dictionary<string, double>
         {
             ["residential"] = 57,
