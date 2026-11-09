@@ -139,6 +139,7 @@ This document stays generic: it describes the source only by its formats and con
 | **Q-U6** | HROT runs **alongside another engine that renders the full visual scene of the same terrain**; HROT's own hosts need an engineering view only: the 2-D map (+ hillshade, footprints) and the editor's 3-D view for checking; Stride not needed for this terrain | lean |
 | **Q-U7** | the whole 6 × 6 km is imported; where units must path is not stated — lean as §4 (everywhere, offline bake); the infantry navmesh inside 1 988 interiors is the expensive part | — (the user) |
 | **Q-U8** | **✅ decided: enterable.** The importer GENERATES each house as a `*.building.json` template: footprint → exterior walls, storeys = round(model height / 3 m), a floor slab per storey, DOOR openings at the source door points (position + heading → wall + offset; storey index → level), WINDOW openings at the source window points (sparse: 4 600 for 1 988 houses) plus generated ones along each facade per storey, a flat roof (sloped roofs approximated). Open: the INSIDE — open-plan storeys vs procedurally partitioned rooms + stairs (a room/stair generator is new work). Scale: 1 988 enterable houses vs 164 in demo-city — door entities and the interior navmesh grow with it | decided (enterable); interior layout = the user |
+| | 🔒 User, `2026-11-09`: *"I do not care about rooms on a floor. Can stay one big empty floor. At most we might need to add staircase ramp so soldier can go up."* → **✅ decided: each storey is ONE empty open floor + a stair `ramp` between storeys; no partitions.** The hard requirement is the OPENINGS: HROT soldiers enter through the same doors and look out of the same windows the visual engine draws, standing on matching floors. The input points sit where the openings are drawn. Doors are complete; the complete window set is prepared in the input set (outside this repo). Storey floors: ground floor = the door points' altitude; upper storeys = their window points' altitude − a standard sill (≈ 0.9 m). Doors in the visual engine are painted (never open) — accepted | decided |
 | **Q-U9** | a **repeatable tool** reading the input set; the building generator will be tuned iteratively | lean |
 | **Q-U10** | the other engine converts geodetic ↔ local with standard WGS84 UTM maths (zone forced to the terrain's), the same as `Utm.cs` → lat/lon at a gateway agrees to sub-mm. With e0/n0 from Q-U2 the two engines' local frames are IDENTICAL, so convergence never appears between them; it matters only where a heading is exchanged relative to TRUE north (DIS/HLA, lat/lon gateways) — apply the −1.6…−1.7° there | verified / lean |
 | **Q-U11** | not known here | — (the user) |
@@ -150,7 +151,7 @@ This document stays generic: it describes the source only by its formats and con
 
 ### 5.4 Still open — for the user
 
-1. the INSIDE of the generated houses: open-plan storeys, or a procedural room + stair layout (Q-U8)
+1. ~~the INSIDE of the generated houses: open-plan storeys, or a procedural room + stair layout (Q-U8)~~ ✅ decided `2026-11-09`: open floors + a stair ramp (Q-U8)
 2. expected unit counts / view distances (Q-U11) and where units must path (Q-U7)
 
 | # | ⭐ coordinator's lean `2026-11-09` | rejected — one line |
