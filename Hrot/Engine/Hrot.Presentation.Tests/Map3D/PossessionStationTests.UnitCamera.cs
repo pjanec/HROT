@@ -1,7 +1,10 @@
 using System;
 using System.Linq;
 using System.Numerics;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Possession;
+using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis3D;
 using Hrot.UI.Common.Map3D;
 using Xunit;
 
@@ -135,9 +138,54 @@ public sealed partial class PossessionStationTests
             Assert.Equal(MathF.Sin(off), walk.Lateral, 2);
 
             Frame(wheel: 10f);                                                                                          // the wheel all the way in
-            Assert.False(station.OverShoulder);                                                                         // the eyes
+            Assert.False(station.OverShoulder);                                                                         // the eyes …
+            Assert.Equal(UnitCameraRig.MaxAhead(ControlScheme.Person), station.AheadDistance(ControlScheme.Person), 3); // ⭐ CE-4348 … and on past them
+            Frame(wheel: -1f);                                                                                          // out: the eyes first
+            Assert.False(station.OverShoulder);
+            Assert.Equal(0f, station.AheadDistance(ControlScheme.Person));
             Frame(wheel: -1f);                                                                                          // and out again
             Assert.True(station.OverShoulder);
+        }
+    }
+
+    /// <summary>⭐ CE-4348 (🔒 user: an A-10C / AH-64's nose blocks the look at the ground; lean: <i>"let the wheel go a little past the eyes, for every entity type"</i>) —
+    /// a possessed flyer at its eyes: the wheel in goes on PAST the eyes, the camera standing ahead of them along the view (up to the kind's
+    /// <see cref="UnitCameraRig.MaxAhead"/>: 6 m for a flyer, clear of an A-10's nose), and out again it returns to the eyes first.
+    /// 🔴 Mutation: <c>Place</c> ignoring <c>AheadDistance</c> ⇒ the camera stays at the eyes ⇒ red.</summary>
+    [Fact]
+    public void CE4348_AFlyersWheel_GoesPastTheEyes_ClearOfItsNose()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 300f), Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w) { OverShoulder = false };
+            void Step(float wheel = 0f)
+            {
+                station.Update(0.016f);
+                sw.Camera3D.HandleInput(new Input { MouseWheelMove = wheel });
+                sw.Camera3D.Update(0.016f);
+                w.Bus.SwapBuffers();
+            }
+            Step(); Step();
+            var atEyes = sw.Camera3D.Eye;
+            Step(wheel: 10f);                                                                                   // all the way in
+            Step();
+            float ahead = station.AheadDistance(ControlScheme.Rotorcraft);
+            Assert.Equal(UnitCameraRig.MaxAhead(ControlScheme.Rotorcraft), ahead, 3);
+            Assert.True(ahead >= 5.5f, $"a flyer's camera goes far enough past the eyes to clear an A-10's nose ({ahead:0.0} m)");
+            var past = sw.Camera3D.Eye;
+            var along = Vector3.Dot(past - atEyes, sw.Camera3D.Forward);
+            Assert.Equal(ahead, along, 1);                                                                      // ahead of the eyes, along the view
+            Step(wheel: -1f);                                                                                   // out: back toward the eyes, a notch at a time …
+            Assert.Equal(ahead - FpsCameraDriver.DistanceStep * UnitCameraRig.ScaleOf(ControlScheme.Rotorcraft), station.AheadDistance(ControlScheme.Rotorcraft), 3);
+            Step(wheel: -1f);
+            Assert.Equal(0f, station.AheadDistance(ControlScheme.Rotorcraft));                                  // … the eyes before the shoulder view
+            Assert.False(station.OverShoulder);
         }
     }
 }

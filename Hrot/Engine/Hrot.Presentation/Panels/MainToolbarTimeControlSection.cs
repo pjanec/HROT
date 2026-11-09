@@ -584,7 +584,7 @@ public sealed class MainToolbarTimeControlSection
                 play += "\nPreset: " + p.Name + " (" + PresetText.Summary(p) + ")";
             return play;
         }
-        if (_choice?.LiveEnded == true) return RunModeChoice.LiveEndedPlayReason;   // ⭐ CE-3413
+        if (_choice?.RunPlayDisabledReason is { } why) return why;   // ⭐ CE-3413 (Live · ended) · Next_2 A-9 (a host's reason: the merged Review) — a greyed ▶ says why
         string name = mode switch
         {
             TransportMode.Live    => "Live",

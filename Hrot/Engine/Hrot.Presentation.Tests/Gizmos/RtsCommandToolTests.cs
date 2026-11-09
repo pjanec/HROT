@@ -187,6 +187,66 @@ public sealed class RtsCommandToolTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ Next_2 A-4 (CE-4342; 🔒 user: <i>"multi-selected entities: dragging one moves only that one"</i>) — END TO END through the map pack: three units selected,
+    /// the drag gizmo registered as every host registers it, the terminal's events on the interaction bus (a press on unit B, drags, the commit) — every
+    /// selected unit moves by the same delta (their offsets kept) and the selection stays whole; an unselected unit stays put.
+    /// </summary>
+    [Fact]
+    public void CE4342_DraggingOneOfThreeSelected_MovesAllThree_ThroughTheMapsBus()
+    {
+        _w.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
+        var drag = new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition();
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w, BufferCapacity = 256, ContributeExtras = regs => regs.Gizmos.Register(drag) });
+        var a = Unit(10, ForceId.Friend, new Vector2(10, 10));   // the units come after the map, as in a session
+        var b = Unit(11, ForceId.Friend, new Vector2(20, 10));
+        var c = Unit(12, ForceId.Friend, new Vector2(30, 15));
+        var d = Unit(13, ForceId.Friend, new Vector2(80, 80));   // not selected
+        foreach (var e in new[] { a, b, c, d }) _w.AddComponent(e, new Hrot.Map.Common.Components.SelectionState());
+        foreach (var e in new[] { a, b, c, d }) _w.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = e });   // as the lifecycle module announces a built unit
+
+        void Frame()
+        {
+            mi.InteractionBus.SwapBuffers();
+            mi.SelectionInteraction.Tick(0.016f);
+            mi.DataDrivenSystem.Execute(_w, 0.016f);
+            mi.GlobalManager.Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+            mi.SelectionRequests.Execute(_w, 0.016f);
+            _w.Tick();
+        }
+        _w.Bus.PublishManaged(SelectionChangeRequest.ReplaceWith(new[] { a, b, c }));
+        Frame(); Frame();
+        var history = new Hrot.Presentation.Edits.EditHistory();
+        Fdp.Toolkit.Replication.Edits.EditSteps.Install(_w, new Hrot.Presentation.Edits.WorldUndoRecorder(history, new Fdp.Toolkit.Replay.WorldSnapshotRing(), () => true, () => 0.0));
+        int gizmos = 0; foreach (var e in new[] { a, b, c, d }) if (mi.DataDrivenSystem.HasActiveGizmo(e)) gizmos++;   // the drag gizmo exists on every unit (the lifecycle announced them)
+        Assert.Equal(3, mi.Selection.SelectedEntities.Count);
+
+        var token = new Fdp.Toolkit.Diagnostics.Gizmos.PickToken { AnchorId = 11, GizmoTypeId = drag.GizmoTypeId };
+        var p0 = new[] { a, b, c, d }.Select(e => _w.GetComponent<SimTransform>(e).Position).ToArray();
+        mi.InteractionBus.Publish(new GizmoMouseEvent { Button = MapMouseButton.Left, IsPressed = true, WorldPos = new Vector3(20, 10, 0) });
+        mi.InteractionBus.Publish(new GizmoInteractionStartedEvent { Token = token, WorldPos = new Vector3(20, 10, 0) });
+        Frame();
+        mi.InteractionBus.Publish(new GizmoDragUpdateEvent { Token = token, WorldPos = new Vector3(25, 12, 0) });
+        Frame();
+        mi.InteractionBus.Publish(new GizmoDragUpdateEvent { Token = token, WorldPos = new Vector3(30, 14, 0) });
+        Frame();
+        mi.InteractionBus.Publish(new GizmoInteractionCommitEvent { Token = token, WorldPos = new Vector3(30, 14, 0) });
+        mi.InteractionBus.Publish(new GizmoMouseEvent { Button = MapMouseButton.Left, IsPressed = false, WorldPos = new Vector3(30, 14, 0) });
+        Frame(); Frame();
+
+        var moved = new[] { a, b, c }.Select(e => _w.GetComponent<SimTransform>(e).Position).ToArray();
+        var sel = Hrot.ScenarioEditor.Map.MapUiStates.SelectionOf(_w);
+        string diag = $"b {p0[1]}→{moved[1]}; MapUiStates selection {(sel == null ? "NULL" : sel.SelectedEntities.Count.ToString())}; pack selection {mi.Selection.SelectedEntities.Count}; drag gizmos {gizmos}";
+        for (int i = 0; i < 3; i++)
+            Assert.True(Vector3.Distance(moved[i], p0[i] + new Vector3(10, 4, 0)) < 0.01f, $"unit {i} moved by the drag's delta ({p0[i]} → {moved[i]}); {diag}");
+        Assert.Equal(p0[3], _w.GetComponent<SimTransform>(d).Position);
+        Assert.Equal(3, mi.Selection.SelectedEntities.Count);   // a drag keeps the selection whole
+        Assert.Equal(1, history.Count);                           // ONE undo step for the group
+        Assert.True(history.Undo());
+        for (int i = 0; i < 3; i++) Assert.Equal(p0[i], _w.GetComponent<SimTransform>(new[] { a, b, c }[i]).Position);
+    }
+
+    /// <summary>
     /// ⭐ CE-1133 — 🔒 user, 2026-10-16: <i>"The right-click-to-move also seems to affect also for no longer selected entities."</i>
     /// END TO END through the pack: select A and B, then click C alone (a Replace), let the selection system apply each request as
     /// the host does, then right-click the ground — exactly C is ordered. Pins that the order loop reads the selection the map

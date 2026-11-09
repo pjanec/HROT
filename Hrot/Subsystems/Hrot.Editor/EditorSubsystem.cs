@@ -3360,6 +3360,7 @@ namespace Hrot.Editor
                 EventFocus:     _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
                 SelectNetworkEntity: n => SelectNetworkEntity(n),
                 Rules:          () => _rulesWindow,     // ⭐ U-18 / RX2 — the rule's detail in Details, through the one window
+                ScenarioFooter: () => _parametersDrawer?.DrawHeader(),   // ⭐ CE-4346 — the Parameters header under the ONE Scenario tab (the form)
                 Pick:           () => FormsPick,   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
                 ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry)));   // ⭐ P-7 7b — a task's fields
@@ -3382,14 +3383,9 @@ namespace Hrot.Editor
                     picks:      () => macroArgPicks,
                     pickMacro:  cb => _openMacroPicker?.Invoke(cb)));
 
-            // ⭐⭐ CE-1161 (CE-3217; Weather and Time §7) — the MAP-BACKGROUND views: the Scenario view (start time; the global weather
-            //   drawn by the SAME borrowed inspector as the Components view) and the Zones view (built by BP-542, never registered).
-            _scenarioWorkspace.DetailsViews.Add(
-                Hrot.Editor.Scenario.ScenarioEnvironmentViewDescriptor.For(
-                    world:          () => _world,
-                    session:        () => _fdpRepoAdapter,
-                    drawComponents: (s, e) => _fdpEntityInspector?.DrawComponentsFor(s, e),
-                    parameters:     _parametersDrawer ??= WireParametersDrawer(new Hrot.Editor.Scenario.ParametersDrawer(_headerParams, () => macroArgsEditService))));   // ⭐ CE-4253 — the parameter editor, a collapsible header of THIS view
+            // ⭐⭐ CE-4346 — the MAP-BACKGROUND views: the ONE Scenario tab is the Scenario FORM (EntityDetailsBundle, every host) with this editor's Parameters
+            //   header under it (ScenarioFooter); ⛔ SUPERSEDED (CE-1161): a second raw "Scenario" view (ScenarioEnvironmentView) beside it — retired. The Zones view stays.
+            _parametersDrawer ??= WireParametersDrawer(new Hrot.Editor.Scenario.ParametersDrawer(_headerParams, () => macroArgsEditService));   // ⭐ CE-4253 — the parameter editor
             _scenarioWorkspace.DetailsViews.Add(
                 Hrot.Editor.AiShared.Shell.ZonesDetailsViewDescriptor.For(
                     rows:     () => Hrot.Presentation.Zones.ZoneStatusReader.Read(_world!),
@@ -3964,7 +3960,10 @@ namespace Hrot.Editor
             Action<Action<string>?> openScenarioSaveAsThen = onNamed => openScenarioSaveAsCore(onNamed, false);
             Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
             if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
-            if (_timeTransport?.RunChoice is { } presetsChoice) presetsChoice.EditPresets = () => _parametersDrawer?.RequestOpen();   // ⭐ CE-3391 — the ▾ menu's Edit presets… opens Details ▸ Scenario ▸ Parameters
+            if (_timeTransport?.RunChoice is { } presetsChoice) presetsChoice.EditPresets = () => _parametersDrawer?.RequestOpen();
+            // ⭐ Next_2 A-9 — while the Review shows the MERGED world, THE toolbar ▶ greys with the AAR segment's reason (it would drive the cluster clock, which moves nothing there)
+            if (_timeTransport?.RunChoice is { } reviewChoice)
+                reviewChoice.HostPlayDisabledReason = () => _reviewSource is { Kind: Hrot.Editor.Review.ReviewSourceKind.Merged } ? Hrot.Editor.Review.ReviewSourceTransport.MergedPlayReason : null;   // ⭐ CE-3391 — the ▾ menu's Edit presets… opens Details ▸ Scenario ▸ Parameters
 
             // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
             Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,

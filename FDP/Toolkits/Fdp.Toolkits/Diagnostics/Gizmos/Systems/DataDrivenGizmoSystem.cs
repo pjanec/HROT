@@ -138,6 +138,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// <paramref name="entity"/> via <see cref="ActivateGizmo"/>.
         /// </summary>
         public bool HasInjectedGizmo(Entity entity) => _injectedGizmos.ContainsKey(entity);
+        /// <summary>Whether a compiled gizmo instance is active on <paramref name="entity"/> (a rail probe).</summary>
+        public bool HasActiveGizmo(Entity entity) => _activeGizmos.ContainsKey(entity);
 
         /// <summary>
         /// ⭐⭐⭐ <b>SUSPEND the focus holder — <c>SetFocus(false)</c> WITHOUT the <c>Dispose()</c>.</b>

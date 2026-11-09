@@ -151,6 +151,8 @@ graph TD
 two ends of one zoom; one wheel crosses them without a mode key. The blend (the pivot and the look point sliding) is the standard
 "spring arm with a socket offset" of third-person cameras.
 
+⭐ **AS-BUILT `2026-11-09` (ui, CE-4348 — handoff Next_2 A-7): the continuum goes PAST the eyes.** 🔒 User: an A-10C / AH-64's nose blocks the look at the ground; lean taken: *"let the wheel go a little past the eyes, for every entity type"* (the simpler-looking alternative, an eye point at the nose tip, would need a per-kit nose point and would change what the crew eye is for — rejected). The wheel walks ONE continuum — ahead of the eyes (< 0) · the eyes (0) · over the shoulder (> 0): wheeled in past 0 the camera stands `AheadDistance` in front of the eyes ALONG THE VIEW, up to `UnitCameraRig.MaxAhead` = 0.75 × the kind's scale (person 0.75 m · vehicle 3 m · flyer 6 m — clear of an A-10's ~5 m nose); wheeled out it comes back a notch at a time and reaches the eyes before the shoulder view switches on. A per-kind station setting like the shoulder distance; held above the ground. Rails `PossessionStationTests.CE4348_AFlyersWheel_GoesPastTheEyes_ClearOfItsNose`, the continuum rail extended. ⚠ No frame rail on the two aircraft kits (the handoff's ask): the possession frame harness does not draw a possessed flyer's kit headless — the model rail asserts the camera's position along the view.
+
 ## 5. Control in the shoulder view (possessed person)
 
 | | ⭐ lean |

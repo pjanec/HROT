@@ -138,6 +138,9 @@ public sealed class FormDecl
     public Func<EntityRepository, Entity, bool>? Offers { get; init; }
     /// <summary>A WORLD form (the Scenario form): drawn when NOTHING is selected, for the entity this returns (<see cref="Entity.Null"/> = not offered).</summary>
     public Func<EntityRepository, Entity>? WorldTarget { get; init; }
+    /// <summary>⭐ CE-4346 — the form's own block, drawn after its rows and lists for a single target (the Scenario form's wind levels and cloud layers:
+    /// list values that travel WHOLE, Details forms Q8, so they are not attribute rows). Gets the world, the entity and whether it may be edited.</summary>
+    public Action<EntityRepository, Entity, bool>? After { get; init; }
 
     /// <summary>The labels of the common rows, then the expert rows (built once — the label column's widest).</summary>
     public string[] Labels => _labels ??= BuildLabels();

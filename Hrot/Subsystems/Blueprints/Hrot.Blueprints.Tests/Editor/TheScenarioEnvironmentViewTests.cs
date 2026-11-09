@@ -41,11 +41,17 @@ public sealed class TheScenarioEnvironmentViewTests
         return DetailsContextBuilder.Build(store, "Scenario", VariableRunState.Planning, new Picked(entities));
     }
 
+    /// <summary>⭐ CE-4346 — ONE Scenario tab on an empty-map click: the Scenario FORM (<c>details.form.scenario</c>); the old raw view (<c>details.scenario</c>,
+    /// the World Environment's components) is gone. The Zones view stays.
+    /// 🔴 Mutation: the ScenarioEnvironmentView registration back ⇒ two tabs titled "Scenario" ⇒ red.</summary>
     [Fact]
-    public void CE1161_TheProductionScenarioCatalogue_OffersTheScenarioAndZonesViews()
+    public void CE4346_TheProductionScenarioCatalogue_OffersOneScenarioTab_TheForm_AndTheZonesView()
     {
-        var ids = RealEditor().ScenarioWorkspace!.DetailsViews.All.Select(d => d.Id).ToArray();
-        Assert.Contains(ScenarioEnvironmentViewDescriptor.ViewId, ids);
+        var views = RealEditor().ScenarioWorkspace!.DetailsViews.All;
+        var ids = views.Select(d => d.Id).ToArray();
+        Assert.Contains("details.form.scenario", ids);
+        Assert.DoesNotContain("details.scenario", ids);
+        Assert.Single(views, d => d.Title == "Scenario");
         Assert.Contains(ZonesDetailsViewDescriptor.ViewId, ids);
     }
 
@@ -59,40 +65,6 @@ public sealed class TheScenarioEnvironmentViewTests
         Assert.Equal(EventDetailsViewDescriptor.Rank, views.Max(d => d.Rank));   // the highest: the default / first
         Assert.False(editor.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 100, 0, 0, 0, 0)));
         Assert.Null(editor.EventFocus.Event);
-    }
-
-    [Fact]
-    public void CE1161_TheScenarioView_AppliesOnTheEmptyMap_Only()
-    {
-        var d = ScenarioEnvironmentViewDescriptor.For(() => null, () => null, (_, _) => { });
-        Assert.True(d.AppliesTo(Context(SelectionOrigin.MapBackground, 0)));
-        Assert.False(d.AppliesTo(Context(SelectionOrigin.MapBackground, 1)));   // a unit picked: its own views win
-        Assert.False(d.AppliesTo(Context(SelectionOrigin.GraphCanvas, 0)));
-        Assert.True(ScenarioEnvironmentViewDescriptor.Rank < ZonesDetailsViewDescriptor.Rank);
-    }
-
-    [Fact]
-    public void CE1161_TheTypedStartTime_IsWrittenAsTyped_ABadOneIsRefused()
-    {
-        using var world = new EntityRepository();
-        world.RegisterComponent<ScenarioClock>();
-        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
-        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
-        var env = world.CreateEntity();
-        world.AddComponent(env, ScenarioClock.Default);
-        world.AddComponent(env, new Fdp.Toolkit.Replication.Components.NetworkIdentity(5));
-        // ⭐ edit framework F1 (ui B-2, 97892dd32): the start time goes through Edits.Submit — the router applies it where this world owns
-        //   the clock COMPONENT (the ownership systems set it in production), as ScenarioClockEditTests does. Red since F1 without it (CE-2422).
-        world.SetAuthority<ScenarioClock>(env, true);
-        var view = new ScenarioEnvironmentView(() => world, () => null, (_, _) => { });
-
-        view.StartText = "2025-12-24 18:45";
-        Assert.True(view.Apply(world));
-        Assert.Equal(new DateTime(2025, 12, 24, 18, 45, 0, DateTimeKind.Utc), world.GetComponentRO<ScenarioClock>(env).StartUtc);
-
-        view.StartText = "tomorrow";
-        Assert.False(view.Apply(world));
-        Assert.Equal(new DateTime(2025, 12, 24, 18, 45, 0, DateTimeKind.Utc), world.GetComponentRO<ScenarioClock>(env).StartUtc);
     }
 
     [Fact]

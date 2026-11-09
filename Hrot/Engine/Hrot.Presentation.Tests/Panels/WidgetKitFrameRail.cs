@@ -571,6 +571,50 @@ public sealed class WidgetKitFrameRail
         new("Brava supply", IconPalette.Blue, Icons.Get("tab/crew"), "Friend", "1.2 km", 77),
     };
 
+    /// <summary>
+    /// ⭐ CE-4349 — the pick dropdown at UI scale 1.5 with a LONG name, opened from a chip near the window's right edge: every column comes from the measured
+    /// text — the name starts after the glyph (never under it: the user saw "fantry (HROT)…"), the side column starts after the widest name (never over it),
+    /// the popup is wide enough for its rows and stays on the screen. Renders <c>ce4349-pick-dropdown.png</c>. 🔴 Mutation: the old fixed x + 28 / width × 0.5 ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE4349_ThePickDropdown_LaysOutItsColumnsFromTheText_AtUiScale1_5()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin(1000, 520);
+        new EditorFontService().Initialize(1f, 1.5f);
+        var sim = new Sim();
+        var rows = new EntityCandidate[]
+        {
+            new("Infantry (HROT) Rifle Squad 1-1", IconPalette.Blue, Icons.Get("thing/entity"), "Friend", "90 m", 11),
+            new("Bravo 2-3", IconPalette.Red, Icons.Get("orbat/command"), "Hostile", "1.2 km", 23),
+        };
+        Vector2 chipMin = default, chipMax = default;
+        void Draw()
+        {
+            sim.Feed();
+            ImGui.SetNextWindowPos(new Vector2(560, 10)); ImGui.SetNextWindowSize(new Vector2(420, 300));
+            ImGui.Begin("##ent-scale", Bare);
+            EntityField.Draw("weapon-at", "Pick on map...", null, 380f, rows, version: 1);
+            chipMin = ImGui.GetItemRectMin(); chipMax = ImGui.GetItemRectMax();
+            ImGui.End();
+        }
+        frame.StepN(4, Draw);
+        sim.Click(frame, Draw, Mid(chipMin, chipMax));
+        frame.StepN(3, Draw);
+        Shot(frame, "ce4349-pick-dropdown.png");
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is not { Length: > 0 })
+            frame.Screenshot(System.IO.Path.Combine(System.IO.Directory.CreateDirectory(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-frames")).FullName, "ce4349-pick-dropdown.png"));
+
+        var c = EntityField.LastColumns;
+        float longW = ImGui.CalcTextSize(rows[0].Label).X;
+        Assert.True(c.LabelX >= c.GlyphW + 6f, $"the name starts after the glyph ({c.LabelX:0} vs glyph {c.GlyphW:0})");
+        Assert.True(c.LabelW >= longW - 0.5f, $"the name column holds the longest name ({c.LabelW:0} vs {longW:0})");
+        Assert.True(c.SideX >= c.LabelX + c.LabelW, "the side column starts after the widest name");
+        Assert.True(c.PopupW >= c.SideX + ImGui.CalcTextSize("Hostile").X + ImGui.CalcTextSize("1.2 km").X, $"the popup is wide enough for its rows ({c.PopupW:0})");
+        Assert.True(KitProbe.TryGet(KitProbe.CandidateRow, out var r0min, out var r0max), "the first row is listed");
+        Assert.True(r0min.X >= 0f && r0max.X <= 1000f, $"the popup stays on the screen ({r0min.X:0}…{r0max.X:0})");
+    }
+
     [SkippableFact]
     public void EntityField_ChipAndPicker_FilteredByTypeAhead_OpsForEveryEntry_GoneIsRed_AndAllocatesNothing()
     {

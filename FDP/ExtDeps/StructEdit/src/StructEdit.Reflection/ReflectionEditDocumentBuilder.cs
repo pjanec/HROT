@@ -328,9 +328,59 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                     0, null, pi, idAlloc, visited, providers, fieldEditors, context,
                     parentBinding: parentBinding));
             }
+
+            // ⭐ CE-4352 — a GET-ONLY map (a managed component's Dictionary, e.g. EgressPublicationState.LastPublishedTickMap): its entries, READ-ONLY —
+            //   each "[i]" with its Key and Value — so a double-clicked entry opens its own fields, never an empty form. (A map is not editable here: the
+            //   struct editor has no map kind; a write would have to go through the owner's own path.)
+            foreach (var pi in parentType.GetProperties(flags))
+            {
+                if (pi.GetMethod == null || pi.GetIndexParameters().Length > 0) continue;
+                if (pi.CanWrite && pi.GetSetMethod(nonPublic: false) != null) continue;   // a settable one is built above
+                if (!typeof(System.Collections.IDictionary).IsAssignableFrom(pi.PropertyType)) continue;
+                object? owner = parentBinding?.GetBoxed() ?? (parentType == buffer.ComponentType ? buffer.Box() : null);
+                if (owner == null) continue;
+                System.Collections.IDictionary? map;
+                try { map = pi.GetValue(owner) as System.Collections.IDictionary; } catch { map = null; }
+                if (map == null) continue;
+                result.Add(BuildMapNode($"{parentPath}.{pi.Name}", pi.Name, pi.PropertyType, map, idAlloc));
+            }
         }
 
         return result;
+    }
+
+    /// <summary>⭐ CE-4352 — a read-only map node: one <c>[i]</c> per entry (in the map's order), each with its <c>Key</c> and <c>Value</c> (read-only leaves).</summary>
+    private static EditNode BuildMapNode(string path, string name, Type mapType, System.Collections.IDictionary map, IdAllocator idAlloc)
+    {
+        var entries = new List<EditNode>(map.Count);
+        int i = 0;
+        foreach (System.Collections.DictionaryEntry kv in map)
+        {
+            string ep = $"{path}[{i}]";
+            var key = new EditNode(new EditNodeId(idAlloc.Next()), "Key", ep + ".Key", LeafKindOf(kv.Key?.GetType()), kv.Key?.GetType() ?? typeof(object),
+                new ReadOnlyValueBinding(kv.Key), isReadOnly: true);
+            var val = new EditNode(new EditNodeId(idAlloc.Next()), "Value", ep + ".Value", LeafKindOf(kv.Value?.GetType()), kv.Value?.GetType() ?? typeof(object),
+                new ReadOnlyValueBinding(kv.Value), isReadOnly: true);
+            entries.Add(new EditNode(new EditNodeId(idAlloc.Next()), $"[{i}]", ep, EditNodeKind.Struct, typeof(System.Collections.DictionaryEntry),
+                new ReadOnlyValueBinding(kv), children: new[] { key, val }, isReadOnly: true));
+            i++;
+        }
+        return new EditNode(new EditNodeId(idAlloc.Next()), name, path, EditNodeKind.Class, mapType, null, children: entries, isReadOnly: true);
+    }
+
+    private static EditNodeKind LeafKindOf(Type? t)
+        => t == null ? EditNodeKind.Unsupported : t == typeof(string) ? EditNodeKind.String : t == typeof(bool) ? EditNodeKind.Boolean
+         : t.IsEnum ? EditNodeKind.Enum : t.IsPrimitive || t == typeof(decimal) ? EditNodeKind.Scalar : EditNodeKind.Unsupported;
+
+    /// <summary>⭐ CE-4352 — a value shown, never written (a map entry's key or value).</summary>
+    private sealed class ReadOnlyValueBinding : IValueBinding
+    {
+        private readonly object? _value;
+        public ReadOnlyValueBinding(object? value) => _value = value;
+        public Type ValueType => _value?.GetType() ?? typeof(object);
+        public object? GetBoxed() => _value;
+        public void SetBoxed(object? value) => throw new NotSupportedException("a map entry is read-only here");
+        public bool TryGetSpan(out Span<byte> bytes) { bytes = default; return false; }
     }
 
     // ── array element node generation ─────────────────────────────────────
@@ -567,12 +617,15 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
 
         bool isDirectMatch = paths.Any(p => p.Value == node.JsonPath);
 
+        // ⭐ CE-4351 — a child is below its parent by "." (a field) OR "[" (an array / buffer element: "$.Entries[0]"); ⛔ testing "." alone dropped every
+        //   element of a field-scoped open (the inspector's double-click on a fixed buffer opened "0 / 0 — fixed size")
         bool isDescendant = scope.IncludeChildren
-            && paths.Any(p => node.JsonPath.StartsWith(p.Value + "."));
+            && paths.Any(p => node.JsonPath.StartsWith(p.Value + ".") || node.JsonPath.StartsWith(p.Value + "["));
 
         string ancestorPrefix = node.JsonPath == "$" ? "$." : node.JsonPath + ".";
+        string ancestorIndex = node.JsonPath + "[";
         bool isAncestor = scope.IncludeParentsForContext
-            && paths.Any(p => p.Value.StartsWith(ancestorPrefix));
+            && paths.Any(p => p.Value.StartsWith(ancestorPrefix) || p.Value.StartsWith(ancestorIndex));
 
         if (!isDirectMatch && !isDescendant && !isAncestor) return null;
 

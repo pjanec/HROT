@@ -31,6 +31,10 @@ public static class UnitCameraRig
         _ => 45f,
     };
 
+    /// <summary>⭐ CE-4348 — how far past the eyes the wheel may take the camera (m, along the view): a person a little, a flyer clear of its nose
+    /// (an A-10's canopy is ~5 m behind it) — the kind's scale × 0.75.</summary>
+    public static float MaxAhead(ControlScheme scheme) => 0.75f * ScaleOf(scheme);
+
     /// <summary>The default distance for <paramref name="scheme"/> when the shoulder view is on.</summary>
     public static float DefaultDistance(ControlScheme scheme) => scheme switch
     {

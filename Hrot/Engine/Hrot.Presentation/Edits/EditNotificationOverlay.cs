@@ -26,7 +26,35 @@ public sealed class EditNotificationOverlay
 {
     /// <summary>Cards drawn at most; the rest are the <i>+ N more</i>.</summary>
     public const int MaxShown = 3;
+    /// <summary>The mockup's sizes at UI scale 1 (the editor's base font, <see cref="Fdp.Presentation.Fonts.EditorFontService.BaseUiPx"/>). ⭐ CE-4343: every size the
+    /// overlay DRAWS is measured from the font each frame (<see cref="Measure"/>) — these are only its scale-1 values; ⛔ never a fixed pixel height.</summary>
     public const float Width = 360f, CardHeight = 62f, Gap = 8f, RightMargin = 12f, TopMargin = 6f, FooterHeight = 18f, ButtonHeight = 20f;
+
+    // ⭐ CE-4343 — this frame's layout, from the font (title row · reason row · button row, each a text line tall; nothing overlaps at any scale)
+    private float _s = 1f, _w = Width, _cardH = CardHeight, _gap = Gap, _footerH = FooterHeight, _buttonH = ButtonHeight, _th = 13f;
+    private float _titleY, _reasonY, _buttonY, _textX, _glyphX;
+
+    /// <summary>This frame's card width / height / pitch (rails: the layout at a UI scale).</summary>
+    public float CardWidthNow => _w;
+    /// <summary>This frame's card height.</summary>
+    public float CardHeightNow => _cardH;
+
+    private void Measure()
+    {
+        _th = ImGui.GetTextLineHeight();
+        _s = Math.Max(0.5f, ImGui.GetFontSize() / Fdp.Presentation.Fonts.EditorFontService.BaseUiPx);
+        _w = Width * _s;
+        _gap = Gap * _s;
+        _buttonH = MathF.Max(ButtonHeight * _s, _th + 4f * _s);
+        // the mockup's baselines (title 20, reason 37, buttons 41, card 62 at scale 1), each scaled — and never closer than a text line apart
+        _titleY = 20f * _s - _th + 3f * _s;
+        _reasonY = MathF.Max(37f * _s - _th + 3f * _s, _titleY + _th);
+        _buttonY = MathF.Max(41f * _s, _reasonY + _th + 1f * _s);
+        _cardH = MathF.Max(CardHeight * _s, _buttonY + _buttonH + 1f * _s);
+        _footerH = MathF.Max(FooterHeight * _s, _th + 4f * _s);
+        _glyphX = 14f * _s;
+        _textX = MathF.Max(34f * _s, _glyphX + ImGui.CalcTextSize(IconsFontAwesome6.Clock).X + 4f * _s);   // the title starts after the glyph, never on it
+    }
 
     /// <summary>What a recorded rectangle is (the rails read them).</summary>
     public enum ItemKind : byte { Card, Close, Show, Reload, Overwrite, DismissAll }
@@ -89,14 +117,15 @@ public sealed class EditNotificationOverlay
         if (ShownCount == 0) return;
 
         var vp = ImGui.GetMainViewport();
+        Measure();
         int more = TotalCount - ShownCount;
-        float stackH = ShownCount * CardHeight + (ShownCount - 1) * Gap;
+        float stackH = ShownCount * _cardH + (ShownCount - 1) * _gap;
         bool footer = TotalCount > 1;                                      // one card needs no "Dismiss all"
-        float height = stackH + (footer ? FooterHeight : 0f);
-        var origin = new Vector2(vp.WorkPos.X + vp.WorkSize.X - Width - RightMargin, vp.WorkPos.Y + TopMargin);
+        float height = stackH + (footer ? _footerH : 0f);
+        var origin = new Vector2(vp.WorkPos.X + vp.WorkSize.X - _w - RightMargin * _s, vp.WorkPos.Y + TopMargin * _s);
 
         ImGui.SetNextWindowPos(origin, ImGuiCond.Always);
-        ImGui.SetNextWindowSize(new Vector2(Width, height), ImGuiCond.Always);
+        ImGui.SetNextWindowSize(new Vector2(_w, height), ImGuiCond.Always);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
         ImGui.PushStyleColor(ImGuiCol.WindowBg, Vector4.Zero);
@@ -111,8 +140,8 @@ public sealed class EditNotificationOverlay
             BringToFront();
             var dl = ImGui.GetWindowDrawList();
             for (int i = 0; i < ShownCount; i++)
-                DrawCard(dl, i, _shown[i], origin + new Vector2(0f, i * (CardHeight + Gap)));
-            if (footer) DrawFooter(dl, more, origin + new Vector2(0f, stackH + 2f));
+                DrawCard(dl, i, _shown[i], origin + new Vector2(0f, i * (_cardH + _gap)));
+            if (footer) DrawFooter(dl, more, origin + new Vector2(0f, stackH + 2f * _s));
         }
         ImGui.End();
         if (_titles.Count > 512) _titles.Clear();                             // bounded: the journal holds 256
@@ -151,32 +180,38 @@ public sealed class EditNotificationOverlay
 
     private void DrawCard(ImDrawListPtr dl, int index, EditJournalEntry e, Vector2 p)
     {
-        var max = p + new Vector2(Width, CardHeight);
+        var max = p + new Vector2(_w, _cardH);
         bool conflict = e.Status == EditStatus.Conflict;
         var accent = conflict ? StatusPalette.Pending : StatusPalette.Error;
         dl.AddRectFilled(p, max, ImGui.GetColorU32(Bg), 3f);
         dl.AddRect(p, max, ImGui.GetColorU32(Border), 3f);
-        dl.AddRectFilled(p, new Vector2(p.X + 4f, max.Y), ImGui.GetColorU32(accent));
+        dl.AddRectFilled(p, new Vector2(p.X + 4f * _s, max.Y), ImGui.GetColorU32(accent));
         Record(ItemKind.Card, index, p, max);
 
         // the glyph, in its colour: CircleXmark (refused) · Clock (lost) · Warning (conflict)
         string glyph = e.Status switch { EditStatus.Lost => IconsFontAwesome6.Clock, EditStatus.Conflict => Icons.Get("form/warning").Glyph, _ => Icons.Get("form/error").Glyph };
-        dl.AddText(new Vector2(p.X + 14f, p.Y + 8f), ImGui.GetColorU32(accent), glyph);
-        float th = ImGui.GetTextLineHeight();
-        dl.AddText(new Vector2(p.X + 34f, p.Y + 20f - th + 3f), ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)), TitleOf(e));
-        dl.AddText(new Vector2(p.X + 34f, p.Y + 37f - th + 3f), ImGui.GetColorU32(Sub), e.Reason);
+        dl.AddText(new Vector2(p.X + _glyphX, p.Y + _titleY), ImGui.GetColorU32(accent), glyph);
+        float xBox = _th + 6f * _s;                                                        // the ×'s square, from the font
+        float textRight = max.X - xBox - 8f * _s;                                          // title and reason stop before the ×
+        var clipMin = new Vector2(p.X + _textX, p.Y);
+        dl.PushClipRect(clipMin, new Vector2(textRight, max.Y), true);
+        dl.AddText(new Vector2(p.X + _textX, p.Y + _titleY), ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)), TitleOf(e));
+        dl.AddText(new Vector2(p.X + _textX, p.Y + _reasonY), ImGui.GetColorU32(Sub), e.Reason);
+        dl.PopClipRect();
 
         // × — dismiss (kept in the journal: the history)
-        var xMin = new Vector2(max.X - 24f, p.Y + 8f);
+        var xMin = new Vector2(max.X - xBox - 4f * _s, p.Y + _titleY - 2f * _s);
         ImGui.SetCursorScreenPos(xMin);
         ImGui.PushID(index);
-        if (ImGui.InvisibleButton("x", new Vector2(20f, 20f))) EditNotifications.Dismiss(e);
+        if (ImGui.InvisibleButton("x", new Vector2(xBox, xBox))) EditNotifications.Dismiss(e);
         bool xHot = ImGui.IsItemHovered();
-        Record(ItemKind.Close, index, xMin, xMin + new Vector2(20f, 20f));
-        dl.AddText(ImGui.GetFont(), 16f, new Vector2(xMin.X + 5f, xMin.Y), ImGui.GetColorU32(xHot ? new Vector4(1f, 1f, 1f, 1f) : Dim), "×");   // the mockup draws it at 16
+        Record(ItemKind.Close, index, xMin, xMin + new Vector2(xBox, xBox));
+        float xFont = ImGui.GetFontSize() * 16f / Fdp.Presentation.Fonts.EditorFontService.BaseUiPx;   // the mockup's 16 at scale 1
+        var xSize = ImGui.CalcTextSize("×") * (xFont / ImGui.GetFontSize());
+        dl.AddText(ImGui.GetFont(), xFont, xMin + (new Vector2(xBox, xBox) - xSize) * 0.5f, ImGui.GetColorU32(xHot ? new Vector4(1f, 1f, 1f, 1f) : Dim), "×");
 
-        // the buttons: Show (a unit to select) · on a Conflict Reload / Overwrite (when the host wired them)
-        float bx = p.X + 34f, by = p.Y + 41f;
+        // the buttons: Show (a unit to select) · on a Conflict Reload / Overwrite (when the host wired them) — on their own row, under the reason
+        float bx = p.X + _textX, by = p.Y + _buttonY;
         if (conflict)
         {
             if (ConflictButtonsWired)
@@ -194,17 +229,17 @@ public sealed class EditNotificationOverlay
 
     private bool DrawButton(string label, ItemKind kind, int card, ref float x, float y)
     {
-        float w = 14f + ImGui.CalcTextSize(label).X;
+        float w = 14f * _s + ImGui.CalcTextSize(label).X;
         ImGui.SetCursorScreenPos(new Vector2(x, y));
         ImGui.PushStyleColor(ImGuiCol.Button, Button);
         ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ButtonHot);
         ImGui.PushStyleColor(ImGuiCol.ButtonActive, ButtonHot);
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(0f, 0f));
-        bool hit = ImGui.Button(label, new Vector2(w, ButtonHeight));
+        bool hit = ImGui.Button(label, new Vector2(w, _buttonH));
         ImGui.PopStyleVar();
         ImGui.PopStyleColor(3);
         Record(kind, card, ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
-        x += w + 6f;
+        x += w + 6f * _s;
         return hit;
     }
 
@@ -213,13 +248,13 @@ public sealed class EditNotificationOverlay
         // "+ N more  ·  Dismiss all", right-aligned under the stack
         string all = "Dismiss all";
         float aw = ImGui.CalcTextSize(all).X;
-        var aMin = new Vector2(p.X + Width - 10f - aw, p.Y);
+        var aMin = new Vector2(p.X + _w - 10f * _s - aw, p.Y);
         ImGui.SetCursorScreenPos(aMin);
         ImGui.PushID("all");
-        bool hit = ImGui.InvisibleButton("##all", new Vector2(aw, FooterHeight - 2f));
+        bool hit = ImGui.InvisibleButton("##all", new Vector2(aw, _footerH - 2f * _s));
         bool hot = ImGui.IsItemHovered();
         ImGui.PopID();
-        Record(ItemKind.DismissAll, -1, aMin, aMin + new Vector2(aw, FooterHeight - 2f));
+        Record(ItemKind.DismissAll, -1, aMin, aMin + new Vector2(aw, _footerH - 2f * _s));
         uint col = ImGui.GetColorU32(hot ? new Vector4(1f, 1f, 1f, 1f) : Sub);
         dl.AddText(aMin, col, all);
         if (more > 0)

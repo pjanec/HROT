@@ -23,6 +23,25 @@ internal sealed class ManagedObjectEditBuffer : IEditBuffer
         string json = JsonSerializer.Serialize(obj, componentType, _cloneOptions);
         _clone = JsonSerializer.Deserialize(json, componentType, _cloneOptions)
             ?? throw new InvalidOperationException($"Failed to deep clone component of type {componentType}.");
+        CopyGetOnlyMaps(componentType, obj, _clone);
+    }
+
+    /// <summary>⭐ CE-4352 — the JSON clone leaves a GET-ONLY map empty (the serializer cannot set it): its entries are copied from the source, so the
+    /// editor shows them (read-only — the struct editor has no map kind).</summary>
+    private static void CopyGetOnlyMaps(Type type, object source, object clone)
+    {
+        foreach (var pi in type.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            if (pi.GetMethod == null || pi.GetIndexParameters().Length > 0 || pi.SetMethod?.IsPublic == true) continue;
+            if (!typeof(System.Collections.IDictionary).IsAssignableFrom(pi.PropertyType)) continue;
+            try
+            {
+                if (pi.GetValue(source) is not System.Collections.IDictionary from || pi.GetValue(clone) is not System.Collections.IDictionary to || to.IsReadOnly) continue;
+                to.Clear();
+                foreach (System.Collections.DictionaryEntry kv in from) to[kv.Key] = kv.Value;
+            }
+            catch { /* a map that cannot be read or written stays as the clone made it */ }
+        }
     }
 
     public Type ComponentType { get; }
