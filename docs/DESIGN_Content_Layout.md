@@ -2,7 +2,7 @@
 state: LIVE — ✅ APPROVED by the user 2026-10-28 (R-4097)
 updated: 2026-10-29 (L6, the opened-copies home, the ONE host-start seed and the shared behaviour names built — §5b)
 build-state: BUILT — CE-4089 (2026-10-28) + part two (2026-10-29: L6, CE-3340 ①③④); it landed BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
-current-answer: ⭐ §6 scenario categories in the picker (PROPOSAL Q-S1…Q-S4) · §1 the tree · §5b AS BUILT, part two (the NEWEST: names, the opened area, the seed's one call site, the shared names) · §5 AS BUILT, part one (the classes; where §5b says SUPERSEDED, §5b wins) · §3 decisions · §4 the move list (done, except its step 5 — CE-4082)
+current-answer: ⭐ §6 scenario categories = sub-folders (PROPOSAL, revised, Q-S1…Q-S4) · §1 the tree · §5b AS BUILT, part two (the NEWEST: names, the opened area, the seed's one call site, the shared names) · §5 AS BUILT, part one (the classes; where §5b says SUPERSEDED, §5b wins) · §3 decisions · §4 the move list (done, except its step 5 — CE-4082)
 stale-below: §5's D-7 and D-10, the "TWO call sites" line under §5's module graph, and its `CuratedScenarios` row (SUPERSEDED by §5b) · §2's CLASS NAMES (`ContentRoots`, `ContentSeed`) are the design-time names — SUPERSEDED by §5 (`ContentLayout` in Fdp.Toolkits, `AssetRoots` delegating, `CuratedScenarios` generalised in place). §2's sequence and module pictures still hold, with §5's two start points.
 known-rot: §0's inventory table describes the layout BEFORE CE-4089 (it is the "from" state)
 known-conflict: designs/main-toolbar-1/DESIGN.md §16 placed Assets/ and Recipes/ INSIDE the Hrot.AI.Behaviors project; this design keeps its rule (final assets and recipes in disjoint roots, AssetRoots the one authority) and moves both roots to the repository root
@@ -263,20 +263,23 @@ graph TD
 
 *Prior state (SUPERSEDED):* the recorded copy was staged at `scenarios/Recipes/Recorded/<id>` (inside the folder the old design reserved for recipes); recipes were opened as `Recipes/<seed>` after the editor staged them into `scenarios/Recipes/`; the seed was called from four places.
 
-## 6. ✏ PROPOSAL `2026-11-09` — scenario CATEGORIES in the picker *(coordinator; Q-S1…Q-S4 for the user; the sibling of the task picker, Mission plan editor §5.13 / R-4184)*
+## 6. ✏ PROPOSAL `2026-11-09` (revised) — scenario CATEGORIES = SUB-FOLDERS *(coordinator; the sibling of the task picker, Mission plan editor §5.13 / R-4184)*
 
-🔒 User: *"Something similar is needed for scenario picking as well - many are feature demos (actually most of them, and they are different
-subcategories) few are complex showcases."*
+🔒 User: *"Something similar is needed for scenario picking as well - many are feature demos … few are complex showcases."* — then: *"New
+category field in scenario header only if the category cannot be mapped from folder. No problem moving to different subfolders. That's the most
+natural way how to organize scenarios. So the folder might be the primary grouping mechanism."*
 
 | measured | where |
 |---|---|
-| 127 scenarios; NONE carries a category — the header holds `subsystemType`, `schemaVersion`, `terrainName`, `description` (+ `features` on 2, `world` on 3) | `scenarios/*/scenario.json` |
-| the prefixes are a code convention, not a taxonomy: `ua-` 67 (feature demos of every area), `uc-` 7, `test-` 7, `rf-` 6, `pc-` 6, `ts-` 4, `bt-` 4, `ia-` 3, `bc-` 3, `showcase-` 2, `hill-` 2, `ld-` 2, `df-` 2, `sr-` 2, `uf-` 2, `perf-` 1, `tt-` 1 … | `ls scenarios` |
-| ⭐ the picker ALREADY groups by a sub-category: `RecipePickerSource.ToEntry` builds `Kind/<sub>` from a `recipeCategory` seam — which reads a blueprint recipe's metadata only, so for a scenario it is null and all 127 land in ONE flat folder | `RecipePickerSource.cs:171-186` · `RecipeMetadataAdapter.RecipeCategory` `:73-77` |
+| 127 scenarios, all directly under `scenarios/`; none carries a category; the prefixes are a code habit (`ua-` 67 of every area, `showcase-` 2 …) | `scenarios/*/scenario.json` |
+| the picker ALREADY groups by a sub-category (`Kind/<sub>`); for a scenario the sub is null ⇒ one flat folder of 127 | `RecipePickerSource.cs:171-186`, `RecipeMetadataAdapter.RecipeCategory` `:73-77` |
+| ⭐ ONE resolver turns a scenario NAME into its folder: `ContentLayout.ResolveUnderScenariosRoot` (and `ScenarioRelativeFolder` for NAS-relative paths) — a name may already carry segments (`recipes/scenarios/x`, `macros/x`) | `ContentLayout.cs:177-191` |
+| ⚠ **41 files build `"scenarios/" + name` by hand** — 6 production (`VerifyCommand`, `HrotRunnerConfiguration`, 3 in SumoSharp, `ContentLayout` itself), 35 tests | grep |
 
 | # | question | ⭐ lean | rejected — one line |
 |---|---|---|---|
-| **Q-S1** | where a scenario's category lives | **one header field `category`** (`"Feature demos/Air"`) — the same `recipeCategory` seam reads it for a scenario; a scenario with none is the user's own | a folder per category on disk: moves 127 folders and breaks every path in tests and docs · the name prefix: a code convention |
-| **Q-S2** | the top folders, in this FIXED order | **Recent** · **My scenarios** (no category) · **Showcases** (complex, story-like — `showcase-*` and the few like it) · **Feature demos** (with sub-folders) · **Tests** (fixtures, perf, regression — behind an off *Show tests (N)* tick, like the task picker) | showcases last: they are what a visitor should see first |
-| **Q-S3** | the Feature-demo sub-folders | by what the demo SHOWS: **Air** · **Infantry and squads** · **Platoons and vehicles** · **Weapons and fires** · **Buildings and doors** · **Civilians and crowd** · **Sensing and weather** · **Rules, objectives and directors** · **Navigation and terrain** · **Players and possession** | by prefix: `ua-` alone holds 67 of every area |
-| **Q-S4** | who files the 127 | **one classification pass by behaviors** (they wrote most demos): each scenario's `category` set from its description, the list reviewed in their report; a scenario saved new gets none (⇒ *My scenarios*) | the user files them: 127 rows of busywork |
+| **Q-S1** | where the category lives | **the sub-folder**: `scenarios/<category path>/<name>/scenario.json`; the picker's sub-category = that path. ⛔ No header field now — only if a real multi-category case appears (none known) | a header field: a second grouping beside the folder (the user) |
+| **Q-S2** | the NAME of a scenario | **stays its leaf folder name** (`ua-air-assault`), unique across all sub-folders (a rail) — the ONE resolver finds it under any sub-folder (an index built once, refreshed when the folder changes), so recordings, recent picks, HTTP, tests and docs that name a scenario do not change | the name becomes the path (`demos/air/ua-air-assault`): every stored name and doc reference breaks |
+| **Q-S3** | the folders, in this order | **Recent** (the picker's) · **My scenarios** (`scenarios/` top level — where *Save as* puts a new one) · **showcases/** · **demos/** with **air/ · infantry-and-squads/ · platoons-and-vehicles/ · weapons-and-fires/ · buildings-and-doors/ · civilians-and-crowd/ · sensing-and-weather/ · rules-objectives-directors/ · navigation-and-terrain/ · players-and-possession/** · **tests/** (fixtures, perf, regression — hidden behind an off *Show tests (N)* tick) | by prefix: `ua-` holds every area |
+| **Q-S4** | who does it | **backend first** (the content-path owner): the resolver finds a leaf name under sub-folders + the leaf-uniqueness rail + the 41 hand-built paths go through the resolver; **then behaviors** moves and files the 127 (they wrote most demos; the list in their report) | moving first: 41 hand-built paths break at once |
+
