@@ -34,6 +34,13 @@ namespace Hrot.SimHost.Systems
             _done.Clear();
             foreach (var entity in repo.Query().WithManaged<InitialBrainIntent>().Build())
             {
+                // ⭐ CE-4041 (overnight O-5, measured on bt-mortar-roof in the editor's one world) — a saved order starts as if it had just been
+                //   given, and a man is ordered AFTER he is in his seat: while his seat (InitialVehicleIntent) or what he carries
+                //   (InitialPassengersIntent — a gunman's rifle) is still waiting to materialise, wait. ⛔ Before, a gunner's FireAtPoint on his
+                //   tube (mount 32) started on frame 1, found no controlled weapon and FAILED at 0.03 s — on the cluster the brain node received
+                //   him already seated, so it worked there. GenesisMaterializationSystem drops an intent that can never resolve, so this never hangs.
+                if (repo.HasManagedComponent<Hrot.Common.Serializers.InitialVehicleIntent>(entity)
+                    || repo.HasManagedComponent<Hrot.Common.Serializers.InitialPassengersIntent>(entity)) continue;
                 var intent = ((ISimulationView)repo).GetManagedComponentRO<InitialBrainIntent>(entity);
                 if (intent.Roe is { } roe && repo.Bus.IsRegistered<SetRoeEvent>())
                     repo.Bus.Publish(new SetRoeEvent { Entity = entity, Fire = roe.Fire, Reactions = roe.Reactions, Origin = roe.SetBy,
