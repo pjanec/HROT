@@ -1850,6 +1850,7 @@ cost was not "too many observers" but three algorithmic hot spots — each fixed
 | ⭐ the solver persists `SensorEvalState` ONCE per evaluation (was: up to four places) | the schedule fields ride along; an unknown template now also records its state |
 | ⏳ the 400 ms `CognitiveSpatialModule` timeout (S0) STAYS | the budget bounds the EQS solver, not the visual chain — S5 moves vision onto EQS, then the margin goes |
 | ⭐ `CE-3046`: a new contact always enters (lowest score evicted, ties: oldest sighting); dead or faded-and-untracked entries are forgotten | §5.4 table |
+| ⭐ `CE-2429` *(`2026-11-09`)*: on the LIVE world the memory is written **in place**, last in the loop (after the edges, which compare the live `memRO` with the new copy); a snapshot view keeps the command buffer | 📐 measured live (`ua-technical-scoot`): the buffered whole-memory copy played back AFTER the brain tick and erased an attack order's same-frame seed. Rail `CE2429_ABehavioursSameFrameSeed_SurvivesTheEvaluation` |
 
 | gate | command | result |
 |---|---|---|
