@@ -10,6 +10,7 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - DESIGN_Terrain_Import_UTM.md — the importer GENERATES ~2 000 enterable *.building.json templates from a source building database
   - docs/blueprints/Architect_Question_106_Sound_Paths.md — B-6 v2 (portal propagation) as approved, R-3050
   - docs/DESIGN_World_Survey_Sensor.md — §6 BuildingLayout: the room / portal graph derived from the walls (B-8, sound v2, W-7v2), given to the brain as a survey answer
   - docs/designs/group-maneuvers/DESIGN_Urban_Battle_Demo.md — §4b demo-city's quarters: WHERE these templates are placed (UI-8…UI-12)

@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-build-state: PRELIMINARY — an idea with open questions (Q-U1…Q-U12); NOT ready to build. Answers expected from another session (the source data owner)
-updated: 2026-11-09 (first version — coordinator)
-current-answer: §0 why · §1 measured · §2 the idea (UML) · §3 the stages · §4 OPEN QUESTIONS · §5 ANSWERS (source-data session)
+build-state: DESIGN — the source-data answers are in (§5); TWO questions left for the user (§5.4: the houses' insides; unit counts and where units path); §2 and §3 revised to the answers
+updated: 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
+current-answer: ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
-known-rot: none
+known-rot: §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
 related-designs:
+  - DESIGN_Terrain_Height.md — OWNS the terrain's height grid (TerrainHeightGrid, one .asc per terrain, CE-1034) this extends to a tiled store
+  - DESIGN_Building_Interiors.md — OWNS the *.building.json template (walls, storeys, doors, windows) the importer GENERATES for each house
   - DESIGN_Geo_Origin.md — OWNS the simulation's origin and IGeographicTransform (R-229); this adds a second, UTM implementation
   - DESIGN_Terrain_Zones_And_Assets.md — OWNS what a terrain is (the content pack, TerrainCatalog) and zones as windows onto it (R-146)
   - DESIGN_Artifact_Staging.md — OWNS getting terrain files from the NAS to every node (a 100–200 MB terrain rides it)
@@ -34,7 +36,7 @@ import feeds the SAME interfaces (heights, surfaces, per-purpose traces) and add
 | its ONE implementation is the tangent plane (ECEF → ENU at the origin) | `WGS84Transform.cs` |
 | the origin comes from the terrain (`terrain.json` `origin {lat, lon, alt}`) and is carried by a recording | `TerrainDefinition` · `RecordingMetadata.GeoOriginRecord` |
 | UTM ↔ WGS84 maths EXISTS (the SUMO net placement) | `Hrot/Engine/Hrot.Traffic/Utm.cs` (`ToGeodetic`, `FromGeodetic`), `SumoNetPlacement.cs:55-66` |
-| ⛔ **no heightmap**: the ground is walkable triangle meshes; outside the terrain a procedural hilly band (`BeyondGround`) | `TerrainWorld.cs`, `BeyondGround.cs` |
+| ✏ (corrected by §5.3) the ground is ONE height grid per terrain — an ESRI ASCII `.asc` loaded into one `float[]` (`basic-desert`, `highway-rest` use it) — plus walkable meshes; outside the terrain a procedural hilly band (`BeyondGround`). ⛔ What is missing is a TILED / large grid: 6 × 6 km at 1 m is 36 M floats (144 MB) in one array, and an equally large render mesh | `TerrainHeightGrid.cs:14-31, :187` · `TerrainWorldParser.cs:81` · `DESIGN_Terrain_Height.md` (CE-1034) · `BeyondGround.cs` |
 | buildings are GeoJSON footprints extruded to a height (`*.world.geojson`; the largest, demo-city, 84 KB) + optional `houses.json` | `assets/terrain/*` |
 | ⛔ **fixed grids sized for ~1.5 km**: the collider hash 300 × 300 × 5 m from −750 m; the perception grid 200 × 200 × 5 m | `SpatialHashConstants.cs`, `PerceptionConstants.cs:81-84` |
 | the navmesh is TILED (24 m tiles) but BAKED AT LOAD; a cold bake already ejects SimHost | `RecastNavmeshBaker.cs:110-113` · CE-4033 |
@@ -50,38 +52,39 @@ classDiagram
     class UtmTransform { <<NEW>> local = (E − E0, N − N0, h) · grid convergence for headings }
     class Utm { <<existing, moved down to the toolkit>> ToGeodetic · FromGeodetic }
     class TerrainDefinition { <<existing>> origin (lat, lon) or utm (zone, hemisphere, e0, n0) NEW }
-    class TerrainHeightfield { <<NEW>> tiled binary heights · HeightAt(x, y) · tiles on demand }
-    class BuildingSet { <<NEW cache>> footprints + heights, binary, beside the source }
-    class TerrainImporter { <<NEW tool>> source → terrain folder: heights, buildings, baked navmesh }
+    class TerrainHeightGrid { <<existing, extended>> HeightAt(x, y) · today one .asc array · NEW a tiled binary store, tiles on demand }
+    class BuildingTemplate { <<existing format>> the building.json template · NEW one GENERATED per house, enterable }
+    class TerrainImporter { <<NEW tool, repeatable>> exported heights · building DB + model boxes · SUMO crop · walls · navmesh }
     IGeographicTransform <|.. WGS84Transform
     IGeographicTransform <|.. UtmTransform
     UtmTransform --> Utm
     TerrainDefinition --> UtmTransform : utm frame
-    TerrainDefinition --> TerrainHeightfield
-    TerrainDefinition --> BuildingSet
-    TerrainImporter --> TerrainHeightfield : writes
-    TerrainImporter --> BuildingSet : writes
+    TerrainDefinition --> TerrainHeightGrid
+    TerrainDefinition --> BuildingTemplate
+    TerrainImporter --> TerrainHeightGrid : writes tiles
+    TerrainImporter --> BuildingTemplate : generates
 ```
-*What it shows: the frame is ONE new implementation of the existing seam — nothing that uses positions changes; the size problem is in the TERRAIN
-data (a heightfield and a building set that do not exist today) and in the grids sized as constants.*
+*What it shows: the frame is ONE new implementation of the existing seam — nothing that uses positions changes; the height grid and the building
+template EXIST and are extended (tiled storage, generated templates); the grids sized as constants are the rest of the size problem.*
 
 | part | the idea |
 |---|---|
-| frame | a terrain declares `utm {zone, hemisphere, e0, n0}`; local x = E − E0, y = N − N0 (grid north), z = height; existing terrains keep the tangent plane |
-| heights | a tiled binary heightfield (e.g. 256 × 256 posts per tile, 16-bit heights + an offset/scale), loaded where heights are asked (Muscle, map hosts — ⛔ never the Brain, R-2037); the 3-D view renders it with LOD; the 2-D map gets a hillshade image |
-| buildings | imported once into a binary set (footprint, base, top, material, floors); rendered batched; JSON stays the source |
+| frame | a terrain declares `utm {zone, hemisphere, e0, n0}`; local x = E − E0, y = N − N0 (grid north), z = height; existing terrains keep the tangent plane. ⭐ For this terrain **e0/n0 = the source engine's own origin (32N, 372 000 / 6 043 000)** so both engines' local positions are numerically identical (§5 Q-U2); convergence (−1.6…−1.7°) only at a true-north gateway |
+| heights | the EXISTING `TerrainHeightGrid` gains a tiled binary store (e.g. 256 × 256 posts per tile, 16-bit + offset/scale), resampled from the input's float32 height raster at **1 m** (72 MB); loaded where heights are asked (Muscle, map hosts — ⛔ never the Brain, R-2037); the 3-D view renders it with LOD; the 2-D map gets a hillshade |
+| buildings | ✅ **ENTERABLE** (the user): the importer GENERATES a `*.building.json` per house (1 988): footprint → walls, storeys = round(model height / 3 m), a slab per storey, doors and windows at the source points (+ generated windows per facade), a flat roof; the inside per §5.4 ① |
 | grids | the collider hash and the perception grid sized from the terrain's bounds, not constants |
 | navmesh | baked OFFLINE by the importer, stored with the terrain, loaded as a file (also closes CE-4033) |
 | sizes (estimate) | 6 × 6 km at 1 m posts = 36 M samples ≈ 72 MB (16-bit); at 2 m ≈ 18 MB; buildings unknown (Q-U3); the navmesh ≈ 62 500 tiles per layer — staged once per terrain version |
 
-## 3. The stages (sketch)
+## 3. The stages (revised to §5)
 
-1. `UtmTransform` + the terrain's frame declaration (small, independent)
-2. the grids sized from the terrain's bounds (needed for anything over ~1.5 km)
-3. the heightfield: format, height queries, 3-D rendering with LOD, the 2-D hillshade
-4. the building import + binary cache + batched rendering
-5. the offline navmesh bake stored with the asset
-6. the importer tool (source → terrain folder) and the staging of a large terrain
+1. `UtmTransform` + the terrain's frame declaration (e0/n0 = the source engine's origin) — small, independent
+2. the collider and perception grids sized from the terrain's bounds (the data area is x −8000…−2000, y −2000…4000)
+3. the tiled `TerrainHeightGrid` store + the importer's height path (input height raster → 1 m tiles), 3-D LOD, the 2-D hillshade
+4. the building GENERATOR (1 988 enterable `*.building.json`, doors / windows from the source points), batched rendering
+5. the other layers: the SUMO net cropped to the box with its anchor; walls from model instances; forest surfaces derived from tree positions
+6. the offline navmesh bake incl. the interiors, stored with the terrain
+7. the importer as a repeatable tool here; ⛔ the converted terrain never in git (§5 Q-U5)
 
 ## 4. OPEN QUESTIONS — for the session that knows the source data
 
@@ -145,6 +148,11 @@ This document stays generic: it describes the source only by its formats and con
 
 1. the INSIDE of the generated houses: open-plan storeys, or a procedural room + stair layout (Q-U8)
 2. expected unit counts / view distances (Q-U11) and where units must path (Q-U7)
+
+| # | ⭐ coordinator's lean `2026-11-09` | rejected — one line |
+|---|---|---|
+| 1 | **open-plan storeys + ONE stair per house first** (enterable, clearable, cheap to generate and to bake); a procedural room / corridor generator later, as its own stage, if the CQB drills need rooms | rooms first: new generator work before anything is enterable |
+| 2 | **paths everywhere outdoors + inside every generated house**, baked offline; unit counts and view distances decide the grid cell sizes in stage 2 — until known, size for the largest shipped scenario (`perf-stress`: 1 000 soldiers) | a partial navmesh: a unit ordered outside it silently cannot move |
 
 ---
 _source-data session, 2026-11-09_
