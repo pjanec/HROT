@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-08
-current-answer: ⭐⭐⭐ §RECORDING STORAGE + THE V / X QUEUE (2026-11-08 evening, LATEST) below: W-1…W-4, V-1, V-2, X-1 built; X-2 filed on behaviors; NEXT = X-3…X-6, then W-3 ⑤'s lab measurement. Before it: §STRUCT EDITOR OVERNIGHT — DONE (2026-11-08) below: N-0…N-11 built and pushed; open = the pen QUESTION + the follow-ups listed there. Then §SCENARIO PRESETS (2026-11-07) — CE-3374 now BUILT. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+updated: 2026-11-09
+current-answer: ⭐⭐⭐ §THE X QUEUE IS DONE (2026-11-09, LATEST) below: X-3…X-6 + the run-mode fix built; NEXT = CE-3421 (editor memory per load). Before it: §RECORDING STORAGE + THE V / X QUEUE (2026-11-08 evening): W-1…W-4, V-1, V-2, X-1 built; X-2 filed on behaviors; NEXT = X-3…X-6, then W-3 ⑤'s lab measurement. Before it: §STRUCT EDITOR OVERNIGHT — DONE (2026-11-08) below: N-0…N-11 built and pushed; open = the pen QUESTION + the follow-ups listed there. Then §SCENARIO PRESETS (2026-11-07) — CE-3374 now BUILT. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Struct_Editor.md — the one struct-editor library (✅ APPROVED 2026-11-07: S1–S12, §8 the ONE widget kit K1–K6, §9 the inspector)
@@ -20,7 +20,24 @@ related-designs:
 -->
 # RESUME — backend lane
 
-## ⭐⭐⭐ RECORDING STORAGE + THE V / X QUEUE (`2026-11-08` evening, LATEST) — start here
+## ⭐⭐⭐ THE X QUEUE IS DONE (`2026-11-09`, LATEST) — start here
+
+User: *"update from your branch, read resumption doc, wait 5 hours and then follow the resumption doc autonomously."* Merged `behaviors`,
+`ui`, `coordinator` (`575381b9b`; the one conflict was the generated `NED_DDS_Protocol.md` row — ui's *descriptor* kept, `ned-wire-inventory --check` OK).
+
+| item | sha | what |
+|---|---|---|
+| behaviors' NOTE (live load rejected) | `85eed42ff` | 📐 reproduced: from Edit, `/run-mode {armed:live}` IS a live load (CE-3411); it parked ~0.1 s for staging and the caller's next load hit the park ⇒ REJECTED (one parked transition, L8 §7.2c). `/run-mode` now waits for `OperatingLive`. Answer: `NOTE_Backend_To_Behaviors_Editor_Live_Load_Answer.md`; RUNBOOK_Filming §0b |
+| X-3 CE-4346 | `6fd20be69` | Scenario form *Start* editable · *Local time offset* · weather layers whole to the owner (`WeatherEdit.Set`, `dtWeather` request, Q8). + ui's `ExerciseNotesTopic` autodispose fix. NOTE to ui |
+| X-4 CE-2153 | `584bb798f` | the SimHost integration harness paths (solver + engine-backed nav module + `RecastNavmeshBaker.BakeFlatGround`); project 50/50 (Sonnet worker, reviewed) |
+| X-5 CE-3420 | `9ba9f6ac9` | descriptor coverage: Proficiency (mirror only), WeaponPosture + PartDamage declared, Temperament brain-local (TS-8); rail builds the real translators |
+| X-6 CE-4131 | this commit | MEASURED, not reproduced (flat 29–37 states/s over 24 rotating cycles); memory grows ~70 MB/cycle ⇒ **CE-3421** filed; driver `scripts/editor-load-cycles.sh` |
+
+⏭ **Next session:** ① merge the lanes, check `NOTE_*`/`HANDOFF_*` to backend · ② **CE-3421** (heap dump cycle 2 vs 12, diff retained types) ·
+③ W-3 ⑤ only on a lab cluster · ④ the older open rows in the sections below (CE-3364 kill authority needs the user; L-7 waits on the user).
+⚠ Trap measured today: a worker's `git stash` for a base check takes YOUR uncommitted files with it — they came back on pop, but brief the worker to stash only its own paths.
+
+## ⭐⭐⭐ RECORDING STORAGE + THE V / X QUEUE (`2026-11-08` evening)
 
 📄 Per-item record (one file for all three handoffs): [`batches/STATUS_Backend_Recording_Storage.md`](batches/STATUS_Backend_Recording_Storage.md) · storage design as-built:
 [`DESIGN_Recording_Storage.md`](../DESIGN_Recording_Storage.md) §10. Branch `backend` = `claude/time-system-refactor-batch-104-gp617x` at `642582c8f` (pushed; `ui`, `coordinator`
