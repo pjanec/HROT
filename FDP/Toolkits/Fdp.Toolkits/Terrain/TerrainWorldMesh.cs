@@ -217,6 +217,9 @@ namespace Fdp.Toolkit.Terrain
         {
             var (min, max, cellSize, nx, ny) = GroundLayout(world, cell);
             cell = cellSize;
+            // ⭐ CE-4363 — the solids, water and woods binned ONCE: scanning every prism per ground cell never finished on the scale
+            //   terrain (7.5 M cells × 1 650 houses' prisms); the answers are the same predicates on a candidate superset
+            var excl = new GroundBins(world);
 
             for (int iy = 0; iy < ny; iy++)
             {
@@ -225,7 +228,7 @@ namespace Fdp.Toolkit.Terrain
             {
                 float x0 = min.X + (ix * cell), y0 = min.Y + (iy * cell);
                 float x1 = MathF.Min(x0 + cell, max.X), y1 = MathF.Min(y0 + cell, max.Y);
-                if (Excluded(world, new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f))) continue;
+                if (excl.Excluded(new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f))) continue;
 
                 int b = v.Count;
                 v.Add(new Vector3(x0, y0, world.GroundHeightAt(x0, y0)));
@@ -235,7 +238,7 @@ namespace Fdp.Toolkit.Terrain
                 t.Add(b); t.Add(b + 1); t.Add(b + 2);
                 t.Add(b); t.Add(b + 2); t.Add(b + 3);
                 var tag = new TerrainTriangleTag(TerrainTriangleKind.Ground,
-                    InForest(world, new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f)) ? ForestMaterial : null);
+                    excl.InForest(new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f)) ? ForestMaterial : null);
                 g.Add(tag); g.Add(tag);
             }
             }
@@ -244,29 +247,64 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The material tag of ground under a forest surface.</summary>
         public const string ForestMaterial = "forest";
 
-        private static bool InForest(TerrainWorld world, Vector2 p)
+        /// <summary>
+        /// ⭐ CE-4363 — what the ground mesh asks per cell, answered from bins: a cell is cut where a SOLID prism (a block building; a wall
+        /// panel never — Buildings 5d) or water covers its centre, and tagged forest under a forest surface. Each polygon is filed in every
+        /// bin its box touches, so a point's bin holds every polygon that can contain it.
+        /// </summary>
+        private sealed class GroundBins
         {
-            foreach (var s in world.Surfaces)
-                if (s.Type == TerrainSurfaceType.Forest && InBox(p, s.Min, s.Max) && PolygonMath.Contains(s.Polygon, p)) return true;
-            return false;
-        }
+            private const float Bin = 32f;
+            private readonly Vector2 _min;
+            private readonly int _nx, _ny;
+            private readonly List<int>?[] _cut, _forest;
+            private readonly List<(Vector2 Min, Vector2 Max, IReadOnlyList<Vector2> Poly)> _cutPolys = new(), _forestPolys = new();
 
-        private static bool Excluded(TerrainWorld world, Vector2 p)
-        {
-            foreach (var prism in world.Prisms)
+            public GroundBins(TerrainWorld world)
             {
-                // ⭐ Buildings 5d — a WALL PANEL (a building's wall, a fence, a free-standing wall: Panel ≥ 0) is thin, and its own
-                //   side faces already block. ⛔ Excluding the ground cell whose CENTRE it covers cut a whole cell (2 m on bt-range)
-                //   out of the floor along every inner wall that happened to cross a cell centre — the doorways in it never
-                //   connected (House A's hall and front, found by the bt-doors live run, 2026-10-08). Only a SOLID prism (a
-                //   block building) excludes the ground: its hollow inside would otherwise bake as walkable floor.
-                if (prism.Panel >= 0) continue;
-                if (InBox(p, prism.Min, prism.Max) && PolygonMath.Contains(prism.Footprint, p)) return true;
+                foreach (var prism in world.Prisms)
+                    if (prism.Panel < 0) _cutPolys.Add((prism.Min, prism.Max, prism.Footprint));
+                foreach (var s in world.Surfaces)
+                {
+                    if (s.Type == TerrainSurfaceType.Water) _cutPolys.Add((s.Min, s.Max, s.Polygon));
+                    else if (s.Type == TerrainSurfaceType.Forest) _forestPolys.Add((s.Min, s.Max, s.Polygon));
+                }
+                var lo = world.BoundsMin; var hi = world.BoundsMax;
+                foreach (var (a, b, _) in _cutPolys) { lo = Vector2.Min(lo, a); hi = Vector2.Max(hi, b); }
+                foreach (var (a, b, _) in _forestPolys) { lo = Vector2.Min(lo, a); hi = Vector2.Max(hi, b); }
+                _min = lo;
+                _nx = Math.Max(1, (int)MathF.Ceiling((hi.X - lo.X) / Bin) + 1);
+                _ny = Math.Max(1, (int)MathF.Ceiling((hi.Y - lo.Y) / Bin) + 1);
+                _cut = File(_cutPolys);
+                _forest = File(_forestPolys);
             }
-            foreach (var s in world.Surfaces)
-                if (s.Type == TerrainSurfaceType.Water && InBox(p, s.Min, s.Max) && PolygonMath.Contains(s.Polygon, p))
-                    return true;
-            return false;
+
+            private List<int>?[] File(List<(Vector2 Min, Vector2 Max, IReadOnlyList<Vector2> Poly)> polys)
+            {
+                var bins = new List<int>?[_nx * _ny];
+                for (int i = 0; i < polys.Count; i++)
+                {
+                    int x0 = Col(polys[i].Min.X), x1 = Col(polys[i].Max.X), y0 = Row(polys[i].Min.Y), y1 = Row(polys[i].Max.Y);
+                    for (int y = y0; y <= y1; y++)
+                        for (int x = x0; x <= x1; x++)
+                            (bins[y * _nx + x] ??= new List<int>()).Add(i);
+                }
+                return bins;
+            }
+
+            private int Col(float x) => Math.Clamp((int)MathF.Floor((x - _min.X) / Bin), 0, _nx - 1);
+            private int Row(float y) => Math.Clamp((int)MathF.Floor((y - _min.Y) / Bin), 0, _ny - 1);
+
+            private static bool Any(List<int>? bin, List<(Vector2 Min, Vector2 Max, IReadOnlyList<Vector2> Poly)> polys, Vector2 p)
+            {
+                if (bin == null) return false;
+                foreach (int i in bin)
+                    if (InBox(p, polys[i].Min, polys[i].Max) && PolygonMath.Contains(polys[i].Poly, p)) return true;
+                return false;
+            }
+
+            public bool Excluded(Vector2 p) => Any(_cut[Row(p.Y) * _nx + Col(p.X)], _cutPolys, p);
+            public bool InForest(Vector2 p) => Any(_forest[Row(p.Y) * _nx + Col(p.X)], _forestPolys, p);
         }
 
         /// <summary>

@@ -25,7 +25,10 @@ import json
 import math
 import os
 import sys
-import xml.etree.ElementTree as ET
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import terrain_placement as _tp   # CE-4363: the placement geometry, shared with scripts/terrain-scale.py
+from terrain_placement import world, footprint, seg_dist, inside, poly_seg_dist
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 TERRAIN = os.path.join(ROOT, "assets", "terrain", "demo-city")
@@ -108,20 +111,7 @@ ROTATION = {"S": 0.0, "E": 90.0, "N": 180.0, "W": 270.0}
 
 
 def template_size(name):
-    for d in (os.path.join(TERRAIN, "buildings"), SHARED):
-        p = os.path.join(d, name + ".building.json")
-        if os.path.exists(p):
-            t = json.load(open(p, encoding="utf-8"))
-            xs = [q[0] for q in t["footprint"]]
-            ys = [q[1] for q in t["footprint"]]
-            doors = []
-            for s in t.get("storeys", [])[:1]:
-                for w in s.get("walls", []):
-                    for o in w.get("openings", []):
-                        if o.get("kind") == "door" and "doorId" in o:
-                            doors.append((w["from"], w["to"], o["at"] + o["width"] / 2, o["doorId"]))
-            return max(xs) - min(xs), max(ys) - min(ys), doors
-    raise SystemExit(f"template '{name}' not found in {TERRAIN}/buildings or {SHARED}")
+    return _tp.template_size(name, (os.path.join(TERRAIN, "buildings"), SHARED))
 
 
 def place(facing, front, start, width):
@@ -136,63 +126,8 @@ def place(facing, front, start, width):
     return (front, start + width), r        # W: local x → −y, building east of the front
 
 
-def world(pos, rot, p):
-    c, s = math.cos(math.radians(rot)), math.sin(math.radians(rot))
-    return (pos[0] + p[0] * c - p[1] * s, pos[1] + p[0] * s + p[1] * c)
-
-
-def footprint(pos, rot, w, d):
-    return [world(pos, rot, q) for q in ((0, 0), (w, 0), (w, d), (0, d))]
-
-
-def seg_dist(p, a, b):
-    ax, ay = a; bx, by = b; px, py = p
-    dx, dy = bx - ax, by - ay
-    L = dx * dx + dy * dy
-    t = 0.0 if L == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L))
-    return math.hypot(ax + t * dx - px, ay + t * dy - py)
-
-
-def inside(poly, p):
-    x, y = p; n = len(poly); c = False
-    for i in range(n):
-        x1, y1 = poly[i]; x2, y2 = poly[(i + 1) % n]
-        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
-            c = not c
-    return c
-
-
-def segs_cross(a, b, c, d):
-    def o(p, q, r): return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
-    return o(a, b, c) * o(a, b, d) < 0 and o(c, d, a) * o(c, d, b) < 0
-
-
-def poly_seg_dist(poly, a, b):
-    if inside(poly, a) or inside(poly, b):
-        return 0.0
-    n = len(poly)
-    best = min(min(seg_dist(poly[i], a, b) for i in range(n)), seg_dist(a, poly[0], poly[1]))
-    for i in range(n):
-        e0, e1 = poly[i], poly[(i + 1) % n]
-        if segs_cross(e0, e1, a, b):
-            return 0.0
-        best = min(best, seg_dist(a, e0, e1), seg_dist(b, e0, e1))
-    return best
-
-
 def load_net():
-    def pts(s): return [(float(q.split(",")[0]) - ANCHOR[0], float(q.split(",")[1]) - ANCHOR[1]) for q in s.split()]
-    net = ET.parse(os.path.join(TERRAIN, "demo-city.net.xml")).getroot()
-    lanes, sidewalk, walks = [], [], []
-    for e in net.iter("edge"):
-        for l in e.iter("lane"):
-            P = pts(l.get("shape"))
-            lanes.append((float(l.get("width", 3.2)), P))
-            if l.get("allow") == "pedestrian" and e.get("function") != "internal":
-                sidewalk.extend(P)
-                walks.append(P)
-    juncs = [pts(j.get("shape")) for j in net.iter("junction") if j.get("shape") and j.get("type") != "internal"]
-    return lanes, sidewalk, walks, juncs
+    return _tp.load_net(os.path.join(TERRAIN, "demo-city.net.xml"), ANCHOR)
 
 
 def buildings():
@@ -266,16 +201,11 @@ def main():
         fp = b["footprint"]
         if any(q[0] < 0.5 or q[1] < 0.5 or q[0] > SIZE - 0.5 or q[1] > SIZE - 0.5 for q in fp):
             errors.append(f"{b['label']}: outside the terrain")
-        for w, P in lanes:
-            for i in range(len(P) - 1):
-                if poly_seg_dist(fp, P[i], P[i + 1]) < w / 2 + 0.2:
-                    errors.append(f"{b['label']}: on a lane near {P[i][0]:.0f},{P[i][1]:.0f}"); break
-            else:
-                continue
-            break
-        for J in juncs:
-            if any(inside(J, q) for q in fp) or any(inside(fp, q) for q in J):
-                errors.append(f"{b['label']}: on a junction"); break
+        hit = _tp.on_lane(fp, lanes)
+        if hit is not None:
+            errors.append(f"{b['label']}: on a lane near {hit[0]:.0f},{hit[1]:.0f}")
+        if _tp.on_junction(fp, juncs):
+            errors.append(f"{b['label']}: on a junction")
         for D in data_polys:
             if any(inside(D, q) for q in fp) or any(inside(fp, q) for q in D):
                 errors.append(f"{b['label']}: on a data building"); break

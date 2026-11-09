@@ -252,7 +252,7 @@ public sealed class StorageProcessManager
                 ["schemaVersion"] = "1.0",
                 ["terrainName"] = terrainName.Replace('\\', '/').Trim('/'),
             },
-            ["entities"] = new JsonArray(),
+            ["entities"] = new JsonObject(),   // ⭐ CE-4363: an OBJECT keyed by entity id — ScenarioSerializer refuses an array (the blank scenario never loaded)
         };
         try
         {

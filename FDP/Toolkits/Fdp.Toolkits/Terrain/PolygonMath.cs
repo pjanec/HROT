@@ -19,9 +19,16 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>Twice the signed area; positive when <paramref name="poly"/> is counter-clockwise.</summary>
         public static float SignedArea2(IReadOnlyList<Vector2> poly)
         {
+            // ⭐ CE-4363 — relative to the first vertex: the same sum, but kilometres from the origin the absolute products (≈ 2.5e7 at
+            //   5 km) cancel away a wall's few square metres in float, and the wall read as zero area (the scale terrain refused to load)
+            if (poly.Count == 0) return 0f;
+            var o = poly[0];
             float a = 0f;
             for (int i = 0, j = poly.Count - 1; i < poly.Count; j = i++)
-                a += (poly[j].X * poly[i].Y) - (poly[i].X * poly[j].Y);
+            {
+                var pj = poly[j] - o; var pi = poly[i] - o;
+                a += (pj.X * pi.Y) - (pi.X * pj.Y);
+            }
             return a;
         }
 
