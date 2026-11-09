@@ -458,3 +458,37 @@ and ≈ 7 900 trees** stand there at ≈ 510 m — floating over nothing in the 
 | ⭐ `manifest.bounds = [-7500, -1500, -2000, 4000]` (5.5 × 5.5 km); the heights cover it (+ the apron the stitching gives); buildings, trees, roads and walls are CLIPPED to it (a building is kept when its footprint centroid is inside) → **≈ 1 800 buildings, ≈ 176 000 trees** | keeping the strip objects — they would stand on HROT's ground band 500 m below, or float |
 
 All other numbers in §5 / §9.5 were measured over the 6 × 6 km box; the manifest will carry the clipped counts.
+
+### 10.4 PROPOSED — buildings as shared TEMPLATES + placements *(source-data session, `2026-11-09`; the user: "As our windows are not transparent and doors are closed, small differences are acceptable if it reduces data quite a lot" — for the coordinator: Q-X7…Q-X9)*
+
+📐 **Measured** on the 1 806 buildings inside the §10.3 bounds (footprint, storeys and every door / window compared in the building's own frame;
+a house turned 180° counts as the same house):
+
+| snapping tolerance | distinct templates | templates covering 80 % of houses | houses with a template of their own |
+|---|---|---|---|
+| ≈ exact (0.5 m) | 481 | 120 | 369 |
+| ⭐ **footprint, doors and windows ≤ 1 m** | **429** | **78** | 341 |
+| doors ≤ 2 m, windows ≤ 3 m | 420 | 75 | 329 |
+| doors ≤ 1 m, windows taken from the template (not per house) | 284 | 43 | 192 |
+
+93 % of the footprints are rectangles. ⭐ **Proposal: 1 m snapping** — 1 806 houses → **≈ 430 templates (−76 %)**, every opening within ≈ 1 m of
+where the visual engine draws it. Windows-from-template (≈ 280) was rejected: on some houses the windows would no longer match at all, not just
+shift. Looser tolerances gain almost nothing — the remainder are genuinely one-off shapes.
+
+**Contract change** (replaces the per-building opening lists of §10):
+
+| file | content |
+|---|---|
+| `buildings/templates.json` | one entry per template: `{ templateKey, footprint: [[u,v],…], height, roof, ridgeZ, storeyZ: [...], material, openings: [ {type, u, v, z, heading, storey} ] }` in the TEMPLATE frame — origin = footprint centroid, +u along the longest wall, z relative to the base, `heading` relative to +u. Values are the group's averages (the snapped house) |
+| `buildings/buildings.geojson` | one Feature per building, as before a `Polygon` with its REAL footprint (for the map, clipping and debugging), `properties: { id, templateKey, x, y, rotation, baseZ, snapError }` — `x, y` = where the template origin lands, `rotation` = compass heading of the template's +u, `snapError` = the largest distance (m) any of this house's own points moved to match the template |
+| `buildings/unassigned.geojson` | unchanged (Q-X4) |
+
+Per-building state stays per building: `id`, destruction state, the navmesh bake (world space) — only the template geometry is shared.
+
+#### Questions for the coordinator
+
+| # | question | ⭐ lean (source side) |
+|---|---|---|
+| **Q-X7** | does the stage-4 generator take templates + placements (one `*.building.json` per template, buildings as `kind: building` Points with a `template` — the form `assets/terrain/*` already uses)? | yes — the existing form, ≈ 430 template files instead of 1 806 |
+| **Q-X8** | is 1 m the right tolerance, or should doors be tighter than windows (doors are walked through; windows are only looked out of)? | 1 m for both; `snapError` lets the importer flag outliers |
+| **Q-X9** | should a template's `height` / `roof` / `material` also be part of the grouping (two houses with the same plan but different heights stay separate)? | yes — height snapped to 1 m, roof and material exact |
