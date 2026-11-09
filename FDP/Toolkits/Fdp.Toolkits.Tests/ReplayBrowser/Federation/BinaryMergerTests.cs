@@ -968,6 +968,63 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             Assert.Throws<ArgumentOutOfRangeException>(() => manager.SetLocalEntitiesShown(99, false));
         }
 
+        // ── S5 · I5 — the views lens: By node + the Replica differs lane (§6.12 S5, M-4 / M-5) ───────────
+
+        /// <summary>A unit (net 900) held by BOTH nodes, owned by node 1 (the record's primary owner); node 2's copy of its position is <paramref name="replicaX"/>(frame).</summary>
+        private (string p1, string p2) RecordReplicaGroup(int frames, Func<int, float> replicaX, int thirdNode = 0)
+        {
+            var p1 = RecordPlay(1, frames, (r, f) =>
+            {
+                if (f == 0) { var u = OwnedUnit(r, 900, 1, 1); r.AddComponent(u, new DummyPosition { X = 0 }); return; }
+                Move(r, 900, f);
+            }, keyEvery: 0);
+            var p2 = RecordPlay(2, frames, (r, f) =>
+            {
+                if (f == 0) { var u = OwnedUnit(r, 900, 1, 2); r.AddComponent(u, new DummyPosition { X = replicaX(0) }); return; }
+                Move(r, 900, replicaX(f));
+            }, keyEvery: 0);
+            return (p1, p2);
+        }
+
+        [Fact]
+        public void ByNode_TheOwnerFirst_AReplicaBeyondEpsilonIsMarkedDiffering_AWithinEpsilonOneIsNot()
+        {
+            var (p1, p2) = RecordReplicaGroup(4, f => f - 1.1f);                          // node 2 believes 1.9 where the owner (node 1) has 3 at the shown frame …
+            var p3 = RecordPlay(3, 4, (r, f) =>
+            {
+                if (f == 0) { var u = OwnedUnit(r, 900, 1, 3); r.AddComponent(u, new DummyPosition { X = 0 }); return; }
+                Move(r, 900, f == 3 ? 3.0004f : f);                                      // … node 3 is within ε (0.001) of the owner at frame 3
+            }, keyEvery: 0);
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2, p3 });
+            manager.SetBaseWallTicks(Wall(3));
+            var views = new ReplicaViews(new OwnershipSource(), _serializer);
+
+            var view = views.Compute(manager, 900, typeof(DummyPosition))!;
+
+            Assert.Equal(1, view.OwnerNode);
+            Assert.Equal(new[] { 1, 2, 3 }, new[] { view.Rows[0].NodeId, view.Rows[1].NodeId, view.Rows[2].NodeId });
+            Assert.True(view.Rows[0].IsOwner && !view.Rows[1].IsOwner);                  // the crown: the owner's row, first
+            Assert.False(view.Rows[0].Differs);
+            Assert.True(view.Rows[1].Differs);                                           // ⭐ node 2's copy differs from the owner's beyond ε …
+            Assert.InRange(view.Rows[1].Delta, 1.0, 1.2);                                // (3 vs 1.9: the Δ column)
+            Assert.False(view.Rows[2].Differs);                                          // … node 3's (within ε) does not
+            Assert.True(view.AnyDiffers);
+            Assert.False(ReplicaViews.IsPerNode(typeof(DummyPosition)));
+            // NetworkAuthority carries each node's OWN id — differs by construction, never a finding
+            Assert.False(views.Compute(manager, 900, typeof(NetworkAuthority))!.AnyDiffers);
+        }
+
+        [Fact]
+        public void Lane_ReplicaDiffers_HasAMarkAtExactlyTheFramesAReplicaDiffers()
+        {
+            var (p1, p2) = RecordReplicaGroup(10, f => f is 5 or 6 ? f + 5 : f);         // node 2's copy lags the owner's at frames 5 and 6 only
+            var views = new ReplicaViews(new OwnershipSource(), _serializer);
+
+            var frames = views.ScanDifferingFrames(new[] { p1, p2 }, new Dictionary<int, long>(), primaryNode: 1, netId: 900);
+
+            Assert.Equal(new[] { 5, 6 }, frames);
+        }
+
         [Fact]
         public void NodeLocal_TheMarkedServicesCarryTheFlag()
         {

@@ -246,6 +246,9 @@ public class EntityInspectorPanel
     /// </summary>
     public Action<Entity>? OnEntitySelected { get; set; }
 
+    /// <summary>⭐ G-7 S5 (I7, M-6) — a note drawn beside the entity's name in the components header (e.g. <c>"local to SimHost-1"</c> for a local entity of the merged view); null / returning null ⇒ none.</summary>
+    public Func<Entity, string?>? EntityNote { get; set; }
+
     // ── Context menu (Task 47) ────────────────────────────────────────────────
 
     private readonly List<IEntityContextMenuHandler> _contextMenuHandlers = new();
@@ -814,6 +817,11 @@ public class EntityInspectorPanel
                 {
                     ImGuiApi.SameLine();
                     ImGuiApi.TextColored(new Vector4(0.6f, 0.8f, 0.9f, 1f), name);
+                }
+                if (EntityNote?.Invoke(e) is { Length: > 0 } note)
+                {
+                    ImGuiApi.SameLine();
+                    ImGuiApi.TextColored(new Vector4(0.25f, 0.78f, 0.75f, 1f), note);   // the merged view's teal
                 }
             }
 

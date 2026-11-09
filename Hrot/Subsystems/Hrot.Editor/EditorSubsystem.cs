@@ -355,6 +355,11 @@ namespace Hrot.Editor
         private Hrot.Editor.Review.OwnPartReplay? _ownPartReplay;
         private Hrot.Editor.AiShared.Review.FileReview? _fileReview;
         // ⭐ R-5 / V6 — the source of the ONE world while a participant group with no part of this node is open (Merged / a part), and the editor's ONE AAR transport over it
+        private Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews? _replicaViews;                          // ⭐ G-7 S5 — the merged view's lens (By node, the lane)
+        private Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? _byNodeSection;
+        private Hrot.Editor.AiShared.Review.ReplicaDifferLane? _replicaLane;
+        internal Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? ByNodeSectionForTest => _byNodeSection;
+        internal Hrot.Editor.AiShared.Review.ReplicaDifferLane? ReplicaLaneForTest => _replicaLane;
         private Hrot.Editor.Review.ReviewSource? _reviewSource;
         internal Hrot.Editor.Review.ReviewSource? ReviewSourceForTest => _reviewSource;
         private Fdp.Toolkit.ReplayBrowser.Federation.TransientMasterBuilder? _reviewMerge;
@@ -5073,7 +5078,17 @@ namespace Hrot.Editor
                     position:      () => Hrot.Editor.Review.OwnPartReplay.PositionOf(_clusterHandlers?.RecordReplayController),
                     master:        () => _reviewMaster ??= new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),
                     state:         () => _editorApp?.CurrentClusterState);
-                var reviewSource = ReviewSourceOf();   // ⭐ R-5 / V6 — while a participant group is open the analysis reads ITS file and a seek drives ITS transport; otherwise the own part (below)
+                var reviewSource = ReviewSourceOf();
+                // ⭐ G-7 S5 (I5, I7) — the merged view's lens: Details ▸ a component ▸ By node, the Replica differs lane's data, the "local to <node>" tag. ONE ReplicaViews over the merge's own ownership rule (the same map).
+                _replicaViews = new Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews(new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap), reviewSerializer);
+                _byNodeSection = new Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection(_replicaViews, () => reviewSource.MergedManager,
+                    e => _world is { } w && w.IsAlive(e) && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
+                    reviewSource.NameOf);
+                _fdpEntityInspector.Reflector.ComponentFooter = _byNodeSection.Draw;
+                _fdpEntityInspector.EntityNote = reviewSource.LocalOriginNote;
+                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaDifferLane(_replicaViews, () => reviewSource.MergedManager, SelectedNetworkId,
+                    n => _world is { } w && Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(w, n) is { IsNull: false } u && w.HasComponent<EntityInfo>(u) ? w.GetComponentRO<EntityInfo>(u).Name.ToString() : null);
+                // ⭐ R-5 / V6 — while a participant group is open the analysis reads ITS file and a seek drives ITS transport; otherwise the own part (below)
                 _fileReview = new Hrot.Editor.AiShared.Review.FileReview(new Hrot.Editor.AiShared.Review.ReviewFileServices(
                     RecordingFiles: () => reviewSource.IsOpen ? reviewSource.RecordingFiles() : _ownPartReplay.RecordingFiles(),
                     CurrentFrame:   () => reviewSource.IsOpen ? reviewSource.Transport.CurrentFrame : _ownPartReplay.CurrentFrame(),
@@ -5123,7 +5138,7 @@ namespace Hrot.Editor
             if (ReviewTracks == null)
             {
                 ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _node?.ShownTimeline, _fileReview?.SearchPanel, ReviewStops,
-                    transport: () => _reviewTransport, selectUnit: n => SelectNetworkEntity(n));
+                    transport: () => _reviewTransport, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane);
                 _eventTimeline.AddTracks(ReviewTracks.Tracks);
                 if (_bpManager is { } stopManager)
                     stopManager.OnBreakpointHit += (bp, entity) =>

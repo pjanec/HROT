@@ -126,6 +126,20 @@ public sealed class ReviewSource : IDisposable
     /// <summary>The manager the Recording info / JSON export windows read (the hidden sandboxes); null when none is open.</summary>
     public FederatedReplayManager? Manager => _manager;
 
+    /// <summary>⭐ G-7 S5 — the manager while the world shows the MERGE (null for a part / nothing open): what Details ▸ By node, the <i>Replica differs</i> lane and the search read.</summary>
+    public FederatedReplayManager? MergedManager => Kind == ReviewSourceKind.Merged ? _manager : null;
+
+    private Dictionary<int, string>? _localNotes;
+
+    /// <summary>⭐ G-7 S5 (I7, M-6) — <c>"local to SimHost-1"</c> for a LOCAL (no network id) entity of the merge — the node it came from (<see cref="MergeTarget.TryGetLocalNode"/>); null for any other entity. Cached: 0 B per frame.</summary>
+    public string? LocalOriginNote(Entity entity)
+    {
+        if (Kind != ReviewSourceKind.Merged || !_merger.Target.TryGetLocalNode(entity, out int node)) return null;
+        _localNotes ??= new Dictionary<int, string>();
+        if (!_localNotes.TryGetValue(node, out var note)) _localNotes[node] = note = "local to " + _nodeName(node);
+        return note;
+    }
+
     /// <summary>⭐ The ONE AAR transport's implementation over this source (the editor's segment draws it while a group is open).</summary>
     public ReviewSourceTransport Transport { get; }
 
@@ -230,6 +244,7 @@ public sealed class ReviewSource : IDisposable
         _worldDirty = true;   // a group opened: a world boundary — the first merge clears the world and starts a fresh map
         if (_world() is { } w) RepositoryPriming.RegisterDiscoveredComponents(w);   // every recorded component has a table in the resident world (idempotent: the same call a fresh Replay Browser repository gets)
         _panel = new FederationPanel(_manager) { NodeName = _nodeName };   // ⭐ S3 — the offsets' rows carry the participants' names (Q-B6)
+        _panel.SetMode(ViewMode.Merged);                                    // ⭐ S5 — the group opens MERGED, so the switch shows it (and the Local entities checkboxes, which are Merged's); before the subscription: no re-entry
         _panel.OnViewModeChanged += OnPanelMode;
         _manager.OnTimeChanged += OnManagerTime;
         Kind = ReviewSourceKind.Merged;

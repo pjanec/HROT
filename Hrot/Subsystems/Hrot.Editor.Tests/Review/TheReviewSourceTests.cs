@@ -57,6 +57,8 @@ public sealed class TheReviewSourceTests : IDisposable
     private string PathOf(int node) => OrchestrationConstants.GetExerciseRecordingFilePath(OrchestrationConstants.GetNodeStagingRoot(_root, node), _exercise, node);
 
     /// <summary>One node's file: a keyframe at 1 s then four frames one second apart; <paramref name="owned"/> are (network id, owns the objective state, progress base).</summary>
+    private readonly Dictionary<int, int> _localBase = new();   // ⭐ S5 — node → the progress base of ONE local (no network id) entity that node's file also holds (0: none)
+
     private string Record(int node, params (int Net, bool Owned, bool Objective, int Base)[] units)
     {
         string path = PathOf(node);
@@ -81,6 +83,12 @@ public sealed class TheReviewSourceTests : IDisposable
                 repo.SetAuthority<ObjectiveStatus>(e, owned);
             }
             entities.Add((e, objective, @base));
+        }
+        if (_localBase.TryGetValue(node, out int localBase))
+        {
+            var local = repo.CreateEntity();
+            repo.AddComponent(local, new ObjectiveStatus { ProgressCur = localBase, ProgressNeed = 100, State = ObjectiveState.Active });
+            repo.SetAuthority<ObjectiveStatus>(local, true);
         }
         using (var rec = new AsyncRecorder(path, meta))
         {
@@ -119,7 +127,7 @@ public sealed class TheReviewSourceTests : IDisposable
         public readonly List<int> Selects = new();
         public int Clears;
 
-        public Rig(string root, ScenarioSerializer serializer, int thisNode = 1)
+        public Rig(string root, ScenarioSerializer serializer, int thisNode = 1, Func<int, string>? names = null)
         {
             World.RegisterComponent<NetworkIdentity>(); World.RegisterComponent<NetworkAuthority>(); World.RegisterComponent<ObjectiveStatus>();
             Facade.SetupGet(f => f.IsPaused).Returns(true);
@@ -127,7 +135,7 @@ public sealed class TheReviewSourceTests : IDisposable
             Facade.SetupGet(f => f.IsPlayPauseEnabled).Returns(true);
             var builder = new TransientMasterBuilder(serializer);
             Source = new ReviewSource(() => World, () => builder, () => { Clears++; World.SoftClear(); }, () => root, thisNode,
-                ready: () => Ready, inReplay: () => InReplay, selection: () => Selected, select: n => { Selects.Add(n); return true; }, facade: () => Facade.Object);
+                ready: () => Ready, inReplay: () => InReplay, selection: () => Selected, select: n => { Selects.Add(n); return true; }, nodeName: names, facade: () => Facade.Object);
         }
 
         public void Open(Guid exercise)
@@ -484,5 +492,163 @@ public sealed class TheReviewSourceTests : IDisposable
 
         var shot = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS");
         if (!string.IsNullOrEmpty(shot)) { Directory.CreateDirectory(shot); frame.Screenshot(Path.Combine(shot, "v6-merged-status-and-toolbar.png")); }
+    }
+
+    // ── S5 · I7 — local entities from EVERY node, tagged, the Source menu's checkboxes (mockup ③) ─────────
+
+    private static List<(string Note, int Progress)> LocalsInWorld(ReviewSource source, EntityRepository world)
+    {
+        var found = new List<(string, int)>();
+        for (int i = 0; i <= world.MaxEntityIndex; i++)
+        {
+            var e = new Entity(i, world.GetMetadata(i).Generation);
+            if (world.IsAlive(e) && source.LocalOriginNote(e) is { } note) found.Add((note, world.GetComponent<ObjectiveStatus>(e).ProgressCur));
+        }
+        found.Sort();
+        return found;
+    }
+
+    /// <summary>
+    /// ⭐ G-7 S5 (I7, M-6) — the editor's Merged world holds a local (no network id) entity from EACH node that has one, tagged <i>"local to &lt;node&gt;"</i> (Details reads the tag); unchecking a node in the Source menu's
+    /// <i>Local entities shown from</i> (the SAME Federation panel's checkbox write) removes ITS locals from the editor's world at once and leaves the others. 🔴 Red-proof: the merger taking the single "provider" node's locals ⇒ red.
+    /// </summary>
+    [Fact]
+    public void G7S5_LocalEntitiesFromEveryNode_AreTaggedByNode_AndTheSourceMenuCheckboxRemovesANodesLocals()
+    {
+        _localBase[2] = 902; _localBase[4] = 904;
+        FourParticipants();
+        using var rig = new Rig(_root, _serializer);
+        rig.Open(_exercise);
+
+        Assert.Equal(new[] { ("local to Node 2", 902), ("local to Node 4", 904) }, LocalsInWorld(rig.Source, rig.World));   // ⭐ one from each node, each tagged with its own
+
+        rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, false);                                                            // the checkbox
+        Assert.Equal(new[] { ("local to Node 2", 902) }, LocalsInWorld(rig.Source, rig.World));
+        Assert.NotEqual(int.MaxValue, ProgressOfNet(rig.World, 300));                                                      // its networked unit stays
+
+        rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, true);
+        Assert.Equal(2, LocalsInWorld(rig.Source, rig.World).Count);
+        Assert.Null(rig.Source.LocalOriginNote(Entity.Null));
+    }
+
+    [SkippableFact]
+    public void G7S5_TheSourceMenu_LocalEntitiesCheckboxes_AreOnePerNode_AlignedAndDefaultOn_Frame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        FourParticipants();
+        using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1", 3 => "CGF-2", 4 => "SimHost-1", _ => "Player-1" });
+        rig.Open(_exercise);
+        var panel = rig.Source.SwitchPanel!;
+        panel.CaptureLayout = true;
+        using var frame = UiFrameHarness.Begin(420, 400);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        void Draw() => frame.StepN(4, () =>
+        {
+            ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(420, 400));
+            ImGui.Begin("Source", ImGuiNET.ImGuiWindowFlags.NoCollapse);
+            ReviewSourceSwitch.Draw(rig.Source);
+            ImGui.End();
+        });
+        Draw();
+
+        Assert.Equal(ViewMode.Merged, panel.ActiveMode);                                       // the group opens Merged: the switch shows it
+        Assert.Equal(new[] { 2, 3, 4, 5 }, panel.LocalsRows.Select(r => r.Node).ToArray());    // ⭐ one checkbox per participant …
+        Assert.All(panel.LocalsRows, r => Assert.True(r.On));                                  // … every node's on by default
+        Assert.Single(panel.LocalsRows.Select(r => r.X).Distinct());                           // aligned: ONE x (the mockup's column of boxes)
+        var ys = panel.LocalsRows.Select(r => r.Y).ToArray();
+        Assert.True(ys.Zip(ys.Skip(1), (a, b) => b - a).All(d => d > 10f && Math.Abs(d - (ys[1] - ys[0])) < 1f), "an even row pitch: " + string.Join(",", ys));
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } sd ? sd : "";
+        if (dir != "") { Directory.CreateDirectory(dir); frame.Screenshot(Path.Combine(dir, "g7s5-source-menu.png")); }
+
+        panel.SetLocalEntitiesShown(4, false); panel.SetLocalEntitiesShown(5, false);
+        Draw();
+        Assert.Equal(new[] { true, true, false, false }, panel.LocalsRows.Select(r => r.On).ToArray());
+        if (dir != "") frame.Screenshot(Path.Combine(dir, "g7s5-source-menu-unchecked.png"));
+    }
+
+    // ── S5 · I5 — Details ▸ a component ▸ By node (mockup ①) ─────────────────────────────────────────────
+
+    /// <summary>Unit 100 is owned by CGF-A (node 2: objective progress 0 + frame); node 3 holds a replica that agrees, node 4 one that believes 7 more.</summary>
+    private void ReplicaGroup()
+    {
+        Record(2, (100, true, true, 0));
+        Record(3, (100, false, true, 0));
+        Record(4, (100, false, true, 7));
+    }
+
+    private static Entity UnitOf(EntityRepository world, int net)
+    {
+        for (int i = 0; i <= world.MaxEntityIndex; i++)
+        {
+            var e = new Entity(i, world.GetMetadata(i).Generation);
+            if (world.IsAlive(e) && world.HasComponent<NetworkIdentity>(e) && world.GetComponent<NetworkIdentity>(e).Value == net) return e;
+        }
+        return Entity.Null;
+    }
+
+    private ByNodeSection ByNode(Rig rig) => new(new ReplicaViews(new OwnershipSource(), _serializer), () => rig.Source.MergedManager,
+        e => rig.World.IsAlive(e) && rig.World.HasComponent<NetworkIdentity>(e) ? rig.World.GetComponent<NetworkIdentity>(e).Value : 0, rig.Source.NameOf);
+
+    /// <summary>
+    /// ⭐ G-7 S5 (I5, M-5) — Details ▸ a component ▸ <i>By node</i>: the OWNER (CGF-A, from the recorded ownership) first, then each replica; the replica that believes 7 more is marked DIFFERING (amber, Δ 7), the one that
+    /// agrees is not; shown only in the MERGED view (a part has no By node). 🔴 Red-proof: <c>ReplicaViews.Compute</c> never marking a difference ⇒ red.
+    /// </summary>
+    [Fact]
+    public void G7S5_ByNode_TheOwnerFirst_TheReplicaThatDiffersIsMarked_OnlyInMerged()
+    {
+        ReplicaGroup();
+        using var rig = new Rig(_root, _serializer);
+        rig.Open(_exercise);
+        var section = ByNode(rig);
+        var unit = UnitOf(rig.World, 100);
+
+        var view = section.ViewOf(unit, typeof(ObjectiveStatus))!;
+
+        Assert.Equal(2, view.OwnerNode);
+        Assert.Equal(new[] { 2, 3, 4 }, view.Rows.Select(r => r.NodeId).ToArray());
+        Assert.Equal(new[] { true, false, false }, view.Rows.Select(r => r.IsOwner).ToArray());
+        Assert.Equal(new[] { false, false, true }, view.Rows.Select(r => r.Differs).ToArray());        // ⭐ only node 4's copy differs from the owner's
+        Assert.Equal(7d, view.Rows[2].Delta, 3);
+        Assert.Null(section.ViewOf(Entity.Null, typeof(ObjectiveStatus)));
+
+        rig.Source.SelectPart(3);
+        Assert.Null(section.ViewOf(unit, typeof(ObjectiveStatus)));                                    // a part: no By node
+    }
+
+    [SkippableFact]
+    public void G7S5_ByNode_OnARealDetailsFrame_TheCrownedOwnerFirst_ColumnsAligned_AmberWhereItDiffers()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ReplicaGroup();
+        using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1 (Brain)", 3 => "SimHost-1 (Muscle)", _ => "IG-1 (Map2D)" });
+        rig.Open(_exercise);
+        var section = ByNode(rig);
+        section.Capture = true;
+        var panel = new Fdp.Presentation.Panels.EntityInspectorPanel();
+        panel.Reflector.ComponentFooter = section.Draw;
+        var session = new Fdp.Presentation.Adapters.RepositoryAdapter(rig.World);
+        var unit = UnitOf(rig.World, 100);
+        using var frame = UiFrameHarness.Begin(640, 760);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        panel.Reflector.ForceExpandAll = true;
+        frame.StepN(5, () =>
+        {
+            ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(640, 760));
+            ImGui.Begin("Details", ImGuiNET.ImGuiWindowFlags.NoCollapse);
+            panel.DrawComponentsFor(session, unit);
+            ImGui.End();
+        });
+
+        var rows = section.Rows;   // the LAST component drawn (ObjectiveStatus sorts last) — three rows
+        Assert.Equal(new[] { 2, 3, 4 }, rows.Select(r => r.Node).ToArray());
+        Assert.Equal(new[] { true, false, false }, rows.Select(r => r.Owner).ToArray());               // the crown on the owner's row
+        Assert.Equal(new[] { false, false, true }, rows.Select(r => r.Amber).ToArray());               // amber where it differs
+        Assert.Single(rows.Select(r => r.NameX).Distinct());                                           // ⭐ the mockup's aligned columns: one x per column
+        Assert.Single(rows.Select(r => r.ValueX).Distinct());
+        Assert.Single(rows.Select(r => r.NoteX).Distinct());
+        Assert.True(rows[0].NameX < rows[0].ValueX && rows[0].ValueX < rows[0].NoteX);
+        Assert.True(rows[0].Y < rows[1].Y && rows[1].Y < rows[2].Y);                                   // owner first, top to bottom
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } sd ? sd : "";
+        if (dir != "") { Directory.CreateDirectory(dir); frame.Screenshot(Path.Combine(dir, "g7s5-details-by-node.png")); }
     }
 }

@@ -119,6 +119,9 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private EntityInspectorPanel? _inspectorPanel;
     private EventBrowserPanel? _eventPanel;
     private ReplaySearchPanel? _searchPanel;
+    private ReplicaViews? _replicaViews;                       // ⭐ G-7 S5 — the merged view's lens (By node, the Replica differs lane)
+    private ByNodeSection? _byNodeSection;
+    private Hrot.Editor.AiShared.Review.ReplicaDifferLane? _replicaLane;
     private ScenarioSerializer _scenarioSerializer = null!;
     private BehaviorRegistry _behaviorRegistry = new();
     // Required by PredicateCompiler for BlueprintVariablePredicateDto; without it, blueprint
@@ -998,8 +1001,12 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         // ⭐ R-6 / V7 — the Search hits row: a marker per hit of THIS panel, a click runs the panel's own row-click path (waypoint + seek + select)
         if (ReviewTracks == null)
         {
+            if (_replicaViews != null)   // wired with the delegates; a rail that registers the windows alone has no lens (and no lane)
+                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaDifferLane(_replicaViews, () => _viewMode == ViewMode.Merged ? _manager : null,
+                    () => { int n = Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_activeRepo, _inspectorState?.SelectedEntity); return n > 0 ? n : null; },
+                    n => null);
             ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _timelineSource, searchPanel, stops: null,
-                transport: () => timelinePanel, selectUnit: n => SelectNetworkEntity(n));
+                transport: () => timelinePanel, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane);
             _eventTimeline.AddTracks(ReviewTracks.Tracks);
         }
 
@@ -1132,6 +1139,13 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         _searchPanel = new ReplaySearchPanel(
             editSvc, searchSvc, seekIntent, selectIntent, matchIntent,
             _behaviorRegistry, getSelectedEntity, getSelectedNetworkId);
+        // ⭐ G-7 S5 (I5, I7) — the merged view's lens in THIS host: Details ▸ a component ▸ By node, the "local to <node>" tag and (below, with the review rows) the Replica differs lane
+        _replicaViews = new ReplicaViews(new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap), _scenarioSerializer);
+        _byNodeSection = new ByNodeSection(_replicaViews, () => _viewMode == ViewMode.Merged ? _manager : null,
+            e => _activeRepo is { } r && r.IsAlive(e) && r.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? r.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
+            n => _federationPanel?.NameOf(n) ?? "Node " + n);
+        _inspectorPanel!.Reflector.ComponentFooter = _byNodeSection.Draw;
+        _inspectorPanel.EntityNote = e => _viewMode == ViewMode.Merged && _merger != null && _merger.Target.TryGetLocalNode(e, out int ln) ? "local to " + (_federationPanel?.NameOf(ln) ?? "Node " + ln) : null;
         // ⭐ CE-4206 R2 — the search area is edited through the ONE pick context (DESIGN_Map_Picking_Unification P4): a broker over a canvas adapter
         //   (the canvas is replaced on a view-mode switch, so the adapter follows it). 🔒 UXI-07 step 4b — the edit SUSPENDS the active tool.
         _searchPanel.PickContext = new Hrot.Presentation.Facades.MapPickBroker(() =>

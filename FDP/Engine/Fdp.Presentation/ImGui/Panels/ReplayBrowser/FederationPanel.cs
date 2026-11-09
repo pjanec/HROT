@@ -108,6 +108,10 @@ public sealed class FederationPanel
     public void SetBaseWallTicks(long ticks)
         => _manager.SetBaseWallTicks(ticks);
 
+    /// <summary>⭐ G-7 S5 — a rail's measurement of mockup ③: the screen position of each <i>Local entities shown from</i> checkbox as last drawn (filled only while <see cref="CaptureLayout"/> is true).</summary>
+    public readonly List<(int Node, bool On, float X, float Y)> LocalsRows = new();
+    public bool CaptureLayout { get; set; }
+
     /// <summary>The PRIMARY node (the clock / timeline node — see <see cref="FederatedReplayManager.LocalEntitiesProviderNodeId"/>); ⭐ S5: no longer picks which locals show.</summary>
     public void SetLocalEntitiesProvider(int nodeId)
         => _manager.SetLocalEntitiesProvider(nodeId);
@@ -146,12 +150,15 @@ public sealed class FederationPanel
 
             // ⭐ G-7 S5 (I7, mockup ③) — Local entities shown from: one checkbox per node (default every node's on). ⛔ SUPERSEDED: the single "Local-Entities Provider" dropdown.
             Gui.TextDisabled("Local entities shown from (no network id)");
+            LocalsRows.Clear();
             for (int i = 0; i < _nodeIds.Length; i++)
             {
                 int nodeId = _nodeIds[i];
                 bool on = _manager.IsLocalEntitiesShown(nodeId);
+                var at = Gui.GetCursorScreenPos();
                 if (Gui.Checkbox($"{NameOf(nodeId)}##locals_{nodeId}", ref on))
                     SetLocalEntitiesShown(nodeId, on);
+                if (CaptureLayout) LocalsRows.Add((nodeId, on, at.X, at.Y));
             }
             Gui.Separator();
         }

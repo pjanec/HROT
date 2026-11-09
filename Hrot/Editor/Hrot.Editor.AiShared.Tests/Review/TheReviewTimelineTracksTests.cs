@@ -9,6 +9,7 @@ using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Presentation.Panels.ReplayBrowser;
 using Fdp.Presentation.Panels.Timeline;
 using Fdp.Toolkit.ReplayBrowser;
+using Fdp.Toolkit.ReplayBrowser.Federation;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.ReplayBrowser.Timeline;
 using Fdp.Toolkit.Replication.Components;
@@ -21,6 +22,10 @@ using Raylib_cs;
 using Xunit;
 
 namespace Hrot.Editor.AiShared.Tests.Review;
+
+/// <summary>⭐ G-7 S5 — a recorded value the two nodes' copies of unit 100 disagree on (the Replica differs lane's rail).</summary>
+[ComponentId(484)]
+public struct ReplicaProbe { public float X; }
 
 /// <summary>
 /// ⭐ R-6 / V7 (docs/UX/DESIGN_Review_Perspective.md §4 V7) — the Event Timeline's two review rows: <b>Search hits</b> (a marker per hit of the Replay search panel, at its frame) and <b>Breakpoint stops</b> (a
@@ -257,6 +262,117 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
         finally { Raylib.UnloadImage(image); }
         Assert.True(blue > 10, $"the Search hits markers are drawn ({blue} px)");
         Assert.True(red > 10, $"the Breakpoint stops markers are drawn ({red} px)");
+    }
+
+
+    // ── S5 · I5 — the Replica differs lane (§6.12 S5, M-5; mockup ②) ───────────────────────────────────────
+
+    /// <summary>Two node files of one exercise: unit 100 owned by node 1 (X = frame) and held by node 2, whose copy lags at frames 2 and 3 (X = frame + 5).</summary>
+    private (string P1, string P2) RecordReplicaPair()
+    {
+        var exercise = Guid.NewGuid();
+        string Rec(int node, Func<int, float> x)
+        {
+            string path = Path.Combine(_dir, $"replica_{node}.fdp");
+            var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)exercise, NodeId = (Fdp.Core.NodeId)node };
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<NetworkIdentity>(); repo.RegisterComponent<NetworkAuthority>(); repo.RegisterComponent<ReplicaProbe>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new NetworkIdentity { Value = 100 });
+            repo.AddComponent(e, new NetworkAuthority(1, node));
+            repo.AddComponent(e, new ReplicaProbe { X = x(0) });
+            using (var rec = new AsyncRecorder(path, meta))
+            {
+                repo.Tick();
+                rec.CaptureKeyframe(repo, Zero, blocking: true, eventBus: repo.Bus);
+                uint prev = repo.GlobalVersion;
+                for (int f = 1; f <= 5; f++)
+                {
+                    repo.Tick();
+                    repo.GetComponentRW<ReplicaProbe>(e).X = x(f);
+                    rec.CaptureFrame(repo, prev, Zero + TimeSpan.FromSeconds(f).Ticks, blocking: true, eventBus: repo.Bus);
+                    prev = repo.GlobalVersion;
+                }
+            }
+            File.WriteAllText(path + ".meta.json", MetadataSerializer.Serialize(meta));
+            return path;
+        }
+        return (Rec(1, f => f), Rec(2, f => f is 2 or 3 ? f + 5 : f));
+    }
+
+    /// <summary>
+    /// ⭐ G-7 S5 (I5, M-5) — ONE lane <i>Replica differs · &lt;unit&gt;</i> for the SELECTED unit in the MERGED view: a mark at exactly the frames a replica of it differs from its owner (the same ε as Details ▸ By node),
+    /// a click seeks there (a waypoint) — and it is absent with no unit selected, and in a part (no manager). 🔴 Red-proof: the scan marking the frames where nothing differs ⇒ red.
+    /// </summary>
+    [Fact]
+    public void G7S5_TheReplicaDiffersLane_MarksTheFramesAReplicaDiffers_ClickSeeksThere_AndExistsOnlyForTheSelectedUnitInMerged()
+    {
+        var (p1, p2) = RecordReplicaPair();
+        using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+        manager.SetBaseWallTicks(Zero);
+        FederatedReplayManager? merged = manager; int? selected = 100;
+        using var lane = new ReplicaDifferLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), () => merged, () => selected, n => "Bravo 2-3");
+        var f = new Fixture(_reader, p1);
+        var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
+
+        for (int i = 0; i < 400 && tracks.ReplicaItems.Count == 0; i++) { tracks.Tracks(); System.Threading.Thread.Sleep(25); }   // the scan runs in the background
+
+        Assert.Equal(new[] { 2, 3 }, tracks.ReplicaFrames);                                        // ⭐ a mark at exactly the frames the copy lags — not at 0, 1, 4, 5
+        var row = Assert.Single(tracks.Tracks(), r => r.Id == ReviewTimelineTracks.ReplicaId);
+        Assert.Equal("Replica differs · Bravo 2-3", row.Label);                                    // one lane, named for the unit
+        Assert.Equal(new[] { 2d, 3d }, row.Items.Select(i => i.From).ToArray());               // at their times on the timeline
+        row.Select("r1");                                                                          // a click on the second mark …
+        Assert.Equal(new[] { 3 }, f.Transport.Seeks);                                              // … seeks there
+
+        selected = null;                                                                           // no unit selected ⇒ no lane
+        Assert.DoesNotContain(tracks.Tracks(), r => r.Id == ReviewTimelineTracks.ReplicaId);
+        selected = 100; merged = null;                                                             // a part (no manager) ⇒ no lane
+        Assert.DoesNotContain(tracks.Tracks(), r => r.Id == ReviewTimelineTracks.ReplicaId);
+    }
+
+    /// <summary>⭐ the lane on the REAL Event Timeline panel (mockup ②): its amber marks are drawn. Renders <c>g7s5-replica-lane.png</c> under <c>HROT_RAIL_SHOTS</c>.</summary>
+    [SkippableFact]
+    public void G7S5_TheReplicaDiffersLane_OnARealTimelineFrame_DrawsItsAmberMarks()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (p1, p2) = RecordReplicaPair();
+        using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+        manager.SetBaseWallTicks(Zero);
+        using var lane = new ReplicaDifferLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), () => manager, () => 100, n => "Bravo 2-3");
+        var f = new Fixture(_reader, p1);
+        var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
+        for (int i = 0; i < 400 && tracks.ReplicaItems.Count == 0; i++) { tracks.Tracks(); System.Threading.Thread.Sleep(25); }
+        Assert.NotEmpty(tracks.ReplicaItems);
+        var panel = new TimelinePanel { Tracks = () => Array.Empty<ITimelineTrack>() };
+        panel.AddTracks(tracks.Tracks);
+        var wall = Enumerable.Range(0, Frames).Select(i => Zero + (long)i * TimeSpan.TicksPerSecond).ToArray();
+        var simCol = Enumerable.Range(0, Frames).Select(i => (double)i).ToArray();
+        var cursor = new Cursor { ExtentFrom = Zero, ExtentTo = Zero + (Frames - 1) * TimeSpan.TicksPerSecond, Now = Zero + 2 * TimeSpan.TicksPerSecond,
+            TimeMap = ReplayTimeMap.FromFrames(wall, simCol, new FrameFlags[Frames]) };
+        var lanes = new TimelineLaneCatalog().Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes()).Lanes(new TimelineLaneContext(Recording: true));
+        using var frame = UiFrameHarness.Begin(1200, 200);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        frame.StepN(5, () =>
+        {
+            ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(1200, 200));
+            ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+            panel.Draw(f.Source, cursor, lanes);
+            ImGui.End();
+        });
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-review-rail");
+        Directory.CreateDirectory(dir);
+        string shot = Path.Combine(dir, "g7s5-replica-lane.png");
+        frame.Screenshot(shot);
+        var image = Raylib.LoadImage(shot);
+        int amber = 0;
+        try
+        {
+            int r0 = (int)(ReviewTimelineTracks.ReplicaColour & 0xFF), g0 = (int)((ReviewTimelineTracks.ReplicaColour >> 8) & 0xFF), b0 = (int)((ReviewTimelineTracks.ReplicaColour >> 16) & 0xFF);
+            for (int y = 0; y < image.Height; y++)
+                for (int x = 0; x < image.Width; x++) { var p = Raylib.GetImageColor(image, x, y); if (Math.Abs(p.R - r0) + Math.Abs(p.G - g0) + Math.Abs(p.B - b0) < 40) amber++; }
+        }
+        finally { Raylib.UnloadImage(image); }
+        Assert.True(amber > 10, $"the Replica differs marks are drawn ({amber} px)");
     }
 
     private sealed class Cursor : ITimelineCursor
