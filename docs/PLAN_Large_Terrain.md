@@ -224,8 +224,9 @@ are clearer") ⇒ the OSM library's door / window rules (OSM design §5.5) are t
 | lane | handoff | items (📐 design first · 🖼 mockup first) |
 |---|---|---|
 | **backend** | [HANDOFF_Coordinator_To_Backend_Large_Terrain](blueprints/batches/HANDOFF_Coordinator_To_Backend_Large_Terrain.md) | L-1 scale terrain (CE-4363) · L-2 📐 scale rig (CE-4364) · L-3 📐 height store (CE-4365) · L-4 measure + fix (CE-4366) · L-5 📐 ground sight pyramid (CE-4367) · L-6 📐 the importer (CE-4368) · L-7 📐 trees (CE-4369) · L-8 📐 destruction, design only (CE-4370) |
-| **ui** | [HANDOFF_Coordinator_To_Ui_Terrain_From_OSM](blueprints/batches/HANDOFF_Coordinator_To_Ui_Terrain_From_OSM.md) | U-0 📐 InputSet + reader + conformance (CE-4371) · U-1 shared Utm (CE-4372) · U-2 📐 OSM library + CLI (CE-4373) · U-3 📐 heights + roads (CE-4374) · U-4 🖼📐 wizard (CE-4375) |
+| **coordinator** *(✏ user, 2026-11-09: "excluding the editor wizard … something you can handle yourself")* | — | 📐 InputSet + reader + conformance (CE-4371) · shared Utm (CE-4372) · 📐 OSM library + CLI (CE-4373) · 📐 heights + roads (CE-4374); ⭐ the wizard ⇄ pipeline CONTRACT built first as code (OSM §4a) |
+| **ui** | [HANDOFF_Coordinator_To_Ui_Terrain_From_OSM](blueprints/batches/HANDOFF_Coordinator_To_Ui_Terrain_From_OSM.md) (re-stamped: the wizard only) | W-1 🖼 mockup · W-2 📐 design · W-3 build · W-4 rails — all CE-4375 |
 
 ⭐ The importer (input set → HROT terrain) is backend's (L-6) — it is "large terrain" work, owns the height store and the navmesh, and the OSM
-wizard reaches it through `ITerrainImporter` only. The one cross-lane wait: L-6 needs ui's U-0 + U-1 (both first in ui's order); L-6 swaps with
+wizard reaches it through `ITerrainImporter` only. The one cross-lane wait: L-6 needs the coordinator's CE-4371 + CE-4372 (built first); L-6 swaps with
 L-7 if they are not merged yet. Both batches start after their lane's `Next_3`.

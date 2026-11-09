@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — reviewed (builder check + coordinator review F-1…F-11, folded in 2026-11-09), Q-O1…Q-O9 answered; map background / imagery LEFT OPEN for the user (§8)
+build-state: DESIGN — §4a the wizard ⇄ pipeline contract BUILT as types (coordinator 2026-11-09); reviewed (builder check + coordinator review F-1…F-11, folded in 2026-11-09), Q-O1…Q-O9 answered; map background / imagery LEFT OPEN for the user (§8)
 updated: 2026-11-09 (source-data session)
 related-designs:
   - PLAN_Large_Terrain.md — §9: this pipeline goes THROUGH the importer and is built in parallel; O-0 adds the input-set READER + conformance checks to Hrot.Terrain.InputSet
@@ -84,6 +84,59 @@ license, let's do it."*
 | **`Hrot.Tools.TerrainOsm`** (new exe, `hrot-terrain-osm`) | thin CLI: `--bbox lat0,lon0,lat1,lon1 --name N --out DIR [options]` | headless tests, batch use, reproducing an author's import |
 | **editor wizard** (`Hrot.Editor`) | pick area → options → preview → import → open in the New Scenario picker | §6 |
 | **the terrain importer** | input set → `assets/terrain/<name>/` | ⛔ NOT part of this design — Terrain Import UTM §6.1 stages 0–7. This feature DEPENDS on it |
+
+### 4a. ⭐ The wizard ⇄ pipeline CONTRACT *(coordinator, `2026-11-09`; built as code — `Hrot/Engine/Hrot.Terrain.Osm/OsmContract.cs`, `Hrot/Engine/Hrot.Terrain.InputSet/ITerrainImporter.cs`)*
+
+🔒 User, `2026-11-09`: the coordinator builds the library side (O-0…O-2) itself; the ui lane builds only the wizard, overnight. ⇒ the boundary
+is fixed FIRST, as compiled types, so the two sides build at once — the wizard against a fake pipeline, the pipeline against its tests.
+
+```mermaid
+classDiagram
+  class IOsmTerrainPipeline {
+    <<interface, coordinator implements>>
+    MaxSideMetres
+    Measure(GeoBox) width, height, refusal
+    PreviewAsync(GeoBox, OsmImportOptions, progress, ct) OsmPreview
+    WriteInputSetAsync(GeoBox, OsmImportOptions, folder, progress, ct) folder
+  }
+  class OsmPreview { Frame; Bounds; Counts; Verdict; VerdictReason; Warnings; Roads; Buildings; Areas; Lines; Attribution }
+  class OsmCounts { Buildings Doors Windows LoneTrees WoodsAreaM2 EstimatedTrees RoadKm Walls WaterAreas }
+  class ITileSource { <<interface, coordinator implements>> Attribution; GetTileAsync(z, x, y) }
+  class IPlaceSearch { <<interface, coordinator implements>> SearchAsync(query) }
+  class ITerrainImporter { <<interface in Hrot.Terrain.InputSet, backend implements CE-4368>> ImportAsync(set, name, replace, progress, ct); ScenariosUsing(name) }
+  class OsmTerrainWizard { <<ui builds, CE-4375>> Area; Options; Preview; Import }
+  OsmTerrainWizard --> IOsmTerrainPipeline
+  OsmTerrainWizard --> ITileSource
+  OsmTerrainWizard --> IPlaceSearch
+  OsmTerrainWizard ..> ITerrainImporter : last step, when composed
+  IOsmTerrainPipeline --> OsmPreview
+  OsmPreview *-- OsmCounts
+```
+*What the picture shows: the wizard sees four interfaces and nothing else of the pipeline; the importer reaches it only as an optional
+dependency the editor's composition passes in (null until backend's CE-4368 lands — the Import step then stops after the input set).*
+
+```mermaid
+sequenceDiagram
+  participant A as Author
+  participant W as Wizard (ui)
+  participant P as IOsmTerrainPipeline
+  participant I as ITerrainImporter (optional)
+  A->>W: drag a box
+  W->>P: Measure(box)
+  P-->>W: 4.8 x 5.1 km, no refusal
+  A->>W: Options, then Preview
+  W->>P: PreviewAsync(box, options, progress, ct) on a worker
+  P-->>W: OsmPreview (geometry, counts, verdict, warnings)
+  A->>W: Import (verdict not Refused)
+  W->>P: WriteInputSetAsync(box, options, folder, progress, ct)
+  P-->>W: input set folder
+  alt importer composed
+    W->>I: ImportAsync(folder, name, replace, progress, ct)
+    I-->>W: terrain folder, then "open in New Scenario"
+  else not yet
+    W-->>A: input set written - the terrain importer is not built yet
+  end
+```
 
 ## 5. The pipeline
 

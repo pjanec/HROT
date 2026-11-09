@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The terrain import INPUT SET (docs/DESIGN_Terrain_Import_UTM.md §10): the one format code shared by every producer
+       (hrot-terrain-synth, the OSM pipeline, the real set) and the one consumer (the importer, ITerrainImporter).
+       PLAN_Large_Terrain §9. Depends on nothing in HROT. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.Terrain.InputSet</RootNamespace>
+    <AssemblyName>Hrot.Terrain.InputSet</AssemblyName>
+  </PropertyGroup>
+</Project>
