@@ -1,8 +1,10 @@
 <!--STATUS
-state: LIVE — dispatched, not started (RE-STAMPED 2026-11-09, rule 1a: narrowed to the WIZARD only — the coordinator builds the library side, U-0…U-3, itself; first stamp d6c44f6cd never reached ui)
+state: WITHDRAWN 2026-11-09 before it started — 🔒 user: "the W1 to W4 part looks like it needs a lot of graphical design, which is not what I want ui lane to do autonomously" ⇒ the wizard waits for a design session WITH the user; ⛔ do not start it · (was: RE-STAMPED 2026-11-09, rule 1a: narrowed to the WIZARD only — the coordinator builds the library side, U-0…U-3, itself; first stamp d6c44f6cd never reached ui)
 updated: 2026-11-09
 current-answer: the whole file
 -->
+
+> ⛔⛔ **WITHDRAWN `2026-11-09`, never started — do NOT build.** The wizard's look is designed with the user first; the contract (OSM §4a) stays.
 
 # HANDOFF — coordinator → ui: the editor's terrain-from-OpenStreetMap WIZARD (overnight, autonomous)
 
