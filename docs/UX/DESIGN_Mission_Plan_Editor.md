@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILDING — M1 runtime BUILT (P-2, CE-4298; §5.10 as-built) · ✅ E1–E9 + §5.9 approved 2026-11-07 (R-4161); dispatched in HANDOFF_Coordinator_To_Lanes_Mission_Plan.md (CE-4298…CE-4304) · §5 ✅ D1–D9 (D3 / D4 as revised) + §5.7 APPROVED 2026-11-07 (R-4160); the remaining detail in §5.8 · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
 updated: 2026-11-07 (E9: the Wait task — a plan that waits before its first task) · 2026-11-07 (E4 / E5 revised by the user: ONE Tasks lane for all units; the WHO chip defaults to 'this unit'; §5.9 the sequencing rule, measured) · 2026-11-07 (§5.8 the remaining detail E1–E8 — E1: a Live edit restarts the plan today) · 2026-11-07 (§5.7 entity references: the GUID / @Key rule exists (S9′); two load-path gaps G1, G2 named) · 2026-11-07 (§5.7 storage and compatibility, measured; one unmeasured gate for M5) · 2026-11-07 (D3 / D4 revised by the user's question: every then / give-up is ONE shared condition; old trigger types translated on compile) · 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
-current-answer: ⭐ §5.10 the M1 runtime AS BUILT (read with §5) · §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions · ⭐ §5.13 the task picker (PROPOSAL, Q-P1…Q-P5)
+current-answer: ⭐ §5.10 the M1 runtime AS BUILT (read with §5) · §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions · ⭐ §5.13 the task picker (APPROVED R-4184, CE-4359)
 stale-below: nothing
 known-rot: §3 M5's "a task-owned rule evaluated by the rules runner" is SUPERSEDED by §5 D3 (one Condition trigger, the one compiler); §2.2's PhaseBegins leaf and OperationPhase class by §5 D5 / D6 (a phase IS a trigger)
 known-conflict: the code calls a plan's task slot a "phase" (MissionPlanQueue.Phases); this design uses "phase" for the MILITARY phase of an operation (§2.4) — Q6 renames the code's word
@@ -688,7 +688,7 @@ REPORTS; with one the tool arms — red-proved by the pack not forwarding `ctx.S
 has no handle; right-click ends it) · `MissionPlanOverlayFrameRail.P8d_ThePlanOnARealMapFrame` (+ `mission-plan-drag.png` — the dragged marker
 amber where the mouse is).
 
-### 5.13 ✏ PROPOSAL `2026-11-09` — the TASK PICKER: folders, the generic first *(coordinator; Q-P1…Q-P5 for the user)*
+### 5.13 ✅ APPROVED `2026-11-09` (R-4184) — the TASK PICKER: folders, the generic first *(coordinator; Q-P1…Q-P5 approved — user: "Approved."; CE-4359)*
 
 🔒 User: *"Around 60 or 80 behaviors offered for an entity type is quite a lot, why so many … Lets revise how to pick behaviors, maybe we need to
 use some tree picker with categories, where the most generic ones go first (order) and categories are chosen to make it intuitive to quickly pick."*
