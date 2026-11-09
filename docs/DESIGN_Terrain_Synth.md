@@ -51,6 +51,8 @@ statistics, from a seed — so the importer can be built, tested and tuned in th
 
 ## 4. Coordinator review *(`2026-11-09`; the importer side)*
 
+✅ **Built `2026-11-09` (S-1…S-4, commits 6d63fa91a, 80da751ba, 3a756ce78, e0fea1245; 87 tests):** `--noise real|none`, `--terraces on|off`, `--materials on|off` (each defaults ON for `full`, OFF for `tiny` — separate switches so the clean output stays byte-identical, pinned by `CleanPinTests`) and `--extras` (water, scrub, woods polygons; off by default; with it `trees.csv` holds only trees outside woods). Measured on `full`: door z offset p10 −0.33 / median +0.10 / p90 +0.99 m, 3.1 % headings flipped, 0.9 % loose doors; 10 % of houses in 40 terraced rows; 33 % with a material; extras: a pond, a 19 m river, 3 scrub and 20 woods polygons (45 % of the area); a full run with `--extras` ≈ 11 s. Details in the tool README.
+
 ✅ **ACCEPTED as the importer's development terrain.** 📐 Measured here: the 53 tests pass; `tiny` (seed 1) generates in ≈ 1 s (1 025² heights, 40 buildings, 1 406 trees) and is byte-identical on a second run (`diff -r`); `full` (seed 1) generates in ≈ 16 s on this VM (495 MB) (11 265² heights, 1 800 buildings, 30 villages). The output's property names and frame notes match §10 of Terrain Import UTM (`GeoJsonWriter.cs:35-53`).
 
 | # | finding | lean |
