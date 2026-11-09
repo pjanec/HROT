@@ -2,7 +2,7 @@
 state: LIVE
 build-state: PRELIMINARY — an idea with open questions (Q-U1…Q-U12); NOT ready to build. Answers expected from another session (the source data owner)
 updated: 2026-11-09 (first version — coordinator)
-current-answer: §0 why · §1 measured · §2 the idea (UML) · §3 the stages · §4 OPEN QUESTIONS
+current-answer: §0 why · §1 measured · §2 the idea (UML) · §3 the stages · §4 OPEN QUESTIONS · §5 ANSWERS (source-data session)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -102,3 +102,49 @@ data (a heightfield and a building set that do not exist today) and in the grids
 
 ---
 _coordinator lane, 2026-11-09_
+
+## 5. ANSWERS — from the source-data session *(`2026-11-09`; "verified" = read in the source data or the source engine's code, "lean" = a proposal, not a decision)*
+
+🔒 User, `2026-11-09`: *"I would like to import all 6x6 km and convert the buildings (enterable of course)."* — so the scope is the whole source
+data area and Q-U8 is decided: the buildings are imported as ENTERABLE.
+
+🔒 User, `2026-11-09`: the converted terrain NEVER enters this git repository; it stays on a local drive (later a company content repository).
+This document stays generic: it describes the source only by its formats and contents, not by product or project names.
+
+### 5.1 The source terrain
+
+| fact | |
+|---|---|
+| the source is another engine's terrain database; its internals do not matter here. What the importer reads is an **IMPORT INPUT SET** prepared from it OUTSIDE this repo (on a local drive) in plain formats: heights, building footprints with door / window points, tree positions, a road network | verified |
+| ✅ the data area is **6 × 6 km: UTM 32N E 364 000–370 000, N 6 041 000–6 047 000** | verified |
+
+### 5.2 Answers
+
+| # | answer | status |
+|---|---|---|
+| **Q-U1** | **Format:** a float32 raster with an ESRI BIL header (`.hdr`) and a JSON with origin / extents / size, in local metres (Q-U2). Source spacing ≈ **0.5 m**. **Units:** metres. **Vertical datum:** none to convert — heights are taken as-is (≈ 480–770 m in this area); the import copies them unchanged. | verified (format, spacing, units); datum undefined by design |
+| | → the importer resamples to **1 m** (36 M posts, 72 MB as 16-bit). 0.5 m is 4× the size for no simulation gain; 2 m is coarse next to building walls | lean |
+| **Q-U2** | **UTM zone 32, northern hemisphere** (WGS 84 / UTM 32N, EPSG 32632). The area is ≈ 54.50–54.55°N, 6.90–6.99°E: inside zone 32, ≈ 58 km from its western edge — **no zone crossing**. Grid convergence here ≈ **−1.64° … −1.71°**, i.e. a tangent-plane frame would be rotated ≈ 1.7° against the UTM grid (≈ 30 m at 1 km). | verified |
+| | ⭐ **`utm {zone: 32, hemisphere: N, e0: 372000, n0: 6043000}`** — the local origin the other engine uses for this terrain, so HROT local positions are numerically identical to the other engine's (both run together on this terrain). The data area is then x −8000…−2000, y −2000…4000 (off-centre — the grids need bounds-based sizing, stage 2, anyway) | lean |
+| **Q-U3** | **Footprints + door/window points; no interiors.** Per building: footprint polygon (local metres; median 5 vertices, max 47), DOOR and WINDOW points (position, altitude, heading, storey index). In the 6 × 6 km: **1 988 buildings, 5 091 doors, 4 600 windows**. Building heights come separately (to be added to the input set). No interior geometry exists in the source | verified |
+| **Q-U4** | **Roads:** a SUMO net covering a larger area (UTM 32 WGS84) → crop it to the box (`netconvert --keep-edges.in-boundary`) and reference it from `terrain.json` `sumoNet` with **anchor (139 761.25, 162 886.77)**, so net − anchor == HROT local; `scripts/terrain-from-sumo.py` already has this shape. **Vegetation:** individual tree positions; no forest polygons → `forest` surfaces are DERIVED. **Water:** none in this area. **Walls / fences:** placed objects → `wall` LineStrings. **Bridges / unique structures:** few → author as `slab` / `ramp`. **Also present:** tunnels, power lines, street lamps (shapefiles, UTM 32N). **Land use:** no vector land use | verified (what exists); the derivations are leans |
+| **Q-U5** | **✅ decided: never in this git repository.** The converted terrain stays on a local drive, later in a company content repository; only the importer TOOL lives here | decided |
+| **Q-U6** | HROT runs **alongside another engine that renders the full visual scene of the same terrain**; HROT's own hosts need an engineering view only: the 2-D map (+ hillshade, footprints) and the editor's 3-D view for checking; Stride not needed for this terrain | lean |
+| **Q-U7** | the whole 6 × 6 km is imported; where units must path is not stated — lean as §4 (everywhere, offline bake); the infantry navmesh inside 1 988 interiors is the expensive part | — (the user) |
+| **Q-U8** | **✅ decided: enterable.** The importer GENERATES each house as a `*.building.json` template: footprint → exterior walls, storeys = round(model height / 3 m), a floor slab per storey, DOOR openings at the source door points (position + heading → wall + offset; storey index → level), WINDOW openings at the source window points (sparse: 4 600 for 1 988 houses) plus generated ones along each facade per storey, a flat roof (sloped roofs approximated). Open: the INSIDE — open-plan storeys vs procedurally partitioned rooms + stairs (a room/stair generator is new work). Scale: 1 988 enterable houses vs 164 in demo-city — door entities and the interior navmesh grow with it | decided (enterable); interior layout = the user |
+| **Q-U9** | a **repeatable tool** reading the input set; the building generator will be tuned iteratively | lean |
+| **Q-U10** | the other engine converts geodetic ↔ local with standard WGS84 UTM maths (zone forced to the terrain's), the same as `Utm.cs` → lat/lon at a gateway agrees to sub-mm. With e0/n0 from Q-U2 the two engines' local frames are IDENTICAL, so convergence never appears between them; it matters only where a heading is exchanged relative to TRUE north (DIS/HLA, lat/lon gateways) — apply the −1.6…−1.7° there | verified / lean |
+| **Q-U11** | not known here | — (the user) |
+| **Q-U12** | outside the 6 × 6 km the source has no real data → real data inside, `BeyondGround` outside, as leaned; the heights at the edge should blend into the band | lean confirmed |
+
+### 5.3 Correction to §1
+
+- ⚠ §1 "⛔ no heightmap" is out of date: `FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainHeightGrid.cs` (CE-1034, `DESIGN_Terrain_Height.md`) already loads ONE ESRI ASCII `.asc` grid per terrain (`basic-desert`, `highway-rest` use it). What is missing is a TILED / large heightfield — 6 × 6 km at 1 m is 36 M floats (144 MB) in one array, plus an equally large render mesh.
+
+### 5.4 Still open — for the user
+
+1. the INSIDE of the generated houses: open-plan storeys, or a procedural room + stair layout (Q-U8)
+2. expected unit counts / view distances (Q-U11) and where units must path (Q-U7)
+
+---
+_source-data session, 2026-11-09_
