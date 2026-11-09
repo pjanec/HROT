@@ -146,6 +146,16 @@ namespace Hrot.UI.Common.Map3D
         private static ControlScheme Kind(ControlScheme scheme) => scheme == ControlScheme.FixedWing ? ControlScheme.Rotorcraft : scheme;
         private readonly Dictionary<ControlScheme, float> _shoulderDistances = new();
 
+        /// <summary>⭐ CE-4348 (🔒 user: <i>"let the wheel go a little past the eyes, for every entity type"</i>) — how far AHEAD of the eyes the camera stands, along the
+        /// view (0 = at the eyes): a flyer's crew eye sits behind the nose, which then blocks a look at the ground. Wheeled in past the eyes; a station setting per kind.</summary>
+        public float AheadDistance(ControlScheme scheme) => _aheadDistances.TryGetValue(Kind(scheme), out var d) ? d : 0f;
+
+        /// <summary>⭐ CE-4348 — sets <see cref="AheadDistance"/>, kept within 0 … <see cref="UnitCameraRig.MaxAhead"/>.</summary>
+        public void SetAheadDistance(ControlScheme scheme, float distance)
+            => _aheadDistances[Kind(scheme)] = Math.Clamp(distance, 0f, UnitCameraRig.MaxAhead(Kind(scheme)));
+
+        private readonly Dictionary<ControlScheme, float> _aheadDistances = new();
+
         /// <summary>⭐ <c>CE-1293</c> (UC-6) — which shoulder the camera is over: +1 right (the default), −1 left; Q / E set it.</summary>
         public int ShoulderSide { get; set; } = 1;
 
@@ -1541,9 +1551,10 @@ namespace Hrot.UI.Common.Map3D
             float reach = Vector3.Distance(pivot, free);
             _arm = distance <= 0f ? 0f : _armPlaced ? UnitCameraRig.EaseArm(_arm, reach, _dt, UnitCameraRig.ScaleOf(scheme)) : reach;
             _armPlaced = true;
+            float ahead = distance > 0f ? 0f : _station.AheadDistance(scheme);   // ⭐ CE-4348 — past the eyes, along the view (clear of a flyer's nose)
             var at = distance > 0f && Vector3.DistanceSquared(wanted, pivot) > 1e-6f
-                ? pivot + Vector3.Normalize(wanted - pivot) * _arm : _eye;
-            if (distance > 0f && camera.GroundHeight is { } ground) at.Z = MathF.Max(at.Z, ground(at.X, at.Y) + CameraAboveGround);
+                ? pivot + Vector3.Normalize(wanted - pivot) * _arm : _eye + camera.Forward * ahead;
+            if ((distance > 0f || ahead > 0f) && camera.GroundHeight is { } ground) at.Z = MathF.Max(at.Z, ground(at.X, at.Y) + CameraAboveGround);
             camera.LookAt = at + camera.Forward * camera.Distance;
             camera.FovyDegrees = ZoomFovDegrees;   // ⭐ CE-1211 (§8j Z-1) — narrower while RMB is held
             if (_station.Bodies is { } bodies) bodies.ShowFirstPersonHead = distance > 0.5f;   // ⭐ CE-1201 (OS-5) — he is seen whole
@@ -1571,10 +1582,13 @@ namespace Hrot.UI.Common.Map3D
         private void WheelDistance(float wheel)
         {
             var rig = RigScheme;
-            float now = _station.OverShoulder ? _station.ShoulderDistance(rig) : 0f;
-            float farther = Math.Clamp(now - wheel * DistanceStep * UnitCameraRig.ScaleOf(rig), 0f, UnitCameraRig.MaxPlayDistance(rig));
-            if (farther < DistanceStep * 0.5f) _station.OverShoulder = false;
-            else { _station.SetShoulderDistance(rig, farther); _station.OverShoulder = true; }
+            // ⭐ CE-4348 — ONE continuum: ahead of the eyes (< 0) · the eyes (0) · over the shoulder (> 0); the wheel walks along it
+            float now = _station.OverShoulder ? _station.ShoulderDistance(rig) : -_station.AheadDistance(rig);
+            float step = DistanceStep * UnitCameraRig.ScaleOf(rig);
+            float next = Math.Clamp(now - wheel * step, -UnitCameraRig.MaxAhead(rig), UnitCameraRig.MaxPlayDistance(rig));
+            if (now < 0f && next > 0f) next = 0f;   // out of "ahead", the eyes come first
+            if (next >= DistanceStep * 0.5f) { _station.SetShoulderDistance(rig, next); _station.SetAheadDistance(rig, 0f); _station.OverShoulder = true; }
+            else { _station.OverShoulder = false; _station.SetAheadDistance(rig, next < -DistanceStep * 0.5f ? -next : 0f); }
         }
 
         /// <summary>⭐ <c>CE-1293</c> (R-1034) — the wheel moves the camera this far per notch (a person; a vehicle × its scale).</summary>
