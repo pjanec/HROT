@@ -153,6 +153,49 @@ public sealed class EditNotificationOverlayFrameRail
         finally { Raylib.UnloadImage(shot); }
     }
 
+    /// <summary>
+    /// ⭐ CE-4343 — at a UI scale above 1 (1.5: a 21 px font) the cards are laid out FROM THE FONT: 1.5× as wide, the button row under the reason (never
+    /// into it), the × inside the card, the cards stacked without overlapping. 🔒 User: <i>"the title touches the icon, the reason line runs into the Show
+    /// button, the cards overlap"</i>. Renders <c>edit-notifications-scale-1.5.png</c>. 🔴 Mutation: a fixed 62 px card ⇒ the pitch / button assertions fail.
+    /// </summary>
+    [SkippableFact]
+    public void CE4343_AtUiScale1_5_TheCardsAreLaidOutFromTheFont()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin(W, H);
+        new EditorFontService().Initialize(1f, 1.5f);
+        using var world = World(out _);
+        var clock = new Clock(); var shown = new List<int>(); var calls = new List<string>();
+        var overlay = Overlay(clock, shown, calls, wireConflict: true);
+        for (int i = 0; i < 3; i++) Step(frame, overlay, world);
+        clock.Now += TimeSpan.FromSeconds(6);
+        for (int i = 0; i < 4; i++) Step(frame, overlay, world);
+        Shoot(frame, "edit-notifications-scale-1.5.png");
+
+        var cards = overlay.Items.ToArray().Where(i => i.Kind == EditNotificationOverlay.ItemKind.Card).OrderBy(i => i.Card).ToArray();
+        Assert.Equal(3, cards.Length);
+        float s = overlay.CardWidthNow / EditNotificationOverlay.Width;
+        Assert.InRange(s, 1.35f, 1.65f);                                                                   // the font grew ⇒ the card grew with it
+        for (int i = 0; i < 3; i++)
+        {
+            Assert.True(cards[i].Max.Y - cards[i].Min.Y >= 62f * s - 0.5f, $"card {i} is at least the mockup's height × scale");
+            if (i > 0) Assert.True(cards[i].Min.Y >= cards[i - 1].Max.Y + 1f, $"card {i} starts below card {i - 1} (no overlap)");
+            Assert.True(cards[i].Max.X <= W, $"card {i} is on screen");
+        }
+        var show = Item(overlay, EditNotificationOverlay.ItemKind.Show, 0);
+        var reload = Item(overlay, EditNotificationOverlay.ItemKind.Reload, 1);
+        foreach (var (b, c) in new[] { (show, cards[0]), (reload, cards[1]) })
+        {
+            Assert.True(b.Min.Y >= c.Min.Y + 41f * s - 0.5f, "the button row is under the reason line");
+            Assert.True(b.Max.Y <= c.Max.Y, "the button is inside its card");
+            Assert.True(b.Min.X >= c.Min.X + 34f * s - 0.5f, "the button starts in the text column");
+        }
+        var x0 = Item(overlay, EditNotificationOverlay.ItemKind.Close, 0);
+        Assert.True(x0.Max.X <= cards[0].Max.X && x0.Max.Y <= cards[0].Max.Y, "the × is inside the card");
+        var all = overlay.Items.ToArray().Single(i => i.Kind == EditNotificationOverlay.ItemKind.DismissAll);
+        Assert.True(all.Min.Y >= cards[2].Max.Y, "Dismiss all sits under the stack");
+    }
+
     private static EditNotificationOverlay.Item Item(EditNotificationOverlay overlay, EditNotificationOverlay.ItemKind kind, int card)
         => overlay.Items.ToArray().Single(i => i.Kind == kind && i.Card == card);
 
