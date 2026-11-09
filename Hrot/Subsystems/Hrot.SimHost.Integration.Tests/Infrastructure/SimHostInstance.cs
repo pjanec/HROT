@@ -258,6 +258,15 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
         // â"€â"€ Simulation system lists (executed manually via IEcsModuleSystem.Execute) â"€â"€â"€â"€â"€â"€â"€
         private readonly IReadOnlyList<IEcsModuleSystem> _inputSystems;
+        // ⭐ CE-2153 — baked ONCE per process (~1.5 s cold): the meshes are read-only to queries, each instance wraps them in its own provider.
+        private static readonly Lazy<Dictionary<Fdp.Toolkit.Navigation.NavLayerMask, DotRecast.Detour.DtNavMesh>> FlatGroundMeshes = new(() =>
+            Fdp.Toolkit.Navigation.Recast.RecastNavmeshBaker.BakeFlatGround(
+                FlatGroundMinX, FlatGroundMaxX, FlatGroundMinZ, FlatGroundMaxZ,
+                Fdp.Toolkit.Navigation.NavLayerMask.Infantry | Fdp.Toolkit.Navigation.NavLayerMask.Vehicle),
+            System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+        // ⭐ CE-2153 — the flat ground the harness paths over (navmesh space X=East, Z=North), big enough for the mission rails.
+        private const float FlatGroundMinX = -100f, FlatGroundMaxX = 700f, FlatGroundMinZ = -200f, FlatGroundMaxZ = 200f;
+        private Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule? _navigationModule;   // ⭐ CE-2153
         private readonly IReadOnlyList<IEcsModuleSystem> _simSystems;
         private readonly IReadOnlyList<IEcsModuleSystem> _postSimSystems;
 
@@ -411,6 +420,21 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             //   its own (CgfLogicPack.cs:187), so the harness ran two per frame — harmless only because both share the
             //   per-entity MissionAdapterState and the second always skipped. Production runs one.
 
+            // ⭐⭐ CE-2153 (X-4) — PRODUCTION PARITY: production composes a NavigationSolverModule (MuscleRoleInputs.BuildSolver) over the
+            //   node's ONE trajectory pool (CE-180) and a navmesh; this harness composed none, so NavigationIntentBridgeSystem held every
+            //   PathToPoint forever (Mode None, speed 0) and a MoveToLocation mission never moved. The module's own systems are executed
+            //   in registration order after the logic packs: result materialization, the path solver (it reads the requests the bridge
+            //   published this tick and writes the route into the shared pool), placement. The flat navmesh stands in for a terrain bake.
+            var navmeshProvider = new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider();
+            navmeshProvider.Publish(new Fdp.Toolkit.Navigation.Recast.DotRecastNavmeshProvider(FlatGroundMeshes.Value));
+            var solverRegistry = new SystemList();
+            new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(roadNetwork, trajectoryPool, navmeshProvider).RegisterSystems(solverRegistry);
+            // ... and the muscle's half — EngineBackedPathResponseSystem turns the solver's result into the entity's NavState (trajectory, mode, speed);
+            //   production composes it beside the solver (MuscleRoleInputs.Build → EngineBackedNavigationModule), over the SAME pool and navmesh.
+            _navigationModule = new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule(roadNetwork, trajectoryPool, navmeshProvider);
+            _navigationModule.RegisterSystems(solverRegistry);
+            foreach (var s in solverRegistry.Systems) simList.Add(s);
+
             foreach (var s in musclePack.PostSimulationSystems) postSimList.Add(s);
 
             // ⭐⭐⭐ CE-144 — PRODUCTION PARITY, and its absence was another instance of the drift this
@@ -428,6 +452,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             var physicsModule = new PhysicsToolkitModule();
             physicsModule.Initialize(_world);
+            _navigationModule.RegisterProviders(_world);   // ⭐ CE-2153 — the INavmeshProvider / IPathRegistry singletons, as production does after Kernel.Initialize
 
             // 7. Seed GlobalTime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             const float dt = 1f / 60f;
@@ -695,6 +720,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 ref var batch = ref _world.GetSingleton<RaycastBatchData>();
                 if (batch.Hits.IsCreated) batch.Hits.Dispose();
             }
+            Hrot.SimHost.NavigationSolverComponentRegistry.DisposeAll(_world);
             _world.Dispose();
         }
 
@@ -856,6 +882,9 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             //   "nowhere to put them". The explicit registrations below stay: they add this host's extras, and
             //   registering an already-registered type is idempotent.
             HrotSharedComponentRegistry.RegisterAll(world);
+            // ⭐ CE-2153 — the navigation solver's request/result events + singletons (the pair the solver module below publishes), as every
+            //   production node that composes it registers them. Freed in Dispose (DisposeAll is the registry's other half).
+            Hrot.SimHost.NavigationSolverComponentRegistry.RegisterAll(world);
 
             // â”€â”€ IG metadata component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<Fdp.Core.EntityInfo>();

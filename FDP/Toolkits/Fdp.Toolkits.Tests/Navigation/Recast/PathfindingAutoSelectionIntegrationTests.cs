@@ -304,25 +304,8 @@ public sealed class PathfindingAutoSelectionIntegrationTests : IDisposable
 
     private static Dictionary<NavLayerMask, DtNavMesh> BakeFlatGround(
         float xMin, float xMax, float zMin, float zMax)
-    {
-        // Crowd/navmesh space: X=East, Y=0=altitude, Z=North.
-        float[] verts =
-        {
-            xMin, 0f, zMin,
-            xMax, 0f, zMin,
-            xMax, 0f, zMax,
-            xMin, 0f, zMax,
-        };
-        int[] indices = { 0, 2, 1,  0, 3, 2 };
-
-        var baker  = new RecastNavmeshBaker();
-        var meshes = baker.Bake(verts, indices, NavLayerMask.Infantry);
-
-        if (!meshes.ContainsKey(NavLayerMask.Infantry))
-            throw new InvalidOperationException("Infantry navmesh bake failed for flat ground.");
-
-        return meshes;
-    }
+        // Crowd/navmesh space: X=East, Y=0=altitude, Z=North. ⭐ The shared production-side helper (Infantry only, as before).
+        => RecastNavmeshBaker.BakeFlatGround(xMin, xMax, zMin, zMax, NavLayerMask.Infantry);
 
     // ── CE-3128 on the SHIPPED test-town: its world, its roads.json, a real vehicle-layer bake ──────────
 

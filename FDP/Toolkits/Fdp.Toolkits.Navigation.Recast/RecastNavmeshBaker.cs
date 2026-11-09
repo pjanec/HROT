@@ -162,6 +162,30 @@ public sealed class RecastNavmeshBaker
     // ── Bake ────────────────────────────────────────────────────────────────
 
     /// <summary>
+    /// ⭐ One flat ground quad (X = East, Y = 0 altitude, Z = North) baked for <paramref name="layers"/> — the shared way a test or harness
+    /// gets a walkable world without a terrain asset. ⛔ Throws if a requested layer baked no polygons.
+    /// </summary>
+    public static Dictionary<NavLayerMask, DtNavMesh> BakeFlatGround(
+        float xMin, float xMax, float zMin, float zMax,
+        NavLayerMask layers = NavLayerMask.Infantry | NavLayerMask.Vehicle)
+    {
+        float[] verts =
+        {
+            xMin, 0f, zMin,
+            xMax, 0f, zMin,
+            xMax, 0f, zMax,
+            xMin, 0f, zMax,
+        };
+        int[] indices = { 0, 2, 1,  0, 3, 2 };
+
+        var meshes = new RecastNavmeshBaker().Bake(verts, indices, layers);
+        foreach (NavLayerMask layer in LayerBits)
+            if ((layers & layer) != 0 && !meshes.ContainsKey(layer))
+                throw new InvalidOperationException($"{layer} navmesh bake failed for flat ground.");
+        return meshes;
+    }
+
+    /// <summary>
     /// Bakes DotRecast navmeshes for the requested layers from the provided triangle soup.
     /// <para>⭐⭐ TILED (📄 docs/designs/navig-2/Navigation_Design_v2_0.md §14 "P2 as built"): the world is cut into
     /// <see cref="TileMetres"/> squares on a grid anchored at the world origin; INFANTRY tiles touching a
