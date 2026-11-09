@@ -2,8 +2,8 @@
 state: LIVE
 build-state: DESIGN — a plan for the user (Q-L1…Q-L4); no work dispatched yet
 updated: 2026-11-09 (first version — coordinator)
-current-answer: §2 the answer · §3 the plan (diagram) · §4 the work items · §6 questions
-stale-below: nothing
+current-answer: ⭐ §7 REVISED (user): the scale terrain from existing templates now (§7.1), when trees and destruction kick in (§7.2) · §4 the work items (P-0…P-6, U-1/U-2 unchanged) · §6 questions
+stale-below: §2 'thin import first' and §3's arrows from the import lane to P-4 / P-5 — superseded by §7
 known-rot: none
 known-conflict: none
 related-designs:
@@ -135,3 +135,41 @@ terrain or a second inset. ⚠ The one thing to keep compatible: P-1's store is 
 | **Q-L2** | the budgets P-0 checks — the numbers to optimise TO | ⭐ proposed: **load ≤ 30 s** warm (navmesh from the cache) · **sim frame ≤ 10 ms** at 60 Hz with 1 000 soldiers + 50 vehicles + 10 aircraft on the busiest node · **0 B garbage per steady frame** (CLAUDE.md hot-path rule) · **memory ≤ 4 GB** per node · **3-D ≥ 30 fps** on the editor machine |
 | **Q-L3** | stage 0 off the critical path (§5)? | ⭐ yes |
 | **Q-L4** | P-0 runs on which machine for the budget numbers — this cloud VM (consistent, slower) or the user's Windows machine (real)? | ⭐ both: the VM for regressions (relative numbers, in every batch), Windows for the absolute budget once per milestone |
+
+## 7. ✏ REVISED `2026-11-09` — the scale terrain from EXISTING templates, now *(user; SUPERSEDES §2's "thin import first" and the I-2 → P-4 / I-3 → P-5 arrows of §3)*
+
+🔒 User, `2026-11-09`: *"Why do we need those stages like block buildings … We have building templates. We can create a terrain which is filled
+with these buildings. So very simple generator can create very large areas with existing buildings which are already enterable, so that will
+test both the raycasts for visibility as well as the nav mesh, as well as the number of entities using those. … No waiting for any importer …
+The only thing missing in this are the new features that we would like to have, like the destructible building, the trees, and that's the
+question when they should kick in."*
+
+| the user's claim | measured |
+|---|---|
+| enterable templates exist | ✅ 7 in `assets/buildings/` (house-2f, house-3f, shop-2f, office-4f, courtyard-house, cqb-house, market-hall) |
+| a terrain can be filled with them | ✅ a building is a `kind: building` Point naming a template (`TerrainWorldParser.cs:116-137`); `scripts/terrain-from-sumo.py --net … --houses …` already builds a terrain folder from a SUMO net + a placements file (demo-city); `scripts/demo-city-quarters.py` places 136 houses that way |
+| repeated templates cost the same as unique houses | ✅ every placement is expanded into its own walls and slabs at load; the navmesh cache keys on each tile's inputs — nothing is shared per template (UTM §10.6), so 1 800 repeated houses load, index and bake like 1 800 unique ones |
+| ⇒ no importer needed for the scale work | ✅ **agreed — my "second producer" objection was wrong**: a placement script writes HROT's OWN format, exactly as demo-city's scripts do; the importer is a TRANSLATOR of foreign data and stays a separate, non-blocking lane |
+
+### 7.1 The scale terrain — `scripts/terrain-scale.py` *(small; reuses everything)*
+
+| input | from |
+|---|---|
+| roads | the synthetic `full` set's `roads.net.xml` (150 km, 818 junctions — `hrot-terrain-synth`) |
+| heights | the synthetic `heights.f32` resampled to a coarser `.asc` the CURRENT `TerrainHeightGrid` reads (2–5 m first; 1 m is P-1's job) |
+| buildings | the 7 templates placed on the synthetic set's building sites (centroid, rotated to the longest wall), clear of roads and each other — ≈ 1 800 houses |
+| output | `assets/terrain/scale-<seed>/` through `terrain-from-sumo.py` (+ a height-grid option); ⛔ gitignored — regenerated in seconds, never committed |
+
+⇒ the scale lane's P-0 (rig), P-2 (sight lines), P-3 (1 000 soldiers), P-4 (buildings at scale) and P-5 (navmesh bake, a 6 km path) ALL start on
+it at once. P-1 (the 1 m height store) starts in parallel; the scale terrain switches to it when it lands.
+
+### 7.2 When the new features kick in
+
+| feature | lean: when | why |
+|---|---|---|
+| **trees** (R-4190: woods grid, lone trunks, woods navmesh cost) | ⭐ **right after the scale baseline** (P-0 numbers for buildings, sight, nav, 1 000 soldiers) | woods cover ≈ 45 % of the area ⇒ they change the navmesh bake (area costs) and EVERY ground sight line (the woods-grid march) — the two biggest costs. Built and tested small (test-town), then `terrain-scale.py` scatters woods + lone trees and the rig measures the delta |
+| **destructible buildings** (R-4188: wall breaches, collapse = replacement) | ⭐ **after trees** | runtime events, not load-time content: the cost is a navmesh TILE REBUILD per breach / collapse (Navigation v2 §14 — P1/P2 built, the replan P3 not) ⇒ measured as "N breaches per minute on the scale terrain" once the baseline is known; works on the existing templates (walls with `Openings[]`) |
+| **pitched roofs, materials, party walls** | with the importer's building generator | only imported houses have them; the templates already carry materials |
+
+⇒ ⭐ the importer lane (I-1, then the full building generator, woods, prefill) proceeds without blocking anything; its output replaces the scale
+terrain for the FINAL measurement (real-like unique houses) — the numbers should match, since nothing is shared per template.
