@@ -275,6 +275,10 @@ public sealed class RunModeConfirmation
     /// <summary>One button: its label and what pressing it does (<see langword="null"/> = nothing — Cancel).</summary>
     public sealed record Button(string Label, Action? Action);
 
+    /// <summary>⭐ CE-4330 ③ (docs/DESIGN_Recording_Storage.md §3 P1; mockup ③) — one radio of a confirmation that asks WHICH, not only whether: its icon key (the
+    /// colour is the key's, R-174), its label and the one line under it saying what it does. The action button reads <see cref="Selected"/>.</summary>
+    public sealed record Choice(string IconKey, string Label, string Detail);
+
     /// <summary>The label of the closing button every confirmation ends with.</summary>
     public const string CancelLabel = "Cancel";
 
@@ -286,9 +290,13 @@ public sealed class RunModeConfirmation
     /// <param name="done">Called when a button is pressed, BEFORE its action — the producer's slot clears itself here.</param>
     /// <param name="title">The modal's title.</param>
     /// <param name="popupId">The ImGui id of the modal (unique per producer: two confirmations may be up in one frame).</param>
+    /// <param name="choices">⭐ CE-4330 ③ — radios drawn above the buttons (none: a plain confirmation); <paramref name="selected"/> is the preselected one.</param>
     public RunModeConfirmation(string text, IReadOnlyList<Button> buttons, Action<RunModeConfirmation>? done = null,
-                               string title = "Confirm", string popupId = "mt_run_confirm")
+                               string title = "Confirm", string popupId = "mt_run_confirm", IReadOnlyList<Choice>? choices = null, int selected = 0)
     {
+        Choices = choices ?? Array.Empty<Choice>();
+        if (Choices.Count > 0 && (selected < 0 || selected >= Choices.Count)) throw new ArgumentOutOfRangeException(nameof(selected));
+        Selected = selected;
         if (buttons is null || buttons.Count == 0) throw new ArgumentException("a confirmation has at least its Cancel button", nameof(buttons));
         Text = text;
         Buttons = buttons;
@@ -304,6 +312,22 @@ public sealed class RunModeConfirmation
     /// <summary>⭐ R-8 / CE-3412 — the same, the closing do-nothing button worded <paramref name="cancelLabel"/> (story ⑤: <i>Keep running</i>). It is still the LAST button and still what Esc / ✕ press.</summary>
     public static RunModeConfirmation WithCancel(string text, Action<RunModeConfirmation>? done, string title, string popupId, string cancelLabel, params Button[] actions)
         => new(text, actions.Append(new Button(cancelLabel, null)).ToArray(), done, title, popupId);
+
+    /// <summary>⭐ CE-4330 ③ — the same with radios: <paramref name="choices"/>, <paramref name="selected"/> preselected.</summary>
+    public static RunModeConfirmation WithChoices(string text, Action<RunModeConfirmation>? done, string title, string popupId, string cancelLabel,
+                                                  IReadOnlyList<Choice> choices, int selected, params Button[] actions)
+        => new(text, actions.Append(new Button(cancelLabel, null)).ToArray(), done, title, popupId, choices, selected);
+
+    /// <summary>⭐ CE-4330 ③ — the radios (empty for a plain confirmation).</summary>
+    public IReadOnlyList<Choice> Choices { get; }
+
+    /// <summary>⭐ CE-4330 ③ — the index of the chosen radio (the drawer sets it on a click; a button's action reads it).</summary>
+    public int Selected
+    {
+        get => _selected;
+        set { if (Choices.Count > 0 && (value < 0 || value >= Choices.Count)) throw new ArgumentOutOfRangeException(nameof(value)); _selected = value; }
+    }
+    private int _selected;
 
     /// <summary>What will happen, in the user's words (AQ108 §3).</summary>
     public string Text { get; }
@@ -357,6 +381,7 @@ public static class ConfirmationModal
         }
         ImGui.TextWrapped(pending.Text);
         ImGui.Separator();
+        DrawChoices(pending);
         RunModeConfirmation.Button? pressed = null;
         foreach (var button in pending.Buttons)
         {
@@ -366,6 +391,31 @@ public static class ConfirmationModal
         if (!open) pressed = pending.Buttons[^1];
         if (pressed is not null) { ImGui.CloseCurrentPopup(); pending.Resolve(pressed); }
         ImGui.EndPopup();
+    }
+
+    /// <summary>⭐ CE-4330 ③ (mockup ③) — each choice as a radio, its glyph in the key's colour, its label, and its detail line muted and indented under it.</summary>
+    private static void DrawChoices(RunModeConfirmation pending)
+    {
+        var choices = pending.Choices;
+        if (choices.Count == 0) return;
+        var muted = ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled];
+        for (int i = 0; i < choices.Count; i++)
+        {
+            var c = choices[i];
+            ImGui.PushID(i);
+            if (ImGui.RadioButton("##choice", pending.Selected == i)) pending.Selected = i;
+            ImGui.SameLine();
+            var icon = NodeEditor.Core.Widgets.Icons.Get(c.IconKey);
+            ImGui.TextColored(icon.Color, icon.Glyph);
+            ImGui.SameLine();
+            float labelX = ImGui.GetCursorPosX();
+            ImGui.TextUnformatted(c.Label);
+            if (ImGui.IsItemClicked()) pending.Selected = i;   // the label picks too, as the radio does
+            ImGui.SetCursorPosX(labelX);                       // mockup ③: the detail line starts under the LABEL, not under the glyph
+            ImGui.TextColored(muted, c.Detail);
+            ImGui.PopID();
+        }
+        ImGui.Separator();
     }
 }
 
@@ -442,6 +492,9 @@ public interface IRunTransport
     void BranchLive();
     /// <summary>⭐ CE-4100 (AQ108 D15) — discard an UNARCHIVED recording: publishes the one storage-delete request (the same <c>ExecuteStorageOpIntent</c> <c>DELETE /exercises/{id}</c> publishes). The ONE construction.</summary>
     void DiscardRecording(Guid exerciseId);
+
+    /// <summary>⭐ CE-4330 ③ — a storage request (<see cref="StorageIntents"/>) on its way to the master: the close question's answer.</summary>
+    void AskStorage(ExecuteStorageOpIntent ask);
     /// <summary>⭐ CE-3341 (AQ108 §2.14, D12a) — the CLUSTER's armed mode as this node last heard it (<c>ClusterView.ArmedMode</c>, mapped by name); <see langword="null"/> when the adapter has no view (no node yet).</summary>
     RunArmed? ClusterArmed { get; }
     /// <summary>⭐ R-1043 — the mode the cluster's LAST scenario load went into (<c>ClusterView.LastLoadMode</c>, held and broadcast by the master; before any load its initial armed mode); <see langword="null"/> with no view. What a Load goes into while AAR / DAR is armed.</summary>

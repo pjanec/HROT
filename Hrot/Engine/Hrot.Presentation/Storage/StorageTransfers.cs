@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Toolkit.Orchestration;
+using Hrot.UI.Common.RunMode;
+using NodeEditor.UI.Picker;
 using Hrot.Common.Infrastructure;
 using Hrot.UI.Common.Facades;
 
@@ -19,6 +22,7 @@ public sealed class StorageTransfers
     private readonly Func<Seat> _seat;
     private readonly Func<string> _station;
     private readonly Action<Guid>? _open;
+    private readonly Action<string, string, RunModeConfirmation.Button>? _confirm;
     private Guid _lastAsk;
     private string? _lastRefusal;
 
@@ -26,8 +30,12 @@ public sealed class StorageTransfers
     /// <param name="seat">This station's seat.</param>
     /// <param name="station">This station's name (the ask's <c>AskedBy</c>: the job is then marked <i>(yours)</i>).</param>
     /// <param name="open">Opens the recording of an exercise (the host's run choice: the AAR); null = <i>Open</i> is not offered.</param>
-    public StorageTransfers(ITimeTransportFacade facade, Func<Seat> seat, Func<string> station, Action<Guid>? open = null)
+    /// <param name="confirm">⭐ CE-4330 ⑦ — asks a confirmation (title, text, the action button; Cancel is added) through the host's ONE pending slot
+    /// (<see cref="RunModeChoice.Confirm"/>); null = <i>Delete from archive</i> is not offered.</param>
+    public StorageTransfers(ITimeTransportFacade facade, Func<Seat> seat, Func<string> station, Action<Guid>? open = null,
+                            Action<string, string, RunModeConfirmation.Button>? confirm = null)
     {
+        _confirm = confirm;
         _facade = facade ?? throw new ArgumentNullException(nameof(facade));
         _seat = seat ?? throw new ArgumentNullException(nameof(seat));
         _station = station ?? throw new ArgumentNullException(nameof(station));
@@ -65,6 +73,48 @@ public sealed class StorageTransfers
         var ask = StorageIntents.Archive((Guid)job.ExerciseId, _station());
         _lastAsk = _facade.AskStorage(ask);
         _lastRefusal = null;
+        return true;
+    }
+
+    /// <summary>⭐ CE-4330 ⑦ (§8 ⑦, R-4174) — why <i>Delete from archive</i> is greyed on <paramref name="item"/> (null = it can be asked): the seat, then an
+    /// exercise with nothing on the NAS, then a transfer of it queued or running (the master refuses that too).</summary>
+    public string? DeleteFromArchiveRefusal(ExerciseInventoryItem item)
+    {
+        if (SeatRefusal is { } seat) return seat;
+        if (item.NasState == ArchiveNasState.None) return "not archived — nothing on the NAS";
+        var jobs = _facade.StorageJobs;
+        for (int i = 0; i < jobs.Length; i++)
+            if (jobs[i].IsActive && jobs[i].ExerciseId == item.ExerciseId) return "a transfer of this run is queued or running";
+        return null;
+    }
+
+    /// <summary>⭐ CE-4330 ⑦ — the confirmation's text (mockup ⑦): what goes, and that nothing else holds it.</summary>
+    public static string DeleteFromArchiveText(ExerciseInventoryItem item)
+    {
+        var scenario = string.IsNullOrWhiteSpace(item.ScenarioId) ? "this exercise" : item.ScenarioId;
+        var files = item.NasFilesTotal > 0 ? $"{item.NasFilesTotal} files. " : "";
+        return $"Delete {scenario} · exercise #{((Guid)item.ExerciseId).ToString("N").Substring(0, 8)} from the NAS?\n{files}The cached copies on this cluster go too.\nThis cannot be undone — nothing else holds this recording.";
+    }
+
+    /// <summary>⭐ CE-4330 ⑦ — the picker row's actions for <paramref name="item"/>: <i>Delete from archive…</i> on a run the NAS holds (greyed with the reason when it
+    /// cannot be asked now); none on a run that was never archived, or where this host asks no confirmation.</summary>
+    public IReadOnlyList<PickerRowAction>? ActionsFor(ExerciseInventoryItem item)
+    {
+        if (_confirm is null || item.NasState == ArchiveNasState.None) return null;
+        return new[] { new PickerRowAction("storage/delete", "Delete from archive…", () => AskDeleteFromArchive(item), DeleteFromArchiveRefusal(item)) };
+    }
+
+    /// <summary>⭐ CE-4330 ⑦ — asks <i>Delete from the archive</i>; its button sends <see cref="StorageIntents.DeleteFromArchive"/> (the master's answer is read through
+    /// <see cref="LastRefusal"/>). False (nothing asked) when <see cref="DeleteFromArchiveRefusal"/> says no or the host asks no confirmation.</summary>
+    public bool AskDeleteFromArchive(ExerciseInventoryItem item)
+    {
+        if (_confirm is null || DeleteFromArchiveRefusal(item) != null) return false;
+        var exercise = (Guid)item.ExerciseId;
+        _confirm("Delete from the archive", DeleteFromArchiveText(item), new RunModeConfirmation.Button("Delete from archive", () =>
+        {
+            _lastAsk = _facade.AskStorage(StorageIntents.DeleteFromArchive(exercise, _station()));
+            _lastRefusal = null;
+        }));
         return true;
     }
 

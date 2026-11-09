@@ -159,6 +159,42 @@ public sealed class TheTransfersTests
         Assert.Equal("only an archive that stopped part-way resumes", t2.ResumeRefusal(done));
     }
 
+    /// <summary>
+    /// ⭐ CE-4330 ⑦ (§8 ⑦, R-4174; mockup ⑦) — <i>Delete from archive…</i> is a row action of a run the NAS holds: it asks <i>Delete from the archive</i> through the host's
+    /// ONE confirmation slot, and only its button sends <c>StorageIntents.DeleteFromArchive</c> (FromArchive, named by this station). Greyed with the reason on another
+    /// seat and while a transfer of the run is queued or running; not offered on a run never archived.
+    /// 🔴 Mutations: the button sending a plain Discard (FromArchive false) ⇒ red; the active-job refusal dropped ⇒ red; offered on an unarchived run ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_DeleteFromArchive_AsksFirst_ThenSendsTheOneDelete_OnTheRightSeats()
+    {
+        ExerciseInventoryItem Item(Guid ex, ArchiveNasState nas) => new((ExerciseId)ex, new DateTime(2026, 11, 8, 18, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(12), "Ambush",
+                                                                       NasState: nas, NasFiles: 3, NasFilesTotal: 3);
+        var rig = With(ClusterState.Idle);
+        (string Title, string Text, Hrot.UI.Common.RunMode.RunModeConfirmation.Button Button)? asked = null;
+        var seat = Seat.Instructor;
+        var transfers = new StorageTransfers(rig.F, () => seat, () => Me, id => { }, confirm: (t, x, b) => asked = (t, x, b));
+
+        Assert.Null(transfers.ActionsFor(Item(Ex3, ArchiveNasState.None)));                 // never archived: nothing to delete from the NAS
+        var action = Assert.Single(transfers.ActionsFor(Item(Ex2, ArchiveNasState.Complete))!);
+        Assert.Equal(("storage/delete", "Delete from archive…", (string?)null), (action.IconKey, action.Label, action.DisabledReason));
+        action.Run();
+        Assert.Empty(Sent<ExecuteStorageOpIntent>(rig.Bus));                                // asking deletes nothing
+        Assert.Equal("Delete from the archive", asked!.Value.Title);
+        Assert.Equal("Delete Ambush · exercise #2c2c2c2c from the NAS?\n3 files. The cached copies on this cluster go too.\nThis cannot be undone — nothing else holds this recording.", asked.Value.Text);
+        Assert.Equal("Delete from archive", asked.Value.Button.Label);
+        asked.Value.Button.Action!();
+        var del = Sent<ExecuteStorageOpIntent>(rig.Bus).Single();
+        Assert.Equal((StorageOpType.Delete, (Guid)Ex2, Me, true), (del.Operation, (Guid)del.ExerciseId, del.AskedBy, del.FromArchive));
+
+        Hear(rig, Job(Ex2, StorageJobKind.Import, StorageJobState.Running));
+        Assert.Equal("a transfer of this run is queued or running", transfers.ActionsFor(Item(Ex2, ArchiveNasState.Complete))![0].DisabledReason);
+        Assert.False(transfers.AskDeleteFromArchive(Item(Ex2, ArchiveNasState.Complete)));
+        seat = Seat.Observer;
+        Assert.Equal("needs the Author or Instructor seat", transfers.ActionsFor(Item(Ex3, ArchiveNasState.Incomplete))![0].DisabledReason);
+        Assert.Null(new StorageTransfers(rig.F, () => Seat.Author, () => Me).ActionsFor(Item(Ex3, ArchiveNasState.Complete)));   // a host that asks no confirmation offers none
+    }
+
     /// <summary>🔴 Mutation: <c>StorageAskRefusal</c> reading nothing ⇒ the refusal never shows ⇒ red.</summary>
     [Fact]
     public void U11_TheMastersRefusal_OfAnAsk_IsShownAsTheReason()
