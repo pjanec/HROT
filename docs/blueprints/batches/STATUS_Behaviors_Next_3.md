@@ -12,7 +12,7 @@ Started at `43368610f` (merged backend / ui / coordinator, nothing new). Running
 | # | id | state | notes |
 |---|---|---|---|
 | H-1 | — | ⏳ | Next_2 G-1's seven moved goldens |
-| H-2 | CE-2429 · CE-4035 / CE-2232 · CE-4136 | ⏳ CE-2429 ✅ (in-place write on the live world); vehicle aim next | the memory write-back (lean: the evaluation writes back only what it decided) + the vehicle aim on a moving hull |
+| H-2 | CE-2429 · CE-4035 / CE-2232 · CE-4136 | 🟡 CE-2429 ✅ (`6aac2318b`) · CE-4136 ① ✅ creep-until-seen (`0926ff85c`/`7c7cebb17`): rpg-window 5/5, javelin-lock 5/5 · ② ⏸ QUESTION in CE-4136: technical-scoot 3/4 — the exposure budget (0.7 × the M1's fallback 0.8 s aim) is shorter than the Kornet's 1.5 s aim; lean (a) a budget floor at own aim + 0.5 s when it saw first | the memory write-back (lean: the evaluation writes back only what it decided) + the vehicle aim on a moving hull |
 | H-3 | CE-4041 (rest) | ⏳ | |
 | H-4 | CE-4151 | ✅ already DONE in Next_2 G-6 (`8c4132bb7`, `6862784c3`): a TKB type's default task by name + params JSON through `AssignBehaviorEvent` at origin Sop; rail `BehaviorTkbDefaultStartTests.CE4151_ANamedDefaultTask_StartsThroughTheIngress_WithItsParams_AtOriginSop` (red-proved); CE-4151 ticked | — |
 | H-5 | CE-4359 | ✅ `0926ff85c` — the picker, 44 tasks in 7 folders, 75 re-filed (deviations in CE-4359) | the task picker (worker, after the replica watch) |
