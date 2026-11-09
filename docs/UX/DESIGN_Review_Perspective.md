@@ -577,7 +577,13 @@ no JSON.*
 | **M-8** | an entity whose owner changes (I2, I8) | the merged entity KEEPS its identity (network id); its components switch source at the handover frame | a new entity per owner |
 | **M-9** | where it runs | the all-in-one editor and the standalone Replay Browser (D2); ⛔ not a cluster AAR | — |
 
-#### 6.11a ✏ PROPOSAL `2026-11-09` — alignment and offsets, re-measured *(supersedes M-1, M-2, M-3 and I4's "align by sim time" when the user approves — R-4183)*
+#### 6.11a ✅ DECIDED `2026-11-09` (R-4183) — alignment and offsets
+
+✅ **The user: *"Please let the offset just as a manual slider for this time, no auto detection."*** ⇒ **A1** stands (align by the recorded
+frame-locked WALL ticks; sim time is a display axis). **The per-node offset is a MANUAL slider** (the Federation window, *Offsets…*), default 0,
+applied to that node's wall stamps for alignment — the original design's intent. ⛔ No auto-detection this time: A2, A2a and A3 below are
+SUPERSEDED (kept as the record of what was measured); M-1, M-2, M-3 above are SUPERSEDED. The views lens (M-5) compares values at the same aligned
+frame. The sync's own precision is filed (CE-4355). The table below is the HISTORY of this decision.
 
 🔒 User: *"Why aligning merged data by sim time and not wall time? What if something changes while sim paused? … I'm still trying to find out a
 practical reason for the time offsets. Does the original design says anything about it?"*
