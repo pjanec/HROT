@@ -111,6 +111,9 @@ public interface ITimeTransportFacade
     /// <summary>The notes of the exercise on show, as the master last published them (a NEW array per change); empty where the host has none.</summary>
     Fdp.Toolkit.Orchestration.ExerciseNote[] Notes => System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseNote>();
 
+    /// <summary>⭐ CE-1467 (a) — why the notes are shown but cannot be changed here (null = they can): a host with no master (the standalone Replay Browser reads <c>notes.json</c> beside the files).</summary>
+    string? NotesReadOnlyReason => null;
+
     /// <summary>Asks the master to add / edit / delete a note — the ONE message. No-op where the host has no master to ask.</summary>
     void EditNote(Fdp.Toolkit.Orchestration.NoteEditKind kind, Fdp.Toolkit.Orchestration.ExerciseNote note) { }
 
@@ -128,8 +131,9 @@ public interface ITimeTransportFacade
     /// <summary>The master's refusal of storage ask <paramref name="requestId"/> (its op's failure reason), or null while it has not ended / when it succeeded.</summary>
     string? StorageAskRefusal(System.Guid requestId) => null;
 
-    /// <summary>Takes a checkpoint named <paramref name="label"/> (a MARK — the existing <c>TakeCheckpointIntent</c>, the moment is the one the master names). No-op where the host has no master.</summary>
-    void TakeMark(string label) { }
+    /// <summary>Takes a checkpoint named <paramref name="label"/> (a MARK — the existing <c>TakeCheckpointIntent</c>, the moment is the one the master names) with the mark's record
+    /// <paramref name="note"/>: ⭐ CE-1467 (e) the master adds it under the label it actually used (unique). No-op where the host has no master.</summary>
+    void TakeMark(string label, Fdp.Toolkit.Orchestration.ExerciseNote? note = null) { }
 }
 
 /// <summary>⭐ CE-3329 row 21 — what the cluster shows (the facade's <see cref="ITimeTransportFacade.Mode"/>).</summary>

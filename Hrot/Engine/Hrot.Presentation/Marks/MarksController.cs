@@ -85,6 +85,7 @@ public sealed class MarksController
     {
         get
         {
+            if (_facade.NotesReadOnlyReason is { } readOnly) return readOnly;   // ⭐ CE-1467 (a) — a host with no master shows the notes read-only
             var s = _seat();
             if (s is Seat.Author or Seat.Instructor or Seat.Observer) return null;
             if (s != _refusalSeat || _refusal == null) { _refusal = $"a {s} seat cannot add marks or notes (the Author, Instructor and Observer seats can)"; _refusalSeat = s; }   // cached: the corner reads it every frame
@@ -136,11 +137,11 @@ public sealed class MarksController
         if (InReview) return AddNoteHere();
         double now = _facade.TotalTime;
         string label = MarksModel.NextMarkLabel(_facade.Session?.Checkpoints, now);
-        _facade.TakeMark(label);
         var subject = _selected();
-        // ⭐ the mark's RECORD goes out with it: who took it and (Q5) the selected unit — an unnamed mark still lists its author (the mockup's third row); the popup's words EDIT this note
+        // ⭐ the mark's RECORD goes out WITH it (one message): who took it and (Q5) the selected unit — an unnamed mark still lists its author (the mockup's third row); the popup's words EDIT this note.
+        //   ⭐ CE-1467 (e) — the master adds the record under the label it MINTS (unique: two stations pressing B together asked for the same one); an edit keeps that label (matched by id)
         var note = new ExerciseNote(Guid.NewGuid(), label, now, "", "", _station(), subject?.Id ?? 0, subject?.Name ?? "");
-        _facade.EditNote(NoteEditKind.Add, note);
+        _facade.TakeMark(label, note);
         Popup = new MarkPopupState
         {
             NoteId = note.Id, Label = label, AtSimSeconds = now, UnitId = note.SubjectId, UnitName = note.SubjectName, InitialUnitId = note.SubjectId,

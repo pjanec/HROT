@@ -282,6 +282,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     RequestId = req.RequestId,
                     Label     = ClusterMaster_LabelOf(req.PayloadJson),   // ⭐ CE-3299 B3
+                    Note      = TakeCheckpointPayloadDto.NoteOf(req.PayloadJson),   // ⭐ CE-1467 (e)
                 });
                 break;
             }

@@ -257,6 +257,9 @@ namespace Fdp.Toolkit.Orchestration
         public Guid RequestId;
         /// <summary>⭐ CE-3299 B3 — the checkpoint's name; null ⇒ the master names it after its wall time.</summary>
         public string? Label;
+        /// <summary>⭐ CE-1467 (e) — a MARK's record (Bookmarks §2: <i>TakeCheckpoint + the note</i>): the master adds it under the label it ACTUALLY used, which it makes unique
+        /// (two stations pressing B together asked for the same <see cref="Label"/>). Null = a plain checkpoint.</summary>
+        public ExerciseNote? Note;
     }
 
     /// <summary>

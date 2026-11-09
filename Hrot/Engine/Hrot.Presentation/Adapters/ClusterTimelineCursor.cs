@@ -211,42 +211,9 @@ public sealed class ClusterTimelineCursor : ITimelineCursor
 
     // ── ⭐ CE-4325 (E7) — the notes as the ruler draws them: rebuilt only when the master's list, the marks or the map CHANGED (reference compare — 0 B steady) ──
 
-    private ExerciseNote[]? _notesFor;
-    private IReadOnlyList<CheckpointMark>? _notesMarks;
-    private ReplayTimeMap? _notesMap;
-    private TimelineNote[] _timelineNotes = Array.Empty<TimelineNote>();
+    private readonly Hrot.UI.Common.Marks.TimelineNotesCache _notes = new();   // ⭐ CE-1467 (a) — the ONE mapping, shared with the Replay Browser's cursor
 
-    public IReadOnlyList<TimelineNote> Notes
-    {
-        get
-        {
-            var notes = _facade()?.Notes;
-            if (notes == null || notes.Length == 0) return Array.Empty<TimelineNote>();
-            var marks = Checkpoints;
-            var map = ActiveSession?.TimeMap;
-            if (ReferenceEquals(notes, _notesFor) && ReferenceEquals(marks, _notesMarks) && ReferenceEquals(map, _notesMap)) return _timelineNotes;
-            var list = new List<TimelineNote>(notes.Length);
-            foreach (var n in notes)
-            {
-                if (n.OnMark && n.Name.Length == 0 && n.Text.Length == 0) continue;   // an unnamed mark: its ⚑ alone (the dot says "it has words")
-                long wall = 0; double sim = n.AtSimSeconds;
-                if (n.OnMark)
-                {
-                    bool found = false;
-                    for (int i = 0; i < marks.Count; i++)
-                        if (string.Equals(marks[i].Label, n.Mark, StringComparison.Ordinal)) { wall = marks[i].WallTicks; sim = marks[i].TotalTime; found = true; break; }
-                    if (!found) continue;   // its checkpoint is not in this session (a branch dropped it): no moment to draw
-                }
-                else if (map is { HasSimTime: true }) wall = map.WallAt(n.AtSimSeconds);
-                else continue;
-                string name = n.Name.Length > 0 ? n.Name : n.OnMark ? n.Mark : "(note)";
-                string detail = n.SubjectName.Length > 0 ? (n.Author.Length > 0 ? n.SubjectName + " · " + n.Author : n.SubjectName) : n.Author;
-                list.Add(new TimelineNote(wall, n.Mark, (n.OnMark ? "⚑ " : "") + name + " · " + Hrot.UI.Common.Marks.MarksModel.FormatTime(sim), n.Text, detail));
-            }
-            _notesFor = notes; _notesMarks = marks; _notesMap = map;
-            return _timelineNotes = list.ToArray();
-        }
-    }
+    public IReadOnlyList<TimelineNote> Notes => _notes.Of(_facade()?.Notes, Checkpoints, ActiveSession?.TimeMap);
 
     // ── the axis ─────────────────────────────────────────────────────────────────────────────────────────────
 

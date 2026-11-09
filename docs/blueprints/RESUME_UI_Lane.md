@@ -182,10 +182,13 @@ related-designs:
 A-2 one Scenario tab (CE-4346) · A-3 the struct editor opens buffers / maps (CE-4351, CE-4352) · A-4 group drag measured working end to end (CE-4342) · A-5 toasts from the font (CE-4343) ·
 A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the pick dropdown's columns (CE-4349) · A-9 ▶ greyed with the merged world's reason · A-10 the Car in the atlas (CE-4273).
 
+**Then (same day, user: "Ok 1466 and 1467"):** ✅ **CE-1466** — a 3-D press answers the camera's ray like the hover (`MapCamera3D.IsRayOnlyAnchor`; 82 px → 20 px reach at 40 m) ·
+✅ **CE-1467** — all six open parts of bookmarks and notes (Replay Browser read-only notes, write-back retry at the master start, Discard takes the notes, branch cut at the nodes'
+`BranchWallTicks`, the master mints the mark label, the popup's unit is THE entity field) — as built in [DESIGN_Bookmarks_And_Notes](../UX/DESIGN_Bookmarks_And_Notes.md) §5.
+
 **⏭ Next, in order:**
 1. **Go Live greyed from a replay on another cluster** — still waits on backend ([NOTE_Ui_To_Backend_GoLive_Refusal_Fact](batches/NOTE_Ui_To_Backend_GoLive_Refusal_Fact.md)).
-2. **CE-1466** (3-D click-select hit-tests the 2-D footprints) · **CE-1467** (bookmark deviations).
-3. Merge the other lanes; look for `To_Ui` notes.
+2. Merge the other lanes; look for `To_Ui` notes.
 
 **Things measured this session (each one cost time):**
 - A rail that drives the map PACK must send the lifecycle's `ConstructionOrder` for units it creates. Without it no gizmo instance exists and a drag does nothing (`DataDrivenGizmoSystem.HasActiveGizmo` is the probe).

@@ -470,6 +470,10 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         public void ExitReview() { }
         public void EnterReviewAtSim(double simSeconds) { }   // offline: no live run
         public Fdp.Toolkit.Orchestration.ReplaySession? Session => null;
+
+        // ⭐ CE-1467 (a) — the recording's notes, read beside its files; shown, never changed here (no master)
+        public Fdp.Toolkit.Orchestration.ExerciseNote[] Notes => _host.RecordingNotes;
+        public string? NotesReadOnlyReason => ReplayBrowserSubsystem.NotesReadOnlyReason;
         public double? LivePoint => null;
 
         // ⭐ CE-3329 §12n — the loop is the viewer's own (its clock is its own): set through the same intents and the same master control.

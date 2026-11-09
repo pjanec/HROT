@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.IO;
 using Fdp.Core;
@@ -64,6 +65,34 @@ public sealed class ExerciseNotesTests
         Assert.Single(list.Notes);
         Assert.Equal("m1", list.Notes[0].Mark);
         Assert.False(list.RetainMarks(new[] { "m1" }));                         // nothing more to drop
+    }
+
+    /// <summary>⭐ CE-1467 (d) — a branch at a wall time keeps the notes of the marks EARLIER than it; a mark at it or after, an unknown mark and a time note go.
+    /// 🔴 Mutation: <c>&lt;</c> → <c>&lt;=</c> ⇒ the mark AT the branch stays ⇒ red.</summary>
+    [Fact]
+    public void CE1467_ABranchAtAWallTime_KeepsOnlyTheNotesOfEarlierMarks()
+    {
+        var list = new ExerciseNotes();
+        list.Reset((ExerciseId)Guid.NewGuid());
+        list.Apply(NoteEditKind.Add, N("m1"), T0, out _);
+        list.Apply(NoteEditKind.Add, N("m2"), T0, out _);
+        list.Apply(NoteEditKind.Add, N("m3"), T0, out _);
+        list.Apply(NoteEditKind.Add, N("", "AAR note", 30), T0, out _);
+        var walls = new Dictionary<string, long> { ["m1"] = 100, ["m2"] = 200, ["m3"] = 300 };
+        Assert.True(list.RetainMarksBefore(walls, 200));
+        Assert.Equal("m1", Assert.Single(list.Notes).Mark);
+    }
+
+    /// <summary>⭐ CE-1467 (e) — an edit changes the words, never the moment: the mark label (the master minted it) and the time stay. 🔴 Mutation: <c>KeepMoment</c> skipped ⇒ red.</summary>
+    [Fact]
+    public void CE1467_AnEdit_KeepsTheMarkAndTheTime_ItChangesOnlyTheWords()
+    {
+        var list = new ExerciseNotes();
+        list.Reset((ExerciseId)Guid.NewGuid());
+        var n = N("Mark 1 · 0:05 (2)", "", 5);
+        list.Apply(NoteEditKind.Add, n, T0, out _);
+        Assert.True(list.Apply(NoteEditKind.Edit, n with { Mark = "Mark 1 · 0:05", AtSimSeconds = 99, Name = "Smoke" }, T0, out _));
+        Assert.Equal(("Mark 1 · 0:05 (2)", 5.0, "Smoke"), (list.Notes[0].Mark, list.Notes[0].AtSimSeconds, list.Notes[0].Name));
     }
 
     /// <summary>🔴 Mutation: <c>TrySave</c> writing the file in place (no part rename) is not observable here; the round-trip is: a notes.json that loses a field ⇒ red.</summary>

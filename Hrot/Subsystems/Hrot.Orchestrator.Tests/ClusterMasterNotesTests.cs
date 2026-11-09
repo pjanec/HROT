@@ -112,6 +112,140 @@ public sealed class ClusterMasterNotesTests : IDisposable
         Assert.Equal("good use of smoke", loaded.Notes[0].Text);
     }
 
+    private static void LeaveToIdle(ClusterMaster master, FdpEventBus bus)
+    {
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { TargetState = ClusterState.Idle.ToString() }),
+        });
+        for (int round = 0; round < 10 && master.CurrentClusterState != ClusterState.Idle; round++)
+        {
+            bus.SwapBuffers();
+            foreach (var intent in bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState))
+                bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = intent.TransactionId, Operation = intent.Operation, NodeId = (Fdp.Core.NodeId)intent.TargetNodeId, StatusCode = OrchestrationStatusCode.Success, IsParticipating = true });
+            bus.SwapBuffers(); master.Tick();
+        }
+        bus.SwapBuffers(); master.Tick();
+        Assert.Equal(ClusterState.Idle, master.CurrentClusterState);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1467 (e) — two stations press B in the same moment and ask for the SAME label: the master (the one writer) makes the second unique and each mark's record rides the label
+    /// actually used; a later edit carrying the label the station guessed keeps the master's. Both entries: the bus intent and the wire payload (<c>TakeCheckpointPayloadDto</c>).
+    /// 🔴 Mutation: <c>UniqueCheckpointLabel</c> returning what was asked ⇒ both records on one label ⇒ red. Mutation: <c>KeepMoment</c> not applied ⇒ the edit moves the record ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE1467_TwoStationsMarkingAtOnce_GetTwoLabels_AndEachRecordRidesItsOwn()
+    {
+        var (master, bus, _) = Live();
+        const string asked = "Mark 1 · 0:05";
+        var a = new ExerciseNote(Guid.NewGuid(), asked, 5, "", "", "Instructor-1", 7, "Alpha 1-2");
+        var b = new ExerciseNote(Guid.NewGuid(), asked, 5, "", "", "Observer-2");
+        bus.PublishManaged(new TakeCheckpointIntent { RequestId = Guid.NewGuid(), Label = asked, Note = a });
+        bus.PublishManaged(new TakeCheckpointIntent { RequestId = Guid.NewGuid(), Label = asked, Note = b });
+        bus.SwapBuffers(); master.Tick();
+
+        Assert.Equal(2, master.Notes.Length);
+        Assert.Equal(asked, master.Notes.Single(n => n.Id == a.Id).Mark);
+        Assert.Equal(asked + " (2)", master.Notes.Single(n => n.Id == b.Id).Mark);   // minted, not refused by the recording
+
+        Send(master, bus, NoteEditKind.Edit, b with { Name = "Smoke", Mark = asked });   // the station's popup still holds the label it asked for
+        Assert.Equal((asked + " (2)", "Smoke"), (master.Notes.Single(n => n.Id == b.Id).Mark, master.Notes.Single(n => n.Id == b.Id).Name));
+
+        // the wire: a station's TakeCheckpoint carries the note in its payload ({"label":…,"note":…}); a plain checkpoint stays {"label":…}
+        var c = new ExerciseNote(Guid.NewGuid(), asked, 6, "", "", "Instructor-3");
+        string json = TakeCheckpointPayloadDto.Encode(asked, c);
+        Assert.Null(TakeCheckpointPayloadDto.NoteOf("{\"label\":\"x\"}"));
+        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = json });
+        master.Tick();
+        Assert.Equal(asked + " (3)", master.Notes.Single(n => n.Id == c.Id).Mark);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1467 (b) — an edit leaves a marker beside the staging copy until the NAS has it; a master that died before writing back (here: a second master over the same roots) writes it
+    /// back at its start and clears the marker; leaving normally clears it too.
+    /// 🔴 Mutation: <c>RetryPendingNotesWriteBacks</c> not run at the start ⇒ no NAS copy ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE1467_NotesTheNasNeverGot_AreWrittenBackAtTheNextMasterStart()
+    {
+        var (master, bus, ex) = Live();
+        Send(master, bus, NoteEditKind.Add, new ExerciseNote(Guid.NewGuid(), "", 12, "Ambush", "too early", "Observer-2"));
+        Assert.True(File.Exists(master.NotesPendingFile(ex)));                     // the NAS copy is behind
+        Assert.False(File.Exists(master.NotesNasFile(ex)));
+
+        // the master dies here; the next one starts over the same staging and NAS
+        var bus2 = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(bus2);
+        var next = new ClusterMaster(bus2, TestClusterConfig.NothingMandatory() with { StagingRoot = Path.Combine(_root, "staging"), NasBasePath = Path.Combine(_root, "nas") });
+        bus2.SwapBuffers(); next.Tick();
+        Assert.True(File.Exists(next.NotesNasFile(ex)));
+        Assert.False(File.Exists(next.NotesPendingFile(ex)));
+        var loaded = new Fdp.Toolkit.Orchestration.ExerciseNotes();
+        Assert.True(loaded.TryLoad(next.NotesNasFile(ex), (Fdp.Core.ExerciseId)ex));
+        Assert.Equal("too early", Assert.Single(loaded.Notes).Text);
+
+        Send(master, bus, NoteEditKind.Add, new ExerciseNote(Guid.NewGuid(), "", 13, "Second"));
+        LeaveToIdle(master, bus);                                                   // the normal path: written back on leaving, marker gone
+        Assert.False(File.Exists(master.NotesPendingFile(ex)));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1467 (c) — <i>Discard</i> of an unarchived run takes its notes too: the staging copy and the NAS copy the run's end wrote, with that NAS folder when the notes were all it held.
+    /// ⛔ A NAS folder holding anything else keeps it. 🔴 Mutation: <c>DiscardNotes</c> not called ⇒ the NAS notes outlive the recording ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE1467_DiscardingAnUnarchivedRun_TakesItsNotes_AndOnlyAnEmptyNasFolder()
+    {
+        var (master, bus, ex) = Live();
+        Send(master, bus, NoteEditKind.Add, new ExerciseNote(Guid.NewGuid(), "", 12, "Ambush"));
+        LeaveToIdle(master, bus);
+        Assert.True(File.Exists(master.NotesNasFile(ex)));                          // the run's end wrote it (before the keep / discard answer)
+        master.ExerciseDeleter = _ => true;
+
+        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.DeleteExercise, PayloadJson = $"{{\"ExerciseId\":\"{ex}\"}}" });
+        master.Tick();
+        Assert.False(File.Exists(master.NotesNasFile(ex)));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(master.NotesNasFile(ex))));   // it held only the notes
+        Assert.False(File.Exists(master.NotesStagingFile(ex)));
+
+        // a NAS folder with anything else in it keeps its other files
+        var other = Guid.NewGuid();
+        var folder = Path.GetDirectoryName(master.NotesNasFile(other))!;
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(master.NotesNasFile(other), "{}");
+        File.WriteAllText(Path.Combine(folder, "node-1.fdp"), "x");
+        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.DeleteExercise, PayloadJson = $"{{\"ExerciseId\":\"{other}\"}}" });
+        master.Tick();
+        Assert.True(File.Exists(Path.Combine(folder, "node-1.fdp")));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1467 (d) — a branch from an AAR keeps the notes of the marks BEFORE the branch point (the nodes' <see cref="LiveBranchResult.BranchWallTicks"/>), not every mark the replay held.
+    /// The inherited list is seeded as the inheritance leaves it when the point is not known yet; the point then arrives on the bus as the nodes' answer.
+    /// 🔴 Mutation: the cut ignoring the point (all marks kept) ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE1467_ABranchFromAnAar_KeepsOnlyTheNotesOfTheMarksBeforeTheBranchPoint()
+    {
+        var (master, bus, ex) = Live();
+        Send(master, bus, NoteEditKind.Add, new ExerciseNote(Guid.NewGuid(), "Mark 1 · 0:10", 10, "before"));
+        Send(master, bus, NoteEditKind.Add, new ExerciseNote(Guid.NewGuid(), "Mark 2 · 0:40", 40, "after"));
+        master.SeedBranchMarksForTests(new System.Collections.Generic.Dictionary<string, long> { ["Mark 1 · 0:10"] = 1_000, ["Mark 2 · 0:40"] = 4_000 });
+
+        bus.PublishManaged(new ClusterOpCompletedEvent
+        {
+            RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Success,
+            ResultPayload = new LiveBranchResult(default, true, (Fdp.Core.ExerciseId)Guid.NewGuid(), BranchWallTicks: 2_500),
+        });
+        bus.SwapBuffers(); master.Tick();
+        Assert.Equal("before", Assert.Single(master.Notes).Name);
+        var saved = new Fdp.Toolkit.Orchestration.ExerciseNotes();
+        Assert.True(saved.TryLoad(master.NotesStagingFile(ex), (Fdp.Core.ExerciseId)ex));
+        Assert.Single(saved.Notes);
+    }
+
     /// <summary>🔴 Mutation: no refusal when nothing is on show ⇒ a note into the void ⇒ red.</summary>
     [Fact(Timeout = 10_000)]
     public void CE4325_ANoteWithNoExerciseOnShow_IsRejected()
