@@ -177,6 +177,27 @@ public sealed class TheReviewSourceTests : IDisposable
             Assert.NotEqual(int.MaxValue, ProgressOfNet(rig.World, net));
     }
 
+    /// <summary>
+    /// ⭐ G-7 S3 (R-4183) — the editor's Review shows the SAME Federation panel (one slider implementation): an offset written through it re-merges the editor's world live — CGF-A's (node 2)
+    /// frame moves +1 s, and the unit it owns shows the later progress; its row carries the participant's name. 🔴 Red-proof: the panel built without a re-merge hook / offset not applied ⇒ red.
+    /// </summary>
+    [Fact]
+    public void V6_AnOffsetOnTheSwitchPanel_ReMergesTheWorldLive_ForThatNode()
+    {
+        FourParticipants();
+        using var rig = new Rig(_root, _serializer);
+        rig.Open(_exercise);
+        var panel = rig.Source.SwitchPanel!;
+
+        Assert.Equal(0, ProgressOfNet(rig.World, 100));
+        Assert.Equal(rig.Source.NameOf(2), panel.NameOf(2));           // the participants' names (Q-B6), not a second naming
+        panel.SetNodeOffsetMs(2, 2000d);                               // the slider: CGF-A at +2 s
+        Assert.Equal(2, ProgressOfNet(rig.World, 100));                // ⭐ its component, merged from ITS frame two seconds on
+        Assert.Equal(10, ProgressOfNet(rig.World, 200));               // CGF-B (node 3) stayed on its own frame
+        panel.SetNodeOffsetMs(2, 0d);
+        Assert.Equal(0, ProgressOfNet(rig.World, 100));
+    }
+
     [Fact]
     public void V6_AComponentOnlyCgfsFileHolds_IsInTheMergedWorld()
     {

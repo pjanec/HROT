@@ -227,7 +227,7 @@ public sealed class ReviewSource : IDisposable
         _open = opening;
         _worldDirty = true;   // a group opened: a world boundary — the first merge clears the world and starts a fresh map
         if (_world() is { } w) RepositoryPriming.RegisterDiscoveredComponents(w);   // every recorded component has a table in the resident world (idempotent: the same call a fresh Replay Browser repository gets)
-        _panel = new FederationPanel(_manager);
+        _panel = new FederationPanel(_manager) { NodeName = _nodeName };   // ⭐ S3 — the offsets' rows carry the participants' names (Q-B6)
         _panel.OnViewModeChanged += OnPanelMode;
         _manager.OnTimeChanged += OnManagerTime;
         Kind = ReviewSourceKind.Merged;

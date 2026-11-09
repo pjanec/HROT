@@ -723,6 +723,17 @@ target's own entities; correctness over speed.
 - The primary-owner handover rail is NOT discriminating on its own: the claim order (primary first) already makes the mask rule hand over when the primary moves. The descriptor-level rail is the one red-proved against "ignore the components".
 - The S1 oracle / owner / remap rails are unchanged and green: their fixtures hold no `NetworkAuthority`, so they stay on the mask rule and the JSON oracle (which uses the mask) still agrees. A fixture that records a handover legitimately differs from the JSON merge.
 
+#### AS-BUILT — S3 *(behaviors, `2026-11-09`, G-7 / CE-4354)* — the manual Offsets slider (R-4183)
+
+| built | where |
+|---|---|
+| per node row, ONE `SliderInt` in ms (±`FederationPanel.OffsetRangeMs` = 500, default 0, ctrl+click types a value), under an *Offsets (ms)* heading; a change calls `SetNodeOffsetMs` → `FederatedReplayManager.SetNodeOffset` (ms × `TimeSpan.TicksPerMillisecond` → wall ticks) → `SeekAll` + `OnTimeChanged`, so the Replay Browser and the editor's Review re-merge at once (live). Replaces the old `InputInt` of raw ticks; the `[!]` mark and the causality banner stay | `FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/FederationPanel.cs` (`SetNodeOffsetMs`, `GetNodeOffsetMs`, `DrawContent`) |
+| row names (Q-B6): `FederationPanel.NodeName` (default `Node N` — a recording's sidecar carries no role); the editor sets it to the Review source's participant names. The view-model rows carry `Name` + `OffsetMs` | `FederationPanel.cs` · `Hrot.Editor/Review/ReviewSource.cs` (`new FederationPanel(_manager) { NodeName = _nodeName }`) |
+| ONE slider implementation: the editor's Review draws this same panel in its Source switch (`ReviewSourceSwitch.Draw` → `SwitchPanel.DrawContent()`); the Replay Browser draws it in its Federation window | `Hrot.Editor/Review/ReviewSourceSurfaces.cs` · `FederationWindow.cs` |
+| rails: the slider's write in ms → ticks, live (one `OnTimeChanged`), moving ONLY that node's chosen frame, back at 0 · the dump's names + ms · the editor's Review: an offset on the switch panel re-merges the world for that node (the manager-level frame choice was already pinned by `RBF_P2T1_SeekAll_WithNodeOffset_NodeLandsOnDifferentState`) | `Fdp.Presentation.Tests/ImGui/ReplayBrowser/Federation/FederationPanelBuildsItsModelTests.cs` · `Hrot.Editor.Tests/Review/TheReviewSourceTests.cs` (`V6_AnOffsetOnTheSwitchPanel_ReMergesTheWorldLive_ForThatNode`) |
+
+**Limits**: the ImGui draw of the slider itself is not rendered by a frame rail (the panel's write path is); no role names until a recording carries a role. The stale remark on `FederationPanelViewModel` ("no production host draws this panel") is wrong since the editor's Source switch draws it — left for a later cleanup.
+
 ### 6.8 Appendix — M1: every recorded managed component and its scenario translator
 
 | component | kind | data policy | translator | file |
