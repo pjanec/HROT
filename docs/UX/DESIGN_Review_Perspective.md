@@ -864,6 +864,27 @@ target's own entities; correctness over speed.
 policy; a component registered without `[ComponentId]`, or an `Entity` nested deeper than one struct, is missed — re-run the probe (and confirm by
 reflection) before building.
 
+### 6.13 ⭐ The replica WATCH — the "Replica differs" lane rebuilt *(behaviors, `2026-11-09`, `build-state: DESIGN` — mockup for the user's review)*
+
+> 🔒 **User, `2026-11-09`:** *"could we show the diff lane for user-picked set of components only? … I am still wondering what information does this lane bring to the user"* · *"let's do visual design first, how the component picking and persistence threshold look and how it integrates into the ui"*
+
+⭐ Mockup: [`replica-watch-visual.svg`](replica-watch-visual.svg) (`scripts/gen-replica-watch-mockup.py`).
+
+![replica watch](replica-watch-visual.svg)
+
+**Why it changes** (measured, §6.12 S5 note): replicas always catch up a few frames after every change (replication + the clock offset, A2), so an always-on lane over every component marks every change — a delayed change log, not information. ⭐ What the lane is FOR: **a node that believed something different for LONGER than replication explains** (a lost health update, a stuck weapon state, a handover two nodes disagree on, a drifted dead-reckoning) — the moments a node acted on wrong information.
+
+| | decision (lean) | instead of |
+|---|---|---|
+| **RW-1** what is watched | ⭐ **the user picks**: an eye at the right end of a component header in Details (merged view, networked unit); the lane's gear lists the watch, ✕ removes, *Watch another component…* adds | every recorded component (as S5 built it) |
+| **RW-2** what marks | ⭐ **persistent disagreement only**: a span while some node differs from the owner beyond the component's tolerance for longer than the threshold; hover = who believed what, click = seek | a tick on every differing frame |
+| **RW-3** threshold | ⭐ one per lane, **200 ms default** (≈ 2 × the time-sync tolerance) | per component |
+| **RW-4** tolerance | ⭐ per watched component: **exact** for discrete values; a size in its unit for a continuous one (Position 0.5 m default, heading in degrees) | the one ε 0.001 for everything |
+| **RW-5** scope | ⭐ per selected unit, its own watch list, **empty by default ⇒ no lane** | always on |
+| **RW-6** By node | unchanged: the instant view (amber = differs now beyond ε), the eye added to its header | — |
+
+⏳ Open for the user: the threshold's default (200 ms) and whether a watch list should follow the COMPONENT across units (watch Health on every unit) instead of per unit.
+
 ### 6.10 Why JSON was chosen back then — and what the binary idea must not lose *(read `2026-11-08`)*
 
 🔒 User: *"I'm wondering why the JSON-based merging was selected back then … Might be interesting to find out if we are not missing something important."*
