@@ -130,4 +130,71 @@ public class RoadNetworkTests
             foreach (var r in p.NodataRects)
                 Assert.False(n.X >= r.MinX && n.X <= r.MaxX && n.Y >= r.MinY && n.Y <= r.MaxY, $"node {n.Id} in nodata");
     }
+
+    private static void AssertOneComponent(SynthProfile p, int seed)
+    {
+        var net = RoadNetwork.Generate(p, new Rng((ulong)seed));
+        var parent = net.Nodes.ToDictionary(n => n.Id, n => n.Id);
+        string Find(string a)
+        {
+            while (parent[a] != a) { parent[a] = parent[parent[a]]; a = parent[a]; }
+            return a;
+        }
+        foreach (var e in net.Edges) parent[Find(e.From)] = Find(e.To);
+        var railNodes = net.Edges.Where(e => e.Class == RoadClass.Rail).SelectMany(e => new[] { e.From, e.To }).ToHashSet();
+        var roots = net.Nodes.Where(n => !railNodes.Contains(n.Id)).Select(n => Find(n.Id)).Distinct().ToList();
+        Assert.True(roots.Count == 1, $"{p.Name} seed {seed}: {roots.Count} components");
+    }
+
+    [Fact]
+    public void RoadGraph_IsConnected()
+    {
+        AssertOneComponent(SynthProfile.Full, 1);
+        AssertOneComponent(SynthProfile.Full, 77);
+        AssertOneComponent(SynthProfile.Tiny, 1);
+        AssertOneComponent(SynthProfile.Tiny, 2);
+    }
+
+    [Fact]
+    public void Edges_OnlyMotorwayIsOneway()
+    {
+        var net = RoadNetwork.Generate(SynthProfile.Full, new Rng(1));
+        Assert.All(net.Edges, e => Assert.Equal(e.Class == RoadClass.Motorway, e.Oneway));
+    }
+
+    [Fact]
+    public void Roads_CrossOnlyAtJunctions()
+    {
+        // no two non-motorway, non-rail edges properly cross without a shared node
+        var p = SynthProfile.Full;
+        var net = RoadNetwork.Generate(p, new Rng(1));
+        var nodes = net.Nodes.ToDictionary(n => n.Id);
+        var es = net.Edges.Where(e => e.Class != RoadClass.Motorway && e.Class != RoadClass.Rail).ToList();
+        var cells = new Dictionary<(int, int), List<int>>();
+        for (int i = 0; i < es.Count; i++)
+        {
+            var a = nodes[es[i].From]; var b = nodes[es[i].To];
+            for (int cx = (int)Math.Floor(Math.Min(a.X, b.X) / 100); cx <= (int)Math.Floor(Math.Max(a.X, b.X) / 100); cx++)
+                for (int cy = (int)Math.Floor(Math.Min(a.Y, b.Y) / 100); cy <= (int)Math.Floor(Math.Max(a.Y, b.Y) / 100); cy++)
+                {
+                    if (!cells.TryGetValue((cx, cy), out var l)) cells[(cx, cy)] = l = new List<int>();
+                    l.Add(i);
+                }
+        }
+        foreach (var l in cells.Values)
+            for (int i = 0; i < l.Count; i++)
+                for (int j = i + 1; j < l.Count; j++)
+                {
+                    var e1 = es[l[i]]; var e2 = es[l[j]];
+                    if (e1.From == e2.From || e1.From == e2.To || e1.To == e2.From || e1.To == e2.To) continue;
+                    Assert.False(Cross(nodes[e1.From], nodes[e1.To], nodes[e2.From], nodes[e2.To]), $"{e1.Id} crosses {e2.Id}");
+                }
+    }
+
+    private static bool Cross(RoadNode a, RoadNode b, RoadNode c, RoadNode d)
+    {
+        double Orient(RoadNode p, RoadNode q, double x, double y) => (q.X - p.X) * (y - p.Y) - (q.Y - p.Y) * (x - p.X);
+        double d1 = Orient(a, b, c.X, c.Y), d2 = Orient(a, b, d.X, d.Y), d3 = Orient(c, d, a.X, a.Y), d4 = Orient(c, d, b.X, b.Y);
+        return d1 * d2 < -1e-9 && d3 * d4 < -1e-9;
+    }
 }

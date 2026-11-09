@@ -6,7 +6,7 @@ public enum RoadClass { Motorway, Trunk, Primary, Secondary, Tertiary, Unclassif
 
 public sealed record RoadNode(string Id, double X, double Y);
 
-public sealed record RoadEdge(string Id, string From, string To, RoadClass Class, int Lanes, double SpeedMs, double WidthM);
+public sealed record RoadEdge(string Id, string From, string To, RoadClass Class, int Lanes, double SpeedMs, double WidthM, bool Oneway = false);
 
 public sealed record Village(double X, double Y, double Radius);
 
@@ -34,7 +34,10 @@ public sealed class RoadNetwork
     public IReadOnlyList<RoadEdge> Edges => _edges;
     public IReadOnlyList<Village> Villages => _villages;
 
-    private RoadNetwork(SynthProfile p) { _p = p; }
+    // metres the through and connector classes are shortened by, so the links added later keep the class km on target
+    private readonly Dictionary<RoadClass, double> _adjust;
+
+    private RoadNetwork(SynthProfile p, Dictionary<RoadClass, double> adjust) { _p = p; _adjust = adjust; }
 
     // lanes, speed (m/s), width (m)
     private static (int Lanes, double Speed, double Width) Spec(RoadClass c) => c switch
@@ -51,7 +54,9 @@ public sealed class RoadNetwork
 
     private static string ClassKey(RoadClass c) => c.ToString().ToLowerInvariant();
 
-    private double Target(RoadClass c) => _p.RoadKm.TryGetValue(ClassKey(c), out var km) ? km * 1000.0 : 0.0;
+    private double BaseTarget(RoadClass c) => _p.RoadKm.TryGetValue(ClassKey(c), out var km) ? km * 1000.0 : 0.0;
+
+    private double Target(RoadClass c) => Math.Max(0.0, BaseTarget(c) - _adjust.GetValueOrDefault(c));
 
     private static double R2(double v) => Math.Round(v, 2);
 
@@ -66,10 +71,31 @@ public sealed class RoadNetwork
 
     public static RoadNetwork Generate(SynthProfile p, Rng rng)
     {
-        var net = new RoadNetwork(p);
-        net.Build(rng);
-        net.BuildHash();
-        return net;
+        var adjust = new Dictionary<RoadClass, double>();
+        RoadNetwork? best = null;
+        double bestErr = double.PositiveInfinity;
+        for (int pass = 0; pass < 6; pass++)
+        {
+            var net = new RoadNetwork(p, new Dictionary<RoadClass, double>(adjust));
+            net.Build(rng);
+            net.Connect();
+            double worst = 0;
+            var delta = new Dictionary<RoadClass, double>();
+            foreach (RoadClass c in Enum.GetValues<RoadClass>())
+            {
+                double target = net.BaseTarget(c);
+                if (c == RoadClass.Residential || target <= 0) continue;
+                double diff = net.LengthKm(c) * 1000.0 - target;
+                delta[c] = diff;
+                worst = Math.Max(worst, Math.Abs(diff) / target);
+            }
+            if (worst < bestErr) { bestErr = worst; best = net; }
+            if (worst <= 0.02) break;
+            foreach (var (c, diff) in delta) adjust[c] = adjust.GetValueOrDefault(c) + 0.5 * diff;
+        }
+        var result = best!;
+        result.BuildHash();
+        return result;
     }
 
     public double LengthKm(RoadClass c)
@@ -160,9 +186,10 @@ public sealed class RoadNetwork
     private void AddEdge(string from, string to, RoadClass c)
     {
         var (lanes, speed, width) = Spec(c);
-        _edges.Add(new RoadEdge("e" + _edges.Count.ToString(CultureInfo.InvariantCulture), from, to, c, lanes, speed, width));
-        if (c == RoadClass.Motorway)
-            _edges.Add(new RoadEdge("e" + _edges.Count.ToString(CultureInfo.InvariantCulture), to, from, c, lanes, speed, width));
+        bool oneway = c == RoadClass.Motorway;
+        _edges.Add(new RoadEdge("e" + _edges.Count.ToString(CultureInfo.InvariantCulture), from, to, c, lanes, speed, width, oneway));
+        if (oneway)
+            _edges.Add(new RoadEdge("e" + _edges.Count.ToString(CultureInfo.InvariantCulture), to, from, c, lanes, speed, width, true));
     }
 
     private double Dist(string a, string b)
@@ -179,6 +206,179 @@ public sealed class RoadNetwork
         BuildConnectors(rng.Fork("roads.connectors"), villageNodes);
         foreach (var c in new[] { RoadClass.Motorway, RoadClass.Trunk, RoadClass.Primary, RoadClass.Secondary, RoadClass.Rail })
             BuildThrough(c, rng.Fork("roads.through." + ClassKey(c)));
+    }
+
+    // ---- junctions, interchanges, connectivity ----
+
+    private static bool Crossable(RoadClass c) => c != RoadClass.Motorway && c != RoadClass.Rail;
+
+    private void Connect()
+    {
+        SplitCrossings();
+        AddInterchanges();
+        ConnectComponents();
+        SplitCrossings();
+        // drop nodes no edge uses
+        var used = new HashSet<string>();
+        foreach (var e in _edges) { used.Add(e.From); used.Add(e.To); }
+        _nodes.RemoveAll(n => !used.Contains(n.Id));
+    }
+
+    // Splits at-grade crossings (every class but motorway and rail) and puts a shared node there.
+    private void SplitCrossings()
+    {
+        var idx = new List<int>();
+        for (int i = 0; i < _edges.Count; i++) if (Crossable(_edges[i].Class)) idx.Add(i);
+        var cells = new Dictionary<long, List<int>>();
+        foreach (int i in idx)
+        {
+            var a = _nodeById[_edges[i].From];
+            var b = _nodeById[_edges[i].To];
+            int x0 = (int)Math.Floor(Math.Min(a.X, b.X) / 100), x1 = (int)Math.Floor(Math.Max(a.X, b.X) / 100);
+            int y0 = (int)Math.Floor(Math.Min(a.Y, b.Y) / 100), y1 = (int)Math.Floor(Math.Max(a.Y, b.Y) / 100);
+            for (int cx = x0; cx <= x1; cx++)
+                for (int cy = y0; cy <= y1; cy++)
+                {
+                    long k = Key(cx, cy);
+                    if (!cells.TryGetValue(k, out var l)) cells[k] = l = new List<int>();
+                    l.Add(i);
+                }
+        }
+        var pairs = new SortedSet<(int, int)>();
+        foreach (var l in cells.Values)
+            for (int i = 0; i < l.Count; i++)
+                for (int j = i + 1; j < l.Count; j++)
+                    pairs.Add((Math.Min(l[i], l[j]), Math.Max(l[i], l[j])));
+
+        var splits = new Dictionary<int, List<(double T, string Id)>>();
+        void AddSplit(int e, double t, string id)
+        {
+            if (_edges[e].From == id || _edges[e].To == id) return;
+            if (!splits.TryGetValue(e, out var l)) splits[e] = l = new List<(double, string)>();
+            l.Add((t, id));
+        }
+        foreach (var (i, j) in pairs)
+        {
+            var e1 = _edges[i];
+            var e2 = _edges[j];
+            if (e1.From == e2.From || e1.From == e2.To || e1.To == e2.From || e1.To == e2.To) continue;
+            var a = _nodeById[e1.From]; var b = _nodeById[e1.To];
+            var c = _nodeById[e2.From]; var d = _nodeById[e2.To];
+            double rx = b.X - a.X, ry = b.Y - a.Y, sx = d.X - c.X, sy = d.Y - c.Y;
+            double den = rx * sy - ry * sx;
+            if (Math.Abs(den) < 1e-9) continue;
+            double t = ((c.X - a.X) * sy - (c.Y - a.Y) * sx) / den;
+            double u = ((c.X - a.X) * ry - (c.Y - a.Y) * rx) / den;
+            if (t <= 0 || t >= 1 || u <= 0 || u >= 1) continue;
+            double px = a.X + t * rx, py = a.Y + t * ry;
+            // snap to an end point of either segment that lies within a metre
+            RoadNode? snap = null;
+            double bd = 1.0;
+            foreach (var n in new[] { a, b, c, d })
+            {
+                double dd = Math.Sqrt((n.X - px) * (n.X - px) + (n.Y - py) * (n.Y - py));
+                if (dd <= bd) { bd = dd; snap = n; }
+            }
+            string id = snap?.Id ?? AddNode(px, py);
+            AddSplit(i, t, id);
+            AddSplit(j, u, id);
+        }
+
+        var old = _edges.ToList();
+        _edges.Clear();
+        for (int ei = 0; ei < old.Count; ei++)
+        {
+            var e = old[ei];
+            string prev = e.From;
+            if (splits.TryGetValue(ei, out var list))
+            {
+                foreach (var (_, id) in list.OrderBy(s => s.T).ThenBy(s => s.Id, StringComparer.Ordinal))
+                {
+                    if (id == prev) continue;
+                    _edges.Add(e with { Id = NextEdgeId(), From = prev, To = id });
+                    prev = id;
+                }
+            }
+            _edges.Add(e with { Id = NextEdgeId(), From = prev });
+        }
+    }
+
+    private string NextEdgeId() => "e" + _edges.Count.ToString(CultureInfo.InvariantCulture);
+
+    // Two trunk-class links join the motorway to the nearest primary or trunk node, at two places far apart.
+    private void AddInterchanges()
+    {
+        var mot = _edges.Where(e => e.Class == RoadClass.Motorway).SelectMany(e => new[] { e.From, e.To }).Distinct().ToList();
+        var tgt = _edges.Where(e => e.Class == RoadClass.Primary || e.Class == RoadClass.Trunk).SelectMany(e => new[] { e.From, e.To }).Distinct().ToList();
+        if (mot.Count == 0 || tgt.Count == 0) return;
+        double minSep = 0.25 * Math.Max(_p.Width, _p.Height);
+        string? firstM = null;
+        for (int k = 0; k < 2; k++)
+        {
+            string? bm = null, bt = null;
+            double bd = double.PositiveInfinity;
+            foreach (var m in mot)
+            {
+                if (firstM != null && Dist(m, firstM) < minSep) continue;
+                foreach (var t in tgt)
+                {
+                    double d = Dist(m, t);
+                    if (d < 1.0) continue;
+                    if (d < bd) { bd = d; bm = m; bt = t; }
+                }
+            }
+            if (bm == null || bt == null) break;
+            AddEdge(bm, bt, RoadClass.Trunk);
+            firstM = bm;
+        }
+    }
+
+    // Links every component of the non-rail graph to the biggest one with a short edge of the component's own class.
+    private void ConnectComponents()
+    {
+        var parent = new Dictionary<string, string>();
+        string Find(string a)
+        {
+            if (!parent.ContainsKey(a)) parent[a] = a;
+            while (parent[a] != a) { parent[a] = parent[parent[a]]; a = parent[a]; }
+            return a;
+        }
+        foreach (var e in _edges)
+            if (e.Class != RoadClass.Rail) parent[Find(e.From)] = Find(e.To);
+        var nodesOf = new Dictionary<string, List<string>>();
+        foreach (var n in _nodes)
+        {
+            if (!parent.ContainsKey(n.Id)) continue;
+            string r = Find(n.Id);
+            if (!nodesOf.TryGetValue(r, out var l)) nodesOf[r] = l = new List<string>();
+            l.Add(n.Id);
+        }
+        if (nodesOf.Count <= 1) return;
+        var roots = nodesOf.Keys.ToList();
+        string mainRoot = roots.OrderByDescending(r => nodesOf[r].Count).ThenBy(r => r, StringComparer.Ordinal).First();
+        var main = nodesOf[mainRoot];
+        var classOf = new Dictionary<string, RoadClass>();
+        foreach (var e in _edges)
+        {
+            if (e.Class == RoadClass.Rail) continue;
+            var cls = e.Class == RoadClass.Motorway ? RoadClass.Trunk : e.Class;
+            string r = Find(e.From);
+            if (!classOf.TryGetValue(r, out var cur) || cls < cur) classOf[r] = cls;
+        }
+        foreach (var r in roots.Where(r => r != mainRoot).OrderBy(r => nodesOf[r][0], StringComparer.Ordinal))
+        {
+            string? ba = null, bb = null;
+            double bd = double.PositiveInfinity;
+            foreach (var a in nodesOf[r])
+                foreach (var b in main)
+                {
+                    double d = Dist(a, b);
+                    if (d < bd) { bd = d; ba = a; bb = b; }
+                }
+            if (ba == null || bb == null || bd < 0.5) continue;
+            AddEdge(ba, bb, classOf.GetValueOrDefault(r, RoadClass.Residential));
+            main.AddRange(nodesOf[r]);
+        }
     }
 
     // ---- villages ----
@@ -249,6 +449,7 @@ public sealed class RoadNetwork
                     if (lx * lx + ly * ly > v.Radius * v.Radius) continue;
                     pts[LatticeKey(i, j)] = (R2(v.X + ca * lx - sa * ly), R2(v.Y + sa * lx + ca * ly));
                 }
+            var local = new List<GridSeg>();
             for (int i = -n; i <= n; i++)
                 for (int j = -n; j <= n; j++)
                 {
@@ -256,12 +457,34 @@ public sealed class RoadNetwork
                     foreach (var (di, dj) in new[] { (1, 0), (0, 1) })
                     {
                         if (!pts.TryGetValue(LatticeKey(i + di, j + dj), out var b)) continue;
-                        if (r.NextDouble() < 0.08) continue;
-                        all.Add(new GridSeg(vi, LatticeKey(i, j), LatticeKey(i + di, j + dj), a.X, a.Y, b.X, b.Y));
+                        local.Add(new GridSeg(vi, LatticeKey(i, j), LatticeKey(i + di, j + dj), a.X, a.Y, b.X, b.Y));
                     }
                 }
+            all.AddRange(LargestComponent(local));
         }
         return all;
+    }
+
+    // keeps only the segments of the connected piece with the most segments
+    private static List<GridSeg> LargestComponent(List<GridSeg> segs)
+    {
+        var parent = new Dictionary<long, long>();
+        long Find(long a)
+        {
+            if (!parent.ContainsKey(a)) parent[a] = a;
+            while (parent[a] != a) { parent[a] = parent[parent[a]]; a = parent[a]; }
+            return a;
+        }
+        foreach (var g in segs) parent[Find(g.KeyA)] = Find(g.KeyB);
+        var count = new Dictionary<long, int>();
+        foreach (var g in segs)
+        {
+            long root = Find(g.KeyA);
+            count[root] = count.GetValueOrDefault(root) + 1;
+        }
+        if (count.Count <= 1) return segs;
+        long best = count.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).First().Key;
+        return segs.Where(g => Find(g.KeyA) == best).ToList();
     }
 
     private static long LatticeKey(int i, int j) => ((long)(i + 1000) << 20) | (uint)(j + 1000);
@@ -288,14 +511,7 @@ public sealed class RoadNetwork
 
         var segs = GridSegments(bestS, rng);
         // the grid is built slightly above the target; random segments are dropped (dead ends) to land on it
-        double total = segs.Sum(g => g.Length);
-        var drop = rng.Fork("trim");
-        while (total > target && segs.Count > 0)
-        {
-            int k = drop.Int(0, segs.Count);
-            total -= segs[k].Length;
-            segs.RemoveAt(k);
-        }
+        TrimKeepingConnected(segs, target, rng.Fork("trim"));
 
         var ids = new Dictionary<(int, long), string>();
         string Node(int vi, long key, double x, double y)
@@ -315,6 +531,62 @@ public sealed class RoadNetwork
             AddEdge(a, b, RoadClass.Residential);
         }
         return result;
+    }
+
+    // Removes segments until the total is at or below the target without disconnecting any grid: first segments
+    // that close a cycle (outside a random spanning forest), then dead-end segments.
+    private static void TrimKeepingConnected(List<GridSeg> segs, double target, Rng rng)
+    {
+        double total = segs.Sum(g => g.Length);
+        if (total <= target) return;
+        long NK(int v, long k) => ((long)v << 32) | (uint)k;
+        var order = Enumerable.Range(0, segs.Count).ToList();
+        for (int i = order.Count - 1; i > 0; i--)
+        {
+            int j = rng.Int(0, i + 1);
+            (order[i], order[j]) = (order[j], order[i]);
+        }
+        var parent = new Dictionary<long, long>();
+        long Find(long a)
+        {
+            if (!parent.ContainsKey(a)) parent[a] = a;
+            while (parent[a] != a) { parent[a] = parent[parent[a]]; a = parent[a]; }
+            return a;
+        }
+        var removable = new List<int>();
+        foreach (int idx in order)
+        {
+            long ra = Find(NK(segs[idx].Village, segs[idx].KeyA)), rb = Find(NK(segs[idx].Village, segs[idx].KeyB));
+            if (ra == rb) removable.Add(idx); else parent[ra] = rb;
+        }
+        var dead = new HashSet<int>();
+        foreach (int idx in removable)
+        {
+            if (total <= target) break;
+            dead.Add(idx);
+            total -= segs[idx].Length;
+        }
+        var live = Enumerable.Range(0, segs.Count).Where(i => !dead.Contains(i)).ToList();
+        var degree = new Dictionary<long, int>();
+        foreach (int idx in live)
+        {
+            long ka = NK(segs[idx].Village, segs[idx].KeyA), kb = NK(segs[idx].Village, segs[idx].KeyB);
+            degree[ka] = degree.GetValueOrDefault(ka) + 1;
+            degree[kb] = degree.GetValueOrDefault(kb) + 1;
+        }
+        while (total > target && live.Count > 0)
+        {
+            var leaves = live.Where(i => degree[NK(segs[i].Village, segs[i].KeyA)] == 1 || degree[NK(segs[i].Village, segs[i].KeyB)] == 1).ToList();
+            if (leaves.Count == 0) break;
+            int pick = leaves[rng.Int(0, leaves.Count)];
+            degree[NK(segs[pick].Village, segs[pick].KeyA)]--;
+            degree[NK(segs[pick].Village, segs[pick].KeyB)]--;
+            live.Remove(pick);
+            total -= segs[pick].Length;
+        }
+        var kept = live.Select(i => segs[i]).ToList();
+        segs.Clear();
+        segs.AddRange(kept);
     }
 
     // ---- polylines ----
@@ -408,9 +680,39 @@ public sealed class RoadNetwork
         return pts;
     }
 
+    // One long path that turns back toward the middle whenever it meets the bounds or a nodata rectangle.
+    private List<(double X, double Y)> BouncePath(double length, double step, Rng rng)
+    {
+        double x = _p.MinX, y = _p.MinY + rng.Range(0.2, 0.8) * _p.Height;
+        double cx = (_p.MinX + _p.MaxX) / 2, cy = (_p.MinY + _p.MaxY) / 2;
+        double baseAng = 0, dev = 0, run = 0;
+        var pts = new List<(double, double)> { (x, y) };
+        for (int k = 0; k < 20000 && run < length; k++)
+        {
+            dev = Math.Clamp(dev * 0.85 + rng.Range(-0.25, 0.25), -0.5, 0.5);
+            double ang = baseAng + dev;
+            double nx = x + step * Math.Cos(ang), ny = y + step * Math.Sin(ang);
+            if (!InBounds(nx, ny) || InNodata(nx, ny))
+            {
+                baseAng = Math.Atan2(cy - y, cx - x) + rng.Range(-0.6, 0.6);
+                dev = 0;
+                continue;
+            }
+            pts.Add((nx, ny));
+            run += step;
+            x = nx; y = ny;
+        }
+        return pts;
+    }
+
     private void BuildThrough(RoadClass c, Rng rng)
     {
         double remaining = Target(c);
+        if (c == RoadClass.Motorway)
+        {
+            if (remaining >= 1.0) Emit(c, BouncePath(remaining * 1.05, 300, rng), remaining);
+            return;
+        }
         double phase = rng.NextDouble();
         for (int i = 0; i < 400 && remaining >= 1.0; i++)
         {
