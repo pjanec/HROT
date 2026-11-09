@@ -11,7 +11,8 @@ namespace Fdp.Toolkit.Scenario
     /// <para>⚠ NoScenario | NoReplay, as <c>TerrainDefinition</c>: the text rides the HEADER, never the entity save, and a recording does
     /// not need it every frame. The policy applies only through <c>RegisterManagedComponent</c> (<c>HrotSharedComponentRegistry</c>).</para>
     /// </summary>
-    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): the resident scenario text of THIS process — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.ScenarioDescriptionResident)]
     public sealed class ScenarioDescriptionResident
     {

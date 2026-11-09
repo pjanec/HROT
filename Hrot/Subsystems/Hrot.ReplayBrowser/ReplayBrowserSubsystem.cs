@@ -53,7 +53,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
 
     private ViewMode _viewMode = ViewMode.SingleNode;
     private EntityRepository? _transientMaster;
-    private TransientMasterBuilder? _transientBuilder;
+    private TransientMasterBuilder? _transientBuilder;   // ⭐ G-7: no longer CALLED by the host (the oracle in rails) — its presence is the "Merged view is available" gate (non-headless)
+    private BinaryMerger? _merger;                       // ⭐ G-7 S1 — the ONE merge, paired with _transientMaster (the persistent merged repository)
     private FederationPanel? _federationPanel;
 
     /// <summary>⭐⭐⭐ U-obs-5 follow-up — kept so <c>OnLoadGroup</c> can RE-REGISTER
@@ -610,35 +611,44 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     }
 
     /// <summary>
-    /// Builds a fresh transient master from the current manager state and
-    /// rebinds <see cref="ActiveRepo"/> to it.
-    /// Disposes any previously allocated transient master.
+    /// ⭐ G-7 / CE-4354 S1 (docs/UX/DESIGN_Review_Perspective.md §6.12) — merges the current manager state into the ONE persistent merged repository
+    /// (created and bound ONCE per loaded group; <see cref="BinaryMerger.Merge"/> per seek / step / tick) and makes sure <see cref="ActiveRepo"/> is it.
+    /// A group change drops the repository (<c>OpenGroup</c> / <c>CloseGroup</c>) and with it the merger's map: the next merge starts a fresh pair.
+    /// ⛔ SUPERSEDED: a NEW repository from <see cref="TransientMasterBuilder.Build"/> (the JSON merge) every step, rebound every step.
     /// </summary>
     private void BuildAndBindTransientMaster()
     {
         if (_manager == null) return;
 
-        EntityRepository newMaster;
         if (TransientBuildOverride != null)
         {
-            newMaster = TransientBuildOverride(_manager);
+            // Test seam: a controlled repo per call (no merger).
+            var overridden = TransientBuildOverride(_manager);
+            _transientMaster?.Dispose();
+            _transientMaster = overridden;
+            _merger = null;
+            RebindActiveRepo(_transientMaster);
+            return;
         }
-        else if (_transientBuilder != null)
+
+        if (_transientBuilder == null)
         {
-            newMaster = _transientBuilder.Build(_manager);
-        }
-        else
-        {
-            // Fallback: no builder available — bind to single-node as before.
+            // Fallback: no merge available (headless) — bind to single-node as before.
             int nodeId = _manager.LocalEntitiesProviderNodeId;
             if (_manager.Contexts.TryGetValue(nodeId, out var ctx))
                 RebindActiveRepo(ctx.SandboxRepo);
             return;
         }
 
-        _transientMaster?.Dispose();
-        _transientMaster = newMaster;
-        RebindActiveRepo(_transientMaster);
+        if (_merger == null || _transientMaster == null)
+        {
+            _transientMaster?.Dispose();
+            _transientMaster = new EntityRepository();
+            RepositoryPriming.RegisterDiscoveredComponents(_transientMaster);   // every recorded component has a table (what Build primed per step)
+            _merger = new BinaryMerger();
+        }
+        _merger.Merge(_manager, _transientMaster);
+        if (!ReferenceEquals(_activeRepo, _transientMaster)) RebindActiveRepo(_transientMaster);
     }
 
     /// <summary>

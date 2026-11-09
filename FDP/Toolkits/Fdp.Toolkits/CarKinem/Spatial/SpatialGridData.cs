@@ -9,7 +9,8 @@ namespace CarKinem.Spatial
     /// <para>⭐ CE-3132 — <c>NoScenario | NoReplay</c>: the grid is this process's native memory, rebuilt every frame by
     /// SpatialHashSystem; recorded, it carried raw pointers into a replay. Found by <c>NativeMemoryIsNeverRecordedTests</c>.</para>
     /// </summary>
-    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): a spatial hash grid over THIS node's entity indices — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.SpatialGridData)]
     public struct SpatialGridData
     {

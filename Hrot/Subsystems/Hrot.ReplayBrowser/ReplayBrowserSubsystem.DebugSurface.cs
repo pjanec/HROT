@@ -94,6 +94,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
             _manager?.Dispose();
             _transientMaster?.Dispose();
             _transientMaster = null;
+            _merger = null;   // ⭐ G-7 — a new group: a fresh merged repository and merger on the next Merged merge
 
             _manager = manager;
             _eventsCapturedAt = null;
@@ -131,6 +132,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         _manager = null;
         _transientMaster?.Dispose();
         _transientMaster = null;
+        _merger = null;
         _timelinePanel?.SetManager(null);
         _playbackHistory.Clear();
         _extraction = null;

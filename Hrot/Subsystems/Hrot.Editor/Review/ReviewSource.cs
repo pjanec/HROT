@@ -29,8 +29,9 @@ public enum ReviewSourceKind { None, Merged, Part }
 /// Today that case opens an EMPTY world: <c>EcsRecordReplayController.PrepareReplayAsync</c> installs a <c>ReplayModule</c> over THIS node's file, a node with no file becomes a LISTENER
 /// (<c>"NO recording — listener"</c>) that waits for other nodes over the wire, and the all-in-one editor has none. This class fills the world instead, from the group's files:
 /// <list type="bullet">
-/// <item><b>Merged</b> (the default, Q7): <see cref="FederatedReplayManager"/> (the Replay Browser's hidden per-node sandboxes) + <see cref="TransientMasterBuilder.BuildInto"/> (today's JSON merge) deserialize
-/// STRAIGHT INTO the editor's world, cleared first (D7) — ⛔ no second load path: it is the merge's own <c>ScenarioSerializer.DeserializeWith</c>. A merge costs a round-trip per step ⇒ step / scrub only.</item>
+/// <item><b>Merged</b> (the default, Q7): <see cref="FederatedReplayManager"/> (the Replay Browser's hidden per-node sandboxes) + <see cref="BinaryMerger"/> (⭐ G-7 S1: a binary copy of each node's owned
+/// components) into the editor's world, which is the merge's ONE persistent target (D8) — cleared only at a world boundary, never per step; a step costs a full pass (S4 makes it incremental) ⇒ step / scrub only.
+/// ⛔ SUPERSEDED: the JSON merge (<see cref="TransientMasterBuilder.BuildInto"/>) into a world cleared every step — it lives on as the rails' oracle.</item>
 /// <item><b>a part</b> (<see cref="SelectPart"/>): that node's file replays into the editor's world by the recording's own binary playback (every component exact) — and plays, following the
 /// toolbar's ▶ and rate (the transport's facade), as an own-part AAR does.</item>
 /// </list>
@@ -60,11 +61,15 @@ public sealed class ReviewSource : IDisposable
     private bool _readyOnce;
     private double _partClockTicks;
     private bool _filling;
+    // ⭐ G-7 / CE-4354 S1 — the ONE merge and the world-boundary flag: the world is cleared (and the merger's map forgotten) ONLY when something other than the merge
+    //   wrote it (a group opened, the source was a part, the group closed) — never per step (D8: the editor's world IS the merge target).
+    private readonly BinaryMerger _merger = new();
+    private bool _worldDirty = true;
     private string? _statusCache;
     private int _statusKey = -1;
 
     /// <param name="world">The editor's ONE world.</param>
-    /// <param name="builder">The merge (over the editor's scenario serializer — the one a scenario load fills the world with); null until the editor has bootstrapped.</param>
+    /// <param name="builder">⭐ G-7: no longer CALLED (the merge is <see cref="BinaryMerger"/>, which needs no serializer; the old JSON builder is the rails' oracle) — returns null until the editor has bootstrapped, which is the gate that holds a merge back until then.</param>
     /// <param name="clearWorld">The editor's world boundary (<c>ScenarioFileService.NewScenario</c>: the reset observers, <c>SoftClear</c>, the epoch) — the clear a scenario load starts from.</param>
     /// <param name="stagingRoot">Where the nodes record (<c>OrchestrationConstants.ResolveStagingRoot</c>).</param>
     /// <param name="thisNode">This node's id (a part of it is its own file under its own staging root).</param>
@@ -220,6 +225,7 @@ public sealed class ReviewSource : IDisposable
             return;
         }
         _open = opening;
+        _worldDirty = true;   // a group opened: a world boundary — the first merge clears the world and starts a fresh map
         if (_world() is { } w) RepositoryPriming.RegisterDiscoveredComponents(w);   // every recorded component has a table in the resident world (idempotent: the same call a fresh Replay Browser repository gets)
         _panel = new FederationPanel(_manager);
         _panel.OnViewModeChanged += OnPanelMode;
@@ -242,6 +248,7 @@ public sealed class ReviewSource : IDisposable
         _part?.Dispose(); _part = null;
         _manager?.Dispose(); _manager = null;
         _panel = null; _open = null; _readyOnce = false;
+        _worldDirty = true; _merger.Reset();   // the world keeps what it shows, but the merger's map no longer describes a group
         Kind = ReviewSourceKind.None;
         Raise();
     }
@@ -257,6 +264,7 @@ public sealed class ReviewSource : IDisposable
         if (Kind == ReviewSourceKind.Merged) return;
         int atFrame = Transport.CurrentFrame;
         _part?.Dispose(); _part = null;
+        _worldDirty = true;   // the world held a part: a world boundary
         Kind = ReviewSourceKind.Merged;
         if (_panel is not null && _panel.ActiveMode != ViewMode.Merged) { _panel.OnViewModeChanged -= OnPanelMode; _panel.SetMode(ViewMode.Merged); _panel.OnViewModeChanged += OnPanelMode; }
         if (Primary()?.Playback is { TotalFrames: > 0 } pb)
@@ -305,16 +313,20 @@ public sealed class ReviewSource : IDisposable
         if (Kind == ReviewSourceKind.Merged) RefillMerged();
     }
 
-    /// <summary>D7 — the merge, deserialized straight into the editor's world after the world boundary cleared it; the selection follows its unit by network id.</summary>
+    /// <summary>
+    /// D7 / ⭐ G-7 S1 — the merge, copied straight into the editor's world: <see cref="BinaryMerger.Merge"/> keeps ONE target entity per network id across steps (stable handles),
+    /// so the world is NOT cleared per step — only at a world boundary (<c>_worldDirty</c>). The selection follows its unit by network id.
+    /// ⛔ SUPERSEDED: <c>_clearWorld()</c> + <c>TransientMasterBuilder.BuildInto</c> (the JSON merge) every step.
+    /// </summary>
     private void RefillMerged()
     {
-        if (_filling || _manager is null || _world() is not { } world || _builder() is not { } builder) return;
+        if (_filling || _manager is null || _world() is not { } world || _builder() is null) return;
         _filling = true;
         try
         {
             int? selected = _selection();
-            _clearWorld();
-            builder.BuildInto(_manager, world);
+            if (_worldDirty) { _clearWorld(); _merger.Reset(); _worldDirty = false; }
+            _merger.Merge(_manager, world);
             if (selected is { } id) _select(id);
         }
         finally { _filling = false; }
@@ -325,6 +337,7 @@ public sealed class ReviewSource : IDisposable
         if (_part is null || _world() is not { } world || _part.TotalFrames <= 0) return;
         int? selected = _selection();
         _clearWorld();
+        _worldDirty = true;   // the world now holds a part's recording, not the merge
         _part.SeekToFrame(world, Math.Clamp(frame, 0, _part.TotalFrames - 1));
         _partClockTicks = _part.GetFrameMetadata(_part.CurrentFrame).WallClockTicks;
         if (selected is { } id) _select(id);

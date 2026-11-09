@@ -8,7 +8,8 @@ namespace Hrot.Traffic;
 /// <see cref="TrafficMirrorSystem"/> each frame, so every map layer reads the world, never the traffic pack (T3: one display path).
 /// <para>⛔ Never persisted or replayed: it is re-derived every frame.</para>
 /// </summary>
-[DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
+// ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): a per-node traffic frame scratch — never copied into a merged view.
+[DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
 [ComponentId(GlobalComponentIds.TrafficFrame)]
 public sealed class TrafficFrame
 {

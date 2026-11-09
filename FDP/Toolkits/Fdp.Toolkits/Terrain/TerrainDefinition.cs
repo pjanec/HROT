@@ -23,7 +23,8 @@ namespace Fdp.Toolkit.Terrain
     ///
     /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ①a ②, §2.1a.
     /// </summary>
-    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): a per-node terrain service definition — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.TerrainDefinition)]
     public sealed class TerrainDefinition
     {

@@ -45,7 +45,8 @@ namespace Fdp.Toolkit.Replication.Components
     /// (DESIGN_Cross_Node_Construction_Barrier.md §3a.3).
     /// </summary>
     [ComponentId(GlobalComponentIds.NetworkAckPeerSet)]
-    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): this node's cross-node construction-barrier wait set — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NodeLocal)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
     public record NetworkAckPeerSet
     {
         /// <summary>The peer node ids to wait for. Empty ⇒ no cross-node wait (immediate ack).</summary>

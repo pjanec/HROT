@@ -317,60 +317,12 @@ namespace Fdp.Toolkit.Scenario
             };
         }
 
-        private static FieldInfo[] GetSerializableFields(Type type)
-        {
-            var all = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
-            var result = new List<FieldInfo>(all.Length);
-            foreach (var f in all)
-            {
-                if (f.GetCustomAttribute<ScenarioIgnoreAttribute>() != null) continue;
-                // Skip fixed-buffer fields — handled separately by GetFixedBufferFields.
-                if (f.GetCustomAttribute<FixedBufferAttribute>() != null) continue;
-                // Skip InlineArray fields — handled separately by GetInlineArrayFields.
-                if (f.FieldType.GetCustomAttribute<InlineArrayAttribute>() != null) continue;
-                result.Add(f);
-            }
-            return result.ToArray();
-        }
+        // ⭐ G-7 / CE-4354 — the field discovery is ComponentFieldDiscovery's, shared with the binary merge's EntityRemapPlan.
+        private static FieldInfo[] GetSerializableFields(Type type) => ComponentFieldDiscovery.GetPlainFields(type);
 
-        /// <summary>
-        /// Returns fixed-buffer fields of <paramref name="type"/> together with their element
-        /// type and element count, as declared by <see cref="FixedBufferAttribute"/>.
-        /// </summary>
-        private static (FieldInfo field, Type elemType, int length)[] GetFixedBufferFields(Type type)
-        {
-            var result = new List<(FieldInfo, Type, int)>();
-            foreach (var f in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
-            {
-                if (f.GetCustomAttribute<ScenarioIgnoreAttribute>() != null) continue;
-                var attr = f.GetCustomAttribute<FixedBufferAttribute>();
-                if (attr == null) continue;
-                result.Add((f, attr.ElementType, attr.Length));
-            }
-            return result.ToArray();
-        }
+        private static (FieldInfo field, Type elemType, int length)[] GetFixedBufferFields(Type type) => ComponentFieldDiscovery.GetFixedBufferFields(type);
 
-        /// <summary>
-        /// Returns fields whose declared type carries <see cref="InlineArrayAttribute"/>,
-        /// together with the element type (first field of the inline-array struct) and capacity.
-        /// </summary>
-        private static (FieldInfo field, Type elemType, int length)[] GetInlineArrayFields(Type type)
-        {
-            var result = new List<(FieldInfo, Type, int)>();
-            foreach (var f in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
-            {
-                if (f.GetCustomAttribute<ScenarioIgnoreAttribute>() != null) continue;
-                var attr = f.FieldType.GetCustomAttribute<InlineArrayAttribute>();
-                if (attr == null) continue;
-                // The element type is the (only) field of the InlineArray struct.
-                var elemField = f.FieldType.GetFields(
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                    .FirstOrDefault();
-                if (elemField == null) continue;
-                result.Add((f, elemField.FieldType, attr.Length));
-            }
-            return result.ToArray();
-        }
+        private static (FieldInfo field, Type elemType, int length)[] GetInlineArrayFields(Type type) => ComponentFieldDiscovery.GetInlineArrayFields(type);
 
         // ── Extract delegate compilation ─────────────────────────────────────────
 

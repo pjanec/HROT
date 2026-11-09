@@ -18,7 +18,8 @@ namespace Fdp.Toolkit.Replication.Components
     /// </para>
     /// </summary>
     [ComponentId(GlobalComponentIds.PendingAuthorityGrants)]
-    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): this node's ghost-phase ownership hand-shake record — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NodeLocal)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
     public record PendingAuthorityGrants
     {
         /// <summary>

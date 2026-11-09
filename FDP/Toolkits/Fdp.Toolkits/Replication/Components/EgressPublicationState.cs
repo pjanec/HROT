@@ -7,7 +7,8 @@ namespace Fdp.Toolkit.Replication.Components
     /// Tracks publication state for smart egress optimization.
     /// Transient component - not persisted in snapshots.
     /// </summary>
-    [DataPolicy(DataPolicy.Transient)]
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): this node's egress publication bookkeeping — never copied into a merged view.
+    [DataPolicy(DataPolicy.Transient | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.EgressPublicationState)]
     public class EgressPublicationState
     {
