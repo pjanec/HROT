@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — the source-data answers are in (§5); TWO questions left for the user (§5.4: the houses' insides; unit counts and where units path); §2 and §3 revised to the answers
+build-state: DESIGN — the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); ONE question left (§5.4 ②: unit counts / where units path — the lean stands until answered); §6 re-bases the stages on Terrain World §9
 updated: 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
 current-answer: ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
@@ -75,7 +75,7 @@ template EXIST and are extended (tiled storage, generated templates); the grids 
 |---|---|
 | frame | a terrain declares `utm {zone, hemisphere, e0, n0}`; local x = E − E0, y = N − N0 (grid north), z = height; existing terrains keep the tangent plane. ⭐ For this terrain **e0/n0 = the source engine's own origin (32N, 372 000 / 6 043 000)** so both engines' local positions are numerically identical (§5 Q-U2); convergence (−1.6…−1.7°) only at a true-north gateway |
 | heights | the EXISTING `TerrainHeightGrid` gains a tiled binary store (e.g. 256 × 256 posts per tile, 16-bit + offset/scale), resampled from the input's float32 height raster at **1 m** (72 MB); loaded where heights are asked (Muscle, map hosts — ⛔ never the Brain, R-2037); the 3-D view renders it with LOD; the 2-D map gets a hillshade |
-| buildings | ✅ **ENTERABLE** (the user): the importer GENERATES a `*.building.json` per house (1 988): footprint → walls, storeys = round(model height / 3 m), a slab per storey, doors and windows at the source points (+ generated windows per facade), a flat roof; the inside per §5.4 ① |
+| buildings | ✅ **ENTERABLE, OPEN FLOORS** (R-4186): the importer GENERATES a `*.building.json` per house (1 988): footprint → walls; each storey ONE empty floor slab + a stair `ramp` between storeys (the existing `TerrainWalkable` slab / ramp — Building Interiors `:71-97`); the ground floor at the door points' altitude, upper floors at their window points' altitude − a ≈ 0.9 m sill; door and window OPENINGS exactly at the source points (they sit where the visual engine draws the openings, so HROT's openings match); a flat roof; no partitions |
 | grids | the collider hash and the perception grid sized from the terrain's bounds, not constants |
 | navmesh | baked OFFLINE by the importer, stored with the terrain, loaded as a file (also closes CE-4033) |
 | sizes (estimate) | 6 × 6 km at 1 m posts = 36 M samples ≈ 72 MB (16-bit); at 2 m ≈ 18 MB; buildings unknown (Q-U3); the navmesh ≈ 62 500 tiles per layer — staged once per terrain version |
@@ -186,7 +186,7 @@ STATUS lines read; `grep -l TerrainWorld docs` (40 files); `.dev/_DONE/{navig-2,
 1. `UtmTransform` + the terrain's frame (e0/n0 = the source engine's origin)
 2. the collider and perception grids sized from the terrain's bounds
 3. the TILED store inside one large inset's `TerrainHeightGrid` + the importer's height path (1 m), the 3-D LOD, the 2-D hillshade
-4. the building generator (1 988 enterable templates), measured against Building Interiors' door / room systems at that scale
+4. the building generator (1 988 enterable templates: open floors + one stair ramp, openings at the source points — R-4186), measured against Building Interiors' door systems at that scale; ✅ the complete door / window point set is prepared in the input set (outside this repo)
 5. the other layers (the SUMO crop + anchor, walls, derived forest surfaces)
 6. the importer pre-fills the `NavTileCache` per inset (interiors included)
 7. the importer as a repeatable tool; ⛔ the converted terrain never in git
