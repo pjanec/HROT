@@ -46,6 +46,8 @@ public static class ManifestWriter
             if (o.HeightSpacing is double spacing) w.WriteNumber("heightSpacing", spacing);
             if (o.Buildings is int buildings) w.WriteNumber("buildings", buildings);
             if (o.Trees is int trees) w.WriteNumber("trees", trees);
+            // options are recorded when they are on (also by default), so a default-off set keeps its manifest
+            if (o.Noise != null || o.NoiseEnabled) w.WriteString("noise", o.NoiseEnabled ? "real" : "none");
             w.WriteEndObject();
             w.WriteEndObject();
 

@@ -25,6 +25,7 @@ dotnet run --project Hrot/Tools/Hrot.Tools.TerrainSynth -- --preset tiny --seed 
 | `--height-spacing M` | height grid spacing in metres | preset |
 | `--buildings N` | number of buildings | preset |
 | `--trees N` | number of trees | preset |
+| `--noise real\|none` | jitter the doors and windows like a real input set (see Realism options) | `real` for `full`, `none` for `tiny` |
 
 A bad argument prints the usage to stderr and exits with 2. A normal run prints one line per stage with its
 elapsed time and counts, and exits with 0.
@@ -42,6 +43,23 @@ elapsed time and counts, and exits with 0.
 
 The frame is a synthetic UTM frame (zone 32, north, e0 500000, n0 5600000) with local metres: x east, y north, z up
 (absolute). Headings are compass degrees, 0 = north, clockwise, pointing out of the building.
+
+## Realism options
+
+The clean set obeys every rule exactly (openings on their wall, heights on the floor, headings outward). Real data does
+not, so options add the imperfections an importer has to tolerate. Every option is applied after the clean generation,
+from a random stream of its own, so switching an option off leaves the clean geometry byte-identical for the same seed.
+
+`--noise real` changes the door and window records of the buildings only, never footprints, floors or roofs:
+
+- door `z` = floor + an offset with median +0.1 m, p10 -0.3 m, p90 +1.0 m, clipped to -1.2 .. +3.6 m;
+  window `z` = floor + 1.0 m + a uniform +-0.2 m;
+- position: half of the openings exactly on the wall, the rest moved perpendicular to it by |N(0, 0.1)| m, at most
+  0.3 m, to a random side;
+- about 3 % of all headings turned by 180 degrees;
+- about 1 % of the doors moved 1 to 3 m off any wall (outside the footprint, still in the building's openings).
+
+The manifest records `noise` under `generator.overrides` whenever it is on, also by default.
 
 ## Output
 

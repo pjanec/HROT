@@ -5,8 +5,12 @@ namespace Hrot.Tools.TerrainSynth;
 /// <summary>Command line of the tool: a preset plus optional overrides.</summary>
 public sealed record SynthOptions(
     string Preset, ulong Seed, string OutDir,
-    double? Size, double? HeightSpacing, int? Buildings, int? Trees)
+    double? Size, double? HeightSpacing, int? Buildings, int? Trees,
+    string? Noise = null)
 {
+    /// <summary>Opening noise on or off: real for the full preset and none for tiny unless given.</summary>
+    public bool NoiseEnabled => (Noise ?? (Preset == "full" ? "real" : "none")) == "real";
+
     public static SynthOptions Parse(string[] args)
     {
         string preset = "tiny";
@@ -14,11 +18,12 @@ public sealed record SynthOptions(
         string? outDir = null;
         double? size = null, spacing = null;
         int? buildings = null, trees = null;
+        string? noise = null;
 
         for (int i = 0; i < args.Length; i++)
         {
             string a = args[i];
-            if (a is not ("--preset" or "--seed" or "--out" or "--size" or "--height-spacing" or "--buildings" or "--trees"))
+            if (a is not ("--preset" or "--seed" or "--out" or "--size" or "--height-spacing" or "--buildings" or "--trees" or "--noise"))
                 throw new ArgumentException($"unknown argument {a}");
             if (i + 1 >= args.Length) throw new ArgumentException($"missing value for {a}");
             string v = args[++i];
@@ -31,6 +36,10 @@ public sealed record SynthOptions(
                 case "--height-spacing": spacing = ParseDouble(a, v); break;
                 case "--buildings": buildings = ParseInt(a, v); break;
                 case "--trees": trees = ParseInt(a, v); break;
+                case "--noise":
+                    if (v != "real" && v != "none") throw new ArgumentException($"bad value for {a}: {v} (real|none)");
+                    noise = v;
+                    break;
             }
         }
 
@@ -40,7 +49,7 @@ public sealed record SynthOptions(
         if (buildings is < 0 || trees is < 0) throw new ArgumentException("counts must not be negative");
 
         outDir ??= string.Create(CultureInfo.InvariantCulture, $"artifacts/terrain-synth/{preset}-{seed}");
-        return new SynthOptions(preset, seed, outDir, size, spacing, buildings, trees);
+        return new SynthOptions(preset, seed, outDir, size, spacing, buildings, trees, noise);
     }
 
     /// <summary>The preset with the overrides applied. --size is the side length in metres; counts and road km scale by area.</summary>

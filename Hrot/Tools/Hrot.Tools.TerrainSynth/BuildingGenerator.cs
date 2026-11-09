@@ -16,6 +16,13 @@ public sealed record Building(
     IReadOnlyList<double> StoreyZ,
     IReadOnlyList<Opening> Openings);
 
+/// <summary>Switches for the realism options applied on top of the clean set.</summary>
+public sealed record BuildingOptions
+{
+    /// <summary>Jitter the doors and windows like a real input set (position, height, a few flipped headings, a few loose doors).</summary>
+    public bool Noise { get; init; }
+}
+
 /// <summary>
 /// Places unique buildings along the residential streets of the villages: footprint (rect / L / U), storeys,
 /// doors and windows on every wall, plus loose door / window points that belong to no footprint.
@@ -23,10 +30,17 @@ public sealed record Building(
 public static class BuildingGenerator
 {
     public static (IReadOnlyList<Building> Buildings, IReadOnlyList<Opening> Unassigned) Generate(SynthProfile p, Rng rng, HeightField h, RoadNetwork r)
+        => Generate(p, rng, h, r, new BuildingOptions());
+
+    // The clean set is generated first from its own stream; every option is applied afterwards from a stream of its own,
+    // so switching an option off leaves the clean geometry untouched.
+    public static (IReadOnlyList<Building> Buildings, IReadOnlyList<Opening> Unassigned) Generate(SynthProfile p, Rng rng, HeightField h, RoadNetwork r, BuildingOptions options)
     {
         var g = new Generator(p, rng.Fork("buildings"), h, r);
         g.Run();
-        return (g.Buildings, g.Unassigned);
+        IReadOnlyList<Building> buildings = g.Buildings;
+        if (options.Noise) buildings = OpeningNoise.Apply(buildings, rng.Fork("noise"));
+        return (buildings, g.Unassigned);
     }
 
     private readonly record struct Pt(double X, double Y);
