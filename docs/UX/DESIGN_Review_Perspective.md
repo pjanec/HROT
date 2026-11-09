@@ -901,7 +901,7 @@ reflection) before building.
 | binary handlers | `*AttributeInstaller` (`SimTransform…`, `ScenarioClock…`, `CivilianFright…`, `EntityData…`, `SimTransformHeading…`) | one per row |
 | the rail that keeps the tables in step | `Hrot.SimHost.Tests/TheFourRoutingTablesAgreeTests.cs` | — |
 | **readers** | ⛔ none in the vocabulary · `FormField.ReadNumber` / `ReadText` per form field (`FormDecl.cs:24-26`, `HrotForms.cs`) | 27 |
-| JSON path walkers over a component's JSON | `ParamBind.FindKey` + `SetPath` (`ParamBinding.cs:222, :272`) · `ScenarioVariants.FindKey` (`:246`) · `ScenarioVerification.At` (`Hrot.Editor/Director`, `:290`) | ⚠ 3 copies |
+| JSON path walkers over a component's JSON | `ParamBind.FindKey` + `SetPath` (`ParamBinding.cs:222, :272`) · `ScenarioVariants.FindKey` (`:246`) · `ScenarioVerification.At` (`Hrot.Editor/Director`, `:290`) | ⭐ 1 walker — `ComponentJsonPath.Get/Set/FindKey` (R-3); ⛔ the old `ParamBind.FindKey`, `ScenarioVariants.FindKey`, `MacroValidator.FindKey` and `ScenarioVerification.At`'s own walk are deleted *(superseded: the 3 copies listed here)*; one more copy remains in `OccurrenceSlotWriter.FindKey` (`Hrot.Editor.AiShared`) |
 
 ```mermaid
 classDiagram
@@ -1010,7 +1010,7 @@ AR-1, AR-2, AR-3, AR-7, AR-8 are built as drawn; the class / sequence / module d
 | HTTP (AR-8) | `GET /entities/{id}/attributes[?path=…]` (repeats comma-joined by the listener; `notPresent` lists what the entity lacks; 404 / 400) · `GET /entities/{id}/field?path=Component.field.0` (the dump's JSON through `ComponentJsonPath.Get`; ⚠ a point dumps as an ARRAY — `SimTransform.Position.0` is x) · `GET /attributes/schema` gains `attributes:[{path,id,kind,unit,readable,wildcard}]`. MCP: `get_entity_attributes`, `get_entity_field` (catalog + SKILL regenerated; served by the generic catalog rule). ✅ **The Replay Browser needs nothing extra** — it fills the provider of the SHARED `DebugApiHost`/`DebugApiService` (`ReplayBrowserSubsystem.DebugSurface.cs`), so the routes read its sandbox world through the same code | `Hrot.Editor/DebugApi/DebugApiService.Attributes.cs` · `DebugApiHost.cs` · `DebugApiRouteDocs.cs` · rails `Hrot.Editor.Tests/DebugApi/TheReadRoutesReadThroughTheVocabularyTests.cs` |
 | `ComponentJsonPath` | only `Get` so far (AR-5 first use); the three old walkers are untouched — R-3 replaces them and adds `Set` | `FDP/Toolkits/Fdp.Toolkits/Scenario/ComponentJsonPath.cs` |
 
-#### ⭐ AS-BUILT — R-2 *(behaviors, `2026-11-09`, `build-state: R-1 R-2 BUILT · R-3 DESIGN`)*
+#### ⭐ AS-BUILT — R-2 *(behaviors, `2026-11-09`, `build-state: R-1 R-2 R-3 BUILT`)*
 
 AR-4 and AR-7 are built: a `FormField` with an `Attribute` and no explicit delegate reads through `AttributeReaders`; `FormField.Unit` defaults to the attribute's. The Details forms now read the vocabulary's READ side (`DESIGN_Details_Forms.md` §2.4 as drawn).
 
@@ -1023,6 +1023,19 @@ AR-4 and AR-7 are built: a `FormField` with an `Attribute` and no explicit deleg
 | kept, each `// derived:` | Aimed at (a NAME, the attribute reads a network id) · Strength's `MaxOf` · Playable toggle (component presence) · Carried as (carry mode) · `TypeValue` of the Character rows (the type's value) · Position, Kind, DIS type, Shown as, Entity id, TKB template, Start, Terrain (no attribute). The damage rows keep their `Has` (the form's OFFER rule: the part is in the body — the reader answers for any valid part id once `PartDamage` exists) | `HrotForms.cs` |
 | deviation | Playable.Side / SpawnArea.Side wrote an int `ForceId` (the setter's ordinal path maps `ForceIdentifier`, not `ForceId`); they now write the token, as Affiliation always did — the reader and the form agree by construction | `HrotForms.cs` |
 | rail | `FormViewTests.R2_AFieldDeclaredWithOnlyAnAttribute_ShowsTheReadersValue_AndTheVocabulariesUnit` (red-proved: reader unwired); the Name / Strength fields of `FormViewTests.Form` declare only an `Attribute`, so `D1_ASteadyFrame_…_AllocatesNothing` and `TheUnitFormDrawsTests` (0 B Unit form) pin 0 B per frame through the default | `FDP/Engine/Fdp.Presentation.Tests/ImGui/Forms/FormViewTests.cs` |
+
+#### ⭐ AS-BUILT — R-3 *(behaviors, `2026-11-09`, `build-state: R-1 R-2 R-3 BUILT`)*
+
+AR-5 is built: one walker. `ComponentJsonPath` (`FDP/Toolkits/Fdp.Toolkits/Scenario/ComponentJsonPath.cs`) now has `Get`, `FindKey` and `Set`.
+
+| what | as built | file |
+|---|---|---|
+| `Set(JsonObject, path, value, out failedPart)` | keys ignore case, the last key is created, a step through a JSON string holding an object is walked and written back (`"Behavior.Params.Speed"`); returns `SetOutcome` `Changed / Unchanged / MissingStep / NotAnObject` + the failing part index (an enum, not exceptions, so each caller keeps its own message) | `ComponentJsonPath.cs` |
+| `ParamBinder.SetPath` | keeps its SR-161 "no index" and "`<Component>.<field>`" refusals, then calls `Set` and maps the outcome to its existing messages | `ParamBinding.cs:276` |
+| deleted copies | `ParamBind.FindKey`, `ParamBinder.Set`/`TryParseObject`, `ScenarioVariants.FindKey`, `MacroValidator.FindKey` (a fourth copy the design did not list) — all call `ComponentJsonPath.FindKey` | `ParamBinding.cs`, `ScenarioVariants.cs`, `Macros/MacroValidator.cs` |
+| `ScenarioVerification.At` | one-line delegate to `Get` (kept as the checks' public name). ⚠ visible change: keys now match ignoring case, and an empty path returns the node itself | `Hrot.Editor/Director/ScenarioVerification.cs:290` |
+| not done | `OccurrenceSlotWriter.FindKey` (`Hrot.Editor.AiShared/Variables`, `:126`) is a fifth copy in another assembly; `ParamBind.SetNested` (the node `Bind` path walker) still builds missing objects itself — a different rule (creates intermediates) | |
+| rail | `ParamBinderTests.ComponentJsonPathSet_KeepsTheBindersWalkRules` (red-proved: `FindKey` made case-sensitive) |  |
 
 ### 6.10 Why JSON was chosen back then — and what the binary idea must not lose *(read `2026-11-08`)*
 

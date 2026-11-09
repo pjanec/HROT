@@ -71,7 +71,7 @@ namespace Fdp.Toolkit.Scenario
                                      + $"this one would stay the literal text; bind it with ParamBindings (\"{slot.Path}\": \"{param}\")");
 
                 // ── a nested instance: its file, its args, its depth, its pin — then into it
-                if (FindKey(entity, MacroInstance.ComponentName) is { } mk && entity[mk] is JsonObject mi)
+                if (ComponentJsonPath.FindKey(entity, MacroInstance.ComponentName) is { } mk && entity[mk] is JsonObject mi)
                     CheckInstance(entity, mi, who, library, path, errors, paramsDtoOf);
             }
         }
@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.Scenario
         private static (Type Type, string Path)? UnboundSlot(JsonObject entity, string where, Func<string, Type?> paramsDtoOf)
         {
             if (where.Contains(".Bind.") || where.Contains("params is refused")) return null;
-            if (FindKey(entity, "Behavior") is not { } bk || entity[bk] is not JsonObject beh) return null;
+            if (ComponentJsonPath.FindKey(entity, "Behavior") is not { } bk || entity[bk] is not JsonObject beh) return null;
             string prefix = bk + ".Params";
             if (!where.StartsWith(prefix + ".", StringComparison.Ordinal)) return null;
             if (beh["Name"] is not JsonValue nv || !nv.TryGetValue<string>(out var name) || paramsDtoOf(name) is not { } dto) return null;
@@ -211,19 +211,14 @@ namespace Fdp.Toolkit.Scenario
         }
 
         private static WorldPoint? PositionOf(JsonObject entity)
-            => FindKey(entity, "SimTransform") is { } k && entity[k] is JsonObject st && st["Position"] is JsonArray p && p.Count >= 2
+            => ComponentJsonPath.FindKey(entity, "SimTransform") is { } k && entity[k] is JsonObject st && st["Position"] is JsonArray p && p.Count >= 2
                ? new WorldPoint(p[0]!.GetValue<float>(), p[1]!.GetValue<float>(), p.Count > 2 ? p[2]!.GetValue<float>() : 0f) : null;
 
         private static string NameOf(JsonObject entity, string key)
-            => FindKey(entity, "EntityInfo") is { } k && entity[k] is JsonObject info && info["Name"] is JsonValue n && n.TryGetValue<string>(out var s) && s.Length > 0
+            => ComponentJsonPath.FindKey(entity, "EntityInfo") is { } k && entity[k] is JsonObject info && info["Name"] is JsonValue n && n.TryGetValue<string>(out var s) && s.Length > 0
                ? s : key;
 
         private static string Describe(bool isMacro) => isMacro ? "the macro" : "the scenario";
 
-        private static string? FindKey(JsonObject obj, string name)
-        {
-            foreach (var (k, _) in obj) if (k.Equals(name, StringComparison.OrdinalIgnoreCase)) return k;
-            return null;
-        }
     }
 }

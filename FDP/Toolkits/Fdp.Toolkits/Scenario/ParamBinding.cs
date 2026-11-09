@@ -158,7 +158,7 @@ namespace Fdp.Toolkit.Scenario
 
         public override bool NodeJson(Type nodeType, JsonObject obj)
         {
-            if (FindKey(obj, nameof(BindableNode.Bind)) is not { } bindKey || obj[bindKey] is not JsonObject bind || bind.Count == 0) return false;
+            if (ComponentJsonPath.FindKey(obj, nameof(BindableNode.Bind)) is not { } bindKey || obj[bindKey] is not JsonObject bind || bind.Count == 0) return false;
             bool changed = false;
             foreach (var (prop, paramNode) in bind)
             {
@@ -168,13 +168,13 @@ namespace Fdp.Toolkit.Scenario
                 {
                     int dot = prop.IndexOf('.');
                     var holder = PropertyOf(nodeType, prop.Substring(0, dot));
-                    var hkey = FindKey(obj, JsonNameOf(holder)) ?? JsonNameOf(holder);
+                    var hkey = ComponentJsonPath.FindKey(obj, JsonNameOf(holder)) ?? JsonNameOf(holder);
                     if (obj[hkey] is not JsonObject inner) throw new InvalidOperationException($"'{nodeType.Name}.Bind.{prop}': '{holder.Name}' holds no JSON object to bind into");
                     changed |= SetNested(inner, prop.Substring(dot + 1), param, nodeType.Name, prop);
                     continue;
                 }
                 var p = PropertyOf(nodeType, prop);
-                var key = FindKey(obj, JsonNameOf(p)) ?? JsonNameOf(p);
+                var key = ComponentJsonPath.FindKey(obj, JsonNameOf(p)) ?? JsonNameOf(p);
                 var written = JsonSerializer.SerializeToNode(Get(param, p.PropertyType), p.PropertyType, _options);
                 if (JsonNode.DeepEquals(obj[key], written)) continue;
                 obj[key] = written;
@@ -201,12 +201,12 @@ namespace Fdp.Toolkit.Scenario
             var raw = (JsonNode?)Get(param, typeof(JsonNode));
             for (int i = 0; i < parts.Length - 1; i++)
             {
-                var k = FindKey(inner, parts[i]) ?? parts[i];
+                var k = ComponentJsonPath.FindKey(inner, parts[i]) ?? parts[i];
                 if (inner[k] is JsonObject next) inner = next;
                 else if (inner[k] is null) { var made = new JsonObject(); inner[k] = made; inner = made; }
                 else throw new InvalidOperationException($"'{typeName}.Bind.{path}': '{parts[i]}' is not an object");
             }
-            var last = FindKey(inner, parts[^1]) ?? parts[^1];
+            var last = ComponentJsonPath.FindKey(inner, parts[^1]) ?? parts[^1];
             if (JsonNode.DeepEquals(inner[last], raw)) return false;
             inner[last] = raw?.DeepClone();
             return true;
@@ -218,12 +218,6 @@ namespace Fdp.Toolkit.Scenario
              : throw new InvalidOperationException($"'{type.Name}' has no settable property '{name}' to bind (SR-160: Bind keys are the node's own property names)");
 
         private static string JsonNameOf(PropertyInfo p) => p.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? p.Name;
-
-        internal static string? FindKey(JsonObject obj, string name)
-        {
-            foreach (var (k, _) in obj) if (k.Equals(name, StringComparison.OrdinalIgnoreCase)) return k;
-            return null;
-        }
     }
 
     /// <summary>⭐⭐ SR-164 — the ONE entry point. Every host binds through these three calls; ⛔ none writes its own.</summary>
@@ -246,9 +240,9 @@ namespace Fdp.Toolkit.Scenario
         public static bool ApplyBindings(JsonObject entity, IParamSource source)
         {
             if (entity is null) throw new ArgumentNullException(nameof(entity));
-            if (ParamBind.FindKey(entity, ParamBindings.ComponentName) is not { } pbKey
+            if (ComponentJsonPath.FindKey(entity, ParamBindings.ComponentName) is not { } pbKey
                 || entity[pbKey] is not JsonObject pb
-                || ParamBind.FindKey(pb, nameof(ParamBindings.Bindings)) is not { } bKey
+                || ComponentJsonPath.FindKey(pb, nameof(ParamBindings.Bindings)) is not { } bKey
                 || pb[bKey] is not JsonObject bindings) return false;
             bool changed = false;
             foreach (var (path, paramNode) in bindings)
@@ -266,8 +260,8 @@ namespace Fdp.Toolkit.Scenario
         public static IReadOnlyList<(string Path, string Param)> BindingsOf(JsonObject entity)
         {
             var list = new List<(string, string)>();
-            if (ParamBind.FindKey(entity, ParamBindings.ComponentName) is { } pbKey && entity[pbKey] is JsonObject pb
-                && ParamBind.FindKey(pb, nameof(ParamBindings.Bindings)) is { } bKey && pb[bKey] is JsonObject bindings)
+            if (ComponentJsonPath.FindKey(entity, ParamBindings.ComponentName) is { } pbKey && entity[pbKey] is JsonObject pb
+                && ComponentJsonPath.FindKey(pb, nameof(ParamBindings.Bindings)) is { } bKey && pb[bKey] is JsonObject bindings)
                 foreach (var (path, p) in bindings)
                     if (p is JsonValue v && v.TryGetValue<string>(out var s)) list.Add((path, s));
             return list;
@@ -279,42 +273,15 @@ namespace Fdp.Toolkit.Scenario
                 throw new InvalidOperationException($"ParamBindings '{path}': an index in a path is refused (SR-161 — bind a whole value, not an element)");
             var parts = path.Split('.');
             if (parts.Length < 2) throw new InvalidOperationException($"ParamBindings '{path}': a path is '<Component>.<field>'");
-            return Set(entity, parts, 0, value, path);
-        }
-
-        private static bool Set(JsonObject obj, string[] parts, int i, JsonNode? value, string path)
-        {
-            var key = ParamBind.FindKey(obj, parts[i]);
-            if (i == parts.Length - 1)
+            var outcome = ComponentJsonPath.Set(entity, path, value, out var bad);
+            return outcome switch
             {
-                key ??= parts[i];
-                if (JsonNode.DeepEquals(obj[key], value)) return false;
-                obj[key] = value?.DeepClone();
-                return true;
-            }
-            if (key is null)
-                throw new InvalidOperationException(i == 0 ? $"ParamBindings '{path}': the entity has no component '{parts[0]}'"
-                                                           : $"ParamBindings '{path}': no '{parts[i]}' at that path");
-            switch (obj[key])
-            {
-                case JsonObject child:
-                    return Set(child, parts, i + 1, value, path);
-                case JsonValue s when s.TryGetValue<string>(out var text) && TryParseObject(text, out var inner):
-                    // ⭐ a params blob (a JSON object in a string — the brain slots' Params): bind inside, write the string back
-                    bool changed = Set(inner, parts, i + 1, value, path);
-                    if (changed) obj[key] = inner.ToJsonString(FdpJsonOptionsRegistry.DefaultRelaxed);
-                    return changed;
-                default:
-                    throw new InvalidOperationException($"ParamBindings '{path}': '{parts[i]}' is not an object");
-            }
-        }
-
-        private static bool TryParseObject(string text, out JsonObject obj)
-        {
-            obj = null!;
-            if (string.IsNullOrWhiteSpace(text) || text.TrimStart()[0] != '{') return false;
-            try { obj = JsonNode.Parse(text) as JsonObject ?? null!; } catch (JsonException) { return false; }
-            return obj is not null;
+                ComponentJsonPath.SetOutcome.Changed => true,
+                ComponentJsonPath.SetOutcome.Unchanged => false,
+                ComponentJsonPath.SetOutcome.MissingStep => throw new InvalidOperationException(bad == 0 ? $"ParamBindings '{path}': the entity has no component '{parts[0]}'"
+                                                                                                          : $"ParamBindings '{path}': no '{parts[bad]}' at that path"),
+                _ => throw new InvalidOperationException($"ParamBindings '{path}': '{parts[bad]}' is not an object"),
+            };
         }
     }
 }

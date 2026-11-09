@@ -287,20 +287,7 @@ namespace Hrot.Editor.Director
         }
 
         /// <summary>The value at <c>A.B.C</c> (an array index is a number part).</summary>
-        public static JsonNode? At(JsonNode? node, string path)
-        {
-            foreach (var part in path.Split('.'))
-            {
-                node = node switch
-                {
-                    JsonObject o => o[part],
-                    JsonArray a when int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) && i >= 0 && i < a.Count => a[i],
-                    _ => null,
-                };
-                if (node is null) return null;
-            }
-            return node;
-        }
+        public static JsonNode? At(JsonNode? node, string path) => Fdp.Toolkit.Scenario.ComponentJsonPath.Get(node, path);
 
         public static bool Compare(JsonNode? value, string op, JsonNode? want)
         {
