@@ -57,7 +57,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.SquadEmbark, Params = typeof(SquadEmbarkParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.SquadEmbark, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadEmbarkBlackboard))]
+        [BTreeDefinition(BehaviorNames.SquadEmbark, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(SquadEmbarkBlackboard))]
         public static BTreeBuilder<SquadEmbarkBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadEmbarkBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
@@ -156,7 +156,7 @@ namespace Hrot.AI.Behaviors.Brains
     public static class SquadRideBehavior
     {
         [Behavior(BehaviorNames.SquadRide, Params = typeof(global::Hrot.Map.Definitions.Behavior.NoParams), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.SquadRide, Curated = true, Group = "Library/Squad")]
+        [BTreeDefinition(BehaviorNames.SquadRide, Curated = true, Group = "Library/Weapons and vehicles")]
         public static BTreeBuilder<byte, BTreeContext> BuildTree()
             => new BTreeBuilder<byte, BTreeContext>()
                 .Action(Ride);

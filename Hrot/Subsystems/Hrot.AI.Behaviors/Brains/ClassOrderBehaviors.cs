@@ -39,7 +39,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
         }
 
-        [Behavior(BehaviorNames.PersonMove, Params = typeof(MoveOrder), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian)]
+        [Behavior(BehaviorNames.PersonMove, Params = typeof(MoveOrder), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian, Description = "Moves to a location.")]
         [BTreeDefinition(BehaviorNames.PersonMove, Curated = true, Group = "Library/Orders", ParamsType = typeof(CgfNodes.MoveToLocationParams))]
         public static BTreeBuilder<CgfNodes.MoveToBlackboard, BTreeContext> BuildPersonMove()
             => new BTreeBuilder<CgfNodes.MoveToBlackboard, BTreeContext>().Action(bb => bb.Params, CgfNodes.Action_WriteMoveToChannel);
@@ -62,7 +62,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void ResolvePlatform(in AttackOrder order, ref CombatPostureBehavior.CombatPostureBlackboard block, EntityRepository world, Entity self)
             => CombatPostureBehavior.Resolve(new CombatPostureParamsJsonDto { Target = order.Target, Assault = true }, ref block, world, self);
 
-        [Behavior(BehaviorNames.PersonAttack, Params = typeof(AttackOrder), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
+        [Behavior(BehaviorNames.PersonAttack, Params = typeof(AttackOrder), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Attacks a target or a location.")]
         [BTreeDefinition(BehaviorNames.PersonAttack, Curated = true, Group = "Library/Orders", ParamsType = typeof(CombatPostureBehavior.CombatPostureBlackboard))]
         public static BTreeBuilder<CombatPostureBehavior.CombatPostureBlackboard, BTreeContext> BuildPersonAttack()
             => CombatPostureBehavior.BuildCombatPostureTree();
@@ -89,7 +89,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void ResolvePerson(in HoldOrder order, ref PersonHoldBlackboard block, EntityRepository world, Entity self)
             => block = default;
 
-        [Behavior(BehaviorNames.PersonHold, Params = typeof(HoldOrder), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
+        [Behavior(BehaviorNames.PersonHold, Params = typeof(HoldOrder), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian, Description = "Holds the current position.")]
         [HsmDefinition(BehaviorNames.PersonHold, Curated = true, Group = "Library/Orders", ParamsType = typeof(PersonHoldBlackboard))]
         public static StateMachineGraph BuildPersonHold()
         {

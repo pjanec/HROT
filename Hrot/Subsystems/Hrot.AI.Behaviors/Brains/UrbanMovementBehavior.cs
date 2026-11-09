@@ -100,7 +100,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.UrbanMovement, Params = typeof(UrbanMovementParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [HsmDefinition(BehaviorNames.UrbanMovement, Curated = true, Group = "Library/Platoon", ParamsType = typeof(UrbanMovementBlackboard))]
+        [HsmDefinition(BehaviorNames.UrbanMovement, Curated = true, Group = "Library/Movement", ParamsType = typeof(UrbanMovementBlackboard))]
         public static StateMachineGraph BuildUrbanMovement()
         {
             var builder = new HsmBuilder("UrbanMovement_HSM");

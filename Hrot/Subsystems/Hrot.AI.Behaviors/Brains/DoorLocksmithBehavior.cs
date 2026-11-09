@@ -38,9 +38,9 @@ namespace Hrot.AI.Behaviors.Brains
                 Speed = authored.Speed > 0f ? authored.Speed : DoorNodes.DefaultSpeed,
             };
         }
-[Behavior(BehaviorNames.DoorLocksmith, Params = typeof(global::Hrot.Map.Definitions.Behavior.DoorLocksmithParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]   // ⭐ CE-2134
+[Behavior(BehaviorNames.DoorLocksmith, Params = typeof(global::Hrot.Map.Definitions.Behavior.DoorLocksmithParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian, Description = "Opens a locked door with the tools it has.")]   // ⭐ CE-2134
 
-        [BTreeDefinition(BehaviorNames.DoorLocksmith, Curated = true, Group = "Library/Basic", ParamsType = typeof(DoorLocksmithBlackboard))]
+        [BTreeDefinition(BehaviorNames.DoorLocksmith, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(DoorLocksmithBlackboard))]
         public static BTreeBuilder<DoorLocksmithBlackboard, BTreeContext> BuildDoorLocksmithTree()
         {
             return new BTreeBuilder<DoorLocksmithBlackboard, BTreeContext>()

@@ -31,8 +31,14 @@ public sealed class OrdersTab : IDetailsViewInstance
     /// <param name="host">⭐ P-8 8b — the host's actions: the picker's <i>New rule…</i> asks <c>AddRuleAboutUnit</c> (the Rules gallery with this unit
     /// filled in, bound by the RulesBundle on every host); null ⇒ the entry is greyed.</param>
     public OrdersTab(Func<IMissionEditorService?> missions, Func<EntityRepository?> world,
-                     Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Func<string, Type?>? paramsTypeOf = null, Func<Hrot.Common.Interactions.HostActions?>? host = null)
-    { _missions = missions; _world = world; _pick = pick; _paramsTypeOf = paramsTypeOf; _host = host; }
+                     Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Func<string, Type?>? paramsTypeOf = null, Func<Hrot.Common.Interactions.HostActions?>? host = null,
+                     Func<NodeEditor.UI.Picker.PickerRegistry?>? pickers = null)
+    { _missions = missions; _world = world; _pick = pick; _paramsTypeOf = paramsTypeOf; _host = host; _pickers = pickers; }
+
+    // ⭐ CE-4359 — the host's picker registry: with one, <i>+ Add task</i> opens the TASK PICKER (the ONE PickerWindow); without (a rail, a lightweight host) the plain popup below stays.
+    private readonly Func<NodeEditor.UI.Picker.PickerRegistry?>? _pickers;
+    private volatile Hrot.Presentation.Orders.TaskPick? _picked;   // the picker answers by callback, later: taken on the next frame
+    private (Entity Entity, EntityRepository World)? _pickFor;
 
     private readonly Func<Hrot.Common.Interactions.HostActions?>? _host;
 
@@ -156,6 +162,8 @@ public sealed class OrdersTab : IDetailsViewInstance
         int net = w.GetComponentRO<NetworkIdentity>(entity).Value;
         PollCommit();
         var draft = EnsureDraft(net);
+        _pickFor = (entity, w);
+        if (_picked is { } picked) { _picked = null; AddPicked(draft, picked); }
         MissionPlanQueue? queue = w.IsComponentTypeRegistered<MissionPlanQueue>() && w.HasComponent<MissionPlanQueue>(entity) ? w.GetComponentRO<MissionPlanQueue>(entity) : null;
         // ⭐ CE-3403 — the rows (every task\'s sentence parses its conditions) and the list\'s summaries are rebuilt ONLY when the plan or the queue changed: a steady frame builds nothing (R-2084)
         var queueNow = _dirty ? null : queue;
@@ -247,6 +255,30 @@ public sealed class OrdersTab : IDetailsViewInstance
         else if (_status is { } st) ImGui.TextDisabled(st);
     }
 
+    /// <summary>⭐ CE-4359 — opens the task picker for the unit being edited; false when the host has no picker registry (the plain popup opens instead).</summary>
+    private bool OpenTaskPicker()
+    {
+        if (_pickers?.Invoke() is not { } registry || _pickFor is not { } at || _missions() is not { } svc) return false;
+        if (!at.World.HasComponent<NetworkIdentity>(at.Entity)) return false;
+        int net = at.World.GetComponentRO<NetworkIdentity>(at.Entity).Value;
+        string title = at.World.IsComponentTypeRegistered<EntityInfo>() && at.World.HasComponent<EntityInfo>(at.Entity) ? at.World.GetComponentRO<EntityInfo>(at.Entity).Name.ToString() : "unit " + net;
+        registry.OpenPicker(Hrot.Presentation.Orders.TaskPicker.Request(title, at.World.GetDisType(at.Entity), svc.GetAvailableBehaviorChoices(net), Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default),
+            result => { if (Hrot.Presentation.Orders.TaskPicker.PickOf(result) is { } pick) _picked = pick; });
+        return true;
+    }
+
+    /// <summary>⭐ CE-4359 — the picked task joins the draft through the SAME edits the plain popup uses.</summary>
+    internal void AddPicked(MissionPlan draft, Hrot.Presentation.Orders.TaskPick pick)
+    {
+        switch (pick.Kind)
+        {
+            case Hrot.Presentation.Orders.TaskPickKind.Wait: draft.Tasks.Add(OrdersPlanEdits.NewWait()); break;
+            case Hrot.Presentation.Orders.TaskPickKind.Order: draft.Tasks.Add(OrdersPlanEdits.NewOrder(pick.Name)); break;
+            default: draft.Tasks.Add(OrdersPlanEdits.NewBehaviour(pick.Name)); break;
+        }
+        _dirty = true;
+    }
+
     private readonly List<string> _addMenu = new();
     /// <summary>⭐ CE-4350 — the entries "+ Add task" listed the last time its popup was drawn: <c>Wait</c>, <c>Order.&lt;Name&gt;</c> per fitting order, then each fitting behaviour.</summary>
     public IReadOnlyList<string> LastAddMenu => _addMenu;
@@ -285,7 +317,7 @@ public sealed class OrdersTab : IDetailsViewInstance
     {
         switch (op.Kind)
         {
-            case ListOpKind.Add: ImGui.OpenPopup("orders_add"); break;
+            case ListOpKind.Add: if (!OpenTaskPicker()) ImGui.OpenPopup("orders_add"); break;
             case ListOpKind.Delete when op.Index >= 0 && op.Index < draft.Tasks.Count: draft.Tasks.RemoveAt(op.Index); _dirty = true; break;
             case ListOpKind.MoveUp: OrdersPlanEdits.Move(draft, op.Index, -1); _dirty = true; break;
             case ListOpKind.MoveDown: OrdersPlanEdits.Move(draft, op.Index, +1); _dirty = true; break;
@@ -505,11 +537,12 @@ public static class OrdersTabDescriptor
 
     public static DetailsViewDescriptor For(Func<IMissionEditorService?> missions, Func<EntityRepository?> world,
                                             Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null, Func<string, Type?>? paramsTypeOf = null,
-                                            Func<Hrot.Common.Interactions.HostActions?>? host = null)
+                                            Func<Hrot.Common.Interactions.HostActions?>? host = null,
+                                            Func<NodeEditor.UI.Picker.PickerRegistry?>? pickers = null)
     {
         ArgumentNullException.ThrowIfNull(missions);
         ArgumentNullException.ThrowIfNull(world);
-        var instance = new OrdersTab(missions, world, pick, paramsTypeOf, host);
+        var instance = new OrdersTab(missions, world, pick, paramsTypeOf, host, pickers);
         return new DetailsViewDescriptor(
             Id:        Id,
             Title:     "Orders",

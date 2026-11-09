@@ -328,7 +328,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.SquadDangerCrossing, Params = typeof(SquadDangerCrossingParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.SquadDangerCrossing, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadDangerCrossingBlackboard))]
+        [BTreeDefinition(BehaviorNames.SquadDangerCrossing, Curated = true, Group = "Library/Movement", ParamsType = typeof(SquadDangerCrossingBlackboard))]
         public static BTreeBuilder<SquadDangerCrossingBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadDangerCrossingBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);

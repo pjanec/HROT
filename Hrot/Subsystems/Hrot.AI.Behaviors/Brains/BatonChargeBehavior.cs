@@ -67,8 +67,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.BatonCharge, Params = typeof(BatonChargeParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]
-        [BTreeDefinition(BehaviorNames.BatonCharge, Curated = true, Group = "Library/Orders", ParamsType = typeof(BatonChargeBlackboard))]
+        [Behavior(BehaviorNames.BatonCharge, Params = typeof(BatonChargeParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Charges a crowd with batons.")]
+        [BTreeDefinition(BehaviorNames.BatonCharge, Curated = true, Group = "Library/Crowd and surrender", ParamsType = typeof(BatonChargeBlackboard))]
         public static BTreeBuilder<BatonChargeBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<BatonChargeBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Params, bb => bb.State, Charge);

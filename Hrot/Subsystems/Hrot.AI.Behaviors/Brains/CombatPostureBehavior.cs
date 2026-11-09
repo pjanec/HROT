@@ -161,8 +161,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// 2a (R-2055): the winner and the attack's target each sit in a Sequence with <see cref="PostureNodes.Stay"/> after them — a
         /// staying posture's finished branch reads Running there, and under the Parallel the Sequence starts again from the branch
         /// every tick, so the decision still switches; a failed branch ends the posture as before.</summary>
-        [Behavior(BehaviorNames.CombatPosture, Params = typeof(global::Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]   // ⭐ CE-2134
-        [BTreeDefinition(BehaviorNames.CombatPosture, Curated = true, Group = "Library/Infantry", ParamsType = typeof(CombatPostureBlackboard))]
+        [Behavior(BehaviorNames.CombatPosture, Params = typeof(global::Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Sets how the unit stands in a fight: stance and readiness.")]   // ⭐ CE-2134
+        [BTreeDefinition(BehaviorNames.CombatPosture, Curated = true, Group = "Library/Combat", ParamsType = typeof(CombatPostureBlackboard))]
         public static BTreeBuilder<CombatPostureBlackboard, BTreeContext> BuildCombatPostureTree()
         {
             return new BTreeBuilder<CombatPostureBlackboard, BTreeContext>()

@@ -63,7 +63,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.ClearRoom, Params = typeof(global::Hrot.Map.Definitions.Behavior.ClearRoomParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.ClearRoom, Curated = true, Group = "Library/Squad", ParamsType = typeof(ClearRoomBlackboard))]
+        [BTreeDefinition(BehaviorNames.ClearRoom, Curated = true, Group = "Library/Combat", ParamsType = typeof(ClearRoomBlackboard))]
         public static BTreeBuilder<ClearRoomBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<ClearRoomBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);

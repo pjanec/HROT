@@ -32,8 +32,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.Breach = new OperateDoorParams { Door = authored.Door, Verb = DoorVerb.Breach };
         }
 
-        [Behavior(BehaviorNames.BreachDoor, Params = typeof(global::Hrot.Map.Definitions.Behavior.BreachDoorParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]
-        [BTreeDefinition(BehaviorNames.BreachDoor, Curated = true, Group = "Library/Basic", ParamsType = typeof(BreachDoorBlackboard))]
+        [Behavior(BehaviorNames.BreachDoor, Params = typeof(global::Hrot.Map.Definitions.Behavior.BreachDoorParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Breaches a door.")]
+        [BTreeDefinition(BehaviorNames.BreachDoor, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(BreachDoorBlackboard))]
         public static BTreeBuilder<BreachDoorBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<BreachDoorBlackboard, BTreeContext>()
                 .Sequence(seq => seq

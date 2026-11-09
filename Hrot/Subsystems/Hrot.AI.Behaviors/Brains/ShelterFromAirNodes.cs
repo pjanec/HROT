@@ -228,7 +228,7 @@ namespace Hrot.AI.Behaviors.Brains
             => block = default;
 
         [Behavior(BehaviorNames.ShelterFromAir, Params = typeof(NoParams), Categories = BehaviorCategory.MilitaryApc)]   // it takes nothing (P1): the defaults
-        [BTreeDefinition(BehaviorNames.ShelterFromAir, Curated = true, Group = "Library/Vehicle", ParamsType = typeof(ShelterFromAirBlackboard))]
+        [BTreeDefinition(BehaviorNames.ShelterFromAir, Curated = true, Group = "Library/Reactions", ParamsType = typeof(ShelterFromAirBlackboard))]
         public static BTreeBuilder<ShelterFromAirBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<ShelterFromAirBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Shelter, bb => bb.ShelterState, ShelterFromAirNodes.ShelterFromAir);

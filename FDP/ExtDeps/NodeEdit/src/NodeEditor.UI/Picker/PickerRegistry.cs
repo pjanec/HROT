@@ -78,6 +78,19 @@ public sealed class PickerRegistry : IPickerRegistry
     /// callback and the entry's Recent list). False when none is open or the entry is not listed.</summary>
     public bool ConfirmEntry(string id, string? actionId = null) => _window.ConfirmEntry(id, actionId);
 
+    /// <summary>⭐ CE-4359 (rails) — the open Tree picker's rows as last drawn: folders and leaves in order with their depth.</summary>
+    public IReadOnlyList<PickerTreeRow> TreeRows() => _window.TreeRows();
+
+    /// <summary>⭐ CE-4359 (rails) — selects an entry of the open picker as a click on it would.</summary>
+    public bool SelectEntry(string id) => _window.SelectEntry(id);
+
+    /// <summary>⭐ CE-4359 (rails) — opens a Tree folder of the open picker.</summary>
+    public void ExpandFolder(string path) => _window.ExpandFolder(path);
+
+    /// <summary>⭐ CE-4359 (rails) — the open picker's hide tick (<see cref="PickerHideToggle"/>) and its listed entry count.</summary>
+    public bool ShowHidden { get => _window.ShowHidden; set => _window.ShowHidden = value; }
+    public int ListedCount => _window.ListedCount;
+
     // ── IPickerRegistry ───────────────────────────────────────────────────────
 
     /// <inheritdoc/>

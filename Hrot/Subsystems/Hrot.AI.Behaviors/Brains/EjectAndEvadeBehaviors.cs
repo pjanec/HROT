@@ -143,7 +143,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in NoParams authored, ref EjectBlackboard block, EntityRepository world, Entity self) => block.Eject = default;
 
         [Behavior(BehaviorNames.Eject, Params = typeof(NoParams), Categories = BehaviorCategory.MilitaryApc, Classes = new[] { "AirPlatform" })]   // the aircraft behaviours' category (AirPlatformStrike)
-        [BTreeDefinition(BehaviorNames.Eject, Curated = true, Group = "Library/Air", ParamsType = typeof(EjectBlackboard))]
+        [BTreeDefinition(BehaviorNames.Eject, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(EjectBlackboard))]
         public static BTreeBuilder<EjectBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<EjectBlackboard, BTreeContext>()
                 .Action(bb => bb.Eject, AirborneIndividualNodes.Eject);
@@ -181,8 +181,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.HoldState = default;
         }
 
-        [Behavior(BehaviorNames.EvadeAndSignal, Params = typeof(EvadeAndSignalParamsJsonDto), Categories = BehaviorCategory.Infantry)]
-        [BTreeDefinition(BehaviorNames.EvadeAndSignal, Curated = true, Group = "Library/Basic", ParamsType = typeof(EvadeAndSignalBlackboard))]
+        [Behavior(BehaviorNames.EvadeAndSignal, Params = typeof(EvadeAndSignalParamsJsonDto), Categories = BehaviorCategory.Infantry, Description = "Evades the threat and signals for help.")]
+        [BTreeDefinition(BehaviorNames.EvadeAndSignal, Curated = true, Group = "Library/Reactions", ParamsType = typeof(EvadeAndSignalBlackboard))]
         public static BTreeBuilder<EvadeAndSignalBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<EvadeAndSignalBlackboard, BTreeContext>()
                 .Sequence(seq => seq

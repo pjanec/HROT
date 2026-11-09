@@ -3374,7 +3374,8 @@ namespace Hrot.Editor
                 Pick:           () => FormsPick,   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
                 ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry),   // ⭐ P-7 7b — a task's fields
-                RowTrailer:     () => _watchKit?.Eye));   // ⭐ §6.13 — the replica watch's eye on the Details forms (the merged view only)
+                RowTrailer:     () => _watchKit?.Eye,
+                Pickers:        () => _shellPickers));   // ⭐ CE-4359 — + Add task opens the task picker in the shell's registry   // ⭐ §6.13 — the replica watch's eye on the Details forms (the merged view only)
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
             ScenarioDetails    = _scenarioDetailsBundle.Window;
 

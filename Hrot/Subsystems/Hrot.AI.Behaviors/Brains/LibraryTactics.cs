@@ -36,8 +36,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe void Resolve(string json, byte* memory, int capacity, EntityRepository world, Entity self)
             => BehaviorParams.OverlayFlatAt<EqsTacticsParams>(json, memory, capacity);
 
-        [Behavior(BehaviorNames.TakeCover, Params = typeof(EqsTacticsParams))]
-        [BTreeDefinition(BehaviorNames.TakeCover, AssetId = "a2092000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Tactics",
+        [Behavior(BehaviorNames.TakeCover, Params = typeof(EqsTacticsParams), Description = "Moves to the nearest cover and stays in it.")]
+        [BTreeDefinition(BehaviorNames.TakeCover, AssetId = "a2092000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Combat",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
@@ -67,8 +67,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe void Resolve(string json, byte* memory, int capacity, EntityRepository world, Entity self)
             => BehaviorParams.OverlayFlatAt<EqsTacticsParams>(json, memory, capacity);
 
-        [Behavior(BehaviorNames.FallBack, Params = typeof(EqsTacticsParams))]
-        [BTreeDefinition(BehaviorNames.FallBack, AssetId = "a2093000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Tactics",
+        [Behavior(BehaviorNames.FallBack, Params = typeof(EqsTacticsParams), Description = "Withdraws from the threat to a rearward position.")]
+        [BTreeDefinition(BehaviorNames.FallBack, AssetId = "a2093000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Movement",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
@@ -106,8 +106,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe void Resolve(string json, byte* memory, int capacity, EntityRepository world, Entity self)
             => BehaviorParams.RequireNoStoredFields(json, BehaviorNames.Flank, typeof(NoParams).FullName!);
 
-        [Behavior(BehaviorNames.Flank, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.Flank, AssetId = "a2108000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Tactics",
+        [Behavior(BehaviorNames.Flank, Params = typeof(NoParams), Description = "Maneuvers round a target to attack it from the side.")]
+        [BTreeDefinition(BehaviorNames.Flank, AssetId = "a2108000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Combat",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
@@ -151,8 +151,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe void Resolve(string json, byte* memory, int capacity, EntityRepository world, Entity self)
             => BehaviorParams.RequireNoStoredFields(json, BehaviorNames.FiringPosition, typeof(NoParams).FullName!);
 
-        [Behavior(BehaviorNames.FiringPosition, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.FiringPosition, AssetId = "a2108000-0000-0000-0000-000000000002", Curated = true, Group = "Library/Tactics",
+        [Behavior(BehaviorNames.FiringPosition, Params = typeof(NoParams), Description = "Takes up a firing position with a field of fire.")]
+        [BTreeDefinition(BehaviorNames.FiringPosition, AssetId = "a2108000-0000-0000-0000-000000000002", Curated = true, Group = "Library/Combat",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
@@ -184,8 +184,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe void Resolve(string json, byte* memory, int capacity, EntityRepository world, Entity self)
             => BehaviorParams.OverlayFlatAt<ThreatCountParams>(json, memory, capacity);
 
-        [Behavior(BehaviorNames.Sentry, Params = typeof(ThreatCountParams))]
-        [BTreeDefinition(BehaviorNames.Sentry, AssetId = "a3079000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Tactics",
+        [Behavior(BehaviorNames.Sentry, Params = typeof(ThreatCountParams), Description = "Watches an area and engages what enters it.")]
+        [BTreeDefinition(BehaviorNames.Sentry, AssetId = "a3079000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Combat",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()

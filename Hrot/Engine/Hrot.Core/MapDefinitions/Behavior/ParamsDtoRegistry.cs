@@ -14,6 +14,8 @@ namespace Hrot.Map.Definitions.Behavior
         public IReadOnlyList<string> Classes { get; init; } = Array.Empty<string>();
         /// <summary>⭐ <c>CE-4350</c> — the declared required components (<see cref="BehaviorAttribute.Requires"/>); empty when none.</summary>
         public IReadOnlyList<Type> Requires { get; init; } = Array.Empty<Type>();
+        /// <summary>⭐ <c>CE-4359</c> — the one-sentence description the task picker shows (<see cref="BehaviorAttribute.Description"/>); null when none.</summary>
+        public string? Description { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3185</c> (F9) — what an authored data struct is FOR; one DTO may serve several.</summary>
@@ -213,6 +215,7 @@ namespace Hrot.Map.Definitions.Behavior
                 {
                     Classes = a.Classes ?? Array.Empty<string>(),
                     Requires = a.Requires ?? Array.Empty<Type>(),
+                    Description = a.Description,
                 };
             }
 
