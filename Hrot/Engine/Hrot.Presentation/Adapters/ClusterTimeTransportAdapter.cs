@@ -419,6 +419,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         _bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), FeatureOverrides = keep.ToArray() });
     }
 
+    void IRunTransport.AskStorage(ExecuteStorageOpIntent ask) => AskStorage(ask);   // ⭐ CE-4330 ③ — the same bus send as every storage ask
     void IRunTransport.DiscardRecording(Guid exerciseId) => _bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Delete, ExerciseId = (Fdp.Core.ExerciseId)exerciseId });   // ⭐ CE-4100 — the ONE construction of the discard request
 
     void IRunTransport.BranchLive() => _bus.PublishManaged(ReplaySessionIntents.BranchLive());   // the ONE construction of the branch intent

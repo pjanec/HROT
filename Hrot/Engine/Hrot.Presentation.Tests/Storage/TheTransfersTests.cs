@@ -159,6 +159,151 @@ public sealed class TheTransfersTests
         Assert.Equal("only an archive that stopped part-way resumes", t2.ResumeRefusal(done));
     }
 
+    /// <summary>
+    /// ⭐ CE-4330 ⑦ (§8 ⑦, R-4174; mockup ⑦) — <i>Delete from archive…</i> is a row action of a run the NAS holds: it asks <i>Delete from the archive</i> through the host's
+    /// ONE confirmation slot, and only its button sends <c>StorageIntents.DeleteFromArchive</c> (FromArchive, named by this station). Greyed with the reason on another
+    /// seat and while a transfer of the run is queued or running; not offered on a run never archived.
+    /// 🔴 Mutations: the button sending a plain Discard (FromArchive false) ⇒ red; the active-job refusal dropped ⇒ red; offered on an unarchived run ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_DeleteFromArchive_AsksFirst_ThenSendsTheOneDelete_OnTheRightSeats()
+    {
+        ExerciseInventoryItem Item(Guid ex, ArchiveNasState nas) => new((ExerciseId)ex, new DateTime(2026, 11, 8, 18, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(12), "Ambush",
+                                                                       NasState: nas, NasFiles: 3, NasFilesTotal: 3);
+        var rig = With(ClusterState.Idle);
+        (string Title, string Text, Hrot.UI.Common.RunMode.RunModeConfirmation.Button Button)? asked = null;
+        var seat = Seat.Instructor;
+        var transfers = new StorageTransfers(rig.F, () => seat, () => Me, id => { }, confirm: (t, x, b) => asked = (t, x, b));
+
+        Assert.Null(transfers.ActionsFor(Item(Ex3, ArchiveNasState.None)));                 // never archived: nothing to delete from the NAS
+        var action = Assert.Single(transfers.ActionsFor(Item(Ex2, ArchiveNasState.Complete))!);
+        Assert.Equal(("storage/delete", "Delete from archive…", (string?)null), (action.IconKey, action.Label, action.DisabledReason));
+        action.Run();
+        Assert.Empty(Sent<ExecuteStorageOpIntent>(rig.Bus));                                // asking deletes nothing
+        Assert.Equal("Delete from the archive", asked!.Value.Title);
+        Assert.Equal("Delete Ambush · exercise #2c2c2c2c from the NAS?\n3 files. The cached copies on this cluster go too.\nThis cannot be undone — nothing else holds this recording.", asked.Value.Text);
+        Assert.Equal("Delete from archive", asked.Value.Button.Label);
+        asked.Value.Button.Action!();
+        var del = Sent<ExecuteStorageOpIntent>(rig.Bus).Single();
+        Assert.Equal((StorageOpType.Delete, (Guid)Ex2, Me, true), (del.Operation, (Guid)del.ExerciseId, del.AskedBy, del.FromArchive));
+
+        Hear(rig, Job(Ex2, StorageJobKind.Import, StorageJobState.Running));
+        Assert.Equal("a transfer of this run is queued or running", transfers.ActionsFor(Item(Ex2, ArchiveNasState.Complete))![0].DisabledReason);
+        Assert.False(transfers.AskDeleteFromArchive(Item(Ex2, ArchiveNasState.Complete)));
+        seat = Seat.Observer;
+        Assert.Equal("needs the Author or Instructor seat", transfers.ActionsFor(Item(Ex3, ArchiveNasState.Incomplete))![0].DisabledReason);
+        Assert.Null(new StorageTransfers(rig.F, () => Seat.Author, () => Me).ActionsFor(Item(Ex3, ArchiveNasState.Complete)));   // a host that asks no confirmation offers none
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4330 ④ (§5, §5a; mockup ④) — opening a run the NAS holds ASKS the import (named by this station) and waits on it; once the master lists it Done the run
+    /// opens BY ITSELF and the dialog closes. An import already running is JOINED (no second ask). An import that had finished before the wait began never opens the
+    /// run. <i>Continue in background</i> stops waiting (no cancel); <i>Cancel</i> cancels the job — the Author / Instructor seats only.
+    /// 🔴 Mutations: the stale-job guard dropped ⇒ the old Done import opens at once ⇒ red; UpdateImport not opening ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_OpeningAnArchivedRun_ImportsFirst_ThenOpensByItself()
+    {
+        ExerciseInventoryItem Item(Guid ex) => new((ExerciseId)ex, new DateTime(2026, 11, 8, 18, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(22), "Recon", NasState: ArchiveNasState.Complete);
+        var rig = With(ClusterState.Idle);
+        var opened = new List<Guid>();
+        var seat = Seat.Instructor;
+        var transfers = new StorageTransfers(rig.F, () => seat, () => Me, opened.Add);
+
+        Hear(rig, Job(Ex5, StorageJobKind.Import, StorageJobState.Done, 2, 2));               // an import of it that ended long ago
+        Assert.True(transfers.OpenOrImport(Item(Ex5)));
+        var ask = Sent<ExecuteStorageOpIntent>(rig.Bus).Single();
+        Assert.Equal((StorageOpType.Import, (Guid)Ex5, Me), (ask.Operation, (Guid)ask.ExerciseId, ask.AskedBy));
+        Assert.Equal("Importing Recon · exercise #5b5b5b5b from the NAS", transfers.ImportTitle);
+        transfers.UpdateImport();
+        Assert.Empty(opened);                                                                   // ⛔ the old Done import is not this wait's
+        Assert.Null(transfers.ImportJob);
+
+        var mine = Job(Ex5, StorageJobKind.Import, StorageJobState.Running, 1, 2, 1, 2);
+        Hear(rig, mine);
+        transfers.UpdateImport();
+        Assert.Equal(mine.JobId, transfers.ImportJob!.JobId);
+        Assert.Empty(opened);
+        Hear(rig, mine with { State = StorageJobState.Done, FilesDone = 2 });
+        transfers.UpdateImport();
+        Assert.Equal(new[] { (Guid)Ex5 }, opened);                                              // in: the run opens by itself
+        Assert.Null(transfers.Importing);
+
+        // joined: an import another station started — no second ask, the same job
+        var theirs = Job(Ex3, StorageJobKind.Import, StorageJobState.Running, 1, 4, by: "Debrief-1");
+        Hear(rig, theirs);
+        Assert.True(transfers.OpenOrImport(Item(Ex3)));
+        Assert.Empty(Sent<ExecuteStorageOpIntent>(rig.Bus));
+        Assert.Equal(theirs.JobId, transfers.ImportJob!.JobId);
+
+        transfers.ContinueInBackground();                                                       // the dialog goes, the job does not
+        Assert.Null(transfers.Importing);
+        Assert.Empty(Sent<CancelOperationIntent>(rig.Bus));
+
+        seat = Seat.Observer;
+        transfers.OpenOrImport(Item(Ex3));
+        Assert.Equal("needs the Author or Instructor seat", transfers.CancelImportRefusal);
+        Assert.False(transfers.CancelImport());
+        seat = Seat.Author;
+        Assert.True(transfers.CancelImport());
+        Assert.Equal(theirs.JobId, Sent<CancelOperationIntent>(rig.Bus).Single().TargetRequestId);
+        Assert.Null(transfers.Importing);
+
+        Assert.False(new StorageTransfers(rig.F, () => seat, () => Me).OpenOrImport(Item(Ex3)));   // a host that opens no recording imports nothing
+    }
+
+    /// <summary>⭐ CE-4331 ③ (§9a) — an import placed on a DIFFERENT cluster ends Done with the master's note: the run does NOT open by itself; the dialog asks
+    /// Start / Cancel with the note — Start opens it, Cancel leaves it imported. An import with no note opens at once (the rail above).
+    /// 🔴 Mutation: UpdateImport ignoring the Reason ⇒ the run opens before the question ⇒ red.</summary>
+    [Fact]
+    public void CE4331_AnImportPlacedOnAnotherCluster_AsksStartOrCancel_WithTheMastersNote()
+    {
+        var rig = With(ClusterState.Idle);
+        var opened = new List<Guid>();
+        var transfers = new StorageTransfers(rig.F, () => Seat.Instructor, () => Me, opened.Add);
+        var item = new ExerciseInventoryItem((ExerciseId)Ex5, DateTime.UtcNow, TimeSpan.FromMinutes(22), "Recon", NasState: ArchiveNasState.Complete);
+        const string note = "not played: cgf-b (CGF) — no node of its kind here: its units replay as the other nodes saw them; their brains are not inspectable";
+
+        transfers.OpenOrImport(item);
+        Hear(rig, Job(Ex5, StorageJobKind.Import, StorageJobState.Done, 2, 2, reason: note));
+        transfers.UpdateImport();
+        Assert.Empty(opened);                                                                   // ⛔ not by itself
+        Assert.Equal(note, transfers.PlacementNote);
+        Assert.True(transfers.StartAfterPlacement());
+        Assert.Equal(new[] { (Guid)Ex5 }, opened);
+        Assert.Null(transfers.Importing);
+
+        transfers.OpenOrImport(item);                                                           // the same done job is now stale: a new ask, and Cancel
+        Hear(rig, Job(Ex5, StorageJobKind.Import, StorageJobState.Done, 2, 2, reason: note));
+        transfers.UpdateImport();
+        transfers.ContinueInBackground();
+        Assert.Single(opened);
+        Assert.False(transfers.StartAfterPlacement());
+    }
+
+    /// <summary>⭐ CE-4330 ④ (mockup ④) — the REAL section draws the import dialog while this station waits on an import, and nothing once it went to the background.
+    /// Renders <c>ce4330-import-dialog.png</c> under <c>HROT_RAIL_SHOTS</c> (no PNG in git).</summary>
+    [SkippableFact]
+    public void CE4330_TheImportDialog_IsDrawnWhileWaiting()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (rig, status, transfers, _) = Rig_();
+        using var frame = UiFrameHarness.Begin(900, 360);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        var bar = new StatusBarManager();
+        var section = StorageStatusBarSection.Register(bar, status, transfers);
+        Hear(rig, Job(Ex5, StorageJobKind.Import, StorageJobState.Running, 2, 4, 644_245_094, 1_503_238_553, by: "Debrief-1"));
+        transfers.OpenOrImport(new ExerciseInventoryItem((ExerciseId)Ex5, DateTime.UtcNow, TimeSpan.FromMinutes(22), "Recon", NasState: ArchiveNasState.Complete));
+        frame.StepN(4, () => bar.Render(""));
+        Assert.True(section.ImportDialogDrawn);
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-frames");
+        System.IO.Directory.CreateDirectory(dir);
+        frame.Screenshot(System.IO.Path.Combine(dir, "ce4330-import-dialog.png"));
+        transfers.ContinueInBackground();
+        frame.StepN(3, () => bar.Render(""));
+        Assert.False(section.ImportDialogDrawn);
+    }
+
     /// <summary>🔴 Mutation: <c>StorageAskRefusal</c> reading nothing ⇒ the refusal never shows ⇒ red.</summary>
     [Fact]
     public void U11_TheMastersRefusal_OfAnAsk_IsShownAsTheReason()

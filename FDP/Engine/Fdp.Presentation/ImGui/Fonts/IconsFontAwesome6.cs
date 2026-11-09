@@ -48,6 +48,8 @@ public static class IconsFontAwesome6
     public const string Flag                = "\uf024"; // a named mark (the timeline's session checkpoints)
     public const string NoteSticky          = "\uf249"; // CE-4325 — a note at a bare time (the Marks window)
     public const string Upload              = "\uf093"; // CE-4330 — an archive (to the NAS)
+    public const string HardDrive           = "\uf0a0"; // CE-4330 — a recording on the nodes / cached here
+    public const string Server              = "\uf233"; // CE-4330 — the NAS
     public const string Download            = "\uf019"; // CE-4330 — an import (from the NAS)
     public const string Play                = "\uf04b";
     public const string CircleHalfStroke    = "\uf042"; // preview (dry run)

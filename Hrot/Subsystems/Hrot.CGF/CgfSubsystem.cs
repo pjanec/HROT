@@ -2506,7 +2506,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                                          ?? System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
                     // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
                     openRecording: id => _scenarioSession.OpenRecording(id),
-                    hasInventory:  () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true).Open,   // ⭐ CE-1442
+                    hasInventory:  () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
+                    // ⭐ CE-4330 ⑤ — where each run is: the master's jobs (fact ①) and this node's own recordings (fact ③)
+                    storageJobs:   () => _clusterTimeAdapter?.StorageJobs ?? System.Array.Empty<Fdp.Toolkit.Orchestration.StorageJob>(),
+                    localRecordings: () => _context?.ClusterSlave.LocalRecordings.Current(),
+                    actions: x => _clusterTimeAdapter?.RunChoice?.Transfers?.ActionsFor(x),
+                    import:  x => _clusterTimeAdapter?.RunChoice?.Transfers?.OpenOrImport(x) ?? false).Open,
                 // ⭐ CE-1443 — Save Checkpoint is the run choice's (the session's checkpoint + the toast, and ITS reason when it cannot); the host HAS the choice, so it passes it
                 takeCheckpoint:      () => _clusterTimeAdapter?.RunChoice?.TakeCheckpoint(),
                 checkpointDisabledReason: () => _clusterTimeAdapter?.RunChoice?.CheckpointDisabledReason,

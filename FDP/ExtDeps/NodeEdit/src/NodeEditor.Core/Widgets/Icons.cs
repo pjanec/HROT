@@ -42,6 +42,11 @@ public static class Icons
             case "storage/resume": icon = new("\uf021", IconPalette.Amber); return true;   // ArrowsRotate
             case "storage/delete": icon = new("\uf1f8", IconPalette.Red); return true;   // Trash
             case "storage/cancel": icon = new("\uf00d", IconPalette.Red); return true;   // Xmark
+            // ⭐ CE-4330 (Recording Storage §8 ⑤) — where a recording is: the only copy on the nodes (amber — never removed by itself), the NAS, a disposable copy here
+            case "storage/onnodes": icon = new("\uf0a0", IconPalette.Amber); return true;   // HardDrive
+            case "storage/nas": icon = new("\uf233", IconPalette.Grey); return true;   // Server
+            case "storage/cached": icon = new("\uf0a0", IconPalette.Green); return true;   // HardDrive
+            case "storage/keep": icon = new("\uf0a0", IconPalette.Grey); return true;   // HardDrive — ⭐ CE-4330 ③: the close question's "Keep on the nodes"
             case "details/layout-stacked": icon = new("\uf5fd", IconPalette.Violet); return true;   // LayerGroup
             case "details/layout-tabs": icon = new("\uf0db", IconPalette.Blue); return true;   // TableColumns
             case "details/float": icon = new("\uf35d", IconPalette.Blue); return true;   // UpRightFromSquare

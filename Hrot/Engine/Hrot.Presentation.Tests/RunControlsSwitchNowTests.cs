@@ -188,32 +188,80 @@ public sealed class RunControlsSwitchNowTests
         Assert.Null(edit.Choice.PlayDisabledReason);
     }
 
-    /// <summary>⏏ asks <i>Close the live session?</i> (the exercise is kept, every station returns to Start); Cancel keeps the session; Close = the door's Leave (<c>Leave:Close</c>) to Idle — never <c>OpenForEdit</c> —
-    /// then the toast and (when the cluster asks to keep recordings) <i>Keep this recording?</i> — moved here from ■.
-    /// 🔴 Mutations: Close calling <c>StopLive()</c> ⇒ <c>OpenForEdit</c>, no Leave; the keep question dropped from <c>AfterLiveEnded</c> ⇒ no Pending after Close.</summary>
+    /// <summary>⭐⭐ CE-4330 ③ (docs/DESIGN_Recording_Storage.md §3 P1, Q1; mockup ③) — ⏏ in a RECORDED run asks <i>Close the live session</i> with what becomes of its
+    /// recording: Archive to NAS (preselected) · Keep on the nodes · Discard, then <i>Close session</i> / Cancel. Cancel keeps the session; Close = the door's Leave
+    /// (<c>Leave:Close</c>) to Idle — never <c>OpenForEdit</c> — then the answer's ONE storage request (<c>SessionClose.IntentFor</c>), named by this station, and the
+    /// toast. ⛔ <i>Keep this recording?</i> is NOT asked after it (it was answered), even with the cluster's ask-to-keep on.
+    /// 🔴 Mutations: Close calling <c>StopLive()</c> ⇒ <c>OpenForEdit</c>, no Leave; the intent not sent ⇒ the Archive row; <c>asked</c> not passed ⇒ a Keep question after Close.</summary>
     [Fact]
-    public void R2_Eject_AsksToClose_ThenLeavesToIdle_AndKeepsTheRecording()
+    public void CE4330_Eject_AsksWhatBecomesOfTheRecording_ThenLeavesToIdle_AndArchives()
     {
         var (rig, ender) = RunningLive();
         rig.Choice.AskToKeep = () => true;
+        rig.Choice.StationName = () => "IOS-1";
+        End(rig, ender);
+        Bar(rig).OnStop();
+        var ask = rig.Choice.Pending!;
+        Assert.Equal("Close the live session", ask.Title);
+        Assert.Equal("hill-attack · exercise — 12:34, recorded. Every station returns to the Start screen.", ask.Text);
+        Assert.Equal(new[] { "Archive to NAS", "Keep on the nodes", "Discard" }, ask.Choices.Select(c => c.Label));
+        Assert.Equal(new[] { "storage/archive", "storage/keep", "storage/delete" }, ask.Choices.Select(c => c.IconKey));
+        Assert.Equal(0, ask.Selected);                                     // Q1: Archive is the default
+        Assert.Equal(new[] { "Close session", RunModeConfirmation.CancelLabel }, ask.Buttons.Select(b => b.Label));
+        ask.Resolve(ask.Buttons[1]);                                       // Cancel
+        Assert.Empty(rig.C.Calls);
+        Assert.Empty(Sent<ExecuteStorageOpIntent>(rig));
+        Assert.True(rig.Choice.LiveEnded);
+
+        Bar(rig).OnStop();
+        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[0]);       // Close session, Archive
+        Assert.Equal(new[] { "Leave:Close" }, rig.C.Calls);                // the door's leave to Idle, not an edit open
+        Assert.Equal(RunId, rig.Choice.LastExercise);
+        var archive = Assert.Single(Sent<ExecuteStorageOpIntent>(rig));
+        Assert.Equal(StorageOpType.Export, archive.Operation);
+        Assert.Equal(RunId, archive.ExerciseId);
+        Assert.Equal("IOS-1", archive.AskedBy);
+        Assert.Null(rig.Choice.Pending);                                   // ⛔ no "Keep this recording?" after it
+        Assert.Equal("Exercise recorded (12:34) — open the AAR", rig.Choice.Toast!.Title);
+    }
+
+    /// <summary>⭐ CE-4330 ③ — Keep sends nothing (the recording stays on the nodes); Discard sends ONE delete of the unarchived run and the toast says so (no AAR offer).</summary>
+    [Theory]
+    [InlineData(1, null)]
+    [InlineData(2, StorageOpType.Delete)]
+    public void CE4330_Eject_KeepSendsNothing_DiscardDeletes(int choice, StorageOpType? sent)
+    {
+        var (rig, ender) = RunningLive();
+        End(rig, ender);
+        Bar(rig).OnStop();
+        var ask = rig.Choice.Pending!;
+        ask.Selected = choice;
+        ask.Resolve(ask.Buttons[0]);
+        var intents = Sent<ExecuteStorageOpIntent>(rig);
+        if (sent is null) { Assert.Empty(intents); Assert.Equal("Exercise recorded (12:34) — open the AAR", rig.Choice.Toast!.Title); }
+        else
+        {
+            var one = Assert.Single(intents);
+            Assert.Equal(sent, one.Operation);
+            Assert.False(one.FromArchive);
+            Assert.Equal("Live run ended — its recording is being deleted", rig.Choice.Toast!.Title);
+        }
+    }
+
+    /// <summary>⭐ CE-4330 ③ (Q3) — an UNRECORDED run asks nothing about a recording: the plain <i>Close the live session?</i>, and Close sends no storage request.</summary>
+    [Fact]
+    public void CE4330_Eject_OnAnUnrecordedRun_AsksNoRecordingQuestion()
+    {
+        var (rig, ender) = RunningLive(runNotRecorded: true);
         End(rig, ender);
         Bar(rig).OnStop();
         var ask = rig.Choice.Pending!;
         Assert.Equal("Close the live session?", ask.Title);
-        Assert.Equal("This exercise of hill-attack is kept (12:34). Every station returns to the Start screen.", ask.Text);
-        Assert.Equal(new[] { "Close the session", RunModeConfirmation.CancelLabel }, ask.Buttons.Select(b => b.Label));
-        ask.Resolve(ask.Buttons[1]);                                       // Cancel
-        Assert.Empty(rig.C.Calls);
-        Assert.True(rig.Choice.LiveEnded);
-
-        Bar(rig).OnStop();
-        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[0]);
-        Assert.Equal(new[] { "Leave:Close" }, rig.C.Calls);                // the door's leave to Idle, not an edit open
-        Assert.Equal(RunId, rig.Choice.LastExercise);
-        var keep = rig.Choice.Pending!;                                    // CE-4100's question now, at the Close step
-        Assert.Equal("Keep this recording? (12:34, hill-attack)", keep.Text);
-        keep.Resolve(keep.Buttons[0]);
-        Assert.Equal("Exercise recorded (12:34) — open the AAR", rig.Choice.Toast!.Title);
+        Assert.Empty(ask.Choices);
+        Assert.Equal("This run was not recorded. Every station returns to the Start screen.", ask.Text);
+        ask.Resolve(ask.Buttons[0]);
+        Assert.Equal(new[] { "Leave:Close" }, rig.C.Calls);
+        Assert.Empty(Sent<ExecuteStorageOpIntent>(rig));
     }
 
     /// <summary>A host whose session has no door OUT closes through the same Idle intent (<c>StopRaw</c>).</summary>
@@ -281,7 +329,7 @@ public sealed class RunControlsSwitchNowTests
         var (close, e3) = RunningLive();
         End(close, e3);
         Bar(close).ModeMenu()!.Items[5].Invoke!();                         // Close the session
-        Assert.Equal("Close the live session?", close.Choice.Pending!.Title);
+        Assert.Equal("Close the live session", close.Choice.Pending!.Title);
 
         var (unrecorded, e4) = RunningLive(runNotRecorded: true);
         End(unrecorded, e4);

@@ -104,6 +104,10 @@ public sealed class ConfirmingAsker : IDoorAsker
     /// <summary>⭐ R-8 — the same with the closing button worded <paramref name="cancelLabel"/> (<i>Keep running</i>).</summary>
     public void Show(string title, string text, string cancelLabel, params RunModeConfirmation.Button[] actions)
         => Pending = RunModeConfirmation.WithCancel(text, done => { if (ReferenceEquals(Pending, done)) Pending = null; }, title, "mt_run_confirm", cancelLabel, actions);
+
+    /// <summary>⭐ CE-4330 ③ — the same with radios (<see cref="RunModeConfirmation.Choices"/>); returns the confirmation so an action can read its <see cref="RunModeConfirmation.Selected"/>.</summary>
+    public RunModeConfirmation ShowChoices(string title, string text, IReadOnlyList<RunModeConfirmation.Choice> choices, int selected, params RunModeConfirmation.Button[] actions)
+        => Pending = RunModeConfirmation.WithChoices(text, done => { if (ReferenceEquals(Pending, done)) Pending = null; }, title, "mt_run_confirm", RunModeConfirmation.CancelLabel, choices, selected, actions);
 }
 
 /// <summary>

@@ -641,12 +641,42 @@ public sealed class RunModeChoice
     {
         var scenario = ScenarioOfRun();
         var recorded = _transport.RecordsLiveRuns;
-        var kept = recorded ? $"This exercise of {scenario ?? "the scenario"} is kept ({MainToolbarTimeControlSection.FormatSpan(_transport.TotalTime)})." : "This run was not recorded.";
+        var length = MainToolbarTimeControlSection.FormatSpan(_transport.TotalTime);
+        // ⭐⭐ CE-4330 ③ (docs/DESIGN_Recording_Storage.md §3 P1, §4 Q1 / Q3; mockup ③) — a RECORDED run asks what becomes of its recording, Archive preselected; the
+        // answers and what each sends are the ONE model (SessionClose), which POST /session/close reads too. ⛔ An unrecorded run (or one with no exercise yet) asks nothing about it.
+        if (SessionClose.Question(recorded, _transport.ActiveExercise, length, scenario) is not null)
+        {
+            RunModeConfirmation? ask = null;
+            ask = _asker.ShowChoices("Close the live session", $"{scenario ?? "The scenario"} · exercise — {length}, recorded. Every station returns to the Start screen.",
+                CloseChoices, Array.IndexOf(SessionClose.Answers, SessionClose.DefaultAnswer),
+                new RunModeConfirmation.Button("Close session", () => CloseSession(SessionClose.Answers[ask!.Selected])));
+            return;
+        }
+        var kept = recorded ? $"This exercise of {scenario ?? "the scenario"} is kept ({length})." : "This run was not recorded.";
         Ask("Close the live session?", kept + " Every station returns to the Start screen.", new RunModeConfirmation.Button("Close the session", CloseSession));
     }
 
+    /// <summary>⭐ CE-4330 ③ (mockup ③) — the close question's radios, in <see cref="SessionClose.Answers"/> order: what each answer does, in the user's words.</summary>
+    public static readonly IReadOnlyList<RunModeConfirmation.Choice> CloseChoices = Array.ConvertAll(SessionClose.Answers, a => a switch
+    {
+        SessionCloseAnswer.Archive => new RunModeConfirmation.Choice("storage/archive", "Archive to NAS", "copies in the background — the status bar shows it; the nodes' copies become a cache once verified"),
+        SessionCloseAnswer.Keep    => new RunModeConfirmation.Choice("storage/keep", "Keep on the nodes", "not archived — archive later from Open Exercise Recording"),
+        _                          => new RunModeConfirmation.Choice("storage/delete", "Discard", "deletes the recording on every node — cannot be undone"),
+    });
+
+    /// <summary>⭐ CE-4330 ③ — who asks, named on the storage job (fact ①); set by the composition that knows the station (<c>LocalWindowController.ComposeRunControls</c>).</summary>
+    public Func<string?> StationName { get; set; } = () => null;
+
+    /// <summary>⭐ CE-4330 ⑦ — this host's storage transfers (the status bar's, composed ONCE in <c>LocalWindowController.ComposeRunControls</c>): what the recording
+    /// picker's row actions ask through (<i>Delete from archive…</i>). Null on a host that composes none.</summary>
+    public Hrot.UI.Common.Storage.StorageTransfers? Transfers { get; set; }
+
     /// <summary>⭐ CE-3413 — the Close step: leave to Idle on every node (the door's <see cref="LeaveReason.Close"/>; the master finalises the live recording), then <i>Keep this recording?</i> and the <i>Exercise recorded</i> note — moved here from ■.</summary>
-    public void CloseSession()
+    public void CloseSession() => CloseSession(null);
+
+    /// <summary>⭐ CE-4330 ③ — the Close step with the recording's answer: after every node is Idle (the recording finalised), <paramref name="recording"/>'s storage
+    /// request goes to the master (<see cref="SessionClose.IntentFor"/>: Archive queues a job, Discard removes it, Keep sends nothing) and <i>Keep this recording?</i> is not asked — it was.</summary>
+    public void CloseSession(SessionCloseAnswer? recording)
     {
         if (_transport.Mode != TransportMode.Live) return;
         var exercise = _transport.ActiveExercise;
@@ -654,7 +684,17 @@ public sealed class RunModeChoice
         var length = _transport.TotalTime;
         var scenario = ScenarioOfRun();
         if (exercise != Guid.Empty) { LastExercise = exercise; _lastExerciseRecorded = recorded; }
-        void After() => AfterLiveEnded(exercise, recorded, length, scenario);
+        void After()
+        {
+            if (recording is { } answer && recorded && exercise != Guid.Empty)
+            {
+                if (SessionClose.IntentFor(answer, exercise, StationName()) is { } intent) _transport.AskStorage(intent);
+                if (answer == SessionCloseAnswer.Discard) { Notify("Live run ended — its recording is being deleted"); return; }
+                AfterLiveEnded(exercise, recorded, length, scenario, asked: true);
+                return;
+            }
+            AfterLiveEnded(exercise, recorded, length, scenario);
+        }
         if (_door is { CanLeave: true } door) door.Leave(LeaveReason.Close, then: After);
         else { _transport.StopRaw(); After(); }   // no door OUT on this host: the same Idle intent
     }
@@ -718,9 +758,9 @@ public sealed class RunModeChoice
     /// ⭐ CE-4100 (AQ108 D15) — with "ask to keep recordings" on, a RECORDED run's end then asks. Keep (the default, first button) does nothing more; Discard deletes the exercise;
     /// Cancel / Esc closes it like every confirmation (= keep). The toast follows. ⭐ CE-3413: after the CLOSE step of an ended Live (and, on a host with no ender, after ■).
     /// </summary>
-    private void AfterLiveEnded(Guid exercise, bool recorded, double length, string? scenario)
+    private void AfterLiveEnded(Guid exercise, bool recorded, double length, string? scenario, bool asked = false)
     {
-        if (AskToKeep() && recorded && exercise != Guid.Empty)
+        if (!asked && AskToKeep() && recorded && exercise != Guid.Empty)
             Ask("Keep this recording?", $"Keep this recording? ({MainToolbarTimeControlSection.FormatSpan(length)}, {scenario ?? "scenario"})",
                 new RunModeConfirmation.Button("Keep", null), new RunModeConfirmation.Button("Discard", () => _transport.DiscardRecording(exercise)));
         // §1a: the user's words are DAR / AAR — "Replay" is gone from the vocabulary (D17). A run that was not recorded offers NO AAR button (D14).

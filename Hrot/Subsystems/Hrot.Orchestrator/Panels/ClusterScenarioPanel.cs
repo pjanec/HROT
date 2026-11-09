@@ -269,6 +269,16 @@ public sealed class ClusterScenarioPanel
 
     /// <param name="clusterMaster">ClusterMaster — source of true internal state and command target (Orchestrator path).</param>
     /// <param name="uiCache">Network cache — used for asset inventory and time data.</param>
+    /// <summary>⭐ CE-4330 ⑥ — this host's storage transfers (the run choice's, composed once by the window controller): the archive section draws their job list.
+    /// Null ⇒ the section keeps its one-op progress block (a host that composes none).</summary>
+    public Func<Hrot.UI.Common.Storage.StorageTransfers?>? Transfers { get; set; }
+
+    /// <summary>⭐ CE-4330 ⑥ — the job list the archive section drew last (null before any).</summary>
+    internal Hrot.UI.Common.Panels.StorageJobList? JobList => _jobList;
+
+    private Hrot.UI.Common.Panels.StorageJobList? _jobList;
+    private Hrot.UI.Common.Storage.StorageTransfers? _jobListFor;
+
     public ClusterScenarioPanel(ClusterMaster clusterMaster, ClusterUiCache uiCache)
     {
         _master  = clusterMaster ?? throw new ArgumentNullException(nameof(clusterMaster));
@@ -1097,6 +1107,16 @@ public sealed class ClusterScenarioPanel
         }
         if (disableAll || _selectedArchiveIdx < 0 || _activeArchiveOpId != Guid.Empty)
             ImGui.EndDisabled();
+
+        // ⭐ CE-4330 ⑥ (Recording Storage §7.3, §8 ②) — the cluster's transfers: the SAME list as the status bar's popover (every job, Cancel / Resume on the
+        // Author and Instructor seats), over the host's one StorageTransfers. The one-op progress block below stays only where no transfers are composed.
+        if (Transfers?.Invoke() is { } transfers)
+        {
+            ImGui.Separator();
+            if (!ReferenceEquals(_jobListFor, transfers)) { _jobList = new Hrot.UI.Common.Panels.StorageJobList(transfers); _jobListFor = transfers; }
+            _jobList!.Draw();
+            return;
+        }
 
         // — Progress / Cancel —
         if (_activeArchiveOpId != Guid.Empty)

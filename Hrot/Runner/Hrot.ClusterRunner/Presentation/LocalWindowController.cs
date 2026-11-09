@@ -171,7 +171,10 @@ internal sealed class LocalWindowController
         if (owner?.Transport is { } storageTransport && owner.RunChoice is { } storageChoice)
         {
             var seatOf = new Func<Hrot.Common.Infrastructure.Seat>(() => SeatOf(owner.World));
-            var transfers = new Hrot.UI.Common.Storage.StorageTransfers(storageTransport, seatOf, () => owner.StationName, exercise => storageChoice.OpenRecording(exercise));
+            var transfers = new Hrot.UI.Common.Storage.StorageTransfers(storageTransport, seatOf, () => owner.StationName, exercise => storageChoice.OpenRecording(exercise),
+                confirm: (title, text, button) => storageChoice.Confirm(title, text, Hrot.UI.Common.RunMode.RunModeConfirmation.CancelLabel, button));   // ⭐ CE-4330 ⑦ — through the ONE pending slot
+            storageChoice.StationName = () => owner.StationName;   // ⭐ CE-4330 ③ — the close question's storage job names this station, as the transfer buttons' do
+            storageChoice.Transfers = transfers;                   // ⭐ CE-4330 ⑦ — the recording picker's row actions ask through the same transfers
             var status = new Hrot.UI.Common.Storage.StorageStatus(() => storageTransport.StorageJobs, () => owner.StationName, () => ImGuiNET.ImGui.GetTime());
             StorageSection = Hrot.UI.Common.Panels.StorageStatusBarSection.Register(wm.StatusBar, status, transfers,
                 reserveRight: () => SeatSection?.Line() is { } seatLine ? ImGuiNET.ImGui.CalcTextSize(seatLine).X + ImGuiNET.ImGui.GetStyle().ItemSpacing.X : 0f);

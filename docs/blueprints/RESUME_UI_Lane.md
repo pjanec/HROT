@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-08
-current-answer: ⭐⭐⭐ 2026-11-08 — START AT "SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED)" directly below this STATUS block.
+updated: 2026-11-09
+current-answer: ⭐⭐⭐ 2026-11-09 — START AT "SESSION 2026-11-09 — U-11 RECORDING STORAGE UI, DONE" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-08 — START AT "SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED)".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-07 (b) — START AT "SESSION 2026-11-07 (b) — B-10 KEYS + B-11 ACTION CATALOGUE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-07 — START AT "SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE" directly below this STATUS block.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-30 — START AT "SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES" directly below this STATUS block.
@@ -173,6 +174,20 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-11-09 — U-11 RECORDING STORAGE UI, DONE *(state at `ui` + this doc commit, pushed)*
+
+⭐ **U-11 rest (CE-4330 ui half) is BUILT** — every row in [DESIGN_Recording_Storage §11](../DESIGN_Recording_Storage.md): ⑤ picker location chips · ③ ⏏ Close the session asks Archive / Keep / Discard (radios on the ONE confirmation shape) · ⑦ Delete from archive (picker row's right-click) · ④ the import dialog (ask or join, Continue in background / Cancel, opens by itself) + CE-4331 ③ Start / Cancel on another cluster · ⑥ the orchestrator panel draws the same Transfers list (`StorageJobList`) · the quit guard checked (backend's, drawn). Frame rails render each against the mockup (`/tmp/hrot-frames/ce4330-*.png`, no PNG in git).
+
+**⏭ Next, in order:**
+1. **Go Live greyed from a replay on another cluster** — waits on backend: [NOTE_Ui_To_Backend_GoLive_Refusal_Fact](batches/NOTE_Ui_To_Backend_GoLive_Refusal_Fact.md) (the master's `GoLiveRefusal` is not replicated; the job's `Reason` covers only part of it). The master's refusal is the gate meanwhile.
+2. **CE-4273** — the Car's thumbnail (`scripts/thumbnails.py --types Car --pack` against a live editor).
+3. **CE-1466** (3-D click-select hit-tests the 2-D footprints) · **CE-1467** (bookmark deviations).
+4. Merge `coordinator`, look for `To_Ui` notes.
+
+✅ **Checked, nothing to do:** backend's flag on `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_StartOffersOpenNewAndRecording_*` — it passes on a fresh build (it already reads the greyed *New Scenario…* by prefix + tooltip); the red backend saw was a stale `ClusterRunner.Tests` restore (`PlayerSubsystem` not found until `dotnet restore`).
+
+**Traps measured this session:** the frame harness's default font is ASCII-only (`—`, `·` draw as `?`) — a rail that cares initialises `EditorFontService` first (the transfers rails do) · editing a project while a background build of it runs gives phantom "no such member" errors — re-build before believing them · ClusterRunner needed `dotnet restore` after the backend merge (`DeployFlowSystem` / Hrot.Gameplay "not referenced").
 
 ## ⭐⭐⭐ SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED) *(state at `ui@7a302a3c2`, pushed, tree clean; the user said PAUSE — token allowance near; nothing in flight)*
 

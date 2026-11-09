@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace NodeEditor.UI.Picker;
@@ -34,6 +35,12 @@ namespace NodeEditor.UI.Picker;
 /// <see cref="PickerImageCache"/>: the Grid tile and the side pane draw it when present. Distinct from
 /// <see cref="IconTextureId"/> (an already-loaded handle) and <see cref="IconKey"/> (an atlas cell).
 /// </param>
+/// <param name="Chips">
+/// ⭐ CE-4330 (docs/DESIGN_Recording_Storage.md §8 ⑤) — small coloured pills drawn after the name in the list layouts: a glyph and a short
+/// label, each keyed by a <see cref="Core.Widgets.Icons"/> key so the colour belongs to the key (R-174), never to the call site. <see langword="null"/> ⇒ none.
+/// </param>
+/// <param name="Hint">⭐ CE-4330 — a muted note drawn right-aligned on the row (what choosing it does: <i>"opens at once"</i>, <i>"imports first"</i>).</param>
+/// <param name="Actions">⭐ CE-4330 ⑦ — what else can be done to this entry, offered in its row's right-click menu after a separator (<i>Delete from archive…</i>). <see langword="null"/> ⇒ none.</param>
 public sealed record PickerEntry(
     string Id,
     string Name,
@@ -45,4 +52,14 @@ public sealed record PickerEntry(
     string? IconKey = null,
     bool IsEnabled = true,
     string? RecentContext = null,
-    string? ImageKey = null);
+    string? ImageKey = null,
+    IReadOnlyList<PickerChip>? Chips = null,
+    string? Hint = null,
+    IReadOnlyList<PickerRowAction>? Actions = null);
+
+/// <summary>⭐ CE-4330 — one chip of a <see cref="PickerEntry"/>: a <see cref="Core.Widgets.Icons"/> key (glyph + colour) and its label.</summary>
+public readonly record struct PickerChip(string IconKey, string Label);
+
+/// <summary>⭐ CE-4330 ⑦ — one action of a <see cref="PickerEntry"/>'s right-click menu: a <see cref="Core.Widgets.Icons"/> key, its label, what it does, and — when it
+/// cannot be done now — why (the item is then greyed with the reason as its tooltip).</summary>
+public sealed record PickerRowAction(string IconKey, string Label, System.Action Run, string? DisabledReason = null);

@@ -4299,7 +4299,12 @@ namespace Hrot.Editor
                     // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
                     openRecording:  id => _editorApp.ScenarioSession.OpenRecording(id),
                     hasInventory:   () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
-                    sourceNotes:    ReviewPickerNotes)   // ⭐ R-5 / V6 — each row says what opening it GIVES
+                    sourceNotes:    ReviewPickerNotes,   // ⭐ R-5 / V6 — each row says what opening it GIVES
+                    // ⭐ CE-4330 ⑤ — where each run is: the master's jobs (fact ①) and this node's own recordings (fact ③)
+                    storageJobs:    () => _timeTransport?.StorageJobs ?? System.Array.Empty<Fdp.Toolkit.Orchestration.StorageJob>(),
+                    localRecordings: () => _node?.ClusterSlave.LocalRecordings.Current(),
+                    actions: x => _timeTransport?.RunChoice?.Transfers?.ActionsFor(x),
+                    import:  x => _timeTransport?.RunChoice?.Transfers?.OpenOrImport(x) ?? false)
                 : null;
 
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)

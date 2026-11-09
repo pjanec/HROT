@@ -265,6 +265,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.Orchestrator),   // ⭐ CE-1442 — from the table, never a literal
             cancelLoad: reason => _clusterSlave?.CancelLoad(reason));
         core.ScenarioPanel.RunControls = new Hrot.Orchestrator.Panels.ClusterPanelRunControls(_timeTransport, choice, _scenarioSession);
+        core.ScenarioPanel.Transfers = () => _timeTransport?.RunChoice?.Transfers;   // ⭐ CE-4330 ⑥ — the panel's job list is the status bar's (set at composition, read per frame)
     }
 
     public void Update(float deltaTime)
@@ -352,7 +353,12 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
                 openPicker:    OpenPicker,
                 listExercises: () => core.UiCache.AvailableExercises,
                 openRecording: id => _scenarioSession.OpenRecording(id),
-                hasInventory:  () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true).Open,   // ⭐ CE-1442
+                hasInventory:  () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
+                // ⭐ CE-4330 ⑤ — where each run is: the master's jobs (fact ①) and this node's own recordings (fact ③)
+                storageJobs:   () => _timeTransport?.StorageJobs ?? System.Array.Empty<Fdp.Toolkit.Orchestration.StorageJob>(),
+                localRecordings: () => _clusterSlave?.LocalRecordings.Current(),
+                actions: x => _timeTransport?.RunChoice?.Transfers?.ActionsFor(x),
+                import:  x => _timeTransport?.RunChoice?.Transfers?.OpenOrImport(x) ?? false).Open,
             // ⭐ CE-1443 — Save Checkpoint is the run choice's (the session's checkpoint + the toast, and ITS reason when it cannot); the host HAS the choice, so it passes it
             takeCheckpoint:      () => _timeTransport?.RunChoice?.TakeCheckpoint(),
             checkpointDisabledReason: () => _timeTransport?.RunChoice?.CheckpointDisabledReason);
