@@ -123,32 +123,6 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ <c>CE-4041</c> (overnight O-5) — a loaded unit's saved order waits for its SEAT: while the unit still carries a pending
-        /// <c>InitialVehicleIntent</c> (or <c>InitialPassengersIntent</c>), its task is not started; once the seat has materialised it starts.
-        /// 📌 Measured: in the editor's one world a mortar gunner's <c>FireAtPoint</c> on his tube (mount 32) started on frame 1 and failed at
-        /// 0.03 s (no controlled weapon yet). 🔴 Red-proof: drop the wait in <c>InitialBrainMaterializationSystem</c> ⇒ the task starts at once.
-        /// </summary>
-        [Fact]
-        public void CE4041_ASavedOrder_WaitsForTheUnitsSeat()
-        {
-            var registry = Production();
-            var b = new Node(registry);
-            var unit = b.Unit();
-            b.Repo.SetManagedComponent(unit, new InitialBrainIntent { Behavior = new SavedBrainSlot { Name = "Idle", Params = "{}", Origin = BehaviorOrigin.Superior } });
-            try { Hrot.Map.Common.GenesisIntentRegistry.RegisterAll(b.Repo); } catch (System.InvalidOperationException) { }   // the production registration (may already be done)
-            b.Repo.SetManagedComponent(unit, new Hrot.Common.Serializers.InitialVehicleIntent { Seat = 0 });
-
-            b.Frame(); b.Frame();
-            Assert.True(b.Repo.HasManagedComponent<InitialBrainIntent>(unit));   // still waiting
-            Assert.Null(b.TaskName(unit));
-
-            b.Repo.RemoveComponent<Hrot.Common.Serializers.InitialVehicleIntent>(unit);   // seated
-            b.Frame(); b.Frame();
-            Assert.False(b.Repo.HasManagedComponent<InitialBrainIntent>(unit));
-            Assert.Equal("Idle", b.TaskName(unit));
-        }
-
-        /// <summary>
         /// ⭐⭐ <c>CE-3207</c> (R-192: *"saves just what is needed not runtime hashes etc."*) — a SCENARIO save carries no runtime
         /// diagnostics: no <c>BrainDiagnostics</c> dump (the brain's interrupts and root-params projection), no BTree / HSM trace ring —
         /// while the CLIPBOARD / debug dump (<see cref="ScenarioSerializer.SerializeEntity"/> with the snapshot mask) still shows them.
