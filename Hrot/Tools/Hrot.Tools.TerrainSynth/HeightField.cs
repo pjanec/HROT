@@ -148,8 +148,9 @@ public sealed class HeightField
 
     private void WriteJson(string path, long nodataCells, float minZ, float maxZ)
     {
-        using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-        using var w = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = true });
+        using var ms = new MemoryStream();
+        using (var w = new Utf8JsonWriter(ms, new JsonWriterOptions { Indented = true }))
+        {
         w.WriteStartObject();
         w.WriteNumber("originX", OriginX);
         w.WriteNumber("originY", OriginY);
@@ -172,5 +173,8 @@ public sealed class HeightField
         if (float.IsFinite(maxZ)) w.WriteNumber("maxZ", maxZ); else w.WriteNull("maxZ");
         w.WriteNumber("nodataCells", nodataCells);
         w.WriteEndObject();
+        }
+        // LF line endings on every platform, so the bytes do not depend on the host
+        File.WriteAllText(path, Encoding.UTF8.GetString(ms.ToArray()).Replace("\r\n", "\n") + "\n", new UTF8Encoding(false));
     }
 }

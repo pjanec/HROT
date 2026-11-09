@@ -138,6 +138,20 @@ public static class SumoWriter
             log.WriteLine("WARNING: netconvert failed with exit code " + I(proc.ExitCode) + ": " + err.Trim().Replace("\r", "").Replace("\n", " | "));
             return false;
         }
+        StripGeneratedHeader(Path.Combine(roadsDir, "roads.net.xml"));
         return true;
+    }
+
+    // netconvert opens its output with a comment holding the run date; dropping it keeps the file byte-reproducible
+    private static void StripGeneratedHeader(string path)
+    {
+        string text = File.ReadAllText(path);
+        int start = text.IndexOf("<!-- generated on", StringComparison.Ordinal);
+        if (start < 0) return;
+        int end = text.IndexOf("-->", start, StringComparison.Ordinal);
+        if (end < 0) return;
+        end += 3;
+        while (end < text.Length && (text[end] == '\r' || text[end] == '\n')) end++;
+        File.WriteAllText(path, text.Remove(start, end - start), new UTF8Encoding(false));
     }
 }
