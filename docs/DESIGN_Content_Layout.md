@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED by the user 2026-10-28 (R-4097)
 updated: 2026-10-29 (L6, the opened-copies home, the ONE host-start seed and the shared behaviour names built — §5b)
-build-state: BUILT — CE-4089 (2026-10-28) + part two (2026-10-29: L6, CE-3340 ①③④); it landed BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
-current-answer: ⭐ §6 scenario categories = sub-folders (PROPOSAL, revised, Q-S1…Q-S4) · §1 the tree · §5b AS BUILT, part two (the NEWEST: names, the opened area, the seed's one call site, the shared names) · §5 AS BUILT, part one (the classes; where §5b says SUPERSEDED, §5b wins) · §3 decisions · §4 the move list (done, except its step 5 — CE-4082)
+build-state: §6 READY-TO-BUILD (CE-4360 → CE-4361); the rest BUILT — CE-4089 (2026-10-28) + part two (2026-10-29: L6, CE-3340 ①③④); it landed BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
+current-answer: ⭐ §6 scenario categories = sub-folders (APPROVED R-4185, CE-4360, CE-4361) · §1 the tree · §5b AS BUILT, part two (the NEWEST: names, the opened area, the seed's one call site, the shared names) · §5 AS BUILT, part one (the classes; where §5b says SUPERSEDED, §5b wins) · §3 decisions · §4 the move list (done, except its step 5 — CE-4082)
 stale-below: §5's D-7 and D-10, the "TWO call sites" line under §5's module graph, and its `CuratedScenarios` row (SUPERSEDED by §5b) · §2's CLASS NAMES (`ContentRoots`, `ContentSeed`) are the design-time names — SUPERSEDED by §5 (`ContentLayout` in Fdp.Toolkits, `AssetRoots` delegating, `CuratedScenarios` generalised in place). §2's sequence and module pictures still hold, with §5's two start points.
 known-rot: §0's inventory table describes the layout BEFORE CE-4089 (it is the "from" state)
 known-conflict: designs/main-toolbar-1/DESIGN.md §16 placed Assets/ and Recipes/ INSIDE the Hrot.AI.Behaviors project; this design keeps its rule (final assets and recipes in disjoint roots, AssetRoots the one authority) and moves both roots to the repository root
@@ -263,7 +263,7 @@ graph TD
 
 *Prior state (SUPERSEDED):* the recorded copy was staged at `scenarios/Recipes/Recorded/<id>` (inside the folder the old design reserved for recipes); recipes were opened as `Recipes/<seed>` after the editor staged them into `scenarios/Recipes/`; the seed was called from four places.
 
-## 6. ✏ PROPOSAL `2026-11-09` (revised) — scenario CATEGORIES = SUB-FOLDERS *(coordinator; the sibling of the task picker, Mission plan editor §5.13 / R-4184)*
+## 6. ✅ APPROVED `2026-11-09` (R-4185) — scenario CATEGORIES = SUB-FOLDERS *(coordinator; Q-S1…Q-S4 approved — user: "Approved"; CE-4360 backend, CE-4361 behaviors; the sibling of the task picker, Mission plan editor §5.13 / R-4184)*
 
 🔒 User: *"Something similar is needed for scenario picking as well - many are feature demos … few are complex showcases."* — then: *"New
 category field in scenario header only if the category cannot be mapped from folder. No problem moving to different subfolders. That's the most
