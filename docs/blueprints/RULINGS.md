@@ -1378,7 +1378,7 @@ R-4160 | docs/UX/DESIGN_Mission_Plan_Editor.md | ✅ D1–D9 and §5.7 approved,
 R-4161 | docs/UX/DESIGN_Mission_Plan_Editor.md | ✅ E1–E9 approved (R-4161
 R-4162 | docs/UX/DESIGN_Action_Catalogue.md | Right-clicking an unselected entity should indeed select just that entity
 R-4163 | docs/UX/DESIGN_Input_And_Commands.md | it's about all user inputs
-R-4185 | docs/DESIGN_Content_Layout.md | That's the most natural way how to organize scenarios.
+R-4185 | docs/DESIGN_Content_Layout.md | No problem moving to different subfolders
 R-4184 | docs/UX/DESIGN_Mission_Plan_Editor.md | the TASK PICKER: folders, the generic first
 R-4183 | docs/UX/DESIGN_Review_Perspective.md | Please let the offset just as a manual slider for this time, no auto detection.
 R-4182 | docs/UX/DESIGN_Review_Perspective.md | Closed for the build
