@@ -13,6 +13,7 @@ using Fdp.Presentation.Editing;
 using Fdp.Presentation.Panels.ReplayBrowser.Drawers;
 using Fdp.Presentation.Utils.ReplayBrowser;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.ReplayBrowser.Federation;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using ImGuiNET;
 using StructEdit.Core;
@@ -26,7 +27,10 @@ using Fdp.Core.Serialization;
 public sealed record ReplaySearchResultRowViewModel(int FrameIndex, long WallClockTicks, int EntityIndex, int EntityGeneration, string ContextMessage);
 
 /// <summary>⭐ R-6 / V7 (docs/UX/DESIGN_Review_Perspective.md §4 V7) — one search hit as the Event Timeline draws it: the frame it is at, the entity handle (of the throwaway reader, as the results grid shows it) and what matched.</summary>
-public readonly record struct SearchHit(int Frame, Entity Entity, string Context);
+public readonly record struct SearchHit(int Frame, Entity Entity, string Context, long NetworkId = 0);
+
+/// <summary>⭐ G-7 S5 (I6) — what makes the search FEDERATED: the merged view's manager (null outside it ⇒ the single-file search) and the <see cref="FederatedSearch"/> that runs per participant file, owned components only, unioned by network id.</summary>
+public sealed record FederatedSearchSource(FederatedSearch Search, Func<FederatedReplayManager?> Manager);
 
 /// <summary>⭐ One lifecycle-match row, projected by hand.</summary>
 public sealed record ReplaySearchLifecycleRowViewModel(int EntityIndex, int EntityGeneration, int StartFrame, int EndFrame, string MatchContext);
@@ -109,7 +113,7 @@ public sealed class ReplaySearchPanel
                 if (_hitsVersion == _resultsVersion) return _hits;
                 var list = new SearchHit[_results.Count + _lifecycleResults.Count];
                 int n = 0;
-                for (int i = 0; i < _results.Count; i++) list[n++] = new SearchHit(_results[i].FrameIndex, _results[i].Entity, _results[i].ContextMessage);
+                for (int i = 0; i < _results.Count; i++) list[n++] = new SearchHit(_results[i].FrameIndex, _results[i].Entity, _results[i].ContextMessage, _results[i].NetworkId);
                 for (int i = 0; i < _lifecycleResults.Count; i++) list[n++] = new SearchHit(_lifecycleResults[i].StartFrame, _lifecycleResults[i].Entity, _lifecycleResults[i].MatchContext);
                 _hitsVersion = _resultsVersion;
                 return _hits = list;
@@ -122,7 +126,7 @@ public sealed class ReplaySearchPanel
     {
         var hits = Hits;
         if ((uint)index >= (uint)hits.Count) return false;
-        _onMatchSelected(hits[index].Frame, hits[index].Entity);
+        Match(hits[index].Frame, hits[index].Entity, hits[index].NetworkId);
         return true;
     }
 
@@ -130,10 +134,22 @@ public sealed class ReplaySearchPanel
     public Func<string?>? UnavailableReason { get; set; }
 
     /// <summary>
-    /// When true the search panel is in Merged View mode.
-    /// DrawContent renders a disabled overlay and returns early.
+    /// Whether the host is showing the Merged View (dumped in the view-model).
+    /// ⭐ G-7 S5 (I6) — it no longer disables the panel: <see cref="Federated"/> makes the search run per participant file. ⛔ SUPERSEDED: <i>"Search is not available in Merged View."</i> (an overlay that returned early).
     /// </summary>
     public bool IsMergedViewActive { get; set; }
+
+    /// <summary>⭐ G-7 S5 (I6) — the federated search. While its manager is non-null (the merged view) Execute runs per participant file; null ⇒ the single-file search (the file at <see cref="CurrentFilePath"/>).</summary>
+    public FederatedSearchSource? Federated { get; set; }
+
+    /// <summary>⭐ G-7 S5 (I6) — a click on a FEDERATED hit (a network id): the host seeks its frame (a frame of the primary node's recording) and selects the unit BY NETWORK ID — the hit's <c>Entity</c> is a handle in one participant's file, not in the shown world. Null ⇒ falls back to the match callback.</summary>
+    public Action<int, long>? FederatedMatchSelected { get; set; }
+
+    private void Match(int frame, Entity entity, long networkId)
+    {
+        if (networkId > 0 && FederatedMatchSelected != null) FederatedMatchSelected(frame, networkId);
+        else _onMatchSelected(frame, entity);
+    }
 
     /// <summary>
     /// ⭐ CE-4206 R2 — the ONE map pick context (P4) the predicate forms draw their reference leaves with: the spatial predicate's <c>AreaLink</c> area is edited on the map
@@ -232,13 +248,6 @@ public sealed class ReplaySearchPanel
     public void DrawContent()
     {
         if (UnavailableReason?.Invoke() is { } unavailable) { ImGuiApi.TextDisabled(unavailable); return; }
-        if (IsMergedViewActive)
-        {
-            ImGuiApi.BeginDisabled();
-            ImGuiApi.Text("Search is not available in Merged View.");
-            ImGuiApi.EndDisabled();
-            return;
-        }
         EnsureSession();
         if (_predicateSession == null || _componentEditDrawer == null)
             return;
@@ -324,6 +333,12 @@ public sealed class ReplaySearchPanel
     {
         lock (_resultsLock) { _results = results; _lifecycleResults = lifecycle ?? Array.Empty<LifecycleSearchResultDto>(); _resultsVersion++; }
     }
+
+    /// <summary>⭐ G-7 S5 — opens the predicate session the way the first <see cref="DrawContent"/> does, so a rail can <see cref="StartSearch"/> without an ImGui frame. For unit testing only.</summary>
+    internal void PrepareForTest() => EnsureSession();
+
+    /// <summary>The search task, for a rail to await. For unit testing only.</summary>
+    internal System.Threading.Tasks.Task? SearchTaskForTest => _searchTask;
 
     /// <summary>Simulates clicking a seek (Frame N) button. For unit testing only.</summary>
     internal void InvokeSeekRequested(int frameIndex) => _onSeekRequested(frameIndex);
@@ -560,110 +575,7 @@ public sealed class ReplaySearchPanel
             if (blank) ImGuiApi.BeginDisabled();
             bool execute = ImGuiApi.Button("Execute Search");
             if (blank) { ImGuiApi.EndDisabled(); if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGuiApi.SetTooltip(ConditionProblem!); }
-            if (execute)
-            {
-                string path = CurrentFilePath ?? string.Empty;
-                if (string.IsNullOrEmpty(path))
-                {
-                    _statusLine = "No recording loaded.";
-                    return;
-                }
-
-                if (_predicateSession == null)
-                {
-                    _statusLine = "No search criteria.";
-                    return;
-                }
-
-                object? dtoOrNone = _expert ? _predicateSession.Commit() : _friendly;
-                if (dtoOrNone == null)
-                {
-                    _validationError = "Add at least one condition.";
-                    _validationErrorTimer = 3.0f;
-                    return;
-                }
-                object dto = dtoOrNone;
-
-                if (!ValidateDto(dto, out string errorMsg))
-                {
-                    _validationError = errorMsg;
-                    _validationErrorTimer = 3.0f;
-                    return;
-                }
-
-                _validationError = string.Empty;
-                _validationErrorTimer = 0f;
-                _statusLine       = "Searching...";
-                lock (_resultsLock) { _results = Array.Empty<SearchResultDto>(); _lifecycleResults = Array.Empty<LifecycleSearchResultDto>(); _resultsVersion++; }
-
-                _searchCts?.Dispose();
-                _searchCts = new CancellationTokenSource();
-                var token = _searchCts.Token;
-                TargetEntityFilter? entityFilter = null;
-                if (_filterTargetEntity)
-                {
-                    entityFilter = new TargetEntityFilter
-                    {
-                        UseNetworkId = _targetUseNetworkId,
-                        Index = _targetIndex,
-                        Generation = _targetGeneration,
-                        NetworkId = int.TryParse(_targetNetworkIdStr, out int nid) ? nid : 0
-                    };
-                }
-
-                if (_expert && _mode == SearchPredicateMode.Lifecycle)
-                {
-                    var pred = (LifecyclePredicateDto)dto;
-                    _searchTask = Task.Run(() =>
-                    {
-                        try
-                        {
-                            var r = _searchService.ExecuteLifecycleSearch(path, pred, entityFilter, token);
-                            lock (_resultsLock)
-                            {
-                                _lifecycleResults = r; _resultsVersion++;
-                                _statusLine = token.IsCancellationRequested
-                                    ? $"Search cancelled. Yielded {r.Count} partial result(s)."
-                                    : $"Found {r.Count} lifecycle event(s).";
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            lock (_resultsLock)
-                            {
-                                _lifecycleResults = Array.Empty<LifecycleSearchResultDto>(); _resultsVersion++;
-                                _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
-                            }
-                        }
-                    });
-                }
-                else
-                {
-                    var pred = (SearchPredicateDto)dto;
-                    _searchTask = Task.Run(() =>
-                    {
-                        try
-                        {
-                            var r = _searchService.ExecuteSearch(path, pred, entityFilter, token);
-                            lock (_resultsLock)
-                            {
-                                _results = r; _resultsVersion++;
-                                _statusLine = token.IsCancellationRequested
-                                    ? $"Search cancelled. Yielded {r.Count} partial result(s)."
-                                    : $"Found {r.Count} result(s).";
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            lock (_resultsLock)
-                            {
-                                _results = Array.Empty<SearchResultDto>(); _resultsVersion++;
-                                _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
-                            }
-                        }
-                    });
-                }
-            }
+            if (execute) StartSearch();
         }
 
         if (!string.IsNullOrEmpty(_validationError))
@@ -680,6 +592,128 @@ public sealed class ReplaySearchPanel
                 ImGuiApi.SameLine();
                 ImGuiApi.TextDisabled(statusSnapshot);
             }
+        }
+    }
+
+    /// <summary>
+    /// ⭐ The Execute button's body (extracted so a rail drives the search without a click): validates the condition, then runs it on a worker — over the file at <see cref="CurrentFilePath"/>, or, ⭐ G-7 S5 (I6),
+    /// over EVERY participant file through <see cref="Federated"/> while the merged view is shown.
+    /// </summary>
+    internal void StartSearch()
+    {
+        var federatedManager = Federated?.Manager();   // ⭐ G-7 S5 (I6) — the merged view searches EVERY participant file
+        string path = CurrentFilePath ?? string.Empty;
+        if (federatedManager != null) path = federatedManager.Contexts.TryGetValue(federatedManager.LocalEntitiesProviderNodeId, out var pc) ? pc.CurrentFdpPath ?? string.Empty : string.Empty;
+        if (string.IsNullOrEmpty(path))
+        {
+            _statusLine = "No recording loaded.";
+            return;
+        }
+
+        if (_predicateSession == null)
+        {
+            _statusLine = "No search criteria.";
+            return;
+        }
+
+        object? dtoOrNone = _expert ? _predicateSession.Commit() : _friendly;
+        if (dtoOrNone == null)
+        {
+            _validationError = "Add at least one condition.";
+            _validationErrorTimer = 3.0f;
+            return;
+        }
+        object dto = dtoOrNone;
+
+        if (!ValidateDto(dto, out string errorMsg))
+        {
+            _validationError = errorMsg;
+            _validationErrorTimer = 3.0f;
+            return;
+        }
+
+        _validationError = string.Empty;
+        _validationErrorTimer = 0f;
+        _statusLine       = "Searching...";
+        lock (_resultsLock) { _results = Array.Empty<SearchResultDto>(); _lifecycleResults = Array.Empty<LifecycleSearchResultDto>(); _resultsVersion++; }
+
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        var token = _searchCts.Token;
+        TargetEntityFilter? entityFilter = null;
+        if (_filterTargetEntity)
+        {
+            entityFilter = new TargetEntityFilter
+            {
+                UseNetworkId = _targetUseNetworkId,
+                Index = _targetIndex,
+                Generation = _targetGeneration,
+                NetworkId = int.TryParse(_targetNetworkIdStr, out int nid) ? nid : 0
+            };
+        }
+
+        if (_expert && _mode == SearchPredicateMode.Lifecycle)
+        {
+            var pred = (LifecyclePredicateDto)dto;
+            _searchTask = Task.Run(() =>
+            {
+                try
+                {
+                    var r = _searchService.ExecuteLifecycleSearch(path, pred, entityFilter, token);
+                    lock (_resultsLock)
+                    {
+                        _lifecycleResults = r; _resultsVersion++;
+                        _statusLine = token.IsCancellationRequested
+                            ? $"Search cancelled. Yielded {r.Count} partial result(s)."
+                            : $"Found {r.Count} lifecycle event(s).";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lock (_resultsLock)
+                    {
+                        _lifecycleResults = Array.Empty<LifecycleSearchResultDto>(); _resultsVersion++;
+                        _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
+                    }
+                }
+            });
+        }
+        else
+        {
+            var pred = (SearchPredicateDto)dto;
+            // ⭐ G-7 S5 (I6) — what the federated search needs, captured on the UI thread: each participant's file, the offsets, the primary node
+            (int Node, string Path)[]? parts = null; Dictionary<int, long>? offsets = null; int primaryNode = 0;
+            if (federatedManager != null)
+            {
+                var list = new List<(int, string)>();
+                foreach (var kv in federatedManager.Contexts) if (kv.Value.CurrentFdpPath is { } fp) list.Add((kv.Key, fp));
+                parts = list.ToArray(); offsets = new Dictionary<int, long>(federatedManager.NodeOffsets); primaryNode = federatedManager.LocalEntitiesProviderNodeId;
+            }
+            var federated = Federated?.Search;
+            _searchTask = Task.Run(() =>
+            {
+                try
+                {
+                    var r = parts != null && federated != null
+                        ? federated.Execute(parts, offsets!, primaryNode, pred, entityFilter, token)
+                        : _searchService.ExecuteSearch(path, pred, entityFilter, token);
+                    lock (_resultsLock)
+                    {
+                        _results = r; _resultsVersion++;
+                        _statusLine = token.IsCancellationRequested
+                            ? $"Search cancelled. Yielded {r.Count} partial result(s)."
+                            : $"Found {r.Count} result(s).";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lock (_resultsLock)
+                    {
+                        _results = Array.Empty<SearchResultDto>(); _resultsVersion++;
+                        _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
+                    }
+                }
+            });
         }
     }
 
@@ -746,10 +780,10 @@ public sealed class ReplaySearchPanel
                 ImGuiApi.TableNextRow();
                 ImGuiApi.TableSetColumnIndex(0);
                 if (ImGuiApi.SmallButton($"Frame {r.FrameIndex}##seek{i}"))
-                    _onMatchSelected(r.FrameIndex, r.Entity);
+                    Match(r.FrameIndex, r.Entity, r.NetworkId);
                 ImGuiApi.TableSetColumnIndex(1);
-                if (ImGuiEntityLink.Draw(r.Entity.ToString()))
-                    _onMatchSelected(r.FrameIndex, r.Entity);
+                if (ImGuiEntityLink.Draw(r.NetworkId > 0 ? $"net {r.NetworkId}" : r.Entity.ToString()))
+                    Match(r.FrameIndex, r.Entity, r.NetworkId);
                 ImGuiApi.TableSetColumnIndex(2);
                 ImGuiApi.TextUnformatted(r.ContextMessage);
                 ImGuiApi.PopID();

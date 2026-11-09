@@ -5099,7 +5099,9 @@ namespace Hrot.Editor
                     Behaviors:      _behaviorRegistry,
                     Blueprints:     _blueprintRegistry,
                     Reader:         _ownPartReplay.Reader,
-                    History:        () => _reviewTransport?.Waypoints));   // ⭐ R-6 / V7 — a hit is a history waypoint
+                    History:        () => _reviewTransport?.Waypoints,     // ⭐ R-6 / V7 — a hit is a history waypoint
+                    Merged:         () => reviewSource.MergedManager,       // ⭐ G-7 S5 (I6) — in Merged the search runs per participant file …
+                    Ownership:      new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap)));   // … keeping the components each node owned (the merge's own map)
                 var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host(Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, "editor_review_", EditorWindowColor.TitleBar, () => _world));
                 Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { reviewBundle }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
                 reviewBundle.FrameDiff.IsOpen = false; reviewBundle.ReplaySearch.IsOpen = false;   // listed in the Window menu, closed until opened

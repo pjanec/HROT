@@ -1025,6 +1025,63 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             Assert.Equal(new[] { 5, 6 }, frames);
         }
 
+        // ── S5 · I6 — the federated search: per file, owned components only, unioned by network id ──────
+
+        private static FederatedSearch NewFederatedSearch(OwnershipSource ownership)
+        {
+            var edit = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
+            var compiler = new Fdp.Toolkit.ReplayBrowser.Search.PredicateCompiler(edit);
+            return new FederatedSearch(new Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchService(compiler, new Fdp.Toolkit.ReplayBrowser.Search.EventScannerCompiler(edit)), compiler, ownership);
+        }
+
+        private static Fdp.Toolkit.ReplayBrowser.Search.PropertyMatchDto XBetween(double min, double max) => new()
+        {
+            ComponentType = typeof(DummyPosition), PropertyPath = "X", Operator = Fdp.Toolkit.ReplayBrowser.Search.SearchOperator.Equals,
+            Predicate = new Fdp.Toolkit.ReplayBrowser.Search.NumericPredicateDto { MinValue = min, MaxValue = max },
+        };
+
+        [Fact]
+        public void Search_AHitOnAComponentTheNodeDidNotOwn_IsDropped_OwnedOnesFromTwoNodesAreUnioned()
+        {
+            // unit 800 is owned by node 1, unit 801 by node 2; EACH node holds BOTH, so a plain per-file search finds each unit twice (once on the replica)
+            var p1 = RecordPlay(1, 6, (r, f) =>
+            {
+                if (f == 0) { foreach (var (net, owner) in new[] { (800, 1), (801, 2) }) { var u = OwnedUnit(r, net, owner, 1); r.AddComponent(u, new DummyPosition { X = 0 }); } return; }
+                Move(r, 800, f * 10); Move(r, 801, f * 10);
+            }, keyEvery: 0);
+            var p2 = RecordPlay(2, 6, (r, f) =>
+            {
+                if (f == 0) { foreach (var (net, owner) in new[] { (800, 1), (801, 2) }) { var u = OwnedUnit(r, net, owner, 2); r.AddComponent(u, new DummyPosition { X = 0 }); } return; }
+                Move(r, 800, f * 10); Move(r, 801, f * 10);
+            }, keyEvery: 0);
+            var search = NewFederatedSearch(new OwnershipSource());
+            var parts = new[] { (1, p1), (2, p2) };
+            var predicate = XBetween(24, 1000);                                                 // X > 24 ⇒ frames 3, 4, 5 of each unit
+
+            var hits = search.Execute(parts, new Dictionary<int, long>(), primaryNode: 1, predicate);
+
+            Assert.Equal(6, hits.Count);                                                        // 2 units × 3 frames — NOT 12 (the replicas' hits are dropped)
+            Assert.All(hits.Where(h => h.NetworkId == 800), h => Assert.Equal(1, h.NodeId));    // ⭐ 800's hits are node 1's (its owner) …
+            Assert.All(hits.Where(h => h.NetworkId == 801), h => Assert.Equal(2, h.NodeId));    // … 801's are node 2's
+            Assert.Equal(new long[] { 800, 801 }, hits.Select(h => h.NetworkId).Distinct().OrderBy(n => n).ToArray());   // the union: both units in ONE result list
+            Assert.Equal(new[] { 3, 3, 4, 4, 5, 5 }, hits.Select(h => h.FrameIndex).ToArray());
+        }
+
+        [Fact]
+        public void Search_AUnitWhoseOwnerChanges_IsFoundOnEachNodeWhileItOwnedTheComponent_OneHitPerFrame()
+        {
+            var (p1, p2) = RecordPlayGroup();                                                   // unit 300: X 10 on node 1, X 20 on node 2; owner node 1 until frame 18, node 2 after
+            var search = NewFederatedSearch(RecordedOwnership());
+
+            var hits = search.Execute(new[] { (1, p1), (2, p2) }, new Dictionary<int, long>(), primaryNode: 1, XBetween(5, 25));
+
+            var mine = hits.Where(h => h.NetworkId == 300).ToList();
+            Assert.Contains(mine, h => h.NodeId == 1);
+            Assert.Contains(mine, h => h.NodeId == 2);                                          // ⭐ owned ones from TWO nodes, unioned by network id
+            Assert.All(mine, h => Assert.True(h.NodeId == 1 ? h.FrameIndex < 18 : h.FrameIndex >= 18, $"node {h.NodeId} at frame {h.FrameIndex}"));
+            Assert.Equal(mine.Count, mine.Select(h => h.FrameIndex).Distinct().Count());         // one hit per frame
+        }
+
         [Fact]
         public void NodeLocal_TheMarkedServicesCarryTheFlag()
         {

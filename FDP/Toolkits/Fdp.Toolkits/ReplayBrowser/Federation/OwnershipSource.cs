@@ -77,6 +77,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             return a.NodeId < b.NodeId;
         }
 
+        /// <summary>⭐ G-7 S5 (I6) — <see cref="OwnedBy"/>, public: the components of <paramref name="entity"/> (in node <paramref name="nodeId"/>'s <paramref name="repo"/>) that node OWNS at the repository's current frame — the federated search keeps a hit only for those.</summary>
+        public BitMask512 OwnedComponents(EntityRepository repo, Entity entity, int nodeId) => OwnedBy(repo, entity, nodeId);
+
         /// <summary>
         /// The components <paramref name="entity"/> holds AND node <paramref name="nodeId"/> owns in <paramref name="repo"/>: from the recorded ownership
         /// components when the entity has a <see cref="NetworkAuthority"/> (S2), else presence AND the cold authority mask (S1).

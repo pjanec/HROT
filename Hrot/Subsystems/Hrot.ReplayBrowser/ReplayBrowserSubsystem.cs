@@ -1139,6 +1139,17 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         _searchPanel = new ReplaySearchPanel(
             editSvc, searchSvc, seekIntent, selectIntent, matchIntent,
             _behaviorRegistry, getSelectedEntity, getSelectedNetworkId);
+        // ⭐ G-7 S5 (I6) — the Merged view searches EVERY participant file (owned components only, unioned by network id) instead of being disabled; a federated hit seeks the primary node's frame and selects the unit by network id
+        _searchPanel.Federated = new FederatedSearchSource(
+            new FederatedSearch(searchSvc, predicateCompiler, new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap)),
+            () => _viewMode == ViewMode.Merged ? _manager : null);
+        _searchPanel.FederatedMatchSelected = (frame, net) =>
+        {
+            _playbackHistory.PushWaypoint(PrimaryNodeCurrentFrame(), _inspectorState?.SelectedEntity ?? Entity.Null);
+            _playbackHistory.PushWaypoint(frame, Entity.Null);
+            SeekFrameViaManager(frame);
+            SelectNetworkEntity((int)net);
+        };
         // ⭐ G-7 S5 (I5, I7) — the merged view's lens in THIS host: Details ▸ a component ▸ By node, the "local to <node>" tag and (below, with the review rows) the Replica differs lane
         _replicaViews = new ReplicaViews(new OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap), _scenarioSerializer);
         _byNodeSection = new ByNodeSection(_replicaViews, () => _viewMode == ViewMode.Merged ? _manager : null,

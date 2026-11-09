@@ -5,6 +5,10 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
 using Fdp.Core.FlightRecorder.Metadata;
+using System.Linq;
+using Fdp.Presentation.Panels.ReplayBrowser;
+using Fdp.Toolkit.ReplayBrowser.Federation;
+using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Scenario;
@@ -14,6 +18,10 @@ using ImGuiNET;
 using Xunit;
 
 namespace Hrot.Editor.AiShared.Tests.Review;
+
+/// <summary>⭐ G-7 S5 — the value the federated search rail's units carry.</summary>
+[ComponentId(485)]
+public struct SearchProbe { public float X; }
 
 /// <summary>
 /// ⭐ R-2 / V2 (docs/UX/DESIGN_Review_Perspective.md §4 V2) — the review windows over a host's own-part recording FILE (<see cref="FileReview"/>): outside AAR the analysis windows say so; a search hit SEEKS the
@@ -170,5 +178,107 @@ public sealed class TheFileReviewTests : IDisposable
             });
         Assert.Equal(0, outsideDiff);
         Assert.Equal(0, outsideSearch);
+    }
+
+    // ── S5 · I6 — the federated search in the review panel (§6.12 S5) ────────────────────────────────────────
+
+    /// <summary>Two node files of one exercise: unit 100 owned by node 1, unit 101 by node 2; EACH node holds BOTH (X = 10 × frame, so X &gt; 24 from frame 3), so a plain per-file search finds each unit twice.</summary>
+    private static readonly long Zero = TimeSpan.FromSeconds(1).Ticks;
+
+    private (string P1, string P2) RecordSearchPair()
+    {
+        var exercise = Guid.NewGuid();
+        string Rec(int node)
+        {
+            string path = Path.Combine(_dir, $"search_{node}.fdp");
+            var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)exercise, NodeId = (Fdp.Core.NodeId)node };
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<NetworkIdentity>(); repo.RegisterComponent<NetworkAuthority>(); repo.RegisterComponent<SearchProbe>();
+            var units = new List<Entity>();
+            foreach (var (net, owner) in new[] { (100, 1), (101, 2) })
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new NetworkIdentity { Value = net });
+                repo.AddComponent(e, new NetworkAuthority(owner, node));
+                repo.AddComponent(e, new SearchProbe { X = 0 });
+                units.Add(e);
+            }
+            using (var rec = new AsyncRecorder(path, meta))
+            {
+                repo.Tick();
+                rec.CaptureKeyframe(repo, Zero, blocking: true, eventBus: repo.Bus);
+                uint prev = repo.GlobalVersion;
+                for (int f = 1; f <= 5; f++)
+                {
+                    repo.Tick();
+                    foreach (var e in units) repo.GetComponentRW<SearchProbe>(e).X = f * 10;
+                    rec.CaptureFrame(repo, prev, Zero + TimeSpan.FromSeconds(f).Ticks, blocking: true, eventBus: repo.Bus);
+                    prev = repo.GlobalVersion;
+                }
+            }
+            File.WriteAllText(path + ".meta.json", MetadataSerializer.Serialize(meta));
+            return path;
+        }
+        return (Rec(1), Rec(2));
+    }
+
+    private static PropertyMatchDto XOver24() => new()
+    {
+        ComponentType = typeof(SearchProbe), PropertyPath = "X", Operator = SearchOperator.Equals,
+        Predicate = new NumericPredicateDto { MinValue = 24, MaxValue = 1000 },
+    };
+
+    /// <summary>
+    /// ⭐ G-7 S5 (I6) — the review's search panel, in the MERGED view, is NOT disabled and runs per participant file: a hit on a component its node did not own is dropped (each unit appears once, from its owner's file),
+    /// owned hits from the two nodes are unioned in ONE list, and a click on a hit seeks the host and selects the unit BY NETWORK ID. 🔴 Red-proofs: the owner filter off ⇒ 12 hits ⇒ red; the panel's early return in
+    /// Merged restored ⇒ the drawn-rows rail red.
+    /// </summary>
+    [Fact]
+    public async System.Threading.Tasks.Task G7S5_TheSearch_InMerged_RunsPerFile_DropsNonOwnedHits_UnionsTheOwnedOnes_AndAClickSelectsByNetworkId()
+    {
+        var (p1, p2) = RecordSearchPair();
+        using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+        manager.SetBaseWallTicks(Zero);
+        var host = new Host { Files = new[] { p1 } };
+        var review = new FileReview(new ReviewFileServices(
+            RecordingFiles: () => host.Files, CurrentFrame: () => host.Frame, Seek: f => host.Seeks.Add(f),
+            Selection: () => host.Selected, Select: id => { host.Selects.Add(id); return true; },
+            Serializer: new ScenarioSerializerBuilder("test").Build(), Behaviors: null, Blueprints: null, Reader: _reader,
+            Merged: () => manager));
+        review.SearchPanel.IsMergedViewActive = true;
+        review.SearchPanel.PrepareForTest();
+        review.SearchPanel.FriendlyCondition = XOver24();
+
+        review.SearchPanel.StartSearch();
+        await review.SearchPanel.SearchTaskForTest!;
+
+        var hits = review.SearchPanel.Hits;
+        Assert.Equal(6, hits.Count);                                                            // 2 units × frames 3..5 — NOT 12: the replicas' hits are dropped
+        Assert.Equal(new long[] { 100, 101 }, hits.Select(h => h.NetworkId).Distinct().OrderBy(n => n).ToArray());   // ⭐ both units, unioned in one list
+        Assert.Equal(new[] { 3, 3, 4, 4, 5, 5 }, hits.Select(h => h.Frame).ToArray());
+
+        Assert.True(review.SearchPanel.ActivateHit(2));                                         // a click on a hit: frame 4, unit 100 or 101
+        Assert.Equal(new long[] { 4 }, host.Seeks);                                             // the host seeks the frame …
+        Assert.Equal(new[] { (int)hits[2].NetworkId }, host.Selects);                           // … and selects the unit BY NETWORK ID (the hit's entity is a handle in a participant's file)
+    }
+
+    [SkippableFact]
+    public void G7S5_TheSearchPanel_InMerged_StillDrawsItsEditor()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var host = new Host { Files = new[] { Record() } };
+        var review = host.Build(_reader);
+        review.SearchPanel.IsMergedViewActive = true;                                           // the host shows the Merged view
+        review.SearchPanel.ExpertView = true;
+        using var frame = UiFrameHarness.Begin(640, 480);
+        for (int i = 0; i < 6; i++)
+            frame.Step(() =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(8, 8)); ImGui.SetNextWindowSize(new Vector2(600, 400));
+                ImGui.Begin("Search##s5");
+                review.SearchPanel.DrawContent();
+                ImGui.End();
+            });
+        Assert.True(review.SearchPanel.TreeRowsDrawn > 0, "the predicate editor is drawn in Merged (the old overlay said \"Search is not available in Merged View\" and returned)");
     }
 }
