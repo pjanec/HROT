@@ -443,7 +443,7 @@ classDiagram
 | ~~Q5 · Q6~~ | DAR · per-station switching in a cluster | ⛔ withdrawn |
 | **Q8** ⏳ *(answered by §6 I1 if adopted)* | the merge's managed-component gap (§2.2) | ⭐ lean: today's JSON merge for V6; §6 decides later |
 
-## 6. ⭐ A better merge — the full idea *(coordinator, `2026-11-08`, NOT scheduled — recorded complete so it can be evaluated or built at any time)*
+## 6. ⭐ A better merge — the full idea *(coordinator, `2026-11-08`; ⭐ SCHEDULED `2026-11-09` to behaviors — [HANDOFF_Coordinator_To_Behaviors_Next_2](../blueprints/batches/HANDOFF_Coordinator_To_Behaviors_Next_2.md) G-7, CE-4354 — gated on the user's Q9–Q14)*
 
 🔒 User: *"If you see something that can be improved on the federation mode, how to do the merging … don't hesitate to come up with ideas. What
 exists now is not carved in stone."* → *"We are not going to implement it right now … record it as a full idea with everything. Do the measurement
