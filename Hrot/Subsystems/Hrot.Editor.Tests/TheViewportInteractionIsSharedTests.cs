@@ -681,6 +681,28 @@ public sealed class TheViewportInteractionIsSharedTests
     /// share the full tool set; differences are data availability or host rules, never set
     /// membership."</i> ⇒ this host passes no spawn adapter, and <c>Spawn</c> is registered anyway.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐ User report, <c>2026-11-08</c>: the Player crashed on its first empty map click — <i>"Strict Mode Violation: Managed event type
+    /// 'SelectionChangeRequest' was published without being explicitly registered"</i>. The pack's selection system publishes it on every map host,
+    /// and the Player never calls <c>PresentationComponentRegistry.RegisterAll</c>. ⇒ the PACK registers what it publishes: a bare world (no host
+    /// registry) built through the pack takes the request under strict mode.
+    /// </summary>
+    [Fact]
+    public void ThePackRegistersTheSelectionEventsItPublishes_OnAWorldNoHostRegistryTouched()
+    {
+        bool strict = Fdp.Core.FdpConfig.EnforceExplicitEventRegistration;
+        Fdp.Core.FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            var world = new Fdp.Core.EntityRepository();
+            Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world });
+            var ex = Record.Exception(() => world.Bus.PublishManaged(
+                Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(Fdp.Core.Entity.Null, "Map.Click")));
+            Assert.Null(ex);
+        }
+        finally { Fdp.Core.FdpConfig.EnforceExplicitEventRegistration = strict; }
+    }
+
     [Fact]
     public void ThePackGivesEveryHostAnArbiterCarryingTheWholeToolSet()
     {

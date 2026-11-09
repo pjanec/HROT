@@ -165,6 +165,30 @@ namespace Fdp.Toolkits.Tests.Orchestration
             Assert.False(Directory.Exists(d[0])); Assert.True(Directory.Exists(d[2]));
         }
 
+        /// <summary>⭐ CE-4331 ⑥ (§9b) — a node remembers its id per kind in one small file under the staging root: absent ⇒ 0, write then read ⇒ the id (the kind's name is case-insensitive), garbage / a non-positive number ⇒ 0, a newer write replaces it.
+        /// 🔴 Mutations (each compiles): <c>Read</c> returning 0 always ⇒ the round-trip cell reds; <c>Write</c> ignoring the kind (one file for all) ⇒ the two-kinds cell reds. (The `id > 0` guard in <c>Read</c> is redundant with <c>NumberStyles.None</c> and 0 ⇒ 0 either way: removing it changes nothing, so it carries no red-proof.)</summary>
+        [Fact]
+        public void CE4331_NodeIdMemory_IsAbsentZero_RoundTripsPerKind_AndGarbageIsZero()
+        {
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));                                  // absent
+            NodeIdMemory.Write(_temp, "CGF", 401);
+            NodeIdMemory.Write(_temp, "Player", 100);
+            Assert.Equal(401, NodeIdMemory.Read(_temp, "cgf"));                                // the kind is case-insensitive
+            Assert.Equal(100, NodeIdMemory.Read(_temp, "PLAYER"));                             // one file per kind
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "SimHost"));
+            NodeIdMemory.Write(_temp, "CGF", 402);
+            Assert.Equal(402, NodeIdMemory.Read(_temp, "CGF"));                                // a newer grant replaces it
+
+            File.WriteAllText(NodeIdMemory.PathOf(_temp, "CGF"), "not a number");
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));                                  // garbage
+            File.WriteAllText(NodeIdMemory.PathOf(_temp, "CGF"), "-5");
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));
+            File.WriteAllText(NodeIdMemory.PathOf(_temp, "CGF"), "0");
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));                                  // 0 means "none", not an id
+            NodeIdMemory.Write(_temp, "CGF", 0);                                               // a refused / zero grant is never remembered
+            Assert.Equal(0, NodeIdMemory.Read(_temp, "CGF"));
+        }
+
         /// <summary>⭐ CE-4330 ④ — the keep count: <c>FDP_KEEP_EXERCISES</c> when set (> 0), else 5.</summary>
         [Fact]
         public void CE4330_ResolveCacheKeep_IsFiveUnlessTheVariableSaysOtherwise()

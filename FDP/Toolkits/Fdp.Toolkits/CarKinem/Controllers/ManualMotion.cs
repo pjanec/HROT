@@ -112,13 +112,9 @@ namespace CarKinem.Controllers
 
             // ⚠ held back, braking runs on through zero into reverse — that IS "brake, then reverse" (M-3); coasting cannot
             //   cross zero (Toward never overshoots)
-            state.Speed = Math.Clamp(state.Speed + accel * dt, -p.MaxSpeedRev, p.MaxSpeedFwd);
-            state.Accel = accel;
-
-            float yawRate = p.WheelBase > 0f ? state.Speed / p.WheelBase * MathF.Tan(state.SteerAngle) : 0f;
-            fwd = Rotate(fwd, yawRate * dt);
-            pos += fwd * state.Speed * dt;
-            return yawRate;
+            // ⭐ CE-4345 — ONE motion model: the operator's wheel goes through the AI's integrator, so the turn falls with speed for both
+            return BicycleModel.Integrate(ref pos, ref fwd, ref state, state.SteerAngle, accel, dt, p.WheelBase,
+                p.MaxSpeedRev, p.MaxSpeedFwd, p.MaxLatAccel);
         }
 
         /// <summary>The acceleration that brings <paramref name="speed"/> toward <paramref name="target"/>, at most

@@ -51,6 +51,21 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             // time; we do NOT rebuild them here to avoid touching types that are valid at
             // the call site but may be absent from the serializer's registry.
             RepositoryPriming.RegisterDiscoveredComponents(transientRepo);
+            BuildInto(manager, transientRepo);
+            return transientRepo;
+        }
+
+        /// <summary>
+        /// ⭐ R-5 / V6 (docs/UX/DESIGN_Review_Perspective.md §3 D7) — <see cref="Build"/>'s whole merge, <b>into a world the CALLER owns</b>: the all-in-one editor's ONE world, which it
+        /// has cleared first. ⭐ The same ① correlate · ② pre-create · ③–⑤ extract · ⑥ <see cref="ScenarioSerializer.DeserializeWith"/> sequence — ONE merge, two destinations
+        /// (the Replay Browser's fresh repository, the editor's resident one); ⛔ not a second load path.
+        /// </summary>
+        /// <param name="manager">The loaded group, seeked.</param>
+        /// <param name="transientRepo">The EMPTY target (its component tables already registered — a resident world has them; <see cref="Build"/> primes a fresh one).</param>
+        public void BuildInto(FederatedReplayManager manager, EntityRepository transientRepo)
+        {
+            if (manager == null) throw new ArgumentNullException(nameof(manager));
+            if (transientRepo == null) throw new ArgumentNullException(nameof(transientRepo));
 
             // ── Step 2: Correlate entities by NetworkIdentity.Value ─────────────────
             int netIdTypeId = ComponentTypeRegistry.GetId(typeof(NetworkIdentity));
@@ -222,8 +237,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
 
             // ── Step 6: Deserialize master DOM into transient repo ───────────────────
             _serializer.DeserializeWith(transientRepo, masterDom, resolver, preAllocated);
-
-            return transientRepo;
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Fdp.Core;
 using Fdp.Presentation.Icons;
 using Fdp.Toolkit.Orchestration;
@@ -105,5 +106,45 @@ public sealed class TheEditorComposesTheReviewBundleTests : IDisposable
 
         now = Zero + TimeSpan.FromSeconds(2.5).Ticks;
         Assert.Equal(2, replay.CurrentFrame());                                              // the shown frame follows the replay's moment
+    }
+
+    /// <summary>
+    /// ⭐ R-6 / V7 — the editor composes the Event Timeline's review rows: a data-breakpoint hit adds a stop at the frame it stopped at (the live index's frame at the stop's wall ticks), the row reaches the panel's tracks,
+    /// and a click on the marker selects the unit. 🔴 Red-proof: no <c>AddTracks(ReviewTracks.Tracks)</c> ⇒ the row is not in the panel ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void V7_TheEditorComposesTheReviewRows_AStopLandsAtItsFrame_AndTheRowReachesTheEventTimeline()
+    {
+        var editor = new EditorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            var windows = new Fdp.Presentation.WindowManager.WindowManager(new IconAtlas(IntPtr.Zero, 512, 512));
+            editor.RegisterWindows(windows);
+            Assert.NotNull(editor.ReviewTracks);
+
+            var world = editor.NodeForTest!.World;
+            var live = editor.LiveTimeline!;
+            long ticks = 1_000_000;
+            for (int frame = 1; frame <= 4; frame++, ticks += 2_000_000)   // four live-index steps, as the editor's frame does
+            {
+                world.SetSingleton(new Fdp.Core.GlobalTime { FrameNumber = frame, TotalTime = frame * 0.2, TotalWallTicks = ticks });
+                world.Bus.SwapBuffers();
+                live.Step(world, ticks, force: true);
+            }
+            Assert.Empty(editor.EventTimelineForTest.CollectedTracksForTest()?.Where(t => t.Id.StartsWith("review:")) ?? Enumerable.Empty<Fdp.Presentation.Panels.Timeline.ITimelineTrack>());   // no stop yet ⇒ no row
+
+            var mgr = editor.DataBreakpointManager!;
+            var id = mgr.AddBreakpoint(new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = "v7" }, displayName: "v7 stop");
+            world.SetSingleton(new Fdp.Core.GlobalTime { FrameNumber = 5, TotalTime = 1.0, TotalWallTicks = 5_000_000 });   // the stop's moment: between frame 3 (5 000 000) and 4
+            mgr.OnHit(mgr.AllBreakpoints.First(b => b.Id == id), Fdp.Core.Entity.Null);
+
+            Assert.Single(editor.ReviewStops.Stops);
+            Assert.Contains("v7 stop", editor.ReviewStops.Stops[0].Label);
+            var row = editor.EventTimelineForTest.CollectedTracksForTest()!.Single(t => t.Id == ReviewTimelineTracks.StopsId);   // the row reached the panel
+            Assert.Single(row.Items);
+            Assert.Equal(2, editor.ReviewTracks!.StopFrames[0]);                                                                 // 5 000 000 ticks = the third frame (index 2)
+        }
+        finally { editor.Shutdown(); }
     }
 }

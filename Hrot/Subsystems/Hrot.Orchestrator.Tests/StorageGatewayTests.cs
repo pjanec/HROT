@@ -425,6 +425,54 @@ public sealed class StorageGatewayTests
             try { Directory.Delete(root, recursive: true); } catch { }
         }
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-4331 ② (§9a) — an import PLACES the recordings on the current cluster: each file goes to the node of its recorded NAME (and kind), copied
+    /// under the CHOSEN node's own file name; a node of another kind listens; a cluster where nothing fits refuses and copies nothing.
+    /// 🔴 Mutation: the push using the target's own recording name instead of the placed file ⇒ node 10 gets nothing / the wrong bytes ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 30_000)]
+    public async Task CE4331_AnImportPlacesEachRecordingOnTheNodeOfItsName_UnderThatNodesOwnFileName()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "fdp_ce4331p_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var ex = Guid.NewGuid().ToString();
+            var nasEx = Path.Combine(root, "nas", OrchestrationConstants.ExercisesDirectoryName, ex);
+            Directory.CreateDirectory(nasEx);
+            void Rec(int id, string name)
+            {
+                var f = Path.Combine(nasEx, OrchestrationConstants.GetNodeRecordingFileName(id));
+                File.WriteAllText(f, "bytes-of-" + name);
+                File.WriteAllText(f + ".meta.json", Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Serialize(
+                    new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { NodeName = name, Subsystem = "CGF", Roles = 1 }));
+            }
+            Rec(401, "cgf-a");
+            Rec(402, "cgf-b");
+            NodeDistributionTarget T(int n, string name, string sub, int roles) => new()
+            {
+                NodeId = (Fdp.Core.NodeId)n, NodeName = name, Subsystem = sub, Roles = roles,
+                DestinationPath = Path.Combine(root, "node" + n, ex, OrchestrationConstants.GetNodeRecordingFileName(n)),
+            };
+            var targets = new List<NodeDistributionTarget> { T(10, "cgf-b", "CGF", 1), T(11, "cgf-a", "CGF", 1), T(12, "ig-1", "IG", 0) };
+
+            var result = await new StorageGatewayModule().PrefetchArchiveAsync(ex, targets, Path.Combine(root, "nas"));
+
+            Assert.Equal((2, 0), (result.SuccessCount, result.FailureCount));
+            Assert.Equal("bytes-of-cgf-b", File.ReadAllText(targets[0].DestinationPath));   // node 10 plays cgf-b's file, under its own name node_10.fdp
+            Assert.Equal("bytes-of-cgf-a", File.ReadAllText(targets[1].DestinationPath));
+            Assert.Equal(new[] { 12 }, result.Placement!.Listeners);
+            Assert.False(File.Exists(targets[2].DestinationPath));
+
+            var none = await new StorageGatewayModule().PrefetchArchiveAsync(ex, new List<NodeDistributionTarget> { T(20, "ig-2", "IG", 0) }, Path.Combine(root, "nas"));
+            Assert.True(none.Placement!.Refused);
+            Assert.Equal((0, 0), (none.SuccessCount, none.FailureCount));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
 }
 
 /// <summary>

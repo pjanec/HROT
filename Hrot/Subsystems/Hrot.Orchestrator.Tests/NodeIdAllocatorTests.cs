@@ -73,6 +73,37 @@ public sealed class NodeIdAllocatorTests
     }
 
     /// <summary>
+    /// ⭐ CE-4331 ⑥ second half — a node's request carries its KIND and its previous id on the wire (<c>NodeIdRequestWire</c>, the ONE mapping), and the master answers a bus request that names a kind INSIDE its range: a CGF gets 400, a second CGF 401,
+    /// a CGF that held 401 before gets 401 back when it is free, a request with no kind a dynamic id. 🔴 Mutations (each compiles): <c>ToEvent</c> dropping <c>SubsystemName</c> ⇒ the wire cell reds; the master not passing <c>req.SubsystemName</c> ⇒ the 400 cell reds.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4331_TheRequestCarriesItsKind_AndTheMasterGrantsInsideTheKindsRange()
+    {
+        var sample = Hrot.Network.Orchestration.NodeIdRequestWire.ToTopic("PC1", 7, 0, 401, "CGF");
+        Assert.Equal("CGF", sample.SubsystemName);
+        var ev = Hrot.Network.Orchestration.NodeIdRequestWire.ToEvent(sample);
+        Assert.Equal(("PC1", 7, 0, 401, "CGF"), (ev.ComputerName, ev.ProcessId, ev.ForcedId, ev.PreferredId, ev.SubsystemName));
+        Assert.Null(Hrot.Network.Orchestration.NodeIdRequestWire.ToEvent(Hrot.Network.Orchestration.NodeIdRequestWire.ToTopic("PC1", 7, 0, 0, null)).SubsystemName);   // no kind (an older sender) ⇒ none
+
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration
+        {
+            MandatoryRoles = Fdp.Core.NodeRole.None, Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10,
+        });
+        int Ask(string computer, int pid, int preferred, string? kind)
+        {
+            bus.PublishManaged(new NodeIdRequestEvent { ComputerName = computer, ProcessId = pid, PreferredId = preferred, SubsystemName = kind });
+            bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+            return Assert.Single(bus.ReadManaged<NodeIdGrantEvent>()).NodeId.Value;
+        }
+        Assert.Equal(400, Ask("pc1", 10, 0, "CGF"));
+        Assert.Equal(401, Ask("pc2", 11, 0, "CGF"));                                          // the second CGF
+        Assert.Equal(402, Ask("pc3", 12, 402, "CGF"));                                        // its previous id, free ⇒ kept
+        Assert.Equal(100, Ask("pc4", 13, 0, "Player"));
+        Assert.Equal(NodeIdAllocator.FirstDynamicId, Ask("pc5", 14, 0, null));                // no kind ⇒ dynamic
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-4331 ⑥ (📄 docs/DESIGN_Recording_Storage.md §9b) — a node that says its KIND gets the lowest free id of its kind's range (NodeIdRanges): two CGFs
     /// get 400 and 401, a Player 100; the same cluster relaunched under a new master gets the same ids (a new allocator, nothing remembered);
     /// a replacement for a gone CGF under a new master takes the vacant 400; its previous id wins when it is free.

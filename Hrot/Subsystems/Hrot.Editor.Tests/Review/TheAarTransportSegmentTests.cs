@@ -122,7 +122,7 @@ public sealed class TheAarTransportSegmentTests : IDisposable
             var segment = editor.AarTransportForTest;
             Assert.NotNull(segment);
             Assert.Equal(ReplayTransportParts.AarSegment, segment!.Drawer.Parts);
-            Assert.IsType<OwnPartReplayTransport>(segment.Transport);
+            Assert.IsType<OwnPartReplayTransport>(Assert.IsType<ReplayTransportSelector>(segment.Transport).Active);   // V6: the segment draws the source's transport while a group is open, this one otherwise
         }
         finally { editor.Shutdown(); }
     }

@@ -57,7 +57,8 @@ public sealed record ReviewFileServices(
     ScenarioSerializer Serializer,
     BehaviorRegistry? Behaviors,
     BlueprintRegistry? Blueprints,
-    RecordingFileReader Reader);
+    RecordingFileReader Reader,
+    Func<Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker?>? History = null);   // R-6 / V7 — the transport's waypoints: a hit is a JUMP, ◀ returns to where you were
 
 /// <summary>
 /// ⭐ R-2 / V2 (docs/UX/DESIGN_Review_Perspective.md §3 D3 / D4, §4 V2) — the review windows' PANELS over a host's own-part recording FILE: the Replay search panel (a search reads
@@ -170,6 +171,12 @@ public sealed class FileReview
     /// <summary>⭐ V2's acceptance: a search hit SEEKS the host to its frame and SELECTS its entity (the seek lands a frame or so later, so the selection is retried until the world holds the unit).</summary>
     public void SeekToHit(int frame, Entity hit)
     {
+        // ⭐ R-6 / V7 — a jump through the transport's seam is a history waypoint (the drawer's own RecordJump: where you were, then where you went)
+        if (_s.History?.Invoke() is { } history)
+        {
+            long cur = _s.CurrentFrame();
+            if (cur >= 0 && cur != frame) { history.PushWaypoint((int)cur, Entity.Null); history.PushWaypoint(frame, Entity.Null); }
+        }
         _s.Seek(frame);
         SelectReaderEntity(hit, frame);
     }

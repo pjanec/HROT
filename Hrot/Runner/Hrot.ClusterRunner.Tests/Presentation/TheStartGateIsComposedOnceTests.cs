@@ -827,4 +827,80 @@ public class TheStartGateIsComposedOnceTests
         Assert.Equal(ClusterState.OperatingPreview, p.FollowedClusterState);
         Assert.False(p.MasterGone);
     }
+
+    // ── ⭐ CE-4330 ⑨ — the quit guard of a running transfer ────────────────────────────────────────────────────────────
+
+    private sealed class CancelRecorder : Hrot.Presentation.DebugApi.IClusterMasterControl
+    {
+        public readonly List<System.Guid> Cancelled = new();
+        public void Transition(Fdp.Toolkit.Orchestration.TransitionStateIntent intent) { }
+        public void SeekReplay(Fdp.Toolkit.Orchestration.SeekReplayIntent intent) { }
+        public void SetReplayAxis(Fdp.Toolkit.Orchestration.SetReplayAxisIntent intent) { }
+        public void SetReplayLoop(Fdp.Toolkit.Orchestration.SetReplayLoopIntent intent) { }
+        public void Storage(Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent intent) { }
+        public void TakeCheckpoint(Fdp.Toolkit.Orchestration.TakeCheckpointIntent intent) { }
+        public void RestoreCheckpoint(Fdp.Toolkit.Orchestration.RestoreCheckpointIntent intent) { }
+        public void SetRunSettings(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) { }
+        public void CheckUnsaved(Fdp.Toolkit.Orchestration.CheckUnsavedIntent intent) { }
+        public void Cancel(Fdp.Toolkit.Orchestration.CancelOperationIntent intent) => Cancelled.Add(intent.TargetRequestId);
+        public void Dump(Fdp.Toolkit.Orchestration.ExecuteDiagnosticDumpIntent intent) { }
+    }
+
+    /// <summary>The editor-like host: run controls AND the master in its process, its running transfer settable.</summary>
+    private sealed class MasterHost : MockSubsystem, IProvidesRunControls, Hrot.Presentation.DebugApi.IHostsClusterMaster
+    {
+        public RunHostKind HostKind => RunHostKind.Editor;
+        public ITimeTransportFacade? Transport { get; }
+        public RunModeChoice? RunChoice { get; }
+        public void ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) { }
+        public readonly CancelRecorder Control = new();
+        public Fdp.Toolkit.Orchestration.StorageJob? Running;
+        public Hrot.Presentation.DebugApi.IClusterMasterControl? ClusterMasterControl => Control;
+        public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateNow => Fdp.Toolkit.Orchestration.ClusterState.Idle;
+        public Fdp.Toolkit.Orchestration.StorageJob? RunningTransfer => Running;
+        public MasterHost() : base("Editor")
+        {
+            var adapter = NodeRunControls.For(new Fdp.Core.FdpEventBus(), () => null, () => 0.0, null, new NodeRunProfile(RunHostKind.Editor, new FakeControl()));
+            RunChoice = adapter.RunChoice;
+            Transport = adapter;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4330 ⑨ (Recording Storage §3 P3) — the host whose master runs a transfer asks before the window closes: nothing running ⇒ it exits; an ARCHIVE ⇒
+    /// <i>Wait · Close anyway — … the archive resumes next time</i> through the run choice's ONE pending slot (Wait keeps the window; Close anyway exits, and the
+    /// archive is NOT cancelled — ⑧ resumes it); an IMPORT ⇒ Close anyway cancels it. Composed into the exit chain.
+    /// 🔴 Mutation: the guard not added to the chain ⇒ ctrl.TransferExit null / the chain exits at once ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4330_ClosingWhileATransferRuns_AsksOnTheMastersHost()
+    {
+        var host = new MasterHost();
+        var (ctrl, _) = Composed(host);
+        var guard = Assert.IsType<TransferExitGuard>(ctrl.TransferExit);
+        Assert.Contains(guard, ((ExitGuardChain)ctrl.ExitGuard).Guards);
+
+        Assert.Equal(ExitDisposition.CanExit, guard.OnExitRequested());   // nothing runs: no question
+
+        var ex = System.Guid.NewGuid();
+        host.Running = new Fdp.Toolkit.Orchestration.StorageJob(System.Guid.NewGuid(), Fdp.Toolkit.Orchestration.StorageJobKind.Archive, (Fdp.Core.ExerciseId)ex,
+            Fdp.Toolkit.Orchestration.StorageJobState.Running, FilesDone: 2, FilesTotal: 4);
+        Assert.Equal(ExitDisposition.Deferred, guard.OnExitRequested());
+        var ask = host.RunChoice!.Pending!;
+        Assert.Contains("still being archived (2 of 4 files)", ask.Text);
+        Assert.Contains("resumes next time", ask.Text);
+        ask.Resolve(ask.Buttons[^1]);                                       // Wait
+        Assert.False(guard.ExitApproved);
+
+        Assert.Equal(ExitDisposition.Deferred, guard.OnExitRequested());
+        host.RunChoice.Pending!.Resolve(host.RunChoice.Pending.Buttons[0]); // Close anyway
+        Assert.True(guard.ExitApproved);
+        Assert.Empty(host.Control.Cancelled);                              // an archive is left to resume next time
+
+        var import = host.Running with { Kind = Fdp.Toolkit.Orchestration.StorageJobKind.Import };
+        host.Running = import;
+        Assert.Equal(ExitDisposition.Deferred, guard.OnExitRequested());
+        host.RunChoice.Pending!.Resolve(host.RunChoice.Pending.Buttons[0]);
+        Assert.Equal(new[] { import.JobId }, host.Control.Cancelled);      // an import is cancelled
+    }
 }

@@ -287,7 +287,15 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
         //   the master plans the unload + the replay from ANY state in one request, so there is no Idle hop here. ⭐ CE-4097 part two (D21): at a moment
         //   of the recording's own sim clock when the timeline's "AAR from here" names one (the sim target wins on either axis); null = its start.
         _orchestrationBus.PublishManaged(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReplay(exerciseId, simSeconds: atSimSeconds));
+        RecordingOpened?.Invoke(exerciseId);   // ⭐ R-5 / V6 — the ONE branch where a recording opens: the host decides what fills its world (this node's part ⇒ today's AAR; a group with no part here ⇒ its ReviewSource)
     }
+
+    /// <summary>
+    /// ⭐ R-5 / V6 (docs/UX/DESIGN_Review_Perspective.md §3 D6) — raised AFTER the replay intent went out, for EVERY path that opens a recording (the door's, the run choice's raw verbs, HTTP's):
+    /// they all end in <see cref="IRunScenarioControl.OpenRecording(Guid, double?)"/>. A host with a review source classifies the exercise here. ⛔ Not the door and not the run choice
+    /// (<c>ScenarioDoor</c> / <c>RunModeChoice</c> are untouched): the raw verb is where every route has already converged.
+    /// </summary>
+    public event Action<Guid>? RecordingOpened;
 
     /// <inheritdoc/>
     /// <remarks>⭐ <c>CE-4097</c> part two (AQ108 D8, D22) — in a Live / DAR / AAR run a run choice (<see cref="SaveIntercept"/>) turns a Save into a checkpoint and the

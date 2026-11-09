@@ -223,8 +223,8 @@ entering, any layout by hand, the previous one back on leaving.*
 | **V3** ✅ | **the ONE AAR transport** (D8): `IReplayTransport` + the RB's drawer as the editor's AAR segment — history, step ± with scrub, the seek bar; the RB unchanged in look | side by side with the mockup's toolbar; step back in the editor = a cluster seek; 0 B steady *(built — see AS BUILT — V3)* |
 | **V4** ✅ | the Review LAYOUT and its automatic switch (D10), the same layout as the RB's default | side by side with `review-perspective-visual.svg` (R-4146) *(built — see AS BUILT — V4)* |
 | **V5** | ✅ M1 measured (§6.2, §6.8) | done `2026-11-08` |
-| **V6** | **`ReviewSource`** (D6, D7): a group opens Merged (default) or a part; the picker's rows; **the status bar's source segment** (D9) | the EMPTY-world bug gone: a 4-file exercise opens merged in the all-in-one editor; a CGF-only behaviour state readable in Details; a part plays; Merged steps |
-| **V7** | search hits and breakpoint stops as Event Timeline lanes | a click seeks |
+| **V6** ✅ | **`ReviewSource`** (D6, D7): a group opens Merged (default) or a part; the picker's rows; **the status bar's source segment** (D9) | the EMPTY-world bug gone: a 4-file exercise opens merged in the all-in-one editor; a CGF-only behaviour state readable in Details; a part plays; Merged steps *(built — see AS BUILT — V6)* |
+| **V7** ✅ | search hits and breakpoint stops as Event Timeline ROWS *(not lanes — query results and session events are not recorded events)* | a click seeks *(built — see AS BUILT — V7)* |
 
 ### AS BUILT — V1 *(behaviors, `2026-11-08`)*
 
@@ -270,7 +270,7 @@ classDiagram
 | `FileReview` (AiShared) | builds the editor's Frame-diff and Replay-search panels from D3's members: **search** reads the file (`CurrentFilePath` follows `RecordingFiles`), a **hit** = `Seek(frame)` + select its unit (reader entity → network id; retried every frame until the world holds the unit, ≤ 600 frames); **diff** = the selected unit at the shown frame vs the frame before, both dumped from the file (D4), refreshed when (file, frame, unit) moves, at most every 200 ms and only while the window is open; the diff's seek-to-change buttons run `EntityChangeFinder` off-thread and seek on the next `Update`. `ReviewSearchServices.BuildEditService()` is the ONE search edit service (the Replay Browser's inline copy now calls it) |
 | the editor | composes the bundle right after the rules bundle (before the headless guard): ids `editor_review_diff` / `editor_review_search` + the fixed `rb_recording_info` / `rb_json_export`, perspective `Scenario`, **closed until opened** (Window menu lists them in every layout — Review only docks them, V4). `FileReview.Update` is a window-manager frame overlay. Outside AAR (no replayed file) the diff and search panels draw *"Open an exercise recording (AAR) to search / diff."* (`UnavailableReason`, new on both panels) |
 | 0 B | `ComponentDiffPanel` allocated per steady frame (row labels interpolated each frame; interface `foreach` boxed the enumerator) — labels cached per diff, loops indexed ⇒ diff, search and `Update` measured **0 B** with a unit selected and with none, in AAR and outside it |
-| deviation | **Recording info / JSON export** are manager-bound panels (the Replay Browser's federation); the editor has no federation in an own-part AAR, so they open and say *"No recording loaded"* until V6's `ReviewSource` fills them. No File-menu items for them in the editor yet |
+| deviation | **Recording info / JSON export** are manager-bound panels (the Replay Browser's federation); the editor has no federation in an own-part AAR, so they open and say *"No recording loaded"* until V6's `ReviewSource` fills them *(V6 did — see AS BUILT — V6)*. No File-menu items for them in the editor yet |
 | rails | `TheFileReviewTests` (AiShared.Tests: outside-AAR message, hit seeks + selects with retry, diff reads the file, 0 B), `TheEditorComposesTheReviewBundleTests` (Editor.Tests: the four windows, closed, "say so" outside AAR; a hit goes through `OwnPartReplay`'s seek with the frame's moment and selects the unit). Red-proofs: hit not seeking ⇒ red; an allocation in `Update` ⇒ red |
 
 ### AS BUILT — V3 *(behaviors, `2026-11-08`)*
@@ -343,6 +343,92 @@ classDiagram
 | map menus | the editor's map menus are registered for `Review` too (`editor/map-menus-review`), so the map's right-click menu is the same in the layout |
 | deviation / caveat | a window has ONE dock slot across layouts, so the shared Details / Event Timeline are re-docked into Review's regions on first entry and stay there when you go back to Scenario. Windows drawn BEFORE the preset is applied keep their old size at first (the shared ones); the Review-only windows have never been drawn, so they take the computed size |
 | rails | `TheReviewLayoutTests` (Editor.Tests): all-in-one AAR ⇒ Review and back · a station never · manual switch mid-AAR then leave ⇒ pre-AAR · Start refusal retried / Idle-close retarget · the switch touches no replay state (master, position, selection) · mockup regions + tiling · editor composition (owned/shared windows, icon, hand-open pinned, first-entry preset, saved layout wins) · frame under `xvfb-run -a` (`HROT_RAIL_SHOTS`, ⛔ not in git). RB: `V4_TheDefaultLayout_IsTheReviewLayout_TheSamePresetTheEditorUses`. Red-proofs: the `allInOne` guard dropped ⇒ station rail red; the restore dropped ⇒ leave rails red |
+
+### AS BUILT — V6 *(behaviors, `2026-11-08`)*
+
+A participant GROUP with no part of this node now fills the editor's ONE world — Merged, or one part — instead of opening empty.
+
+```mermaid
+classDiagram
+    direction LR
+    class ReviewSource { <<NEW, Hrot.Editor/Review>> OnRecordingOpened · Classify · Update · SelectMerged · SelectPart · StatusText }
+    class ReviewSourceTransport { <<NEW>> IReplayTransport over the source: Merged steps / scrubs, ▶ greyed; a part plays }
+    class ReplayTransportSelector { <<NEW>> the segment's transport: the source's while a group is open, else the own part's }
+    class ReviewSourceStatusSection { <<NEW>> status bar, LEFT end, sortOrder 0 }
+    class ReviewSourceToolbarCombo { <<NEW>> compact Source combo while a group is open }
+    class TransientMasterBuilder { <<existing>> Build = fresh repo; BuildInto(manager, world) NEW }
+    class FederatedReplayManager { <<existing>> the hidden sandboxes }
+    class FederationPanel { <<existing>> the Source switch body: mode, offsets }
+    class RecordingGroupInventory { <<existing>> the group's files }
+    class EditorScenarioSession { <<existing>> RecordingOpened NEW }
+    class AarTransportSegment { <<V3>> + a greyed ▶ drawer while Merged }
+    EditorScenarioSession ..> ReviewSource : RecordingOpened
+    ReviewSource --> RecordingGroupInventory : the files, which are this node's
+    ReviewSource *-- FederatedReplayManager
+    ReviewSource --> TransientMasterBuilder : BuildInto the editor's world
+    ReviewSource o-- FederationPanel
+    ReviewSource *-- ReviewSourceTransport
+    ReplayTransportSelector --> ReviewSourceTransport
+    AarTransportSegment --> ReplayTransportSelector
+    ReviewSourceStatusSection --> ReviewSource
+    ReviewSourceToolbarCombo --> ReviewSource
+```
+*What the picture shows: nothing new sits between the cluster and the world — the source is one more listener on the session's open, and the world is filled by the Replay Browser's own merge.*
+
+| what | as built |
+|---|---|
+| S1 — the files | `RecordingGroupInventory.Scan(stagingRoot)` (the Replay Browser's own group loader) gives an exercise's participant files; each sidecar's `NodeId` says which node. **This node has a part** ⇔ `OrchestrationConstants.GetExerciseRecordingFilePath(<its staging root>, id, <its node id>)` exists — the very file `PrepareReplayAsync` would replay |
+| the ONE branch | `EditorScenarioSession.RecordingOpened` (raised in `IRunScenarioControl.OpenRecording`, after the replay intent): every route that opens a recording ends there. **Deviation from the handoff:** it is NOT in `ScenarioDoor.OpenRecording` (ui's / backend's, untouched) — the raw verb is below the door and the run choice both. `ReviewSource.OnRecordingOpened`: a part of this node ⇒ today's AAR, nothing else happens; a group with none ⇒ pending until the replay is up. Note `docs/blueprints/batches/NOTE_Behaviors_To_Ui_Backend_Review_Source.md` |
+| S3 — the listener | the cluster still enters AAR (the master plans it); this node's replay module is an idle LISTENER that cleared the world ONCE on entry (`PlaybackTickSystem.Listen`: `if (State == Listening) return`), and nothing of the replay writes it after. The source fills only when `ReplayState.IsActive && !IsRestoring` (the node listens) ⇒ **no branch in the recorder was needed**; `EcsRecordReplayController` / `ReplayModule` are untouched |
+| S2 — Merged | `TransientMasterBuilder.BuildInto(manager, world)` = `Build`'s merge into a world the caller owns (`Build` is now `new repo` + prime + `BuildInto`). The editor's world is cleared first by `ScenarioFileService.NewScenario` (reset observers, `SoftClear`, epoch — the boundary a scenario load starts from) and filled by the merge's own `ScenarioSerializer.DeserializeWith` — ⛔ no second load path. The selection is re-landed by network id after every refill. Every `FederatedReplayManager.OnTimeChanged` (seek, step, offset) refills |
+| a part | `SelectPart(node)`: a `PlaybackController` over THAT node's file applies its frames to the editor's world (binary — every component exact, managed ones too; the merge's JSON gap, §2.2, does not apply). It plays while the toolbar's ▶ plays, at its rate (`Update(dt)` follows the facade, as an own-part AAR follows the cluster clock); a step back is a keyframe seek |
+| the transport | `ReviewSourceTransport : IReplayTransport` — Merged: frames are the primary participant's, `Seek` = `manager.SetBaseWallTicks`, `Step` = `StepForwardAll` / `StepBackwardAll`, `CanPlay` false with `MergedPlayReason`; a part: its own frames. `ReplayTransportSelector` picks the source's transport while a group is open, the own part's otherwise — the V3 segment, unchanged except a second drawer (`AarSegment | PlayPause`) that shows the greyed ▶ in Merged |
+| status bar | `ReviewSourceStatusSection`, sortOrder **0** (the left end `StationSeatStatusBarSection` left free): Merged ⇒ *"Merged · 4 participants (Node 2, Node 3, Node 4, Node 5) — step / scrub"* in teal; a part ⇒ *"Part: Node 2"*; an ordinary AAR ⇒ nothing; pending / failed say so. A click opens the Source switch: the participants over the Replay Browser's own `FederationPanel` body. `ReviewSourceToolbarCombo` (toolbar sortOrder 13) only while a group is open |
+| picker | `RecordingPickerLauncher(sourceNotes:)`: the rows read *"… · 4 participants — opens MERGED"* / *"… · this editor's run"*, notes scanned once when the picker opens |
+| review windows | Recording info / JSON export read the group's manager (`TimelinePanel.SetManager`), the search / diff read the primary participant's file (a part's own), and a hit seeks through the source's transport |
+| D10 | a group open counts as an AAR entry (`inAar` of the layout switch and the segment `|| reviewSource.IsOpen`); in practice the cluster is in AAR as well |
+| deviations | the **⧉** glyph and the role names (*CGF ×2, SimHost, Player*): the UI font has no ⧉ and a sidecar carries no node role — the text says *Merged* and *Node N* (`nodeName` is a seam for a host that knows roles). The toolbar's own ▶ (`MainToolbarTimeControlSection`, ui's) is not greyed in Merged: the segment draws its own greyed ▶ with the reason (smallest seam for greying THE ▶ is in the NOTE) |
+| rails | `TheReviewSourceTests` (Editor.Tests, 13): a 4-file group opens MERGED in a world that held nothing, entity count = the merge's · a component only CGF's files hold is in it · this node's part ⇒ the source stays out · the picker's notes · `SelectPart` fills from one part and plays · Merged steps ±1 / scrubs, ▶ greyed with the reason · the selection follows · each status text · a load failure is stated · the review windows' files · the editor composes it (status at the left, combo, selector) · the frame under `xvfb-run -a` (`HROT_RAIL_SHOTS`). `V6_BuildInto_…` (Fdp.Toolkits.Tests) · `V6_ARowSaysWhatYouGet_…` (the picker). Red-proofs: `OnRecordingOpened` never taking a group (the empty world returns) ⇒ 10 red; `CanPlay` true ⇒ the ▶ rail red |
+
+### AS BUILT — V7 *(behaviors, `2026-11-08`)*
+
+The Event Timeline gets two review rows. ⛔ **Not lanes** (an `IndexedLaneDefinition` is READ from a recording; hits are a query's result and stops are session events) — the Tasks rows' precedent: `ITimelineTrack` through `TimelinePanel.AddTracks`.
+
+```mermaid
+classDiagram
+    direction LR
+    class ReviewTimelineTracks { <<NEW, AiShared/Review>> Tracks() · ClickHit(i) · ClickStop(i) · rows review:hits, review:stops }
+    class ReviewStopLog { <<NEW>> Stops · Version · Add(wallTicks, label, netId) }
+    class ReplaySearchPanel { <<existing>> NEW Hits · ResultsVersion · ActivateHit(i) }
+    class FileReview { <<V2>> SeekToHit now pushes a waypoint (History) }
+    class IReplayTransport { <<V3>> Seek · Waypoints }
+    class TimelinePanel { <<existing>> AddTracks }
+    class DataBreakpointManager { <<existing>> OnBreakpointHit · PausedTick }
+    class EditorSubsystem { <<host>> }
+    class ReplayBrowserSubsystem { <<host>> }
+    ReviewTimelineTracks --> ReplaySearchPanel : the hits
+    ReviewTimelineTracks --> ReviewStopLog : the stops
+    ReviewTimelineTracks ..> IReplayTransport : a stop's click seeks, a waypoint
+    ReplaySearchPanel ..> FileReview : ActivateHit = the row's own click (SeekToHit)
+    EditorSubsystem *-- ReviewTimelineTracks
+    EditorSubsystem *-- ReviewStopLog
+    EditorSubsystem ..> DataBreakpointManager : OnBreakpointHit adds a stop
+    ReplayBrowserSubsystem *-- ReviewTimelineTracks : no stops (a recording has no manager)
+    TimelinePanel o-- ReviewTimelineTracks : AddTracks, beside the Tasks rows
+```
+*What the picture shows: ONE class both hosts compose; the hit path is the grid's own click path, not a second one; only the editor has a stop log, because only it has a breakpoint manager.*
+
+| what | as built |
+|---|---|
+| the rows | `ReviewTimelineTracks` (`Hrot/Editor/Hrot.Editor.AiShared/Review/`): **Search hits** (a Pinned-diamond marker per hit at its frame — sim seconds through the index's `FrameSim` — labelled *entity · what matched*) and **Breakpoint stops** (a marker per stop, labelled *unit · breakpoint · condition sentence · behaviour step*). A row with no markers is not in the list. At most 5 000 hit markers; the row's status then says *first N of M* |
+| the hits | `ReplaySearchPanel` gained `Hits` (a cached snapshot of the grid's rows — lifecycle hits by start frame), `ResultsVersion` (moves when a search starts, lands or fails) and `ActivateHit(i)` = a click on that grid row. ⭐ Rebuilt only when the version moves — no per-frame recompute |
+| a click on a hit | `ActivateHit` ⇒ the host's ONE hit path, unchanged: the editor's `FileReview.SeekToHit` (the host's seek, then select by network id with the V2 retry), the Replay Browser's `matchIntent` (waypoints + manager seek + selection history). **Editor addition:** `SeekToHit` now pushes a history waypoint (where you were, then where you went) through `ReviewFileServices.History` = the transport's `Waypoints` — the drawer's own `RecordJump` shape, so ◀ walks a hit like a seek-bar jump |
+| the stops | the editor's `EditorSubsystem` hangs `ReviewStopLog.Add(manager.PausedTick, …)` on `DataBreakpointManager.OnBreakpointHit`. **Measured:** the manager has no replay awareness (no guard in `DataBreakpointSystem` / `OnHit`); a stop knows its moment as `PausedTick` = `GlobalTime.TotalWallTicks`, the very stamp `LiveTimelineSource.Step` gives the index's frames, so the frame is `index.FrameAt(PausedTick)` — placeable on a live index and on a replayed one. The Replay Browser has no `DataBreakpointManager` ⇒ its host passes no stop log ⇒ no stops row there |
+| a click on a stop | seeks through `IReplayTransport` when a recording is loaded (a waypoint, then `Seek(frame)`), then selects the stop's unit by network id; with no recording (a live run) it only selects |
+| composition | the editor composes it with the review bundle — before the headless guard, so it is railed — over `_node.ShownTimeline`; the Replay Browser beside its Tasks rows over its recording's index. `TimelinePanel.AddTracks` for both |
+| 0 B | `Tracks()` compares four values (index, search version, stop version, scan progress while the index is incomplete) and returns the same list; 1 000 steady calls allocate 0 B |
+| deviations | the hit label's entity is the reader handle the results grid shows (`index:generation`), not the unit's name — a name needs the file read at every hit's frame (a reader seek per marker); the grid shows the same |
+| rails | `TheReviewTimelineTracksTests` (AiShared.Tests, 5): N hits ⇒ N markers at their frames, none ⇒ no row · a hit's click seeks the host with the frame, is a waypoint and selects · the stops row grows on a hit, placed by wall ticks, a click seeks through the transport and selects · a steady frame rebuilds nothing, 0 B · the frame under `xvfb-run -a` (`HROT_RAIL_SHOTS`, both colours drawn). `V7_TheEditorComposesTheReviewRows_…` (Editor.Tests: a manager hit adds a stop at its frame; the row reaches the panel) · `V7_TheReplayBrowser_ComposesTheReviewRows_…` (ReplayBrowser.Tests). Red-proofs: a stop's click not seeking ⇒ red; `Tracks()` rebuilding every call ⇒ the 0 B rail red |
 
 ## 5. Decisions
 

@@ -53,6 +53,7 @@ namespace Fdp.Toolkit.Replay
             var metadata = new RecordingMetadata
             {
                 ExerciseId = _config.ExerciseId, NodeId = _config.NodeId, CheckpointingSeconds = Math.Max(0, _config.CheckpointingSeconds),
+                NodeName = _config.NodeName ?? "", Subsystem = _config.Subsystem ?? "", Roles = _config.Roles,   // ⭐ CE-4331 ① — this node's identity (a branch too)
             };
             if (_config.FeatureConfigsAtLoad != null)   // ⭐ Node Features F-15
                 foreach (var kv in _config.FeatureConfigsAtLoad) metadata.FeatureConfigsAtLoad[kv.Key] = kv.Value;

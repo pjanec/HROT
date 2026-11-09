@@ -459,7 +459,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Fdp.Network.Cyclone.Topics.IdResponse` | message | yes: client id | Q | Fdp.Network.Cyclone | Allocator's granted id block, reset broadcast |
 | `Fdp.Network.Cyclone.Topics.IdStatus` | message | no | S | Fdp.Network.Cyclone | Highest entity id allocated so far |
 | `Hrot.NED.Descriptors.Orchestration.NodeIdGrant` | message | yes: computer hash + process id | S | Hrot.Network.Orchestration | Master's node-id grant or refusal |
-| `Hrot.NED.Descriptors.Orchestration.NodeIdRequest` | message | yes: computer hash + process id | S | Hrot.Network.Orchestration | Process asks the master for a node id |
+| `Hrot.NED.Descriptors.Orchestration.NodeIdRequest` | message | yes: computer hash + process id | S | Hrot.Network.Orchestration | Process asks the master for a node id (with its kind, `SubsystemName`, and the id it held last time as `PreferredId`: the master grants inside the kind's range, CE-4331 ⑥) |
 
 ### F. Map, gizmo and operator UI — 15
 
@@ -494,8 +494,8 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.Orchestration.NodeOpStatus` | message | no | Q | Hrot.Network.Orchestration | Node's reply to a node operation |
 | `Hrot.NED.Descriptors.Orchestration.OrchestratorContextTopic` | message | no | S | Hrot.Network.Orchestration | Exercise, scenario and required nodes context |
 | `Hrot.NED.Descriptors.Orchestration.ReplaySessionTopic` | message | no | S | Hrot.Network.Orchestration | Replay session layer: zero, length, axis, marks |
-| `Hrot.NED.Descriptors.Orchestration.StorageJobsTopic` | message | yes: node id (0 = master) | S | Hrot.Network.Orchestration | The master's storage job list (archive / import / discard / delete) with state and numbers |
-| `Hrot.NED.Descriptors.Orchestration.ExerciseNotesTopic` | message | yes: node id (0 = master) | S | Hrot.Network.Orchestration | The master's notes of the exercise on show (CE-4325, E7): the exercise id and the whole note list; changed through the `EditExerciseNote` cluster op (28) |
+| `Hrot.NED.Descriptors.Orchestration.StorageJobsTopic` | descriptor | yes: node id (0 = master) | S | Hrot.Network.Orchestration | The master's storage job list (archive / import / discard / delete) with state and numbers |
+| `Hrot.NED.Descriptors.Orchestration.ExerciseNotesTopic` | descriptor | yes: node id (0 = master) | S | Hrot.Network.Orchestration | The master's notes of the exercise on show (CE-4325, E7): the exercise id and the whole note list; changed through the `EditExerciseNote` cluster op (28) |
 
 ### H. EQS (environment-query sensors) — 4
 

@@ -40,6 +40,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
     /// <summary>⭐ CE-3354 ⑥ — the master's own state (null before Initialize).</summary>
     public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateNow
         => _core is null ? null : (Fdp.Toolkit.Orchestration.ClusterState)(int)_core.Master.CurrentClusterState;
+    /// <summary>⭐ CE-4330 ⑨ — the transfer this host's master runs now (the quit guard asks about it here only).</summary>
+    public Fdp.Toolkit.Orchestration.StorageJob? RunningTransfer => _core?.Master.StorageJobs.Running;
 
     /// <summary>
     /// ⭐⭐ <c>CE-4002</c> — the orchestrator's debug surface: the MASTER's roster (only the node hosting the

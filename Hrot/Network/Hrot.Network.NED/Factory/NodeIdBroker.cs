@@ -17,7 +17,8 @@ public static class NodeIdBroker
     /// <summary>The master's answer.</summary>
     public readonly record struct Grant(NodeId NodeId, Guid SessionId, bool Refused, string Reason);
 
-    public static Grant AwaitGrant(uint domainId, int forcedId, int preferredId, Action<string> log, CancellationToken ct = default)
+    /// <param name="subsystemName">⭐ CE-4331 ⑥ — the asking node's kind (<c>CGF</c>, <c>Player</c>, …): the master grants the lowest free id of that kind's range (the node's <paramref name="preferredId"/> first when free). Null = a dynamic id.</param>
+    public static Grant AwaitGrant(uint domainId, int forcedId, int preferredId, Action<string> log, string? subsystemName = null, CancellationToken ct = default)
     {
         string computer = Environment.MachineName;
         int pid = Environment.ProcessId;
@@ -28,11 +29,7 @@ public static class NodeIdBroker
         using var reader = new DdsReader<NodeIdGrant>(participant);
 
         // ⭐ Durable (TransientLocal): written once, a master that starts later still receives it.
-        writer.Write(new NodeIdRequest
-        {
-            ComputerHash = hash, ProcessId = pid, ComputerName = computer,
-            ForcedId = forcedId, PreferredId = preferredId,
-        });
+        writer.Write(Hrot.Network.Orchestration.NodeIdRequestWire.ToTopic(computer, pid, forcedId, preferredId, subsystemName));
         log($"[NodeId] asked the master for a node id ({computer} pid {pid}) — waiting for a cluster.");
 
         var sinceLog = Stopwatch.StartNew();

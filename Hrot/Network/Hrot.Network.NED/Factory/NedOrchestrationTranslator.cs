@@ -96,13 +96,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
             foreach (var sample in idScope)
             {
                 if (!sample.IsValid) continue;
-                _bus.PublishManaged(new NodeIdRequestEvent
-                {
-                    ComputerName = sample.Data.ComputerName ?? string.Empty,
-                    ProcessId    = sample.Data.ProcessId,
-                    ForcedId     = sample.Data.ForcedId,
-                    PreferredId  = sample.Data.PreferredId,
-                });
+                _bus.PublishManaged(Hrot.Network.Orchestration.NodeIdRequestWire.ToEvent(sample.Data));   // ⭐ CE-4331 ⑥ — the ONE mapping (carries the node's kind)
             }
         foreach (var grant in _bus.ReadManaged<NodeIdGrantEvent>())
             _nodeIdGrantWriter.Write(new NodeIdGrant

@@ -101,31 +101,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
 
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-            var waypoints = new List<Waypoint>(routePlan.Waypoints.Count);
-            for (int i = 0; i < routePlan.Waypoints.Count; i++)
-            {
-                var wp = routePlan.Waypoints[i];
-                waypoints.Add(new Waypoint
-                {
-                    Position          = EnuWire.ToWire(wp.Position),   // ⭐ AQ107 B — local ENU, copied
-                    Name              = string.Empty,
-                    SpeedMetersPerSec = wp.TargetSpeed,
-                    ExtensionJson     = wp.ExtensionJson ?? string.Empty,
-                    Kind              = (byte)wp.Kind,        // ⭐ Air Ops B1 — appended
-                    HeightAgl         = wp.HeightAgl,
-                    Hold              = (byte)wp.Hold,
-                    HoldSeconds       = wp.HoldSeconds,
-                    HoldUnit          = wp.HoldUnit.Ref.NetworkId,   // S9': the wire stays int
-                });
-            }
-
-            _instances.Write(netId.Value, new MapRoute
-            {
-                EntityId      = netId.Value,
-                Points        = waypoints,
-                IsLoop        = routePlan.IsLoop,
-                ExtensionJson = string.Empty,
-            });
+            _instances.Write(netId.Value, MapRouteWire.ToSample(netId.Value, routePlan));   // ⭐ CE-4284 — the one encoding
 
             SentSampleCount++;
             _publishedVersions[entity] = routePlan.Version;

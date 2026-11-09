@@ -15,7 +15,7 @@ public sealed partial class ClusterMaster
         foreach (var req in _eventBus.ReadManaged<NodeIdRequestEvent>())
         {
             var o = _nodeIds.Grant(req.ComputerName, req.ProcessId, req.ForcedId, req.PreferredId,
-                id => _roster.ActiveNodes.ContainsKey(id));
+                id => _roster.ActiveNodes.ContainsKey(id), req.SubsystemName);   // ⭐ CE-4331 ⑥ — inside the kind's range
             if (o.Refused)
                 FdpLog<ClusterMaster>.Error("[Orchestrator] C1: node id request from {0} pid {1} REFUSED: {2}.",
                     req.ComputerName, req.ProcessId, o.Reason);

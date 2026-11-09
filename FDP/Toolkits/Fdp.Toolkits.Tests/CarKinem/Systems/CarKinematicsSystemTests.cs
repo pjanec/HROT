@@ -1587,6 +1587,57 @@ namespace CarKinem.Tests.Systems
             return (repo, e);
         }
 
+        /// <summary>The smallest turning radius <paramref name="p"/> may drive at <paramref name="speed"/>: full lock (L / tan δ) or v² / a, whichever is wider.</summary>
+        private static float MinRadius(in VehicleParams p, float speed)
+            => MathF.Max(p.WheelBase / MathF.Tan(p.MaxSteerAngle), speed * speed / p.MaxLatAccel);
+
+        /// <summary>Steps the kinematics frame by frame and returns the tightest radius / allowed-radius ratio seen above 3 m/s, and the top speed.</summary>
+        private static (float WorstRatio, float TopSpeed) TurnAgainstTheLimit(EntityRepository repo, Entity e, float seconds, TrajectoryPoolManager? pool = null)
+        {
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool ?? new TrajectoryPoolManager());
+            var p = repo.GetComponent<VehicleParams>(e);
+            float worst = float.MaxValue, top = 0f;
+            for (int i = 0; i < (int)(seconds * 60); i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                float v = MathF.Abs(repo.GetComponent<VehicleState>(e).Speed);
+                float w = MathF.Abs(repo.GetComponent<SimVelocity>(e).Angular.Z);
+                top = MathF.Max(top, v);
+                if (v < 3f || w < 1e-4f) continue;
+                worst = MathF.Min(worst, v / w / MinRadius(in p, v));
+            }
+            return (worst, top);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4345 — a POSSESSED vehicle on full lock and full throttle: at every speed its turning radius is at least the type's minimum for that
+        /// speed — full lock's L / tan δ when slow, v² / a_lat when fast (it turns wide at speed, as tightly as ever at a crawl). 🔴 Mutation: no
+        /// steer limit in the integrator ⇒ full lock at 20+ m/s ⇒ a radius far under v² / a ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4345_APossessedVehicle_TurnsWiderAtSpeed_NeverUnderTheTypesMinimumRadius()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.PersonalCar, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f, Steer = 1f });
+            var (worst, top) = TurnAgainstTheLimit(repo, e, 12f);
+            Assert.True(top > 12f, $"anti-vacuity: the car must reach speed (top {top:0.0} m/s)");
+            Assert.True(worst >= 0.97f, $"the radius fell to {worst:0.00}× the type's minimum for its speed");
+        }
+
+        /// <summary>
+        /// ⭐ CE-4345 — the AI drives through the SAME integrator: a car at 18 m/s told to follow a path at right angles to its heading turns no
+        /// tighter than v² / a_lat (it used to slew to full lock at once, the cornering-speed cap only braking it afterwards). 🔴 Same mutation ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4345_AnAiVehicle_TurnsWiderAtSpeed_NeverUnderTheTypesMinimumRadius()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 18f, startSpeed: 18f, facing: FacingNorth, startY: -40f);
+            var (worst, top) = TurnAgainstTheLimit(repo, e, 4f, pool);
+            Assert.True(top > 15f, $"anti-vacuity: it turns at speed (top {top:0.0} m/s)");
+            Assert.True(worst >= 0.97f, $"the radius fell to {worst:0.00}× the type's minimum for its speed");
+        }
+
         private static void Run(EntityRepository repo, float seconds)
         {
             var spatial = new SpatialHashSystem();
