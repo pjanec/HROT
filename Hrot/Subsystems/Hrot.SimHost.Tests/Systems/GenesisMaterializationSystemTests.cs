@@ -278,6 +278,34 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, roster.Count);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4137</c> — the roster is in network-id order whatever order the members are created in: a Live load after Edit
+        /// reuses freed entity slots in reverse, so Bravo (1007) was created before Alpha (1002) and took slot 1 — <c>PlatoonBound</c>
+        /// (support = slot 2) sent ALPHA to the support point. 🔴 Red-proof: append in query order ⇒ Bravo is slot 0.
+        /// </summary>
+        [Fact]
+        public void CE4137_TheRosterIsInNetworkIdOrder_WhateverOrderTheMembersAreCreatedIn()
+        {
+            var commander = _repo.CreateEntity();
+            _entityMap.Register(1001, commander);
+            var bravo = _repo.CreateEntity();   // created FIRST (the lower entity index), but listed second in the file
+            _entityMap.Register(1007, bravo);
+            var alpha = _repo.CreateEntity();
+            _entityMap.Register(1002, alpha);
+            var charlie = _repo.CreateEntity();
+            _entityMap.Register(1009, charlie);
+            foreach (var e in new[] { bravo, alpha, charlie })
+                _repo.SetManagedComponent(e, new InitialUnitSubordinateIntent { CommanderNetworkId = new EntityRef(1001), Designation = TacticalDesignation.Wingman });
+
+            CreateAndStartSystem().Execute(_repo, 0.016f);
+
+            var roster = _repo.GetComponent<UnitRoster>(commander);
+            Assert.Equal(3, roster.Count);
+            Assert.Equal(alpha, roster.SubordinateEntities[0]);
+            Assert.Equal(bravo, roster.SubordinateEntities[1]);
+            Assert.Equal(charlie, roster.SubordinateEntities[2]);
+        }
+
         // -- CS014-T02: Intent preserved when commander not yet in map --------------------
 
         [Fact]

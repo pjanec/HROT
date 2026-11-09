@@ -223,8 +223,20 @@ namespace Hrot.SimHost.Systems
                 //   scenario-loaded hierarchies never go through UnitHierarchySystem's assign event.
                 Fdp.Toolkit.Squad.SquadStateProvisioning.EnsureForCommander(repo, commander);
 
-                roster.SubordinateEntities[roster.Count]  = entity;
-                roster.TacticalDesignations[roster.Count] = (ushort)intent.Designation;
+                // ⭐ CE-4137 — the roster is in NETWORK-ID order (the order the scenario file lists the members), never the order this query
+                //   happens to visit them: a Live load after Edit reuses freed entity slots in reverse, so Bravo materialised before Alpha
+                //   and PlatoonBound's slot 2 (support) became Alpha — the squads' roles swapped. A member with no network id appends.
+                int at = roster.Count;
+                if (_entityMap.TryGetNetworkId(entity, out var netId))
+                    for (int i = 0; i < roster.Count; i++)
+                        if (_entityMap.TryGetNetworkId(roster.SubordinateEntities[i], out var other) && other > netId) { at = i; break; }
+                for (int i = roster.Count; i > at; i--)
+                {
+                    roster.SubordinateEntities[i]  = roster.SubordinateEntities[i - 1];
+                    roster.TacticalDesignations[i] = roster.TacticalDesignations[i - 1];
+                }
+                roster.SubordinateEntities[at]  = entity;
+                roster.TacticalDesignations[at] = (ushort)intent.Designation;
                 roster.Count++;
                 repo.SetComponent(commander, roster);
 
