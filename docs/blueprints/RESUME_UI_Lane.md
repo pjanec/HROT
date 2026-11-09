@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-09
-current-answer: ⭐⭐⭐ 2026-11-09 — START AT "SESSION 2026-11-09 — U-11 RECORDING STORAGE UI, DONE" directly below this STATUS block.
+current-answer: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-09 — START AT "SESSION 2026-11-09 — U-11 RECORDING STORAGE UI, DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-08 — START AT "SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED)".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-07 (b) — START AT "SESSION 2026-11-07 (b) — B-10 KEYS + B-11 ACTION CATALOGUE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-07 — START AT "SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE" directly below this STATUS block.
@@ -174,6 +175,25 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE *(state at `ui` + this doc commit, pushed)*
+
+⭐ **[HANDOFF_Coordinator_To_Ui_Next_2](batches/HANDOFF_Coordinator_To_Ui_Next_2.md) is finished.** Every row is in [STATUS_Ui_Next_2](batches/STATUS_Ui_Next_2.md):
+A-2 one Scenario tab (CE-4346) · A-3 the struct editor opens buffers / maps (CE-4351, CE-4352) · A-4 group drag measured working end to end (CE-4342) · A-5 toasts from the font (CE-4343) ·
+A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the pick dropdown's columns (CE-4349) · A-9 ▶ greyed with the merged world's reason · A-10 the Car in the atlas (CE-4273).
+
+**⏭ Next, in order:**
+1. **Go Live greyed from a replay on another cluster** — still waits on backend ([NOTE_Ui_To_Backend_GoLive_Refusal_Fact](batches/NOTE_Ui_To_Backend_GoLive_Refusal_Fact.md)).
+2. **CE-1466** (3-D click-select hit-tests the 2-D footprints) · **CE-1467** (bookmark deviations).
+3. Merge the other lanes; look for `To_Ui` notes.
+
+**Things measured this session (each one cost time):**
+- A rail that drives the map PACK must send the lifecycle's `ConstructionOrder` for units it creates. Without it no gizmo instance exists and a drag does nothing (`DataDrivenGizmoSystem.HasActiveGizmo` is the probe).
+- A mutation that does not COMPILE leaves the old binary, and the old binary passes. Check the build line before believing a red-proof.
+- The thumbnail script runs headless: `xvfb-run` through `utility-demo-check.launch`, after `dotnet build Hrot/Runner/Hrot.ClusterRunner` (with restore), and `python3 -m pip install pillow`, since the default `python3` is 3.13.
+- The debug API's `GET /entities/{id}` writes a vector as `[x, y, z]`.
+- The `Car` (8806) is a STATIC OBSTACLE, not a vehicle.
+- ⚠ Pre-existing red: `StructEdit.Tests…Build_CircularReference_CircularFieldIsUnsupported` (a JSON clone cycle).
 
 ## ⭐⭐⭐ SESSION 2026-11-09 — U-11 RECORDING STORAGE UI, DONE *(state at `ui` + this doc commit, pushed)*
 

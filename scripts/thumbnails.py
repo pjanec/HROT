@@ -129,13 +129,17 @@ FILL = 0.92             # the projected box fills this share of the tile's limit
 
 def entity_size(comps):
     """(height, length, width) of a spawned entity in metres, from what it carries: PhysicsCollider.Height and VehicleParams.Length/Width (a tank: 2.23 / 6.95 x 3.59);
-    a Pedestrian (Class) is a person: 1.8 m tall on a 0.6 m footprint. Falls back to the collider radius, else a 2 m box."""
+    a Pedestrian (Class) is a person: 1.8 m tall on a 0.6 m footprint; a static obstacle its ObstacleShape. Falls back to the collider radius, else a 2 m box."""
     veh = comps.get("VehicleParams") or {}
     col = comps.get("PhysicsCollider") or {}
     if veh.get("Class") == "Pedestrian":
         return PERSON_M, PERSON_FOOT_M, PERSON_FOOT_M
     height = float(col.get("Height") or 0.0)
     length, width = float(veh.get("Length") or 0.0), float(veh.get("Width") or 0.0)
+    shape = comps.get("ObstacleShape") or {}                     # ⭐ CE-4273 — a static obstacle's own box (the Car: 4.5 x 1.8 x 1.5), tighter than its collider radius
+    if length <= 0 and shape.get("Length"):
+        length, width = float(shape["Length"]), float(shape.get("Width") or shape["Length"])
+        height = float(shape.get("Height") or height)
     if length <= 0 and col.get("Radius"):
         length = width = 2.0 * float(col["Radius"])
     if length <= 0:
@@ -276,7 +280,27 @@ BIG_W, BIG_H = 2048, 1152     # a type is captured large, then cropped to what i
 PLACEHOLDER_RGB = (166, 111, 185)   # the 3-D view's box for a type with no drawing (a voice cue, a deploy role): no thumbnail for it
 
 
-def crop_to_drawn(big, bg, out, accept_small=False):
+def project_box_px(corners, eye, target, width, height):
+    """⭐ CE-4273 — the pixel box (x0, y0, x1, y1) the world-space `corners` project to in a capture `width` x `height` from `eye` at `target`
+    (the 45 degree vertical field the film camera uses; the same basis as `fit_view`)."""
+    f = [target[k] - eye[k] for k in range(3)]
+    n = math.sqrt(sum(v * v for v in f)) or 1.0
+    fwd = [v / n for v in f]
+    right = [fwd[1], -fwd[0], 0.0]
+    n = math.hypot(right[0], right[1]) or 1.0
+    right = [right[0] / n, right[1] / n, 0.0]
+    up = [right[1] * fwd[2] - right[2] * fwd[1], right[2] * fwd[0] - right[0] * fwd[2], right[0] * fwd[1] - right[1] * fwd[0]]
+    tv = math.tan(math.radians(FOV_DEG / 2)); th = tv * width / height
+    xs, ys = [], []
+    for c in corners:
+        v = [c[k] - eye[k] for k in range(3)]
+        depth = max(sum(v[k] * fwd[k] for k in range(3)), 0.05)
+        xs.append((sum(v[k] * right[k] for k in range(3)) / (depth * th) + 1) / 2 * width)
+        ys.append((1 - sum(v[k] * up[k] for k in range(3)) / (depth * tv)) / 2 * height)
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def crop_to_drawn(big, bg, out, accept_small=False, within=None):
     """The pixels that differ between the capture with the entity and the same view without it are what it DREW: crop a 16:9 window
     around them so they fill FILL of it, downscale to W x H. Nothing drawn, or only the placeholder box ⇒ no picture (the picker's
     default stays). Needs Pillow; without it the large capture is only downscaled."""
@@ -287,6 +311,20 @@ def crop_to_drawn(big, bg, out, accept_small=False):
     a, b = Image.open(big).convert("RGB"), Image.open(bg).convert("RGB")
     diff = ImageChops.difference(a, b).convert("L").point(lambda v: 255 if v > 24 else 0)
     box = diff.getbbox()
+    # ⭐ CE-4273 — `within` (a static obstacle's own projected box): the Car (8806) is TERRAIN, so with it the ground is re-made round it and
+    #   the two captures differ in a band across the whole frame — the "drawing" ran off every view (four zoom-outs, then a speck). Only the
+    #   pixels inside its box (padded) count.
+    if within is not None and box:
+        wx0, wy0, wx1, wy1 = within
+        pad = 0.25 * max(wx1 - wx0, wy1 - wy0)
+        wx0, wy0 = max(int(wx0 - pad), 0), max(int(wy0 - pad), 0)
+        wx1, wy1 = min(int(wx1 + pad), a.width), min(int(wy1 + pad), a.height)
+        if wx1 > wx0 and wy1 > wy0:
+            kept = Image.new("L", diff.size, 0)
+            kept.paste(diff.crop((wx0, wy0, wx1, wy1)), (wx0, wy0))
+            diff = kept
+            box = diff.getbbox()
+            accept_small = True   # the subject's own box: never "clipped" by scenery it does not own
     if not box or (box[2] - box[0]) * (box[3] - box[1]) < 12:
         return ("skipped", "nothing drawn")
     mask = diff.crop(box)
@@ -440,7 +478,8 @@ def hold_still(nid, origin):
     Best effort: a route that refuses (a type with no such component) is not an error — the captures run all the same."""
     udc.call("DELETE", f"/entities/{nid}/order", {})
     comps = (body_of(udc.call("GET", f"/entities/{nid}")) or {}).get("Components") or {}
-    z = ((comps.get("SimTransform") or {}).get("Position") or {}).get("Z", origin[2])
+    p = (comps.get("SimTransform") or {}).get("Position")   # the GET writes a vector as [x, y, z] (as entity_bounds reads it); an {X, Y, Z} object is read too
+    z = p[2] if isinstance(p, list) and len(p) == 3 else (p.get("Z", origin[2]) if isinstance(p, dict) else origin[2])
     udc.call("POST", f"/entities/{nid}/component", {"componentType": "SimVelocity", "patch": {"Linear": {"X": 0.0, "Y": 0.0, "Z": 0.0}}})
     udc.call("POST", f"/entities/{nid}/component", {"componentType": "SimTransform", "patch": {"Position": {"X": origin[0], "Y": origin[1], "Z": z}}})
 
@@ -463,14 +502,17 @@ def shoot_type(tkb, origin, path, view):
         return ("failed", why), view, None
     try:
         hold_still(nids[0], origin)                        # ⭐ CE-4273 — held still BEFORE it is framed and shot
+        comps = (body_of(udc.call("GET", f"/entities/{nids[0]}")) or {}).get("Components") or {}
+        pos = (comps.get("SimTransform") or {}).get("Position") or origin
+        height, length, width = entity_size(comps)
+        face = heading_deg(comps)
         if view is None:
-            comps = (body_of(udc.call("GET", f"/entities/{nids[0]}")) or {}).get("Components") or {}
-            pos = (comps.get("SimTransform") or {}).get("Position") or origin
-            height, length, width = entity_size(comps)
-            face = heading_deg(comps)
             eye, target = frame_entity(pos, height, length, width, facing_deg=face, fill=0.45)   # generous: the whole of it in view
             view = (eye, target, face + 30.0, -15.0)
         eye, target, yaw, pitch = view
+        # ⭐ CE-4273 — a STATIC OBSTACLE is terrain (StaticObstacle, baked into the world): the ground round it is re-made with it and without it,
+        #   so the two captures differ far beyond it. Only its own projected box counts then; every other subject is cropped as before.
+        subject_px = project_box_px(box_corners(pos, height, length, width, face), eye, target, BIG_W, BIG_H) if "StaticObstacle" in comps else None
         good, why = shoot(path + ".big.png", eye, target, BIG_W, BIG_H)
         if not good:
             return ("failed", why), view, None
@@ -481,7 +523,7 @@ def shoot_type(tkb, origin, path, view):
     good, why = shoot(path + ".bg.png", eye, target, BIG_W, BIG_H)
     if not good:
         return ("failed", why), view, None
-    verdict = crop_to_drawn(path + ".big.png", path + ".bg.png", path)
+    verdict = crop_to_drawn(path + ".big.png", path + ".bg.png", path, within=subject_px)
     if verdict[0] == "clipped":                            # bigger than its data said (a wingspan, a rotor): step back and look again
         dist = math.dist(eye, target)
         fwd, right, up = _basis(math.radians(yaw), math.radians(pitch))

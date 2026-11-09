@@ -284,7 +284,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
                     screenToWorld: (screen, forDrag) => live.ScreenToWorld3D(screen, forDrag),
                     zoomAt: live.ZoomAt,
                     nextTypedKey: _nextTypedKey,
-                    keyboardCaptured: keyboardCaptured);
+                    keyboardCaptured: keyboardCaptured,
+                    // ⭐ CE-1466 — in 3-D a drawn body is pressed by the camera's ray only (its drawn box + a few pixels), as the hover is (U-9)
+                    rayOnlyAnchor: live is Fdp.Toolkit.Vis3D.MapCamera3D cam3D ? RayOnlyOf(cam3D) : null);
             else
                 _innerTerminal.HandleInput(
                     _buffer.GetFrame(),
@@ -357,6 +359,15 @@ namespace Fdp.Toolkit.Vis2D.Layers
         private readonly System.Collections.Generic.Queue<int> _typedKeys = new();
 
         /// <summary>The next typed key the canvas routed here (0 = none); what the terminal reads.</summary>
+        // ⭐ CE-1466 — the 3-D camera's ray-only rule as ONE delegate per camera (the terminal is asked every frame: no allocation in the steady state)
+        private Fdp.Toolkit.Vis3D.MapCamera3D? _rayOnlyCamera;
+        private Func<long, bool>? _rayOnlyFn;
+        private Func<long, bool> RayOnlyOf(Fdp.Toolkit.Vis3D.MapCamera3D camera)
+        {
+            if (!ReferenceEquals(camera, _rayOnlyCamera)) { _rayOnlyCamera = camera; _rayOnlyFn = camera.IsRayOnlyAnchor; }
+            return _rayOnlyFn!;
+        }
+
         internal int NextTypedKey() => _typedKeys.Count > 0 ? _typedKeys.Dequeue() : 0;
         private Func<int>? _nextTypedKeyFn;
         private Func<int> _nextTypedKey => _nextTypedKeyFn ??= NextTypedKey;
