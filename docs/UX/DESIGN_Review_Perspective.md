@@ -994,7 +994,7 @@ graph TD
 
 **Stages:** R-1 `AttributeReaders` + `AttributeValue.Text` + the rail + the units + the read routes (AR-1…3, AR-7, AR-8) · R-2 the forms read through it (AR-4; the forms' frame rails must stay green, 0 B) · R-3 `ComponentJsonPath` (AR-5) · then the watch (§6.13, attributes not components).
 
-#### ⭐ AS-BUILT — R-1 *(behaviors, `2026-11-09`, `build-state: R-1 BUILT · R-2 R-3 DESIGN`)*
+#### ⭐ AS-BUILT — R-1 *(behaviors, `2026-11-09`, `build-state: R-1 BUILT · R-2 BUILT · R-3 DESIGN`)*
 
 AR-1, AR-2, AR-3, AR-7, AR-8 are built as drawn; the class / sequence / module diagrams above stand (`AttributeReaders`, `AttributeValue.Text`, the rail's fifth table, the read routes). Where the build says something the design did not, or differs:
 
@@ -1009,6 +1009,20 @@ AR-1, AR-2, AR-3, AR-7, AR-8 are built as drawn; the class / sequence / module d
 | rail (AR-3) | `TheFourRoutingTablesAgreeTests`: (a) every row has a reader and the rail's table names every row · (b) the row's JSON through the JSON compiler onto a fresh entity, read back through the reader · (c) 0 B per row (`GC.GetAllocatedBytesForCurrentThread`, 1000 reads, per row incl. the text rows) · units. ⚠ three setters consume-and-ignore on a creation request (`Weapon.AimTarget`, `Damage.MobilityKill`, the mounts 1–3 of `Ammo.*`) — the table says what each reads back instead | `Hrot/Subsystems/Hrot.SimHost.Tests/TheFourRoutingTablesAgreeTests.cs` |
 | HTTP (AR-8) | `GET /entities/{id}/attributes[?path=…]` (repeats comma-joined by the listener; `notPresent` lists what the entity lacks; 404 / 400) · `GET /entities/{id}/field?path=Component.field.0` (the dump's JSON through `ComponentJsonPath.Get`; ⚠ a point dumps as an ARRAY — `SimTransform.Position.0` is x) · `GET /attributes/schema` gains `attributes:[{path,id,kind,unit,readable,wildcard}]`. MCP: `get_entity_attributes`, `get_entity_field` (catalog + SKILL regenerated; served by the generic catalog rule). ✅ **The Replay Browser needs nothing extra** — it fills the provider of the SHARED `DebugApiHost`/`DebugApiService` (`ReplayBrowserSubsystem.DebugSurface.cs`), so the routes read its sandbox world through the same code | `Hrot.Editor/DebugApi/DebugApiService.Attributes.cs` · `DebugApiHost.cs` · `DebugApiRouteDocs.cs` · rails `Hrot.Editor.Tests/DebugApi/TheReadRoutesReadThroughTheVocabularyTests.cs` |
 | `ComponentJsonPath` | only `Get` so far (AR-5 first use); the three old walkers are untouched — R-3 replaces them and adds `Set` | `FDP/Toolkits/Fdp.Toolkits/Scenario/ComponentJsonPath.cs` |
+
+#### ⭐ AS-BUILT — R-2 *(behaviors, `2026-11-09`, `build-state: R-1 R-2 BUILT · R-3 DESIGN`)*
+
+AR-4 and AR-7 are built: a `FormField` with an `Attribute` and no explicit delegate reads through `AttributeReaders`; `FormField.Unit` defaults to the attribute's. The Details forms now read the vocabulary's READ side (`DESIGN_Details_Forms.md` §2.4 as drawn).
+
+| what | as built | file |
+|---|---|---|
+| the ONE default | `FormField.TryReadNumber` / `TryReadText` (explicit `ReadNumber` / `ReadText` wins, else the reader, id resolved once, `SubIndex` as the sub-index); `FormView.Refresh` and `RefreshType` call them; a `false` read = the row is not drawn for that entity (so a field with only an `Attribute` needs no `Has`). 0 B (railed) | `FDP/Engine/Fdp.Presentation/ImGui/Forms/FormDecl.cs`, `FormView.cs:238-243` |
+| a Choice over a text attribute | the reader's side token (`FORCE_*`) becomes the choice index through the field's own `ChoiceValue` (tokens built once) — ONE mapping, in `FormField.ChoiceIndexOf`; the three side fields share `HrotForms.SideChoiceValue` (writes the token) | `FormDecl.cs`, `HrotForms.cs` |
+| `Unit` | an explicit `Unit` wins; else a plain number (not a slider) takes `AttributeDefinition.Unit`. ⚠ visible change: the Damage rows now carry the vocabulary's `0-255`; Humidity shows `0-1` (was `(0-1)`) | `FormDecl.cs` |
+| removed | 25 read-delegate declaration sites (counting the shared `DamagePart` / `Character` / `WeatherNumber` helpers once; plus the `Has` that equalled the reader's presence): Name, Affiliation, Stance, Weapon.Posture, Weapon.HeldItem, Health.Current, Playable.SlotName, Playable.Side, 8 Damage.Part rows via `DamagePart`, Damage.MobilityKill (the `MobilityKilled` / `PartLevel` helpers go), SpawnArea.Side / FacingDeg, Proficiency + 4 Temperament (`Character` / `Trait` lose `read`, `Has`, `effective`), 10 weather rows (`WeatherNumber` loses `unit`, `read`, `Has`), ScenarioUtcOffsetMinutes | `HrotForms.cs` |
+| kept, each `// derived:` | Aimed at (a NAME, the attribute reads a network id) · Strength's `MaxOf` · Playable toggle (component presence) · Carried as (carry mode) · `TypeValue` of the Character rows (the type's value) · Position, Kind, DIS type, Shown as, Entity id, TKB template, Start, Terrain (no attribute). The damage rows keep their `Has` (the form's OFFER rule: the part is in the body — the reader answers for any valid part id once `PartDamage` exists) | `HrotForms.cs` |
+| deviation | Playable.Side / SpawnArea.Side wrote an int `ForceId` (the setter's ordinal path maps `ForceIdentifier`, not `ForceId`); they now write the token, as Affiliation always did — the reader and the form agree by construction | `HrotForms.cs` |
+| rail | `FormViewTests.R2_AFieldDeclaredWithOnlyAnAttribute_ShowsTheReadersValue_AndTheVocabulariesUnit` (red-proved: reader unwired); the Name / Strength fields of `FormViewTests.Form` declare only an `Attribute`, so `D1_ASteadyFrame_…_AllocatesNothing` and `TheUnitFormDrawsTests` (0 B Unit form) pin 0 B per frame through the default | `FDP/Engine/Fdp.Presentation.Tests/ImGui/Forms/FormViewTests.cs` |
 
 ### 6.10 Why JSON was chosen back then — and what the binary idea must not lose *(read `2026-11-08`)*
 

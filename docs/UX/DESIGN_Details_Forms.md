@@ -5,6 +5,7 @@ updated: 2026-11-06 (the mockup's context row is the REAL replay transport, out 
 current-answer: §2 the model (§2.4 every host, read-only in the replay browser — R-4148) · §3 the four forms · §4 stages · §5 questions (approved) · §6 the visual design (approved, R-4138) with §6.6 fidelity
 stale-below: nothing
 known-rot: none
+as-built-note: 2026-11-09 (R-2) — the forms now READ through AttributeReaders (FormField.TryReadNumber / TryReadText; Unit defaults to the vocabulary's); only DERIVED rows keep a delegate, each marked `// derived:` in HrotForms.cs — DESIGN_Review_Perspective.md §6.13a "AS-BUILT — R-2"
 known-conflict: none
 related-designs:
   - DESIGN_Review_Perspective.md §6.13a — BUILDS the attribute vocabulary's READ side this design's §2.4 names (AttributeReaders); the forms' 27 per-field readers route through it (AR-4)

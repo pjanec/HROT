@@ -43,9 +43,8 @@ public sealed class FormViewTests : IDisposable
         Id = "rail-unit", Title = "Unit", Requires = new[] { typeof(EntityInfo) },
         Fields = new[]
         {
-            new FormField { Label = "Name", Kind = FieldKind.Text, Attribute = "Name", ReadText = (w, e) => w.GetComponentRO<EntityInfo>(e).Name },
-            new FormField { Label = "Strength", Attribute = "Health.Current", Min = 0, Max = 100,
-                            ReadNumber = (w, e) => w.GetComponentRO<Health>(e).Current, Has = (w, e) => w.HasComponent<Health>(e) },
+            new FormField { Label = "Name", Kind = FieldKind.Text, Attribute = "Name" },   // ⭐ R-2: attribute only — read through the vocabulary's reader
+            new FormField { Label = "Strength", Attribute = "Health.Current", Min = 0, Max = 100 },
             new FormField { Label = "Entity id", Expert = true, ReadNumber = (w, e) => e.Index },
         },
     };
@@ -100,6 +99,25 @@ public sealed class FormViewTests : IDisposable
         Assert.True(Form.Fields[2].ReadOnly);              // no attribute ⇒ read-only, never written
         view.CommitForTest(2, _world, sel, 7);
         Assert.Equal(2, sent.Count);
+    }
+
+    [Fact]
+    public void R2_AFieldDeclaredWithOnlyAnAttribute_ShowsTheReadersValue_AndTheVocabulariesUnit()
+    {
+        var a = Unit("Alpha 1-1", 42);
+        Assert.True(Form.Fields[1].TryReadNumber(_world, a, out var hp));
+        Assert.Equal(42.0, hp);                                                        // Health.Current, through AttributeReaders — the field declares no delegate
+        Assert.True(Form.Fields[0].TryReadText(_world, a, out var name));
+        Assert.Equal("Alpha 1-1", name.ToString());
+        var bare = _world.CreateEntity();
+        Assert.False(Form.Fields[1].TryReadNumber(_world, bare, out _));               // no Health ⇒ the reader has no value ⇒ the row is not drawn
+        Assert.Equal("m", new FormField { Label = "Vis", Attribute = "Weather.VisibilityM" }.Unit);   // the vocabulary's unit
+        Assert.Equal("km", new FormField { Label = "Vis", Attribute = "Weather.VisibilityM", Unit = "km" }.Unit);   // an explicit unit wins
+        Assert.Null(new FormField { Label = "Skill", Attribute = "Proficiency", Slider = true }.Unit);   // a slider shows none
+
+        var view = new FormView();
+        Frames(view, new[] { a }, 4);
+        Assert.Contains("Strength = 42", view.Rows);
     }
 
     [Fact]

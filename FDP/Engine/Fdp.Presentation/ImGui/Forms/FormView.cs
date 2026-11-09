@@ -235,12 +235,12 @@ public sealed class FormView
                 if (!world.IsAlive(e) || (field.Has != null && !field.Has(world, e))) { has = false; break; }   // a row common to ALL the selection only
                 if (field.Kind is FieldKind.Text or FieldKind.Pick)
                 {
-                    var t = field.ReadText!(world, e);
+                    if (!field.TryReadText(world, e, out var t)) { has = false; break; }   // ⭐ R-2: the explicit delegate, else the vocabulary's reader (false = the entity has no such value)
                     if (!has) text = t; else if (!t.Equals(text)) mixed = true;
                 }
                 else
                 {
-                    double v = field.ReadNumber!(world, e);
+                    if (!field.TryReadNumber(world, e, out double v)) { has = false; break; }
                     if (!has) num = v; else if (v != num) mixed = true;
                 }
                 has = true;
@@ -261,7 +261,7 @@ public sealed class FormView
     {
         bool differs = false; double typeNum = 0;
         for (int i = 0; i < sel.Count && !differs; i++)
-            if (field.TypeValue!(world, sel[i]) is { } t && Math.Abs(t - field.ReadNumber!(world, sel[i])) > 1e-4) { differs = true; typeNum = t; }
+            if (field.TypeValue!(world, sel[i]) is { } t && field.TryReadNumber(world, sel[i], out double shown) && Math.Abs(t - shown) > 1e-4) { differs = true; typeNum = t; }
         if (differs == s.Differs && (!differs || typeNum == s.TypeNumber)) return;
         s.Differs = differs; s.TypeNumber = typeNum;
         s.SliderFormat = differs ? "%.2f  (type " + typeNum.ToString("0.00", CultureInfo.InvariantCulture) + ")" : "%.2f";
