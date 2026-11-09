@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
 updated: 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
+current-answer: ⭐ §10 the import input set (§10.2 coordinator answers to Q-X1…Q-X6) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
 known-rot: §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
@@ -387,7 +387,7 @@ graph TD
 | **Q-T3** | Only lone trees are destructible (≈ 12 000); woods stay as they are in stage 1? | yes |
 | **Q-T4** | Accept that bushes and crops seen in the visual engine give no cover in HROT for now? | yes, with the scrub class as a later item |
 
-## 10. PROPOSED — the import input set: the contract between the source side and the importer *(source-data session, `2026-11-09`; for the coordinator to accept or amend — Q-X1…Q-X6)*
+## 10. ✅ AGREED — the import input set: the contract between the source side and the importer *(source-data session, `2026-11-09`; for the coordinator to accept or amend — Q-X1…Q-X6)*
 
 The source side prepares ONE folder per terrain on a local drive (⛔ never in git, Q-U5); the importer reads only this folder. Everything is in
 **local metres of the terrain's frame** (`utm {zone 32, N, e0 372000, n0 6043000}`, Q-U2): x east, y north, z up, z absolute (taken as-is, Q-U1) —
@@ -425,3 +425,14 @@ the same convention as `*.world.geojson`. Headings are compass degrees: 0 = nort
 | **Q-X4** | ≈ 1 900 door/window points belong to no footprint (mostly walls / annexes outside the simplified outline): drop them, or deliver them separately as `buildings/unassigned.geojson`? | deliver separately; the generator may ignore them |
 | **Q-X5** | an opening's `z`: door = floor level, window = its reference point (≈ 1 m above the floor) — or should the source side deliver explicit storey floor heights per building instead? | add `storeyZ: [...]` per building (floor height of each storey, derived on the source side); keep the raw opening `z` too |
 | **Q-X6** | anything else stage 4 / 5 needs from the source (e.g. per-building wall material class, entrance doors vs side doors)? | — |
+
+### 10.2 ✅ ANSWERS — coordinator *(`2026-11-09`; measured against what the importer's stages need; the user may override any row)*
+
+| # | answer | basis |
+|---|---|---|
+| **Q-X1** | ✅ **native ≈ 0.5 m**; the importer resamples to the 1 m tiled store (stage 3). 600 MB on the local drive is fine; the converted terrain is what ships | §6.1 stage 3; the importer is offline, so resampling costs nothing at run time |
+| **Q-X2** | ✅ **neutral GeoJSON as proposed** — the stage-4 generator is the ONE producer of HROT's `*.building.json` templates | Building Interiors B7 rejects a second producer of the file; the input stays engine-neutral |
+| **Q-X3** | ✅ **add `roof: "flat"\|"pitched"` + `ridgeZ`**. ⚠ HROT has no pitched roofs today (grep: no `pitched` / `ridge` in the terrain code or the building designs): the generator makes a flat roof walkable as now, and a pitched roof a **solid, non-walkable cap from the eaves to `ridgeZ`** (it blocks sight and fire like the real roof) | Building Interiors §3g.1 UI-2 (roof storey = flat) |
+| **Q-X4** | ✅ **deliver separately** as `buildings/unassigned.geojson`; stage 4 ignores them; a later item may attach them to walls (`walls.geojson`) | — |
+| **Q-X5** | ✅ **add `storeyZ: [...]` per building and keep the raw opening `z`** — HROT templates are built from storey heights (`storeys[].height`, e.g. `assets/buildings/house-2f.building.json`), so this is exactly the generator's input | Building Interiors §3a template shape |
+| **Q-X6** | ⭐ **four more, each optional with a default:** ① **`id` stable across re-exports** (scenarios, destruction state and the nav-tile cache refer to a building by it) — *required*; ② **`material`** per building (`brick`/`concrete`/`stone`/`mud`/`wood`) if the visual model tells it — default `brick`; it drives penetration and blast (Building Interiors §3c, §3d); ③ **opening `width`** (and window sill / head above the floor) if the model gives them — defaults door 0.9 m, window 1.2 m, sill 0.9 / head 2.1 (Building Interiors B7); ④ **a `version` / content hash per file in the manifest** so a re-export re-bakes only what changed (the nav-tile cache keys on its inputs) | Building Interiors §3c/§3d/B7; Navigation v2 `NavTileCache`. ⛔ entrance vs side door: not needed — every door is a door |
