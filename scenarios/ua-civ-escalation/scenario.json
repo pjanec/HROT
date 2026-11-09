@@ -52,6 +52,11 @@
         "Reactions": "StayOnTask",
         "SetBy": "Superior",
         "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "HoldTheLine",
+        "Params": {"Reach":75},
+        "Origin": "Superior"
       }
     },
     "c2390005-0000-4000-8000-000000000002": {
