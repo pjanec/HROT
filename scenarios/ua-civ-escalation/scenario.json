@@ -290,7 +290,7 @@
       "SimTransform": {
         "Position": [
           114,
-          207,
+          262,
           0
         ],
         "Rotation": [
@@ -367,7 +367,7 @@
               "taskId": "c2390005-0000-4000-8000-000000000904",
               "executingEngine": "",
               "behaviorName": "FireAtPoint",
-              "behaviorParams": {"x":134,"y":212,"z":25,"mount":0,"rounds":0,"cooldownSeconds":1.5},
+              "behaviorParams": {"x":134,"y":267,"z":25,"mount":0,"rounds":0,"cooldownSeconds":1.5},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -395,7 +395,7 @@
       "SimTransform": {
         "Position": [
           114,
-          207,
+          262,
           0
         ],
         "Rotation": [
