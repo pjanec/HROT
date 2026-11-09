@@ -344,6 +344,20 @@ namespace Fdp.Presentation.Tests
             Assert.False(rows.ContainsKey("$.NoFire[2]"));   // only the live ones
         }
 
+        /// <summary>⭐ CE-4351 — a fixed buffer of STRUCTS with no Count sibling of its own shape (<c>BrainJournal.Entries</c>, an <c>[InlineArray(24)]</c> whose only field is
+        /// private) folds and lists its entries with their fields — ⛔ it drew as its type name. 🔴 Mutation: the InlineArray line out of <c>IsFoldable</c> ⇒ a leaf ⇒ red.</summary>
+        [Fact]
+        public void CE4351_AFixedBufferOfStructs_FoldsAndListsItsEntries_NotItsTypeName()
+        {
+            var j = new Fdp.Toolkit.Behavior.Diagnostics.BrainJournal();
+            j.Entries[0] = new Fdp.Toolkit.Behavior.Diagnostics.BrainJournalEntry { A = 7 };
+            j.Count = 1;
+            var rows = TreeRows(j);
+            Assert.Equal("fold", rows["$.Entries"].Kind);
+            Assert.DoesNotContain("BrainJournalEntries", rows["$.Entries"].Text);
+            Assert.True(rows.ContainsKey("$.Entries[0]"), "the first entry is listed");
+        }
+
         /// <summary>(c) A typed field draws as the editor's formatter writes it — a name / id, not an expandable struct of raw members.</summary>
         [Fact]
         public void CE4310_ATypedField_DrawsAsItsFormattedValue_NotAsRawMembers()

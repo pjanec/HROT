@@ -429,12 +429,16 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     // ──────────────────────────────────────────────────────────────────────────
 
     /// <param name="Payload">⭐ R-4077 extension (§9c ③) — what a <see cref="ResultProjectionDto"/> kept; null without one.</param>
+    /// <param name="NodeId">⭐ G-7 S5 (I6) — the participant file the hit came from (-1: a single-file search).</param>
+    /// <param name="NetworkId">⭐ G-7 S5 (I6) — the hit entity's network id when it has one (0: none / a single-file search); a federated hit is selected by it, its <see cref="Entity"/> being a handle in ONE node's file.</param>
     public sealed record SearchResultDto(
         int FrameIndex,
         long WallClockTicks,
         Entity Entity,
         string ContextMessage,
-        SearchResultPayload? Payload = null);
+        SearchResultPayload? Payload = null,
+        int NodeId = -1,
+        long NetworkId = 0);
 
     // ──────────────────────────────────────────────────────────────────────────
     // Ring entries — R-4077 extension (docs/DESIGN_Director_Timeline_Editor.md §9c ③, TE-22 ② / R-4076)

@@ -23,7 +23,7 @@ public sealed class AarTransportSegment
 
     /// <param name="transport">The editor's transport over <see cref="OwnPartReplay"/>.</param>
     /// <param name="inAar">The run mode is AAR now (the run-mode indicator's <c>Shown</c>).</param>
-    /// <param name="merged">⭐ V6 — a participant group is open MERGED: the segment then also draws ▶, <b>greyed with the reason</b> (<see cref="IReplayTransport.PlayDisabledReason"/>) — the time control's own ▶ is ui's and is not touched.</param>
+    /// <param name="merged">⭐ V6 — a participant group is open MERGED: the segment then also draws ▶ (⭐ G-7 S4: enabled — Merged plays; ⛔ was greyed with <see cref="IReplayTransport.PlayDisabledReason"/>) — the time control's own ▶ is ui's and is not touched.</param>
     public AarTransportSegment(IReplayTransport transport, Func<bool> inAar, Func<bool>? merged = null)
     {
         Transport = transport ?? throw new ArgumentNullException(nameof(transport));
@@ -37,7 +37,7 @@ public sealed class AarTransportSegment
     public IReplayTransport Transport { get; }
     public ReplayTransportDrawer Drawer { get; }
 
-    /// <summary>⭐ V6 — the profile while Merged: the segment's items plus a greyed ▶; null when the host has no group source.</summary>
+    /// <summary>⭐ V6 — the profile while Merged: the segment's items plus ▶; null when the host has no group source.</summary>
     public ReplayTransportDrawer? MergedDrawer { get; }
 
     /// <summary>The drawer in use now.</summary>

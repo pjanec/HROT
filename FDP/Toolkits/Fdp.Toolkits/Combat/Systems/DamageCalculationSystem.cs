@@ -115,7 +115,8 @@ namespace Fdp.Toolkit.Combat.Systems
                     TotalDamage = damage,
                     HasBodyPart = evt.HasBodyPart,   // ⭐ CE-3210 — the Health owner records it on the part
                     BodyPart    = evt.BodyPart,
-                    Effect        = blunt ? HitEffect.Blunt : HitEffect.Kinetic,
+                    // ⭐ R-2085 — any NON-LETHAL round carries its kind (the floor in HealthApplicationSystem: it never kills), its knock-down only with an effect time
+                    Effect        = effectWarhead != null ? AreaEffectSystem.NonLethalEffectOf(effectWarhead.Kind) : HitEffect.Kinetic,
                     EffectSeconds = blunt ? effectWarhead!.EffectSeconds : 0f,
                     Source        = evt.Shooter,   // ⭐ CE-3237 (B-15, DS-1) — who fired it
                     OriginalSource = evt.OriginalShooter,   // ⭐ CE-4155 (SR-82) — the first thrower of a rethrown round (Null = the same)

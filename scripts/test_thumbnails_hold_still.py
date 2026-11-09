@@ -32,7 +32,7 @@ class HoldStillTests(unittest.TestCase):
                 self.gone_after -= 1
                 r.body = self.live
             elif method == "GET" and path.startswith("/entities/"):
-                r.body = {"Components": {"SimTransform": {"Position": {"X": 55.0, "Y": 66.0, "Z": 1.25}}}}
+                r.body = {"Components": {"SimTransform": {"Position": [55.0, 66.0, 1.25]}}}   # the GET writes a vector as [x, y, z] (measured against a live editor, 2026-11-09)
             return r
         self.t.udc.call = fake
         self.t.body_of = lambda r: r.body
@@ -54,6 +54,54 @@ class HoldStillTests(unittest.TestCase):
         self.gone_after = 10 ** 6
         self.live = [{"networkId": 7}]
         self.assertFalse(self.t.wait_gone([7], tries=2))                             # never gone: it says so
+
+
+class CropWithinSubjectTests(unittest.TestCase):
+    """⭐ CE-4273 — a TERRAIN obstacle (the Car, 8806) changes the ground round it, so the shot with it and the shot without it differ in a band
+    across the frame: for a static obstacle the crop counts only its own projected box. Any other subject (no box) is cropped as before."""
+
+    def setUp(self):
+        try:
+            from PIL import Image  # noqa: F401
+        except ImportError:
+            self.skipTest("needs Pillow")
+        import importlib.util, tempfile
+        spec = importlib.util.spec_from_file_location("thumbs_crop_under_test", SCRIPT)
+        self.t = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.t)
+        self.dir = tempfile.mkdtemp()
+
+    def shots(self, ground_changes):
+        from PIL import Image, ImageDraw
+        w, h = 1024, 576
+        bg = Image.new("RGB", (w, h), (120, 160, 220))                       # sky only: no ground drawn without the obstacle
+        big = Image.new("RGB", (w, h), (120, 160, 220))
+        d = ImageDraw.Draw(big)
+        if ground_changes:
+            d.rectangle((0, 200, w, h), fill=(60, 90, 40))                   # the ground the obstacle's bake brings
+        d.rectangle((480, 260, 560, 300), fill=(70, 70, 75))                 # the car itself
+        a, b = os.path.join(self.dir, "a.png"), os.path.join(self.dir, "b.png")
+        big.save(a); bg.save(b)
+        return a, b, os.path.join(self.dir, "out.png")
+
+    def test_a_scene_wide_difference_is_cropped_to_the_subject(self):
+        a, b, out = self.shots(ground_changes=True)
+        verdict = self.t.crop_to_drawn(a, b, out, within=(480, 260, 560, 300))
+        self.assertEqual(verdict[0], "ok")                                    # not "clipped" by ground it does not own
+        from PIL import Image
+        self.assertEqual(Image.open(out).size, (self.t.W, self.t.H))
+
+    def test_without_the_subject_box_the_same_shots_read_as_clipped(self):
+        a, b, out = self.shots(ground_changes=True)
+        self.assertEqual(self.t.crop_to_drawn(a, b, out)[0], "clipped")      # the failure the box fixes
+
+    def test_without_a_box_a_local_difference_is_cropped_as_before(self):
+        a, b, out = self.shots(ground_changes=False)
+        self.assertEqual(self.t.crop_to_drawn(a, b, out)[0], "small")        # no box (not an obstacle): the ordinary zoom-in path
+
+    def test_the_box_projects_onto_the_view_centre(self):
+        x0, y0, x1, y1 = self.t.project_box_px(self.t.box_corners((0.0, 0.0, 0.0), 1.0, 2.0, 2.0), [20.0, 0.0, 0.5], [0.0, 0.0, 0.5], 2048, 1152)
+        self.assertLess(abs((x0 + x1) / 2 - 1024), 2); self.assertLess(abs((y0 + y1) / 2 - 576), 2)
 
 
 if __name__ == "__main__":

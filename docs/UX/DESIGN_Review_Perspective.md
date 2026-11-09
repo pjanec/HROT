@@ -571,9 +571,9 @@ no JSON.*
 | **M-2** | one value or a curve | **one value per node per recording** (the median over the run) | a time-varying curve: no measured need |
 | **M-3** | the sign | **decided by a rail, not here**: a cause on one node (a shot) precedes its effect on another (the hit) in the merged timeline | — |
 | **M-4** | "differs" (I5) | the **existing** `ComponentDiffService` ε — ONE implementation | a second tolerance |
-| **M-5** | the views lens UI (I5) | **Details ▸ a component ▸ *By node***: the owner (crown) and each replica, amber where it differs; **one timeline lane *Replica differs · <unit>*** for the selected unit, click = seek (mockup ① ②) | a separate window |
-| **M-6** | local entities (I7) | from every node, tagged *"local to <node>"* in Details; **the Source menu's *Local entities shown from* checkboxes** (mockup ③), default: every node's on | one "provider" node (today) |
-| **M-7** | ▶ in Merged (I3) | **S4 enables it** (0 B steady, R-2084); until S4 lands ui's A-9 greys it with the reason — S4 removes that reason (the same gate, no second rule) | — |
+| **M-5** | the views lens UI (I5) | ⭐ **BUILT (S5, `2026-11-09`)** — see *AS-BUILT — S5*. **Details ▸ a component ▸ *By node***: the owner (crown) and each replica, amber where it differs; **one timeline lane *Replica differs · <unit>*** for the selected unit, click = seek (mockup ① ②) | a separate window |
+| **M-6** | local entities (I7) | ⭐ **BUILT (S5, `2026-11-09`)** — see *AS-BUILT — S5*. From every node, tagged *"local to <node>"* in Details; **the Source menu's *Local entities shown from* checkboxes** (mockup ③), default: every node's on | one "provider" node (today) |
+| **M-7** | ▶ in Merged (I3) | ⭐ **BUILT (S4, `2026-11-09`)** — ▶ plays in Merged (every participant steps, each frame merges incrementally, 0 B steady, R-2084); ui's A-9 reason is removed (`MergedPlayReason`, `HostPlayDisabledReason`, the Replay Browser's gate) — see *AS-BUILT — S4* | — |
 | **M-8** | an entity whose owner changes (I2, I8) | the merged entity KEEPS its identity (network id); its components switch source at the handover frame | a new entity per owner |
 | **M-9** | where it runs | the all-in-one editor and the standalone Replay Browser (D2); ⛔ not a cluster AAR | — |
 
@@ -606,6 +606,172 @@ practical reason for the time offsets. Does the original design says anything ab
 ⭐ Mockup: [`better-merge-visual.svg`](better-merge-visual.svg) (`scripts/gen-better-merge-mockup.py`) — the acceptance spec for M-5, M-6, M-7 (R-4138).
 
 ![the better merge](better-merge-visual.svg)
+
+### 6.12 ⭐ The build — modules, classes, stages *(behaviors, `2026-11-09`, G-7 / CE-4354 — `build-state: BUILDING`)*
+
+INVENTORY *(measured)*: `search_graph name_pattern=".*(Federat|TransientMaster|ReviewSource|MergedView|Sandbox).*" label=Class` ⇒ the merge is
+ONE class, `TransientMasterBuilder` (`Build` = a new repo; `BuildInto` = into a given one), called by TWO hosts each step:
+`ReplayBrowserSubsystem.BuildAndBindTransientMaster` (`:617-641`, a NEW repository + `RebindActiveRepo` every step) and
+`ReviewSource.RefillMerged` (`Hrot.Editor/Review/ReviewSource.cs:309-322`, `_clearWorld()` then `BuildInto` the editor's own world every step).
+`search_graph ".*(EntityField|Remap|EntityRefWalk|FieldLayout|EntityOffsets).*"` ⇒ `EntityRefRemap` walks NETWORK-id references
+(`EntityRef` / `EntityLink`), not raw `Entity`; the raw-`Entity` field knowledge per type is in `FdpAutoSerializer` (scalar fields `:417`,
+`[InlineArray]` of `Entity` `:101, :460` — CE-467). Seek alignment today: `FederatedReplayManager` by `BaseWallTicks` + manual per-node offsets
+(`SetNodeOffset`, `:38-174`) — ⭐ already what R-4183 / §6.11a decided; S3 adds only the slider. Graph coverage could not be checked.
+
+```mermaid
+graph TD
+  subgraph RBP["Replay Browser process"]
+    RBS["ReplayBrowserSubsystem — every seek, step, play tick"] -->|Merge mgr, target| BM
+    RBS -. once, on group load .-> MT1["the merged repo: created ONCE, bound ONCE"]
+  end
+  subgraph EDP["Editor process — Review, Merged source"]
+    RS["ReviewSource.OnManagerTime — every seek, step, play tick"] -->|Merge mgr, editor world| BM
+    WB["world boundary: a group re-opened, the source switched"] -->|Reset| BM
+  end
+  BM["BinaryMerger — the ONE merge (Fdp.Toolkits ReplayBrowser Federation)"] --> OS[OwnershipSource]
+  BM --> RP[EntityRemapPlan — from FdpAutoSerializer's field discovery]
+  BM --> FRM[FederatedReplayManager — the per-node sandboxes, seeked by wall ticks + manual offsets]
+  TMB["TransientMasterBuilder — kept: the ORACLE in rails only"]:::dead
+  classDef dead fill:#444,stroke:#999,color:#ddd
+```
+
+*What the module picture shows: the two hosts call ONE `BinaryMerger.Merge(manager, target)` from the place they call `TransientMasterBuilder`
+today; the target is PERSISTENT on both (the Replay Browser binds its repo once; the editor stops clearing its world per step) and only a world
+boundary resets the merger's maps. `TransientMasterBuilder` leaves the hosts and lives on as the oracle the rails compare against (grey).*
+
+```mermaid
+classDiagram
+  direction LR
+  class BinaryMerger {
+    <<NEW · Fdp.Toolkits/ReplayBrowser/Federation>>
+    +Merge(FederatedReplayManager, EntityRepository target)
+    +Reset()
+    -MergeTarget map
+    -copy per owned component (S1 full pass · S4 changed chunks only)
+  }
+  class MergeTarget {
+    <<NEW>>
+    netId → target Entity (I2)
+    (node, local Entity) → target Entity (I7, provider node until S5)
+    born / gone since the last merge
+  }
+  class EntityRemapPlan {
+    <<NEW — built once per type FROM FdpAutoSerializer's field discovery (no second walker)>>
+    raw Entity field offsets · InlineArray elements (D03)
+    +Remap(ref T, Func~Entity,Entity~)
+  }
+  class OwnershipSource {
+    <<NEW>>
+    S1: today's rule (owned AND not taken, primary first — frankenstein §7.3)
+    S2: NetworkAuthority / DescriptorOwnership, the mask a cross-check (I8)
+  }
+  class DataPolicy { <<EXISTING enum>> +NodeLocal (NEW flag, I9 / Q14) }
+  class TransientMasterBuilder { <<EXISTING — oracle>> }
+  BinaryMerger --> MergeTarget
+  BinaryMerger --> EntityRemapPlan
+  BinaryMerger --> OwnershipSource
+  BinaryMerger ..> DataPolicy : skips NodeLocal
+```
+
+| stage | builds | the proof (§6.6) |
+|---|---|---|
+| **S1** | I1 binary copy (unmanaged by value; managed by reference, or a NEW instance when the type holds a raw `Entity` — immutable records, CLAUDE.md) · I2 one persistent target + `MergeTarget` · I9 `DataPolicy.NodeLocal` on the M1 / M2 node-local types, skipped · both hosts switched to `BinaryMerger` (full pass per step) · `TransientMasterBuilder` kept | the **oracle** rail (every unmanaged component equals the JSON merge's), the **owner** rail, the **remap** rail (+ the M2 probe as a rail) |
+| **S2** | I8 `OwnershipSource` from the recorded ownership components | the **handover** rail (CE-4327 recordings) |
+| **S3** | the *Offsets…* slider in the Federation window (`SetNodeOffset`, default 0, per node, applied to that node's wall stamps) | a rail: an offset moves that node's frame choice |
+| **S4** ⭐ **BUILT** *(AS-BUILT — S4)* | I3 incremental (only chunks whose version moved, M4) ⇒ ▶ in Merged (ui's A-9 reason removed) | the **play** rail: 0 B per steady merged frame (R-2084), the cost on the largest exercise written here |
+| **S5** ⭐ **BUILT** *(AS-BUILT — S5)* | I5 the views lens (Details *By node*, the *Replica differs* lane, `ComponentDiffService` ε) · I6 federated search · I7 local entities from every node (the Source menu's checkboxes) | the mockup's states side by side (R-4146) |
+
+#### AS-BUILT — S1 *(behaviors, `2026-11-09`, G-7 / CE-4354)* — the binary merge into ONE persistent target; both hosts switched
+
+| built | where |
+|---|---|
+| `DataPolicy.NodeLocal` (`1 << 4`, orthogonal to the other flags) + `DataPolicyAttribute.Of(type)` / `IsNodeLocal(type)`; marked, each with its reason in a comment: `NetworkEntityMap`, `SpatialGridData`, `ZoneEnvironmentData`, `TerrainWorld`, `TerrainDefinition`, `TrafficNetCache`, `TrafficFrame`, `EgressPublicationState`, `ScenarioDescriptionResident`, `CanvasContextMenuState`, `WorldSurveyAnswer`, `PendingAuthorityGrants`, `NetworkAckPeerSet`, `BinaryGhostStore` | `FDP/Engine/Fdp.Core/DataPolicyAttribute.cs` · one attribute line per type |
+| `ComponentFieldDiscovery` — the ONE field walker (plain / `[FixedBuffer]` / `[InlineArray]` fields, with `includeScenarioIgnored` + `includeNonPublic`); `FdpAutoSerializer`'s three private helpers now delegate to it | `FDP/Toolkits/Fdp.Toolkits/Scenario/ComponentFieldDiscovery.cs` |
+| `EntityRemapPlan.For(type)` — per unmanaged type, built once: the BYTE OFFSET of every raw `Entity` (scalar, each element of an `[InlineArray]` of `Entity`, nested structs and inline arrays of structs — `RecentDetonations.Slots[].Shooter`); `Remap<T>(ref T, Func<Entity,Entity>)` / `RemapAt(void*, …)`; `FieldPaths` for diagnostics. Offsets come from an IL probe (`ldflda` − base), never `Marshal.OffsetOf` (bool = 4 there) and never a field assignment (a field may be `readonly`) | `…/ReplayBrowser/Federation/EntityRemapPlan.cs` |
+| `ManagedEntityRemap` — the two managed records that hold a raw `Entity` (`ChildMap`, `SubordinateOrders`) are rebuilt as a NEW instance with every handle mapped; every other managed component is shared by reference (M5) | `…/Federation/ManagedEntityRemap.cs` |
+| `OwnershipSource.Claim` — today's rule, in its own class (owned = held AND cold authority bit; first owner takes it; primary owner first, then node id); `OwnedBy` is the S2 override point | `…/Federation/OwnershipSource.cs` |
+| `MergeTarget` — netId → target entity and (node, index, generation) → target entity for the provider node's local entities; create on first sight, destroy when gone from every node (mark-and-sweep by pass), persists across `Merge` calls, `Reset()` forgets (destroys nothing) | `…/Federation/MergeTarget.cs` |
+| `BinaryMerger.Merge(manager, target)` / `Reset()` — ① correlate by `NetworkIdentity` ② ensure target entities (networked + provider locals) ③ sweep ④ per source node, per component it supplies: unmanaged → copy the value (raw pointer, remap on a scratch copy when the type holds `Entity`) → `SetComponentRaw`; managed → the same object, or the `ManagedEntityRemap` copy → `SetManagedComponentRaw`; then REMOVE every target component no source supplied. Skips `NodeLocal` and non-recorded types. A reference with no merged target becomes `Entity.Null` AND is listed in `Paradoxes` (§7.6 — never thrown, never hidden) | `…/Federation/BinaryMerger.cs` |
+| host ① Replay Browser: the merged repository is created and primed ONCE per loaded group, bound once; `BinaryMerger.Merge` per seek / step / tick; `OpenGroup` / `CloseGroup` drop repo + merger. `TransientBuildOverride` untouched (a test seam; no merger on that path) | `ReplayBrowserSubsystem.BuildAndBindTransientMaster` (`Hrot.ReplayBrowser`) |
+| host ② editor's Review source: no `_clearWorld()` per step; `_worldDirty` is set by the world boundaries (group opened, source switched to Merged, a part chosen / stepped, the group closed) and the next `RefillMerged` clears the world, `Reset()`s the merger, then merges | `ReviewSource.RefillMerged` (`Hrot.Editor/Review`) |
+| rails (§6.6): oracle · owner · remap (+ inline array) · paradox · the M2 probe (an INDEPENDENT walker: every registered type with a raw `Entity` has a plan with the same count, or a managed remapper) · stable handles (+ removal, birth, death, `Reset`) · `NodeLocal` skip on a recorded type | `FDP/Toolkits/Fdp.Toolkits.Tests/ReplayBrowser/Federation/BinaryMergerTests.cs` |
+
+**Deviations from the design above** *(all small)*:
+- ⭐ **`TransientMasterBuilder` is no longer called by a host**, but both hosts still carry its presence as the old gate: the Replay Browser's `_transientBuilder != null` means "the Merged view is available" (headless ⇒ single-node fallback, as before); `ReviewSource`'s constructor keeps its `Func<TransientMasterBuilder?>` parameter and uses it ONLY as "the editor has bootstrapped" (null ⇒ no merge yet). A later cleanup may replace both with a plain flag; S1 left the signatures so no caller and no test changed.
+- **Singletons (world-level components) are not merged** — the old builder never touched them either (`SerializeEntity` walks entities); `RecentDetonations`, `SpatialGridData` … are per-node. The M2 table's singleton rows need no entry.
+- **The unmanaged copy goes through `GetComponentPointer` + `SetComponentRaw`** (internals visible to `Fdp.Toolkits`), not generic `AddComponent<T>`, so one code path serves every type with no per-type delegate; managed ones use `GetManagedComponentByTypeId` / `SetManagedComponentRaw`.
+- **The merge copies MORE than the JSON merge**: it keeps `NoScenario` components (UnitRoster, SquadLeadership …) that the scenario serializer drops — the oracle rail therefore checks "every component of the JSON merge is in the binary merge, equal", not the reverse.
+- **S1 is a full pass per call and allocates** (lists, a delegate per node, remapped managed copies); S4 turns it incremental and 0 B. ⚠ S4 note: `Sweep` destroys an entity while other entities may still hold a remapped handle to it — in a full pass every holder is rewritten the same call; an incremental pass must re-remap the holders of a destroyed entity.
+- ⚠ **Not marked `NodeLocal`** (judgement, left to the user): `TkbCompositionDef`, `SimCombatDef` (TKB definitions — mergeable by reference), `WorldSurveyRequest`, `TerrainObjectKey` (a per-entity key that DOES belong to the terrain-object entity).
+
+⛔ §6.10 holds in every stage: never a raw chunk / `EntityIndex` copy (indices are node-local) — every copy goes entity by entity into the
+target's own entities; correctness over speed.
+
+#### AS-BUILT — S2 *(behaviors, `2026-11-09`, G-7 / CE-4354)* — I8: who owns a component is read from the RECORDED ownership components
+
+| built | where |
+|---|---|
+| `OwnershipSource.OwnedBy(repo, entity, nodeId)` (S1's override point): for an entity with a `NetworkAuthority`, a node owns a component it holds when **its own record** names it — `DescriptorOwnership.Map[(d,0)]` for the component's descriptor `d`, else `NetworkAuthority.PrimaryOwnerId` (the same two steps `AuthorityExtensions.HasAuthority` takes to decide who sends). A record naming no owner (≤ 0) falls to the cold mask for that component; an entity with no `NetworkAuthority` keeps S1's mask rule. The claim order (primary first, then node id) is unchanged | `FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Federation/OwnershipSource.cs:75` |
+| the component → descriptor lookup is the replication's ONE map: `DescriptorOwnershipMap.GetDescriptorsForComponentId`, injected through `new OwnershipSource(map)` — no second mapping | `OwnershipSource.cs:34` |
+| the cold mask is the CROSS-CHECK: components the record and the mask disagree on are counted (`OwnershipSource.MaskDisagreements`, `BinaryMerger.OwnershipDisagreements`, zeroed per `Merge`) and the record wins | `OwnershipSource.cs:37, :114` · `BinaryMerger.cs` |
+| the hosts' map: `NedOwnershipGroupBinding.ReviewMap` (`Apply` over an empty map, built once, read-only) — both hosts pass it | `Hrot.Network.NED/Replication/NedOwnershipGroupBinding.cs:57` · `ReplayBrowserSubsystem.cs:648` · `ReviewSource.cs:66` |
+| M-8: an entity whose owner changes keeps its target entity (the map is by network id since S1); its components switch source at the handover frame | rail below |
+| rails: the **handover** rail (a fixture whose masks are stale — both nodes claim — and only `DescriptorOwnership` moves, frame 1 → node 1, frame 2 → node 2: merged X is node 1's, then node 2's, the target entity unchanged, back to node 1 on a seek back) · primary-owner handover · no-record entity keeps the mask rule | `FDP/Toolkits/Fdp.Toolkits.Tests/ReplayBrowser/Federation/BinaryMergerTests.cs:471, :497, :521` |
+
+**Deviations / limits** *(all small)*:
+- ⚠ **`ReviewMap` knows only the group descriptors and explicit mappings** (`NedOwnershipGroupBinding.Apply`), not the translator-declared targets — those need a live module's translators, which neither review host has. A component of a descriptor it does not list is read from the primary owner (the creator's remainder). Adding a translator-derived mapping to the hosts is a later widening of the map, not of `OwnershipSource`.
+- The primary-owner handover rail is NOT discriminating on its own: the claim order (primary first) already makes the mask rule hand over when the primary moves. The descriptor-level rail is the one red-proved against "ignore the components".
+- The S1 oracle / owner / remap rails are unchanged and green: their fixtures hold no `NetworkAuthority`, so they stay on the mask rule and the JSON oracle (which uses the mask) still agrees. A fixture that records a handover legitimately differs from the JSON merge.
+
+#### AS-BUILT — S3 *(behaviors, `2026-11-09`, G-7 / CE-4354)* — the manual Offsets slider (R-4183)
+
+| built | where |
+|---|---|
+| per node row, ONE `SliderInt` in ms (±`FederationPanel.OffsetRangeMs` = 500, default 0, ctrl+click types a value), under an *Offsets (ms)* heading; a change calls `SetNodeOffsetMs` → `FederatedReplayManager.SetNodeOffset` (ms × `TimeSpan.TicksPerMillisecond` → wall ticks) → `SeekAll` + `OnTimeChanged`, so the Replay Browser and the editor's Review re-merge at once (live). Replaces the old `InputInt` of raw ticks; the `[!]` mark and the causality banner stay | `FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/FederationPanel.cs` (`SetNodeOffsetMs`, `GetNodeOffsetMs`, `DrawContent`) |
+| row names (Q-B6): `FederationPanel.NodeName` (default `Node N` — a recording's sidecar carries no role); the editor sets it to the Review source's participant names. The view-model rows carry `Name` + `OffsetMs` | `FederationPanel.cs` · `Hrot.Editor/Review/ReviewSource.cs` (`new FederationPanel(_manager) { NodeName = _nodeName }`) |
+| ONE slider implementation: the editor's Review draws this same panel in its Source switch (`ReviewSourceSwitch.Draw` → `SwitchPanel.DrawContent()`); the Replay Browser draws it in its Federation window | `Hrot.Editor/Review/ReviewSourceSurfaces.cs` · `FederationWindow.cs` |
+| rails: the slider's write in ms → ticks, live (one `OnTimeChanged`), moving ONLY that node's chosen frame, back at 0 · the dump's names + ms · the editor's Review: an offset on the switch panel re-merges the world for that node (the manager-level frame choice was already pinned by `RBF_P2T1_SeekAll_WithNodeOffset_NodeLandsOnDifferentState`) | `Fdp.Presentation.Tests/ImGui/ReplayBrowser/Federation/FederationPanelBuildsItsModelTests.cs` · `Hrot.Editor.Tests/Review/TheReviewSourceTests.cs` (`V6_AnOffsetOnTheSwitchPanel_ReMergesTheWorldLive_ForThatNode`) |
+
+**Limits**: the ImGui draw of the slider itself is not rendered by a frame rail (the panel's write path is); no role names until a recording carries a role. The stale remark on `FederationPanelViewModel` ("no production host draws this panel") is wrong since the editor's Source switch draws it — left for a later cleanup.
+
+#### AS-BUILT — S4 *(behaviors, `2026-11-09`, G-7 / CE-4354)* — I3: the INCREMENTAL merge, 0 B per steady frame, ▶ in Merged (M-7)
+
+| built | where |
+|---|---|
+| **ONE entry point, incremental by default**: `BinaryMerger.Merge` copies a component only when (a) the chunk of its SOURCE table that holds the entity is newer than that node's last merge — `IComponentTable.GetVersionForEntity(srcIndex) >= NodeState.MinVersion` (M4: playback stamps every restored chunk with the frame's tick) · (b) that node is NEWLY the supplier of it (an **owner change** — S2's answer differs from the node's `Row.Take` of last time) · (c) the node's whole pass is FULL · (d) the component holds a raw `Entity` and the entity set moved (below). The first pass is the same code with everything "moved" — no second "play" merger | `FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Federation/BinaryMerger.cs` (`Merge`, `CopyComponents`, `Moved`) |
+| **full-copy triggers, exactly these**: first merge of a node · `Reset()` / `Invalidate()` (a world boundary — the hosts already call `Reset` there) · a different target repository · the node's sandbox tick went BACKWARD (a seek back: versions then say nothing) · `ComponentTypeRegistry.Generation` moved · a ROW whose target entity or source entity differs from last pass (a new / re-created entity) or that was not merged in the previous pass (a node that dropped and regained the entity) | `BinaryMerger.cs` (`NodeState.Full`, `rowValid`) |
+| **state kept in the merger, grown never shrunk**: per node `NodeState` (sandbox tick of its last merge, `Map` source → target, ONE resolver delegate for the merger's life, a type-id → table cache) and per TARGET entity a `Row` (`BitMask512 Take`, target + source entity, pass number) | `BinaryMerger.cs` (`NodeState`, `Row`) |
+| **0 B**: nodes walked by array (`FederatedReplayManager.NodeCount/NodeIdAt/ContextAt`, no dictionary enumerator) · the owner sort is an in-place insertion sort (no comparison closure) · no per-frame list / delegate / LINQ / boxing in `Merge`, the remap or `Sweep` (the old per-node resolver lookup and per-pass `new` are gone). A MANAGED component allocates only when it is copied AND needs a remap (`ChildMap`, `SubordinateOrders` → a new immutable instance) — i.e. when its chunk moved | `BinaryMerger.cs` · `OwnershipSource.Claim` · `FederatedReplayManager.cs` |
+| **the `Sweep` hazard (§6.12 S1 note)**: `_structural` is set when the entity SET moved — a hash of every node's source → target mapping (births, deaths, a re-created source) differs from last pass, a target entity was destroyed, or a paradox was listed last pass — and then EVERY handle-bearing component (`EntityRemapPlan` / `ManagedEntityRemap`) is re-copied, so a holder whose own chunk did not change is re-remapped in the same call, as a full pass does. `Paradoxes` stays complete for the same reason | `BinaryMerger.cs` (`_structural`, `Mix`) |
+| **▶ in Merged (M-7)**: `ReviewSource.Update` → `AdvanceMerged` plays the group with the toolbar's ▶ and rate — one `FederatedReplayManager.StepForwardAll` per recorded frame (the path the ▶| step takes ⇒ `OnTimeChanged` → `RefillMerged` merges each frame), a jump over 30 frames is ONE seek; paused, the clock follows the primary's frame. `ReviewSourceTransport.CanPlay` / `IsPlaying` hold for Merged too, `PlayDisabledReason` is null, `MergedPlayReason` is deleted, and `EditorSubsystem`'s `HostPlayDisabledReason` (A-9) is not set any more. The Replay Browser: its play loop already stepped the manager (`TryStepForwardViaManager`) — only the ▶ GATE refused Merged, so `ReplayTimelinePanel.IsPlayEnabled(hasRecording)` lost its merged argument, `PlayDisabledReason` is null and `IsMergedViewQuery` is removed from the timeline panel. ⛔ no second play implementation | `Hrot.Editor/Review/ReviewSource.cs` · `ReviewSourceTransport.cs` · `EditorSubsystem.cs` · `Fdp.Presentation/.../ReplayTimelinePanel.cs` · `Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs` |
+| rails: **(a)** the oracle OVER PLAY — 24 delta frames stepped forward, a seek back, a seek forward across a death / a birth / a handover, then step back: the incremental world equals a FULL pass's at every frame (component set, unmanaged bytes with handles by network id, `ChildMap`, ownership record, locals) · **(b)** 0 B per merged frame, over frames where only unmanaged chunks changed AND over quiet frames (`GC.GetAllocatedBytesForCurrentThread`) · **(c)** the `Sweep` hazard (a holder whose chunk did not move) · an owner change with NO source chunk moved · **(d)** ▶ enabled in Merged, no reason, one played frame = one merge (Review level) + the Replay Browser gate | `FDP/Toolkits/Fdp.Toolkits.Tests/ReplayBrowser/Federation/BinaryMergerTests.cs` (`Incremental_*`, `Sweep_*`, `Owner_AHandover…`) · `Hrot.Editor.Tests/Review/TheReviewSourceTests.cs` (`V6_Merged_PlayIsEnabled_AndAPlayedFrameReMerges`) · `Fdp.Presentation.Tests/…/ReplayTimelinePanelTests.cs` |
+
+**⭐ THE COST, measured** *(`Incremental_Cost_OnA9000EntityExercise_IsMeasured` — the largest exercise reachable from a test: 3 nodes × 3 000 units = 9 000 networked entities, one position each, a handle holder per 10th, 10 % of the positions moving per frame, delta recording, Debug build, merge only)*:
+
+| pass | ms | components written |
+|---|---|---|
+| FULL (the first merge) | **29.5** | 27 897 |
+| INCREMENTAL, per played frame | **17.9** | 9 000 (18 897 skipped) |
+
+⚠ **Read it honestly.** The saving is real but modest, for two reasons the design should not hide: **(1) chunk granularity** (M4) — one moved position anywhere in a 64 KB chunk re-copies EVERY position of that chunk (3 000 units = one chunk per node here), so only whole untouched chunks (identity, authority, the handle holders, managed components) are skipped; **(2) the per-frame walk** — the correlation by `NetworkIdentity`, the source → target maps and the owner claim still visit every entity each pass (O(entities), no allocation) and are most of the 17.9 ms. ⭐ The next lever, if ▶ at 9 000+ entities needs it, is not the copy but that walk (skip it when no node's identity / authority / entity-index chunk moved).
+⚠ **A KEYFRAME frame is a full pass** (every chunk is restored and stamped, and a managed component is a new deserialised object each time): the periodic keyframes of a long recording cost a full pass and a few remapped managed instances — by design, M4.
+
+**Deviations / limits** *(all small)*:
+- ⭐ **"last merged version" is the NODE's sandbox tick, not a per-chunk table** — one number per node (`NodeState.LastTick`), because playback stamps every restored chunk with the frame's tick, so `version ≥ tick-of-last-merge` IS "moved since". ⚠ **A frozen clock** (a paused world still recorded, the same tick as the last merge) uses `>=` the tick instead of `>` it, the recorder's own `GlobalVersion - 1` convention — one redundant copy of what was stamped at that tick, never a missed one.
+- ⭐ **the handle refresh is a SUPERSET of "the holders of a destroyed entity"**: every handle-bearing component is re-copied on any entity-set change (the holders are not indexed). Exact, simple, and only on frames where an entity is born / dies / re-maps; a persistent paradox keeps the refresh on every frame (and a remapped managed instance allocating) — a paradox is a data defect, flagged.
+- `LastComponentsCopied` now counts WRITES; `LastComponentsSkipped` counts the skipped. `Invalidate()` is new (the next merge is a full one) for a host that writes the target some other way.
+- `TransientMasterBuilder` is still the test oracle of S1 (unchanged); the S4 oracle is a FRESH `BinaryMerger` (whose first pass is the full pass).
+
+#### AS-BUILT — S5 *(behaviors, `2026-11-09`, G-7 / CE-4354)* — I5 the views lens, I6 federated search, I7 local entities from every node (M-5, M-6)
+
+| built | where |
+|---|---|
+| **I7** — the merge takes the local (no network id) entities of EVERY node whose *Local entities shown from* flag is on (default all); each target entity is tagged with its node (`MergeTarget.TryGetLocalNode`); ONE rule in `BinaryMerger`, both hosts. `FederatedReplayManager.IsLocalEntitiesShown / SetLocalEntitiesShown` (raises `OnTimeChanged`, no seek). `LocalEntitiesProviderNodeId` is kept but now means only the PRIMARY (clock / timeline) node. The Source switch's panel draws one checkbox per node (mockup ③) instead of the provider dropdown; Details' header shows *"local to <node>"* (`EntityInspectorPanel.EntityNote`). `ReviewSource.Load` now sets the switch panel to Merged (it showed Single-Node while Merged) | `FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Federation/{BinaryMerger,MergeTarget,FederatedReplayManager}.cs` · `FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/FederationPanel.cs` · `Hrot.Editor/Review/ReviewSource.cs` |
+| **I5** — `ReplicaViews` (the lens): per component, the owner (`OwnershipSource`, the merge's rule) and every holder's value; *differs* = `ComponentDiffService.ComputeDiff` at ε 0.001 (ONE differ, M-4); raw handles compare by network id; `NetworkAuthority` (carries each node's own id) is never a finding. `ByNodeSection` = the `ComponentReflector.ComponentFooter` hook: header *By node*, crown on the owner, amber where it differs, Δ = distance over numeric leaves; Merged only, ≥ 2 holders, cached while the merged frames are unchanged. The lane: `ReplicaDifferLane` (background `ScanDifferingFrames` over its own manager) + a third row in `ReviewTimelineTracks` (*Replica differs · unit*, click = seek) | `…/Federation/ReplicaViews.cs` · `…/Panels/ReplayBrowser/ByNodeSection.cs` · `…/Utils/ComponentReflector.cs` · `Hrot.Editor.AiShared/Review/{ReplicaDifferLane,ReviewTimelineTracks}.cs` |
+| **I6** — `FederatedSearch`: the ONE search service per participant file, a hit kept only when its node owned at least one of the predicate's components at that frame (`OwnershipSource.OwnedComponents`), unioned by (network id, primary frame, context); `SearchResultDto` gained `NodeId`, `NetworkId`. The gate removed: `ReplaySearchPanel` no longer returns early in Merged; `Federated` makes it run per file; a federated hit's click seeks and selects BY NETWORK ID. Wired in both hosts | `…/Federation/FederatedSearch.cs` · `…/Panels/ReplayBrowser/ReplaySearchPanel.cs` · `FileReview.cs` · `ReplayBrowserSubsystem.cs` |
+| rails | `BinaryMergerTests` (locals, lens, lane scan, search) · `FederationPanelBuildsItsModelTests` · `TheReviewSourceTests` (locals through the switch, By node, frames of ③ and ①) · `TheReviewTimelineTracksTests` (lane, frame ②) · `TheFileReviewTests` (federated search, gate) |
+
+**Deviations / limits:** Δ is a distance, not a unit ("1.2" not "1.2 m"). The lane is an `ITimelineTrack` row (like Search hits), not an `IndexedLaneDefinition`. Event and lifecycle searches have no component to attribute: events keep every hit; lifecycle runs on the primary file only. A hit's frame is the primary node's frame at its wall stamp minus the node offsets. Other per-node-by-construction components may show amber (only `NetworkAuthority` is excluded). `TransientMasterBuilder` (the oracle) still takes only the provider's locals.
 
 ### 6.8 Appendix — M1: every recorded managed component and its scenario translator
 

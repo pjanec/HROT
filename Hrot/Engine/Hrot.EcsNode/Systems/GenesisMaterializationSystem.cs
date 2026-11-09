@@ -223,8 +223,20 @@ namespace Hrot.SimHost.Systems
                 //   scenario-loaded hierarchies never go through UnitHierarchySystem's assign event.
                 Fdp.Toolkit.Squad.SquadStateProvisioning.EnsureForCommander(repo, commander);
 
-                roster.SubordinateEntities[roster.Count]  = entity;
-                roster.TacticalDesignations[roster.Count] = (ushort)intent.Designation;
+                // ⭐ CE-4137 — the roster is in NETWORK-ID order (the order the scenario file lists the members), never the order this query
+                //   happens to visit them: a Live load after Edit reuses freed entity slots in reverse, so Bravo materialised before Alpha
+                //   and PlatoonBound's slot 2 (support) became Alpha — the squads' roles swapped. A member with no network id appends.
+                int at = roster.Count;
+                if (_entityMap.TryGetNetworkId(entity, out var netId))
+                    for (int i = 0; i < roster.Count; i++)
+                        if (_entityMap.TryGetNetworkId(roster.SubordinateEntities[i], out var other) && other > netId) { at = i; break; }
+                for (int i = roster.Count; i > at; i--)
+                {
+                    roster.SubordinateEntities[i]  = roster.SubordinateEntities[i - 1];
+                    roster.TacticalDesignations[i] = roster.TacticalDesignations[i - 1];
+                }
+                roster.SubordinateEntities[at]  = entity;
+                roster.TacticalDesignations[at] = (ushort)intent.Designation;
                 roster.Count++;
                 repo.SetComponent(commander, roster);
 
@@ -237,23 +249,32 @@ namespace Hrot.SimHost.Systems
             foreach (var entity in view.Query().WithManaged<InitialTargetsIntent>().Build())
             {
                 var intent = view.GetManagedComponentRO<InitialTargetsIntent>(entity);
-                var mem = new TargetMemory();
+                // ⭐ CE-2232 / CE-4035 G-5 (Next_2) — MERGE the authored entries into what the unit already knows, never replace it:
+                //   📐 measured live (ua-technical-scoot, editor Preview): an attack order designates and seeds its target on the first
+                //   tick, and this write of the file's (empty) list wiped it in the same frame — the technicals never knew the tank.
+                var mem = repo.HasComponent<TargetMemory>(entity) ? repo.GetComponent<TargetMemory>(entity) : new TargetMemory();
                 TargetMemory* ptr = &mem;
-                int count = 0;
+                int count = mem.Count;
                 foreach (var entry in intent.Entries)
                 {
-                    if (count >= PerceptionConstants.MaxTrackedTargets) break;
                     if (!_entityMap.TryGetEntity(entry.NetworkId.Ref.NetworkId, out var target) || !view.IsAlive(target))
                         continue;
-                    ptr->EntityIds[count]    = (long)target.PackedValue;
-                    ptr->PositionsX[count]   = entry.PosX;
-                    ptr->PositionsY[count]   = entry.PosY;
-                    ptr->PositionsZ[count]   = entry.PosZ;
-                    ptr->Freshness[count] = entry.Score;
-                    ptr->LastSeenTick[count] = entry.LastSeenTick;
-                    ptr->Modalities[count]   = entry.Modality;
-                    ptr->SeenStance[count]   = entry.SeenStance;
-                    count++;
+                    int slot = count;
+                    for (int i = 0; i < count; i++)
+                        if (ptr->EntityIds[i] == (long)target.PackedValue) { slot = i; break; }
+                    if (slot == count)
+                    {
+                        if (count >= PerceptionConstants.MaxTrackedTargets) continue;
+                        count++;
+                    }
+                    ptr->EntityIds[slot]    = (long)target.PackedValue;
+                    ptr->PositionsX[slot]   = entry.PosX;
+                    ptr->PositionsY[slot]   = entry.PosY;
+                    ptr->PositionsZ[slot]   = entry.PosZ;
+                    ptr->Freshness[slot] = entry.Score;
+                    ptr->LastSeenTick[slot] = entry.LastSeenTick;
+                    ptr->Modalities[slot]   = entry.Modality;
+                    ptr->SeenStance[slot]   = entry.SeenStance;
                 }
                 mem.Count = count;
                 repo.SetComponent(entity, mem);

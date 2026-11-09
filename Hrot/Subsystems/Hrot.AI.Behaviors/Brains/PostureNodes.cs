@@ -455,15 +455,28 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!DesignatedTarget.Of(world, self, out var designated) || !designated.Equals(target))
                 DesignatedTarget.Set(world, self, target);
-            if (told != 0) return;
+            if (!world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self)) { told = 1; return; }
+            // ⭐ CE-2232 / CE-4035 G-5 (Next_2) — re-seeded whenever it is NOT remembered, not only the first time: 📐 measured live
+            //   (ua-technical-scoot, instrumented): the seed is in memory on tick 1 and gone on tick 2 — ThreatEvaluationSystem writes its
+            //   whole snapshot copy back through the command buffer every frame (ThreatEvaluationSystem.cs:211), erasing a same-frame write.
+            //   The attack's target stays KNOWN until he is down (CE-2371, R-2079), so seeding it again is the design, not a workaround.
+            if (told != 0 && Remembered(world, self, target)) return;
             told = 1;
-            if (world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self) && world.HasComponent<SimTransform>(target))
+            if (world.HasComponent<SimTransform>(target))
             {
                 var at = world.GetComponentRO<SimTransform>(target).Position;
                 ref var mem = ref world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
                 Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)target.PackedValue, at.X, at.Y, ReportedScore,
                     Fdp.Toolkit.Perception.PerceptionClock.Now(world), (Fdp.Toolkit.Perception.Components.SensorModality)0, at.Z);
             }
+        }
+
+        private static unsafe bool Remembered(EntityRepository world, Entity self, Entity target)
+        {
+            ref readonly var mem = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
+            for (int i = 0; i < mem.Count; i++)
+                if (mem.EntityIds[i] == (long)target.PackedValue) return true;
+            return false;
         }
 
         /// <summary>⭐ <c>CE-3170</c> — the memory score a reported target enters with: a contact just seen (live ≈ 14 s, then fading and

@@ -56,6 +56,15 @@ namespace Fdp.Toolkit.Vis3D
     }
 
     /// <summary>
+    /// ⭐ CE-1466 — a picker that answers for entity BODIES: whether the entity with <paramref name="networkId"/> is drawn as a body this picker
+    /// hit-tests. Such an entity is clicked by the ray only — never by its 2-D footprint (<see cref="MapCamera3D.IsRayOnlyAnchor"/>).
+    /// </summary>
+    public interface IBodyPicker3D : IPicker3D
+    {
+        bool HasBody(long networkId);
+    }
+
+    /// <summary>
     /// ⭐ CE-1033 S2 (M17) — the ray against the DRAWN terrain (<see cref="ITerrainRenderGeometry"/>, the same triangles
     /// <see cref="TerrainLayer3D"/> draws, so what you click is what you see). Pure C#: a uniform grid over the triangles' XY
     /// bounds, walked cell by cell along the ray (Amanatides–Woo), Möller–Trumbore per triangle, no allocation per pick.

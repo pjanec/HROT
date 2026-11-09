@@ -29,6 +29,14 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// </summary>
         public int DefaultBehaviorHash { get; init; }
 
+        /// <summary>⭐ <c>CE-4151</c> — the unit type's default TASK by behaviour NAME, like <see cref="DefaultSop"/>; <c>null</c> = fall back to
+        /// <see cref="DefaultBehaviorHash"/> (no params). Started through the ingress at spawn, origin Sop, with
+        /// <see cref="DefaultBehaviorParamsJson"/>; ⭐ one place decides (<c>BehaviorTkbTranslator.Inject</c>).</summary>
+        public string? DefaultBehavior { get; init; }
+
+        /// <summary>⭐ <c>CE-4151</c> — the default task's params as JSON (R-191); <c>null</c> = its authored defaults.</summary>
+        public string? DefaultBehaviorParamsJson { get; init; }
+
         /// <summary>⭐ <c>CE-2074</c> (R-200) — the unit type's default ROE fire rule; <c>Unset</c> = fire at will.</summary>
         public Fdp.Toolkit.Behavior.Components.RoeFire DefaultRoeFire { get; init; }
 

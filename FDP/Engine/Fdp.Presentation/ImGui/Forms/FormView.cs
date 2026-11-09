@@ -117,6 +117,7 @@ public sealed class FormView
         _listRows.Clear();
         if (selection.Count == 1)
             for (int li = 0; li < decl.Lists.Count; li++) DrawList(li, decl.Lists[li], world, selection[0], editable);
+        if (selection.Count == 1) decl.After?.Invoke(world, selection[0], editable);   // ⭐ CE-4346 — the form's own block (the weather layers)
         if (!editable) ImGui.EndDisabled();
     }
 
@@ -165,7 +166,7 @@ public sealed class FormView
     }
 
     /// <summary>A section caption as the forms' mockup draws it: the words in the accent blue, then a rule line (ImGui's SeparatorText).</summary>
-    private static void Caption(string text)
+    public static void Caption(string text)
     {
         ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(0.55f, 0.72f, 0.95f, 1f));
         ImGui.PushStyleVar(ImGuiStyleVar.SeparatorTextPadding, new System.Numerics.Vector2(0f, 3f));   // the caption starts flush left, the rule follows (the mockup)

@@ -21,17 +21,17 @@ namespace Hrot.Editor.Tests.Windows;
 [Collection(PanelSnapshotTestCollection.Name)]   // one ImGui context: the frame rails of this assembly run serially
 public sealed class TheScenarioParametersHeaderDrawsTests
 {
-    private static (EntityRepository Repo, HeaderParamsSchemaSource Src, ParametersDrawer Drawer, ScenarioEnvironmentView View) Fixture()
+    private static (EntityRepository Repo, HeaderParamsSchemaSource Src, ParametersDrawer Drawer, ParametersDrawer View) Fixture()
     {
         var repo = new EntityRepository();
         repo.RegisterManagedComponent<ParamBindings>();
         ScenarioDescription.Stamp(repo, "desc", "scenario", "h", null, "");
         var src = new HeaderParamsSchemaSource(() => repo, new Hrot.Presentation.Edits.EditHistory());
         var drawer = new ParametersDrawer(src);
-        return (repo, src, drawer, new ScenarioEnvironmentView(() => repo, () => null, (_, _) => { }, drawer));
+        return (repo, src, drawer, drawer);   // ⭐ CE-4346 — the header is the drawer's own (drawn under the ONE Scenario tab); the raw ScenarioEnvironmentView is retired
     }
 
-    private static void Frames(UiFrameSession frame, ScenarioEnvironmentView view, int n)
+    private static void Frames(UiFrameSession frame, ParametersDrawer view, int n)
     {
         var ctx = DetailsContext.Empty("Scenario");
         frame.StepN(n, () =>
@@ -39,7 +39,7 @@ public sealed class TheScenarioParametersHeaderDrawsTests
             ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
             ImGui.SetNextWindowSize(new Vector2(520, 360), ImGuiNET.ImGuiCond.Always);
             ImGui.Begin("Scenario (CE-4253)");
-            view.Draw(ctx, "t");
+            view.DrawHeader();
             ImGui.End();
         });
     }
@@ -53,12 +53,12 @@ public sealed class TheScenarioParametersHeaderDrawsTests
         using var frame = UiFrameHarness.Begin();
 
         Frames(frame, view, 3);
-        Assert.False(view.ParametersHeaderOpen, "collapsed by default");
+        Assert.False(view.HeaderOpen, "collapsed by default");
         Assert.Equal(0, drawer.DrawCount);                       // the editor body is not even drawn
 
         drawer.RequestOpen();                                     // what the bind popup's New parameter… does
         Frames(frame, view, 2);
-        Assert.True(view.ParametersHeaderOpen, "opened on request");
+        Assert.True(view.HeaderOpen, "opened on request");
         Assert.True(drawer.DrawCount > 0, "the parameter editor is the header's content");
 
         // an edit goes through the ONE source, with the ONE undo history
@@ -97,7 +97,7 @@ public sealed class TheScenarioParametersHeaderDrawsTests
                     ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
                     ImGui.SetNextWindowSize(new Vector2(520, 360), ImGuiNET.ImGuiCond.Always);
                     ImGui.Begin("Scenario (CE-4253)");
-                    view.Draw(ctx, "t");
+                    view.DrawHeader();
                     ImGui.End();
                 });
         }
@@ -128,7 +128,7 @@ public sealed class TheScenarioParametersHeaderDrawsTests
         }
     }
 
-    private static Action<Action<ImGuiNET.ImGuiIOPtr>?, int> Stepper(UiFrameSession frame, ScenarioEnvironmentView view)
+    private static Action<Action<ImGuiNET.ImGuiIOPtr>?, int> Stepper(UiFrameSession frame, ParametersDrawer view)
     {
         var ctx = DetailsContext.Empty("Scenario");
         return (inject, times) =>
@@ -140,7 +140,7 @@ public sealed class TheScenarioParametersHeaderDrawsTests
                     ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
                     ImGui.SetNextWindowSize(new Vector2(520, 360), ImGuiNET.ImGuiCond.Always);
                     ImGui.Begin("Scenario (CE-4253)");
-                    view.Draw(ctx, "t");
+                    view.DrawHeader();
                     ImGui.End();
                 });
         };

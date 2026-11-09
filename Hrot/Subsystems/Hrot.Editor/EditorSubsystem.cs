@@ -355,6 +355,11 @@ namespace Hrot.Editor
         private Hrot.Editor.Review.OwnPartReplay? _ownPartReplay;
         private Hrot.Editor.AiShared.Review.FileReview? _fileReview;
         // ⭐ R-5 / V6 — the source of the ONE world while a participant group with no part of this node is open (Merged / a part), and the editor's ONE AAR transport over it
+        private Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews? _replicaViews;                          // ⭐ G-7 S5 — the merged view's lens (By node, the lane)
+        private Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? _byNodeSection;
+        private Hrot.Editor.AiShared.Review.ReplicaDifferLane? _replicaLane;
+        internal Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? ByNodeSectionForTest => _byNodeSection;
+        internal Hrot.Editor.AiShared.Review.ReplicaDifferLane? ReplicaLaneForTest => _replicaLane;
         private Hrot.Editor.Review.ReviewSource? _reviewSource;
         internal Hrot.Editor.Review.ReviewSource? ReviewSourceForTest => _reviewSource;
         private Fdp.Toolkit.ReplayBrowser.Federation.TransientMasterBuilder? _reviewMerge;
@@ -3360,6 +3365,7 @@ namespace Hrot.Editor
                 EventFocus:     _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
                 SelectNetworkEntity: n => SelectNetworkEntity(n),
                 Rules:          () => _rulesWindow,     // ⭐ U-18 / RX2 — the rule's detail in Details, through the one window
+                ScenarioFooter: () => _parametersDrawer?.DrawHeader(),   // ⭐ CE-4346 — the Parameters header under the ONE Scenario tab (the form)
                 Pick:           () => FormsPick,   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
                 ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry)));   // ⭐ P-7 7b — a task's fields
@@ -3382,14 +3388,9 @@ namespace Hrot.Editor
                     picks:      () => macroArgPicks,
                     pickMacro:  cb => _openMacroPicker?.Invoke(cb)));
 
-            // ⭐⭐ CE-1161 (CE-3217; Weather and Time §7) — the MAP-BACKGROUND views: the Scenario view (start time; the global weather
-            //   drawn by the SAME borrowed inspector as the Components view) and the Zones view (built by BP-542, never registered).
-            _scenarioWorkspace.DetailsViews.Add(
-                Hrot.Editor.Scenario.ScenarioEnvironmentViewDescriptor.For(
-                    world:          () => _world,
-                    session:        () => _fdpRepoAdapter,
-                    drawComponents: (s, e) => _fdpEntityInspector?.DrawComponentsFor(s, e),
-                    parameters:     _parametersDrawer ??= WireParametersDrawer(new Hrot.Editor.Scenario.ParametersDrawer(_headerParams, () => macroArgsEditService))));   // ⭐ CE-4253 — the parameter editor, a collapsible header of THIS view
+            // ⭐⭐ CE-4346 — the MAP-BACKGROUND views: the ONE Scenario tab is the Scenario FORM (EntityDetailsBundle, every host) with this editor's Parameters
+            //   header under it (ScenarioFooter); ⛔ SUPERSEDED (CE-1161): a second raw "Scenario" view (ScenarioEnvironmentView) beside it — retired. The Zones view stays.
+            _parametersDrawer ??= WireParametersDrawer(new Hrot.Editor.Scenario.ParametersDrawer(_headerParams, () => macroArgsEditService));   // ⭐ CE-4253 — the parameter editor
             _scenarioWorkspace.DetailsViews.Add(
                 Hrot.Editor.AiShared.Shell.ZonesDetailsViewDescriptor.For(
                     rows:     () => Hrot.Presentation.Zones.ZoneStatusReader.Read(_world!),
@@ -3964,7 +3965,8 @@ namespace Hrot.Editor
             Action<Action<string>?> openScenarioSaveAsThen = onNamed => openScenarioSaveAsCore(onNamed, false);
             Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
             if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
-            if (_timeTransport?.RunChoice is { } presetsChoice) presetsChoice.EditPresets = () => _parametersDrawer?.RequestOpen();   // ⭐ CE-3391 — the ▾ menu's Edit presets… opens Details ▸ Scenario ▸ Parameters
+            if (_timeTransport?.RunChoice is { } presetsChoice) presetsChoice.EditPresets = () => _parametersDrawer?.RequestOpen();
+            // ⭐ G-7 S4 (M-7) — the toolbar ▶ is ENABLED over the MERGED Review too: ReviewSource.Update plays every participant and merges each frame. ⛔ SUPERSEDED: Next_2 A-9's HostPlayDisabledReason (▶ greyed in Merged)
 
             // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
             Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,
@@ -5076,7 +5078,17 @@ namespace Hrot.Editor
                     position:      () => Hrot.Editor.Review.OwnPartReplay.PositionOf(_clusterHandlers?.RecordReplayController),
                     master:        () => _reviewMaster ??= new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),
                     state:         () => _editorApp?.CurrentClusterState);
-                var reviewSource = ReviewSourceOf();   // ⭐ R-5 / V6 — while a participant group is open the analysis reads ITS file and a seek drives ITS transport; otherwise the own part (below)
+                var reviewSource = ReviewSourceOf();
+                // ⭐ G-7 S5 (I5, I7) — the merged view's lens: Details ▸ a component ▸ By node, the Replica differs lane's data, the "local to <node>" tag. ONE ReplicaViews over the merge's own ownership rule (the same map).
+                _replicaViews = new Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews(new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap), reviewSerializer);
+                _byNodeSection = new Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection(_replicaViews, () => reviewSource.MergedManager,
+                    e => _world is { } w && w.IsAlive(e) && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
+                    reviewSource.NameOf);
+                _fdpEntityInspector.Reflector.ComponentFooter = _byNodeSection.Draw;
+                _fdpEntityInspector.EntityNote = reviewSource.LocalOriginNote;
+                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaDifferLane(_replicaViews, () => reviewSource.MergedManager, SelectedNetworkId,
+                    n => _world is { } w && Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(w, n) is { IsNull: false } u && w.HasComponent<EntityInfo>(u) ? w.GetComponentRO<EntityInfo>(u).Name.ToString() : null);
+                // ⭐ R-5 / V6 — while a participant group is open the analysis reads ITS file and a seek drives ITS transport; otherwise the own part (below)
                 _fileReview = new Hrot.Editor.AiShared.Review.FileReview(new Hrot.Editor.AiShared.Review.ReviewFileServices(
                     RecordingFiles: () => reviewSource.IsOpen ? reviewSource.RecordingFiles() : _ownPartReplay.RecordingFiles(),
                     CurrentFrame:   () => reviewSource.IsOpen ? reviewSource.Transport.CurrentFrame : _ownPartReplay.CurrentFrame(),
@@ -5087,7 +5099,9 @@ namespace Hrot.Editor
                     Behaviors:      _behaviorRegistry,
                     Blueprints:     _blueprintRegistry,
                     Reader:         _ownPartReplay.Reader,
-                    History:        () => _reviewTransport?.Waypoints));   // ⭐ R-6 / V7 — a hit is a history waypoint
+                    History:        () => _reviewTransport?.Waypoints,     // ⭐ R-6 / V7 — a hit is a history waypoint
+                    Merged:         () => reviewSource.MergedManager,       // ⭐ G-7 S5 (I6) — in Merged the search runs per participant file …
+                    Ownership:      new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource(Hrot.Network.Replication.NedOwnershipGroupBinding.ReviewMap)));   // … keeping the components each node owned (the merge's own map)
                 var reviewBundle = new Hrot.Editor.AiShared.Review.ReviewBundle(_fileReview.Host(Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, "editor_review_", EditorWindowColor.TitleBar, () => _world));
                 Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { reviewBundle }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
                 reviewBundle.FrameDiff.IsOpen = false; reviewBundle.ReplaySearch.IsOpen = false;   // listed in the Window menu, closed until opened
@@ -5126,7 +5140,7 @@ namespace Hrot.Editor
             if (ReviewTracks == null)
             {
                 ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _node?.ShownTimeline, _fileReview?.SearchPanel, ReviewStops,
-                    transport: () => _reviewTransport, selectUnit: n => SelectNetworkEntity(n));
+                    transport: () => _reviewTransport, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane);
                 _eventTimeline.AddTracks(ReviewTracks.Tracks);
                 if (_bpManager is { } stopManager)
                     stopManager.OnBreakpointHit += (bp, entity) =>

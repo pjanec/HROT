@@ -78,7 +78,8 @@ namespace Fdp.Toolkit.Terrain
     /// named terrain asset on every load, like <see cref="TerrainDefinition"/>.</para>
     /// 📄 docs/DESIGN_Terrain_World.md §2–§4.
     /// </summary>
-    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): a per-node terrain service — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.TerrainWorld)]
     public sealed class TerrainWorld
     {

@@ -156,6 +156,26 @@ public sealed class RunControlsSwitchNowTests
         Assert.Equal(TransportMode.Live, rig.F.Mode);
     }
 
+    /// <summary>⭐ Next_2 A-9 (NOTE_Behaviors_To_Ui_Backend_Review_Source) — a host's own reason greys THE toolbar ▶ outside Edit: the editor's Review showing the MERGED
+    /// world (▶ would drive the cluster clock, which moves nothing there). The tooltip is the host's words; ▶ sends nothing; without a reason ▶ plays as before.
+    /// 🔴 Mutation: <c>RunPlayDisabledReason</c> not asking the host ⇒ ▶ stays enabled ⇒ red.</summary>
+    [Fact]
+    public void NextA9_AHostsReason_GreysTheToolbarsPlay_InAnAar()
+    {
+        var rig = With(ClusterState.OperatingReplay, RunArmed.AAR);
+        var bar = Bar(rig);
+        string? merged = null;
+        rig.Choice.HostPlayDisabledReason = () => merged;
+        Assert.True(bar.IsPlayEnabled);
+        merged = "Merged view: step / scrub only";
+        Assert.False(bar.IsPlayEnabled);
+        Assert.Equal(merged, bar.PlayTooltip(isPaused: true));
+        bar.OnPlayPause();
+        Assert.Empty(Sent<ResumeTimeIntent>(rig));
+        merged = null;
+        Assert.True(bar.IsPlayEnabled);
+    }
+
     /// <summary>Live · ended is DERIVED (OperatingLive + the result's phase Ended): ▶ greyed with its words, ■ becomes ⏏; not in any other mode, and not before the result says so.
     /// 🔴 Mutations: <c>LiveEnded</c> returning <c>_ended</c> alone ⇒ the Edit row; <c>PlayDisabledReason</c> without the LiveEnded line ⇒ ▶ stays enabled.</summary>
     [Fact]

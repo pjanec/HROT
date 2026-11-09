@@ -241,7 +241,8 @@ namespace Fdp.Toolkit.Perception.Survey
     }
 
     /// <summary>⭐ <c>CE-3249</c> — the answer a survey sensor holds on the brain (managed: rooms and portals do not fit a fixed buffer).</summary>
-    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): a per-node survey answer cache — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.WorldSurveyAnswer)]
     public sealed class WorldSurveyAnswer
     {

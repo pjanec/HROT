@@ -121,6 +121,32 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Contains("RTS Command Mode", ViewMenu(world));
         }
 
+        /// <summary>⭐ CE-4347 (R-4163: RTS is a checked mode) — <i>View ▸ RTS Command Mode</i> carries its checkmark: checked while the map's RTS mode is on, a checkable
+        /// item (unchecked) while it is off — read each frame through the gizmo's <c>RtsChecked</c> (the map pack wires it to the map's RTS state).
+        /// 🔴 Mutation: the frame ignoring <c>RtsChecked</c> ⇒ the RTS item never checked ⇒ red.</summary>
+        [Fact]
+        public void CE4347_ViewRtsCommandMode_ShowsItsCheckmark()
+        {
+            bool on = false;
+            var gizmo = new LayerControlGizmo(7, new FdpEventBus(), MakeEditService(), settings: new GizmoSettingsRegistry()) { RtsChecked = () => on };
+            using var world = new EntityRepository();
+            world.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
+            bool? RtsItem()
+            {
+                var draw = new DebugPrimitiveBuffer();
+                gizmo.UpdateAndDraw(world, 0f, draw);
+                var p = Assert.Single(draw.GetFrame().ToArray(), x => x.Shape == DebugPrimitiveShape.MainMenuBinding);
+                var menu = System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto[]>(draw.InternMap.TryResolve(p.StringHash)!)!;
+                foreach (var c in menu[0].Children!) if (c.Label == "RTS Command Mode") return c.IsChecked;
+                throw new Xunit.Sdk.XunitException("no RTS item");
+            }
+            Assert.Equal(false, RtsItem());
+            on = true;
+            Assert.Equal(true, RtsItem());
+            on = false;
+            Assert.Equal(false, RtsItem());
+        }
+
         // ⭐ CE-3117 — each debug-trace layer has its own toggle; the first untoggled bit and above stay always on.
         [Fact]
         public void CE3117_TheDebugTraceLayers_AreToggledByTheirOwnBits()

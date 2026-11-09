@@ -12,7 +12,8 @@ namespace Fdp.Toolkit.Replication.Components
     /// </summary>
     [Obsolete("BinaryGhostStore stashing is replaced by direct component application on ghost entities. See GhostCreationSystem.")]
     [ComponentId(GlobalComponentIds.BinaryGhostStore)]
-    [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): this node's obsolete ghost stash — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoPreview | DataPolicy.NodeLocal)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
     public record BinaryGhostStore
     {
         public IReadOnlyDictionary<long, byte[]> StashedData { get; init; } = new Dictionary<long, byte[]>();

@@ -267,7 +267,11 @@ public sealed class RunModeChoice
     }
 
     /// <summary>The reasons that hold in EVERY mode: the gate first (CE-1442), then ⭐ CE-3413 — Live · ended (the exercise is over). What a USER's ▶ outside Edit asks (<see cref="UserTransport"/>).</summary>
-    public string? RunPlayDisabledReason => ClosedReason is { } closed ? closed : LiveEnded ? LiveEndedPlayReason : null;
+    public string? RunPlayDisabledReason => ClosedReason is { } closed ? closed : LiveEnded ? LiveEndedPlayReason : HostPlayDisabledReason?.Invoke();
+
+    /// <summary>⭐ Next_2 A-9 (📄 NOTE_Behaviors_To_Ui_Backend_Review_Source.md, Review perspective §3 D6) — a host's own reason ▶ cannot run now, outside Edit
+    /// (the editor's Review showing the MERGED world: ▶ drives the cluster clock, which moves nothing there). Asked last, after the gate and Live · ended; null = none.</summary>
+    public Func<string?>? HostPlayDisabledReason { get; set; }
 
     /// <summary>The tooltip of ▶ in Edit on a host with no scenario session (SimHost, IG).</summary>
     public const string NoSessionPlayReason = "No scenario session on this host — nothing to preview from here";

@@ -46,6 +46,12 @@ public class ComponentReflector
     /// <summary>Set to <c>true</c> this frame to force-collapse all component headers.</summary>
     public bool ForceCollapseAll { get; set; }
 
+    /// <summary>
+    /// ⭐ G-7 S5 (I5, M-5) — drawn at the END of every OPEN component's body (after its value tree), inside the component's id scope: the Details ▸ component ▸ <i>By node</i> section is this hook in the merged
+    /// view. Null ⇒ nothing extra (every other host / view). ⛔ Not a second component renderer — it adds a block under the one this class draws.
+    /// </summary>
+    public Action<IInspectableSession, Entity, Type>? ComponentFooter { get; set; }
+
     /// <summary>Filter string for component names (substring match, case-insensitive).</summary>
     public string ComponentFilter { get; set; } = string.Empty;
 
@@ -306,6 +312,7 @@ public class ComponentReflector
 
                     if (!handled)
                         ImGuiPropertyTree.Render(data, contextType: type, out doubleClickedPath);
+                    ComponentFooter?.Invoke(session, e, type);
                 }
 
                 ImGuiApi.Unindent();

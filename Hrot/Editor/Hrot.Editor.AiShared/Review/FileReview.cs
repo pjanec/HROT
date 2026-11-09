@@ -58,7 +58,9 @@ public sealed record ReviewFileServices(
     BehaviorRegistry? Behaviors,
     BlueprintRegistry? Blueprints,
     RecordingFileReader Reader,
-    Func<Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker?>? History = null);   // R-6 / V7 — the transport's waypoints: a hit is a JUMP, ◀ returns to where you were
+    Func<Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker?>? History = null,   // R-6 / V7 — the transport's waypoints: a hit is a JUMP, ◀ returns to where you were
+    Func<Fdp.Toolkit.ReplayBrowser.Federation.FederatedReplayManager?>? Merged = null,   // ⭐ G-7 S5 (I6) — the merged view's manager (null outside it): the search then runs per participant file
+    Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource? Ownership = null);              // … keeping a hit only for the components its node owned (the merge's own rule)
 
 /// <summary>
 /// ⭐ R-2 / V2 (docs/UX/DESIGN_Review_Perspective.md §3 D3 / D4, §4 V2) — the review windows' PANELS over a host's own-part recording FILE: the Replay search panel (a search reads
@@ -98,6 +100,13 @@ public sealed class FileReview
             onMatchSelected: SeekToHit,
             _s.Behaviors, getSelectedEntity: null, getSelectedNetworkId: _s.Selection)
         { UnavailableReason = Unavailable };
+        // ⭐ G-7 S5 (I6) — the federated search: per participant file, owned components only, unioned by network id; a hit's click seeks the primary node's frame and selects the unit BY NETWORK ID
+        if (_s.Merged is { } merged)
+        {
+            SearchPanel.Federated = new FederatedSearchSource(
+                new Fdp.Toolkit.ReplayBrowser.Federation.FederatedSearch(search, new PredicateCompiler(editService, _s.Behaviors, _s.Blueprints), _s.Ownership ?? new Fdp.Toolkit.ReplayBrowser.Federation.OwnershipSource()), merged);
+            SearchPanel.FederatedMatchSelected = SeekToHitUnit;
+        }
 
         // ⭐ Recording info / JSON export draw the federation's panel; an own-part AAR has no federation ⇒ they say "no recording loaded" (V6's ReviewSource fills them).
         TimelinePanel = new ReplayTimelinePanel(null, () => 0, new NoExport(), new NoDialogs(),
@@ -179,6 +188,19 @@ public sealed class FileReview
         }
         _s.Seek(frame);
         SelectReaderEntity(hit, frame);
+    }
+
+    /// <summary>⭐ G-7 S5 (I6) — a FEDERATED hit: seek the host to its frame (a frame of the primary node's recording; a history waypoint) and select the unit BY NETWORK ID (retried until the world holds it).</summary>
+    public void SeekToHitUnit(int frame, long networkId)
+    {
+        if (_s.History?.Invoke() is { } history)
+        {
+            long cur = _s.CurrentFrame();
+            if (cur >= 0 && cur != frame) { history.PushWaypoint((int)cur, Entity.Null); history.PushWaypoint(frame, Entity.Null); }
+        }
+        _s.Seek(frame);
+        int id = (int)networkId;
+        if (!_s.Select(id)) { _pendingSelect = id; _pendingTtl = 600; }
     }
 
     private void SelectReaderEntity(Entity e) => SelectReaderEntity(e, -1);

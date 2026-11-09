@@ -341,19 +341,25 @@ public sealed class EntityTypeCatalogTests
         var asm  = typeof(ThumbnailAtlas).Assembly;
         var json = System.Text.Encoding.UTF8.GetString(EmbeddedAtlasResources.TryRead(asm, ThumbnailAtlas.IndexResourceName) ?? Array.Empty<byte>());
         var idx  = AtlasIndex.Parse(json);
-        Assert.Equal(75, idx.Count);
-        Assert.Equal(75, ThumbnailAtlas.Shared.Count);
+        // ⭐ CE-4273 (Next_2 A-10) — the seed's 75 + the Car. ⛔ SUPERSEDED: "slot = position in sorted order" — true of the seed only; §2j says a name
+        //   KEEPS its slot and an addition takes the next free one (the Car sorts among the C's and sits in slot 75). The invariant now: one cell per
+        //   name, on the grid, inside the pages.
+        Assert.Equal(76, idx.Count);
+        Assert.Equal(76, ThumbnailAtlas.Shared.Count);
+        Assert.True(idx.TryGet("Car", out _, out _, out _, out _, out _));
 
         var names = idx.Names.ToList();
-        Assert.Equal(names.OrderBy(n => n, StringComparer.Ordinal).ToList(), names);
-        int perPage = idx.Columns * idx.Rows;
+        Assert.Equal(names.OrderBy(n => n, StringComparer.Ordinal).ToList(), names);   // the INDEX keeps its keys sorted (one line a name)
+        var cells = new HashSet<(int, int, int)>();
         for (int i = 0; i < names.Count; i++)
         {
             Assert.True(idx.TryGet(names[i], out int page, out int x, out int y, out int w, out int h));
-            int slot = i % perPage;
-            Assert.Equal(i / perPage, page);
-            Assert.Equal(slot % idx.Columns * idx.CellW, x);
-            Assert.Equal(slot / idx.Columns * idx.CellH, y);
+            Assert.InRange(page, 0, idx.Pages.Count - 1);
+            Assert.Equal(0, x % idx.CellW);
+            Assert.Equal(0, y % idx.CellH);
+            Assert.InRange(x / idx.CellW, 0, idx.Columns - 1);
+            Assert.InRange(y / idx.CellH, 0, idx.Rows - 1);
+            Assert.True(cells.Add((page, x, y)), names[i] + " shares a cell");
             Assert.Equal((idx.CellW, idx.CellH), (w, h));
             Assert.True(ThumbnailAtlas.Shared.Contains(names[i]));
         }
