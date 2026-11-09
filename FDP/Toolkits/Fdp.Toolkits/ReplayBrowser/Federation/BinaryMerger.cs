@@ -19,7 +19,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
     /// <list type="bullet">
     /// <item>who supplies a component: <see cref="OwnershipSource"/> (S1: today's rule — owned AND not already taken, primary owner first);</item>
     /// <item>skipped: types with <see cref="DataPolicy.NodeLocal"/> (I9) and types that are not recorded (<see cref="DataPolicy.NoReplay"/> / <c>Transient</c>);</item>
-    /// <item>local (non-networked) entities: from the provider node (<c>LocalEntitiesProviderNodeId</c>), every component it holds, keyed (node, index, generation) — S5 widens this to every node;</item>
+    /// <item>⭐ S5 (I7) local (non-networked) entities: from EVERY node whose <c>IsLocalEntitiesShown</c> is on (default: all), every component each holds, keyed (node, index, generation) and tagged with its node
+    /// (<see cref="MergeTarget.TryGetLocalNode"/>) — ONE rule for both hosts. ⛔ SUPERSEDED: from the single "provider" node only;</item>
     /// <item>a component no source supplies any more is REMOVED from the target entity; an entity gone from every node is destroyed.</item>
     /// </list>
     /// <para>⛔ §6.10 holds: never a raw chunk or <c>EntityIndex</c> copy — every value goes entity by entity into the target's own entities. Singletons (world-level components)
@@ -84,7 +85,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         private readonly Dictionary<long, List<NodeEntity>> _corr = new();
         private readonly Stack<List<NodeEntity>> _listPool = new();
         private readonly Dictionary<int, NodeState> _nodes = new();
-        private readonly List<(Entity source, Entity target)> _locals = new();
+        private readonly List<(int node, Entity source, Entity target)> _locals = new();
         private readonly List<BitMask512> _extracts = new();
         private readonly List<MergeParadox> _paradoxes = new();
         private readonly HashSet<int> _registered = new();
@@ -203,23 +204,23 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
                 }
             }
 
-            // … and per local entity of the provider node (TransientMasterBuilder step 3b)
-            int providerNodeId = manager.LocalEntitiesProviderNodeId;
+            // … and, ⭐ S5 (I7), per local entity of EVERY shown node (TransientMasterBuilder step 3b took the provider's only). A node whose checkbox is off contributes none — its locals are swept below.
             _locals.Clear();
-            EntityRepository? providerRepo = null;
-            if (manager.Contexts.TryGetValue(providerNodeId, out var providerCtx))
+            for (int ci = 0; ci < manager.NodeCount; ci++)
             {
-                providerRepo = providerCtx.SandboxRepo;
-                var pns = _nodes[providerNodeId];
-                for (int i = 0; i <= providerRepo.MaxEntityIndex; i++)
+                int nodeId = manager.NodeIdAt(ci);
+                if (!manager.IsLocalEntitiesShown(nodeId)) continue;
+                var nrepo = manager.ContextAt(ci).SandboxRepo;
+                var nns = _nodes[nodeId];
+                for (int i = 0; i <= nrepo.MaxEntityIndex; i++)
                 {
-                    var e = new Entity(i, providerRepo.GetMetadata(i).Generation);
-                    if (!providerRepo.IsAlive(e)) continue;
-                    if (netIdTypeId >= 0 && providerRepo.GetComponentMask(i).IsSet(netIdTypeId)) continue;   // a networked entity
-                    var te = _target.EnsureLocal(providerNodeId, e);
-                    pns.Map[e] = te;
-                    mapHash += Mix(providerNodeId, e, te); mapCount++;
-                    _locals.Add((e, te));
+                    var e = new Entity(i, nrepo.GetMetadata(i).Generation);
+                    if (!nrepo.IsAlive(e)) continue;
+                    if (netIdTypeId >= 0 && nrepo.GetComponentMask(i).IsSet(netIdTypeId)) continue;   // a networked entity
+                    var te = _target.EnsureLocal(nodeId, e);
+                    nns.Map[e] = te;
+                    mapHash += Mix(nodeId, e, te); mapCount++;
+                    _locals.Add((nodeId, e, te));
                 }
             }
 
@@ -242,16 +243,16 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
                 RemoveUnsupplied(target, te, in supplied);
             }
 
-            if (providerRepo != null)
+            if (_locals.Count > 0)
             {
                 _curNet = -1;
-                var pns = _nodes[providerNodeId];
                 for (int k = 0; k < _locals.Count; k++)
                 {
-                    var (source, te) = _locals[k];
-                    var all = providerRepo.GetComponentMask(source.Index);   // every component it holds (not the authority mask)
+                    var (nodeId, source, te) = _locals[k];
+                    var pns = _nodes[nodeId];
+                    var all = pns.Repo!.GetComponentMask(source.Index);   // every component it holds (not the authority mask)
                     var supplied = new BitMask512();
-                    CopyComponents(pns, new NodeEntity(providerNodeId, source), te, all, target, ref supplied, pass);
+                    CopyComponents(pns, new NodeEntity(nodeId, source), te, all, target, ref supplied, pass);
                     RemoveUnsupplied(target, te, in supplied);
                 }
             }

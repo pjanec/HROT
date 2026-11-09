@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
@@ -295,10 +296,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var p2 = Record(2, r =>
             {
                 var other = r.CreateEntity(); r.AddComponent(other, new DummyPosition { X = 1 });
-                var a = Unit(r, 301); Own(r, a, new GuidedTarget { TargetId = other });   // … and node 2 points at ITS local (node 1 is the provider: not in the map)
+                var a = Unit(r, 301); Own(r, a, new GuidedTarget { TargetId = other });   // … and node 2 points at ITS local — which is NOT in the merged world once node 2's locals are unchecked (S5: every node's are shown by default)
             });
             using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
             manager.SetBaseWallTicks(1_000_000L);
+            manager.SetLocalEntitiesShown(2, false);
             using var bin = NewTarget();
             var merger = new BinaryMerger();
             merger.Merge(manager, bin);
@@ -308,7 +310,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             Assert.Equal(301, flagged.NetId);
             Assert.Equal(2, flagged.NodeId);
             Assert.Equal(typeof(GuidedTarget), flagged.Component);
-            Assert.False(bin.GetComponent<GuidedTarget>(FindNet(bin, 300)).TargetId.IsNull);   // the provider's own local resolves
+            Assert.False(bin.GetComponent<GuidedTarget>(FindNet(bin, 300)).TargetId.IsNull);   // node 1's own local (shown) resolves
         }
 
         // ── the M2 PROBE as a rail ─────────────────────────────────────────────────────────
@@ -920,6 +922,50 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             _out.WriteLine($"MEASURED 9 000 entities (3 nodes x 3 000), 10% moving/frame: full pass {fullMs:F1} ms ({fullCopies} components) | incremental {perFrame:F2} ms/frame ({copies / n} components/frame, {merger.LastComponentsSkipped} skipped last frame)");
             Assert.True(perFrame < fullMs, $"incremental {perFrame:F2} ms is not cheaper than the full pass {fullMs:F2} ms");
             Assert.True(perFrame < 100, $"incremental {perFrame:F2} ms/frame");
+        }
+
+        // ── S5 · I7 — local entities from EVERY node, tagged, with a per-node filter (§6.12 S5, M-6) ─────
+
+        private static void AddLocal(EntityRepository r, float x) { var l = r.CreateEntity(); r.AddComponent(l, new DummyPosition { X = x }); }
+
+        private static List<(float x, int node)> LocalsOf(BinaryMerger merger, EntityRepository bin)
+        {
+            var found = new List<(float, int)>();
+            for (int i = 0; i <= bin.MaxEntityIndex; i++)
+            {
+                var e = new Entity(i, bin.GetMetadata(i).Generation);
+                if (bin.IsAlive(e) && merger.Target.TryGetLocalNode(e, out int node)) found.Add((bin.GetComponent<DummyPosition>(e).X, node));
+            }
+            found.Sort();
+            return found;
+        }
+
+        [Fact]
+        public void Locals_FromEveryNode_ArePresentAndTagged_AndUncheckingANodeRemovesItsLocals()
+        {
+            var p1 = Record(1, r => { var a = Unit(r, 600); Own(r, a, new DummyPosition { X = 1 }); AddLocal(r, 1001); });
+            var p2 = Record(2, r => { var b = Unit(r, 601); Own(r, b, new DummyPosition { X = 2 }); AddLocal(r, 2002); AddLocal(r, 2003); });
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+            manager.SetBaseWallTicks(1_000_000L);
+            using var bin = NewTarget();
+            var merger = new BinaryMerger();
+
+            merger.Merge(manager, bin);
+            // ⭐ a local entity from EACH node is in the merged world, tagged with its node (the old rule kept only the lowest node's)
+            Assert.Equal(new[] { (1001f, 1), (2002f, 2), (2003f, 2) }, LocalsOf(merger, bin));
+            Assert.True(manager.IsLocalEntitiesShown(1) && manager.IsLocalEntitiesShown(2));   // default: every node on
+
+            int changed = 0; manager.OnTimeChanged += () => changed++;
+            manager.SetLocalEntitiesShown(2, false);                                           // the Source menu's checkbox
+            Assert.Equal(1, changed);                                                          // the hosts re-merge on it
+            merger.Merge(manager, bin);
+            Assert.Equal(new[] { (1001f, 1) }, LocalsOf(merger, bin));                         // ⭐ unchecking a node removes ITS locals …
+            Assert.False(FindNet(bin, 601).IsNull);                                            // … never its networked entities
+
+            manager.SetLocalEntitiesShown(2, true);
+            merger.Merge(manager, bin);
+            Assert.Equal(3, LocalsOf(merger, bin).Count);
+            Assert.Throws<ArgumentOutOfRangeException>(() => manager.SetLocalEntitiesShown(99, false));
         }
 
         [Fact]

@@ -13,8 +13,8 @@ namespace Fdp.Presentation.Panels.ReplayBrowser;
 public enum ViewMode { SingleNode, Merged }
 
 /// <summary>⭐ One node's offset row, projected for the dump.</summary>
-/// <remarks>⭐ G-7 S3 — <paramref name="Name"/> is the row's label (a role when the host knows it, else <c>Node N</c>); <paramref name="OffsetMs"/> is the slider's value.</remarks>
-public sealed record FederationNodeRowViewModel(NodeId NodeId, long OffsetTicks, string Name = "", double OffsetMs = 0);
+/// <remarks>⭐ G-7 S3 — <paramref name="Name"/> is the row's label (a role when the host knows it, else <c>Node N</c>); <paramref name="OffsetMs"/> is the slider's value. ⭐ S5 (I7) — <paramref name="LocalsShown"/>: the node's <i>Local entities shown from</i> checkbox.</remarks>
+public sealed record FederationNodeRowViewModel(NodeId NodeId, long OffsetTicks, string Name = "", double OffsetMs = 0, bool LocalsShown = true);
 
 /// <summary>
 /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="FederationPanel"/> shows, this frame.</b>
@@ -43,7 +43,7 @@ public sealed record FederationPanelViewModel(
 /// <summary>
 /// ImGui panel for per-node replay federation controls.
 /// Handles mode toggle, per-node time offsets, base wall-tick input, and
-/// the local-entities provider dropdown (Merged View only).
+/// the local-entities-shown checkboxes (Merged View only, ⭐ S5).
 /// DESIGN §8.2.
 /// </summary>
 public sealed class FederationPanel
@@ -108,8 +108,15 @@ public sealed class FederationPanel
     public void SetBaseWallTicks(long ticks)
         => _manager.SetBaseWallTicks(ticks);
 
+    /// <summary>The PRIMARY node (the clock / timeline node — see <see cref="FederatedReplayManager.LocalEntitiesProviderNodeId"/>); ⭐ S5: no longer picks which locals show.</summary>
     public void SetLocalEntitiesProvider(int nodeId)
         => _manager.SetLocalEntitiesProvider(nodeId);
+
+    /// <summary>⭐ G-7 S5 (I7) — the node's <i>Local entities shown from</i> checkbox (default on): whether its local (no network id) entities are in the merged world. Re-merges at once.</summary>
+    public bool IsLocalEntitiesShown(int nodeId) => _manager.IsLocalEntitiesShown(nodeId);
+
+    /// <summary>⭐ G-7 S5 (I7) — the checkbox's write: <see cref="FederatedReplayManager.SetLocalEntitiesShown"/> (raises <c>OnTimeChanged</c>, so both hosts re-merge).</summary>
+    public void SetLocalEntitiesShown(int nodeId, bool shown) => _manager.SetLocalEntitiesShown(nodeId, shown);
 
     /// <summary>⭐⭐⭐ BUILD — a pure projection of the manager's node offsets. No ImGui. ⚠ Not wired to
     /// any host yet — see the view-model's own remarks.</summary>
@@ -117,7 +124,7 @@ public sealed class FederationPanel
     {
         var nodes = _nodeIds
             .Select(nodeId => new FederationNodeRowViewModel(
-                (Fdp.Core.NodeId)(nodeId), _manager.NodeOffsets.TryGetValue(nodeId, out long off) ? off : 0L, NameOf(nodeId), GetNodeOffsetMs(nodeId)))
+                (Fdp.Core.NodeId)(nodeId), _manager.NodeOffsets.TryGetValue(nodeId, out long off) ? off : 0L, NameOf(nodeId), GetNodeOffsetMs(nodeId), _manager.IsLocalEntitiesShown(nodeId)))
             .ToList();
         return new FederationPanelViewModel(
             panelId, panelKind, ActiveMode, HasNonZeroOffset, _manager.LocalEntitiesProviderNodeId, nodes);
@@ -137,21 +144,16 @@ public sealed class FederationPanel
         {
             Gui.TextDisabled(MergedViewDisclaimerText);
 
-            // Local-Entities Provider dropdown
-            int currentProviderId = _manager.LocalEntitiesProviderNodeId;
-            NodeEditor.Core.Widgets.FormGrid.BeginField("fed.rows", "Local-Entities Provider");   // ⭐ CE-3396 — label-first rows (the one label column)
-            string previewLabel = $"Node {currentProviderId}";
-            if (Gui.BeginCombo("##lep", previewLabel))
+            // ⭐ G-7 S5 (I7, mockup ③) — Local entities shown from: one checkbox per node (default every node's on). ⛔ SUPERSEDED: the single "Local-Entities Provider" dropdown.
+            Gui.TextDisabled("Local entities shown from (no network id)");
+            for (int i = 0; i < _nodeIds.Length; i++)
             {
-                foreach (int nodeId in _manager.Contexts.Keys.OrderBy(x => x))
-                {
-                    bool selected = nodeId == currentProviderId;
-                    if (Gui.Selectable($"Node {nodeId}", selected))
-                        _manager.SetLocalEntitiesProvider(nodeId);
-                }
-                Gui.EndCombo();
+                int nodeId = _nodeIds[i];
+                bool on = _manager.IsLocalEntitiesShown(nodeId);
+                if (Gui.Checkbox($"{NameOf(nodeId)}##locals_{nodeId}", ref on))
+                    SetLocalEntitiesShown(nodeId, on);
             }
-            NodeEditor.Core.Widgets.FormGrid.EndField();
+            Gui.Separator();
         }
 
         // Global causality banner

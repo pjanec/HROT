@@ -48,10 +48,29 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         public IReadOnlyDictionary<int, long> NodeOffsets { get; }
 
         /// <summary>
-        /// NodeId of the context considered the canonical source of local entities.
-        /// Defaults to the lowest NodeId in the loaded group.
+        /// ⭐ G-7 S5 (I7) — the PRIMARY node: the one whose frames drive the group's clock, the timeline and Recording info (and a part's source in the editor). Defaults to the lowest NodeId.
+        /// ⛔ SUPERSEDED: "the canonical source of local entities" — the merge now takes the local (no network id) entities of EVERY node whose <see cref="IsLocalEntitiesShown"/> is on.
+        /// (The name is kept: ~15 callers and rails; it no longer decides which locals show.)
         /// </summary>
         public NodeId LocalEntitiesProviderNodeId { get; private set; }
+
+        private readonly HashSet<int> _localsHidden = new();   // nodes whose local entities are NOT merged (default: none — every node's are shown)
+
+        /// <summary>⭐ G-7 S5 (I7) — are the local (no network id) entities of <paramref name="nodeId"/> merged into the world? Default: yes, every node's.</summary>
+        public bool IsLocalEntitiesShown(int nodeId) => !_localsHidden.Contains(nodeId);
+
+        /// <summary>
+        /// ⭐ G-7 S5 (I7) — the Source menu's <i>Local entities shown from</i> checkbox: shows or hides node <paramref name="nodeId"/>'s local entities in the merged world.
+        /// Fires <see cref="OnTimeChanged"/> (the hosts re-merge) but does NOT seek.
+        /// </summary>
+        public void SetLocalEntitiesShown(int nodeId, bool shown)
+        {
+            ThrowIfDisposed();
+            if (!_contexts.ContainsKey(nodeId))
+                throw new ArgumentOutOfRangeException(nameof(nodeId), $"NodeId {nodeId} is not in the loaded group.");
+            if (shown ? !_localsHidden.Remove(nodeId) : !_localsHidden.Add(nodeId)) return;
+            OnTimeChanged?.Invoke();
+        }
 
         /// <summary>Fired after every seek or after a local-entities-provider change.</summary>
         public event Action? OnTimeChanged;
@@ -155,7 +174,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         }
 
         /// <summary>
-        /// Changes the local-entities provider to the given node.
+        /// Changes the PRIMARY node (the clock / timeline / Recording-info node — see <see cref="LocalEntitiesProviderNodeId"/>) to the given node.
         /// Fires <see cref="OnTimeChanged"/> but does NOT seek.
         /// </summary>
         /// <exception cref="ArgumentOutOfRangeException">
