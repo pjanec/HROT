@@ -2,11 +2,12 @@
 state: LIVE
 build-state: BUILDING — M1 runtime BUILT (P-2, CE-4298; §5.10 as-built) · ✅ E1–E9 + §5.9 approved 2026-11-07 (R-4161); dispatched in HANDOFF_Coordinator_To_Lanes_Mission_Plan.md (CE-4298…CE-4304) · §5 ✅ D1–D9 (D3 / D4 as revised) + §5.7 APPROVED 2026-11-07 (R-4160); the remaining detail in §5.8 · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
 updated: 2026-11-07 (E9: the Wait task — a plan that waits before its first task) · 2026-11-07 (E4 / E5 revised by the user: ONE Tasks lane for all units; the WHO chip defaults to 'this unit'; §5.9 the sequencing rule, measured) · 2026-11-07 (§5.8 the remaining detail E1–E8 — E1: a Live edit restarts the plan today) · 2026-11-07 (§5.7 entity references: the GUID / @Key rule exists (S9′); two load-path gaps G1, G2 named) · 2026-11-07 (§5.7 storage and compatibility, measured; one unmeasured gate for M5) · 2026-11-07 (D3 / D4 revised by the user's question: every then / give-up is ONE shared condition; old trigger types translated on compile) · 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
-current-answer: ⭐ §5.10 the M1 runtime AS BUILT (read with §5) · §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions
+current-answer: ⭐ §5.10 the M1 runtime AS BUILT (read with §5) · §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions · ⭐ §5.13 the task picker (APPROVED R-4184, CE-4359)
 stale-below: nothing
 known-rot: §3 M5's "a task-owned rule evaluated by the rules runner" is SUPERSEDED by §5 D3 (one Condition trigger, the one compiler); §2.2's PhaseBegins leaf and OperationPhase class by §5 D5 / D6 (a phase IS a trigger)
 known-conflict: the code calls a plan's task slot a "phase" (MissionPlanQueue.Phases); this design uses "phase" for the MILITARY phase of an operation (§2.4) — Q6 renames the code's word
 related-designs:
+  - ../DESIGN_Content_Layout.md — §6 scenario categories in the picker, the sibling of §5.13
   - ../DESIGN_Orders_Params_Entity_Classes.md — §14 (CE-4350): the behaviours "+ Add task" offers fit the entity — the class-table filter
   - ../DESIGN_Scenario_Entity_Keys.md — OWNS S9′ / S10: a reference in a file is the target's GUID or @Key; §5.7 G1 / G2 close the plan's two load-path gaps
   - ../DESIGN_Readable_Scenario_Json.md — the task params and its then / give-up conditions written as JSON objects on disk, not escaped strings
@@ -687,3 +688,30 @@ REPORTS; with one the tool arms — red-proved by the pack not forwarding `ctx.S
 (handles on the point tasks only, at the markers; the drag rewrites task 3's `Location`, task 1 untouched, the snapshot's version sent; the Hold
 has no handle; right-click ends it) · `MissionPlanOverlayFrameRail.P8d_ThePlanOnARealMapFrame` (+ `mission-plan-drag.png` — the dragged marker
 amber where the mouse is).
+
+### 5.13 ✅ APPROVED `2026-11-09` (R-4184) — the TASK PICKER: folders, the generic first *(coordinator; Q-P1…Q-P5 approved — user: "Approved."; CE-4359)*
+
+🔒 User: *"Around 60 or 80 behaviors offered for an entity type is quite a lot, why so many … Lets revise how to pick behaviors, maybe we need to
+use some tree picker with categories, where the most generic ones go first (order) and categories are chosen to make it intuitive to quickly pick."*
+
+**Measured** (the CE-4350 golden `OfferedBehaviours.golden.txt` × each behaviour's registered `Group`): a Rifleman is offered **90** — of them
+**43 are tests, demos and samples** (`Tests/Authoring` 21 — T01…T41, `Samples` 9, `Demos/*` 7, `Tests/Binding` 6) and **2 are not tasks**
+(`OperatorControl` — possession, `InertSop` — an SOP). The **45 real tasks** sit in groups organised for CODE (`Library/Basic` 17 mixes moving,
+firing and embarking; `Library/Orders` 11 mixes the class's generic orders with *Baton charge*, *Trigger IED*, *Surrender*). The tree picker exists:
+`PickerWindow` (NodeEdit) — Tree layout, fuzzy search, icons, `Category "A/B/C"`, a preview pane, single-child folding — THE one picker of the
+Add Entity and scenario pickers ([Add Entity picker](../DESIGN_Add_Entity_Picker.md) D1–D3c); the recent-picks store exists (`UserRecentPicks`).
+
+![the task picker](task-picker-visual.svg)
+
+*`task-picker-visual.svg` (`scripts/gen-task-picker-mockup.py`). Scope: the picker only.*
+
+| # | question | ⭐ lean | rejected — one line |
+|---|---|---|---|
+| **Q-P1** | which picker | **the ONE `PickerWindow`, Tree layout**, with the preview pane (description, parameters, *Fits*) — opened by *+ Add task* | a new list widget: a second picker |
+| **Q-P2** | what is offered | only what FITS (CE-4350) **minus** `Tests/*`, `Demos/*`, `Samples*` (behind a *Show tests and demos (N)* tick, off) and minus what is not a task (`Operator`, `Library/Sop`) ⇒ a Rifleman 90 → **45** | showing the demos: half the list is noise to an instructor |
+| **Q-P3** | the folders, in this FIXED order | **Recent** · **Orders — the unit's own** (the class's generic orders in a fixed order: Move · Hold · Attack · Observe and fire) · **Movement** · **Combat** · **Weapons and vehicles** · **Casualties and engineering** · **Crowd and surrender** · **Reactions** · **My behaviours** (authored BTree / HSM / blueprint assets, by their own group) | alphabetical folders: the generic ones would not come first |
+| **Q-P4** | where a behaviour's folder comes from | **re-file the curated behaviours' `Group` to these folders** (`Library/Movement`, `Library/Combat` …) — ONE field, already declared on every curated behaviour, read by the picker with `Library/` stripped; the generic orders are found by the order resolver (they are `<Class><Order>`), not by a group | a second "folder" field beside `Group`: two categorisations of one behaviour |
+| **Q-P5** | the names | **words**: `MoveToLocation` → *Move to location*; an order without its class (`PersonMove` → *Move*); the code name stays in the preview's grey line | code names: *PersonObserveFire* is not how an instructor thinks |
+
+⇒ the per-folder content for a Rifleman (45): Orders 4 · Movement 9 · Combat 12 · Weapons and vehicles 7 · Casualties and engineering 6 · Crowd and
+surrender 2 · Reactions 3 — the re-filing list is part of the build (each curated behaviour's new group, reviewed in the report).

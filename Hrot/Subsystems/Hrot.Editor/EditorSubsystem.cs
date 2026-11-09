@@ -5226,7 +5226,7 @@ namespace Hrot.Editor
                     markCandidates.Clear();
                     if (SelectedUnit() is { } u) markCandidates.Add(u);
                     return markCandidates;
-                }));
+                }, picks: () => FormsPick));   // ⭐ CE-1467 (f) — the unit is THE entity field over the editor's pick context (every named unit, pick on the map)
                 // ⭐ B — the ONE key: a shell command, so the keymap shows it (Keyboard shortcuts) and a key / button / HTTP call run the very same code
                 windowManager.ShellCommands.Register(new NodeEditor.Core.Action.EditorCommandDescriptor("marks.mark", "Mark this moment", "Run",
                     "Take a mark (a checkpoint) in a recorded Live run — in a DAR / AAR add a note at the playhead (B)", "mark/flag",

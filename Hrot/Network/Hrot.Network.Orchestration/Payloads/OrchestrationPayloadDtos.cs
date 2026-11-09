@@ -336,6 +336,29 @@ public record SetReplayLoopPayloadDto(
     }
 }
 
+/// <summary>
+/// ⭐ CE-1467 (e) — payload of <c>ClusterOpType.TakeCheckpoint</c> when it is a MARK: the label asked for and the mark's note (Bookmarks §2, <i>TakeCheckpoint + the note</i>).
+/// ⭐ <c>label</c> stays the key a plain checkpoint already sends (<c>{"label":…}</c>), so the old decoders read it unchanged.
+/// </summary>
+public record TakeCheckpointPayloadDto(
+    [property: JsonPropertyName("label")]
+    string? Label,
+    [property: JsonPropertyName("note")]
+    Fdp.Toolkit.Orchestration.ExerciseNote? Note)
+{
+    /// <summary>The ONE encoding of a mark on the wire.</summary>
+    public static string Encode(string? label, Fdp.Toolkit.Orchestration.ExerciseNote note)
+        => System.Text.Json.JsonSerializer.Serialize(new TakeCheckpointPayloadDto(label, note), OrchestrationJsonOptions.Default);
+
+    /// <summary>The mark's note, or null (a plain checkpoint, an old sender, or an unreadable payload).</summary>
+    public static Fdp.Toolkit.Orchestration.ExerciseNote? NoteOf(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{")) return null;
+        try { return System.Text.Json.JsonSerializer.Deserialize<TakeCheckpointPayloadDto>(json, OrchestrationJsonOptions.Default)?.Note; }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
+}
+
 /// <summary>⭐ CE-4325 (E7, R-4177) — payload of <c>ClusterOpType.EditExerciseNote</c>: the verb and the note. The ONE encoding of the note CRUD message.</summary>
 public record NoteEditPayloadDto(
     [property: JsonPropertyName("Kind")]

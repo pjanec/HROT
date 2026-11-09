@@ -153,7 +153,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             {
                 RequestId     = intent.RequestId,
                 OperationType = NedClusterOpType.TakeCheckpoint,
-                PayloadJson   = LabelJson(intent.Label),   // ⭐ CE-3299 B3
+                PayloadJson   = intent.Note == null ? LabelJson(intent.Label) : TakeCheckpointPayloadDto.Encode(intent.Label, intent.Note),   // ⭐ CE-3299 B3 · ⭐ CE-1467 (e) the mark's note rides it
             });
 
         foreach (var intent in _bus.ReadManaged<CollectCheckpointIntent>())   // ⭐ CE-3299 B3

@@ -34,7 +34,20 @@ public sealed partial class ClusterMaster
     }
 
     /// <summary>A fresh live run (a load or a branch from a replay) starts with no checkpoints.</summary>
-    private void ResetLiveCheckpoints() => _liveCheckpoints = Array.Empty<CheckpointMark>();
+    private void ResetLiveCheckpoints() { _liveCheckpoints = Array.Empty<CheckpointMark>(); _checkpointLabelsAsked.Clear(); }
+
+    /// <summary>⭐ CE-1467 (e) — every label this run's checkpoint rounds were STARTED with (taken or still in flight): two stations asking for one label in the same moment both
+    /// see the live list without it, so the list alone cannot keep them apart.</summary>
+    private readonly System.Collections.Generic.HashSet<string> _checkpointLabelsAsked = new(StringComparer.Ordinal);
+
+    /// <summary>⭐ CE-1467 (e) — <paramref name="asked"/> when no checkpoint of this run has it, else <c>asked (2)</c>, <c>(3)</c> … — the master is the ONE writer, so the label it
+    /// answers is unique by construction (the recording refuses a second checkpoint with a taken name).</summary>
+    internal string UniqueCheckpointLabel(string asked)
+    {
+        bool Taken(string l) => _checkpointLabelsAsked.Contains(l) || Array.Exists(_liveCheckpoints, m => m.Label == l);
+        if (!Taken(asked)) return asked;
+        for (int n = 2; ; n++) { var l = $"{asked} ({n})"; if (!Taken(l)) return l; }
+    }
 
     /// <summary>A restore to <paramref name="label"/>: the marks up to and including it stay (the new exercise inherits them); later ones go. An unknown label keeps the list.</summary>
     private void TruncateLiveCheckpointsAt(string label)

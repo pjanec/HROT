@@ -92,18 +92,19 @@ public sealed class TheMarksTests
         var taken = Sent<TakeCheckpointIntent>(rig.Bus);
         Assert.Single(taken);
         Assert.Equal("Mark 1 · 12:31", taken[0].Label);                              // the moment is taken at the key press…
-        var record = Assert.Single(rig.Bus.ReadManaged<NoteEditIntent>());           // …with its record (the same swap exposed both): who took it and the selected unit (no words yet)
-        Assert.Equal((NoteEditKind.Add, "Mark 1 · 12:31", "Instructor-1", 7L, "", ""), (record.Kind, record.Note.Mark, record.Note.Author, record.Note.SubjectId, record.Note.Name, record.Note.Text));
+        var record = taken[0].Note!;                                                 // …⭐ CE-1467 (e) WITH its record, in the same message (the master adds it under the label it mints): who took it and the selected unit
+        Assert.Equal(("Mark 1 · 12:31", "Instructor-1", 7L, "", ""), (record.Mark, record.Author, record.SubjectId, record.Name, record.Text));
+        Assert.Empty(rig.Bus.ReadManaged<NoteEditIntent>());                         // no second message for the record
         Assert.NotNull(c.Popup);
         Assert.Equal("Marked 12:31.4", c.Popup!.Title);
         Assert.Equal((7L, "Alpha 1-2"), (c.Popup.UnitId, c.Popup.UnitName));         // Q5: the selected unit, pre-filled
-        Assert.Equal(record.Note.Id, c.Popup.NoteId);
+        Assert.Equal(record.Id, c.Popup.NoteId);
 
         c.Popup.Name = "Bridge crossed"; c.Popup.Text = "Alpha 1-2 crossed without cover — discuss";
         c.Commit();
         Assert.Null(c.Popup);
         var edit = Assert.Single(Sent<NoteEditIntent>(rig.Bus));
-        Assert.Equal((NoteEditKind.Edit, record.Note.Id, "Mark 1 · 12:31", "Bridge crossed"), (edit.Kind, edit.Note.Id, edit.Note.Mark, edit.Note.Name));   // the words EDIT the mark's record
+        Assert.Equal((NoteEditKind.Edit, record.Id, "Mark 1 · 12:31", "Bridge crossed"), (edit.Kind, edit.Note.Id, edit.Note.Mark, edit.Note.Name));   // the words EDIT the mark's record (matched by id: the master keeps its own label)
         Assert.Empty(Sent<TakeCheckpointIntent>(rig.Bus));                           // Done takes no second checkpoint
     }
 
@@ -445,6 +446,52 @@ public sealed class TheMarksTests
         Click(frame, Draw, (popup.LastDoneRect!.Value.Min + popup.LastDoneRect.Value.Max) / 2f);
         Assert.Null(marks.Popup);                                                    // Done closed it (and sent the note)
         Assert.Single(Sent<NoteEditIntent>(rig.Bus));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1467 (f) — with the host's pick context the popup's unit is THE entity field (the chip the struct editor, the orders and the rules draw — not a combo of the selection):
+    /// its chip is drawn in the Unit row, and a unit picked on the map (the context's answer for the popup's own path) becomes the note's unit.
+    /// 🔴 Mutation: the popup ignoring <c>picks</c> (the selection combo) ⇒ no chip ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE1467_ThePopupsUnit_IsTheEntityField_AndAMapPickSetsIt()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var rig = With(ClusterState.OperatingLive, clock: 20);
+        var marks = Controller(rig, Seat.Instructor, new MarkSubject(7, "Alpha 1-2"));
+        var picks = new PickAnswer();
+        var popup = new MarkPopupWindow("rail_marks_popup_f_" + Guid.NewGuid().ToString("N"), "Scenario", Vector4.One, marks, () => Array.Empty<MarkSubject>(), picks: () => picks);
+        var atlas = new IconAtlas(IntPtr.Zero, 512, 512);
+        using var frame = UiFrameHarness.Begin(1240, 720);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        Assert.True(marks.Mark());
+        frame.StepN(3, () => popup.Render("Scenario", atlas));
+        Assert.True(NodeEditor.Core.Widgets.KitProbe.TryGet(NodeEditor.Core.Widgets.KitProbe.EntityChip, out var chipMin, out var chipMax) && chipMax.X > chipMin.X, "an entity chip was drawn");
+        var unitMin = popup.LastFieldMins!.Value.Unit;
+        Assert.True(Vector2.Distance(chipMin, unitMin) < 1f, $"the Unit row IS the entity chip (chip at {chipMin}, the row's field at {unitMin})");
+        Assert.Equal((7L, "Alpha 1-2"), (marks.Popup!.UnitId, marks.Popup.UnitName));   // pre-filled with the selection
+
+        picks.Answer = (MarkPopupWindow.UnitPickPath, 42);                            // the operator picked unit 42 on the map
+        frame.StepN(2, () => popup.Render("Scenario", atlas));
+        Assert.Equal((42L, "#42"), (marks.Popup!.UnitId, marks.Popup.UnitName));
+        Assert.Contains("$.markPopup" + MarkPopupWindow.UnitPickPath.Substring(1), picks.Asked);   // scoped to the popup: another form's pick never answers it
+    }
+
+    /// <summary>A pick context that answers ONE pending entity pick (by the scoped path) and records which paths were asked.</summary>
+    private sealed class PickAnswer : Fdp.Presentation.Editing.IMapPickContext
+    {
+        public (string Path, int Id)? Answer;
+        public readonly List<string> Asked = new();
+        public bool IsPickPendingFor(string jsonPath) => false;
+        public void RequestEntityPick(string jsonPath, string[]? filterPresets) { }
+        public void RequestLocationPick(string jsonPath) { }
+        public bool TryConsumeEntityPick(string jsonPath, out Fdp.Toolkit.Replication.EntityRef picked)
+        {
+            Asked.Add(jsonPath);
+            if (Answer is { } a && "$.markPopup" + a.Path.Substring(1) == jsonPath) { picked = new Fdp.Toolkit.Replication.EntityRef(a.Id); Answer = null; return true; }
+            picked = default; return false;
+        }
+        public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Replication.PointLink location) { location = default; return false; }
     }
 
     private sealed class RecordingCursor : ITimelineCursor

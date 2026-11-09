@@ -983,14 +983,20 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         windowManager.MainToolbar.RegisterEntry(TransportEntryId, sortOrder: 0, declaredHeight: MainToolbarManager.DefaultEntryHeight,
             () => timelinePanel.DrawTransport(), perspective);
 
+        var cursor = new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),   // ⭐ CE-3330 — Space, "Play from here"
+                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim,   // ⭐ CE-3330 T13 — the viewer's axis
+                checkpoints: () => RecordingCheckpoints, notes: () => RulerNotes);   // ⭐ CE-1467 (a) — the recording's ⚑ and its notes (read beside the files)
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
             "rb_event_timeline", "Event Timeline", perspective, _eventTimeline, () => _timelineSource,
-            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
-                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),   // ⭐ CE-3330 — Space, "Play from here"
-                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),   // ⭐ CE-3330 T13 — the viewer's axis
+            cursor,
             () => _timelineLanes.Lanes(TimelineContext), color,
             onSelect: e => SelectTimelineEvent(e),        // ⭐ CE-3330 (R-4087 addendum 5) — the ONE selection, RB-7's path
             rowMenu: _timelineLanes.MenuItems));          // ⭐ CE-3330 (addendum 4) — the row's provider's items
+        // ⭐ CE-1467 (a) — the Marks list, READ-ONLY (Bookmarks §2: "the standalone Replay Browser reads it beside the files"): the editor's ONE window and controller over this browser's
+        //   facade, whose NotesReadOnlyReason refuses every edit with its reason; a row seeks the recording and selects its unit
+        var marks = new Hrot.UI.Common.Marks.MarksController(Transport, () => Hrot.Common.Infrastructure.Seat.Observer, () => "Replay Browser", () => null, () => Environment.TickCount64 / 1000.0);
+        windowManager.RegisterWindow(new Hrot.Presentation.Windows.MarksWindow("rb_marks", perspective, color, marks, () => cursor, n => SelectNetworkEntity((int)n)));
         // ⭐ W-1 / P-8 8c-2 (Mission plan E4) — the ONE Tasks row (all units) + the selection's task bars, over the recording's index
         if (TasksTracks == null)
         {

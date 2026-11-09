@@ -194,15 +194,24 @@ public sealed class MarkPopupWindow : ManagedWindow
 
     private readonly MarksController _marks;
     private readonly Func<IReadOnlyList<MarkSubject>> _candidates;
+    private readonly Func<Fdp.Presentation.Editing.IMapPickContext?>? _picks;
+    private Fdp.Presentation.Editing.IMapPickContext? _picksFor, _scopedPicks;
     private int _hintSecond = -1;
     private string _hint = "";
 
-    /// <param name="candidates">The units the unit combo offers (the host's current selection); the list is read only while the popup is open.</param>
-    public MarkPopupWindow(string id, string perspective, Vector4 titleBarColor, MarksController marks, Func<IReadOnlyList<MarkSubject>> candidates)
+    /// <summary>⭐ CE-1467 (f) — the unit field's pick path (scoped to the popup, so another form's pick never answers it).</summary>
+    public const string UnitPickPath = "$.unit";
+
+    /// <param name="candidates">The units the unit combo offers (the host's current selection) where the host has no pick context; read only while the popup is open.</param>
+    /// <param name="picks">⭐ CE-1467 (f) — the host's pick context: the unit is then THE entity field (<c>ReferenceLeafDrawers.DrawEntityChip</c> — every named unit by name · side · distance,
+    /// type to narrow, <i>Pick on the map</i>, <i>Clear</i>), ⛔ not a picker of its own. Null ⇒ the selection combo.</param>
+    public MarkPopupWindow(string id, string perspective, Vector4 titleBarColor, MarksController marks, Func<IReadOnlyList<MarkSubject>> candidates,
+                           Func<Fdp.Presentation.Editing.IMapPickContext?>? picks = null)
         : base(id, "Mark", perspective, WindowScope.PerspectiveBound)
     {
         _marks = marks ?? throw new ArgumentNullException(nameof(marks));
         _candidates = candidates ?? throw new ArgumentNullException(nameof(candidates));
+        _picks = picks;
         TitleBarColor = titleBarColor;
         IsOpen = false;
         _marks.PopupChanged += p => IsOpen = p != null;
@@ -250,16 +259,33 @@ public sealed class MarkPopupWindow : ManagedWindow
         if (ImGui.InputTextMultiline("##mk_text", ref p.Text, 1000, new Vector2(-1, 56f))) p.Touched = true;
         var noteMin = ImGui.GetItemRectMin();
         ImGui.AlignTextToFramePadding(); ImGui.TextUnformatted("Unit"); ImGui.SameLine(LabelW);
-        ImGui.SetNextItemWidth(220f);
-        if (ImGui.BeginCombo("##mk_unit", p.UnitName.Length > 0 ? p.UnitName : "(none)"))
+        Vector2 unitMin;
+        if (ScopedPicks() is { } picks)
         {
-            p.Touched = true;
-            if (ImGui.Selectable("(none)", p.UnitId == 0)) _marks.SetPopupUnit(null);
-            var c = _candidates();
-            for (int i = 0; i < c.Count; i++) if (ImGui.Selectable(c[i].Name, p.UnitId == c[i].Id)) _marks.SetPopupUnit(c[i]);
-            ImGui.EndCombo();
+            // ⭐ CE-1467 (f) — THE entity field (every named unit, type to narrow, pick on the map, clear) — the one every surface that names one thing uses
+            if (picks.TryConsumeEntityPick(UnitPickPath, out var picked)) { _marks.SetPopupUnit(Subject(picks, picked.NetworkId)); }
+            var op = Fdp.Presentation.Editing.ReferenceLeafDrawers.DrawEntityChip("##mk_unit", p.UnitName.Length > 0 ? p.UnitName : "(none)", null, 260f, picks, gone: null, offerKey: false);
+            unitMin = ImGui.GetItemRectMin();
+            switch (op.Kind)
+            {
+                case Fdp.Presentation.Editing.EntityFieldOpKind.Pick: _marks.SetPopupUnit(Subject(picks, op.Id)); break;
+                case Fdp.Presentation.Editing.EntityFieldOpKind.Clear: _marks.SetPopupUnit(null); break;
+                case Fdp.Presentation.Editing.EntityFieldOpKind.PickOnMap: p.Touched = true; picks.RequestEntityPick(UnitPickPath, null); break;
+            }
         }
-        var unitMin = ImGui.GetItemRectMin();
+        else
+        {
+            ImGui.SetNextItemWidth(220f);
+            if (ImGui.BeginCombo("##mk_unit", p.UnitName.Length > 0 ? p.UnitName : "(none)"))
+            {
+                p.Touched = true;
+                if (ImGui.Selectable("(none)", p.UnitId == 0)) _marks.SetPopupUnit(null);
+                var c = _candidates();
+                for (int i = 0; i < c.Count; i++) if (ImGui.Selectable(c[i].Name, p.UnitId == c[i].Id)) _marks.SetPopupUnit(c[i]);
+                ImGui.EndCombo();
+            }
+            unitMin = ImGui.GetItemRectMin();
+        }
         LastFieldMins = (nameMin, noteMin, unitMin);
         ImGui.SameLine(); ImGui.TextDisabled(p.FreshMark ? "the selected one, pre-filled" : "");
 
@@ -268,4 +294,17 @@ public sealed class MarkPopupWindow : ManagedWindow
         LastDoneRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         if (ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows) && ImGui.IsKeyPressed(ImGuiKey.Escape)) _marks.Dismiss();
     }
+
+    /// <summary>The host's pick context seen from this popup (one scoped view per context — not rebuilt per frame).</summary>
+    private Fdp.Presentation.Editing.IMapPickContext? ScopedPicks()
+    {
+        var picks = _picks?.Invoke();
+        if (picks == null) return null;
+        if (!ReferenceEquals(picks, _picksFor)) { _picksFor = picks; _scopedPicks = new Fdp.Presentation.Editing.ScopedMapPickContext(picks, "$.markPopup"); }
+        return _scopedPicks;
+    }
+
+    /// <summary>A picked unit as the note's subject: its id and the name the reference scope shows for it.</summary>
+    private static MarkSubject Subject(Fdp.Presentation.Editing.IMapPickContext picks, long networkId)
+        => new(networkId, picks.References?.ChipLabelOf(new Fdp.Toolkit.Replication.EntityRef((int)networkId)) ?? ("#" + networkId));
 }
