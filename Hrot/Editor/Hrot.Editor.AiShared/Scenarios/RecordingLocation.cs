@@ -56,6 +56,10 @@ public static class RecordingLocation
         return "opens at once";
     }
 
+    /// <summary>⭐ CE-4330 ④ — whether opening it IMPORTS first: an import of it is running (join it), or the NAS holds it and this station does not.</summary>
+    public static bool NeedsImport(ExerciseInventoryItem item, StorageJob? job, bool holdsHere)
+        => job is { IsActive: true, Kind: StorageJobKind.Import } || (item.NasState == ArchiveNasState.Complete && !holdsHere);
+
     /// <summary>The ACTIVE job on <paramref name="exercise"/>, else null (the master keeps one job per exercise, §7.2).</summary>
     public static StorageJob? JobOn(IReadOnlyList<StorageJob>? jobs, ExerciseId exercise)
     {

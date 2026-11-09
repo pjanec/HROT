@@ -118,6 +118,102 @@ public sealed class StorageTransfers
         return true;
     }
 
+    // ── ④ the import a station waits on (§5a; mockup ④) ─────────────────────────────────────────────────────────────────────────
+
+    private Guid? _importing;
+    private string _importTitle = "";
+    private Guid _staleImport;   // the exercise's newest import job when this wait began: an OLD finished one never opens the run
+    private Guid _importAsk;
+
+    /// <summary>⭐ CE-4330 ④ — the exercise this station is waiting on in the import dialog, or null (none, or sent to the background).</summary>
+    public Guid? Importing => _importing;
+
+    /// <summary>⭐ CE-4330 ④ — the dialog's title line: <i>"Importing Recon · exercise #… from the NAS"</i>.</summary>
+    public string ImportTitle => _importTitle;
+
+    /// <summary>⭐ CE-4330 ④ (§5) — opening a run the NAS holds and this station does not: the import is ASKED (or, when one already runs for it, JOINED) and the
+    /// dialog waits on it; the run opens by itself once it is in. False (nothing done) where this host opens no recording.</summary>
+    public bool OpenOrImport(ExerciseInventoryItem item)
+    {
+        if (_open is null) return false;
+        var exercise = (Guid)item.ExerciseId;
+        _importing = exercise;
+        _importTitle = $"Importing {(string.IsNullOrWhiteSpace(item.ScenarioId) ? "the exercise" : item.ScenarioId)} · exercise #{exercise.ToString("N").Substring(0, 8)} from the NAS";
+        var newest = NewestImport(exercise);
+        _staleImport = newest is { IsActive: false } old ? old.JobId : Guid.Empty;
+        _importAsk = Guid.Empty;
+        if (newest is not { IsActive: true })
+        {
+            _importAsk = _facade.AskStorage(StorageIntents.Import(exercise, _station()));
+            _lastAsk = _importAsk;
+            _lastRefusal = null;
+        }
+        return true;
+    }
+
+    /// <summary>⭐ CE-4330 ④ — the import job the dialog shows (the exercise's newest, never the one that had ended before the wait began), or null while the
+    /// master has not listed it yet.</summary>
+    public StorageJob? ImportJob => _importing is { } ex && NewestImport(ex) is { } j && j.JobId != _staleImport ? j : null;
+
+    /// <summary>⭐ CE-4330 ④ — why the import did not happen (the master's refusal of the ask, or the job's failure), or null.</summary>
+    public string? ImportFailure
+    {
+        get
+        {
+            if (_importing is null) return null;
+            if (_importAsk != Guid.Empty && _facade.StorageAskRefusal(_importAsk) is { } refused) return refused;
+            return ImportJob is { State: StorageJobState.Failed or StorageJobState.Cancelled } j
+                ? (string.IsNullOrEmpty(j.Reason) ? (j.State == StorageJobState.Cancelled ? "the import was cancelled" : "the import failed") : j.Reason)
+                : null;
+        }
+    }
+
+    /// <summary>⭐ CE-4330 ④ — called each frame: the import the dialog waits on is in ⇒ the run opens BY ITSELF (the existing loading screen follows) and the dialog closes.</summary>
+    public void UpdateImport()
+    {
+        if (_importing is not { } ex || ImportJob is not { State: StorageJobState.Done } done) return;
+        if (!string.IsNullOrEmpty(done.Reason)) return;   // ⭐ CE-4331 ③ — placed on a DIFFERENT cluster: the dialog asks Start / Cancel first (PlacementNote)
+        _importing = null;
+        _open!(ex);
+    }
+
+    /// <summary>⭐ CE-4331 ③ (§9a; backend note 2) — the import is in but the recordings were PLACED on this cluster (some not played, some nodes only listen): the
+    /// master's words, which the dialog shows with <i>Start AAR</i> / <i>Cancel</i>. Null while importing, or when every recording plays on its own node.</summary>
+    public string? PlacementNote => ImportJob is { State: StorageJobState.Done, Reason: { Length: > 0 } why } ? why : null;
+
+    /// <summary>⭐ CE-4331 ③ — <i>Start AAR</i> after the placement note: the run opens. False when there is no note to answer.</summary>
+    public bool StartAfterPlacement()
+    {
+        if (_importing is not { } ex || PlacementNote is null) return false;
+        _importing = null;
+        _open!(ex);
+        return true;
+    }
+
+    /// <summary>⭐ CE-4330 ④ — <i>Continue in background</i>: the dialog closes, the import goes on; the status bar shows it and offers <i>Open</i> when it is in (never by itself).</summary>
+    public void ContinueInBackground() => _importing = null;
+
+    /// <summary>⭐ CE-4330 ④ — why the dialog's <i>Cancel</i> is greyed (null = it can cancel): it stops the job for every station that joined it, so the seat rule (Q7) holds.</summary>
+    public string? CancelImportRefusal => ImportJob is { IsActive: true } j ? CancelRefusal(j) : null;
+
+    /// <summary>⭐ CE-4330 ④ — <i>Cancel</i>: the running import is cancelled (its partial files go; the NAS is not touched) and the dialog closes; an import that already
+    /// ended or failed just closes. False (nothing done) when the seat may not cancel.</summary>
+    public bool CancelImport()
+    {
+        if (_importing is null || CancelImportRefusal != null) return false;
+        if (ImportJob is { IsActive: true } j) Cancel(j);
+        _importing = null;
+        return true;
+    }
+
+    private StorageJob? NewestImport(Guid exercise)
+    {
+        var jobs = _facade.StorageJobs;   // the master's order: active first, then the newest ended
+        for (int i = 0; i < jobs.Length; i++)
+            if (jobs[i].Kind == StorageJobKind.Import && (Guid)jobs[i].ExerciseId == exercise) return jobs[i];
+        return null;
+    }
+
     /// <summary>Opens a finished import's recording (the AAR) — false where the host offers no open.</summary>
     public bool Open(Guid exercise)
     {

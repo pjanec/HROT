@@ -315,6 +315,11 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
             Assert.Same(choice, host.ScenarioPanelForTest!.RunControls!.Choice);
             Assert.Same(host.ScenarioSessionForTest, host.ScenarioPanelForTest.RunControls.Session);
             Assert.Equal(RunHostKind.Orchestrator, ((IProvidesRunControls)host).HostKind);
+            // ⭐ CE-4330 ⑥ — the panel's archive section draws the transfers the window controller composes on the run choice (the status bar's), read per frame
+            Assert.Null(host.ScenarioPanelForTest.Transfers!());
+            var transfers = new Hrot.UI.Common.Storage.StorageTransfers((Hrot.UI.Common.Facades.ITimeTransportFacade)((IProvidesRunControls)host).Transport!, () => Hrot.Common.Infrastructure.Seat.Author, () => "orc");
+            choice.Transfers = transfers;
+            Assert.Same(transfers, host.ScenarioPanelForTest.Transfers!());
         }
         finally
         {

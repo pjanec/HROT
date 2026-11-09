@@ -36,14 +36,9 @@ public sealed class StorageStatusBarSection
     private bool _openRequested;
     private float _measured;   // the segment's real width on the last frame it drew (0 = not yet)
 
-    // cached per job-array reference
-    private StorageJob[]? _rowsFor;
-    private Row[] _rows = Array.Empty<Row>();
+    private readonly StorageJobList _list;   // ⭐ CE-4330 — the popover's body, the SAME view the orchestrator panel draws
     private int _queuedFor = -1;
     private string _queuedText = "";
-
-    /// <summary>One row of the Transfers list: the icon key, the title, the state line, and the job (for the buttons).</summary>
-    public readonly record struct Row(string IconKey, string Title, string Line, StorageJob Job);
 
     /// <param name="reserveRight">The width the seat · hat text takes at the bar's right end (+ its gap): the segment ends left of it. 0 where there is no seat section.</param>
     public StorageStatusBarSection(StorageStatus status, StorageTransfers transfers, Func<float>? reserveRight = null)
@@ -51,6 +46,7 @@ public sealed class StorageStatusBarSection
         _status = status ?? throw new ArgumentNullException(nameof(status));
         _transfers = transfers ?? throw new ArgumentNullException(nameof(transfers));
         _reserveRight = reserveRight ?? (() => 0f);
+        _list = new StorageJobList(transfers);
     }
 
     /// <summary>Registers the segment on <paramref name="bar"/> for EVERY perspective (a transfer is the cluster's, not a perspective's).</summary>
@@ -65,7 +61,7 @@ public sealed class StorageStatusBarSection
     public StorageSegment Segment => _status.Segment;
 
     /// <summary>The Transfers list's rows as of the last job-list change.</summary>
-    public IReadOnlyList<Row> Rows { get { Refresh(); return _rows; } }
+    public IReadOnlyList<StorageJobList.Row> Rows => _list.Rows;
 
     /// <summary>Asks for the popover (the click's consequence, railable without a mouse).</summary>
     public void Open() => _openRequested = true;
@@ -83,51 +79,91 @@ public sealed class StorageStatusBarSection
     public (Vector2 Min, Vector2 Max)? QueuedRect { get; private set; }
 
     /// <summary>The popover rows' Cancel / Resume buttons, last frame (screen pixels, in row order).</summary>
-    public IReadOnlyList<(Vector2 Min, Vector2 Max)> RowButtonRects => _rowButtons;
-    private readonly List<(Vector2, Vector2)> _rowButtons = new();
-
-    // ── the rows ─────────────────────────────────────────────────────────────────────────────
-
-    private void Refresh()
-    {
-        var jobs = _transfers.Jobs;
-        if (ReferenceEquals(jobs, _rowsFor)) return;
-        _rowsFor = jobs;
-        string me = _transfers.Station;
-        var rows = new Row[jobs.Length];
-        for (int i = 0; i < jobs.Length; i++)
-        {
-            var j = jobs[i];
-            string icon = j.State == StorageJobState.Failed ? "storage/incomplete" : j.Kind switch { StorageJobKind.Archive => "storage/archive", StorageJobKind.Import => "storage/import", _ => "storage/delete" };
-            string by = StorageStatus.IsYours(j, me) ? "asked by this station" : j.AskedBy.Length > 0 ? "asked by " + j.AskedBy : "";
-            string line = j.State switch
-            {
-                StorageJobState.Running => $"running · {j.FilesDone} of {j.FilesTotal} files · {StorageStatus.BytesPair(j.BytesDone, j.BytesTotal)}" + (j.GivingWay ? " · slowed while Live runs" : ""),
-                StorageJobState.Queued => "queued — waits its turn",
-                StorageJobState.WaitingForNode => $"waiting for {(j.WaitingFor > 0 ? j.WaitingFor + " node(s)" : "a node")}" + (string.IsNullOrEmpty(j.Reason) ? "" : " · " + j.Reason),
-                StorageJobState.Done => $"done · {j.FilesTotal} files · {StorageStatus.Bytes(j.BytesTotal)}",
-                StorageJobState.Failed => $"incomplete — {j.FilesDone} of {j.FilesTotal} files" + (string.IsNullOrEmpty(j.Reason) ? "" : " · " + j.Reason),
-                _ => "cancelled",
-            };
-            rows[i] = new Row(icon, $"{StorageStatus.Noun(j.Kind)} · exercise {StorageStatus.Short(j)}", by.Length > 0 && j.State is not (StorageJobState.Failed or StorageJobState.Cancelled) ? line + " · " + by : line, j);
-        }
-        _rows = rows;
-    }
+    public IReadOnlyList<(Vector2 Min, Vector2 Max)> RowButtonRects => _list.RowButtonRects;
 
     // ── the frame ────────────────────────────────────────────────────────────────────────────
 
-    private static void Glyph(string key)
+    private static void Glyph(string key) => StorageJobList.Glyph(key);
+
+    /// <summary>⭐ CE-4330 ④ — the import dialog's ImGui id.</summary>
+    public const string ImportPopupId = "Open Exercise Recording###storage_import";
+
+    /// <summary>⭐ CE-4330 ④ — whether the import dialog was drawn on the last frame.</summary>
+    public bool ImportDialogDrawn { get; private set; }
+
+    private bool _importShown;
+
+    /// <summary>⭐ CE-4330 ④ (§5a; mockup ④) — the import this station waits on: its title, who started it when it was JOINED, a progress bar, the numbers, then
+    /// <i>Continue in background</i> (the status bar carries on and offers Open) and <i>Cancel</i> (the seat rule, Q7). The run opens by itself once it is in.</summary>
+    private void DrawImport()
     {
-        if (!Icons.TryGet(key, out var g)) return;
-        ImGui.PushStyleColor(ImGuiCol.Text, g.Color);
-        ImGui.TextUnformatted(g.Glyph);
-        ImGui.PopStyleColor();
-        ImGui.SameLine(0, 5);
+        _transfers.UpdateImport();
+        ImportDialogDrawn = false;
+        if (_transfers.Importing is null) { _importShown = false; return; }
+        if (!_importShown) { ImGui.OpenPopup(ImportPopupId); _importShown = true; }
+        ImGui.SetNextWindowPos(ImGui.GetMainViewport().GetCenter(), ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
+        if (!ImGui.BeginPopupModal(ImportPopupId, ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings)) return;
+        ImportDialogDrawn = true;
+        var job = _transfers.ImportJob;
+        var failure = _transfers.ImportFailure;
+        if (_transfers.PlacementNote is { } note)   // ⭐ CE-4331 ③ — the files are in, on a DIFFERENT cluster: what will not play, then Start / Cancel
+        {
+            Glyph("storage/incomplete");
+            ImGui.TextUnformatted(_transfers.ImportTitle.Replace("Importing", "Imported", StringComparison.Ordinal) + " — this cluster differs from the recording's");
+            ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + 560f);
+            ImGui.TextColored(Muted, note);
+            ImGui.PopTextWrapPos();
+            ImGui.Separator();
+            bool done = false;
+            if (ImGui.Button("Start AAR")) done = _transfers.StartAfterPlacement();
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel")) { _transfers.ContinueInBackground(); done = true; }   // the run stays imported: the status bar's Open is still there
+            if (done || _transfers.Importing is null) { ImGui.CloseCurrentPopup(); _importShown = false; }
+            ImGui.EndPopup();
+            return;
+        }
+        Glyph(failure is null ? "storage/import" : "storage/incomplete");
+        ImGui.TextUnformatted(_transfers.ImportTitle);
+        string sub = failure
+                  ?? (job is null ? "asking the master…"
+                   : job.State == StorageJobState.Queued ? "queued — waits its turn"
+                   : job.State == StorageJobState.WaitingForNode ? "waiting for a node" + (string.IsNullOrEmpty(job.Reason) ? "" : " · " + job.Reason)
+                   : !StorageStatus.IsYours(job, _transfers.Station) && job.AskedBy.Length > 0 ? $"joined the import {job.AskedBy} started — the same job, the same numbers"
+                   : "the files come to the nodes; the AAR opens by itself when they are in");
+        ImGui.TextColored(failure is null ? Muted : Red, sub);
+        if (failure is null)
+        {
+            float progress = job is { FilesTotal: > 0 } ? job.FilesDone / (float)job.FilesTotal : job is { BytesTotal: > 0 } ? job.BytesDone / (float)job.BytesTotal : -1f * (float)ImGui.GetTime();
+            ImGui.PushStyleColor(ImGuiCol.PlotHistogram, Icons.Get("storage/import").Color);   // mockup ④: the bar in the import's colour (teal), not the theme's
+            ImGui.ProgressBar(progress, new Vector2(Math.Max(360f, ImGui.CalcTextSize(_transfers.ImportTitle).X + 24f), 8f), "");
+            ImGui.PopStyleColor();
+            if (job is { FilesTotal: > 0 }) ImGui.TextColored(Muted, $"{job.FilesDone} of {job.FilesTotal} files · {StorageStatus.BytesPair(job.BytesDone, job.BytesTotal)}");
+            else ImGui.NewLine();
+        }
+        ImGui.Separator();
+        bool close = false;
+        if (failure is not null)
+        {
+            if (ImGui.Button("Close")) { _transfers.ContinueInBackground(); close = true; }
+        }
+        else
+        {
+            if (ImGui.Button("Continue in background")) { _transfers.ContinueInBackground(); close = true; }
+            ImGui.SameLine();
+            var why = _transfers.CancelImportRefusal;
+            ImGui.BeginDisabled(why is not null);
+            if (ImGui.Button("Cancel")) close = _transfers.CancelImport();
+            ImGui.EndDisabled();
+            if (why is not null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(why);
+        }
+        if (close || _transfers.Importing is null) { ImGui.CloseCurrentPopup(); _importShown = false; }
+        ImGui.EndPopup();
     }
 
     /// <summary>Called each frame by the <see cref="StatusBarManager"/>, inside an active ImGui frame and the status-bar window.</summary>
     public void Render()
     {
+        DrawImport();   // ⭐ CE-4330 ④ — the import dialog rides the segment's frame (composed once, every host)
         var seg = _status.Segment;
         ActionRect = null; QueuedRect = null; SegmentRect = default;
         if (seg.State == StorageSegmentState.Idle) { _measured = 0f; DrawPopover(default); return; }
@@ -192,49 +228,12 @@ public sealed class StorageStatusBarSection
         // the popover can also be opened from the list of ended jobs while the segment is idle (nothing draws the segment then; Open() is the rail / menu path)
         if (_openRequested) { ImGui.OpenPopup(PopupId); _openRequested = false; }
         PopoverDrawn = false;
-        _rowButtons.Clear();
         var vp = ImGui.GetMainViewport();
         ImGui.SetNextWindowPos(new Vector2(vp.WorkPos.X + vp.WorkSize.X - 12f, vp.WorkPos.Y + vp.WorkSize.Y - ImGui.GetFrameHeight() - 8f), ImGuiCond.Always, new Vector2(1f, 1f));
         ImGui.SetNextWindowSizeConstraints(new Vector2(480f, 0f), new Vector2(620f, 480f));
         if (!ImGui.BeginPopup(PopupId)) return;
         PopoverDrawn = true;
-        ImGui.TextDisabled("Transfers — one at a time, the rest wait in order");
-        if (_transfers.LastRefusal is { } refusal) ImGui.TextColored(Red, refusal);
-        ImGui.Separator();
-        var rows = Rows;
-        if (rows.Count == 0) ImGui.TextDisabled("no transfers");
-        for (int i = 0; i < rows.Count; i++)
-        {
-            var r = rows[i];
-            ImGui.PushID(i);
-            Glyph(r.IconKey);
-            ImGui.BeginGroup();
-            ImGui.TextUnformatted(r.Title);
-            ImGui.TextDisabled(r.Line);
-            ImGui.EndGroup();
-            float bw = 84f;
-            ImGui.SameLine(ImGui.GetWindowWidth() - bw - ImGui.GetStyle().WindowPadding.X);
-            bool active = r.Job.IsActive;
-            bool resumable = _transfers.ResumeRefusal(r.Job) == null || (r.Job.Kind == StorageJobKind.Archive && r.Job.State is StorageJobState.Failed or StorageJobState.Cancelled);
-            if (active || resumable)
-            {
-                string? why = active ? _transfers.CancelRefusal(r.Job) : _transfers.ResumeRefusal(r.Job);
-                if (why != null) ImGui.BeginDisabled();
-                if (active)
-                {
-                    if (ImGui.Button("Cancel##row", new Vector2(bw, 0))) _transfers.Cancel(r.Job);
-                }
-                else if (ImGui.Button("Resume##row", new Vector2(bw, 0))) _transfers.Resume(r.Job);
-                var rmin = ImGui.GetItemRectMin(); var rmax = ImGui.GetItemRectMax();
-                _rowButtons.Add((rmin, rmax));
-                if (Icons.TryGet(active ? "storage/cancel" : "storage/resume", out var bi))   // the mockup's coloured glyph at the button's left (a button's text is one colour)
-                    ImGui.GetWindowDrawList().AddText(new Vector2(rmin.X + 9f, rmin.Y + (rmax.Y - rmin.Y - ImGui.GetTextLineHeight()) * 0.5f), ImGui.GetColorU32(bi.Color), bi.Glyph);
-                if (why != null) { ImGui.EndDisabled(); if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(why); }
-            }
-            ImGui.PopID();
-        }
-        ImGui.Separator();
-        ImGui.TextDisabled("Cancel / Resume: the Author and Instructor seats — greyed on another seat: \"" + StorageTransfers.SeatRefusalText + "\"");
+        _list.Draw();
         ImGui.EndPopup();
     }
 }

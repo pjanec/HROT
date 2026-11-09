@@ -214,6 +214,36 @@ public sealed class RecordingPickerLauncherTests : IDisposable
         Assert.Equal(new[] { "storage/onnodes", "storage/archive" }, rows[0].Chips!.Select(x => x.IconKey));
     }
 
+    /// <summary>⭐ CE-4330 ④ (§5) — picking a run this station must IMPORT (NAS only, or an import of it running) goes to the host's import, never the plain open;
+    /// a run on the nodes / cached here opens at once; a host whose import declines (false) falls back to the plain open.
+    /// 🔴 Mutation: the confirm calling <c>_openRecording</c> first ⇒ the NAS row opens without an import ⇒ red.</summary>
+    [Fact]
+    public void CE4330_PickingANasOnlyRun_ImportsFirst()
+    {
+        Guid G(int n) => Guid.Parse($"{n:x8}-0000-0000-0000-000000000000");
+        ExerciseInventoryItem Row(int n, ArchiveNasState nas) => new((Fdp.Core.ExerciseId)G(n), new DateTime(2026, 11, 8, 18, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(5), "s" + n, NasState: nas);
+        var nasOnly = Row(1, ArchiveNasState.Complete);
+        var onNodes = Row(2, ArchiveNasState.None);
+        var cached = Row(3, ArchiveNasState.Complete);
+        Action<PickerResult>? chosen = null;
+        var opened = new List<Guid>();
+        var imported = new List<Guid>();
+        bool accepts = true;
+        var launcher = new RecordingPickerLauncher((req, cb) => chosen = cb, () => new[] { nasOnly, onNodes, cached }, opened.Add,
+            localRecordings: () => new List<string> { G(3) + ":10" }, import: x => { imported.Add(x.ExerciseId.Value); return accepts; });
+        PickerEntry E(ExerciseInventoryItem x) => new("id", "n", null, null, null, null, x);
+
+        launcher.Open(); chosen!(new PickerResult(new[] { E(nasOnly) }));
+        launcher.Open(); chosen!(new PickerResult(new[] { E(onNodes) }));
+        launcher.Open(); chosen!(new PickerResult(new[] { E(cached) }));
+        Assert.Equal(new[] { G(1) }, imported);
+        Assert.Equal(new[] { G(2), G(3) }, opened);
+
+        accepts = false;                                                     // a host that opens no recording: the plain open
+        launcher.Open(); chosen!(new PickerResult(new[] { E(nasOnly) }));
+        Assert.Equal(G(1), opened[^1]);
+    }
+
     /// <summary>⭐ CE-4330 ⑤ — every cluster host's picker is handed BOTH facts (the silent-default rule: a host that has them passes them).
     /// ⚠ The Replay Browser lists its own disk (no cluster) and passes neither.</summary>
     [Theory]
@@ -230,5 +260,6 @@ public sealed class RecordingPickerLauncherTests : IDisposable
         Assert.Contains("localRecordings:", call);
         Assert.Contains("actions: x =>", call);            // ⭐ CE-4330 ⑦ — the row's Delete from archive…, through the run choice's transfers
         Assert.Contains("RunChoice?.Transfers?.ActionsFor(x)", call);
+        Assert.Contains("RunChoice?.Transfers?.OpenOrImport(x)", call);   // ⭐ CE-4330 ④ — a NAS-only run imports first
     }
 }

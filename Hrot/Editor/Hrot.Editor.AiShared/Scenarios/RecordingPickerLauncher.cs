@@ -41,6 +41,7 @@ public sealed class RecordingPickerLauncher
     private readonly Func<IReadOnlyList<StorageJob>>? _storageJobs;
     private readonly Func<IReadOnlyList<string>?>? _localRecordings;
     private readonly Func<ExerciseInventoryItem, IReadOnlyList<PickerRowAction>?>? _actions;
+    private readonly Func<ExerciseInventoryItem, bool>? _import;
     private IReadOnlyDictionary<Guid, string>? _notes;
 
     /// <param name="openPicker">The picker seam — production: the shell <c>PickerRegistry.OpenPicker</c>.</param>
@@ -52,6 +53,8 @@ public sealed class RecordingPickerLauncher
     /// <param name="localRecordings">⭐ CE-4330 ⑤ — this node's own recordings (fact ③, <c>ClusterSlave.LocalRecordings.Current()</c>): an archived run held
     /// here is <i>cached here</i> and opens at once. Null ⇒ unknown (never claims a cache).</param>
     /// <param name="actions">⭐ CE-4330 ⑦ — a row's right-click actions (<i>Delete from archive…</i>: the host's <c>StorageTransfers.ActionsFor</c>). Null ⇒ none.</param>
+    /// <param name="import">⭐ CE-4330 ④ (§5) — opening a run this station must IMPORT first (<see cref="RecordingLocation.NeedsImport"/>): the host's
+    /// <c>StorageTransfers.OpenOrImport</c> asks / joins the import and its dialog opens the run once it is in; false ⇒ the plain open. Null ⇒ always the plain open.</param>
     /// <param name="sourceNotes">⭐ R-5 / V6 — what each exercise's row says about what opening it GIVES (<c>"4 participants — opens MERGED"</c>, <c>"this editor's run"</c>), read ONCE when the picker opens (a directory scan, never per frame); null ⇒ no note (a host with no review source).</param>
     public RecordingPickerLauncher(
         Action<PickerRequest, Action<PickerResult>> openPicker,
@@ -61,8 +64,10 @@ public sealed class RecordingPickerLauncher
         Func<IReadOnlyDictionary<Guid, string>>? sourceNotes = null,
         Func<IReadOnlyList<StorageJob>>? storageJobs = null,
         Func<IReadOnlyList<string>?>? localRecordings = null,
-        Func<ExerciseInventoryItem, IReadOnlyList<PickerRowAction>?>? actions = null)
+        Func<ExerciseInventoryItem, IReadOnlyList<PickerRowAction>?>? actions = null,
+        Func<ExerciseInventoryItem, bool>? import = null)
     {
+        _import          = import;
         _actions         = actions;
         _storageJobs     = storageJobs;
         _localRecordings = localRecordings;
@@ -100,6 +105,10 @@ public sealed class RecordingPickerLauncher
                 Hint:          RecordingLocation.Hint(x, job, holdsHere),
                 Actions:       _actions?.Invoke(x));                         // ⭐ CE-4330 ⑦
 
+    /// <summary>⭐ CE-4330 ④ — whether opening <paramref name="x"/> imports first, from the same facts the row's hint reads (once, on the click).</summary>
+    public bool NeedsImport(ExerciseInventoryItem x)
+        => RecordingLocation.NeedsImport(x, RecordingLocation.JobOn(_storageJobs?.Invoke(), x.ExerciseId), RecordingLocation.Holds(_localRecordings?.Invoke(), x.ExerciseId.Value));
+
     /// <summary>The row label: the scenario it ran, when it started (local time) and how long it ran.</summary>
     public static string Label(ExerciseInventoryItem x)
     {
@@ -126,8 +135,9 @@ public sealed class RecordingPickerLauncher
         _openPicker(request, result =>
         {
             if (result.Cancelled) return;
-            if (result.First?.Tag is ExerciseInventoryItem picked)
-                _openRecording(picked.ExerciseId);
+            if (result.First?.Tag is not ExerciseInventoryItem picked) return;
+            if (_import is not null && NeedsImport(picked) && _import(picked)) return;   // ⭐ CE-4330 ④ — the import first; its dialog opens the run
+            _openRecording(picked.ExerciseId);
         });
     }
 }
