@@ -28,6 +28,9 @@ public sealed record BuildingOptions
 
     /// <summary>Write a material (brick, concrete, stone, wood) on about 30 % of the buildings.</summary>
     public bool Materials { get; init; }
+
+    /// <summary>Points where nothing may be built (water); null for none.</summary>
+    public Func<double, double, bool>? Blocked { get; init; }
 }
 
 /// <summary>
@@ -43,7 +46,7 @@ public static class BuildingGenerator
     // so switching an option off leaves the clean geometry untouched.
     public static (IReadOnlyList<Building> Buildings, IReadOnlyList<Opening> Unassigned) Generate(SynthProfile p, Rng rng, HeightField h, RoadNetwork r, BuildingOptions options)
     {
-        var g = new Generator(p, rng.Fork("buildings"), h, r);
+        var g = new Generator(p, rng.Fork("buildings"), h, r, options.Blocked);
         g.Run();
         if (options.Terraces) g.Terraces(rng.Fork("terraces"));
         IReadOnlyList<Building> buildings = g.Buildings;
@@ -118,9 +121,11 @@ public static class BuildingGenerator
         public IReadOnlyList<Building> Buildings => _buildings;
         public IReadOnlyList<Opening> Unassigned => _unassigned;
 
-        public Generator(SynthProfile p, Rng rng, HeightField h, RoadNetwork r)
+        private readonly Func<double, double, bool>? _blocked;
+
+        public Generator(SynthProfile p, Rng rng, HeightField h, RoadNetwork r, Func<double, double, bool>? blocked)
         {
-            _p = p; _rng = rng; _h = h; _r = r;
+            _p = p; _rng = rng; _h = h; _r = r; _blocked = blocked;
             double sum = p.StoreyShares.Sum();
             _storeyShares = p.StoreyShares.Select(s => s / sum).ToArray();
             _sigma = (Math.Log(p.FootprintAreaP90) - Math.Log(p.FootprintAreaP10)) / (2 * 1.2815515655446004);
@@ -224,6 +229,7 @@ public static class BuildingGenerator
             var front2 = new Pt(R2(ox + local[1].X * tx + local[1].Y * nx), R2(oy + local[1].X * ty + local[1].Y * ny));
 
             if (!Admissible(ring)) return;
+            if (BlockedRing(ring)) return;
             var walls = MakeWalls(ring);
             int frontIdx = walls.FindIndex(w => (w.A == front && w.B == front2) || (w.A == front2 && w.B == front));
             if (frontIdx < 0) return;
@@ -310,6 +316,21 @@ public static class BuildingGenerator
             foreach (var q in ring)
                 if (_h.IsNoData(q.X, q.Y)) return false;
             return true;
+        }
+
+        // a corner or a point along a wall (every 2 m) on or near water
+        private bool BlockedRing(List<Pt> ring)
+        {
+            if (_blocked == null) return false;
+            for (int i = 0; i < ring.Count; i++)
+            {
+                var a = ring[i]; var b = ring[(i + 1) % ring.Count];
+                double len = Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y));
+                for (double s = 0; s <= len; s += 2.0)
+                    if (_blocked(a.X + (b.X - a.X) * s / len, a.Y + (b.Y - a.Y) * s / len)) return true;
+                if (_blocked(b.X, b.Y)) return true;
+            }
+            return false;
         }
 
         private static List<Wall> MakeWalls(List<Pt> ring)
@@ -487,6 +508,7 @@ public static class BuildingGenerator
                 double nx = w.Dy, ny = -w.Dx;
                 double x = R2(w.A.X + w.Dx * along + nx * off), y = R2(w.A.Y + w.Dy * along + ny * off);
                 if (x < _p.MinX || x > _p.MaxX || y < _p.MinY || y > _p.MaxY) continue;
+                if (_blocked != null && _blocked(x, y)) continue;
                 _unassigned.Add(new Opening(isDoor ? "door" : "window", x, y, R2(storeyZ[storey] + (isDoor ? 0.0 : 1.0)), w.Heading, storey));
                 _unassignedOwner.Add(_buildings.Count);
             }
@@ -602,7 +624,7 @@ public static class BuildingGenerator
             {
                 var ring = new List<Pt> { bottom[i], bottom[i + 1], top[i + 1], top[i] };
                 if (SignedArea(ring) < 0) ring.Reverse();
-                if (!Admissible(ring)) { ok = false; break; }
+                if (!Admissible(ring) || BlockedRing(ring)) { ok = false; break; }
                 var walls = MakeWalls(ring);
                 int front = walls.FindIndex(w => (w.A == bottom[i] && w.B == bottom[i + 1]) || (w.A == bottom[i + 1] && w.B == bottom[i]));
                 if (front < 0) { ok = false; break; }

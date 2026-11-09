@@ -86,6 +86,38 @@ public static class GeoJsonWriter
         });
     }
 
+    /// <summary>Polygon features with a single property: kind (water, scrub) or density (woods).</summary>
+    public static void WriteAreas(string path, IReadOnlyList<AreaFeature> areas)
+    {
+        WriteCollection(path, null, w =>
+        {
+            foreach (var a in areas)
+            {
+                w.WriteStartObject();
+                w.WriteString("type", "Feature");
+                w.WriteStartObject("geometry");
+                w.WriteString("type", "Polygon");
+                w.WriteStartArray("coordinates");
+                w.WriteStartArray();
+                foreach (var (x, y) in a.Ring)
+                {
+                    w.WriteStartArray();
+                    w.WriteNumberValue(x);
+                    w.WriteNumberValue(y);
+                    w.WriteEndArray();
+                }
+                w.WriteEndArray();
+                w.WriteEndArray();
+                w.WriteEndObject();
+                w.WriteStartObject("properties");
+                if (a.Kind != null) w.WriteString("kind", a.Kind);
+                if (a.Density is double d) w.WriteNumber("density", d);
+                w.WriteEndObject();
+                w.WriteEndObject();
+            }
+        });
+    }
+
     public static void WriteEmpty(string path, string note) => WriteCollection(path, note, _ => { });
 
     private static void WriteCollection(string path, string? note, Action<Utf8JsonWriter> features)

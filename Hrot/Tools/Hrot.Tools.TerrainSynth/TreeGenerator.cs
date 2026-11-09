@@ -3,13 +3,29 @@ using System.Text;
 
 namespace Hrot.Tools.TerrainSynth;
 
+/// <summary>Options of the extras mode.</summary>
+public sealed record TreeOptions
+{
+    /// <summary>Points where nothing may stand (water); null for none.</summary>
+    public Func<double, double, bool>? Blocked { get; init; }
+
+    /// <summary>Return only the trees outside the woods and describe the woods as polygons.</summary>
+    public bool WoodsAsPolygons { get; init; }
+}
+
+public sealed record TreeResult(IReadOnlyList<(double X, double Y, double Z)> Trees, IReadOnlyList<AreaFeature> Woods, WoodsMask? Mask);
+
 /// <summary>
 /// Woods (a jittered grid inside a low-frequency noise mask) plus lone trees: rows along minor roads and scattered field trees.
 /// </summary>
 public static class TreeGenerator
 {
     public static IReadOnlyList<(double X, double Y, double Z)> Generate(SynthProfile p, Rng rng, HeightField h, RoadNetwork r, IReadOnlyList<Building> b)
-        => new Generator(p, rng, h, r, b).Run();
+        => new Generator(p, rng, h, r, b, new TreeOptions()).Run().Trees;
+
+    /// <summary>Like Generate, with the optional extras: water exclusion and the woods as polygons instead of trees.</summary>
+    public static TreeResult GenerateDetailed(SynthProfile p, Rng rng, HeightField h, RoadNetwork r, IReadOnlyList<Building> b, TreeOptions options)
+        => new Generator(p, rng, h, r, b, options).Run();
 
     public static void WriteCsv(string path, IReadOnlyList<(double X, double Y, double Z)> t)
     {
@@ -36,19 +52,21 @@ public static class TreeGenerator
         private readonly RoadNetwork _r;
         private readonly IReadOnlyList<Building> _b;
         private readonly Dictionary<long, List<int>> _footprintCells = new();
+        private readonly TreeOptions _o;
+        private readonly Func<double, double, bool>? _blocked;
         private ulong _maskSeed;
         private double _threshold;
 
-        public Generator(SynthProfile p, Rng rng, HeightField h, RoadNetwork r, IReadOnlyList<Building> b)
+        public Generator(SynthProfile p, Rng rng, HeightField h, RoadNetwork r, IReadOnlyList<Building> b, TreeOptions o)
         {
-            _p = p; _rng = rng; _h = h; _r = r; _b = b;
+            _p = p; _rng = rng; _h = h; _r = r; _b = b; _o = o; _blocked = o.Blocked;
         }
 
         private static double R2(double v) => Math.Round(v, 2);
 
         private static long Key(int x, int y) => ((long)x << 32) ^ (uint)y;
 
-        public IReadOnlyList<(double X, double Y, double Z)> Run()
+        public TreeResult Run()
         {
             IndexFootprints();
             _maskSeed = _rng.Fork("woods").NextU64();
@@ -64,11 +82,53 @@ public static class TreeGenerator
                 woods = WoodsPass(density);
             }
 
-            var all = new List<(double X, double Y, double Z)>(woods);
+            var loneTrees = new List<(double X, double Y, double Z)>();
             int lone = (int)Math.Round(woods.Count * _p.LoneShare / (1.0 - _p.LoneShare));
-            int rows = AddRows(all, (int)(0.6 * lone));
-            AddScattered(all, lone - rows);
-            return all;
+            int rows = AddRows(loneTrees, (int)(0.6 * lone));
+            AddScattered(loneTrees, lone - rows);
+
+            if (!_o.WoodsAsPolygons)
+            {
+                var all = new List<(double X, double Y, double Z)>(woods);
+                all.AddRange(loneTrees);
+                return new TreeResult(all, Array.Empty<AreaFeature>(), null);
+            }
+
+            // the woods become polygons; the lone trees stay points and must lie outside every polygon
+            var mask = BuildRaster();
+            var polygons = WoodsPolygons.Trace(mask, 2.5, 40);
+            var features = polygons.Select(r => new AreaFeature(AreaFeature.Close(r), null, Math.Round(density, 1))).ToList();
+            var boxes = polygons.Select(r => (MinX: r.Min(v => v.X), MaxX: r.Max(v => v.X), MinY: r.Min(v => v.Y), MaxY: r.Max(v => v.Y))).ToList();
+            var outside = new List<(double X, double Y, double Z)>();
+            foreach (var t in loneTrees)
+            {
+                bool inside = false;
+                for (int i = 0; i < polygons.Count && !inside; i++)
+                    inside = t.X >= boxes[i].MinX && t.X <= boxes[i].MaxX && t.Y >= boxes[i].MinY && t.Y <= boxes[i].MaxY && Geo.Inside(polygons[i], t.X, t.Y);
+                if (!inside) outside.Add(t);
+            }
+            return new TreeResult(outside, features, mask);
+        }
+
+        // 5 m cells that are woods, minus a safety strip around buildings and water
+        private WoodsMask BuildRaster()
+        {
+            const double cell = 5.0;
+            int cols = (int)Math.Ceiling(_p.Width / cell), rows = (int)Math.Ceiling(_p.Height / cell);
+            var cells = new bool[cols, rows];
+            for (int j = 0; j < rows; j++)
+                for (int i = 0; i < cols; i++)
+                    cells[i, j] = InWoods(_p.MinX + (i + 0.5) * cell, _p.MinY + (j + 0.5) * cell);
+            foreach (var b in _b)
+            {
+                double minX = b.Footprint.Min(q => q.X) - 6, maxX = b.Footprint.Max(q => q.X) + 6, minY = b.Footprint.Min(q => q.Y) - 6, maxY = b.Footprint.Max(q => q.Y) + 6;
+                int i0 = Math.Max(0, (int)Math.Floor((minX - _p.MinX) / cell)), i1 = Math.Min(cols - 1, (int)Math.Floor((maxX - _p.MinX) / cell));
+                int j0 = Math.Max(0, (int)Math.Floor((minY - _p.MinY) / cell)), j1 = Math.Min(rows - 1, (int)Math.Floor((maxY - _p.MinY) / cell));
+                for (int i = i0; i <= i1; i++)
+                    for (int j = j0; j <= j1; j++)
+                        cells[i, j] = false;
+            }
+            return new WoodsMask(cells, cell, _p.MinX, _p.MinY);
         }
 
         // ---- woods mask ----
@@ -85,7 +145,7 @@ public static class TreeGenerator
             return false;
         }
 
-        private bool WoodsAllowed(double x, double y) => !InVillage(x, y) && !_h.IsNoData(x, y);
+        private bool WoodsAllowed(double x, double y) => !InVillage(x, y) && !_h.IsNoData(x, y) && !(_blocked != null && _blocked(x, y));
 
         private bool InWoods(double x, double y) => WoodsAllowed(x, y) && Mask(x, y) >= _threshold;
 
@@ -191,6 +251,7 @@ public static class TreeGenerator
             if (_h.IsNoData(x, y)) return null;
             if (_r.DistanceToRoad(x, y) < 2.0) return null;
             if (NearFootprint(x, y)) return null;
+            if (_blocked != null && _blocked(x, y)) return null;
             float z = _h.Sample(x, y);
             if (float.IsNaN(z)) return null;
             return R2(z);

@@ -28,6 +28,7 @@ dotnet run --project Hrot/Tools/Hrot.Tools.TerrainSynth -- --preset tiny --seed 
 | `--noise real\|none` | jitter the doors and windows like a real input set (see Realism options) | `real` for `full`, `none` for `tiny` |
 | `--terraces on\|off` | about 10 % of the houses in terraced rows with shared walls | `on` for `full`, `off` for `tiny` |
 | `--materials on\|off` | a `material` on about 30 % of the buildings | `on` for `full`, `off` for `tiny` |
+| `--extras` | also write water, scrub and woods polygons (see Optional files) | off |
 
 A bad argument prints the usage to stderr and exits with 2. A normal run prints one line per stage with its
 elapsed time and counts, and exits with 0.
@@ -89,11 +90,33 @@ of those, brick 50 %, concrete 25 %, stone 15 %, wood 10 %. In `buildings.geojso
   roads/roads.nod.xml roads.edg.xml roads.typ.xml   plain network input
   roads/roads.net.xml           built from the plain files, only when netconvert is available
   walls/walls.geojson           empty collection
+  water/water.geojson           only with --extras: one pond and one river strip
+  vegetation/scrub.geojson      only with --extras: scrub polygons
+  vegetation/woods.geojson      only with --extras: the woods as polygons
 ```
 
 The default output folder is under `artifacts/`, which is ignored by git. The generated `full` set is about 500 MB
 (almost all of it the height grid), so it is never committed. Whether a generated `tiny` set is committed as a
 fixture is a separate decision.
+
+## Optional files (`--extras`)
+
+`--extras` (off by default, so `full` stays like the real set) writes three more files, all listed in the manifest with
+their feature counts, in the same GeoJSON layout as the others (an `hrotInput` block, compact JSON, closed
+counter-clockwise rings, no holes, coordinates to 0.01 m):
+
+- `water/water.geojson`: one pond (an irregular polygon of 2 000 to 8 000 m2, `kind` `pond`) and one river strip (15 to
+  30 m wide, running from one side of the area to the other, `kind` `river`). Roads may cross the river (a bridge). The
+  pond stays away from villages, roads, the river and nodata. Nothing is built or planted on or next to water: the
+  building and tree placement is repeated with the water as an exclusion, so the building count stays on target.
+- `vegetation/scrub.geojson`: 3 to 8 scrub polygons (`kind` `scrub`) outside woods, villages, water, buildings and nodata.
+- `vegetation/woods.geojson`: the woods as polygons, traced from the woods mask on a 5 m raster and simplified to about
+  2.5 m, with the woods density in trees per hectare as `density`. A woods region with a hole is cut along a column
+  through the hole into pieces without holes; pieces may touch along the cut. Buildings and water are kept out with a
+  6 m strip.
+
+With `--extras` the woods are described by the polygons, so `trees/trees.csv` holds only the trees outside woods (the
+lone trees and rows), none of them inside a woods polygon. The manifest records `extras` under `generator.overrides`.
 
 ## Determinism
 
@@ -134,7 +157,7 @@ height grid is computed in parallel):
 |---|---|---|
 | heights | 2.24 s | 11 265 x 11 265 posts, 507.6 MB |
 | roads | 0.08 s | 818 nodes, 1 075 edges, 30 villages |
-| buildings | 0.25 s | 1 800 buildings, 1 821 unassigned openings |
+| buildings | 0.26 s | 1 800 buildings, 1 751 unassigned openings (noise, terraces and materials on, the `full` default) |
 | trees | 2.64 s | 176 112 trees |
 | walls | 0.00 s | empty |
 | manifest | 1.04 s | hashes of the 507 MB grid and the other files |
@@ -142,3 +165,7 @@ height grid is computed in parallel):
 Total wall time 6.95 s including process start and netconvert (the roads stage line does not include netconvert).
 Peak working set 127 MB, because the height grid is streamed to disk in bands of 64 rows. Output size 499 MiB on disk
 (`heights.f32` 507 600 900 bytes, `buildings.geojson` 6.7 MB, `trees.csv` 4.1 MB, `roads.net.xml` 4.2 MB).
+
+With `--extras` the same run takes about 11 s: water 0.29 s, buildings 0.41 s, trees 6.5 s (the woods mask is traced into
+polygons), vegetation 0.01 s, and writes 2 water polygons, 3 scrub polygons, 20 woods polygons (about 45 % of the area,
+density 125 trees/ha) and 11 313 trees outside woods.
