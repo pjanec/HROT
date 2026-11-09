@@ -541,3 +541,15 @@ Per-building state stays per building: `id`, destruction state, the navmesh bake
 | `walls/walls.geojson` | empty — no walls or fences in this area |
 
 Checks: door points sit a median 0.11 m above the height grid (98 % within −1.2 … +3.6 m); 97 % of opening headings point out of their footprint.
+
+### 10.8 PROPOSED — two optional files for the input set *(source-data session, `2026-11-09`; from `DESIGN_Terrain_From_OSM.md` §5.6 — for the coordinator to accept)*
+
+Terrains made from OpenStreetMap carry two layers the §10 set has no file for. Proposal: OPTIONAL files, listed in `manifest.files` like the
+others; `schemaVersion` stays 1; an importer that does not know a file ignores it and reports it as skipped.
+
+| file | content | importer use |
+|---|---|---|
+| `water/water.geojson` | `Polygon` features (no holes, CCW), `properties: { kind: "lake"\|"river"\|"pond"\|"sea" }`, local metres | `surface: water` (Terrain World §2) — once supported |
+| `vegetation/scrub.geojson` | `Polygon` features, `properties: { kind: "scrub"\|"heath" }` | the future low concealment class (§9.6 T-8) — once it exists |
+
+The synthetic generator and the real input set write neither (no water or scrub in them); the conformance checks treat both as optional.

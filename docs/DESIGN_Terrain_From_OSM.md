@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BRAINSTORMING — Q-O1…Q-O5 answered (editor feature for scenario authors; online data; up to 6 × 6 km; all buildings enterable; one-shot import); approaches next
+build-state: DESIGN — reviewed (builder check 2026-11-09), Q-O1…Q-O9 answered; map background / imagery LEFT OPEN for the user (§8)
 updated: 2026-11-09 (source-data session)
 related-designs:
   - DESIGN_Terrain_Import_UTM.md §10 — the import input set (the target format of this tool)
@@ -8,7 +8,7 @@ related-designs:
   - blueprints/Architect_Question_93_Sumo_Traffic_Node.md §11.3 — SUMO net placement (anchor), terrain-from-sumo.py
 -->
 
-# DESIGN (in progress) — an HROT terrain from any place on OpenStreetMap
+# DESIGN — an HROT terrain from any place on OpenStreetMap
 
 ## 0. Why
 
@@ -51,26 +51,206 @@ terrain must work without command lines or hand-edited files.
 **Licence:** OSM data is ODbL — internal use is free; a PUBLISHED derived database must credit OSM and stay under ODbL. Copernicus GLO-30 is
 free with attribution. ⇒ a generated terrain committed to a public repo is allowed, with attribution and the ODbL terms attached.
 
-## 3. The idea (first sketch — not chosen)
+## 3. Approaches and the choice *(Q-O6)*
 
-An **OSM adapter that writes the §10 import input set** — the same files the real data and the synthetic generator produce — so everything
-downstream (the importer, the building generator, the navmesh, the tests) is shared and only the front end is new:
+| approach | trade-off | |
+|---|---|---|
+| ⭐ **A. ONE pipeline library, used in-process by the editor AND by a thin CLI** | the editor shows a live preview from the same data the import writes; one code path; an editor bug or out-of-memory in the pipeline can stall or crash the editor | ✅ **CHOSEN** |
+| B. a separate import exe the editor launches | crash / memory isolation, cancel = kill; but the preview needs intermediate files and a progress protocol between processes | rejected |
+| C. SUMO's Python OSM scripts | a Python runtime on every author machine | rejected |
+
+🔒 User, `2026-11-09`: *"I want a library that can be used both in the offline tool as well integrated into the editor. The preview capability is of
+course very important, so better to have it in the editor even at the cost of some crash risk. If distributing the netconvert is okay with sumo
+license, let's do it."*
+
+## 4. Architecture
 
 ```
-place (bbox / name) ─► OSM extract ─┬─► roads ──► netconvert ─────────────► roads/roads.net.xml
-                                    ├─► buildings ─► infer storeys, roof ─► buildings/buildings.geojson (+ generated doors / windows)
-                                    ├─► woods / trees / barriers ─────────► trees/trees.csv, walls/walls.geojson
-DEM (bbox) ─────────────────────────┴─► heights (resampled, flattened under buildings / roads) ─► heights/
-                                                                            ─► manifest.json (frame = UTM zone of the bbox)
+                         ┌────────────── Hrot.Terrain.Osm (library) ──────────────┐
+ area (UTM box) ──► OsmFetch ──► OsmModel ──┬─► RoadsStage ── netconvert ──► roads/
+                    DemFetch ──► DemGrid ───┤   BuildingsStage ─────────────► buildings/
+                                            │   VegetationStage ────────────► trees/, walls/, water/
+                                            └─► HeightsStage ───────────────► heights/
+                                                PreviewModel (for the editor) ManifestWriter ► manifest.json
+                         └──── writes through Hrot.Terrain.InputSet (shared with hrot-terrain-synth) ────┘
+ input set ──► the terrain importer (Terrain Import UTM §6.1 stages) ──► assets/terrain/<name>/
 ```
 
-## 4. OPEN QUESTIONS
+| part | what | notes |
+|---|---|---|
+| **`Hrot.Terrain.InputSet`** (new library) | the §10 input-set MODEL + WRITERS (heights BIL, buildings / unassigned GeoJSON, trees CSV, SUMO plain XML + netconvert runner, walls, manifest with SHA-256) | ⭐ EXTRACTED from `Hrot.Tools.TerrainSynth` (its `HeightField.Write`, `GeoJsonWriter`, `SumoWriter`, `ManifestWriter`), so the format is defined ONCE; the synth tool then references it |
+| **`Hrot.Terrain.Osm`** (new library) | fetch (Overpass, DEM), parse, the stages, the preview model, cancellation, progress | references `Hrot.Terrain.InputSet` and `Fdp.Toolkits` (geographic transforms); no UI, no raylib |
+| **`Hrot.Tools.TerrainOsm`** (new exe, `hrot-terrain-osm`) | thin CLI: `--bbox lat0,lon0,lat1,lon1 --name N --out DIR [options]` | headless tests, batch use, reproducing an author's import |
+| **editor wizard** (`Hrot.Editor`) | pick area → options → preview → import → open in the New Scenario picker | §6 |
+| **the terrain importer** | input set → `assets/terrain/<name>/` | ⛔ NOT part of this design — Terrain Import UTM §6.1 stages 0–7. This feature DEPENDS on it |
 
-| # | question | why it matters |
+## 5. The pipeline
+
+### 5.1 Area and frame
+- the author gives a box in lat/lon; the library converts it to the **UTM zone of the box centre**; `e0/n0` = the box centre rounded to 100 m;
+  bounds = the box in local metres. Max **6 × 6 km** (Q-O3). A box crossing a UTM zone edge is accepted (the frame uses the centre's zone). ⭐ ANY zone and BOTH hemispheres ("whatever place", §0) — a
+  requirement on the shared `UtmTransform`; tests include a southern-hemisphere and a zone-edge box. *(source session's call)*
+- needs `UtmTransform` (Terrain Import UTM stage 1) — shared, not built here.
+
+### 5.2 Fetch (online only, Q-O2)
+| data | source (default — replaceable behind an interface) | size for 6 × 6 km |
+|---|---|---|
+| OSM features | Overpass API (public instance, configurable URL): `highway`, `railway`, `building` (+ `building:part`), `entrance`, `landuse`, `natural`, `barrier`, `waterway` in the box + a 200 m margin | ≈ 10–50 MB XML |
+| elevation | Copernicus GLO-30 DEM (30 m, global, free with attribution; public cloud-optimised GeoTIFF tiles) | a few 1° tiles, read by window |
+
+- HTTP: one `HttpClient`, a descriptive User-Agent, timeouts, 3 retries with back-off, the OS proxy settings.
+- ⛔ no connection or a service error ⇒ the import FAILS with a clear message; nothing is written into the output folder (write to a temp
+  folder, move on success).
+- the raw downloads are kept in a per-import cache folder so the preview and the import (and a re-import of the same box with other options)
+  do not download twice.
+
+### 5.3 Heights
+- resample the 30 m DEM to the input set's grid at **1 m** (bicubic) over the bounds; no nodata (sea is 0 m, see water).
+- FLATTEN: under each building footprint (+ 2 m) the ground is set to the footprint's mean; road corridors are levelled across their width
+  (blended over 3 m each side) so roads do not tilt sideways.
+- ⚠ 30 m data gives smooth hills only — no banks, ditches or walls in the ground. A better DEM (national 1 m LiDAR) is a later, per-country source.
+
+### 5.4 Roads
+- the OSM ways (`highway`, `railway`) of the box go to **`netconvert --osm-files`** with SUMO's standard OSM type map, projected to the
+  terrain's UTM frame with the offset chosen so that net coordinates == local metres (manifest `sumoAnchor` = [0, 0]).
+- `netconvert` comes from the SUMO install script (§9.1).
+
+### 5.5 Buildings (Q-O4: every building enterable)
+| attribute | rule |
+|---|---|
+| footprint | the OSM outer ring; multipolygon holes (courtyards) → the ring is split into hole-free parts along the shortest cut; `building:part` merged into its building; footprints < 12 m² or thinner than 2.5 m dropped |
+| storeys | `building:levels` (+ `roof:levels` as an attic storey) when tagged; else `height` / 3 m; else by `building=` type: house / detached / residential 2, apartments 4, commercial / retail 2, industrial / warehouse 1 (tall), garage / shed 1, church 1 (tall); else 2 |
+| floors (`storeyZ`) | ground floor = the flattened ground; 3.0 m per storey; a "tall" single storey = `height` or 6 m |
+| roof | `roof:shape` flat → flat, else pitched (`ridgeZ` = eaves + `roof:height`, else 0.35 × the shorter side); untagged: houses pitched, apartments / commercial / industrial flat |
+| doors | OSM `entrance` nodes on the outline when present; else ONE door on the facade facing the nearest road (the centre of the wall whose outward normal points closest to the road); + a back door on houses larger than 150 m² |
+| windows | every storey, every wall: one every 2.5–3 m, 1 m margins, none within 1 m of a door; garages / sheds / industrial ground floors without windows |
+| id | the OSM way / relation id (stable across re-imports of the same data) |
+| material | `building:material` when tagged (brick / concrete / stone / wood / metal), else omitted (importer default) |
+
+### 5.6 Vegetation, walls, water
+- woods (`landuse=forest`, `natural=wood`) → tree points at the input set's woods density (≈ 115 trees / ha, jittered grid); lone `natural=tree`
+  nodes as they are; `tree_row` lines every 10 m. `natural=scrub` → kept as SCRUB polygons (`vegetation/scrub.geojson`) for the future concealment
+  class (Terrain Import UTM T-8) — shown in the preview, not consumed by the importer until that class exists.
+- `barrier=wall|fence|hedge|retaining_wall` → `walls.geojson` (height by type: wall 2 m, fence 1.5 m, hedge 1.5 m).
+- water (`natural=water`, `waterway=riverbank`) → ⚠ the input set has no water yet — written as `water/water.geojson` (polygons); the importer
+  reads it once it supports `surface: water`; until then the preview shows it and the import reports it as skipped.
+- ⚠ scrub and water are ADDITIONS to the §10 input set: optional files, listed in the manifest like the others, `schemaVersion` stays 1;
+  proposed to the importer side in Terrain Import UTM §10.8 for acceptance. *(source session's call)*
+
+### 5.7 Content budget *(Q-O8)*
+
+🔒 User, `2026-11-09`: *"The OpenStreetMap import needs to be kept somehow. 60,000 buildings is likely way out of possibilities for HROT."*
+
+HROT is being tuned for ≈ 1 800 enterable buildings, ≈ 70 000 doors + windows and ≈ 176 000 trees in a 5.5 km square (Terrain Import UTM
+§10.7). The preview computes the same three counts for the chosen box and applies a budget:
+
+| load vs. the tuned load | wizard |
+|---|---|
+| ≤ 2× (≤ 3 600 buildings, ≤ 140 000 openings, ≤ 350 000 trees) | OK |
+| 2×–3× | a warning ("heavier than HROT is tuned for"); import allowed |
+| > 3× (> 5 400 buildings or > 210 000 openings or > 530 000 trees) | ⛔ REFUSED before any import work — the author picks a smaller box (the preview shows how much smaller) |
+
+The limits are settings (one place), so they follow HROT's measured performance. *(thresholds: source session's call)*
+
+### 5.8 Output and handover
+- the library writes the input set to a per-import folder outside git (`<content>/terrain-input/<name>/`), then the importer writes
+  `{shared}/assets/terrain/<name>/` — a folder with `terrain.json` is picked up by the New Scenario picker without registration
+  (`TerrainCatalog.List`, `EditorSubsystem.cs:4181`).
+- the wizard calls the importer IN-PROCESS through one interface (`ITerrainImporter`: input set → terrain folder, with progress and
+  cancellation), as Q-O6 chose for the pipeline. ⚠ until the importer exists (Terrain Import UTM §6.1), the wizard stops after writing the input
+  set; "open in New Scenario" arrives with the importer. *(source session's call)*
+- an existing terrain name is REFUSED unless the author ticks "replace"; replacing warns and lists the scenarios that use that terrain.
+  *(source session's call)*
+- `manifest.json` gets `source: {osm: <Overpass data timestamp>, dem: "Copernicus GLO-30"}` and the ATTRIBUTION text (§9); the terrain's
+  description carries the attribution too, so it travels with the terrain.
+
+## 6. The editor wizard *(one-shot, Q-O5)*
+
+| step | what the author sees | notes |
+|---|---|---|
+| 1. **Area** | a map with live OSM tiles; search a place name (Nominatim); drag a box; its size in km with the 6 × 6 km limit enforced | its own small map widget in the wizard, not the scenario map |
+| 2. **Options** | terrain name; toggles: buildings / trees / walls / water; building defaults (storey height, default storeys) | everything else per §5 |
+| 3. **Preview** | the downloaded data drawn over the tiles: roads by class, footprints coloured by storeys, woods, walls, water; counts (buildings, doors, windows, trees, road km); warnings (heights inferred, shapes dropped) | `PreviewModel` built on a worker; drawn as retained meshes like `TerrainLayer2D` (CE-1227) |
+| 4. **Import** | progress per stage + Cancel; on success: "open in New Scenario" | worker + `CancellationTokenSource`, mirroring `ReplaySearchPanel` |
+
+- host: an ImGui modal via `WindowManager.RegisterFrameOverlay` (as the existing modals), opened from the New menu next to New Scenario.
+- the frame never blocks: fetch, parse, stages and preview run on a worker; only texture / mesh uploads on the frame thread.
+
+## 7. Failure and limits
+| case | behaviour |
+|---|---|
+| no network / service down / rate-limited | clear error naming the service; a Retry button; nothing written |
+| box > 6 × 6 km | the wizard refuses before any download |
+| Overpass result too large (dense city) | split the box into 4 and fetch the parts (merge by OSM id) |
+| a footprint the rules cannot make valid | dropped, counted in the preview warnings |
+| `netconvert` fails | the import fails with its stderr (roads are not optional) |
+| out of memory / crash in a stage | accepted risk (Q-O6); stages stream where they can (heights by band, as the synth tool does) |
+
+## 8. ⛔ OPEN — map background and terrain imagery *(the user decides later)*
+
+🔒 User, `2026-11-09`: *"best to mention all the possibilities in the document without any concrete decision, and I will take the decision later.
+The satellite imagery as the 3D map default terrain texture is very tempting."* — and: most editing happens in the 3-D view, so a 2-D
+background matters less; imagery used in 3-D could serve the 2-D map too; HROT would then need a texture / tile cache.
+
+| option | what | licensing / usage (as known — to be verified before choosing) |
+|---|---|---|
+| **M1. live OSM tiles as the 2-D background** of OSM-made terrains (the wizard's tile view, reused) | the familiar map look; a tile cache in the editor | OSM tile servers: interactive use with attribution allowed; ⛔ bulk download / offline storage forbidden by their usage policy. Commercial OSM-based tile providers (keyed, paid tiers) allow caching under their terms; or a self-hosted tile renderer |
+| **M2. a background RENDERED BY HROT** from the input set (roads, buildings, woods, water + hillshade from the heights), stored with the terrain as one low-resolution georeferenced JPEG (2 m / px ⇒ ≈ 3 000 px, ≈ 2 MB for 6 km) | no extra download; HROT's own style; works for EVERY terrain made from an input set (real, synthetic, OSM) | derived from ODbL data for OSM terrains ⇒ attribution; no tile-policy issue |
+| **M3. satellite / aerial imagery as the default 3-D terrain texture** (and the 2-D background) | the most realistic look; needs texture streaming / a tile cache in HROT (6 km at 0.5 m ≈ 12 000² px) | ⛔ Google / Bing / Esri / Mapbox imagery: terms forbid storing it in a product without a licence. ✅ free: Copernicus Sentinel-2 (10 m — too coarse up close); EOX Sentinel-2 cloudless (10 m; licence differs by year, some non-commercial); national orthophotos (0.2–1 m, open data in many EU countries — per-country licence); USGS NAIP (US, public domain) |
+| **M4. none** — the 3-D view only, the 2-D map without background (today) | nothing to build | — |
+
+Combinations are possible (e.g. M2 for every terrain + M3 per country where open orthophotos exist).
+
+## 9. Licensing and attribution
+| item | licence | what HROT must do |
+|---|---|---|
+| OSM data | ODbL 1.0 | credit "© OpenStreetMap contributors"; a PUBLISHED terrain made from it is a derived database under ODbL |
+| Copernicus GLO-30 | free, attribution | credit Copernicus DEM GLO-30 (DLR / Airbus, provided under COPERNICUS by the EU and ESA) — exact wording to be copied from the provider |
+| SUMO `netconvert` (only if a packaged release later bundles it — today the install script downloads it, §9.1) | EPL-2.0 (secondary licence GPL-2.0+); binary redistribution allowed | ship the licence text and notices; state where the source is available; ship the notices of its runtime libraries (e.g. Xerces-C: Apache-2.0, PROJ: MIT, zlib); it runs as a separate process, so HROT's own code is unaffected. ⚠ confirm against the exact SUMO build shipped |
+| Overpass / Nominatim / OSM tiles | usage policies | low-volume interactive use, a real User-Agent, attribution; no bulk downloads |
+
+### 9.1 Getting `netconvert` *(Q-O9)*
+
+🔒 User, `2026-11-09`: *"HROT has no installer now. It is still living just in the Git repository as a source files. So maybe the right option is to
+provide a script that downloads or installs the sumo from its official source? And yes, it should follow the version which is in sumo sharp."*
+
+- the version is **SUMO 1.20.0** — the one the vendored SumoSharp follows (`FDP/ExtDeps/SumoSharp/src/Sim.Ingest/NetworkParser.cs:916`); ONE
+  file holds it (`tools/sumo/version.txt`), read by the scripts and by the library.
+- `scripts/install-sumo.ps1` (Windows: the official `sumo-win64-<version>.zip` from the SUMO release site) and `scripts/install-sumo.sh` (Linux:
+  the official `eclipse-sumo==<version>` package in a private virtual environment) install into a gitignored folder of the repo
+  (`.local/sumo/<version>/`); nothing SUMO-made is committed.
+- the library finds `netconvert` in this order: `HROT_SUMO_HOME` → `.local/sumo/<version>/bin` → `SUMO_HOME/bin` → `PATH`, runs `netconvert
+  --version`, and refuses a different version with a message that names the install script.
+- licensing: nothing is redistributed by HROT — the script downloads from the official source; the notices of §9 apply only if a packaged
+  release later bundles SUMO.
+
+## 10. Tests
+- `Hrot.Terrain.Osm.Tests`: the stages on a small RECORDED Overpass response + a small DEM window committed as test data (a few hundred KB,
+  with attribution), so tests run offline; building rules (levels, height, type defaults, holes split, entrances, door on the road-facing facade,
+  window spacing); heights flattening; the output passes the same input-set conformance checks as the synth tool (shared in
+  `Hrot.Terrain.InputSet.Tests`).
+- the CLI against the live services: one opt-in test (not in CI).
+- the wizard: a headless test of the step state machine (area → options → preview → import) with a fake pipeline.
+
+## 11. Stages
+| # | stage | depends on |
+|---|---|---|
+| O-0 | extract `Hrot.Terrain.InputSet` from the synth tool (no behaviour change; the synth tests stay green) | — |
+| O-1 | `Hrot.Terrain.Osm`: fetch + parse + buildings / vegetation / walls / water + the CLI, writing an input set | O-0, `UtmTransform` (UTM stage 1) |
+| O-2 | heights from the DEM + flattening; roads via the shipped `netconvert` | O-1 |
+| O-3 | the editor wizard (area with live tiles, options, preview, import with progress / cancel) | O-2, the importer (UTM §6.1) |
+| O-4 | (after the user's §8 decision) the chosen background / imagery | O-3 |
+
+## 12. Questions
+
+| # | question | answer |
 |---|---|---|
 | **Q-O1** | ✅ who uses it? — **scenario authors, as an editor feature** (§0) | |
 | **Q-O2** | ✅ where does the data come from? — 🔒 user `2026-11-09`: *"Assume the internet access is available. And if not, then the import simply fails."* ⇒ **online services only** (OSM API / Overpass, a DEM service, map tiles for the area picker); no offline extracts; no connection = a clear error, nothing half-written | |
 | **Q-O3** | ✅ area size — 🔒 user `2026-11-09`: *"HROT will need to be optimized for the terrain data which we are going to import from [the imported terrain], meaning 6 by 6 kilometers squared. So this could become the size limit."* ⇒ **up to 6 × 6 km (36 km²)** — the same envelope the imported-terrain work is tuned for; one inset, no sparse-insets dependency | |
 | **Q-O4** | ✅ buildings — 🔒 user `2026-11-09`: *"Buildings should have generated floors and a staircase ramp. Street side doors, windows on every floor. All buildings enterable."* ⇒ **every OSM building enterable**: storeys from OSM levels / height where tagged, else inferred; one empty floor per storey + a stair ramp (as R-4186); doors on the street-facing facade (OSM `entrance` nodes used where present); window rows on every floor | |
 | **Q-O5** | ✅ one-shot — 🔒 user `2026-11-09`: *"One shot. No terrain editor for now."* ⇒ an **import wizard**: pick the area, choose options, preview, import; to change anything, import again | |
-| … | (to be filled during the discussion) | |
+| **Q-O6** | ✅ in-process library or separate exe? — **one library used by the editor in-process and by a CLI**; `netconvert` shipped if SUMO's licence allows (§3, §9) | |
+| **Q-O7** | ⛔ OPEN — map background / imagery (§8) | the user decides later |
+| **Q-O8** | ✅ a cap on the CONTENT of the box, not only its size — a budget against the tuned load: warn above 2×, refuse above 3× (§5.7) | |
+| **Q-O9** | ✅ how `netconvert` reaches authors — an install script from the official source, SUMO 1.20.0 as SumoSharp (§9.1) | |
