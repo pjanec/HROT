@@ -228,11 +228,6 @@ namespace Hrot.AI.Behaviors.Brains
                     }
                     if (MoveStatus(world, self, ws.HidePoint) == NodeStatus.Running) return NodeStatus.Running;
                 }
-                // ⭐ CE-2232 / CE-4035 G-5 (Next_2) — an ATTACK on a named target that is still in the fight is not over because nothing is
-                //   SENSED yet: on its first frames the attacker knows nothing (ua-technical-scoot's technicals ended LandPlatformAttack with
-                //   Success at 0.03 s and never fired). It waits, as the infantry attack does while HUNTING (PostureNodes.cs:322); the attack
-                //   ends when the target is down (UntilTargetDown, the Parallel's other branch).
-                if (authored.DesignatePacked != 0 && Injury.IsInTheFight(world, new Entity((ulong)authored.DesignatePacked))) return NodeStatus.Running;
                 Release(ref ws, self, world);
                 return NodeStatus.Success;   // nothing left to fight
             }

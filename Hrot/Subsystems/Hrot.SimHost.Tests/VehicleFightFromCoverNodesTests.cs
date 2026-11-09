@@ -345,22 +345,25 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ <c>CE-2230</c> HA-2 — NO SIGHT WITHIN THE CAP: the creep goes no further than <c>MaxOvershootMetres</c> past the lane start
-        /// (CE-174: a target never in sight is not chased), backs into the hide, and the run still ends. 🔴 Red-proof: drop the cap and
-        /// the hull creeps on past x = 90.
-        /// </summary>
-        /// <summary>
-        /// ⭐ <c>CE-2232</c> / CE-4035 G-5 — an ATTACK whose named target is still in the fight does not end because nothing is sensed yet
-        /// (the first frames of a run): the cycle waits (Running); with no target named, "nothing left to fight" still ends it (Success).
+        /// ⭐ <c>CE-2232</c> / CE-4035 G-5 — an ATTACK order gives the cycle its named target too: <c>ResolveAttack</c> fills
+        /// <c>Fight.DesignatePacked</c>, so on the first frames, with nothing sensed yet, the cycle designates the target and fights
+        /// (Running) instead of ending "nothing left to fight" (Success). With no target named the run still ends.
         /// 📌 Measured: <c>ua-technical-scoot</c>'s technicals ended <c>LandPlatformAttack</c> with Success at 0.03 s and never fired.
-        /// 🔴 Red-proof: drop the named-target wait in <c>VehicleFightFromCover</c> ⇒ the first assert sees Success.
+        /// 🔴 Red-proof: drop the <c>block.Fight.DesignatePacked</c> line in <c>ResolveAttack</c> ⇒ the first assert fails.
         /// </summary>
         [Fact]
-        public void CE2232_AnAttackOnANamedTarget_WaitsWhileNothingIsSensedYet()
+        public void CE2232_AnAttackOrder_GivesTheCycleItsNamedTarget_SoItFightsBeforeAnythingIsSensed()
         {
             var named = new Duel(Technical(), seen: false);
             named.Repo.GetComponentRW<TargetMemory>(named.Self).Count = 0;   // knows nothing yet
-            named.P.DesignatePacked = (long)named.Enemy.PackedValue;
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            map.Register(77, named.Enemy);
+            named.Repo.SetSingletonManaged(map);
+            var bb = default(VehicleFightFromCoverBehavior.VehicleFightFromCoverBlackboard);
+            VehicleFightFromCoverBehavior.ResolveAttack(new Hrot.AI.Behaviors.Orders.AttackOrder
+                { Target = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(77)) }, ref bb, named.Repo, named.Self);
+            Assert.Equal((long)named.Enemy.PackedValue, bb.Fight.DesignatePacked);
+            named.P.DesignatePacked = bb.Fight.DesignatePacked;
             Assert.Equal(NodeStatus.Running, named.Step());
 
             var unnamed = new Duel(Technical(), seen: false);
@@ -368,6 +371,11 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, unnamed.Step());
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2230</c> HA-2 — NO SIGHT WITHIN THE CAP: the creep goes no further than <c>MaxOvershootMetres</c> past the lane start
+        /// (CE-174: a target never in sight is not chased), backs into the hide, and the run still ends. 🔴 Red-proof: drop the cap and
+        /// the hull creeps on past x = 90.
+        /// </summary>
         [Fact]
         public void CE2230_NoSightWithinTheCap_BacksIntoTheHide_AndTheRunEnds()
         {
