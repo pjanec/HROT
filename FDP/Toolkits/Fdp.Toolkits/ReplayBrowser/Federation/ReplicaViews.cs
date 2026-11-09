@@ -135,7 +135,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         {
             var repo = manager.Contexts[h.NodeId].SandboxRepo;
             var mask = new BitMask512(); mask.SetBit(typeId);
-            try { return _serializer.SerializeEntity(repo, h.Entity, new NetIdResolver(repo), mask); }
+            try
+            {
+                var resolver = new NetIdResolver(repo);
+                var json = _serializer.SerializeEntity(repo, h.Entity, resolver, mask);
+                // ⭐ the HEADER-native translators run whatever the mask (ScenarioSerializer.SerializeEntity) — their keys carry each node's OWN
+                //   header data, so left in, every copy "differs" from the owner. 📐 measured on a real 4-node recording: 100 % of frames marked for
+                //   every unit, NetworkIdentity and EntityGuid "differing" with Δ 0. Only the component's own keys are compared.
+                foreach (var kv in _serializer.SerializeEntity(repo, h.Entity, resolver, default))
+                    json.Remove(kv.Key);
+                return json;
+            }
             catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException) { return null; }
         }
 

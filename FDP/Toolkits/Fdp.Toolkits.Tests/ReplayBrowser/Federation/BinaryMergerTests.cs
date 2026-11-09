@@ -986,6 +986,39 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             return (p1, p2);
         }
 
+        /// <summary>A header-native translator (it consumes no component, so <c>SerializeEntity</c> runs it whatever the mask) that writes each
+        /// node's OWN value — as the host's real header translators do.</summary>
+        private sealed class PerNodeHeaderTranslator : IEntityScenarioTranslator
+        {
+            public BitMask512 GetConsumedComponentsMask() => default;
+            public bool CanTranslate(EntityRepository repo, Entity entity) => true;
+            public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new() { ["NodeLocalHeader"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(repo) };
+            public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver) { }
+        }
+
+        /// <summary>
+        /// ⭐ G-7 S5 (I5) — the lens compares a component's OWN keys: a header-native translator's per-node keys never make a copy "differ".
+        /// 📐 Measured on a real 4-node recording: with them in, 100 % of frames were marked for every unit and NetworkIdentity "differed" (Δ 0).
+        /// 🔴 Red-proof: drop the header-key subtraction in <c>ReplicaViews.Json</c> ⇒ node 3 (within ε) is marked.
+        /// </summary>
+        [Fact]
+        public void ByNode_AHeaderTranslatorsPerNodeKeys_NeverMakeACopyDiffer()
+        {
+            var (p1, p2) = RecordReplicaGroup(4, f => f - 1.1f);
+            var p3 = RecordPlay(3, 4, (r, f) =>
+            {
+                if (f == 0) { var u = OwnedUnit(r, 900, 1, 3); r.AddComponent(u, new DummyPosition { X = 0 }); return; }
+                Move(r, 900, f == 3 ? 3.0004f : f);
+            }, keyEvery: 0);
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2, p3 });
+            manager.SetBaseWallTicks(Wall(3));
+            var serializer = new ScenarioSerializerBuilder("TestSubsystem").RegisterTranslator(new PerNodeHeaderTranslator()).Build();
+            var view = new ReplicaViews(new OwnershipSource(), serializer).Compute(manager, 900, typeof(DummyPosition))!;
+            Assert.False(view.Rows[2].Differs);   // node 3: the same value within ε, its header keys its own
+            Assert.True(view.Rows[1].Differs);    // node 2: a real difference still found
+        }
+
         [Fact]
         public void ByNode_TheOwnerFirst_AReplicaBeyondEpsilonIsMarkedDiffering_AWithinEpsilonOneIsNot()
         {
