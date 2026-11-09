@@ -54,21 +54,21 @@ public static class AttributeVocabulary
         //   copy into SimTransform.Position: nothing to convert with, therefore NOTHING to gate on — these three exist on EVERY host.
         //   🔴 They used to be three geodetic latitude / longitude / altitude paths (ids 10–12, retired), registered only when a host had an
         //   IGeographicTransform ⇒ a host with no terrain silently dropped a position patch.
-        new("Position.X",            AttributeIds.PositionX,   AttributeValueKind.CsFloat64, typeof(SimTransform)),
-        new("Position.Y",            AttributeIds.PositionY,   AttributeValueKind.CsFloat64, typeof(SimTransform)),
-        new("Position.Z",            AttributeIds.PositionZ,   AttributeValueKind.CsFloat64, typeof(SimTransform)),
+        new("Position.X",            AttributeIds.PositionX,   AttributeValueKind.CsFloat64, typeof(SimTransform), Unit: "m"),
+        new("Position.Y",            AttributeIds.PositionY,   AttributeValueKind.CsFloat64, typeof(SimTransform), Unit: "m"),
+        new("Position.Z",            AttributeIds.PositionZ,   AttributeValueKind.CsFloat64, typeof(SimTransform), Unit: "m"),
 
         // ⭐⭐ Heading is a compass heading, already in the units the conversion takes. 📌 Q59-N1 renamed the id from
         //    GeoHeading, which had advertised a geodetic-prefixed heading path that does not exist.
-        new("Heading",               AttributeIds.Heading,     AttributeValueKind.CsFloat64, typeof(SimTransform)),
+        new("Heading",               AttributeIds.Heading,     AttributeValueKind.CsFloat64, typeof(SimTransform), Unit: "°"),
         // ⭐ CE-3216 S1-0 (W-8) — the World Environment's clock: a new scenario start time, and its display offset.
-        new("ScenarioStartUtcTicks",    AttributeIds.ScenarioStartUtcTicks,    AttributeValueKind.CsInt64, typeof(Fdp.Toolkit.Weather.ScenarioClock)),
-        new("ScenarioUtcOffsetMinutes", AttributeIds.ScenarioUtcOffsetMinutes, AttributeValueKind.CsInt32, typeof(Fdp.Toolkit.Weather.ScenarioClock)),
+        new("ScenarioStartUtcTicks",    AttributeIds.ScenarioStartUtcTicks,    AttributeValueKind.CsInt64, typeof(Fdp.Toolkit.Weather.ScenarioClock), Unit: "ticks"),
+        new("ScenarioUtcOffsetMinutes", AttributeIds.ScenarioUtcOffsetMinutes, AttributeValueKind.CsInt32, typeof(Fdp.Toolkit.Weather.ScenarioClock), Unit: "min"),
         // ⭐ CE-4024 (AQ93 §15 K5) — a civilian's fright: a converted SUMO pedestrian is born in panic on the brain node
-        new("Fear",                  AttributeIds.CivilianFear,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
-        new("FrightFrom.X",          AttributeIds.CivilianFrightFromX, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
-        new("FrightFrom.Y",          AttributeIds.CivilianFrightFromY, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
-        new("FrightFrom.Z",          AttributeIds.CivilianFrightFromZ, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
+        new("Fear",                  AttributeIds.CivilianFear,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true, Unit: "0-1"),
+        new("FrightFrom.X",          AttributeIds.CivilianFrightFromX, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true, Unit: "m"),
+        new("FrightFrom.Y",          AttributeIds.CivilianFrightFromY, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true, Unit: "m"),
+        new("FrightFrom.Z",          AttributeIds.CivilianFrightFromZ, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true, Unit: "m"),
         // ⭐ rules V-4 (§00.10) — a rule entity's runtime control: applied on the node that owns the entity, a change-request elsewhere; the component is brain-local (no descriptor)
         new("Rule.Request",          AttributeIds.RuleRequest,         AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
         new("Rule.Seq",              AttributeIds.RuleSeq,             AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
@@ -83,36 +83,36 @@ public static class AttributeVocabulary
         new("Playable.Side",         AttributeIds.PlayableSide,        AttributeValueKind.CsString,  typeof(Hrot.Common.Playable), BrainLocal: true),
         new("Playable.SlotName",     AttributeIds.PlayableSlotName,    AttributeValueKind.CsString,  typeof(Hrot.Common.Playable), BrainLocal: true),
         new("SpawnArea.Side",        AttributeIds.SpawnAreaSide,       AttributeValueKind.CsString,  typeof(Hrot.Common.SpawnArea), BrainLocal: true),
-        new("SpawnArea.FacingDeg",   AttributeIds.SpawnAreaFacingDeg,  AttributeValueKind.CsFloat64, typeof(Hrot.Common.SpawnArea), BrainLocal: true),
+        new("SpawnArea.FacingDeg",   AttributeIds.SpawnAreaFacingDeg,  AttributeValueKind.CsFloat64, typeof(Hrot.Common.SpawnArea), BrainLocal: true, Unit: "°"),
         // ⭐ ONE attribute for the four mounts: the mount index is the sub-index (JSON {"Ammo":{"2":5}}); the numeric segment normalises to '*'.
-        new("Ammo.*",                AttributeIds.Ammo,                AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponState), BrainLocal: true),
+        new("Ammo.*",                AttributeIds.Ammo,                AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponState), BrainLocal: true, Unit: "rounds"),
         new("Stance",                AttributeIds.Stance,              AttributeValueKind.CsInt32,   typeof(Hrot.MuscleCharacter.Animation.Components.StanceIntent)),
         // ⭐ Initial state S2 (docs/UX/DESIGN_Initial_State.md §3) — the weapon's start state; WeaponPosture is replicated (dtWeaponPosture), applied by the brain's node
         new("Weapon.Posture",        AttributeIds.WeaponPosture,       AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
-        new("Weapon.AimPoint.*",     AttributeIds.WeaponAimPoint,      AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
+        new("Weapon.AimPoint.*",     AttributeIds.WeaponAimPoint,      AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Combat.Components.WeaponPosture), Unit: "m"),
         new("Weapon.AimTarget",      AttributeIds.WeaponAimTarget,     AttributeValueKind.CsInt64,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
         new("Weapon.HeldItem",       AttributeIds.WeaponHeldItem,      AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
         // ⭐ Initial state S5 (docs/UX/DESIGN_Initial_State.md §3) — the damage per part, and the mobility kill as one switch (1 / 0)
-        new("Damage.Part.*",              AttributeIds.DamagePart,                 AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Physics.BodyParts.PartDamage)),
+        new("Damage.Part.*",              AttributeIds.DamagePart,                 AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Physics.BodyParts.PartDamage), Unit: "0-255"),
         new("Damage.MobilityKill",        AttributeIds.DamageMobilityKill,         AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Physics.BodyParts.PartDamage)),
         // ⭐ Initial state S6 (docs/UX/DESIGN_Initial_State.md §3) — the AI character settings; a negative value is the reset (clears the authored bit)
-        new("Proficiency",                AttributeIds.Proficiency,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatProficiency)),
+        new("Proficiency",                AttributeIds.Proficiency,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatProficiency), Unit: "0-1"),
         // ⭐ CE-3420 (X-5) — Temperament is BRAIN-LOCAL (📄 DESIGN_Temperament_And_Stress TS-8: "replicate now" rejected — no reader on another node; every reader is a brain behaviour)
-        new("Temperament.RiskAcceptance", AttributeIds.TemperamentRiskAcceptance, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament), BrainLocal: true),
-        new("Temperament.Obedience",      AttributeIds.TemperamentObedience,      AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament), BrainLocal: true),
-        new("Temperament.Nerve",          AttributeIds.TemperamentNerve,          AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament), BrainLocal: true),
-        new("Temperament.Resolve",        AttributeIds.TemperamentResolve,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament), BrainLocal: true),
+        new("Temperament.RiskAcceptance", AttributeIds.TemperamentRiskAcceptance, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament), BrainLocal: true, Unit: "0-1"),
+        new("Temperament.Obedience",      AttributeIds.TemperamentObedience,      AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament), BrainLocal: true, Unit: "0-1"),
+        new("Temperament.Nerve",          AttributeIds.TemperamentNerve,          AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament), BrainLocal: true, Unit: "0-1"),
+        new("Temperament.Resolve",        AttributeIds.TemperamentResolve,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament), BrainLocal: true, Unit: "0-1"),
         // the authored scalars of the GLOBAL weather and of a weather region (one component, DESIGN_Weather_And_Time §2); the wind levels and cloud layers are lists, not scalars — not attributes (yet)
-        new("Weather.GroundTemperatureC",     AttributeIds.WeatherGroundTemperatureC,     AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
-        new("Weather.LapseRateKPerKm",        AttributeIds.WeatherLapseRateKPerKm,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
-        new("Weather.SeaLevelPressureHpa",    AttributeIds.WeatherSeaLevelPressureHpa,    AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
-        new("Weather.RelativeHumidity",       AttributeIds.WeatherRelativeHumidity,       AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
-        new("Weather.VisibilityM",            AttributeIds.WeatherVisibilityM,            AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
-        new("Weather.FogTopM",                AttributeIds.WeatherFogTopM,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
-        new("Weather.FogVisibilityM",         AttributeIds.WeatherFogVisibilityM,         AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.GroundTemperatureC",     AttributeIds.WeatherGroundTemperatureC,     AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "°C"),
+        new("Weather.LapseRateKPerKm",        AttributeIds.WeatherLapseRateKPerKm,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "K/km"),
+        new("Weather.SeaLevelPressureHpa",    AttributeIds.WeatherSeaLevelPressureHpa,    AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "hPa"),
+        new("Weather.RelativeHumidity",       AttributeIds.WeatherRelativeHumidity,       AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "0-1"),
+        new("Weather.VisibilityM",            AttributeIds.WeatherVisibilityM,            AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "m"),
+        new("Weather.FogTopM",                AttributeIds.WeatherFogTopM,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "m"),
+        new("Weather.FogVisibilityM",         AttributeIds.WeatherFogVisibilityM,         AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "m"),
         new("Weather.Precipitation",          AttributeIds.WeatherPrecipitation,          AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Weather.WeatherConditions)),
-        new("Weather.PrecipitationMmPerHour", AttributeIds.WeatherPrecipitationMmPerHour, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
-        new("Weather.FeatherM",               AttributeIds.WeatherFeatherM,               AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.PrecipitationMmPerHour", AttributeIds.WeatherPrecipitationMmPerHour, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "mm/h"),
+        new("Weather.FeatherM",               AttributeIds.WeatherFeatherM,               AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "m"),
     };
 
     /// <summary>
@@ -144,6 +144,9 @@ public static class AttributeVocabulary
 /// category *(<c>AX-018</c>)*.
 /// </param>
 /// <param name="Component">⭐⭐ The ECS component written. This is the JOIN to the descriptor world.</param>
+/// <param name="Unit">⭐ R-1 (AR-7) — the unit the number is written and read in (<c>m</c>, <c>°</c>, <c>°C</c>, <c>hPa</c>, <c>mm/h</c>, <c>K/km</c>, <c>rounds</c>, <c>0-1</c> …),
+/// or <see langword="null"/> for a value with none (a name, a code, a count of nothing in particular). ⭐ It belongs to the ATTRIBUTE — the schema, the HTTP read routes and (R-2) the forms
+/// show it from here.</param>
 /// <param name="BrainLocal">⭐ CE-4024 — true when <see cref="Component"/> lives only on the node that runs the entity's brain and is never
 /// replicated (<c>CivilianState</c>): the attribute is applied there, and no translator republishes it — by design, not by omission.</param>
 public sealed record AttributeDefinition(
@@ -151,4 +154,5 @@ public sealed record AttributeDefinition(
     ushort AttributeId,
     AttributeValueKind Kind,
     Type Component,
-    bool BrainLocal = false);
+    bool BrainLocal = false,
+    string? Unit = null);

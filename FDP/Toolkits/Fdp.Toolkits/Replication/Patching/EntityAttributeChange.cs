@@ -37,6 +37,11 @@ public readonly struct AttributeValue
     /// <summary>Valid when <see cref="Kind"/> is <see cref="AttributeValueKind.CsString"/>.</summary>
     public string? StringValue { get; init; }
 
+    /// <summary>⭐ R-1 (AR-2) — a text attribute READ from the world, as a fixed string (a struct): reading a <c>Name</c> every frame allocates nothing.
+    /// Valid when <see cref="Kind"/> is <see cref="AttributeValueKind.CsString"/> and the value came from <see cref="Attributes.AttributeReaders"/>
+    /// (the write path keeps <see cref="StringValue"/>).</summary>
+    public Fdp.Core.FixedString64 Text { get; init; }
+
     /// <summary>⭐ A 64-bit float value — the <c>Geo*</c> family's shape.</summary>
     public static AttributeValue FromDouble(double value)
         => new() { Kind = AttributeValueKind.CsFloat64, DoubleValue = value };
@@ -60,6 +65,10 @@ public readonly struct AttributeValue
     /// <summary>⭐ A string value.</summary>
     public static AttributeValue FromString(string? value)
         => new() { Kind = AttributeValueKind.CsString, StringValue = value };
+
+    /// <summary>⭐ R-1 — a text value as a fixed string (0 B); <see cref="StringValue"/> stays null.</summary>
+    public static AttributeValue FromText(Fdp.Core.FixedString64 value)
+        => new() { Kind = AttributeValueKind.CsString, Text = value };
 }
 
 /// <summary>
