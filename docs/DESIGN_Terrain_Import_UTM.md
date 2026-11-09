@@ -527,3 +527,17 @@ Per-building state stays per building: `id`, destruction state, the navmesh bake
 | the input returns to the §10 contract (per-building openings, `storeyZ`, `roof`/`ridgeZ`, `material`, stable `id`); the generator writes one `<id>.building.json` per building into the terrain's `buildings/` folder and places it as a `kind: building` Point (`rotation` 0, the template already in world-aligned local metres around its origin) | inline `building` objects in the world file — legal (`TerrainWorldParser.cs:121`), but one ≈ 20 MB file is harder to inspect and edit than one file per house |
 
 ⛔ §10.4's table stays as the record of the measurement (≈ 430 templates at 1 m); ⛔ **its contract change and §10.5's Q-X7…Q-X9 answers are SUPERSEDED** by this section.
+
+### 10.7 ✅ The import input set is PREPARED *(source-data session, `2026-11-09`; on the local drive, ⛔ not in git; per §10 + §10.3 + §10.6)*
+
+| file | content |
+|---|---|
+| `manifest.json` | frame, bounds `[-7500, -1500, -2000, 4000]`, `sumoAnchor`, and per file `sha256` / bytes / counts |
+| `heights/heights.f32` + `.hdr` + `.json` | 11 265 × 11 265 posts at 0.488 m, north row first, z 453–983 m; nodata = no ground in the source (two 500 m cells at the east edge, 1.65 % of the grid) |
+| `buildings/buildings.geojson` | **1 805 unique buildings**: real footprint (CCW), `id`, `baseZ`, `height` (walls), `roof` (1 325 pitched, with `ridgeZ`), `storeyZ` (floor-to-floor median 2.94 m; 1–6 storeys), **4 638 doors + 67 208 windows** with `x, y, z, heading` (compass, outward), `storey`. `material` omitted (not derivable) → the generator's default |
+| `buildings/unassigned.geojson` | 1 786 door / window points that belong to no footprint |
+| `trees/trees.csv` | 176 236 trees, `x, y, z_ground` |
+| `roads/roads.net.xml` | the SUMO net clipped to the bounds: 153 km (incl. 9 km rail); edges crossing the bounds are kept whole (≈ 16 km, up to ≈ 1.8 km outside) |
+| `walls/walls.geojson` | empty — no walls or fences in this area |
+
+Checks: door points sit a median 0.11 m above the height grid (98 % within −1.2 … +3.6 m); 97 % of opening headings point out of their footprint.
