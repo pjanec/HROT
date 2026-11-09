@@ -7,6 +7,7 @@ stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAc
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
 known-rot: the top banner supersedes any Y-up wording (CE-3011).
 related-designs:
+  - ../../DESIGN_Terrain_Import_UTM.md — the importer pre-fills NavTileCache per inset (offline bake)
   - docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md — §5.1a: the door hook in NavigationDestination.Of (a PathToPoint whose RouteEntityId names a door ⇒ its near side, CE-3270)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the air path (AirRoute: corner rounding to a turn radius), NavigationIntent.RouteEntityId + ReleaseHold, and the air NavigationPhase values (R-2015)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — PROPOSES one motion module + ownership role per domain (ground / air / naval) behind an IMotionModel seam — ⚠ known-conflict with this doc's §7.1 (Naval / Flying as modes inside CarKinematics)
