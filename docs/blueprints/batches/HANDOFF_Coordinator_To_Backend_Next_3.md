@@ -6,7 +6,7 @@ current-answer: the whole file
 
 # HANDOFF — coordinator → backend: the next batch
 
-**For:** backend. **From:** coordinator. **Dispatched at `bd4994196`**, scope frozen there. Merge the other lanes first; push `chore: started
+**For:** backend. **From:** coordinator. **Dispatched at `82ef92069`** (re-stamped; first `bd4994196`), scope frozen there. Merge the other lanes first; push `chore: started
 HANDOFF_Coordinator_To_Backend_Next_3 at <sha>`; status file `STATUS_Backend_Next_3.md`. Same [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md): a status file after every item, fetch and merge the other lanes after every item. ⛔⛔ Never stop for a question (R-4156): an item that needs the user is SKIPPED with its question in its row; a failed premise stops that item only (R-106).
 
 | # | id | what | done when |
