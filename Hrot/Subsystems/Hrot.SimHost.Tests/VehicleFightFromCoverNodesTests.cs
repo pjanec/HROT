@@ -493,6 +493,33 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, d.AimedRounds);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>R-2086</c> (A, CE-4136 ②) — with the INITIATIVE (it saw the threat before any dangerous threat could see it) an exposure is never
+        /// cut below the shooter's OWN aim time + <see cref="VehicleFightFromCoverNodes.FireOnceMarginSeconds"/>; the RPG man on the side would cut
+        /// it to 0.7 × 2 = 1.4 s, the tank's own 3 s aim keeps it out 3.5 s. Seen FIRST (the same man in sight from the start) it is still cut at
+        /// once — <c>V4_TheBudget_IsTheAtGunnersAimTime</c> stays 1.4 s. 🔴 Red-proof: drop the floor ⇒ 1.4 s here too.
+        /// </summary>
+        [Fact]
+        public void R2086_WithTheInitiative_TheExposureLastsLongEnoughToFireOnce()
+        {
+            var d = new Duel(Tank() with { RoundsPerExposure = 100, ExposeSeconds = 6f }, seen: false) { Drives = true };
+            d.UseTkb();
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)d.Repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            Assert.True(db.TryGetByType(TankType, out var tank));
+            tank!.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Range = 3000, Penetration = 650, DamagePerHit = 1200, AimSeconds = 3f } } });
+            Assert.Equal(3f, VehicleFightFromCoverNodes.OwnAimSeconds(d.Repo, d.Self));
+            d.EnemyTo(new Vector3(0f, 80f, 0f));   // the RPG man on the side: danger 1, aim 2 s
+            d.Step();
+            d.ToHide(HideA);
+            d.SeesFromX = 1f;   // the corner: it first sees him on the creep past FiringA
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging, 20));
+            Assert.Equal(1, d.Ws.Initiative);
+            double up = d.Time;
+            Assert.Equal(VehiclePhase.Withdrawing, d.RunUntil(VehiclePhase.Withdrawing));
+            Assert.InRange(d.Time - up, 3.4, 3.7);   // own aim 3 + 0.5, not the RPG man's 1.4
+        }
+
         private static VehicleFightFromCoverParams Technical() => new()
         {
             WithdrawMode = WithdrawMode.Scoot, HideSecondsMin = 2f, HideSecondsMax = 2f,

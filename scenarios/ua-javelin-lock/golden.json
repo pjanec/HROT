@@ -223,7 +223,7 @@
             "BehaviorState": "4c2b843936187a3b",
             "BlueprintAssignments": "650ca72095fa253b",
             "BlueprintBlackboard1024": "dedd46138ca8a716",
-            "BrainDiagnostics": "5b2f27c46c32b66d",
+            "BrainDiagnostics": "839fa4d9c8aaa0fb",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "72fab5731d477c1a",
             "CullingState": "9c97051fd4b28240",
@@ -514,7 +514,7 @@
             "BehaviorState": "4c2b843936187a3b",
             "BlueprintAssignments": "390633fb115c5404",
             "BlueprintBlackboard1024": "b98869e9087809dc",
-            "BrainDiagnostics": "0abf8e8ea98949dc",
+            "BrainDiagnostics": "7663a65340fc27ba",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "3791efa7c0427ecc",
             "CoverClaim": "31386f2d00ea673a",
@@ -825,7 +825,7 @@
             "BehaviorState": "4c2b843936187a3b",
             "BlueprintAssignments": "390633fb115c5404",
             "BlueprintBlackboard1024": "b61f1df3539626df",
-            "BrainDiagnostics": "76fe5106e39deaa1",
+            "BrainDiagnostics": "dc87dd4d95648667",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "a112a8f3f1b07d12",
             "CoverClaim": "732d21f135a0fe75",
@@ -1187,7 +1187,7 @@
             "VehicleState": "11b16565fc6ae8b2",
             "VisualData": "75bcc2286ceb10ed",
             "WeaponAmmo": "01f60b9e4a354207",
-            "WeaponChannel": "bfd61e21a03a97b3",
+            "WeaponChannel": "b8c59b9646d9c750",
             "WeaponPosture": "c50ed53f5db3e362",
             "WeaponState": "0523d501f2b8ecdc"
           }
@@ -1502,7 +1502,7 @@
             "VehicleState": "11b16565fc6ae8b2",
             "VisualData": "75bcc2286ceb10ed",
             "WeaponAmmo": "d095b90e86679ff4",
-            "WeaponChannel": "bfd61e21a03a97b3",
+            "WeaponChannel": "b8c59b9646d9c750",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "f132ea5c5f5d7871"
           }
@@ -1817,7 +1817,7 @@
             "VehicleState": "11b16565fc6ae8b2",
             "VisualData": "75bcc2286ceb10ed",
             "WeaponAmmo": "d095b90e86679ff4",
-            "WeaponChannel": "bfd61e21a03a97b3",
+            "WeaponChannel": "b8c59b9646d9c750",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "f132ea5c5f5d7871"
           }
@@ -2132,7 +2132,7 @@
             "VehicleState": "11b16565fc6ae8b2",
             "VisualData": "75bcc2286ceb10ed",
             "WeaponAmmo": "d095b90e86679ff4",
-            "WeaponChannel": "bfd61e21a03a97b3",
+            "WeaponChannel": "b8c59b9646d9c750",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "f132ea5c5f5d7871"
           }
