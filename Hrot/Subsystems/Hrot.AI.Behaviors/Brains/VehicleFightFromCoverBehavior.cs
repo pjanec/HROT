@@ -37,6 +37,7 @@ namespace Hrot.AI.Behaviors.Brains
             var posture = default(CombatPostureBehavior.CombatPostureBlackboard);
             CombatPostureBehavior.Resolve(new CombatPostureParamsJsonDto { Target = order.Target, Assault = true }, ref posture, world, self);
             block.Designate = posture.Designate;   // one reading of an order's target: the posture's (map lookup + warning)
+            block.Fight.DesignatePacked = posture.Designate.TargetPacked;   // ⭐ CE-2232 — the cycle knows the named target too: it waits for it, never ends before it is sensed
         }
 
         /// <summary>The library behaviour takes nothing: no target named, the cycle at its defaults against the top threat.</summary>

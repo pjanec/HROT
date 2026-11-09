@@ -76,21 +76,22 @@ public sealed class ReplayTimelinePanelTests
     // ── RBF-P4T6: Play button enable/disable logic ────────────────────────
 
     [Fact]
-    public void RBF_P4T6_Play_DisabledInMerged()
+    public void RBF_P4T6_Play_EnabledWheneverThereIsARecording_MergedIncluded_G7S4()
     {
-        Assert.False(ReplayTimelinePanel.IsPlayEnabled(hasRecording: true, isMergedView: true));
+        // ⭐ G-7 S4 (M-7): the merge is incremental, so ▶ plays in Merged too — there is no view that gates it any more (⛔ was: disabled in Merged View)
+        Assert.True(ReplayTimelinePanel.IsPlayEnabled(hasRecording: true));
     }
 
     [Fact]
     public void RBF_P4T6_Play_EnabledInSingleNode()
     {
-        Assert.True(ReplayTimelinePanel.IsPlayEnabled(hasRecording: true, isMergedView: false));
+        Assert.True(ReplayTimelinePanel.IsPlayEnabled(hasRecording: true));
     }
 
     [Fact]
     public void RBF_P4T6_Play_DisabledWhenNoRecording()
     {
-        Assert.False(ReplayTimelinePanel.IsPlayEnabled(hasRecording: false, isMergedView: false));
+        Assert.False(ReplayTimelinePanel.IsPlayEnabled(hasRecording: false));
     }
 
     [Fact]

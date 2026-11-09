@@ -106,21 +106,20 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>EL-3 — the police brain's watch, every tick: lower the cue once it has shown, and warn every man <paramref name="unit"/>
-        /// REMEMBERS within <paramref name="reach"/> m who is identified-armed and not a combatant — a Neutral too (AW-16: drawn ⇒ warn).</summary>
-        public static void Watch(EntityRepository world, Entity unit, float reach)
+        /// REMEMBERS who is identified-armed and not a combatant — a Neutral too (AW-16: drawn ⇒ warn).
+        /// <para>⭐ R-4179 (CE-4124, user `2026-11-09`) — the ladder warns an armed man it SEES, not only one within the line's engagement reach:
+        /// identification already weighs the distance and the seeing conditions (<see cref="Armament.Judge(ISimulationView, Entity, Entity)"/>), so
+        /// no reach cut here. ⛔ Before, the watch stopped at <c>HoldTheLine</c>'s 40 m engagement reach and a gunman drawing at 62 m was never warned.</para></summary>
+        public static void Watch(EntityRepository world, Entity unit)
         {
             if (world.IsComponentTypeRegistered<WarningLog>() && world.HasComponent<WarningLog>(unit)
                 && world.GetComponentRO<WarningLog>(unit).ShowUntil < Now(world) && Gestures.Of(world, unit) == GestureKind.Warning)
                 Gestures.Set(world, unit, GestureKind.None);
             if (!world.HasComponent<TargetMemory>(unit) || !world.HasComponent<SimTransform>(unit)) return;
-            var me = world.GetComponentRO<SimTransform>(unit).Position;
-            float reach2 = reach * reach;
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(unit);
             for (int i = 0; i < mem.Count; i++)
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
-                float dx = mem.PositionsX[i] - me.X, dy = mem.PositionsY[i] - me.Y;
-                if (dx * dx + dy * dy > reach2) continue;
                 var man = new Entity((ulong)mem.EntityIds[i]);
                 if (!Applies(world, unit, man) || !Injury.IsInTheFight(world, man) || WarnedAt(world, unit, man) > 0) continue;
                 if (Armament.Judge(world, unit, man) == ArmedJudgement.IdentifiedLethal) Warn(world, unit, man);

@@ -245,6 +245,33 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, mem.Count);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2232</c> / CE-4035 G-5 — the authored list is MERGED into what the unit already knows: an attack order's target seeded on
+        /// the first tick survives the file's (here empty, then one-entry) list. 📐 Live <c>ua-technical-scoot</c>: the write replaced the
+        /// memory and the technicals never knew the tank. 🔴 Red-proof: start from a fresh memory ⇒ the seeded target is gone.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2232_TheAuthoredTargets_MergeIntoWhatTheUnitAlreadyKnows()
+        {
+            var seeded = CreateNetworkedEntity(111);
+            var authored = CreateNetworkedEntity(222);
+            _repo.RegisterComponent<TargetMemory>();
+            var unit = _repo.CreateEntity();
+            var mem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref mem, (long)seeded.PackedValue, 5f, 6f, 1f, 1);
+            _repo.AddComponent(unit, mem);
+            var intent = new InitialTargetsIntent();
+            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(222), PosX = 3f, PosY = 4f, Score = 0.9f });
+            _repo.SetManagedComponent(unit, intent);
+
+            CreateAndStartSystem().Execute(_repo, 0.016f);
+
+            var after = _repo.GetComponent<TargetMemory>(unit);
+            Assert.Equal(2, after.Count);
+            Assert.Equal((long)seeded.PackedValue, after.EntityIds[0]);
+            Assert.Equal((long)authored.PackedValue, after.EntityIds[1]);
+        }
+
         // ── CS014-T01: UnitSubordinate + UnitRoster written when commander in map ──
 
         [Fact]
@@ -276,6 +303,34 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasComponent<UnitRoster>(commander));
             var roster = _repo.GetComponent<UnitRoster>(commander);
             Assert.Equal(1, roster.Count);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4137</c> — the roster is in network-id order whatever order the members are created in: a Live load after Edit
+        /// reuses freed entity slots in reverse, so Bravo (1007) was created before Alpha (1002) and took slot 1 — <c>PlatoonBound</c>
+        /// (support = slot 2) sent ALPHA to the support point. 🔴 Red-proof: append in query order ⇒ Bravo is slot 0.
+        /// </summary>
+        [Fact]
+        public void CE4137_TheRosterIsInNetworkIdOrder_WhateverOrderTheMembersAreCreatedIn()
+        {
+            var commander = _repo.CreateEntity();
+            _entityMap.Register(1001, commander);
+            var bravo = _repo.CreateEntity();   // created FIRST (the lower entity index), but listed second in the file
+            _entityMap.Register(1007, bravo);
+            var alpha = _repo.CreateEntity();
+            _entityMap.Register(1002, alpha);
+            var charlie = _repo.CreateEntity();
+            _entityMap.Register(1009, charlie);
+            foreach (var e in new[] { bravo, alpha, charlie })
+                _repo.SetManagedComponent(e, new InitialUnitSubordinateIntent { CommanderNetworkId = new EntityRef(1001), Designation = TacticalDesignation.Wingman });
+
+            CreateAndStartSystem().Execute(_repo, 0.016f);
+
+            var roster = _repo.GetComponent<UnitRoster>(commander);
+            Assert.Equal(3, roster.Count);
+            Assert.Equal(alpha, roster.SubordinateEntities[0]);
+            Assert.Equal(bravo, roster.SubordinateEntities[1]);
+            Assert.Equal(charlie, roster.SubordinateEntities[2]);
         }
 
         // -- CS014-T02: Intent preserved when commander not yet in map --------------------

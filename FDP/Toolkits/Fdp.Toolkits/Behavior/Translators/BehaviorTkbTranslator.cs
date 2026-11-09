@@ -101,7 +101,17 @@ namespace Fdp.Toolkit.Behavior.Translators
                     BrainTier  = dto.BrainTier,
                     InstanceId = 1
                 });
-                if (dto.DefaultBehaviorHash != BehaviorIds.None && repo.Bus.IsRegistered<AssignBehaviorHashEvent>())
+                //   ⭐ CE-4151 — a default TASK may carry its params like the SOP: by NAME + JSON through AssignBehaviorEvent (the event the
+                //   scenario load uses); else the bare hash. ONE place decides.
+                if (!string.IsNullOrEmpty(dto.DefaultBehavior) && repo.Bus.IsRegisteredManaged<AssignBehaviorEvent>())
+                    repo.Bus.PublishManaged(new AssignBehaviorEvent
+                    {
+                        Entity       = entity,
+                        BehaviorName = dto.DefaultBehavior!,
+                        JsonParams   = dto.DefaultBehaviorParamsJson ?? "{}",
+                        Origin       = BehaviorOrigin.Sop,
+                    });
+                else if (dto.DefaultBehaviorHash != BehaviorIds.None && repo.Bus.IsRegistered<AssignBehaviorHashEvent>())
                     repo.Bus.Publish(new AssignBehaviorHashEvent
                     {
                         Entity       = entity,

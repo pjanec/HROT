@@ -23,7 +23,8 @@ namespace CarKinem.Road
     /// loads it (docs/DESIGN_Geo_Origin.md §5).
     /// </para>
     /// </summary>
-    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
+    // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): per-node zone query state holding this node's entity handles — never copied into a merged view.
+    [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.ZoneEnvironmentData)]
     public struct ZoneEnvironmentData
     {

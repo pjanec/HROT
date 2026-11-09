@@ -7,17 +7,15 @@ namespace Hrot.Editor.Review;
 /// <summary>
 /// ⭐ R-5 / V6 (docs/UX/DESIGN_Review_Perspective.md §3 D8) — <b><see cref="IReplayTransport"/> over a <see cref="ReviewSource"/></b>: the ONE AAR transport's implementation for an open participant group.
 /// <list type="bullet">
-/// <item><b>Merged</b> — frames are the primary participant's; a seek / step drives the manager (every sandbox seeks, the merge is rebuilt into the world). ▶ is <b>greyed with the reason</b>
-/// (<see cref="PlayDisabledReason"/>): a merge is a JSON round-trip, so step / scrub only — the Replay Browser's own rule.</item>
+/// <item><b>Merged</b> — frames are the primary participant's; a seek / step drives the manager (every sandbox seeks, the merge is brought up to date in the world). ⭐ G-7 S4 (M-7): ▶ PLAYS —
+/// the toolbar's ▶ and rate advance every participant, one step per recorded frame, each merged through the same path a step takes (<see cref="ReviewSource.Update"/>); the merge is incremental
+/// (<c>BinaryMerger</c>, 0 B per steady frame). ⛔ SUPERSEDED: ▶ greyed with a reason because a merge was a JSON round-trip.</item>
 /// <item><b>a part</b> — that file's frames; a seek restores from its keyframe, a step applies the next frame; ▶ plays it, following the toolbar's play state and rate (the facade), as an own-part AAR does.</item>
 /// </list>
 /// </summary>
 public sealed class ReviewSourceTransport : IReplayTransport
 {
     private readonly ReviewSource _source;
-
-    /// <summary>Why ▶ is greyed in Merged.</summary>
-    public const string MergedPlayReason = "Merged view: each step is a merge of every participant's world — step / scrub only. Pick a part (Source) to play.";
 
     public ReviewSourceTransport(ReviewSource source)
     {
@@ -33,15 +31,15 @@ public sealed class ReviewSourceTransport : IReplayTransport
     public void Seek(int frame) => _source.SeekFrame(frame);
     public void Step(int delta) => _source.StepFrame(delta);
 
-    private bool IsPart => _source.Kind == ReviewSourceKind.Part;
-    public bool IsPlaying => IsPart && _source.Facade is { IsPaused: false };
+    private bool IsOpen => _source.Kind != ReviewSourceKind.None;
+    public bool IsPlaying => IsOpen && _source.Facade is { IsPaused: false };
     public void Play() { }   // ▶ is the toolbar's (the time control, ui's): a part follows it — see ReviewSource.Update
     public void Pause() { }
     public float Rate { get => _source.Facade?.TimeScale ?? 1f; set { } }
 
-    /// <summary>A part plays (the toolbar's ▶ is enabled); Merged does not.</summary>
-    public bool CanPlay => IsPart && _source.Facade is { IsPlayPauseEnabled: true };
-    public string? PlayDisabledReason => IsPart ? null : MergedPlayReason;
+    /// <summary>A part plays and so does Merged (the toolbar's ▶ is enabled) — ⭐ M-7: no reason is left to give.</summary>
+    public bool CanPlay => IsOpen && _source.Facade is { IsPlayPauseEnabled: true };
+    public string? PlayDisabledReason => null;
 
     public PlaybackHistoryTracker Waypoints { get; }
 

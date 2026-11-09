@@ -84,9 +84,6 @@ public sealed class ReplayTimelinePanel : IReplayTransport
     /// </summary>
     internal string? LoadGroupRejectionReason { get; private set; }
 
-    /// <summary>Returns true when the active view is Merged View.</summary>
-    public Func<bool>? IsMergedViewQuery { get; set; }
-
     /// <summary>⭐ <c>CE-3330</c> T13 — whether the viewer's axis is Sim (the host's; null = no axis toggle shown).</summary>
     public Func<bool>? AxisIsSim { get; set; }
 
@@ -242,9 +239,8 @@ public sealed class ReplayTimelinePanel : IReplayTransport
     void IReplayTransport.Play() => IsPlaying = true;
     void IReplayTransport.Pause() => IsPlaying = false;
     float IReplayTransport.Rate { get => PlaybackRate; set => PlaybackRate = value; }
-    bool IReplayTransport.CanPlay => IsPlayEnabled(HasRecording, IsMergedViewQuery?.Invoke() ?? false);
-    string? IReplayTransport.PlayDisabledReason => (IsMergedViewQuery?.Invoke() ?? false)
-        ? "Continuous playback is disabled in Merged View. Use Step-Forward/Backward or the timeline slider." : null;
+    bool IReplayTransport.CanPlay => IsPlayEnabled(HasRecording);
+    string? IReplayTransport.PlayDisabledReason => null;   // ⭐ G-7 S4 (M-7): ▶ plays in Merged too — ⛔ SUPERSEDED: "Continuous playback is disabled in Merged View" (the merge was a JSON round trip)
     PlaybackHistoryTracker IReplayTransport.Waypoints => _playbackHistory;
     bool IReplayTransport.HasAxisToggle => AxisIsSim != null && ToggleAxis != null;
     bool IReplayTransport.AxisIsSim => AxisIsSim?.Invoke() ?? false;
@@ -423,8 +419,7 @@ public sealed class ReplayTimelinePanel : IReplayTransport
         // No fallback: file loading always goes through OnLoadGroup
     }
 
-    internal static bool IsPlayEnabled(bool hasRecording, bool isMergedView)
-        => hasRecording && !isMergedView;
+    internal static bool IsPlayEnabled(bool hasRecording) => hasRecording;
 
     private async Task SaveAsync(JsonExportOptions snapshot, string? inputPath)
     {

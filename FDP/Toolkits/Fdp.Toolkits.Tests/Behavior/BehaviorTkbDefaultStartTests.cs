@@ -90,6 +90,38 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-4151</c> — the default TASK carries its params by NAME, like the SOP: the ingress starts it at origin Sop with them.</summary>
+        [Fact]
+        public void CE4151_ANamedDefaultTask_StartsThroughTheIngress_WithItsParams_AtOriginSop()
+        {
+            var world = TestWorldFactory.Create();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
+            world.Bus.RegisterManaged<AssignBehaviorEvent>();
+            world.Bus.Register<AssignBehaviorHashEvent>();
+            var registry = new BehaviorRegistry();
+            registry.Register(DefaultId, "TkbNamed", new BehaviorDefinition { Name = "TkbNamed", BrainTier = BehaviorConstants.BrainTierBTree });
+
+            var template = new TkbTemplate("TkbNamedUnit", 1);
+            template.AddDescriptor(new BehaviorProfileDto { BrainTier = BehaviorConstants.BrainTierBTree, DefaultBehavior = "TkbNamed",
+                                                            DefaultBehaviorParamsJson = "{\"Reach\":12}", DefaultBehaviorHash = OrderId });
+            var e = world.CreateEntity();
+            new BehaviorTkbTranslator().Inject(world, e, template);
+            world.Bus.SwapBuffers();
+
+            var events = world.ReadManagedEvents<AssignBehaviorEvent>();
+            Assert.Single(events);
+            Assert.Equal("TkbNamed", events[0].BehaviorName);
+            Assert.Equal("{\"Reach\":12}", events[0].JsonParams);
+            Assert.Equal(BehaviorOrigin.Sop, events[0].Origin);
+            Assert.Empty(world.ReadEvents<AssignBehaviorHashEvent>().ToArray());   // ONE place decides: the name wins over the hash
+
+            new BehaviorIngressSystem(registry).Execute(world, 0.016f);
+            var state = world.GetComponent<BehaviorState>(e);
+            Assert.Equal(DefaultId, state.ActiveBehaviorHash);
+            Assert.Equal(BehaviorOrigin.Sop, state.Origin);
+            world.Dispose();
+        }
+
         [Fact]
         public void CE3047_WhereNoIngressRuns_TheUnitSimplyHasNoBehaviour()
         {

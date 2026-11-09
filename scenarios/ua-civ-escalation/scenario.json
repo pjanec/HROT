@@ -52,6 +52,11 @@
         "Reactions": "StayOnTask",
         "SetBy": "Superior",
         "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "HoldTheLine",
+        "Params": {"Reach":75},
+        "Origin": "Superior"
       }
     },
     "c2390005-0000-4000-8000-000000000002": {
@@ -289,8 +294,8 @@
     "c2390005-0000-4000-8000-000000000009": {
       "SimTransform": {
         "Position": [
-          114,
-          262,
+          160,
+          205,
           0
         ],
         "Rotation": [
@@ -367,7 +372,7 @@
               "taskId": "c2390005-0000-4000-8000-000000000904",
               "executingEngine": "",
               "behaviorName": "FireAtPoint",
-              "behaviorParams": {"x":134,"y":267,"z":25,"mount":0,"rounds":0,"cooldownSeconds":1.5},
+              "behaviorParams": {"x":180,"y":210,"z":25,"mount":0,"rounds":0,"cooldownSeconds":1.5},
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -394,8 +399,8 @@
     "c2390005-0000-4000-8000-000000000010": {
       "SimTransform": {
         "Position": [
-          114,
-          262,
+          160,
+          205,
           0
         ],
         "Rotation": [

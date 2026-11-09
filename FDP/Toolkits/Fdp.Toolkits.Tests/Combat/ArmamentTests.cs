@@ -443,8 +443,10 @@ namespace Fdp.Toolkit.Tests.Combat
         }
 
         /// <summary>⭐ <c>CE-2239</c> part 3 (AW-16, §5k EL-3/EL-5) — the WARNING: the police watch warns an identified-armed man it remembers
-        /// within reach — a NEUTRAL too (drawn ⇒ warn) — and shows the cue for 2 s; not one beyond reach, not an unarmed one; firing into the
-        /// air (aimed at a point) is the ready rung, never self-defence. ✅ Red-proofs: the reach test removed ⇒ the far man is warned ⇒ red;
+        /// — a NEUTRAL too (drawn ⇒ warn) — and shows the cue for 2 s; not one too far to IDENTIFY, not an unarmed one; firing into the air
+        /// (aimed at a point) is the ready rung, never self-defence. ⭐ R-4179 (CE-4124, `2026-11-09`) — SUPERSEDES the 40 m reach cut: the
+        /// ladder warns an armed man it SEES, so whether the 55 m man is warned is exactly whether he is identified armed (<c>Armament.Judge</c>);
+        /// a man at 400 m is not. ✅ Red-proofs: a reach cut put back ⇒ the 55 m (identified) man is not warned ⇒ red;
         /// the cue never lowered ⇒ red; <c>ForceLevels.AimsAt</c> without its <c>Target == unit</c> test ⇒ the volley reads self-defence ⇒ red.</summary>
         [Fact]
         public unsafe void CE2239_TheWarning_ArmedInReach_ANeutralToo_CueShowsTwoSeconds_AndFireIntoTheAirReadsReady()
@@ -455,23 +457,26 @@ namespace Fdp.Toolkit.Tests.Combat
             var cop = Police(Vector3.Zero);
             var near = Man(PistolCivType, new Vector3(20f, 0f, 0f), ForceId.Neutral, civilian: true);
             var far = Man(PistolCivType, new Vector3(55f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var beyond = Man(PistolCivType, new Vector3(400f, 0f, 0f), ForceId.Neutral, civilian: true);
             var stones = Man(StonesCivType, new Vector3(10f, 0f, 0f), ForceId.Hostile, civilian: true);
             var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
-            foreach (var (e, x) in new[] { (near, 20f), (far, 55f), (stones, 10f) })
+            foreach (var (e, x) in new[] { (near, 20f), (far, 55f), (beyond, 400f), (stones, 10f) })
                 Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)e.PackedValue, x, 0f, 1f, _world.Repo.SimulationTick,
                     Fdp.Toolkit.Perception.Components.SensorModality.Visual);
             _world.Repo.AddComponent(cop, mem);
 
-            EscalationLadder.Watch(_world.Repo, cop, 40f);
+            EscalationLadder.Watch(_world.Repo, cop);
             Assert.True(EscalationLadder.WarnedAt(_world.Repo, cop, near) > 0);
-            Assert.Equal(0.0, EscalationLadder.WarnedAt(_world.Repo, cop, far));                           // beyond reach
+            Assert.Equal(Armament.Judge(_world.Repo, cop, far) == ArmedJudgement.IdentifiedLethal,
+                         EscalationLadder.WarnedAt(_world.Repo, cop, far) > 0);                           // R-4179: warned iff SEEN armed
+            Assert.Equal(0.0, EscalationLadder.WarnedAt(_world.Repo, cop, beyond));                        // too far to identify
             Assert.Equal(0.0, EscalationLadder.WarnedAt(_world.Repo, cop, stones));                        // nothing lethal on him
             Assert.Equal(GestureKind.Warning, Gestures.Of(_world.Repo, cop));
             _world.Repo.SetSimulationTime(21f);
-            EscalationLadder.Watch(_world.Repo, cop, 40f);
+            EscalationLadder.Watch(_world.Repo, cop);
             Assert.Equal(GestureKind.Warning, Gestures.Of(_world.Repo, cop));
             _world.Repo.SetSimulationTime(22.5f);
-            EscalationLadder.Watch(_world.Repo, cop, 40f);
+            EscalationLadder.Watch(_world.Repo, cop);
             Assert.Equal(GestureKind.None, Gestures.Of(_world.Repo, cop));                                 // the cue shown, lowered
 
             var volley = Man(PistolCivType, new Vector3(25f, 5f, 0f), ForceId.Hostile, civilian: true);

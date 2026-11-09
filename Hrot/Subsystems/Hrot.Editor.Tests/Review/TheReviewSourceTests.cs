@@ -177,6 +177,27 @@ public sealed class TheReviewSourceTests : IDisposable
             Assert.NotEqual(int.MaxValue, ProgressOfNet(rig.World, net));
     }
 
+    /// <summary>
+    /// ⭐ G-7 S3 (R-4183) — the editor's Review shows the SAME Federation panel (one slider implementation): an offset written through it re-merges the editor's world live — CGF-A's (node 2)
+    /// frame moves +1 s, and the unit it owns shows the later progress; its row carries the participant's name. 🔴 Red-proof: the panel built without a re-merge hook / offset not applied ⇒ red.
+    /// </summary>
+    [Fact]
+    public void V6_AnOffsetOnTheSwitchPanel_ReMergesTheWorldLive_ForThatNode()
+    {
+        FourParticipants();
+        using var rig = new Rig(_root, _serializer);
+        rig.Open(_exercise);
+        var panel = rig.Source.SwitchPanel!;
+
+        Assert.Equal(0, ProgressOfNet(rig.World, 100));
+        Assert.Equal(rig.Source.NameOf(2), panel.NameOf(2));           // the participants' names (Q-B6), not a second naming
+        panel.SetNodeOffsetMs(2, 2000d);                               // the slider: CGF-A at +2 s
+        Assert.Equal(2, ProgressOfNet(rig.World, 100));                // ⭐ its component, merged from ITS frame two seconds on
+        Assert.Equal(10, ProgressOfNet(rig.World, 200));               // CGF-B (node 3) stayed on its own frame
+        panel.SetNodeOffsetMs(2, 0d);
+        Assert.Equal(0, ProgressOfNet(rig.World, 100));
+    }
+
     [Fact]
     public void V6_AComponentOnlyCgfsFileHolds_IsInTheMergedWorld()
     {
@@ -254,8 +275,44 @@ public sealed class TheReviewSourceTests : IDisposable
         Assert.Equal(4, rig.World.EntityCount);
     }
 
+    /// <summary>
+    /// ⭐ G-7 S4 rail (d) / M-7 — ▶ is ENABLED in Merged and the reason is gone; one played frame re-merges (the world follows the recording at the played frame), through the same path a step uses.
+    /// 🔴 Mutation: <c>ReviewSource.Update</c> not calling <c>AdvanceMerged</c> ⇒ nothing plays ⇒ red; <c>CanPlay</c> back to <c>IsPart &amp;&amp; …</c> ⇒ red.
+    /// </summary>
     [Fact]
-    public void V6_Merged_Steps_AndPlayIsGreyedWithTheReason()
+    public void V6_Merged_PlayIsEnabled_AndAPlayedFrameReMerges()
+    {
+        FourParticipants();
+        using var rig = new Rig(_root, _serializer);
+        rig.Open(_exercise);
+        var t = rig.Source.Transport;
+        Assert.Equal(ReviewSourceKind.Merged, rig.Source.Kind);
+        Assert.True(t.CanPlay);                                        // ⭐ ▶ enabled in Merged …
+        Assert.Null(t.PlayDisabledReason);                             // … and no reason to give
+        Assert.False(t.IsPlaying);                                     // (the toolbar is paused)
+
+        int merges = 0;
+        rig.Source.Manager!.OnTimeChanged += () => merges++;
+        rig.Source.Update(1.0);                                        // paused: nothing moves
+        Assert.Equal(0, t.CurrentFrame); Assert.Equal(0, merges);
+
+        rig.Facade.SetupGet(f => f.IsPaused).Returns(false);           // the toolbar's ▶ is pressed
+        Assert.True(t.IsPlaying);
+        rig.Source.Update(2.0);                                        // two seconds at 1× = two recorded frames
+        Assert.Equal(2, t.CurrentFrame);
+        Assert.Equal(2, merges);                                       // ⭐ every played frame merged (one step each)
+        Assert.Equal(2, ProgressOfNet(rig.World, 100));                // … the world is the merge at frame 2
+        Assert.Equal(12, ProgressOfNet(rig.World, 200));
+        Assert.Equal(4, rig.World.EntityCount);
+
+        rig.Source.Update(10.0);                                       // on to the end, and no further
+        Assert.Equal(4, t.CurrentFrame);
+        Assert.Equal(4, ProgressOfNet(rig.World, 100));
+        Assert.Equal(14, ProgressOfNet(rig.World, 200));
+    }
+
+    [Fact]
+    public void V6_Merged_Steps_AndScrubs()
     {
         FourParticipants();
         using var rig = new Rig(_root, _serializer);
@@ -265,8 +322,6 @@ public sealed class TheReviewSourceTests : IDisposable
         Assert.True(t.HasRecording);
         Assert.Equal(5, t.TotalFrames);
         Assert.Equal(0, t.CurrentFrame);
-        Assert.False(t.CanPlay);                                       // ⭐ ▶ greyed …
-        Assert.Equal(ReviewSourceTransport.MergedPlayReason, t.PlayDisabledReason);   // … with the reason
         Assert.False(t.IsPlaying);
 
         t.Step(1);

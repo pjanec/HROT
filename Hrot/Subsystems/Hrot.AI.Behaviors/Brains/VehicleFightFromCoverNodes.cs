@@ -228,6 +228,12 @@ namespace Hrot.AI.Behaviors.Brains
                     }
                     if (MoveStatus(world, self, ws.HidePoint) == NodeStatus.Running) return NodeStatus.Running;
                 }
+                // ⭐ CE-2232 / CE-4035 G-5 (Next_2) — an ATTACK on a named target that is still in the fight is not over because nothing is
+                //   REMEMBERED: 📐 measured live (ua-technical-scoot, editor Preview): the order's target is designated and seeded into memory
+                //   on the first tick, and gone from memory by the second, so TopAim found nothing and the attack ended Success at 0.03 s,
+                //   never firing. It waits, as the infantry attack does while HUNTING (PostureNodes.cs:322); the attack ends when the target
+                //   is down (UntilTargetDown, the Parallel's other branch).
+                if (authored.DesignatePacked != 0 && Injury.IsInTheFight(world, new Entity((ulong)authored.DesignatePacked))) return NodeStatus.Running;
                 Release(ref ws, self, world);
                 return NodeStatus.Success;   // nothing left to fight
             }
