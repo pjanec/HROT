@@ -989,7 +989,10 @@ graph TD
 | **AR-5** | ⭐ one `ComponentJsonPath.Get/Set` in `Fdp.Toolkits/Scenario` replaces the three walkers (case-insensitive keys, a number part indexes an array on read; the param binder's "no index on write" rule stays its own check) | leaving three copies |
 | **AR-6** | ⭐ the watch's expert entry for a value outside the vocabulary (capabilities, embarkation) reads by `ComponentJsonPath` over the component JSON the lens already makes | growing the vocabulary for read-only values |
 
-**Stages:** R-1 `AttributeReaders` + `AttributeValue.Text` + the rail (AR-1…3) · R-2 the forms read through it (AR-4; the forms' frame rails must stay green, 0 B) · R-3 `ComponentJsonPath` (AR-5) · then the watch (§6.13, attributes not components).
+| **AR-7** *(user, `2026-11-09`)* | ⭐ the UNIT moves onto the vocabulary attribute (`AttributeDefinition.Unit`, e.g. `Health.Current` → none, `Position.X` → `m`, `SpawnArea.FacingDeg` → `°`); the forms' `FormField.Unit` defaults to it, the schema and the watch's tolerance show it | the unit only in the forms (it belongs to the attribute) |
+| **AR-8** *(user, `2026-11-09`: "HTTP debug api … schema for attributes? and read/write paths? will be useful")* | ⭐ the HTTP read side, through the SAME reader: `GET /entities/{networkId}/attributes[?path=…]` (every vocabulary attribute the entity has; a wildcard returns per sub-index) · `GET /entities/{networkId}/field?path=Component.field.0` (the raw read, through `ComponentJsonPath` — the twin of the existing `POST …/component`) · `GET /attributes/schema` gains `readable` and `unit` per path. Existing: `GET /entities/{id}` (dump), `GET /attributes/schema`, `POST …/attribute` (write, owner-routed), `POST …/component` (raw write). Works on the Replay Browser's API too (it reads its sandbox) | clients walking the full dump |
+
+**Stages:** R-1 `AttributeReaders` + `AttributeValue.Text` + the rail + the units + the read routes (AR-1…3, AR-7, AR-8) · R-2 the forms read through it (AR-4; the forms' frame rails must stay green, 0 B) · R-3 `ComponentJsonPath` (AR-5) · then the watch (§6.13, attributes not components).
 
 ### 6.10 Why JSON was chosen back then — and what the binary idea must not lose *(read `2026-11-08`)*
 
