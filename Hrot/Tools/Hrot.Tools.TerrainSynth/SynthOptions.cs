@@ -6,11 +6,14 @@ namespace Hrot.Tools.TerrainSynth;
 public sealed record SynthOptions(
     string Preset, ulong Seed, string OutDir,
     double? Size, double? HeightSpacing, int? Buildings, int? Trees,
-    string? Noise = null, string? Terraces = null)
+    string? Noise = null, string? Terraces = null, string? Materials = null)
 {
     /// <summary>Opening noise on or off: real for the full preset and none for tiny unless given.</summary>
     /// <summary>Terraced rows on or off: on for the full preset and off for tiny unless given.</summary>
     public bool TerracesEnabled => (Terraces ?? (Preset == "full" ? "on" : "off")) == "on";
+
+    /// <summary>Building materials on or off: on for the full preset and off for tiny unless given.</summary>
+    public bool MaterialsEnabled => (Materials ?? (Preset == "full" ? "on" : "off")) == "on";
 
     public bool NoiseEnabled => (Noise ?? (Preset == "full" ? "real" : "none")) == "real";
 
@@ -21,12 +24,12 @@ public sealed record SynthOptions(
         string? outDir = null;
         double? size = null, spacing = null;
         int? buildings = null, trees = null;
-        string? noise = null, terraces = null;
+        string? noise = null, terraces = null, materials = null;
 
         for (int i = 0; i < args.Length; i++)
         {
             string a = args[i];
-            if (a is not ("--preset" or "--seed" or "--out" or "--size" or "--height-spacing" or "--buildings" or "--trees" or "--noise" or "--terraces"))
+            if (a is not ("--preset" or "--seed" or "--out" or "--size" or "--height-spacing" or "--buildings" or "--trees" or "--noise" or "--terraces" or "--materials"))
                 throw new ArgumentException($"unknown argument {a}");
             if (i + 1 >= args.Length) throw new ArgumentException($"missing value for {a}");
             string v = args[++i];
@@ -43,6 +46,10 @@ public sealed record SynthOptions(
                     if (v != "on" && v != "off") throw new ArgumentException($"bad value for {a}: {v} (on|off)");
                     terraces = v;
                     break;
+                case "--materials":
+                    if (v != "on" && v != "off") throw new ArgumentException($"bad value for {a}: {v} (on|off)");
+                    materials = v;
+                    break;
                 case "--noise":
                     if (v != "real" && v != "none") throw new ArgumentException($"bad value for {a}: {v} (real|none)");
                     noise = v;
@@ -56,7 +63,7 @@ public sealed record SynthOptions(
         if (buildings is < 0 || trees is < 0) throw new ArgumentException("counts must not be negative");
 
         outDir ??= string.Create(CultureInfo.InvariantCulture, $"artifacts/terrain-synth/{preset}-{seed}");
-        return new SynthOptions(preset, seed, outDir, size, spacing, buildings, trees, noise, terraces);
+        return new SynthOptions(preset, seed, outDir, size, spacing, buildings, trees, noise, terraces, materials);
     }
 
     /// <summary>The preset with the overrides applied. --size is the side length in metres; counts and road km scale by area.</summary>

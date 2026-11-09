@@ -36,7 +36,7 @@ public static class TerrainSynthesizer
         SumoWriter.TryNetconvert(roadsDir, log);
 
         sw.Restart();
-        var (buildings, unassigned) = BuildingGenerator.Generate(p, root, heights, roads, new BuildingOptions { Noise = o.NoiseEnabled, Terraces = o.TerracesEnabled });
+        var (buildings, unassigned) = BuildingGenerator.Generate(p, root, heights, roads, new BuildingOptions { Noise = o.NoiseEnabled, Terraces = o.TerracesEnabled, Materials = o.MaterialsEnabled });
         GeoJsonWriter.WriteBuildings(Path.Combine(outDir, "buildings", "buildings.geojson"), buildings);
         GeoJsonWriter.WriteUnassigned(Path.Combine(outDir, "buildings", "unassigned.geojson"), unassigned);
         log.WriteLine($"buildings: {Secs(sw)}, {N(buildings.Count)} buildings, {N(unassigned.Count)} unassigned openings");

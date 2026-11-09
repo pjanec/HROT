@@ -38,6 +38,7 @@ public static class GeoJsonWriter
                 w.WriteNumber("height", building.Height);
                 w.WriteString("roof", building.Roof);
                 if (building.Roof == "pitched" && building.RidgeZ is double ridge) w.WriteNumber("ridgeZ", ridge);
+                if (building.Material != null) w.WriteString("material", building.Material);
                 w.WriteStartArray("storeyZ");
                 foreach (var z in building.StoreyZ) w.WriteNumberValue(z);
                 w.WriteEndArray();

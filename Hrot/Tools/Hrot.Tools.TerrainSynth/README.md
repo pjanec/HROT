@@ -27,6 +27,7 @@ dotnet run --project Hrot/Tools/Hrot.Tools.TerrainSynth -- --preset tiny --seed 
 | `--trees N` | number of trees | preset |
 | `--noise real\|none` | jitter the doors and windows like a real input set (see Realism options) | `real` for `full`, `none` for `tiny` |
 | `--terraces on\|off` | about 10 % of the houses in terraced rows with shared walls | `on` for `full`, `off` for `tiny` |
+| `--materials on\|off` | a `material` on about 30 % of the buildings | `on` for `full`, `off` for `tiny` |
 
 A bad argument prints the usage to stderr and exits with 2. A normal run prints one line per stage with its
 elapsed time and counts, and exits with 0.
@@ -71,6 +72,10 @@ The manifest records `noise` under `generator.overrides` whenever it is on, also
 - plain houses are dropped at random afterwards so the total stays at the building count.
 
 The manifest records `terraces` under `generator.overrides` whenever it is on.
+
+`--materials on` writes a `material` property on about 30 % of the buildings (the rest have none, as in the real set):
+of those, brick 50 %, concrete 25 %, stone 15 %, wood 10 %. In `buildings.geojson` the property sits after `ridgeZ`
+(when there is one) and before `storeyZ`. The manifest records `materials` whenever it is on.
 
 ## Output
 

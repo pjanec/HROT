@@ -14,7 +14,8 @@ public sealed record Building(
     string Roof,
     double? RidgeZ,
     IReadOnlyList<double> StoreyZ,
-    IReadOnlyList<Opening> Openings);
+    IReadOnlyList<Opening> Openings,
+    string? Material = null);
 
 /// <summary>Switches for the realism options applied on top of the clean set.</summary>
 public sealed record BuildingOptions
@@ -24,6 +25,9 @@ public sealed record BuildingOptions
 
     /// <summary>Turn about 10 % of the houses into rows of 3 to 6 that share party walls.</summary>
     public bool Terraces { get; init; }
+
+    /// <summary>Write a material (brick, concrete, stone, wood) on about 30 % of the buildings.</summary>
+    public bool Materials { get; init; }
 }
 
 /// <summary>
@@ -44,7 +48,23 @@ public static class BuildingGenerator
         if (options.Terraces) g.Terraces(rng.Fork("terraces"));
         IReadOnlyList<Building> buildings = g.Buildings;
         if (options.Noise) buildings = OpeningNoise.Apply(buildings, rng.Fork("noise"));
+        if (options.Materials) buildings = AssignMaterials(buildings, rng.Fork("materials"));
         return (buildings, g.Unassigned);
+    }
+
+    // about 30 % of the buildings get a material: brick 50 %, concrete 25 %, stone 15 %, wood 10 % of those
+    private static IReadOnlyList<Building> AssignMaterials(IReadOnlyList<Building> buildings, Rng rng)
+    {
+        var result = new List<Building>(buildings.Count);
+        foreach (var b in buildings)
+        {
+            double has = rng.NextDouble(), pick = rng.NextDouble();
+            string? material = null;
+            if (has < 0.30)
+                material = pick < 0.50 ? "brick" : pick < 0.75 ? "concrete" : pick < 0.90 ? "stone" : "wood";
+            result.Add(b with { Material = material });
+        }
+        return result;
     }
 
     private readonly record struct Pt(double X, double Y);
