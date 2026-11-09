@@ -495,7 +495,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.Orchestration.OrchestratorContextTopic` | message | no | S | Hrot.Network.Orchestration | Exercise, scenario and required nodes context |
 | `Hrot.NED.Descriptors.Orchestration.ReplaySessionTopic` | message | no | S | Hrot.Network.Orchestration | Replay session layer: zero, length, axis, marks |
 | `Hrot.NED.Descriptors.Orchestration.StorageJobsTopic` | descriptor | yes: node id (0 = master) | S | Hrot.Network.Orchestration | The master's storage job list (archive / import / discard / delete) with state and numbers |
-| `Hrot.NED.Descriptors.Orchestration.ExerciseNotesTopic` | message | yes: node id (0 = master) | S | Hrot.Network.Orchestration | The master's notes of the exercise on show (CE-4325, E7): the exercise id and the whole note list; changed through the `EditExerciseNote` cluster op (28) |
+| `Hrot.NED.Descriptors.Orchestration.ExerciseNotesTopic` | descriptor | yes: node id (0 = master) | S | Hrot.Network.Orchestration | The master's notes of the exercise on show (CE-4325, E7): the exercise id and the whole note list; changed through the `EditExerciseNote` cluster op (28) |
 
 ### H. EQS (environment-query sensors) — 4
 
