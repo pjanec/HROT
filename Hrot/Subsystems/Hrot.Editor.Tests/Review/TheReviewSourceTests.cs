@@ -373,10 +373,10 @@ public sealed class TheReviewSourceTests : IDisposable
         Assert.Equal("Review: opening the group…", rig.Source.StatusText());                       // pending until the replay is up
 
         rig.Source.Update(0);
-        Assert.Equal("Merged · 4 participants (Node 2, Node 3, Node 4, Node 5) — step / scrub", rig.Source.StatusText());
+        Assert.Equal("Merged · 4 participants (SimHost-2, SimHost-3, SimHost-4, SimHost-5) — step / scrub", rig.Source.StatusText());
 
         rig.Source.SelectPart(2);
-        Assert.Equal("Part: Node 2", rig.Source.StatusText());
+        Assert.Equal("Part: SimHost-2", rig.Source.StatusText());
         rig.Source.SelectMerged();
         Assert.StartsWith("Merged · 4 participants", rig.Source.StatusText());
 
@@ -521,10 +521,10 @@ public sealed class TheReviewSourceTests : IDisposable
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
 
-        Assert.Equal(new[] { ("local to Node 2", 902), ("local to Node 4", 904) }, LocalsInWorld(rig.Source, rig.World));   // ⭐ one from each node, each tagged with its own
+        Assert.Equal(new[] { ("local to SimHost-2", 902), ("local to SimHost-4", 904) }, LocalsInWorld(rig.Source, rig.World));   // ⭐ one from each node, each tagged with its own
 
         rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, false);                                                            // the checkbox
-        Assert.Equal(new[] { ("local to Node 2", 902) }, LocalsInWorld(rig.Source, rig.World));
+        Assert.Equal(new[] { ("local to SimHost-2", 902) }, LocalsInWorld(rig.Source, rig.World));
         Assert.NotEqual(int.MaxValue, ProgressOfNet(rig.World, 300));                                                      // its networked unit stays
 
         rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, true);

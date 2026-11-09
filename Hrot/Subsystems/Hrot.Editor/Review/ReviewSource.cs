@@ -77,7 +77,7 @@ public sealed class ReviewSource : IDisposable
     /// <param name="inReplay">The cluster is in AAR (false ⇒ an open group closes).</param>
     /// <param name="selection">The selected entity's network id (kept across a refill) — or null.</param>
     /// <param name="select">Selects an entity by network id.</param>
-    /// <param name="nodeName">A participant's name for the status bar; default <c>Node N</c> (the sidecar carries no role).</param>
+    /// <param name="nodeName">A participant's name for the status bar; default <c>NodeIdRanges.NameOf</c> — the kind from the id's range (the sidecar carries no role).</param>
     /// <param name="facade">The toolbar's time control, read: a part plays while it plays.</param>
     public ReviewSource(Func<EntityRepository?> world, Func<TransientMasterBuilder?> builder, Action clearWorld, Func<string> stagingRoot, int thisNode,
                         Func<bool> ready, Func<bool> inReplay, Func<int?>? selection = null, Func<int, bool>? select = null, Func<int, string>? nodeName = null,
@@ -92,7 +92,7 @@ public sealed class ReviewSource : IDisposable
         _inReplay = inReplay ?? throw new ArgumentNullException(nameof(inReplay));
         _selection = selection ?? (() => null);
         _select = select ?? (_ => false);
-        _nodeName = nodeName ?? (n => "Node " + n);
+        _nodeName = nodeName ?? Hrot.Orchestrator.NodeIdRanges.NameOf;   // ⭐ the role from the id's range (R-4175), so a recording's rows read "CGF-1" with its role icon
         _facade = facade ?? (() => null);
         Transport = new ReviewSourceTransport(this);
     }

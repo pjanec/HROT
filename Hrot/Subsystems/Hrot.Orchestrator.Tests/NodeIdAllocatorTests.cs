@@ -104,6 +104,23 @@ public sealed class NodeIdAllocatorTests
     }
 
     /// <summary>
+    /// ⭐ G-7 (Review Source popup, mockup ③) — a node's name from its id alone, read from the SAME table as the offsets: the kind whose range holds it
+    /// and its place there. 🔴 Mutation: NameOf returns "Node N" ⇒ red.
+    /// </summary>
+    [Fact]
+    public void G7_ANodesName_FromItsIdRange_IsItsKindAndPlace()
+    {
+        Assert.Equal("SimHost-1", NodeIdRanges.NameOf(1));
+        Assert.Equal("Player-1", NodeIdRanges.NameOf(100));
+        Assert.Equal("CGF-1", NodeIdRanges.NameOf(400));
+        Assert.Equal("CGF-2", NodeIdRanges.NameOf(401));
+        Assert.Equal("Traffic-1", NodeIdRanges.NameOf(800));
+        Assert.Equal("Node 650", NodeIdRanges.NameOf(650));
+        Assert.Equal(400, NodeIdRanges.OffsetOf("cgf"));
+        Assert.Equal(600, NodeIdRanges.OffsetOf("Editor"));
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-4331 ⑥ (📄 docs/DESIGN_Recording_Storage.md §9b) — a node that says its KIND gets the lowest free id of its kind's range (NodeIdRanges): two CGFs
     /// get 400 and 401, a Player 100; the same cluster relaunched under a new master gets the same ids (a new allocator, nothing remembered);
     /// a replacement for a gone CGF under a new master takes the vacant 400; its previous id wins when it is free.
