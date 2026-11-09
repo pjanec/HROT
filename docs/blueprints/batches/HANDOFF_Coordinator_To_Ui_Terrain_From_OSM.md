@@ -6,7 +6,7 @@ current-answer: the whole file
 
 # HANDOFF — coordinator → ui: a terrain from OpenStreetMap (the library, the CLI, the editor wizard)
 
-**For:** ui. **From:** coordinator. **Dispatched at `<STAMP>`**, scope frozen there. ⭐ **Start it when
+**For:** ui. **From:** coordinator. **Dispatched at `d6c44f6cd`**, scope frozen there. ⭐ **Start it when
 [`Next_3`](HANDOFF_Coordinator_To_Ui_Next_3.md) is done or every remaining item there is blocked.** Merge the other lanes first; push
 `chore: started HANDOFF_Coordinator_To_Ui_Terrain_From_OSM at <sha>`; status file `STATUS_Ui_Terrain_From_OSM.md`. Same
 [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md): a status file after every item, fetch and merge the other lanes after every item.
