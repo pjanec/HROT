@@ -37,7 +37,7 @@ statistics, from a seed — so the importer can be built, tested and tuned in th
 | area | 5 500 × 5 500 m, bounds `[-2750, -2750, 2750, 2750]`, frame `utm {zone 32, N, e0 500000, n0 5600000}` (synthetic: on the zone's central meridian, ≈ 50.5°N) | 500 × 500 m, bounds `[-250, -250, 250, 250]` |
 | heights | spacing 0.48828125 m, z 450–980 m, rolling hills; nodata: two 500 m cells at the east edge | same spacing; one 20 × 20 m nodata patch |
 | buildings | ≈ 1 800 in villages along the streets; footprint area p10/p50/p90 ≈ 64 / 144 / 384 m²; ≈ 93 % rectangles, the rest L / U; storeys 1:17 %, 2:40 %, 3:32 %, 4:6 %, 5:5 %, 6:0.3 %; floor-to-floor 2.6–3.6 m (median ≈ 2.95); ≈ 2.6 doors and ≈ 37 windows per house; ≈ 73 % pitched roofs, ridge ≈ 4 m above the eaves; ≈ 1 unassigned point per house | ≈ 40 buildings |
-| trees | ≈ 176 000; woods ≈ 45 % of the area at ≈ 65 trees / ha (nearest neighbour median ≈ 6 m); ≈ 7 % lone trees and rows | ≈ 1 500 |
+| trees | ≈ 176 000; woods ≈ 45 % of the area holding ≈ 90 % of the trees ⇒ ≈ 110–120 trees / ha inside woods (the measured 65 / ha is the median over every hectare that has any tree, not the woods mean); nearest neighbour median ≈ 6 m; ≈ 7 % lone trees and rows | ≈ 1 500 |
 | roads (km) | residential 57, unclassified 20, secondary 20, primary 16, motorway 12, tertiary 9, trunk 7.5, rail 8.7 (≈ 150 total) | a street grid + one primary road (≈ 3 km) |
 | walls | none (empty file, as in the real set) | none |
 
