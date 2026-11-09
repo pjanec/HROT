@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
 updated: 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · §10.4/§10.5 templates + placements at 1 m, Q-X7…Q-X9) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
+current-answer: ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
 known-rot: §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
@@ -459,7 +459,7 @@ and ≈ 7 900 trees** stand there at ≈ 510 m — floating over nothing in the 
 
 All other numbers in §5 / §9.5 were measured over the 6 × 6 km box; the manifest will carry the clipped counts.
 
-### 10.4 ✅ ACCEPTED (§10.5) — buildings as shared TEMPLATES + placements *(source-data session, `2026-11-09`; the user: "As our windows are not transparent and doors are closed, small differences are acceptable if it reduces data quite a lot" — for the coordinator: Q-X7…Q-X9)*
+### 10.4 ⛔ SUPERSEDED by §10.6 (R-4191: unique buildings) — buildings as shared TEMPLATES + placements *(source-data session, `2026-11-09`; the user: "As our windows are not transparent and doors are closed, small differences are acceptable if it reduces data quite a lot" — for the coordinator: Q-X7…Q-X9)*
 
 📐 **Measured** on the 1 806 buildings inside the §10.3 bounds (footprint, storeys and every door / window compared in the building's own frame;
 a house turned 180° counts as the same house):
@@ -493,7 +493,7 @@ Per-building state stays per building: `id`, destruction state, the navmesh bake
 | **Q-X8** | is 1 m the right tolerance, or should doors be tighter than windows (doors are walked through; windows are only looked out of)? | 1 m for both; `snapError` lets the importer flag outliers |
 | **Q-X9** | should a template's `height` / `roof` / `material` also be part of the grouping (two houses with the same plan but different heights stay separate)? | yes — height snapped to 1 m, roof and material exact |
 
-### 10.5 ✅ ANSWERS — coordinator, to §10.3 and §10.4 *(`2026-11-09`)*
+### 10.5 ✅ ANSWERS — coordinator, to §10.3 and §10.4 *(⛔ the §10.4 half SUPERSEDED by §10.6)* *(`2026-11-09`)*
 
 ✅ **§10.3 accepted** — the bounds are the real 5.5 × 5.5 km (`[-7500, -1500, -2000, 4000]`), objects clipped by footprint centroid; the stage plan's "6 × 6 km" reads as this area.
 
@@ -510,3 +510,20 @@ Per-building state stays per building: `id`, destruction state, the navmesh bake
 | **Q-X7** | ✅ **yes** — one `<templateKey>.building.json` per template in the terrain's `buildings/` folder, and each house a `kind: building` Point with `template`, `rotation` (converted), `baseZ`, and its stable `id` as the label. The generator turns the template's openings (points) into HROT walls with openings (`at` along the wall, default widths, sill / head) |
 | **Q-X8** | ✅ **1 m for both** (closed doors, opaque windows — the user's premise). The importer **lists every house with `snapError` > 1 m** (there should be none) and, on the map, nothing else changes |
 | **Q-X9** | ✅ **yes** — height snapped to 1 m, **`storeyZ` snapped to 1 m too** (the template's floors are what soldiers stand on), roof and material exact (material drives penetration) |
+
+### 10.6 ✅ DECIDED `2026-11-09` (R-4191) — UNIQUE BUILDINGS, exact floors *(user; SUPERSEDES §10.4 / §10.5's template grouping)*
+
+🔒 **User, `2026-11-09`:** *"Wait floors height can not be different. If there is no memory or performance penalty in using unique houses, maybe we can use unique buildings?"*
+
+| fact behind it | where |
+|---|---|
+| nothing at run time is shared per template: every placement is expanded into its own walls, slabs and stairs; the template's name is kept only as a label | `TerrainWorldParser.cs:124` (expand per instance), `TerrainBuildings.cs:77` (`Template` = a string) |
+| the 3-D mesh and the navmesh are built in world space for the whole terrain, per tile — no per-template reuse exists | `TerrainWorldMesh` (one soup); Navigation v2 `NavTileCache` keys on each tile's inputs |
+| ⇒ grouping saves only input size (a few MB of JSON) and costs up to 1 m of mismatch with what the visual engine draws, including floor heights | §10.4 |
+
+| decision | rejected (one line each) |
+|---|---|
+| ⭐ **every building is its own exact template**: real footprint, real `storeyZ`, every door and window where the source has it — **no snapping** | 1 m templates (§10.4) — floors and openings off by up to 1 m, for no run-time gain |
+| the input returns to the §10 contract (per-building openings, `storeyZ`, `roof`/`ridgeZ`, `material`, stable `id`); the generator writes one `<id>.building.json` per building into the terrain's `buildings/` folder and places it as a `kind: building` Point (`rotation` 0, the template already in world-aligned local metres around its origin) | inline `building` objects in the world file — legal (`TerrainWorldParser.cs:121`), but one ≈ 20 MB file is harder to inspect and edit than one file per house |
+
+⛔ §10.4's table stays as the record of the measurement (≈ 430 templates at 1 m); ⛔ **its contract change and §10.5's Q-X7…Q-X9 answers are SUPERSEDED** by this section.
