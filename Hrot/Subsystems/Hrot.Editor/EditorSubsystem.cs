@@ -366,6 +366,8 @@ namespace Hrot.Editor
         private long _reviewLastTicks;
         private Hrot.Editor.Review.ReviewSourceStatusSection? _reviewStatus;
         internal Hrot.Editor.Review.ReviewSourceStatusSection? ReviewStatusForTest => _reviewStatus;
+        private Hrot.Editor.Review.ReviewFederationWindowHost? _reviewFederation;
+        internal Hrot.Editor.Review.ReviewFederationWindowHost? ReviewFederationForTest => _reviewFederation;
         private Hrot.Editor.Review.ReviewSourceToolbarCombo? _reviewSourceCombo;
         internal Hrot.Editor.Review.ReviewSourceToolbarCombo? ReviewSourceComboForTest => _reviewSourceCombo;
         private Hrot.Editor.Review.ReplayTransportSelector? _reviewTransport;
@@ -5123,6 +5125,7 @@ namespace Hrot.Editor
                     _reviewSourceCombo.RegisterInto(aarToolbar);
                 }
                 _reviewStatus = Hrot.Editor.Review.ReviewSourceStatusSection.Register(windowManager.StatusBar, reviewSource);   // D9 — the bar's LEFT end
+                _reviewFederation = new Hrot.Editor.Review.ReviewFederationWindowHost(reviewSource, w => windowManager.RegisterWindow(w), Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, EditorWindowColor.TitleBar);   // G-7 S5 — the Source menu's Offsets… opens it
                 var reviewTimeline = _fileReview.TimelinePanel;
                 reviewSource.Changed += () => reviewTimeline.SetManager(reviewSource.Manager);
                 if (_editorApp is { } reviewApp) reviewApp.RecordingOpened += id => reviewSource.OnRecordingOpened(id);   // ⭐ THE one branch where a recording opens: a group with no part of this node ⇒ the source

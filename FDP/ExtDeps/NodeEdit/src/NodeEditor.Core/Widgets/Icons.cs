@@ -120,6 +120,13 @@ public static class Icons
             case "section/search": icon = new("\uf002", IconPalette.Blue); return true;   // MagnifyingGlass
             case "section/selection": icon = new("\uf0ae", IconPalette.Blue); return true;   // ListCheck
             case "section/debug": icon = new("\uf188", IconPalette.Red); return true;   // Bug — ⭐ U-7 (CE-4338): the Brain tab's Debug section
+            // ⭐ G-7 S5 follow-up (mockup ③ of better-merge-visual.svg) — the Review Source menu: the merged face, and a participant's ROLE (CGF robot blue · SimHost cube amber · IG map teal · Player gamepad green · any other node a server, grey)
+            case "review/merged": icon = new("\uf0e8", IconPalette.Teal); return true;   // Sitemap
+            case "node/cgf": icon = new("\uf544", IconPalette.Blue); return true;   // Robot
+            case "node/simhost": icon = new("\uf1b2", IconPalette.Amber); return true;   // Cube
+            case "node/ig": icon = new("\uf279", IconPalette.Teal); return true;   // Map
+            case "node/player": icon = new("\uf11b", IconPalette.Green); return true;   // Gamepad
+            case "node/other": icon = new("\uf233", IconPalette.Grey); return true;   // Server
             default: icon = Unknown; return false;
         }
     }
@@ -210,6 +217,12 @@ public static class Icons
         "section/list",
         "section/search",
         "section/selection",
-        "section/debug"
+        "section/debug",
+        "review/merged",
+        "node/cgf",
+        "node/simhost",
+        "node/ig",
+        "node/player",
+        "node/other"
     };
 }

@@ -134,34 +134,62 @@ public sealed class FederationPanel
             panelId, panelKind, ActiveMode, HasNonZeroOffset, _manager.LocalEntitiesProviderNodeId, nodes);
     }
 
+    /// <summary>⭐ G-7 S5 follow-up — whether <see cref="DrawContent"/> draws the Single-Node / Merged radio (+ its disclaimer). The Replay Browser's window does; ⛔ the editor's Federation window does not — its Source menu's rows ARE that choice (ONE control per choice).</summary>
+    public bool ShowModeRadio { get; set; } = true;
+
+    /// <summary>⭐ G-7 S5 follow-up — whether <see cref="DrawContent"/> draws the <i>Local entities shown from</i> checkboxes. ⛔ The editor's window does not: its Source menu draws them through <see cref="DrawLocalEntities"/> (ONE component, one place).</summary>
+    public bool ShowLocals { get; set; } = true;
+
+    /// <summary>
+    /// ⭐ G-7 S5 (I7, mockup ③) — <b>the ONE component</b> of <i>Local entities shown from (no network id)</i>: a header (when <paramref name="header"/>) and one checkbox per node (default every node's on). Drawn by the Replay Browser's
+    /// window (via <see cref="DrawContent"/>) AND by the editor's Source menu. ⛔ SUPERSEDED: the single "Local-Entities Provider" dropdown. 0 B per drawn frame (the label is cached per node).
+    /// </summary>
+    public void DrawLocalEntities(bool header = true)
+    {
+        if (header) Gui.TextDisabled(LocalsHeader);
+        LocalsRows.Clear();
+        _localLabels ??= new string[_nodeIds.Length]; _localNames ??= new string[_nodeIds.Length];
+        for (int i = 0; i < _nodeIds.Length; i++)
+        {
+            int nodeId = _nodeIds[i];
+            bool on = _manager.IsLocalEntitiesShown(nodeId);
+            var at = Gui.GetCursorScreenPos();
+            string name = NameOf(nodeId);
+            if (_localLabels[i] is null || !string.Equals(_localNames![i], name, StringComparison.Ordinal)) { _localNames![i] = name; _localLabels[i] = $"{name}##locals_{nodeId}"; }
+            if (Gui.Checkbox(_localLabels[i], ref on))
+                SetLocalEntitiesShown(nodeId, on);
+            if (CaptureLayout) LocalsRows.Add((nodeId, on, at.X, at.Y));
+        }
+    }
+
+    /// <summary>The header of <see cref="DrawLocalEntities"/>.</summary>
+    public const string LocalsHeader = "Local entities shown from (no network id)";
+
+    private string[]? _localLabels, _localNames;
+
+    /// <summary>A rail's observation: whether the last <see cref="DrawContent"/> drew the Single-Node / Merged radio.</summary>
+    public bool ModeRadioDrawn { get; private set; }
+
     public void DrawContent()
     {
-        // Mode radio: Single-Node | Merged
-        int modeInt = (int)ActiveMode;
-        if (Gui.RadioButton("Single-Node", ref modeInt, 0))
-            SetMode(ViewMode.SingleNode);
-        Gui.SameLine();
-        if (Gui.RadioButton("Merged View", ref modeInt, 1))
-            SetMode(ViewMode.Merged);
-
-        if (ActiveMode == ViewMode.Merged)
+        ModeRadioDrawn = ShowModeRadio;
+        if (ShowModeRadio)
         {
-            Gui.TextDisabled(MergedViewDisclaimerText);
+            // Mode radio: Single-Node | Merged
+            int modeInt = (int)ActiveMode;
+            if (Gui.RadioButton("Single-Node", ref modeInt, 0))
+                SetMode(ViewMode.SingleNode);
+            Gui.SameLine();
+            if (Gui.RadioButton("Merged View", ref modeInt, 1))
+                SetMode(ViewMode.Merged);
 
-            // ⭐ G-7 S5 (I7, mockup ③) — Local entities shown from: one checkbox per node (default every node's on). ⛔ SUPERSEDED: the single "Local-Entities Provider" dropdown.
-            Gui.TextDisabled("Local entities shown from (no network id)");
-            LocalsRows.Clear();
-            for (int i = 0; i < _nodeIds.Length; i++)
+            if (ActiveMode == ViewMode.Merged)
             {
-                int nodeId = _nodeIds[i];
-                bool on = _manager.IsLocalEntitiesShown(nodeId);
-                var at = Gui.GetCursorScreenPos();
-                if (Gui.Checkbox($"{NameOf(nodeId)}##locals_{nodeId}", ref on))
-                    SetLocalEntitiesShown(nodeId, on);
-                if (CaptureLayout) LocalsRows.Add((nodeId, on, at.X, at.Y));
+                Gui.TextDisabled(MergedViewDisclaimerText);
+                if (ShowLocals) { DrawLocalEntities(); Gui.Separator(); }
             }
-            Gui.Separator();
         }
+        else if (ShowLocals && ActiveMode == ViewMode.Merged) { DrawLocalEntities(); Gui.Separator(); }
 
         // Global causality banner
         if (HasNonZeroOffset)
