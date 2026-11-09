@@ -73,6 +73,23 @@ namespace Fdp.Toolkit.Combat.Systems
             }
         }
 
+        /// <summary>
+        /// ⭐ <c>R-2085</c> (user, `2026-11-09`: <i>"non-lethal hit never kills, just incapacitates"</i>) — the lowest health a hit of
+        /// <paramref name="effect"/> may leave: a KINETIC hit 0; a NON-LETHAL one (a baton blow or round, a stone, a stun or gas grenade, a shove)
+        /// never below the man's incapacitation line (<see cref="InjuryThresholds.IncapacitatedBelow"/>; a body with no thresholds: 1 % of its
+        /// health), so blows add up to "badly wounded" and the hit's own effect (knocked down, stunned) puts him out of action — ⛔ never dead,
+        /// and never into the incapacitated band <c>BleedOutSystem</c> drains to death. A man already below it (a lethal wound) loses nothing.
+        /// 📐 Live <c>ua-civ-escalation</c> (CE-4124): the Instigator was beaten to death by baton blows of 25.
+        /// </summary>
+        public static float NonLethalFloor(EntityRepository repo, Entity entity, in Health health, HitEffect effect)
+        {
+            if (effect == HitEffect.Kinetic) return 0f;
+            float line = repo.IsComponentTypeRegistered<InjuryThresholds>() && repo.HasComponent<InjuryThresholds>(entity)
+                ? repo.GetComponentRO<InjuryThresholds>(entity).IncapacitatedBelow * health.Max
+                : 0.01f * health.Max;
+            return MathF.Min(health.Current, MathF.Max(line, 0.01f * health.Max));
+        }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
@@ -108,7 +125,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 // Apply damage with a floor of 0.
                 ref var health = ref repo.GetComponentRW<Health>(targetEntity);
-                health.Current = MathF.Max(0f, health.Current - evt.TotalDamage);
+                health.Current = MathF.Max(NonLethalFloor(repo, targetEntity, in health, evt.Effect), health.Current - evt.TotalDamage);
 
                 // ⭐⭐ CE-3210 (hit location HL-6) — the part it landed on keeps a damage level (its share of the body's health × 255),
                 //   beside Health, written by the same owner: a man's wounds (S2: a vehicle's compartments). Added on the first part hit.

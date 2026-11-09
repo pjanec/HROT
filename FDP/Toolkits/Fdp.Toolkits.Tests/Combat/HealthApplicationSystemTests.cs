@@ -96,6 +96,48 @@ namespace Fdp.Toolkit.Combat.Tests
         // â”€â”€ SC-2: Health cannot go below zero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
+        /// ⭐ <c>R-2085</c> (CE-4124) — a NON-LETHAL hit never kills: blows of 25 on a man of 100 stop at his incapacitation line (30 here),
+        /// whatever their number; a KINETIC hit still kills; a man already below the line (a lethal wound) loses nothing to a blow.
+        /// 🔴 Red-proof: make <c>NonLethalFloor</c> return 0 ⇒ the man beaten ten times is dead.
+        /// </summary>
+        [Fact]
+        public void R2085_ANonLethalHitNeverKills_ItStopsAtTheIncapacitationLine()
+        {
+            var beaten = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(beaten, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            for (int i = 0; i < 10; i++)
+            {
+                _world.Bus.Publish(new DamageAssessedEvent { HitEntity = beaten, TotalDamage = 25f, Effect = Fdp.Toolkit.Combat.HitEffect.Blunt });
+                _world.Bus.SwapBuffers();
+                _sys.Execute(_world, 0.016f);
+            }
+            Assert.Equal(30f, _world.GetComponent<Health>(beaten).Current, 3);
+
+            var shot = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(shot, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            PublishEvent(hitEntity: shot, totalDamage: 120f);   // kinetic
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(0f, _world.GetComponent<Health>(shot).Current);
+
+            var wounded = SpawnTarget(currentHealth: 20f);
+            _world.AddComponent(wounded, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = wounded, TotalDamage = 25f, Effect = Fdp.Toolkit.Combat.HitEffect.Blunt });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(20f, _world.GetComponent<Health>(wounded).Current);
+
+            // a stun grenade's burst damage carries the warhead's non-lethal kind (AreaEffectSystem / DamageCalculationSystem) and floors too
+            Assert.Equal(Fdp.Toolkit.Combat.HitEffect.Stun, Fdp.Toolkit.Combat.Systems.AreaEffectSystem.NonLethalEffectOf(Fdp.Toolkit.Tkb.Domain.WarheadKind.Stun));
+            Assert.Equal(Fdp.Toolkit.Combat.HitEffect.Kinetic, Fdp.Toolkit.Combat.Systems.AreaEffectSystem.NonLethalEffectOf(Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive));
+            var stunned = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(stunned, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = stunned, TotalDamage = 200f, Effect = Fdp.Toolkit.Combat.HitEffect.Stun });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(30f, _world.GetComponent<Health>(stunned).Current, 3);
+        }
+
+        /// <summary>
         /// BS1-T014 SC-2: <see cref="Health.Current"/> must be clamped to 0 and never go negative.
         /// </summary>
         [Fact]

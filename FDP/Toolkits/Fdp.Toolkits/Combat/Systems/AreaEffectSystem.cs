@@ -84,6 +84,16 @@ namespace Fdp.Toolkit.Combat.Systems
         /// ⭐ <c>CE-3219</c> part 3 (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b) — a tear-gas or smoke burst asks for a cloud where it
         /// burst (the entity-creation request on the FDP bus, owner 0: the system picks); its owner drifts it, irritates with it and ends it.
         /// </summary>
+        /// <summary>⭐ <c>R-2085</c> — the hit kind a burst's DAMAGE carries: a non-lethal warhead's (the same four kinds <c>Armament.IsLethal</c>
+        /// calls non-lethal), else Kinetic. Its effect time stays 0 here — the stun is its own event below.</summary>
+        internal static HitEffect NonLethalEffectOf(Tkb.Domain.WarheadKind kind) => kind switch
+        {
+            Tkb.Domain.WarheadKind.Stun => HitEffect.Stun,
+            Tkb.Domain.WarheadKind.Irritant or Tkb.Domain.WarheadKind.Smoke => HitEffect.Irritant,
+            Tkb.Domain.WarheadKind.Blunt => HitEffect.Blunt,
+            _ => HitEffect.Kinetic,
+        };
+
         private static void RequestCloud(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w)
         {
             bool gas = w.Kind == Tkb.Domain.WarheadKind.Irritant;
@@ -214,6 +224,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 bool split = kind == AreaEffect.FragmentTarget.Person && strike is { Hits: > 0f } st
                              && SplitOverParts(repo, e, tf, burst, w, atDistance, st.Hits, exposure, armour, out armourChance);
                 var facing = ArmorModel.FacingOf(tf, burst, hull * 0.5f);
+                // ⭐ R-2085 — a NON-LETHAL warhead's burst damage (a stun or gas grenade) carries its non-lethal kind, so the Health owner's
+                //   floor applies (HealthApplicationSystem.NonLethalFloor): it never kills. Kinetic for every lethal warhead, as before.
+                var dmgEffect = NonLethalEffectOf(w.Kind);
                 if (split)
                 {
                     fragDamage = 0f;
@@ -221,12 +234,12 @@ namespace Fdp.Toolkit.Combat.Systems
                     {
                         if (_partDamage[p] <= 0f) continue;
                         fragDamage += _partDamage[p];
-                        repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = _partDamage[p], HasBodyPart = 1, BodyPart = p, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
+                        repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = _partDamage[p], HasBodyPart = 1, BodyPart = p, Effect = dmgEffect, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
                     }
-                    if (blastDamage > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = blastDamage, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
+                    if (blastDamage > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = blastDamage, Effect = dmgEffect, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
                 }
                 float total = fragDamage + blastDamage;
-                if (!split && total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });   // ⭐ CE-3237 (B-15, DS-1) — every burst event names who fired it
+                if (!split && total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total, Effect = dmgEffect, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });   // ⭐ CE-3237 (B-15, DS-1) — every burst event names who fired it
                 // ⭐ CE-3219 (civilians B-1, CV-6) — a STUN burst stuns everyone its blast reaches, for its EffectSeconds scaled by the same blast
                 //   fall-off, barrier and shadow (a wall between a man and the flash spares him). Health is untouched; the owner stores it.
                 float stunSeconds = w.Kind == Fdp.Toolkit.Tkb.Domain.WarheadKind.Stun ? w.EffectSeconds * blastFall * barrier * shadow : 0f;
