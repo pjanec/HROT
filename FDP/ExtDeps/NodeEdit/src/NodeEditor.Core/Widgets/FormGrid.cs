@@ -45,6 +45,10 @@ public static class FormGrid
     public static bool Begin(string id, string[]? labels = null, bool statusSlot = false)
         => Begin(id, labels, statusSlot, ImGuiTableFlags.None, tree: false);
 
+    /// <summary>⭐ Review §6.13 — a form with a status slot AND a fixed TRAILER slot after it (the watch eye at the end of a row); <see cref="Trailer"/> moves to it. ⛔ Only for a form whose host installed a row trailer — the layout of every other form is untouched.</summary>
+    public static bool Begin(string id, string[]? labels, bool statusSlot, bool trailerSlot)
+        => Begin(id, labels, statusSlot, ImGuiTableFlags.None, tree: false, trailerSlot && statusSlot);
+
     /// <summary>
     /// A TREE / property table — rows the caller lays out itself (tree nodes in column 1, values in column 2: <c>ImGuiPropertyTree</c>, the raw component editor) on the SAME label-column rule (§3.3):
     /// <c>min(widest + 14, max(25 % of the width, 90 px × scale))</c>, the widest learned from <see cref="Note"/> (nothing noted ⇒ the 25 % cap). ⛔ Not user-resizable — one rule, no per-table drag.
@@ -59,7 +63,7 @@ public static class FormGrid
         if (st is not null && !st.Fixed && contentWidth > st.Widest) st.Widest = contentWidth;
     }
 
-    private static bool Begin(string id, string[]? labels, bool statusSlot, ImGuiTableFlags flags, bool tree)
+    private static bool Begin(string id, string[]? labels, bool statusSlot, ImGuiTableFlags flags, bool tree, bool trailerSlot = false)
     {
         if (!States.TryGetValue(id, out var st)) States[id] = st = new State();
         float fs = ImGui.GetFontSize();
@@ -77,10 +81,11 @@ public static class FormGrid
         if (avail != st.FormWidth || widest != st.LastWidest) { st.FormWidth = avail; st.LastWidest = widest; st.Column = LabelColumn(widest, avail, scale); }
         st.StatusSlot = statusSlot;
 
-        if (!ImGui.BeginTable(id, statusSlot ? 3 : 2, flags)) return false;
+        if (!ImGui.BeginTable(id, statusSlot ? (trailerSlot ? 4 : 3) : 2, flags)) return false;
         ImGui.TableSetupColumn("##label", ImGuiTableColumnFlags.WidthFixed, st.Column);
         ImGui.TableSetupColumn("##control", ImGuiTableColumnFlags.WidthStretch);
         if (statusSlot) ImGui.TableSetupColumn("##status", ImGuiTableColumnFlags.WidthFixed, StatusSlotWidth * scale);   // §6.2: a fixed 18 px slot, always there
+        if (trailerSlot) ImGui.TableSetupColumn("##trailer", ImGuiTableColumnFlags.WidthFixed, StatusSlotWidth * scale + 4f);
         if (_depth < Stack.Length) Stack[_depth] = st;
         _depth++;
         return true;
@@ -131,6 +136,9 @@ public static class FormGrid
 
     /// <summary>Moves to the status slot (column 3) of the current row — only for a form begun with a status slot.</summary>
     public static void Status() => ImGui.TableSetColumnIndex(2);
+
+    /// <summary>Moves to the trailer slot (column 4) of the current row — only for a form begun with a trailer slot.</summary>
+    public static void Trailer() => ImGui.TableSetColumnIndex(3);
 
     public static void End()
     {

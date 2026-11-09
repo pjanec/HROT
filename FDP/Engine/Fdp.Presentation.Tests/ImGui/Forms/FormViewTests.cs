@@ -140,4 +140,55 @@ public sealed class FormViewTests : IDisposable
         }
         Assert.Equal(0, drawn);
     }
+
+    /// <summary>A stand-in host trailer: every attribute row is offered, a click toggles it.</summary>
+    private sealed class Eyes : IFormRowTrailer
+    {
+        public readonly HashSet<string> On = new();
+        public bool Offered = true;
+        public string Glyph => "E";
+        public bool Available(IReadOnlyList<Entity> selection) => Offered && selection.Count == 1;
+        public int StateOf(FormField field, IReadOnlyList<Entity> selection) => field.Attribute == null ? 0 : On.Contains(field.Attribute) ? 2 : 1;
+        public string TipOf(int state) => state == 2 ? "on" : "off";
+        public void Click(FormField field, IReadOnlyList<Entity> selection) { if (!On.Remove(field.Attribute!)) On.Add(field.Attribute!); }
+    }
+
+    /// <summary>⭐ §6.13 (RW-1, mockup ①) — the host's row trailer (the watch eye): one at the end of every ATTRIBUTE row, none on a derived row, all at ONE x, a click toggles it, nothing is added when the host offers none,
+    /// ⭐ and a steady frame with it allocates 0 B. 🔴 Red-proof: draw the trailer for a field with no attribute ⇒ the count is 3 (the expert row).</summary>
+    [Fact]
+    public void RW1_TheRowTrailer_IsOneEyePerAttributeRow_AtOneX_ClickToggles_AndCostsNothing()
+    {
+        var a = Unit("Alpha 1-1", 50);
+        var sel = new[] { a };
+        var eyes = new Eyes();
+        var view = new FormView { ExpertOpen = true, CaptureLayout = true, Trailer = eyes };
+        long drawn = 0;
+        using (var imgui = new ImGuiTestFixture())
+        for (int f = 0; f < 14; f++)
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("D1");
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            view.Draw(Form, _world, sel, editable: true);
+            if (f is 6 or 7 or 12 or 13) drawn += GC.GetAllocatedBytesForCurrentThread() - before;
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+            if (f == 8)   // click the Strength row's eye (the second attribute row)
+            {
+                var r = view.TrailerRects.Single(t => t.Field == 1);
+                var io = ImGuiNET.ImGui.GetIO();
+                io.AddMousePosEvent((r.Min.X + r.Max.X) / 2, (r.Min.Y + r.Max.Y) / 2);
+            }
+            if (f == 9) ImGuiNET.ImGui.GetIO().AddMouseButtonEvent(0, true);
+            if (f == 10) ImGuiNET.ImGui.GetIO().AddMouseButtonEvent(0, false);
+        }
+        Assert.Equal(new[] { 0, 1 }, view.TrailerRects.Select(t => t.Field).ToArray());   // Name + Strength: one eye per ATTRIBUTE row; the expert "Entity id" has no attribute
+        Assert.Equal(1, view.TrailerRects.Select(t => (int)t.Min.X).Distinct().Count());   // all at ONE x
+        Assert.Contains("Health.Current", eyes.On);                                          // the click toggled Strength
+        Assert.Equal(0, drawn);
+
+        var plain = new FormView { CaptureLayout = true };                                   // no host trailer ⇒ no column, no rects
+        using (var i2 = new ImGuiTestFixture()) { i2.NewFrame(); ImGuiNET.ImGui.Begin("D2"); plain.Draw(Form, _world, sel, true); ImGuiNET.ImGui.End(); i2.Render(); }
+        Assert.Empty(plain.TrailerRects);
+    }
 }

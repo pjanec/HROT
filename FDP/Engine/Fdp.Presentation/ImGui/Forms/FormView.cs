@@ -19,6 +19,24 @@ namespace Fdp.Presentation.Forms;
 /// marks the row (⏳ pending, ✗ refused with the reason). Read-only (a recording, a seat without the right) = the whole form disabled, nothing written.
 /// One instance per host panel (it keeps the panel's cache and the row being edited).
 /// </summary>
+/// <summary>
+/// ⭐ Review §6.13 (RW-1) — an optional row TRAILER a host installs on a <see cref="FormView"/>: one small toggle glyph at the end of every row whose field it <see cref="Wants"/> (the replica watch's eye).
+/// Generic — the view knows nothing of what it toggles. Called per row per frame: implementations allocate nothing.
+/// </summary>
+public interface IFormRowTrailer
+{
+    /// <summary>Is the trailer offered for this selection at all (a column is added to the grids only then)?</summary>
+    bool Available(IReadOnlyList<Entity> selection);
+    /// <summary>The state of <paramref name="field"/>'s trailer: 0 none (not drawn) · 1 off · 2 on.</summary>
+    int StateOf(FormField field, IReadOnlyList<Entity> selection);
+    /// <summary>The glyph drawn (a font glyph).</summary>
+    string Glyph { get; }
+    /// <summary>Hover text of a trailer in the given state (cached strings).</summary>
+    string TipOf(int state);
+    /// <summary>The trailer was clicked.</summary>
+    void Click(FormField field, IReadOnlyList<Entity> selection);
+}
+
 public sealed class FormView
 {
     /// <summary>The ONE write seam (default <see cref="Edits.Submit"/>); a rail captures the ops here.</summary>
@@ -29,6 +47,9 @@ public sealed class FormView
 
     /// <summary>⭐ U-23 / D4 — THE pick context a list's add action picks through (map pick, and a list where the context offers one); null = no add.</summary>
     public IMapPickContext? Pick { get; set; }
+    /// <summary>⭐ §6.13 — the host's row trailer (the watch eye), or null: no trailer column, the layout is untouched.</summary>
+    public IFormRowTrailer? Trailer { get; set; }
+    private bool _trailerOn;
 
     private sealed class FieldState
     {
@@ -76,7 +97,8 @@ public sealed class FormView
     public void Draw(FormDecl decl, EntityRepository world, IReadOnlyList<Entity> selection, bool editable)
     {
         if (!ReferenceEquals(decl, _decl)) Bind(decl);
-        _itemRects.Clear();
+        _itemRects.Clear(); _trailerRects.Clear();
+        _trailerOn = Trailer != null && Trailer.Available(selection);
         int stamp = Stamp(selection);
         if (stamp != _selectionStamp) { _selectionStamp = stamp; _editing = -1; foreach (var s in _state) { s.Known = false; s.Tickets.Clear(); s.Refusal = null; s.Problem = null; } }
         Refresh(world, selection);
@@ -98,7 +120,7 @@ public sealed class FormView
             {
                 if (open) { FormGrid.End(); open = false; }
                 if (section != null) Caption(section);
-                open = FormGrid.Begin(_gridIds[i], decl.Labels, statusSlot: true);
+                open = FormGrid.Begin(_gridIds[i], decl.Labels, statusSlot: true, trailerSlot: _trailerOn);
             }
             if (open) DrawField(i, world, selection, editable);
         }
@@ -107,7 +129,7 @@ public sealed class FormView
         for (int i = 0; i < decl.Fields.Count; i++) anyExpert |= decl.Fields[i].Expert && _state[i].Has;
         if (anyExpert && SectionHeader.Draw(_expertId, "Details for experts", "form/info", ExpertOpen ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None))
         {
-            if (FormGrid.Begin(_expertGridId, decl.Labels, statusSlot: true))
+            if (FormGrid.Begin(_expertGridId, decl.Labels, statusSlot: true, trailerSlot: _trailerOn))
             {
                 for (int i = 0; i < decl.Fields.Count; i++)
                     if (decl.Fields[i].Expert && _state[i].Has && !IsInlineChild(i)) DrawField(i, world, selection, editable);
@@ -307,9 +329,35 @@ public sealed class FormView
             DrawControl(k, world, sel, editable);
         }
         var clicked = FormRow.End(in rowState);
+        if (_trailerOn) DrawTrailer(i, field, sel);
         if (clicked == FormMark.Refused) for (int k = i; k <= last; k++) { _state[k].Refusal = null; _state[k].Tickets.Clear(); }
         else if (clicked == FormMark.DiffersFromType && editable) Commit(i, world, sel, field.ResetValue, null);   // ⭐ U-24 / S6 — back to the type: the attribute's reset value, never range-checked
     }
+
+    private void DrawTrailer(int i, FormField field, IReadOnlyList<Entity> sel)
+    {
+        FormGrid.Trailer();
+        int st = Trailer!.StateOf(field, sel);
+        if (st == 0) return;
+        ImGui.PushID(i);   // the row's own id scope — FormRow.End has already popped it
+        var glyph = Trailer.Glyph;
+        var pos = ImGui.GetCursorScreenPos();
+        float w = ImGui.GetContentRegionAvail().X;
+        var size = new System.Numerics.Vector2(w, ImGui.GetFrameHeight());
+        bool pressed = ImGui.InvisibleButton("##t", size);
+        float gw = ImGui.CalcTextSize(glyph).X;
+        var colour = st == 2 ? NodeEditor.Core.Widgets.IconPalette.Teal : NodeEditor.Core.Widgets.IconPalette.Muted;
+        ImGui.GetWindowDrawList().AddText(new System.Numerics.Vector2(pos.X + (w - gw) * 0.5f, pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f), ImGui.GetColorU32(colour), glyph);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(Trailer.TipOf(st));
+        if (_captureTrailer) _trailerRects.Add((i, pos, pos + size));
+        if (pressed) Trailer.Click(field, sel);
+        ImGui.PopID();
+    }
+
+    private bool _captureTrailer => CaptureLayout;
+    private readonly List<(int Field, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> _trailerRects = new();
+    /// <summary>The last frame's trailer glyph rectangles (only while <see cref="CaptureLayout"/>) — the fidelity rail measures them.</summary>
+    public IReadOnlyList<(int Field, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> TrailerRects => _trailerRects;
 
     /// <summary>The share of the control column the first control of an inline row takes (<i>Weapon</i> [Aimed ▾] <i>at</i> [pick]).</summary>
     private const float InlineShare = 0.42f;

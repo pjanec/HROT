@@ -29,8 +29,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
     /// (<see cref="OwnershipSource"/>'s answer — the merge's ONE rule, I8) and at every node holding a replica, with a replica marked as DIFFERING when it differs from the owner's beyond ε.
     /// ⭐ "Differs" is <see cref="ComponentDiffService.ComputeDiff"/> with ε = <see cref="Epsilon"/> over the scenario serializer's JSON of the component — the ONE differ (M-4), no second tolerance.
     /// A raw <see cref="Entity"/> in a value is shown as the network id it points at, so two nodes' handles compare by what they MEAN.
-    /// <para>The Details ▸ component ▸ <i>By node</i> section reads <see cref="Compute"/> (cached by the host while the merged frame is unchanged); the Event Timeline's <i>Replica differs</i> lane is
-    /// <see cref="ScanDifferingFrames"/> over the group's files (a background pass — the lane's data).</para>
+    /// <para>The Details ▸ component ▸ <i>By node</i> section reads <see cref="Compute"/> (cached by the host while the merged frame is unchanged); the Event Timeline's <i>Replica watch</i> lane is
+    /// <see cref="ScanWatchSpans"/> over the group's files (a background pass — the lane's data).</para>
     /// </summary>
     public sealed class ReplicaViews
     {
@@ -138,71 +138,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
                 return json;
             }
             catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException) { return null; }
-        }
-
-        // ── the lane (Event Timeline ▸ Replica differs · <unit>) ─────────────────────────────
-
-        /// <summary>
-        /// Does any replicated component of <paramref name="netId"/> differ between its owner and a replica, at the manager's CURRENT frames? A component counts when ≥ 2 nodes hold it and
-        /// it is recorded and not node-local; its owner is the merge's.
-        /// </summary>
-        public bool AnyReplicaDiffers(FederatedReplayManager manager, long netId, List<NodeEntity>? scratchNodes = null, List<BitMask512>? scratchMasks = null)
-        {
-            var nodes = scratchNodes ?? new List<NodeEntity>();
-            Holders(manager, netId, nodes);
-            if (nodes.Count < 2) return false;
-            var union = new BitMask512();
-            var common = new BitMask512();
-            foreach (var n in nodes)
-            {
-                var m = manager.Contexts[n.NodeId].SandboxRepo.GetComponentMask(n.Entity.Index);
-                var both = union; both.BitwiseAnd(m);
-                common.BitwiseOr(both);
-                union.BitwiseOr(m);
-            }
-            var masks = scratchMasks ?? new List<BitMask512>();
-            for (int typeId = 0; typeId < FdpConfig.MAX_COMPONENT_TYPES; typeId++)
-            {
-                if (!common.IsSet(typeId)) continue;
-                var type = ComponentTypeRegistry.GetType(typeId);
-                if (type == null || IsPerNode(type) || DataPolicyAttribute.IsNodeLocal(type) || !ComponentTypeRegistry.IsRecordable(typeId)) continue;
-                int owner = OwnerOf(manager, nodes, typeId, masks);
-                if (owner < 0) continue;
-                JsonObject? ownerJson = null;
-                foreach (var n in nodes) if (n.NodeId == owner) ownerJson = Json(manager, n, typeId);
-                if (ownerJson == null) continue;
-                foreach (var n in nodes)
-                {
-                    if (n.NodeId == owner || !manager.Contexts[n.NodeId].SandboxRepo.GetComponentMask(n.Entity.Index).IsSet(typeId)) continue;
-                    var json = Json(manager, n, typeId);
-                    if (json != null && _diff.ComputeDiff(type.Name, ownerJson, json, Epsilon)?.IsModified == true) return true;
-                }
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// ⭐ The <i>Replica differs</i> lane's data: the frames (of the PRIMARY node's recording) at which <see cref="AnyReplicaDiffers"/> holds for <paramref name="netId"/>. Runs over its OWN
-        /// <see cref="FederatedReplayManager"/> on <paramref name="paths"/> (never the shown world's sandboxes), with the same per-node <paramref name="offsetTicks"/> the shown merge applies — so a frame
-        /// here is a frame the Review shows. A background pass: cancel through <paramref name="ct"/> (the selection moved).
-        /// </summary>
-        public IReadOnlyList<int> ScanDifferingFrames(string[] paths, IReadOnlyDictionary<int, long> offsetTicks, int primaryNode, long netId, CancellationToken ct = default)
-        {
-            var frames = new List<int>();
-            using var m = FederatedReplayManager.LoadGroup(paths);
-            foreach (var kv in offsetTicks) if (m.Contexts.ContainsKey(kv.Key) && kv.Value != 0) m.SetNodeOffset(kv.Key, kv.Value);
-            if (!m.Contexts.TryGetValue(primaryNode, out var primary) || primary.Playback is not { TotalFrames: > 0 } pb) return frames;
-            var nodes = new List<NodeEntity>(); var masks = new List<BitMask512>();
-            long lastKey = long.MinValue; bool lastResult = false;
-            for (int f = 0; f < pb.TotalFrames; f++)
-            {
-                if (ct.IsCancellationRequested) break;
-                m.SetBaseWallTicks(pb.GetFrameMetadata(f).WallClockTicks);
-                long key = StateKey(m);
-                if (key != lastKey) { lastKey = key; lastResult = AnyReplicaDiffers(m, netId, nodes, masks); }
-                if (lastResult) frames.Add(f);
-            }
-            return frames;
         }
 
         // ── the replica WATCH scan (Review §6.13 RW-2, RW-3) ─────────────────────────────────

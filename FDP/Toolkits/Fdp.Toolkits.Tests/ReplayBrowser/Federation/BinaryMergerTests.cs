@@ -1047,17 +1047,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             Assert.False(views.Compute(manager, 900, typeof(NetworkAuthority))!.AnyDiffers);
         }
 
-        [Fact]
-        public void Lane_ReplicaDiffers_HasAMarkAtExactlyTheFramesAReplicaDiffers()
-        {
-            var (p1, p2) = RecordReplicaGroup(10, f => f is 5 or 6 ? f + 5 : f);         // node 2's copy lags the owner's at frames 5 and 6 only
-            var views = new ReplicaViews(new OwnershipSource(), _serializer);
-
-            var frames = views.ScanDifferingFrames(new[] { p1, p2 }, new Dictionary<int, long>(), primaryNode: 1, netId: 900);
-
-            Assert.Equal(new[] { 5, 6 }, frames);
-        }
-
         // ── §6.13 — the replica WATCH scan: persistent disagreement only ──────────────────────────────
 
         private static ReplicaWatchItem XItem(double tolerance) => new("DummyPosition.X", 0, true, tolerance, 0xFF33B3FF, "X");

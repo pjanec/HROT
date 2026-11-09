@@ -865,7 +865,7 @@ target's own entities; correctness over speed.
 policy; a component registered without `[ComponentId]`, or an `Entity` nested deeper than one struct, is missed — re-run the probe (and confirm by
 reflection) before building.
 
-### 6.13 ⭐ The replica WATCH — the "Replica differs" lane rebuilt *(behaviors, `2026-11-09`, `build-state: DESIGN` — mockup for the user's review)*
+### 6.13 ⭐ The replica WATCH — the "Replica differs" lane rebuilt *(behaviors, `2026-11-09`, `build-state: BUILT except By-node attribute view (RW-6) — see AS-BUILT — the watch` )*
 
 > 🔒 **User, `2026-11-09`:** *"could we show the diff lane for user-picked set of components only? … I am still wondering what information does this lane bring to the user"* · *"let's do visual design first, how the component picking and persistence threshold look and how it integrates into the ui"*
 
@@ -1036,6 +1036,24 @@ AR-5 is built: one walker. `ComponentJsonPath` (`FDP/Toolkits/Fdp.Toolkits/Scena
 | `ScenarioVerification.At` | one-line delegate to `Get` (kept as the checks' public name). ⚠ visible change: keys now match ignoring case, and an empty path returns the node itself | `Hrot.Editor/Director/ScenarioVerification.cs:290` |
 | not done | `OccurrenceSlotWriter.FindKey` (`Hrot.Editor.AiShared/Variables`, `:126`) is a fifth copy in another assembly; `ParamBind.SetNested` (the node `Bind` path walker) still builds missing objects itself — a different rule (creates intermediates) | |
 | rail | `ParamBinderTests.ComponentJsonPathSet_KeepsTheBindersWalkRules` (red-proved: `FindKey` made case-sensitive) |  |
+
+#### ⭐ AS-BUILT — the watch *(behaviors, `2026-11-09`, `build-state: RW-1…RW-5 BUILT · RW-6 NOT BUILT`)*
+
+RW-1 (eye, attribute or expert path), RW-2 (spans), RW-3 (one threshold, 200 ms), RW-4 (tolerance per item), RW-5 (per unit, empty ⇒ no lane) are built for BOTH hosts (the editor's Review, the Replay Browser's merged view) through the same classes. ⛔ SUPERSEDED: the always-on per-frame ticks (`ScanDifferingFrames`, `AnyReplicaDiffers`, the lane `ReplicaDifferLane`) are deleted — one lane, `ReplicaWatchLane`.
+
+| what | as built | file |
+|---|---|---|
+| model | `ReplicaWatchList` (per unit items + ONE threshold, `Version`; session state, never saved) · `ReplicaWatchItem` (path, sub-index, expert, tolerance, colour; default tolerance from the vocabulary: discrete exact, `m` 0.5, `°` 1, else ε) · `ReplicaSpan`. Lives in `Fdp.Toolkits` beside the lens (the scan needs `ReplicaViews`' private ownership/JSON helpers; the lane's two hosts both reference it) | `FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/Federation/ReplicaWatch.cs` |
+| scan | `ReplicaViews.ScanWatchSpans(paths, offsets, primary, unit, items, thresholdSeconds, ct)` — own manager + node offsets (as the old scan); per item the owner of the attribute's component (`OwnershipSource`), each other node's value through `AttributeReaders` (expert item: `ComponentJsonPath.Get` over the component's JSON), beyond the tolerance ⇒ a run; a run ends at the first agreeing frame (a one-frame blip lasts one frame interval) and is kept only if `> threshold`. A replica lacking the value is not a disagreement | `ReplicaViews.cs` (`ScanWatchSpans`) |
+| lane | `ReplicaWatchLane` (background scan, restarts on selection / group / offsets / watch `Version`; 0 B steady `Update`) · `ReviewTimelineTracks` draws one `Segment` per span in the item's colour, header eye glyph, tooltip text per the design, click seeks to the span's start | `AiShared/Review/ReplicaWatchLane.cs`, `ReviewTimelineTracks.cs` |
+| eye | `IFormRowTrailer` on `FormView` (ONE generic hook; a 4th grid column only while the host offers it — `FormGrid.Begin(…, trailerSlot)`); `ReplicaWatchEye` is the host's implementation (merged view, one networked unit, attribute rows only); reaches the forms through `EntityDetailsHostServices.RowTrailer` → `FormDetailsViewDescriptor.For(trailer)` | `Fdp.Presentation/ImGui/Forms/FormView.cs`, `NodeEditor.Core/Widgets/FormGrid.cs`, `AiShared/Review/ReplicaWatchEye.cs` |
+| settings | `ReplicaWatchSettings` popup (rows eye·icon·label·tolerance·✕, threshold with "(default)", the note, a picker over the unit's vocabulary attributes, an expert path field), opened by the lane's menu entry **Replica watch settings…** | `AiShared/Review/ReplicaWatchSettings.cs`, `ReplicaWatchKit.cs` |
+
+**Deviations / not built:**
+- ⚠ The gear is a context-menu entry on the lane (the timeline track header draws only an icon before the label — no per-track button); the eye glyph IS in the header.
+- ⛔ **RW-6 not built:** the By node header's eye and "Strength — by node" (an attribute read in `ByNodeSection`). `ByNodeSection` is still the component view.
+- ⚠ A span's end is the last DIFFERING frame; the scan's duration test uses the interval to the next frame.
+- ⚠ The old Details tables grid id is shared between with/without trailer — ImGui rebuilds the table when the column count changes (merged-view toggle).
 
 ### 6.10 Why JSON was chosen back then — and what the binary idea must not lose *(read `2026-11-08`)*
 
