@@ -207,6 +207,8 @@ public sealed class ReviewSource : IDisposable
         if (_open is not null && !inReplay && _readyOnce) { Close(); return; }
         if (_pending is not null && inReplay && _ready()) { var p = _pending; _pending = null; _readyOnce = true; Load(p); }
         if (_open is not null && Kind == ReviewSourceKind.Part) AdvancePart(dtSeconds);
+        else if (_open is not null && Kind == ReviewSourceKind.Merged) AdvanceMerged(dtSeconds);
+        else _mergedWasPlaying = false;
     }
 
     /// <summary>Loads <paramref name="opening"/> now: the manager over its files, the switch, and the world — Merged.</summary>
@@ -370,6 +372,27 @@ public sealed class ReviewSource : IDisposable
         if (gap <= 0) { if (_part.IsAtEnd) _partClockTicks = _part.GetFrameMetadata(_part.TotalFrames - 1).WallClockTicks; return; }
         if (gap > 30) { FillPartAt(target); Raise(); return; }
         for (int i = 0; i < gap && !_part.IsAtEnd; i++) _part.StepForward(world);
+    }
+
+    private double _mergedClockTicks;
+    private bool _mergedWasPlaying;
+
+    /// <summary>
+    /// ⭐ G-7 S4 (M-7) — ▶ in MERGED: the toolbar's ▶ and rate advance the group's clock; every participant steps frame by frame (<see cref="FederatedReplayManager.StepForwardAll"/> — the path the
+    /// ▶| step takes, so each step merges through <c>OnManagerTime</c> → <see cref="RefillMerged"/>, incrementally); a jump of more than 30 frames is one seek (one merge), as a part does.
+    /// While paused the clock follows the primary's frame, so a step or a scrub is where ▶ resumes from.
+    /// </summary>
+    private void AdvanceMerged(double dt)
+    {
+        if (_manager is null || Primary()?.Playback is not { TotalFrames: > 0 } pb) return;
+        if (_facade() is not { IsPaused: false } f) { _mergedWasPlaying = false; return; }
+        if (!_mergedWasPlaying) { _mergedClockTicks = CurrentWallTicks(); _mergedWasPlaying = true; }
+        _mergedClockTicks += dt * Math.Max(0.01f, f.TimeScale) * TimeSpan.TicksPerSecond;
+        int target = FrameAtOrBefore(pb, (long)_mergedClockTicks);
+        int gap = target - pb.CurrentFrame;
+        if (gap <= 0) { if (pb.IsAtEnd) _mergedClockTicks = pb.GetFrameMetadata(pb.TotalFrames - 1).WallClockTicks; return; }
+        if (gap > 30) { _manager.SetBaseWallTicks(pb.GetFrameMetadata(target).WallClockTicks); return; }   // a seek: one merge
+        for (int i = 0; i < gap && !pb.IsAtEnd; i++) _manager.StepForwardAll();                            // a step each: one merge each
     }
 
     // ── the transport's operations (ReviewSourceTransport calls these) ───────────────────────

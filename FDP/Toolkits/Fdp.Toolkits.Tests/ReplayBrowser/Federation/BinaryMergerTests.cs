@@ -32,9 +32,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
         private readonly string _dir;
         private readonly ScenarioSerializer _serializer;
         private readonly Guid _exercise = Guid.NewGuid();
+        private readonly Xunit.Abstractions.ITestOutputHelper _out;
 
-        public BinaryMergerTests()
+        public BinaryMergerTests(Xunit.Abstractions.ITestOutputHelper output)
         {
+            _out = output;
             ComponentTypeRegistry.Clear();
             _dir = Path.Combine(Path.GetTempPath(), $"BinMerge_{Guid.NewGuid():N}");
             Directory.CreateDirectory(_dir);
@@ -553,6 +555,371 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var a = FindNet(bin, 500);
             Assert.Equal(3f, bin.GetComponent<DummyPosition>(a).X);
             Assert.False(bin.HasComponent<MergerNodeLocalProbe>(a));           // ⭐ DataPolicy.NodeLocal ⇒ skipped
+        }
+
+        // ── S4 · I3 — the INCREMENTAL merge (§6.6 "play" rails, §6.12 S4) ───────────────────────────────
+
+        private static long Wall(int frame) => (frame + 1) * 1_000_000L;
+
+        /// <summary>A node's recording as a PLAY: frame 0 a keyframe, then DELTAS (a keyframe every <paramref name="keyEvery"/>), the sim clock ticking once per frame — what a real recording looks like (<see cref="Record"/> is keyframes on a frozen clock).</summary>
+        private string RecordPlay(int nodeId, int frames, Action<EntityRepository, int> step, int keyEvery = 8)
+        {
+            var path = Path.Combine(_dir, $"play{nodeId}_{Guid.NewGuid():N}.fdp");
+            var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)_exercise, NodeId = (Fdp.Core.NodeId)nodeId };
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<NetworkAuthority>();
+            repo.RegisterComponent<DummyPosition>();
+            repo.RegisterComponent<GuidedTarget>();
+            repo.RegisterComponent<UnitRoster>();
+            repo.RegisterComponent<MergerNodeLocalProbe>();
+            repo.RegisterComponent<DescriptorOwnership>();
+            repo.RegisterComponent<ChildMap>();
+            uint prevTick = 0;
+            using (var rec = new AsyncRecorder(path, meta))
+                for (int f = 0; f < frames; f++)
+                {
+                    repo.Tick();
+                    step(repo, f);
+                    if (f == 0 || (keyEvery > 0 && f % keyEvery == 0)) rec.CaptureKeyframe(repo, Wall(f), blocking: true, eventBus: repo.Bus);
+                    else rec.CaptureFrame(repo, prevTick, Wall(f), blocking: true, eventBus: repo.Bus);
+                    prevTick = repo.GlobalVersion > 0 ? repo.GlobalVersion - 1 : 0;   // the harness' convention: a write at the CURRENT version is caught by the next delta
+                    repo.Bus.SwapBuffers();
+                }
+            File.WriteAllText(path + ".meta.json", MetadataSerializer.Serialize(meta));
+            return path;
+        }
+
+        /// <summary>A networked unit whose recorded ownership says <paramref name="owner"/> (every merge below reads the RECORD — the delta frames carry no authority masks).</summary>
+        private static Entity OwnedUnit(EntityRepository r, int net, int owner, int node)
+        {
+            var e = r.CreateEntity();
+            r.AddComponent(e, new NetworkIdentity { Value = net });
+            r.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = owner, LocalNodeId = (Fdp.Core.NodeId)node });
+            return e;
+        }
+
+        private static void Move(EntityRepository r, int net, float x)
+        {
+            var e = FindNet(r, net);
+            if (!e.IsNull && r.HasComponent<DummyPosition>(e)) r.SetComponent(e, new DummyPosition { X = x });
+        }
+
+        private static readonly long HandoverKey = OwnershipExtensions.PackKey(HandoverDescriptor, 0);
+
+        /// <summary>
+        /// The play fixture: node 1 owns 40 units (positions), a holder of a raw handle (101 → 102, which dies at frame 10), a ChildMap (managed, remapped), a LOCAL entity, and 300 (whose
+        /// position BOTH nodes hold — node 1's 10, node 2's 20 — owned by node 1 until frame 18, by node 2 after: only the DescriptorOwnership moves); node 2 owns 200..209 and holds a
+        /// ghost of 100 that its 200 points at. Moves, a birth (150), a death, a removed component and a late handle — every kind of change a merge must follow.
+        /// </summary>
+        private (string p1, string p2) RecordPlayGroup(int frames = 24)
+        {
+            var p1 = RecordPlay(1, frames, (r, f) =>
+            {
+                if (f == 0)
+                {
+                    for (int i = 100; i < 140; i++) { var u = OwnedUnit(r, i, 1, 1); r.AddComponent(u, new DummyPosition { X = i }); }
+                    r.AddComponent(FindNet(r, 101), new GuidedTarget { TargetId = FindNet(r, 102) });
+                    r.AddComponent(FindNet(r, 110), new ChildMap { InstanceToEntity = new Dictionary<int, Entity> { [3] = FindNet(r, 111) } });
+                    var u300 = OwnedUnit(r, 300, 1, 1); r.AddComponent(u300, new DummyPosition { X = 10 }); r.AddComponent(u300, new DescriptorOwnership().WithOwner(HandoverKey, 1));
+                    var local = r.CreateEntity(); r.AddComponent(local, new DummyPosition { X = 7000 });
+                    return;
+                }
+                for (int i = 100; i < 140; i++) if ((i + f) % 7 == 0) Move(r, i, i + f * 0.5f);
+                if (f == 8) r.AddComponent(FindNet(r, 105), new GuidedTarget { TargetId = FindNet(r, 106) });
+                if (f == 10) r.DestroyEntity(FindNet(r, 102));
+                if (f == 12) { var u = OwnedUnit(r, 150, 1, 1); r.AddComponent(u, new DummyPosition { X = 150 }); }
+                if (f == 14) r.RemoveComponent<DummyPosition>(FindNet(r, 103));
+                if (f == 18) r.SetManagedComponent(FindNet(r, 300), new DescriptorOwnership().WithOwner(HandoverKey, 2));
+                if (f == 20) { for (int i = 0; i <= r.MaxEntityIndex; i++) { var e = new Entity(i, r.GetMetadata(i).Generation); if (r.IsAlive(e) && !r.HasComponent<NetworkIdentity>(e) && r.HasComponent<DummyPosition>(e)) r.SetComponent(e, new DummyPosition { X = 7001 }); } }
+            });
+            var p2 = RecordPlay(2, frames, (r, f) =>
+            {
+                if (f == 0)
+                {
+                    for (int i = 200; i < 210; i++) { var u = OwnedUnit(r, i, 2, 2); r.AddComponent(u, new DummyPosition { X = i }); }
+                    var ghost = OwnedUnit(r, 100, 1, 2); r.AddComponent(ghost, new DummyPosition { X = -1 });
+                    r.AddComponent(FindNet(r, 200), new GuidedTarget { TargetId = ghost });
+                    var g300 = OwnedUnit(r, 300, 1, 2); r.AddComponent(g300, new DummyPosition { X = 20 }); r.AddComponent(g300, new DescriptorOwnership().WithOwner(HandoverKey, 1));
+                    return;
+                }
+                for (int i = 200; i < 210; i++) if ((i + f) % 5 == 0) Move(r, i, i + f * 0.25f);
+                if (f == 18) r.SetManagedComponent(FindNet(r, 300), new DescriptorOwnership().WithOwner(HandoverKey, 2));
+            });
+            return (p1, p2);
+        }
+
+        /// <summary>The two worlds hold the same merge: every network id has the same components (presence + unmanaged bytes with handles read by network id) and the same locals.</summary>
+        private static void AssertSameMergedWorld(EntityRepository inc, EntityRepository full, int frame)
+        {
+            Assert.Equal(full.EntityCount, inc.EntityCount);
+            var nets = new List<long>();
+            for (long n = 100; n < 160; n++) nets.Add(n);
+            for (long n = 200; n < 210; n++) nets.Add(n);
+            nets.Add(300);
+            foreach (long n in nets)
+            {
+                var ie = FindNet(inc, n); var fe = FindNet(full, n);
+                Assert.True(ie.IsNull == fe.IsNull, $"frame {frame}: net {n} alive in one world only");
+                if (ie.IsNull) continue;
+                Assert.True(inc.GetComponentMask(ie.Index).Equals(full.GetComponentMask(fe.Index)), $"frame {frame}: net {n} holds a different set of components");
+                foreach (int typeId in ComponentTypeRegistry.GetAllIds())
+                {
+                    var type = ComponentTypeRegistry.GetType(typeId)!;
+                    if (!type.IsValueType) continue;
+                    Assert.True(ValueByNetId(full, fe, typeId) == ValueByNetId(inc, ie, typeId), $"frame {frame}: net {n} {type.Name} differs");
+                }
+                if (inc.HasComponent<ChildMap>(ie))
+                {
+                    var a = ManagedOf<ChildMap>(inc, ie).InstanceToEntity; var b = ManagedOf<ChildMap>(full, fe).InstanceToEntity;
+                    Assert.Equal(b.Count, a.Count);
+                    foreach (var kv in b) Assert.Equal(NetOf(full, kv.Value), NetOf(inc, a[kv.Key]));
+                }
+                if (inc.HasComponent<DescriptorOwnership>(ie))
+                    Assert.Equal(ManagedOf<DescriptorOwnership>(full, fe).TryGetOwner(HandoverKey, out int fo) ? fo : -1, ManagedOf<DescriptorOwnership>(inc, ie).TryGetOwner(HandoverKey, out int io) ? io : -1);
+            }
+            Assert.Equal(LocalXs(full), LocalXs(inc));
+        }
+
+        private static T ManagedOf<T>(EntityRepository r, Entity e) where T : class => (T)r.GetManagedComponentByTypeId(e, ComponentTypeRegistry.GetId(typeof(T)));
+
+        private static string LocalXs(EntityRepository r)
+        {
+            var xs = new List<float>();
+            for (int i = 0; i <= r.MaxEntityIndex; i++)
+            {
+                var e = new Entity(i, r.GetMetadata(i).Generation);
+                if (r.IsAlive(e) && !r.HasComponent<NetworkIdentity>(e) && r.HasComponent<DummyPosition>(e)) xs.Add(r.GetComponent<DummyPosition>(e).X);
+            }
+            xs.Sort();
+            return string.Join(",", xs);
+        }
+
+        private int MergeAndCompare(FederatedReplayManager manager, BinaryMerger inc, EntityRepository incTarget, int frame)
+        {
+            inc.Merge(manager, incTarget);
+            using var full = NewTarget();
+            var oracle = new BinaryMerger(RecordedOwnership());      // a fresh merger: the first pass is the FULL pass
+            oracle.Merge(manager, full);
+            AssertSameMergedWorld(incTarget, full, frame);
+            Assert.Equal(oracle.Paradoxes.Count, inc.Paradoxes.Count);
+            return inc.LastComponentsCopied;
+        }
+
+        /// <summary>
+        /// ⭐ S4 rail (a) — THE ORACLE OVER PLAY: stepping the recording forward frame by frame, then seeking back and playing on, the INCREMENTAL merge's world equals a FULL pass's at every
+        /// frame (component set + unmanaged bytes with handles by network id + managed ChildMap / ownership record + locals). And it really is incremental: it copies far less than a full pass.
+        /// 🔴 Mutations: <c>Moved</c> returning false ⇒ a moved position is never copied ⇒ red · <c>Moved</c> returning true ⇒ the saving rail below reds.
+        /// </summary>
+        [Fact]
+        public void Incremental_Oracle_OverPlay_EqualsAFullPassAtEveryFrame_ForwardBackAndSeeks()
+        {
+            var (p1, p2) = RecordPlayGroup();
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+            using var bin = NewTarget();
+            var merger = new BinaryMerger(RecordedOwnership());
+
+            manager.SetBaseWallTicks(Wall(0));
+            int firstCopied = MergeAndCompare(manager, merger, bin, 0);
+            long incrementalCopies = 0, frames = 0;
+            for (int f = 1; f < 24; f++)
+            {
+                manager.StepForwardAll();
+                incrementalCopies += MergeAndCompare(manager, merger, bin, f); frames++;
+            }
+            Assert.True(incrementalCopies < firstCopied * frames / 2, $"the incremental pass copied {incrementalCopies} components over {frames} frames; a full pass copies {firstCopied} each");
+
+            // a seek BACK (versions say nothing then): a full copy for the node, same world
+            manager.SetBaseWallTicks(Wall(5));
+            MergeAndCompare(manager, merger, bin, 5);
+            for (int f = 6; f < 14; f++) { manager.StepForwardAll(); MergeAndCompare(manager, merger, bin, f); }
+            // a seek forward across the death (102), the birth (150) and the handover (300), then back one step at a time
+            manager.SetBaseWallTicks(Wall(20));
+            MergeAndCompare(manager, merger, bin, 20);
+            for (int f = 19; f >= 16; f--) { manager.StepBackwardAll(); MergeAndCompare(manager, merger, bin, f); }
+            Assert.Equal(10f, bin.GetComponent<DummyPosition>(FindNet(bin, 300)).X);          // before the handover: node 1's
+            manager.SetBaseWallTicks(Wall(23));
+            MergeAndCompare(manager, merger, bin, 23);
+            Assert.Equal(20f, bin.GetComponent<DummyPosition>(FindNet(bin, 300)).X);          // after: node 2's
+        }
+
+        /// <summary>
+        /// ⭐ S4 rail (b) — 0 B PER STEADY MERGED FRAME (R-2084, the CE-2394 shape): over frames where only UNMANAGED chunks changed, and over frames where NOTHING changed, a merge allocates NOTHING.
+        /// The managed component with handles (a remapped <c>ChildMap</c>) and the cross-node handle are in the fixture, so a per-frame remap copy would show here.
+        /// 🔴 Mutations: a <c>new List</c> in <c>Merge</c> · <c>Moved</c> returning true ⇒ the ChildMap is rebuilt every frame ⇒ red.
+        /// </summary>
+        [Fact]
+        public void Incremental_Steady_AllocatesZeroBytes_WhetherNothingChangedOrOnlyUnmanagedChunksDid()
+        {
+            var p1 = RecordPlay(1, 30, (r, f) =>
+            {
+                if (f == 0)
+                {
+                    for (int i = 100; i < 160; i++) { var u = OwnedUnit(r, i, 1, 1); r.AddComponent(u, new DummyPosition { X = i }); }
+                    r.AddComponent(FindNet(r, 101), new GuidedTarget { TargetId = FindNet(r, 102) });
+                    r.AddComponent(FindNet(r, 110), new ChildMap { InstanceToEntity = new Dictionary<int, Entity> { [3] = FindNet(r, 111) } });
+                    var local = r.CreateEntity(); r.AddComponent(local, new DummyPosition { X = 7000 });
+                    return;
+                }
+                if (f < 10) for (int i = 100; i < 160; i++) if ((i + f) % 3 == 0) Move(r, i, i + f);   // frames 1..9: only positions move; 10..29: nothing changes
+            }, keyEvery: 0);   // ⚠ no mid-recording keyframe: a keyframe RESTORES every chunk (M4) — everything moved, a managed remap legitimately allocates
+            var p2 = RecordPlay(2, 30, (r, f) =>
+            {
+                if (f != 0) return;
+                var ghost = OwnedUnit(r, 100, 1, 2); r.AddComponent(ghost, new DummyPosition { X = -1 });
+                var u = OwnedUnit(r, 200, 2, 2); r.AddComponent(u, new DummyPosition { X = 200 }); r.AddComponent(u, new GuidedTarget { TargetId = ghost });
+            }, keyEvery: 0);
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+            using var bin = NewTarget();
+            var merger = new BinaryMerger(RecordedOwnership());
+
+            manager.SetBaseWallTicks(Wall(0));
+            merger.Merge(manager, bin);
+            int fullCopies = merger.LastComponentsCopied;
+
+            long bytes = 0; int changedFrames = 0; var perFrame = new List<string>();
+            for (int f = 1; f < 10; f++)                                                        // ① only unmanaged chunks changed
+            {
+                manager.StepForwardAll();
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                merger.Merge(manager, bin);
+                long used = GC.GetAllocatedBytesForCurrentThread() - before;
+                perFrame.Add($"f{f}:{used}");
+                if (f >= 4) { bytes += used; changedFrames++; Assert.True(merger.LastComponentsCopied > 0 && merger.LastComponentsCopied < fullCopies, $"frame {f}: copied {merger.LastComponentsCopied} of {fullCopies}"); }
+            }
+            Assert.True(bytes == 0L, "bytes per changed frame: " + string.Join(" ", perFrame));
+
+            bytes = 0; int quietFrames = 0; perFrame.Clear();
+            for (int f = 10; f < 30; f++)                                                       // ② nothing changed
+            {
+                manager.StepForwardAll();
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                merger.Merge(manager, bin);
+                long used = GC.GetAllocatedBytesForCurrentThread() - before;
+                perFrame.Add($"f{f}:{used}");
+                if (f >= 14) { bytes += used; quietFrames++; Assert.Equal(0, merger.LastComponentsCopied); Assert.True(merger.LastComponentsSkipped > 0); }
+            }
+            Assert.True(bytes == 0L, "bytes per quiet frame: " + string.Join(" ", perFrame));
+            Assert.True(changedFrames >= 5 && quietFrames >= 10);
+        }
+
+        /// <summary>
+        /// ⭐ S4 rail (c) — THE SWEEP HAZARD (§6.12 S1 note): the holder's own chunk did NOT change (its handle is the same bytes in its sandbox), but the entity it names died — the incremental
+        /// pass destroys the target entity and must re-remap the holder, as a full pass does in the same call: the handle becomes <c>Null</c> (a paradox, §7.6), not a dead target handle.
+        /// 🔴 Mutation: <c>_structural</c> never set ⇒ the holder keeps the destroyed entity's handle ⇒ red.
+        /// </summary>
+        [Fact]
+        public void Sweep_ADestroyedTargetsHolder_IsReRemapped_ByTheIncrementalPass()
+        {
+            var p1 = RecordPlay(1, 6, (r, f) =>
+            {
+                if (f == 0)
+                {
+                    var holder = OwnedUnit(r, 400, 1, 1); r.AddComponent(holder, new DummyPosition { X = 1 });
+                    var victim = OwnedUnit(r, 401, 1, 1); r.AddComponent(victim, new DummyPosition { X = 2 });
+                    r.AddComponent(holder, new GuidedTarget { TargetId = victim });
+                }
+                if (f == 3) r.DestroyEntity(FindNet(r, 401));          // the holder is not touched: its GuidedTarget chunk stays as it was
+            });
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1 });
+            using var bin = NewTarget();
+            var merger = new BinaryMerger(RecordedOwnership());
+
+            manager.SetBaseWallTicks(Wall(0));
+            merger.Merge(manager, bin);
+            var holderE = FindNet(bin, 400);
+            var victimE = FindNet(bin, 401);
+            Assert.Equal(victimE, bin.GetComponent<GuidedTarget>(holderE).TargetId);       // alive: the holder names the target entity of 401
+            Assert.Equal(0, merger.Paradoxes.Count);
+
+            for (int f = 1; f < 6; f++)
+            {
+                manager.StepForwardAll();
+                merger.Merge(manager, bin);
+                if (f < 3) { Assert.False(FindNet(bin, 401).IsNull); continue; }
+                Assert.True(FindNet(bin, 401).IsNull, $"frame {f}: 401 is gone from every node");
+                Assert.Equal(Entity.Null, bin.GetComponent<GuidedTarget>(holderE).TargetId);   // ⭐ re-remapped: not the dead target's handle
+                Assert.Equal(1, merger.Paradoxes.Count);                                       // … and said (§7.6)
+            }
+            Assert.Equal(holderE, FindNet(bin, 400));                                          // the holder kept its entity throughout
+        }
+
+        /// <summary>
+        /// ⭐ S4 — an OWNER CHANGE re-copies even when no source chunk moved: both nodes hold node-constant positions (10, 20); only the ownership RECORD moves at frame 1 (a managed chunk), and the
+        /// merged position switches from node 1's to node 2's.
+        /// 🔴 Mutation: the <c>last.IsSet(typeId)</c> test dropped from the skip ⇒ the old owner's value stays ⇒ red.
+        /// </summary>
+        [Fact]
+        public void Owner_AHandoverWhoseComponentChunkDidNotMove_StillSwitchesTheSource()
+        {
+            Action<EntityRepository, int, int, float> step = (r, node, f, x) =>
+            {
+                if (f == 0) { var u = OwnedUnit(r, 50, 1, node); r.AddComponent(u, new DummyPosition { X = x }); r.AddComponent(u, new DescriptorOwnership().WithOwner(HandoverKey, 1)); }
+                if (f == 1) r.SetManagedComponent(FindNet(r, 50), new DescriptorOwnership().WithOwner(HandoverKey, 2));
+            };
+            var p1 = RecordPlay(1, 4, (r, f) => step(r, 1, f, 10f));
+            var p2 = RecordPlay(2, 4, (r, f) => step(r, 2, f, 20f));
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+            using var bin = NewTarget();
+            var merger = new BinaryMerger(RecordedOwnership());
+
+            manager.SetBaseWallTicks(Wall(0));
+            merger.Merge(manager, bin);
+            Assert.Equal(10f, bin.GetComponent<DummyPosition>(FindNet(bin, 50)).X);
+            manager.StepForwardAll();
+            merger.Merge(manager, bin);
+            Assert.Equal(20f, bin.GetComponent<DummyPosition>(FindNet(bin, 50)).X);            // ⭐ the record moved, the position chunk did not
+            manager.StepForwardAll();
+            merger.Merge(manager, bin);
+            Assert.Equal(20f, bin.GetComponent<DummyPosition>(FindNet(bin, 50)).X);
+        }
+
+        /// <summary>
+        /// ⭐ S4 — THE COST, measured (design §6.12 S4 row): the largest exercise reachable from a test — 3 nodes, 3 000 units each (9 000 entities, one position each, a handle holder per 10th), 10 % of the
+        /// positions moving per frame. Prints the FULL pass and the INCREMENTAL step (ms per merged frame, merge only — the playback's own step is not counted) and asserts only generous ceilings.
+        /// </summary>
+        [Fact]
+        public void Incremental_Cost_OnA9000EntityExercise_IsMeasured()
+        {
+            const int perNode = 3000, frames = 24;
+            string P(int node) => RecordPlay(node, frames, (r, f) =>
+            {
+                int baseNet = node * 10_000;
+                if (f == 0)
+                {
+                    for (int i = 0; i < perNode; i++)
+                    {
+                        var u = OwnedUnit(r, baseNet + i, node, node); r.AddComponent(u, new DummyPosition { X = i });
+                        if (i % 10 == 0 && i > 0) r.AddComponent(u, new GuidedTarget { TargetId = FindNet(r, baseNet + i - 1) });
+                    }
+                    return;
+                }
+                for (int i = f % 10; i < perNode; i += 10) Move(r, baseNet + i, i + f);
+            }, keyEvery: 0);
+            using var manager = FederatedReplayManager.LoadGroup(new[] { P(1), P(2), P(3) });
+            using var bin = NewTarget();
+            var merger = new BinaryMerger(RecordedOwnership());
+
+            manager.SetBaseWallTicks(Wall(0));
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            merger.Merge(manager, bin);
+            double fullMs = sw.Elapsed.TotalMilliseconds;
+            int fullCopies = merger.LastComponentsCopied;
+            Assert.Equal(9000 + Junk, bin.EntityCount);
+
+            double total = 0; long copies = 0; int n = 0;
+            for (int f = 1; f < frames; f++)
+            {
+                manager.StepForwardAll();
+                sw.Restart();
+                merger.Merge(manager, bin);
+                double ms = sw.Elapsed.TotalMilliseconds;
+                if (f >= 4) { total += ms; copies += merger.LastComponentsCopied; n++; }
+            }
+            double perFrame = total / n;
+            _out.WriteLine($"MEASURED 9 000 entities (3 nodes x 3 000), 10% moving/frame: full pass {fullMs:F1} ms ({fullCopies} components) | incremental {perFrame:F2} ms/frame ({copies / n} components/frame, {merger.LastComponentsSkipped} skipped last frame)");
+            Assert.True(perFrame < fullMs, $"incremental {perFrame:F2} ms is not cheaper than the full pass {fullMs:F2} ms");
+            Assert.True(perFrame < 100, $"incremental {perFrame:F2} ms/frame");
         }
 
         [Fact]

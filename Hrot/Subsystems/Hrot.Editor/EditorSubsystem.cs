@@ -3961,9 +3961,7 @@ namespace Hrot.Editor
             Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
             if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
             if (_timeTransport?.RunChoice is { } presetsChoice) presetsChoice.EditPresets = () => _parametersDrawer?.RequestOpen();
-            // ⭐ Next_2 A-9 — while the Review shows the MERGED world, THE toolbar ▶ greys with the AAR segment's reason (it would drive the cluster clock, which moves nothing there)
-            if (_timeTransport?.RunChoice is { } reviewChoice)
-                reviewChoice.HostPlayDisabledReason = () => _reviewSource is { Kind: Hrot.Editor.Review.ReviewSourceKind.Merged } ? Hrot.Editor.Review.ReviewSourceTransport.MergedPlayReason : null;   // ⭐ CE-3391 — the ▾ menu's Edit presets… opens Details ▸ Scenario ▸ Parameters
+            // ⭐ G-7 S4 (M-7) — the toolbar ▶ is ENABLED over the MERGED Review too: ReviewSource.Update plays every participant and merges each frame. ⛔ SUPERSEDED: Next_2 A-9's HostPlayDisabledReason (▶ greyed in Merged)
 
             // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
             Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,

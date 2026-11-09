@@ -50,22 +50,31 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         {
             extracts.Clear();
             int primary = PrimaryOwner(manager, nodes);
-            nodes.Sort((a, b) =>
+            // ⭐ S4 (R-2084) — an in-place insertion sort (a handful of nodes): no comparison delegate, no closure, 0 B per call
+            for (int i = 1; i < nodes.Count; i++)
             {
-                bool aIsPrimary = a.NodeId == primary, bIsPrimary = b.NodeId == primary;
-                if (aIsPrimary && !bIsPrimary) return -1;
-                if (bIsPrimary && !aIsPrimary) return 1;
-                return a.NodeId.CompareTo(b.NodeId);
-            });
+                var x = nodes[i];
+                int j = i - 1;
+                while (j >= 0 && Before(x, nodes[j], primary)) { nodes[j + 1] = nodes[j]; j--; }
+                nodes[j + 1] = x;
+            }
 
             var claimed = new BitMask512();
-            foreach (var n in nodes)
+            for (int ni = 0; ni < nodes.Count; ni++)
             {
+                var n = nodes[ni];
                 var owned = OwnedBy(manager.Contexts[n.NodeId].SandboxRepo, n.Entity, n.NodeId);
                 owned.BitwiseAndNot(claimed);
                 claimed.BitwiseOr(owned);
                 extracts.Add(owned);
             }
+        }
+
+        private static bool Before(NodeEntity a, NodeEntity b, int primary)
+        {
+            bool aIsPrimary = a.NodeId == primary, bIsPrimary = b.NodeId == primary;
+            if (aIsPrimary != bIsPrimary) return aIsPrimary;
+            return a.NodeId < b.NodeId;
         }
 
         /// <summary>
@@ -127,8 +136,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         {
             int typeId = ComponentTypeRegistry.GetId(typeof(NetworkAuthority));
             if (typeId < 0) return -1;
-            foreach (var n in nodes)
+            for (int i = 0; i < nodes.Count; i++)
             {
+                var n = nodes[i];
                 var repo = manager.Contexts[n.NodeId].SandboxRepo;
                 if (!repo.GetComponentMask(n.Entity.Index).IsSet(typeId)) continue;
                 return repo.GetComponent<NetworkAuthority>(n.Entity).PrimaryOwnerId;

@@ -254,7 +254,6 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             // can coordinate with the federation manager without knowing about it.
             // ⭐ RB-1 — the panel's load and POST /replay are ONE path (OpenGroup).
             _timelinePanel.OnLoadGroup = OpenGroup;
-            _timelinePanel.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
             // ⭐ CE-3330 T13 (DAR row 34, R-3058) — the viewer's axis toggle on its own transport row; the event timeline follows it
             _timelinePanel.AxisIsSim = () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
             _timelinePanel.ToggleAxis = () => Axis = Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim

@@ -27,6 +27,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         private readonly Dictionary<int, ReplayBrowserContext> _contexts;
         private readonly Dictionary<int, long> _nodeOffsets;
         private bool _disposed;
+        private ReplayBrowserContext[] _ctxArr = Array.Empty<ReplayBrowserContext>();
+        private int[] _idArr = Array.Empty<int>();
+
+        /// <summary>⭐ G-7 S4 — the nodes as ARRAYS (ascending node id), so the per-frame merge walks them without an enumerator (0 B, R-2084). Fixed once the group is loaded.</summary>
+        internal int NodeCount => _ctxArr.Length;
+        internal int NodeIdAt(int i) => _idArr[i];
+        internal ReplayBrowserContext ContextAt(int i) => _ctxArr[i];
 
         /// <summary>Per-node <see cref="ReplayBrowserContext"/> instances keyed by NodeId.</summary>
         public IReadOnlyDictionary<int, ReplayBrowserContext> Contexts { get; }
@@ -60,6 +67,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             NodeOffsets = _nodeOffsets;
             ExerciseId = (Fdp.Core.ExerciseId)exerciseId;
             LocalEntitiesProviderNodeId = (Fdp.Core.NodeId)(lowestNodeId);
+            _idArr = _contexts.Keys.OrderBy(k => k).ToArray();
+            _ctxArr = new ReplayBrowserContext[_idArr.Length];
+            for (int i = 0; i < _idArr.Length; i++) _ctxArr[i] = _contexts[_idArr[i]];
         }
 
         /// <summary>
@@ -227,6 +237,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
                 ctx.Dispose();
             _contexts.Clear();
             _nodeOffsets.Clear();
+            _ctxArr = Array.Empty<ReplayBrowserContext>();
+            _idArr = Array.Empty<int>();
         }
 
         private void ThrowIfDisposed()
