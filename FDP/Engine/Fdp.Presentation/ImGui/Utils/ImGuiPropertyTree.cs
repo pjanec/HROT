@@ -436,6 +436,9 @@ public static class ImGuiPropertyTree
         // no longer block foldability for all renderer-equipped types here.  Leaf-like
         // compact types (Vector2/3/4, Quaternion) are already handled above by IsLeafType.
         if (IsCollectionType(t))      return true;
+        // ⭐ CE-4351 — an [InlineArray] buffer's only field is private, so it has no members to show — it folds, and the recursion lists its elements
+        //   (⛔ it drew as its type name: BrainJournal.Entries read "Fdp.Toolkit.Behavior.Diagnostics.BrainJournalEntries")
+        if (t.IsDefined(typeof(System.Runtime.CompilerServices.InlineArrayAttribute), false)) return true;
         return GetMembers(t).Length > 0;
     }
 
