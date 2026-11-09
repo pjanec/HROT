@@ -245,6 +245,33 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, mem.Count);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2232</c> / CE-4035 G-5 — the authored list is MERGED into what the unit already knows: an attack order's target seeded on
+        /// the first tick survives the file's (here empty, then one-entry) list. 📐 Live <c>ua-technical-scoot</c>: the write replaced the
+        /// memory and the technicals never knew the tank. 🔴 Red-proof: start from a fresh memory ⇒ the seeded target is gone.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2232_TheAuthoredTargets_MergeIntoWhatTheUnitAlreadyKnows()
+        {
+            var seeded = CreateNetworkedEntity(111);
+            var authored = CreateNetworkedEntity(222);
+            _repo.RegisterComponent<TargetMemory>();
+            var unit = _repo.CreateEntity();
+            var mem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref mem, (long)seeded.PackedValue, 5f, 6f, 1f, 1);
+            _repo.AddComponent(unit, mem);
+            var intent = new InitialTargetsIntent();
+            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(222), PosX = 3f, PosY = 4f, Score = 0.9f });
+            _repo.SetManagedComponent(unit, intent);
+
+            CreateAndStartSystem().Execute(_repo, 0.016f);
+
+            var after = _repo.GetComponent<TargetMemory>(unit);
+            Assert.Equal(2, after.Count);
+            Assert.Equal((long)seeded.PackedValue, after.EntityIds[0]);
+            Assert.Equal((long)authored.PackedValue, after.EntityIds[1]);
+        }
+
         // ── CS014-T01: UnitSubordinate + UnitRoster written when commander in map ──
 
         [Fact]
