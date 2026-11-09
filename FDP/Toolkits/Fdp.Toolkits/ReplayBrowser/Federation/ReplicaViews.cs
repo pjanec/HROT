@@ -76,16 +76,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         }
 
         private static Entity Find(EntityRepository repo, long netId)
-        {
-            int idType = ComponentTypeRegistry.GetId(typeof(NetworkIdentity));
-            if (idType < 0) return Entity.Null;
-            for (int i = 0; i <= repo.MaxEntityIndex; i++)
-            {
-                var e = new Entity(i, repo.GetMetadata(i).Generation);
-                if (repo.IsAlive(e) && repo.GetComponentMask(i).IsSet(idType) && repo.GetComponent<NetworkIdentity>(e).Value == netId) return e;
-            }
-            return Entity.Null;
-        }
+            => netId is > 0 and <= int.MaxValue ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(repo, (int)netId) : Entity.Null;   // ⭐ BP-508 — the ONE resolver
 
         /// <summary>The node whose record / mask supplies <paramref name="typeId"/> of the entity (the merge's rule), or -1. <paramref name="nodes"/> is reordered in place (primary owner first).</summary>
         private int OwnerOf(FederatedReplayManager manager, List<NodeEntity> nodes, int typeId, List<BitMask512> scratch)
