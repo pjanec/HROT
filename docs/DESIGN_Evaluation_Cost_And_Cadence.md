@@ -1200,3 +1200,21 @@ Wakes are rare (`cadence.wake:<kind>` counters: ~0.6 a frame at 3 000 — Hit, S
 
 **Rails:** `UtilityScorerTests.CE4395_ACadencedDecision_IsScoredOncePerPeriod_AndAtOnceWhenWoken` (🔴 red-proved: reuse disabled ⇒ the read
 count moves) · `CE4395_TheCombatDecisions_AreCadencedAt0_2s_AndNothingElseIs`.
+
+##### 11g-4. B-3 — the brain's garbage *(CE-4395, `44bdcf2d7`; the brain and decision slots record bytes)*
+
+| per frame, 1 000 men | before | after |
+|---|---|---|
+| **`BrainTickSystem`** | **35 KB** (32 of it `utility.input:EnemyStrengthRatio` → `ThreatDanger.OwnStrength` → `Armament.LethalInHand`) | **8.5 KB** |
+
+| the cause | the fix |
+|---|---|
+| `PersonHands.HoldsLethal` walked the hands through a CAPTURING lambda — a closure and a delegate per call | `Holding` is ONE walk with a struct visitor (the `Func` overload adapts to it); `HoldsLethal` passes a struct |
+| `CombatTkb.WarheadOf` → `ParameterResolver.Warhead` built its PROVENANCE TEXT (interpolated) on every call and the caller threw it away | one lookup core with no text; `WarheadOnly` for per-frame readers, `Warhead` keeps the text for `/tkb/resolve` |
+
+Rail: `PersonHandsTests.CE4395_LethalInHand_AllocatesNothing_AndAnswersAsBefore` (🔴 red-proved twice: the closure back → 62 KB, the text back → 82 KB).
+
+⚠ **Left — the march's ORDER traffic** (`SquadMarch` 7.2 KB a frame): 📐 probed — ~930 B per order re-issued to a follower as the lead walks
+(27 orders over 60 walking ticks, 25 KB; 0 B on a tick that issues none). An order is a managed `AssignTacticalIntentEvent` with JSON parameters
+— allocation on a CHANGE, by that event's design, frequent only because 125 squads march at once. ⇒ zero needs an unmanaged order event:
+behaviors' contract, not done here (noted to behaviors).
