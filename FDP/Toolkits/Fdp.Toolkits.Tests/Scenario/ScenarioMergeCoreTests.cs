@@ -120,6 +120,23 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Null(ScenarioMergeCore.Merge(new[] { plain }, OurType).CanonicalDom!["TerrainObjects"]);   // nothing to say ⇒ no section
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-4 (B-2) — a building hit by two deciding nodes is saved by BOTH: the merge unions the breaches (one written once) and ORs collapsed, in file order; a DOOR key in two slices still fails.
+        /// 🔴 Red-proof: drop the building-damage branch in <c>ScenarioMergeCore</c> ⇒ the same-key throw.
+        /// </summary>
+        [Fact]
+        public void S4_ABuildingSavedByTwoSlices_MergesAsAUnionOfBreachesAndAnOrOfCollapsed()
+        {
+            JsonObject With(JsonObject dom, string entryJson) { dom["TerrainObjects"] = JsonNode.Parse("{ \"range/H\": " + entryJson + " }"); return dom; }
+            var a = Compatible(400, With(Dom(new[] { "g-a" }), """{ "breaches": [[0, 4, 6, 0, 2.2, "passage"]] }"""));
+            var b = Compatible(401, With(Dom(new[] { "g-b" }), """{ "breaches": [[0, 8, 9, 1, 1.5, "hole"], [0, 4, 6, 0, 2.2, "passage"]], "collapsed": true }"""));
+            var entry = (JsonObject)((JsonObject)ScenarioMergeCore.Merge(new[] { a, b }, OurType).CanonicalDom!["TerrainObjects"]!)["range/H"]!;
+            Assert.Equal(2, entry["breaches"]!.AsArray().Count);
+            Assert.Equal(4f, (float)entry["breaches"]![0]![1]!);
+            Assert.Equal(8f, (float)entry["breaches"]![1]![1]!);
+            Assert.True((bool)entry["collapsed"]!);
+        }
+
         [Fact]
         public void ForeignSlice_IsRouted_NotMerged_AndNeverParsed()   // §4c
         {

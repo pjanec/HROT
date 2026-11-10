@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.Terrain
 {
     /// <summary>
     /// ⭐ Buildings Stage 5e (📄 docs/DESIGN_Building_Interiors.md §3b K5, §3j "5e") — the scenario's <c>TerrainObjects</c> section:
-    /// the state of the terrain's objects (today: its doors), keyed by <see cref="TerrainObjectKey"/>. Door ENTITIES are never saved
+    /// the state of the terrain's objects (its doors; ⭐ S-4: the damage of its buildings — <c>"breaches": [[panelInBuilding, from, to, bottom, top, "hole"|"passage"]]</c>, <c>"collapsed": true</c>), keyed by <see cref="TerrainObjectKey"/>. Door ENTITIES are never saved
     /// (<c>ScenarioIgnoreTag</c>, K5 — the terrain recreates them at load); their STATE is, here:
     /// <code>"TerrainObjects": { "test-town/Block D/front": { "door": "Locked" } }</code>
     /// <para>⭐ ONE writer and ONE reader for the three places that touch the section — the save (<c>ScenarioSerializer</c>), the
@@ -31,26 +31,87 @@ namespace Fdp.Toolkit.Terrain
         public static JsonObject? Write(EntityRepository repo)
         {
             if (repo == null) throw new ArgumentNullException(nameof(repo));
-            if (!repo.IsComponentTypeRegistered<DoorState>()) return null;
             var terrain = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
 
             var doors = new SortedDictionary<string, TerrainDoorState>(StringComparer.Ordinal);   // stable file order
-            foreach (var e in repo.Query().With<DoorState>().WithManaged<TerrainObjectKey>().Build())
-            {
-                if (!repo.HasAuthority(e)) continue;
-                string key = repo.GetComponent<TerrainObjectKey>(e).Key;
-                if (string.IsNullOrEmpty(key)) continue;
-                var state = repo.GetComponentRO<DoorState>(e).State;
-                int i = terrain?.DoorIndexOf(key) ?? -1;
-                if (i >= 0 && terrain!.Doors[i].Initial == state) continue;   // as authored — nothing to say
-                doors[key] = state;
-            }
-            if (doors.Count == 0) return null;
+            if (repo.IsComponentTypeRegistered<DoorState>())
+                foreach (var e in repo.Query().With<DoorState>().WithManaged<TerrainObjectKey>().Build())
+                {
+                    if (!repo.HasAuthority(e)) continue;
+                    string key = repo.GetComponent<TerrainObjectKey>(e).Key;
+                    if (string.IsNullOrEmpty(key)) continue;
+                    var state = repo.GetComponentRO<DoorState>(e).State;
+                    int i = terrain?.DoorIndexOf(key) ?? -1;
+                    if (i >= 0 && terrain!.Doors[i].Initial == state) continue;   // as authored — nothing to say
+                    doors[key] = state;
+                }
+            var damage = WriteBuildingDamage(repo, terrain);
+            if (doors.Count == 0 && damage.Count == 0) return null;
 
             var section = new JsonObject();
             foreach (var (key, state) in doors)
                 section[key] = new JsonObject { [DoorProperty] = JsonValue.Create(state.ToString()) };
+            foreach (var (key, d) in damage)
+                section[key] = BuildingDamageJson.Write(d);
             return section;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-4 (UTM §8.2 B-7) — the damage of every building: the UNION of every <see cref="BuildingDamage"/> entity this host OWNS for it
+        /// (<see cref="BuildingDamageSystem.OwnsDamage"/> — the doors' gate), so in a distributed save each entity is written by exactly one slice and a building
+        /// hit by two deciding nodes is merged by <c>ScenarioMergeCore</c>. Key = <see cref="BuildingDamages.KeyOf"/>, sorted.
+        /// </summary>
+        private static SortedDictionary<string, SavedBuildingDamage> WriteBuildingDamage(EntityRepository repo, TerrainWorld? terrain)
+        {
+            var result = new SortedDictionary<string, SavedBuildingDamage>(StringComparer.Ordinal);
+            if (terrain == null || !repo.IsComponentTypeRegistered<BuildingDamage>()) return result;
+            foreach (var e in repo.Query().With<BuildingDamage>().Build())
+            {
+                if (!BuildingDamageSystem.OwnsDamage(repo, e)) continue;
+                var d = repo.GetComponentRO<BuildingDamage>(e);
+                if ((uint)d.Building >= (uint)terrain.Buildings.Count) continue;
+                string key = BuildingDamages.KeyOf(terrain, d.Building);
+                if (!result.TryGetValue(key, out var saved)) result[key] = saved = new SavedBuildingDamage();
+                for (int i = 0; i < d.Count; i++)
+                {
+                    var b = d.Get(i);
+                    int local = BuildingPanelIndex.ToLocal(terrain, b.Panel);
+                    if (local < 0 || terrain.Panels[b.Panel].Building != d.Building) continue;
+                    saved.AddDistinct(b with { Panel = local });
+                }
+                if (d.Collapsed != 0) saved.Collapsed = true;
+            }
+            foreach (var key in new List<string>(result.Keys)) if (result[key].IsEmpty) result.Remove(key);
+            return result;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-4 — the saved building damage in <paramref name="dom"/>: key → breaches (panel = index within the building) + collapsed. An entry with
+        /// neither key (a door, a future object kind) is ignored; ⛔ a malformed damage entry fails LOUDLY, like <see cref="ReadDoors(JsonObject)"/>.
+        /// </summary>
+        public static IReadOnlyDictionary<string, SavedBuildingDamage> ReadBuildingDamage(JsonObject dom)
+        {
+            var result = new Dictionary<string, SavedBuildingDamage>(StringComparer.Ordinal);
+            if (Of(dom) is not { } section) return result;
+            foreach (var (key, node) in section)
+                if (node is JsonObject entry && BuildingDamageJson.IsEntry(entry))
+                    result[key] = BuildingDamageJson.Read(key, entry);
+            return result;
+        }
+
+        /// <summary><see cref="ReadBuildingDamage(JsonObject)"/> from scenario JSON text.</summary>
+        public static IReadOnlyDictionary<string, SavedBuildingDamage> ReadBuildingDamage(string json)
+            => JsonNode.Parse(json) is JsonObject dom ? ReadBuildingDamage(dom) : new Dictionary<string, SavedBuildingDamage>();
+
+        /// <summary>True when both entries are building-damage entries (the distributed merge unions those; two DOOR entries for one key stay an error).</summary>
+        public static bool IsBuildingDamageEntry(JsonNode? entry) => entry is JsonObject o && BuildingDamageJson.IsEntry(o);
+
+        /// <summary>⭐ The merge of two slices' entries for ONE building: breaches distinct, collapsed OR-ed, file order (a building hit by two deciding nodes, B-2).</summary>
+        public static JsonObject MergeBuildingDamage(string key, JsonObject a, JsonObject b)
+        {
+            var d = BuildingDamageJson.Read(key, a);
+            d.UnionWith(BuildingDamageJson.Read(key, b));
+            return BuildingDamageJson.Write(d);
         }
 
         /// <summary>The section of <paramref name="dom"/> (either casing), or null.</summary>
