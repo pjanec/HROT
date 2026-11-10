@@ -19,6 +19,8 @@ namespace Fdp.Toolkit.Terrain
         public const string BuildingsFolderName = "buildings";
         public const string TemplateSuffix = ".building.json";
         public const string MaterialsFileName = "materials.json";
+        /// <summary>⭐ <c>CE-4391</c> S-1 — a terrain folder's own overrides of the breach table (UTM §8.2 B-6), as <c>materials.json</c> is for materials.</summary>
+        public const string BreachesFileName = "breaches.json";
 
         /// <summary>No side files: the shared materials, no templates.</summary>
         public static TerrainAssets None { get; } = new();
@@ -28,11 +30,17 @@ namespace Fdp.Toolkit.Terrain
 
         public TerrainMaterialLibrary Materials { get; init; } = TerrainMaterialLibrary.Shared;
 
+        /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table: the shared one overlaid by the terrain folder's <c>breaches.json</c>.</summary>
+        public BreachTable Breaches { get; init; } = BreachTable.Shared;
+
         /// <summary>Template name → its JSON text, or null when not found.</summary>
         public Func<string, string?>? Templates { get; init; }
 
         /// <summary>⭐ CE-1034 H1 — reads a side file of the terrain folder by bare name (the height grid), or null when it is not there.</summary>
         public Func<string, string?>? ReadFile { get; init; }
+
+        /// <summary>⭐ CE-4365 — opens a BINARY side file of the terrain folder by bare name (the height store, <c>.heights</c>), or null.</summary>
+        public Func<string, Stream?>? OpenFile { get; init; }
 
         /// <summary>The assets of the terrain folder <paramref name="terrainFolder"/>.</summary>
         public static TerrainAssets ForFolder(string terrainFolder, string? sharedBuildingsRoot = null)
@@ -45,12 +53,22 @@ namespace Fdp.Toolkit.Terrain
                 Materials = File.Exists(materialsPath)
                     ? TerrainMaterialLibrary.Shared.WithOverrides(File.ReadAllText(materialsPath), materialsPath)
                     : TerrainMaterialLibrary.Shared,
+                Breaches = File.Exists(Path.Combine(terrainFolder, BreachesFileName))
+                    ? BreachTable.Shared.WithOverrides(File.ReadAllText(Path.Combine(terrainFolder, BreachesFileName)), Path.Combine(terrainFolder, BreachesFileName))
+                    : BreachTable.Shared,
                 ReadFile = name =>
                 {
                     if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains(".."))
                         throw new ArgumentException($"Terrain side file name '{name}' may not contain a path.");
                     var path = Path.Combine(terrainFolder, name);
                     return File.Exists(path) ? File.ReadAllText(path) : null;
+                },
+                OpenFile = name =>
+                {
+                    if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains(".."))
+                        throw new ArgumentException($"Terrain side file name '{name}' may not contain a path.");
+                    var path = Path.Combine(terrainFolder, name);
+                    return File.Exists(path) ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20) : null;
                 },
                 Templates = name =>
                 {

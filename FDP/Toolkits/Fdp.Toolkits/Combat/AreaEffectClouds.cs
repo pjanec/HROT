@@ -217,8 +217,12 @@ namespace Fdp.Toolkit.Combat
         public static CloudTable? Of(ISimulationView view)
         {
             if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<AreaEffectCloud>()) return null;
-            return CloudTable.Build(view);
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427
+            var t = CloudTable.Build(view);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
+            return t;
         }
+        private static readonly int S_Of = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("clouds.CloudTable.Build");
 
         /// <summary>⭐ The TKB type of a cloud entity (bare: what the cloud is travels on <see cref="AreaEffectCloud"/>, per instance).</summary>
         public const long TkbType = 7202;

@@ -32,6 +32,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐ CE-4366 (L-4) — nobody reads the batch ⇒ no copy, no sample (the scale rig measured 200 KB … 1 MB of garbage per frame
+            //   on every node with no viewer attached)
+            if (_writer is Network.IReaderAwareWriter aware && !aware.HasReaders) return;
             var frame = _buffer.GetFrame();
 
             // Skip publishing when the buffer is empty to avoid flooding the network.

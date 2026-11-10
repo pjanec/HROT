@@ -163,6 +163,7 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:CognitiveRuntimeModule` | **K** | a system/module, classified on its own | FDP/Toolkits/Fdp.Toolkits/Behavior/Modules/CognitiveRuntimeModule.cs:30 |
 | `type:CombatModule` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.SimHost/Modules/CombatModule.cs:23 |
 | `type:CycloneEgressSystem` | **K** | a system/module, classified on its own | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneEgressSystem.cs:19 |
+| `type:EgressPipeline` | **A** | ⭐ CE-3427 N-1 — the off-frame state egress of one world: a replica re-synced from the live world at every launch, the scan thread, and the requested mode (a runtime switch, not simulation state); nothing in it outlives a frame that a restore must bring back | FDP/Network/Fdp.Network.Cyclone/Egress/EgressPipeline.cs |
 | `type:CycloneNetworkCleanupSystem` | **K** | a system/module, classified on its own | Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:594 |
 | `type:CycloneNetworkIngressSystem` | **K** | a system/module, classified on its own | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs:26 |
 | `type:DamageAssessmentModule` | **K** | a system/module, classified on its own | FDP/Toolkits/Fdp.Toolkits/Combat/Modules/DamageAssessmentModule.cs:25 |
@@ -543,6 +544,10 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup.<Enabled>k__BackingField` | **A** | execution gate re-driven by debug/replay controller; not sim memory | Hrot/Subsystems/Hrot.CGF/Debug/CgfClusterDebugTimeController.cs:298 |
 | `Fdp.ModuleHost.Scheduling.TogglableSimulationGroup.<Enabled>k__BackingField` | **A** | execution gate re-driven by debug/replay controller; not sim memory | Hrot/Subsystems/Hrot.CGF/Debug/CgfClusterDebugTimeController.cs:298 |
 | `Fdp.Network.Cyclone.Systems.CycloneEgressSystem._translatorProfileData` | **A** | per-translator profiling data; diagnostic only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneEgressSystem.cs:33 |
+| `Fdp.Network.Cyclone.Systems.CycloneEgressSystem._registeredPipeline` | **A** | ⭐ CE-3427 N-1 — which world's egress pipeline this system handed its marked translators to (re-registers with any other) | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneEgressSystem.cs |
+| `Fdp.Network.Cyclone.Egress.EgressPipelineLaunchSystem.<Pipeline>k__BackingField` | **A** | ⭐ CE-3427 N-1 — the world's pipeline, looked up on the first run | FDP/Network/Fdp.Network.Cyclone/Egress/EgressPipelineLaunchSystem.cs |
+| `Hrot.Map.Common.Replication.Egress.GeoSpatialEgressTranslator._deferred` | **A** | ⭐ CE-3427 N-1 — the shadow writes of the last off-frame scan, applied on the live world at the next join (then empty) | Hrot/Network/Hrot.Network.NED/Replication/Map/Egress/GeoSpatialEgressTranslator.cs |
+| `Hrot.Map.Common.Replication.Egress.GeoSpatialEgressTranslator._deferredCount` | **A** | ⭐ CE-3427 N-1 — how many of `_deferred` are pending | Hrot/Network/Hrot.Network.NED/Replication/Map/Egress/GeoSpatialEgressTranslator.cs |
 | `Fdp.Network.Cyclone.Systems.CycloneIngressSystem._translatorProfileData` | **A** | per-translator profiling data; diagnostic only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneIngressSystem.cs:40 |
 | `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._gone` | **A** | scratch cleared before each refill | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:23 |
 | `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._present` | **A** | scratch — the sweep's ids-in-this-world, cleared before each refill | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:22 |
@@ -771,10 +776,20 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.SimHost.Systems.EqsSolverSystem.<LastSharedCopies>k__BackingField` | **A** | diagnostics counter reset each tick | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:127 |
 | `Hrot.SimHost.Systems.EqsSolverSystem.<LastSpentUnits>k__BackingField` | **A** | diagnostics counter reset each tick | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:165 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._currentTick` | **A** | set each Execute from PerceptionClock | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:122 |
+| `Hrot.SimHost.Systems.EqsSolverSystem._lastRunEnd` | **A** | diagnostics: the last run's end timestamp (CE-3427 `eqs.run.idle`); a wrong first interval after a restore only skews one timing sample | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:195 |
+| `Hrot.SimHost.Systems.EqsSolverSystem._lastRunStart` | **A** | diagnostics: the last run's start timestamp (CE-3427 `eqs.run.interval`) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:195 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._lastSchedule` | **A** | last schedule for diagnostics, cleared each tick | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:125 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._shared` | **A** | this-tick shared answers, cleared every tick | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:126 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._surveyScratch` | **A** | scratch reused per survey solve | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:445 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._surveys` | **A** | survey solve/publish memo; empty re-solves and republishes identical answer | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:449 |
+| `Hrot.SimHost.Systems.EqsSolverSystem.<LastDiscardedSolves>k__BackingField` | **A** | diagnostics counter reset each tick (CE-3427 P-1) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
+| `Hrot.SimHost.Systems.EqsSolverSystem.<LastParallelSolves>k__BackingField` | **A** | diagnostics counter reset each tick (CE-3427 P-1) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
+| `Hrot.SimHost.Systems.EqsSolverSystem._inline` | **A** | scratch: the slot an inline solve fills, overwritten per sensor (CE-3427 P-1) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
+| `Hrot.SimHost.Systems.EqsSolverSystem._shareBuffers` | **A** | reused buffers of this tick's shared answers; _shareUsed restarts each tick (CE-3427 P-1) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
+| `Hrot.SimHost.Systems.EqsSolverSystem._shareUsed` | **A** | the shared-answer buffers used this tick, reset each Execute (CE-3427 P-1) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
+| `Hrot.SimHost.Systems.EqsSolverSystem._slotOf` | **A** | scratch: place in the order → window slot, rewritten per window (CE-3427 P-1) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
+| `Hrot.SimHost.Systems.EqsSolverSystem._slots` | **A** | scratch: the window's solve slots, overwritten per window (CE-3427 P-1) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
+| `Hrot.SimHost.Systems.EqsSolverSystem._windowKeys` | **A** | scratch: share keys seen in the current window, cleared per window (CE-3427 P-1) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
 | `Hrot.SimHost.Systems.GenesisMaterializationSystem.<RefusedBoardings>k__BackingField` | **A** | diagnostics counter of refused boardings | Hrot/Engine/Hrot.EcsNode/Systems/GenesisMaterializationSystem.cs:115 |
 | `Hrot.SimHost.Systems.InitialBrainMaterializationSystem._done` | **A** | scratch cleared at top of Execute | Hrot/Engine/Hrot.EcsNode/Systems/InitialBrainMaterializationSystem.cs:33 |
 | `Hrot.Traffic.TrafficBodyFeedSystem._scratch` | **A** | scratch cleared in Gather each frame | Hrot/Engine/Hrot.Traffic/TrafficBodies.cs:54 |
@@ -905,6 +920,8 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.SimHost.SimHostCoreLogicPack.<PostSimulationSystems>k__BackingField` | **K** | system list assembled once in ctor | Hrot/Subsystems/Hrot.SimHost/SimHostCoreLogicPack.cs:151 |
 | `Hrot.SimHost.SimHostCoreLogicPack.<SimulationSystems>k__BackingField` | **K** | system list assembled once in ctor | Hrot/Subsystems/Hrot.SimHost/SimHostCoreLogicPack.cs:150 |
 | `Hrot.SimHost.Systems.EqsSolverSystem.<BudgetUnits>k__BackingField` | **K** | work-unit budget configuration, default 150000 | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:72 |
+| `Hrot.SimHost.Systems.EqsSolverSystem._solveAt` | **K** | the cached work delegate handed to the worker pool (CE-3427 P-1) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
+| `Hrot.SimHost.Systems.EqsSolverSystem.<Workers>k__BackingField` | **K** | configuration: solve threads (HROT_EQS_WORKERS, else CPUs / 4), CE-3427 P-1 | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs |
 | `Hrot.Traffic.TrafficMirrorSystem.EmptyLights` | **K** | static empty sentinel dictionary | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:87 |
 | `Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem._exitDiscardPending` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): one-shot request set by DiscardAtReplayExit and consumed on the next live frame (transport, not the world) | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs:64 |
 | `Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem.<ExitDiscards>k__BackingField` | **A** | diagnostic counter | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs:67 |

@@ -6674,7 +6674,7 @@ export const TOOLS_CATALOG = [
         "description": "Restrict to one subsystem or perspective name (e.g. SimHost, Player, Scenario)"
       }
     ],
-    "returns": "{ subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors }], translators[], moduleCount, systemCount, translatorCount }], note }",
+    "returns": "{ subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors, recentAvgBytes, avgBytes }], translators[], moduleCount, systemCount, translatorCount }], process{ workingSetBytes, peakWorkingSetBytes, managedHeapBytes, allocatedBytes, gen0, gen1, gen2, pauseTimePercent }, note }",
     "notes": [
       "Per SUBSYSTEM, not per node: a --mode all node runs SimHost, Player, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.",
       "Every node hosts its own MCP endpoint. This answers for THIS node only — ask each node's own endpoint for its own architecture.",
@@ -6687,6 +6687,74 @@ export const TOOLS_CATALOG = [
       "gist": "see what modules and translators this node is running"
     },
     "hint": "Optional: subsystem (filter). Example: get_architecture_diagnostics({subsystem:\"SimHost\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_egress_pipeline",
+    "group": "Y — node diagnostics",
+    "summary": "This PROCESS's off-frame state egress (CE-3427 N-1, an experiment): per world that has one (every networked node's), the mode in force, the mode requested, its scans, faults and last scan / join-wait / sync times.",
+    "http": {
+      "method": "GET",
+      "path": "/diagnostics/egress"
+    },
+    "params": [],
+    "returns": "{ pipelines[{ subsystem, mode, requested, translators, workers, scans, faults, lastScanMs, lastJoinWaitMs, lastSyncMs }], note }",
+    "notes": [
+      "Off by default; FDP_EGRESS_OFFFRAME=1 starts a node off the frame. 📄 docs/DESIGN_Egress_Change_Detection.md §7."
+    ],
+    "hint": "Example: get_egress_pipeline({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_egress_pipeline",
+    "group": "Y — node diagnostics",
+    "summary": "Switches this process's off-frame state egress (CE-3427 N-1): mode offframe = the state scans run on a replica off the main thread, one frame late; onframe = today's. Takes effect at each world's next Export.",
+    "http": {
+      "method": "POST",
+      "path": "/diagnostics/egress"
+    },
+    "params": [
+      {
+        "name": "mode",
+        "type": "string",
+        "required": true,
+        "description": "offframe | onframe"
+      }
+    ],
+    "returns": "the same as GET /diagnostics/egress",
+    "example": {
+      "args": {
+        "mode": "offframe"
+      },
+      "gist": "move the state egress off the main thread"
+    },
+    "hint": "Required: mode (offframe | onframe). Example: set_egress_pipeline({mode:\"offframe\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_query_timings",
+    "group": "Y — node diagnostics",
+    "summary": "This PROCESS's world-query costs (CE-3427): terrain traces, navmesh, EQS templates / generators / tests, cover lookup, door scans — calls and time since the last reset, the most time first.",
+    "http": {
+      "method": "GET",
+      "path": "/diagnostics/queries"
+    },
+    "params": [
+      {
+        "name": "reset",
+        "type": "string",
+        "required": false,
+        "description": "true = zero the counters after answering"
+      }
+    ],
+    "returns": "{ enabled, seconds, queries[{ name, calls, perSecond, totalMs, msPerSecond, avgUs, maxUs, bytesPerSecond }], note }",
+    "notes": [
+      "Off with HROT_QUERY_TIMINGS=0. Slots nest (world.Trace.* includes terrain.*); msPerSecond sums every thread."
+    ],
+    "hint": "Optional: reset=true (answer, then zero the counters). Example: get_query_timings({reset:\"true\"})",
     "manualVerify": false
   },
 

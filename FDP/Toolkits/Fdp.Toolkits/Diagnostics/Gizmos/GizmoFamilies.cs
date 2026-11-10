@@ -35,7 +35,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public static string SettingKey(AiOverlayFlags family) => "map.scope." + family;
 
         /// <summary>The hash of <see cref="SettingKey"/>.</summary>
-        public static uint SettingHash(AiOverlayFlags family) => GizmoSettingsRegistry.ComputeHash(SettingKey(family));
+        public static uint SettingHash(AiOverlayFlags family)
+        {
+            // ⭐ CE-4385 (R-2084 hot path) — the families' hashes are made ONCE: measured on Windows 2026-11-10, ScopeOf runs per entity per rule per frame
+            //   (GizmoFamilyVisibilityPolicy.IsEntityVisible) and this string concat + hash was ~80 B each — 540 KB a frame over 6 912 doors on an idle 5.5 km scenario
+            var hashes = s_hashes ??= BuildHashes();
+            for (int i = 0; i < All.Length; i++) if (All[i] == family) return hashes[i];
+            return GizmoSettingsRegistry.ComputeHash(SettingKey(family));   // a combination or an unknown family: computed (never on the hot path)
+        }
+
+        private static uint[]? s_hashes;
+
+        private static uint[] BuildHashes()
+        {
+            var h = new uint[All.Length];
+            for (int i = 0; i < All.Length; i++) h[i] = GizmoSettingsRegistry.ComputeHash(SettingKey(All[i]));
+            return h;
+        }
 
         /// <summary>The scope a family starts with. ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — EVERY family now starts on the
         /// selected and pinned units: Perception (a vision cone per unit) and Contacts (a line per remembered contact) drew for every

@@ -17,6 +17,17 @@ namespace Fdp.ModuleHost.Abstractions
     }
 
     /// <summary>
+    /// ⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — this system runs AFTER every other system of its phase, whatever they
+    /// are and however many instances of a type are registered. ⚠ <c>[UpdateAfter(typeof(T))]</c> orders after the FIRST registered
+    /// instance of <c>T</c> only (the scheduler looks the type up), so it cannot say "after all six egress systems".
+    /// <para>Two systems marked last are not ordered against each other (registration order). Opt-in: no other ordering changes.</para>
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
+    public sealed class UpdateLastInPhaseAttribute : Attribute
+    {
+    }
+
+    /// <summary>
     /// Declares that at most ONE instance of this system type may be registered on a node.
     /// A second registration throws instead of silently running the system twice per frame.
     /// </summary>

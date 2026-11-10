@@ -181,7 +181,11 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
             FillVertices = fillVertices;
             FillColors = fillColors;
             Strokes = strokes;
+            Index = new StrokeIndex(strokes);
         }
+
+        /// <summary>⭐ CE-4376 (D-2) — the strokes binned by <see cref="StrokeIndex.Bin"/> m cells, so a frame visits only the cells in view and stops at the length cut.</summary>
+        public StrokeIndex Index { get; }
 
         public Vector2[] FillVertices { get; }
         public Rgba32[] FillColors { get; }
@@ -215,6 +219,74 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-4376 (D-2, docs/DESIGN_Terrain_World.md §10) — the plan's strokes binned by their midpoint into <see cref="Bin"/> m cells: in each cell the lines LONGEST FIRST
+    /// (a cull stops at the first line under the zoom's length cut) and the labels; lines longer than a cell, and every other shape, in lists scanned whole. 📐 scale-1:
+    /// 482 k strokes — the linear cull scanned all of them every frame (14.5 ms at the whole-terrain zoom, 4.2 ms close in).
+    /// </summary>
+    public sealed class StrokeIndex
+    {
+        public const float Bin = 256f;
+        public readonly Vector2 Origin;
+        public readonly int Nx, Ny;
+        /// <summary>Per cell, [start, end) into <see cref="Lines"/> / <see cref="Labels"/>.</summary>
+        public readonly int[] LineStart, LabelStart;
+        public readonly int[] Lines, Labels, Long, Other;
+        private readonly float[] _length2;   // per stroke
+
+        public StrokeIndex(DebugPrimitive[] strokes)
+        {
+            _length2 = new float[strokes.Length];
+            var lo = new Vector2(float.MaxValue); var hi = new Vector2(float.MinValue);
+            for (int i = 0; i < strokes.Length; i++)
+            {
+                var c = Centre(strokes[i]);
+                if (c is { } p) { lo = Vector2.Min(lo, p); hi = Vector2.Max(hi, p); }
+            }
+            if (lo.X > hi.X) { lo = hi = Vector2.Zero; }
+            Origin = lo;
+            Nx = Math.Max(1, (int)MathF.Floor((hi.X - lo.X) / Bin) + 1);
+            Ny = Math.Max(1, (int)MathF.Floor((hi.Y - lo.Y) / Bin) + 1);
+            var lines = new List<int>[Nx * Ny]; var labels = new List<int>[Nx * Ny];
+            var longOnes = new List<int>(); var other = new List<int>();
+            for (int i = 0; i < strokes.Length; i++)
+            {
+                ref readonly var p = ref strokes[i];
+                if (p.Shape == DebugPrimitiveShape.Line)
+                {
+                    var a = new Vector2(p.LineStart.X, p.LineStart.Y); var b = new Vector2(p.LineEnd.X, p.LineEnd.Y);
+                    _length2[i] = Vector2.DistanceSquared(a, b);
+                    if (_length2[i] > Bin * Bin) { longOnes.Add(i); continue; }
+                    (lines[Cell((a + b) * 0.5f)] ??= new List<int>()).Add(i);
+                }
+                else if (p.Shape == DebugPrimitiveShape.Text) (labels[Cell(new Vector2(p.TextX, p.TextY))] ??= new List<int>()).Add(i);
+                else other.Add(i);
+            }
+            LineStart = new int[(Nx * Ny) + 1]; LabelStart = new int[(Nx * Ny) + 1];
+            var ls = new List<int>(strokes.Length); var lb = new List<int>();
+            for (int k = 0; k < Nx * Ny; k++)
+            {
+                LineStart[k] = ls.Count; LabelStart[k] = lb.Count;
+                if (lines[k] is { } l) { l.Sort((x, y) => _length2[y].CompareTo(_length2[x])); ls.AddRange(l); }
+                if (labels[k] is { } t) lb.AddRange(t);
+            }
+            LineStart[Nx * Ny] = ls.Count; LabelStart[Nx * Ny] = lb.Count;
+            Lines = ls.ToArray(); Labels = lb.ToArray(); Long = longOnes.ToArray(); Other = other.ToArray();
+        }
+
+        public float Length2(int stroke) => _length2[stroke];
+
+        public int Cell(Vector2 p)
+            => (Math.Clamp((int)MathF.Floor((p.Y - Origin.Y) / Bin), 0, Ny - 1) * Nx) + Math.Clamp((int)MathF.Floor((p.X - Origin.X) / Bin), 0, Nx - 1);
+
+        private static Vector2? Centre(in DebugPrimitive p) => p.Shape switch
+        {
+            DebugPrimitiveShape.Line => new Vector2((p.LineStart.X + p.LineEnd.X) * 0.5f, (p.LineStart.Y + p.LineEnd.Y) * 0.5f),
+            DebugPrimitiveShape.Text => new Vector2(p.TextX, p.TextY),
+            _ => null,
+        };
+    }
+
     /// <summary>Copies into <paramref name="into"/> the strokes the view shows: inside <paramref name="view"/> (padded by
     /// <see cref="CullMarginPixels"/>), an outline at least <see cref="MinStrokePixels"/> long on screen, labels only from
     /// <see cref="LabelMinZoom"/>. Emission order is kept. Returns how many.</summary>
@@ -224,26 +296,45 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         var pad = new Vector2(CullMarginPixels / zoom);
         var min = view.Min - pad;
         var max = view.Max + pad;
-        float minLength = MinStrokePixels / zoom;
+        float minLength = MinStrokePixels / zoom, min2 = minLength * minLength;
         bool labels = zoom >= LabelMinZoom;
+        var strokes = plan.Strokes;
+        var ix = plan.Index;
         int n = 0;
-        foreach (ref readonly var p in plan.Strokes.AsSpan())
-        {
-            if (p.Shape == DebugPrimitiveShape.Line)
+        // ⭐ CE-4376 — only the cells in view (a binned line's midpoint lies within half a cell of its ends: one cell of slack)
+        int c0 = Math.Max(0, (int)MathF.Floor((min.X - ix.Origin.X) / StrokeIndex.Bin) - 1), c1 = Math.Min(ix.Nx - 1, (int)MathF.Floor((max.X - ix.Origin.X) / StrokeIndex.Bin) + 1);
+        int r0 = Math.Max(0, (int)MathF.Floor((min.Y - ix.Origin.Y) / StrokeIndex.Bin) - 1), r1 = Math.Min(ix.Ny - 1, (int)MathF.Floor((max.Y - ix.Origin.Y) / StrokeIndex.Bin) + 1);
+        for (int r = r0; r <= r1; r++)
+            for (int c = c0; c <= c1; c++)
             {
-                var a = new Vector2(p.LineStart.X, p.LineStart.Y);
-                var b = new Vector2(p.LineEnd.X, p.LineEnd.Y);
-                if (Vector2.DistanceSquared(a, b) < minLength * minLength) continue;
-                if (Math.Max(a.X, b.X) < min.X || Math.Min(a.X, b.X) > max.X || Math.Max(a.Y, b.Y) < min.Y || Math.Min(a.Y, b.Y) > max.Y) continue;
-            }
-            else if (p.Shape == DebugPrimitiveShape.Text)
-            {
+                int k = (r * ix.Nx) + c;
+                for (int q = ix.LineStart[k]; q < ix.LineStart[k + 1]; q++)
+                {
+                    int s = ix.Lines[q];
+                    if (ix.Length2(s) < min2) break;   // longest first: the rest are shorter still
+                    if (LineInView(strokes[s], min, max)) into[n++] = strokes[s];
+                }
                 if (!labels) continue;
-                if (p.TextX < min.X || p.TextX > max.X || p.TextY < min.Y || p.TextY > max.Y) continue;
+                for (int q = ix.LabelStart[k]; q < ix.LabelStart[k + 1]; q++)
+                {
+                    ref readonly var p = ref strokes[ix.Labels[q]];
+                    if (p.TextX < min.X || p.TextX > max.X || p.TextY < min.Y || p.TextY > max.Y) continue;
+                    into[n++] = p;
+                }
             }
-            into[n++] = p;
+        for (int q = 0; q < ix.Long.Length; q++)
+        {
+            int s = ix.Long[q];
+            if (ix.Length2(s) >= min2 && LineInView(strokes[s], min, max)) into[n++] = strokes[s];
         }
+        for (int q = 0; q < ix.Other.Length; q++) into[n++] = strokes[ix.Other[q]];
         return n;
+    }
+
+    private static bool LineInView(in DebugPrimitive p, Vector2 min, Vector2 max)
+    {
+        float ax = p.LineStart.X, ay = p.LineStart.Y, bx = p.LineEnd.X, by = p.LineEnd.Y;
+        return !(Math.Max(ax, bx) < min.X || Math.Min(ax, bx) > max.X || Math.Max(ay, by) < min.Y || Math.Min(ay, by) > max.Y);
     }
 
     private static int CopyAll(Plan plan, DebugPrimitive[] into)

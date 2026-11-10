@@ -141,6 +141,75 @@ namespace Fdp.Toolkit.Navigation.Tests
             pool.Dispose();
         }
 
+        // ── ⭐ CE-4391 S-3 (P3-e) — nobody standing inside a collapsed building is given a path ───────────────────
+
+        /// <summary>
+        /// A request that started INSIDE a collapsed building's footprint (its man is a casualty; the request was still in flight when the building fell) is answered unreachable at once — no
+        /// throw, no path — while one from outside the footprint is planned as before. 🔴 Red-proof: drop the <c>InsideCollapsed</c> test in <c>SolveGround</c> ⇒ the inside request is planned.
+        /// </summary>
+        [Fact]
+        public void P3e_ARequestFromInsideACollapsedBuilding_IsAnsweredUnreachable_OneFromOutsideIsPlanned()
+        {
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{ \"type\": \"FeatureCollection\", \"features\": [ { \"type\": \"Feature\", \"properties\": { \"kind\": \"building\", \"label\": \"H\", \"building\": { \"footprint\": [[0,0],[10,0],[10,8],[0,8]], "
+                + "\"storeys\": [ { \"height\": 3, \"walls\": [ { \"from\": [0,0], \"to\": [10,0] }, { \"from\": [10,0], \"to\": [10,8] }, { \"from\": [10,8], \"to\": [0,8] }, { \"from\": [0,8], \"to\": [0,0] } ] } ] } }, "
+                + "\"geometry\": { \"type\": \"Point\", \"coordinates\": [20, 20] } } ] }", "range");
+            _world.RegisterComponent<Fdp.Toolkit.Terrain.BuildingDamage>();
+            _world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            _world.SetSingletonManaged(terrain);
+            var damage = _world.CreateEntity();
+            _world.AddComponent(damage, new Fdp.Toolkit.Terrain.BuildingDamage { Building = 0, Collapsed = 1 });
+            _world.SetManagedComponent(damage, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "range/H" });
+
+            Assert.Equal(1, Fdp.Toolkit.Terrain.DoorStates.Of(_world)?.Damage?.CollapsedCount);
+            var pool = new TrajectoryPoolManager();
+            var navmesh = new SwitchableNavmeshProvider();   // before any bake: straight lines, everywhere walkable — a planned path is reachable
+            var solver = new PathfindingSolverSystem(default(RoadNetworkBlob), pool, navmesh);
+            bool Reachable(int entityIndex, Vector3 from)
+            {
+                long id = PathfindingBatchHelper.RequestPath(_world, entityIndex, from, to: new Vector3(40f, 40f, 0f));
+                return RunSolverPipeline(solver, id).IsReachable;   // one request a run: the ring slot is the request's low bits
+            }
+            Assert.False(Reachable(7, new Vector3(25f, 24f, 0.5f)));
+            Assert.True(Reachable(8, new Vector3(25f, 10f, 0f)));
+        }
+
+        /// <summary>The tile sequence a navmesh reports.</summary>
+        private sealed class SequencedNavmesh : INavmeshProvider, INavmeshTileVersions
+        {
+            private readonly SwitchableNavmeshProvider _inner = new();
+            public uint Sequence = 7;
+            public float TileMetres => 24f;
+            public uint ChangeSequence => Sequence;
+            public uint TileVersion(int tileX, int tileZ) => 0u;
+            public bool IsWalkable(Vector3 p, uint m = 0xFFFFFFFF) => _inner.IsWalkable(p, m);
+            public bool ProjectToNavmesh(Vector3 p, out Vector3 s, uint m = 0xFFFFFFFF) => _inner.ProjectToNavmesh(p, out s, m);
+            public int SampleNavmeshPoints(Vector3 c, float r, Span<Vector3> o, uint m = 0xFFFFFFFF) => _inner.SampleNavmeshPoints(c, r, o, m);
+            public bool PathExists(Vector3 a, Vector3 b, uint m = 0xFFFFFFFF) => _inner.PathExists(a, b, m);
+            public float PathCost(Vector3 a, Vector3 b, uint m = 0xFFFFFFFF) => _inner.PathCost(a, b, m);
+            public uint QueryVersion() => 1;
+            public int PlanPath(Vector3 a, Vector3 b, Span<NavWaypoint> w, uint m = 0xFFFFFFFF) => _inner.PlanPath(a, b, w, m);
+        }
+
+        /// <summary>
+        /// ⭐ P3-a/b — the tile change sequence read BEFORE a path is planned travels solver → <c>PathfindingResultEvent.TileSequenceAtPlan</c> → the mover's <c>NavigationCorridorMuscle.TileSequence</c>
+        /// (what the stale-path check compares). 🔴 Red-proof: have the solver write 0 ⇒ the corridor's stamp is 0 (never judged by tile).
+        /// </summary>
+        [Fact]
+        public void P3b_ThePlanTimeTileSequence_ReachesTheMoversCorridor()
+        {
+            _world.RegisterComponent<NavigationIntent>();
+            _world.RegisterComponent<NavigationCorridorMuscle>();
+            var mover = _world.CreateEntity();
+            _world.AddComponent(mover, new NavigationIntent { Mode = NavigationMode.PathToPoint, IntentId = 1 });
+            var navmesh = new SequencedNavmesh { Sequence = 7 };
+            var solver = new PathfindingSolverSystem(default(RoadNetworkBlob), new TrajectoryPoolManager(), navmesh);
+            long id = PathfindingBatchHelper.RequestPath(_world, mover.Index, from: new Vector3(1f, 1f, 0f), to: new Vector3(30f, 30f, 0f));
+            var r = RunSolverPipeline(solver, id);
+            Assert.True(r.IsReachable);
+            Assert.Equal(7u, _world.GetComponentRO<NavigationCorridorMuscle>(mover).TileSequence);
+        }
+
         // ── Test 2: empty network -> unreachable ──────────────────────────────────
 
         [Fact]

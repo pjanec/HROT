@@ -766,6 +766,7 @@ soldiers. ⭐ The answer each time: one per-frame index, every candidate re-chec
 | CE-2414 | `DoorStates.Of` + `CloudTable.Build` per sight / fire query (each walked every entity) | ~15 % of SimHost | per-thread tables held for the frame by one `FrameStamp` check (a write within the frame rebuilds) |
 | CE-2413 | `TrafficReplicas.NearestAnchor2` (AQ93's vicinity band: every SUMO car × every HROT body, every node) | ~20 % of the traffic node | the shared frame grid, 350 m cells, `AnyWithin` (yes/no, first hit) |
 | CE-2412 | `UnitSensors.Of` (the SOPs' danger-area check) — and the other "parts of this parent" scans | 11.5 % | ⭐ one shared parts-by-parent index (§11c) |
+| CE-3427 | ⭐ the SAME pattern inside every EQS sight / hearing solve, found on scale-1 (6 911 doors, 10 000 entities): `DoorStates.Of`'s hit check walked every door entity · `ScenarioTime.TryClock` and `WeatherField` walked the whole entity index FOUR times per weather sample | ~97 % of a sensor solve (470 → 11 µs) | the door table's hit is O(1) while `StructuralChanges` holds · the clock and the weather's entities found once per thread per (frame, structure) — 📄 [Scale Rig §6.2](DESIGN_Scale_Rig.md) |
 
 | run | CGF work / frame | top systems |
 |---|---|---|

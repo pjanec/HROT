@@ -51,10 +51,11 @@ public sealed class UiFrameSession : IDisposable
         ThrowIfDisposed();
 
         Raylib.BeginDrawing();
+        Fdp.Presentation.Raylib.HiddenWindow.BeginFrame();   // ⭐ CE-4386 — hidden mode: into the off-screen target (no-op otherwise)
         Raylib.ClearBackground(Color.DarkGray);
         rlImGui.Begin();
         try     { draw(); }
-        finally { rlImGui.End(); Raylib.EndDrawing(); FramesRendered++; }
+        finally { rlImGui.End(); Fdp.Presentation.Raylib.HiddenWindow.EndFrame(); Raylib.EndDrawing(); Fdp.Presentation.Raylib.HiddenWindow.AfterFrame(); FramesRendered++; }
     }
 
     /// <summary>

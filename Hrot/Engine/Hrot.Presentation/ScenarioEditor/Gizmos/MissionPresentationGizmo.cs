@@ -76,9 +76,25 @@ namespace Hrot.ScenarioEditor.Gizmos
             var refs = view is EntityRepository world ? Hrot.UI.Common.Rules.AuthoredRules.ScopeOf(world) : null;   // ⚠ ScopeOf is cached per world
             var previous = view.GetComponentRO<SimTransform>(entity).Position;
             int n = Math.Min(Math.Min(tasks.Count, Numbers.Length), at.Length);
+            var legacy = LegacyTargets.GetValue(plan, static p => LegacyTargetsOf(p));   // ⭐ CE-4385 — parsed once per plan, never per frame
             for (int i = 0; i < n; i++)
-                at[i] = previous = Fdp.Presentation.Editing.MapPreviews.PlaceOf(places[i], refs) ?? LegacyTarget(tasks[i].BehaviorParams) ?? previous;   // E2
+                at[i] = previous = Fdp.Presentation.Editing.MapPreviews.PlaceOf(places[i], refs) ?? legacy[i] ?? previous;   // E2
             return n;
+        }
+
+        /// <summary>
+        /// ⭐ CE-4385 (handoff L-3) — each task's legacy <c>"target"</c>, per plan INSTANCE (a plan is replaced whole when it changes — the same assumption
+        /// <see cref="Hrot.Presentation.Orders.MissionPlanPlaces.Of"/> keys its cache on). 📐 Measured on Windows, 2026-11-10: parsed per draw it was 540 KB of garbage
+        /// a frame on an idle 5.5 km scenario (<c>JsonDocument.Parse</c> + a deserialise per task, per unit, per frame).
+        /// </summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ActiveMissionPlan, Vector3?[]> LegacyTargets = new();
+
+        private static Vector3?[] LegacyTargetsOf(ActiveMissionPlan plan)
+        {
+            var tasks = plan.Plan!.Tasks;
+            var a = new Vector3?[tasks.Count];
+            for (int i = 0; i < a.Length; i++) a[i] = LegacyTarget(tasks[i].BehaviorParams);
+            return a;
         }
 
         /// <summary>A behaviour task's legacy <c>"target"</c> point (local metres), else null.</summary>

@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Navigation
     /// <para>⚠ <see cref="QueryVersion"/> advances on every publish, so a path planned against the old mesh is
     /// recognisably stale.</para>
     /// </summary>
-    public sealed class SwitchableNavmeshProvider : INavmeshProvider, INavmeshDebugGeometry
+    public sealed class SwitchableNavmeshProvider : INavmeshProvider, INavmeshDebugGeometry, INavmeshTileVersions
     {
         private static readonly INavmeshProvider Fallback = new EngineBackedNavmeshProvider();
 
@@ -34,9 +34,52 @@ namespace Fdp.Toolkit.Navigation
         public void Publish(INavmeshProvider? provider)
         {
             if (ReferenceEquals(provider, this)) throw new ArgumentException("A switchable provider cannot wrap itself.");
+            // ⭐ CE-4391 S-3 (P3-a) — per-tile versions: a tile whose content key is the one of the previous publish keeps its version; a new or changed tile gets the next sequence.
+            //   ⛔ Computed BEFORE the swap so a reader of the new provider never sees a stale tile table. One writer (the commit on the main thread).
+            Volatile.Write(ref _tiles, NextTiles(Volatile.Read(ref _tiles), provider as INavmeshTileKeys));
             Volatile.Write(ref _inner, provider ?? Fallback);
             Interlocked.Increment(ref _generation);
         }
+
+        private sealed class TileTable
+        {
+            public readonly float Metres;
+            public readonly uint Sequence;
+            public readonly System.Collections.Generic.IReadOnlyDictionary<long, ulong> Keys;
+            public readonly System.Collections.Generic.Dictionary<long, uint> Versions;
+            public TileTable(float metres, uint sequence, System.Collections.Generic.IReadOnlyDictionary<long, ulong> keys, System.Collections.Generic.Dictionary<long, uint> versions)
+            { Metres = metres; Sequence = sequence; Keys = keys; Versions = versions; }
+        }
+
+        private static readonly TileTable NoTiles = new(0f, 0u, new System.Collections.Generic.Dictionary<long, ulong>(), new System.Collections.Generic.Dictionary<long, uint>());
+        private TileTable _tiles = NoTiles;
+
+        private static TileTable NextTiles(TileTable old, INavmeshTileKeys? keys)
+        {
+            if (keys == null || keys.TileMetres <= 0f) return new TileTable(0f, old.Sequence, NoTiles.Keys, NoTiles.Versions);   // a provider with no tile grid: versions fall away
+            bool sameGrid = old.Metres == keys.TileMetres;
+            uint seq = old.Sequence;
+            var versions = new System.Collections.Generic.Dictionary<long, uint>(keys.TileKeys.Count);
+            bool changed = false;
+            foreach (var (tile, key) in keys.TileKeys)
+            {
+                if (sameGrid && old.Keys.TryGetValue(tile, out var before) && before == key && old.Versions.TryGetValue(tile, out uint v)) { versions[tile] = v; continue; }
+                if (!changed) { seq++; changed = true; }   // one sequence step per publish: every tile this rebake changed shares it
+                versions[tile] = seq;
+            }
+            if (sameGrid)   // a tile that vanished (it had polygons, now none) also changed what a path through it can be
+                foreach (var tile in old.Keys.Keys)
+                    if (!keys.TileKeys.ContainsKey(tile)) { if (!changed) { seq++; changed = true; } versions[tile] = seq; }
+            return new TileTable(keys.TileMetres, seq, keys.TileKeys, versions);
+        }
+
+        /// <inheritdoc/>
+        public float TileMetres => Volatile.Read(ref _tiles).Metres;
+        /// <inheritdoc/>
+        public uint ChangeSequence => Volatile.Read(ref _tiles).Sequence;
+        /// <inheritdoc/>
+        public uint TileVersion(int tileX, int tileZ)
+            => Volatile.Read(ref _tiles).Versions.TryGetValue(((long)tileX << 32) | (uint)tileZ, out uint v) ? v : 0u;
 
         public bool IsWalkable(Vector3 position, uint layerMask = 0xFFFFFFFF) => Current.IsWalkable(position, layerMask);
 

@@ -144,7 +144,8 @@ namespace Hrot.SimHost.Tests
             // ⭐ Buildings 5d-3 (2026-10-08) — +1: DoorPassageSystem in GroundKinematicsModule (stops at a closed door, opens it) ⇒ 8.
             // ⭐ Buildings Stage 6 (CE-1032, 2026-10-08) — +1: AreaEffectSystem in DamageAssessmentModule (blast and fragments) ⇒ 9.
             // ⭐ R-3039 S2 §7c (2026-10-22) — +1: TrajectoryRestoreSystem in GroundKinematicsModule (a restored mover's path is back) ⇒ 10.
-            Assert.Equal(10, pack.SimulationSystems.Count);
+            // ⭐ CE-4391 S-1 (2026-11-10) — +1: BuildingDamageSystem in DamageAssessmentModule (the breaches a burst decided, written into the building's damage entity) ⇒ 11.
+            Assert.Equal(11, pack.SimulationSystems.Count);
 
             // ⛔ And assert the REMOVAL, so a silent re-add is caught rather than merely changing a
             //    count somebody would re-baseline.
@@ -192,6 +193,7 @@ namespace Hrot.SimHost.Tests
             // DamageAssessmentModule systems
             Assert.Contains(simSystems, s => s is DamageCalculationSystem);
             Assert.Contains(simSystems, s => s is AreaEffectSystem);   // ⭐ CE-1032 W-5 — beside the direct hit
+            Assert.Contains(simSystems, s => s is Fdp.Toolkit.Terrain.BuildingDamageSystem);   // ⭐ CE-4391 S-1 — after it: the breaches it decides
 
             // GroundKinematicsModule sim systems
             Assert.Contains(simSystems, s => s is SpatialHashSystem);

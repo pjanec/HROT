@@ -1,9 +1,11 @@
-namespace Hrot.Traffic;
+namespace Fdp.Modules.Geographic.Transforms;
 
 /// <summary>
 /// ⭐ AQ93 E1 (R-4025) — UTM ⇄ WGS84 on the WGS84 ellipsoid (Snyder, "Map Projections — A Working Manual", USGS PP 1395,
 /// §8 transverse Mercator), accurate to well under a millimetre inside a zone. The only projection a SUMO net may carry
-/// into HROT (<c>+proj=utm</c>); anything else is refused by <see cref="SumoNetPlacement"/>.
+/// into HROT (<c>+proj=utm</c>); anything else is refused by <c>Hrot.Traffic.SumoNetPlacement</c>.
+/// ⭐ CE-4372 — MOVED here from <c>Hrot.Traffic</c> (Terrain From OSM F-8): ONE UTM class for SUMO net placement, the OSM pipeline and
+/// the terrain's <c>UtmTransform</c> (Terrain Import UTM stage 1).
 /// </summary>
 public static class Utm
 {

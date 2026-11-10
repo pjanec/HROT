@@ -68,10 +68,20 @@ namespace Fdp.Toolkit.Terrain
     {
         private readonly byte[] _states;
 
-        private DoorStates(byte[] states) => _states = states;
+        private DoorStates(byte[] states, BuildingDamageTable? damage = null) { _states = states; Damage = damage; }
+
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-1 (UTM §8.2 B-3) — the wall breaches of this view (the union of every <see cref="BuildingDamage"/> entity), or null when
+        /// it holds none. Rides here because every sight / fire / sound / path caller already passes ONE <see cref="DoorStates"/> (a second parameter
+        /// through ~30 files is the silent-default pattern). A table held by a caller keeps the breaches it was built with; the next
+        /// <see cref="Of(ISimulationView, TerrainWorld)"/> hands a new instance over the same door array when the damage changed.
+        /// </summary>
+        public BuildingDamageTable? Damage { get; }
 
         /// <summary>Door <paramref name="index"/>'s state in this view.</summary>
-        public TerrainDoorState this[int index] => (TerrainDoorState)_states[index];
+        public TerrainDoorState this[int index]
+            => Damage != null && Damage.DoorDestroyed(index) ? TerrainDoorState.Destroyed   // ⭐ CE-4391 S-2 — a collapsed building's doors are gone
+               : (TerrainDoorState)_states[index];
 
         public int Count => _states.Length;
 
@@ -92,12 +102,48 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public static DoorStates Of(ISimulationView view, TerrainWorld world)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427
+            var r = OfCore(view, world);
+            // ⭐ CE-4391 S-1 (B-3) — the breaches of this view ride along. The door table (above) is cached on its own; the damage table has its
+            //   own stamp, so a breach written this frame forces a rebuild of IT and of nothing else, and an unchanged frame hands back the same instance.
+            var damage = world.Buildings.Count > 0 ? BuildingDamageTable.Of(view, world) : null;
+            if (!ReferenceEquals(r.Damage, damage)) r = t_last = new DoorStates(r._states, damage);   // a new instance over the SAME door array
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
+            return r;
+        }
+        private static readonly int S_Of = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("doors.DoorStates.Of");
+
+        private static DoorStates OfCore(ISimulationView view, TerrainWorld world)
+        {
             // ⭐ CE-2414 — the table this thread built THIS frame is handed back while nothing of the doors was written since the frame
             //   began and every door entity it read is still a door (FrameStamp: R-220's "a door written within the tick" forces a rebuild).
             //   📐 It walked every entity per sight / fire query: ~8 % of the SimHost thread on the CE-2408 stress world.
+            // ⭐ CE-3427 — and while NOTHING structural happened since (no entity destroyed, no component added or removed —
+            //   EntityRepository.StructuralChanges), the door entities it read are still doors without walking them: O(1). 📐 The walk
+            //   was 239 µs per call on scale-1 (6 911 doors), ~59 % of the EQS sensors' time at 1 000 men; a background solve's snapshot
+            //   has no structural change within its run, so every call after the first is the O(1) answer. After a structural change the
+            //   walk decides, as before, and a passing walk refreshes the mark. ⚠ A snapshot's SyncFrom does NOT count structural changes —
+            //   safe because it takes the live GlobalVersion, so a re-synced snapshot always fails the frame stamp above first (a module
+            //   syncs at most once per live frame).
             if (view is EntityRepository live && t_last is { } held && ReferenceEquals(world, t_world)
-                && t_stamp.Holds(live, typeof(DoorState)) && StillDoors(live))
-                return held;
+                && t_stamp.Holds(live, typeof(DoorState)))
+            {
+                if (live.StructuralChanges == t_structural) return held;
+                if (StillDoors(live)) { t_structural = live.StructuralChanges; return held; }
+            }
+            // ⭐ CE-3427 — a NEW frame: the table still holds when no door state was written since it was built, no door entity was added
+            //   (the add counter), and every door entity it read is still one (the walk — it always runs here, so a destroy a snapshot's
+            //   sync did not count is still seen). 📐 The rebuild (a query + a key lookup per door entity) was ≈ 2 ms a frame on the CGF
+            //   main thread on scale-1; the walk is a fraction of it.
+            else if (view is EntityRepository next && t_last is { } kept && ReferenceEquals(world, t_world)
+                     && t_stamp.HoldsSinceTaken(next, typeof(DoorState))
+                     && next.ComponentsAddedOf(ComponentType<DoorState>.ID) == t_doorsAdded && StillDoors(next))
+            {
+                t_stamp.Take(next);
+                t_structural = next.StructuralChanges;
+                return kept;
+            }
+            t_builds++;
             int n = world.Doors.Count;
             var a = t_scratch is { } sc && sc.Length == n ? sc : (t_scratch = new byte[n]);
             for (int i = 0; i < n; i++) a[i] = (byte)world.Doors[i].Initial;
@@ -115,7 +161,12 @@ namespace Fdp.Toolkit.Terrain
                         t_doors![t_doorCount++] = e;
                     }
             }
-            if (view is EntityRepository built) { t_stamp.Take(built); t_world = world; } else t_stamp.Clear();
+            if (view is EntityRepository built)
+            {
+                t_stamp.Take(built); t_world = world; t_structural = built.StructuralChanges;
+                t_doorsAdded = built.IsComponentTypeRegistered<DoorState>() ? built.ComponentsAddedOf(ComponentType<DoorState>.ID) : -1;
+            }
+            else t_stamp.Clear();
 
             if (t_last is { } last && last._states.AsSpan().SequenceEqual(a)) return last;
             return t_last = new DoorStates(a.ToArray());   // the doors changed (or a new world/thread) — the one allocation
@@ -123,6 +174,7 @@ namespace Fdp.Toolkit.Terrain
 
         private static bool StillDoors(EntityRepository repo)
         {
+            t_walks++;
             for (int k = 0; k < t_doorCount; k++)
                 if (!repo.IsAlive(t_doors![k]) || !repo.HasComponent<DoorState>(t_doors[k])) return false;
             return true;
@@ -132,6 +184,16 @@ namespace Fdp.Toolkit.Terrain
         [ThreadStatic] private static TerrainWorld? t_world;
         [ThreadStatic] private static Entity[]? t_doors;
         [ThreadStatic] private static int t_doorCount;
+        [ThreadStatic] private static long t_structural;   // ⭐ CE-3427 — EntityRepository.StructuralChanges when the door entities were last known
+        [ThreadStatic] private static int t_walks;
+        [ThreadStatic] private static long t_doorsAdded;
+        [ThreadStatic] private static int t_builds;
+
+        /// <summary>⭐ CE-3427 — how many times THIS thread rebuilt the door table from the door entities (rails).</summary>
+        internal static int DoorTableBuildsOnThisThread => t_builds;
+
+        /// <summary>⭐ CE-3427 — how many times THIS thread walked the door entities to re-check them (rails).</summary>
+        internal static int DoorWalksOnThisThread => t_walks;
 
         // ⭐ R-220 — per THREAD (a background module reads its own snapshot on its own thread): the scratch the doors are read into,
         //   the last table handed out, and the door query of the last repository (an EntityQuery is immutable and reusable).
@@ -151,9 +213,9 @@ namespace Fdp.Toolkit.Terrain
             return t_query;
         }
 
-        /// <summary>The resident terrain's doors as <paramref name="view"/> sees them, or null when no terrain is resident / it has no doors.</summary>
+        /// <summary>The resident terrain's doors (and, ⭐ CE-4391, breaches) as <paramref name="view"/> sees them, or null when no terrain is resident / it has neither doors nor buildings.</summary>
         public static DoorStates? Of(ISimulationView view)
-            => view is EntityRepository repo && repo.HasSingletonManaged<TerrainWorld>() && repo.GetSingletonManaged<TerrainWorld>() is { Doors.Count: > 0 } w
+            => view is EntityRepository repo && repo.HasSingletonManaged<TerrainWorld>() && repo.GetSingletonManaged<TerrainWorld>() is { HasLiveState: true } w
                 ? Of(view, w) : null;
     }
 }

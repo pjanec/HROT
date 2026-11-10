@@ -12,6 +12,8 @@
     "sandbags":          { "sight": 0.0,  "resistanceMmRhaPerM": 100,  "soundDb": 30, "blocksMovement": true },
     "earth-berm":        { "sight": 0.0,  "resistanceMmRhaPerM": 60,   "soundDb": 40, "blocksMovement": true },
     "door-wood":         { "sight": 0.0,  "resistanceMmRhaPerM": 60,   "soundDb": 15, "blocksMovement": true },
+    "tree-trunk": {"sight": 0.0, "resistanceMmRhaPerM": 300, "soundDb": 10, "blocksMovement": true, "$comment": "CE-4369 (R-4190 T-1/T-6): a lone tree trunk, r 0.3 m — stops small arms"},
+    "rubble": {"sight": 0.0, "resistanceMmRhaPerM": 120, "soundDb": 30, "blocksMovement": true, "$comment": "CE-4391 S-2 (UTM §8.2 B-9): the mound a collapsed building leaves — broken masonry and soil, stops small arms in a metre"},
     "car-body":          { "sight": 0.0,  "resistanceMmRhaPerM": 120,  "soundDb": 20, "blocksMovement": true }
   }
 }

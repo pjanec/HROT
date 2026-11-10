@@ -32,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// 🔒 User ruling, 2026-09-05: "no precalculated percentages".
     /// </para>
     /// </summary>
-    public class EntityDamageEgressTranslator : IDescriptorTranslator
+    public class EntityDamageEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         private const long OrdinalValue   = (long)EDescriptorType.dtEntityDamage;
 
@@ -64,9 +64,23 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             // ⭐ CE-3076 (CE-2101's rule) — send-on-change keyed by net id: a reused id whose health equals the last world's
             //   final value (e.g. 100/100) would never be published, and receivers would keep their TKB-seeded Max.
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
 
             var query = view.Query()
                 .With<Health>()

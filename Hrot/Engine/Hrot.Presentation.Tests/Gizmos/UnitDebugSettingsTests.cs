@@ -140,6 +140,23 @@ public sealed class UnitDebugSettingsTests : IDisposable
         Assert.Equal(GizmoScope.PinnedOnly, GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs));
     }
 
+    /// <summary>⭐ CE-4385 (R-2084 hot path) — the family policy answers per entity, per rule, per frame, with NO garbage once warm: measured on Windows
+    /// 2026-11-10, each answer built <c>"map.scope." + family</c> to hash it — 540 KB a frame over 6 912 doors on an idle 5.5 km scenario.
+    /// 🔴 Red-proof (compiles): <c>GizmoFamilies.SettingHash</c> back to <c>ComputeHash(SettingKey(family))</c> ⇒ red.</summary>
+    [Fact]
+    public void CE4385_TheFamilyPolicy_AnswersWithNoGarbage_OnceWarm()
+    {
+        var unit = Unit(1006);
+        Frame();
+        var settings = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
+        var path = new GizmoFamilyVisibilityPolicy(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path);
+        var cones = new GizmoFamilyVisibilityPolicy(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception);
+        for (int k = 0; k < 3; k++) { path.IsEntityVisible(_repo, unit); cones.IsEntityVisible(_repo, unit); }   // warm
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int k = 0; k < 100; k++) { path.IsEntityVisible(_repo, unit); cones.IsEntityVisible(_repo, unit); }
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
     /// <summary>⭐ BV-70 / BV-71 — remembered per scenario: written on change, cleared when another scenario loads, back when it loads again;
     /// the Settings menu's reset forgets them. ✅ Red-proof: Tick not loading the new scenario's file ⇒ red.</summary>
     [Fact]

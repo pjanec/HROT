@@ -75,7 +75,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// ⭐ WL-2b (CE-1049, W-3) — publishes a turret part's <see cref="WeaponTaskStatus"/> from the node owning
     /// <c>(dtWeaponTaskStatus, part)</c> — the Muscle — keyed like the task, on change.
     /// </summary>
-    public sealed class EntityWeaponTaskStatusEgressTranslator : IDescriptorTranslator
+    public sealed class EntityWeaponTaskStatusEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over. Keyed by the packed (hull network id, part id) — TurretPartKey.
@@ -97,7 +97,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             foreach (var part in view.Query().With<PartMetadata>().With<WeaponTaskStatus>().Build())
             {
                 if (!TurretPartKey.TryResolve(view, part, DescriptorOrdinal, out var hullNet, out int partId)) continue;

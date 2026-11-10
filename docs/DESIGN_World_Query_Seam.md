@@ -384,3 +384,53 @@ triangle (ground / wall / roof — no piece kinds, R-252), reached through `Worl
 | ⚠ Steam Audio's custom ray-tracer callback (would let it trace through Bepu) — only an informal developer remark found | only if Steam Audio is ever chosen |
 | ⚠ room detection from walls at load (Building Interiors §3a) — not built anywhere | Q4 |
 | ⚠ the ~38 / ~20 file counts are grep results | each slice re-measures its module |
+
+## 7. ⭐ GROUND SIGHT LINES AT 3 km — the max-height level *(L-5, `CE-4367`, backend `2026-11-10`; PLAN_Large_Terrain P-2; build-state: BUILT)*
+
+**No second query path:** sight and fire still ask `IWorldQuery` → `TerrainWorld.QuerySight` / `SegmentBlocked` → `TerrainHeightGrid.Crosses`. The
+change is INSIDE the ground trace's cell walk.
+
+```mermaid
+classDiagram
+  class IWorldQuery { <<existing, R-253>> QuerySight · QueryFire }
+  class TerrainWorld { <<existing>> SegmentBlocked · QuerySight · QueryFire }
+  class TerrainHeightGrid {
+    <<existing>>
+    Crosses(a, b) yes/no — skips cells under the line
+    Crosses(a, b, out t, out crest) — walks every cell (the reference)
+    -float[] blockMax  NEW: the highest post of each 16×16 block
+  }
+  IWorldQuery <|.. TerrainWorld
+  TerrainWorld --> TerrainHeightGrid : the ground part of a trace
+```
+
+```mermaid
+sequenceDiagram
+  participant Q as a sight query (any frame, any thread)
+  participant G as TerrainHeightGrid.Crosses(a, b)
+  Q->>G: a → b
+  loop every cell the line's shadow crosses (Amanatides–Woo, unchanged)
+    G->>G: the line's lowest height over this cell (its entry / exit on the walk)
+    alt above its block's highest post (+ a cm margin)
+      G->>G: skip: no triangle there can reach the line
+    else
+      G->>G: the two triangle tests (as before) — a hit returns true
+    end
+  end
+```
+
+**Who calls it each frame:** the perception and fire systems through `IWorldQuery`, as before; the only new per-cell work is a float compare
+against a small array (5.5 km at 1 m: 344² blocks, 0.5 MB, built once at load).
+
+**INVENTORY** (grep `\.Crosses(` + graph `trace_path Crosses inbound`): `TerrainWorld.SegmentBlocked` (`:465`, yes/no), `QueryFire` (`:545`, needs t),
+the blast's diffraction (`:651`, needs the crest) ⇒ only the yes/no form skips; the two forms that report where / the crest still walk every
+cell — their answers are unchanged by construction.
+
+| # | options | measured *(Release, this VM; 2 000 random 3 km lines on scale-1's 1 m heights, eye height 1.7 m, ¼ of them to 300 m up)* | chosen |
+|---|---|---|---|
+| G-1 | a mip pyramid with a block-level walk · ONE level, checked per cell inside the unchanged walk | the per-cell check keeps the walk byte-identical, so the answer is the plain march's by construction (0 mismatches of 2 000; rail over 12 000 lines) | ⭐ one level, per cell — enough: |
+| G-2 | — | **before** (the old yes/no trace, first hit returns): **38.7 µs** per 3 km line · **after: 3.8 µs (10×)** · the plain full march 95–132 µs | — |
+| G-3 | block size | 16 cells (the lean of a small array that stays in cache); not tuned further — the trace is no longer a measurable share of a frame | 16 |
+
+**Rail:** `GroundSightPyramidTests.CE4367_TheSkippingTrace_AnswersAsThePlainMarch` — 4 000 random lines × 3 seeds over rough 1 m ground, both
+answers exercised; red-proved with a skip that ignores the margin.

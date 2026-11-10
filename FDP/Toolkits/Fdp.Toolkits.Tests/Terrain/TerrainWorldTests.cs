@@ -272,7 +272,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         [Theory]
-        [InlineData("""{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"tree"},"geometry":{"type":"Point","coordinates":[0,0]}}]}""", "unknown kind")]
+        [InlineData("""{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"lamppost"},"geometry":{"type":"Point","coordinates":[0,0]}}]}""", "unknown kind")]   // ⭐ CE-4369 — 'tree' is a kind now (a lone trunk)
         [InlineData("""{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"building"},"geometry":{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]}}]}""", "'height' is required")]
         [InlineData("""{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"building","height":3},"geometry":{"type":"Polygon","coordinates":[[[0,0],[9,0],[9,9],[0,0]],[[1,1],[2,1],[2,2],[1,1]]]}}]}""", "holes")]
         [InlineData("""{"type":"Nope"}""", "FeatureCollection")]
@@ -708,6 +708,66 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(TerrainDoorState.Open, DoorStates.Of(repo, w)[door]);
             repo.DestroyEntity(e);                                                        // destroyed within the frame: authored again
             Assert.Equal(TerrainDoorState.Closed, DoorStates.Of(repo, w)[door]);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3427 — while nothing STRUCTURAL happens (no destroy, no component added or removed), the held door table is handed back
+        /// without walking the door entities (it was 239 µs a call on scale-1's 6 911 doors); a structural change brings the walk back
+        /// once, and a door destroyed is still seen at once (the CE-2414 rail above keeps that).
+        /// </summary>
+        [Fact]
+        public void CE3427_TheHeldDoorTable_IsCheckedWithoutWalkingTheDoors_UntilSomethingStructuralHappens()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w);
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new DoorState { State = TerrainDoorState.Open });
+            repo.SetManagedComponent(e, new TerrainObjectKey { Key = "range/H/front" });
+            repo.Tick();
+            var first = DoorStates.Of(repo, w);
+            int walks = DoorStates.DoorWalksOnThisThread;
+            for (int i = 0; i < 100; i++) Assert.Same(first, DoorStates.Of(repo, w));
+            Assert.Equal(walks, DoorStates.DoorWalksOnThisThread);                        // 100 asks, no walk
+
+            var other = repo.CreateEntity();                                              // something structural, not a door
+            Assert.Same(first, DoorStates.Of(repo, w));
+            Assert.Equal(walks + 1, DoorStates.DoorWalksOnThisThread);                    // one walk re-checks …
+            for (int i = 0; i < 10; i++) DoorStates.Of(repo, w);
+            Assert.Equal(walks + 1, DoorStates.DoorWalksOnThisThread);                    // … and marks it: no more walks
+            repo.DestroyEntity(e);
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Of(repo, w)[w.DoorIndexOf("range/H/front")]);   // a destroyed door is seen at once
+        }
+
+        /// <summary>
+        /// ⭐ CE-3427 — across FRAMES the door table is kept (not rebuilt) while no door state was written and no door entity added since it
+        /// was built (≈ 2 ms a frame on the CGF main thread on scale-1); a write, an add or a destroy on a later frame is still seen at once.
+        /// </summary>
+        [Fact]
+        public void CE3427_TheDoorTable_IsKeptAcrossFrames_UntilADoorChanges()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            int door = w.DoorIndexOf("range/H/front");
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w);
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new DoorState { State = TerrainDoorState.Open });
+            repo.SetManagedComponent(e, new TerrainObjectKey { Key = "range/H/front" });
+            repo.Tick();
+            var first = DoorStates.Of(repo, w);
+            int builds = DoorStates.DoorTableBuildsOnThisThread;
+            for (int f = 0; f < 5; f++) { repo.Tick(); repo.CreateEntity(); Assert.Same(first, DoorStates.Of(repo, w)); }
+            Assert.Equal(builds, DoorStates.DoorTableBuildsOnThisThread);                       // five frames, structural changes, no rebuild
+
+            repo.Tick();
+            repo.SetComponent(e, new DoorState { State = TerrainDoorState.Locked });           // a write on a later frame
+            Assert.Equal(TerrainDoorState.Locked, DoorStates.Of(repo, w)[door]);
+            repo.Tick();
+            repo.DestroyEntity(e);                                                             // a destroy on a later frame
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Of(repo, w)[door]);
+            repo.Tick();
+            var again = repo.CreateEntity();
+            repo.AddComponent(again, new DoorState { State = TerrainDoorState.Open });         // an add on a later frame
+            repo.SetManagedComponent(again, new TerrainObjectKey { Key = "range/H/front" });
+            Assert.Equal(TerrainDoorState.Open, DoorStates.Of(repo, w)[door]);
         }
 
         /// <summary>

@@ -289,7 +289,10 @@ namespace Fdp.Toolkit.Navigation.Tests
                 var v = _repo.CreateEntity();
                 _repo.AddComponent(v, new VehicleState());
                 _repo.AddComponent(v, new VehicleParams { Class = cls });
-                Assert.Equal(NavLayerMask.Vehicle, NavLayerSelection.For(_repo, v, 0));
+                // ⭐ CE-4369 — a tracked class (Tank) plans on the same vehicle layer, carrying the tracked modifier (woods priced, not closed)
+                var expected = cls == VehicleClass.Tank
+                    ? (NavLayerMask)((uint)NavLayerMask.Vehicle | NavLayerSelection.TrackedModifier) : NavLayerMask.Vehicle;
+                Assert.Equal(expected, NavLayerSelection.For(_repo, v, 0));
             }
             Assert.Equal(NavLayerMask.Vehicle, NavLayerSelection.For(_repo, soldier, (uint)NavLayerMask.Vehicle));   // an explicit order still wins
         }

@@ -200,8 +200,11 @@ namespace Fdp.Toolkit.Weather
             float sum = 0f;
             if (world.IsComponentTypeRegistered<WeatherConditions>() && world.IsComponentTypeRegistered<SimTransform>())
             {
-                foreach (var e in world.Query().With<WeatherConditions>().With<SimTransform>().Build())
+                var regions = Regions(world, out int count);
+                for (int k = 0; k < count; k++)
                 {
+                    var e = regions[k];
+                    if (!world.IsAlive(e) || !world.HasComponent<WeatherConditions>(e) || !world.HasComponent<SimTransform>(e)) continue;
                     if (n >= into.Length - 1) break;   // keep a slot for the global weather
                     if (!TryOutline(world, e, out var outline)) continue;
                     var origin = world.GetComponentRO<SimTransform>(e).Position;
@@ -226,12 +229,59 @@ namespace Fdp.Toolkit.Weather
         {
             environment = Entity.Null;
             if (world.IsComponentTypeRegistered<WeatherConditions>() && world.IsComponentTypeRegistered<ScenarioClock>())
-                foreach (var e in world.Query().With<WeatherConditions>().With<ScenarioClock>().WithLifecycle(EntityLifecycle.All).Build())
+            {
+                Regions(world, out _);   // ⭐ CE-3427 — the environment entity is found with the regions, once per (frame, structure)
+                var e = t_env;
+                if (!e.IsNull && world.IsAlive(e) && world.HasComponent<WeatherConditions>(e) && world.HasComponent<ScenarioClock>(e))
                 {
                     environment = e;
                     return world.GetComponentRO<WeatherConditions>(e);
                 }
+            }
             return WeatherConditions.Standard;
+        }
+
+        // ⭐ CE-3427 — the weather's entities, found once per THREAD per (repository, frame, structure) and re-checked live on use. 📐 Every
+        //   sight and hearing solve samples the weather; each sample walked the whole entity index for the regions and again for the
+        //   global weather (a query built per call). Any structural change, a new frame or a snapshot's re-sync finds them again.
+        [ThreadStatic] private static EntityRepository? t_repo;
+        [ThreadStatic] private static uint t_version;
+        [ThreadStatic] private static long t_structure;
+        [ThreadStatic] private static Entity[]? t_regions;
+        [ThreadStatic] private static int t_regionCount;
+        [ThreadStatic] private static Entity t_env;
+        [ThreadStatic] private static int t_finds;
+
+        /// <summary>How many times THIS thread searched the world for its weather entities (rails).</summary>
+        internal static int FindsOnThisThread => t_finds;
+
+        private static Entity[] Regions(EntityRepository world, out int count)
+        {
+            if (ReferenceEquals(world, t_repo) && world.GlobalVersion == t_version && world.StructuralChanges == t_structure && t_regions != null)
+            {
+                count = t_regionCount;
+                return t_regions;
+            }
+            t_finds++;
+            var regions = t_regions ??= new Entity[8];
+            int n = 0;
+            if (world.IsComponentTypeRegistered<WeatherConditions>() && world.IsComponentTypeRegistered<SimTransform>())
+                foreach (var e in world.Query().With<WeatherConditions>().With<SimTransform>().Build())
+                {
+                    if (n == regions.Length) Array.Resize(ref t_regions, regions.Length * 2);
+                    regions = t_regions!;
+                    regions[n++] = e;
+                }
+            t_env = Entity.Null;
+            if (world.IsComponentTypeRegistered<WeatherConditions>() && world.IsComponentTypeRegistered<ScenarioClock>())
+                foreach (var e in world.Query().With<WeatherConditions>().With<ScenarioClock>().WithLifecycle(EntityLifecycle.All).Build())
+                {
+                    t_env = e;
+                    break;
+                }
+            t_repo = world; t_version = world.GlobalVersion; t_structure = world.StructuralChanges; t_regionCount = n;
+            count = n;
+            return regions;
         }
 
         /// <summary>The area outline of <paramref name="e"/> — any managed component implementing <see cref="IAreaOutline"/> under the

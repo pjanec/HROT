@@ -14,6 +14,9 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Map_View_Filter.md — OWNS the map's view filter (CE-4388): what is on screen and close enough to draw, decided ONCE per entity before any gizmo rule, in 2-D and 3-D
+  - docs/DESIGN_Terrain_World.md §10a — the 2-D plan at 5.5 km (CE-4376), the 2-D sibling of §6ah
+  - docs/DESIGN_Scale_Rig.md §5.2 N-5 — OWNS the sim side of the 5.5 km terrain (the per-tile navmesh bake, BuildRegion); hands the editor's whole-soup build to §6ah here
   - docs/DESIGN_Unit_Camera.md — the Follow camera rides MapCamera3D (its LookAt pinned to a unit) and adds a spring arm (CE-1293)
   - docs/DESIGN_Geo_Origin.md §4 — OWNS the node's one IGeographicTransform and where its origin comes from (the terrain); §6ac's cursor readout converts through it, from the world singleton
   - docs/UX/Architect_Question_28_Map_Layers.md E′ — OWNS the ruling that ActiveLayerMask switches whole layer objects and the Config window's Grid tick drives it; §6ac's Grid row follows CE-1227's layer-panel precedent beyond it (reasoned there)
@@ -3490,6 +3493,216 @@ Rails: `Map3DTests.CE4084_*` (off-centre projection / pick = draw / frustum NDC;
 | left alone | the 3-D map on screen, any 3-D camera driver (a followed unit, a possession station, the film director) or a station in first person: that terrain is CONSUMED unframed (not framed later behind the user's back); a switch in flight waits one more frame |
 
 Rails: `MapFramingTests` (the fit for a small and a big terrain, the margin, the framer: once, on change, after an unload, and left-alone) · `TerrainFramingLayerTests` (over a real world and camera: frames cqb-village's bounds with the margin, a pan is never undone, a change re-frames, a driven or 3-D camera is untouched). Red-proof: the framer not remembering what it framed ⇒ the "never re-frames" rail red.
+
+### 6ah. CE-3423 / CE-4377 — the LARGE terrain in 3-D: the ground by level of detail, per chunk; the picker per chunk *(ui, `2026-11-10`; build-state: D-1 BUILT — as-built below the table)*
+
+🔒 Handoff [HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md](blueprints/batches/HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md) D-1 / D-3. 📌 **Why:** `TerrainLayer3D`
+and `TerrainPicker` each take the WHOLE soup (`ITerrainRenderGeometry.BuildTagged`) — on scale-1 (5.5 km, a 1 m height grid) that is **61.4 M triangles, 2.2 GB, peak 7.0 GB,
+9.4 s** ([DESIGN_Scale_Rig.md](DESIGN_Scale_Rig.md) §5.2 N-5, which hands this to ui). The navmesh already left the soup (§5.2: `TerrainWorldMesh.BuildRegion`); the 3-D view
+follows it.
+
+**INVENTORY** *(`search_graph`, `2026-11-10`, index `home-user-HROT` 314 k nodes; ⚠ coverage not checkable through the CLI)*: `.*TerrainWorld.*` Class — **9** (`TerrainWorld`,
+`TerrainWorldMesh` *(Build · BuildRegion · BuildApron · the ONE `AddGroundCell` / `AddPrism` / `AddWalkable`)*, `TerrainWorldQuery` *(the only `ITerrainRenderGeometry`)*,
+`TerrainWorldParser`, the Recast / LOS / spatial sources) · `.*TerrainLayer(3D|2D).*|.*TerrainPlan.*` — **4** · `.*TerrainHeight.*` — **3** (`TerrainHeightGrid`,
+`TerrainHeightTiles`) · `.*(Lod|LOD|Chunk).*` — **16**, none a terrain LOD (`PedLodManager` is SUMO's pedestrians) ⇒ ⭐ the LOD is new; every TRIANGLE it draws still comes
+from `TerrainWorldMesh`'s builders. Reused: `BackgroundMeshBuild` *(one per chunk mesh, unchanged)* · `PickGrid` *(one per chunk)* · `LitShader` · `TerrainLayer3D.BuildVertexData`.
+
+```mermaid
+classDiagram
+  class ITerrainRenderGeometry { <<existing>> Identity · Build · BuildTagged (the whole soup) }
+  class ITerrainChunkedGeometry { <<NEW>> Chunks : TerrainChunkLayout · BuildChunk(cx, cy, lod, part) · BuildOutside() }
+  class TerrainChunkLayout { <<NEW record>> Origin · ChunkSize · Cell · Nx · Ny · MinZ · MaxZ · Lods }
+  class TerrainWorldQuery { <<existing>> implements both }
+  class TerrainWorldMesh { <<existing>> AddGroundCell · AddPrism · AddWalkable · BuildApron · BuildChunkGround NEW · ChunkIndex NEW }
+  class TerrainLayer3D { <<existing>> the old whole-mesh path for a plain source · a TerrainChunks3D for a chunked one }
+  class TerrainChunks3D { <<NEW>> per chunk: ground mesh per LOD + objects mesh · LOD choice · frustum cull · build queue · GPU budget }
+  class TerrainPicker { <<existing>> the old grid for a plain source · ChunkPickGrids for a chunked one }
+  class ChunkPickGrids { <<NEW>> a PickGrid per chunk (LOD 0 + objects), built on demand on a worker · the ray walks the chunk grid }
+  class BackgroundMeshBuild~T~ { <<existing>> one per chunk mesh }
+  class PickGrid { <<existing>> one per chunk }
+  ITerrainRenderGeometry <|-- ITerrainChunkedGeometry
+  ITerrainChunkedGeometry <|.. TerrainWorldQuery
+  ITerrainChunkedGeometry ..> TerrainChunkLayout
+  TerrainWorldQuery ..> TerrainWorldMesh
+  TerrainLayer3D *-- "0..1" TerrainChunks3D
+  TerrainChunks3D *-- "many" BackgroundMeshBuild~T~
+  TerrainPicker *-- "0..1" ChunkPickGrids
+  ChunkPickGrids *-- "many" PickGrid
+```
+*What the picture shows that prose hid: the soup's three consumers (3-D, picker, navmesh) now all take the terrain BY REGION from the same builders; a source that is not chunked
+(a test double) keeps the old whole-mesh path, so nothing else changes.*
+
+```mermaid
+sequenceDiagram
+  participant F as frame (Map3DBuild.Update → layer.PumpBuild · Draw3D)
+  participant C as TerrainChunks3D
+  participant W as worker (Task.Run)
+  participant G as TerrainWorldQuery (BuildChunk)
+  F->>C: RequestBuild (load): every chunk at the COARSEST level + the outside (apron)
+  C->>W: one BackgroundMeshBuild per mesh, at most 2 running
+  W->>G: BuildChunk(cx, cy, lod, Ground | Objects) — reads the immutable TerrainWorld
+  F->>C: PumpBuild: ≤ 2 uploads a frame
+  F->>C: Draw3D: eye + frustum from rlgl's matrices
+  loop every chunk (index loop, no allocation)
+    C->>C: cull by its box · wanted level by distance · ask for it if not built (queued, nearest first)
+    C->>F: DrawMesh(the finest BUILT level ≤ … the wanted one, else the coarsest) + its objects mesh
+  end
+  C->>C: over the GPU budget ⇒ unload the least recently drawn finer levels
+```
+*What the picture shows: a frame never builds — it asks, and draws the best level it already has; the whole terrain is up at the coarsest level before the load step reports
+"built", and finer levels arrive near the camera after.*
+
+```mermaid
+graph TD
+  MAP["MapCanvas.Draw (every frame, 3-D)"] -->|Draw3D| L3[TerrainLayer3D]
+  M3B["Map3DBuild.Update (every frame, 2-D too)"] -->|"RequestBuild · PumpBuild"| L3
+  L3 -->|chunked source| CH[TerrainChunks3D]
+  CH -->|worker| Q["TerrainWorldQuery.BuildChunk"]
+  Q --> TM["TerrainWorldMesh: AddGroundCell / AddPrism / AddWalkable (the soup's own builders)"]
+  PK["MapCamera3D pick (on hover / click)"] --> TP[TerrainPicker]
+  TP -->|chunked source| CPG[ChunkPickGrids]
+  CPG -->|worker| Q
+  NAV["RecastNavmeshFactory (load, sim nodes)"] -->|BuildRegion| TM
+  SOUP["TerrainWorldMesh.Build (whole soup)"]
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33;
+  class SOUP dead;
+```
+*What the picture shows: after this, NOTHING on the editor's frame path asks for the whole soup (red) — `Build` stays for the small-terrain tools and the tests that compare
+against it.*
+
+| # | decision | why |
+|---|---|---|
+| L-1 | chunks of ≈ 256 m, aligned to the ground layout's cells (size = cell × round(256 / cell)) | a chunk edge is a cell edge ⇒ level 0 of a chunk is EXACTLY the soup's cells there (`AddGroundCell`, same cut, same forest tag) |
+| L-2 | level k = cell × 2^k, k = 0…3 (1 → 8 m on a 1 m grid); wanted level from the eye's distance to the chunk's box: < 1.5 · chunk → 0, < 3 → 1, < 6 → 2, else 3 | near the camera it looks as today; far simplifies (the handoff's "far may simplify") |
+| L-3 | a level > 0 cuts ground only under WATER (not under buildings) | a coarse cell cut under a house leaves a hole bigger than the house; the house hides the ground under it |
+| L-4 | skirts: every chunk hangs a strip down its INTERIOR edges, 2 · step + 1 m deep, ground-coloured | closes the cracks between levels whichever side is higher; invisible where both sides agree (level 0 next to level 0) |
+| L-5 | prisms, walkables and water belong to ONE chunk (their footprint's centre) — one "objects" mesh per chunk, built once | drawn once; D-3 adds the far simplification of buildings and the trees over this |
+| L-6 | the apron (`BuildApron`) and anything outside the chunk grid: ONE mesh, as today | small, already coarse (40 m) |
+| L-7 | builds on workers (≤ 2 running), nearest wanted first; ≤ 2 uploads a frame; the coarsest level of every chunk first — the load step's "built" | never block a frame; the whole terrain visible early |
+| L-8 | the frame: index loops over fixed arrays, eye and frustum from `Rlgl.GetMatrixModelview` / `GetMatrixProjection` (works in a film pass too) | 0 B a steady frame (CLAUDE.md hot path) |
+| L-9 | GPU budget for finer levels (default 1.5 GB of vertex data): over it, unload the least recently drawn | ≤ 4 GB a process (R-4192) |
+| L-10 | the picker: one `PickGrid` per chunk from level 0 + objects, built on a worker for chunks the ray crosses (and the ring round the camera's look-at, asked each frame — so a click finds it ready); a pick walks the chunk grid along the ray, testing built ones | a pick never builds; what you click is the triangles drawn near the camera |
+| L-11 | a source that is not `ITerrainChunkedGeometry` keeps today's whole-mesh path | test doubles and any other geometry unchanged |
+
+**As-built (D-1, `2026-11-10`)** — as designed, with three things the build settled:
+- ⚠ the chunk-part enum's members are `ChunkGround` / `ChunkObjects`, not `Ground` / `Objects`: the DDS code generator emits IDL for every enum in `ITerrainRenderGeometry.cs`, and a second `Ground` collides with `TerrainSurfaceKind.Ground`.
+- the water builder moved into `TerrainWorldMesh.AppendWater` and the triangle classification into `TerrainWorldQuery.Classify` — ONE copy each for the whole build and the chunks (the equality rail `TerrainChunkTests` holds them together on demo-city, test-town, highway-rest and bt-range).
+- `TerrainPicker.Update()` / `IsBuilt` on a chunked terrain: `Update` asks for every chunk (the rails' wait on a small terrain); `IsBuilt` = bound to this terrain and at least one chunk grid built. The frame never calls `Update` — a pick asks only for the chunks its ray crosses.
+
+**Measured on Windows (CE-4385, handoff L-3, `2026-11-10`)** — the user's machine, Release, the editor **hidden** (`HROT_HIDDEN_WINDOW=1`: the frame drawn into
+an off-screen target, so **no vsync and no compositor** — GPU-honest, not what a visible window's pacing adds) and **uncapped** (`--target-fps 0`), a blank scenario on
+the terrain, paused in edit mode, viewport 2200 × 1200. fps = min / avg of five 2 s windows over 10 s; triangles / meshes (= draw calls) = the chunked terrain's own
+(`TerrainDrawStats`); garbage = bytes allocated per frame, WHOLE process (`/diagnostics/render`). Driver: `/film/shot` (a held shot — `twoD:true` for the 2-D views).
+
+| terrain | view | fps min / avg | ms mean / p95 | terrain tris / meshes | working set | garbage / frame |
+|---|---|---|---|---|---|---|
+| osm-kolin-test | 3-D near 40 m | 31.9 / 35.3 | 27.0 / 33.0 | 2.2 M / 50 | 3.1 GB | 2.0 MB |
+| | 3-D mid 400 m | 33.9 / 34.8 | 29.5 / 35.4 | 3.0 M / 84 | 3.1 GB | 2.0 MB |
+| | 3-D far 3 km | 31.0 / 32.3 | 31.7 / 36.8 | 3.4 M / 202 | 3.1 GB | 2.0 MB |
+| | 3-D flight 15 m/s | ⛔ 28.7 / 31.7 | 34.9 / 39.5 | 1.6 M / 59 | 3.1 GB | 2.0 MB |
+| | 2-D whole terrain | ⛔ 15.9 / 17.0 | 54.2 / 68.7 | — | 3.3 GB | 14.1 MB |
+| | 2-D close 150 m | 31.4 / 32.9 | 29.2 / 35.1 | — | 3.1 GB | 5.2 MB |
+| scale-1 | 3-D near 40 m | ⛔ 20.0 / 20.8 | 47.0 / 52.7 | 2.1 M / 268 | 4.3 GB | 2.3 MB |
+| | 3-D mid 400 m | ⛔ 19.3 / 21.0 | 45.6 / 50.7 | 2.2 M / 278 | 4.6 GB | 2.3 MB |
+| | 3-D far 3 km | ⛔ 18.2 / 19.7 | 49.0 / 58.3 | 2.1 M / 930 | 4.6 GB | 2.3 MB |
+| | 3-D flight 15 m/s | ⛔ 19.3 / 20.4 | 46.6 / 51.2 | 2.2 M / 311 | 4.7 GB | 2.3 MB |
+| | 2-D whole terrain | ⛔ 20.0 / 21.9 | 43.0 / 49.7 | — | 3.9 GB | 8.8 MB |
+| | 2-D close 150 m | ⛔ 29.7 / 35.0 | 27.1 / 34.8 | — | 3.9 GB | 5.8 MB |
+| real-1 | 3-D near 40 m | 30.1 / 31.6 | 32.5 / 43.1 | 2.3 M / 186 | 4.4 GB | 2.0 MB |
+| | 3-D mid 400 m | ⛔ 29.3 / 31.7 | 30.1 / 38.0 | 2.6 M / 174 | 4.7 GB | 2.0 MB |
+| | 3-D far 3 km | ⛔ 26.8 / 29.3 | 33.4 / 38.2 | 3.4 M / 953 | 4.9 GB | 1.9 MB |
+| | 3-D flight 15 m/s | ⛔ 29.1 / 30.5 | 32.1 / 37.1 | 2.5 M / 313 | 4.6 GB | 2.0 MB |
+| | 2-D whole terrain | ⛔ 25.3 / 27.4 | 38.0 / 44.0 | — | 4.6 GB | 7.2 MB |
+| | 2-D close 150 m | ⛔ 28.1 / 32.1 | 28.9 / 36.4 | — | 4.5 GB | 5.1 MB |
+
+Loads (first open, the navmesh bake included): osm-kolin-test 57 s · scale-1 140 s · real-1 154 s; the 3-D map ready 6.4 s (scale-1) / 5.2 s (real-1) after the first 3-D request.
+
+**Where the frame goes** (`HROT_FRAME_STATS=1`, scale-1, the editor idle): **update 17–24 ms + 1.55 MB / frame · world draw 18–21 ms · UI 4–5 ms + 0.7 MB**.
+⭐ The 3-D world draw makes **2 KB / frame** — this section's chunked terrain is zero-garbage, as built; ⛔ the 2-D world draw makes **6.3 MB / frame**. ⭐ The frame time
+barely moves with the terrain's triangles (2.2 → 3.4 M on osm-kolin-test: 27 → 32 ms) ⇒ ⭐⭐ **the budget is lost OFF the terrain**, mostly in the update:
+
+| cost (scale-1, idle editor) | ms / frame | garbage / frame | state |
+|---|---|---|---|
+| `StatelessGizmoSystem` — ~20 rules × **6 912 matched entities**, each rule 0.2–1.1 ms (`GizmoRuleTimings`, new, under `HROT_FRAME_STATS`) | **11.4** | 608 KB | ⏳ the next cost — every rule walks every match every frame (CE-2402's hold only spreads the redraw); off-screen entities are not skipped. → render-under-load R-2 (CE-4388), the same system at 1 000 men |
+| ↳ a family rule (the per-rule log blamed `MissionPresentationGizmo`): its policy's `GizmoFamilies.ScopeOf` built `"map.scope." + family` to hash it, per entity per frame — the 6 912 matched entities are **doors** (`DoorState`, `TerrainObjectKey`) | — | **540 KB** | ✅ fixed: each family's hash made once (rail `CE4385_TheFamilyPolicy_AnswersWithNoGarbage_OnceWarm`, red-proved) |
+| ↳ `MissionPresentationGizmo` — a legacy `"target"` task parsed from JSON per draw (for a unit with such a plan; ⚠ not the 540 KB above — first suspected, measured not) | — | per unit with a legacy plan | ✅ fixed: parsed once per plan (rail `CE4385_ALegacyTargetRoute_DrawsWithNoGarbage_OnceWarm`, red-proved) |
+| ⭐ after the two fixes (re-measured, scale-1 3-D mid) | — | update garbage **1 551 → 1 013 KB / frame**; fps unchanged (~21) — the TIME is the rules' walk, row 1 | ✅ measured |
+| the 2-D map's world draw | ~20 | **6.3 MB** | ⏳ not yet attributed to a layer — R-3 (CE-4389) |
+| `StyleResolutionSystem` | 1.3 | 221 KB | ⏳ R-2 |
+
+Numbers and frames: [STATUS_Ui_Large_Terrain_Drawing.md](blueprints/batches/STATUS_Ui_Large_Terrain_Drawing.md) §2–§3 (scale-1: the load's 3-D picture 0.8 s / 640 MB peak, where the whole soup needed 9.4 s / 7.0 GB and is killed at 6 GB on this VM).
+
+### 6ai. CE-4377 — buildings and trees at scale: the trees' 3-D look by distance, pitched roofs, facades *(ui, `2026-11-10`; build-state: BUILT — trees, then pitched roofs (R-1…R-3); facades need no change (R-4))*
+
+🔒 R-4195 (user): *"if there is new stuff like trees or different roofs the ui lane is free to design their 3d look with respect to performance"*. Handoff D-3.
+📐 **Measured first:** a LONE tree is already a world prism (an octagon trunk, material `tree-trunk`, 0.3 m × 10 m — `TerrainWorldParser.cs:195`), so §6ah's objects
+mesh draws ≈ 11 000 bare poles on scale-1; the trees INSIDE a wood are not objects (R-4190 T-1) — the wood is `TerrainWoods`, a 25 m grid of density and canopy height,
+and nothing draws it in 3-D but the ground's forest colour. ⚠ Pitched roofs (the importer's cap prism, UTM I-h) and imported facades exist on no terrain yet — the
+importer (CE-4368) is not on the tree ⇒ those two parts wait with D-4; the 85 000 template prisms are batched per chunk already (§6ah L-5, 1.1 M triangles on scale-1).
+
+**INVENTORY** *(`search_graph` `2026-11-10`)*: `.*(Tree|Wood|Canopy|Forest|Vegetation).*` Class — 344 matches, the terrain ones are `TerrainWoods` (the grid) and the
+parser's lone-tree prism; ⇒ no 3-D tree drawing exists. Reused: §6ah's chunks and builds, `TerrainWoods.DensityAt` / its canopy, `LitShader`'s leaf pattern (code 242,
+the hedge's) and wood pattern (244).
+
+![the trees by distance](UX/terrain-trees-3d.svg)
+
+```mermaid
+classDiagram
+  class ITerrainChunkedGeometry { <<existing, §6ah>> BuildChunk(cx, cy, level, part) }
+  class TerrainChunkPart { <<existing enum>> ChunkGround · ChunkObjects · ChunkTrees NEW · ChunkCanopy NEW }
+  class TerrainWorldMesh { <<existing>> BuildChunkTrees NEW · BuildChunkCanopy NEW · AddCrown NEW }
+  class TerrainWoods { <<existing>> the 25 m grid: DensityAt · canopy per cell }
+  class TerrainChunks3D { <<existing, §6ah>> + a trees mesh and a canopy mesh per chunk; draws trees at levels 0–1, the canopy beyond }
+  class TerrainLayer3D { <<existing>> ColourOf / MaterialCode: tree-trunk, tree-crown, canopy NEW }
+  TerrainWorldMesh ..> TerrainWoods
+  ITerrainChunkedGeometry ..> TerrainChunkPart
+  TerrainChunks3D ..> ITerrainChunkedGeometry
+  TerrainChunks3D ..> TerrainLayer3D
+```
+*What the picture shows: the trees are two more PARTS of the same chunks — no new layer, no new build path, no new draw loop.*
+
+```mermaid
+sequenceDiagram
+  participant D as TerrainChunks3D.Draw (every 3-D frame)
+  participant S as its schedule (Pump)
+  participant W as worker
+  S->>W: with the coarse picture: every chunk's ChunkCanopy (lone crowns + the wood's sheet)
+  S->>W: when a chunk wants level ≤ 1: its ChunkTrees (lone crowns + one tree per density cell)
+  D->>D: level ≤ 1 and ChunkTrees built ⇒ draw it · else ChunkCanopy
+```
+*What the picture shows: the far form is part of what the load waits for, so a wood is never bare; the near form replaces it only once built.*
+
+| # | decision | why |
+|---|---|---|
+| T-1 | a lone tree = its trunk prism (unchanged, now bark-brown) + a 16-triangle crown at 0.72 × its height, radius 0.3 × height | a pole is not a tree; the trunk stays THE world's (sight, fire, the navmesh) — the crown is drawn only |
+| T-2 | a wood NEAR (levels 0–1): per 25 m cell, round(density × 0.0625 ha) trees placed by a hash of the cell, height = the cell's canopy × (0.8 … 1.2), a 4-sided trunk + the crown — ≈ 24 triangles a tree | reads as trees where it matters; on scale-1 the near ring is ≈ 10 k trees ≈ 250 k triangles |
+| T-3 | a wood FAR (levels 2–3): a sheet at ground + canopy over each wood cell (corners from the ground at the corner, so it follows the hill) + walls down to the crown base where the neighbour cell is not wood | ≈ 2 triangles a cell; the wood's mass and edge read from a kilometre |
+| T-4 | colours: bark (96, 72, 52) with the wood pattern; crowns and canopy in two forest greens with the leaf pattern (242) — `TerrainLayer3D.ColourOf` | the house's one colour language (R-4139): the ground's forest green family |
+| T-5 | ⛔ presentation only — no prism, no sight or fire change; the woods grid stays the simulation's wood | R-4195: the look must not change the simulation |
+
+**As-built (trees, `2026-11-10`)** — as designed: `TerrainChunkPart.ChunkTrees` / `ChunkCanopy`, `TerrainWorldMesh.Trees.cs` (`BuildChunkTrees`), two slots per chunk in
+`TerrainChunks3D` (the canopy is part of the coarse picture; the near trees are built when the chunk wants level ≤ 1 and count against the finer-level budget). `TerrainWoods`
+gained `Origin` and `CellAt` (read-only). Rails `TerrainChunkTreesTests` (counts, determinism, edges only, not in the ground or objects). scale-1 with trees: 2.0–2.6 M
+triangles drawn a frame, 517–534 MB resident.
+
+**Pitched roofs and facades** *(designed and built `2026-11-10`, after the importer landed)*. 📐 Measured on `imported-tiny` (the importer's own mini set): a pitched
+roof arrives as the house's flat roof + a CAP — a building prism with `Floors == 0`, labelled `<id>-roof`, from the eaves (`BaseZ`) to the ridge (`TopZ`)
+(UTM I-h, `TerrainFolderWriter`) — and was drawn as a flat-topped box. Facades are wall panels with door and window openings (UTM Q-U8), which §6ah's objects mesh
+already cuts.
+
+![the cap drawn as a gable](UX/terrain-roofs-3d.svg)
+
+| # | decision | why |
+|---|---|---|
+| R-1 | the cap is drawn as a GABLE: the ridge along the footprint's longest edge at mid-width, at `TopZ`; the eaves at `BaseZ`. Each footprint triangle is clipped at the ridge line and its corners lifted — a plane on each side, on ANY footprint (L, T, many-sided); the gable ends close it in the house's own wall material, one triangle per half (split at the ridge) | the source gives only a cap height, no roof shape; a gable over the longest edge is the commonest house roof and costs ≈ 2× the footprint's triangles — less than the box it replaces |
+| R-2 | its material `roof-pitched`: dark weathered clay (118, 58, 46) — darker than the brick walls, so roof and wall read apart — with a TILE pattern: rows of 30 × 24 cm tiles up the slope, staggered, the lower lip shaded, fading out by 160 m (`LitShader` code **240**, new) | a slope is never a floor, so CE-1341's grey screed (which made roofs double as floors) does not apply; the red reads as a roof against the slate flat roofs |
+| R-3 | ⛔ presentation only — the world keeps the cap prism (sight and fire, the navmesh) | R-4195: the look must not change the simulation |
+| R-4 | facades: **no change** — the imported houses' wall panels already draw their openings in the chunk's objects mesh, batched per chunk (§6ah L-5) | the frames below show the window rows; nothing new to batch |
+
+*As-built:* `TerrainWorldMesh.Roofs.cs` (`IsRoofCap`, `AddGable`, `ClipSide`), routed from `BuildChunkObjects`; `TerrainLayer3D` colour + code 240; `LitShader.tiles`.
+Rail `TerrainChunkRoofsTests` (ridge at the cap's top along the long side, eaves at its base, the two gable ends, no flat cap top, the house's own roof kept, the
+world still blocks at the cap; 🔴 red-proved with `IsRoofCap` off). The shipped terrains have no caps ⇒ §6ah's equality rail and their frames are unchanged.
+📷 `TheTerrainChunksLookTests.AnImportedTerrainsHouses_UpClose` (opt-in `HROT_MEASURE=1`, `HROT_RAIL_SHOTS=<dir>`) renders the before / after; never in git.
 
 ## 7. NOT VERIFIED — say so before it is built on
 

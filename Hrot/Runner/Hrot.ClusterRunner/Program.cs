@@ -49,6 +49,8 @@ class Program
     {
         FdpConfig.EnforceExplicitComponentIds = true;
         FdpConfig.EnforceExplicitEventRegistration = true;
+        // ⭐ CE-3427 C-1 — live play paces slow modules by wall clock (FdpConfig.SlowModulesByWallClock); FDP_SLOW_WALLCLOCK=0 bisects
+        FdpConfig.SlowModulesByWallClock = Environment.GetEnvironmentVariable("FDP_SLOW_WALLCLOCK") != "0";
 
         // Enable NLog Console Output globally for FdpLog<T>.
         // Also register the UI target so the Message Log window captures all output.
@@ -363,6 +365,7 @@ class Program
             //   why. ⭐ The default lives in ONE place (the [Option] attribute); this is only the
             //   unwrap, and it agrees with it.
             ResetLayoutOnRun = config.ResetLayout ?? true,
+            TargetFps = config.TargetFps,   // ⭐ CE-4385 — --target-fps 0 measures the uncapped frame cost
             NodeIdResolver = ResolveNodeId,   // ⭐ C1
             NodeNameResolver = NodeNameOf,   // ⭐ CE-3354 ② — the --node-name(s) of each subsystem; else <subsystem>-<nodeId> (made HERE, so --map-in-load can name this process' own nodes)
         };
@@ -707,6 +710,7 @@ class Program
                     shell.FontService.ApplyPendingRebuild();
 
                     Raylib_cs.Raylib.BeginDrawing();
+                    Fdp.Presentation.Raylib.HiddenWindow.BeginFrame();   // ⭐ CE-4386 — hidden mode: the frame into the off-screen target (no-op otherwise)
                     // Restore the black background
                     Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
 
@@ -764,7 +768,9 @@ class Program
                     frameStats?.EndUi();
                     frameStats?.NoteDrawLists();
 
+                    Fdp.Presentation.Raylib.HiddenWindow.EndFrame();
                     Raylib_cs.Raylib.EndDrawing();
+                    Fdp.Presentation.Raylib.HiddenWindow.AfterFrame();
                     frameStats?.EndFrame();
 
                 }

@@ -854,6 +854,7 @@ namespace Fdp.ModuleHost
                     }
                     
                     entry.FramesSinceLastRun = 0;
+                    entry.LastDispatchTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
                     entry.LastRunSlot   = SlotOf(entry);   // ⭐ CE-3292 — the sim-time slot this run covers
                     entry.DispatchEpoch = _timelineEpoch;
                     entry.LastRunTick = _liveWorld.GlobalVersion > 0 ? _liveWorld.GlobalVersion - 1 : 0; 
@@ -1256,6 +1257,8 @@ namespace Fdp.ModuleHost
                 {
                     if (entry.RegisteredSystems != null && SearchSystemList(entry.RegisteredSystems, targetSystem))
                         return entry.Module.Name;
+                    if (entry.ManualSystems != null && SearchSystemList(entry.ManualSystems, targetSystem))
+                        return entry.Module.Name;
                 }
             }
 
@@ -1276,6 +1279,10 @@ namespace Fdp.ModuleHost
             return false;
         }
         
+        /// <summary>⭐ CE-3427 C-1 — live play: a slow module's cadence is wall clock from its last dispatch (true) or <c>60/Hz</c>
+        /// rendered frames from its harvest (false). Taken from <see cref="FdpConfig.SlowModulesByWallClock"/> at construction.</summary>
+        public bool SlowModulesByWallClock { get; set; } = FdpConfig.SlowModulesByWallClock;
+
         private bool ShouldRunThisFrame(ModuleEntry entry)
         {
             var policy = entry.Module.Policy;
@@ -1323,6 +1330,11 @@ namespace Fdp.ModuleHost
             // ⭐ CE-3292 — a slot of 1/targetHz s of SIM time, anchored at t = 0: the same steps run it in every run of a timeline.
             if (steppedRule) return SlotOf(entry) != entry.LastRunSlot;
             
+            // ⭐ CE-3427 C-1 — the user's intent (2026-10-21, DESIGN_Time_Architecture §17): "the 10Hz and such were meant to be
+            //   wall clock to ease the CPU". Measured frame-counted: a 120 ms EQS run then waited 230 ms more (2.9 runs/s, not 10).
+            if (SlowModulesByWallClock)
+                return System.Diagnostics.Stopwatch.GetElapsedTime(entry.LastDispatchTimestamp).TotalSeconds >= 1.0 / targetHz;
+
             int framesToSkip = 60 / targetHz;
             if (framesToSkip < 1) framesToSkip = 1;
             
@@ -1925,6 +1937,7 @@ namespace Fdp.ModuleHost
                     entry.Module.RegisterSystems(capturing);
                     entry.RegisteredSystems = capturing.Captured;
                     entry.SimulationSystems = capturing.SimulationCaptured;
+                    entry.ManualSystems     = capturing.ManualCaptured;
                 }
             }
 
@@ -2122,6 +2135,8 @@ namespace Fdp.ModuleHost
             public TickPolicy TickPolicy { get; set; }
             public ISnapshotProvider Provider { get; set; } = null!;
             public int FramesSinceLastRun { get; set; }
+            /// <summary>⭐ CE-3427 C-1 — the Stopwatch timestamp of the last dispatch (the live wall-clock cadence).</summary>
+            public long LastDispatchTimestamp { get; set; }
             public ISimulationView? LastView { get; set; }
             public int ExecutionCount; // Field for Interlocked
             
@@ -2192,6 +2207,10 @@ namespace Fdp.ModuleHost
             /// and losing any accumulated state (e.g. profiling counters, cached queries).
             /// </summary>
             public List<IEcsModuleSystem>? RegisteredSystems { get; set; }
+            /// <summary>⭐ CE-3427 — the systems the module ticks itself (<c>RegisterManualSystem</c>): kept apart from
+            /// <see cref="RegisteredSystems"/> (never dispatched by the kernel), recorded only so diagnostics name their module — they read
+            /// "Unknown" before, and the scale rig could not tell an off-frame run (EqsSolverSystem) from frame work.</summary>
+            public List<IEcsModuleSystem>? ManualSystems { get; set; }
 
             /// <summary>
             /// Subset of <see cref="RegisteredSystems"/> containing only
@@ -2268,6 +2287,7 @@ namespace Fdp.ModuleHost
             private readonly SystemScheduler _scheduler;
             public List<IEcsModuleSystem> Captured { get; } = new();
             public List<IEcsModuleSystem> SimulationCaptured { get; } = new();
+            public List<IEcsModuleSystem> ManualCaptured { get; } = new();
 
             private readonly Type _ownerModule;
 
@@ -2298,7 +2318,8 @@ namespace Fdp.ModuleHost
             public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
             {
                 // Do NOT add to Captured! Manual systems are meant to be ticked 
-                // explicitly by the module's own Tick() method.
+                // explicitly by the module's own Tick() method. ManualCaptured only names their module in diagnostics.
+                ManualCaptured.Add(system);
                 return _scheduler.RegisterManualSystem(system);
             }
         }

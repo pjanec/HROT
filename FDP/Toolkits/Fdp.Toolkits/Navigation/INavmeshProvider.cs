@@ -5,6 +5,32 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Navigation
 {
     /// <summary>
+    /// ⭐ <c>CE-4391</c> S-3 (UTM §8.1 P3-a) — what a baked navmesh knows about its TILES: the tile edge and each tile's CONTENT key (equal key ⇔ the same tile, the tile cache's own).
+    /// Keyed by <c>((long)tileX &lt;&lt; 32) | (uint)tileZ</c>, the grid anchored at the world origin (tile z = engine y). Implemented by the Recast provider; read by
+    /// <see cref="SwitchableNavmeshProvider.Publish"/> to bump the version of the tiles whose key changed — and only those.
+    /// </summary>
+    public interface INavmeshTileKeys
+    {
+        /// <summary>The tile edge (m); 0 = no tile grid.</summary>
+        float TileMetres { get; }
+        /// <summary>Tile → content key (a tile with no walkable polygon may be absent).</summary>
+        System.Collections.Generic.IReadOnlyDictionary<long, ulong> TileKeys { get; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4391</c> S-3 (UTM §8.1 P3-a / P3-b) — per-TILE versions on a node's navmesh. <see cref="ChangeSequence"/> only ever grows; a tile's version is the sequence at which its
+    /// content last changed. A path stamped with the sequence it was planned at is STALE exactly when a tile it crosses has a higher version — one integer compare, no allocation.
+    /// </summary>
+    public interface INavmeshTileVersions
+    {
+        float TileMetres { get; }
+        /// <summary>The newest tile change (0 = none ever). Equal on two reads ⇒ no tile moved between them.</summary>
+        uint ChangeSequence { get; }
+        /// <summary>The sequence at which tile (<paramref name="tileX"/>, <paramref name="tileZ"/>) last changed; 0 = never changed / unknown.</summary>
+        uint TileVersion(int tileX, int tileZ);
+    }
+
+    /// <summary>
     /// Navmesh query interface consumed by EQS tests, generators, and navigation systems.
     /// ⭐ All coordinates are in the engine's <b>Z-up</b> 3-D world space — X east, Y north, Z up (R-182,
     /// DESIGN_Terrain_World W7). ⛔ Never pass Z = 0 meaning "on the ground" (R-248, CE-1034 H3): the search box around a query

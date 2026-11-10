@@ -239,6 +239,60 @@ namespace Fdp.Toolkit.Tests.Weather
             Assert.Equal(ScenarioClock.DefaultStartUtc.AddSeconds(60), ScenarioTime.Utc(bare));
         }
 
+        /// <summary>
+        /// ⭐ CE-3427 — the clock is found once and then read in O(1) (it walked the whole entity index twice per weather sample); a
+        /// value written is read at once, a destroyed clock is gone at once, a clock arriving later is found (the next frame at the latest).
+        /// </summary>
+        [Fact]
+        public void CE3427_TheClock_IsFoundOnce_AndEveryChangeIsStillSeen()
+        {
+            var start = new DateTime(2025, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            using var world = WorldWith(Clear(), start);
+            for (int i = 0; i < 2000; i++) world.CreateEntity();                       // a crowd the old walk went through
+            Assert.True(ScenarioTime.TryClock(world, out var c));
+            Assert.Equal(start.Ticks, c.StartUtcTicks);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) ScenarioTime.TryClock(world, out c);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);        // no query built per call any more
+
+            Fdp.Core.Entity env = default;
+            foreach (var e in world.Query().With<ScenarioClock>().Build()) env = e;
+            world.SetComponent(env, new ScenarioClock { StartUtcTicks = start.Ticks + 10 });
+            Assert.True(ScenarioTime.TryClock(world, out c));
+            Assert.Equal(start.Ticks + 10, c.StartUtcTicks);                            // a write is read at once
+            world.DestroyEntity(env);
+            Assert.False(ScenarioTime.TryClock(world, out _));                          // destroyed: gone at once
+
+            var late = world.CreateEntity();
+            world.AddComponent(late, new ScenarioClock { StartUtcTicks = 42 });
+            Assert.True(ScenarioTime.TryClock(world, out c));                           // a clock added is found
+            Assert.Equal(42, c.StartUtcTicks);
+        }
+
+        /// <summary>
+        /// ⭐ CE-3427 — the weather's entities are found once per (frame, structure) on a thread, not per sample (each sample walked the whole
+        /// entity index twice for them); a value written is read at once, the environment destroyed falls back to the built-in at once.
+        /// </summary>
+        [Fact]
+        public void CE3427_TheWeatherEntities_AreFoundOncePerFrame_AndEveryChangeIsStillSeen()
+        {
+            var start = new DateTime(2025, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+            using var world = WorldWith(Clear(), start);
+            for (int i = 0; i < 2000; i++) world.CreateEntity();
+            world.Tick();
+            WeatherField.GlobalOf(world, out var env);
+            int finds = WeatherField.FindsOnThisThread;
+            for (int i = 0; i < 100; i++) WeatherField.At(world, Vector3.Zero, start);
+            Assert.Equal(finds, WeatherField.FindsOnThisThread);                       // 100 samples, no search
+
+            var overcast = Overcast();
+            world.SetComponent(env, overcast);
+            Assert.Equal(overcast.CloudCount, WeatherField.GlobalOf(world, out _).CloudCount);   // a write is read at once
+            world.DestroyEntity(env);
+            Assert.Equal(WeatherConditions.Standard.CloudCount, WeatherField.GlobalOf(world, out var gone).CloudCount);   // destroyed: the built-in
+            Assert.True(gone.IsNull);
+        }
+
         // ── fixtures ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
         internal static EntityRepository WorldWith(WeatherConditions global, DateTime start)

@@ -1729,4 +1729,27 @@ public sealed class TheOneTimeFacadeTests
         Assert.Null(p.CancelTop);
         Assert.Equal(Hrot.UI.Common.Map3D.Director.SubtitleBand.TextSizeFor(UiFrameHarness.DefaultHeight), p.TextSize);   // the player's splash looks the same
     }
+
+    /// <summary>⭐ <c>CE-1449</c> (R-1044) — every ECS host's run controls come from the ONE factory: no production file builds a <see cref="ClusterTimeTransportAdapter"/> by hand except
+    /// <c>NodeRunControls</c> itself and the Orchestrator (not an ECS host — its own panel wiring, CE-1445's row). ⭐ Scans <c>Stride/</c> too: the Stride node was the fifth copy, found by
+    /// CE-1445's grep and outside every solution-wide rail. 🔴 Mutation: Stride's <c>NodeRunControls.For(ctx, …)</c> back to <c>new ClusterTimeTransportAdapter(…)</c> ⇒ red, naming the file.</summary>
+    [Fact]
+    public void CE1449_NoEcsHostBuildsItsRunControlsByHand_StrideIncluded()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        var allowed = new[] { "NodeRunControls.cs", "OrchestratorSubsystem.cs", "ClusterPanelRunControls.cs" };
+        var offenders = new List<string>();
+        foreach (var top in new[] { "Hrot", "Stride", "FDP" })
+            foreach (var f in Directory.EnumerateFiles(Path.Combine(dir!.FullName, top), "*.cs", SearchOption.AllDirectories))
+            {
+                string rel = Path.GetRelativePath(dir.FullName, f).Replace('\\', '/');
+                if (rel.Contains("/obj/") || rel.Contains("/bin/") || rel.Contains("Tests") || Array.IndexOf(allowed, Path.GetFileName(f)) >= 0) continue;
+                string text = File.ReadAllText(f);
+                if (text.Contains("new ClusterTimeTransportAdapter(") || text.Contains("new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(")) offenders.Add(rel);
+            }
+        Assert.True(offenders.Count == 0, "built by hand instead of NodeRunControls.For: " + string.Join(", ", offenders));
+        Assert.True(File.Exists(Path.Combine(dir.FullName, "Stride", "HrotStrideApp.Game", "StrideNodeShell.cs")), "the scan reaches Stride/");
+    }
 }

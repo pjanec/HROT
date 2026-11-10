@@ -38,8 +38,23 @@ namespace Fdp.Toolkit.Vis3D
         public int LayerBitIndex => -1;
         public bool Has3D => true;
 
-        /// <summary>Triangles in the uploaded mesh (0 before the first 3-D frame with a world).</summary>
-        public int TriangleCount { get; private set; }
+        /// <summary>Triangles in the uploaded mesh (0 before the first 3-D frame with a world) — for a chunked terrain, the triangles DRAWN last frame.</summary>
+        public int TriangleCount { get => _chunks?.TrianglesDrawn ?? _triangles; private set => _triangles = value; }
+        private int _triangles;
+
+        /// <summary>⭐ CE-3423 (DESIGN_Map_3D_Mode §6ah) — the chunked terrain's meshes, when the source is chunked (null otherwise: the whole-mesh path, L-11).</summary>
+        private TerrainChunks3D? _chunks;
+        internal TerrainChunks3D? Chunks => _chunks;
+
+        /// <summary>The chunk set for a chunked source, rebuilt when its identity changes; null for a plain source.</summary>
+        private TerrainChunks3D? ChunksFor(ITerrainRenderGeometry? geometry)
+        {
+            if (geometry is not ITerrainChunkedGeometry chunked) { if (_chunks != null) { _chunks.Dispose(); _chunks = null; } return null; }
+            if (_chunks != null && Equals(_chunks.Identity, chunked.Identity)) return _chunks;
+            _chunks?.Dispose();
+            Release(); _build.Reset();
+            return _chunks = new TerrainChunks3D(chunked);
+        }
 
         // ⭐ R-1046 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
         public void Update(float dt) { }
@@ -47,23 +62,29 @@ namespace Fdp.Toolkit.Vis3D
 
         string IMeshLayer3D.BuildName => "terrain";
         bool IMeshLayer3D.HasSource => _source() != null;
-        bool IMeshLayer3D.IsBuilt => _source() is { } g && _build.IsBuiltFor(g.Identity);
-        string? IMeshLayer3D.BuildFailure => _build.Failure;
+        bool IMeshLayer3D.IsBuilt => _source() is { } g && (ChunksFor(g) is { } c ? c.CoarseBuilt : _build.IsBuiltFor(g.Identity));
+        string? IMeshLayer3D.BuildFailure => _chunks?.Failure ?? _build.Failure;
 
         /// <summary>The build state of the mesh (for the rails).</summary>
-        public MeshBuildState BuildState => _build.State;
+        public MeshBuildState BuildState => _chunks is { } c ? (c.Failure != null ? MeshBuildState.Failed : c.CoarseBuilt ? MeshBuildState.Built : MeshBuildState.Building) : _build.State;
 
         void IMeshLayer3D.RequestBuild()
         {
             if (_source() is not { } geometry)
             {
                 if (_hasMesh || _build.State != MeshBuildState.Idle) { Release(); _build.Reset(); }
+                ChunksFor(null);
                 return;
             }
+            if (ChunksFor(geometry) is { } chunks) { chunks.Pump(); return; }   // ⭐ CE-3423 — the chunks schedule their own builds
             RequestBuild(geometry);
         }
 
-        void IMeshLayer3D.PumpBuild() => _build.Pump(Upload);
+        void IMeshLayer3D.PumpBuild()
+        {
+            if (_chunks != null) { _chunks.Pump(); return; }
+            _build.Pump(Upload);
+        }
         public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
         public Entity? PickEntity(Vector2 worldPos) => null;
 
@@ -71,14 +92,20 @@ namespace Fdp.Toolkit.Vis3D
         {
             var geometry = _source();
             if (geometry == null) return;
-            // a frame drawn in 3-D wants its mesh: ask (a no-op when asked), and upload what a worker has finished — the build itself never runs here
-            RequestBuild(geometry);
-            _build.Pump(Upload);
-            if (!_hasMesh) return;
+            var chunks = ChunksFor(geometry);
+            if (chunks == null)
+            {
+                // a frame drawn in 3-D wants its mesh: ask (a no-op when asked), and upload what a worker has finished — the build itself never runs here
+                RequestBuild(geometry);
+                _build.Pump(Upload);
+                if (!_hasMesh) return;
+            }
+            else chunks.Pump();
             Rlgl.DisableBackfaceCulling();
             var lit = LitShader.Shared;
             lit.SetGroundDetail(1f);   // ⭐ CE-1328 / CE-1333 — the materials' patterns (grass, brick, concrete, sandbags, roof tiles …)
-            Raylib.DrawMesh(_mesh, lit.Tinted(Color.White), Matrix4x4.Identity);
+            if (chunks != null) chunks.Draw();   // ⭐ CE-3423 — per chunk, by level of detail, culled
+            else Raylib.DrawMesh(_mesh, lit.Tinted(Color.White), Matrix4x4.Identity);
             lit.SetGroundDetail(0f);
             Rlgl.EnableBackfaceCulling();
         }
@@ -183,22 +210,28 @@ namespace Fdp.Toolkit.Vis3D
                 "sandbags" => new Color(182, 162, 112, 255),
                 "earth-berm" => new Color(128, 108, 78, 255),
                 "car-body" => new Color(92, 98, 112, 255),
+                // ⭐ CE-4377 (§6ai T-4) — the drawn trees: bark, two crown greens, the far canopy
+                "tree-trunk" => new Color(96, 72, 52, 255),
+                "tree-crown" => new Color(62, 104, 48, 255),
+                "tree-crown-dark" => new Color(50, 88, 40, 255),
+                "canopy" => new Color(56, 96, 44, 255),
+                "roof-pitched" => new Color(118, 58, 46, 255),   // ⭐ CE-4377 R-2 — a drawn pitched roof: dark weathered clay tiles, darker than the brick walls so the roof reads apart (a slope is never a floor, CE-1341's worry)
                 _ => null,   // concrete and unknown: the kind's colour
             };
             if (kind == TerrainSurfaceKind.Roof)
-                return material is null or "concrete" or "brick" ? RoofColor : Shade(own ?? RoofColor, 0.85f);
+                return material is null or "concrete" or "brick" ? RoofColor : material == "roof-pitched" ? own!.Value : Shade(own ?? RoofColor, 0.85f);
             return own ?? WallColor;
         }
 
         /// <summary>⭐ <c>CE-1333</c> — which pattern the lit shader paints on a terrain triangle (<see cref="LitShader.SetGroundDetail"/>), carried
         /// in its vertex colour's alpha: 250 open ground (grass) · 249 forest floor · 248 brick · 247 concrete · 246 sandbags · 245 roof tiles ·
-        /// 244 wood · 243 earth · 242 hedge · 241 a brick building's roof (tiles on top, brick on its sides) · 255 none (water, glass, metal,
+        /// 244 wood · 243 earth · 242 hedge · 241 a brick building's roof (tiles on top, brick on its sides) · 240 a drawn pitched roof (tiles, CE-4377) · 255 none (water, glass, metal,
         /// a car body).</summary>
         public static byte MaterialCode(TerrainSurfaceKind kind, string? material) => kind switch
         {
             TerrainSurfaceKind.Water => 255,
             TerrainSurfaceKind.Ground => material == "forest" ? (byte)249 : (byte)250,
-            TerrainSurfaceKind.Roof => material == "brick" ? (byte)241 : material is null or "concrete" ? (byte)245 : CodeOf(material),
+            TerrainSurfaceKind.Roof => material == "brick" ? (byte)241 : material == "roof-pitched" ? (byte)240 : material is null or "concrete" ? (byte)245 : CodeOf(material),
             _ => CodeOf(material),
         };
 
@@ -207,7 +240,8 @@ namespace Fdp.Toolkit.Vis3D
             null or "concrete" => 247,
             "brick" => 248,
             "sandbags" => 246,
-            "fence-wood" or "door-wood" => 244,
+            "fence-wood" or "door-wood" or "tree-trunk" => 244,
+            "tree-crown" or "tree-crown-dark" or "canopy" => 242,   // ⭐ CE-4377 — the leaf pattern (the hedge's)
             "earth-berm" => 243,
             "hedge" => 242,
             _ => 255,
@@ -222,6 +256,6 @@ namespace Fdp.Toolkit.Vis3D
             TriangleCount = 0;
         }
 
-        public void Dispose() => Release();
+        public void Dispose() { Release(); _chunks?.Dispose(); _chunks = null; }
     }
 }

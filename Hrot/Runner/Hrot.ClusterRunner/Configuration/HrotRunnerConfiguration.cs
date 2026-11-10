@@ -169,6 +169,13 @@ namespace Hrot.ClusterRunner.Configuration
         public bool? ResetLayout { get; set; }
 
         /// <summary>
+        /// ⭐ CE-4385 (handoff L-3) — the window's frame cap. 60 by default; <c>0</c> lifts it, so <c>/diagnostics/render</c> measures what a frame
+        /// really costs (raylib sets no vsync hint, so with no cap nothing else paces the loop). For measuring, never for operating.
+        /// </summary>
+        [Option("target-fps", Default = 60, HelpText = "The window's frame cap (default 60; 0 = uncapped, for measuring frame cost).")]
+        public int TargetFps { get; set; } = 60;
+
+        /// <summary>
         /// Relative path segments to the AI Behaviors project file used for hot-reloading BTrees.
         /// When relative, the system traverses parent directories from the CWD looking for this path.
         /// Defaults to the standard workspace layout.

@@ -6,7 +6,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Network
     // Wraps a CycloneDDS.Runtime.DdsWriter<T> so that gizmo production code
     // can receive it through the IDdsWriter<T> abstraction without depending
     // on CycloneDDS directly.
-    public sealed class DdsWriterGizmoAdapter<T> : IDdsWriter<T>, IDisposable
+    /// <summary>
+    /// ⭐ <c>CE-4366</c> (L-4, docs/DESIGN_Scale_Rig.md §5) — a writer that knows whether any reader is matched: a publisher may then skip
+    /// building a sample nobody receives (the gizmo batch: a fresh byte[] of every primitive, every frame — 200 KB … 1 MB per frame).
+    /// </summary>
+    public interface IReaderAwareWriter
+    {
+        bool HasReaders { get; }
+    }
+
+    public sealed class DdsWriterGizmoAdapter<T> : IDdsWriter<T>, IReaderAwareWriter, IDisposable
         where T : new()
     {
         private readonly DdsWriter<T> _writer;
@@ -23,6 +32,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Network
             if (_disposed) throw new ObjectDisposedException(nameof(DdsWriterGizmoAdapter<T>));
             _writer.Write(sample);
         }
+
+        /// <summary>Whether a reader of this topic is matched now (the publication-matched status).</summary>
+        public bool HasReaders => !_disposed && _writer.CurrentStatus.CurrentCount > 0;
 
         public void Dispose()
         {

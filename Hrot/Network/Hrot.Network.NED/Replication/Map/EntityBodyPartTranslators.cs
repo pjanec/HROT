@@ -16,7 +16,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// ⭐ <c>CE-3210</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — publishes a body's <see cref="PartDamage"/>
     /// from the node owning its <c>dtPartDamage</c> (the Health owner, Brain group), on change. The <c>EntityWeaponAmmo</c> pattern.
     /// </summary>
-    public sealed class EntityPartDamageEgressTranslator : IDescriptorTranslator
+    public sealed class EntityPartDamageEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over.
@@ -38,7 +38,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<PartDamage>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var e in view.Query().With<PartDamage>().DefaultRoutePublishable().Build())
@@ -74,7 +88,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// ⭐ <c>CE-3210</c> (HL-8) — publishes a body's <see cref="HitMarks"/> from the node owning its <c>dtHitMarks</c> (the Muscle, which
     /// resolves the hits), when a mark was added (its <c>NextSeq</c> moved). The marks still in the ring go out with their sequences.
     /// </summary>
-    public sealed class EntityHitMarksEgressTranslator : IDescriptorTranslator
+    public sealed class EntityHitMarksEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over.
@@ -93,7 +107,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<HitMarks>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var e in view.Query().With<HitMarks>().DefaultRoutePublishable().Build())

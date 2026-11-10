@@ -13,7 +13,12 @@ namespace Fdp.Toolkit.Terrain
     /// </summary>
     public sealed class TerrainHeightGrid
     {
-        private readonly float[] _z;   // row-major, row 0 = south
+        private readonly TerrainHeightTiles _z;
+        // ⭐ CE-4367 (L-5) — the max-height pyramid's level: the highest post of each BlockSize² block of cells (its edge posts included)
+        public const int BlockShift = 4;
+        public const int BlockSize = 1 << BlockShift;
+        private readonly float[] _blockMax;
+        private readonly int _blocksX;   // ⭐ CE-4365 — tiled (row 0 = south); one store for an .asc and a 1 m terrain
 
         /// <summary>The south-west sample's position.</summary>
         public Vector2 Origin { get; }
@@ -33,14 +38,61 @@ namespace Fdp.Toolkit.Terrain
             if (cols < 2 || rows < 2) throw new ArgumentException($"A height grid needs at least 2×2 samples (got {cols}×{rows}).");
             if (!(cellSize > 0f)) throw new ArgumentException($"A height grid's cell size must be positive (got {cellSize}).");
             if (z.Length != cols * rows) throw new ArgumentException($"A {cols}×{rows} height grid needs {cols * rows} samples (got {z.Length}).");
-            Origin = origin; CellSize = cellSize; Cols = cols; Rows = rows; _z = z;
+            Origin = origin; CellSize = cellSize; Cols = cols; Rows = rows; _z = TerrainHeightTiles.FromRows(z, cols, rows);
             float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
             foreach (float v in z) { lo = MathF.Min(lo, v); hi = MathF.Max(hi, v); }
             MinZ = lo; MaxZ = hi;
+            _blockMax = BlockMaxima(out _blocksX);
         }
 
+        /// <summary>⭐ CE-4365 — a grid over an existing tiled store (the height store's reader).</summary>
+        public TerrainHeightGrid(Vector2 origin, float cellSize, TerrainHeightTiles tiles)
+        {
+            if (!(cellSize > 0f)) throw new ArgumentException($"A height grid's cell size must be positive (got {cellSize}).");
+            Origin = origin; CellSize = cellSize; Cols = tiles.Cols; Rows = tiles.Rows; _z = tiles;
+            float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
+            for (int r = 0; r < Rows; r++)
+                for (int c = 0; c < Cols; c++) { float v = tiles[c, r]; lo = MathF.Min(lo, v); hi = MathF.Max(hi, v); }
+            MinZ = lo; MaxZ = hi;
+            _blockMax = BlockMaxima(out _blocksX);
+        }
+
+        private float[] BlockMaxima(out int blocksX)
+        {
+            int cells = Cols - 1, rowsOfCells = Rows - 1;
+            blocksX = (cells + BlockSize - 1) >> BlockShift;
+            int blocksY = (rowsOfCells + BlockSize - 1) >> BlockShift;
+            var m = new float[blocksX * blocksY];
+            for (int by = 0; by < blocksY; by++)
+                for (int bx = 0; bx < blocksX; bx++)
+                {
+                    float hi = float.NegativeInfinity;
+                    int c1 = Math.Min((bx + 1) * BlockSize, Cols - 1), r1 = Math.Min((by + 1) * BlockSize, Rows - 1);
+                    for (int r = by * BlockSize; r <= r1; r++)
+                        for (int c = bx * BlockSize; c <= c1; c++) hi = MathF.Max(hi, this[c, r]);
+                    m[by * blocksX + bx] = hi;
+                }
+            return m;
+        }
+
+        /// <summary>⭐ CE-4365 — the samples' store (tiles behind an index).</summary>
+        public TerrainHeightTiles Tiles => _z;
+
+        /// <summary>The file suffix of the binary height store (<see cref="TerrainHeightTiles"/>'s format).</summary>
+        public const string StoreSuffix = ".heights";
+
+        /// <summary>⭐ CE-4365 — reads a binary height store (<c>.heights</c>, written by <see cref="WriteStore"/>).</summary>
+        public static TerrainHeightGrid ReadStore(System.IO.Stream s, string where)
+        {
+            var tiles = TerrainHeightTiles.Read(s, where, out var origin, out float cell);
+            return new TerrainHeightGrid(origin, cell, tiles);
+        }
+
+        /// <summary>⭐ CE-4365 — writes this grid as a binary height store.</summary>
+        public void WriteStore(System.IO.Stream s) => _z.Write(s, Origin, CellSize);
+
         /// <summary>The sample at column <paramref name="c"/>, row <paramref name="r"/> (row 0 = south).</summary>
-        public float this[int c, int r] => _z[r * Cols + c];
+        public float this[int c, int r] => _z[c, r];
 
         /// <summary>The ground height at (x, y): planar inside each of a cell's two triangles; the edge holds outside the grid.</summary>
         public float Sample(float x, float y)
@@ -131,8 +183,27 @@ namespace Fdp.Toolkit.Terrain
             float tMaxX = dx != 0 ? (stepC > 0 ? c + 1 - gx : gx - c) * tDeltaX : float.PositiveInfinity;
             float tMaxY = dy != 0 ? (stepR > 0 ? r + 1 - gy : gy - r) * tDeltaY : float.PositiveInfinity;
             bool hit = false;
+            // ⭐ CE-4367 (L-5) — the yes/no sight form skips a cell's triangle tests when the line, over the cell, is above the highest post
+            //   of the cell's block (_blockMax): no triangle there can reach it. The walk itself is unchanged, so the answer is the plain
+            //   march's (rail CE4367_*). zg / ze: the line's height where the walk starts / ends; tIn: where it entered the current cell.
+            bool skip = !wholeCrest;
+            float zg = a.Z + d.Z * t0, ze = a.Z + d.Z * t1, dz = ze - zg;
+            float margin = 0.01f + MathF.Abs(dz) * 1e-4f;   // the walk's float parameters are approximate: a centimetre and a ten-thousandth of the rise
+            float tIn = 0f;
             for (int guard = Cols + Rows + 2; guard > 0; guard--)
             {
+                if (skip)
+                {
+                    float tOut = MathF.Min(MathF.Min(tMaxX, tMaxY), 1f);
+                    float lineLow = zg + dz * (dz >= 0f ? tIn : tOut);
+                    if (lineLow - margin > _blockMax[(r >> BlockShift) * _blocksX + (c >> BlockShift)])
+                    {
+                        if (c == cEnd && r == rEnd) break;
+                        if (tMaxX < tMaxY) { tIn = tMaxX; tMaxX += tDeltaX; c += stepC; if (c < 0 || c > Cols - 2) break; }
+                        else { tIn = tMaxY; tMaxY += tDeltaY; r += stepR; if (r < 0 || r > Rows - 2) break; }
+                        continue;
+                    }
+                }
                 var p00 = Corner(c, r); var p10 = Corner(c + 1, r); var p01 = Corner(c, r + 1); var p11 = Corner(c + 1, r + 1);
                 crest = MathF.Max(crest, MathF.Max(MathF.Max(p00.Z, p10.Z), MathF.Max(p01.Z, p11.Z)));
                 if (!hit)
@@ -143,8 +214,8 @@ namespace Fdp.Toolkit.Terrain
                     if (hit && !wholeCrest) return true;
                 }
                 if (c == cEnd && r == rEnd) break;
-                if (tMaxX < tMaxY) { tMaxX += tDeltaX; c += stepC; if (c < 0 || c > Cols - 2) break; }
-                else { tMaxY += tDeltaY; r += stepR; if (r < 0 || r > Rows - 2) break; }
+                if (tMaxX < tMaxY) { tIn = tMaxX; tMaxX += tDeltaX; c += stepC; if (c < 0 || c > Cols - 2) break; }
+                else { tIn = tMaxY; tMaxY += tDeltaY; r += stepR; if (r < 0 || r > Rows - 2) break; }
             }
             return hit;
         }
@@ -219,6 +290,68 @@ namespace Fdp.Toolkit.Terrain
                     z[(rows - 1 - row) * cols + c] = hasNoData && v == nd ? noData : (float)v;
                 }
             return new TerrainHeightGrid(new Vector2(x0, y0), cell, cols, rows, z);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4365 — resamples a NORTH-row-first raster (an input set's <c>heights.f32</c>: <paramref name="ulx"/>, <paramref name="uly"/> =
+        /// the north-west post, <paramref name="dx"/> / <paramref name="dy"/> its spacing) onto <paramref name="cols"/> × <paramref name="rows"/>
+        /// posts every <paramref name="spacing"/> m from (<paramref name="minX"/>, <paramref name="minY"/>), row 0 = south. Bilinear; a post
+        /// with some NODATA corners takes the mean of the valid ones; a post with none takes its row's nearest valid post
+        /// (<paramref name="filled"/> counts them) — never a cliff down to a default height.
+        /// </summary>
+        public static float[] Resample(float[] src, int srcCols, int srcRows, double ulx, double uly, double dx, double dy, float noData,
+                                       double minX, double minY, int cols, int rows, double spacing, out long filled)
+        {
+            var z = new float[(long)cols * rows];
+            var has = new bool[cols];
+            filled = 0;
+            for (int r = 0; r < rows; r++)
+            {
+                double y = minY + r * spacing;
+                double fr = (uly - y) / dy;
+                int r0 = Math.Clamp((int)Math.Floor(fr), 0, srcRows - 1), r1 = Math.Min(r0 + 1, srcRows - 1);
+                double v = Math.Clamp(fr - r0, 0.0, 1.0);
+                for (int c = 0; c < cols; c++)
+                {
+                    double x = minX + c * spacing;
+                    double fc = (x - ulx) / dx;
+                    int c0 = Math.Clamp((int)Math.Floor(fc), 0, srcCols - 1), c1 = Math.Min(c0 + 1, srcCols - 1);
+                    double u = Math.Clamp(fc - c0, 0.0, 1.0);
+                    float a = src[(long)r0 * srcCols + c0], b = src[(long)r0 * srcCols + c1], d = src[(long)r1 * srcCols + c0], e = src[(long)r1 * srcCols + c1];
+                    int good = (a != noData ? 1 : 0) + (b != noData ? 1 : 0) + (d != noData ? 1 : 0) + (e != noData ? 1 : 0);
+                    long i = (long)r * cols + c;
+                    has[c] = good > 0;
+                    if (good == 4) z[i] = (float)((a * (1 - u) + b * u) * (1 - v) + (d * (1 - u) + e * u) * v);
+                    else if (good > 0) z[i] = ((a != noData ? a : 0) + (b != noData ? b : 0) + (d != noData ? d : 0) + (e != noData ? e : 0)) / good;
+                }
+                // a post with no valid corner: its row's nearest valid post (west first, then east)
+                int last = -1;
+                for (int c = 0; c < cols; c++)
+                {
+                    if (has[c]) { last = c; continue; }
+                    int next = c + 1; while (next < cols && !has[next]) next++;
+                    int pick = last < 0 ? next : next >= cols ? last : (c - last <= next - c ? last : next);
+                    if (pick >= 0 && pick < cols) z[(long)r * cols + c] = z[(long)r * cols + pick];
+                    filled++;
+                }
+            }
+            return z;
+        }
+
+        /// <summary>⭐ CE-4365 — writes this grid as an ESRI ASCII grid (TH-A; the NORTH row first, centre-registered) — the counterpart of <see cref="ParseAsciiGrid"/>.</summary>
+        public void WriteAsciiGrid(System.IO.TextWriter w)
+        {
+            var inv = CultureInfo.InvariantCulture;
+            w.Write($"ncols {Cols}\nnrows {Rows}\nxllcenter {Origin.X.ToString("R", inv)}\nyllcenter {Origin.Y.ToString("R", inv)}\ncellsize {CellSize.ToString("R", inv)}\n");
+            for (int r = Rows - 1; r >= 0; r--)
+            {
+                for (int c = 0; c < Cols; c++)
+                {
+                    if (c > 0) w.Write(' ');
+                    w.Write(this[c, r].ToString("0.00", inv));
+                }
+                w.Write('\n');
+            }
         }
 
         private static bool IsNumber(string s) => double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out _);

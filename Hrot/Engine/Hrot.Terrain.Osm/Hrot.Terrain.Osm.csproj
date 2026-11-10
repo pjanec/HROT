@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A terrain from OpenStreetMap (docs/DESIGN_Terrain_From_OSM.md): fetch, parse, the stages, the preview, writing the
+       input set. No UI, no raylib — the editor's wizard and the hrot-terrain-osm CLI both use it. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.Terrain.Osm</RootNamespace>
+    <AssemblyName>Hrot.Terrain.Osm</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />
+    <!-- Utm (the one UTM class) -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Clipper2" Version="1.5.4" />
+  </ItemGroup>
+</Project>

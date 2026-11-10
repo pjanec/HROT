@@ -70,5 +70,32 @@ namespace Fdp.Toolkit.Combat.Tests
             a = w.GetComponentRO<WeaponAmmo>(unit);
             Assert.Equal((0L, -1), (a.LoadedOf(0), a.LoadedRoundsOf(0)));
         }
+
+        /// <summary>⭐ CE-4366 (L-4, docs/DESIGN_Scale_Rig.md §5) — a steady frame's garbage does not grow with the units: the unchanged-ammo test
+        /// compared through <c>Equals(object)</c> (two boxes per unit per frame — 2.3 MB per frame at 1 000 men on the scale rig).</summary>
+        [Fact]
+        public void CE4366_ASteadyFrame_AllocatesNothingPerUnit()
+        {
+            long PerFrame(int units)
+            {
+                using var w = new EntityRepository();
+                w.RegisterComponent<WeaponState>();
+                w.RegisterComponent<BehaviorState>();
+                for (int i = 0; i < units; i++)
+                {
+                    var u = w.CreateEntity();
+                    w.AddComponent(u, new BehaviorState());
+                    w.SetAuthority<BehaviorState>(u, true);
+                    w.AddComponent(u, new WeaponState { Ammo = 30, MaxAmmo = 30, MagazineSize = 10, MagazineRounds = 10 });
+                }
+                var mirror = new WeaponAmmoMirrorSystem();
+                mirror.Execute(w, 0.016f); mirror.Execute(w, 0.016f);   // the components exist, the lists are grown
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                for (int f = 0; f < 10; f++) mirror.Execute(w, 0.016f);
+                return (System.GC.GetAllocatedBytesForCurrentThread() - before) / 10;
+            }
+            long few = PerFrame(10), many = PerFrame(500);
+            Assert.True(many - few <= 64, $"10 units: {few} B per frame, 500 units: {many} B per frame — the per-unit garbage is back");
+        }
     }
 }

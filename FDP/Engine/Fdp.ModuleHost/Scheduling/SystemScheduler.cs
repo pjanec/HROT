@@ -256,6 +256,7 @@ namespace Fdp.ModuleHost.Scheduling
 
             var profile = _profileData.GetOrAdd(system, static s => new SystemProfileData(GetSystemProfileName(s)));
             long started = Stopwatch.GetTimestamp();   // ⭐ CE-3293 — no Stopwatch object per system per frame
+            long allocated = GC.GetAllocatedBytesForCurrentThread();   // ⭐ CE-4364 — the garbage per system (a counter read, no allocation)
 
             Fdp.Core.EntityRepository? live = null;
             EventReader? reader = null;
@@ -283,7 +284,7 @@ namespace Fdp.ModuleHost.Scheduling
                     reader!.History.MarkRead(reader.Id);
                 }
             }
-            profile.RecordExecution(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            profile.RecordExecution(Stopwatch.GetElapsedTime(started).TotalMilliseconds, GC.GetAllocatedBytesForCurrentThread() - allocated);
         }
         
         private void ExecuteGroup(ISystemGroup group, ISimulationView view, float deltaTime, bool advancing, bool moduleGoverns)
@@ -387,9 +388,20 @@ namespace Fdp.ModuleHost.Scheduling
                     }
                 }
             }
-            
+
+            // ⭐ CE-3427 N-1 — a system marked [UpdateLastInPhase] runs after every system of the phase that is not marked too
+            for (int i = 0; i < systems.Count; i++)
+            {
+                if (!IsLast(systems[i])) continue;
+                for (int j = 0; j < systems.Count; j++)
+                    if (j != i && !IsLast(systems[j])) graph.AddEdge(systems[j], systems[i]);
+            }
+
             return graph;
         }
+
+        private static bool IsLast(IEcsModuleSystem system)
+            => Attribute.IsDefined(system.GetType(), typeof(UpdateLastInPhaseAttribute), inherit: true);
         
         private List<IEcsModuleSystem>? TopologicalSort(DependencyGraph graph)
         {

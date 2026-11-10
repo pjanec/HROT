@@ -236,8 +236,11 @@ namespace Hrot.Editor.DebugApi
                     return Fail(400, "a shot needs one of: {follow: networkId, distance?, yawDeg?, pitchDeg?, lift?} · {eye:[x,y,z], target:[x,y,z]} · {lookAt:[x,y,z], distance?, yawDeg?, pitchDeg?}");
                 if (body?["fovDeg"] is JsonNode fov) shot = shot with { FovDeg = fov.GetValue<float>() };
                 Hrot.UI.Common.Map3D.FilmStudio.Direct(shot);
+                // ⭐ CE-4385 (handoff L-3) — twoD:true holds the shot on the 2-D map (its look-at the centre, its distance the scale), the film's own 2-D path
+                Hrot.UI.Common.Map3D.FilmStudio.TwoD = body?["twoD"]?.GetValue<bool>() ?? false;
                 return Ok(new JsonObject
                 {
+                    ["twoD"] = Hrot.UI.Common.Map3D.FilmStudio.TwoD,
                     ["follow"] = shot.Follow == 0 ? null : shot.Follow,
                     ["lookAt"] = shot.Pose is { } p ? new JsonArray(p.LookAt.X, p.LookAt.Y, p.LookAt.Z) : null,
                     ["distance"] = shot.Pose?.Distance ?? shot.Distance,
@@ -1979,6 +1982,14 @@ namespace Hrot.Editor.DebugApi
 
             // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost
             //    node) answers for its OWN kernel. 📄 DESIGN_Mcp_Diagnostics_Federation §1/§2.2.
+            // ⭐ CE-3427 — what each world query costs in this PROCESS (terrain traces, navmesh, EQS templates and tests, cover, door scans)
+            _routes.Add(new("GET", "/diagnostics/queries", ctx => RunMainResult(s =>
+                Ok(s.GetQueryTimings(string.Equals(ctx.Query("reset"), "true", StringComparison.OrdinalIgnoreCase))))));
+
+            // ⭐ CE-3427 N-1 — the off-frame state egress: its state, and the runtime switch (DESIGN_Egress_Change_Detection §7, O-F)
+            _routes.Add(new("GET", "/diagnostics/egress", ctx => RunMainResult(s => ResultOf(s.EgressPipelines(null, post: false), unavailable: 400))));
+            _routes.Add(new("POST", "/diagnostics/egress", ctx => RunMainResult(s => ResultOf(s.EgressPipelines(ctx.Body, post: true), unavailable: 400))));
+
             _routes.Add(new("GET", "/diagnostics/architecture", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) = s.GetArchitecture(ctx.Query("subsystem"));

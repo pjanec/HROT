@@ -441,6 +441,11 @@ public sealed class NedReplicationModule : INedReplicationModule
         {
             registry.RegisterSystem(new CycloneNetworkIngressSystem(ingressTranslators.ToArray()));
             registry.RegisterSystem(new CycloneEgressSystem(egressTranslators.ToArray()));
+            // ⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — EVERY networked node can send its state egress off the main
+            //   thread, by construction: the launch sits beside the egress every node composes here. ⚠ An experiment, OFF on every node by
+            //   default: FDP_EGRESS_OFFFRAME=1 (the process) or POST /diagnostics/egress {"mode":"offframe"} (that node, at runtime).
+            //   ⛔ Was registered for the SimHost alone (MuscleRoleInputs) — O-G is WHICH node is switched on first, not which can be.
+            registry.RegisterSystem(new Fdp.Network.Cyclone.Egress.EgressPipelineLaunchSystem());
         }
 
         // ⭐⭐ CE-3053 — sub-entity cleanup on EVERY node, as the replication design makes it (REPL-DESIGN §4.4, §5.2: replication

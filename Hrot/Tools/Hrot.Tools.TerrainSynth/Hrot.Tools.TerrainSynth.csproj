@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Deterministic generator of a synthetic terrain import input set (docs/DESIGN_Terrain_Synth.md). Depends on nothing in HROT. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>hrot-terrain-synth</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- the input-set format code (writers, reader, checks, netconvert) is shared — CE-4371 -->
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />
+  </ItemGroup>
+</Project>

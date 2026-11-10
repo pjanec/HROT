@@ -1205,7 +1205,7 @@ namespace Fdp.Core
         // ── ⭐ ui's block 460–475 (R-2056) ──
         /// <summary><c>BrainJournal</c> — a brain unit's last 24 changes with their causes (CE-1249, R-1027); NoScenario, brain-only.</summary>
         public const int BrainJournal = 460;
-        // 461 — taken by a test-local struct (TheBrainViewTests); left free in production to keep the census unambiguous.
+        // 461 — taken by test-local structs (TheBrainViewTests; TheOffFrameEgressTests.OffFramePos, CE-3427 N-1); left free in production to keep the census unambiguous.
         // 492 — taken by a test-local struct (VariantFormsTests.PresetSpeed, CE-4326); left free in production for the same reason.
         /// <summary><c>CommandReportHistory</c> — a commander's last 32 reports to and from him (CE-1319, BV-57); NoScenario, brain-only.</summary>
         public const int CommandReportHistory = 462;
@@ -1280,5 +1280,9 @@ namespace Fdp.Core
 
         /// <summary><c>GameplaySettings</c> — ⭐ Player Join S2 (D-14): the gameplay settings of the scenario, on the World Environment (the respawn delay). Authored, bindable by a scenario parameter.</summary>
         public const int GameplaySettings = 484;
+        /// <summary><c>BuildingDamage</c> — ⭐ CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8.2 B-1): the breaches (and, S-2, the collapse) of ONE building, on a
+        /// runtime entity its deciding node owns; replicated as <c>dtBuildingDamage</c> (183). NoScenario here (saved through the <c>terrainObjects</c> section, S-4).
+        /// ⚠ 485 measured free in backend, ui, behaviors and coordinator 2026-11-10 (the highest in use was 484).</summary>
+        public const int BuildingDamage = 485;
     }
 }

@@ -483,6 +483,7 @@ namespace Hrot.Editor.DebugApi
                 new("pitchDeg", "number", false, "View elevation, degrees, negative looks down (follow: -20, lookAt: -30)"),
                 new("lift", "number", false, "Follow: metres above the unit's position looked at (default 1)"),
                 new("fovDeg", "number", false, "Vertical field of view, degrees (default: the camera's 45; narrow = telephoto)"),
+                new("twoD", "boolean", false, "⭐ CE-4385 — hold the shot on the 2-D map instead (look-at = the centre, distance = the scale; default false)"),
                 new("spec", "object", false, "⭐ CE-4038 — a take's shot in its own keys (docs/DESIGN_Film_Director.md §4), units by name. ⭐ CE-4268 — its `layers` ({on, off}; {} = the take's clean start: the scene rows only, no unit cards) IS honoured, as a transient override through the director's layer override — never the user's file; DELETE /film/shot clears it"),
                 new("t", "number", false, "With spec: sim seconds into the shot (its orbit and its 'to')"),
             },
@@ -851,11 +852,42 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{\"sound\":true}",
             ExampleGist: "turn the sound on"),
+        [("GET", "/diagnostics/queries")] = new RouteDoc(
+            Tool:    "get_query_timings",
+            Group:   "Y — node diagnostics",
+            Summary: "This PROCESS's world-query costs (CE-3427): terrain traces, navmesh, EQS templates / generators / tests, cover lookup, door scans — calls and time since the last reset, the most time first.",
+            Returns: "{ enabled, seconds, queries[{ name, calls, perSecond, totalMs, msPerSecond, avgUs, maxUs, bytesPerSecond }], note }",
+            Hint:    "Optional: reset=true (answer, then zero the counters). Example: get_query_timings({reset:\"true\"})",
+            Params: new RouteParam[]
+            {
+                new("reset", "string", false, "true = zero the counters after answering"),
+            },
+            Notes: new[]
+            {
+                "Off with HROT_QUERY_TIMINGS=0. Slots nest (world.Trace.* includes terrain.*); msPerSecond sums every thread.",
+            }),
+        [("GET", "/diagnostics/egress")] = new RouteDoc(
+            Tool:    "get_egress_pipeline",
+            Group:   "Y — node diagnostics",
+            Summary: "This PROCESS's off-frame state egress (CE-3427 N-1, an experiment): per world that has one (every networked node's), the mode in force, the mode requested, its scans, faults and last scan / join-wait / sync times.",
+            Returns: "{ pipelines[{ subsystem, mode, requested, translators, workers, scans, faults, lastScanMs, lastJoinWaitMs, lastSyncMs }], note }",
+            Hint:    "Example: get_egress_pipeline({})",
+            Params: Array.Empty<RouteParam>(),
+            Notes: new[] { "Off by default; FDP_EGRESS_OFFFRAME=1 starts a node off the frame. 📄 docs/DESIGN_Egress_Change_Detection.md §7." }),
+        [("POST", "/diagnostics/egress")] = new RouteDoc(
+            Tool:    "set_egress_pipeline",
+            Group:   "Y — node diagnostics",
+            Summary: "Switches this process's off-frame state egress (CE-3427 N-1): mode offframe = the state scans run on a replica off the main thread, one frame late; onframe = today's. Takes effect at each world's next Export.",
+            Returns: "the same as GET /diagnostics/egress",
+            Hint:    "Required: mode (offframe | onframe). Example: set_egress_pipeline({mode:\"offframe\"})",
+            Params: new RouteParam[] { new("mode", "string", true, "offframe | onframe") },
+            ExampleArgsJson: "{\"mode\":\"offframe\"}",
+            ExampleGist: "move the state egress off the main thread"),
         [("GET", "/diagnostics/architecture")] = new RouteDoc(
             Tool:    "get_architecture_diagnostics",
             Group:   "Y — node diagnostics",
             Summary: "This NODE's modules, ECS systems and DDS translators, one entry per subsystem, read from each subsystem's own ModuleHostKernel.",
-            Returns: "{ subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors }], translators[], moduleCount, systemCount, translatorCount }], note }",
+            Returns: "{ subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors, recentAvgBytes, avgBytes }], translators[], moduleCount, systemCount, translatorCount }], process{ workingSetBytes, peakWorkingSetBytes, managedHeapBytes, allocatedBytes, gen0, gen1, gen2, pauseTimePercent }, note }",
             Hint:    "Optional: subsystem (filter). Example: get_architecture_diagnostics({subsystem:\"SimHost\"})",
             Params: new RouteParam[]
             {

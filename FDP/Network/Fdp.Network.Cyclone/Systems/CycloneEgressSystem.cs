@@ -81,9 +81,34 @@ namespace Fdp.Network.Cyclone.Systems
         /// </summary>
         private bool _contributedDescriptorMap;
 
+        /// <summary>⭐ CE-3427 N-1 — the pipeline this system handed its marked translators to (once per pipeline).</summary>
+        private Egress.EgressPipeline? _registeredPipeline;
+
+        private bool RegisteredWith(Egress.EgressPipeline p)
+        {
+            if (ReferenceEquals(_registeredPipeline, p)) return true;
+            _registeredPipeline = p;
+            return false;
+        }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             ContributeDescriptorMap(view);
+
+            // ⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — the world's off-frame scan launched last frame has finished before
+            //   any translator is touched; while the pipeline is OFF the frame, a marked translator only begins its frame here and the
+            //   pipeline scans it on a replica after the phase. No pipeline (the default for every node but one that registers its launch
+            //   system) ⇒ exactly today's loop.
+            Egress.EgressPipeline? pipeline = null;
+            if (Egress.EgressPipeline.TryGet(view, out var p))
+            {
+                p.Join();
+                if (!RegisteredWith(p))
+                    for (int i = 0; i < _translators.Length; i++)
+                        if (_translators[i] is Egress.IOffFrameEgress off)
+                            p.Register(off, _translatorProfileData.TryGetValue(_translators[i], out var prof) ? prof : null);
+                if (p.IsOffFrame) pipeline = p;
+            }
 
             // ⭐⭐ CE-3329 PW — §12c W2: between a world swap and the master's commit this node publishes NOTHING (the cleanup's
             //   disposes still go out — they are another system). 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12a.
@@ -105,6 +130,11 @@ namespace Fdp.Network.Cyclone.Systems
             for (int i = 0; i < _translators.Length; i++)
             {
                 var translator = _translators[i];
+                if (pipeline != null && translator is Egress.IOffFrameEgress offFrame)
+                {
+                    offFrame.BeginFrame(view);   // the bus / epoch bookkeeping stays on the live world, here; the scan runs off the frame
+                    continue;
+                }
                 // ⭐ CE-2404 (R-2084) — a timestamp, not a Stopwatch object per translator per frame (≈ 90 translators × every world;
                 //   📐 Stopwatch.Stop alone was 1.3–2.3 % of the main thread in the --mode all traces of 2026-11-04)
                 long started = Stopwatch.GetTimestamp();

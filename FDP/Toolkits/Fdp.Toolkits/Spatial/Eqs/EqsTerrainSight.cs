@@ -46,14 +46,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         /// <summary>True when <paramref name="p"/> (XY) is inside a building or wall footprint.</summary>
         public static bool InsideSolid(TerrainWorld world, Vector2 p)
-        {
-            foreach (var prism in world.Prisms)
-            {
-                if (p.X < prism.Min.X || p.Y < prism.Min.Y || p.X > prism.Max.X || p.Y > prism.Max.Y) continue;
-                if (PolygonMath.Contains(prism.Footprint, p)) return true;
-            }
-            return false;
-        }
+            // ⭐ CE-4366 (L-4) — the same predicate through the world's spatial index (TerrainWorld.InsideFootprint): the scan of every
+            //   prism per cover point was the cover build's 52 s on the scale terrain (84 607 prisms)
+            => world.InsideFootprint(p.X, p.Y);
 
         /// <summary>
         /// Puts a sampled point on the ground: Z from <see cref="TerrainWorld.SurfaceZ"/> (the surface reachable from

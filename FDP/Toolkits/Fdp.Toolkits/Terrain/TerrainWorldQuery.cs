@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Terrain
     /// directly); what this class adds is the engine-neutral shape — crossings say <see cref="TraceCrossing.ClosedBarrier"/> instead of
     /// handing callers the terrain's piece kinds (R-252).
     /// </summary>
-    public sealed class TerrainWorldQuery : IWorldQuery, ITerrainRenderGeometry
+    public sealed class TerrainWorldQuery : IWorldQuery, ITerrainChunkedGeometry   // ⭐ CE-3423 — chunked (DESIGN_Map_3D_Mode §6ah)
     {
         public TerrainWorld World { get; }
         public DoorStates? Doors { get; }
@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ <c>CE-3219</c> part 3 — the query for <paramref name="world"/> as <paramref name="view"/> sees it: its doors (R-219) and
         /// its clouds. The one place both are read, so every sight caller gets the same answer.</summary>
         public static TerrainWorldQuery ForView(Fdp.ModuleHost.Abstractions.ISimulationView view, TerrainWorld world)
-            => For(world, world.Doors.Count > 0 ? DoorStates.Of(view, world) : null, Fdp.Toolkit.Combat.AreaEffectClouds.Of(view));
+            => For(world, world.HasLiveState ? DoorStates.Of(view, world) : null, Fdp.Toolkit.Combat.AreaEffectClouds.Of(view));
 
         public float GroundHeightAt(float x, float y) => World.GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — the height grid, else the flat ground
 
@@ -76,7 +76,22 @@ namespace Fdp.Toolkit.Terrain
             return World.QuerySight(from, to, Doors).Transmittance * cloud < TerrainWorld.SightThreshold;
         }
 
+        // ⭐ CE-3427 — the world query's cost per purpose (who asks is the caller's slot; the terrain primitives have their own)
+        private static readonly int[] S_Trace =
+        {
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Sight"),
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Fire"),
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Sound"),
+        };
+
         public void Trace(Vector3 from, Vector3 to, TracePurpose purpose, List<TraceCrossing> into)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            TraceCore(from, to, purpose, into);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Trace[(int)purpose < S_Trace.Length ? (int)purpose : 0], t0);
+        }
+
+        private void TraceCore(Vector3 from, Vector3 to, TracePurpose purpose, List<TraceCrossing> into)
         {
             into.Clear();
             switch (purpose)
@@ -90,6 +105,19 @@ namespace Fdp.Toolkit.Terrain
                         var c = fire[i];
                         into.Add(new TraceCrossing(c.T, c.PathMetres, c.ResistanceMmRha, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
                             c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.EntryNormal, ExitNormal = c.ExitNormal });   // ⭐ CE-1128
+                    }
+                    // ⭐ CE-4369 (S4, R-4190 T-6) — the woods: ONE crossing where the line first enters a wood, stopping a share of rounds
+                    //   whatever their penetration (no resistance, not a barrier). Only the FIRE purpose — the round path; QueryFire's other
+                    //   readers (blasts, sound, door breaching) are unchanged.
+                    if (World.Woods is { } woods)
+                    {
+                        float stop = woods.FireStop(from, to, World, out float tWood);
+                        if (stop > 0f)
+                        {
+                            int at = 0;
+                            while (at < into.Count && into[at].T <= tWood) at++;
+                            into.Insert(at, new TraceCrossing(tWood, 0f, 0f, 0f, false, TerrainWorld.WoodsKind, null, "forest", null, -1) { Stop = stop });
+                        }
                     }
                     break;
                 }
@@ -150,14 +178,54 @@ namespace Fdp.Toolkit.Terrain
             TerrainWorldMesh.Build(World, out vertices, out indices);
             kinds = new TerrainSurfaceKind[indices.Length / 3];
             for (int t = 0; t < kinds.Length; t++)
+                kinds[t] = Classify(vertices[indices[3 * t]], vertices[indices[3 * t + 1]], vertices[indices[3 * t + 2]]);
+        }
+
+        /// <summary>A triangle's kind by its slope and its height over the ground — ONE rule for the whole build and the chunks (CE-3423).</summary>
+        private TerrainSurfaceKind Classify(Vector3 a, Vector3 b, Vector3 c)
+        {
+            var n = Vector3.Cross(b - a, c - a);
+            float len = n.Length();
+            if (len < 1e-9f || MathF.Abs(n.Z) / len < 0.5f) return TerrainSurfaceKind.Wall;
+            var centre = (a + b + c) / 3f;
+            return centre.Z > World.GroundHeightAt(centre.X, centre.Y) + 0.3f ? TerrainSurfaceKind.Roof : TerrainSurfaceKind.Ground;
+        }
+
+        // ── ITerrainChunkedGeometry (CE-3423, DESIGN_Map_3D_Mode §6ah) ──
+
+        /// <inheritdoc/>
+        public TerrainChunkLayout Chunks => TerrainWorldMesh.ChunkLayout(World);
+
+        /// <inheritdoc/>
+        public void BuildChunk(int cx, int cy, int level, TerrainChunkPart part, out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials)
+        {
+            var v = new List<Vector3>(); var t = new List<int>(); var g = new List<TerrainTriangleTag>();
+            int water = 0;
+            bool trees = part is TerrainChunkPart.ChunkTrees or TerrainChunkPart.ChunkCanopy;
+            if (part == TerrainChunkPart.ChunkGround) TerrainWorldMesh.BuildChunkGround(World, cx, cy, level, v, t, g);
+            else if (trees) TerrainWorldMesh.BuildChunkTrees(World, cx, cy, part == TerrainChunkPart.ChunkTrees, v, t, g);   // ⭐ CE-4377 §6ai
+            else TerrainWorldMesh.BuildChunkObjects(World, cx, cy, v, t, g, out water);
+            vertices = v.ToArray(); indices = t.ToArray();
+            int n = indices.Length / 3, solid = n - water;
+            kinds = new TerrainSurfaceKind[n]; materials = new string?[n];
+            for (int k = 0; k < n; k++)
             {
-                var a = vertices[indices[3 * t]]; var b = vertices[indices[3 * t + 1]]; var c = vertices[indices[3 * t + 2]];
-                var n = Vector3.Cross(b - a, c - a);
-                float len = n.Length();
-                if (len < 1e-9f || MathF.Abs(n.Z) / len < 0.5f) { kinds[t] = TerrainSurfaceKind.Wall; continue; }
-                var centre = (a + b + c) / 3f;
-                kinds[t] = centre.Z > World.GroundHeightAt(centre.X, centre.Y) + 0.3f ? TerrainSurfaceKind.Roof : TerrainSurfaceKind.Ground;
+                if (k >= solid) { kinds[k] = TerrainSurfaceKind.Water; materials[k] = "water"; continue; }
+                var tag = g[k];
+                if (tag.Material == TerrainWorldMesh.SkirtMaterial) { kinds[k] = TerrainSurfaceKind.Ground; continue; }   // L-4: a skirt is ground, never a wall
+                if (trees) { kinds[k] = TerrainSurfaceKind.Wall; materials[k] = tag.Material; continue; }                // T-4: a tree's colour is its material's
+                kinds[k] = Classify(vertices[indices[3 * k]], vertices[indices[3 * k + 1]], vertices[indices[3 * k + 2]]);
+                materials[k] = tag.Material;
             }
+        }
+
+        /// <inheritdoc/>
+        public void BuildOutside(out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials)
+        {
+            TerrainWorldMesh.BuildApron(World, out vertices, out indices);
+            kinds = new TerrainSurfaceKind[indices.Length / 3];   // Ground (0)
+            materials = new string?[kinds.Length];
+            Array.Fill(materials, TerrainWorldMesh.ApronMaterial);
         }
 
         /// <summary>⭐ CE-1033 S4 — <see cref="Build"/>, with each triangle's material from the mesh's tags (a prism's material,
@@ -185,20 +253,9 @@ namespace Fdp.Toolkit.Terrain
             }
             foreach (var s in World.Surfaces)
             {
-                if (s.Type != TerrainSurfaceType.Water || s.Polygon.Length < 3) continue;
-                float level = float.MaxValue;
-                foreach (var p in s.Polygon) level = MathF.Min(level, World.GroundHeightAt(p.X, p.Y));
-                level -= 0.15f;   // a little below the bank
-                int b = v.Count;
-                foreach (var p in s.Polygon) v.Add(new Vector3(p, level));
-                for (int i = 0; i + 2 < s.Triangles.Length; i += 3)
-                {
-                    int i0 = b + s.Triangles[i], i1 = b + s.Triangles[i + 1], i2 = b + s.Triangles[i + 2];
-                    bool up = Vector3.Cross(v[i1] - v[i0], v[i2] - v[i0]).Z >= 0f;
-                    idx.Add(i0); idx.Add(up ? i1 : i2); idx.Add(up ? i2 : i1);
-                    k.Add(TerrainSurfaceKind.Water);
-                    m.Add("water");
-                }
+                int before = idx.Count;
+                TerrainWorldMesh.AppendWater(World, s, v, idx);   // ⭐ CE-3423 — the ONE water builder, shared with the chunks
+                for (int i = before; i < idx.Count; i += 3) { k.Add(TerrainSurfaceKind.Water); m.Add("water"); }
             }
             vertices = v.ToArray();
             indices = idx.ToArray();

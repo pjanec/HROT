@@ -382,6 +382,29 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(_w, unit, d), DebugTraceLayers.Paths);
     }
 
+    /// <summary>⭐ CE-4385 (handoff L-3; R-2084 hot path) — a unit's route with a LEGACY <c>"target"</c> task draws with NO garbage once warm: the target is parsed
+    /// once per plan, not per frame. 📐 Measured on Windows, 2026-11-10: 540 KB a frame on an idle 5.5 km scenario. 🔴 Red-proof (compiles): <c>legacy[i]</c> back
+    /// to <c>LegacyTarget(tasks[i].BehaviorParams)</c> ⇒ the second draw allocates (the JSON parse).</summary>
+    [Fact]
+    public void CE4385_ALegacyTargetRoute_DrawsWithNoGarbage_OnceWarm()
+    {
+        _w.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>();
+        var unit = _w.CreateEntity();
+        _w.AddComponent(unit, new SimTransform { Position = new Vector3(0, 0, 0) });
+        var plan = new Fdp.Toolkit.Behavior.Components.ActiveMissionPlan();
+        plan.Plan.Tasks.Add(new Fdp.Toolkit.Behavior.Components.DomainMissionTask { BehaviorParams = "{\"target\":[100,100,0]}" });
+        plan.Plan.Tasks.Add(new Fdp.Toolkit.Behavior.Components.DomainMissionTask { BehaviorParams = "{\"target\":[200,50,0]}" });
+        _w.SetManagedComponent(unit, plan);
+        var gizmo = new MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0));
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        for (int k = 0; k < 3; k++) { buffer.Clear(); gizmo.Draw(_w, unit, buffer); }   // warm: the plan's caches, the buffer, the JIT
+        Assert.True(buffer.GetFrame().Length > 0, "the route is drawn");
+        buffer.Clear();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        gizmo.Draw(_w, unit, buffer);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
     // ── ⭐ SR-192 / SR-178 — a macro instance's member lines and marker (docs/DESIGN_Scenario_Macros.md §14.2, §14.4) ─────
 
     private Entity MacroInstanceAt(int netId, Vector3 at, Fdp.Toolkit.Scenario.MacroExpansionState state = Fdp.Toolkit.Scenario.MacroExpansionState.Done, string reason = "")

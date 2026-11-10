@@ -45,6 +45,27 @@ Every node is a mode of its own; `all` and `server` only combine them.
 
 A single-node launch needs `--no-wait` (or `--wait-for simhost,ig|player,ios`); with no `-n` it asks the cluster master for its node id (`scripts/cluster-node.sh start player <port> auto`).
 
+### 1.0 ⭐ `HROT_HIDDEN_WINDOW=1` — no window appears *(CE-4386, `2026-11-10`)*
+
+🔒 User: *"I need to do other light work on that machine and do not want to be annoyed by popping windows."* ⇒ set `HROT_HIDDEN_WINDOW=1` for the editor, the player and
+every frame-rail test run: the window is created hidden and unfocused (no taskbar entry), each frame is drawn into an off-screen render target that `LoadImageFromScreen`
+reads (so screenshots and rails work unchanged), and on Windows a console window the process owns alone is hidden. One switch, one class:
+`FDP/Engine/Fdp.Presentation/Raylib/HiddenWindow.cs`. Rail: `TheHiddenWindowModeTests` (runs only with the switch). Default off.
+
+```bash
+HROT_HIDDEN_WINDOW=1 xvfb-run -a dotnet test Hrot/Engine/Hrot.Presentation.Tests --no-build          # Linux
+$env:HROT_HIDDEN_WINDOW=1; dotnet test Hrot/Engine/Hrot.Presentation.Tests --no-build                # Windows (PowerShell)
+```
+
+⭐ **Windows, measured on the user's machine `2026-11-10`** (150 % scaling):
+- ⛔ until then **every frame rail SKIPPED on Windows** — the harness required the Linux `DISPLAY` variable. ⭐ Now on Windows the rails run when `HROT_HIDDEN_WINDOW=1` and skip
+  without it (so a plain suite run never pops windows on a desktop someone works at) — `UiFrameHarness.IsAvailable`.
+- ⛔ raylib's `LoadImageFromScreen` reads the screen size **× the DPI scale** (GLFW's content scale, 1.5 at 150 % — with or without the high-DPI flag) ⇒ it read 1920 × 1200
+  out of a 1280 × 800 frame and every pixel probe read black. ⭐ In hidden mode the process is made **DPI-unaware** before the window opens (`HiddenWindow.MakeDpiUnaware`)
+  ⇒ scale 1.0, the read is the frame exactly. ⚠ A VISIBLE frame-rail run on a scaled Windows monitor still has this problem — run them hidden.
+- ⭐ The editor: `--target-fps 0` lifts the 60 fps cap so `/diagnostics/render` measures what a frame costs (CE-4385); it also reports the chunked terrain's triangles /
+  meshes, the working set, the managed heap and the bytes allocated per frame.
+
 ### 1.1 One process, all subsystems
 
 ```bash

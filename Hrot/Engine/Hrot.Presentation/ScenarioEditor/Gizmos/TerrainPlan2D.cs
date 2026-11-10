@@ -24,12 +24,12 @@ public sealed class TerrainPlan2D
     /// <summary>⭐ CE-1227 — the layer every primitive of the plan carries: the "Terrain (2-D)" checkbox (§5e FL-1).</summary>
     public const byte TerrainLayer = DebugTraceLayers.Terrain2D;
 
-    private static readonly Rgba32 ForestFill  = new(40, 110, 50, 110);
-    private static readonly Rgba32 WaterFill   = new(50, 110, 200, 150);
+    public static readonly Rgba32 ForestFill  = new(40, 110, 50, 110);
+    public static readonly Rgba32 WaterFill   = new(50, 110, 200, 150);
     private static readonly Rgba32 SlabFill    = new(90, 150, 220, 90);
     private static readonly Rgba32 RampFill    = new(130, 180, 230, 110);
     // ⭐ CE-1021 — a plain wall is a light concrete grey: the old (70,70,70) under a near-black outline read as black on the map.
-    private static readonly Rgba32 WallFill    = new(150, 150, 145, 235);
+    public static readonly Rgba32 WallFill    = new(150, 150, 145, 235);
     private static readonly Rgba32 Outline     = new(30, 30, 30, 220);
     private static readonly Rgba32 SlabOutline = new(40, 90, 170, 220);
     private static readonly Rgba32 LabelColor  = new(20, 20, 20, 255);

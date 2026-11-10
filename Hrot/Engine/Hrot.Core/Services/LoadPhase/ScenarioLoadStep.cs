@@ -64,6 +64,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     private readonly TerrainLoadService? _terrainLoadService;
 
     private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
+    private IReadOnlyDictionary<string, Fdp.Toolkit.Terrain.SavedBuildingDamage>? _pendingBuildingDamage;   // ⭐ CE-4391 S-4 — the scenario's saved building damage
     private IReadOnlyDictionary<string, Fdp.Toolkit.Terrain.TerrainDoorState>? _pendingDoorStates;   // ⭐ 5e — the scenario's TerrainObjects
     private Guid? _pendingTransactionId;
     private string? _pendingDescription;   // ⭐ CE-3288 — the file's Header.Description, stamped resident at Commit (§4d)
@@ -128,6 +129,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     {
         _pendingRequests      = null;
         _pendingDoorStates    = null;
+        _pendingBuildingDamage = null;
         _pendingTransactionId = null;
         _pendingDescription   = null;
         _pendingName = _pendingHash = _pendingArgs = _pendingHeaderJson = null;
@@ -201,6 +203,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         else
             _pendingRequests = _extractor.Extract(_serializer, extractJson, _idAllocator, _remapper);
         _pendingDoorStates    = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadDoors(json);   // ⭐ 5e — applied when the doors are created
+        _pendingBuildingDamage = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadBuildingDamage(json);   // ⭐ CE-4391 S-4 — a malformed entry refuses the load here, on every node, with nothing created
         _pendingDescription   = ScenarioDescription.Read(json);   // ⭐ CE-3288 — held by the world so a save writes it back
         _pendingHeaderJson    = ScenarioDescription.HeaderJsonOf(json);   // ⭐ CE-4210 MA-4 — the macro header, held the same way
         _pendingName          = context.ScenarioId;              // ⭐ CE-4058 ② — a recording names its scenario
@@ -261,6 +264,11 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
                     foreach (var request in TerrainObjectRequests.ForDoors(
                                  terrain, Fdp.Toolkit.Terrain.TerrainObjects.ExistingKeys(world), _idAllocator, _pendingDoorStates))
                         Publish(world, request);
+                // ⭐ CE-4391 S-4 (B-7) — right after the doors: the saved breaches and collapses, one entity per building (owned by this loading node; see ForBuildingDamage)
+                if (terrain != null && _pendingBuildingDamage is { Count: > 0 })
+                    foreach (var request in TerrainObjectRequests.ForBuildingDamage(
+                                 terrain, _pendingBuildingDamage, Fdp.Toolkit.Terrain.TerrainObjects.ExistingKeys(world), _idAllocator))
+                        Publish(world, request);
             }
 
             // ⭐ CE-3216 C-3 (R-3012) — a scenario with no World Environment gets a DEFAULT one, so the clock is always there to change
@@ -273,6 +281,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         {
             _pendingRequests      = null;
             _pendingDoorStates    = null;
+        _pendingBuildingDamage = null;
             _pendingTransactionId = null;
             _pendingDescription   = null;
             _pendingName = _pendingHash = _pendingArgs = _pendingHeaderJson = null;
@@ -305,6 +314,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _awaitedNetworkIds.Clear();
         _pendingRequests      = null;
         _pendingDoorStates    = null;
+        _pendingBuildingDamage = null;
         _pendingTransactionId = null;
         _pendingDescription   = null;
         _pendingName = _pendingHash = _pendingArgs = _pendingHeaderJson = null;

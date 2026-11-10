@@ -69,3 +69,13 @@ scenarios/perf-civ-*/
 
 # CE-4324 — the default staging / recordings root (OrchestrationConstants.ResolveStagingRoot) in a dev build
 /data/
+
+# CE-4363: the scale terrains (scripts/terrain-scale.py) — regenerated, never committed
+assets/terrain/scale-*/
+scenarios/scale-rig-*/
+
+# SUMO installed by scripts/install-sumo.* (Terrain From OSM §9.1) — never committed
+.local/
+
+# hrot-terrain-osm's default --out: OSM-derived input sets (ODbL) - regenerated, never committed
+terrain-input/

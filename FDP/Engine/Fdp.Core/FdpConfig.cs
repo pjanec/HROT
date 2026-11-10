@@ -171,6 +171,18 @@ namespace Fdp.Core
             Environment.GetEnvironmentVariable("FDP_FAIL_FAST") is not ("0" or "false" or "FALSE" or "off" or "OFF");
 
         /// <summary>
+        /// ⭐ CE-3427 C-1 (user, <c>2026-11-10</c>) — in live play a slow module (below 60 Hz) runs every <c>1/Hz</c> s of WALL CLOCK
+        /// counted from its last DISPATCH, not every <c>60/Hz</c> rendered frames counted from its harvest. 🔒 User, <c>2026-10-21</c>:
+        /// <i>"the 10Hz and such were meant to be wall clock to ease the CPU"</i>. 📐 Measured: a 120 ms EQS run waited 230 ms more
+        /// frame-counted (2.9 runs/s for a 10 Hz policy); wall clock gave 7.1 runs/s (docs/DESIGN_Scale_Rig.md §7.2).
+        /// <para>The default each new <c>ModuleHostKernel</c> takes. OFF here so a test that drives frames unpaced keeps a cadence
+        /// that does not depend on machine speed; the live process (<c>Hrot.ClusterRunner</c> <c>Program.Main</c>, every node and the
+        /// editor) turns it ON. ⛔ Stepped mode is untouched — it counts sim-time slots (R-3035). <c>FDP_SLOW_WALLCLOCK=0</c> turns it
+        /// off for a whole process (to bisect a live red to this change).</para>
+        /// </summary>
+        public static bool SlowModulesByWallClock { get; set; } = false;
+
+        /// <summary>
         /// Global switch to control CPU usage for parallel operations.
         /// -1 = Use all cores (Environment.ProcessorCount)
         ///  1 = Single threaded

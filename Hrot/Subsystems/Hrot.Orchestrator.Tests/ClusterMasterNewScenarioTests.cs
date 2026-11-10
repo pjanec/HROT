@@ -114,7 +114,7 @@ public sealed class ClusterMasterNewScenarioTests
             var doc = JsonNode.Parse(File.ReadAllText(file))!;
             Assert.Equal("highway-rest", doc["header"]!["terrainName"]!.GetValue<string>());
             Assert.Equal("Hrot.Scenario", doc["$meta"]!["docType"]!.GetValue<string>());
-            Assert.Empty(doc["entities"]!.AsArray());
+            Assert.Empty(doc["entities"]!.AsObject());   // CE-4363: the shape ScenarioSerializer loads (an array never loaded)
 
             File.AppendAllText(file, " ");
             var before = File.ReadAllText(file);

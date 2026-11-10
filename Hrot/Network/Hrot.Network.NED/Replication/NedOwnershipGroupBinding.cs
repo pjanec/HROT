@@ -118,6 +118,8 @@ public static class NedOwnershipGroupBinding
         // ⭐ Buildings Stage 5b — no group: the door's creator keeps it (the creator's remainder). The mapping lets a transfer
         //   (5d door commands) move the DoorState write with the descriptor. 📄 docs/DESIGN_Building_Interiors.md §3j.
         map.RegisterMapping((long)EDescriptorType.dtDoorState, GlobalComponentIds.DoorState);
+        // ⭐ CE-4391 S-1 — no group: the node that decided a building's breaches keeps its damage entity (the door's shape); the mapping makes it INGRESSIBLE.
+        map.RegisterMapping((long)EDescriptorType.dtBuildingDamage, GlobalComponentIds.BuildingDamage);
         // ⭐ CE-3136 P-7a — no group: the obstacle's creator keeps it. The mapping makes ObstacleShape INGRESSIBLE, so its
         //   [PerInstanceValue] holds a ghost until the box has arrived (MandatoryComponentResolver). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         map.RegisterMapping((long)EDescriptorType.dtObstacleShape, GlobalComponentIds.ObstacleShape);

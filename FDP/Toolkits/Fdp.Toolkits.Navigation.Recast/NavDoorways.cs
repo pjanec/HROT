@@ -25,7 +25,40 @@ public static class NavDoorways
     public const float HeightMetres = 2.2f;
 
     /// <summary>One doorway: its door index in <see cref="TerrainWorld.Doors"/> and its box in RECAST space (Y-up).</summary>
-    public readonly record struct Volume(int Door, float[] Verts, float MinY, float MaxY);
+    public readonly record struct Volume(int Door, float[] Verts, float MinY, float MaxY)
+    {
+        /// <summary>⭐ CE-4369 — the area the volume marks (<see cref="DoorArea"/> for a doorway, <see cref="WoodsArea"/> for a wood).</summary>
+        public int Area { get; init; } = DoorArea;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4369</c> (L-7, R-4190 T-3, docs/DESIGN_Terrain_World.md §11) — the area id a wood's spans carry: the polygons stay walkable and
+    /// the query filter prices them per mover (<see cref="DoorAwareQueryFilter"/>). A doorway's area wins where both overlap (marked after).
+    /// </summary>
+    public const int WoodsArea = 3;
+
+    /// <summary>⭐ CE-4369 — the woods of <paramref name="world"/> as convex volumes (each forest surface's triangles), in RECAST
+    /// coordinates, spanning the ground's whole height range: the bake marks their spans <see cref="WoodsArea"/>.</summary>
+    public static IReadOnlyList<Volume> Woods(TerrainWorld world)
+    {
+        var list = new List<Volume>();
+        float lo = (world.Height?.MinZ ?? world.GroundZ) - 2f, hi = (world.Height?.MaxZ ?? world.GroundZ) + 2f;
+        foreach (var s in world.Surfaces)
+        {
+            if (s.Type != TerrainSurfaceType.Forest) continue;
+            for (int t = 0; t + 2 < s.Triangles.Length; t += 3)
+            {
+                var verts = new float[9];
+                for (int k = 0; k < 3; k++)
+                {
+                    var p = s.Polygon[s.Triangles[t + k]];
+                    verts[k * 3 + 0] = p.X; verts[k * 3 + 1] = lo; verts[k * 3 + 2] = p.Y;
+                }
+                list.Add(new Volume(-1, verts, lo, hi) { Area = WoodsArea });
+            }
+        }
+        return list;
+    }
 
     /// <summary>The doorway boxes of <paramref name="world"/>, in RECAST coordinates (x east, y up, z north).</summary>
     public static IReadOnlyList<Volume> For(TerrainWorld world)
@@ -98,6 +131,8 @@ public static class NavDoorways
 /// </summary>
 public sealed class DoorAwareQueryFilter : IDtQueryFilter
 {
+    private const int WoodsAreaId = NavDoorways.WoodsArea;
+
     /// <summary>N3 — what entering a closed door costs, in metres of walking: a detour shorter than this wins.</summary>
     public const float ClosedDoorPenaltyMetres = 10f;
 
@@ -107,26 +142,39 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     private DoorStates? _doors;   // ⛔ written only on a working copy (JudgeBy) — a published filter never changes
     private readonly bool _canOpenDoors;
     private readonly bool _isWorkingCopy;
+    private readonly float _woodsCost;   // ⭐ CE-4369 — the cost factor on a woods polygon; ≤ 0 ⇒ the mover may not enter it
+
+    /// <summary>⭐ CE-4369 (R-4190 T-3 / Q-T1 / Q-T2) — what a woods polygon costs each mover, as a factor on its length: infantry a little,
+    /// a tracked vehicle a lot; a wheeled vehicle may not enter (0). Tuning values.</summary>
+    public const float InfantryWoodsCost = 1.5f, TrackedWoodsCost = 4f, WheeledWoodsCost = 0f;
 
     /// <param name="doors">the door states to judge by; null = every door open (no terrain doors)</param>
     public DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors)
-        : this(doorPolys, doors, canOpenDoors, isWorkingCopy: false) { }
+        : this(doorPolys, doors, canOpenDoors, isWorkingCopy: false, canOpenDoors ? InfantryWoodsCost : WheeledWoodsCost) { }
 
-    private DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors, bool isWorkingCopy)
+    /// <summary>⭐ CE-4369 — with an explicit woods cost factor (≤ 0 ⇒ woods are closed to this mover).</summary>
+    public DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors, float woodsCost)
+        : this(doorPolys, doors, canOpenDoors, isWorkingCopy: false, woodsCost) { }
+
+    private DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors, bool isWorkingCopy, float woodsCost)
     {
         _doorPolys = doorPolys;
         _doors = doors;
         _canOpenDoors = canOpenDoors;
         _isWorkingCopy = isWorkingCopy;
+        _woodsCost = woodsCost;
     }
+
+    /// <summary>⭐ CE-4369 — the same doorways and doors, priced for another mover's woods cost.</summary>
+    public DoorAwareQueryFilter WithWoodsCost(float woodsCost) => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: false, woodsCost);
 
     /// <summary>The same doorway polygons and agent class, judged by <paramref name="doors"/> instead. ⚠ Allocates — a per-query
     /// caller uses a <see cref="WorkingCopy"/> (R-220).</summary>
-    public DoorAwareQueryFilter With(DoorStates? doors) => ReferenceEquals(doors, _doors) ? this : new(_doorPolys, doors, _canOpenDoors);
+    public DoorAwareQueryFilter With(DoorStates? doors) => ReferenceEquals(doors, _doors) ? this : new(_doorPolys, doors, _canOpenDoors, isWorkingCopy: false, _woodsCost);
 
     /// <summary>⭐ R-220 — a copy whose doors one THREAD re-points per query (<see cref="JudgeBy"/>): the provider keeps one per
     /// thread and layer, so a query judged by its caller's doors allocates nothing.</summary>
-    public DoorAwareQueryFilter WorkingCopy() => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: true);
+    public DoorAwareQueryFilter WorkingCopy() => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: true, _woodsCost);
 
     /// <summary>⭐ R-220 — judge by <paramref name="doors"/> from now on. Only on a <see cref="WorkingCopy"/>, owned by one thread.</summary>
     public DoorAwareQueryFilter JudgeBy(DoorStates? doors)
@@ -148,6 +196,7 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     public bool PassFilter(long refs, DtMeshTile tile, DtPoly poly)
     {
         if (!Base.PassFilter(refs, tile, poly)) return false;
+        if (poly.GetArea() == WoodsAreaId && _woodsCost <= 0f) return false;   // ⭐ CE-4369 — a wheeled vehicle never enters a wood (Q-T1)
         if (!_doorPolys.TryGetValue(refs, out int door)) return true;
         if (!_canOpenDoors) return false;                                   // N2 — a vehicle never uses a doorway
         return StateOf(door) != TerrainDoorState.Locked;                    // a locked door is a wall
@@ -159,6 +208,7 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
         long nextRef, DtMeshTile nextTile, DtPoly nextPoly)
     {
         float cost = Base.GetCost(pa, pb, prevRef, prevTile, prevPoly, curRef, curTile, curPoly, nextRef, nextTile, nextPoly);
+        if (curPoly.GetArea() == WoodsAreaId && _woodsCost > 0f) cost *= _woodsCost;   // ⭐ CE-4369 — a wood priced per mover
         if (_doorPolys.TryGetValue(curRef, out int door)
             && !(prevRef != 0 && _doorPolys.TryGetValue(prevRef, out int prevDoor) && prevDoor == door)   // once per door, on entry
             && StateOf(door) == TerrainDoorState.Closed)
