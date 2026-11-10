@@ -105,7 +105,12 @@ namespace Fdp.Toolkit.Terrain
             int k = (cy * ch.Layout.Nx) + cx;
             waterTriangles = 0;
             if ((uint)k >= (uint)ch.Prisms.Length) return;
-            foreach (int p in ch.Prisms[k]) AddPrism(world.Prisms[p], v, t, g);
+            foreach (int p in ch.Prisms[k])
+            {
+                var prism = world.Prisms[p];
+                if (IsRoofCap(prism)) AddGable(prism, v, t, g);   // ⭐ CE-4377 §6ai R-1 — a pitched roof drawn as one (the cap stays the world's for sight and fire)
+                else AddPrism(prism, v, t, g);
+            }
             foreach (int w in ch.Walkables[k]) AddWalkable(world.Walkables[w], v, t, g);
             int before = t.Count;
             foreach (int s in ch.Water[k]) AppendWater(world, world.Surfaces[s], v, t);

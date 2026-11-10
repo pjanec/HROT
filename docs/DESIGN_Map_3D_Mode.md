@@ -3590,7 +3590,7 @@ against it.*
 
 Numbers and frames: [STATUS_Ui_Large_Terrain_Drawing.md](blueprints/batches/STATUS_Ui_Large_Terrain_Drawing.md) §2–§3 (scale-1: the load's 3-D picture 0.8 s / 640 MB peak, where the whole soup needed 9.4 s / 7.0 GB and is killed at 6 GB on this VM).
 
-### 6ai. CE-4377 — buildings and trees at scale: the trees' 3-D look, by distance *(ui, `2026-11-10`; build-state: trees BUILT (as-built below the table); pitched roofs and imported facades NEXT — the importer landed during the build)*
+### 6ai. CE-4377 — buildings and trees at scale: the trees' 3-D look by distance, pitched roofs, facades *(ui, `2026-11-10`; build-state: BUILT — trees, then pitched roofs (R-1…R-3); facades need no change (R-4))*
 
 🔒 R-4195 (user): *"if there is new stuff like trees or different roofs the ui lane is free to design their 3d look with respect to performance"*. Handoff D-3.
 📐 **Measured first:** a LONE tree is already a world prism (an octagon trunk, material `tree-trunk`, 0.3 m × 10 m — `TerrainWorldParser.cs:195`), so §6ah's objects
@@ -3642,6 +3642,25 @@ sequenceDiagram
 `TerrainChunks3D` (the canopy is part of the coarse picture; the near trees are built when the chunk wants level ≤ 1 and count against the finer-level budget). `TerrainWoods`
 gained `Origin` and `CellAt` (read-only). Rails `TerrainChunkTreesTests` (counts, determinism, edges only, not in the ground or objects). scale-1 with trees: 2.0–2.6 M
 triangles drawn a frame, 517–534 MB resident.
+
+**Pitched roofs and facades** *(designed and built `2026-11-10`, after the importer landed)*. 📐 Measured on `imported-tiny` (the importer's own mini set): a pitched
+roof arrives as the house's flat roof + a CAP — a building prism with `Floors == 0`, labelled `<id>-roof`, from the eaves (`BaseZ`) to the ridge (`TopZ`)
+(UTM I-h, `TerrainFolderWriter`) — and was drawn as a flat-topped box. Facades are wall panels with door and window openings (UTM Q-U8), which §6ah's objects mesh
+already cuts.
+
+![the cap drawn as a gable](UX/terrain-roofs-3d.svg)
+
+| # | decision | why |
+|---|---|---|
+| R-1 | the cap is drawn as a GABLE: the ridge along the footprint's longest edge at mid-width, at `TopZ`; the eaves at `BaseZ`. Each footprint triangle is clipped at the ridge line and its corners lifted — a plane on each side, on ANY footprint (L, T, many-sided); the gable ends close it in the house's own wall material, one triangle per half (split at the ridge) | the source gives only a cap height, no roof shape; a gable over the longest edge is the commonest house roof and costs ≈ 2× the footprint's triangles — less than the box it replaces |
+| R-2 | its material `roof-pitched`: dark weathered clay (118, 58, 46) — darker than the brick walls, so roof and wall read apart — with a TILE pattern: rows of 30 × 24 cm tiles up the slope, staggered, the lower lip shaded, fading out by 160 m (`LitShader` code **240**, new) | a slope is never a floor, so CE-1341's grey screed (which made roofs double as floors) does not apply; the red reads as a roof against the slate flat roofs |
+| R-3 | ⛔ presentation only — the world keeps the cap prism (sight and fire, the navmesh) | R-4195: the look must not change the simulation |
+| R-4 | facades: **no change** — the imported houses' wall panels already draw their openings in the chunk's objects mesh, batched per chunk (§6ah L-5) | the frames below show the window rows; nothing new to batch |
+
+*As-built:* `TerrainWorldMesh.Roofs.cs` (`IsRoofCap`, `AddGable`, `ClipSide`), routed from `BuildChunkObjects`; `TerrainLayer3D` colour + code 240; `LitShader.tiles`.
+Rail `TerrainChunkRoofsTests` (ridge at the cap's top along the long side, eaves at its base, the two gable ends, no flat cap top, the house's own roof kept, the
+world still blocks at the cap; 🔴 red-proved with `IsRoofCap` off). The shipped terrains have no caps ⇒ §6ah's equality rail and their frames are unchanged.
+📷 `TheTerrainChunksLookTests.AnImportedTerrainsHouses_UpClose` (opt-in `HROT_MEASURE=1`, `HROT_RAIL_SHOTS=<dir>`) renders the before / after; never in git.
 
 ## 7. NOT VERIFIED — say so before it is built on
 

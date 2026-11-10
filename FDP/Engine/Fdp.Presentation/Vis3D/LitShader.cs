@@ -140,6 +140,17 @@ vec3 screed(vec3 albedo, vec2 uv, float near)
     float speck = grassHash(floor(uv * 40.0));
     return albedo * (0.86 + 0.16 * blotch + 0.16 * (grain - 0.5) + near * 0.10 * (speck - 0.5));
 }
+// ⭐ CE-4377 R-1 — a drawn PITCHED roof (never a floor, so CE-1341's screed does not apply): rows of 30 × 24 cm tiles up the slope,
+// half-staggered, each row's lower lip in shadow, a per-tile tint
+vec3 tiles(vec3 albedo, vec2 uv)
+{
+    float row = floor(uv.y / 0.24);
+    float x = uv.x / 0.30 + 0.5 * mod(row, 2.0);
+    vec2 f = vec2(fract(x), fract(uv.y / 0.24));
+    float lip = smoothstep(0.0, 0.25, f.y);
+    float edge = smoothstep(0.0, 0.06, f.x) * smoothstep(1.0, 0.94, f.x);
+    return albedo * (0.62 + 0.38 * lip) * (0.85 + 0.15 * edge) * (0.9 + 0.2 * grassHash(vec2(floor(x), row)));
+}
 vec3 planks(vec3 albedo, vec2 uv)
 {
     float row = floor(uv.y / 0.15);
@@ -149,7 +160,7 @@ vec3 planks(vec3 albedo, vec2 uv)
 }
 vec3 materialDetail(vec3 albedo, float code, vec3 world, vec3 n, float dist)
 {
-    if (groundDetail <= 0.0 || code > 250.5 || code < 240.5) return albedo;
+    if (groundDetail <= 0.0 || code > 250.5 || code < 239.5) return albedo;
     // the face's own frame: t runs level along it, b up its slope (a wall: straight up; a flat roof: north) — a pattern lies ON the face
     vec3 t = length(n.xz) < 0.05 ? vec3(1.0, 0.0, 0.0) : normalize(vec3(-n.z, 0.0, n.x));
     vec3 b = normalize(cross(n, t));
@@ -167,7 +178,8 @@ vec3 materialDetail(vec3 albedo, float code, vec3 world, vec3 n, float dist)
     else if (code > 243.5) c = mix(albedo, planks(albedo, uv), fine);                                     // 244 wood
     else if (code > 242.5) c = albedo * (0.82 + 0.3 * grassNoise(uv * 1.7));                              // 243 earth
     else if (code > 241.5) c = albedo * (0.72 + 0.45 * grassNoise(uv * 6.0) * grassNoise(uv * 2.0 + 7.0)); // 242 hedge
-    else c = sloped ? screed(albedo, uv, near) : mix(albedo, brick(albedo, uv), fine);                   // 241 brick building's roof / floor
+    else if (code > 240.5) c = sloped ? screed(albedo, uv, near) : mix(albedo, brick(albedo, uv), fine); // 241 brick building's roof / floor
+    else c = mix(albedo, tiles(albedo, uv), clamp(1.0 - dist / 160.0, 0.0, 1.0));                        // 240 a drawn pitched roof (CE-4377): rows read further than bricks
     return mix(albedo, c, groundDetail);
 }
 void main()

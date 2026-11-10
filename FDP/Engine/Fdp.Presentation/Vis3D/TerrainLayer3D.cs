@@ -215,22 +215,23 @@ namespace Fdp.Toolkit.Vis3D
                 "tree-crown" => new Color(62, 104, 48, 255),
                 "tree-crown-dark" => new Color(50, 88, 40, 255),
                 "canopy" => new Color(56, 96, 44, 255),
+                "roof-pitched" => new Color(118, 58, 46, 255),   // ⭐ CE-4377 R-2 — a drawn pitched roof: dark weathered clay tiles, darker than the brick walls so the roof reads apart (a slope is never a floor, CE-1341's worry)
                 _ => null,   // concrete and unknown: the kind's colour
             };
             if (kind == TerrainSurfaceKind.Roof)
-                return material is null or "concrete" or "brick" ? RoofColor : Shade(own ?? RoofColor, 0.85f);
+                return material is null or "concrete" or "brick" ? RoofColor : material == "roof-pitched" ? own!.Value : Shade(own ?? RoofColor, 0.85f);
             return own ?? WallColor;
         }
 
         /// <summary>⭐ <c>CE-1333</c> — which pattern the lit shader paints on a terrain triangle (<see cref="LitShader.SetGroundDetail"/>), carried
         /// in its vertex colour's alpha: 250 open ground (grass) · 249 forest floor · 248 brick · 247 concrete · 246 sandbags · 245 roof tiles ·
-        /// 244 wood · 243 earth · 242 hedge · 241 a brick building's roof (tiles on top, brick on its sides) · 255 none (water, glass, metal,
+        /// 244 wood · 243 earth · 242 hedge · 241 a brick building's roof (tiles on top, brick on its sides) · 240 a drawn pitched roof (tiles, CE-4377) · 255 none (water, glass, metal,
         /// a car body).</summary>
         public static byte MaterialCode(TerrainSurfaceKind kind, string? material) => kind switch
         {
             TerrainSurfaceKind.Water => 255,
             TerrainSurfaceKind.Ground => material == "forest" ? (byte)249 : (byte)250,
-            TerrainSurfaceKind.Roof => material == "brick" ? (byte)241 : material is null or "concrete" ? (byte)245 : CodeOf(material),
+            TerrainSurfaceKind.Roof => material == "brick" ? (byte)241 : material == "roof-pitched" ? (byte)240 : material is null or "concrete" ? (byte)245 : CodeOf(material),
             _ => CodeOf(material),
         };
 
