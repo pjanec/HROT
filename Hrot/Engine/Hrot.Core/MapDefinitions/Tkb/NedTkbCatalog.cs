@@ -702,7 +702,7 @@ namespace Hrot.Map.Definitions.Tkb
                         Penetration = 650,     // CE-3071 — mm RHA (design §9 calibration)
                         DamagePerHit = 1200,
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
-                        AimSeconds = 2.5f,   // ⭐ R-2086 (B) — a tank gun's lay, declared (was the engine's 0.8 s fallback)
+                        AimSeconds = 3.5f,   // ⭐ R-2086 (B, amended 2026-11-10: 2.5 → 3.5 s, a real first-round time) — a tank gun's lay, declared (was the engine's 0.8 s fallback)
                         MuzzleOffset = new System.Numerics.Vector3(5.3f, 0f, 0f),   // ⭐ E4 — the 120 mm L/44 barrel from its trunnion
                         AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds),   // ⭐ LR-1 (R-271)
                         // ⭐ M5 (DESIGN_Missiles_And_Ammo §2) — the 42 rounds as a loadout the weapon brain picks from: APFSDS for armour,
@@ -816,7 +816,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100,
                         AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds),   // ⭐ LR-1
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
-                        AimSeconds = 2.5f,   // ⭐ R-2086 (B) — as the M256
+                        AimSeconds = 3.5f,   // ⭐ R-2086 (B) — as the M256
                         MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f),   // ⭐ E4 — the 125 mm L/48 barrel
                         Loadout = TankLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds, 18, 9, 12) });   // ⭐ M5 — the 39 as a loadout
                     c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));   // ⭐ M5 — the coaxial PKT (7.62 × 51 stands in)
