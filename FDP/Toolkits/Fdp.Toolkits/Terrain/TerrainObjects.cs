@@ -79,7 +79,9 @@ namespace Fdp.Toolkit.Terrain
         public BuildingDamageTable? Damage { get; }
 
         /// <summary>Door <paramref name="index"/>'s state in this view.</summary>
-        public TerrainDoorState this[int index] => (TerrainDoorState)_states[index];
+        public TerrainDoorState this[int index]
+            => Damage != null && Damage.DoorDestroyed(index) ? TerrainDoorState.Destroyed   // ⭐ CE-4391 S-2 — a collapsed building's doors are gone
+               : (TerrainDoorState)_states[index];
 
         public int Count => _states.Length;
 

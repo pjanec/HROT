@@ -94,6 +94,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(3, replica.GetComponentRO<BuildingDamage>(ghost).Count);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-2 — the COLLAPSE crosses the wire: <c>Collapsed</c> is copied by the egress and the ingress, and the other node's view then shows the mound.
+        /// 🔴 Red-proof: drop <c>c.Collapsed = d.Collapsed</c> in <c>FromSample</c> ⇒ the replica's building stands.
+        /// </summary>
+        [Fact]
+        public void TheCollapse_ReachesTheOtherNodesView_AsAMound()
+        {
+            using var replica = World(out var terrain);
+            var original = new BuildingDamage { Building = 0, Collapsed = 1 };
+            var sample = EntityBuildingDamageEgressTranslator.ToSample(5201, original, "range/H");
+            Assert.Equal(1, sample.Collapsed);
+            var map = new NetworkEntityMap();
+            var ingress = new EntityBuildingDamageIngressTranslator(participant: null, map, new GhostCreationSystem(map), localNodeId: 2);
+            using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, replica); cmd.Playback(replica); }
+            var damage = DoorStates.Of(replica, terrain).Damage!;
+            Assert.True(damage.Collapsed(0));
+            Assert.Single(damage.Rubble);
+            Assert.False(terrain.SegmentBlocked(new Vector3(15f, 24f, 1.6f), new Vector3(35f, 24f, 1.6f), DoorStates.Of(replica, terrain)));   // across the former interior, above the mound
+            Assert.True(terrain.SegmentBlocked(new Vector3(15f, 24f, 0.5f), new Vector3(35f, 24f, 0.5f), DoorStates.Of(replica, terrain)));    // …and the mound stops the low one
+        }
+
         [Fact]
         public void TheOwnersBuildingDamage_ReachesTheOtherNodesView_AndFollowsAChange_OnTheRealWire()
         {

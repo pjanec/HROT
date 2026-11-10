@@ -38,6 +38,8 @@ namespace Fdp.Toolkit.Combat.Systems
         private readonly List<TerrainWorld.FireCrossing> _crossings = new();   // BreachDoors — the stand-in's door list (not on the seam yet)
         private readonly List<TraceCrossing> _traces = new();                   // ⭐ CE-1035 Q1 — exposure, through IWorldQuery
         private readonly List<Vector3> _points = new(3);
+        private readonly List<int> _buildings = new();                           // ⭐ CE-4391 S-2 — the buildings near a burst (the collapse test)
+        private readonly List<int> _collapsedNow = new();
         private readonly List<int> _panels = new();                              // ⭐ CE-4391 — BreachWalls: the building panels near a burst
         private readonly float[] _shares = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];       // ⭐ CE-3212
         private readonly float[] _partDamage = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];   // ⭐ CE-3212
@@ -398,6 +400,8 @@ namespace Fdp.Toolkit.Combat.Systems
         private void BreachWallsCore(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
             TerrainWorld terrain, BreachTable table, DoorStates? doors, DetonationRecord record)
         {
+            _collapsedNow.Clear();
+            if (w.ExplosiveKg >= table.CollapseMinKg) CollapseBuildings(repo, in evt, w, burst, terrain, table, doors, record);   // ⭐ S-2: a collapsed building's breaches are moot
             float reach = BreachRule.Reach(table, w.ExplosiveKg);
             _panels.Clear();
             terrain.BuildingPanels.Near(new Vector2(burst.X, burst.Y), reach + 1f, _panels);   // +1 m: a thick wall's face
@@ -405,6 +409,7 @@ namespace Fdp.Toolkit.Combat.Systems
             {
                 int pi = _panels[k];
                 var panel = terrain.Panels[pi];
+                if (panel.Building >= 0 && (_collapsedNow.Contains(panel.Building) || doors?.Damage?.Collapsed(panel.Building) == true)) continue;
                 if (!BreachRule.TryDecide(table, panel, pi, burst, w.ExplosiveKg, w.Fuze, out var breach)) continue;
                 if (!LineClearToFace(terrain, doors, panel, burst)) continue;
                 repo.Bus.Publish(new BuildingDamageEvent
@@ -414,6 +419,43 @@ namespace Fdp.Toolkit.Combat.Systems
                 });
                 record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, panel.Building)} panel {pi} {breach.Kind} " +
                     $"{breach.From:0.##}..{breach.To:0.##} m x z {breach.Bottom:0.##}..{breach.Top:0.##}");
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4391</c> S-2 (UTM §8 D-7, §8.2 B-9) — a burst of at least <c>collapseMinKg</c> inside or beside a building (<see cref="BreachRule.Collapses"/>)
+        /// COLLAPSES it: a collapse <see cref="BuildingDamageEvent"/> for <see cref="BuildingDamageSystem"/>, and — in this same assessment — every living
+        /// <see cref="Health"/> entity inside its footprint, between its base and roof, takes lethal damage through the SAME <see cref="DamageAssessedEvent"/> path the
+        /// blast uses for every victim (so its owner applies it, wherever it runs, R-171). An already-collapsed building is not collapsed twice.
+        /// </summary>
+        private void CollapseBuildings(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
+            TerrainWorld terrain, BreachTable table, DoorStates? doors, DetonationRecord record)
+        {
+            _buildings.Clear();
+            terrain.BuildingFootprints.Near(new Vector2(burst.X, burst.Y), table.CollapseZ * MathF.Cbrt(w.ExplosiveKg) + 1f, _buildings);
+            for (int k = 0; k < _buildings.Count; k++)
+            {
+                int bi = _buildings[k];
+                if (doors?.Damage?.Collapsed(bi) == true) continue;
+                var building = terrain.Buildings[bi];
+                if (!BreachRule.Collapses(table, building, burst, w.ExplosiveKg)) continue;
+                _collapsedNow.Add(bi);
+                repo.Bus.Publish(new BuildingDamageEvent { Building = bi, Panel = -1, Collapse = 1, Shooter = evt.Shooter });
+                record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, bi)} COLLAPSED");
+                float baseZ = building.StoreyZ.Count > 0 ? building.StoreyZ[0] : building.BaseZ;
+                float roofZ = building.StoreyZ.Count > 1 ? building.StoreyZ[building.StoreyZ.Count - 1] : baseZ + 3f;
+                foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
+                {
+                    if (!repo.IsAlive(e)) continue;
+                    var hp = repo.GetComponentRO<Health>(e);
+                    if (hp.Current <= 0f) continue;
+                    var at = repo.GetComponentRO<SimTransform>(e).Position;
+                    if (at.Z < baseZ - 0.5f || at.Z > roofZ + 0.5f || !PolygonMath.Contains(building.Footprint, new Vector2(at.X, at.Y))) continue;
+                    repo.Bus.Publish(new DamageAssessedEvent
+                    {
+                        HitEntity = e, TotalDamage = MathF.Max(hp.Current, hp.Max) * 2f, Source = evt.Shooter, OriginalSource = evt.OriginalShooter,
+                    });
+                }
             }
         }
 

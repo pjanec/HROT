@@ -39,6 +39,20 @@ namespace Fdp.Toolkit.Terrain
         public static void Expand(JsonObject template, Placement at, Func<IReadOnlyList<Vector2>, float> groundUnder, TerrainMaterialLibrary materials,
             string? terrainName, Sink sink, string where)
         {
+            int firstPrism = sink.Prisms.Count, firstWalkable = sink.Walkables.Count, building = sink.Buildings.Count;
+            ExpandCore(template, at, groundUnder, materials, terrainName, sink, where);
+            // ⭐ CE-4391 S-2 (B-8) — every piece this building made (panel prisms, the solid prism, slabs, ramps) names its building
+            for (int i = firstPrism; i < sink.Prisms.Count; i++) sink.Prisms[i] = Clone(sink.Prisms[i], sink.Prisms[i].Material!, sink.Prisms[i].Panel, building);
+            for (int i = firstWalkable; i < sink.Walkables.Count; i++)
+            {
+                var w = sink.Walkables[i];
+                sink.Walkables[i] = new TerrainWalkable { Kind = w.Kind, Vertices = w.Vertices, Triangles = w.Triangles, Min = w.Min, Max = w.Max, MinZ = w.MinZ, MaxZ = w.MaxZ, Building = building };
+            }
+        }
+
+        private static void ExpandCore(JsonObject template, Placement at, Func<IReadOnlyList<Vector2>, float> groundUnder, TerrainMaterialLibrary materials,
+            string? terrainName, Sink sink, string where)
+        {
             float rad = at.RotationDegrees * MathF.PI / 180f;
             float cos = MathF.Cos(rad), sin = MathF.Sin(rad);
             Vector2 W(Vector2 local) => at.Position + new Vector2(local.X * cos - local.Y * sin, local.X * sin + local.Y * cos);
@@ -275,10 +289,10 @@ namespace Fdp.Toolkit.Terrain
             _ => throw new ArgumentException($"Terrain world {where}: unknown door state '{text}' (open, closed, locked, destroyed)."),
         };
 
-        private static TerrainPrism Clone(TerrainPrism p, TerrainMaterial material, int panel) => new()
+        private static TerrainPrism Clone(TerrainPrism p, TerrainMaterial material, int panel, int building = -1) => new()
         {
             Kind = p.Kind, Footprint = p.Footprint, BaseZ = p.BaseZ, TopZ = p.TopZ, Floors = p.Floors, Label = p.Label,
-            Triangles = p.Triangles, Min = p.Min, Max = p.Max, Material = material, Panel = panel,
+            Triangles = p.Triangles, Min = p.Min, Max = p.Max, Material = material, Panel = panel, Building = building,
         };
 
         private static Vector2[] WallBox(JsonObject storey0, string where)

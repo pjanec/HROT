@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 
@@ -20,9 +21,24 @@ namespace Fdp.Toolkit.Terrain
         private readonly int[] _firstOfPanel;        // _breaches index of each present panel's first breach — parallel to _presentPanels
         private readonly int[] _presentPanels;       // ascending
 
-        private BuildingDamageTable(WallBreach[] sorted, int panelCount)
+        private readonly int[] _collapsed;           // ascending building indices that have collapsed (S-2)
+        private readonly ulong[] _collapsedBits;
+        private readonly ulong[] _doorBits;          // doors of a collapsed building (they read Destroyed)
+        private readonly TerrainPrism[] _rubble;     // one solid mound per collapsed building
+
+        private BuildingDamageTable(WallBreach[] sorted, int[] collapsed, TerrainWorld world)
         {
+            int panelCount = world.Panels.Count;
             _breaches = sorted;
+            _collapsed = collapsed;
+            _collapsedBits = new ulong[(world.Buildings.Count + 63) >> 6];
+            foreach (int b in collapsed) _collapsedBits[b >> 6] |= 1UL << (b & 63);
+            _doorBits = new ulong[(world.Doors.Count + 63) >> 6];
+            if (collapsed.Length > 0)
+                for (int d = 0; d < world.Doors.Count; d++)
+                    if (Collapsed(world.Panels[world.Doors[d].Panel].Building)) _doorBits[d >> 6] |= 1UL << (d & 63);
+            _rubble = new TerrainPrism[collapsed.Length];
+            for (int i = 0; i < collapsed.Length; i++) _rubble[i] = MakeRubble(world, collapsed[i]);
             _panelBits = new ulong[(panelCount + 63) >> 6];
             var present = new List<int>();
             var first = new List<int>();
@@ -35,6 +51,43 @@ namespace Fdp.Toolkit.Terrain
             _presentPanels = present.ToArray();
             _firstOfPanel = first.ToArray();
         }
+
+        /// <summary>⭐ S-2 — true when building <paramref name="building"/> (index into <see cref="TerrainWorld.Buildings"/>) has collapsed in this view. One bit test; no allocation.</summary>
+        public bool Collapsed(int building)
+            => (uint)(building >> 6) < (uint)_collapsedBits.Length && building >= 0 && (_collapsedBits[building >> 6] & (1UL << (building & 63))) != 0;
+
+        /// <summary>How many buildings have collapsed.</summary>
+        public int CollapsedCount => _collapsed.Length;
+
+        /// <summary>⭐ S-2 — the rubble mounds, one per collapsed building: the EXISTING solid prism kind (<c>Kind = Building</c>, the footprint, base → base + ⅓ of the
+        /// height, material <c>rubble</c>, <see cref="TerrainPrism.Building"/> set). Built once per change of the collapse set.</summary>
+        public IReadOnlyList<TerrainPrism> Rubble => _rubble;
+        internal TerrainPrism[] RubbleArray => _rubble;
+
+        /// <summary>True when door <paramref name="doorIndex"/> belongs to a collapsed building (<see cref="DoorStates"/> reads it as Destroyed).</summary>
+        public bool DoorDestroyed(int doorIndex)
+            => _collapsed.Length > 0 && (uint)(doorIndex >> 6) < (uint)_doorBits.Length && (_doorBits[doorIndex >> 6] & (1UL << (doorIndex & 63))) != 0;
+
+        /// <summary>The rubble of a building: its footprint, a third of its height, in the rubble material.</summary>
+        public const float RubbleHeightShare = 1f / 3f;
+
+        private static TerrainPrism MakeRubble(TerrainWorld world, int building)
+        {
+            var b = world.Buildings[building];
+            float baseZ = b.StoreyZ.Count > 0 ? b.StoreyZ[0] : b.BaseZ, roof = b.StoreyZ.Count > 1 ? b.StoreyZ[b.StoreyZ.Count - 1] : baseZ + 3f;
+            var fp = b.Footprint;
+            var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
+            foreach (var v in fp) { min = Vector2.Min(min, v); max = Vector2.Max(max, v); }
+            world.Materials.TryGet(RubbleMaterial, out var material);
+            return new TerrainPrism
+            {
+                Kind = TerrainPrismKind.Building, Footprint = fp, BaseZ = baseZ, TopZ = baseZ + (roof - baseZ) * RubbleHeightShare, Label = b.Label + " (rubble)",
+                Triangles = PolygonMath.Triangulate(fp), Min = min, Max = max, Material = material, Building = building,
+            };
+        }
+
+        /// <summary>The material name of a rubble mound (a row of <c>materials.json</c>).</summary>
+        public const string RubbleMaterial = "rubble";
 
         /// <summary>How many breaches the view holds.</summary>
         public int Count => _breaches.Length;
@@ -97,9 +150,9 @@ namespace Fdp.Toolkit.Terrain
             if (view is not EntityRepository repo)   // a non-repository view (a test double): built each time, never cached
             {
                 var q = view.Query().With<BuildingDamage>().WithLifecycle(EntityLifecycle.All).Build();
-                var scratch = new List<WallBreach>();
-                foreach (var e in q) Collect(view.GetComponentRO<BuildingDamage>(e), world, scratch);
-                return Make(scratch, world);
+                var scratch = new List<WallBreach>(); var coll = new List<int>();
+                foreach (var e in q) Collect(view.GetComponentRO<BuildingDamage>(e), world, scratch, coll);
+                return Make(scratch, coll, world);
             }
             if (!repo.IsComponentTypeRegistered<BuildingDamage>()) return null;
 
@@ -111,14 +164,15 @@ namespace Fdp.Toolkit.Terrain
             }
 
             var list = t_scratch ??= new List<WallBreach>(32);
-            list.Clear();
+            var colls = t_collScratch ??= new List<int>(8);
+            list.Clear(); colls.Clear();
             t_entityCount = 0;
             var query = ReferenceEquals(repo, t_queryRepo) ? t_query!
                 : (t_query = repo.Query().With<BuildingDamage>().WithLifecycle(EntityLifecycle.All).Build());
             t_queryRepo = repo;
             foreach (var e in query)
             {
-                Collect(repo.GetComponentRO<BuildingDamage>(e), world, list);
+                Collect(repo.GetComponentRO<BuildingDamage>(e), world, list, colls);
                 var ents = t_entities ??= new Entity[8];
                 if (t_entityCount == ents.Length) Array.Resize(ref t_entities, ents.Length * 2);
                 t_entities![t_entityCount++] = e;
@@ -127,20 +181,25 @@ namespace Fdp.Toolkit.Terrain
             t_added = repo.ComponentsAddedOf(ComponentType<BuildingDamage>.ID);
 
             list.Sort(Order);
-            if (t_last is { } last && last.SameContent(list)) return last;   // rebuilt, but the same breaches: keep the instance
+            colls.Sort();
+            for (int i = colls.Count - 1; i > 0; i--) if (colls[i] == colls[i - 1]) colls.RemoveAt(i);   // two nodes' entities may both say collapsed
+            if (t_last is { } last && last.SameContent(list, colls)) return last;   // rebuilt, but the same damage: keep the instance
+            if (list.Count == 0 && colls.Count == 0 && t_last == null) return null;
             t_builds++;
-            return t_last = Make(list, world);
+            return t_last = Make(list, colls, world);
         }
 
-        private bool SameContent(List<WallBreach> sorted)
+        private bool SameContent(List<WallBreach> sorted, List<int> collapsed)
         {
-            if (sorted.Count != _breaches.Length) return false;
+            if (sorted.Count != _breaches.Length || collapsed.Count != _collapsed.Length) return false;
+            for (int i = 0; i < _collapsed.Length; i++) if (_collapsed[i] != collapsed[i]) return false;
             for (int i = 0; i < _breaches.Length; i++) if (_breaches[i] != sorted[i]) return false;
             return true;
         }
 
-        private static void Collect(in BuildingDamage d, TerrainWorld world, List<WallBreach> into)
+        private static void Collect(in BuildingDamage d, TerrainWorld world, List<WallBreach> into, List<int> collapsed)
         {
+            if (d.Collapsed != 0 && (uint)d.Building < (uint)world.Buildings.Count) collapsed.Add(d.Building);
             for (int i = 0; i < d.Count; i++)
             {
                 var b = d.Get(i);
@@ -148,11 +207,12 @@ namespace Fdp.Toolkit.Terrain
             }
         }
 
-        private static BuildingDamageTable? Make(List<WallBreach> sorted, TerrainWorld world)
+        private static BuildingDamageTable? Make(List<WallBreach> sorted, List<int> collapsed, TerrainWorld world)
         {
-            if (sorted.Count == 0) return null;
-            sorted.Sort(Order);
-            return new BuildingDamageTable(sorted.ToArray(), world.Panels.Count);
+            if (sorted.Count == 0 && collapsed.Count == 0) return null;
+            sorted.Sort(Order); collapsed.Sort();
+            for (int i = collapsed.Count - 1; i > 0; i--) if (collapsed[i] == collapsed[i - 1]) collapsed.RemoveAt(i);
+            return new BuildingDamageTable(sorted.ToArray(), collapsed.ToArray(), world);
         }
 
         private static bool StillAlive(EntityRepository repo)
@@ -167,6 +227,7 @@ namespace Fdp.Toolkit.Terrain
         [ThreadStatic] private static TerrainWorld? t_world;
         [ThreadStatic] private static BuildingDamageTable? t_last;
         [ThreadStatic] private static List<WallBreach>? t_scratch;
+        [ThreadStatic] private static List<int>? t_collScratch;
         [ThreadStatic] private static Entity[]? t_entities;
         [ThreadStatic] private static int t_entityCount;
         [ThreadStatic] private static long t_structural;

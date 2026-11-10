@@ -27,6 +27,28 @@ namespace Fdp.Toolkit.Terrain.Tests
 
         public static TerrainWorld House() => TerrainWorldParser.Parse(BrickHouse, "range");
 
+        /// <summary>The house with <c>collapseMinKg</c> lowered (no shipped munition reaches the default 200 kg; the reference library's heaviest is a 94 kg bomb).</summary>
+        public static TerrainWorld HouseCollapsingAt(float kg)
+            => TerrainWorldParser.Parse(BrickHouse, "range", new TerrainAssets { Breaches = BreachTable.Shared.WithOverrides("{ \"collapseMinKg\": " + kg.ToString(System.Globalization.CultureInfo.InvariantCulture) + " }", "test") });
+
+        /// <summary>The brick house with a closed door "front" in its south wall (x 24.5 .. 25.5).</summary>
+        public const string DoorHouse = """
+            { "type": "FeatureCollection", "features": [ { "type": "Feature",
+                "properties": { "kind": "building", "label": "H", "doors": { "front": "closed" },
+                  "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                    "storeys": [ { "height": 3, "walls": [
+                      { "from": [0,0], "to": [10,0], "thickness": 0.3, "openings": [ { "kind": "door", "at": 4.5, "width": 1, "doorId": "front" } ] },
+                      { "from": [10,0], "to": [10,8], "thickness": 0.3 }, { "from": [10,8], "to": [0,8], "thickness": 0.3 }, { "from": [0,8], "to": [0,0], "thickness": 0.3 } ] } ] } },
+                "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+            """;
+
+        public static Entity Collapsed(EntityRepository repo, TerrainWorld terrain, int building)
+        {
+            var e = Damage(repo, terrain, building);
+            var d = repo.GetComponentRO<BuildingDamage>(e); d.Collapsed = 1; repo.SetComponent(e, d);
+            return e;
+        }
+
         /// <summary>Index of the house's south wall (y = 20, running west → east).</summary>
         public static int SouthWall(TerrainWorld w)
             => Array.FindIndex(w.Panels.ToArray(), p => MathF.Abs(p.A.Y - 20f) < 1e-3f && MathF.Abs(p.B.Y - 20f) < 1e-3f && p.B.X > p.A.X);
@@ -386,6 +408,140 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(anyPassed && anyBlocked);
             Assert.Equal(0L, allocated);
             Assert.Same(first, doors);
+        }
+
+
+        // ── S-2: the collapse — content, rule, the view's mound, the traces ───────────────────────────────────────
+
+        [Fact]
+        public void Content_EveryPieceOfABuilding_NamesItsBuilding_AFreeWallDoesNot()
+        {
+            var w = BreachFixtures.House();
+            Assert.All(w.Prisms, p => Assert.Equal(0, p.Building));
+            Assert.All(w.Walkables, p => Assert.Equal(0, p.Building));                                // the roof slab
+            Assert.NotEmpty(w.Walkables);
+            var withDoor = TerrainWorldParser.Parse(BreachFixtures.DoorHouse, "range");
+            Assert.All(withDoor.DoorLeaves, l => Assert.Equal(0, l.Building));
+            var free = TerrainWorldParser.Parse("{ \"type\": \"FeatureCollection\", \"features\": [ { \"type\": \"Feature\", \"properties\": { \"kind\": \"wall\", \"height\": 2, \"thickness\": 0.3 }, \"geometry\": { \"type\": \"LineString\", \"coordinates\": [[0,20],[30,20]] } } ] }", "range");
+            Assert.All(free.Prisms, p => Assert.Equal(-1, p.Building));
+            Assert.Equal(-1, new TerrainPrism().Building);
+        }
+
+        /// <summary>🔴 Red-proof: drop the <c>collapseMinKg</c> test in <c>BreachRule.Collapses</c> ⇒ the 155 mm "collapses"; make the distance test <c>&gt;=</c> 0 ⇒ the far burst does.</summary>
+        [Fact]
+        public void CollapseRule_NeedsTheMassAndAFootprintBurstOrOneNearIt()
+        {
+            var w = BreachFixtures.House();
+            var b = w.Buildings[0];
+            var table = BreachTable.Shared;                                                           // collapseMinKg 200, collapseZ 0.5 ⇒ 2.9 m beside the footprint at 200 kg
+            Assert.True(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 200f));               // on the roof, inside the footprint
+            Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 6.6f));              // a 155 mm: far too light
+            Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 199f));
+            Assert.True(BreachRule.Collapses(table, b, new Vector3(25f, 18f, 1f), 200f));               // 2 m from the south wall: within 0.5 · ∛200 = 2.9 m
+            Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 15f, 1f), 200f));              // 5 m away
+            Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 0f));
+        }
+
+        /// <summary>
+        /// ⭐ A sight line across the building's FORMER interior: blocked by the walls before; after the collapse it is blocked by the mound below ⅓ of the height and passes
+        /// above it; fire meets the mound, not a wall. 🔴 Red-proof: make the traces keep skipping nothing (drop the <c>Collapsed(prism.Building)</c> skip) ⇒ the high line
+        /// stays blocked; drop the rubble crossing ⇒ the low line passes.
+        /// </summary>
+        [Fact]
+        public void Collapse_TheMoundBlocksBelowAThirdOfTheHeight_AndSightPassesAbove_WhereWallsAndSlabsStoppedItBefore()
+        {
+            var w = BreachFixtures.House();
+            using var repo = BreachFixtures.World(w);
+            var low = (From: new Vector3(15f, 24f, 0.5f), To: new Vector3(35f, 24f, 0.5f));
+            var high = (From: new Vector3(15f, 24f, 1.6f), To: new Vector3(35f, 24f, 1.6f));
+            var down = (From: new Vector3(25f, 24f, 5f), To: new Vector3(25f, 24f, 0.2f));              // down through the roof slab and into the mound
+            var fire = new List<TerrainWorld.FireCrossing>();
+            var before = DoorStates.Of(repo, w);
+            Assert.True(w.SegmentBlocked(low.From, low.To, before));
+            Assert.True(w.SegmentBlocked(high.From, high.To, before));
+            Assert.True(w.SegmentBlocked(down.From, down.To, before));                               // the roof slab
+
+            BreachFixtures.Collapsed(repo, w, 0);
+            var after = DoorStates.Of(repo, w);
+            Assert.True(after.Damage!.Collapsed(0));
+            var rubble = Assert.Single(after.Damage.Rubble);
+            Assert.Equal(TerrainPrismKind.Building, rubble.Kind);
+            Assert.Equal(1.0f, rubble.TopZ - rubble.BaseZ, 3);                                       // ⅓ of 3 m
+            Assert.Equal("rubble", rubble.Material!.Name);
+            Assert.Equal(0, rubble.Building);
+            Assert.True(w.SegmentBlocked(low.From, low.To, after));                                  // the mound
+            Assert.False(w.SegmentBlocked(high.From, high.To, after));                               // above it: open
+            Assert.True(w.SegmentBlocked(down.From, down.To, after));                                // …the roof slab is gone, the mound is not
+            Assert.False(w.SegmentBlocked(new Vector3(25f, 24f, 5f), new Vector3(25f, 24f, 1.5f), after));   // down to above the mound: clear
+            w.QueryFire(low.From, low.To, fire, after);
+            Assert.Contains(fire, c => c.Kind == "prism" && c.Material == "rubble");
+            Assert.DoesNotContain(fire, c => c.Kind == "panel");
+            w.QueryFire(high.From, high.To, fire, after);
+            Assert.Empty(fire);
+            Assert.Empty(w.QuerySight(high.From, high.To, after).Crossed);
+            Assert.True(w.SegmentBlocked(high.From, high.To, before));                               // a table handed out earlier is untouched
+        }
+
+        [Fact]
+        public void Collapse_TheDoorsOfACollapsedBuilding_ReadDestroyed_AndTheirLeavesNoLongerBlock()
+        {
+            var w = TerrainWorldParser.Parse(BreachFixtures.DoorHouse, "range");
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<DoorState>(); repo.RegisterComponent<BuildingDamage>(); repo.RegisterManagedComponent<TerrainObjectKey>(); repo.SetSingletonManaged(w);
+            var door = repo.CreateEntity();
+            repo.AddComponent(door, new DoorState { State = TerrainDoorState.Closed });
+            repo.SetManagedComponent(door, new TerrainObjectKey { Key = "range/H/front" });
+            var thru = (From: new Vector3(25f, 15f, 1.5f), To: new Vector3(25f, 25f, 1.5f));
+            var before = DoorStates.Of(repo, w);
+            Assert.Equal(TerrainDoorState.Closed, before[0]);
+            Assert.True(w.SegmentBlocked(thru.From, thru.To, before));
+
+            BreachFixtures.Collapsed(repo, w, 0);
+            var after = DoorStates.Of(repo, w);
+            Assert.Equal(TerrainDoorState.Destroyed, after[0]);
+            Assert.False(w.SegmentBlocked(thru.From, thru.To, after));
+            Assert.Equal(TerrainDoorState.Closed, before[0]);                                         // the held table is untouched
+        }
+
+        /// <summary>
+        /// ⭐ 0 B in a warm trace through a collapsed building (the mound crossed, the skipped pieces, the rubble list), and the table is the same instance on an unchanged
+        /// frame. 🔴 Red-proof: have the rubble loop build a list per call ⇒ the byte count is not 0; rebuild the rubble every call in <c>Of</c> ⇒ <c>Assert.Same</c> fails.
+        /// </summary>
+        [Fact]
+        public void Collapse_HotPath_AWarmTraceThroughACollapsedBuilding_AllocatesNothing_AndTheTableIsTheSameInstance()
+        {
+            var w = BreachFixtures.House();
+            using var repo = BreachFixtures.World(w);
+            BreachFixtures.Collapsed(repo, w, 0);
+            var fire = new List<TerrainWorld.FireCrossing>(8);
+            var lines = new[]
+            {
+                (new Vector3(15f, 24f, 0.5f), new Vector3(35f, 24f, 0.5f)),   // blocked by the mound
+                (new Vector3(15f, 24f, 1.6f), new Vector3(35f, 24f, 1.6f)),   // above it
+                (new Vector3(25f, 24f, 5f), new Vector3(25f, 24f, 0.2f)),     // down onto it
+            };
+            DoorStates doors = DoorStates.Of(repo, w);
+            bool blocked = false, passed = false;
+            void Run()
+            {
+                doors = DoorStates.Of(repo, w);
+                foreach (var (a, b) in lines)
+                {
+                    bool x = w.SegmentBlocked(a, b, doors); blocked |= x; passed |= !x;
+                    w.QueryFire(a, b, fire, doors);
+                }
+            }
+            Run(); Run();
+            var first = doors; var table = doors.Damage;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) Run();
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.True(blocked && passed);
+            Assert.Equal(0L, allocated);
+            Assert.Same(first, doors);
+            Assert.Same(table, doors.Damage);
+            repo.Tick();
+            Assert.Same(first, DoorStates.Of(repo, w));                                               // also on a later frame
         }
 
         // ── recorded by bytes (unmanaged ⇒ the flight recorder keeps it; a checkpoint / replay restores it) ───────

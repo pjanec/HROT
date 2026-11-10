@@ -10,6 +10,54 @@ namespace Fdp.Toolkit.Terrain
     /// (<see cref="TerrainWorld.BuildingPanels"/>) — the same lifetime and thread-safety as the woods grid — and never changes: a breach is live
     /// state held elsewhere (<see cref="BuildingDamageTable"/>), the panels themselves never move.
     /// </summary>
+    /// <summary>⭐ <c>CE-4391</c> S-2 — the same lazy grid over BUILDING FOOTPRINT boxes (<see cref="TerrainWorld.BuildingFootprints"/>): "the buildings near this burst",
+    /// for the collapse test (a bomb in the middle of a large hall is far from every panel).</summary>
+    public sealed class BuildingFootprintGrid
+    {
+        private const float Cell = 32f;
+        private readonly Dictionary<long, int[]> _cells;
+        private BuildingFootprintGrid(Dictionary<long, int[]> cells) => _cells = cells;
+
+        public static BuildingFootprintGrid Build(TerrainWorld world)
+        {
+            var lists = new Dictionary<long, List<int>>();
+            for (int i = 0; i < world.Buildings.Count; i++)
+            {
+                var fp = world.Buildings[i].Footprint;
+                if (fp.Length < 3) continue;
+                var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
+                foreach (var v in fp) { min = Vector2.Min(min, v); max = Vector2.Max(max, v); }
+                for (int cy = C(min.Y); cy <= C(max.Y); cy++)
+                    for (int cx = C(min.X); cx <= C(max.X); cx++)
+                    {
+                        long k = ((long)cx << 32) ^ (uint)cy;
+                        if (!lists.TryGetValue(k, out var l)) lists[k] = l = new List<int>();
+                        l.Add(i);
+                    }
+            }
+            var cells = new Dictionary<long, int[]>(lists.Count);
+            foreach (var (k, l) in lists) cells[k] = l.ToArray();
+            return new BuildingFootprintGrid(cells);
+        }
+
+        /// <summary>Appends (ascending, no duplicates) every building whose box cells touch the square of half-side <paramref name="radius"/> around <paramref name="at"/>.</summary>
+        public void Near(Vector2 at, float radius, List<int> into)
+        {
+            int start = into.Count;
+            for (int cy = C(at.Y - radius); cy <= C(at.Y + radius); cy++)
+                for (int cx = C(at.X - radius); cx <= C(at.X + radius); cx++)
+                    if (_cells.TryGetValue(((long)cx << 32) ^ (uint)cy, out var a)) into.AddRange(a);
+            if (into.Count - start > 1)
+            {
+                into.Sort(start, into.Count - start, null);
+                int w = start;
+                for (int r = start; r < into.Count; r++) if (r == start || into[r] != into[r - 1]) into[w++] = into[r];
+                into.RemoveRange(w, into.Count - w);
+            }
+        }
+        private static int C(float v) => (int)MathF.Floor(v / Cell);
+    }
+
     public sealed class BuildingPanelGrid
     {
         /// <summary>Cell side, metres: a house is a few cells; a burst's reach (≈ 10 m) a few more.</summary>

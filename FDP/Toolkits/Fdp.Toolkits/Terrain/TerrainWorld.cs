@@ -40,6 +40,10 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ Stage 1 — the <see cref="TerrainWallPanel"/> this prism is a piece of (index into
         /// <see cref="TerrainWorld.Panels"/>), −1 for a solid building/wall that is not a panel.</summary>
         public int Panel { get; init; } = -1;
+        /// <summary>⭐ <c>CE-4391</c> S-2 (UTM §8.2 B-8) — the building (index into <see cref="TerrainWorld.Buildings"/>) this piece belongs to, −1 for none: set by
+        /// <see cref="TerrainBuildingExpander"/> for every piece of a building (panel prisms, the solid prism) and for a door leaf. A COLLAPSED building's pieces
+        /// are skipped by the traces and its rubble prism crossed instead.</summary>
+        public int Building { get; init; } = -1;
     }
 
     /// <summary>
@@ -56,6 +60,8 @@ namespace Fdp.Toolkit.Terrain
         public Vector2 Max { get; init; }
         public float MinZ { get; init; }
         public float MaxZ { get; init; }
+        /// <summary>⭐ <c>CE-4391</c> S-2 — the building this slab / ramp belongs to (index into <see cref="TerrainWorld.Buildings"/>), −1 for a free one.</summary>
+        public int Building { get; init; } = -1;
     }
 
     /// <summary>A flat ground-cover area at ground level (open, forest, water — roads are the road graph, CE-3128).</summary>
@@ -189,6 +195,17 @@ namespace Fdp.Toolkit.Terrain
         }
         private volatile BuildingPanelGrid? _panelGrid;
 
+        /// <summary>⭐ <c>CE-4391</c> S-2 — the lazy grid of the buildings' footprint boxes (the collapse test's candidates).</summary>
+        public BuildingFootprintGrid BuildingFootprints
+        {
+            get
+            {
+                if (_footGrid is { } g) return g;
+                lock (_woodsGate) return _footGrid ??= BuildingFootprintGrid.Build(this);
+            }
+        }
+        private volatile BuildingFootprintGrid? _footGrid;
+
         // ── ⭐ Stage 5 (doors) — the door LEAVES and their live state ─────────────────────────────────────────────
 
         /// <summary>The material a closed door leaf is (sight 0; a wooden door — a rifle round goes through).</summary>
@@ -256,7 +273,7 @@ namespace Fdp.Toolkit.Terrain
                     Kind = TerrainPrismKind.Wall, Footprint = fp, BaseZ = o.SillZ, TopZ = o.HeadZ, Label = d.Key,
                     Min = Vector2.Min(Vector2.Min(fp[0], fp[1]), Vector2.Min(fp[2], fp[3])),
                     Max = Vector2.Max(Vector2.Max(fp[0], fp[1]), Vector2.Max(fp[2], fp[3])),
-                    Material = material, Panel = d.Panel, Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                    Material = material, Panel = d.Panel, Building = Panels[d.Panel].Building, Triangles = new[] { 0, 1, 2, 0, 2, 3 },
                 });
             }
             return leaves;
@@ -533,12 +550,20 @@ namespace Fdp.Toolkit.Terrain
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
+            var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            int rubbleCount = dmg?.RubbleArray.Length ?? 0;
             using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
-            for (int k = 0; k < cand.PieceCount; k++)
+            for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
             {
-                int pi = cand.Piece(k);
-                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
-                var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                int pi = k < cand.PieceCount ? cand.Piece(k) : -1;
+                TerrainPrism prism;
+                if (pi < 0) prism = dmg!.RubbleArray[k - cand.PieceCount];
+                else
+                {
+                    if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
+                    prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                    if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                }
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
                 {
@@ -546,7 +571,7 @@ namespace Fdp.Toolkit.Terrain
                     float z1 = from.Z + ((to.Z - from.Z) * t1);
                     if (MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)
                     {
-                        if (pi < Prisms.Count && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: the line passes
+                        if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: the line passes
                         {
                             float blo = t0, bhi = t1;
                             ClipToHeight(prism, from.Z, to.Z - from.Z, ref blo, ref bhi);
@@ -562,6 +587,7 @@ namespace Fdp.Toolkit.Terrain
             for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
                 var w = Walkables[cand.Walkable(kw)];
+                if (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) continue;   // ⭐ CE-4391 S-2
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -684,19 +710,27 @@ namespace Fdp.Toolkit.Terrain
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
+            var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            int rubbleCount = dmg?.RubbleArray.Length ?? 0;
             using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
-            for (int k = 0; k < cand.PieceCount; k++)
+            for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
             {
-                int pi = cand.Piece(k);
-                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
-                var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                int pi = k < cand.PieceCount ? cand.Piece(k) : -1;
+                TerrainPrism prism;
+                if (pi < 0) prism = dmg!.RubbleArray[k - cand.PieceCount];
+                else
+                {
+                    if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
+                    prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                    if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                }
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
                 {
                     float z0 = from.Z + ((to.Z - from.Z) * t0);
                     float z1 = from.Z + ((to.Z - from.Z) * t1);
                     if (!(MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)) continue;
-                    if (pi < Prisms.Count && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: no crossing
+                    if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: no crossing
                     {
                         float blo = t0, bhi = t1;
                         ClipToHeight(prism, from.Z, to.Z - from.Z, ref blo, ref bhi);
@@ -714,6 +748,7 @@ namespace Fdp.Toolkit.Terrain
             for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
                 var w = Walkables[cand.Walkable(kw)];
+                if (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) continue;   // ⭐ CE-4391 S-2
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {
@@ -805,12 +840,20 @@ namespace Fdp.Toolkit.Terrain
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
+            var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            int rubbleCount = dmg?.RubbleArray.Length ?? 0;
             using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
-            for (int k = 0; k < cand.PieceCount; k++)
+            for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
             {
-                int pi = cand.Piece(k);
-                if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
-                var prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                int pi = k < cand.PieceCount ? cand.Piece(k) : -1;
+                TerrainPrism prism;
+                if (pi < 0) prism = dmg!.RubbleArray[k - cand.PieceCount];
+                else
+                {
+                    if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
+                    prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
+                    if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                }
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
                 {
@@ -827,7 +870,7 @@ namespace Fdp.Toolkit.Terrain
                         hi = MathF.Min(hi, MathF.Max(ta, tb));
                     }
                     if (hi <= lo) continue;
-                    if (pi < Prisms.Count && prism.Panel >= 0 && CrossingBreached(doors, prism.Panel, from, to, lo, hi)) continue;   // ⭐ CE-4391 B-8
+                    if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && CrossingBreached(doors, prism.Panel, from, to, lo, hi)) continue;   // ⭐ CE-4391 B-8
                     var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
                     string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
                     float path = (hi - lo) * length;
@@ -845,6 +888,7 @@ namespace Fdp.Toolkit.Terrain
             for (int kw = 0; kw < cand.WalkableCount; kw++)   // ⭐ R-220 — an index loop: no interface enumerator
             {
                 var w = Walkables[cand.Walkable(kw)];
+                if (dmg != null && w.Building >= 0 && dmg.Collapsed(w.Building)) continue;   // ⭐ CE-4391 S-2
                 if (!BoxesOverlap(segMin, segMax, w.Min, w.Max)) continue;
                 for (int t = 0; t + 2 < w.Triangles.Length; t += 3)
                 {

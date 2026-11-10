@@ -90,6 +90,32 @@ namespace Fdp.Toolkit.Terrain
             return true;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-2 (UTM §8 D-7, §8.2 B-6) — does a burst of <paramref name="explosiveKg"/> at <paramref name="burst"/> collapse <paramref name="building"/>?
+        /// True when the charge is at least <see cref="BreachTable.CollapseMinKg"/> and the burst is inside the building's footprint (plan view) or within
+        /// <see cref="BreachTable.CollapseZ"/> · ∛kg metres of it. Pure; the height is not tested (a bomb on the roof and one beside the wall both count).
+        /// </summary>
+        public static bool Collapses(BreachTable table, TerrainBuilding building, Vector3 burst, float explosiveKg)
+        {
+            if (explosiveKg <= 0f || explosiveKg < table.CollapseMinKg || building.Footprint.Length < 3) return false;
+            return DistanceToFootprint(building.Footprint, new Vector2(burst.X, burst.Y)) <= table.CollapseZ * MathF.Cbrt(explosiveKg);
+        }
+
+        /// <summary>The plan-view distance from <paramref name="p"/> to the polygon (0 inside it).</summary>
+        public static float DistanceToFootprint(Vector2[] footprint, Vector2 p)
+        {
+            if (PolygonMath.Contains(footprint, p)) return 0f;
+            float best = float.MaxValue;
+            for (int i = 0; i < footprint.Length; i++)
+            {
+                var a = footprint[i]; var ab = footprint[(i + 1) % footprint.Length] - a;
+                float len2 = ab.LengthSquared();
+                float t = len2 > 1e-12f ? Math.Clamp(Vector2.Dot(p - a, ab) / len2, 0f, 1f) : 0f;
+                best = MathF.Min(best, Vector2.Distance(p, a + ab * t));
+            }
+            return best;
+        }
+
         /// <summary>D-2 — a PASSAGE iff the rectangle reaches the storey floor and is at least <c>passageMinWidth × passageMinHeight</c>; else a HOLE.</summary>
         public static BreachKind Classify(in TerrainWallPanel panel, BreachTable table, float from, float to, float bottom, float top)
             => bottom <= panel.BaseZ + 1e-3f && to - from >= table.PassageMinWidth && top - bottom >= table.PassageMinHeight

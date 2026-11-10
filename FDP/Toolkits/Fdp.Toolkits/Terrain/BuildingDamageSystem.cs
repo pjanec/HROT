@@ -28,6 +28,8 @@ namespace Fdp.Toolkit.Terrain
         public byte Kind;
         /// <summary>Who fired the round (for logs; <see cref="Entity.Null"/> when unknown).</summary>
         public Entity Shooter;
+        /// <summary>⭐ S-2 — 1 = the building COLLAPSED (the breach fields are unused; <see cref="Panel"/> is −1).</summary>
+        public byte Collapse;
 
         public readonly WallBreach Breach => new(Panel, From, To, Bottom, Top, (BreachKind)Kind);
     }
@@ -68,6 +70,7 @@ namespace Fdp.Toolkit.Terrain
             public int Building;
             public int Age;
             public readonly List<WallBreach> Later = new();
+            public bool Collapse;
         }
 
         private readonly Dictionary<string, Pending> _pending = new(StringComparer.Ordinal);
@@ -93,7 +96,9 @@ namespace Fdp.Toolkit.Terrain
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var evt = ref events[i];
-                if ((uint)evt.Building >= (uint)terrain.Buildings.Count || (uint)evt.Panel >= (uint)terrain.Panels.Count) continue;
+                if ((uint)evt.Building >= (uint)terrain.Buildings.Count) continue;
+                if (evt.Collapse != 0) { ApplyCollapse(repo, terrain, evt.Building); continue; }
+                if ((uint)evt.Panel >= (uint)terrain.Panels.Count) continue;
                 Apply(repo, terrain, evt.Building, evt.Breach);
             }
         }
@@ -119,6 +124,31 @@ namespace Fdp.Toolkit.Terrain
             Request(repo, terrain, building, key, breach);   // no entity of ours (or all full): make one — it is born holding this breach
         }
 
+        /// <summary>⭐ S-2 — sets <c>Collapsed = 1</c> on this node's entity for the building (written only when it changes), else asks for one born collapsed.</summary>
+        private void ApplyCollapse(EntityRepository repo, TerrainWorld terrain, int building)
+        {
+            string key = BuildingDamages.KeyOf(terrain, building);
+            if (_pending.TryGetValue(key, out var waiting)) { waiting.Collapse = true; return; }
+            Entity mine = Entity.Null;
+            foreach (var e in Query(repo))
+            {
+                if (!OwnsDamage(repo, e)) continue;
+                var d = repo.GetComponentRO<BuildingDamage>(e);
+                if (d.Building != building) continue;
+                if (d.Collapsed != 0) return;   // already collapsed here
+                mine = e;
+            }
+            if (!mine.IsNull)
+            {
+                var d = repo.GetComponentRO<BuildingDamage>(mine);
+                d.Collapsed = 1;
+                repo.SetComponent(mine, d);
+                Applied++;
+                return;
+            }
+            Request(repo, terrain, building, key, default, collapse: true);
+        }
+
         private void Write(EntityRepository repo, TerrainWorld terrain, Entity e, BuildingDamage d, in WallBreach breach)
         {
             // copy → change → write back only when something changed: an already-covered breach writes nothing (no version bump, no republish)
@@ -141,14 +171,15 @@ namespace Fdp.Toolkit.Terrain
             {
                 var p = _pending[key];
                 _pending.Remove(key);   // first: Apply must not see it as waiting
+                if (p.Collapse) ApplyCollapse(repo, terrain, p.Building);
                 for (int i = 0; i < p.Later.Count; i++) Apply(repo, terrain, p.Building, p.Later[i]);
             }
         }
 
-        private void Request(EntityRepository repo, TerrainWorld terrain, int building, string key, in WallBreach breach)
+        private void Request(EntityRepository repo, TerrainWorld terrain, int building, string key, in WallBreach breach, bool collapse = false)
         {
             var d = new BuildingDamage { Building = building };
-            BuildingDamages.Add(ref d, in breach, terrain);
+            if (collapse) d.Collapsed = 1; else BuildingDamages.Add(ref d, in breach, terrain);
             var b = terrain.Buildings[building];
             int node = repo.HasSingletonManaged<INetworkTopology>() ? (int)(repo.GetSingletonManaged<INetworkTopology>()?.LocalNodeId ?? default) : 0;
             repo.Bus.PublishManaged(new EntityCreationRequest

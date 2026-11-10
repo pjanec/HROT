@@ -349,7 +349,7 @@ graph LR
 
 ### 8.2 📐 The build design — classes, the frame, the navmesh *(S-0 of CE-4391, coordinator `2026-11-10`; refines §8 / §8.1 within R-4188)*
 
-<!-- build-state: BUILDING (§8.2) — S-1 (breaches) BUILT `2026-11-10`, see §8.3; S-2 collapse · S-3 navmesh · S-4 save and show · S-5 demo still to build -->
+<!-- build-state: BUILDING (§8.2) — S-1 (breaches) BUILT `2026-11-10`, see §8.3; S-2 (collapse) BUILT, see §8.4 · S-3 navmesh · S-4 save and show · S-5 demo still to build -->
 
 **INVENTORY** *(graph re-indexed `2026-11-10`; `scripts/cbm.sh search_graph`, production hits only; coverage could not be checked — the CLI has no `check_index_coverage`)*
 
@@ -517,6 +517,21 @@ sequenceDiagram
     V->>E: unions every BuildingDamage entity of the view
 ```
 *What it shows that the prose cannot: the only thing that waits on the creation system is the FIRST breach of a building on a node; everything after is a component write, and every reader sees it through the table the frame after.*
+
+### 8.4 ✅ AS BUILT `2026-11-10` — S-2 (the collapse) *(CE-4391, coordinator)*
+
+| # | what was built | file | vs §8.2 |
+|---|---|---|---|
+| 1 | `TerrainPrism.Building` / `TerrainWalkable.Building` (init, −1 default), stamped by `TerrainBuildingExpander.Expand` for EVERY piece a building makes (panel prisms, the solid prism, slabs, ramps) and for door leaves (`TerrainWorld.BuildDoorLeaves`). `StaticObstacles.With` keeps the prism objects; the importer (CE-4368) writes template + world files that the same parser and expander read, so it needs nothing of its own | `Terrain/TerrainWorld.cs`, `TerrainBuildingExpander.cs` | as B-8 |
+| 2 | `BreachRule.Collapses(table, building, burst, kg)`: kg ≥ `collapseMinKg` and the plan-view distance to the footprint ≤ `collapseZ` · ∛kg (0 inside); the height is not tested | `Terrain/BreachRule.cs` | as B-6 |
+| 3 | `AreaEffectSystem.CollapseBuildings`, in `BreachWalls`' path: candidates from a lazy `BuildingFootprintGrid` (`TerrainWorld.BuildingFootprints`); a collapse publishes `BuildingDamageEvent { Collapse = 1 }`; in the SAME assessment every living `Health` entity inside the footprint, base − 0.5 … roof + 0.5 m, gets one `DamageAssessedEvent` of 2 × max(health, max) — the blast's own path, so its owner applies it. A collapsed building gets no breaches (`_collapsedNow` / the view's set) and is not collapsed twice | `Combat/Systems/AreaEffectSystem.cs` | as the task: "people inside are casualties". Every `Health` entity counts, vehicles too |
+| 4 | `BuildingDamageSystem.ApplyCollapse`: sets `Collapsed = 1` on this node's entity (written once), else asks for an entity born collapsed; a collapse arriving while a request is in flight is held on the pending record | `Terrain/BuildingDamageSystem.cs` | as B-2 |
+| 5 | `BuildingDamageTable.Collapsed(b)` (bitset), `CollapsedCount`, `Rubble` (one solid prism per collapsed building: `Kind = Building`, the footprint, base → base + ⅓ of the height, material `rubble` (new row in `materials.json`: sight 0, 120 mm RHA per metre), `Building = b`), `DoorDestroyed(i)`. Rebuilt only when the breach or collapse set changes; the same instance on an unchanged frame | `Terrain/BuildingDamageTable.cs`, `Terrain/Data/materials.json` | as B-9 |
+| 6 | Doors of a collapsed building read Destroyed: ✏ through the `DoorStates` INDEXER (`Damage.DoorDestroyed(i)`, a bit test), not a copy of the door array — the door table's own cache compares the raw states, so a modified copy would be rebuilt on every call. Every reader (sight leaves, paths, sound) gets it with no change | `Terrain/TerrainObjects.cs` | decision asked for by the slice |
+| 7 | The three traces skip prisms, door leaves and walkables whose building has collapsed and cross the rubble prisms after the candidates (a small linear array, no allocation); crossings of a mound are `prism` kind, label "<building> (rubble)" | `Terrain/TerrainWorld.cs` | as B-8 |
+| 8 | Wire: `Collapsed` was already in `EntityBuildingDamage`, copied by both translators; a rail now pins it | `Hrot.SimHost.Tests/EntityBuildingDamageTranslatorTests.cs` | — |
+
+⚠ Measured / said: (a) **no shipped munition reaches the default `collapseMinKg` 200** — the reference library's heaviest is the 94 kg Mk-82; the rails lower it to 90 through a terrain `breaches.json` override, so a 200 kg bomb needs an ammo row (a Mk-84 is 429 kg). (b) The derived (obstacle-baked) world is S-3's: `SurfaceZ`, `SurfacesAt`, placement and the navmesh still see the standing building. (c) The wire carries the global building index. (d) A person standing on the roof at collapse (up to roof + 0.5 m) is a casualty with those inside.
 
 ---
 _source-data session, 2026-11-09_
