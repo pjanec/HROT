@@ -323,3 +323,15 @@ the FIGHT run (two sides in contact) that exercises the sight test, fire and sou
 ⏭ **Next, by measured size:** the EQS tactical queries' path costs (`PathCosts`' circle search is not bounded; the EQS solver makes 4.4 MB
 of garbage a frame in the fight), the CGF door table across frames (hold it while nothing of the doors changed), and the worst A* (266 ms).
 
+### 6.4 ⭐ What this VM can and cannot tell — and when a PHYSICAL machine is needed *(user, `2026-11-10`: "today's machines have 16+ cores … let me know when this is necessary")*
+
+| question | this VM (4 cores, three nodes sharing them) | needs a physical machine |
+|---|---|---|
+| a query's cost per call (µs), a scan removed, garbage per frame | ✅ valid — what §6.2 / §6.3 fixed | — |
+| ⭐ does solving sensors / paths IN PARALLEL scale | ⛔ cannot show it: the spare cores do not exist here | ⭐ **yes — before building a parallel EQS or path solver**, measure the single-thread version's headroom there first |
+| the final verdict: frame ≤ 10 ms, load ≤ 30 s per node | ⚠ pessimistic (three nodes share four cores; load measured 34.8 s on the cluster, ≈ 19.5 s for one node alone) | ⭐ **yes — once the known costs are fixed**, one node per machine as deployed |
+| network egress / ingress (`CycloneEgress` ≈ 9 ms) | ⚠ loopback only | ⭐ yes — real NICs between nodes |
+
+⭐ On a many-core node the EQS and path solvers already run on their OWN background threads (`SlowBackground`), off the frame; parallel
+solving inside them would buy FRESHER perception and faster replies at larger counts, not a shorter frame.
+
