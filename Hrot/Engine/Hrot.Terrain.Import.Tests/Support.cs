@@ -41,3 +41,11 @@ public sealed class Env : IDisposable
         return TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(terrainFolder, def.World)), name, assets);
     }
 }
+
+/// <summary>Reports on the calling thread (no synchronisation context): the importer's stages, as they happen.</summary>
+internal sealed class SyncProgress : IProgress<ImportProgress>
+{
+    private readonly Action<ImportProgress> _f;
+    public SyncProgress(Action<ImportProgress> f) => _f = f;
+    public void Report(ImportProgress v) => _f(v);
+}

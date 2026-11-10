@@ -159,6 +159,7 @@ namespace Fdp.Toolkit.Terrain
             var derived = new TerrainWorld
             {
                 Name      = terrain.Name,
+                SourceFolder = terrain.SourceFolder,   // ⭐ CE-4393 — its untouched tiles still come from the importer's navtiles
                 BoundsMin = min,
                 BoundsMax = max,
                 GroundZ   = terrain.GroundZ,

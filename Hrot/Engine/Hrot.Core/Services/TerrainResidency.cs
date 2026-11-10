@@ -207,7 +207,7 @@ public sealed class TerrainResidency
             return new Staged();
         }
 
-        var definition = TerrainDefinitionParser.Parse(Fdp.Core.ProgressStream.ReadAllText(definitionPath));   // ⭐ CE-2417 — every read and stage below reports (§12)
+        var definition = TerrainFolderWorld.ReadDefinition(definitionPath);   // ⭐ CE-2417 — every read and stage below reports (§12); ⭐ CE-4393 — the ONE folder → world step
 
         var staged = new Staged
         {
@@ -219,14 +219,9 @@ public sealed class TerrainResidency
         // ⭐ Schema v2 — the terrain WORLD every derived query reads (docs/DESIGN_Terrain_World.md).
         if (!string.IsNullOrEmpty(definition.World))
         {
-            string worldPath = ResolveRelative(definitionPath, definition.World);
-            if (!File.Exists(worldPath))
-                throw new FileNotFoundException(
-                    $"[Terrain] Terrain '{terrainName}' declares world '{definition.World}', which does not exist "
-                  + $"at '{worldPath}'.", worldPath);
-            // ⭐ Stage 1 — with the terrain folder's side files (building templates, material overrides).
-            staged.World = Indexed(TerrainWorldParser.Parse(Fdp.Core.ProgressStream.ReadAllText(worldPath), terrainName,
-                TerrainAssets.ForFolder(Path.GetDirectoryName(definitionPath)!)));
+            // ⭐ Stage 1 — with the terrain folder's side files (building templates, material overrides). ⭐ CE-4393 — through the ONE
+            //   folder → world step the importer's navmesh prefill uses too (UTM §12.1 N-2): the same world, the same tile keys.
+            staged.World = Indexed(TerrainFolderWorld.ReadWorld(definitionPath, definition, terrainName)!);
 
             Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the world is parsed (its features reported as they went)
 

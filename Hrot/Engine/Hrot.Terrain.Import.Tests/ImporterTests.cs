@@ -427,10 +427,4 @@ public class ImporterTests : IDisposable
         Assert.Contains("pc-defend-dry", used);
     }
 
-    private sealed class SyncProgress : IProgress<ImportProgress>
-    {
-        private readonly Action<ImportProgress> _f;
-        public SyncProgress(Action<ImportProgress> f) => _f = f;
-        public void Report(ImportProgress v) => _f(v);
-    }
 }

@@ -28,6 +28,10 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ <c>CE-4089</c> — where the shared building templates live: the NAS's <c>assets/buildings</c> (nothing under the exe folder).</summary>
         public static string DefaultSharedBuildingsRoot => ContentLayout.BuildingAssets(ContentLayout.NasRoot);
 
+        /// <summary>⭐ CE-4393 (UTM §12.1 N-1a) — the terrain folder these assets come from (null for <see cref="None"/>): a load finds the
+        /// navmesh tiles the importer baked there (<c>navtiles/</c>).</summary>
+        public string? Folder { get; init; }
+
         public TerrainMaterialLibrary Materials { get; init; } = TerrainMaterialLibrary.Shared;
 
         /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table: the shared one overlaid by the terrain folder's <c>breaches.json</c>.</summary>
@@ -50,6 +54,7 @@ namespace Fdp.Toolkit.Terrain
             string materialsPath = Path.Combine(terrainFolder, MaterialsFileName);
             return new TerrainAssets
             {
+                Folder = terrainFolder,
                 Materials = File.Exists(materialsPath)
                     ? TerrainMaterialLibrary.Shared.WithOverrides(File.ReadAllText(materialsPath), materialsPath)
                     : TerrainMaterialLibrary.Shared,

@@ -34,6 +34,12 @@ public sealed class ImportReport
     public int ScrubSkipped { get; set; }
     public int UnassignedSkipped { get; set; }
 
+    /// <summary>⭐ CE-4393 — the navmesh prefill (0 when none ran): tiles visited, baked, files written and their size.</summary>
+    public int NavmeshTiles { get; set; }
+    public int NavmeshBaked { get; set; }
+    public int NavmeshFiles { get; set; }
+    public long NavmeshBytes { get; set; }
+
     public long OutputBytes { get; set; }
     public double TotalSeconds => StageSeconds.Values.Sum();
 }
@@ -47,6 +53,8 @@ public static class ImportReportText
         w.WriteLine(string.Create(inv, $"buildings: {r.BuildingsEnterable} enterable, {r.BuildingsSolid} solid ({r.SolidBecauseNoStair} for want of a stair), {r.RoofCaps} roof caps, {r.SharedWallsMerged} shared walls merged, {r.Stairs} stairs"));
         w.WriteLine(string.Create(inv, $"openings: {r.OpeningsPlaced} placed, {r.OpeningsDropped} dropped (off wall {r.OpeningsDroppedOffWall}, party wall {r.OpeningsDroppedOnPartyWall}, overlap {r.OpeningsDroppedOverlap}, other {r.OpeningsDroppedOther}); {r.UnassignedSkipped} unassigned points ignored"));
         w.WriteLine(string.Create(inv, $"vegetation: {r.WoodsPolygons} wood polygons + {r.WoodsFromPoints} clustered from points, {r.LoneTrees} lone trees, {r.WaterAreas} water areas, {r.Walls} walls, {r.ScrubSkipped} scrub skipped"));
+        if (r.NavmeshTiles > 0)
+            w.WriteLine(string.Create(inv, $"navmesh: {r.NavmeshTiles} tiles ({r.NavmeshBaked} baked), {r.NavmeshFiles} files, {r.NavmeshBytes / 1e6:0.0} MB in navtiles/"));
         string stages = string.Join(", ", r.StageSeconds.Select(kv => string.Create(inv, $"{kv.Key} {kv.Value:0.0}")));
         w.WriteLine(string.Create(inv, $"output {r.OutputBytes / 1e6:0.0} MB; seconds per stage: {stages} (total {r.TotalSeconds:0.0})"));
         foreach (var warn in r.Warnings.Take(maxWarnings)) w.WriteLine("  - " + warn);
