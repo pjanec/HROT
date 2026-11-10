@@ -66,9 +66,20 @@ namespace Fdp.Network.Cyclone.Egress
         private readonly int _workers;
         private readonly Action<int> _scanOne;
         private Thread? _thread;
-        private readonly SemaphoreSlim _go = new(0);
-        private readonly ManualResetEventSlim _done = new(true);
-        private volatile bool _stop;
+
+        /// <summary>
+        /// The scan thread's hand-off. ⭐ The thread holds THIS and a weak reference to the pipeline, never the pipeline itself: a pipeline
+        /// holds its live world and a replica, and a thread that rooted it leaked two whole worlds per host — 📐 the integration suite ran out
+        /// of memory with FDP_EGRESS_OFFFRAME=1 (2026-11-10). A pipeline nobody holds is collected; its finalizer ends the thread.
+        /// </summary>
+        private sealed class ScanSignal
+        {
+            public readonly SemaphoreSlim Go = new(0);
+            public readonly ManualResetEventSlim Done = new(true);
+            public volatile bool Stop;
+        }
+
+        private readonly ScanSignal _signal = new();
         private bool _running;
         private EgressMode _mode = EgressMode.OnFrame;
         // ⭐ the mode is taken ONCE per Export: by the first join after the last launch. ⛔ Every join re-reading the request let a switch that
@@ -137,7 +148,7 @@ namespace Fdp.Network.Cyclone.Egress
             if (_running)
             {
                 long t0 = Stopwatch.GetTimestamp();
-                _done.Wait();
+                _signal.Done.Wait();
                 LastJoinWaitMs = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
                 _running = false;
                 bool faulted = false;
@@ -178,28 +189,36 @@ namespace Fdp.Network.Cyclone.Egress
 
             if (_thread == null)
             {
-                _thread = new Thread(Loop) { IsBackground = true, Name = "Egress off-frame scan" };
+                var weak = new WeakReference<EgressPipeline>(this);
+                var signal = _signal;
+                _thread = new Thread(() => Loop(weak, signal)) { IsBackground = true, Name = "Egress off-frame scan" };
                 _thread.Start();
             }
-            _done.Reset();
+            _signal.Done.Reset();
             _running = true;
-            _go.Release();
+            _signal.Go.Release();
         }
 
-        private void Loop()
+        private static void Loop(WeakReference<EgressPipeline> weak, ScanSignal signal)
         {
             while (true)
             {
-                _go.Wait();
-                if (_stop) { _done.Set(); return; }
-                long t0 = Stopwatch.GetTimestamp();
-                try { ScanAll(); }
-                finally
-                {
-                    LastScanMs = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
-                    Scans++;
-                    _done.Set();
-                }
+                signal.Go.Wait();
+                if (signal.Stop || !weak.TryGetTarget(out var pipeline)) { signal.Done.Set(); return; }
+                try { pipeline.RunScan(); }
+                finally { signal.Done.Set(); }
+                pipeline = null!;   // ⛔ never held across the wait (a Debug JIT keeps a local alive to the method's end)
+            }
+        }
+
+        private void RunScan()
+        {
+            long t0 = Stopwatch.GetTimestamp();
+            try { ScanAll(); }
+            finally
+            {
+                LastScanMs = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
+                Scans++;
             }
         }
 
@@ -233,10 +252,18 @@ namespace Fdp.Network.Cyclone.Egress
         /// <summary>Waits for a running scan and stops the scanning thread.</summary>
         public void Dispose()
         {
-            if (_running) { _done.Wait(); _running = false; }
-            _stop = true;
-            _go.Release();
+            if (_running) { _signal.Done.Wait(); _running = false; }
+            _signal.Stop = true;
+            _signal.Go.Release();
             s_of.Remove(_live);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>A pipeline nobody disposed (its host just went away): end the scan thread.</summary>
+        ~EgressPipeline()
+        {
+            _signal.Stop = true;
+            _signal.Go.Release();
         }
     }
 }

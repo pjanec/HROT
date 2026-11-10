@@ -34,7 +34,8 @@ namespace Fdp.ModuleHost.Threading
         }
 
         private readonly object _gate = new();
-        private Action<int> _work = static _ => { };
+        private static readonly Action<int> s_idle = static _ => { };
+        private Action<int> _work = s_idle;
         private readonly Thread[] _threads;
         private readonly SemaphoreSlim _go = new(0);
         private readonly ManualResetEventSlim _done = new(false);
@@ -80,6 +81,7 @@ namespace Fdp.ModuleHost.Threading
             _go.Release(_threads.Length);
             Participate();
             _done.Wait();
+            _work = s_idle;   // ⭐ never keep the last caller's work: it roots the caller (a solver, an egress pipeline) for the process's life
             var error = Interlocked.Exchange(ref _error, null);
             if (error != null) ExceptionDispatchInfo.Capture(error).Throw();
         }
