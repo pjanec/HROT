@@ -199,6 +199,8 @@ namespace Fdp.Toolkit.Vis3D
         /// </summary>
         public static Color ColourOf(TerrainSurfaceKind kind, string? material)
         {
+            // ⭐ CE-4392 X-8 — a material burnt by a blast: its own colour, darkened
+            if (Burnt(material, out var unburnt, out float shade)) return Shade(ColourOf(kind, unburnt), shade);
             if (kind == TerrainSurfaceKind.Water) return WaterColor;
             if (kind == TerrainSurfaceKind.Ground) return material switch { "forest" => ForestColor, "apron" => ApronColor, _ => GroundColor };
             Color? own = material switch
@@ -232,7 +234,19 @@ namespace Fdp.Toolkit.Vis3D
         /// in its vertex colour's alpha: 250 open ground (grass) · 249 forest floor · 248 brick · 247 concrete · 246 sandbags · 245 roof tiles ·
         /// 244 wood · 243 earth · 242 hedge · 241 a brick building's roof (tiles on top, brick on its sides) · 240 a drawn pitched roof (tiles, CE-4377) · 255 none (water, glass, metal,
         /// a car body).</summary>
-        public static byte MaterialCode(TerrainSurfaceKind kind, string? material) => kind switch
+        /// <summary>⭐ CE-4392 X-8 — <c>&lt;material&gt;-scorched</c> / <c>-singed</c> → the material and how much of its colour is left.</summary>
+        private static bool Burnt(string? material, out string? unburnt, out float shade)
+        {
+            unburnt = material; shade = 1f;
+            if (material == null) return false;
+            if (material.EndsWith(Fdp.Toolkit.Terrain.TerrainWorldMesh.ScorchedSuffix, StringComparison.Ordinal)) { unburnt = material[..^Fdp.Toolkit.Terrain.TerrainWorldMesh.ScorchedSuffix.Length]; shade = 0.38f; return true; }
+            if (material.EndsWith(Fdp.Toolkit.Terrain.TerrainWorldMesh.SingedSuffix, StringComparison.Ordinal)) { unburnt = material[..^Fdp.Toolkit.Terrain.TerrainWorldMesh.SingedSuffix.Length]; shade = 0.62f; return true; }
+            return false;
+        }
+
+        public static byte MaterialCode(TerrainSurfaceKind kind, string? material) => Burnt(material, out var unburnt, out _) ? CodeFor(kind, unburnt) : CodeFor(kind, material);
+
+        private static byte CodeFor(TerrainSurfaceKind kind, string? material) => kind switch
         {
             TerrainSurfaceKind.Water => 255,
             TerrainSurfaceKind.Ground => material == "forest" ? (byte)249 : (byte)250,

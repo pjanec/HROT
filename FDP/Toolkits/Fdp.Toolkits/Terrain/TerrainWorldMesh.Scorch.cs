@@ -74,6 +74,10 @@ namespace Fdp.Toolkit.Terrain
             }
         }
 
+        /// <summary>⭐ CE-4392 X-8 — a material burnt by a blast: <c>&lt;material&gt;-scorched</c> (dark) or <c>-singed</c> (less so); the 3-D layer darkens the material's own colour
+        /// and keeps its pattern.</summary>
+        public const string ScorchedSuffix = "-scorched", SingedSuffix = "-singed";
+
         /// <summary>⭐ CE-4392 X-8 — the deepest a broken brick reaches into a breach, as a share of the opening's smaller side (the hole stays open).</summary>
         public const float ToothDepthShare = 0.18f;
 
@@ -109,7 +113,11 @@ namespace Fdp.Toolkit.Terrain
                 var fp = new[] { a + (n * t0), c + (n * t0), c + (n * t1), a + (n * t1) };
                 var min = Vector2.Min(Vector2.Min(fp[0], fp[1]), Vector2.Min(fp[2], fp[3]));
                 var max = Vector2.Max(Vector2.Max(fp[0], fp[1]), Vector2.Max(fp[2], fp[3]));
+                int first = g.Count;
                 AddPrism(new TerrainPrism { Kind = TerrainPrismKind.Wall, Footprint = fp, Triangles = new[] { 0, 1, 2, 0, 2, 3 }, BaseZ = z0, TopZ = z1, Min = min, Max = max, Material = material, Panel = b.Panel }, v, t, g);
+                // ⭐ the blast scorched these bricks most (user: "shouldn't the bricks inside the hole be also scorched?") — the wall's own material, burnt; every face a wall face
+                string burnt = (material?.Name ?? TerrainMaterialLibrary.DefaultMaterial) + (R() < 0.7f ? ScorchedSuffix : SingedSuffix);
+                for (int k = first; k < g.Count; k++) g[k] = new TerrainTriangleTag(TerrainTriangleKind.Wall, burnt);
             }
 
             // the top and bottom edges: stubs hang down / stand up, a course at a time; the bottom only when the breach does not reach the floor
