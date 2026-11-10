@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — §4a the wizard ⇄ pipeline contract BUILT as types (coordinator 2026-11-09); reviewed (builder check + coordinator review F-1…F-11, folded in 2026-11-09), Q-O1…Q-O9 answered; map background / imagery LEFT OPEN for the user (§8)
-updated: 2026-11-09 (source-data session)
+build-state: DESIGN — §14 library side READY-TO-BUILD pending Q-O10…Q-O12 (2026-11-10); §4a the wizard ⇄ pipeline contract BUILT as types (coordinator 2026-11-09); reviewed (builder check + coordinator review F-1…F-11, folded in 2026-11-09), Q-O1…Q-O9 answered; map background / imagery LEFT OPEN for the user (§8)
+updated: 2026-11-10 (§14 detailed design of the library side — coordinator) · 2026-11-09 (source-data session)
+current-answer: ⭐ §14 the detailed design (inventory, measured sample, classes, sequence, modules, E-1…E-12, Q-O10…Q-O12) · §4a the wizard contract · §5 the rules · §13 the review
+known-rot: §5.5's "split along the shortest cut" for holes is replaced by §14.5 E-4 (a cut through each hole's centre)
 related-designs:
   - PLAN_Large_Terrain.md — §9: this pipeline goes THROUGH the importer and is built in parallel; O-0 adds the input-set READER + conformance checks to Hrot.Terrain.InputSet
   - DESIGN_Terrain_Import_UTM.md §10 — the import input set (the target format of this tool)
@@ -348,3 +350,173 @@ importer (Terrain Import UTM §6.1). ⭐ That makes the importer the single cons
 | **F-11** | ✅ **§8 background** — the user decides; for the record the importer side's lean is **M2 (rendered by HROT from the input set) for every terrain** as the baseline, M3 per country later — M2 needs no download and serves real, synthetic and OSM terrains alike | — |
 
 **Accepted from Terrain Import UTM §10.8:** `water/water.geojson` and `vegetation/scrub.geojson` as optional files — ⚠ correction to §5.6: HROT ALREADY has water surfaces (`TerrainSurfaceType.Water`, unwalkable, drawn — `TerrainWorld.cs:17`, `PlacementSolverSystem.cs:138`), so water is consumed in the importer's stage 5, not "once supported". ⭐ Plus F-3's `vegetation/woods.geojson`.
+
+## 14. ⭐ DETAILED DESIGN — the library side, for the build *(coordinator, `2026-11-10`; CE-4371…CE-4374; the user: "Lets focus in designing the open street map importer now")*
+
+### 14.0 INVENTORY *(graph queries run `2026-11-10`; ⚠ `check_index_coverage` is not available through the CLI, so absence claims are "not found by these queries + grep")*
+
+| query (`scripts/cbm.sh search_graph`, `label: Class`) | total | what it found that matters |
+|---|---|---|
+| `.*(Osm\|Overpass\|Nominatim\|Tile).*` | 26 | ⛔ **no OSM, Overpass, Nominatim or map-tile code** — only `NavTileCache`, `AnnouncingZoneTileLoader` (terrain zones) and same-substring names (`HostileAct`, `Projectile`) |
+| `.*(Tiff\|Dem\|Raster\|HeightGrid).*` | 140 | ⛔ **no TIFF / GeoTIFF reader**; `BepuHeightGridProbe` only (the rest is `Demo*`) |
+| `.*(Polygon\|Clipper\|Triangulat\|Buffer).*` | 9 + 75 | `PolygonMath` (`Fdp.Toolkits/Terrain/PolygonMath.cs`: signed area, contains, ear-clip triangulate, segment-inside intervals) · SumoSharp's pedestrian `PolygonGeometry` / `PolygonGraph` · ⛔ **no boolean ops, no offset / buffer, no simplification** |
+| `.*(Utm\|Geographic\|Wgs84\|Projection\|GeoOrigin).*` | 28 | `Hrot.Traffic.Utm` (north + south) · `WGS84Transform` · `TerrainGeoOrigin` · `GeographicModule` |
+| `.*(HttpClient\|Download\|Fetch\|WebClient).*` | 14 | ⛔ no HTTP download helper (only the orchestrator's asset PREFETCH, a cluster protocol) |
+| NuGet (grep of every `.csproj`) | — | ⛔ no geometry library (NetTopologySuite, Clipper), no image / TIFF library; ✅ `System.Text.Json`, `System.IO.Compression` (in the framework) |
+
+### 14.1 Measured on real data *(not in git — a one-off sample in the scratchpad, `2026-11-10`)*
+
+📐 OSM API 0.6 `map`, one box ≈ **1.8 × 1.7 km of a Czech town** (10 MB XML, 32 225 nodes, 5 044 ways): ⚠ Overpass is NOT reachable from the
+cloud VM (`overpass-api.de`, `overpass.kumi.systems` time out); the OSM API, Nominatim, the OSM tiles and the Copernicus DEM bucket ARE.
+
+| | measured | ⇒ for the design |
+|---|---|---|
+| buildings | **2 974** in ≈ 3 km² — residential 931, **garage 689**, house 401, yes 271, detached 212, apartments 118 | ⚠ a 6 × 6 km TOWN box is ≈ 30 000 buildings — 17× the tuned load. The budget refuses it (§5.7) ⇒ in towns the author picks ≈ 1.5 × 1.5 km. ⚠ and **garages are 23 %** — see **Q-O10** |
+| footprint area | p10 19 · p50 100 · p90 259 · max 4 897 m²; 20 under 12 m² | the 12 m² drop rule removes almost nothing; the small ones are garages / sheds |
+| shared walls | **1 852 edges shared by node ids** (of 19 722) | ⭐ terraces are the NORM in towns (the synthetic set has 140 in 5.5 km) ⇒ party walls (F-4) are core, and OSM shares NODE IDS — detection by id, not by distance, for most of them |
+| `building:levels` | 64 % tagged (1: 920, 2: 816, 3: 147, 4: 23) | the type defaults matter for one in three |
+| `roof:shape` | 62 % (gabled 736, flat 337, hipped 326, **many 281**, half-hipped 55) | `many` → pitched |
+| `entrance` nodes | **41** for 2 974 buildings | ⇒ the road-facing door RULE places almost every door |
+| woods / water / barriers | `landuse=forest` 3, `natural=water` 7, `tree_row` 3, stream 11, ditch 4; walls 76, fences 88, **retaining_wall 61**, city_wall 12 | `city_wall` → wall 6 m; `retaining_wall` → wall 2 m (a terrain step the DEM does not have) |
+
+📐 **Copernicus GLO-30 tile** (`Copernicus_DSM_COG_10_N49_00_E015_00_DEM.tif`, range request): 3 600 × 3 600 float32, **deflate + predictor 3
+(floating point)**, **1 024 × 1 024 internal tiles**, overviews follow, server `Accept-Ranges: bytes`, 42 MB. ⚠ the tile WIDTH varies with
+latitude in GLO-30 (narrower above 50°) — read it from the tags, never assume 3 600.
+
+### 14.2 The classes
+
+```mermaid
+classDiagram
+  direction LR
+  class IOsmTerrainPipeline { <<contract, OsmContract.cs>> }
+  class OsmTerrainPipeline { <<NEW>> Measure; PreviewAsync; WriteInputSetAsync }
+  class AreaFrame { <<NEW>> FromBox(GeoBox) UtmFrame + local bounds; ToLocal(lat, lon) }
+  class Utm { <<MOVED, CE-4372>> ToGeodetic; FromGeodetic; zone; south }
+  class DownloadCache { <<NEW>> folder per area hash; GetOrFetch(key, fetch) }
+  class OsmSource { <<NEW interface>> FetchAsync(box with margin) osm XML path }
+  class OverpassSource { <<NEW>> one query, XML out, the same file netconvert reads }
+  class OsmXmlReader { <<NEW>> streaming XmlReader to OsmModel }
+  class OsmModel { <<NEW>> nodes; ways; relations; tags }
+  class GeometryAssembler { <<NEW>> closed ways + multipolygon rings to polygons in local metres }
+  class Polygons { <<NEW, over Clipper2>> Clip; Union; Offset; Simplify; SplitHoles }
+  class BuildingRules { <<NEW>> type, storeys, roof, party walls, doors, windows, budget counts }
+  class VegetationRules { <<NEW>> woods, scrub, lone trees, tree rows }
+  class BarrierRules { <<NEW>> walls, fences, hedges }
+  class WaterRules { <<NEW>> water polygons; river lines buffered }
+  class DemSource { <<NEW interface>> SampleGrid(frame, bounds, spacing) }
+  class CopernicusDem { <<NEW>> tile names; range-fetch the needed 1024 tiles }
+  class CogReader { <<NEW>> TIFF tags; deflate; predictor 3 }
+  class HeightBuilder { <<NEW>> bicubic to 1 m; road levelling F-2 }
+  class RoadBuilder { <<NEW>> netconvert --osm-files with the F-7 projection }
+  class NetconvertLocator { <<NEW>> HROT_SUMO_HOME, .local/sumo, SUMO_HOME, PATH; version check }
+  class PreviewBuilder { <<NEW>> OsmPreview + counts + budget verdict }
+  class InputSetWriter { <<EXTRACTED, CE-4371>> heights; buildings; trees; walls; water; vegetation; manifest }
+  class OsmCli { <<NEW exe hrot-terrain-osm>> }
+  IOsmTerrainPipeline <|.. OsmTerrainPipeline
+  OsmTerrainPipeline --> AreaFrame
+  AreaFrame --> Utm
+  OsmTerrainPipeline --> DownloadCache
+  OsmTerrainPipeline --> OsmSource
+  OsmSource <|.. OverpassSource
+  OsmTerrainPipeline --> OsmXmlReader
+  OsmXmlReader --> OsmModel
+  OsmTerrainPipeline --> GeometryAssembler
+  GeometryAssembler --> Polygons
+  OsmTerrainPipeline --> BuildingRules
+  OsmTerrainPipeline --> VegetationRules
+  OsmTerrainPipeline --> BarrierRules
+  OsmTerrainPipeline --> WaterRules
+  WaterRules --> Polygons
+  OsmTerrainPipeline --> DemSource
+  DemSource <|.. CopernicusDem
+  CopernicusDem --> CogReader
+  OsmTerrainPipeline --> HeightBuilder
+  OsmTerrainPipeline --> RoadBuilder
+  RoadBuilder --> NetconvertLocator
+  OsmTerrainPipeline --> PreviewBuilder
+  OsmTerrainPipeline --> InputSetWriter
+  OsmCli --> OsmTerrainPipeline
+```
+*What the picture shows: ONE pipeline class composes small single-purpose stages; the only network edges are `OsmSource` and `DemSource`
+(both interfaces — tests pass fixtures); the only external process is `netconvert`; the only output path is the shared `InputSetWriter`.
+Every box is NEW except `Utm` (moved) and the writer (extracted) — the inventory found nothing to reuse for OSM, TIFF or polygon booleans.*
+
+### 14.3 Preview, then write
+
+```mermaid
+sequenceDiagram
+  participant W as Wizard or CLI
+  participant P as OsmTerrainPipeline
+  participant C as DownloadCache
+  participant O as OverpassSource
+  participant D as CopernicusDem
+  participant R as Rules (buildings, vegetation, barriers, water)
+  participant N as netconvert
+  participant S as InputSetWriter
+  W->>P: PreviewAsync(box, options)
+  P->>P: AreaFrame.FromBox (zone of the centre, e0/n0 rounded to 100 m)
+  P->>C: GetOrFetch("osm", box + 200 m)
+  C->>O: FetchAsync (only on a miss)
+  O-->>C: area.osm (XML)
+  P->>P: OsmXmlReader then GeometryAssembler (local metres, clipped to the bounds)
+  P->>R: apply the rules (no heights needed yet)
+  R-->>P: buildings, woods, scrub, water, walls, lone trees + counts
+  P-->>W: OsmPreview (geometry, counts, budget verdict, warnings) - no DEM, no netconvert yet
+  W->>P: WriteInputSetAsync(box, options, folder)
+  P->>C: the same area.osm (cached)
+  P->>D: SampleGrid (range-fetch only the 1024-px tiles the box touches, cached)
+  D-->>P: 30 m samples
+  P->>P: HeightBuilder (bicubic to 1 m, level roads at layer 0 only)
+  P->>R: baseZ = lowest ground under each footprint (TH-C), storeyZ
+  P->>N: netconvert --osm-files area.osm (F-7 projection)
+  N-->>P: roads.net.xml
+  P->>S: write every file into a temp folder, manifest with hashes, attribution
+  P->>P: move the temp folder into place
+  P-->>W: the input set folder
+```
+*What the picture shows: the PREVIEW needs no heights and no netconvert — it is only the OSM download and the rules, so it is fast and works
+without SUMO installed; the heavy work (DEM, resampling, netconvert) happens once, on Write.*
+
+### 14.4 The modules — who calls it
+
+```mermaid
+graph TD
+  ED["Hrot.Editor wizard (later, with the user)"] --> OSM
+  CLI["hrot-terrain-osm (exe)"] --> OSM
+  OSM["Hrot.Terrain.Osm"] --> IS["Hrot.Terrain.InputSet (writer, reader, checks)"]
+  OSM --> FT["Fdp.Toolkits (Utm, PolygonMath)"]
+  OSM --> CL["Clipper2 (NuGet, Boost licence)"]
+  OSM -. "process" .-> NC["netconvert 1.20.0 (.local/sumo)"]
+  OSM -. "HTTPS" .-> NET["Overpass · Copernicus S3 · Nominatim · tiles"]
+  SYN["hrot-terrain-synth"] --> IS
+  IMP["the importer (backend, CE-4368)"] --> IS
+  T["Hrot.Terrain.Osm.Tests (fixtures, no network)"] --> OSM
+```
+*What the picture shows: nothing calls the pipeline per FRAME — it is a one-shot authoring tool, so the hot-path rules do not bind it (it may
+allocate); the editor reaches it only through the contract. `Hrot.Terrain.InputSet` stays free of engine references (both the synth tool and
+the importer use it).*
+
+### 14.5 Engineering decisions *(coordinator; each with the reason — none needs the user)*
+
+| # | decision | rejected (one line each) |
+|---|---|---|
+| **E-1** | **one OSM download, XML**: an Overpass query for the box + 200 m returning OSM XML (`out meta; >; out meta qt;`), cached; the SAME file goes to `netconvert --osm-files` | JSON with inline geometry (`out geom`) — netconvert cannot read it, so it would be two downloads |
+| **E-2** | **a streaming `XmlReader`** into a compact model (node ids → coordinates in local metres; ways as id arrays; relations' members) | `XDocument` — a 50 MB file costs ≈ 10× its size in memory |
+| **E-3** | **Clipper2** (NuGet, Boost licence, C#) for clip to bounds, union, offset (river lines → polygons), simplify, and hole splitting | NetTopologySuite — far larger for the same four operations · hand-written booleans — the robustness Clipper already has |
+| **E-4** | **holes**: a polygon with courtyards is cut by a straight line through each hole's centre, across the shorter axis (two Clipper intersections with half-planes), repeated until no hole is left; parts under 12 m² dropped | the shortest-cut search of §5.5 — more code, same result for courtyards |
+| **E-5** | **party walls by NODE IDS first** (two footprints sharing a consecutive node pair — 1 852 in the sample), then by distance (≤ 0.3 m, parallel, overlapping) for the rest; a shared edge is written ONCE: in BOTH footprints with identical vertices, so the importer sees the same shape the synthetic set has | distance only — misses nothing but costs a spatial search per edge |
+| **E-6** | **an own minimal COG reader** (TIFF tags, tile offsets / byte counts, deflate through `ZLibStream`, predictor 3 undone) with HTTP RANGE requests for just the 1 024² tiles the box touches (a 6 km box ≈ 1–4 internal tiles ≈ 4–16 MB, not the 42 MB file) | `BitMiracle.LibTiff.NET` — reads files, not ranges, so the whole 42 MB would download; its floating-point predictor support would have to be proven anyway |
+| **E-7** | **heights**: bicubic from the 30 m samples straight to the 1 m grid; written through the input set's heights writer; `sourceResolution: 30` | bilinear — visible facets on slopes at 1 m |
+| **E-8** | **the frame**: the UTM zone of the box centre; e0 / n0 rounded to 100 m; local bounds = the box's four corners projected, taking the INNER rectangle (no slivers outside the data) | the outer rectangle — corners outside the fetched data |
+| **E-9** | **every rule is a pure function of the model** (`BuildingRules.Apply(model, frame, options)` → records), so each §5.5 row and each F-row is one unit test against a hand-written fixture | rules inside the parser — untestable apart |
+| **E-10** | **HTTP**: one `HttpClient` per pipeline, User-Agent `HROT-terrain/<version> (+repo url)`, 60 s timeout, 3 retries with back-off on 429 / 5xx / timeouts, the system proxy; an Overpass `429` / `504` names the service and the retry time in the error | per-call clients · no back-off (Overpass rate-limits) |
+| **E-11** | **tests**: a hand-written synthetic `.osm` fixture (≈ 300 lines: a street grid, a terrace of 4 sharing node ids, a courtyard building, an entrance node, a garage, a church, a wood multipolygon with a clearing, a river line, a stream, a wall, a tree row, a bridge) and a synthetic 3 × 3-tile COG (written by the test itself, predictor 3) — ⛔ no real OSM data in git (ODbL) | a recorded real response — ODbL obligations in the repo |
+| **E-12** | **the CLI** `hrot-terrain-osm --bbox s,w,n,e --name N [--out DIR] [--preview-only] [--osm-file F] [--dem-dir D]` — `--osm-file` / `--dem-dir` run offline from local files (CI, and environments without Overpass, like this VM) | network-only — untestable here |
+
+### 14.6 Questions for the user
+
+| # | question | ⭐ lean |
+|---|---|---|
+| **Q-O10** | **garages, sheds, barns, carports with walls** (689 garages = 23 % of the sample): enterable like houses (Q-O4 "all buildings enterable"), or **solid** (they still block sight, fire and movement) and counted apart from the enterable budget? | ⭐ **solid, not enterable** — an empty 18 m² garage interior adds a navmesh island and openings nobody uses; it cuts the town load by ≈ a quarter. Types: `garage`, `garages`, `shed`, `hut`, `kiosk`, `service`, `transformer_tower`, and any footprint under 25 m² |
+| **Q-O11** | the budget in TOWNS: 6 × 6 km is a village / countryside size; a town fits ≈ 1.5 × 1.5 km under the 2× limit. Keep the budget as is (the preview tells the author to shrink the box), or allow a mode where only part of the buildings are enterable (e.g. within 500 m of a chosen point) and the rest solid? | ⭐ **keep it as is for the first version**; the "enterable focus area" is a good later option — noted, not designed |
+| **Q-O12** | Overpass is blocked from the cloud VM: for the ONE opt-in live test, allow `overpass-api.de` in the environment? | ⭐ **not now** — the CLI's `--osm-file` makes every test offline; allow it only if a live run is wanted |
