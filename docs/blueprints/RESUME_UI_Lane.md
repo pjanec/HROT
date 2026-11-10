@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-10
-current-answer: ⭐⭐⭐ 2026-11-10 — START AT "SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES" directly below this STATUS block.
+current-answer: ⭐⭐⭐ 2026-11-10 (b) — START AT "SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-10 — START AT "SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-09 — START AT "SESSION 2026-11-09 — U-11 RECORDING STORAGE UI, DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-08 — START AT "SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED)".
@@ -176,6 +177,22 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE
+
+Handoff [HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md](batches/HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md) (dispatched e0865ce9e) — all four
+items done and pushed to `ui` (last 9553bd85b); the record is [STATUS_Ui_Large_Terrain_Drawing.md](batches/STATUS_Ui_Large_Terrain_Drawing.md).
+
+| item | state | where |
+|---|---|---|
+| D-1 CE-3423 3-D ground by chunk + LOD | ✅ scale-1 coarse picture 0.8 s / 640 MB (whole soup 9.4 s / 7.0 GB) | DESIGN_Map_3D_Mode §6ah |
+| D-3 CE-4377 trees, pitched roofs, facades | ✅ trees by distance; caps drawn as tiled gables (code 240); facades unchanged | §6ai |
+| D-2 CE-4376 2-D at 5.5 km | ✅ binned stroke cull 14.5 → 3.65 ms; ⚠ failed premise: no 2-D height shading exists (2D-4) | DESIGN_Terrain_World §10a |
+| D-4 CE-4378 importer in the wizard | ✅ real `TerrainImporter`; Open in New Scenario preselects it; the menu greys until tiles/search exist | DESIGN_Terrain_From_OSM |
+
+⚠ Not done: 30 fps was measured as triangles/resident only (no GPU here); the user's machine check is open. Pre-existing reds: `Map3DFrameRail.CE1227_V_DemoCity…`,
+`FilmFrameRail.CE1380_A2DFilmFrame…` (both red at 890d6feaf). `assets/terrain/imported-tiny/` is a local generated set — never commit it.
+
 
 ## SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES
 
