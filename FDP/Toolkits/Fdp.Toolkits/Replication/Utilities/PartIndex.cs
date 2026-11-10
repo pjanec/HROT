@@ -30,12 +30,25 @@ namespace Fdp.Toolkit.Replication.Utilities
         private long _builtAdds = -1;
         private bool _built;
         private EntityQuery? _query;
+        // ⭐ CE-4395 — the parts ADDED within the frame after the build (from EntityRepository.AddsThisVersion), merged into a parent's slice
+        //   on read: (parent index, instance id, part). 📐 They used to force a full rebuild each — 27 a frame, O(every part) each, at 3 000 men.
+        private (int Parent, int Id, Entity E)[] _late = Array.Empty<(int, int, Entity)>();
+        private int _lateCount, _logAt;
+        private Entity[] _merge = Array.Empty<Entity>();
+        private int[] _mergeId = Array.Empty<int>();
 
         /// <summary>How many builds so far (a rail reads it).</summary>
         public int Builds { get; private set; }
 
+        /// <summary>⭐ CE-4395 — how many parts were taken in WITHOUT a build: added within the frame, after it (a rail reads it).</summary>
+        public int LateAdds { get; private set; }
+
         /// <summary>The index of <paramref name="repo"/> (a rail reads <see cref="Builds"/>).</summary>
-        public static PartIndex Of(EntityRepository repo) => s_of.GetValue(repo, static _ => new PartIndex());
+        public static PartIndex Of(EntityRepository repo) => s_of.GetValue(repo, static r =>
+        {
+            r.LogAddsOf(ComponentType<PartMetadata>.ID);   // ⭐ CE-4395 — so an add within the frame is taken in, not rebuilt for
+            return new PartIndex();
+        });
 
         /// <summary>
         /// Writes <paramref name="parent"/>'s live parts, lowest <see cref="PartMetadata.InstanceId"/> first, into <paramref name="dest"/>
@@ -61,6 +74,7 @@ namespace Fdp.Toolkit.Replication.Utilities
             long adds = repo.ComponentsAddedOf(ComponentType<PartMetadata>.ID);
             if (_built && now == _builtAt && adds == _builtAdds) return;
             bool sameFrame = _built && now == _builtAt;
+            if (sameFrame && TakeLateAdds(repo, adds)) return;   // ⭐ CE-4395 — the frame's new parts, without walking every part again
             _built = true; _builtAt = now; _builtAdds = adds;
             Builds++;
             // ⭐ CE-4395 B-1 — measurement only: every rebuild, and those a part ADDED within the frame forced
@@ -68,6 +82,34 @@ namespace Fdp.Toolkit.Replication.Utilities
             if (sameFrame) Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_RebuildsInFrame, 1);
             try { Rebuild(repo); }
             finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Rebuild, t0); }
+            _lateCount = 0;
+            _logAt = repo.AddsThisVersion(ComponentType<PartMetadata>.ID).Length;   // the adds so far this version are in the build
+        }
+
+        /// <summary>
+        /// ⭐ CE-4395 — takes the parts added since the build from the repository's add log. False — and the caller rebuilds, exactly as before —
+        /// unless the log accounts for EVERY add the counter saw (a type not logged, a version set back: never trusted alone).
+        /// </summary>
+        private bool TakeLateAdds(EntityRepository repo, long adds)
+        {
+            var log = repo.AddsThisVersion(ComponentType<PartMetadata>.ID);
+            if (log.Length < _logAt || log.Length - _logAt != adds - _builtAdds) return false;
+            for (int k = _logAt; k < log.Length; k++)
+            {
+                var e = repo.GetEntityByIndex(log[k]);
+                if (!repo.IsAlive(e) || !repo.HasComponent<PartMetadata>(e)) continue;   // gone again: a read re-checks anyway
+                bool seen = false;
+                for (int j = 0; j < _lateCount && !seen; j++) seen = _late[j].E.Equals(e);
+                if (seen) continue;                                                       // added, removed and added again
+                ref readonly var meta = ref repo.GetComponentRO<PartMetadata>(e);
+                if (meta.ParentEntity.IsNull) continue;
+                if (_lateCount == _late.Length) Array.Resize(ref _late, Math.Max(16, _lateCount * 2));
+                _late[_lateCount++] = (meta.ParentEntity.Index, meta.InstanceId, e);
+                LateAdds++;
+            }
+            _logAt = log.Length;
+            _builtAdds = adds;
+            return true;
         }
 
         private static readonly int S_PartsOf = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("parts.PartsOf");
@@ -104,17 +146,46 @@ namespace Fdp.Toolkit.Replication.Utilities
 
         private int Copy(EntityRepository repo, Entity parent, Span<Entity> dest)
         {
-            if ((uint)parent.Index >= (uint)_start.Length || (uint)parent.Index > (uint)repo.MaxEntityIndex) return 0;
-            int from = _start[parent.Index], to = from + _count[parent.Index], total = 0;
+            if ((uint)parent.Index > (uint)repo.MaxEntityIndex) return 0;
+            bool built = (uint)parent.Index < (uint)_start.Length;
+            int from = built ? _start[parent.Index] : 0, to = built ? from + _count[parent.Index] : 0, total = 0;
+            Entity[] items = _items;
+            if (_lateCount > 0) MergeLate(parent.Index, ref from, ref to, ref items);
             for (int k = from; k < to; k++)
             {
-                var e = _items[k];
+                var e = items[k];
                 // ⭐ re-checked on every read: a part removed or destroyed after the build, or a slot reused by another parent, never shows
                 if (!repo.IsAlive(e) || !repo.HasComponent<PartMetadata>(e) || !repo.GetComponentRO<PartMetadata>(e).ParentEntity.Equals(parent)) continue;
                 if (total < dest.Length) dest[total] = e;
                 total++;
             }
             return total;
+        }
+
+        /// <summary>⭐ CE-4395 — the parent's slice with its late parts merged in, in the build's order: by instance id, ties by entity index
+        /// (the order a build's walk meets them). Into a reused buffer; the slice itself is untouched.</summary>
+        private void MergeLate(int parent, ref int from, ref int to, ref Entity[] items)
+        {
+            int extra = 0;
+            for (int j = 0; j < _lateCount; j++) if (_late[j].Parent == parent) extra++;
+            if (extra == 0) return;
+            int n = to - from;
+            if (_merge.Length < n + extra) { _merge = new Entity[Math.Max(16, (n + extra) * 2)]; _mergeId = new int[_merge.Length]; }
+            Array.Copy(_items, from, _merge, 0, n);
+            Array.Copy(_idOf, from, _mergeId, 0, n);
+            for (int j = 0; j < _lateCount; j++)
+            {
+                var (p, id, e) = _late[j];
+                if (p != parent) continue;
+                bool dup = false;
+                for (int k = 0; k < n && !dup; k++) dup = _merge[k].Equals(e);   // still in the build: added, removed and added again
+                if (dup) continue;
+                int at = n++;
+                while (at > 0 && (_mergeId[at - 1] > id || (_mergeId[at - 1] == id && _merge[at - 1].Index > e.Index)))
+                { _merge[at] = _merge[at - 1]; _mergeId[at] = _mergeId[at - 1]; at--; }
+                _merge[at] = e; _mergeId[at] = id;
+            }
+            items = _merge; from = 0; to = n;
         }
 
         private static int Scan(ISimulationView view, Entity parent, Span<Entity> dest)

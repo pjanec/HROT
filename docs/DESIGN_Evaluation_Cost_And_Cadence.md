@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-04 (§10 Part D — held gizmo slices, CE-2402; §0e garbage rows CE-2398…2403)
+updated: 2026-11-10 (§11g — the brain at 1 000 / 3 000 men, CE-4395; §10 Part D 2026-11-04)
 build-state: BUILDING — D1–D8 APPROVED 2026-11-04 (R-2083); tasks T1–T10 = CE-2382…CE-2391 (§7c); T1–T10 BUILT (§3.0a, §0a)
-current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions), §0e (garbage, per frame), §10 (D — map gizmos held in slices)
+current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions), §0e (garbage, per frame), §10 (D — map gizmos held in slices), §11g (the brain at 1 000 / 3 000 men — attribution, the parts fix, the cadence proposal)
 stale-below: none
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Scale_Rig.md — OWNS the rig that measures §11g (scale-1, N men, the per-node budgets R-4192)
   - docs/DESIGN_Egress_Change_Detection.md — OWNS C4 / T10: egress change detection, its hazards and options
   - docs/DESIGN_Scenario_Rules.md — OWNS the rule kinds, ObjectiveHost, triggers (T1–T3), the per-player score (§00.13); this design only changes WHEN a rule ticks
   - docs/DESIGN_Rules_View_UI.md — OWNS the rules view and RV-7 (the Objectives tab); this design only changes how often its model is built
@@ -1000,3 +1001,121 @@ functional difference — and **like for like, SimHost is 358 → 177 ms per fra
 |---|---|
 | munition ghosts pile up | `GhostTimeoutSystem.MAX_GHOST_AGE` = 3 600 FRAMES ("60 seconds at 60 Hz") — at ~3 frames/s that is ~20 min; and `GeoSpatialIngressTranslator` / `MapEntitySymbolIngressTranslator` / `EntityInfoIngressTranslator` create ghosts with tick 0. A round's late position sample makes a ghost that lingers |
 | car mirroring around rounds | rounds are colliders without `ReplicationRoute` ⇒ the vicinity rule (`TrafficReplicas`) mirrors every car within 350 m of a flying round — as designed (a round must be able to hit the car), but a cost lever |
+
+### 11g. 📐 The BRAIN at 1 000 and 3 000 men — attributed, and the quadratic term removed *(CE-4395, backend `2026-11-10`; [handoff](blueprints/batches/HANDOFF_Coordinator_To_Backend_Brain_Cost_1000.md))*
+
+⭐ Measured with the scale rig ([Scale Rig](DESIGN_Scale_Rig.md), `scale-1`, two sides fighting, Release, this 4-core VM) and `QueryTimings` slots
+added for it: the whole tick (`brain.Execute`), each behaviour's run (`brain.task:<name>`, `brain.sop:<name>`), each utility decision and input
+(`utility.decision:*`, `utility.input:*`), the parts index and the suspected walks. Inclusive times; **per brain tick** (the slots' ms per frame ÷
+the ticks per frame — the brain runs on time-advancing frames only, 0.44–0.47 per counted frame).
+
+**INVENTORY** (graph + grep, `2026-11-10`): `search_graph name_pattern=".*(ComponentsAdded|AddedThis|AddLog|LogAdds|AddedSince|NewlyAdded).*"` →
+2 (`EntityRepository.ComponentsAddedOf`, an unrelated trace field) ⇒ no add log existed; `search_code "new PartMetadata"` + grep → 6 writers
+(`TurretParts`, `CombatTkbTranslator`, `SensorChildFactory`, `EqsChildSensor`, `PersonalRouteAuthoringSystem`, `EqsSensorConfigIngressTranslator`);
+grep `BehaviorOwnedParts.Release` → called by `BehaviorIngressSystem` at every run end, rails `EqsModuleTests`, `TkbSensorTests`, `HillAttack*`.
+⚠ `check_index_coverage` is not available through the CLI — the counts are what the index holds.
+
+| per brain tick, ms | 1 000 men | 3 000 men | grows | where |
+|---|---|---|---|---|
+| **the whole tick** (`brain.Execute`) | **20.0** | **171** | 8.5× | `BrainTickSystem.cs` `Execute` |
+| `CombatPosture` runs (count × µs) | 313 × 48 = 15.1 | 2 214 × 67 = 149 | **7× the runs** — more men in contact | the fight, not an algorithm: per run ~flat once the walks below are gone |
+| — `Combat posture` decision | 6.1 | 41 | with the runs | `StarterPack/CombatPostureDecision.cs` — `EnemyStrengthRatio` ×5 options, `EqsTopScore` ×3, `HealthFraction` ×5, per decision |
+| — `Threat ranking` (≈ 7 contacts × 2.2 µs) | 5.0 | 33 | with the runs | `UtilityScorer.cs` `EvaluateCandidates` — `ContactThreatLevel` → `ThreatDanger.Of` per contact |
+| — `Attack approach` | 2.1 | 25 | with the runs | |
+| ⛔ **`parts.rebuild`** (rebuilds × µs) | 3.7 × 295 µs = 1.1 | **62 × 729 µs = 45** | **31×** — (parts added in the tick) × (every part) | `PartIndex.cs` `EnsureFresh`: every `PartMetadata` ADDED within the frame rebuilt the whole index |
+| ⛔ **`OwnedParts.Release`** | 13 × 101 µs = 1.3 | 81 × 279 µs = 23 | (run ends) × (every entity) | `BehaviorOwnedPart.cs` `ReleaseCore`: a walk over every entity per run end |
+| ⛔ `Callouts.SaidNearby` | 66 × 25 µs = 1.7 | 300 × 62 µs = 19 | (callouts) × (every entity) | `Hrot.AI.Behaviors/Brains/Callouts.cs:116` — a new query built and walked per call |
+| SOP slots (`TickSopSlots`) | 1.3 | 8.4 | linear | |
+| `SweepStaleDedupEntries` | 0.34 | 0.85 | linear (one walk a tick) | |
+
+⭐ **The superlinear terms were the WALKS** — each a per-event scan of every entity, done more often as more men fight: the parts rebuild
+(31×), `Release`, `SaidNearby`. The rest grows with the number of men in contact, at a flat cost per man.
+
+#### 11g-1. ✅ AS BUILT — the parts added within a frame are TAKEN IN, not rebuilt for; `Release` reads the index
+
+```mermaid
+classDiagram
+    class EntityRepository {
+        +ComponentsAddedOf(typeId) long
+        +LogAddsOf(typeId)
+        +AddsThisVersion(typeId) ReadOnlySpan~int~
+        -BumpType(typeId, entityIndex)
+        -AddLog[] _addLog
+    }
+    class AddLog {
+        +int[] Indices
+        +int Count
+        +uint Version
+        +Note(entityIndex, version)
+    }
+    class PartIndex {
+        +PartsOf(view, parent, dest)$ int
+        +Builds int
+        +LateAdds int
+        -EnsureFresh(repo)
+        -TakeLateAdds(repo, adds) bool
+        -MergeLate(parent, from, to, items)
+        -late (parent, id, part)[]
+    }
+    class BehaviorOwnedParts {
+        +Release(repo, parent, endingRun)$ int
+    }
+    EntityRepository "1" *-- "0..n" AddLog : one per logged type
+    PartIndex ..> EntityRepository : LogAddsOf(PartMetadata) once, reads the log
+    BehaviorOwnedParts ..> PartIndex : PartsOf(parent)
+```
+*What the picture shows that prose hid:* the log lives in the REPOSITORY (the one place every add passes, `BumpType`), opt-in per type, and the
+index only READS it — a writer of `PartMetadata` (six of them) changes nothing.
+
+```mermaid
+sequenceDiagram
+    participant B as BrainTickSystem
+    participant E as EqsChildSensor
+    participant R as EntityRepository
+    participant P as PartIndex
+    B->>P: PartsOf(unit) (first read this frame)
+    P->>R: GlobalVersion moved: Rebuild (one walk)
+    P->>R: AddsThisVersion(PartMetadata).Length -> logAt
+    B->>E: a behaviour starts: Ensure(sensor)
+    E->>R: AddComponent(PartMetadata)
+    R->>R: BumpType: count++, log.Note(index)
+    B->>P: PartsOf(other unit)
+    P->>R: ComponentsAddedOf moved, same version
+    P->>R: AddsThisVersion: log delta == counter delta?
+    P->>P: yes: TakeLateAdds (the new parts only)
+    P-->>B: slice + late parts, merged by (part id, entity index)
+```
+*What it shows:* the exactness guard — the log is trusted only when it accounts for EVERY add the counter saw; otherwise (a type not logged, a
+version set back by playback) the index rebuilds exactly as before.
+
+| ⭐ rule kept | how |
+|---|---|
+| ⛔ behaviour unchanged | a read returns what a build would: late parts merge in the build's order (part id, ties by entity index — the walk's order); `Release` destroys in ENTITY order, so the LIFO free list recycles the same indices as the walk did |
+| R-2084 no hot-path allocation | the log and the merge buffer grow, never per call; `Release` collects into a stack span (was a `new Entity[4]` per call) |
+| the version | the log is per `GlobalVersion`; `SetGlobalVersion` / `ResetGlobalVersion` clear it |
+
+**Rails** — in the features' own suites (T-1): `PartIndexTests.CE4395_PartsAddedWithinTheFrame_AreTakenInWithoutABuild_AndAnswerAsTheScan`
+(🔴 red-proved: the log ignored ⇒ the build count moves; the tie-break dropped ⇒ a part on a recycled index sorts wrong) ·
+`CE4395_AVersionSetBack_FallsBackToABuild` · `EqsModuleTests.BehaviorOwnedParts_Release_DestroysInEntityOrder_SoIndicesRecycleAsTheWalkDid`
+(🔴 red-proved: the sort dropped ⇒ the next entity takes the other index).
+
+**Measured after** (the parts fix alone; `Release` still the walk): 3 000 men — `brain.Execute` **171 → 130 ms** per tick, `parts.rebuild`
+45 → 0.9 ms, `PartsOf` 52 → 8 ms; 1 000 men — rebuilds 3.7 → 1 per tick, the tick unchanged within the fight's noise (20.5 ms): at 1 000 the
+walks were small and the utility decisions are the cost.
+
+#### 11g-2. ⭐ What it takes at 1 000 men — a CADENCE for the combat decisions *(PROPOSAL — the user decides; behaviors informed)*
+
+📐 At 1 000 men the tick is 20 ms, and **~13 ms of it is three utility decisions** (`Combat posture`, `Threat ranking`, `Attack approach`)
+re-scored by every fighting man on **every** brain tick (§3.6 left soldiers at every frame — D6 "not now"). ⛔ No exact speed-up reaches the
+10 ms frame (R-4192) from there: the remaining exact levers (a per-decision input memo — `EnemyStrengthRatio` is read five times per decision;
+`ThreatDanger` per contact) are worth ~3–4 ms, and a memo needs a purity contract the readers do not have (`Measures.cs` readers write
+`ObjectiveStatus`).
+
+| option | effect at 1 000 | behaviour |
+|---|---|---|
+| ⭐ **lean: the combat decisions at the SOP cadence** — re-scored every 0.2 s, staggered by entity index, and at once when woken (`SensorChangedEvent`: a new contact, a hit, a near miss) — the D1–D8 mechanism (§3.0) and the pattern R-195 gave the SOP slot | the decision cost ÷ ~6 at 30 Hz ⇒ ~2 ms; the tick ≈ 9 ms | ⚠ **changes timing**: a posture change can land up to 0.2 s later when nothing woke the man. Decision-log stamps move; scenario conditions should hold (they test outcomes, not frames) |
+| exact memo per decision (+ `ThreatDanger` per tick) | −3–4 ms | none — but needs a reader purity contract (behaviors') |
+| parallel scoring (P-1) | ÷ cores, in principle | ⛔ the decisions run inside the BTree tick, interleaved with writes — a redesign of the runner |
+
+⇒ **Lean: the cadence**, as behaviors' D-design already allows, after the user says the 0.2 s latency is acceptable. What would change it: a
+scenario whose pass depends on a same-frame posture switch (the regression would show it).

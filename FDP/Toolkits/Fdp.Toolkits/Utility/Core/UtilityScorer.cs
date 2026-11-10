@@ -462,11 +462,13 @@ namespace Fdp.Toolkit.Utility
             float* scores  = stackalloc float[optionCount];
             int*   indices = stackalloc int[optionCount];
 
+            long tDecision = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — per decision, measurement only
             for (int i = 0; i < optionCount; i++)
             {
                 indices[i] = i;
                 scores[i]  = EvaluateOption(repo, self, context, def.Options[i], trace, tick, (byte)i);
             }
+            if (tDecision != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DecisionSlot(def), tDecision);
 
             // Insertion sort: descending score, ties broken by lower OptionId.
             InsertionSort(scores, indices, optionCount);
@@ -603,6 +605,27 @@ namespace Fdp.Toolkit.Utility
             return 0;
         }
 
+        // ⭐ CE-4395 B-1 — the timing slots (inclusive: an input that evaluates another decision counts it too). Named once, then a
+        //   lookup: no allocation in the steady state.
+        private static readonly int[] _inputSlots = new int[ushort.MaxValue + 1];   // slot + 1; 0 = not yet named
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _decisionSlots = new();
+
+        private static int InputSlot(ushort inputId)
+        {
+            int s = _inputSlots[inputId];
+            if (s != 0) return s - 1;
+            s = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("utility.input:" + UtilityInputNames.Of(inputId));
+            _inputSlots[inputId] = s + 1;
+            return s;
+        }
+
+        private static int DecisionSlot(in UtilityDecisionDef def)
+        {
+            string key = def.DebugName.Length > 0 ? def.DebugName : def.AssetId;
+            if (_decisionSlots.TryGetValue(key, out int s)) return s;
+            return _decisionSlots.GetOrAdd(key, Fdp.Toolkit.Diagnostics.QueryTimings.Slot("utility.decision:" + key));
+        }
+
         private static float EvaluateOption(
             EntityRepository repo,
             Entity self,
@@ -639,7 +662,11 @@ namespace Fdp.Toolkit.Utility
                 // Invoke the registered reader; default to 0 if not registered.
                 float raw = 0f;
                 if (UtilityInputReaderStore.TryGet(cons.InputId, out var reader) && reader != null)
+                {
+                    long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — per input, measurement only
                     raw = reader(in inputCtx);
+                    if (t0 != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(InputSlot(cons.InputId), t0);
+                }
 
                 float norm     = raw;  // Phase 1: normalisation is identity
                 float curveOut = cons.Curve.Evaluate(norm);

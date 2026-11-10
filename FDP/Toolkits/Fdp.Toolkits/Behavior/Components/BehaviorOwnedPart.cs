@@ -68,19 +68,23 @@ namespace Fdp.Toolkit.Behavior.Components
         {
             if (endingInstanceId == 0) return 0;
             SubordinateOrders.Release(repo, parent, endingInstanceId);   // ⭐ CE-2141 — the orders the run gave its members end with it too
+            // ⭐ CE-4395 — the parent's parts from the ONE parts index (PartIndex, CE-2412), not a walk over every entity per call: 📐 279 µs a
+            //   call at 3 000 men. Destroyed in ENTITY order, as the walk met them, so the freed indices recycle exactly as before.
+            if (!repo.IsComponentTypeRegistered<BehaviorOwnedPart>()) return 0;   // no owned part can exist (the walk found none)
+            System.Span<Entity> parts = stackalloc Entity[32];
+            int total = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(repo, parent, parts);
+            if (total > parts.Length) { parts = new Entity[total]; total = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(repo, parent, parts); }
             int count = 0;
-            Entity[]? doomed = null;
-            // ⚠ Collect first, destroy after: never mutate structure under a live query.
-            foreach (var part in repo.Query().With<BehaviorOwnedPart>().With<PartMetadata>().Build())
+            for (int i = 0; i < total; i++)
             {
-                ref readonly var meta  = ref repo.GetComponentRO<PartMetadata>(part);
-                ref readonly var owned = ref repo.GetComponentRO<BehaviorOwnedPart>(part);
-                if (!meta.ParentEntity.Equals(parent) || owned.OwnerInstanceId != endingInstanceId) continue;
-                doomed ??= new Entity[4];
-                if (count == doomed.Length) System.Array.Resize(ref doomed, count * 2);
-                doomed[count++] = part;
+                var part = parts[i];
+                if (!repo.HasComponent<BehaviorOwnedPart>(part) || repo.GetComponentRO<BehaviorOwnedPart>(part).OwnerInstanceId != endingInstanceId) continue;
+                int at = count++;                                   // keep the doomed sorted by entity index (a handful: insertion)
+                while (at > 0 && parts[at - 1].Index > part.Index) { parts[at] = parts[at - 1]; at--; }
+                parts[at] = part;
             }
-            for (int i = 0; i < count; i++) repo.DestroyEntity(doomed![i]);
+            // ⚠ Collect first, destroy after: the index is read above, never mutated under a read.
+            for (int i = 0; i < count; i++) repo.DestroyEntity(parts[i]);
             return count;
         }
     }

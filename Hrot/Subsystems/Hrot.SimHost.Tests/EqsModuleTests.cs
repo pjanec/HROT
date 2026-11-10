@@ -340,6 +340,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.Release(_world, parent, 0));   // 0 = unowned
         }
 
+        /// <summary>⭐ CE-4395 — Release reads the parent's parts from the parts index (no walk over every entity) and destroys them in ENTITY
+        /// order, as the walk did: the free list is LIFO, so the order decides which index the next entity takes. Here the lower index holds the
+        /// higher part id, so the index's own order (by part id) would recycle the other way. 🔴 Red-proof: the sort dropped ⇒ the next entity
+        /// takes the other index.</summary>
+        [Fact]
+        public void BehaviorOwnedParts_Release_DestroysInEntityOrder_SoIndicesRecycleAsTheWalkDid()
+        {
+            var parent = BehaviourParent(4);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+            var filler = _world.CreateEntity();
+            var first = EqsChildSensor.Ensure(view, parent, 1, cfg);
+            _world.DestroyEntity(filler);
+            var second = EqsChildSensor.Ensure(view, parent, 2, cfg);            // recycles the filler's lower index, with the higher part id
+            Assert.True(second.Index < first.Index);
+            Assert.True(_world.GetComponentRO<PartMetadata>(second).InstanceId > _world.GetComponentRO<PartMetadata>(first).InstanceId);
+
+            Assert.Equal(2, Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.Release(_world, parent, 4));
+            Assert.Equal(first.Index, _world.CreateEntity().Index);              // the walk destroyed `second` then `first`: LIFO gives `first`'s back
+            Assert.Equal(second.Index, _world.CreateEntity().Index);
+        }
+
         /// <summary>⭐ CE-485 — Refresh counts in the epoch's LOW 16 bits only; the owner in the high 16 never changes.</summary>
         [Fact]
         public void EqsChildSensor_Refresh_KeepsTheOwnerBits()

@@ -123,6 +123,13 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            long tExecute = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — the whole tick, on the slots' basis
+            try { ExecuteCore(view, deltaTime); }
+            finally { if (tExecute != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Execute, tExecute); }
+        }
+
+        private void ExecuteCore(ISimulationView view, float deltaTime)
+        {
             // ⭐ CE-3076 (CE-2101's rule, DESIGN_Cluster_Load_Phase §8) — both dedup records are keyed by entity INDEX, which the
             //   world boundary REUSES, and InstanceId restarts at 1 per entity: a new unit landing on the index of a last-world
             //   unit that finished its first run would never tick (Run returns at the "already finished" guard). ⚠ The stale
@@ -164,7 +171,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var evt in repo.ReadEvents<ClearBehaviorEvent>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
 
+            long tSweep = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — measurement only
             SweepStaleDedupEntries(tiers.Count);
+            if (tSweep != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sweep, tSweep);
 
             // ⭐ CE-2382 (DESIGN_Evaluation_Cost_And_Cadence §3.0–§3.2) — ONE clock for the frame (sim time), shared by the task slots' cadence and the SOP slot's.
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : (_sopClock += deltaTime);
@@ -206,6 +215,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                         continue;
 
                     int previousWindow = cadenced ? OpenCadenceWindow(repo, entity) : NoWindow;
+                    long tRun = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — per behaviour, measurement only
                     try
                     {
                         if (BehaviorRunners.For(behavior.BrainTier) is { } runner)
@@ -215,6 +225,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     {
                         if (cadenced) repo.CloseStepWindow(previousWindow);
                         if (_history != null) AfterCadencedTick(repo, entity, now);
+                        if (tRun != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DefinitionSlot("brain.task:", def), tRun);
                     }
 
                     // ⭐ CE-482 — FAIL LOUD: a run that raised a fault this tick (and did not already finish) ends now, through
@@ -227,7 +238,9 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             if (drain) CadenceDrain.MarkDrained(repo);                              // ⭐ CE-2385 — no window is open now
             CadenceDrain.SetWindowsOpen(repo, _cadenceReaders.Count > 0);
+            long tSops = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
             TickSopSlots(repo, deltaTime, now);   // ⭐ CE-3035 — the SOP slot, after every task has ticked
+            if (tSops != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sops, tSops);
         }
 
         // ════ ⭐⭐ CE-2382 — THE TASK SLOT'S CADENCE: each cadenced slot reads the bus through ITS OWN EventAccumulator window ═══════════
@@ -339,7 +352,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!_registry.TryGetDefinition(sop.SopHash, out var def)) continue;
                 if (BehaviorRunners.For(sop.SopBrainTier) is not { } runner) continue;
 
+                long tSop = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — per SOP, measurement only
                 TickOneSop(runner, repo, entity, sop.SopHash, sop.SopInstanceId, def, deltaTime);
+                if (tSop != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DefinitionSlot("brain.sop:", def), tSop);
             }
         }
 
@@ -474,6 +489,20 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// its reload restart (<c>CE-452</c>), and the finish (<c>CE-449</c>). ⭐ The same <c>Runner.Tick</c> over the same
         /// (brain, block) pair is what hosting will call (S5) — root = hosted with no host.
         /// </summary>
+        // ⭐ CE-4395 B-1 — the brain's timing slots (inclusive). Named once per definition, then a lookup: no allocation in the steady state.
+        private static readonly int S_Execute = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.Execute (whole)");
+        private static readonly int S_Sops = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.TickSopSlots (whole)");
+        private static readonly int S_Sweep = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.SweepStaleDedupEntries");
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<BehaviorDefinition, int[]> _defSlots = new();
+
+        private static int DefinitionSlot(string family, BehaviorDefinition def)
+        {
+            var slots = _defSlots.GetValue(def, _ => new[] { -1, -1 });
+            int k = family == "brain.task:" ? 0 : 1;
+            if (slots[k] < 0) slots[k] = Fdp.Toolkit.Diagnostics.QueryTimings.Slot(family + def.Name);
+            return slots[k];
+        }
+
         private void Run(IBehaviorRunner runner, EntityRepository repo, Entity entity, in BehaviorState behavior,
                          BehaviorDefinition def, float deltaTime)
         {

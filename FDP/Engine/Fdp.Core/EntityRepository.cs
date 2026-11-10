@@ -255,10 +255,54 @@ namespace Fdp.Core
 
         private long[] _addedByType = new long[64];
 
-        private void BumpType(int typeId)
+        private void BumpType(int typeId, int entityIndex)
         {
             if ((uint)typeId >= (uint)_addedByType.Length) Array.Resize(ref _addedByType, Math.Max(typeId + 1, _addedByType.Length * 2));
             _addedByType[typeId]++;
+            if ((uint)typeId < (uint)_addLog.Length && _addLog[typeId] is { } log) log.Note(entityIndex, _globalVersion);
+        }
+
+        // ⭐ CE-4395 — WHICH entities gained a component, for the types a per-frame index asked about (LogAddsOf). Index-keyed, per GlobalVersion.
+        private AddLog?[] _addLog = Array.Empty<AddLog?>();
+
+        private sealed class AddLog
+        {
+            public int[] Indices = new int[16];
+            public int Count;
+            public uint Version;
+            public void Note(int entityIndex, uint version)
+            {
+                if (version != Version) { Version = version; Count = 0; }
+                if (Count == Indices.Length) Array.Resize(ref Indices, Count * 2);   // allocation on growth only
+                Indices[Count++] = entityIndex;
+            }
+        }
+
+        private void ClearAddLogs()
+        {
+            foreach (var log in _addLog) if (log != null) { log.Count = 0; log.Version = uint.MaxValue; }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4395</c> — from now on, note the entity INDEX of every add of a component of type id <paramref name="typeId"/> (the same adds
+        /// <see cref="ComponentsAddedOf"/> counts), so a per-frame index can take the parts added within the frame instead of rebuilding over
+        /// every entity (📐 the parts index: 27 full rebuilds a frame at 3 000 men). Idempotent. Not recorded, not restored.
+        /// </summary>
+        public void LogAddsOf(int typeId)
+        {
+            if ((uint)typeId >= (uint)_addLog.Length) Array.Resize(ref _addLog, Math.Max(typeId + 1, Math.Max(64, _addLog.Length * 2)));
+            _addLog[typeId] ??= new AddLog { Version = _globalVersion };
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4395</c> — the entity indices that gained a component of type id <paramref name="typeId"/> at the current
+        /// <see cref="GlobalVersion"/>, in order (an index may repeat: added, removed, added). Empty for a type nobody asked to log
+        /// (<see cref="LogAddsOf"/>) — ⚠ the caller compares its length with <see cref="ComponentsAddedOf"/>'s delta, never trusts it alone.
+        /// </summary>
+        public ReadOnlySpan<int> AddsThisVersion(int typeId)
+        {
+            if ((uint)typeId >= (uint)_addLog.Length || _addLog[typeId] is not { } log || log.Version != _globalVersion) return default;
+            return new ReadOnlySpan<int>(log.Indices, 0, log.Count);
         }
 
         /// <summary>
@@ -317,6 +361,7 @@ namespace Fdp.Core
         /// </summary>
         internal void SetGlobalVersion(uint version)
         {
+            ClearAddLogs();   // ⭐ CE-4395 — a version set back must not make an old version's adds read as this one's
             _globalVersion = version;
             _simulationTick = version;
         }
@@ -328,6 +373,7 @@ namespace Fdp.Core
         /// </summary>
         public void ResetGlobalVersion(uint version = 1)
         {
+            ClearAddLogs();   // ⭐ CE-4395 — a version set back must not make an old version's adds read as this one's
             _globalVersion = version;
             _simulationTick = version;
         }
@@ -1101,7 +1147,7 @@ namespace Fdp.Core
             if (mask.IsSet(typeId)) return;
             mask.SetBit(typeId);
             _entityIndex.GetMetadata(entityIndex).LastChangeTick = _globalVersion; _structuralChanges++;
-            BumpType(typeId);
+            BumpType(typeId, entityIndex);
         }
 
         /// <summary>
@@ -1485,7 +1531,7 @@ namespace Fdp.Core
             if (had != (value != null))
             {
                 _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
-                BumpType(ManagedComponentType<T>.ID);
+                BumpType(ManagedComponentType<T>.ID, entity.Index);
             }
         }
 
@@ -1913,7 +1959,7 @@ namespace Fdp.Core
             // Update component mask
             _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
             _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
-            BumpType(typeId);
+            BumpType(typeId, entity.Index);
         }
         
         /// <summary>
@@ -2046,7 +2092,7 @@ namespace Fdp.Core
             ref var header2 = ref _entityIndex.GetComponentMask(entity.Index);
             header2.SetBit(typeId);
             _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
-            BumpType(typeId);
+            BumpType(typeId, entity.Index);
         }
         
         /// <summary>
@@ -2071,7 +2117,7 @@ namespace Fdp.Core
             ref var header2b = ref _entityIndex.GetComponentMask(entity.Index);
             header2b.SetBit(typeId);
             _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
-            BumpType(typeId);
+            BumpType(typeId, entity.Index);
         }
         
         /// <summary>

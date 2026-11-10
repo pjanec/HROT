@@ -116,5 +116,86 @@ namespace Fdp.Toolkits.Tests.Replication
             for (int i = 0; i < 500; i++) PartIndex.PartsOf(_w, parents[i % parents.Count], buf);
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4395</c> — parts ADDED within the frame are taken in from the repository's add log, WITHOUT a build (📐 27 full builds a
+        /// frame at 3 000 men), and every read still answers exactly as the scan: ties with built parts by entity order, a part added, removed
+        /// and added again, a parent created this frame, more parts than the buffer. A steady read with late parts allocates nothing.
+        /// 🔴 Red-proof: <c>TakeLateAdds</c> ignoring the log (every add rebuilds) ⇒ the build count moves.
+        /// </summary>
+        [Fact]
+        public void CE4395_PartsAddedWithinTheFrame_AreTakenInWithoutABuild_AndAnswerAsTheScan()
+        {
+            var rng = new Random(4395);
+            var parents = new List<Entity>();
+            for (int i = 0; i < 40; i++) parents.Add(_w.CreateEntity());
+            for (int i = 0; i < 200; i++) Part(parents[rng.Next(parents.Count)], rng.Next(0, 10));
+            _w.Tick();
+            foreach (var p in parents) Assert.Equal(Scan(p), Index(p));
+            var index = PartIndex.Of(_w);
+            int builds = index.Builds;
+
+            for (int round = 0; round < 30; round++)                     // the brain's shape: a read, a part added, a read …
+            {
+                Part(parents[rng.Next(parents.Count)], rng.Next(0, 10));   // ids collide with built parts: ties by entity order
+                var p = parents[rng.Next(parents.Count)];
+                Assert.Equal(Scan(p), Index(p));
+            }
+            // a late part on a RECYCLED low index, its id equal to a built part's: the build's walk would meet it FIRST (ties by entity index)
+            var tieParent = parents[10];
+            var built = Index(tieParent);
+            Assert.NotEmpty(built);
+            int tieId = _w.GetComponentRO<PartMetadata>(built[^1]).InstanceId;
+            Entity lowest = default;
+            foreach (var e in _w.Query().With<PartMetadata>().Build()) { lowest = e; break; }
+            Assert.True(lowest.Index < built[^1].Index);
+            _w.DestroyEntity(lowest);
+            var recycled = Part(tieParent, tieId);
+            Assert.Equal(lowest.Index, recycled.Index);
+            Assert.Equal(Scan(tieParent), Index(tieParent));
+            var again = Part(parents[2], 4);                               // added, removed, added again — once
+            Index(parents[2]);
+            _w.RemoveComponent<PartMetadata>(again);
+            Assert.DoesNotContain(again, Index(parents[2]));
+            _w.AddComponent(again, new PartMetadata { ParentEntity = parents[2], InstanceId = 4 });
+            var newParent = _w.CreateEntity();                             // a parent born this frame, past the build's arrays
+            var child = Part(newParent, 1);
+            Assert.Equal(new List<Entity> { child }, Index(newParent));
+            for (int i = 0; i < 20; i++) Part(newParent, 50 - i);
+            Span<Entity> small = stackalloc Entity[4];
+            Assert.Equal(21, PartIndex.PartsOf(_w, newParent, small));
+            Assert.Equal(1, _w.GetComponentRO<PartMetadata>(small[0]).InstanceId);
+            Assert.Equal(31, _w.GetComponentRO<PartMetadata>(small[1]).InstanceId);
+            foreach (var p in parents) Assert.Equal(Scan(p), Index(p));
+            Assert.Equal(Scan(newParent), Index(newParent));
+            Assert.Equal(builds, index.Builds);                            // ⭐ not one build within the frame
+            Assert.True(index.LateAdds >= 50);
+
+            Span<Entity> buf = stackalloc Entity[64];
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 500; i++) PartIndex.PartsOf(_w, parents[i % parents.Count], buf);
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+
+            _w.Tick();                                                     // the next frame builds once and forgets the late parts
+            foreach (var p in parents) Assert.Equal(Scan(p), Index(p));
+            Assert.Equal(builds + 1, index.Builds);
+        }
+
+        /// <summary>⭐ <c>CE-4395</c> — a version set back (playback, a test reset) must not make the add log speak for this version: the index
+        /// falls back to a build and still answers as the scan.</summary>
+        [Fact]
+        public void CE4395_AVersionSetBack_FallsBackToABuild()
+        {
+            var parent = _w.CreateEntity();
+            Part(parent, 1);
+            _w.Tick();
+            Assert.Single(Index(parent));
+            uint v = _w.GlobalVersion;
+            Part(parent, 2);
+            _w.ResetGlobalVersion(v);                                      // same version number, the log forgotten
+            var third = Part(parent, 3);
+            Assert.Equal(Scan(parent), Index(parent));
+            Assert.Contains(third, Index(parent));
+        }
     }
 }
