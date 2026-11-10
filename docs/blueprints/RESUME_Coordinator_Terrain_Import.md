@@ -90,8 +90,8 @@ first navmesh bake time when the editor opens it.
 | order | item | why |
 |---|---|---|
 | 1 | ✅ **the results of §2** — RUN on the user's machine 2026-11-10: both paths work, real terrain warm load 25.3 s, cold 366 s; 6 fixes landed — read [REPORT_Terrain_Import_Real_Runs](REPORT_Terrain_Import_Real_Runs.md) (F-R4 / F-R5 left) | the first real proof of both paths |
-| 2 | **`UtmTransform : IGeographicTransform`** (stage 1, UTM §6.1) — chosen when `terrain.json` carries `frame.utm` (the importer already writes it, I-b) | lat / lon read-outs drift ≲ 2 m at 5 km on the tangent plane today; ⚠ touches the geographic origin (R-229, `DESIGN_Geo_Origin.md`, 53 users) — design first |
-| 3 | **navmesh prefill** in the importer (stage 6, I-l) | the first load bakes ≈ 127 s (server GC, 4 cores) — pre-fill `NavTileCache` at import |
+| 2 | ⏳ **dispatched to backend `2026-11-10` as CE-4394** ([handoff](batches/HANDOFF_Coordinator_To_Backend_Navmesh_Prefill_And_Utm.md)) — **`UtmTransform : IGeographicTransform`** (stage 1, UTM §6.1) — chosen when `terrain.json` carries `frame.utm` (the importer already writes it, I-b) | lat / lon read-outs drift ≲ 2 m at 5 km on the tangent plane today; ⚠ touches the geographic origin (R-229, `DESIGN_Geo_Origin.md`, 53 users) — design first |
+| 3 | ⏳ **dispatched to backend `2026-11-10` as CE-4393** (same handoff; lean: tiles written into the terrain folder, a read-only cache layer staged to every node) — **navmesh prefill** in the importer (stage 6, I-l) | the first load bakes ≈ 127 s (server GC, 4 cores) — pre-fill `NavTileCache` at import |
 | 4 | **CE-4379** a switch-back stair when a straight one does not fit | 6 % of houses become solid today |
 | 5 | **CE-4380** hash once while streaming | 14.9 of 18.1 s of an import is reading + hashing |
 | later | OSM: split a too-large Overpass result, an Overpass 200 with an error `<remark>`, coastlines (OSM §7, F-5) · scrub as a concealment class (T-8) · tree felling (CE-3426) · destruction build (UTM §8, design READY) · the map background (OSM §8 — ⛔ the USER decides) | |
