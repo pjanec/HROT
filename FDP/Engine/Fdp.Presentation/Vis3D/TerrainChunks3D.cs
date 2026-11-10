@@ -345,39 +345,11 @@ namespace Fdp.Toolkit.Vis3D
     /// (translation in M14 / M24 / M34, column vectors): the eye is the inverse view's translation; the planes are Gribb–Hartmann on projection × view. Proven by
     /// <c>TheTerrainChunksTests</c> against a known <c>Camera3D</c>.
     /// </summary>
-    internal static class View
+    internal static class View   // ⭐ CE-4388 — the one implementation moved to the shared ViewFrustum; this forwards (no rename)
     {
-        public static bool TryEye(Matrix4x4 view, out Vector3 eye)
-        {
-            eye = default;
-            if (!Matrix4x4.Invert(view, out var inv)) return false;
-            eye = new Vector3(inv.M14, inv.M24, inv.M34);
-            return float.IsFinite(eye.X) && float.IsFinite(eye.Y) && float.IsFinite(eye.Z);
-        }
-
-        public static bool TryPlanes(Matrix4x4 view, Matrix4x4 proj, Vector4[] planes)
-        {
-            var m = Matrix4x4.Multiply(proj, view);
-            var r1 = new Vector4(m.M11, m.M12, m.M13, m.M14);
-            var r2 = new Vector4(m.M21, m.M22, m.M23, m.M24);
-            var r3 = new Vector4(m.M31, m.M32, m.M33, m.M34);
-            var r4 = new Vector4(m.M41, m.M42, m.M43, m.M44);
-            planes[0] = r4 + r1; planes[1] = r4 - r1; planes[2] = r4 + r2; planes[3] = r4 - r2; planes[4] = r4 + r3; planes[5] = r4 - r3;
-            for (int i = 0; i < 6; i++) if (!float.IsFinite(planes[i].X) || planes[i] == Vector4.Zero) return false;
-            return true;
-        }
-
-        /// <summary>The box is (at least partly) on the inner side of every plane — the p-vertex test.</summary>
-        public static bool BoxInside(Vector4[] planes, Vector3 min, Vector3 max)
-        {
-            for (int i = 0; i < 6; i++)
-            {
-                var p = planes[i];
-                float x = p.X >= 0 ? max.X : min.X, y = p.Y >= 0 ? max.Y : min.Y, z = p.Z >= 0 ? max.Z : min.Z;
-                if ((p.X * x) + (p.Y * y) + (p.Z * z) + p.W < 0f) return false;
-            }
-            return true;
-        }
+        public static bool TryEye(Matrix4x4 view, out Vector3 eye) => ViewFrustum.TryEye(view, out eye);
+        public static bool TryPlanes(Matrix4x4 view, Matrix4x4 proj, Vector4[] planes) => ViewFrustum.TryPlanes(view, proj, planes);
+        public static bool BoxInside(Vector4[] planes, Vector3 min, Vector3 max) => ViewFrustum.BoxInside(planes, min, max);
     }
 }
 

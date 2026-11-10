@@ -44,6 +44,14 @@ separates it. ⭐ The networked viewer is R-4's Player.
 
 ⇒ the render cost, biggest first: **unit bodies 31 ms** · **gizmos 22 ms build + 6–8 ms draw, 2–4 MB** · **the 2-D plan 17 ms, 4 MB** · **effects 13 ms (3-D)**.
 
+## R-2 fixes (re-measured, scale-1, 1 000 men, preview, 3-D mid)
+
+| fix | before | after | rail |
+|---|---|---|---|
+| ✅ **bodies culled to the view** — `EntityBodyLayer3D` tests each entity against the pass's frustum (40 m cube) before posing it; the terrain's frustum code is now the shared `ViewFrustum` (the terrain's `View` forwards to it — one implementation) | Entities (3-D) **30.7 ms**, world draw 57 ms, frame 190 ms | Entities (3-D) **5.1 ms**, world draw **20.6 ms**, frame 131 ms (effects 12.7 → 2.8 ms) | `Map3DFrameRail.CE4388_ABodyBehindTheCamera_IsNotDrawn` (red with the cull off); the body suites 428 / 3 (the 3 known reds) |
+| ⏳ the gizmo view filter (cull + zoom, one place) | `StatelessGizmoSystem` 21.6 ms + Debug Gizmos 5 ms / 2–4 MB | — | design first (UX Symbology §3.4 / Map Parity §3.2f) |
+| ⏳ a distance LOD for people / vehicles | — | — | ⚠ changes the look — the user's call |
+
 ## R-1 measured — scale-1, 1 000 men, preview (hidden, uncapped, 2200 × 1200)
 
 | view | fps min / avg | ms mean / p95 | terrain tris / meshes | garbage / frame |

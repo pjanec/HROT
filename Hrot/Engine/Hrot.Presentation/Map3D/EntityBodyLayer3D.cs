@@ -93,6 +93,15 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
     public Entity? PickEntity(Vector2 worldPos) => null;
 
+    /// <summary>⭐ CE-4388 (render under load, R-2) — the half-size (m) of the cube round an entity's position tested against the view: larger than any body's reach
+    /// from its reference point (an airframe's wings, a rotor), so nothing partly in view is skipped.</summary>
+    public const float CullRadius = 40f;
+
+    /// <summary>⭐ CE-4388 — entities this pass skipped as outside the view (a rail; telemetry).</summary>
+    public int BodiesCulled { get; private set; }
+
+    private readonly Vector4[] _planes = new Vector4[6];
+
     public void Draw3D(RenderContext ctx)
     {
         AmbientDrawn = 0;
@@ -132,8 +141,14 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         bool hasNet = world.IsComponentTypeRegistered<NetworkIdentity>();
         SelectionBoxesDrawn = 0;
         _tops.Clear();
+        // ⭐ CE-4388 (R-2) — the frustum of THIS pass (the window's camera or a film's), the terrain's own test (ViewFrustum): measured on Windows, 2026-11-10,
+        //   every body was posed and drawn part by part each frame, in view or not — 31 ms at 1 000 men on scale-1, and all 6 912 doors. A body that leaves the
+        //   view and comes back starts its gait afresh, as a newly spawned one does (its trackers end with this frame's _drawn).
+        bool cull = Fdp.Toolkit.Vis3D.ViewFrustum.TryCurrent(_planes);
+        BodiesCulled = 0;
         foreach (var e in _query!)
         {
+            if (cull && !Fdp.Toolkit.Vis3D.ViewFrustum.AroundInside(_planes, world.GetComponentRO<SimTransform>(e).Position, CullRadius)) { BodiesCulled++; continue; }
             // ⭐ CE-1068 (§6k) — a DOOR is its leaf, hinged in its doorway, never a shape kit (it used to be an unknown box)
             if (DoorLeaf3D.IsDoor(world, e)) { DrawDoor(world, e, shader, simTime, hasSelection); continue; }
             long type = world.GetComponentRO<TkbIdentity>(e).TkbType;
