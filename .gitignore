@@ -73,3 +73,6 @@ scenarios/perf-civ-*/
 # CE-4363: the scale terrains (scripts/terrain-scale.py) — regenerated, never committed
 assets/terrain/scale-*/
 scenarios/scale-rig-*/
+
+# SUMO installed by scripts/install-sumo.* (Terrain From OSM §9.1) — never committed
+.local/
