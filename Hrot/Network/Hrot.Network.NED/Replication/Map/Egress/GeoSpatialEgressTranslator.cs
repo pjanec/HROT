@@ -114,6 +114,10 @@ namespace Hrot.Map.Common.Replication.Egress
                     continue;
                 }
                 live.GetComponentRW<NetworkTransform>(d.Entity) = d.Shadow;
+                // ⭐ a first-sight attach that found the shadow already there still grants it: off the frame the first sample goes out a frame
+                //   late, and this node's own ingress may have upserted the shadow (without authority) before this join. 📐 Found by
+                //   TheEgressShadowExistsAtBirthTests.TheOwnerHasAuthorityOverItsOwnShadow with FDP_EGRESS_OFFFRAME=1 (AX-011).
+                if (d.Attach) live.SetAuthority<NetworkTransform>(d.Entity, true);
             }
             _deferredCount = 0;
         }
