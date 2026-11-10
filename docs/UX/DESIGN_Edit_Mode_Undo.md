@@ -61,6 +61,10 @@ Queries: `search_graph` `Scenario.*(Save|Serializer|Resident)` (17), `.*(Selecti
 
 `WorldKeyframes.Capture(world, CaptureOptions.Undo)` — the NEW `KeyframeTypes.Authored` mask (`ComponentTypeRegistry.IsSaveable`: every type not
 `NoScenario`, the saved `NoPreview` ones included; no singletons). Rail `TheWorldChangeCheckOnTheEditorTests.U1_OneUndoCapture_SizeAndTime`.
+⭐ **AS BUILT, CE-4411 (2026-11-10) — the mask is "authored" PLUS the replication-identity components** (`NetworkIdentity`, `NetworkAuthority`,
+`ReplicationRoute` — `CaptureOptions.IsReplicationIdentity`). All three are `NoScenario`, so the pure "authored" mask left them out and an UNDONE DELETE
+brought the entity back with no network id: `Edits.Delete` refused it (*"the entity is not replicated — delete it locally"*) and no edit knew it as a replicated
+entity. Rail `WorldUndoTests.CE4411_AnUndoneDelete_RestoresTheNetworkIdentity_…`. ⛔ HISTORY: "every type not `NoScenario`" alone. (`DescriptorOwnership`, a managed record, is not carried — split authority has no Edit-mode meaning.)
 
 | scenario | entities in the editor | one undo capture | capture | apply | the recorder's mask | a 256 MB ring holds |
 |---|---|---|---|---|---|---|

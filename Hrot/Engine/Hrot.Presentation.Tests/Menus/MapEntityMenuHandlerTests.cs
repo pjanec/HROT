@@ -173,4 +173,26 @@ public sealed class MapEntityMenuHandlerTests : IDisposable
         Assert.True(_host.Actions.Has(GlobalActionIds.OpenLayerControl));   // the map's own
         Assert.True(_host.Actions.Has(GlobalActionIds.Select));             // the host's shared
     }
+
+    /// <summary>⭐ CE-4410 (user, 2026-11-10: <i>"on 2D map, when I right click the entity, there is no delete option"</i>) — the entity menu, the map's AND the inspector's (one
+    /// <see cref="MapEntityMenuHandler"/>, 2-D and 3-D alike), offers Delete on a UNIT, shortcut shown, and a click runs the Delete key's ONE path
+    /// (<see cref="Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity"/> ⇒ <c>Edits.Submit(EditOp.Delete)</c>).
+    /// 🔴 Red-proof (compiles): Delete declared for a graphic only (<c>Graphic</c> instead of <c>Everything</c> in <c>MapMenuActions</c>) ⇒ no item on a unit ⇒ red.</summary>
+    [Fact]
+    public void CE4410_TheEntityMenu_OffersDeleteOnAUnit_AndAClickDeletesItThroughTheOneDeletePath()
+    {
+        var unit = Unit(42, new Vector3(10, 20, 0));
+        _host.Actions.Register(GlobalActionIds.Delete, (view, target) => Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity((EntityRepository)view, target));
+        var menu = new Menu();
+        new MapEntityMenuHandler(() => _host, () => _w).PopulateMenu(unit, menu);
+
+        Assert.Contains("Delete", menu.Items);
+        menu.Click("Delete");
+        var request = Assert.Single(Requests(), r => r.ActionId == GlobalActionIds.Delete);
+        Assert.Equal(unit, request.Target);
+        Assert.True(_host.Actions.TryGetHandler(GlobalActionIds.Delete, out var run));
+        run(_w, unit);
+        _w.Bus.SwapBuffers();
+        Assert.Contains(_w.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>().ToArray(), c => c.NetworkId == 42);   // the edit framework's delete request — F2
+    }
 }

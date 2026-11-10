@@ -386,7 +386,8 @@ being in the wrong mode. Everything that is not the bootstrapper falls back to A
 | Center View, Follow, Select, Properties…, Pin gizmos, AI trace | ✓ | ✓ | ✓ | ✓ |
 | Save selection as macro… | ✓ | — | — | — |
 | Rotate *(the same modes as moving by drag and drop)* | ✓ | — | ✓ | — |
-| Edit Shape, Edit Route, Load zone, Delete (graphics) | ✓ | — | ✓ | — |
+| Edit Shape, Edit Route, Load zone | ✓ | — | ✓ | — |
+| Delete — ⭐ **a unit too, not only a graphic** (CE-4410, user 2026-11-10: *"on 2D map, when I right click the entity, there is no delete option"*; shortcut `Delete`, the Delete key's one path `SelectionInteractionSystem.DeleteEntity` ⇒ `Edits.Submit(EditOp.Delete)`) | ✓ | — | ✓ | — |
 
 ⭐ **USER RULING R-4162 (`2026-11-07`) — this table as corrected by the user** (the A3 review): 🔒 *"Rotate should be possible in life as well, the same way as drag and drop is. Save as macro makes sense only in edit mode."* ⛔ SUPERSEDED: the built golden had Rotate Edit-only and *Save selection as macro…* in every mode. Follow and Select stay in every mode (the lean, not objected to). ⭐ **Save** (the toolbar icon, Ctrl+S, File ▸ Save) writes the scenario ONLY in Edit; in Live it takes a **checkpoint**; ✏ in **Preview it is refused** with *"Preview — changes are thrown away on Stop"* (R-4166: a Preview is never recorded, so it has nothing to checkpoint — the R-4162 wording *"Preview and Live"* is SUPERSEDED); in Review it is not offered — 🔒 *"saving scenario in live mode or in replay mode or elsewhere than the edit is not desired, The save Icon Should work as save only in edit mode, and if used during preview or live, it should create a checkpoint. This was already planned like that."*
 

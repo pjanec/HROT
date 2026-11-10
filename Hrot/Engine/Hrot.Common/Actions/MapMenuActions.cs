@@ -134,7 +134,7 @@ namespace Hrot.Common.Actions
             });
 
             // ── Destructive (a graphic) ───────────────────────────────────────────────────────────────────────────────────────────────
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Graphic) { Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive, Execution = ActionExecution.PerEntity });   // ⭐ A4 — every selected one
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Everything) { Shortcut = "Delete", Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive, Execution = ActionExecution.PerEntity });   // ⭐ A4 — every selected one · ⭐ CE-4410 — a UNIT too (it was offered on a graphic only, so a right-click on an entity had no Delete); the handler is the Delete key's: Edits.Submit(EditOp.Delete)
         }
 
         private static IEnumerable<ContextMenuItemDto> OrderRows(ActionContext ctx)

@@ -110,6 +110,32 @@ public sealed class WorldUndoTests
         Assert.Equal(1, rig.History.Count);
     }
 
+    /// <summary>⭐ CE-4411 — delete → undo → the entity comes back WITH its network identity (and authority / route), so it is an entity the edit path treats exactly like
+    /// the original: deleting it again is accepted ("the entity is not replicated" was the refusal), and so is an edit of it.
+    /// 🔴 Red-proof (compiles): drop the identity components from the undo capture (<c>IsReplicationIdentity</c> → <c>false</c>) ⇒ the restored entity has no id ⇒ red.</summary>
+    [Fact]
+    public void CE4411_AnUndoneDelete_RestoresTheNetworkIdentity_SoItCanBeDeletedAgainAndEdited()
+    {
+        using var rig = new Rig();
+        rig.World.AddComponent(rig.Unit, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = (NodeId)1 });
+        rig.World.Tick();
+
+        EditSteps.Begin(rig.World, "Delete"); rig.World.DestroyEntity(rig.Unit); EditSteps.End(rig.World);   // the teardown the owner's system performs, as one step
+        Assert.False(rig.World.IsAlive(rig.Unit));
+
+        Assert.True(rig.History.Undo());
+        var back = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(rig.World, 55);
+        Assert.NotEqual(Entity.Null, back);                                                      // the id came back with the entity
+        Assert.True(rig.World.HasComponent<NetworkAuthority>(back));
+
+        var again = Fdp.Toolkit.Replication.Edits.Edits.Submit(rig.World, EditOp.Delete(back, "Delete"));
+        Assert.NotEqual(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, again.Route);                                  // not "the entity is not replicated"
+
+        rig.Now = 10;
+        var rename = Fdp.Toolkit.Replication.Edits.Edits.Submit(rig.World, EditOp.Write(back, Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.PositionX, 3.0), "Rename"));
+        Assert.NotEqual(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, rename.Route);
+    }
+
     /// <summary>🔴 Red-proof (compiles): the world step pushed without <c>available</c> ⇒ an evicted step stays enabled ⇒ red.</summary>
     [Fact]
     public void B14_AStepWhoseSnapshotWasEvicted_IsGreyed_SaveIsTheCleanPoint()

@@ -2616,13 +2616,7 @@ namespace Hrot.Editor
             actionRegistry.Register(GlobalActionIds.Delete, (view, target) =>
             {
                 if (target == Entity.Null) return;
-                int netId = view.HasComponent<NetworkIdentity>(target)
-                    ? view.GetComponentRO<NetworkIdentity>(target).Value
-                    : 0;
-                if (netId != 0)
-                    Fdp.Toolkit.Replication.Edits.Edits.Submit(_world!, Fdp.Toolkit.Replication.Edits.EditOp.Delete(target, "Delete"));   // ⭐ CE-4276
-                else
-                    _world!.DestroyEntity(target);
+                Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity(_world!, target);   // ⭐ CE-4410 — the Delete key's one path (CE-4276 F2)
             });
             // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
             //   host; the inspector menu below still publishes the same action ids.

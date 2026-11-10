@@ -298,21 +298,23 @@ public sealed class SelectionInteractionSystem
 
             foreach (var e in toDestroy)
             {
-                if (!_world.IsAlive(e)) continue;
-                if (_world.HasComponent<NetworkIdentity>(e))
-                {
-                    // ⭐ CE-4276 (edit framework F2) — the request id end to end; a non-owner asks the owner and keeps the replica until it is disposed.
-                    Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Delete(e, "Delete"));
-                }
-                else
-                {
-                    _world.DestroyEntity(e);
-                }
+                DeleteEntity(_world, e);
             }
 
             if (toDestroy.Count > 0)
                 Request(SelectionChangeRequest.ClearAll("Map.DeleteKey"));
         }
+    }
+
+    /// <summary>⭐ CE-4410 — THE delete of one entity, shared by the Delete key and the map / inspector entity menu's Delete (one path, never two): a replicated entity goes
+    /// through the edit framework (⭐ CE-4276 F2 — the request id end to end; a non-owner asks the owner and keeps the replica until it is disposed), a local one is destroyed here.</summary>
+    public static void DeleteEntity(EntityRepository world, Entity e)
+    {
+        if (!world.IsAlive(e)) return;
+        if (Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, e) > 0)   // an id of 0 is "no durable identity" — nothing to ask an owner about
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(world, Fdp.Toolkit.Replication.Edits.EditOp.Delete(e, "Delete"));
+        else
+            world.DestroyEntity(e);
     }
 
     /// <summary>
