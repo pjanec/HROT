@@ -495,13 +495,26 @@ public sealed class TerrainResidency
     /// <paramref name="obstacles"/> → a new immutable world (R-218), its cover database, and on a navigation node a navmesh baked
     /// through the per-tile cache (only the tiles the obstacles touch are new). 📄 docs/DESIGN_Peek_And_Fire.md §9.
     /// </summary>
-    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles)
+    /// <summary>
+    /// ⭐⭐ <c>CE-4391</c> S-3 / R-4196 (UTM §8.2 B-12) — true on a node that does WORLD QUERIES: the one holding a navmesh factory (the muscle's). Only such a node lays building
+    /// damage over its terrain: a display node's terrain "is for displaying their map, no querying or modification allowed" (user), so it bakes obstacles as before and IGNORES damage —
+    /// it draws breaches and rubble from the replicated entities instead (S-4). ⚠ The honest test is "has a navmesh factory", not a role name: the factory is installed only by
+    /// the navigation-capable (muscle) hosts, and a node that bakes a navmesh is exactly one whose terrain is queried.
+    /// </summary>
+    public bool BakesDamage => _navmeshFactory != null;
+
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles) => BakeObstacles(obstacles, null);
+
+    /// <inheritdoc cref="BakeObstacles(IReadOnlyList{TerrainPrism})"/>
+    /// <param name="damage">The live building damage to lay over the terrain (<see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?)"/>); ignored on a node that does not <see cref="BakesDamage"/>.</param>
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage)
     {
+        if (!BakesDamage) damage = null;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var baseWorld = _baseWorld;
         int baseVersion = BaseVersion;
         var bake = new ObstacleBake { BaseVersion = baseVersion, Obstacles = obstacles.Count };
-        bake.World = Indexed(TerrainObstacles.With(baseWorld, obstacles));   // ⭐ CE-3279 (a) — a derived world gets its own index
+        bake.World = Indexed(TerrainObstacles.With(baseWorld, obstacles, damage));   // ⭐ CE-3279 (a) — a derived world gets its own index
         if (_navmeshFactory != null) bake.Navmesh = _navmeshFactory.Build(bake.World);
         bake.Cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World);
         bake.Milliseconds = sw.ElapsedMilliseconds;

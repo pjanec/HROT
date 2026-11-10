@@ -339,17 +339,17 @@ graph LR
 
 | # | P3 addition | why (measured / from §14) |
 |---|---|---|
-| P3-a | **per-TILE versions** in the snapshot (today one `QueryVersion` for the whole provider) and a path stamped with the versions of the tiles it crosses | one breach must not replan 1 000 soldiers' paths across 5.5 km — only those through its 1–4 tiles |
-| P3-b | `NavigationExecution` checks the stamp each frame (an integer compare per moving entity, no allocation) and replans the stale path | §14's PathReplanCheck, made per tile |
-| P3-c | **a rebake input = the content world + the live state overlay** (breach openings as extra `TerrainOpening`s on their panels; a collapsed building's panels and slabs replaced by its rubble prism) — the content (`TerrainWorld`, NoReplay) is never edited | D-3: breaches are world state, replayed and restored; the overlay is rebuilt from them after a checkpoint restore |
-| P3-d | a **coalescing requester**: at most one rebake in flight; breaches arriving meanwhile join the next one | artillery: tens of breaches a minute — one rebake each would queue unboundedly |
-| P3-e | units standing in a collapsed building: removed from the navmesh's agent set before the swap (they are casualties, D-7) | a path from inside a mound has no start polygon |
+| P3-a ✅ S-3 (§8.5) | **per-TILE versions** in the snapshot (today one `QueryVersion` for the whole provider) and a path stamped with the versions of the tiles it crosses | one breach must not replan 1 000 soldiers' paths across 5.5 km — only those through its 1–4 tiles |
+| P3-b ✅ S-3 (§8.5) | `NavigationExecution` checks the stamp each frame (an integer compare per moving entity, no allocation) and replans the stale path | §14's PathReplanCheck, made per tile |
+| P3-c ⛔ superseded by B-10 (built as §8.5 #1) | **a rebake input = the content world + the live state overlay** (breach openings as extra `TerrainOpening`s on their panels; a collapsed building's panels and slabs replaced by its rubble prism) — the content (`TerrainWorld`, NoReplay) is never edited | D-3: breaches are world state, replayed and restored; the overlay is rebuilt from them after a checkpoint restore |
+| P3-d ⛔ superseded by B-10 (the P-7a bake, §8.5 #2) | a **coalescing requester**: at most one rebake in flight; breaches arriving meanwhile join the next one | artillery: tens of breaches a minute — one rebake each would queue unboundedly |
+| P3-e ✅ S-3 (§8.5) | units standing in a collapsed building: removed from the navmesh's agent set before the swap (they are casualties, D-7) | a path from inside a mound has no start polygon |
 
 ⚠ To measure when built (L-4's rig): rebake seconds for one building's tiles on `scale-1` with the cache warm, and the replans per breach.
 
 ### 8.2 📐 The build design — classes, the frame, the navmesh *(S-0 of CE-4391, coordinator `2026-11-10`; refines §8 / §8.1 within R-4188)*
 
-<!-- build-state: BUILDING (§8.2) — S-1 (breaches) BUILT `2026-11-10`, see §8.3; S-2 (collapse) BUILT, see §8.4 · S-3 navmesh · S-4 save and show · S-5 demo still to build -->
+<!-- build-state: BUILDING (§8.2) — S-1 (breaches) BUILT `2026-11-10`, see §8.3; S-2 (collapse) BUILT, see §8.4 · S-3 (navmesh) BUILT, see §8.5 · S-4 save and show · S-5 demo still to build -->
 
 **INVENTORY** *(graph re-indexed `2026-11-10`; `scripts/cbm.sh search_graph`, production hits only; coverage could not be checked — the CLI has no `check_index_coverage`)*
 
@@ -468,8 +468,7 @@ recording, so the table and the bake behave the same everywhere. The dashed edge
 
 | **B-12** ✏ R-4196 | ⭐⭐ **DESTRUCTION HAPPENS ON THE MUSCLE ONLY; every other node only DRAWS it.** 🔒 User, `2026-11-10`: *"i need the destructions to happen on muscle role node (other has terrain just for displaying their map, no querying or modification allowed)"*. As built: deciding (`AreaEffectSystem` + `BuildingDamageSystem`, both in `DamageAssessmentModule`) is installed only by `SimHostCoreLogicPack` (`SimHostCoreLogicPack.cs:116`), and that pack is built only by `MuscleRoleInputs.cs:68`; only a LOCAL detonation decides (`evt.IsRemote` is skipped); the damage entity is owned by the muscle that decided it (no ownership group, `NedOwnershipGroupBinding`); every other node receives it by ingress (`EntityBuildingDamageTranslators`). ⛔ **The gap, closed in S-3:** `StaticObstacleBakeSystem` is installed on EVERY node holding a terrain (`EntityCreationPack.cs:123`), so the damage overlay must be baked only on a node with a navmesh (the muscle) — a display node's terrain is NEVER rewritten by damage; it draws breaches and rubble from the replicated entities (S-4) | baking the overlay wherever a terrain is resident: it modifies the display node's terrain, which the user forbids |
 
-⚠ Known limits, said: `SurfaceZ` / `SurfacesAt` / `InsideFootprint` take no live state, so a placement or a stand-at query does not see a collapse. Movement
-follows the rebaked navmesh, and units inside a collapse are casualties. Sound's PORTAL graph does not learn breaches (its trace part does). Both
+⚠ Known limits, said: ✏ S-3 — the world queries `SurfaceZ` / `SurfacesAt` / `InsideFootprint` are right once the bake has committed (§8.5 #6); only the time until the bake (0.5 s debounce + the off-thread bake) is a limit. Sound's PORTAL graph does not learn breaches (its trace part does). Both
 are recorded here and left for later.
 
 ### 8.3 ✅ AS BUILT `2026-11-10` — S-1 (breaches: the rule, the entity, the view, the traces, the wire) *(CE-4391, coordinator)*
@@ -534,6 +533,22 @@ sequenceDiagram
 | 8 | Wire: `Collapsed` was already in `EntityBuildingDamage`, copied by both translators; a rail now pins it | `Hrot.SimHost.Tests/EntityBuildingDamageTranslatorTests.cs` | — |
 
 ⚠ Measured / said: (a) ✏ **coordinator review, `2026-11-10`: `collapseMinKg` 200 → 80 and the whole-panel row's `kgMin` 100 → 40** — at 200 / 100 no shipped munition could collapse a building or take a whole panel (the reference library's heaviest is the 94 kg Mk-82), so the feature was dormant against every weapon we have; at 80 / 40 the Mk-82 is D-5 / D-7's "heavy bomb" ("a bomb from an aircraft"), and a 155 mm (6.6 kg) still does neither. Data, tunable (Q-D2). (b) The derived (obstacle-baked) world is S-3's: `SurfaceZ`, `SurfacesAt`, placement and the navmesh still see the standing building. (c) The wire carries the global building index. (d) A person standing on the roof at collapse (up to roof + 0.5 m) is a casualty with those inside.
+
+### 8.5 ✅ AS BUILT `2026-11-10` — S-3 (the navmesh follows) *(CE-4391, coordinator)*
+
+| # | what was built | file | vs §8.2 / §8.1 |
+|---|---|---|---|
+| 1 | `TerrainObstacles.With(base, obstacles, damage)` = `StaticObstacles.With(…, BuildingDamageTable?)`: when `damage.NavHash != 0` it drops a collapsed building's prisms and walkables, adds its rubble prism (`Building = -1`) and re-expands each breached panel with the passages as extra `Gap` openings (overlapping openings and passages merge into one Gap); a hole changes nothing (the base world is returned); `Panels`, `Doors`, `Buildings` are never removed or reordered; `TerrainWorld.BakedCollapsed` says which collapses the derived world already holds | `Terrain/StaticObstacles.cs`, `TerrainWorld.cs` | B-10 as written |
+| 2 | ONE panel→prisms function: `TerrainBuildingExpander.ExpandPanelPieces` (`AddPanel` calls it too) | `Terrain/TerrainBuildingExpander.cs` | the parser and the overlay cannot drift |
+| 3 | `BuildingDamageTable.NavHash` (passages + the collapsed set, 0 when none), `Passages()`, `CollapsedBuildings`, `RubbleOf`, `InsideCollapsed(world, p)`; the cached table now also compares the world (a table built for another world was returned when the content matched: fixed) | `Terrain/BuildingDamageTable.cs` | — |
+| 4 | `StaticObstacleBakeSystem`: the damage `NavHash` joins the input hash; the damage goes to `TerrainResidency.BakeObstacles(obstacles, damage)`; debounce (0.5 s wall clock), one running + one pending, off-thread bake, main-thread swap: unchanged and reused, no new requester | `Hrot.Core/Services/StaticObstacleBake.cs`, `TerrainResidency.cs` | B-10 |
+| 5 | ⭐ **B-12 gate**: `TerrainResidency.BakesDamage => _navmeshFactory != null`. The honest test is the navmesh factory: only a node that does world queries (muscle, editor) installs one (`AttachNavmesh`); a display node has none, so it never bakes damage and its resident `TerrainWorld` is not rewritten (it draws from the replicated entities, S-4). Not the role name: the factory is what makes a bake possible and useful | `TerrainResidency.cs` | closes the B-12 gap |
+| 6 | After the bake commits, the resident (derived) world has no pieces of a collapsed building, so `SurfaceZ` / `SurfacesAt` / `InsideFootprint` answer for the damaged building with no live-state parameter (they read the derived world). Until the bake: the base world | `StaticObstacles.cs` | ✏ replaces the "known limit" of §8.3 |
+| 7 | **P3-a**: `INavmeshTileKeys` / `INavmeshTileVersions`; `SwitchableNavmeshProvider.Publish` gives each tile a version, bumped ONLY for tiles whose key (the baker's content hash per tile) changed, new or vanished; one `ChangeSequence` step per publish. The Recast baker reports `LastTileKeys` (only with a tile cache) | `Navigation/INavmeshProvider.cs`, `SwitchableNavmeshProvider.cs`, `Recast/*` | as P3-a, by a per-path sequence stamp (below) |
+| 8 | **P3-b**: the solver records `ChangeSequence` before it plans (`PathfindingResultEvent.TileSequenceAtPlan` → `NavigationCorridorMuscle.TileSequence`, beside `NavmeshVersionAtPlan`); `NavigationExecutionSystem` compares it to the provider's current sequence per moving entity (one integer compare, 0 B); only when it moved does it walk the path (`CrossesChangedTile`, quarter-tile steps) and call the EXISTING `RequestReplan` (the one replan seam: frustration and door-locked also use it) | `CarKinem/Systems/NavigationExecutionSystem.cs`, `Navigation/*` | ✏ **deviation**: a per-path SEQUENCE (planned-at, also "last checked"), not a tile list per path: cheaper, no allocation. Before S-3 nothing replanned on a navmesh version change |
+| 9 | **P3-e**: a path request starting inside a collapsed footprint is answered `Unreachable` (no crash, no loop, no pending left); the casualties themselves are S-2's | `Navigation/Systems/PathfindingSolverSystem.cs` | as P3-e |
+
+⚠ Said: (a) the path walk samples every quarter tile, so a path grazing a changed tile's corner can be missed; (b) a stamp 0 (road graph, remote solver) is never judged stale; (c) a tile-triggered replan counts in `ReplanCount`; (d) tile keys need a tile cache (no cache = no keys = no tile versions); (e) the factory's `_lastTileKeys` field is not atomic (one publisher at a time); (f) a derived world's rubble has `Building = -1`; (g) the leaves of a breached door stay (a closed leaf still blocks, as for any door); (h) the display node draws damage from the entities (S-4). **Not built:** save / load and drawing (S-4), the demo (S-5).
 
 ---
 _source-data session, 2026-11-09_

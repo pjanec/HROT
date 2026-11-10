@@ -175,6 +175,10 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ Stage 1 — the material library this world was parsed with (shared + terrain overrides).</summary>
         public TerrainMaterialLibrary Materials { get; init; } = TerrainMaterialLibrary.Shared;
 
+        /// <summary>⭐ <c>CE-4391</c> S-3 — the buildings whose COLLAPSE is already baked into this world's geometry (a derived world from <see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?)"/>:
+        /// their pieces are gone and their rubble prism is among the <see cref="Prisms"/>), so the damage view does not skip or add them again. Empty on a content world.</summary>
+        public IReadOnlyList<int> BakedCollapsed { get; init; } = Array.Empty<int>();
+
         /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table this world was parsed with (the shared one overlaid by the terrain folder's own <c>breaches.json</c>; §8.2 B-6).</summary>
         public BreachTable Breaches { get; init; } = BreachTable.Shared;
 

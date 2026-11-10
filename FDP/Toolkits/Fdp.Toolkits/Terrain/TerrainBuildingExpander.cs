@@ -183,6 +183,37 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>
+        /// ⭐ THE one panel → prisms function (<c>CE-4391</c> S-3 extracted it from <see cref="AddPanel"/>): the solid pieces of
+        /// <paramref name="panel"/> between and around <paramref name="openings"/> (ascending, non-overlapping; they need not be the panel's own
+        /// — the live-damage overlay passes a panel's openings widened by a breach), each a thin wall prism naming <paramref name="panelIndex"/>
+        /// and the panel's building. Used by the parser and by <see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?)"/>.
+        /// </summary>
+        public static void ExpandPanelPieces(TerrainWallPanel panel, int panelIndex, IReadOnlyList<TerrainOpening> openings, List<TerrainPrism> into, string where)
+        {
+            float length = Vector2.Distance(panel.A, panel.B);
+            var dir = (panel.B - panel.A) / length;
+            Vector2 P(float along) => panel.A + dir * along;
+            float floor = panel.BaseZ, ceiling = panel.TopZ, thickness = panel.Thickness;
+            void Piece(float s0, float s1, float z0, float z1)
+            {
+                if (s1 - s0 < 1e-3f || z1 - z0 < 1e-3f) return;
+                var prism = TerrainWorldParser.MakePrismForExpander(TerrainPrismKind.Wall,
+                    TerrainWorldParser.WallQuadForExpander(P(s0), P(s1), thickness), z0, z1, 0, panel.Label, where);
+                into.Add(Clone(prism, panel.Material, panelIndex, panel.Building));
+            }
+
+            float cursor = 0f;
+            foreach (var op in openings)
+            {
+                Piece(cursor, op.At, floor, ceiling);
+                Piece(op.At, op.At + op.Width, floor, op.SillZ);     // under a window's sill
+                Piece(op.At, op.At + op.Width, op.HeadZ, ceiling);   // over the head
+                cursor = op.At + op.Width;
+            }
+            Piece(cursor, length, floor, ceiling);
+        }
+
+        /// <summary>
         /// One wall panel A→B, floor..ceiling, with openings; its solid pieces become thin prisms (between openings: full
         /// height; under a window's sill and over any opening's head: the remaining strip).
         /// </summary>
@@ -242,26 +273,10 @@ namespace Fdp.Toolkit.Terrain
                 Openings = openings, Building = building, Storey = storey, Label = label,
             });
 
-            var dir = (b - a) / length;
-            Vector2 P(float along) => a + dir * along;
-            void Piece(float s0, float s1, float z0, float z1)
-            {
-                if (s1 - s0 < 1e-3f || z1 - z0 < 1e-3f) return;
-                var prism = TerrainWorldParser.MakePrismForExpander(TerrainPrismKind.Wall,
-                    TerrainWorldParser.WallQuadForExpander(P(s0), P(s1), thickness), z0, z1, 0, label, where);
-                sink.Prisms.Add(Clone(prism, material, panelIndex));
-            }
+            ExpandPanelPieces(sink.Panels[panelIndex], panelIndex, openings, sink.Prisms, where);
 
-            float cursor = 0f;
-            foreach (var op in openings)
-            {
-                Piece(cursor, op.At, floor, ceiling);
-                Piece(op.At, op.At + op.Width, floor, op.SillZ);     // under a window's sill
-                Piece(op.At, op.At + op.Width, op.HeadZ, ceiling);   // over the head
-                cursor = op.At + op.Width;
-            }
-            Piece(cursor, length, floor, ceiling);
-
+            var dirAB = (b - a) / length;
+            Vector2 P(float along) => a + dirAB * along;
             foreach (var (idx, id, state) in doorIds)
             {
                 var op = openings.FindIndex(x => x.DoorKey == DoorKey(terrainName, label, id));

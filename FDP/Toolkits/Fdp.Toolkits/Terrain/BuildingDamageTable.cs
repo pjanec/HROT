@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Terrain
         private readonly int[] _firstOfPanel;        // _breaches index of each present panel's first breach — parallel to _presentPanels
         private readonly int[] _presentPanels;       // ascending
 
+        private readonly TerrainWorld _world;        // the world this table was built for (a baked-collapse set differs per world)
         private readonly int[] _collapsed;           // ascending building indices that have collapsed (S-2)
         private readonly ulong[] _collapsedBits;
         private readonly ulong[] _doorBits;          // doors of a collapsed building (they read Destroyed)
@@ -29,6 +30,7 @@ namespace Fdp.Toolkit.Terrain
         private BuildingDamageTable(WallBreach[] sorted, int[] collapsed, TerrainWorld world)
         {
             int panelCount = world.Panels.Count;
+            _world = world;
             _breaches = sorted;
             _collapsed = collapsed;
             _collapsedBits = new ulong[(world.Buildings.Count + 63) >> 6];
@@ -37,8 +39,11 @@ namespace Fdp.Toolkit.Terrain
             if (collapsed.Length > 0)
                 for (int d = 0; d < world.Doors.Count; d++)
                     if (Collapsed(world.Panels[world.Doors[d].Panel].Building)) _doorBits[d >> 6] |= 1UL << (d & 63);
-            _rubble = new TerrainPrism[collapsed.Length];
-            for (int i = 0; i < collapsed.Length; i++) _rubble[i] = MakeRubble(world, collapsed[i]);
+            // a collapse already baked into THIS world's geometry (a derived world) carries its own rubble prism: not crossed twice
+            var rubble = new List<TerrainPrism>(collapsed.Length);
+            foreach (int b in collapsed) if (!System.Linq.Enumerable.Contains(world.BakedCollapsed, b)) rubble.Add(MakeRubble(world, b));
+            _rubble = rubble.ToArray();
+            NavHash = ComputeNavHash(sorted, collapsed);
             _panelBits = new ulong[(panelCount + 63) >> 6];
             var present = new List<int>();
             var first = new List<int>();
@@ -56,6 +61,54 @@ namespace Fdp.Toolkit.Terrain
         public bool Collapsed(int building)
             => (uint)(building >> 6) < (uint)_collapsedBits.Length && building >= 0 && (_collapsedBits[building >> 6] & (1UL << (building & 63))) != 0;
 
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-3 (B-10) — a hash of what changes the NAVMESH: every PASSAGE breach and the set of collapsed buildings. A hole changes no walkable, so it does
+        /// not move this hash. 0 = nothing the navmesh must follow. Equal damage ⇒ equal hash (the breaches are sorted).
+        /// </summary>
+        public ulong NavHash { get; }
+
+        private static ulong ComputeNavHash(WallBreach[] sorted, int[] collapsed)
+        {
+            ulong h = 1469598103934665603UL;
+            bool any = false;
+            void Mix(long v) { h ^= (ulong)v; h *= 1099511628211UL; }
+            void MixF(float f) => Mix((long)MathF.Round(f * 100f));
+            foreach (var b in sorted)
+            {
+                if (b.Kind != BreachKind.Passage) continue;
+                any = true;
+                Mix(b.Panel); MixF(b.From); MixF(b.To); MixF(b.Bottom); MixF(b.Top);
+            }
+            foreach (int c in collapsed) { any = true; Mix(-1 - c); }
+            return any ? h : 0UL;
+        }
+
+        /// <summary>The PASSAGE breaches of the view, in table order (the overlay's input; a fresh list — ⛔ never per frame).</summary>
+        public List<WallBreach> Passages()
+        {
+            var l = new List<WallBreach>();
+            foreach (var b in _breaches) if (b.Kind == BreachKind.Passage) l.Add(b);
+            return l;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-3 (P3-e) — true when <paramref name="p"/> stands inside the footprint of a COLLAPSED building, between its base and roof (+ 0.5 m): whoever stands there is a
+        /// casualty and is given no path. Loops the collapsed set (small); no allocation.
+        /// </summary>
+        public bool InsideCollapsed(TerrainWorld world, Vector3 p)
+        {
+            for (int i = 0; i < _collapsed.Length; i++)
+            {
+                var b = world.Buildings[_collapsed[i]];
+                float baseZ = b.StoreyZ.Count > 0 ? b.StoreyZ[0] : b.BaseZ, roof = b.StoreyZ.Count > 1 ? b.StoreyZ[b.StoreyZ.Count - 1] : baseZ + 3f;
+                if (p.Z >= baseZ - 0.5f && p.Z <= roof + 0.5f && PolygonMath.Contains(b.Footprint, new Vector2(p.X, p.Y))) return true;
+            }
+            return false;
+        }
+
+        /// <summary>The collapsed buildings' indices, ascending.</summary>
+        public IReadOnlyList<int> CollapsedBuildings => _collapsed;
+
         /// <summary>How many buildings have collapsed.</summary>
         public int CollapsedCount => _collapsed.Length;
 
@@ -70,6 +123,9 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>The rubble of a building: its footprint, a third of its height, in the rubble material.</summary>
         public const float RubbleHeightShare = 1f / 3f;
+
+        /// <summary>The rubble prism of collapsed building <paramref name="building"/> (the overlay's copy source; built fresh).</summary>
+        public TerrainPrism RubbleOf(TerrainWorld world, int building) => MakeRubble(world, building);
 
         private static TerrainPrism MakeRubble(TerrainWorld world, int building)
         {
@@ -183,14 +239,15 @@ namespace Fdp.Toolkit.Terrain
             list.Sort(Order);
             colls.Sort();
             for (int i = colls.Count - 1; i > 0; i--) if (colls[i] == colls[i - 1]) colls.RemoveAt(i);   // two nodes' entities may both say collapsed
-            if (t_last is { } last && last.SameContent(list, colls)) return last;   // rebuilt, but the same damage: keep the instance
+            if (t_last is { } last && last.SameContent(list, colls, world)) return last;   // rebuilt, but the same damage: keep the instance
             if (list.Count == 0 && colls.Count == 0 && t_last == null) return null;
             t_builds++;
             return t_last = Make(list, colls, world);
         }
 
-        private bool SameContent(List<WallBreach> sorted, List<int> collapsed)
+        private bool SameContent(List<WallBreach> sorted, List<int> collapsed, TerrainWorld world)
         {
+            if (!ReferenceEquals(world, _world)) return false;
             if (sorted.Count != _breaches.Length || collapsed.Count != _collapsed.Length) return false;
             for (int i = 0; i < _collapsed.Length; i++) if (_collapsed[i] != collapsed[i]) return false;
             for (int i = 0; i < _breaches.Length; i++) if (_breaches[i] != sorted[i]) return false;
