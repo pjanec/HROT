@@ -12,22 +12,22 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     /// </summary>
     public static class GizmoRuleTimings
     {
-        private static readonly Dictionary<string, (double Ms, int Entities, long Bytes)> s_acc = new();
+        private static readonly Dictionary<string, (double Ms, int Entities, long Bytes, int Primitives)> s_acc = new();
 
         /// <summary>On while a frame-stats log is wanted (the host's frame stats switch it).</summary>
         public static bool Enabled { get; set; }
 
         /// <summary>Adds one rule's pass: its time since <paramref name="start"/> (a <see cref="Stopwatch"/> timestamp), the entities it drew and the bytes it allocated.</summary>
-        public static void Record(string rule, long start, int entities, long bytes)
+        public static void Record(string rule, long start, int entities, long bytes, int primitives = 0)
         {
             double ms = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
-            s_acc[rule] = s_acc.TryGetValue(rule, out var a) ? (a.Ms + ms, a.Entities + entities, a.Bytes + bytes) : (ms, entities, bytes);
+            s_acc[rule] = s_acc.TryGetValue(rule, out var a) ? (a.Ms + ms, a.Entities + entities, a.Bytes + bytes, a.Primitives + primitives) : (ms, entities, bytes, primitives);
         }
 
         /// <summary>The accumulated rules, largest time first; the accumulator is cleared.</summary>
-        public static IReadOnlyList<(string Rule, double Ms, int Entities, long Bytes)> Drain()
+        public static IReadOnlyList<(string Rule, double Ms, int Entities, long Bytes, int Primitives)> Drain()
         {
-            var list = s_acc.Select(k => (k.Key, k.Value.Ms, k.Value.Entities, k.Value.Bytes)).OrderByDescending(x => x.Ms).ToList();
+            var list = s_acc.Select(k => (k.Key, k.Value.Ms, k.Value.Entities, k.Value.Bytes, k.Value.Primitives)).OrderByDescending(x => x.Ms).ToList();
             s_acc.Clear();
             return list;
         }

@@ -198,8 +198,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 if (!_globalRulesVisibilityCache[g]) continue;
                 bool timedG = GizmoRuleTimings.Enabled;   // ⭐ CE-4388 — HROT_FRAME_STATS: a GLOBAL gizmo's time and garbage too (the A/B showed the entity rules are not the system's whole cost)
                 long gStart = timedG ? System.Diagnostics.Stopwatch.GetTimestamp() : 0, gBytes = timedG ? System.GC.GetAllocatedBytesForCurrentThread() : 0;
+                int gPrims = timedG && _buffer != null ? _buffer.Count : 0;
                 globalRules[g].Projector.Draw(view, _drawBuilder);
-                if (timedG) GizmoRuleTimings.Record(globalRules[g].Projector.GetType().Name, gStart, 0, System.GC.GetAllocatedBytesForCurrentThread() - gBytes);
+                if (timedG) GizmoRuleTimings.Record(globalRules[g].Projector.GetType().Name, gStart, 0, System.GC.GetAllocatedBytesForCurrentThread() - gBytes, (_buffer?.Count ?? 0) - gPrims);
             }
 
             // Pre-evaluate global visibility once per rule, not once per entity.
@@ -303,6 +304,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 int slot = frame % period;
                 bool timed = GizmoRuleTimings.Enabled;   // ⭐ CE-4385 — HROT_FRAME_STATS: this rule's time and garbage
                 long ruleStart = timed ? System.Diagnostics.Stopwatch.GetTimestamp() : 0, ruleBytes = timed ? System.GC.GetAllocatedBytesForCurrentThread() : 0;
+                int rulePrims = timed && _buffer != null ? _buffer.Count : 0;   // ⭐ CE-4388 — and the primitives it emits
 
                 for (int m = 0; m < count; m++)
                 {
@@ -361,7 +363,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 }
 
                 hold?.Swap(frame);
-                if (timed) GizmoRuleTimings.Record(rule.Projector.GetType().Name, ruleStart, count, System.GC.GetAllocatedBytesForCurrentThread() - ruleBytes);
+                if (timed) GizmoRuleTimings.Record(rule.Projector.GetType().Name, ruleStart, count, System.GC.GetAllocatedBytesForCurrentThread() - ruleBytes, (_buffer?.Count ?? 0) - rulePrims);
             }
         }
     }
