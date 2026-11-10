@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-10 (§7 the state egress off the main thread — DESIGN, leans O-A…O-G to the user, CE-3427 N-1) · 2026-11-05 (§3a the real-node measurement; §4 write batching)
+updated: 2026-11-10 (§7 the state egress off the main thread — APPROVED as an experiment, READY-TO-BUILD, CE-3427 N-1) · 2026-11-05 (§3a the real-node measurement; §4 write batching)
 build-state: BUILDING — E1 approved by the user 2026-11-05 ("yes, build E1 with a rail per hazard"); §5 is the build design (CE-2407)
-current-answer: ⭐ §7 the state egress off the main thread (2026-11-10, DESIGN) · §2 the measured hazards, §3 the options with a lean, §3a measured on real nodes (answers §3's 'what would change the lean'), §4 DDS write batching
+current-answer: ⭐ §7 the state egress off the main thread (2026-11-10, APPROVED experiment, not built) · §2 the measured hazards, §3 the options with a lean, §3a measured on real nodes (answers §3's 'what would change the lean'), §4 DDS write batching
 stale-below: none
 known-rot: docs/designs/dds-to-ecs/DESIGN.md:468 says "the egress translator checks the chunk version and skips unchanged entities" — only NavigationIntentEgressTranslator does (measured 2026-11-04)
 known-conflict: none
@@ -314,7 +314,7 @@ Rails `QueryCandidateIndexTests` (every query form inside vs outside a scope; a 
 out-of-band bit at the next frame; a wholesale rewrite in the same frame; no allocation on a steady scope) — red-proved four ways
 (the frame key, the mask epoch, half the candidates, and — in the first form — the scope-end void).
 
-## 7. ⭐ THE STATE EGRESS OFF THE MAIN THREAD — a replica scanned while the next frame runs *(CE-3427 N-1; user's idea `2026-11-10`; build-state: DESIGN — leans O-A…O-G to the user)*
+## 7. ⭐ THE STATE EGRESS OFF THE MAIN THREAD — a replica scanned while the next frame runs *(CE-3427 N-1; user's idea `2026-11-10`; build-state: READY-TO-BUILD as an EXPERIMENT — leans O-A…O-G APPROVED by the user `2026-11-10`: "approved … take this big change as experiment that needs good testing"; OFF by default; build plan: [resume §0](blueprints/RESUME_Backend_Large_Terrain_Perf.md))*
 
 > 🔒 User, `2026-11-10`: *"maybe the network egress could be done from a read only snapshot in parallel synchronously to the main thread, at the cost of
 > 1 frame latency which could be ok for most slow entities like soldiers"* · *"some time sensitive stuff would still need to travel with priority

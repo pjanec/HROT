@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-10 (many-core results)
-current-answer: §0 START HERE (the next session runs on a WINDOWS machine with many cores) → §1 set the machine up → §2 make the rig run natively → §3 the MEASUREMENTS to make → §4 the optimisation backlog, decided by §3's numbers. §5 the traps, §6 where everything lives.
+updated: 2026-11-10 (the off-frame state egress APPROVED as an experiment — the next session builds it; C-1, G-1, P-1 built)
+current-answer: ⭐ §0 "NEXT SESSION — BUILD the off-the-main-thread STATE EGRESS" (the build steps B-0…B-9, the rails, the ground rules) · then §0 START HERE (the next session runs on a WINDOWS machine with many cores) → §1 set the machine up → §2 make the rig run natively → §3 the MEASUREMENTS to make → §4 the optimisation backlog, decided by §3's numbers. §5 the traps, §6 where everything lives.
 stale-below: nothing
 related-designs:
+  - docs/DESIGN_Egress_Change_Detection.md §7 — ⭐ the APPROVED design the next session builds (the off-frame state egress, leans O-A…O-G)
   - docs/DESIGN_Scale_Rig.md — ⭐ the rig, the budgets and EVERY measurement so far (§4 baselines, §5 L-4 load + garbage, §6 the world-query timings: §6.1 first numbers, §6.2 the sensor scans, §6.3 the fight, §6.4 what needs a physical machine)
   - docs/designs/navig-2/Navigation_Design_v2_0.md §15 — the bounded A* and CircleSearch (our zero-garbage Dijkstra / A*), §14 the tile cache (one folder per square)
   - docs/DESIGN_Evaluation_Cost_And_Cadence.md §11b — the "whole-world scan per question" levers table (CE-3427's row)
@@ -17,7 +18,68 @@ related-designs:
 
 ## 0. ⭐⭐⭐ START HERE
 
-### ⭐⭐⭐⭐ DONE on the many-core machine (`2026-11-10`, LATEST) — read this first
+### ⭐⭐⭐⭐⭐ NEXT SESSION — BUILD the off-the-main-thread STATE EGRESS as an EXPERIMENT (`2026-11-10`, LATEST — start here)
+
+🔒 **User, `2026-11-10`:** *"approved, write resumption (handoff) for yourself to continue in another session, take this big change as experiment
+that needs good testing"* — the design's leans **O-A…O-G are APPROVED** ([Egress Change Detection §7](../DESIGN_Egress_Change_Detection.md)).
+⭐ The user's own idea: *"the network egress could be done from a read only snapshot … at the cost of 1 frame latency"* · *"time sensitive stuff
+would still need to travel with priority (shots events, hit events...)"* · *"switchable at runtime"*.
+
+**Where it stands (`backend` `979186a29` and after):** this machine (Windows, 16 cores) built C-1 (wall-clock cadence, `6b9aa03c6`), G-1 (server GC
+4 heaps, same), P-1 (parallel EQS, `978e8936b`, Sensors & Doctrine §5.8), measured N-2 (budget KEPT at 150 k) and the egress (`36b164ff6`,
+[scale rig §7.8](../DESIGN_Scale_Rig.md)), designed §7 (`979186a29`). ⛔ Nothing of §7 is built.
+
+**⛔ THE EXPERIMENT'S GROUND RULES — it touches every node's network send:**
+
+| rule | |
+|---|---|
+| ⭐⭐⭐ **OFF by default** until every gate below is green WITH IT ON | `FDP_EGRESS_OFFFRAME` unset = today's behaviour byte for byte; a rail proves "off" is identical |
+| ⭐⭐⭐ **one switch takes it all back** | `EgressPipeline.Mode` — env + the debug API at runtime; switches only at a join |
+| ⭐⭐ **SimHost only** in this experiment (O-G) | the CGF after measuring its masked sync (full sync 5.9 ms there) |
+| ⭐⭐ **every run hidden** — `HROT_HIDDEN_WINDOW=1` | the user works on this machine (`scripts/cluster_launch.py` defaults it for nodes; set it for `dotnet test` too) |
+| ⭐⭐ **a rail per hazard, each red-proved by a compiling mutation** | the hazard table in §7 is the checklist — every row gets a rail |
+| ⭐ commit by path, push `backend`; fold the as-built into §7 (deviations SUPERSEDED, not overwritten) | |
+
+**The build, in order** *(each step green before the next; T-1 first: find the egress suites — `scripts/find.sh CycloneEgressSystem`,
+`Fdp.Network.Cyclone.Tests`, the egress classes in `Hrot.ClusterRunner.Integration.Tests`, `EgressGate*` / `QueryIndex*` rails of §5/§6)*:
+
+| # | step | done when |
+|---|---|---|
+| **B-0** | ⭐ **baseline**: run the egress suites and the integration suites that exercise replication NOW, record counts + the pre-existing reds (with the base sha) in a STATUS file `docs/blueprints/batches/STATUS_Backend_OffFrame_Egress.md` | a gate table exists before any code changes |
+| **B-1** | move `EqsSolveWorkers` (Hrot.SimHost) into FDP as the ONE `WorkerPool` (shared + unified rule); the EQS uses it unchanged | `EqsModuleTests` 45/0 incl. the P-1 rails |
+| **B-2** | `IOffFrameEgress` marker; `EgressPipeline` (one per world) + `EgressPipelineJoinSystem` (Export, FIRST) + `EgressPipelineLaunchSystem` (Export, LAST); `CycloneEgressSystem` skips marked translators when `OffFrame` | ⚠ FIRST verify `[UpdateBefore]/[UpdateAfter]` can order across global + module systems of one phase — rail asserts join first / launch last |
+| **B-3** | the replica: `DoubleBufferProvider` with the mask of the marked translators' components; launch copies the E1 signals (`EgressSignals` H3/H8) and `EgressHold` | the seek / restore / hold rail |
+| **B-4** | mark the STATE translators (O-B list): the 38 `PublishedInstances` descriptors, `MapRoute`, `NavigationStatus`, stance / look-at status; `PublishedInstances.OnFrame` (disposes from the bus) runs at the JOIN on the live world | the equivalence rail: every state sample = the on-frame sample one frame earlier; events same frame |
+| **B-5** | `WorldPos` (`GeoSpatialEgressTranslator`) off the frame: shadow read from the replica, writes QUEUED and applied at the join | the shadow-equivalence rail |
+| **B-6** | fan the scan out over the `WorkerPool`, largest last-time first | the scan ≈ `WorldPos`'s time, not the sum |
+| **B-7** | the runtime switch (debug API route) | the switch-every-10-frames rail: nothing lost / duplicated beyond the one documented frame |
+| **B-8** | ⭐ **measure**: scale rig 1 000 / 3 000 men, OnFrame vs OffFrame, `--sides 2` (egress by translator is in the rig report) | numbers in scale rig §7.9; projection was SimHost ≈ 35 → ≈ 21 ms |
+| **B-9** | ⭐ **the system gates WITH IT ON** (background, hidden): the replication / ownership / lifecycle integration suites, `DeterminismRails`, a live `--mode all`-free 3-process cluster run (runbook) — then decide whether the default may flip | every red explained against B-0's baseline; ⛔ the default stays OFF unless all are clean — and that flip is the USER's call |
+
+**Rails to write (from §7's table — each with its red-proof):** on vs off equivalence (launch before the events ⇒ red) · last state before dispose
+(join after cleanup ⇒ red) · shadow equivalence (apply queued writes at launch ⇒ red) · signals + hold honoured (drop the copy ⇒ red) · switch
+under load (switch outside a join ⇒ red) · ⭐ **OFF is byte-identical to today** · ⭐ managed components read under mutation (they are shared, shallow,
+on a replica — immutable by rule; a rail proves no torn read) · ⭐ a stress rail: thousands of frames with the switch on, no exception, no deadlock.
+
+**Hazards — each needs its rail; the design's table has the file:line:** `WorldPos` writes the live world · smart egress's transient
+`EgressPublicationState` (stays ON) · `OnFrame` reads the bus (stays at the join) · cleanup uses the same translators (join first) · E1 signals and
+`EgressHold` are per repository (copied at launch) · `NetworkEntityMap` is a plain Dictionary (its readers stay ON) · bidirectional translators
+(stay ON) · managed components shallow-copied.
+
+**Known reds that are NOT yours (measured `2026-11-10`, pre-existing):** `Hrot.SimHost.Tests` — 9 (`ShippedTreesAreCSharp` ×6, `CgfLogicPack`
+CE454, `StrictNetworkSeparation` CE4208, `PeekAndFire` P6_R10) + `LoadPhaseChain` CE3345 flaky · `Hrot.ClusterRunner.Tests` — 5 at `d4e94dc2e`
+(`EveryListedWriter_ReadsTheReplayFlag`, `CE1436_CgfShapedHost…`, `EverySystemHoldingEntities…`, the two `EverySystemStateFieldIsClassified`
+— 188 unclassified fields of OTHER lanes). ⚠ Any NEW system / field you add must be classified in `DESIGN_System_State_Inventory.md` (the scan).
+
+**After the experiment (not before):** raise the EQS budget again (N-2: 1.5–2.4× solves, was blocked by the egress) · the CGF's
+`EqsSensorConfigTopic` egress (4–13 ms — scans every sensor every frame?) · the CGF off-frame egress (masked sync first).
+
+**Knobs on this machine:** `HROT_EQS_WORKERS` (default CPUs/4) · `HROT_EQS_BUDGET` (default 150 000) · `HROT_REPLICA_PROBE=1` (times a full replica
+sync) · `FDP_SLOW_WALLCLOCK=0` (bisect C-1) · `HROT_HIDDEN_WINDOW=1` · the runner is server GC, 4 heaps (`DOTNET_gcServer` overrides).
+Rig: `python scripts/scale-rig.py --terrain scale-1 --men 1000 --sides 2 --runner-dll Hrot/Runner/Hrot.ClusterRunner/bin/Release/net8.0/Hrot.ClusterRunner.dll --json <out>`
+(≈ 2.5 min; build the Release runner first; never two rig runs or a build at once — they skew the numbers).
+
+### ⭐⭐⭐⭐ DONE on the many-core machine (`2026-11-10`, earlier the same day) — read this first
 
 §1 machine set up (SUMO via `scripts/install-sumo.ps1`, scale-1 regenerated) · §2 the rig runs natively on Windows (`9a4b05053`,
 `scripts/cluster_launch.py`, `--runner-dll`, `--pin`) · §3 M-1…M-5 measured (`8769f25fe`) → **[DESIGN_Scale_Rig §7](../DESIGN_Scale_Rig.md)**.
