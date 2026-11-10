@@ -134,6 +134,7 @@ namespace Fdp.Toolkit.Terrain
                     pieces.Clear();
                     DamagedBuildings.RecutPanel(world, damage, pi, pieces);
                     foreach (var piece in pieces) AddPrism(piece, v, t, g);
+                    foreach (var breach in damage.BreachesOf(pi)) AddScorch(panel, breach, v, t, g);   // ⭐ X-7 — the soot round each breach
                 }
                 foreach (int b in damage.CollapsedBuildings)
                 {

@@ -51,6 +51,22 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     private Material _material;
     private bool _hasMaterial;
 
+    // ⭐ CE-4392 (DESIGN_Map_3D_Mode §6aj X-5) — the damage drawn: the damaged buildings hidden in the plan, drawn again (damaged) in a small overlay plan
+    private object? _drawnDamage;
+    private bool[] _hidden = Array.Empty<bool>();
+    private bool _anyHidden;
+    private Plan _overlay = Plan.Empty;
+    private DebugPrimitive[] _overlayStrokes = Array.Empty<DebugPrimitive>();
+    private bool _overlayDirty;
+    private Mesh _overlayMesh;
+    private bool _hasOverlayMesh;
+
+    /// <summary>How many times the damage overlay was rebuilt (a rail: an unchanged damage table rebuilds nothing).</summary>
+    public int DamageBuilds { get; private set; }
+
+    /// <summary>The buildings the plan currently draws from the overlay (damaged).</summary>
+    public int DamagedBuildingsDrawn { get; private set; }
+
     /// <param name="world">The world whose <see cref="TerrainWorld"/> singleton is drawn.</param>
     /// <param name="visible">The "Terrain (2-D)" checkbox — the map buffer's <see cref="DebugTraceLayers.Terrain2D"/> bit.</param>
     /// <param name="camera">The map camera, for culling to the view; <c>null</c> ⇒ nothing is culled.</param>
@@ -85,18 +101,59 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     public void Draw(RenderContext ctx)
     {
         StrokesDrawn = 0;
-        var terrain = TerrainOf(_world());
+        var repo = _world();
+        var terrain = TerrainOf(repo);
         if (!ReferenceEquals(terrain, _built)) Rebuild(terrain);
         if (terrain == null || !_visible()) return;
+        // ⭐ CE-4392 — the replicated damage of this view (R-4196: drawn, the terrain never changed); the same instance while nothing changed ⇒ nothing done
+        var damage = terrain.Buildings.Count > 0 ? BuildingDamageTable.Of(repo!, terrain) : null;
+        if (!ReferenceEquals(damage, _drawnDamage)) ApplyDamage(terrain, damage);
 
         if (_plan.FillTriangles > 0) DrawFills();
+        if (_overlay.FillTriangles > 0) DrawOverlayFills();
 
         var camera = _camera();
-        int n = camera != null ? Cull(_plan, ViewOf(camera, ctx.TargetSize), camera.Zoom, _inView) : CopyAll(_plan, _inView);
+        int n = camera != null ? Cull(_plan, ViewOf(camera, ctx.TargetSize), camera.Zoom, _inView, _anyHidden ? _hidden : null) : CopyAll(_plan, _inView, _anyHidden ? _hidden : null);
         StrokesDrawn = n;
-        if (n == 0) return;
         _renderer.Camera = camera;
-        _renderer.Render(new ReadOnlySpan<DebugPrimitive>(_inView, 0, n), ctx);
+        if (n > 0) _renderer.Render(new ReadOnlySpan<DebugPrimitive>(_inView, 0, n), ctx);
+        if (_overlayStrokes.Length > 0) { _renderer.Render(_overlayStrokes, ctx); StrokesDrawn += _overlayStrokes.Length; }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4392 X-5 — on a change of the damage: the damaged buildings' fills and strokes hidden in the plan (a flag per building; the fill colours re-uploaded once), and the
+    /// buildings emitted again as <paramref name="damage"/> leaves them into the overlay plan — never the whole plan rebuilt.
+    /// </summary>
+    private void ApplyDamage(TerrainWorld terrain, BuildingDamageTable? damage)
+    {
+        _drawnDamage = damage;
+        DamageBuilds++;
+        if (_hidden.Length != terrain.Buildings.Count) _hidden = new bool[terrain.Buildings.Count];
+        Array.Clear(_hidden);
+        var set = new HashSet<int>();
+        if (damage != null) DamagedBuildings.Touched(terrain, null, damage, set);
+        foreach (int b in set) if ((uint)b < (uint)_hidden.Length) _hidden[b] = true;
+        _anyHidden = set.Count > 0;
+        DamagedBuildingsDrawn = set.Count;
+        _overlay = set.Count > 0 ? PlanOf(terrain, damage, b => (uint)b < (uint)_hidden.Length && _hidden[b]) : Plan.Empty;
+        _overlayStrokes = _overlay.Strokes;
+        _overlayDirty = true;
+        _meshDirty = true;   // the plan's fills: the hidden buildings' alpha 0
+    }
+
+    private void DrawOverlayFills()
+    {
+        if (_overlayDirty)
+        {
+            _overlayDirty = false;
+            if (_hasOverlayMesh) { Raylib.UnloadMesh(_overlayMesh); _hasOverlayMesh = false; }
+            if (_overlay.FillTriangles > 0) { _overlayMesh = MeshOf(_overlay, null); _hasOverlayMesh = true; }
+        }
+        if (!_hasOverlayMesh) return;
+        if (!_hasMaterial) { _material = Raylib.LoadMaterialDefault(); _hasMaterial = true; }
+        Rlgl.DrawRenderBatchActive();
+        Rlgl.DisableBackfaceCulling();
+        Raylib.DrawMesh(_overlayMesh, _material, Matrix4x4.Identity);
     }
 
     /// <summary>Builds the plan of <paramref name="terrain"/> (none ⇒ empty); the mesh is uploaded on the next draw.</summary>
@@ -124,8 +181,15 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     {
         _meshDirty = false;
         ReleaseMesh();
-        int tris = _plan.FillTriangles;
-        if (tris == 0) return;
+        if (_plan.FillTriangles == 0) return;
+        _mesh = MeshOf(_plan, _anyHidden ? _hidden : null);
+        _hasMesh = true;
+    }
+
+    /// <summary>A plan's fills as one mesh; a fill of a <paramref name="hidden"/> building drawn transparent (CE-4392).</summary>
+    private static Mesh MeshOf(Plan plan, bool[]? hidden)
+    {
+        int tris = plan.FillTriangles;
         var mesh = new Mesh(tris * 3, tris);
         mesh.AllocVertices();
         mesh.AllocColors();
@@ -133,14 +197,15 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         var colors = mesh.ColorsAs<Color>();
         for (int i = 0; i < tris * 3; i++)
         {
-            var v = _plan.FillVertices[i];
+            var v = plan.FillVertices[i];
             vertices[i] = new Vector3(v.X, v.Y, FillZ);
-            var c = _plan.FillColors[i / 3];
-            colors[i] = new Color(c.R, c.G, c.B, c.A);
+            var c = plan.FillColors[i / 3];
+            int b = plan.FillBuilding[i / 3];
+            byte a = hidden != null && (uint)b < (uint)hidden.Length && hidden[b] ? (byte)0 : c.A;
+            colors[i] = new Color(c.R, c.G, c.B, a);
         }
         Raylib.UploadMesh(ref mesh, false);
-        _mesh = mesh;
-        _hasMesh = true;
+        return mesh;
     }
 
     private void ReleaseMesh()
@@ -153,6 +218,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     public void Dispose()
     {
         ReleaseMesh();
+        if (_hasOverlayMesh) { Raylib.UnloadMesh(_overlayMesh); _hasOverlayMesh = false; }
         if (_hasMaterial) { Raylib.UnloadMaterial(_material); _hasMaterial = false; }
     }
 
@@ -176,13 +242,27 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     {
         public static readonly Plan Empty = new(Array.Empty<Vector2>(), Array.Empty<Rgba32>(), Array.Empty<DebugPrimitive>());
 
-        public Plan(Vector2[] fillVertices, Rgba32[] fillColors, DebugPrimitive[] strokes)
+        public Plan(Vector2[] fillVertices, Rgba32[] fillColors, DebugPrimitive[] strokes) : this(fillVertices, fillColors, strokes, null, null) { }
+
+        /// <param name="fillBuilding">⭐ CE-4392 — the building of each fill triangle (−1 none); null = none</param>
+        /// <param name="strokeBuilding">⭐ CE-4392 — the building of each stroke (−1 none); null = none</param>
+        public Plan(Vector2[] fillVertices, Rgba32[] fillColors, DebugPrimitive[] strokes, int[]? fillBuilding, int[]? strokeBuilding)
         {
             FillVertices = fillVertices;
             FillColors = fillColors;
             Strokes = strokes;
+            FillBuilding = fillBuilding ?? Filled(fillColors.Length);
+            StrokeBuilding = strokeBuilding ?? Filled(strokes.Length);
             Index = new StrokeIndex(strokes);
         }
+
+        private static int[] Filled(int n) { var a = new int[n]; Array.Fill(a, -1); return a; }
+
+        /// <summary>⭐ CE-4392 — which building each fill triangle belongs to (−1 = none).</summary>
+        public int[] FillBuilding { get; }
+
+        /// <summary>⭐ CE-4392 — which building each stroke belongs to (−1 = none).</summary>
+        public int[] StrokeBuilding { get; }
 
         /// <summary>⭐ CE-4376 (D-2) — the strokes binned by <see cref="StrokeIndex.Bin"/> m cells, so a frame visits only the cells in view and stops at the length cut.</summary>
         public StrokeIndex Index { get; }
@@ -194,28 +274,36 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     }
 
     /// <summary>Emits <paramref name="terrain"/>'s plan (<see cref="TerrainPlan2D.Emit"/>) and splits it.</summary>
-    public static Plan PlanOf(TerrainWorld terrain)
+    public static Plan PlanOf(TerrainWorld terrain) => PlanOf(terrain, null, null);
+
+    /// <summary>⭐ CE-4392 — the plan under <paramref name="damage"/>, of the buildings <paramref name="only"/> accepts (null = all, the whole plan), with the building of every fill and stroke.</summary>
+    public static Plan PlanOf(TerrainWorld terrain, BuildingDamageTable? damage, Func<int, bool>? only)
     {
         // The plan's size is not known before it is emitted: grow the private buffer until nothing is dropped.
-        for (int capacity = 65_536; ; capacity *= 2)
+        for (int capacity = only != null ? 4_096 : 65_536; ; capacity *= 2)
         {
             var buffer = new DebugPrimitiveBuffer(capacity);
-            TerrainPlan2D.Emit(terrain, buffer);
+            var marks = new List<(int Start, int Building)>();
+            TerrainPlan2D.Emit(terrain, buffer, damage, only, b => marks.Add((buffer.Count, b)));
             if (buffer.DroppedCount > 0) continue;
             var frame = buffer.GetFrame();
             var vertices = new List<Vector2>();
             var colors = new List<Rgba32>();
             var strokes = new List<DebugPrimitive>();
+            var fillB = new List<int>(); var strokeB = new List<int>();
+            int m = 0, current = -1, i = 0;
             foreach (ref readonly var p in frame)
             {
+                while (m < marks.Count && marks[m].Start <= i) current = marks[m++].Building;
+                i++;
                 if (p.Shape == DebugPrimitiveShape.FilledTriangle)
                 {
                     vertices.Add(p.TriA); vertices.Add(p.TriB); vertices.Add(p.TriC);
-                    colors.Add(p.Color);
+                    colors.Add(p.Color); fillB.Add(current);
                 }
-                else strokes.Add(p);
+                else { strokes.Add(p); strokeB.Add(current); }
             }
-            return new Plan(vertices.ToArray(), colors.ToArray(), strokes.ToArray());
+            return new Plan(vertices.ToArray(), colors.ToArray(), strokes.ToArray(), fillB.ToArray(), strokeB.ToArray());
         }
     }
 
@@ -290,7 +378,10 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     /// <summary>Copies into <paramref name="into"/> the strokes the view shows: inside <paramref name="view"/> (padded by
     /// <see cref="CullMarginPixels"/>), an outline at least <see cref="MinStrokePixels"/> long on screen, labels only from
     /// <see cref="LabelMinZoom"/>. Emission order is kept. Returns how many.</summary>
-    public static int Cull(Plan plan, (Vector2 Min, Vector2 Max) view, float zoom, DebugPrimitive[] into)
+    public static int Cull(Plan plan, (Vector2 Min, Vector2 Max) view, float zoom, DebugPrimitive[] into) => Cull(plan, view, zoom, into, null);
+
+    /// <summary>⭐ CE-4392 — <see cref="Cull(Plan, ValueTuple{Vector2, Vector2}, float, DebugPrimitive[])"/>, skipping the strokes of the <paramref name="hidden"/> buildings (drawn by the damage overlay).</summary>
+    public static int Cull(Plan plan, (Vector2 Min, Vector2 Max) view, float zoom, DebugPrimitive[] into, bool[]? hidden)
     {
         if (zoom <= 0f) zoom = 1f;
         var pad = new Vector2(CullMarginPixels / zoom);
@@ -312,11 +403,13 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
                 {
                     int s = ix.Lines[q];
                     if (ix.Length2(s) < min2) break;   // longest first: the rest are shorter still
+                    if (hidden != null && Hidden(plan, s, hidden)) continue;
                     if (LineInView(strokes[s], min, max)) into[n++] = strokes[s];
                 }
                 if (!labels) continue;
                 for (int q = ix.LabelStart[k]; q < ix.LabelStart[k + 1]; q++)
                 {
+                    if (hidden != null && Hidden(plan, ix.Labels[q], hidden)) continue;
                     ref readonly var p = ref strokes[ix.Labels[q]];
                     if (p.TextX < min.X || p.TextX > max.X || p.TextY < min.Y || p.TextY > max.Y) continue;
                     into[n++] = p;
@@ -325,11 +418,13 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         for (int q = 0; q < ix.Long.Length; q++)
         {
             int s = ix.Long[q];
-            if (ix.Length2(s) >= min2 && LineInView(strokes[s], min, max)) into[n++] = strokes[s];
+            if (ix.Length2(s) >= min2 && LineInView(strokes[s], min, max) && !(hidden != null && Hidden(plan, s, hidden))) into[n++] = strokes[s];
         }
-        for (int q = 0; q < ix.Other.Length; q++) into[n++] = strokes[ix.Other[q]];
+        for (int q = 0; q < ix.Other.Length; q++) if (!(hidden != null && Hidden(plan, ix.Other[q], hidden))) into[n++] = strokes[ix.Other[q]];
         return n;
     }
+
+    private static bool Hidden(Plan plan, int stroke, bool[] hidden) { int b = plan.StrokeBuilding[stroke]; return (uint)b < (uint)hidden.Length && hidden[b]; }
 
     private static bool LineInView(in DebugPrimitive p, Vector2 min, Vector2 max)
     {
@@ -337,9 +432,11 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         return !(Math.Max(ax, bx) < min.X || Math.Min(ax, bx) > max.X || Math.Max(ay, by) < min.Y || Math.Min(ay, by) > max.Y);
     }
 
-    private static int CopyAll(Plan plan, DebugPrimitive[] into)
+    private static int CopyAll(Plan plan, DebugPrimitive[] into, bool[]? hidden)
     {
-        plan.Strokes.CopyTo(into, 0);
-        return plan.Strokes.Length;
+        if (hidden == null) { plan.Strokes.CopyTo(into, 0); return plan.Strokes.Length; }
+        int n = 0;
+        for (int i = 0; i < plan.Strokes.Length; i++) if (!Hidden(plan, i, hidden)) into[n++] = plan.Strokes[i];
+        return n;
     }
 }
