@@ -46,7 +46,7 @@ backend built in `CE-3030`, and shown working in a live `tt-nav-los`-style run o
 | D2 | BTree, blueprint or utility as the first host | ⭐ **blueprint** — `SpawnEqsSensor`/`ReadEqsResult`/`When` already exist and the editor can author and run it; the utility decision follows once one consumer works |
 | D3 | where the target (slot 1) comes from | ⭐ the unit's `TargetMemory` top threat (perception's answer) — re-pointed with an epoch bump when it changes |
 | D4 | when to re-query | ⭐ standing sensor + `ScoreDelta` publish policy; act on `TopChanged` / threshold crossings, not every tick |
-| D5 | acceptance scenario | ⭐ extend `scenarios/tt-nav-los`: a rifleman near the Tower with a hostile to the north-east; expected — moves to a point the hostile cannot see |
+| D5 | acceptance scenario | ⭐ extend `scenarios/demos/navigation-and-terrain/tt-nav-los`: a rifleman near the Tower with a hostile to the north-east; expected — moves to a point the hostile cannot see |
 
 ## Acceptance
 

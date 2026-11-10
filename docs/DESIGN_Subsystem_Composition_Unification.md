@@ -5261,7 +5261,7 @@ hypothesis was an artefact of the broken instrument.** ⭐ With it fixed:
 
 ##### 🔴🔴🔴 WHERE THE EDITOR'S RICH PARAMS ACTUALLY COME FROM
 
-⭐⭐⭐ **`scenarios/hill-attack/scenario.json` STORES a complete 15-field `VehicleParams` PER ENTITY** — **6
+⭐⭐⭐ **`scenarios/tests/hill-attack/scenario.json` STORES a complete 15-field `VehicleParams` PER ENTITY** — **6
 blocks**, and the first matches the editor's observed values **exactly**:
 
 ```

@@ -57,7 +57,7 @@ curl -s localhost:8111/features        # per node: which HUD elements are on, an
 | the editor alone | `./run_Editor.sh` |
 | a player station on its own | `./run_Player.sh` |
 | a recording afterwards | `./run_ReplayBrowser.sh` |
-| the two scenarios | `scenarios/showcase-bridgehead` (training: objectives, standards, evaluation) · `scenarios/showcase-crossfire` (game: capture points, tickets, score) |
+| the two scenarios | `scenarios/showcases/showcase-bridgehead` (training: objectives, standards, evaluation) · `scenarios/showcases/showcase-crossfire` (game: capture points, tickets, score) |
 
 ### 1.6 Driving the editor by script *(ui; only for the people who verify these rows headless)*
 Under a bare Xvfb the editor window has no keyboard focus: `xdotool windowfocus <id>` first (RUNBOOK, last section); a press of **Esc** must be held (`keydown`, 0.3 s, `keyup`) to release a possessed man; type at ≥ 250 ms per key. The ui rows were run in the EDITOR window (one process, `./run_Editor.sh`-style) — the player HUD is the same layer in its possession view.

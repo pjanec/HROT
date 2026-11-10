@@ -79,7 +79,7 @@ perspective via `POST /perspective` *(⛔ **not** `?perspective=` — see `CE-11
 | ⭐ **editor** *(one process, one world)* | **Tank** | **1.8** | **0.8** | ⭐ present | 39 |
 
 ⭐⭐⭐ **CGF is CORRECT.** The scenario stores a full 15-field `VehicleParams` per entity
-*(`scenarios/hill-attack/scenario.json`, 6 blocks)*, and `NetworkSpawningSystem` step 8 — *"apply
+*(`scenarios/tests/hill-attack/scenario.json`, 6 blocks)*, and `NetworkSpawningSystem` step 8 — *"apply
 caller-supplied component overrides **on top of** TKB defaults"* — applies it. ⭐ The mechanism works as
 designed.
 

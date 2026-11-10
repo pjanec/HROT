@@ -129,4 +129,30 @@ public sealed class ClusterMasterNewScenarioTests
         }
         finally { try { Directory.Delete(nas, recursive: true); } catch (IOException) { } }
     }
+
+    /// <summary>
+    /// ⭐ CE-4360 (Q-S3) — a NEW scenario is created at the TOP level (<i>My scenarios</i>); a name that already exists FILED in a sub-folder is refused as existing (never a second copy at the top
+    /// level). 🔴 Mutation: the existence check composing <c>scenarios/&lt;name&gt;</c> by hand ⇒ a duplicate of the filed scenario appears at the top level.
+    /// </summary>
+    [Fact]
+    public void CE4360_ANewScenario_GoesToTheTopLevel_AndAFiledNameIsRefusedAsExisting()
+    {
+        var nas = Path.Combine(Path.GetTempPath(), "ce4360-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var terrain = Path.Combine(ContentLayout.TerrainAssets(nas), "highway-rest");
+            Directory.CreateDirectory(terrain);
+            File.WriteAllText(Path.Combine(terrain, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName), "{}");
+            var filed = Path.Combine(ContentLayout.Scenarios(nas), "demos", "air", "ua-filed");
+            Directory.CreateDirectory(filed);
+            File.WriteAllText(Path.Combine(filed, ContentLayout.ScenarioFileName), "{}");
+            var storage = new StorageProcessManager(new FdpEventBus(), new StorageGatewayModule(), nas);
+
+            Assert.Null(storage.WriteBlankScenario("fresh", "highway-rest"));
+            Assert.True(File.Exists(Path.Combine(ContentLayout.Scenarios(nas), "fresh", ContentLayout.ScenarioFileName)), "a new scenario saves at the top level");
+            Assert.Contains("already exists", storage.WriteBlankScenario("ua-filed", "highway-rest"));
+            Assert.False(Directory.Exists(Path.Combine(ContentLayout.Scenarios(nas), "ua-filed")), "no second copy at the top level");
+        }
+        finally { try { Directory.Delete(nas, recursive: true); } catch (IOException) { } }
+    }
 }

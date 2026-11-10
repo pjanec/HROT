@@ -15,7 +15,7 @@ related-designs:
 passes live (fog 58 m, clear 148 m); rail `WeatherRegionBlendTests.G3_*` pins W-1 on the demo's numbers. The table below is the
 original report, kept as history.
 
-**Found** building CE-4035 G-3 (`scenarios/ua-weather-sensing`, `--mode all`, `2026-10-22`).
+**Found** building CE-4035 G-3 (`scenarios/demos/sensing-and-weather/ua-weather-sensing`, `--mode all`, `2026-10-22`).
 
 | measured | |
 |---|---|

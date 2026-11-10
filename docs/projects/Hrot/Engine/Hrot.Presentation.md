@@ -1062,10 +1062,10 @@ var fileService = new ScenarioFileService(
 fileService.RegisterWorldResetObserver(() => selectionManager.ClearAll());
 
 // Load a scenario.
-fileService.LoadScenario(entityRepo, "scenarios/hill-attack/scenario.json");
+fileService.LoadScenario(entityRepo, "scenarios/tests/hill-attack/scenario.json");
 
 // Save current state.
-fileService.SaveScenario(entityRepo, "scenarios/hill-attack/autosave.json");
+fileService.SaveScenario(entityRepo, "scenarios/tests/hill-attack/autosave.json");
 
 // Create a blank scenario.
 fileService.NewScenario(entityRepo);

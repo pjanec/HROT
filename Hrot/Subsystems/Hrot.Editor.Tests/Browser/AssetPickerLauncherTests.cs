@@ -767,4 +767,41 @@ public sealed class AssetPickerLauncherTests
         Assert.Equal("Macro: test/fire-team · on berlin", Hrot.Common.Scenarios.ScenarioWindowTitle.Detail("macros/test/fire-team", "berlin"));
         Assert.Equal("Combat/mine", EditorWindowTitle.Detail("Combat/mine", null));
     }
+
+    // ═══ CE-4360 — scenarios in SUB-FOLDERS (docs/DESIGN_Content_Layout.md §6; done by the behaviors lane) ═════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐ Q-S1/Q-S2/Q-S3 — the scenario picker lists each scenario by its LEAF name, files it under its sub-folder path (none at the top level), and hides the ones under
+    /// <c>tests/</c> behind the <i>Show tests</i> tick (the same <see cref="PickerHideToggle"/> the task picker uses, CE-4359). The asset's file is its REAL path.
+    /// 🔴 Mutation: <c>AssetPickerSource.ToEntry</c> ignoring <c>ICategorizedAsset</c> ⇒ every category is null; <c>HideToggle</c> removed ⇒ the toggle assert fails.
+    /// </summary>
+    [Fact]
+    public void CE4360_TheScenarioPicker_NamesByLeaf_FilesBySubFolder_AndHidesTestsBehindTheTick()
+    {
+        string scenarios = Path.Combine(Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "ce4360-" + Guid.NewGuid().ToString("N"))).FullName, "scenarios");
+        foreach (var rel in new[] { "mine", "demos/air/ua-air-assault", "tests/perf/perf-1" })
+        {
+            Directory.CreateDirectory(Path.Combine(scenarios, rel));
+            File.WriteAllText(Path.Combine(scenarios, rel, "scenario.json"), "{}");
+        }
+        var contributor = new ScenarioCatalogContributor(() => ScenarioEnumeration.EnumerateNames(scenarios), () => scenarios);
+        var fakePicker = new FakeOpenPicker();
+        var launcher = new AssetPickerLauncher(fakePicker.OpenPicker, new FakeCatalog(contributor.Enumerate().ToArray()), MakeRouter(), baseFolderResolver: _ => "");
+
+        launcher.Open(AssetKindFilter.Scenario);
+
+        var request = fakePicker.CapturedRequest!;
+        var entries = request.ItemsProvider().ToDictionary(e => e.Name);
+        Assert.Equal(new[] { "mine", "perf-1", "ua-air-assault" }, entries.Keys.OrderBy(n => n, StringComparer.Ordinal).ToArray());   // the LEAF names
+        Assert.Null(entries["mine"].Category);                                   // top level: no folder
+        Assert.Equal("demos/air", entries["ua-air-assault"].Category);
+        Assert.Equal("tests/perf", entries["perf-1"].Category);
+        Assert.Equal(Path.Combine(scenarios, "demos", "air", "ua-air-assault", "scenario.json"), ((IEditableAsset)entries["ua-air-assault"].Tag!).SourceFilePath);
+
+        Assert.NotNull(request.HideToggle);
+        Assert.Equal(AssetPickerLauncher.HideTestsLabel, request.HideToggle!.Label);
+        Assert.True(request.HideToggle.Hides(entries["perf-1"]));                // under tests/ ⇒ hidden while the tick is off
+        Assert.False(request.HideToggle.Hides(entries["ua-air-assault"]));
+        Assert.False(request.HideToggle.Hides(entries["mine"]));
+    }
 }

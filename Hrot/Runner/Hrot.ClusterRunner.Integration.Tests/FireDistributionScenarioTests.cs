@@ -59,7 +59,7 @@ public sealed class FireDistributionScenarioTests : IDisposable
     public async Task CE3088_U6_TheLeaderSpreadsTheSquadsFire_AtMostTwoPerTarget_AndEveryMemberFires()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-fire-distribution", "scenario.json"),
+        File.Copy(TestRepo.ScenarioFile("ua-fire-distribution"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());

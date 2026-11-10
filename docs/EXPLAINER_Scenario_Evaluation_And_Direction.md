@@ -68,7 +68,7 @@ the orders out and change the world, which the objectives read again.
 
 ## 1. The objective
 
-> **Status:** ✅ built — slice S1 (`DESIGN_Scenario_Rules.md` §00.8.1), live on a cluster (`scenarios/sr-objectives-march`). Decisions SR-37, SR-47…SR-53, S1-a…S1-g. Parameter names below are illustrative (shipped: `minMen`, `holdSeconds`, `common{title, subject, parent, required, weight, deadlineSeconds}`); the clear-the-area kind is `ClearAreaObjective`.
+> **Status:** ✅ built — slice S1 (`DESIGN_Scenario_Rules.md` §00.8.1), live on a cluster (`scenarios/demos/rules-objectives-directors/sr-objectives-march`). Decisions SR-37, SR-47…SR-53, S1-a…S1-g. Parameter names below are illustrative (shipped: `minMen`, `holdSeconds`, `common{title, subject, parent, required, weight, deadlineSeconds}`); the clear-the-area kind is `ClearAreaObjective`.
 
 ### 1.1 What it is
 
@@ -620,7 +620,7 @@ build `EntityLink`s from GUIDs; a numeric link in a file is a load error; the co
 id (orders, the wire, the debug API). The Watch window's pin was re-keyed on the GUID first (the S8 prerequisite).
 
 ```jsonc
-// one value per form — simplified from scenarios/showcase-bridgehead and macros/control/counter-attack (the Params string is wrapped here for reading)
+// one value per form — simplified from scenarios/showcases/showcase-bridgehead and macros/control/counter-attack (the Params string is wrapped here for reading)
 { "RefKey": { "Value": "HoldCrossroads" },                                  // gives THIS entity the key @HoldCrossroads
   "Behavior": { "Name": "HoldArea", "Params": "{
       \"common\": { \"subject\": \"b41d6e00-0000-4000-8000-000000000001\",   // Exact — the Blue platoon's GUID
@@ -818,7 +818,7 @@ commander's evaluation, so squad and platoon scores are just the composites abov
 
 ## 7. The game profile — tickets, capture points, respawn waves
 
-> **Status:** ✅ built as v1 (S6, `DESIGN_Scenario_Rules.md` §00.12; `scenarios/showcase-crossfire`, measured live over two 900 s rounds) · ✅ the per-player
+> **Status:** ✅ built as v1 (S6, `DESIGN_Scenario_Rules.md` §00.12; `scenarios/showcases/showcase-crossfire`, measured live over two 900 s rounds) · ✅ the per-player
 > score, awards, streaks and the bounty (S7, §00.13, `backend`; Crossfire round 4 measured) — ✅ P-1…P-9 approved by the user `2026-11-03`. Decisions: G-1…G-7 (✅ approved by the user `2026-11-03`), SR-84, SR-112, P-1…P-9, G-9 (✅ approved `2026-11-03`).
 
 A game is the SAME machinery (§1–§3) with a few small additions — no ticket system, no game-mode code (R-4112):

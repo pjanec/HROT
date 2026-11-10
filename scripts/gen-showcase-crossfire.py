@@ -7,7 +7,7 @@ Domination on demo-city: three capture points, ticket pools, a comeback boost, s
 triggers, macros, variants) on the rules S1/S2/S3 machinery plus the S6 v1 pieces (DESIGN_Scenario_Rules.md §00.12: timed capture by side,
 the Counter measure, AddToCounter, trigger whileTrue). Nothing compiled per scenario (R-4112). Edit this script, not the files.
 
-  scenarios/showcase-crossfire/scenario.json
+  scenarios/showcases/showcase-crossfire/scenario.json
   macros/game/bot/scenario.json            one soldier who advances 250 m ahead of where he spawns (a respawn-wave bot)
   macros/game/supply-crate/scenario.json   a supply crate (an obstacle) — dropped by the supply-drop triggers
 """
@@ -21,6 +21,9 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 def rot(deg):
     yaw = math.radians(90 - deg)
     return [0, 0, round(math.sin(yaw / 2), 7), round(math.cos(yaw / 2), 7)]
+
+
+import scenario_dir  # CE-4361 — the scenario is filed under showcases/
 
 
 def write(path, doc):
@@ -372,7 +375,7 @@ def scenario():
                  [{"act": "SetObjectiveActive", "args": {"target": d, "active": True}} for d in deciders])
     ents[ie]["RefKey"] = {"Value": "instructor-end"}
 
-    write("scenarios/showcase-crossfire/scenario.json", doc({
+    write(os.path.join(scenario_dir.folder(ROOT, "showcase-crossfire"), "scenario.json"), doc({
         # ⭐ P-7 (DESIGN_Node_Features.md §11, F-27): this scenario's feature preset — the scenario layer under the node / cluster overrides (ui's lists, PH-8)
         "features": {"hud.objectives": "off", "hud.own-evaluation": "off"},
         "terrainName": "demo-city",
@@ -395,4 +398,4 @@ if __name__ == "__main__":
     macro_score()
     macro_awards()
     scenario()
-    print("wrote scenarios/showcase-crossfire + macros/game/bot, game/supply-crate, game/score, game/awards")
+    print("wrote scenarios/showcases/showcase-crossfire + macros/game/bot, game/supply-crate, game/score, game/awards")

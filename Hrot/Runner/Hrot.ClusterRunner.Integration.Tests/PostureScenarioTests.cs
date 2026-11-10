@@ -148,7 +148,7 @@ public sealed class PostureScenarioTests : IDisposable
     {
         var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(root, "scenarios", scenario, "scenario.json"),
+        File.Copy(TestRepo.ScenarioFile(scenario),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
@@ -226,7 +226,7 @@ public sealed class PostureScenarioTests : IDisposable
     private async Task<HrotRunnerHarness> StartShippedScenario(string folder)
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(TestRepo.Root, "scenarios", folder, "scenario.json"),
+        File.Copy(TestRepo.ScenarioFile(folder),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
         var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;

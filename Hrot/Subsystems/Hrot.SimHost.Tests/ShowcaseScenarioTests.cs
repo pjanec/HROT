@@ -16,7 +16,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed class ShowcaseScenarioTests
     {
-        private static readonly string Bridgehead = File.ReadAllText(Path.Combine(TestRepo.Root, "scenarios", "showcase-bridgehead", "scenario.json"));
+        private static readonly string Bridgehead = File.ReadAllText(TestRepo.ScenarioFile("showcase-bridgehead"));
 
         /// <summary>What a variant decides in Bridgehead: the outpost instance's place, the QRF start marker's place, the villagers present.</summary>
         private static string Choices(int variant)

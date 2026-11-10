@@ -53,7 +53,7 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         Environment.SetEnvironmentVariable("FDP_STAGING_ROOT", _root);
         // ⭐ what the host start does for a dev checkout (assets, terrain, recipes into the shared root) — an unseeded root leaves the load's terrain / asset phase with nothing to stage
         ContentSeed.SeedIntoNas(OrchestrationConstants.GetSharedRoot(_root), TestRepo.Root);
-        CopyDir(Path.Combine(TestRepo.Root, "scenarios", Scenario), Path.Combine(OrchestrationConstants.GetSharedScenariosRoot(_root), Scenario));
+        CopyDir(TestRepo.ScenarioDirectory(Scenario), Path.Combine(OrchestrationConstants.GetSharedScenariosRoot(_root), Scenario));
     }
 
     public void Dispose()

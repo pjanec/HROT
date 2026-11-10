@@ -1488,7 +1488,7 @@ producer of a lethal act; grep `CarryStations\.(Move|Ask)` ⇒ no behaviour call
 |---|---|---|
 | the stations | a person carries in seat 1 HANDS, 2 BACK (stowed: seen, cannot fire), 3 HIDDEN (stowed + concealed: arms nobody, not sensed); `CarryStations.Move` on the list's owner, `Ask` from anywhere (I-1 kind 11) | `Behavior/CarryStations.cs`, §7.13a |
 | the weapon | pick-up pistol **617** / rifle **616** — one man, fire while carried; a weapon system the man controls (`WeaponChoice` candidates include it) | §7.13a, `WeaponChoice.cs:29-37` |
-| a scenario that carries one | `PassengerBuffer { Passengers: [guid], Seats: [3] }` on the man (the air-assault scenarios author passengers this way) | `scenarios/ua-air-assault` |
+| a scenario that carries one | `PassengerBuffer { Passengers: [guid], Seats: [3] }` on the man (the air-assault scenarios author passengers this way) | `scenarios/demos/air/ua-air-assault` |
 | the ONE writer of an aimed posture | `WeaponPostureOf.Report` — every executor reports "aiming / firing" there | `Combat/WeaponPostureOf.cs:45` |
 | who is a combatant | `Armament.IsCombatant`: not the Civilian class, not Neutral | `Armament.cs:188` |
 | ⛔ the lethal act | ⛔ no producer — `HostileActs.Commit(…, Lethal)` is called by nobody; ⇒ a civilian who shoots at the forces stays Neutral today | INVENTORY grep |

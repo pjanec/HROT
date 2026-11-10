@@ -92,10 +92,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         [InlineData("ua-weather-sensing")]
         public void TheShippedWeatherScenarios_HoldTheirEnvironmentInTheHeader_NotAsAnEntity(string name)
         {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "scenarios"))) dir = dir.Parent;
-            Assert.NotNull(dir);
-            var dom = (JsonObject)JsonNode.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(dir!.FullName, "scenarios", name, "scenario.json")))!;
+            var dom = (JsonObject)JsonNode.Parse(System.IO.File.ReadAllText(Fdp.Testing.TestRepo.ScenarioFile(name)))!;   // ⭐ CE-4360 — by name, wherever it is filed
             var world = ScenarioWorldSection.Of(dom);
             Assert.NotNull(world);
             ScenarioWorldSection.ClockFromString(world!["ScenarioClock"]!["Start"]!.GetValue<string>());   // parses, with its offset

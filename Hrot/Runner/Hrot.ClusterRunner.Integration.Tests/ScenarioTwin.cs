@@ -38,7 +38,7 @@ internal static class ScenarioTwin
         var id = scenario.Replace('-', '_') + "_" + Guid.NewGuid().ToString("N");
         staged.Add(id);
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(id));
-        File.Copy(Path.Combine(TestRepo.Root, "scenarios", scenario, "scenario.json"),
+        File.Copy(TestRepo.ScenarioFile(scenario),
             Path.Combine(NasScenarioStaging.DirectoryOf(id), "scenario.json"), overwrite: true);
 
         var harness = new HrotRunnerHarness("simhost,player,cgf", domainId);

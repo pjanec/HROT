@@ -85,7 +85,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("Hrot.AI.Behaviors.Brains.HsmChannelE2EParams", def!.JsonParamsDtoType?.FullName);
 
             // the scenario's own params text — the shape a mission sends, kept honest by reading the file
-            string scenario = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "scenarios", "hsm-channel-e2e", "scenario.json"));
+            string scenario = System.IO.File.ReadAllText(TestRepo.ScenarioFile("hsm-channel-e2e"));
             // ⭐ CE-4295 — read as a tree: the params are the object they hold in the file (an escaped string in an old one), TextOf reads both
             string? json = null;
             void Find(System.Text.Json.Nodes.JsonNode? n)

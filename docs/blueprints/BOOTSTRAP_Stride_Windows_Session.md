@@ -58,7 +58,7 @@ so in every commit; this session is where that debt is paid.
 | **branch** | ⭐ **`claude/reset-working-branch-qd1qpv`** — push there, `-u origin <branch>`, retry 2/4/8/16 s on network failure. ⛔ **No PR unless the user asks** |
 | **commit trailers** | `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` and the `Claude-Session:` line for **your** session |
 | ⛔⛔ **never** | put a **model identifier** in a commit message, PR body, code comment or any pushed artefact — chat replies only |
-| 🔒 **never** | modify `scenarios/hill-attack/` — **it is the user's scenario** |
+| 🔒 **never** | modify `scenarios/tests/hill-attack/` — **it is the user's scenario** |
 | ⭐ **the user is on mobile** | give **GitHub blob links** for every doc and task id, on this branch, and **gloss every id on first mention** — `CE-219 (Stride's own Bullet step was ungated)` |
 | ⛔ | do **not** use the `AskUserQuestion` widget — ask in plain chat prose |
 | ⭐ | **build the affected project (~8 s), never the solution (~115 s), in a fix loop** — then `--no-build` for every run after |

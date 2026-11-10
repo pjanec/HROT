@@ -38,7 +38,7 @@ Ids allocated: components 469–474 (⚠ in ui's block — backend's 434–449 i
 | runner (filtered) | `--filter "RunMode\|Startup\|Configuration"` | 81/0 | — |
 | NED (whole) | `dotnet test Hrot/Network/Hrot.Network.NED.Tests --no-build` | 176/1 | the 1 red `AllTopicStructsHaveDdsTopicAttribute` (`FeatureOverrideWire`) is red at base |
 | `DistributedScenarioLoadTests` alone | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter DistributedScenarioLoadTests` | ✅ 1/0 — §2a | — |
-| live `--mode all` | `scenarios/test-macro-two-teams --load live --param side=Friend` | ✅ — §2b | — |
+| live `--mode all` | `scenarios/tests/test-macro-two-teams --load live --param side=Friend` | ✅ — §2b | — |
 | docs | `tracker-counts.py --check` · `rulings-check.py` · `design-digest.py --check` · `mermaid-check.mjs` | OK · OK (3 "source changed" warnings, pre-existing) · OK · 14/14 | — |
 
 Red-proofs (each a compiling mutation, restored): item ④ children not transient ⇒ red · item ⑤ solver ignoring `MaxShift` ⇒ red ·

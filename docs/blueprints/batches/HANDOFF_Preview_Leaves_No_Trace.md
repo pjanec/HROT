@@ -47,7 +47,7 @@ small *"what preview saves"* list *(§4 ⑤ — ⭐ **two participants justify o
 | ⭐⭐ **THREE types named `SequentialIdAllocator`** | `Hrot.Core.Network` *(real)* · **`EditorSubsystem`'s `private sealed` nested one** *(`:557` — ⭐ **this is the one the editor and the harness actually run**)* · `EditorHarness`'s test nested one. ⛔ **Fixing the first does not touch the second** |
 | ⭐⭐ **`PreviewClusterOpHandler` lives in `Hrot.Network.Orchestration` and knows only `_liveRepo`** | ⇒ it must be **given** what to save. ⭐ **Keep the list in ONE place** — ⛔ not half in `ExitPreviewMode` |
 | ⭐ **preview brackets the CLOCK too** | `EnterPreviewMode` → `SwitchToContinuous()`; `ExitPreviewMode` → `SwitchToDeterministic(new HashSet<int>())`. ⚠ **Do not disturb that** — ⭐ it is the one-node-cluster trick the debug pause also uses |
-| ⭐ **the authored-load path must NOT regress** | 📐 `HN-010` pins ids `1000`–`1007` **from `scenarios/hill-attack/scenario.json`** — ⭐ authored entities never touch the allocator, and that must stay true |
+| ⭐ **the authored-load path must NOT regress** | 📐 `HN-010` pins ids `1000`–`1007` **from `scenarios/tests/hill-attack/scenario.json`** — ⭐ authored entities never touch the allocator, and that must stay true |
 | ⚠ **`HrotEditLoadHandler` has NO production construction site** *(tests only)* | ⭐ noted so you do not assume the cluster edit-load path is live. ⛔ **Not yours to chase** — ⚠ it wants a design-corpus check first *(unreferenced ≠ unintentional)* |
 
 ## 3. ⛔ LANE & SCOPE

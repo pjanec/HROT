@@ -200,7 +200,7 @@ reads it for a `MoveTo`, which is what makes the editor and the cluster identica
 vehicles, which plan in `VehicleNavigationIntentSystem`) publishes a request nobody answers and plans itself.
 
 > ⭐⭐ **DESIGN + AS-BUILT — `2026-10-03` (`CE-2059`, `CE-2060`, behaviors lane, user-approved): a planned path ENDS AT
-> THE DESTINATION and is DRIVEN AT THE REQUESTED SPEED.** 📐 Measured live (`--mode all`, `scenarios/mission-demo-bp`, no
+> THE DESTINATION and is DRIVEN AT THE REQUESTED SPEED.** 📐 Measured live (`--mode all`, `scenarios/demos/rules-objectives-directors/mission-demo-bp`, no
 > terrain ⇒ the road graph): the Return leg reported `Arrived` 14.8 m from its destination (the road node nearest it),
 > the Advance leg overshot its end node by 11 m, and both drove 10 m/s against a requested 5.
 

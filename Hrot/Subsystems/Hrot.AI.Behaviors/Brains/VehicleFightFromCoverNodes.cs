@@ -191,6 +191,23 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ R-2086 (A) — the margin over the shooter's own aim time an exposure with the initiative is never cut below (s).</summary>
         public const float FireOnceMarginSeconds = 0.5f;
 
+        /// <summary>
+        /// ⭐ CE-2432 — how long MY sensors need to acquire the threat at its range once it is in sight (the perception pipeline's dwell,
+        /// <see cref="Fdp.Toolkit.Perception.Sensors.Acquisition.DelaySeconds"/>, the target taken fully exposed — the least it can be); 0 with no position.
+        /// 📐 Live (demo-city, ~580 m): the floor (own aim + 0.5 = 2 s) ended before the technical had acquired the IFV (~2.4 s), so it left unseeing.
+        /// </summary>
+        internal static float AcquireSeconds(EntityRepository world, Entity self, in ThreatAim threat)
+        {
+            if (!world.HasComponent<SimTransform>(self) || !EqsTacticsNodes.ThreatPosition(world, self, in threat, out var at)) return 0f;
+            var me = world.GetComponentRO<SimTransform>(self).Position;
+            float range = new Vector2(at.X - me.X, at.Y - me.Y).Length();
+            return Fdp.Toolkit.Perception.Sensors.Acquisition.DelaySeconds(range, 1f, Fdp.Toolkit.Perception.Sensors.Acquisition.ObserverFactor(world, self));
+        }
+
+        /// <summary>⭐ R-2086 (A) + CE-2432 — "long enough to fire once": acquire him at this range, aim, and a margin.</summary>
+        internal static float FireOnceSeconds(EntityRepository world, Entity self, in ThreatAim threat)
+            => AcquireSeconds(world, self, in threat) + OwnAimSeconds(world, self) + FireOnceMarginSeconds;
+
         /// <summary>⭐ R-2086 (A) — my own aim time: the primary weapon's (my own gun, else the weapon system I control — the technical's
         /// Kornet), from its TKB mount; the engine fallback when it declares none.</summary>
         internal static float OwnAimSeconds(EntityRepository world, Entity self)
@@ -440,7 +457,7 @@ namespace Hrot.AI.Behaviors.Brains
                     // ⭐ R-2086 (a) — with the initiative the clock counts from the moment the hull is still (it restarts while it moves)
                     ws.SeenSince = (SimInstant)now;
                     ws.Budget = Budget(in p, world, self);
-                    if (ws.Initiative == 1) ws.Budget = MathF.Max(ws.Budget, OwnAimSeconds(world, self) + FireOnceMarginSeconds);
+                    if (ws.Initiative == 1) ws.Budget = MathF.Max(ws.Budget, FireOnceSeconds(world, self, in threat));
                 }
                 else if (now - ws.SeenSince >= ws.Budget) Withdraw(ref ws, in p, ref mem, self, world, now);
                 return;
@@ -465,10 +482,10 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐⭐ R-2086 (A, CE-4136 ②) — with the initiative (no dangerous threat could see me before I saw him) the exposure lasts long
             //   enough to fire ONCE: never below my own aim time + FireOnceMarginSeconds. A threat that saw me first still sends me back at once.
             //   📐 Live ua-technical-scoot: 0.7 × the M1's aim cut the ATGM technical to 0.56 s against its 1.5 s Kornet — it never fired.
-            if (ws.Initiative == 1) ws.Budget = MathF.Max(ws.Budget, OwnAimSeconds(world, self) + FireOnceMarginSeconds);
+            if (ws.Initiative == 1) ws.Budget = MathF.Max(ws.Budget, FireOnceSeconds(world, self, in threat));
             if (!StartFire(ref ws, in p, self, world, in threat))
             {
-                ws.PhaseUntil = (SimInstant)(now + p.WatchSeconds);
+                ws.PhaseUntil = (SimInstant)(now + MathF.Max(p.WatchSeconds, AcquireSeconds(world, self, in threat) + 1f));   // ⭐ CE-2432 — long enough to see him at this range
                 ws.Phase = VehiclePhase.Watching;
             }
         }

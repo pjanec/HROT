@@ -46,7 +46,7 @@ asking ⇒ both A3 rails red · A3-live the transform written locally regardless
 skipped ⇒ `A4_AfterARestore…` red · A6 the template ignored ⇒ `A6_AVehicleChild…` red.
 ⚠ Two of the first mutations proved nothing and were redone: A2's kept the reservation through the other half of an `||`, A4's did not compile.
 
-### 2a. The live run (`--mode all`, `scenarios/test-macro-two-teams --load live --param side=Friend`)
+### 2a. The live run (`--mode all`, `scenarios/tests/test-macro-two-teams --load live --param side=Friend`)
 
 | step | observed |
 |---|---|
@@ -92,5 +92,5 @@ feature gate ⇒ `SystemScheduler.ReadFeature` threw at `Initialize` — in ever
 (cross-lane test file): it sets `Kernel.FeatureGate` from the system's own declaration, as `SharedApplicationBootstrapper` does from the capabilities ·
 red-proofs: B1 Success-after-asking ⇒ both B1 rails red · `HoldsRefs` back ⇒ `InsertMacro_AtAKey…` red · docs gates OK (496/496, 17/17 mermaid).
 
-**Live (`--mode all`, `scenarios/test-macro-insert`):** a trigger at sim 3 s inserted `test/fire-team` at `"@Drop"` — first run at (0,0,0) (the defect above);
+**Live (`--mode all`, `scenarios/tests/test-macro-insert`):** a trigger at sim 3 s inserted `test/fire-team` at `"@Drop"` — first run at (0,0,0) (the defect above);
 after `6476a15a3`: instance at **(150,100)** `Done`, 4 transient men around it carrying the step's args (`Hostile`), the trigger `Done` after its `Message`.

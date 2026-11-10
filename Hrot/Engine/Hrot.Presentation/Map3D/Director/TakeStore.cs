@@ -103,6 +103,10 @@ public sealed class TakeStore
             foreach (var dir in Directory.EnumerateDirectories(root, TakesFolder, SearchOption.AllDirectories))
             {
                 var scenario = Path.GetRelativePath(root, Path.GetDirectoryName(dir)!).Replace('\\', '/');
+                // ⭐ CE-4360 (Q-S2) — a scenario filed in a sub-folder is named by its LEAF ("ua-air-assault"), never by the path
+                if (scenario.LastIndexOf('/') is var slash and >= 0 && Fdp.Toolkit.Orchestration.ScenarioFolderIndex.Find(root, scenario[(slash + 1)..]) is { } leafDir
+                    && string.Equals(Path.GetFullPath(leafDir), Path.GetFullPath(Path.GetDirectoryName(dir)!), StringComparison.Ordinal))
+                    scenario = scenario[(slash + 1)..];
                 var takes = TakesOf(scenario);
                 if (takes.Count > 0) list.Add((scenario, takes));
             }
@@ -190,8 +194,9 @@ public sealed class TakeStore
     {
         var root = ScenariosRoot;
         if (!Directory.Exists(root)) return Array.Empty<string>();
-        return Directory.EnumerateDirectories(root).Where(d => File.Exists(Path.Combine(d, file)))
-            .Select(Path.GetFileName).OfType<string>().OrderBy(n => n, StringComparer.Ordinal).ToList();
+        // ⭐ CE-4360 — every scenario folder at any depth, named by its leaf (Q-S2)
+        return Fdp.Toolkit.Orchestration.ScenarioFolderIndex.Enumerate(root).Where(f => File.Exists(Path.Combine(f.Directory, file)))
+            .Select(f => f.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
     /// <summary>A scenario's own JSON file; null with the reason when there is none or it does not parse.</summary>
@@ -225,9 +230,9 @@ public sealed class TakeStore
         File.WriteAllText(path, text);
         written.Add(path);
         if (Hrot.ScenarioEditor.Services.CuratedScenarios.TryFindSourceScenariosDirectory() is { } source
-            && Directory.Exists(Path.Combine(source, scenario)))
+            && Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(source, scenario) is var sourceDir && Directory.Exists(sourceDir))   // ⭐ CE-4360 — the source tree's copy may be filed in a sub-folder too
         {
-            var src = Path.GetFullPath(Path.Combine(source, scenario, file));
+            var src = Path.GetFullPath(Path.Combine(sourceDir, file));
             if (!string.Equals(src, Path.GetFullPath(path), StringComparison.Ordinal))
             {
                 File.WriteAllText(src, text);
@@ -254,7 +259,7 @@ public sealed class TakeStore
     {
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to) || string.Equals(from, to, StringComparison.Ordinal)) return 0;
         var src = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(scenariosRoot, from), TakesFolder);
-        var dst = Path.Combine(scenariosRoot, to, TakesFolder);
+        var dst = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(scenariosRoot, to), TakesFolder);   // ⭐ CE-4360 — an existing scenario in a sub-folder keeps its takes where it lives
         if (!Directory.Exists(src) || (Directory.Exists(dst) && Directory.EnumerateFiles(dst).Any())) return 0;
         Directory.CreateDirectory(dst);
         int n = 0;

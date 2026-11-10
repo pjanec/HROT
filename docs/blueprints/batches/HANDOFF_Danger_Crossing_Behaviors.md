@@ -293,7 +293,7 @@ Report, per gate: the verbatim command · pass/fail/skip · delta vs base · a `
   persistence-shape golden moved that ONE line (+107 B), regenerated. ② `WhenSensorResultTests` — the bake test now asserts the area
   family HAS an answer time and offers `BecomesStale`; the "not offered" / `BP2076` half is kept, proved on a decl with the flag
   CLEARED; + `CE3072_Q4_BecomesStale_OnTheAreaFamily_IsDecidable`. `Hrot.Blueprints.Tests` **4189/0** (17 skips).
-- **⭐ B7:** `scenarios/ua-danger-crossing-bp` — the same cast and watcher mission, the rifleman's task `DangerCrossingBp`
+- **⭐ B7:** `scenarios/demos/navigation-and-terrain/ua-danger-crossing-bp` — the same cast and watcher mission, the rifleman's task `DangerCrossingBp`
   `{"Objective":[285,220,0]}`. **PASS live** (hold at (239.7, 187.8) ≥ 10 s, the watcher withdraws by itself, rating clears,
   arrives; sim 246 s, no HTTP write) and **PASS in-process** — `PostureScenarioTests.CE3079_DangerCrossing_…` is now a theory over
   both scenario names (BTree 4 m 25 s, blueprint 4 m 28 s). ⇒ CE-3078's acceptance is met; CE-3072 / CE-3078 / CE-3079 marked done

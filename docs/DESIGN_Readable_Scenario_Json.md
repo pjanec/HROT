@@ -73,7 +73,7 @@ graph TD
   DDS["DDS / the wire"] -. "untouched - strings" .-> RT["runtime strings"]
 ```
 
-**Before → after** (`scenarios/bc-house-clear`):
+**Before → after** (`scenarios/demos/buildings-and-doors/bc-house-clear`):
 
 ```json
 "Behavior": { "Name": "ClearBuilding", "Params": "{\"Building\": [47, 105, 0], \"Speed\": 2}" }

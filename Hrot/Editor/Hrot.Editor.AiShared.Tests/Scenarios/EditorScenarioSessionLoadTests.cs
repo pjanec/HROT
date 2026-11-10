@@ -360,10 +360,10 @@ public sealed class EditorScenarioSessionLoadTests
     // ── ⭐ CE-4099 (AQ108 §4c A7) — the session half: the door reads the scenario's REAL autosave files and the recovery rides the load intent ──────────────────
 
     /// <summary>A session over a temp NAS (<c>{tmp}/scenarios</c>) holding scenario <c>alpha</c> with an autosave taken at 14:41 UTC; <paramref name="staleSince"/> rewrites the saved file after it.</summary>
-    private static (EditorScenarioSession Session, FdpEventBus Bus, RunModeChoice Choice, string Nas) WithAutosave(bool staleSince = false)
+    private static (EditorScenarioSession Session, FdpEventBus Bus, RunModeChoice Choice, string Nas) WithAutosave(bool staleSince = false, string subFolder = "")
     {
         string nas = Path.Combine(Path.GetTempPath(), "hrot-autosave-" + Guid.NewGuid().ToString("N"));
-        string dir = Path.Combine(nas, "scenarios", "alpha");
+        string dir = Path.Combine(nas, "scenarios", subFolder, "alpha");   // ⭐ CE-4360 — the scenario may be filed in a sub-folder; its NAME stays "alpha"
         Directory.CreateDirectory(Path.Combine(dir, ".autosave"));
         const string saved = "{\"entities\":[]}";
         File.WriteAllText(Path.Combine(dir, "scenario.json"), saved);
@@ -401,6 +401,26 @@ public sealed class EditorScenarioSessionLoadTests
             session.OpenForEdit("alpha");
             choice.Pending!.Resolve(choice.Pending.Buttons[1]);                               // Open the saved one
             Assert.False(Assert.Single(Drain(bus)).RecoverAutosave);
+        }
+        finally { Directory.Delete(nas, recursive: true); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4360 (the LOAD half of "done when") — the SAME scenario filed under <c>scenarios/demos/air/alpha</c> is opened by its unchanged name <c>alpha</c>: the door finds its real autosave through the
+    /// ONE resolver and the load carries the name. 🔴 Mutation: the resolver without its sub-folder index ⇒ no autosave is found, no question stands.
+    /// </summary>
+    [Fact]
+    public void CE4360_AScenarioFiledInASubFolder_IsOpenedByItsUnchangedName()
+    {
+        var (session, bus, choice, nas) = WithAutosave(subFolder: "demos/air");
+        try
+        {
+            session.OpenForEdit("alpha");
+            Assert.NotNull(choice.Pending);                                                   // the filed scenario's autosave was found
+            choice.Pending!.Resolve(choice.Pending.Buttons[0]);
+            var load = Assert.Single(Drain(bus));
+            Assert.Equal("alpha", load.ScenarioId);
+            Assert.True(load.RecoverAutosave);
         }
         finally { Directory.Delete(nas, recursive: true); }
     }

@@ -50,11 +50,42 @@ namespace Fdp.Toolkit.Orchestration
 
                 if (top == ContentLayout.ScenariosDirectoryName)
                     foreach (var rel in CuratedRelPaths(source))
+                    {
+                        MoveAsideStaleTopLevelCopy(nasRoot, target, rel);
                         CopyTree(Path.Combine(source, rel), Path.Combine(target, rel), top + "/" + rel, written);
+                    }
                 else
                     CopyTree(source, target, top, written);
             }
             return written;
+        }
+
+        /// <summary>The NAS folder a superseded top-level scenario copy is moved to (outside <c>scenarios/</c>, so no lister or Save-to-Git sees it).</summary>
+        public const string SupersededDirectoryName = ".superseded-scenarios";
+
+        /// <summary>
+        /// ⭐ CE-4360 (docs/DESIGN_Content_Layout.md §6, b) — a scenario FILED in a sub-folder of the source tree (<c>demos/air/x</c>, <paramref name="rel"/> has a
+        /// <c>/</c>) whose old TOP-LEVEL copy (<c>scenarios/x</c>) survives in the NAS from before the move would win the lookup (the top level wins) and shadow the
+        /// filed one. So the seed moves that stale top-level copy ASIDE (to <see cref="SupersededDirectoryName"/>, never deleted — an unsaved edit stays
+        /// recoverable). ⛔ Only when the source has the leaf FILED (a leaf is unique, so the top-level folder is the old home of this very scenario); a top-level
+        /// scenario the source does not file is user-made content and is never touched.
+        /// </summary>
+        private static void MoveAsideStaleTopLevelCopy(string nasRoot, string nasScenarios, string rel)
+        {
+            var slash = rel.LastIndexOf('/');
+            if (slash <= 0) return;
+            var leaf = rel.Substring(slash + 1);
+            var stale = Path.Combine(nasScenarios, leaf);
+            if (!File.Exists(Path.Combine(stale, MarkerFileName))) return;
+            var aside = Path.Combine(nasRoot, SupersededDirectoryName, leaf);
+            try
+            {
+                if (Directory.Exists(aside)) Directory.Delete(aside, recursive: true);
+                Directory.CreateDirectory(Path.GetDirectoryName(aside)!);
+                Directory.Move(stale, aside);
+            }
+            catch (IOException) { /* another host's seed is moving it right now — it is gone or will be */ }
+            catch (UnauthorizedAccessException) { }
         }
 
         /// <summary>

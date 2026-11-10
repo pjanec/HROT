@@ -28,6 +28,7 @@ A type's still = one entity spawned (POST /entities/spawn) in a bare studio scen
 The file stem of a type is its TKB Name sanitized exactly as ThumbnailMap.GeneratedFileName does: letters, digits . _ - kept, anything else _ (a name holding ".." is refused).
 """
 import argparse, importlib.util, json, math, os, re, sys, time
+import scenario_dir  # CE-4361 — scenarios are filed in category sub-folders
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -349,8 +350,7 @@ def crop_to_drawn(big, bg, out, accept_small=False, within=None):
 
 
 def scenario_names(requested):
-    root = os.path.join(REPO, "scenarios")
-    have = sorted(d for d in os.listdir(root) if os.path.isfile(os.path.join(root, d, "scenario.json")))
+    have = sorted(scenario_dir.all_scenarios(REPO))   # CE-4361 — scenarios are filed in sub-folders, addressed by leaf name
     if requested:
         missing = [n for n in requested if n not in have]
         if missing:
@@ -361,7 +361,7 @@ def scenario_names(requested):
 
 def do_scenarios(names, rows, force=False):
     for name in names:
-        hand = next((f for f in ("preview.jpg", "preview.png") if os.path.isfile(os.path.join(REPO, "scenarios", name, f))), None)
+        hand = next((f for f in ("preview.jpg", "preview.png") if os.path.isfile(os.path.join(scenario_dir.folder(REPO, name), f))), None)
         if hand and not force:
             rows.append((name, "skipped (has a still)", f"{hand} in the repository; --force re-shoots")); continue
         good, why = load_edit(name)
@@ -379,7 +379,7 @@ def do_scenarios(names, rows, force=False):
             near = min(rest, key=lambda p: math.hypot(p[0] - c[0], p[1] - c[1]))
             yaw = math.degrees(math.atan2(near[1] - c[1], near[0] - c[0]))
         eye, target = frame_scene(cast, pitch_deg=-28.0, yaw_deg=yaw) if len(cast) <= 2 else frame_scene(cast)
-        folder = os.path.join(REPO, "scenarios", name)
+        folder = scenario_dir.folder(REPO, name)   # CE-4361
         out = os.path.join(folder, "preview.jpg")
         shot = os.path.join(folder, "preview.capture.png")            # the capture route writes PNG; the still is a small JPEG (§2j): 320x180 q85
         good, why = shoot(shot, eye, target)

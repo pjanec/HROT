@@ -894,12 +894,16 @@ public sealed class StorageGatewayModule
         // Case-insensitive match: scenario *.json files may have drifted extension casing
         // when authored on Windows; PlatformDefault would silently miss them on Linux.
         var jsonMatch = new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive };
-        return Directory.GetDirectories(root)
+        var names = Directory.GetDirectories(root)
             .Where(d => Directory.GetFiles(d, "*.json", jsonMatch).Length > 0)
             .Select(Path.GetFileName)
             .Where(n => n != null)
             .Select(n => n!)
             .ToList();
+        // ⭐ CE-4360 (Q-S2) — a scenario filed in a sub-folder is available by its LEAF name (a category folder holds no scenario.json, so it is not listed itself)
+        foreach (var f in Fdp.Toolkit.Orchestration.ScenarioFolderIndex.Enumerate(root))
+            if (f.Category.Length > 0 && !names.Contains(f.Name, StringComparer.Ordinal)) names.Add(f.Name);
+        return names;
     }
 
     /// <summary>

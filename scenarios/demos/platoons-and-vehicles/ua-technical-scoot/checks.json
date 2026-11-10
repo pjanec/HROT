@@ -1,0 +1,34 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — long-range shoot and scoot against a Bradley down demo-city's avenue (R-2086, re-authored 2026-11-10). Judge (1)/(2) both technicals fire, (3) the IFV's first round goes at the ATGM technical. runFor 120: at ~620 m sighting takes seconds, so the exchange is slower. Names: a technical's gun is its own WEAPON SYSTEM entity — 'Kornet (tripod)', 'M2 HMG' — so the shots are BY it and the IFV's rounds go AT it: the ATGM rows match '*Kornet' (measured 2026-11-10: '*ATGM' never matched a shot, in any version of this scenario); the HMG rows match '*HMG' through 'M2 HMG'.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the ATGM technical fires",
+      "on": "shot",
+      "by": "*Kornet"
+    },
+    {
+      "name": "the HMG technical fires",
+      "on": "shot",
+      "by": "*HMG"
+    },
+    {
+      "name": "the IFV fires at the ATGM technical",
+      "on": "shot",
+      "by": "IFV",
+      "at": "*Kornet"
+    },
+    {
+      "name": "the IFV's first round is not at the HMG technical",
+      "never": {
+        "on": "shot",
+        "by": "IFV",
+        "at": "*HMG"
+      },
+      "before": "the IFV fires at the ATGM technical"
+    }
+  ]
+}

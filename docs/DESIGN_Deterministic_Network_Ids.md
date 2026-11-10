@@ -849,7 +849,7 @@ not be quoted for this work.**
 ### 9. ⛔ v2 — *"not needed at all"*
 
 🔴 **Wrong scope, and it was right about the wrong half.** 📐 `HN-010` measured that **authored** entities
-get their ids **from the scenario file** *(`scenarios/hill-attack/scenario.json` carries `1000`–`1007`)*
+get their ids **from the scenario file** *(`scenarios/tests/hill-attack/scenario.json` carries `1000`–`1007`)*
 and the allocator is never consulted on that path — ⭐ **true, and still true.** ⛔ But it concluded *"so no
 reset is needed"*, having only ever looked at **scenario load**. ⚠ **The very same document then wrote the
 caveat that names this requirement** — *"entities SPAWNED at runtime DO go through the allocator, and

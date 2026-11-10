@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED by the user 2026-10-28 (R-4097)
-updated: 2026-10-29 (L6, the opened-copies home, the ONE host-start seed and the shared behaviour names built — §5b)
-build-state: §6 READY-TO-BUILD (CE-4360 → CE-4361); the rest BUILT — CE-4089 (2026-10-28) + part two (2026-10-29: L6, CE-3340 ①③④); it landed BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
+updated: 2026-11-10 (§6 AS-BUILT CE-4361 — the 128 scenarios filed; §6 AS-BUILT CE-4360; 2026-10-29: L6, the opened-copies home, the ONE host-start seed and the shared behaviour names built — §5b)
+build-state: §6 CE-4360 BUILT + CE-4361 BUILT (2026-11-10, behaviors lane — see §6 AS-BUILT; only Q-S3's folder order + the *My scenarios* label remain); the rest BUILT — CE-4089 (2026-10-28) + part two (2026-10-29: L6, CE-3340 ①③④); it landed BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
 current-answer: ⭐ §6 scenario categories = sub-folders (APPROVED R-4185, CE-4360, CE-4361) · §1 the tree · §5b AS BUILT, part two (the NEWEST: names, the opened area, the seed's one call site, the shared names) · §5 AS BUILT, part one (the classes; where §5b says SUPERSEDED, §5b wins) · §3 decisions · §4 the move list (done, except its step 5 — CE-4082)
 stale-below: §5's D-7 and D-10, the "TWO call sites" line under §5's module graph, and its `CuratedScenarios` row (SUPERSEDED by §5b) · §2's CLASS NAMES (`ContentRoots`, `ContentSeed`) are the design-time names — SUPERSEDED by §5 (`ContentLayout` in Fdp.Toolkits, `AssetRoots` delegating, `CuratedScenarios` generalised in place). §2's sequence and module pictures still hold, with §5's two start points.
 known-rot: §0's inventory table describes the layout BEFORE CE-4089 (it is the "from" state)
@@ -282,4 +282,308 @@ natural way how to organize scenarios. So the folder might be the primary groupi
 | **Q-S2** | the NAME of a scenario | **stays its leaf folder name** (`ua-air-assault`), unique across all sub-folders (a rail) — the ONE resolver finds it under any sub-folder (an index built once, refreshed when the folder changes), so recordings, recent picks, HTTP, tests and docs that name a scenario do not change | the name becomes the path (`demos/air/ua-air-assault`): every stored name and doc reference breaks |
 | **Q-S3** | the folders, in this order | **Recent** (the picker's) · **My scenarios** (`scenarios/` top level — where *Save as* puts a new one) · **showcases/** · **demos/** with **air/ · infantry-and-squads/ · platoons-and-vehicles/ · weapons-and-fires/ · buildings-and-doors/ · civilians-and-crowd/ · sensing-and-weather/ · rules-objectives-directors/ · navigation-and-terrain/ · players-and-possession/** · **tests/** (fixtures, perf, regression — hidden behind an off *Show tests (N)* tick) | by prefix: `ua-` holds every area |
 | **Q-S4** | who does it | **backend first** (the content-path owner): the resolver finds a leaf name under sub-folders + the leaf-uniqueness rail + the 41 hand-built paths go through the resolver; **then behaviors** moves and files the 127 (they wrote most demos; the list in their report) | moving first: 41 hand-built paths break at once |
+
+### ⭐ AS-BUILT — CE-4360 (done by the behaviors lane; R-4185 named backend, which was busy on nav tiles) — `2026-11-10`
+
+> ⛔ **No real scenario was moved by CE-4360** (that is CE-4361, below). Everything in this block was proven on temp-dir fixtures and over the real flat tree.
+
+```mermaid
+classDiagram
+    class ContentLayout {
+        <<existing, Fdp.Toolkits>>
+        +ResolveScenarioDirectory(root, name)
+        +ResolveUnderScenariosRoot(scenariosRoot, name)
+        +ScenarioRelativeFolder(root, name)  NEW overload, real root
+        -ResolveSaved(scenariosRoot, name)  NEW
+    }
+    class ScenarioFolderIndex {
+        <<NEW, Fdp.Toolkits/Orchestration>>
+        +Find(root, name) string
+        +Enumerate(root) ScenarioFolder[]
+        +Names(root) string[]
+        +CategoryOf(root, name) string
+        +Invalidate(root)
+    }
+    class ContentSeed {
+        <<existing>>
+        +SeedTreeFrom(source, nas)
+        -MoveAsideStaleTopLevelCopy()  NEW
+    }
+    class AssetPickerSource {
+        <<existing>>
+    }
+    class ICategorizedAsset {
+        <<NEW>>
+        +Category string
+    }
+    class ScenarioCatalogContributor {
+        <<existing>>
+    }
+    class TakeStore {
+        <<existing>>
+    }
+    class VerifyCommand {
+        <<existing>>
+    }
+    ContentLayout --> ScenarioFolderIndex : plain name
+    ScenarioFolderIndex ..> ContentLayout : CategoryOf resolves via
+    ContentSeed ..> ContentLayout : same tree
+    ScenarioCatalogContributor ..> ICategorizedAsset : asset implements
+    AssetPickerSource --> ICategorizedAsset : sub-category
+    ScenarioCatalogContributor --> ScenarioFolderIndex : names via ScenarioEnumeration.EnumerateNames
+    TakeStore --> ContentLayout
+    TakeStore --> ScenarioFolderIndex : lists
+    VerifyCommand --> ScenarioFolderIndex : WithChecks
+```
+
+*Caption — what the picture shows that prose hides:* the index is reached ONLY through `ContentLayout` for a load/save path, and directly by the
+LISTERS (picker, verify, takes, storage gateway) which need the whole set; the seed never calls the index (it moves the stale copy by a plain file test).
+
+```mermaid
+sequenceDiagram
+    participant C as caller (load / save / verify / takes)
+    participant L as ContentLayout.ResolveSaved
+    participant I as ScenarioFolderIndex
+    participant FS as scenarios/ tree
+    C->>L: name "ua-air-assault" (no slash)
+    L->>I: Find(root, name)
+    I->>FS: Directory.Exists(root/name)?
+    alt top level exists
+        I-->>L: root/name
+    else cached hit and folder still there
+        I-->>L: cached folder
+    else miss or stale
+        I->>FS: walk once (skip dot-folders, do not enter a scenario)
+        I-->>L: found folder, or null
+    end
+    L-->>C: found folder, else root/name (a NEW scenario saves at the top level, Q-S3)
+```
+
+| what was built | where |
+|---|---|
+| the index + enumerator (`Find`, `Enumerate`, `Names`, `CategoryOf`) | `FDP/Toolkits/Fdp.Toolkits/Orchestration/ScenarioFolderIndex.cs` |
+| plain name → index; a name with segments exactly as before | `ContentLayout.ResolveSaved` (`ResolveScenarioDirectory`, `ResolveUnderScenariosRoot`); `ScenarioRelativeFolder(root, name)` for the real root |
+| editor + CGF scenario lists offer LEAF names | `ScenarioEnumeration.EnumerateNames` ← `EditorSubsystem`, `CgfSubsystem` |
+| picker sub-category = sub-folder path; `tests/` hidden behind a "Show tests" tick (CE-4359's `PickerHideToggle`, reused) | `ICategorizedAsset`, `AssetPickerSource.ToEntry`, `AssetFolderDerivation`, `AssetPickerLauncher` |
+| production sites routed: slice save, session write, takes, verify (`all`), debug API, terrain importer, storage gateway scan | `HrotScenarioSaveHandler`, `EditorScenarioSession`, `TakeStore`, `VerifyCommand.WithChecks`, `DebugApiHost.Director`, `DebugApiService`, `TerrainImporter`, `StorageGatewayModule` |
+| tests that read real repo scenarios | `TestRepo.ScenarioFile` / `ScenarioDirectory` (`FDP/TestShared/TestRepo.cs`) |
+
+**The 41 hand-built sites — as measured, not as listed above.** The design's own list could not be reproduced exactly (`VerifyCommand`,
+`HrotRunnerConfiguration` and the SumoSharp ones are not hand-built scenario NAMES: the SumoSharp `scenarios/_bench` / `_ped` address benchmark datasets that do not exist in the
+repo, `HrotRunnerConfiguration.cs:203` is help text). The grep found 41 `"scenarios"` literals: real-repo readers routed through `TestRepo`
+(`TerrainHeightTests`, `ScenarioWorldSectionTests`, `PostureScenarioTests`, `TheEditorsRecording…`, `ScenarioTwin`, `TheWorldChangeCheckOnTheEditorTests`,
+`ReplayBrowserSubsystemTests`); `FilmDirectorTests` roots routed by construction through `TakeStore`; `ScenarioEntityKeySweepTests` and `ReadableScenarioJsonTests` already recursive;
+temp-tree fixture builders left alone (they create at the top level, which is where a new scenario goes).
+
+**Deviations and decisions**
+
+| # | what | why |
+|---|---|---|
+| 1 | ⭐ **stale top-level copy (CE-4361's hazard)** — `ContentSeed` never deletes, so after a scenario is filed in git its old `scenarios/<leaf>` in the NAS would win the lookup (the top level wins). **Settled by construction in the seed:** `SeedTreeFrom` MOVES a top-level folder aside (to `<nas>/.superseded-scenarios/<leaf>`, outside `scenarios/` so no lister or Save-to-Git sees it) when the SOURCE files that leaf in a sub-folder. Never a delete; never touches a top-level scenario the source does not file (user-made). | the alternative (lookup prefers the filed copy) cannot tell a stale copy from a user's deliberate top-level one and would make a save write to the filed copy while the user edited the other |
+| 2 | the editor / CGF lists return LEAF names; a leaf shared by two scenarios falls back to its relative path (still loadable). `EnumerateRelPaths` stays for readers of folder paths; the nested-name rails (`ScenarioNestedNameTests`) still test it, and `TheCgfPickerIsNotEmptyTests` now asserts the leaf (`Ambush`, not `Combat/Ambush`) | Q-S2 |
+| 3 | the Q-S3 folder ORDER and the "My scenarios" label are not built — top-level scenarios have a null category | left to CE-4361 with the move |
+| 4 | the index is cached per scenarios root and rebuilt on a miss or a stale hit; no FileSystemWatcher | brief; a steady lookup is a dictionary read + `Directory.Exists` |
+
+Rails: `ContentLayoutTests.CE4360_*` (resolver, index rebuild, enumerator, real-tree leaf uniqueness, seed moves a stale copy aside), `StorageProcessManagerTests`, `ClusterMasterNewScenarioTests`,
+`HrotScenarioSaveHandlerTests`, `EditorScenarioSessionLoadTests`, `AssetPickerLauncherTests`, `VerifyCommandScenariosTests` (each red-proved by a compiling mutation).
+
+### ⭐ AS-BUILT — CE-4361 (behaviors lane) — `2026-11-10`: the 128 scenarios are FILED
+
+The move is done: every committed scenario sits in a category sub-folder, **names unchanged** (Q-S2), found by the CE-4360 resolver. *(128, not the 127 of the row — `bd-destruction`, the destruction demo of CE-4391 S-5, arrived with the merge.)*
+
+```
+scenarios/
+  showcases/                                  2
+  demos/air/                                 10
+  demos/infantry-and-squads/                 26
+  demos/platoons-and-vehicles/               15
+  demos/weapons-and-fires/                   20
+  demos/buildings-and-doors/                  6
+  demos/civilians-and-crowd/                 24
+  demos/sensing-and-weather/                  5
+  demos/rules-objectives-directors/           3
+  demos/navigation-and-terrain/               6
+  demos/players-and-possession/               0   (none fits: the two multi-player showcases live in showcases/; no demo of its own yet)
+  tests/                                     11
+```
+
+**Classified by what each `scenario.json` description says it SHOWS, not by prefix** (`ua-` spreads over 8 folders; `ts-*` temperament duels → infantry; `rf-*` reflexes under fire → weapons-and-fires; `pc-*` → platoons; `uc-*` support chain → weapons-and-fires, convoy ambushes → platoons-and-vehicles; `hill-attack*` are the Berlin-flat judged regression twins of `ua-hill-attack` → `tests/`). `demos/players-and-possession/` was NOT created — no scenario shows possession on its own (the two that do are showcases); create it with its first scenario.
+
+<details><summary>The move table — all 128 (name → folder → why)</summary>
+
+
+**`showcases/`** (2)
+
+- `showcase-bridgehead` — multi-player showcase (SHOWCASE_Scenarios.md)
+- `showcase-crossfire` — multi-player showcase (SHOWCASE_Scenarios.md)
+
+**`demos/air/`** (10)
+
+- `ua-air-assault` — air operations
+- `ua-air-attack` — air operations
+- `ua-air-defence` — air operations
+- `ua-air-rescue` — air operations
+- `ua-air-strike` — air operations
+- `ua-airborne-drop` — air operations
+- `ua-drone-shelter` — air operations
+- `ua-eject` — air operations
+- `ua-fast-rope-roof` — air operations
+- `ua-shootdown-eject` — air operations
+
+**`demos/infantry-and-squads/`** (26)
+
+- `df-lone-soldier-reflex` — lone soldier reflex under fire
+- `ia-area-clear` — area clear/defend, house hunt, idle life, squad defend house
+- `ia-area-defend` — area clear/defend, house hunt, idle life, squad defend house
+- `ia-house-hunt` — area clear/defend, house hunt, idle life, squad defend house
+- `il-idle-life` — area clear/defend, house hunt, idle life, squad defend house
+- `sq-defend-house` — area clear/defend, house hunt, idle life, squad defend house
+- `ts-aggression` — temperament and stress duels / squads
+- `ts-fire-discipline` — temperament and stress duels / squads
+- `ts-house-defenders` — temperament and stress duels / squads
+- `ts-three-defenders` — temperament and stress duels / squads
+- `ua-attack-approach` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-bounding-overwatch` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-casualty-care` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-casualty-care-heavy` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-casualty-care-leader` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-fire-and-movement` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-fire-and-movement-pairs` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-fire-distribution` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-posture` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-squad-bound-open-ground` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-squad-march-loose` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-threat-ranking` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-three-hosts` — infantry posture / approach / threat / squad movement / casualty care
+- `ua-universal-soldier` — infantry posture / approach / threat / squad movement / casualty care
+- `uf-alone-under-fire` — soldier / squad under fire
+- `uf-squad-under-fire` — soldier / squad under fire
+
+**`demos/platoons-and-vehicles/`** (15)
+
+- `cc-platoon-bound` — platoon bound / platoon march
+- `pc-ambush-bypass` — platoon on cqb-village (urban movement/attack/defend)
+- `pc-attack-dry` — platoon on cqb-village (urban movement/attack/defend)
+- `pc-defend-dry` — platoon on cqb-village (urban movement/attack/defend)
+- `pc-defend-house` — platoon on cqb-village (urban movement/attack/defend)
+- `pc-urban-ambush` — platoon on cqb-village (urban movement/attack/defend)
+- `pc-urban-move` — platoon on cqb-village (urban movement/attack/defend)
+- `sl0-platoon-march` — platoon bound / platoon march
+- `ua-hill-attack` — tank / IFV / vehicle platoons
+- `ua-ifv-standoff` — tank / IFV / vehicle platoons
+- `ua-tank-corner` — tank / IFV / vehicle platoons
+- `ua-technical-scoot` — tank / IFV / vehicle platoons
+- `uc-convoy-hit` — convoy ambush on demo-city
+- `uc-convoy-hit-ifv` — convoy ambush on demo-city
+- `uc-urban-battle` — convoy ambush on demo-city
+
+**`demos/weapons-and-fires/`** (20)
+
+- `bt-grenade-posture` — grenade posture / mortar on a roof
+- `bt-mortar-roof` — grenade posture / mortar on a roof
+- `rf-car-duel` — reaction to fire / grenades / cover
+- `rf-car-squads` — reaction to fire / grenades / cover
+- `rf-grenade-reaction` — reaction to fire / grenades / cover
+- `rf-house-obstacle` — reaction to fire / grenades / cover
+- `rf-pinned-in-open` — reaction to fire / grenades / cover
+- `rf-wall-hugger` — reaction to fire / grenades / cover
+- `ua-grenade-or-rifle` — weapon choice / grenade-or-rifle / indirect fire / Javelin / M2 / RPG / tank ammo
+- `ua-indirect-fire` — weapon choice / grenade-or-rifle / indirect fire / Javelin / M2 / RPG / tank ammo
+- `ua-javelin-lock` — weapon choice / grenade-or-rifle / indirect fire / Javelin / M2 / RPG / tank ammo
+- `ua-m2-engage` — weapon choice / grenade-or-rifle / indirect fire / Javelin / M2 / RPG / tank ammo
+- `ua-rpg-window` — weapon choice / grenade-or-rifle / indirect fire / Javelin / M2 / RPG / tank ammo
+- `ua-tank-ammo` — weapon choice / grenade-or-rifle / indirect fire / Javelin / M2 / RPG / tank ammo
+- `ua-weapon-choice` — weapon choice / grenade-or-rifle / indirect fire / Javelin / M2 / RPG / tank ammo
+- `ua-weapon-systems` — weapon choice / grenade-or-rifle / indirect fire / Javelin / M2 / RPG / tank ammo
+- `uc-a10-zu23-dry` — fire support requests (HQ, Apache, A-10, mortar)
+- `uc-reinforce-dry` — fire support requests (HQ, Apache, A-10, mortar)
+- `uc-request-chain` — fire support requests (HQ, Apache, A-10, mortar)
+- `uc-request-chain-dry` — fire support requests (HQ, Apache, A-10, mortar)
+
+**`demos/buildings-and-doors/`** (6)
+
+- `bc-house-clear` — CQB house clearing
+- `bc-house-defended` — CQB house clearing
+- `bc-room-clear` — CQB house clearing
+- `bd-destruction` — destructible buildings (S-5)
+- `bt-doors` — doors / window defence in House A
+- `bt-window-duel` — doors / window defence in House A
+
+**`demos/civilians-and-crowd/`** (24)
+
+- `df-civilian-ordered` — civilian ordered to stand
+- `ua-armed-blend-back` — armed civilians / police and crowd
+- `ua-armed-bomber` — armed civilians / police and crowd
+- `ua-armed-celebration` — armed civilians / police and crowd
+- `ua-armed-draw-aim` — armed civilians / police and crowd
+- `ua-armed-gas-throwback` — armed civilians / police and crowd
+- `ua-armed-self-defence` — armed civilians / police and crowd
+- `ua-armed-shield` — armed civilians / police and crowd
+- `ua-armed-surrender` — armed civilians / police and crowd
+- `ua-car-bomb` — armed civilians / police and crowd
+- `ua-civ-contagion` — civilians and crowd
+- `ua-civ-cower` — civilians and crowd
+- `ua-civ-escalation` — civilians and crowd
+- `ua-civ-escalation-warn` — civilians and crowd
+- `ua-civ-gathering` — civilians and crowd
+- `ua-civ-melee` — civilians and crowd
+- `ua-civ-neutral-gate` — civilians and crowd
+- `ua-civ-police-line` — civilians and crowd
+- `ua-civ-protest` — civilians and crowd
+- `ua-civ-provocation` — civilians and crowd
+- `ua-civ-riot-stone` — civilians and crowd
+- `ua-civ-routine-alarm` — civilians and crowd
+- `ua-civ-shelter` — civilians and crowd
+- `ua-civ-surrender` — civilians and crowd
+
+**`demos/sensing-and-weather/`** (5)
+
+- `ld-sentry-surprise` — sentry field-of-view surprise
+- `ld-sentry-surprise-360` — sentry field-of-view surprise
+- `ua-night-sensing` — night / weather sensing
+- `ua-weather-regions` — night / weather sensing
+- `ua-weather-sensing` — night / weather sensing
+
+**`demos/rules-objectives-directors/`** (3)
+
+- `mission-demo-bp` — a mission written as a blueprint (Advance/Defend/Return)
+- `sr-objectives-march` — scenario rules: objectives / triggers
+- `sr-triggers-march` — scenario rules: objectives / triggers
+
+**`demos/navigation-and-terrain/`** (6)
+
+- `tt-nav-los` — EQS and navigation fixture (LOS, route round a block)
+- `ua-danger-crossing` — danger crossing (roads, route choice)
+- `ua-danger-crossing-bp` — danger crossing (roads, route choice)
+- `ua-squad-danger-crossing` — danger crossing (roads, route choice)
+- `ua-squad-danger-crossing-contact` — danger crossing (roads, route choice)
+- `ua-squad-danger-crossing-hold` — danger crossing (roads, route choice)
+
+**`tests/`** (11)
+
+- `hill-attack` — Berlin flat judged regression (superseded by ua-hill-attack)
+- `hill-attack-close` — Berlin flat judged regression (superseded by ua-hill-attack)
+- `hsm-channel-e2e` — end-to-end check of an HSM behaviour on Berlin
+- `perf-stress` — perf: 1000-soldier stress load
+- `test-director-early` — test harness: simplest move/fire/macro/director fixture
+- `test-director-late` — test harness: simplest move/fire/macro/director fixture
+- `test-fire` — test harness: simplest move/fire/macro/director fixture
+- `test-macro-insert` — test harness: simplest move/fire/macro/director fixture
+- `test-macro-insert-order` — test harness: simplest move/fire/macro/director fixture
+- `test-macro-two-teams` — test harness: simplest move/fire/macro/director fixture
+- `test-move` — test harness: simplest move/fire/macro/director fixture
+
+</details>
+
+**What addressed a moved scenario by a top-level path, and how it was fixed**
+
+| where | how |
+|---|---|
+| tests: `Path.Combine(TestRepo.Root, "scenarios", "<name>", …)` in `Hrot.ClusterRunner.Integration.Tests` (6 files), `Hrot.SimHost.Tests` (4), `Hrot.Common.Tests` (`Phase2ConventionTests`) | `TestRepo.ScenarioFile(name)` / `ScenarioDirectory(name)`; `CheckpointClusterTests` (`TryFindSourceTree()`) → `ContentLayout.ResolveScenarioDirectory`; `ScenarioRulesTests` lost its own walk-up |
+| `scripts/thumbnails.py` (preview.jpg), `perf-stress.py`, `scenario_builder.py` (every `gen-*-scenarios.py`), `gen-showcase-*.py`, `gen-ts-scenarios.py`, `multiplayer-cycle.py`, `scenario-height-lint.py` | NEW `scripts/scenario_dir.py` (`find` / `folder` / `all_scenarios` — the python mirror of the resolver: the existing folder, else a NEW top-level one); a generator re-writes a filed scenario IN PLACE instead of creating a duplicate at the top level |
+| `docs/ci/scenario-regression.workflow.yml` (`ls scenarios/*/checks.json`) | `find scenarios -name checks.json` → leaf names |
+| docs | `scenarios/<name>` → `scenarios/<folder>/<name>` in 60 files, 135 references (a script; `recipes/scenarios/…` and paths under another root untouched; `.dev/` history untouched) |
+| NOT touched (comments only) | `///` / `//` mentions of `scenarios/<name>` in test sources; `recipes/scenarios/*` (the seed recipes are a different tree) |
+
+**Still unbuilt (Q-S3):** the picker's folder ORDER (Recent · My scenarios · showcases · demos · tests) and the *My scenarios* label for the top level — the folders come in whatever order CE-4360 left them and a top-level scenario has a null category; *Show tests (N)* (CE-4360) already hides `tests/`.
 

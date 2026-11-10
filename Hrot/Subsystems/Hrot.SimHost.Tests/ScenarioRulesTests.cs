@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -508,10 +509,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void TheObjectivesScenarioFile_HasFiveObjectiveEntities_WhoseParamsParseIntoTheirDtos()
         {
-            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
-            while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "scenarios", "sr-objectives-march", "scenario.json"))) dir = dir.Parent;
-            Assert.NotNull(dir);
-            var doc = JsonNode.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(dir!.FullName, "scenarios", "sr-objectives-march", "scenario.json")))!;
+            var doc = JsonNode.Parse(System.IO.File.ReadAllText(TestRepo.ScenarioFile("sr-objectives-march")))!;   // CE-4361 — filed under demos/rules-objectives-directors/
             var entities = doc["entities"]!.AsObject();
             var objectives = entities.Where(kv => (long?)kv.Value!["TkbIdentity"]?["TkbType"] == TkbEntityTypes.Objective).ToList();
             Assert.Equal(5, objectives.Count);

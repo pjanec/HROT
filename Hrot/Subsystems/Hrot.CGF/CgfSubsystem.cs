@@ -2691,7 +2691,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   picker empty is gone; what remains is only the indirection through IEditorLogic, which exists
         //   on that host because its panels read the list through the facade.
         builder.Catalog.AddContributor(new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(
-            () => Hrot.Editor.AiShared.Catalog.ScenarioEnumeration.EnumerateRelPaths(
+            () => Hrot.Editor.AiShared.Catalog.ScenarioEnumeration.EnumerateNames(   // ⭐ CE-4360 — the LEAF names (Q-S2)
                       OrchestrationConstants.GetSharedScenariosRoot()),
             // ⭐⭐ CE-064 — the ROOT is passed, so each scenario asset carries a real SourceFilePath and
             //   `open_asset_by_path` can reach it. ⛔ This caller HAS the root (same expression above), so

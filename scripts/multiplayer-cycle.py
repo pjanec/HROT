@@ -15,6 +15,7 @@ Over the cluster's debug HTTP API (docs/RUNBOOK_Cluster_Debugging_Over_Http.md):
 
 Prints PASS / FAIL per step with the reason and a summary; the exit code is 0 only if every step passed.
 """
+import scenario_dir  # CE-4361 — scenarios are filed in sub-folders
 import argparse, glob, json, math, os, shutil, subprocess, sys, tempfile, threading, time, urllib.error, urllib.request
 
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -155,7 +156,7 @@ def ask_human(msg):
 
 def write_scenario(staging, root):
     """s2-respawn = scenarios/bc-house-defended + a blue SpawnArea, a 'Rifleman' DeployRole (max 1), a PLACED Playable unit (Blue Rifleman 1) and GameplaySettings.RespawnDelaySeconds 5."""
-    d = json.load(open(os.path.join(root, "scenarios", "bc-house-defended", "scenario.json"), encoding="utf-8"))
+    d = json.load(open(os.path.join(scenario_dir.folder(root, "bc-house-defended"), "scenario.json"), encoding="utf-8"))
     d["header"].setdefault("World", {})["GameplaySettings"] = {"RespawnDelaySeconds": 5}
     d["entities"]["5a000000-0000-4000-8000-000000000001"] = {
         "EditablePolyline": {"Points": [{"X": -8, "Y": -8}, {"X": -8, "Y": 8}, {"X": 8, "Y": 8}, {"X": 8, "Y": -8}], "Version": 0},
