@@ -70,10 +70,22 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
             _query   = new ThreadLocal<DtNavMeshQuery>(() => new DtNavMeshQuery(mesh));
             var shared = Filter;
             _working = new ThreadLocal<DoorAwareQueryFilter>(() => shared.WorkingCopy());
+            // ⭐ CE-4369 (R-4190 Q-T2) — the same doors priced for a TRACKED mover: woods open, at a high cost
+            TrackedFilter = Filter.WithWoodsCost(DoorAwareQueryFilter.TrackedWoodsCost);
+            var tracked = TrackedFilter;
+            _workingTracked = new ThreadLocal<DoorAwareQueryFilter>(() => tracked.WorkingCopy());
         }
+
+        /// <summary>⭐ CE-4369 — the filter for a tracked mover (a query whose mask carries <see cref="NavLayerSelection.TrackedModifier"/>).</summary>
+        public DoorAwareQueryFilter TrackedFilter { get; }
+        private readonly ThreadLocal<DoorAwareQueryFilter> _workingTracked;
 
         /// <summary>The filter judging by <paramref name="doors"/> (R-219); null = the doors as authored (the shared filter).</summary>
         public DoorAwareQueryFilter FilterFor(DoorStates? doors) => doors == null ? Filter : _working.Value!.JudgeBy(doors);
+
+        /// <summary>⭐ CE-4369 — the same, for a tracked mover when <paramref name="tracked"/>.</summary>
+        public DoorAwareQueryFilter FilterFor(DoorStates? doors, bool tracked)
+            => !tracked ? FilterFor(doors) : doors == null ? TrackedFilter : _workingTracked.Value!.JudgeBy(doors);
 
         // ⭐ CE-3133 — the polygons for the map's Navmesh layer, built on the first ask: a snapshot never changes, so neither does this.
         private NavmeshDebugMesh? _debug;
@@ -434,7 +446,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         {
             if (((uint)snap.Masks[li] & layerMask) == 0) continue;
             var ls = snap.States[li];
-            var filter = ls.FilterFor(doors);   // ⭐ R-219 — the caller's doors
+            var filter = ls.FilterFor(doors, (layerMask & NavLayerSelection.TrackedModifier) != 0);   // ⭐ R-219 — the caller's doors; CE-4369 the mover's woods
             var query = ls.Query;
             var startStatus = FindNearestPoly(query, start, filter, out long startRef, out _);
             if (startStatus.Failed() || startRef == 0) continue;
@@ -515,7 +527,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         {
             if (((uint)snap.Masks[li] & layerMask) == 0) continue;
             var ls = snap.States[li];
-            var filter = ls.FilterFor(doors);   // ⭐ R-219 — judged by the caller's doors (R-220: this thread's working copy, no allocation)
+            var filter = ls.FilterFor(doors, (layerMask & NavLayerSelection.TrackedModifier) != 0);   // ⭐ R-219 — judged by the caller's doors (R-220: this thread's working copy, no allocation); CE-4369 the mover's woods
 
             var startPos = ToRcVec(from);
             var endPos   = ToRcVec(to);

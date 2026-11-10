@@ -190,6 +190,29 @@ namespace Fdp.Toolkit.Terrain
                                 thickness, baseZ, baseZ + height, material, openings, -1, -1, label, name, null, where);
                         break;
                     }
+                    case "tree":
+                    {
+                        // ⭐ CE-4369 (L-7, R-4190 T-1) — a LONE tree (one outside every wood): its trunk, an octagon prism of radius
+                        //   `radius` (0.3 m) from the ground to `height` (10 m), material tree-trunk — in the object index, an obstacle in the
+                        //   navmesh, cover for the cover build. ⛔ Trees inside a wood are the woods grid, never trunks (T-1).
+                        if (geomType != "Point")
+                            throw new ArgumentException($"Terrain world {where}: a tree must be a Point (got '{geomType}').");
+                        var at = ReadPositions(new JsonArray(geometry["coordinates"]?.DeepClone()), where)[0];
+                        float r = props["radius"] is JsonNode rn ? ReadFloat(rn, where + ".radius") : TreeTrunkRadius;
+                        float h = props["height"] is JsonNode hn ? ReadFloat(hn, where + ".height") : TreeTrunkHeight;
+                        var ring = new Vector2[8];
+                        for (int k = 0; k < 8; k++)
+                            ring[k] = new Vector2(at.X + r * MathF.Cos(k * MathF.PI / 4f), at.Y + r * MathF.Sin(k * MathF.PI / 4f));
+                        float baseZ = props["baseZ"] is JsonNode bz ? ReadFloat(bz, where + ".baseZ") : GroundUnder(ring);
+                        var trunk = MakePrism(TerrainPrismKind.Tree, ring, baseZ, baseZ + h, 0, label, where);
+                        prisms.Add(new TerrainPrism
+                        {
+                            Kind = trunk.Kind, Footprint = trunk.Footprint, BaseZ = trunk.BaseZ, TopZ = trunk.TopZ, Floors = trunk.Floors,
+                            Label = trunk.Label, Triangles = trunk.Triangles, Min = trunk.Min, Max = trunk.Max,
+                            Material = materials.Get((string?)props["material"] ?? TreeTrunkMaterial, where),
+                        });
+                        break;
+                    }
                     case "slab":
                     case "ramp":
                     {
@@ -246,13 +269,16 @@ namespace Fdp.Toolkit.Terrain
                             surfaces.Add(new TerrainSurface
                             {
                                 Type = type, Polygon = poly, Triangles = PolygonMath.Triangulate(poly), Min = min, Max = max,
+                                // ⭐ CE-4369 (R-4190) — a wood's trees per hectare and canopy height; the defaults where absent
+                                Density = props["density"] is JsonNode dn ? ReadFloat(dn, where + ".density") : TerrainWoods.DefaultDensity,
+                                Canopy = props["canopy"] is JsonNode cn ? ReadFloat(cn, where + ".canopy") : TerrainWoods.DefaultCanopy,
                             });
                         }
                         break;
                     }
                     default:
                         throw new ArgumentException(
-                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, slab, ramp, surface).");
+                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, tree, slab, ramp, surface).");
                 }
             }
 
@@ -297,6 +323,10 @@ namespace Fdp.Toolkit.Terrain
         }
 
         // ── helpers ───────────────────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ CE-4369 — a lone tree's trunk: radius (m), height (m) and material when the world file names none.</summary>
+        public const float TreeTrunkRadius = 0.3f, TreeTrunkHeight = 10f;
+        public const string TreeTrunkMaterial = "tree-trunk";
 
         internal static TerrainPrism MakePrismForExpander(TerrainPrismKind kind, Vector2[] footprint, float baseZ, float topZ,
             int floors, string? label, string where) => MakePrism(kind, footprint, baseZ, topZ, floors, label, where);

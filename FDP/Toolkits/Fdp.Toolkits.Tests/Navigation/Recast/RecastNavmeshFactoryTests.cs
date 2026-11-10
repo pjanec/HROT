@@ -767,8 +767,15 @@ public sealed class RecastNavmeshFactoryTests
     public void CE3279_PathCosts_FromOneSearch_AgreeWithAPathPerPoint_OnTestTown()
     {
         var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town");
-        var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")), "test-town",
-            TerrainAssets.ForFolder(folder));
+        // ⭐ CE-4369 — WITHOUT test-town's wood: this rail's bounds assume every metre costs the same (the cheapest path is the shortest).
+        //   A wood priced ×1.5 breaks that by design — A* and the one search may then take different sides of it (56.5 vs 60.8 m, measured).
+        //   The woods' own pricing is TerrainWoodsTests' (S3).
+        var json = System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")))!;
+        var features = json["features"]!.AsArray();
+        for (int f = features.Count - 1; f >= 0; f--)
+            if ((string?)features[f]!["properties"]?["surface"] == "forest") features.RemoveAt(f);
+        var world = TerrainWorldParser.Parse(json.ToJsonString(), "test-town", TerrainAssets.ForFolder(folder));
+        Assert.Null(world.Woods);
         var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
         const uint Inf = (uint)NavLayerMask.Infantry;
 

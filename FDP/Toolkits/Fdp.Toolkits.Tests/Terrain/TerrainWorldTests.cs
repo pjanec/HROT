@@ -272,7 +272,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         [Theory]
-        [InlineData("""{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"tree"},"geometry":{"type":"Point","coordinates":[0,0]}}]}""", "unknown kind")]
+        [InlineData("""{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"lamppost"},"geometry":{"type":"Point","coordinates":[0,0]}}]}""", "unknown kind")]   // ⭐ CE-4369 — 'tree' is a kind now (a lone trunk)
         [InlineData("""{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"building"},"geometry":{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]}}]}""", "'height' is required")]
         [InlineData("""{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"kind":"building","height":3},"geometry":{"type":"Polygon","coordinates":[[[0,0],[9,0],[9,9],[0,0]],[[1,1],[2,1],[2,2],[1,1]]]}}]}""", "holes")]
         [InlineData("""{"type":"Nope"}""", "FeatureCollection")]

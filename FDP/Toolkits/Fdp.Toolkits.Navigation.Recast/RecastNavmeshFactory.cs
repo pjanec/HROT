@@ -102,7 +102,16 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
         doorways = NavDoorways.For(world);
         Fdp.Core.LoadProgress.Report();
         var baker = new RecastNavmeshBaker { TileMetres = TileMetres, Cache = TileCache };
-        var meshes = baker.Bake(source, Layers, doorways, FineAreas(world));
+        // ⭐ CE-4369 (L-7) — the woods first, the doorways after (a doorway's area wins where both overlap); the provider gets the doorways only
+        var woods = NavDoorways.Woods(world);
+        IReadOnlyList<NavDoorways.Volume> volumes = doorways;
+        if (woods.Count > 0)
+        {
+            var all = new List<NavDoorways.Volume>(woods.Count + doorways.Count);
+            all.AddRange(woods); all.AddRange(doorways);
+            volumes = all;
+        }
+        var meshes = baker.Bake(source, Layers, volumes, FineAreas(world));
         LastStats = baker.LastStats;
         var st = LastStats;
         Fdp.Core.Logging.FdpLog<RecastNavmeshFactory>.Info(

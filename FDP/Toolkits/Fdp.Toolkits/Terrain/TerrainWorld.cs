@@ -7,7 +7,7 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>What a solid terrain prism is — drives only the default draw style and label.</summary>
-    public enum TerrainPrismKind : byte { Building = 0, Wall = 1 }
+    public enum TerrainPrismKind : byte { Building = 0, Wall = 1, Tree = 2 /* ⭐ CE-4369 — a lone tree trunk (R-4190 T-1) */ }
 
     /// <summary>What a walkable terrain surface with its own Z is.</summary>
     public enum TerrainWalkableKind : byte { Slab = 0, Ramp = 1 }
@@ -66,6 +66,10 @@ namespace Fdp.Toolkit.Terrain
         public int[] Triangles { get; init; } = Array.Empty<int>();
         public Vector2 Min { get; init; }
         public Vector2 Max { get; init; }
+        /// <summary>⭐ CE-4369 (R-4190) — a forest's trees per hectare (the world file's <c>density</c>; <see cref="TerrainWoods.DefaultDensity"/>).</summary>
+        public float Density { get; init; } = TerrainWoods.DefaultDensity;
+        /// <summary>⭐ CE-4369 (R-4190 T-7) — a forest's canopy top above the ground, m (<c>canopy</c>; <see cref="TerrainWoods.DefaultCanopy"/>).</summary>
+        public float Canopy { get; init; } = TerrainWoods.DefaultCanopy;
     }
 
     /// <summary>
@@ -484,6 +488,12 @@ namespace Fdp.Toolkit.Terrain
             // ⭐ CE-1034 H2 (TH-D) — a HILL blocks sight: the ground trace over the height grid (opaque). Without a grid the ground is
             //   flat and no line between two points above it can dip under it. Under the ground at either end = malformed, ignored.
             if (Height != null && Height.Crosses(from, to)) return true;
+            // ⭐ CE-4369 (L-7, R-4190 T-2) — the WOODS: visibility lost per metre below the canopy, scaled by the trees per hectare
+            if (Woods is { } woods)
+            {
+                transmittance *= woods.Transmittance(from, to, this, out _);
+                if (transmittance < SightThreshold) return true;
+            }
             var a = new Vector2(from.X, from.Y);
             var b = new Vector2(to.X, to.Y);
             var segMin = Vector2.Min(a, b);
@@ -528,6 +538,31 @@ namespace Fdp.Toolkit.Terrain
             return false;
         }
 
+        /// <summary>⭐ CE-4369 — the crossing kind the woods report in a sight trace.</summary>
+        public const string WoodsKind = "woods";
+
+        /// <summary>
+        /// ⭐ CE-4369 (L-7, R-4190) — the woods grid of this world's forest surfaces; null when it has none. Built once, on first use
+        /// (the terrain load's cover build or the first sight line), then read without allocation.
+        /// </summary>
+        public TerrainWoods? Woods
+        {
+            get
+            {
+                if (!System.Threading.Volatile.Read(ref _woodsBuilt))
+                {
+                    lock (_woodsGate)
+                    {
+                        if (!_woodsBuilt) { _woods = TerrainWoods.Build(this); System.Threading.Volatile.Write(ref _woodsBuilt, true); }
+                    }
+                }
+                return _woods;
+            }
+        }
+        private TerrainWoods? _woods;
+        private bool _woodsBuilt;
+        private readonly object _woodsGate = new();
+
         /// <summary>⭐ Stage 1 — a line SEES THROUGH when its sight transmittance is at least this (§3c M3, v1).</summary>
         public const float SightThreshold = 0.5f;
 
@@ -565,6 +600,12 @@ namespace Fdp.Toolkit.Terrain
             // ⭐ CE-1034 H2 — a hill in the way is an opaque crossing where the line enters the ground
             if (Height != null && Height.Crosses(from, to, out float groundT, out _))
                 crossed.Add(new Crossing(groundT * length, GroundKind, null, GroundMaterial, 0f, null, -1));
+            // ⭐ CE-4369 (L-7) — the woods as ONE crossing (their whole loss), where the line meets its first wooded cell's canopy
+            if (Woods is { } woods)
+            {
+                float tw = woods.Transmittance(from, to, this, out float metres);
+                if (metres > 0f) crossed.Add(new Crossing(0f, WoodsKind, null, TerrainWorldMesh.ForestMaterial, tw, null, -1));
+            }
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();

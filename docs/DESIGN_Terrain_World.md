@@ -2,11 +2,12 @@
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-03; open: CE-3010, CE-3027 hull clearance; CE-3017 + CE-3018 + CE-3025 + CE-3026 closed 2026-10-03; live-run results in §8) — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
 updated: 2026-10-20 (§10 CE-1227 — the 2-D terrain is a retained layer; §3/§5 renamed TerrainWorldGizmo → TerrainLayer2D + TerrainPlan2D)
-current-answer: §10 (CE-1227, 2026-10-20) the 2-D map draws the terrain as a RETAINED layer (TerrainLayer2D), not gizmos · §9 (lean, 2026-10-17) SPARSE TERRAIN — several high-resolution insets over a declared low-resolution OUTER ground · §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §6a the allocation contract (R-220), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
+current-answer: §11 (CE-4369, 2026-11-10) the FOREST surface grows from drawn-only to SIGHT (woods grid) — movement and lone trunks in slices · §10 (CE-1227, 2026-10-20) the 2-D map draws the terrain as a RETAINED layer (TerrainLayer2D), not gizmos · §9 (lean, 2026-10-17) SPARSE TERRAIN — several high-resolution insets over a declared low-resolution OUTER ground · §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §6a the allocation contract (R-220), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
 stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
 known-rot: the single GroundZ (§2 `hrot.groundZ`, §3 `TerrainWorld.GroundZ`) is a TEMPORARY simplification (R-248, 2026-10-10) — see DESIGN_Terrain_Height.md. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
 related-designs:
+  - DESIGN_Terrain_Import_UTM.md §9.6 (R-4190) — the tree decisions T-1…T-8 that §11 here builds (woods grid, lone trunks, woods navmesh area, felling)
   - DESIGN_Terrain_Import_UTM.md — importing a 6 × 6 km UTM terrain as ONE §9 inset (CE-4011 / CE-4012 become its prerequisites); adds a tiled height store, a UTM frame, a building generator
   - UX/DESIGN_New_Scenario_And_Recipe.md — E12: the terrain is chosen only for a NEW scenario (TerrainCatalog.List in the New picker); W13 stays superseded
   - docs/blueprints/Architect_Question_95_Sound_Signatures_And_Lossless_Hearing.md — OPEN: hearing must not be bounded by the high-resolution terrain's grids (B); a bigger demo-city bounds for perf tests (D)
@@ -809,3 +810,58 @@ not a gizmo.
 | rails | `TerrainLayer2DTests` ×3 (the production frame on demo-city drops nothing and holds no terrain — red-proved; the plan; culling) · `Map3DFrameRail.CE1227_V` (real window: under the gizmos, built once, coverage = the old gizmo path's, unticked = gone, close-up culls) · `LayerControlGizmoTests` (the row) · `EveryMapHostAttachesTheSharedLayers` (no host builds its own) |
 
 Screenshots: [`terrain2d-1-demo-city.png`](assets/map-3d/terrain2d-1-demo-city.png) · [`terrain2d-2-off.png`](assets/map-3d/terrain2d-2-off.png) · [`terrain2d-3-close.png`](assets/map-3d/terrain2d-3-close.png).
+
+## 11. ⭐ TREES — the forest surface grows from drawn-only to sight and movement *(L-7, `CE-4369`, backend `2026-11-10`; R-4190 / [Terrain Import UTM §9.6](DESIGN_Terrain_Import_UTM.md); build-state: BUILDING — S1–S3 built, S4 not)*
+
+```mermaid
+classDiagram
+  class TerrainSurface { <<existing>> Type Forest · Polygon · Density NEW (trees/ha, default 115) · Canopy NEW (m, default 15) }
+  class TerrainWoods { <<NEW, S1>> 25 m cells: trees/ha, canopy · Build(world) once · Transmittance(a, b) · DensityAt(x, y) }
+  class TerrainWorld { <<existing>> Woods NEW (built on first use) · SegmentBlocked · QuerySight (one "woods" crossing) }
+  class IWorldQuery { <<existing, R-253>> SightBlocked · Trace }
+  class TrunkPrisms { <<S2>> kind tree Point → an octagon prism r 0.3 m (object index, navmesh obstacle) }
+  class WoodsArea { <<S3>> forest → navmesh area · filter cost per mover: wheeled ⛔, tracked high + cap, infantry small }
+  TerrainWorld o-- "0..1" TerrainWoods
+  TerrainWoods ..> TerrainSurface : rasterised from
+  IWorldQuery ..> TerrainWorld : sight
+```
+
+```mermaid
+sequenceDiagram
+  participant P as perception (any frame)
+  participant W as TerrainWorld.SegmentBlocked
+  participant H as TerrainHeightGrid.Crosses
+  participant T as TerrainWoods.Transmittance
+  P->>W: a → b
+  W->>H: a hill in the way? (L-5's skipping trace)
+  W->>T: march the 25 m cells the line crosses
+  T-->>W: exp(−Σ density/100 · (trunk m · 0.012 + crown m · 0.08))
+  W->>W: × each prism's sight transmittance, below 0.5 ⇒ blocked
+```
+*What the pictures show: no new query path — the woods are one more factor in the transmittance product sight already computes; nothing
+new is called per frame except the cell march (≤ 120 cells for 3 km), allocation-free.*
+
+| # | decision (R-4190 fixed WHAT; these are HOW) | measured / why |
+|---|---|---|
+| W-1 | the grid is RASTERISED FROM the forest surfaces at load (a cell's centre in a polygon takes its density / canopy) — no new file | one source (the polygons, which the importer writes from its clustering — UTM §9.6) for drawing, navmesh and sight; edges ± one cell, as R-4190 Q-V8 accepts |
+| W-2 | ⭐ TWO layers: the trunk zone (up to 40 % of the canopy height) loses 0.012 / m per 100 trees / ha, the crown 0.08 | ⛔ one rate cannot do both T-2 and T-5: hidden from straight above under 15 m of canopy needs ≥ 0.040 / m, seen 20 m into a wood at eye height needs ≤ 0.030. Two layers: eye height 50 m to hidden, straight down hidden (T ≈ 0.40), the edge seen from the air |
+| W-3 | the sight trace reports the woods as ONE crossing (kind `woods`, material `forest`) | the diagnostic form shows why a line failed; the per-frame `SegmentBlocked` allocates nothing |
+
+**Rails (S1):** `TerrainWoodsTests` — in a wood seen at 20 m, hidden at 100 m, beside it seen at 100 m; from the air hidden under the trees,
+seen at the edge, hidden deep inside; a sparse wood (20 / ha) hides less; the sight trace's one crossing. Red-proved (one crown rate fails
+the air rail). ⚠ Shipped terrains with forests (test-town, highway-rest) now hide units inside them — the cluster scenario suites on them
+were run (see the commit).
+
+| # | decision (S2, S3) | measured / why |
+|---|---|---|
+| W-4 | ⭐ a LONE tree (`kind: tree`, a Point) is an octagon prism r 0.3 m × 10 m, material `tree-trunk` (sight 0, 300 mm RHA per m, blocks movement), `TerrainPrismKind.Tree` | the existing object path does sight, fire and the navmesh obstacle with no new code; a trunk inside a wood is NOT an object (T-1, T-4) |
+| W-5 | ⭐ the woods enter the navmesh as AREA 3 (`NavDoorways.WoodsArea`, convex volumes from the forest polygons, marked before the doorways so a doorway wins) | the bake's existing convex-volume path; the tile cache key carries the area, so a changed wood re-bakes only its tiles |
+| W-6 | ⭐ per-mover cost on the filter: infantry ×1.5, tracked ×4, wheeled REFUSED (`DoorAwareQueryFilter.PassFilter`) | ONE vehicle mesh, priced per query — no tracked bake. A tracked mover is the vehicle layer + `NavLayerSelection.TrackedModifier` (bit 8, carried by no mesh), set by `NavLayerSelection.For` from `Locomotions.Of` — the one class rule |
+
+**Rails (S2, S3):** a lone tree blocks sight, stops small arms, is a hole in the navmesh; a wood across the map stops a wheeled vehicle,
+not a tracked one, not infantry; with a gap at one end the tracked vehicle goes round (×4) and infantry cuts through (×1.5).
+
+**Not yet built:** `terrain-scale.py --trees` (lone trees on scale-1), S4 fire (a stop chance per metre in woods), felling (the §8 /
+Nav v2 §14 state-on-fixed-geometry seam) and the ≈ 10 km/h tracked speed cap inside a wood (a motion-side rule, not a path cost).
+⚠ **Open risk:** a road running INSIDE a forest polygon is refused to a wheeled NAVMESH path (road-graph driving is not affected). The
+shipped forests (test-town, highway-rest) carry no road; the importer must cut road corridors out of its woods polygons (UTM §9.6, L-6).

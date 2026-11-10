@@ -7,10 +7,10 @@ Machine for every number below: this cloud VM (4 cores, 15 GB), Debug build unle
 | L-1 | CE-4363 | DONE | `f36e43f9e` | see below; scale-1 now carries the 1 m height store (L-3) |
 | L-2 | CE-4364 | DONE — rig + baselines on demo-city; ⛔ scale-1 does not load on the cluster (→ L-4) | this commit | [DESIGN_Scale_Rig](../../DESIGN_Scale_Rig.md): `scripts/scale-rig.py` (imports perf-stress's cluster machinery), garbage per system in the scheduler's profiler, `process` numbers on `/diagnostics/architecture`, opt-in rail `ScaleRigRail` (`HROT_SCALE_RIG=1`) |
 | L-3 | CE-4365 | DONE | this commit | [Terrain Height §9](../../DESIGN_Terrain_Height.md): tiles + index, binary `.heights`, `hrot-heights` (one C# resampler). 1 m scale-1: load **0.31 s / 127 MB** (the same as a 1 m `.asc`: 5.9 s / 813 MB). Float, not 16-bit — numbers in §9.2 |
-| L-4 | CE-4366 | IN PROGRESS — the load fixed in one process (≈ 19.5 s warm); the cluster re-measure next, then the frame / garbage table | this commit | [Scale Rig §5](../../DESIGN_Scale_Rig.md): the per-tile bake (peak 7.0 → 1.46 GB, warm 47 → 16 s, cache keys unchanged), the cover build 52 → 0.4 s |
+| L-4 | CE-4366 | DONE — the load and the garbage fixed in order of size; the frame's remaining costs filed (CE-3425) | `8af46638b` `8d9f90270` | [Scale Rig §5](../../DESIGN_Scale_Rig.md): per-tile bake, cover via the index, headless pacing (opt-in), gizmo batch only with a reader, WeaponAmmo without boxing. 1 000 men on scale-1: cgf 89 → 70 ms, garbage 4.2 → 0.5 MB / frame, peak 3.1 → 2.0 GB, load 70 → 36 s (≈ 19.5 s per node alone). Rows CE-3422…3425 |
 | L-5 | CE-4367 | DONE | this commit | [World Query Seam §7](../../DESIGN_World_Query_Seam.md): a 3 km eye-level trace **38.7 → 3.8 µs**, answers identical (rail, 12 000 lines) |
 | L-6 | CE-4368 | WAITING — the coordinator's CE-4371 (input-set reader) is not on `origin/coordinator` yet ⇒ L-7 first (the handoff's swap) | | |
-| L-7 | CE-4369 | — | | |
+| L-7 | CE-4369 | IN PROGRESS — S1 sight, S2 lone-tree trunks, S3 woods navmesh area (wheeled refused, tracked ×4, infantry ×1.5) built; next: `terrain-scale.py --trees`, S4 fire / felling, tracked speed cap | this commit | [Terrain World §11](../../DESIGN_Terrain_World.md) W-1…W-6. ⚠ the cluster scenario suite runs 63 / 74 red in this container; the two probed (`CE2106`, `CE2141`) fail at `c67bed36a` too, before this batch's code — the rest NOT individually probed |
 | L-8 | CE-4370 | DONE (design only) | `a71aa6c81` | UTM §8.1: sequence, module graph, P3-a…e |
 
 ## L-1 — the scale terrain

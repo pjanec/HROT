@@ -208,3 +208,20 @@ sequenceDiagram
 | 96 | 69.8 s | 23.1 ms · 1.47 MB | 23.4 ms · 1.24 MB | 2.07 GB | 11 / 12 |
 | 296 | 70.5 s | 33.7 ms · 2.05 MB | 31.2 ms · 1.37 MB | 2.46 GB | 9 / 12 |
 | 1 000 + 50 + 10 | 70.1 s | 89.0 ms · 4.23 MB | 45.4 ms · 1.55 MB | 3.08 GB ✅ | 1 / 12 ⚠ |
+
+**Baselines on scale-1 AFTER C-1…C-3** *(headless nodes paced at 240 Hz, Release, warm tile cache)*:
+
+| men | load | cgf work / garbage | simhost work / garbage | peak | movers moved |
+|---|---|---|---|---|---|
+| 96 | 51.7 s | 17.1 ms · 123 KB | 13.0 ms · 104 KB | 1.53 GB | 11 / 12 |
+| 296 | 36.7 s | 28.7 ms · 240 KB | 19.2 ms · 146 KB | 1.62 GB | 11 / 12 |
+| 1 000 + 50 + 10 | **35.6 s** (was 70.1) | **69.7 ms · 0.49 MB** (was 89.0 · 4.23) | **31.7 ms · 0.28 MB** (was 45.4 · 1.55) | **1.99 GB** (was 3.08) ✅ | 4 / 12 ⚠ CE-3424 |
+
+### 5.4 Still over budget — each a row with its numbers *(the biggest first)*
+
+| cost at 1 000 men (cgf / simhost) | owner | row |
+|---|---|---|
+| `RecorderTickSystem` 18.7 ms + 0.2 MB / frame (cgf) | the recorder (backend's recording storage) | CE-3425 |
+| `BrainTickSystem` 14.6 ms (cgf) | behaviors (the brain) | CE-3425 |
+| `CycloneEgressSystem` 8.8 / 9.0 ms + `CycloneNetworkIngressSystem` 0.15 MB / frame | network egress (backend) | CE-3425 |
+| the warm load ≈ 36 s on a 4-core VM shared by three nodes (≈ 19.5 s alone) | measured on a 1-machine cluster; the budget is per node on its own machine | — |

@@ -306,7 +306,7 @@ public sealed class RecastNavmeshBaker
                 if (geom == null)
                 {
                     geom = new RcSampleInputGeomProvider(tv, tidx);
-                    foreach (var d in tileVolumes) geom.AddConvexVolume(d.Verts, d.MinY, d.MaxY, new RcAreaModification(NavDoorways.DoorArea));
+                    foreach (var d in tileVolumes) geom.AddConvexVolume(d.Verts, d.MinY, d.MaxY, new RcAreaModification(d.Area));   // ⭐ CE-4369 — a door or a wood
                 }
                 var data = BakeTile(geom, p, cs, ax, az, yMin, yMax);
                 baked[ti, li] = data;
@@ -450,7 +450,7 @@ public sealed class RecastNavmeshBaker
             }
             if (vx0 > x1 || vx1 < x0 || vz0 > z1 || vz1 < z0) continue;
             foreach (var f in vol.Verts) F(f);
-            F(vol.MinY); F(vol.MaxY); I(new RcAreaModification(NavDoorways.DoorArea).Value);   // as AddConvexVolume stored it
+            F(vol.MinY); F(vol.MaxY); I(new RcAreaModification(vol.Area).Value);   // as AddConvexVolume stored it
         }
         return Convert.ToHexString(SHA256.HashData(bytes.AsSpan(0, at)), 0, 12);
     }
