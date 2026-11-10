@@ -118,7 +118,11 @@ namespace Fdp.Toolkit.Terrain
                 var prism = world.Prisms[p];
                 if (damage != null && !DamagedBuildings.Keeps(prism, damage)) continue;
                 if (IsRoofCap(prism)) AddGable(prism, v, t, g);   // ⭐ CE-4377 §6ai R-1 — a pitched roof drawn as one (the cap stays the world's for sight and fire)
-                else AddPrism(prism, v, t, g);
+                else
+                {
+                    AddPrism(prism, v, t, g);
+                    if (HasPaintedWindows(prism)) AddPaintedWindows(prism, v, t, g);   // ⭐ a solid building's windows, painted on (presentation only)
+                }
             }
             if (damage != null)
             {
