@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-10
+updated: 2026-11-10 (many-core results)
 current-answer: §0 START HERE (the next session runs on a WINDOWS machine with many cores) → §1 set the machine up → §2 make the rig run natively → §3 the MEASUREMENTS to make → §4 the optimisation backlog, decided by §3's numbers. §5 the traps, §6 where everything lives.
 stale-below: nothing
 related-designs:
@@ -16,6 +16,18 @@ related-designs:
 # RESUME — backend: large-terrain PERFORMANCE (sensors, EQS, paths) on a MANY-CORE machine
 
 ## 0. ⭐⭐⭐ START HERE
+
+### ⭐⭐⭐⭐ DONE on the many-core machine (`2026-11-10`, LATEST) — read this first
+
+§1 machine set up (SUMO via `scripts/install-sumo.ps1`, scale-1 regenerated) · §2 the rig runs natively on Windows (`9a4b05053`,
+`scripts/cluster_launch.py`, `--runner-dll`, `--pin`) · §3 M-1…M-5 measured (`8769f25fe`) → **[DESIGN_Scale_Rig §7](../DESIGN_Scale_Rig.md)**.
+
+| finding | ⏭ waits on |
+|---|---|
+| ⭐ the EQS runs **2.9×/s, not 10**: the kernel's live cadence counts `60/Hz` frames from the HARVEST (230 ms idle after a 120 ms run). Opt-in `HROT_SLOW_WALLCLOCK=1` (wall clock from dispatch — the user's stated intent) ⇒ 7.1 runs/s, 2.2× the solves | ⭐ **C-1: the USER** — make it the default (kernel, every slow module, live play only) |
+| ⭐ the cold bake is **GC-bound**: 322 s workstation GC → 127 s server GC with 4 heaps (peak 2.5 GB) | ⭐ **G-1: the USER** — the runner on server GC, 4 heaps |
+| the rig's frame figure added background runs: SimHost frame **36 ms** (not 173); manual systems now named by their module | done |
+| P-1 parallel EQS: justified once C-1 lands (the run, 110 ms, is then the limit) | design after C-1 |
 
 🔒 **User, `2026-11-10`:** *"I will continue with this on another session on a windows machine with more cores. So the resumption should
 instruct to make the measurements and continue optimizing."* · earlier: *"focus on terrain dependent stuff like the eqs and sensor stuff
