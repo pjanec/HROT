@@ -297,6 +297,7 @@ def main():
     ap.add_argument("--json", default=None, help="also write the report as JSON here")
     ap.add_argument("--record", action="store_true", help="record the live run (default: OFF — the recorder is not what the rig measures, CE-3427)")
     ap.add_argument("--keep", action="store_true", help="leave the nodes running after the report (to inspect them; stop with perf-stress stop-all)")
+    ap.add_argument("--trace", metavar="DIR", help="also CPU-trace cgf and simhost for 15 s at the start of the measured window (dotnet-trace, speedscope)")
     ap.add_argument("--queries", type=int, default=15, help="the most expensive world queries listed per node (CE-3427)")
     ap.add_argument("--windowed", action="store_true",
                     help="start the nodes with their window (default --headless: a windowed node's software-GL draw on Xvfb took 3 cores idle)")
@@ -364,6 +365,8 @@ def main():
         f1 = {p: ps.node_work(p)[1] for _, p in NODES}
         for _, p in NODES:   # ⭐ CE-3427 — the query timings cover the measured window only
             ps.get(p, "/diagnostics/queries?reset=true")
+        if a.trace:
+            ps.trace_nodes(a.trace, NODES[1:])
         movers = sample_ids(NODES[2][1], 12)
         p1 = positions(NODES[2][1], movers)
         s1, w1 = sim(), time.time()

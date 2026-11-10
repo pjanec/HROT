@@ -281,3 +281,30 @@ its generator's slot), `DoorPassageSystem.NextDoorAhead` (every door per door ma
 ⚠ Two cluster findings on the way: the first run LOST the CGF node just after the window (the cluster then paused itself), and a paused
 SimHost still burned ≈ 1.5 cores. ⏭ The fight run (two sides in contact, some in houses) — CE-3427.
 
+### 6.2 ⭐ The sensors' cost was four whole-world scans per solve — fixed *(CE-3427, backend `2026-11-10`)*
+
+📐 Found by the slots, not by a trace: `dotnet-trace`'s sampled thread time lost the frames below the solver (it charged 97 % to the timer's
+own `End`); the slots showed the generators' own work (`Select` 3 µs, the shot ring 2 µs) was small and the rest was set-up.
+
+| what each sight / hearing solve did | cost found | fix | rail (red-proved) |
+|---|---|---|---|
+| `DoorStates.Of` (hearing twice: its ears, the world query) — the per-thread table's HIT check walked every door entity | 239 µs a call (6 911 doors) | the hit is O(1) while `EntityRepository.StructuralChanges` is unchanged since the table was built (a background solve's snapshot has none within its run); after a structural change the walk decides as before | `CE3427_TheHeldDoorTable_IsCheckedWithoutWalkingTheDoors_UntilSomethingStructuralHappens` (+ CE-2414's rail still guards destroys) |
+| `ScenarioTime.TryClock` — called twice per weather sample, each a query BUILT per call walking the whole entity index for one entity | ≈ 75 µs a solve (10 000 entities) | the clock entity remembered per thread (re-checked live; a clock added moves the add counter; "none" held one frame only) | `CE3427_TheClock_IsFoundOnce_AndEveryChangeIsStillSeen` (0 B per call) |
+| `WeatherField.Contributors` / `GlobalOf` — two more whole-index walks per sample (the regions, the global weather) | ≈ 160 µs a solve | the region list and the environment entity found once per thread per (repository, frame, structural changes), re-checked live | `CE3427_TheWeatherEntities_AreFoundOncePerFrame_AndEveryChangeIsStillSeen` |
+
+**Result — scale-1, 1 000 men, one side, recording off (Release):**
+
+| | before | after |
+|---|---|---|
+| a hearing solve | 675 µs | **14 µs** |
+| a sight solve | 258 µs | **9 µs** |
+| one EQS run (the 10 Hz background module) | **584 ms** (it managed ≈ 1.3 Hz) | **23 ms** (10 Hz holds, ≈ 0.23 of a core) |
+| sensor solves per SimHost frame | 20 | 94 |
+
+⭐ **Parallelising the solver is NOT needed for this load** — weighed and set aside: the solver's start rule depends on the counted cost
+of every earlier sensor (deterministic by design, Sensors & Doctrine §5.3), and its solves have side effects (the shot ring's cursor on the
+per-thread command buffer, the result pool, the memory stage, twin answers, raycast submission), so parallel solving would need a
+compute / apply split and speculative chunks to keep the same answers. Four scans removed bought ≈ 25×, more than four cores could.
+⏭ Left on this list: `nav.PlanPath` (3.2 ms average, 208 ms worst on the 5.5 km mesh), the door table's one rebuild per solve run, and
+the FIGHT run (two sides in contact) that exercises the sight test, fire and sound traces.
+

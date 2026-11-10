@@ -48,7 +48,34 @@ namespace Fdp.Toolkit.Weather
         /// <summary>The scenario clock of <paramref name="world"/> — false when no World Environment has arrived (yet).</summary>
         public static bool TryClock(ISimulationView world, out ScenarioClock clock)
         {
-            if (world is EntityRepository r && !r.IsComponentTypeRegistered<ScenarioClock>()) { clock = default; return false; }
+            if (world is EntityRepository r)
+            {
+                if (!r.IsComponentTypeRegistered<ScenarioClock>()) { clock = default; return false; }
+                // ⭐ CE-3427 — the clock's entity remembered per thread and repository: while it is alive and still the clock, and no
+                //   clock was added since (a new one may come first), it is read in O(1). 📐 Every sight and hearing solve sampled the
+                //   weather, and each sample walked the whole entity index TWICE for this one entity (a query built per call) —
+                //   ~250 µs a solve at 10 000 entities. "None" is remembered only for the same frame: a snapshot can gain the World
+                //   Environment through its sync, which counts no add.
+                long added = r.ComponentsAddedOf(ComponentType<ScenarioClock>.ID);
+                if (ReferenceEquals(r, t_repo) && added == t_added)
+                {
+                    if (!t_clock.IsNull && r.IsAlive(t_clock) && r.HasComponent<ScenarioClock>(t_clock))
+                    {
+                        clock = r.GetComponentRO<ScenarioClock>(t_clock);
+                        return true;
+                    }
+                    if (t_clock.IsNull && r.GlobalVersion == t_noneAt) { clock = default; return false; }
+                }
+                t_repo = r; t_added = added; t_clock = Entity.Null; t_noneAt = r.GlobalVersion;
+                foreach (var e in r.Query().With<ScenarioClock>().WithLifecycle(EntityLifecycle.All).Build())
+                {
+                    t_clock = e;
+                    clock = r.GetComponentRO<ScenarioClock>(e);
+                    return true;
+                }
+                clock = default;
+                return false;
+            }
             foreach (var e in world.Query().With<ScenarioClock>().WithLifecycle(EntityLifecycle.All).Build())
             {
                 clock = world.GetComponentRO<ScenarioClock>(e);
@@ -57,6 +84,11 @@ namespace Fdp.Toolkit.Weather
             clock = default;
             return false;
         }
+
+        [ThreadStatic] private static EntityRepository? t_repo;
+        [ThreadStatic] private static Entity t_clock;
+        [ThreadStatic] private static long t_added;
+        [ThreadStatic] private static uint t_noneAt;
 
         /// <summary>UTC at sim time <paramref name="simTimeSeconds"/> for <paramref name="clock"/>.</summary>
         public static DateTime Utc(in ScenarioClock clock, double simTimeSeconds)

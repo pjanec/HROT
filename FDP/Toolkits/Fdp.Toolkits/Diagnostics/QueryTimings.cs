@@ -86,6 +86,15 @@ namespace Fdp.Toolkit.Diagnostics
             if (dt > b.Max[slot]) b.Max[slot] = dt;
         }
 
+        /// <summary>Adds <paramref name="count"/> to <paramref name="slot"/>'s calls without a time — a counter (cells walked, entries
+        /// visited …) beside the timed slots, at the cost of one add.</summary>
+        public static void Add(int slot, long count)
+        {
+            if (!Enabled || count == 0) return;
+            var b = t_buffer ?? Register();
+            b.Calls[slot] += count;
+        }
+
         private static Buffer Register()
         {
             var b = new Buffer();

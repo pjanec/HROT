@@ -92,12 +92,29 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public static DoorStates Of(ISimulationView view, TerrainWorld world)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427
+            var r = OfCore(view, world);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
+            return r;
+        }
+        private static readonly int S_Of = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("doors.DoorStates.Of");
+
+        private static DoorStates OfCore(ISimulationView view, TerrainWorld world)
+        {
             // ⭐ CE-2414 — the table this thread built THIS frame is handed back while nothing of the doors was written since the frame
             //   began and every door entity it read is still a door (FrameStamp: R-220's "a door written within the tick" forces a rebuild).
             //   📐 It walked every entity per sight / fire query: ~8 % of the SimHost thread on the CE-2408 stress world.
+            // ⭐ CE-3427 — and while NOTHING structural happened since (no entity destroyed, no component added or removed —
+            //   EntityRepository.StructuralChanges), the door entities it read are still doors without walking them: O(1). 📐 The walk
+            //   was 239 µs per call on scale-1 (6 911 doors), ~59 % of the EQS sensors' time at 1 000 men; a background solve's snapshot
+            //   has no structural change within its run, so every call after the first is the O(1) answer. After a structural change the
+            //   walk decides, as before, and a passing walk refreshes the mark.
             if (view is EntityRepository live && t_last is { } held && ReferenceEquals(world, t_world)
-                && t_stamp.Holds(live, typeof(DoorState)) && StillDoors(live))
-                return held;
+                && t_stamp.Holds(live, typeof(DoorState)))
+            {
+                if (live.StructuralChanges == t_structural) return held;
+                if (StillDoors(live)) { t_structural = live.StructuralChanges; return held; }
+            }
             int n = world.Doors.Count;
             var a = t_scratch is { } sc && sc.Length == n ? sc : (t_scratch = new byte[n]);
             for (int i = 0; i < n; i++) a[i] = (byte)world.Doors[i].Initial;
@@ -115,7 +132,7 @@ namespace Fdp.Toolkit.Terrain
                         t_doors![t_doorCount++] = e;
                     }
             }
-            if (view is EntityRepository built) { t_stamp.Take(built); t_world = world; } else t_stamp.Clear();
+            if (view is EntityRepository built) { t_stamp.Take(built); t_world = world; t_structural = built.StructuralChanges; } else t_stamp.Clear();
 
             if (t_last is { } last && last._states.AsSpan().SequenceEqual(a)) return last;
             return t_last = new DoorStates(a.ToArray());   // the doors changed (or a new world/thread) — the one allocation
@@ -123,6 +140,7 @@ namespace Fdp.Toolkit.Terrain
 
         private static bool StillDoors(EntityRepository repo)
         {
+            t_walks++;
             for (int k = 0; k < t_doorCount; k++)
                 if (!repo.IsAlive(t_doors![k]) || !repo.HasComponent<DoorState>(t_doors[k])) return false;
             return true;
@@ -132,6 +150,11 @@ namespace Fdp.Toolkit.Terrain
         [ThreadStatic] private static TerrainWorld? t_world;
         [ThreadStatic] private static Entity[]? t_doors;
         [ThreadStatic] private static int t_doorCount;
+        [ThreadStatic] private static long t_structural;   // ⭐ CE-3427 — EntityRepository.StructuralChanges when the door entities were last known
+        [ThreadStatic] private static int t_walks;
+
+        /// <summary>⭐ CE-3427 — how many times THIS thread walked the door entities to re-check them (rails).</summary>
+        internal static int DoorWalksOnThisThread => t_walks;
 
         // ⭐ R-220 — per THREAD (a background module reads its own snapshot on its own thread): the scratch the doors are read into,
         //   the last table handed out, and the door query of the last repository (an EntityQuery is immutable and reusable).

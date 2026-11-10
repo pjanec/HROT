@@ -711,6 +711,34 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-3427 — while nothing STRUCTURAL happens (no destroy, no component added or removed), the held door table is handed back
+        /// without walking the door entities (it was 239 µs a call on scale-1's 6 911 doors); a structural change brings the walk back
+        /// once, and a door destroyed is still seen at once (the CE-2414 rail above keeps that).
+        /// </summary>
+        [Fact]
+        public void CE3427_TheHeldDoorTable_IsCheckedWithoutWalkingTheDoors_UntilSomethingStructuralHappens()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w);
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new DoorState { State = TerrainDoorState.Open });
+            repo.SetManagedComponent(e, new TerrainObjectKey { Key = "range/H/front" });
+            repo.Tick();
+            var first = DoorStates.Of(repo, w);
+            int walks = DoorStates.DoorWalksOnThisThread;
+            for (int i = 0; i < 100; i++) Assert.Same(first, DoorStates.Of(repo, w));
+            Assert.Equal(walks, DoorStates.DoorWalksOnThisThread);                        // 100 asks, no walk
+
+            var other = repo.CreateEntity();                                              // something structural, not a door
+            Assert.Same(first, DoorStates.Of(repo, w));
+            Assert.Equal(walks + 1, DoorStates.DoorWalksOnThisThread);                    // one walk re-checks …
+            for (int i = 0; i < 10; i++) DoorStates.Of(repo, w);
+            Assert.Equal(walks + 1, DoorStates.DoorWalksOnThisThread);                    // … and marks it: no more walks
+            repo.DestroyEntity(e);
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Of(repo, w)[w.DoorIndexOf("range/H/front")]);   // a destroyed door is seen at once
+        }
+
+        /// <summary>
         /// ⭐ R-219 — a view's door table comes from the door ENTITIES in that view: authored where there is none, the entity's state
         /// where there is one, keyed by <see cref="TerrainObjectKey"/>; a key the terrain does not define is ignored.
         /// </summary>
