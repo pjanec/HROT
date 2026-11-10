@@ -707,7 +707,9 @@ public sealed class RecastNavmeshFactoryTests
             System.IO.Directory.CreateDirectory(layerDir);
             string Make(string name, double daysOld)
             {
-                var path = System.IO.Path.Combine(layerDir, name);
+                var square = System.IO.Path.Combine(layerDir, string.Join("_", name.Split('_')[..2]));   // CE-4369 — one folder per square
+                System.IO.Directory.CreateDirectory(square);
+                var path = System.IO.Path.Combine(square, name);
                 System.IO.File.WriteAllBytes(path, Array.Empty<byte>());
                 System.IO.File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-daysOld));
                 return path;
@@ -724,7 +726,7 @@ public sealed class RecastNavmeshFactoryTests
             Assert.True(System.IO.File.Exists(recent), "a recent tile of the same square stays (another terrain)");
             Assert.True(System.IO.File.Exists(otherSquare), "another square is never touched");
             Assert.True(System.IO.File.Exists(readBack), "a tile read from disk is in use — kept");
-            Assert.True(System.IO.File.Exists(System.IO.Path.Combine(layerDir, "3_4_newhash.navtile")));
+            Assert.True(System.IO.File.Exists(System.IO.Path.Combine(layerDir, "3_4", "3_4_newhash.navtile")));
         }
         finally { try { System.IO.Directory.Delete(folder, true); } catch { } }
     }

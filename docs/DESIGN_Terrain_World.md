@@ -811,7 +811,7 @@ not a gizmo.
 
 Screenshots: [`terrain2d-1-demo-city.png`](assets/map-3d/terrain2d-1-demo-city.png) · [`terrain2d-2-off.png`](assets/map-3d/terrain2d-2-off.png) · [`terrain2d-3-close.png`](assets/map-3d/terrain2d-3-close.png).
 
-## 11. ⭐ TREES — the forest surface grows from drawn-only to sight and movement *(L-7, `CE-4369`, backend `2026-11-10`; R-4190 / [Terrain Import UTM §9.6](DESIGN_Terrain_Import_UTM.md); build-state: BUILDING — S1–S3 built, S4 not)*
+## 11. ⭐ TREES — the forest surface grows from drawn-only to sight and movement *(L-7, `CE-4369`, backend `2026-11-10`; R-4190 / [Terrain Import UTM §9.6](DESIGN_Terrain_Import_UTM.md); build-state: BUILDING — S1–S4, the import clustering and the tracked speed cap built; felling not)*
 
 ```mermaid
 classDiagram
@@ -857,11 +857,16 @@ were run (see the commit).
 | W-4 | ⭐ a LONE tree (`kind: tree`, a Point) is an octagon prism r 0.3 m × 10 m, material `tree-trunk` (sight 0, 300 mm RHA per m, blocks movement), `TerrainPrismKind.Tree` | the existing object path does sight, fire and the navmesh obstacle with no new code; a trunk inside a wood is NOT an object (T-1, T-4) |
 | W-5 | ⭐ the woods enter the navmesh as AREA 3 (`NavDoorways.WoodsArea`, convex volumes from the forest polygons, marked before the doorways so a doorway wins) | the bake's existing convex-volume path; the tile cache key carries the area, so a changed wood re-bakes only its tiles |
 | W-6 | ⭐ per-mover cost on the filter: infantry ×1.5, tracked ×4, wheeled REFUSED (`DoorAwareQueryFilter.PassFilter`) | ONE vehicle mesh, priced per query — no tracked bake. A tracked mover is the vehicle layer + `NavLayerSelection.TrackedModifier` (bit 8, carried by no mesh), set by `NavLayerSelection.For` from `Locomotions.Of` — the one class rule |
+| W-7 | ⭐ the IMPORT side is `TerrainWoods.Cluster` (tree points → grid-aligned rectangles + lone trees), driven today by `hrot-trees` (`terrain-scale.py --trees`) and by the importer (L-6) later — ONE clustering. A cell is wood when its 3 × 3 holds ≥ 45 / ha (R-4190); density rounded to 5 / ha so neighbours merge | ⭐ the rectangles sit ON the runtime 25 m grid, so `Build` rasterises back exactly the clustered grid (rail). ⛔ Python clustering in the scale script would be a second copy of the importer's |
+| W-8 | ⭐ a wood cell a ROAD crosses (within the lane's half width) stays OPEN; its trees are dropped, not made lone trunks | R-4190's Q-T1 lean: *"the minor roads cross the woods"* — without this a car's navmesh path down a forest road is refused. ⚠ a 25 m clearing is wider than a real forest road: the road is easier to see along than reality |
+| W-9 | ⭐ a TRACKED hull inside a wood has its top speed capped at 10 km/h (`TerrainWoods.TrackedSpeedCap`), in `CarKinematicsSystem` beside the stance / load slow-downs; the woods grid read once per tick | Q-T2. Density is read first, the class rule (`Locomotions.Of`) only inside a wood — nothing extra per frame outside woods, no allocation. Rail `CE4369_ATrackedHull_CrawlsThroughAWood` |
+| W-10 | ⭐ FIRE through a wood (S4, T-6): the world query's FIRE trace gets ONE `woods` crossing (where the line enters a wood) that stops `1 − exp(−Σ density/100 · trunk m · 0.003)` of rounds whatever their penetration — a 0.3 m trunk met `trees/m² × 0.3` times a metre. `TraceCrossing.Stop`; the round's damage × `1 − Stop` (the expected value, no dice, as every crossing). 100 m through 115 / ha ⇒ ≈ 0.71 arrive | ⭐ only the FIRE purpose, which the round path reads — `QueryFire`'s other readers (blasts, sound, door breach) are unchanged; a woods crossing is no barrier (hull clearance, grenade safety ignore it) and no surface (no impact marks; the blast map's first obstacle skips it). ONE march (`TerrainWoods.March`) serves sight and fire |
+| W-11 | 📐 **scale-1 with trees** (`terrain-scale.py --trees`): 176 112 synthetic trees → 11 907 woods rectangles (18 942 cells, 1 184 ha = 39 % of the area; the source data's 40–45 %), 11 062 lone trunks (≈ 12 000 expected), 3 995 cells left open for roads; clustered in 0.33 s | ⭐ LOAD, measured: the WARM load on the Release cluster **34.8 s** with woods vs 35.6 s without — no cost. ⛔ two scaling defects it exposed, both fixed: the baker scanned every volume per tile (80 s warm navmesh in the Debug editor → 40 s: volumes filed by tile once, the same set and order ⇒ the same keys), and the tile cache's prune listed its whole layer folder per write (cold > 10 min → 475 s: one folder per square, Nav v2 §14). Cold bake 475 s for 106 260 tiles — once per terrain, cached |
 
 **Rails (S2, S3):** a lone tree blocks sight, stops small arms, is a hole in the navmesh; a wood across the map stops a wheeled vehicle,
 not a tracked one, not infantry; with a gap at one end the tracked vehicle goes round (×4) and infantry cuts through (×1.5).
 
-**Not yet built:** `terrain-scale.py --trees` (lone trees on scale-1), S4 fire (a stop chance per metre in woods), felling (the §8 /
-Nav v2 §14 state-on-fixed-geometry seam) and the ≈ 10 km/h tracked speed cap inside a wood (a motion-side rule, not a path cost).
-⚠ **Open risk:** a road running INSIDE a forest polygon is refused to a wheeled NAVMESH path (road-graph driving is not affected). The
-shipped forests (test-town, highway-rest) carry no road; the importer must cut road corridors out of its woods polygons (UTM §9.6, L-6).
+**Not yet built:** felling a lone tree (the §8 / Nav v2 §14 state-on-fixed-geometry seam — a vehicle or a blast removes a trunk; T-4), and
+fragments in woods (a blast's fragments ignore the trunks — `FragmentTransmission` reads resistance only).
+⚠ A hand-drawn forest polygon over a road still closes it to a wheeled navmesh path (road-graph driving is not affected) — W-8 opens roads
+only in CLUSTERED woods. The shipped forests (test-town, highway-rest) carry no road.

@@ -53,6 +53,29 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(r.Transmittance < TerrainWorld.SightThreshold);
         }
 
+        // ── S4: fire through a wood (R-4190 T-6) ─────────────────────────────────────────────────────────────────────────────────────
+        [Fact]
+        public void CE4369_ARoundThroughAWood_IsStoppedSometimes_MostPass_AndItsPenetrationIsKept()
+        {
+            var q = new TerrainWorldQuery(Wood());
+            float Through(Vector3 a, Vector3 b, out float pen)
+            {
+                float damage = 100f; pen = 8f;
+                Assert.False(Fdp.Toolkit.Combat.TerrainPenetration.Carry(q, a, b, ref damage, ref pen, out _));
+                return damage;
+            }
+            float inWood = Through(Man(200, 250), Man(300, 250), out float pen);   // 100 m of trunk zone at 115 / ha ⇒ exp(−1.15 × 100 × 0.003) ≈ 0.71
+            Assert.InRange(inWood, 65f, 76f);
+            Assert.Equal(8f, pen);
+            Assert.Equal(100f, Through(Man(-300, 250), Man(-200, 250), out _));   // beside the wood: untouched
+            var fire = new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
+            q.Trace(Man(-100, 250), Man(300, 250), Fdp.Toolkit.World.TracePurpose.Fire, fire);
+            var w = Assert.Single(fire);
+            Assert.Equal(TerrainWorld.WoodsKind, w.Kind);
+            Assert.InRange(w.T, 0.24f, 0.26f);   // where the line enters the wood (x = 0)
+            Assert.False(w.ClosedBarrier);
+        }
+
         // ── S2: a lone tree (R-4190 T-1, T-6) ─────────────────────────────────────────────────────────────────────────────────────
         private const string LoneTree = """
             {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
@@ -85,6 +108,54 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(off >= 1.5f, $"the trunk is a hole in the vehicle mesh (the point moved {off:F2} m)");
             Assert.True(nav.ProjectToNavmesh(new Vector3(10, 30, 0), out var open));
             Assert.True(Vector2.Distance(new Vector2(open.X, open.Y), new Vector2(10, 30)) < 0.1f, "open ground stays where it is");
+        }
+
+        // ── the import side: tree points → woods + lone trees (W-7) ─────────────────────────────────────────────────────────────────
+        private static Vector2[] Stand(float x0, float y0, float size, float spacing, params Vector2[] extra)
+        {
+            var list = new System.Collections.Generic.List<Vector2>();
+            for (float y = y0 + spacing / 2; y < y0 + size; y += spacing)
+                for (float x = x0 + spacing / 2; x < x0 + size; x += spacing) list.Add(new Vector2(x, y));
+            list.AddRange(extra);
+            return list.ToArray();
+        }
+
+        [Fact]
+        public void CE4369_Cluster_ADenseStandIsAWood_AFarTreeIsLone_AndTheRuntimeGridReadsTheSameWood()
+        {
+            // 200 m × 200 m at 5 m spacing = 400 trees / ha (25 per cell, exactly); one tree far away
+            var trees = Stand(100, 100, 200, 5, new Vector2(700, 700));
+            var r = TerrainWoods.Cluster(trees, Vector2.Zero, new Vector2(800, 800), System.Array.Empty<TerrainWoods.RoadSegment>());
+            Assert.Equal(new[] { trees.Length - 1 }, r.LoneTrees.ToArray());
+            Assert.Equal(trees.Length - 1, r.WoodTrees);
+            Assert.NotEmpty(r.Woods);
+            foreach (var w in r.Woods)
+            {
+                Assert.Equal(0f, w.Min.X % TerrainWoods.Cell); Assert.Equal(0f, w.Min.Y % TerrainWoods.Cell);   // on the runtime grid
+                Assert.True(w.Min.X >= 75 && w.Max.X <= 325, $"the wood stays within a cell of the stand ({w.Min} … {w.Max})");
+            }
+
+            // the rectangles written as forest surfaces: the runtime grid has 400 / ha inside, nothing at the lone tree
+            var features = string.Join(",", System.Linq.Enumerable.Select(r.Woods, w =>
+                $$$"""{"type":"Feature","properties":{"kind":"surface","surface":"forest","density":{{{w.Density}}}},"geometry":{"type":"Polygon","coordinates":[[[{{{w.Min.X}}},{{{w.Min.Y}}}],[{{{w.Max.X}}},{{{w.Min.Y}}}],[{{{w.Max.X}}},{{{w.Max.Y}}}],[{{{w.Min.X}}},{{{w.Max.Y}}}],[{{{w.Min.X}}},{{{w.Min.Y}}}]]]}}"""));
+            var world = TerrainWorldParser.Parse($$$"""{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,800,800],"groundZ":0},"features":[{{{features}}}]}""", "c");
+            Assert.Equal(400f, world.Woods!.DensityAt(200, 200));
+            Assert.Equal(0f, world.Woods.DensityAt(700, 700));
+        }
+
+        [Fact]
+        public void CE4369_Cluster_ARoadThroughAWood_StaysOpen()
+        {
+            var trees = Stand(0, 0, 300, 10);
+            var road = new TerrainWoods.RoadSegment(new Vector2(-10, 150), new Vector2(310, 150), 3f);
+            var r = TerrainWoods.Cluster(trees, Vector2.Zero, new Vector2(300, 300), new[] { road });
+            Assert.True(r.ClearedCells > 0);
+            Assert.Empty(r.LoneTrees);   // a wood's trees beside the road are the wood's, not lone trunks
+            Assert.True(r.DroppedTrees > 0);
+            foreach (var w in r.Woods)
+                Assert.True(TerrainWoods.SegmentRectDistance(road.A, road.B, w.Min, w.Max) > road.HalfWidth, $"the wood {w.Min} … {w.Max} covers the road");
+            Assert.Contains(r.Woods, w => w.Max.Y <= 150);   // wood on both sides
+            Assert.Contains(r.Woods, w => w.Min.Y >= 150);
         }
 
         // ── S3: who may drive through a wood (R-4190 T-3, Q-T1 / Q-T2) ───────────────────────────────────────────────────────────────

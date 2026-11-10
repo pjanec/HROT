@@ -91,6 +91,19 @@ namespace Fdp.Toolkit.Terrain
                         into.Add(new TraceCrossing(c.T, c.PathMetres, c.ResistanceMmRha, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
                             c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.EntryNormal, ExitNormal = c.ExitNormal });   // ⭐ CE-1128
                     }
+                    // ⭐ CE-4369 (S4, R-4190 T-6) — the woods: ONE crossing where the line first enters a wood, stopping a share of rounds
+                    //   whatever their penetration (no resistance, not a barrier). Only the FIRE purpose — the round path; QueryFire's other
+                    //   readers (blasts, sound, door breaching) are unchanged.
+                    if (World.Woods is { } woods)
+                    {
+                        float stop = woods.FireStop(from, to, World, out float tWood);
+                        if (stop > 0f)
+                        {
+                            int at = 0;
+                            while (at < into.Count && into[at].T <= tWood) at++;
+                            into.Insert(at, new TraceCrossing(tWood, 0f, 0f, 0f, false, TerrainWorld.WoodsKind, null, "forest", null, -1) { Stop = stop });
+                        }
+                    }
                     break;
                 }
                 case TracePurpose.Sight:

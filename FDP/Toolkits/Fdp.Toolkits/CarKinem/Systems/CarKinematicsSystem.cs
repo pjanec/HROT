@@ -67,6 +67,8 @@ namespace CarKinem.Systems
             // ⭐ W8 (docs/DESIGN_Terrain_World.md §7.1) — the terrain world the movement model stands on. Read
             //   once per tick; SurfaceZ is read-only, so the parallel update may share it. Null = flat world.
             _terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q2 — the movement model asks the world query
+            // ⭐ CE-4369 (L-7, R-4190 Q-T2) — the woods grid, read once per tick (immutable; the parallel update only reads it)
+            _woods = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() && repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is { } woodsWorld ? woodsWorld.Woods : null;
             // ⭐ CE-1034 H1 (R-249) — an entity's runtime ground-clamping flag decides whether the movement model holds it to the
             //   surface; no flag = clamped, as before. Read once per tick: the parallel update only reads it.
             _clampFlags = repo.IsComponentTypeRegistered<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
@@ -124,6 +126,7 @@ namespace CarKinem.Systems
         // THREAD-SAFE: Method operates on unique entity and uses read-only shared data
         /// <summary>The terrain world for this tick (W8), or null on a flat / terrain-less world.</summary>
         private Fdp.Toolkit.World.IWorldQuery? _terrain;
+        private Fdp.Toolkit.Terrain.TerrainWoods? _woods;
         private bool _clampFlags;
         private bool _recovery;
         private bool _health;
@@ -175,6 +178,14 @@ namespace CarKinem.Systems
                     * (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() ? Fdp.Toolkit.Combat.Injury.SpeedFactor(repo, entity) : 1f);
                 @params.WalkSpeed    = HumanGait.WalkOf(in @params) * slowed;   // ⭐ CE-1208 — his walk slows as his run does
                 @params.MaxSpeedFwd *= slowed;
+            }
+            // ⭐ CE-4369 (L-7, R-4190 Q-T2) — a TRACKED hull in a wood crawls: its top speed is capped (the path cost keeps it out unless
+            //   the wood is the way; a wheeled one never plans in). Density first: the class rule runs only inside a wood.
+            else if (_woods != null && _woods.DensityAt(tf.Position.X, tf.Position.Y) > 0f
+                     && Fdp.Toolkit.Motion.Locomotions.Of(repo, entity) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked)
+            {
+                @params.MaxSpeedFwd = @params.MaxSpeedFwd > 0f
+                    ? MathF.Min(@params.MaxSpeedFwd, Fdp.Toolkit.Terrain.TerrainWoods.TrackedSpeedCap) : Fdp.Toolkit.Terrain.TerrainWoods.TrackedSpeedCap;
             }
             
             // Input conversion (bridge from SimTransform to 2D locals)

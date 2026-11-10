@@ -16,7 +16,7 @@ R=$(curl -s -m 900 -X POST $A/scenario/new -H 'Content-Type: application/json' -
 echo "new: $(echo $R | head -c 300)"
 R=$(curl -s -m 900 -X POST $A/scenario/load/edit -H 'Content-Type: application/json' -d "{\"name\":\"$NAME\",\"waitForReady\":true,\"discardUnsaved\":true}")
 # the edit call answers once the cluster is OperatingEdit; the terrain keeps loading on the node — wait for its local phase
-for i in $(seq 1 3600); do P=$(curl -s -m 5 $A/status | python3 -c "import json,sys;d=json.load(sys.stdin)['data']['load'];print(d['localPhase'],d.get('localStep',''))" 2>/dev/null); [ "${P%% *}" = Ready ] && break; [ $((i % 20)) = 0 ] && echo "  ... $P $(mem)"; sleep 0.5; done
+for i in $(seq 1 3600); do P=$(curl -s -m 5 $A/status | python3 -c "import json,sys;d=json.load(sys.stdin)['data']['load'];print(d['localPhase'],d.get('localStep',''))" 2>/dev/null); case "${P%% *}" in Ready|PlayReady) break;; esac; [ $((i % 20)) = 0 ] && echo "  ... $P $(mem)"; sleep 0.5; done
 t1=$(date +%s.%N); echo "edit load: $(python3 -c "print(round($t1-$t0,1))") s  $(mem)  $(echo $R | head -c 200)"
 if [ "$MODE" = live ]; then
   R=$(curl -s -m 900 -X POST $A/scenario/load/live -H 'Content-Type: application/json' -d "{\"name\":\"$NAME\",\"waitForReady\":true,\"startPaused\":false,\"discardUnsaved\":true}")

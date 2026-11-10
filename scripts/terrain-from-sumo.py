@@ -29,6 +29,7 @@ def main() -> None:
     ap.add_argument("--source", default="", help="provenance text recorded in the world file description")
     ap.add_argument("--houses", default=None, help="CE-4028: an AUTHORED placements file ({features: [...]}) of template buildings with doors, "
                     "appended as they are (templates in the terrain folder's buildings/); default: <out>/<name>.houses.json when present")
+    ap.add_argument("--extra-features", default=None, help="CE-4369: a {features: [...]} file appended as it is (woods, lone trees — hrot-trees)")
     ap.add_argument("--height-grid", default=None, help="CE-4363: an ESRI ASCII height grid in the terrain's LOCAL metres (TH-A), copied "
                     "beside the world file and named by its hrot.heightGrid; default: the flat groundZ 0")
     a = ap.parse_args()
@@ -69,6 +70,8 @@ def main() -> None:
     houses = json.load(open(houses_file, encoding="utf-8"))["features"] if os.path.exists(houses_file) else []
     data_buildings = len(features)
     features += houses
+    extra = json.load(open(a.extra_features, encoding="utf-8"))["features"] if a.extra_features else []
+    features += extra   # ⭐ CE-4369 — woods + lone trees
 
     width, height = maxx - minx, maxy - miny
     grid_file = None

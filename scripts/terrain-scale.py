@@ -13,6 +13,8 @@ Steps:
      rectangle (its longest wall = the template's x), else the smallest; the front (local y = 0) turned to the nearer lane; kept only
      when it stands clear of every lane and junction (the fence demo-city-quarters.py uses — scripts/terrain_placement.py) and of
      every house already placed (1 m)
+  3a. with --trees (CE-4369, L-7): trees/trees.csv through hrot-trees (C#, TerrainWoods.Cluster — the importer's one clustering) into
+     woods polygons on the 25 m grid (roads left open) and lone trees (trunks)
   4. scripts/terrain-from-sumo.py writes assets/terrain/scale-N/ (net, world, terrain.json) with the houses and the height grid
 
 The output folder is gitignored (assets/terrain/scale-*/) — regenerated, never committed. Deterministic: the same seed and options give
@@ -54,6 +56,23 @@ def write_heights(synth, spacing, out_path):
     """the set's heights -> the terrain's grid (a .heights store or an .asc) through hrot-heights (CE-4365: ONE resampler, C#)."""
     r = subprocess.run(["dotnet", "run", "-c", "Release", "--project", os.path.join(ROOT, "Hrot", "Tools", "Hrot.Tools.Heights"), "--",
                         "--set", synth, "--spacing", f"{spacing:g}", "--out", out_path], check=True, capture_output=True, text=True)
+    return r.stdout.strip()
+
+
+def write_trees(synth, net_src, anchor, bounds, out_path):
+    """the set's trees -> woods polygons + lone trees through hrot-trees (CE-4369: ONE clustering, C#, the importer's)."""
+    lanes, _, _, _ = tp.load_net(net_src, anchor)
+    segs = [[P[i][0], P[i][1], P[i + 1][0], P[i + 1][1], w / 2] for w, P in lanes for i in range(len(P) - 1)]
+    roads = out_path + ".roads.tmp"
+    with open(roads, "w", encoding="utf-8") as f:
+        json.dump(segs, f)
+    try:
+        r = subprocess.run(["dotnet", "run", "-c", "Release", "--project", os.path.join(ROOT, "Hrot", "Tools", "Hrot.Tools.Trees"), "--",
+                            "--trees", os.path.join(synth, "trees", "trees.csv"), "--offset", f"{bounds[0]:g}", f"{bounds[1]:g}",
+                            "--size", f"{bounds[2] - bounds[0]:g}", f"{bounds[3] - bounds[1]:g}", "--roads", roads, "--out", out_path],
+                           check=True, capture_output=True, text=True)
+    finally:
+        os.remove(roads)
     return r.stdout.strip()
 
 
@@ -203,6 +222,7 @@ def main():
     ap.add_argument("--spacing", type=float, default=None, help="height post spacing (m); default 1 for the store, 2 for an .asc")
     ap.add_argument("--synth", default=None, help="an existing input set (default: artifacts/terrain-synth/full-<seed>, generated when absent)")
     ap.add_argument("--extras", action="store_true", help="generate the input set with --extras (woods, water, scrub)")
+    ap.add_argument("--trees", action="store_true", help="CE-4369: woods + lone trees from the set's trees/trees.csv (hrot-trees)")
     ap.add_argument("--name", default=None, help="default: scale-<seed>")
     ap.add_argument("--out", default=None, help="default: assets/terrain/<name>")
     a = ap.parse_args()
@@ -248,12 +268,19 @@ def main():
                                f"templates on the synthetic building sites. Regenerated, never committed.",
                    "type": "FeatureCollection", "features": houses}, f, indent=1)
         f.write("\n")
+    extra = []
+    trees_path = os.path.join(out, f"{name}.trees.json")
+    if a.trees:
+        log(write_trees(synth, net_src, anchor, bounds, trees_path), t0)
+        extra = ["--extra-features", trees_path]
+    elif os.path.exists(trees_path):
+        os.remove(trees_path)
     empty = os.path.join(out, ".no-data-buildings.json")
     with open(empty, "w", encoding="utf-8") as f:
         json.dump({"buildings": []}, f)
     subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "terrain-from-sumo.py"), "--net", net_src, "--buildings", empty,
                     "--name", name, "--box", *[f"{v:g}" for v in box], "--out", out, "--houses", houses_path,
-                    "--height-grid", os.path.join(out, asc),
+                    "--height-grid", os.path.join(out, asc), *extra,
                     "--source", f"hrot-terrain-synth full seed {a.seed} (scripts/terrain-scale.py, CE-4363)"], check=True)
     os.remove(empty)
     log(f"{name} -> {out}", t0)

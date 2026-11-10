@@ -258,6 +258,28 @@ public sealed class RecastNavmeshBaker
             margin = Math.Max(margin, RcConfig.CalcBorder(p.AgentRadius, FineCellSize) * FineCellSize);
         }
         var volumes = doorways ?? Array.Empty<NavDoorways.Volume>();
+        // ⭐ CE-4369 (L-7) — each volume's box once, and the volumes FILED BY TILE (in their own order, so a tile's list — and its hash — is
+        //   the one the plain scan gave). 📐 scale-1 with its woods: ≈ 24 000 volumes × 106 260 tiles scanned per load made the WARM load's
+        //   navmesh step 80 s (every tile from the cache).
+        float pad = margin + 3f;
+        var volumeBox = new (float X0, float Z0, float X1, float Z1)[volumes.Count];
+        var volumesByTile = new List<int>?[tilesX * tilesZ];
+        for (int vi = 0; vi < volumes.Count; vi++)
+        {
+            var d = volumes[vi];
+            float vx0 = float.MaxValue, vz0 = float.MaxValue, vx1 = float.MinValue, vz1 = float.MinValue;
+            for (int k = 0; k + 2 < d.Verts.Length; k += 3)
+            {
+                vx0 = MathF.Min(vx0, d.Verts[k]); vx1 = MathF.Max(vx1, d.Verts[k]);
+                vz0 = MathF.Min(vz0, d.Verts[k + 2]); vz1 = MathF.Max(vz1, d.Verts[k + 2]);
+            }
+            volumeBox[vi] = (vx0, vz0, vx1, vz1);
+            int bx0 = Math.Max(0, (int)MathF.Floor((vx0 - pad) / TileMetres) - 1 - firstX), bx1 = Math.Min(tilesX - 1, (int)MathF.Floor((vx1 + pad) / TileMetres) + 1 - firstX);
+            int bz0 = Math.Max(0, (int)MathF.Floor((vz0 - pad) / TileMetres) - 1 - firstZ), bz1 = Math.Min(tilesZ - 1, (int)MathF.Floor((vz1 + pad) / TileMetres) + 1 - firstZ);
+            for (int bz = bz0; bz <= bz1; bz++)
+                for (int bx = bx0; bx <= bx1; bx++)
+                    (volumesByTile[bz * tilesX + bx] ??= new List<int>()).Add(vi);
+        }
 
         // per tile (row-major) and layer: the baked data (null = no walkable polygon) — filled in parallel, one tile per task
         var baked = new DtMeshData?[tilesX * tilesZ, layers.Count];
@@ -277,17 +299,13 @@ public sealed class RecastNavmeshBaker
             //   judges those polygons by the door's live state, §3j "5c"). Only the volumes that can reach this tile (+ the hash's 3 m).
             float px = margin + 3f;
             float x0 = ax * TileMetres - px, z0 = az * TileMetres - px, x1 = (ax + 1) * TileMetres + px, z1 = (az + 1) * TileMetres + px;
-            foreach (var d in volumes)
-            {
-                float vx0 = float.MaxValue, vz0 = float.MaxValue, vx1 = float.MinValue, vz1 = float.MinValue;
-                for (int k = 0; k + 2 < d.Verts.Length; k += 3)
+            if (volumesByTile[ti] is { } filed)
+                foreach (int vi in filed)
                 {
-                    vx0 = MathF.Min(vx0, d.Verts[k]); vx1 = MathF.Max(vx1, d.Verts[k]);
-                    vz0 = MathF.Min(vz0, d.Verts[k + 2]); vz1 = MathF.Max(vz1, d.Verts[k + 2]);
+                    var (vx0, vz0, vx1, vz1) = volumeBox[vi];
+                    if (vx0 > x1 || vx1 < x0 || vz0 > z1 || vz1 < z0) continue;   // the exact test, as before
+                    tileVolumes.Add(volumes[vi]);
                 }
-                if (vx0 > x1 || vx1 < x0 || vz0 > z1 || vz1 < z0) continue;
-                tileVolumes.Add(d);
-            }
             RcSampleInputGeomProvider? geom = null;
             for (int li = 0; li < layers.Count; li++)
             {

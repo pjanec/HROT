@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- CE-4369 (L-7): an input set's tree points -> the terrain's woods (forest polygons on the 25 m grid) and lone trees (trunks).
+       docs/DESIGN_Terrain_World.md §11 W-7, UTM §9.6. Used by scripts/terrain-scale.py; the importer (L-6) calls the same TerrainWoods.Cluster. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>hrot-trees</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+  </ItemGroup>
+</Project>
