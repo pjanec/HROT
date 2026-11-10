@@ -19,7 +19,8 @@ Started at `cec9e162d` (merged `coordinator@cec9e162d`). Behaviors told: NOTE_Ba
 | B-3 no garbage | ⏳ the brain still allocates (160 KB a frame at 1 000; 1.75 MB at 3 000) — next |
 
 **Gates** (every suite built as its TEST project, then `--no-build`): `Fdp.Core.Tests` 1 297 / 2 red · `Fdp.Toolkits.Tests` (Utility, Behavior, Squad,
-Perception, Replication) 1 383 / 1 red · `Hrot.SimHost.Tests` (all) 2 662 / 2 red after the rail moves. Every red is pre-existing: the
+Perception, Replication) 1 383 / 1 red · `Hrot.SimHost.Tests` (all, before the rail moves) 2 646 / 16 red — 7 were the cadence's (`TacticsTreesTests`, waits moved: 81 / 0 since), the
+other 9 pre-existing (`LoadPhaseChainTests.CE3345` green on rerun — flaky). Every other red is pre-existing: the
 source-scanning rails name files outside the diff (`OneSharedJsonOptions`, `NoSystemSchedulesOnTheWallClock`, `S0IdTypes`,
 `StrictNetworkSeparation`, `ShippedTreesAreCSharp` ×6), and `CgfLogicPackTests.CE454` fails at `deea88565` too (a clean worktree). New rails:
 `PartIndexTests` CE4395 ×2, `EqsModuleTests` Release order, `UtilityScorerTests` CE4395 ×2 — each red-proved by a compiling mutation.
