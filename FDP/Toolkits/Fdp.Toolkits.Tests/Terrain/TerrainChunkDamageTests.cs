@@ -103,10 +103,12 @@ namespace Fdp.Toolkit.Terrain.Tests
             var table = Table(w, r => BreachFixtures.Damage(r, w, 0, new WallBreach(south, 4f, 6f, 0.8f, 2.2f, BreachKind.Hole)));
             var mesh = Objects(w, table);
             // the opening: x 24..26, z 0.8..2.2, y ≈ 20; the brick vertices inside it are the stubs
-            var inside = Enumerable.Range(0, mesh.I.Length / 3).Where(tri => mesh.M[tri] == "brick")
+            Assert.All(Enumerable.Range(0, mesh.I.Length / 3).Where(tri => mesh.M[tri] is "brick" && Inside(tri)), tri => Assert.Fail("a stub in the opening is not burnt"));
+            var inside = Enumerable.Range(0, mesh.I.Length / 3).Where(tri => mesh.M[tri] is "brick" + TerrainWorldMesh.ScorchedSuffix or "brick" + TerrainWorldMesh.SingedSuffix)
                 .SelectMany(tri => new[] { mesh.V[mesh.I[3 * tri]], mesh.V[mesh.I[3 * tri + 1]], mesh.V[mesh.I[3 * tri + 2]] })
                 .Where(p => p.X > 24.01f && p.X < 25.99f && p.Z > 0.81f && p.Z < 2.19f && MathF.Abs(p.Y - 20f) < 0.3f).ToList();
-            Assert.True(inside.Count > 40, $"brick stubs reach into the opening ({inside.Count} vertices)");
+            Assert.True(inside.Count > 40, $"burnt brick stubs reach into the opening ({inside.Count} vertices)");
+            bool Inside(int tri) { var c = (mesh.V[mesh.I[3 * tri]] + mesh.V[mesh.I[3 * tri + 1]] + mesh.V[mesh.I[3 * tri + 2]]) / 3f; return c.X > 24.05f && c.X < 25.95f && c.Z > 0.85f && c.Z < 2.15f && MathF.Abs(c.Y - 20f) < 0.3f; }
             float maxDepth = 1.4f * TerrainWorldMesh.ToothDepthShare;   // the opening's smaller side is 1.4 m
             Assert.All(inside, p => Assert.True(p.X <= 24f + maxDepth + 0.01f || p.X >= 26f - maxDepth - 0.01f || p.Z <= 0.8f + maxDepth + 0.01f || p.Z >= 2.2f - maxDepth - 0.01f,
                 $"a stub at ({p.X:F2}, {p.Z:F2}) reaches past the rim's depth"));
