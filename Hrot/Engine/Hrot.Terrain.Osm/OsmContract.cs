@@ -36,7 +36,31 @@ public sealed record OsmCounts(int Buildings, int Doors, int Windows, int LoneTr
                                double EstimatedTrees, double RoadKm, int Walls, int WaterAreas);
 
 public sealed record PreviewRoad(string Class, Vector2[] Points);
-public sealed record PreviewBuilding(string Id, Vector2[] Footprint, int Storeys, bool Enterable);
+public sealed record PreviewBuilding(string Id, Vector2[] Footprint, int Storeys, bool Enterable)
+{
+    /// <summary>⭐ CE-4382 — the OSM <c>building=*</c> value ("house", "apartments", "yes", …).</summary>
+    public string Type { get; init; } = "";
+    /// <summary>⭐ CE-4382 — where <see cref="Storeys"/> came from: "tagged", "from height", "from type", "default".</summary>
+    public string StoreysSource { get; init; } = "";
+    /// <summary>⭐ CE-4382 — "flat" or "pitched".</summary>
+    public string Roof { get; init; } = "flat";
+    /// <summary>⭐ CE-4382 — the <c>roof:shape</c> tag when given ("gabled"); null when the roof was inferred.</summary>
+    public string? RoofShape { get; init; }
+    /// <summary>⭐ CE-4382 — where the roof came from: "tagged", "from type", "storeys rule".</summary>
+    public string RoofSource { get; init; } = "";
+    public int Doors { get; init; }
+    public int Windows { get; init; }
+    /// <summary>⭐ CE-4382 — how the doors were placed: "entrance node", "road-facing", "road-facing + back door", "longest wall", "none".</summary>
+    public string DoorRule { get; init; } = "";
+    /// <summary>⭐ CE-4382 — the ids of the footprints it shares a wall with.</summary>
+    public IReadOnlyList<string> SharedWallsWith { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>⭐ CE-4382 — how much a note matters: something dropped or not placed is a warning; the rest is information.</summary>
+public enum NoteSeverity { Info, Warning }
+
+/// <param name="Box">[minX, minY, maxX, maxY] in local metres round what the note is about (a point is a box of zero size); null when it has no place</param>
+public sealed record PreviewNote(string Text, NoteSeverity Severity, double[]? Box);
 /// <param name="Kind">"woods", "scrub" or "water"</param>
 public sealed record PreviewArea(string Kind, Vector2[] Ring);
 /// <param name="Kind">"wall", "fence", "hedge", "retaining_wall" or "tree_row"</param>
@@ -60,6 +84,12 @@ public sealed record OsmPreview
     public required IReadOnlyList<PreviewLine> Lines { get; init; }
     /// <summary>"© OpenStreetMap contributors · Copernicus DEM GLO-30" — shown in the wizard and written with the terrain.</summary>
     public required string Attribution { get; init; }
+    /// <summary>⭐ CE-4382 — every tree point (lone <c>natural=tree</c> and the trees of the rows, local metres) — what <c>trees.csv</c> will hold.</summary>
+    public IReadOnlyList<Vector2> Trees { get; init; } = Array.Empty<Vector2>();
+    /// <summary>⭐ CE-4382 — the notes with their severity and place; <see cref="Warnings"/> holds the same texts.</summary>
+    public IReadOnlyList<PreviewNote> Notes { get; init; } = Array.Empty<PreviewNote>();
+    /// <summary>⭐ CE-4382 — when the OSM data was current (Overpass' <c>osm_base</c>, e.g. "2026-11-10T08:12:03Z"); null when the source did not say.</summary>
+    public string? DataTimestamp { get; init; }
 }
 
 /// <summary>The pipeline the wizard drives (OSM design §6). Downloads are cached per area, so Preview then Write fetch once.</summary>

@@ -37,6 +37,10 @@ public sealed class OsmTerrainWizardWindow : IDisposable
     public readonly Dictionary<string, (Vector2 Min, Vector2 Max)> Rects = new();
     /// <summary>Every named glyph drawn last frame with its colour, by name (R-4139: the glyph AND its colour are asserted).</summary>
     public readonly Dictionary<string, (string Glyph, Vector4 Colour)> Glyphs = new();
+    /// <summary>⭐ CE-4382 — the data lines drawn last frame ("data.time", "data"), for the rails.</summary>
+    public readonly Dictionary<string, string> Texts = new();
+    private OsmPreview? _dataFor;
+    private string? _dataTime, _dataLine;
     /// <summary>The step bar's chips last frame: fill and state per step (C-2).</summary>
     public readonly (Vector4 Fill, Vector4 Border, string State)[] Chips = new (Vector4, Vector4, string)[4];
 
@@ -519,25 +523,50 @@ public sealed class OsmTerrainWizardWindow : IDisposable
         dl.PopClipRect();
 
         float wy = by + 172;
-        var notes = preview.Warnings;
-        Separator("notes", RightX, wy, RightX + RightW, $"Notes ({notes.Count})", s);
-        int shown = Math.Min(notes.Count, 6);
+        // ⭐ CE-4382 — the notes carry their severity and place; one with a place is clickable and zooms the map to it. (A preview with only the texts falls back to the words.)
+        int count = preview.Notes.Count > 0 ? preview.Notes.Count : preview.Warnings.Count;
+        Separator("notes", RightX, wy, RightX + RightW, $"Notes ({count})", s);
+        int shown = Math.Min(count, 6);
+        var mouse = ImGui.GetIO().MousePos;
         for (int i = 0; i < shown; i++)
         {
             float yy = wy + 18 + i * 22;
-            bool warn = IsWarning(notes[i]);
+            PreviewNote? note = preview.Notes.Count > 0 ? preview.Notes[i] : null;
+            string text = note?.Text ?? preview.Warnings[i];
+            bool warn = note != null ? note.Severity == NoteSeverity.Warning : IsWarning(text);
+            var (rMin, rMax) = (W(RightX, yy - 2, s), W(RightX + RightW, yy + 19, s));
+            bool over = note?.Box != null && mouse.X >= rMin.X && mouse.Y >= rMin.Y && mouse.X <= rMax.X && mouse.Y <= rMax.Y;
+            if (over) { dl.AddRectFilled(rMin, rMax, ImGui.GetColorU32(NEUTRALSEL)); ImGui.SetMouseCursor(ImGuiMouseCursor.Hand); if (ImGui.IsMouseClicked(ImGuiMouseButton.Left)) ClickNote(preview, i); }
             Glyph("note:" + i, warn ? WARNING : INFO_G, warn ? PEND : INFO, W(RightX + 2, yy + 2, s));
-            dl.PushClipRect(W(RightX, yy - 2, s), W(RightX + RightW, yy + 20, s), true);
-            TextAt(RightX + 22, yy + 13, s, SUB, notes[i]);
+            dl.PushClipRect(rMin, W(RightX + RightW, yy + 20, s), true);
+            TextAt(RightX + 22, yy + 13, s, SUB, text);
             dl.PopClipRect();
-            Rects["note:" + i] = (W(RightX, yy - 2, s), W(RightX + RightW, yy + 19, s));
+            Rects["note:" + i] = (rMin, rMax);
         }
-        TextAt(RightX, CanvasY + CanvasH - 4, s, NOTE, "Data: " + preview.Attribution);
+        if (!ReferenceEquals(preview, _dataFor))   // the two data lines, built once per preview
+        {
+            _dataFor = preview;
+            _dataTime = preview.DataTimestamp is { Length: > 0 } ts ? "OSM data of " + DataTime(ts) : null;
+            _dataLine = "Data: " + preview.Attribution;
+        }
+        if (_dataTime != null) { TextAt(RightX, CanvasY + CanvasH - 20, s, NOTE, _dataTime); Texts["data.time"] = _dataTime; } else Texts.Remove("data.time");   // the data timestamp (Overpass osm_base)
+        TextAt(RightX, CanvasY + CanvasH - 4, s, NOTE, _dataLine!); Texts["data"] = _dataLine!;
     }
 
     private static readonly float[] Marks = { 1 / 3f, 2 / 3f, 5 / 6f };
     private static readonly string[] MarkLabels = { "1×", "2×", "3×" };
     private (string Label, string Value, string Glyph, Vector4 Colour)[]? _rows;
+
+    /// <summary>⭐ CE-4382 — a note clicked: the map zooms to its place (no-op for a note with none). Public so a rail can click it without a mouse.</summary>
+    public void ClickNote(OsmPreview preview, int index)
+    {
+        if ((uint)index < (uint)preview.Notes.Count && preview.Notes[index].Box is { Length: 4 } box) Map.ZoomTo(preview.Frame, box);
+    }
+
+    /// <summary>"2026-11-10T08:12:03Z" → "2026-11-10 08:12 UTC"; anything else as given.</summary>
+    public static string DataTime(string osmBase)
+        => DateTimeOffset.TryParse(osmBase, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var t)
+            ? t.UtcDateTime.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) + " UTC" : osmBase;
 
     /// <summary>A note's severity from its words (⚠ the contract's <c>Warnings</c> carry none): something dropped, refused, failed or skipped is a warning; the rest is information.</summary>
     public static bool IsWarning(string note)

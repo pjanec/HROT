@@ -223,7 +223,21 @@ public sealed class TheOsmWizardMatchesItsMockupTests : IDisposable
 
         Frame(w, s, 2, back: true, primary: "Import");
         Assert.True(ReferenceEquals(target, w.Map.Hovered), "C-12 hovering a building picks it");
-        Assert.Contains(target.Id, string.Join("\n", OsmMapView.TooltipLines(target)));
+        // ⭐ CE-4382 — the mockup's tooltip lines, from the preview's details: id · type / storeys (source) · roof (shape) / doors (rule) · windows / shared walls
+        var tip = OsmMapView.TooltipLines(target);
+        Assert.Equal(OsmMapView.OsmName(target.Id) + " · " + target.Type, tip[0]);
+        Assert.StartsWith("way ", tip[0]);
+        Assert.Equal($"{target.Storeys} storeys ({target.StoreysSource}) · {target.Roof} roof ({target.RoofShape ?? target.RoofSource})", tip[1]);
+        Assert.Equal($"{target.Doors} doors ({target.DoorRule} rule) · {target.Windows} windows", tip[2]);
+        Assert.Equal(target.SharedWallsWith.Count > 0 ? 4 : 3, tip.Count);
+        var terraced = m.Preview!.Buildings.First(b => b.SharedWallsWith.Count == 1);
+        Assert.Equal("shares 1 wall with " + OsmMapView.OsmName(terraced.SharedWallsWith[0]), OsmMapView.TooltipLines(terraced)[^1]);
+        Assert.Equal("way 112233445 · house", OsmMapView.TooltipLines(new Hrot.Terrain.Osm.PreviewBuilding("w112233445", target.Footprint, 2, true) { Type = "house" })[0]);
+        Assert.Equal("relation 9001 (part 2)", OsmMapView.OsmName("r9001-2"));
+        var gabled = m.Preview!.Buildings.First(b => b.RoofShape == "gabled");   // a tagged roof shape is named, not its source
+        Assert.EndsWith("pitched roof (gabled)", OsmMapView.TooltipLines(gabled)[1]);
+        // C-10 the lone trees, one dot each (the preview's Trees)
+        Assert.Equal(m.Preview!.Trees.Count, w.Map.TreesDrawn);
         Glyph(w, "btn:primary", CHECK, GREEN);
         Canvas(w, s);
         // C-11 the Layers panel top-right of the canvas, ten swatches
@@ -252,7 +266,20 @@ public sealed class TheOsmWizardMatchesItsMockupTests : IDisposable
         Glyph(w, "verdict", CIRCLE_CHECK, OK);
         // the notes, glyph per severity
         Glyph(w, "note:0", INFO_G, INFO);
-        Glyph(w, "note:2", WARNING, PEND);
+        Glyph(w, "note:2", WARNING, PEND);   // ⭐ CE-4382 — from the note's Severity (the fake's third note is a Warning)
+        // ⭐ CE-4382 — the data timestamp line above the attribution
+        Assert.Equal("OSM data of 2026-11-10 08:12 UTC", w.Texts["data.time"]);
+        Assert.Equal("Data: " + m.Preview!.Attribution, w.Texts["data"]);
+        // ⭐ CE-4382 — clicking a note zooms the map to its place: the note's box centre is mid-canvas and the box is on screen
+        var note = m.Preview!.Notes[2];
+        w.ClickNote(m.Preview!, 2);
+        var f = m.Preview!.Frame;
+        var (nlat, nlon) = Fdp.Modules.Geographic.Transforms.Utm.ToGeodetic(f.E0 + (note.Box![0] + note.Box[2]) * 0.5, f.N0 + (note.Box[1] + note.Box[3]) * 0.5, f.Zone, f.South);
+        Assert.Equal(nlat, w.Map.Lat, 6); Assert.Equal(nlon, w.Map.Lon, 6);
+        Assert.True(w.Map.Zoom > 15, $"zoomed in to a 20 m note (zoom {w.Map.Zoom:F1})");
+        double z = w.Map.Zoom;
+        w.ClickNote(m.Preview!, 3);   // a note with no place: nothing moves
+        Assert.Equal(z, w.Map.Zoom);
     }
 
     [SkippableFact]

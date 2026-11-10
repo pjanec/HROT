@@ -38,8 +38,8 @@ public static class BuildingRules
         {
             string type = TypeOf(shape.Tags);
             bool isPart = !shape.Tags.ContainsKey("building") || shape.Tags["building"] == "no";
-            if (isPart && ParseNumber(OsmTags.Get(shape.Tags, "min_level")) is double ml && ml > 0) { res.PartsIgnored++; continue; }
-            if (NoWallTypes.Contains(type)) { res.NoWalls++; continue; }
+            if (isPart && ParseNumber(OsmTags.Get(shape.Tags, "min_level")) is double ml && ml > 0) { res.PartsIgnored++; foreach (var rg in shape.Regions) res.Touch(NoteKinds.PartsIgnored, rg.Outer); continue; }
+            if (NoWallTypes.Contains(type)) { res.NoWalls++; foreach (var rg in shape.Regions) res.Touch(NoteKinds.NoWalls, rg.Outer); continue; }
             var parts = new List<(PathD Ring, long[]? Ids)>();
             foreach (var region in shape.Regions)
             {
@@ -47,6 +47,7 @@ public static class BuildingRules
                 else
                 {
                     res.SplitCourtyards++;
+                    res.Touch(NoteKinds.SplitCourtyards, region.Outer);
                     int filled = 0;
                     foreach (var p in Polygons.SplitHoles(region, MinArea, ref filled)) parts.Add((p, null));
                     res.FilledHoles += filled;
@@ -61,16 +62,16 @@ public static class BuildingRules
         foreach (var c in candidates)
         {
             if (c.Ring.Count < 3) continue;
-            if (!InsideBounds(c.Ring, bounds)) { res.DroppedAtEdge++; continue; }
-            if (Polygons.Area(c.Ring) < MinArea) { res.DroppedSmall++; continue; }
-            if (MinExtent(c.Ring) < MinWidth) { res.DroppedThin++; continue; }
+            if (!InsideBounds(c.Ring, bounds)) { res.DroppedAtEdge++; res.Touch(NoteKinds.DroppedAtEdge, c.Ring); continue; }
+            if (Polygons.Area(c.Ring) < MinArea) { res.DroppedSmall++; res.Touch(NoteKinds.DroppedSmall, c.Ring); continue; }
+            if (MinExtent(c.Ring) < MinWidth) { res.DroppedThin++; res.Touch(NoteKinds.DroppedThin, c.Ring); continue; }
             kept.Add(c);
         }
         // a building:part that lies inside a building's outline is merged into it (the outline already is the building)
         var mains = kept.Where(c => !c.IsPart).ToList();
         foreach (var c in kept)
         {
-            if (c.IsPart && mains.Any(m => Inside(c.Ring, m.Ring))) { res.PartsMerged++; continue; }
+            if (c.IsPart && mains.Any(m => Inside(c.Ring, m.Ring))) { res.PartsMerged++; res.Touch(NoteKinds.PartsMerged, c.Ring); continue; }
             res.Buildings.Add(Classify(c, options));
         }
 
@@ -79,9 +80,10 @@ public static class BuildingRules
         var entrances = EntranceIndex(model);
         foreach (var b in res.Buildings)
         {
-            if (b.HeightInferred && b.Enterable) res.HeightsInferred++;
-            if (!b.Enterable) continue;
-            if (!PlaceDoors(b, roads, entrances)) res.NoFreeWall++;
+            if (b.HeightInferred && b.Enterable) { res.HeightsInferred++; res.Touch(NoteKinds.HeightsInferred, b.Ring); }
+            if (b.SharedWith.Count > 0) res.Touch(NoteKinds.SharedWalls, b.Ring);
+            if (!b.Enterable) { res.Touch(NoteKinds.Solid, b.Ring); continue; }
+            if (!PlaceDoors(b, roads, entrances)) { res.NoFreeWall++; res.Touch(NoteKinds.NoFreeWall, b.Ring); }
             PlaceWindows(b);
             res.Doors += b.Doors;
             res.Windows += b.Windows;
@@ -131,20 +133,22 @@ public static class BuildingRules
 
         double? levels = ParseNumber(OsmTags.Get(t, "building:levels")), roofLevels = ParseNumber(OsmTags.Get(t, "roof:levels")), height = ParseNumber(OsmTags.Get(t, "height"));
         bool tall = TallTypes.Contains(c.Type);
-        if (LowPrisms.Contains(c.Type)) { d.Storeys = 1; d.Height = 3.0; d.Roof = "flat"; return d; }
+        if (LowPrisms.Contains(c.Type)) { d.Storeys = 1; d.Height = 3.0; d.Roof = "flat"; d.StoreysSource = "from type"; d.RoofSource = "from type"; return d; }
         if (levels is double lv && lv >= 1)
         {
             d.Storeys = Math.Clamp((int)Math.Round(lv) + (roofLevels is double rl && rl >= 1 ? 1 : 0), 1, 60);
             d.Height = d.Storeys * sh;
+            d.StoreysSource = "tagged";
         }
         else if (tall)
         {
-            d.Storeys = 1; d.Height = height is double h0 && h0 >= 2 ? h0 : 6.0; d.HeightInferred = height == null;
+            d.Storeys = 1; d.Height = height is double h0 && h0 >= 2 ? h0 : 6.0; d.HeightInferred = height == null; d.StoreysSource = height == null ? "from type" : "from height";
         }
         else if (height is double h && h >= 2)
         {
             d.Storeys = Math.Clamp((int)Math.Round(h / sh), 1, 60);
             d.Height = d.Storeys * sh;
+            d.StoreysSource = "from height";
         }
         else
         {
@@ -155,24 +159,27 @@ public static class BuildingRules
                 "apartments" => 4,
                 "commercial" or "retail" or "office" => 2,
                 "greenhouse" or "garage" or "garages" or "shed" => 1,
-                _ => options.DefaultStoreys,
+                _ => -1,
             };
+            d.StoreysSource = d.Storeys < 0 ? "default" : "from type";
+            if (d.Storeys < 0) d.Storeys = options.DefaultStoreys;
             if (c.Type == "greenhouse") d.Storeys = 1;
             d.Height = d.Storeys * sh;
         }
         if (c.Type == "greenhouse") { d.Storeys = 1; d.Height = Math.Min(d.Height, sh); }
-        d.Roof = RoofOf(t, c.Type, d.Storeys);
+        (d.Roof, d.RoofSource) = RoofOf(t, c.Type, d.Storeys);
+        if (d.RoofSource == "tagged") d.RoofShape = t["roof:shape"];
         if (d.Roof == "pitched")
             d.RidgeRise = ParseNumber(OsmTags.Get(t, "roof:height")) is double rh && rh > 0 ? rh : Math.Max(0.8, 0.35 * MinExtent(c.Ring));
         return d;
     }
 
-    private static string RoofOf(IReadOnlyDictionary<string, string> t, string type, int storeys)
+    private static (string Roof, string Source) RoofOf(IReadOnlyDictionary<string, string> t, string type, int storeys)
     {
-        if (t.TryGetValue("roof:shape", out var shape) && shape.Length > 0) return shape == "flat" ? "flat" : "pitched";
-        if (PitchedTypes.Contains(type)) return "pitched";
-        if (FlatTypes.Contains(type)) return "flat";
-        return storeys <= 2 ? "pitched" : "flat";
+        if (t.TryGetValue("roof:shape", out var shape) && shape.Length > 0) return (shape == "flat" ? "flat" : "pitched", "tagged");
+        if (PitchedTypes.Contains(type)) return ("pitched", "from type");
+        if (FlatTypes.Contains(type)) return ("flat", "from type");
+        return (storeys <= 2 ? "pitched" : "flat", "storeys rule");
     }
 
     private static string? MaterialOf(string? m) => m?.ToLowerInvariant() switch
@@ -222,6 +229,7 @@ public static class BuildingRules
             if (l.Select(x => x.B).Distinct().Count() < 2) continue;
             res.SharedWallsById++;
             foreach (var (bi, e) in l) bs[bi].Party[e].Add((0, EdgeLength(bs[bi].Ring, e)));
+            foreach (var (bi, _) in l) foreach (var (bj, _) in l) if (bi != bj) bs[bi].SharedWith.Add(bs[bj].Id);
         }
 
         // 2. by DISTANCE (≤ 0.3 m apart, antiparallel, overlapping): first snap near-equal vertices, then record the overlaps
@@ -288,7 +296,7 @@ public static class BuildingRules
                         var v = B.Ring[vi];
                         foreach (var target in new[] { p, q })
                             if (Math.Abs(v.x - target.x) <= tol && Math.Abs(v.y - target.y) <= tol && (v.x != target.x || v.y != target.y))
-                            { B.Ring[vi] = target; res.SnappedVertices++; break; }
+                            { B.Ring[vi] = target; res.SnappedVertices++; res.Touch(NoteKinds.Snapped, B.Ring); break; }
                     }
                 }
                 else
@@ -298,6 +306,7 @@ public static class BuildingRules
                     double tp = ((p.x - r.x) * dbx + (p.y - r.y) * dby) / lb, tq = ((q.x - r.x) * dbx + (q.y - r.y) * dby) / lb;
                     B.Party[eb].Add((Math.Max(0, Math.Min(tp, tq)), Math.Min(lb, Math.Max(tp, tq))));
                     if (!already) res.SharedWallsByDistance++;
+                    A.SharedWith.Add(B.Id); B.SharedWith.Add(A.Id);
                 }
             }
         }
@@ -423,7 +432,7 @@ public static class BuildingRules
                     best.DoorAt.Add(bestT);
                 }
             }
-        if (used.Count > 0) return true;
+        if (used.Count > 0) { b.DoorRule = "entrance node"; return true; }
 
         // no entrance mapped: ONE door on the wall facing the nearest road, a back door on a big building
         double cxm = b.Ring.Average(p => p.x), cym = b.Ring.Average(p => p.y);
@@ -441,8 +450,9 @@ public static class BuildingRules
             double score = haveRoad ? w.Nx * rx + w.Ny * ry + 1e-4 * w.Length : w.Length;
             if (score > bestScore) { bestScore = score; front = w; }
         }
-        if (front == null) return false;
+        if (front == null) { b.DoorRule = "none"; return false; }
         AddDoor(b, front);
+        b.DoorRule = haveRoad ? "road-facing" : "longest wall";
         if (b.Area > BackDoorAbove && haveRoad)
         {
             Wall? back = null; double worst = double.MaxValue;
@@ -452,7 +462,7 @@ public static class BuildingRules
                 double score = w.Nx * rx + w.Ny * ry;
                 if (score < worst) { worst = score; back = w; }
             }
-            if (back != null) AddDoor(b, back);
+            if (back != null) { AddDoor(b, back); b.DoorRule = "road-facing + back door"; }
         }
         return true;
     }
