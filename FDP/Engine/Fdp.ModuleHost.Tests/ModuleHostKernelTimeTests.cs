@@ -411,6 +411,33 @@ namespace Fdp.ModuleHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-3427 C-1 (user, 2026-11-10) — live play with <see cref="ModuleHostKernel.SlowModulesByWallClock"/> (the runner's
+        /// setting): a 10 Hz module runs once per 0.1 s of WALL CLOCK from its dispatch, however many frames pass. 30 frames 2 ms apart
+        /// (60 ms) ⇒ one run, where the frame count would give five; 0.1 s later ⇒ the second. 🔴 Red-proof: drop the wall-clock
+        /// branch in <c>ShouldRunThisFrame</c> ⇒ five runs in the first 60 ms.
+        /// </summary>
+        [Fact]
+        public void Continuous_WallClockCadence_RunsOncePerPeriodFromItsDispatch()
+        {
+            var (kernel, world, clock, module) = SteppedKernel(sleepMs: 0);
+            kernel.SlowModulesByWallClock = true;
+            clock.Mode = TimeMode.Continuous;
+            static void Wait(double ms) { var sw = System.Diagnostics.Stopwatch.StartNew(); while (sw.Elapsed.TotalMilliseconds < ms) { } }
+            var span = System.Diagnostics.Stopwatch.StartNew();
+            for (int i = 0; i < 30; i++) { Step(kernel, clock, 1f / 60f); Wait(2); }
+            double firstSpanMs = span.Elapsed.TotalMilliseconds;
+            int inFirstPeriod;
+            lock (module.RunAt) inFirstPeriod = module.RunAt.Count;
+            Wait(110);
+            Step(kernel, clock, 1f / 60f);
+            Wait(20);
+            kernel.Dispose(); world.Dispose();
+            Assert.True(firstSpanMs < 95, $"inconclusive: the 30 frames took {firstSpanMs:F0} ms (needs < 100)");
+            Assert.Equal(1, inFirstPeriod);
+            lock (module.RunAt) Assert.Equal(2, module.RunAt.Count);
+        }
+
+        /// <summary>
         /// ⭐ CE-3293 S5 (R-3036 rule 2, §10 F11) — at time scale 0 in CONTINUOUS mode a step-only background module is held too:
         /// the gate does not depend on the mode. 🔴 Before: held only in stepped mode, so it ran on every 6th paused frame.
         /// </summary>

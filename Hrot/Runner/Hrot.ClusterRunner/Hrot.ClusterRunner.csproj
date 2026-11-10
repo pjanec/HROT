@@ -13,6 +13,11 @@
          use (the runtime Raylib.SetWindowIcon only drives the title-bar icon). Multi-resolution
          .ico (16..256) generated from FDP\Data\Icons\HROT-icon-green.png. -->
     <ApplicationIcon>..\..\..\FDP\Data\Icons\HROT-icon-green.ico</ApplicationIcon>
+    <!-- ⭐ CE-3427 G-1 (user, 2026-11-10) — server GC, 4 heaps (runtimeconfig.template.json: HeapCount 4, NoAffinitize so the
+         nodes on one machine do not all pin their heaps to the same four CPUs). Measured, the cold navmesh bake at scale 1:
+         322 s → 127 s, SimHost peak 2.5 GB (all heaps: 118 s but 4.9 GB). docs/DESIGN_Scale_Rig.md §7.3.
+         DOTNET_gcServer / DOTNET_GCHeapCount still override it per process. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>

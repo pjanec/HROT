@@ -1279,7 +1279,9 @@ namespace Fdp.ModuleHost
             return false;
         }
         
-        private static readonly bool SlowWallClock = Environment.GetEnvironmentVariable("HROT_SLOW_WALLCLOCK") == "1";
+        /// <summary>⭐ CE-3427 C-1 — live play: a slow module's cadence is wall clock from its last dispatch (true) or <c>60/Hz</c>
+        /// rendered frames from its harvest (false). Taken from <see cref="FdpConfig.SlowModulesByWallClock"/> at construction.</summary>
+        public bool SlowModulesByWallClock { get; set; } = FdpConfig.SlowModulesByWallClock;
 
         private bool ShouldRunThisFrame(ModuleEntry entry)
         {
@@ -1328,9 +1330,9 @@ namespace Fdp.ModuleHost
             // ⭐ CE-3292 — a slot of 1/targetHz s of SIM time, anchored at t = 0: the same steps run it in every run of a timeline.
             if (steppedRule) return SlotOf(entry) != entry.LastRunSlot;
             
-            // ⚗ CE-3427 experiment — the user's intent (2026-10-21, DESIGN_Time_Architecture §17): "the 10Hz and such were meant to be
-            //   wall clock to ease the CPU". Measured: a 120 ms EQS run then waited 230 ms more (2.9 runs/s, not 10).
-            if (SlowWallClock)
+            // ⭐ CE-3427 C-1 — the user's intent (2026-10-21, DESIGN_Time_Architecture §17): "the 10Hz and such were meant to be
+            //   wall clock to ease the CPU". Measured frame-counted: a 120 ms EQS run then waited 230 ms more (2.9 runs/s, not 10).
+            if (SlowModulesByWallClock)
                 return System.Diagnostics.Stopwatch.GetElapsedTime(entry.LastDispatchTimestamp).TotalSeconds >= 1.0 / targetHz;
 
             int framesToSkip = 60 / targetHz;
@@ -2133,7 +2135,7 @@ namespace Fdp.ModuleHost
             public TickPolicy TickPolicy { get; set; }
             public ISnapshotProvider Provider { get; set; } = null!;
             public int FramesSinceLastRun { get; set; }
-            /// <summary>⚗ CE-3427 experiment — the Stopwatch timestamp of the last dispatch (HROT_SLOW_WALLCLOCK=1).</summary>
+            /// <summary>⭐ CE-3427 C-1 — the Stopwatch timestamp of the last dispatch (the live wall-clock cadence).</summary>
             public long LastDispatchTimestamp { get; set; }
             public ISimulationView? LastView { get; set; }
             public int ExecutionCount; // Field for Interlocked
