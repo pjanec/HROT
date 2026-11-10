@@ -113,12 +113,9 @@ public sealed class Keymap
     private readonly List<KeymapEntry> _entries = new();
     private readonly Dictionary<ActionRef, string> _labels = new();
 
-    /// <summary>
-    /// ⭐ CE-3427 (backend, a cross-lane fix) — every WRITE is under this lock: <see cref="Process"/> is ONE keymap per process, and hosts that boot in
-    /// parallel (the integration harnesses: a Player's possession station, a SimHost's map gestures) declare into it at once — 📐 that corrupted its sets
-    /// ("a concurrent update was performed on this collection") and failed every later test in the process (2026-11-10). Declaring is boot-time, never per
-    /// frame; the per-frame lookups stay lock-free.
-    /// </summary>
+    /// <summary>⭐ CE-4386 — measured on Windows 2026-11-10: <see cref="Process"/> is shared by the whole process and test classes DECLARE into it in parallel, so a race once
+    /// corrupted <c>_labels</c> and every later declaration threw "operations that change non-concurrent collections" (≈ 190 rails red in one run). Declarations (and the
+    /// hash lookups beside them) take this lock — they happen once per row, never per frame; the router's per-frame walk (<see cref="Count"/> / indexer) stays lock-free.</summary>
     private readonly object _write = new();
 
     /// <summary>Bumped on every change (a row, a label): a view rebuilds only when it moved.</summary>
@@ -127,18 +124,16 @@ public sealed class Keymap
     /// <summary>Names <paramref name="action"/> for display (the Keyboard shortcuts window, a tooltip). Declarers call it when they declare.</summary>
     public void SetLabel(ActionRef action, string label)
     {
-        lock (_write) SetLabelLocked(action, label);
-    }
-
-    private void SetLabelLocked(ActionRef action, string label)
-    {
-        if (_labels.TryGetValue(action, out var old) && string.Equals(old, label, StringComparison.Ordinal)) return;
-        _labels[action] = label;
-        Version++;
+        lock (_write)
+        {
+            if (_labels.TryGetValue(action, out var old) && string.Equals(old, label, StringComparison.Ordinal)) return;
+            _labels[action] = label;
+            Version++;
+        }
     }
 
     /// <summary>The label of <paramref name="action"/>, else its id.</summary>
-    public string LabelOf(ActionRef action) => _labels.TryGetValue(action, out var l) ? l : action.ToString();
+    public string LabelOf(ActionRef action) { lock (_write) return _labels.TryGetValue(action, out var l) ? l : action.ToString(); }
     private readonly HashSet<(InputScope, string?, ActionRef, KeyBinding, KeyTrigger)> _declared = new();
     private readonly HashSet<(InputScope, string?, ActionRef)> _declaredActions = new();
 
@@ -179,15 +174,13 @@ public sealed class Keymap
     /// </summary>
     public bool Declare(KeymapEntry entry)
     {
-        lock (_write) return DeclareLocked(entry);
-    }
-
-    private bool DeclareLocked(KeymapEntry entry)
-    {
-        if (!_declared.Add((entry.Scope, entry.WindowKind, entry.Action, entry.Chord, entry.Trigger))) return false;
-        _declaredActions.Add((entry.Scope, entry.WindowKind, entry.Action));
-        _entries.Add(entry);
-        Version++;
+        lock (_write)
+        {
+            if (!_declared.Add((entry.Scope, entry.WindowKind, entry.Action, entry.Chord, entry.Trigger))) return false;
+            _declaredActions.Add((entry.Scope, entry.WindowKind, entry.Action));
+            _entries.Add(entry);
+            Version++;
+        }
         return true;
     }
 
@@ -204,15 +197,13 @@ public sealed class Keymap
     /// <summary>Adds a gesture row; idempotent per (scope, qualifier, gesture). Returns whether a row was added.</summary>
     public bool DeclareGesture(GestureEntry entry)
     {
-        lock (_write) return DeclareGestureLocked(entry);
-    }
-
-    private bool DeclareGestureLocked(GestureEntry entry)
-    {
-        if (!_gestureDeclared.Add((entry.Scope, entry.Qualifier, entry.Gesture))) return false;
-        _gestures.Add(entry);
-        Version++;
-        return true;
+        lock (_write)
+        {
+            if (!_gestureDeclared.Add((entry.Scope, entry.Qualifier, entry.Gesture))) return false;
+            _gestures.Add(entry);
+            Version++;
+            return true;
+        }
     }
 
     /// <summary>
@@ -256,7 +247,7 @@ public sealed class Keymap
     }
 
     /// <summary>Whether (scope, window kind, action) already has a row — lets a per-frame declarer skip the work without allocating.</summary>
-    public bool IsDeclared(InputScope scope, string? windowKind, ActionRef action) => _declaredActions.Contains((scope, windowKind, action));
+    public bool IsDeclared(InputScope scope, string? windowKind, ActionRef action) { lock (_write) return _declaredActions.Contains((scope, windowKind, action)); }
 
     /// <summary>
     /// The first row in <paramref name="scope"/> (and, for <see cref="InputScope.FocusedWindow"/>, <paramref name="windowKind"/>) whose chord is

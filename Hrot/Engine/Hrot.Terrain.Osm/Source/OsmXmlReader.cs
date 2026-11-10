@@ -19,6 +19,7 @@ public static class OsmXmlReader
         var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, IgnoreWhitespace = true, IgnoreComments = true, XmlResolver = null };
         using var r = XmlReader.Create(stream, settings);
         var model = new OsmModel();
+        var relations = new HashSet<long>();
         while (r.Read())
         {
             if (r.NodeType != XmlNodeType.Element) continue;
@@ -27,7 +28,7 @@ public static class OsmXmlReader
                 case "meta": model.DataTimestamp ??= r.GetAttribute("osm_base"); break;
                 case "node": ReadNode(r, frame, model); break;
                 case "way": ReadWay(r, model); break;
-                case "relation": ReadRelation(r, model); break;
+                case "relation": ReadRelation(r, model, relations); break;
             }
         }
         return model;
@@ -71,11 +72,13 @@ public static class OsmXmlReader
             }
         }
         var way = new OsmWay(id, nodes.ToArray(), (IReadOnlyDictionary<string, string>?)tags ?? OsmTags.None);
+        // ⭐ CE-4383 (measured live, a 1.5 km box of Köln, 2026-11-10): Overpass can emit the SAME way twice in one answer (a union of a recursion) ⇒ two buildings with one
+        // id and the input set refused ("building w461758801: duplicate id"). Each element once, the first kept.
+        if (!model.WayById.TryAdd(id, way)) return;
         model.Ways.Add(way);
-        model.WayById[id] = way;
     }
 
-    private static void ReadRelation(XmlReader r, OsmModel model)
+    private static void ReadRelation(XmlReader r, OsmModel model, HashSet<long> seen)
     {
         long id = Id(r);
         var members = new List<OsmMember>();
@@ -95,6 +98,7 @@ public static class OsmXmlReader
                 else if (sub.Name == "tag") (tags ??= new())[sub.GetAttribute("k") ?? ""] = sub.GetAttribute("v") ?? "";
             }
         }
+        if (!seen.Add(id)) return;   // CE-4383 — each relation once, like the ways (parsed, then dropped: the reader stays where the caller expects)
         model.Relations.Add(new OsmRelation(id, members.ToArray(), (IReadOnlyDictionary<string, string>?)tags ?? OsmTags.None));
     }
 }

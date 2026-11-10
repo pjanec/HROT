@@ -117,8 +117,13 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             Finish(world);
         }
 
+        // ⭐ CE-4391 S-3 (B-10, B-12) — the building damage the navmesh must follow (passages and collapses; a hole moves nothing) joins the input hash,
+        //   on a node that does world queries ONLY: a display node's terrain is never rewritten by damage.
+        var damage = bakery.Residency.BakesDamage ? DamageOf(world) : null;
+        ulong navHash = damage?.NavHash ?? 0UL;
         ulong signature = Signature();
-        bool changed = signature != _bakedSignature || (_prisms.Count > 0 && bakery.BaseVersion != _bakedBase);
+        if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
+        bool changed = signature != _bakedSignature || ((_prisms.Count > 0 || navHash != 0) && bakery.BaseVersion != _bakedBase);
         if (!changed)
         {
             foreach (var e in _pending) Ack(world, e);   // already in the baked world (e.g. it arrived while that bake ran)
@@ -135,8 +140,13 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         _runningOn = residency;
         _runningBatch = new List<Entity>(_pending);
         _runningSignature = signature;
-        _running = Task.Run(() => residency.BakeObstacles(prisms));
+        _running = Task.Run(() => residency.BakeObstacles(prisms, damage));
     }
+
+    /// <summary>The building damage this node's world holds (the view's <see cref="DoorStates.Damage"/>), or null.</summary>
+    private static BuildingDamageTable? DamageOf(EntityRepository world)
+        => world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { Buildings.Count: > 0 } t
+            ? DoorStates.Of(world, t).Damage : null;
 
     private void Finish(EntityRepository world)
     {

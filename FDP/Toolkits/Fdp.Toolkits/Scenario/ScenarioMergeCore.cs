@@ -182,6 +182,13 @@ public static class ScenarioMergeCore
             {
                 foreach (var kv in objects)
                 {
+                    // ⭐ CE-4391 S-4 (B-2) — a building hit by two deciding nodes is saved by both: the union of breaches, collapsed OR-ed
+                    if (mergedTerrainObjects[kv.Key] is JsonObject have && kv.Value is JsonObject mine
+                        && Fdp.Toolkit.Terrain.TerrainObjectsSection.IsBuildingDamageEntry(have) && Fdp.Toolkit.Terrain.TerrainObjectsSection.IsBuildingDamageEntry(mine))
+                    {
+                        mergedTerrainObjects[kv.Key] = Fdp.Toolkit.Terrain.TerrainObjectsSection.MergeBuildingDamage(kv.Key, have, mine);
+                        continue;
+                    }
                     if (mergedTerrainObjects.ContainsKey(kv.Key))
                         throw new InvalidOperationException(
                             $"Terrain object '{kv.Key}' appears in two slices (node {s.OriginNodeId}) — a door's state is saved only by its owner; refusing to pick one.");

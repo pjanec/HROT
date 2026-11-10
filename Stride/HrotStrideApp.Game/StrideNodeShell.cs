@@ -738,9 +738,10 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         //   exactly this purpose ("ClusterTimeTransportAdapter issues PauseTimeIntent/ResumeTimeIntent/
         //   StepTimeIntent/SetTimeScaleIntent … onto HrotNodeContext.EventBus"). ⛔ Nothing local: every
         //   button publishes a cluster INTENT, and the node obeys the master like any other slave.
-        _clusterTime = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(
-            ctx.EventBus, () => ctx.ClusterSlave.View,   // ⭐ CE-1436 — the node's ONE cluster view
-            () => ctx.Kernel.CurrentTime.TotalTime);
+        // ⭐ CE-1449 (R-1044) — built by the ONE factory every ECS host uses, with SimHost's profile (the same node role: no scenario session, Operator gate)
+        //   ⇒ the run choice, the gate and Cancel come by construction; ⛔ no hand-written adapter. (Its window does not compose the loading screen yet — CE-1449's row.)
+        _clusterTime = Hrot.UI.Common.RunMode.NodeRunControls.For(ctx,   // ⭐ CE-1436 — over the node's ONE cluster view
+            new Hrot.UI.Common.RunMode.NodeRunProfile(Hrot.UI.Common.RunMode.RunHostKind.SimHost));
         if (_visualization.UI != null)
             _visualization.UI.TimeFacade = _clusterTime;
 

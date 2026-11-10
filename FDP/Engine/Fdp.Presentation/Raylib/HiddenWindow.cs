@@ -32,6 +32,7 @@ public static class HiddenWindow
     public static bool ApplyBeforeInit()
     {
         Active = Requested;
+        if (Active && OperatingSystem.IsWindows()) MakeDpiUnaware();
         if (Active) Raylib_cs.Raylib.SetConfigFlags(ConfigFlags.HiddenWindow | ConfigFlags.UnfocusedWindow);
         return Active;
     }
@@ -93,6 +94,21 @@ public static class HiddenWindow
     [DllImport("kernel32.dll")] private static extern IntPtr GetConsoleWindow();
     [DllImport("kernel32.dll")] private static extern uint GetConsoleProcessList(uint[] list, uint count);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int cmd);
+
+    [DllImport("user32.dll")] private static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+
+    /// <summary>
+    /// ⭐ CE-4386 — measured on the user's Windows machine (150 % scaling, 144 DPI), 2026-11-10: raylib's <c>LoadImageFromScreen</c> reads the screen size TIMES the window's
+    /// DPI scale (GLFW's content scale, 1.5 there — with or without the high-DPI flag), so it read 1920 × 1200 out of a 1280 × 800 target and every pixel probe of every frame
+    /// rail landed outside the frame (black). A DPI-UNAWARE process gets a content scale of 1.0 (Windows virtualises it), so the read is the target's size exactly. Set before
+    /// GLFW initialises (which otherwise makes the process per-monitor aware, and the first setting wins). Only in hidden mode — nobody sees the window, so its bitmap scaling
+    /// never shows.
+    /// </summary>
+    private static void MakeDpiUnaware()
+    {
+        try { SetProcessDpiAwarenessContext(new IntPtr(-1)); }   // DPI_AWARENESS_CONTEXT_UNAWARE
+        catch (Exception) { /* best effort: before Windows 10 1703 */ }
+    }
 
     private static void HideOwnConsole()
     {

@@ -44,6 +44,8 @@ namespace Fdp.Toolkit.Combat
         public float BlastInjuryRadius { get; init; }
         public List<DetonationEffect> Effects { get; } = new();
         public List<string> DoorsBreached { get; } = new();
+        /// <summary>⭐ <c>CE-4391</c> S-1 — the wall breaches this burst decided (<c>"terrain/building panel N Kind from..to m x z a..b"</c>).</summary>
+        public List<string> BuildingBreaches { get; } = new();
         /// <summary>⭐ <c>CE-3117</c> — every fragment ray, in target order (what the map draws).</summary>
         public List<DetonationRayRecord> Rays { get; } = new();
     }

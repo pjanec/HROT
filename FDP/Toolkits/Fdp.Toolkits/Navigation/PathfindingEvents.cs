@@ -77,6 +77,9 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Padding to maintain natural alignment.</summary>
         public byte _pad3;
         public byte _pad4;
+        /// <summary>⭐ <c>CE-4391</c> S-3 (P3-a/b; APPENDED, never on the wire) — the navmesh's tile <see cref="INavmeshTileVersions.ChangeSequence"/> read BEFORE the path was planned;
+        /// 0 = unknown (a road-graph path, a mesh with no tile versions, a result from a remote solver): such a path is never judged stale by tile.</summary>
+        public uint TileSequenceAtPlan;
     }
 
     /// <summary>

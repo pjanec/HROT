@@ -1280,5 +1280,9 @@ namespace Fdp.Core
 
         /// <summary><c>GameplaySettings</c> — ⭐ Player Join S2 (D-14): the gameplay settings of the scenario, on the World Environment (the respawn delay). Authored, bindable by a scenario parameter.</summary>
         public const int GameplaySettings = 484;
+        /// <summary><c>BuildingDamage</c> — ⭐ CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8.2 B-1): the breaches (and, S-2, the collapse) of ONE building, on a
+        /// runtime entity its deciding node owns; replicated as <c>dtBuildingDamage</c> (183). NoScenario here (saved through the <c>terrainObjects</c> section, S-4).
+        /// ⚠ 485 measured free in backend, ui, behaviors and coordinator 2026-11-10 (the highest in use was 484).</summary>
+        public const int BuildingDamage = 485;
     }
 }

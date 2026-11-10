@@ -476,6 +476,10 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Navmesh version when the current path was planned.</summary>
         public uint NavmeshVersion;
 
+        /// <summary>⭐ <c>CE-4391</c> S-3 (P3-a/b) — the navmesh's tile change sequence this path was planned at (and last checked against); 0 = never judged by tile.
+        /// <c>NavigationExecutionSystem</c> compares it to the live sequence each frame — one integer compare — and walks the path's remaining tiles only when it moved.</summary>
+        public uint TileSequence;
+
         /// <summary>Index of the segment the agent is currently traversing.</summary>
         public int CurrentSegmentIndex;
 

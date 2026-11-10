@@ -281,7 +281,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             doors = null;
             if (view is not EntityRepository repo || !repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()) return null;
             var world = repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
-            if (world != null && world.Doors.Count > 0) doors = Fdp.Toolkit.Terrain.DoorStates.Of(view, world);
+            if (world != null && world.HasLiveState) doors = Fdp.Toolkit.Terrain.DoorStates.Of(view, world);
             return world;
         }
 

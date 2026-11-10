@@ -483,6 +483,7 @@ namespace Hrot.Editor.DebugApi
                 new("pitchDeg", "number", false, "View elevation, degrees, negative looks down (follow: -20, lookAt: -30)"),
                 new("lift", "number", false, "Follow: metres above the unit's position looked at (default 1)"),
                 new("fovDeg", "number", false, "Vertical field of view, degrees (default: the camera's 45; narrow = telephoto)"),
+                new("twoD", "boolean", false, "⭐ CE-4385 — hold the shot on the 2-D map instead (look-at = the centre, distance = the scale; default false)"),
                 new("spec", "object", false, "⭐ CE-4038 — a take's shot in its own keys (docs/DESIGN_Film_Director.md §4), units by name. ⭐ CE-4268 — its `layers` ({on, off}; {} = the take's clean start: the scene rows only, no unit cards) IS honoured, as a transient override through the director's layer override — never the user's file; DELETE /film/shot clears it"),
                 new("t", "number", false, "With spec: sim seconds into the shot (its orbit and its 'to')"),
             },

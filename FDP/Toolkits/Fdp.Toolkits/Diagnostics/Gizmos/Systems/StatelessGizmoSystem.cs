@@ -250,6 +250,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 }
                 bool prevValid = hold != null && hold.WrittenFrame == frame - 1;
                 int slot = frame % period;
+                bool timed = GizmoRuleTimings.Enabled;   // ⭐ CE-4385 — HROT_FRAME_STATS: this rule's time and garbage
+                long ruleStart = timed ? System.Diagnostics.Stopwatch.GetTimestamp() : 0, ruleBytes = timed ? System.GC.GetAllocatedBytesForCurrentThread() : 0;
 
                 for (int m = 0; m < count; m++)
                 {
@@ -308,6 +310,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 }
 
                 hold?.Swap(frame);
+                if (timed) GizmoRuleTimings.Record(rule.Projector.GetType().Name, ruleStart, count, System.GC.GetAllocatedBytesForCurrentThread() - ruleBytes);
             }
         }
     }

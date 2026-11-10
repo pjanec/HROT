@@ -26,6 +26,7 @@ internal sealed class FrameStats
     {
         if (Environment.GetEnvironmentVariable("HROT_FRAME_STATS") != "1") return null;
         Fdp.Presentation.WindowManager.WindowTimings.Enabled = true;   // ⭐ W-P1 — and the per-window CPU timing
+        Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Enabled = true;   // ⭐ CE-4385 — and the per-gizmo-rule timing
         return new FrameStats();
     }
 
@@ -72,6 +73,9 @@ internal sealed class FrameStats
         // ⭐ CE-2401 (R-2084) — the garbage per window: what kills smoothness is the GC, not only the time
         var heavy = all.Where(w => w.Bytes / n >= 1024).OrderByDescending(w => w.Bytes).Take(8).ToList();
         if (heavy.Count > 0) Console.WriteLine("[FrameStats]   per window garbage (KB/frame): " + string.Join(" · ", heavy.Select(w => $"{w.Name} {w.Bytes / n / 1024}")));
+        // ⭐ CE-4385 — the stateless gizmo rules (the update's biggest system on a large terrain): time, entities drawn and garbage, per rule
+        var rules = Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Drain().Take(6).ToList();
+        if (rules.Count > 0) Console.WriteLine("[FrameStats]   gizmo rules (ms · entities · KB per frame): " + string.Join(" · ", rules.Select(r => $"{r.Rule} {r.Ms / n:0.00} · {r.Entities / n} · {r.Bytes / n / 1024}")));
         _frames.Clear();
         Console.WriteLine($"[FrameStats]   garbage (KB/frame): update {_updateBytes / n / 1024}  draw {_drawBytes / n / 1024}  ui {_uiBytes / n / 1024}" +
                           $"  | gc0 {GC.CollectionCount(0)} gc1 {GC.CollectionCount(1)} gc2 {GC.CollectionCount(2)} (since start)");

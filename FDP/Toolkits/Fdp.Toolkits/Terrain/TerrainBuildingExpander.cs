@@ -39,6 +39,20 @@ namespace Fdp.Toolkit.Terrain
         public static void Expand(JsonObject template, Placement at, Func<IReadOnlyList<Vector2>, float> groundUnder, TerrainMaterialLibrary materials,
             string? terrainName, Sink sink, string where)
         {
+            int firstPrism = sink.Prisms.Count, firstWalkable = sink.Walkables.Count, building = sink.Buildings.Count;
+            ExpandCore(template, at, groundUnder, materials, terrainName, sink, where);
+            // ⭐ CE-4391 S-2 (B-8) — every piece this building made (panel prisms, the solid prism, slabs, ramps) names its building
+            for (int i = firstPrism; i < sink.Prisms.Count; i++) sink.Prisms[i] = Clone(sink.Prisms[i], sink.Prisms[i].Material!, sink.Prisms[i].Panel, building);
+            for (int i = firstWalkable; i < sink.Walkables.Count; i++)
+            {
+                var w = sink.Walkables[i];
+                sink.Walkables[i] = new TerrainWalkable { Kind = w.Kind, Vertices = w.Vertices, Triangles = w.Triangles, Min = w.Min, Max = w.Max, MinZ = w.MinZ, MaxZ = w.MaxZ, Building = building };
+            }
+        }
+
+        private static void ExpandCore(JsonObject template, Placement at, Func<IReadOnlyList<Vector2>, float> groundUnder, TerrainMaterialLibrary materials,
+            string? terrainName, Sink sink, string where)
+        {
             float rad = at.RotationDegrees * MathF.PI / 180f;
             float cos = MathF.Cos(rad), sin = MathF.Sin(rad);
             Vector2 W(Vector2 local) => at.Position + new Vector2(local.X * cos - local.Y * sin, local.X * sin + local.Y * cos);
@@ -169,6 +183,37 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>
+        /// ⭐ THE one panel → prisms function (<c>CE-4391</c> S-3 extracted it from <see cref="AddPanel"/>): the solid pieces of
+        /// <paramref name="panel"/> between and around <paramref name="openings"/> (ascending, non-overlapping; they need not be the panel's own
+        /// — the live-damage overlay passes a panel's openings widened by a breach), each a thin wall prism naming <paramref name="panelIndex"/>
+        /// and the panel's building. Used by the parser and by <see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?)"/>.
+        /// </summary>
+        public static void ExpandPanelPieces(TerrainWallPanel panel, int panelIndex, IReadOnlyList<TerrainOpening> openings, List<TerrainPrism> into, string where)
+        {
+            float length = Vector2.Distance(panel.A, panel.B);
+            var dir = (panel.B - panel.A) / length;
+            Vector2 P(float along) => panel.A + dir * along;
+            float floor = panel.BaseZ, ceiling = panel.TopZ, thickness = panel.Thickness;
+            void Piece(float s0, float s1, float z0, float z1)
+            {
+                if (s1 - s0 < 1e-3f || z1 - z0 < 1e-3f) return;
+                var prism = TerrainWorldParser.MakePrismForExpander(TerrainPrismKind.Wall,
+                    TerrainWorldParser.WallQuadForExpander(P(s0), P(s1), thickness), z0, z1, 0, panel.Label, where);
+                into.Add(Clone(prism, panel.Material, panelIndex, panel.Building));
+            }
+
+            float cursor = 0f;
+            foreach (var op in openings)
+            {
+                Piece(cursor, op.At, floor, ceiling);
+                Piece(op.At, op.At + op.Width, floor, op.SillZ);     // under a window's sill
+                Piece(op.At, op.At + op.Width, op.HeadZ, ceiling);   // over the head
+                cursor = op.At + op.Width;
+            }
+            Piece(cursor, length, floor, ceiling);
+        }
+
+        /// <summary>
         /// One wall panel A→B, floor..ceiling, with openings; its solid pieces become thin prisms (between openings: full
         /// height; under a window's sill and over any opening's head: the remaining strip).
         /// </summary>
@@ -228,26 +273,10 @@ namespace Fdp.Toolkit.Terrain
                 Openings = openings, Building = building, Storey = storey, Label = label,
             });
 
-            var dir = (b - a) / length;
-            Vector2 P(float along) => a + dir * along;
-            void Piece(float s0, float s1, float z0, float z1)
-            {
-                if (s1 - s0 < 1e-3f || z1 - z0 < 1e-3f) return;
-                var prism = TerrainWorldParser.MakePrismForExpander(TerrainPrismKind.Wall,
-                    TerrainWorldParser.WallQuadForExpander(P(s0), P(s1), thickness), z0, z1, 0, label, where);
-                sink.Prisms.Add(Clone(prism, material, panelIndex));
-            }
+            ExpandPanelPieces(sink.Panels[panelIndex], panelIndex, openings, sink.Prisms, where);
 
-            float cursor = 0f;
-            foreach (var op in openings)
-            {
-                Piece(cursor, op.At, floor, ceiling);
-                Piece(op.At, op.At + op.Width, floor, op.SillZ);     // under a window's sill
-                Piece(op.At, op.At + op.Width, op.HeadZ, ceiling);   // over the head
-                cursor = op.At + op.Width;
-            }
-            Piece(cursor, length, floor, ceiling);
-
+            var dirAB = (b - a) / length;
+            Vector2 P(float along) => a + dirAB * along;
             foreach (var (idx, id, state) in doorIds)
             {
                 var op = openings.FindIndex(x => x.DoorKey == DoorKey(terrainName, label, id));
@@ -275,10 +304,10 @@ namespace Fdp.Toolkit.Terrain
             _ => throw new ArgumentException($"Terrain world {where}: unknown door state '{text}' (open, closed, locked, destroyed)."),
         };
 
-        private static TerrainPrism Clone(TerrainPrism p, TerrainMaterial material, int panel) => new()
+        private static TerrainPrism Clone(TerrainPrism p, TerrainMaterial material, int panel, int building = -1) => new()
         {
             Kind = p.Kind, Footprint = p.Footprint, BaseZ = p.BaseZ, TopZ = p.TopZ, Floors = p.Floors, Label = p.Label,
-            Triangles = p.Triangles, Min = p.Min, Max = p.Max, Material = material, Panel = panel,
+            Triangles = p.Triangles, Min = p.Min, Max = p.Max, Material = material, Panel = panel, Building = building,
         };
 
         private static Vector2[] WallBox(JsonObject storey0, string where)

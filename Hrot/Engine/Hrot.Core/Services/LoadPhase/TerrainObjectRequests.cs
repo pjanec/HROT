@@ -64,4 +64,42 @@ public static class TerrainObjectRequests
         }
         return requests;
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4391</c> S-4 (UTM §8.2 B-7, Q-D3) — one request per saved building that has damage and no entity yet, in key order: a runtime <see cref="BuildingDamage"/> entity
+    /// carrying the saved breaches and collapsed state (a building with more than 16 breaches gets several). A saved building or panel this terrain does not have is warned and ignored.
+    /// <para>⚠ R-4196 — who OWNS it: the request is untargeted (<c>OwnerAppInstanceId</c> = 0), so the DEFAULT PROCESSOR makes it — the node that loads the scenario (the Brain / the editor), the
+    /// same as a door. In a cluster that is NOT a muscle, and <c>dtBuildingDamage</c> has no ownership group (nothing hands it on). That does not break the decide path: <c>BuildingDamageSystem</c>
+    /// writes only entities its node owns, so the muscle's first new breach of that building opens ITS OWN entity beside it (B-2) and every node reads the union; the loaded damage stays the loader's.</para>
+    /// </summary>
+    public static List<EntityCreationRequest> ForBuildingDamage(TerrainWorld world, IReadOnlyDictionary<string, SavedBuildingDamage>? saved, ISet<string> existingKeys,
+        INetworkIdAllocator idAllocator, Action<string>? warn = null)
+    {
+        if (world == null) throw new ArgumentNullException(nameof(world));
+        if (idAllocator == null) throw new ArgumentNullException(nameof(idAllocator));
+        var requests = new List<EntityCreationRequest>();
+        if (saved == null || saved.Count == 0) return requests;
+        warn ??= m => Fdp.Core.Logging.FdpLog<TerrainWorld>.Warn("[LoadPhase/TerrainObjects] {0}", m);
+
+        foreach (var (key, building, entities) in BuildingDamageLoad.Resolve(world, saved, warn))
+        {
+            if (existingKeys.Contains(key)) continue;   // a re-commit never doubles a building's damage
+            var b = world.Buildings[building];
+            foreach (var d in entities)
+                requests.Add(new EntityCreationRequest
+                {
+                    RequestId             = Guid.NewGuid(),
+                    TkbType               = (Fdp.Core.TkbTypeId)BuildingDamages.TkbType,
+                    PreAllocatedNetworkId = idAllocator.AllocateId(),
+                    IsTransient           = true,
+                    InitialComponents     = new List<object>
+                    {
+                        new SimTransform { Position = new Vector3(b.Position, b.BaseZ), Rotation = Quaternion.Identity },
+                        d,
+                        new TerrainObjectKey { Key = key },
+                    },
+                });
+        }
+        return requests;
+    }
 }

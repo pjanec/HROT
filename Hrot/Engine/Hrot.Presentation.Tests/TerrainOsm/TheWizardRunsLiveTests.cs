@@ -17,14 +17,16 @@ namespace Hrot.Presentation.Tests.TerrainOsm;
 /// ⭐ CE-4383 (handoff L-1) — the wizard LIVE, headless, through its MODEL (no window): the REAL place search finds the place, a small box round it, the REAL Overpass preview
 /// (verdict, counts), then Import with the real DEM, netconvert and the importer into a temporary NAS — and the New Scenario picker's catalog lists the terrain. Every stage
 /// timed into the output. ⭐ Opt-in: <c>HROT_OSM_LIVE=1</c> (network; netconvert on PATH — <c>scripts/install-sumo.*</c>); <c>HROT_OSM_LIVE_PLACE</c> (default "Kolín") and
-/// <c>HROT_OSM_LIVE_SIDE_M</c> (default 600) choose the box. ⚠ From the cloud VM Overpass is unreachable: the run then fails at the preview with the service named.
+/// <c>HROT_OSM_LIVE_SIDE_M</c> (default 600) choose the box; <c>HROT_OSM_LIVE_NAS</c> + <c>HROT_OSM_LIVE_NAME</c> import into a kept content root under a chosen name. ⚠ From the cloud VM Overpass is unreachable: the run then fails at the preview with the service named.
 /// </summary>
 public sealed class TheWizardRunsLiveTests : IDisposable
 {
     private readonly ITestOutputHelper _out;
-    private readonly string _nas = Path.Combine(Path.GetTempPath(), "osm-live-" + Guid.NewGuid().ToString("N"));
+    // HROT_OSM_LIVE_NAS — import into THIS content root and KEEP the terrain (so the editor can open it in a New Scenario); default a temporary one, deleted
+    private static readonly string? KeepNas = Environment.GetEnvironmentVariable("HROT_OSM_LIVE_NAS") is { Length: > 0 } k ? k : null;
+    private readonly string _nas = KeepNas ?? Path.Combine(Path.GetTempPath(), "osm-live-" + Guid.NewGuid().ToString("N"));
     public TheWizardRunsLiveTests(ITestOutputHelper output) => _out = output;
-    public void Dispose() { try { Directory.Delete(_nas, true); } catch (IOException) { } }
+    public void Dispose() { if (KeepNas != null) return; try { Directory.Delete(_nas, true); } catch (IOException) { } }
 
     private static void PumpUntil(OsmWizardModel m, Func<bool> done, int seconds)
     {
@@ -52,7 +54,7 @@ public sealed class TheWizardRunsLiveTests : IDisposable
         _out.WriteLine($"search \"{place}\": {sw.Elapsed.TotalSeconds:F1} s → {r.Name}");
         m.SetBox(WebMercator.BoxAround(r.Lat, r.Lon, side, side));
         Assert.True(m.Primary(), m.BoxRefusal);   // Area → Options
-        m.Name = "osm-live-" + DateTime.UtcNow.ToString("HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        m.Name = Environment.GetEnvironmentVariable("HROT_OSM_LIVE_NAME") is { Length: > 0 } nm ? nm : "osm-live-" + DateTime.UtcNow.ToString("HHmmss", System.Globalization.CultureInfo.InvariantCulture);
         sw.Restart();
         Assert.True(m.Primary());                 // Options → Preview
         PumpUntil(m, () => m.PreviewState is OsmRunState.Done or OsmRunState.Failed, 900);

@@ -91,7 +91,7 @@ namespace Fdp.Toolkit.CarKinem.Modules
                 new SpatialHashSystem(),
                 new FormationTargetSystem(FormationTemplates, TrajectoryPool),
                 new VehicleCommandSystem(),
-                new NavigationExecutionSystem(),
+                new NavigationExecutionSystem(TrajectoryPool),   // ⭐ CE-4391 S-3 — with the pool: it replans a path whose navmesh tiles a rebake changed
                 // ⭐ Buildings 5d-3 — stops at a closed door on the path, opens it, walks on; replans round a locked one
                 new DoorPassageSystem(TrajectoryPool),
             };

@@ -19,6 +19,8 @@ public static class RenderTelemetry
     private static double _clock;
     private static JsonObject _camera = new();
     private static string _mode = "2D";
+    private static long _lastAllocated = -1;
+    private static readonly Queue<long> Allocations = new();   // ⭐ CE-4385 — bytes allocated (whole process) between consecutive frames, the same window
 
     /// <summary>The window (s) the frame statistics cover.</summary>
     public const double WindowSeconds = 2.0;
@@ -31,7 +33,10 @@ public static class RenderTelemetry
         {
             _clock += frameSeconds;
             Frames.Enqueue((_clock, frameSeconds * 1000f));
-            while (Frames.Count > 0 && _clock - Frames.Peek().At > WindowSeconds) Frames.Dequeue();
+            while (Frames.Count > 0 && _clock - Frames.Peek().At > WindowSeconds) { Frames.Dequeue(); if (Allocations.Count > Frames.Count - 1) Allocations.Dequeue(); }
+            long allocated = GC.GetTotalAllocatedBytes(false);
+            if (_lastAllocated >= 0) { Allocations.Enqueue(allocated - _lastAllocated); while (Allocations.Count > Frames.Count) Allocations.Dequeue(); }
+            _lastAllocated = allocated;
         }
     }
 
@@ -77,10 +82,30 @@ public static class RenderTelemetry
                 ["fps"] = MathF.Round(fps, 1), ["frameMsMean"] = MathF.Round(mean, 2), ["frameMsP95"] = MathF.Round(p95, 2),
                 ["frameMsMax"] = MathF.Round(max, 2), ["frames"] = Frames.Count, ["windowSeconds"] = WindowSeconds,
                 ["mode"] = _mode, ["camera"] = _camera.DeepClone(),
+                // ⭐ CE-4385 (handoff L-3) — what the frame drew and what it cost in memory: the chunked terrain's triangles / meshes (one draw call each) /
+                // resident mesh bytes, the process' working set and managed heap, and the bytes allocated per frame (mean over the window, WHOLE process —
+                // the sim threads included)
+                ["terrain"] = new JsonObject
+                {
+                    ["triangles"] = Fdp.Toolkit.Vis3D.TerrainDrawStats.Triangles, ["meshes"] = Fdp.Toolkit.Vis3D.TerrainDrawStats.Meshes,
+                    ["residentMb"] = Math.Round(Fdp.Toolkit.Vis3D.TerrainDrawStats.ResidentBytes / 1048576.0, 1),
+                },
+                ["memory"] = new JsonObject
+                {
+                    ["workingSetMb"] = Math.Round(Environment.WorkingSet / 1048576.0, 1), ["gcHeapMb"] = Math.Round(GC.GetTotalMemory(false) / 1048576.0, 1),
+                    ["allocatedBytesPerFrame"] = AllocatedPerFrame(),
+                },
             };
         }
     }
 
+    private static long AllocatedPerFrame()
+    {
+        if (Allocations.Count == 0) return 0;
+        long sum = 0; foreach (var a in Allocations) sum += a;
+        return sum / Allocations.Count;
+    }
+
     /// <summary>For tests: forget everything.</summary>
-    internal static void Reset() { lock (Gate) { Frames.Clear(); _clock = 0; _camera = new JsonObject(); _mode = "2D"; } }
+    internal static void Reset() { lock (Gate) { Frames.Clear(); Allocations.Clear(); _lastAllocated = -1; _clock = 0; _camera = new JsonObject(); _mode = "2D"; } }
 }

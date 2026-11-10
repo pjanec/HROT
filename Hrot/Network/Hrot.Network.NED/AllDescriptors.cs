@@ -185,6 +185,10 @@ namespace Hrot.NED.Descriptors
         //   on the creating node otherwise, and the live "@Key" scope finds nothing on the others. 182 measured free on backend, ui, behaviors, coordinator 2026-11-02 (180/181 are the
         //   placement pair; 175–179 stay the rules block's).
         dtRefKey                      = 182,
+        // ⭐ CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8.2 B-11) — a building's wall breaches, the node that DECIDED them (no group: the entity's creator
+        //   keeps it) → every node; the receiver's DoorStates.Damage unions every such entity. 183 measured free on backend, ui, behaviors, coordinator 2026-11-10
+        //   (the highest in use was 182). ⚠ the toolkit states it too (BuildingDamageSystem.DescriptorOrdinal; a rail pins it).
+        dtBuildingDamage              = 183,
         // etc., all known descriptor types here
     }
 

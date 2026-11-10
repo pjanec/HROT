@@ -116,7 +116,9 @@ public sealed class OsmWizardModel
         _searchTask = Task.Run(() => search.SearchAsync(q, ct), ct);
     }
 
-    public bool Searching => _searchTask is { IsCompleted: false };
+    /// <summary>True from <see cref="RunSearch"/> until <see cref="Pump"/> lands the answer (CE-4383, measured live 2026-11-10: true only while the worker ran ⇒ a caller that
+    /// stopped pumping when it turned false never saw the results — "no result for Kolín" with Nominatim answering).</summary>
+    public bool Searching => _searchTask is not null;
 
     /// <summary>A result picked: the box becomes the place's own (clamped to the limit), else a 2 km box round it. Returns the box.</summary>
     public GeoBox PickResult(int index)

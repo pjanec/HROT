@@ -236,8 +236,11 @@ namespace Hrot.Editor.DebugApi
                     return Fail(400, "a shot needs one of: {follow: networkId, distance?, yawDeg?, pitchDeg?, lift?} · {eye:[x,y,z], target:[x,y,z]} · {lookAt:[x,y,z], distance?, yawDeg?, pitchDeg?}");
                 if (body?["fovDeg"] is JsonNode fov) shot = shot with { FovDeg = fov.GetValue<float>() };
                 Hrot.UI.Common.Map3D.FilmStudio.Direct(shot);
+                // ⭐ CE-4385 (handoff L-3) — twoD:true holds the shot on the 2-D map (its look-at the centre, its distance the scale), the film's own 2-D path
+                Hrot.UI.Common.Map3D.FilmStudio.TwoD = body?["twoD"]?.GetValue<bool>() ?? false;
                 return Ok(new JsonObject
                 {
+                    ["twoD"] = Hrot.UI.Common.Map3D.FilmStudio.TwoD,
                     ["follow"] = shot.Follow == 0 ? null : shot.Follow,
                     ["lookAt"] = shot.Pose is { } p ? new JsonArray(p.LookAt.X, p.LookAt.Y, p.LookAt.Z) : null,
                     ["distance"] = shot.Pose?.Distance ?? shot.Distance,

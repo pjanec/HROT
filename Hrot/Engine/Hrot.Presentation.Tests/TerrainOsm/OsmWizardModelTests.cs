@@ -85,6 +85,23 @@ public sealed class OsmWizardModelTests : IDisposable
         Assert.InRange(m.BoxWidthM, 1990, 2010);
     }
 
+    /// <summary>⭐ CE-4383 (measured live on Windows, 2026-11-10: "no result for Kolín" while Nominatim answered) — <see cref="OsmWizardModel.Searching"/> stays true until a Pump
+    /// LANDS the answer, so a caller that pumps while it is searching always sees the results. 🔴 Red-proof (compiles): <c>Searching</c> back to
+    /// <c>_searchTask is { IsCompleted: false }</c> ⇒ false before the Pump, with no results.</summary>
+    [Fact]
+    public void Search_IsStillSearching_UntilAPumpLandsTheAnswer()
+    {
+        var m = Model();
+        m.SearchText = "Kolín";
+        m.RunSearch();
+        for (int i = 0; i < 200; i++) Thread.Sleep(5);   // the worker has long finished; no Pump yet
+        Assert.True(m.Searching, "the answer has not landed yet, so the model is still searching");
+        Assert.Empty(m.SearchResults);
+        m.Pump();
+        Assert.False(m.Searching);
+        Assert.Equal(3, m.SearchResults.Count);
+    }
+
     /// <summary>Options (C-9): the name is a folder name; an existing terrain needs Replace, and the scenarios that use it are listed.
     /// 🔴 Red-proof: drop the <c>NameExists &amp;&amp; !Replace</c> clause ⇒ Preview is offered over an existing terrain.</summary>
     [Fact]

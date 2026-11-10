@@ -115,7 +115,7 @@ namespace Fdp.Toolkit.Perception.Survey
                 chosen.RemoveRange(WorldSurveyRequest.MaxBuildings, chosen.Count - WorldSurveyRequest.MaxBuildings);
             }
 
-            var doors = world.Doors.Count > 0 ? DoorStates.Of(view, world) : null;
+            var doors = world.HasLiveState ? DoorStates.Of(view, world) : null;   // ⭐ CE-4391 — doors OR breachable buildings
             foreach (int b in chosen)
             {
                 var layout = BuildingLayoutCache.Of(world, b);

@@ -640,6 +640,23 @@ namespace Fdp.Toolkit.Combat.Executors
         /// the move (<see cref="CombatTkb.FiresOnTheMove"/>) and the unit moves; <see cref="ActionReason.AwaitingRelease"/> for a bomb
         /// before its cue; <see cref="ActionReason.OutOfArc"/> for a fixed mount whose target is outside its nose cone (Air Ops 6a). Null = fire.
         /// </summary>
+        /// <summary>⭐ CE-2430 — the ONE minimum range of a mount's round (the loaded one, else the mount's own): a missile's <c>MinRangeM</c>, 0 for
+        /// anything else. <see cref="HoldOf"/> refuses inside it (TooClose); the vehicle cycle never picks a firing point inside it.</summary>
+        public static float MinRangeOf(EntityRepository world, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo)
+        {
+            long ammo = loadedAmmo != 0 ? loadedAmmo : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            return CombatTkb.MissileOf(world, ammo)?.MinRangeM ?? 0f;
+        }
+
+        /// <summary>⭐ CE-2430 — <see cref="MinRangeOf"/> for <paramref name="unit"/>'s PRIMARY weapon (its own mount 0, else the weapon system it
+        /// controls — <see cref="WeaponSystems.PrimaryMount"/>, as an aimed shot's default mount).</summary>
+        public static float PrimaryMinRange(EntityRepository world, Entity unit)
+        {
+            int index = WeaponSystems.PrimaryMount(world, unit, out var mountEntity);
+            var platform = WeaponSystems.IsControlledIndex(index) ? mountEntity : unit;
+            return MinRangeOf(world, CombatTkb.MountOf(world, platform, platform != unit ? 0 : index), AmmoChoice.LoadedAmmo(world, mountEntity));
+        }
+
         public static ActionReason? HoldOf(EntityRepository world, Entity unit, Entity target, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo)
         {
             long ammo = loadedAmmo != 0 ? loadedAmmo : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
@@ -670,9 +687,9 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c) — never a MANPADS at a truck, an ATGM at a flying helicopter: the choice values
             //   them at 0 (AmmoChoice.InDomain), and when nothing else is left the weapon holds rather than fire the wrong one
             if (!AmmoChoice.InDomain(world, target, ammo)) return ActionReason.WrongDomain;
-            if (CombatTkb.MissileOf(world, ammo) is { MinRangeM: > 0f } missile
+            if (MinRangeOf(world, mount, loadedAmmo) is > 0f and var minRange
                 && world.HasComponent<SimTransform>(unit) && world.HasComponent<SimTransform>(target)
-                && Vector3.Distance(world.GetComponentRO<SimTransform>(unit).Position, world.GetComponentRO<SimTransform>(target).Position) < missile.MinRangeM)
+                && Vector3.Distance(world.GetComponentRO<SimTransform>(unit).Position, world.GetComponentRO<SimTransform>(target).Position) < minRange)
                 return ActionReason.TooClose;
             if (!CombatTkb.FiresOnTheMove(mount) && HitModel.IsMoving(world, unit)) return ActionReason.HoldMoving;
             // ⭐⭐ Air Ops slice 4 (DESIGN_Air_Operations §8, A6) — the RELEASE profile: a bomb leaves only when the cue says now (where a

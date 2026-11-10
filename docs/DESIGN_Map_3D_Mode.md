@@ -14,6 +14,7 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Map_View_Filter.md — OWNS the map's view filter (CE-4388): what is on screen and close enough to draw, decided ONCE per entity before any gizmo rule, in 2-D and 3-D
   - docs/DESIGN_Terrain_World.md §10a — the 2-D plan at 5.5 km (CE-4376), the 2-D sibling of §6ah
   - docs/DESIGN_Scale_Rig.md §5.2 N-5 — OWNS the sim side of the 5.5 km terrain (the per-tile navmesh bake, BuildRegion); hands the editor's whole-soup build to §6ah here
   - docs/DESIGN_Unit_Camera.md — the Follow camera rides MapCamera3D (its LookAt pinned to a unit) and adds a spring arm (CE-1293)
@@ -3587,6 +3588,47 @@ against it.*
 - ⚠ the chunk-part enum's members are `ChunkGround` / `ChunkObjects`, not `Ground` / `Objects`: the DDS code generator emits IDL for every enum in `ITerrainRenderGeometry.cs`, and a second `Ground` collides with `TerrainSurfaceKind.Ground`.
 - the water builder moved into `TerrainWorldMesh.AppendWater` and the triangle classification into `TerrainWorldQuery.Classify` — ONE copy each for the whole build and the chunks (the equality rail `TerrainChunkTests` holds them together on demo-city, test-town, highway-rest and bt-range).
 - `TerrainPicker.Update()` / `IsBuilt` on a chunked terrain: `Update` asks for every chunk (the rails' wait on a small terrain); `IsBuilt` = bound to this terrain and at least one chunk grid built. The frame never calls `Update` — a pick asks only for the chunks its ray crosses.
+
+**Measured on Windows (CE-4385, handoff L-3, `2026-11-10`)** — the user's machine, Release, the editor **hidden** (`HROT_HIDDEN_WINDOW=1`: the frame drawn into
+an off-screen target, so **no vsync and no compositor** — GPU-honest, not what a visible window's pacing adds) and **uncapped** (`--target-fps 0`), a blank scenario on
+the terrain, paused in edit mode, viewport 2200 × 1200. fps = min / avg of five 2 s windows over 10 s; triangles / meshes (= draw calls) = the chunked terrain's own
+(`TerrainDrawStats`); garbage = bytes allocated per frame, WHOLE process (`/diagnostics/render`). Driver: `/film/shot` (a held shot — `twoD:true` for the 2-D views).
+
+| terrain | view | fps min / avg | ms mean / p95 | terrain tris / meshes | working set | garbage / frame |
+|---|---|---|---|---|---|---|
+| osm-kolin-test | 3-D near 40 m | 31.9 / 35.3 | 27.0 / 33.0 | 2.2 M / 50 | 3.1 GB | 2.0 MB |
+| | 3-D mid 400 m | 33.9 / 34.8 | 29.5 / 35.4 | 3.0 M / 84 | 3.1 GB | 2.0 MB |
+| | 3-D far 3 km | 31.0 / 32.3 | 31.7 / 36.8 | 3.4 M / 202 | 3.1 GB | 2.0 MB |
+| | 3-D flight 15 m/s | ⛔ 28.7 / 31.7 | 34.9 / 39.5 | 1.6 M / 59 | 3.1 GB | 2.0 MB |
+| | 2-D whole terrain | ⛔ 15.9 / 17.0 | 54.2 / 68.7 | — | 3.3 GB | 14.1 MB |
+| | 2-D close 150 m | 31.4 / 32.9 | 29.2 / 35.1 | — | 3.1 GB | 5.2 MB |
+| scale-1 | 3-D near 40 m | ⛔ 20.0 / 20.8 | 47.0 / 52.7 | 2.1 M / 268 | 4.3 GB | 2.3 MB |
+| | 3-D mid 400 m | ⛔ 19.3 / 21.0 | 45.6 / 50.7 | 2.2 M / 278 | 4.6 GB | 2.3 MB |
+| | 3-D far 3 km | ⛔ 18.2 / 19.7 | 49.0 / 58.3 | 2.1 M / 930 | 4.6 GB | 2.3 MB |
+| | 3-D flight 15 m/s | ⛔ 19.3 / 20.4 | 46.6 / 51.2 | 2.2 M / 311 | 4.7 GB | 2.3 MB |
+| | 2-D whole terrain | ⛔ 20.0 / 21.9 | 43.0 / 49.7 | — | 3.9 GB | 8.8 MB |
+| | 2-D close 150 m | ⛔ 29.7 / 35.0 | 27.1 / 34.8 | — | 3.9 GB | 5.8 MB |
+| real-1 | 3-D near 40 m | 30.1 / 31.6 | 32.5 / 43.1 | 2.3 M / 186 | 4.4 GB | 2.0 MB |
+| | 3-D mid 400 m | ⛔ 29.3 / 31.7 | 30.1 / 38.0 | 2.6 M / 174 | 4.7 GB | 2.0 MB |
+| | 3-D far 3 km | ⛔ 26.8 / 29.3 | 33.4 / 38.2 | 3.4 M / 953 | 4.9 GB | 1.9 MB |
+| | 3-D flight 15 m/s | ⛔ 29.1 / 30.5 | 32.1 / 37.1 | 2.5 M / 313 | 4.6 GB | 2.0 MB |
+| | 2-D whole terrain | ⛔ 25.3 / 27.4 | 38.0 / 44.0 | — | 4.6 GB | 7.2 MB |
+| | 2-D close 150 m | ⛔ 28.1 / 32.1 | 28.9 / 36.4 | — | 4.5 GB | 5.1 MB |
+
+Loads (first open, the navmesh bake included): osm-kolin-test 57 s · scale-1 140 s · real-1 154 s; the 3-D map ready 6.4 s (scale-1) / 5.2 s (real-1) after the first 3-D request.
+
+**Where the frame goes** (`HROT_FRAME_STATS=1`, scale-1, the editor idle): **update 17–24 ms + 1.55 MB / frame · world draw 18–21 ms · UI 4–5 ms + 0.7 MB**.
+⭐ The 3-D world draw makes **2 KB / frame** — this section's chunked terrain is zero-garbage, as built; ⛔ the 2-D world draw makes **6.3 MB / frame**. ⭐ The frame time
+barely moves with the terrain's triangles (2.2 → 3.4 M on osm-kolin-test: 27 → 32 ms) ⇒ ⭐⭐ **the budget is lost OFF the terrain**, mostly in the update:
+
+| cost (scale-1, idle editor) | ms / frame | garbage / frame | state |
+|---|---|---|---|
+| `StatelessGizmoSystem` — ~20 rules × **6 912 matched entities**, each rule 0.2–1.1 ms (`GizmoRuleTimings`, new, under `HROT_FRAME_STATS`) | **11.4** | 608 KB | ⏳ the next cost — every rule walks every match every frame (CE-2402's hold only spreads the redraw); off-screen entities are not skipped. → render-under-load R-2 (CE-4388), the same system at 1 000 men |
+| ↳ a family rule (the per-rule log blamed `MissionPresentationGizmo`): its policy's `GizmoFamilies.ScopeOf` built `"map.scope." + family` to hash it, per entity per frame — the 6 912 matched entities are **doors** (`DoorState`, `TerrainObjectKey`) | — | **540 KB** | ✅ fixed: each family's hash made once (rail `CE4385_TheFamilyPolicy_AnswersWithNoGarbage_OnceWarm`, red-proved) |
+| ↳ `MissionPresentationGizmo` — a legacy `"target"` task parsed from JSON per draw (for a unit with such a plan; ⚠ not the 540 KB above — first suspected, measured not) | — | per unit with a legacy plan | ✅ fixed: parsed once per plan (rail `CE4385_ALegacyTargetRoute_DrawsWithNoGarbage_OnceWarm`, red-proved) |
+| ⭐ after the two fixes (re-measured, scale-1 3-D mid) | — | update garbage **1 551 → 1 013 KB / frame**; fps unchanged (~21) — the TIME is the rules' walk, row 1 | ✅ measured |
+| the 2-D map's world draw | ~20 | **6.3 MB** | ⏳ not yet attributed to a layer — R-3 (CE-4389) |
+| `StyleResolutionSystem` | 1.3 | 221 KB | ⏳ R-2 |
 
 Numbers and frames: [STATUS_Ui_Large_Terrain_Drawing.md](blueprints/batches/STATUS_Ui_Large_Terrain_Drawing.md) §2–§3 (scale-1: the load's 3-D picture 0.8 s / 640 MB peak, where the whole soup needed 9.4 s / 7.0 GB and is killed at 6 GB on this VM).
 

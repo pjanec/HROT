@@ -145,6 +145,12 @@ public sealed class RecastNavmeshBaker
     /// <summary>The tile cache; null ⇒ every tile is baked.</summary>
     public NavTileCache? Cache { get; init; }
 
+    /// <summary>
+    /// ⭐ <c>CE-4391</c> S-3 (P3-a) — each tile's CONTENT key from the last <see cref="Bake"/> (all layers folded together; <c>((long)ax &lt;&lt; 32) | (uint)az</c>): the tile
+    /// cache's own hash, so two bakes agree on a tile exactly when its inputs are equal. Empty when <see cref="Cache"/> is null (no key is computed then).
+    /// </summary>
+    public IReadOnlyDictionary<long, ulong> LastTileKeys { get; private set; } = new Dictionary<long, ulong>();
+
     /// <summary>The stats of the last <see cref="Bake"/>.</summary>
     public BakeStats LastStats { get; private set; }
 
@@ -286,6 +292,7 @@ public sealed class RecastNavmeshBaker
         var present = new bool[tilesX * tilesZ];
         var fineOf = new bool[tilesX * tilesZ, layers.Count];
         int nBaked = 0, fromCache = 0;
+        var tileKeys = new System.Collections.Concurrent.ConcurrentDictionary<long, ulong>();
         Parallel.For(0, tilesX * tilesZ, ti =>
         {
             int tx = ti % tilesX, tz = ti / tilesX;
@@ -319,6 +326,9 @@ public sealed class RecastNavmeshBaker
                 if (Cache != null)
                 {
                     key = new NavTileKey(layer, ax, az, HashTile(tv, tidx, tileVolumes, layer, p, cs, ax, az, yMin, yMax));
+                    ulong kh = 1469598103934665603UL ^ (ulong)(int)layer;   // ⭐ CE-4391 — the tile's identity for P3-a, folded over its layers (xor: order-free)
+                    foreach (char ch in key.Hash) { kh ^= ch; kh *= 1099511628211UL; }
+                    tileKeys.AddOrUpdate(((long)ax << 32) | (uint)az, kh, (_, old) => old ^ kh);
                     if (Cache.TryGet(key, out var hit)) { baked[ti, li] = hit; Interlocked.Increment(ref fromCache); continue; }
                 }
                 if (geom == null)
@@ -357,6 +367,7 @@ public sealed class RecastNavmeshBaker
             }
         }
         LastStats = new BakeStats(work.Count, fineCount, nBaked, fromCache, sw.ElapsedMilliseconds);
+        LastTileKeys = tileKeys;
         return result;
     }
 

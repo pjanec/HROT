@@ -19,6 +19,8 @@ namespace Fdp.Toolkit.Terrain
         public const string BuildingsFolderName = "buildings";
         public const string TemplateSuffix = ".building.json";
         public const string MaterialsFileName = "materials.json";
+        /// <summary>⭐ <c>CE-4391</c> S-1 — a terrain folder's own overrides of the breach table (UTM §8.2 B-6), as <c>materials.json</c> is for materials.</summary>
+        public const string BreachesFileName = "breaches.json";
 
         /// <summary>No side files: the shared materials, no templates.</summary>
         public static TerrainAssets None { get; } = new();
@@ -27,6 +29,9 @@ namespace Fdp.Toolkit.Terrain
         public static string DefaultSharedBuildingsRoot => ContentLayout.BuildingAssets(ContentLayout.NasRoot);
 
         public TerrainMaterialLibrary Materials { get; init; } = TerrainMaterialLibrary.Shared;
+
+        /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table: the shared one overlaid by the terrain folder's <c>breaches.json</c>.</summary>
+        public BreachTable Breaches { get; init; } = BreachTable.Shared;
 
         /// <summary>Template name → its JSON text, or null when not found.</summary>
         public Func<string, string?>? Templates { get; init; }
@@ -48,6 +53,9 @@ namespace Fdp.Toolkit.Terrain
                 Materials = File.Exists(materialsPath)
                     ? TerrainMaterialLibrary.Shared.WithOverrides(File.ReadAllText(materialsPath), materialsPath)
                     : TerrainMaterialLibrary.Shared,
+                Breaches = File.Exists(Path.Combine(terrainFolder, BreachesFileName))
+                    ? BreachTable.Shared.WithOverrides(File.ReadAllText(Path.Combine(terrainFolder, BreachesFileName)), Path.Combine(terrainFolder, BreachesFileName))
+                    : BreachTable.Shared,
                 ReadFile = name =>
                 {
                     if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains(".."))
