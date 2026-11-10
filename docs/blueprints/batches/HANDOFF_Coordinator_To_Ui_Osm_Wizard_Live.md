@@ -6,7 +6,7 @@ current-answer: the whole file
 
 # HANDOFF — coordinator → ui: the OSM wizard LIVE — real tiles and search, and the preview's missing details
 
-**For:** ui. **From:** coordinator. **Dispatched at `<STAMP>`**, scope frozen there. Merge the other lanes first; push `chore: started
+**For:** ui. **From:** coordinator. **Dispatched at `e233f69a6`**, scope frozen there. Merge the other lanes first; push `chore: started
 HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live at <sha>`; status file `STATUS_Ui_Osm_Wizard_Live.md`. Same [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md).
 ⛔⛔ **Never stop for a question** (R-4156): every decision below is made; a premise that fails stops THAT item only (R-106).
 
