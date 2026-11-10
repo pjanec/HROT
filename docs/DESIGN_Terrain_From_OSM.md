@@ -280,6 +280,112 @@ canvas for one dialog.
 | concave footprints and woods filled | `PolygonMath.Triangulate` (ImGui fills only convex polygons) |
 | ⭐ NEW, small | an ImGui child region: XYZ tiles from `ITileSource` laid out by zoom / pan (web-Mercator maths), an LRU of tile textures, the drag box with 8 handles, and the preview's geometry (local metres → lat/lon through the frame → screen) drawn with the draw list |
 
+### 6b. ⭐ The wizard's design — for the build *(ui, `2026-11-10`, CE-4375 W-1; build-state: BUILT against the fakes — the pipeline is not on the tree yet)*
+
+**INVENTORY** *(grep + reads `2026-11-10` — the graph server was not up on this VM, ⚠ so absence claims are "not found by grep")*: the modal host = `WindowManager.RegisterFrameOverlay` (6 hosts use it, e.g.
+`EditorSubsystem` `assetRenameModal.Draw`) · the New submenu = `FileMenuLayout` (`File/New/Scenario…` …) · the worker + `CancellationTokenSource` = `ReplaySearchPanel`
+(`Fdp.Presentation/ImGui/Panels/ReplayBrowser`) · PNG → texture = `Raylib.LoadImageFromMemory` + `LoadTextureFromImage` (`EmbeddedAtlasResources`) · concave fill =
+`PolygonMath.Triangulate` (`Fdp.Toolkits/Terrain`) · the colours = `TerrainPlan2D.HeightColor` (public) and its forest / water / wall fills (private ⇒ made public, read
+never copied) · local metres → lat/lon = **`Utm.ToGeodetic`** (the ONE UTM class — `Fdp.Modules.Geographic.Transforms.Utm`, moved from `Hrot.Traffic` by CE-4372; ⛔ no second UTM) · the glyphs and their
+colours = `Icons` / `IconPalette`. ⛔ Not found: any web-Mercator / XYZ tile code — the map widget's maths is new (small, pure, tested).
+
+```mermaid
+classDiagram
+  class OsmWizardServices { <<record, the editor composes>> Pipeline? Tiles? Search? Importer? TerrainsRoot InputSetRoot OpenNewScenario ShowFolder }
+  class OsmWizardModel { <<NEW · pure, no ImGui>> Step · Box GeoBox · Measure() · Options · NameState · Preview · Notes · Stages · Verdict · Failure · CanNext / NextReason · Next() Back() Cancel() Retry() Pump() }
+  class WebMercator { <<NEW · pure>> ToPixel(lat,lon,zoom) · ToGeo(px,py,zoom) }
+  class OsmMapView { <<NEW · ImGui child>> Centre · Zoom · Draw(model, layers) · box drag (8 handles) · zoom / fit · attribution }
+  class OsmTileTextures { <<NEW>> LRU of raylib textures; fetch on a worker, upload on the frame thread }
+  class OsmPreviewLayers { <<NEW>> ten toggles (C-11) }
+  class OsmTerrainWizardWindow { <<NEW · the modal>> step bar · map · right panel per step · footer }
+  class IOsmTerrainPipeline { <<existing contract>> }
+  class ITileSource { <<existing contract>> }
+  class IPlaceSearch { <<existing contract>> }
+  class ITerrainImporter { <<existing contract>> }
+  class Utm { <<existing, Hrot.Traffic>> ToGeodetic }
+  class TerrainPlan2D { <<existing>> HeightColor · ForestFill · WaterFill · WallFill }
+  class PolygonMath { <<existing>> Triangulate }
+  OsmTerrainWizardWindow --> OsmWizardModel
+  OsmTerrainWizardWindow --> OsmMapView
+  OsmMapView --> WebMercator
+  OsmMapView --> OsmTileTextures
+  OsmMapView --> OsmPreviewLayers
+  OsmMapView ..> Utm : preview metres → lat/lon
+  OsmMapView ..> TerrainPlan2D : colours
+  OsmMapView ..> PolygonMath : footprints, woods
+  OsmTileTextures --> ITileSource
+  OsmWizardModel --> IOsmTerrainPipeline
+  OsmWizardModel --> IPlaceSearch
+  OsmWizardModel ..> ITerrainImporter : optional
+  OsmWizardServices ..> OsmTerrainWizardWindow
+```
+*What the picture shows that the prose hid: the step logic is a PURE model (the state-machine rail drives it with fakes, no window); the window only draws it; the map
+widget is the one canvas of Area and Preview, and it is the only new drawing code — every colour, triangulation and projection is read from where it already lives.*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Area
+  Area --> Options : Next (box measured, no refusal, ≤ 6 km)
+  Options --> Area : Back
+  Options --> Previewing : Preview (name valid; exists ⇒ Replace ticked)
+  Previewing --> Preview : the pipeline answered
+  Previewing --> Failed : the service / stage failed
+  Failed --> Previewing : Retry
+  Failed --> Options : Back
+  Preview --> Options : Back
+  Preview --> Importing : Import (verdict not Refused)
+  Importing --> Done : finished (importer composed)
+  Importing --> InputSetOnly : finished (no importer — "not built yet")
+  Importing --> ImportFailed : a stage failed
+  ImportFailed --> Importing : Retry
+  Importing --> Preview : Cancel (temp folder discarded)
+  Done --> [*] : Open in New Scenario / close
+  InputSetOnly --> [*]
+  Area --> [*] : Cancel
+  Options --> [*] : Cancel
+  Preview --> [*] : Cancel
+```
+*What the picture shows: Cancel in Importing stops the run and returns to Preview (nothing written); Refused is not a state — it is Preview with Import greyed.*
+
+```mermaid
+graph TD
+  EDITOR["EditorSubsystem — composes OsmWizardServices ONCE from what it has"] -->|"File ▸ New ▸ Terrain from OpenStreetMap… (greyed: no pipeline, or no tiles and no search)"| WIN[OsmTerrainWizardWindow]
+  EDITOR -->|"RegisterFrameOverlay(window.Draw) — every frame"| WIN
+  WIN -->|"Pump() every frame: the worker's results, progress, tile uploads"| MODEL[OsmWizardModel]
+  MODEL -->|"Task.Run + CancellationTokenSource"| PIPE["IOsmTerrainPipeline — OsmPipelines.Online: an OsmTerrainPipeline per area (CE-4373/4374)"]
+  CLI["hrot-terrain-osm CLI"] -->|"the same composition"| PIPE
+  MODEL -.->|"optional"| IMP["ITerrainImporter — backend CE-4368"]
+  TILES["ITileSource / IPlaceSearch — coordinator"] --> WIN
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33;
+  class IMP,TILES dead;
+```
+*What the picture shows: the window ticks only through the frame overlay; the pipeline is composed in ONE place (`OsmPipelines`, shared with the CLI — netconvert's road
+builder is bound to one area, so it builds an `OsmTerrainPipeline` per area and shares the download cache); the red boxes are NOT on the tree yet — with neither tiles nor
+search there is no way to pick a place, so the item stays greyed saying so, and the rails drive the same window with the fakes (W-2). ⛔ No stub in production code.*
+
+#### 6b-as-built *(ui, `2026-11-10`, CE-4375 W-3…W-5)* — what the build changed, and the ⚠ list
+
+✅ Built as the three diagrams above: `Hrot.Presentation/TerrainOsm/` (`OsmWizardModel` · `OsmMapView` · `OsmTileTextures` · `OsmWizardStyle` · `OsmTerrainWizardWindow` ·
+`WebMercator`), composed by `EditorSubsystem`; the menu item is registered by the SHARED `ScenarioMenuCommands` (run-gated like its siblings). Conformance per C-row, with
+the rails that measure it: [`STATUS_Ui_Osm_Wizard.md`](blueprints/batches/STATUS_Ui_Osm_Wizard.md) §1.
+
+| ⚠ as-built difference from the mockup | why |
+|---|---|
+| the greyed item says why in its LABEL — *"… (unavailable — the pipeline is not built yet)"* — not a tooltip; not on the Start surface | the shell's menu items have no tooltip (VC-3 is the label); the Start surface draws every Idle item as a button, which the mockup does not cover (R-4151) |
+| ONE window size (1200 × 600) for all four steps | C-1 "the SAME window"; the mockup draws Options / Import shorter to save page space |
+| Fit centres the box | the mockup's off-centre box is page layout, not behaviour |
+| the name check shows `WARNING` amber while the name exists | the mockup draws the tick and the amber row together only to show both cases |
+| no lone trees; the hover tooltip = id · enterable/solid · storeys · ≈ height | the contract (`OsmPreview`) has no lone-tree positions and no building type / roof / openings / shared walls — ⭐ a contract extension, then the window draws them |
+| notes not clickable, header "Notes (n)"; severity from the words; the data line = attribution | `Warnings` are strings (no location, no severity); no data timestamp in the contract — same extension |
+| Import rows follow `OsmStage` ("Read the map data" for Parse; elevation is inside Heights) | the contract's stages; the mockup's "Elevation (Copernicus 30 m)" row is not a stage the pipeline reports |
+| the Import step's right box shows only what is TRUE (heading "When it finishes" until it has) | the mockup's inset illustrates both ends at once |
+
+⚠ **One duplicate, filed — [CE-1468](blueprints/Blueprint_Issues_Tracker.md):** `OsmTileTextures` is an LRU of uploaded textures like `PickerImageCache` (the pickers'). Not shared yet because that
+cache remembers a `null` load as failed forever (a downloading tile is "not yet") and keys by `string` (a per-frame allocation per tile). Graph INVENTORY re-run `2026-11-10`
+once the index was up: `search_graph` `.*Mercator.*` (1 — ours) · `.*Tile(Source|Cache|Texture|Provider|Fetch).*` (4 — ours + the navmesh `NavTileCache`, unrelated) ·
+`.*SlippyMap.*|.*MapTile.*|.*TileMap.*` (0) · `.*PlaceSearch.*|.*Geocod.*|.*Nominatim.*` (1 — the fake) · `.*TextureCache.*|.*ImageCache.*` (1 — `PickerImageCache`) — ⇒ the grep-only
+"not found" above holds; coverage could not be checked (`check_index_coverage` is not in the CLI).
+
 ## 7. Failure and limits
 | case | behaviour |
 |---|---|

@@ -34,6 +34,7 @@
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />   <!-- CE-259ax: the shared spawn adapter calls EntityCreation.RequestEntityCreation (already reached transitively via Hrot.Traffic; stated here) -->
     <ProjectReference Include="..\Hrot.Gameplay\Hrot.Gameplay.csproj" />   <!-- Player Join §9: the DeployScreen draws a DeployFlowSystem -->
+    <ProjectReference Include="..\Hrot.Terrain.Osm\Hrot.Terrain.Osm.csproj" />   <!-- ⭐ CE-4375 — the OSM wizard builds against the contract (OsmContract.cs, ITerrainImporter) -->
     <ProjectReference Include="..\Hrot.Traffic\Hrot.Traffic.csproj" />   <!-- ⭐ AQ93 — the SUMO road/car layer (R-4024, V7) -->
     <ProjectReference Include="..\..\Diagnostics\Hrot.Diagnostics.Breakpoints\Hrot.Diagnostics.Breakpoints.csproj" />
 

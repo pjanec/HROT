@@ -572,6 +572,8 @@ namespace Hrot.Editor
 
         // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — the scenario menu registered ONCE, by the composer's picked ▶ owner; built in RegisterWindows.
         private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
+        /// <summary>⭐ CE-4375 — the OSM terrain wizard (File › New › Terrain from OpenStreetMap…).</summary>
+        private Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? _osmWizard;
         void Hrot.UI.Common.RunMode.IProvidesRunControls.ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => _composeScenarioMenu?.Invoke(windowManager);
         internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
         internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
@@ -3629,6 +3631,17 @@ namespace Hrot.Editor
                 showPreview:     assetBrowserFindResults.ShowRenamePreview);
             windowManager.RegisterFrameOverlay(assetRenameModal.Draw);
 
+            // ⭐ CE-4375 (OSM §6 / §6b, W-3) — the "New terrain from OpenStreetMap" wizard: one modal, drawn as a frame overlay like the modals above. Its services are composed ONCE
+            //   (the menu reads the wizard's DisabledReason every frame). ⭐ The pipeline is the real one (CE-4373/4374), through the ONE composition the CLI uses (OsmPipelines).
+            //   ⛔ No ITileSource / IPlaceSearch / ITerrainImporter exist on the tree yet ⇒ null, and the item stays greyed saying what is missing — never a stub in production.
+            var osmServices = new Hrot.UI.Common.TerrainOsm.OsmWizardServices(
+                Pipeline: Hrot.Terrain.Osm.OsmPipelines.Online(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-terrain-osm-cache")),
+                Tiles: null, Search: null, Importer: null,
+                TerrainsRoot: Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot),
+                InputSetRoot: System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot, "terrain-input"));
+            _osmWizard = new Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow(() => osmServices);
+            windowManager.RegisterFrameOverlay(_osmWizard.Draw);
+
             var assetRowCommands = new[]
             {
                 new Hrot.Editor.AiShared.Browser.AssetRowCommand(
@@ -4368,7 +4381,10 @@ namespace Hrot.Editor
                 // ⭐ CE-4140 — File › New Scenario…: the New-asset picker over the SCENARIO recipes only → Save-As naming → CreateNew. This host HAS the scenario recipes service, so it passes it (the silent-default rule).
                 openNewScenario: newAssetLauncher != null && _newAssetServices!.ContainsKey(Hrot.Editor.AiShared.AssetKind.Scenario)
                     ? () => newAssetLauncher.Open(Hrot.Editor.AiShared.AssetKind.Scenario)
-                    : null);
+                    : null,
+                // ⭐ CE-4375 — File › New › Terrain from OpenStreetMap…: this host HAS the wizard, so it passes it; the wizard says why it is greyed (no pipeline yet)
+                openTerrainFromOsm: _osmWizard != null ? _osmWizard.Open : null,
+                terrainFromOsmDisabledReason: () => _osmWizard?.DisabledReason);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();

@@ -64,8 +64,7 @@ public static class OsmCli
             var http = HttpRetry.CreateClient();
             IOsmSource osm = a.OsmFile != null ? new FileOsmSource(a.OsmFile) : new OverpassSource(http);
             IDemSource dem = a.DemDir != null ? new CopernicusDem(new FolderRangeSource(a.DemDir)) : CopernicusDem.Online(http, Path.Combine(cacheRoot, "dem-tiles"));
-            var bounds = AreaFrame.FromBox(a.Box);
-            var pipeline = new OsmTerrainPipeline(osm, dem, new NetconvertRoadBuilder(bounds.MinX, bounds.MinY, bounds.MaxX, bounds.MaxY), new DownloadCache(cacheRoot));
+            var pipeline = OsmPipelines.ForAreas(osm, dem, new DownloadCache(cacheRoot));   // ⭐ the ONE composition (CLI + editor wizard)
             var progress = new SyncProgress(m => output.WriteLine($"[{m.Stage}] {m.Message}"));
             var options = new OsmImportOptions { Name = a.Name };
             output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"area {w:0} × {h:0} m"));
