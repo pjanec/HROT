@@ -223,7 +223,7 @@ namespace Fdp.Toolkit.Vis3D
                 "rubble" => new Color(128, 118, 104, 255),
                 "scorch" => new Color(24, 21, 19, 255),   // ⭐ CE-4392 X-7 — soot round a breach (the mottled earth pattern breaks it up)
                 "scorch-light" => new Color(70, 58, 50, 255),   // … and its lighter streaks further out   // ⭐ CE-4392 X-2 — a collapsed building's heap: dusty grey-brown (the earth pattern)
-                "roof-pitched" => new Color(118, 58, 46, 255),   // ⭐ CE-4377 R-2 — a drawn pitched roof: dark weathered clay tiles, darker than the brick walls so the roof reads apart (a slope is never a floor, CE-1341's worry)
+                "roof-pitched" => new Color(64, 66, 74, 255),   // ⭐ CE-4377 R-2 — a drawn pitched roof: dark ANTHRACITE tiles (user, `2026-11-10`: the clay red was "very similar to the brick wall") — apart from the brick walls in hue AND value, darker than the slate flat roofs
                 _ => null,   // concrete and unknown: the kind's colour
             };
             if (kind == TerrainSurfaceKind.Roof)
