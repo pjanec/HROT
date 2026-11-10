@@ -6693,7 +6693,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "get_egress_pipeline",
     "group": "Y — node diagnostics",
-    "summary": "This PROCESS's off-frame state egress (CE-3427 N-1, an experiment): per world that has one (the SimHost), the mode in force, the mode requested, its scans, faults and last scan / join-wait / sync times.",
+    "summary": "This PROCESS's off-frame state egress (CE-3427 N-1, an experiment): per world that has one (every networked node's), the mode in force, the mode requested, its scans, faults and last scan / join-wait / sync times.",
     "http": {
       "method": "GET",
       "path": "/diagnostics/egress"
