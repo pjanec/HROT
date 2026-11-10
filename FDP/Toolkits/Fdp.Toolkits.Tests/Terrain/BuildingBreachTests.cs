@@ -173,7 +173,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         public void Rule_AHeavyBombClose_BreachesTheWholePanelOfTheStorey()
         {
             var panel = BreachFixtures.Panel("concrete");
-            Assert.True(BreachRule.TryDecide(BreachTable.Shared, panel, 0, new Vector3(5f, -2f, 1.5f), 100f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out var b));   // Mk-82-sized, 2 m off
+            Assert.True(BreachRule.TryDecide(BreachTable.Shared, panel, 0, new Vector3(5f, -2f, 1.5f), 94f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out var b));   // a Mk-82 (94 kg), 2 m off
             Assert.Equal(0f, b.From); Assert.Equal(10f, b.To);
             Assert.Equal(0f, b.Bottom); Assert.Equal(3f, b.Top);
             Assert.Equal(BreachKind.Passage, b.Kind);
@@ -433,12 +433,12 @@ namespace Fdp.Toolkit.Terrain.Tests
         {
             var w = BreachFixtures.House();
             var b = w.Buildings[0];
-            var table = BreachTable.Shared;                                                           // collapseMinKg 200, collapseZ 0.5 ⇒ 2.9 m beside the footprint at 200 kg
-            Assert.True(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 200f));               // on the roof, inside the footprint
+            var table = BreachTable.Shared;                                                           // collapseMinKg 80, collapseZ 0.5 ⇒ 2.3 m beside the footprint at 94 kg
+            Assert.True(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 94f));                // a Mk-82 on the roof, inside the footprint
             Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 6.6f));              // a 155 mm: far too light
-            Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 199f));
-            Assert.True(BreachRule.Collapses(table, b, new Vector3(25f, 18f, 1f), 200f));               // 2 m from the south wall: within 0.5 · ∛200 = 2.9 m
-            Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 15f, 1f), 200f));              // 5 m away
+            Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 79f));
+            Assert.True(BreachRule.Collapses(table, b, new Vector3(25f, 18f, 1f), 94f));                // 2 m from the south wall: within 0.5 · ∛94 = 2.3 m
+            Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 15f, 1f), 94f));               // 5 m away
             Assert.False(BreachRule.Collapses(table, b, new Vector3(25f, 24f, 3f), 0f));
         }
 

@@ -1,5 +1,5 @@
 {
-  "$comment": "CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8, D-5 / §8.2 B-6) — what a detonation does to a wall. STARTING VALUES, to be tuned. Scaled distance Z = d / cbrt(explosiveKg), d = metres from the burst to the panel. The FIRST row (in file order, so put the most specific first) whose kgMin <= the charge and zMax >= Z decides; width / height are metres for a 'referenceKg' charge and scale with cbrt(kg / referenceKg), then with clamp(sqrt(referenceResistanceMmRhaPerM / the panel material's resistanceMmRhaPerM), scaleMin, scaleMax). 'passage': the breach sits on the floor (the rectangle's bottom is the storey floor); otherwise it is centred on the burst's height, and a bottom within floorSnapM of the floor is moved onto it. 'wholePanel': the whole panel of that storey. A breach is a PASSAGE iff it reaches the floor and is at least passageMinWidthM x passageMinHeightM (D-2), else a HOLE. A row may name the 'fuzes' it applies to (impact, time, proximity; none = all): an impact round bursts 0.1 m off the wall it struck (Z ~ 0), so the doorway row is for time-fuzed or placed charges only. A warhead below minKg, or with no explosive (a kinetic round), never breaches. collapseMinKg / collapseZ are read by S-2 (the collapse); S-1 does not act on them.",
+  "$comment": "CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8, D-5 / §8.2 B-6) — what a detonation does to a wall. STARTING VALUES, to be tuned. Scaled distance Z = d / cbrt(explosiveKg), d = metres from the burst to the panel. The FIRST row (in file order, so put the most specific first) whose kgMin <= the charge and zMax >= Z decides; width / height are metres for a 'referenceKg' charge and scale with cbrt(kg / referenceKg), then with clamp(sqrt(referenceResistanceMmRhaPerM / the panel material's resistanceMmRhaPerM), scaleMin, scaleMax). 'passage': the breach sits on the floor (the rectangle's bottom is the storey floor); otherwise it is centred on the burst's height, and a bottom within floorSnapM of the floor is moved onto it. 'wholePanel': the whole panel of that storey. A breach is a PASSAGE iff it reaches the floor and is at least passageMinWidthM x passageMinHeightM (D-2), else a HOLE. A row may name the 'fuzes' it applies to (impact, time, proximity; none = all): an impact round bursts 0.1 m off the wall it struck (Z ~ 0), so the doorway row is for time-fuzed or placed charges only. A warhead below minKg, or with no explosive (a kinetic round), never breaches. collapseMinKg / collapseZ decide the COLLAPSE (S-2): at least collapseMinKg, burst inside the footprint or within collapseZ x cbrt(kg) of it. 80 kg so the heaviest bomb shipped (Mk-82, 94 kg) collapses the building it hits (D-7: 'a bomb from an aircraft').",
   "minKg": 0.5,
   "referenceKg": 8,
   "referenceResistanceMmRhaPerM": 1500,
@@ -9,10 +9,10 @@
   "passageMinWidthM": 0.8,
   "passageMinHeightM": 1.8,
   "minSizeM": 0.25,
-  "collapseMinKg": 200,
+  "collapseMinKg": 80,
   "collapseZ": 0.5,
   "rows": [
-    { "name": "heavy bomb, close: the whole panel", "kgMin": 100, "zMax": 1.0, "wholePanel": true, "passage": true },
+    { "name": "heavy bomb, close (the Mk-82, 94 kg): the whole panel", "kgMin": 40, "zMax": 1.0, "wholePanel": true, "passage": true },
     { "name": "time-fuzed / placed charge against the wall: a doorway (8 kg = 1 x 2 m)", "zMax": 0.4, "width": 1.0, "height": 2.0, "passage": true, "fuzes": ["time"] },
     { "name": "impact shell or missile at the wall (or any burst close by): a hole (tank HE 3.4 kg = 1.5 x 1.2 m, 155 mm 6.6 kg = 1.9 x 1.5 m, concrete)", "zMax": 1.0, "width": 2.0, "height": 1.6 },
     { "name": "burst further off: a small hole", "zMax": 2.0, "width": 1.0, "height": 0.8 }
