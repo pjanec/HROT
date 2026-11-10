@@ -96,10 +96,63 @@ namespace Fdp.Toolkit.Terrain
         /// other part is shared by reference (they are immutable), the door leaves and indexes are rebuilt lazily by the new object.
         /// </summary>
         public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles)
+            => With(terrain, obstacles, null);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4391</c> S-3 (UTM §8.2 B-10) — <paramref name="terrain"/> with <paramref name="obstacles"/> AND the live building damage laid over it, a NEW immutable world:
+        /// <list type="bullet">
+        /// <item>each wall panel that has a PASSAGE breach is re-expanded through <see cref="TerrainBuildingExpander.ExpandPanelPieces"/> with the passage (merged with any opening it
+        /// overlaps) as an extra Gap opening — the one panel → prisms function, never a second one;</item>
+        /// <item>a COLLAPSED building loses its prisms and walkables (its panels, slabs, ramps, the solid prism) and gains its rubble prism (<see cref="BuildingDamageTable.Rubble"/>'s shape,
+        /// <c>Building = −1</c> here: its pieces are gone, so nothing must skip it);</item>
+        /// <item>a HOLE changes nothing (sight and fire read it live; no walkable moves).</item>
+        /// </list>
+        /// ⛔ <see cref="TerrainWorld.Panels"/>, <see cref="TerrainWorld.Doors"/> and <see cref="TerrainWorld.Buildings"/> are the base's own lists, never removed or reordered, so every index
+        /// held by an entity, a door key or a breach stays valid. After the bake <c>SurfaceZ</c>, <c>SurfacesAt</c> and <c>InsideFootprint</c> answer for the damaged world: the pieces are not there.
+        /// </summary>
+        public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage)
         {
-            if (obstacles.Count == 0) return terrain;
+            bool overlay = damage != null && damage.NavHash != 0;
+            if (obstacles.Count == 0 && !overlay) return terrain;
             var prisms = new List<TerrainPrism>(terrain.Prisms.Count + obstacles.Count);
-            prisms.AddRange(terrain.Prisms);
+            var walkables = terrain.Walkables;
+            IReadOnlyList<int> bakedCollapse = terrain.BakedCollapsed;
+            if (!overlay) prisms.AddRange(terrain.Prisms);
+            else
+            {
+                var collapsed = damage!.CollapsedBuildings;
+                var byPanel = new Dictionary<int, List<WallBreach>>();
+                foreach (var b in damage.Passages())
+                {
+                    if ((uint)b.Panel >= (uint)terrain.Panels.Count || damage.Collapsed(terrain.Panels[b.Panel].Building)) continue;
+                    if (!byPanel.TryGetValue(b.Panel, out var l)) byPanel[b.Panel] = l = new List<WallBreach>();
+                    l.Add(b);
+                }
+                foreach (var p in terrain.Prisms)
+                {
+                    if (p.Building >= 0 && damage.Collapsed(p.Building)) continue;          // the collapsed building's pieces
+                    if (p.Panel >= 0 && byPanel.ContainsKey(p.Panel)) continue;             // re-expanded below
+                    prisms.Add(p);
+                }
+                foreach (var (pi, passages) in byPanel)
+                    TerrainBuildingExpander.ExpandPanelPieces(terrain.Panels[pi], pi, WithGaps(terrain.Panels[pi], passages), prisms, "damage overlay");
+                foreach (int c in collapsed)
+                {
+                    var r = damage.RubbleOf(terrain, c);
+                    prisms.Add(new TerrainPrism
+                    {
+                        Kind = r.Kind, Footprint = r.Footprint, BaseZ = r.BaseZ, TopZ = r.TopZ, Label = r.Label, Triangles = r.Triangles, Min = r.Min, Max = r.Max,
+                        Material = r.Material, Building = -1,
+                    });
+                }
+                if (collapsed.Count > 0)
+                {
+                    var kept = new List<TerrainWalkable>(terrain.Walkables.Count);
+                    foreach (var w in terrain.Walkables) if (!(w.Building >= 0 && damage.Collapsed(w.Building))) kept.Add(w);
+                    walkables = kept;
+                    bakedCollapse = collapsed;
+                }
+            }
             prisms.AddRange(obstacles);
             var min = terrain.BoundsMin; var max = terrain.BoundsMax;
             foreach (var o in obstacles) { min = Vector2.Min(min, o.Min); max = Vector2.Max(max, o.Max); }
@@ -111,15 +164,39 @@ namespace Fdp.Toolkit.Terrain
                 GroundZ   = terrain.GroundZ,
                 Height    = terrain.Height,   // ⭐ CE-1034 H1
                 Prisms    = prisms,
-                Walkables = terrain.Walkables,
+                Walkables = walkables,
+                BakedCollapsed = bakedCollapse,
                 Surfaces  = terrain.Surfaces,
                 Panels    = terrain.Panels,
                 Buildings = terrain.Buildings,
                 Doors     = terrain.Doors,
                 Materials = terrain.Materials,
+                Breaches = terrain.Breaches,   // ⭐ CE-4391 S-1
             };
             if (terrain.Beyond is { } beyond) derived.AttachBeyond(beyond);   // ⭐ CE-4122 — the ground beyond the terrain is the base's, kept
             return derived;
+        }
+
+        /// <summary>The panel's openings with each passage added as a Gap, merged with every opening (and passage) it overlaps — ascending and non-overlapping, as the expander needs.</summary>
+        private static List<TerrainOpening> WithGaps(TerrainWallPanel panel, List<WallBreach> passages)
+        {
+            var spans = new List<(float At, float End, float Sill, float Head, TerrainOpening? Own)>();
+            foreach (var o in panel.Openings) spans.Add((o.At, o.At + o.Width, o.SillZ, o.HeadZ, o));
+            foreach (var b in passages) spans.Add((b.From, b.To, b.Bottom, b.Top, null));
+            spans.Sort((x, y) => x.At.CompareTo(y.At));
+            var result = new List<TerrainOpening>();
+            var cur = spans[0];
+            void Flush((float At, float End, float Sill, float Head, TerrainOpening? Own) s)
+                => result.Add(s.Own ?? new TerrainOpening { Kind = TerrainOpeningKind.Gap, At = s.At, Width = s.End - s.At, SillZ = s.Sill, HeadZ = s.Head });
+            for (int i = 1; i < spans.Count; i++)
+            {
+                var n = spans[i];
+                if (n.At < cur.End - 1e-3f)   // overlap: one wider Gap holding both
+                    cur = (cur.At, MathF.Max(cur.End, n.End), MathF.Min(cur.Sill, n.Sill), MathF.Max(cur.Head, n.Head), null);
+                else { Flush(cur); cur = n; }
+            }
+            Flush(cur);
+            return result;
         }
 
         /// <summary>

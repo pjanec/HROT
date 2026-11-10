@@ -158,6 +158,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             // ⭐ R-219 — the doors as THIS view sees them (on a background module: its snapshot), once per solver tick, so every
             //   path in the batch is planned against the same door states — never a live value written mid-batch.
             _doors = Fdp.Toolkit.Terrain.DoorStates.Of(view);
+            _terrain = view is EntityRepository terrainRepo && terrainRepo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? terrainRepo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
             _planner.World = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1034 H3 — road legs and access points on the real ground
 
             // Budget cap: process at most DefaultCapacity requests per tick (oldest-evict).
@@ -197,8 +198,15 @@ namespace Fdp.Toolkit.Navigation.Systems
 
         // ── Ground: navmesh, road graph, or the splice — one planner ─────────────────────
 
+        private Fdp.Toolkit.Terrain.TerrainWorld? _terrain;
+
         private PathfindingResultEvent SolveGround(in PathfindingRequestEvent req, int handle)
         {
+            // ⭐ CE-4391 S-3 (P3-e) — whoever stands inside a COLLAPSED building is a casualty: no path is planned from there (a request still in flight when the building fell
+            //   is answered unreachable at once — never a crash on a start polygon that is gone, never a replan loop)
+            if (_doors?.Damage is { CollapsedCount: > 0 } collapsed && _terrain != null && collapsed.InsideCollapsed(_terrain, req.Start))
+                return Unreachable(in req, handle, NavigationBackend.Navmesh);
+            uint tileSequence = _navmesh is INavmeshTileVersions tiles ? tiles.ChangeSequence : 0u;   // ⭐ CE-4391 S-3 — read BEFORE planning: a swap mid-plan reads as stale, never as fresh
             var query = new RouteQuery(req.Start, req.End, req.RoadUse, req.BackendForce,
                 req.NavLayerMask != 0 ? (uint)req.NavLayerMask : 0xFFFFFFFFu);
             var backend = _planner.Plan(in query, in _activeRoadNetwork, _navmesh, _doors, out float distance);
@@ -236,6 +244,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                 NavmeshVersionAtPlan = _navmesh != null && backend != NavigationBackend.NavRoadGraph ? (int)_navmesh.QueryVersion() : 0,
                 PrimaryBackend       = backend.Value,
                 FailureReason        = NavigationFailureReason.NoFailure,
+                TileSequenceAtPlan   = backend == NavigationBackend.NavRoadGraph ? 0u : tileSequence,
             };
         }
 

@@ -33,8 +33,14 @@ namespace Fdp.Toolkit.Navigation.Recast;
 /// <para>⭐ <b>No <c>[ComponentId]</c> of its own</b> (CE-3206): id 212 is the <see cref="INavmeshProvider"/> slot. The
 /// class used to repeat it, so an assembly scan registering every attributed type bound 212 to whichever it met first.</para>
 /// </summary>
-public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGeometry
+public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGeometry, INavmeshTileKeys
 {
+    /// <summary>⭐ CE-4391 S-3 — the tile edge of the bake this provider holds (0 = unknown).</summary>
+    public float TileMetres { get; init; }
+
+    /// <summary>⭐ CE-4391 S-3 — each tile's content key (empty when the bake kept none).</summary>
+    public IReadOnlyDictionary<long, ulong> TileKeys { get; init; } = new Dictionary<long, ulong>();
+
     // ── Search half-extents (metres) for FindNearestPoly ─────────────────────
 
     /// <summary>

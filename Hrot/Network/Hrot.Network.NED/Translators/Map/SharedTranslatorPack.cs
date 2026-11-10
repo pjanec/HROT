@@ -79,6 +79,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ Buildings Stage 5b — a terrain door's live state, owner → every node (readers build their door table from their own view, R-219).
             yield return new EntityDoorStateEgressTranslator(participant);
             yield return new EntityDoorStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-4391 S-1 — a building's wall breaches, the node that decided them → every node (each node's DoorStates.Damage unions every such entity).
+            yield return new EntityBuildingDamageEgressTranslator(participant);
+            yield return new EntityBuildingDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             // ⭐ CE-3136 P-7a — a static obstacle's box, creator → every node (its ghost waits for it, [PerInstanceValue]).
             yield return new EntityObstacleShapeEgressTranslator(participant);
             yield return new EntityObstacleShapeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);

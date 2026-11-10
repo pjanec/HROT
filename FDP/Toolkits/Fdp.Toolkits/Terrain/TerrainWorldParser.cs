@@ -318,6 +318,7 @@ namespace Fdp.Toolkit.Terrain
                 Buildings = sink.Buildings,
                 Doors = sink.Doors,
                 Materials = materials,
+                Breaches = assets.Breaches,   // ⭐ CE-4391 S-1
                 Warnings = warnings ?? (IReadOnlyList<string>)Array.Empty<string>(),
             };
         }

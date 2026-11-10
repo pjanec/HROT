@@ -99,6 +99,44 @@ namespace Hrot.NED.Descriptors
         public string Key;
     }
 
+    /// <summary>⭐ CE-4391 S-1 — one breach of <see cref="EntityBuildingDamage"/>: the global panel index, the rectangle on the panel (metres along it from
+    /// its A end; absolute Z) and <c>BreachKind</c> (0 Hole · 1 Passage).</summary>
+    [DdsStruct]
+    public partial struct DdsWallBreach
+    {
+        public int Panel;
+        public float From;
+        public float To;
+        public float Bottom;
+        public float Top;
+        public byte Kind;
+    }
+
+    // ⭐ CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8.2 B-11) — a building's wall breaches, published by the node that decided them (it owns the entity;
+    //   no group) and applied on every other node, whose DoorStates.Damage unions every such entity. The KEY rides along (a replica needs it to know WHICH
+    //   terrain building the entity stands for — the EntityDoorState shape). Reliable + TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every
+    //   damaged building's breaches.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityBuildingDamage
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The building's index in the terrain's building list (the same terrain on every node).</summary>
+        public int Building;
+
+        /// <summary><c>BuildingDamage.Collapsed</c> (S-2): 0 standing · 1 collapsed.</summary>
+        public byte Collapsed;
+
+        /// <summary>The terrain-object key, <c>"&lt;terrain&gt;/&lt;building label&gt;"</c>.</summary>
+        public string Key;
+
+        [DdsManaged] public List<DdsWallBreach> Breaches;
+    }
+
     // ⭐ Weapon systems WS-1 (W-C, R-136; docs/designs/weapons/DESIGN_Weapon_Systems.md §2) — a weapon system's deploy state (Stowed ·
     //   Deploying · Deployed · Packing), published by the node owning dtWeaponSystemState (its brain group) on change and applied on every
     //   other node (the drawing and the fire gate read it). Reliable + TransientLocal + KeepLast(1) keyed by entity, like the door: a late

@@ -520,6 +520,33 @@ namespace Hrot.SimHost.Tests
             Assert.InRange(d.Time - up, 3.4, 3.7);   // own aim 3 + 0.5, not the RPG man's 1.4
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2430</c> — the cycle never drives out to a firing point INSIDE its weapon's minimum range: a missile mount (min 100 m) offered
+        /// FiringA (82 m from the enemy, ranked first) and a point 110 m out takes the 110 m one. 📐 Live (a ridge draft): the ATGM technical exposed
+        /// at 73 m and 62 m, the Kornet held TooClose and it never fired. 🔴 Red-proof: drop the min-range skip in <c>PickBest</c> ⇒ it drives to FiringA.
+        /// </summary>
+        [Fact]
+        public void CE2430_NoFiringPointInsideTheWeaponsMinimumRange()
+        {
+            const long MissileType = 9301;
+            var far = new Vector3(-30f, 0f, 0f);   // 110 m from the enemy at (80, 0)
+            var d = new Duel(Tank(), seen: false);
+            d.UseTkb();
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)d.Repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            var missile = new Fdp.Interfaces.TkbTemplate("Test ATGM round", MissileType);
+            missile.AddDescriptor(new MissileDto { MinRangeM = 100f });
+            db.Register(missile);
+            Assert.True(db.TryGetByType(TankType, out var tank));
+            tank!.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Range = 3000, Penetration = 800, DamagePerHit = 2000, AmmoGuid = (ulong)MissileType } } });
+            Assert.Equal(100f, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.PrimaryMinRange(d.Repo, d.Self));
+            d.Step();
+            d.ToHide(HideA);
+            d.See(true);
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA, far);
+            Assert.Equal(VehiclePhase.Exposing, d.RunUntil(VehiclePhase.Exposing, 20));
+            Assert.Equal(far, d.Ws.FiringPoint);
+        }
+
         private static VehicleFightFromCoverParams Technical() => new()
         {
             WithdrawMode = WithdrawMode.Scoot, HideSecondsMin = 2f, HideSecondsMax = 2f,

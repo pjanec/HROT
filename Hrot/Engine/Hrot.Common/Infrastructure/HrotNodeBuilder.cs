@@ -168,6 +168,9 @@ public sealed class HrotNodeBuilder
         };
         var timeCtrl = TimeControllerFactory.Create(eventBus, timeConfig);
         kernel.SetTimeController(timeCtrl);
+        // ⭐ CE-3427 N-1 — opt-in measuring probe: the per-frame cost of a full world replica (HROT_REPLICA_PROBE=1; off = nothing registered)
+        if (Fdp.Toolkit.Diagnostics.ReplicaSyncProbeSystem.Requested)
+            kernel.RegisterGlobalSystem(new Fdp.Toolkit.Diagnostics.ReplicaSyncProbeSystem());
         eventBus.SwapBuffers();
 
         // ── Part B: Hrot / DDS-specific ───────────────────────────────────────

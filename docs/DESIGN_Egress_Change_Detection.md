@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-05 (§3a the real-node measurement; §4 write batching)
+updated: 2026-11-10 (§7 the state egress off the main thread — APPROVED as an experiment, READY-TO-BUILD, CE-3427 N-1) · 2026-11-05 (§3a the real-node measurement; §4 write batching)
 build-state: BUILDING — E1 approved by the user 2026-11-05 ("yes, build E1 with a rail per hazard"); §5 is the build design (CE-2407)
-current-answer: §2 the measured hazards, §3 the options with a lean, §3a measured on real nodes (answers §3's 'what would change the lean'), §4 DDS write batching
+current-answer: ⭐ §7 the state egress off the main thread (2026-11-10, APPROVED experiment, not built) · §2 the measured hazards, §3 the options with a lean, §3a measured on real nodes (answers §3's 'what would change the lean'), §4 DDS write batching
 stale-below: none
 known-rot: docs/designs/dds-to-ecs/DESIGN.md:468 says "the egress translator checks the chunk version and skips unchanged entities" — only NavigationIntentEgressTranslator does (measured 2026-11-04)
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Scale_Rig.md §7.8 — OWNS the measurements §7 rests on (egress by translator, the replica probe)
+  - docs/DESIGN_Sensors_And_Doctrine.md §5.8 — OWNS the worker pool §7 shares (EqsSolveWorkers, P-1)
   - docs/DESIGN_Evaluation_Cost_And_Cadence.md — OWNS the measurement that put egress at ≈ 15 ms/frame on Crossfire (§0) and filed this as C4 / T10 (CE-2391)
   - docs/designs/dds-to-ecs/DESIGN.md — OWNS egress (translators, ScanAndPublish); its chunk-version line (:468) is the aspiration this design measures
   - docs/projects/FDP/Core/Fdp.Core.md — OWNS the chunk-version rules and QueryDelta (:261, :398, :422–424, :847–876)
@@ -311,3 +313,141 @@ SimHost 25.1 / 26.4 → 5.4 / 14.1 µs, traffic 20.4 / 20.6 → 18.9 / 9.1 µs (
 Rails `QueryCandidateIndexTests` (every query form inside vs outside a scope; a structural change inside it; a nested enumerator; an
 out-of-band bit at the next frame; a wholesale rewrite in the same frame; no allocation on a steady scope) — red-proved four ways
 (the frame key, the mask epoch, half the candidates, and — in the first form — the scope-end void).
+
+## 7. ⭐ THE STATE EGRESS OFF THE MAIN THREAD — a replica scanned while the next frame runs *(CE-3427 N-1; user's idea `2026-11-10`; build-state: READY-TO-BUILD as an EXPERIMENT — leans O-A…O-G APPROVED by the user `2026-11-10`: "approved … take this big change as experiment that needs good testing"; OFF by default; build plan: [resume §0](blueprints/RESUME_Backend_Large_Terrain_Perf.md))*
+
+> 🔒 User, `2026-11-10`: *"maybe the network egress could be done from a read only snapshot in parallel synchronously to the main thread, at the cost of
+> 1 frame latency which could be ok for most slow entities like soldiers"* · *"some time sensitive stuff would still need to travel with priority
+> (shots events, hit events...)"* · *"can the mode … be switchable at runtime depending on load?"*
+
+📐 **Why** ([scale rig §7.8](DESIGN_Scale_Rig.md)), 1 000 men fighting, Windows, 16 cores: the SimHost main-thread frame is **≈ 35 ms**, of which
+**egress ≈ 17.6 ms** (`WorldPos` 8.4, `EqsResultTopic` 1.4, `EntityLookState`, `EntityMaster`, `NavigationStatus`, …) against a 10 ms budget (R-4192).
+A FULL replica of the SimHost world syncs in **0.86 ms** (max 1.7; probe `HROT_REPLICA_PROBE=1`). The CGF: egress 16 ms, full sync 5.9 ms.
+
+📐 **And the measurement that shaped it:** neither node has a frame-locked (`FrameSynced`) module — all the simulation is `Synchronous`, on the main
+thread (SimHost: sync modules 21.2 ms, global systems 13.8, background 47.9; CGF: sync 63.9, global 15.6). ⇒ ⛔ the kernel's `FastReplica` (a
+frame-locked module on a GDB replica, dispatched beside the simulation modules) would overlap NOTHING. ⭐ The scan must overlap the NEXT frame.
+
+**INVENTORY** *(`2026-11-10`; an explorer pass: `scripts/cbm.sh search_graph name_pattern ".*Translator$" label Class` — ~180 hits over 2 pages — plus
+grep `new CycloneEgressSystem(` — 13 sites, 9 production; every SimHost egress `ScanAndPublish` read, the 45 small descriptor classes classified by
+pattern after 2 read in full; `check_index_coverage` is not available through the CLI, so the set is not proven complete)*: the SimHost runs **six**
+`CycloneEgressSystem`s, all `Export` — A `NedReplicationModule.cs:443` (shared + kinematic pack, peer lifecycle, deferred ownership) · B
+`NedSimHostAuxiliaryTranslators.cs:48` · C `NedSimHostPerceptionTranslators.cs:55` · D `NedSimHostPathfindingTranslators.cs:65` · E
+`SlaveTimeTranslatorRegistration.cs:95` · F `AnimationReplicationModule.cs:91`. No shared translator base: the common helper is
+`PublishedInstances<T>` (`PublishedInstances.cs`), whose `OnFrame` reads `DestructionOrder` from the bus.
+
+| hazard (what a naive move breaks) | where | ⭐ resolution |
+|---|---|---|
+| `WorldPos` (the biggest) WRITES the live world: the dead-reckoning shadow `NetworkTransform` (`AddComponent`, `SetAuthority`, `GetComponentRW`) | `GeoSpatialEgressTranslator.cs:151-192` | ⭐ O-C: the off-frame scan reads the shadow from the replica (= live at launch) and QUEUES its shadow writes; the join applies them on the main thread |
+| smart egress writes `EgressPublicationState` (`MarkPublished` → `SetManagedComponent`); it is `Transient` ⇒ never copied to a replica | `SmartEgressUtil.cs:139-157`, `EgressPublicationState.cs:11` | ⭐ `EntityInfo`, `MapVisualOverlay` stay ON the frame (O-B) |
+| `PublishedInstances.OnFrame` reads `DestructionOrder` from the BUS — a replica's bus is not the live one | `PublishedInstances.cs:77-90` | ⭐ `OnFrame` stays on the main thread, at the join; only the scan moves |
+| the cleanup system disposes / releases on the SAME translator objects, same phase; a write after the dispose re-announces the entity to late joiners | `CycloneNetworkCleanupSystem.cs:292-362`, `PublishedInstances.cs:26-30` | ⭐ the join is FIRST in `Export`: the scan of frame N has finished before frame N+1's cleanup ⇒ last state, then dispose, as today |
+| the change gate's signals (E1: seek / restore / wipe H3, dirty marks H8) and `EgressHold` live per repository / as unsynced singletons | `EgressSignals.cs:22-24`, `EgressHold.cs:54-56`, `EntityRepository.Sync.cs:119-130` | ⭐ O-D: the launch hands the replica the live world's signals and the hold flag |
+| `NetworkEntityMap` is a plain `Dictionary`, mutated by ingress / spawning on the main thread while the scan would read it | `NetworkEntityMap.cs:15-16`; readers `Utterance`, `WeaponTask`, `WeaponPosture`, `EntityInfo` egress | ⭐ those translators stay ON the frame until they read the network id from the replica's components |
+| bidirectional translators share state with their ingress half (`SwitchTimeMode._lastIngressed`, ownership) | `SwitchTimeModeTranslator` `:132`, `OwnershipUpdateTranslator` `:69-124` | ⭐ ON the frame (time, ownership, lifecycle) |
+| a replica's managed components are SHALLOW copies of the live objects (`RoutePlan`, `EditablePolyline`, …) | `ManagedComponentTable.cs:327-331` | ⚠ safe only because managed components are IMMUTABLE and replaced whole (CLAUDE.md rule); the scan only reads. A rail reads them under mutation |
+
+```mermaid
+classDiagram
+  direction LR
+  class EgressPipeline { <<NEW, one per world>> +Mode OnFrame or OffFrame -replica EntityRepository -running bool +Join() +Launch() }
+  class EgressPipelineJoinSystem { <<NEW>> Export, FIRST }
+  class EgressPipelineLaunchSystem { <<NEW>> Export, LAST }
+  class CycloneEgressSystem { <<existing, grows>> +Execute(view) on-frame translators only when OffFrame }
+  class IOffFrameEgress { <<NEW marker>> declared by a translator that may scan a replica }
+  class GeoSpatialEgressTranslator { <<existing, grows>> queues shadow writes when off the frame }
+  class PublishedInstances~T~ { <<existing>> OnFrame stays at the join }
+  class CycloneNetworkCleanupSystem { <<existing>> Export, after the join }
+  class WorkerPool { <<MOVED from EqsSolveWorkers to FDP>> TryRun(count, work) zero allocation }
+  class DoubleBufferProvider { <<existing>> SyncFrom live, mask }
+  EgressPipelineJoinSystem --> EgressPipeline
+  EgressPipelineLaunchSystem --> EgressPipeline
+  EgressPipeline --> DoubleBufferProvider : sync at launch
+  EgressPipeline --> WorkerPool : translators fanned out
+  EgressPipeline ..> IOffFrameEgress : scans those on the replica
+  CycloneEgressSystem ..> IOffFrameEgress : skips those when OffFrame
+  GeoSpatialEgressTranslator ..|> IOffFrameEgress
+  CycloneNetworkCleanupSystem ..> PublishedInstances~T~
+```
+
+*What the picture shows that prose hid:* the translators do not change place — every egress system keeps its list; a translator that DECLARES
+`IOffFrameEgress` is skipped by its system while the pipeline is `OffFrame` and scanned by the pipeline instead. ⭐ One flag moves all of them back.
+⭐ The worker pool is ONE: the EQS solver's (`EqsSolveWorkers`, CE-3427 P-1) moves to FDP and both use it.
+
+```mermaid
+sequenceDiagram
+  participant M as main thread
+  participant P as EgressPipeline
+  participant W as WorkerPool (N threads)
+  Note over M: frame N — Input, simulation, PostSimulation on the live world
+  M->>P: Export FIRST — Join(): wait for scan N-1 (usually done), apply its queued writes, run OnFrame (disposes)
+  M->>M: Export — events (shots, hits), lifecycle, ownership, time, smart egress: ON the frame, live world
+  M->>M: Export — cleanup: disposes / releases
+  M->>P: Export LAST — Launch(): sync the replica (≈ 1 ms), copy signals + hold, start the scan
+  P->>W: the IOffFrameEgress translators, largest first, on the replica
+  Note over M: frame N+1 runs on the main thread while W scans frame N's state
+  M->>P: frame N+1 Export FIRST — Join() …
+```
+
+*What it shows:* state goes out one frame late and IN ORDER — the scan of frame N always finishes before frame N+1's events, cleanup and the next
+scan; an event (a shot) is never delayed. A dispose can never be overtaken: the dispose of frame N+1 runs after the join.
+
+```mermaid
+graph TD
+  K["ModuleHostKernel.UpdateInternal — every frame, main thread"] --> X["ExecutePhase(Export) — ONE scheduler: global and module systems"]
+  X --> J["EgressPipelineJoinSystem — first"]
+  X --> E["the six CycloneEgressSystems — on-frame translators"]
+  X --> C["CycloneNetworkCleanupSystem"]
+  X --> L["EgressPipelineLaunchSystem — last"]
+  L --> W["WorkerPool threads — the off-frame scan, until the next Join"]
+  W -.->|"never touches"| LIVE["the live world, the bus, NetworkEntityMap"]
+```
+
+*What it shows:* no kernel change — the pipeline is two systems bracketing `Export`. ⚠ To verify at build: that `[UpdateBefore]` / `[UpdateAfter]`
+can put a system first / last across the global and module systems of one phase (a rail asserts the order).
+
+| # | decision | ⭐ lean | rejected — the one fact that killed it |
+|---|---|---|---|
+| **O-A** | where the overlap comes from | ⭐ **pipelined across the frame boundary**: launch at the end of `Export`, join at the start of the next `Export` | the kernel's `FastReplica` (frame-locked) — measured: no node has a frame-locked module, so it would overlap nothing |
+| **O-B** | what goes off the frame | ⭐ the STATE scans: `WorldPos`, the 38 `PublishedInstances` descriptors, `MapRoute`, `NavigationStatus`, stance / look-at status — declared by `IOffFrameEgress`. ON the frame: every event translator, lifecycle (`EntityMaster`, peer lifecycle), ownership, time, smart egress, the `NetworkEntityMap` readers | everything — events must not wait (user), and the rest each has a hazard above |
+| **O-C** | world writes from an off-frame scan | ⭐ queued per translator, applied at the join (only `WorldPos` writes) | a command buffer per worker — the kernel plays thread buffers in no fixed order (P-1's finding) |
+| **O-D** | what the replica lacks | ⭐ the launch copies the live world's egress signals and `EgressHold` to the replica; a mask of only the components the off-frame translators read | a full replica — fine on the SimHost (0.86 ms), ⚠ 5.9 ms on the CGF |
+| **O-E** | parallel inside the scan | ⭐ translators fanned over the shared `WorkerPool`, largest last-time first ⇒ the scan ≈ `WorldPos` (8 ms), not the sum | one background thread — then 15 ms per scan, still inside the next frame but with less margin |
+| **O-F** | the switch | ⭐ `EgressPipeline.Mode` — `FDP_EGRESS_OFFFRAME`, and at runtime through the debug API; it changes only at a join (the scan is finished there). ⏳ an automatic load rule (with hysteresis) is decided AFTER the numbers | automatic from day one — first measure what OffFrame costs at low load (one frame of latency, ≈ 1 ms of sync) |
+| **O-G** | which nodes | ⭐ the SimHost first; the CGF after measuring its masked sync (full: 5.9 ms) | both at once — the CGF's numbers are not known |
+
+📐 **Expected** (SimHost, 1 000 men): the main thread loses ≈ 15 ms of state scan and gains ≈ 1 ms of sync ⇒ **≈ 35 → ≈ 21 ms**; the scan (≈ 8 ms on
+4 workers) ends well inside the next frame. ⚠ A projection, not a measurement — the build measures it.
+
+**Rails** *(the egress suite: `Fdp.Network.Cyclone.Tests` / `ClusterRunner.Integration.Tests` egress classes — T-1 first)*:
+
+| rail | red-proof |
+|---|---|
+| ⭐⭐ the same world, on vs off the frame: every state sample sent is the on-frame sample of ONE frame earlier; every event sample in the SAME frame | launch before the events ⇒ red |
+| ⭐ an entity destroyed in frame N: its last state sample precedes its dispose; nothing after | join after the cleanup ⇒ red |
+| ⭐ `WorldPos`'s shadow off the frame equals the shadow on the frame, one frame later | apply the queued writes at launch ⇒ red |
+| ⭐ a seek / restore / hold mid-run: the off-frame scan honours it (signals and hold copied) | drop the signal copy ⇒ red |
+| ⭐ switching mode every 10 frames under load: no sample lost or duplicated beyond the one documented frame | switch outside a join ⇒ red |
+| 📐 the scale rig, 1 000 / 3 000 men, OnFrame vs OffFrame | — the numbers go to scale rig §7 |
+
+**Design docs checked:** §5 / §6 here (the change gate and the one-walk index — kept; the index is built per repository, so the replica builds its
+own) — applies. · `docs/designs/dds-to-ecs/DESIGN.md` (owns translators and `ScanAndPublish`) — applies: nothing in a translator's contract
+changes except the marker. · `DESIGN_Time_Architecture.md` §17 — the time translators stay on the frame; stepped mode unaffected (state lags a frame
+in both modes) — applies. · `FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md` (GDB "use for: network") — its
+mechanism is reused (`DoubleBufferProvider`) but not its frame-locked dispatch, which overlaps nothing here — partly applies.
+
+### 7a. ⚠ AS BUILT — the deviations from §7 *(CE-3427 N-1, `2026-11-10`, the experiment's first build; ⏳ measured in §7b)*
+
+| §7 said | as built | why |
+|---|---|---|
+| `EgressPipelineJoinSystem`, Export FIRST | ⛔ no join system: **every egress and cleanup system calls `EgressPipeline.Join()` first** (idempotent) | a "first" system cannot be ordered before all six egress systems with `[UpdateBefore]` (the scheduler orders against the FIRST instance of a type only — `SystemScheduler.BuildDependencyGraph`); joining in the systems that touch the translators is true by construction, whatever their order |
+| `EgressPipelineLaunchSystem`, `[UpdateAfter]` | ⭐ `[UpdateLastInPhase]` — a NEW scheduler attribute: the system runs after every system of its phase not marked too | the same instance problem; opt-in, so no existing order moves |
+| `OnFrame` runs at the join | ⭐ a marked translator's `BeginFrame(live)` runs **in its egress system's slot** (where `OnFrame` ran before), the scan at the launch | the same order as on the frame; no second list at the join |
+| the marker `IOffFrameEgress` | ⭐ three members: `BeginFrame(live)` · `ScanState(view, offFrame)` · `ApplyDeferred(live)` (default no-op); `ScanAndPublish` = `BeginFrame` + `ScanState` | one scan body for both modes — no second implementation |
+| the scan "on the WorkerPool" | ⭐ the pipeline's own thread runs the scan and fans the translators over the shared `WorkerPool` (`FDP_EGRESS_WORKERS`, default CPUs / 4, at most 4); a busy pool ⇒ the scan thread does them all | the launch must return at once; the pool's `TryRun` blocks its caller |
+| — | ⭐ the replica's candidate index (§6) is built ONCE before the fan-out (`EntityRepository.PrepareQueryIndex`), inside one scope opened on the scan thread | the scope's depth counter and the lazy build are not thread-safe; the workers then only read |
+| — | ⭐ a scan that throws puts the pipeline back ON the frame (logged once) | the switch must be safe to leave on |
+| the runtime switch | ⭐ `GET` / `POST /diagnostics/egress {"mode":"offframe"\|"onframe"}`; `FDP_EGRESS_OFFFRAME=1` the start-up default | |
+| a world with no launch system | ⭐ has no pipeline ⇒ never off the frame, whatever the switch | otherwise an egress system would skip what nothing scans |
+| `WorldPos`'s first-sight attach "queued" | ⭐ the queued attach ALSO grants authority when the shadow is already there at the join | 📐 found by `TheEgressShadowExistsAtBirthTests.TheOwnerHasAuthorityOverItsOwnShadow` with `FDP_EGRESS_OFFFRAME=1`: off the frame the first sample leaves a frame late and this node's own ingress can upsert the shadow (without authority) before the join (AX-011) |
+| the mode changes at a join | ⭐ ONCE per Export — the first join after a launch takes the requested mode | 📐 found by its rail: the launch re-taking the mode let a mid-Export switch lose a frame (a system skipped its translators, the launch then did not scan them) |

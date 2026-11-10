@@ -399,7 +399,9 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
 
-            if (!PickBest(ws.FiringSensor, ref mem, in p, world, self, now, null, 0f, out var firing))
+            float minRange = AimAndFireExecutor.PrimaryMinRange(world, self);   // ⭐ CE-2430 — the ONE number HoldOf refuses with
+            Vector3? threatAt = minRange > 0f && EqsTacticsNodes.ThreatPosition(world, self, in threat, out var tAt) ? tAt : null;
+            if (!PickBest(ws.FiringSensor, ref mem, in p, world, self, now, null, 0f, out var firing, threatAt, minRange))
             {
                 // no firing point from this hide for NoCoverSeconds: it cannot be fought from — to the next hide
                 if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = (SimInstant)now; }
@@ -484,6 +486,41 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>⭐ CE-2431 — how far the turning leg drives (m): a wheeled hull cannot pivot, it turns by driving a short leg on the heading.</summary>
+        public const float TurnLegMetres = 8f;
+
+        /// <summary>
+        /// ⭐ CE-2431 — is the threat OUTSIDE the arc of my primary weapon's station (a technical's Kornet on the bed, a pintle M2)? When it is,
+        /// <paramref name="heading"/> is the hull heading (radians, counter-clockwise from +X) that puts it in the arc's centre. False for a weapon
+        /// with no arc (its own turret, a man's rifle) or no known threat.
+        /// </summary>
+        internal static bool OutOfArc(EntityRepository world, Entity self, in ThreatAim threat, out float heading)
+        {
+            heading = 0f;
+            var gun = Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(world, self);
+            if (gun.IsNull || gun == self || !Fdp.Toolkit.Combat.WeaponSystems.StationArcCentre(world, gun, out float centre)) return false;
+            var target = PeekAndFireNodes.LockTarget(world, self, in threat);
+            Vector3 targetAt;
+            if (!target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target)) targetAt = world.GetComponentRO<SimTransform>(target).Position;
+            else if (!EqsTacticsNodes.ThreatPosition(world, self, in threat, out targetAt)) return false;
+            if (Fdp.Toolkit.Combat.WeaponSystems.InStationArc(world, gun, targetAt)) return false;
+            var me = world.GetComponentRO<SimTransform>(self).Position;
+            heading = MathF.Atan2(targetAt.Y - me.Y, targetAt.X - me.X) - centre;
+            return true;
+        }
+
+        /// <summary>⭐ CE-2431 — at the firing point, the target out of the station's arc: drive the turning leg (Running) — else Success as before.
+        /// 📐 Live (a demo-city draft): the ATGM technical saw the IFV and held <c>OutOfArc</c> for 30 s; the cycle never turned the hull.</summary>
+        private static NodeStatus TurnOntoArc(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, Entity self, EntityRepository world,
+                                              in ThreatAim threat, Vector3 at3)
+        {
+            if (!OutOfArc(world, self, in threat, out float heading)) return NodeStatus.Success;
+            var leg = new Vector3(at3.X + MathF.Cos(heading) * TurnLegMetres, at3.Y + MathF.Sin(heading) * TurnLegMetres, at3.Z);
+            ws.Creeping = 2;
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, leg, p.CreepSpeed, ArrivalRadius * 0.5f, source: MoveSource.CoverSearch) ? 1 : 0);
+            return ws.Moving == 1 ? NodeStatus.Running : NodeStatus.Success;
+        }
+
         /// <summary>
         /// ⭐⭐ CE-4136 (Next_3 H-2) — the drive out to a FIRING POINT: arrival is <see cref="MoveStatus"/> (CE-2205, unchanged); arrived and the
         /// target SEEN (or no target to look for) ⇒ Success as before; arrived WITHOUT a sight ⇒ it creeps on along the hide → firing point line
@@ -495,13 +532,24 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
             var at3 = world.GetComponentRO<SimTransform>(self).Position;
+            if (ws.Creeping == 2)
+            {
+                // ⭐ CE-2431 — the turning leg: done the tick the target is inside the station's arc, or when the leg ends
+                if (!OutOfArc(world, self, in threat, out _) || LocomotionMoveTo.Status(world, self) != NodeStatus.Running)
+                {
+                    LocomotionMoveTo.Stop(world, self);
+                    ws.FiringPoint = at3;
+                    return NodeStatus.Success;
+                }
+                return NodeStatus.Running;
+            }
             var at = new Vector2(at3.X, at3.Y);
             var point = new Vector2(ws.FiringPoint.X, ws.FiringPoint.Y);
             var dir = point - new Vector2(ws.HidePoint.X, ws.HidePoint.Y);
             dir = dir.LengthSquared() > 1e-6f ? Vector2.Normalize(dir) : Vector2.Zero;
             if (ws.Creeping == 1)
             {
-                if (StopIfSees(ref ws, self, world, in threat, at3)) return NodeStatus.Success;
+                if (StopIfSees(ref ws, self, world, in threat, at3)) return TurnOntoArc(ref ws, in p, self, world, in threat, at3);
                 if (dir == Vector2.Zero || Vector2.Dot(at - point, dir) >= FiringCreepMetres)
                 {
                     LocomotionMoveTo.Stop(world, self);
@@ -513,7 +561,8 @@ namespace Hrot.AI.Behaviors.Brains
             var status = MoveStatus(world, self, ws.FiringPoint);   // the arrival test (CE-2205) — unchanged
             if (status != NodeStatus.Success) return status;
             var target = PeekAndFireNodes.LockTarget(world, self, in threat);
-            if (dir == Vector2.Zero || target.IsNull || SightNow.Sees(world, self, target)) return NodeStatus.Success;   // seen there (or nothing to look for): as before
+            if (dir == Vector2.Zero || target.IsNull) return NodeStatus.Success;   // nothing to look for: as before
+            if (SightNow.Sees(world, self, target)) return TurnOntoArc(ref ws, in p, self, world, in threat, at3);   // seen there: as before, then the arc
             // arrived, nothing seen: creep on past the point — a move point beyond the cap, so the cap (or a sight) ends it, never an arrival
             ws.Creeping = 1;
             var ahead = point + dir * (FiringCreepMetres + ArrivalRadius + 2f);
@@ -804,7 +853,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The best point of a sensor's answer by <c>score − heat penalty</c>: burned ones and a friend's claimed ones skipped; with
         /// <paramref name="awayFrom"/>, none nearer than <paramref name="minMetres"/> to it.</summary>
         private static bool PickBest(EqsSensorHandle sensor, ref FiringPositionMemory mem, in VehicleFightFromCoverParams p, EntityRepository world,
-                                     Entity self, double now, Vector3? awayFrom, float minMetres, out Vector3 point)
+                                     Entity self, double now, Vector3? awayFrom, float minMetres, out Vector3 point,
+                                     Vector3? threatAt = null, float minRange = 0f)
         {
             point = default;
             if (!sensor.IsValid || !world.IsAlive(sensor.ChildId) || !world.HasComponent<EqsCognitiveBuffer>(sensor.ChildId)) return false;
@@ -818,6 +868,8 @@ namespace Hrot.AI.Behaviors.Brains
                 var r = span[i];
                 var at = new Vector3(r.PositionX, r.PositionY, r.PositionZ);
                 if (awayFrom is { } from && Vector3.Distance(at, from) < minMetres) continue;
+                // ⭐ CE-2430 — never a firing point inside the weapon's minimum range (the round would be refused there: TooClose)
+                if (threatAt is { } t && minRange > 0f && new Vector2(at.X - t.X, at.Y - t.Y).Length() < minRange) continue;
                 if (PositionHeat.IsBurnedAt(ref mem, at, now, rules)) continue;
                 if (PeekAndFireNodes.ClaimedByAFriend(world, self, at, now)) continue;
                 float score = r.Score - PositionHeat.Penalty(ref mem, at, now, rules);

@@ -39,7 +39,10 @@ namespace Hrot.SimHost.Systems
 
         // ⭐ CE-3056 — this tick's answers by what DECIDES them; a twin due later in the tick copies instead of solving.
         //   📄 docs/DESIGN_Sensors_And_Doctrine.md §5.6. Cleared every tick, so an answer is never older than its delivery.
-        private readonly Dictionary<QueryShareKey, EqsResult[]> _shared = new();
+        private readonly Dictionary<QueryShareKey, SharedAnswer> _shared = new();
+
+        /// <summary>A shared answer: the first <c>Count</c> entries of a reused buffer (CE-3427 P-1).</summary>
+        private readonly record struct SharedAnswer(EqsResult[] Buffer, int Count);
 
         /// <summary>What decides a QUERY sensor's answer — and nothing about its delivery (epoch, publish policy, priority
         /// stay per owner). Two sensors with equal keys answer identically in one tick.</summary>
@@ -69,10 +72,15 @@ namespace Hrot.SimHost.Systems
         /// each tick — what the old perception chain did — and beyond that the oldest go first (measured 2026-10-04, debug
         /// build: 500 units = 142 k units / 76 ms; DESIGN_Sensors_And_Doctrine.md §9.4).
         /// </summary>
-        public int BudgetUnits { get; set; } = DefaultBudgetUnits;
+        public int BudgetUnits { get; set; } = ConfiguredBudgetUnits;
 
         /// <summary>The default <see cref="BudgetUnits"/>.</summary>
         public const int DefaultBudgetUnits = 150_000;
+
+        /// <summary>⭐ CE-3427 N-2 — the budget a new solver takes: <c>HROT_EQS_BUDGET</c> (a measured tuning knob, like <c>HROT_EQS_WORKERS</c>),
+        /// else <see cref="DefaultBudgetUnits"/>.</summary>
+        public static int ConfiguredBudgetUnits { get; } =
+            int.TryParse(Environment.GetEnvironmentVariable("HROT_EQS_BUDGET"), out int b) && b > 0 ? b : DefaultBudgetUnits;
 
         /// <summary>The sensors that ran last tick, in run order (diagnostics / the determinism rail).</summary>
         public IReadOnlyList<Entity> LastSchedule => _lastSchedule;
@@ -129,7 +137,10 @@ namespace Hrot.SimHost.Systems
             _memory.Begin(repo);
             _lastSchedule.Clear();
             _shared.Clear();
+            _shareUsed = 0;
             LastSharedCopies = 0;
+            LastParallelSolves = 0;
+            LastDiscardedSolves = 0;
 
             // ── order every live sensor; an ended one costs nothing and is handled at once ──
             _schedule.Begin();
@@ -154,17 +165,31 @@ namespace Hrot.SimHost.Systems
             // ── run them in order within the budget ──
             // ⭐ Each band gets its share (Critical 50 %, Normal 35 %, Low the rest), unused slack rolling down, and the
             //   oldest sensor of every band always starts — so a busy Critical band never starves Low.
-            int spent = 0, bandSpent = 0, bandBudget = 0, rank = -1;
-            foreach (var item in _schedule.Ordered())
+            // ⭐⭐ CE-3427 P-1 (§5.8) — with workers, a WINDOW of the places ahead is predicted from the estimates and its pure solves run in
+            //   parallel; the START decision below is unchanged (actual costs, schedule order), so a misprediction costs time, never a result.
+            var ordered = _schedule.Ordered();
+            var workers = PoolFor(Workers);
+            if (_slotOf.Length < ordered.Count) _slotOf = new int[Math.Max(ordered.Count, _slotOf.Length * 2)];
+            int spent = 0, bandSpent = 0, bandBudget = 0, rank = -1, windowEnd = 0;
+            for (int i = 0; i < ordered.Count; i++)
             {
+                if (workers != null && i >= windowEnd) windowEnd = SolveWindow(workers, ordered, i, spent, bandSpent, bandBudget, rank);
+                var item = ordered[i];
                 if (item.Rank != rank)
                 {
                     rank       = item.Rank;
                     bandSpent  = 0;
                     bandBudget = EqsSchedule.CumulativeShare(rank, BudgetUnits) - spent;
                 }
-                if (!EqsSchedule.ShouldStart(bandSpent, item.Estimate, bandBudget)) continue;
-                int cost = RunSensor(item.Sensor);
+                int s = workers != null ? _slotOf[i] : -1;
+                if (!EqsSchedule.ShouldStart(bandSpent, item.Estimate, bandBudget))
+                {
+                    if (s >= 0) LastDiscardedSolves++;   // solved ahead, not started: discarded — it wrote nothing
+                    continue;
+                }
+                int cost;
+                if (s >= 0) { cost = CommitAndPersist(_slots[s]); LastParallelSolves++; }
+                else cost = RunSensor(item.Sensor);
                 spent     += cost;
                 bandSpent += cost;
                 _lastSchedule.Add(item.Sensor);
@@ -178,9 +203,10 @@ namespace Hrot.SimHost.Systems
             Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Run, tRun);
             _lastRunEnd = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
             Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_RunSpent, spent);
+            Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_RunParallel, LastParallelSolves);
+            Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_RunDiscarded, LastDiscardedSolves);
         }
 
-        // Evaluates one sensor and persists its state ONCE (schedule fields included). Returns the work units spent.
         // ⭐ CE-3427 — what the EQS costs: every sensor solve, per template, per generator and test type, and the two special solves
         private static readonly int S_Sensor = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.sensor (all)");
         private static readonly int S_Danger = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.DangerArea");
@@ -192,167 +218,255 @@ namespace Hrot.SimHost.Systems
         private static readonly int S_RunSpent    = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.units (count)");
         private static readonly int S_RunInterval = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.interval (start to start)");
         private static readonly int S_RunIdle     = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.idle (end to next start)");
+        private static readonly int S_RunParallel  = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.parallel (count)");
+        private static readonly int S_RunDiscarded = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.discarded (count)");
         private long _lastRunStart, _lastRunEnd;
-        private int _templateSlot = -1;   // set by EvaluateSensor when it reaches a ranked template (single-threaded: the system's own state)
 
+        // ── CE-3427 P-1 — the window ────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ CE-3427 P-1 (§5.8) — threads that solve a sensor (the solver's own included): <c>HROT_EQS_WORKERS</c>, else a quarter of the
+        /// logical CPUs (three nodes share a machine). <c>1</c> = no worker threads — every solve inline, in schedule order.
+        /// </summary>
+        public int Workers { get; set; } = DefaultWorkers;
+
+        /// <summary>The default <see cref="Workers"/>.</summary>
+        public static int DefaultWorkers { get; } =
+            int.TryParse(Environment.GetEnvironmentVariable("HROT_EQS_WORKERS"), out int w) && w > 0 ? w : Math.Max(1, Environment.ProcessorCount / 4);
+
+        /// <summary>⭐ CE-3427 P-1 — sensors solved on the window (any thread) and committed last tick (diagnostics / rails).</summary>
+        public int LastParallelSolves { get; private set; }
+
+        /// <summary>⭐ CE-3427 P-1 — sensors solved ahead last tick that did not start (wasted work, no trace).</summary>
+        public int LastDiscardedSolves { get; private set; }
+
+        private const int PlacesPerParticipant = 8;   // a window's size per thread: the tail of a band wastes at most this many solves each
+        private SolveSlot[] _slots = Array.Empty<SolveSlot>();
+        private int[] _slotOf = Array.Empty<int>();   // place in the order → its window slot, −1 = run inline
+        private readonly SolveSlot _inline = new();
+        private readonly HashSet<QueryShareKey> _windowKeys = new();
+        private Action<int>? _solveAt;
+
+        private Fdp.ModuleHost.Threading.WorkerPool? PoolFor(int workers)
+        {
+            if (workers <= 1) return null;
+            _solveAt ??= k => Solve(_slots[k]);
+            int places = workers * PlacesPerParticipant;
+            if (_slots.Length != places)
+            {
+                var slots = new SolveSlot[places];
+                for (int i = 0; i < places; i++) slots[i] = i < _slots.Length ? _slots[i] : new SolveSlot();
+                _slots = slots;
+            }
+            return Fdp.ModuleHost.Threading.WorkerPool.Shared(workers);
+        }
+
+        // Predicts, from place `from`, which places the start rule would admit if every sensor cost its estimate; prepares those, solves
+        // the PURE ones in parallel into the window's slots, and returns the end of the window. Everything here is side-effect free: the
+        // commit loop decides with the actual costs.
+        private int SolveWindow(Fdp.ModuleHost.Threading.WorkerPool pool, IReadOnlyList<(int Rank, uint LastSolved, int Index, Entity Sensor, int Estimate)> ordered,
+                                int from, int spent, int bandSpent, int bandBudget, int rank)
+        {
+            int used = 0, j = from;
+            _windowKeys.Clear();
+            for (; j < ordered.Count && used < _slots.Length; j++)
+            {
+                _slotOf[j] = -1;
+                var item = ordered[j];
+                if (item.Rank != rank)
+                {
+                    rank       = item.Rank;
+                    bandSpent  = 0;
+                    bandBudget = EqsSchedule.CumulativeShare(rank, BudgetUnits) - spent;
+                }
+                if (!EqsSchedule.ShouldStart(bandSpent, item.Estimate, bandBudget)) continue;
+                int guess = Math.Max(item.Estimate, EqsCost.Sensor);   // a never-solved sensor is not free
+                spent     += guess;
+                bandSpent += guess;
+
+                var slot = _slots[used];
+                Prepare(slot, item.Sensor);
+                if (slot.Kind != SlotKind.Ranked || AwaitsRays(slot.Template)) continue;              // inline: special kinds, the ray test
+                if (slot.Shareable && (_shared.ContainsKey(slot.ShareKey) || !_windowKeys.Add(slot.ShareKey))) continue;   // a twin copies at commit
+                _slotOf[j] = used++;
+            }
+            if (!pool.TryRun(used, _solveAt!))
+                for (int k = 0; k < used; k++) Solve(_slots[k]);   // another solver holds the pool: the same solves, on this thread
+            return j;
+        }
+
+        // ── one sensor: prepare (read), solve (pure), commit (every write) ─────────────────────────────────────────────────────────
+
+        private enum SlotKind : byte { NotKeyed, DangerArea, WorldSurvey, NoTemplate, AwaitingRays, Ranked }
+        private enum SolveOutcome : byte { None, NotEvaluable, Empty, Answer, AwaitingRays }
+
+        /// <summary>⭐ CE-3427 P-1 — one sensor's solve: what was read before it, and what it produced. Reused; written by one thread at a time.</summary>
+        private sealed class SolveSlot
+        {
+            public Entity Sensor;
+            public EqsSensor Data;
+            public bool Had;
+            public SensorEvalState Eval;
+            public SlotKind Kind;
+            public int ParentNetworkId, LocalChildIndex;
+            public EqsQueryTemplate Template;
+            public bool HashReset;
+            public bool Shareable;
+            public QueryShareKey ShareKey;
+            public EqsResult[] Buffer = new EqsResult[64];
+            public int Count, Cost;
+            public SolveOutcome Outcome;
+            public Fdp.Toolkit.Perception.Sensors.AcousticPerception.DeferredCursor Cursor;
+        }
+
+        // Evaluates one sensor inline and persists its state ONCE (schedule fields included). Returns the work units spent.
         private int RunSensor(Entity entity)
         {
-            var repo = _currentRepo;
-            ref readonly var sensor = ref repo.GetComponentRO<EqsSensor>(entity);
-            bool had = repo.HasComponent<SensorEvalState>(entity);
-            SensorEvalState evalState = had
-                ? repo.GetComponentRO<SensorEvalState>(entity)
-                : new SensorEvalState { Phase = EqsEvalPhase.Idle, CurrentEpoch = sensor.Epoch };
+            Prepare(_inline, entity);
+            return CommitAndPersist(_inline);
+        }
 
-            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — one sensor's whole solve
-            long b0 = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
-            _templateSlot = -1;
-            int cost = EvaluateSensor(entity, ref evalState, out bool keyed);
-            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sensor, t0, b0);
-            if (_templateSlot >= 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(_templateSlot, t0, b0);   // a ranked template's solve, by template
+        // The commit, then the eval state written once — what RunSensor did before the split.
+        private int CommitAndPersist(SolveSlot slot)
+        {
+            int cost = Commit(slot, out bool keyed);
             if (!keyed) return 0;   // not solvable here (no wire key): no state, no cost
-
-            evalState.LastSolvedTick = _currentTick;
-            evalState.LastCost       = cost;
-            if (had) _currentCmd.SetComponent(entity, evalState);
-            else     _currentCmd.AddComponent(entity, evalState);
+            slot.Eval.LastSolvedTick = _currentTick;
+            slot.Eval.LastCost       = cost;
+            if (slot.Had) _currentCmd.SetComponent(slot.Sensor, slot.Eval);
+            else          _currentCmd.AddComponent(slot.Sensor, slot.Eval);
             return cost;
         }
 
-        // One evaluation. evalState is updated in place (the caller persists it once); returns the work units counted.
-        private int EvaluateSensor(Entity entity, ref SensorEvalState evalState, out bool keyed)
+        // READS only (the solver's thread): the sensor, its eval state after an epoch or structure reset, its kind, its share key.
+        private void Prepare(SolveSlot slot, Entity entity)
         {
             var repo = _currentRepo;
-            keyed = false;
-
             ref readonly var sensor = ref repo.GetComponentRO<EqsSensor>(entity);
+            slot.Sensor    = entity;
+            slot.Data      = sensor;
+            slot.Had       = repo.HasComponent<SensorEvalState>(entity);
+            slot.Eval      = slot.Had ? repo.GetComponentRO<SensorEvalState>(entity)
+                                      : new SensorEvalState { Phase = EqsEvalPhase.Idle, CurrentEpoch = sensor.Epoch };
+            slot.Outcome   = SolveOutcome.None;
+            slot.Cursor    = default;
+            slot.HashReset = false;
+            slot.Shareable = false;
+            slot.Template  = default;
 
             // --- the wire key: the ONE rule (EqsSensorKey) ---
             // A child whose parent is gone or local-only is not solved; a purely local sensor (offline / editor) is keyed
             // (0, its entity index) — the local path EqsResultUpdateSystem matches.
-            var kind = EqsSensorKey.Resolve(repo, entity, out int parentNetworkId, out int localChildIndex, out _);
-            if (kind == EqsSensorKeyKind.None) return 0;
-            if (kind == EqsSensorKeyKind.LocalOnly) localChildIndex = entity.Index;
-            keyed = true;
+            var kind = EqsSensorKey.Resolve(repo, entity, out slot.ParentNetworkId, out slot.LocalChildIndex, out _);
+            if (kind == EqsSensorKeyKind.None) { slot.Kind = SlotKind.NotKeyed; return; }
+            if (kind == EqsSensorKeyKind.LocalOnly) slot.LocalChildIndex = entity.Index;
 
             // Reset on epoch change (sensor parameters changed -> discard in-flight raycasts).
             // Preserve CurrentStructureHash so a soft reset does not trigger a spurious hard reset,
             // and preserve LastPublishedTopK so the ScoreDelta publish policy is not defeated after the new
             // epoch's first answer (a soft reset keeps publish-suppression state; PublishedThisEpoch resets, so
             // that first answer always goes out). The schedule fields are kept (they are the caller's).
-            if (evalState.CurrentEpoch != sensor.Epoch)
+            if (slot.Eval.CurrentEpoch != sensor.Epoch)
             {
-                evalState = new SensorEvalState
+                slot.Eval = new SensorEvalState
                 {
                     Phase                = EqsEvalPhase.Idle,
                     CurrentEpoch         = sensor.Epoch,
-                    CurrentStructureHash = evalState.CurrentStructureHash,
-                    LastPublishedTopK    = evalState.LastPublishedTopK,
-                    LastSolvedTick       = evalState.LastSolvedTick,
-                    LastCost             = evalState.LastCost,
+                    CurrentStructureHash = slot.Eval.CurrentStructureHash,
+                    LastPublishedTopK    = slot.Eval.LastPublishedTopK,
+                    LastSolvedTick       = slot.Eval.LastSolvedTick,
+                    LastCost             = slot.Eval.LastCost,
                 };
             }
 
             // ⭐ CE-3072 B3 (R-213) — a danger-area sensor is not a ranked query: route + terrain → areas, on its own result path
             //   (DangerAreaResultEvent). 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7.
-            if (sensor.BlueprintId == Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.TemplateId)
-            {
-                long td = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
-                SolveDangerArea(entity, parentNetworkId, localChildIndex, in sensor);
-                Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Danger, td);
-                evalState.Phase = EqsEvalPhase.Idle;
-                return EqsCost.Sensor + EqsCost.Path;
-            }
+            if (sensor.BlueprintId == Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.TemplateId) { slot.Kind = SlotKind.DangerArea; return; }
 
             // ⭐ CE-3249 (R-2037, WS-1) — a WorldSurvey sensor is not a ranked query either: geometry asked of this node's live world,
             //   answered on its own result path (WorldSurveyResultEvent). 📄 docs/DESIGN_World_Survey_Sensor.md.
-            if (sensor.BlueprintId == Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.TemplateId)
-            {
-                long ts = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
-                int surveyCost = SolveWorldSurvey(entity, parentNetworkId, localChildIndex, in sensor);
-                Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Survey, ts);
-                evalState.Phase = EqsEvalPhase.Idle;
-                return surveyCost;
-            }
+            if (sensor.BlueprintId == Fdp.Toolkit.Perception.Survey.WorldSurveyChildSensor.TemplateId) { slot.Kind = SlotKind.WorldSurvey; return; }
 
             // Try to look up the template from the registry singleton.
             IEqsTemplateRegistry? registry = repo.HasSingletonManaged<IEqsTemplateRegistry>()
                 ? repo.GetSingletonManaged<IEqsTemplateRegistry>()
                 : null;
-
             if (registry == null || !registry.TryGetTemplate(sensor.BlueprintId, out var template))
             {
-                // No registry or unknown template: Phase 1 stub fallback (empty result).
-                PublishEmpty(entity, parentNetworkId, localChildIndex, sensor.Epoch);
-                return 0;
+                slot.Kind = SlotKind.NoTemplate;   // Phase 1 stub fallback (empty result)
+                return;
             }
+            slot.Template = template;
 
             // Hard-reset: detect structural hot-reload by comparing template's StructureHash
-            // against what the SensorEvalState recorded on last evaluation.
+            // against what the SensorEvalState recorded on last evaluation. (The cognitive buffer's reset is a write: Commit.)
             ulong liveHash = template.ComputeStructureHash();
-            if (liveHash != 0 && evalState.CurrentStructureHash != liveHash)
+            if (liveHash != 0 && slot.Eval.CurrentStructureHash != liveHash)
             {
-                evalState.Phase                = EqsEvalPhase.Idle;
-                evalState.PendingRaycastCount  = 0;
-                evalState.CurrentStructureHash = liveHash;
-                if (repo.HasComponent<EqsCognitiveBuffer>(entity))
-                {
-                    ref var buffer = ref repo.GetComponentRW<EqsCognitiveBuffer>(entity);
-                    buffer.LastUpdateTick = 0;
-                }
+                slot.HashReset                   = true;
+                slot.Eval.Phase                  = EqsEvalPhase.Idle;
+                slot.Eval.PendingRaycastCount    = 0;
+                slot.Eval.CurrentStructureHash   = liveHash;
             }
 
             // Phase skip-guard: avoid re-generating candidates on the same tick that raycasts were
             // submitted, and reset to Idle on subsequent ticks so the next EQS cycle picks up the
             // ring-buffer results.  A pure early-return (no reset) would strand the sensor in
             // _AwaitingRaycasts indefinitely because nothing else resets the phase.
-            if (evalState.Phase == EqsEvalPhase._AwaitingRaycasts)
-            {
-                // Same tick as submission: nothing to do. Subsequent tick: back to Idle so the full pipeline re-runs and
-                // reads the ring-buffer results that arrived since the submission.
-                if (evalState.AwaitingSinceTick != _currentTick) evalState.Phase = EqsEvalPhase.Idle;
-                return 0;
-            }
+            if (slot.Eval.Phase == EqsEvalPhase._AwaitingRaycasts) { slot.Kind = SlotKind.AwaitingRays; return; }
 
-            // ⭐ CE-3056 — a twin of a query already answered THIS tick copies that answer, then goes through its OWN publish
-            //   policy and epoch (§5.6). Only a completed answer is ever stored, so a copy is never a half-solved one.
-            bool shareable = TryShareKey(entity, in sensor, out var shareKey);
-            if (shareable && _shared.TryGetValue(shareKey, out var sharedAnswer))
-            {
-                evalState.Phase = EqsEvalPhase.Idle;
-                LastSharedCopies++;
-                if (sharedAnswer.Length == 0) PublishEmpty(entity, parentNetworkId, localChildIndex, sensor.Epoch);
-                else WriteResultsToPoolAndPublish(parentNetworkId, localChildIndex, sensor.Epoch, ref evalState, in sensor, sharedAnswer.AsSpan());
-                return EqsCost.Cheap;
-            }
+            slot.Kind = SlotKind.Ranked;
+            slot.Shareable = TryShareKey(entity, in sensor, out slot.ShareKey);
+            if (slot.Buffer.Length < template.MaxCandidates) slot.Buffer = new EqsResult[Math.Max(template.MaxCandidates, slot.Buffer.Length * 2)];
+        }
 
-            // 1. Generation.
-            Span<EqsResult> candidates = stackalloc EqsResult[template.MaxCandidates];
+        // ⭐ CE-3427 P-1 — a RANKED sensor's solve: PURE (reads the snapshot, writes only the slot), so it may run on any thread and be
+        //   discarded. Generate → filter → score → rank; the hearing cursor is held (AcousticPerception.BeginDeferredCursor).
+        private void Solve(SolveSlot slot)
+        {
+            ref readonly var template = ref slot.Template;
+            var entity = slot.Sensor;
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — one sensor's whole solve
+            long b0 = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
             var templateGen = template.Generator;
-            _templateSlot = Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.template", template.BlueprintId, templateGen);   // ⭐ CE-3427 — RunSensor closes it
+            int templateSlot = Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.template", template.BlueprintId, templateGen);
+            Solve(slot, in template, entity);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sensor, t0, b0);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(templateSlot, t0, b0);   // a ranked template's solve, by template
+        }
+
+        private void Solve(SolveSlot slot, in EqsQueryTemplate template, Entity entity)
+        {
+            // 1. Generation.
+            var candidates = slot.Buffer.AsSpan(0, template.MaxCandidates);
             long tg = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
             long bg = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
-            int count = template.Generator.Generate(entity, ref Unsafe.AsRef(in sensor), repo, candidates);
-            Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.gen", templateGen.GetType()), tg, bg);
+            Fdp.Toolkit.Perception.Sensors.AcousticPerception.BeginDeferredCursor();
+            int count;
+            try { count = template.Generator.Generate(entity, ref slot.Data, _currentRepo, candidates); }
+            finally { slot.Cursor = Fdp.Toolkit.Perception.Sensors.AcousticPerception.EndDeferredCursor(); }
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.gen", template.Generator.GetType()), tg, bg);
             if (count < 0)
             {
                 // Not evaluable yet (IEqsGenerator contract): publish NOTHING, so the reader keeps
                 // waiting rather than reading an empty result as "nothing there".
-                return 0;
+                slot.Outcome = SolveOutcome.NotEvaluable;
+                slot.Cost    = 0;
+                return;
             }
             int cost = EqsCost.Sensor + (count * EqsCost.Candidate);
             if (count == 0)
             {
                 // Nothing generated: still publish an empty event so Brain's IsReady ticks.
-                if (shareable) _shared[shareKey] = Array.Empty<EqsResult>();
-                PublishEmpty(entity, parentNetworkId, localChildIndex, sensor.Epoch);
-                return cost;
+                slot.Outcome = SolveOutcome.Empty;
+                slot.Cost    = cost;
+                return;
             }
 
             var activeCandidates = candidates.Slice(0, count);
 
             // 2–3. FilterCheap, then FilterExpensive — ⭐ CE-3143: the shared pipeline (EqsFilters.Run), so the map's EQS verdict runs the same.
-            cost += EqsFilters.Run(in template, entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
+            cost += EqsFilters.Run(in template, entity, ref slot.Data, _currentView, activeCandidates);
 
             // 4. Compact rejected (-1L) candidates BEFORE cheap scoring so scoring tests never
             //    see rejection sentinels. Do NOT truncate here: no scoring has run yet, so the
@@ -367,7 +481,7 @@ namespace Hrot.SimHost.Systems
                 {
                     long tt = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
                     long bt = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
-                    test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
+                    test.ExecuteBatch(entity, ref slot.Data, _currentView, activeCandidates);
                     Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt, bt);
                     cost += EqsCost.Charged(test, activeCandidates.Length);   // ⭐ CE-3279 (c) — after the batch
                 }
@@ -383,10 +497,11 @@ namespace Hrot.SimHost.Systems
                 {
                     long tt = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
                     long bt = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
-                    test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
+                    test.ExecuteBatch(entity, ref slot.Data, _currentView, activeCandidates);
                     Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt, bt);
                     cost += EqsCost.Charged(test, activeCandidates.Length);   // ⭐ CE-3279 (c) — after the batch
                 }
+            slot.Cost = cost;
 
             // Check if any candidate has FlagPendingRay set.
             // If so, yield without writing to pool — wait for ring buffer results.
@@ -398,27 +513,117 @@ namespace Hrot.SimHost.Systems
             {
                 if ((activeCandidates[i].Flags & AccurateLineOfSightTest.FlagPendingRay) != 0)
                 {
-                    evalState.Phase             = EqsEvalPhase._AwaitingRaycasts;
-                    evalState.AwaitingSinceTick = _currentTick;
-                    return cost; // DO NOT publish EqsResultEvent while awaiting raycasts.
+                    slot.Outcome = SolveOutcome.AwaitingRays;   // DO NOT publish EqsResultEvent while awaiting raycasts.
+                    return;
                 }
             }
 
-            // All raycasts resolved (or no AccurateLOS test in template): proceed to sort + write.
-            evalState.Phase = EqsEvalPhase.Idle;
-
             // 9. Final sort descending by Score.
             MemoryExtensions.Sort(activeCandidates, (a, b) => b.Score.CompareTo(a.Score));
+            slot.Count   = activeCandidates.Length;   // CompactRejected / TruncateTopK keep the answer at the buffer's start
+            slot.Outcome = SolveOutcome.Answer;
+        }
+
+        // EVERY write of one sensor, on the solver's thread, in schedule order: what EvaluateSensor did after the solve. Returns the work units.
+        private int Commit(SolveSlot slot, out bool keyed)
+        {
+            keyed = slot.Kind != SlotKind.NotKeyed;
+            var entity = slot.Sensor;
+            switch (slot.Kind)
+            {
+                case SlotKind.NotKeyed:
+                    return 0;
+                case SlotKind.DangerArea:
+                {
+                    long td = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+                    SolveDangerArea(entity, slot.ParentNetworkId, slot.LocalChildIndex, in slot.Data);
+                    Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Danger, td);
+                    slot.Eval.Phase = EqsEvalPhase.Idle;
+                    return EqsCost.Sensor + EqsCost.Path;
+                }
+                case SlotKind.WorldSurvey:
+                {
+                    long ts = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+                    int surveyCost = SolveWorldSurvey(entity, slot.ParentNetworkId, slot.LocalChildIndex, in slot.Data);
+                    Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Survey, ts);
+                    slot.Eval.Phase = EqsEvalPhase.Idle;
+                    return surveyCost;
+                }
+                case SlotKind.NoTemplate:
+                    PublishEmpty(entity, slot.ParentNetworkId, slot.LocalChildIndex, slot.Data.Epoch);
+                    return 0;
+            }
+
+            if (slot.HashReset && _currentRepo.HasComponent<EqsCognitiveBuffer>(entity))
+            {
+                ref var buffer = ref _currentRepo.GetComponentRW<EqsCognitiveBuffer>(entity);
+                buffer.LastUpdateTick = 0;
+            }
+
+            if (slot.Kind == SlotKind.AwaitingRays)
+            {
+                // Same tick as submission: nothing to do. Subsequent tick: back to Idle so the full pipeline re-runs and
+                // reads the ring-buffer results that arrived since the submission.
+                if (slot.Eval.AwaitingSinceTick != _currentTick) slot.Eval.Phase = EqsEvalPhase.Idle;
+                return 0;
+            }
+
+            // ⭐ CE-3056 — a twin of a query already answered THIS tick copies that answer, then goes through its OWN publish
+            //   policy and epoch (§5.6). Only a completed answer is ever stored, so a copy is never a half-solved one.
+            if (slot.Shareable && _shared.TryGetValue(slot.ShareKey, out var sharedAnswer))
+            {
+                slot.Eval.Phase = EqsEvalPhase.Idle;
+                LastSharedCopies++;
+                if (sharedAnswer.Count == 0) PublishEmpty(entity, slot.ParentNetworkId, slot.LocalChildIndex, slot.Data.Epoch);
+                else WriteResultsToPoolAndPublish(slot.ParentNetworkId, slot.LocalChildIndex, slot.Data.Epoch, ref slot.Eval, in slot.Data,
+                                                  sharedAnswer.Buffer.AsSpan(0, sharedAnswer.Count));
+                return EqsCost.Cheap;
+            }
+
+            if (slot.Outcome == SolveOutcome.None) Solve(slot);   // not solved ahead: solve it here, as before the split
+            Fdp.Toolkit.Perception.Sensors.AcousticPerception.WriteCursor(_currentCmd, in slot.Cursor);   // ⭐ the hearing cursor, at commit
+
+            switch (slot.Outcome)
+            {
+                case SolveOutcome.NotEvaluable:
+                    return 0;
+                case SolveOutcome.Empty:
+                    if (slot.Shareable) _shared[slot.ShareKey] = new SharedAnswer(Array.Empty<EqsResult>(), 0);
+                    PublishEmpty(entity, slot.ParentNetworkId, slot.LocalChildIndex, slot.Data.Epoch);
+                    return slot.Cost;
+                case SolveOutcome.AwaitingRays:
+                    slot.Eval.Phase             = EqsEvalPhase._AwaitingRaycasts;
+                    slot.Eval.AwaitingSinceTick = _currentTick;
+                    return slot.Cost;
+            }
+
+            // All raycasts resolved (or no AccurateLOS test in template): the answer.
+            slot.Eval.Phase = EqsEvalPhase.Idle;
+            var answer = slot.Buffer.AsSpan(0, slot.Count);
 
             // ⭐ CE-3037 — the memory stage sees every answer, published or suppressed (a ScoreDelta that did not move is
             //   still a sighting).
-            _memory.Observe(_currentView, entity, _currentTick, activeCandidates);
+            _memory.Observe(_currentView, entity, _currentTick, answer);
 
-            if (shareable) _shared[shareKey] = activeCandidates.ToArray();
+            if (slot.Shareable) _shared[slot.ShareKey] = new SharedAnswer(ShareCopy(answer), answer.Length);
 
             // 10. Write to pool and publish (updates LastPublishedTopK / PublishedThisEpoch).
-            WriteResultsToPoolAndPublish(parentNetworkId, localChildIndex, sensor.Epoch, ref evalState, in sensor, activeCandidates);
-            return cost;
+            WriteResultsToPoolAndPublish(slot.ParentNetworkId, slot.LocalChildIndex, slot.Data.Epoch, ref slot.Eval, in slot.Data, answer);
+            return slot.Cost;
+        }
+
+        // ⭐ CE-3427 P-1 — this tick's shared answers live in buffers reused tick after tick (the memo used to allocate one per answer).
+        private readonly List<EqsResult[]> _shareBuffers = new();
+        private int _shareUsed;
+
+        private EqsResult[] ShareCopy(ReadOnlySpan<EqsResult> answer)
+        {
+            if (_shareUsed == _shareBuffers.Count) _shareBuffers.Add(new EqsResult[Math.Max(answer.Length, 16)]);
+            var buffer = _shareBuffers[_shareUsed];
+            if (buffer.Length < answer.Length) _shareBuffers[_shareUsed] = buffer = new EqsResult[answer.Length];
+            _shareUsed++;
+            answer.CopyTo(buffer);
+            return buffer;
         }
 
         // ⭐ CE-3056 — a QUERY sensor (no SensorTag, no SensorCapability) with a PLACED self is shareable: a perception sensor's

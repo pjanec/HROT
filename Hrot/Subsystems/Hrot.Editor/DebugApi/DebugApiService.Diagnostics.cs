@@ -272,6 +272,48 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3427</c> N-1 — <c>GET /diagnostics/egress</c> (and <c>POST</c> with <c>{"mode": "offframe" | "onframe"}</c>): the off-frame
+        /// state egress of every world in this process that has one (docs/DESIGN_Egress_Change_Detection.md §7 — the SimHost's). A POST sets
+        /// the REQUESTED mode on each; it takes effect at that world's next join (the start of its next Export). An experiment, off by default.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) EgressPipelines(JsonNode? body, bool post)
+        {
+            Fdp.Network.Cyclone.Egress.EgressMode? mode = null;
+            if (post)
+            {
+                var m = body?["mode"]?.GetValue<string>();
+                if (string.Equals(m, "offframe", StringComparison.OrdinalIgnoreCase)) mode = Fdp.Network.Cyclone.Egress.EgressMode.OffFrame;
+                else if (string.Equals(m, "onframe", StringComparison.OrdinalIgnoreCase)) mode = Fdp.Network.Cyclone.Egress.EgressMode.OnFrame;
+                else return (null, "mode (offframe | onframe) is required: {\"mode\": \"offframe\"}.", DebugApiHints.Panel);
+            }
+            var list = new JsonArray();
+            if (_dispatcher != null)
+                foreach (var p in _dispatcher.AllProviders)
+                {
+                    if (p.World is not { } world || !Fdp.Network.Cyclone.Egress.EgressPipeline.TryGet(world, out var pipe)) continue;
+                    if (mode is { } wanted) pipe.RequestedMode = wanted;
+                    list.Add(new JsonObject
+                    {
+                        ["subsystem"]      = p.SubsystemName,
+                        ["mode"]           = pipe.Mode.ToString(),
+                        ["requested"]      = pipe.RequestedMode.ToString(),
+                        ["translators"]    = pipe.TranslatorCount,
+                        ["workers"]        = pipe.Workers,
+                        ["scans"]          = pipe.Scans,
+                        ["faults"]         = pipe.Faults,
+                        ["lastScanMs"]     = Math.Round(pipe.LastScanMs, 3),
+                        ["lastJoinWaitMs"] = Math.Round(pipe.LastJoinWaitMs, 3),
+                        ["lastSyncMs"]     = Math.Round(pipe.LastSyncMs, 3),
+                    });
+                }
+            return (new JsonObject
+            {
+                ["pipelines"] = list,
+                ["note"]      = "A world with no pipeline (any node but the SimHost) always egresses on the frame. FDP_EGRESS_OFFFRAME=1 is the start-up default.",
+            }, null, null);
+        }
+
+        /// <summary>
         /// <c>GET /diagnostics/architecture[?subsystem=SimHost]</c> — this node's modules, systems and
         /// translators, per subsystem.
         /// </summary>

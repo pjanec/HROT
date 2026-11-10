@@ -69,6 +69,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                         {
                             RouteHandle         = evt.RouteHandle,
                             NavmeshVersion      = (uint)evt.NavmeshVersionAtPlan,
+                            TileSequence        = evt.TileSequenceAtPlan,
                             CurrentSegmentIndex = 0,
                             TotalSegmentCount   = 1,
                             TotalDistance       = evt.TotalDistanceMeters,

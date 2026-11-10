@@ -388,9 +388,20 @@ namespace Fdp.ModuleHost.Scheduling
                     }
                 }
             }
-            
+
+            // ⭐ CE-3427 N-1 — a system marked [UpdateLastInPhase] runs after every system of the phase that is not marked too
+            for (int i = 0; i < systems.Count; i++)
+            {
+                if (!IsLast(systems[i])) continue;
+                for (int j = 0; j < systems.Count; j++)
+                    if (j != i && !IsLast(systems[j])) graph.AddEdge(systems[j], systems[i]);
+            }
+
             return graph;
         }
+
+        private static bool IsLast(IEcsModuleSystem system)
+            => Attribute.IsDefined(system.GetType(), typeof(UpdateLastInPhaseAttribute), inherit: true);
         
         private List<IEcsModuleSystem>? TopologicalSort(DependencyGraph graph)
         {

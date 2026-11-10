@@ -77,6 +77,47 @@ namespace CarKinem.Systems
         /// </summary>
         public const float NoProgressLimitSeconds = 4f;
 
+        // ── ⭐ CE-4391 S-3 (UTM §8.1 P3-b) — the stale-path check ─────────────────────────────────────────────
+
+        private readonly CarKinem.Trajectory.TrajectoryPoolManager? _pool;
+
+        /// <param name="trajectoryPool">The pool the solver registers paths in. With it the system replans a path whose tiles a rebake changed (P3-b); without, it behaves as before.</param>
+        public NavigationExecutionSystem(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _pool = trajectoryPool;
+
+        /// <summary>Paths this system asked to replan because a tile they cross changed (rails / diagnostics).</summary>
+        public long TileReplans { get; private set; }
+
+        /// <summary>How far apart (as a share of the tile edge) a path is sampled for the tiles it crosses: a quarter tile, so no tile it passes through is skipped.</summary>
+        public const float TileSampleShare = 0.25f;
+
+        /// <summary>
+        /// ⭐ True when a tile of <paramref name="traj"/>'s REMAINING path (from <paramref name="progress"/>) has a version newer than <paramref name="sinceSequence"/>, i.e. a rebake changed
+        /// it after the path was planned. Samples the polyline every <see cref="TileSampleShare"/> of a tile. Zero allocation.
+        /// </summary>
+        public static bool CrossesChangedTile(in CarKinem.Trajectory.CustomTrajectory traj, float progress, INavmeshTileVersions tiles, uint sinceSequence)
+        {
+            float metres = tiles.TileMetres;
+            if (metres <= 0f || sinceSequence >= tiles.ChangeSequence) return false;
+            int n = traj.Waypoints.Length;
+            if (n < 2) return false;
+            float step = metres * TileSampleShare;
+            int i0 = 0;
+            while (i0 + 1 < n && traj.Waypoints[i0 + 1].CumulativeDistance < progress) i0++;   // the segment holding the progress
+            for (int i = i0; i + 1 < n; i++)
+            {
+                var a = traj.Waypoints[i].Position; var b = traj.Waypoints[i + 1].Position;
+                float len = MathF.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y));
+                int k = Math.Max(1, (int)MathF.Ceiling(len / step));
+                for (int s = (i == i0 ? 0 : 1); s <= k; s++)
+                {
+                    float t = (float)s / k;
+                    int tx = (int)MathF.Floor((a.X + (b.X - a.X) * t) / metres), tz = (int)MathF.Floor((a.Y + (b.Y - a.Y) * t) / metres);
+                    if (tiles.TileVersion(tx, tz) > sinceSequence) return true;
+                }
+            }
+            return false;
+        }
+
         // ── OnUpdate ───────────────────────────────────────────────────────────────────────────
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -89,6 +130,11 @@ namespace CarKinem.Systems
                 throw new InvalidOperationException(
                     $"{nameof(NavigationExecutionSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            // ⭐ CE-4391 S-3 — the navmesh's tile change sequence, read ONCE a frame (0 = no tile versions / none changed ever: the check below never runs)
+            var tileVersions = _pool != null && repo.HasSingletonManaged<INavmeshProvider>() ? repo.GetSingletonManaged<INavmeshProvider>() as INavmeshTileVersions : null;
+            uint tileSequence = tileVersions?.ChangeSequence ?? 0u;
+            bool corridorRegistered = tileSequence != 0 && repo.IsComponentTypeRegistered<NavigationCorridorMuscle>();
 
             var query = repo.Query()
                 .With<NavigationIntent>()
@@ -197,6 +243,25 @@ namespace CarKinem.Systems
                     frustration.Ticks = 0;
                     repo.SetComponent(entity, frustration);
                     continue;
+                }
+
+                // ── ⭐ CE-4391 S-3 (P3-b) — a path whose tiles a rebake changed is replanned (the ONE replan, RequestReplan) ──────
+                //   One integer compare per moving entity a frame; the path is walked only when the sequence moved past the one it was planned (or last checked) at.
+                if (corridorRegistered && intent.Mode == NavMode.PathToPoint && repo.HasComponent<NavigationCorridorMuscle>(entity))
+                {
+                    ref readonly var corridor = ref repo.GetComponentRO<NavigationCorridorMuscle>(entity);
+                    if (corridor.TileSequence != 0 && corridor.TileSequence < tileSequence)
+                    {
+                        uint planned = corridor.TileSequence;
+                        repo.GetComponentRW<NavigationCorridorMuscle>(entity).TileSequence = tileSequence;   // judged for this sequence: not again until it moves
+                        if (repo.HasComponent<NavState>(entity) && _pool!.TryGetTrajectory(repo.GetComponentRO<NavState>(entity).TrajectoryId, out var path)
+                            && CrossesChangedTile(in path, progressAtThisTick, tileVersions!, planned))
+                        {
+                            RequestReplan(repo, entity, in intent, ref status, tf.Position);
+                            TileReplans++;
+                            continue;
+                        }
+                    }
                 }
 
                 // ── Frustration guard ─────────────────────────────────────────────────────────

@@ -400,7 +400,8 @@ def main():
                 "peak_gb": round((proc.get("peakWorkingSetBytes") or 0) / 2**30, 2), "heap_gb": round((proc.get("managedHeapBytes") or 0) / 2**30, 2),
                 "gc": [proc.get("gen0"), proc.get("gen1"), proc.get("gen2")], "entities": st.get("entityCount"),
                 "top_ms": [[round(ms, 2), n] for ms, _, n in top[:8]], "top_b": [[round(b), n] for b, n in gtop[:8] if b > 0],
-                "queries": queries(port, (frames - f1[port]) / max(1e-6, w2 - w1), a.queries)}
+                "queries": queries(port, (frames - f1[port]) / max(1e-6, w2 - w1), a.queries),
+                "egress": egress(port, 10)}
         nodes = {m: n for m, n in report["nodes"].items() if m != "orchestrator"}
         report["worst"] = {"work_ms": max(n["work_ms"] for n in nodes.values()), "garbage_b": max(n["garbage_b"] for n in nodes.values()),
                            "peak_gb": max(n["peak_gb"] for n in report["nodes"].values())}
@@ -433,6 +434,20 @@ def queries(port, fps, n):
     return rows
 
 
+def egress(port, n):
+    """⭐ CE-3427 N-1 — the node's egress by translator (each egress system profiles its translators' ScanAndPublish, CE-3242):
+    [total ms per frame, [[ms per frame, samples sent so far, topic, system], …] for the n most expensive]."""
+    d = ps.get(port, "/diagnostics/architecture") or {}
+    rows = []
+    for sub in d.get("subsystems") or []:
+        for t in sub.get("translators") or []:
+            if "Egress" not in (t.get("systemName") or ""):
+                continue
+            rows.append([round(t.get("recentAvgMs") or 0.0, 3), t.get("sentSamples") or 0, t.get("topic") or "?", t.get("systemName")])
+    rows.sort(key=lambda x: -x[0])
+    return [round(sum(x[0] for x in rows), 2), rows[:n]]
+
+
 def print_table(r):
     b = r["budget"]
     print(f"\n== {r['terrain']}: {r['men']} men, {r['vehicles']} vehicles, {r['aircraft']} aircraft, {r['sides']} side(s) ({r['build']}, {r['machine']}) — "
@@ -445,6 +460,11 @@ def print_table(r):
             print(f"        {ms:8.2f} ms  {s}")
         for by, s in n["top_b"][:3]:
             print(f"        {by:8d} B   {s}")
+        if n.get("egress") and n["egress"][1]:
+            total, rows = n["egress"]
+            print(f"        {'egress by translator (total ' + format(total, '.2f') + ' ms/frame)':<44}{'ms/frame':>10}{'sent':>13}")
+            for ms, sent, topic, sysname in rows:
+                print(f"        {topic:<44}{ms:>10.3f}{sent:>13}")
         if n.get("queries"):
             print(f"        {'world queries':<44}{'ms/frame':>10}{'calls/frame':>13}{'avg µs':>10}{'max µs':>10}{'KB/frame':>10}")
             for ms, calls, avg, mx, name, by in n["queries"]:

@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// for all locally-owned entities and publishes a DDS <see cref="Hrot.NED.Descriptors.NavigationStatus"/>
     /// sample for each when the status changes.
     /// </summary>
-    public sealed class NavigationStatusEgressTranslator : IDescriptorTranslator
+    public sealed class NavigationStatusEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // â”€â”€ DDS writer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -71,7 +71,20 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (_instances.OnFrame(view)) _lastPublished.Clear();   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3); the change cache restarts with it
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — on the live world, in the egress system's slot (the bus and the world epoch are the live world's).</summary>
+        public void BeginFrame(ISimulationView live)
+        {
+            if (_instances.OnFrame(live)) _lastPublished.Clear();   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3); the change cache restarts with it
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the scan: reads only <paramref name="view"/> (it may be the off-frame replica); the change cache is this
+        /// translator's own, touched by <see cref="Dispose"/> only on the main thread after the join.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             var query = view.Query()
                 .With<EcsNavigationStatus>()
                 .DefaultRoutePublishable()

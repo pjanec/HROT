@@ -75,7 +75,8 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
     public INavmeshProvider? Build(TerrainWorld world)
     {
         var meshes = BakeMeshes(world, out var doorways);
-        return meshes == null || meshes.Count == 0 ? null : new DotRecastNavmeshProvider(meshes, world, doorways);
+        return meshes == null || meshes.Count == 0 ? null
+            : new DotRecastNavmeshProvider(meshes, world, doorways) { TileMetres = TileMetres, TileKeys = _lastTileKeys };
     }
 
     /// <summary>
@@ -90,6 +91,8 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
         provider.Rebake(meshes, world, doorways);
         return true;
     }
+
+    private IReadOnlyDictionary<long, ulong> _lastTileKeys = new Dictionary<long, ulong>();
 
     private Dictionary<NavLayerMask, DotRecast.Detour.DtNavMesh>? BakeMeshes(TerrainWorld world, out IReadOnlyList<NavDoorways.Volume> doorways)
     {
@@ -113,6 +116,7 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
         }
         var meshes = baker.Bake(source, Layers, volumes, FineAreas(world));
         LastStats = baker.LastStats;
+        _lastTileKeys = baker.LastTileKeys;   // ⭐ CE-4391 S-3 (P3-a)
         var st = LastStats;
         Fdp.Core.Logging.FdpLog<RecastNavmeshFactory>.Info(
             $"[Navmesh] '{world.Name}': {st.Tiles} tiles ({st.FineTiles} fine) — {st.Baked} baked, {st.FromCache} from the cache, {st.Milliseconds} ms.");

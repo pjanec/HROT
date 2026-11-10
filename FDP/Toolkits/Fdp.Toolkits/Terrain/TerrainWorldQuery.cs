@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ <c>CE-3219</c> part 3 — the query for <paramref name="world"/> as <paramref name="view"/> sees it: its doors (R-219) and
         /// its clouds. The one place both are read, so every sight caller gets the same answer.</summary>
         public static TerrainWorldQuery ForView(Fdp.ModuleHost.Abstractions.ISimulationView view, TerrainWorld world)
-            => For(world, world.Doors.Count > 0 ? DoorStates.Of(view, world) : null, Fdp.Toolkit.Combat.AreaEffectClouds.Of(view));
+            => For(world, world.HasLiveState ? DoorStates.Of(view, world) : null, Fdp.Toolkit.Combat.AreaEffectClouds.Of(view));
 
         public float GroundHeightAt(float x, float y) => World.GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — the height grid, else the flat ground
 
