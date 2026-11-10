@@ -100,6 +100,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>1 while a move this node issued runs · 1 = the withdraw mode resolved to Scoot · 1 while waiting for a hide ·
         /// ⭐ CE-2230 1 once a lane exposure creeps (past the approach).</summary>
         public byte Moving, Scoot, Waiting, Creeping, Told;
+        /// <summary>⭐ R-2086 (A) — this exposure began with the INITIATIVE: I saw the target before any dangerous threat could see me
+        /// (<c>SeenSince</c> was still 0 when I arrived or stopped on first sight) ⇒ the budget never cuts it below my own aim + a margin.</summary>
+        public byte Initiative;
         public Vector3 HidePoint, FiringPoint;
         public EqsSensorHandle HideSensor, FiringSensor;
         /// <summary>What both sensors are pointed at.</summary>
@@ -184,6 +187,17 @@ namespace Hrot.AI.Behaviors.Brains
         /// when it arrives (within <see cref="ArrivalRadius"/>) without seeing its target. 📐 Live <c>ua-technical-scoot</c>: the ATGM technical
         /// stopped 2 m short of (170, 270.2), behind the block's corner — the tank only REPORTED — watched 8 s, scooted, never fired.</summary>
         public const float FiringCreepMetres = 8f;
+
+        /// <summary>⭐ R-2086 (A) — the margin over the shooter's own aim time an exposure with the initiative is never cut below (s).</summary>
+        public const float FireOnceMarginSeconds = 0.5f;
+
+        /// <summary>⭐ R-2086 (A) — my own aim time: the primary weapon's (my own gun, else the weapon system I control — the technical's
+        /// Kornet), from its TKB mount; the engine fallback when it declares none.</summary>
+        internal static float OwnAimSeconds(EntityRepository world, Entity self)
+        {
+            var gun = Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(world, self);
+            return AimAndFireExecutor.AimSecondsFor(world, gun.IsNull ? self : gun, 0);
+        }
 
         /// <summary>⭐ CE-2230 — a lane exposure (<see cref="VehicleFightFromCoverParams.LaneDir"/> ≠ 0).</summary>
         public static bool Lane(in VehicleFightFromCoverParams p) => p.LaneDir.LengthSquared() > 1e-6f;
@@ -400,6 +414,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Waiting = 0;
             ws.FiringPoint = firing;
             ws.Creeping = 0;   // ⭐ CE-4136 — a fresh drive-out
+            ws.Initiative = 0;   // ⭐ R-2086 — decided again on arrival
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius, source: MoveSource.CoverSearch) ? 1 : 0);   // T3 — front first
             ws.SeenSince = (SimInstant)0;   // CE-2216 — this exposure's clock starts on the way out
             ws.Phase = VehiclePhase.Exposing;
@@ -436,6 +451,11 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2216 — a clock started on the drive out keeps running (the threat has been locking since); the budget is the tighter
             float budget = Budget(in p, world, self);
             ws.Budget = ws.SeenSince > 0 ? MathF.Min(ws.Budget, budget) : budget;
+            // ⭐⭐ R-2086 (A, CE-4136 ②) — with the initiative (no dangerous threat could see me before I saw him) the exposure lasts long
+            //   enough to fire ONCE: never below my own aim time + FireOnceMarginSeconds. A threat that saw me first still sends me back at once.
+            //   📐 Live ua-technical-scoot: 0.7 × the M1's aim cut the ATGM technical to 0.56 s against its 1.5 s Kornet — it never fired.
+            ws.Initiative = (byte)(ws.SeenSince == 0 ? 1 : 0);
+            if (ws.Initiative == 1) ws.Budget = MathF.Max(ws.Budget, OwnAimSeconds(world, self) + FireOnceMarginSeconds);
             if (!StartFire(ref ws, in p, self, world, in threat))
             {
                 ws.PhaseUntil = (SimInstant)(now + p.WatchSeconds);
@@ -538,7 +558,9 @@ namespace Hrot.AI.Behaviors.Brains
         {
             bool seenByDanger = SeenByADangerousThreat(world, self, in p);
             if (!seenByDanger) ws.SeenSince = (SimInstant)0;
-            else if (ws.SeenSince == 0) ws.SeenSince = (SimInstant)now;
+            // ⭐ R-2086 (A) — with the initiative the clock counts from the moment the hull is STILL: a gun that does not fire on the move
+            //   cannot aim while it brakes (AimAndFireExecutor's HoldMoving comes before its aim clock), so braking time is not exposure spent.
+            else if (ws.SeenSince == 0 || (ws.Initiative == 1 && HitModel.IsMoving(world, self))) ws.SeenSince = (SimInstant)now;
 
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
             // the aimed-fire executor's own answer (its status row): a guided round in flight holds the gunner (W-12c) — the one reader (CE-2228)
