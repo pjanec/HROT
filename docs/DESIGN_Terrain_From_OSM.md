@@ -280,6 +280,87 @@ canvas for one dialog.
 | concave footprints and woods filled | `PolygonMath.Triangulate` (ImGui fills only convex polygons) |
 | ⭐ NEW, small | an ImGui child region: XYZ tiles from `ITileSource` laid out by zoom / pan (web-Mercator maths), an LRU of tile textures, the drag box with 8 handles, and the preview's geometry (local metres → lat/lon through the frame → screen) drawn with the draw list |
 
+### 6b. ⭐ The wizard's design — for the build *(ui, `2026-11-10`, CE-4375 W-1; build-state: BUILDING)*
+
+**INVENTORY** *(grep + reads `2026-11-10` — the graph server was not up on this VM, ⚠ so absence claims are "not found by grep")*: the modal host = `WindowManager.RegisterFrameOverlay` (6 hosts use it, e.g.
+`EditorSubsystem` `assetRenameModal.Draw`) · the New submenu = `FileMenuLayout` (`File/New/Scenario…` …) · the worker + `CancellationTokenSource` = `ReplaySearchPanel`
+(`Fdp.Presentation/ImGui/Panels/ReplayBrowser`) · PNG → texture = `Raylib.LoadImageFromMemory` + `LoadTextureFromImage` (`EmbeddedAtlasResources`) · concave fill =
+`PolygonMath.Triangulate` (`Fdp.Toolkits/Terrain`) · the colours = `TerrainPlan2D.HeightColor` (public) and its forest / water / wall fills (private ⇒ made public, read
+never copied) · local metres → lat/lon = **`Hrot.Traffic.Utm.ToGeodetic`** (already referenced by `Hrot.Presentation`; ⛔ no second UTM) · the glyphs and their
+colours = `Icons` / `IconPalette`. ⛔ Not found: any web-Mercator / XYZ tile code — the map widget's maths is new (small, pure, tested).
+
+```mermaid
+classDiagram
+  class OsmWizardServices { <<record, the editor composes>> Pipeline? Tiles? Search? Importer? TerrainsRoot InputSetRoot OpenNewScenario ShowFolder }
+  class OsmWizardModel { <<NEW · pure, no ImGui>> Step · Box GeoBox · Measure() · Options · NameState · Preview · Notes · Stages · Verdict · Failure · CanNext / NextReason · Next() Back() Cancel() Retry() Pump() }
+  class WebMercator { <<NEW · pure>> ToPixel(lat,lon,zoom) · ToGeo(px,py,zoom) }
+  class OsmMapView { <<NEW · ImGui child>> Centre · Zoom · Draw(model, layers) · box drag (8 handles) · zoom / fit · attribution }
+  class OsmTileTextures { <<NEW>> LRU of raylib textures; fetch on a worker, upload on the frame thread }
+  class OsmPreviewLayers { <<NEW>> ten toggles (C-11) }
+  class OsmTerrainWizardWindow { <<NEW · the modal>> step bar · map · right panel per step · footer }
+  class IOsmTerrainPipeline { <<existing contract>> }
+  class ITileSource { <<existing contract>> }
+  class IPlaceSearch { <<existing contract>> }
+  class ITerrainImporter { <<existing contract>> }
+  class Utm { <<existing, Hrot.Traffic>> ToGeodetic }
+  class TerrainPlan2D { <<existing>> HeightColor · ForestFill · WaterFill · WallFill }
+  class PolygonMath { <<existing>> Triangulate }
+  OsmTerrainWizardWindow --> OsmWizardModel
+  OsmTerrainWizardWindow --> OsmMapView
+  OsmMapView --> WebMercator
+  OsmMapView --> OsmTileTextures
+  OsmMapView --> OsmPreviewLayers
+  OsmMapView ..> Utm : preview metres → lat/lon
+  OsmMapView ..> TerrainPlan2D : colours
+  OsmMapView ..> PolygonMath : footprints, woods
+  OsmTileTextures --> ITileSource
+  OsmWizardModel --> IOsmTerrainPipeline
+  OsmWizardModel --> IPlaceSearch
+  OsmWizardModel ..> ITerrainImporter : optional
+  OsmWizardServices ..> OsmTerrainWizardWindow
+```
+*What the picture shows that the prose hid: the step logic is a PURE model (the state-machine rail drives it with fakes, no window); the window only draws it; the map
+widget is the one canvas of Area and Preview, and it is the only new drawing code — every colour, triangulation and projection is read from where it already lives.*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Area
+  Area --> Options : Next (box measured, no refusal, ≤ 6 km)
+  Options --> Area : Back
+  Options --> Previewing : Preview (name valid; exists ⇒ Replace ticked)
+  Previewing --> Preview : the pipeline answered
+  Previewing --> Failed : the service / stage failed
+  Failed --> Previewing : Retry
+  Failed --> Options : Back
+  Preview --> Options : Back
+  Preview --> Importing : Import (verdict not Refused)
+  Importing --> Done : finished (importer composed)
+  Importing --> InputSetOnly : finished (no importer — "not built yet")
+  Importing --> ImportFailed : a stage failed
+  ImportFailed --> Importing : Retry
+  Importing --> Preview : Cancel (temp folder discarded)
+  Done --> [*] : Open in New Scenario / close
+  InputSetOnly --> [*]
+  Area --> [*] : Cancel
+  Options --> [*] : Cancel
+  Preview --> [*] : Cancel
+```
+*What the picture shows: Cancel in Importing stops the run and returns to Preview (nothing written); Refused is not a state — it is Preview with Import greyed.*
+
+```mermaid
+graph TD
+  EDITOR["EditorSubsystem — composes OsmWizardServices from what it has"] -->|"File ▸ New ▸ Terrain from OpenStreetMap… (greyed while Pipeline is null)"| WIN[OsmTerrainWizardWindow]
+  EDITOR -->|"RegisterFrameOverlay(window.Draw) — every frame"| WIN
+  WIN -->|"Pump() every frame: the worker's results, progress, tile uploads"| MODEL[OsmWizardModel]
+  MODEL -->|"Task.Run + CancellationTokenSource"| PIPE["IOsmTerrainPipeline — coordinator's OsmTerrainPipeline (NOT on the tree yet)"]
+  MODEL -.->|"optional"| IMP["ITerrainImporter — backend CE-4368"]
+  TILES["ITileSource / IPlaceSearch — coordinator"] --> WIN
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33;
+  class PIPE,IMP,TILES dead;
+```
+*What the picture shows: the window ticks only through the frame overlay; the three red boxes are NOT on the merged tree yet — until the pipeline lands the menu item is
+greyed with its reason, and the rails drive the same window with the fakes (W-2). ⛔ No stub pipeline in production code.*
+
 ## 7. Failure and limits
 | case | behaviour |
 |---|---|
