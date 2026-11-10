@@ -68,7 +68,15 @@ namespace Fdp.Toolkit.Terrain
     {
         private readonly byte[] _states;
 
-        private DoorStates(byte[] states) => _states = states;
+        private DoorStates(byte[] states, BuildingDamageTable? damage = null) { _states = states; Damage = damage; }
+
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-1 (UTM §8.2 B-3) — the wall breaches of this view (the union of every <see cref="BuildingDamage"/> entity), or null when
+        /// it holds none. Rides here because every sight / fire / sound / path caller already passes ONE <see cref="DoorStates"/> (a second parameter
+        /// through ~30 files is the silent-default pattern). A table held by a caller keeps the breaches it was built with; the next
+        /// <see cref="Of(ISimulationView, TerrainWorld)"/> hands a new instance over the same door array when the damage changed.
+        /// </summary>
+        public BuildingDamageTable? Damage { get; }
 
         /// <summary>Door <paramref name="index"/>'s state in this view.</summary>
         public TerrainDoorState this[int index] => (TerrainDoorState)_states[index];
@@ -94,6 +102,10 @@ namespace Fdp.Toolkit.Terrain
         {
             long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427
             var r = OfCore(view, world);
+            // ⭐ CE-4391 S-1 (B-3) — the breaches of this view ride along. The door table (above) is cached on its own; the damage table has its
+            //   own stamp, so a breach written this frame forces a rebuild of IT and of nothing else, and an unchanged frame hands back the same instance.
+            var damage = world.Buildings.Count > 0 ? BuildingDamageTable.Of(view, world) : null;
+            if (!ReferenceEquals(r.Damage, damage)) r = t_last = new DoorStates(r._states, damage);   // a new instance over the SAME door array
             Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
             return r;
         }
@@ -199,9 +211,9 @@ namespace Fdp.Toolkit.Terrain
             return t_query;
         }
 
-        /// <summary>The resident terrain's doors as <paramref name="view"/> sees them, or null when no terrain is resident / it has no doors.</summary>
+        /// <summary>The resident terrain's doors (and, ⭐ CE-4391, breaches) as <paramref name="view"/> sees them, or null when no terrain is resident / it has neither doors nor buildings.</summary>
         public static DoorStates? Of(ISimulationView view)
-            => view is EntityRepository repo && repo.HasSingletonManaged<TerrainWorld>() && repo.GetSingletonManaged<TerrainWorld>() is { Doors.Count: > 0 } w
+            => view is EntityRepository repo && repo.HasSingletonManaged<TerrainWorld>() && repo.GetSingletonManaged<TerrainWorld>() is { HasLiveState: true } w
                 ? Of(view, w) : null;
     }
 }

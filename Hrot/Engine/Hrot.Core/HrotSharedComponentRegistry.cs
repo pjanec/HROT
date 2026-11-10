@@ -137,6 +137,10 @@ public static class HrotSharedComponentRegistry
         // ⭐ Buildings Stage 5b — door entities: the replicated state and the terrain-object key (§3j). Shared: every node mirrors them.
         world.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
         world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+        // ⭐ CE-4391 S-1 (UTM §8.2 B-1, B-11) — a building's breaches (dtBuildingDamage): a runtime entity its deciding node owns, replicated to every node, read
+        //   by every view's DoorStates.Damage. The event is the local "a detonation breached this wall" the deciding node's system turns into the component.
+        world.RegisterComponent<Fdp.Toolkit.Terrain.BuildingDamage>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
         // ⭐ CE-3136 P-7a — static obstacles (a parked car, a sandbag wall …): terrain every node bakes. Shared: every node derives the
         //   marker from the TKB and receives the box (EntityObstacleShape). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();

@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Combat.Systems
         private readonly List<TerrainWorld.FireCrossing> _crossings = new();   // BreachDoors — the stand-in's door list (not on the seam yet)
         private readonly List<TraceCrossing> _traces = new();                   // ⭐ CE-1035 Q1 — exposure, through IWorldQuery
         private readonly List<Vector3> _points = new(3);
+        private readonly List<int> _panels = new();                              // ⭐ CE-4391 — BreachWalls: the building panels near a burst
         private readonly float[] _shares = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];       // ⭐ CE-3212
         private readonly float[] _partDamage = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];   // ⭐ CE-3212
 
@@ -68,7 +69,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (!built)
                 {
                     terrain = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
-                    doors = terrain is { Doors.Count: > 0 } ? DoorStates.Of(repo, terrain) : null;
+                    doors = terrain is { HasLiveState: true } ? DoorStates.Of(repo, terrain) : null;   // ⭐ CE-4391 — doors OR breachable buildings
                     world = WorldQuery.Of(repo);
                     bool bullets = repo.IsComponentTypeRegistered<BallisticProjectile>();
                     _occlusion.Build(repo, PhysicsColliderReaders.Radius, PhysicsColliderReaders.BlockerHeight,   // ⭐ CE-2340 — a man lying down shields only his lying height
@@ -257,6 +258,7 @@ namespace Fdp.Toolkit.Combat.Systems
             }
 
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);
+            BreachWalls(repo, in evt, w, burst, terrain, doors, record);   // ⭐ CE-4391 S-1 (B-5) — the walls, by the same detonation
             log.Add(record);
         }
 
@@ -371,6 +373,69 @@ namespace Fdp.Toolkit.Combat.Systems
                 repo.Bus.Publish(new DoorCommandEvent { Door = door, Verb = DoorVerb.Breach, Actor = evt.Shooter });
                 record.DoorsBreached.Add(d.Key);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4391</c> S-1 (docs/DESIGN_Terrain_Import_UTM.md §8 D-4, §8.2 B-5, B-6) — the walls of a building within reach of a burst with
+        /// explosive in it are breached by <see cref="BreachRule"/> (scaled distance Z = d / ∛kg, the table's rows, the material's resistance), each as a
+        /// <see cref="BuildingDamageEvent"/> its <see cref="BuildingDamageSystem"/> writes. The line from the burst to the panel's near face must be CLEAR
+        /// (a wall behind another wall is spared). ⛔ A kinetic round (no explosive) makes none: a sabot's hole is too small to change sight or movement.
+        /// <para>⭐ The deciding point is the detonation: a round that stops at a wall bursts <c>BurstStandOffMetres</c> back along its flight
+        /// (<c>BallisticsSystem</c>), so d ≈ 0 against the wall it hit. ⭐ The panels come from <see cref="TerrainWorld.BuildingPanels"/>, never a scan of every panel.</para>
+        /// </summary>
+        private void BreachWalls(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
+            TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
+        {
+            if (terrain == null || terrain.Buildings.Count == 0 || w.ExplosiveKg <= 0f || !repo.Bus.IsRegistered<BuildingDamageEvent>()) return;
+            var table = terrain.Breaches;
+            if (w.ExplosiveKg < table.MinKg) return;
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            BreachWallsCore(repo, in evt, w, burst, terrain, table, doors, record);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_BreachWalls, t0);
+        }
+        private static readonly int S_BreachWalls = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("buildings.BreachWalls");
+
+        private void BreachWallsCore(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
+            TerrainWorld terrain, BreachTable table, DoorStates? doors, DetonationRecord record)
+        {
+            float reach = BreachRule.Reach(table, w.ExplosiveKg);
+            _panels.Clear();
+            terrain.BuildingPanels.Near(new Vector2(burst.X, burst.Y), reach + 1f, _panels);   // +1 m: a thick wall's face
+            for (int k = 0; k < _panels.Count; k++)
+            {
+                int pi = _panels[k];
+                var panel = terrain.Panels[pi];
+                if (!BreachRule.TryDecide(table, panel, pi, burst, w.ExplosiveKg, out var breach)) continue;
+                if (!LineClearToFace(terrain, doors, panel, burst)) continue;
+                repo.Bus.Publish(new BuildingDamageEvent
+                {
+                    Building = panel.Building, Panel = pi, From = breach.From, To = breach.To, Bottom = breach.Bottom, Top = breach.Top,
+                    Kind = (byte)breach.Kind, Shooter = evt.Shooter,
+                });
+                record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, panel.Building)} panel {pi} {breach.Kind} " +
+                    $"{breach.From:0.##}..{breach.To:0.##} m x z {breach.Bottom:0.##}..{breach.Top:0.##}");
+            }
+        }
+
+        /// <summary>
+        /// True when nothing of the terrain stands between <paramref name="burst"/> and the panel's NEAR FACE: the trace ends just outside the face
+        /// (so the panel's own pieces are never crossed — a <c>FireCrossing</c> names its building and storey, not its panel, so "only this panel" could
+        /// not be tested by name). A burst already within the wall's thickness has nothing between it and the face.
+        /// </summary>
+        private bool LineClearToFace(TerrainWorld terrain, DoorStates? doors, TerrainWallPanel panel, Vector3 burst)
+        {
+            var ab = panel.B - panel.A;
+            float len2 = ab.LengthSquared();
+            var p = new Vector2(burst.X, burst.Y);
+            float t = len2 > 1e-8f ? Math.Clamp(Vector2.Dot(p - panel.A, ab) / len2, 0f, 1f) : 0f;
+            var onWall = panel.A + ab * t;
+            var toward = p - onWall;
+            float dh = toward.Length();
+            float z = Math.Clamp(burst.Z, panel.BaseZ, panel.TopZ);
+            if (dh <= panel.Thickness * 0.5f + 0.03f) return true;   // against (or inside) the wall
+            var face = onWall + toward / dh * (panel.Thickness * 0.5f + 0.02f);
+            terrain.QueryFire(burst, new Vector3(face, z), _crossings, doors);
+            return _crossings.Count == 0;
         }
 
         /// <summary>

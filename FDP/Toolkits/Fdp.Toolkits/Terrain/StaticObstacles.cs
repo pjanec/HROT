@@ -117,6 +117,7 @@ namespace Fdp.Toolkit.Terrain
                 Buildings = terrain.Buildings,
                 Doors     = terrain.Doors,
                 Materials = terrain.Materials,
+                Breaches = terrain.Breaches,   // ⭐ CE-4391 S-1
             };
             if (terrain.Beyond is { } beyond) derived.AttachBeyond(beyond);   // ⭐ CE-4122 — the ground beyond the terrain is the base's, kept
             return derived;

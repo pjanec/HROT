@@ -1,0 +1,20 @@
+{
+  "$comment": "CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8, D-5 / §8.2 B-6) — what a detonation does to a wall. STARTING VALUES, to be tuned. Scaled distance Z = d / cbrt(explosiveKg), d = metres from the burst to the panel. The FIRST row (in file order, so put the most specific first) whose kgMin <= the charge and zMax >= Z decides; width / height are metres for a 'referenceKg' charge and scale with cbrt(kg / referenceKg), then with clamp(sqrt(referenceResistanceMmRhaPerM / the panel material's resistanceMmRhaPerM), scaleMin, scaleMax). 'passage': the breach sits on the floor (the rectangle's bottom is the storey floor); otherwise it is centred on the burst's height, and a bottom within floorSnapM of the floor is moved onto it. 'wholePanel': the whole panel of that storey. A breach is a PASSAGE iff it reaches the floor and is at least passageMinWidthM x passageMinHeightM (D-2), else a HOLE. A warhead below minKg, or with no explosive (a kinetic round), never breaches. collapseMinKg / collapseZ are read by S-2 (the collapse); S-1 does not act on them.",
+  "minKg": 0.5,
+  "referenceKg": 8,
+  "referenceResistanceMmRhaPerM": 1500,
+  "scaleMin": 0.5,
+  "scaleMax": 2,
+  "floorSnapM": 0.3,
+  "passageMinWidthM": 0.8,
+  "passageMinHeightM": 1.8,
+  "minSizeM": 0.25,
+  "collapseMinKg": 200,
+  "collapseZ": 0.5,
+  "rows": [
+    { "name": "heavy bomb, close: the whole panel", "kgMin": 100, "zMax": 1.0, "wholePanel": true, "passage": true },
+    { "name": "charge placed on the wall: a doorway (8 kg = 1 x 2 m)", "zMax": 0.4, "width": 1.0, "height": 2.0, "passage": true },
+    { "name": "shell or missile close by: a hole (tank 3.4 kg = 1.5 x 1.2 m, 155 mm = 1.9 x 1.5 m)", "zMax": 1.0, "width": 2.0, "height": 1.6 },
+    { "name": "burst further off: a small hole", "zMax": 2.0, "width": 1.0, "height": 0.8 }
+  ]
+}

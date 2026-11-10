@@ -107,6 +107,8 @@ namespace Fdp.Toolkit.Terrain
     public static class TerrainEventIds
     {
         public const int DoorCommand = 5100;
+        /// <summary>⭐ CE-4391 S-1 — <see cref="BuildingDamageEvent"/>: a detonation breached a wall (5101 free by a census of every event id, <c>2026-11-10</c>).</summary>
+        public const int BuildingDamage = 5101;
     }
 
     /// <summary>
