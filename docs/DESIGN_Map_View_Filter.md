@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-10
-build-state: DESIGN — decisions D-1…D-5 carry leans; the user approves
+build-state: READY-TO-BUILD — D-1…D-7 APPROVED by the user 2026-11-10 (R-1049): "D-1..D-7 approved. for sure measure before optimizing"
 current-answer: the whole file (§2 diagrams, §3 decisions)
 related-designs:
   - docs/UX/UX_Feature_Map_Parity.md §3.2f / §3.2g — OWNS culling as a gizmo POLICY (CullingStateVisibilityPolicy: "the ONE implementation of should this entity draw"), default off for compatibility only (the "culling blanks IG" fear REFUTED); this file moves that check to where it saves the walk, and feeds it the right view
@@ -110,7 +110,7 @@ graph TD
 *What it shows:* the filter goes in `MapInteractionPack.Build`, which all five hosts call ⇒ every host has it by construction; today's culling module is
 registered by two of them and fed a 2-D rectangle (red: the edge that is wrong in 3-D).
 
-## 3. Decisions (leans — the user approves)
+## 3. Decisions — ✅ APPROVED 2026-11-10 (R-1049)
 
 | # | question | ⭐ lean | rejected — one line each |
 |---|---|---|---|
