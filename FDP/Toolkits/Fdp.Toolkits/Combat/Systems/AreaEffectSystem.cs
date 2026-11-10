@@ -405,7 +405,7 @@ namespace Fdp.Toolkit.Combat.Systems
             {
                 int pi = _panels[k];
                 var panel = terrain.Panels[pi];
-                if (!BreachRule.TryDecide(table, panel, pi, burst, w.ExplosiveKg, out var breach)) continue;
+                if (!BreachRule.TryDecide(table, panel, pi, burst, w.ExplosiveKg, w.Fuze, out var breach)) continue;
                 if (!LineClearToFace(terrain, doors, panel, burst)) continue;
                 repo.Bus.Publish(new BuildingDamageEvent
                 {

@@ -67,14 +67,14 @@ namespace Fdp.Toolkit.Terrain.Tests
     {
         // ── the rule: BreachRule over the data table ───────────────────────────────────────────────────────────
 
-        /// <summary>🔴 Red-proof: set the first row's <c>passage</c> to false in <c>breaches.json</c> ⇒ the bottom is no longer the floor and this names it.</summary>
+        /// <summary>🔴 Red-proof: drop the row's <c>fuzes</c> filter ⇒ the impact rails below turn red; set the row's <c>passage</c> to false in <c>breaches.json</c> ⇒ the bottom is no longer the floor and this names it.</summary>
         [Fact]
-        public void Rule_AChargeAtContactOnABrickWall_IsAPassage_AboutOneByTwoMetres()
+        public void Rule_ATimeFuzedChargeAtContactOnABrickWall_IsAPassage_AboutOneByTwoMetres()
         {
             var panel = BreachFixtures.Panel("brick");
             var table = BreachTable.Shared;
             // 8 kg against the wall's face (the wall's face is y = -0.15): d = 0.1 m, Z = 0.05
-            Assert.True(BreachRule.TryDecide(table, panel, 7, new Vector3(5f, -0.25f, 1.0f), 8f, out var b));
+            Assert.True(BreachRule.TryDecide(table, panel, 7, new Vector3(5f, -0.25f, 1.0f), 8f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Time, out var b));
             Assert.Equal(BreachKind.Passage, b.Kind);
             Assert.Equal(7, b.Panel);
             Assert.Equal(0f, b.Bottom);                                  // on the floor
@@ -89,7 +89,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         {
             var panel = BreachFixtures.Panel("concrete");
             // 125 mm HE-frag, 3.4 kg, 1 m off the face (the face is y = -0.15) and 1.5 m up: Z = 1.0 / ∛3.4 = 0.67 ⇒ the "shell close by" row
-            Assert.True(BreachRule.TryDecide(BreachTable.Shared, panel, 0, new Vector3(5f, -1.15f, 1.5f), 3.4f, out var b));
+            Assert.True(BreachRule.TryDecide(BreachTable.Shared, panel, 0, new Vector3(5f, -1.15f, 1.5f), 3.4f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out var b));
             Assert.Equal(BreachKind.Hole, b.Kind);
             float scale = MathF.Cbrt(3.4f / 8f);
             Assert.Equal(2.0f * scale, b.Width, 2);                      // 1.50 m
@@ -98,14 +98,37 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(b.Bottom > 0.3f);                                // clear of the floor: not snapped
         }
 
+        /// <summary>
+        /// ⭐ The REAL case: an IMPACT round bursts <c>AreaEffect.BurstStandOffMetres</c> (0.1 m) off the wall it struck, so Z ≈ 0 — the doorway row (a placed or
+        /// time-fuzed charge) must NOT catch it. A tank HE (3.4 kg) is a ~1.5 × 1.2 m HOLE centred on the burst; a 155 mm (6.6 kg) a ~1.9 × 1.5 m hole.
+        /// 🔴 Red-proof: remove <c>"fuzes": ["time"]</c> from the charge row in <c>breaches.json</c> ⇒ both become floor doorways (Passage / bottom 0).
+        /// </summary>
+        [Fact]
+        public void Rule_AnImpactRoundAtTheWall_IsAHole_NeverADoorway()
+        {
+            var panel = BreachFixtures.Panel("concrete");          // the face is y = -0.15; the burst stands 0.1 m off it
+            var at = new Vector3(5f, -0.25f, 1.5f);
+            Assert.True(BreachRule.TryDecide(BreachTable.Shared, panel, 0, at, 3.4f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out var tank));
+            Assert.Equal(BreachKind.Hole, tank.Kind);
+            Assert.Equal(2.0f * MathF.Cbrt(3.4f / 8f), tank.Width, 2);   // 1.50
+            Assert.Equal(1.6f * MathF.Cbrt(3.4f / 8f), tank.Height, 2);  // 1.20
+            Assert.Equal(1.5f, (tank.Bottom + tank.Top) / 2f, 3);        // centred on the burst
+            Assert.Equal(5f, (tank.From + tank.To) / 2f, 3);
+            Assert.True(BreachRule.TryDecide(BreachTable.Shared, panel, 0, at, 6.6f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out var how));
+            Assert.Equal(BreachKind.Hole, how.Kind);
+            Assert.InRange(how.Width, 1.8f, 2.0f);                       // 1.88
+            Assert.InRange(how.Height, 1.4f, 1.6f);                      // 1.50
+            Assert.True(how.Bottom > 0.3f);
+        }
+
         [Fact]
         public void Rule_ASizeScalesWithTheMaterial_WoodBreaksWider_AndSteelNarrower_Clamped()
         {
             var table = BreachTable.Shared;
             var at = new Vector3(5f, -1.15f, 1.5f);
-            Assert.True(BreachRule.TryDecide(table, BreachFixtures.Panel("concrete"), 0, at, 3.4f, out var concrete));
-            Assert.True(BreachRule.TryDecide(table, BreachFixtures.Panel("fence-wood"), 0, at, 3.4f, out var wood));
-            Assert.True(BreachRule.TryDecide(table, BreachFixtures.Panel("steel-plate"), 0, at, 3.4f, out var steel));
+            Assert.True(BreachRule.TryDecide(table, BreachFixtures.Panel("concrete"), 0, at, 3.4f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out var concrete));
+            Assert.True(BreachRule.TryDecide(table, BreachFixtures.Panel("fence-wood"), 0, at, 3.4f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out var wood));
+            Assert.True(BreachRule.TryDecide(table, BreachFixtures.Panel("steel-plate"), 0, at, 3.4f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out var steel));
             Assert.Equal(concrete.Width * 2f, wood.Width, 2);            // √(1500 / 60) = 5, clamped to 2
             Assert.Equal(concrete.Width * MathF.Sqrt(1.5f), steel.Width, 2);   // √(1500 / 1000)
             Assert.Equal(0.5f, BreachRule.MaterialScale(table, new TerrainMaterial("vault", 0f, 100000f, 0f, true)));   // clamped to 0.5
@@ -117,9 +140,9 @@ namespace Fdp.Toolkit.Terrain.Tests
             var panel = BreachFixtures.Panel("brick");
             var table = BreachTable.Shared;
             var near = new Vector3(5f, -0.25f, 1.0f);
-            Assert.False(BreachRule.TryDecide(table, panel, 0, near, 0f, out _));                             // kinetic: no explosive
-            Assert.False(BreachRule.TryDecide(table, panel, 0, near, 0.24f, out _));                          // an M67 grenade: below minKg
-            Assert.False(BreachRule.TryDecide(table, panel, 0, new Vector3(5f, -30f, 1.5f), 6.6f, out _));    // a 155 mm 30 m away: Z = 16
+            Assert.False(BreachRule.TryDecide(table, panel, 0, near, 0f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out _));                             // kinetic: no explosive
+            Assert.False(BreachRule.TryDecide(table, panel, 0, near, 0.24f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out _));                          // an M67 grenade: below minKg
+            Assert.False(BreachRule.TryDecide(table, panel, 0, new Vector3(5f, -30f, 1.5f), 6.6f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out _));    // a 155 mm 30 m away: Z = 16
             Assert.Equal(0f, BreachRule.Reach(table, 0.2f));
             Assert.Equal(table.MaxZ * MathF.Cbrt(6.6f), BreachRule.Reach(table, 6.6f));
         }
@@ -128,7 +151,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         public void Rule_AHeavyBombClose_BreachesTheWholePanelOfTheStorey()
         {
             var panel = BreachFixtures.Panel("concrete");
-            Assert.True(BreachRule.TryDecide(BreachTable.Shared, panel, 0, new Vector3(5f, -2f, 1.5f), 100f, out var b));   // Mk-82-sized, 2 m off
+            Assert.True(BreachRule.TryDecide(BreachTable.Shared, panel, 0, new Vector3(5f, -2f, 1.5f), 100f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, out var b));   // Mk-82-sized, 2 m off
             Assert.Equal(0f, b.From); Assert.Equal(10f, b.To);
             Assert.Equal(0f, b.Bottom); Assert.Equal(3f, b.Top);
             Assert.Equal(BreachKind.Passage, b.Kind);
@@ -139,10 +162,10 @@ namespace Fdp.Toolkit.Terrain.Tests
         {
             var panel = BreachFixtures.Panel("concrete");
             var table = BreachTable.Shared;
-            Assert.True(BreachRule.TryDecide(table, panel, 0, new Vector3(0.3f, -0.25f, 1.0f), 8f, out var b));
+            Assert.True(BreachRule.TryDecide(table, panel, 0, new Vector3(0.3f, -0.25f, 1.0f), 8f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Time, out var b));
             Assert.Equal(0f, b.From);                                    // clipped at the A end
             Assert.True(b.To < 1.0f);
-            Assert.False(BreachRule.TryDecide(table, panel, 0, new Vector3(-3f, -0.25f, 1.0f), 8f, out _));   // 3 m past the end: nothing of the panel left
+            Assert.False(BreachRule.TryDecide(table, panel, 0, new Vector3(-3f, -0.25f, 1.0f), 8f, Fdp.Toolkit.Tkb.Domain.FuzeKind.Time, out _));   // 3 m past the end: nothing of the panel left
         }
 
         /// <summary>The scaled-distance rows are DATA: a terrain's own table replaces the keys it names (UTM §8.2 B-6, as the material library).</summary>

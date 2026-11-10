@@ -114,7 +114,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         // ── the chain ────────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// ⭐ A demolition charge on the south wall ⇒ ONE breach event, a creation request holding the breach and the building's key, and — once the
+        /// ⭐ A demolition charge on the south wall (the reference library's is impact-fuzed: the shell row, which at 8 kg on brick is still floor-reaching and big enough for D-2) ⇒ ONE breach event, a creation request holding the breach and the building's key, and — once the
         /// entity is made — a line through the passage that is open the same frame. 🔴 Red-proof: drop the <c>BreachWalls</c> call in <c>Assess</c> ⇒ no
         /// record, no request.
         /// </summary>
@@ -146,6 +146,28 @@ namespace Fdp.Toolkit.Terrain.Tests
             var (fromBeside, toBeside) = ThroughTheWallAt(22f);
             Assert.True(Blocked(fromBeside, toBeside));                                                 // the wall beside the passage still stops it
             Assert.Empty(rec.DoorsBreached);
+        }
+
+        /// <summary>
+        /// ⭐ The REAL path (review of S-1): an IMPACT round bursts 0.1 m off the wall (<c>AreaEffect.BurstStandOffMetres</c>), so Z ≈ 0. A tank HE (3.4 kg, impact fuze)
+        /// makes a HOLE of the shell row's size (brick: ×√1.5), centred on the burst — not the placed-charge doorway; a 155 mm-class impact (6.6 kg) a bigger hole, not a walkable
+        /// doorway either. 🔴 Red-proof: remove <c>"fuzes": ["time"]</c> from the charge row in <c>breaches.json</c> ⇒ both come out as floor-anchored Passages.
+        /// </summary>
+        [Theory]
+        [InlineData(Tank, 3.4f, 1.5f)]
+        [InlineData(Howitzer, 6.6f, 1.5f)]
+        public void AnImpactRoundAtTheWall_MakesAHole_OfTheShellRowsSize_CentredOnTheBurst(long ammo, float kg, float z)
+        {
+            var rec = Burst(ammo, new Vector3(25f, 19.85f - AreaEffect.BurstStandOffMetres, z));
+            Assert.Contains(rec.BuildingBreaches, r => r.Contains($"panel {_south} Hole"));
+            var ev = _w.Bus.Read<BuildingDamageEvent>().ToArray().Single(e => e.Panel == _south);
+            float scale = MathF.Cbrt(kg / 8f) * MathF.Sqrt(1.5f);                       // brick
+            Assert.Equal(BreachKind.Hole, (BreachKind)ev.Kind);
+            Assert.Equal(2.0f * scale, ev.To - ev.From, 2);
+            Assert.Equal(1.6f * scale, ev.Top - ev.Bottom, 2);
+            Assert.Equal(25f - 20f, (ev.From + ev.To) / 2f, 2);
+            Assert.Equal(z, (ev.Bottom + ev.Top) / 2f, 2);
+            Assert.True(ev.Bottom > 0.3f);
         }
 
         /// <summary>

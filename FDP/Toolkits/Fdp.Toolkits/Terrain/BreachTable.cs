@@ -7,7 +7,12 @@ using System.Text.Json.Nodes;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>One row of the <see cref="BreachTable"/>: a scaled-distance band and the breach it makes. 📄 UTM §8.2 B-6.</summary>
-    public sealed record BreachRow(string Name, float KgMin, float ZMax, float Width, float Height, bool Passage, bool WholePanel);
+    public sealed record BreachRow(string Name, float KgMin, float ZMax, float Width, float Height, bool Passage, bool WholePanel,
+        Fdp.Toolkit.Tkb.Domain.FuzeKind[]? Fuzes = null)
+    {
+        /// <summary>True when the row applies to a warhead with <paramref name="fuze"/> (no filter = every fuze).</summary>
+        public bool AppliesTo(Fdp.Toolkit.Tkb.Domain.FuzeKind fuze) => Fuzes == null || System.Array.IndexOf(Fuzes, fuze) >= 0;
+    }
 
     /// <summary>
     /// ⭐ <c>CE-4391</c> S-1 (UTM §8 D-5, §8.2 B-6) — the DATA of the breach rule: the embedded <c>Terrain/Data/breaches.json</c>, overlaid by a
@@ -39,13 +44,24 @@ namespace Fdp.Toolkit.Terrain
                 float G(string key, float dflt) => o[key] is JsonNode n ? (float)n.GetValue<double>() : dflt;
                 bool whole = o["wholePanel"]?.GetValue<bool>() ?? false;
                 var row = new BreachRow((string?)o["name"] ?? "", G("kgMin", 0f), G("zMax", float.NaN), G("width", 0f), G("height", 0f),
-                    o["passage"]?.GetValue<bool>() ?? false, whole);
+                    o["passage"]?.GetValue<bool>() ?? false, whole, ParseFuzes(o["fuzes"], source));
                 if (float.IsNaN(row.ZMax) || row.ZMax <= 0f) throw new ArgumentException($"Breach table '{source}': a row needs a positive zMax.");
                 if (!whole && (row.Width <= 0f || row.Height <= 0f)) throw new ArgumentException($"Breach table '{source}': row '{row.Name}' needs a width and a height (or wholePanel).");
                 list.Add(row);
                 if (row.ZMax > MaxZ) MaxZ = row.ZMax;
             }
             Rows = list;
+        }
+
+        private static Fdp.Toolkit.Tkb.Domain.FuzeKind[]? ParseFuzes(JsonNode? n, string source)
+        {
+            if (n == null) return null;
+            if (n is not JsonArray a || a.Count == 0) throw new ArgumentException($"Breach table '{source}': 'fuzes' must be a non-empty array (impact, time, proximity).");
+            var r = new Fdp.Toolkit.Tkb.Domain.FuzeKind[a.Count];
+            for (int i = 0; i < r.Length; i++)
+                r[i] = Enum.TryParse<Fdp.Toolkit.Tkb.Domain.FuzeKind>((string?)a[i], true, out var k) ? k
+                    : throw new ArgumentException($"Breach table '{source}': unknown fuze '{(string?)a[i]}' (impact, time, proximity).");
+            return r;
         }
 
         private JsonObject Doc { get; }

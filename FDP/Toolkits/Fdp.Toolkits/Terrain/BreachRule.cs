@@ -43,10 +43,13 @@ namespace Fdp.Toolkit.Terrain
         /// Decides the breach a burst of <paramref name="explosiveKg"/> at <paramref name="burst"/> makes in <paramref name="panel"/> (global index
         /// <paramref name="panelIndex"/>): the rectangle centred on the burst's projection on the panel (and, unless the row is a passage, on its
         /// height), clipped to the panel's length and storey, its bottom snapped to the floor when within <see cref="BreachTable.FloorSnap"/>.
+        /// <paramref name="fuze"/> is the WARHEAD's (<c>WarheadDto.Fuze</c>; the <c>DetonationNotification</c> carries none): an impact round bursts 0.1 m off the
+        /// wall it struck (Z ≈ 0), so a row for a placed / time-fuzed charge must not catch it — rows name the fuzes they apply to.
         /// False when nothing breaches (a kinetic round, too small a charge, too far, or a clip too small to count). ⛔ Does NOT test the line to the
         /// panel — the caller does (it needs the world).
         /// </summary>
-        public static bool TryDecide(BreachTable table, in TerrainWallPanel panel, int panelIndex, Vector3 burst, float explosiveKg, out WallBreach breach)
+        public static bool TryDecide(BreachTable table, in TerrainWallPanel panel, int panelIndex, Vector3 burst, float explosiveKg,
+            Fdp.Toolkit.Tkb.Domain.FuzeKind fuze, out WallBreach breach)
         {
             breach = default;
             if (explosiveKg <= 0f || explosiveKg < table.MinKg) return false;
@@ -55,7 +58,7 @@ namespace Fdp.Toolkit.Terrain
             for (int i = 0; i < table.Rows.Count; i++)
             {
                 var r = table.Rows[i];
-                if (explosiveKg >= r.KgMin && z <= r.ZMax) { chosen = r; break; }
+                if (explosiveKg >= r.KgMin && z <= r.ZMax && r.AppliesTo(fuze)) { chosen = r; break; }
             }
             if (chosen is not { } row) return false;
 
