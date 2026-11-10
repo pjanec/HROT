@@ -571,6 +571,8 @@ _source-data session, 2026-11-09_
 
 ## 9. OPEN — TREES AND VEGETATION *(coordinator, `2026-11-09`; the user: "the other engine … is using trees, and we have none … it affects how entities move … how entities can be hidden from each other … my concern is especially navigation and visibility")*
 
+✅ **User, `2026-11-10` — loaded damage owned by the loader is accepted (R-4196):** *"as long as the damage is replicated and the muscle node can do proper raycast, owning by brain is no issue"*. Both hold: the record is replicated (`dtBuildingDamage`, every role), and the muscle's `BuildingDamageTable` is built from EVERY `BuildingDamage` entity in its view whoever owns it, so its traces and its S-3 bake include the loaded damage.
+
 ### 9.1 What HROT has today — measured
 
 | fact | where |
