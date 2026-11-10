@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: the BRAIN's cost at 1 000 men (CE-4395)
 
-**For:** backend. **From:** coordinator. **Dispatched at `<stamp>`**. ⭐ Scope FROZEN there. Merge `coordinator` first, push
+**For:** backend. **From:** coordinator. **Dispatched at `4385ab0d8`**. ⭐ Scope FROZEN there. Merge `coordinator` first, push
 `chore: started HANDOFF_Coordinator_To_Backend_Brain_Cost_1000 at <sha>`, and keep a status file. ⭐ You design the details: INVENTORY, UML and the
 leans, in the owning design (Evaluation Cost & Cadence, or a new Scale Rig section, whichever fits). This handoff is the frame.
 
