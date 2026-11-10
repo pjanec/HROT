@@ -399,15 +399,14 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             string State() => $"t={SimNow():F1}s kind={cgf.GetComponent<SquadCognitiveState>(leader).ManeuverKind} task={Running(leader)} | "
                              + string.Join(" | ", Bodies().Select((p, i) => $"m{i} at={p.ToString("F0", null)} d={Vector2.Distance(new Vector2(p.X, p.Y), objective):F0} runs={Running(Members()[i])}"));
 
-            // ① the order, as the map menu sends it: a geodetic point, through the one tactical-intent path.
-            var geo = cgf.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>();
-            var (lat, lon, _) = geo.ToGeodetic(new Vector3(objective, 0f));
+            // ① the order, as the map menu sends it, through the one tactical-intent path. ⭐ CE-2433 — since S0 item 5 (489774f21) the order's
+            // Location is a PointLink: local metres [x, y, z] (or "@Key"), no longer a geodetic [lat, lon] — a two-number array is not a point.
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             cgf.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
             {
                 // ⭐ CE-2142 — the ORDER, not the behaviour: the squad resolves Order.Move to its own InfantrySquadMove by its class.
                 Entity = leader, IntentId = Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor(nameof(Hrot.AI.Behaviors.Orders.OrderKind.Move)), Origin = BehaviorOrigin.Operator,
-                JsonParams = "{\"Location\":[" + lat.ToString("R", inv) + "," + lon.ToString("R", inv) + "]}",
+                JsonParams = "{\"Location\":[" + objective.X.ToString("R", inv) + "," + objective.Y.ToString("R", inv) + ",0]}",
             });
             int moveHash = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.InfantrySquadMove);
             Assert.True(harness.PumpUntil(() => cgf.GetComponent<SquadCognitiveState>(leader).ManeuverKind == SquadMarchManeuver.ManeuverKind
