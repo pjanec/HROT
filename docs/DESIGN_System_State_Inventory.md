@@ -771,10 +771,13 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.SimHost.Systems.EqsSolverSystem.<LastSharedCopies>k__BackingField` | **A** | diagnostics counter reset each tick | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:127 |
 | `Hrot.SimHost.Systems.EqsSolverSystem.<LastSpentUnits>k__BackingField` | **A** | diagnostics counter reset each tick | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:165 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._currentTick` | **A** | set each Execute from PerceptionClock | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:122 |
+| `Hrot.SimHost.Systems.EqsSolverSystem._lastRunEnd` | **A** | diagnostics: the last run's end timestamp (CE-3427 `eqs.run.idle`); a wrong first interval after a restore only skews one timing sample | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:195 |
+| `Hrot.SimHost.Systems.EqsSolverSystem._lastRunStart` | **A** | diagnostics: the last run's start timestamp (CE-3427 `eqs.run.interval`) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:195 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._lastSchedule` | **A** | last schedule for diagnostics, cleared each tick | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:125 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._shared` | **A** | this-tick shared answers, cleared every tick | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:126 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._surveyScratch` | **A** | scratch reused per survey solve | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:445 |
 | `Hrot.SimHost.Systems.EqsSolverSystem._surveys` | **A** | survey solve/publish memo; empty re-solves and republishes identical answer | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:449 |
+| `Hrot.SimHost.Systems.EqsSolverSystem._templateSlot` | **A** | diagnostics scratch: the timing slot of the sensor being solved, set and read within one RunSensor (CE-3427) | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:196 |
 | `Hrot.SimHost.Systems.GenesisMaterializationSystem.<RefusedBoardings>k__BackingField` | **A** | diagnostics counter of refused boardings | Hrot/Engine/Hrot.EcsNode/Systems/GenesisMaterializationSystem.cs:115 |
 | `Hrot.SimHost.Systems.InitialBrainMaterializationSystem._done` | **A** | scratch cleared at top of Execute | Hrot/Engine/Hrot.EcsNode/Systems/InitialBrainMaterializationSystem.cs:33 |
 | `Hrot.Traffic.TrafficBodyFeedSystem._scratch` | **A** | scratch cleared in Gather each frame | Hrot/Engine/Hrot.Traffic/TrafficBodies.cs:54 |
