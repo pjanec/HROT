@@ -184,7 +184,7 @@ public sealed class ScenarioMenuTests
         // the items THIS registrar owns (the asset items, Save / Save As… / Save All and Exit are other registrars')
         var mine = new[]
         {
-            FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.SaveCheckpoint,
+            FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.NewTerrainFromOsm, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.SaveCheckpoint,
             FileMenuLayout.SaveScenario, FileMenuLayout.SaveScenarioAs, FileMenuLayout.SaveScenarioAsRecipe, FileMenuLayout.MigrationHistory, FileMenuLayout.SaveCuratedToGit, FileMenuLayout.Close,
         };
         var registered = LeafPaths(menu).Where(x => !x.Contains("/sep-")).ToArray();
@@ -234,7 +234,7 @@ public sealed class ScenarioMenuTests
     {
         var (_, commands, _) = CreateRegistrar();
 
-        Assert.Equal(11, commands.RegisterCallCount);   // ⭐ CE-1443 — New Exercise is gone; Load Checkpoint, Close and (B2) Save Scenario as Recipe are new
+        Assert.Equal(12, commands.RegisterCallCount);   // ⭐ CE-4375 — + Terrain from OpenStreetMap…; ⭐ CE-1443 — New Exercise is gone; Load Checkpoint, Close and (B2) Save Scenario as Recipe are new
         Assert.NotNull(commands.Get(ScenarioMenuCommands.OpenRecordingId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadCheckpointId));
@@ -590,7 +590,7 @@ public sealed class ScenarioMenuTests
         MenuItemNode Node(string path) => path["File/".Length..].Split('/').Aggregate(menu.Root.Children["File"], (n, seg) => n.Children[seg]);
         bool Drawn(string path) => menu.Offers(Node(path), null);
 
-        var alwaysDrawn = new[] { FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.Close, FileMenuLayout.Exit, FileMenuLayout.SeparatorAfterLoads };
+        var alwaysDrawn = new[] { FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.NewTerrainFromOsm, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.Close, FileMenuLayout.Exit, FileMenuLayout.SeparatorAfterLoads };
         foreach (var state in new[] { ClusterState.Idle, ClusterState.OperatingEdit, ClusterState.OperatingPreview, ClusterState.OperatingLive, ClusterState.OperatingReplay })
         {
             session.State = state;
@@ -619,7 +619,7 @@ public sealed class ScenarioMenuTests
         // ⭐ CE-4255 — ONE New node: its six children in the designed order, whatever the registration order was
         session.State = ClusterState.OperatingEdit;
         menu.IdleOnlyWhen = null;
-        Assert.Equal(new[] { "Scenario…", "Asset…", "Behavior…", "Action…", "Condition…", "Macro…" }, menu.Root.Children["File"].Children["New"].OrderedChildren().Select(c => c.Name).ToArray());
+        Assert.Equal(new[] { "Scenario…", "Terrain from OpenStreetMap…", "Asset…", "Behavior…", "Action…", "Condition…", "Macro…" }, menu.Root.Children["File"].Children["New"].OrderedChildren().Select(c => c.Name).ToArray());
         Assert.Equal(1, menu.Root.Children["File"].Children.Keys.Count(k => k.StartsWith("New", StringComparison.Ordinal)));   // no loose "New …" item under File
         Assert.DoesNotContain("Scenario", menu.Root.Children.Keys);                                                        // ⭐ CE-4253 — no Scenario top-level menu from this registrar
     }

@@ -52,6 +52,10 @@ public static class ScenarioMenuCommands
 
     /// <summary>Id for the New Scenario command: <c>"scenario.new"</c> — the LOCAL empty world.</summary>
     public const string NewId = "scenario.new";
+    /// <summary>⭐ CE-4375 — File › New › Terrain from OpenStreetMap… (the wizard).</summary>
+    public const string NewTerrainFromOsmId = "terrain.newFromOsm";
+    /// <summary>⭐ CE-4375 — why Terrain from OpenStreetMap… is greyed on a host that composes no wizard.</summary>
+    public const string NoTerrainFromOsmReason = "this host has no terrain wizard";
 
     /// <summary>Id for the Save Scenario command: <c>"scenario.save"</c>.</summary>
     public const string SaveId = "scenario.save";
@@ -158,7 +162,9 @@ public static class ScenarioMenuCommands
         Action<Action<string>>?                                    openCheckpointPicker = null,
         Func<bool>?                                               documentToSave       = null,
         Action?                                                   openNewScenario      = null,
-        Action<Action<string>>?                                    openSaveAsRecipeDialog = null)
+        Action<Action<string>>?                                    openSaveAsRecipeDialog = null,
+        Action?                                                   openTerrainFromOsm   = null,
+        Func<string?>?                                            terrainFromOsmDisabledReason = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -193,6 +199,18 @@ public static class ScenarioMenuCommands
             handler: _ => openNewScenario?.Invoke(),
             dynamicDisplayName: Unavailable("New Scenario…", openNewScenario != null, NoNewScenarioReason),
             allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16)
+
+        // ⭐ CE-4375 (OSM §6, W-3) — File › New › Terrain from OpenStreetMap…: opens the wizard. Greyed with its reason (VC-3: the label says why — menu items carry no tooltip) while the host has
+        //   no IOsmTerrainPipeline (⛔ never a stub pipeline in production), and by the run gate like every item here.
+        RegisterCommand(
+            registerCommand, menu, commands, closedReason,
+            NewTerrainFromOsmId, "Terrain from OpenStreetMap…", FileMenuLayout.NewTerrainFromOsm,
+            "Make a terrain from an OpenStreetMap area: pick the box, the options, preview the content, import",
+            isEnabled: () => openTerrainFromOsm != null && terrainFromOsmDisabledReason?.Invoke() == null,
+            handler: _ => openTerrainFromOsm?.Invoke(),
+            dynamicDisplayName: () => (openTerrainFromOsm == null ? NoTerrainFromOsmReason : terrainFromOsmDisabledReason?.Invoke()) is { } why
+                ? $"Terrain from OpenStreetMap… (unavailable — {why})" : "Terrain from OpenStreetMap…",
+            allowedInIdle: false);   // ⛔ not on the Start surface (it draws every Idle item as a button): the approved mockup scopes the File menu item only (R-4151)
 
         // ⭐ LOAD CHECKPOINT — a live run, paused at the checkpoint: the existing restore (the session's RestoreCheckpoint = RestoreCheckpointIntent). ⚠ The host supplies the picker of the labels it can list; none does yet (the live run's
         //   marks are not on the cluster view — only a replay session carries them), so the item says so rather than doing nothing (ruling 49).
