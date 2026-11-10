@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-10
-current-answer: ⭐⭐⭐ 2026-11-10 (b) — START AT "SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE" directly below this STATUS block.
+current-answer: ⭐⭐⭐ 2026-11-10 (c) — START AT "SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-10 (b) — START AT "SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-10 — START AT "SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-09 — START AT "SESSION 2026-11-09 — U-11 RECORDING STORAGE UI, DONE".
@@ -177,6 +178,20 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3
+
+Handoff [HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md](batches/HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md) (dispatched e233f69a6); record
+[STATUS_Ui_Osm_Wizard_Live.md](batches/STATUS_Ui_Osm_Wizard_Live.md).
+
+| item | state |
+|---|---|
+| E-1 CE-4381 (+ CE-1468) | ✅ real tiles (`OsmTileSource`) + Nominatim (`NominatimPlaceSearch`) composed in the editor; one texture LRU `ImageCache<TKey>`; live rail green from the VM |
+| E-2 CE-4382 | ✅ the preview contract carries trees, building details, located notes, the data timestamp; the wizard and the mockup show them (C-10 / C-12 / C-13 ✅) |
+| E-3 CE-1466 | ⛔ premise failed — already fixed 2026-11-09, and the 3-D press's terrain pick is the per-chunk picker since D-1 |
+
+⚠ A live PREVIEW still cannot run on the cloud VM (Overpass times out there — the handoff's own measurement).
+
 
 ## SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE
 

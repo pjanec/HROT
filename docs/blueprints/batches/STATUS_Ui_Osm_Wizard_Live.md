@@ -19,7 +19,7 @@ Handoff [HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md](HANDOFF_Coordinator_To_Ui
 |---|---|---|---|
 | **E-1** | CE-4381 (+ CE-1468) | ✅ DONE | `OsmTileSource` + `NominatimPlaceSearch` in `Hrot.Terrain.Osm/Source/`, composed in `EditorSubsystem` on the pipeline's one `HttpRetry` client ⇒ File ▸ New ▸ Terrain from OpenStreetMap… is no longer greyed for want of them. The tile texture LRU is the shared `ImageCache<TKey>` (`PickerImageCache` is its string form). Design: [OSM §6b-as-built](../../DESIGN_Terrain_From_OSM.md) |
 | **E-2** | CE-4382 | ✅ DONE | the contract extension (own commit `05c8ae69a`): per building type / storeys source / roof + shape / doors, windows + door rule / shared walls; trees; located notes with a severity; the data timestamp. Filled in `BuildingRules` + `PreviewBuilder`; the wizard draws them — C-10, C-12, C-13 are ✅ with no ⚠ ([STATUS_Ui_Osm_Wizard.md](STATUS_Ui_Osm_Wizard.md) §1). Mockup updated to the same lines |
-| **E-3** | CE-1466 | ⏳ if time is left | |
+| **E-3** | CE-1466 | ⛔ PREMISE FAILED (R-106) — nothing to build | CE-1466 was already FIXED `2026-11-09` (`b492b8c70`: a 3-D press answers the camera ray — `MapCamera3D.IsRayOnlyAnchor` — not the 2-D footprint boxes), and the ray goes through `MapCamera3D.Pick` → the pickers, whose `TerrainPicker` uses D-1's per-chunk grids (`Picking.cs`, `ChunkPickGrids`, CE-3423 L-10). Measured: `Map3DPickingTests` + `HoverPickVolumeTests` 18 / 0 — they pick a `TerrainWorldQuery` (chunked) world |
 
 ## Gates
 
@@ -32,4 +32,5 @@ Handoff [HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md](HANDOFF_Coordinator_To_Ui
 | `dotnet test Hrot.Editor.Tests --no-build --filter TheTerrainFromOsmItem` | 1 / 0 |
 | E-2: `dotnet test Hrot.Terrain.Osm.Tests --no-build` | 119 / 0, 1 skipped — + 4 `PreviewDetailsTests` |
 | E-2: `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter TerrainOsm` | 19 / 0 (`Preview_MatchesTheMockup` asserts the new rows); the frame matches the regenerated mockup |
+| E-3 evidence: `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter Map3DPickingTests\|HoverPickVolumeTests` | 18 / 0 |
 | red-proofs (each compiles) | the tile gate at 6 ⇒ `Tiles_AtMostTwoRequestsAtOnce` red · "pending" remembered as failed ⇒ `APendingKey_…` red · `Tiles: null, Search: null` in the editor ⇒ `TheRealEditor_…` red · E-2: `SharedWith` not filled ⇒ `SharedWalls_NameTheNeighbour_BothWays` red · the tooltip ignoring `RoofShape` ⇒ `Preview_MatchesTheMockup` red |
