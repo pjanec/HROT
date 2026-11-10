@@ -218,7 +218,8 @@ namespace Fdp.Toolkit.Vis3D
                 "tree-crown-dark" => new Color(50, 88, 40, 255),
                 "canopy" => new Color(56, 96, 44, 255),
                 "rubble" => new Color(128, 118, 104, 255),
-                "scorch" => new Color(30, 27, 24, 255),   // ⭐ CE-4392 X-7 — soot round a breach (the mottled earth pattern breaks it up)   // ⭐ CE-4392 X-2 — a collapsed building's heap: dusty grey-brown (the earth pattern)
+                "scorch" => new Color(24, 21, 19, 255),   // ⭐ CE-4392 X-7 — soot round a breach (the mottled earth pattern breaks it up)
+                "scorch-light" => new Color(70, 58, 50, 255),   // … and its lighter streaks further out   // ⭐ CE-4392 X-2 — a collapsed building's heap: dusty grey-brown (the earth pattern)
                 "roof-pitched" => new Color(118, 58, 46, 255),   // ⭐ CE-4377 R-2 — a drawn pitched roof: dark weathered clay tiles, darker than the brick walls so the roof reads apart (a slope is never a floor, CE-1341's worry)
                 _ => null,   // concrete and unknown: the kind's colour
             };
@@ -246,7 +247,7 @@ namespace Fdp.Toolkit.Vis3D
             "sandbags" => 246,
             "fence-wood" or "door-wood" or "tree-trunk" => 244,
             "tree-crown" or "tree-crown-dark" or "canopy" => 242,   // ⭐ CE-4377 — the leaf pattern (the hedge's)
-            "earth-berm" or "rubble" or "scorch" => 243,   // ⭐ CE-4392 — rubble: the mottled earth
+            "earth-berm" or "rubble" or "scorch" or "scorch-light" => 243,   // ⭐ CE-4392 — rubble: the mottled earth
             "hedge" => 242,
             _ => 255,
         };

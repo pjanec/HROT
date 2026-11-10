@@ -49,7 +49,7 @@ public sealed class TerrainPlan2D
     public const float PlanCutHeight = 1.0f;
 
     /// <summary>⭐ CE-4392 X-7 — soot each side of a breach on the plan.</summary>
-    public static readonly Rgba32 ScorchFill = new(30, 27, 24, 210);
+    public static readonly Rgba32 ScorchFill = new(30, 27, 24, 150);
     private static readonly int[] QuadTriangles = { 0, 1, 2, 0, 2, 3 };
 
     /// <summary>⭐ CE-4392 X-2 — a collapsed building's rubble on the plan: a dusty grey-brown fill, a dashed outline.</summary>
@@ -116,7 +116,7 @@ public sealed class TerrainPlan2D
                 mark?.Invoke(world.Panels[pi].Building);
                 var panel = world.Panels[pi];
                 var dir = Vector2.Normalize(panel.B - panel.A);
-                var across = new Vector2(-dir.Y, dir.X) * ((panel.Thickness * 0.5f) + 0.35f);
+                var across = new Vector2(-dir.Y, dir.X) * ((panel.Thickness * 0.5f) + 0.2f);
                 foreach (var b in damage.BreachesOf(pi))
                 {
                     // ⭐ X-7 — soot each side of the gap (the 3-D wall's scorch ring seen from above), under the wall pieces

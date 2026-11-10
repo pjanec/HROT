@@ -75,6 +75,23 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(w.SegmentBlocked(Through.From, Through.To), "the world itself is unchanged (R-4196)");
         }
 
+        /// <summary>⭐ X-7 (user: "black explosion marks all around the hole") — just beside the opening, on both faces, the first thing a ray meets is soot; far from it, the brick.
+        /// 🔴 Red-proof (compiles): the <c>AddScorch</c> call dropped ⇒ the ray meets brick.</summary>
+        [Fact]
+        public void ABreach_IsRingedWithSoot_OnBothFaces()
+        {
+            var w = BreachFixtures.House();
+            int south = BreachFixtures.SouthWall(w);
+            var table = Table(w, r => BreachFixtures.Damage(r, w, 0, new WallBreach(south, 4f, 6f, 0.8f, 2.2f, BreachKind.Hole)));
+            var mesh = Objects(w, table);
+            // x 26.1: 10 cm past the opening's east edge (x 26), at its middle height — inside every jittered rim (≥ 0.55 × the 0.7 m margin)
+            Assert.Equal(TerrainWorldMesh.ScorchMaterial, Hit(mesh, new Vector3(26.1f, 17f, 1.5f), new Vector3(26.1f, 22f, 1.5f))!.Value.Material);   // the outer face
+            Assert.Equal(TerrainWorldMesh.ScorchMaterial, Hit(mesh, new Vector3(26.1f, 23f, 1.5f), new Vector3(26.1f, 19f, 1.5f))!.Value.Material);   // the inner face
+            Assert.Equal("brick", Hit(mesh, new Vector3(28.5f, 17f, 1.5f), new Vector3(28.5f, 22f, 1.5f))!.Value.Material);                           // far from it: the wall
+            Assert.Null(Hit(mesh, Through.From, Through.To));                                                                                          // the opening itself stays open
+            Assert.Equal(Objects(w, table).I.Length, mesh.I.Length);                                                                                    // the same marks every build
+        }
+
         [Fact]
         public void ACollapse_HidesTheBuilding_AndDrawsAHeap()
         {
