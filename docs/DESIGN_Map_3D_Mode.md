@@ -14,6 +14,7 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Scale_Rig.md §5.2 N-5 — OWNS the sim side of the 5.5 km terrain (the per-tile navmesh bake, BuildRegion); hands the editor's whole-soup build to §6ah here
   - docs/DESIGN_Unit_Camera.md — the Follow camera rides MapCamera3D (its LookAt pinned to a unit) and adds a spring arm (CE-1293)
   - docs/DESIGN_Geo_Origin.md §4 — OWNS the node's one IGeographicTransform and where its origin comes from (the terrain); §6ac's cursor readout converts through it, from the world singleton
   - docs/UX/Architect_Question_28_Map_Layers.md E′ — OWNS the ruling that ActiveLayerMask switches whole layer objects and the Config window's Grid tick drives it; §6ac's Grid row follows CE-1227's layer-panel precedent beyond it (reasoned there)
@@ -3490,6 +3491,96 @@ Rails: `Map3DTests.CE4084_*` (off-centre projection / pick = draw / frustum NDC;
 | left alone | the 3-D map on screen, any 3-D camera driver (a followed unit, a possession station, the film director) or a station in first person: that terrain is CONSUMED unframed (not framed later behind the user's back); a switch in flight waits one more frame |
 
 Rails: `MapFramingTests` (the fit for a small and a big terrain, the margin, the framer: once, on change, after an unload, and left-alone) · `TerrainFramingLayerTests` (over a real world and camera: frames cqb-village's bounds with the margin, a pan is never undone, a change re-frames, a driven or 3-D camera is untouched). Red-proof: the framer not remembering what it framed ⇒ the "never re-frames" rail red.
+
+### 6ah. CE-3423 / CE-4377 — the LARGE terrain in 3-D: the ground by level of detail, per chunk; the picker per chunk *(ui, `2026-11-10`; build-state: READY-TO-BUILD)*
+
+🔒 Handoff [HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md](blueprints/batches/HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md) D-1 / D-3. 📌 **Why:** `TerrainLayer3D`
+and `TerrainPicker` each take the WHOLE soup (`ITerrainRenderGeometry.BuildTagged`) — on scale-1 (5.5 km, a 1 m height grid) that is **61.4 M triangles, 2.2 GB, peak 7.0 GB,
+9.4 s** ([DESIGN_Scale_Rig.md](DESIGN_Scale_Rig.md) §5.2 N-5, which hands this to ui). The navmesh already left the soup (§5.2: `TerrainWorldMesh.BuildRegion`); the 3-D view
+follows it.
+
+**INVENTORY** *(`search_graph`, `2026-11-10`, index `home-user-HROT` 314 k nodes; ⚠ coverage not checkable through the CLI)*: `.*TerrainWorld.*` Class — **9** (`TerrainWorld`,
+`TerrainWorldMesh` *(Build · BuildRegion · BuildApron · the ONE `AddGroundCell` / `AddPrism` / `AddWalkable`)*, `TerrainWorldQuery` *(the only `ITerrainRenderGeometry`)*,
+`TerrainWorldParser`, the Recast / LOS / spatial sources) · `.*TerrainLayer(3D|2D).*|.*TerrainPlan.*` — **4** · `.*TerrainHeight.*` — **3** (`TerrainHeightGrid`,
+`TerrainHeightTiles`) · `.*(Lod|LOD|Chunk).*` — **16**, none a terrain LOD (`PedLodManager` is SUMO's pedestrians) ⇒ ⭐ the LOD is new; every TRIANGLE it draws still comes
+from `TerrainWorldMesh`'s builders. Reused: `BackgroundMeshBuild` *(one per chunk mesh, unchanged)* · `PickGrid` *(one per chunk)* · `LitShader` · `TerrainLayer3D.BuildVertexData`.
+
+```mermaid
+classDiagram
+  class ITerrainRenderGeometry { <<existing>> Identity · Build · BuildTagged (the whole soup) }
+  class ITerrainChunkedGeometry { <<NEW>> Chunks : TerrainChunkLayout · BuildChunk(cx, cy, lod, part) · BuildOutside() }
+  class TerrainChunkLayout { <<NEW record>> Origin · ChunkSize · Cell · Nx · Ny · MinZ · MaxZ · Lods }
+  class TerrainWorldQuery { <<existing>> implements both }
+  class TerrainWorldMesh { <<existing>> AddGroundCell · AddPrism · AddWalkable · BuildApron · BuildChunkGround NEW · ChunkIndex NEW }
+  class TerrainLayer3D { <<existing>> the old whole-mesh path for a plain source · a TerrainChunks3D for a chunked one }
+  class TerrainChunks3D { <<NEW>> per chunk: ground mesh per LOD + objects mesh · LOD choice · frustum cull · build queue · GPU budget }
+  class TerrainPicker { <<existing>> the old grid for a plain source · ChunkPickGrids for a chunked one }
+  class ChunkPickGrids { <<NEW>> a PickGrid per chunk (LOD 0 + objects), built on demand on a worker · the ray walks the chunk grid }
+  class BackgroundMeshBuild~T~ { <<existing>> one per chunk mesh }
+  class PickGrid { <<existing>> one per chunk }
+  ITerrainRenderGeometry <|-- ITerrainChunkedGeometry
+  ITerrainChunkedGeometry <|.. TerrainWorldQuery
+  ITerrainChunkedGeometry ..> TerrainChunkLayout
+  TerrainWorldQuery ..> TerrainWorldMesh
+  TerrainLayer3D *-- "0..1" TerrainChunks3D
+  TerrainChunks3D *-- "many" BackgroundMeshBuild~T~
+  TerrainPicker *-- "0..1" ChunkPickGrids
+  ChunkPickGrids *-- "many" PickGrid
+```
+*What the picture shows that prose hid: the soup's three consumers (3-D, picker, navmesh) now all take the terrain BY REGION from the same builders; a source that is not chunked
+(a test double) keeps the old whole-mesh path, so nothing else changes.*
+
+```mermaid
+sequenceDiagram
+  participant F as frame (Map3DBuild.Update → layer.PumpBuild · Draw3D)
+  participant C as TerrainChunks3D
+  participant W as worker (Task.Run)
+  participant G as TerrainWorldQuery (BuildChunk)
+  F->>C: RequestBuild (load): every chunk at the COARSEST level + the outside (apron)
+  C->>W: one BackgroundMeshBuild per mesh, at most 2 running
+  W->>G: BuildChunk(cx, cy, lod, Ground | Objects) — reads the immutable TerrainWorld
+  F->>C: PumpBuild: ≤ 2 uploads a frame
+  F->>C: Draw3D: eye + frustum from rlgl's matrices
+  loop every chunk (index loop, no allocation)
+    C->>C: cull by its box · wanted level by distance · ask for it if not built (queued, nearest first)
+    C->>F: DrawMesh(the finest BUILT level ≤ … the wanted one, else the coarsest) + its objects mesh
+  end
+  C->>C: over the GPU budget ⇒ unload the least recently drawn finer levels
+```
+*What the picture shows: a frame never builds — it asks, and draws the best level it already has; the whole terrain is up at the coarsest level before the load step reports
+"built", and finer levels arrive near the camera after.*
+
+```mermaid
+graph TD
+  MAP["MapCanvas.Draw (every frame, 3-D)"] -->|Draw3D| L3[TerrainLayer3D]
+  M3B["Map3DBuild.Update (every frame, 2-D too)"] -->|"RequestBuild · PumpBuild"| L3
+  L3 -->|chunked source| CH[TerrainChunks3D]
+  CH -->|worker| Q["TerrainWorldQuery.BuildChunk"]
+  Q --> TM["TerrainWorldMesh: AddGroundCell / AddPrism / AddWalkable (the soup's own builders)"]
+  PK["MapCamera3D pick (on hover / click)"] --> TP[TerrainPicker]
+  TP -->|chunked source| CPG[ChunkPickGrids]
+  CPG -->|worker| Q
+  NAV["RecastNavmeshFactory (load, sim nodes)"] -->|BuildRegion| TM
+  SOUP["TerrainWorldMesh.Build (whole soup)"]
+  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33;
+  class SOUP dead;
+```
+*What the picture shows: after this, NOTHING on the editor's frame path asks for the whole soup (red) — `Build` stays for the small-terrain tools and the tests that compare
+against it.*
+
+| # | decision | why |
+|---|---|---|
+| L-1 | chunks of ≈ 256 m, aligned to the ground layout's cells (size = cell × round(256 / cell)) | a chunk edge is a cell edge ⇒ level 0 of a chunk is EXACTLY the soup's cells there (`AddGroundCell`, same cut, same forest tag) |
+| L-2 | level k = cell × 2^k, k = 0…3 (1 → 8 m on a 1 m grid); wanted level from the eye's distance to the chunk's box: < 1.5 · chunk → 0, < 3 → 1, < 6 → 2, else 3 | near the camera it looks as today; far simplifies (the handoff's "far may simplify") |
+| L-3 | a level > 0 cuts ground only under WATER (not under buildings) | a coarse cell cut under a house leaves a hole bigger than the house; the house hides the ground under it |
+| L-4 | skirts: every chunk hangs a strip down its INTERIOR edges, 2 · step + 1 m deep, ground-coloured | closes the cracks between levels whichever side is higher; invisible where both sides agree (level 0 next to level 0) |
+| L-5 | prisms, walkables and water belong to ONE chunk (their footprint's centre) — one "objects" mesh per chunk, built once | drawn once; D-3 adds the far simplification of buildings and the trees over this |
+| L-6 | the apron (`BuildApron`) and anything outside the chunk grid: ONE mesh, as today | small, already coarse (40 m) |
+| L-7 | builds on workers (≤ 2 running), nearest wanted first; ≤ 2 uploads a frame; the coarsest level of every chunk first — the load step's "built" | never block a frame; the whole terrain visible early |
+| L-8 | the frame: index loops over fixed arrays, eye and frustum from `Rlgl.GetMatrixModelview` / `GetMatrixProjection` (works in a film pass too) | 0 B a steady frame (CLAUDE.md hot path) |
+| L-9 | GPU budget for finer levels (default 1.5 GB of vertex data): over it, unload the least recently drawn | ≤ 4 GB a process (R-4192) |
+| L-10 | the picker: one `PickGrid` per chunk from level 0 + objects, built on a worker for chunks the ray crosses (and the ring round the camera's look-at, asked each frame — so a click finds it ready); a pick walks the chunk grid along the ray, testing built ones | a pick never builds; what you click is the triangles drawn near the camera |
+| L-11 | a source that is not `ITerrainChunkedGeometry` keeps today's whole-mesh path | test doubles and any other geometry unchanged |
 
 ## 7. NOT VERIFIED — say so before it is built on
 
