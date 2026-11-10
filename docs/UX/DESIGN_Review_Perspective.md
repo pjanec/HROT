@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — the fourth pass (§0a, §3, §3a, §4 V1–V7) approved by the user 2026-11-08; §6 the better merge recorded complete and UNSCHEDULED
+build-state: §6 THE BETTER MERGE BUILT — S1…S5 (behaviors, 2026-11-09, CE-4354; AS-BUILT S1–S5) · the fourth pass (§0a, §3, §3a, §4 V1–V7) approved by the user 2026-11-08; §6 the better merge recorded complete and UNSCHEDULED
 updated: 2026-11-08 (FOURTH pass — one AAR, the source decided by the files, one AAR transport, the perspective = layout only, the source in the status bar; the empty-world bug) · 2026-11-08 (third pass — the user: the perspective is for the ALL-IN-ONE editor and the standalone Replay Browser, never a cluster AAR (a debrief); merged by default when the files hold several participants; DAR unrelated; the merge measured — §2.2) · 2026-11-08 (second pass — Federation as the SOURCE of the editor's one world) · 2026-11-08 (first version — CE-3419)
 current-answer: ⭐ §0a the idea on one page (fourth pass) · §3 decisions D1–D11 · §3a entering and leaving · §1 measured · §2 how Federation and the merge work · §3 the design · §4 stages · §5 decisions · ⭐ §6 a better merge — the full idea, measured, unscheduled (I1–I9, Q9–Q14, appendices §6.8 / §6.9)
 stale-below: nothing

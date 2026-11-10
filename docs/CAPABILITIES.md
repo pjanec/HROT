@@ -78,7 +78,11 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 - **Players are briefed** before a Live run and see a **summary** at its end. (CE-3416, CE-3418) ✅
 - **Recordings collected and archived:** a finished exercise's recordings are gathered from every node into an archive, imported back, or
   deleted from it; one transfer at a time and never during a Live run. ([Recording Storage](DESIGN_Recording_Storage.md), CE-4330) 🟡 AAR
-  placement on a different cluster still waits
+  placement on a different cluster: placed by node name then kind (built), the AAR's Start / Cancel question and the greyed *Go Live* when a
+  file plays on another node's id wait for ui (CE-4331)
+- **The merged review:** every station's recording opens as ONE world that plays; per unit, what its owner and each other station held
+  (*By node*), a *Replica differs* lane, search across all stations, a per-station time offset. ([Review perspective §6](UX/DESIGN_Review_Perspective.md);
+  CE-4354) ✅
 - **Bookmarks and notes** on a run's timeline, kept beside the recording; the Replay Browser shows them. ([Bookmarks and notes](UX/DESIGN_Bookmarks_And_Notes.md);
   CE-4325, CE-1467) ✅
 
