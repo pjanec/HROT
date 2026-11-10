@@ -82,6 +82,14 @@ namespace Hrot.ScenarioEditor.Map
                 if (!view.HasComponent<SimTransform>(entity)) return true;
                 p = view.GetComponentRO<SimTransform>(entity).Position;
             }
+            return Contains(p);
+        }
+
+        /// <summary>⭐ CE-4388 (D-6) — a HROT-space point is in view (with the margin): the one test, for entities and for a global gizmo's own geometry (a door).
+        /// Not <see cref="Active"/> ⇒ true.</summary>
+        public bool Contains(Vector3 p)
+        {
+            if (!Active) return true;
             return _is3D ? ViewFrustum.AroundInside(_planes, p, MarginMetres)
                          : p.X >= _min.X && p.X <= _max.X && p.Y >= _min.Y && p.Y <= _max.Y;
         }

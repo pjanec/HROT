@@ -175,3 +175,16 @@ Rails: `StatelessGizmoSystemTests.CE4388_*` (out of view reaches no rule, tested
 a steady filtered frame allocates nothing — each red-proved with a compiling mutation) · `Map3DFrameRail.CE4388_ABodyBehindTheCamera_IsNotDrawn` extended:
 the camera's update-time frustum judges every body exactly as the draw pass did (red-proved: the frustum computed looking backwards).
 
+### 6.1 Step 2 — the doors (D-3 + D-6), `2026-11-10`
+
+⭐ Measured first (primitives per frame, per gizmo, under `HROT_FRAME_STATS`): `DoorLeafGizmo` emitted **all 6 911 door lines every frame at every zoom** — 64 % of the
+buffer in 3-D mid, 93 % close in. ⇒ it now reads its map's snapshot (`MapInteractionPack.ViewOf(buffer)`): nothing coarser than
+`DoorLeafGizmo.MaxMetresPerPixel` = 0.25 m/px (a 1 m leaf under 4 px), else only the doors in view (`MapViewSnapshot.Contains`, the one point test). Rail
+`DebugTraceGizmoTests.CE4388_TheDoorLines_FollowTheMapsZoomAndView` (red-proved: the zoom cut-off removed).
+
+| view (scale-1 + 1 000 men, paused) | primitives | gizmo draw | frame |
+|---|---|---|---|
+| 3-D mid | 10 767 → **3 856** | 15.0 → 12.1 ms | 49 → **42 ms** |
+| 2-D close | 7 465 → **554** | 3.5 → **1.1 ms** | 20.7 → **18.5 ms** |
+| 2-D whole | the room the doors freed is filled by unit decorations the overflow used to drop (presentation 9 837, cards 2 694, health bars 2 320, names 1 347) | 7.2 ms | 42 ms |
+

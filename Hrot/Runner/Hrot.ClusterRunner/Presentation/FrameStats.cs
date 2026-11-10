@@ -75,8 +75,12 @@ internal sealed class FrameStats
         if (heavy.Count > 0) Console.WriteLine("[FrameStats]   per window garbage (KB/frame): " + string.Join(" · ", heavy.Select(w => $"{w.Name} {w.Bytes / n / 1024}")));
         Console.WriteLine($"[FrameStats]   gizmo 3-D pass: {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastPrimitives3D} primitives · labels {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabelsDrawn3D} drawn of {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabels3D}");
         // ⭐ CE-4385 — the stateless gizmo rules (the update's biggest system on a large terrain): time, entities drawn and garbage, per rule
-        var rules = Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Drain().Take(10).ToList();
+        var rulesAll = Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Drain();
+        var rules = rulesAll.Take(10).ToList();
         if (rules.Count > 0) Console.WriteLine("[FrameStats]   gizmo rules (ms · entities · KB per frame): " + string.Join(" · ", rules.Select(r => $"{r.Rule} {r.Ms / n:0.00} · {r.Entities / n} · {r.Bytes / n / 1024}")));
+        // ⭐ CE-4388 — who fills the gizmo buffer: primitives per frame, per gizmo (the buffer holds 16 384)
+        var byPrims = rulesAll.Where(r => r.Primitives > 0).OrderByDescending(r => r.Primitives).Take(10).ToList();
+        if (byPrims.Count > 0) Console.WriteLine("[FrameStats]   gizmo primitives per frame: " + string.Join(" · ", byPrims.Select(r => $"{r.Rule} {r.Primitives / n}")));
         _frames.Clear();
         Console.WriteLine($"[FrameStats]   garbage (KB/frame): update {_updateBytes / n / 1024}  draw {_drawBytes / n / 1024}  ui {_uiBytes / n / 1024}" +
                           $"  | gc0 {GC.CollectionCount(0)} gc1 {GC.CollectionCount(1)} gc2 {GC.CollectionCount(2)} (since start)");
