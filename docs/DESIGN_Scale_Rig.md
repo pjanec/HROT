@@ -191,3 +191,20 @@ sequenceDiagram
 | N-4 | the tile key hashed in ONE `SHA256.HashData` call over the same bytes | warm 31.5 → 16.0 s |
 | N-5 | the 3-D view still builds the whole soup (the editor) — 61 M triangles at 1 m is ui's U-1 (level of detail), not changed here | tracker row for ui |
 
+
+### 5.3 The cluster load and the frame's garbage *(scale-1 on the 3-node cluster, Release)*
+
+| # | finding (measured) | fix | rail |
+|---|---|---|---|
+| C-1 | ⛔ **every headless node spins one core while idle** — `SubsystemOrchestrator.Run` never waits; a windowed node's software-GL draw on Xvfb took 3 cores. Three nodes on this 4-core VM starved the terrain load (simhost's warm bake 53 s on the node vs 14 s alone) | the rig starts its nodes `--headless` (`HROT_NODE_ARGS`, new in `cluster-node.sh`) with **`HROT_HEADLESS_MAX_HZ=240`** — an opt-in cap in the headless loop: idle **102 % → 4.9 %** of a core | measured by `/proc` ticks; ⚠ the cap is OPT-IN (every lane's headless runs and tests use this loop) — making it the default is a tracker row |
+| C-2 | ⛔ **the gizmo batch is built and sent with nobody reading it** — `DebugPrimitivesBatchPublisherSystem` copies every primitive into a fresh `byte[]` each frame: 0.2 MB (demo-city) … **1.08 MB per frame** (scale-1) on every node | no matched reader (`IReaderAwareWriter` on the Cyclone adapter: the publication-matched count) ⇒ no copy, no sample | `DebugPrimitivesBatchPublisherTests.CE4366_*` — no reader: 0 writes, **0 B**; a reader: the frame; a writer that cannot tell: still publishes (red-proved) |
+| C-3 | ⛔ **the brain's biggest garbage: `WeaponAmmoMirrorSystem`** 0.2 MB at 96 men, **2.3 MB per frame at 1 000** — `WeaponAmmo` had no typed `Equals`, so the unchanged-ammo test boxed both structs per unit per frame | `WeaponAmmo : IEquatable<WeaponAmmo>` comparing the bytes (exactly what `ValueType.Equals` compared for this all-primitive struct) | `WeaponAmmoMirrorSystemTests.CE4366_ASteadyFrame_AllocatesNothingPerUnit` (10 vs 500 units, same bytes per frame; red-proved by forcing the boxed call) |
+| C-4 | the cluster load before C-1: **ready after 70 s** (was 184 s before §5.1's fixes; never before L-4) | — | re-measured after C-1 below |
+
+**Baselines on scale-1 before C-1…C-3** *(windowed nodes, unpaced)*:
+
+| men | load | cgf work / garbage | simhost work / garbage | peak | movers moved |
+|---|---|---|---|---|---|
+| 96 | 69.8 s | 23.1 ms · 1.47 MB | 23.4 ms · 1.24 MB | 2.07 GB | 11 / 12 |
+| 296 | 70.5 s | 33.7 ms · 2.05 MB | 31.2 ms · 1.37 MB | 2.46 GB | 9 / 12 |
+| 1 000 + 50 + 10 | 70.1 s | 89.0 ms · 4.23 MB | 45.4 ms · 1.55 MB | 3.08 GB ✅ | 1 / 12 ⚠ |

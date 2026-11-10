@@ -12,9 +12,20 @@ namespace Fdp.Toolkit.Combat.Components
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WeaponAmmo)]
     [DataPolicy(DataPolicy.NoScenario)]
-    public struct WeaponAmmo
+    public struct WeaponAmmo : System.IEquatable<WeaponAmmo>
     {
         public const int MaxMounts = 4;
+
+        /// <summary>
+        /// ⭐ <c>CE-4366</c> (L-4, docs/DESIGN_Scale_Rig.md §5) — the bits compared, as <see cref="System.ValueType.Equals(object)"/> compared
+        /// them for this all-primitive struct — but with no boxing: the mirror asked <c>Equals(object)</c> for every unit every frame (two
+        /// boxes each; 0.2 MB per frame at 96 men, 2.3 MB at 1 000 — the brain's biggest garbage).
+        /// </summary>
+        public readonly bool Equals(WeaponAmmo other)
+            => MemoryMarshal.AsBytes(new System.ReadOnlySpan<WeaponAmmo>(in this)).SequenceEqual(MemoryMarshal.AsBytes(new System.ReadOnlySpan<WeaponAmmo>(in other)));
+
+        public override readonly bool Equals(object? obj) => obj is WeaponAmmo o && Equals(o);
+        public override readonly int GetHashCode() => System.HashCode.Combine(Count, Ammo0, Ammo1, Load0, Busy, Hot);
 
         /// <summary>Mounts carried (0 – <see cref="MaxMounts"/>).</summary>
         public byte Count;

@@ -295,6 +295,8 @@ def main():
     ap.add_argument("--load-timeout", type=float, default=1800.0)
     ap.add_argument("--write-only", action="store_true")
     ap.add_argument("--json", default=None, help="also write the report as JSON here")
+    ap.add_argument("--windowed", action="store_true",
+                    help="start the nodes with their window (default --headless: a windowed node's software-GL draw on Xvfb took 3 cores idle)")
     a = ap.parse_args()
 
     name = f"scale-rig-{a.terrain}-{a.men}-{a.sides}s"
@@ -307,6 +309,10 @@ def main():
     report = {"terrain": a.terrain, "sides": a.sides, "men": (a.men // 8) * 8, "vehicles": a.vehicles, "aircraft": a.aircraft, "budget": BUDGET,
               "machine": f"{os.cpu_count()} cores", "build": "Release" if "Release" in os.environ.get("HROT_RUNNER_DLL", "") else "Debug",
               "nodes": {}}
+    if not a.windowed:
+        os.environ["HROT_NODE_ARGS"] = (os.environ.get("HROT_NODE_ARGS", "") + " --headless").strip()
+        os.environ.setdefault("HROT_HEADLESS_MAX_HZ", "240")   # CE-4366: an unpaced headless loop spins a core per node
+    report["headless"] = not a.windowed
     ps.node("stop-all")
     try:
         for mode, port in NODES:
