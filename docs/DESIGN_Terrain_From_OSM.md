@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — §14 library side READY-TO-BUILD (Q-O10…Q-O12 decided, R-4193, 2026-11-10); §6 wizard MOCKUP for the user; §4a the wizard ⇄ pipeline contract BUILT as types (coordinator 2026-11-09); reviewed (builder check + coordinator review F-1…F-11, folded in 2026-11-09), Q-O1…Q-O9 answered; map background / imagery LEFT OPEN for the user (§8)
-updated: 2026-11-10 (§14 detailed design of the library side — coordinator) · 2026-11-09 (source-data session)
+build-state: DESIGN — §14 library side BUILT 2026-11-10 (CE-4373, as-built table §14.8; the live Overpass run is not tested); §6 wizard MOCKUP for the user; §4a the wizard ⇄ pipeline contract BUILT as types (coordinator 2026-11-09); reviewed (builder check + coordinator review F-1…F-11, folded in 2026-11-09), Q-O1…Q-O9 answered; map background / imagery LEFT OPEN for the user (§8)
+updated: 2026-11-10 (§14.8 as built — CE-4373; §14 detailed design of the library side — coordinator) · 2026-11-09 (source-data session)
 current-answer: ⭐ §14 the detailed design (inventory, measured sample, classes, sequence, modules, E-1…E-12, Q-O10…Q-O12) · §4a the wizard contract · §5 the rules · §13 the review
 known-rot: §5.5's "split along the shortest cut" for holes is replaced by §14.5 E-4 (a cut through each hole's centre)
 related-designs:
@@ -671,3 +671,43 @@ do not need satellite imagery at all. otherwise accepted."*
 | **Q-O12** | ✅ no environment change now; tests run offline (`--osm-file`, `--dem-dir`) |
 | Overpass | ✅ **kept** — it is the read-only QUERY service for OSM DATA (not imagery): one request returns every road, building, wood, wall and river in the box. The alternatives are worse: the OSM editing API (`/api/0.6/map`) refuses boxes over 50 000 nodes (a 1.8 × 1.7 km town is already 32 000) and its policy forbids bulk reads; a country extract (Geofabrik `.pbf`) is hundreds of MB to download plus a PBF reader. ⭐ Behind `OsmSource`, so a second source can be added later |
 | imagery | ✅ M3 dropped (§8) |
+
+### 14.8 ✅ AS BUILT `2026-11-10` (CE-4373) — what matched §14.2 and where it deviated
+
+`Hrot/Engine/Hrot.Terrain.Osm/` (+ `Hrot.Terrain.Osm.Tests`, 100 offline rails; CLI `Hrot/Tools/Hrot.Tools.TerrainOsm`, assembly `hrot-terrain-osm`). Clipper2 **1.5.4** (Boost).
+
+| §14.2 box | as built |
+|---|---|
+| `OsmTerrainPipeline` | ✅ as drawn; the constructor takes `IOsmSource`, `IDemSource`, `IRoadBuilder` (CE-4374's `NetconvertRoadBuilder`), `DownloadCache`, `OsmBudget`. Preview = fetch + parse + rules only (a rail asserts no DEM / road call); Write = DEM + heights + roads + files into `<out>.osm-tmp-<id>`, `InputSetChecks` on it, then moved into place; cancel or failure deletes the temp folder |
+| `AreaFrame` | ✅ static; E-8 as designed, bounds rounded INWARD to whole metres so the 1 m posts fall on them; also `Measure` (6 000 m, inverted, UTM latitudes) and `WithMargin` |
+| `DownloadCache` | ✅ `GetOrFetchAsync(box, file, fetch)`, folder per area hash, temp name then rename |
+| `OsmSource` / `OverpassSource` | ⚠ **renamed `IOsmSource`**, `FetchAsync(box, destFile, …)` WRITES the file (no returned path); + `FileOsmSource` (`--osm-file`, tests) and `HttpRetry` (E-10: one client, User-Agent, 60 s per attempt, 3 retries 2/4/8 s or `Retry-After`, 4xx not retried, `OsmServiceException` names the service) |
+| `OsmXmlReader` / `OsmModel` | ✅ streaming; ⚠ node positions are projected to local metres AT READ, so `Read` takes the `UtmFrame`; DTDs refused |
+| `GeometryAssembler` + `Polygons` | ✅ rings joined end to end from open ways, inners matched to outers; E-4 holes: the cut is parallel to the hole's SHORTER axis (crosses it where narrowest), a concave hole no cut can bisect is filled and counted in the warnings |
+| `BuildingRules` | ✅ §5.5 + F-4/F-6 + R-4193; ⚠ **two phases**: `Apply` → `BuildingDraft` (no heights; all the preview needs), `Finish(draft, ground)` → `Building` (baseZ = lowest ground, TH-C). Party walls by node ids first, then ≤ 0.3 m antiparallel overlap with vertex snapping (E-5); a wall = a run of collinear edges (an entrance vertex does not split it) |
+| `VegetationRules` / `BarrierRules` / `WaterRules` | ✅ all in `Rules/AreaRules.cs`; woods are polygons (density 115), holes split; water per kind (`lake` / `river` / `pond`), river lines buffered (width tag, else 10 / 8 m), streams none |
+| `HeightBuilder` | ✅ + ONE `GroundAt(x, y)` used by the grid, the buildings' baseZ and the trees' z; ⚠ lat / lon per post come from a 50 m lattice of exact projections, bilinearly interpolated (36 M exact `ToGeodetic` calls were the cost); F-2: levelled only at layer 0 without bridge / tunnel, half-width by class or `width`, 3 m smooth blend; ⚠ not parallel (the `IDemSource` is not promised thread-safe) |
+| `PreviewBuilder` | ✅ + `OsmBudget` (the three tuned loads and the 2× / 3× factors in one record) |
+| `CopernicusDem`, `CogReader`, `RoadBuilder`, `NetconvertLocator` | CE-4374 (coordinator), not part of this item |
+| `InputSetWriter` | ⚠ not a class — the pipeline writes through `Hrot.Terrain.InputSet`'s static writers |
+| `OsmCli` | ✅ `--bbox --name [--out] [--preview-only] [--osm-file] [--dem-dir]`; real Overpass / Copernicus / netconvert; `--osm-file` uses a private cache that is deleted afterwards |
+
+**Decisions the build made that §14.5 left open** (each is a line in the code, change it there):
+- `OsmCounts.Buildings` = the ENTERABLE buildings only (R-4193: solid ones are "counted apart"); the contract is unchanged, the solid count is a preview warning. Openings = doors + windows of enterable buildings only (solid ones have none).
+- A building crossing the area's edge is DROPPED (counted), not clipped. `building:part` inside a building's outline is merged into it (the outline is the building); with `min_level` > 0 it is ignored.
+- Ids: `w<way>` / `r<relation>`, courtyard parts `r<id>-1`, `-2` (way and relation numbers can collide).
+- Windows: `round(usable / 2.75) + 1` per wall (spacing ≈ 2.4–3.3 m), 1 m margins, none within 1 m of a door on ANY storey, none on a party stretch (± 0.5 m); a back door on every enterable building > 150 m² that has no mapped entrance.
+- `walls.geojson` kinds use the input-set vocabulary: `stone` (wall, retaining_wall, city_wall), `fence`, and **`hedge`** — ⚠ the importer (CE-4368) must accept `hedge`; thickness wall 0.4 / fence 0.1 / hedge 0.8 / retaining 0.5 / city 2.0 m. Heights as §14.1.
+- Roads: netconvert reads the whole margin file; `NetconvertRoadBuilder` keeps edges inside the bounds.
+
+**Not built / not tested:** the live Overpass call (Q-O12: not reachable here) — the query text and the retry policy are rails, the real response is not; §7's "split a too-large Overpass result into 4" (a 504 just fails with the service named); an Overpass 200 carrying a `<remark>` runtime error is not detected; the importer-side consumption of `woods` / `water` / `scrub` is CE-4368's.
+
+### 14.9 ✅ BUILT `2026-11-10` — heights and roads (CE-4374, coordinator)
+
+| as built | rails (`Hrot.Terrain.Osm.Tests/DemAndRoadsTests`, 9) |
+|---|---|
+| `Dem/CogReader` — tiled float32, deflate + predictor 3 (libtiff's floating-point layout), PixelIsArea / PixelIsPoint, the first IFD only, internal tiles fetched by RANGE (`IRangeSource`: `HttpRangeSource` with a disk cache, 3 retries, 403 / 404 = a missing file; `FolderRangeSource` for tests and `--dem-dir`) | a test-written COG decodes exactly; the georeference both ways |
+| `Dem/CopernicusDem : IDemSource` — `Copernicus_DSM_COG_10_N49_00_E015_00_DEM.tif` naming (S / W too), only the windows the area touches (+ a margin), Catmull-Rom bicubic, a post past a file's edge taken from the neighbouring file, a missing file = open sea = 0 m | a plane is reproduced exactly, also ACROSS the 1° file edge; sea = 0 |
+| ⭐ **verified on the REAL public bucket** (opt-in `HROT_LIVE_DEM=1`, run here `2026-11-10`): Sněžka reads inside 1 570…1 620 m (GLO-30 is a surface model) | `Live_TheRealBucket_ReadsAKnownSummit` |
+| `Roads/NetconvertRoadBuilder : IRoadBuilder` — the shared locator (1.20.0), F-7's explicit `--proj` (+south), offset (−e0, −n0) with normalisation off, `--keep-edges.in-boundary` the local bounds, SUMO's recommended OSM cleanup options, the run-date comment stripped | ⭐ a known OSM node lands at its local metres (± 5 cm) — red-proved: a 1 m offset error moves it 1 m |
+| `scripts/install-sumo.sh` (pip `eclipse-sumo==<version>` into `.local/sumo/<v>/venv`) · `scripts/install-sumo.ps1` (the official win64 zip into `.local/sumo/<v>/`) · `tools/sumo/version.txt` = 1.20.0 · `.local/` gitignored | the Linux script run here (idempotent) |

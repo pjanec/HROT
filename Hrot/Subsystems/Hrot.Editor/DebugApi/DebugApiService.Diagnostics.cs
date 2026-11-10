@@ -259,6 +259,7 @@ namespace Hrot.Editor.DebugApi
                     ["msPerSecond"] = Math.Round(r.TotalMs / Math.Max(seconds, 1e-6), 3),
                     ["avgUs"]       = Math.Round(r.AvgUs, 2),
                     ["maxUs"]       = Math.Round(r.MaxUs, 1),
+                    ["bytesPerSecond"] = Math.Round(r.Bytes / Math.Max(seconds, 1e-6), 0),   // the garbage, where the slot counts it
                 });
             if (reset) Fdp.Toolkit.Diagnostics.QueryTimings.Reset();
             return new JsonObject

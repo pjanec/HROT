@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
 updated: 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
+current-answer: ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
 known-rot: §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
@@ -672,3 +672,92 @@ classDiagram
 | `HeightsInfo.SourceResolution` → `heights.json` `sourceResolution` (OSM F-9) | absent when not set ⇒ the synth's files unchanged |
 | `Netconvert.Locate` — the shared locator with the version check (`tools/sumo/version.txt` = 1.20.0); `HROT_SUMO_NO_LOCAL=1` hides the repo install (tests of "not found") | ⚠ a netconvert of another version is now REFUSED (the synth tool then keeps the plain files and warns) |
 | the synth tool rebuilt on it: **byte-identical** output — its 87 tests (the hash pins) green, and a regenerated `tiny` diffed equal to the earlier one, `manifest.json` and `roads.net.xml` included | |
+
+## 11. ⭐ THE IMPORTER — input set → `assets/terrain/<name>/` *(coordinator, `2026-11-10`; CE-4368 — taken over from backend's L-6: the user, "The backend is now optimizing for the large terrain so it is not going to work in the import anytime soon. Is there something you can do yourselves instead?")*
+
+### 11.0 INVENTORY *(graph + grep, `2026-11-10`)*
+
+| what the importer needs | exists — reused, never copied |
+|---|---|
+| read the input set | `Hrot.Terrain.InputSet` — `InputSetReader`, `HeightsGrid.ReadRows`, `InputSetChecks` (CE-4371, §10.10) |
+| heights → the 1 m store | `TerrainHeightGrid.Resample(src north-first, ulx, uly, dx, dy, nodata, minX, minY, cols, rows, spacing)` + `WriteStore` (`.heights`, CE-4365) — as `hrot-heights` uses them |
+| tree points → woods + lone trees | `TerrainWoods.Cluster(trees, min, max, roads)` (CE-4369) — as `hrot-trees` uses it; woods POLYGONS (§10.9 ②) go in as forest surfaces with their density directly (`TerrainWoods.Build` takes any polygon) |
+| a building as a template + a placement | the world file's `building` Point with `template` / `rotation` / `baseZ` / `doors` (`TerrainWorldParser.cs:116-137`); templates in `<terrain>/buildings/<name>.building.json` (`TerrainAssets.cs:83`); the template schema the expander reads (`TerrainBuildingExpander`): `footprint`, `material`, `storeys[{height, walls[{from, to, thickness, material, height, openings[{kind, at, width, sillZ, headZ, doorId, initial}]}], stairs[{from, to, width, toStorey}], floor: rings}]`, `roof: flat \| none \| rings`, or `solid` + `height` |
+| the terrain folder | `terrain.json` (`name`, `origin {lat, lon, alt}`, `world`, `sumoNet {file, anchor}`) + `<name>.world.geojson` (`hrot.bounds`, `hrot.heightGrid`) — the shape `scripts/terrain-from-sumo.py` writes |
+| UTM ⇄ lat / lon | `Fdp.Modules.Geographic.Transforms.Utm` (CE-4372) |
+| polygon booleans (the stairwell notch) | `Clipper2` (the OSM pipeline's dependency, §14.5 E-3 of Terrain From OSM) |
+| ⛔ not found | a pitched / gabled roof in the template schema (flat, none or rings only) · a C# writer of terrain folders (only the Python scripts) · `UtmTransform` (stage 1, not built) |
+
+### 11.1 The classes
+
+```mermaid
+classDiagram
+  direction LR
+  class ITerrainImporter { <<contract, Hrot.Terrain.InputSet>> ImportAsync; ScenariosUsing }
+  class TerrainImporter { <<NEW, Hrot.Terrain.Import>> ImportAsync(set, name, replace, progress, ct) }
+  class TerrainFolderWriter { <<NEW>> terrain.json; world.geojson; buildings/; the net; the height store }
+  class HeightStage { <<NEW>> ReadRows -> TerrainHeightGrid.Resample -> WriteStore at 1 m }
+  class BuildingTemplateGenerator { <<NEW>> one template per building (R-4191) }
+  class OpeningPlacer { <<NEW>> point -> nearest wall, at along it; tolerant of noise }
+  class PartyWalls { <<NEW>> edges shared by identical vertices -> one wall, written once }
+  class StairPlanner { <<NEW>> one ramp per storey along the longest wall; the floor above notched }
+  class VegetationStage { <<NEW>> woods polygons or TerrainWoods.Cluster; lone trees }
+  class InputSetReader { <<existing>> }
+  class TerrainHeightGrid { <<existing>> Resample; WriteStore }
+  class TerrainWoods { <<existing>> Cluster }
+  class Utm { <<existing>> ToGeodetic }
+  ITerrainImporter <|.. TerrainImporter
+  TerrainImporter --> InputSetReader
+  TerrainImporter --> HeightStage
+  HeightStage --> TerrainHeightGrid
+  TerrainImporter --> BuildingTemplateGenerator
+  BuildingTemplateGenerator --> OpeningPlacer
+  BuildingTemplateGenerator --> PartyWalls
+  BuildingTemplateGenerator --> StairPlanner
+  TerrainImporter --> VegetationStage
+  VegetationStage --> TerrainWoods
+  TerrainImporter --> TerrainFolderWriter
+  TerrainFolderWriter --> Utm
+```
+*What the picture shows: the only NEW logic is the building generator (and its three helpers) and the folder writer; heights, woods, reading
+and the maths are existing code called in order.*
+
+### 11.2 The import
+
+```mermaid
+sequenceDiagram
+  participant C as Caller (CLI, wizard, test)
+  participant I as TerrainImporter
+  participant R as InputSetReader
+  participant H as HeightStage
+  participant B as BuildingTemplateGenerator
+  participant V as VegetationStage
+  participant W as TerrainFolderWriter
+  C->>I: ImportAsync(set, name, replace)
+  I->>R: Open, then InputSetChecks - a set with problems is refused
+  I->>H: heights at 1 m in TERRAIN-LOCAL metres (input local minus the bounds' south-west corner)
+  I->>B: per building - enterable gets a template + a Point placement, solid gets a prism
+  B-->>I: templates, placements, warnings (openings on no wall, stairs that did not fit)
+  I->>V: woods (polygons, else clustered points), lone trees
+  I->>W: write into a temp folder - the net with its anchor, water, walls, then terrain.json
+  I->>I: move into assets/terrain/(name) (refused if it exists and replace is false)
+  I-->>C: the terrain folder
+```
+
+### 11.3 Decisions *(coordinator; none changes a user ruling)*
+
+| # | decision | rejected (one line each) |
+|---|---|---|
+| **I-a** | **terrain-local = input local − the bounds' south-west corner** (the terrain starts at 0, 0 as every HROT terrain does; `hrot-heights` already uses this); the net's anchor = `sumoAnchor` + that corner | input local as is — negative coordinates in a terrain; every existing terrain starts at 0, 0 |
+| **I-b** | **placement**: geographic `origin` = the lat / lon of the terrain's (0, 0) through `Utm.ToGeodetic`, so today's engine places it; the exact `frame.utm` (+ the corner) is ALSO written for stage 1's `UtmTransform` — until that lands lat / lon read-outs drift from the tangent plane by ≲ 2 m at 5 km; local positions are exact | waiting for `UtmTransform` — blocks the whole import on an engine change touching 53 users |
+| **I-c** | **one template per building** (R-4191), named by its id, in `<terrain>/buildings/`; footprint in template-local metres (origin = the footprint's first vertex), placement rotation 0 | rotating to the longest wall — no gain for a unique template |
+| **I-d** | **storeys**: heights from `storeyZ` differences; the top storey up to `baseZ + height`; outer walls on the footprint edges, 0.3 m | an inner-wall guess — none in the data (R-4186: open floors) |
+| **I-e** | **openings**: each point → the nearest footprint edge within **0.6 m** (the real noise is ≤ 0.3 m off-wall, §10.7 — the heading is NOT trusted, 3 % are flipped); `at` = the projection along the wall; door 0.9 m, window 1.2 m wide, window sill / head 0.9 / 2.1 m above its storey's floor; an opening overlapping one already on that wall is dropped; one beyond 0.6 m is dropped and counted | trusting the heading — 3 % wrong in the real set |
+| **I-f** | **party walls**: an edge whose two vertices match another building's edge (identical, or ≤ 0.05 m) is ONE wall, written in the building that comes first by id; no openings on it | two walls 0 m apart — the expander would build both |
+| **I-g** | **stairs** (R-4186 one ramp): per storey above the ground, a 1 m-wide ramp along the inside of the longest wall, run = 1.7 × the storey height; the floor above is the footprint minus that stairwell (a notch against the wall, never a hole — Clipper2); when no wall is long enough the building is SOLID and counted | a stair at the centre — leaves a hole the floor rings cannot express |
+| **I-h** | **roofs**: flat → the template's `flat` roof; pitched → a flat roof + a SOLID cap (a world `building` prism from the eaves to `ridgeZ`) — conservative for sight and fire; a true gable is a later item (the template schema has none) | ignoring the ridge — the roof would hide nothing above the eaves |
+| **I-i** | **solid buildings** (`Enterable: false`, R-4193; or no stair fits): a world `building` polygon prism, `baseZ`, `height` (+ the cap) | an empty template — a navmesh island nobody uses |
+| **I-j** | **woods**: `woods.geojson` polygons → forest surfaces with their density; else `trees.csv` → `TerrainWoods.Cluster` (roads left open); lone trees → `tree` points; scrub → not imported (no class yet, T-8) — reported | — |
+| **I-k** | **heights**: the 1 m store (`.heights`) always; NODATA posts take the nearest valid height (`Resample`'s rule) | an `.asc` — 813 MB / 5.9 s at 1 m (measured by backend, CE-4365) |
+| **I-l** | **the navmesh prefill (stage 6) is NOT in this item**: the first load bakes and caches it (`NavTileCache`); a prefill is a later item once the bake time per terrain is measured | — |
+| **I-m** | **all or nothing**: written into a temp folder beside the target and moved into place; Cancel or a failure leaves nothing | writing in place |

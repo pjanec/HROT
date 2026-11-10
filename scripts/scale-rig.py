@@ -411,10 +411,13 @@ def queries(port, fps, n):
     """⭐ CE-3427 — the node's most expensive world queries over the measured window: [ms per frame, calls per frame, avg µs, max µs, name]."""
     d = ps.get(port, "/diagnostics/queries") or {}
     rows = []
-    for q in (d.get("queries") or [])[:n]:
+    qs = d.get("queries") or []
+    # the most time first, then every counter slot ("(count)") and every slot that counts garbage, so neither is cut off
+    keep = qs[:n] + [q for q in qs[n:] if "(count)" in (q.get("name") or "") or (q.get("bytesPerSecond") or 0) > 0]
+    for q in keep:
         per_s = q.get("msPerSecond") or 0.0
         rows.append([round(per_s / max(fps, 1e-6), 3), round((q.get("perSecond") or 0.0) / max(fps, 1e-6), 2),
-                     q.get("avgUs"), q.get("maxUs"), q.get("name")])
+                     q.get("avgUs"), q.get("maxUs"), q.get("name"), round((q.get("bytesPerSecond") or 0.0) / max(fps, 1e-6))])
     return rows
 
 
@@ -431,9 +434,9 @@ def print_table(r):
         for by, s in n["top_b"][:3]:
             print(f"        {by:8d} B   {s}")
         if n.get("queries"):
-            print(f"        {'world queries':<34}{'ms/frame':>10}{'calls/frame':>13}{'avg µs':>10}{'max µs':>10}")
-            for ms, calls, avg, mx, name in n["queries"]:
-                print(f"        {name:<34}{ms:>10.3f}{calls:>13.2f}{avg:>10.1f}{mx:>10.0f}")
+            print(f"        {'world queries':<44}{'ms/frame':>10}{'calls/frame':>13}{'avg µs':>10}{'max µs':>10}{'KB/frame':>10}")
+            for ms, calls, avg, mx, name, by in n["queries"]:
+                print(f"        {name:<44}{ms:>10.3f}{calls:>13.2f}{avg:>10.1f}{mx:>10.0f}{by / 1024:>10.1f}")
     print(f"  budgets: " + "  ".join(f"{k} {'✅' if v else '⛔'}" for k, v in r["checks"].items()) + f"  ⇒ {r['verdict']}")
 
 

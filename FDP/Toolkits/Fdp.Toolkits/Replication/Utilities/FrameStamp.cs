@@ -34,6 +34,15 @@ namespace Fdp.Toolkit.Replication.Utilities
             => ReferenceEquals(repo, _repo) && repo.GlobalVersion == _version
                && WorldEpoch.Of(repo) == _epoch && WorldEpoch.RestoresOf(repo) == _restores;
 
+        /// <summary>⭐ CE-3427 — same world and epoch, and nothing of <paramref name="source"/> written since the frame the stamp was
+        /// taken in (inclusive) — the frame itself may have moved on. The caller still checks what a destroy or an add can change.</summary>
+        public readonly bool HoldsSinceTaken(EntityRepository repo, Type source)
+        {
+            if (!ReferenceEquals(repo, _repo)) return false;
+            if (WorldEpoch.Of(repo) != _epoch || WorldEpoch.RestoresOf(repo) != _restores) return false;
+            return !(repo.TryGetTable(source, out var table) && table.HasChanges(_version == 0 ? 0 : _version - 1));
+        }
+
         /// <summary>Same world, frame and epoch, and nothing of <paramref name="source"/> written since the frame began.</summary>
         public readonly bool Holds(EntityRepository repo, Type source)
         {
