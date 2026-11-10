@@ -100,6 +100,14 @@ namespace Fdp.Toolkit.Terrain
         /// Water is appended last, as flat triangles (<see cref="AppendWater"/>); <paramref name="waterTriangles"/> = how many of the triangles at the end are water.
         /// </summary>
         public static void BuildChunkObjects(TerrainWorld world, int cx, int cy, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g, out int waterTriangles)
+            => BuildChunkObjects(world, cx, cy, null, v, t, g, out waterTriangles);
+
+        /// <summary>
+        /// ⭐ <c>CE-4392</c> (DESIGN_Map_3D_Mode §6aj X-1 / X-2) — the chunk's objects as <paramref name="damage"/> leaves them (null = none, the plain build): a collapsed building's
+        /// pieces skipped and its rubble drawn as a HEAP (<see cref="AddHeap"/>) in the chunk of the mound's centre; a breached panel re-cut (<see cref="DamagedBuildings.RecutPanel"/>) in
+        /// the chunk of the panel's midpoint. ⛔ The world is not changed.
+        /// </summary>
+        public static void BuildChunkObjects(TerrainWorld world, int cx, int cy, BuildingDamageTable? damage, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g, out int waterTriangles)
         {
             var ch = Chunks.For(world);
             int k = (cy * ch.Layout.Nx) + cx;
@@ -108,10 +116,34 @@ namespace Fdp.Toolkit.Terrain
             foreach (int p in ch.Prisms[k])
             {
                 var prism = world.Prisms[p];
+                if (damage != null && !DamagedBuildings.Keeps(prism, damage)) continue;
                 if (IsRoofCap(prism)) AddGable(prism, v, t, g);   // ⭐ CE-4377 §6ai R-1 — a pitched roof drawn as one (the cap stays the world's for sight and fire)
                 else AddPrism(prism, v, t, g);
             }
-            foreach (int w in ch.Walkables[k]) AddWalkable(world.Walkables[w], v, t, g);
+            if (damage != null)
+            {
+                var panels = new List<int>();
+                DamagedBuildings.BreachedPanels(damage, panels);
+                var pieces = new List<TerrainPrism>();
+                foreach (int pi in panels)
+                {
+                    if ((uint)pi >= (uint)world.Panels.Count || !DamagedBuildings.IsRecut(world, damage, pi)) continue;
+                    var panel = world.Panels[pi];
+                    var mid = (panel.A + panel.B) * 0.5f;
+                    if (ch.ChunkOf(mid, mid) != k) continue;
+                    pieces.Clear();
+                    DamagedBuildings.RecutPanel(world, damage, pi, pieces);
+                    foreach (var piece in pieces) AddPrism(piece, v, t, g);
+                }
+                foreach (int b in damage.CollapsedBuildings)
+                {
+                    if ((uint)b >= (uint)world.Buildings.Count) continue;
+                    var rubble = damage.RubbleOf(world, b);
+                    if (ch.ChunkOf(rubble.Min, rubble.Max) == k) AddHeap(rubble, v, t, g);
+                }
+            }
+            foreach (int w in ch.Walkables[k])
+                if (damage == null || DamagedBuildings.Keeps(world.Walkables[w], damage)) AddWalkable(world.Walkables[w], v, t, g);
             int before = t.Count;
             foreach (int s in ch.Water[k]) AppendWater(world, world.Surfaces[s], v, t);
             waterTriangles = (t.Count - before) / 3;
@@ -136,6 +168,9 @@ namespace Fdp.Toolkit.Terrain
                 idx.Add(i0); idx.Add(up ? i1 : i2); idx.Add(up ? i2 : i1);
             }
         }
+
+        /// <summary>⭐ CE-4392 X-3 — the chunk indices (<c>cy · Nx + cx</c>) whose objects show building <paramref name="building"/>.</summary>
+        public static IReadOnlyList<int> ChunksOfBuilding(TerrainWorld world, int building) => Chunks.For(world).OfBuilding(world, building);
 
         /// <summary>⭐ CE-3423 — the chunk grid of a world and which pieces belong to which chunk (their box centre), built once per world.</summary>
         private sealed class Chunks
@@ -167,6 +202,35 @@ namespace Fdp.Toolkit.Terrain
             }
 
             private static List<int>[] New(int n) { var a = new List<int>[n]; for (int i = 0; i < n; i++) a[i] = new List<int>(); return a; }
+
+            /// <summary>The chunk holding a box's centre (the damage drawing's owner rule, CE-4392).</summary>
+            public int ChunkOf(Vector2 min, Vector2 max) => Of(min, max);
+
+            /// <summary>⭐ CE-4392 X-3 — the chunks holding a piece of building <paramref name="b"/> (its prisms, walkables, its panels' midpoints, its rubble's centre), built once per world.</summary>
+            public IReadOnlyList<int> OfBuilding(TerrainWorld world, int b)
+            {
+                lock (_byBuildingLock)
+                {
+                    if (_byBuilding == null)
+                    {
+                        var map = new Dictionary<int, List<int>>();
+                        void Add(int building, int chunk) { if (building < 0) return; if (!map.TryGetValue(building, out var l)) map[building] = l = new List<int>(2); if (!l.Contains(chunk)) l.Add(chunk); }
+                        for (int k = 0; k < Prisms.Length; k++) { foreach (int p in Prisms[k]) Add(world.Prisms[p].Building, k); foreach (int w in Walkables[k]) Add(world.Walkables[w].Building, k); }
+                        for (int pi = 0; pi < world.Panels.Count; pi++) { var mid = (world.Panels[pi].A + world.Panels[pi].B) * 0.5f; Add(world.Panels[pi].Building, Of(mid, mid)); }
+                        for (int bi = 0; bi < world.Buildings.Count; bi++)
+                        {
+                            var fp = world.Buildings[bi].Footprint;
+                            var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
+                            foreach (var q in fp) { min = Vector2.Min(min, q); max = Vector2.Max(max, q); }
+                            if (fp.Length > 0) Add(bi, Of(min, max));
+                        }
+                        _byBuilding = map;
+                    }
+                    return _byBuilding.TryGetValue(b, out var r) ? r : (IReadOnlyList<int>)System.Array.Empty<int>();
+                }
+            }
+            private readonly object _byBuildingLock = new();
+            private Dictionary<int, List<int>>? _byBuilding;
 
             /// <summary>The chunk holding a box's centre (clamped: a piece outside the grid belongs to the nearest edge chunk).</summary>
             private int Of(Vector2 min, Vector2 max)
