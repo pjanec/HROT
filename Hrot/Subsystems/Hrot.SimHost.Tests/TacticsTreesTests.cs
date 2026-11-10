@@ -343,7 +343,7 @@ namespace Hrot.SimHost.Tests
             var cover = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
             Assert.False(cover.IsNull);
             w.Answer(cover, 5, 30f, 40f);                              // good cover nearby ⇒ TakeCover wins
-            for (int i = 0; i < 4; i++) w.Tick();
+            Decide(w);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.Equal("CombatPosture", w.TaskName);
             // ⭐ CE-3158 G-6 — the TakeCover option runs the library's fight-from-cover node (PeekAndFire) and its sensor
             Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PeekAndFireNodes.CoverSite).IsNull,
@@ -404,7 +404,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(enemy, w.Repo.GetComponentRO<EqsSensor>(flankScore).ContextSlot1);
 
             w.Answer(flankScore, 5, 60f, 80f);                         // a good flank exists
-            for (int i = 0; i < 3; i++) w.Tick();
+            Decide(w);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Flank, w.ApproachWinner());
             var flank = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite);
             Assert.False(flank.IsNull, "the Flank manoeuvre runs, with its own sensor");
@@ -414,8 +414,12 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);   // … firing
 
             w.See(enemy);                                              // from the flank the target is in sight
+            // ⭐ CE-4395 (R-3085) — as perception does when a contact enters his tracks (ActiveSensorTracksUpdateSystem.cs:95): the sighting WAKES
+            //   the cadenced approach decision, which re-scores (→ Direct) before the finished flank can end the run
+            if (!w.Repo.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SensorChangedEvent>()) w.Repo.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
+            w.Repo.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = w.Unit, Target = enemy, What = Fdp.Toolkit.Perception.Events.SensorChange.Acquired });
             w.Repo.GetComponentRW<LocomotionChannel>(w.Unit).Status = Fbt.NodeStatus.Success;   // arrived at the flank
-            for (int i = 0; i < 3; i++) w.Tick();
+            Decide(w);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.Equal("CombatPosture", w.TaskName);                 // ⭐ F2: arrival did NOT end the run
             Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Direct, w.ApproachWinner());
             Assert.Equal(new Vector3(200f, 0f, 0f), w.Destination());  // straight on to the objective
@@ -439,7 +443,7 @@ namespace Hrot.SimHost.Tests
             w.Order("CombatPosture", PostedObjective);
             for (int i = 0; i < 4; i++) w.Tick();
             w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f);   // a good flank exists
-            for (int i = 0; i < 3; i++) w.Tick();
+            Decide(w);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Flank, w.ApproachWinner());
             var flank = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite);
             Assert.False(flank.IsNull, "the Flank manoeuvre runs");
@@ -454,11 +458,11 @@ namespace Hrot.SimHost.Tests
             w2.Order("CombatPosture", PostedObjective);
             for (int i = 0; i < 4; i++) w2.Tick();
             w2.Answer(EqsChildSensor.Find(w2.Repo, w2.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f);
-            for (int i = 0; i < 3; i++) w2.Tick();
+            Decide(w2);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             var flank2 = EqsChildSensor.Find(w2.Repo, w2.Unit, EqsTacticsNodes.FlankSite);
             Assert.False(flank2.IsNull, "the Flank manoeuvre runs");
             w2.AnswerPoints(flank2, 6, (30f, 40f), (12f, 9f));         // nothing on his post
-            for (int i = 0; i < 3; i++) w2.Tick();
+            Decide(w2);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.NotEqual(new Vector3(30f, 40f, 0f), w2.Destination());
             Assert.NotEqual(new Vector3(12f, 9f, 0f), w2.Destination());
             Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w2.Repo.GetComponentRO<WeaponChannel>(w2.Unit).ActiveAction);   // … he fights
@@ -535,7 +539,7 @@ namespace Hrot.SimHost.Tests
 
             w.AnswerScored(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f, 0.5f);
             w.AnswerScored(throwScore, 5, 10f, 12f, 0.5f);
-            for (int i = 0; i < 3; i++) w.Tick();
+            Decide(w);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.CloseToThrow, w.ApproachWinner());
 
             var close = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.CloseToThrowSite);
@@ -558,7 +562,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.ThrowScoreSite).IsNull);
             w.AnswerScored(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f, 0.5f);
-            for (int i = 0; i < 3; i++) w.Tick();
+            Decide(w);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.Equal((byte)Fdp.Toolkit.Utility.Approach.Flank, w.ApproachWinner());
         }
 
@@ -671,7 +675,7 @@ namespace Hrot.SimHost.Tests
             w.Order("CombatPosture", Objective);
             for (int i = 0; i < 4; i++) w.Tick();
             w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.FlankScoreSite), 5, 60f, 80f);
-            for (int i = 0; i < 3; i++) w.Tick();
+            Decide(w);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite).IsNull, "flanking");
 
             w.SetHealth(0.3f);
@@ -681,7 +685,7 @@ namespace Hrot.SimHost.Tests
             w.Tick();
             w.Tick();
             w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite), 6, 30f, 40f);
-            for (int i = 0; i < 4; i++) w.Tick();
+            Decide(w);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.False(EqsChildSensor.Find(w.Repo, w.Unit, PeekAndFireNodes.CoverSite).IsNull, "TakeCover runs");   // ⭐ CE-3158 G-6 — PeekAndFire's sensor
             Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.FlankSite).IsNull, "the flank manoeuvre (and its sensor) went with the branch");
             Assert.NotEqual(new Vector3(60f, 80f, 0f), w.Destination());
@@ -706,7 +710,7 @@ namespace Hrot.SimHost.Tests
             w.Tick();
             w.Tick();
             w.Answer(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite), 6, 30f, 40f);
-            for (int i = 0; i < 4; i++) w.Tick();
+            Decide(w);   // ⭐ CE-4395 (R-3085) — the decision re-scores within 0.2 s, not the next tick
             Assert.Equal((byte)Fdp.Toolkit.Utility.Posture.TakeCover, w.Winner("CombatPosture"));
             Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
         }
@@ -902,6 +906,10 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>One frame, with the MoveTo executor's half emulated: a NEW action instance enters Running (its <c>OnEnter</c>).</summary>
+        /// <summary>⭐ CE-4395 (R-3085, Cost & Cadence §11g-2) — the combat decisions re-score every 0.2 s of sim time on the man's phase (or at
+        /// once when his senses change): tick one period, so a new EQS answer has been scored.</summary>
+        private static void Decide(World w) { for (int i = 0; i < 14; i++) w.Tick(); }
+
         private static void Step(World w)
         {
             uint before = w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActionInstanceId;

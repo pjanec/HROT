@@ -27,6 +27,11 @@ namespace Fdp.Toolkit.Utility
         /// (the debug API's <c>/entities/{id}/utility</c>) can name an option (<c>typeof(Posture)</c>) instead of printing its
         /// number. A named property: the source generator reads constructor arguments only.</summary>
         public Type? OptionNames { get; set; }
+        /// <summary>⭐ <c>CE-4395</c> (docs/DESIGN_Evaluation_Cost_And_Cadence.md §11g-2, approved 2026-11-10) — optional: re-score this
+        /// decision for a unit at most every this many SIM seconds, staggered by entity index, and at once when the unit's senses change
+        /// (<c>SensorChangedEvent</c>); between, the last result is returned (<see cref="DecisionCadence"/>). 0 = every call (the default).
+        /// ⚠ A named property: the generated catalog (ctor arguments only) does not carry it — there the decision scores every call.</summary>
+        public double CadenceSeconds { get; set; }
 
         public UtilityDecisionAttribute(string assetId, string displayName,
             DecisionKind kind, string category = "", float hysteresisBonus = 0f)
@@ -283,6 +288,7 @@ namespace Fdp.Toolkit.Utility
                 DebugName   = attr.DisplayName,
                 AssetId     = attr.AssetId,     // ⭐ CE-2068 — what a UtilityDecisionRef saves as
                 OptionNames = attr.OptionNames, // ⭐ CE-3069 G2 — names the options in the debug API
+                CadenceSeconds = attr.CadenceSeconds, // ⭐ CE-4395 — re-scored at a cadence (DecisionCadence)
             };
         }
 

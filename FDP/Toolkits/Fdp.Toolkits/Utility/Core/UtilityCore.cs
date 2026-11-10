@@ -188,6 +188,8 @@ namespace Fdp.Toolkit.Utility
         /// <summary>⭐ <c>CE-3069</c> G2 — the enum naming the option ids (<see cref="UtilityDecisionAttribute.OptionNames"/>);
         /// null = options are shown by number.</summary>
         public System.Type?  OptionNames;
+        /// <summary>⭐ <c>CE-4395</c> — <see cref="UtilityDecisionAttribute.CadenceSeconds"/>: 0 = scored on every call.</summary>
+        public double        CadenceSeconds;
 
         /// <summary>The option's name from <see cref="OptionNames"/>, else its number.</summary>
         public string OptionName(int optionId)

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-10 (§11g — the brain at 1 000 / 3 000 men, CE-4395; §10 Part D 2026-11-04)
 build-state: BUILDING — D1–D8 APPROVED 2026-11-04 (R-2083); tasks T1–T10 = CE-2382…CE-2391 (§7c); T1–T10 BUILT (§3.0a, §0a)
-current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions), §0e (garbage, per frame), §10 (D — map gizmos held in slices), §11g (the brain at 1 000 / 3 000 men — attribution, the parts fix, the cadence proposal)
+current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions), §0e (garbage, per frame), §10 (D — map gizmos held in slices), §11g (the brain at 1 000 / 3 000 men — attribution, the parts fix, the 0.2 s decision cadence R-3085 as built §11g-3)
 stale-below: none
 known-rot: none
 known-conflict: none
@@ -1103,7 +1103,7 @@ version set back by playback) the index rebuilds exactly as before.
 45 → 0.9 ms, `PartsOf` 52 → 8 ms; 1 000 men — rebuilds 3.7 → 1 per tick, the tick unchanged within the fight's noise (20.5 ms): at 1 000 the
 walks were small and the utility decisions are the cost.
 
-#### 11g-2. ⭐ What it takes at 1 000 men — a CADENCE for the combat decisions *(PROPOSAL — the user decides; behaviors informed)*
+#### 11g-2. ✅ APPROVED (R-3085) — a CADENCE for the combat decisions *(user, `2026-11-10`: "Yes, 0.2 seconds is very much acceptable."; behaviors informed — [note](blueprints/batches/NOTE_Backend_To_Behaviors_Brain_Cost.md))*
 
 📐 At 1 000 men the tick is 20 ms, and **~13 ms of it is three utility decisions** (`Combat posture`, `Threat ranking`, `Attack approach`)
 re-scored by every fighting man on **every** brain tick (§3.6 left soldiers at every frame — D6 "not now"). ⛔ No exact speed-up reaches the
@@ -1119,3 +1119,69 @@ re-scored by every fighting man on **every** brain tick (§3.6 left soldiers at 
 
 ⇒ **Lean: the cadence**, as behaviors' D-design already allows, after the user says the 0.2 s latency is acceptable. What would change it: a
 scenario whose pass depends on a same-frame posture switch (the regression would show it).
+
+##### 11g-3. ✅ AS BUILT — the decision declares its cadence; the scorer keeps the last result *(CE-4395)*
+
+```mermaid
+classDiagram
+    class UtilityDecisionAttribute {
+        +double CadenceSeconds
+    }
+    class UtilityDecisionDef {
+        +double CadenceSeconds
+    }
+    class UtilityScorer {
+        +ChooseOption(repo, self, id, lastWinner) byte
+        +TopCandidate(repo, self, id, tick, top, score) bool
+    }
+    class DecisionCadence {
+        +Of(world)$ DecisionCadence
+        +Scored long
+        +Reused long
+        ~Reusable(world, self, def, id, now) Entry
+        ~Store(self, def, id, now, winner, hasTop, top, score, output)
+        -Woken(world, self) bool
+    }
+    class CadenceGate {
+        +Next(now, period, index)$ double
+        +NextOnGrid(now, period, index)$ double
+    }
+    UtilityDecisionAttribute ..> UtilityDecisionDef : the builder copies it
+    UtilityScorer ..> DecisionCadence : only when def.CadenceSeconds > 0
+    DecisionCadence ..> CadenceGate : NextOnGrid
+```
+*What the picture shows that prose hid:* the cadence is DATA on the decision (three starter decisions set it) and ONE mechanism in the scorer —
+no tree, node, blackboard layout or second scheduler changes; every caller of the two scorer entry points (the `ChooseOption` node, `TopThreat`,
+the debug views) gets the same answer. `CadenceGate.NextOnGrid` sits beside `Next` because `Next` adds the stagger on every tick (a steady
+0.2–0.38 s interval) — kept for the SOP and task slots, reported to behaviors.
+
+```mermaid
+sequenceDiagram
+    participant N as ChooseOption node
+    participant S as UtilityScorer
+    participant C as DecisionCadence
+    N->>S: ChooseOption(unit, Combat posture, lastWinner)
+    S->>C: Reusable(unit)?
+    alt stored, not due, not woken, same winner
+        C-->>S: entry
+        S->>S: unit buffer = entry.Output, log it
+        S-->>N: entry.Winner
+    else due, woken by SensorChangedEvent, new run, slot reused, time went back
+        S->>S: score (inputs, hysteresis)
+        S->>C: Store(result, NextOnGrid)
+        S-->>N: winner
+    end
+```
+
+| ⭐ | |
+|---|---|
+| what readers see | between scorings the unit's `UtilityResultBuffer` and `UtilityDecisionLog` are written back exactly as the last scoring wrote them — the debug views, the blueprint bridge and the brain journal read the same records, less often refreshed |
+| a restore / seek | the store is not recorded; time going back re-scores at once (no stale result crosses a restore) |
+| a bare world (no `GlobalTime`) | every call scores, as before — unit rails unchanged |
+| R-2084 | a reuse allocates nothing (rail: 100 calls, 0 B); an entry is allocated once per unit and decision |
+
+| ⚠ **the residual risk — a branch that FINISHES on a stale choice** | the tree re-scored the choice on the same tick the chosen branch could finish (the `ChooseOption` arm runs before the work arm in the `Parallel`). Now a branch that finishes while nothing woke the man (no `SensorChangedEvent`) sees the choice up to 0.2 s old — 📌 `TacticsTreesTests.CE3084_OutOfSight_…`: arriving at a flank ENDS the order unless the sighting from the flank (perception's `Acquired`, `ActiveSensorTracksUpdateSystem.cs:95`) wakes the decision first. In production the sighting comes with that event, so it re-scores. ⭐ The scenario regression at this head is the guard; if a scenario shows it, the tree-level fix is behaviors' (re-score when the running branch completes) |
+| the rails that moved | `TacticsTreesTests`: 11 waits of 3–4 ticks after a new EQS answer became one cadence period (`Decide`, 14 × 16 ms); the flank rail publishes the `Acquired` its sighting would bring. The assertions did not change |
+
+**Rails:** `UtilityScorerTests.CE4395_ACadencedDecision_IsScoredOncePerPeriod_AndAtOnceWhenWoken` (🔴 red-proved: reuse disabled ⇒ the read
+count moves) · `CE4395_TheCombatDecisions_AreCadencedAt0_2s_AndNothingElseIs`.

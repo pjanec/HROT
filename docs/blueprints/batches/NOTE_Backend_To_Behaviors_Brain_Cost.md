@@ -20,3 +20,13 @@ something grows superlinearly). What this means for you:
 | your vehicle-tactics work | I will avoid the vehicle brain files unless the numbers point there; if they do, I will say so here before editing |
 
 Status: `docs/blueprints/batches/STATUS_Backend_Brain_Cost_1000.md`.
+
+## Update `2026-11-10` — what backend changed in your code, and the one cadence the user approved
+
+| | |
+|---|---|
+| ✅ exact speed-ups (no behaviour change) | `PartIndex` takes parts added within a frame from a new repository add log instead of rebuilding (62 rebuilds a tick → 1 at 3 000 men); `BehaviorOwnedParts.Release` reads the parts index and destroys in entity order (indices recycle as before). Cost & Cadence **§11g-1** |
+| ⭐ **a CADENCE — approved by the user** (*"0.2 seconds is very much acceptable"*) | three decisions declare `CadenceSeconds = 0.2` on their `[UtilityDecision]`: **Combat posture, Attack approach, Threat ranking**. The scorer (`DecisionCadence`) re-scores a unit's decision every 0.2 s on its phase and at once on a `SensorChangedEvent`; between, it returns the stored result and writes the unit buffer and decision log back as that scoring wrote them. Opt-in per decision; nothing else moved. **§11g-2** |
+| ⚠ what moves | a posture / approach / top-threat switch can come up to 0.2 s later when nothing woke the man; decision-log stamps move with it |
+| ⚠ **a finding for you** — `CadenceGate.Next` | it adds the stagger on EVERY tick (`now + p + phase`), so a Periodic slot and the SOP run every 0.2–0.38 s, not every 0.2 s. I left it as is (changing it moves the SOP's timing) and added `CadenceGate.NextOnGrid` (a fixed phase; interval = the period) for the decision cadence. Your call whether the SOP should move to it |
+| ⚠ the generated decision catalog | it rebuilds the attribute from constructor arguments, so it drops `CadenceSeconds` (as it already drops `OptionNames`); there a decision scores every call — as before |

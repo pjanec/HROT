@@ -192,6 +192,16 @@ namespace Fdp.Toolkit.Utility
             var local = new UtilityResultBuffer();
             bool onUnit = repo.HasComponent<UtilityResultBuffer>(self);
             ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
+            // ⭐ CE-4395 — a cadenced decision between its ticks: the last result, written back as that scoring wrote it (DecisionCadence)
+            var cadence = def.CadenceSeconds > 0 ? DecisionCadence.Of(repo) : null;
+            double now = double.NaN;
+            if (cadence?.Reusable(repo, self, def, decisionId, out now) is { } kept && lastWinner != 0 && kept.Winner == lastWinner)
+            {
+                output = kept.Output;
+                LogDecision(repo, self, decisionId, in output, isOption: true);
+                cadence.CountReuse();
+                return kept.Winner;
+            }
             byte winner = SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, TraceOf(repo, self), tick);
             LogDecision(repo, self, decisionId, in output, isOption: true);
             // ⭐ CE-1249 (BV-10) — always on, only on a SWITCH (a steady winner writes nothing; the caller holds the memory)
@@ -199,6 +209,7 @@ namespace Fdp.Toolkit.Utility
                 Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, self,
                     Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.DecisionSwitched, a: decisionId, b: winner, cause: lastWinner,
                     point: new System.Numerics.Vector3(output.Count > 0 ? output.GetSpanRO()[0].Score : 0f, 0f, 0f));
+            cadence?.Store(self, def, decisionId, now, winner, false, default, 0f, in output);
             return winner;
         }
 
@@ -233,13 +244,28 @@ namespace Fdp.Toolkit.Utility
             var local = new UtilityResultBuffer();
             bool onUnit = repo.HasComponent<UtilityResultBuffer>(self);
             ref var output = ref onUnit ? ref repo.GetComponentRW<UtilityResultBuffer>(self) : ref local;
+            // ⭐ CE-4395 — a cadenced ranking between its ticks: the last ranking, written back as that scoring wrote it (DecisionCadence)
+            var cadence = def.CadenceSeconds > 0 ? DecisionCadence.Of(repo) : null;
+            double now = double.NaN;
+            if (cadence?.Reusable(repo, self, def, decisionId, out now) is { } kept)
+            {
+                output = kept.Output;
+                LogDecision(repo, self, decisionId, in output, isOption: false);
+                cadence.CountReuse();
+                top = kept.Top; topScore = kept.TopScore;
+                return kept.HasTop;
+            }
             EvaluateCandidates(repo, self, in def, default, ref output, TraceOf(repo, self), tick);
             LogDecision(repo, self, decisionId, in output, isOption: false);
-            if (output.Count == 0) return false;
-            var best = output.GetSpanRO()[0];
-            top = new Entity((ulong)best.CandidateHandle);
-            topScore = best.Score;
-            return true;
+            bool has = output.Count > 0;
+            if (has)
+            {
+                var best = output.GetSpanRO()[0];
+                top = new Entity((ulong)best.CandidateHandle);
+                topScore = best.Score;
+            }
+            cadence?.Store(self, def, decisionId, now, 0, has, top, topScore, in output);
+            return has;
         }
 
         /// <summary>
