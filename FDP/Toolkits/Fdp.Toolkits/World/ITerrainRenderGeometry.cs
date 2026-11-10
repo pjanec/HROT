@@ -37,3 +37,35 @@ namespace Fdp.Toolkit.World
         }
     }
 }
+
+namespace Fdp.Toolkit.World
+{
+    /// <summary>
+    /// ⭐ CE-3423 (docs/DESIGN_Map_3D_Mode.md §6ah L-1, L-2) — the terrain's chunk grid: square chunks of <see cref="ChunkSize"/> metres from <see cref="Origin"/>,
+    /// <see cref="Nx"/> × <see cref="Ny"/> of them; level k draws the ground at <see cref="Cell"/> × 2^k (k &lt; <see cref="Levels"/>). <see cref="MinZ"/> / <see cref="MaxZ"/>
+    /// bound everything drawn (the culling box before a chunk is built).
+    /// </summary>
+    public sealed record TerrainChunkLayout(Vector2 Origin, float ChunkSize, float Cell, int Nx, int Ny, int Levels, float MinZ, float MaxZ)
+    {
+        public Vector2 ChunkMin(int cx, int cy) => Origin + new Vector2(cx * ChunkSize, cy * ChunkSize);
+        public Vector2 ChunkMax(int cx, int cy) => ChunkMin(cx, cy) + new Vector2(ChunkSize, ChunkSize);
+    }
+
+    /// <summary>⭐ CE-3423 — the two meshes of a chunk: its ground (one per level) and what stands on it (prisms, slabs, water — one, any level).</summary>
+    public enum TerrainChunkPart : byte { ChunkGround = 0, ChunkObjects = 1 }
+
+    /// <summary>
+    /// ⭐ CE-3423 (docs/DESIGN_Map_3D_Mode.md §6ah) — a terrain that can hand out its triangles BY CHUNK and level of detail, so the 3-D map and its picker never build the
+    /// whole soup (61 M triangles on a 5.5 km terrain at 1 m). Level 0 of a chunk is exactly the whole soup's triangles there; what is outside the chunk grid (the apron) is
+    /// <see cref="BuildOutside"/>. ⭐ Same triangle tagging as <see cref="ITerrainRenderGeometry.BuildTagged"/>.
+    /// </summary>
+    public interface ITerrainChunkedGeometry : ITerrainRenderGeometry
+    {
+        TerrainChunkLayout Chunks { get; }
+
+        void BuildChunk(int cx, int cy, int level, TerrainChunkPart part, out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials);
+
+        /// <summary>The triangles outside the chunk grid (the apron round the terrain).</summary>
+        void BuildOutside(out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials);
+    }
+}

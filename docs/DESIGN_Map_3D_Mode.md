@@ -3492,7 +3492,7 @@ Rails: `Map3DTests.CE4084_*` (off-centre projection / pick = draw / frustum NDC;
 
 Rails: `MapFramingTests` (the fit for a small and a big terrain, the margin, the framer: once, on change, after an unload, and left-alone) · `TerrainFramingLayerTests` (over a real world and camera: frames cqb-village's bounds with the margin, a pan is never undone, a change re-frames, a driven or 3-D camera is untouched). Red-proof: the framer not remembering what it framed ⇒ the "never re-frames" rail red.
 
-### 6ah. CE-3423 / CE-4377 — the LARGE terrain in 3-D: the ground by level of detail, per chunk; the picker per chunk *(ui, `2026-11-10`; build-state: READY-TO-BUILD)*
+### 6ah. CE-3423 / CE-4377 — the LARGE terrain in 3-D: the ground by level of detail, per chunk; the picker per chunk *(ui, `2026-11-10`; build-state: D-1 BUILT — as-built below the table)*
 
 🔒 Handoff [HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md](blueprints/batches/HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md) D-1 / D-3. 📌 **Why:** `TerrainLayer3D`
 and `TerrainPicker` each take the WHOLE soup (`ITerrainRenderGeometry.BuildTagged`) — on scale-1 (5.5 km, a 1 m height grid) that is **61.4 M triangles, 2.2 GB, peak 7.0 GB,
@@ -3581,6 +3581,61 @@ against it.*
 | L-9 | GPU budget for finer levels (default 1.5 GB of vertex data): over it, unload the least recently drawn | ≤ 4 GB a process (R-4192) |
 | L-10 | the picker: one `PickGrid` per chunk from level 0 + objects, built on a worker for chunks the ray crosses (and the ring round the camera's look-at, asked each frame — so a click finds it ready); a pick walks the chunk grid along the ray, testing built ones | a pick never builds; what you click is the triangles drawn near the camera |
 | L-11 | a source that is not `ITerrainChunkedGeometry` keeps today's whole-mesh path | test doubles and any other geometry unchanged |
+
+**As-built (D-1, `2026-11-10`)** — as designed, with three things the build settled:
+- ⚠ the chunk-part enum's members are `ChunkGround` / `ChunkObjects`, not `Ground` / `Objects`: the DDS code generator emits IDL for every enum in `ITerrainRenderGeometry.cs`, and a second `Ground` collides with `TerrainSurfaceKind.Ground`.
+- the water builder moved into `TerrainWorldMesh.AppendWater` and the triangle classification into `TerrainWorldQuery.Classify` — ONE copy each for the whole build and the chunks (the equality rail `TerrainChunkTests` holds them together on demo-city, test-town, highway-rest and bt-range).
+- `TerrainPicker.Update()` / `IsBuilt` on a chunked terrain: `Update` asks for every chunk (the rails' wait on a small terrain); `IsBuilt` = bound to this terrain and at least one chunk grid built. The frame never calls `Update` — a pick asks only for the chunks its ray crosses.
+
+Numbers and frames: [STATUS_Ui_Large_Terrain_Drawing.md](blueprints/batches/STATUS_Ui_Large_Terrain_Drawing.md) §2–§3 (scale-1: the load's 3-D picture 0.8 s / 640 MB peak, where the whole soup needed 9.4 s / 7.0 GB and is killed at 6 GB on this VM).
+
+### 6ai. CE-4377 — buildings and trees at scale: the trees' 3-D look, by distance *(ui, `2026-11-10`; build-state: READY-TO-BUILD — trees; pitched roofs and imported facades wait for the importer)*
+
+🔒 R-4195 (user): *"if there is new stuff like trees or different roofs the ui lane is free to design their 3d look with respect to performance"*. Handoff D-3.
+📐 **Measured first:** a LONE tree is already a world prism (an octagon trunk, material `tree-trunk`, 0.3 m × 10 m — `TerrainWorldParser.cs:195`), so §6ah's objects
+mesh draws ≈ 11 000 bare poles on scale-1; the trees INSIDE a wood are not objects (R-4190 T-1) — the wood is `TerrainWoods`, a 25 m grid of density and canopy height,
+and nothing draws it in 3-D but the ground's forest colour. ⚠ Pitched roofs (the importer's cap prism, UTM I-h) and imported facades exist on no terrain yet — the
+importer (CE-4368) is not on the tree ⇒ those two parts wait with D-4; the 85 000 template prisms are batched per chunk already (§6ah L-5, 1.1 M triangles on scale-1).
+
+**INVENTORY** *(`search_graph` `2026-11-10`)*: `.*(Tree|Wood|Canopy|Forest|Vegetation).*` Class — 344 matches, the terrain ones are `TerrainWoods` (the grid) and the
+parser's lone-tree prism; ⇒ no 3-D tree drawing exists. Reused: §6ah's chunks and builds, `TerrainWoods.DensityAt` / its canopy, `LitShader`'s leaf pattern (code 242,
+the hedge's) and wood pattern (244).
+
+![the trees by distance](UX/terrain-trees-3d.svg)
+
+```mermaid
+classDiagram
+  class ITerrainChunkedGeometry { <<existing, §6ah>> BuildChunk(cx, cy, level, part) }
+  class TerrainChunkPart { <<existing enum>> ChunkGround · ChunkObjects · ChunkTrees NEW · ChunkCanopy NEW }
+  class TerrainWorldMesh { <<existing>> BuildChunkTrees NEW · BuildChunkCanopy NEW · AddCrown NEW }
+  class TerrainWoods { <<existing>> the 25 m grid: DensityAt · canopy per cell }
+  class TerrainChunks3D { <<existing, §6ah>> + a trees mesh and a canopy mesh per chunk; draws trees at levels 0–1, the canopy beyond }
+  class TerrainLayer3D { <<existing>> ColourOf / MaterialCode: tree-trunk, tree-crown, canopy NEW }
+  TerrainWorldMesh ..> TerrainWoods
+  ITerrainChunkedGeometry ..> TerrainChunkPart
+  TerrainChunks3D ..> ITerrainChunkedGeometry
+  TerrainChunks3D ..> TerrainLayer3D
+```
+*What the picture shows: the trees are two more PARTS of the same chunks — no new layer, no new build path, no new draw loop.*
+
+```mermaid
+sequenceDiagram
+  participant D as TerrainChunks3D.Draw (every 3-D frame)
+  participant S as its schedule (Pump)
+  participant W as worker
+  S->>W: with the coarse picture: every chunk's ChunkCanopy (lone crowns + the wood's sheet)
+  S->>W: when a chunk wants level ≤ 1: its ChunkTrees (lone crowns + one tree per density cell)
+  D->>D: level ≤ 1 and ChunkTrees built ⇒ draw it · else ChunkCanopy
+```
+*What the picture shows: the far form is part of what the load waits for, so a wood is never bare; the near form replaces it only once built.*
+
+| # | decision | why |
+|---|---|---|
+| T-1 | a lone tree = its trunk prism (unchanged, now bark-brown) + a 16-triangle crown at 0.72 × its height, radius 0.3 × height | a pole is not a tree; the trunk stays THE world's (sight, fire, the navmesh) — the crown is drawn only |
+| T-2 | a wood NEAR (levels 0–1): per 25 m cell, round(density × 0.0625 ha) trees placed by a hash of the cell, height = the cell's canopy × (0.8 … 1.2), a 4-sided trunk + the crown — ≈ 24 triangles a tree | reads as trees where it matters; on scale-1 the near ring is ≈ 10 k trees ≈ 250 k triangles |
+| T-3 | a wood FAR (levels 2–3): a sheet at ground + canopy over each wood cell (corners from the ground at the corner, so it follows the hill) + walls down to the crown base where the neighbour cell is not wood | ≈ 2 triangles a cell; the wood's mass and edge read from a kilometre |
+| T-4 | colours: bark (96, 72, 52) with the wood pattern; crowns and canopy in two forest greens with the leaf pattern (242) — `TerrainLayer3D.ColourOf` | the house's one colour language (R-4139): the ground's forest green family |
+| T-5 | ⛔ presentation only — no prism, no sight or fire change; the woods grid stays the simulation's wood | R-4195: the look must not change the simulation |
 
 ## 7. NOT VERIFIED — say so before it is built on
 
