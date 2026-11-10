@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) BUILT 2026-10-09 as designed
-updated: 2026-11-10 (related-designs: UTM §12.2 — the one instance becomes switchable, CE-4394)
-current-answer: §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
+updated: 2026-11-10 (§6 UTM everywhere — coordinator) · 2026-11-10 (related-designs: UTM §12.2 — the one instance becomes switchable, CE-4394)
+current-answer: ⭐ §6 UTM EVERYWHERE (design, leans UE-1…UE-7 for the user, CE-4396) · §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
 known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcWorldPosTranslator` (a DDS translator listed as a geo-transform holder) was removed with the BDC stack.
 known-conflict: none
@@ -285,3 +285,65 @@ the recording process held), `CE3118_TheRoadNetworkSingleton_IsNeitherRecordedNo
 `NoScenario │ NoReplay` too. ⭐ One reflection rail keeps the class closed: `NativeMemoryIsNeverRecordedTests` scans every
 `[ComponentId]` struct in Fdp.Core and Fdp.Toolkits and fails on any that holds native memory (a pointer, an `IntPtr`, a
 `Fdp.Core.Collections.Native*`, or a struct field holding one) and is still recorded or saved.
+
+## 6. ⭐ UTM EVERYWHERE — the tangent plane retired *(coordinator, `2026-11-10`; DESIGN — leans for the user; from [NOTE_User_To_Coordinator_UTM_Everywhere](blueprints/NOTE_User_To_Coordinator_UTM_Everywhere.md))*
+
+🔒 User, `2026-11-10`: *"I would like to use UTM as the default for every terrain and basically to get rid of the tangential plane in HROT
+whatsoever."* · *"hRot will be using UTM with local offset, so the coordinates stay small around zero because hRot uses floats."*
+
+### 6.0 INVENTORY *(`scripts/cbm.sh search_graph name_pattern .*(GeoOrigin|GeoReference|GeographicTransform|Wgs84|WGS84|Utm|Tangent).*` → 173 (mostly tests and unrelated "Tangent" maths) + grep `WGS84Transform`, `2026-11-10`)*
+
+| holder | today | ⇒ |
+|---|---|---|
+| `SwitchableGeoTransform` — THE one instance per node (`HrotEnvironment.CreateGeoTransform`) | inner = `WGS84Transform` by default (0, 0, 0), `UtmTransform` when `terrain.json` has `frame.utm` (CE-4394, UTM §12.3) | UTM, or NO frame |
+| the 8 committed terrains | ALL carry `origin {52.52, 13.405, 0}` (Berlin) and NO `frame.utm` | each gets a `frame.utm` |
+| `SumoNetPlacement` (`Hrot.Traffic`) | its own `WGS84Transform` (net → UTM → WGS84 → tangent ENU) — CE-3429 | through the node's transform |
+| `ReplayBrowserSubsystem` | its own concrete `WGS84Transform` (`:825`); `ApplyRecordingGeoOrigin` from `GeoOriginRecord {Lat, Lon, Alt}` — CE-3430 | the frame from the recording |
+| `RecordingMetadata.GeoOriginRecord` | `{Lat, Lon, Alt}` | + the UTM frame |
+| ⭐ the wire's `GeoReference` (`OrchestrationMessages.cs:283`, AQ107 C) | `OriginLat/Lon/Alt`, ⭐ **a `Frame` byte already there** ("0 = ENU tangent plane — the only value so far"), `Generation`, `ProtocolVersion` | `Frame = UTM` + the frame's fields |
+| `Hrot.Tools.ContentMigrate` | builds a `WGS84Transform` from a terrain's origin to migrate old geodetic orders | the node's rule (UTM) |
+| tests and doubles | 15 SimHost test files, NED, Presentation gizmos, Fdp.Toolkits geographic tests use `WGS84Transform` | `UtmTransform` (or a local-only frame) |
+| headings | grid north everywhere; γ only at the true-north gateways (U-3) | unchanged |
+
+```mermaid
+classDiagram
+  direction LR
+  class IGeographicTransform { <<existing seam>> ToCartesian; ToGeodetic; GridConvergenceDeg; +HasFrame NEW }
+  class UtmTransform { <<existing, CE-4394>> zone · south · E0 · N0 · h0 }
+  class LocalOnlyFrame { <<NEW>> no place on the Earth: HasFrame false; geodetic calls refused }
+  class SwitchableGeoTransform { <<existing, shrinks>> +UseUtm(frame) · +UseLocalOnly() · ⛔ UseTangentPlane removed }
+  class WGS84Transform { <<DELETED>> }
+  class TerrainDefinition { <<existing>> frame.utm (required for a geo terrain) · origin (lat / lon, kept only as an INPUT to derive frame.utm) }
+  class GeoReference { <<wire, AQ107 C>> Frame: 1 UTM / 2 none · UtmZone · UtmSouth · E0 · N0 · H0 · origin lat / lon (info) · Generation · ProtocolVersion+1 }
+  class GeoOriginRecord { <<recording>> + Zone · South · E0 · N0 · H0 (old files: derived from Lat / Lon) }
+  IGeographicTransform <|.. UtmTransform
+  IGeographicTransform <|.. LocalOnlyFrame
+  IGeographicTransform <|.. SwitchableGeoTransform
+  SwitchableGeoTransform --> UtmTransform
+  SwitchableGeoTransform --> LocalOnlyFrame
+  TerrainDefinition ..> SwitchableGeoTransform : TerrainResidency.ApplyGeoOrigin
+```
+*What it shows: one seam stays; its only implementations are UTM and "no frame"; the tangent plane disappears from the engine, the wire and
+the recordings. Every holder still reaches the transform through the same singleton — nothing new to wire per holder.*
+
+### 6.1 Decisions *(⭐ lean — for the user)*
+
+| # | question | ⭐ lean | rejected — one line |
+|---|---|---|---|
+| **UE-1** | the 8 committed terrains (all at Berlin's origin) | ⭐ add `frame.utm` = the origin projected into ITS zone (zone 33 N for all eight); local (0, 0) stays at the same lat / lon ⇒ local content (scenarios, world files) does not move. What is placed BY LAT / LON (geodetic orders, a georeferenced SUMO net, an external gateway) now lands on the grid — at Berlin a **1.3° rotation** (the convergence 1.6° west of the meridian) and **≈ 0.03 % scale** vs the tangent plane — ⇒ the content migration tool re-converts any stored geodetic order once | moving the origin to round grid numbers — every local coordinate would shift |
+| **UE-2** | a terrain with NO geo frame (none in the repo today; a test or an authored sandbox could) | ⭐ **local only**: `LocalOnlyFrame` — positions are metres with no place on the Earth; geodetic conversions are REFUSED (the debug API's `geo-to-local` answers "this terrain has no geo frame"); the wire says `Frame = none` — R-229's "no default place" kept | a UTM frame at (0 N, 0 E) — a fake place in the Atlantic, the very bug CE-236 removed |
+| **UE-3** | `WGS84Transform` | ⭐ **deleted** with `UseTangentPlane`; tests move to `UtmTransform` or `LocalOnlyFrame` | kept as an option — "get rid of it whatsoever" |
+| **UE-4** | SUMO nets (CE-3429) | ⭐ a `proj=utm` net is placed through the node's transform: same zone ⇒ a pure translation (net − netOffset − (E0, N0)); another zone ⇒ via geodetic | its private transform |
+| **UE-5** | recordings (CE-3430) | ⭐ `GeoOriginRecord` gains the frame; the Replay Browser uses the recording's frame through the interface; an OLD recording (lat / lon only) is read as a UTM frame at that point (its local positions are kept; only geodetic read-outs differ by the 1.3° above) | keeping a tangent plane only for old recordings — a second implementation forever |
+| **UE-6** | ⭐ the wire's `GeoReference` (AQ107 C) | ⭐ `Frame = 1 (UTM)` with `UtmZone`, `UtmSouth`, `E0`, `N0`, `H0`; `Frame = 2` = none; the lat / lon of the origin stays as information; `NedWire.ProtocolVersion` + 1 ⇒ a gateway converts local ↔ geodetic with UTM — the external gateway the note names drops its tangent plane too | lat / lon only — a gateway stays rotated by the convergence even on a UTM terrain (the note's row 6) |
+| **UE-7** | `z` | ⭐ local z = ellipsoidal height − H0 (H0 = the origin's altitude, 0 for all eight) — as `UtmTransform` already does for a z offset; no earth-curvature term (the tangent plane's drop of ≈ 2.0 m at 5 km disappears from geodetic read-outs — local physics never used it) | a curvature correction — the engine is flat inside a terrain |
+
+### 6.2 The work — CE-4396 *(⭐ lean: the coordinator builds it, one warm worker; backend is on performance, ui on Windows)*
+
+| slice | what | done when |
+|---|---|---|
+| UE-a | `LocalOnlyFrame` + `HasFrame`; `SwitchableGeoTransform` UTM / local-only; `TerrainDefinition`: `frame.utm` read, `origin` without a frame ⇒ derive `frame.utm` at load (so a terrain file with only `origin` still works) and the 8 committed terrains rewritten with an explicit `frame.utm` | the 8 terrains load; local positions identical before / after (rail: every scenario's entities); geodetic read-outs on the grid |
+| UE-b | `WGS84Transform` deleted; every test / double moved | the solution builds; the touched suites green |
+| UE-c | SUMO placement through the node transform (CE-3429); ContentMigrate on the same rule | `SumoNetPlacementTests` + a demo-city traffic rail |
+| UE-d | recordings + Replay Browser (CE-3430) | an old recording replays; a new one carries the frame |
+| UE-e | the wire `GeoReference` (UTM fields, protocol + 1); [NED_DDS_Protocol.md §11](reference/NED_DDS_Protocol.md) and AQ107 C amended | a rail reads the published frame and converts a local point to the same lat / lon as the node |
