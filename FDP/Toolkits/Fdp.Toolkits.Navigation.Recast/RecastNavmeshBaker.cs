@@ -145,6 +145,15 @@ public sealed class RecastNavmeshBaker
     /// <summary>The tile cache; null ⇒ every tile is baked.</summary>
     public NavTileCache? Cache { get; init; }
 
+    /// <summary>⭐ CE-4393 (UTM §12.1 N-1) — the terrain's prefilled tiles (read only), consulted between <see cref="Cache"/>'s memory and its folder.</summary>
+    public NavTileCache? Seed { get; init; }
+
+    /// <summary>⭐ CE-4393 (N-3) — called as tiles finish (done, total), from the bake's worker threads (thread-safe callers only).</summary>
+    public Action<int, int>? Progress { get; init; }
+
+    /// <summary>⭐ CE-4393 (N-3) — cancels the bake between tiles (throws <see cref="OperationCanceledException"/>).</summary>
+    public System.Threading.CancellationToken Cancel { get; init; }
+
     /// <summary>
     /// ⭐ <c>CE-4391</c> S-3 (P3-a) — each tile's CONTENT key from the last <see cref="Bake"/> (all layers folded together; <c>((long)ax &lt;&lt; 32) | (uint)az</c>): the tile
     /// cache's own hash, so two bakes agree on a tile exactly when its inputs are equal. Empty when <see cref="Cache"/> is null (no key is computed then).
@@ -293,7 +302,19 @@ public sealed class RecastNavmeshBaker
         var fineOf = new bool[tilesX * tilesZ, layers.Count];
         int nBaked = 0, fromCache = 0;
         var tileKeys = new System.Collections.Concurrent.ConcurrentDictionary<long, ulong>();
-        Parallel.For(0, tilesX * tilesZ, ti =>
+        int tileCount = tilesX * tilesZ, tilesDone = 0;
+        var parallel = new ParallelOptions { CancellationToken = Cancel };
+        Parallel.For(0, tileCount, parallel, ti =>
+        {
+            try { BakeOneTile(ti); }
+            finally
+            {
+                int done = Interlocked.Increment(ref tilesDone);
+                if (Progress != null && (done % 256 == 0 || done == tileCount)) Progress(done, tileCount);
+            }
+        });
+
+        void BakeOneTile(int ti)
         {
             int tx = ti % tilesX, tz = ti / tilesX;
             int ax = firstX + tx, az = firstZ + tz;
@@ -329,7 +350,7 @@ public sealed class RecastNavmeshBaker
                     ulong kh = 1469598103934665603UL ^ (ulong)(int)layer;   // ⭐ CE-4391 — the tile's identity for P3-a, folded over its layers (xor: order-free)
                     foreach (char ch in key.Hash) { kh ^= ch; kh *= 1099511628211UL; }
                     tileKeys.AddOrUpdate(((long)ax << 32) | (uint)az, kh, (_, old) => old ^ kh);
-                    if (Cache.TryGet(key, out var hit)) { baked[ti, li] = hit; Interlocked.Increment(ref fromCache); continue; }
+                    if (Cache.TryGet(key, Seed, out var hit)) { baked[ti, li] = hit; Interlocked.Increment(ref fromCache); continue; }
                 }
                 if (geom == null)
                 {
@@ -341,7 +362,7 @@ public sealed class RecastNavmeshBaker
                 Interlocked.Increment(ref nBaked);
                 if (Cache != null) Cache.Put(key, data);   // an EMPTY tile is cached too (null)
             }
-        });
+        }
 
         // the work in the old order (layer, then row-major tiles) for Assemble
         var work = new List<(NavLayerMask Layer, int Tx, int Tz, bool Fine)>();

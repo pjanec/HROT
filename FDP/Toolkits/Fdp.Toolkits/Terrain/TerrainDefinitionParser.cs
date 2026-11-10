@@ -82,6 +82,26 @@ namespace Fdp.Toolkit.Terrain
                 origin = new TerrainGeoOrigin(lat, lon, alt);
             }
 
+            // ⭐ CE-4394 (UTM §12.2) — the optional exact frame: { "frame": { "utm": { zone, hemisphere, e0, n0 }, "corner": [x, y] } }.
+            //   Malformed is an error (a wrong frame moves every lat / lon); absent is legal (the tangent plane at 'origin').
+            TerrainUtmFrame? utm = null;
+            if (obj["frame"] is JsonObject frameNode && frameNode["utm"] is JsonNode utmNode)
+            {
+                if (utmNode is not JsonObject u || u["zone"] is not JsonNode zNode || u["e0"] is not JsonNode eNode || u["n0"] is not JsonNode nNode)
+                    throw new ArgumentException("Terrain definition 'frame.utm' must carry 'zone', 'e0' and 'n0' (and 'hemisphere' N | S).", nameof(json));
+                int zone = zNode.GetValue<int>();
+                if (zone < 1 || zone > 60) throw new ArgumentException($"Terrain definition 'frame.utm.zone' {zone} is outside 1..60.", nameof(json));
+                string hemi = u["hemisphere"]?.GetValue<string>() ?? "N";
+                if (hemi != "N" && hemi != "S") throw new ArgumentException($"Terrain definition 'frame.utm.hemisphere' must be N or S, not '{hemi}'.", nameof(json));
+                double cx = 0, cy = 0;
+                if (frameNode["corner"] is JsonArray corner)
+                {
+                    if (corner.Count != 2) throw new ArgumentException("Terrain definition 'frame.corner' must be [x, y].", nameof(json));
+                    cx = corner[0]!.GetValue<double>(); cy = corner[1]!.GetValue<double>();
+                }
+                utm = new TerrainUtmFrame(zone, hemi == "S", eNode.GetValue<double>() + cx, nNode.GetValue<double>() + cy);
+            }
+
             // ⭐ AQ93 R-4021 / E1b — the optional SUMO net: { "file": "...", "anchor": [x, y] }. Malformed is an error (a wrong
             //   anchor moves every road and car); absent is legal.
             TerrainSumoNet? sumoNet = null;
@@ -104,6 +124,7 @@ namespace Fdp.Toolkit.Terrain
             {
                 SumoNet       = sumoNet,
                 Origin        = origin,
+                Utm           = utm,
                 SchemaVersion = version,
                 Name          = obj["name"]?.GetValue<string>() ?? string.Empty,
                 RoadNetworks  = roads,

@@ -65,14 +65,14 @@ namespace Hrot.Map.Common
         /// own data. ⚠ Call it ONCE per node — the node builder adopts the network factory's instance; a second one would not
         /// follow the terrain. 📄 docs/DESIGN_Geo_Origin.md §2.
         /// </summary>
-        public static WGS84Transform CreateGeoTransform() => new WGS84Transform();
+        public static SwitchableGeoTransform CreateGeoTransform() => new SwitchableGeoTransform();   // ⭐ CE-4394 — the one instance whose frame a terrain selects (UTM §12.2)
 
         /// <summary>
         /// A geo transform at a CALLER-SUPPLIED origin (degrees, degrees, metres) — for tests and tools whose data is authored
         /// against a known place without loading a terrain. ⛔ Production nodes take the origin from the terrain instead.
         /// </summary>
-        public static WGS84Transform CreateGeoTransform(double latDeg, double lonDeg, double altMeters)
-            => new WGS84Transform(latDeg, lonDeg, altMeters);
+        public static SwitchableGeoTransform CreateGeoTransform(double latDeg, double lonDeg, double altMeters)
+            => new SwitchableGeoTransform(latDeg, lonDeg, altMeters);
 
         public static DdsParticipant CreateParticipant(int domainId)
         {

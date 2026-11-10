@@ -99,6 +99,11 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The terrain's catalog name (e.g. <c>test-town</c>), stamped at load; null for a world built in code.
         /// ⭐ CE-3028 — so a reader of the singleton (<c>GET /world/info</c>) can name what is resident.</summary>
         public string? Name { get; init; }
+
+        /// <summary>⭐ CE-4393 (UTM §12.1 N-1a) — the terrain folder this world was read from (null for a world built in code); a derived world
+        /// (obstacles, damage) keeps it. The navmesh bake reads the tiles the importer baked into <c>&lt;SourceFolder&gt;/navtiles</c>.</summary>
+        public string? SourceFolder { get; init; }
+
         public Vector2 BoundsMin { get; init; }
         public Vector2 BoundsMax { get; init; }
         public float GroundZ { get; init; }
