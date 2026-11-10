@@ -520,7 +520,7 @@ restores the LIVE world from a snapshot (a preview's rewind), and the clock must
 | where the clock comes from | `EntityRepository.CopyClockFrom` (a value copy), in all three providers | inside `SyncFrom` (a rewind would rewind the clock) · sharing the singleton table (the main thread rewrites it every frame) · a solver-owned accumulator of `deltaTime` (a second clock: `HeardTraces` stamps would disagree with the world's time) |
 | the rail that would have caught it | `AcquisitionTests.CE3267_…` runs the stage on a snapshot re-taken each tick | — |
 
-### 5.8 ⭐ Parallel solving — `P-1` (`CE-3427`) *(build-state: DESIGN `2026-11-10` — leans P1-A…P1-E to the user)*
+### 5.8 ⭐ Parallel solving — `P-1` (`CE-3427`) *(build-state: BUILT `2026-11-10` — leans approved by the user, P1-B revised to include hearing; as-built and measured at the end of this section)*
 
 📐 **Why now** ([scale rig §7.6](DESIGN_Scale_Rig.md)): with the wall-clock cadence (C-1) the EQS run is the limit — **113 ms a run** (99 % the
 solves) against a 100 ms period, 1 000 men fighting, 16 cores, ONE solver thread. The sight tests grow with the men (§7.1 there: 228 ms at 3 000).
@@ -605,7 +605,7 @@ see a worker's write — there is none.
 | # | decision | ⭐ lean | rejected — the one fact that killed it |
 |---|---|---|---|
 | **P1-A** | which sensors start | ⭐ **exact: predict with estimates, commit with actual costs** (above) | plan the set by estimates alone — a never-solved sensor estimates 0, so a cold start would launch EVERY new sensor in one tick (2 000 at 1 000 men), and `LastSchedule` would differ from today's |
-| **P1-B** | what runs on a worker | ⭐ ranked templates only, minus: a twin whose leader is earlier in the window (it COPIES at commit, §5.6), a sensor whose template hash changed (hot reload writes `EqsCognitiveBuffer`), a template with `AccurateLineOfSightTest`, the acoustic generator (its cursor write), danger and survey sensors — these run inline, as today | make the acoustic generator hand its cursor to the commit — a generator-API change for a 30 µs solve; revisit only if hearing shows up in the numbers |
+| **P1-B** | what runs on a worker | ⭐ ranked templates **and hearing** (user, `2026-11-10`: the generator HOLDS its cursor move during a solver solve — `AcousticPerception.BeginDeferredCursor` / `EndDeferredCursor` — and the solver writes it at commit with `AcousticPerception.WriteCursor`, the one cursor rule), minus: a twin whose leader is earlier in the window (it COPIES at commit, §5.6), a template with `AccurateLineOfSightTest`, danger and survey sensors — these run inline, as today | ~~hearing inline~~ — SUPERSEDED: ≈ 4.5 ms of a 113 ms run, and the deferral is one generator |
 | **P1-C** | the threads | ⭐ **`EqsSolveWorkers`: N persistent threads, a reused slot array, a countdown — zero allocation per run** (R-2084: *"nothing like that is ever allowed on the hot path"*) | `Parallel.For` — allocates per call (loop state, closures, partitions) on every window |
 | **P1-D** | how many | ⭐ `Workers` = `HROT_EQS_WORKERS`, else `max(1, ProcessorCount / 4)` (4 on 16 cores: three nodes share the machine, and the bake and server GC want cores too); `Workers = 1` ⇒ no threads, today's loop | all cores — the CGF and the orchestrator run on the same machine |
 | **P1-E** | the budget | ⭐ **unchanged (150 000 units)** — parallel makes a run FASTER, so the module meets its 10 Hz: ≈ 1.5× today's solves. Raising the budget is a separate, measured step | raise it now — first measure what 10 Hz at the same budget buys |
@@ -621,6 +621,21 @@ already holds the answer, so the memo can point at the committed slot or a poole
 | ⭐ `P1_ADiscardedSolve_LeavesNoTrace` — a predicted sensor that does not start: its eval state, cursor, pool and events unchanged | write the share memo at solve time ⇒ red |
 | ⭐ `P1_ASteadyRun_AllocatesNothing` — `GC.GetTotalAllocatedBytes(true)` across a warm run, workers included | a per-window `new` ⇒ red |
 | 📐 the scale rig, 1 000 / 2 000 / 3 000 men, `HROT_EQS_WORKERS` 1 / 2 / 4 / 8 | — the numbers go to scale rig §7 |
+
+#### ✅ §5.8 AS-BUILT (`2026-11-10`) — deviations from the design above, and what it measured
+
+| as built | where | why it differs |
+|---|---|---|
+| `EvaluateSensor` → **`Prepare`** (reads only: key, epoch / structure reset in the slot's copy, kind, share key) · **`Solve`** (pure) · **`Commit`** (every write); the inline path is `Prepare` + `Commit`, which solves when the slot was not solved ahead | `EqsSolverSystem.cs` | — as designed. ⭐ the hot-reload reset of `EqsCognitiveBuffer` moved into `Commit` (no solve reads it), so a reloaded sensor may go on a worker too |
+| **one worker pool per PROCESS** (per worker count), `EqsSolveWorkers.Shared(n)`; a solver that finds it busy solves its window itself (`TryRun` false) | `EqsSolveWorkers.cs` | the design said "N persistent threads" per solver: every test's `new EqsSolverSystem()` would have left idle threads behind. ⛔ A pool is never disposed on a count change — another solver may be inside a window on it |
+| the share memo keeps its answers in buffers reused tick after tick (`ShareCopy`) | `EqsSolverSystem.cs` | the "in passing" item, done: `EqsSolverSystem`'s garbage at 1 000 men 54 → 29 KB / frame |
+| diagnostics `LastParallelSolves`, `LastDiscardedSolves`; timing slots `eqs.run.parallel (count)`, `eqs.run.discarded (count)` | `EqsSolverSystem.cs` | — |
+| rails `EqsModuleTests.P1_ParallelSolving_IsTheSerialSolver_AndADiscardedSolveLeavesNoTrace` (rails 1 + 2 in one: 40 units with eyes and ears, shots in the ring, twins, three bands over budget, an epoch bump, a cohort at tick 10; asserts it really solved ahead AND discarded) · `P1_AWarmParallelRun_AllocatesNothingOnTheSolversThread` | `EqsModuleTests.Parallel.cs` | ⚠ the allocation rail measures the SOLVER's thread only — the workers run the same `Solve` the inline path runs. 🔴 Red-proved: starting predicted places without the actual-cost check ⇒ red; no cursor deferral ⇒ red; a per-window `new` ⇒ red. ⭐ The 43 existing solver rails pass with the default 4 workers |
+
+📐 **Measured** ([scale rig §7.7](DESIGN_Scale_Rig.md)): a run at 1 000 men 116 → **42 ms** (4 workers), at 3 000 men 211 → **81 ms**; solves / s
+at 3 000 men **1.8×**; 0.2 % of the solved-ahead places discarded. ⭐ **The solve is no longer the limit** — the run fits its 100 ms slot; what caps
+throughput now is the SimHost frame rate (a run starts on a frame: 49 fps at 1 000, 24 fps at 3 000 ⇒ 125–150 ms start to start) and the band
+shares (a Normal-band run stops at 85 % of the 150 000 units). 8 workers buys nothing over 4.
 
 **Design docs checked:** §5.3–§5.6 here — the budget, order and share rules are kept verbatim (applies). · [Time §17](blueprints/DESIGN_Time_Architecture.md) —
 stepped determinism holds because the result is the serial one; the step still waits for the module's one task (applies). · [scale rig §7](DESIGN_Scale_Rig.md) —

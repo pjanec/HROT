@@ -66,6 +66,42 @@ namespace Fdp.Toolkit.Perception.Sensors
         public static void Register(EqsTemplateRegistry registry, SpatialHashGrid grid)
             => registry.Register(AssetGuid, Template(grid), "Acoustic");
 
+        /// <summary>⭐ CE-3427 P-1 — a hearing solve's cursor move, held back for the solver to write when it COMMITS the solve.</summary>
+        public struct DeferredCursor
+        {
+            public Entity Sensor;
+            public long Last;
+            public bool Known;
+            public bool Pending;
+        }
+
+        [ThreadStatic] internal static bool t_deferCursor;
+        [ThreadStatic] internal static DeferredCursor t_cursor;
+
+        /// <summary>
+        /// ⭐ CE-3427 P-1 (DESIGN_Sensors_And_Doctrine §5.8) — the EQS solver solves on worker threads and may DISCARD a solve, so on this
+        /// thread the next solve's cursor move is HELD instead of written: <see cref="EndDeferredCursor"/> hands it back, and the solver
+        /// writes it with <see cref="WriteCursor"/> at commit, on its own command buffer. Any other caller (the map gizmo) writes as before.
+        /// </summary>
+        public static void BeginDeferredCursor() { t_deferCursor = true; t_cursor = default; }
+
+        /// <summary>⭐ CE-3427 P-1 — the held cursor move of this thread's last solve (<see cref="DeferredCursor.Pending"/> false: none).</summary>
+        public static DeferredCursor EndDeferredCursor()
+        {
+            var c = t_cursor;
+            t_deferCursor = false;
+            t_cursor = default;
+            return c;
+        }
+
+        /// <summary>⭐ CE-3427 P-1 — writes a held cursor move: THE one rule for where a hearing sensor's cursor goes.</summary>
+        public static void WriteCursor(Fdp.Interfaces.IEntityCommandBuffer cmd, in DeferredCursor c)
+        {
+            if (!c.Pending) return;
+            if (c.Known) cmd.SetComponent(c.Sensor, new AcousticCursor { LastPlace = c.Last });
+            else cmd.AddComponent(c.Sensor, new AcousticCursor { LastPlace = c.Last });
+        }
+
         /// <summary>The (range, uncertainty per metre) a sensor listens with — its current acoustic parameters.</summary>
         public static bool Ears(ISimulationView view, Entity sensor, out float range, out float perMeter)
         {
@@ -177,7 +213,8 @@ namespace Fdp.Toolkit.Perception.Sensors
             return n;
         }
 
-        // ⭐ CE-3282 — the ring after this sensor's cursor; the cursor moves through the solver's command buffer (a discarded solve re-reads).
+        // ⭐ CE-3282 — the ring after this sensor's cursor; the cursor moves through the solver's command buffer (a discarded solve re-reads;
+        //   CE-3427 P-1: in a solver solve the move is held and written at commit — AcousticPerception.BeginDeferredCursor).
         private static void HearRing(Entity sensorEntity, Entity unit, ISimulationView view, Span<EqsResult> candidates, ref int n, in Ears ears)
         {
             var ring = SoundEmissionRing.In(view);
@@ -208,9 +245,10 @@ namespace Fdp.Toolkit.Perception.Sensors
                 Sound(candidates, ref n, in ears, e.At, e.Carry, (SoundKind)e.Kind, e.Class, e.Source, seed, e.Family, e.Token);
             }
             if (!cursors || (known && last == after)) return;   // ⭐ a sensor's FIRST solve always plants its cursor, even with nothing to read —
-            var cmd = view.GetCommandBuffer();                       //   else a sound after a long skip would meet the no-cursor window
-            if (known) cmd.SetComponent(sensorEntity, new AcousticCursor { LastPlace = last });
-            else cmd.AddComponent(sensorEntity, new AcousticCursor { LastPlace = last });
+                                                                     //   else a sound after a long skip would meet the no-cursor window
+            var move = new AcousticPerception.DeferredCursor { Sensor = sensorEntity, Last = last, Known = known, Pending = true };
+            if (AcousticPerception.t_deferCursor) AcousticPerception.t_cursor = move;   // ⭐ CE-3427 P-1 — the solver writes it at commit
+            else AcousticPerception.WriteCursor(view.GetCommandBuffer(), in move);
         }
 
         /// <summary>⭐ AQ106 L — <paramref name="unit"/>'s ears through the acoustic sensor <paramref name="sensorEntity"/>, as a solve hears

@@ -28,7 +28,7 @@ namespace Hrot.SimHost.Tests
     /// Unit tests for <see cref="EqsModule"/> and the EQS area template (TASK-HA002, re-homed onto EQS when
     /// the AreaQuery pipeline was retired — EQS design §18).
     /// </summary>
-    public class EqsModuleTests : IDisposable
+    public partial class EqsModuleTests : IDisposable
     {
         private readonly EntityRepository _world;
         private SpatialHashGrid _grid;
