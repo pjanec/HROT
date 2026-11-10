@@ -191,6 +191,35 @@ public sealed class TheTerrainChunksLookTests
         }
     }
 
+    /// <summary>⭐ §6ai R-5 (ui, `2026-11-10`) — a solid building's PAINTED windows up close: demo-city's biggest solid houses, BEFORE (the whole tagged build, which has none)
+    /// and AFTER (by chunk); opt-in (<c>HROT_MEASURE=1</c>); frames <c>terrain-windows-*.png</c>.</summary>
+    [SkippableFact]
+    public void ASolidBuildingsPaintedWindows_UpClose()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        Skip.IfNot(Environment.GetEnvironmentVariable("HROT_MEASURE") == "1", "opt-in: HROT_MEASURE=1");
+        using var frame = UiFrameHarness.Begin(960, 600);
+        LitShader.Reset();
+        var t = Load(FolderOf("demo-city")!, "demo-city");
+        var world = Map3DTests.WorldWith(t);
+        var houses = t.Prisms.Where(TerrainWorldMesh.HasPaintedWindows).OrderByDescending(p => p.Floors).ThenByDescending(p => (p.Max - p.Min).Length()).ToList();
+        _out.WriteLine($"demo-city: {houses.Count} solid buildings with painted windows of {t.Prisms.Count(p => p.Kind == TerrainPrismKind.Building && p.Panel < 0 && p.Floors > 0)} with storeys");
+        Assert.NotEmpty(houses);
+        int k = 0;
+        foreach (var h in houses.Take(2))
+        {
+            var c = (h.Min + h.Max) * 0.5f;
+            float gz = t.GroundHeightAt(c.X, c.Y), span = MathF.Max(10f, (h.Max - h.Min).Length());
+            var cam = new Camera3D { Position = HrotToRaylib.Position(new Vector3(c.X + (0.9f * span), c.Y - (1.3f * span), gz + (0.45f * span))), Target = HrotToRaylib.Position(new Vector3(c, gz + (0.4f * h.Height))),
+                                     Up = Vector3.UnitY, FovY = 55f, Projection = CameraProjection.Perspective };
+            using (var whole = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world) is { } g ? new Whole(g) : null))
+                Shoot(frame, whole, cam, $"terrain-windows-{k}-before.png");
+            using (var chunked = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)))
+                Shoot(frame, chunked, cam, $"terrain-windows-{k}-after.png");
+            k++;
+        }
+    }
+
     /// <summary>scale-1 (when generated) drawn by chunk at the three cameras — the frames for the status file, and the triangles drawn each.</summary>
     [SkippableFact]
     public void ScaleOne_DrawnByChunk_AtThreeCameras()

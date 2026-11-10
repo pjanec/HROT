@@ -3698,10 +3698,14 @@ already cuts.
 | R-2 | its material `roof-pitched`: dark weathered clay (118, 58, 46) — darker than the brick walls, so roof and wall read apart — with a TILE pattern: rows of 30 × 24 cm tiles up the slope, staggered, the lower lip shaded, fading out by 160 m (`LitShader` code **240**, new) | a slope is never a floor, so CE-1341's grey screed (which made roofs double as floors) does not apply; the red reads as a roof against the slate flat roofs |
 | R-3 | ⛔ presentation only — the world keeps the cap prism (sight and fire, the navmesh) | R-4195: the look must not change the simulation |
 | R-4 | facades: **no change** — the imported houses' wall panels already draw their openings in the chunk's objects mesh, batched per chunk (§6ah L-5) | the frames below show the window rows; nothing new to batch |
+| R-5 | ⭐ *(`2026-11-10`; user: "what about at least fake some in the textures of the walls?")* a SOLID building (one prism, no panels — R-4193) with storeys and ≥ **40 m²** is drawn with PAINTED windows: one row per storey (height ÷ floors), sill 0.9 m over each floor, 1.1 × 1.3 m panes spaced ≈ 2.8 m along every wall, 0.8 m clear of the corners, 2 cm outside the face, material `painted-window` (dark glass 46, 60, 78). Smaller ones (garages, sheds), roof caps and panel pieces stay plain | geometry, not a shader pattern: a texture cannot know where the building's storeys start; ≈ 50 triangles for a two-storey house. ⛔ presentation only — drawn by the chunks alone, never in the world's tagged soup (the navmesh and sight keep the solid prism) ⇒ §6ah's equality rail skips the `painted-window` triangles |
 
 *As-built:* `TerrainWorldMesh.Roofs.cs` (`IsRoofCap`, `AddGable`, `ClipSide`), routed from `BuildChunkObjects`; `TerrainLayer3D` colour + code 240; `LitShader.tiles`.
 Rail `TerrainChunkRoofsTests` (ridge at the cap's top along the long side, eaves at its base, the two gable ends, no flat cap top, the house's own roof kept, the
 world still blocks at the cap; 🔴 red-proved with `IsRoofCap` off). The shipped terrains have no caps ⇒ §6ah's equality rail and their frames are unchanged.
+R-5: `TerrainWorldMesh.Windows.cs` (`HasPaintedWindows`, `AddPaintedWindows`), routed from `BuildChunkObjects` after `AddPrism`; rail `TerrainChunkWindowsTests` (80 pane
+triangles on a 20 × 10 m two-storey house at z 0.9–2.2 / 3.9–5.2, on the faces, clear of the corners; none on a 20 m² shed or the cap; the world still blocks). ⚠ It
+changes the SHIPPED look: demo-city's, test-town's, bt-range's and highway-rest's big solid houses gain window rows.
 📷 `TheTerrainChunksLookTests.AnImportedTerrainsHouses_UpClose` (opt-in `HROT_MEASURE=1`, `HROT_RAIL_SHOTS=<dir>`) renders the before / after; never in git.
 
 

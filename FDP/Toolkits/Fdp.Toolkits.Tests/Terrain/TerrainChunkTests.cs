@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Terrain.Tests
 
             var chunked = new List<string>(kinds.Length);
             var layout = q.Chunks;
-            int skirts = 0;
+            int skirts = 0, painted = 0;
             for (int cy = 0; cy < layout.Ny; cy++)
                 for (int cx = 0; cx < layout.Nx; cx++)
                 {
@@ -59,7 +59,11 @@ namespace Fdp.Toolkit.Terrain.Tests
                         chunked.Add(Key(a, b, c, gk[t], gm[t]));
                     }
                     q.BuildChunk(cx, cy, 0, TerrainChunkPart.ChunkObjects, out var ov, out var oi, out var ok, out var om);
-                    for (int t = 0; t < ok.Length; t++) chunked.Add(Key(ov[oi[3 * t]], ov[oi[3 * t + 1]], ov[oi[3 * t + 2]], ok[t], om[t]));
+                    for (int t = 0; t < ok.Length; t++)
+                    {
+                        if (om[t] == TerrainWorldMesh.PaintedWindowMaterial) { painted++; continue; }   // §6ai R-5: painted windows are the DRAWING's only (never in the world's soup — the navmesh bakes from it)
+                        chunked.Add(Key(ov[oi[3 * t]], ov[oi[3 * t + 1]], ov[oi[3 * t + 2]], ok[t], om[t]));
+                    }
                 }
             q.BuildOutside(out var av, out var ai, out var ak, out var am);
             for (int t = 0; t < ak.Length; t++) chunked.Add(Key(av[ai[3 * t]], av[ai[3 * t + 1]], av[ai[3 * t + 2]], ak[t], am[t]));

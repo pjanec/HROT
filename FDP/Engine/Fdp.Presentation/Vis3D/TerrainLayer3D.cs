@@ -219,6 +219,7 @@ namespace Fdp.Toolkit.Vis3D
                 "tree-crown" => new Color(62, 104, 48, 255),
                 "tree-crown-dark" => new Color(50, 88, 40, 255),
                 "canopy" => new Color(56, 96, 44, 255),
+                "painted-window" => new Color(46, 60, 78, 255),   // ⭐ a solid building's painted windows: dark glass
                 "rubble" => new Color(128, 118, 104, 255),
                 "scorch" => new Color(24, 21, 19, 255),   // ⭐ CE-4392 X-7 — soot round a breach (the mottled earth pattern breaks it up)
                 "scorch-light" => new Color(70, 58, 50, 255),   // … and its lighter streaks further out   // ⭐ CE-4392 X-2 — a collapsed building's heap: dusty grey-brown (the earth pattern)
