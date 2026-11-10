@@ -7,7 +7,7 @@ supersedes: HANDOFF_Coordinator_To_Ui_Terrain_From_OSM.md (withdrawn 2026-11-09 
 
 # HANDOFF — coordinator → ui: the terrain-from-OpenStreetMap WIZARD, built TO THE APPROVED MOCKUP
 
-**For:** ui. **From:** coordinator. **Dispatched at `<STAMP>`**, scope frozen there. Start it when [`Next_3`](HANDOFF_Coordinator_To_Ui_Next_3.md)
+**For:** ui. **From:** coordinator. **Dispatched at `f473cab3a`**, scope frozen there. Start it when [`Next_3`](HANDOFF_Coordinator_To_Ui_Next_3.md)
 is done or every remaining item there is blocked. Merge the other lanes first (⭐ **`coordinator` after every item** — the real pipeline lands
 there); push `chore: started HANDOFF_Coordinator_To_Ui_Osm_Wizard at <sha>`; status file `STATUS_Ui_Osm_Wizard.md`. Same
 [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md). ⛔⛔ **Never stop for a question** (R-4156): every decision below is made; a premise that
