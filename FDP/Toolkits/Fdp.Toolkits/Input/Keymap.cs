@@ -113,11 +113,24 @@ public sealed class Keymap
     private readonly List<KeymapEntry> _entries = new();
     private readonly Dictionary<ActionRef, string> _labels = new();
 
+    /// <summary>
+    /// ⭐ CE-3427 (backend, a cross-lane fix) — every WRITE is under this lock: <see cref="Process"/> is ONE keymap per process, and hosts that boot in
+    /// parallel (the integration harnesses: a Player's possession station, a SimHost's map gestures) declare into it at once — 📐 that corrupted its sets
+    /// ("a concurrent update was performed on this collection") and failed every later test in the process (2026-11-10). Declaring is boot-time, never per
+    /// frame; the per-frame lookups stay lock-free.
+    /// </summary>
+    private readonly object _write = new();
+
     /// <summary>Bumped on every change (a row, a label): a view rebuilds only when it moved.</summary>
     public int Version { get; private set; }
 
     /// <summary>Names <paramref name="action"/> for display (the Keyboard shortcuts window, a tooltip). Declarers call it when they declare.</summary>
     public void SetLabel(ActionRef action, string label)
+    {
+        lock (_write) SetLabelLocked(action, label);
+    }
+
+    private void SetLabelLocked(ActionRef action, string label)
     {
         if (_labels.TryGetValue(action, out var old) && string.Equals(old, label, StringComparison.Ordinal)) return;
         _labels[action] = label;
@@ -134,6 +147,11 @@ public sealed class Keymap
     /// ⚠ The action stays <see cref="IsDeclared">declared</see> in that place: a declarer that guards on <see cref="IsDeclared"/> will not put the default back. Returns how many rows went.
     /// </summary>
     public int Unbind(InputScope scope, string? windowKind, ActionRef action)
+    {
+        lock (_write) return UnbindLocked(scope, windowKind, action);
+    }
+
+    private int UnbindLocked(InputScope scope, string? windowKind, ActionRef action)
     {
         int removed = 0;
         for (int i = _entries.Count - 1; i >= 0; i--)
@@ -161,6 +179,11 @@ public sealed class Keymap
     /// </summary>
     public bool Declare(KeymapEntry entry)
     {
+        lock (_write) return DeclareLocked(entry);
+    }
+
+    private bool DeclareLocked(KeymapEntry entry)
+    {
         if (!_declared.Add((entry.Scope, entry.WindowKind, entry.Action, entry.Chord, entry.Trigger))) return false;
         _declaredActions.Add((entry.Scope, entry.WindowKind, entry.Action));
         _entries.Add(entry);
@@ -180,6 +203,11 @@ public sealed class Keymap
 
     /// <summary>Adds a gesture row; idempotent per (scope, qualifier, gesture). Returns whether a row was added.</summary>
     public bool DeclareGesture(GestureEntry entry)
+    {
+        lock (_write) return DeclareGestureLocked(entry);
+    }
+
+    private bool DeclareGestureLocked(GestureEntry entry)
     {
         if (!_gestureDeclared.Add((entry.Scope, entry.Qualifier, entry.Gesture))) return false;
         _gestures.Add(entry);
