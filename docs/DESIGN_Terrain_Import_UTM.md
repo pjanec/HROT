@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 build-state: §11 THE IMPORTER BUILT 2026-11-10 (CE-4368, as-built table §11.4) · DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
-updated: 2026-11-10 (§11.4 as built — CE-4368) · 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
+updated: 2026-11-10 (§8.2 the destruction build design, S-0 of CE-4391 — B-1…B-11; B-10 supersedes §8.1's NavRebuildRequester / P3-c / P3-d by the P-7a obstacle bake — coordinator) · 2026-11-10 (§11.4 as built — CE-4368) · 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
+current-answer: ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8.2 destructible buildings — THE BUILD DESIGN (CE-4391, READY-TO-BUILD; §8 decisions R-4188, §8.1 runtime with B-10's supersession) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
-known-rot: §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
+known-rot: §8.1's NavRebuildRequester and P3-c / P3-d are superseded by §8.2 B-10 (the existing P-7a obstacle bake does both); §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
 related-designs:
   - PLAN_Large_Terrain.md — ORDERS this importer's stages beside the scale work (load, measure, optimise) so both lanes start at once
@@ -346,6 +346,129 @@ graph LR
 | P3-e | units standing in a collapsed building: removed from the navmesh's agent set before the swap (they are casualties, D-7) | a path from inside a mound has no start polygon |
 
 ⚠ To measure when built (L-4's rig): rebake seconds for one building's tiles on `scale-1` with the cache warm, and the replans per breach.
+
+### 8.2 📐 The build design — classes, the frame, the navmesh *(S-0 of CE-4391, coordinator `2026-11-10`; refines §8 / §8.1 within R-4188)*
+
+<!-- build-state: READY-TO-BUILD (§8.2) -->
+
+**INVENTORY** *(graph re-indexed `2026-11-10`; `scripts/cbm.sh search_graph`, production hits only; coverage could not be checked — the CLI has no `check_index_coverage`)*
+
+| query | total | what it holds |
+|---|---|---|
+| `.*Breach.*` (Class) | 3 | only `BreachDoorBehavior` (+ its blackboard, its params DTO) — doors, ⛔ nothing for walls |
+| `.*Collapse.*` (Class) | 19 | all Blueprint / node-editor graph collapse — ⛔ nothing for buildings |
+| `.*Rubble.*` · `.*WallDamage.*\|.*BuildingDamage.*\|.*BuildingState.*` · `.*PathStamp.*\|.*TileVersion.*` | 0 · 0 · 0 | NEW |
+| `.*Destruct.*` (Class) | 6 | entity lifecycle (`DestructionOrder`, `DestructionAck`, …) — not geometry |
+| `.*DoorState.*` | 27 | ⭐ `DoorState` + `TerrainObjectKey` + the `DoorStates` view (`TerrainObjects.cs:16-206`), `EntityDoorState` egress/ingress, `DoorCommandSystem` |
+| `.*CloudTable.*` | 3 | ⭐ `CloudTable` (`AreaEffectClouds.cs:95`) — a RUNTIME-created replicated entity its creator owns, read through a per-view table: the precedent for a damage entity made by a blast |
+| `.*Rebake.*` | 13 | `RecastNavmeshFactory.Rebake` (`:86`), `DotRecastNavmeshProvider.Rebake` (`:313`); ⭐ the tests named `P7a_*` led to `StaticObstacleBakeSystem` (`Hrot.Core/Services/StaticObstacleBake.cs:49`) + `TerrainResidency.BakeObstacles` (`:498`) |
+| `.*Replan.*` | 30 | Nav v2 §3.4 / §5.4 design sections, `NavigationConstants` — ⛔ no per-tile stale-path check |
+| grep `DoorStates` (production) | 29 files | every sight / fire / path / sound / EQS caller already passes ONE `DoorStates` — see B-3 |
+| grep `Doors.Count > 0` | 9 | the gates that build `DoorStates` only when the terrain has doors (B-3 must widen 3 of them) |
+
+```mermaid
+classDiagram
+    direction LR
+    class TerrainWallPanel { <<existing, content>> A, B, BaseZ..TopZ, Openings[], Building, Storey }
+    class TerrainPrism { <<existing, content>> Panel ; + Building NEW (-1 = none) }
+    class TerrainWalkable { <<existing, content>> + Building NEW (-1 = none) }
+    class DoorStates { <<existing view, R-219>> doors[i] ; + Damage NEW }
+    class CloudTable { <<existing view>> the precedent }
+    class StaticObstacleBakeSystem { <<existing, P-7a>> debounce, 1 running + 1 pending, off-thread }
+    class TerrainObstacles { <<existing>> With(base, obstacles) ; + damage NEW }
+    class AreaEffectSystem { <<existing>> Assess, BreachDoors ; + BreachWalls NEW }
+    class BuildingDamage { <<NEW component, unmanaged, recorded>> Building, Collapsed, Count, 16 x WallBreach }
+    class WallBreach { <<NEW, 24 B>> Panel, From..To along, Bottom..Top z, Kind: Hole or Passage }
+    class BuildingDamageTable { <<NEW view, per snapshot>> Opens(panel, along, z), Collapsed(b), Rubble[], NavHash }
+    class BreachRule { <<NEW, static, pure>> Decide(warhead, burst, panel, data) ; Collapses(...) }
+    class BreachTable { <<NEW data>> Terrain/Data/breaches.json + terrain override }
+    class BuildingDamageEvent { <<NEW local FDP event>> building, breach or collapse }
+    class BuildingDamageSystem { <<NEW, Simulation>> merges, writes owned entity or asks creation }
+    class TerrainObjectKey { <<existing>> terrain/building }
+    BuildingDamage *-- "0..16" WallBreach
+    BuildingDamage .. TerrainObjectKey : same entity
+    AreaEffectSystem --> BreachRule
+    BreachRule --> BreachTable
+    AreaEffectSystem --> BuildingDamageEvent : publishes
+    BuildingDamageSystem --> BuildingDamageEvent : reads
+    BuildingDamageSystem --> BuildingDamage : writes (owner)
+    BuildingDamageTable ..> BuildingDamage : built from every entity
+    DoorStates o-- BuildingDamageTable : Damage
+    BuildingDamageTable ..> TerrainWallPanel
+    StaticObstacleBakeSystem --> TerrainObstacles
+    TerrainObstacles ..> BuildingDamageTable : passages + collapses
+```
+*What it shows that the prose cannot: there is no new query path and no new rebuild pipeline. The damage rides the ONE object every sight / fire caller
+already passes (`DoorStates`), and the navmesh follows through the obstacle bake that already exists. The genuinely new boxes are the
+component, the view, the rule, its data, and one system.*
+
+```mermaid
+sequenceDiagram
+    participant AE as AreaEffectSystem (Muscle)
+    participant BR as BreachRule
+    participant DS as BuildingDamageSystem (Muscle)
+    participant E as BuildingDamage entity
+    participant V as BuildingDamageTable (any view)
+    participant Q as sight / fire trace
+    participant OB as StaticObstacleBakeSystem
+    participant TR as TerrainResidency (off-thread)
+    AE->>AE: a non-remote detonation (impact or air)
+    AE->>BR: each panel near the burst + building under it
+    BR-->>AE: a WallBreach, a collapse, or nothing
+    AE->>AE: a collapse kills the people inside (the same Assess)
+    AE->>DS: BuildingDamageEvent (local bus)
+    DS->>E: merge into this node's own entity for the building, else ask creation
+    Q->>V: DoorStates.Of(view) hands the table
+    V-->>Q: crossing inside a breach: skipped / collapsed building: its pieces skipped, rubble added
+    OB->>V: NavHash changed (a passage or a collapse)?
+    OB->>TR: after the quiet period: BakeObstacles(obstacles, damage)
+    TR-->>OB: derived world + cover + touched tiles
+    OB->>OB: commit on the main thread (one swap)
+```
+*What it shows: sight and fire see a breach in the frame after it is written (the entity write, then the table). Only a passage or a collapse
+reaches the bake, and the bake never runs on the frame.*
+
+```mermaid
+graph TD
+  subgraph DAM["DamageAssessmentModule (every Muscle node, Simulation phase)"]
+    AE["AreaEffectSystem: + BreachWalls"] --> DS["BuildingDamageSystem NEW"]
+  end
+  subgraph HC["terrain host (every node holding a terrain, BeforeSync)"]
+    OB["StaticObstacleBakeSystem: + damage in its input hash"]
+  end
+  subgraph REP["replication (every node)"]
+    EG["BuildingDamage egress NEW (owner)"] --> IG["BuildingDamage ingress NEW (others)"]
+  end
+  DS --> ENT[("BuildingDamage entities")]
+  ENT --> EG
+  IG --> ENT
+  ENT -.read by.-> TBL["BuildingDamageTable, built per view"]
+  TBL -.-> SIGHT["perception, EQS, fire, sound: through DoorStates"]
+  ENT -.-> OB
+  RP["replay"]:::dead -.->|"AreaEffectSystem returns: the recording writes the entities"| ENT
+  classDef dead stroke-dasharray: 4 4,color:#999
+```
+*What it shows: the breach is DECIDED only where the detonation is local. Every other node, and a replay, gets the entities by replication or from the
+recording, so the table and the bake behave the same everywhere. The dashed edge is the deciding side that never runs during a replay
+(`AreaEffectSystem.cs:51`).*
+
+| # | decision (within R-4188) | rejected — one line |
+|---|---|---|
+| **B-1** | ⭐ **ONE component, `BuildingDamage`**: R-4188's `WallBreaches` and `BuildingState` (both per building, written by the same rule, read by the same view). `[DataPolicy(NoScenario)]`; it is saved through the `TerrainObjects` section like a door (B-7) | two components on one entity: two descriptors and two readers for one fact |
+| **B-2** | ⭐ **one entity per (building, deciding node)**, made at that node's first breach of the building, owned by it. The view UNIONS every entity with the same building. ⇒ no cross-node request and no creation race: two Muscles breaching the same untouched building in the same frame each make their own. Single-Muscle runs (editor, one CGF) have exactly one per building, as D-3 says | one entity per building: the first breach needs an owner to ASK, but a building with no entity has no owner, and two nodes would race to create it |
+| **B-3** | ⭐ **the table rides `DoorStates`** (`DoorStates.Damage`, built and cached in `DoorStates.Of`). All 29 production readers get breaches with no signature change. The 3 gates that build `DoorStates` only for terrains with doors (`TerrainWorldQuery.cs:52`, `WorldSurveySolve.cs:118`, `AcousticPerception.cs:284`) widen to "doors OR damage". A later Roslyn rename `DoorStates` → `TerrainLiveState` is left for later | a second parameter beside `doors` through ~30 files: every caller has to remember it (the SILENT-DEFAULT pattern) |
+| **B-4** | **capacity 16 breaches per entity** (24 B each, ≈ 400 B per entity). D-5's largest breach short of a collapse is one storey's panel; 16 is four facades × four storeys hit once. A new breach overlapping one already on the same panel and storey is MERGED into it (the union rectangle), so a barrage on one wall does not fill the list. ⭐ Past 16, the owner opens a second entity for the same building; B-2's union already reads it | a bigger fixed list: every entity pays for the worst case · a merge-to-whole-panel rule: it loses shape the view can keep |
+| **B-5** | **the deciding point is the detonation**: a tank HE shell, a missile, a charge or a bomb hitting a wall already raises a `DetonationNotification` at its hit point, so `AreaEffectSystem` alone decides walls, as it decides doors (`:355`). ⛔ A kinetic round (no explosive) makes NO breach in v1: a sabot's hole is too small to change sight or movement | a second hook in `BallisticsSystem` / `HitResolutionSystem`: two deciders for one rule |
+| **B-6** | **the rule, scaled distance**: Z = d / ∛kg (d = the burst to the panel, the line clear but for the panel itself, as `BreachDoors` tests). The table gives rows {kind, Z-max, width, height, passage?}. The size scales by (concrete ÷ the material's `ResistanceMmRhaPerMetre`)^½, clamped 0.5…2. **Collapse:** ≥ `collapseMinKg` with the burst within Z-collapse of the footprint. Starter rows from D-5: charge ≈ 1 × 2 m passage at contact · HE shell 1–1.5 m hole · artillery 2–3 m · ≥ 100 kg ⇒ the whole storey panel · ≥ 200 kg within ½ ∛kg m ⇒ collapse. All of it is DATA (`Terrain/Data/breaches.json`, embedded beside `materials.json`, overridable per terrain like the materials) | per-weapon rows: the TKB already gives each warhead `ExplosiveKg` and `Kind`, and one table keyed on them covers every future weapon |
+| **B-7** | **saved like a door**: the `TerrainObjects` section gains `"breaches": [[panelInBuilding, from, to, bottom, top, kind], …]` and `"collapsed": true` under `"<terrain>/<building>"`. A load creates one entity per saved building (`TerrainObjectRequests`, as `ForDoors`) ⇒ a scenario may start pre-breached (Q-D3). The panel is saved as its index WITHIN the building (stable across terrain versions that add buildings); the runtime holds the global panel index | runtime global indices in the file: one more house in the terrain shifts every index after it |
+| **B-8** | **sight / fire / segment test**: when a crossing of a panel prism lies inside a breach on that panel (its mid-point projected along the panel, and z), it is skipped. A collapsed building's prisms and walkables are skipped (`TerrainPrism.Building` / `TerrainWalkable.Building`, NEW, set by the expander), and its rubble prism is crossed instead. One `bool[]` lookup per panel crossing; ⛔ no allocation (`GC.GetAllocatedBytesForCurrentThread() == 0` rails) | re-expanding the panel's prisms on the frame: an allocation per breach on the hot path |
+| **B-9** | **rubble** = the EXISTING solid `TerrainPrism` (`Kind = Building`, the footprint, from the base to ⅓ of the roof height, material `rubble`, a new row in `materials.json`). The doors of a collapsed building read Destroyed in the view | a new prism kind: every reader would need to learn it |
+| **B-10** | ⭐ **the navmesh reuses the P-7a obstacle bake**: `StaticObstacleBakeSystem`'s input hash gains `BuildingDamageTable.NavHash` (passages + collapses only; a hole changes no walkable). `TerrainObstacles.With(base, obstacles, damage)` re-expands the breached panels with the passages as extra `Gap` openings, drops the collapsed buildings' prisms and walkables, and adds their rubble. ⛔ It never removes or reorders `Panels`, `Doors` or `Buildings`, so every index stays valid. Debounce, one bake running + one pending, off-thread, main-thread commit: all already built. ✏ **This supersedes §8.1's `NavRebuildRequester`, P3-c and P3-d** (that box is not needed). P3-a/b (per-tile versions, stale-path replan) and P3-e stay NEW, for S-3 | a second coalescing bake pipeline beside P-7a: two implementations of one thing (ruling 9) |
+| **B-11** | **replicated** by a new descriptor `dtBuildingDamage` (owner → every node; the next free ordinal), with egress / ingress translators that copy the `EntityDoorState` pair, and a TKB type `BuildingDamage`. Recorded by bytes (unmanaged); restored by a checkpoint; the bake follows the restored entities through B-10's hash | — |
+
+⚠ Known limits, said: `SurfaceZ` / `SurfacesAt` / `InsideFootprint` take no live state, so a placement or a stand-at query does not see a collapse. Movement
+follows the rebaked navmesh, and units inside a collapse are casualties. Sound's PORTAL graph does not learn breaches (its trace part does). Both
+are recorded here and left for later.
 
 ---
 _source-data session, 2026-11-09_
