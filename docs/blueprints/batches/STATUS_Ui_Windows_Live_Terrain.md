@@ -25,3 +25,14 @@ Cross-lane edits, stated in the commits: `Hrot/Engine/Hrot.Terrain.Osm` (the coo
 | **L-3** | CE-4385 | ⏳ needs the Windows GPU | software GL on the VM measures nothing about the user's frame rate |
 | **L-2** | CE-4384 | ✅ built + rails · ⏳ the live proof (a dense city) waits for Windows | see the OSM design §7 as-built |
 | **L-4** | CE-1449 | ⏳ needs Windows (Stride) | |
+
+## Gates
+
+| gate | result |
+|---|---|
+| `HROT_HIDDEN_WINDOW=1 xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build` | 2 030 / 3 failed, 7 skipped (one more test than visible: `TheHiddenWindowModeTests` runs only with the switch) |
+| the same, visible | 2 029 / 3 failed, 8 skipped — the SAME three |
+| base `72aaefa03` (before L-0), clean worktree, visible | 2 029 / 3 failed — the SAME three ⇒ all pre-existing: `OneWindowPerProcessTests.CE1039` (order-dependent: passes alone; a rail asking for another window size makes a second window), `FilmFrameRail.CE1380`, `Map3DFrameRail.CE1227` |
+| the editor, hidden, `--mode editor` with `HROT_DEBUG_API_PORT` | answered `/diagnostics/architecture` `ok:true` |
+| `dotnet test Hrot.Terrain.Osm.Tests --no-build` | 125 / 0, 1 skipped (the opt-in live rail) |
+| red-proofs (each compiles) | `HiddenWindow.BeginFrame` a no-op ⇒ `TheHiddenWindowModeTests` red · `IsTooLarge` always false ⇒ two `OverpassRobustnessTests` red |
