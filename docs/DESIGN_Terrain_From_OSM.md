@@ -82,7 +82,7 @@ license, let's do it."*
 | part | what | notes |
 |---|---|---|
 | **`Hrot.Terrain.InputSet`** (new library) | the §10 input-set MODEL + WRITERS (heights BIL, buildings / unassigned GeoJSON, trees CSV, SUMO plain XML + netconvert runner, walls, manifest with SHA-256) | ⭐ EXTRACTED from `Hrot.Tools.TerrainSynth` (its `HeightField.Write`, `GeoJsonWriter`, `SumoWriter`, `ManifestWriter`), so the format is defined ONCE; the synth tool then references it |
-| **`Hrot.Terrain.Osm`** (new library) | fetch (Overpass, DEM), parse, the stages, the preview model, cancellation, progress | references `Hrot.Terrain.InputSet` and the ONE shared `Utm` class (today `Hrot/Engine/Hrot.Traffic/Utm.cs`, already north + south; MOVED to the shared place by Terrain Import UTM stage 1, not copied — F-8); no UI, no raylib |
+| **`Hrot.Terrain.Osm`** (new library) | fetch (Overpass, DEM), parse, the stages, the preview model, cancellation, progress | references `Hrot.Terrain.InputSet` and the ONE shared `Utm` class (✅ MOVED 2026-11-10, CE-4372: `FDP/Toolkits/Fdp.Toolkits/Geographic/Transforms/Utm.cs`, namespace `Fdp.Modules.Geographic.Transforms`; north + south; measured round trip 0.29 mm on the central meridian, 0.47 mm at 3.04° = a 6 km box centred on a zone edge, 2.8 mm at 4° — F-8); no UI, no raylib |
 | **`Hrot.Tools.TerrainOsm`** (new exe, `hrot-terrain-osm`) | thin CLI: `--bbox lat0,lon0,lat1,lon1 --name N --out DIR [options]` | headless tests, batch use, reproducing an author's import |
 | **editor wizard** (`Hrot.Editor`) | pick area → options → preview → import → open in the New Scenario picker | §6 |
 | **the terrain importer** | input set → `assets/terrain/<name>/` | ⛔ NOT part of this design — Terrain Import UTM §6.1 stages 0–7. This feature DEPENDS on it |

@@ -96,7 +96,7 @@ height-store format, which I-2 writes; P-1 delivers that contract first. Stage 0
 
 | # | item | delivers | UTM stage |
 |---|---|---|---|
-| **I-1** | move `Hrot.Traffic/Utm.cs` to the shared place; `UtmTransform : IGeographicTransform` | the frame | 1 |
+| **I-1** | move `Hrot.Traffic/Utm.cs` to the shared place (✅ done, CE-4372: `Fdp.Toolkits/Geographic/Transforms/Utm.cs`); `UtmTransform : IGeographicTransform` | the frame | 1 |
 | **I-2** | ⭐ **thin import**: read the manifest; heights → the P-1 store at 1 m; roads → the cropped net + anchor; buildings → **solid prisms** (footprint, `baseZ` by TH-C, `height`); writes `assets/terrain/<name>/` | ⭐ **`synth-full`: a 5.5 km terrain that loads** | 3 (part), 5 (roads) |
 | **I-3** | the enterable building generator: one `<id>.building.json` per building (R-4191), openings from points (with the real-data noise), party walls from shared edges, pitched roofs as solid caps, materials | 1 800 enterable houses | 4 |
 | **I-4** | woods: polygons (`woods.geojson`) or clustered points ⇒ the 25 m density grid; ≈ 11 000 lone trunks; water; scrub carried | R-4190 | 5 |
