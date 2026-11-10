@@ -286,6 +286,18 @@ namespace Fdp.Toolkit.Combat
             => !man.IsNull && world.IsAlive(man)
                && (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() || Injury.IsInTheFight(world, man));
 
+        /// <summary>⭐ CE-2431 — the centre of <paramref name="weapon"/>'s traverse arc (radians, counter-clockwise from its host's forward) when it
+        /// stands in a station that declares an arc — the same arc <see cref="InStationArc"/> tests; false for anything else.</summary>
+        public static bool StationArcCentre(EntityRepository world, Entity weapon, out float centre)
+        {
+            centre = 0f;
+            if (!Has<IsEmbarkedTag>(world, weapon)) return false;
+            ref readonly var tag = ref world.GetComponentRO<IsEmbarkedTag>(weapon);
+            if (!IsStation(world, tag.VehicleEntity, tag.Seat, out var station) || station.HasArc == 0) return false;
+            centre = 0.5f * (station.TraverseMin + station.TraverseMax);
+            return true;
+        }
+
         private static bool IsStation(EntityRepository world, Entity host, int seat, out StationSeat station)
         {
             station = default;
