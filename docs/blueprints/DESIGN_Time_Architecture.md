@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-11-07 (§20: CE-4316 Run to …'s TURBO, the one documented exception, the networkless editor node only; the step a per-run setting, backend) · 2026-10-28 (§18: CE-4087 — a resume to a running master is re-announced and logged, never swallowed; the step set admits a node when it is IN SYNC; the reported stuck clock was NOT reproduced, root cause unproven, backend) · 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
+updated: 2026-11-10 (§17: CE-3427 C-1 — live play paces slow modules by wall clock from dispatch, backend) · 2026-11-07 (§20: CE-4316 Run to …'s TURBO, the one documented exception, the networkless editor node only; the step a per-run setting, backend) · 2026-10-28 (§18: CE-4087 — a resume to a running master is re-announced and logged, never swallowed; the step set admits a node when it is IN SYNC; the reported stuck clock was NOT reproduced, root cause unproven, backend) · 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
 merged: T1-T7 + W1/W2 (the drain) are BUILT and MERGED into the coordinator branch. Open per PLAN:
   T4 path-C (debugger->intents) and T5's remaining pause-notion sites. X1/X2 deferred.
 verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - TimeControlIntegrationTests
@@ -1512,7 +1512,7 @@ graph TD
   K -->|"stepped AND dt = 0 (a paused frame)"| H0["async jobs HELD; slow/async modules NOT dispatched"]
   K -->|"stepped AND dt > 0 (a step)"| H1["HARVEST: wait for each async job, then apply it"]
   H1 --> D1["DISPATCH: a slow module runs when the step crosses its sim-time slot (10 Hz = every 0.1 s of sim time)"]
-  K -->|"continuous (live play)"| L["unchanged: frame-counted cadence, async harvest when done"]
+  K -->|"continuous (live play)"| L["slow module: every 1/Hz s of WALL CLOCK from its dispatch (CE-3427 C-1); async harvest when done"]
   K -->|"sim time went BACK (load, Stop)"| E["new epoch: slots and accumulators reset; older jobs' results DISCARDED"]
   D1 --> M1["EqsModule (perception, 10 Hz)"]
   D1 --> M2["NavigationSolverModule (10 Hz)"]
@@ -1521,7 +1521,7 @@ graph TD
 ```
 
 *What the picture shows that the prose hid: the rule is by POLICY (asynchronous, or below 60 Hz), not a list of modules — a legacy
-`Tier` module is `SlowBackground` by default (`IEcsModule.Policy`) — and live play takes none of the new edges.*
+`Tier` module is `SlowBackground` by default (`IEcsModule.Policy`) — and live play takes none of the stepped edges.*
 
 ```mermaid
 sequenceDiagram
@@ -1560,6 +1560,7 @@ classDiagram
     +int DispatchEpoch
     +float AccumulatedDeltaTime
     +int FramesSinceLastRun
+    +long LastDispatchTimestamp
   }
   ModuleHostKernel "1" o-- "*" ModuleEntry
   class ITimeController {
@@ -1595,6 +1596,15 @@ so a step taken under a `SynchronizationContext` (xUnit's, `MaxParallelThreads =
 all blocked in `WaitForRun` ⇒ the full `Hrot.ClusterRunner.Integration.Tests` batch hung after ~35 tests (hang dump: three test threads in
 `WaitForRun`, idle pool). Both awaits now carry `ConfigureAwait(false)`, like every other await in the kernel. Rail:
 `ModuleHostKernelTimeTests.CE4158_ASteppedWait_DoesNotNeedTheCallersSynchronisationContext` (a context that never runs what is posted to it).
+
+⭐ **`2026-11-10` (CE-3427 C-1, backend, user decision) — LIVE play paces a slow module by WALL CLOCK, as §17's quote meant.** Frame-counted
+(`60/Hz` rendered frames, counted from the HARVEST) a 120 ms EQS run then waited 230 ms more: 2.9 runs/s for a 10 Hz policy. Now
+`ShouldRunThisFrame` dispatches when `1/Hz` s have passed since the module's last DISPATCH (`ModuleEntry.LastDispatchTimestamp`) ⇒ 7.1
+runs/s, 2.2× the sensor solves ([scale rig §7.2](../DESIGN_Scale_Rig.md)). Switch: `ModuleHostKernel.SlowModulesByWallClock`, taken from
+`FdpConfig.SlowModulesByWallClock` — OFF by default (a test drives frames unpaced, and must not depend on machine speed), ON in the live
+process (`Hrot.ClusterRunner` `Program.Main`: every node and the editor; `FDP_SLOW_WALLCLOCK=0` bisects). Stepped mode is untouched (the
+slot rule is checked first). Rails: `ModuleHostKernelTimeTests.Continuous_WallClockCadence_RunsOncePerPeriodFromItsDispatch` (red-proved),
+`Continuous_TheCadenceStaysFrameCounted` (the off default).
 
 📐 **Measured** (`ua-tank-ammo`, `--mode editor`, 15 Hz HTTP steps, three loads in one process, cuts every 5 s to 30 s): before — the first
 load played a different story and reloads drifted; after — **behaviour identical at 6/6 cuts in all three pairs** (every position, every

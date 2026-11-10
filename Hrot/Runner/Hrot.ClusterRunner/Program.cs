@@ -49,6 +49,8 @@ class Program
     {
         FdpConfig.EnforceExplicitComponentIds = true;
         FdpConfig.EnforceExplicitEventRegistration = true;
+        // ⭐ CE-3427 C-1 — live play paces slow modules by wall clock (FdpConfig.SlowModulesByWallClock); FDP_SLOW_WALLCLOCK=0 bisects
+        FdpConfig.SlowModulesByWallClock = Environment.GetEnvironmentVariable("FDP_SLOW_WALLCLOCK") != "0";
 
         // Enable NLog Console Output globally for FdpLog<T>.
         // Also register the UI target so the Message Log window captures all output.

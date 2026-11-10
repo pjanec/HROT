@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (L-2, CE-4364) — baselines below; L-4 adds its findings to §5
-updated: 2026-11-10 (§7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
-current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split)
+updated: 2026-11-10 (§7.6 C-1 + G-1 built and re-measured · §7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
+current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split; §7.6 C-1 + G-1 built)
 related-designs:
   - PLAN_Large_Terrain.md — P-0 is this rig; §8 the budgets (R-4192)
   - DESIGN_Evaluation_Cost_And_Cadence.md §11 — perf-stress.py, whose cluster machinery the rig imports; §0e the garbage tables
@@ -382,7 +382,7 @@ user) — 19 / 78 / 188 ms.
 
 ### 7.2 ⭐ M-3 — where the EQS time goes: the HOST, not the solver *(phase slots `eqs.run.*`, `EqsSolverSystem.Execute`)*
 
-| fight, 1 000 men | frame-counted (as built) | ⚗ wall clock (`HROT_SLOW_WALLCLOCK=1`, uncommitted) |
+| fight, 1 000 men | frame-counted (before C-1) | wall clock (`HROT_SLOW_WALLCLOCK=1` experiment, then C-1 built — §7.6) |
 |---|---|---|
 | run (start → end) | 120 ms — 99 % the solves (schedule 0.4 ms, memory flush 1 ms) | 110 ms |
 | **idle (end → next start)** | ⛔ **230 ms** (worst 711) | 31 ms (≈ one frame to harvest) |
@@ -426,8 +426,28 @@ both nodes, loopback) is the largest remaining frame cost the terrain programme 
 
 | # | item | lean |
 |---|---|---|
-| ⭐ **C-1** *(new)* | live-play cadence of slow modules = wall clock, from DISPATCH | ⭐ build (kernel, every slow module, live play only) — user decision, §7.2 |
-| ⭐ **G-1** *(new)* | the runner on server GC, 4 heaps | ⭐ cold load 322 → 127 s, peak 2.5 GB — user decision (every node and the editor) |
+| ✅ **C-1** | live-play cadence of slow modules = wall clock, from DISPATCH | ✅ **BUILT `2026-11-10`** (user: yes) — §7.6 |
+| ✅ **G-1** | the runner on server GC, 4 heaps | ✅ **BUILT `2026-11-10`** (user: yes) — §7.6 |
 | P-1 | parallel EQS solving | ⭐ justified once C-1 lands (the run, 110 ms, is then the limit) — design first |
 | P-2 | the sight-heavy tests | ⭐ next to P-1: they are what grows with the men (§7.1) |
 | P-3 / P-4 | A* worst case / path solver drops | A* worst 15–21 ms, flat with the men ⇒ low |
+
+### 7.6 ✅ C-1 and G-1 BUILT — re-measured with the defaults *(`2026-11-10`, user: "C-1 yes / G-1 yes")*
+
+| what | where |
+|---|---|
+| **C-1** live play: a slow module runs every `1/Hz` s of wall clock from its last DISPATCH | `ModuleHostKernel.ShouldRunThisFrame` / `SlowModulesByWallClock` ← `FdpConfig.SlowModulesByWallClock` (off by default, so unpaced tests keep a cadence that does not depend on machine speed; ON in `Hrot.ClusterRunner` `Program.Main` — every node and the editor; `FDP_SLOW_WALLCLOCK=0` bisects). Stepped mode untouched. 📄 [Time §17](blueprints/DESIGN_Time_Architecture.md) |
+| **G-1** the runner on server GC, 4 heaps, not affinitized | `Hrot.ClusterRunner.csproj` `ServerGarbageCollection` + `runtimeconfig.template.json` (`HeapCount 4`, `NoAffinitize` — three nodes on one machine would otherwise pin their heaps to the same four CPUs); `DOTNET_*` still overrides |
+
+| fight, 1 000 men, `--sides 2` (Release, 16 cores) | before (§7.1–7.3) | ⭐ now |
+|---|---|---|
+| EQS runs / s · start to start | 2.9 · 345 ms | **6.8 · 147 ms** |
+| idle end → next start | 230 ms | 33 ms |
+| sensor solves / s | ≈ 1 350 | **≈ 2 790** (2.1×) |
+| EQS run | 110–120 ms | 113 ms |
+| SimHost frame · CGF frame | 36.1 · 76 ms | 37.0 · 86 ms (`BrainTickSystem` 24, ignored) |
+| SimHost gen0 / gen1 / gen2 | 5 679 / … | 367 / 135 / 27 |
+| warm load | 23.8 s | 20.7 s |
+| ⭐ cold load (empty tile cache) · SimHost peak | 321.9 s · 1.8 GB | **119.0 s · 2.74 GB** ✅ (< 4 GB) |
+
+⇒ the run itself (113 ms ≥ the 100 ms period) is now the limit ⇒ **P-1 parallel EQS solving is next** (design first).
