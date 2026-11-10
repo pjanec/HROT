@@ -4,7 +4,7 @@ updated: 2026-11-09
 current-answer: the whole file
 -->
 
-> ⛔⛔ **WITHDRAWN `2026-11-09`, never started — do NOT build.** The wizard's look is designed with the user first; the contract (OSM §4a) stays.
+> ⛔⛔ **WITHDRAWN `2026-11-09`, never started — do NOT build.** ⭐ SUPERSEDED `2026-11-10` by [HANDOFF_Coordinator_To_Ui_Osm_Wizard](HANDOFF_Coordinator_To_Ui_Osm_Wizard.md) (the look approved by the user). The wizard's look is designed with the user first; the contract (OSM §4a) stays.
 
 # HANDOFF — coordinator → ui: the editor's terrain-from-OpenStreetMap WIZARD (overnight, autonomous)
 
