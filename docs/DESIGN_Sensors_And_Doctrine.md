@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/DESIGN_Egress_Change_Detection.md — §7 the state egress off the main thread SHARES §5.8's worker pool (EqsSolveWorkers moves to FDP)
   - DESIGN_Readable_Scenario_Json.md — the brain snapshot's Params written as a JSON object on disk (the C# string unchanged)
   - docs/DESIGN_Evaluation_Cost_And_Cadence.md — makes the SOP slot's cadence (G5, R-195) a GENERIC brain mechanism (Cadence / BrainCadence / CadenceGate, §3.0) that the SOP slot and rule entities share (D7)
   - docs/DESIGN_Scenario_Rules.md — §8 SR-27 / SR-30 reuse the per-TKB-type child-entity pattern for objective blocks and per-member evaluators
