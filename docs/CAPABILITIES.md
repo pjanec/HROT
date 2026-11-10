@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -19,7 +19,7 @@ related-designs:
 # What HROT can do
 
 A short tour of the simulation's capabilities, one chapter per area. Each bullet is one capability; **▶** names the scenario that shows
-it best (`scenarios/<name>/scenario.json`). Every scenario carries a `description` saying what happens and how to judge it, and most have
+it best (`scenarios/<category>/<name>/scenario.json` — showcases, demos by area, tests; a plain name finds it, R-4185). Every scenario carries a `description` saying what happens and how to judge it, and most have
 a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 
 - **Marks:** ✅ the live check passes · ⚠ passes with a caveat · ⏸ parked, varies run to run · ⏳ not built.
@@ -71,6 +71,16 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   builder is built, the rendering is not wired)
 - **Players:** a player in an image generator takes over a unit; the server and two players play one scenario. ⚠ the acceptance run is open
   (CE-4080)
+- *(added `2026-11-10`)* **The run mode switches at once** from one indicator button, which shows the mode the cluster IS in; the one **Save**
+  button shows what Ctrl+S will do in that mode. ([AQ108 §0.A](blueprints/Architect_Question_108_Run_Mode_Picker.md); CE-3405…CE-3412) ✅
+- **Run to …** a chosen sim time from Edit or Preview (CE-4316) ✅ · **Review** beside ▶ in Live (CE-4321) ✅ · **End** always works for an
+  instructor or author (CE-4322) ✅ · **autosave** every 2 minutes while editing (CE-4099) ✅ · the start screen lists **recent** scenarios (CE-3414) ✅
+- **Players are briefed** before a Live run and see a **summary** at its end. (CE-3416, CE-3418) ✅
+- **Recordings collected and archived:** a finished exercise's recordings are gathered from every node into an archive, imported back, or
+  deleted from it; one transfer at a time and never during a Live run. ([Recording Storage](DESIGN_Recording_Storage.md), CE-4330) 🟡 AAR
+  placement on a different cluster still waits
+- **Bookmarks and notes** on a run's timeline, kept beside the recording; the Replay Browser shows them. ([Bookmarks and notes](UX/DESIGN_Bookmarks_And_Notes.md);
+  CE-4325, CE-1467) ✅
 
 ## 2. The world
 
@@ -93,6 +103,31 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 - **Visual effects:** muzzle flash, tracers, bursts, impact marks, wrecks, bodies, fire and smoke, gas clouds. **Sound** for the
   operator, carried over the same ranges the AI hears.
 - **3-D map:** block figures with poses and gestures, vehicle and aircraft models, clothing by side, picking in 3-D.
+
+## 2a. Terrains from real places, at large scale *(added `2026-11-10`; the programme: [PLAN_Large_Terrain](PLAN_Large_Terrain.md))*
+
+- **Import a terrain made for another simulator:** its heights, every building with its storeys, doors and windows, its trees and its road
+  network become an HROT terrain — every house enterable (open floors and a stair ramp), garages and sheds solid, pitched roofs. A 5.5 km
+  square imports in ≈ 6 s and loads in ≈ 2 s. ([Terrain Import UTM §10–§12](DESIGN_Terrain_Import_UTM.md); CE-4368) ✅ run on real data
+  `2026-11-10` ([report](blueprints/REPORT_Terrain_Import_Real_Runs.md))
+- **A terrain from any place on OpenStreetMap:** File ▸ New ▸ Terrain from OpenStreetMap… — search a place, draw the area on the map,
+  preview what will be built (buildings by height, woods, water, walls, roads, the counts and a load verdict), import with 30 m Copernicus
+  heights and a SUMO road network, open it in a new scenario. Also a command-line tool. ([Terrain from OSM](DESIGN_Terrain_From_OSM.md);
+  CE-4373…CE-4385) ✅ live on Windows
+- **Synthetic test terrains** with the same statistics as a real one, generated from a seed (`hrot-terrain-synth`). ([Terrain Synth](DESIGN_Terrain_Synth.md)) ✅
+- **Large terrains in budget:** 5.5 × 5.5 km, 1 m heights, ≈ 1 800 houses, 1 000 soldiers — a warm load ≈ 25 s (≤ 30 s), the navmesh baked
+  at import so the first open does not wait for it, ground sight lines over 3 km ten times faster, the 3-D view drawn in chunks with less
+  detail far away, the 2-D map at that size. ([Scale Rig](DESIGN_Scale_Rig.md); CE-4363…CE-4367, CE-4393, CE-3423, CE-4376) ✅ — frame rates
+  on a real GPU being measured (CE-4385, CE-4387)
+- **UTM coordinates:** a terrain placed on the UTM grid (local metres near zero, grid north). (CE-4394) ✅ · every terrain on UTM and the
+  tangent plane retired ([Geo Origin §6](DESIGN_Geo_Origin.md), R-4197; CE-4396) ⏳ building
+- **Trees and woods:** a wood hides what is inside it (sight lost per metre among the trees, from the air too), forbids wheeled vehicles
+  and slows tracked ones, and stops some rounds; a lone tree is a trunk that blocks. Drawn as trees near and a canopy far. (R-4190; CE-4369,
+  CE-4377) ✅ — felling a tree ⏳ (CE-3426)
+- **Destructible buildings:** a blast or a penetrating hit breaches a wall — a hole to see and shoot through, or a passage to walk through;
+  a heavy bomb close by collapses the whole building into rubble and kills the people inside. The navmesh follows in the background and
+  only the paths through the changed tiles replan; breaches are saved, replicated and drawn on every host. (R-4188; CE-4391, CE-4392)
+  ▶ `bd-destruction`
 
 ## 3. Civilians and crowds
 
@@ -227,6 +262,10 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   ▶ `ua-rpg-window` ✅
 - **Convoy under attack:** a carrier hit with troops aboard pushes through. A stopped carrier unloads its squad, and the squad fights.
   ▶ `uc-convoy-hit-ifv` ✅ · `uc-convoy-hit` ✅
+- *(added `2026-11-10`)* **Shoot and scoot by the numbers:** an exposure lasts long enough to fire once; each gun declares a real aim time
+  and spread (M256 0.3, 2A46 0.4, M242 0.5 mil — estimates); a firing point is never inside the weapon's minimum range; the vehicle turns
+  to bring a limited-arc mount onto the target. (R-2086; CE-2430, CE-2431, CE-2432) ▶ `ua-technical-scoot`
+- **Possessed weapons fire:** a player in a technical's heavy machine gun hits people; a possessed ZU-23 fires. (CE-1299, CE-2317) ✅
 
 ## 10. Drones, aircraft and air defence
 
@@ -266,8 +305,8 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 
 | | what |
 |---|---|
-| **built, no demo** | weather and night in perception · a thermal sensor (no unit type carries one) · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · navmesh rebake after a change · the Stride host (Windows only) |
-| **not built** | structure damage (walls, collapse, bridges; only door breach exists) · temperament and stress breaks · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · radar SAMs · smoke · counter-battery fire · rappel · wind drift on rounds |
+| **built, no demo** | weather and night in perception · a thermal sensor (no unit type carries one) · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · the Stride host (Windows only) |
+| **not built** | bridge damage (walls and whole-building collapse are built, §2a) · temperament and stress breaks · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · radar SAMs · smoke · counter-battery fire · rappel · wind drift on rounds |
 | **known wrong** | see [OVERVIEW_Rules_And_Demos.md §11](OVERVIEW_Rules_And_Demos.md#11-not-built-open-or-known-wrong) and [PLAN_Feature_Films.md §4](PLAN_Feature_Films.md) |
 
 ## 14. Authoring, live control and review — what a user can change, and when *(added `2026-11-06`)*
@@ -365,3 +404,19 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | Replay Browser: step, scrub, search by condition, compare components, combine several stations' recordings, export | – | – | ● | ✅ separate windows |
 | Bookmarks, notes and annotations on a recording | – | – | – | ⏳ designed (bookmarks) |
 | Film director: takes, shots, anchors on events, reels across recordings, render queue, stills | ● | ● | ● | ✅ |
+
+### 14.7 Added since `2026-11-06`
+
+| what you can do | Edit | Live | Review | status |
+|---|:-:|:-:|:-:|---|
+| Scenarios filed in category folders (showcases · demos by area · tests); a plain name still opens one | ● | ● | ● | ✅ CE-4360, CE-4361 · the picker's folder order ⏳ CE-4397 |
+| Scenario presets: a run's parameters saved and applied in place | ● | ● | – | ✅ CE-4317, CE-4326 |
+| A scenario's problems in one window, counted on the toolbar, a click goes to each | ● | ○ | – | ✅ CE-4318 |
+| *+ Add task* offers only the tasks that fit the unit, in one tree picker | ● | ● | – | ✅ CE-4350, CE-4359 |
+| Rules: a gallery to add one, actions read as sentences, *Add rule about this unit…* from the map | ● | ● | – | ✅ CE-4307, CE-4308 |
+| Component inspector: nested structs, fixed arrays and per-field editing in one table | ● | ● | ○ | ✅ CE-3374…CE-3404 |
+| Create a terrain from OpenStreetMap (§2a) | ● | – | – | ✅ CE-4375, CE-4381 |
+| The seat and hat you hold, on the status bar; the menus grey by seat | ● | ● | ● | ✅ CE-4329, CE-4279 |
+| Keyboard shortcuts routed to the focused window, listed under View ▸ Settings | ● | ● | ● | ✅ CE-4282, CE-4337 |
+| A node extension (a folder of plug-ins every node loads) | ⚙ | ⚙ | ⚙ | ✅ CE-4293 |
+| Run the editor and its frame tests with no window on screen (`HROT_HIDDEN_WINDOW=1`) | ⚙ | ⚙ | ⚙ | ✅ CE-4386 |
