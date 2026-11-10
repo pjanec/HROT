@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) BUILT 2026-10-09 as designed
 updated: 2026-11-10 (§6 UTM everywhere — coordinator) · 2026-11-10 (related-designs: UTM §12.2 — the one instance becomes switchable, CE-4394)
-current-answer: ⭐ §6 UTM EVERYWHERE — §6.1a the user's correction (the lat / lon origin IS the frame; an optional zone override only) supersedes UE-1 / UE-5 / UE-6's added fields; leans for the user (CE-4396) · §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
+current-answer: ⭐ §6 UTM EVERYWHERE — §6.1a the user's correction (the lat / lon origin IS the frame; an optional zone override only) supersedes UE-1 / UE-5 / UE-6's added fields; leans APPROVED (R-4197, 2026-11-10) — building (CE-4396) · §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
 known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcWorldPosTranslator` (a DDS translator listed as a geo-transform holder) was removed with the BDC stack.
 known-conflict: none
@@ -347,7 +347,7 @@ written only when it differs from the natural zone; absent everywhere today (the
 | imported terrains | their `frame.utm` (from the source) is kept; its zone is written as the override only when it differs from the origin's natural zone |
 | everything else in §6 | unchanged (local-only frame, `WGS84Transform` deleted, SUMO and the browser through the node's transform, z vs H0) |
 
-### 6.1 Decisions *(⭐ lean — for the user)*
+### 6.1 Decisions *(✅ APPROVED R-4197 — "The leans are okay"; as amended by §6.1a)*
 
 | # | question | ⭐ lean | rejected — one line |
 |---|---|---|---|
