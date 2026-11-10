@@ -161,6 +161,36 @@ public sealed class TheTerrainChunksLookTests
         _out.WriteLine($"imported-tiny: {t.Prisms.Count} prisms, {t.Prisms.Count(p => p.Label?.EndsWith("-roof", StringComparison.Ordinal) == true)} roof caps; house {house.Label} {span:F0} m");
     }
 
+    /// <summary>⭐ Importer I-h (ui, `2026-11-10`) — an OSM-made terrain's SOLID pitched buildings (garages, sheds) drawn with their roofs: <c>osm-town</c>, made from the OSM library's test
+    /// town (<c>hrot-terrain-osm --osm-file …/synthetic-town.osm --import</c>); opt-in (<c>HROT_MEASURE=1</c>); frames <c>terrain-osm-town-*.png</c>.</summary>
+    [SkippableFact]
+    public void AnOsmTownsSolidPitchedBuildings_HaveTheirRoofs()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        Skip.IfNot(Environment.GetEnvironmentVariable("HROT_MEASURE") == "1", "opt-in: HROT_MEASURE=1");
+        var folder = FolderOf("osm-town");
+        Skip.If(folder == null, "assets/terrain/osm-town is not generated");
+        using var frame = UiFrameHarness.Begin(960, 600);
+        LitShader.Reset();
+        var t = Load(folder!, "osm-town");
+        var world = Map3DTests.WorldWith(t);
+        // the caps over SOLID buildings: a "-roof" whose building is a plain prism (no template)
+        var solidCaps = t.Prisms.Where(p => p.Label != null && p.Label.EndsWith("-roof", StringComparison.Ordinal)
+                                         && t.Prisms.Any(b => b.Label == p.Label[..^5] && b.Kind == TerrainPrismKind.Building && b.Floors > 0)).ToList();
+        _out.WriteLine($"osm-town: {t.Prisms.Count(p => p.Label?.EndsWith("-roof", StringComparison.Ordinal) == true)} roof caps, {solidCaps.Count} over solid buildings: {string.Join(", ", solidCaps.Select(p => p.Label))}");
+        Assert.NotEmpty(solidCaps);
+        using var layer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        int k = 0;
+        foreach (var cap in solidCaps.Take(2))
+        {
+            var c = (cap.Min + cap.Max) * 0.5f;
+            float gz = t.GroundHeightAt(c.X, c.Y), span = MathF.Max(8f, (cap.Max - cap.Min).Length());
+            var cam = new Camera3D { Position = HrotToRaylib.Position(new Vector3(c.X + (1.4f * span), c.Y - (1.6f * span), gz + (1.0f * span))), Target = HrotToRaylib.Position(new Vector3(c, gz + 2f)),
+                                     Up = Vector3.UnitY, FovY = 55f, Projection = CameraProjection.Perspective };
+            Shoot(frame, layer, cam, $"terrain-osm-town-solid-{k++}.png");
+        }
+    }
+
     /// <summary>scale-1 (when generated) drawn by chunk at the three cameras — the frames for the status file, and the triangles drawn each.</summary>
     [SkippableFact]
     public void ScaleOne_DrawnByChunk_AtThreeCameras()
