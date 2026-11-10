@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) BUILT 2026-10-09 as designed
 updated: 2026-11-10 (§6 UTM everywhere — coordinator) · 2026-11-10 (related-designs: UTM §12.2 — the one instance becomes switchable, CE-4394)
-current-answer: ⭐ §6 UTM EVERYWHERE (design, leans UE-1…UE-7 for the user, CE-4396) · §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
+current-answer: ⭐ §6 UTM EVERYWHERE — §6.1a the user's correction (the lat / lon origin IS the frame; an optional zone override only) supersedes UE-1 / UE-5 / UE-6's added fields; leans for the user (CE-4396) · §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
 known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcWorldPosTranslator` (a DDS translator listed as a geo-transform holder) was removed with the BDC stack.
 known-conflict: none
@@ -325,6 +325,27 @@ classDiagram
 ```
 *What it shows: one seam stays; its only implementations are UTM and "no frame"; the tangent plane disappears from the engine, the wire and
 the recordings. Every holder still reaches the transform through the same singleton — nothing new to wire per holder.*
+
+### 6.1a ✏ The user's correction `2026-11-10` — the lat / lon origin IS the frame *(supersedes UE-1, UE-5 and UE-6 below where they add fields)*
+
+🔒 User: *"what do you mean by tangent plane conversion in the recording metadata? Aren't we storing latitude, longitude? … that's exactly the
+information we need also for UTM … The latitude, longitude is basically the reference point for finding the UTM zone and for calculating the
+local offset from the UTM zone origin to the reference point."*
+
+⇒ ✅ **The stored lat / lon origin stays everywhere, unchanged** (terrain files, `GeoOriginRecord`, the wire's `GeoReference`): the UTM frame is a
+FUNCTION of it — zone = the origin's longitude band, hemisphere = its latitude's sign, (E0, N0, H0) = the origin projected into that zone. The
+tangent plane was never in the DATA, only in the CODE that interprets it (`ReplayBrowserSubsystem`'s own `WGS84Transform`, `SwitchableGeoTransform`'s
+default, `SumoNetPlacement`, ContentMigrate). ⭐ **One thing lat / lon cannot say: a zone OTHER than the origin's own** — a terrain near a zone edge
+whose source keeps one fixed zone (UTM stays usable ≈ 3° past its band, UTM §12.3 U-4). ⇒ an **optional `zone` override** (with its hemisphere),
+written only when it differs from the natural zone; absent everywhere today (the real set is in its natural zone).
+
+| | ✏ now |
+|---|---|
+| UE-1 the 8 terrains | ⛔ no file change — their `origin` is read as UTM (zone 33 N) |
+| UE-5 recordings | ⛔ no format change — the browser reads the recorded origin as UTM; the optional zone override recorded only when the terrain had one |
+| UE-6 the wire | the lat / lon origin stays; `Frame` changes meaning: `1 = UTM` (the zone derived from the origin unless the optional `UtmZoneOverride` is set), `2 = none`; protocol + 1 — the gateway derives the frame by the same rule |
+| imported terrains | their `frame.utm` (from the source) is kept; its zone is written as the override only when it differs from the origin's natural zone |
+| everything else in §6 | unchanged (local-only frame, `WGS84Transform` deleted, SUMO and the browser through the node's transform, z vs H0) |
 
 ### 6.1 Decisions *(⭐ lean — for the user)*
 
