@@ -6,13 +6,13 @@ that needs Windows (U-12's netconvert exit 1) is marked so. Display rails under 
 
 | item | id | what | state | sha | notes |
 |---|---|---|---|---|---|
-| U-1 | CE-4412 | a console line per sim step | IN PROGRESS | — | |
+| U-1 | CE-4412 | a console line per sim step | ✅ DONE | see git log | cause `MasterSyncController.cs:383/390` (Info+Debug line per step, `new HashSet` `:381`, UnionWith + foreach-over-interface each allocate); Trace behind a level check, reused set, index loops. Time suites 297/0 + integration (SimTimeSync+Time) 31/0; rail red-proved |
 | U-2 | CE-4407 | 1 000-man replay < 1 fps | QUEUED | — | |
 | U-3 | CE-4411 | delete refused after an undo | QUEUED | — | |
 | U-4 | CE-4410 | Delete in the 2-D map's entity menu | QUEUED | — | |
 | U-5 | CE-4404 | Units ▸ Labels checkbox | QUEUED | — | |
 | U-6 | CE-4408 | 3-D mouse wheel | QUEUED | — | |
-| U-7 | CE-4405 | ORBAT combat: 16 squads per force | QUEUED | — | |
+| U-7 | CE-4405 | ORBAT combat: 16 squads per force | ✅ DONE | see git log | cause: engine `UnitRoster.Capacity`=16 + `GenesisMaterializationSystem.cs:200-208` drops the 17th subordinate; `scale-rig.py` attached all squads to the force ⇒ generator fixed (platoons/companies), `scripts/test_scale_rig_roster.py` |
 | U-8 | CE-4398 | Open Asset filter shows nested hits | QUEUED | — | |
 | U-9 | CE-4397 | scenario picker folder order | QUEUED | — | |
 | U-10 | CE-4399 | details panel clips its right column | QUEUED | — | |

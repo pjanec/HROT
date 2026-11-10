@@ -173,6 +173,46 @@ def scenario(terrain, men, vehicles, aircraft, patrol, seed, sides=2):
                    "EntityInfo": {"Name": f"{name} Force", "ForceId": force}}
 
     squads = max(1, men // 8)
+
+    # ⭐ CE-4405 — a commander's roster holds 16 (UnitRoster.Capacity; GenesisMaterializationSystem drops the 17th subordinate, which is why the
+    #   ORBAT showed 16 squads under each force and the rest at the root). The members of a force go under platoons of PLATOON, those under
+    #   companies … until the top group fits the force's own roster, so EVERY unit has a commander.
+    PLATOON, ROSTER = 12, 16
+    side_names = {"Friend": "Blue", "Hostile": "Red"}
+    sizes = {}                                 # force -> members per level [leaves, platoons, companies, ...]
+    for f in (("Friend", "Hostile")[:sides]):
+        n = (sum(1 for q in range(squads) if ("Friend", "Hostile")[q % sides] == f)
+             + sum(1 for q in range(vehicles) if ("Friend", "Hostile")[q % sides] == f)
+             + sum(1 for q in range(aircraft) if ("Friend", "Hostile")[q % sides] == f))
+        lv = [n]
+        while lv[-1] > ROSTER:
+            lv.append(-(-lv[-1] // PLATOON))
+        sizes[f] = lv
+    groups, member_no = {}, {f: 0 for f in sizes}
+    LEVEL_NAMES = ["Platoon", "Company", "Battalion", "Brigade", "Division"]
+
+    def group(force, level, k):
+        """the k-th group of `level` (1 = platoon) of `force`: made on first use, attached to its own parent group (or the force)."""
+        key = (force, level, k)
+        if key not in groups:
+            g = ids()
+            groups[key] = g
+            ents[g] = {"SimTransform": {"Position": [cx, cy, 0], "Rotation": [0, 0, 0, 1]}, "TkbIdentity": {"TkbType": 305},
+                       "EntityInfo": {"Name": f"{side_names[force]} {LEVEL_NAMES[min(level - 1, 4)]} {k + 1}", "ForceId": force},
+                       "UnitSubordinate": {"CommanderGuid": parent(force, level, k), "Designation": "Wingman"}}
+        return groups[key]
+
+    def parent(force, level, k):
+        """the commander of the k-th member of `level` (0 = a squad / vehicle / aircraft)."""
+        if level + 1 >= len(sizes[force]):
+            return teams[force]                # the top group: the force's own roster
+        return group(force, level + 1, k // PLATOON)
+
+    def commander_of_next_member(force):
+        k = member_no[force]
+        member_no[force] += 1
+        return parent(force, 0, k)
+
     for s in range(squads):
         force, name = (("Friend", "Blue"), ("Hostile", "Red"))[s % sides]
         a = road[rng.randrange(len(road))]
@@ -182,7 +222,7 @@ def scenario(terrain, men, vehicles, aircraft, patrol, seed, sides=2):
         # the squad marches (SquadMarch, CE-2123) to a road point ≤ --patrol away; its men follow as its subordinates
         ents[sq] = {"SimTransform": {"Position": [a[0], a[1], za], "Rotation": ps.rot(0)}, "TkbIdentity": {"TkbType": 302},
                     "EntityInfo": {"Name": f"{name} Squad {s + 1}", "ForceId": force},
-                    "UnitSubordinate": {"CommanderGuid": teams[force], "Designation": "Wingman"},
+                    "UnitSubordinate": {"CommanderGuid": commander_of_next_member(force), "Designation": "Wingman"},
                     "Behavior": {"Name": "SquadMarch", "Origin": "Superior", "Params": {
                         "Objective": [b[0], b[1], round(ground(grid, *b), 2)], "Shape": 0, "Spacing": 4, "DangerAreas": False, "OpenGround": False}}}
         for i in range(8):
@@ -200,7 +240,7 @@ def scenario(terrain, men, vehicles, aircraft, patrol, seed, sides=2):
         ents[ids()] = {"SimTransform": {"Position": [a[0], a[1], round(ground(grid, *a), 2)], "Rotation": ps.rot(0)},
                        "Health": {"Current": 100000, "Max": 100000}, "TkbIdentity": {"TkbType": 2001},
                        "EntityInfo": {"Name": f"Vehicle {v + 1}", "ForceId": force}, "TargetMemory": {"Entries": []},
-                       "UnitSubordinate": {"CommanderGuid": teams[force], "Designation": "Wingman"},
+                       "UnitSubordinate": {"CommanderGuid": commander_of_next_member(force), "Designation": "Wingman"},
                        "Behavior": {"Name": "FollowRoute", "Params": {"routeEntityId": r, "Speed": 8.0}, "Origin": "Superior"}}
 
     for k in range(aircraft):
@@ -213,7 +253,7 @@ def scenario(terrain, men, vehicles, aircraft, patrol, seed, sides=2):
         z0 = ground(grid, *sq[0]) + 400
         ents[ids()] = {"SimTransform": {"Position": [sq[0][0], sq[0][1], round(z0, 2)], "Rotation": [0, 0, 0, 1]},
                        "TkbIdentity": {"TkbType": 405}, "EntityInfo": {"Name": f"Aircraft {k + 1}", "ForceId": force},
-                       "TargetMemory": {"Entries": []}, "UnitSubordinate": {"CommanderGuid": teams[force], "Designation": "Wingman"},
+                       "TargetMemory": {"Entries": []}, "UnitSubordinate": {"CommanderGuid": commander_of_next_member(force), "Designation": "Wingman"},
                        "Behavior": {"Name": "FollowRoute", "Params": {"routeEntityId": r, "Speed": 120.0}, "Origin": "Superior"}}
 
     return {"$meta": {"docType": "Hrot.Scenario", "schemaVersion": 1},

@@ -913,8 +913,9 @@ namespace Fdp.Toolkit.Time.Tests
         // ── TC3-P2-T03: Debug log emission ───────────────────────────────────
 
         /// <summary>
-        /// TC3-P2-T03-SC2 — After Step(), a debug message containing "[TC3][Master] STEP"
-        /// must have been emitted.
+        /// TC3-P2-T03-SC2 — After Step(), a message containing "STEP #" must have been emitted
+        /// when per-step tracing is on. ⭐ CE-4412: that line is at TRACE now (it was Debug + Info and
+        /// crawled Run to) — see the Steps_PrintNoLineAtInfo rail for the default-level half.
         /// </summary>
         [Fact]
         public void MasterSyncController_Step_EmitsDebugLog()
@@ -922,7 +923,7 @@ namespace Fdp.Toolkit.Time.Tests
             var memTarget = new NLog.Targets.MemoryTarget("test_master_step_debug");
             memTarget.Layout = "${message}";
             var logConfig = new NLog.Config.LoggingConfiguration();
-            logConfig.AddRule(NLog.LogLevel.Debug, NLog.LogLevel.Fatal, memTarget, "*");
+            logConfig.AddRule(NLog.LogLevel.Trace, NLog.LogLevel.Fatal, memTarget, "*");
             var prevConfig = NLog.LogManager.Configuration;
             NLog.LogManager.Configuration = logConfig;
 
@@ -939,7 +940,7 @@ namespace Fdp.Toolkit.Time.Tests
 
                 ctrl.Step(0.016f);
 
-                Assert.Contains(memTarget.Logs, m => m.Contains("[TC3][Master] STEP"));
+                Assert.Contains(memTarget.Logs, m => m.Contains("STEP #"));
             }
             finally
             {
@@ -1531,6 +1532,49 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Update();
             Assert.False(ctrl.IsPauseBarrierPending);   // barrier crossed
             Assert.Equal(TimeMode.Deterministic, ctrl.GetMode());
+        }
+
+        /// <summary>
+        /// CE-4412 — <i>Run to</i> is thousands of steps; a console line (and its allocations) per step
+        /// crawled it. At the default level (Info) N steps print NOTHING, and a steady step (with a slave
+        /// that ACKs, so the pending set is re-armed every step) allocates 0 B.
+        /// </summary>
+        [Fact]
+        public void MasterSyncController_Steps_PrintNoLineAtInfo_AndAllocateNothing()
+        {
+            var target = new NLog.Targets.MemoryTarget("ce4412") { Layout = "${message}" };
+            var oldCfg = NLog.LogManager.Configuration;
+            var cfg = new NLog.Config.LoggingConfiguration();
+            cfg.AddRule(NLog.LogLevel.Info, NLog.LogLevel.Fatal, target, "Fdp.Toolkit.Time.Controllers.MasterSyncController");
+            NLog.LogManager.Configuration = cfg;
+            try
+            {
+                long ticks = 0;
+                var bus    = new FdpEventBus();
+                var ctrl   = CreateController(bus, config: new TimeConfig { LookaheadWallTicks = 0 }, tickSource: () => ticks);
+                ctrl.SwitchToDeterministic(new HashSet<int> { 1 });
+                ticks = 1;
+                ctrl.Update();                                   // -> Stepping
+                int before = target.Logs.Count;
+
+                long best = long.MaxValue;
+                for (int w = 0; w < 6; w++)
+                {
+                    long a0 = GC.GetAllocatedBytesForCurrentThread();
+                    for (int i = 0; i < 200; i++)
+                    {
+                        ctrl.Step(0.016f);                       // issues a step, arms the ACK set
+                        bus.PublishManaged(new FrameStepCompletedEvent { NodeID = (Fdp.Core.NodeId)(1) });
+                        bus.SwapBuffers();
+                        ctrl.Update();                           // drains the ACK
+                    }
+                    best = Math.Min(best, GC.GetAllocatedBytesForCurrentThread() - a0);
+                }
+
+                Assert.Equal(before, target.Logs.Count);         // 1 200 steps, not one line
+                Assert.Equal(0L, best);
+            }
+            finally { NLog.LogManager.Configuration = oldCfg; }
         }
     }
 }

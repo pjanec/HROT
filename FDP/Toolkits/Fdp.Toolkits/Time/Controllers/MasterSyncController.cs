@@ -160,33 +160,43 @@ namespace Fdp.Toolkit.Time.Controllers
             // SlaveNodeSetUpdatedEvent must be consumed before PauseTimeIntent so
             // SwitchToDeterministic gets the correct slave roster.
             HashSet<int>? updatedSlaves = null;
-            foreach (var ev in _eventBus.ReadManaged<SlaveNodeSetUpdatedEvent>())
-                updatedSlaves = new HashSet<int>(ev.SlaveNodeIds);
+            var setEvents = _eventBus.ReadManaged<SlaveNodeSetUpdatedEvent>();
+            for (int i = 0; i < setEvents.Count; i++)     // CE-4412: index loops - a foreach over the interface boxes an enumerator per frame
+                updatedSlaves = new HashSet<int>(setEvents[i].SlaveNodeIds);
             // ⭐⭐ P3 (Q91 §4-D′) — the set APPLIES when it arrives, not only at the next pause: a node that left the
             //   participating set stops gating the step in flight (its pending ACK is dropped), and the next step waits
             //   for the new set. ⛔ Before, only a pause read it, so a departed node froze stepping for good.
             if (updatedSlaves != null) ApplySlaveSet(updatedSlaves);
 
             // ⭐ Q86 §4-C — the snap first, so a same-frame resume (a load that runs) applies after it.
-            foreach (var ev in _eventBus.ReadManaged<SnapTimeIntent>())
+            var snaps = _eventBus.ReadManaged<SnapTimeIntent>();
+            for (int i = 0; i < snaps.Count; i++)
             {
+                var ev = snaps[i];
                 Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
                     "[TimeSync] SNAP to SimTime {0:F3}s (pauses).", ev.Position.TotalTime);   // ⭐ CE-4087 — every time command leaves a line
                 SnapAndPause(ev.Position);
             }
-            foreach (var ev in _eventBus.ReadManaged<JumpTimeIntent>())
+            var jumps = _eventBus.ReadManaged<JumpTimeIntent>();
+            for (int i = 0; i < jumps.Count; i++)
             {
+                var ev = jumps[i];
                 Fdp.Core.Logging.FdpLog<MasterSyncController>.Info("[TimeSync] JUMP to SimTime {0:F3}s (keeps running).", ev.TotalTime);
                 JumpWhileRunning(ev.TotalTime);   // ⭐ CE-3329 R4 — never a pause, never an epoch move
             }
-            foreach (var _ in _eventBus.ReadManaged<PauseTimeIntent>())
+            var pauses = _eventBus.ReadManaged<PauseTimeIntent>();
+            for (int i = 0; i < pauses.Count; i++)
                 SwitchToDeterministic(updatedSlaves ?? new HashSet<int>(_expectedSlaves));
-            foreach (var _ in _eventBus.ReadManaged<ResumeTimeIntent>())
+            var resumes = _eventBus.ReadManaged<ResumeTimeIntent>();
+            for (int i = 0; i < resumes.Count; i++)
                 SwitchToContinuous();
-            foreach (var ev in _eventBus.ReadManaged<StepTimeIntent>())
-                Step(ev.DeltaSeconds);
-            foreach (var ev in _eventBus.ReadManaged<SetTimeScaleIntent>())
+            var stepIntents = _eventBus.ReadManaged<StepTimeIntent>();
+            for (int i = 0; i < stepIntents.Count; i++)
+                Step(stepIntents[i].DeltaSeconds);
+            var scales = _eventBus.ReadManaged<SetTimeScaleIntent>();
+            for (int i = 0; i < scales.Count; i++)
             {
+                var ev = scales[i];
                 Fdp.Core.Logging.FdpLog<MasterSyncController>.Info("[TimeSync] SCALE x{0}.", ev.TimeScale);
                 SetTimeScale(ev.TimeScale);
             }
@@ -378,21 +388,18 @@ namespace Fdp.Toolkit.Time.Controllers
             });
 
             // Re-arm the pending ACK set so the next Step() blocks until all slaves confirm.
-            _pendingAcks = new HashSet<int>(_expectedSlaves);
+            _pendingAcks.Clear();                 // CE-4412: reuse the set, no per-step allocation
+            foreach (int slave in _expectedSlaves) _pendingAcks.Add(slave);   // struct enumerator - UnionWith allocated
 
-            Fdp.Core.Logging.FdpLog<MasterSyncController>.Debug(
-                "[TC3][Master] STEP #{0}. TargetSimTime={1}, Delta={2:F4}s, AwaitingACKs=[{3}]",
-                _frameNumber,
-                TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"),
-                fixedDelta,
-                string.Join(", ", _pendingAcks));
-
-            Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
-                "[TimeSync] STEP #{0}. SimTime: {1}, StepSize: {2:F4}s, Waiting for nodes: [{3}]",
-                _frameNumber,
-                TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"),
-                fixedDelta,
-                string.Join(", ", _pendingAcks));
+            // CE-4412: one line per step is a per-step cost (Run to = thousands of steps) - Trace only,
+            // behind the level check so a disabled line formats nothing and boxes nothing.
+            if (Fdp.Core.Logging.FdpLog<MasterSyncController>.IsTraceEnabled)
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Trace(
+                    "[TimeSync] STEP #{0}. SimTime: {1}, StepSize: {2:F4}s, Waiting for nodes: [{3}]",
+                    _frameNumber,
+                    TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"),
+                    fixedDelta,
+                    string.Join(", ", _pendingAcks));
 
             return BuildGlobalTime(scaledDelta, fixedDelta);
         }
@@ -653,18 +660,19 @@ namespace Fdp.Toolkit.Time.Controllers
             var acks = _eventBus.ReadManaged<FrameStepCompletedEvent>();
             bool wasWaiting = _pendingAcks.Count > 0;
 
-            foreach (var ack in acks)
+            for (int i = 0; i < acks.Count; i++)
             {
-                if (_pendingAcks.Remove(ack.NodeID))
-                    Fdp.Core.Logging.FdpLog<MasterSyncController>.Debug(
+                if (_pendingAcks.Remove(acks[i].NodeID) && Fdp.Core.Logging.FdpLog<MasterSyncController>.IsTraceEnabled)
+                    Fdp.Core.Logging.FdpLog<MasterSyncController>.Trace(
                         "[TC3][Master] ACKs remaining={0}", _pendingAcks.Count);
             }
 
             if (wasWaiting && _pendingAcks.Count == 0)
             {
-                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
-                    "[TimeSync] STEP SUCCESS. All slaves ACKed. SimTime: {0}",
-                    TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"));
+                if (Fdp.Core.Logging.FdpLog<MasterSyncController>.IsTraceEnabled)
+                    Fdp.Core.Logging.FdpLog<MasterSyncController>.Trace(
+                        "[TimeSync] STEP SUCCESS. All slaves ACKed. SimTime: {0}",
+                        TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"));
             }
 
             _totalWallTicks += elapsedTicks;
@@ -677,9 +685,10 @@ namespace Fdp.Toolkit.Time.Controllers
             if (_pendingAcks.Count == 0 && _queuedStepDeltas.Count > 0)
             {
                 float queued = _queuedStepDeltas.Dequeue();
-                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
-                    "[TimeSync] STEP RELEASED from queue. Delta={0:F4}s, still queued={1}.",
-                    queued, _queuedStepDeltas.Count);
+                if (Fdp.Core.Logging.FdpLog<MasterSyncController>.IsTraceEnabled)   // CE-4412: per step
+                    Fdp.Core.Logging.FdpLog<MasterSyncController>.Trace(
+                        "[TimeSync] STEP RELEASED from queue. Delta={0:F4}s, still queued={1}.",
+                        queued, _queuedStepDeltas.Count);
                 ExecuteStep(queued);
             }
 
