@@ -114,16 +114,28 @@ namespace Hrot.ScenarioEditor.Map
     public sealed class MapGestureRouter
     {
         private static MapGestureRouter? _shared;
+        private static readonly object s_sharedLock = new();
 
         /// <summary>The process's router over the process's map keymap — what every map host resolves through (one declaration, one resolver).</summary>
         public static MapGestureRouter Shared
         {
             get
             {
-                if (_shared != null) return _shared;
-                var keymap = Keymap.Process;   // ⭐ B-10 K6 — the ONE keymap: the ImGui KeyRouter and the shortcuts window read it too
-                MapGestureBindings.Declare(keymap);
-                return _shared = new MapGestureRouter(keymap);
+                var shared = System.Threading.Volatile.Read(ref _shared);
+                if (shared != null) return shared;
+                // ⭐ CE-3427 (backend, a cross-lane fix) — ONE declaration per process, under a lock: two hosts booting in parallel (the
+                //   integration harnesses) both found _shared null and declared into the one process keymap at once, which corrupts its
+                //   HashSet ("a concurrent update was performed on this collection") for every later test in the process — 📐 41 of 42 reds
+                //   of one integration run, 2026-11-10.
+                lock (s_sharedLock)
+                {
+                    if (_shared != null) return _shared;
+                    var keymap = Keymap.Process;   // ⭐ B-10 K6 — the ONE keymap: the ImGui KeyRouter and the shortcuts window read it too
+                    MapGestureBindings.Declare(keymap);
+                    var router = new MapGestureRouter(keymap);
+                    System.Threading.Volatile.Write(ref _shared, router);
+                    return router;
+                }
             }
         }
 
