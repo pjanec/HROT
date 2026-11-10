@@ -17,7 +17,7 @@
 <text x='269.55384615384617' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>3</text>
 <text x='284.55384615384617' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview</text>
 <line x1='359.53846153846155' y1='98' x2='375.53846153846155' y2='98' stroke='#4A4A55' stroke-width='1.2'/>
-<rect x='379.53846153846155' y='86' width='95.2923076923077' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='379.53846153846155' y='86' width='95.29230769230769' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <text x='392.53846153846155' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>4</text>
 <text x='407.53846153846155' y='102' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Import</text>
 <clipPath id='canvas'><rect x='30' y='120' width='830' height='476'/></clipPath><g clip-path='url(#canvas)'>
@@ -185,7 +185,7 @@
 <path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM216 112H240H216H240V176H216Q194 178 192 200Q194 222 216 224H264Q286 222 288 200V112H296Q318 110 320 88Q318 66 296 64H216Q194 66 192 88Q194 110 216 112ZM256 320Q270 320 279 311Q288 302 288 288Q288 274 279 265Q270 256 256 256Q242 256 233 265Q224 274 224 288Q224 302 233 311Q242 320 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(880,315.7578125) scale(0.0234375,-0.0234375)'/>
 <text x='900' y='316' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Largest box: 6 × 6 km</text>
 <text x='872' y='364' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Estimate (from the map, before download)</text>
-<line x1='1143.3' y1='360' x2='1210' y2='360' stroke='#4A4A55' stroke-width='1'/>
+<line x1='1143.3000000000002' y1='360' x2='1210' y2='360' stroke='#4A4A55' stroke-width='1'/>
 <text x='872' y='382' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The content check runs in Preview —</text>
 <text x='872' y='396' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a town packs ≈ 1 000 buildings per km²;</text>
 <text x='872' y='410' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>HROT is tuned for ≈ 1 800 in all.</text>
@@ -213,7 +213,7 @@
 <text x='269.55384615384617' y='792' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>3</text>
 <text x='284.55384615384617' y='792' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Preview</text>
 <line x1='359.53846153846155' y1='788' x2='375.53846153846155' y2='788' stroke='#4A4A55' stroke-width='1.2'/>
-<rect x='379.53846153846155' y='776' width='95.2923076923077' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='379.53846153846155' y='776' width='95.29230769230769' height='24' fill='#1C1C22' rx='12' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <text x='392.53846153846155' y='792' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>4</text>
 <text x='407.53846153846155' y='792' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Import</text>
 <text x='40' y='832' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Terrain</text>
@@ -221,7 +221,7 @@
 <text x='40' y='854' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
 <rect x='190' y='840' width='390' height='19' fill='#1D2F48' rx='0' opacity='1'/>
 <text x='195' y='854' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>kolin-centre</text>
-<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM369 239 241 111 369 239 241 111Q224 97 207 111L143 175Q129 192 143 209Q160 223 177 209L224 162L335 273Q352 287 369 273Q383 256 369 239Z' fill='#5BD06A' fill-opacity='1' transform='translate(592,856.654296875) scale(0.025390625,-0.025390625)'/>
+<path d='M256 416Q279 415 291 396L507 28Q517 8 507 -12Q495 -31 472 -32H40Q17 -31 5 -12Q-5 8 5 28L222 396Q234 415 256 416ZM256 288Q234 286 232 264V152Q234 130 256 128Q278 130 280 152V264Q278 286 256 288ZM288 64Q288 78 279 87Q270 96 256 96Q242 96 233 87Q224 78 224 64Q224 50 233 41Q242 32 256 32Q270 32 279 41Q288 50 288 64Z' fill='#F2C033' fill-opacity='1' transform='translate(592,856.654296875) scale(0.025390625,-0.025390625)'/>
 <text x='190' y='884' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Saved as assets/terrain/kolin-centre/</text>
 <text x='40' y='924' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Include</text>
 <line x1='95.1' y1='920' x2='600' y2='920' stroke='#4A4A55' stroke-width='1'/>

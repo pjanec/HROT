@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Toolkit.Terrain;
+using Hrot.Terrain.InputSet;
 using Hrot.Terrain.Osm;
 using ImGuiNET;
 using static Hrot.UI.Common.TerrainOsm.OsmWizardStyle;
@@ -15,7 +16,7 @@ public enum OsmLayer { Houses1, Houses2to4, Houses5to9, Solid, Woods, Scrub, Wat
 /// ⭐⭐ CE-4375 (OSM §6a — the wizard's OWN map, drawn INSIDE its ImGui window; ⛔ not the scenario <c>MapCanvas</c>) — <b>the one map canvas of Area and Preview</b> (C-3):
 /// OSM tiles laid out by web-Mercator zoom / pan, the zoom / Fit buttons (C-5), the attribution strip (dimmed in Preview), the drag box with 8 handles and its size chip (C-7),
 /// and in Preview the fetched data drawn over the DIMMED tiles, clipped to the box (C-10), the Layers panel (C-11) and the building hover (C-12). Geometry is projected local
-/// metres → UTM → lat/lon ONCE per preview (<c>Hrot.Traffic.Utm.ToGeodetic</c>), then to the screen per frame into reused buffers (R-2084).
+/// metres → UTM → lat/lon ONCE per preview (<c>Fdp.Modules.Geographic.Transforms.Utm.ToGeodetic</c>), then to the screen per frame into reused buffers (R-2084).
 /// </summary>
 public sealed class OsmMapView
 {
@@ -305,7 +306,7 @@ public sealed class OsmMapView
         var o = new double[pts.Length * 2];
         for (int i = 0; i < pts.Length; i++)
         {
-            var (lat, lon) = Hrot.Traffic.Utm.ToGeodetic(f.E0 + pts[i].X, f.N0 + pts[i].Y, f.Zone, f.South);
+            var (lat, lon) = Fdp.Modules.Geographic.Transforms.Utm.ToGeodetic(f.E0 + pts[i].X, f.N0 + pts[i].Y, f.Zone, f.South);
             o[i * 2] = lat; o[i * 2 + 1] = lon;
         }
         return o;
@@ -447,6 +448,7 @@ public sealed class OsmMapView
             Hovered = bld;
             for (int i = 0; i < n; i++) dl.AddLine(_buf[i], _buf[(i + 1) % n], ImGui.GetColorU32(WHITE), 2f * s);
             if (!ReferenceEquals(bld, _tipFor)) { _tipFor = bld; _tipLines = TooltipLines(bld); }   // built once per building hovered, not per frame
+            ImGui.SetNextWindowPos(m + new Vector2(16, 12) * s);   // beside the hover point (the mockup's tooltip; also right when the point is not the OS mouse)
             ImGui.BeginTooltip();
             for (int i = 0; i < _tipLines.Count; i++) ImGui.TextUnformatted(_tipLines[i]);
             ImGui.EndTooltip();

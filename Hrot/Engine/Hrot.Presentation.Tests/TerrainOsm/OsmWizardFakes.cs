@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using Hrot.Terrain.InputSet;
 using Hrot.Terrain.Osm;
 using Hrot.UI.Common.TerrainOsm;
 
@@ -85,7 +86,7 @@ public static class OsmFakeWorld
         get
         {
             int zone = WebMercator.UtmZone(Lon);
-            var (e, n) = Hrot.Traffic.Utm.FromGeodetic(Box.South, Box.West, zone, false);
+            var (e, n) = Fdp.Modules.Geographic.Transforms.Utm.FromGeodetic(Box.South, Box.West, zone, false);
             return new UtmFrame(zone, false, e, n);
         }
     }
@@ -264,7 +265,7 @@ public sealed class FakeTileSource : ITileSource
             for (int px = 0; px < 256; px++)
             {
                 var (lat, lon) = WebMercator.ToGeo(tx * 256 + px + 0.5, ty * 256 + py + 0.5, z);
-                var (e, n) = Hrot.Traffic.Utm.FromGeodetic(lat, lon, frame.Zone, frame.South);
+                var (e, n) = Fdp.Modules.Geographic.Transforms.Utm.FromGeodetic(lat, lon, frame.Zone, frame.South);
                 var p = OsmFakeWorld.ToPx(e - frame.E0, n - frame.N0);
                 uint c = Colour(p, (float)(1.0 / (OsmFakeWorld.MetresPerPixel / Metres(lat, z))));
                 int o = (py * 256 + px) * 3;

@@ -133,7 +133,7 @@ public sealed class TheOsmWizardMatchesItsMockupTests : IDisposable
         Canvas(w, s);
         // C-6 the search field right of the zoom buttons, its glyph; the results' red pin, name TXT, kind NOTE
         var search = R(w, "search", s);
-        Near(56, search.Min.X, 2, "C-6 search x (canvas + 46)"); Near(74, search.Min.Y, 2, "C-6 search y (canvas + 10)"); Near(330, search.Max.X - search.Min.X, 1, "C-6 search width");
+        Near(56, search.Min.X, 2, "C-6 search x (canvas + 46)"); Near(74, search.Min.Y, 2, "C-6 search y (canvas + 10)"); Near(330, search.Max.X - search.Min.X, 1, "C-6 search width"); Near(24, search.Max.Y - search.Min.Y, 1, "C-6 search height");
         Assert.True(search.Min.X > U(w, w.Map.ZoomButtons[0].Max, s).X, "C-6 right of the zoom buttons");
         Glyph(w, "search", SEARCH, SUB);
         for (int i = 0; i < 3; i++) { Assert.Equal((LOCATION, RED), w.Glyphs["result:" + i]); Near(23, R(w, "result:" + i, s).Max.Y - R(w, "result:" + i, s).Min.Y, 0.5f, "C-6 result row"); }
@@ -217,7 +217,7 @@ public sealed class TheOsmWizardMatchesItsMockupTests : IDisposable
         {
             var f = m.Preview!.Frame;
             float cx = target.Footprint.Average(p => p.X), cy = target.Footprint.Average(p => p.Y);
-            var (lat, lon) = Hrot.Traffic.Utm.ToGeodetic(f.E0 + cx, f.N0 + cy, f.Zone, f.South);
+            var (lat, lon) = Fdp.Modules.Geographic.Transforms.Utm.ToGeodetic(f.E0 + cx, f.N0 + cy, f.Zone, f.South);
             return win.Map.ToScreen(lat, lon);
         });
 

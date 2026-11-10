@@ -280,13 +280,13 @@ canvas for one dialog.
 | concave footprints and woods filled | `PolygonMath.Triangulate` (ImGui fills only convex polygons) |
 | ⭐ NEW, small | an ImGui child region: XYZ tiles from `ITileSource` laid out by zoom / pan (web-Mercator maths), an LRU of tile textures, the drag box with 8 handles, and the preview's geometry (local metres → lat/lon through the frame → screen) drawn with the draw list |
 
-### 6b. ⭐ The wizard's design — for the build *(ui, `2026-11-10`, CE-4375 W-1; build-state: BUILDING)*
+### 6b. ⭐ The wizard's design — for the build *(ui, `2026-11-10`, CE-4375 W-1; build-state: BUILT against the fakes — the pipeline is not on the tree yet)*
 
 **INVENTORY** *(grep + reads `2026-11-10` — the graph server was not up on this VM, ⚠ so absence claims are "not found by grep")*: the modal host = `WindowManager.RegisterFrameOverlay` (6 hosts use it, e.g.
 `EditorSubsystem` `assetRenameModal.Draw`) · the New submenu = `FileMenuLayout` (`File/New/Scenario…` …) · the worker + `CancellationTokenSource` = `ReplaySearchPanel`
 (`Fdp.Presentation/ImGui/Panels/ReplayBrowser`) · PNG → texture = `Raylib.LoadImageFromMemory` + `LoadTextureFromImage` (`EmbeddedAtlasResources`) · concave fill =
 `PolygonMath.Triangulate` (`Fdp.Toolkits/Terrain`) · the colours = `TerrainPlan2D.HeightColor` (public) and its forest / water / wall fills (private ⇒ made public, read
-never copied) · local metres → lat/lon = **`Hrot.Traffic.Utm.ToGeodetic`** (already referenced by `Hrot.Presentation`; ⛔ no second UTM) · the glyphs and their
+never copied) · local metres → lat/lon = **`Utm.ToGeodetic`** (the ONE UTM class — `Fdp.Modules.Geographic.Transforms.Utm`, moved from `Hrot.Traffic` by CE-4372; ⛔ no second UTM) · the glyphs and their
 colours = `Icons` / `IconPalette`. ⛔ Not found: any web-Mercator / XYZ tile code — the map widget's maths is new (small, pure, tested).
 
 ```mermaid
@@ -360,6 +360,23 @@ graph TD
 ```
 *What the picture shows: the window ticks only through the frame overlay; the three red boxes are NOT on the merged tree yet — until the pipeline lands the menu item is
 greyed with its reason, and the rails drive the same window with the fakes (W-2). ⛔ No stub pipeline in production code.*
+
+#### 6b-as-built *(ui, `2026-11-10`, CE-4375 W-3…W-5)* — what the build changed, and the ⚠ list
+
+✅ Built as the three diagrams above: `Hrot.Presentation/TerrainOsm/` (`OsmWizardModel` · `OsmMapView` · `OsmTileTextures` · `OsmWizardStyle` · `OsmTerrainWizardWindow` ·
+`WebMercator`), composed by `EditorSubsystem`; the menu item is registered by the SHARED `ScenarioMenuCommands` (run-gated like its siblings). Conformance per C-row, with
+the rails that measure it: [`STATUS_Ui_Osm_Wizard.md`](blueprints/batches/STATUS_Ui_Osm_Wizard.md) §1.
+
+| ⚠ as-built difference from the mockup | why |
+|---|---|
+| the greyed item says why in its LABEL — *"… (unavailable — the pipeline is not built yet)"* — not a tooltip; not on the Start surface | the shell's menu items have no tooltip (VC-3 is the label); the Start surface draws every Idle item as a button, which the mockup does not cover (R-4151) |
+| ONE window size (1200 × 600) for all four steps | C-1 "the SAME window"; the mockup draws Options / Import shorter to save page space |
+| Fit centres the box | the mockup's off-centre box is page layout, not behaviour |
+| the name check shows `WARNING` amber while the name exists | the mockup draws the tick and the amber row together only to show both cases |
+| no lone trees; the hover tooltip = id · enterable/solid · storeys · ≈ height | the contract (`OsmPreview`) has no lone-tree positions and no building type / roof / openings / shared walls — ⭐ a contract extension, then the window draws them |
+| notes not clickable, header "Notes (n)"; severity from the words; the data line = attribution | `Warnings` are strings (no location, no severity); no data timestamp in the contract — same extension |
+| Import rows follow `OsmStage` ("Read the map data" for Parse; elevation is inside Heights) | the contract's stages; the mockup's "Elevation (Copernicus 30 m)" row is not a stage the pipeline reports |
+| the Import step's right box shows only what is TRUE (heading "When it finishes" until it has) | the mockup's inset illustrates both ends at once |
 
 ## 7. Failure and limits
 | case | behaviour |

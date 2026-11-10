@@ -277,9 +277,10 @@ public sealed class OsmTerrainWizardWindow : IDisposable
         ImGui.PushStyleColor(ImGuiCol.FrameBg, POPUP);
         ImGui.PushStyleColor(ImGuiCol.Border, ACC);
         ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 1f);
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(26 * s, 4 * s));
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 3 * s);
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(26 * s, (24 * s - ImGui.GetFontSize()) * 0.5f));   // the mockup's 24 px field
         if (ImGui.InputTextWithHint("##osm_search", "Search a place", ref m.SearchText, 128, ImGuiInputTextFlags.EnterReturnsTrue)) m.RunSearch();
-        ImGui.PopStyleVar(2); ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar(3); ImGui.PopStyleColor(2);
         var fMin = ImGui.GetItemRectMin(); var fMax = ImGui.GetItemRectMax();
         Rects["search"] = (fMin, fMax);
         Glyph("search", SEARCH, SUB, new Vector2(fMin.X + 8 * s, fMin.Y + (fMax.Y - fMin.Y - ImGui.GetFontSize()) * 0.5f));
