@@ -24,7 +24,10 @@ public sealed class ImportReport
     public int OpeningsDroppedOverlap { get; set; }
     public int OpeningsDroppedOther { get; set; }
     public int OpeningsDropped => OpeningsDroppedOffWall + OpeningsDroppedOnPartyWall + OpeningsDroppedOverlap + OpeningsDroppedOther;
+    /// <summary>Ramps written (a straight stair is one, a switch-back two).</summary>
     public int Stairs { get; set; }
+    /// <summary>⭐ CE-4379: the stairs that needed the switch-back because no wall took the straight flight.</summary>
+    public int StairsSwitchBack { get; set; }
 
     public int WoodsPolygons { get; set; }
     public int WoodsFromPoints { get; set; }
@@ -44,7 +47,7 @@ public static class ImportReportText
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         w.WriteLine(string.Create(inv, $"terrain '{r.TerrainName}': heights {r.HeightCols} x {r.HeightRows} posts at 1 m ({r.HeightPostsFilled} NODATA filled)"));
-        w.WriteLine(string.Create(inv, $"buildings: {r.BuildingsEnterable} enterable, {r.BuildingsSolid} solid ({r.SolidBecauseNoStair} for want of a stair), {r.RoofCaps} roof caps, {r.SharedWallsMerged} shared walls merged, {r.Stairs} stairs"));
+        w.WriteLine(string.Create(inv, $"buildings: {r.BuildingsEnterable} enterable, {r.BuildingsSolid} solid ({r.SolidBecauseNoStair} for want of a stair), {r.RoofCaps} roof caps, {r.SharedWallsMerged} shared walls merged, {r.Stairs} stairs ({r.StairsSwitchBack} switch-back)"));
         w.WriteLine(string.Create(inv, $"openings: {r.OpeningsPlaced} placed, {r.OpeningsDropped} dropped (off wall {r.OpeningsDroppedOffWall}, party wall {r.OpeningsDroppedOnPartyWall}, overlap {r.OpeningsDroppedOverlap}, other {r.OpeningsDroppedOther}); {r.UnassignedSkipped} unassigned points ignored"));
         w.WriteLine(string.Create(inv, $"vegetation: {r.WoodsPolygons} wood polygons + {r.WoodsFromPoints} clustered from points, {r.LoneTrees} lone trees, {r.WaterAreas} water areas, {r.Walls} walls, {r.ScrubSkipped} scrub skipped"));
         string stages = string.Join(", ", r.StageSeconds.Select(kv => string.Create(inv, $"{kv.Key} {kv.Value:0.0}")));

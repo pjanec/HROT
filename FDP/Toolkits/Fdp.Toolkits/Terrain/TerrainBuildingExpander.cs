@@ -149,12 +149,29 @@ namespace Fdp.Toolkit.Terrain
                         var dir = to - from;
                         if (dir.LengthSquared() < 1e-6f) throw new ArgumentException($"Terrain world {stw}: from and to coincide.");
                         var n = Vector2.Normalize(new Vector2(-dir.Y, dir.X)) * (width / 2f);
-                        float z0 = floor, z1 = storeyZ[toStorey];
+                        // ⭐ CE-4379 — a flight of a SWITCH-BACK stair ends at a mid-height landing: optional "fromRise" / "toRise" (m above THIS
+                        //   storey's floor) replace the default (the floor, the target storey's floor); absent = the straight flight, unchanged
+                        float z0 = st["fromRise"] is JsonNode fr ? floor + ReadFloat(fr, stw + ".fromRise") : floor;
+                        float z1 = st["toRise"] is JsonNode tr ? floor + ReadFloat(tr, stw + ".toRise") : storeyZ[toStorey];
                         sink.Walkables.Add(TerrainWorldParser.MakeWalkableForExpander(TerrainWalkableKind.Ramp, new List<Vector3>
                         {
                             new(from.X - n.X, from.Y - n.Y, z0), new(to.X - n.X, to.Y - n.Y, z1),
                             new(to.X + n.X, to.Y + n.Y, z1), new(from.X + n.X, from.Y + n.Y, z0),
                         }, null, stw));
+                    }
+
+                // ⭐ CE-4379 — landings: slabs at a height above this storey's floor, between the two flights of a switch-back stair
+                if (so["landings"] is JsonArray landings)
+                    for (int j = 0; j < landings.Count; j++)
+                    {
+                        var lo = landings[j] as JsonObject ?? throw new ArgumentException($"Terrain world {sw}.landings[{j}] is not an object.");
+                        string lw = $"{sw}.landings[{j}]";
+                        float rise = ReadFloat(lo["rise"], lw + ".rise");
+                        if (rise <= 0f || rise >= ceiling - floor)
+                            throw new ArgumentException($"Terrain world {lw}: rise {F(rise)} must be in (0, storey height {F(ceiling - floor)}).");
+                        foreach (var r in ReadRings(lo["ring"] ?? throw new ArgumentException($"Terrain world {lw}.ring is missing."), lw + ".ring"))
+                            sink.Walkables.Add(TerrainWorldParser.MakeWalkableForExpander(TerrainWalkableKind.Slab,
+                                r.Select(p => { var q = W(p); return new Vector3(q.X, q.Y, floor + rise); }).ToList(), null, lw));
                     }
             }
 

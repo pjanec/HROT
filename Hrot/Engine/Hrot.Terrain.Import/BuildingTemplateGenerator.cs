@@ -136,7 +136,7 @@ internal static class BuildingTemplateGenerator
         var (placed, counts) = OpeningPlacer.Place(d.Ring, b.Id, d.Openings, storeys, party);
         rep.OpeningsPlaced += counts.Placed; rep.OpeningsDroppedOffWall += counts.OffWall; rep.OpeningsDroppedOnPartyWall += counts.OnParty;
         rep.OpeningsDroppedOverlap += counts.Overlap; rep.OpeningsDroppedOther += counts.Other;
-        rep.Stairs += d.Plan!.Stairs.Count;
+        rep.Stairs += d.Plan!.Stairs.Sum(s => s.Runs.Count); rep.StairsSwitchBack += d.Plan.Stairs.Count(s => s.SwitchBack);
 
         string material = MaterialOf(b.Material);
         using var ms = new MemoryStream();
@@ -199,12 +199,30 @@ internal static class BuildingTemplateGenerator
                 {
                     w.WriteStartArray("stairs");
                     foreach (var s in stairs)
+                        foreach (var run in s.Runs)
+                        {
+                            w.WriteStartObject();
+                            w.WritePropertyName("from"); Pt(L(run.From));
+                            w.WritePropertyName("to"); Pt(L(run.To));
+                            w.WriteNumber("width", StairPlanner.Width);
+                            w.WriteNumber("toStorey", k + 1);
+                            if (run.FromRise is double fr) w.WriteNumber("fromRise", Math.Round(fr, 3));   // ⭐ CE-4379: a switch-back's runs end at its landing
+                            if (run.ToRise is double tr) w.WriteNumber("toRise", Math.Round(tr, 3));
+                            w.WriteEndObject();
+                        }
+                    w.WriteEndArray();
+                }
+                var landings = stairs.Where(s => s.SwitchBack).ToList();
+                if (landings.Count > 0)
+                {
+                    w.WriteStartArray("landings");
+                    foreach (var s in landings)
                     {
                         w.WriteStartObject();
-                        w.WritePropertyName("from"); Pt(L(s.From));
-                        w.WritePropertyName("to"); Pt(L(s.To));
-                        w.WriteNumber("width", StairPlanner.Width);
-                        w.WriteNumber("toStorey", k + 1);
+                        w.WriteNumber("rise", Math.Round(s.LandingRise, 3));
+                        w.WriteStartArray("ring");
+                        foreach (var p in s.Landing!) Pt(L(p));
+                        w.WriteEndArray();
                         w.WriteEndObject();
                     }
                     w.WriteEndArray();
