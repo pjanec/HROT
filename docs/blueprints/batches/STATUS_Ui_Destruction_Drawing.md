@@ -15,7 +15,7 @@ Handoff [HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md](HANDOFF_Coordinator_T
 
 | # | state | what |
 |---|---|---|
-| **D-1** breach in 3-D | ✅ | the breached wall re-cut through the parser's own expander (holes and passages); only the touched chunks' objects rebuilt, off the frame thread; + soot (X-7) |
+| **D-1** breach in 3-D | ✅ | the breached wall re-cut through the parser's own expander (holes and passages); only the touched chunks' objects rebuilt, off the frame thread; + soot (X-7) and a broken rim of brick stubs (X-8, at the user's ask) |
 | **D-2** collapse in 3-D | ✅ | the building's pieces gone; a rubble heap with debris (X-2) |
 | **D-3** 2-D plan | ✅ | the damaged buildings hidden in the plan and drawn again, damaged, in an overlay — a breach is a gap (cut at 1 m), a collapse a rubble fill; soot at the gap |
 | **D-4** every host | ✅ | the render source every host shares (`WorldQuery.RenderGeometryOf` → `ForView`) carries the damage; rails on a view that only RECEIVED the entity |
@@ -24,7 +24,7 @@ Handoff [HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md](HANDOFF_Coordinator_T
 
 | gate | result |
 |---|---|
-| `dotnet test Fdp.Toolkits.Tests --no-build --filter TerrainChunk\|Building` | 95 / 0 (incl. 5 `TerrainChunkDamageTests`) |
+| `dotnet test Fdp.Toolkits.Tests --no-build --filter TerrainChunk\|Building` | 96 / 0 (incl. 6 `TerrainChunkDamageTests`) |
 | `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter TheBuildingDamage` | 4 / 0 |
 | `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build` (full) | run 1: 2 037 / 4 failed — the 3 pre-existing (`CE1039`, `CE1380`, `CE1227`, measured at `72aaefa03`) + ⚠ `TheProductionMap_DrawsTheBreachAndTheRubble_OnADisplayNode` once; run 2: that rail green. ⚠ It passes alone and beside every Map2D / Map3D rail — the cause is not identified (order-dependent, seen once in two full runs) |
-| red-proofs (each compiles) | `Keeps` always true ⇒ 3 `TerrainChunkDamageTests` red · `SetDamage` disabled ⇒ both 3-D frame rails red · `ApplyDamage` never reached ⇒ the 2-D frame rail red · the scorch call dropped ⇒ the soot rail red |
+| red-proofs (each compiles) | `Keeps` always true ⇒ 3 `TerrainChunkDamageTests` red · `SetDamage` disabled ⇒ both 3-D frame rails red · `ApplyDamage` never reached ⇒ the 2-D frame rail red · the scorch call dropped ⇒ the soot rail red · the broken-rim call dropped ⇒ the rim rail red |

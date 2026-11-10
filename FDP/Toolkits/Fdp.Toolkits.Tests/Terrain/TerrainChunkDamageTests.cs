@@ -92,6 +92,31 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(Objects(w, table).I.Length, mesh.I.Length);                                                                                    // the same marks every build
         }
 
+        /// <summary>⭐ X-8 (user: "teeth, like missing bricks or bricks extending into the hole") — the rim is broken: brick stubs reach into the opening along its edges,
+        /// irregularly (not every slot), never past <see cref="TerrainWorldMesh.ToothDepthShare"/> of its smaller side, so the middle stays open; the same every build.
+        /// 🔴 Red-proof (compiles): the <c>AddBrokenRim</c> call dropped ⇒ no stub inside the opening.</summary>
+        [Fact]
+        public void ABreachsRim_IsBroken_BricksReachInButTheMiddleStaysOpen()
+        {
+            var w = BreachFixtures.House();
+            int south = BreachFixtures.SouthWall(w);
+            var table = Table(w, r => BreachFixtures.Damage(r, w, 0, new WallBreach(south, 4f, 6f, 0.8f, 2.2f, BreachKind.Hole)));
+            var mesh = Objects(w, table);
+            // the opening: x 24..26, z 0.8..2.2, y ≈ 20; the brick vertices inside it are the stubs
+            var inside = Enumerable.Range(0, mesh.I.Length / 3).Where(tri => mesh.M[tri] == "brick")
+                .SelectMany(tri => new[] { mesh.V[mesh.I[3 * tri]], mesh.V[mesh.I[3 * tri + 1]], mesh.V[mesh.I[3 * tri + 2]] })
+                .Where(p => p.X > 24.01f && p.X < 25.99f && p.Z > 0.81f && p.Z < 2.19f && MathF.Abs(p.Y - 20f) < 0.3f).ToList();
+            Assert.True(inside.Count > 40, $"brick stubs reach into the opening ({inside.Count} vertices)");
+            float maxDepth = 1.4f * TerrainWorldMesh.ToothDepthShare;   // the opening's smaller side is 1.4 m
+            Assert.All(inside, p => Assert.True(p.X <= 24f + maxDepth + 0.01f || p.X >= 26f - maxDepth - 0.01f || p.Z <= 0.8f + maxDepth + 0.01f || p.Z >= 2.2f - maxDepth - 0.01f,
+                $"a stub at ({p.X:F2}, {p.Z:F2}) reaches past the rim's depth"));
+            // irregular: along the top edge, the stubs' lowest points are not all the same depth
+            var tops = inside.Where(p => p.Z > 2.2f - maxDepth - 0.01f && p.X > 24f + maxDepth && p.X < 26f - maxDepth).Select(p => MathF.Round(p.Z, 2)).Distinct().Count();
+            Assert.True(tops > 3, "the top edge is ragged");
+            Assert.Null(Hit(mesh, Through.From, Through.To));        // the middle stays open
+            Assert.Equal(Objects(w, table).I.Length, mesh.I.Length);   // the same every build
+        }
+
         [Fact]
         public void ACollapse_HidesTheBuilding_AndDrawsAHeap()
         {

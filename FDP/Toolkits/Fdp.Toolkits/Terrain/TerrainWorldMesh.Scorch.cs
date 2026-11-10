@@ -73,5 +73,65 @@ namespace Fdp.Toolkit.Terrain
                 Ring(iu, iz, mu, mz, 0.004f, dark);     // … the black ring at the opening's edge
             }
         }
+
+        /// <summary>⭐ CE-4392 X-8 — the deepest a broken brick reaches into a breach, as a share of the opening's smaller side (the hole stays open).</summary>
+        public const float ToothDepthShare = 0.18f;
+
+        /// <summary>
+        /// ⭐ CE-4392 (DESIGN_Map_3D_Mode §6aj X-8; 🔒 user: "render the hole with some teeth, like missing bricks or bricks extending into the hole") — the breach's rim BROKEN: along each
+        /// edge of the opening, brick-sized stubs (0.25 m long, two courses high) in the wall's own material reach into the hole by a jittered depth, staggered course by course, with
+        /// about a third of the slots left empty (bricks gone). Inside the opening's rectangle and never past <see cref="ToothDepthShare"/> of its smaller side, so the middle stays open;
+        /// presentation only (sight, fire and the navmesh read the breach itself). Placed by a hash of the breach.
+        /// </summary>
+        public static void AddBrokenRim(TerrainWallPanel panel, in WallBreach breach, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
+        {
+            var b = breach;   // a copy the local function may read
+            float length = Vector2.Distance(panel.A, panel.B);
+            float w = b.To - b.From, h = b.Top - b.Bottom;
+            if (length < 1e-3f || w < 0.3f || h < 0.3f) return;
+            var dir = (panel.B - panel.A) / length;
+            var n = new Vector2(-dir.Y, dir.X);
+            float half = panel.Thickness * 0.5f;
+            float maxDepth = MathF.Min(w, h) * ToothDepthShare;
+            const float BrickLong = 0.25f, BrickTall = 0.17f;
+            uint seed = (uint)(b.Panel * 2654435761u) ^ (uint)(MathF.Round(b.To * 100f) * 40503) ^ (uint)(MathF.Round(b.Top * 100f) * 9973) ^ 0x68E31DA4u;
+            float R() { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; return (seed & 0xFFFFFF) / (float)0x1000000; }
+            var material = panel.Material;
+
+            void Stub(float u0, float u1, float z0, float z1)
+            {
+                u0 = Math.Clamp(u0, b.From, b.To); u1 = Math.Clamp(u1, b.From, b.To);
+                z0 = Math.Clamp(z0, b.Bottom, b.Top); z1 = Math.Clamp(z1, b.Bottom, b.Top);
+                if (u1 - u0 < 0.02f || z1 - z0 < 0.02f) return;
+                // a broken brick is a little thinner than the wall, and set in or out of it a touch
+                float t0 = -half * (0.75f + (0.25f * R())), t1 = half * (0.75f + (0.25f * R()));
+                var a = panel.A + (dir * u0); var c = panel.A + (dir * u1);
+                var fp = new[] { a + (n * t0), c + (n * t0), c + (n * t1), a + (n * t1) };
+                var min = Vector2.Min(Vector2.Min(fp[0], fp[1]), Vector2.Min(fp[2], fp[3]));
+                var max = Vector2.Max(Vector2.Max(fp[0], fp[1]), Vector2.Max(fp[2], fp[3]));
+                AddPrism(new TerrainPrism { Kind = TerrainPrismKind.Wall, Footprint = fp, Triangles = new[] { 0, 1, 2, 0, 2, 3 }, BaseZ = z0, TopZ = z1, Min = min, Max = max, Material = material, Panel = b.Panel }, v, t, g);
+            }
+
+            // the top and bottom edges: stubs hang down / stand up, a course at a time; the bottom only when the breach does not reach the floor
+            bool hasBottom = b.Bottom > panel.BaseZ + 0.05f, hasTop = b.Top < panel.TopZ - 0.05f;
+            for (int row = 0; row < 2; row++)
+            {
+                float offset = row * BrickLong * 0.5f;
+                for (float u = b.From - offset; u < b.To; u += BrickLong)
+                {
+                    float depth = maxDepth * (row == 0 ? 0.35f + (0.65f * R()) : 0.2f + (0.4f * R()));
+                    float zc = row * BrickTall;
+                    if (hasTop && R() > 0.33f) Stub(u, u + (BrickLong * 0.95f), b.Top - MathF.Min(depth + zc, maxDepth), b.Top - zc);
+                    if (hasBottom && R() > 0.33f) Stub(u, u + (BrickLong * 0.95f), b.Bottom + zc, b.Bottom + MathF.Min(depth + zc, maxDepth));
+                }
+            }
+            // the sides: each course a brick reaching in by a jittered depth (or gone)
+            for (float z = b.Bottom; z < b.Top; z += BrickTall)
+            {
+                float zt = MathF.Min(z + (BrickTall * 0.95f), b.Top);
+                if (R() > 0.33f) Stub(b.From, b.From + (maxDepth * (0.2f + (0.8f * R()))), z, zt);
+                if (R() > 0.33f) Stub(b.To - (maxDepth * (0.2f + (0.8f * R()))), b.To, z, zt);
+            }
+        }
     }
 }
