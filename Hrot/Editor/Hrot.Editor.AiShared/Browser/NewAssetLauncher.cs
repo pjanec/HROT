@@ -116,13 +116,20 @@ public sealed class NewAssetLauncher
     /// </summary>
     public void Open(AssetKind kind) => OpenCore(product: null, only: kind);
 
+    /// <summary>⭐ CE-4378 — File › New Scenario… with <paramref name="terrain"/>'s row selected: the OSM wizard's <i>Open in New Scenario</i> (the terrain it just imported).
+    /// ⛔ The SAME picker and dialog as <see cref="Open(AssetKind)"/>.</summary>
+    public void OpenScenarioOn(string terrain) => OpenCore(product: null, only: AssetKind.Scenario, initial: TerrainEntryId(terrain));
+
+    /// <summary>The New Scenario picker's row id for a terrain.</summary>
+    public static string TerrainEntryId(string terrain) => "terrain:" + terrain;
+
     /// <summary>⭐ CE-4210 MA-6 — <i>New macro…</i>: the SAME scenario-recipe picker (a macro starts from a seed's terrain), then the host's macro naming dialog (a name under <c>macros/</c>) and the same <c>CreateNew</c>.
     /// ⛔ A host with no such dialog (<c>showNewMacroDialog</c> null) opens nothing — the caller greys the item.</summary>
     public bool CanOpenMacro => _showNewMacroDialog is not null && _services.ContainsKey(AssetKind.Scenario);
 
     public void OpenMacro() => OpenCore(product: null, only: AssetKind.Scenario, macro: true);
 
-    private void OpenCore(AuthoringProduct? product, AssetKind? only = null, bool macro = false)
+    private void OpenCore(AuthoringProduct? product, AssetKind? only = null, bool macro = false, string? initial = null)
     {
         var services = only is { } k
             ? _services.Where(s => s.Key == k).ToDictionary(s => s.Key, s => s.Value)
@@ -136,7 +143,7 @@ public sealed class NewAssetLauncher
                        : product is { } p ? $"assets.new.{p.ToString().ToLowerInvariant()}" : "assets.new",
             Title = macro ? "New Macro" : only is { } tk ? $"New {tk}" : source.Title,
             // ⭐ CE-460 (D2) — the product's default technology is pre-selected: Enter takes it.
-            InitialSelectionId = source.DefaultEntryId(),
+            InitialSelectionId = initial ?? source.DefaultEntryId(),
             Layout = PickerLayout.Tree,
             SelectionMode = PickerSelectionMode.Single,
             ItemsProvider = blanks ? () => ScenarioEntries(source) : () => source.BuildEntries("", null),
@@ -221,7 +228,7 @@ public sealed class NewAssetLauncher
         var list = new List<PickerEntry>();
         foreach (var t in _terrains?.Invoke() ?? Array.Empty<string>())
             // ⭐ B-9 N1 pane — the terrain's still (preview.jpg beside its terrain.json) is the row's ImageKey, as a scenario row's is; the default text is drawn UNDER the facts (DrawTerrainFacts)
-            list.Add(new PickerEntry(Id: "terrain:" + t, Name: t, Description: _describeTerrain?.Invoke(t), Category: BlankGroup,
+            list.Add(new PickerEntry(Id: TerrainEntryId(t), Name: t, Description: _describeTerrain?.Invoke(t), Category: BlankGroup,
                 Keywords: null, IconTextureId: null, Tag: new BlankTerrainChoice(t), IconKey: null,
                 ImageKey: _terrainDefinition?.Invoke(t) is { } def ? ScenarioPaneFacts.TerrainPreviewOf(def) : null));
         foreach (var e in recipes.BuildEntries("", null))

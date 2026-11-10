@@ -572,6 +572,12 @@ namespace Hrot.Editor
 
         // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — the scenario menu registered ONCE, by the composer's picked ▶ owner; built in RegisterWindows.
         private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
+        /// <summary>⭐ CE-4375 — the OSM terrain wizard (File › New › Terrain from OpenStreetMap…).</summary>
+        private Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? _osmWizard;
+        /// <summary>The OSM wizard the File ▸ New item opens (a rail reads its DisabledReason, CE-4381).</summary>
+        internal Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? OsmWizard => _osmWizard;
+        /// <summary>⭐ CE-4378 — the New-asset launcher, for the OSM wizard's "Open in New Scenario" (set where the launcher is built).</summary>
+        private Hrot.Editor.AiShared.Browser.NewAssetLauncher? _newAssetLauncherForOsm;
         void Hrot.UI.Common.RunMode.IProvidesRunControls.ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => _composeScenarioMenu?.Invoke(windowManager);
         internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
         internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
@@ -3629,6 +3635,34 @@ namespace Hrot.Editor
                 showPreview:     assetBrowserFindResults.ShowRenamePreview);
             windowManager.RegisterFrameOverlay(assetRenameModal.Draw);
 
+            // ⭐ CE-4375 (OSM §6 / §6b, W-3) — the "New terrain from OpenStreetMap" wizard: one modal, drawn as a frame overlay like the modals above. Its services are composed ONCE
+            //   (the menu reads the wizard's DisabledReason every frame). ⭐ The pipeline is the real one (CE-4373/4374), through the ONE composition the CLI uses (OsmPipelines).
+            // ⭐ CE-4381 (E-1) — the REAL map tiles (OsmTileSource, the URL a setting: HROT_OSM_TILE_URL) and place search (NominatimPlaceSearch), on the pipeline's ONE HTTP client
+            //   (HttpRetry's User-Agent) ⇒ the File ▸ New item is enabled. Their usage policies (≤ 2 tiles in flight, a header-honouring disk cache, 1 search a second) live in them.
+            // ⭐ CE-4378 (D-4) — the coordinator's importer (CE-4368) writes into the NAS's assets/terrain, the folder the New Scenario picker lists
+            //   (NewScenarioTerrains: TerrainCatalog.ForNode(null, NasRoot)); "Open in New Scenario" opens that picker on the new terrain.
+            string nas = Fdp.Toolkit.Orchestration.ContentLayout.NasRoot;
+            string osmCache = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-terrain-osm-cache");
+            var osmHttp = Hrot.Terrain.Osm.HttpRetry.CreateClient();
+            var osmServices = new Hrot.UI.Common.TerrainOsm.OsmWizardServices(
+                Pipeline: Hrot.Terrain.Osm.OsmPipelines.Online(osmCache, osmHttp),
+                Tiles: new Hrot.Terrain.Osm.OsmTileSource(osmHttp, System.IO.Path.Combine(osmCache, "map-tiles"),
+                                                          System.Environment.GetEnvironmentVariable("HROT_OSM_TILE_URL") ?? Hrot.Terrain.Osm.OsmTileSource.DefaultUrl),
+                Search: new Hrot.Terrain.Osm.NominatimPlaceSearch(osmHttp),
+                Importer: new Hrot.Terrain.Import.TerrainImporter(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(nas)),
+                TerrainsRoot: Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas),
+                InputSetRoot: System.IO.Path.Combine(nas, "terrain-input"))
+            {
+                OpenNewScenario = folder => _newAssetLauncherForOsm?.OpenScenarioOn(System.IO.Path.GetFileName(folder.TrimEnd('/', '\\'))),
+                ShowFolder = folder =>
+                {
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true }); }
+                    catch (Exception ex) { _saveAllStatus = "[Terrain] Could not open the folder: " + ex.Message; }   // no default file manager on this host
+                },
+            };
+            _osmWizard = new Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow(() => osmServices);
+            windowManager.RegisterFrameOverlay(_osmWizard.Draw);
+
             var assetRowCommands = new[]
             {
                 new Hrot.Editor.AiShared.Browser.AssetRowCommand(
@@ -4293,6 +4327,7 @@ namespace Hrot.Editor
                     terrainDefinition:  name => NewScenarioTerrains().ResolveDefinition(name),
                     showNewBlankDialog: ShowNewBlankDialog)
                 : null;
+            _newAssetLauncherForOsm = newAssetLauncher;   // ⭐ CE-4378 — the OSM wizard's "Open in New Scenario" (the wizard is built earlier)
 
             // ⭐ CE-4210 MA-6 — File ▸ New ▸ Macro…  (a macro starts from a scenario recipe's terrain, like New Scenario…) — ⭐ CE-4253/4255: it was Scenario/New Macro…
             if (newAssetLauncher is { CanOpenMacro: true })
@@ -4368,7 +4403,10 @@ namespace Hrot.Editor
                 // ⭐ CE-4140 — File › New Scenario…: the New-asset picker over the SCENARIO recipes only → Save-As naming → CreateNew. This host HAS the scenario recipes service, so it passes it (the silent-default rule).
                 openNewScenario: newAssetLauncher != null && _newAssetServices!.ContainsKey(Hrot.Editor.AiShared.AssetKind.Scenario)
                     ? () => newAssetLauncher.Open(Hrot.Editor.AiShared.AssetKind.Scenario)
-                    : null);
+                    : null,
+                // ⭐ CE-4375 — File › New › Terrain from OpenStreetMap…: this host HAS the wizard, so it passes it; the wizard says why it is greyed (no pipeline yet)
+                openTerrainFromOsm: _osmWizard != null ? _osmWizard.Open : null,
+                terrainFromOsmDisabledReason: () => _osmWizard?.DisabledReason);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();

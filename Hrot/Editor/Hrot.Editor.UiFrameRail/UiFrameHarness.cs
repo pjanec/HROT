@@ -124,6 +124,7 @@ public static class UiFrameHarness
             if (!GlxContext.Bind(kept))
                 throw new InvalidOperationException("the kept window's GL context could not be bound on this thread");
             if (width == _windowWidth && height == _windowHeight) return;
+            Fdp.Presentation.Raylib.HiddenWindow.Release();
             Raylib_cs.Raylib.CloseWindow();   // another size: a new window (rare — the rails all ask for the default)
             _keptWindow = null;
         }
@@ -131,7 +132,9 @@ public static class UiFrameHarness
         // ⭐ a fresh GLX window under Xvfb sometimes is not ready on the first try (measured: "Raylib window did not become ready" on the first rail of a process, ~1 in 2 for an unusual size) — retry a few times before failing
         for (int attempt = 0; ; attempt++)
         {
+            Fdp.Presentation.Raylib.HiddenWindow.ApplyBeforeInit();   // ⭐ CE-4386 — HROT_HIDDEN_WINDOW=1: hidden, unfocused, the frame in a render target
             Raylib_cs.Raylib.InitWindow(width, height, "hrot-uiframe-rail");
+            Fdp.Presentation.Raylib.HiddenWindow.AfterInit();
             WindowsCreated++;
             if (Raylib_cs.Raylib.IsWindowReady()) break;
             Raylib_cs.Raylib.CloseWindow();
@@ -148,7 +151,7 @@ public static class UiFrameHarness
     internal static void Leave()
     {
         if (_keptWindow is { } kept) GlxContext.Release(kept);
-        else Raylib_cs.Raylib.CloseWindow();
+        else { Fdp.Presentation.Raylib.HiddenWindow.Release(); Raylib_cs.Raylib.CloseWindow(); }
     }
 
     /// <summary>

@@ -394,6 +394,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.Creeping = 0;
                 ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.FiringPoint, p.ApproachSpeed, ArrivalRadius, onSurface: true, source: MoveSource.CoverSearch) ? 1 : 0);
                 ws.SeenSince = (SimInstant)0;
+                ws.Initiative = (byte)(SeenByADangerousThreat(world, self, in p) ? 0 : 1);   // ⭐ R-2086 (a) — as the firing-point drive-out
                 ws.Phase = VehiclePhase.Exposing;
                 return;
             }
@@ -414,7 +415,9 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Waiting = 0;
             ws.FiringPoint = firing;
             ws.Creeping = 0;   // ⭐ CE-4136 — a fresh drive-out
-            ws.Initiative = 0;   // ⭐ R-2086 — decided again on arrival
+            // ⭐ R-2086 (a, 2026-11-10) — the INITIATIVE is decided HERE, in the hide: no dangerous threat can see me as I set out ⇒ a line of
+            //   sight that clears on the drive-out clears both ways (mutual), and I am the one who moves into view with the gun on him
+            ws.Initiative = (byte)(SeenByADangerousThreat(world, self, in p) ? 0 : 1);
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius, source: MoveSource.CoverSearch) ? 1 : 0);   // T3 — front first
             ws.SeenSince = (SimInstant)0;   // CE-2216 — this exposure's clock starts on the way out
             ws.Phase = VehiclePhase.Exposing;
@@ -430,7 +433,13 @@ namespace Hrot.AI.Behaviors.Brains
                 //   budget spent before I reach the point sends me back. 📐 Live ua-javelin-lock: Javelin A saw the tank 3 s before it
                 //   reached its firing point and launched as it arrived — the clock only started at the point
                 if (!SeenByADangerousThreat(world, self, in p)) ws.SeenSince = (SimInstant)0;
-                else if (ws.SeenSince == 0) { ws.SeenSince = (SimInstant)now; ws.Budget = Budget(in p, world, self); }
+                else if (ws.SeenSince == 0 || (ws.Initiative == 1 && HitModel.IsMoving(world, self)))
+                {
+                    // ⭐ R-2086 (a) — with the initiative the clock counts from the moment the hull is still (it restarts while it moves)
+                    ws.SeenSince = (SimInstant)now;
+                    ws.Budget = Budget(in p, world, self);
+                    if (ws.Initiative == 1) ws.Budget = MathF.Max(ws.Budget, OwnAimSeconds(world, self) + FireOnceMarginSeconds);
+                }
                 else if (now - ws.SeenSince >= ws.Budget) Withdraw(ref ws, in p, ref mem, self, world, now);
                 return;
             }
@@ -454,7 +463,6 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐⭐ R-2086 (A, CE-4136 ②) — with the initiative (no dangerous threat could see me before I saw him) the exposure lasts long
             //   enough to fire ONCE: never below my own aim time + FireOnceMarginSeconds. A threat that saw me first still sends me back at once.
             //   📐 Live ua-technical-scoot: 0.7 × the M1's aim cut the ATGM technical to 0.56 s against its 1.5 s Kornet — it never fired.
-            ws.Initiative = (byte)(ws.SeenSince == 0 ? 1 : 0);
             if (ws.Initiative == 1) ws.Budget = MathF.Max(ws.Budget, OwnAimSeconds(world, self) + FireOnceMarginSeconds);
             if (!StartFire(ref ws, in p, self, world, in threat))
             {

@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Terrain
     /// </list>
     /// <para>⭐ Every triangle faces UP (+Z normal, counter-clockwise seen from above); side walls face outward.</para>
     /// </summary>
-    public static class TerrainWorldMesh
+    public static partial class TerrainWorldMesh   // ⭐ CE-3423 — partial: the per-chunk builds live in TerrainWorldMesh.Chunks.cs
     {
         /// <summary>The ground grid's cell size for a world of the given extent: 2 m, coarser for a large world
         /// so the soup stays near 256×256 cells.</summary>
@@ -357,8 +357,8 @@ namespace Fdp.Toolkit.Terrain
             private const float Bin = 32f;
             private readonly Vector2 _min;
             private readonly int _nx, _ny;
-            private readonly List<int>?[] _cut, _forest;
-            private readonly List<(Vector2 Min, Vector2 Max, IReadOnlyList<Vector2> Poly)> _cutPolys = new(), _forestPolys = new();
+            private readonly List<int>?[] _cut, _forest, _water;
+            private readonly List<(Vector2 Min, Vector2 Max, IReadOnlyList<Vector2> Poly)> _cutPolys = new(), _forestPolys = new(), _waterPolys = new();
 
             public GroundBins(TerrainWorld world)
             {
@@ -366,7 +366,7 @@ namespace Fdp.Toolkit.Terrain
                     if (prism.Panel < 0) _cutPolys.Add((prism.Min, prism.Max, prism.Footprint));
                 foreach (var s in world.Surfaces)
                 {
-                    if (s.Type == TerrainSurfaceType.Water) _cutPolys.Add((s.Min, s.Max, s.Polygon));
+                    if (s.Type == TerrainSurfaceType.Water) { _cutPolys.Add((s.Min, s.Max, s.Polygon)); _waterPolys.Add((s.Min, s.Max, s.Polygon)); }
                     else if (s.Type == TerrainSurfaceType.Forest) _forestPolys.Add((s.Min, s.Max, s.Polygon));
                 }
                 var lo = world.BoundsMin; var hi = world.BoundsMax;
@@ -377,6 +377,7 @@ namespace Fdp.Toolkit.Terrain
                 _ny = Math.Max(1, (int)MathF.Ceiling((hi.Y - lo.Y) / Bin) + 1);
                 _cut = File(_cutPolys);
                 _forest = File(_forestPolys);
+                _water = File(_waterPolys);
             }
 
             private List<int>?[] File(List<(Vector2 Min, Vector2 Max, IReadOnlyList<Vector2> Poly)> polys)
@@ -405,6 +406,8 @@ namespace Fdp.Toolkit.Terrain
 
             public bool Excluded(Vector2 p) => Any(_cut[Row(p.Y) * _nx + Col(p.X)], _cutPolys, p);
             public bool InForest(Vector2 p) => Any(_forest[Row(p.Y) * _nx + Col(p.X)], _forestPolys, p);
+            /// <summary>⭐ CE-3423 L-3 — under water only (a coarse level cuts nothing else).</summary>
+            public bool InWater(Vector2 p) => Any(_water[Row(p.Y) * _nx + Col(p.X)], _waterPolys, p);
         }
 
         /// <summary>

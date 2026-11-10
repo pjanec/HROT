@@ -12,5 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Engine\Hrot.Terrain.Osm\Hrot.Terrain.Osm.csproj" />
+    <!-- the import flag: the CLI composes the importer; the OSM library stays independent of it -->
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Import\Hrot.Terrain.Import.csproj" />
   </ItemGroup>
 </Project>

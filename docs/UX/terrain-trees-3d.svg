@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="Inter, Arial, sans-serif" font-size="12">
+  <title>The large terrain's trees in 3-D — near and far (DESIGN_Map_3D_Mode §6ai, CE-4377)</title>
+  <rect width="900" height="300" fill="#7896C0"/>
+  <!-- ground band -->
+  <rect y="230" width="900" height="70" fill="#708E56"/>
+  <line x1="300" y1="0" x2="300" y2="300" stroke="#1D2F48" stroke-width="2"/>
+  <line x1="600" y1="0" x2="600" y2="300" stroke="#1D2F48" stroke-width="2"/>
+
+  <!-- ① a lone tree: bark trunk + a low-poly crown (16 triangles) -->
+  <rect x="146" y="150" width="8" height="80" fill="#604834"/>
+  <polygon points="150,70 186,95 192,128 172,158 128,158 108,128 114,95" fill="#3E6A30"/>
+  <polygon points="150,70 186,95 150,110 114,95" fill="#4F8040"/>
+  <polygon points="150,110 186,95 192,128 172,158 150,150" fill="#35602A"/>
+  <text x="20" y="22" fill="#FFFFFF" font-weight="bold">① a lone tree (any distance)</text>
+  <text x="20" y="40" fill="#E8EEF6">its trunk prism (bark) + a 16-triangle crown</text>
+  <text x="20" y="258" fill="#FFFFFF">crown: radius 0.3 × height, centre at 0.72 × height</text>
+  <text x="20" y="276" fill="#FFFFFF">baked into its chunk's vegetation mesh (1 draw)</text>
+
+  <!-- ② a wood, near: individual crowns, density from the woods grid -->
+  <g>
+    <rect x="337" y="160" width="5" height="70" fill="#604834"/>
+    <polygon points="340,96 366,114 370,140 340,160 310,140 314,114" fill="#3E6A30"/>
+    <rect x="387" y="150" width="5" height="80" fill="#604834"/>
+    <polygon points="390,80 418,100 422,128 390,150 358,128 362,100" fill="#35602A"/>
+    <rect x="437" y="165" width="5" height="65" fill="#604834"/>
+    <polygon points="440,104 464,120 468,144 440,166 412,144 416,120" fill="#4A7A3A"/>
+    <rect x="487" y="155" width="5" height="75" fill="#604834"/>
+    <polygon points="490,88 516,106 520,132 490,156 460,132 464,106" fill="#3E6A30"/>
+    <rect x="537" y="162" width="5" height="68" fill="#604834"/>
+    <polygon points="540,100 564,116 568,140 540,162 512,140 516,116" fill="#35602A"/>
+  </g>
+  <text x="320" y="22" fill="#FFFFFF" font-weight="bold">② a wood, NEAR (levels 0–1)</text>
+  <text x="320" y="40" fill="#E8EEF6">one tree per density × 25 m cell, placed by hash</text>
+  <text x="320" y="258" fill="#FFFFFF">height = the cell's canopy ± 20 %; trunk 4-sided</text>
+  <text x="320" y="276" fill="#FFFFFF">≈ 24 triangles a tree, baked per chunk</text>
+
+  <!-- ③ a wood, far: the canopy as a sheet + its edge walls -->
+  <polygon points="640,120 700,112 760,118 820,110 860,116 860,150 640,150" fill="#35602A"/>
+  <polygon points="640,120 700,112 760,118 820,110 860,116 860,124 640,128" fill="#4A7A3A"/>
+  <rect x="640" y="150" width="220" height="80" fill="#708E56" opacity="0.0"/>
+  <line x1="640" y1="150" x2="640" y2="230" stroke="#604834" stroke-width="2" stroke-dasharray="4 4"/>
+  <text x="620" y="22" fill="#FFFFFF" font-weight="bold">③ a wood, FAR (levels 2–3)</text>
+  <text x="620" y="40" fill="#E8EEF6">the canopy: a sheet at ground + canopy over each</text>
+  <text x="620" y="56" fill="#E8EEF6">25 m wood cell, walls down to the crown base at its edge</text>
+  <text x="620" y="258" fill="#FFFFFF">≈ 2 triangles a cell + its edges</text>
+  <text x="620" y="276" fill="#FFFFFF">the same greens; leaf pattern (code 242)</text>
+</svg>

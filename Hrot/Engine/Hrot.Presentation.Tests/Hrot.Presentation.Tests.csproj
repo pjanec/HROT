@@ -21,6 +21,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <ProjectReference Include="..\Hrot.Terrain.Import\Hrot.Terrain.Import.csproj" />   <!-- ⭐ CE-4378 — the wizard with the REAL importer -->
     <ProjectReference Include="..\..\Subsystems\Hrot.Player\Hrot.Player.csproj" />
 
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
@@ -32,5 +33,6 @@
     <Compile Include="..\..\..\FDP\TestShared\GizmoLayerProbe.cs" Link="Shared\GizmoLayerProbe.cs" />   <!-- CE-1203: the per-row map layer rail -->
     <Compile Include="..\..\TestShared\TestEntityCreation.cs" Link="Shared\TestEntityCreation.cs" />   <!-- CE-259ax: a real EntityCreation over a world, for rails on an AUTHOR -->
     <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
+    <Compile Include="..\Hrot.Terrain.Import.Tests\MiniSet.cs" Link="Shared\MiniSet.cs" />   <!-- ⭐ CE-4378 — the importer's own tiny input set, written through the shared writers -->
   </ItemGroup>
 </Project>

@@ -181,7 +181,7 @@ for i, name in enumerate(STEPS):
 LX, LY = PX + 20, PY2 + 74
 s.separator_text(LX, LY, "Terrain", LX + 560)
 s.form_row(LX, LY + 20, "Name", 150, "field", 390, "kolin-centre")
-s.glyph(FA.CIRCLE_CHECK, LX + 552, LY + 25, C.OK, 13)
+s.glyph(FA.WARNING, LX + 552, LY + 25, C.PEND, 13)   # as-built: amber while the name exists (green tick = a new name)
 s.text(LX + 150, LY + 64, "Saved as assets/terrain/kolin-centre/", C.NOTE, 11)
 s.separator_text(LX, LY + 92, "Include", LX + 560)
 for i, (lab, g, gc, on, sub) in enumerate([("Buildings", FA.HOUSE, C.ORANGE, True, "enterable houses; garages and sheds solid"),
@@ -226,16 +226,15 @@ for pts, st, ent in blds:
     h = st * 3
     if ent: poly(s, pts, H_COL[0 if h < 5 else 1 if h < 15 else 2 if h < 30 else 3], "#141414", sw=0.8)
     else: poly(s, pts, SOLID, "#141414", op=0.9, sw=0.6)
-for i in range(18):   # lone trees
-    rx_, ry_ = CX + 420 + (i * 37) % 200, CY + 360 + (i * 53) % 110
-    s.raw(f"<circle cx='{rx_}' cy='{ry_}' r='2.6' fill='{FOREST}' stroke='#7FD08A' stroke-width='0.6'/>")
+# lone trees and the trees of the rows, one dot each (CE-4382: the preview's Trees)
+for tx, ty in [(BX0 + 40, BY0 + 30), (BX0 + 64, BY0 + 44), (BX0 + 380, BY0 + 250), (BX0 + 300, BY0 + 40), (BX0 + 120, BY0 + 262)] + [(BX0 + 200 + k * 14, BY0 + 278) for k in range(8)]:
+    s.raw(f"<circle cx='{tx}' cy='{ty}' r='2.6' fill='{FOREST}' stroke='#7FD08A' stroke-width='0.6'/>")
 clip_close(s)
 s.rect(BX0, BY0, BW_, BH_, "none", stroke=C.ACC, sw=1.5, dash="5 4")
 zoom_ctrls(s)
 # hover tooltip on a building
 s.rect(CX + 300, CY + 223, 14, 11, "none", stroke="#FFFFFF", sw=2)
-s.tooltip(CX + 318, CY + 236, 250, ["way 112233445 · house", "2 storeys (tagged) · pitched roof (gabled)", "1 door (road-facing rule) · 9 windows",
-                                    "shares 1 wall with way 112233446"])
+s.tooltip(CX + 318, CY + 236, 262, ["way 112233445 · house", "2 storeys (tagged) · pitched roof (gabled)", "1 door (road-facing rule) · 9 windows", "shares 1 wall with way 112233446"])   # CE-4382: the contract's PreviewBuilding details
 # legend (layer toggles) top-right of the canvas
 LGX, LGY = CX + CW - 214, CY + 10
 s.rect(LGX, LGY, 204, 238, C.POPUP, stroke=C.BORDER, rx=4, op=0.94)
@@ -275,16 +274,16 @@ for i, (lab, frac) in enumerate([("Buildings", 0.78), ("Openings", 0.49), ("Tree
 s.rect(RX, by + 122, RW, 28, "#173A1E", stroke=C.OK, rx=3)
 s.glyph(FA.CIRCLE_CHECK, RX + 8, by + 129, C.OK, 13); s.text(RX + 30, by + 140, "Within budget — ready to import", C.TXT, 12)
 wy = by + 172
-s.separator_text(RX, wy, "Notes (4) — click to show on the map", RX + RW)
+s.separator_text(RX, wy, "Notes (4)", RX + RW)   # CE-4382: each note has a severity and a place — clicking one zooms the map to it
 for i, (g, gc, t) in enumerate([(FA.INFO, C.INFO, "512 buildings: storeys from their type"), (FA.INFO, C.INFO, "3 courtyards split into parts"),
                                  (FA.WARNING, C.PEND, "9 shapes dropped (< 12 m² or too thin)"), (FA.INFO, C.INFO, "2 rivers widened from lines (10 m)")]):
     yy = wy + 18 + i * 22
-    if i == 2: s.rect(RX - 2, yy - 2, RW + 4, 21, C.NEUTRALSEL)
     s.glyph(g, RX + 2, yy + 2, gc, 12); s.text(RX + 22, yy + 13, t, C.SUB, 11.5)
-s.text(RX, CY + CH - 4, "Data: OSM 2026-11-10 08:14 UTC", C.NOTE, 10.5)
+s.text(RX, CY + CH - 20, "OSM data of 2026-11-10 08:12 UTC", C.NOTE, 10.5)   # CE-4382: the data timestamp (Overpass osm_base)
+s.text(RX, CY + CH - 4, "Data: © OpenStreetMap contributors · Copernicus DEM GLO-30", C.NOTE, 10.5)
 footer(s, True, "Import", FA.CHECK, C.GREEN)
 s.note(PX, PY + PH + 18, ["③ Preview — the fetched data drawn over the DIMMED tiles in HROT's own 2-D map colours (buildings by height = TerrainPlan2D.HeightColor; woods,",
-                          "   water, walls as on the scenario map). Each layer toggles; hover a building = what it becomes (storeys and where they came from, doors, windows, shared walls).",
+                          "   water, walls as on the scenario map). Each layer toggles; hover a building = its id and type, storeys and roof (and whether tagged), doors (the rule) and windows, shared walls; click a note = zoom to it.",
                           "   The budget bars: green to 2×, amber 2–3× (\"heavier than HROT is tuned for\"), red above 3× = Import greyed and \"pick a smaller box\". No heights yet (see §14.3)."],
        C.NOTE, 11.5)
 
@@ -303,7 +302,7 @@ for i, name in enumerate(STEPS):
     if i < 3: s.line(x + 4, PY2 + 42, x + 20, PY2 + 42, C.SEP, 1.2); x += 24
 LX, LY = PX + 20, PY2 + 76
 s.separator_text(LX, LY, "Building the terrain \"kolin-centre\"", LX + 700)
-stages = [("Map data (OSM)", 1.0, "cached · 9.8 MB", "ok"), ("Elevation (Copernicus 30 m)", 1.0, "4 tiles · 11 MB", "ok"),
+stages = [("Map data (OSM)", 1.0, "cached · 9.8 MB", "ok"), ("Read the map data", 1.0, "41 200 ways", "ok"),
           ("Heights at 1 m", 1.0, "4 800 × 3 500 posts", "ok"), ("Roads (netconvert)", 1.0, "84 km · 612 junctions", "ok"),
           ("Buildings", 0.62, "880 of 1 412", "run"), ("Trees, walls, water", 0.0, "", "wait"), ("Write the input set", 0.0, "", "wait"),
           ("Import into HROT", 0.0, "terrain, navmesh", "wait")]

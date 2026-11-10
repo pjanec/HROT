@@ -67,6 +67,7 @@ public static class PreviewBuilder
     {
         var counts = CountsOf(a);
         var (verdict, reason) = budget.Evaluate(counts);
+        var notes = Notes(a);
         static Vector2[] V(IEnumerable<PointD> p) => p.Select(q => new Vector2((float)q.x, (float)q.y)).ToArray();
         var areas = new List<PreviewArea>();
         foreach (var w in a.Vegetation.Woods) areas.Add(new PreviewArea("woods", V(w.Ring)));
@@ -82,33 +83,49 @@ public static class PreviewBuilder
             Counts = counts,
             Verdict = verdict,
             VerdictReason = reason,
-            Warnings = Warnings(a),
+            Warnings = notes.Select(n => n.Text).ToList(),
+            Notes = notes,
             Roads = a.Roads.Select(r => new PreviewRoad(r.Class, V(r.Points))).ToList(),
-            Buildings = a.Buildings.Buildings.Select(b => new PreviewBuilding(b.Id, V(b.Ring), b.Storeys, b.Enterable)).ToList(),
+            Buildings = a.Buildings.Buildings.Select(b => new PreviewBuilding(b.Id, V(b.Ring), b.Storeys, b.Enterable)
+            {
+                Type = b.Type, StoreysSource = b.StoreysSource, Roof = b.Roof, RoofShape = b.RoofShape, RoofSource = b.RoofSource,
+                Doors = b.Doors, Windows = b.Windows, DoorRule = b.DoorRule, SharedWallsWith = b.SharedWith.ToArray(),
+            }).ToList(),
             Areas = areas,
             Lines = lines,
             Attribution = Attribution(demName),
+            Trees = a.Vegetation.Trees.Select(t => new Vector2((float)t.X, (float)t.Y)).ToList(),
+            DataTimestamp = a.Model.DataTimestamp,
         };
     }
 
-    internal static List<string> Warnings(AreaAnalysis a)
+    /// <summary>⭐ CE-4382 — the notes: one per thing the rules did, with its severity and the box round what it is about (where clicking it zooms).</summary>
+    internal static List<PreviewNote> Notes(AreaAnalysis a)
     {
         var b = a.Buildings;
-        var w = new List<string>();
-        void Add(int n, string text) { if (n > 0) w.Add(string.Create(CultureInfo.InvariantCulture, $"{n} {text}")); }
-        Add(b.Solid, "buildings are SOLID, not enterable (garages, sheds, huts, kiosks, ruins, anything under 25 m²) — counted apart from the enterable budget");
-        Add(b.HeightsInferred, "building heights inferred (no levels or height tagged) from the building type or the default storeys");
-        Add(b.SplitCourtyards, "buildings with courtyards split into hole-free parts");
-        Add(b.SharedWallsById + b.SharedWallsByDistance, "shared walls (terraced / semi-detached) get no doors or windows");
-        Add(b.SnappedVertices, "footprint corners snapped (≤ 0.3 m) so neighbours share one wall");
-        Add(b.DroppedSmall, "footprints dropped: under 12 m²");
-        Add(b.DroppedThin, "footprints dropped: thinner than 2.5 m");
-        Add(b.DroppedAtEdge, "buildings dropped: they cross the edge of the area");
-        Add(b.NoWalls, "roofs / carports without walls skipped");
-        Add(b.PartsIgnored, "building parts ignored (an overhang above ground level)");
-        Add(b.PartsMerged, "building parts merged into their building's outline");
-        Add(b.NoFreeWall, "buildings have no free wall for a door");
-        Add(b.BrokenRings + a.Vegetation.FilledHoles + a.FilledHoles, "shapes the rules could not make valid were dropped or simplified (unclosed rings, concave holes)");
+        var w = new List<PreviewNote>();
+        void Add(int n, string text, NoteSeverity severity, string? kind)
+        {
+            if (n <= 0) return;
+            double[]? box = kind != null && b.NoteBoxes.TryGetValue(kind, out var x) ? new[] { x.X0, x.Y0, x.X1, x.Y1 } : null;
+            w.Add(new PreviewNote(string.Create(CultureInfo.InvariantCulture, $"{n} {text}"), severity, box));
+        }
+        Add(b.Solid, "buildings are SOLID, not enterable (garages, sheds, huts, kiosks, ruins, anything under 25 m²) — counted apart from the enterable budget", NoteSeverity.Info, NoteKinds.Solid);
+        Add(b.HeightsInferred, "building heights inferred (no levels or height tagged) from the building type or the default storeys", NoteSeverity.Info, NoteKinds.HeightsInferred);
+        Add(b.SplitCourtyards, "buildings with courtyards split into hole-free parts", NoteSeverity.Info, NoteKinds.SplitCourtyards);
+        Add(b.SharedWallsById + b.SharedWallsByDistance, "shared walls (terraced / semi-detached) get no doors or windows", NoteSeverity.Info, NoteKinds.SharedWalls);
+        Add(b.SnappedVertices, "footprint corners snapped (≤ 0.3 m) so neighbours share one wall", NoteSeverity.Info, NoteKinds.Snapped);
+        Add(b.DroppedSmall, "footprints dropped: under 12 m²", NoteSeverity.Warning, NoteKinds.DroppedSmall);
+        Add(b.DroppedThin, "footprints dropped: thinner than 2.5 m", NoteSeverity.Warning, NoteKinds.DroppedThin);
+        Add(b.DroppedAtEdge, "buildings dropped: they cross the edge of the area", NoteSeverity.Warning, NoteKinds.DroppedAtEdge);
+        Add(b.NoWalls, "roofs / carports without walls skipped", NoteSeverity.Info, NoteKinds.NoWalls);
+        Add(b.PartsIgnored, "building parts ignored (an overhang above ground level)", NoteSeverity.Info, NoteKinds.PartsIgnored);
+        Add(b.PartsMerged, "building parts merged into their building's outline", NoteSeverity.Info, NoteKinds.PartsMerged);
+        Add(b.NoFreeWall, "buildings have no free wall for a door", NoteSeverity.Warning, NoteKinds.NoFreeWall);
+        Add(b.BrokenRings + a.Vegetation.FilledHoles + a.FilledHoles, "shapes the rules could not make valid were dropped or simplified (unclosed rings, concave holes)", NoteSeverity.Warning, null);
         return w;
     }
+
+    /// <summary>The notes' texts (the contract's <see cref="OsmPreview.Warnings"/>).</summary>
+    internal static List<string> Warnings(AreaAnalysis a) => Notes(a).Select(n => n.Text).ToList();
 }

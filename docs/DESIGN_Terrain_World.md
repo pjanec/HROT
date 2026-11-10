@@ -7,6 +7,7 @@ stale-below: nothing quotable — §7's HISTORY row block records the first-draf
 known-rot: the single GroundZ (§2 `hrot.groundZ`, §3 `TerrainWorld.GroundZ`) is a TEMPORARY simplification (R-248, 2026-10-10) — see DESIGN_Terrain_Height.md. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
 related-designs:
+  - DESIGN_Map_3D_Mode.md §6ah — the 3-D terrain by chunk and level of detail (CE-3423); §10a here is its 2-D sibling at 5.5 km (CE-4376)
   - DESIGN_Terrain_Import_UTM.md §9.6 (R-4190) — the tree decisions T-1…T-8 that §11 here builds (woods grid, lone trunks, woods navmesh area, felling)
   - DESIGN_Terrain_Import_UTM.md — importing a 6 × 6 km UTM terrain as ONE §9 inset (CE-4011 / CE-4012 become its prerequisites); adds a tiled height store, a UTM frame, a building generator
   - UX/DESIGN_New_Scenario_And_Recipe.md — E12: the terrain is chosen only for a NEW scenario (TerrainCatalog.List in the New picker); W13 stays superseded
@@ -810,6 +811,38 @@ not a gizmo.
 | rails | `TerrainLayer2DTests` ×3 (the production frame on demo-city drops nothing and holds no terrain — red-proved; the plan; culling) · `Map3DFrameRail.CE1227_V` (real window: under the gizmos, built once, coverage = the old gizmo path's, unticked = gone, close-up culls) · `LayerControlGizmoTests` (the row) · `EveryMapHostAttachesTheSharedLayers` (no host builds its own) |
 
 Screenshots: [`terrain2d-1-demo-city.png`](assets/map-3d/terrain2d-1-demo-city.png) · [`terrain2d-2-off.png`](assets/map-3d/terrain2d-2-off.png) · [`terrain2d-3-close.png`](assets/map-3d/terrain2d-3-close.png).
+
+### 10a. ⭐ The 2-D plan at 5.5 km — the stroke cull by cell *(ui, `2026-11-10`, CE-4376 / handoff D-2; build-state: BUILT)*
+
+📐 **Measured on scale-1 first** (`TheLargeTerrainNumbers.ScaleOne_The2DPlansNumbers`, Debug): the plan builds in 0.4 s; its **281 k fill triangles** are already ONE retained
+mesh (§10, 12 MB) — within budget, unchanged. ⛔ The cost was the per-frame stroke cull: `Cull` scanned all **482 k** outlines and labels every frame — **14.5 ms** at the
+whole-terrain zoom, **4.2 ms** close in (where it keeps 1 080).
+
+```mermaid
+classDiagram
+  class TerrainLayer2D { <<existing, §10>> Draw: the fill mesh, then Cull + the gizmo renderer for the strokes in view }
+  class Plan { <<existing>> FillVertices · FillColors · Strokes · Index NEW }
+  class StrokeIndex { <<NEW>> 256 m cells: lines longest-first + labels per cell · Long (lines over a cell) · Other }
+  TerrainLayer2D --> Plan
+  Plan *-- StrokeIndex
+```
+*What the picture shows: the index is built ONCE with the plan; a frame walks only the cells in view (± one cell, the midpoint slack) and stops in each at the zoom's length cut.*
+
+```mermaid
+graph TD
+  CANVAS["MapCanvas.Draw (every 2-D frame)"] --> L2["TerrainLayer2D.Draw"]
+  L2 -->|"once per terrain"| PLAN["PlanOf → Plan + StrokeIndex"]
+  L2 -->|"every frame"| CULL["Cull: the cells in view → into[] (0 B)"]
+  CULL --> GR["DebugPrimitiveRenderer2D (the strokes kept)"]
+```
+*What the picture shows: nothing new runs per frame — the same Cull, now over the cells in view.*
+
+| # | decision | measured / why |
+|---|---|---|
+| 2D-1 | strokes binned by midpoint into 256 m cells, lines sorted longest first; lines over a cell long and other shapes in lists scanned whole | scale-1: whole **14.5 → 3.65 ms**, close **4.2 → 0.24 ms**, 0 B a frame |
+| 2D-2 | ⭐ the SAME strokes kept as the linear rule — only their draw order changes (by cell, longest first) | rail `TheBinnedStrokeCullTests` (demo-city, highway-rest, test-town; whole, close, off-centre, the corner); the strokes are opaque single-colour lines, so the order does not change the picture |
+| 2D-3 | the whole-terrain zoom still draws 64 k outlines (every building edge ≥ 0.75 px) | ⚠ the gizmo renderer's cost of those is the remaining 2-D cost — not changed here (the look rule `MinStrokePixels` is today's) |
+| 2D-4 | ⛔ **the "height shading" of the handoff does not exist** in 2-D (`search_graph` `.*(Hillshade\|Shading\|Shade\|Relief\|Contour\|HeightLayer\|Elevation).*` — only the 3-D `LitShader`; grep of Map2D / Gizmos / Vis2D: none) | a failed premise (R-106): building one is a NEW 2-D look — it would change the small hilly terrains, which D-2 says stay unchanged ⇒ reported, not invented |
 
 ## 11. ⭐ TREES — the forest surface grows from drawn-only to sight and movement *(L-7, `CE-4369`, backend `2026-11-10`; R-4190 / [Terrain Import UTM §9.6](DESIGN_Terrain_Import_UTM.md); build-state: BUILDING — S1–S4, the import clustering and the tracked speed cap built; felling not)*
 

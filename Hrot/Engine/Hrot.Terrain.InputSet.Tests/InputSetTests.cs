@@ -47,6 +47,22 @@ public sealed class InputSetTests : IDisposable
         Assert.Equal(firstFileRow, z.AsSpan((info.Rows - 1) * info.Cols, info.Cols).ToArray());
     }
 
+    [Theory]
+    [InlineData(null)]                         // no frame in heights.json (§10 does not list it)
+    [InlineData("\"local metres (a note)\"")]  // a producer's text note under the same key
+    public void HeightsJson_WithoutAFrameObject_TakesTheManifestFrame(string? frameValue)
+    {
+        string dir = Synth();
+        string path = Path.Combine(dir, InputSetLayout.HeightsJson);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        node.Remove("frame");
+        if (frameValue != null) node["frame"] = System.Text.Json.Nodes.JsonNode.Parse(frameValue);
+        File.WriteAllText(path, node.ToJsonString());
+
+        var info = HeightsGrid.ReadInfo(dir);
+        Assert.Equal(InputSetReader.Open(dir).Manifest.Frame, info.Frame);
+    }
+
     [Fact]
     public void AnOmittedOptionalFile_ReadsAsEmpty()
     {

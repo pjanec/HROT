@@ -413,6 +413,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
                     if (FilmStudio.Fade is > 0f and var fade) Raylib.DrawRectangle(0, 0, w, h, new Color((byte)0, (byte)0, (byte)0, (byte)Math.Round(fade * 255f)));
                 }
                 Raylib.EndTextureMode();
+                Fdp.Presentation.Raylib.HiddenWindow.Resume();   // ⭐ CE-4386 — inside a hidden frame, back onto its target (no-op otherwise)
             }
             finally
             {

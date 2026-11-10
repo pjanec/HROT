@@ -709,6 +709,7 @@ class Program
                     shell.FontService.ApplyPendingRebuild();
 
                     Raylib_cs.Raylib.BeginDrawing();
+                    Fdp.Presentation.Raylib.HiddenWindow.BeginFrame();   // ⭐ CE-4386 — hidden mode: the frame into the off-screen target (no-op otherwise)
                     // Restore the black background
                     Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
 
@@ -766,7 +767,9 @@ class Program
                     frameStats?.EndUi();
                     frameStats?.NoteDrawLists();
 
+                    Fdp.Presentation.Raylib.HiddenWindow.EndFrame();
                     Raylib_cs.Raylib.EndDrawing();
+                    Fdp.Presentation.Raylib.HiddenWindow.AfterFrame();
                     frameStats?.EndFrame();
 
                 }

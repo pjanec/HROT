@@ -280,12 +280,148 @@ canvas for one dialog.
 | concave footprints and woods filled | `PolygonMath.Triangulate` (ImGui fills only convex polygons) |
 | ⭐ NEW, small | an ImGui child region: XYZ tiles from `ITileSource` laid out by zoom / pan (web-Mercator maths), an LRU of tile textures, the drag box with 8 handles, and the preview's geometry (local metres → lat/lon through the frame → screen) drawn with the draw list |
 
+### 6b. ⭐ The wizard's design — for the build *(ui, `2026-11-10`, CE-4375 W-1; build-state: BUILT against the fakes — the pipeline is not on the tree yet)*
+
+**INVENTORY** *(grep + reads `2026-11-10` — the graph server was not up on this VM, ⚠ so absence claims are "not found by grep")*: the modal host = `WindowManager.RegisterFrameOverlay` (6 hosts use it, e.g.
+`EditorSubsystem` `assetRenameModal.Draw`) · the New submenu = `FileMenuLayout` (`File/New/Scenario…` …) · the worker + `CancellationTokenSource` = `ReplaySearchPanel`
+(`Fdp.Presentation/ImGui/Panels/ReplayBrowser`) · PNG → texture = `Raylib.LoadImageFromMemory` + `LoadTextureFromImage` (`EmbeddedAtlasResources`) · concave fill =
+`PolygonMath.Triangulate` (`Fdp.Toolkits/Terrain`) · the colours = `TerrainPlan2D.HeightColor` (public) and its forest / water / wall fills (private ⇒ made public, read
+never copied) · local metres → lat/lon = **`Utm.ToGeodetic`** (the ONE UTM class — `Fdp.Modules.Geographic.Transforms.Utm`, moved from `Hrot.Traffic` by CE-4372; ⛔ no second UTM) · the glyphs and their
+colours = `Icons` / `IconPalette`. ⛔ Not found: any web-Mercator / XYZ tile code — the map widget's maths is new (small, pure, tested).
+
+```mermaid
+classDiagram
+  class OsmWizardServices { <<record, the editor composes>> Pipeline? Tiles? Search? Importer? TerrainsRoot InputSetRoot OpenNewScenario ShowFolder }
+  class OsmWizardModel { <<NEW · pure, no ImGui>> Step · Box GeoBox · Measure() · Options · NameState · Preview · Notes · Stages · Verdict · Failure · CanNext / NextReason · Next() Back() Cancel() Retry() Pump() }
+  class WebMercator { <<NEW · pure>> ToPixel(lat,lon,zoom) · ToGeo(px,py,zoom) }
+  class OsmMapView { <<NEW · ImGui child>> Centre · Zoom · Draw(model, layers) · box drag (8 handles) · zoom / fit · attribution }
+  class OsmTileTextures { <<NEW>> the loader of the shared ImageCache: fetch on a worker, upload on the frame thread }
+  class ImageCache~TKey~ { <<existing, NodeEditor.UI — generalised CE-1468>> THE texture LRU; pending / failed / loaded; PickerImageCache = ImageCache~string~ }
+  class OsmTileSource { <<NEW, Hrot.Terrain.Osm, CE-4381>> ITileSource: ≤ 2 in flight, header-honouring disk cache }
+  class NominatimPlaceSearch { <<NEW, Hrot.Terrain.Osm, CE-4381>> IPlaceSearch: ≤ 1 a second, on Enter only }
+  class HttpRetry { <<existing, §14.8>> the ONE client + retry policy (User-Agent) }
+  class OsmPreviewLayers { <<NEW>> ten toggles (C-11) }
+  class OsmTerrainWizardWindow { <<NEW · the modal>> step bar · map · right panel per step · footer }
+  class IOsmTerrainPipeline { <<existing contract>> }
+  class ITileSource { <<existing contract>> }
+  class IPlaceSearch { <<existing contract>> }
+  class ITerrainImporter { <<existing contract>> }
+  class Utm { <<existing, Hrot.Traffic>> ToGeodetic }
+  class TerrainPlan2D { <<existing>> HeightColor · ForestFill · WaterFill · WallFill }
+  class PolygonMath { <<existing>> Triangulate }
+  OsmTerrainWizardWindow --> OsmWizardModel
+  OsmTerrainWizardWindow --> OsmMapView
+  OsmMapView --> WebMercator
+  OsmMapView --> OsmTileTextures
+  OsmMapView --> OsmPreviewLayers
+  OsmMapView ..> Utm : preview metres → lat/lon
+  OsmMapView ..> TerrainPlan2D : colours
+  OsmMapView ..> PolygonMath : footprints, woods
+  OsmTileTextures --> ITileSource
+  OsmTileTextures --> ImageCache~TKey~
+  OsmTileSource ..|> ITileSource
+  NominatimPlaceSearch ..|> IPlaceSearch
+  OsmTileSource --> HttpRetry
+  NominatimPlaceSearch --> HttpRetry
+  OsmWizardModel --> IOsmTerrainPipeline
+  OsmWizardModel --> IPlaceSearch
+  OsmWizardModel ..> ITerrainImporter : optional
+  OsmWizardServices ..> OsmTerrainWizardWindow
+```
+*What the picture shows that the prose hid: the step logic is a PURE model (the state-machine rail drives it with fakes, no window); the window only draws it; the map
+widget is the one canvas of Area and Preview, and it is the only new drawing code — every colour, triangulation and projection is read from where it already lives.*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Area
+  Area --> Options : Next (box measured, no refusal, ≤ 6 km)
+  Options --> Area : Back
+  Options --> Previewing : Preview (name valid; exists ⇒ Replace ticked)
+  Previewing --> Preview : the pipeline answered
+  Previewing --> Failed : the service / stage failed
+  Failed --> Previewing : Retry
+  Failed --> Options : Back
+  Preview --> Options : Back
+  Preview --> Importing : Import (verdict not Refused)
+  Importing --> Done : finished (importer composed)
+  Importing --> InputSetOnly : finished (no importer — "not built yet")
+  Importing --> ImportFailed : a stage failed
+  ImportFailed --> Importing : Retry
+  Importing --> Preview : Cancel (temp folder discarded)
+  Done --> [*] : Open in New Scenario / close
+  InputSetOnly --> [*]
+  Area --> [*] : Cancel
+  Options --> [*] : Cancel
+  Preview --> [*] : Cancel
+```
+*What the picture shows: Cancel in Importing stops the run and returns to Preview (nothing written); Refused is not a state — it is Preview with Import greyed.*
+
+```mermaid
+graph TD
+  EDITOR["EditorSubsystem — composes OsmWizardServices ONCE from what it has"] -->|"File ▸ New ▸ Terrain from OpenStreetMap… (greyed: no pipeline, or no tiles and no search)"| WIN[OsmTerrainWizardWindow]
+  EDITOR -->|"RegisterFrameOverlay(window.Draw) — every frame"| WIN
+  WIN -->|"Pump() every frame: the worker's results, progress, tile uploads"| MODEL[OsmWizardModel]
+  MODEL -->|"Task.Run + CancellationTokenSource"| PIPE["IOsmTerrainPipeline — OsmPipelines.Online: an OsmTerrainPipeline per area (CE-4373/4374)"]
+  CLI["hrot-terrain-osm CLI"] -->|"the same composition"| PIPE
+  MODEL -->|"Import into HROT"| IMP["ITerrainImporter — TerrainImporter (CE-4368, composed CE-4378)"]
+  TILES["OsmTileSource / NominatimPlaceSearch — on the pipeline's ONE HttpRetry client (CE-4381)"] --> WIN
+```
+*What the picture shows: the window ticks only through the frame overlay; the pipeline is composed in ONE place (`OsmPipelines`, shared with the CLI — netconvert's road
+builder is bound to one area, so it builds an `OsmTerrainPipeline` per area and shares the download cache); the red boxes are NOT on the tree yet — with neither tiles nor
+search there is no way to pick a place, so the item stays greyed saying so, and the rails drive the same window with the fakes (W-2). ⛔ No stub in production code.*
+
+#### 6b-as-built *(ui, `2026-11-10`, CE-4375 W-3…W-5)* — what the build changed, and the ⚠ list
+
+✅ Built as the three diagrams above: `Hrot.Presentation/TerrainOsm/` (`OsmWizardModel` · `OsmMapView` · `OsmTileTextures` · `OsmWizardStyle` · `OsmTerrainWizardWindow` ·
+`WebMercator`), composed by `EditorSubsystem`; the menu item is registered by the SHARED `ScenarioMenuCommands` (run-gated like its siblings). Conformance per C-row, with
+the rails that measure it: [`STATUS_Ui_Osm_Wizard.md`](blueprints/batches/STATUS_Ui_Osm_Wizard.md) §1.
+
+| ⚠ as-built difference from the mockup | why |
+|---|---|
+| the greyed item says why in its LABEL — *"… (unavailable — the pipeline is not built yet)"* — not a tooltip; not on the Start surface | the shell's menu items have no tooltip (VC-3 is the label); the Start surface draws every Idle item as a button, which the mockup does not cover (R-4151) |
+| ONE window size (1200 × 600) for all four steps | C-1 "the SAME window"; the mockup draws Options / Import shorter to save page space |
+| Fit centres the box | the mockup's off-centre box is page layout, not behaviour |
+| the name check shows `WARNING` amber while the name exists | the mockup draws the tick and the amber row together only to show both cases |
+| ~~no lone trees; the hover tooltip = id · enterable/solid · storeys · ≈ height — the contract (`OsmPreview`) has no lone-tree positions and no building type / roof / openings / shared walls — ⭐ a contract extension, then the window draws them~~ ⛔ SUPERSEDED by CE-4382 (below) | the contract now carries them |
+| ~~notes not clickable, header "Notes (n)"; severity from the words; the data line = attribution — `Warnings` are strings (no location, no severity); no data timestamp in the contract — same extension~~ ⛔ SUPERSEDED by CE-4382 (below) | the contract now carries them |
+| Import rows follow `OsmStage` ("Read the map data" for Parse; elevation is inside Heights) | the contract's stages; the mockup's "Elevation (Copernicus 30 m)" row is not a stage the pipeline reports |
+| the Import step's right box shows only what is TRUE (heading "When it finishes" until it has) | the mockup's inset illustrates both ends at once |
+
+⭐ **CE-4378 (`2026-11-10`)** — the importer (`Hrot.Terrain.Import.TerrainImporter`) is composed: it writes into the NAS's `assets/terrain` — the folder the New Scenario
+picker lists — and *Open in New Scenario* opens that picker with the new terrain selected (`NewAssetLauncher.OpenScenarioOn`). The terrain-name rule is ONE
+(`Hrot.Terrain.InputSet.TerrainName`), shared by the importer and the Options step (dots are no longer accepted). Rail `TheWizardImportsWithTheRealImporterTests`.
+
+⭐ **CE-4381 (`2026-11-10`, E-1 of the "wizard live" handoff) — the real tiles and search; the item is enabled.** `OsmTileSource` (XYZ, the URL a setting `HROT_OSM_TILE_URL`,
+≤ 2 requests in flight, a disk cache under the OSM cache folder honouring `Cache-Control: max-age` / `Expires` — 7 days when none —, a stale tile revalidated with its
+`ETag` / `Last-Modified` and served when offline; no prefetch: only the tiles `OsmMapView` draws) and `NominatimPlaceSearch` (`jsonv2`, 8 results, ≤ 1 request a second,
+`boundingbox` → `GeoBox`; asked only from the search box's Enter), both on the pipeline's ONE `HttpRetry` client (its User-Agent; one retry for these interactive calls —
+the same policy, `retries: 1`). `HttpRetry` now passes a 304 through (a conditional request's answer; nothing else sends one). ⭐ **CE-1468 folded in:** the texture LRU is
+`ImageCache<TKey>` (`NodeEditor.UI/Picker/ImageCache.cs`) — `PickerImageCache` is its `string` form, `OsmTileTextures` its loader with a `(z, x, y)` struct key and a PENDING
+answer for a tile still downloading (no budget spent, asked again next frame). Rails: `MapServicesTests` (fake HTTP handler: URL, User-Agent, ≤ 2 in flight, cache hit,
+revalidation, offline, 1/s; opt-in live `HROT_OSM_LIVE=1`: tile 0/0/0 + "Kolín", measured green from the cloud VM) · `ImageCacheTests` · `TheWizardSearchesOnEnterOnlyTests` ·
+`TheTerrainFromOsmItemOnTheRealEditorTests`. ⭐ **CE-4382 (`2026-11-10`, E-2) — the preview's missing details, as a contract extension** (`OsmContract.cs`, its own commit): `PreviewBuilding` gains `Type`,
+`StoreysSource` ("tagged" / "from height" / "from type" / "default"), `Roof` + `RoofShape` (the `roof:shape` tag) + `RoofSource`, `Doors`, `Windows`, `DoorRule` ("entrance node" /
+"road-facing" / "road-facing + back door" / "longest wall" / "none") and `SharedWallsWith`; `PreviewNote(Text, Severity, Box)`; `OsmPreview.Trees`, `.Notes`, `.DataTimestamp`
+(`Warnings` keeps the same texts — one source). The rules record each where they decide it (`BuildingRules`: the storeys / roof branch, `PlaceDoors`, `FindParties` /
+`ProcessPair`; a box per note kind via `BuildingRulesResult.Touch`). The wizard draws them: the four tooltip lines (*way 112233445 · house* / *2 storeys (tagged) · pitched roof
+(gabled)* / *1 door (road-facing rule) · 9 windows* / *shares 1 wall with way …*), a dot per tree, a note's glyph from its `Severity` and a click that zooms the map to its box
+(`OsmMapView.ZoomTo`, ≥ 120 m view), and *OSM data of 2026-11-10 08:12 UTC* above the attribution. The mockup (`gen-terrain-osm-wizard-mockup.py`) is updated to the same
+lines. Rails: `PreviewDetailsTests` (library) · `TheOsmWizardMatchesItsMockupTests.Preview_MatchesTheMockup` (tooltip, trees, severity, data line, note click).
+
+⛔ SUPERSEDED by the CE-1468 fold-in above — ⚠ **One duplicate, filed — [CE-1468](blueprints/Blueprint_Issues_Tracker.md):** `OsmTileTextures` is an LRU of uploaded textures like `PickerImageCache` (the pickers'). Not shared yet because that
+cache remembers a `null` load as failed forever (a downloading tile is "not yet") and keys by `string` (a per-frame allocation per tile). Graph INVENTORY re-run `2026-11-10`
+once the index was up: `search_graph` `.*Mercator.*` (1 — ours) · `.*Tile(Source|Cache|Texture|Provider|Fetch).*` (4 — ours + the navmesh `NavTileCache`, unrelated) ·
+`.*SlippyMap.*|.*MapTile.*|.*TileMap.*` (0) · `.*PlaceSearch.*|.*Geocod.*|.*Nominatim.*` (1 — the fake) · `.*TextureCache.*|.*ImageCache.*` (1 — `PickerImageCache`) — ⇒ the grep-only
+"not found" above holds; coverage could not be checked (`check_index_coverage` is not in the CLI).
+
 ## 7. Failure and limits
 | case | behaviour |
 |---|---|
 | no network / service down / rate-limited | clear error naming the service; a Retry button; nothing written |
 | box > 6 × 6 km | the wizard refuses before any download |
-| Overpass result too large (dense city) | split the box into 4 and fetch the parts (merge by OSM id) |
+| Overpass result too large (dense city) | split the box into 4 and fetch the parts (merge by OSM id) — ⭐ **BUILT `2026-11-10` (CE-4384):** a 200 whose `<remark>` says *out of memory* / *timed out*, or a 504 after the retries ⇒ four parts, each fetched the same way, at most twice (16 parts); `OsmXmlMerge` keeps every node / way / relation once, nodes first, the first part's `osm_base`. Still too large at the last split ⇒ *"… pick a smaller box"* |
+| a 200 carrying `<remark> runtime error …</remark>` (anything else) | ⭐ **BUILT (CE-4384):** a FAILURE naming the service and the remark — never an empty area |
+| the error's retry advice | ⭐ **BUILT (CE-4384):** the server's own `Retry-After` when it sent one (*"the service asks to wait 30 s"*), else *"try again in a minute or two"* (`HttpRetry.RetryHint`). Rails `OverpassRobustnessTests` (hand-written answers). ⏳ The live proof against a dense city waits for the Windows run (Overpass is unreachable from the cloud VM) |
 | a footprint the rules cannot make valid | dropped, counted in the preview warnings |
 | `netconvert` fails | the import fails with its stderr (roads are not optional) |
 | out of memory / crash in a stage | accepted risk (Q-O6); stages stream where they can (heights by band, as the synth tool does) |

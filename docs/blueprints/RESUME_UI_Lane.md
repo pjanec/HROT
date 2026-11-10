@@ -1,7 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-09
-current-answer: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE" directly below this STATUS block.
+updated: 2026-11-10
+current-answer: ⭐⭐⭐ 2026-11-10 (c) — START AT "SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-10 (b) — START AT "SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE".
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-10 — START AT "SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES".
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-09 — START AT "SESSION 2026-11-09 — U-11 RECORDING STORAGE UI, DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-08 — START AT "SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED)".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-07 (b) — START AT "SESSION 2026-11-07 (b) — B-10 KEYS + B-11 ACTION CATALOGUE".
@@ -175,6 +178,46 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3
+
+Handoff [HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md](batches/HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md) (dispatched e233f69a6); record
+[STATUS_Ui_Osm_Wizard_Live.md](batches/STATUS_Ui_Osm_Wizard_Live.md).
+
+| item | state |
+|---|---|
+| E-1 CE-4381 (+ CE-1468) | ✅ real tiles (`OsmTileSource`) + Nominatim (`NominatimPlaceSearch`) composed in the editor; one texture LRU `ImageCache<TKey>`; live rail green from the VM |
+| E-2 CE-4382 | ✅ the preview contract carries trees, building details, located notes, the data timestamp; the wizard and the mockup show them (C-10 / C-12 / C-13 ✅) |
+| E-3 CE-1466 | ⛔ premise failed — already fixed 2026-11-09, and the 3-D press's terrain pick is the per-chunk picker since D-1 |
+
+⚠ A live PREVIEW still cannot run on the cloud VM (Overpass times out there — the handoff's own measurement).
+
+
+## SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE
+
+Handoff [HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md](batches/HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md) (dispatched e0865ce9e) — all four
+items done and pushed to `ui` (last 9553bd85b); the record is [STATUS_Ui_Large_Terrain_Drawing.md](batches/STATUS_Ui_Large_Terrain_Drawing.md).
+
+| item | state | where |
+|---|---|---|
+| D-1 CE-3423 3-D ground by chunk + LOD | ✅ scale-1 coarse picture 0.8 s / 640 MB (whole soup 9.4 s / 7.0 GB) | DESIGN_Map_3D_Mode §6ah |
+| D-3 CE-4377 trees, pitched roofs, facades | ✅ trees by distance; caps drawn as tiled gables (code 240); facades unchanged | §6ai |
+| D-2 CE-4376 2-D at 5.5 km | ✅ binned stroke cull 14.5 → 3.65 ms; ⚠ failed premise: no 2-D height shading exists (2D-4) | DESIGN_Terrain_World §10a |
+| D-4 CE-4378 importer in the wizard | ✅ real `TerrainImporter`; Open in New Scenario preselects it; the menu greys until tiles/search exist | DESIGN_Terrain_From_OSM |
+
+⚠ Not done: 30 fps was measured as triangles/resident only (no GPU here); the user's machine check is open. Pre-existing reds: `Map3DFrameRail.CE1227_V_DemoCity…`,
+`FilmFrameRail.CE1380_A2DFilmFrame…` (both red at 890d6feaf). `assets/terrain/imported-tiny/` is a local generated set — never commit it.
+
+
+## SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES
+
+⭐ [HANDOFF_Coordinator_To_Ui_Osm_Wizard.md](batches/HANDOFF_Coordinator_To_Ui_Osm_Wizard.md) W-1…W-5 done: the wizard (`Hrot.Presentation/TerrainOsm/`), File ▸ New ▸ Terrain
+from OpenStreetMap… (greyed — no real pipeline on the tree yet), fakes + 16 rails, conformance C-1…C-15 all ✅ with the ⚠ list —
+[STATUS_Ui_Osm_Wizard.md](batches/STATUS_Ui_Osm_Wizard.md); design [DESIGN_Terrain_From_OSM.md](../DESIGN_Terrain_From_OSM.md) §6b + §6b-as-built.
+⭐ The REAL pipeline is composed (`OsmPipelines.Online` — one composition with the CLI; per-area road builder). ⭐ **Next for this item:** an `ITileSource` (OSM tiles,
+attribution, a generic User-Agent) and an `IPlaceSearch` (Nominatim) — compose them in `EditorSubsystem` (`osmServices`) and the item un-greys; then an `ITerrainImporter`. ⚠ The ⚠ rows marked "contract" (lone trees, building type/roof/openings, note location/severity, data timestamp) need a
+contract extension first. Filed: [CE-1468](Blueprint_Issues_Tracker.md) (the tile LRU vs `PickerImageCache`).
+
 
 ## ⭐⭐⭐ SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE *(state at `ui` + this doc commit, pushed)*
 

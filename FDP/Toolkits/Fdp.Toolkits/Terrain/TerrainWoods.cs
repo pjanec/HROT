@@ -46,6 +46,13 @@ namespace Fdp.Toolkit.Terrain
         public int Columns => _nx;
         public int Rows => _ny;
 
+        /// <summary>⭐ CE-4377 (DESIGN_Map_3D_Mode §6ai) — the grid's south-west corner (the 3-D map draws the wood per cell).</summary>
+        public Vector2 Origin => _origin;
+
+        /// <summary>⭐ CE-4377 — cell (<paramref name="column"/>, <paramref name="row"/>)'s trees per hectare and canopy top above the ground (0, 0 outside the grid or the wood).</summary>
+        public (float Density, float Canopy) CellAt(int column, int row)
+            => column < 0 || row < 0 || column >= _nx || row >= _ny ? (0f, 0f) : (_density[row * _nx + column], _canopy[row * _nx + column]);
+
         /// <summary>The woods of <paramref name="world"/>: a cell whose centre lies in a forest surface takes that surface's density and
         /// canopy (the last one listed wins where two overlap); null when the world has no forest.</summary>
         public static TerrainWoods? Build(TerrainWorld world)
