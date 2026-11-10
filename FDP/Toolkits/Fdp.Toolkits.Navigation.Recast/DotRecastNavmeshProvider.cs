@@ -336,6 +336,20 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     /// <inheritdoc/>
     public int SampleNavmeshPoints(Vector3 center, float radius, Span<Vector3> results, uint layerMask = 0xFFFFFFFF)
     {
+        long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+        int n = SampleNavmeshPointsCore(center, radius, results, layerMask);
+        Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sample, t0);
+        return n;
+    }
+
+    // ⭐ CE-3427 — the navmesh's cost per query kind (docs/DESIGN_Scale_Rig.md §6)
+    private static readonly int S_Sample = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.SampleNavmeshPoints");
+    private static readonly int S_PathCosts = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PathCosts");
+    private static readonly int S_PlanPath = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath");
+    private static readonly int S_Nearest = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.NearestPoly");
+
+    private int SampleNavmeshPointsCore(Vector3 center, float radius, Span<Vector3> results, uint layerMask)
+    {
         if (results.IsEmpty) return 0;
 
         int count = 0;
@@ -427,6 +441,14 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     /// </summary>
     public int PathCosts(Vector3 from, ReadOnlySpan<Vector3> to, Span<float> costs, float reach, uint layerMask, DoorStates? doors)
     {
+        long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+        int n = PathCostsCore(from, to, costs, reach, layerMask, doors);
+        Fdp.Toolkit.Diagnostics.QueryTimings.End(S_PathCosts, t0);
+        return n;
+    }
+
+    private int PathCostsCore(Vector3 from, ReadOnlySpan<Vector3> to, Span<float> costs, float reach, uint layerMask, DoorStates? doors)
+    {
         costs[..to.Length].Fill(float.MaxValue);
         if (to.IsEmpty) return 0;
         int searched = 0;
@@ -515,6 +537,14 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     /// <param name="doors">⭐ R-219 — the caller's door states; null = the doors as the terrain authored them.</param>
     private int PlanPathCore(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, DoorStates? doors, out bool complete)
     {
+        long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+        int n = PlanPathTimed(from, to, waypoints, layerMask, doors, out complete);
+        Fdp.Toolkit.Diagnostics.QueryTimings.End(S_PlanPath, t0);
+        return n;
+    }
+
+    private int PlanPathTimed(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, DoorStates? doors, out bool complete)
+    {
         complete = false;
         if (waypoints.Length < 2) return 0;
 
@@ -591,6 +621,14 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         uint                layerMask,
         out LayerState?     layerState,
         out RcVec3f         nearestPt)
+    {
+        long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+        bool ok = TryFindNearestPolyCore(position, layerMask, out layerState, out nearestPt);
+        Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Nearest, t0);
+        return ok;
+    }
+
+    private bool TryFindNearestPolyCore(Vector3 position, uint layerMask, out LayerState? layerState, out RcVec3f nearestPt)
     {
         var rc = ToRcVec(position);
 

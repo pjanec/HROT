@@ -484,6 +484,15 @@ namespace Fdp.Toolkit.Terrain
         /// <param name="doors">⭐ R-219 — the door states of the caller's view (<see cref="DoorStates.Of(Fdp.Core.ISimulationView, TerrainWorld)"/>); null = as authored.</param>
         public bool SegmentBlocked(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            var r = SegmentBlockedCore(from, to, doors);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_SegmentBlocked, t0);
+            return r;
+        }
+        private static readonly int S_SegmentBlocked = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.SegmentBlocked");   // ⭐ CE-3427
+
+        private bool SegmentBlockedCore(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
             float transmittance = 1f;
             // ⭐ CE-1034 H2 (TH-D) — a HILL blocks sight: the ground trace over the height grid (opaque). Without a grid the ground is
             //   flat and no line between two points above it can dip under it. Under the ground at either end = malformed, ignored.
@@ -591,6 +600,15 @@ namespace Fdp.Toolkit.Terrain
         /// asks <see cref="SegmentBlocked"/>, which allocates nothing.</remarks>
         public TraceResult QuerySight(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            var r = QuerySightCore(from, to, doors);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_QuerySight, t0);
+            return r;
+        }
+        private static readonly int S_QuerySight = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QuerySight");   // ⭐ CE-3427
+
+        private TraceResult QuerySightCore(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
             var crossed = new List<Crossing>();
             var a = new Vector2(from.X, from.Y);
             var b = new Vector2(to.X, to.Y);
@@ -697,6 +715,14 @@ namespace Fdp.Toolkit.Terrain
         /// <inheritdoc cref="QueryFire(Vector3, Vector3, DoorStates?)"/>
         /// <param name="into">Cleared, then filled — a caller tracing every round each tick reuses one list.</param>
         public void QueryFire(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            QueryFireCore(from, to, into, doors);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_QueryFire, t0);
+        }
+        private static readonly int S_QueryFire = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QueryFire");   // ⭐ CE-3427
+
+        private void QueryFireCore(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null)
         {
             into.Clear();
             var a = new Vector2(from.X, from.Y);

@@ -345,6 +345,15 @@ namespace Fdp.Toolkit.Combat.Systems
         private void BreachDoors(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
             TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — it scans every door of the terrain per detonation
+            BreachDoorsCore(repo, in evt, w, burst, terrain, doors, record);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_BreachDoors, t0);
+        }
+        private static readonly int S_BreachDoors = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("doors.BreachDoors");
+
+        private void BreachDoorsCore(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
+            TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
+        {
             if (terrain == null || terrain.Doors.Count == 0 || w.BlastLethalRadiusM <= 0f || !repo.Bus.IsRegistered<DoorCommandEvent>()) return;
             for (int i = 0; i < terrain.Doors.Count; i++)
             {

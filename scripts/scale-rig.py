@@ -295,6 +295,9 @@ def main():
     ap.add_argument("--load-timeout", type=float, default=1800.0)
     ap.add_argument("--write-only", action="store_true")
     ap.add_argument("--json", default=None, help="also write the report as JSON here")
+    ap.add_argument("--record", action="store_true", help="record the live run (default: OFF — the recorder is not what the rig measures, CE-3427)")
+    ap.add_argument("--keep", action="store_true", help="leave the nodes running after the report (to inspect them; stop with perf-stress stop-all)")
+    ap.add_argument("--queries", type=int, default=15, help="the most expensive world queries listed per node (CE-3427)")
     ap.add_argument("--windowed", action="store_true",
                     help="start the nodes with their window (default --headless: a windowed node's software-GL draw on Xvfb took 3 cores idle)")
     a = ap.parse_args()
@@ -317,6 +320,9 @@ def main():
     try:
         for mode, port in NODES:
             print("  " + (ps.node("start", mode, port, 0, 0).strip() or f"{mode} {port}?"))
+        # ⭐ CE-3427 — recording OFF unless asked (CE-4090 run setting): the recorder's cost is not the terrain's
+        ps.node("post", NODES[0][1], "/run-settings", json.dumps({"recordLiveRuns": bool(a.record)}))
+        report["recorded"] = bool(a.record)
         t0 = time.time()
         ps.node("post", NODES[0][1], "/scenario/load/live", json.dumps({"name": name, "waitForReady": False, "startPaused": False}))
         ready = False
@@ -356,6 +362,8 @@ def main():
             report["verdict"] = "INVALID — the sim did not advance in the warm-up"
             return finish(report, a.json, 2)
         f1 = {p: ps.node_work(p)[1] for _, p in NODES}
+        for _, p in NODES:   # ⭐ CE-3427 — the query timings cover the measured window only
+            ps.get(p, "/diagnostics/queries?reset=true")
         movers = sample_ids(NODES[2][1], 12)
         p1 = positions(NODES[2][1], movers)
         s1, w1 = sim(), time.time()
@@ -376,7 +384,8 @@ def main():
                 "work_ms": round(work, 2), "garbage_b": round(gb, 0), "frames_per_s": round((frames - f1[port]) / max(1e-6, w2 - w1), 1),
                 "peak_gb": round((proc.get("peakWorkingSetBytes") or 0) / 2**30, 2), "heap_gb": round((proc.get("managedHeapBytes") or 0) / 2**30, 2),
                 "gc": [proc.get("gen0"), proc.get("gen1"), proc.get("gen2")], "entities": st.get("entityCount"),
-                "top_ms": [[round(ms, 2), n] for ms, _, n in top[:8]], "top_b": [[round(b), n] for b, n in gtop[:8] if b > 0]}
+                "top_ms": [[round(ms, 2), n] for ms, _, n in top[:8]], "top_b": [[round(b), n] for b, n in gtop[:8] if b > 0],
+                "queries": queries(port, (frames - f1[port]) / max(1e-6, w2 - w1), a.queries)}
         nodes = {m: n for m, n in report["nodes"].items() if m != "orchestrator"}
         report["worst"] = {"work_ms": max(n["work_ms"] for n in nodes.values()), "garbage_b": max(n["garbage_b"] for n in nodes.values()),
                            "peak_gb": max(n["peak_gb"] for n in report["nodes"].values())}
@@ -389,13 +398,27 @@ def main():
         print_table(report)
         return finish(report, a.json, 0)
     finally:
-        ps.node("stop-all")
+        if a.keep:
+            print("  --keep: the nodes are still running (" + ", ".join(f"{m} :{p}" for m, p in NODES) + ")")
+        else:
+            ps.node("stop-all")
+
+
+def queries(port, fps, n):
+    """⭐ CE-3427 — the node's most expensive world queries over the measured window: [ms per frame, calls per frame, avg µs, max µs, name]."""
+    d = ps.get(port, "/diagnostics/queries") or {}
+    rows = []
+    for q in (d.get("queries") or [])[:n]:
+        per_s = q.get("msPerSecond") or 0.0
+        rows.append([round(per_s / max(fps, 1e-6), 3), round((q.get("perSecond") or 0.0) / max(fps, 1e-6), 2),
+                     q.get("avgUs"), q.get("maxUs"), q.get("name")])
+    return rows
 
 
 def print_table(r):
     b = r["budget"]
     print(f"\n== {r['terrain']}: {r['men']} men, {r['vehicles']} vehicles, {r['aircraft']} aircraft, {r['sides']} side(s) ({r['build']}, {r['machine']}) — "
-          f"real-time factor {r.get('realtime_factor')}, sampled movers moved {r.get('moved')}")
+          f"real-time factor {r.get('realtime_factor')}, sampled movers moved {r.get('moved')}, recorded: {r.get('recorded')}")
     print(f"  load {r['load_s']} s (≤ {b['load_s']:g} warm)")
     print(f"  {'node':<13}{'work ms/frame':>14}{'garbage B/frame':>17}{'frames/s':>10}{'peak GB':>9}{'heap GB':>9}{'entities':>10}  gc 0/1/2")
     for m, n in r["nodes"].items():
@@ -404,6 +427,10 @@ def print_table(r):
             print(f"        {ms:8.2f} ms  {s}")
         for by, s in n["top_b"][:3]:
             print(f"        {by:8d} B   {s}")
+        if n.get("queries"):
+            print(f"        {'world queries':<34}{'ms/frame':>10}{'calls/frame':>13}{'avg µs':>10}{'max µs':>10}")
+            for ms, calls, avg, mx, name in n["queries"]:
+                print(f"        {name:<34}{ms:>10.3f}{calls:>13.2f}{avg:>10.1f}{mx:>10.0f}")
     print(f"  budgets: " + "  ".join(f"{k} {'✅' if v else '⛔'}" for k, v in r["checks"].items()) + f"  ⇒ {r['verdict']}")
 
 

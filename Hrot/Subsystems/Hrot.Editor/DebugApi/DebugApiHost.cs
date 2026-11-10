@@ -1979,6 +1979,10 @@ namespace Hrot.Editor.DebugApi
 
             // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost
             //    node) answers for its OWN kernel. 📄 DESIGN_Mcp_Diagnostics_Federation §1/§2.2.
+            // ⭐ CE-3427 — what each world query costs in this PROCESS (terrain traces, navmesh, EQS templates and tests, cover, door scans)
+            _routes.Add(new("GET", "/diagnostics/queries", ctx => RunMainResult(s =>
+                Ok(s.GetQueryTimings(string.Equals(ctx.Query("reset"), "true", StringComparison.OrdinalIgnoreCase))))));
+
             _routes.Add(new("GET", "/diagnostics/architecture", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) = s.GetArchitecture(ctx.Query("subsystem"));

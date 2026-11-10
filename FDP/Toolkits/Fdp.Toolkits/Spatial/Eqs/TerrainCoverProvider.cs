@@ -256,6 +256,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <inheritdoc/>
         public int GetCoverPointsInRadius(Vector2 center, float radius, Span<CoverPoint> results, CoverKind kind)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427
+            int n = GetCoverPointsInRadiusCore(center, radius, results, kind);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Cover, t0);
+            return n;
+        }
+        private static readonly int S_Cover = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("cover.PointsInRadius");
+
+        private int GetCoverPointsInRadiusCore(Vector2 center, float radius, Span<CoverPoint> results, CoverKind kind)
+        {
             if (results.Length == 0 || radius <= 0f) return 0;
             Span<float> dist = results.Length <= 256 ? stackalloc float[results.Length] : new float[results.Length];
             int count = 0;

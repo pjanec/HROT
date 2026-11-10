@@ -241,6 +241,36 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3427</c> — <c>GET /diagnostics/queries[?reset=true]</c>: each world query's calls and time since the last reset
+        /// (<see cref="Fdp.Toolkit.Diagnostics.QueryTimings"/>), the most time first. <c>msPerSecond</c> is the time per second of wall clock
+        /// summed over every thread (divide by the frames per second for a per-frame cost). <c>reset=true</c> answers, then zeroes.
+        /// </summary>
+        public JsonNode GetQueryTimings(bool reset)
+        {
+            var (rows, seconds) = Fdp.Toolkit.Diagnostics.QueryTimings.Snapshot();
+            var list = new JsonArray();
+            foreach (var r in rows)
+                list.Add(new JsonObject
+                {
+                    ["name"]        = r.Name,
+                    ["calls"]       = r.Calls,
+                    ["perSecond"]   = Math.Round(r.Calls / Math.Max(seconds, 1e-6), 1),
+                    ["totalMs"]     = Math.Round(r.TotalMs, 2),
+                    ["msPerSecond"] = Math.Round(r.TotalMs / Math.Max(seconds, 1e-6), 3),
+                    ["avgUs"]       = Math.Round(r.AvgUs, 2),
+                    ["maxUs"]       = Math.Round(r.MaxUs, 1),
+                });
+            if (reset) Fdp.Toolkit.Diagnostics.QueryTimings.Reset();
+            return new JsonObject
+            {
+                ["enabled"] = Fdp.Toolkit.Diagnostics.QueryTimings.Enabled,
+                ["seconds"] = Math.Round(seconds, 2),
+                ["queries"] = list,
+                ["note"]    = "Per PROCESS (a --mode all process sums its subsystems). Nested slots overlap: a world.Trace.* includes its terrain.* call, eqs.template:* includes its eqs.gen/eqs.test, nav.PathCosts may include nav.PlanPath fallbacks.",
+            };
+        }
+
+        /// <summary>
         /// <c>GET /diagnostics/architecture[?subsystem=SimHost]</c> — this node's modules, systems and
         /// translators, per subsystem.
         /// </summary>

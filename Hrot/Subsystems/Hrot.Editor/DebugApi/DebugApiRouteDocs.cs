@@ -851,6 +851,20 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{\"sound\":true}",
             ExampleGist: "turn the sound on"),
+        [("GET", "/diagnostics/queries")] = new RouteDoc(
+            Tool:    "get_query_timings",
+            Group:   "Y — node diagnostics",
+            Summary: "This PROCESS's world-query costs (CE-3427): terrain traces, navmesh, EQS templates / generators / tests, cover lookup, door scans — calls and time since the last reset, the most time first.",
+            Returns: "{ enabled, seconds, queries[{ name, calls, perSecond, totalMs, msPerSecond, avgUs, maxUs }], note }",
+            Hint:    "Optional: reset=true (answer, then zero the counters). Example: get_query_timings({reset:\"true\"})",
+            Params: new RouteParam[]
+            {
+                new("reset", "string", false, "true = zero the counters after answering"),
+            },
+            Notes: new[]
+            {
+                "Off with HROT_QUERY_TIMINGS=0. Slots nest (world.Trace.* includes terrain.*); msPerSecond sums every thread.",
+            }),
         [("GET", "/diagnostics/architecture")] = new RouteDoc(
             Tool:    "get_architecture_diagnostics",
             Group:   "Y — node diagnostics",

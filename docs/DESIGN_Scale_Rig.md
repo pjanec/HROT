@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (L-2, CE-4364) — baselines below; L-4 adds its findings to §5
-updated: 2026-11-09 (backend — first version)
-current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4)
+updated: 2026-11-10 (§6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
+current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost)
 related-designs:
   - PLAN_Large_Terrain.md — P-0 is this rig; §8 the budgets (R-4192)
   - DESIGN_Evaluation_Cost_And_Cadence.md §11 — perf-stress.py, whose cluster machinery the rig imports; §0e the garbage tables
@@ -225,3 +225,44 @@ sequenceDiagram
 | `BrainTickSystem` 14.6 ms (cgf) | behaviors (the brain) | CE-3425 |
 | `CycloneEgressSystem` 8.8 / 9.0 ms + `CycloneNetworkIngressSystem` 0.15 MB / frame | network egress (backend) | CE-3425 |
 | the warm load ≈ 36 s on a 4-core VM shared by three nodes (≈ 19.5 s alone) | measured on a 1-machine cluster; the budget is per node on its own machine | — |
+
+## 6. ⭐ The world-query timings — the TERRAIN's cost apart from the logic's *(`CE-3427`, backend `2026-11-10`; build-state: BUILT)*
+
+> 🔒 **User, `2026-11-10`:** *"focus on terrain dependent stuff like the eqs and sensor stuff timing only with 1000 men moving and fighting … We can run
+> without the recorder. Brain costs can be ignored."*
+
+```mermaid
+graph TD
+  subgraph askers["who asks (their SYSTEM time: the scheduler profiler, §5)"]
+    BR["brains / Muscle"]; SE["perception sensors"]; EQ["EqsSolverSystem"]; KI["CarKinematics / DoorPassage"]; AE["AreaEffectSystem"]
+  end
+  subgraph slots["QueryTimings slots (per thread, summed on read)"]
+    WT["world.Trace.Sight / Fire / Sound"]; TP["terrain.SegmentBlocked / QuerySight / QueryFire"]
+    NV["nav.PlanPath / PathCosts / NearestPoly / SampleNavmeshPoints"]
+    ES["eqs.sensor (all) · eqs.template:Gen#id · eqs.gen:Type · eqs.test:Type · eqs.DangerArea · eqs.WorldSurvey"]
+    CV["cover.PointsInRadius"]; DR["doors.NextDoorAhead · doors.BreachDoors"]
+  end
+  BR --> WT & NV & CV
+  SE --> WT & TP
+  EQ --> ES --> NV & TP & CV
+  KI --> WT & DR
+  AE --> WT & DR
+  WT --> TP
+  slots --> API["GET /diagnostics/queries[?reset=true]"] --> RIG["scale-rig.py: ms / frame per query, per node"]
+```
+*What the picture shows: a query is timed WHERE IT IS ANSWERED, whoever asks — so a sight line asked by a brain is the terrain's cost, not
+the brain's. Slots nest (a `world.Trace.Fire` contains its `terrain.QueryFire`); the doors' two slots are the whole-terrain scans found by
+reading the code (§6 table).*
+
+| # | decision | why |
+|---|---|---|
+| Q-1 | `Fdp.Toolkit.Diagnostics.QueryTimings`: named slots, a per-THREAD buffer, summed on read; two `Stopwatch` reads per call | the scheduler's profiler times systems, not what they ask; ⛔ a shared `Interlocked` counter would contend across the parallel systems. 0 B per steady call (rail, red-proved) |
+| Q-2 | timed where ANSWERED (terrain, navmesh, EQS, cover, door scans), not where asked | one hook per query serves every asker; brain time stays out of it |
+| Q-3 | the rig runs with **recording OFF** (`/run-settings recordLiveRuns:false`, CE-4090) unless `--record` | the recorder (18.7 ms on cgf, §5.4) is not the terrain's; a live load without recording runs the same systems |
+| Q-4 | `--keep` leaves the nodes up after the report | to inspect what a measurement found (CE-3424's stuck movers) |
+
+**Not timed, on purpose:** `GroundHeightAt` / `SurfaceZ` (called per entity per frame; the timer's two reads would cost a large share of
+the call). **Whole-terrain scans found by reading** (timed now, not yet measured at scale): `EnterableShelter` (every door per query —
+its generator's slot), `DoorPassageSystem.NextDoorAhead` (every door per door mark), `WorldSurveySolve` (every building), `BreachDoors`
+(every door per detonation).
+

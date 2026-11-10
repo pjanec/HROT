@@ -76,7 +76,22 @@ namespace Fdp.Toolkit.Terrain
             return World.QuerySight(from, to, Doors).Transmittance * cloud < TerrainWorld.SightThreshold;
         }
 
+        // ⭐ CE-3427 — the world query's cost per purpose (who asks is the caller's slot; the terrain primitives have their own)
+        private static readonly int[] S_Trace =
+        {
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Sight"),
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Fire"),
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Sound"),
+        };
+
         public void Trace(Vector3 from, Vector3 to, TracePurpose purpose, List<TraceCrossing> into)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            TraceCore(from, to, purpose, into);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Trace[(int)purpose < S_Trace.Length ? (int)purpose : 0], t0);
+        }
+
+        private void TraceCore(Vector3 from, Vector3 to, TracePurpose purpose, List<TraceCrossing> into)
         {
             into.Clear();
             switch (purpose)
