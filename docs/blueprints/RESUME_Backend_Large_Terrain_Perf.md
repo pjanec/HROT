@@ -28,6 +28,7 @@ related-designs:
 | ⭐ the cold bake is **GC-bound**: 322 s workstation GC → 127 s server GC with 4 heaps (peak 2.5 GB) | ✅ **G-1 BUILT** (user: yes) — cold load 119 s, peak 2.74 GB (§7.6) |
 | the rig's frame figure added background runs: SimHost frame **36 ms** (not 173); manual systems now named by their module | done |
 | P-1 parallel EQS | ✅ **BUILT** — run 116 → 42 ms (1 000 men), 211 → 81 ms (3 000), 1.8× solves at 3 000 ([§7.7](../DESIGN_Scale_Rig.md)); ⏭ next limits N-1 the SimHost frame, N-2 the band shares (raise the budget?) |
+| N-2 a bigger EQS budget · N-1 the SimHost frame | ⭐ budget KEPT at 150 k (more answers cost the main thread's egress); the SimHost egress is 17.6 of 36.5 ms (`WorldPos` 8.4), a full replica syncs in 0.86 ms ([§7.8](../DESIGN_Scale_Rig.md)) | ⏭ **the state egress on a per-frame replica** (user's idea): design, switchable at runtime; events stay on the frame |
 
 🔒 **User, `2026-11-10`:** *"I will continue with this on another session on a windows machine with more cores. So the resumption should
 instruct to make the measurements and continue optimizing."* · earlier: *"focus on terrain dependent stuff like the eqs and sensor stuff
