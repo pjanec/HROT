@@ -14,7 +14,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     /// The area boundary is drawn as a closed polyline using vertices from the entity's
     /// <see cref="EditablePolyline.Points"/> list.
     /// </summary>
-    [GizmoProjector(typeof(TkbIdentity))]
+    [GizmoProjector(typeof(TkbIdentity), DrawsOffScreen = true)]
     public sealed class TacticalAreaGizmo : IStatelessGizmo
     {
         // Olive-yellow outline to visually distinguish areas from routes.

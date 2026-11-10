@@ -7,7 +7,7 @@ using Fdp.Toolkit.Perception.Components;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
-    [GizmoProjector(typeof(SimTransform), typeof(PerceptionReceptor), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception)]
+    [GizmoProjector(typeof(SimTransform), typeof(PerceptionReceptor), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception, DrawsOffScreen = true)]
     public sealed class VisibilityConeGizmo : IStatelessGizmo
     {
         private const int ArcSegments = 8;

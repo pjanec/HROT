@@ -22,6 +22,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// </summary>
         public Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags Family { get; set; }
 
+        /// <summary>
+        /// ⭐ CE-4388 (docs/DESIGN_Map_View_Filter.md D-3, R-1049) — the coarsest map scale this gizmo still draws at, in metres per screen pixel; coarser ⇒ the rule
+        /// is skipped for the whole frame (checked once per rule). 0 = any zoom (the default: nothing changes until a projector says so).
+        /// </summary>
+        public float MaxMetresPerPixel { get; set; }
+
+        /// <summary>
+        /// ⭐ CE-4388 (D-4) — this gizmo draws for entities OUTSIDE the view (a line from an off-screen unit to somewhere on screen, an area round an off-screen
+        /// anchor): it is exempt from the view test and sees every matching entity, as before.
+        /// </summary>
+        public bool DrawsOffScreen { get; set; }
+
         /// <param name="requiredComponents">One or more component types (must be registered
         /// with <see cref="Fdp.Core.ComponentTypeRegistry"/> before
         /// <c>StatelessGizmoRegistry.Register</c> is called).</param>

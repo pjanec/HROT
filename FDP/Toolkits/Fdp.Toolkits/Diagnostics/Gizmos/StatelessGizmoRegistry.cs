@@ -17,6 +17,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>Position of this rule in the registry; indexes the per-frame
         /// global-visibility cache.</summary>
         public int RuleIndex;
+        /// <summary>⭐ CE-4388 (D-3) — the projector's <see cref="GizmoProjectorAttribute.MaxMetresPerPixel"/> (0 = any zoom).</summary>
+        public float MaxMetresPerPixel;
+        /// <summary>⭐ CE-4388 (D-4) — the projector's <see cref="GizmoProjectorAttribute.DrawsOffScreen"/>.</summary>
+        public bool DrawsOffScreen;
     }
 
     /// <summary>
@@ -86,7 +90,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 RequiredMask     = mask,
                 VisibilityPolicy = visibilityPolicy ?? AlwaysVisiblePolicy.Instance,
                 RuleIndex        = _rules.Count,
+                // ⭐ CE-4388 — the view filter's per-rule settings, read once from the projector's attribute
+                MaxMetresPerPixel = ViewSettingsOf(projector).MaxMetresPerPixel,
+                DrawsOffScreen    = ViewSettingsOf(projector).DrawsOffScreen,
             });
+        }
+
+        private static (float MaxMetresPerPixel, bool DrawsOffScreen) ViewSettingsOf(IStatelessGizmo projector)
+        {
+            var attr = (GizmoProjectorAttribute?)Attribute.GetCustomAttribute(projector.GetType(), typeof(GizmoProjectorAttribute));
+            return attr == null ? (0f, false) : (attr.MaxMetresPerPixel, attr.DrawsOffScreen);
         }
 
         /// <summary>

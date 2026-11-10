@@ -20,7 +20,7 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// the map origin, member lines from origin to origin and the danger box Y-up in a Z-up world; written from their intent.
 /// 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5b.
 /// </summary>
-[GizmoProjector(typeof(UnitRoster), typeof(SquadCognitiveState), typeof(SimTransform), Family = AiOverlayFlags.SquadAssignment)]
+[GizmoProjector(typeof(UnitRoster), typeof(SquadCognitiveState), typeof(SimTransform), Family = AiOverlayFlags.SquadAssignment, DrawsOffScreen = true)]
 public sealed class SquadGizmo : IStatelessGizmo
 {
     private static readonly Rgba32[] ElementColors =

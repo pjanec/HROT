@@ -8,7 +8,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 {
     // GZ058: mirrors MapOverlayRenderLayer border rendering via StatelessGizmoSystem.
     // Emits Line primitives for each polygon edge of EditablePolyline entities.
-    [GizmoProjector(typeof(SimTransform), typeof(MapOverlayStyle))]
+    [GizmoProjector(typeof(SimTransform), typeof(MapOverlayStyle), DrawsOffScreen = true)]
     public sealed class MapOverlayGizmo : IStatelessGizmo
     {
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
