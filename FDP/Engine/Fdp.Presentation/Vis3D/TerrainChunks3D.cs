@@ -303,6 +303,7 @@ namespace Fdp.Toolkit.Vis3D
                 if (veg != null) { veg.LastDrawn = _frame; Raylib.DrawMesh(veg.Mesh, material, Matrix4x4.Identity); tris += veg.Triangles; meshes++; }
             }
             TrianglesDrawn = tris; MeshesDrawn = meshes;
+            TerrainDrawStats.Record(tris, meshes, ResidentBytes);   // ⭐ CE-4385 — the process' last drawn chunked terrain, for GET /diagnostics/render
         }
 
         /// <summary>The eye (HROT space) and the six frustum planes (raylib space) from rlgl's current matrices — the camera of THIS pass, on screen or in a film.</summary>
@@ -377,5 +378,18 @@ namespace Fdp.Toolkit.Vis3D
             }
             return true;
         }
+    }
+}
+
+namespace Fdp.Toolkit.Vis3D
+{
+    /// <summary>⭐ CE-4385 (handoff L-3) — the LAST chunked terrain drawn in this process (one window): triangles, meshes (= draw calls) and resident mesh bytes,
+    /// read by the render telemetry (<c>GET /diagnostics/render</c>).</summary>
+    public static class TerrainDrawStats
+    {
+        public static int Triangles { get; private set; }
+        public static int Meshes { get; private set; }
+        public static long ResidentBytes { get; private set; }
+        internal static void Record(int triangles, int meshes, long residentBytes) { Triangles = triangles; Meshes = meshes; ResidentBytes = residentBytes; }
     }
 }

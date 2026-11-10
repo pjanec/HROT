@@ -365,6 +365,7 @@ class Program
             //   why. ⭐ The default lives in ONE place (the [Option] attribute); this is only the
             //   unwrap, and it agrees with it.
             ResetLayoutOnRun = config.ResetLayout ?? true,
+            TargetFps = config.TargetFps,   // ⭐ CE-4385 — --target-fps 0 measures the uncapped frame cost
             NodeIdResolver = ResolveNodeId,   // ⭐ C1
             NodeNameResolver = NodeNameOf,   // ⭐ CE-3354 ② — the --node-name(s) of each subsystem; else <subsystem>-<nodeId> (made HERE, so --map-in-load can name this process' own nodes)
         };
