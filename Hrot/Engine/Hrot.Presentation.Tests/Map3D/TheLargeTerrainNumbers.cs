@@ -89,5 +89,28 @@ public sealed class TheLargeTerrainNumbers
         }
     }
 
+    /// <summary>⭐ CE-4376 (D-2) — the 2-D plan on scale-1: its build, its size, and what a frame's stroke cull costs at the whole-terrain zoom and close in.</summary>
+    [SkippableFact]
+    public void ScaleOne_The2DPlansNumbers()
+    {
+        Skip.IfNot(Environment.GetEnvironmentVariable("HROT_MEASURE") == "1", "opt-in: HROT_MEASURE=1");
+        var folder = Folder();
+        Skip.If(folder == null, "assets/terrain/scale-1 is not generated");
+        var world = TerrainWorldParser.Parse(File.ReadAllText(Directory.GetFiles(folder!, "*.world.geojson").Single()), "scale-1", TerrainAssets.ForFolder(folder!));
+        var sw = Stopwatch.StartNew();
+        var plan = Hrot.UI.Common.Map2D.TerrainLayer2D.PlanOf(world);
+        _out.WriteLine($"2-D plan: built in {sw.Elapsed.TotalSeconds:F1} s; {plan.FillTriangles:N0} fill triangles ({(long)plan.FillTriangles * 3 * 16 / (1 << 20):N0} MB of vertices); {plan.Strokes.Length:N0} outlines + labels; peak {Peak()}");
+        var into = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive[plan.Strokes.Length];
+        var lo = world.BoundsMin; var hi = world.BoundsMax; var c = (lo + hi) * 0.5f;
+        foreach (var (name, view, zoom) in new[] { ("whole terrain (1280 px)", (lo, hi), 1280f / (hi.X - lo.X)), ("close (300 m)", (c - new Vector2(150), c + new Vector2(150)), 1280f / 300f) })
+        {
+            int n = 0; long a0 = GC.GetAllocatedBytesForCurrentThread();
+            sw.Restart();
+            for (int i = 0; i < 20; i++) n = Hrot.UI.Common.Map2D.TerrainLayer2D.Cull(plan, view, zoom, into);
+            double ms = sw.Elapsed.TotalMilliseconds / 20;
+            _out.WriteLine($"2-D {name}: cull {ms:F2} ms a frame, {n:N0} strokes to draw, {(GC.GetAllocatedBytesForCurrentThread() - a0) / 20} B a frame");
+        }
+    }
+
     private static string Peak() => $"{Process.GetCurrentProcess().PeakWorkingSet64 / (1 << 20):N0} MB working set";
 }

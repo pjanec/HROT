@@ -134,6 +134,33 @@ public sealed class TheTerrainChunksLookTests
         }
     }
 
+    /// <summary>⭐ CE-4377 — an IMPORTED terrain's houses up close (<c>assets/terrain/imported-tiny</c> from hrot-terrain-synth tiny + hrot-terrain-import, when present):
+    /// the frames for the roofs and facades.</summary>
+    [SkippableFact]
+    public void AnImportedTerrainsHouses_UpClose()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        Skip.IfNot(Environment.GetEnvironmentVariable("HROT_MEASURE") == "1", "opt-in: HROT_MEASURE=1");
+        var folder = FolderOf("imported-tiny");
+        Skip.If(folder == null, "assets/terrain/imported-tiny is not generated");
+        using var frame = UiFrameHarness.Begin(960, 600);
+        LitShader.Reset();
+        var t = Load(folder!, "imported-tiny");
+        var world = Map3DTests.WorldWith(t);
+        var house = t.Prisms.Where(p => p.Label != null && p.Label.EndsWith("-roof", StringComparison.Ordinal)).OrderByDescending(p => (p.Max - p.Min).LengthSquared()).First();
+        var c = (house.Min + house.Max) * 0.5f;
+        float gz = t.GroundHeightAt(c.X, c.Y), span = (house.Max - house.Min).Length();
+        using var layer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        int k = 0;
+        foreach (var (dx, dy, up) in new[] { (1.6f, -1.2f, 0.7f), (-1.4f, 1.5f, 1.4f) })
+        {
+            var cam = new Camera3D { Position = HrotToRaylib.Position(new Vector3(c.X + (dx * span), c.Y + (dy * span), gz + (up * span))), Target = HrotToRaylib.Position(new Vector3(c, gz + 3f)),
+                                     Up = Vector3.UnitY, FovY = 55f, Projection = CameraProjection.Perspective };
+            Shoot(frame, layer, cam, $"terrain-imported-house-{k++}.png");
+        }
+        _out.WriteLine($"imported-tiny: {t.Prisms.Count} prisms, {t.Prisms.Count(p => p.Label?.EndsWith("-roof", StringComparison.Ordinal) == true)} roof caps; house {house.Label} {span:F0} m");
+    }
+
     /// <summary>scale-1 (when generated) drawn by chunk at the three cameras — the frames for the status file, and the triangles drawn each.</summary>
     [SkippableFact]
     public void ScaleOne_DrawnByChunk_AtThreeCameras()
