@@ -1183,5 +1183,20 @@ sequenceDiagram
 | ⚠ **the residual risk — a branch that FINISHES on a stale choice** | the tree re-scored the choice on the same tick the chosen branch could finish (the `ChooseOption` arm runs before the work arm in the `Parallel`). Now a branch that finishes while nothing woke the man (no `SensorChangedEvent`) sees the choice up to 0.2 s old — 📌 `TacticsTreesTests.CE3084_OutOfSight_…`: arriving at a flank ENDS the order unless the sighting from the flank (perception's `Acquired`, `ActiveSensorTracksUpdateSystem.cs:95`) wakes the decision first. In production the sighting comes with that event, so it re-scores. ⭐ The scenario regression at this head is the guard; if a scenario shows it, the tree-level fix is behaviors' (re-score when the running branch completes) |
 | the rails that moved | `TacticsTreesTests`: 11 waits of 3–4 ticks after a new EQS answer became one cadence period (`Decide`, 14 × 16 ms); the flank rail publishes the `Acquired` its sighting would bring. The assertions did not change |
 
+**📐 Measured with the cadence** (`30a45c708`, the same rig, this 4-core VM):
+
+| per brain tick | before (§11g-1) | with the cadence |
+|---|---|---|
+| **1 000 men — the whole tick** | **20.5 ms** | **10.5 ms** (profiler: 10.2 ms) |
+| — `Combat posture` scorings / runs | 280 / 280 | 153 / 446 |
+| — `Threat ranking` candidate scorings | 2 430 | 253 |
+| **3 000 men — the whole tick** | 130 ms | **102 ms** |
+
+⚠ **Why 3 000 gains less — the cadence is in SIM time and the sim keeps real time** (real-time factor 1.0): the CGF frame is 290 ms at 3 000 men,
+so each brain tick advances ~0.66 s of sim time and every tick is already past its 0.2 s — every call re-scores, as specified. At 1 000 (63 ms
+frames, ~0.13 s a tick) about a third re-score; on the budget's 60 Hz frame (R-4192) it is ~1 in 12. ⇒ the saving grows as the frame shrinks.
+Wakes are rare (`cadence.wake:<kind>` counters: ~0.6 a frame at 3 000 — Hit, SniperFire, SquadUnderFire, Acquired); they are not what keeps
+3 000 scoring.
+
 **Rails:** `UtilityScorerTests.CE4395_ACadencedDecision_IsScoredOncePerPeriod_AndAtOnceWhenWoken` (🔴 red-proved: reuse disabled ⇒ the read
 count moves) · `CE4395_TheCombatDecisions_AreCadencedAt0_2s_AndNothingElseIs`.

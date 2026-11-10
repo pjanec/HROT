@@ -82,6 +82,14 @@ namespace Fdp.Toolkit.Utility
 
         internal void CountReuse() => Reused++;
 
+        private static readonly int[] s_wakeSlots = new int[256];
+        private static int WakeSlot(SensorChange what)
+        {
+            int k = (byte)what;
+            if (s_wakeSlots[k] == 0) s_wakeSlots[k] = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("cadence.wake:" + what) + 1;
+            return s_wakeSlots[k] - 1;
+        }
+
         private static long Key(Entity self, int decisionId) => ((long)decisionId << 32) | (uint)self.Index;
 
         /// <summary>Did <paramref name="self"/>'s senses change this frame? Built once per frame from the bus (no allocation once grown).</summary>
@@ -96,6 +104,7 @@ namespace Fdp.Toolkit.Utility
                     {
                         int i = evt.Unit.Index;
                         if (i < 0) continue;
+                        if (Fdp.Toolkit.Diagnostics.QueryTimings.Enabled) Fdp.Toolkit.Diagnostics.QueryTimings.Add(WakeSlot(evt.What), 1);   // measurement: which changes wake
                         if (i >= _wokenAt.Length) System.Array.Resize(ref _wokenAt, System.Math.Max(256, (i + 1) * 2));
                         _wokenAt[i] = _wakeStamp;
                     }
