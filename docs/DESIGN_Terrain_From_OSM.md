@@ -295,7 +295,11 @@ classDiagram
   class OsmWizardModel { <<NEW · pure, no ImGui>> Step · Box GeoBox · Measure() · Options · NameState · Preview · Notes · Stages · Verdict · Failure · CanNext / NextReason · Next() Back() Cancel() Retry() Pump() }
   class WebMercator { <<NEW · pure>> ToPixel(lat,lon,zoom) · ToGeo(px,py,zoom) }
   class OsmMapView { <<NEW · ImGui child>> Centre · Zoom · Draw(model, layers) · box drag (8 handles) · zoom / fit · attribution }
-  class OsmTileTextures { <<NEW>> LRU of raylib textures; fetch on a worker, upload on the frame thread }
+  class OsmTileTextures { <<NEW>> the loader of the shared ImageCache: fetch on a worker, upload on the frame thread }
+  class ImageCache~TKey~ { <<existing, NodeEditor.UI — generalised CE-1468>> THE texture LRU; pending / failed / loaded; PickerImageCache = ImageCache~string~ }
+  class OsmTileSource { <<NEW, Hrot.Terrain.Osm, CE-4381>> ITileSource: ≤ 2 in flight, header-honouring disk cache }
+  class NominatimPlaceSearch { <<NEW, Hrot.Terrain.Osm, CE-4381>> IPlaceSearch: ≤ 1 a second, on Enter only }
+  class HttpRetry { <<existing, §14.8>> the ONE client + retry policy (User-Agent) }
   class OsmPreviewLayers { <<NEW>> ten toggles (C-11) }
   class OsmTerrainWizardWindow { <<NEW · the modal>> step bar · map · right panel per step · footer }
   class IOsmTerrainPipeline { <<existing contract>> }
@@ -314,6 +318,11 @@ classDiagram
   OsmMapView ..> TerrainPlan2D : colours
   OsmMapView ..> PolygonMath : footprints, woods
   OsmTileTextures --> ITileSource
+  OsmTileTextures --> ImageCache~TKey~
+  OsmTileSource ..|> ITileSource
+  NominatimPlaceSearch ..|> IPlaceSearch
+  OsmTileSource --> HttpRetry
+  NominatimPlaceSearch --> HttpRetry
   OsmWizardModel --> IOsmTerrainPipeline
   OsmWizardModel --> IPlaceSearch
   OsmWizardModel ..> ITerrainImporter : optional
@@ -354,10 +363,8 @@ graph TD
   WIN -->|"Pump() every frame: the worker's results, progress, tile uploads"| MODEL[OsmWizardModel]
   MODEL -->|"Task.Run + CancellationTokenSource"| PIPE["IOsmTerrainPipeline — OsmPipelines.Online: an OsmTerrainPipeline per area (CE-4373/4374)"]
   CLI["hrot-terrain-osm CLI"] -->|"the same composition"| PIPE
-  MODEL -.->|"optional"| IMP["ITerrainImporter — backend CE-4368"]
-  TILES["ITileSource / IPlaceSearch — coordinator"] --> WIN
-  classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33;
-  class IMP,TILES dead;
+  MODEL -->|"Import into HROT"| IMP["ITerrainImporter — TerrainImporter (CE-4368, composed CE-4378)"]
+  TILES["OsmTileSource / NominatimPlaceSearch — on the pipeline's ONE HttpRetry client (CE-4381)"] --> WIN
 ```
 *What the picture shows: the window ticks only through the frame overlay; the pipeline is composed in ONE place (`OsmPipelines`, shared with the CLI — netconvert's road
 builder is bound to one area, so it builds an `OsmTerrainPipeline` per area and shares the download cache); the red boxes are NOT on the tree yet — with neither tiles nor
@@ -384,7 +391,17 @@ the rails that measure it: [`STATUS_Ui_Osm_Wizard.md`](blueprints/batches/STATUS
 picker lists — and *Open in New Scenario* opens that picker with the new terrain selected (`NewAssetLauncher.OpenScenarioOn`). The terrain-name rule is ONE
 (`Hrot.Terrain.InputSet.TerrainName`), shared by the importer and the Options step (dots are no longer accepted). Rail `TheWizardImportsWithTheRealImporterTests`.
 
-⚠ **One duplicate, filed — [CE-1468](blueprints/Blueprint_Issues_Tracker.md):** `OsmTileTextures` is an LRU of uploaded textures like `PickerImageCache` (the pickers'). Not shared yet because that
+⭐ **CE-4381 (`2026-11-10`, E-1 of the "wizard live" handoff) — the real tiles and search; the item is enabled.** `OsmTileSource` (XYZ, the URL a setting `HROT_OSM_TILE_URL`,
+≤ 2 requests in flight, a disk cache under the OSM cache folder honouring `Cache-Control: max-age` / `Expires` — 7 days when none —, a stale tile revalidated with its
+`ETag` / `Last-Modified` and served when offline; no prefetch: only the tiles `OsmMapView` draws) and `NominatimPlaceSearch` (`jsonv2`, 8 results, ≤ 1 request a second,
+`boundingbox` → `GeoBox`; asked only from the search box's Enter), both on the pipeline's ONE `HttpRetry` client (its User-Agent; one retry for these interactive calls —
+the same policy, `retries: 1`). `HttpRetry` now passes a 304 through (a conditional request's answer; nothing else sends one). ⭐ **CE-1468 folded in:** the texture LRU is
+`ImageCache<TKey>` (`NodeEditor.UI/Picker/ImageCache.cs`) — `PickerImageCache` is its `string` form, `OsmTileTextures` its loader with a `(z, x, y)` struct key and a PENDING
+answer for a tile still downloading (no budget spent, asked again next frame). Rails: `MapServicesTests` (fake HTTP handler: URL, User-Agent, ≤ 2 in flight, cache hit,
+revalidation, offline, 1/s; opt-in live `HROT_OSM_LIVE=1`: tile 0/0/0 + "Kolín", measured green from the cloud VM) · `ImageCacheTests` · `TheWizardSearchesOnEnterOnlyTests` ·
+`TheTerrainFromOsmItemOnTheRealEditorTests`. ⚠ The two rows above about lone trees, the tooltip and the notes are E-2 (CE-4382).
+
+⛔ SUPERSEDED by the CE-1468 fold-in above — ⚠ **One duplicate, filed — [CE-1468](blueprints/Blueprint_Issues_Tracker.md):** `OsmTileTextures` is an LRU of uploaded textures like `PickerImageCache` (the pickers'). Not shared yet because that
 cache remembers a `null` load as failed forever (a downloading tile is "not yet") and keys by `string` (a per-frame allocation per tile). Graph INVENTORY re-run `2026-11-10`
 once the index was up: `search_graph` `.*Mercator.*` (1 — ours) · `.*Tile(Source|Cache|Texture|Provider|Fetch).*` (4 — ours + the navmesh `NavTileCache`, unrelated) ·
 `.*SlippyMap.*|.*MapTile.*|.*TileMap.*` (0) · `.*PlaceSearch.*|.*Geocod.*|.*Nominatim.*` (1 — the fake) · `.*TextureCache.*|.*ImageCache.*` (1 — `PickerImageCache`) — ⇒ the grep-only

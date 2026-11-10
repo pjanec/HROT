@@ -47,8 +47,8 @@ public sealed class HttpRetry
             try
             {
                 var resp = await _http.SendAsync(make(), HttpCompletionOption.ResponseHeadersRead, cancellation).ConfigureAwait(false);
-                if (resp.IsSuccessStatusCode) return resp;
                 var code = resp.StatusCode;
+                if (resp.IsSuccessStatusCode || code == HttpStatusCode.NotModified) return resp;   // ⭐ CE-4381 — a 304 answers a conditional request (the tile cache revalidating); no other caller sends one
                 if (resp.Headers.RetryAfter?.Delta is TimeSpan ra) wait = ra > TimeSpan.FromSeconds(60) ? TimeSpan.FromSeconds(60) : ra;
                 resp.Dispose();
                 last = $"answered {(int)code} {code}";
