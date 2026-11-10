@@ -235,7 +235,7 @@ namespace Fdp.Toolkit.Combat
         public static WarheadDto? WarheadOf(EntityRepository world, long ammo)
         {
             if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return null;
-            return Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(world.GetSingletonManaged<ITkbDatabase>(), ammo).Warhead;
+            return Fdp.Toolkit.Tkb.Parameters.ParameterResolver.WarheadOnly(world.GetSingletonManaged<ITkbDatabase>(), ammo);   // ⭐ CE-4395 B-3 — no provenance text
         }
 
         /// <summary>
@@ -319,7 +319,7 @@ namespace Fdp.Toolkit.Combat
         public static Penetrator PenetratorOf(ITkbDatabase? db, long ammo)
         {
             if (ammo == 0 || db == null) return Penetrator.Kinetic;
-            var w = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(db, ammo).Warhead;
+            var w = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.WarheadOnly(db, ammo);   // ⭐ CE-4395 B-3 — no provenance text
             return w?.Kind != WarheadKind.ShapedCharge ? Penetrator.Kinetic : w.Tandem ? Penetrator.Tandem : Penetrator.ShapedCharge;
         }
 

@@ -488,13 +488,13 @@ namespace Fdp.Toolkit.Utility
             float* scores  = stackalloc float[optionCount];
             int*   indices = stackalloc int[optionCount];
 
-            long tDecision = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — per decision, measurement only
+            long tDecision = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bDecision = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();          // ⭐ CE-4395 B-1 — per decision, measurement only
             for (int i = 0; i < optionCount; i++)
             {
                 indices[i] = i;
                 scores[i]  = EvaluateOption(repo, self, context, def.Options[i], trace, tick, (byte)i);
             }
-            if (tDecision != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DecisionSlot(def), tDecision);
+            if (tDecision != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DecisionSlot(def), tDecision, bDecision);
 
             // Insertion sort: descending score, ties broken by lower OptionId.
             InsertionSort(scores, indices, optionCount);
@@ -689,9 +689,9 @@ namespace Fdp.Toolkit.Utility
                 float raw = 0f;
                 if (UtilityInputReaderStore.TryGet(cons.InputId, out var reader) && reader != null)
                 {
-                    long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — per input, measurement only
+                    long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), b0 = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();          // ⭐ CE-4395 B-1 — per input, measurement only
                     raw = reader(in inputCtx);
-                    if (t0 != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(InputSlot(cons.InputId), t0);
+                    if (t0 != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(InputSlot(cons.InputId), t0, b0);
                 }
 
                 float norm     = raw;  // Phase 1: normalisation is identity

@@ -193,6 +193,28 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static bool Holding(EntityRepository world, Entity owner, Func<long, bool> each)
         {
+            var v = new FuncVisitor(each);
+            return Holding(world, owner, ref v);
+        }
+
+        /// <summary>⭐ <c>CE-4395</c> B-3 — what <see cref="Holding(EntityRepository, Entity, Func{long, bool})"/> visits, as a struct: the ONE
+        /// walk over the hands, with no delegate or closure per call (📐 <c>HoldsLethal</c> allocated ~225 B per call, 26 KB a frame at 1 000 men).</summary>
+        public interface IHeldAmmoVisitor
+        {
+            /// <summary>One munition kind in the hands; true stops the walk.</summary>
+            bool Visit(long ammo);
+        }
+
+        private readonly struct FuncVisitor : IHeldAmmoVisitor
+        {
+            private readonly Func<long, bool> _each;
+            public FuncVisitor(Func<long, bool> each) => _each = each;
+            public bool Visit(long ammo) => _each(ammo);
+        }
+
+        /// <summary><see cref="Holding(EntityRepository, Entity, Func{long, bool})"/> with a struct visitor (no allocation).</summary>
+        public static bool Holding<TVisitor>(EntityRepository world, Entity owner, ref TVisitor each) where TVisitor : struct, IHeldAmmoVisitor
+        {
             int index = MountIndex(world, owner);
             if (index < 0) return false;
             var mount = MountEntity(world, owner, index);
@@ -204,24 +226,31 @@ namespace Fdp.Toolkit.Combat
                 {
                     if (load.RoundsAt(i) <= 0) continue;
                     any = true;
-                    if (each(load.AmmoAt(i))) return true;
+                    if (each.Visit(load.AmmoAt(i))) return true;
                 }
                 if (any) return true;
             }
             if (index < WeaponAmmo.MaxMounts && world.IsComponentTypeRegistered<WeaponAmmo>() && world.HasComponent<WeaponAmmo>(owner))
             {
                 var wire = world.GetComponentRO<WeaponAmmo>(owner);
-                if (wire.LoadedOf(index) != 0 && wire.LoadedRoundsOf(index) > 0) { each(wire.LoadedOf(index)); return true; }
+                if (wire.LoadedOf(index) != 0 && wire.LoadedRoundsOf(index) > 0) { each.Visit(wire.LoadedOf(index)); return true; }
             }
             return any;
+        }
+
+        private struct LethalVisitor : IHeldAmmoVisitor
+        {
+            public EntityRepository World;
+            public bool Lethal;
+            public bool Visit(long ammo) => Lethal = ItemAppearances.IsLethal(World, ammo);
         }
 
         /// <summary>⭐ AW-9 — does <paramref name="owner"/> hold a LETHAL round in his hands (a live grenade)? Stones, a canister: no.</summary>
         public static bool HoldsLethal(EntityRepository world, Entity owner)
         {
-            bool lethal = false;
-            Holding(world, owner, ammo => lethal = ItemAppearances.IsLethal(world, ammo));
-            return lethal;
+            var v = new LethalVisitor { World = world };   // ⭐ CE-4395 B-3 — as the lambda did (the last kind visited decides; a lethal one stops the walk), without its closure
+            Holding(world, owner, ref v);
+            return v.Lethal;
         }
 
         private static void SetAmmo(ref AmmoLoadout load, int slot, long ammo)

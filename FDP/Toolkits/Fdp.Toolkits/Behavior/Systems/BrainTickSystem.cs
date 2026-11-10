@@ -123,9 +123,9 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            long tExecute = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — the whole tick, on the slots' basis
+            long tExecute = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bExecute = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();          // ⭐ CE-4395 B-1 — the whole tick, on the slots' basis
             try { ExecuteCore(view, deltaTime); }
-            finally { if (tExecute != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Execute, tExecute); }
+            finally { if (tExecute != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Execute, tExecute, bExecute); }
         }
 
         private void ExecuteCore(ISimulationView view, float deltaTime)
@@ -171,9 +171,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var evt in repo.ReadEvents<ClearBehaviorEvent>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
 
-            long tSweep = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — measurement only
+            long tSweep = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bSweep = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();          // ⭐ CE-4395 B-1 — measurement only
             SweepStaleDedupEntries(tiers.Count);
-            if (tSweep != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sweep, tSweep);
+            if (tSweep != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sweep, tSweep, bSweep);
 
             // ⭐ CE-2382 (DESIGN_Evaluation_Cost_And_Cadence §3.0–§3.2) — ONE clock for the frame (sim time), shared by the task slots' cadence and the SOP slot's.
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : (_sopClock += deltaTime);
@@ -215,7 +215,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                         continue;
 
                     int previousWindow = cadenced ? OpenCadenceWindow(repo, entity) : NoWindow;
-                    long tRun = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — per behaviour, measurement only
+                    long tRun = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bRun = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();          // ⭐ CE-4395 B-1 — per behaviour, measurement only
                     try
                     {
                         if (BehaviorRunners.For(behavior.BrainTier) is { } runner)
@@ -225,7 +225,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     {
                         if (cadenced) repo.CloseStepWindow(previousWindow);
                         if (_history != null) AfterCadencedTick(repo, entity, now);
-                        if (tRun != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DefinitionSlot("brain.task:", def), tRun);
+                        if (tRun != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DefinitionSlot("brain.task:", def), tRun, bRun);
                     }
 
                     // ⭐ CE-482 — FAIL LOUD: a run that raised a fault this tick (and did not already finish) ends now, through
@@ -238,9 +238,9 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             if (drain) CadenceDrain.MarkDrained(repo);                              // ⭐ CE-2385 — no window is open now
             CadenceDrain.SetWindowsOpen(repo, _cadenceReaders.Count > 0);
-            long tSops = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            long tSops = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bSops = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
             TickSopSlots(repo, deltaTime, now);   // ⭐ CE-3035 — the SOP slot, after every task has ticked
-            if (tSops != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sops, tSops);
+            if (tSops != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sops, tSops, bSops);
         }
 
         // ════ ⭐⭐ CE-2382 — THE TASK SLOT'S CADENCE: each cadenced slot reads the bus through ITS OWN EventAccumulator window ═══════════
@@ -352,9 +352,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!_registry.TryGetDefinition(sop.SopHash, out var def)) continue;
                 if (BehaviorRunners.For(sop.SopBrainTier) is not { } runner) continue;
 
-                long tSop = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();          // ⭐ CE-4395 B-1 — per SOP, measurement only
+                long tSop = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bSop = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();          // ⭐ CE-4395 B-1 — per SOP, measurement only
                 TickOneSop(runner, repo, entity, sop.SopHash, sop.SopInstanceId, def, deltaTime);
-                if (tSop != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DefinitionSlot("brain.sop:", def), tSop);
+                if (tSop != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(DefinitionSlot("brain.sop:", def), tSop, bSop);
             }
         }
 

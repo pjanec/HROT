@@ -277,14 +277,35 @@ namespace Fdp.Toolkit.Tkb.Parameters
             Reference.ReferenceLibrary? library = null)
         {
             if (ammo == null) throw new ArgumentNullException(nameof(ammo));
+            var (w, provenance, reference) = WarheadCore(ammo, library);
+            return provenance switch
+            {
+                ParameterProvenance.Explicit => (w, $"{ammo.Name}: Gen.Warhead", provenance),
+                ParameterProvenance.ReferenceByName => (w, $"reference library: {reference!.Name} — blast {reference.Warhead!.BlastFormula}; fragments {reference.Warhead.FragmentFormula}", provenance),
+                _ => (null, $"{ammo.Name}: no Gen.Warhead and no explosive reference ammo of that name ⇒ kinetic (no area effect)", provenance),
+            };
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4395</c> B-3 — <see cref="Warhead(ITkbDatabase?, long, Reference.ReferenceLibrary?)"/>'s warhead ALONE, with no provenance
+        /// text: for a per-frame reader ("is this round lethal" — every man's <c>OwnStrength</c>). 📐 The text was built on every call and
+        /// thrown away: ~64 B a call. The same lookup (<see cref="WarheadCore"/>), so the two cannot disagree.
+        /// </summary>
+        public static WarheadDto? WarheadOnly(ITkbDatabase? db, long ammoType, Reference.ReferenceLibrary? library = null)
+        {
+            if (db == null || ammoType == 0 || !db.TryGetByType(ammoType, out var ammo) || ammo == null) return null;
+            return WarheadCore(ammo, library).Warhead;
+        }
+
+        /// <summary>THE lookup: the type's own <see cref="WarheadDto"/> → the reference library's for its name → none.</summary>
+        private static (WarheadDto? Warhead, ParameterProvenance Provenance, Reference.RefAmmo? Reference) WarheadCore(TkbTemplate ammo,
+            Reference.ReferenceLibrary? library)
+        {
             var own = ammo.GetDescriptor<WarheadDto>();
-            if (own != null) return (own, $"{ammo.Name}: Gen.Warhead", ParameterProvenance.Explicit);
+            if (own != null) return (own, ParameterProvenance.Explicit, null);
             var lib = library ?? Reference.ReferenceLibrary.Shared;
-            if (lib.TryGetAmmo(ammo.Name, out var r) && r.Warhead != null)
-                return (r.Warhead.Dto, $"reference library: {r.Name} — blast {r.Warhead.BlastFormula}; fragments {r.Warhead.FragmentFormula}",
-                    ParameterProvenance.ReferenceByName);
-            return (null, $"{ammo.Name}: no Gen.Warhead and no explosive reference ammo of that name ⇒ kinetic (no area effect)",
-                ParameterProvenance.NotApplicable);
+            if (lib.TryGetAmmo(ammo.Name, out var r) && r.Warhead != null) return (r.Warhead.Dto, ParameterProvenance.ReferenceByName, r);
+            return (null, ParameterProvenance.NotApplicable, null);
         }
 
         private static IEnumerable<ResolvedParameter> WarheadParameters(WarheadDto? w, string source, ParameterProvenance provenance)
