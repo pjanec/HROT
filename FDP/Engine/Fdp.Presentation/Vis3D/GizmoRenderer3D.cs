@@ -90,12 +90,17 @@ namespace Fdp.Toolkit.Vis3D
             Panels.Clear();
             Cards.Clear();
             LinesDrawn = TrianglesDrawn = 0;
+            _drapeSamples = 0; _drapeTicks = 0;
+            bool timed = Fdp.Presentation.WindowManager.WindowTimings.Enabled;
+            _timedDrape = timed;
 
             for (int i = 0; i < primitives.Count; i++)
             {
                 var t = primitives[i];
                 ref readonly var p = ref t.Primitive;
                 if (p.Space == CoordinateSpace.EntityCard) { Cards.Add(p); continue; }   // ⭐ S5b — drawn by the card pass
+                long shapeStart = timed ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;   // ⭐ CE-4388 — time per shape (HROT_FRAME_STATS only)
+                int shapeIndex = (int)p.Shape < ShapeTicks.Length ? (int)p.Shape : 0;
                 switch (p.Shape)
                 {
                     case DebugPrimitiveShape.Line: DrawLine(in t); break;
@@ -115,7 +120,9 @@ namespace Fdp.Toolkit.Vis3D
                     case DebugPrimitiveShape.StructInspector: Panels.Add(p); break;
                     default: Skipped.Add(p.Shape); break;
                 }
+                if (timed) { ShapeTicks[shapeIndex] += System.Diagnostics.Stopwatch.GetTimestamp() - shapeStart; ShapeCounts[shapeIndex]++; }
             }
+            LastDrapeSamples = _drapeSamples; LastDrapeMs = _drapeTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
         }
 
         // ---- shapes -------------------------------------------------------------------------------------------
@@ -285,9 +292,21 @@ namespace Fdp.Toolkit.Vis3D
 
         /// <summary>A z = 0 point laid on the ground there, lifted by about half a pixel (at least 6 cm) so it does not fight the
         /// terrain's depth.</summary>
+        /// <summary>⭐ CE-4388 — this pass's terrain-height samples and the time they took (measuring the 3-D gizmo draw: HROT_FRAME_STATS).</summary>
+        public static int LastDrapeSamples { get; private set; }
+        /// <summary>⭐ CE-4388 — accumulated time and count per primitive shape (index = (int)DebugPrimitiveShape), drained by the frame-stats log.</summary>
+        public static readonly long[] ShapeTicks = new long[64];
+        public static readonly int[] ShapeCounts = new int[64];
+        public static double LastDrapeMs { get; private set; }
+        private int _drapeSamples;
+        private bool _timedDrape;
+        private long _drapeTicks;
+
         public Vector3 Drape(Vector3 p)
         {
+            long ts = _timedDrape ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
             float g = Ground(p.X, p.Y);
+            if (_timedDrape) { _drapeTicks += System.Diagnostics.Stopwatch.GetTimestamp() - ts; _drapeSamples++; }
             var on = new Vector3(p.X, p.Y, g);
             float lift = MathF.Max(0.06f, 0.5f / MathF.Max(1e-3f, _zoomAt(on)));
             return new Vector3(p.X, p.Y, g + lift);

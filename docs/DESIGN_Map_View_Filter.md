@@ -197,3 +197,17 @@ is too small to click; a unit keeps its symbol). ⭐ **The whole-terrain frame: 
 measured case). Rails: `Map3DGizmoTests.CE4388_TheCardsRows_StopAtTheirMapScale`, `EntityPresentationGizmoTests.CE4388_ADoorZoomedOut_HasNoAnchorOrPickBox_ButAUnitKeepsItsSymbol`
 (both red-proved). ⚠ Frame times between runs vary ±5 ms (the 2-D plan alone 13–16 ms) — the primitive counts are the firm number.
 
+### 6.3 The 3-D gizmo draw, measured stage by stage (`2026-11-10`)
+
+| measured | finding |
+|---|---|
+| the 3-D gizmo pass by stage (triage · draw · flush · labels · menus) | `Renderer3D.Draw` = 11.6 of 12.9 ms; the rest small |
+| ⛔ hypothesis "draped lines sample the terrain too often" | **falsified**: 0 drape samples (the routes are anchored / lifted) |
+| by primitive shape | **240 spheres = 15.9 ms** (≈ 66 µs each); 240 lines, 197 boxes, 197 symbols ≈ 0.03 ms together |
+| why | raylib 5.5's `DrawSphereWires` computes ≈ 4 trig calls per vertex, ≈ 4 600 per sphere, every frame (its `DrawSphereEx` fill is already optimised) |
+| ✅ fix | `RaylibGizmoSink3D` draws the wire sphere from a CACHED unit mesh of the same segments (raylib's own formula), one draw call per sphere — thin triangles in wireframe (GL discards zero-area ones: measured, nothing drawn). **240 spheres 15.9 → 6.6 ms; the 3-D gizmo draw 11.6 → 6.6 ms** |
+
+Rail `Map3DFrameRail.CE4388_TheCachedWireSphere_DrawsWhatDrawSphereWiresDrew_AndFaster`: the same frame drawn both ways, < 2 % of lit pixels differ, ≥ 3× faster
+(red-proved: a different ring count ⇒ thousands of pixels differ). ⚠ Found by the full suite: the cached mesh lives in ONE GL context — a rail session after another (Windows: a window each) drew nothing with the old mesh ⇒ it is rebuilt when the window handle changes. ⏳ Left: ≈ 27 µs per sphere — the fill still pushed vertex by vertex and one batch flush per
+sphere; drawing every fill, then every wire, is the next step if the spheres matter again.
+

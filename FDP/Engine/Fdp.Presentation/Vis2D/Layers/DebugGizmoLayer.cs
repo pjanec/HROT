@@ -180,9 +180,13 @@ namespace Fdp.Toolkit.Vis2D.Layers
             if (CurrentCamera?.Invoke() is not Fdp.Toolkit.Vis3D.MapCamera3D camera) return;
             var primitives = FrameFor(in ctx);   // ⭐ CE-1379 — a film's pass: its film layers only
             // The menus and capture bindings the 2-D draw extracts — the same frame, whatever the view (⛔ not a film's pass: no UI there).
+            long tm = Fdp.Presentation.WindowManager.WindowTimings.Start();
             if (!ctx.Film) _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
+            Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D meta", tm);
             Draw3D(primitives, camera.ZoomAt, Fdp.Toolkit.Vis3D.RaylibGizmoSink3D.Shared);
+            long t2 = Fdp.Presentation.WindowManager.WindowTimings.Start();
             Fdp.Toolkit.Vis3D.RaylibGizmoSink3D.Shared.Flush();   // ⭐ CE-1196 — the fills (biased, no depth writes), then the lines
+            Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D flush", t2);
         }
 
         /// <summary>The drawing half of <see cref="Draw3D(RenderContext)"/>, with the camera's zoom and the sink injected — the
@@ -190,9 +194,13 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public void Draw3D(ReadOnlySpan<DebugPrimitive> primitives, Func<Vector3, float> zoomAt, Fdp.Toolkit.Vis3D.IGizmoSink3D sink)
         {
             _triage3D.ZoomAt = zoomAt;
+            long t0 = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the 3-D gizmo pass by stage (HROT_FRAME_STATS)
             _triage3D.Triage(primitives, _triaged3D);
+            Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D triage", t0);
             LastPrimitives3D = primitives.Length;   // ⭐ CE-4388 — measuring the view filter's 3-D cost (HROT_FRAME_STATS)
+            long t1 = Fdp.Presentation.WindowManager.WindowTimings.Start();
             Renderer3D.Draw(_triaged3D, zoomAt, sink);
+            Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D draw", t1);
             // A StructInspector is a SCREEN panel: scheduled exactly as the 2-D renderer schedules it, so it shows in 3-D too.
             foreach (var p in Renderer3D.Panels)
                 _imGuiAdapter?.Schedule(p.StructNetworkId, p.StructSchemaHash, p.GizmoTypeId, p.StructAnchor,
@@ -211,7 +219,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
             var live = CurrentCamera?.Invoke() ?? _mapCamera;
             if (live is Fdp.Toolkit.Vis3D.MapCamera3D camera)
             {
+                long t3 = Fdp.Presentation.WindowManager.WindowTimings.Start();
                 LabelsDrawn3D = Fdp.Toolkit.Vis3D.LabelOverlay3D.Draw(Renderer3D.Labels, camera, LabelLift);
+                Fdp.Presentation.WindowManager.WindowTimings.Record("gizmo3D labels", t3);
                 LastLabels3D = Renderer3D.Labels.Count; LastLabelsDrawn3D = LabelsDrawn3D;   // ⭐ CE-4388
                 long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone (does decluttering pay?)
                 Cards.Draw(Renderer3D.Cards, CardAnchor3D(camera));
