@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (L-2, CE-4364) — baselines below; L-4 adds its findings to §5
-updated: 2026-11-10 (§7.7 P-1 parallel EQS built, the worker sweep · §7.6 C-1 + G-1 built and re-measured · §7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
+updated: 2026-11-10 (§7.8 N-2 budget kept, egress by translator, replica probe · §7.7 P-1 parallel EQS built, the worker sweep · §7.6 C-1 + G-1 built and re-measured · §7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
 current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split; §7.6 C-1 + G-1 built; §7.7 P-1 built)
 related-designs:
   - PLAN_Large_Terrain.md — P-0 is this rig; §8 the budgets (R-4192)
@@ -474,3 +474,27 @@ thread rebuilds its broadphase once a run, memory bandwidth) — 1.4× the CPU f
 | **N-1** | the SimHost FRAME: a run starts on a frame, so start-to-start = 100 ms + up to a frame + the harvest frame | 125–150 ms where the policy says 100 | the SimHost frame itself (38 ms at 1 000 — the egress ≈ 16 ms; 81–90 ms at 3 000) |
 | **N-2** | the band SHARES: a run of Normal-band sensors stops at 85 % (127 500 units) | units / run 122–130 k at every worker count | raising `BudgetUnits` now buys solves (the run has room: 42 ms of 100) — a measured step, P1-E |
 | **N-3** | the CGF frame at 3 000 men (`BrainTickSystem`, 410–500 ms) | — | out of scope (user: brain costs ignored) |
+
+### 7.8 N-2 (a bigger EQS budget) and N-1 (the egress) — measured *(`2026-11-10`; 4 workers; knobs `HROT_EQS_BUDGET`, `HROT_REPLICA_PROBE=1`)*
+
+| men | budget | units / run | EQS run | runs / s | solves / s | SimHost frame · fps | SimHost egress |
+|---|---|---|---|---|---|---|---|
+| 1 000 | 150 k (default) | 129 k | 42 ms | 7.9 | ≈ 3 100 | 37–38 ms · 48 | 17.6 ms |
+| | 250 k | 214 k | 85 ms | 6.8 | ≈ 4 580 (1.5×) | ⛔ 73 ms · 38 | ≈ 35 ms |
+| | 350 k | 292 k | 87 ms | 8.4 | ≈ 7 570 (2.4×) | ⛔ 52 ms · 40 | 27 ms |
+| 3 000 | 150 k | 126 k | 81 ms | 6.6 | ≈ 1 950 | 90 ms · 24 | — |
+| | 350 k | 292 k | 172 ms | 4.4 | ≈ 3 150 (1.6×) | 90 ms · 24 | 44 ms |
+
+⇒ ⭐ **N-2 kept at 150 k**: more solves cost the MAIN thread — every answer is published (`EqsResultTopic` 1.4 → 4.8 ms) and the run-to-run spread
+is wide (73 vs 52 ms). The egress, not the solver, makes a bigger budget expensive ⇒ N-1 first, then the budget again.
+
+**The egress by translator** (the rig's new per-node list — each egress system profiles its translators, CE-3242):
+
+| node, 1 000 men | egress / frame | the biggest | full replica sync (probe) |
+|---|---|---|---|
+| SimHost | **17.6 ms** of a 36.5 ms frame | `WorldPos` 8.4 · `EqsResultTopic` 1.4 · `EntityLookState` · `EntityMaster` · `NavigationStatus` · `EntityDoorState` | ⭐ **0.86 ms** (max 1.7; +0.2 GB) |
+| CGF | 16.0 ms of 87 | `EqsSensorConfigTopic` 4–13 ms (grows with the sensors: scanned every frame?) · `WorldPos` 1.8–3.9 | ⚠ 5.9 ms (max 8.3) |
+
+⇒ ⭐ **N-1 — the state egress on a per-frame replica (user's idea, `2026-11-10`) pays on the SimHost**: < 1 ms of sync for ≈ 15 ms of state
+egress moved off the main thread (an upper bound: a real egress replica syncs only what its translators read). Events (shots, hits) stay on the
+frame. ⏭ Design: the owning replication design, switchable at runtime. The CGF's sync is 7× dearer — measure it with the egress mask first.

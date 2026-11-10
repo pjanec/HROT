@@ -72,10 +72,15 @@ namespace Hrot.SimHost.Systems
         /// each tick — what the old perception chain did — and beyond that the oldest go first (measured 2026-10-04, debug
         /// build: 500 units = 142 k units / 76 ms; DESIGN_Sensors_And_Doctrine.md §9.4).
         /// </summary>
-        public int BudgetUnits { get; set; } = DefaultBudgetUnits;
+        public int BudgetUnits { get; set; } = ConfiguredBudgetUnits;
 
         /// <summary>The default <see cref="BudgetUnits"/>.</summary>
         public const int DefaultBudgetUnits = 150_000;
+
+        /// <summary>⭐ CE-3427 N-2 — the budget a new solver takes: <c>HROT_EQS_BUDGET</c> (a measured tuning knob, like <c>HROT_EQS_WORKERS</c>),
+        /// else <see cref="DefaultBudgetUnits"/>.</summary>
+        public static int ConfiguredBudgetUnits { get; } =
+            int.TryParse(Environment.GetEnvironmentVariable("HROT_EQS_BUDGET"), out int b) && b > 0 ? b : DefaultBudgetUnits;
 
         /// <summary>The sensors that ran last tick, in run order (diagnostics / the determinism rail).</summary>
         public IReadOnlyList<Entity> LastSchedule => _lastSchedule;
