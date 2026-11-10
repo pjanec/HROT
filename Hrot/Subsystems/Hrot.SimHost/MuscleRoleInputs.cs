@@ -117,8 +117,5 @@ public static class MuscleRoleInputs
         // ⭐ CE-2121 slice ② — the stance wire's half for this role. 📄 docs/DESIGN_Decision_Layer.md §3.3g.
         Hrot.Animation.Replication.AnimationReplicationModule.RegisterStanceOn(
             context.Kernel, context.Participant, context.EntityMap, stanceRole);
-        // ⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7, O-G: the SimHost first) — what lets this node's state egress go OFF the
-        //   main thread. ⚠ An experiment, OFF by default: FDP_EGRESS_OFFFRAME=1 or POST /diagnostics/egress {"mode":"offframe"}.
-        context.Kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Egress.EgressPipelineLaunchSystem());
     }
 }
