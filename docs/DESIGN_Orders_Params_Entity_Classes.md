@@ -254,7 +254,7 @@ time instead of dropping them.*
 | a flat behaviour's block types `In` as the DTO itself (`{Asset}_Block.In : ThreatCountParams`, same bytes as the one-field mirror), so CE-425's "block.In is the published contract" holds by construction (`AGeneratedBehaviourAdvertisesItsManifestTests`) | `BTreeEmitCore.EmitBlockStructs` |
 | emitted parse: `BehaviorParams.OverlayFlat` (a sent key wins, an absent key keeps the baked default, unknown keys ignored, case-insensitive, malformed JSON throws); `BehaviorParams.RequireNoStoredFields` for a named DTO stored nowhere | `BehaviorParams.cs`, `BTreeBridgeEmitCore.cs` (BTree and HSM share it), `InstanceEmitter.cs` / `CSharpEmitter.cs` (blueprint) |
 | `RootParamsAccess.InputBytes`: an EMPTY manifest means 0 Input bytes even when a contract type is published (the AQ90 §2.3m B trap, for a named DTO stored nowhere) | `RootParamsAccess.cs` |
-| the two saved Sentry params strings rewritten flat | `scenarios/ua-danger-crossing{,-bp}/scenario.json` |
+| the two saved Sentry params strings rewritten flat | `scenarios/demos/navigation-and-terrain/ua-danger-crossing{,-bp}/scenario.json` |
 
 ⚠ **Deviation — blueprints opt in by naming.** A blueprint with one struct Parameter does NOT turn flat by itself: the
 blueprint compiler sees only type ids and cannot tell a struct from an enum, and an enum Parameter must stay keyed. It
@@ -1880,7 +1880,7 @@ sequenceDiagram
   ✅ **`HsmChannelE2E` — CE-3190, built 2026-10-13 (user approved the lean the same day)** → `HsmChannelE2EParams { HsmDriveActivityParams
   Drive; HsmFireActivityParams Fire; HsmGuardDemoParams Guard; }`. Each field is a hosted blueprint's NAMED DTO, and its layout IS that
   blueprint's generated `Params` (the blueprint's Parameters are the DTO's fields, R-2004). The two states and the guard bind
-  `Params.Drive` / `Params.Fire` / `Params.Guard`, and `scenarios/hsm-channel-e2e` sends the flat DTO. As generated: `OverlayFlat` into the DTO at
+  `Params.Drive` / `Params.Fire` / `Params.Guard`, and `scenarios/tests/hsm-channel-e2e` sends the flat DTO. As generated: `OverlayFlat` into the DTO at
   block offset 0, seed offsets Driving 0 / Firing 8 / guard site 16 (`HsmParamBindings`). Rail:
   `SopParamsRoundTripTests.CE3190_AnHsmHostingBlueprints_SeedsEachFromItsOwnFieldOfTheNamedDto` parses the scenario's own text through the
   registered behaviour and reads each slice at its looked-up seed offset. ⭐ **The CE-2130 allow-list is EMPTY.**

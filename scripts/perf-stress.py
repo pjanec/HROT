@@ -7,7 +7,7 @@ real target - 30 hz frames to keep looking for improvements."
     dotnet build Hrot/Runner/Hrot.ClusterRunner --no-restore
     python3 scripts/perf-stress.py                       # 1000 men, 5000 cars, 120 s of play after the fill
     python3 scripts/perf-stress.py --men 400 --cars 1000 --seconds 60
-    python3 scripts/perf-stress.py --write-only          # just (re)write scenarios/perf-stress/scenario.json
+    python3 scripts/perf-stress.py --write-only          # just (re)write scenarios/tests/perf-stress/scenario.json
 
 ⭐ The number that matters per node is its WORK PER FRAME — the sum of its systems' recent averages (the scheduler's own profiler, GET
 /diagnostics/architecture): ≤ 33.3 ms ⇒ that node alone holds 30 Hz on one machine. On a shared VM the nodes compete for cores, so the
@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import importlib.util
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from scenario_json_readable import readable  # CE-4295 — params written as the objects they hold
+import scenario_dir  # CE-4361
 import cluster_launch  # CE-3427 — node control in Python: the only path on Windows (no setsid / xvfb-run / /proc there)
 _spec = importlib.util.spec_from_file_location("udc", os.path.join(os.path.dirname(os.path.abspath(__file__)), "utility-demo-check.py"))
 udc = importlib.util.module_from_spec(_spec)
@@ -115,7 +116,7 @@ def scenario(men, cars, spawn_per_step):
 
 
 def write(men, cars, spawn):
-    folder = os.path.join(udc.REPO, "scenarios", NAME)
+    folder = scenario_dir.folder(udc.REPO, NAME)   # CE-4361 — wherever it is filed (tests/)
     os.makedirs(folder, exist_ok=True)
     doc = scenario(men, cars, spawn)
     with open(os.path.join(folder, "scenario.json"), "w") as fh:

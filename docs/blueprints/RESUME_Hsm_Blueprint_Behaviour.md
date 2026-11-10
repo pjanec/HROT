@@ -379,7 +379,7 @@ at build time, so a scenario's `behaviorName` references it directly.
 | `Assets/Blueprints/Tests/HsmDriveActivity.bp.json` | `HsmAction`; `GetAllParameters` → `VectorOps.Vec3` → **linked** into `MoveTo`'s `Destination` |
 | `Assets/Blueprints/Tests/HsmFireActivity.bp.json` | `HsmAction`; `TargetNetworkId` → `NetworkEntityMapOps.ResolveTarget` → **linked** into `AimAndFire`'s `Target` |
 | `Assets/HSMs/Tests/Binding/HsmChannelE2E.hsm.json` | `Driving` → `Firing`, POLLED, guarded by the `HsmGuardDemo` blueprint. Blackboard: `Open`, `DestX`, `DestY`, `TargetNetworkId` |
-| `scenarios/hsm-channel-e2e/` | two Bradleys (`Open=false` / `Open=true`) + a static 500 HP target |
+| `scenarios/tests/hsm-channel-e2e/` | two Bradleys (`Open=false` / `Open=true`) + a static 500 HP target |
 
 📐 **Measured** *(`--mode all` headless, **Scenario perspective** — ⚠ the AI runs on the CGF node;
 SimHost shows no `BehaviorState`)*:

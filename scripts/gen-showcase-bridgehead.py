@@ -6,7 +6,7 @@
 Everything the scenario does is DATA — objectives, triggers, macros, variants — nothing compiled per scenario (R-4112).
 Re-run after editing; the files are generated, edit this script, not them.
 
-  scenarios/showcase-bridgehead/scenario.json   the exercise (cqb-village)
+  scenarios/showcases/showcase-bridgehead/scenario.json   the exercise (cqb-village)
   macros/forces/red-qrf/scenario.json           an 8-man Red platoon (2 squads), key @RedQRF — inserted by the counter-attack trigger
   macros/forces/red-outpost/scenario.json       a 2-man Red outpost that defends its anchor — placed at one of 3 places (variant)
   macros/inject/civilian-car/scenario.json      a civilian car + driver that drives 150 m along its heading — the checkpoint inject
@@ -21,6 +21,9 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 def rot(deg):  # compass heading (0 = north, clockwise) → quaternion about Z (forward = +X), as scripts/scenario_builder.py
     yaw = math.radians(90 - deg)
     return [0, 0, round(math.sin(yaw / 2), 7), round(math.cos(yaw / 2), 7)]
+
+
+import scenario_dir  # CE-4361 — the scenario is filed under showcases/
 
 
 def write(path, doc):
@@ -297,7 +300,7 @@ def scenario():
                                                      {"act": "EndExercise", "args": {"reason": "Instructor ended"}}])
     ents[ie]["RefKey"] = {"Value": "instructor-end"}
 
-    write("scenarios/showcase-bridgehead/scenario.json", doc({
+    write(os.path.join(scenario_dir.folder(ROOT, "showcase-bridgehead"), "scenario.json"), doc({
         # ⭐ P-7 (DESIGN_Node_Features.md §11, F-27): this scenario's feature preset — the scenario layer under the node / cluster overrides (ui's lists, PH-8)
         "features": {"game.tickets": "off", "game.capture-points": "off", "game.round-timer": "off", "game.score-popups": "off", "game.bounty-marker": "off", "game.scoreboard": "off", "hud.kill-feed": "off"},
         "terrainName": "cqb-village",
@@ -321,4 +324,4 @@ if __name__ == "__main__":
     macro_red_outpost()
     macro_civilian_car()
     scenario()
-    print("wrote scenarios/showcase-bridgehead + macros/forces/red-qrf, forces/red-outpost, inject/civilian-car")
+    print("wrote scenarios/showcases/showcase-bridgehead + macros/forces/red-qrf, forces/red-outpost, inject/civilian-car")

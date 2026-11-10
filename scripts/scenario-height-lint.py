@@ -13,11 +13,14 @@ OUT = sys.argv[1]
 spec = importlib.util.spec_from_file_location("udc", "/home/user/HROT/scripts/utility-demo-check.py")
 u = importlib.util.module_from_spec(spec); sys.argv = ["x"]; spec.loader.exec_module(u)
 out = open(OUT, "w")
-names = sorted(os.path.basename(os.path.dirname(p)) for p in glob.glob("/home/user/HROT/scenarios/*/scenario.json"))
+sys.path.insert(0, "/home/user/HROT/scripts")
+import scenario_dir  # CE-4361 — scenarios are filed in sub-folders
+found = scenario_dir.all_scenarios("/home/user/HROT")
+names = sorted(found)
 proc = u.launch(8111)
 try:
     for name in names:
-        d = json.load(open(f"/home/user/HROT/scenarios/{name}/scenario.json"))
+        d = json.load(open(os.path.join(found[name], "scenario.json")))
         ents = {}
         for k, e in (d.get("entities") or {}).items():
             pos = (e.get("SimTransform") or {}).get("Position"); n = (e.get("EntityInfo") or {}).get("Name")

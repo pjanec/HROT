@@ -20,6 +20,6 @@ related-designs:
 | the end summary's tree | the replicated `ObjectiveStatus` rows (`Role` Objective, `Closed` = 1), tree by `ObjectiveLinks.Parent`; `GET /objectives` shows the same | SR-112 debrief mockups |
 | pause | ⭐ the cluster pauses itself after the close (node feature `exercise.pause-on-end`, default on — behaviors is building it now) | nothing for ui to do |
 
-⭐ Try it: `scenarios/sr-objectives-march` (objectives) — a trigger + end variant follows with the S2 live run (behaviors will name it in its next note).
+⭐ Try it: `scenarios/demos/rules-objectives-directors/sr-objectives-march` (objectives) — a trigger + end variant follows with the S2 live run (behaviors will name it in its next note).
 
 _behaviors lane, 2026-11-02_

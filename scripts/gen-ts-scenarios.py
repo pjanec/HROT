@@ -78,7 +78,7 @@ s.write("ts-aggression", "basic-desert",
 #   door), its two defenders recast and a third added in closet E (bc-house-clear's spot) — each the Insurgent type (2003: obedience
 #   0.3 ± his own spread), held on his spot (CombatPosture, stay; ROE StayOnTask, so only a break moves him).
 import copy, os  # noqa: E402
-base = json.load(open(os.path.join(scenario_builder.ROOT, "scenarios", "bc-house-defended", "scenario.json")))
+base = json.load(open(os.path.join(scenario_builder.scenario_dir.folder(scenario_builder.ROOT, "bc-house-defended"), "scenario.json")))
 s = Scn("ts-house-defenders", "a1040003")
 s.ents = copy.deepcopy(base["entities"])
 cast = {"Insurgent 1": ("Fanatic", {"resolve": 1.0, "nerve": 0.9}),

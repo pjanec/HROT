@@ -640,7 +640,7 @@ helper its own doc specifies.
 
 ⭐⭐⭐ **The whole channel programme was green — 4048 blueprint tests, 2358 toolkit tests, 338 FastHSM
 tests, every acceptance rail closed — and the FIRST live run found two real defects.** 📄 The subject
-is `scenarios/hsm-channel-e2e` + `HsmChannelE2E.hsm.json` + the two activity blueprints, authored by
+is `scenarios/tests/hsm-channel-e2e` + `HsmChannelE2E.hsm.json` + the two activity blueprints, authored by
 hand and run headless through the debug HTTP API *(`RUNBOOK_Cluster_Debugging_Over_Http.md`)*.
 ⛔ **No editor was needed:** a `.hsm.json` self-registers as a named behaviour at build time, so a
 scenario's `behaviorName` can reference it directly.

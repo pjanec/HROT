@@ -177,7 +177,7 @@ sequenceDiagram
 
 One `CombatPosture` goes to one point. A route = a **mission plan** of legs; each leg starts when the previous
 one finishes (`BehaviorFinished`). The shape is the one the `ua-danger-crossing` scenario uses
-([`scenarios/ua-danger-crossing/scenario.json`](../scenarios/ua-danger-crossing/scenario.json)):
+([`scenarios/demos/navigation-and-terrain/ua-danger-crossing/scenario.json`](../scenarios/demos/navigation-and-terrain/ua-danger-crossing/scenario.json)):
 
 ```json
 "MissionPlan": { "PlanData": { "activeTaskId": "00000000-0000-0000-0000-000000000000", "tasks": [

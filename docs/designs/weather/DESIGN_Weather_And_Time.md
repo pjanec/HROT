@@ -376,7 +376,7 @@ interface with eight implementers · *adding WeatherConditions in the spawn syst
 | the Scenario view (rank 10) and the Zones view (rank 15, `ImGuiZoneRowRenderer`; Load = the map's own `GlobalActionIds.LoadZone` action) | `Hrot.Editor/Scenario/ScenarioEnvironmentView.cs`; registered beside the Components view |
 | the clock edit (direct when authority, else the JSON patch) | `Hrot.Presentation/Weather/ScenarioClockEdit.cs` |
 | the Weather Region tool | `PlacementToolRegistry` row (Area, 8811) → `ISpawnController.StartAreaAuthoringMode(long, string)` (`ScenarioSpawnAdapter` arms with the pending type; `ExConLogic` sends it in `CMD_START_AUTHORING`, its zone arm now calls the same method) → `AreaAuthoringArm.BornWith` adds `WeatherConditions.Standard` |
-| the demo | `scenarios/ua-weather-regions` — basic-desert, 19:05 UTC (dusk at the terrain's Berlin origin, display +120), a fog bank at x 140–360 and an overcast region at x 290–510 overlapping in the middle, an IFV and a rifleman west of both |
+| the demo | `scenarios/demos/sensing-and-weather/ua-weather-regions` — basic-desert, 19:05 UTC (dusk at the terrain's Berlin origin, display +120), a fog bank at x 140–360 and an overcast region at x 290–510 overlapping in the middle, an IFV and a rifleman west of both |
 
 **Rails:** `ScenarioClockEditTests` ×3 · `AreaAuthoringArmTests.CE1161_*` · `EntityTypeCatalogTests.CE1017_Arm_AGraphic_*` (+ Weather
 Region) · `TheZonesViewIsOfferedOnTheMapBackgroundTests.CE1161_*` · `TheScenarioEnvironmentViewTests` ×4 (the production catalogue, the

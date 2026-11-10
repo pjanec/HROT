@@ -529,7 +529,7 @@ an error (§3 ②). ⇒ ⭐ **the user's "special component" is exactly what the
 | ECS component | `EntityInfo.ForceId`, `[PerInstanceValue]` (`EntityInfo.cs:3-16`) — *"authored PER SPAWN … the template value is a placeholder that must lose"* | `EntityAppearance.ColorRgba`, `[PerInstanceValue]` |
 | TKB default | stamped only if absent: `BehaviorTkbTranslator.cs:61-62`, `PresentationTkbTranslator.cs:70-73` | `VisualData.ColorHex` → stamped only if absent (`PresentationTkbTranslator`) |
 | per-spawn value wins | `NetworkSpawningSystem.cs:207-209` applies `InitialComponents` after the TKB translators | same path, unchanged |
-| saved in the scenario | `"EntityInfo": { "ForceId": "Friend" }` (`scenarios/hill-attack/scenario.json:123-126`) | `"EntityAppearance": { … }` |
+| saved in the scenario | `"EntityInfo": { "ForceId": "Friend" }` (`scenarios/tests/hill-attack/scenario.json:123-126`) | `"EntityAppearance": { … }` |
 | network | DDS `EntityInfo` descriptor, `Reliable`/`TransientLocal` (`GenericDescriptors.cs:146-171`; translators `EntityInfoEgress/IngressTranslator`) | its own descriptor arm, same QoS, same translator pair |
 | runtime change | attribute `"Affiliation"` → `UpdateEntityAttributeRequest`, authority-checked (`AttributeIds.cs:49`, `UpdateEntityAttributeRequestSystem.cs:24-59`) | attribute `"Color"` through the same path |
 | design basis | `docs/designs/tkb-1/DESIGN.md` §6.6a (`:828`, `:845`) | the same section's `[PerInstanceValue]` rule |
@@ -1160,7 +1160,7 @@ attribute (backend lane), plus a latent defect found on the way: the attribute-a
 id 348. · No UI sets a colour yet, so an authored colour comes only from a scenario file, until the `"Color"` attribute
 exists (`get_attributes_schema` / `patch_attribute` pick it up by construction). · Child entities do not inherit the
 parent's colour. · The 2-D map does not use it: 2-D tints by side (M16). · ⚠ `VisualData` itself has no `[DataPolicy]`
-and is still saved into scenarios (`scenarios/hill-attack/scenario.json:117-122`), which conflicts with R-136 §3 ②. So a
+and is still saved into scenarios (`scenarios/tests/hill-attack/scenario.json:117-122`), which conflicts with R-136 §3 ②. So a
 reloaded `VisualData.ColorHex` can be stale, and that is why the colour reads `EntityAppearance` first.
 **Gates:** `Map3DTests.S5c_*` (stamp-if-absent + per-spawn wins + always stamped · the colour order · the scenario round trip).
 

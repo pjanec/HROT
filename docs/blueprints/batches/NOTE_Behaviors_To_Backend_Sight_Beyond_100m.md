@@ -27,7 +27,7 @@ Row: [`CE-2298`](../Blueprint_Issues_Tracker.md).
 fixed at spawn from the TKB, so a scenario's larger `PerceptionReceptor.VisionRange` can never widen it (the solver reads the receptor's
 range, the candidate search does not) — say whether that is intended.
 
-Repro: `scenarios/ld-sentry-surprise/scenario.json` with Hostile A's start and `MoveToLocation` y changed 150 → 190;
+Repro: `scenarios/demos/sensing-and-weather/ld-sentry-surprise/scenario.json` with Hostile A's start and `MoveToLocation` y changed 150 → 190;
 `python3 scripts/utility-demo-check.py --launch ld-sentry-surprise` prints the ② diagnostic (positions, memory).
 
 ---

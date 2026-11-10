@@ -373,7 +373,7 @@ projectors iterate and find nothing to draw. ⭐ **605/3 is a full frame of an e
 |---|---|---|
 | `MapDisplayComponent` | ⚠ **IG · CGF · Editor only** — 📐 **zero source references anywhere under `Hrot/Subsystems/Hrot.SimHost/`** | 🔴 **`Hrot.IG/Systems/MapLayerAssignmentSystem.cs:122,126` — IG-PRIVATE** |
 | `VisualData` | ✅ shared *(`Hrot.Core/HrotSharedComponentRegistry.cs:57`)* | 🔴 **`Hrot.IG/Translators/PresentationTkbTranslator.cs:36` — IG-PRIVATE**, and it **early-returns** when the type is unregistered *(`:29`)* ⇒ silent |
-| 📌 how CGF/Scenario gets them anyway | — | ⭐ **`scenarios/hill-attack/scenario.json` AUTHORS BOTH.** The brain loads them from the file; ⛔ the muscle builds from the **TKB path**, which carries neither |
+| 📌 how CGF/Scenario gets them anyway | — | ⭐ **`scenarios/tests/hill-attack/scenario.json` AUTHORS BOTH.** The brain loads them from the file; ⛔ the muscle builds from the **TKB path**, which carries neither |
 
 ⇒ ⭐⭐⭐ **RESTATED: registration is unified *(§2c, all five hosts)*, execution is fine, and the map is still
 dark — because the shared projectors' INPUTS are produced by one host's private system and one host's

@@ -2248,7 +2248,7 @@ overlaps Move @0 (+40)". Gates: Blueprints 4128/0/17, SimHost 1061/0/3, Toolkits
 
 #### S8n-2 cluster run — the capstone, live *(`2026-10-03`, `ClusterRunner --mode all`, HTTP, fresh cluster per run)*
 
-`scenarios/mission-demo-bp`: one tank (from `hill-attack-close-bp`) whose mission is `Demo_MissionPlan` with
+`scenarios/demos/rules-objectives-directors/mission-demo-bp`: one tank (from `hill-attack-close-bp`) whose mission is `Demo_MissionPlan` with
 `{"Move":{"x":600,"y":427,…},"Fire":{"targetNetworkId":1001,"maxRounds":3,…},"Home":{"x":446.3,"y":420.9,…}}`, and one
 hostile at (668, 427). Read on the `Scenario` (CGF) perspective every ~5 s of sim time:
 
@@ -2374,7 +2374,7 @@ Built as designed: `BehaviorParamRemapperCompiler.CompileFor(Type)` (one walker;
 weak per type), `ScenarioBehaviorRemapper(BehaviorRegistry?)` resolving the contract type lazily by name with the
 `Register` table as fallback, `CgfBehaviorSetup.CreateBehaviorRemapper(registry)`, `CgfSubsystem` passing `_behaviorRegistry`,
 and `[RemapNetworkId]` on fields. One deviation: an `int` id is written back narrowed, as C005a specified.
-`scenarios/mission-demo-bp` now carries its AUTHORED ids again (tank 1001, hostile 1006, `Fire.targetNetworkId` 1006), so
+`scenarios/demos/rules-objectives-directors/mission-demo-bp` now carries its AUTHORED ids again (tank 1001, hostile 1006, `Fire.targetNetworkId` 1006), so
 every load exercises the remap (load assigns 1000/1001). Rails: `Fdp.Toolkits.Tests` `CE2054_NestedContractRemapTests` ×4
 (nested field, tagged field, same-string-when-unchanged, registry lookup; the two the mutation could reach went red with
 nesting and the registry lookup removed), `Hrot.SimHost.Tests` `CgfBehaviorSetupTests.CE2054_*` on the real `Demo_MissionPlan`.
@@ -2434,7 +2434,7 @@ demo children, so the demos exercise the production paths.
 | **cycle fixture** (test-only, not shipped) | S5 | A hosts B hosts A | rail: registration throws; the editor validator reports it |
 | **Demo_EventPolicies** (blueprint behaviour) | S6b | `OnHit` Parallel(3) · `OnNewTarget` Restart · `OnRadio` Queue(4) | rail: a burst of each event type; counters show every event handled; the 4th parallel hit raises a fault, it is not dropped; ⭐ checkpoint with events queued and handlers waiting → restore → the same events are handled in the same order |
 | **Demo_TaskChain** (blueprint behaviour) | S6c + S7 | Behaviour Task nodes: MoveTo ─Succeeded→ FireAtTarget ─→ Idle; Failed → Retreat | rail: each pin fires once, in order; `Abort` stops a running task and its children |
-| ⭐ **Demo_MissionPlan** + scenario `scenarios/mission-demo-bp` (capstone) | after S7 | a mission as a blueprint: MoveTo → Defend (While Running: health < 30% → Abort → Retreat) → Return; an `OnDamaged` reaction running alongside | rail through the real pack + a `--mode all` cluster run over HTTP, read back per task |
+| ⭐ **Demo_MissionPlan** + scenario `scenarios/demos/rules-objectives-directors/mission-demo-bp` (capstone) | after S7 | a mission as a blueprint: MoveTo → Defend (While Running: health < 30% → Abort → Retreat) → Return; an `OnDamaged` reaction running alongside | rail through the real pack + a `--mode all` cluster run over HTTP, read back per task |
 
 ⚠ Demo_MissionPlan demonstrates the CONCEPT only. Replacing `MissionDirectorSystem` / the networked mission plan is the
 separate design in §6.
@@ -2454,7 +2454,7 @@ regenerated, purely additive), each with a rail through the real `BrainTickSyste
 ⚠ **Deviation from the §7 table, and why:** the table names the curated children (`MoveToLocation`, `FireAtTarget`, …).
 ⛔ A Behaviour Task has no PARAMETERS input yet, so a curated child would run on its defaults (no destination, no target).
 ⇒ the demos host small blueprint children; ⭐ hosting a curated child with parameters is a filed follow-up (CE-2022).
-⚠ The cluster run of the capstone (`scenarios/mission-demo-bp`, `--mode all`) is NOT done here — it needs the scenario
+⚠ The cluster run of the capstone (`scenarios/demos/rules-objectives-directors/mission-demo-bp`, `--mode all`) is NOT done here — it needs the scenario
 asset and a node run; filed with the same row.
 
 📐 **Two facts the rails had to respect** *(measured building them)*: ① a Delay reads `repo.SimulationTime`

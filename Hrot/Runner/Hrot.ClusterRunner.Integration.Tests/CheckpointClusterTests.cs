@@ -120,7 +120,7 @@ public sealed class CheckpointClusterTests : IDisposable
     [Fact]
     public async Task E7_AMark_OnTheLargestScenario_AddsOneKeyframeToEveryRecordingNode_AndItsSizeIsMeasured()
     {
-        var source = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, "scenarios", "perf-stress");
+        var source = Fdp.Toolkit.Orchestration.ContentLayout.ResolveScenarioDirectory(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, "perf-stress");
         var markLabel = "Mark 1 · 0:30";
         var exercise = Guid.NewGuid();
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
@@ -172,7 +172,7 @@ public sealed class CheckpointClusterTests : IDisposable
             long baseline = s1[f] - s0[f], withMark = s2[f] - s1[f], mark = withMark - baseline; total += mark;
             lines.Add($"{Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(f)))}/{Path.GetFileName(f)}: file {s2[f]:N0} B · +{baseline:N0} B per window without a mark, +{withMark:N0} B with one ⇒ the mark ≈ {mark:N0} B");
         }
-        string report = $"[E7] ONE mark on scenarios/perf-stress (scenario.json {new FileInfo(Path.Combine(source, "scenario.json")).Length:N0} B), {s0.Count} recording node(s): ≈ {total:N0} B in all ({total / 1048576.0:F2} MiB)\n  " + string.Join("\n  ", lines);
+        string report = $"[E7] ONE mark on scenarios/tests/perf-stress (scenario.json {new FileInfo(Path.Combine(source, "scenario.json")).Length:N0} B), {s0.Count} recording node(s): ≈ {total:N0} B in all ({total / 1048576.0:F2} MiB)\n  " + string.Join("\n  ", lines);
         _out.WriteLine(report);
         File.WriteAllText(Path.Combine(Path.GetTempPath(), "e7-mark-size.txt"), report);
         Assert.True(s2.All(kv => kv.Value > s1[kv.Key]), "every recording node's file grew over the mark's window");

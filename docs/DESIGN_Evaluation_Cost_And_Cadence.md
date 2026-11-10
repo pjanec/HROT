@@ -733,7 +733,7 @@ so far were 500 civilians and 200 cars.
 
 | piece | built as |
 |---|---|
-| the scenario | `scripts/perf-stress.py` writes `scenarios/perf-stress` (deterministic): 2 sides × 62 squads × 8 men (TKB 302 + 2002, the Crossfire soldier) on demo-city's streets, `SquadDefend` on six points, health 100 000 (the fight stays a constant load) · six `HoldArea` + two `Counter` + a kick-off `Trigger` (a FIXED rule set) · `TrafficDemand { TargetCars 5000, CarSpawnPerStep 200 }` |
+| the scenario | `scripts/perf-stress.py` writes `scenarios/tests/perf-stress` (deterministic): 2 sides × 62 squads × 8 men (TKB 302 + 2002, the Crossfire soldier) on demo-city's streets, `SquadDefend` on six points, health 100 000 (the fight stays a constant load) · six `HoldArea` + two `Counter` + a kick-off `Trigger` (a FIXED rule set) · `TrafficDemand { TargetCars 5000, CarSpawnPerStep 200 }` |
 | `TrafficDemand.CarSpawnPerStep` | APPENDED (R-169) to the component, the `EntityTrafficDemand` wire and both translators; `TrafficSession` passes it to SumoSharp (0 = its default 5) |
 | the run | one node per process (orchestrator, cgf, simhost, traffic — `scripts/cluster-node.sh`), load, play, wait for the fill, measure |
 | ⭐ the TARGET | each node's **work per frame** — the sum of its leaf systems' recent averages (the scheduler's own profiler) — **≤ 33.3 ms**: that node alone holds 30 Hz on its own machine. ⚠ On the 4-core cloud VM the nodes share cores, so the achieved frames per wall second is printed but is NOT the target |

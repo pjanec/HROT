@@ -1365,7 +1365,7 @@ anymore after initial creation"*
 | `CreationRequestId` (component 449) deleted; **449 is back in the free pool** (user: no retirement mark) | `GlobalComponentIds.cs`, `HrotSharedComponentRegistry`, `NetworkSpawningSystem` (its stamp) |
 | `RequestId` dropped from BOTH lifecycle events — the destruction event's was the CREATION request copied off the component, not the deletion request | `LifecycleEvents.cs`, `EntityLifecycleModule.PublishOutcomes` |
 | ⭐ an author that must know its entity **pre-allocates its network id** — `EntityCreation.AllocateNetworkId()` (the node's allocator, the one the request system would otherwise use) → `EntityCreationRequest.PreAllocatedNetworkId`, then finds the entity by that id; the load phase, terrain objects and traffic already worked this way | `EntityCreation.cs`; the deploy server's spawner (`GameplayServerPack.SpawnerOf`) and `DeployProcessorSystem.ResolveSpawns` |
-| the scenario verifier's per-run-id workaround (CE-3334, R-4090) — it existed only because this component got a fresh Guid every run; with it gone nothing per-run is left. `ua-civ-melee`'s golden lost its ten `CreationRequestId` hashes | `ScenarioVerification.cs`, `scenarios/ua-civ-melee/golden.json` |
+| the scenario verifier's per-run-id workaround (CE-3334, R-4090) — it existed only because this component got a fresh Guid every run; with it gone nothing per-run is left. `ua-civ-melee`'s golden lost its ten `CreationRequestId` hashes | `ScenarioVerification.cs`, `scenarios/demos/civilians-and-crowd/ua-civ-melee/golden.json` |
 | rails: IT-SA-7 now proves a request from the Brain, serviced on SimHost, is known to the Brain by its pre-allocated id (both nodes announce it); the stamp rails (`SpawnSystemTests`, `EntityMasterTranslatorTests`) and the CE-3334 rail are deleted with what they tested | `SplitAuthoritySpawnTests`, `GameplayDeployServerTests`, `EntityLifecycleModuleTests` |
 
 📐 **LIVE `2026-11-05`** (`-m server` + two `-m player`, the S2 scenario): the role's man spawned inside the area under his pre-allocated id
@@ -1818,7 +1818,7 @@ both runtime, and **re-derived on every spawn on every node**:
 |---|---|
 | ⛔ **it carries no `[DataPolicy(DataPolicy.NoSave)]`** | ⚠ while **`NetworkOwnership` — the same two fields, next door — DOES.** The save filters on `GetSaveableMask()`, which keys on that attribute, so `NetworkAuthority` slips through |
 | 🔴 **and it is WRITE-ONLY** | `StagingEntityExtractor.BuildStaticMask` **strips it on LOAD** ⇒ **written, never read back** |
-| 🔴🔴 **and the value is meaningless by construction** | `LocalNodeId` is *the saving process's own id* — a property of **who happened to save**, not of the entity. 📐 Measured in a **source-controlled** scenario: `scenarios/hill-attack/scenario.json` → `"NetworkAuthority": {"PrimaryOwnerId": 0, "LocalNodeId": 0}` *(all three shipped scenarios carry it)* |
+| 🔴🔴 **and the value is meaningless by construction** | `LocalNodeId` is *the saving process's own id* — a property of **who happened to save**, not of the entity. 📐 Measured in a **source-controlled** scenario: `scenarios/tests/hill-attack/scenario.json` → `"NetworkAuthority": {"PrimaryOwnerId": 0, "LocalNodeId": 0}` *(all three shipped scenarios carry it)* |
 
 ##### ⛔⛔⛔ WITHDRAWN `2026-09-02` — **DO NOT mark `NetworkAuthority` `NoSave`. The exclusion ALREADY EXISTS.**
 

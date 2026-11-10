@@ -179,7 +179,7 @@ public sealed class Phase2ConventionTests
     public async Task LoadScenario_ViaReadOnlyAdapter_DomHasValidMetaAndRoundTrips()
     {
         string root = TestRepo.Root;
-        string scenarioPath = Path.Combine(root, "scenarios", "hill-attack", "scenario.json");
+        string scenarioPath = TestRepo.ScenarioFile("hill-attack");   // CE-4361 — filed under scenarios/tests/
 
         Assert.True(File.Exists(scenarioPath), $"Scenario fixture not found: {scenarioPath}");
 

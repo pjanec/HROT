@@ -456,8 +456,8 @@ The rest is a model the user STATED; measured against the corpus and the written
 |---|---|
 | the design treats several Inputs as the general case: the authored DTO is *"an attached mirror of them"*, and *"'a single struct-typed input' is the degenerate case of the multi-field model, not a rival to it"* | resolver design §3.2; EXPLAINER §3 |
 | shipped assets (non-test) by Input count: **0 → 6 · 1 → 6 · 2 → 2 · 3 → 2 · 6 → 1**. Multi-Input: `FiringPosition`, `Flank` (2), `BasicInfantrySop`, `BasicSquadSop` (3), `DangerCrossing` (6) | parse of every `.btree.json` / `.hsm.json` under `Assets/` |
-| ⛔ the JSON DOES nest today, by variable name: `{"sentry":{"Count":1,…}}` for `Sentry` (one Input!) and `{"sensor":{…},"walk":{…}}` for `DangerCrossing` | `scenarios/ua-danger-crossing/scenario.json:51,102`, `ua-danger-crossing-bp/scenario.json:102` |
-| the user's model already exists ONCE: `PlatoonHillAttack` has one Input `Params : PlatoonHillAttackParams`, a separate authored DTO, and a resolver; its JSON is flat | `PlatoonHillAttack.btree.json`; `scenarios/hill-attack/scenario.json:21` |
+| ⛔ the JSON DOES nest today, by variable name: `{"sentry":{"Count":1,…}}` for `Sentry` (one Input!) and `{"sensor":{…},"walk":{…}}` for `DangerCrossing` | `scenarios/demos/navigation-and-terrain/ua-danger-crossing/scenario.json:51,102`, `ua-danger-crossing-bp/scenario.json:102` |
+| the user's model already exists ONCE: `PlatoonHillAttack` has one Input `Params : PlatoonHillAttackParams`, a separate authored DTO, and a resolver; its JSON is flat | `PlatoonHillAttack.btree.json`; `scenarios/tests/hill-attack/scenario.json:21` |
 
 **Lean: adopt the user's model as the rule** (R-277 (behaviors), awaiting approval):
 

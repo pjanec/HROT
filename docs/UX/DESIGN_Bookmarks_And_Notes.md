@@ -198,7 +198,7 @@ graph TD
 | the Replay Browser reads `notes.json` read-only | ✅ **CE-1467 (a), `2026-11-09`**: `RecordingNotesFile` reads the open recording's folder (the kept exercise folder first, as its takes); the browser's facade answers `Notes` and `NotesReadOnlyReason` (every edit refused with it, `MarksController.SeatRefusal`); its Event Timeline draws the recording's ⚑ and the note dots (`FederatedReplayCursor` checkpoints / notes, through the ONE mapping `TimelineNotesCache` the editor's cursor now uses too); a read-only Marks list (`rb_marks`) | ⛔ SUPERSEDED: not built |
 | *Discard* (an unarchived recording) | ✅ **CE-1467 (c), `2026-11-09`**: `DiscardNotes` — the list (when on show), the staging copy and marker, and the NAS `notes.json` the run's end wrote, with that NAS folder when the notes were all it held (⛔ a folder holding anything else is never touched) | ⛔ SUPERSEDED: the staging copy (and the NAS copy) stayed behind |
 
-⚠ **Measured:** the cost of a mark on the largest scenario (the open item of §4) — see the tracker row CE-4325 (one keyframe per recording node; `scenarios/perf-stress`).
+⚠ **Measured:** the cost of a mark on the largest scenario (the open item of §4) — see the tracker row CE-4325 (one keyframe per recording node; `scenarios/tests/perf-stress`).
 
 ---
 _coordinator lane, 2026-11-08 · §5 ui lane, 2026-11-08_

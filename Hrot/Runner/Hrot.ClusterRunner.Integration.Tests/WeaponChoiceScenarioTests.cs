@@ -52,7 +52,7 @@ public sealed class WeaponChoiceScenarioTests : IDisposable
     public async Task CE3089_U5_TheBradley_FiresTheTowAtTheTank_AndThe25mmAtTheInsurgent()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-weapon-choice", "scenario.json"),
+        File.Copy(TestRepo.ScenarioFile("ua-weapon-choice"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());

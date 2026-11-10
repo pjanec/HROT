@@ -95,7 +95,7 @@ public sealed class GrenadeOrRifleScenarioTests : IDisposable
     public async Task WL4_TheGrenadier_ClosesAndThrowsAtTheHiddenHostile_WhoIsHurtBehindTheSandbags()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(TestRepo.ScenarioFile("ua-grenade-or-rifle"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());

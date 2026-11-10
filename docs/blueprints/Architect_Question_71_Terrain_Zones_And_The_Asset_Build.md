@@ -188,7 +188,7 @@ orchestrator context. Rejected — the scenario is what knows *where the action 
 
 ⭐ **LEAN: as ordinary entities, reusing what exists.** `RoutePlan` and `EditablePolyline` are already
 entity components — replicated (`EditablePolylineTranslator`), operator-editable (context menu), and
-already persisted (`scenarios/hill-attack/scenario.json` carries an `EditablePolyline`). Obstacles
+already persisted (`scenarios/tests/hill-attack/scenario.json` carries an `EditablePolyline`). Obstacles
 keep `SimTransform`+`PhysicsCollider` and **lose** `ZoneMembership`.
 **Cost to state plainly:** obstacles become individually persisted entities, so a scenario grows by
 the obstacle count — the same behaviour as every other entity, and it removes duplication ⑨.
@@ -248,7 +248,7 @@ part" safe — a node that consumes no road graph ACKs without building one, the
 a `Zones` section at all**, so there is no corpus to migrate. `Deserialize` already skips unknown
 sections (§6b format recognition), so an old file with one degrades to "zones ignored" rather than
 failing.
-**⚠ Separate, unmeasured flag found while investigating:** `scenarios/hill-attack/scenario.json` uses
+**⚠ Separate, unmeasured flag found while investigating:** `scenarios/tests/hill-attack/scenario.json` uses
 lowercase `entities`/`header` while `ScenarioMergeCore` indexes `dom["Entities"]`/`dom["Zones"]`
 (case-sensitive `JsonNode`). Likely old-format assets vs the new writer — **needs its own check**, and
 it is not this document's question.

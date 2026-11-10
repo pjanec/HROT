@@ -4404,7 +4404,7 @@ test the node BODY and never the params ADDRESSING.** `T-1`③ applies: the blin
 #### ⚠ WHAT IS **NOT** CLAIMED
 
 ⚠ **ONE OBSERVATION IS STILL UNEXPLAINED, AND IT IS RECORDED RATHER THAN ARGUED AWAY.** 📐 The platoon
-spawns at **x ≈ 446–449** *(`scenarios/hill-attack-close/scenario.json`)* and the FAILING runs ended at
+spawns at **x ≈ 446–449** *(`scenarios/tests/hill-attack-close/scenario.json`)* and the FAILING runs ended at
 **579 / 587 / 524 / 590**, so it reached the firing line; and the stranded tank's `NavState.FinalDestination`
 read a **correct** `[523, 401]`. ⛔ An all-zero region from the first dispatch should have commanded
 `(0,0)`.

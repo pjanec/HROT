@@ -65,7 +65,7 @@ dotnet run --project Hrot/Runner/Hrot.ClusterRunner -- --mode all
 | ⭐ **`--mode all`** puts every subsystem in one process — the editor, IG, CGF and the replay browser | that is what lets one session cover `T1`–`T9` |
 | ⭐ **`--mode editor`** alone is enough for `T1`–`T7` | faster to start if IG is not needed |
 | ⚠ **the cluster boots PAUSED** | a stationary map is not a fault. None of these tests need the sim running |
-| 🔒 **do NOT modify `scenarios/hill-attack/`** | it is the user's scenario — load it, never save over it |
+| 🔒 **do NOT modify `scenarios/tests/hill-attack/`** | it is the user's scenario — load it, never save over it |
 | ⚠ **if nothing draws at all** | that is a *map* problem, not a *tool* problem — stop and report it as such, the tool tests will all read as false failures |
 
 ---

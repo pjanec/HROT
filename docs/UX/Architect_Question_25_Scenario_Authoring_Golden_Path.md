@@ -100,7 +100,7 @@ seam goes*, not whether).
 | **`BehaviorCatalog` can only see one assembly, at static-ctor time** | `foreach (var type in typeof(BehaviorContractAttribute).Assembly.GetTypes())` — i.e. `Hrot.Core` only, once |
 | **⇒ an asset-authored behavior has no way to declare its affinity** | which is exactly why `EditorMissionService.AppendEditorBTreeBehaviors` appends **all** BrainTierBTree assets to **every** entity type, with `TODO (option c): gate by per-asset DisEntityType affinity mask` |
 | **Params degrade to a raw JSON textbox** | `MissionPanel.cs:481-492` → `DrawRawJsonEditor` when no DTO is registered |
-| **Params are persisted as an escaped JSON string inside the scenario JSON** | `scenarios/hill-attack/scenario.json` — `behaviorParams` is a `string` |
+| **Params are persisted as an escaped JSON string inside the scenario JSON** | `scenarios/tests/hill-attack/scenario.json` — `behaviorParams` is a `string` |
 | **Two unrelated assignment models** | `MissionPanel` (mission tasks, OCC commit) vs `EntityBlueprints` (attachment) |
 | **The allocator is in the author's face** | `EntityBlueprintsEditModel`: `Projection(Slots, Bytes, Tier, Status)`, `UsageStatus.OverCeiling`, `CommitPlan.UpgradeToTier`, Reality/Staging |
 | **Distributed protocol mechanics are exposed unconditionally** | `MissionPanel` renders an `ERR_VERSION_CONFLICT` modal and a **Force Commit** button regardless of host |

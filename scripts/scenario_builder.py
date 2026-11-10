@@ -1,6 +1,7 @@
 """The small scenario-writing kit the demo generators share (gen-rf-scenarios.py, gen-ts-scenarios.py)."""
 import json, math, os
-from scenario_json_readable import readable  # CE-4295 — params written as the objects they hold
+from scenario_json_readable import readable
+import scenario_dir  # CE-4361 — scenarios are filed in category sub-folders  # CE-4295 — params written as the objects they hold
 
 ROOT = "/home/user/HROT"
 
@@ -55,7 +56,7 @@ class Scn:
                "header": {"subsystemType": "Hrot.Scenario", "schemaVersion": "1.0", "terrainName": terrain,
                           "description": description},
                "entities": self.ents}
-        d = os.path.join(self.root, "scenarios", sid)
+        d = scenario_dir.folder(self.root, sid)   # CE-4361 — the existing (filed) folder, else a new top-level one
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "scenario.json"), "w") as f:
             f.write(readable(json.dumps(doc, indent=2)))

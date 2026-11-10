@@ -25,7 +25,8 @@ jobs:
         run: |
           want="${{ github.event.inputs.scenarios || 'all' }}"
           if [ "$want" = "all" ]; then
-            names=$(ls scenarios/*/checks.json | cut -d/ -f2)
+            # CE-4361 — scenarios are filed in category sub-folders: the leaf folder name is the scenario's name
+            names=$(find scenarios -name checks.json -not -path '*/.*' | xargs -n1 dirname | xargs -n1 basename | sort)
           else
             names=$(echo "$want" | tr ',' '\n')
           fi

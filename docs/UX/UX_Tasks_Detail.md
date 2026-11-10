@@ -154,7 +154,7 @@ the task register; each is restated in the `Now` column of the relevant
 | Allocator internals exposed to the author | `EntityBlueprintsEditModel.cs` — `Projection(Slots, Bytes, Tier, Status)`, `UsageStatus.OverCeiling`, `CommitPlan.UpgradeToTier`, Reality/Staging |
 | Behavior list ungated for BTree assets | `Hrot/Subsystems/Hrot.Editor/Adapters/EditorMissionService.cs:66-106`, incl. the `TODO (option c)` comment |
 | Params fall back to raw JSON | `MissionPanel.cs:481-492` → `DrawRawJsonEditor`; typed forms via `Hrot/Engine/Hrot.Presentation/Behavior/BehaviorUiCompiler.cs` + `BehaviorSchemaDiscovery.AutoRegister` |
-| Params stored as escaped JSON-in-JSON | `scenarios/hill-attack/scenario.json` — `behaviorParams` is a `string` |
+| Params stored as escaped JSON-in-JSON | `scenarios/tests/hill-attack/scenario.json` — `behaviorParams` is a `string` |
 | Play/preview snapshot+rewind is correct | `Hrot/Subsystems/Hrot.Editor/Adapters/EditorPreviewAdapter.cs:54-67` |
 | Transport controls exist in the status bar | `Hrot/Subsystems/Hrot.Editor/UI/TimeControlStatusBarSection.cs` → `ClusterTimeControlStatusBarSection` |
 | Silent-failure house style | Blueprint audit: `BlueprintCommandSink.Apply` `default:` returns success; `MyBlueprintPanel.InvokeCreate` discards `EditorCommandResult`; `EditorCommandsImpl.Invoke` returns an unread `"Unknown command"` |

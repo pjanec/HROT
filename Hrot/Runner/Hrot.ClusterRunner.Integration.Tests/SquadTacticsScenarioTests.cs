@@ -540,7 +540,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         try
         {
-            File.Copy(Path.Combine(TestRepo.Root, "scenarios", "cc-platoon-bound", "scenario.json"),
+            File.Copy(TestRepo.ScenarioFile("cc-platoon-bound"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
             using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;

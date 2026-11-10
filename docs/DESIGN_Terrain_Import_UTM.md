@@ -568,7 +568,7 @@ sequenceDiagram
 
 ### 8.7 ✅ AS BUILT + MEASURED `2026-11-10` — S-5, the demo and the numbers *(CE-4391, coordinator)*
 
-**The demo** — `scenarios/bd-destruction/` on `bt-range` (the terrain with enterable brick houses and open ground between them; `test-town` has only solid blocks, `demo-city`'s houses are far apart), three staggered acts, **no new mechanism** (the A-10 `AirPlatformStrike`, the tank's weapon brain, `DetonateCharge` with a carried charge, `MoveToLocation`, a `TerrainObjects` door lock):
+**The demo** — `scenarios/demos/buildings-and-doors/bd-destruction/` on `bt-range` (the terrain with enterable brick houses and open ground between them; `test-town` has only solid blocks, `demo-city`'s houses are far apart), three staggered acts, **no new mechanism** (the A-10 `AirPlatformStrike`, the tank's weapon brain, `DetonateCharge` with a carried charge, `MoveToLocation`, a `TerrainObjects` door lock):
 
 | act | what fires it | outcome checked (checks.json, `docs/DESIGN_Scenario_Regression.md` §3) |
 |---|---|---|

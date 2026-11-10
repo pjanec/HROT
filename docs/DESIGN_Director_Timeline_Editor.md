@@ -772,7 +772,7 @@ sequenceDiagram
   T->>T: each fixed-time key → nearest marker before it + offset
   T-->>P: report: re-anchored keys, keys left fixed, missing units
   U->>P: confirm
-  P->>T: write scenarios/ua-civ-shelter/takes/main.take.json (no source)
+  P->>T: write scenarios/demos/civilians-and-crowd/ua-civ-shelter/takes/main.take.json (no source)
 ```
 
 ## 5. The take format, v2
@@ -1355,7 +1355,7 @@ Rails: `DirectorTracksTests.CE1364_AnEdgeDrag_*` · `CE1364_TheEdges_CannotCross
 
 **T4 as built** *(ui, `2026-10-26`)* — `DirectorRunner.DirectUpcoming` now holds the camera `ShotEvaluator.Evaluate(ProgramFrame)` returns for
 `TakeTimeline.ProgramAt(CameraKeys.Played(take, plan), anchors, t)` — `Played` is `Of` with each shot's start taken from `Plan`'s layout (a shot
-listed after one still running starts LATER than its `at`; measured in `scenarios/pc-defend-house/takes/main.take.json`, whose third shot's anchor
+listed after one still running starts LATER than its `at`; measured in `scenarios/demos/platoons-and-vehicles/pc-defend-house/takes/main.take.json`, whose third shot's anchor
 precedes its second's end — keyed at the raw `at`, that seeded take would have filmed differently, so `Played` re-times it; same per-shot helper as `Of`); ⛔ there is no second shot-playing path (a v1 take is read AS keys, TE-2). `Plan`'s
 shots stay, but only as the **stretches the film runs in** (captions, layers, speed, capture, the end) — and a take with `keys[]` and no `shots[]`
 gets one stretch per placed key (`TakeTimeline.Stretches`), so a v2 take runs at all. The dip's black is the same frame's `Fade`, carried by one new
