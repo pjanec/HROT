@@ -552,6 +552,39 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐ <c>CE-4369</c> (L-7, R-4190 Q-T2) — a TRACKED hull in a wood crawls at ≈ 10 km/h; outside the wood it drives the path's
+        /// 10 m/s, and a wheeled one is not capped (it never plans into a wood — the navmesh refuses it).
+        /// </summary>
+        [Theory]
+        [InlineData(VehicleClass.Tank, true, 2.0f, 2.9f)]
+        [InlineData(VehicleClass.Tank, false, 8.5f, 10.2f)]
+        [InlineData(VehicleClass.Truck, true, 8.5f, 10.2f)]
+        public void CE4369_ATrackedHull_CrawlsThroughAWood(VehicleClass cls, bool wood, float min, float max)
+        {
+            var (repo, e, pool) = TrajectoryWorld(0f, startSpeed: 0f, vehicle: new VehicleParams
+            {
+                Class = cls, WheelBase = 4.758f, MaxSpeedFwd = 20f, MaxAccel = 2.5f, MaxDecel = 4f, MaxSteerAngle = (Fdp.Core.Angle)(0.8f),
+                MaxLatAccel = 6f, LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f, AvoidanceRadius = 2.5f,
+            });
+            string forest = wood ? """,{"type":"Feature","properties":{"kind":"surface","surface":"forest"},"geometry":{"type":"Polygon","coordinates":[[[-50,-50],[200,-50],[200,50],[-50,50],[-50,-50]]]}}""" : "";
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[-100,-100,300,100],"groundZ":0},"features":[{"type":"Feature","properties":{"kind":"surface","surface":"water"},"geometry":{"type":"Polygon","coordinates":[[[280,80],[290,80],[290,90],[280,90],[280,80]]]}}FOREST]}"""
+                .Replace("FOREST", forest), "w"));
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float top = 0f;
+            for (int i = 0; i < 6 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                top = MathF.Max(top, repo.GetComponent<VehicleState>(e).Speed);
+            }
+            Assert.InRange(top, min, max);
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>AQ88</c> A/B (R-265) — a PERSON can run, and his stance caps how fast: asked 5 m/s on a path, the pedestrian preset
         /// (a 6 m/s sprint) runs ≈ 5 upright, 3 crouched (× 0.5) and 1.2 prone (× 0.2) — Nav §11's ratios on the LOGICAL stance.
         /// 🔴 Red before: the preset capped every person at 2.0 m/s, and the stance changed nothing.

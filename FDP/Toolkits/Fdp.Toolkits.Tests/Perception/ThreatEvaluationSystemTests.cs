@@ -34,6 +34,36 @@ namespace Fdp.Toolkit.Perception.Tests
             world.Bus.SwapBuffers();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2429</c> (Next_3 H-2) — on the live world the evaluation writes the memory IN PLACE: a seed a behaviour writes after it (an
+        /// attack order designating its target) survives the frame's playback, and the evaluation's decay is visible at once. 📐 Live
+        /// (ua-technical-scoot): the whole memory copy played back after the brain tick and erased the seed. 🔴 Red-proof: write through the
+        /// command buffer again ⇒ the seed is gone after playback.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2429_ABehavioursSameFrameSeed_SurvivesTheEvaluation()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var sys   = new ThreatEvaluationSystem();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var mem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: Target(world), posX: 10f, posY: 20f, scoreBoost: 100f, tick: 0u);
+            world.AddComponent(unit, mem);
+
+            sys.Execute(view, 1.0f);                                                       // the evaluation (decay ⇒ changed)
+            Assert.Equal(100f * (1f - PerceptionConstants.ThreatScoreDecayPerSecond), world.GetComponent<TargetMemory>(unit).Freshness[0], 3);   // visible at once
+            long seeded = Target(world);
+            ref var live = ref world.GetComponentRW<TargetMemory>(unit);                   // a behaviour seeds its named target, same frame
+            TargetMemory.AddOrUpdateTarget(ref live, entityId: seeded, posX: 50f, posY: 60f, scoreBoost: 80f, tick: 1u);
+            FlushEcbAndSwap(view, world);                                                  // the frame's playback
+
+            var after = world.GetComponent<TargetMemory>(unit);
+            Assert.Equal(2, after.Count);
+            Assert.True(after.EntityIds[0] == seeded || after.EntityIds[1] == seeded, "the same-frame seed survives the playback");
+        }
+
         // ── Test 1: decay ─────────────────────────────────────────────────────────────
 
         [Fact]

@@ -149,13 +149,17 @@ namespace Fdp.Toolkit.Spatial.Eqs
             if (template.FilterCheap != null)
                 foreach (var test in template.FilterCheap)
                 {
+                    long tt = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — each test's cost, by type
                     test.ExecuteBatch(entity, ref sensor, view, candidates);
+                    Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt);
                     cost += EqsCost.Charged(test, candidates.Length);   // ⭐ CE-3279 (c) — after the batch: a test may count its own work
                 }
             if (template.FilterExpensive != null)
                 foreach (var test in template.FilterExpensive)
                 {
+                    long tt = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — each test's cost, by type
                     test.ExecuteBatch(entity, ref sensor, view, candidates);
+                    Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt);
                     cost += EqsCost.Charged(test, candidates.Length);   // ⭐ CE-3279 (c) — after the batch: a test may count its own work
                 }
             if (!before.IsEmpty)

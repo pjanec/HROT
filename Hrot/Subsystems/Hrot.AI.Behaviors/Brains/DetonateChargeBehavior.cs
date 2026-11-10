@@ -45,8 +45,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.DetonateCharge, Params = typeof(DetonateChargeParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
-        [BTreeDefinition(BehaviorNames.DetonateCharge, Curated = true, Group = "Library/Orders", ParamsType = typeof(DetonateChargeBlackboard))]
+        [Behavior(BehaviorNames.DetonateCharge, Params = typeof(DetonateChargeParamsJsonDto), Categories = BehaviorCategory.AllMilitary | BehaviorCategory.Civilian, Description = "Detonates a placed charge.")]
+        [BTreeDefinition(BehaviorNames.DetonateCharge, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(DetonateChargeBlackboard))]
         public static BTreeBuilder<DetonateChargeBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<DetonateChargeBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Params, bb => bb.State, Set);

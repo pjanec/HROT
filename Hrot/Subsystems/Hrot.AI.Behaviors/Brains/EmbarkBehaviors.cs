@@ -25,8 +25,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in EmbarkParamsJsonDto authored, ref EmbarkBlackboard block, EntityRepository world, Entity self)
             => block.Board = new EmbarkNodeParams { Vehicle = authored.Vehicle.Ref.Resolve(world), Speed = authored.Speed };
 
-        [Behavior(BehaviorNames.Embark, Params = typeof(EmbarkParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian)]   // ⭐ CE-2134 (moved off the DTO at the merge)
-        [BTreeDefinition(BehaviorNames.Embark, Curated = true, Group = "Library/Basic", ParamsType = typeof(EmbarkBlackboard))]
+        [Behavior(BehaviorNames.Embark, Params = typeof(EmbarkParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian, Description = "Gets into a vehicle.")]   // ⭐ CE-2134 (moved off the DTO at the merge)
+        [BTreeDefinition(BehaviorNames.Embark, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(EmbarkBlackboard))]
         public static BTreeBuilder<EmbarkBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<EmbarkBlackboard, BTreeContext>()
                 .Action(bb => bb.Board, EmbarkNodes.Embark);
@@ -53,8 +53,8 @@ namespace Hrot.AI.Behaviors.Brains
                 Vehicle = authored.Weapon.Ref.Resolve(world), Speed = authored.Speed, Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner,
             };
 
-        [Behavior(BehaviorNames.ManWeapon, Params = typeof(ManWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
-        [BTreeDefinition(BehaviorNames.ManWeapon, Curated = true, Group = "Library/Basic", ParamsType = typeof(ManWeaponBlackboard))]
+        [Behavior(BehaviorNames.ManWeapon, Params = typeof(ManWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Takes a seat at a weapon and operates it.")]
+        [BTreeDefinition(BehaviorNames.ManWeapon, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(ManWeaponBlackboard))]
         public static BTreeBuilder<ManWeaponBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<ManWeaponBlackboard, BTreeContext>()
                 .Action(bb => bb.Board, EmbarkNodes.Embark);
@@ -81,8 +81,8 @@ namespace Hrot.AI.Behaviors.Brains
                 Exit = (Fdp.Toolkit.Motion.ExitKind)authored.Exit, AnchorIndex = authored.AnchorIndex, Landing = authored.Landing,
             };
 
-        [Behavior(BehaviorNames.Disembark, Params = typeof(DisembarkParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian)]   // ⭐ CE-1118 — was NoParams (CE-2134)
-        [BTreeDefinition(BehaviorNames.Disembark, Curated = true, Group = "Library/Basic", ParamsType = typeof(DisembarkBlackboard))]
+        [Behavior(BehaviorNames.Disembark, Params = typeof(DisembarkParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian, Description = "Gets out of a vehicle.")]   // ⭐ CE-1118 — was NoParams (CE-2134)
+        [BTreeDefinition(BehaviorNames.Disembark, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(DisembarkBlackboard))]
         public static BTreeBuilder<DisembarkBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<DisembarkBlackboard, BTreeContext>()
                 .Action(bb => bb.Leave, EmbarkNodes.Disembark);
@@ -128,8 +128,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.Leave = new PutDownNodeParams { Skip = authored.Keep ? (byte)1 : (byte)0 };   // ⭐ CE-2173 slice 3c
         }
 
-        [Behavior(BehaviorNames.CarryCasualty, Params = typeof(CarryCasualtyParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
-        [BTreeDefinition(BehaviorNames.CarryCasualty, Curated = true, Group = "Library/Infantry", ParamsType = typeof(CarryCasualtyBlackboard))]
+        [Behavior(BehaviorNames.CarryCasualty, Params = typeof(CarryCasualtyParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Carries a casualty to safety.")]
+        [BTreeDefinition(BehaviorNames.CarryCasualty, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(CarryCasualtyBlackboard))]
         public static BTreeBuilder<CarryCasualtyBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<CarryCasualtyBlackboard, BTreeContext>()
                 .Sequence(seq => seq
@@ -160,8 +160,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.Board = new EmbarkNodeParams { Vehicle = vehicle, Speed = authored.Speed };
         }
 
-        [Behavior(BehaviorNames.LoadCasualty, Params = typeof(LoadCasualtyParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
-        [BTreeDefinition(BehaviorNames.LoadCasualty, Curated = true, Group = "Library/Infantry", ParamsType = typeof(LoadCasualtyBlackboard))]
+        [Behavior(BehaviorNames.LoadCasualty, Params = typeof(LoadCasualtyParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Loads a casualty into a vehicle.")]
+        [BTreeDefinition(BehaviorNames.LoadCasualty, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(LoadCasualtyBlackboard))]
         public static BTreeBuilder<LoadCasualtyBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<LoadCasualtyBlackboard, BTreeContext>()
                 .Sequence(seq => seq

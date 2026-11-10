@@ -50,6 +50,9 @@ public static class IconsFontAwesome6
     public const string Upload              = "\uf093"; // CE-4330 — an archive (to the NAS)
     public const string HardDrive           = "\uf0a0"; // CE-4330 — a recording on the nodes / cached here
     public const string Server              = "\uf233"; // CE-4330 — the NAS
+    public const string Robot               = "\uf544"; // ⭐ G-7 S5 follow-up — a CGF node (the Source menu's role icon)
+    public const string Gamepad             = "\uf11b"; // ⭐ G-7 S5 follow-up — a Player node
+    public const string Map                 = "\uf279"; // ⭐ G-7 S5 follow-up — an IG (map) node
     public const string Download            = "\uf019"; // CE-4330 — an import (from the NAS)
     public const string Play                = "\uf04b";
     public const string CircleHalfStroke    = "\uf042"; // preview (dry run)

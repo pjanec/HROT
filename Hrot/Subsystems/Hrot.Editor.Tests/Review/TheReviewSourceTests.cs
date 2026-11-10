@@ -373,10 +373,10 @@ public sealed class TheReviewSourceTests : IDisposable
         Assert.Equal("Review: opening the group…", rig.Source.StatusText());                       // pending until the replay is up
 
         rig.Source.Update(0);
-        Assert.Equal("Merged · 4 participants (Node 2, Node 3, Node 4, Node 5) — step / scrub", rig.Source.StatusText());
+        Assert.Equal("Merged · 4 participants (SimHost-2, SimHost-3, SimHost-4, SimHost-5) — step / scrub", rig.Source.StatusText());
 
         rig.Source.SelectPart(2);
-        Assert.Equal("Part: Node 2", rig.Source.StatusText());
+        Assert.Equal("Part: SimHost-2", rig.Source.StatusText());
         rig.Source.SelectMerged();
         Assert.StartsWith("Merged · 4 participants", rig.Source.StatusText());
 
@@ -465,6 +465,7 @@ public sealed class TheReviewSourceTests : IDisposable
         var combo = new ReviewSourceToolbarCombo(rig.Source);
         var status = new ReviewSourceStatusSection(rig.Source);
         using var frame = UiFrameHarness.Begin(1240, 140);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
         for (int i = 0; i < 4; i++)
             frame.Step(() =>
             {
@@ -485,7 +486,7 @@ public sealed class TheReviewSourceTests : IDisposable
             });
 
         Assert.Equal(ReplayTransportParts.History | ReplayTransportParts.StepBack | ReplayTransportParts.SeekBar | ReplayTransportParts.PlayPause, segment.MergedDrawer!.LastDrawn);   // ▶ drawn (greyed) beside the segment's items
-        Assert.Equal("Merged", combo.Label);
+        Assert.Equal("Merged · 4 participants", combo.Label);   // ⭐ mockup ③ — the face says the count
         Assert.True(combo.Drawn);
         Assert.True(status.TextRect.Max.X > status.TextRect.Min.X, "the segment is drawn at the left");
         Assert.True(status.TextRect.Min.X < 40f, "…at the bar's LEFT end " + status.TextRect);
@@ -520,10 +521,10 @@ public sealed class TheReviewSourceTests : IDisposable
         using var rig = new Rig(_root, _serializer);
         rig.Open(_exercise);
 
-        Assert.Equal(new[] { ("local to Node 2", 902), ("local to Node 4", 904) }, LocalsInWorld(rig.Source, rig.World));   // ⭐ one from each node, each tagged with its own
+        Assert.Equal(new[] { ("local to SimHost-2", 902), ("local to SimHost-4", 904) }, LocalsInWorld(rig.Source, rig.World));   // ⭐ one from each node, each tagged with its own
 
         rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, false);                                                            // the checkbox
-        Assert.Equal(new[] { ("local to Node 2", 902) }, LocalsInWorld(rig.Source, rig.World));
+        Assert.Equal(new[] { ("local to SimHost-2", 902) }, LocalsInWorld(rig.Source, rig.World));
         Assert.NotEqual(int.MaxValue, ProgressOfNet(rig.World, 300));                                                      // its networked unit stays
 
         rig.Source.SwitchPanel!.SetLocalEntitiesShown(4, true);
@@ -564,6 +565,106 @@ public sealed class TheReviewSourceTests : IDisposable
         Draw();
         Assert.Equal(new[] { true, true, false, false }, panel.LocalsRows.Select(r => r.On).ToArray());
         if (dir != "") frame.Screenshot(Path.Combine(dir, "g7s5-source-menu-unchecked.png"));
+    }
+
+    /// <summary>
+    /// ⭐ G-7 S5 follow-up (mockup ③ of <c>docs/UX/better-merge-visual.svg</c>, user: <i>"rebuild the popup to match mockup"</i>) — the Source menu, measured on a REAL frame: the header, <i>Merged — every part</i> then one
+    /// <i>"&lt;name&gt;'s part"</i> per participant with its ROLE icon (CGF robot blue · SimHost cube amber) in a cell at ONE x before the text; the <i>Local entities shown from</i> header and one checkbox per node; <i>Offsets…</i> last.
+    /// ⛔ NO Single-Node / Merged radio anywhere in it; clicking <i>Offsets…</i> asks the host to open the Federation window, whose own panel draws no radio either. The icon cells hold their colour on the screen.
+    /// 🔴 Red-proofs (compile): <c>ReviewSourceSwitch.Draw</c> calling <c>panel.DrawContent()</c> again (the radio back) ⇒ the radio assertions red; a row's icon drawn in the text colour ⇒ the pixel rail red.
+    /// Render (never in git): <c>HROT_RAIL_SHOTS=&lt;dir&gt;</c> ⇒ <c>popup-source-menu.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void G7S5_TheSourceMenu_IsMockup3_RolesIconsAtOneX_NoRadio_OffsetsOpensTheFederationWindow_Frame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        FourParticipants();
+        using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1", 3 => "CGF-2", 4 => "SimHost-1", _ => "Player-1" });
+        rig.Open(_exercise);
+        var panel = rig.Source.SwitchPanel!;
+        panel.CaptureLayout = true;
+        int offsetsAsked = 0; rig.Source.OffsetsRequested += () => offsetsAsked++;
+        var registered = new List<Fdp.Presentation.WindowManager.ManagedWindow>();
+        var host = new ReviewFederationWindowHost(rig.Source, registered.Add, "Review", Vector4.One);
+        Assert.Single(registered);   // the window over the open group's panel, registered once
+        ReviewSourceSwitch.CaptureLayout = true;
+        try
+        {
+            long drawBytes = -1;
+            using var frame = UiFrameHarness.Begin(460, 330);
+            new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+            frame.StepN(4, () =>
+            {
+                ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(460, 330));
+                ImGui.Begin("Source", ImGuiNET.ImGuiWindowFlags.NoDecoration | ImGuiNET.ImGuiWindowFlags.NoMove | ImGuiNET.ImGuiWindowFlags.NoSavedSettings);
+                long b0 = GC.GetAllocatedBytesForCurrentThread();
+                ReviewSourceSwitch.Draw(rig.Source);
+                drawBytes = GC.GetAllocatedBytesForCurrentThread() - b0;
+                ImGui.End();
+            });
+            Assert.Equal(0, drawBytes);   // ⭐ HOT PATH — the open popup allocates nothing in the steady state
+
+            Assert.Equal(new[]
+            {
+                ReviewSourceSwitch.Header, ReviewSourceSwitch.MergedRow, "CGF-1's part", "CGF-2's part", "SimHost-1's part", "Player-1's part",
+                Fdp.Presentation.Panels.ReplayBrowser.FederationPanel.LocalsHeader, ReviewSourceSwitch.OffsetsRow,
+            }, ReviewSourceSwitch.DrawnTexts.ToArray());                                                       // the mockup's order; no "Single-Node" / "Merged View" row
+            Assert.Equal(5, ReviewSourceSwitch.Rows.Count);
+            Assert.Single(ReviewSourceSwitch.Rows.Select(r => r.IconX).Distinct());                           // ONE x for every icon cell
+            Assert.Single(ReviewSourceSwitch.Rows.Select(r => r.TextX).Distinct());                           // … and one x for every row's text, after the cell
+            Assert.True(ReviewSourceSwitch.Rows[0].TextX - ReviewSourceSwitch.Rows[0].IconX > 12f, "the icon cell precedes the text");
+            Assert.False(panel.ModeRadioDrawn);                                                                // ⛔ the radio is not in the popup (one control per choice)
+            Assert.Equal(new[] { 2, 3, 4, 5 }, panel.LocalsRows.Select(r => r.Node).ToArray());              // the shared checkbox component, one per node
+            Assert.Equal("node/cgf", rig.Source.RoleKeyOf(2)); Assert.Equal("node/simhost", rig.Source.RoleKeyOf(4));
+            Assert.Equal(NodeEditor.Core.Widgets.IconPalette.Blue, NodeEditor.Core.Widgets.Icons.Get("node/cgf").Color);       // the mockup: CGF blue …
+            Assert.Equal(NodeEditor.Core.Widgets.IconPalette.Amber, NodeEditor.Core.Widgets.Icons.Get("node/simhost").Color);  // … SimHost amber
+            Assert.Equal("\uf544", NodeEditor.Core.Widgets.Icons.Get("node/cgf").Glyph); Assert.Equal("\uf1b2", NodeEditor.Core.Widgets.Icons.Get("node/simhost").Glyph);
+
+            // the colours are on the SCREEN: the merged row's cell holds teal pixels, the CGF row's blue, the SimHost row's amber
+            if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) { Directory.CreateDirectory(dir); frame.Screenshot(Path.Combine(dir, "popup-source-menu.png")); }
+            var shot = Raylib_cs.Raylib.LoadImageFromScreen();
+            try
+            {
+                int Px(int row, System.Numerics.Vector4 want)
+                {
+                    var r = ReviewSourceSwitch.Rows[row]; int n = 0;
+                    for (int x = (int)r.IconX; x < (int)r.TextX; x++)
+                        for (int y = (int)r.Y; y < (int)r.Y + 16; y++)
+                        {
+                            var c = Raylib_cs.Raylib.GetImageColor(shot, x, y);
+                            if (Math.Abs(c.R - want.X * 255f) <= 40 && Math.Abs(c.G - want.Y * 255f) <= 40 && Math.Abs(c.B - want.Z * 255f) <= 40) n++;
+                        }
+                    return n;
+                }
+                Assert.True(Px(0, NodeEditor.Core.Widgets.IconPalette.Teal) >= 8, "Merged's sitemap is teal");
+                Assert.True(Px(1, NodeEditor.Core.Widgets.IconPalette.Blue) >= 8, "CGF-1's robot is blue");
+                Assert.True(Px(3, NodeEditor.Core.Widgets.IconPalette.Amber) >= 8, "SimHost-1's cube is amber");
+            }
+            finally { Raylib_cs.Raylib.UnloadImage(shot); }
+        }
+        finally { ReviewSourceSwitch.CaptureLayout = false; }
+
+        // Offsets… asks the host; the host's window hosts the panel with NO radio and NO checkboxes (they are in the menu)
+        Assert.False(host.Window!.IsOpen);          // closed until asked for
+        rig.Source.RequestOffsets();
+        Assert.Equal(1, offsetsAsked);
+        Assert.True(host.Window!.IsOpen);           // Offsets… opened the Federation window
+        Assert.False(panel.ShowModeRadio); Assert.False(panel.ShowLocals);
+    }
+
+    /// <summary>The face says what the world is, cached (0 B per drawn frame): <i>Merged · 4 participants</i> → <i>CGF-1's part</i>.</summary>
+    [Fact]
+    public void G7S5_TheSourceFace_SaysMergedWithTheCount_OrThePart()
+    {
+        FourParticipants();
+        using var rig = new Rig(_root, _serializer, names: n => n == 2 ? "CGF-1" : "Node " + n);
+        Assert.Null(rig.Source.FaceLabel);
+        rig.Open(_exercise);
+        Assert.Equal("Merged · 4 participants", rig.Source.FaceLabel); Assert.Equal("review/merged", rig.Source.FaceIconKey);
+        rig.Source.SelectPart(2);
+        Assert.Equal("CGF-1's part", rig.Source.FaceLabel); Assert.Equal("node/cgf", rig.Source.FaceIconKey);
+        Assert.Same(rig.Source.FaceLabel, rig.Source.FaceLabel);   // cached: the same instance every frame
+        Assert.Same(rig.Source.PartLabel(3), rig.Source.PartLabel(3));
     }
 
     // ── S5 · I5 — Details ▸ a component ▸ By node (mockup ①) ─────────────────────────────────────────────
@@ -650,5 +751,47 @@ public sealed class TheReviewSourceTests : IDisposable
         Assert.True(rows[0].Y < rows[1].Y && rows[1].Y < rows[2].Y);                                   // owner first, top to bottom
         string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } sd ? sd : "";
         if (dir != "") { Directory.CreateDirectory(dir); frame.Screenshot(Path.Combine(dir, "g7s5-details-by-node.png")); }
+    }
+
+    /// <summary>
+    /// ⭐ §6.13 RW-6 (mockup ① "Strength — by node") — a WATCHED attribute shows its per-node values: the owner (crown) first, a replica beyond the item's tolerance amber with its Δ. The tolerance decides what is amber (7 apart: amber at 0.5, not at 10). 🔴 Red-proof: ignore the tolerance in <c>ReplicaViews.ComputeItem</c> ⇒ the tolerance-10 half shows node 4 amber.
+    /// </summary>
+    [SkippableFact]
+    public void RW6_AWatchedAttribute_ShowsItsPerNodeValues_AmberBeyondTolerance()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ReplicaGroup();
+        using var rig = new Rig(_root, _serializer, names: n => n switch { 2 => "CGF-1 (Brain)", 3 => "SimHost-1 (Muscle)", _ => "IG-1 (Map2D)" });
+        rig.Open(_exercise);
+        var section = ByNode(rig);
+        section.Capture = true;
+        var watch = new ReplicaWatchList();
+        section.Watch = watch;
+        var unit = UnitOf(rig.World, 100);
+        var item = watch.Add(100, "ObjectiveStatus.ProgressCur", 0, expert: true, label: "Progress");
+
+        var views = new ReplicaViews(new OwnershipSource(), _serializer);
+        var view = views.ComputeItem(rig.Source.MergedManager!, 100, item)!;
+        Assert.Equal(new[] { 2, 3, 4 }, view.Rows.Select(r => r.NodeId).ToArray());
+        Assert.Equal(new[] { true, false, false }, view.Rows.Select(r => r.IsOwner).ToArray());
+        Assert.Equal(new[] { false, false, true }, view.Rows.Select(r => r.Differs).ToArray());
+        Assert.Equal(7d, view.Rows[2].Delta, 3);
+        watch.SetTolerance(100, "ObjectiveStatus.ProgressCur", 0, 10);
+        Assert.DoesNotContain(views.ComputeItem(rig.Source.MergedManager!, 100, watch.ItemsOf(100)[0])!.Rows, r => r.Differs);   // within the tolerance: nothing amber
+        watch.SetTolerance(100, "ObjectiveStatus.ProgressCur", 0, 0.5);
+
+        using var frame = UiFrameHarness.Begin(640, 260);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        frame.StepN(5, () =>
+        {
+            ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(640, 260));
+            ImGui.Begin("Details", ImGuiNET.ImGuiWindowFlags.NoCollapse);
+            section.DrawAttribute(unit, watch.ItemsOf(100)[0]);
+            ImGui.End();
+        });
+        Assert.Equal(new[] { 2, 3, 4 }, section.Rows.Select(r => r.Node).ToArray());
+        Assert.Equal(new[] { false, false, true }, section.Rows.Select(r => r.Amber).ToArray());
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } sd ? sd : "";
+        if (dir != "") { Directory.CreateDirectory(dir); frame.Screenshot(Path.Combine(dir, "rw6-attribute-by-node.png")); }
     }
 }

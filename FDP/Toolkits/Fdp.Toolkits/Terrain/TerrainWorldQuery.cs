@@ -76,7 +76,22 @@ namespace Fdp.Toolkit.Terrain
             return World.QuerySight(from, to, Doors).Transmittance * cloud < TerrainWorld.SightThreshold;
         }
 
+        // ⭐ CE-3427 — the world query's cost per purpose (who asks is the caller's slot; the terrain primitives have their own)
+        private static readonly int[] S_Trace =
+        {
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Sight"),
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Fire"),
+            Fdp.Toolkit.Diagnostics.QueryTimings.Slot("world.Trace.Sound"),
+        };
+
         public void Trace(Vector3 from, Vector3 to, TracePurpose purpose, List<TraceCrossing> into)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            TraceCore(from, to, purpose, into);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Trace[(int)purpose < S_Trace.Length ? (int)purpose : 0], t0);
+        }
+
+        private void TraceCore(Vector3 from, Vector3 to, TracePurpose purpose, List<TraceCrossing> into)
         {
             into.Clear();
             switch (purpose)
@@ -90,6 +105,19 @@ namespace Fdp.Toolkit.Terrain
                         var c = fire[i];
                         into.Add(new TraceCrossing(c.T, c.PathMetres, c.ResistanceMmRha, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
                             c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.EntryNormal, ExitNormal = c.ExitNormal });   // ⭐ CE-1128
+                    }
+                    // ⭐ CE-4369 (S4, R-4190 T-6) — the woods: ONE crossing where the line first enters a wood, stopping a share of rounds
+                    //   whatever their penetration (no resistance, not a barrier). Only the FIRE purpose — the round path; QueryFire's other
+                    //   readers (blasts, sound, door breaching) are unchanged.
+                    if (World.Woods is { } woods)
+                    {
+                        float stop = woods.FireStop(from, to, World, out float tWood);
+                        if (stop > 0f)
+                        {
+                            int at = 0;
+                            while (at < into.Count && into[at].T <= tWood) at++;
+                            into.Insert(at, new TraceCrossing(tWood, 0f, 0f, 0f, false, TerrainWorld.WoodsKind, null, "forest", null, -1) { Stop = stop });
+                        }
                     }
                     break;
                 }

@@ -46,6 +46,12 @@ namespace Fdp.Toolkit.Perception.Systems
         /// <see cref="SimTransform"/>; otherwise none), nearest first when over the cap, else in cell-scan order.
         /// The list is reused by the next call.
         /// </summary>
+        private static readonly int S_Select = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("percept.broadphase.Select");
+        private static readonly int S_Cells = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("percept.broadphase.cellsWalked (count)");
+        private static readonly int S_Filled = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("percept.broadphase.cellsFilled (count)");
+        private static readonly int S_Entries = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("percept.broadphase.entries (count)");
+        private static readonly int S_Passed = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("percept.broadphase.passed (count)");
+
         public IReadOnlyList<(float DistSq, Entity Target)> Select(ISimulationView view, Entity observer, float range, float fovCos)
         {
             _passed.Clear();
@@ -64,13 +70,18 @@ namespace Fdp.Toolkit.Perception.Systems
 
             float rangeSq = range * range;
 
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — the walk's time and its counts
+            int cellsWalked = 0, cellsFilled = 0, entries = 0;
             int x0 = Cell(obsPos2D.X - range), x1 = Cell(obsPos2D.X + range);
             int y0 = Cell(obsPos2D.Y - range), y1 = Cell(obsPos2D.Y + range);
             for (int cy = y0; cy <= y1; cy++)
             {
                 for (int cx = x0; cx <= x1; cx++)
                 {
+                    cellsWalked++;
                     if (!_coarse.TryGetValue(Key(cx, cy), out var cell)) continue;
+                    cellsFilled++;
+                    entries += cell.Count;
                     foreach (var (target, targetPos2D, targetForce) in cell)
                     {
                         if (target.Index == observer.Index) continue; // skip self
@@ -98,6 +109,12 @@ namespace Fdp.Toolkit.Perception.Systems
                     }
                 }
             }
+
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Select, t0);
+            Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Cells, cellsWalked);
+            Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Filled, cellsFilled);
+            Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Entries, entries);
+            Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Passed, _passed.Count);
 
             // ⭐ CE-3032 — over the cap, the NEAREST candidates win (ties by entity index — deterministic).
             //   🔴 It used to keep whichever 256 the cell scan reached first, FRIENDLIES INCLUDED, so in a dense
@@ -224,6 +241,7 @@ namespace Fdp.Toolkit.Perception.Systems
 
         private readonly System.Threading.ThreadLocal<Slot> _slots = new(() => new Slot());
         private long _rebuilds;
+        private static readonly int S_Rebuild = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("percept.broadphase.Rebuild");
 
         /// <summary>How many rebuilds this cache has made, over every thread (rails).</summary>
         public long Rebuilds => System.Threading.Interlocked.Read(ref _rebuilds);
@@ -235,7 +253,9 @@ namespace Fdp.Toolkit.Perception.Systems
             var slot = _slots.Value!;
             if (!ReferenceEquals(view, slot.BuiltFor) || view.Tick != slot.BuiltTick)
             {
+                long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427
                 slot.Broadphase.Rebuild(view, grid);
+                Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Rebuild, t0);
                 slot.BuiltFor  = view;
                 slot.BuiltTick = view.Tick;
                 System.Threading.Interlocked.Increment(ref _rebuilds);

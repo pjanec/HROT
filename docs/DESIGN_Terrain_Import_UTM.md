@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
-updated: 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
+updated: 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
 current-answer: ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8 destructible buildings (PROPOSAL, Q-D1…Q-D4) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
 known-rot: §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
@@ -283,6 +283,69 @@ only a breach big enough to walk through touches the navmesh, through the copy-o
 | **Q-D4** ✅ | every building — the imported 1 988 and today's authored ones — one rule | accepted |
 
 ⇒ it is its own stage (after the importer's buildings, stage 4) — walls AND collapse together; it also delivers Building Interiors' E3 for today's terrains. The collapse trigger: a heavy bomb (or an equivalent blast) close enough by the D-5 rule — a threshold in the same data table.
+
+### 8.1 📐 The breach at runtime — sequence, modules, what Nav v2 §14 P3 must add *(L-8, CE-4370, backend `2026-11-09` — DESIGN ONLY, ⛔ not built)*
+
+<!-- build-state: READY-TO-BUILD (§8 + §8.1) -->
+
+```mermaid
+sequenceDiagram
+    participant A as AreaEffectSystem / impact (Muscle, frame)
+    participant B as BreachRule (Muscle, frame)
+    participant W as WallBreaches / BuildingState (world state)
+    participant Q as IWorldQuery (sight, fire — any frame)
+    participant R as NavRebuildRequester (Muscle, frame)
+    participant F as RecastNavmeshFactory.Rebake (off-thread)
+    participant K as NavTileCache
+    participant P as DotRecastNavmeshProvider
+    participant N as NavigationExecution (P3, frame)
+    A->>B: blast at p, warhead w / hit on panel k
+    B->>B: w × panel material ⇒ HOLE, PASSAGE, COLLAPSE or nothing (D-2, D-5, D-7)
+    B->>W: add breach (panel, along, z) / set Collapsed
+    Q->>W: reads live breaches at query time (as doors) — sight and fire see it THIS frame
+    alt PASSAGE or COLLAPSE
+        B->>R: the building's tiles are dirty
+        R->>F: the world + the live breaches (an overlay, not an edit of the content)
+        F->>K: per tile: key = hash(triangles incl. the breach)
+        K-->>F: unchanged tiles hit, the building's 1–4 tiles miss
+        F->>P: swap snapshot S1 → S2, the touched tiles' versions + 1
+        N->>P: a path's tiles' versions newer than its stamp?
+        N->>N: replan that path (P3) — others keep theirs
+    end
+```
+
+```mermaid
+graph LR
+  subgraph FRAME["each sim frame (Muscle)"]
+    AE["AreaEffectSystem"] --> BR["BreachRule"]
+    IMP["impact on a panel"] --> BR
+    BR --> WB["WallBreaches / BuildingState"]
+    BR --> RQ["NavRebuildRequester (coalesces: ≤ 1 rebake in flight)"]
+    NE["NavigationExecution: stamp check (P3)"]
+  end
+  subgraph ANY["on query"]
+    WQ["IWorldQuery sight / fire"] -.reads.-> WB
+  end
+  subgraph BG["off-thread"]
+    RB["RecastNavmeshFactory.Rebake"] --> NTC["NavTileCache"]
+  end
+  RQ --> RB
+  RB -->|"swap"| NP["DotRecastNavmeshProvider"]
+  NE -.QueryVersion per tile.-> NP
+```
+*What it shows: only BreachRule and the stamp check run per frame; the rebake is off the frame; sight and fire never wait for the navmesh.*
+
+**What Navigation v2 §14 P3 must add for this** (named here; built with stage "destruction"):
+
+| # | P3 addition | why (measured / from §14) |
+|---|---|---|
+| P3-a | **per-TILE versions** in the snapshot (today one `QueryVersion` for the whole provider) and a path stamped with the versions of the tiles it crosses | one breach must not replan 1 000 soldiers' paths across 5.5 km — only those through its 1–4 tiles |
+| P3-b | `NavigationExecution` checks the stamp each frame (an integer compare per moving entity, no allocation) and replans the stale path | §14's PathReplanCheck, made per tile |
+| P3-c | **a rebake input = the content world + the live state overlay** (breach openings as extra `TerrainOpening`s on their panels; a collapsed building's panels and slabs replaced by its rubble prism) — the content (`TerrainWorld`, NoReplay) is never edited | D-3: breaches are world state, replayed and restored; the overlay is rebuilt from them after a checkpoint restore |
+| P3-d | a **coalescing requester**: at most one rebake in flight; breaches arriving meanwhile join the next one | artillery: tens of breaches a minute — one rebake each would queue unboundedly |
+| P3-e | units standing in a collapsed building: removed from the navmesh's agent set before the swap (they are casualties, D-7) | a path from inside a mound has no start polygon |
+
+⚠ To measure when built (L-4's rig): rebake seconds for one building's tiles on `scale-1` with the cache warm, and the replans per breach.
 
 ---
 _source-data session, 2026-11-09_

@@ -7,7 +7,7 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>What a solid terrain prism is — drives only the default draw style and label.</summary>
-    public enum TerrainPrismKind : byte { Building = 0, Wall = 1 }
+    public enum TerrainPrismKind : byte { Building = 0, Wall = 1, Tree = 2 /* ⭐ CE-4369 — a lone tree trunk (R-4190 T-1) */ }
 
     /// <summary>What a walkable terrain surface with its own Z is.</summary>
     public enum TerrainWalkableKind : byte { Slab = 0, Ramp = 1 }
@@ -66,6 +66,10 @@ namespace Fdp.Toolkit.Terrain
         public int[] Triangles { get; init; } = Array.Empty<int>();
         public Vector2 Min { get; init; }
         public Vector2 Max { get; init; }
+        /// <summary>⭐ CE-4369 (R-4190) — a forest's trees per hectare (the world file's <c>density</c>; <see cref="TerrainWoods.DefaultDensity"/>).</summary>
+        public float Density { get; init; } = TerrainWoods.DefaultDensity;
+        /// <summary>⭐ CE-4369 (R-4190 T-7) — a forest's canopy top above the ground, m (<c>canopy</c>; <see cref="TerrainWoods.DefaultCanopy"/>).</summary>
+        public float Canopy { get; init; } = TerrainWoods.DefaultCanopy;
     }
 
     /// <summary>
@@ -393,6 +397,27 @@ namespace Fdp.Toolkit.Terrain
             return false;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4366</c> (L-4) — true when (<paramref name="x"/>, <paramref name="y"/>) is inside a prism's footprint whose height band
+        /// overlaps the open interval (<paramref name="zLo"/>, <paramref name="zHi"/>) — <c>TopZ &gt; zLo</c> and <c>BaseZ &lt; zHi</c>. Through
+        /// <see cref="SpatialIndex"/> like <see cref="InsideFootprint(float, float)"/>; the cover build's "something stands here" asked it by
+        /// scanning every prism (52 s on the scale terrain).
+        /// </summary>
+        public bool InsideFootprint(float x, float y, float zLo, float zHi)
+        {
+            var p = new Vector2(x, y);
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;   // a door leaf
+                var prism = Prisms[i];
+                if (!InBox(p, prism.Min, prism.Max) || prism.TopZ <= zLo || prism.BaseZ >= zHi) continue;
+                if (PolygonMath.Contains(prism.Footprint, p)) return true;
+            }
+            return false;
+        }
+
         /// <summary>How far above and below a point query's vertical segment reaches (m) — past any terrain's height.</summary>
         private const float PointQueryReach = 1e4f;
 
@@ -459,10 +484,25 @@ namespace Fdp.Toolkit.Terrain
         /// <param name="doors">⭐ R-219 — the door states of the caller's view (<see cref="DoorStates.Of(Fdp.Core.ISimulationView, TerrainWorld)"/>); null = as authored.</param>
         public bool SegmentBlocked(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            var r = SegmentBlockedCore(from, to, doors);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_SegmentBlocked, t0);
+            return r;
+        }
+        private static readonly int S_SegmentBlocked = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.SegmentBlocked");   // ⭐ CE-3427
+
+        private bool SegmentBlockedCore(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
             float transmittance = 1f;
             // ⭐ CE-1034 H2 (TH-D) — a HILL blocks sight: the ground trace over the height grid (opaque). Without a grid the ground is
             //   flat and no line between two points above it can dip under it. Under the ground at either end = malformed, ignored.
             if (Height != null && Height.Crosses(from, to)) return true;
+            // ⭐ CE-4369 (L-7, R-4190 T-2) — the WOODS: visibility lost per metre below the canopy, scaled by the trees per hectare
+            if (Woods is { } woods)
+            {
+                transmittance *= woods.Transmittance(from, to, this, out _);
+                if (transmittance < SightThreshold) return true;
+            }
             var a = new Vector2(from.X, from.Y);
             var b = new Vector2(to.X, to.Y);
             var segMin = Vector2.Min(a, b);
@@ -507,6 +547,31 @@ namespace Fdp.Toolkit.Terrain
             return false;
         }
 
+        /// <summary>⭐ CE-4369 — the crossing kind the woods report in a sight trace.</summary>
+        public const string WoodsKind = "woods";
+
+        /// <summary>
+        /// ⭐ CE-4369 (L-7, R-4190) — the woods grid of this world's forest surfaces; null when it has none. Built once, on first use
+        /// (the terrain load's cover build or the first sight line), then read without allocation.
+        /// </summary>
+        public TerrainWoods? Woods
+        {
+            get
+            {
+                if (!System.Threading.Volatile.Read(ref _woodsBuilt))
+                {
+                    lock (_woodsGate)
+                    {
+                        if (!_woodsBuilt) { _woods = TerrainWoods.Build(this); System.Threading.Volatile.Write(ref _woodsBuilt, true); }
+                    }
+                }
+                return _woods;
+            }
+        }
+        private TerrainWoods? _woods;
+        private bool _woodsBuilt;
+        private readonly object _woodsGate = new();
+
         /// <summary>⭐ Stage 1 — a line SEES THROUGH when its sight transmittance is at least this (§3c M3, v1).</summary>
         public const float SightThreshold = 0.5f;
 
@@ -535,6 +600,15 @@ namespace Fdp.Toolkit.Terrain
         /// asks <see cref="SegmentBlocked"/>, which allocates nothing.</remarks>
         public TraceResult QuerySight(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            var r = QuerySightCore(from, to, doors);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_QuerySight, t0);
+            return r;
+        }
+        private static readonly int S_QuerySight = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QuerySight");   // ⭐ CE-3427
+
+        private TraceResult QuerySightCore(Vector3 from, Vector3 to, DoorStates? doors = null)
+        {
             var crossed = new List<Crossing>();
             var a = new Vector2(from.X, from.Y);
             var b = new Vector2(to.X, to.Y);
@@ -544,6 +618,12 @@ namespace Fdp.Toolkit.Terrain
             // ⭐ CE-1034 H2 — a hill in the way is an opaque crossing where the line enters the ground
             if (Height != null && Height.Crosses(from, to, out float groundT, out _))
                 crossed.Add(new Crossing(groundT * length, GroundKind, null, GroundMaterial, 0f, null, -1));
+            // ⭐ CE-4369 (L-7) — the woods as ONE crossing (their whole loss), where the line meets its first wooded cell's canopy
+            if (Woods is { } woods)
+            {
+                float tw = woods.Transmittance(from, to, this, out float metres);
+                if (metres > 0f) crossed.Add(new Crossing(0f, WoodsKind, null, TerrainWorldMesh.ForestMaterial, tw, null, -1));
+            }
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
@@ -635,6 +715,14 @@ namespace Fdp.Toolkit.Terrain
         /// <inheritdoc cref="QueryFire(Vector3, Vector3, DoorStates?)"/>
         /// <param name="into">Cleared, then filled — a caller tracing every round each tick reuses one list.</param>
         public void QueryFire(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            QueryFireCore(from, to, into, doors);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_QueryFire, t0);
+        }
+        private static readonly int S_QueryFire = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QueryFire");   // ⭐ CE-3427
+
+        private void QueryFireCore(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null)
         {
             into.Clear();
             var a = new Vector2(from.X, from.Y);

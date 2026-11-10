@@ -9,6 +9,8 @@
 #   scripts/cluster-node.sh kill <port>                                    # SIGKILL one node (a crash)
 #   scripts/cluster-node.sh stop-all                                       # every node + Xvfb
 #
+# HROT_NODE_ARGS=... appends arguments to every started node (CE-4366: the scale rig runs its nodes --headless — a windowed node's
+# software-GL draw on Xvfb took 3 of the VM's 4 cores while idle).
 # A node's id is <base-node-id> + the subsystem offset (Program.cs ResolveAppNodeId: simhost 1, player 100,
 # orchestrator 300, cgf 400, excon 200, traffic 800). Logs: /tmp/n-<mode>-<port>.log. PIDs: /tmp/n-<port>.pid.
 set -u
@@ -21,7 +23,7 @@ case "${1:-}" in
     log=/tmp/n-$mode-$port.log
     # ⛔ setsid + nohup: a plain & dies with the calling shell (runbook §1.3).
     HROT_DEBUG_API_PORT=$port setsid nohup xvfb-run -a --server-args="-screen 0 1280x800x24" \
-      dotnet "$DLL" --mode "$mode" --no-wait $( [ "$base" = auto ] || echo "-n $base" ) -d "$domain" > "$log" 2>&1 < /dev/null &
+      dotnet "$DLL" --mode "$mode" --no-wait $( [ "$base" = auto ] || echo "-n $base" ) -d "$domain" ${HROT_NODE_ARGS:-} > "$log" 2>&1 < /dev/null &
     echo $! > /tmp/n-$port.pid
     # wait for the debug API (no fixed sleep): poll /status until it answers or 120 s pass
     for _ in $(seq 1 120); do

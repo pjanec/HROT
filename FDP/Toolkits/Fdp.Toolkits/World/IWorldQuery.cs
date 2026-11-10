@@ -42,6 +42,9 @@ namespace Fdp.Toolkit.World
         /// <summary>⭐ <c>CE-3249</c> (WS-6) — a MEANING, like <see cref="ClosedBarrier"/>: an obscurant that will clear (smoke, gas), not a
         /// thing that stands. False = unknown or solid. 📄 <c>docs/DESIGN_World_Survey_Sensor.md</c> §5.</summary>
         public bool Obscurant { get; init; }
+        /// <summary>⭐ <c>CE-4369</c> (S4, R-4190 T-6) — the fraction of rounds this crossing stops REGARDLESS of their penetration (a wood's
+        /// trunks: <see cref="Loss"/> is 0, most rounds pass); 0 = none. A round's damage is scaled by <c>1 − Stop</c> (the expected value).</summary>
+        public float Stop { get; init; }
     }
 
     /// <summary>

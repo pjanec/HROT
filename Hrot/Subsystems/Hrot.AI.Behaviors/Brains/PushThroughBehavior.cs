@@ -61,8 +61,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.PushThrough, Params = typeof(PushThroughParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]
-        [BTreeDefinition(BehaviorNames.PushThrough, Curated = true, Group = "Library/Vehicle", ParamsType = typeof(PushThroughBlackboard))]
+        [Behavior(BehaviorNames.PushThrough, Params = typeof(PushThroughParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Drives through a contested area without stopping.")]
+        [BTreeDefinition(BehaviorNames.PushThrough, Curated = true, Group = "Library/Movement", ParamsType = typeof(PushThroughBlackboard))]
         public static BTreeBuilder<PushThroughBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<PushThroughBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Params, bb => bb.State, Drive);

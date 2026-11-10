@@ -146,15 +146,18 @@ internal static class TreeLayout
 
     private static void DrawImplicitTree(PickerState state, IPickerRenderContext ctx, bool foldSingleChildFolders)
     {
-        // Build the pure tree model from the filtered list.
-        var items = new List<(int FilteredIndex, string? Category, string Name)>(state.Filtered.Count);
-        for (int i = 0; i < state.Filtered.Count; i++)
+        // Build the pure tree model from the filtered list — ⭐ CE-4359: once per Filtered rebuild, not every frame (0 B steady).
+        if (state.TreeCache is not PickerTreeBuilder.Node root || state.TreeCacheVersion != state.FilteredVersion)
         {
-            var re = state.Filtered[i];
-            items.Add((i, re.Entry.Category, re.Entry.Name));
+            var items = new List<(int FilteredIndex, string? Category, string Name)>(state.Filtered.Count);
+            for (int i = 0; i < state.Filtered.Count; i++)
+            {
+                var re = state.Filtered[i];
+                items.Add((i, re.Entry.Category, re.Entry.Name));
+            }
+            root = PickerTreeBuilder.Build(items, foldSingleChildFolders, state.FolderOrder);
+            state.TreeCache = root; state.TreeCacheVersion = state.FilteredVersion;
         }
-
-        var root = PickerTreeBuilder.Build(items, foldSingleChildFolders);
 
         bool isSearching = !string.IsNullOrEmpty(state.SearchText);
 
@@ -384,12 +387,20 @@ internal static class TreeLayout
             ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f))
             : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
 
-        var runs = PickerTextHighlighter.SplitRuns(re.Entry.Name, re.MatchPositions);
-        foreach (var run in runs)
+        if (re.MatchPositions.Count == 0)
         {
-            uint color = run.IsMatch ? highlightColor : defaultTextColor;
-            dl.AddText(new Vector2(textX, textY), color, run.Text);
-            textX += ImGui.CalcTextSize(run.Text).X;
+            // ⭐ CE-4359 (HOT PATH) — no query: one plain run, nothing allocated (SplitRuns builds a list per call)
+            dl.AddText(new Vector2(textX, textY), defaultTextColor, re.Entry.Name);
+        }
+        else
+        {
+            var runs = PickerTextHighlighter.SplitRuns(re.Entry.Name, re.MatchPositions);
+            foreach (var run in runs)
+            {
+                uint color = run.IsMatch ? highlightColor : defaultTextColor;
+                dl.AddText(new Vector2(textX, textY), color, run.Text);
+                textX += ImGui.CalcTextSize(run.Text).X;
+            }
         }
 
         // Handle mouse click for selection (A17/A18: also move TreeFocusRow).

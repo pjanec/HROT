@@ -123,8 +123,14 @@ namespace Fdp.Toolkit.Runner
         public void Run(Action? beforeFrame = null)
         {
             _frameTimer = Stopwatch.StartNew();
+            // ⭐ CE-4366 (L-4, docs/DESIGN_Scale_Rig.md §5) — a headless node's loop never waited: one core at 100 % while idle, per node (the
+            //   scale rig's three nodes on a 4-core VM starved the terrain load). HROT_HEADLESS_MAX_HZ caps the loop (opt-in; unset = as before).
+            long minFrameTicks = 0;
+            if (_headless && int.TryParse(Environment.GetEnvironmentVariable(HeadlessMaxHzVariable), out int maxHz) && maxHz > 0)
+                minFrameTicks = Stopwatch.Frequency / maxHz;
             while (_running)
             {
+                long frameStart = Stopwatch.GetTimestamp();
                 beforeFrame?.Invoke();
                 DrainConsoleActions();
                 float dt = GetDeltaTime();
@@ -135,8 +141,16 @@ namespace Fdp.Toolkit.Runner
                     DrawWorldAll();
                     DrawUIAll();
                 }
+                else if (minFrameTicks > 0)
+                {
+                    long left = minFrameTicks - (Stopwatch.GetTimestamp() - frameStart);
+                    if (left > 0) System.Threading.Thread.Sleep(TimeSpan.FromTicks(left * TimeSpan.TicksPerSecond / Stopwatch.Frequency));
+                }
             }
         }
+
+        /// <summary>⭐ CE-4366 — the environment variable that caps a headless node's frame loop (frames per second; unset or 0 = no cap).</summary>
+        public const string HeadlessMaxHzVariable = "HROT_HEADLESS_MAX_HZ";
 
         /// <summary>Signals the frame loop to exit gracefully. Safe to call from any thread.</summary>
         public void Stop() => _running = false;

@@ -94,13 +94,24 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
     private Dictionary<NavLayerMask, DotRecast.Detour.DtNavMesh>? BakeMeshes(TerrainWorld world, out IReadOnlyList<NavDoorways.Volume> doorways)
     {
         doorways = Array.Empty<NavDoorways.Volume>();
-        if (!new TerrainWorldGeometrySource(world).TryGetTriangles(out var verts, out var indices)) return null;
+        // ⭐ CE-4366 (L-4) — per TILE from the terrain (TerrainTileTriangles): the whole soup is never built here (scale-1 at 1 m: 61 M
+        //   triangles, 7 GB peak); each tile gets exactly the triangles the whole-soup bake gave it
+        var source = new TerrainTileTriangles(world);
         // ⭐ Stage 5c — the doorways become their own polygons, judged at query time by the door's live state (§3j "5c").
         Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — between the bake's stages (docs/DESIGN_Cluster_Load_Phase.md §12)
         doorways = NavDoorways.For(world);
         Fdp.Core.LoadProgress.Report();
         var baker = new RecastNavmeshBaker { TileMetres = TileMetres, Cache = TileCache };
-        var meshes = baker.Bake(verts, indices, Layers, doorways, FineAreas(world));
+        // ⭐ CE-4369 (L-7) — the woods first, the doorways after (a doorway's area wins where both overlap); the provider gets the doorways only
+        var woods = NavDoorways.Woods(world);
+        IReadOnlyList<NavDoorways.Volume> volumes = doorways;
+        if (woods.Count > 0)
+        {
+            var all = new List<NavDoorways.Volume>(woods.Count + doorways.Count);
+            all.AddRange(woods); all.AddRange(doorways);
+            volumes = all;
+        }
+        var meshes = baker.Bake(source, Layers, volumes, FineAreas(world));
         LastStats = baker.LastStats;
         var st = LastStats;
         Fdp.Core.Logging.FdpLog<RecastNavmeshFactory>.Info(

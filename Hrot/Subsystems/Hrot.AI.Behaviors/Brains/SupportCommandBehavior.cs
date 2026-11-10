@@ -67,7 +67,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.SupportCommand, Params = typeof(SupportCommandParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.SupportCommand, Curated = true, Group = "Library/Platoon", ParamsType = typeof(SupportCommandBlackboard))]
+        [BTreeDefinition(BehaviorNames.SupportCommand, Curated = true, Group = "Library/Combat", ParamsType = typeof(SupportCommandBlackboard))]
         public static BTreeBuilder<SupportCommandBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SupportCommandBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Params, bb => bb.State, Command);

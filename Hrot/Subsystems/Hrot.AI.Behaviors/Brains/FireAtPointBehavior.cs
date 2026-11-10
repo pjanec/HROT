@@ -36,9 +36,9 @@ namespace Hrot.AI.Behaviors.Brains
                 Arc = authored.Arc is >= 0 and <= 2 ? (ArcPreference)authored.Arc : ArcPreference.Auto,   // ⭐ IF-2 (IF-C)
             };
         }
-[Behavior(BehaviorNames.FireAtPoint, Params = typeof(global::Hrot.Map.Definitions.Behavior.FireAtPointParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134
+[Behavior(BehaviorNames.FireAtPoint, Params = typeof(global::Hrot.Map.Definitions.Behavior.FireAtPointParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Fires at a location on the map.")]   // ⭐ CE-2134
 
-        [BTreeDefinition(BehaviorNames.FireAtPoint, Curated = true, Group = "Library/Basic", ParamsType = typeof(FireAtPointBlackboard))]
+        [BTreeDefinition(BehaviorNames.FireAtPoint, Curated = true, Group = "Library/Combat", ParamsType = typeof(FireAtPointBlackboard))]
         public static BTreeBuilder<FireAtPointBlackboard, BTreeContext> BuildFireAtPointTree()
         {
             return new BTreeBuilder<FireAtPointBlackboard, BTreeContext>()

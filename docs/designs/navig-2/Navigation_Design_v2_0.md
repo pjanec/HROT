@@ -1738,6 +1738,7 @@ terrain (building footprints) — no new authoring. (Measured on the shipped ter
 | the cache | `NavTileCache`: key = layer + tile x/z + SHA-256 of everything the bake reads (its triangles incl. border, the doorway volumes over it, the layer params, the cell, `BakeFormat`); stores BYTES (Detour writes links into a tile's polygons when it is added to a mesh — `DtPoly.firstLink` — so one tile object can never sit in two snapshots); an EMPTY tile is cached too; disk = `<local app data>/Hrot/navtiles/<layer>/<x>_<z>_<hash>.navtile` (or `HROT_NAVTILE_CACHE`, `off` = memory only), temp-file + rename |
 | rebuild | `RecastNavmeshFactory.Rebake(provider, world)` = bake through the cache, swap one snapshot (`DotRecastNavmeshProvider.Rebake(meshes, world, doorways)`, door-aware) |
 | ⭐ pruning (`CE-3114`, `2026-10-15`) | a write of a square's tile deletes that square's OTHER tiles in the layer folder unused for `NavTileCache.PruneAfter` (14 days) — a changed input or an old `BakeFormat` is a new hash, a new file, so the folder only grew; a tile READ from disk is touched (made young), so a square two terrains share keeps both while both are loaded. File time is wall clock: housekeeping that decides nothing the simulation computes (a wrongly deleted tile is a re-bake), so R-143 does not apply. Rail `RecastNavmeshFactoryTests.CE3114_AWrittenTile_PrunesItsSquaresStaleTiles_KeepsRecentOnes_AndOtherSquares` |
+| ⭐ one folder per SQUARE (`CE-4369`, backend `2026-11-10`) | tiles live at `<layer>/<x>_<z>/<x>_<z>_<hash>.navtile` (was `<layer>/<x>_<z>_<hash>.navtile`) — 📐 the prune listed the WHOLE layer folder on every write: with scale-1's 115 033 tiles per layer a cold re-bake (the woods changed every key) ran > 10 min at 360 % CPU inside `PruneSquare`. Now it lists its square's few files. Flat-layout tiles are not found (a re-bake) |
 
 | 📐 measured (infantry + vehicle, this container) | before: one 0.3 m tile | tiled 24 m, no cache | reload from the cache |
 |---|---|---|---|
@@ -1786,6 +1787,13 @@ from the SAME terrain change (AQ81 T6's asset op), so no mesh crosses the wire.
   - `PathRequestBatch` / `PathResponseBatch`: dominated by `[DdsManaged] List<NavWaypoint>` in responses. In the default collocated topology this traffic doesn't hit the wire.
 
 - ⭐ **Allocation (R-220, `2026-10-08`):** the provider's queries allocate nothing of their own per call once warm: per-thread scratch, the snapshot's layers walked as arrays, a per-thread working door filter, and a reusable nearest-polygon search. DotRecast's A* node pool still allocates one list per visited node, about 0.5 KB per short path; the rail pins us to exactly that. 📄 Owning section: [`DESIGN_Terrain_World.md`](../../DESIGN_Terrain_World.md) §6a.
+- ⭐ **A bounded A* (`CE-3427`, backend `2026-11-10`):** `DotRecastNavmeshProvider.PlanPath` runs DotRecast's SLICED search capped at
+  `MaxSearchIterations` (20 000 expansions); a capped search answers with the best PARTIAL path (complete = false — what an unreachable goal
+  answers anyway). 📐 DotRecast's `DtNodePool` has no limit, so a search toward a goal it could not reach expanded the whole connected
+  mesh: on scale-1 (106 260 tiles, 1 000 men in a fight) one path took up to **21.6 s** (average 128 ms) and the solver made 5.5 MB of
+  garbage a frame; bounded: average 2.8 ms, worst 266 ms, 1.8 MB. ⚠ The sliced and the plain search break ties differently — the corridor
+  can differ, never notably longer (rail `CE3427_TheBoundedSearch_FindsThePlainSearchsCorridor_AndStopsAtItsCap`, test-town, 200 pairs).
+  ⏭ Not bounded yet: `PathCosts`'s circle search (`MaxCirclePolys` 65 536; 1.5 ms average, 108 ms worst in the same fight).
 - **`MoveToExecutor` per-tick cost (Brain):** O(1) per active mover — read `NavigationStatus.Result`, branch on it, return BTree state. No window sliding required.
 
 ## 16. Hot reload

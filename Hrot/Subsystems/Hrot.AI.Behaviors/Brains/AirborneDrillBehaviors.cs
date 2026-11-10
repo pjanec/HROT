@@ -191,7 +191,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.SquadFastRope, Params = typeof(SquadFastRopeParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.SquadFastRope, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadFastRopeBlackboard))]
+        [BTreeDefinition(BehaviorNames.SquadFastRope, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(SquadFastRopeBlackboard))]
         public static BTreeBuilder<SquadFastRopeBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadFastRopeBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
@@ -382,7 +382,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.SquadAirborneExit, Params = typeof(SquadAirborneExitParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.SquadAirborneExit, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadAirborneExitBlackboard))]
+        [BTreeDefinition(BehaviorNames.SquadAirborneExit, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(SquadAirborneExitBlackboard))]
         public static BTreeBuilder<SquadAirborneExitBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadAirborneExitBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
@@ -605,7 +605,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.AssembleAfterDrop, Params = typeof(AssembleAfterDropParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [BTreeDefinition(BehaviorNames.AssembleAfterDrop, Curated = true, Group = "Library/Squad", ParamsType = typeof(AssembleAfterDropBlackboard))]
+        [BTreeDefinition(BehaviorNames.AssembleAfterDrop, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(AssembleAfterDropBlackboard))]
         public static BTreeBuilder<AssembleAfterDropBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<AssembleAfterDropBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);

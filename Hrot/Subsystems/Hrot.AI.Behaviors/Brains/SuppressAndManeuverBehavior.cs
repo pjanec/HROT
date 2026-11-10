@@ -62,7 +62,7 @@ namespace Hrot.AI.Behaviors.Brains
             PhaseTimeoutSeconds = timeout > 0f ? timeout : 90f,
         };
 
-        [BTreeDefinition(BehaviorNames.SuppressAndManeuver, Curated = true, Group = "Library/Squad", ParamsType = typeof(SuppressAndManeuverBlackboard))]
+        [BTreeDefinition(BehaviorNames.SuppressAndManeuver, Curated = true, Group = "Library/Combat", ParamsType = typeof(SuppressAndManeuverBlackboard))]
         public static BTreeBuilder<SuppressAndManeuverBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SuppressAndManeuverBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);

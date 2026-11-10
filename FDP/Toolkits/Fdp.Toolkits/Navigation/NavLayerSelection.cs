@@ -24,6 +24,10 @@ namespace Fdp.Toolkit.Navigation
         /// ③ the locomotion class in <see cref="VehicleParams"/>: Pedestrian ⇒ Infantry, else Vehicle; ④ with no
         /// <see cref="VehicleParams"/>: Vehicle for a bare <see cref="VehicleState"/> (a harness vehicle), else Infantry.
         /// </summary>
+        /// <summary>⭐ CE-4369 — a MODIFIER bit on a request's layer mask (not a layer: no mesh carries it): the mover is tracked, so the
+        /// woods are priced for it rather than closed. Every provider tests layers by bit, so the extra bit selects nothing else.</summary>
+        public const uint TrackedModifier = 1u << 8;
+
         public static NavLayerMask For(EntityRepository repo, Entity entity, uint explicitMask)
         {
             if (explicitMask != 0) return (NavLayerMask)explicitMask;
@@ -33,7 +37,14 @@ namespace Fdp.Toolkit.Navigation
                 if (preferred != 0) return (NavLayerMask)preferred;
             }
             if (repo.HasComponent<VehicleParams>(entity))
-                return repo.GetComponent<VehicleParams>(entity).Class == VehicleClass.Pedestrian ? NavLayerMask.Infantry : NavLayerMask.Vehicle;
+            {
+                var cls = repo.GetComponent<VehicleParams>(entity).Class;
+                if (cls == VehicleClass.Pedestrian) return NavLayerMask.Infantry;
+                // ⭐ CE-4369 (R-4190 Q-T1 / Q-T2) — a TRACKED vehicle plans on the vehicle layer with the tracked modifier: woods open to
+                //   it at a high cost, closed to a wheeled one (the provider's per-mover filter). The ONE locomotion rule decides.
+                return Fdp.Toolkit.Motion.Locomotions.Of(repo, entity) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked
+                    ? (NavLayerMask)((uint)NavLayerMask.Vehicle | TrackedModifier) : NavLayerMask.Vehicle;
+            }
             return repo.HasComponent<VehicleState>(entity) ? NavLayerMask.Vehicle : NavLayerMask.Infantry;
         }
     }

@@ -186,7 +186,9 @@ namespace Fdp.Toolkit.Combat.Systems
                     if (world != null) world.Trace(burst, p, TracePurpose.Fire, _traces); else _traces.Clear();
                     float ft = fragFall > 0f ? AreaEffect.FragmentTransmission(_traces, w.FragmentPenetrationMm) : 0f;
                     // ⭐ CE-3117 — the first obstacle on the ray, for the map: a terrain piece where the fragments enter it, or a collider
-                    Vector3? stopAt = _traces.Count > 0 ? burst + (p - burst) * _traces[0].T : null;
+                    int firstSolid = 0;   // ⭐ CE-4369 — a wood (a stop share, no surface) is not where fragments enter an obstacle
+                    while (firstSolid < _traces.Count && _traces[firstSolid].Stop > 0f) firstSolid++;
+                    Vector3? stopAt = firstSolid < _traces.Count ? burst + (p - burst) * _traces[firstSolid].T : null;
                     if (ft > 0f && _occlusion.Blocking(burst, p, e, struck, out _) is { } blocker)
                     {
                         ft = 0f;
@@ -194,8 +196,8 @@ namespace Fdp.Toolkit.Combat.Systems
                         if (repo.HasComponent<SimTransform>(blocker))
                             stopAt = ClosestOnSegment(burst, p, repo.GetComponentRO<SimTransform>(blocker).Position);
                     }
-                    else if (ft <= 0f && fragFall > 0f && _traces.Count > 0)
-                        shieldedBy ??= $"{_traces[0].Kind} {_traces[0].Label ?? _traces[0].Material}";
+                    else if (ft <= 0f && fragFall > 0f && firstSolid < _traces.Count)
+                        shieldedBy ??= $"{_traces[firstSolid].Kind} {_traces[firstSolid].Label ?? _traces[firstSolid].Material}";
                     if (fragFall > 0f) record.Rays.Add(new DetonationRayRecord(p, ft, stopAt));
                     exposure += ft;
                     barrier = MathF.Max(barrier, AreaEffect.ClosedBarrierTransmission(_traces));
@@ -341,6 +343,15 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <see cref="DoorCommandEvent"/> (<see cref="DoorVerb.Breach"/>) that its owner applies, as for any door command.
         /// </summary>
         private void BreachDoors(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
+            TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
+        {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — it scans every door of the terrain per detonation
+            BreachDoorsCore(repo, in evt, w, burst, terrain, doors, record);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_BreachDoors, t0);
+        }
+        private static readonly int S_BreachDoors = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("doors.BreachDoors");
+
+        private void BreachDoorsCore(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
             TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
         {
             if (terrain == null || terrain.Doors.Count == 0 || w.BlastLethalRadiusM <= 0f || !repo.Bus.IsRegistered<DoorCommandEvent>()) return;

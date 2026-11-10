@@ -38,14 +38,14 @@ public sealed class ReviewTimelineTracks
     public const int MaxMarkers = 5000;
 
     // ABGR: a hit blue (the search's), a stop red (a breakpoint's)
-    public const uint HitColour = 0xFFE0B04A, StopColour = 0xFF4A4AE6, ReplicaColour = 0xFF33B3FF;   // ⭐ S5: the replica lane's amber (the mockup's)
+    public const uint HitColour = 0xFFE0B04A, StopColour = 0xFF4A4AE6, ReplicaColour = 0xFF33B3FF;   // the replica watch's first item colour (the mockup's amber; each item has its own)
 
     private readonly Func<ITimelineSource?> _source;
     private readonly ReplaySearchPanel? _search;
     private readonly ReviewStopLog? _stops;
     private readonly Func<IReplayTransport?> _transport;
     private readonly Action<int>? _selectUnit;
-    private readonly ReplicaDifferLane? _replica;
+    private readonly ReplicaWatchLane? _replica;
     private readonly ReviewRow _hitsRow, _stopsRow, _replicaRow;
     private readonly List<int> _replicaFrames = new();
     private readonly List<ITimelineTrack> _rows = new();
@@ -58,22 +58,26 @@ public sealed class ReviewTimelineTracks
     /// <param name="stops">The session's stops, or null (a host with no breakpoint manager — the Replay Browser — has no stops row).</param>
     /// <param name="transport">THE seek (the AAR transport seam) a stop's click goes through; null / no recording ⇒ the click only selects.</param>
     /// <param name="selectUnit">The host's ONE selection by network id.</param>
-    /// <param name="replica">⭐ G-7 S5 (I5) — the <i>Replica differs · unit</i> lane's data (the merged view's selected unit); null ⇒ no such lane (a host with no federation).</param>
-    public ReviewTimelineTracks(Func<ITimelineSource?> source, ReplaySearchPanel? search, ReviewStopLog? stops, Func<IReplayTransport?> transport, Action<int>? selectUnit, ReplicaDifferLane? replica = null)
+    /// <param name="replica">⭐ §6.13 — the <i>Replica watch · unit</i> lane's data (the merged view's selected unit, its watched items); null ⇒ no such lane (a host with no federation).</param>
+    public ReviewTimelineTracks(Func<ITimelineSource?> source, ReplaySearchPanel? search, ReviewStopLog? stops, Func<IReplayTransport?> transport, Action<int>? selectUnit, ReplicaWatchLane? replica = null)
     {
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _search = search; _stops = stops; _transport = transport ?? (() => null); _selectUnit = selectUnit;
         _replica = replica;
         _hitsRow = new ReviewRow(HitsId, "Search hits", this, RowKind.Hits);
         _stopsRow = new ReviewRow(StopsId, "Breakpoint stops", this, RowKind.Stops);
-        _replicaRow = new ReviewRow(ReplicaId, "Replica differs", this, RowKind.Replica);
+        _replicaRow = new ReviewRow(ReplicaId, "Replica watch", this, RowKind.Replica);
     }
+
+    /// <summary>⭐ §6.13 — the lane's settings popup, drawn once a frame from <see cref="Tracks"/> (inside the timeline's window, so the gear's popup anchors there); null = none.</summary>
+    public ReplicaWatchSettings? Settings { get; set; }
 
     /// <summary>The rows now (⭐ composed with <c>TimelinePanel.AddTracks</c>): Search hits and/or Breakpoint stops — only those that have markers.</summary>
     public IReadOnlyList<ITimelineTrack> Tracks()
     {
         var index = _source()?.Index;
         _replica?.Update();
+        Settings?.Draw();
         int hits = _search?.ResultsVersion ?? 0, stops = _stops?.Version ?? 0, replica = _replica?.Version ?? 0;
         int scanned = index is { IsComplete: false } ? index.ScannedFrames : -2;   // a recording still being scanned has partial sim times: follow it until complete
         if (!ReferenceEquals(index, _builtFor) || hits != _builtHits || stops != _builtStops || replica != _builtReplica || scanned != _builtScanned) Rebuild(index, hits, stops, replica, scanned);
@@ -101,8 +105,8 @@ public sealed class ReviewTimelineTracks
     /// <summary>A click on replica marker <paramref name="i"/>: seek there through the transport seam (a waypoint), ⭐ the unit stays selected.</summary>
     public void ClickReplica(int i)
     {
-        if ((uint)i >= (uint)_replicaFrames.Count) return;
-        int frame = _replicaFrames[i];
+        if (_replica == null || (uint)i >= (uint)_replicaFrames.Count) return;
+        int frame = _replicaFrames[i];   // ⭐ §6.13 — a span's START
         if (_transport() is { HasRecording: true } t)
         {
             int cur = t.CurrentFrame;
@@ -156,17 +160,18 @@ public sealed class ReviewTimelineTracks
             _stopsRow.Head("Breakpoint stops", list.Count.ToString());
             _rows.Add(_stopsRow);
         }
-        if (_replica != null && _replica.Frames.Count > 0)
+        if (_replica != null && _replica.Active && _replica.Spans.Count > 0)
         {
-            // ⭐ S5 (I5) — ONE lane for the selected unit: a mark at every frame a replica of it differs from its owner (the same ε as Details ▸ By node); click = seek there
-            var frames = _replica.Frames;
-            int n = Math.Min(frames.Count, MaxMarkers);
+            // ⭐ §6.13 (RW-2) — ONE lane for the selected unit: a SPAN per persistent disagreement (one colour per watched item); click = seek to its start
+            var spans = _replica.Spans;
+            int n = Math.Min(spans.Count, MaxMarkers);
             for (int i = 0; i < n; i++)
             {
-                _replicaFrames.Add(frames[i]);
-                _replicaRow.Add(new TimelineTrackItem("r" + i, SimOf(index, frames[i]), null, _replica.Label + " · frame " + frames[i], TimelineTrackItemKind.Key, false, ReplicaColour, TimelineTrackItemStyle.Pinned));
+                var sp = spans[i];
+                _replicaFrames.Add(sp.StartFrame);
+                _replicaRow.Add(new TimelineTrackItem("r" + i, SimOf(index, sp.StartFrame), SimOf(index, sp.EndFrame), _replica.TooltipOf(i), TimelineTrackItemKind.Segment, false, _replica.Items[sp.Item].Colour));
             }
-            _replicaRow.Head(_replica.Label, frames.Count > n ? $"first {n} of {frames.Count}" : n.ToString());
+            _replicaRow.Head(_replica.Label, spans.Count > n ? $"first {n} of {spans.Count}" : n.ToString());
             _rows.Add(_replicaRow);
         }
     }
@@ -198,7 +203,9 @@ public sealed class ReviewTimelineTracks
 
         public void Clear() => _items.Clear();
         public void Add(TimelineTrackItem item) => _items.Add(item);
-        public void Head(string text, string status) { Label = text; Header = new TrackHeader(0, text, status); }
+        public void Head(string text, string status) { Label = text; Header = _kind == RowKind.Replica
+            ? new TrackHeader(0, text, status, null, Fdp.Presentation.Fonts.IconsFontAwesome6.Eye, false, Fdp.Presentation.Fonts.IconsFontAwesome6.Gear, () => _owner._replica?.OpenSettings(), 0xFFC8C83C)   // ⭐ the watch's eye before the label, the gear after it (mockup ②)
+            : new TrackHeader(0, text, status); }
 
         public void Select(string itemId)
         {
@@ -207,6 +214,9 @@ public sealed class ReviewTimelineTracks
         }
         public void Move(string itemId, double toSimSeconds, bool commit) { }
         public bool Key(char key, double atSimSeconds) => false;
-        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => Array.Empty<TimelineMenuItem>();
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId)
+            => _kind == RowKind.Replica && _owner._replica is { } lane
+                ? new[] { new TimelineMenuItem(Fdp.Presentation.Fonts.IconsFontAwesome6.Gear + " Replica watch settings…", () => lane.OpenSettings()) }   // ⭐ the gear (mockup ②)
+                : Array.Empty<TimelineMenuItem>();
     }
 }

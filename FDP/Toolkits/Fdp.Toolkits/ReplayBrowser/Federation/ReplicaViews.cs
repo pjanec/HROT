@@ -29,8 +29,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
     /// (<see cref="OwnershipSource"/>'s answer — the merge's ONE rule, I8) and at every node holding a replica, with a replica marked as DIFFERING when it differs from the owner's beyond ε.
     /// ⭐ "Differs" is <see cref="ComponentDiffService.ComputeDiff"/> with ε = <see cref="Epsilon"/> over the scenario serializer's JSON of the component — the ONE differ (M-4), no second tolerance.
     /// A raw <see cref="Entity"/> in a value is shown as the network id it points at, so two nodes' handles compare by what they MEAN.
-    /// <para>The Details ▸ component ▸ <i>By node</i> section reads <see cref="Compute"/> (cached by the host while the merged frame is unchanged); the Event Timeline's <i>Replica differs</i> lane is
-    /// <see cref="ScanDifferingFrames"/> over the group's files (a background pass — the lane's data).</para>
+    /// <para>The Details ▸ component ▸ <i>By node</i> section reads <see cref="Compute"/> (cached by the host while the merged frame is unchanged); the Event Timeline's <i>Replica watch</i> lane is
+    /// <see cref="ScanWatchSpans"/> over the group's files (a background pass — the lane's data).</para>
     /// </summary>
     public sealed class ReplicaViews
     {
@@ -76,16 +76,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         }
 
         private static Entity Find(EntityRepository repo, long netId)
-        {
-            int idType = ComponentTypeRegistry.GetId(typeof(NetworkIdentity));
-            if (idType < 0) return Entity.Null;
-            for (int i = 0; i <= repo.MaxEntityIndex; i++)
-            {
-                var e = new Entity(i, repo.GetMetadata(i).Generation);
-                if (repo.IsAlive(e) && repo.GetComponentMask(i).IsSet(idType) && repo.GetComponent<NetworkIdentity>(e).Value == netId) return e;
-            }
-            return Entity.Null;
-        }
+            => netId is > 0 and <= int.MaxValue ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(repo, (int)netId) : Entity.Null;   // ⭐ BP-508 — the ONE resolver
 
         /// <summary>The node whose record / mask supplies <paramref name="typeId"/> of the entity (the merge's rule), or -1. <paramref name="nodes"/> is reordered in place (primary owner first).</summary>
         private int OwnerOf(FederatedReplayManager manager, List<NodeEntity> nodes, int typeId, List<BitMask512> scratch)
@@ -135,73 +126,182 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         {
             var repo = manager.Contexts[h.NodeId].SandboxRepo;
             var mask = new BitMask512(); mask.SetBit(typeId);
-            try { return _serializer.SerializeEntity(repo, h.Entity, new NetIdResolver(repo), mask); }
+            try
+            {
+                var resolver = new NetIdResolver(repo);
+                var json = _serializer.SerializeEntity(repo, h.Entity, resolver, mask);
+                // ⭐ the HEADER-native translators run whatever the mask (ScenarioSerializer.SerializeEntity) — their keys carry each node's OWN
+                //   header data, so left in, every copy "differs" from the owner. 📐 measured on a real 4-node recording: 100 % of frames marked for
+                //   every unit, NetworkIdentity and EntityGuid "differing" with Δ 0. Only the component's own keys are compared.
+                foreach (var kv in _serializer.SerializeEntity(repo, h.Entity, resolver, default))
+                    json.Remove(kv.Key);
+                return json;
+            }
             catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException) { return null; }
         }
 
-        // ── the lane (Event Timeline ▸ Replica differs · <unit>) ─────────────────────────────
+        // ── the replica WATCH scan (Review §6.13 RW-2, RW-3) ─────────────────────────────────
 
-        /// <summary>
-        /// Does any replicated component of <paramref name="netId"/> differ between its owner and a replica, at the manager's CURRENT frames? A component counts when ≥ 2 nodes hold it and
-        /// it is recorded and not node-local; its owner is the merge's.
-        /// </summary>
-        public bool AnyReplicaDiffers(FederatedReplayManager manager, long netId, List<NodeEntity>? scratchNodes = null, List<BitMask512>? scratchMasks = null)
+        private readonly struct WatchValue
         {
-            var nodes = scratchNodes ?? new List<NodeEntity>();
-            Holders(manager, netId, nodes);
-            if (nodes.Count < 2) return false;
-            var union = new BitMask512();
-            var common = new BitMask512();
-            foreach (var n in nodes)
+            public readonly bool IsNumber; public readonly double Number; public readonly string Text;
+            public WatchValue(double n, string t) { IsNumber = true; Number = n; Text = t; }
+            public WatchValue(string t) { IsNumber = false; Number = 0; Text = t; }
+        }
+
+        private sealed class ResolvedItem
+        {
+            public ReplicaWatchItem Item = null!; public int TypeId; public ushort AttributeId; public int Sub; public string? Field;
+            // the open run of disagreement
+            public bool Open; public int OwnerNodeAtStart; public int StartFrame; public long StartWall; public string OwnerText = ""; public List<(int, string)> Believers = new();
+        }
+
+        private static ResolvedItem? Resolve(ReplicaWatchItem item)
+        {
+            var r = new ResolvedItem { Item = item, TypeId = -1 };
+            if (!item.Expert && Fdp.Toolkit.Replication.Attributes.AttributeReaders.TryResolve(item.Path, out r.AttributeId, out var sub)
+                && Fdp.Toolkit.Replication.Attributes.AttributeReaders.DefinitionOf(r.AttributeId) is { } def)
+            { r.Sub = item.SubIndex != 0 ? item.SubIndex : sub; r.TypeId = ComponentTypeRegistry.GetId(def.Component); }
+            else if (item.Expert)
             {
-                var m = manager.Contexts[n.NodeId].SandboxRepo.GetComponentMask(n.Entity.Index);
-                var both = union; both.BitwiseAnd(m);
-                common.BitwiseOr(both);
-                union.BitwiseOr(m);
+                int dot = item.Path.IndexOf('.');
+                string comp = dot > 0 ? item.Path.Substring(0, dot) : item.Path;
+                r.Field = dot > 0 ? item.Path.Substring(dot + 1) : "";
+                for (int t = 0; t < FdpConfig.MAX_COMPONENT_TYPES && r.TypeId < 0; t++) if (ComponentTypeRegistry.GetType(t)?.Name == comp) r.TypeId = t;
             }
-            var masks = scratchMasks ?? new List<BitMask512>();
-            for (int typeId = 0; typeId < FdpConfig.MAX_COMPONENT_TYPES; typeId++)
-            {
-                if (!common.IsSet(typeId)) continue;
-                var type = ComponentTypeRegistry.GetType(typeId);
-                if (type == null || IsPerNode(type) || DataPolicyAttribute.IsNodeLocal(type) || !ComponentTypeRegistry.IsRecordable(typeId)) continue;
-                int owner = OwnerOf(manager, nodes, typeId, masks);
-                if (owner < 0) continue;
-                JsonObject? ownerJson = null;
-                foreach (var n in nodes) if (n.NodeId == owner) ownerJson = Json(manager, n, typeId);
-                if (ownerJson == null) continue;
-                foreach (var n in nodes)
-                {
-                    if (n.NodeId == owner || !manager.Contexts[n.NodeId].SandboxRepo.GetComponentMask(n.Entity.Index).IsSet(typeId)) continue;
-                    var json = Json(manager, n, typeId);
-                    if (json != null && _diff.ComputeDiff(type.Name, ownerJson, json, Epsilon)?.IsModified == true) return true;
-                }
-            }
-            return false;
+            return r.TypeId >= 0 ? r : null;
         }
 
         /// <summary>
-        /// ⭐ The <i>Replica differs</i> lane's data: the frames (of the PRIMARY node's recording) at which <see cref="AnyReplicaDiffers"/> holds for <paramref name="netId"/>. Runs over its OWN
-        /// <see cref="FederatedReplayManager"/> on <paramref name="paths"/> (never the shown world's sandboxes), with the same per-node <paramref name="offsetTicks"/> the shown merge applies — so a frame
-        /// here is a frame the Review shows. A background pass: cancel through <paramref name="ct"/> (the selection moved).
+        /// ⭐ RW-6 — what every node believes of ONE watched item of <paramref name="netId"/> right now (Details ▸ <i>&lt;attribute&gt; — by node</i>): the OWNER's value first, then each replica's, a replica
+        /// marked differing beyond the item's tolerance (<see cref="ReplicaRow.Delta"/> is the numeric distance). Read through <c>AttributeReaders</c> on each node's sandbox (an expert item through <c>ComponentJsonPath</c>) — the
+        /// SAME reads the lane's scan makes. Allocates: cache it per merged frame like <see cref="Compute"/>. Null when no node holds the value.
         /// </summary>
-        public IReadOnlyList<int> ScanDifferingFrames(string[] paths, IReadOnlyDictionary<int, long> offsetTicks, int primaryNode, long netId, CancellationToken ct = default)
+        public ReplicaView? ComputeItem(FederatedReplayManager manager, long netId, ReplicaWatchItem item)
         {
-            var frames = new List<int>();
+            if (Resolve(item) is not { } r) return null;
+            var nodes = new List<NodeEntity>();
+            Holders(manager, netId, nodes);
+            if (nodes.Count == 0) return null;
+            int owner = OwnerOf(manager, nodes, r.TypeId, new List<BitMask512>());
+            var values = new List<(int Node, WatchValue V)>();
+            foreach (var n in nodes)
+            {
+                var json = r.Field != null ? Json(manager, n, r.TypeId) : null;
+                if (ReadWatch(manager.Contexts[n.NodeId].SandboxRepo, n.Entity, r, json) is { } v) values.Add((n.NodeId, v));
+            }
+            if (values.Count == 0) return null;
+            WatchValue? ownerValue = null;
+            foreach (var (node, v) in values) if (node == owner) ownerValue = v;
+            var rows = new List<ReplicaRow>(values.Count);
+            foreach (var (node, v) in values)
+            {
+                bool isOwner = node == owner;
+                bool differs = !isOwner && ownerValue is { } ov && WatchDiffers(ov, v, r.Item.Tolerance);
+                double delta = differs && ownerValue is { IsNumber: true } o2 && v.IsNumber ? Math.Abs(o2.Number - v.Number) : 0d;
+                rows.Add(new ReplicaRow(node, isOwner, v.Text, differs, delta));
+            }
+            rows.Sort((a, b) => a.IsOwner != b.IsOwner ? (a.IsOwner ? -1 : 1) : a.NodeId.CompareTo(b.NodeId));
+            return new ReplicaView(netId, ComponentTypeRegistry.GetType(r.TypeId)!, owner, rows);
+        }
+
+        private static WatchValue? ReadWatch(EntityRepository repo, Entity e, ResolvedItem r, JsonObject? json)
+        {
+            if (r.Field == null)
+            {
+                if (!Fdp.Toolkit.Replication.Attributes.AttributeReaders.TryRead(repo, e, r.AttributeId, r.Sub, out var v)) return null;
+                switch (v.Kind)
+                {
+                    case Fdp.Toolkit.Replication.Patching.AttributeValueKind.Bool: return new WatchValue(v.BoolValue ? 1 : 0, v.BoolValue ? "true" : "false");
+                    case Fdp.Toolkit.Replication.Patching.AttributeValueKind.CsInt32: return new WatchValue(v.IntValue, v.IntValue.ToString(CultureInfo.InvariantCulture));
+                    case Fdp.Toolkit.Replication.Patching.AttributeValueKind.CsInt64: return new WatchValue(v.LongValue, v.LongValue.ToString(CultureInfo.InvariantCulture));
+                    case Fdp.Toolkit.Replication.Patching.AttributeValueKind.CsFloat32: return new WatchValue(v.FloatValue, v.FloatValue.ToString("0.###", CultureInfo.InvariantCulture));
+                    case Fdp.Toolkit.Replication.Patching.AttributeValueKind.CsFloat64: return new WatchValue(v.DoubleValue, v.DoubleValue.ToString("0.###", CultureInfo.InvariantCulture));
+                    default: return new WatchValue(v.Text.ToString());
+                }
+            }
+            var node = json == null ? null : ComponentJsonPath.Get(json, r.Item.Path);
+            if (node is not JsonValue jv) return node == null ? null : new WatchValue(node.ToJsonString());
+            if (jv.TryGetValue<double>(out var d)) return new WatchValue(d, d.ToString("0.###", CultureInfo.InvariantCulture));
+            return new WatchValue(jv.ToJsonString().Trim('"'));
+        }
+
+        private static bool WatchDiffers(in WatchValue owner, in WatchValue other, double tolerance)
+            => owner.IsNumber && other.IsNumber ? Math.Abs(owner.Number - other.Number) > tolerance : owner.Text != other.Text;
+
+        /// <summary>
+        /// ⭐ The replica watch's data (RW-2, RW-3): over the group's files (its OWN <see cref="FederatedReplayManager"/>, the shown merge's node offsets) the SPANS during which some node's copy of a watched item differed
+        /// from the OWNER's (the attribute's component's owner, <see cref="OwnershipSource"/>) beyond the item's tolerance for LONGER than <paramref name="thresholdSeconds"/> — a run of differing frames ends at the first
+        /// frame that agrees again, so a one-frame blip lasts one frame interval. Items read through <c>AttributeReaders</c>; an <see cref="ReplicaWatchItem.Expert"/> one through <c>ComponentJsonPath</c> over the component's JSON
+        /// (<c>Component.field</c>). A background pass: cancel through <paramref name="ct"/>.
+        /// </summary>
+        public IReadOnlyList<ReplicaSpan> ScanWatchSpans(string[] paths, IReadOnlyDictionary<int, long> offsetTicks, int primaryNode, long netId,
+            IReadOnlyList<ReplicaWatchItem> items, double thresholdSeconds, CancellationToken ct = default)
+        {
+            var spans = new List<ReplicaSpan>();
+            var resolved = new List<(ResolvedItem R, int Index)>();
+            for (int i = 0; i < items.Count; i++) if (Resolve(items[i]) is { } r) resolved.Add((r, i));
+            if (resolved.Count == 0) return spans;
+
             using var m = FederatedReplayManager.LoadGroup(paths);
             foreach (var kv in offsetTicks) if (m.Contexts.ContainsKey(kv.Key) && kv.Value != 0) m.SetNodeOffset(kv.Key, kv.Value);
-            if (!m.Contexts.TryGetValue(primaryNode, out var primary) || primary.Playback is not { TotalFrames: > 0 } pb) return frames;
+            if (!m.Contexts.TryGetValue(primaryNode, out var primary) || primary.Playback is not { TotalFrames: > 0 } pb) return spans;
+            long threshold = (long)(thresholdSeconds * TimeSpan.TicksPerSecond);
+            long wall0 = pb.GetFrameMetadata(0).WallClockTicks;
             var nodes = new List<NodeEntity>(); var masks = new List<BitMask512>();
-            long lastKey = long.MinValue; bool lastResult = false;
+            long lastKey = long.MinValue; long lastWall = wall0, prevWall = wall0, frameLen = 0;
+
+            void Close(ResolvedItem r, int index, int endFrame, long endWall)
+            {
+                if (!r.Open) return;
+                r.Open = false;
+                if (endWall - r.StartWall > threshold)
+                    spans.Add(new ReplicaSpan(index, r.Believers.Count > 0 ? r.OwnerNodeAtStart : -1, r.OwnerText, r.Believers.ToArray(), r.StartFrame, endFrame,
+                        (r.StartWall - wall0) / (double)TimeSpan.TicksPerSecond, (endWall - wall0) / (double)TimeSpan.TicksPerSecond));
+            }
+
             for (int f = 0; f < pb.TotalFrames; f++)
             {
-                if (ct.IsCancellationRequested) break;
-                m.SetBaseWallTicks(pb.GetFrameMetadata(f).WallClockTicks);
+                if (ct.IsCancellationRequested) return spans;
+                long wall = pb.GetFrameMetadata(f).WallClockTicks;
+                m.SetBaseWallTicks(wall);
+                lastWall = wall;
                 long key = StateKey(m);
-                if (key != lastKey) { lastKey = key; lastResult = AnyReplicaDiffers(m, netId, nodes, masks); }
-                if (lastResult) frames.Add(f);
+                if (f > 0) frameLen = wall - prevWall;
+                prevWall = wall;
+                if (key == lastKey) continue;   // nothing moved: every open run stays as it is
+                lastKey = key;
+                Holders(m, netId, nodes);
+                foreach (var (r, index) in resolved)
+                {
+                    int owner = nodes.Count < 2 ? -1 : OwnerOf(m, nodes, r.TypeId, masks);
+                    List<(int, string)>? bad = null; string ownerText = "";
+                    if (owner >= 0)
+                    {
+                        NodeEntity? own = null;
+                        foreach (var n in nodes) if (n.NodeId == owner) own = n;
+                        JsonObject? ownerJson = own != null && r.Field != null ? Json(m, own.Value, r.TypeId) : null;
+                        var ov = own == null ? null : ReadWatch(m.Contexts[owner].SandboxRepo, own.Value.Entity, r, ownerJson);
+                        if (ov is { } ownerValue)
+                        {
+                            ownerText = ownerValue.Text;
+                            foreach (var n in nodes)
+                            {
+                                if (n.NodeId == owner) continue;
+                                var repo = m.Contexts[n.NodeId].SandboxRepo;
+                                var json = r.Field != null ? Json(m, n, r.TypeId) : null;
+                                if (ReadWatch(repo, n.Entity, r, json) is { } nv && WatchDiffers(ownerValue, nv, r.Item.Tolerance)) (bad ??= new()).Add((n.NodeId, nv.Text));
+                            }
+                        }
+                    }
+                    if (bad == null) { Close(r, index, f - 1, wall); continue; }
+                    if (!r.Open) { r.Open = true; r.StartFrame = f; r.StartWall = wall; r.OwnerText = ownerText; r.OwnerNodeAtStart = owner; r.Believers = new List<(int, string)>(); }
+                    foreach (var b in bad) { bool seen = false; foreach (var x in r.Believers) if (x.Item1 == b.Item1) seen = true; if (!seen) r.Believers.Add(b); }
+                }
             }
-            return frames;
+            foreach (var (r, index) in resolved) Close(r, index, pb.TotalFrames - 1, lastWall + frameLen);   // the last frame lasts one interval
+            spans.Sort((a, b) => a.StartFrame != b.StartFrame ? a.StartFrame.CompareTo(b.StartFrame) : a.Item.CompareTo(b.Item));
+            return spans;
         }
 
         // ── value text ───────────────────────────────────────────────────────────────────────

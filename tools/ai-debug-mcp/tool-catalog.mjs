@@ -437,6 +437,83 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_entity_attributes",
+    "group": "B — Queries",
+    "summary": "Read an entity's vocabulary attributes as the world has them now (the read twin of patch_attribute): path, value, kind and unit each.",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/attributes"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      },
+      {
+        "name": "path",
+        "type": "string",
+        "required": false,
+        "description": "A vocabulary attribute path (Health.Current, Position.X, Ammo.2 …); repeat the parameter or comma-join. Omit for every attribute the entity has. Paths: get_attributes_schema."
+      }
+    ],
+    "returns": "{ networkId, attributes:[{ path, value, kind, unit }], notPresent:[path] }. kind is number · integer · string; unit is m, °, hPa … or null. A wildcard attribute is listed per sub-index it has (Ammo.0, Ammo.1, Damage.Part.3, Weapon.AimPoint.0…).",
+    "notes": [
+      "Reads through the vocabulary's reader (AttributeReaders) — the SAME one the Details forms and the replica watch use, so the value is what they show: the EFFECTIVE proficiency and temperament, a weapon's aim target as a network id, a side as FORCE_FRIENDLY / FORCE_OPPOSING / FORCE_NEUTRAL.",
+      "A path the entity lacks (no such component, no such mount) is listed in notPresent, not an error; a path the vocabulary does not have is 400.",
+      "Also served by the Replay Browser, reading the replay's sandbox world."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000,
+        "path": "Health.Current"
+      },
+      "gist": "what is this unit's strength / ammunition / position right now?"
+    },
+    "hint": "Req: networkId (number). Opt: path (a vocabulary path; repeat or comma-join for several). Example: get_entity_attributes({networkId:1000,path:\"Health.Current\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_entity_field",
+    "group": "B — Queries",
+    "summary": "Read one raw component field by path (the read twin of edit_component): Component.field.field, a number part indexes an array.",
+    "http": {
+      "method": "GET",
+      "path": "/entities/{networkId}/field"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID (long)"
+      },
+      {
+        "name": "path",
+        "type": "string",
+        "required": true,
+        "description": "ComponentName.field[.field|.index…], keys case-insensitive (SimTransform.Position.0 (a point dumps as an array: 0 x · 1 y · 2 z), WeaponState.Ammo, Waypoints.2.Position). Component names: GET /entities/{networkId}."
+      }
+    ],
+    "returns": "{ networkId, path, value } — value is the JSON the entity dump shows at that place (a scalar, an object or an array). 404 when nothing is there.",
+    "notes": [
+      "For a value inside the attribute vocabulary prefer get_entity_attributes (typed, with its unit); this reads anything a component holds.",
+      "Walks the dump's own JSON with the one ComponentJsonPath walker. Also served by the Replay Browser, reading the replay's sandbox world."
+    ],
+    "example": {
+      "args": {
+        "networkId": 1000,
+        "path": "SimTransform.Position.0"
+      },
+      "gist": "read any single component field of one unit"
+    },
+    "hint": "Req: networkId (number), path (string). Example: get_entity_field({networkId:1000,path:\"SimTransform.Position.0\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_entity_ownership",
     "group": "B — Queries",
     "summary": "Per-descriptor network ownership of one entity (NED nodes only).",
@@ -1805,6 +1882,39 @@ export const TOOLS_CATALOG = [
   // ── Group I — Replay ────────────────────────────────────────────────────────
 
   {
+    "name": "delete_archived_exercise",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4330 ⑦ (R-4174) — delete an ARCHIVED exercise from the NAS (a storage job). Cannot be undone: without confirm=true it answers 409 with the question.",
+    "http": {
+      "method": "DELETE",
+      "path": "/archive/{id}"
+    },
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "description": "The archived exercise"
+      },
+      {
+        "name": "confirm",
+        "type": "bool",
+        "required": true,
+        "description": "true to delete"
+      }
+    ],
+    "returns": "{ published, requestId, exerciseId, kind }; 409 without confirm=true.",
+    "example": {
+      "args": {
+        "id": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "delete from the archive"
+    },
+    "hint": "Req: id (path), confirm=true (query).",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_journal_history",
     "group": "I — Replay",
     "summary": "EVERY brain-journal entry of one unit across this node's replay recording (or a frame range), each once, with the frame it first appears at (CE-1265) — the full why-history of a replayed exercise.",
@@ -1897,6 +2007,60 @@ export const TOOLS_CATALOG = [
       "gist": "discard a recording"
     },
     "hint": "Req: id (path, an exerciseId from list_exercises). Example: delete_exercise({id:\"…\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "archive_exercise",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4330 ⑩ — archive an exercise to the NAS: a storage job (queued behind a running one, or joined when the exercise already has one). Also RESUMES an incomplete archive: the files already whole are skipped.",
+    "http": {
+      "method": "POST",
+      "path": "/exercises/{id}/archive"
+    },
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "description": "The exercise (list_exercises)"
+      }
+    ],
+    "returns": "{ published, requestId, exerciseId, kind }; the outcome: list_storage_jobs.",
+    "example": {
+      "args": {
+        "id": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "archive a recording"
+    },
+    "hint": "Req: id (path, an exerciseId from list_exercises).",
+    "manualVerify": false
+  },
+
+  {
+    "name": "import_exercise",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4330 ⑩ — import an archived exercise from the NAS to the nodes (a storage job; joins a running import of it).",
+    "http": {
+      "method": "POST",
+      "path": "/exercises/{id}/import"
+    },
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "description": "The archived exercise"
+      }
+    ],
+    "returns": "{ published, requestId, exerciseId, kind }; the outcome: list_storage_jobs.",
+    "example": {
+      "args": {
+        "id": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "import a recording"
+    },
+    "hint": "Req: id (path, an archived exerciseId).",
     "manualVerify": false
   },
 
@@ -2642,6 +2806,105 @@ export const TOOLS_CATALOG = [
       "gist": "select the unit selected before"
     },
     "hint": "Req: direction (\"back\" | \"forward\"). Example: step_selection_history({direction:\"back\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "close_session",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4330 ⑥ (Recording Storage §3 P1) — close the live session (every node to Idle) and say what happens to its recording: archive (the default) queues an archive job, keep leaves it on the nodes, discard removes it. A run that was not recorded just closes.",
+    "http": {
+      "method": "POST",
+      "path": "/session/close"
+    },
+    "params": [
+      {
+        "name": "recording",
+        "type": "string",
+        "required": false,
+        "description": "archive (default) | keep | discard"
+      }
+    ],
+    "returns": "{ closed, exerciseId, recorded, recording, requestId }; 409 when no live session runs.",
+    "example": {
+      "args": {
+        "recording": "archive"
+      },
+      "gist": "close the session"
+    },
+    "hint": "Opt: recording (archive | keep | discard).",
+    "manualVerify": false
+  },
+
+  {
+    "name": "list_storage_jobs",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4330 ⑩ — the cluster's storage jobs (archive / import / delete-from-archive) as every station sees them: active first in queue order, then the newest ended. One transfer runs at a time; a second ask for the same exercise joins its job.",
+    "http": {
+      "method": "GET",
+      "path": "/storage/jobs"
+    },
+    "params": [],
+    "returns": "{ count, jobs: [{ jobId, kind, exerciseId, state, filesDone, filesTotal, bytesDone, bytesTotal, givingWay, askedBy, reason }] }",
+    "example": {
+      "args": {},
+      "gist": "list the transfers"
+    },
+    "hint": "No params.",
+    "manualVerify": false
+  },
+
+  {
+    "name": "cancel_storage_job",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4330 ⑩ (Q7) — cancel a storage job: a queued one ends at once, a running one stops and its partial files are deleted. Author and Instructor seats only.",
+    "http": {
+      "method": "POST",
+      "path": "/storage/jobs/{job}/cancel"
+    },
+    "params": [
+      {
+        "name": "job",
+        "type": "string",
+        "required": true,
+        "description": "The job (list_storage_jobs)"
+      }
+    ],
+    "returns": "{ published, jobId }; 403 on another seat.",
+    "example": {
+      "args": {
+        "job": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "cancel a transfer"
+    },
+    "hint": "Req: job (path, a jobId from list_storage_jobs).",
+    "manualVerify": false
+  },
+
+  {
+    "name": "resume_storage_job",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4330 ⑩ (Q7) — ask a failed or cancelled ARCHIVE again (a new job; the files already whole are skipped). Author and Instructor seats only.",
+    "http": {
+      "method": "POST",
+      "path": "/storage/jobs/{job}/resume"
+    },
+    "params": [
+      {
+        "name": "job",
+        "type": "string",
+        "required": true,
+        "description": "The failed / cancelled archive job"
+      }
+    ],
+    "returns": "{ published, requestId, exerciseId, kind }; 409 for a job that is not a failed / cancelled archive; 403 on another seat.",
+    "example": {
+      "args": {
+        "job": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "resume an archive"
+    },
+    "hint": "Req: job (path).",
     "manualVerify": false
   },
 
@@ -3735,7 +3998,7 @@ export const TOOLS_CATALOG = [
       "path": "/attributes/schema"
     },
     "params": [],
-    "returns": "{ registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, Position.X/Y/Z (local ENU metres), Heading, …).",
+    "returns": "{ registeredPaths, schema, attributes:[{path, id, kind, unit, readable, wildcard}] } — the discoverable, authority-aware patch paths (Name, Affiliation, Position.X/Y/Z (local ENU metres), Heading, …); attributes adds each path's kind, its UNIT (m, °, °C, hPa, mm/h, rounds, 0-1 … or null) and whether get_entity_attributes can read it back.",
     "notes": [
       "Use patch_attribute to apply a patch using these paths.",
       "Paths not in registeredPaths are silently ignored by patch_attribute."
@@ -6411,7 +6674,7 @@ export const TOOLS_CATALOG = [
         "description": "Restrict to one subsystem or perspective name (e.g. SimHost, Player, Scenario)"
       }
     ],
-    "returns": "{ subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors }], translators[], moduleCount, systemCount, translatorCount }], note }",
+    "returns": "{ subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors, recentAvgBytes, avgBytes }], translators[], moduleCount, systemCount, translatorCount }], process{ workingSetBytes, peakWorkingSetBytes, managedHeapBytes, allocatedBytes, gen0, gen1, gen2, pauseTimePercent }, note }",
     "notes": [
       "Per SUBSYSTEM, not per node: a --mode all node runs SimHost, Player, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.",
       "Every node hosts its own MCP endpoint. This answers for THIS node only — ask each node's own endpoint for its own architecture.",
@@ -6424,6 +6687,30 @@ export const TOOLS_CATALOG = [
       "gist": "see what modules and translators this node is running"
     },
     "hint": "Optional: subsystem (filter). Example: get_architecture_diagnostics({subsystem:\"SimHost\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_query_timings",
+    "group": "Y — node diagnostics",
+    "summary": "This PROCESS's world-query costs (CE-3427): terrain traces, navmesh, EQS templates / generators / tests, cover lookup, door scans — calls and time since the last reset, the most time first.",
+    "http": {
+      "method": "GET",
+      "path": "/diagnostics/queries"
+    },
+    "params": [
+      {
+        "name": "reset",
+        "type": "string",
+        "required": false,
+        "description": "true = zero the counters after answering"
+      }
+    ],
+    "returns": "{ enabled, seconds, queries[{ name, calls, perSecond, totalMs, msPerSecond, avgUs, maxUs }], note }",
+    "notes": [
+      "Off with HROT_QUERY_TIMINGS=0. Slots nest (world.Trace.* includes terrain.*); msPerSecond sums every thread."
+    ],
+    "hint": "Optional: reset=true (answer, then zero the counters). Example: get_query_timings({reset:\"true\"})",
     "manualVerify": false
   },
 

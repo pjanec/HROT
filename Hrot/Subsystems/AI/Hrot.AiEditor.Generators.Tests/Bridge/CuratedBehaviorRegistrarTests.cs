@@ -71,16 +71,16 @@ public sealed class CuratedBehaviorRegistrarTests
     {
         var beh = new BehaviorRegistry();
         CuratedBehaviorRegistrar.Register(beh, NodeLogic());
-        beh.GroupOf("CombatPosture").Should().Be("Library/Infantry");
-        beh.GroupOf("BoundingOverwatch").Should().Be("Library/Squad");
-        beh.GroupOf("SuppressAndManeuver").Should().Be("Library/Squad");   // CE-2123
-        beh.GroupOf("AdvanceTo").Should().Be("Library/Infantry");          // CE-2123
-        beh.GroupOf("SquadMarch").Should().Be("Library/Squad");            // CE-2123 S3
-        beh.GroupOf("InfantrySquadMove").Should().Be("Library/Squad");     // CE-2141
-        beh.GroupOf("InfantrySquadHold").Should().Be("Library/Squad");     // CE-2141
-        beh.GroupOf("InfantrySquadAttack").Should().Be("Library/Squad");   // CE-2141
-        beh.GroupOf("MoveToLocation").Should().Be("Library/Basic");
-        beh.GroupOf("Idle").Should().Be("Library/Basic");
+        beh.GroupOf("CombatPosture").Should().Be("Library/Combat");          // CE-4359 — the picker's folders (§5.13)
+        beh.GroupOf("BoundingOverwatch").Should().Be("Library/Combat");
+        beh.GroupOf("SuppressAndManeuver").Should().Be("Library/Combat");   // CE-2123
+        beh.GroupOf("AdvanceTo").Should().Be("Library/Movement");          // CE-2123
+        beh.GroupOf("SquadMarch").Should().Be("Library/Movement");          // CE-2123 S3
+        beh.GroupOf("InfantrySquadMove").Should().Be("Library/Orders");     // CE-2141
+        beh.GroupOf("InfantrySquadHold").Should().Be("Library/Orders");     // CE-2141
+        beh.GroupOf("InfantrySquadAttack").Should().Be("Library/Orders");   // CE-2141
+        beh.GroupOf("MoveToLocation").Should().Be("Library/Movement");
+        beh.GroupOf("Idle").Should().Be("Library/Movement");
         beh.GroupOf("WindowDuel").Should().Be("Demos/PeekAndFire");
         foreach (var name in beh.GetRegisteredNames())
             beh.GroupOf(name).Should().NotBeNull($"every curated behaviour declares its folder — {name} does not");

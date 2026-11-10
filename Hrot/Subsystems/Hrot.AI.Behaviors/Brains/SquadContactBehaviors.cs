@@ -54,7 +54,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 [Behavior(BehaviorNames.SquadHold, Params = typeof(global::Hrot.Map.Definitions.Behavior.SquadHoldParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
-        [BTreeDefinition(BehaviorNames.SquadHold, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadHoldBlackboard))]
+        [BTreeDefinition(BehaviorNames.SquadHold, Curated = true, Group = "Library/Combat", ParamsType = typeof(SquadHoldBlackboard))]
         public static BTreeBuilder<SquadHoldBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadHoldBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
@@ -152,7 +152,7 @@ namespace Hrot.AI.Behaviors.Brains
         };
 [Behavior(BehaviorNames.BreakContact, Params = typeof(global::Hrot.Map.Definitions.Behavior.BreakContactParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
-        [BTreeDefinition(BehaviorNames.BreakContact, Curated = true, Group = "Library/Squad", ParamsType = typeof(BreakContactBlackboard))]
+        [BTreeDefinition(BehaviorNames.BreakContact, Curated = true, Group = "Library/Reactions", ParamsType = typeof(BreakContactBlackboard))]
         public static BTreeBuilder<BreakContactBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<BreakContactBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
@@ -325,7 +325,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 [Behavior(BehaviorNames.ReactToContact, Params = typeof(global::Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
-        [BTreeDefinition(BehaviorNames.ReactToContact, Curated = true, Group = "Library/Squad", ParamsType = typeof(ReactToContactBlackboard))]
+        [BTreeDefinition(BehaviorNames.ReactToContact, Curated = true, Group = "Library/Reactions", ParamsType = typeof(ReactToContactBlackboard))]
         public static BTreeBuilder<ReactToContactBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<ReactToContactBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);

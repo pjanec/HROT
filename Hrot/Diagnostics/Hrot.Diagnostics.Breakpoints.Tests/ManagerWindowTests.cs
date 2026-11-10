@@ -40,15 +40,19 @@ public sealed class ManagerWindowTests
     }
 
     [Fact]
-    public void ManagerWindow_AddRow_AppendsBreakpointToManager()
+    public void ManagerWindow_Add_OpensTheConditionFirst_AddsNothingYet()
     {
+        // CE-4336 (U-6): "+ Add" opens the new breakpoint's condition first; the row is added by "Add breakpoint"
+        // (CommitAdd — its rail is ConditionEditorHostsFrameRail). Nothing to add without a condition.
         var panel = new DataBreakpointManagerPanel(
             _manager,
             new TemporalStatusBannerState());
 
         Assert.Empty(_manager.AllBreakpoints);
-        panel.AddBreakpoint();  // internal seam
-        Assert.Single(_manager.AllBreakpoints);
+        panel.StartAdd();
+        Assert.True(panel.Adding);
+        Assert.False(panel.CommitAdd());
+        Assert.Empty(_manager.AllBreakpoints);
     }
 
     [Fact]

@@ -148,8 +148,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.Suppress, Params = typeof(SuppressParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
-        [BTreeDefinition(BehaviorNames.Suppress, Curated = true, Group = "Library/Infantry", ParamsType = typeof(SuppressBlackboard))]
+        [Behavior(BehaviorNames.Suppress, Params = typeof(SuppressParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Keeps a target under fire to pin it down.")]
+        [BTreeDefinition(BehaviorNames.Suppress, Curated = true, Group = "Library/Combat", ParamsType = typeof(SuppressBlackboard))]
         public static BTreeBuilder<SuppressBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SuppressBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, SuppressNodes.SuppressContact);

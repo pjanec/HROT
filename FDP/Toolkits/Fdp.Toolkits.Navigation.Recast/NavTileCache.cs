@@ -136,7 +136,10 @@ public sealed class NavTileCache
         _memory[key] = bytes;
     }
 
-    private string PathOf(in NavTileKey key) => Path.Combine(Folder!, key.Layer.ToString(), key.FileName);
+    // ⭐ CE-4369 (L-7) — ONE FOLDER PER SQUARE (<layer>/<x>_<z>/): the prune lists only its square's few files. 📐 Measured on scale-1:
+    //   with every tile of a layer in one folder (115 033 files) each write listed the whole folder, and a cold re-bake (the woods changed
+    //   every key) ran > 10 min at 360 % CPU inside PruneSquare. Tiles in the old flat layout are simply not found (a re-bake).
+    private string PathOf(in NavTileKey key) => Path.Combine(Folder!, key.Layer.ToString(), $"{key.TileX}_{key.TileZ}", key.FileName);
 
     private byte[]? ReadDisk(in NavTileKey key)
     {

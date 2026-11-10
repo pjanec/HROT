@@ -452,6 +452,74 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(near, HideAimAfterHearing(near));                                     // the threat, moved
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4136</c> (Next_3 H-2) — a drive-out that ARRIVES at its firing point (within <see cref="VehicleFightFromCoverNodes.ArrivalRadius"/>)
+        /// WITHOUT seeing its target creeps on along the hide → firing point line and stops the first tick it sees — then fires. 📐 Live
+        /// <c>ua-technical-scoot</c>: the ATGM technical stopped 2 m short of its firing point behind the block's corner (the tank only reported),
+        /// watched, scooted and never fired. 🔴 Red-proof: arrival alone is Success again (no creep) ⇒ Watching, no round.
+        /// </summary>
+        [Fact]
+        public void CE4136_ArrivedWithoutASight_CreepsOnUntilItSees_ThenFires()
+        {
+            var d = new Duel(Tank(), seen: false) { Drives = true };
+            d.Step();
+            d.ToHide(HideA);
+            d.SeesFromX = 1f;   // the corner: FiringA (x = -2) does not see; ~3.4 m on along the line it does
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging, 20));
+            var at = d.Repo.GetComponentRO<SimTransform>(d.Self).Position;
+            Assert.True(at.X >= 1f && at.X < 1f + 1f, $"stopped where it first saw (x {at.X:0.00})");
+            d.Run(3);
+            Assert.True(d.AimedRounds > 0, "and it fires from there");
+        }
+
+        /// <summary>⭐ <c>CE-4136</c> — the creep has a cap: nothing seen within <see cref="VehicleFightFromCoverNodes.FiringCreepMetres"/> past the
+        /// firing point ⇒ "at the point, nothing to fire at" (Watching), as before — it never drives on into the open. 🔴 Red-proof: no cap ⇒ it
+        /// drives to the creep's move point.</summary>
+        [Fact]
+        public void CE4136_TheCreepHasACap_NothingSeen_Watches()
+        {
+            var d = new Duel(Tank(), seen: false) { Drives = true };
+            d.Step();
+            d.ToHide(HideA);
+            d.SeesFromX = 100f;   // never
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Watching, d.RunUntil(VehiclePhase.Watching, 20));
+            var at = d.Repo.GetComponentRO<SimTransform>(d.Self).Position;
+            var dir = Vector3.Normalize(FiringA - HideA);
+            float past = Vector3.Dot(at - FiringA, dir);
+            Assert.True(past >= VehicleFightFromCoverNodes.FiringCreepMetres - 1f && past <= VehicleFightFromCoverNodes.FiringCreepMetres + 1f,
+                $"it crept to the cap, no further ({past:0.00} m past the point)");
+            Assert.Equal(0, d.AimedRounds);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-2086</c> (A, CE-4136 ②) — with the INITIATIVE (it saw the threat before any dangerous threat could see it) an exposure is never
+        /// cut below the shooter's OWN aim time + <see cref="VehicleFightFromCoverNodes.FireOnceMarginSeconds"/>; the RPG man on the side would cut
+        /// it to 0.7 × 2 = 1.4 s, the tank's own 3 s aim keeps it out 3.5 s. Seen FIRST (the same man in sight from the start) it is still cut at
+        /// once — <c>V4_TheBudget_IsTheAtGunnersAimTime</c> stays 1.4 s. 🔴 Red-proof: drop the floor ⇒ 1.4 s here too.
+        /// </summary>
+        [Fact]
+        public void R2086_WithTheInitiative_TheExposureLastsLongEnoughToFireOnce()
+        {
+            var d = new Duel(Tank() with { RoundsPerExposure = 100, ExposeSeconds = 6f }, seen: false) { Drives = true };
+            d.UseTkb();
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)d.Repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            Assert.True(db.TryGetByType(TankType, out var tank));
+            tank!.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Range = 3000, Penetration = 650, DamagePerHit = 1200, AimSeconds = 3f } } });
+            Assert.Equal(3f, VehicleFightFromCoverNodes.OwnAimSeconds(d.Repo, d.Self));
+            d.EnemyTo(new Vector3(0f, 80f, 0f));   // the RPG man on the side: danger 1, aim 2 s
+            d.Step();
+            d.ToHide(HideA);
+            d.SeesFromX = 1f;   // the corner: it first sees him on the creep past FiringA
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging, 20));
+            Assert.Equal(1, d.Ws.Initiative);
+            double up = d.Time;
+            Assert.Equal(VehiclePhase.Withdrawing, d.RunUntil(VehiclePhase.Withdrawing));
+            Assert.InRange(d.Time - up, 3.4, 3.7);   // own aim 3 + 0.5, not the RPG man's 1.4
+        }
+
         private static VehicleFightFromCoverParams Technical() => new()
         {
             WithdrawMode = WithdrawMode.Scoot, HideSecondsMin = 2f, HideSecondsMax = 2f,

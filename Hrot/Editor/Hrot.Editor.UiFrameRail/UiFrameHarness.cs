@@ -128,12 +128,15 @@ public static class UiFrameHarness
             _keptWindow = null;
         }
 
-        Raylib_cs.Raylib.InitWindow(width, height, "hrot-uiframe-rail");
-        WindowsCreated++;
-        if (!Raylib_cs.Raylib.IsWindowReady())
+        // ⭐ a fresh GLX window under Xvfb sometimes is not ready on the first try (measured: "Raylib window did not become ready" on the first rail of a process, ~1 in 2 for an unusual size) — retry a few times before failing
+        for (int attempt = 0; ; attempt++)
         {
+            Raylib_cs.Raylib.InitWindow(width, height, "hrot-uiframe-rail");
+            WindowsCreated++;
+            if (Raylib_cs.Raylib.IsWindowReady()) break;
             Raylib_cs.Raylib.CloseWindow();
-            throw new InvalidOperationException("Raylib window did not become ready.");
+            if (attempt >= 3) throw new InvalidOperationException("Raylib window did not become ready.");
+            System.Threading.Thread.Sleep(150);
         }
         _windowWidth = width;
         _windowHeight = height;

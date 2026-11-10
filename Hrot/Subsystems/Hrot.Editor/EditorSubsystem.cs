@@ -357,15 +357,20 @@ namespace Hrot.Editor
         // ⭐ R-5 / V6 — the source of the ONE world while a participant group with no part of this node is open (Merged / a part), and the editor's ONE AAR transport over it
         private Fdp.Toolkit.ReplayBrowser.Federation.ReplicaViews? _replicaViews;                          // ⭐ G-7 S5 — the merged view's lens (By node, the lane)
         private Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? _byNodeSection;
-        private Hrot.Editor.AiShared.Review.ReplicaDifferLane? _replicaLane;
+        private Hrot.Editor.AiShared.Review.ReplicaWatchLane? _replicaLane;
+        private Hrot.Editor.AiShared.Review.ReplicaWatchKit? _watchKit;   // ⭐ §6.13 — the eye + the lane's settings popup
+        /// <summary>⭐ §6.13 — this session's replica watch (per unit items, the lane's threshold); session state, not saved.</summary>
+        internal Fdp.Toolkit.ReplayBrowser.Federation.ReplicaWatchList ReplicaWatch { get; } = new();
         internal Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection? ByNodeSectionForTest => _byNodeSection;
-        internal Hrot.Editor.AiShared.Review.ReplicaDifferLane? ReplicaLaneForTest => _replicaLane;
+        internal Hrot.Editor.AiShared.Review.ReplicaWatchLane? ReplicaLaneForTest => _replicaLane;
         private Hrot.Editor.Review.ReviewSource? _reviewSource;
         internal Hrot.Editor.Review.ReviewSource? ReviewSourceForTest => _reviewSource;
         private Fdp.Toolkit.ReplayBrowser.Federation.TransientMasterBuilder? _reviewMerge;
         private long _reviewLastTicks;
         private Hrot.Editor.Review.ReviewSourceStatusSection? _reviewStatus;
         internal Hrot.Editor.Review.ReviewSourceStatusSection? ReviewStatusForTest => _reviewStatus;
+        private Hrot.Editor.Review.ReviewFederationWindowHost? _reviewFederation;
+        internal Hrot.Editor.Review.ReviewFederationWindowHost? ReviewFederationForTest => _reviewFederation;
         private Hrot.Editor.Review.ReviewSourceToolbarCombo? _reviewSourceCombo;
         internal Hrot.Editor.Review.ReviewSourceToolbarCombo? ReviewSourceComboForTest => _reviewSourceCombo;
         private Hrot.Editor.Review.ReplayTransportSelector? _reviewTransport;
@@ -3368,7 +3373,9 @@ namespace Hrot.Editor
                 ScenarioFooter: () => _parametersDrawer?.DrawHeader(),   // ⭐ CE-4346 — the Parameters header under the ONE Scenario tab (the form)
                 Pick:           () => FormsPick,   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
-                ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry)));   // ⭐ P-7 7b — a task's fields
+                ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry),   // ⭐ P-7 7b — a task's fields
+                RowTrailer:     () => _watchKit?.Eye,
+                Pickers:        () => _shellPickers));   // ⭐ CE-4359 — + Add task opens the task picker in the shell's registry   // ⭐ §6.13 — the replica watch's eye on the Details forms (the merged view only)
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
             ScenarioDetails    = _scenarioDetailsBundle.Window;
 
@@ -5084,10 +5091,12 @@ namespace Hrot.Editor
                 _byNodeSection = new Fdp.Presentation.Panels.ReplayBrowser.ByNodeSection(_replicaViews, () => reviewSource.MergedManager,
                     e => _world is { } w && w.IsAlive(e) && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0,
                     reviewSource.NameOf);
+                _byNodeSection.Watch = ReplicaWatch;   // ⭐ RW-6 — the header eye and the attribute view share the session's watch
                 _fdpEntityInspector.Reflector.ComponentFooter = _byNodeSection.Draw;
                 _fdpEntityInspector.EntityNote = reviewSource.LocalOriginNote;
-                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaDifferLane(_replicaViews, () => reviewSource.MergedManager, SelectedNetworkId,
+                _replicaLane = new Hrot.Editor.AiShared.Review.ReplicaWatchLane(_replicaViews, ReplicaWatch, () => reviewSource.MergedManager, SelectedNetworkId,
                     n => _world is { } w && Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(w, n) is { IsNull: false } u && w.HasComponent<EntityInfo>(u) ? w.GetComponentRO<EntityInfo>(u).Name.ToString() : null);
+                _watchKit = new Hrot.Editor.AiShared.Review.ReplicaWatchKit(_replicaLane, () => _world, () => _byNodeSection);
                 // ⭐ R-5 / V6 — while a participant group is open the analysis reads ITS file and a seek drives ITS transport; otherwise the own part (below)
                 _fileReview = new Hrot.Editor.AiShared.Review.FileReview(new Hrot.Editor.AiShared.Review.ReviewFileServices(
                     RecordingFiles: () => reviewSource.IsOpen ? reviewSource.RecordingFiles() : _ownPartReplay.RecordingFiles(),
@@ -5123,6 +5132,7 @@ namespace Hrot.Editor
                     _reviewSourceCombo.RegisterInto(aarToolbar);
                 }
                 _reviewStatus = Hrot.Editor.Review.ReviewSourceStatusSection.Register(windowManager.StatusBar, reviewSource);   // D9 — the bar's LEFT end
+                _reviewFederation = new Hrot.Editor.Review.ReviewFederationWindowHost(reviewSource, w => windowManager.RegisterWindow(w), Hrot.Editor.AiShared.Review.ReviewLayout.Perspective, EditorWindowColor.TitleBar);   // G-7 S5 — the Source menu's Offsets… opens it
                 var reviewTimeline = _fileReview.TimelinePanel;
                 reviewSource.Changed += () => reviewTimeline.SetManager(reviewSource.Manager);
                 if (_editorApp is { } reviewApp) reviewApp.RecordingOpened += id => reviewSource.OnRecordingOpened(id);   // ⭐ THE one branch where a recording opens: a group with no part of this node ⇒ the source
@@ -5140,7 +5150,7 @@ namespace Hrot.Editor
             if (ReviewTracks == null)
             {
                 ReviewTracks = new Hrot.Editor.AiShared.Review.ReviewTimelineTracks(() => _node?.ShownTimeline, _fileReview?.SearchPanel, ReviewStops,
-                    transport: () => _reviewTransport, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane);
+                    transport: () => _reviewTransport, selectUnit: n => SelectNetworkEntity(n), replica: _replicaLane) { Settings = _watchKit?.Settings };
                 _eventTimeline.AddTracks(ReviewTracks.Tracks);
                 if (_bpManager is { } stopManager)
                     stopManager.OnBreakpointHit += (bp, entity) =>

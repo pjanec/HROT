@@ -146,6 +146,7 @@ namespace Fdp.Toolkit.Perception.Sensors
         private const uint VoiceSeed = 0x5A17C0DEu;
 
         public AcousticSensorGenerator(SpatialHashGrid grid) => _grid = grid;
+        private static readonly int S_Ring = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("percept.hear.ShotRing");
 
         public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
@@ -170,7 +171,9 @@ namespace Fdp.Toolkit.Perception.Sensors
             }
             // ⭐⭐ CE-3282 (Q95 C; Sensing §8.3) — SHOTS and BURSTS are short: every one made since this sensor last read, from the lossless ring
             //   (distance only — on the terrain or off it, Q95 B), whenever this solve runs
+            long tr = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427
             HearRing(observer, unit, view, candidates, ref n, in ears);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Ring, tr);
             return n;
         }
 

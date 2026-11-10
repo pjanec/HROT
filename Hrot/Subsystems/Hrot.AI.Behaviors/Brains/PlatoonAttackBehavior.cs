@@ -202,11 +202,11 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.ReactToFireFromBuilding, Params = typeof(NoParams), Categories = BehaviorCategory.Commander)]
-        [HsmDefinition(BehaviorNames.ReactToFireFromBuilding, Curated = true, Group = "Library/Platoon", ParamsType = typeof(PlatoonAttackBlackboard))]
+        [HsmDefinition(BehaviorNames.ReactToFireFromBuilding, Curated = true, Group = "Library/Reactions", ParamsType = typeof(PlatoonAttackBlackboard))]
         public static StateMachineGraph BuildReactToFireFromBuilding() => Build("ReactToFireFromBuilding_HSM");
 
         [Behavior(BehaviorNames.PlatoonAttack, Params = typeof(PlatoonAttackParamsJsonDto), Categories = BehaviorCategory.Commander)]
-        [HsmDefinition(BehaviorNames.PlatoonAttack, Curated = true, Group = "Library/Platoon", ParamsType = typeof(PlatoonAttackBlackboard))]
+        [HsmDefinition(BehaviorNames.PlatoonAttack, Curated = true, Group = "Library/Orders", ParamsType = typeof(PlatoonAttackBlackboard))]
         public static StateMachineGraph BuildPlatoonAttack() => Build("PlatoonAttack_HSM");
 
         /// <summary>The one play's graph, under either name (§10: one play, presets).</summary>

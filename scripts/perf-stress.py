@@ -133,6 +133,28 @@ def get(port, route):
         return {}
 
 
+
+def trace_nodes(folder, nodes, seconds=15):
+    """CPU-trace each node's process for SECONDS (dotnet-trace, sampled thread time, speedscope) into FOLDER/<mode>.nettrace —
+    started in the background; shared by perf-stress.py and scale-rig.py (CE-3427)."""
+    os.makedirs(folder, exist_ok=True)
+    tool = os.path.expanduser("~/.dotnet/tools/dotnet-trace")
+    env = dict(os.environ, DOTNET_ROOT=os.environ.get("DOTNET_ROOT", "/usr/local/dotnet"))
+    for mode, port in nodes:
+        pid = None
+        for p in subprocess.run(["pgrep", "-f", "ClusterRunner[.]dll --mode"], capture_output=True, text=True).stdout.split():
+            try:
+                cmd = open(f"/proc/{p}/cmdline").read().replace("\0", " ")
+                envs = open(f"/proc/{p}/environ").read().split("\0")
+            except OSError:
+                continue
+            if cmd.startswith("dotnet ") and f"HROT_DEBUG_API_PORT={port}" in envs: pid = p
+        if pid:
+            subprocess.Popen([tool, "collect", "-p", pid, "--profile", "dotnet-sampled-thread-time", "--duration", f"00:00:00:{seconds:02d}",
+                              "--format", "speedscope", "-o", os.path.join(folder, f"{mode}.nettrace")], env=env,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print(f"  tracing {', '.join(m for m, _ in nodes)} for {seconds} s into {folder}")
+
 def census():
     """Each node's entities grouped by component set — what an entity count is MADE of (a world twice as big must say of what)."""
     import collections
@@ -238,23 +260,7 @@ def main():
         s1, w1 = sim(), time.time()
         f1 = {p: node_work(p)[1] for _, p in NODES}
         if a.trace:
-            os.makedirs(a.trace, exist_ok=True)
-            tool = os.path.expanduser("~/.dotnet/tools/dotnet-trace")
-            env = dict(os.environ, DOTNET_ROOT=os.environ.get("DOTNET_ROOT", "/usr/local/dotnet"))
-            for mode, port in NODES[1:]:
-                pid = None
-                for p in subprocess.run(["pgrep", "-f", "ClusterRunner[.]dll --mode"], capture_output=True, text=True).stdout.split():
-                    try:
-                        cmd = open(f"/proc/{p}/cmdline").read().replace("\0", " ")
-                        envs = open(f"/proc/{p}/environ").read().split("\0")
-                    except OSError:
-                        continue
-                    if cmd.startswith("dotnet ") and f"HROT_DEBUG_API_PORT={port}" in envs: pid = p
-                if pid:
-                    subprocess.Popen([tool, "collect", "-p", pid, "--profile", "dotnet-sampled-thread-time", "--duration", "00:00:00:15",
-                                      "--format", "speedscope", "-o", os.path.join(a.trace, f"{mode}.nettrace")], env=env,
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"  tracing cgf / simhost / traffic for 15 s into {a.trace}")
+            trace_nodes(a.trace, NODES[1:])
         ok = wait(a.seconds)
         s2, w2 = sim(), time.time()
         down = [m for m, up in alive().items() if not up]

@@ -715,3 +715,39 @@ Add Entity and scenario pickers ([Add Entity picker](../DESIGN_Add_Entity_Picker
 
 ⇒ the per-folder content for a Rifleman (45): Orders 4 · Movement 9 · Combat 12 · Weapons and vehicles 7 · Casualties and engineering 6 · Crowd and
 surrender 2 · Reactions 3 — the re-filing list is part of the build (each curated behaviour's new group, reviewed in the report).
+
+#### ⭐ AS-BUILT — H-5 / CE-4359 *(behaviors, `2026-11-09`, `build-state: BUILT`)*
+
+*+ Add task* on the Orders tab opens the ONE `PickerWindow` (Tree layout, side pane, Add / Cancel) when the host passes its shell picker registry (`EntityDetailsHostServices.Pickers` — the editor does; a host with none keeps the plain popup). A Rifleman is offered **44** tasks (+ the *Wait* leaf), **44** tests / demos / samples behind the off tick *Show tests and demos (44)*; the operator and the SOPs are never offered.
+
+| what | as built | file |
+|---|---|---|
+| model | `TaskPicker.Entries` / `Request` / `PickOf` · `TaskNames.Words` / `OrderWords` (ONE helper: `MoveToLocation` → *Move to location*; `ObserveFire` → *Observe and fire*) · the preview text (title, `Folder · CodeName` grey line, description, parameter defaults, *Fits*) is built once at open | `Hrot/Engine/Hrot.Presentation/Orders/TaskPicker.cs` |
+| the Orders tab | `OrdersTab(… pickers)`: the list's [+ Add task] opens the picker, the pick is taken on the next frame and joins the draft through `OrdersPlanEdits.NewWait / NewOrder / NewBehaviour` | `Hrot.Editor.AiShared/Shell/OrdersTab.cs` (`OpenTaskPicker`, `AddPicked`) |
+| folders | fixed order *Orders — the unit's own* · Movement · Combat · Weapons and vehicles · Casualties and engineering · Crowd and surrender · Reactions · My behaviours; the Orders folder = the order resolver's answer (`OrderMenu.OfferedFor`) in the fixed order Move · Hold · Attack · Observe and fire; every other folder = the curated behaviour's `Group` with `Library/` stripped (ONE field); an authored asset's own group sits under *My behaviours*; a non-library group that is not tests / demos / samples likewise | `TaskPicker.FolderOf` |
+| description | `[Behavior(… Description = "…")]` — ONE sentence on the behaviour, read through `BehaviorDeclaration.Description`; filled for the 44 tasks a Rifleman is offered | `BehaviorAttribute.cs`, `ParamsDtoRegistry.cs`, `Brains/*.cs` |
+| picker features (generic, `NodeEditor.UI`) | `PickerRequest.FolderOrder` · `KeepEntryOrder` · `HideToggle` (a tick that reveals hidden entries, label + count) · `InitiallyOpenFolders`; rail accessors on `PickerRegistry` (`TreeRows`, `ExpandFolder`, `SelectEntry`, `ShowHidden`, `ListedCount`) | `Picker/PickerRequest.cs`, `PickerState.cs`, `PickerTreeBuilder.cs`, `PickerWindow.cs`, `PickerRegistry.cs` |
+| 0 B draw (R-2084) | the Tree layout builds its model once per refilter (was: every frame), the Recent list, the render context, the window title, the action labels and the pane context are cached; a drawn idle frame allocates 0 B (railed) | `PickerState.cs`, `Layouts/TreeLayout.cs`, `PickerWindow.cs` |
+| rails | `TheTaskPickerTests` (model: 44 in 7 folders in the fixed order, 44 hidden, names as words; frame: folders in order, tick, Recent first, 0 B; Orders tab: + Add task opens the picker, a pick joins the plan) · 🔴 red-proof: `IsHiddenGroup` returning false ⇒ the Rifleman lists 89 | `Hrot.Editor.Tests/Windows/TheTaskPickerTests.cs` |
+
+**The re-filing** — every curated behaviour's `Group`, old → new (75 moved; 18 already right; the objectives `Library/Objectives` and the SOPs `Library/Sop` are not unit tasks and stay):
+
+| new group | behaviours (← old group) |
+|---|---|
+| `Library/Casualties and engineering` | BreachDoor ←Basic · CarryCasualty ←Infantry · CasualtyCare ←Squad · DetonateCharge ←Orders · DoorLocksmith ←Basic · LoadCasualty ←Infantry · SquadRecover ←Squad · TriggerIed ←Orders |
+| `Library/Combat` | AirArmedSearch ←Orders · BoundingOverwatch ←Squad · ClearArea ←Squad · ClearBuilding ←Squad · ClearRoom ←Squad · CombatPosture ←Infantry · FightFromCover ←Tactics · FireAndMovement ←Squad · FireAtPoint ←Basic · FireAtTarget ←Basic · FiringPosition ←Tactics · Flank ←Tactics · HoldStance ←Basic · HoldTheLine ←Orders · PlatoonDefend ←Platoon · Sentry ←Tactics · SpotForFire ←Orders · SquadDefend ←Squad · SquadHold ←Squad · SupportCommand ←Platoon · Suppress ←Infantry · SuppressAndManeuver ←Squad · TakeCover ←Tactics · TrackTarget ←Basic · VehicleFightFromCover ←Vehicle |
+| `Library/Crowd and surrender` | BatonCharge ←Orders · CivilianHsm ←Civilian · CivilianReact ←Civilian · Surrender ←Orders |
+| `Library/Movement` | AdvanceTo ←Infantry · DangerCrossing ←Tactics · FallBack ←Tactics · FollowRoute ←Basic · Idle ←Basic · JoinFormation ←Basic · MoveToLocation ←Basic · PlatoonBound ←Platoon · PlatoonConvoy ←Platoon · PushThrough ←Vehicle · SquadDangerCrossing ←Squad · SquadMarch ←Squad · UrbanMovement ←Platoon · WanderMilitary ←Basic |
+| `Library/Orders` | InfantrySquadAttack ←Squad · InfantrySquadHold ←Squad · InfantrySquadMove ←Squad · PlatoonAttack ←Platoon · PlatoonHold ←Platoon |
+| `Library/Reactions` | BreakContact ←Squad · EvadeAndSignal ←Basic · ReactToContact ←Squad · ReactToFireFromBuilding ←Platoon · ShelterFromAir ←Vehicle |
+| `Library/Weapons and vehicles` | AssembleAfterDrop ←Squad · CarryWeapon ←Basic · Disembark ←Basic · Eject ←Air · Embark ←Basic · ManWeapon ←Basic · PackUpWeapon ←Basic · SetUpWeapon ←Basic · SquadAirborneExit ←Squad · SquadDismount ←Squad · SquadEmbark ←Squad · SquadFastRope ←Squad · SquadRide ←Squad · StationWeapon ←Orders |
+
+*Unchanged:* Break, EvadeGrenade (`Library/Reactions`) · AirPlatformAttack / Move / Strike, ArtilleryUnitStrike, LandPlatformAttack, PersonAttack / Hold / Move / ObserveFire, PlatformAttack / Hold / Move, SelfPropelledArtilleryStrike, WeaponSystemAttack / Hold (`Library/Orders`, the class orders) · Objectives and SOPs. **Golden:** `OfferedBehaviours.golden.txt` is names only — the re-filing moves nothing in it (0 lines changed).
+
+**Rifleman per folder (as built, 44):** Orders 4 · Movement 8 · Combat 14 · Weapons and vehicles 7 · Casualties and engineering 6 · Crowd and surrender 2 · Reactions 3.
+
+**Deviations from §5.13 / the mockup:**
+- ⚠ **44, not 45** — `DangerCrossingBp` (the blueprint sample of Danger crossing) is an authored asset in `Samples/Tactics`, so the `Samples*` rule hides it; filing it needs its `.bp.json` moved. The spec's per-folder numbers (9 · 12 …) sum to 43; the real split is above.
+- ⚠ no coloured row icons yet (the picker's rows draw the label only); *Wait* is a root leaf after the folders; empty folders (*My behaviours* with no authored asset) are not drawn; *Recent* is the picker's own `↻ Recent` section, not a folder row.
+- ⚠ *Fits* shows the behaviour's declared entity classes, else its category words (*All military*), not a unit-type list.
+- ⚠ the harness `UiFrameHarness.OpenOrBind` now retries a window that is not ready (the first window of a process failed about one run in two).

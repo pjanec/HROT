@@ -248,6 +248,28 @@ namespace Fdp.Toolkits.Tests.Scenario
             Assert.Contains(expected, ex.Message);
         }
 
+        /// <summary>⭐ R-3 (AR-5) — the ONE write walker: keys ignore case, a string-held object is walked and written back, the last key is created, and the binder still refuses an index.</summary>
+        [Fact]
+        public void ComponentJsonPathSet_KeepsTheBindersWalkRules()
+        {
+            var root = JsonNode.Parse("""{"Behavior":{"Params":"{\"Speed\":1}"},"EntityInfo":{"ForceId":1}}""")!.AsObject();
+            Assert.Equal(ComponentJsonPath.SetOutcome.Changed, ComponentJsonPath.Set(root, "entityinfo.FORCEID", JsonValue.Create(2), out _));
+            Assert.Equal(2, root["EntityInfo"]!["ForceId"]!.GetValue<int>());                          // another case hit the existing key, no twin
+            Assert.Single(root["EntityInfo"]!.AsObject());
+            Assert.Equal(ComponentJsonPath.SetOutcome.Changed, ComponentJsonPath.Set(root, "Behavior.Params.speed", JsonValue.Create(7.5), out _));
+            Assert.Equal(7.5, JsonNode.Parse(root["Behavior"]!["Params"]!.GetValue<string>())!["Speed"]!.GetValue<double>());   // the string was walked and written back
+            Assert.Equal(ComponentJsonPath.SetOutcome.Unchanged, ComponentJsonPath.Set(root, "Behavior.Params.Speed", JsonValue.Create(7.5), out _));
+            Assert.Equal(ComponentJsonPath.SetOutcome.MissingStep, ComponentJsonPath.Set(root, "Weapon.Ammo", JsonValue.Create(1), out var bad));
+            Assert.Equal(0, bad);
+            Assert.Equal(ComponentJsonPath.SetOutcome.NotAnObject, ComponentJsonPath.Set(root, "EntityInfo.ForceId.X", JsonValue.Create(1), out bad));
+            Assert.Equal(1, bad);
+
+            var e = Entity();                                                                            // the binder's own check stays in front of Set
+            e["ParamBindings"]!["Bindings"] = new JsonObject { ["Behavior.Params.Route[0]"] = "speed" };
+            var src = new Source(); src.Values["speed"] = 1.0;
+            Assert.Contains("an index in a path is refused", Assert.Throws<InvalidOperationException>(() => ParamBinder.ApplyBindings(e, src)).Message);
+        }
+
         [Fact]
         public void Three_AMissingParam_IsLoud_NamingThePath()
         {

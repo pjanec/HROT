@@ -168,6 +168,15 @@ namespace CarKinem.Systems
         /// distance along the path (⭐ CE-4040 — a walker past it is through the doorway).</summary>
         public static int? NextDoorAhead(in CustomTrajectory traj, float progressS, TerrainWorld terrain, out float markS)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — it scans every door of the terrain per door mark
+            var r = NextDoorAheadCore(traj, progressS, terrain, out markS);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_NextDoor, t0);
+            return r;
+        }
+        private static readonly int S_NextDoor = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("doors.NextDoorAhead");
+
+        private static int? NextDoorAheadCore(in CustomTrajectory traj, float progressS, TerrainWorld terrain, out float markS)
+        {
             markS = 0f;
             var wps = traj.Waypoints;
             for (int i = 0; i < wps.Length; i++)

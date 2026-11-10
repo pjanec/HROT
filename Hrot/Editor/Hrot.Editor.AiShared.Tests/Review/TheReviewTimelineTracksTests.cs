@@ -304,41 +304,190 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
     /// ⭐ G-7 S5 (I5, M-5) — ONE lane <i>Replica differs · &lt;unit&gt;</i> for the SELECTED unit in the MERGED view: a mark at exactly the frames a replica of it differs from its owner (the same ε as Details ▸ By node),
     /// a click seeks there (a waypoint) — and it is absent with no unit selected, and in a part (no manager). 🔴 Red-proof: the scan marking the frames where nothing differs ⇒ red.
     /// </summary>
+    private static ReplicaWatchList Watch()
+    {
+        var w = new ReplicaWatchList();
+        w.Add(100, "ReplicaProbe.X", 0, expert: true);   // an expert field watch (the probe is no vocabulary attribute); tolerance default 0.001
+        return w;
+    }
+
     [Fact]
-    public void G7S5_TheReplicaDiffersLane_MarksTheFramesAReplicaDiffers_ClickSeeksThere_AndExistsOnlyForTheSelectedUnitInMerged()
+    public void G7S5_TheReplicaWatchLane_DrawsASpanOfTheWatchedItem_ClickSeeksToItsStart_AndExistsOnlyForTheSelectedUnitInMerged()
     {
         var (p1, p2) = RecordReplicaPair();
         using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
         manager.SetBaseWallTicks(Zero);
         FederatedReplayManager? merged = manager; int? selected = 100;
-        using var lane = new ReplicaDifferLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), () => merged, () => selected, n => "Bravo 2-3");
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), Watch(), () => merged, () => selected, n => "Bravo 2-3");
         var f = new Fixture(_reader, p1);
         var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
 
         for (int i = 0; i < 400 && tracks.ReplicaItems.Count == 0; i++) { tracks.Tracks(); System.Threading.Thread.Sleep(25); }   // the scan runs in the background
 
-        Assert.Equal(new[] { 2, 3 }, tracks.ReplicaFrames);                                        // ⭐ a mark at exactly the frames the copy lags — not at 0, 1, 4, 5
+        Assert.Equal(new[] { 2 }, tracks.ReplicaFrames);                                           // ⭐ ONE span (the copy lags over frames 2–3, 2 s ≫ the 200 ms threshold), starting at frame 2
         var row = Assert.Single(tracks.Tracks(), r => r.Id == ReviewTimelineTracks.ReplicaId);
-        Assert.Equal("Replica differs · Bravo 2-3", row.Label);                                    // one lane, named for the unit
-        Assert.Equal(new[] { 2d, 3d }, row.Items.Select(i => i.From).ToArray());               // at their times on the timeline
-        row.Select("r1");                                                                          // a click on the second mark …
-        Assert.Equal(new[] { 3 }, f.Transport.Seeks);                                              // … seeks there
+        Assert.Equal("Replica watch · Bravo 2-3", row.Label);                                      // one lane, named for the unit
+        var item = Assert.Single(row.Items);
+        Assert.Equal((2d, 3d), (item.From, item.To));                                              // spans from frame 2 to the last frame that disagrees
+        Assert.Contains("believed 7 while the owner node 1 had 2", item.Label);                    // the hover: who believed what
+        Assert.Contains("click = seek to its start", item.Label);
+        row.Select("r0");                                                                          // a click on the span …
+        Assert.Equal(new[] { 2 }, f.Transport.Seeks);                                              // … seeks to its start
 
+        lane.Watch.Remove(100, "ReplicaProbe.X");                                                   // nothing watched ⇒ no lane (the default)
+        Assert.DoesNotContain(tracks.Tracks(), r => r.Id == ReviewTimelineTracks.ReplicaId);
+        lane.Watch.Add(100, "ReplicaProbe.X", 0, expert: true);
         selected = null;                                                                           // no unit selected ⇒ no lane
         Assert.DoesNotContain(tracks.Tracks(), r => r.Id == ReviewTimelineTracks.ReplicaId);
         selected = 100; merged = null;                                                             // a part (no manager) ⇒ no lane
         Assert.DoesNotContain(tracks.Tracks(), r => r.Id == ReviewTimelineTracks.ReplicaId);
     }
 
-    /// <summary>⭐ the lane on the REAL Event Timeline panel (mockup ②): its amber marks are drawn. Renders <c>g7s5-replica-lane.png</c> under <c>HROT_RAIL_SHOTS</c>.</summary>
+    /// <summary>⭐ §6.13 RW-3/RW-4 — the settings popup's two knobs change what the lane shows: a threshold beyond the 2 s span hides it, a tolerance beyond the 5-unit lag hides it, and the eye (Toggle) is what adds the lane.
+    /// 🔴 Red-proof: ignore the tolerance in the scan ⇒ the tolerance half stays a span.</summary>
+    [Fact]
+    public void G7S5_TheWatchSettings_ThresholdAndToleranceChangeTheResult_TheEyeAddsTheLane()
+    {
+        var (p1, p2) = RecordReplicaPair();
+        using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+        manager.SetBaseWallTicks(Zero);
+        var watch = new ReplicaWatchList();
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, () => manager, () => 100, n => "Bravo 2-3");
+        var f = new Fixture(_reader, p1);
+        var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
+
+        void Settle(Func<bool> done, int max = 400) { for (int i = 0; i < max && !done(); i++) { tracks.Tracks(); System.Threading.Thread.Sleep(25); } tracks.Tracks(); }
+        Settle(() => false, 20);   // one pass: nothing is watched
+        Assert.Empty(tracks.ReplicaItems);                                       // empty by default ⇒ no lane
+
+        Assert.True(watch.Toggle(100, "ReplicaProbe.X", 0, expert: true));        // the eye on
+        Settle(() => tracks.ReplicaItems.Count == 1);
+        Assert.Single(tracks.ReplicaItems);
+
+        watch.ThresholdSeconds = 5;                                              // the threshold field: a 2 s disagreement is no longer persistent
+        Settle(() => false, 60);
+        Assert.Empty(tracks.ReplicaItems);
+
+        watch.ThresholdSeconds = 0.2; watch.SetTolerance(100, "ReplicaProbe.X", 0, 10);   // the tolerance field: the 5-unit lag is within 10
+        Settle(() => false, 60);
+        Assert.Empty(tracks.ReplicaItems);
+
+        watch.SetTolerance(100, "ReplicaProbe.X", 0, 0.5);
+        Settle(() => tracks.ReplicaItems.Count == 1);
+        Assert.Single(tracks.ReplicaItems);
+
+        Assert.False(watch.Toggle(100, "ReplicaProbe.X", 0, expert: true));       // the eye off ⇒ the lane goes
+        tracks.Tracks();
+        Assert.Empty(tracks.ReplicaItems);
+    }
+
+    /// <summary>
+    /// ⭐ §6.13 (mockups ① and ③) — the lane's GEAR (a trailing button on the track header, generic) opens the settings popup; the popup lists the watched items (eye · icon · label · tolerance · ✕), the threshold "(default)" and the
+    /// note; the Details eye is one teal/grey glyph per attribute row. Renders <c>watch-settings.png</c> and <c>watch-details-eye.png</c> under <c>HROT_RAIL_SHOTS</c> (never in git).
+    /// 🔴 Red-proof: the header carrying no <c>TrailingClick</c> ⇒ the popup never opens.
+    /// </summary>
     [SkippableFact]
-    public void G7S5_TheReplicaDiffersLane_OnARealTimelineFrame_DrawsItsAmberMarks()
+    public void RW5_TheGearOpensTheSettingsPopup()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var (p1, p2) = RecordReplicaPair();
         using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
         manager.SetBaseWallTicks(Zero);
-        using var lane = new ReplicaDifferLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), () => manager, () => 100, n => "Bravo 2-3");
+        var watch = new ReplicaWatchList();
+        watch.Add(100, "ReplicaProbe.X", 0, expert: true, label: "Probe");   // gives the lane a span (and so its row)
+        FederatedReplayManager? shown = manager;
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, () => shown, () => 100, n => "Bravo 2-3");
+        var f = new Fixture(_reader, p1);
+        var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
+        var kit = new ReplicaWatchKit(lane, () => null);
+        for (int i = 0; i < 400 && tracks.ReplicaItems.Count == 0; i++) { tracks.Tracks(); System.Threading.Thread.Sleep(25); }
+        tracks.Tracks();
+        var row = tracks.Tracks().FirstOrDefault(r => r.Id == ReviewTimelineTracks.ReplicaId);
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-review-rail");
+        Directory.CreateDirectory(dir);
+        Assert.NotNull(row);
+        Assert.NotNull(row!.Header!.TrailingClick);                                                  // the gear is declared by the row (generic hook)
+        Assert.Equal(Fdp.Presentation.Fonts.IconsFontAwesome6.Gear, row.Header.TrailingGlyph);
+        tracks.Settings = kit.Settings;   // only now: the popup draws inside an ImGui frame
+        row.Header.TrailingClick!();
+        shown = null;   // the popup draws without a scan running; the display-only items below are never scanned
+        watch.Add(100, "Health.Current", 0, label: "Strength");
+        watch.Add(100, "Ammo.*", 1, label: "Rounds · 7.62");
+        watch.Add(100, "Position.X", 0, label: "Position");
+        watch.Add(100, "ActorCapabilityState.Capabilities", 0, expert: true);
+
+
+        using (var frame = UiFrameHarness.Begin(640, 260))
+        {
+            new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+            bool open = false;
+            frame.StepN(4, () =>
+            {
+                ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(640, 260));
+                ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+                tracks.Tracks();                                                                       // draws the settings popup (once a frame)
+                open = ImGui.IsPopupOpen(ReplicaWatchSettings.PopupId);
+                ImGui.End();
+            });
+            Assert.True(open, "the gear's request opened the settings popup");
+            frame.Screenshot(Path.Combine(dir, "watch-settings.png"));
+        }
+    }
+
+    /// <summary>⭐ §6.13 mockup ① — the Details eye is one glyph per ATTRIBUTE row (teal where watched). Renders <c>watch-details-eye.png</c> under <c>HROT_RAIL_SHOTS</c>.</summary>
+    [SkippableFact]
+    public void RW1_TheDetailsEye_IsRenderedOnAttributeRows()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (p1, p2) = RecordReplicaPair();
+        using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+        manager.SetBaseWallTicks(Zero);
+        var watch = new ReplicaWatchList();
+        watch.Add(100, "Health.Current", 0, label: "Strength");
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), watch, () => manager, () => 100, n => "Bravo 2-3");
+        var kit = new ReplicaWatchKit(lane, () => null);
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-review-rail");
+        Directory.CreateDirectory(dir);
+        var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new EntityInfo { Name = new FixedString64("Bravo 2-3") });
+        world.AddComponent(unit, new Fdp.Toolkit.Combat.Components.Health { Current = 0, Max = 300 });
+        var decl = new Fdp.Presentation.Forms.FormDecl
+        {
+            Id = "rail-watch", Title = "Unit", Requires = new[] { typeof(EntityInfo) },
+            Fields = new[]
+            {
+                new Fdp.Presentation.Forms.FormField { Label = "Name", Kind = Fdp.Presentation.Forms.FieldKind.Text, Attribute = "Name", Section = "State" },
+                new Fdp.Presentation.Forms.FormField { Label = "Strength", Attribute = "Health.Current", Min = 0, Max = 300 },
+            },
+        };
+        var view = new Fdp.Presentation.Forms.FormView { Trailer = kit.Eye, CaptureLayout = true };
+        using (var frame = UiFrameHarness.Begin(600, 200))
+        {
+            new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+            frame.StepN(5, () =>
+            {
+                ImGui.SetNextWindowPos(Vector2.Zero); ImGui.SetNextWindowSize(new Vector2(600, 200));
+                ImGui.Begin("Details — Bravo 2-3", ImGuiWindowFlags.NoCollapse);
+                view.Draw(decl, world, new[] { unit }, editable: false);
+                ImGui.End();
+            });
+            frame.Screenshot(Path.Combine(dir, "watch-details-eye.png"));
+        }
+        Assert.Equal(new[] { 0, 1 }, view.TrailerRects.Select(t => t.Field).ToArray());   // Name and Strength both attribute rows ⇒ an eye each (Strength is watched: teal)
+        world.Dispose();
+    }
+
+    /// <summary>⭐ the lane on the REAL Event Timeline panel (mockup ②): its amber marks are drawn. Renders <c>g7s5-replica-lane.png</c> under <c>HROT_RAIL_SHOTS</c>.</summary>
+    [SkippableFact]
+    public void G7S5_TheReplicaWatchLane_OnARealTimelineFrame_DrawsItsSpan()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (p1, p2) = RecordReplicaPair();
+        using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 });
+        manager.SetBaseWallTicks(Zero);
+        using var lane = new ReplicaWatchLane(new ReplicaViews(new OwnershipSource(), new ScenarioSerializerBuilder("test").Build()), Watch(), () => manager, () => 100, n => "Bravo 2-3");
         var f = new Fixture(_reader, p1);
         var tracks = new ReviewTimelineTracks(() => f.Source, f.Review.SearchPanel, f.Stops, () => f.Transport, f.Selects.Add, replica: lane);
         for (int i = 0; i < 400 && tracks.ReplicaItems.Count == 0; i++) { tracks.Tracks(); System.Threading.Thread.Sleep(25); }
@@ -347,7 +496,7 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
         panel.AddTracks(tracks.Tracks);
         var wall = Enumerable.Range(0, Frames).Select(i => Zero + (long)i * TimeSpan.TicksPerSecond).ToArray();
         var simCol = Enumerable.Range(0, Frames).Select(i => (double)i).ToArray();
-        var cursor = new Cursor { ExtentFrom = Zero, ExtentTo = Zero + (Frames - 1) * TimeSpan.TicksPerSecond, Now = Zero + 2 * TimeSpan.TicksPerSecond,
+        var cursor = new Cursor { ExtentFrom = Zero, ExtentTo = Zero + 5 * TimeSpan.TicksPerSecond, Now = Zero + 2 * TimeSpan.TicksPerSecond,
             TimeMap = ReplayTimeMap.FromFrames(wall, simCol, new FrameFlags[Frames]) };
         var lanes = new TimelineLaneCatalog().Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes()).Lanes(new TimelineLaneContext(Recording: true));
         using var frame = UiFrameHarness.Begin(1200, 200);
@@ -372,7 +521,7 @@ public sealed class TheReviewTimelineTracksTests : IDisposable
                 for (int x = 0; x < image.Width; x++) { var p = Raylib.GetImageColor(image, x, y); if (Math.Abs(p.R - r0) + Math.Abs(p.G - g0) + Math.Abs(p.B - b0) < 40) amber++; }
         }
         finally { Raylib.UnloadImage(image); }
-        Assert.True(amber > 10, $"the Replica differs marks are drawn ({amber} px)");
+        Assert.True(amber > 10, $"the Replica watch span is drawn ({amber} px)");
     }
 
     private sealed class Cursor : ITimelineCursor

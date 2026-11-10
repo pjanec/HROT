@@ -96,8 +96,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.FightFromCover, Params = typeof(FightFromCoverParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]
-        [BTreeDefinition(BehaviorNames.FightFromCover, Curated = true, Group = "Library/Tactics", ParamsType = typeof(FightFromCoverBlackboard))]
+        [Behavior(BehaviorNames.FightFromCover, Params = typeof(FightFromCoverParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Moves to cover, fires from it, and changes position when suppressed.")]
+        [BTreeDefinition(BehaviorNames.FightFromCover, Curated = true, Group = "Library/Combat", ParamsType = typeof(FightFromCoverBlackboard))]
         public static BTreeBuilder<FightFromCoverBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<FightFromCoverBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Fight, bb => bb.State, Run);

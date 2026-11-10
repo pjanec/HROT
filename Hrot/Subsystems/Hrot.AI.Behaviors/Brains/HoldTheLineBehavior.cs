@@ -68,8 +68,8 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.HoldTheLine, Params = typeof(HoldTheLineParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]
-        [BTreeDefinition(BehaviorNames.HoldTheLine, Curated = true, Group = "Library/Orders", ParamsType = typeof(HoldTheLineBlackboard))]
+        [Behavior(BehaviorNames.HoldTheLine, Params = typeof(HoldTheLineParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Holds a position against attackers.")]
+        [BTreeDefinition(BehaviorNames.HoldTheLine, Curated = true, Group = "Library/Combat", ParamsType = typeof(HoldTheLineBlackboard))]
         public static BTreeBuilder<HoldTheLineBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<HoldTheLineBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Params, bb => bb.State, Hold);

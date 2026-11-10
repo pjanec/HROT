@@ -37,8 +37,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in SurrenderParamsJsonDto authored, ref SurrenderBlackboard block, EntityRepository world, Entity self)
             => block.Params = new SurrenderParams { Seconds = authored.Seconds > 0f ? authored.Seconds : 0f };
 
-        [Behavior(BehaviorNames.Surrender, Params = typeof(SurrenderParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]
-        [HsmDefinition(BehaviorNames.Surrender, Curated = true, Group = "Library/Orders", ParamsType = typeof(SurrenderBlackboard))]
+        [Behavior(BehaviorNames.Surrender, Params = typeof(SurrenderParamsJsonDto), Categories = BehaviorCategory.AllMilitary, Description = "Gives up and stops fighting.")]
+        [HsmDefinition(BehaviorNames.Surrender, Curated = true, Group = "Library/Crowd and surrender", ParamsType = typeof(SurrenderBlackboard))]
         public static StateMachineGraph BuildSurrender()
         {
             var builder = new HsmBuilder("Surrender_HSM");

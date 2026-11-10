@@ -68,7 +68,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.AirArmedSearch, Params = typeof(AirArmedSearchOrder), Categories = BehaviorCategory.MilitaryApc, Classes = new[] { "AirPlatform" })]
-        [BTreeDefinition(BehaviorNames.AirArmedSearch, Curated = true, Group = "Library/Orders", ParamsType = typeof(AirArmedSearchBlackboard))]
+        [BTreeDefinition(BehaviorNames.AirArmedSearch, Curated = true, Group = "Library/Combat", ParamsType = typeof(AirArmedSearchBlackboard))]
         public static BTreeBuilder<AirArmedSearchBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<AirArmedSearchBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Search, bb => bb.State, Search);

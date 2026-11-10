@@ -241,6 +241,36 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3427</c> — <c>GET /diagnostics/queries[?reset=true]</c>: each world query's calls and time since the last reset
+        /// (<see cref="Fdp.Toolkit.Diagnostics.QueryTimings"/>), the most time first. <c>msPerSecond</c> is the time per second of wall clock
+        /// summed over every thread (divide by the frames per second for a per-frame cost). <c>reset=true</c> answers, then zeroes.
+        /// </summary>
+        public JsonNode GetQueryTimings(bool reset)
+        {
+            var (rows, seconds) = Fdp.Toolkit.Diagnostics.QueryTimings.Snapshot();
+            var list = new JsonArray();
+            foreach (var r in rows)
+                list.Add(new JsonObject
+                {
+                    ["name"]        = r.Name,
+                    ["calls"]       = r.Calls,
+                    ["perSecond"]   = Math.Round(r.Calls / Math.Max(seconds, 1e-6), 1),
+                    ["totalMs"]     = Math.Round(r.TotalMs, 2),
+                    ["msPerSecond"] = Math.Round(r.TotalMs / Math.Max(seconds, 1e-6), 3),
+                    ["avgUs"]       = Math.Round(r.AvgUs, 2),
+                    ["maxUs"]       = Math.Round(r.MaxUs, 1),
+                });
+            if (reset) Fdp.Toolkit.Diagnostics.QueryTimings.Reset();
+            return new JsonObject
+            {
+                ["enabled"] = Fdp.Toolkit.Diagnostics.QueryTimings.Enabled,
+                ["seconds"] = Math.Round(seconds, 2),
+                ["queries"] = list,
+                ["note"]    = "Per PROCESS (a --mode all process sums its subsystems). Nested slots overlap: a world.Trace.* includes its terrain.* call, eqs.template:* includes its eqs.gen/eqs.test, nav.PathCosts may include nav.PlanPath fallbacks.",
+            };
+        }
+
+        /// <summary>
         /// <c>GET /diagnostics/architecture[?subsystem=SimHost]</c> — this node's modules, systems and
         /// translators, per subsystem.
         /// </summary>
@@ -322,6 +352,9 @@ namespace Hrot.Editor.DebugApi
                         ["recentAvgMs"] = Math.Round(sys.Profile?.GetRecentAverageMs() ?? 0.0, 4),
                         ["maxMs"]       = Math.Round(sys.Profile?.MaxMs ?? 0.0, 4),
                         ["errors"]      = sys.Profile?.ErrorCount ?? 0,
+                        // ⭐ CE-4364 — the garbage it makes (bytes per execution, its thread): the scale rig's 0 B / frame budget
+                        ["recentAvgBytes"] = Math.Round(sys.Profile?.GetRecentAverageBytes() ?? 0.0, 1),
+                        ["avgBytes"]       = Math.Round(sys.Profile?.AverageBytes ?? 0.0, 1),
                     }).ToArray()),
                     ["translators"] = new JsonArray(snapshot.Translators.Select(t => (JsonNode)new JsonObject
                     {
@@ -347,10 +380,29 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject
             {
                 ["subsystems"] = subsystems,
+                ["process"]    = ProcessNumbers(),
                 ["note"]       = "one entry per SUBSYSTEM on this node — a --mode all node runs several, "
                                + "each with its own ModuleHostKernel. Other nodes host their own MCP "
                                + "endpoint; ask each one for its own architecture.",
             }, null, null);
+        }
+
+        /// <summary>⭐ CE-4364 (the scale rig, docs/DESIGN_Scale_Rig.md) — this node's process: memory (now and peak) and the GC's own counters.</summary>
+        private static JsonObject ProcessNumbers()
+        {
+            using var p = System.Diagnostics.Process.GetCurrentProcess();
+            var gc = GC.GetGCMemoryInfo();
+            return new JsonObject
+            {
+                ["workingSetBytes"]     = p.WorkingSet64,
+                ["peakWorkingSetBytes"] = p.PeakWorkingSet64,
+                ["managedHeapBytes"]    = GC.GetTotalMemory(false),
+                ["allocatedBytes"]      = GC.GetTotalAllocatedBytes(false),
+                ["gen0"]                = GC.CollectionCount(0),
+                ["gen1"]                = GC.CollectionCount(1),
+                ["gen2"]                = GC.CollectionCount(2),
+                ["pauseTimePercent"]    = Math.Round(gc.PauseTimePercentage, 2),
+            };
         }
     }
 }

@@ -50,9 +50,10 @@ namespace Fdp.Toolkit.Combat
             {
                 float roundPen = EngineFallbacks.TerrainPenetrationOrFallback(penetration);
                 bool passed = Cross(c.Loss, ref damage, ref penetration);
+                if (passed && c.Stop > 0f) damage *= 1f - c.Stop;   // ⭐ CE-4369 (S4) — a wood's trunks stop a share of rounds (expected value)
                 var entry = Vector3.Lerp(from, to, Math.Clamp(c.T, 0f, 1f));
                 log?.Add(new ShotCrossing(c.Kind, c.Label, c.Material ?? "", c.Loss, roundPen,
-                    ArmorModel.PenetrationChance(roundPen, c.Loss), passed, entry));
+                    ArmorModel.PenetrationChance(roundPen, c.Loss) * (1f - c.Stop), passed, entry));
                 if (!passed)
                 {
                     stopT = Math.Clamp(c.T, 0f, 1f);
@@ -61,7 +62,7 @@ namespace Fdp.Toolkit.Combat
                 }
                 // a piece the round was already inside at the segment's start was marked by the segment that entered it (its exit too:
                 // the far face lies on the same straight line, past that segment's end)
-                if (impacts != null && c.T > 1e-5f)
+                if (impacts != null && c.T > 1e-5f && c.Stop <= 0f)   // ⭐ CE-4369 — a wood is no surface: no entry / exit mark
                 {
                     impacts.Add(new RoundImpact(entry, c.EntryNormal, ImpactKind.Entry));
                     float exitT = length > 0f ? c.T + c.PathMetres / length : c.T;

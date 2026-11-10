@@ -53,7 +53,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(BehaviorNames.SquadDismount, Params = typeof(SquadDismountParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134 (moved off the DTO at the merge)
-        [BTreeDefinition(BehaviorNames.SquadDismount, Curated = true, Group = "Library/Squad", ParamsType = typeof(SquadDismountBlackboard))]
+        [BTreeDefinition(BehaviorNames.SquadDismount, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(SquadDismountBlackboard))]
         public static BTreeBuilder<SquadDismountBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadDismountBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);

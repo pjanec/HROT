@@ -28,7 +28,16 @@ public sealed class ByNodeSection
     /// <summary>A node's name for the rows (a role when the host knows it).</summary>
     public Func<int, string> NameOf { get; }
 
+    /// <summary>⭐ §6.13 RW-6 — the session's replica watch (null: no eye, no attribute sections). The header's eye toggles it; <see cref="DrawAttribute"/> shows a watched attribute's per-node values.</summary>
+    public ReplicaWatchList? Watch { get; set; }
+
     private readonly ReplicaViews _views;
+    private readonly Dictionary<(string, int), AttrCache> _attr = new();
+
+    private sealed class AttrCache
+    {
+        public FederatedReplayManager? M; public long Net, Key; public int WatchVersion = -1; public ReplicaView? View; public string Title = ""; public string[] Names = Array.Empty<string>(), Notes = Array.Empty<string>();
+    }
     private (FederatedReplayManager? m, long net, Type? type, long key) _cacheKey;
     private ReplicaView? _view;
     private string[] _names = Array.Empty<string>(), _notes = Array.Empty<string>();
@@ -77,32 +86,110 @@ public sealed class ByNodeSection
         if (view == null) return;
         ImGui.PushID("bynode");
         bool open = SectionHeader.Draw("hdr", HeaderLabel, RowIcon.OfGlyph(IconsFontAwesome6.Sitemap, IconPalette.Teal), ImGuiTreeNodeFlags.DefaultOpen);
-        if (open && ImGui.BeginTable("##rows", 4, ImGuiTableFlags.SizingFixedFit))
-        {
-            ImGui.TableSetupColumn("c", ImGuiTableColumnFlags.WidthFixed, 20f);
-            ImGui.TableSetupColumn("n", ImGuiTableColumnFlags.WidthFixed, 200f);
-            ImGui.TableSetupColumn("v", ImGuiTableColumnFlags.WidthFixed, 190f);
-            ImGui.TableSetupColumn("d", ImGuiTableColumnFlags.WidthStretch);
-            for (int i = 0; i < view.Rows.Count; i++)
-            {
-                var r = view.Rows[i];
-                ImGui.TableNextRow();
-                ImGui.TableSetColumnIndex(0);
-                float y = ImGui.GetCursorScreenPos().Y;
-                if (r.IsOwner) ImGui.TextColored(IconPalette.Amber, IconsFontAwesome6.Crown);
-                ImGui.TableSetColumnIndex(1);
-                float nameX = ImGui.GetCursorScreenPos().X;
-                ImGui.TextUnformatted(_names[i]);
-                ImGui.TableSetColumnIndex(2);
-                float valueX = ImGui.GetCursorScreenPos().X;
-                if (r.Differs) ImGui.TextColored(IconPalette.Amber, r.Value); else ImGui.TextDisabled(r.Value);
-                ImGui.TableSetColumnIndex(3);
-                float noteX = ImGui.GetCursorScreenPos().X;
-                if (r.Differs) ImGui.TextColored(IconPalette.Amber, _notes[i]); else ImGui.TextDisabled(_notes[i]);
-                if (Capture) Rows.Add((r.NodeId, r.IsOwner, r.Differs, nameX, valueX, noteX, y));
-            }
-            ImGui.EndTable();
-        }
+        DrawComponentEye(entity, type);
+        if (open) DrawRows(view, _names, _notes);
         ImGui.PopID();
+    }
+
+    private void DrawRows(ReplicaView view, string[] names, string[] notes)
+    {
+        if (!ImGui.BeginTable("##rows", 4, ImGuiTableFlags.SizingFixedFit)) return;
+        ImGui.TableSetupColumn("c", ImGuiTableColumnFlags.WidthFixed, 20f);
+        ImGui.TableSetupColumn("n", ImGuiTableColumnFlags.WidthFixed, 200f);
+        ImGui.TableSetupColumn("v", ImGuiTableColumnFlags.WidthFixed, 190f);
+        ImGui.TableSetupColumn("d", ImGuiTableColumnFlags.WidthStretch);
+        for (int i = 0; i < view.Rows.Count; i++)
+        {
+            var r = view.Rows[i];
+            ImGui.TableNextRow();
+            ImGui.TableSetColumnIndex(0);
+            float y = ImGui.GetCursorScreenPos().Y;
+            if (r.IsOwner) ImGui.TextColored(IconPalette.Amber, IconsFontAwesome6.Crown);
+            ImGui.TableSetColumnIndex(1);
+            float nameX = ImGui.GetCursorScreenPos().X;
+            ImGui.TextUnformatted(names[i]);
+            ImGui.TableSetColumnIndex(2);
+            float valueX = ImGui.GetCursorScreenPos().X;
+            if (r.Differs) ImGui.TextColored(IconPalette.Amber, r.Value); else ImGui.TextDisabled(r.Value);
+            ImGui.TableSetColumnIndex(3);
+            float noteX = ImGui.GetCursorScreenPos().X;
+            if (r.Differs) ImGui.TextColored(IconPalette.Amber, notes[i]); else ImGui.TextDisabled(notes[i]);
+            if (Capture) Rows.Add((r.NodeId, r.IsOwner, r.Differs, nameX, valueX, noteX, y));
+        }
+        ImGui.EndTable();
+    }
+
+    /// <summary>The eye at the right end of the header line (teal = watched): the component's non-indexed attributes the vocabulary has are watched / unwatched together.</summary>
+    private void DrawComponentEye(Entity entity, Type type)
+    {
+        if (Watch == null) return;
+        long net = NetworkIdOf(entity);
+        if (net <= 0) return;
+        var paths = AttributePathsOf(type);
+        if (paths.Count == 0) return;
+        bool all = true;
+        foreach (var path in paths) all &= Watch.IsWatched(net, path, 0);
+        if (EyeButton("##eye", all, all ? "Watched on the timeline — click to stop" : "Watch this component's attributes on the timeline"))
+            foreach (var path in paths) { if (all) Watch.Remove(net, path, 0); else Watch.Add(net, path, 0); }
+    }
+
+    private readonly Dictionary<Type, List<string>> _pathsOf = new();
+    private List<string> AttributePathsOf(Type type)
+    {
+        if (_pathsOf.TryGetValue(type, out var l)) return l;
+        l = new List<string>();
+        foreach (var d in Fdp.Toolkit.Replication.Attributes.AttributeVocabulary.All)
+            if (d.Component == type && !d.JsonPath.EndsWith(".*", StringComparison.Ordinal)) l.Add(d.JsonPath);
+        return _pathsOf[type] = l;
+    }
+
+    /// <summary>A small eye toggle on the same line as the header, right-aligned. True when clicked.</summary>
+    internal static bool EyeButton(string id, bool on, string tip)
+    {
+        float w = ImGui.GetFrameHeight();
+        ImGui.SameLine(Math.Max(0f, ImGui.GetWindowWidth() - w - ImGui.GetStyle().WindowPadding.X));
+        var pos = ImGui.GetCursorScreenPos();
+        bool pressed = ImGui.InvisibleButton(id, new Vector2(w, ImGui.GetFrameHeight()));
+        float gw = ImGui.CalcTextSize(IconsFontAwesome6.Eye).X;
+        ImGui.GetWindowDrawList().AddText(new Vector2(pos.X + (w - gw) * 0.5f, pos.Y + (ImGui.GetFrameHeight() - ImGui.GetTextLineHeight()) * 0.5f),
+            ImGui.GetColorU32(on ? IconPalette.Teal : IconPalette.Muted), IconsFontAwesome6.Eye);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(tip);
+        return pressed;
+    }
+
+    /// <summary>
+    /// ⭐ RW-6 (mockup ① "Strength — by node") — the per-node values of ONE watched attribute of <paramref name="entity"/>: the same rows as the component's By node (owner crown, amber where a replica differs beyond the
+    /// item's tolerance), read through <c>AttributeReaders</c> on each node's sandbox. The header's eye (teal) stops watching it. Drawn only in the merged view for a networked unit; cached per merged frame (0 B steady).
+    /// </summary>
+    public void DrawAttribute(Entity entity, ReplicaWatchItem item)
+    {
+        Rows.Clear();
+        var m = Manager();
+        if (m == null || Watch == null) return;
+        long net = NetworkIdOf(entity);
+        if (net <= 0) return;
+        var id = (item.Path, item.SubIndex);
+        if (!_attr.TryGetValue(id, out var c)) _attr[id] = c = new AttrCache();
+        long key = ReplicaViews.StateKey(m);
+        if (c.M != m || c.Net != net || c.Key != key || c.WatchVersion != Watch.Version)
+        {
+            c.M = m; c.Net = net; c.Key = key; c.WatchVersion = Watch.Version;
+            c.View = _views.ComputeItem(m, net, item);
+            c.Title = item.Label + " — by node";
+            int n = c.View?.Rows.Count ?? 0;
+            c.Names = new string[n]; c.Notes = new string[n];
+            for (int i = 0; i < n; i++)
+            {
+                var r = c.View!.Rows[i];
+                c.Names[i] = NameOf(r.NodeId);
+                c.Notes[i] = r.IsOwner ? "owner" : r.Differs ? "Δ " + r.Delta.ToString("0.###", CultureInfo.InvariantCulture) : "—";
+            }
+        }
+        if (c.View is not { Rows.Count: >= 1 } view) return;
+        ImGui.PushID(item.Path); ImGui.PushID(item.SubIndex);
+        bool open = SectionHeader.Draw("hdr", c.Title, RowIcon.OfGlyph(IconsFontAwesome6.Sitemap, IconPalette.Teal), ImGuiTreeNodeFlags.DefaultOpen);
+        if (EyeButton("##eye", true, "Watched on the timeline — click to stop")) Watch.Remove(net, item.Path, item.SubIndex);
+        if (open) DrawRows(view, c.Names, c.Notes);
+        ImGui.PopID(); ImGui.PopID();
     }
 }

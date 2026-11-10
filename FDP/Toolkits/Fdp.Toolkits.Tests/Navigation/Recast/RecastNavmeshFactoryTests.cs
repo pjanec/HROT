@@ -707,7 +707,9 @@ public sealed class RecastNavmeshFactoryTests
             System.IO.Directory.CreateDirectory(layerDir);
             string Make(string name, double daysOld)
             {
-                var path = System.IO.Path.Combine(layerDir, name);
+                var square = System.IO.Path.Combine(layerDir, string.Join("_", name.Split('_')[..2]));   // CE-4369 — one folder per square
+                System.IO.Directory.CreateDirectory(square);
+                var path = System.IO.Path.Combine(square, name);
                 System.IO.File.WriteAllBytes(path, Array.Empty<byte>());
                 System.IO.File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-daysOld));
                 return path;
@@ -724,7 +726,7 @@ public sealed class RecastNavmeshFactoryTests
             Assert.True(System.IO.File.Exists(recent), "a recent tile of the same square stays (another terrain)");
             Assert.True(System.IO.File.Exists(otherSquare), "another square is never touched");
             Assert.True(System.IO.File.Exists(readBack), "a tile read from disk is in use — kept");
-            Assert.True(System.IO.File.Exists(System.IO.Path.Combine(layerDir, "3_4_newhash.navtile")));
+            Assert.True(System.IO.File.Exists(System.IO.Path.Combine(layerDir, "3_4", "3_4_newhash.navtile")));
         }
         finally { try { System.IO.Directory.Delete(folder, true); } catch { } }
     }
@@ -763,12 +765,77 @@ public sealed class RecastNavmeshFactoryTests
     /// point: the same "no path" whenever the exact path fits the reach, and a cost that is the corridor through edge midpoints —
     /// never much shorter than the straightened path, at most a little longer. On the shipped test-town (buildings, walls).
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-3427 — the bounded A* (the sliced search, capped at <see cref="DotRecastNavmeshProvider.MaxSearchIterations"/>) reaches the goal
+    /// whenever the plain A* does, by a path never notably longer (📐 the two break ties differently: the polygons can differ, and the sliced one was sometimes shorter), for every pair on
+    /// test-town; and a search toward a goal it cannot reach stops at its cap with a
+    /// partial path instead of expanding the whole mesh (📐 21.6 s on scale-1 before).
+    /// </summary>
     [Fact]
-    public void CE3279_PathCosts_FromOneSearch_AgreeWithAPathPerPoint_OnTestTown()
+    public void CE3427_TheBoundedSearch_FindsThePlainSearchsCorridor_AndStopsAtItsCap()
     {
         var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town");
         var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")), "test-town",
             TerrainAssets.ForFolder(folder));
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        Assert.True(nav.TryGetNavMesh(NavLayerMask.Infantry, out var mesh));
+        var query = new DotRecast.Detour.DtNavMeshQuery(mesh!);
+        var filter = new DotRecast.Detour.DtQueryDefaultFilter();
+        var ext = new DotRecast.Core.Numerics.RcVec3f(2f, 4f, 2f);
+        var rng = new Random(3427);
+        var min = world.BoundsMin; var max = world.BoundsMax;
+        long[] plain = new long[256], bounded = new long[256];
+        int compared = 0;
+        for (int i = 0; i < 200; i++)
+        {
+            var a = new DotRecast.Core.Numerics.RcVec3f(min.X + (float)rng.NextDouble() * (max.X - min.X), 0f, min.Y + (float)rng.NextDouble() * (max.Y - min.Y));
+            var b = new DotRecast.Core.Numerics.RcVec3f(min.X + (float)rng.NextDouble() * (max.X - min.X), 0f, min.Y + (float)rng.NextDouble() * (max.Y - min.Y));
+            query.FindNearestPoly(a, ext, filter, out long ra, out var pa, out _);
+            query.FindNearestPoly(b, ext, filter, out long rb, out var pb, out _);
+            if (ra == 0 || rb == 0) continue;
+            query.FindPath(ra, rb, pa, pb, filter, plain, out int np, 256);
+            DotRecastNavmeshProvider.FindPathBounded(query, ra, rb, pa, pb, filter, bounded, out int nb, 256);
+            if (np == 0) { Assert.Equal(0, nb); continue; }
+            Assert.Equal(plain[np - 1] == rb, nb > 0 && bounded[nb - 1] == rb);   // the same verdict: reached or not
+            float lp = Length(query, pa, pb, plain.AsSpan(0, np)), lb = Length(query, pa, pb, bounded.AsSpan(0, nb));
+            Assert.True(lb <= lp * 1.02f + 1f, $"pair {i}: plain {lp:F1} m, bounded {lb:F1} m");   // never notably longer (📐 sometimes shorter: 218 vs 225 m)
+            compared++;
+        }
+        Assert.True(compared >= 100, $"only {compared} pairs compared");
+
+        // a cap of 50 expansions on a long walk: it answers at once, partially (the corridor does not end at the goal)
+        var far1 = new DotRecast.Core.Numerics.RcVec3f(min.X + 5f, 0f, min.Y + 5f);
+        var far2 = new DotRecast.Core.Numerics.RcVec3f(max.X - 5f, 0f, max.Y - 5f);
+        query.FindNearestPoly(far1, ext, filter, out long r1, out var p1, out _);
+        query.FindNearestPoly(far2, ext, filter, out long r2, out var p2, out _);
+        Assert.True(r1 != 0 && r2 != 0);
+        DotRecastNavmeshProvider.FindPathBounded(query, r1, r2, p1, p2, filter, bounded, out int n, 256, maxIterations: 50);
+        Assert.True(n > 0 && bounded[n - 1] != r2, "a capped search answers partially");
+        Assert.True(query.GetNodePool().GetNodeCount() <= 400, $"it touched {query.GetNodePool().GetNodeCount()} nodes");   // 50 expansions and their neighbours (📐 74), not the mesh
+    }
+
+    private static float Length(DotRecast.Detour.DtNavMeshQuery q, DotRecast.Core.Numerics.RcVec3f a, DotRecast.Core.Numerics.RcVec3f b, Span<long> corridor)
+    {
+        var straight = new DotRecast.Detour.DtStraightPath[256];
+        q.FindStraightPath(a, b, corridor, corridor.Length, straight, out int n, 256, 0);
+        float len = 0f;
+        for (int k = 1; k < n; k++) len += DotRecast.Core.Numerics.RcVec3f.Distance(straight[k - 1].pos, straight[k].pos);
+        return len;
+    }
+
+    [Fact]
+    public void CE3279_PathCosts_FromOneSearch_AgreeWithAPathPerPoint_OnTestTown()
+    {
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town");
+        // ⭐ CE-4369 — WITHOUT test-town's wood: this rail's bounds assume every metre costs the same (the cheapest path is the shortest).
+        //   A wood priced ×1.5 breaks that by design — A* and the one search may then take different sides of it (56.5 vs 60.8 m, measured).
+        //   The woods' own pricing is TerrainWoodsTests' (S3).
+        var json = System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")))!;
+        var features = json["features"]!.AsArray();
+        for (int f = features.Count - 1; f >= 0; f--)
+            if ((string?)features[f]!["properties"]?["surface"] == "forest") features.RemoveAt(f);
+        var world = TerrainWorldParser.Parse(json.ToJsonString(), "test-town", TerrainAssets.ForFolder(folder));
+        Assert.Null(world.Woods);
         var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
         const uint Inf = (uint)NavLayerMask.Infantry;
 

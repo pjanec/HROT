@@ -21,6 +21,9 @@ namespace Hrot.Editor.AiShared.Tests.Shell;
 [Collection(Hrot.Editor.AiShared.Tests.PanelSnapshotTestCollection.Name)]
 public sealed class TheUnitFormDrawsTests
 {
+    /// <summary>⭐ R-2 — what a form SHOWS for the field (the explicit delegate, else the vocabulary's reader); a missing value fails the rail.</summary>
+    private static double Num(FormField f, EntityRepository w, Entity e) { Assert.True(f.TryReadNumber(w, e, out var v)); return v; }
+
     private static int ListIdx(string label) { for (int i = 0; i < HrotForms.Unit.Lists.Count; i++) if (HrotForms.Unit.Lists[i].Label == label) return i; return -1; }
     private static int FieldIdx(string label) { for (int i = 0; i < HrotForms.Unit.Fields.Count; i++) if (HrotForms.Unit.Fields[i].Label == label) return i; return -1; }
 
@@ -72,8 +75,8 @@ public sealed class TheUnitFormDrawsTests
         HrotForms.EnsureRegistered();
         Assert.True(HrotForms.Shape.OffersFor(world, spawn));
         Assert.False(HrotForms.Shape.OffersFor(world, unit));
-        Assert.Equal(1.0, HrotForms.Shape.Fields[0].ReadNumber!(world, spawn));   // Red
-        Assert.Equal(90.0, HrotForms.Shape.Fields[1].ReadNumber!(world, spawn));
+        Assert.Equal(1.0, Num(HrotForms.Shape.Fields[0], world, spawn));   // Red
+        Assert.Equal(90.0, Num(HrotForms.Shape.Fields[1], world, spawn));
         Assert.Equal("90 °", FormView.Format(HrotForms.Shape.Fields[1], 90, default));
         Assert.All(HrotForms.Shape.Fields, f => Assert.False(f.Attribute != null && f.Definition == null));   // every field names a vocabulary attribute
     }
@@ -533,7 +536,7 @@ public sealed class TheUnitFormDrawsTests
         var f = HrotForms.Unit.Fields[field];
         Assert.True(f.Has!(world, man));
         Assert.False(f.Has!(world, soldier));                       // only a man a person carries
-        Assert.Equal(0.0, f.ReadNumber!(world, man));               // Carried
+        Assert.Equal(0.0, Num(f, world, man));               // Carried
         Assert.Equal("Dragged", f.Choices![1]);
 
         var view = new FormView();
@@ -589,14 +592,14 @@ public sealed class TheUnitFormDrawsTests
         Assert.Equal("Head", HrotForms.Unit.Fields[FieldIdx("Damage 5")].LabelFor!(world, man));
         Assert.True(f.Has!(world, man));                              // a unit that can be damaged shows the rows before the first wound
         Assert.False(HrotForms.Unit.Fields[FieldIdx("Damage 10")].Has!(world, man));   // a person has ten parts
-        Assert.Equal(0.0, f.ReadNumber!(world, man));
+        Assert.Equal(0.0, Num(f, world, man));
         Assert.False(HrotForms.Unit.Fields[FieldIdx("Mobility kill")].Has!(world, man));   // no Mobility zone on a person
 
         var pd = new Fdp.Toolkit.Physics.BodyParts.PartDamage { Plan = Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person };
         pd.Set(4, 90); pd.Set(5, 200);
         world.AddComponent(man, pd);
-        Assert.Equal(90.0, f.ReadNumber!(world, man));
-        Assert.Equal(200.0, HrotForms.Unit.Fields[FieldIdx("Damage 5")].ReadNumber!(world, man));
+        Assert.Equal(90.0, Num(f, world, man));
+        Assert.Equal(200.0, Num(HrotForms.Unit.Fields[FieldIdx("Damage 5")], world, man));
 
         var sent = new System.Collections.Generic.List<Fdp.Toolkit.Replication.Edits.EditOp>();
         var view = new FormView { Submit = (w, op) => { sent.Add(op); return new Fdp.Toolkit.Replication.Edits.EditTicket(Guid.NewGuid(), Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct); } };
@@ -716,8 +719,8 @@ public sealed class TheUnitFormDrawsTests
         Assert.Equal(env, HrotForms.Scenario.WorldTarget!(world));
         var f = HrotForms.Scenario.Fields;
         Assert.Equal("2026-06-01 06:00 UTC", f[0].ReadText!(world, env).ToString());
-        Assert.Equal(120.0, f[1].ReadNumber!(world, env));
-        Assert.Contains(f, x => x.Label == "Temperature" && x.ReadNumber!(world, env) == 21);
+        Assert.Equal(120.0, Num(f[1], world, env));
+        Assert.Contains(f, x => x.Label == "Temperature" && Num(x, world, env) == 21);
         Assert.Contains(HrotForms.Shape.Fields, x => x.Label == "Temperature");   // the ONE weather row set, on both forms
     }
 

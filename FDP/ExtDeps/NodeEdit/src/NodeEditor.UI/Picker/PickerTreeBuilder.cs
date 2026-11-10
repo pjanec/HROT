@@ -19,7 +19,7 @@ internal static class PickerTreeBuilder
     /// Folders are created only for categories that actually contain leaves (so empty/filtered-out
     /// folders are absent). Uncategorized entries become leaves directly under the root.</summary>
     public static Node Build(IReadOnlyList<(int FilteredIndex, string? Category, string Name)> items,
-                             bool foldSingleChildFolders = false)
+                             bool foldSingleChildFolders = false, IReadOnlyList<string>? folderOrder = null)
     {
         var root = new Node { Name = "" };
 
@@ -89,6 +89,13 @@ internal static class PickerTreeBuilder
 
         // Sort folders at every level (OrdinalIgnoreCase).
         SortFoldersRecursive(root);
+        if (folderOrder is { Count: > 0 })   // ⭐ CE-4359 — the listed root folders first, in that order; the rest keep their alphabetical order after them
+        {
+            int Rank(Node n) { for (int i = 0; i < folderOrder.Count; i++) if (string.Equals(folderOrder[i], n.Name, StringComparison.OrdinalIgnoreCase)) return i; return int.MaxValue; }
+            var ranked = new List<Node>(root.Folders);
+            ranked.Sort((a, b) => { int c = Rank(a).CompareTo(Rank(b)); return c != 0 ? c : root.Folders.IndexOf(a).CompareTo(root.Folders.IndexOf(b)); });
+            root.Folders = ranked;
+        }
 
         if (foldSingleChildFolders)
             FoldRecursive(root);

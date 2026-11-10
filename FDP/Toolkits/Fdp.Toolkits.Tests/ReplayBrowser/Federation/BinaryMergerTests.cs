@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             prime.RegisterComponent<NetworkIdentity>();
             prime.RegisterComponent<NetworkAuthority>();
             prime.RegisterComponent<DummyPosition>();
+            prime.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             prime.RegisterComponent<GuidedTarget>();
             _serializer = new ScenarioSerializerBuilder("TestSubsystem").Build();
         }
@@ -572,6 +573,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<DummyPosition>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             repo.RegisterComponent<GuidedTarget>();
             repo.RegisterComponent<UnitRoster>();
             repo.RegisterComponent<MergerNodeLocalProbe>();
@@ -986,6 +988,39 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             return (p1, p2);
         }
 
+        /// <summary>A header-native translator (it consumes no component, so <c>SerializeEntity</c> runs it whatever the mask) that writes each
+        /// node's OWN value — as the host's real header translators do.</summary>
+        private sealed class PerNodeHeaderTranslator : IEntityScenarioTranslator
+        {
+            public BitMask512 GetConsumedComponentsMask() => default;
+            public bool CanTranslate(EntityRepository repo, Entity entity) => true;
+            public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new() { ["NodeLocalHeader"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(repo) };
+            public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver) { }
+        }
+
+        /// <summary>
+        /// ⭐ G-7 S5 (I5) — the lens compares a component's OWN keys: a header-native translator's per-node keys never make a copy "differ".
+        /// 📐 Measured on a real 4-node recording: with them in, 100 % of frames were marked for every unit and NetworkIdentity "differed" (Δ 0).
+        /// 🔴 Red-proof: drop the header-key subtraction in <c>ReplicaViews.Json</c> ⇒ node 3 (within ε) is marked.
+        /// </summary>
+        [Fact]
+        public void ByNode_AHeaderTranslatorsPerNodeKeys_NeverMakeACopyDiffer()
+        {
+            var (p1, p2) = RecordReplicaGroup(4, f => f - 1.1f);
+            var p3 = RecordPlay(3, 4, (r, f) =>
+            {
+                if (f == 0) { var u = OwnedUnit(r, 900, 1, 3); r.AddComponent(u, new DummyPosition { X = 0 }); return; }
+                Move(r, 900, f == 3 ? 3.0004f : f);
+            }, keyEvery: 0);
+            using var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2, p3 });
+            manager.SetBaseWallTicks(Wall(3));
+            var serializer = new ScenarioSerializerBuilder("TestSubsystem").RegisterTranslator(new PerNodeHeaderTranslator()).Build();
+            var view = new ReplicaViews(new OwnershipSource(), serializer).Compute(manager, 900, typeof(DummyPosition))!;
+            Assert.False(view.Rows[2].Differs);   // node 3: the same value within ε, its header keys its own
+            Assert.True(view.Rows[1].Differs);    // node 2: a real difference still found
+        }
+
         [Fact]
         public void ByNode_TheOwnerFirst_AReplicaBeyondEpsilonIsMarkedDiffering_AWithinEpsilonOneIsNot()
         {
@@ -1014,15 +1049,61 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             Assert.False(views.Compute(manager, 900, typeof(NetworkAuthority))!.AnyDiffers);
         }
 
+        // ── §6.13 — the replica WATCH scan: persistent disagreement only ──────────────────────────────
+
+        private static ReplicaWatchItem XItem(double tolerance) => new("DummyPosition.X", 0, true, tolerance, 0xFF33B3FF, "X");
+
+        /// <summary>⭐ RW-2/RW-3: a wrong value for 1 s is a span with the right start/end/values; for 0.1 s (one frame) none; within the tolerance none.
+        /// 🔴 Red-proof: ignore the threshold in <c>ScanWatchSpans</c> ⇒ the 0.1 s blip (frame 15) shows as a span.</summary>
         [Fact]
-        public void Lane_ReplicaDiffers_HasAMarkAtExactlyTheFramesAReplicaDiffers()
+        public void Watch_APersistentWrongValueIsASpan_ABlipAndAValueWithinToleranceAreNot()
         {
-            var (p1, p2) = RecordReplicaGroup(10, f => f is 5 or 6 ? f + 5 : f);         // node 2's copy lags the owner's at frames 5 and 6 only
+            // the owner (node 1) has X = frame; node 2 believes 100 at frames 3..12 (1 s), 100 at frame 15 only (0.1 s), and is 0.3 off at frames 17..19 (within 0.5)
+            var (p1, p2) = RecordReplicaGroup(20, f => f is >= 3 and <= 12 ? 100f : f == 15 ? 100f : f >= 17 ? f + 0.3f : f);
             var views = new ReplicaViews(new OwnershipSource(), _serializer);
 
-            var frames = views.ScanDifferingFrames(new[] { p1, p2 }, new Dictionary<int, long>(), primaryNode: 1, netId: 900);
+            var spans = views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { XItem(0.5) }, 0.2);
 
-            Assert.Equal(new[] { 5, 6 }, frames);
+            var span = Assert.Single(spans);
+            Assert.Equal(0, span.Item);
+            Assert.Equal((3, 12), (span.StartFrame, span.EndFrame));
+            Assert.Equal(1.0, span.Duration, 3);
+            Assert.Equal(0.3, span.StartSeconds, 3);
+            Assert.Equal(1, span.OwnerNode);
+            Assert.Equal("3", span.OwnerValue);
+            Assert.Equal((2, "100"), Assert.Single(span.Believers));
+            // the tolerance matters: exact ⇒ the 0.3 drift of frames 17..19 (0.3 s) is a span too
+            Assert.Equal(2, views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { XItem(0) }, 0.2).Count);
+            // the threshold matters: 0 ms ⇒ the blip shows as well
+            Assert.Equal(2, views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { XItem(0.5) }, 0).Count);
+        }
+
+        /// <summary>⭐ RW-6 / RW-1 — a VOCABULARY attribute (<c>Health.Current</c>, not an expert path) is read through <c>AttributeReaders</c> on each node's sandbox: the by-node rows (owner first, the replica amber with its Δ) and the scan's span agree, the default tolerance of a unit-less attribute is exact.</summary>
+        [Fact]
+        public void Watch_AVocabularyAttribute_IsReadThroughAttributeReaders_ByNodeAndInTheScan()
+        {
+            Entity Unit(EntityRepository r, int node, float hp) { var u = OwnedUnit(r, 900, 1, node); r.AddComponent(u, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 300 }); return u; }
+            void Set(EntityRepository r, float hp) { var e = FindNet(r, 900); if (!e.IsNull) r.SetComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 300 }); }
+            var p1 = RecordPlay(1, 20, (r, f) => { if (f == 0) Unit(r, 1, 0); else Set(r, f); }, keyEvery: 0);
+            var p2 = RecordPlay(2, 20, (r, f) => { if (f == 0) Unit(r, 2, 0); else Set(r, f is >= 3 and <= 12 ? 300 : f); }, keyEvery: 0);   // node 2 believes full health for 1 s
+            var views = new ReplicaViews(new OwnershipSource(), _serializer);
+            var item = new ReplicaWatchItem("Health.Current", 0, false, ReplicaWatchItem.DefaultToleranceOf("Health.Current"), 0xFF0000FF, "Strength");
+            Assert.Equal(0d, item.Tolerance);                                              // a unit-less attribute: exact
+
+            using (var manager = FederatedReplayManager.LoadGroup(new[] { p1, p2 }))
+            {
+                manager.SetBaseWallTicks(Wall(5));
+                var view = views.ComputeItem(manager, 900, item)!;
+                Assert.Equal(new[] { 1, 2 }, view.Rows.Select(r => r.NodeId).ToArray());
+                Assert.Equal(new[] { true, false }, view.Rows.Select(r => r.IsOwner).ToArray());
+                Assert.Equal(new[] { "5", "300" }, view.Rows.Select(r => r.Value).ToArray());
+                Assert.Equal(new[] { false, true }, view.Rows.Select(r => r.Differs).ToArray());
+                Assert.Equal(295d, view.Rows[1].Delta, 3);
+                Assert.DoesNotContain(views.ComputeItem(manager, 900, item with { Tolerance = 1000 })!.Rows, r => r.Differs);
+            }
+            var span = Assert.Single(views.ScanWatchSpans(new[] { p1, p2 }, new Dictionary<int, long>(), 1, 900, new[] { item }, 0.2));
+            Assert.Equal((3, 12), (span.StartFrame, span.EndFrame));
+            Assert.Equal((2, "300"), Assert.Single(span.Believers));
         }
 
         // ── S5 · I6 — the federated search: per file, owned components only, unioned by network id ──────

@@ -34,9 +34,9 @@ namespace Hrot.AI.Behaviors.Brains
             };
             block.State = default;
         }
-[Behavior(BehaviorNames.AdvanceTo, Params = typeof(global::Hrot.Map.Definitions.Behavior.AdvanceToParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]   // ⭐ CE-2134
+[Behavior(BehaviorNames.AdvanceTo, Params = typeof(global::Hrot.Map.Definitions.Behavior.AdvanceToParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent, Description = "Moves forward to a location in bounds, observing between moves.")]   // ⭐ CE-2134
 
-        [BTreeDefinition(BehaviorNames.AdvanceTo, Curated = true, Group = "Library/Infantry", ParamsType = typeof(AdvanceToBlackboard))]
+        [BTreeDefinition(BehaviorNames.AdvanceTo, Curated = true, Group = "Library/Movement", ParamsType = typeof(AdvanceToBlackboard))]
         public static BTreeBuilder<AdvanceToBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<AdvanceToBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Advance, bb => bb.State, PostureNodes.AdvanceAndAttack);
