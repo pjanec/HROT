@@ -169,6 +169,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         public bool Has3D => true;
 
+        /// <summary>⭐ CE-4388 — the last 3-D pass in this process: primitives triaged, labels offered, labels drawn (read by the frame-stats log).</summary>
+        public static int LastPrimitives3D, LastLabels3D, LastLabelsDrawn3D, LastCardsDrawn;
+
         public void Draw3D(RenderContext ctx)
         {
             GizmoMap.Presentation.GizmoTextDraw.Strings = _buffer?.InternMap;   // ⭐ B-17 P1 — long gizmo text resolves from THIS buffer
@@ -188,6 +191,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         {
             _triage3D.ZoomAt = zoomAt;
             _triage3D.Triage(primitives, _triaged3D);
+            LastPrimitives3D = primitives.Length;   // ⭐ CE-4388 — measuring the view filter's 3-D cost (HROT_FRAME_STATS)
             Renderer3D.Draw(_triaged3D, zoomAt, sink);
             // A StructInspector is a SCREEN panel: scheduled exactly as the 2-D renderer schedules it, so it shows in 3-D too.
             foreach (var p in Renderer3D.Panels)
@@ -208,11 +212,18 @@ namespace Fdp.Toolkit.Vis2D.Layers
             if (live is Fdp.Toolkit.Vis3D.MapCamera3D camera)
             {
                 LabelsDrawn3D = Fdp.Toolkit.Vis3D.LabelOverlay3D.Draw(Renderer3D.Labels, camera, LabelLift);
+                LastLabels3D = Renderer3D.Labels.Count; LastLabelsDrawn3D = LabelsDrawn3D;   // ⭐ CE-4388
+                long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone (does decluttering pay?)
                 Cards.Draw(Renderer3D.Cards, CardAnchor3D(camera));
+                Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
+                LastCardsDrawn = Cards.CardsDrawn;
             }
             else if (live != null)
             {
+                long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone
                 Cards.Draw(_renderer.CardPrimitives, CardAnchor2D(live, _buffer.GetFrame()));
+                Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
+                LastCardsDrawn = Cards.CardsDrawn;
             }
         }
 

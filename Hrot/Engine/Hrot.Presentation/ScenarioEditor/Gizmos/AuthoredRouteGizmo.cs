@@ -17,7 +17,7 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// over the wire and never drew in the Editor or the Replay Browser; same data, same colours. The FOLLOWED trajectory (progress,
 /// look-ahead) is <see cref="PlannedPathGizmo"/>'s. 📄 docs/DESIGN_Uniform_Gizmo_Membership.md §10.
 /// </summary>
-[GizmoProjector(typeof(NavState), typeof(SimTransform), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path)]
+[GizmoProjector(typeof(NavState), typeof(SimTransform), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path, DrawsOffScreen = true)]
 public sealed class AuthoredRouteGizmo : IStatelessGizmo
 {
     public static readonly Rgba32 PersonalColor = new(255, 161, 0, 255);   // orange, as the layer drew it

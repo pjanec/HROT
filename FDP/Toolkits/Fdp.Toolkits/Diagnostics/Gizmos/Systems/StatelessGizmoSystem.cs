@@ -160,6 +160,21 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 Array.Resize(ref _globalRulesVisibilityCache, globalRuleCount);
         }
 
+        /// <summary>
+        /// ⭐ CE-4388 (docs/DESIGN_Map_View_Filter.md, R-1049) — what the map shows: an entity out of view reaches no rule (except a <c>DrawsOffScreen</c> one), and a
+        /// rule coarser than its <c>MaxMetresPerPixel</c> is skipped for the frame. Null or not active ⇒ everything as before. Set by <c>MapInteractionPack.Build</c>.
+        /// </summary>
+        public IGizmoViewFilter? ViewFilter { get; set; }
+
+        // ⭐ CE-4388 — the frame's active rules as plain arrays (grown with the rule count, never per frame)
+        private int[] _activeIndex = System.Array.Empty<int>();
+        private BitMask512[] _activeMask = System.Array.Empty<BitMask512>();
+        private bool[] _activeOff = System.Array.Empty<bool>();
+
+        /// <summary>⭐ CE-4388 — entities the last frame found out of view (tested at most once each), and rules skipped for the zoom (rails, telemetry).</summary>
+        public int EntitiesOutOfView { get; private set; }
+        public int RulesSkippedForZoom { get; private set; }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
@@ -181,12 +196,27 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             for (int g = 0; g < globalRuleCount; g++)
             {
                 if (!_globalRulesVisibilityCache[g]) continue;
+                bool timedG = GizmoRuleTimings.Enabled;   // ⭐ CE-4388 — HROT_FRAME_STATS: a GLOBAL gizmo's time and garbage too (the A/B showed the entity rules are not the system's whole cost)
+                long gStart = timedG ? System.Diagnostics.Stopwatch.GetTimestamp() : 0, gBytes = timedG ? System.GC.GetAllocatedBytesForCurrentThread() : 0;
+                int gPrims = timedG && _buffer != null ? _buffer.Count : 0;
                 globalRules[g].Projector.Draw(view, _drawBuilder);
+                if (timedG) GizmoRuleTimings.Record(globalRules[g].Projector.GetType().Name, gStart, 0, System.GC.GetAllocatedBytesForCurrentThread() - gBytes, (_buffer?.Count ?? 0) - gPrims);
             }
 
             // Pre-evaluate global visibility once per rule, not once per entity.
             for (int r = 0; r < ruleCount && r < _globalVisibilityCache.Length; r++)
                 _globalVisibilityCache[r] = rules[r].VisibilityPolicy.IsGloballyEnabled(view);
+
+            // ⭐ CE-4388 (D-3) — the zoom gate: once per rule per frame, folded into the same per-rule cache
+            var filter = ViewFilter;
+            bool filtering = filter != null && filter.Active;
+            float mpp = filtering ? filter!.MetresPerPixel : 0f;
+            int skippedForZoom = 0;
+            if (mpp > 0f)
+                for (int r = 0; r < ruleCount && r < _globalVisibilityCache.Length; r++)
+                    if (_globalVisibilityCache[r] && rules[r].MaxMetresPerPixel > 0f && mpp > rules[r].MaxMetresPerPixel) { _globalVisibilityCache[r] = false; skippedForZoom++; }
+            RulesSkippedForZoom = skippedForZoom;
+            int outOfView = 0;
 
             bool alwaysDraw = _isSelectedPredicate == null;
             var entityIndex = repo.GetEntityIndex();
@@ -198,16 +228,36 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             //   one's metadata and component mask every time. ⛔ No allocation in the steady state: the match lists are reused and grow
             //   only when a rule matches more entities than ever before. The budget clock is a timestamp, not a Stopwatch object.
             EnsureMatchLists(ruleCount);
+            bool timedPass = GizmoRuleTimings.Enabled;   // ⭐ CE-4388 — HROT_FRAME_STATS: the match pass itself (the rules alone did not add up to the system's time)
+            long passStart = timedPass ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
             for (int r = 0; r < ruleCount; r++) _matchCount[r] = 0;
+            // ⭐ CE-4388 — the rules this frame tests, copied ONCE into plain arrays: measured on Windows, the pass read rules[r] through
+            //   IReadOnlyList<CompiledStatelessRule> (an interface call returning the whole rule — a 64-byte mask inside — by value) per entity
+            //   per rule ≈ 250 000 times a frame, 12 ms on scale-1. A rule hidden for the frame (its policy, its zoom) is not in the list at all.
+            if (_activeIndex.Length < ruleCount) { System.Array.Resize(ref _activeIndex, ruleCount); System.Array.Resize(ref _activeMask, ruleCount); System.Array.Resize(ref _activeOff, ruleCount); }
+            int active = 0;
+            for (int r = 0; r < ruleCount; r++)
+            {
+                if (r < _globalVisibilityCache.Length && !_globalVisibilityCache[r]) continue;
+                var rule = rules[r];
+                _activeIndex[active] = r; _activeMask[active] = rule.RequiredMask; _activeOff[active] = rule.DrawsOffScreen;
+                active++;
+            }
             for (int i = 0; i <= maxIndex; i++)
             {
                 ref readonly var metaSG = ref entityIndex.GetMetadata(i);
                 if (!metaSG.IsActive) continue;
                 ref var compSG = ref entityIndex.GetComponentMask(i);
-                for (int r = 0; r < ruleCount; r++)
+                bool tested = false, inView = true;   // ⭐ CE-4388 (D-1) — the view test, at most once per entity, only when a filtered rule matches
+                for (int a = 0; a < active; a++)
                 {
-                    if (r < _globalVisibilityCache.Length && !_globalVisibilityCache[r]) continue;
-                    if (!BitMask512.HasAll(compSG, rules[r].RequiredMask)) continue;
+                    if (!BitMask512.HasAll(in compSG, in _activeMask[a])) continue;
+                    int r = _activeIndex[a];
+                    if (filtering && !_activeOff[a])
+                    {
+                        if (!tested) { inView = filter!.InView(view, new Entity(i, metaSG.Generation)); tested = true; if (!inView) outOfView++; }
+                        if (!inView) continue;
+                    }
                     var list = _matches[r];
                     int n = _matchCount[r];
                     if (n == list.Length) { System.Array.Resize(ref list, list.Length * 2); _matches[r] = list; }
@@ -216,6 +266,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 }
             }
 
+            EntitiesOutOfView = outOfView;
+            if (timedPass) GizmoRuleTimings.Record("(match pass)", passStart, maxIndex + 1, 0);
             long start = budget > 0f ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
             long budgetTicks = budget > 0f ? (long)(budget * System.Diagnostics.Stopwatch.Frequency / 1000.0) : 0;
             bool budgetExceeded = false;
@@ -252,6 +304,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 int slot = frame % period;
                 bool timed = GizmoRuleTimings.Enabled;   // ⭐ CE-4385 — HROT_FRAME_STATS: this rule's time and garbage
                 long ruleStart = timed ? System.Diagnostics.Stopwatch.GetTimestamp() : 0, ruleBytes = timed ? System.GC.GetAllocatedBytesForCurrentThread() : 0;
+                int rulePrims = timed && _buffer != null ? _buffer.Count : 0;   // ⭐ CE-4388 — and the primitives it emits
 
                 for (int m = 0; m < count; m++)
                 {
@@ -310,7 +363,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 }
 
                 hold?.Swap(frame);
-                if (timed) GizmoRuleTimings.Record(rule.Projector.GetType().Name, ruleStart, count, System.GC.GetAllocatedBytesForCurrentThread() - ruleBytes);
+                if (timed) GizmoRuleTimings.Record(rule.Projector.GetType().Name, ruleStart, count, System.GC.GetAllocatedBytesForCurrentThread() - ruleBytes, (_buffer?.Count ?? 0) - rulePrims);
             }
         }
     }

@@ -107,7 +107,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 
 | lane | block | next free *(update when you allocate)* |
 |---|---|---|
-| `ui` | **`R-1000` – `R-1999`** | `R-1050` |
+| `ui` | **`R-1000` – `R-1999`** | `R-1050` *(a parallel ui session on another machine takes `R-1060`+, `2026-11-10`)* |
 | `behaviors` | **`R-2000` – `R-2999`** | `R-2087` |
 | `backend` | **`R-3000` – `R-3999`** | `R-3085` |
 | `coordinator` *(added `2026-10-15`, user: "give coordinator a range")* | **`R-4000` – `R-4999`** | `R-4144` |

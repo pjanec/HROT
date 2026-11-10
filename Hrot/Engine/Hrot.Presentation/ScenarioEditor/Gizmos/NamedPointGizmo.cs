@@ -15,7 +15,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     /// (select / menu) through the shared pick box. ⭐ The same projector pattern as <see cref="TacticalAreaGizmo"/>: discovered by the gizmo registrar,
     /// so every map host draws it. 0 B steady: the label is cached per name change.
     /// </summary>
-    [GizmoProjector(typeof(TkbIdentity))]
+    [GizmoProjector(typeof(TkbIdentity), DrawsOffScreen = true)]
     public sealed class NamedPointGizmo : IStatelessGizmo
     {
         private static readonly Rgba32 PointColor = new Rgba32(120, 200, 255, 235);

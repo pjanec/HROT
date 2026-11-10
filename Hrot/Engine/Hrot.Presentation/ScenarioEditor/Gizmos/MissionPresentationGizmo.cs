@@ -24,7 +24,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     /// first place field (<see cref="Hrot.Presentation.Orders.MissionPlanPlaces"/>), else a legacy behaviour's <c>"target"</c> point, else the
     /// previous task's place (E2). ⛔ SUPERSEDED: the orange → blue gradient lines to the <c>"target"</c> points only (an order's <c>Location</c> drew nothing).
     /// </summary>
-    [GizmoProjector(typeof(SimTransform), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path)]
+    [GizmoProjector(typeof(SimTransform), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path, DrawsOffScreen = true)]
     public sealed class MissionPresentationGizmo : IStatelessGizmo
     {
         private static readonly Rgba32 DoneColour = new(91, 208, 106), RunningColour = new(242, 192, 51), PlannedColour = new(60, 60, 70), Rim = new(255, 255, 255);

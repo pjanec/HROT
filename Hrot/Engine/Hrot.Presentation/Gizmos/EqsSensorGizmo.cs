@@ -19,7 +19,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     //   the sensor's SELF (EqsContext.SelfPosition — the parent unit, as the solver resolves it), and adds the VERDICT: every candidate
     //   the template generates, green when the template's own filters keep it (EqsFilters.Run — the solver's pipeline), red when they
     //   reject it. ⛔ SUPERSEDED: [GizmoProjector(typeof(SimTransform), typeof(EqsSensor), …)].
-    [GizmoProjector(typeof(EqsSensor), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs)]
+    [GizmoProjector(typeof(EqsSensor), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs, DrawsOffScreen = true)]
     public sealed class EqsSensorGizmo : IStatelessGizmo
     {
         private readonly GizmoSettingsRegistry _settings;

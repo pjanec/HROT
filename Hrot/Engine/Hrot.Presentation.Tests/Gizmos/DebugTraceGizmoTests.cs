@@ -204,6 +204,44 @@ public sealed class DebugTraceGizmoTests : IDisposable
                                      && Vector2.Distance(new Vector2(l.LineEnd.X, l.LineEnd.Y), openTip) < 1e-3f);   // swung on its hinge
     }
 
+    /// <summary>⭐ CE-4388 (DESIGN_Map_View_Filter D-3 / D-6, R-1049) — the door lines follow the map's view: none coarser than
+    /// <see cref="DoorLeafGizmo.MaxMetresPerPixel"/>; closer in, only the doors in view; a map with no view written draws them all (as before).
+    /// 📐 Measured on Windows: 6 911 door lines every frame at every zoom — 64–93 % of the map's buffer. 🔴 Red-proof (compiles): the zoom return
+    /// removed ⇒ the far-zoom frame has every door.</summary>
+    [Fact]
+    public void CE4388_TheDoorLines_FollowTheMapsZoomAndView()
+    {
+        var terrain = Hrot.Presentation.Tests.Map3D.Map3DTests.BtRange();
+        _w.SetSingletonManaged(terrain);
+        _w.RegisterComponent<DoorState>();
+        _w.RegisterManagedComponent<TerrainObjectKey>();
+        int doors = terrain.Doors.Count;
+        Assert.True(doors >= 2, "bt-range has doors");
+        var view = Hrot.ScenarioEditor.Map.MapInteractionPack.ViewOf(_draw);
+        var gizmo = new DoorLeafGizmo();
+
+        gizmo.Draw(_w, _draw);                                          // no view written yet ⇒ every door
+        Assert.Equal(doors, Frame(DebugTraceLayers.Doors).Length);
+
+        _draw.Clear();
+        view.Write2D(new Vector2(-5000f), new Vector2(5000f), 2f);     // the whole terrain at 2 m/px ⇒ none
+        gizmo.Draw(_w, _draw);
+        Assert.Empty(Frame(DebugTraceLayers.Doors));
+
+        _draw.Clear();
+        var (hinge, _) = DoorLeafGizmo.Leaf(terrain.DoorLeaves[0].Footprint);
+        view.Write2D(hinge - new Vector2(1f), hinge + new Vector2(1f), 0.05f);   // close in on door 0 (the margin is 40 m)
+        gizmo.Draw(_w, _draw);
+        int near = 0;
+        for (int i = 0; i < doors; i++)
+        {
+            var (h, _) = DoorLeafGizmo.Leaf(terrain.DoorLeaves[i].Footprint);
+            if (MathF.Abs(h.X - hinge.X) <= 41f && MathF.Abs(h.Y - hinge.Y) <= 41f) near++;
+        }
+        Assert.Equal(near, Frame(DebugTraceLayers.Doors).Length);
+        view.Clear();
+    }
+
     // ⭐ CE-3121 — the utility gizmo writes one line per logged decision, AT the unit (the dormant overlay wrote one at the origin).
     [Fact]
     public void CE3121_TheUtilityGizmo_WritesOneLinePerLoggedDecision()

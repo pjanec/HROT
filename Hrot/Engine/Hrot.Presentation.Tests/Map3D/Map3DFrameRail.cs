@@ -229,6 +229,20 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         Assert.Equal(1, bodies.BodiesDrawn);
         Assert.Equal(1, bodies.BodiesCulled);
+
+        // ⭐ CE-4388 (DESIGN_Map_View_Filter D-2) — the gizmo filter's frustum is computed in the UPDATE from the camera (no draw pass): it must judge every
+        //   body exactly as the draw pass did. A third soldier 400 m off to the side of the view, out of it.
+        var side = new Vector3(-sw.Camera3D.Forward.Y, sw.Camera3D.Forward.X, 0f);
+        var away = sw.Camera3D.LookAt + side * 400f;
+        var third = Soldier(away.X, away.Y);
+        frame.Step(canvas.Draw);
+        var snapshot = new Hrot.ScenarioEditor.Map.MapViewSnapshot();
+        snapshot.Write3D(sw.Camera3D);
+        Assert.True(snapshot.Active, "the camera gives a frustum without drawing");
+        int inView = 0;
+        foreach (var e in world.Query().With<SimTransform>().Build()) if (snapshot.InView(world, e)) inView++;
+        Assert.Equal(bodies.BodiesDrawn, inView);
+        Assert.False(snapshot.InView(world, third), "400 m to the side is out of the view");
     }
 
     [SkippableFact]

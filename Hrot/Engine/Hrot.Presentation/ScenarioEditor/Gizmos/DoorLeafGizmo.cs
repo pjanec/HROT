@@ -34,11 +34,22 @@ public sealed class DoorLeafGizmo : IGlobalStatelessGizmo
         _                          => ClosedColor,
     };
 
+    /// <summary>
+    /// ⭐ CE-4388 (docs/DESIGN_Map_View_Filter.md D-3 / D-6, R-1049) — the coarsest map scale the door lines are drawn at (m per pixel): a door leaf is ≈ 1 m, so
+    /// coarser than this it is under 4 px. 📐 Measured on Windows (scale-1, 6 911 doors): this gizmo emitted 6 911 primitives EVERY frame at EVERY zoom — 64 % of
+    /// the map's buffer in a 3-D view, 93 % close in. 🔒 User, 2026-11-10: <i>"they are small and only visible at very high zoom, they dont need to be rendered at
+    /// all at smaller zooms"</i>. In 3-D the door entity's own leaf (DoorLeaf3D) still draws.
+    /// </summary>
+    public const float MaxMetresPerPixel = 0.25f;
+
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
         if (view is not EntityRepository repo || !repo.HasSingletonManaged<TerrainWorld>()) return;
         var world = repo.GetSingletonManaged<TerrainWorld>();
         if (world == null || world.Doors.Count == 0) return;
+        // ⭐ CE-4388 (D-6) — the map's view: nothing at a far zoom, else only the doors in view (a host with no map view draws them all, as before)
+        var mapView = draw is DebugPrimitiveBuffer buffer ? Hrot.ScenarioEditor.Map.MapInteractionPack.ViewOf(buffer) : null;
+        if (mapView is { Active: true } && mapView.MetresPerPixel > MaxMetresPerPixel) return;
         var states = DoorStates.Of(repo, world);
         var leaves = world.DoorLeaves;
         for (int i = 0; i < world.Doors.Count && i < leaves.Count; i++)
@@ -48,6 +59,7 @@ public sealed class DoorLeafGizmo : IGlobalStatelessGizmo
             var (hinge, closedTip) = Leaf(fp);
             float z = leaves[i].BaseZ;
             var h3 = new Vector3(hinge, z);
+            if (mapView != null && !mapView.Contains(h3)) continue;
             switch (states[i])
             {
                 case TerrainDoorState.Open:

@@ -3705,7 +3705,7 @@ world still blocks at the cap; 🔴 red-proved with `IsRoofCap` off). The shippe
 📷 `TheTerrainChunksLookTests.AnImportedTerrainsHouses_UpClose` (opt-in `HROT_MEASURE=1`, `HROT_RAIL_SHOTS=<dir>`) renders the before / after; never in git.
 
 
-### 6aj. CE-4392 — building destruction drawn on the 2-D and 3-D maps *(ui, `2026-11-10`; build-state: READY-TO-BUILD)*
+### 6aj. CE-4392 — building destruction drawn on the 2-D and 3-D maps *(ui, `2026-11-10`; build-state: BUILT — as-built below the table)*
 
 Handoff [HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md](blueprints/batches/HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md). 🔒 R-4196: the display node's terrain is
 not changed — the damage is DRAWN from the replicated `BuildingDamage` entities (`BuildingDamageTable.Of`). R-4195: the look is ours, for performance.
@@ -3774,6 +3774,18 @@ drawing must tolerate, not use.*
 | X-4 | the damage crosses the render seam OPAQUE (`ITerrainChunkedGeometry.Damage : object?`) | R-250/252: the map sees triangles and a kind, never how the terrain is modelled |
 | X-5 | 2-D: the plan records which building each fill triangle and stroke belongs to; a damaged building's are hidden (a bit per stroke in the cull, fill alpha 0 re-uploaded once) and the building re-emitted damaged into a small overlay plan; rubble a grey-brown fill with a dashed outline | a whole-plan rebuild on scale-1 (482 k strokes) per breach is too slow; this costs the damaged buildings only |
 | X-6 | ⛔ door leaves are drawn by `DoorLeafGizmo` (the gizmo pipeline, another session's area this week) — they already read `DoorStates`, which reports a collapsed building's doors Destroyed | out of scope here; noted for the as-built |
+| X-7 | ⭐ *(added at the user's ask: "black explosion marks all around the hole")* a ragged SOOT ring on both faces of the wall round every breach: a black ring at the opening's edge, a lighter streaked ring past it (every other point a streak), 0.25–0.9 m by the breach's size, 1.5 cm off the face, placed by a hash of the breach; 2-D: soot each side of the gap | an opening alone looked cut, not blown; the hash keeps every node's picture the same |
+| X-8 | ⭐ *(added at the user's ask: "teeth, like missing bricks or bricks extending into the hole")* the breach's rim BROKEN (`TerrainWorldMesh.AddBrokenRim`): along every edge, brick-sized stubs (0.25 m × two courses) in the wall's own material reach into the opening by a jittered depth, staggered course by course, about a third of the slots empty; never past 18 % of the opening's smaller side; ⭐ BURNT (user: "shouldn't the bricks inside the hole be also scorched?") — `<material>-scorched` (38 % of its colour, 70 % of them) or `-singed` (62 %), the material's own pattern kept (`TerrainLayer3D.Burnt`), so any wall material burns; presentation only | a clean rectangle read as cut; ~0.5 k triangles a breach, built with its chunk |
+
+**As-built (`2026-11-10`)** — as designed, plus three things learned building it:
+- ⭐ **2-D cut height** — re-cutting a HOLE leaves the strips under and over it, and in plan their footprint IS the wall line, so the gap would not show. ⇒ the plan is cut at
+  `TerrainPlan2D.PlanCutHeight` (1 m over the floor): a re-cut piece lying in a breach open at that height is not drawn. Undamaged windows draw as before.
+- ⭐ **the heap needed debris** — a frustum read as a low platform; `AddDebris` lays one yawed block per ~6 m² (6–40) on it, by a hash of the building.
+- ⚠ **a muscle's rebake replaces the world singleton** (`TerrainResidency.BakeObstacles` → a derived `TerrainWorld`), so on the muscle and all-in-one hosts the 3-D layer's identity changes and
+  the WHOLE terrain is rebuilt on each rebake — as it already was for obstacles before this work; display nodes rebuild only the touched chunks. A finding for the coordinator, not changed here.
+- Rails: `TerrainChunkDamageTests` (breach both sides, soot both faces, the broken rim, heap, idempotent over a rebake, touched chunks) · `TheBuildingDamageDrawsTests` (the real 3-D layer through
+  the hosts' render source on a view that only received the damage: breach, heap, 0 B and no rebuild on an unchanged table) · `TheBuildingDamagePlanTests` (the plan's building marks,
+  the overlay, the hidden strokes; the production 2-D attach: gap and rubble). Frames under `HROT_RAIL_SHOTS` (never git).
 
 ## 7. NOT VERIFIED — say so before it is built on
 

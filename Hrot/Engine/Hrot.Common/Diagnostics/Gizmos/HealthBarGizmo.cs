@@ -12,7 +12,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     /// entity's CARD: a dark bar the card's width and a coloured one <c>Current / Max</c> of it, on the Labels layer — the same in
     /// 2-D and 3-D, in-process and on a remote IG.
     /// </summary>
-    [GizmoProjector(typeof(Health), typeof(NetworkIdentity))]
+    [GizmoProjector(typeof(Health), typeof(NetworkIdentity), MaxMetresPerPixel = CardZoom.FrameMaxMetresPerPixel)]   // ⭐ CE-4388 — with the card's frame
     public sealed class HealthBarGizmo : IStatelessGizmo
     {
         /// <summary>The card row the bar sits in (§3.6: above the name, row 20).</summary>

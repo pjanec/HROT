@@ -438,6 +438,19 @@ public sealed class Map3DGizmoTests
         Assert.All(prims, p => Assert.Equal(DebugTraceLayers.Labels, p.DebugLayer));
     }
 
+    /// <summary>⭐ CE-4388 (DESIGN_Map_View_Filter D-3, R-1049) — the card's rows stop at the map scales <c>CardZoom</c> names: the frame and the health bar at
+    /// 1 m/px, the name at 2 m/px — read by the gizmo system once at registration (its zoom gate is railed in <c>StatelessGizmoSystemTests</c>). 📐 Measured: 1 247
+    /// cards at the whole-terrain zoom, 6.6 ms a frame, none readable. 🔴 Red-proof (compiles): drop <c>MaxMetresPerPixel</c> from the frame's attribute ⇒ red.</summary>
+    [Fact]
+    public void CE4388_TheCardsRows_StopAtTheirMapScale()
+    {
+        static float Max(Type t) => ((Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute)Attribute.GetCustomAttribute(t, typeof(Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute))!).MaxMetresPerPixel;
+        Assert.Equal(Hrot.Common.Diagnostics.Gizmos.CardZoom.FrameMaxMetresPerPixel, Max(typeof(Hrot.Common.Diagnostics.Gizmos.EntityCardFrameGizmo)));
+        Assert.Equal(Hrot.Common.Diagnostics.Gizmos.CardZoom.FrameMaxMetresPerPixel, Max(typeof(Hrot.Common.Diagnostics.Gizmos.HealthBarGizmo)));
+        Assert.Equal(Hrot.Common.Diagnostics.Gizmos.CardZoom.NameMaxMetresPerPixel, Max(typeof(Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo)));
+        Assert.True(Hrot.Common.Diagnostics.Gizmos.CardZoom.FrameMaxMetresPerPixel > 0f && Hrot.Common.Diagnostics.Gizmos.CardZoom.NameMaxMetresPerPixel >= Hrot.Common.Diagnostics.Gizmos.CardZoom.FrameMaxMetresPerPixel);
+    }
+
     private static void AssertNear(Vector3 expected, Vector3 actual, float tol = 1e-3f)
         => Assert.True(Vector3.Distance(expected, actual) < tol, $"expected {expected}, got {actual}");
 }
