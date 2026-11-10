@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-25 (§5.4 the alerted exception to forgetting, CE-2371) · 2026-10-19 (§5.7 acquisition time by exposure, CE-3260)
+updated: 2026-11-10 (§5.8 parallel solving P-1, CE-3427 — DESIGN, leans to the user, backend) · 2026-10-25 (§5.4 the alerted exception to forgetting, CE-2371) · 2026-10-19 (§5.7 acquisition time by exposure, CE-3260)
 build-state: BUILDING — S0 (§9.1), S3 (§9.2), S4 (§9.3) and S5 (§9.4) BUILT; §7.6b (CE-1023) BUILT; the rest READY-TO-BUILD (decisions R-185 … R-189).
 current-answer: the whole file — §5.7 acquisition time by exposure (CE-3260, BR-7) · §1 rulings, §4 as-built class diagram (S3), §3 module diagram, §4–§5 sensors, §6–§7 doctrine and origin (§7.3 reacting to sensors, §7.4 replacing a doctrine, §7.5 authoring a unit's AI in the scenario), §9 build plan (with the MEASURED checks V1–V7), §10 what is still open, §11 the critical review (defects + game-AI gaps).
 stale-below: nothing — new document.
@@ -519,6 +519,128 @@ restores the LIVE world from a snapshot (a preview's rewind), and the clock must
 |---|---|---|
 | where the clock comes from | `EntityRepository.CopyClockFrom` (a value copy), in all three providers | inside `SyncFrom` (a rewind would rewind the clock) · sharing the singleton table (the main thread rewrites it every frame) · a solver-owned accumulator of `deltaTime` (a second clock: `HeardTraces` stamps would disagree with the world's time) |
 | the rail that would have caught it | `AcquisitionTests.CE3267_…` runs the stage on a snapshot re-taken each tick | — |
+
+### 5.8 ⭐ Parallel solving — `P-1` (`CE-3427`) *(build-state: BUILT `2026-11-10` — leans approved by the user, P1-B revised to include hearing; as-built and measured at the end of this section)*
+
+📐 **Why now** ([scale rig §7.6](DESIGN_Scale_Rig.md)): with the wall-clock cadence (C-1) the EQS run is the limit — **113 ms a run** (99 % the
+solves) against a 100 ms period, 1 000 men fighting, 16 cores, ONE solver thread. The sight tests grow with the men (§7.1 there: 228 ms at 3 000).
+
+**INVENTORY** *(`2026-11-10`; `scripts/cbm.sh search_graph name_pattern ".*Eqs.*" label Class` — 66 production hits; `".*(Parallel|Job|Worker|Partition).*"`
+— no reusable zero-allocation worker pool in FDP/Hrot (only `Parallel.ForEach` in `EntityQuery.cs:444`, which allocates); grep for every
+`IEqsGenerator` / `IEqsTest` implementer incl. through `PointPatternGenerator` — 11 generators + 17 tests; `check_index_coverage` is not
+available through the CLI, so the set is not proven complete)*:
+
+| what | verdict for a worker thread | where |
+|---|---|---|
+| 10 of 11 generators, 15 of 17 tests | ✅ pure: read-only fields, or per-thread scratch (`[ThreadStatic]` / `ThreadLocal` / a per-thread slot) — built that way for the map gizmo, which already runs templates off the solver thread | `VisionBroadphase.cs:223-263`, `ThreatExposureTest.cs:48`, `DotRecastNavmeshProvider.cs:59-138`, `CoverPointsGenerator.cs:41` |
+| `AcousticSensorGenerator` | ⛔ writes the sensor's `AcousticCursor` through `view.GetCommandBuffer()` — a write a DISCARDED speculative solve must not leave | `AcousticPerception.cs:210-213` |
+| `AccurateLineOfSightTest` | ⛔ a ray-cap counter on a singleton (`AccurateRaysSubmittedThisTick++`) and raycast requests — order-dependent. **No production template uses it** | `AccurateLineOfSightTest.cs:85-138` |
+| `BeyondThreatRangeTest` | ⚠ reads the LIVE world's TKB dictionary — as the one solver thread already does (readers only) | `BeyondThreatRangeTest.cs:43` |
+| the solver's own state | ⛔ `_shared`, `_memory.Observe`, the result pool cursor (`WriteAndWrap`), `_currentCmd`, `GetComponentRW<EqsCognitiveBuffer>` (hot reload), `_surveys` / `_routePlanner` (danger, survey), `_templateSlot` | `EqsSolverSystem.cs:42-470` |
+| the command buffer | ⛔ per THREAD (`ThreadLocal`); the kernel plays every thread's buffer back in `ThreadLocal.Values` order — unspecified ⇒ anything a worker wrote would land in a random order | `EntityRepository.View.cs:13-36`, `ModuleHostKernel.cs:1166-1188` |
+| ECS reads on the snapshot | ✅ unmanaged `GetComponentRO` (a lazy chunk commit is locked), `HasComponent`, `GetManagedComponentRO` via the view, singletons, `Query().Build()` (a concurrent cache) · ⚠ `repo.GetComponentRO<managed T>` goes through `GetRW` (an unlocked lazy chunk) — no EQS caller found | `NativeChunkTable.cs:246-276`, `UnsafeShim.cs:293-297` |
+
+```mermaid
+classDiagram
+  direction LR
+  class EqsSolverSystem { <<existing, reworked>> +Workers +BudgetUnits -Solve(slot) pure -Commit(slot) in order }
+  class SolveSlot { <<NEW, one per window place, reused>> +Entity Sensor +SensorEvalState Eval +EqsResult[] Buffer +int Count +int Cost +SlotOutcome Outcome }
+  class SlotOutcome { <<NEW enum>> NotKeyed NotEvaluable Empty Ranked AwaitingRays }
+  class EqsSolveWorkers { <<NEW>> N persistent threads +Run(slots, count) blocks until done, no allocation }
+  class EqsSchedule { <<existing, unchanged>> +Ordered() +ShouldStart() }
+  class SensorMemoryStage { <<existing>> Observe at COMMIT only }
+  class EqsResultPool { <<existing>> WriteAndWrap at COMMIT only }
+  EqsSolverSystem --> EqsSolveWorkers : one window at a time
+  EqsSolverSystem "1" o-- "W" SolveSlot
+  SolveSlot ..> SlotOutcome
+  EqsSolverSystem ..> EqsSchedule
+  EqsSolverSystem ..> SensorMemoryStage
+  EqsSolverSystem ..> EqsResultPool
+```
+
+*What the picture shows that prose hid:* `EvaluateSensor` splits into ONE pure `Solve` (inputs → a slot) and ONE `Commit` (every side effect) —
+the serial path is `Solve` then `Commit` inline, so one implementation serves both paths; there is no parallel copy of the solver.
+
+```mermaid
+sequenceDiagram
+  participant S as EqsSolverSystem (EqsModule's thread)
+  participant O as EqsSchedule
+  participant W as EqsSolveWorkers (N threads)
+  S->>O: Ordered() — unchanged
+  loop windows of W places, in schedule order
+    S->>S: PREDICT with estimates (LastCost) the places ShouldStart would admit, PURE kinds only
+    S->>W: Solve(slot) for each predicted place
+    W-->>S: every slot filled (results, cost, outcome) — nothing written anywhere else
+    loop each place in schedule order
+      alt ShouldStart with the ACTUAL spent
+        alt solved in the window
+          S->>S: Commit(slot) — share memo, memory stage, pool, publish, eval state
+        else not predicted, or not pure (acoustic, danger, survey, a twin, hot reload)
+          S->>S: Solve + Commit inline — exactly today's path
+        end
+      else does not start
+        S->>S: discard the slot (wasted work, no trace)
+      end
+    end
+  end
+  S->>S: memory Flush — unchanged
+```
+
+*What it shows:* the START decision never leaves the solver thread and still uses the ACTUAL cost of everything started before — so the set of
+sensors run, their order, every answer and every write are those of the serial solver. A misprediction costs time, never a different result.
+
+```mermaid
+graph TD
+  K["ModuleHostKernel: live every 0.1 s wall clock (C-1), stepped each 0.1 s sim slot"] --> M["EqsModule.Tick (SlowBackground task, snapshot view)"]
+  M --> G["LocalGridBuilderSystem.Execute first; the grid is read-only after"]
+  M --> S["EqsSolverSystem.Execute"]
+  S --> W["EqsSolveWorkers: only inside Execute, idle otherwise"]
+  S --> C["its own thread's command buffer: the ONLY writer"]
+  W -.->|never| C
+```
+
+*What it shows:* the workers live inside one `Execute` and never touch a command buffer, so the kernel's unordered per-thread playback cannot
+see a worker's write — there is none.
+
+| # | decision | ⭐ lean | rejected — the one fact that killed it |
+|---|---|---|---|
+| **P1-A** | which sensors start | ⭐ **exact: predict with estimates, commit with actual costs** (above) | plan the set by estimates alone — a never-solved sensor estimates 0, so a cold start would launch EVERY new sensor in one tick (2 000 at 1 000 men), and `LastSchedule` would differ from today's |
+| **P1-B** | what runs on a worker | ⭐ ranked templates **and hearing** (user, `2026-11-10`: the generator HOLDS its cursor move during a solver solve — `AcousticPerception.BeginDeferredCursor` / `EndDeferredCursor` — and the solver writes it at commit with `AcousticPerception.WriteCursor`, the one cursor rule), minus: a twin whose leader is earlier in the window (it COPIES at commit, §5.6), a template with `AccurateLineOfSightTest`, danger and survey sensors — these run inline, as today | ~~hearing inline~~ — SUPERSEDED: ≈ 4.5 ms of a 113 ms run, and the deferral is one generator |
+| **P1-C** | the threads | ⭐ **`EqsSolveWorkers`: N persistent threads, a reused slot array, a countdown — zero allocation per run** (R-2084: *"nothing like that is ever allowed on the hot path"*) | `Parallel.For` — allocates per call (loop state, closures, partitions) on every window |
+| **P1-D** | how many | ⭐ `Workers` = `HROT_EQS_WORKERS`, else `max(1, ProcessorCount / 4)` (4 on 16 cores: three nodes share the machine, and the bake and server GC want cores too); `Workers = 1` ⇒ no threads, today's loop | all cores — the CGF and the orchestrator run on the same machine |
+| **P1-E** | the budget | ⭐ **unchanged (150 000 units)** — parallel makes a run FASTER, so the module meets its 10 Hz: ≈ 1.5× today's solves. Raising the budget is a separate, measured step | raise it now — first measure what 10 Hz at the same budget buys |
+
+⭐ **In passing:** `_shared[shareKey] = activeCandidates.ToArray()` allocates per shareable solve (`EqsSolverSystem.cs:417`) — the slot's buffer
+already holds the answer, so the memo can point at the committed slot or a pooled copy.
+
+**Rails** *(SimHost `EqsModuleTests`, the solver's own suite — T-1)*:
+
+| rail | red-proof |
+|---|---|
+| ⭐⭐ `P1_ParallelSolving_IsTheSerialSolver` — one world (two bands over budget, twins, acoustic + visual + cover, a never-solved cohort, an epoch bump mid-run), 20 ticks at `Workers = 1` and `= 4`: equal `LastSchedule`, `LastSpentUnits`, every `EqsResultEvent` and its pool entries, every `SensorEvalState`, the memory stage's transitions | commit in completion order instead of schedule order ⇒ red |
+| ⭐ `P1_ADiscardedSolve_LeavesNoTrace` — a predicted sensor that does not start: its eval state, cursor, pool and events unchanged | write the share memo at solve time ⇒ red |
+| ⭐ `P1_ASteadyRun_AllocatesNothing` — `GC.GetTotalAllocatedBytes(true)` across a warm run, workers included | a per-window `new` ⇒ red |
+| 📐 the scale rig, 1 000 / 2 000 / 3 000 men, `HROT_EQS_WORKERS` 1 / 2 / 4 / 8 | — the numbers go to scale rig §7 |
+
+#### ✅ §5.8 AS-BUILT (`2026-11-10`) — deviations from the design above, and what it measured
+
+| as built | where | why it differs |
+|---|---|---|
+| `EvaluateSensor` → **`Prepare`** (reads only: key, epoch / structure reset in the slot's copy, kind, share key) · **`Solve`** (pure) · **`Commit`** (every write); the inline path is `Prepare` + `Commit`, which solves when the slot was not solved ahead | `EqsSolverSystem.cs` | — as designed. ⭐ the hot-reload reset of `EqsCognitiveBuffer` moved into `Commit` (no solve reads it), so a reloaded sensor may go on a worker too |
+| **one worker pool per PROCESS** (per worker count), `EqsSolveWorkers.Shared(n)`; a solver that finds it busy solves its window itself (`TryRun` false) | `EqsSolveWorkers.cs` | the design said "N persistent threads" per solver: every test's `new EqsSolverSystem()` would have left idle threads behind. ⛔ A pool is never disposed on a count change — another solver may be inside a window on it |
+| the share memo keeps its answers in buffers reused tick after tick (`ShareCopy`) | `EqsSolverSystem.cs` | the "in passing" item, done: `EqsSolverSystem`'s garbage at 1 000 men 54 → 29 KB / frame |
+| diagnostics `LastParallelSolves`, `LastDiscardedSolves`; timing slots `eqs.run.parallel (count)`, `eqs.run.discarded (count)` | `EqsSolverSystem.cs` | — |
+| rails `EqsModuleTests.P1_ParallelSolving_IsTheSerialSolver_AndADiscardedSolveLeavesNoTrace` (rails 1 + 2 in one: 40 units with eyes and ears, shots in the ring, twins, three bands over budget, an epoch bump, a cohort at tick 10; asserts it really solved ahead AND discarded) · `P1_AWarmParallelRun_AllocatesNothingOnTheSolversThread` | `EqsModuleTests.Parallel.cs` | ⚠ the allocation rail measures the SOLVER's thread only — the workers run the same `Solve` the inline path runs. 🔴 Red-proved: starting predicted places without the actual-cost check ⇒ red; no cursor deferral ⇒ red; a per-window `new` ⇒ red. ⭐ The 43 existing solver rails pass with the default 4 workers |
+
+📐 **Measured** ([scale rig §7.7](DESIGN_Scale_Rig.md)): a run at 1 000 men 116 → **42 ms** (4 workers), at 3 000 men 211 → **81 ms**; solves / s
+at 3 000 men **1.8×**; 0.2 % of the solved-ahead places discarded. ⭐ **The solve is no longer the limit** — the run fits its 100 ms slot; what caps
+throughput now is the SimHost frame rate (a run starts on a frame: 49 fps at 1 000, 24 fps at 3 000 ⇒ 125–150 ms start to start) and the band
+shares (a Normal-band run stops at 85 % of the 150 000 units). 8 workers buys nothing over 4.
+
+**Design docs checked:** §5.3–§5.6 here — the budget, order and share rules are kept verbatim (applies). · [Time §17](blueprints/DESIGN_Time_Architecture.md) —
+stepped determinism holds because the result is the serial one; the step still waits for the module's one task (applies). · [scale rig §7](DESIGN_Scale_Rig.md) —
+the measurements (applies). · `docs/designs/eqs-2/EQS_Design_v1.3_final.md` §7.6 time slicing — superseded by §5.3 (does not apply). ·
+`EqsTemplatePurityAnalyzer` (EQS_001/002) — checks a template's `Build()`, not a solve's runtime state (does not settle this).
 
 ## 6. Doctrine and origin — classes
 

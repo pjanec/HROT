@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (L-2, CE-4364) — baselines below; L-4 adds its findings to §5
-updated: 2026-11-10 (§7.6 C-1 + G-1 built and re-measured · §7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
-current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split; §7.6 C-1 + G-1 built)
+updated: 2026-11-10 (§7.7 P-1 parallel EQS built, the worker sweep · §7.6 C-1 + G-1 built and re-measured · §7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
+current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split; §7.6 C-1 + G-1 built; §7.7 P-1 built)
 related-designs:
   - PLAN_Large_Terrain.md — P-0 is this rig; §8 the budgets (R-4192)
   - DESIGN_Evaluation_Cost_And_Cadence.md §11 — perf-stress.py, whose cluster machinery the rig imports; §0e the garbage tables
@@ -451,3 +451,26 @@ both nodes, loopback) is the largest remaining frame cost the terrain programme 
 | ⭐ cold load (empty tile cache) · SimHost peak | 321.9 s · 1.8 GB | **119.0 s · 2.74 GB** ✅ (< 4 GB) |
 
 ⇒ the run itself (113 ms ≥ the 100 ms period) is now the limit ⇒ **P-1 parallel EQS solving is next** (design first).
+
+### 7.7 ✅ P-1 parallel EQS solving BUILT — the worker sweep *(`2026-11-10`; [Sensors & Doctrine §5.8](DESIGN_Sensors_And_Doctrine.md); `HROT_EQS_WORKERS`)*
+
+| fight, `--sides 2` | workers | EQS run | start to start · runs / s | sensor solves / s | units / run | SimHost frame · fps |
+|---|---|---|---|---|---|---|
+| 1 000 men | 1 | 116 ms | 148 ms · 6.8 | ≈ 2 760 | 120 k | 41 ms · 48 |
+| | 2 | 70 ms | 125 ms · 8.0 | ≈ 3 100 | 130 k | 40 ms · 49 |
+| | ⭐ **4 (default)** | **42 ms** | 127 ms · 7.9 | ≈ 3 100 | 129 k | 38 ms · 49 |
+| | 8 | 26 ms | 127 ms · 7.9 | ≈ 3 270 | 127 k | 37 ms · 49 |
+| 3 000 men | 1 | 211 ms | 272 ms · 3.7 | ≈ 1 100 | 122 k | 81 ms · 26 |
+| | ⭐ **4** | **81 ms** | 151 ms · 6.6 | ≈ 1 950 (1.8×) | 126 k | 90 ms · 24 |
+| | 8 | 50 ms | 156 ms · 6.4 | ≈ 1 920 | 128 k | 86 ms · 25 |
+
+📐 Discarded (solved ahead, not started): ≈ 0.2 % of the parallel solves. A solve costs more CPU in parallel (276 → 358 µs average at 4 workers: each
+thread rebuilds its broadphase once a run, memory bandwidth) — 1.4× the CPU for 2.8× less wall time.
+
+⇒ ⭐ **what limits perception now — none of it the solver:**
+
+| # | limit | evidence | lean |
+|---|---|---|---|
+| **N-1** | the SimHost FRAME: a run starts on a frame, so start-to-start = 100 ms + up to a frame + the harvest frame | 125–150 ms where the policy says 100 | the SimHost frame itself (38 ms at 1 000 — the egress ≈ 16 ms; 81–90 ms at 3 000) |
+| **N-2** | the band SHARES: a run of Normal-band sensors stops at 85 % (127 500 units) | units / run 122–130 k at every worker count | raising `BudgetUnits` now buys solves (the run has room: 42 ms of 100) — a measured step, P1-E |
+| **N-3** | the CGF frame at 3 000 men (`BrainTickSystem`, 410–500 ms) | — | out of scope (user: brain costs ignored) |
