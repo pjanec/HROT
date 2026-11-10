@@ -3,6 +3,7 @@ using Fdp.Toolkit.Terrain;
 using Hrot.Map.Common.Services;
 using Hrot.Traffic;
 using Sim.Ingest;
+using Fdp.Modules.Geographic.Transforms;
 
 namespace Hrot.Traffic.Tests;
 
@@ -25,12 +26,27 @@ public sealed class SumoNetPlacementTests
     [InlineData(52.52, 13.405, 33, false)]   // Berlin
     [InlineData(46.2, 6.14, 32, false)]      // Geneva (SumoSharp's georef fixture zone)
     [InlineData(-33.87, 151.21, 56, true)]   // Sydney
+    [InlineData(-22.95, -42.10, 23, true)]   // CE-4372: south, 2.9° from zone 23's central meridian (-45°), just inside its east edge
     public void Utm_RoundTrips_ToWellUnderAMillimetre(double lat, double lon, int zone, bool south)
     {
         var (e, n) = Utm.FromGeodetic(lat, lon, zone, south);
         var (lat2, lon2) = Utm.ToGeodetic(e, n, zone, south);
         Assert.Equal(lat, lat2, 8);    // 1e-8 deg ≈ 1 mm
         Assert.Equal(lon, lon2, 8);
+    }
+
+    /// <summary>⭐ CE-4372 — an OSM box (≤ 6 km) uses its CENTRE's zone, so a box centred on a zone edge has a corner ≈ 3.04° from the
+    /// central meridian. Measured: the round trip is 0.47 mm there (0.29 mm on the meridian, 0.66 mm at 3.2°, 2.8 mm at 4°) — asserted in
+    /// METRES, because an 8-decimal degree comparison rounds across its own boundary at that size.</summary>
+    [Theory]
+    [InlineData(50.03, 18.04, 33, false)]    // north, past zone 33's east edge (18°)
+    [InlineData(-22.95, -48.04, 23, true)]   // south, past zone 23's west edge (-48°)
+    public void Utm_AtTheFarCornerOfABoxOnAZoneEdge_RoundTripsUnderAMillimetre(double lat, double lon, int zone, bool south)
+    {
+        var (e, n) = Utm.FromGeodetic(lat, lon, zone, south);
+        var (lat2, lon2) = Utm.ToGeodetic(e, n, zone, south);
+        double metres = Math.Sqrt(Math.Pow((lat2 - lat) * 110_574.0, 2) + Math.Pow((lon2 - lon) * 111_320.0 * Math.Cos(lat * Math.PI / 180), 2));
+        Assert.True(metres < 0.001, $"round trip {metres * 1000:0.000} mm");
     }
 
     [Theory]

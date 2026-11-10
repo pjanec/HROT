@@ -1,9 +1,8 @@
-using System.Text;
 using System.Text.Json;
 
-namespace Hrot.Tools.TerrainSynth;
+namespace Hrot.Terrain.InputSet;
 
-/// <summary>Writes buildings, loose openings and an empty collection in the GeoJSON layout of the input set (compact JSON).</summary>
+/// <summary>Writes buildings, loose openings, areas, walls and empty collections in the input set's GeoJSON layout (compact JSON).</summary>
 public static class GeoJsonWriter
 {
     private const string FrameNote = "local metres of the terrain frame (see manifest)";
@@ -21,15 +20,7 @@ public static class GeoJsonWriter
                 w.WriteStartObject("geometry");
                 w.WriteString("type", "Polygon");
                 w.WriteStartArray("coordinates");
-                w.WriteStartArray();
-                foreach (var (x, y) in building.Footprint)
-                {
-                    w.WriteStartArray();
-                    w.WriteNumberValue(x);
-                    w.WriteNumberValue(y);
-                    w.WriteEndArray();
-                }
-                w.WriteEndArray();
+                WriteRing(w, building.Footprint);
                 w.WriteEndArray();
                 w.WriteEndObject();
                 w.WriteStartObject("properties");
@@ -39,6 +30,7 @@ public static class GeoJsonWriter
                 w.WriteString("roof", building.Roof);
                 if (building.Roof == "pitched" && building.RidgeZ is double ridge) w.WriteNumber("ridgeZ", ridge);
                 if (building.Material != null) w.WriteString("material", building.Material);
+                if (!building.Enterable) w.WriteBoolean("enterable", false);   // R-4193: solid (garages, sheds); absent = enterable
                 w.WriteStartArray("storeyZ");
                 foreach (var z in building.StoreyZ) w.WriteNumberValue(z);
                 w.WriteEndArray();
@@ -98,15 +90,7 @@ public static class GeoJsonWriter
                 w.WriteStartObject("geometry");
                 w.WriteString("type", "Polygon");
                 w.WriteStartArray("coordinates");
-                w.WriteStartArray();
-                foreach (var (x, y) in a.Ring)
-                {
-                    w.WriteStartArray();
-                    w.WriteNumberValue(x);
-                    w.WriteNumberValue(y);
-                    w.WriteEndArray();
-                }
-                w.WriteEndArray();
+                WriteRing(w, a.Ring);
                 w.WriteEndArray();
                 w.WriteEndObject();
                 w.WriteStartObject("properties");
@@ -118,7 +102,46 @@ public static class GeoJsonWriter
         });
     }
 
+    /// <summary>LineString features: <c>properties: { height, thickness, kind }</c>; an empty list writes an empty collection with the note.</summary>
+    public static void WriteWalls(string path, IReadOnlyList<WallFeature> walls, string? emptyNote = null)
+    {
+        if (walls.Count == 0) { WriteCollection(path, emptyNote, _ => { }); return; }
+        WriteCollection(path, null, w =>
+        {
+            foreach (var wl in walls)
+            {
+                w.WriteStartObject();
+                w.WriteString("type", "Feature");
+                w.WriteStartObject("geometry");
+                w.WriteString("type", "LineString");
+                w.WriteStartArray("coordinates");
+                foreach (var (x, y) in wl.Line) { w.WriteStartArray(); w.WriteNumberValue(x); w.WriteNumberValue(y); w.WriteEndArray(); }
+                w.WriteEndArray();
+                w.WriteEndObject();
+                w.WriteStartObject("properties");
+                w.WriteNumber("height", wl.Height);
+                w.WriteNumber("thickness", wl.Thickness);
+                w.WriteString("kind", wl.Kind);
+                w.WriteEndObject();
+                w.WriteEndObject();
+            }
+        });
+    }
+
     public static void WriteEmpty(string path, string note) => WriteCollection(path, note, _ => { });
+
+    private static void WriteRing(Utf8JsonWriter w, IReadOnlyList<(double X, double Y)> ring)
+    {
+        w.WriteStartArray();
+        foreach (var (x, y) in ring)
+        {
+            w.WriteStartArray();
+            w.WriteNumberValue(x);
+            w.WriteNumberValue(y);
+            w.WriteEndArray();
+        }
+        w.WriteEndArray();
+    }
 
     private static void WriteCollection(string path, string? note, Action<Utf8JsonWriter> features)
     {

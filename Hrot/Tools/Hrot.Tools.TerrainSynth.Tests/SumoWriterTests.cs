@@ -76,6 +76,8 @@ public class SumoWriterTests : IDisposable
         {
             Environment.SetEnvironmentVariable("SUMO_HOME", home);
             Environment.SetEnvironmentVariable("PATH", "");
+            Environment.SetEnvironmentVariable("HROT_SUMO_NO_LOCAL", "1");   // the repo's .local/sumo install must not be found here
+            Environment.SetEnvironmentVariable("HROT_SUMO_HOME", null);
             var log = new StringWriter();
             Assert.False(SumoWriter.TryNetconvert(_dir, log));
             Assert.Contains("netconvert not found", log.ToString());
@@ -84,6 +86,7 @@ public class SumoWriterTests : IDisposable
         }
         finally
         {
+            Environment.SetEnvironmentVariable("HROT_SUMO_NO_LOCAL", null);
             Environment.SetEnvironmentVariable("SUMO_HOME", oldHome);
             Environment.SetEnvironmentVariable("PATH", oldPath);
         }

@@ -77,81 +77,26 @@ public static class SumoWriter
         File.WriteAllText(Path.Combine(roadsDir, "roads.typ.xml"), typ.ToString(), utf8);
     }
 
-    /// <summary>The netconvert executable under %SUMO_HOME%/bin, then on PATH; null when there is none.</summary>
-    public static string? FindNetconvert()
-    {
-        string[] names = OperatingSystem.IsWindows() ? new[] { "netconvert.exe", "netconvert" } : new[] { "netconvert" };
-        var dirs = new List<string>();
-        string? home = Environment.GetEnvironmentVariable("SUMO_HOME");
-        if (!string.IsNullOrWhiteSpace(home)) dirs.Add(Path.Combine(home.Trim().Trim('"'), "bin"));
-        string? path = Environment.GetEnvironmentVariable("PATH");
-        if (!string.IsNullOrEmpty(path))
-            foreach (var d in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-                dirs.Add(d.Trim().Trim('"'));
-        foreach (var dir in dirs)
-            foreach (var name in names)
-            {
-                try
-                {
-                    string candidate = Path.Combine(dir, name);
-                    if (File.Exists(candidate)) return candidate;
-                }
-                catch (ArgumentException) { }
-            }
-        return null;
-    }
+    /// <summary>The netconvert HROT uses (the shared locator, <see cref="Netconvert"/>); null when there is none of the right version.</summary>
+    public static string? FindNetconvert() => Netconvert.Locate() is { Problem: null, Path: { } p } ? p : null;
 
     /// <summary>Runs netconvert on the plain files in roadsDir to write roads.net.xml. False (with one warning line in log) when it is missing or fails.</summary>
     public static bool TryNetconvert(string roadsDir, TextWriter log)
     {
-        string? exe = FindNetconvert();
-        if (exe == null)
+        var found = Netconvert.Locate();
+        if (found.Problem != null || found.Path == null)
         {
-            log.WriteLine("WARNING: netconvert not found (set SUMO_HOME or add it to PATH); roads.net.xml was not written, the plain files are complete");
+            log.WriteLine("WARNING: " + found.Problem + "; roads.net.xml was not written, the plain files are complete");
             return false;
         }
-
-        var psi = new ProcessStartInfo(exe)
+        var (code, _, err) = Netconvert.Run(found.Path, new[] { "-n", "roads.nod.xml", "-e", "roads.edg.xml", "-t", "roads.typ.xml",
+                                                               "--offset.disable-normalization", "true", "-o", "roads.net.xml" }, roadsDir);
+        if (code != 0 || !File.Exists(Path.Combine(roadsDir, "roads.net.xml")))
         {
-            WorkingDirectory = roadsDir,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var a in new[] { "-n", "roads.nod.xml", "-e", "roads.edg.xml", "-t", "roads.typ.xml", "--offset.disable-normalization", "true", "-o", "roads.net.xml" })
-            psi.ArgumentList.Add(a);
-
-        using var proc = Process.Start(psi);
-        if (proc == null)
-        {
-            log.WriteLine("WARNING: netconvert could not be started");
+            log.WriteLine("WARNING: netconvert failed with exit code " + I(code) + ": " + err.Trim().Replace("\r", "").Replace("\n", " | "));
             return false;
         }
-        var stdout = proc.StandardOutput.ReadToEndAsync();
-        var stderr = proc.StandardError.ReadToEndAsync();
-        proc.WaitForExit();
-        string err = stderr.Result;
-        _ = stdout.Result;
-        if (proc.ExitCode != 0 || !File.Exists(Path.Combine(roadsDir, "roads.net.xml")))
-        {
-            log.WriteLine("WARNING: netconvert failed with exit code " + I(proc.ExitCode) + ": " + err.Trim().Replace("\r", "").Replace("\n", " | "));
-            return false;
-        }
-        StripGeneratedHeader(Path.Combine(roadsDir, "roads.net.xml"));
+        Netconvert.StripGeneratedHeader(Path.Combine(roadsDir, "roads.net.xml"));
         return true;
-    }
-
-    // netconvert opens its output with a comment holding the run date; dropping it keeps the file byte-reproducible
-    private static void StripGeneratedHeader(string path)
-    {
-        string text = File.ReadAllText(path);
-        int start = text.IndexOf("<!-- generated on", StringComparison.Ordinal);
-        if (start < 0) return;
-        int end = text.IndexOf("-->", start, StringComparison.Ordinal);
-        if (end < 0) return;
-        end += 3;
-        while (end < text.Length && (text[end] == '\r' || text[end] == '\n')) end++;
-        File.WriteAllText(path, text.Remove(start, end - start), new UTF8Encoding(false));
     }
 }

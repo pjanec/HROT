@@ -2,20 +2,9 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
+using Hrot.Terrain.InputSet;
+
 namespace Hrot.Tools.TerrainSynth;
-
-public sealed record Opening(string Type, double X, double Y, double Z, double Heading, int Storey);
-
-public sealed record Building(
-    string Id,
-    IReadOnlyList<(double X, double Y)> Footprint,
-    double BaseZ,
-    double Height,
-    string Roof,
-    double? RidgeZ,
-    IReadOnlyList<double> StoreyZ,
-    IReadOnlyList<Opening> Openings,
-    string? Material = null);
 
 /// <summary>Switches for the realism options applied on top of the clean set.</summary>
 public sealed record BuildingOptions

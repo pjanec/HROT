@@ -1,3 +1,4 @@
+using Hrot.Terrain.InputSet;
 using System.Globalization;
 using System.Text;
 
@@ -27,18 +28,7 @@ public static class TreeGenerator
     public static TreeResult GenerateDetailed(SynthProfile p, Rng rng, HeightField h, RoadNetwork r, IReadOnlyList<Building> b, TreeOptions options)
         => new Generator(p, rng, h, r, b, options).Run();
 
-    public static void WriteCsv(string path, IReadOnlyList<(double X, double Y, double Z)> t)
-    {
-        string? dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-        var sb = new StringBuilder(t.Count * 24 + 16);
-        sb.Append("x,y,z_ground\n");
-        foreach (var (x, y, z) in t)
-            sb.Append(x.ToString("F2", CultureInfo.InvariantCulture)).Append(',')
-              .Append(y.ToString("F2", CultureInfo.InvariantCulture)).Append(',')
-              .Append(z.ToString("F2", CultureInfo.InvariantCulture)).Append('\n');
-        File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
-    }
+    public static void WriteCsv(string path, IReadOnlyList<(double X, double Y, double Z)> t) => TreesCsv.Write(path, t);
 
     private sealed class Generator
     {
@@ -97,7 +87,7 @@ public static class TreeGenerator
             // the woods become polygons; the lone trees stay points and must lie outside every polygon
             var mask = BuildRaster();
             var polygons = WoodsPolygons.Trace(mask, 2.5, 40);
-            var features = polygons.Select(r => new AreaFeature(AreaFeature.Close(r), null, Math.Round(density, 1))).ToList();
+            var features = polygons.Select(r => new AreaFeature(AreaRings.Close(r), null, Math.Round(density, 1))).ToList();
             var boxes = polygons.Select(r => (MinX: r.Min(v => v.X), MaxX: r.Max(v => v.X), MinY: r.Min(v => v.Y), MaxY: r.Max(v => v.Y))).ToList();
             var outside = new List<(double X, double Y, double Z)>();
             foreach (var t in loneTrees)

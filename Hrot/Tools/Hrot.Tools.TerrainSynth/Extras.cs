@@ -1,7 +1,9 @@
+using Hrot.Terrain.InputSet;
+
 namespace Hrot.Tools.TerrainSynth;
 
-/// <summary>A polygon of an optional file: a closed counter-clockwise ring (first == last) and its single property.</summary>
-public sealed record AreaFeature(IReadOnlyList<(double X, double Y)> Ring, string? Kind = null, double? Density = null)
+/// <summary>The synth's helpers on <see cref="AreaFeature"/> rings (closed = first point repeated last).</summary>
+internal static class AreaRings
 {
     internal static IReadOnlyList<(double X, double Y)> Close(IReadOnlyList<(double X, double Y)> open)
     {
@@ -10,7 +12,7 @@ public sealed record AreaFeature(IReadOnlyList<(double X, double Y)> Ring, strin
         return closed;
     }
 
-    internal List<(double X, double Y)> OpenRing() => Ring.Take(Ring.Count - 1).ToList();
+    internal static List<(double X, double Y)> OpenRing(this AreaFeature f) => f.Ring.Take(f.Ring.Count - 1).ToList();
 }
 
 /// <summary>The woods mask as a raster of square cells; polygons are traced from it.</summary>
@@ -112,8 +114,8 @@ public static class ExtrasGenerator
         var river = MakeRiver(p, rng.Fork("extras.river"));
         var pond = MakePond(p, rng.Fork("extras.pond"), r, river);
         var features = new List<AreaFeature>();
-        if (pond != null) features.Add(new AreaFeature(AreaFeature.Close(pond), "pond"));
-        if (river != null) features.Add(new AreaFeature(AreaFeature.Close(river), "river"));
+        if (pond != null) features.Add(new AreaFeature(AreaRings.Close(pond), "pond"));
+        if (river != null) features.Add(new AreaFeature(AreaRings.Close(river), "river"));
         return new WaterField(p, features);
     }
 
@@ -220,7 +222,7 @@ public static class ExtrasGenerator
                 var ring = blob.Select(v => (X: R2(v.X), Y: R2(v.Y))).ToList();
                 if (Ok(p, r, water, woods, footprints, placed.Select(q => (q.X, q.Y, q.R)).ToList(), ring, cx, cy, radius))
                 {
-                    placed.Add((cx, cy, radius, new AreaFeature(AreaFeature.Close(ring), "scrub")));
+                    placed.Add((cx, cy, radius, new AreaFeature(AreaRings.Close(ring), "scrub")));
                     break;
                 }
             }

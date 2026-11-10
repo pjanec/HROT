@@ -1,4 +1,5 @@
 using System.Numerics;
+using Hrot.Terrain.InputSet;   // UtmFrame — ONE frame type, the input set's
 
 namespace Hrot.Terrain.Osm;
 
@@ -8,9 +9,6 @@ namespace Hrot.Terrain.Osm;
 
 /// <summary>The area an author picks, in WGS84 degrees.</summary>
 public readonly record struct GeoBox(double South, double West, double North, double East);
-
-/// <summary>The terrain's frame: a UTM zone and the local origin (metres) — the input set's manifest <c>frame.utm</c>.</summary>
-public readonly record struct UtmFrame(int Zone, bool South, double E0, double N0);
 
 /// <summary>What the author chose in the Options step (OSM design §6 step 2).</summary>
 public sealed record OsmImportOptions
