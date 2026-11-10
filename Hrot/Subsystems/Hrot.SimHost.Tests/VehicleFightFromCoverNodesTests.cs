@@ -547,6 +547,32 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(far, d.Ws.FiringPoint);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2432</c> — at RANGE "long enough to fire once" includes the time to ACQUIRE him: the RPG man 280 m off on the side (dwell
+        /// 2 × 180/400 = 0.9 s) keeps the initiative exposure out 0.9 + own aim 3 + 0.5 = 4.4 s, not the 3.5 s that ignored the dwell.
+        /// 📐 Live (demo-city, ~580 m): the floor ended before the technical had acquired the IFV and it left unseeing. 🔴 Red-proof: drop the dwell
+        /// from <c>FireOnceSeconds</c> ⇒ 3.5 s.
+        /// </summary>
+        [Fact]
+        public void CE2432_AtRange_TheExposureAlsoCoversTheTimeToAcquireHim()
+        {
+            var d = new Duel(Tank() with { RoundsPerExposure = 100, ExposeSeconds = 6f }, seen: false) { Drives = true };
+            d.UseTkb();
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)d.Repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            Assert.True(db.TryGetByType(TankType, out var tank));
+            tank!.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Range = 3000, Penetration = 650, DamagePerHit = 1200, AimSeconds = 3f } } });
+            d.EnemyTo(new Vector3(0f, 280f, 0f));
+            d.Step();
+            d.ToHide(HideA);
+            d.SeesFromX = 1f;
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging, 20));
+            Assert.Equal(1, d.Ws.Initiative);
+            double up = d.Time;
+            Assert.Equal(VehiclePhase.Withdrawing, d.RunUntil(VehiclePhase.Withdrawing));
+            Assert.InRange(d.Time - up, 4.2, 4.7);
+        }
+
         private static VehicleFightFromCoverParams Technical() => new()
         {
             WithdrawMode = WithdrawMode.Scoot, HideSecondsMin = 2f, HideSecondsMax = 2f,

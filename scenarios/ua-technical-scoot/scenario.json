@@ -6,34 +6,34 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "test-town",
-    "description": "What: Test-town: an M1 (\"Tank\", 200,120, BasicVehicleSop) in the south street is attacked by two hidden technicals on LandPlatformAttack: \"ATGM Technical\" (150,290, behind the 20 m block) and \"HMG Technical\" (270,215). Shows shoot and scoot: a new hide after each exposure. Judge: (1) the ATGM technical fires from two points >= 5 m apart, drives >= 5 m after its first shot, or is killed by the tank after its shot (2) the HMG technical fires and scoots the same way (3) the tank's first round goes at the ATGM technical (the danger to its armour). Fail: a technical never fires or stays put, or the tank first fires at the HMG technical. Check: python3 scripts/utility-demo-check.py --launch ua-technical-scoot"
+    "terrainName": "demo-city",
+    "description": "What: Demo-city, a long-range shoot and scoot down the clear east avenue (x 310-355): a Bradley (\"IFV\", 332,30, BasicVehicleSop) holds the avenue's south end (no cover there); two hostile technicals on LandPlatformAttack hide behind the houses at its north end, ~610-640 m away, out of its sight: \"ATGM Technical\" (291,650, a Kornet) and \"HMG Technical\" (289,664), both behind the house at 296,638 (the one building at a clear avenue's north end with a view down it). Each edges into the avenue, fires and scoots back. At ~620 m sighting takes seconds (CE-3260: ~2.7 s for a fully exposed IFV, ~4 s for a technical showing a third of itself) and the guns spread (R-2086), so the exchange runs over several exposures. Re-authored 2026-11-10 (R-2086, user: \"Longer distance\") from test-town's 160 m corner duel, which the first to see won in one shot. Judge: (1) the ATGM technical fires (2) the HMG technical fires (3) the IFV's first round goes at the ATGM technical (the danger to its armour). Fail: a technical never fires, or the IFV first fires at the HMG technical. Check: --verify ua-technical-scoot"
   },
   "entities": {
     "a2207d00-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          200,
-          120,
+          332,
+          30,
           0
         ],
         "Rotation": [
           0,
           0,
-          0,
-          1
+          0.7071068,
+          0.7071068
         ]
       },
       "TkbIdentity": {
-        "TkbType": 100
+        "TkbType": 101
       },
       "EntityInfo": {
-        "Name": "Tank",
+        "Name": "IFV",
         "ForceId": "Friend"
       },
       "Health": {
-        "Current": 3000,
-        "Max": 3000
+        "Current": 500,
+        "Max": 500
       },
       "TargetMemory": {
         "Entries": []
@@ -46,7 +46,11 @@
     },
     "a2207d00-0000-4000-8000-000000000002": {
       "SimTransform": {
-        "Position": [150, 290, 0],
+        "Position": [
+          291,
+          650,
+          0
+        ],
         "Rotation": [
           0,
           0,
@@ -70,22 +74,24 @@
       },
       "Behavior": {
         "Name": "LandPlatformAttack",
-        "Params": {"Target":"a2207d00-0000-4000-8000-000000000001"},
+        "Params": {
+          "Target": "a2207d00-0000-4000-8000-000000000001"
+        },
         "Origin": "Superior"
       }
     },
     "a2207d00-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
-          270,
-          215,
+          289,
+          664,
           0
         ],
         "Rotation": [
           0,
           0,
-          0,
-          1
+          1,
+          0
         ]
       },
       "TkbIdentity": {
@@ -104,7 +110,9 @@
       },
       "Behavior": {
         "Name": "LandPlatformAttack",
-        "Params": {"Target":"a2207d00-0000-4000-8000-000000000001"},
+        "Params": {
+          "Target": "a2207d00-0000-4000-8000-000000000001"
+        },
         "Origin": "Superior"
       }
     }

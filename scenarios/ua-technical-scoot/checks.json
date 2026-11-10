@@ -1,6 +1,6 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — shoot and scoot against an M1. Judge (1)/(2) both technicals fire, (3) the tank's first round goes at the ATGM technical. NOT expressible: the 'scoot' (>= 5 m from where it fired, or killed after its shot) is an either/or over distances. UNVERIFIED: shooter/target names — a technical's mounted gun may be its own entity whose name lacks 'ATGM'/'HMG' (the live check also matched 'Kornet'/'M2'); if a row is red look at the shot rows' names first.",
-  "runFor": 60,
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — long-range shoot and scoot against a Bradley down demo-city's avenue (R-2086, re-authored 2026-11-10). Judge (1)/(2) both technicals fire, (3) the IFV's first round goes at the ATGM technical. runFor 120: at ~620 m sighting takes seconds, so the exchange is slower. Names: a technical's gun is its own WEAPON SYSTEM entity — 'Kornet (tripod)', 'M2 HMG' — so the shots are BY it and the IFV's rounds go AT it: the ATGM rows match '*Kornet' (measured 2026-11-10: '*ATGM' never matched a shot, in any version of this scenario); the HMG rows match '*HMG' through 'M2 HMG'.",
+  "runFor": 120,
   "golden": {
     "every": 10
   },
@@ -8,7 +8,7 @@
     {
       "name": "the ATGM technical fires",
       "on": "shot",
-      "by": "*ATGM"
+      "by": "*Kornet"
     },
     {
       "name": "the HMG technical fires",
@@ -16,19 +16,19 @@
       "by": "*HMG"
     },
     {
-      "name": "the tank fires at the ATGM technical",
+      "name": "the IFV fires at the ATGM technical",
       "on": "shot",
-      "by": "Tank",
-      "at": "*ATGM"
+      "by": "IFV",
+      "at": "*Kornet"
     },
     {
-      "name": "the tank's first round is not at the HMG technical",
+      "name": "the IFV's first round is not at the HMG technical",
       "never": {
         "on": "shot",
-        "by": "Tank",
+        "by": "IFV",
         "at": "*HMG"
       },
-      "before": "the tank fires at the ATGM technical"
+      "before": "the IFV fires at the ATGM technical"
     }
   ]
 }
