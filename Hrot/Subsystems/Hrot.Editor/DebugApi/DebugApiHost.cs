@@ -1986,6 +1986,10 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/diagnostics/queries", ctx => RunMainResult(s =>
                 Ok(s.GetQueryTimings(string.Equals(ctx.Query("reset"), "true", StringComparison.OrdinalIgnoreCase))))));
 
+            // ⭐ CE-3427 N-1 — the off-frame state egress: its state, and the runtime switch (DESIGN_Egress_Change_Detection §7, O-F)
+            _routes.Add(new("GET", "/diagnostics/egress", ctx => RunMainResult(s => ResultOf(s.EgressPipelines(null, post: false), unavailable: 400))));
+            _routes.Add(new("POST", "/diagnostics/egress", ctx => RunMainResult(s => ResultOf(s.EgressPipelines(ctx.Body, post: true), unavailable: 400))));
+
             _routes.Add(new("GET", "/diagnostics/architecture", ctx => RunMainResult(s =>
             {
                 var (result, error, hintCategory) = s.GetArchitecture(ctx.Query("subsystem"));

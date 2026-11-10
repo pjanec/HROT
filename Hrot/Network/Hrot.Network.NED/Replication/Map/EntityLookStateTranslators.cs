@@ -19,7 +19,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// node, the map's cone and HTTP read the same eyes everywhere. On change only: a head turn under <see cref="YawEpsilon"/> or a target
     /// moved under <see cref="TargetEpsilon"/> is not news. The <c>dtHitMarks</c> shape.
     /// </summary>
-    public sealed class EntityLookStateEgressTranslator : IDescriptorTranslator
+    public sealed class EntityLookStateEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         /// <summary>The head turn below which a change is not sent (1°).</summary>
         internal const float YawEpsilon = MathF.PI / 180f;
@@ -46,7 +46,16 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
-            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — on the live world, in the egress system's slot: a wiped world deletes what this writer published (CE-4007, §8.3).</summary>
+        public void BeginFrame(ISimulationView live) => _instances.OnFrame(live);
+
+        /// <summary>⭐ CE-3427 N-1 — the scan: reads only <paramref name="view"/>, writes nothing to it (so it may be the off-frame replica).</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<LookState>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var unit in view.Query().With<LookState>().DefaultRoutePublishable().Build())

@@ -134,6 +134,10 @@ namespace Fdp.Network.Cyclone.Systems
 
         public void Execute(ISimulationView view, float dt)
         {
+            // ⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — the off-frame scan launched last frame has finished before this
+            //   system disposes or releases on the same translators: the last state goes out before the delete, never after.
+            if (Egress.EgressPipeline.TryGet(view, out var pipeline)) pipeline.Join();
+
             PublishAsAckSource(view);
             ReleaseHandedOver(view);
 

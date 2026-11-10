@@ -163,6 +163,7 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:CognitiveRuntimeModule` | **K** | a system/module, classified on its own | FDP/Toolkits/Fdp.Toolkits/Behavior/Modules/CognitiveRuntimeModule.cs:30 |
 | `type:CombatModule` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.SimHost/Modules/CombatModule.cs:23 |
 | `type:CycloneEgressSystem` | **K** | a system/module, classified on its own | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneEgressSystem.cs:19 |
+| `type:EgressPipeline` | **A** | ⭐ CE-3427 N-1 — the off-frame state egress of one world: a replica re-synced from the live world at every launch, the scan thread, and the requested mode (a runtime switch, not simulation state); nothing in it outlives a frame that a restore must bring back | FDP/Network/Fdp.Network.Cyclone/Egress/EgressPipeline.cs |
 | `type:CycloneNetworkCleanupSystem` | **K** | a system/module, classified on its own | Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:594 |
 | `type:CycloneNetworkIngressSystem` | **K** | a system/module, classified on its own | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs:26 |
 | `type:DamageAssessmentModule` | **K** | a system/module, classified on its own | FDP/Toolkits/Fdp.Toolkits/Combat/Modules/DamageAssessmentModule.cs:25 |
@@ -543,6 +544,10 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup.<Enabled>k__BackingField` | **A** | execution gate re-driven by debug/replay controller; not sim memory | Hrot/Subsystems/Hrot.CGF/Debug/CgfClusterDebugTimeController.cs:298 |
 | `Fdp.ModuleHost.Scheduling.TogglableSimulationGroup.<Enabled>k__BackingField` | **A** | execution gate re-driven by debug/replay controller; not sim memory | Hrot/Subsystems/Hrot.CGF/Debug/CgfClusterDebugTimeController.cs:298 |
 | `Fdp.Network.Cyclone.Systems.CycloneEgressSystem._translatorProfileData` | **A** | per-translator profiling data; diagnostic only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneEgressSystem.cs:33 |
+| `Fdp.Network.Cyclone.Systems.CycloneEgressSystem._registeredPipeline` | **A** | ⭐ CE-3427 N-1 — which world's egress pipeline this system handed its marked translators to (re-registers with any other) | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneEgressSystem.cs |
+| `Fdp.Network.Cyclone.Egress.EgressPipelineLaunchSystem.<Pipeline>k__BackingField` | **A** | ⭐ CE-3427 N-1 — the world's pipeline, looked up on the first run | FDP/Network/Fdp.Network.Cyclone/Egress/EgressPipelineLaunchSystem.cs |
+| `Hrot.Map.Common.Replication.Egress.GeoSpatialEgressTranslator._deferred` | **A** | ⭐ CE-3427 N-1 — the shadow writes of the last off-frame scan, applied on the live world at the next join (then empty) | Hrot/Network/Hrot.Network.NED/Replication/Map/Egress/GeoSpatialEgressTranslator.cs |
+| `Hrot.Map.Common.Replication.Egress.GeoSpatialEgressTranslator._deferredCount` | **A** | ⭐ CE-3427 N-1 — how many of `_deferred` are pending | Hrot/Network/Hrot.Network.NED/Replication/Map/Egress/GeoSpatialEgressTranslator.cs |
 | `Fdp.Network.Cyclone.Systems.CycloneIngressSystem._translatorProfileData` | **A** | per-translator profiling data; diagnostic only | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneIngressSystem.cs:40 |
 | `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._gone` | **A** | scratch cleared before each refill | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:23 |
 | `Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem._present` | **A** | scratch — the sweep's ids-in-this-world, cleared before each refill | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs:22 |

@@ -17,7 +17,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// <see cref="CombatProficiency"/> (behaviors' CE-2273: authored, unit, type default and their set bits) from the node owning its
     /// <c>dtCombatProficiency</c> (the brain owner), on change, so the muscle's hit model reads the AUTHORED value. The gesture translators' shape.
     /// </summary>
-    public sealed class EntityCombatProficiencyEgressTranslator : IDescriptorTranslator
+    public sealed class EntityCombatProficiencyEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over.
@@ -39,7 +39,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<CombatProficiency>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var unit in view.Query().With<CombatProficiency>().DefaultRoutePublishable().Build())

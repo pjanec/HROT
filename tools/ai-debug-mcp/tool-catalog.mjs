@@ -6691,6 +6691,50 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_egress_pipeline",
+    "group": "Y — node diagnostics",
+    "summary": "This PROCESS's off-frame state egress (CE-3427 N-1, an experiment): per world that has one (the SimHost), the mode in force, the mode requested, its scans, faults and last scan / join-wait / sync times.",
+    "http": {
+      "method": "GET",
+      "path": "/diagnostics/egress"
+    },
+    "params": [],
+    "returns": "{ pipelines[{ subsystem, mode, requested, translators, workers, scans, faults, lastScanMs, lastJoinWaitMs, lastSyncMs }], note }",
+    "notes": [
+      "Off by default; FDP_EGRESS_OFFFRAME=1 starts a node off the frame. 📄 docs/DESIGN_Egress_Change_Detection.md §7."
+    ],
+    "hint": "Example: get_egress_pipeline({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_egress_pipeline",
+    "group": "Y — node diagnostics",
+    "summary": "Switches this process's off-frame state egress (CE-3427 N-1): mode offframe = the state scans run on a replica off the main thread, one frame late; onframe = today's. Takes effect at each world's next Export.",
+    "http": {
+      "method": "POST",
+      "path": "/diagnostics/egress"
+    },
+    "params": [
+      {
+        "name": "mode",
+        "type": "string",
+        "required": true,
+        "description": "offframe | onframe"
+      }
+    ],
+    "returns": "the same as GET /diagnostics/egress",
+    "example": {
+      "args": {
+        "mode": "offframe"
+      },
+      "gist": "move the state egress off the main thread"
+    },
+    "hint": "Required: mode (offframe | onframe). Example: set_egress_pipeline({mode:\"offframe\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_query_timings",
     "group": "Y — node diagnostics",
     "summary": "This PROCESS's world-query costs (CE-3427): terrain traces, navmesh, EQS templates / generators / tests, cover lookup, door scans — calls and time since the last reset, the most time first.",

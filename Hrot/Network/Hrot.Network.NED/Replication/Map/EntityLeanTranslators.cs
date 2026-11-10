@@ -16,7 +16,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// ⭐ <c>CE-3257</c> (BR-5; docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §13) — publishes a man's <see cref="Lean"/>
     /// (left / right / none) from the node owning its <c>dtLean</c> (the brain owner), on change. The gesture translators' shape.
     /// </summary>
-    public sealed class EntityLeanEgressTranslator : IDescriptorTranslator
+    public sealed class EntityLeanEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over. One implementation for every egress translator.
@@ -38,7 +38,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<Lean>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var unit in view.Query().With<Lean>().DefaultRoutePublishable().Build())
