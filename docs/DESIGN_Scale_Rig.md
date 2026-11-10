@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (L-2, CE-4364) — baselines below; L-4 adds its findings to §5
-updated: 2026-11-10 (§6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
-current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost)
+updated: 2026-11-10 (§7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
+current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split)
 related-designs:
   - PLAN_Large_Terrain.md — P-0 is this rig; §8 the budgets (R-4192)
   - DESIGN_Evaluation_Cost_And_Cadence.md §11 — perf-stress.py, whose cluster machinery the rig imports; §0e the garbage tables
@@ -358,3 +358,76 @@ which a PHYSICAL machine is needed.
 ⭐ On a many-core node the EQS and path solvers already run on their OWN background threads (`SlowBackground`), off the frame; parallel
 solving inside them would buy FRESHER perception and faster replies at larger counts, not a shorter frame.
 
+
+## 7. ⭐ On a PHYSICAL many-core machine *(CE-3427, backend `2026-11-10`; the measurements §6.4 asked for)*
+
+📐 **Machine:** AMD Family 25 Model 68 (8 cores / 16 logical CPUs), Windows 11, .NET 8, Release; the three nodes on the ONE machine
+(`--pin` gives each its own logical CPUs: orchestrator 2, cgf 7, simhost 7). Recording off, `--queries 30–50`, each run twice, the
+second quoted. The rig runs natively on Windows since `9a4b05053` (`scripts/cluster_launch.py`, §3).
+
+### 7.1 The table — scale-1, warm tile cache
+
+| run | load | SimHost EQS run | sensor solve avg | solves / s | `nav.PlanPath` avg / worst | moved |
+|---|---|---|---|---|---|---|
+| M-1 march, 1 000 men, 1 side | 24.1 s ✅ (VM 34.8) | 16.8 ms | 6.8 µs | ≈ 6 100 | 44 µs / 8.6 ms | 9 / 12 |
+| M-2 fight, 1 000 men | 23.8 s ✅ | **110 ms** (VM 126) | 248 µs | ≈ 1 350 | 203 µs / 18.6 ms | 7 / 12 |
+| M-2 pinned (`--pin`) | 29.1 s | 128 ms | 308 µs | ≈ 1 360 | 235 µs / 21.4 ms | 7 / 12 |
+| M-4 fight, 2 000 men | 24.7 s | 178 ms | 512 µs | ≈ 620 | 174 µs / 17.9 ms | 3 / 12 |
+| M-4 fight, 3 000 men | 25.0 s | 228 ms | 845 µs | ≈ 385 | 194 µs / 14.8 ms | 5 / 12 |
+
+*Sight-heavy tests at 1 000 / 2 000 / 3 000 men:* `CheapLineOfSightTest` 434 / 649 / 876 µs a batch, `ThreatExposureTest` 371 / 629 /
+888 µs — **each grows with the men** (more threats per candidate), so a solve costs more units and fewer sensors are solved: at 3 000
+men a sensor refreshes ≈ every 15 s. `terrain.SegmentBlocked` stays 1.7–1.9 µs a line ✅. CGF: `BrainTickSystem` dominates (ignored,
+user) — 19 / 78 / 188 ms.
+
+### 7.2 ⭐ M-3 — where the EQS time goes: the HOST, not the solver *(phase slots `eqs.run.*`, `EqsSolverSystem.Execute`)*
+
+| fight, 1 000 men | frame-counted (as built) | ⚗ wall clock (`HROT_SLOW_WALLCLOCK=1`, uncommitted) |
+|---|---|---|
+| run (start → end) | 120 ms — 99 % the solves (schedule 0.4 ms, memory flush 1 ms) | 110 ms |
+| **idle (end → next start)** | ⛔ **230 ms** (worst 711) | 31 ms (≈ one frame to harvest) |
+| runs / s | ⛔ **2.9** (the policy says 10) | 7.1 |
+| sensor solves / s | ≈ 1 350 | **≈ 2 900** (2.2×) |
+
+📐 **Why:** in live play `ModuleHostKernel.ShouldRunThisFrame` counts `60 / Hz` RENDERED frames, and counts them only from the run's
+HARVEST (`FramesSinceLastRun` is not advanced while the task runs) — so a 120 ms run then waits ≈ 6 more frames, and more when frames are
+slow. ⛔ That contradicts the stated intent — 🔒 *"the 10Hz and such were meant to be wall clock to ease the CPU"* (user, `2026-10-21`,
+DESIGN_Time_Architecture §17). Stepped mode is not affected (sim-time slots, R-3035).
+⇒ ⭐ **the first lever is the cadence, not parallelism**: honouring 10 Hz wall clock doubles perception throughput with no new
+threading. Then the run itself (110 ms ≥ the 100 ms period) is the limit ⇒ ⭐ **P-1 parallel solving is justified** (the resume's
+M-3 rule) — and the budget (150 000 units a run, `EqsSolverSystem.DefaultBudgetUnits`) decides how much fresher.
+
+### 7.3 ⭐ M-5 — the cold bake is GC-bound *(1 000 men, scale-1, an empty `HROT_NAVTILE_CACHE`; load = both loading nodes baking)*
+
+| GC | cold load | SimHost peak | note |
+|---|---|---|---|
+| workstation (the default — the runner sets nothing) | 321.9 s | 1.8 GB | VM (4 cores): 475 s — 4× the cores bought 1.5× |
+| workstation, `DOTNET_GCgen0size=0x4000000` (64 MB) | 209.0 s | 1.9 GB | |
+| server, all 16 heaps (`DOTNET_gcServer=1`) | **118.4 s** | ⛔ 4.9 GB | over the 4 GB budget |
+| **server, 4 heaps** (`DOTNET_GCHeapCount=4`) | **126.6 s** | **2.5 GB** ✅ | |
+
+📐 The bake (`RecastNavmeshBaker`, a `Parallel.For` over 106 260 tiles) allocates per tile (gather lists, DotRecast's build buffers); under
+the workstation GC every gen0 collection stops every bake thread (SimHost: 33 931 gen0 in the cold load). On the WARM fight server GC
+changes nothing measurable in the frame work (EQS 118 vs 118 ms) and cuts SimHost gen0 collections 5 679 → 265; CGF's peak rises
+0.84 → 1.96 GB with all heaps.
+
+### 7.4 The rig's frame figure counted background runs *(fixed)*
+
+⛔ `node_work` summed every system's recent ms, so an Asynchronous module's run (`EqsSolverSystem`, `PathfindingSolverSystem` — per RUN,
+on their own thread) was added to the node's FRAME. ⭐ Now split: `work ms/frame` = systems of Synchronous / FrameSynced modules,
+`bg ms/run` = Asynchronous ones (`/diagnostics/architecture` → each module's `runMode`). Fight, 1 000 men (`--sides 2`): **SimHost frame 36.1 ms** (was reported 173), background **118.9 ms a run** (`EqsSolverSystem`
+102, `PathfindingSolverSystem` 13.6, `LocalGridBuilderSystem` 3.1); CGF frame 76 ms (`BrainTickSystem` 18.6 — out of scope, user;
+`CycloneEgressSystem` ≈ 16). ⚠ The rows of a manual system (`RegisterManualSystem`) named their module **"Unknown"** — the kernel now records
+them per module (`ModuleEntry.ManualSystems`, rail `TickModeGuardTests.AManualSystem_IsNamedByItsModule`, red-proved), as
+module-phase-manual §3.7 meant (*"registered for diagnostics"*). ⇒ the 10 ms frame budget is now judged on the frame; the egress (≈ 15 ms on
+both nodes, loopback) is the largest remaining frame cost the terrain programme does not own.
+
+### 7.5 What it means for the backlog *(RESUME_Backend_Large_Terrain_Perf §4, re-ranked)*
+
+| # | item | lean |
+|---|---|---|
+| ⭐ **C-1** *(new)* | live-play cadence of slow modules = wall clock, from DISPATCH | ⭐ build (kernel, every slow module, live play only) — user decision, §7.2 |
+| ⭐ **G-1** *(new)* | the runner on server GC, 4 heaps | ⭐ cold load 322 → 127 s, peak 2.5 GB — user decision (every node and the editor) |
+| P-1 | parallel EQS solving | ⭐ justified once C-1 lands (the run, 110 ms, is then the limit) — design first |
+| P-2 | the sight-heavy tests | ⭐ next to P-1: they are what grows with the men (§7.1) |
+| P-3 / P-4 | A* worst case / path solver drops | A* worst 15–21 ms, flat with the men ⇒ low |

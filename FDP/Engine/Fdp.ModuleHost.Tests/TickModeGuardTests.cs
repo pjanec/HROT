@@ -122,6 +122,28 @@ public sealed class TickModeGuardTests
         kernel.RegisterModule(new MarkedModule());   // a marked one registers
     }
 
+    [TickMode(TickPolicy.EveryFrame)]
+    private sealed class ManualOwnerModule : IEcsModule
+    {
+        public readonly StepOnly Inner = new();
+        public string Name => "manual-owner";
+        public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10);
+        public void RegisterSystems(ISystemRegistry registry) => registry.RegisterManualSystem(Inner);
+        public void Tick(ISimulationView view, float deltaTime) { }
+    }
+
+    /// <summary>⭐ CE-3427 — a system the module ticks itself is named by its module in diagnostics (it read "Unknown"), so a reader can
+    /// tell an off-frame run (EqsSolverSystem in the background EqsModule) from frame work — the scale rig's frame figure depends on it.</summary>
+    [Fact]
+    public void AManualSystem_IsNamedByItsModule()
+    {
+        using var kernel = new ModuleHostKernel(new EntityRepository(), new EventAccumulator());
+        var module = new ManualOwnerModule();
+        kernel.RegisterModule(module);
+        kernel.InitializeForTest();
+        Assert.Equal("manual-owner", kernel.GetModuleNameForSystem(module.Inner));
+    }
+
     [Fact]
     public void Forwarding_CannotBeDeclared()
         => Assert.Throws<ArgumentException>(() => new TickModeAttribute(TickPolicy.Forwarding));

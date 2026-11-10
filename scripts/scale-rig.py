@@ -392,11 +392,11 @@ def main():
         moved = [i for i in movers if p1.get(i) and p2.get(i) and math.hypot(p2[i][0] - p1[i][0], p2[i][1] - p1[i][1]) > 1.0]
         report["moved"] = f"{len(moved)}/{len(movers)}"   # the sampled soldiers / vehicles / aircraft that moved > 1 m in the window
         for mode, port in NODES:
-            work, frames, top = ps.node_work(port)
+            work, frames, top, background = ps.node_work(port)
             gb, gtop, proc = garbage(port)
             st = ps.get(port, "/status")
             report["nodes"][mode] = {
-                "work_ms": round(work, 2), "garbage_b": round(gb, 0), "frames_per_s": round((frames - f1[port]) / max(1e-6, w2 - w1), 1),
+                "work_ms": round(work, 2), "background_ms": round(background, 2), "garbage_b": round(gb, 0), "frames_per_s": round((frames - f1[port]) / max(1e-6, w2 - w1), 1),
                 "peak_gb": round((proc.get("peakWorkingSetBytes") or 0) / 2**30, 2), "heap_gb": round((proc.get("managedHeapBytes") or 0) / 2**30, 2),
                 "gc": [proc.get("gen0"), proc.get("gen1"), proc.get("gen2")], "entities": st.get("entityCount"),
                 "top_ms": [[round(ms, 2), n] for ms, _, n in top[:8]], "top_b": [[round(b), n] for b, n in gtop[:8] if b > 0],
@@ -438,9 +438,9 @@ def print_table(r):
     print(f"\n== {r['terrain']}: {r['men']} men, {r['vehicles']} vehicles, {r['aircraft']} aircraft, {r['sides']} side(s) ({r['build']}, {r['machine']}) — "
           f"real-time factor {r.get('realtime_factor')}, sampled movers moved {r.get('moved')}, recorded: {r.get('recorded')}")
     print(f"  load {r['load_s']} s (≤ {b['load_s']:g} warm)")
-    print(f"  {'node':<13}{'work ms/frame':>14}{'garbage B/frame':>17}{'frames/s':>10}{'peak GB':>9}{'heap GB':>9}{'entities':>10}  gc 0/1/2")
+    print(f"  {'node':<13}{'work ms/frame':>14}{'bg ms/run':>11}{'garbage B/frame':>17}{'frames/s':>10}{'peak GB':>9}{'heap GB':>9}{'entities':>10}  gc 0/1/2")
     for m, n in r["nodes"].items():
-        print(f"  {m:<13}{n['work_ms']:>14.2f}{n['garbage_b']:>17.0f}{n['frames_per_s']:>10.1f}{n['peak_gb']:>9.2f}{n['heap_gb']:>9.2f}{str(n['entities']):>10}  {n['gc']}")
+        print(f"  {m:<13}{n['work_ms']:>14.2f}{n.get('background_ms', 0):>11.2f}{n['garbage_b']:>17.0f}{n['frames_per_s']:>10.1f}{n['peak_gb']:>9.2f}{n['heap_gb']:>9.2f}{str(n['entities']):>10}  {n['gc']}")
         for ms, s in n["top_ms"][:5]:
             print(f"        {ms:8.2f} ms  {s}")
         for by, s in n["top_b"][:3]:
