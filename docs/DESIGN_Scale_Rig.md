@@ -337,8 +337,14 @@ the FIGHT run (two sides in contact) that exercises the sight test, fire and sou
 | `PathfindingSolverSystem` per run | 100 ms, 1.7 MB | 23 ms |
 | SimHost garbage per frame | 2.0 MB | **0.37 MB** |
 
-⏭ **Next, by measured size:** `CheapLineOfSightTest` (449 µs a batch) and `ThreatExposureTest` (377 µs), the tactical templates
-(`DonutGenerator` / `GridGenerator` ≈ 1.3 ms each), and the CGF door table across frames.
+**Then the door table kept across frames** (CGF main thread; held while no door state was written and no door entity added since the
+build, the door entities re-walked once per frame): `DoorStates.Of` on CGF **2.0 ms → 0.23 ms** a call. ⭐ And in that same run **10 / 12
+sampled movers moved** (1 / 12 before the path fixes) — the slow, garbage-heavy paths were CE-3424's main cause (tracker row).
+
+⏭ **What is left is GENUINE terrain work, not waste:** `CheapLineOfSightTest` (440 µs a batch: each candidate × up to 4 body points × a
+1.8 µs sight line, plus a fire trace) and `ThreatExposureTest` (375 µs: candidates × known threats × sight), inside the tactical templates
+(`DonutGenerator` / `GridGenerator` ≈ 1.2 ms each). ⭐ That is what parallel solving on a many-core node would buy (§6.4) — the point at
+which a PHYSICAL machine is needed.
 
 ### 6.4 ⭐ What this VM can and cannot tell — and when a PHYSICAL machine is needed *(user, `2026-11-10`: "today's machines have 16+ cores … let me know when this is necessary")*
 
