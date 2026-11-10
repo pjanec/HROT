@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- hrot-terrain-osm: an HROT terrain input set from any place on OpenStreetMap (docs/DESIGN_Terrain_From_OSM.md §14.5 E-12).
+       A thin shell over Hrot.Terrain.Osm — the editor's wizard drives the same library in-process. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>hrot-terrain-osm</AssemblyName>
+    <RootNamespace>Hrot.Tools.TerrainOsm</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Osm\Hrot.Terrain.Osm.csproj" />
+  </ItemGroup>
+</Project>

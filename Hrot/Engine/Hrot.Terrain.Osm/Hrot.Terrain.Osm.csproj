@@ -11,5 +11,10 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />
+    <!-- Utm (the one UTM class) -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Clipper2" Version="1.5.4" />
   </ItemGroup>
 </Project>
