@@ -58,6 +58,7 @@ namespace Hrot.ScenarioEditor.Map
 
         /// <summary>Latched so the message appears on the transition, not once per frame.</summary>
         private bool _reportedSilent;
+        private readonly Fdp.Toolkit.Diagnostics.Gizmos.IGizmoViewFilter? _viewFilter;
 
         /// <summary>
         /// Frames to observe before reporting. ⭐ A load, a perspective switch or a world swap can leave a
@@ -72,11 +73,14 @@ namespace Hrot.ScenarioEditor.Map
         /// because the group is constructed WITH this system as its last member — its inner systems are
         /// constructor-only — so taking the group directly would be circular.
         /// </param>
+        /// <param name="viewFilter">⭐ CE-4388 — the map's view (DESIGN_Map_View_Filter): an entity OUT of view draws nothing by design, so it is not counted.</param>
         public MapSelfCheckSystem(
             DebugPrimitiveBuffer buffer,
             Func<bool> isEnabled,
-            Action<string>? report = null)
+            Action<string>? report = null,
+            Fdp.Toolkit.Diagnostics.Gizmos.IGizmoViewFilter? viewFilter = null)
         {
+            _viewFilter = viewFilter;
             _buffer    = buffer    ?? throw new ArgumentNullException(nameof(buffer));
             _isEnabled = isEnabled ?? throw new ArgumentNullException(nameof(isEnabled));
             _report    = report;
@@ -96,7 +100,7 @@ namespace Hrot.ScenarioEditor.Map
                 return;
             }
 
-            int eligible = CountEligibleEntities(repo);
+            int eligible = CountEligibleEntities(repo, _viewFilter);
             if (eligible == 0)
             {
                 // No entities to draw is not a defect; it is an empty world.
@@ -143,11 +147,17 @@ namespace Hrot.ScenarioEditor.Map
         /// <c>EntityPresentationGizmo</c>'s <c>[GizmoProjector]</c> declares — if that query widens, this
         /// must widen with it or the check goes quietly vacuous.
         /// </summary>
-        private static int CountEligibleEntities(EntityRepository repo)
+        /// <summary>
+        /// The entities that SHOULD draw a symbol: positioned and networked — ⭐ CE-4388 minus a TERRAIN OBJECT (a door: "no symbol, no palette entry",
+        /// DESIGN_Building_Interiors §3j 5b — measured: a blank imported terrain, 3 853 doors and no unit, reported "drawing nothing" every time) and minus
+        /// an entity the map's view filter finds out of view (nothing is meant to draw there).
+        /// </summary>
+        private static int CountEligibleEntities(EntityRepository repo, Fdp.Toolkit.Diagnostics.Gizmos.IGizmoViewFilter? viewFilter)
         {
             int count = 0;
             var index = repo.GetEntityIndex();
             int maxIndex = index.MaxIssuedIndex;
+            bool filtering = viewFilter is { Active: true };
 
             for (int i = 0; i <= maxIndex; i++)
             {
@@ -155,8 +165,10 @@ namespace Hrot.ScenarioEditor.Map
                 if (!meta.IsActive) continue;
 
                 var entity = new Entity(i, meta.Generation);
-                if (repo.HasComponent<SimTransform>(entity) && repo.HasComponent<NetworkIdentity>(entity))
-                    count++;
+                if (!repo.HasComponent<SimTransform>(entity) || !repo.HasComponent<NetworkIdentity>(entity)) continue;
+                if (repo.HasManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>(entity)) continue;
+                if (filtering && !viewFilter!.InView(repo, entity)) continue;
+                count++;
             }
             return count;
         }

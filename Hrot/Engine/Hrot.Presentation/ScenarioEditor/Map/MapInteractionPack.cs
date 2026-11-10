@@ -202,7 +202,7 @@ namespace Hrot.ScenarioEditor.Map
             // constructor pair.
             TogglablePostSimulationGroup? groupRef = null;
             var selfCheck = new MapSelfCheckSystem(
-                buffer, () => groupRef?.Enabled ?? false, ctx.ReportMapDiagnostic);
+                buffer, () => groupRef?.Enabled ?? false, ctx.ReportMapDiagnostic, ViewOf(buffer));   // ⭐ CE-4388 — the same view the gizmos filter by
 
             // ⭐⭐⭐ CE-259r — THE ORDER IS LOAD-BEARING, AND `stateless` MUST PRECEDE `dataDriven`.
             //   📐 Measured 2026-09-10: the host clears the primitive buffer (EndFrame) immediately before

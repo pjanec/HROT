@@ -153,6 +153,27 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.Empty(reports);
         }
 
+        /// <summary>⭐ CE-4388 — a world of DOORS only (a blank imported terrain) is not a broken map: a terrain object has no symbol by design
+        /// (DESIGN_Building_Interiors §3j 5b). 📐 Measured on Windows: a blank scenario on real-1 (3 853 doors, no unit) reported "drawing nothing".
+        /// 🔴 Red-proof (compiles): drop the terrain-object skip in <c>CountEligibleEntities</c> ⇒ the report comes.</summary>
+        [Fact]
+        public void TheSelfCheck_SaysNothingForAWorldOfDoorsOnly()
+        {
+            _world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            for (int i = 0; i < 3; i++) _world.AddComponent(Spawn(500 + i), new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = $"t/b/d{i}" });
+            var reports = new List<string>();
+            var mi = MapInteractionPack.Build(new MapInteractionContext
+            {
+                World = _world,
+                StartEnabled = true,
+                ReportMapDiagnostic = reports.Add,
+            });
+
+            RunFrames(mi, _world, MapSelfCheckSystem.GraceFrames + 5);
+
+            Assert.Empty(reports);
+        }
+
         /// <summary>
         /// ⭐⭐ <b>It latches, and it reports RECOVERY.</b> A message every frame is a message nobody reads;
         /// a message that never clears leaves the operator unsure whether the fix worked.
