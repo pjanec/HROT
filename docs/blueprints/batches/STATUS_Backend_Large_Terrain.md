@@ -52,3 +52,10 @@ on a cache miss, the tile key hashed once, the cover build through the spatial i
 
 ---
 _backend lane, 2026-11-09 … 2026-11-10_
+
+## ⭐ After the handoff — the performance programme (CE-3427, `2026-11-10`)
+
+The user asked for the terrain-dependent query costs at 1 000 men in a fight (sensors, EQS, paths). Done on the 4-core VM: the world-query
+timings, four whole-world scans removed from every sensor solve (470 → 11 µs), the A* and the path costs on our own zero-garbage search,
+the door table kept across frames. ➡ Continued on a many-core Windows machine: [RESUME_Backend_Large_Terrain_Perf.md](../RESUME_Backend_Large_Terrain_Perf.md).
+
