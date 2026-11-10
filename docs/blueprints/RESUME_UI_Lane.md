@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-09
-current-answer: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE" directly below this STATUS block.
+updated: 2026-11-10
+current-answer: ⭐⭐⭐ 2026-11-10 — START AT "SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-09 — START AT "SESSION 2026-11-09 — U-11 RECORDING STORAGE UI, DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-08 — START AT "SESSION 2026-11-08 — RUN CONTROLS, BATCH Z, AFTER-Z (PAUSED)".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-07 (b) — START AT "SESSION 2026-11-07 (b) — B-10 KEYS + B-11 ACTION CATALOGUE".
@@ -175,6 +176,16 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES
+
+⭐ [HANDOFF_Coordinator_To_Ui_Osm_Wizard.md](batches/HANDOFF_Coordinator_To_Ui_Osm_Wizard.md) W-1…W-5 done: the wizard (`Hrot.Presentation/TerrainOsm/`), File ▸ New ▸ Terrain
+from OpenStreetMap… (greyed — no real pipeline on the tree yet), fakes + 16 rails, conformance C-1…C-15 all ✅ with the ⚠ list —
+[STATUS_Ui_Osm_Wizard.md](batches/STATUS_Ui_Osm_Wizard.md); design [DESIGN_Terrain_From_OSM.md](../DESIGN_Terrain_From_OSM.md) §6b + §6b-as-built.
+⭐ **Next for this item:** when the coordinator's `OsmTerrainPipeline` (and a tile source / place search) land, compose them in `EditorSubsystem` (`_osmWizard`'s
+services lambda) — the item un-greys by itself. ⚠ The ⚠ rows marked "contract" (lone trees, building type/roof/openings, note location/severity, data timestamp) need a
+contract extension first. Filed: [CE-1468](Blueprint_Issues_Tracker.md) (the tile LRU vs `PickerImageCache`).
+
 
 ## ⭐⭐⭐ SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE *(state at `ui` + this doc commit, pushed)*
 

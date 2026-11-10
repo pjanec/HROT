@@ -378,6 +378,12 @@ the rails that measure it: [`STATUS_Ui_Osm_Wizard.md`](blueprints/batches/STATUS
 | Import rows follow `OsmStage` ("Read the map data" for Parse; elevation is inside Heights) | the contract's stages; the mockup's "Elevation (Copernicus 30 m)" row is not a stage the pipeline reports |
 | the Import step's right box shows only what is TRUE (heading "When it finishes" until it has) | the mockup's inset illustrates both ends at once |
 
+⚠ **One duplicate, filed — [CE-1468](blueprints/Blueprint_Issues_Tracker.md):** `OsmTileTextures` is an LRU of uploaded textures like `PickerImageCache` (the pickers'). Not shared yet because that
+cache remembers a `null` load as failed forever (a downloading tile is "not yet") and keys by `string` (a per-frame allocation per tile). Graph INVENTORY re-run `2026-11-10`
+once the index was up: `search_graph` `.*Mercator.*` (1 — ours) · `.*Tile(Source|Cache|Texture|Provider|Fetch).*` (4 — ours + the navmesh `NavTileCache`, unrelated) ·
+`.*SlippyMap.*|.*MapTile.*|.*TileMap.*` (0) · `.*PlaceSearch.*|.*Geocod.*|.*Nominatim.*` (1 — the fake) · `.*TextureCache.*|.*ImageCache.*` (1 — `PickerImageCache`) — ⇒ the grep-only
+"not found" above holds; coverage could not be checked (`check_index_coverage` is not in the CLI).
+
 ## 7. Failure and limits
 | case | behaviour |
 |---|---|

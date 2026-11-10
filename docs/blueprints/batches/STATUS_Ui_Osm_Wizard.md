@@ -54,4 +54,14 @@ Design: [DESIGN_Terrain_From_OSM.md](../../DESIGN_Terrain_From_OSM.md) §6b. Moc
 
 ## 3. Red-proofs (compiling mutations, one key rail per class)
 
-*(filled in below as run)*
+| mutation (compiles; `0 Error(s)` checked before the run) | rail | result |
+|---|---|---|
+| A — `PrimaryRefusal` in Area ignores `BoxRefusal` | `OsmWizardModelTests.Area_NeedsABox_WithinTheLimit_ThenNextGoesToOptions` | 🔴 red (and `Area_ABoxOverTheLimit_…` frame rail red too) |
+| B — the Water include glyph drawn `GREY` instead of `BLUE` | `TheOsmWizardMatchesItsMockupTests.Options_MatchesTheMockup` | 🔴 red: *glyph 'include:3': expected colour ⟨0.35, 0.66, 1⟩, drawn ⟨0.63, 0.63, 0.67⟩* |
+
+Both reverted; the suites green again on a fresh build (§2).
+
+## 4. Found on the way
+
+- ⚠ **[CE-1468](Blueprint_Issues_Tracker.md)** — `OsmTileTextures` duplicates `PickerImageCache`'s LRU concept; not shared yet (a `null` load is "failed forever" there; `string` keys allocate per frame). Filed with the unification.
+- ⚠ **The stale-binary trap, hit once and caught:** the merge of `coordinator` (`a5b802fe8`) moved `UtmFrame` → `Hrot.Terrain.InputSet` and `Utm` → `Fdp.Modules.Geographic.Transforms`; the pushed merge commit `e91d7e658` did not compile until `13f069be2`. A test run in between printed green from the old binary — not counted; every row in §2 is from a build whose `0 Error(s)` was checked first.
