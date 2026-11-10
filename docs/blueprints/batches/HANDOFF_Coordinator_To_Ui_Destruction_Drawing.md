@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → ui: draw building destruction on the 2-D and 3-D maps (CE-4392)
 
-**For:** ui. **From:** coordinator. **Dispatched at `<stamp>`**. ⭐ Scope FROZEN there. Queue it after the render-under-load handoff you are on.
+**For:** ui. **From:** coordinator. **Dispatched at `2011edb28`**. ⭐ Scope FROZEN there. Queue it after the render-under-load handoff you are on.
 Merge `coordinator` first, push `chore: started HANDOFF_Coordinator_To_Ui_Destruction_Drawing at <sha>`, and keep a status file
 (`STATUS_Ui_Destruction_Drawing.md`).
 
