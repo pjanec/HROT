@@ -86,7 +86,8 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.NotNull(top);
             Assert.Equal(BuildingDamageTable.RubbleMaterial, top!.Value.Material);
             float z = 10f - (top.Value.T * 11f);
-            Assert.Equal(3f * BuildingDamageTable.RubbleHeightShare, z, 2);   // the heap's top: a third of the 3 m storey
+            float heapTop = 3f * BuildingDamageTable.RubbleHeightShare;   // a third of the 3 m storey
+            Assert.InRange(z, heapTop - 0.01f, heapTop + 0.9f);           // the heap's top, or a broken block lying on it (≤ 0.9 m high, sunk 40 %)
             // a heap, not a box: near the footprint's edge the ray meets the slope, lower than the top
             var edge = Hit(damaged, new Vector3(20.6f, 24f, 10f), new Vector3(20.6f, 24f, -1f));
             Assert.NotNull(edge);
