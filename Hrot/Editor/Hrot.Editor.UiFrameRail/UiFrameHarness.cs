@@ -61,7 +61,18 @@ public static class UiFrameHarness
     {
         if (_available is { } cached) return cached;
 
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY")))
+        // ⭐ CE-4386 (handoff L-0) — Windows has no DISPLAY: measured 2026-11-10, EVERY frame rail skipped there on the DISPLAY test below. On Windows the rails run
+        // HIDDEN (HROT_HIDDEN_WINDOW=1) — without the switch they skip, so a suite run never pops windows on a desktop someone is working at.
+        if (OperatingSystem.IsWindows())
+        {
+            if (!Fdp.Presentation.Raylib.HiddenWindow.Requested)
+            {
+                _unavailableReason = "Windows: frame rails run hidden — set HROT_HIDDEN_WINDOW=1";
+                _available = false;
+                return false;
+            }
+        }
+        else if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY")))
         {
             _unavailableReason =
                 "no DISPLAY — run under `xvfb-run -a -s \"-screen 0 1280x800x24\" dotnet test …`";
