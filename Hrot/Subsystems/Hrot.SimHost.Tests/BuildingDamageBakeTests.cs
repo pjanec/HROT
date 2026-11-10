@@ -140,6 +140,72 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-4391 S-4 (Q-D3) — a scenario that STARTS pre-breached: the saved damage (read from the scenario text, made into entities the way the load does) is in the world before the bake system's first
+        /// tick, and the muscle's navmesh follows it with no further change — the inside is reachable after the first bake. 🔴 Red-proof: pass no damage to the bake (<c>damage = null</c>) in
+        /// <c>StaticObstacleBakeSystem.Execute</c> ⇒ no bake runs for a loaded world.
+        /// </summary>
+        [Fact]
+        public void AScenarioLoadedPreBreached_IsBakedIntoTheMusclesNavmesh()
+        {
+            Node(muscle: true);
+            var sys = Sys();
+            Assert.False(_node.PathExists(Outside, Inside, (uint)NavLayerMask.Infantry));
+            var saved = TerrainObjectsSection.ReadBuildingDamage(
+                $"{{ \"TerrainObjects\": {{ \"range/H\": {{ \"breaches\": [[{BuildingPanelIndex.ToLocal(_house, South())}, 4, 6.2, 0, 2.2, \"passage\"]] }} }} }}");
+            foreach (var (key, building, entities) in BuildingDamageLoad.Resolve(_house, saved, null))
+                foreach (var d in entities)
+                {
+                    var e = _world.CreateEntity();
+                    _world.AddComponent(e, d);
+                    _world.SetManagedComponent(e, new TerrainObjectKey { Key = key });
+                }
+            sys.Execute(_world, 0.016f);
+            _wall = 0.6; sys.Execute(_world, 0.016f);
+            RunUntilBaked(sys, 1);
+            Assert.True(_node.PathExists(Outside, Inside, (uint)NavLayerMask.Infantry));
+        }
+
+        /// <summary>
+        /// ⭐ CE-4391 S-4 (R-4012, AAR seek) — on a muscle-style node (a navmesh) an AAR SEEK restores a keyframe into the LIVE world (<c>PlaybackSystem.ApplyFrame</c>: clear, then a raw blit): the damage the
+        /// keyframe holds changes the NavHash, so <c>StaticObstacleBakeSystem</c> (no replay guard: <c>EveryFrame</c>, BeforeSync) REBAKES — the navmesh matches the moment shown. B (a passage) → A (none) → B:
+        /// the inside is reachable, then not, then reachable again, one bake per seek. 🔴 Red-proof: pass no damage to the bake (<c>damage = null</c>) ⇒ the first bake never opens the wall.
+        /// </summary>
+        [Fact]
+        public void ASeekIntoALiveWorld_MakesTheMusclesNavmeshFollowTheKeyframesDamage()
+        {
+            Node(muscle: true);
+            var sys = Sys();
+            byte[] Keyframe(bool damaged)
+            {
+                using var src = new EntityRepository();
+                SimHostComponentRegistry.RegisterAll(src);
+                if (damaged)
+                {
+                    var e = src.CreateEntity();
+                    var d = new BuildingDamage { Building = 0 };
+                    BuildingDamages.Add(ref d, new WallBreach(South(), 4f, 6.2f, 0f, 2.2f, BreachKind.Passage), _house);
+                    src.AddComponent(e, d);
+                    src.SetManagedComponent(e, new TerrainObjectKey { Key = "range/H" });
+                }
+                using var ms = new MemoryStream();
+                using (var bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true)) new Fdp.Core.FlightRecorder.RecorderSystem().RecordKeyframe(src, bw, damaged ? 20L : 10L);
+                return ms.ToArray();
+            }
+            byte[] a = Keyframe(false), b = Keyframe(true);
+            var playback = new Fdp.Core.FlightRecorder.PlaybackSystem();
+            void Seek(byte[] k) { using var br = new BinaryReader(new MemoryStream(k)); playback.ApplyFrame(_world, br, processEvents: false); }
+            bool Reachable() => _node.PathExists(Outside, Inside, (uint)NavLayerMask.Infantry);
+
+            Assert.False(Reachable());
+            Seek(b); sys.Execute(_world, 0.016f); _wall += 0.6; sys.Execute(_world, 0.016f); RunUntilBaked(sys, 1);
+            Assert.True(Reachable());
+            Seek(a); sys.Execute(_world, 0.016f); _wall += 0.6; sys.Execute(_world, 0.016f); RunUntilBaked(sys, 2);
+            Assert.False(Reachable());
+            Seek(b); sys.Execute(_world, 0.016f); _wall += 0.6; sys.Execute(_world, 0.016f); RunUntilBaked(sys, 3);
+            Assert.True(Reachable());
+        }
+
+        /// <summary>
         /// ⭐ Ten passages inside ONE debounce give ONE bake (and none after it): each change moves the hash and restarts the quiet period, the bake runs once for all of them. 🔴 Red-proof: drop the
         /// quiet-period restart (<c>_seenAt = now</c>) ⇒ more than one bake.
         /// </summary>

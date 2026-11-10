@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-10 (the off-frame state egress APPROVED as an experiment — the next session builds it; C-1, G-1, P-1 built)
-current-answer: ⭐ §0 "NEXT SESSION — BUILD the off-the-main-thread STATE EGRESS" (the build steps B-0…B-9, the rails, the ground rules) · then §0 START HERE (the next session runs on a WINDOWS machine with many cores) → §1 set the machine up → §2 make the rig run natively → §3 the MEASUREMENTS to make → §4 the optimisation backlog, decided by §3's numbers. §5 the traps, §6 where everything lives.
+updated: 2026-11-10 (the off-frame state egress BUILT, off by default; paused before B-8 and the end of B-9)
+current-answer: ⭐ §0 "PAUSED 2026-11-10 — the off-frame egress is BUILT" (what is done, the four next steps) · then §0 "NEXT SESSION — BUILD the off-the-main-thread STATE EGRESS" (the original plan and ground rules) (the build steps B-0…B-9, the rails, the ground rules) · then §0 START HERE (the next session runs on a WINDOWS machine with many cores) → §1 set the machine up → §2 make the rig run natively → §3 the MEASUREMENTS to make → §4 the optimisation backlog, decided by §3's numbers. §5 the traps, §6 where everything lives.
 stale-below: nothing
 related-designs:
   - docs/DESIGN_Egress_Change_Detection.md §7 — ⭐ the APPROVED design the next session builds (the off-frame state egress, leans O-A…O-G)
@@ -17,6 +17,23 @@ related-designs:
 # RESUME — backend: large-terrain PERFORMANCE (sensors, EQS, paths) on a MANY-CORE machine
 
 ## 0. ⭐⭐⭐ START HERE
+
+### ⭐⭐⭐⭐⭐⭐ PAUSED `2026-11-10` — the off-frame egress is BUILT (off by default); B-8 and the end of B-9 remain (START HERE)
+
+📄 Live state + gate tables: **[STATUS_Backend_OffFrame_Egress.md](batches/STATUS_Backend_OffFrame_Egress.md)** · as-built deviations: **[Egress Change Detection §7a](../DESIGN_Egress_Change_Detection.md)**.
+
+| done (backend `9cbc84e4c` … `6a5203af4`) | |
+|---|---|
+| B-0…B-7 | pool moved (`Fdp.ModuleHost.Threading.WorkerPool`, Roslyn rename); `IOffFrameEgress` + `EgressPipeline` + `EgressPipelineLaunchSystem` (`[UpdateLastInPhase]`); 32 translators marked (WorldPos, LookState, NavigationStatus + 29 pure state scans); `GET/POST /diagnostics/egress`; 11 rails in `TheOffFrameEgressTests` + the WorldPos rail, all red-proved |
+| ⭐ by construction | the launch is registered by `NedReplicationModule` — EVERY networked node (CGF too) can go off the frame; OFF on every node by default (user, `2026-11-10`) |
+| fixed on the way | the mode taken once per Export · WorldPos's deferred attach grants the shadow's authority · the scan thread / pool no longer root a pipeline (an OOM in the integration suite) · ⚠ two cross-lane fixes in ui's keymap (`MapGestureRouter.Shared`, `Keymap` writes locked) — parallel hosts corrupted the one process keymap |
+
+| ⏭ next, in order | |
+|---|---|
+| ① | finish B-9: the filtered integration comparison OFF vs ON (`scratchpad` script lost with the VM — re-make it: the replication classes `--filter "…Egress|Spawn|Ghost|Replicat|Ownership|Lifecycle|Destroy|SplitAuthority|Zombie|DeadReckon|WorldPos|Navigation|Damage|Door|Restore|Seek|Replay"`, run with `FDP_EGRESS_OFFFRAME=0` then `=1`, compare only tests that RAN in both — the host crashes at random (pre-existing: `NodeOpSlaveTranslator.PumpBeat` DDS write after shutdown, a malformed EQS sensor config)). Last fair result before the keymap lock: ONE ON-only red, and it was the keymap race |
+| ② | B-8 on the 16-core machine: scale rig 1 000 / 3 000 men `--sides 2`, `FDP_EGRESS_OFFFRAME=0` vs `=1` (SimHost, then the CGF) → scale rig §7.9. Projection SimHost ≈ 35 → ≈ 21 ms |
+| ③ | the 7 `EgressVisitGate` translators: measure whether a replica sync carries the table chunk versions, then mark them; the CGF's `EqsSensorConfigTopic` (4–13 ms) — is it a pure scan? |
+| ④ | the default may flip only when ① and ② are clean — the USER's call |
 
 ### ⭐⭐⭐⭐⭐ NEXT SESSION — BUILD the off-the-main-thread STATE EGRESS as an EXPERIMENT (`2026-11-10`, LATEST — start here)
 

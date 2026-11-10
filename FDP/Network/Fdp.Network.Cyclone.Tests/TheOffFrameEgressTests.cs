@@ -311,6 +311,33 @@ public sealed class TheOffFrameEgressTests
         foreach (var x in rig.Extra) Assert.Equal(rig.State.OffFrameScans, x.OffFrameScans);   // every translator of every off-frame scan
     }
 
+    /// <summary>⭐ A host that goes away without disposing its pipeline does not leak its world: the scan thread and the shared worker pool
+    /// hold no strong reference to the pipeline (which holds the live world and a replica). 📐 Before: the integration suite ran out of
+    /// memory with FDP_EGRESS_OFFFRAME=1. ✅ Red-proof (run): the thread's loop capturing the pipeline ⇒ the world stays alive ⇒ red.</summary>
+    [Fact]
+    public void A_world_left_without_disposing_its_pipeline_is_collected()
+    {
+        var weak = RunAWorldOffTheFrameAndDropIt();
+        for (int i = 0; i < 10 && weak.IsAlive; i++)
+        {
+            GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+            Thread.Sleep(20);
+        }
+        Assert.False(weak.IsAlive, "the world is still reachable after its host dropped it");
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static WeakReference RunAWorldOffTheFrameAndDropIt()
+    {
+        var rig = new Rig(units: 2, workers: 2, extraStates: 2);
+        rig.Frame();
+        rig.Pipeline.RequestedMode = EgressMode.OffFrame;
+        for (int f = 0; f < 10; f++) rig.Frame();
+        rig.Pipeline.Join();
+        Assert.True(rig.State.OffFrameScans > 0);
+        return new WeakReference(rig.World);   // ⛔ the rig (and its pipeline) is NOT disposed — as a host that just went away
+    }
+
     [Fact]
     public void A_scan_that_throws_puts_the_pipeline_back_on_the_frame()
     {

@@ -309,7 +309,7 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject
             {
                 ["pipelines"] = list,
-                ["note"]      = "A world with no pipeline (any node but the SimHost) always egresses on the frame. FDP_EGRESS_OFFFRAME=1 is the start-up default.",
+                ["note"]      = "Every networked node has a pipeline, OFF by default (FDP_EGRESS_OFFFRAME=1 is the start-up default); a node without a network (offline) always egresses on the frame.",
             }, null, null);
         }
 

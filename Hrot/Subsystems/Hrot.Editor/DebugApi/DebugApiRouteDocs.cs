@@ -869,7 +869,7 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/diagnostics/egress")] = new RouteDoc(
             Tool:    "get_egress_pipeline",
             Group:   "Y — node diagnostics",
-            Summary: "This PROCESS's off-frame state egress (CE-3427 N-1, an experiment): per world that has one (the SimHost), the mode in force, the mode requested, its scans, faults and last scan / join-wait / sync times.",
+            Summary: "This PROCESS's off-frame state egress (CE-3427 N-1, an experiment): per world that has one (every networked node's), the mode in force, the mode requested, its scans, faults and last scan / join-wait / sync times.",
             Returns: "{ pipelines[{ subsystem, mode, requested, translators, workers, scans, faults, lastScanMs, lastJoinWaitMs, lastSyncMs }], note }",
             Hint:    "Example: get_egress_pipeline({})",
             Params: Array.Empty<RouteParam>(),

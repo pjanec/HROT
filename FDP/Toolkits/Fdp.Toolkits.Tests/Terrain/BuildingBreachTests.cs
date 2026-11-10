@@ -571,5 +571,75 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(damage!.Opens(south, 5f, 1f));
             Assert.False(w.SegmentBlocked(new Vector3(25f, 15f, 1.5f), new Vector3(25f, 25f, 1.5f), DoorStates.Of(restored, w)));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4391</c> S-4 (R-4012, AAR seek) — ONE LIVE repository restored B → A → B by the playback keyframe path (<c>PlaybackSystem.ApplyFrame</c>: <c>repo.Clear()</c>, then a raw chunk blit — what a seek does
+        /// to each node's own recording): after each restore <see cref="BuildingDamageTable.Of"/>, the door view and a line through the breach match THAT keyframe. A has no damage and a closed door; B has a
+        /// passage, a collapse and an open door. The per-thread caches (R-219/R-220) must notice a blit that moves neither the frame stamp nor the add counters.
+        /// 🔴 Red-proof: make <c>EntityRepository.Clear</c> not bump <c>StructuralChanges</c> / the add counters (or drop the generation test in the cache) ⇒ the seek back to A keeps serving B's table.
+        /// </summary>
+        [Fact]
+        public void Recorded_ALiveRepositorySeekedBAThenAThenB_ServesEachKeyframesDamageAndDoors()
+        {
+            var w = TerrainWorldParser.Parse(BreachFixtures.DoorHouse, "range");
+            int south = w.Doors[0].Panel;
+            static void Reg(EntityRepository r) { r.RegisterComponent<BuildingDamage>(); r.RegisterComponent<DoorState>(); r.RegisterManagedComponent<TerrainObjectKey>(); }
+            byte[] Keyframe(bool damaged, bool earlierOther = false)
+            {
+                using var src = new EntityRepository(); Reg(src); src.SetSingletonManaged(w);
+                var door = src.CreateEntity();
+                src.AddComponent(door, new DoorState { State = damaged ? TerrainDoorState.Open : TerrainDoorState.Closed });
+                src.SetManagedComponent(door, new TerrainObjectKey { Key = w.Doors[0].Key });
+                if (earlierOther)   // C: a DIFFERENT breach on the SAME entity slot, recorded at an EARLIER tick than B
+                    BreachFixtures.Damage(src, w, 0, new WallBreach(south, 1f, 2f, 1f, 1.5f, BreachKind.Hole));
+                else if (damaged)
+                {
+                    BreachFixtures.Damage(src, w, 0, new WallBreach(south, 7f, 9f, 0f, 2.2f, BreachKind.Passage));
+                    BreachFixtures.Collapsed(src, w, 0);
+                }
+                using var ms = new MemoryStream();
+                using (var bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true)) new Fdp.Core.FlightRecorder.RecorderSystem().RecordKeyframe(src, bw, earlierOther ? 20L : damaged ? 20L : 10L);
+                return ms.ToArray();
+            }
+            byte[] a = Keyframe(false), b = Keyframe(true), c = Keyframe(true, earlierOther: true);
+
+            using var live = new EntityRepository(); Reg(live); live.SetSingletonManaged(w);
+            var playback = new Fdp.Core.FlightRecorder.PlaybackSystem();
+            void Seek(byte[] keyframe) { using var br = new BinaryReader(new MemoryStream(keyframe)); playback.ApplyFrame(live, br, processEvents: false); }
+            var through = (From: new Vector3(27.5f, 15f, 1.0f), To: new Vector3(27.5f, 25f, 1.0f));   // x 27.5 = along 7.5, through the passage's span in the (otherwise solid) south wall
+
+            void Expect(bool damaged, string at)
+            {
+                var doors = DoorStates.Of(live, w);
+                var table = doors.Damage;
+                if (!damaged)
+                {
+                    Assert.True(table == null || table.Count == 0, at + ": the intact keyframe must show no breach");
+                    Assert.True(w.SegmentBlocked(through.From, through.To, doors), at + ": the wall is intact");
+                    Assert.True(TerrainDoorState.Closed == doors[0], at);
+                }
+                else
+                {
+                    Assert.NotNull(table);
+                    Assert.True(table!.Opens(south, 8f, 1f), at);
+                    Assert.True(table.Collapsed(0), at);
+                    Assert.Equal(1, table.Count);
+                    Assert.False(w.SegmentBlocked(through.From, through.To, doors), at + ": the breach lets the line through");
+                    Assert.True(TerrainDoorState.Destroyed == doors[0], at);   // a collapsed building's doors read Destroyed
+                }
+            }
+            Seek(b); Expect(true, "B");
+            Seek(a); Expect(false, "back to A");
+            Seek(b); Expect(true, "forward to B again");
+            Seek(b); Expect(true, "B restored over B");
+            // C: same entity slots, other breach, an EARLIER tick (the global version goes DOWN): the table must follow the content, not the version
+            Seek(c);
+            var atC = DoorStates.Of(live, w);
+            Assert.Equal(1, atC.Damage!.Count);
+            Assert.True(atC.Damage.Opens(south, 1.5f, 1.2f) && !atC.Damage.Opens(south, 8f, 1f), "C: the earlier keyframe's breach, not B's");
+            Assert.False(atC.Damage.Collapsed(0));
+            Assert.Equal(TerrainDoorState.Open, atC[0]);
+            Seek(b); Expect(true, "B after C");
+        }
     }
 }
