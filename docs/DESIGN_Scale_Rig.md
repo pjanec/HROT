@@ -320,8 +320,17 @@ the FIGHT run (two sides in contact) that exercises the sight test, fire and sou
 | fire and sound traces | 32–44 a frame, 1.5–3.5 µs | ✅ negligible |
 | ⛔ `DoorStates.Of` on CGF | 2.5 ms, rebuilt on the main thread each frame | 2.0 ms |
 
-⏭ **Next, by measured size:** the EQS tactical queries' path costs (`PathCosts`' circle search is not bounded; the EQS solver makes 4.4 MB
-of garbage a frame in the fight), the CGF door table across frames (hold it while nothing of the doors changed), and the worst A* (266 ms).
+**Then the path costs on our own Dijkstra** (Nav v2 §15 — reused per-thread arrays, stopping at its goals; DotRecast's node pool allocated
+88 B per polygon on every query):
+
+| the same fight | before | after |
+|---|---|---|
+| `nav.PathCosts` (the EQS path-cost batch) | 1.9 ms avg, 96 ms worst, **178 KB / frame** garbage, ≈ 800 polygons | **168 µs**, 8.8 ms, **0 B**, ≈ 215 polygons |
+| `EqsSolverSystem` per run | 198 ms, 4.8 MB | 111 ms, 93 KB |
+| EQS solves per SimHost frame | 14 | 27 |
+
+⏭ **Next, by measured size:** the A* still uses DotRecast's pool (27 KB / frame; worst 203 ms — `CircleSearch`'s machinery with a
+heuristic would serve it too), `CheapLineOfSightTest` (407 µs a batch) and `ThreatExposureTest` (346 µs), the CGF door table across frames.
 
 ### 6.4 ⭐ What this VM can and cannot tell — and when a PHYSICAL machine is needed *(user, `2026-11-10`: "today's machines have 16+ cores … let me know when this is necessary")*
 

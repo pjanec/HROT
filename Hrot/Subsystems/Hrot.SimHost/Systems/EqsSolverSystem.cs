@@ -185,10 +185,11 @@ namespace Hrot.SimHost.Systems
                 : new SensorEvalState { Phase = EqsEvalPhase.Idle, CurrentEpoch = sensor.Epoch };
 
             long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — one sensor's whole solve
+            long b0 = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
             _templateSlot = -1;
             int cost = EvaluateSensor(entity, ref evalState, out bool keyed);
-            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sensor, t0);
-            if (_templateSlot >= 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(_templateSlot, t0);   // a ranked template's solve, by template
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sensor, t0, b0);
+            if (_templateSlot >= 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(_templateSlot, t0, b0);   // a ranked template's solve, by template
             if (!keyed) return 0;   // not solvable here (no wire key): no state, no cost
 
             evalState.LastSolvedTick = _currentTick;
@@ -310,8 +311,9 @@ namespace Hrot.SimHost.Systems
             var templateGen = template.Generator;
             _templateSlot = Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.template", template.BlueprintId, templateGen);   // ⭐ CE-3427 — RunSensor closes it
             long tg = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            long bg = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
             int count = template.Generator.Generate(entity, ref Unsafe.AsRef(in sensor), repo, candidates);
-            Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.gen", templateGen.GetType()), tg);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.gen", templateGen.GetType()), tg, bg);
             if (count < 0)
             {
                 // Not evaluable yet (IEqsGenerator contract): publish NOTHING, so the reader keeps
@@ -344,8 +346,9 @@ namespace Hrot.SimHost.Systems
                 foreach (var test in template.ScoreCheap)
                 {
                     long tt = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+                    long bt = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
-                    Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt);
+                    Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt, bt);
                     cost += EqsCost.Charged(test, activeCandidates.Length);   // ⭐ CE-3279 (c) — after the batch
                 }
 
@@ -359,8 +362,9 @@ namespace Hrot.SimHost.Systems
                 foreach (var test in template.ScoreExpensive)
                 {
                     long tt = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+                    long bt = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
-                    Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt);
+                    Fdp.Toolkit.Diagnostics.QueryTimings.End(Fdp.Toolkit.Diagnostics.QueryTimings.SlotFor("eqs.test", test.GetType()), tt, bt);
                     cost += EqsCost.Charged(test, activeCandidates.Length);   // ⭐ CE-3279 (c) — after the batch
                 }
 

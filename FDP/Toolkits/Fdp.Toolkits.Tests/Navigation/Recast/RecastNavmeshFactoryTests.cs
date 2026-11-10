@@ -823,6 +823,36 @@ public sealed class RecastNavmeshFactoryTests
         return len;
     }
 
+    /// <summary>
+    /// ⭐ CE-3427 — the one-search path costs allocate NOTHING once warm (DotRecast's own circle search allocated 88 B per polygon on every
+    /// query — ≈ 178 KB a frame of SimHost garbage in the scale-1 fight), and the search stops once every goal is settled.
+    /// </summary>
+    [Fact]
+    public void CE3427_PathCosts_AllocateNothingWhenWarm_AndStopAtTheirGoals()
+    {
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town");
+        var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")), "test-town",
+            TerrainAssets.ForFolder(folder));
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        const uint Inf = (uint)NavLayerMask.Infantry;
+        var c = (world.BoundsMin + world.BoundsMax) * 0.5f;
+        Assert.True(nav.ProjectToNavmesh(new Vector3(c.X, c.Y, 0f), out var from, Inf));
+        var to = new Vector3[16];
+        for (int i = 0; i < to.Length; i++)
+        {
+            float a = i * MathF.Tau / to.Length;
+            nav.ProjectToNavmesh(new Vector3(from.X + MathF.Cos(a) * 20f, from.Y + MathF.Sin(a) * 20f, 0f), out to[i], Inf);
+        }
+        var costs = new float[to.Length];
+        int near = nav.PathCosts(from, to, costs, 60f, Inf, null);           // warm (the per-thread scratch)
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int k = 0; k < 20; k++) nav.PathCosts(from, to, costs, 60f, Inf, null);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+
+        int far = nav.PathCosts(from, to, costs, 400f, Inf, null);           // the same goals, a far bigger reach
+        Assert.True(far <= near * 2 + 16, $"the search stops at its goals: {near} polygons at 60 m, {far} at 400 m");
+    }
+
     [Fact]
     public void CE3279_PathCosts_FromOneSearch_AgreeWithAPathPerPoint_OnTestTown()
     {
