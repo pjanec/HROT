@@ -230,3 +230,11 @@ Rails: `TheRoadLayerFitsTheMapBufferTests.TheRoads_FollowTheMapsView_SimplifiedF
 ⚠ Open (to check, not assumed): the 3-D view of real-1 shows more road-like grooves in the height field than asphalt — whether the other simulator's set has
 roads the SUMO net does not.
 
+## 8. The 2-D terrain plan: far out a building is its fill (`2026-11-10`, ui, CE-4389)
+
+📐 Measured (scale-1 + 1 000 men, paused, 2-D, the whole terrain ≈ 2.5 m/px): `TerrainLayer2D` drew **61 492 strokes, all of them buildings' walls and slabs —
+14.7 ms**, plus 2.7 ms to cull; at 600 m across, 835 strokes and 0.5 ms. ⭐ The same scale rule as D-3, applied to the terrain plan rather than a gizmo: coarser
+than `TerrainLayer2D.BuildingStrokesMaxMetresPerPixel` (1 m/px) the cull skips every stroke with a building (`Plan.StrokeBuilding`); the fills draw the
+buildings. Owned by [Terrain World §10a](DESIGN_Terrain_World.md) row 2D-5. 🔒 User: *"Whatever is better for the performance"* — rejected: one outline per
+building (≈ 8 000 strokes, still ~2 ms, and a new per-building outline to build).
+

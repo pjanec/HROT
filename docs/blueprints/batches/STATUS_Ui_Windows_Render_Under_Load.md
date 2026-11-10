@@ -65,6 +65,15 @@ separates it. ⭐ The networked viewer is R-4's Player.
 
 Empty-terrain baseline (L-3): [Map 3D §6ah "Measured on Windows"](../../DESIGN_Map_3D_Mode.md).
 
+## R-3 — the 2-D map under load (CE-4389), scale-1 + 1 000 men, preview, PAUSED, Release, hidden
+
+| view | before | after (far out a building is its fill — Terrain World §10a 2D-5) |
+|---|---|---|
+| whole terrain (≈ 2.5 m/px) | frame **46.7 ms** · world draw 21.3 · `Terrain (2-D)` **17.5** (strokes 14.7 + cull 2.7; **61 492 strokes, all buildings'**) | frame **30.6 ms** · world draw **4.9** · `Terrain (2-D)` **0.6** (0 strokes) |
+| 600 m across | frame 23.4 ms · `Terrain (2-D)` 0.5 (835 strokes) | 24.0 ms · 0.6 — unchanged (closer than 1 m/px) |
+
+⭐ What is left of the 2-D frame at the whole zoom: update 19 ms (`StatelessGizmoSystem` 8.2 ms, styling 1.8 ms + 290 KB) · UI 6 ms · Debug Gizmos 3.7 ms.
+
 ## R-4 — the Player on real-1 under load (CE-4390) — ⏳ PARTIAL
 
 `--mode server --headless` (no console window) + `--mode player` HIDDEN, the rig scenario (1 000 men, 50 vehicles, 10 aircraft) on real-1 loaded live in **24 s**.
