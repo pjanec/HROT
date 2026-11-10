@@ -146,7 +146,9 @@ namespace Fdp.Toolkit.Vis2D
             {
                 if (!IsLayerVisible(layer) || (sceneOnly && layer is not ISceneLayer)) continue;
                 if (Camera.Is3D && !layer.Has3D) continue;
+                long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — HROT_FRAME_STATS: each map layer's time + garbage (no-op when off)
                 layer.DrawOverlay(ctx);
+                Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
             }
         }
 
@@ -168,7 +170,12 @@ namespace Fdp.Toolkit.Vis2D
             Camera.BeginMode();
             var ctx = NewContext(sceneOnly, targetSize);
             foreach (var layer in _layers)
-                if (IsLayerVisible(layer) && (!sceneOnly || layer is ISceneLayer)) layer.Draw(ctx);
+                if (IsLayerVisible(layer) && (!sceneOnly || layer is ISceneLayer))
+                {
+                    long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — per map layer, under HROT_FRAME_STATS
+                    layer.Draw(ctx);
+                    Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
+                }
             Camera.EndMode();
             return ctx;
         }
@@ -183,7 +190,13 @@ namespace Fdp.Toolkit.Vis2D
             {
                 if (!IsLayerVisible(layer)) continue;
                 if (sceneOnly && layer is not ISceneLayer) continue;
-                if (layer.Has3D) layer.Draw3D(ctx); else without++;
+                if (layer.Has3D)
+                {
+                    long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — per map layer, under HROT_FRAME_STATS
+                    layer.Draw3D(ctx);
+                    Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
+                }
+                else without++;
             }
             if (!sceneOnly) LayersWithout3D = without;
             Camera.EndMode();

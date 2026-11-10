@@ -182,6 +182,55 @@ public sealed class Map3DFrameRail
         Assert.Equal(2, bodies.BodiesDrawn);
     }
 
+    /// <summary>⭐ CE-4388 (render under load, R-2) — a body outside the view is not posed or drawn: one soldier in front of the camera, one 100 m BEHIND the eye
+    /// ⇒ one drawn, one culled. 📐 Measured on Windows, 2026-11-10: every body was drawn each frame in view or not (31 ms at 1 000 men). 🔴 Red-proof (compiles):
+    /// <c>cull</c> forced false in <c>EntityBodyLayer3D.Draw3D</c> ⇒ two drawn, none culled.</summary>
+    [SkippableFact]
+    public void CE4388_ABodyBehindTheCamera_IsNotDrawn()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        Entity Soldier(float x, float y)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, query.GroundHeightAt(x, y)), Rotation = Quaternion.Identity });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(UrbanCombatTkbCatalog.TkbInfantrySoldier) });
+            return e;
+        }
+        Soldier(spot.X, spot.Y);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var terrainLayer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        canvas.AddLayer(terrainLayer);
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true);
+        frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrainLayer.TriangleCount > 1000);
+        for (int i = 0; i < 40 && sw.IsSwitching; i++) { sw.Camera3D.Update(1f / 30f); frame.Step(canvas.Draw); }
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y) + 1.0f), 6f, MathF.PI * 0.80f, -0.15f);
+        frame.Step(canvas.Draw);
+        var behind = sw.Camera3D.Eye - (sw.Camera3D.Forward * 100f);   // 100 m behind the eye, along its line of sight
+        Soldier(behind.X, behind.Y);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        Assert.Equal(1, bodies.BodiesDrawn);
+        Assert.Equal(1, bodies.BodiesCulled);
+    }
+
     [SkippableFact]
     public void S1_TestTown_In3D_DrawsTheTerrainAndEveryKit_OnThisGL()
     {
