@@ -70,6 +70,65 @@ public sealed class TheRoadLayerFitsTheMapBufferTests
         Assert.False(none.DrawsLights);
     }
 
+    // ── ⭐ CE-4388 — the roads follow the map's view (docs/DESIGN_Map_View_Filter.md §7) ───────────────────────────────────────
+
+    private sealed class FakeView : IGizmoViewFilter
+    {
+        public bool Active { get; set; } = true;
+        public bool Is3D { get; set; }
+        public float MetresPerPixel { get; set; }
+        public System.Numerics.Vector2 Min, Max;
+        public bool InView(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity entity) => true;
+        public bool Overlaps(System.Numerics.Vector2 min, System.Numerics.Vector2 max)
+            => !Active || Is3D || (max.X >= Min.X && min.X <= Max.X && max.Y >= Min.Y && min.Y <= Max.Y);
+    }
+
+    private static (DebugPrimitiveBuffer Buffer, int Lines) DrawWith(EntityRepository world, FakeView view)
+    {
+        var buffer = new DebugPrimitiveBuffer(16384);
+        GizmoViews.Register(buffer, view);
+        new TrafficRoadGizmo().Draw(world, buffer);
+        return (buffer, buffer.GetFrame().ToArray().Count(p => p.Shape == DebugPrimitiveShape.Line));
+    }
+
+    /// <summary>⭐ CE-4388 — with the map's view: at a coarse scale the edge centrelines simplified to about two pixels; close in only the lanes that
+    /// overlap the view; in 3-D nothing (a 2-D-only layer). 📐 Measured on real-1: a net over the budget drew NO road in 2-D before. 🔴 Red-proof
+    /// (compiles): ignore the view (the <c>viewed</c> branch off) ⇒ the close-in frame draws every lane.</summary>
+    [Fact]
+    public void TheRoads_FollowTheMapsView_SimplifiedFarOut_OnlyInViewCloseIn_NoneIn3D()
+    {
+        using var world = LoadedWorld();
+        var plan = TrafficNetCache.Of(world)!.Roads.Plan;
+        Assert.True(plan.HasPolylines, "the scene's plan carries the polylines");
+        var all = new FakeView { MetresPerPixel = 2.5f, Min = new(-1e6f), Max = new(1e6f) };
+
+        var (_, far) = DrawWith(world, all);
+        Assert.Equal(Math.Min(TrafficRoadPlan.Budget, plan.EdgeLevelFor(TrafficRoadGizmo.TolerancePixels * 2.5f).Segments), far);
+        Assert.True(far > 0 && far < plan.LanePolylines.Segments, $"far out: {far} simplified edge segments (lanes {plan.LanePolylines.Segments})");
+
+        var first = plan.LanePolylines.Lines[0];
+        var close = new FakeView { MetresPerPixel = 0.1f, Min = first.Min - new System.Numerics.Vector2(5f), Max = first.Min + new System.Numerics.Vector2(5f) };
+        var (_, near) = DrawWith(world, close);
+        Assert.True(near > 0, "close in, the lanes in view are drawn");
+        Assert.True(near < plan.LanePolylines.Segments, $"close in only the lanes in view: {near} of {plan.LanePolylines.Segments}");
+
+        var (buffer3D, in3D) = DrawWith(world, new FakeView { Is3D = true, MetresPerPixel = 0.3f });
+        Assert.Equal(0, in3D);
+        Assert.Equal(0, buffer3D.GetFrame().Length);
+    }
+
+    /// <summary>⭐ CE-4388 — a plan over the whole-net budget (the earlier "nothing") still keeps every road's polylines, so the view draws them.</summary>
+    [Fact]
+    public void APlanOverTheBudget_StillDrawsTheRoadsInView()
+    {
+        var net = TrafficRoadSceneTests.Load();
+        var none = TrafficRoadPlan.For(net.Model, net.Placement, net.Roads.Signals.Count, budget: 1);
+        Assert.Equal(TrafficPlanDetail.None, none.Detail);
+        Assert.True(none.HasPolylines);
+        Assert.True(none.EdgeLevelFor(5f).Segments > 0);
+        Assert.True(none.EdgeLevelFor(5f).Segments <= none.EdgeLevelFor(0f).Segments);
+    }
+
     private static EntityRepository LoadedWorld()
     {
         var world = new EntityRepository();

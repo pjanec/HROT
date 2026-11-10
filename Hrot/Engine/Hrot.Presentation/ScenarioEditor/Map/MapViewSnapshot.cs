@@ -63,6 +63,15 @@ namespace Hrot.ScenarioEditor.Map
             Active = false;
         }
 
+        public bool Is3D => Active && _is3D;
+
+        /// <summary>⭐ CE-4388 — a ground box overlaps the 2-D view (with the margin); true in 3-D (a conservative answer) and when not active.</summary>
+        public bool Overlaps(Vector2 min, Vector2 max)
+        {
+            if (!Active || _is3D) return true;
+            return max.X >= _min.X && min.X <= _max.X && max.Y >= _min.Y && min.Y <= _max.Y;
+        }
+
         /// <summary>Back to "everything in view".</summary>
         public void Clear() => Active = false;
 

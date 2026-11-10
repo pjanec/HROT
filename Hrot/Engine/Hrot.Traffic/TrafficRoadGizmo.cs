@@ -41,6 +41,15 @@ public sealed class TrafficRoadGizmo : IGlobalStatelessGizmo
     private static readonly Rgba32 Yellow = new(240, 200, 40, 255);
     private static readonly Rgba32 Green  = new(40, 200, 70, 255);
 
+    /// <summary>⭐ CE-4388 — the map scale up to which the LANES are drawn (and the light dots); coarser, the edge centrelines (m per pixel).</summary>
+    public const float LanesMaxMetresPerPixel = 0.5f;
+
+    /// <summary>⭐ CE-4388 — the edge centrelines' simplification, in screen pixels (converted at the map's scale).</summary>
+    public const float TolerancePixels = 2f;
+
+    /// <summary>⭐ CE-4388 — the road segments the last draw emitted (a rail; telemetry).</summary>
+    public int LastLinesDrawn { get; private set; }
+
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
         if (view is not EntityRepository world) return;
@@ -48,16 +57,46 @@ public sealed class TrafficRoadGizmo : IGlobalStatelessGizmo
         var net = TrafficNetCache.Of(world);
         if (net is null) return;
 
-        // ⭐ The symbol (TrafficRoadPlan), never the meshes: centrelines at the detail the plan chose for this net's size.
+        // ⭐ The symbol (TrafficRoadPlan), never the meshes.
         var plan = net.Roads.Plan;
-        foreach (var l in plan.Lines)
-            draw.DrawLine(new Vector3(l.A, 0f), new Vector3(l.B, 0f), Centreline, CentrelinePx, SizeMode.ScreenPixels, Target, RoadLayer);
+        // ⭐ CE-4388 (docs/DESIGN_Map_View_Filter.md §7) — with the map's view: the roads IN VIEW, as lanes close in, else the edge centrelines simplified to
+        //   about two pixels — every road at every zoom, within the budget (⛔ SUPERSEDED: the whole net or nothing — a net over the budget, real-1's 1 480
+        //   roads, drew NO road in 2-D). Without a view (a headless host, a rail) the plan's whole-net detail, as before.
+        var mapView = Fdp.Toolkit.Diagnostics.Gizmos.GizmoViews.Of(draw);
+        bool viewed = mapView is { Active: true } && plan.HasPolylines;
+        if (viewed && mapView!.Is3D) return;   // a 2-D-only layer: nothing to emit while the map shows 3-D
+        bool lights;
+        if (viewed)
+        {
+            float mpp = mapView!.MetresPerPixel;
+            bool close = mpp > 0f && mpp <= LanesMaxMetresPerPixel;
+            var set = close ? plan.LanePolylines : plan.EdgeLevelFor(TolerancePixels * mpp);
+            int used = 0;
+            var pts = set.Points;
+            foreach (var pl in set.Lines)
+            {
+                if (!mapView.Overlaps(pl.Min, pl.Max)) continue;
+                for (int k = 1; k < pl.Count && used < TrafficRoadPlan.Budget; k++, used++)
+                    draw.DrawLine(new Vector3(pts[pl.Start + k - 1], 0f), new Vector3(pts[pl.Start + k], 0f), Centreline, CentrelinePx, SizeMode.ScreenPixels, Target, RoadLayer);
+                if (used >= TrafficRoadPlan.Budget) break;
+            }
+            LastLinesDrawn = used;
+            lights = close;
+        }
+        else
+        {
+            foreach (var l in plan.Lines)
+                draw.DrawLine(new Vector3(l.A, 0f), new Vector3(l.B, 0f), Centreline, CentrelinePx, SizeMode.ScreenPixels, Target, RoadLayer);
+            LastLinesDrawn = plan.Lines.Count;
+            lights = plan.DrawsLights;
+        }
 
         var frame = TrafficFrame.Of(world);
         if (frame is null) return;
-        if (plan.DrawsLights)
+        if (lights)
             foreach (var s in net.Roads.Signals)
             {
+                if (viewed && !mapView!.Overlaps(new Vector2(s.Head.X, s.Head.Y), new Vector2(s.Head.X, s.Head.Y))) continue;
                 if (!frame.Lights.TryGetValue(s.LaneHandle, out var signal)) continue;
                 var colour = TrafficFrame.LampOf(signal) switch { 2 => Green, 1 => Yellow, 0 => Red, _ => default };
                 if (colour.A == 0) continue;

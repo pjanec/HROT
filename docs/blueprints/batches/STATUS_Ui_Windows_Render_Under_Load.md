@@ -77,6 +77,12 @@ Empty-terrain baseline (L-3): [Map 3D §6ah "Measured on Windows"](../../DESIGN_
 
 ⇒ in the player the gizmo pipeline is nearly the whole cost — the view filter's target. ⛔ First person needs the station switch drivable over HTTP first.
 
+## For the destruction session (another machine) — two of its tests red in the FULL hidden suite
+
+📐 Measured `2026-11-10` on clean `origin/ui` @ `9f5d30820` (a worktree, full `Hrot.Presentation.Tests`, hidden): 26 failed / 2 020 passed —
+`TheBuildingDamagePlanTests.TheProductionMap_DrawsTheBreachAndTheRubble_OnADisplayNode` (*InRange 108–148, actual 6*; ⚠ green ALONE — order-dependent) and
+`TheTerrainChunksLookTests.DemoCity_BeforeAndAfter_NearTheCameraTheSamePicture` (*"98,0 % the same"*). Neither touched by this batch's uncommitted work.
+
 ## Findings
 - ⛔ **the player's `GET /diagnostics/render` is STALE** — the same 909.57 ms, mode 2D, 0 triangles on every read: the player's map does not feed `RenderTelemetry` (the editor's `MapStatsOverlay` does). → to file.
 - ⚠ the fused server answers `POST /sim/play` with 501 and its `/status` carries no `simTime` — the run could not confirm the sim advancing from the server. → to check.

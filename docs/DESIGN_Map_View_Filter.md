@@ -211,3 +211,22 @@ Rail `Map3DFrameRail.CE4388_TheCachedWireSphere_DrawsWhatDrawSphereWiresDrew_And
 (red-proved: a different ring count ⇒ thousands of pixels differ). ⚠ Found by the full suite: the cached mesh lives in ONE GL context — a rail session after another (Windows: a window each) drew nothing with the old mesh ⇒ it is rebuilt when the window handle changes. ⏳ Left: ≈ 27 µs per sphere — the fill still pushed vertex by vertex and one batch flush per
 sphere; drawing every fill, then every wire, is the next step if the spheres matter again.
 
+## 7. The SUMO roads in 2-D follow the view (`2026-11-10`, ui — the user: *"do all three"*)
+
+📐 Measured on `real-1` (the set imported from the other simulator): the SUMO net IS imported (`real-1.net.xml`, 1 480 roads; the 3-D map draws them as
+asphalt — `TrafficLayer3D`), but the 2-D map drew **none**: the road plan's whole-net budget (2 048 lines; AQ93 R-4058) fell to "nothing" at 5 576 edge
+segments. Simplified (Douglas-Peucker) the edges are 2 290 segments at 2.5 m, **1 933 at 5 m** (≈ 2 px at the whole-terrain zoom), 1 734 at 10 m.
+
+| piece | as built |
+|---|---|
+| `GizmoViews` (Fdp.Toolkits) | the ONE per-builder lookup of the map's view, for gizmos in any assembly (the roads live in Hrot.Traffic); `MapInteractionPack.ViewOf` registers there |
+| `IGizmoViewFilter.Is3D` / `Overlaps(min, max)` | a 2-D-only layer skips the 3-D view; a road's ground box against the view |
+| `TrafficRoadPlan` | keeps `Lines` / `Detail` (the no-view path, unchanged) and adds `LanePolylines` + `EdgeLevels` at 0/1/2/4/8/16 m, flat arrays, built once |
+| `TrafficRoadGizmo` | with a view: lanes ≤ 0.5 m/px (and the light dots in view), else the edge level ≈ 2 px; only roads overlapping the view; ≤ the budget; nothing in 3-D. No allocation per frame |
+
+Rails: `TheRoadLayerFitsTheMapBufferTests.TheRoads_FollowTheMapsView_SimplifiedFarOut_OnlyInViewCloseIn_NoneIn3D` (red-proved: the view ignored),
+`APlanOverTheBudget_StillDrawsTheRoadsInView`; the suite's earlier rails unchanged (the no-view path). AQ93 §12.4 carries the supersession.
+
+⚠ Open (to check, not assumed): the 3-D view of real-1 shows more road-like grooves in the height field than asphalt — whether the other simulator's set has
+roads the SUMO net does not.
+

@@ -963,6 +963,15 @@ node's grant falls back to the Brain, which only mirrors, so its traffic stops u
 | ⚠ the map buffer is also PUBLISHED over DDS every frame by CGF, SimHost and IG (`DebugPrimitivesBatchPublisherSystem`, 64 B a primitive). ⭐ The publisher sends the primitives drawn, not the capacity — so the plan CUTS the road share of that traffic (it was capped at 4096 ≈ 256 KB a frame, the symbolic layer is ~1 000 ≈ 64 KB). ⛔ Not gated here: 🔒 the publish capability stays, gating is optional (`DESIGN_Uniform_Gizmo_Membership.md` §8.5b / §8.7) | — | — |
 
 
+
+⭐ **`2026-11-10` (ui, CE-4388) — R-4058's "whole net or nothing" by budget is SUPERSEDED for a host with a map view.** 📐 Measured: real-1's net (1 480
+roads, 5 576 edge segments) is over the 2 048 budget ⇒ its 2-D map drew **no road at all**. 🔒 User, `2026-11-10`, asked whether the imported roads were
+there, then: *"Okay, do all three"* (the second: draw the roads in view, simplified to the zoom). ⇒ the plan also keeps every road's polylines (lanes, and the
+edge centrelines simplified at 1–16 m, once per net); the map draws **lanes close in (≤ 0.5 m/px), else the edge level ≈ 2 px at its scale, only the roads
+overlapping the view, capped at the budget, nothing in 3-D** — every road at every zoom (real-1 whole: 1 933 segments at 5 m). A host with no map view
+(headless, a rail) keeps the whole-net plan. The symbol, the 2-D-only rule and the budget stand. Design: [DESIGN_Map_View_Filter.md](../DESIGN_Map_View_Filter.md) §7.
+⛔ HISTORY: *"lanes → one line per edge → nothing, by the budget"* — the rule for a map with no view.
+
 ### 12.5 Found running the slice 2 acceptance *(2026-10-17 — five processes, `accept_slice2.py`, demo-city from the IG port)*
 
 | ⭐ found | fixed | rail |
