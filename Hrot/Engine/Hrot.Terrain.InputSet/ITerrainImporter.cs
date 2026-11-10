@@ -21,3 +21,23 @@ public interface ITerrainImporter
     /// <summary>The scenarios that use the terrain <paramref name="terrainName"/> — listed when replacing it.</summary>
     IReadOnlyList<string> ScenariosUsing(string terrainName);
 }
+
+/// <summary>What a navmesh prefill did (UTM §12.1).</summary>
+/// <param name="Tiles">tiles (each layer counted) the bake visited</param>
+/// <param name="Baked">tiles baked (the rest came from an earlier prefill of identical inputs)</param>
+/// <param name="Files">files written under <c>navtiles/</c></param>
+/// <param name="Bytes">their size</param>
+public readonly record struct NavmeshPrefillReport(int Tiles, int Baked, int Files, long Bytes);
+
+/// <summary>
+/// ⭐ CE-4393 (docs/DESIGN_Terrain_Import_UTM.md §12.1 N-3) — bakes a WRITTEN terrain folder's whole navmesh into its <c>navtiles/</c>, through
+/// the same baker, settings and folder → world step a node's load uses (so the first load of the terrain bakes nothing). Implemented beside
+/// the baker (<c>Fdp.Toolkits.Navigation.Recast</c>); an importer front (a CLI, the editor's wizard) hands it to the importer — the importer
+/// library itself does not reference the navigation toolkit.
+/// </summary>
+public interface ITerrainNavmeshPrefill
+{
+    /// <param name="terrainFolder">a folder holding <c>terrain.json</c> and its world</param>
+    /// <param name="progress">0…1 as tiles finish (called from worker threads)</param>
+    NavmeshPrefillReport Bake(string terrainFolder, IProgress<double>? progress, CancellationToken cancellation);
+}

@@ -307,6 +307,7 @@ namespace Fdp.Toolkit.Terrain
             return new TerrainWorld
             {
                 Name = name,
+                SourceFolder = assets.Folder,   // ⭐ CE-4393 — the importer's navtiles live there
                 BoundsMin = bMin,
                 BoundsMax = bMax,
                 GroundZ = groundZ,

@@ -2,7 +2,7 @@
 state: LIVE
 build-state: §11 THE IMPORTER BUILT 2026-11-10 (CE-4368, as-built table §11.4) · DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
 updated: 2026-11-10 (§8.2 the destruction build design, S-0 of CE-4391 — B-1…B-11; B-10 supersedes §8.1's NavRebuildRequester / P3-c / P3-d by the P-7a obstacle bake — coordinator) · 2026-11-10 (§11.4 as built — CE-4368) · 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8.2 destructible buildings — THE BUILD DESIGN (CE-4391, READY-TO-BUILD; §8 decisions R-4188, §8.1 runtime with B-10's supersession) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
+current-answer: ⭐ §12 the importer's navmesh (CE-4393) and UtmTransform (CE-4394) — BUILT, as built §12.3 (backend) · ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8.2 destructible buildings — THE BUILD DESIGN (CE-4391, READY-TO-BUILD; §8 decisions R-4188, §8.1 runtime with B-10's supersession) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
 known-rot: §8.1's NavRebuildRequester and P3-c / P3-d are superseded by §8.2 B-10 (the existing P-7a obstacle bake does both); §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
@@ -16,7 +16,7 @@ related-designs:
   - blueprints/Architect_Question_71_Terrain_Zones_And_The_Asset_Build.md — R7: the per-node tile cache, keyed geographically; zones as fidelity windows
   - DESIGN_Terrain_Height.md — OWNS the terrain's height grid (TerrainHeightGrid, one .asc per terrain, CE-1034) this extends to a tiled store
   - DESIGN_Building_Interiors.md — OWNS the *.building.json template (walls, storeys, doors, windows) the importer GENERATES for each house
-  - DESIGN_Geo_Origin.md — OWNS the simulation's origin and IGeographicTransform (R-229); this adds a second, UTM implementation
+  - DESIGN_Geo_Origin.md — OWNS the simulation's origin and IGeographicTransform (R-229); this adds a second, UTM implementation and (§12.2) makes the one instance switchable
   - DESIGN_Terrain_Zones_And_Assets.md — OWNS what a terrain is (the content pack, TerrainCatalog) and zones as windows onto it (R-146)
   - DESIGN_Artifact_Staging.md — OWNS getting terrain files from the NAS to every node (a 100–200 MB terrain rides it)
   - blueprints/Architect_Question_93_Sumo_Traffic_Node.md — E1 (R-4025): the existing UTM ↔ WGS84 maths (Hrot.Traffic/Utm.cs) this reuses
@@ -76,7 +76,7 @@ template EXIST and are extended (tiled storage, generated templates); the grids 
 
 | part | the idea |
 |---|---|
-| frame | a terrain declares `utm {zone, hemisphere, e0, n0}`; local x = E − E0, y = N − N0 (grid north), z = height; existing terrains keep the tangent plane. ⭐ For this terrain **e0/n0 = the source engine's own origin (32N, 372 000 / 6 043 000)** so both engines' local positions are numerically identical (§5 Q-U2); convergence (−1.6…−1.7°) only at a true-north gateway |
+| frame | a terrain declares `utm {zone, hemisphere, e0, n0}`; local x = E − E0, y = N − N0 (grid north), z = height; existing terrains keep the tangent plane. ⭐ For this terrain **e0/n0 = the source engine's own origin (32N, 372 000 / 6 043 000)** so both engines' local positions are numerically identical (§5 Q-U2) — ⚠ CORRECTED by §12.3: the importer puts local (0, 0) at the input set's CORNER, so they differ by that offset; convergence (−1.6…−1.7°) only at a true-north gateway |
 | heights | the EXISTING `TerrainHeightGrid` gains a tiled binary store (e.g. 256 × 256 posts per tile, 16-bit + offset/scale), resampled from the input's float32 height raster at **1 m** (72 MB); loaded where heights are asked (Muscle, map hosts — ⛔ never the Brain, R-2037); the 3-D view renders it with LOD; the 2-D map gets a hillshade |
 | buildings | ✅ **ENTERABLE, OPEN FLOORS** (R-4186): the importer GENERATES a `*.building.json` per house (1 988): footprint → walls; each storey ONE empty floor slab + a stair `ramp` between storeys (the existing `TerrainWalkable` slab / ramp — Building Interiors `:71-97`); the ground floor at the door points' altitude, upper floors at their window points' altitude − a ≈ 0.9 m sill; door and window OPENINGS exactly at the source points (they sit where the visual engine draws the openings, so HROT's openings match); a flat roof; no partitions |
 | grids | the collider hash and the perception grid sized from the terrain's bounds, not constants |
@@ -1040,3 +1040,154 @@ sequenceDiagram
 **Measured, `full-1`** (synth full seed 1, 5.5 km, Release, this VM): import **18.1 s** — read + format checks (hashing 507 MB) 14.9, heights 2.0, roads 0.1, buildings 0.8, vegetation 0.2, write 0.1; output **140.7 MB** (126.9 MB the 1 m height store, 4.6 MB world, 8 MB of 1 686 templates, 4.1 MB net); **1 686 buildings enterable, 114 solid (no stair fits)**, 1 231 roof caps, 115 shared walls merged, 2 340 stairs; openings **68 396 placed, 204 dropped** (39 off wall, 165 overlapping a neighbour), 1 751 loose points ignored; woods 11 907 rectangles + 11 062 lone trees from the points. The terrain loader parses it in **2.2 s** (1 686 buildings, 229 750 prisms, 16 482 wall panels, 4 327 doors, 7 930 slabs / ramps, 11 907 surfaces). ⚠ the first load still bakes the navmesh (I-l) — not measured here.
 
 **Measured, `full-1` after CE-4379** (same set, Release): **1 752 enterable, 48 solid** (was 1 686 / 114 — solid share **6.3 % → 2.7 %**), 83 switch-back stairs, 2 572 ramps (was 2 340), 129 shared walls merged (was 115). ⚠ The 48 left are all 3–6-storey buildings (27 of them 5-storey) whose wells run out of wall, plus one 2-storey 14.9 × 11.5 m — not yet looked at. ⏭ **`real-1` (60 of 1 805 solid, 3.3 %) is NOT in this repo: re-run `hrot-terrain-import` on it and read the `buildings:` line.**
+
+## 12. ⭐ THE IMPORTER'S NAVMESH (CE-4393) AND THE UTM FRAME (CE-4394) — as designed *(backend, `2026-11-10`; frame: [HANDOFF](blueprints/batches/HANDOFF_Coordinator_To_Backend_Navmesh_Prefill_And_Utm.md), dispatched at `bedca0325`; build-state: BUILT — as built §12.3)*
+
+**INVENTORY** *(two explorer passes, `2026-11-10`; `scripts/cbm.sh search_graph name_pattern NavTileCache / Recast.*(Factory|Baker) / IGeographicTransform (Interface, 1) / .*Transform$ (Class, 22)` + `search_code` `HROT_NAVTILE_CACHE`, `Utm\.(ToGeodetic|FromGeodetic)` + grep `new WGS84Transform(`, `.SetOrigin(`, `RotationToHeadingDeg|HeadingDegToRotation`, `"frame"`; ⚠ `check_index_coverage` is not available through the CLI — the sets are not proven complete)*:
+
+| what | where | for this design |
+|---|---|---|
+| `NavTileCache` — memory (512 MB, cleared whole) + ONE disk folder (`HROT_NAVTILE_CACHE`, default `%LOCALAPPDATA%/Hrot/navtiles`), key `(layer, x, z, hash)`, `<layer>/<x>_<z>/<x>_<z>_<hash>.navtile`, empty tile = 0 bytes | `NavTileCache.cs:18-196` | ⚠ a disk HIT touches the file's time (`:153`) and a WRITE prunes its square (`:165-190`) — neither may happen to a staged terrain folder |
+| the key: SHA-256 of `BakeFormat`, layer, tile, cell / agent settings, the tile's triangles and the volumes within ±3 m — ⭐ no name, path or time | `RecastNavmeshBaker.HashTile :449-485` | a tile baked from the same folder ANYWHERE has the same key ⇒ a prefilled tile can only ever answer the right bytes |
+| the load bake: `TerrainResidency.Prepare` → `TerrainDefinitionParser` + `TerrainWorldParser.Parse(…, TerrainAssets.ForFolder(folder))` → `Indexed` (BEPU) → `INavmeshFactory.Build(world)`; `RecastNavmeshFactory.BakeMeshes` (`TerrainTileTriangles`, `NavDoorways.For` + `.Woods`, `FineAreas`) → `RecastNavmeshBaker.Bake` (`Parallel.For`, cache, `LastTileKeys`) | `TerrainResidency.cs:171-245`, `RecastNavmeshFactory.cs:97-143`, `RecastNavmeshBaker.cs:237-372` | the bake needs only the world; ⛔ a `TerrainWorld` does not know its folder |
+| CE-4391 S-3 damage: enters the KEY through geometry only (a derived world's prisms); `SwitchableNavmeshProvider` per-tile versions | `TerrainResidency.cs:504-518`, `StaticObstacleBake.cs:120-143` | a damaged tile's key differs ⇒ it bakes at runtime as today |
+| the importer: `TerrainImporter.Import` writes into `<target>.import-<guid>` then swaps; `ImportProgress(stage, fraction)` (the contract already names a `"navmesh"` stage), cancel between stages; library refs `Hrot.Terrain.InputSet` + `Fdp.Toolkits` only — ⛔ not the Recast baker | `TerrainImporter.cs:34-128`, `Hrot.Terrain.Import.csproj` | the bake must be INJECTED; the CLIs (`ImportCli.cs:53`, `OsmCli.cs:86`) and the editor wizard (`EditorSubsystem.cs:3652`, `OsmWizardModel.cs:322`) compose the importer |
+| `IGeographicTransform` (`SetOrigin`, `ToCartesian`, `ToGeodetic`, `Origin`), ONE production implementation `WGS84Transform` (immutable `State` swapped in one volatile write) | `IGeographicTransform.cs:8-22`, `WGS84Transform.cs` | the seam stays |
+| ONE instance per node: `HrotEnvironment.CreateGeoTransform()` → `NedNetworkFactory` → `HrotNodeBuilder.cs:258` (the world singleton, `GeographicModule`, `HrotNodeContext.GeoTransform`); ⭐ ~15 holders keep the reference (`NedNetworkFactory`, `GeographicModule` + its two systems, `EditorSubsystem`, `SimHostApp`, `DebugApiService`, `EntityOrders`, `CanvasMapPickAdapter`, …); a terrain load only calls `SetOrigin` (`TerrainResidency.ApplyGeoOrigin :561-575`) | `HrotNodeBuilder.cs:258-270` | ⛔ the IMPLEMENTATION cannot be swapped by replacing the object — every holder would keep the old one |
+| ⚠ `PlayerApplication._geoTransform` is typed `WGS84Transform?` (`= _context.GeoTransform as WGS84Transform`, `:922`) | `PlayerApplication.cs:323, 922, 1703` | any other implementation ⇒ null ⇒ ghosts at the origin — must go through the interface |
+| `frame.utm {zone, hemisphere, e0, n0}` written | `TerrainFolderWriter.cs:94-107` | ⛔ read by nothing (`TerrainDefinitionParser` reads `origin` only) |
+| `Utm`: `ToGeodetic`, `FromGeodetic`, `CentralMeridianDeg`, `TryParseProj` (Snyder, k0 0.9996) | `Fdp.Toolkits/Geographic/Transforms/Utm.cs` | ⛔ no convergence |
+| HEADINGS: ⭐ none goes through the transform; one compass convention, `WorldRotation` (local +Y = north); the NED wire carries local quaternions (no Euler, no DIS code in the repo); the geodetic gateways are the debug API's `geo-to-local` / `local-to-geo` (`DebugApiService ~:2570-2606`) and the Player's ghost (`PlayerApplication.cs:1703-1711`) | `WorldRotation.cs:22-30` | convergence belongs at those GATEWAYS only; the SUMO bridge carries its own private UTM (`SumoNetPlacement.cs:48-68`) |
+
+### 12.1 N — the navmesh baked at import
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainImporter { <<existing, grows>> +NavmeshPrefill : ITerrainNavmeshPrefill? · a "navmesh" stage into the temp folder before the swap }
+  class ITerrainNavmeshPrefill { <<NEW, Hrot.Terrain.InputSet>> +Bake(terrainFolder, IProgress, ct) PrefillReport }
+  class NavmeshPrefill { <<NEW, Recast>> ITerrainNavmeshPrefill · reads the folder through TerrainFolderWorld · bakes through RecastNavmeshFactory into folder/navtiles }
+  class TerrainFolderWorld { <<NEW, Fdp.Toolkits Terrain>> +Read(definitionPath, name) (TerrainDefinition, TerrainWorld?) — the ONE folder → world step }
+  class TerrainResidency { <<existing>> Prepare reads through TerrainFolderWorld }
+  class RecastNavmeshFactory { <<existing, grows>> +Progress · +Cancel · seeds the baker from world.SourceFolder/navtiles }
+  class RecastNavmeshBaker { <<existing, grows>> +Seed : NavTileSeed? · progress per tile · cancel }
+  class NavTileCache { <<existing, grows>> TryGet: memory → SEED (read-only) → own folder · +ForPrefill(folder) (no memory, no prune, no touch) }
+  class NavTileSeed { <<NEW>> read-only folder: no touch, no write, no prune }
+  class TerrainWorld { <<existing, grows>> +SourceFolder (from TerrainAssets.Folder) }
+  TerrainImporter --> ITerrainNavmeshPrefill
+  NavmeshPrefill ..|> ITerrainNavmeshPrefill
+  NavmeshPrefill --> TerrainFolderWorld
+  TerrainResidency --> TerrainFolderWorld
+  NavmeshPrefill --> RecastNavmeshFactory : TileCache = ForPrefill(tmp/navtiles)
+  TerrainResidency --> RecastNavmeshFactory : INavmeshFactory.Build(world)
+  RecastNavmeshFactory --> RecastNavmeshBaker
+  RecastNavmeshBaker --> NavTileCache
+  NavTileCache --> NavTileSeed
+```
+*What it shows that prose hid: the import and the load reach the baker through the SAME two steps (`TerrainFolderWorld.Read` → `RecastNavmeshFactory.Build`), so the keys agree by construction; the only new path is WHERE the bytes are written (the terrain folder) and read (a read-only seed layer).*
+
+```mermaid
+sequenceDiagram
+  participant I as TerrainImporter
+  participant P as NavmeshPrefill
+  participant F as RecastNavmeshFactory / Baker
+  participant D as tmp/navtiles
+  participant R as TerrainResidency (a node, later)
+  participant C as NavTileCache
+  I->>I: heights, buildings, vegetation, world + terrain.json into tmp
+  I->>P: Bake(tmp, progress "navmesh", ct)
+  P->>P: TerrainFolderWorld.Read(tmp/terrain.json)
+  P->>F: Build(world) — TileCache = ForPrefill(tmp/navtiles)
+  F->>D: every tile Put (bytes or empty), Parallel.For, progress, cancel
+  I->>I: swap tmp → assets/terrain/name (navtiles rides it, staging carries the folder to every node)
+  R->>R: TerrainFolderWorld.Read → Indexed → factory.Build(world)
+  R->>C: TryGet(key) — memory → SEED <folder>/navtiles → own folder
+  C-->>R: a hit for every tile: 0 baked
+```
+*What it shows: the prefilled tiles are written before the swap, so a cancelled or failed import leaves no half-baked `navtiles/`.*
+
+| # | decision | ⭐ lean (as framed, refined) | rejected — one line |
+|---|---|---|---|
+| N-1 | where the tiles live | ⭐ `<terrain>/navtiles/` (the cache's own layout); `NavTileCache.TryGet`: memory → the world's SEED folder → its own folder. A seed hit is remembered in memory, ⛔ never copied to the own folder, never touched, never pruned | copy the seed into the per-machine folder on first use: doubles the disk and staging is already the distribution |
+| N-1a | how a load finds the seed | ⭐ `TerrainAssets.Folder` (set by `ForFolder`) → `TerrainWorld.SourceFolder` (the parser copies it; a derived world — obstacles, damage — keeps it) → `RecastNavmeshFactory` gives the baker `Seed = <SourceFolder>/navtiles` when it exists | a process-wide seed list: a world would read another terrain's folder (harmless — content keys — but untidy and unbounded) |
+| N-2 | the same bake | ⭐ ONE folder → world step, `TerrainFolderWorld.Read`, used by `TerrainResidency.Prepare` AND the prefill; the prefill bakes through `RecastNavmeshFactory` (both layers, doorways, woods, fine areas), with `TileCache = NavTileCache.ForPrefill(folder)` (no memory layer, no prune) | the importer calling the baker with its own inputs: two paths drift and every key misses |
+| N-2a | the BEPU index | not needed for the bake (`TerrainTileTriangles` reads the world's geometry); `Indexed` stays the residency's | — |
+| N-3 | fronts | ⭐ `TerrainImporter.NavmeshPrefill` (null ⇒ no stage — the library keeps its references); `hrot-terrain-import`, `hrot-terrain-osm --import` and the editor wizard set it; `--no-navmesh` leaves it null; progress as `ImportProgress("navmesh", fraction)`, cancel through the token (between tiles) | the importer library referencing Recast: it would pull the navigation toolkit into every importer test |
+| N-4 | size | measured and reported in §12.3 (as built) | — |
+
+⚠ **Fences kept:** a damaged tile's key differs (S-3) ⇒ a seed miss ⇒ baked at runtime, into the per-machine folder as today. A stale `navtiles/` (an older `BakeFormat`, other settings, other geometry) has other keys ⇒ a miss, never a wrong tile — a rail proves it with a moved building.
+
+### 12.2 U — `UtmTransform`, the exact UTM frame
+
+```mermaid
+classDiagram
+  direction LR
+  class IGeographicTransform { <<existing seam>> SetOrigin · ToCartesian · ToGeodetic · Origin · +GridConvergenceDeg(local) default 0 NEW }
+  class WGS84Transform { <<existing>> tangent plane — unchanged }
+  class UtmTransform { <<NEW>> local = (E − e0, N − n0, h) · zone, south · convergence γ }
+  class Utm { <<existing>> ToGeodetic · FromGeodetic · +ConvergenceDeg NEW }
+  class SwitchableGeoTransform { <<NEW — THE one instance per node>> volatile inner · +UseTangentPlane(origin) · +UseUtm(frame) }
+  class TerrainResidency { <<existing>> ApplyGeoOrigin → ApplyGeoFrame(definition) }
+  class TerrainDefinition { <<existing, grows>> +Utm : TerrainUtmFrame? (parsed from frame.utm) }
+  class HrotEnvironment { <<existing>> CreateGeoTransform() returns SwitchableGeoTransform }
+  IGeographicTransform <|.. WGS84Transform
+  IGeographicTransform <|.. UtmTransform
+  IGeographicTransform <|.. SwitchableGeoTransform
+  SwitchableGeoTransform --> WGS84Transform : inner (default)
+  SwitchableGeoTransform --> UtmTransform : inner (a frame.utm terrain)
+  UtmTransform --> Utm
+  TerrainResidency --> SwitchableGeoTransform : the world singleton
+  TerrainResidency --> TerrainDefinition
+  HrotEnvironment --> SwitchableGeoTransform
+```
+*What it shows that prose hid: the ~15 holders keep the ONE object they already hold; what changes at a terrain load is its INNER implementation — the `SwitchableNavmeshProvider` pattern this codebase already uses for the navmesh.*
+
+```mermaid
+sequenceDiagram
+  participant R as TerrainResidency (Commit / ApplyOriginAhead)
+  participant S as SwitchableGeoTransform (the world's singleton)
+  participant H as any holder (EntityOrders, the debug API, …)
+  R->>R: definition.Utm? (frame.utm parsed)
+  alt a UTM terrain
+    R->>S: UseUtm(zone, south, e0, n0)
+  else every other terrain
+    R->>S: UseTangentPlane(origin) — exactly today's SetOrigin
+  end
+  H->>S: ToGeodetic(local) / ToCartesian(lat, lon, alt)
+  S->>S: the inner, read once (volatile)
+```
+
+| # | decision | ⭐ lean | rejected — one line |
+|---|---|---|---|
+| U-1 | the transform | ⭐ `UtmTransform : IGeographicTransform` over `Utm`; `SetOrigin(lat, lon, alt)` re-anchors e0 / n0 at that point IN ITS ZONE (the interface's meaning kept) | a UTM mode inside `WGS84Transform` |
+| U-2 | the swap | ⭐ `SwitchableGeoTransform` — the one instance `CreateGeoTransform` returns; `TerrainResidency.ApplyGeoFrame` selects the inner from the terrain's definition (`frame.utm` ⇒ UTM, else the tangent plane at `origin`); a world whose singleton is not switchable (a test double) keeps today's `SetOrigin` | `SetSingletonManaged` a new object: the ~15 holders keep the old one |
+| U-2a | the Player's concrete cast | ⭐ `PlayerApplication._geoTransform` typed `IGeographicTransform` | — (a defect either way) |
+| U-3 | headings | ⭐ `IGeographicTransform.GridConvergenceDeg(local)` (default 0 ⇒ the tangent plane and every double unchanged); `UtmTransform` returns γ; applied ONLY at the geodetic gateways that speak a TRUE-north heading: the debug API's `geo-to-local` / `local-to-geo` heading, the Player ghost's DIS-style heading. ⛔ NOT in `WorldRotation`, the wire (local quaternions), attributes, macros, the compass: those are local (grid-north) by the one convention, and both engines share the grid (§5.2 Q-U10) | convergence in `WorldRotation`: every local heading in the engine would change meaning |
+| U-4 | zones | ⭐ any zone, both hemispheres (`Utm` takes zone + south); a box across a zone edge stays in its DECLARED zone (UTM is valid ~3° beyond its meridian band — the error stays ≪ 1 m at a few km) | re-projecting into the neighbour zone: the local frame would jump at the edge |
+| U-5 | the SUMO bridge's private UTM (`SumoNetPlacement`) | ⏭ NOT this batch: noted as a second UTM path to fold later (a tracker row) | — |
+
+**Rails:** `real-1`-shaped corners (zone 32N, e0 372 000, n0 6 043 000) → lat / lon equal `Utm.ToGeodetic` to < 0.1 m · local → geodetic → local < 1 mm · zone 33S (southern) and a box 2 km past a zone edge round-trip · γ against a reference value · a tangent-plane terrain: `ApplyGeoFrame` reads identically to today's `SetOrigin` (byte-for-byte on a grid of points) · the Player ghost through a `UtmTransform`.
+
+### 12.3 ✅ AS BUILT `2026-11-10` — N (CE-4393, `75080d0f1`, `9967c86d9`) and U (CE-4394, `c08674f77`)
+
+| §12.1 / §12.2 said | as built |
+|---|---|
+| N-3 "the importer library does not reference the navigation toolkit" | ⚠ DEVIATED: `Hrot.Terrain.Import` references `Fdp.Toolkits.Navigation.Recast` and holds the ONE adapter `NavmeshPrefill : ITerrainNavmeshPrefill` — the baker is in FDP and cannot implement a `Hrot.Terrain.InputSet` interface, and two adapters (one per front) would be a duplicate. `TerrainImporter.NavmeshPrefill` stays opt-in (null ⇒ no stage) |
+| `NavTileSeed` (a class) | ⭐ `NavTileCacheMode` on the one `NavTileCache`: `Seed` (read only: no memory, no touch, no write) and `Prefill` (written, no prune, no memory) — `ForSeed` / `ForPrefill`; `TryGet(key, seed, out data)` reads memory → seed → own folder |
+| N-1a the seed found from `TerrainWorld.SourceFolder` | ✅ as designed (`TerrainAssets.Folder` → the parser → the world; `StaticObstacles` keeps it on a derived world) |
+| N-2 one folder → world step | ✅ `TerrainFolderWorld.ReadDefinition` / `ReadWorld`, used by `TerrainResidency.Prepare`, `NavmeshPrefill` and `hrot-terrain-import --verify` |
+| N-3 fronts | ✅ `hrot-terrain-import` and `hrot-terrain-osm --import` (`--no-navmesh`; the import CLI prints the bake's progress every 10 %), the editor's OSM wizard; `ImportReport` gains the navmesh counts and its stage seconds |
+| U-1 local = (E − e0, N − n0) | ⚠ CORRECTED: an imported terrain's local (0, 0) is the input set's south-west CORNER — `TerrainDefinition.Utm` = (zone, hemisphere, **e0 + corner[0], n0 + corner[1]**). ⇒ HROT's local positions equal the source engine's MINUS the corner offset — ⛔ §2's "numerically identical" holds only when the corner is (0, 0) |
+| U-2, U-2a, U-3 | ✅ as designed: `SwitchableGeoTransform` (what `HrotEnvironment.CreateGeoTransform` returns), `TerrainResidency.ApplyGeoOrigin(…, utm)` selects the inner (a tangent-plane terrain reads byte-identically); `GridConvergenceDeg` applied at the debug API's `geo-to-local` / `local-to-geo` heading and the Player's geodetic ghost (only when γ ≠ 0, so the tangent plane's read-outs are unchanged); the Player holds the interface |
+| U-4 zones | 📐 sub-millimetre round trip inside a zone; ≈ 7 mm at 4.4° from the central meridian (1.4° past the zone edge) — the Snyder series' truncation; a terrain across an edge reaches ≈ 3–3.5° |
+| U-5 | filed: CE-3429 (SUMO's private UTM); and CE-3430 — the Replay Browser keeps its own concrete `WGS84Transform` and the recording's origin only (an AAR of a UTM terrain reads lat / lon on the tangent plane) |
+
+**📐 Measured** (`full-1`, synth full seed 1, 5.5 km, 1 686 buildings; Release, the 4-core cloud VM):
+
+| what | value |
+|---|---|
+| the prefill at import | ⭐ **289 s** of a 293 s import (without it 18 s) — the whole bake, both layers |
+| `navtiles/` | 106 260 tiles (each layer counted) = 106 260 files in 106 263 folders; **115.5 MB of data, 788 MB on disk** (4 KB blocks) ⇒ ⚠ a staging cost by FILE COUNT — CE-3428 |
+| the first load's navmesh (from `navtiles/`, `--verify`) | ⭐ **17.1 s, 0 tiles baked** (+ 1.4 s to parse the world) — inside R-4192's 30 s here; ⏳ `real-1`'s first open in the editor on Windows is the user's measurement |
+
+**Rails:** `NavmeshPrefillTests` (4: the first load bakes 0 tiles and reads the seed without touching or copying it; a stale seed is a miss where the geometry changed and the result's tile keys equal a seedless bake; a cancel during the bake leaves no folder; no prefill ⇒ no `navtiles/`) — red-proved (the baker ignoring the seed; the seed's files touched) · `UtmTransformTests` (7) · `TerrainLoadStepTests.CE4394_…` (red-proved: Commit not passing the frame).

@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) BUILT 2026-10-09 as designed
-updated: 2026-10-28
+updated: 2026-11-10 (related-designs: UTM §12.2 — the one instance becomes switchable, CE-4394)
 current-answer: §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
 known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcWorldPosTranslator` (a DDS translator listed as a geo-transform holder) was removed with the BDC stack.
 known-conflict: none
 related-designs:
-  - DESIGN_Terrain_Import_UTM.md — PRELIMINARY: a second IGeographicTransform (UTM) for imported UTM terrains
+  - DESIGN_Terrain_Import_UTM.md §12.2 — OWNS UtmTransform (the second IGeographicTransform, CE-4394) and SwitchableGeoTransform: the ONE instance per node whose INNER (tangent plane or UTM) a terrain load selects — TerrainResidency.ApplyGeoOrigin becomes ApplyGeoFrame
   - blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the NED wire frame and the retained GeoReference topic that publishes this file's origin (§4 ⑩); this file owns where the origin comes from
   - docs/DESIGN_Map_3D_Mode.md §6ac — the map cursor's latitude / longitude / altitude in the status bar (CE-1289) reads this file's transform from the world singleton; OWNS the readout, not the origin
   - docs/designs/weather/DESIGN_Weather_And_Time.md — the sun position reads this file's geographic transform (latitude / longitude of a point)

@@ -12,14 +12,14 @@ namespace Hrot.Tools.TerrainOsm;
 /// </summary>
 public static class OsmCli
 {
-    public const string Usage = "usage: hrot-terrain-osm --bbox south,west,north,east --name NAME [--out DIR] [--preview-only] [--osm-file FILE] [--dem-dir DIR] [--import [--replace] [--terrains DIR]]";
+    public const string Usage = "usage: hrot-terrain-osm --bbox south,west,north,east --name NAME [--out DIR] [--preview-only] [--osm-file FILE] [--dem-dir DIR] [--import [--replace] [--terrains DIR] [--no-navmesh]]";
 
-    public sealed record Args(GeoBox Box, string Name, string Out, bool PreviewOnly, string? OsmFile, string? DemDir, bool Import = false, bool Replace = false, string? Terrains = null);
+    public sealed record Args(GeoBox Box, string Name, string Out, bool PreviewOnly, string? OsmFile, string? DemDir, bool Import = false, bool Replace = false, string? Terrains = null, bool NoNavmesh = false);
 
     public static Args Parse(string[] args)
     {
         string? bbox = null, name = null, outDir = null, osm = null, dem = null;
-        bool previewOnly = false, import = false, replace = false;
+        bool previewOnly = false, import = false, replace = false, noNavmesh = false;
         string? terrains = null;
         for (int i = 0; i < args.Length; i++)
         {
@@ -35,6 +35,7 @@ public static class OsmCli
                 case "--import": import = true; break;
                 case "--replace": replace = true; break;
                 case "--terrains": terrains = Next(); break;
+                case "--no-navmesh": noNavmesh = true; break;   // ⭐ CE-4393 — skip the navmesh prefill
                 default: throw new ArgumentException("unknown argument " + args[i]);
             }
         }
@@ -45,7 +46,7 @@ public static class OsmCli
         if (p.Length != 4 || p.Any(v => !double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out _)))
             throw new ArgumentException("--bbox must be four numbers: south,west,north,east (degrees)");
         double[] v4 = p.Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();
-        return new Args(new GeoBox(v4[0], v4[1], v4[2], v4[3]), name, outDir ?? Path.Combine("terrain-input", name), previewOnly, osm, dem, import, replace, terrains);
+        return new Args(new GeoBox(v4[0], v4[1], v4[2], v4[3]), name, outDir ?? Path.Combine("terrain-input", name), previewOnly, osm, dem, import, replace, terrains, noNavmesh);
     }
 
     public static async Task<int> RunAsync(string[] argv, TextWriter output, TextWriter error, CancellationToken ct)
@@ -83,7 +84,7 @@ public static class OsmCli
             output.WriteLine("input set written to " + Path.GetFullPath(folder));
             if (a.Import)
             {
-                var importer = new TerrainImporter(a.Terrains);
+                var importer = new TerrainImporter(a.Terrains) { NavmeshPrefill = a.NoNavmesh ? null : new NavmeshPrefill() };   // ⭐ CE-4393
                 string terrain = await importer.ImportAsync(folder, a.Name, a.Replace, null, ct).ConfigureAwait(false);
                 importer.LastReport!.WriteTo(output);
                 output.WriteLine("terrain written to " + Path.GetFullPath(terrain));

@@ -96,6 +96,13 @@ namespace Fdp.Toolkit.Terrain
         public TerrainGeoOrigin? Origin { get; init; }
 
         /// <summary>
+        /// ⭐ CE-4394 (docs/DESIGN_Terrain_Import_UTM.md §12.2) — the EXACT UTM frame of the terrain's local (0, 0), when it declares one
+        /// (<c>frame.utm</c> + <c>frame.corner</c>, written by the importer): the node's geo transform then uses it instead of the tangent
+        /// plane at <see cref="Origin"/>. Null for every terrain that declares none.
+        /// </summary>
+        public TerrainUtmFrame? Utm { get; init; }
+
+        /// <summary>
         /// ⭐ AQ93 R-4021 — the terrain's SUMO road network (a <c>.net.xml</c> beside the definition), or <c>null</c> when it has
         /// none. Kept OUT of <see cref="RoadNetworks"/> on purpose: those are our own CarKinem road graphs, and the SUMO net stays
         /// separate and independent of them (R-4026). 📄 docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §11.3.
@@ -112,6 +119,12 @@ namespace Fdp.Toolkit.Terrain
     /// = net − anchor. A georeferenced net (E1) is placed through the terrain's geo origin instead and needs no anchor.
     /// </summary>
     public sealed record TerrainSumoNet(string File, double AnchorX, double AnchorY);
+
+    /// <summary>
+    /// ⭐ CE-4394 — the UTM frame of a terrain's local (0, 0): zone, hemisphere and the easting / northing of that point (the importer's
+    /// <c>e0 + corner[0]</c>, <c>n0 + corner[1]</c>), metres.
+    /// </summary>
+    public sealed record TerrainUtmFrame(int Zone, bool South, double Easting, double Northing);
 
     /// <summary>
     /// A geodetic point — latitude and longitude in degrees, altitude in metres — as a terrain file declares its origin.

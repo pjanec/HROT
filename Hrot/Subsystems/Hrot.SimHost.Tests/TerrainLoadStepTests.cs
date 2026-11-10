@@ -853,6 +853,46 @@ public sealed class TerrainLoadStepTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-4394 (UTM §12.2 U-2) — a terrain that declares its exact UTM frame switches the node's ONE transform to it (the object every
+    /// holder keeps is the same; its inside changes), and the next tangent-plane terrain switches it back. ✅ Red-proof: Commit not passing
+    /// the definition's frame ⇒ the transform stays a tangent plane ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4394_Commit_SelectsTheTerrainsUtmFrame_OnTheOneTransform_AndATangentTerrainSwitchesBack()
+    {
+        foreach (var (name, json) in new[]
+        {
+            ("utm", """{"schemaVersion":2,"origin":{"lat":54.5,"lon":7.0,"alt":0},"frame":{"utm":{"zone":32,"hemisphere":"N","e0":372000,"n0":6043000},"corner":[100,200]}}"""),
+            ("placed", """{"schemaVersion":2,"origin":{"lat":48.1,"lon":11.5,"alt":500}}"""),
+        })
+        {
+            var folder = Path.Combine(_terrainDir, name);
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, "terrain.json"), json, new UTF8Encoding(false));
+        }
+
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var geo = Hrot.Map.Common.HrotEnvironment.CreateGeoTransform();
+        world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+        Fdp.Modules.Geographic.IGeographicTransform kept = geo;   // what every translator / module holds
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+
+        residency.Commit(world, residency.Prepare("utm"));
+        var utm = Assert.IsType<Fdp.Modules.Geographic.Transforms.UtmTransform>(geo.Inner);
+        Assert.Equal(372_100.0, utm.E0);
+        Assert.Equal(6_043_200.0, utm.N0);
+        var (lat, lon, _) = kept.ToGeodetic(System.Numerics.Vector3.Zero);
+        var exact = Fdp.Modules.Geographic.Transforms.Utm.ToGeodetic(372_100.0, 6_043_200.0, 32, false);
+        Assert.Equal(exact.LatDeg, lat, 9);
+        Assert.Equal(exact.LonDeg, lon, 9);
+
+        residency.Commit(world, residency.Prepare("placed"));
+        Assert.IsType<Fdp.Modules.Geographic.Transforms.WGS84Transform>(geo.Inner);
+        Assert.Equal(48.1, kept.Origin.lat, 9);
+    }
+
+    /// <summary>
     /// ⭐ CE-3128 (Nav v2 §5.2a D7) — a terrain commit publishes the node's road graph CARRIER as a world singleton, so a reader on a
     /// background snapshot (the EQS solver's danger sensor) leases the graph through <c>RoadNetworkSource.Live</c>; unload keeps it
     /// published (empty graph), never a stale one.
