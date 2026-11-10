@@ -25,6 +25,7 @@ import importlib.util
 import json
 import math
 import os
+import platform
 import random
 import sys
 import time
@@ -255,8 +256,7 @@ def _position(node):
 
 def sample_ids(port, n):
     """networkIds of n movers spread over the list (entities that navigate: NavigationIntent) — the ones the rig checks move."""
-    raw = ps.subprocess.run(["curl", "-s", "--noproxy", "*", "--max-time", "120", f"http://localhost:{port}/entities?component=NavigationIntent"],
-                            capture_output=True, text=True).stdout
+    raw = ps.fetch(port, "/entities?component=NavigationIntent", 120)
     try:
         ents = json.loads(raw or "{}").get("data") or []
     except json.JSONDecodeError:
@@ -281,6 +281,7 @@ def garbage(port):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # the tables print ≤ ⛔ ✅ — a Windows console is cp1252
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--terrain", default="demo-city")
     ap.add_argument("--men", type=int, default=100)
@@ -299,9 +300,14 @@ def main():
     ap.add_argument("--keep", action="store_true", help="leave the nodes running after the report (to inspect them; stop with perf-stress stop-all)")
     ap.add_argument("--trace", metavar="DIR", help="also CPU-trace cgf and simhost for 15 s at the start of the measured window (dotnet-trace, speedscope)")
     ap.add_argument("--queries", type=int, default=15, help="the most expensive world queries listed per node (CE-3427)")
+    ap.add_argument("--runner-dll", help="Hrot.ClusterRunner.dll to run (default: HROT_RUNNER_DLL, else the repo's Release, else Debug build)")
+    ap.add_argument("--pin", action="store_true",
+                    help="pin each node to its own logical CPUs (orchestrator 2, cgf and simhost half the rest each) — one node per machine, approximated")
     ap.add_argument("--windowed", action="store_true",
                     help="start the nodes with their window (default --headless: a windowed node's software-GL draw on Xvfb took 3 cores idle)")
     a = ap.parse_args()
+    if a.runner_dll:
+        os.environ["HROT_RUNNER_DLL"] = os.path.abspath(a.runner_dll)
 
     name = f"scale-rig-{a.terrain}-{a.men}-{a.sides}s"
     doc = scenario(a.terrain, a.men, a.vehicles, a.aircraft, a.patrol, a.seed, a.sides)
@@ -311,12 +317,18 @@ def main():
         return 0
 
     report = {"terrain": a.terrain, "sides": a.sides, "men": (a.men // 8) * 8, "vehicles": a.vehicles, "aircraft": a.aircraft, "budget": BUDGET,
-              "machine": f"{os.cpu_count()} cores", "build": "Release" if "Release" in os.environ.get("HROT_RUNNER_DLL", "") else "Debug",
+              "machine": f"{os.cpu_count()} cores, {platform.system()} {platform.release()}, {platform.processor()}",
+              "build": "Release" if "Release" in (ps.cluster_launch.runner_dll() if ps.cluster_launch.WINDOWS else os.environ.get("HROT_RUNNER_DLL", "")) else "Debug",
               "nodes": {}}
     if not a.windowed:
         os.environ["HROT_NODE_ARGS"] = (os.environ.get("HROT_NODE_ARGS", "") + " --headless").strip()
         os.environ.setdefault("HROT_HEADLESS_MAX_HZ", "240")   # CE-4366: an unpaced headless loop spins a core per node
     report["headless"] = not a.windowed
+    if a.pin:
+        ps.cluster_launch.AFFINITY.update(ps.cluster_launch.split_cpus([p for _, p in NODES]))
+        report["pinned"] = {m: bin(ps.cluster_launch.AFFINITY[p]).count("1") for m, p in NODES}
+        if not ps.cluster_launch.WINDOWS:
+            raise SystemExit("--pin: Windows only (the Linux nodes start through cluster-node.sh)")
     ps.node("stop-all")
     try:
         for mode, port in NODES:
