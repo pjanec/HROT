@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: the navmesh baked at import (CE-4393) and `UtmTransform` (CE-4394)
 
-**For:** backend. **From:** coordinator. **Dispatched at `<stamp>`**. ⭐ Scope FROZEN there. **Queue it after your current egress work (CE-3427
+**For:** backend. **From:** coordinator. **Dispatched at `bedca0325`**. ⭐ Scope FROZEN there. **Queue it after your current egress work (CE-3427
 N-1).** Merge `coordinator` first, push `chore: started HANDOFF_Coordinator_To_Backend_Navmesh_Prefill_And_Utm at <sha>`, and keep a status file.
 You own the bake and the geo seam, so ⭐ **you design the details** (diagram first, in UTM §2 / §6.1 / a new §12). This handoff is the frame:
 goal, fences, my leans, acceptance.
