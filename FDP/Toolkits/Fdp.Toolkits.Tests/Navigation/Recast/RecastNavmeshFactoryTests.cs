@@ -803,6 +803,16 @@ public sealed class RecastNavmeshFactoryTests
         }
         Assert.True(compared >= 100, $"only {compared} pairs compared");
 
+        // ⭐ CE-3427 — and it allocates nothing once warm (DotRecast's node pool: 88 B per node per query)
+        var w1 = new DotRecast.Core.Numerics.RcVec3f(min.X + 10f, 0f, min.Y + 10f);
+        var w2 = new DotRecast.Core.Numerics.RcVec3f(max.X - 10f, 0f, max.Y - 10f);
+        query.FindNearestPoly(w1, ext, filter, out long rw1, out var pw1, out _);
+        query.FindNearestPoly(w2, ext, filter, out long rw2, out var pw2, out _);
+        DotRecastNavmeshProvider.FindPathBounded(query, rw1, rw2, pw1, pw2, filter, bounded, out _, 256);
+        long allocated = GC.GetAllocatedBytesForCurrentThread();
+        for (int k = 0; k < 20; k++) DotRecastNavmeshProvider.FindPathBounded(query, rw1, rw2, pw1, pw2, filter, bounded, out _, 256);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - allocated);
+
         // a cap of 50 expansions on a long walk: it answers at once, partially (the corridor does not end at the goal)
         var far1 = new DotRecast.Core.Numerics.RcVec3f(min.X + 5f, 0f, min.Y + 5f);
         var far2 = new DotRecast.Core.Numerics.RcVec3f(max.X - 5f, 0f, max.Y - 5f);
@@ -811,7 +821,6 @@ public sealed class RecastNavmeshFactoryTests
         Assert.True(r1 != 0 && r2 != 0);
         DotRecastNavmeshProvider.FindPathBounded(query, r1, r2, p1, p2, filter, bounded, out int n, 256, maxIterations: 50);
         Assert.True(n > 0 && bounded[n - 1] != r2, "a capped search answers partially");
-        Assert.True(query.GetNodePool().GetNodeCount() <= 400, $"it touched {query.GetNodePool().GetNodeCount()} nodes");   // 50 expansions and their neighbours (📐 74), not the mesh
     }
 
     private static float Length(DotRecast.Detour.DtNavMeshQuery q, DotRecast.Core.Numerics.RcVec3f a, DotRecast.Core.Numerics.RcVec3f b, Span<long> corridor)

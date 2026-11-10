@@ -329,8 +329,16 @@ the FIGHT run (two sides in contact) that exercises the sight test, fire and sou
 | `EqsSolverSystem` per run | 198 ms, 4.8 MB | 111 ms, 93 KB |
 | EQS solves per SimHost frame | 14 | 27 |
 
-⏭ **Next, by measured size:** the A* still uses DotRecast's pool (27 KB / frame; worst 203 ms — `CircleSearch`'s machinery with a
-heuristic would serve it too), `CheapLineOfSightTest` (407 µs a batch) and `ThreatExposureTest` (346 µs), the CGF door table across frames.
+**Then the A* on the same machinery** (`CircleSearch.RunAStar`, Detour's `FindPath` rules; Nav v2 §15):
+
+| the same fight | before | after |
+|---|---|---|
+| `nav.PlanPath` | 2.4 ms avg, 203 ms worst, 27 KB / frame | **183 µs**, 31 ms, **0 B** — and 5.2 paths a frame served (was 0.67) |
+| `PathfindingSolverSystem` per run | 100 ms, 1.7 MB | 23 ms |
+| SimHost garbage per frame | 2.0 MB | **0.37 MB** |
+
+⏭ **Next, by measured size:** `CheapLineOfSightTest` (449 µs a batch) and `ThreatExposureTest` (377 µs), the tactical templates
+(`DonutGenerator` / `GridGenerator` ≈ 1.3 ms each), and the CGF door table across frames.
 
 ### 6.4 ⭐ What this VM can and cannot tell — and when a PHYSICAL machine is needed *(user, `2026-11-10`: "today's machines have 16+ cores … let me know when this is necessary")*
 

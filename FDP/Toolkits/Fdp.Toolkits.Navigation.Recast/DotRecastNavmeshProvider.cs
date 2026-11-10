@@ -349,7 +349,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     private static readonly int S_Nearest = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.NearestPoly");
     private static readonly int S_CirclePolys = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PathCosts.polysSearched (count)");
     private static readonly int S_CircleFallbacks = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PathCosts.fallbackPoints (count)");
-    private static readonly int S_Iterations = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.searchIterations (count)");
+    private static readonly int S_Iterations = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.nodes (count)");
     private static readonly int S_Capped = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.cappedSearches (count)");
     private static readonly int S_FindPath = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.FindPath (A*)");
     private static readonly int S_Polys = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.corridorPolys (count)");
@@ -557,18 +557,28 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     /// </summary>
     public const int MaxSearchIterations = 20_000;
 
-    /// <summary>The plain A* (<see cref="DtNavMeshQuery.FindPath"/>) as a SLICED search capped at <see cref="MaxSearchIterations"/>: the
-    /// same algorithm (no options), so the same corridor when it finishes within the cap.</summary>
+    /// <summary>
+    /// The A* toward <paramref name="endRef"/>, capped at <paramref name="maxIterations"/> expansions: ⭐ <c>CE-3427</c> — on THIS thread's
+    /// <see cref="CircleSearch"/> (Detour's <c>FindPath</c> rules on reused arrays; DotRecast's node pool allocated 88 B per node per query),
+    /// so it allocates nothing once warm. The corridor is written from the start (at most <paramref name="maxPath"/> polygons); when the goal
+    /// was not reached it ends at the polygon nearest the goal (a partial result, as Detour's).
+    /// </summary>
     public static DtStatus FindPathBounded(DtNavMeshQuery query, long startRef, long endRef, RcVec3f startPos, RcVec3f endPos,
         IDtQueryFilter filter, Span<long> path, out int pathCount, int maxPath, int maxIterations = MaxSearchIterations)
     {
         pathCount = 0;
-        var status = query.InitSlicedFindPath(startRef, endRef, startPos, endPos, filter, 0);
-        if (status.Failed()) return status;
-        status = query.UpdateSlicedFindPath(maxIterations, out int done);
-        Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Iterations, done);
-        if (status.InProgress()) Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Capped, 1);   // the cap answered: a partial path
-        return query.FinalizeSlicedFindPath(path, out pathCount, maxPath);
+        var search = t_search ??= new CircleSearch(MaxCirclePolys);
+        int last = search.RunAStar(query.GetAttachedNavMesh(), startRef, startPos, endRef, endPos, filter, maxIterations, out bool reached, out bool capped);
+        if (last < 0) return DtStatus.DT_FAILURE;
+        Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Iterations, search.Count);
+        if (capped) Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Capped, 1);   // the cap answered: a partial path
+        int length = 0;
+        for (int k = last; k >= 0; k = search.Parent[k]) length++;
+        int at = length - 1;
+        for (int k = last; k >= 0; k = search.Parent[k], at--)
+            if (at < maxPath) path[at] = search.Refs[k];   // from the start; a corridor longer than maxPath keeps its first maxPath
+        pathCount = Math.Min(length, maxPath);
+        return reached ? DtStatus.DT_SUCCESS : DtStatus.DT_PARTIAL_RESULT;
     }
 
     private int PlanPathTimed(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, DoorStates? doors, out bool complete)

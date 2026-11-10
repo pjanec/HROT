@@ -11,6 +11,8 @@ namespace Fdp.Toolkit.Navigation.Recast;
 /// from the query filter, a polygon whose portal lies beyond the radius not entered) on per-thread arrays that are REUSED, and it STOPS as
 /// soon as every goal polygon is settled. 📐 DotRecast's node pool allocates 88 B per node on every query (measured): 69 KB a path-cost batch,
 /// ≈ 178 KB a frame of SimHost garbage in the scale-1 fight, at ≈ 2.4 µs a polygon.
+/// <para>⭐ It also runs the A* (<see cref="RunAStar"/>) — DotRecast's <c>FindPath</c> rules on the same reused arrays, capped, so neither
+/// search allocates once warm (one implementation of the node store, the heap and the portal rule for both).</para>
 /// <para>One instance per thread (the provider keeps it <see cref="ThreadStaticAttribute">thread-static</see>): not thread-safe.</para>
 /// </summary>
 internal sealed class CircleSearch
@@ -21,6 +23,8 @@ internal sealed class CircleSearch
     public readonly long[] Refs;        // node → polygon ref
     public readonly int[] Parent;       // node → its parent node, −1 at the start
     public readonly float[] Cost;       // node → the best cost found
+    private readonly float[] _total;    // node → cost + heuristic (the circle search: = cost)
+    private readonly float[] _h;        // node → the heuristic (A*)
     private readonly RcVec3f[] _pos;    // node → where the search entered it (the portal's midpoint; the start's own point)
     private readonly bool[] _closed;
     private readonly Dictionary<long, int> _node;   // polygon ref → node (cleared, never reallocated once grown)
@@ -35,6 +39,8 @@ internal sealed class CircleSearch
         Refs = new long[capacity];
         Parent = new int[capacity];
         Cost = new float[capacity];
+        _total = new float[capacity];
+        _h = new float[capacity];
         _pos = new RcVec3f[capacity];
         _closed = new bool[capacity];
         _node = new Dictionary<long, int>(capacity);
@@ -69,7 +75,7 @@ internal sealed class CircleSearch
         while (_heapCount > 0)
         {
             var (c, best) = Pop();
-            if (_closed[best] || c > Cost[best]) continue;   // a stale entry (the lazy decrease-key)
+            if (_closed[best] || c > _total[best]) continue;   // a stale entry (the lazy decrease-key)
             _closed[best] = true;
             if (_goals.ContainsKey(Refs[best]) && --goalsLeft == 0) break;
 
@@ -99,6 +105,7 @@ internal sealed class CircleSearch
                 {
                     if (total >= Cost[nb]) continue;
                     Cost[nb] = total;
+                    _total[nb] = total;
                     Parent[nb] = best;
                 }
                 else
@@ -112,10 +119,96 @@ internal sealed class CircleSearch
         return !full;
     }
 
+    /// <summary>A* heuristic scale — Detour's <c>H_SCALE</c> (a hair under 1 so the search stays admissible with the filter's costs).</summary>
+    private const float HScale = 0.999f;
+
+    /// <summary>
+    /// ⭐ <c>CE-3427</c> — the A* from <paramref name="startRef"/> to <paramref name="endRef"/> by Detour's <c>FindPath</c> rules (a polygon's
+    /// node at the midpoint of the portal it is first entered through; reaching the goal adds the cost from there to <paramref name="endPos"/>;
+    /// heuristic = straight distance × <see cref="HScale"/>; a closed node reopens on a cheaper way), stopping at the goal or after
+    /// <paramref name="maxIterations"/> expansions. Returns the node the corridor ends at — the goal, else the node nearest it (by heuristic,
+    /// then cost) — and whether the goal was reached; −1 when nothing was searched.
+    /// </summary>
+    public int RunAStar(DtNavMesh nav, long startRef, RcVec3f startPos, long endRef, RcVec3f endPos, IDtQueryFilter filter,
+                        int maxIterations, out bool reached, out bool capped)
+    {
+        _node.Clear();
+        _heapCount = 0;
+        Count = 0;
+        reached = false; capped = false;
+        float h0 = RcVec3f.Distance(startPos, endPos) * HScale;
+        int start = NewNode(startRef, -1, 0f, startPos);
+        _h[start] = h0; _total[start] = h0;
+        Push(h0, start);
+        int lastBest = start;
+        int iterations = 0;
+        while (_heapCount > 0)
+        {
+            var (c, best) = Pop();
+            if (_closed[best] || c > _total[best]) continue;
+            _closed[best] = true;
+            if (Refs[best] == endRef) { reached = true; return best; }
+            if (++iterations > maxIterations) { capped = true; break; }
+
+            long bestRef = Refs[best];
+            nav.GetTileAndPolyByRefUnsafe(bestRef, out var bestTile, out var bestPoly);
+            long parentRef = Parent[best] >= 0 ? Refs[Parent[best]] : 0;
+            DtMeshTile? parentTile = null; DtPoly? parentPoly = null;
+            if (parentRef != 0) nav.GetTileAndPolyByRefUnsafe(parentRef, out parentTile, out parentPoly);
+
+            for (int i = bestPoly.firstLink; i != DtDetour.DT_NULL_LINK; i = bestTile.links[i].next)
+            {
+                var link = bestTile.links[i];
+                long neighbourRef = link.refs;
+                if (neighbourRef == 0 || neighbourRef == parentRef) continue;
+                nav.GetTileAndPolyByRefUnsafe(neighbourRef, out var neighbourTile, out var neighbourPoly);
+                if (!filter.PassFilter(neighbourRef, neighbourTile, neighbourPoly)) continue;
+
+                int nb = _node.TryGetValue(neighbourRef, out int known) ? known : -1;
+                RcVec3f entry;
+                if (nb >= 0) entry = _pos[nb];
+                else
+                {
+                    Portal(bestTile, bestPoly, link, neighbourTile, neighbourPoly, out var va, out var vb);
+                    entry = new RcVec3f((va.X + vb.X) * 0.5f, (va.Y + vb.Y) * 0.5f, (va.Z + vb.Z) * 0.5f);
+                }
+                float step = filter.GetCost(_pos[best], entry, parentRef, parentTile, parentPoly,
+                                            bestRef, bestTile, bestPoly, neighbourRef, neighbourTile, neighbourPoly);
+                float cost, heuristic;
+                if (neighbourRef == endRef)
+                {
+                    float endCost = filter.GetCost(entry, endPos, bestRef, bestTile, bestPoly, neighbourRef, neighbourTile, neighbourPoly, 0, null, null);
+                    cost = Cost[best] + step + endCost;
+                    heuristic = 0f;
+                }
+                else
+                {
+                    cost = Cost[best] + step;
+                    heuristic = RcVec3f.Distance(entry, endPos) * HScale;
+                }
+                float total = cost + heuristic;
+                if (nb >= 0)
+                {
+                    if (total >= _total[nb]) continue;   // open or closed: only a cheaper way changes it (a closed node reopens)
+                    _closed[nb] = false;
+                }
+                else
+                {
+                    if (Count >= Capacity) { capped = true; continue; }
+                    nb = NewNode(neighbourRef, best, cost, entry);
+                }
+                Parent[nb] = best; Cost[nb] = cost; _h[nb] = heuristic; _total[nb] = total;
+                Push(total, nb);
+                if (heuristic < _h[lastBest] || (heuristic == _h[lastBest] && cost < Cost[lastBest])) lastBest = nb;
+            }
+        }
+        return lastBest;
+    }
+
     private int NewNode(long polyRef, int parent, float cost, RcVec3f pos)
     {
         int n = Count++;
-        Refs[n] = polyRef; Parent[n] = parent; Cost[n] = cost; _pos[n] = pos; _closed[n] = false;
+        Refs[n] = polyRef; Parent[n] = parent; Cost[n] = cost; _total[n] = cost; _h[n] = 0f; _pos[n] = pos; _closed[n] = false;
         _node[polyRef] = n;
         return n;
     }

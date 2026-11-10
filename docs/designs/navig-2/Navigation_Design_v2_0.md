@@ -1787,9 +1787,10 @@ from the SAME terrain change (AQ81 T6's asset op), so no mesh crosses the wire.
   - `PathRequestBatch` / `PathResponseBatch`: dominated by `[DdsManaged] List<NavWaypoint>` in responses. In the default collocated topology this traffic doesn't hit the wire.
 
 - ⭐ **Allocation (R-220, `2026-10-08`):** the provider's queries allocate nothing of their own per call once warm: per-thread scratch, the snapshot's layers walked as arrays, a per-thread working door filter, and a reusable nearest-polygon search. DotRecast's A* node pool still allocates one list per visited node, about 0.5 KB per short path; the rail pins us to exactly that. 📄 Owning section: [`DESIGN_Terrain_World.md`](../../DESIGN_Terrain_World.md) §6a.
-- ⭐ **A bounded A* (`CE-3427`, backend `2026-11-10`):** `DotRecastNavmeshProvider.PlanPath` runs DotRecast's SLICED search capped at
-  `MaxSearchIterations` (20 000 expansions); a capped search answers with the best PARTIAL path (complete = false — what an unreachable goal
-  answers anyway). 📐 DotRecast's `DtNodePool` has no limit, so a search toward a goal it could not reach expanded the whole connected
+- ⭐ **A bounded A* (`CE-3427`, backend `2026-11-10`):** `DotRecastNavmeshProvider.PlanPath` runs the A* on `CircleSearch.RunAStar` (below:
+  Detour's `FindPath` rules on the reused per-thread arrays — 0 B once warm), capped at `MaxSearchIterations` (20 000 expansions); a capped
+  search answers with the best PARTIAL path (complete = false — what an unreachable goal answers anyway). ⛔ SUPERSEDED the same day: the
+  first cut ran DotRecast's own SLICED search (`InitSlicedFindPath` …), which still allocated 88 B per node (27 KB / frame in the fight). 📐 DotRecast's `DtNodePool` has no limit, so a search toward a goal it could not reach expanded the whole connected
   mesh: on scale-1 (106 260 tiles, 1 000 men in a fight) one path took up to **21.6 s** (average 128 ms) and the solver made 5.5 MB of
   garbage a frame; bounded: average 2.8 ms, worst 266 ms, 1.8 MB. ⚠ The sliced and the plain search break ties differently — the corridor
   can differ, never notably longer (rail `CE3427_TheBoundedSearch_FindsThePlainSearchsCorridor_AndStopsAtItsCap`, test-town, 200 pairs).
@@ -1801,7 +1802,7 @@ from the SAME terrain change (AQ81 T6's asset op), so no mesh crosses the wire.
 classDiagram
   direction LR
   class DotRecastNavmeshProvider { <<existing>> +PathCosts(from, to[], costs[], reach, mask, doors) · PathCostsCore }
-  class CircleSearch { <<NEW, internal, one per thread>> +Run(nav, startRef, center, radius, filter, goals) +NodeOf(ref) +Settled(node) · Refs[] Parent[] Cost[] reused }
+  class CircleSearch { <<NEW, internal, one per thread>> +Run(nav, startRef, center, radius, filter, goals) +RunAStar(nav, start, end, filter, maxIterations) +NodeOf(ref) +Settled(node) · Refs[] Parent[] Cost[] reused }
   class DtNavMeshQuery { <<DotRecast>> FindNearestPoly · FindStraightPath (kept) · FindPolysAroundCircle (⛔ no longer called) }
   class DoorAwareQueryFilter { <<existing>> PassFilter · GetCost (doors, woods) }
   DotRecastNavmeshProvider --> CircleSearch : t_search (ThreadStatic)
