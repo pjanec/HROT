@@ -65,7 +65,21 @@ separates it. ⭐ The networked viewer is R-4's Player.
 
 Empty-terrain baseline (L-3): [Map 3D §6ah "Measured on Windows"](../../DESIGN_Map_3D_Mode.md).
 
+## R-4 — the Player on real-1 under load (CE-4390) — ⏳ PARTIAL
+
+`--mode server --headless` (no console window) + `--mode player` HIDDEN, the rig scenario (1 000 men, 50 vehicles, 10 aircraft) on real-1 loaded live in **24 s**.
+⚠ The player caps itself at 60 fps (`PlayerApplication.TargetFps`) — below the cap here, so the numbers stand.
+
+| view | frame (HROT_FRAME_STATS) | split | garbage / frame |
+|---|---|---|---|
+| the player's 2-D overview | **44–45 ms (~22 fps)** | update 28.6 (gizmo rules walk ~5 900 entities each) · draw 12.9 — **Debug Gizmos 10.2–11.6** · UI 2.3 | update 1.6 MB · **draw 6.1 MB (Debug Gizmos 5.8 MB)** · UI 0.9 MB |
+| first person | ⛔ **not reached** | `POST /entities/6737/possess` was accepted (the sim side), but the player's window did not switch: `/view` = 2-D, `possessed: null` — the windowed station is not driven over HTTP (the open ui row `CE-1464`, "HTTP control frames lose to the windowed editor's own station") | |
+
+⇒ in the player the gizmo pipeline is nearly the whole cost — the view filter's target. ⛔ First person needs the station switch drivable over HTTP first.
+
 ## Findings
+- ⛔ **the player's `GET /diagnostics/render` is STALE** — the same 909.57 ms, mode 2D, 0 triangles on every read: the player's map does not feed `RenderTelemetry` (the editor's `MapStatsOverlay` does). → to file.
+- ⚠ the fused server answers `POST /sim/play` with 501 and its `/status` carries no `simTime` — the run could not confirm the sim advancing from the server. → to check.
 
 - ⛔ **`GET /entities` fails as a whole** on the loaded rig scenario: *".NET number values such as positive and negative infinity cannot be written as valid JSON"* —
   one component holds ±∞ and the whole list is refused (so the run could not find the fighting units to aim the near camera at). → to file.
