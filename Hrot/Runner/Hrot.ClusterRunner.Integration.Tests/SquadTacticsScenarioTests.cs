@@ -471,10 +471,19 @@ public sealed class SquadTacticsScenarioTests : IDisposable
                 "the squad's commander, its five men and the APC must spawn");
             var commander = ByName(cgf, "Squad");
             var apc = ByName(cgf, "Convoy APC");
+            // ⭐ CE-2433 ③ — the SQUAD aboard, not every occupant: since BR-16 (CE-3275) the APC's passenger buffer also holds its RWS gunner and station.
+            string[] squadNames = { "Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4" };
             int Aboard(EntityRepository w)
             {
                 var v = ByName(w, "Convoy APC");
-                return v.IsNull || !w.HasComponent<PassengerBuffer>(v) ? -1 : w.GetComponent<PassengerBuffer>(v).Count;
+                if (v.IsNull) return -1;
+                int n = 0;
+                foreach (var name in squadNames)
+                {
+                    var m = ByName(w, name);
+                    if (!m.IsNull && w.HasComponent<IsEmbarkedTag>(m) && w.GetComponent<IsEmbarkedTag>(m).VehicleEntity == v) n++;
+                }
+                return n;
             }
             bool Paused() => Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(cgf, commander) != null;
             var kinds = new System.Collections.Generic.List<ushort>();
