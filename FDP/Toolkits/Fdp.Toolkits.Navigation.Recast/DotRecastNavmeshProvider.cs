@@ -347,6 +347,11 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     private static readonly int S_PathCosts = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PathCosts");
     private static readonly int S_PlanPath = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath");
     private static readonly int S_Nearest = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.NearestPoly");
+    private static readonly int S_Iterations = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.searchIterations (count)");
+    private static readonly int S_Capped = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.cappedSearches (count)");
+    private static readonly int S_FindPath = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.FindPath (A*)");
+    private static readonly int S_Polys = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.corridorPolys (count)");
+    private static readonly int S_Truncated = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("nav.PlanPath.truncatedAtMaxPath (count)");
 
     private int SampleNavmeshPointsCore(Vector3 center, float radius, Span<Vector3> results, uint layerMask)
     {
@@ -543,6 +548,28 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         return n;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3427</c> — the most polygons one A* may expand before it answers with the best PARTIAL path it has (the polygon nearest the
+    /// goal, <c>complete = false</c> — what an unreachable goal answers anyway). 📐 DotRecast's node pool has NO limit, so a search toward a goal
+    /// it cannot reach expanded the whole connected mesh: on scale-1 (106 260 tiles) one path took up to 21.6 s and the solver made 5.5 MB of
+    /// garbage a frame. A reachable path of the same corridor is unchanged below the cap (rail).
+    /// </summary>
+    public const int MaxSearchIterations = 20_000;
+
+    /// <summary>The plain A* (<see cref="DtNavMeshQuery.FindPath"/>) as a SLICED search capped at <see cref="MaxSearchIterations"/>: the
+    /// same algorithm (no options), so the same corridor when it finishes within the cap.</summary>
+    public static DtStatus FindPathBounded(DtNavMeshQuery query, long startRef, long endRef, RcVec3f startPos, RcVec3f endPos,
+        IDtQueryFilter filter, Span<long> path, out int pathCount, int maxPath, int maxIterations = MaxSearchIterations)
+    {
+        pathCount = 0;
+        var status = query.InitSlicedFindPath(startRef, endRef, startPos, endPos, filter, 0);
+        if (status.Failed()) return status;
+        status = query.UpdateSlicedFindPath(maxIterations, out int done);
+        Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Iterations, done);
+        if (status.InProgress()) Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Capped, 1);   // the cap answered: a partial path
+        return query.FinalizeSlicedFindPath(path, out pathCount, maxPath);
+    }
+
     private int PlanPathTimed(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask, DoorStates? doors, out bool complete)
     {
         complete = false;
@@ -570,9 +597,11 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
             if (endStatus.Failed()   || endRef   == 0) continue;
 
             // Polygon path.
-            var pathStatus = ls.Query.FindPath(
-                startRef, endRef, startPos, endPos,
-                filter, polyPathBuf.AsSpan(), out int pathCount, MaxPath);
+            long tf = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — the A* alone
+            var pathStatus = FindPathBounded(ls.Query, startRef, endRef, startPos, endPos, filter, polyPathBuf.AsSpan(), out int pathCount, MaxPath);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_FindPath, tf);
+            Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Polys, pathCount);
+            if (pathCount >= MaxPath) Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Truncated, 1);   // the corridor hit MaxPath: a partial path
 
             if (pathStatus.Failed() || pathCount == 0) continue;
 

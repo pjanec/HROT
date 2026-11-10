@@ -308,3 +308,18 @@ compute / apply split and speculative chunks to keep the same answers. Four scan
 ⏭ Left on this list: `nav.PlanPath` (3.2 ms average, 208 ms worst on the 5.5 km mesh), the door table's one rebuild per solve run, and
 the FIGHT run (two sides in contact) that exercises the sight test, fire and sound traces.
 
+### 6.3 📐 The FIGHT run — two sides, 1 000 men, scale-1, recording off *(CE-3427, `2026-11-10`, after §6.2)*
+
+| | first fight run | after the bounded A* |
+|---|---|---|
+| `nav.PlanPath` (SimHost) | ⛔ avg **128 ms**, worst **21.6 s** | avg 2.8 ms, worst 266 ms |
+| `PathfindingSolverSystem` | 873 ms per run, 5.5 MB garbage a frame | 111 ms, 1.8 MB |
+| EQS sensors (sight + hearing) | 31–36 µs a solve | same — the scans are gone (§6.2) |
+| ⛔ EQS tactical queries | `PathCostScoreTest` 2.2 ms a batch (worst 186 ms) · `DonutGenerator` template 6.6 ms | 1.5 ms (worst 108 ms) · 4.9 ms |
+| sight lines (`terrain.SegmentBlocked`) | 337 a frame, 1.7 µs | 394, 1.6 µs ✅ |
+| fire and sound traces | 32–44 a frame, 1.5–3.5 µs | ✅ negligible |
+| ⛔ `DoorStates.Of` on CGF | 2.5 ms, rebuilt on the main thread each frame | 2.0 ms |
+
+⏭ **Next, by measured size:** the EQS tactical queries' path costs (`PathCosts`' circle search is not bounded; the EQS solver makes 4.4 MB
+of garbage a frame in the fight), the CGF door table across frames (hold it while nothing of the doors changed), and the worst A* (266 ms).
+

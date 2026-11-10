@@ -108,7 +108,9 @@ namespace Fdp.Toolkit.Terrain
             //   EntityRepository.StructuralChanges), the door entities it read are still doors without walking them: O(1). 📐 The walk
             //   was 239 µs per call on scale-1 (6 911 doors), ~59 % of the EQS sensors' time at 1 000 men; a background solve's snapshot
             //   has no structural change within its run, so every call after the first is the O(1) answer. After a structural change the
-            //   walk decides, as before, and a passing walk refreshes the mark.
+            //   walk decides, as before, and a passing walk refreshes the mark. ⚠ A snapshot's SyncFrom does NOT count structural changes —
+            //   safe because it takes the live GlobalVersion, so a re-synced snapshot always fails the frame stamp above first (a module
+            //   syncs at most once per live frame).
             if (view is EntityRepository live && t_last is { } held && ReferenceEquals(world, t_world)
                 && t_stamp.Holds(live, typeof(DoorState)))
             {
