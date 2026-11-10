@@ -88,6 +88,25 @@ public class OsmXmlReaderTests
         Assert.Equal(-30.0, m.Nodes[entrance].Y, 2);
     }
 
+    /// <summary>⭐ CE-4383 (live, a 1.5 km box of Köln, 2026-11-10: "building w461758801: duplicate id") — an answer that carries a way or a relation TWICE gives ONE element,
+    /// the first; the element after a duplicate relation is still read. Hand-written XML (no OSM data in git). 🔴 Red-proof (compiles): drop the <c>TryAdd</c> guard ⇒ two ways.</summary>
+    [Fact]
+    public void AnElementTwiceInTheAnswer_IsReadOnce()
+    {
+        const string xml = "<?xml version=\"1.0\"?><osm version=\"0.6\">"
+            + "<node id=\"1\" lat=\"50.0\" lon=\"15.0\"/><node id=\"2\" lat=\"50.0001\" lon=\"15.0\"/><node id=\"3\" lat=\"50.0001\" lon=\"15.0001\"/>"
+            + "<way id=\"10\"><nd ref=\"1\"/><nd ref=\"2\"/><nd ref=\"3\"/><nd ref=\"1\"/><tag k=\"building\" v=\"yes\"/></way>"
+            + "<way id=\"10\"><nd ref=\"1\"/><nd ref=\"2\"/><nd ref=\"3\"/><nd ref=\"1\"/><tag k=\"building\" v=\"yes\"/></way>"
+            + "<relation id=\"20\"><member type=\"way\" ref=\"10\" role=\"outer\"/><tag k=\"type\" v=\"multipolygon\"/></relation>"
+            + "<relation id=\"20\"><member type=\"way\" ref=\"10\" role=\"outer\"/><tag k=\"type\" v=\"multipolygon\"/></relation>"
+            + "<relation id=\"21\"><tag k=\"type\" v=\"route\"/></relation>"
+            + "</osm>";
+        using var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml));
+        var m = OsmXmlReader.Read(ms, Fx.Bounds.Frame);
+        Assert.Single(m.Ways);
+        Assert.Equal(new long[] { 20, 21 }, m.Relations.Select(x => x.Id).ToArray());
+    }
+
     [Fact]
     public void ADoctype_IsRefused()
     {
