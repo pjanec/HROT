@@ -2,6 +2,7 @@
 # gitignored .local\sumo\<version>\, from the official Windows release (sumo-win64-<version>.zip, sumo.dlr.de). Terrain From OSM §9.1;
 # found by the shared locator (Hrot.Terrain.InputSet.Netconvert). Idempotent. Nothing SUMO-made is committed.
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'   # Windows PowerShell 5.1 redraws its progress bar per chunk — the ~100 MB download crawled for 15+ min
 $root = Split-Path -Parent $PSScriptRoot
 $version = (Get-Content (Join-Path $root 'tools\sumo\version.txt') -Raw).Trim()
 $dest = Join-Path $root ".local\sumo\$version"
