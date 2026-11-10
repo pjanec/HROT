@@ -266,3 +266,18 @@ the call). **Whole-terrain scans found by reading** (timed now, not yet measured
 its generator's slot), `DoorPassageSystem.NextDoorAhead` (every door per door mark), `WorldSurveySolve` (every building), `BreachDoors`
 (every door per detonation).
 
+### 6.1 📐 First measurement — scale-1, 1 000 men, one side (no fight yet), recording OFF *(Release, 4-core VM, `2026-11-10`)*
+
+| query family | where | per frame | per call | what it means |
+|---|---|---|---|---|
+| ⛔ **EQS sensors** (`eqs.sensor (all)`) | SimHost | 20.4 solves · **9.3 ms** | avg 456 µs, worst 121 ms (one solve) | ⭐ the module is meant to run at 10 Hz; one run takes ≈ 600 ms (≈ 1 350 of the 2 000 sensors), so it runs ≈ 1.3 Hz and each soldier's perception refreshes ≈ once a second |
+| ⛔ hearing (`eqs.gen:AcousticSensorGenerator`) | SimHost | 10.2 · 6.6 ms | **650 µs** | already a grid broadphase — the cost follows the men within hearing range, not the terrain's size |
+| sight (`eqs.gen:VisualSensorGenerator`) | SimHost | 10.2 · 2.6 ms | 260 µs | same |
+| ⛔ **navmesh paths** (`nav.PlanPath`) | SimHost | 0.32 · 1.0 ms | **avg 3.1 ms, worst 202 ms** | long paths on the 5.5 km mesh; `PathfindingSolverSystem` also makes ≈ 1 MB of garbage per frame |
+| terrain traces (`world.Trace.*`, `terrain.*`) | both | < 1 call | 2–3 µs | ✅ negligible — but a ONE-side run barely fires; the fight run is what exercises fire and sound |
+| cover (`cover.PointsInRadius`) | CGF | 473 · 0.12 ms | 0.2 µs | ✅ the grid works |
+| door scan (`doors.NextDoorAhead`) | SimHost | 51 · 0.005 ms | 0.1 µs | ✅ cheap here (few door marks); the scan is still O(doors) |
+
+⚠ Two cluster findings on the way: the first run LOST the CGF node just after the window (the cluster then paused itself), and a paused
+SimHost still burned ≈ 1.5 cores. ⏭ The fight run (two sides in contact, some in houses) — CE-3427.
+
