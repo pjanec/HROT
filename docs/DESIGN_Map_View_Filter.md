@@ -136,6 +136,13 @@ registered by two of them and fed a 2-D rectangle (red: the edge that is wrong i
 
 ## 5. Before building
 
-- enumerate the rules that draw for off-screen entities (D-4) from the projectors' code; the per-rule log (`HROT_FRAME_STATS`, `GizmoRuleTimings`) re-measures each step
+- ⭐ D-4's list, FIRST CUT (`2026-11-10`, a grep of the 70-odd `[GizmoProjector]` classes for line / polyline / arc draws and route / target / area words —
+  ⚠ heuristic, each to be read before it is classed): **lines to elsewhere** (opt out: `DrawsOffScreen`) — `MissionPresentationGizmo`, `AuthoredRouteGizmo`,
+  `RouteGizmo`, `PlannedPathGizmo`, `SquadGizmo`, `AimLineGizmo`, `LineOfSightGizmo`, `NavigationTargetGizmo`, `PeekAndFireGizmo`, `HillAttackGizmo`,
+  `CommandPictureGizmo`; **an area round an anchor** — `TacticalAreaGizmo`, `EntityEditorPolylineGizmo`, `MapOverlayGizmo`, `EqsSensorGizmo`,
+  `VisibilityConeGizmo`, `NamedPointGizmo`. ⭐ The second kind changes D-4: an area whose ANCHOR is off screen can still cover the screen ⇒ it is tested by its
+  BOUNDS (a `BoundsOf(view, entity)` on the projector, default = the point), not opted out — opting out would keep the full walk for them. Globals
+  (`DoorLeafGizmo`, `RoadNetworkGizmo`, `DangerAreaGizmo`, `SectorAreasGizmo`, …) are not entity rules: D-6
+- the per-rule log (`HROT_FRAME_STATS`, `GizmoRuleTimings`) re-measures each step
 - rails: one in the gizmo system's suite (an entity out of view reaches no rule; a `DrawsOffScreen` rule still sees it; a rule above its zoom is skipped), one
   frame rail (doors: no lines far out, lines close in), each red-proved; the zero-garbage rail for the system's steady frame
