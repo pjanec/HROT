@@ -24,6 +24,19 @@ public class BuildingRulesTests
         Assert.Equal(1, r.SplitCourtyards);
     }
 
+    /// <summary>F-R4 (real runs) — a building wholly in the fetch margin is ignored, NOT counted as "dropped at the edge"; one crossing the edge is.</summary>
+    [Fact]
+    public void OnlyABuildingCrossingTheEdge_IsCountedAsDropped_NotOneWhollyInTheMargin()
+    {
+        var mb = new ModelBuilder();                               // bounds ±300 m
+        mb.Rect(0, 0, 10, 10, T("building", "house"));             // inside
+        mb.Rect(295, 0, 310, 10, T("building", "house"));          // crosses the east edge
+        mb.Rect(350, 0, 365, 10, T("building", "house"));          // wholly in the margin
+        var r = Run(mb);
+        Assert.Single(r.Buildings);
+        Assert.Equal(1, r.DroppedAtEdge);
+    }
+
     // ---- R-4193: solid, not enterable
     [Theory]
     [InlineData(Fx.Garage)]

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-10
-current-answer: §1 where we are · §2 run it on your machine · §3 what is next · §4 lanes in flight
+updated: 2026-11-10 (b — the real runs, REPORT_Terrain_Import_Real_Runs.md)
+current-answer: ⭐ §0 the REAL runs (2026-11-10, b) and the new order of work · §1 where we are · §2 run it on your machine · §3 what is next · §4 lanes in flight
 stale-below: nothing
 related-designs:
   - ../PLAN_Large_Terrain.md — the programme: scale work (backend), drawing (ui), import + OSM (coordinator); budgets R-4192
@@ -15,6 +15,24 @@ related-designs:
 # RESUME — coordinator: the terrain import (UTM data from the other simulator, and OpenStreetMap)
 
 > RELEARN. Read `docs/blueprints/RULINGS.md` first (R-4186 … R-4195 are this programme's rulings), then this file's §1.
+
+## 0. ⭐ UPDATE (b) — the REAL runs are done *(2026-11-10; [REPORT_Terrain_Import_Real_Runs.md](REPORT_Terrain_Import_Real_Runs.md))*
+
+**Both paths work end to end on REAL data** (the user's Windows machine, 24 cores):
+
+| | result |
+|---|---|
+| A — the real UTM set → `real-1` | import **5.5 s**, loader parse 2.1 s; 1 745 enterable / 60 solid (3.3 % for want of a stair); after the fixes **3 852 doors** in the loaded terrain |
+| B — OSM Kolín box → `osm-kolin-test` | the whole CLI incl. Overpass, Copernicus, netconvert ≈ 62 s; 3 288 enterable, 1 234 solid, 1 978 shared walls merged; parse 3.6 s |
+| `real-1` in the scale rig | ⛔ **cold first load 366 s** (106 722 navmesh tiles baked) · ✅ **warm 25.3 s** (budget ≤ 30 s) |
+| fixed by the source session | F-R1 (heights.json frame optional), F-R2 (doors before windows), F-R7 (1.5 m reach for ground doors), F-R8 (Windows rename retry), F-R3 (scale-rig 3-D lanes), F-R6 (`terrain-input/` ignored) |
+| fixed by the coordinator | **F-R4** — a building wholly in the fetch margin is ignored, only one crossing the edge is counted (rail red-proved) |
+| ui since | the wizard is LIVE: real OSM tiles + Nominatim (CE-4381), the preview's details (CE-4382); CE-1466 was already fixed |
+
+**⇒ The order of work is now** (supersedes §3's order):
+1. ⭐ **the navmesh PREFILL at import** — the 366 s cold first load is what an editor user meets on the first open (UTM §6.1 stage 6, I-l)
+2. `UtmTransform` (stage 1)
+3. F-R5 (6.4 % of real windows dropped as overlap — optional: 1.0 m windows or merge overlapping ones) · CE-4379 (switch-back stairs; 3.3 % real) · CE-4380 (now 1.3 s on NVMe — low priority)
 
 ## 1. Where we are *(2026-11-10, coordinator at `ea546c50e` + this commit)*
 

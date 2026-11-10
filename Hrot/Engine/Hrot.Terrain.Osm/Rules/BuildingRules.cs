@@ -62,6 +62,9 @@ public static class BuildingRules
         foreach (var c in candidates)
         {
             if (c.Ring.Count < 3) continue;
+            // F-R4 (real runs, 2026-11-10): a building wholly in the FETCH MARGIN is not the author's — skip it silently; only one that
+            // actually crosses the area's edge is dropped AND counted (the real Kolín box: 96 crossed, ≈ 1 021 lay wholly in the margin)
+            if (!AnyVertexInside(c.Ring, bounds)) continue;
             if (!InsideBounds(c.Ring, bounds)) { res.DroppedAtEdge++; res.Touch(NoteKinds.DroppedAtEdge, c.Ring); continue; }
             if (Polygons.Area(c.Ring) < MinArea) { res.DroppedSmall++; res.Touch(NoteKinds.DroppedSmall, c.Ring); continue; }
             if (MinExtent(c.Ring) < MinWidth) { res.DroppedThin++; res.Touch(NoteKinds.DroppedThin, c.Ring); continue; }
@@ -92,6 +95,12 @@ public static class BuildingRules
     }
 
     private sealed record Candidate(string Id, PathD Ring, long[]? Ids, IReadOnlyDictionary<string, string> Tags, string Type, bool IsPart);
+
+    private static bool AnyVertexInside(PathD ring, AreaBounds b)
+    {
+        foreach (var p in ring) if (p.x >= b.MinX && p.x <= b.MaxX && p.y >= b.MinY && p.y <= b.MaxY) return true;
+        return false;
+    }
 
     private static bool InsideBounds(PathD ring, AreaBounds b)
     {
