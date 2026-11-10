@@ -6706,7 +6706,7 @@ export const TOOLS_CATALOG = [
         "description": "true = zero the counters after answering"
       }
     ],
-    "returns": "{ enabled, seconds, queries[{ name, calls, perSecond, totalMs, msPerSecond, avgUs, maxUs }], note }",
+    "returns": "{ enabled, seconds, queries[{ name, calls, perSecond, totalMs, msPerSecond, avgUs, maxUs, bytesPerSecond }], note }",
     "notes": [
       "Off with HROT_QUERY_TIMINGS=0. Slots nest (world.Trace.* includes terrain.*); msPerSecond sums every thread."
     ],
