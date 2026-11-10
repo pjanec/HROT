@@ -25,6 +25,12 @@ public sealed partial class TerrainImporter : ITerrainImporter
     public string TerrainsRoot => _terrainsRoot ?? Path.Combine(Repo(), "assets", "terrain");
     public string ScenariosRoot => _scenariosRoot ?? Path.Combine(Repo(), "scenarios");
 
+    /// <summary>
+    /// ⭐ CE-4393 (UTM §12.1 N-3) — bakes the written terrain's navmesh into its <c>navtiles/</c> before the swap, so its first load bakes
+    /// nothing; null ⇒ no "navmesh" stage (<c>--no-navmesh</c>; the library's own tests).
+    /// </summary>
+    public ITerrainNavmeshPrefill? NavmeshPrefill { get; init; }
+
     /// <summary>What the last <see cref="ImportAsync"/> did.</summary>
     public ImportReport? LastReport { get; private set; }
 
@@ -102,10 +108,21 @@ public sealed partial class TerrainImporter : ITerrainImporter
             string worldFile = name + ".world.geojson";
             TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees);
             TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay);
-            rep.OutputBytes = Directory.EnumerateFiles(tmp, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
             progress?.Report(new ImportProgress("write", 1));
             Stage("write");
             ct.ThrowIfCancellationRequested();
+
+            // ⭐ CE-4393 — the whole navmesh into tmp/navtiles, BEFORE the swap: a cancelled or failed bake leaves no half-baked folder
+            if (NavmeshPrefill != null)
+            {
+                var navProgress = progress == null ? null : new Progress1(f => progress.Report(new ImportProgress("navmesh", f)));
+                var nav = NavmeshPrefill.Bake(tmp, navProgress, ct);
+                rep.NavmeshTiles = nav.Tiles; rep.NavmeshBaked = nav.Baked; rep.NavmeshFiles = nav.Files; rep.NavmeshBytes = nav.Bytes;
+                progress?.Report(new ImportProgress("navmesh", 1));
+                Stage("navmesh");
+                ct.ThrowIfCancellationRequested();
+            }
+            rep.OutputBytes = Directory.EnumerateFiles(tmp, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
 
             Swap(tmp, target);
             return target;
@@ -115,6 +132,14 @@ public sealed partial class TerrainImporter : ITerrainImporter
             try { if (Directory.Exists(tmp)) Directory.Delete(tmp, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             throw;
         }
+    }
+
+    /// <summary>An <see cref="IProgress{T}"/> that reports on the CALLING thread (the bake's workers), never posting to a context.</summary>
+    private sealed class Progress1 : IProgress<double>
+    {
+        private readonly Action<double> _report;
+        public Progress1(Action<double> report) => _report = report;
+        public void Report(double value) => _report(value);
     }
 
     private static void Swap(string tmp, string target)

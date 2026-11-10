@@ -3649,7 +3649,9 @@ namespace Hrot.Editor
                 Tiles: new Hrot.Terrain.Osm.OsmTileSource(osmHttp, System.IO.Path.Combine(osmCache, "map-tiles"),
                                                           System.Environment.GetEnvironmentVariable("HROT_OSM_TILE_URL") ?? Hrot.Terrain.Osm.OsmTileSource.DefaultUrl),
                 Search: new Hrot.Terrain.Osm.NominatimPlaceSearch(osmHttp),
-                Importer: new Hrot.Terrain.Import.TerrainImporter(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(nas)),
+                // ⭐ CE-4393 (UTM §12.1) — the wizard's import bakes the navmesh into the terrain folder too: its first open bakes nothing
+                Importer: new Hrot.Terrain.Import.TerrainImporter(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(nas))
+                          { NavmeshPrefill = new Hrot.Terrain.Import.NavmeshPrefill() },
                 TerrainsRoot: Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas),
                 InputSetRoot: System.IO.Path.Combine(nas, "terrain-input"))
             {

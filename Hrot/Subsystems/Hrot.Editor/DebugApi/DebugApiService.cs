@@ -2578,7 +2578,8 @@ namespace Hrot.Editor.DebugApi
             };
             if (headingDeg.HasValue)
             {
-                var rot = SimTransformBridgeSystem.HeadingDegToRotation(headingDeg.Value);
+                // ⭐ CE-4394 (UTM §12.2 U-3) — the caller's heading is from TRUE north; local is grid north: local = true − γ (0 on the tangent plane)
+                var rot = SimTransformBridgeSystem.HeadingDegToRotation(headingDeg.Value - (float)GeoTransform.GridConvergenceDeg(pos));
                 obj["rotation"] = new JsonObject
                 {
                     ["x"] = rot.X,
@@ -2602,7 +2603,10 @@ namespace Hrot.Editor.DebugApi
             };
             if (rotation.HasValue)
             {
+                // ⭐ CE-4394 — a TRUE-north heading out: true = local + γ, kept in [0, 360)
                 float hdg = SimTransformBridgeSystem.RotationToHeadingDeg(rotation.Value);
+                double gamma = GeoTransform.GridConvergenceDeg(new Vector3(x, y, z));
+                if (gamma != 0.0) hdg = (((hdg + (float)gamma) % 360f) + 360f) % 360f;   // 0 on the tangent plane: the read-out unchanged
                 obj["headingDeg"] = hdg;
             }
             return obj;

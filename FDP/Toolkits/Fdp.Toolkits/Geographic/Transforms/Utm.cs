@@ -67,6 +67,19 @@ public static class Utm
     }
 
     /// <summary>
+    /// ⭐ CE-4394 (UTM §12.2 U-3) — the grid convergence at a point, in degrees: the angle from TRUE north to GRID north, positive where
+    /// grid north lies east of true north (a point east of the central meridian in the northern hemisphere). A heading measured from
+    /// grid north is turned into a true heading by ADDING it: <c>true = grid + γ</c>. γ = atan(tan(λ − λ0) · sin φ) — the ellipsoidal
+    /// terms change it by well under 0.01° inside a zone.
+    /// </summary>
+    public static double ConvergenceDeg(double latDeg, double lonDeg, int zone)
+    {
+        double phi = latDeg * Math.PI / 180.0;
+        double dLam = (lonDeg - CentralMeridianDeg(zone)) * Math.PI / 180.0;
+        return Math.Atan(Math.Tan(dLam) * Math.Sin(phi)) * 180.0 / Math.PI;
+    }
+
+    /// <summary>
     /// Reads <c>+proj=utm +zone=N [+south]</c> from a PROJ string. <c>false</c> for any other projection (or none).
     /// </summary>
     public static bool TryParseProj(string proj, out int zone, out bool south)
