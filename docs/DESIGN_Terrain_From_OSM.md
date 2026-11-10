@@ -597,3 +597,13 @@ do not need satellite imagery at all. otherwise accepted."*
 - Roads: netconvert reads the whole margin file; `NetconvertRoadBuilder` keeps edges inside the bounds.
 
 **Not built / not tested:** the live Overpass call (Q-O12: not reachable here) — the query text and the retry policy are rails, the real response is not; §7's "split a too-large Overpass result into 4" (a 504 just fails with the service named); an Overpass 200 carrying a `<remark>` runtime error is not detected; the importer-side consumption of `woods` / `water` / `scrub` is CE-4368's.
+
+### 14.9 ✅ BUILT `2026-11-10` — heights and roads (CE-4374, coordinator)
+
+| as built | rails (`Hrot.Terrain.Osm.Tests/DemAndRoadsTests`, 9) |
+|---|---|
+| `Dem/CogReader` — tiled float32, deflate + predictor 3 (libtiff's floating-point layout), PixelIsArea / PixelIsPoint, the first IFD only, internal tiles fetched by RANGE (`IRangeSource`: `HttpRangeSource` with a disk cache, 3 retries, 403 / 404 = a missing file; `FolderRangeSource` for tests and `--dem-dir`) | a test-written COG decodes exactly; the georeference both ways |
+| `Dem/CopernicusDem : IDemSource` — `Copernicus_DSM_COG_10_N49_00_E015_00_DEM.tif` naming (S / W too), only the windows the area touches (+ a margin), Catmull-Rom bicubic, a post past a file's edge taken from the neighbouring file, a missing file = open sea = 0 m | a plane is reproduced exactly, also ACROSS the 1° file edge; sea = 0 |
+| ⭐ **verified on the REAL public bucket** (opt-in `HROT_LIVE_DEM=1`, run here `2026-11-10`): Sněžka reads inside 1 570…1 620 m (GLO-30 is a surface model) | `Live_TheRealBucket_ReadsAKnownSummit` |
+| `Roads/NetconvertRoadBuilder : IRoadBuilder` — the shared locator (1.20.0), F-7's explicit `--proj` (+south), offset (−e0, −n0) with normalisation off, `--keep-edges.in-boundary` the local bounds, SUMO's recommended OSM cleanup options, the run-date comment stripped | ⭐ a known OSM node lands at its local metres (± 5 cm) — red-proved: a 1 m offset error moves it 1 m |
+| `scripts/install-sumo.sh` (pip `eclipse-sumo==<version>` into `.local/sumo/<v>/venv`) · `scripts/install-sumo.ps1` (the official win64 zip into `.local/sumo/<v>/`) · `tools/sumo/version.txt` = 1.20.0 · `.local/` gitignored | the Linux script run here (idempotent) |
