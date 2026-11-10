@@ -4,11 +4,10 @@
 //   hrot-heights --set DIR --spacing 2 --out FILE.height.asc   an ESRI ASCII grid (a small terrain)
 //
 // The grid covers the set's manifest bounds in the terrain's LOCAL metres (local = set frame − the bounds' south-west corner, the
-// anchor terrain-from-sumo.py uses), every --spacing m. ⚠ Reads heights.f32 + heights.hdr directly until the coordinator's input-set reader
-// (CE-4371) lands; then it reads through that (one reader).
+// anchor terrain-from-sumo.py uses), every --spacing m. Reads the set through the shared input-set reader (CE-4371).
 using System.Globalization;
-using System.Text.Json;
 using Fdp.Toolkit.Terrain;
+using Hrot.Terrain.InputSet;
 
 string? set = null, outPath = null; double spacing = 1.0;
 for (int i = 0; i < args.Length; i++)
@@ -24,28 +23,16 @@ for (int i = 0; i < args.Length; i++)
 if (set == null || outPath == null || !(spacing > 0)) { Console.Error.WriteLine("usage: hrot-heights --set DIR --spacing M --out FILE(.heights|.asc)"); return 2; }
 
 var sw = System.Diagnostics.Stopwatch.StartNew();
-using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(set, "manifest.json")));
-var b = manifest.RootElement.GetProperty("bounds");
-double minX = b[0].GetDouble(), minY = b[1].GetDouble(), maxX = b[2].GetDouble(), maxY = b[3].GetDouble();
-
-var hdr = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-foreach (var line in File.ReadAllLines(Path.Combine(set, "heights", "heights.hdr")))
-{
-    var p = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-    if (p.Length >= 2) hdr[p[0]] = p[1];
-}
-double D(string k) => double.Parse(hdr[k], CultureInfo.InvariantCulture);
-int srcCols = (int)D("NCOLS"), srcRows = (int)D("NROWS");
-if (!BitConverter.IsLittleEndian || !hdr.TryGetValue("BYTEORDER", out var bo) || bo != "I") throw new InvalidDataException("heights.f32 must be little-endian (BYTEORDER I).");
+// ⭐ CE-4371: through the ONE input-set reader (Hrot.Terrain.InputSet) — the bounds from the manifest, the floats NORTH row first
+var input = InputSetReader.Open(set);
+double minX = input.Manifest.MinX, minY = input.Manifest.MinY, maxX = input.Manifest.MaxX, maxY = input.Manifest.MaxY;
+var info = input.Heights;
+int srcCols = info.Cols, srcRows = info.Rows;
 var src = new float[(long)srcCols * srcRows];
-using (var fs = File.OpenRead(Path.Combine(set, "heights", "heights.f32")))
-{
-    var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(src.AsSpan());
-    int read = 0;
-    while (read < bytes.Length) { int n = fs.Read(bytes[read..]); if (n <= 0) throw new InvalidDataException("heights.f32 is truncated."); read += n; }
-}
+HeightsGrid.ReadRows(set, (r, row) => Array.Copy(row, 0, src, (long)r * srcCols, srcCols));
+double ulx = info.OriginX, uly = info.OriginY + (srcRows - 1) * info.CellSize;
 int cols = (int)Math.Round((maxX - minX) / spacing) + 1, rows = (int)Math.Round((maxY - minY) / spacing) + 1;
-var z = TerrainHeightGrid.Resample(src, srcCols, srcRows, D("ULXMAP"), D("ULYMAP"), D("XDIM"), D("YDIM"), (float)D("NODATA"),
+var z = TerrainHeightGrid.Resample(src, srcCols, srcRows, ulx, uly, info.CellSize, info.CellSize, HeightsInfo.NoData,
                                    minX, minY, cols, rows, spacing, out long filled);
 src = null!;
 var grid = new TerrainHeightGrid(System.Numerics.Vector2.Zero, (float)spacing, cols, rows, z);

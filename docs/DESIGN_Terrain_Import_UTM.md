@@ -628,3 +628,47 @@ The synthetic generator and the real input set write neither (no water or scrub 
 | ② | ⭐ a third optional file, **`vegetation/woods.geojson`** — `Polygon`, `properties: { density }` (trees / ha). When present the importer takes the woods from it (R-4190's polygons + density grid) and `trees.csv` holds only trees outside woods; when absent (the real set) the importer clusters the points. Reason: OSM gives woods as polygons — turning them into points and clustering back is lossy (Terrain From OSM §13 F-3) |
 | ③ | ⭐ **the importer is developed and tested on the SYNTHETIC set** (`hrot-terrain-synth`, [DESIGN_Terrain_Synth.md](DESIGN_Terrain_Synth.md)): `tiny` generated in the tests' fixture (≈ 1 s, deterministic), `full` generated locally for performance work (≈ 16 s, ≈ 500 MB, under `artifacts/`, gitignored). The real set is used only to confirm on the user's machine. ⛔ the importer reads frame and bounds from the manifest — the synthetic frame differs on purpose |
 | ④ | ✅ *(`2026-11-09`, verified by the coordinator)* the source side folded Terrain From OSM F-1…F-10 into that design and BUILT synth S-1…S-4: 87 tests pass here; `full` seed 1 regenerated with `netconvert` 1.20.0 — 1 800 buildings, 588 with a material, **140 party edges shared by identical vertices** (the importer detects a shared edge itself and builds ONE wall), noise on; `--extras` adds `water/` (2), `vegetation/scrub` (3), `vegetation/woods` (20) and leaves 11 313 trees outside woods. ⇒ the importer's development sets: `tiny-1` (tests), `full-1` (performance, like the real set), `full-1-extras` (the optional files, like an OSM set) |
+
+### 10.10 ✅ BUILT `2026-11-10` — the ONE format code: `Hrot.Terrain.InputSet` *(coordinator, CE-4371)*
+
+```mermaid
+classDiagram
+  direction LR
+  class InputSetLayout { <<paths>> Required; Optional }
+  class Model { <<records>> UtmFrame; Building (Enterable); Opening; AreaFeature; WallFeature; HeightsInfo (SourceResolution); ManifestHead }
+  class GeoJsonWriter { WriteBuildings; WriteUnassigned; WriteAreas; WriteWalls; WriteEmpty }
+  class HeightsWriter { <<streaming>> WriteRow north first; Dispose writes .hdr + .json }
+  class TreesCsv { Write; Read }
+  class Manifest { Write(head, sectionName, section); Sha256 }
+  class InputSetReader { Open; Manifest; Heights; ReadBuildings; ReadUnassigned; ReadTrees; ReadWalls; ReadAreas; RoadsNet }
+  class HeightsGrid { ReadInfo; ReadRows north first; ReadAll south first }
+  class InputSetChecks { Check(folder) problems }
+  class Netconvert { Locate (HROT_SUMO_HOME, .local/sumo, SUMO_HOME, PATH; version); Run; StripGeneratedHeader }
+  class ITerrainImporter { <<backend implements, CE-4368>> }
+  class Synth["hrot-terrain-synth"]
+  class Heights["hrot-heights (backend)"]
+  class Trees["hrot-trees (backend)"]
+  class Osm["Hrot.Terrain.Osm (CE-4373)"]
+  Synth --> GeoJsonWriter
+  Synth --> HeightsWriter
+  Synth --> Manifest
+  Synth --> Netconvert
+  Heights --> InputSetReader
+  Heights --> HeightsGrid
+  Trees --> TreesCsv
+  Osm --> GeoJsonWriter
+  Osm --> Netconvert
+  InputSetReader --> HeightsGrid
+  InputSetChecks --> InputSetReader
+```
+*What the picture shows: every producer WRITES and every consumer READS through this one library; the importer (backend L-6) reads through
+`InputSetReader` and implements `ITerrainImporter` beside it. The Python `scripts/terrain-scale.py` still reads `manifest.json`'s bounds itself
+(a script cannot reference C#) — the one remaining direct reader, and only of the manifest.*
+
+| as built | |
+|---|---|
+| `InputSetChecks` checks the FORMAT (files present, hashes and sizes, the grid's size, closed counter-clockwise rings, unique ids, ascending `storeyZ` with `storeyZ[0] == baseZ`, roof values, opening storeys and headings in range, woods with a density) — ⛔ not the clean-geometry rules: a real set has noise (§10.7) | rails: `Hrot.Terrain.InputSet.Tests` (11; the counter-clockwise check red-proved) |
+| `Building.Enterable` (default true; written as `"enterable": false` only when false) — R-4193's solid garages and sheds | the synth tool never writes it ⇒ its output is unchanged |
+| `HeightsInfo.SourceResolution` → `heights.json` `sourceResolution` (OSM F-9) | absent when not set ⇒ the synth's files unchanged |
+| `Netconvert.Locate` — the shared locator with the version check (`tools/sumo/version.txt` = 1.20.0); `HROT_SUMO_NO_LOCAL=1` hides the repo install (tests of "not found") | ⚠ a netconvert of another version is now REFUSED (the synth tool then keeps the plain files and warns) |
+| the synth tool rebuilt on it: **byte-identical** output — its 87 tests (the hash pins) green, and a regenerated `tiny` diffed equal to the earlier one, `manifest.json` and `roads.net.xml` included | |

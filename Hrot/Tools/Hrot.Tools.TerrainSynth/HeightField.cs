@@ -68,113 +68,30 @@ public sealed class HeightField
         return Math.Clamp(_p.ZMin + (_p.ZMax - _p.ZMin) * t, _p.ZMin, _p.ZMax);
     }
 
-    /// <summary>Writes heights.f32 (north row first, little-endian), heights.hdr and heights.json, one band of rows at a time.</summary>
+    /// <summary>Writes heights.f32 (north row first, little-endian), heights.hdr and heights.json through the shared
+    /// <see cref="HeightsWriter"/>, computing one band of rows at a time in parallel.</summary>
     public void Write(string heightsDir)
     {
-        if (!BitConverter.IsLittleEndian) throw new PlatformNotSupportedException("big-endian host");
-        Directory.CreateDirectory(heightsDir);
-        long nodataCells = 0;
-        float minZ = float.PositiveInfinity, maxZ = float.NegativeInfinity;
-
-        using (var fs = new FileStream(Path.Combine(heightsDir, "heights.f32"), FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16))
+        var info = new HeightsInfo(OriginX, OriginY, Spacing, Cols, Rows, new UtmFrame(_p.UtmZone, !_p.NorthernHemisphere, _p.E0, _p.N0));
+        using var writer = new HeightsWriter(heightsDir, info);
+        var band = new float[BandRows][];
+        for (int k = 0; k < BandRows; k++) band[k] = new float[Cols];
+        for (int fileRow0 = 0; fileRow0 < Rows; fileRow0 += BandRows)
         {
-            var band = new float[BandRows][];
-            for (int k = 0; k < BandRows; k++) band[k] = new float[Cols];
-            var bytes = new byte[Cols * 4];
-
-            for (int fileRow0 = 0; fileRow0 < Rows; fileRow0 += BandRows)
+            int n = Math.Min(BandRows, Rows - fileRow0);
+            int r0 = fileRow0;
+            Parallel.For(0, n, k =>
             {
-                int n = Math.Min(BandRows, Rows - fileRow0);
-                int r0 = fileRow0;
-                Parallel.For(0, n, k =>
+                int j = Rows - 1 - (r0 + k); // file row 0 is the northernmost row
+                double y = OriginY + j * Spacing;
+                var row = band[k];
+                for (int i = 0; i < Cols; i++)
                 {
-                    int j = Rows - 1 - (r0 + k); // file row 0 is the northernmost row
-                    double y = OriginY + j * Spacing;
-                    var row = band[k];
-                    for (int i = 0; i < Cols; i++)
-                    {
-                        double x = OriginX + i * Spacing;
-                        row[i] = IsNoData(x, y) ? NoDataValue : (float)Raw(x, y);
-                    }
-                });
-                for (int k = 0; k < n; k++)
-                {
-                    var row = band[k];
-                    for (int i = 0; i < Cols; i++)
-                    {
-                        float v = row[i];
-                        if (v == NoDataValue) nodataCells++;
-                        else
-                        {
-                            if (v < minZ) minZ = v;
-                            if (v > maxZ) maxZ = v;
-                        }
-                    }
-                    Buffer.BlockCopy(row, 0, bytes, 0, bytes.Length);
-                    fs.Write(bytes, 0, bytes.Length);
+                    double x = OriginX + i * Spacing;
+                    row[i] = IsNoData(x, y) ? NoDataValue : (float)Raw(x, y);
                 }
-            }
+            });
+            for (int k = 0; k < n; k++) writer.WriteRow(band[k]);
         }
-
-        WriteHeader(Path.Combine(heightsDir, "heights.hdr"));
-        WriteJson(Path.Combine(heightsDir, "heights.json"), nodataCells, minZ, maxZ);
-    }
-
-    private static string N(double v) => v.ToString("R", CultureInfo.InvariantCulture);
-
-    private static string N(long v) => v.ToString(CultureInfo.InvariantCulture);
-
-    private void WriteHeader(string path)
-    {
-        long rowBytes = (long)Cols * 4;
-        var sb = new StringBuilder();
-        sb.Append("BYTEORDER I\n");
-        sb.Append("LAYOUT BIL\n");
-        sb.Append("NROWS ").Append(N(Rows)).Append("\n");
-        sb.Append("NCOLS ").Append(N(Cols)).Append("\n");
-        sb.Append("NBANDS 1\n");
-        sb.Append("NBITS 32\n");
-        sb.Append("PIXELTYPE FLOAT\n");
-        sb.Append("BANDROWBYTES ").Append(N(rowBytes)).Append("\n");
-        sb.Append("TOTALROWBYTES ").Append(N(rowBytes)).Append("\n");
-        sb.Append("BANDGAPBYTES 0\n");
-        sb.Append("NODATA -9999\n");
-        sb.Append("ULXMAP ").Append(N(OriginX)).Append("\n");
-        sb.Append("ULYMAP ").Append(N(OriginY + (Rows - 1) * Spacing)).Append("\n");
-        sb.Append("XDIM ").Append(N(Spacing)).Append("\n");
-        sb.Append("YDIM ").Append(N(Spacing)).Append("\n");
-        File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
-    }
-
-    private void WriteJson(string path, long nodataCells, float minZ, float maxZ)
-    {
-        using var ms = new MemoryStream();
-        using (var w = new Utf8JsonWriter(ms, new JsonWriterOptions { Indented = true }))
-        {
-        w.WriteStartObject();
-        w.WriteNumber("originX", OriginX);
-        w.WriteNumber("originY", OriginY);
-        w.WriteString("originIs", "south-west cell centre");
-        w.WriteNumber("cellSize", Spacing);
-        w.WriteNumber("cols", Cols);
-        w.WriteNumber("rows", Rows);
-        w.WriteString("rowOrder", "north first");
-        w.WriteNumber("nodata", -9999.0);
-        w.WriteString("units", "m");
-        w.WriteStartObject("frame");
-        w.WriteStartObject("utm");
-        w.WriteNumber("zone", _p.UtmZone);
-        w.WriteString("hemisphere", _p.NorthernHemisphere ? "N" : "S");
-        w.WriteNumber("e0", _p.E0);
-        w.WriteNumber("n0", _p.N0);
-        w.WriteEndObject();
-        w.WriteEndObject();
-        if (float.IsFinite(minZ)) w.WriteNumber("minZ", minZ); else w.WriteNull("minZ");
-        if (float.IsFinite(maxZ)) w.WriteNumber("maxZ", maxZ); else w.WriteNull("maxZ");
-        w.WriteNumber("nodataCells", nodataCells);
-        w.WriteEndObject();
-        }
-        // LF line endings on every platform, so the bytes do not depend on the host
-        File.WriteAllText(path, Encoding.UTF8.GetString(ms.ToArray()).Replace("\r\n", "\n") + "\n", new UTF8Encoding(false));
     }
 }

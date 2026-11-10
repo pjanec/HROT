@@ -10,6 +10,7 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using Fdp.Toolkit.Terrain;
+using Hrot.Terrain.InputSet;
 
 string? treesPath = null, roadsPath = null, outPath = null; float ox = 0, oy = 0, w = 0, h = 0;
 static float F(string s) => float.Parse(s, CultureInfo.InvariantCulture);
@@ -30,11 +31,9 @@ if (treesPath == null || outPath == null || !(w > 0) || !(h > 0))
 
 var sw = System.Diagnostics.Stopwatch.StartNew();
 var pts = new List<Vector2>();
-foreach (var line in File.ReadLines(treesPath).Skip(1))
+foreach (var (tx, ty, _) in TreesCsv.Read(treesPath))   // ⭐ CE-4371: the shared input-set reader of trees.csv
 {
-    var p = line.Split(',');
-    if (p.Length < 2) continue;
-    var v = new Vector2(F(p[0]) - ox, F(p[1]) - oy);
+    var v = new Vector2((float)tx - ox, (float)ty - oy);
     if (v.X >= 0 && v.Y >= 0 && v.X <= w && v.Y <= h) pts.Add(v);
 }
 var roads = new List<TerrainWoods.RoadSegment>();
