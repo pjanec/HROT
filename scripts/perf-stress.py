@@ -18,12 +18,13 @@ TKB 2002 men, the Crossfire soldier) each on SquadDefend at a point on its stree
 capture points (HoldArea) + two Counters + a kick-off Trigger — a FIXED rule set (no per-man score macros, so rules do not scale with men);
 one traffic entity (TKB 8850, TrafficDemand) with CarSpawnPerStep raised so the cars fill in seconds, not minutes.
 """
-import argparse, json, math, os, subprocess, sys, time
+import argparse, json, math, os, shutil, subprocess, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import importlib.util
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from scenario_json_readable import readable  # CE-4295 — params written as the objects they hold
+import cluster_launch  # CE-3427 — node control in Python: the only path on Windows (no setsid / xvfb-run / /proc there)
 _spec = importlib.util.spec_from_file_location("udc", os.path.join(os.path.dirname(os.path.abspath(__file__)), "utility-demo-check.py"))
 udc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(udc)
@@ -123,7 +124,33 @@ def write(men, cars, spawn):
 
 
 def node(cmd, *args):
+    if cluster_launch.WINDOWS:
+        return cluster_launch.node(cmd, *args)
     return subprocess.run([os.path.join(udc.REPO, "scripts/cluster-node.sh"), cmd, *map(str, args)], capture_output=True, text=True, timeout=200).stdout
+
+
+def fetch(port, route, timeout):
+    """GET with a long timeout (a full /entities dump from a node doing < 1 frame/s outlasts cluster-node.sh's 20 s) — the JSON reply text."""
+    return cluster_launch.get(port, route, timeout=timeout)
+
+
+def log_path(mode, port):
+    return cluster_launch.log_path(mode, port) if cluster_launch.WINDOWS else f"/tmp/n-{mode}-{port}.log"
+
+
+def node_pid(port):
+    """The node's process id: the launcher's own pid on Windows; on Linux the dotnet process whose environment serves PORT (/proc)."""
+    if cluster_launch.WINDOWS:
+        return cluster_launch.pid(port)
+    for p in subprocess.run(["pgrep", "-f", "ClusterRunner[.]dll --mode"], capture_output=True, text=True).stdout.split():
+        try:
+            cmd = open(f"/proc/{p}/cmdline").read().replace("\0", " ")
+            envs = open(f"/proc/{p}/environ").read().split("\0")
+        except OSError:
+            continue
+        if cmd.startswith("dotnet ") and f"HROT_DEBUG_API_PORT={port}" in envs:
+            return int(p)
+    return None
 
 
 def get(port, route):
@@ -138,19 +165,14 @@ def trace_nodes(folder, nodes, seconds=15):
     """CPU-trace each node's process for SECONDS (dotnet-trace, sampled thread time, speedscope) into FOLDER/<mode>.nettrace —
     started in the background; shared by perf-stress.py and scale-rig.py (CE-3427)."""
     os.makedirs(folder, exist_ok=True)
-    tool = os.path.expanduser("~/.dotnet/tools/dotnet-trace")
-    env = dict(os.environ, DOTNET_ROOT=os.environ.get("DOTNET_ROOT", "/usr/local/dotnet"))
+    tool = shutil.which("dotnet-trace") or os.path.expanduser("~/.dotnet/tools/dotnet-trace")
+    env = dict(os.environ)
+    if not cluster_launch.WINDOWS:
+        env.setdefault("DOTNET_ROOT", "/usr/local/dotnet")
     for mode, port in nodes:
-        pid = None
-        for p in subprocess.run(["pgrep", "-f", "ClusterRunner[.]dll --mode"], capture_output=True, text=True).stdout.split():
-            try:
-                cmd = open(f"/proc/{p}/cmdline").read().replace("\0", " ")
-                envs = open(f"/proc/{p}/environ").read().split("\0")
-            except OSError:
-                continue
-            if cmd.startswith("dotnet ") and f"HROT_DEBUG_API_PORT={port}" in envs: pid = p
+        pid = node_pid(port)
         if pid:
-            subprocess.Popen([tool, "collect", "-p", pid, "--profile", "dotnet-sampled-thread-time", "--duration", f"00:00:00:{seconds:02d}",
+            subprocess.Popen([tool, "collect", "-p", str(pid), "--profile", "dotnet-sampled-thread-time", "--duration", f"00:00:00:{seconds:02d}",
                               "--format", "speedscope", "-o", os.path.join(folder, f"{mode}.nettrace")], env=env,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     print(f"  tracing {', '.join(m for m, _ in nodes)} for {seconds} s into {folder}")
@@ -161,8 +183,7 @@ def census():
     for mode, port in NODES:
         if mode == "orchestrator": continue
         # ⚠ its own curl with a long timeout: cluster-node.sh's 20 s is too short for a full dump from a node doing < 1 frame/s
-        raw = subprocess.run(["curl", "-s", "--noproxy", "*", "--max-time", "240", f"http://localhost:{port}/entities"],
-                             capture_output=True, text=True).stdout
+        raw = fetch(port, "/entities", 240)
         try: ents = json.loads(raw or "{}").get("data")
         except json.JSONDecodeError: ents = None
         if not isinstance(ents, list):
@@ -182,7 +203,7 @@ def census():
                 nid = next((e.get("networkId") for e in ents if tuple(sorted(e.get("components") or [])) == key and e.get("networkId")), None)
                 dump = None
                 if nid and n >= 20:
-                    r = subprocess.run(["curl", "-s", "--noproxy", "*", "--max-time", "60", f"http://localhost:{port}/entities/{nid}"], capture_output=True, text=True).stdout
+                    r = fetch(port, f"/entities/{nid}", 60)
                     try: dump = json.loads(r or "{}").get("data")
                     except json.JSONDecodeError: pass
                 full.append({"count": n, "components": list(key), "sampleName": sample[key], "sampleNetworkId": nid, "sample": dump})
@@ -203,6 +224,7 @@ def node_work(port):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # the tables print ≤ ⛔ ✅ — a Windows console is cp1252
     ap = argparse.ArgumentParser()
     ap.add_argument("--men", type=int, default=1000)
     ap.add_argument("--cars", type=int, default=5000)
@@ -232,7 +254,7 @@ def main():
         def dead_report(which):
             for mode in which:
                 port = dict(NODES)[mode]
-                log = f"/tmp/n-{mode}-{port}.log"
+                log = log_path(mode, port)
                 lines = [l.rstrip() for l in open(log, errors="ignore")] if os.path.exists(log) else []
                 hits = [l for l in lines if any(k in l for k in ("Unhandled exception", "Exception:", "Aborted"))][:3]
                 print(f"  ⛔ {mode} stopped answering — {log}:")

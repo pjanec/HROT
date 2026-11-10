@@ -1,4 +1,5 @@
 using System.Globalization;
+using Hrot.Terrain.Import;
 using Hrot.Terrain.Osm;
 using Hrot.Terrain.Osm.Dem;
 using Hrot.Terrain.Osm.Roads;
@@ -11,14 +12,15 @@ namespace Hrot.Tools.TerrainOsm;
 /// </summary>
 public static class OsmCli
 {
-    public const string Usage = "usage: hrot-terrain-osm --bbox south,west,north,east --name NAME [--out DIR] [--preview-only] [--osm-file FILE] [--dem-dir DIR]";
+    public const string Usage = "usage: hrot-terrain-osm --bbox south,west,north,east --name NAME [--out DIR] [--preview-only] [--osm-file FILE] [--dem-dir DIR] [--import [--replace] [--terrains DIR]]";
 
-    public sealed record Args(GeoBox Box, string Name, string Out, bool PreviewOnly, string? OsmFile, string? DemDir);
+    public sealed record Args(GeoBox Box, string Name, string Out, bool PreviewOnly, string? OsmFile, string? DemDir, bool Import = false, bool Replace = false, string? Terrains = null);
 
     public static Args Parse(string[] args)
     {
         string? bbox = null, name = null, outDir = null, osm = null, dem = null;
-        bool previewOnly = false;
+        bool previewOnly = false, import = false, replace = false;
+        string? terrains = null;
         for (int i = 0; i < args.Length; i++)
         {
             string Next() => i + 1 < args.Length ? args[++i] : throw new ArgumentException(args[i] + " needs a value");
@@ -30,16 +32,20 @@ public static class OsmCli
                 case "--preview-only": previewOnly = true; break;
                 case "--osm-file": osm = Next(); break;
                 case "--dem-dir": dem = Next(); break;
+                case "--import": import = true; break;
+                case "--replace": replace = true; break;
+                case "--terrains": terrains = Next(); break;
                 default: throw new ArgumentException("unknown argument " + args[i]);
             }
         }
+        if (import && previewOnly) throw new ArgumentException("--import needs a full write, not --preview-only");
         if (bbox == null) throw new ArgumentException("--bbox is required");
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("--name is required");
         var p = bbox.Split(',');
         if (p.Length != 4 || p.Any(v => !double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out _)))
             throw new ArgumentException("--bbox must be four numbers: south,west,north,east (degrees)");
         double[] v4 = p.Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();
-        return new Args(new GeoBox(v4[0], v4[1], v4[2], v4[3]), name, outDir ?? Path.Combine("terrain-input", name), previewOnly, osm, dem);
+        return new Args(new GeoBox(v4[0], v4[1], v4[2], v4[3]), name, outDir ?? Path.Combine("terrain-input", name), previewOnly, osm, dem, import, replace, terrains);
     }
 
     public static async Task<int> RunAsync(string[] argv, TextWriter output, TextWriter error, CancellationToken ct)
@@ -75,6 +81,13 @@ public static class OsmCli
 
             string folder = await pipeline.WriteInputSetAsync(a.Box, options, a.Out, progress, ct).ConfigureAwait(false);
             output.WriteLine("input set written to " + Path.GetFullPath(folder));
+            if (a.Import)
+            {
+                var importer = new TerrainImporter(a.Terrains);
+                string terrain = await importer.ImportAsync(folder, a.Name, a.Replace, null, ct).ConfigureAwait(false);
+                importer.LastReport!.WriteTo(output);
+                output.WriteLine("terrain written to " + Path.GetFullPath(terrain));
+            }
             return 0;
         }
         catch (OperationCanceledException) { error.WriteLine("cancelled — nothing was written"); return 130; }
