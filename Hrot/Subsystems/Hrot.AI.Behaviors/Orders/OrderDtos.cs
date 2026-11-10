@@ -10,15 +10,16 @@ namespace Hrot.AI.Behaviors.Orders
 {
     /// <summary>
     /// ⭐ <c>CE-2140</c> — the MOVE order: go to <see cref="Location"/>. The params DTO of every behaviour that fulfils Move
-    /// (<c>InfantrySquadMove</c>, …). Flat JSON, e.g. <c>{"Location":[52.52,13.41],"Speed":2}</c>. A zero field keeps the fulfilling
-    /// behaviour's own default. ⭐ <see cref="Location"/> is a <see cref="PickableGeoPoint"/>, so the type alone makes the menu ask
-    /// for a point (DESIGN_Map_Picking_Unification); the fulfilling behaviour converts it to local metres (its resolver or its node).
+    /// (<c>InfantrySquadMove</c>, …). Flat JSON, e.g. <c>{"Location":[340,300,0],"Speed":2}</c>. A zero field keeps the fulfilling
+    /// behaviour's own default. ⭐ <see cref="Location"/> is a <see cref="Fdp.Toolkit.Replication.PointLink"/> (S0 item 5): local metres
+    /// <c>[x, y, z]</c>, <c>"@Key"</c> or both — the type alone makes the menu ask for a point (DESIGN_Map_Picking_Unification). ⛔ Not geodetic
+    /// since S0 (it was a <c>PickableGeoPoint</c>; CE-2433).
     /// </summary>
     [Order(nameof(OrderKind.Move), Gesture = OrderGesture.GroundClick)]
     [StructLayout(LayoutKind.Sequential)]
     public struct MoveOrder
     {
-        /// <summary>Where to go (geodetic). ⭐ <c>CE-2148</c> — required: a move without a point is refused.</summary>
+        /// <summary>Where to go (local metres, S0). ⭐ <c>CE-2148</c> — required: a move without a point is refused.</summary>
         [Required]
         [JsonPropertyName("Location")]
         public Fdp.Toolkit.Replication.PointLink Location;

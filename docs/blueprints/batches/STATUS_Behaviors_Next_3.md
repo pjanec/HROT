@@ -16,4 +16,4 @@ Started at `43368610f` (merged backend / ui / coordinator, nothing new). Running
 | H-3 | CE-4041 (rest) | ✅ CE-4041 closed — `ua-civ-escalation` passes editor 12/12 (golden same) and cluster 6/6; provocation / hill-attack fixed in Oct | |
 | H-4 | CE-4151 | ✅ already DONE in Next_2 G-6 (`8c4132bb7`, `6862784c3`): a TKB type's default task by name + params JSON through `AssignBehaviorEvent` at origin Sop; rail `BehaviorTkbDefaultStartTests.CE4151_ANamedDefaultTask_StartsThroughTheIngress_WithItsParams_AtOriginSop` (red-proved); CE-4151 ticked | — |
 | H-5 | CE-4359 | ✅ `0926ff85c` — the picker, 44 tasks in 7 folders, 75 re-filed (deviations in CE-4359) | the task picker (worker, after the replica watch) |
-| H-6 | CE-4361 | 🟡 CE-4360 (the resolver) built by this lane, `131fb4e0e`; the filing of the 127 next | |
+| H-6 | CE-4361 | ✅ CE-4360 resolver `131fb4e0e` + CE-4361 the 128 filed `b57e71fea` (showcases 2 · demos 115 in 10 areas · tests 11); found at its gate: CE-2433 (3 `SquadTacticsScenarioTests` red since Oct — test/content drift, fixed `cd0316eb6` `8e2172213` `d40912fd9`, class 6/6) | Q-S3 picker order + *My scenarios* label not built |
