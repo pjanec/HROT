@@ -220,22 +220,31 @@ public sealed class RecastNavmeshBaker
         if (indices.Length % 3 != 0) throw new ArgumentException("indices length must be a multiple of 3.", nameof(indices));
         CheckTileMetres(TileMetres);
 
+        return Bake(new ArrayTileTriangles(verts, indices, TileMetres), layerMask, doorways, fineAreas);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4366</c> (L-4, docs/DESIGN_Scale_Rig.md §5) — the bake from a TILE SOURCE: each tile asks <paramref name="source"/> for the
+    /// triangles that can reach it and keeps exactly those the whole-mesh binning kept (same test, same order ⇒ the same tile, the same
+    /// cache key). No global mesh and no global Recast input exist, so a 5.5 km terrain at 1 m bakes in per-tile memory.
+    /// </summary>
+    public Dictionary<NavLayerMask, DtNavMesh> Bake(
+        ITileTriangles source,
+        NavLayerMask layerMask = NavLayerMask.Infantry | NavLayerMask.Vehicle,
+        IReadOnlyList<NavDoorways.Volume>? doorways = null,
+        IReadOnlyList<Area>? fineAreas = null)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        CheckTileMetres(TileMetres);
         var sw = Stopwatch.StartNew();
-        var geom = new RcSampleInputGeomProvider(verts, indices);
-        // ⭐ Buildings Stage 5c — each doorway's spans get their own area, so its passage bakes into polygons of its own (the mesh is
-        //   baked with every door OPEN; the query filter judges those polygons by the door's live state). §3j "5c".
-        if (doorways != null)
-            foreach (var d in doorways)
-                geom.AddConvexVolume(d.Verts, d.MinY, d.MaxY, new RcAreaModification(NavDoorways.DoorArea));
 
         var layers = new List<NavLayerMask>();
         foreach (NavLayerMask layer in LayerBits)
             if ((layerMask & layer) != 0) layers.Add(layer);
         var result = new Dictionary<NavLayerMask, DtNavMesh>();
-        if (indices.Length == 0 || layers.Count == 0) { LastStats = default; return result; }
+        if (!source.TryGetBounds(out var rawMin, out var rawMax) || layers.Count == 0) { LastStats = default; return result; }
 
         // ⭐ The grid: anchored at the world origin, so tile (x, z) is the same square in every bake (Q71 R7 — the cache key).
-        RcVec3f rawMin = geom.GetMeshBoundsMin(), rawMax = geom.GetMeshBoundsMax();
         int firstX = (int)MathF.Floor(rawMin.X / TileMetres), firstZ = (int)MathF.Floor(rawMin.Z / TileMetres);
         int tilesX = Math.Max(1, (int)MathF.Floor(rawMax.X / TileMetres) - firstX + 1);
         int tilesZ = Math.Max(1, (int)MathF.Floor(rawMax.Z / TileMetres) - firstZ + 1);
@@ -248,55 +257,126 @@ public sealed class RecastNavmeshBaker
             margin = Math.Max(margin, RcConfig.CalcBorder(p.AgentRadius, CoarseCellSize) * CoarseCellSize);
             margin = Math.Max(margin, RcConfig.CalcBorder(p.AgentRadius, FineCellSize) * FineCellSize);
         }
-        var tileTris = BinTriangles(verts, indices, firstX, firstZ, tilesX, tilesZ, margin);
+        var volumes = doorways ?? Array.Empty<NavDoorways.Volume>();
 
-        var work = new List<(NavLayerMask Layer, int Tx, int Tz, bool Fine)>();
-        foreach (var layer in layers)
-            for (int tz = 0; tz < tilesZ; tz++)
-            for (int tx = 0; tx < tilesX; tx++)
-            {
-                if (tileTris[tz * tilesX + tx] == null) continue;   // no geometry, no tile
-                bool fine = layer == NavLayerMask.Infantry && fineAreas != null && TouchesAny(fineAreas, firstX + tx, firstZ + tz);
-                work.Add((layer, tx, tz, fine));
-            }
-
-        var tiles = new DtMeshData?[work.Count];
-        int baked = 0, fromCache = 0, fineCount = 0;
-        Parallel.For(0, work.Count, i =>
+        // per tile (row-major) and layer: the baked data (null = no walkable polygon) — filled in parallel, one tile per task
+        var baked = new DtMeshData?[tilesX * tilesZ, layers.Count];
+        var present = new bool[tilesX * tilesZ];
+        var fineOf = new bool[tilesX * tilesZ, layers.Count];
+        int nBaked = 0, fromCache = 0;
+        Parallel.For(0, tilesX * tilesZ, ti =>
         {
-            var (layer, tx, tz, fine) = work[i];
-            Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
-            var p = GetParams(layer);
-            float cs = fine ? FineCellSize : CoarseCellSize;
-            var tris = tileTris[tz * tilesX + tx]!;
-            TileYRange(verts, indices, tris, p, out float yMin, out float yMax);
+            int tx = ti % tilesX, tz = ti / tilesX;
             int ax = firstX + tx, az = firstZ + tz;
-
-            NavTileKey key = default;
-            if (Cache != null)
+            Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
+            if (!TileTriangles(source, ax, az, firstX, firstZ, tilesX, tilesZ, margin, out var tv, out var tidx)) return;
+            present[ti] = true;
+            // ⭐ CE-4366 — the Recast input (its chunky index) only when a layer must really bake: a warm load hashes and hits
+            var tileVolumes = new List<NavDoorways.Volume>();
+            // ⭐ Buildings Stage 5c — each doorway's spans get their own area (the mesh is baked with every door OPEN; the query filter
+            //   judges those polygons by the door's live state, §3j "5c"). Only the volumes that can reach this tile (+ the hash's 3 m).
+            float px = margin + 3f;
+            float x0 = ax * TileMetres - px, z0 = az * TileMetres - px, x1 = (ax + 1) * TileMetres + px, z1 = (az + 1) * TileMetres + px;
+            foreach (var d in volumes)
             {
-                key = new NavTileKey(layer, ax, az, HashTile(verts, indices, tris, geom, layer, p, cs, ax, az, yMin, yMax));
-                if (Cache.TryGet(key, out var hit)) { tiles[i] = hit; Interlocked.Increment(ref fromCache); if (fine) Interlocked.Increment(ref fineCount); return; }
+                float vx0 = float.MaxValue, vz0 = float.MaxValue, vx1 = float.MinValue, vz1 = float.MinValue;
+                for (int k = 0; k + 2 < d.Verts.Length; k += 3)
+                {
+                    vx0 = MathF.Min(vx0, d.Verts[k]); vx1 = MathF.Max(vx1, d.Verts[k]);
+                    vz0 = MathF.Min(vz0, d.Verts[k + 2]); vz1 = MathF.Max(vz1, d.Verts[k + 2]);
+                }
+                if (vx0 > x1 || vx1 < x0 || vz0 > z1 || vz1 < z0) continue;
+                tileVolumes.Add(d);
             }
-            var data = BakeTile(geom, p, cs, ax, az, yMin, yMax);
-            tiles[i] = data;
-            Interlocked.Increment(ref baked);
-            if (fine) Interlocked.Increment(ref fineCount);
-            if (Cache != null) Cache.Put(key, data);   // an EMPTY tile is cached too (null)
+            RcSampleInputGeomProvider? geom = null;
+            for (int li = 0; li < layers.Count; li++)
+            {
+                var layer = layers[li];
+                bool fine = layer == NavLayerMask.Infantry && fineAreas != null && TouchesAny(fineAreas, ax, az);
+                fineOf[ti, li] = fine;
+                var p = GetParams(layer);
+                float cs = fine ? FineCellSize : CoarseCellSize;
+                TileYRange(tv, tidx, p, out float yMin, out float yMax);
+                NavTileKey key = default;
+                if (Cache != null)
+                {
+                    key = new NavTileKey(layer, ax, az, HashTile(tv, tidx, tileVolumes, layer, p, cs, ax, az, yMin, yMax));
+                    if (Cache.TryGet(key, out var hit)) { baked[ti, li] = hit; Interlocked.Increment(ref fromCache); continue; }
+                }
+                if (geom == null)
+                {
+                    geom = new RcSampleInputGeomProvider(tv, tidx);
+                    foreach (var d in tileVolumes) geom.AddConvexVolume(d.Verts, d.MinY, d.MaxY, new RcAreaModification(NavDoorways.DoorArea));
+                }
+                var data = BakeTile(geom, p, cs, ax, az, yMin, yMax);
+                baked[ti, li] = data;
+                Interlocked.Increment(ref nBaked);
+                if (Cache != null) Cache.Put(key, data);   // an EMPTY tile is cached too (null)
+            }
         });
 
+        // the work in the old order (layer, then row-major tiles) for Assemble
+        var work = new List<(NavLayerMask Layer, int Tx, int Tz, bool Fine)>();
+        var tiles = new List<DtMeshData?>();
+        int fineCount = 0;
+        for (int li = 0; li < layers.Count; li++)
+            for (int ti = 0; ti < tilesX * tilesZ; ti++)
+            {
+                if (!present[ti]) continue;
+                work.Add((layers[li], ti % tilesX, ti / tilesX, fineOf[ti, li]));
+                tiles.Add(baked[ti, li]);
+                if (fineOf[ti, li]) fineCount++;
+            }
+        var tileArray = tiles.ToArray();
         foreach (var layer in layers)
         {
             var p = GetParams(layer);
-            var mesh = Assemble(layer, work, tiles);
+            var mesh = Assemble(layer, work, tileArray);
             if (mesh != null)
             {
                 result[layer] = mesh;
                 _bakedParams[layer] = p;
             }
         }
-        LastStats = new BakeStats(work.Count, fineCount, baked, fromCache, sw.ElapsedMilliseconds);
+        LastStats = new BakeStats(work.Count, fineCount, nBaked, fromCache, sw.ElapsedMilliseconds);
         return result;
+    }
+
+    /// <summary>
+    /// The triangles of absolute tile (<paramref name="ax"/>, <paramref name="az"/>): of the source's candidates, those whose x/z box reaches
+    /// into the tile grown by <paramref name="margin"/> — the whole-mesh binning's own test (same arithmetic, same clamps, same order), copied
+    /// into compact arrays (three fresh vertices per triangle). False when none.
+    /// </summary>
+    private bool TileTriangles(ITileTriangles source, int ax, int az, int firstX, int firstZ, int tilesX, int tilesZ, float margin,
+                               out float[] verts, out int[] indices)
+    {
+        int tx = ax - firstX, tz = az - firstZ;
+        var cv = new List<float>(); var ci = new List<int>();
+        source.Gather(ax * TileMetres - margin, az * TileMetres - margin, (ax + 1) * TileMetres + margin, (az + 1) * TileMetres + margin, cv, ci);
+        var ov = new List<float>(); var oi = new List<int>();
+        for (int t = 0; t + 2 < ci.Count; t += 3)
+        {
+            float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
+            for (int k = 0; k < 3; k++)
+            {
+                int b = ci[t + k] * 3;
+                minX = MathF.Min(minX, cv[b]); maxX = MathF.Max(maxX, cv[b]);
+                minZ = MathF.Min(minZ, cv[b + 2]); maxZ = MathF.Max(maxZ, cv[b + 2]);
+            }
+            int tx0 = Math.Max(0, (int)MathF.Floor((minX - margin) / TileMetres) - firstX);
+            int tx1 = Math.Min(tilesX - 1, (int)MathF.Floor((maxX + margin) / TileMetres) - firstX);
+            int tz0 = Math.Max(0, (int)MathF.Floor((minZ - margin) / TileMetres) - firstZ);
+            int tz1 = Math.Min(tilesZ - 1, (int)MathF.Floor((maxZ + margin) / TileMetres) - firstZ);
+            if (tx < tx0 || tx > tx1 || tz < tz0 || tz > tz1) continue;
+            for (int k = 0; k < 3; k++)
+            {
+                int b = ci[t + k] * 3;
+                oi.Add(ov.Count / 3);
+                ov.Add(cv[b]); ov.Add(cv[b + 1]); ov.Add(cv[b + 2]);
+            }
+        }
+        verts = ov.ToArray(); indices = oi.ToArray();
+        return indices.Length > 0;
     }
 
     private static void CheckTileMetres(float t)
@@ -315,40 +395,15 @@ public sealed class RecastNavmeshBaker
         return false;
     }
 
-    /// <summary>Per tile (row-major), the triangles whose x/z box reaches into the tile grown by <paramref name="margin"/>; null = none.</summary>
-    private List<int>?[] BinTriangles(float[] v, int[] idx, int firstX, int firstZ, int tilesX, int tilesZ, float margin)
-    {
-        var bins = new List<int>?[tilesX * tilesZ];
-        for (int t = 0; t + 2 < idx.Length; t += 3)
-        {
-            if ((t & 0x3FFF) == 0) Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
-            float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
-            for (int k = 0; k < 3; k++)
-            {
-                int b = idx[t + k] * 3;
-                minX = MathF.Min(minX, v[b]); maxX = MathF.Max(maxX, v[b]);
-                minZ = MathF.Min(minZ, v[b + 2]); maxZ = MathF.Max(maxZ, v[b + 2]);
-            }
-            int tx0 = Math.Max(0, (int)MathF.Floor((minX - margin) / TileMetres) - firstX);
-            int tx1 = Math.Min(tilesX - 1, (int)MathF.Floor((maxX + margin) / TileMetres) - firstX);
-            int tz0 = Math.Max(0, (int)MathF.Floor((minZ - margin) / TileMetres) - firstZ);
-            int tz1 = Math.Min(tilesZ - 1, (int)MathF.Floor((maxZ + margin) / TileMetres) - firstZ);
-            for (int tz = tz0; tz <= tz1; tz++)
-            for (int tx = tx0; tx <= tx1; tx++)
-                (bins[tz * tilesX + tx] ??= new List<int>()).Add(t);
-        }
-        return bins;
-    }
-
     /// <summary>
     /// The tile's vertical extent: its own triangles, padded (below for the ground voxels, above by the agent height so open spans
     /// pass the walkable-height test), SNAPPED to the <see cref="CellHeight"/> lattice — so neighbouring tiles quantise heights the
     /// same way, and the extent depends on the tile's geometry only (never on a far-away hill: the cache key stays local).
     /// </summary>
-    private static void TileYRange(float[] v, int[] idx, List<int> tris, LayerParams p, out float yMin, out float yMax)
+    private static void TileYRange(float[] v, int[] idx, LayerParams p, out float yMin, out float yMax)
     {
         float lo = float.MaxValue, hi = float.MinValue;
-        foreach (int t in tris)
+        for (int t = 0; t + 2 < idx.Length; t += 3)
             for (int k = 0; k < 3; k++)
             {
                 float y = v[idx[t + k] * 3 + 1];
@@ -362,38 +417,42 @@ public sealed class RecastNavmeshBaker
     /// The content key of one tile: everything its bake reads — the bake format, the layer and its params, the cell, the tile's
     /// place and vertical extent, its triangles and the doorway volumes over it. Equal key ⇔ the same tile.
     /// </summary>
-    private string HashTile(float[] v, int[] idx, List<int> tris, IRcInputGeomProvider geom, NavLayerMask layer, LayerParams p,
+    private string HashTile(float[] v, int[] idx, List<NavDoorways.Volume> volumes, NavLayerMask layer, LayerParams p,
         float cs, int ax, int az, float yMin, float yMax)
     {
-        using var h = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        var buf = new byte[4];
-        void F(float f) { BinaryPrimitives.WriteSingleLittleEndian(buf, f); h.AppendData(buf, 0, 4); }
-        void I(int n) { BinaryPrimitives.WriteInt32LittleEndian(buf, n); h.AppendData(buf, 0, 4); }
+        // ⭐ CE-4366 — the same byte stream as before (so every cached tile keeps its key), built in one buffer and hashed ONCE: four bytes
+        //   per interop call made hashing the warm load's biggest cost (scale-1: 105 800 tiles)
+        int n4 = 14 + idx.Length * 3 + volumes.Count * 64;
+        var bytes = new byte[n4 * 4];
+        int at = 0;
+        void Grow() { if (at + 4 > bytes.Length) Array.Resize(ref bytes, bytes.Length * 2); }
+        void F(float f) { Grow(); BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(at), f); at += 4; }
+        void I(int n) { Grow(); BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(at), n); at += 4; }
 
         I(BakeFormat); I((int)layer); I(ax); I(az);
         F(TileMetres); F(cs); F(CellHeight); F(yMin); F(yMax);
         F(p.AgentRadius); F(p.AgentHeight); F(p.MaxSlope); F(p.MaxStepHeight);
-        I(tris.Count);
-        foreach (int t in tris)
+        I(idx.Length / 3);
+        for (int t = 0; t + 2 < idx.Length; t += 3)
             for (int k = 0; k < 3; k++)
             {
                 int b = idx[t + k] * 3;
                 F(v[b]); F(v[b + 1]); F(v[b + 2]);
             }
         float x0 = ax * TileMetres - 3f, z0 = az * TileMetres - 3f, x1 = (ax + 1) * TileMetres + 3f, z1 = (az + 1) * TileMetres + 3f;
-        foreach (var vol in geom.ConvexVolumes())
+        foreach (var vol in volumes)
         {
             float vx0 = float.MaxValue, vz0 = float.MaxValue, vx1 = float.MinValue, vz1 = float.MinValue;
-            for (int k = 0; k + 2 < vol.verts.Length; k += 3)
+            for (int k = 0; k + 2 < vol.Verts.Length; k += 3)
             {
-                vx0 = MathF.Min(vx0, vol.verts[k]); vx1 = MathF.Max(vx1, vol.verts[k]);
-                vz0 = MathF.Min(vz0, vol.verts[k + 2]); vz1 = MathF.Max(vz1, vol.verts[k + 2]);
+                vx0 = MathF.Min(vx0, vol.Verts[k]); vx1 = MathF.Max(vx1, vol.Verts[k]);
+                vz0 = MathF.Min(vz0, vol.Verts[k + 2]); vz1 = MathF.Max(vz1, vol.Verts[k + 2]);
             }
             if (vx0 > x1 || vx1 < x0 || vz0 > z1 || vz1 < z0) continue;
-            foreach (var f in vol.verts) F(f);
-            F(vol.hmin); F(vol.hmax); I(vol.areaMod.Value);
+            foreach (var f in vol.Verts) F(f);
+            F(vol.MinY); F(vol.MaxY); I(new RcAreaModification(NavDoorways.DoorArea).Value);   // as AddConvexVolume stored it
         }
-        return Convert.ToHexString(h.GetHashAndReset(), 0, 12);
+        return Convert.ToHexString(SHA256.HashData(bytes.AsSpan(0, at)), 0, 12);
     }
 
     // ── Layer enumeration ────────────────────────────────────────────────────

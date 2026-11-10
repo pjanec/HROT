@@ -79,16 +79,111 @@ namespace Fdp.Toolkit.Terrain
             foreach (var w in world.Walkables)
             {
                 Fdp.Core.LoadProgress.Report();
-                int b = v.Count;
-                v.AddRange(w.Vertices);
-                for (int i = 0; i + 2 < w.Triangles.Length; i += 3)
-                {
-                    AddUp(v, t, b + w.Triangles[i], b + w.Triangles[i + 1], b + w.Triangles[i + 2]);
-                    g.Add(new TerrainTriangleTag(TerrainTriangleKind.Slab, null));
-                }
+                AddWalkable(w, v, t, g);
             }
 
             return new Result(v.ToArray(), t.ToArray(), g.ToArray());
+        }
+
+        private static void AddWalkable(TerrainWalkable w, List<Vector3> v, List<int> t, List<TerrainTriangleTag>? g)
+        {
+            int b = v.Count;
+            v.AddRange(w.Vertices);
+            for (int i = 0; i + 2 < w.Triangles.Length; i += 3)
+            {
+                AddUp(v, t, b + w.Triangles[i], b + w.Triangles[i + 1], b + w.Triangles[i + 2]);
+                g?.Add(new TerrainTriangleTag(TerrainTriangleKind.Slab, null));
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4366</c> (L-4, docs/DESIGN_Scale_Rig.md §5) — the soup's pieces that can reach the rectangle [<paramref name="min"/>,
+        /// <paramref name="max"/>] (engine x/y): the default-cell ground cells over it, the prisms and walkables whose box overlaps it — each
+        /// piece built by the SAME code as <see cref="Build"/>, appended in the SAME order (ground row by row, prisms, walkables). A superset:
+        /// the caller keeps the triangles its own test admits, and gets exactly the triangles the whole soup would give it. The navmesh bake
+        /// asks per tile, so a 5.5 km terrain at 1 m never builds its 61 M-triangle soup (7 GB peak) on a sim node.
+        /// </summary>
+        public static void BuildRegion(TerrainWorld world, Vector2 min, Vector2 max, List<Vector3> v, List<int> t)
+        {
+            var ix = RegionIndex.For(world);
+            // ground: the cells whose square overlaps the rectangle (one cell of slack: the caller's test decides)
+            var (gmin, gmax, cell, nx, ny) = ix.Layout;
+            int ix0 = Math.Max(0, (int)MathF.Floor((min.X - gmin.X) / cell) - 1), ix1 = Math.Min(nx - 1, (int)MathF.Floor((max.X - gmin.X) / cell) + 1);
+            int iy0 = Math.Max(0, (int)MathF.Floor((min.Y - gmin.Y) / cell) - 1), iy1 = Math.Min(ny - 1, (int)MathF.Floor((max.Y - gmin.Y) / cell) + 1);
+            for (int iy = iy0; iy <= iy1; iy++)
+                for (int jx = ix0; jx <= ix1; jx++)
+                    AddGroundCell(world, gmin, gmax, cell, jx, iy, ix.Bins, v, t, null);
+            foreach (int k in ix.Pieces(ix.Prisms, min, max))
+            {
+                var prism = world.Prisms[k];
+                if (!IsVolumeEffect(prism)) AddPrism(prism, v, t, null);
+            }
+            foreach (int k in ix.Pieces(ix.Walkables, min, max))
+                AddWalkable(world.Walkables[k], v, t, null);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4366 — the x/y extent of the whole soup (the ground layout, every non-volume prism, every walkable) and its height range,
+        /// without building it: the navmesh bake lays its tile grid over this. <paramref name="any"/> false ⇒ nothing to bake.
+        /// </summary>
+        public static (Vector2 Min, Vector2 Max) SoupExtent(TerrainWorld world, out float zLo, out float zHi, out bool any)
+        {
+            var (gmin, gmax, _, _, _) = RegionIndex.For(world).Layout;
+            var min = gmin; var max = gmax;
+            zLo = world.Height?.MinZ ?? world.GroundZ; zHi = world.Height?.MaxZ ?? world.GroundZ;
+            foreach (var p in world.Prisms)
+            {
+                if (IsVolumeEffect(p)) continue;
+                min = Vector2.Min(min, p.Min); max = Vector2.Max(max, p.Max);
+                zLo = MathF.Min(zLo, p.BaseZ); zHi = MathF.Max(zHi, p.TopZ);
+            }
+            foreach (var w in world.Walkables)
+            {
+                min = Vector2.Min(min, w.Min); max = Vector2.Max(max, w.Max);
+                zLo = MathF.Min(zLo, w.MinZ); zHi = MathF.Max(zHi, w.MaxZ);
+            }
+            any = true;
+            return (min, max);
+        }
+
+        /// <summary>A world's ground layout, ground bins and piece bins — built once per world (the regions of one bake share them).</summary>
+        private sealed class RegionIndex
+        {
+            private const float Bin = 24f;
+            private static readonly ConditionalWeakTable<TerrainWorld, RegionIndex> Memo = new();
+            public static RegionIndex For(TerrainWorld world) => Memo.GetValue(world, w => new RegionIndex(w));
+
+            public readonly (Vector2 Min, Vector2 Max, float Cell, int Nx, int Ny) Layout;
+            public readonly GroundBins Bins;
+            public readonly Dictionary<(int, int), List<int>> Prisms = new(), Walkables = new();
+
+            private RegionIndex(TerrainWorld world)
+            {
+                Layout = GroundLayout(world, DefaultCellSize(world));
+                Bins = new GroundBins(world);
+                for (int k = 0; k < world.Prisms.Count; k++) File(Prisms, world.Prisms[k].Min, world.Prisms[k].Max, k);
+                for (int k = 0; k < world.Walkables.Count; k++) File(Walkables, world.Walkables[k].Min, world.Walkables[k].Max, k);
+            }
+
+            private static void File(Dictionary<(int, int), List<int>> bins, Vector2 a, Vector2 b, int k)
+            {
+                for (int y = (int)MathF.Floor(a.Y / Bin); y <= (int)MathF.Floor(b.Y / Bin); y++)
+                    for (int x = (int)MathF.Floor(a.X / Bin); x <= (int)MathF.Floor(b.X / Bin); x++)
+                    {
+                        if (!bins.TryGetValue((x, y), out var l)) bins[(x, y)] = l = new List<int>();
+                        l.Add(k);
+                    }
+            }
+
+            /// <summary>The pieces filed in a bin the rectangle touches, ascending (the soup's order), each once.</summary>
+            public List<int> Pieces(Dictionary<(int, int), List<int>> bins, Vector2 min, Vector2 max)
+            {
+                var set = new SortedSet<int>();
+                for (int y = (int)MathF.Floor(min.Y / Bin) - 1; y <= (int)MathF.Floor(max.Y / Bin) + 1; y++)
+                    for (int x = (int)MathF.Floor(min.X / Bin) - 1; x <= (int)MathF.Floor(max.X / Bin) + 1; x++)
+                        if (bins.TryGetValue((x, y), out var l)) foreach (int k in l) set.Add(k);
+                return new List<int>(set);
+            }
         }
 
         /// <summary>The ground grid's layout: its corner, its far corner, its cell and its cell counts — the ONE rule <see cref="AddGround"/> lays the
@@ -224,24 +319,29 @@ namespace Fdp.Toolkit.Terrain
             for (int iy = 0; iy < ny; iy++)
             {
                 Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — one per ground row (docs/DESIGN_Cluster_Load_Phase.md §12)
-            for (int ix = 0; ix < nx; ix++)
-            {
-                float x0 = min.X + (ix * cell), y0 = min.Y + (iy * cell);
-                float x1 = MathF.Min(x0 + cell, max.X), y1 = MathF.Min(y0 + cell, max.Y);
-                if (excl.Excluded(new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f))) continue;
+                for (int ix = 0; ix < nx; ix++) AddGroundCell(world, min, max, cell, ix, iy, excl, v, t, g);
+            }
+        }
 
-                int b = v.Count;
-                v.Add(new Vector3(x0, y0, world.GroundHeightAt(x0, y0)));
-                v.Add(new Vector3(x1, y0, world.GroundHeightAt(x1, y0)));
-                v.Add(new Vector3(x1, y1, world.GroundHeightAt(x1, y1)));
-                v.Add(new Vector3(x0, y1, world.GroundHeightAt(x0, y1)));
-                t.Add(b); t.Add(b + 1); t.Add(b + 2);
-                t.Add(b); t.Add(b + 2); t.Add(b + 3);
-                var tag = new TerrainTriangleTag(TerrainTriangleKind.Ground,
-                    excl.InForest(new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f)) ? ForestMaterial : null);
-                g.Add(tag); g.Add(tag);
-            }
-            }
+        /// <summary>One ground cell's two triangles (unless a solid or water covers its centre) — the ONE place a ground cell is made.</summary>
+        private static void AddGroundCell(TerrainWorld world, Vector2 min, Vector2 max, float cell, int ix, int iy, GroundBins excl,
+                                          List<Vector3> v, List<int> t, List<TerrainTriangleTag>? g)
+        {
+            float x0 = min.X + (ix * cell), y0 = min.Y + (iy * cell);
+            float x1 = MathF.Min(x0 + cell, max.X), y1 = MathF.Min(y0 + cell, max.Y);
+            if (excl.Excluded(new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f))) return;
+
+            int b = v.Count;
+            v.Add(new Vector3(x0, y0, world.GroundHeightAt(x0, y0)));
+            v.Add(new Vector3(x1, y0, world.GroundHeightAt(x1, y0)));
+            v.Add(new Vector3(x1, y1, world.GroundHeightAt(x1, y1)));
+            v.Add(new Vector3(x0, y1, world.GroundHeightAt(x0, y1)));
+            t.Add(b); t.Add(b + 1); t.Add(b + 2);
+            t.Add(b); t.Add(b + 2); t.Add(b + 3);
+            if (g == null) return;
+            var tag = new TerrainTriangleTag(TerrainTriangleKind.Ground,
+                excl.InForest(new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f)) ? ForestMaterial : null);
+            g.Add(tag); g.Add(tag);
         }
 
         /// <summary>The material tag of ground under a forest surface.</summary>
@@ -315,7 +415,7 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public static bool IsVolumeEffect(TerrainPrism prism) => prism.Material is { SightTransmittance: > 0f, BlocksMovement: false };
 
-        private static void AddPrism(TerrainPrism prism, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
+        private static void AddPrism(TerrainPrism prism, List<Vector3> v, List<int> t, List<TerrainTriangleTag>? g)
         {
             var fp = prism.Footprint;
             int n = fp.Length;
@@ -328,7 +428,7 @@ namespace Fdp.Toolkit.Terrain
             for (int i = 0; i + 2 < prism.Triangles.Length; i += 3)
             {
                 AddUp(v, t, roof + prism.Triangles[i], roof + prism.Triangles[i + 1], roof + prism.Triangles[i + 2]);
-                g.Add(new TerrainTriangleTag(TerrainTriangleKind.Roof, material));
+                g?.Add(new TerrainTriangleTag(TerrainTriangleKind.Roof, material));
             }
 
             // Side walls, one quad per edge, facing outward.
@@ -345,6 +445,7 @@ namespace Fdp.Toolkit.Terrain
                 v.Add(new Vector3(a, prism.TopZ));
                 t.Add(b); t.Add(b + 1); t.Add(b + 2);
                 t.Add(b); t.Add(b + 2); t.Add(b + 3);
+                if (g == null) continue;
                 var wall = new TerrainTriangleTag(TerrainTriangleKind.Wall, material);
                 g.Add(wall); g.Add(wall);
             }

@@ -247,15 +247,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <summary>Something solid stands where a unit on <paramref name="floor"/> at <paramref name="p"/> would (another wall's
         /// thickness, a solid block) — the 1 m above the floor.</summary>
         private static bool Occupied(TerrainWorld world, Vector2 p, float floor)
-        {
-            foreach (var prism in world.Prisms)
-            {
-                if (p.X < prism.Min.X || p.Y < prism.Min.Y || p.X > prism.Max.X || p.Y > prism.Max.Y) continue;
-                if (prism.TopZ <= floor + 0.1f || prism.BaseZ >= floor + 1.0f) continue;
-                if (PolygonMath.Contains(prism.Footprint, p)) return true;
-            }
-            return false;
-        }
+            => world.InsideFootprint(p.X, p.Y, floor + 0.1f, floor + 1.0f);   // ⭐ CE-4366 — through the spatial index (was a scan of every prism)
 
         /// <inheritdoc/>
         public int GetCoverPointsInRadius(Vector2 center, float radius, Span<CoverPoint> results)

@@ -126,6 +126,68 @@ HROT_SCALE_RIG=1 dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --
 
 ⇒ the cold scale load is the first wall — L-4 §5 measures it stage by stage in one process.
 
-## 5. Findings (L-4)
+## 5. Findings and fixes (L-4, `CE-4366`) — the biggest measured cost first
 
-_see the L-4 section_
+### 5.1 The terrain load at scale — measured stage by stage *(Release, one process, `scale-1`: 5.5 km at 1 m, 1 651 houses → 84 607 prisms, 6 911 doors)*
+
+| stage | before | after | fix |
+|---|---|---|---|
+| height grid read | 5.9 s / 813 MB (as a 1 m `.asc`) | **0.31 s / 127 MB** | L-3's binary store |
+| parse + building expansion | 2.2 s, 0.32 GB | 2.5 s, 0.32 GB | — (not over budget) |
+| ⛔ the whole terrain soup for the navmesh input (`TerrainWorldMesh.Build`: 4 vertices per 1 m cell) | 9.4 s, 61.4 M triangles, **peak 7.0 GB** | **not built on a sim node** | §5.2 the per-tile bake |
+| navmesh, cold (105 800 tiles, 2 layers; 4 cores) | never finished on the cluster (nodes ejected) | 536 s, **peak 1.46 GB** | §5.2 |
+| navmesh, warm (every tile from `NavTileCache`) | — | 47.4 s → 31.5 s (no Recast input for a hit) → **16.0 s** (the tile key hashed in one call, not 4 bytes per interop call) | §5.2 |
+| ⛔ the cover points (`TerrainCoverProvider.Build`: "inside a solid?" and "something stands here?" scanned all 84 607 prisms per point) | **51.9 s** | **0.4 s** | both asked through the world's spatial index (`TerrainWorld.InsideFootprint`, + a height-banded form) — rail `CoverBuildIndexedTests` (the indexed build = the scanning one, 4 terrains; red-proved) |
+| object index (Bepu) | 0.6 s | 0.6 s | — |
+| ⇒ the terrain step in one process, warm | — | parse 2.5 + index 0.6 + navmesh 16.0 + cover 0.4 ≈ **19.5 s ✅ (≤ 30 s)** | |
+| on the CLUSTER (cgf + simhost load at once on the 4-core VM), warm cache, before the cover fix | — | ready after **183.6 s** — simhost's navmesh 56.6 s (sharing the cores), then the cover build on BOTH nodes; scale-1 now runs: 96 men, 10 / 12 movers moved, simhost peak 2.54 GB | |
+
+### 5.2 📐 The per-tile bake *(a non-local fix: Fdp.Toolkits.Navigation.Recast + TerrainWorldMesh)*
+
+```mermaid
+classDiagram
+  class ITileTriangles { <<NEW>> TryGetBounds · Gather(rect) — a superset, in ONE fixed order }
+  class ArrayTileTriangles { <<NEW>> a soup in memory, binned on the tile grid — the old Bake(verts, indices) }
+  class TerrainTileTriangles { <<NEW>> TerrainWorldMesh.BuildRegion per rectangle, swizzled to Recast space }
+  class TerrainWorldMesh { <<existing>> Build (the 3-D soup) · BuildRegion NEW · SoupExtent NEW — the same piece builders }
+  class RecastNavmeshBaker { <<existing>> Bake(ITileTriangles) — per tile: gather, the old membership test, hash, cache, bake on a miss }
+  class RecastNavmeshFactory { <<existing>> BakeMeshes → TerrainTileTriangles }
+  ITileTriangles <|.. ArrayTileTriangles
+  ITileTriangles <|.. TerrainTileTriangles
+  TerrainTileTriangles ..> TerrainWorldMesh
+  RecastNavmeshBaker ..> ITileTriangles
+  RecastNavmeshFactory ..> RecastNavmeshBaker
+```
+
+```mermaid
+sequenceDiagram
+  participant F as RecastNavmeshFactory (load, off the main thread)
+  participant B as RecastNavmeshBaker.Bake (parallel per tile)
+  participant T as TerrainTileTriangles
+  participant M as TerrainWorldMesh.BuildRegion
+  participant C as NavTileCache
+  F->>B: Bake(source, layers, doorways, fine areas)
+  B->>T: SoupExtent ⇒ the tile grid
+  loop every tile (in parallel)
+    B->>T: Gather(tile + border)
+    T->>M: ground cells, prisms, walkables over it (same builders, same order)
+    B->>B: keep what the whole-soup binning kept (same arithmetic)
+    B->>C: key = SHA-256(the same bytes as before)
+    alt hit
+      C-->>B: the tile
+    else miss
+      B->>B: Recast input for THIS tile only, bake
+    end
+  end
+```
+
+**Who calls it each frame:** nobody — a load-time (and Nav v2 §14 rebake-time) path.
+
+| # | decision | measured |
+|---|---|---|
+| N-1 | each tile's triangles from the terrain, not from a global soup | peak 7.0 → 1.46 GB (cold) / 1.20 GB (warm) |
+| N-2 | ⭐ **the tiles and their cache keys unchanged** — the region build uses the same piece builders in the same order, the baker the same membership test, the key the same byte stream | rail `TileSourceEqualityTests` (5 shipped terrains: the per-tile bake takes every tile from the whole-soup bake's cache, and a fresh bake of each is byte-identical; red-proved by reversing the piece order); and the OLD code's cache (base worktree, demo-city) serves the new code: **2 312 of 2 312 tiles from the cache, 0 baked** — a user's cache stays valid |
+| N-3 | the Recast input (`RcSampleInputGeomProvider`, its chunky index) only on a miss | warm 47.4 → 31.5 s |
+| N-4 | the tile key hashed in ONE `SHA256.HashData` call over the same bytes | warm 31.5 → 16.0 s |
+| N-5 | the 3-D view still builds the whole soup (the editor) — 61 M triangles at 1 m is ui's U-1 (level of detail), not changed here | tracker row for ui |
+

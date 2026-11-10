@@ -7,7 +7,7 @@ Machine for every number below: this cloud VM (4 cores, 15 GB), Debug build unle
 | L-1 | CE-4363 | DONE | `f36e43f9e` | see below; scale-1 now carries the 1 m height store (L-3) |
 | L-2 | CE-4364 | DONE — rig + baselines on demo-city; ⛔ scale-1 does not load on the cluster (→ L-4) | this commit | [DESIGN_Scale_Rig](../../DESIGN_Scale_Rig.md): `scripts/scale-rig.py` (imports perf-stress's cluster machinery), garbage per system in the scheduler's profiler, `process` numbers on `/diagnostics/architecture`, opt-in rail `ScaleRigRail` (`HROT_SCALE_RIG=1`) |
 | L-3 | CE-4365 | DONE | this commit | [Terrain Height §9](../../DESIGN_Terrain_Height.md): tiles + index, binary `.heights`, `hrot-heights` (one C# resampler). 1 m scale-1: load **0.31 s / 127 MB** (the same as a 1 m `.asc`: 5.9 s / 813 MB). Float, not 16-bit — numbers in §9.2 |
-| L-4 | CE-4366 | IN PROGRESS | — | first wall measured: the terrain load (below) |
+| L-4 | CE-4366 | IN PROGRESS — the load fixed in one process (≈ 19.5 s warm); the cluster re-measure next, then the frame / garbage table | this commit | [Scale Rig §5](../../DESIGN_Scale_Rig.md): the per-tile bake (peak 7.0 → 1.46 GB, warm 47 → 16 s, cache keys unchanged), the cover build 52 → 0.4 s |
 | L-5 | CE-4367 | DONE | this commit | [World Query Seam §7](../../DESIGN_World_Query_Seam.md): a 3 km eye-level trace **38.7 → 3.8 µs**, answers identical (rail, 12 000 lines) |
 | L-6 | CE-4368 | WAITING — the coordinator's CE-4371 (input-set reader) is not on `origin/coordinator` yet ⇒ L-7 first (the handoff's swap) | | |
 | L-7 | CE-4369 | — | | |
@@ -40,9 +40,8 @@ folders (`diff -r`). Placement geometry factored into `scripts/terrain_placement
 | ⛔ the ground + building mesh (`TerrainWorldMesh.Build`: 4 vertices per 1 m cell) | 9.4 s | **61.4 M triangles, 2.2 GB; peak 7.0 GB** |
 | (demo-city for scale: the mesh 0.1 s, the navmesh 6.7 s cold, 2 312 tiles) | | |
 
-⇒ the biggest measured cost: the NAVMESH's input is one global mesh of the whole terrain (the 3-D view's soup) — on a sim node it is built only
-for the bake. On the cluster the cold load starved the heartbeats (both nodes ejected) and simhost reached 4.4 GB. Fix in progress: the bake
-takes each tile's triangles from the terrain directly (no global mesh).
+⇒ fixed in order of size — see Scale Rig §5.1 for the before / after table: the per-tile navmesh bake (no global soup), the Recast input only
+on a cache miss, the tile key hashed once, the cover build through the spatial index.
 
 ### Other lanes' reds seen at the merge (not touched)
 

@@ -55,7 +55,8 @@ def terrain_info(name):
     bounds = world["hrot"]["bounds"]
     grid = None
     if world["hrot"].get("heightGrid"):
-        grid = read_asc(os.path.join(folder, world["hrot"]["heightGrid"]))
+        hg = os.path.join(folder, world["hrot"]["heightGrid"])
+        grid = read_store(hg) if hg.endswith(".heights") else read_asc(hg)
     road = []
     net = t.get("sumoNet")
     if net:
@@ -98,6 +99,24 @@ def read_asc(path):
     return (x0, y0, cell, cols, rows, z)
 
 
+def read_store(path):
+    """the binary height store (CE-4365, Terrain Height §9.1): a ground(x, y) that seeks the one post it needs."""
+    import struct
+    f = open(path, "rb")
+    magic, version, cols, rows = struct.unpack("<IiII", f.read(16))
+    ox, oy, cell = struct.unpack("<ddd", f.read(24))
+    tile, tx, ty = struct.unpack("<iii", f.read(12))
+    head = f.tell()
+
+    def z(x, y):
+        c = min(max(int(round((x - ox) / cell)), 0), cols - 1)
+        r = min(max(int(round((y - oy) / cell)), 0), rows - 1)
+        t = (r // tile) * tx + (c // tile)
+        f.seek(head + (t * tile * tile + (r % tile) * tile + (c % tile)) * 4)
+        return struct.unpack("<f", f.read(4))[0]
+    return z
+
+
 def _num(s):
     try:
         float(s)
@@ -109,6 +128,8 @@ def _num(s):
 def ground(grid, x, y):
     if grid is None:
         return 0.0
+    if callable(grid):
+        return grid(x, y)
     x0, y0, cell, cols, rows, z = grid
     c = min(max(int(round((x - x0) / cell)), 0), cols - 1)
     r = min(max(int(round((y - y0) / cell)), 0), rows - 1)

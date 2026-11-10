@@ -393,6 +393,27 @@ namespace Fdp.Toolkit.Terrain
             return false;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4366</c> (L-4) — true when (<paramref name="x"/>, <paramref name="y"/>) is inside a prism's footprint whose height band
+        /// overlaps the open interval (<paramref name="zLo"/>, <paramref name="zHi"/>) — <c>TopZ &gt; zLo</c> and <c>BaseZ &lt; zHi</c>. Through
+        /// <see cref="SpatialIndex"/> like <see cref="InsideFootprint(float, float)"/>; the cover build's "something stands here" asked it by
+        /// scanning every prism (52 s on the scale terrain).
+        /// </summary>
+        public bool InsideFootprint(float x, float y, float zLo, float zHi)
+        {
+            var p = new Vector2(x, y);
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;   // a door leaf
+                var prism = Prisms[i];
+                if (!InBox(p, prism.Min, prism.Max) || prism.TopZ <= zLo || prism.BaseZ >= zHi) continue;
+                if (PolygonMath.Contains(prism.Footprint, p)) return true;
+            }
+            return false;
+        }
+
         /// <summary>How far above and below a point query's vertical segment reaches (m) — past any terrain's height.</summary>
         private const float PointQueryReach = 1e4f;
 
