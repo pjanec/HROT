@@ -349,17 +349,19 @@ stateDiagram-v2
 
 ```mermaid
 graph TD
-  EDITOR["EditorSubsystem — composes OsmWizardServices from what it has"] -->|"File ▸ New ▸ Terrain from OpenStreetMap… (greyed while Pipeline is null)"| WIN[OsmTerrainWizardWindow]
+  EDITOR["EditorSubsystem — composes OsmWizardServices ONCE from what it has"] -->|"File ▸ New ▸ Terrain from OpenStreetMap… (greyed: no pipeline, or no tiles and no search)"| WIN[OsmTerrainWizardWindow]
   EDITOR -->|"RegisterFrameOverlay(window.Draw) — every frame"| WIN
   WIN -->|"Pump() every frame: the worker's results, progress, tile uploads"| MODEL[OsmWizardModel]
-  MODEL -->|"Task.Run + CancellationTokenSource"| PIPE["IOsmTerrainPipeline — coordinator's OsmTerrainPipeline (NOT on the tree yet)"]
+  MODEL -->|"Task.Run + CancellationTokenSource"| PIPE["IOsmTerrainPipeline — OsmPipelines.Online: an OsmTerrainPipeline per area (CE-4373/4374)"]
+  CLI["hrot-terrain-osm CLI"] -->|"the same composition"| PIPE
   MODEL -.->|"optional"| IMP["ITerrainImporter — backend CE-4368"]
   TILES["ITileSource / IPlaceSearch — coordinator"] --> WIN
   classDef dead stroke:#c33,stroke-dasharray:4 3,color:#c33;
-  class PIPE,IMP,TILES dead;
+  class IMP,TILES dead;
 ```
-*What the picture shows: the window ticks only through the frame overlay; the three red boxes are NOT on the merged tree yet — until the pipeline lands the menu item is
-greyed with its reason, and the rails drive the same window with the fakes (W-2). ⛔ No stub pipeline in production code.*
+*What the picture shows: the window ticks only through the frame overlay; the pipeline is composed in ONE place (`OsmPipelines`, shared with the CLI — netconvert's road
+builder is bound to one area, so it builds an `OsmTerrainPipeline` per area and shares the download cache); the red boxes are NOT on the tree yet — with neither tiles nor
+search there is no way to pick a place, so the item stays greyed saying so, and the rails drive the same window with the fakes (W-2). ⛔ No stub in production code.*
 
 #### 6b-as-built *(ui, `2026-11-10`, CE-4375 W-3…W-5)* — what the build changed, and the ⚠ list
 

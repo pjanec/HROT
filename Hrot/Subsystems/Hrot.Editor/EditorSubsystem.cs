@@ -3631,12 +3631,15 @@ namespace Hrot.Editor
                 showPreview:     assetBrowserFindResults.ShowRenamePreview);
             windowManager.RegisterFrameOverlay(assetRenameModal.Draw);
 
-            // ⭐ CE-4375 (OSM §6 / §6b, W-3) — the "New terrain from OpenStreetMap" wizard: one modal, drawn as a frame overlay like the modals above. ⛔ No IOsmTerrainPipeline exists on this host yet
-            //   (the pipeline is the backend's), so the services carry none and File › New › Terrain from OpenStreetMap… is greyed with that reason — never a stub pipeline in production.
-            _osmWizard = new Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow(() => new Hrot.UI.Common.TerrainOsm.OsmWizardServices(
-                Pipeline: null, Tiles: null, Search: null, Importer: null,
+            // ⭐ CE-4375 (OSM §6 / §6b, W-3) — the "New terrain from OpenStreetMap" wizard: one modal, drawn as a frame overlay like the modals above. Its services are composed ONCE
+            //   (the menu reads the wizard's DisabledReason every frame). ⭐ The pipeline is the real one (CE-4373/4374), through the ONE composition the CLI uses (OsmPipelines).
+            //   ⛔ No ITileSource / IPlaceSearch / ITerrainImporter exist on the tree yet ⇒ null, and the item stays greyed saying what is missing — never a stub in production.
+            var osmServices = new Hrot.UI.Common.TerrainOsm.OsmWizardServices(
+                Pipeline: Hrot.Terrain.Osm.OsmPipelines.Online(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-terrain-osm-cache")),
+                Tiles: null, Search: null, Importer: null,
                 TerrainsRoot: Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot),
-                InputSetRoot: System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot, "terrain-input")));
+                InputSetRoot: System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot, "terrain-input"));
+            _osmWizard = new Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow(() => osmServices);
             windowManager.RegisterFrameOverlay(_osmWizard.Draw);
 
             var assetRowCommands = new[]

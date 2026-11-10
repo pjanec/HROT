@@ -17,7 +17,7 @@ Design: [DESIGN_Terrain_From_OSM.md](../../DESIGN_Terrain_From_OSM.md) §6b. Moc
 |---|---|
 | W-1 design (INVENTORY, classDiagram, stateDiagram, module graph) | ✅ §6b |
 | W-2 fakes (the mockup's `world()` in metres, a holdable pipeline, the search, painted PNG tiles) | ✅ `Hrot.Presentation.Tests/TerrainOsm/OsmWizardFakes.cs` |
-| W-3 the wizard + File ▸ New ▸ Terrain from OpenStreetMap… (greyed: no pipeline yet) | ✅ `Hrot.Presentation/TerrainOsm/*`, `ScenarioMenuCommands`, `EditorSubsystem` |
+| W-3 the wizard + File ▸ New ▸ Terrain from OpenStreetMap… (the real pipeline composed via `OsmPipelines`; greyed until a tile source or place search exists) | ✅ `Hrot.Presentation/TerrainOsm/*`, `ScenarioMenuCommands`, `EditorSubsystem` |
 | W-4 rails | ✅ `OsmWizardModelTests` (10) · `TheOsmWizardMatchesItsMockupTests` (6 frame rails, xvfb) |
 | W-5 fidelity pass | ✅ four states rendered beside the mockup, differences fixed, the rest below as ⚠ |
 
@@ -27,7 +27,7 @@ Design: [DESIGN_Terrain_From_OSM.md](../../DESIGN_Terrain_From_OSM.md) §6b. Moc
 
 | row | | rail / evidence | ⚠ the difference, and why |
 |---|---|---|---|
-| **C-1** window | ✅ | `Frame()` — 1200 × 600 on every step; the item in `File/New` right after Scenario… (`FileMenuLayout.InOrder`, `ScenarioMenuTests`) | ⚠ **one size for all four steps** — the mockup draws Options (330) and Import (470) shorter to save page space; C-1 asks for the SAME window, so it keeps one size. ⚠ **greyed item says why in its LABEL** — *"Terrain from OpenStreetMap… (unavailable — the pipeline is not built yet)"*: the shell's menu items carry no tooltip; the label is the house way (VC-3, the same as Load Scenario… / New Scenario…). Not on the Start surface (it draws every Idle item as a button; the mockup scopes the menu only — R-4151) |
+| **C-1** window | ✅ | `Frame()` — 1200 × 600 on every step; the item in `File/New` right after Scenario… (`FileMenuLayout.InOrder`, `ScenarioMenuTests`) | ⚠ **one size for all four steps** — the mockup draws Options (330) and Import (470) shorter to save page space; C-1 asks for the SAME window, so it keeps one size. ⚠ **greyed item says why in its LABEL** — *"Terrain from OpenStreetMap… (unavailable — the map tiles and the place search are not built yet)"* (the REAL pipeline is composed since the second coordinator merge — `OsmPipelines.Online`, the CLI's composition too; with neither tiles nor search there is no way to pick a place): the shell's menu items carry no tooltip; the label is the house way (VC-3, the same as Load Scenario… / New Scenario…). Not on the Start surface (it draws every Idle item as a button; the mockup scopes the menu only — R-4151) |
 | **C-2** step bar | ✅ | `Frame()` — chip fill / border / state per step, top 30, height 24, left 12, joined left to right; done = `CHECK` in `OK` | — |
 | **C-3** regions | ✅ | `Canvas()` — canvas (10, 64) 830 × 476, right panel at 852; the footer separator at 558 | ⚠ **Fit centres the box** in the canvas; the mockup draws it off-centre (150 … 600 × 140 … 470). Same size share (≈ 70 % of the height) |
 | **C-4** footer | ✅ | `Frame()` — Cancel right-aligned at 1180, primary before it, Back before that (absent in Area / Import); glyph colours: Next `TXT`, Preview `EYE` teal, Import `CHECK` green, greyed ⇒ `DIS` | — |
@@ -50,6 +50,8 @@ Design: [DESIGN_Terrain_From_OSM.md](../../DESIGN_Terrain_From_OSM.md) §6b. Moc
 | `dotnet test Hrot.Presentation.Tests --no-build --filter OsmWizardModelTests` | 10 / 0 |
 | `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter TheOsmWizardMatchesItsMockupTests` | 6 / 0 (ran — not skipped) |
 | `dotnet test Hrot.Editor.Tests --no-build --filter ScenarioMenu\|FileMenu\|StartSurface` (the File menu tables) | 42 / 0 |
+| `dotnet test Hrot.Terrain.Osm.Tests --no-build` (the coordinator's suite + `OsmPipelinesTests`, after the second merge) | 109 / 0 |
+| `dotnet build Hrot.Tools.TerrainOsm` (the CLI on the shared composition) | 0 errors |
 | red-proofs | see §3 |
 
 ## 3. Red-proofs (compiling mutations, one key rail per class)
@@ -59,7 +61,9 @@ Design: [DESIGN_Terrain_From_OSM.md](../../DESIGN_Terrain_From_OSM.md) §6b. Moc
 | A — `PrimaryRefusal` in Area ignores `BoxRefusal` | `OsmWizardModelTests.Area_NeedsABox_WithinTheLimit_ThenNextGoesToOptions` | 🔴 red (and `Area_ABoxOverTheLimit_…` frame rail red too) |
 | B — the Water include glyph drawn `GREY` instead of `BLUE` | `TheOsmWizardMatchesItsMockupTests.Options_MatchesTheMockup` | 🔴 red: *glyph 'include:3': expected colour ⟨0.35, 0.66, 1⟩, drawn ⟨0.63, 0.63, 0.67⟩* |
 
-Both reverted; the suites green again on a fresh build (§2).
+| C — `OsmPipelines.For` never reuses the last area's pipeline | `OsmPipelinesTests.ForAreas_MakesTheRoadBuilderPerArea_…` | 🔴 red: *Assert.Single() — the collection contained 2 items* |
+
+All reverted; the suites green again on a fresh build (§2).
 
 ## 4. Found on the way
 

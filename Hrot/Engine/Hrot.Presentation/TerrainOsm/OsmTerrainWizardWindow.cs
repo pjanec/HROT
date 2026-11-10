@@ -41,7 +41,16 @@ public sealed class OsmTerrainWizardWindow : IDisposable
     public readonly (Vector4 Fill, Vector4 Border, string State)[] Chips = new (Vector4, Vector4, string)[4];
 
     /// <summary>Why the menu item is greyed (null = it opens): no pipeline on this host yet (W-3 — ⛔ never a stub pipeline in production).</summary>
-    public string? DisabledReason => _services().Pipeline == null ? "the pipeline is not built yet" : null;
+    public string? DisabledReason
+    {
+        get
+        {
+            var sv = _services();
+            if (sv.Pipeline == null) return "the pipeline is not built yet";
+            if (sv.Tiles == null && sv.Search == null) return "the map tiles and the place search are not built yet";   // no way to pick a place
+            return null;
+        }
+    }
 
     /// <summary>File ▸ New ▸ Terrain from OpenStreetMap…: opens the wizard (a running import is shown again, not restarted).</summary>
     public void Open()

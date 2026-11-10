@@ -210,14 +210,16 @@ public sealed class OsmWizardModelTests : IDisposable
         Assert.True(File.Exists(Path.Combine(m.InputSetFolder!, "manifest.json")));
     }
 
-    /// <summary>The production host composes no pipeline (W-3): the menu says why; the model never pretends to preview.</summary>
+    /// <summary>W-3: the menu is greyed with what is missing — no pipeline, or no way to pick a place (neither tiles nor search).</summary>
     [Fact]
     public void WithoutAPipeline_TheMenuIsGreyedWithItsReason()
     {
         var window = new OsmTerrainWizardWindow(() => new OsmWizardServices(null, null, null, null, _root, _root));
         Assert.Equal("the pipeline is not built yet", window.DisabledReason);
-        var withOne = new OsmTerrainWizardWindow(() => new OsmWizardServices(_pipeline, null, null, null, _root, _root));
-        Assert.Null(withOne.DisabledReason);
+        var blind = new OsmTerrainWizardWindow(() => new OsmWizardServices(_pipeline, null, null, null, _root, _root));
+        Assert.Equal("the map tiles and the place search are not built yet", blind.DisabledReason);   // a pipeline, but no way to pick a place
+        var withMap = new OsmTerrainWizardWindow(() => new OsmWizardServices(_pipeline, new FakeTileSource(), null, null, _root, _root));
+        Assert.Null(withMap.DisabledReason);
     }
 
     /// <summary>The note severity (⚠ the contract's warnings carry none): dropped / refused / failed / skipped are warnings, the rest information.</summary>

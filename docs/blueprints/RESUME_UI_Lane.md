@@ -182,8 +182,8 @@ related-designs:
 ⭐ [HANDOFF_Coordinator_To_Ui_Osm_Wizard.md](batches/HANDOFF_Coordinator_To_Ui_Osm_Wizard.md) W-1…W-5 done: the wizard (`Hrot.Presentation/TerrainOsm/`), File ▸ New ▸ Terrain
 from OpenStreetMap… (greyed — no real pipeline on the tree yet), fakes + 16 rails, conformance C-1…C-15 all ✅ with the ⚠ list —
 [STATUS_Ui_Osm_Wizard.md](batches/STATUS_Ui_Osm_Wizard.md); design [DESIGN_Terrain_From_OSM.md](../DESIGN_Terrain_From_OSM.md) §6b + §6b-as-built.
-⭐ **Next for this item:** when the coordinator's `OsmTerrainPipeline` (and a tile source / place search) land, compose them in `EditorSubsystem` (`_osmWizard`'s
-services lambda) — the item un-greys by itself. ⚠ The ⚠ rows marked "contract" (lone trees, building type/roof/openings, note location/severity, data timestamp) need a
+⭐ The REAL pipeline is composed (`OsmPipelines.Online` — one composition with the CLI; per-area road builder). ⭐ **Next for this item:** an `ITileSource` (OSM tiles,
+attribution, a generic User-Agent) and an `IPlaceSearch` (Nominatim) — compose them in `EditorSubsystem` (`osmServices`) and the item un-greys; then an `ITerrainImporter`. ⚠ The ⚠ rows marked "contract" (lone trees, building type/roof/openings, note location/severity, data timestamp) need a
 contract extension first. Filed: [CE-1468](Blueprint_Issues_Tracker.md) (the tile LRU vs `PickerImageCache`).
 
 
