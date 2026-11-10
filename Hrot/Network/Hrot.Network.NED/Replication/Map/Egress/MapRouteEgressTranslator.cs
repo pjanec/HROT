@@ -28,7 +28,7 @@ namespace Hrot.Map.Common.Replication.Egress;
 /// has not changed since the last publish, ensuring minimal DDS traffic.
 /// </para>
 /// </summary>
-public class MapRouteEgressTranslator : IDescriptorTranslator
+public class MapRouteEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
 {
     private const long OrdinalValue = (long)EDescriptorType.dtMapRoute;
 
@@ -76,7 +76,21 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
 
     public void ScanAndPublish(ISimulationView view)
     {
+        BeginFrame(view);
+        ScanState(view, offFrame: false);
+    }
+
+    /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+    /// destruction bookkeeping (it reads the bus).</summary>
+    public void BeginFrame(ISimulationView view)
+    {
         if (_instances.OnFrame(view)) _publishedVersions.Clear();   // (CE-4007, §8.3: a wiped world deletes what this writer published) ⭐ R-3039 S3 — a world replacement (a load, a restore): republish every route (R-3041)
+    }
+
+    /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+    /// on the off-frame replica.</summary>
+    public void ScanState(ISimulationView view, bool offFrame)
+    {
         var query = view.Query()
             .DefaultRoutePublishable()
             // ⭐ CE-2209 — NO SimTransform filter: nothing here reads it. A route authored without one (hand-written scenarios) was

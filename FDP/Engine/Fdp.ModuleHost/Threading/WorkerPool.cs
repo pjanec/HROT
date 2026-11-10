@@ -2,10 +2,12 @@ using System;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 
-namespace Hrot.SimHost.Systems
+namespace Fdp.ModuleHost.Threading
 {
     /// <summary>
-    /// ⭐ CE-3427 P-1 — the EQS solver's worker threads (docs/DESIGN_Sensors_And_Doctrine.md §5.8, P1-C): <c>N − 1</c> persistent threads
+    /// ⭐ CE-3427 — the process's ONE worker pool (shared + unified): the EQS solver's windows (P-1) and the off-frame egress scan (N-1,
+    /// docs/DESIGN_Egress_Change_Detection.md §7) both use it. Moved here from Hrot.SimHost (it was <c>EqsSolveWorkers</c>).
+    /// Built for the EQS solver (docs/DESIGN_Sensors_And_Doctrine.md §5.8, P1-C): <c>N − 1</c> persistent threads
     /// plus the calling thread work through <c>0 … count − 1</c> of one window and <see cref="Run"/> returns when every index is done.
     /// ⭐ No allocation per run (R-2084): the work is a delegate the caller keeps, the hand-off a semaphore and a countdown. A work item
     /// that throws is rethrown on the calling thread after the window.
@@ -13,20 +15,20 @@ namespace Hrot.SimHost.Systems
     /// so the threads are bounded and never leak; a solver that finds it busy solves its window itself (<see cref="TryRun"/> false) —
     /// the result is the same either way, only the time differs.</para>
     /// </summary>
-    internal sealed class EqsSolveWorkers : IDisposable
+    public sealed class WorkerPool : IDisposable
     {
         private static readonly object s_lock = new();
-        private static readonly System.Collections.Generic.Dictionary<int, EqsSolveWorkers> s_shared = new();
+        private static readonly System.Collections.Generic.Dictionary<int, WorkerPool> s_shared = new();
 
         /// <summary>
         /// The process's pool with <paramref name="participants"/> threads (the caller included). One per distinct count, kept for the
         /// process — ⛔ never disposed on a count change: another solver may be inside a window on it.
         /// </summary>
-        public static EqsSolveWorkers Shared(int participants)
+        public static WorkerPool Shared(int participants)
         {
             lock (s_lock)
             {
-                if (!s_shared.TryGetValue(participants, out var pool)) s_shared[participants] = pool = new EqsSolveWorkers(participants);
+                if (!s_shared.TryGetValue(participants, out var pool)) s_shared[participants] = pool = new WorkerPool(participants);
                 return pool;
             }
         }
@@ -41,13 +43,13 @@ namespace Hrot.SimHost.Systems
         private volatile bool _stop;
 
         /// <param name="participants">Threads working a window, the caller included (≥ 2).</param>
-        private EqsSolveWorkers(int participants)
+        private WorkerPool(int participants)
         {
             if (participants < 2) throw new ArgumentOutOfRangeException(nameof(participants), "one participant is the caller's own loop — no pool");
             _threads = new Thread[participants - 1];
             for (int i = 0; i < _threads.Length; i++)
             {
-                _threads[i] = new Thread(Loop) { IsBackground = true, Name = $"EQS solve worker {i + 1}" };
+                _threads[i] = new Thread(Loop) { IsBackground = true, Name = $"Worker pool {participants}.{i + 1}" };
                 _threads[i].Start();
             }
         }

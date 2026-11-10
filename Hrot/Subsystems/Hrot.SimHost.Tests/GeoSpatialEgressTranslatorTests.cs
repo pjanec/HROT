@@ -352,5 +352,69 @@ namespace Hrot.SimHost.Tests
             Assert.True(receivedTombstone,
                 "Dispose(99) should tombstone the primary GeoSpatial instance (NOT_ALIVE sample expected).");
         }
+
+        // -- CE-3427 N-1 — the scan OFF the frame (docs/DESIGN_Egress_Change_Detection.md §7, O-C) --
+
+        /// <summary>The samples a translator would put on the wire, without a DDS writer.</summary>
+        private sealed class RecordingGeo : GeoSpatialEgressTranslator
+        {
+            public readonly List<(int Id, Vector3 Pos)> Sent = new();
+            public RecordingGeo() : base(null!, new NetworkEntityMap(), localNodeId: 1) { }
+            protected override void Publish(in WorldPos sample) => Sent.Add((sample.EntityId, new Vector3((float)sample.Position.X, (float)sample.Position.Y, (float)sample.Position.Z)));
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3427 N-1 (O-C) — <c>WorldPos</c> scanned OFF the frame, on a replica, sends what it sends on the frame, and the live world's
+        /// dead-reckoning shadow ends the same: the scan reads the shadow from the replica and QUEUES its writes; the join writes them on the
+        /// live world before the next sync. The hull starts WITHOUT a shadow (the first-sight attach is queued too), moves, stops, stands.
+        /// ✅ Red-proof (run): <c>ApplyDeferred</c> writing nothing ⇒ the live shadow stays at its zeros, so the off-frame scan sends every
+        /// frame ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3427_OffTheFrame_WorldPosSendsWhatItSendsOnTheFrame_AndTheShadowEndsTheSame()
+        {
+            static void Move(EntityRepository repo, Entity hull, int frame)
+            {
+                // moves for 10 frames, then stands (the shadow comparison must then send nothing)
+                var p = frame < 10 ? new Vector3(frame * 0.5f, 2f, 0f) : new Vector3(4.5f, 2f, 0f);
+                repo.GetComponentRW<Fdp.Core.SimTransform>(hull).Position = p;
+                if (frame == 10) repo.GetComponentRW<Fdp.Core.SimVelocity>(hull) = default;
+            }
+
+            var on = new RecordingGeo();
+            var (liveOn, hullOn) = OwnedHull();
+            var off = new RecordingGeo();
+            var (liveOff, hullOff) = OwnedHull();
+            using var replica = new EntityRepository();
+            Assert.False(liveOff.HasComponent<NetworkTransform>(hullOff));
+
+            var sentOn = new List<int>();
+            var sentOff = new List<int>();
+            for (int f = 0; f < 20; f++)
+            {
+                liveOn.Tick(); Move(liveOn, hullOn, f);
+                on.ScanAndPublish(liveOn);
+                sentOn.Add(on.Sent.Count);
+
+                liveOff.Tick();
+                off.ApplyDeferred(liveOff);                 // the join: last frame's shadow writes, on the live world
+                Move(liveOff, hullOff, f);
+                replica.SyncFrom(liveOff);                  // the launch
+                off.ScanState(replica, offFrame: true);
+                sentOff.Add(off.Sent.Count);
+                if (f == 0) Assert.False(replica.HasComponent<NetworkTransform>(hullOff), "the first-sight attach is queued, never made on the replica");
+            }
+            off.ApplyDeferred(liveOff);
+
+            Assert.Equal(sentOn, sentOff);                  // the same samples, frame by frame
+            Assert.Equal(on.Sent, off.Sent);
+            Assert.True(liveOff.HasComponent<NetworkTransform>(hullOff));   // the queued first-sight attach
+            var a = liveOn.GetComponentRO<NetworkTransform>(hullOn);
+            var b = liveOff.GetComponentRO<NetworkTransform>(hullOff);
+            Assert.Equal(a.LastPosition, b.LastPosition);
+            Assert.Equal(a.LastVelocity, b.LastVelocity);
+            Assert.Equal(a.LastSentTick, b.LastSentTick);
+            Assert.True(sentOn[^1] - sentOn[12] == 0, "a standing hull sends nothing");
+        }
     }
 }

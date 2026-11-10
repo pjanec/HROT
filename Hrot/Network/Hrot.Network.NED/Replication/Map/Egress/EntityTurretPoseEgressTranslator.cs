@@ -19,7 +19,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// (a lost BestEffort sample and a late joiner are repaired by it). The rates are written 0 and the stamp is the sim time —
     /// W-10 fills the rates with no wire change.</para>
     /// </summary>
-    public sealed class EntityTurretPoseEgressTranslator : IDescriptorTranslator
+    public sealed class EntityTurretPoseEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         private const long   OrdinalValue = (long)EDescriptorType.dtTurretPose;
 
@@ -49,7 +49,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
 
             DateTime stamp = default;
             bool stamped = false;

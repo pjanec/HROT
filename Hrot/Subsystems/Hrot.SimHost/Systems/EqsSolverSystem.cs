@@ -247,7 +247,7 @@ namespace Hrot.SimHost.Systems
         private readonly HashSet<QueryShareKey> _windowKeys = new();
         private Action<int>? _solveAt;
 
-        private EqsSolveWorkers? PoolFor(int workers)
+        private Fdp.ModuleHost.Threading.WorkerPool? PoolFor(int workers)
         {
             if (workers <= 1) return null;
             _solveAt ??= k => Solve(_slots[k]);
@@ -258,13 +258,13 @@ namespace Hrot.SimHost.Systems
                 for (int i = 0; i < places; i++) slots[i] = i < _slots.Length ? _slots[i] : new SolveSlot();
                 _slots = slots;
             }
-            return EqsSolveWorkers.Shared(workers);
+            return Fdp.ModuleHost.Threading.WorkerPool.Shared(workers);
         }
 
         // Predicts, from place `from`, which places the start rule would admit if every sensor cost its estimate; prepares those, solves
         // the PURE ones in parallel into the window's slots, and returns the end of the window. Everything here is side-effect free: the
         // commit loop decides with the actual costs.
-        private int SolveWindow(EqsSolveWorkers pool, IReadOnlyList<(int Rank, uint LastSolved, int Index, Entity Sensor, int Estimate)> ordered,
+        private int SolveWindow(Fdp.ModuleHost.Threading.WorkerPool pool, IReadOnlyList<(int Rank, uint LastSolved, int Index, Entity Sensor, int Estimate)> ordered,
                                 int from, int spent, int bandSpent, int bandBudget, int rank)
         {
             int used = 0, j = from;

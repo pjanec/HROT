@@ -865,6 +865,23 @@ namespace Hrot.Editor.DebugApi
             {
                 "Off with HROT_QUERY_TIMINGS=0. Slots nest (world.Trace.* includes terrain.*); msPerSecond sums every thread.",
             }),
+        [("GET", "/diagnostics/egress")] = new RouteDoc(
+            Tool:    "get_egress_pipeline",
+            Group:   "Y — node diagnostics",
+            Summary: "This PROCESS's off-frame state egress (CE-3427 N-1, an experiment): per world that has one (the SimHost), the mode in force, the mode requested, its scans, faults and last scan / join-wait / sync times.",
+            Returns: "{ pipelines[{ subsystem, mode, requested, translators, workers, scans, faults, lastScanMs, lastJoinWaitMs, lastSyncMs }], note }",
+            Hint:    "Example: get_egress_pipeline({})",
+            Params: Array.Empty<RouteParam>(),
+            Notes: new[] { "Off by default; FDP_EGRESS_OFFFRAME=1 starts a node off the frame. 📄 docs/DESIGN_Egress_Change_Detection.md §7." }),
+        [("POST", "/diagnostics/egress")] = new RouteDoc(
+            Tool:    "set_egress_pipeline",
+            Group:   "Y — node diagnostics",
+            Summary: "Switches this process's off-frame state egress (CE-3427 N-1): mode offframe = the state scans run on a replica off the main thread, one frame late; onframe = today's. Takes effect at each world's next Export.",
+            Returns: "the same as GET /diagnostics/egress",
+            Hint:    "Required: mode (offframe | onframe). Example: set_egress_pipeline({mode:\"offframe\"})",
+            Params: new RouteParam[] { new("mode", "string", true, "offframe | onframe") },
+            ExampleArgsJson: "{\"mode\":\"offframe\"}",
+            ExampleGist: "move the state egress off the main thread"),
         [("GET", "/diagnostics/architecture")] = new RouteDoc(
             Tool:    "get_architecture_diagnostics",
             Group:   "Y — node diagnostics",

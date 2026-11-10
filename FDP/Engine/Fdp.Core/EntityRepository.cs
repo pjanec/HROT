@@ -202,6 +202,18 @@ namespace Fdp.Core
         /// queries on one thread (the egress pass). Nests; dispose it.</summary>
         public QueryIndexScopeHandle QueryIndexScope() { _queryIndexDepth++; return new QueryIndexScopeHandle(this); }
 
+        /// <summary>
+        /// ⭐ CE-3427 N-1 — inside a <see cref="QueryIndexScope"/>: builds the candidate index NOW, so the scope's queries may run on several
+        /// threads at once (each then only reads it). ⚠ Only while nothing changes this repository's structure — the off-frame egress calls it
+        /// on its replica, which nothing writes during the scan. ⛔ The scope's depth counter itself is not thread-safe: open the scope on ONE
+        /// thread around the parallel work.
+        /// </summary>
+        public void PrepareQueryIndex()
+        {
+            if (_queryIndexDepth == 0) return;
+            TryQueryCandidates(default, out _, out _, out _);
+        }
+
         /// <summary>Ends a <see cref="QueryIndexScope"/>.</summary>
         public readonly struct QueryIndexScopeHandle : IDisposable
         {

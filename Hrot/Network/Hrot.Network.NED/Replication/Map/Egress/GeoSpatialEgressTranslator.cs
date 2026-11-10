@@ -22,8 +22,16 @@ namespace Hrot.Map.Common.Replication.Egress
     /// Reads <see cref="SimTransform"/> + <see cref="SimVelocity"/> ECS components and publishes the merged
     /// <see cref="WorldPos"/> DDS topic — a COPY into the local ENU frame (AQ107 B / D, <see cref="WorldPosCodec"/>), no geodetic maths.
     /// </summary>
-    public class GeoSpatialEgressTranslator : CycloneTranslator<WorldPos, WorldPos>
+    public class GeoSpatialEgressTranslator : CycloneTranslator<WorldPos, WorldPos>, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
+        /// <summary>
+        /// ⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7, O-C) — the shadow writes of an OFF-FRAME scan: the scan reads the
+        /// shadow from the replica (= the live world at the launch) and queues what it would write; <see cref="ApplyDeferred"/> writes them
+        /// on the live world at the next join, before the next sync. Reused, never shrunk (R-2084).
+        /// </summary>
+        private (Entity Entity, NetworkTransform Shadow, bool Attach)[] _deferred = new (Entity, NetworkTransform, bool)[256];
+        private int _deferredCount;
+
         private readonly HashSet<int> _tracedNetIds = new();
         private readonly NodeId _localNodeId;
 
@@ -85,12 +93,46 @@ namespace Hrot.Map.Common.Replication.Egress
         /// memory and avoids the Dictionary/HashSet lookups of <see cref="EgressPublicationState"/>.
         /// </para>
         /// </summary>
-        public override void ScanAndPublish(ISimulationView view)
+        public override void ScanAndPublish(ISimulationView view) => ScanState(view, offFrame: false);
+
+        /// <summary>⭐ CE-3427 N-1 — nothing per frame: no epoch or bus bookkeeping (the shadow is the cache, and it lives in the world).</summary>
+        public void BeginFrame(ISimulationView live) { }
+
+        /// <inheritdoc cref="Fdp.Network.Cyclone.Egress.IOffFrameEgress.ApplyDeferred"/>
+        public void ApplyDeferred(EntityRepository live)
+        {
+            bool registered = live.IsComponentTypeRegistered<NetworkTransform>();
+            for (int i = 0; i < _deferredCount; i++)
+            {
+                ref var d = ref _deferred[i];
+                if (!registered || !live.IsAlive(d.Entity)) continue;   // destroyed during the frame the scan ran: nothing to remember
+                if (!live.HasComponent<NetworkTransform>(d.Entity))
+                {
+                    if (!d.Attach) continue;   // removed since: the next scan attaches it again
+                    live.AddComponent(d.Entity, d.Shadow);
+                    live.SetAuthority<NetworkTransform>(d.Entity, true);   // as the on-frame attach below
+                    continue;
+                }
+                live.GetComponentRW<NetworkTransform>(d.Entity) = d.Shadow;
+            }
+            _deferredCount = 0;
+        }
+
+        private void Defer(Entity entity, in NetworkTransform shadow, bool attach)
+        {
+            if (_deferredCount == _deferred.Length) Array.Resize(ref _deferred, _deferred.Length * 2);
+            _deferred[_deferredCount++] = (entity, shadow, attach);
+        }
+
+        /// <inheritdoc cref="ScanAndPublish"/>
+        /// <param name="offFrame">⭐ CE-3427 N-1 — <paramref name="view"/> is a replica: the shadow writes are queued (<see cref="ApplyDeferred"/>).</param>
+        public void ScanState(ISimulationView view, bool offFrame)
         {
             // GetComponentRW requires EntityRepository (concrete write access).
             // ScanAndPublish is only called from the egress system which always
             // supplies the live world; bail out safely if this ever changes.
             if (view is not EntityRepository repo) return;
+            if (offFrame) _deferredCount = 0;   // a scan the join never applied (a fault) is not replayed
 
             // Sampled ONCE per scan, so every entity published in this frame carries the same stamp —
             // which is what makes a receiver's `simNow - stamp` age comparable across entities.
@@ -151,21 +193,28 @@ namespace Hrot.Map.Common.Replication.Egress
                 // ⚠ The registration guard mirrors SpatialCoreTkbTranslator: a bare AddComponent throws
                 //   "Component NetworkTransform is not registered" on a world that never registered it.
                 //   A world that cannot hold the component cannot egress either, so skipping is correct.
+                bool attach = false;
                 if (!repo.HasComponent<NetworkTransform>(entity))
                 {
                     if (!repo.IsComponentTypeRegistered<NetworkTransform>())
                         continue;
 
+                    if (offFrame) attach = true;   // ⭐ CE-3427 N-1 — queued: the replica is never written (ApplyDeferred attaches it)
+                    else
+                    {
                     repo.AddComponent(entity, default(NetworkTransform));
 
                     // ⭐ AddComponent does not touch the AuthorityMask (EntityRepository.cs:762), and the
                     //   spawn path snapshots that mask at one instant which has already passed. Grant it
                     //   explicitly so the owner owns the shadow it writes every tick.
                     repo.SetAuthority<NetworkTransform>(entity, true);
+                    }
                 }
 
                 ref readonly var simTf = ref view.GetComponentRO<SimTransform>(entity);
-                ref var          netTf = ref repo.GetComponentRW<NetworkTransform>(entity);
+                // ⭐ CE-3427 N-1 — off the frame the shadow is a COPY (the zeros of a first sight, or the replica's), written back at the join
+                NetworkTransform shadowCopy = attach ? default : (offFrame ? repo.GetComponentRO<NetworkTransform>(entity) : default);
+                ref var          netTf = ref (offFrame ? ref shadowCopy : ref repo.GetComponentRW<NetworkTransform>(entity));
 
                 // Shadow comparison â€” entirely in unmanaged memory, no heap allocations.
                 bool hasMoved   = Vector3.DistanceSquared(simTf.Position, netTf.LastPosition) > PositionThresholdSq;
@@ -190,6 +239,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 netTf.LastRotation = simTf.Rotation;
                 netTf.LastVelocity = linear;
                 netTf.LastSentTick = view.Tick;
+                if (offFrame) Defer(entity, netTf, attach);
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 

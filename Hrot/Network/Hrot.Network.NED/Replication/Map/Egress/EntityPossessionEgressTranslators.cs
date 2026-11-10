@@ -17,7 +17,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// owning its <c>dtManualDrive</c> (the Brain, where <c>OperatorControl</c> writes it), keyed by network id, on change — every frame
     /// while an operator drives it. The cache clears when the world moves (<c>WorldEpoch</c>, CE-3076).
     /// </summary>
-    public sealed class EntityManualDriveEgressTranslator : IDescriptorTranslator
+    public sealed class EntityManualDriveEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over.
@@ -36,7 +36,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var unit in view.Query().With<ManualDrive>().DefaultRoutePublishable().Build())
             {
@@ -67,7 +81,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// <c>dtPossessedBy</c> (the Brain, where <c>PossessionSystem</c> is the one writer), on change; when the component goes, ONE
     /// <c>Held = 0</c> sample says so — every station learns it lost (or never had) the unit, with no revoke message to lose.
     /// </summary>
-    public sealed class EntityPossessedByEgressTranslator : IDescriptorTranslator
+    public sealed class EntityPossessedByEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (§8.3) — what this writer published (see above). A release (Held=0) stays remembered until the entity is destroyed.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityPossessedBy> _instances;
@@ -87,7 +101,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             foreach (var s in Scan(view)) { _instances.Write(s.EntityId, s); SentSampleCount++; }
         }
 

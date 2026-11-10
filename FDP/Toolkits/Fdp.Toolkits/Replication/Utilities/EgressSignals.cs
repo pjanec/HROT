@@ -35,6 +35,22 @@ namespace Fdp.Toolkit.Replication.Utilities
         /// <summary>Every gated translator scans everything on its next run (a seek, restore, wipe or "re-flood").</summary>
         public static void AllDirty(EntityRepository repo) => Of(repo).AllDirtyAt = repo.GlobalVersion;
 
+        /// <summary>
+        /// ⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7, O-D) — gives <paramref name="replica"/> the signals of
+        /// <paramref name="live"/>: the off-frame egress scans a replica synced from the live world, and a gated translator reads the signals
+        /// OF THE WORLD IT SCANS. The versions are the live world's, which the replica's <c>GlobalVersion</c> copies. No allocation once
+        /// the replica's array has grown.
+        /// </summary>
+        public static void CopyTo(EntityRepository live, EntityRepository replica)
+        {
+            var from = Of(live);
+            var to = Of(replica);
+            if (to.DirtyAt.Length < from.DirtyAt.Length) Array.Resize(ref to.DirtyAt, from.DirtyAt.Length);
+            Array.Copy(from.DirtyAt, to.DirtyAt, from.DirtyAt.Length);
+            if (to.DirtyAt.Length > from.DirtyAt.Length) Array.Clear(to.DirtyAt, from.DirtyAt.Length, to.DirtyAt.Length - from.DirtyAt.Length);
+            to.AllDirtyAt = from.AllDirtyAt;
+        }
+
         internal static uint DirtyAt(State s, int index) => (uint)index < (uint)s.DirtyAt.Length ? s.DirtyAt[index] : 0u;
     }
 }

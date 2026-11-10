@@ -20,7 +20,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.Map.Common.Replication.Egress
 {
     /// <summary>⭐ <c>dtMacroInstance</c> — publishes a <see cref="MacroInstance"/> from the node that owns the descriptor, on change (the record's equality).</summary>
-    public sealed class EntityMacroInstanceEgressTranslator : IDescriptorTranslator
+    public sealed class EntityMacroInstanceEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over.
@@ -39,7 +39,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var e in view.Query().WithManaged<MacroInstance>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.AllButTearDown).Build())
             {
@@ -66,7 +80,7 @@ namespace Hrot.Map.Common.Replication.Egress
     }
 
     /// <summary>⭐ <c>dtMacroExpansionStatus</c> — publishes a <see cref="MacroExpansionStatus"/> from the node that owns the descriptor, on change.</summary>
-    public sealed class EntityMacroExpansionStatusEgressTranslator : IDescriptorTranslator
+    public sealed class EntityMacroExpansionStatusEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (§8.3) — what this writer published (the instances it deletes on a destruction, a wipe or a hand-over). `_last` stays as the
         //   change test: it compares the component (a FixedString128), where the wire sample holds a string that would allocate each frame.
@@ -86,7 +100,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             if (_instances.OnFrame(view)) _last.Clear();   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<MacroExpansionStatus>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var e in view.Query().With<MacroExpansionStatus>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.AllButTearDown).Build())
@@ -172,7 +200,7 @@ namespace Hrot.Map.Common.Replication.Egress
     }
 
     /// <summary>⭐ <c>dtRefKey</c> — publishes an entity's <see cref="RefKey"/> (its authored name) from the node that owns the descriptor, ONCE per non-empty value; for every keyed entity (a loaded one's key is the same everywhere).</summary>
-    public sealed class EntityRefKeyEgressTranslator : IDescriptorTranslator
+    public sealed class EntityRefKeyEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         // ⭐⭐ CE-4007 (§8.3) — what this writer published (see above). `_sent` stays as the change test: it compares the FixedString32, where the
         //   wire sample holds a string that would allocate each frame.
@@ -192,7 +220,21 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            BeginFrame(view);
+            ScanState(view, offFrame: false);
+        }
+
+        /// <summary>⭐ CE-3427 N-1 (docs/DESIGN_Egress_Change_Detection.md §7) — on the LIVE world, in the egress system's slot: the world-epoch and
+        /// destruction bookkeeping (it reads the bus).</summary>
+        public void BeginFrame(ISimulationView view)
+        {
             if (_instances.OnFrame(view)) _sent.Clear();   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
+        }
+
+        /// <summary>⭐ CE-3427 N-1 — the state scan: reads only <paramref name="view"/>'s components and writes nothing to it, so it may run
+        /// on the off-frame replica.</summary>
+        public void ScanState(ISimulationView view, bool offFrame)
+        {
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<RefKey>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var e in view.Query().With<RefKey>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.AllButTearDown).Build())

@@ -435,3 +435,17 @@ own) — applies. · `docs/designs/dds-to-ecs/DESIGN.md` (owns translators and `
 changes except the marker. · `DESIGN_Time_Architecture.md` §17 — the time translators stay on the frame; stepped mode unaffected (state lags a frame
 in both modes) — applies. · `FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md` (GDB "use for: network") — its
 mechanism is reused (`DoubleBufferProvider`) but not its frame-locked dispatch, which overlaps nothing here — partly applies.
+
+### 7a. ⚠ AS BUILT — the deviations from §7 *(CE-3427 N-1, `2026-11-10`, the experiment's first build; ⏳ measured in §7b)*
+
+| §7 said | as built | why |
+|---|---|---|
+| `EgressPipelineJoinSystem`, Export FIRST | ⛔ no join system: **every egress and cleanup system calls `EgressPipeline.Join()` first** (idempotent) | a "first" system cannot be ordered before all six egress systems with `[UpdateBefore]` (the scheduler orders against the FIRST instance of a type only — `SystemScheduler.BuildDependencyGraph`); joining in the systems that touch the translators is true by construction, whatever their order |
+| `EgressPipelineLaunchSystem`, `[UpdateAfter]` | ⭐ `[UpdateLastInPhase]` — a NEW scheduler attribute: the system runs after every system of its phase not marked too | the same instance problem; opt-in, so no existing order moves |
+| `OnFrame` runs at the join | ⭐ a marked translator's `BeginFrame(live)` runs **in its egress system's slot** (where `OnFrame` ran before), the scan at the launch | the same order as on the frame; no second list at the join |
+| the marker `IOffFrameEgress` | ⭐ three members: `BeginFrame(live)` · `ScanState(view, offFrame)` · `ApplyDeferred(live)` (default no-op); `ScanAndPublish` = `BeginFrame` + `ScanState` | one scan body for both modes — no second implementation |
+| the scan "on the WorkerPool" | ⭐ the pipeline's own thread runs the scan and fans the translators over the shared `WorkerPool` (`FDP_EGRESS_WORKERS`, default CPUs / 4, at most 4); a busy pool ⇒ the scan thread does them all | the launch must return at once; the pool's `TryRun` blocks its caller |
+| — | ⭐ the replica's candidate index (§6) is built ONCE before the fan-out (`EntityRepository.PrepareQueryIndex`), inside one scope opened on the scan thread | the scope's depth counter and the lazy build are not thread-safe; the workers then only read |
+| — | ⭐ a scan that throws puts the pipeline back ON the frame (logged once) | the switch must be safe to leave on |
+| the runtime switch | ⭐ `GET` / `POST /diagnostics/egress {"mode":"offframe"\|"onframe"}`; `FDP_EGRESS_OFFFRAME=1` the start-up default | |
+| a world with no launch system | ⭐ has no pipeline ⇒ never off the frame, whatever the switch | otherwise an egress system would skip what nothing scans |
