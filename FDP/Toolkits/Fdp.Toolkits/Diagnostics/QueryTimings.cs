@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.Diagnostics
             public readonly long[] Calls = new long[MaxSlots];
             public readonly long[] Ticks = new long[MaxSlots];
             public readonly long[] Max = new long[MaxSlots];
+            public readonly long[] Bytes = new long[MaxSlots];
         }
 
         /// <summary>The slot named <paramref name="name"/> (created on first use) — call once and keep the id; a name is a dotted
@@ -86,6 +87,18 @@ namespace Fdp.Toolkit.Diagnostics
             if (dt > b.Max[slot]) b.Max[slot] = dt;
         }
 
+        /// <summary>⭐ The thread's allocated bytes now (0 when disabled) — pass it to <see cref="End(int, long, long)"/> to count a call's garbage.</summary>
+        public static long Bytes() => Enabled ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+
+        /// <summary>As <see cref="End(int, long)"/>, and the bytes this thread allocated since <paramref name="bytesAtStart"/> (<see cref="Bytes"/>).</summary>
+        public static void End(int slot, long start, long bytesAtStart)
+        {
+            if (start == 0L) return;
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - bytesAtStart;
+            End(slot, start);
+            t_buffer!.Bytes[slot] += allocated;
+        }
+
         /// <summary>Adds <paramref name="count"/> to <paramref name="slot"/>'s calls without a time — a counter (cells walked, entries
         /// visited …) beside the timed slots, at the cost of one add.</summary>
         public static void Add(int slot, long count)
@@ -104,7 +117,7 @@ namespace Fdp.Toolkit.Diagnostics
         }
 
         /// <summary>One slot's totals since the last <see cref="Reset"/>.</summary>
-        public readonly record struct Row(string Name, long Calls, double TotalMs, double AvgUs, double MaxUs);
+        public readonly record struct Row(string Name, long Calls, double TotalMs, double AvgUs, double MaxUs, long Bytes = 0);
 
         /// <summary>Every slot with at least one call, the most total time first, and the seconds since the last reset. ⚠ Reads other
         /// threads' counters without a lock — a diagnostic, not an exact cut. Allocates (an API answer, not the hot path).</summary>
@@ -116,10 +129,10 @@ namespace Fdp.Toolkit.Diagnostics
             {
                 for (int s = 0; s < _slotCount; s++)
                 {
-                    long calls = 0, ticks = 0, max = 0;
-                    foreach (var b in Buffers) { calls += Volatile.Read(ref b.Calls[s]); ticks += Volatile.Read(ref b.Ticks[s]); max = Math.Max(max, Volatile.Read(ref b.Max[s])); }
+                    long calls = 0, ticks = 0, max = 0, bytes = 0;
+                    foreach (var b in Buffers) { calls += Volatile.Read(ref b.Calls[s]); ticks += Volatile.Read(ref b.Ticks[s]); max = Math.Max(max, Volatile.Read(ref b.Max[s])); bytes += Volatile.Read(ref b.Bytes[s]); }
                     if (calls == 0) continue;
-                    rows.Add(new Row(Names[s], calls, ticks * tickMs, ticks * tickMs * 1000.0 / calls, max * tickMs * 1000.0));
+                    rows.Add(new Row(Names[s], calls, ticks * tickMs, ticks * tickMs * 1000.0 / calls, max * tickMs * 1000.0, bytes));
                 }
             }
             rows.Sort((x, y) => y.TotalMs.CompareTo(x.TotalMs));
@@ -131,7 +144,7 @@ namespace Fdp.Toolkit.Diagnostics
         {
             lock (Gate)
             {
-                foreach (var b in Buffers) { Array.Clear(b.Calls); Array.Clear(b.Ticks); Array.Clear(b.Max); }
+                foreach (var b in Buffers) { Array.Clear(b.Calls); Array.Clear(b.Ticks); Array.Clear(b.Max); Array.Clear(b.Bytes); }
                 Volatile.Write(ref _resetAt, Stopwatch.GetTimestamp());
             }
         }

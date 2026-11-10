@@ -855,7 +855,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_query_timings",
             Group:   "Y — node diagnostics",
             Summary: "This PROCESS's world-query costs (CE-3427): terrain traces, navmesh, EQS templates / generators / tests, cover lookup, door scans — calls and time since the last reset, the most time first.",
-            Returns: "{ enabled, seconds, queries[{ name, calls, perSecond, totalMs, msPerSecond, avgUs, maxUs }], note }",
+            Returns: "{ enabled, seconds, queries[{ name, calls, perSecond, totalMs, msPerSecond, avgUs, maxUs, bytesPerSecond }], note }",
             Hint:    "Optional: reset=true (answer, then zero the counters). Example: get_query_timings({reset:\"true\"})",
             Params: new RouteParam[]
             {

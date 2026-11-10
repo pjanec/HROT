@@ -739,6 +739,38 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-3427 — across FRAMES the door table is kept (not rebuilt) while no door state was written and no door entity added since it
+        /// was built (≈ 2 ms a frame on the CGF main thread on scale-1); a write, an add or a destroy on a later frame is still seen at once.
+        /// </summary>
+        [Fact]
+        public void CE3427_TheDoorTable_IsKeptAcrossFrames_UntilADoorChanges()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            int door = w.DoorIndexOf("range/H/front");
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w);
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new DoorState { State = TerrainDoorState.Open });
+            repo.SetManagedComponent(e, new TerrainObjectKey { Key = "range/H/front" });
+            repo.Tick();
+            var first = DoorStates.Of(repo, w);
+            int builds = DoorStates.DoorTableBuildsOnThisThread;
+            for (int f = 0; f < 5; f++) { repo.Tick(); repo.CreateEntity(); Assert.Same(first, DoorStates.Of(repo, w)); }
+            Assert.Equal(builds, DoorStates.DoorTableBuildsOnThisThread);                       // five frames, structural changes, no rebuild
+
+            repo.Tick();
+            repo.SetComponent(e, new DoorState { State = TerrainDoorState.Locked });           // a write on a later frame
+            Assert.Equal(TerrainDoorState.Locked, DoorStates.Of(repo, w)[door]);
+            repo.Tick();
+            repo.DestroyEntity(e);                                                             // a destroy on a later frame
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Of(repo, w)[door]);
+            repo.Tick();
+            var again = repo.CreateEntity();
+            repo.AddComponent(again, new DoorState { State = TerrainDoorState.Open });         // an add on a later frame
+            repo.SetManagedComponent(again, new TerrainObjectKey { Key = "range/H/front" });
+            Assert.Equal(TerrainDoorState.Open, DoorStates.Of(repo, w)[door]);
+        }
+
+        /// <summary>
         /// ⭐ R-219 — a view's door table comes from the door ENTITIES in that view: authored where there is none, the entity's state
         /// where there is one, keyed by <see cref="TerrainObjectKey"/>; a key the terrain does not define is ignored.
         /// </summary>

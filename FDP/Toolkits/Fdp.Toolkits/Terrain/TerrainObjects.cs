@@ -117,6 +117,19 @@ namespace Fdp.Toolkit.Terrain
                 if (live.StructuralChanges == t_structural) return held;
                 if (StillDoors(live)) { t_structural = live.StructuralChanges; return held; }
             }
+            // ⭐ CE-3427 — a NEW frame: the table still holds when no door state was written since it was built, no door entity was added
+            //   (the add counter), and every door entity it read is still one (the walk — it always runs here, so a destroy a snapshot's
+            //   sync did not count is still seen). 📐 The rebuild (a query + a key lookup per door entity) was ≈ 2 ms a frame on the CGF
+            //   main thread on scale-1; the walk is a fraction of it.
+            else if (view is EntityRepository next && t_last is { } kept && ReferenceEquals(world, t_world)
+                     && t_stamp.HoldsSinceTaken(next, typeof(DoorState))
+                     && next.ComponentsAddedOf(ComponentType<DoorState>.ID) == t_doorsAdded && StillDoors(next))
+            {
+                t_stamp.Take(next);
+                t_structural = next.StructuralChanges;
+                return kept;
+            }
+            t_builds++;
             int n = world.Doors.Count;
             var a = t_scratch is { } sc && sc.Length == n ? sc : (t_scratch = new byte[n]);
             for (int i = 0; i < n; i++) a[i] = (byte)world.Doors[i].Initial;
@@ -134,7 +147,12 @@ namespace Fdp.Toolkit.Terrain
                         t_doors![t_doorCount++] = e;
                     }
             }
-            if (view is EntityRepository built) { t_stamp.Take(built); t_world = world; t_structural = built.StructuralChanges; } else t_stamp.Clear();
+            if (view is EntityRepository built)
+            {
+                t_stamp.Take(built); t_world = world; t_structural = built.StructuralChanges;
+                t_doorsAdded = built.IsComponentTypeRegistered<DoorState>() ? built.ComponentsAddedOf(ComponentType<DoorState>.ID) : -1;
+            }
+            else t_stamp.Clear();
 
             if (t_last is { } last && last._states.AsSpan().SequenceEqual(a)) return last;
             return t_last = new DoorStates(a.ToArray());   // the doors changed (or a new world/thread) — the one allocation
@@ -154,6 +172,11 @@ namespace Fdp.Toolkit.Terrain
         [ThreadStatic] private static int t_doorCount;
         [ThreadStatic] private static long t_structural;   // ⭐ CE-3427 — EntityRepository.StructuralChanges when the door entities were last known
         [ThreadStatic] private static int t_walks;
+        [ThreadStatic] private static long t_doorsAdded;
+        [ThreadStatic] private static int t_builds;
+
+        /// <summary>⭐ CE-3427 — how many times THIS thread rebuilt the door table from the door entities (rails).</summary>
+        internal static int DoorTableBuildsOnThisThread => t_builds;
 
         /// <summary>⭐ CE-3427 — how many times THIS thread walked the door entities to re-check them (rails).</summary>
         internal static int DoorWalksOnThisThread => t_walks;

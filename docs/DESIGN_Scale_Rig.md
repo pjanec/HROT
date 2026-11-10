@@ -320,8 +320,31 @@ the FIGHT run (two sides in contact) that exercises the sight test, fire and sou
 | fire and sound traces | 32–44 a frame, 1.5–3.5 µs | ✅ negligible |
 | ⛔ `DoorStates.Of` on CGF | 2.5 ms, rebuilt on the main thread each frame | 2.0 ms |
 
-⏭ **Next, by measured size:** the EQS tactical queries' path costs (`PathCosts`' circle search is not bounded; the EQS solver makes 4.4 MB
-of garbage a frame in the fight), the CGF door table across frames (hold it while nothing of the doors changed), and the worst A* (266 ms).
+**Then the path costs on our own Dijkstra** (Nav v2 §15 — reused per-thread arrays, stopping at its goals; DotRecast's node pool allocated
+88 B per polygon on every query):
+
+| the same fight | before | after |
+|---|---|---|
+| `nav.PathCosts` (the EQS path-cost batch) | 1.9 ms avg, 96 ms worst, **178 KB / frame** garbage, ≈ 800 polygons | **168 µs**, 8.8 ms, **0 B**, ≈ 215 polygons |
+| `EqsSolverSystem` per run | 198 ms, 4.8 MB | 111 ms, 93 KB |
+| EQS solves per SimHost frame | 14 | 27 |
+
+**Then the A* on the same machinery** (`CircleSearch.RunAStar`, Detour's `FindPath` rules; Nav v2 §15):
+
+| the same fight | before | after |
+|---|---|---|
+| `nav.PlanPath` | 2.4 ms avg, 203 ms worst, 27 KB / frame | **183 µs**, 31 ms, **0 B** — and 5.2 paths a frame served (was 0.67) |
+| `PathfindingSolverSystem` per run | 100 ms, 1.7 MB | 23 ms |
+| SimHost garbage per frame | 2.0 MB | **0.37 MB** |
+
+**Then the door table kept across frames** (CGF main thread; held while no door state was written and no door entity added since the
+build, the door entities re-walked once per frame): `DoorStates.Of` on CGF **2.0 ms → 0.23 ms** a call. ⭐ And in that same run **10 / 12
+sampled movers moved** (1 / 12 before the path fixes) — the slow, garbage-heavy paths were CE-3424's main cause (tracker row).
+
+⏭ **What is left is GENUINE terrain work, not waste:** `CheapLineOfSightTest` (440 µs a batch: each candidate × up to 4 body points × a
+1.8 µs sight line, plus a fire trace) and `ThreatExposureTest` (375 µs: candidates × known threats × sight), inside the tactical templates
+(`DonutGenerator` / `GridGenerator` ≈ 1.2 ms each). ⭐ That is what parallel solving on a many-core node would buy (§6.4) — the point at
+which a PHYSICAL machine is needed.
 
 ### 6.4 ⭐ What this VM can and cannot tell — and when a PHYSICAL machine is needed *(user, `2026-11-10`: "today's machines have 16+ cores … let me know when this is necessary")*
 
