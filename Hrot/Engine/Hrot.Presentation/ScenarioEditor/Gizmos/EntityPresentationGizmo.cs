@@ -101,7 +101,18 @@ namespace Hrot.ScenarioEditor.Gizmos
                 ? Hrot.Common.Diagnostics.Gizmos.MacroMarker.Colour
                 : Hrot.Common.Diagnostics.Gizmos.AffiliationColors.For(view, entity);
 
-        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
+        private DebugPrimitiveBuffer? _scaleBuffer;
+    private Hrot.ScenarioEditor.Map.MapViewSnapshot? _scaleView;
+
+    /// <summary>⭐ CE-4388 — the map drawing into <paramref name="draw"/> is coarser than a door can be seen (the snapshot looked up once per buffer).</summary>
+    private bool TooFarForDoors(IDebugDrawBuilder draw)
+    {
+        if (draw is not DebugPrimitiveBuffer buffer) return false;
+        if (!ReferenceEquals(buffer, _scaleBuffer)) { _scaleBuffer = buffer; _scaleView = Hrot.ScenarioEditor.Map.MapInteractionPack.ViewOf(buffer); }
+        return _scaleView is { Active: true } v && v.MetresPerPixel > DoorLeafGizmo.MaxMetresPerPixel;
+    }
+
+    public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             // ── Culling lives in CullingStateVisibilityPolicy, not here (S4, ruling 9). ──
             // S2a had the setting check and the CullingState presence test inline in this method. That
@@ -133,6 +144,11 @@ namespace Hrot.ScenarioEditor.Gizmos
             // on a non-owner they are identical, and on an OWNER NetworkTransform is the last-PUBLISHED
             // shadow while SimTransform is live. The preference was never better and was sometimes stale.
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
+
+            // ⭐ CE-4388 (DESIGN_Map_View_Filter D-3, R-1049) — a DOOR's anchor and pick box follow its leaf's zoom limit (DoorLeafGizmo.MaxMetresPerPixel): too small
+            //   to see is too small to click. 📐 Measured on Windows: at the whole-terrain zoom the 6 911 doors' anchors and pick boxes were ≈ 13 800 of the map's
+            //   16 384 primitives. The scale is read once per buffer per frame; the door test runs only when zoomed out.
+            if (TooFarForDoors(draw) && view.HasManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>(entity)) return;
 
             EntityPresentationGizmoShared.DrawSpatialAnchorFromRotation(draw, networkId, tf.Position, tf.Rotation);
 

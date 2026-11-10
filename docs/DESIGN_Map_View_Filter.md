@@ -188,3 +188,12 @@ buffer in 3-D mid, 93 % close in. ⇒ it now reads its map's snapshot (`MapInter
 | 2-D close | 7 465 → **554** | 3.5 → **1.1 ms** | 20.7 → **18.5 ms** |
 | 2-D whole | the room the doors freed is filled by unit decorations the overflow used to drop (presentation 9 837, cards 2 694, health bars 2 320, names 1 347) | 7.2 ms | 42 ms |
 
+### 6.2 Steps 3–4 — the cards and the doors' pick boxes (D-3), `2026-11-10`
+
+Measured first: a card costs ≈ 5 µs to draw (1 247 cards = 6.6 ms at the whole-terrain zoom, none readable) ⇒ `CardZoom` (one place): frame + health bar
+coarser than 1 m/px, name coarser than 2 m/px — 2-D whole: cards 6.6 → 0.7 ms, gizmo draw 7.6 → 2.2 ms. Then the room the cards freed filled with the DOORS'
+anchors and pick boxes (`EntityPresentationGizmo`, ≈ 13 800 primitives) ⇒ a door emits neither coarser than `DoorLeafGizmo.MaxMetresPerPixel` (too small to see
+is too small to click; a unit keeps its symbol). ⭐ **The whole-terrain frame: ≈ 16 400 → ≈ 4 400 primitives — the buffer no longer overflows** (CE-1470's
+measured case). Rails: `Map3DGizmoTests.CE4388_TheCardsRows_StopAtTheirMapScale`, `EntityPresentationGizmoTests.CE4388_ADoorZoomedOut_HasNoAnchorOrPickBox_ButAUnitKeepsItsSymbol`
+(both red-proved). ⚠ Frame times between runs vary ±5 ms (the 2-D plan alone 13–16 ms) — the primitive counts are the firm number.
+
