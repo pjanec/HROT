@@ -13,7 +13,7 @@ Started at `cec9e162d` (merged `coordinator@cec9e162d`). Behaviors told: NOTE_Ba
 
 | step | state |
 |---|---|
-| B-0 baseline: scenario regression | ⚠ the full run (107 scenarios) is > 6 h on this VM — replaced by a TARGETED base-vs-head run of every scenario that failed at `95925a8ba` (9: condition failures + the `SimInstant` ∞-to-JSON crash). ⏳ running. The other 15 run at `95925a8ba` either passed or failed only on a golden that differs at t = 0 s (stale golden — before any brain tick) |
+| B-0 baseline: scenario regression | ⚠ the full run (107 scenarios) is > 6 h on this VM — replaced by a TARGETED base-vs-head run of every scenario that failed at `95925a8ba` (9: condition failures + the `SimInstant` ∞-to-JSON crash). ✅ **no scenario worse** — base `deea88565` vs head `8fe8c630b`: 8 fail identically at both (the same failing conditions, name for name; 3 of them the director's crash writing a `SimInstant` ∞ to JSON, `SimTime.cs:120`), and `bc-house-defended` FAILS at the base ("the hallway defender fires on the stack", "both insurgents are down") and PASSES at the head. The other 15 run at `95925a8ba` either passed or failed only on a golden that differs at t = 0 s (stale golden — before any brain tick) |
 | B-1 attribute the cost (1 000 / 3 000 men, fighting) | ✅ Cost & Cadence §11g — the table; the superlinear terms named with file:line |
 | B-2 fix the biggest | ✅ `95925a8ba` the parts index takes frame adds (3 000: 171 → 130 ms a tick) + `Release` reads the index · ✅ `30a45c708` the combat decisions at 0.2 s (R-3085; 1 000: **20.5 → 10.5 ms** a tick, 3 000: 130 → 102 ms) · ⏳ the Windows measurement (the budget is per the user's machine) |
 | B-3 no garbage | ⏳ the brain still allocates (160 KB a frame at 1 000; 1.75 MB at 3 000) — next |
