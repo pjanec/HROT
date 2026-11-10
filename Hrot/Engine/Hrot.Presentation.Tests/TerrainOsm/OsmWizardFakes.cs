@@ -107,7 +107,13 @@ public static class OsmFakeWorld
         for (int i = 0; i < Buildings.Count; i++)
         {
             var (px, st, ent) = Buildings[i];
-            blds.Add(new PreviewBuilding("w" + (1000 + i), ToLocal(px), st, ent));
+            blds.Add(new PreviewBuilding("w" + (1000 + i), ToLocal(px), st, ent)   // ⭐ CE-4382 — the details the library fills
+            {
+                Type = ent ? (st >= 4 ? "apartments" : "house") : "garage", StoreysSource = i % 3 == 0 ? "from type" : "tagged",
+                Roof = st <= 2 ? "pitched" : "flat", RoofShape = st <= 2 && i % 2 == 0 ? "gabled" : null, RoofSource = st <= 2 && i % 2 == 0 ? "tagged" : "from type",
+                Doors = ent ? 2 : 0, Windows = ent ? 6 * st : 0, DoorRule = ent ? "road-facing + back door" : "none",
+                SharedWallsWith = ent && i > 0 && i % 4 == 1 ? new[] { "w" + (1000 + i - 1) } : Array.Empty<string>(),
+            });
             if (ent) { doors += 2; windows += 6 * st; }
         }
         var areas = new List<PreviewArea>();
@@ -124,11 +130,28 @@ public static class OsmFakeWorld
             Counts = counts ?? new OsmCounts(blds.Count, doors, windows, 0, woodsM2, Math.Round(woodsM2 / 100.0), roadM / 1000.0, Walls.Count, 1),
             Verdict = verdict,
             VerdictReason = reason,
-            Warnings = warnings ?? new[] { "512 buildings: storeys from their type", "3 courtyards split into parts", "9 shapes dropped (< 12 m² or too thin)", "2 rivers widened from lines (10 m)" },
+            Warnings = warnings ?? DefaultNotes.Select(n => n.Text).ToArray(),
+            Notes = warnings != null ? Array.Empty<PreviewNote>() : DefaultNotes,
+            Trees = LoneTrees.Select(ToLocalPoint).ToArray(),
+            DataTimestamp = "2026-11-10T08:12:03Z",
             Roads = roads, Buildings = blds, Areas = areas, Lines = lines,
             Attribution = "© OpenStreetMap contributors · Copernicus DEM GLO-30",
         };
     }
+
+    /// <summary>⭐ CE-4382 — the mockup's four notes, with a severity and a place (local metres).</summary>
+    public static readonly PreviewNote[] DefaultNotes =
+    {
+        new("512 buildings: storeys from their type", NoteSeverity.Info, new[] { 200.0, 300.0, 1400.0, 1100.0 }),
+        new("3 courtyards split into parts", NoteSeverity.Info, new[] { 800.0, 600.0, 900.0, 700.0 }),
+        new("9 shapes dropped (< 12 m² or too thin)", NoteSeverity.Warning, new[] { 300.0, 200.0, 320.0, 220.0 }),
+        new("2 rivers widened from lines (10 m)", NoteSeverity.Info, null),
+    };
+
+    /// <summary>Lone trees of the fake place (pixel space of the mockup, like the other features).</summary>
+    public static readonly (double X, double Y)[] LoneTrees = { (190, 170), (214, 184), (530, 390), (450, 180), (270, 402), (350, 418), (364, 418), (378, 418) };
+
+    private static Vector2 ToLocalPoint((double X, double Y) p) => ToLocal(new Vector2((float)p.X, (float)p.Y));
 
     /// <summary>The river as a 10 m-wide ring (the pipeline widens river lines — the mockup's note).</summary>
     private static Vector2[] RiverRing()

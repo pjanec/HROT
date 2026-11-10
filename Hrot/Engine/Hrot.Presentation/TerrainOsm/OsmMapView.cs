@@ -39,6 +39,8 @@ public sealed class OsmMapView
     public (Vector2 Min, Vector2 Max)? AttributionRect { get; private set; }
     /// <summary>The building under the mouse in Preview (C-12), or null.</summary>
     public PreviewBuilding? Hovered { get; private set; }
+    /// <summary>⭐ CE-4382 — the tree dots drawn last frame (a rail).</summary>
+    public int TreesDrawn { get; private set; }
     /// <summary>Test hook: the mouse position the hover test uses (null = the real mouse).</summary>
     public Vector2? MouseOverride;
 
@@ -55,6 +57,7 @@ public sealed class OsmMapView
     private readonly List<(double[] LatLon, int[] Tris, string Kind)> _areas = new();
     private readonly List<(double[] LatLon, string Kind)> _lines = new();
     private readonly List<(double[] LatLon, string Cls)> _roads = new();
+    private double[] _trees = Array.Empty<double>();   // ⭐ CE-4382 — every tree point, lat/lon pairs
     private Vector2[] _buf = new Vector2[256];
 
     // ── the maths ──────────────────────────────────────────────────────────────────────────
@@ -299,6 +302,7 @@ public sealed class OsmMapView
         foreach (var a in p.Areas) _areas.Add((LatLon(p.Frame, a.Ring), Tris(a.Ring), a.Kind));
         foreach (var l in p.Lines) _lines.Add((LatLon(p.Frame, l.Points), l.Kind));
         foreach (var r in p.Roads) _roads.Add((LatLon(p.Frame, r.Points), r.Class));
+        _trees = p.Trees.Count > 0 ? LatLon(p.Frame, System.Linq.Enumerable.ToArray(p.Trees)) : Array.Empty<double>();
     }
 
     private static double[] LatLon(UtmFrame f, Vector2[] pts)
@@ -363,13 +367,21 @@ public sealed class OsmMapView
         {
             if (kind == "tree_row")
             {
-                if (!Layers[(int)OsmLayer.Trees]) continue;
+                if (!Layers[(int)OsmLayer.Trees] || _trees.Length > 0) continue;   // the row's trees are in the preview's Trees (drawn below)
                 int n = ToBuffer(ll);
                 for (int i = 0; i < n; i++) { dl.AddCircleFilled(_buf[i], 2.6f * s, ImGui.GetColorU32(Forest with { W = 1 })); dl.AddCircle(_buf[i], 2.6f * s, ImGui.GetColorU32(new Vector4(0.5f, 0.82f, 0.54f, 1)), 0, 0.6f); }
                 continue;
             }
             if (!Layers[(int)OsmLayer.Walls]) continue;
             Polyline(dl, ll, ImGui.GetColorU32(Wall), 1.6f * s);
+        }
+        TreesDrawn = 0;
+        if (Layers[(int)OsmLayer.Trees] && _trees.Length > 0)   // ⭐ CE-4382 — lone trees and the rows' trees, one dot each (the mockup's dots)
+        {
+            uint fill = ImGui.GetColorU32(Forest with { W = 1 }), rim = ImGui.GetColorU32(new Vector4(0.5f, 0.82f, 0.54f, 1));
+            int n = ToBuffer(_trees);
+            for (int i = 0; i < n; i++) { dl.AddCircleFilled(_buf[i], 2.6f * s, fill); dl.AddCircle(_buf[i], 2.6f * s, rim, 0, 0.6f); }
+            TreesDrawn = n;
         }
         uint outline = ImGui.GetColorU32(Outline);
         foreach (var (ll, tris, bld) in _buildings)
@@ -456,13 +468,47 @@ public sealed class OsmMapView
         }
     }
 
-    /// <summary>What a hovered building becomes (C-12) — what the contract's <see cref="PreviewBuilding"/> carries: its OSM id, storeys, enterable or solid.
-    /// ⚠ The mockup's type, roof, doors / windows and shared walls are not in the contract (the status file's ⚠ row).</summary>
-    public static IReadOnlyList<string> TooltipLines(PreviewBuilding b) => new[]
+    /// <summary>
+    /// What a hovered building becomes (C-12, ⭐ CE-4382 — the mockup's four lines): <i>way 112233445 · house</i> / <i>2 storeys (tagged) · pitched roof (gabled)</i> /
+    /// <i>1 door (road-facing rule) · 9 windows</i> / <i>shares 1 wall with way …</i> (only when it shares one). A solid building says so on the first line and has no openings line.
+    /// </summary>
+    public static IReadOnlyList<string> TooltipLines(PreviewBuilding b)
     {
-        b.Id + (b.Enterable ? " · enterable" : " · solid"),
-        b.Storeys + (b.Storeys == 1 ? " storey" : " storeys") + " · about " + (b.Storeys * 3) + " m",
-    };
+        var l = new List<string>(4);
+        l.Add(OsmName(b.Id) + (b.Type.Length > 0 ? " · " + b.Type : "") + (b.Enterable ? "" : " · solid (not enterable)"));
+        string storeys = b.Storeys + (b.Storeys == 1 ? " storey" : " storeys") + (b.StoreysSource.Length > 0 ? $" ({b.StoreysSource})" : "");
+        string roof = b.Roof + " roof" + (b.RoofShape is { Length: > 0 } shape ? $" ({shape})" : b.RoofSource.Length > 0 ? $" ({b.RoofSource})" : "");
+        l.Add(storeys + " · " + roof);
+        if (b.Enterable)
+        {
+            string doors = b.Doors == 0 ? "no door" : b.Doors + (b.Doors == 1 ? " door" : " doors") + (b.DoorRule.Length > 0 && b.DoorRule != "none" ? $" ({b.DoorRule} rule)" : "");
+            l.Add(doors + " · " + b.Windows + (b.Windows == 1 ? " window" : " windows"));
+        }
+        if (b.SharedWallsWith.Count > 0)
+            l.Add($"shares {b.SharedWallsWith.Count} {(b.SharedWallsWith.Count == 1 ? "wall" : "walls")} with {string.Join(", ", System.Linq.Enumerable.Select(b.SharedWallsWith, OsmName))}");
+        return l;
+    }
+
+    /// <summary>"w112233445" → "way 112233445", "r9001-2" → "relation 9001 (part 2)", "n…" → "node …".</summary>
+    public static string OsmName(string id)
+    {
+        if (id.Length < 2) return id;
+        string kind = id[0] switch { 'w' => "way", 'r' => "relation", 'n' => "node", _ => "" };
+        if (kind.Length == 0) return id;
+        string rest = id[1..];
+        int dash = rest.IndexOf('-');
+        return dash > 0 ? $"{kind} {rest[..dash]} (part {rest[(dash + 1)..]})" : $"{kind} {rest}";
+    }
+
+    /// <summary>⭐ CE-4382 — zooms the map to a note's box (local metres, through the preview's frame); a small or point box gets a 120 m view round it.</summary>
+    public void ZoomTo(UtmFrame f, double[] box)
+    {
+        double cx = (box[0] + box[2]) * 0.5, cy = (box[1] + box[3]) * 0.5;
+        double hw = Math.Max(60, (box[2] - box[0]) * 0.5), hh = Math.Max(60, (box[3] - box[1]) * 0.5);
+        var (s0, w0) = Fdp.Modules.Geographic.Transforms.Utm.ToGeodetic(f.E0 + cx - hw, f.N0 + cy - hh, f.Zone, f.South);
+        var (n1, e1) = Fdp.Modules.Geographic.Transforms.Utm.ToGeodetic(f.E0 + cx + hw, f.N0 + cy + hh, f.Zone, f.South);
+        Fit(new GeoBox(Math.Min(s0, n1), Math.Min(w0, e1), Math.Max(s0, n1), Math.Max(w0, e1)));
+    }
 
     private static bool Inside(Vector2[] poly, int n, Vector2 p)
     {

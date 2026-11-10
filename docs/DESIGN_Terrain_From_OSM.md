@@ -382,8 +382,8 @@ the rails that measure it: [`STATUS_Ui_Osm_Wizard.md`](blueprints/batches/STATUS
 | ONE window size (1200 × 600) for all four steps | C-1 "the SAME window"; the mockup draws Options / Import shorter to save page space |
 | Fit centres the box | the mockup's off-centre box is page layout, not behaviour |
 | the name check shows `WARNING` amber while the name exists | the mockup draws the tick and the amber row together only to show both cases |
-| no lone trees; the hover tooltip = id · enterable/solid · storeys · ≈ height | the contract (`OsmPreview`) has no lone-tree positions and no building type / roof / openings / shared walls — ⭐ a contract extension, then the window draws them |
-| notes not clickable, header "Notes (n)"; severity from the words; the data line = attribution | `Warnings` are strings (no location, no severity); no data timestamp in the contract — same extension |
+| ~~no lone trees; the hover tooltip = id · enterable/solid · storeys · ≈ height — the contract (`OsmPreview`) has no lone-tree positions and no building type / roof / openings / shared walls — ⭐ a contract extension, then the window draws them~~ ⛔ SUPERSEDED by CE-4382 (below) | the contract now carries them |
+| ~~notes not clickable, header "Notes (n)"; severity from the words; the data line = attribution — `Warnings` are strings (no location, no severity); no data timestamp in the contract — same extension~~ ⛔ SUPERSEDED by CE-4382 (below) | the contract now carries them |
 | Import rows follow `OsmStage` ("Read the map data" for Parse; elevation is inside Heights) | the contract's stages; the mockup's "Elevation (Copernicus 30 m)" row is not a stage the pipeline reports |
 | the Import step's right box shows only what is TRUE (heading "When it finishes" until it has) | the mockup's inset illustrates both ends at once |
 
@@ -399,7 +399,14 @@ the same policy, `retries: 1`). `HttpRetry` now passes a 304 through (a conditio
 `ImageCache<TKey>` (`NodeEditor.UI/Picker/ImageCache.cs`) — `PickerImageCache` is its `string` form, `OsmTileTextures` its loader with a `(z, x, y)` struct key and a PENDING
 answer for a tile still downloading (no budget spent, asked again next frame). Rails: `MapServicesTests` (fake HTTP handler: URL, User-Agent, ≤ 2 in flight, cache hit,
 revalidation, offline, 1/s; opt-in live `HROT_OSM_LIVE=1`: tile 0/0/0 + "Kolín", measured green from the cloud VM) · `ImageCacheTests` · `TheWizardSearchesOnEnterOnlyTests` ·
-`TheTerrainFromOsmItemOnTheRealEditorTests`. ⚠ The two rows above about lone trees, the tooltip and the notes are E-2 (CE-4382).
+`TheTerrainFromOsmItemOnTheRealEditorTests`. ⭐ **CE-4382 (`2026-11-10`, E-2) — the preview's missing details, as a contract extension** (`OsmContract.cs`, its own commit): `PreviewBuilding` gains `Type`,
+`StoreysSource` ("tagged" / "from height" / "from type" / "default"), `Roof` + `RoofShape` (the `roof:shape` tag) + `RoofSource`, `Doors`, `Windows`, `DoorRule` ("entrance node" /
+"road-facing" / "road-facing + back door" / "longest wall" / "none") and `SharedWallsWith`; `PreviewNote(Text, Severity, Box)`; `OsmPreview.Trees`, `.Notes`, `.DataTimestamp`
+(`Warnings` keeps the same texts — one source). The rules record each where they decide it (`BuildingRules`: the storeys / roof branch, `PlaceDoors`, `FindParties` /
+`ProcessPair`; a box per note kind via `BuildingRulesResult.Touch`). The wizard draws them: the four tooltip lines (*way 112233445 · house* / *2 storeys (tagged) · pitched roof
+(gabled)* / *1 door (road-facing rule) · 9 windows* / *shares 1 wall with way …*), a dot per tree, a note's glyph from its `Severity` and a click that zooms the map to its box
+(`OsmMapView.ZoomTo`, ≥ 120 m view), and *OSM data of 2026-11-10 08:12 UTC* above the attribution. The mockup (`gen-terrain-osm-wizard-mockup.py`) is updated to the same
+lines. Rails: `PreviewDetailsTests` (library) · `TheOsmWizardMatchesItsMockupTests.Preview_MatchesTheMockup` (tooltip, trees, severity, data line, note click).
 
 ⛔ SUPERSEDED by the CE-1468 fold-in above — ⚠ **One duplicate, filed — [CE-1468](blueprints/Blueprint_Issues_Tracker.md):** `OsmTileTextures` is an LRU of uploaded textures like `PickerImageCache` (the pickers'). Not shared yet because that
 cache remembers a `null` load as failed forever (a downloading tile is "not yet") and keys by `string` (a per-frame allocation per tile). Graph INVENTORY re-run `2026-11-10`

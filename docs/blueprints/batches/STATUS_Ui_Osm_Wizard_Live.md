@@ -18,7 +18,7 @@ Handoff [HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md](HANDOFF_Coordinator_To_Ui
 | # | id | state | what was built |
 |---|---|---|---|
 | **E-1** | CE-4381 (+ CE-1468) | ✅ DONE | `OsmTileSource` + `NominatimPlaceSearch` in `Hrot.Terrain.Osm/Source/`, composed in `EditorSubsystem` on the pipeline's one `HttpRetry` client ⇒ File ▸ New ▸ Terrain from OpenStreetMap… is no longer greyed for want of them. The tile texture LRU is the shared `ImageCache<TKey>` (`PickerImageCache` is its string form). Design: [OSM §6b-as-built](../../DESIGN_Terrain_From_OSM.md) |
-| **E-2** | CE-4382 | ⏳ next | |
+| **E-2** | CE-4382 | ✅ DONE | the contract extension (own commit `05c8ae69a`): per building type / storeys source / roof + shape / doors, windows + door rule / shared walls; trees; located notes with a severity; the data timestamp. Filled in `BuildingRules` + `PreviewBuilder`; the wizard draws them — C-10, C-12, C-13 are ✅ with no ⚠ ([STATUS_Ui_Osm_Wizard.md](STATUS_Ui_Osm_Wizard.md) §1). Mockup updated to the same lines |
 | **E-3** | CE-1466 | ⏳ if time is left | |
 
 ## Gates
@@ -30,4 +30,6 @@ Handoff [HANDOFF_Coordinator_To_Ui_Osm_Wizard_Live.md](HANDOFF_Coordinator_To_Ui
 | `dotnet test NodeEditor.UI.Tests --no-build --filter Picker` | 72 / 0 (unchanged picker) + `ImageCacheTests` 3 / 0 |
 | `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter TerrainOsm` | 19 / 0 (incl. `TheWizardSearchesOnEnterOnlyTests`) |
 | `dotnet test Hrot.Editor.Tests --no-build --filter TheTerrainFromOsmItem` | 1 / 0 |
-| red-proofs (each compiles) | the tile gate at 6 ⇒ `Tiles_AtMostTwoRequestsAtOnce` red · "pending" remembered as failed ⇒ `APendingKey_…` red · `Tiles: null, Search: null` in the editor ⇒ `TheRealEditor_…` red |
+| E-2: `dotnet test Hrot.Terrain.Osm.Tests --no-build` | 119 / 0, 1 skipped — + 4 `PreviewDetailsTests` |
+| E-2: `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter TerrainOsm` | 19 / 0 (`Preview_MatchesTheMockup` asserts the new rows); the frame matches the regenerated mockup |
+| red-proofs (each compiles) | the tile gate at 6 ⇒ `Tiles_AtMostTwoRequestsAtOnce` red · "pending" remembered as failed ⇒ `APendingKey_…` red · `Tiles: null, Search: null` in the editor ⇒ `TheRealEditor_…` red · E-2: `SharedWith` not filled ⇒ `SharedWalls_NameTheNeighbour_BothWays` red · the tooltip ignoring `RoofShape` ⇒ `Preview_MatchesTheMockup` red |
