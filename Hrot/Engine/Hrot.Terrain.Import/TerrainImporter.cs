@@ -30,12 +30,10 @@ public sealed partial class TerrainImporter : ITerrainImporter
 
     private static string Repo() => Netconvert.RepoRoot() ?? throw new InvalidOperationException("HROT.sln was not found above the working directory — pass the terrains root explicitly");
 
-    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9_\-]*$")]
-    private static partial Regex NameRule();
 
     public Task<string> ImportAsync(string inputSetFolder, string terrainName, bool replace, IProgress<ImportProgress>? progress, CancellationToken cancellation)
     {
-        if (!NameRule().IsMatch(terrainName ?? "")) throw new ArgumentException($"'{terrainName}' is not a terrain name (letters, digits, '-' and '_')", nameof(terrainName));
+        if (!TerrainName.IsValid(terrainName)) throw new ArgumentException($"'{terrainName}' is not a terrain name (letters, digits, '-' and '_')", nameof(terrainName));
         string target = Path.Combine(TerrainsRoot, terrainName!);
         if (Directory.Exists(target) && !replace)
             throw new InvalidOperationException($"the terrain '{terrainName}' already exists ({target}) — pass replace to overwrite it");

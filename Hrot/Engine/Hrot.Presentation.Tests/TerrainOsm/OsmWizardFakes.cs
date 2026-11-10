@@ -186,6 +186,8 @@ public sealed class FakeOsmPipeline : IOsmTerrainPipeline
     public bool Hold { get; set; }
     public OsmProgress HeldAt { get; set; } = new(OsmStage.Buildings, 0.62, "Buildings — 880 of 1 412");
     public int PreviewCalls, WriteCalls;
+    /// <summary>⭐ CE-4378 — writes a real input set into the folder (and returns it) instead of the placeholder manifest.</summary>
+    public Func<string, string>? WriteSet { get; set; }
     public CancellationToken LastToken;
     private TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -219,6 +221,7 @@ public sealed class FakeOsmPipeline : IOsmTerrainPipeline
             cancellation.ThrowIfCancellationRequested();
             progress?.Report(new OsmProgress(st, 1.0, st.ToString()));
         }
+        if (WriteSet is { } write) return write(outputFolder);   // ⭐ CE-4378 — a REAL input set (the importer's MiniSet)
         Directory.CreateDirectory(outputFolder);
         File.WriteAllText(Path.Combine(outputFolder, "manifest.json"), "{}");
         return outputFolder;

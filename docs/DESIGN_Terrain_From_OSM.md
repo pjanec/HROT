@@ -380,6 +380,10 @@ the rails that measure it: [`STATUS_Ui_Osm_Wizard.md`](blueprints/batches/STATUS
 | Import rows follow `OsmStage` ("Read the map data" for Parse; elevation is inside Heights) | the contract's stages; the mockup's "Elevation (Copernicus 30 m)" row is not a stage the pipeline reports |
 | the Import step's right box shows only what is TRUE (heading "When it finishes" until it has) | the mockup's inset illustrates both ends at once |
 
+⭐ **CE-4378 (`2026-11-10`)** — the importer (`Hrot.Terrain.Import.TerrainImporter`) is composed: it writes into the NAS's `assets/terrain` — the folder the New Scenario
+picker lists — and *Open in New Scenario* opens that picker with the new terrain selected (`NewAssetLauncher.OpenScenarioOn`). The terrain-name rule is ONE
+(`Hrot.Terrain.InputSet.TerrainName`), shared by the importer and the Options step (dots are no longer accepted). Rail `TheWizardImportsWithTheRealImporterTests`.
+
 ⚠ **One duplicate, filed — [CE-1468](blueprints/Blueprint_Issues_Tracker.md):** `OsmTileTextures` is an LRU of uploaded textures like `PickerImageCache` (the pickers'). Not shared yet because that
 cache remembers a `null` load as failed forever (a downloading tile is "not yet") and keys by `string` (a per-frame allocation per tile). Graph INVENTORY re-run `2026-11-10`
 once the index was up: `search_graph` `.*Mercator.*` (1 — ours) · `.*Tile(Source|Cache|Texture|Provider|Fetch).*` (4 — ours + the navmesh `NavTileCache`, unrelated) ·

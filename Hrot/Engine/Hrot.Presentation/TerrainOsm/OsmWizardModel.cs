@@ -145,10 +145,8 @@ public sealed class OsmWizardModel
         get
         {
             if (string.IsNullOrWhiteSpace(Name)) return "a terrain needs a name";
-            foreach (char c in Name)
-                if (!(char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '.')) return "letters, digits, - _ . only (it is a folder name)";
-            if (Name.StartsWith('.') || Name.Contains("..", StringComparison.Ordinal)) return "it may not start with a dot";
-            return null;
+            // ⭐ CE-4378 — the importer's ONE rule (Hrot.Terrain.InputSet.TerrainName): what is refused here is what the import would refuse
+            return Hrot.Terrain.InputSet.TerrainName.IsValid(Name) ? null : "letters and digits, then - and _ (it is a folder name)";
         }
     }
 

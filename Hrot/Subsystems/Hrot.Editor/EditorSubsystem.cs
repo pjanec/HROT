@@ -574,6 +574,8 @@ namespace Hrot.Editor
         private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
         /// <summary>⭐ CE-4375 — the OSM terrain wizard (File › New › Terrain from OpenStreetMap…).</summary>
         private Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? _osmWizard;
+        /// <summary>⭐ CE-4378 — the New-asset launcher, for the OSM wizard's "Open in New Scenario" (set where the launcher is built).</summary>
+        private Hrot.Editor.AiShared.Browser.NewAssetLauncher? _newAssetLauncherForOsm;
         void Hrot.UI.Common.RunMode.IProvidesRunControls.ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => _composeScenarioMenu?.Invoke(windowManager);
         internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
         internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
@@ -3634,11 +3636,23 @@ namespace Hrot.Editor
             // ⭐ CE-4375 (OSM §6 / §6b, W-3) — the "New terrain from OpenStreetMap" wizard: one modal, drawn as a frame overlay like the modals above. Its services are composed ONCE
             //   (the menu reads the wizard's DisabledReason every frame). ⭐ The pipeline is the real one (CE-4373/4374), through the ONE composition the CLI uses (OsmPipelines).
             //   ⛔ No ITileSource / IPlaceSearch / ITerrainImporter exist on the tree yet ⇒ null, and the item stays greyed saying what is missing — never a stub in production.
+            // ⭐ CE-4378 (D-4) — the coordinator's importer (CE-4368) writes into the NAS's assets/terrain, the folder the New Scenario picker lists
+            //   (NewScenarioTerrains: TerrainCatalog.ForNode(null, NasRoot)); "Open in New Scenario" opens that picker on the new terrain.
+            string nas = Fdp.Toolkit.Orchestration.ContentLayout.NasRoot;
             var osmServices = new Hrot.UI.Common.TerrainOsm.OsmWizardServices(
                 Pipeline: Hrot.Terrain.Osm.OsmPipelines.Online(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-terrain-osm-cache")),
-                Tiles: null, Search: null, Importer: null,
-                TerrainsRoot: Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot),
-                InputSetRoot: System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot, "terrain-input"));
+                Tiles: null, Search: null,
+                Importer: new Hrot.Terrain.Import.TerrainImporter(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(nas)),
+                TerrainsRoot: Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas),
+                InputSetRoot: System.IO.Path.Combine(nas, "terrain-input"))
+            {
+                OpenNewScenario = folder => _newAssetLauncherForOsm?.OpenScenarioOn(System.IO.Path.GetFileName(folder.TrimEnd('/', '\\'))),
+                ShowFolder = folder =>
+                {
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = folder, UseShellExecute = true }); }
+                    catch (Exception ex) { _saveAllStatus = "[Terrain] Could not open the folder: " + ex.Message; }   // no default file manager on this host
+                },
+            };
             _osmWizard = new Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow(() => osmServices);
             windowManager.RegisterFrameOverlay(_osmWizard.Draw);
 
@@ -4306,6 +4320,7 @@ namespace Hrot.Editor
                     terrainDefinition:  name => NewScenarioTerrains().ResolveDefinition(name),
                     showNewBlankDialog: ShowNewBlankDialog)
                 : null;
+            _newAssetLauncherForOsm = newAssetLauncher;   // ⭐ CE-4378 — the OSM wizard's "Open in New Scenario" (the wizard is built earlier)
 
             // ⭐ CE-4210 MA-6 — File ▸ New ▸ Macro…  (a macro starts from a scenario recipe's terrain, like New Scenario…) — ⭐ CE-4253/4255: it was Scenario/New Macro…
             if (newAssetLauncher is { CanOpenMacro: true })
