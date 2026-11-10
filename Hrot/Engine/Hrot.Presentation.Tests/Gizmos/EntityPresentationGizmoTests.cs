@@ -140,6 +140,33 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.DoesNotContain(frame, p => p.Shape == DebugPrimitiveShape.SemanticShape);
         }
 
+        /// <summary>⭐ CE-4388 (DESIGN_Map_View_Filter D-3, R-1049) — zoomed out past the door lines' limit, a door has no anchor and no pick box either (too small to
+        /// see is too small to click); a UNIT at the same scale keeps its symbol. 📐 Measured: ≈ 13 800 of the 16 384 primitives at the whole-terrain zoom were the
+        /// doors'. 🔴 Red-proof (compiles): <c>TooFarForDoors</c> always false ⇒ the door still emits its anchor.</summary>
+        [Fact]
+        public void CE4388_ADoorZoomedOut_HasNoAnchorOrPickBox_ButAUnitKeepsItsSymbol()
+        {
+            var door = Spawn(71, new Vector3(5f, 5f, 0f));
+            var unit = Spawn(72, new Vector3(9f, 9f, 0f));
+            _repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            _repo.AddComponent(door, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "t/b/d2" });
+            var buffer = new DebugPrimitiveBuffer();
+            var view = Hrot.ScenarioEditor.Map.MapInteractionPack.ViewOf(buffer);
+            view.Write2D(new System.Numerics.Vector2(-3000f), new System.Numerics.Vector2(3000f), 2.5f);   // the whole terrain
+            var gizmo = new EntityPresentationGizmo();
+
+            gizmo.Draw(_repo, door, buffer);
+            gizmo.Draw(_repo, unit, buffer);
+            var far = buffer.GetFrame().ToArray();
+            Assert.DoesNotContain(far, p => p.NetworkId == 71L);
+            Assert.Contains(far, p => p.Shape == DebugPrimitiveShape.SpatialAnchor && p.NetworkId == 72L);
+
+            buffer.Clear();
+            view.Write2D(new System.Numerics.Vector2(-50f), new System.Numerics.Vector2(50f), 0.05f);     // close in
+            gizmo.Draw(_repo, door, buffer);
+            Assert.Contains(buffer.GetFrame().ToArray(), p => p.Shape == DebugPrimitiveShape.SpatialAnchor && p.NetworkId == 71L);
+        }
+
         // ── ② the emitted frame — re-homed from SimHost ────────────────────────────────────────
 
         /// <summary>⭐ Re-homed from <c>SC_GZ057_2</c>.</summary>

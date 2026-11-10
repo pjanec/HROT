@@ -3695,14 +3695,101 @@ already cuts.
 | # | decision | why |
 |---|---|---|
 | R-1 | the cap is drawn as a GABLE: the ridge along the footprint's longest edge at mid-width, at `TopZ`; the eaves at `BaseZ`. Each footprint triangle is clipped at the ridge line and its corners lifted — a plane on each side, on ANY footprint (L, T, many-sided); the gable ends close it in the house's own wall material, one triangle per half (split at the ridge) | the source gives only a cap height, no roof shape; a gable over the longest edge is the commonest house roof and costs ≈ 2× the footprint's triangles — less than the box it replaces |
-| R-2 | its material `roof-pitched`: dark weathered clay (118, 58, 46) — darker than the brick walls, so roof and wall read apart — with a TILE pattern: rows of 30 × 24 cm tiles up the slope, staggered, the lower lip shaded, fading out by 160 m (`LitShader` code **240**, new) | a slope is never a floor, so CE-1341's grey screed (which made roofs double as floors) does not apply; the red reads as a roof against the slate flat roofs |
+| R-2 | its material `roof-pitched`: dark **anthracite** (64, 66, 74) — ⛔ SUPERSEDED `2026-11-10`: dark clay (118, 58, 46), which the user found *"very similar to the brick wall"* (same hue as brick 172, 96, 72, only darker); anthracite differs in hue AND value from brick, and is darker than the slate flat roofs — with a TILE pattern: rows of 30 × 24 cm tiles up the slope, staggered, the lower lip shaded, fading out by 160 m (`LitShader` code **240**, new) | a slope is never a floor, so CE-1341's grey screed (which made roofs double as floors) does not apply; the red reads as a roof against the slate flat roofs |
 | R-3 | ⛔ presentation only — the world keeps the cap prism (sight and fire, the navmesh) | R-4195: the look must not change the simulation |
 | R-4 | facades: **no change** — the imported houses' wall panels already draw their openings in the chunk's objects mesh, batched per chunk (§6ah L-5) | the frames below show the window rows; nothing new to batch |
+| R-5 | ⭐ *(`2026-11-10`; user: "what about at least fake some in the textures of the walls?")* a SOLID building (one prism, no panels — R-4193) with storeys and ≥ **40 m²** is drawn with PAINTED windows: one row per storey (height ÷ floors), sill 0.9 m over each floor, 1.1 × 1.3 m panes spaced ≈ 2.8 m along every wall, 0.8 m clear of the corners, 2 cm outside the face, material `painted-window` (dark glass 46, 60, 78). Smaller ones (garages, sheds), roof caps and panel pieces stay plain | geometry, not a shader pattern: a texture cannot know where the building's storeys start; ≈ 50 triangles for a two-storey house. ⛔ presentation only — drawn by the chunks alone, never in the world's tagged soup (the navmesh and sight keep the solid prism) ⇒ §6ah's equality rail skips the `painted-window` triangles |
 
 *As-built:* `TerrainWorldMesh.Roofs.cs` (`IsRoofCap`, `AddGable`, `ClipSide`), routed from `BuildChunkObjects`; `TerrainLayer3D` colour + code 240; `LitShader.tiles`.
 Rail `TerrainChunkRoofsTests` (ridge at the cap's top along the long side, eaves at its base, the two gable ends, no flat cap top, the house's own roof kept, the
 world still blocks at the cap; 🔴 red-proved with `IsRoofCap` off). The shipped terrains have no caps ⇒ §6ah's equality rail and their frames are unchanged.
+R-5: `TerrainWorldMesh.Windows.cs` (`HasPaintedWindows`, `AddPaintedWindows`), routed from `BuildChunkObjects` after `AddPrism`; rail `TerrainChunkWindowsTests` (80 pane
+triangles on a 20 × 10 m two-storey house at z 0.9–2.2 / 3.9–5.2, on the faces, clear of the corners; none on a 20 m² shed or the cap; the world still blocks). ⚠ It
+changes the SHIPPED look: demo-city's, test-town's, bt-range's and highway-rest's big solid houses gain window rows.
 📷 `TheTerrainChunksLookTests.AnImportedTerrainsHouses_UpClose` (opt-in `HROT_MEASURE=1`, `HROT_RAIL_SHOTS=<dir>`) renders the before / after; never in git.
+
+
+### 6aj. CE-4392 — building destruction drawn on the 2-D and 3-D maps *(ui, `2026-11-10`; build-state: BUILT — as-built below the table)*
+
+Handoff [HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md](blueprints/batches/HANDOFF_Coordinator_To_Ui_Destruction_Drawing.md). 🔒 R-4196: the display node's terrain is
+not changed — the damage is DRAWN from the replicated `BuildingDamage` entities (`BuildingDamageTable.Of`). R-4195: the look is ours, for performance.
+Related: [DESIGN_Terrain_Import_UTM.md](DESIGN_Terrain_Import_UTM.md) §8.2 (what the damage is, B-9 / B-12) · [DESIGN_Terrain_World.md](DESIGN_Terrain_World.md) §10a (the 2-D plan).
+
+**INVENTORY** *(`search_graph` `.*(Breach|Damage|Rubble|Collapse).*` Class — see the as-built for the total; grep `BuildingDamageTable|WallBreach`: 13 production files)*:
+the table and its reader (`BuildingDamageTable`, carried on `DoorStates.Damage`) · the ONE panel → prisms function `TerrainBuildingExpander.ExpandPanelPieces` · the
+muscle's navmesh overlay `TerrainObstacles.With(world, obstacles, damage)` with its private gap merge `WithGaps` (passages only) · the 3-D chunk objects build
+(`TerrainWorldMesh.BuildChunkObjects`) and slots (`TerrainChunks3D`) · the 2-D plan (`TerrainPlan2D.Emit`, `TerrainLayer2D.PlanOf`). ⇒ ⛔ no second cutting algorithm:
+the drawing re-cuts a breached wall with the SAME two functions, holes and passages alike.
+
+![the breach and the heap](UX/terrain-destruction-3d.svg)
+
+```mermaid
+classDiagram
+  class BuildingDamageTable { <<existing, S-1/S-2>> BreachesOf(panel) · Collapsed(b) · CollapsedBuildings · RubbleOf(world, b) }
+  class DamagedBuildings { <<NEW, Fdp.Toolkits>> Keeps(prism) · RecutPanel(panel, into) · Touched(before, after) }
+  class TerrainBuildingExpander { <<existing>> ExpandPanelPieces(panel, openings, into) }
+  class TerrainObstacles { <<existing>> With(world, obstacles, damage) · WithGaps — made shared }
+  class TerrainWorldMesh { <<existing>> BuildChunkObjects(…, damage) · AddHeap NEW }
+  class ITerrainChunkedGeometry { <<existing>> Damage (opaque) NEW · BuildChunk(…, damage) NEW · ChunksOf(building) NEW }
+  class TerrainChunks3D { <<existing>> marks the touched chunks' objects slots stale }
+  class TerrainPlan2D { <<existing>> Emit(world, draw, marks) · EmitBuilding(world, b, damage, draw) NEW }
+  class TerrainLayer2D { <<existing>> hides the damaged buildings' strokes / fills; draws their overlay }
+  DamagedBuildings ..> BuildingDamageTable
+  DamagedBuildings ..> TerrainBuildingExpander
+  DamagedBuildings ..> TerrainObstacles : WithGaps (one gap merge)
+  TerrainWorldMesh ..> DamagedBuildings
+  TerrainPlan2D ..> DamagedBuildings
+  TerrainChunks3D ..> ITerrainChunkedGeometry
+  TerrainLayer2D ..> TerrainPlan2D
+```
+*What the picture shows that prose hid: 2-D and 3-D ask the SAME helper which pieces a damaged building is drawn with — they cannot disagree; and the muscle's navmesh
+overlay and the drawing share one gap merge.*
+
+```mermaid
+sequenceDiagram
+  participant S as render source (every frame)
+  participant L as TerrainLayer3D
+  participant C as TerrainChunks3D
+  participant W as worker
+  S->>L: WorldQuery.RenderGeometryOf(view) = TerrainWorldQuery.ForView (doors + damage of this view)
+  L->>C: geometry.Damage (the table, a new instance only when the damage changed)
+  C->>C: same instance ⇒ nothing (0 B) · new ⇒ Touched(before, after) → those buildings' chunks: objects slot stale
+  C->>W: BuildChunk(cx, cy, 0, Objects, damage) — Keeps / RecutPanel / AddHeap
+  W-->>C: the chunk's new objects mesh (the old one drawn until it uploads)
+```
+*What the picture shows: a breach costs one or two chunk rebuilds off the frame thread — never the terrain; an unchanged table does nothing.*
+
+```mermaid
+graph TD
+  NED["BuildingDamage entities — ingressed on EVERY node (SharedTranslatorPack)"] --> T["BuildingDamageTable.Of(view, world) — per thread, cached"]
+  T --> Q["TerrainWorldQuery.ForView — DoorStates.Damage"]
+  Q -->|"MapInteractionPack's render source (every host: editor, Player, observer) — unchanged code"| L3["TerrainLayer3D / TerrainChunks3D"]
+  T -->|"TerrainLayer2D (its own repository read)"| L2["the 2-D plan + overlay"]
+  M["muscle only: TerrainResidency.BakeObstacles(…, damage)"] -.->|"a derived world (passages cut, rubble prism) — the drawing is idempotent over it"| L3
+```
+*What the picture shows: the drawing reads only the replicated entities, on every host by construction (the one render source); the muscle's rebake is a separate path the
+drawing must tolerate, not use.*
+
+| # | decision | why |
+|---|---|---|
+| X-1 | 3-D: a prism of a collapsed building, a resident `rubble` prism, and every piece of a breached panel are skipped; the breached panel is re-cut from its own openings + ALL its breaches (holes and passages, `WithGaps`) through `ExpandPanelPieces`, emitted in the chunk of the panel's midpoint | one cutting rule; idempotent over the muscle's rebaked world (the resident pieces of that panel are all replaced) |
+| X-2 | a collapsed building's rubble = `RubbleOf(world, b)` drawn as a HEAP: the footprint at the base, the footprint shrunk to 55 % round its centroid at the top (⅓ height), dusty grey-brown (128, 118, 104), the earth pattern (code 243) | a box of rubble reads as a low building; a heap reads as debris; no new shader |
+| X-3 | rebuild only the objects slot of each chunk holding a piece of a building whose damage changed (before ∪ after); the old mesh drawn until the new one uploads | the handoff's "never the terrain"; no flicker |
+| X-4 | the damage crosses the render seam OPAQUE (`ITerrainChunkedGeometry.Damage : object?`) | R-250/252: the map sees triangles and a kind, never how the terrain is modelled |
+| X-5 | 2-D: the plan records which building each fill triangle and stroke belongs to; a damaged building's are hidden (a bit per stroke in the cull, fill alpha 0 re-uploaded once) and the building re-emitted damaged into a small overlay plan; rubble a grey-brown fill with a dashed outline | a whole-plan rebuild on scale-1 (482 k strokes) per breach is too slow; this costs the damaged buildings only |
+| X-6 | ⛔ door leaves are drawn by `DoorLeafGizmo` (the gizmo pipeline, another session's area this week) — they already read `DoorStates`, which reports a collapsed building's doors Destroyed | out of scope here; noted for the as-built |
+| X-7 | ⭐ *(added at the user's ask: "black explosion marks all around the hole")* a ragged SOOT ring on both faces of the wall round every breach: a black ring at the opening's edge, a lighter streaked ring past it (every other point a streak), 0.25–0.9 m by the breach's size, 1.5 cm off the face, placed by a hash of the breach; 2-D: soot each side of the gap | an opening alone looked cut, not blown; the hash keeps every node's picture the same |
+| X-8 | ⭐ *(added at the user's ask: "teeth, like missing bricks or bricks extending into the hole")* the breach's rim BROKEN (`TerrainWorldMesh.AddBrokenRim`): along every edge, brick-sized stubs (0.25 m × two courses) in the wall's own material reach into the opening by a jittered depth, staggered course by course, about a third of the slots empty; never past 18 % of the opening's smaller side; ⭐ BURNT (user: "shouldn't the bricks inside the hole be also scorched?") — `<material>-scorched` (38 % of its colour, 70 % of them) or `-singed` (62 %), the material's own pattern kept (`TerrainLayer3D.Burnt`), so any wall material burns; presentation only | a clean rectangle read as cut; ~0.5 k triangles a breach, built with its chunk |
+
+**As-built (`2026-11-10`)** — as designed, plus three things learned building it:
+- ⭐ **2-D cut height** — re-cutting a HOLE leaves the strips under and over it, and in plan their footprint IS the wall line, so the gap would not show. ⇒ the plan is cut at
+  `TerrainPlan2D.PlanCutHeight` (1 m over the floor): a re-cut piece lying in a breach open at that height is not drawn. Undamaged windows draw as before.
+- ⭐ **the heap needed debris** — a frustum read as a low platform; `AddDebris` lays one yawed block per ~6 m² (6–40) on it, by a hash of the building.
+- ⚠ **a muscle's rebake replaces the world singleton** (`TerrainResidency.BakeObstacles` → a derived `TerrainWorld`), so on the muscle and all-in-one hosts the 3-D layer's identity changes and
+  the WHOLE terrain is rebuilt on each rebake — as it already was for obstacles before this work; display nodes rebuild only the touched chunks. A finding for the coordinator, not changed here.
+- Rails: `TerrainChunkDamageTests` (breach both sides, soot both faces, the broken rim, heap, idempotent over a rebake, touched chunks) · `TheBuildingDamageDrawsTests` (the real 3-D layer through
+  the hosts' render source on a view that only received the damage: breach, heap, 0 B and no rebuild on an unchanged table) · `TheBuildingDamagePlanTests` (the plan's building marks,
+  the overlay, the hidden strokes; the production 2-D attach: gap and rubble). Frames under `HROT_RAIL_SHOTS` (never git).
 
 ## 7. NOT VERIFIED — say so before it is built on
 

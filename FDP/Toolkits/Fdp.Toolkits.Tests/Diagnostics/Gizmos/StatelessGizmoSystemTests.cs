@@ -393,6 +393,110 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(2, first.DrawCount);
             Assert.Equal(1, second.DrawCount);
         }
+
+        // ── ⭐ CE-4388 — the map's view filter (docs/DESIGN_Map_View_Filter.md, R-1049) ───────────────────────────────────────────────
+
+        private sealed class FakeView : IGizmoViewFilter
+        {
+            public readonly HashSet<int> Visible = new();
+            public bool Active { get; set; } = true;
+            public float MetresPerPixel { get; set; }
+            public int Tests;
+            public bool InView(ISimulationView view, Entity entity) { Tests++; return Visible.Contains(entity.Index); }
+        }
+
+        [GizmoProjector(typeof(GizmoTestCompA))]
+        private sealed class PlainGizmo : IStatelessGizmo
+        {
+            public readonly List<int> Drawn = new(16);
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => Drawn.Add(entity.Index);
+        }
+
+        [GizmoProjector(typeof(GizmoTestCompA), DrawsOffScreen = true)]
+        private sealed class OffScreenGizmo : IStatelessGizmo
+        {
+            public readonly List<int> Drawn = new(16);
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => Drawn.Add(entity.Index);
+        }
+
+        [GizmoProjector(typeof(GizmoTestCompA), MaxMetresPerPixel = 1f)]
+        private sealed class CloseOnlyGizmo : IStatelessGizmo
+        {
+            public readonly List<int> Drawn = new(16);
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => Drawn.Add(entity.Index);
+        }
+
+        /// <summary>⭐ CE-4388 (D-1, D-4, D-7) — an entity OUT of view reaches no rule — tested once however many rules match it — except a
+        /// <c>DrawsOffScreen</c> one, which sees every match as before; a filter that is not active changes nothing. 🔴 Red-proof (compiles): the view
+        /// test skipped in the match pass ⇒ the plain rule draws the out-of-view entity.</summary>
+        [Fact]
+        public void CE4388_AnEntityOutOfView_ReachesNoRule_ButAnOffScreenOne_AndIsTestedOnce()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var plain = new PlainGizmo(); var plain2 = new PlainGizmo(); var off = new OffScreenGizmo();
+            registry.Register(plain, new[] { typeof(GizmoTestCompA) });
+            registry.Register(plain2, new[] { typeof(GizmoTestCompA) });
+            registry.Register(off, new[] { typeof(GizmoTestCompA) });
+            var view = new FakeView();
+            var sys = new StatelessGizmoSystem(registry, buf) { ViewFilter = view };
+            var seen = repo.CreateEntity(); repo.AddComponent(seen, new GizmoTestCompA());
+            var away = repo.CreateEntity(); repo.AddComponent(away, new GizmoTestCompA());
+            view.Visible.Add(seen.Index);
+
+            sys.Execute(repo, 0f);
+            Assert.Equal(new[] { seen.Index }, plain.Drawn);
+            Assert.Equal(new[] { seen.Index }, plain2.Drawn);
+            Assert.Equal(new[] { seen.Index, away.Index }, off.Drawn);
+            Assert.Equal(2, view.Tests);                 // once per entity, not once per rule
+            Assert.Equal(1, sys.EntitiesOutOfView);
+
+            view.Active = false; plain.Drawn.Clear(); off.Drawn.Clear();
+            sys.Execute(repo, 0f);
+            Assert.Equal(new[] { seen.Index, away.Index }, plain.Drawn);   // no view ⇒ everything, as before
+        }
+
+        /// <summary>⭐ CE-4388 (D-3) — a rule coarser than its <c>MaxMetresPerPixel</c> is skipped for the frame; closer in it draws; an unknown scale (0)
+        /// gates nothing. 🔴 Red-proof (compiles): the zoom gate removed ⇒ the close-only rule draws at 5 m/px.</summary>
+        [Fact]
+        public void CE4388_ARuleCoarserThanItsZoomLimit_IsSkipped()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var close = new CloseOnlyGizmo(); var plain = new PlainGizmo();
+            registry.Register(close, new[] { typeof(GizmoTestCompA) });
+            registry.Register(plain, new[] { typeof(GizmoTestCompA) });
+            var view = new FakeView { MetresPerPixel = 5f };
+            var sys = new StatelessGizmoSystem(registry, buf) { ViewFilter = view };
+            var e = repo.CreateEntity(); repo.AddComponent(e, new GizmoTestCompA());
+            view.Visible.Add(e.Index);
+
+            sys.Execute(repo, 0f);
+            Assert.Empty(close.Drawn);
+            Assert.Single(plain.Drawn);
+            Assert.Equal(1, sys.RulesSkippedForZoom);
+
+            view.MetresPerPixel = 0.5f; sys.Execute(repo, 0f);
+            Assert.Single(close.Drawn);
+            view.MetresPerPixel = 0f; sys.Execute(repo, 0f);
+            Assert.Equal(2, close.Drawn.Count);
+        }
+
+        /// <summary>⭐ CE-4388 (R-2084) — a steady frame with the view filter on allocates nothing.</summary>
+        [Fact]
+        public void CE4388_ASteadyFilteredFrame_AllocatesNothing()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var plain = new PlainGizmo();
+            registry.Register(plain, new[] { typeof(GizmoTestCompA) });
+            var view = new FakeView { MetresPerPixel = 2f };
+            var sys = new StatelessGizmoSystem(registry, buf) { ViewFilter = view };
+            for (int k = 0; k < 20; k++) { var e = repo.CreateEntity(); repo.AddComponent(e, new GizmoTestCompA()); if (k % 2 == 0) view.Visible.Add(e.Index); }
+            for (int k = 0; k < 3; k++) { plain.Drawn.Clear(); sys.Execute(repo, 0f); }
+            plain.Drawn.Clear();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            sys.Execute(repo, 0f);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.Equal(10, plain.Drawn.Count);
+        }
     }
 
     /// <summary>A global (entity-less) stateless projector double.</summary>

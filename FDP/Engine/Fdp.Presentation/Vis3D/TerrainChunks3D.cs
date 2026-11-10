@@ -32,6 +32,8 @@ namespace Fdp.Toolkit.Vis3D
             public long Bytes;
             public long LastDrawn;
             public int Triangles;
+            /// <summary>⭐ CE-4392 — the damage changed under this slot: rebuild it once its current build is done.</summary>
+            public bool Stale;
             public float MinZ = float.MaxValue, MaxZ = float.MinValue;
 
             public void Release()
@@ -80,6 +82,26 @@ namespace Fdp.Toolkit.Vis3D
         }
 
         public object Identity => _identity;
+
+        private object? _damage;
+        private readonly List<int> _touched = new();
+
+        /// <summary>How many objects slots a damage change marked for a rebuild (a rail).</summary>
+        public int DamageRebuilds { get; private set; }
+
+        /// <summary>
+        /// ⭐ CE-4392 (DESIGN_Map_3D_Mode §6aj X-3) — this frame's damage (<see cref="ITerrainChunkedGeometry.Damage"/>, opaque). The same instance ⇒ nothing (0 B); a new one ⇒ the
+        /// objects slot of every chunk the change touches is rebuilt off the frame thread, the old mesh drawn until the new one uploads. ⛔ Never the whole terrain.
+        /// </summary>
+        public void SetDamage(ITerrainChunkedGeometry geometry)
+        {
+            var damage = geometry.Damage;
+            if (ReferenceEquals(damage, _damage)) return;
+            _touched.Clear();
+            geometry.ChunksTouchedBy(_damage, damage, _touched);
+            _damage = damage;
+            foreach (int k in _touched) if ((uint)k < (uint)_objects.Length) { _objects[k].Stale = true; DamageRebuilds++; }
+        }
         public TerrainChunkLayout Layout => _layout;
 
         /// <summary>Triangles drawn last frame / meshes drawn last frame (the rails' and the status file's numbers).</summary>
@@ -140,6 +162,13 @@ namespace Fdp.Toolkit.Vis3D
                 uploaded += _uploadedBytes;
                 if (slot.Build.State == MeshBuildState.Failed) { Failure ??= slot.Build.Failure; done = true; }
                 if (done) { _flight[f] = _flight[--_inFlight]; f--; }
+            }
+            for (int k = 0; k < _objects.Length; k++)   // ⭐ CE-4392 — a stale slot whose build is finished goes back to the schedule
+            {
+                var o = _objects[k];
+                if (!o.Stale) continue;
+                if (o.Build.State is MeshBuildState.Built or MeshBuildState.Failed) { o.Build.Reset(); o.Stale = false; }
+                else if (o.Build.State == MeshBuildState.Idle) o.Stale = false;   // not built yet: its first build reads this damage
             }
             Schedule();
             Evict();
@@ -216,11 +245,12 @@ namespace Fdp.Toolkit.Vis3D
             var part = id < _ground.Length ? TerrainChunkPart.ChunkGround : r < _n ? TerrainChunkPart.ChunkObjects : r < 2 * _n ? TerrainChunkPart.ChunkCanopy : TerrainChunkPart.ChunkTrees;
             int cx = k < 0 ? 0 : k % _layout.Nx, cy = k < 0 ? 0 : k / _layout.Nx;
             _flight[_inFlight++] = id;
+            var damage = part == TerrainChunkPart.ChunkObjects ? _damage : null;   // ⭐ CE-4392 — the objects as this frame's damage leaves them
             slot.Build.Request(_identity, () =>
             {
                 Vector3[] v; int[] i; TerrainSurfaceKind[] kinds; string?[] mats;
                 if (k < 0) g.BuildOutside(out v, out i, out kinds, out mats);
-                else g.BuildChunk(cx, cy, level, part, out v, out i, out kinds, out mats);
+                else g.BuildChunk(cx, cy, level, part, damage, out v, out i, out kinds, out mats);
                 TerrainLayer3D.BuildVertexData(v, i, kinds, mats, out var positions, out var normals, out var colors);
                 float lo = float.MaxValue, hi = float.MinValue;
                 for (int j = 0; j < v.Length; j++) { lo = MathF.Min(lo, v[j].Z); hi = MathF.Max(hi, v[j].Z); }

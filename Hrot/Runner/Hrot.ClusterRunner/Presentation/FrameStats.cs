@@ -68,14 +68,26 @@ internal sealed class FrameStats
             $"[FrameStats] {n} frames  mean {sorted.Average():0.0} ms  p50 {sorted[n / 2]:0.0}  p95 {sorted[Math.Min(n - 1, (int)(n * 0.95))]:0.0}" +
             $"  max {sorted[n - 1]:0.0}  | update {_update / n:0.0}  draw {_draw / n:0.0}  ui {_ui / n:0.0} ms/frame  | largest draw list {_maxVtx} vertices ({_maxVtxOwner})");
         var all = Fdp.Presentation.WindowManager.WindowTimings.DrainWithBytes();
-        var top = all.Take(6).ToList();
+        var top = all.Take(12).ToList();
         if (top.Count > 0) Console.WriteLine("[FrameStats]   per window (ms/frame, calls/frame): " + string.Join(" · ", top.Select(w => $"{w.Name} {w.Ms / n:0.0} ({(double)w.Calls / n:0.#})")));
         // ⭐ CE-2401 (R-2084) — the garbage per window: what kills smoothness is the GC, not only the time
         var heavy = all.Where(w => w.Bytes / n >= 1024).OrderByDescending(w => w.Bytes).Take(8).ToList();
         if (heavy.Count > 0) Console.WriteLine("[FrameStats]   per window garbage (KB/frame): " + string.Join(" · ", heavy.Select(w => $"{w.Name} {w.Bytes / n / 1024}")));
+        Console.WriteLine($"[FrameStats]   gizmo 3-D pass: {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastPrimitives3D} primitives · labels {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabelsDrawn3D} drawn of {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabels3D} · cards drawn {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastCardsDrawn} · drape samples {Fdp.Toolkit.Vis3D.GizmoRenderer3D.LastDrapeSamples} in {Fdp.Toolkit.Vis3D.GizmoRenderer3D.LastDrapeMs:0.0} ms");
+        {   // ⭐ CE-4388 — the 3-D gizmo renderer by shape
+            var parts = new System.Collections.Generic.List<string>();
+            var ticks = Fdp.Toolkit.Vis3D.GizmoRenderer3D.ShapeTicks; var counts = Fdp.Toolkit.Vis3D.GizmoRenderer3D.ShapeCounts;
+            for (int k = 0; k < ticks.Length; k++)
+                if (counts[k] > 0) { parts.Add($"{(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape)k} {ticks[k] * 1000.0 / System.Diagnostics.Stopwatch.Frequency / n:0.00} ms × {counts[k] / n}"); ticks[k] = 0; counts[k] = 0; }
+            if (parts.Count > 0) Console.WriteLine("[FrameStats]   gizmo 3-D shapes (ms · count per frame): " + string.Join(" · ", parts));
+        }
         // ⭐ CE-4385 — the stateless gizmo rules (the update's biggest system on a large terrain): time, entities drawn and garbage, per rule
-        var rules = Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Drain().Take(6).ToList();
+        var rulesAll = Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Drain();
+        var rules = rulesAll.Take(10).ToList();
         if (rules.Count > 0) Console.WriteLine("[FrameStats]   gizmo rules (ms · entities · KB per frame): " + string.Join(" · ", rules.Select(r => $"{r.Rule} {r.Ms / n:0.00} · {r.Entities / n} · {r.Bytes / n / 1024}")));
+        // ⭐ CE-4388 — who fills the gizmo buffer: primitives per frame, per gizmo (the buffer holds 16 384)
+        var byPrims = rulesAll.Where(r => r.Primitives > 0).OrderByDescending(r => r.Primitives).Take(10).ToList();
+        if (byPrims.Count > 0) Console.WriteLine("[FrameStats]   gizmo primitives per frame: " + string.Join(" · ", byPrims.Select(r => $"{r.Rule} {r.Primitives / n}")));
         _frames.Clear();
         Console.WriteLine($"[FrameStats]   garbage (KB/frame): update {_updateBytes / n / 1024}  draw {_drawBytes / n / 1024}  ui {_uiBytes / n / 1024}" +
                           $"  | gc0 {GC.CollectionCount(0)} gc1 {GC.CollectionCount(1)} gc2 {GC.CollectionCount(2)} (since start)");

@@ -22,7 +22,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     /// assembly every map host loads (R-228) — ⛔ not beside the node in <c>Hrot.AI.Behaviors</c>, which the deployment pre-load
     /// skips (hot reload), so a projector there would draw only on hosts that happen to load it.
     /// </summary>
-    [GizmoProjector(typeof(BehaviorState), typeof(SimTransform), Family = AiOverlayFlags.Channels)]
+    [GizmoProjector(typeof(BehaviorState), typeof(SimTransform), Family = AiOverlayFlags.Channels, DrawsOffScreen = true)]
     public sealed class PeekAndFireGizmo : IStatelessGizmo
     {
         /// <summary>The phase is drawn while the node wrote it this recently (sim s) — it stops with the node.</summary>

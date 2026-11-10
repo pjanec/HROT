@@ -437,7 +437,16 @@ public class ImporterTests : IDisposable
         Assert.Equal(2, rep.BuildingsSolid); Assert.Equal(0, rep.BuildingsEnterable);
         var g = world.Prisms.Single(p => p.Label == "garage");
         Assert.Equal(12f, g.BaseZ); Assert.Equal(15f, g.TopZ);
-        Assert.Equal(12f + 3f + 1.5f, world.Prisms.Single(p => p.Label == "shed").TopZ, 3);   // a pitched solid reaches its ridge
+        // ⭐ (ui, 2026-11-10, at the user's ask) a pitched solid gets the same roof cap as a template: its body to the eaves + a "-roof" cap to the ridge — the shape the 3-D map
+        //   draws as a gable — not one box as tall as the ridge (it was). The two fill the old box exactly. 🔴 Red-proof: the solid branch writing no cap ⇒ no "shed-roof".
+        var shed = world.Prisms.Single(p => p.Label == "shed");
+        var cap = world.Prisms.Single(p => p.Label == "shed-roof");
+        Assert.Equal(12f + 3f, shed.TopZ, 3);                    // the body to the eaves
+        Assert.Equal(shed.TopZ, cap.BaseZ, 3);
+        Assert.Equal(12f + 3f + 1.5f, cap.TopZ, 3);              // the cap to the ridge
+        Assert.True(Fdp.Toolkit.Terrain.TerrainWorldMesh.IsRoofCap(cap), "the 3-D map draws it as a gable");
+        Assert.Equal(1, rep.RoofCaps);
+        Assert.DoesNotContain(world.Prisms, p => p.Label == "garage-roof");   // a flat solid stays one prism
         Assert.False(Directory.Exists(Path.Combine(folder, "buildings")));
     }
 

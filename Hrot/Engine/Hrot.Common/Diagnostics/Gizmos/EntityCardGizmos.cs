@@ -27,7 +27,20 @@ namespace Hrot.Common.Diagnostics.Gizmos
     /// with <see cref="EntityNameGizmo"/> and <see cref="HealthBarGizmo"/> it makes the card the user asked for (U19) — each an
     /// ordinary gizmo, on the Labels layer, in 2-D and 3-D alike.
     /// </summary>
-    [GizmoProjector(typeof(NetworkIdentity), typeof(EntityInfo))]
+    /// <summary>
+    /// ⭐ CE-4388 (docs/DESIGN_Map_View_Filter.md D-3, R-1049) — the map scales the card's rows stop at, in ONE place (m per screen pixel). 📐 Measured on Windows
+    /// (scale-1 + 1 000 men, the whole terrain at ≈ 2.5 m/px): 1 247 cards drawn at ≈ 5 µs each = 6.6 ms a frame, and ≈ 6 400 primitives built for them, where no
+    /// card can be read. 🔒 User, 2026-11-10: <i>"hiding the cards at small zooms, of course, if they cannot be read, then no need to keep them"</i>.
+    /// </summary>
+    public static class CardZoom
+    {
+        /// <summary>The frame and the health bar: coarser than this a man is under a pixel and the cards pile into a band.</summary>
+        public const float FrameMaxMetresPerPixel = 1f;
+        /// <summary>The name (white text, still legible a little further out).</summary>
+        public const float NameMaxMetresPerPixel = 2f;
+    }
+
+    [GizmoProjector(typeof(NetworkIdentity), typeof(EntityInfo), MaxMetresPerPixel = CardZoom.FrameMaxMetresPerPixel)]
     public sealed class EntityCardFrameGizmo : IStatelessGizmo
     {
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
@@ -39,7 +52,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     }
 
     /// <summary>⭐ CE-1033 S5b (§3.6) — the entity's name and network id in its card (row 20): <c>"T-72 #1043"</c>, <c>"#1043"</c> unnamed.</summary>
-    [GizmoProjector(typeof(NetworkIdentity), typeof(EntityInfo))]
+    [GizmoProjector(typeof(NetworkIdentity), typeof(EntityInfo), MaxMetresPerPixel = CardZoom.NameMaxMetresPerPixel)]
     public sealed class EntityNameGizmo : IStatelessGizmo
     {
         public const byte Row = 20;

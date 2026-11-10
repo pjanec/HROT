@@ -179,7 +179,7 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>The panel's openings with each passage added as a Gap, merged with every opening (and passage) it overlaps — ascending and non-overlapping, as the expander needs.</summary>
-        private static List<TerrainOpening> WithGaps(TerrainWallPanel panel, List<WallBreach> passages)
+        internal static List<TerrainOpening> WithGaps(TerrainWallPanel panel, List<WallBreach> passages)   // ⭐ CE-4392 — shared with the drawing (DamagedBuildings): one gap merge
         {
             var spans = new List<(float At, float End, float Sill, float Head, TerrainOpening? Own)>();
             foreach (var o in panel.Openings) spans.Add((o.At, o.At + o.Width, o.SillZ, o.HeadZ, o));

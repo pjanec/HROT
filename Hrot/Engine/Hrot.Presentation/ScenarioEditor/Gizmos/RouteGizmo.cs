@@ -13,7 +13,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     //   consecutive waypoints AND a small circle at each waypoint, blue; brighter when the route entity is selected. 🔒 User,
     //   2026-10-20: "routes are not rendered as waypoints connect as lines". 📐 Before: 1 px segments only, no waypoint mark — on
     //   uc-convoy-hit the route lies on Avenue E's SUMO lanes and could not be told from them.
-    [GizmoProjector(typeof(TkbIdentity))]
+    [GizmoProjector(typeof(TkbIdentity), DrawsOffScreen = true)]
     public sealed class RouteGizmo : IStatelessGizmo
     {
         // #4488FF — same blue as RouteRenderLayer.NormalColor.

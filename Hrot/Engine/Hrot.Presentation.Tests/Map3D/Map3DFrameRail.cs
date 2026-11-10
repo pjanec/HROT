@@ -229,6 +229,73 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         Assert.Equal(1, bodies.BodiesDrawn);
         Assert.Equal(1, bodies.BodiesCulled);
+
+        // ⭐ CE-4388 (DESIGN_Map_View_Filter D-2) — the gizmo filter's frustum is computed in the UPDATE from the camera (no draw pass): it must judge every
+        //   body exactly as the draw pass did. A third soldier 400 m off to the side of the view, out of it.
+        var side = new Vector3(-sw.Camera3D.Forward.Y, sw.Camera3D.Forward.X, 0f);
+        var away = sw.Camera3D.LookAt + side * 400f;
+        var third = Soldier(away.X, away.Y);
+        frame.Step(canvas.Draw);
+        var snapshot = new Hrot.ScenarioEditor.Map.MapViewSnapshot();
+        snapshot.Write3D(sw.Camera3D);
+        Assert.True(snapshot.Active, "the camera gives a frustum without drawing");
+        int inView = 0;
+        foreach (var e in world.Query().With<SimTransform>().Build()) if (snapshot.InView(world, e)) inView++;
+        Assert.Equal(bodies.BodiesDrawn, inView);
+        Assert.False(snapshot.InView(world, third), "400 m to the side is out of the view");
+    }
+
+    /// <summary>⭐ CE-4388 (render under load) — the gizmo wire sphere from the CACHED mesh draws the same pixels as raylib's <c>DrawSphereWires</c> it replaces,
+    /// and far faster. 📐 Measured on Windows: 240 route-waypoint spheres = 15.9 ms a frame through <c>DrawSphereWires</c> (≈ 4 600 trig calls per sphere).
+    /// 🔴 Red-proof (compiles): the cached mesh's segments from a different ring count ⇒ the pixels differ.</summary>
+    [SkippableFact]
+    public void CE4388_TheCachedWireSphere_DrawsWhatDrawSphereWiresDrew_AndFaster()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin(640, 480);
+        var cam = new Camera3D { Position = new Vector3(0f, 3f, 9f), Target = Vector3.Zero, Up = Vector3.UnitY, FovY = 45f, Projection = CameraProjection.Perspective };
+        var green = new Color(40, 220, 60, 255);
+        Image Shot(Action draw)
+        {
+            frame.Step(() => { Raylib.ClearBackground(Color.Black); Raylib.BeginMode3D(cam); draw(); Raylib.EndMode3D(); });
+            return Raylib.LoadImageFromScreen();
+        }
+        var sink = RaylibGizmoSink3D.Shared;
+        var raylibOwn = Shot(() => Raylib.DrawSphereWires(new Vector3(0f, 0f, 0f), 2.5f, RaylibGizmoSink3D.SphereRings, RaylibGizmoSink3D.SphereSlices, green));
+        // the sink takes HROT space: HROT (x, y, z) → raylib (x, z, −y), so the raylib origin is the HROT origin
+        var cached = Shot(() => sink.Sphere(Vector3.Zero, 2.5f, new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(40, 220, 60, 255), default));
+        int lit = 0, differ = 0;
+        try
+        {
+            for (int y = 0; y < raylibOwn.Height; y++)
+                for (int x = 0; x < raylibOwn.Width; x++)
+                {
+                    var a = Raylib.GetImageColor(raylibOwn, x, y); var b = Raylib.GetImageColor(cached, x, y);
+                    bool la = a.G > 100, lb = b.G > 100;
+                    if (la) lit++;
+                    if (la != lb) differ++;
+                }
+        }
+        finally { Raylib.UnloadImage(raylibOwn); Raylib.UnloadImage(cached); }
+        Assert.True(lit > 500, $"the reference sphere is drawn ({lit} px)");
+        Assert.True(differ <= lit / 50, $"the cached wire sphere draws the same lines: {differ} of {lit} lit pixels differ");
+
+        // and the cost: 240 spheres each way, in one frame
+        long tOld = 0, tNew = 0;
+        frame.Step(() =>
+        {
+            Raylib.BeginMode3D(cam);
+            long s0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            for (int k = 0; k < 240; k++) Raylib.DrawSphereWires(new Vector3(k % 16 - 8, 0f, k / 16 - 8), 0.3f, RaylibGizmoSink3D.SphereRings, RaylibGizmoSink3D.SphereSlices, green);
+            Rlgl.DrawRenderBatchActive();
+            long s1 = System.Diagnostics.Stopwatch.GetTimestamp();
+            for (int k = 0; k < 240; k++) sink.Sphere(new Vector3(k % 16 - 8, -(k / 16 - 8), 0f), 0.3f, new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(40, 220, 60, 255), default);
+            Rlgl.DrawRenderBatchActive();
+            long s2 = System.Diagnostics.Stopwatch.GetTimestamp();
+            Raylib.EndMode3D();
+            tOld = s1 - s0; tNew = s2 - s1;
+        });
+        Assert.True(tNew * 3 < tOld, $"the cached mesh is at least 3x faster: {tNew * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.00} ms vs {tOld * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0.00} ms for 240");
     }
 
     [SkippableFact]

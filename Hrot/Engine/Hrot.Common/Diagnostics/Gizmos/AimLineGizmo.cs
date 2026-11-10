@@ -14,7 +14,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     /// <see cref="WeaponPosture"/> (<c>Aimed</c> + <c>Target</c>), so every node draws it. A man aimed at a vehicle, or at a point, gets
     /// no line (the posture already shows it). Auto-discovered on every map host (<c>GizmoReflectionRegistrar</c>).
     /// </summary>
-    [GizmoProjector(typeof(WeaponPosture))]
+    [GizmoProjector(typeof(WeaponPosture), DrawsOffScreen = true)]
     public sealed class AimLineGizmo : IStatelessGizmo
     {
         /// <summary>Thin and red-orange: a threat, not a selection.</summary>

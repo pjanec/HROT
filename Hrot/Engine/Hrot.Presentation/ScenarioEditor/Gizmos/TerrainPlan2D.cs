@@ -43,21 +43,48 @@ public sealed class TerrainPlan2D
     }
 
     /// <summary>⭐ CE-1227 — emits <paramref name="world"/>'s plan: fills first (painter's order), then outlines and labels.</summary>
-    public static void Emit(TerrainWorld world, IDebugDrawBuilder draw)
+    public static void Emit(TerrainWorld world, IDebugDrawBuilder draw) => Emit(world, draw, null, null, null);
+
+    /// <summary>⭐ CE-4392 X-5 — the height over a storey's floor the plan is cut at: a breach open at this height is a gap in the wall line.</summary>
+    public const float PlanCutHeight = 1.0f;
+
+    /// <summary>⭐ CE-4392 X-7 — soot each side of a breach on the plan.</summary>
+    public static readonly Rgba32 ScorchFill = new(30, 27, 24, 150);
+    private static readonly int[] QuadTriangles = { 0, 1, 2, 0, 2, 3 };
+
+    /// <summary>⭐ CE-4392 X-2 — a collapsed building's rubble on the plan: a dusty grey-brown fill, a dashed outline.</summary>
+    public static readonly Rgba32 RubbleFill = new(128, 118, 104, 235);
+    private static readonly Rgba32 RubbleOutline = new(90, 82, 70, 230);
+
+    /// <summary>
+    /// ⭐ CE-4392 (DESIGN_Map_3D_Mode §6aj X-5) — the plan as <paramref name="damage"/> leaves it (null = none), the same pieces rule as the 3-D chunks
+    /// (<see cref="Fdp.Toolkit.Terrain.DamagedBuildings"/>): a collapsed building's pieces go and its rubble is drawn; a breached panel is re-cut, so the breach is a gap in the wall line.
+    /// <paramref name="only"/> (non-null) emits only the pieces of the buildings it accepts — the layer's overlay of the damaged ones. <paramref name="mark"/> is told the building
+    /// (−1 = none) before each piece's primitives, so the plan knows which building every fill and stroke belongs to.
+    /// </summary>
+    public static void Emit(TerrainWorld world, IDebugDrawBuilder draw, Fdp.Toolkit.Terrain.BuildingDamageTable? damage, Func<int, bool>? only, Action<int>? mark)
     {
-        foreach (var s in world.Surfaces)
+        bool Wanted(int building) => only == null || (building >= 0 && only(building));
+        if (only == null)
         {
-            if (s.Type == TerrainSurfaceType.Open) continue;
-            var fill = s.Type switch
+            mark?.Invoke(-1);
+            foreach (var s in world.Surfaces)
             {
-                TerrainSurfaceType.Forest => ForestFill,
-                _                         => WaterFill,
-            };
-            FillPolygon(draw, s.Polygon, s.Triangles, fill);
+                if (s.Type == TerrainSurfaceType.Open) continue;
+                var fill = s.Type switch
+                {
+                    TerrainSurfaceType.Forest => ForestFill,
+                    _                         => WaterFill,
+                };
+                FillPolygon(draw, s.Polygon, s.Triangles, fill);
+            }
         }
 
         foreach (var w in world.Walkables)
         {
+            if (!Wanted(w.Building)) continue;
+            if (damage != null && !Fdp.Toolkit.Terrain.DamagedBuildings.Keeps(w, damage)) continue;
+            mark?.Invoke(w.Building);
             var plan = new Vector2[w.Vertices.Length];
             for (int i = 0; i < plan.Length; i++) plan[i] = new Vector2(w.Vertices[i].X, w.Vertices[i].Y);
             FillPolygon(draw, plan, w.Triangles, w.Kind == TerrainWalkableKind.Ramp ? RampFill : SlabFill);
@@ -70,31 +97,87 @@ public sealed class TerrainPlan2D
 
         foreach (var p in world.Prisms)
         {
-            if (Fdp.Toolkit.Terrain.TerrainWorldMesh.IsVolumeEffect(p)) continue;   // ⭐ CE-1165 — a gas / smoke cloud is drawn by its own layer
-            // ⭐ Stage 1 — a wall/fence piece is coloured by its MATERIAL (the "materials" layer of
-            //   DESIGN_Terrain_Combat_Tuning.md §5); fences are dashed. Openings are gaps because a panel's pieces leave them.
-            var fill = p.Kind == TerrainPrismKind.Wall ? MaterialColor(p.Material?.Name) : HeightColor(p.Height);
-            FillPolygon(draw, p.Footprint, p.Triangles, fill);
-            bool fence = p.Material?.Name?.StartsWith("fence", StringComparison.Ordinal) == true || p.Material?.Name == "hedge";
-            // ⭐ CE-1021 — a wall is thinner than a pixel at most zooms, so its FILL vanishes and only the outline shows: the outline
-            //   is drawn in the wall's own (slightly darker) colour and thicker, so a thin wall reads as a coloured line, never black.
-            bool wall = p.Kind == TerrainPrismKind.Wall;
-            Outline2(draw, p.Footprint, wall ? WallEdge(fill) : Outline, fence ? LineStyle.Dashed : LineStyle.Solid,
-                     wall ? WallEdgePixels : 1.5f);
-            if (p.Kind == TerrainPrismKind.Building)
+            if (!Wanted(p.Building)) continue;
+            if (damage != null && !Fdp.Toolkit.Terrain.DamagedBuildings.Keeps(p, damage)) continue;
+            mark?.Invoke(p.Building);
+            EmitPrism(draw, p);
+        }
+
+        if (damage != null)
+        {
+            var panels = new List<int>();
+            Fdp.Toolkit.Terrain.DamagedBuildings.BreachedPanels(damage, panels);
+            var pieces = new List<TerrainPrism>();
+            foreach (int pi in panels)
             {
-                var c = Centroid(p.Footprint);
-                string label = p.Floors > 0 ? $"{p.Height:0.#}m {p.Floors}F" : $"{p.Height:0.#}m";
-                draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32(label), LabelColor, layer: TerrainLayer);
+                if ((uint)pi >= (uint)world.Panels.Count || !Fdp.Toolkit.Terrain.DamagedBuildings.IsRecut(world, damage, pi) || !Wanted(world.Panels[pi].Building)) continue;
+                pieces.Clear();
+                Fdp.Toolkit.Terrain.DamagedBuildings.RecutPanel(world, damage, pi, pieces);
+                mark?.Invoke(world.Panels[pi].Building);
+                var panel = world.Panels[pi];
+                var dir = Vector2.Normalize(panel.B - panel.A);
+                var across = new Vector2(-dir.Y, dir.X) * ((panel.Thickness * 0.5f) + 0.2f);
+                foreach (var b in damage.BreachesOf(pi))
+                {
+                    // ⭐ X-7 — soot each side of the gap (the 3-D wall's scorch ring seen from above), under the wall pieces
+                    float m = MathF.Min(0.9f, 0.25f + (0.25f * (b.To - b.From)));
+                    foreach (var (u0, u1) in new[] { (b.From - m, b.From), (b.To, b.To + m) })
+                    {
+                        var p0 = panel.A + (dir * u0); var p1 = panel.A + (dir * u1);
+                        var quad = new[] { p0 - across, p1 - across, p1 + across, p0 + across };
+                        FillPolygon(draw, quad, QuadTriangles, ScorchFill);
+                    }
+                }
+                foreach (var piece in pieces)
+                {
+                    // ⭐ the plan is CUT at PlanCutHeight over the floor: a piece that lies in a breach open at that height (the strip under or over a hole) is not drawn,
+                    //   so the breach reads as a gap in the wall line — the drawing convention (a window's sill and head pieces, undamaged, are drawn as before)
+                    float along = Vector2.Dot(Centroid(piece.Footprint) - panel.A, dir);
+                    if (damage.Opens(pi, along, panel.BaseZ + PlanCutHeight)) continue;
+                    EmitPrism(draw, piece);
+                }
+            }
+            foreach (int b in damage.CollapsedBuildings)
+            {
+                if ((uint)b >= (uint)world.Buildings.Count || !Wanted(b)) continue;
+                var r = damage.RubbleOf(world, b);
+                mark?.Invoke(b);
+                FillPolygon(draw, r.Footprint, r.Triangles, RubbleFill);
+                Outline2(draw, r.Footprint, RubbleOutline, LineStyle.Dashed, 2f);
+                var c = Centroid(r.Footprint);
+                draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32($"{world.Buildings[b].Label} rubble"), LabelColor, layer: TerrainLayer);
             }
         }
 
         // ⭐ Stage 1 — an enterable building is named once, with its storeys (its walls and floors are drawn above).
-        foreach (var b in world.Buildings)
+        for (int bi = 0; bi < world.Buildings.Count; bi++)
         {
-            if (b.Solid) continue;
+            var b = world.Buildings[bi];
+            if (b.Solid || !Wanted(bi) || (damage != null && damage.Collapsed(bi))) continue;
+            mark?.Invoke(bi);
             var c = Centroid(b.Footprint);
             draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32($"{b.Label} {b.Storeys}F"), LabelColor, layer: TerrainLayer);
+        }
+    }
+
+    private static void EmitPrism(IDebugDrawBuilder draw, TerrainPrism p)
+    {
+        if (Fdp.Toolkit.Terrain.TerrainWorldMesh.IsVolumeEffect(p)) return;   // ⭐ CE-1165 — a gas / smoke cloud is drawn by its own layer
+        // ⭐ Stage 1 — a wall/fence piece is coloured by its MATERIAL (the "materials" layer of
+        //   DESIGN_Terrain_Combat_Tuning.md §5); fences are dashed. Openings are gaps because a panel's pieces leave them.
+        var fill = p.Kind == TerrainPrismKind.Wall ? MaterialColor(p.Material?.Name) : HeightColor(p.Height);
+        FillPolygon(draw, p.Footprint, p.Triangles, fill);
+        bool fence = p.Material?.Name?.StartsWith("fence", StringComparison.Ordinal) == true || p.Material?.Name == "hedge";
+        // ⭐ CE-1021 — a wall is thinner than a pixel at most zooms, so its FILL vanishes and only the outline shows: the outline
+        //   is drawn in the wall's own (slightly darker) colour and thicker, so a thin wall reads as a coloured line, never black.
+        bool wall = p.Kind == TerrainPrismKind.Wall;
+        Outline2(draw, p.Footprint, wall ? WallEdge(fill) : Outline, fence ? LineStyle.Dashed : LineStyle.Solid,
+                 wall ? WallEdgePixels : 1.5f);
+        if (p.Kind == TerrainPrismKind.Building)
+        {
+            var c = Centroid(p.Footprint);
+            string label = p.Floors > 0 ? $"{p.Height:0.#}m {p.Floors}F" : $"{p.Height:0.#}m";
+            draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32(label), LabelColor, layer: TerrainLayer);
         }
     }
 

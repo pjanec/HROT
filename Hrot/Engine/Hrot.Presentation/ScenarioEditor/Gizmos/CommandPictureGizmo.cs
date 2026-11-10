@@ -25,7 +25,7 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// <see cref="CommandPicture"/> has not reached this node yet says so over his head, rather than drawing nothing: 🔒 the user asked for
 /// absence to be visible. A commander = a unit some <see cref="UnitSubordinate"/> names as its commander.
 /// </summary>
-[GizmoProjector(typeof(SimTransform), Family = AiOverlayFlags.CommandPicture)]
+[GizmoProjector(typeof(SimTransform), Family = AiOverlayFlags.CommandPicture, DrawsOffScreen = true)]
 public sealed class CommandPictureAbsentGizmo : IStatelessGizmo
 {
     public const string Text = "no picture on this node yet";   // ≤ 31 bytes (FixedString32)
