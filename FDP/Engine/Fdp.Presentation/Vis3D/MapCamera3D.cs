@@ -161,6 +161,21 @@ namespace Fdp.Toolkit.Vis3D
         public float MetresPerPixel => 2f * Distance * TanHalfFov / MathF.Max(1f, Viewport.Y);
 
         /// <summary>The Raylib camera for this pose.</summary>
+        /// <summary>
+        /// ⭐ CE-4388 (docs/DESIGN_Map_View_Filter.md D-2) — the six planes of the frustum this camera WILL draw with (its look-at view and its lens-shifted
+        /// projection — the same two matrices <see cref="BeginMode"/> hands rlgl), computed without drawing: the gizmo system culls in the UPDATE, before the pass
+        /// that sets rlgl's matrices. raylib space, into <paramref name="planes"/> (length ≥ 6). Proven equal to the draw pass's by
+        /// <c>TheMapViewFilterTests</c>.
+        /// </summary>
+        public bool TryFrustumPlanes(Vector4[] planes)
+        {
+            var cam = ToRaylib();
+            var fr = FrustumBounds(Viewport, ViewCentre, FovyDegrees, NearClip);
+            var view = Raymath.MatrixLookAt(cam.Position, cam.Target, cam.Up);
+            var proj = Raymath.MatrixFrustum(fr.Left, fr.Right, fr.Bottom, fr.Top, NearClip, FarClip);
+            return ViewFrustum.TryPlanes(view, proj, planes);
+        }
+
         public Camera3D ToRaylib() => new()
         {
             Position = HrotToRaylib.Position(Eye),

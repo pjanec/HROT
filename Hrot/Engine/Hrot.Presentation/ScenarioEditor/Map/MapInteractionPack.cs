@@ -99,6 +99,16 @@ namespace Hrot.ScenarioEditor.Map
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, Fdp.Toolkit.Diagnostics.Gizmos.Hub.LocalGizmoUiStateTransport>
             UiStatesOf = new();
 
+        /// <summary>
+        /// ⭐ CE-4388 (docs/DESIGN_Map_View_Filter.md, R-1049) — the ONE view snapshot per map buffer: <see cref="Build"/> hands it to the gizmo system as its view
+        /// filter, <see cref="AttachMapLayers"/> adds the layer that writes it from the canvas's camera. Get-or-create from both, so the hosts' call order does
+        /// not matter (the editor attaches the layers before it builds).
+        /// </summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, MapViewSnapshot> ViewsOf = new();
+
+        /// <summary>The view snapshot of the map drawing <paramref name="buffer"/> (made on first ask).</summary>
+        public static MapViewSnapshot ViewOf(DebugPrimitiveBuffer buffer) => ViewsOf.GetValue(buffer, static _ => new MapViewSnapshot());
+
         public static MapInteraction Build(MapInteractionContext ctx)
         {
             if (ctx is null) throw new ArgumentNullException(nameof(ctx));
@@ -176,6 +186,9 @@ namespace Hrot.ScenarioEditor.Map
             //   256 entities per rule every frame; beyond that a rule refreshes a slice per frame and HOLDS the rest (re-emitted, so the frame,
             //   the hit-test and the draw order are complete), never more than 3 frames old. Set here so every map host gets the same policy.
             var stateless = new StatelessGizmoSystem(statelessRegistry, buffer) { FreshEntitiesPerFrame = 256, MaxHeldFrames = 3 };
+            // ⭐ CE-4388 (D-1, D-7) — the map's view filter, every map host by construction (a host with no map never writes it ⇒ everything in view)
+            //   HROT_VIEW_FILTER=0 turns it off — a measuring switch (A/B in one build, the same world), never for operating
+            if (Environment.GetEnvironmentVariable("HROT_VIEW_FILTER") != "0") stateless.ViewFilter = ViewOf(buffer);
 
             // Group member order follows the four hosts that agree (global manager, drag handles, map);
             // the editor listed the first two the other way round, which nothing depended on.
@@ -523,6 +536,8 @@ namespace Hrot.ScenarioEditor.Map
             Func<Fdp.ModuleHost.IFeatureGate?>? featureGate = null)
         {
             if (canvas is null) throw new ArgumentNullException(nameof(canvas));
+            // ⭐ CE-4388 — FIRST: the layer that writes this map's view snapshot each frame (its Update runs before the kernel's gizmo pass)
+            canvas.AddLayer(new MapViewSnapshotLayer(ViewOf(buffer), canvas));
             // ⭐⭐ CE-1227 (docs/DESIGN_Terrain_World.md §10) — the 2-D terrain FIRST, under every gizmo, as a retained layer: it takes no
             //   slot in the map buffer (demo-city's terrain alone was 73 188 primitives a frame against 16 384, and the symbols and the
             //   marquee were dropped). Its checkbox is the buffer's Terrain2D bit — the mask LayerControlGizmo hands the buffer (CE-1071).

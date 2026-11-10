@@ -19,7 +19,7 @@ namespace Hrot.AI.Behaviors.Gizmos
     //   occurrence storage", which is not a proxy for "this entity has a brain" — and the Draw body
     //   already refuses on a root-slot miss. ⚠ Gating on a tier would also pin the gizmo to whichever
     //   tier the entity happens to land on, which the allocator may promote at any time.
-    [GizmoProjector(typeof(BehaviorState), typeof(SimTransform))]
+    [GizmoProjector(typeof(BehaviorState), typeof(SimTransform), DrawsOffScreen = true)]
     public sealed class HillAttackGizmo : IStatelessGizmo
     {
         // Hash value of PlatoonHillAttack_BT from BehaviorIds (= 3014).

@@ -17,7 +17,7 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// <para>⚠ The look-ahead is sampled on the polyline; a spline trajectory bends between its points, so on one the dot can sit a
 /// little off the curve the controller samples. Pedestrian and navmesh paths are linear.</para>
 /// </summary>
-[GizmoProjector(typeof(PathTrace), typeof(NavState), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path)]
+[GizmoProjector(typeof(PathTrace), typeof(NavState), Family = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path, DrawsOffScreen = true)]
 public sealed class PlannedPathGizmo : IStatelessGizmo
 {
     private static readonly Rgba32 PathColor      = new(40, 120, 230, 220);

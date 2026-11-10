@@ -73,8 +73,9 @@ internal sealed class FrameStats
         // ⭐ CE-2401 (R-2084) — the garbage per window: what kills smoothness is the GC, not only the time
         var heavy = all.Where(w => w.Bytes / n >= 1024).OrderByDescending(w => w.Bytes).Take(8).ToList();
         if (heavy.Count > 0) Console.WriteLine("[FrameStats]   per window garbage (KB/frame): " + string.Join(" · ", heavy.Select(w => $"{w.Name} {w.Bytes / n / 1024}")));
+        Console.WriteLine($"[FrameStats]   gizmo 3-D pass: {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastPrimitives3D} primitives · labels {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabelsDrawn3D} drawn of {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabels3D}");
         // ⭐ CE-4385 — the stateless gizmo rules (the update's biggest system on a large terrain): time, entities drawn and garbage, per rule
-        var rules = Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Drain().Take(6).ToList();
+        var rules = Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Drain().Take(10).ToList();
         if (rules.Count > 0) Console.WriteLine("[FrameStats]   gizmo rules (ms · entities · KB per frame): " + string.Join(" · ", rules.Select(r => $"{r.Rule} {r.Ms / n:0.00} · {r.Entities / n} · {r.Bytes / n / 1024}")));
         _frames.Clear();
         Console.WriteLine($"[FrameStats]   garbage (KB/frame): update {_updateBytes / n / 1024}  draw {_drawBytes / n / 1024}  ui {_uiBytes / n / 1024}" +
