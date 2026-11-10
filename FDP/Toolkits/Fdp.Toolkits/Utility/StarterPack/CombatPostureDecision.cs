@@ -30,7 +30,8 @@ namespace Fdp.Toolkit.Utility
         kind:            DecisionKind.PostureSelect,
         category:        "Tactical/Posture",
         hysteresisBonus: 0.08f,
-        OptionNames = typeof(Posture))]
+        OptionNames = typeof(Posture),
+        CadenceSeconds = 0.2)]   // ⭐ CE-4395 (Cost & Cadence §11g-2, user 2026-11-10) — re-scored every 0.2 s on the man's phase, at once when his senses change
     public sealed partial class CombatPostureDecision : IUtilityDecisionDefinition
     {
         /// <summary>⭐ CE-3160 — the decision's asset id, for a C# tree that names it (CombatPostureBehavior).</summary>

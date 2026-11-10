@@ -163,6 +163,34 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(ArmedJudgement.Unidentified, Armament.Judge(_world, me, stones, SeeingConditions.ClearDay));
         }
 
+        /// <summary>⭐ <c>CE-4395</c> B-3 — "am I armed" (<c>LethalInHand</c>, every man's <c>OwnStrength</c>, read by the combat decisions) allocates
+        /// NOTHING, and answers as before. 📐 It walked the hands through a capturing lambda: ~225 B a call, 26 KB a frame at 1 000 men.
+        /// 🔴 Red-proof: <c>HoldsLethal</c> back on the closure ⇒ bytes allocated.</summary>
+        [Fact]
+        public void CE4395_LethalInHand_AllocatesNothing_AndAnswersAsBefore()
+        {
+            var rifleman = Spawn(RiflemanType, Vector3.Zero);
+            var stones = Spawn(CivilianType, new Vector3(10f, 0f, 0f), civilianClass: true);
+            var grenade = Spawn(CivilianType, new Vector3(0f, 10f, 0f), civilianClass: true);
+            PersonHands.Give(_world, stones, StoneAmmo, 5);
+            PersonHands.Give(_world, grenade, GrenadeAmmo, 1);
+            bool r = Armament.LethalInHand(_world, rifleman), s = Armament.LethalInHand(_world, stones), g = Armament.LethalInHand(_world, grenade);
+            Assert.False(s);
+            Assert.True(g);
+            int differ = 0;                                                    // ⚠ no Assert inside the measured loop: xUnit's Assert.Equal allocates
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++)
+            {
+                if (Armament.LethalInHand(_world, rifleman) != r) differ++;
+                if (Armament.LethalInHand(_world, stones) != s) differ++;
+                if (Armament.LethalInHand(_world, grenade) != g) differ++;
+                if (PersonHands.HoldsLethal(_world, grenade) != g) differ++;
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(0, differ);
+            Assert.Equal(0L, allocated);
+        }
+
         /// <summary>⭐ <c>CE-2256</c> (TC-7, §5o) — a live grenade in the hand is lethal only within his THROW (the hands mount's 25 m): at
         /// 10 m identified lethal, at 30 m — still seen (a small object is identified to 45 m by day) — Unidentified: warn, not shoot.
         /// Armed in truth either way (<c>LethalInHand</c>).</summary>

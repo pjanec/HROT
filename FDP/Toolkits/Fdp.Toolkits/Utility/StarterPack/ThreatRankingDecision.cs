@@ -8,7 +8,8 @@ namespace Fdp.Toolkit.Utility
         assetId:     "1a4f7c20-3b9e-4d18-8a01-threat0000001",
         displayName: "Threat ranking",
         kind:        DecisionKind.ThreatRanking,
-        category:    "Tactical/Targeting")]
+        category:    "Tactical/Targeting",
+        CadenceSeconds = 0.2)]   // ⭐ CE-4395 (Cost & Cadence §11g-2, user 2026-11-10) — re-ranked every 0.2 s on the man's phase, at once when his senses change
     public sealed partial class ThreatRankingDecision : IUtilityDecisionDefinition
     {
         /// <summary>Builds the decision definition via the fluent builder.</summary>

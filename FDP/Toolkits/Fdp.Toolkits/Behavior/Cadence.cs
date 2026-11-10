@@ -42,6 +42,19 @@ namespace Fdp.Toolkit.Behavior
             return now + p + (entityIndex % Phases) * (p / Phases);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4395</c> — the next tick ON A FIXED GRID: the first time after <paramref name="now"/> on this entity's phase of the period
+        /// (phase = <c>index % Phases</c> tenths). Steady interval = exactly the period, so a result is never older than one period.
+        /// ⚠ Not <see cref="Next"/>, which adds the phase on EVERY tick (a steady interval of period + phase: 0.2–0.38 s at 0.2) — kept as is
+        /// for the SOP and task slots (changing it moves their timing); reported to behaviors (NOTE_Backend_To_Behaviors_Brain_Cost).
+        /// </summary>
+        public static double NextOnGrid(double now, double period, int entityIndex)
+        {
+            double p = period > 0 ? period : DefaultPeriod;
+            double phase = (entityIndex % Phases) * (p / Phases);
+            return phase + (System.Math.Floor((now - phase) / p) + 1) * p;
+        }
+
         /// <summary>Does a slot in this state need its event window kept (an EveryFrame slot reads the bus; an indefinite sleep reads nothing)?</summary>
         public static bool KeepsWindow(CadenceMode mode, double nextTick)
             => mode == CadenceMode.Periodic || (mode == CadenceMode.Asleep && nextTick < Never);

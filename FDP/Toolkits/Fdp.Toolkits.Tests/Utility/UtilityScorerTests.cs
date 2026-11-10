@@ -737,5 +737,108 @@ namespace Fdp.Toolkit.Tests
             for (int id = 0x8000; id < 0x8000 + Math.Min(Threads * PerThread, 0x4000); id++)
                 Assert.True(UtilityInputReaderStore.TryGet((ushort)id, out _), $"input {id:X} missing");
         }
+    
+        // ── ⭐ CE-4395 — a decision at a CADENCE (DecisionCadence; Cost & Cadence §11g-2) ──────────────────────────────────────────
+        private static int s_cadenceReads;
+        private static float s_optionOne = 0.7f, s_optionTwo = 0.75f;
+        private static unsafe float CountedOne(in UtilityInputCtx ctx) { s_cadenceReads++; return s_optionOne; }
+        private static unsafe float CountedTwo(in UtilityInputCtx ctx) => s_optionTwo;
+
+        private static void At(EntityRepository world, double t) { world.Tick(); world.SetSingleton(new GlobalTime { TotalTime = t }); }
+
+        /// <summary>
+        /// ⭐ CE-4395 — a cadenced option decision is scored once per period on the unit's phase and reused between (the unit buffer
+        /// written back as the scoring wrote it); re-scored at once when the unit's senses changed, when the caller's winner is not the
+        /// stored one (a new run), when time went back, and on every call in a world with no GlobalTime. A reuse allocates nothing.
+        /// 🔴 Red-proof: the reuse path dropped ⇒ the read count moves on a reused call.
+        /// </summary>
+        [Fact]
+        public unsafe void CE4395_ACadencedDecision_IsScoredOncePerPeriod_AndAtOnceWhenWoken()
+        {
+            UtilityInputReaderStore.Register(70, &CountedOne);
+            UtilityInputReaderStore.Register(71, &CountedTwo);
+            s_optionOne = 0.7f; s_optionTwo = 0.75f; s_cadenceReads = 0;
+            var registry = new UtilityRegistry();
+            const int id = 0x4395;
+            registry.Register(id, new UtilityDecisionDef
+            {
+                DebugName = "CE4395Posture", Kind = DecisionKind.PostureSelect, CadenceSeconds = 0.2,
+                Options = new[] { BuildSingleLinearOption(optionId: 1, inputId: 70), BuildSingleLinearOption(optionId: 2, inputId: 71) },
+            });
+            var scorer = new UtilityScorer(registry);
+            using var world = new EntityRepository();
+            world.RegisterComponent<UtilityResultBuffer>();
+            world.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new UtilityResultBuffer());
+            double due = CadenceGate.NextOnGrid(10.0, 0.2, unit.Index);
+            Assert.InRange(due - 10.0, 0.0, 0.2 + 1e-9);                                       // never older than one period
+
+            At(world, 10.0);
+            Assert.Equal(2, scorer.ChooseOption(world, unit, id, lastWinner: 0));
+            Assert.Equal(1, s_cadenceReads);
+            var scored = world.GetComponentRO<UtilityResultBuffer>(unit);
+
+            s_optionOne = 0.9f;                                                                  // option 1 would win now…
+            world.GetComponentRW<UtilityResultBuffer>(unit) = new UtilityResultBuffer();         // …and another decision wrote the buffer
+            At(world, (10.0 + due) / 2);
+            Assert.Equal(2, scorer.ChooseOption(world, unit, id, lastWinner: 2));                // ⭐ reused: the stored winner
+            Assert.Equal(1, s_cadenceReads);
+            var back = world.GetComponentRO<UtilityResultBuffer>(unit);
+            Assert.Equal(scored.Count, back.Count);
+            Assert.Equal(scored.GetSpanRO()[0].WinningPostureId, back.GetSpanRO()[0].WinningPostureId);
+            Assert.Equal(scored.GetSpanRO()[0].Score, back.GetSpanRO()[0].Score);
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) scorer.ChooseOption(world, unit, id, lastWinner: 2);
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.Equal(1, s_cadenceReads);
+
+            At(world, due);
+            Assert.Equal(1, scorer.ChooseOption(world, unit, id, lastWinner: 2));                // ⭐ due: re-scored, the new winner
+            Assert.Equal(2, s_cadenceReads);
+
+            s_optionOne = 0.1f;
+            world.Bus.Publish(new Fdp.Toolkit.Perception.Events.SensorChangedEvent { Unit = unit, What = Fdp.Toolkit.Perception.Events.SensorChange.Hit });
+            world.Bus.SwapBuffers();
+            At(world, due + 0.01);
+            Assert.Equal(2, scorer.ChooseOption(world, unit, id, lastWinner: 1));                // ⭐ woken: re-scored at once
+            Assert.Equal(3, s_cadenceReads);
+            scorer.ChooseOption(world, unit, id, lastWinner: 2);                                  // …once per frame
+            Assert.Equal(3, s_cadenceReads);
+
+            At(world, due + 0.02);
+            scorer.ChooseOption(world, unit, id, lastWinner: 0);                                  // a new run (no winner): scored
+            Assert.Equal(4, s_cadenceReads);
+            At(world, 5.0);
+            scorer.ChooseOption(world, unit, id, lastWinner: 2);                                  // time went back (a restore): scored
+            Assert.Equal(5, s_cadenceReads);
+            Assert.True(DecisionCadence.Of(world).Reused >= 102);
+
+            using var bare = new EntityRepository();                                              // no GlobalTime: every call, as before
+            var other = bare.CreateEntity();
+            scorer.ChooseOption(bare, other, id, lastWinner: 0);
+            scorer.ChooseOption(bare, other, id, lastWinner: 2);
+            Assert.Equal(7, s_cadenceReads);
+        }
+
+        /// <summary>⭐ CE-4395 — the three combat decisions carry the approved 0.2 s cadence; a decision that declares none is scored on
+        /// every call (the cadence stays opt-in).</summary>
+        [Fact]
+        public void CE4395_TheCombatDecisions_AreCadencedAt0_2s_AndNothingElseIs()
+        {
+            UtilityDecisionCatalog.EnsureRegistered();
+            foreach (var asset in new[] { "1a4f7c20-3b9e-4d18-8a01-threat0000001" })
+                Assert.True(UtilityDecisionCatalog.Shared.TryGet(UtilityDecisionCatalog.ComputeId(asset), out var d, out _) && d!.CadenceSeconds == 0.2);
+            int cadenced = 0;
+            foreach (var t in typeof(UtilityScorer).Assembly.GetTypes())
+                if (System.Reflection.CustomAttributeExtensions.GetCustomAttribute<UtilityDecisionAttribute>(t) is { CadenceSeconds: > 0 } a)
+                {
+                    cadenced++;
+                    Assert.Contains(a.DisplayName, new[] { "Combat posture", "Attack approach", "Threat ranking" });
+                    Assert.Equal(0.2, a.CadenceSeconds);
+                }
+            Assert.Equal(3, cadenced);
+        }
     }
 }
