@@ -1206,6 +1206,24 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3158</c> G5 — whether <paramref name="at"/> is within <see cref="ClaimRadius"/> (3-D) of another unit's live
         /// claim (hide or peek) of the same force.</summary>
         internal static bool ClaimedByAFriend(EntityRepository world, Entity self, Vector3 at, double now)
+
+        {
+
+            // ⭐ CE-4395 B-1 — timed (QueryTimings "brain.ClaimedByAFriend"; measurement only, the behaviour is the Core's)
+
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+
+            try { return ClaimedByAFriendCore(world, self, at, now); }
+
+            finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_ClaimedByAFriend, t0); }
+
+        }
+
+
+        private static readonly int S_ClaimedByAFriend = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.ClaimedByAFriend");
+
+
+        private static bool ClaimedByAFriendCore(EntityRepository world, Entity self, Vector3 at, double now)
         {
             if (self.IsNull || !world.IsComponentTypeRegistered<CoverClaim>()) return false;
             bool forces = world.IsComponentTypeRegistered<EntityInfo>();

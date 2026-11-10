@@ -96,6 +96,24 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>AQ105 E — a friend within <see cref="RepeatMetres"/> is saying, or said within <see cref="RepeatSeconds"/>, the same call.</summary>
         private static bool SaidNearby(EntityRepository world, Entity man, Vector3 at, UtteranceKind kind, double now)
+
+        {
+
+            // ⭐ CE-4395 B-1 — timed (QueryTimings "brain.Callouts.SaidNearby"; measurement only, the behaviour is the Core's)
+
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+
+            try { return SaidNearbyCore(world, man, at, kind, now); }
+
+            finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_SaidNearby, t0); }
+
+        }
+
+
+        private static readonly int S_SaidNearby = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.Callouts.SaidNearby");
+
+
+        private static bool SaidNearbyCore(EntityRepository world, Entity man, Vector3 at, UtteranceKind kind, double now)
         {
             if (!world.HasComponent<EntityInfo>(man)) return false;
             var force = world.GetComponentRO<EntityInfo>(man).ForceId;

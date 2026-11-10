@@ -41,6 +41,24 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// never <c>Configure</c> / refresh / destroy another run's sensor (a new epoch drops the owner's results).</para>
         /// </summary>
         public static Entity OfTemplate(ISimulationView view, Entity unit, uint blueprintId)
+
+        {
+
+            // ⭐ CE-4395 B-1 — timed (QueryTimings "sensors.UnitSensors.OfTemplate"; measurement only, the behaviour is the Core's)
+
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+
+            try { return OfTemplateCore(view, unit, blueprintId); }
+
+            finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_OfTemplate, t0); }
+
+        }
+
+
+        private static readonly int S_OfTemplate = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("sensors.UnitSensors.OfTemplate");
+
+
+        private static Entity OfTemplateCore(ISimulationView view, Entity unit, uint blueprintId)
         {
             bool ownership = view is not EntityRepository repo
                 || (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>()

@@ -48,7 +48,9 @@ namespace Fdp.Toolkit.Replication.Utilities
             {
                 if (!repo.IsComponentTypeRegistered<PartMetadata>()) return 0;
                 var index = Of(repo);
-                lock (index) { index.EnsureFresh(repo); return index.Copy(repo, parent, dest); }
+                long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-4395 B-1 — measurement only
+                try { lock (index) { index.EnsureFresh(repo); return index.Copy(repo, parent, dest); } }
+                finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_PartsOf, t0); }
             }
             return Scan(view, parent, dest);
         }
@@ -58,8 +60,22 @@ namespace Fdp.Toolkit.Replication.Utilities
             uint now = repo.GlobalVersion;
             long adds = repo.ComponentsAddedOf(ComponentType<PartMetadata>.ID);
             if (_built && now == _builtAt && adds == _builtAdds) return;
+            bool sameFrame = _built && now == _builtAt;
             _built = true; _builtAt = now; _builtAdds = adds;
             Builds++;
+            // ⭐ CE-4395 B-1 — measurement only: every rebuild, and those a part ADDED within the frame forced
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            if (sameFrame) Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_RebuildsInFrame, 1);
+            try { Rebuild(repo); }
+            finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Rebuild, t0); }
+        }
+
+        private static readonly int S_PartsOf = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("parts.PartsOf");
+        private static readonly int S_Rebuild = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("parts.rebuild");
+        private static readonly int S_RebuildsInFrame = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("parts.rebuild within a frame (count)");
+
+        private void Rebuild(EntityRepository repo)
+        {
             int parents = repo.MaxEntityIndex + 1;
             if (_start.Length < parents) { Array.Resize(ref _start, parents * 2); Array.Resize(ref _count, parents * 2); }
             Array.Clear(_count);

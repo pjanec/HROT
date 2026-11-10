@@ -47,6 +47,24 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>Destroy every part of <paramref name="parent"/> owned by the run <paramref name="endingInstanceId"/>.
         /// Returns how many were destroyed.</summary>
         public static int Release(EntityRepository repo, Entity parent, uint endingInstanceId)
+
+        {
+
+            // ⭐ CE-4395 B-1 — timed (QueryTimings "brain.OwnedParts.Release"; measurement only, the behaviour is the Core's)
+
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+
+            try { return ReleaseCore(repo, parent, endingInstanceId); }
+
+            finally { Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Release, t0); }
+
+        }
+
+
+        private static readonly int S_Release = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.OwnedParts.Release");
+
+
+        private static int ReleaseCore(EntityRepository repo, Entity parent, uint endingInstanceId)
         {
             if (endingInstanceId == 0) return 0;
             SubordinateOrders.Release(repo, parent, endingInstanceId);   // ⭐ CE-2141 — the orders the run gave its members end with it too
