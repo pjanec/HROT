@@ -320,7 +320,7 @@ public class PlayerApplication : IDisposable
 
     // -- Task 5: IG-to-ExCon event translator state ----------------------------------------------
 
-    private WGS84Transform?                  _geoTransform;
+    private Fdp.Modules.Geographic.IGeographicTransform? _geoTransform;   // ⭐ CE-4394 — the interface: a UTM terrain's transform is not a WGS84Transform (was a cast ⇒ null ⇒ ghosts at 0,0)
 
     // Protocol-neutral adapter wrapping all IG DDS writers and readers (Task 18).
     private Hrot.Core.Network.IIgNetworkAdapter? _networkAdapter;
@@ -919,7 +919,7 @@ public class PlayerApplication : IDisposable
         _entityMap = _context.EntityMap;
         // ⭐ CE-3169 — the map's menu orders read the node's entity map from the world singleton. ⭐ CE-4013 D5 — HrotNodeBuilder publishes the node's entity map, geo transform and TKB on every world; not repeated here.
         _kernel    = _context.Kernel;
-        _geoTransform = _context.GeoTransform as WGS84Transform;
+        _geoTransform = _context.GeoTransform;
         _ghostCreationSystem = _context.GhostCreationSystem;
 
         _networkEnabled      = _playerBootstrapper.NetworkEnabled;
@@ -1708,7 +1708,9 @@ public class PlayerApplication : IDisposable
             position = Vector3.Zero;
         }
 
-        var rotation = SimTransformBridgeSystem.HeadingDegToRotation(heading);
+        // ⭐ CE-4394 (UTM §12.2 U-3) — a geodetic heading is from TRUE north; local is grid north: local = true − γ (0 on the tangent plane)
+        float localHeading = heading - (float)(_geoTransform?.GridConvergenceDeg(position) ?? 0.0);
+        var rotation = SimTransformBridgeSystem.HeadingDegToRotation(localHeading);
         _world.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
         _world.SetComponent(entity, new SimTransform    { Position = position, Rotation = rotation });
     }

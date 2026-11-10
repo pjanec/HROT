@@ -301,7 +301,7 @@ public sealed class TerrainResidency
 
         // ⭐ CE-3126 (R-229) — the terrain says where on the Earth its local metres are. Set FIRST, in the same commit, so no
         //   frame sees the new terrain with the old origin. 📄 docs/DESIGN_Geo_Origin.md §2 D.
-        ApplyGeoOrigin(world, staged.Definition!.Origin, staged.TerrainName);
+        ApplyGeoOrigin(world, staged.Definition!.Origin, staged.TerrainName, staged.Definition!.Utm);
 
         world.RegisterManagedComponent<TerrainDefinition>();
         // ⭐ CE-3015 — remember the name the scenario resolved it by, so a save writes it back.
@@ -558,11 +558,36 @@ public sealed class TerrainResidency
     /// default in code — user: <i>"No default berlin. Missing geo = zeros."</i>). A world with no transform has nothing to
     /// convert and is left alone. Public because the Replay Browser applies a RECORDING's origin the same way (§2 F).
     /// </summary>
-    public static void ApplyGeoOrigin(EntityRepository? world, TerrainGeoOrigin? origin, string? terrainName)
+    public static void ApplyGeoOrigin(EntityRepository? world, TerrainGeoOrigin? origin, string? terrainName, TerrainUtmFrame? utm = null)
     {
         if (world == null || !world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()) return;
         var geo = world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>();
         if (geo == null) return;
+        // ⭐ CE-4394 (docs/DESIGN_Terrain_Import_UTM.md §12.2 U-2) — the node's ONE transform is switchable: a terrain that declares its
+        //   exact UTM frame selects the UTM implementation, every other the tangent plane at its origin (exactly today's SetOrigin). A
+        //   world whose transform is not switchable (a test double) keeps SetOrigin.
+        if (geo is Fdp.Modules.Geographic.Transforms.SwitchableGeoTransform switchable)
+        {
+            if (utm != null)
+            {
+                if (switchable.Inner is Fdp.Modules.Geographic.Transforms.UtmTransform u && u.Zone == utm.Zone && u.South == utm.South
+                    && u.E0 == utm.Easting && u.N0 == utm.Northing) return;
+                switchable.UseUtm(utm.Zone, utm.South, utm.Easting, utm.Northing, origin?.Alt ?? 0.0);
+                FdpLog<TerrainResidency>.Info(
+                    $"[Terrain] geo frame set to UTM zone {utm.Zone}{(utm.South ? "S" : "N")} at E {utm.Easting}, N {utm.Northing} (terrain '{terrainName}').");
+                return;
+            }
+            if (switchable.Inner is not Fdp.Modules.Geographic.Transforms.WGS84Transform)
+            {
+                var z = origin ?? TerrainGeoOrigin.Zero;
+                switchable.UseTangentPlane(z.Lat, z.Lon, z.Alt);
+                FdpLog<TerrainResidency>.Info(
+                    $"[Terrain] geo frame back to the tangent plane at {z.Lat}, {z.Lon}, {z.Alt} ({(terrainName != null ? $"terrain '{terrainName}'" : "no terrain")}).");
+                return;
+            }
+        }
+        else if (utm != null && terrainName != null)
+            FdpLog<TerrainResidency>.Warn($"[Terrain] '{terrainName}' declares a UTM frame, but this node's geo transform cannot switch — the tangent plane at its origin is used.");
         var o = origin ?? TerrainGeoOrigin.Zero;
         if (origin == null && terrainName != null)
             FdpLog<TerrainResidency>.Warn(
@@ -591,7 +616,7 @@ public sealed class TerrainResidency
         }
         var definition = _catalog.ReadDefinition(terrainName);   // ⭐ AQ107 C — the catalog's one locate-and-parse (the master reads it the same way)
         if (definition == null) return;
-        ApplyGeoOrigin(world, definition.Origin, terrainName);
+        ApplyGeoOrigin(world, definition.Origin, terrainName, definition.Utm);
     }
 
     /// <summary>
