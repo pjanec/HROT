@@ -31,7 +31,8 @@ namespace Fdp.Toolkit.Terrain.Tests
     {
         private const long Charge = 6101, Tank = 6102, Howitzer = 6103, Ball = 6104, Grenade = 6105, Bomb = 6106;
         private readonly EntityRepository _w = new();
-        private readonly TerrainWorld _terrain = BreachFixtures.House();
+        // ⭐ the BREACH suite: its house never collapses (the default collapseMinKg 80 would collapse it under the 94 kg bomb, and a collapsed building takes no breaches — BuildingCollapseTests covers that)
+        private readonly TerrainWorld _terrain = BreachFixtures.HouseCollapsingAt(1e6f);
         private readonly int _south;
         private readonly AreaEffectSystem _area = new();
         private readonly BuildingDamageSystem _damage = new();

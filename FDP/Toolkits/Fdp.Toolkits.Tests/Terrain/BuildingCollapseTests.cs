@@ -24,13 +24,13 @@ namespace Fdp.Toolkit.Terrain.Tests
     /// <summary>
     /// ⭐⭐ <c>CE-4391</c> S-2 (docs/DESIGN_Terrain_Import_UTM.md §8 D-7, §8.2 B-9) — a heavy bomb COLLAPSES a building, end to end: <c>AreaEffectSystem</c> decides it (and kills
     /// the people inside through the blast's own damage path), <see cref="BuildingDamageSystem"/> writes <c>Collapsed</c> into this node's entity, and every view's
-    /// <see cref="DoorStates.Damage"/> then shows the mound. The terrain's <c>collapseMinKg</c> is lowered to 90 kg here: no shipped munition reaches the default 200 kg.
+    /// <see cref="DoorStates.Damage"/> then shows the mound. The terrain's <c>collapseMinKg</c> is stated here (90 kg) rather than read from the shared default (80 kg).
     /// </summary>
     public sealed class BuildingCollapseTests : IDisposable
     {
         private const long Charge = 6101, Tank = 6102, Howitzer = 6103, Ball = 6104, Grenade = 6105, Bomb = 6106;
         private readonly EntityRepository _w = new();
-        private readonly TerrainWorld _terrain = BreachFixtures.HouseCollapsingAt(90f);   // the reference library's heaviest bomb is 94 kg
+        private readonly TerrainWorld _terrain = BreachFixtures.HouseCollapsingAt(90f);   // the reference library's heaviest bomb is 94 kg; stated, not the shared default
         private readonly int _south;
         private readonly AreaEffectSystem _area = new();
         private readonly BuildingDamageSystem _damage = new();

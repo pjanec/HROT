@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Terrain.Tests
 
         public static TerrainWorld House() => TerrainWorldParser.Parse(BrickHouse, "range");
 
-        /// <summary>The house with <c>collapseMinKg</c> lowered (no shipped munition reaches the default 200 kg; the reference library's heaviest is a 94 kg bomb).</summary>
+        /// <summary>The house with its own <c>collapseMinKg</c> (a rail that must collapse — or must never collapse — states it, instead of leaning on the shared default, 80 kg).</summary>
         public static TerrainWorld HouseCollapsingAt(float kg)
             => TerrainWorldParser.Parse(BrickHouse, "range", new TerrainAssets { Breaches = BreachTable.Shared.WithOverrides("{ \"collapseMinKg\": " + kg.ToString(System.Globalization.CultureInfo.InvariantCulture) + " }", "test") });
 
