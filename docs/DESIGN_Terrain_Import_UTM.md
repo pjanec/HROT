@@ -349,7 +349,7 @@ graph LR
 
 ### 8.2 📐 The build design — classes, the frame, the navmesh *(S-0 of CE-4391, coordinator `2026-11-10`; refines §8 / §8.1 within R-4188)*
 
-<!-- build-state: BUILDING (§8.2) — S-1 (breaches) BUILT `2026-11-10`, see §8.3; S-2 (collapse) BUILT, see §8.4 · S-3 (navmesh) BUILT, see §8.5 · S-4 save / load BUILT, see §8.6 (drawing = CE-4392) · S-5 demo still to build -->
+<!-- build-state: BUILDING (§8.2) — S-1 (breaches) BUILT `2026-11-10`, see §8.3; S-2 (collapse) BUILT, see §8.4 · S-3 (navmesh) BUILT, see §8.5 · S-4 save / load BUILT, see §8.6 (drawing = CE-4392) · S-5 demo + numbers BUILT, see §8.7 (scale-1 numbers: backend's Windows machine) still to build -->
 
 **INVENTORY** *(graph re-indexed `2026-11-10`; `scripts/cbm.sh search_graph`, production hits only; coverage could not be checked — the CLI has no `check_index_coverage`)*
 
@@ -565,6 +565,37 @@ sequenceDiagram
 | 9 | **The bake after a seek**: `StaticObstacleBakeSystem` has no replay guard, so on a node with a navmesh a seek that changes the NavHash REBAKES (debounced 0.5 s wall clock, so a scrub through many keyframes coalesces to the last, swap off the frame). ✅ Right during a replay: nothing decides there, but the navmesh then matches the moment shown (rail `ASeekIntoALiveWorld_…`: B reachable, A not, B again, one bake per seek). ⚠ Unverified, said: `StaticObstacle` is `NoReplay`, so a seek also drops the obstacle entities, and the same system then bakes without them | `Hrot.SimHost.Tests/BuildingDamageBakeTests.cs` | ✏ new |
 
 ⚠ Said: (a) a loaded scenario's damage is owned by the loading node (#6); (b) load readiness does not wait on the bake (#7); (c) a breach list over 16 reloads as several entities, so the table equals the one saved but the entity count may differ; (d) the saved panel is the index within the building, so a changed terrain that reorders a building's panels shifts a saved breach (the terrain's own content change); (e) the save writes the section only for entities this host owns, so an editor save of an exercise run on a cluster holds what the Brain owns plus what the merge unions from the muscles' slices.
+
+### 8.7 ✅ AS BUILT + MEASURED `2026-11-10` — S-5, the demo and the numbers *(CE-4391, coordinator)*
+
+**The demo** — `scenarios/bd-destruction/` on `bt-range` (the terrain with enterable brick houses and open ground between them; `test-town` has only solid blocks, `demo-city`'s houses are far apart), three staggered acts, **no new mechanism** (the A-10 `AirPlatformStrike`, the tank's weapon brain, `DetonateCharge` with a carried charge, `MoveToLocation`, a `TerrainObjects` door lock):
+
+| act | what fires it | outcome checked (checks.json, `docs/DESIGN_Scenario_Regression.md` §3) |
+|---|---|---|
+| ① a charge breaches House A's west wall | `Charge Man` carries the 8 kg demolition charge, walks to the wall, `DetonateCharge` (t 4.5 s); the front, back and hall doors are Locked, so the west room is sealed | the charge bursts; `Breach 1` and `Breach 2` (waiting 14 s) reach (103, 104) inside, t 22 s: they can only have come through the gap, the navmesh having followed (2 tiles rebaked, 187 ms) |
+| ② a tank shell opens House B's east wall | `Tank` (M1) engages `Decoy` standing against the wall: the weapon brain picks HE-FRAG for a man, it bursts at the wall (t 6.25 s) | the tank fires and the round bursts; `Observer` outside then remembers a SECOND hostile (`TargetMemory.Entries.1.Score > 0`, t 7 s): the `Inside Man` behind the wall |
+| ③ a bomb collapses the CQB House | an A-10 drops one Mk-82 (`AirPlatformStrike` on a point, t 20.5 s) | the bomb bursts; the `Occupant` inside is dead (the collapse's lethal damage through the blast path) |
+
+✅ `--verify bd-destruction`: 8 of 8 conditions pass (4 201 steps, sim 70 s, wall 35 s). 🔴 Red-proofs (run, then the scenario restored): the first run, with the charge as shipped, failed both walk-in conditions (below); moving the bomb's aim 75 m off failed the death, moving the Decoy off the wall failed the Observer's second memory.
+⛔ **No golden** (§5 of the regression design: a demo that mixes features carries conditions only, and this one does not repeat): two fresh-process runs differ at t = 30 s in the perception hashes (`RecentSenses`, `TargetMemory`, one `SopState`) of six units; positions and every condition agree. Not committed; re-try when the perception state repeats.
+
+**Found on the way, fixed**
+1. ⭐ **The shipped demolition charge made a HOLE, not a passage.** The reference library's `8 kg demolition charge` had no `fuzeDelayS`, so it was an impact-fuzed round; carried at chest height its burst's rectangle did not reach the floor (S-1's rail burst at 1.0 m). §8.2 B-6's doorway row applies to time-fuzed charges: `ammo.json` now gives the charge `"fuzeDelayS": 5`. The three scenarios that carry a charge (`ua-car-bomb`, `uc-convoy-hit-ifv`: golden same; `ua-armed-bomber`: its golden is from 23 Oct and differs from t = 0 in mission-plan hashes, before any burst, so not this).
+2. ⭐ **S-3 moved 68 of the 74 scenario goldens.** The new public field `NavigationCorridorMuscle.TileSequence` is listed in every entity dump, so every golden holding the component changed (measured on `ua-car-bomb`, `uc-convoy-hit-ifv`). The field is now private behind a property (same bytes; the dump lists public fields): both goldens are the same again. ⚠ The struct is 4 bytes larger than before S-3, so a replay recorded before it does not restore its corridors.
+3. `bt-doors`'s golden (also 23 Oct) differs from t = 0 in behaviour-state hashes: not this work; its conditions pass.
+
+**The numbers** — ⚠ **this VM (4 cores, shared, Debug builds, demo-city 800 m with 136 enterable buildings, 1 156 tiles) is not scale-1 and not Release.** ⛔ **scale-1 could not be generated here**: `scripts/terrain-scale.py` needs SUMO's `netconvert` (the synth tool wrote no `roads.net.xml`), and the rig's own L-4 run never loaded scale-1 on this VM (`DESIGN_Scale_Rig.md` §4). The scale-1 figures, the rig with 1 000 men + 50 vehicles + 10 aircraft and its R-4192 frame and garbage budgets are **left for backend's Windows machine**. What is measured, by `Fdp.Toolkits.Tests/Terrain/BuildingDamageMeasurements.cs` (run with `HROT_RUN_MEASURE=1`) and `BuildingDamageBakeTests.M5_…`:
+
+| question | measured (demo-city, Debug) | against R-4192 / the §8.1 open question |
+|---|---|---|
+| rebake of one building, tile cache warm | one passage: overlay 0.6 ms, **0.44 s** with the bake, **1 of 1 156 tiles** moved; a collapse: 1.0 ms, 0.46 s, 2 tiles. ⚠ The same world re-baked with nothing changed also takes 0.42 s: the cost is the fixed walk over every tile, not the changed ones. Cold: 5.2 s | if that fixed cost grew with the tile count, scale-1 (~52 000 tiles) would be ~19 s per rebake: ⛔ **an extrapolation, not a measurement; the number to take on the Windows machine**. The bake is off the frame (S-3), so the frame never waits for it |
+| replans per passage breach, 1 000 men on paths across the city (mean 178 m) | 12 buildings: 15, 10, 7, 19, 20, 13, 15, 7, 23, 19, 11, 12 → **mean 14.3, max 23** (1.4 %); every other man keeps his path | the intent of P3-a (a breach replans only the men through its 1–4 tiles) holds |
+| the per-frame stamp check, 1 000 men | the per-entity gate is one integer compare; the walk (only when the change sequence moved) over 1 000 paths takes 20 µs, 0 B | 0 B ✅ |
+| `BuildingDamageTable.Of`, warm, S-1's open question | **0.53 µs per call, 0 B** (50 breaches, 10 entities, 3 collapsed); `DoorStates.Of` with it 1.1 µs, 0 B; a rebuild after a write 33 µs, 4.9 KB (once per breach, not per frame) | 0 B ✅. ⚠ the cache holds only from the frame AFTER a write (R-220), by design |
+| a 30 m sight / fire trace across the city | 0.45 ms with the 50-breach table vs 0.35 ms with no damage at all (+29 %, Debug): the cost of any damage table's prism checks | not judged against a frame budget: Release and the 1 000-men query mix are the rig's |
+| frame cost, a barrage | `BuildingDamageSystem` on a frame with no breach: **0.4 µs, 0 B**; a breach frame (event → entity write → the table rebuilt by the first reader): mean 147 µs, 5.9 KB, worst 10 ms (JIT / GC) over 3 000 breaches on 60 buildings, far above tens a minute; `StaticObstacleBakeSystem` steady: 1.3–2.2 µs with or without a baked passage (the harness itself shows 40 B per call even on an `Execute` that returns at its first line, so no garbage is attributed) | the sim-frame ≤ 10 ms at 1 000 men and 0 B budgets: destruction adds microseconds and no steady garbage; ⛔ the full-frame figure is the rig's |
+
+⚠ Said: the 40 B the harness shows is not isolated further; one allocation rail (`Collapse_HotPath_AWarmTraceThroughACollapsedBuilding_AllocatesNothing…`) failed once in a 1 605-test run and passed alone and in the Terrain namespace twice (a JIT / parallelism flake, not reproduced); the demo's pass depends on a wall-clock bake settling inside the 14 s wait (it did, twice).
 
 ---
 _source-data session, 2026-11-09_

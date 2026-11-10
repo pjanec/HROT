@@ -1,0 +1,68 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4391 S-5, destructible buildings, three acts on bt-range (see scenario.json's header). Judge: (a) the demolition charge bursts and the squad walks through the new gap into House A's sealed west room (all three doors Locked) — the gap is a breach the grammar has no cue for, so it is approximated by POSITIONS: a man in the west room at (103, 104) can only have got there through the gap (§9: 'a breach / a collapse cue'); (b) the tank's round bursts and the Observer then remembers a SECOND hostile (the Inside Man, who was behind the wall) besides the Decoy — a 'can see' cue does not exist, the memory entry is its trace; (c) the Mk-82 bursts and the Occupant of the CQB House dies — the collapse itself is not a cue (§9), the death inside is its trace. ⚠ NO golden (§5): measured NOT repeating — two fresh-process runs differ at t = 30 s in the perception hashes (RecentSenses, TargetMemory, one SopState) of six units; positions and every condition agree. Re-try after the perception state repeats.",
+  "runFor": 70,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the charge bursts",
+      "on": "blast",
+      "by": "Charge Man"
+    },
+    {
+      "name": "Breach 1 walks in through the gap",
+      "on": "near",
+      "who": "Breach 1",
+      "point": [
+        103,
+        104
+      ],
+      "within": 1.5,
+      "after": "the charge bursts"
+    },
+    {
+      "name": "Breach 2 walks in through the gap",
+      "on": "near",
+      "who": "Breach 2",
+      "point": [
+        103,
+        104
+      ],
+      "within": 1.5,
+      "after": "the charge bursts"
+    },
+    {
+      "name": "the tank fires",
+      "on": "shot",
+      "by": "Tank"
+    },
+    {
+      "name": "the tank's round bursts",
+      "on": "blast",
+      "by": "Tank"
+    },
+    {
+      "name": "the Observer remembers a second hostile once the wall is open",
+      "on": "field",
+      "who": "Observer",
+      "path": "TargetMemory.Entries.1.Score",
+      "op": ">",
+      "value": 0,
+      "after": "the tank's round bursts"
+    },
+    {
+      "name": "the bomb bursts",
+      "on": "blast",
+      "by": "A-10"
+    },
+    {
+      "name": "the Occupant of the collapsed CQB House is dead",
+      "on": "field",
+      "who": "Occupant",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "after": "the bomb bursts"
+    }
+  ]
+}

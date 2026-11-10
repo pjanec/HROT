@@ -205,6 +205,34 @@ namespace Hrot.SimHost.Tests
             Assert.True(Reachable());
         }
 
+        /// <summary>⭐ CE-4391 S-5 (UTM §8.7) — a MEASUREMENT, not a rail (skipped unless <c>HROT_RUN_MEASURE=1</c>): what <c>StaticObstacleBakeSystem.Execute</c> costs on a steady frame of a muscle node, with and without baked damage.</summary>
+        [Fact]
+        public void M5_TheBakeSystemsSteadyFrame()
+        {
+            if (Environment.GetEnvironmentVariable("HROT_RUN_MEASURE") != "1") return;
+            Node(muscle: true);
+            var sys = Sys();
+            double Frame(out long bytes)
+            {
+                for (int i = 0; i < 2000; i++) sys.Execute(_world, 0.016f);
+                _world.Tick();
+                long b0 = GC.GetAllocatedBytesForCurrentThread();
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                const int n = 20000;
+                for (int i = 0; i < n; i++) sys.Execute(_world, 0.016f);
+                sw.Stop();
+                bytes = (GC.GetAllocatedBytesForCurrentThread() - b0) / n;
+                return sw.Elapsed.TotalMilliseconds * 1000 / n;
+            }
+            double us0 = Frame(out long b0_);
+            Damage(new WallBreach(South(), 4f, 6.2f, 0f, 2.2f, BreachKind.Passage));
+            sys.Execute(_world, 0.016f); _wall = 0.6; sys.Execute(_world, 0.016f);
+            RunUntilBaked(sys, 1);
+            double us1 = Frame(out long b1_);
+            Console.WriteLine($"M5 StaticObstacleBakeSystem steady frame: no damage {us0:0.00} us / {b0_} B; with one baked passage {us1:0.00} us / {b1_} B");
+            Assert.True(us0 >= 0 && us1 >= 0);
+        }
+
         /// <summary>
         /// ⭐ Ten passages inside ONE debounce give ONE bake (and none after it): each change moves the hash and restarts the quiet period, the bake runs once for all of them. 🔴 Red-proof: drop the
         /// quiet-period restart (<c>_seenAt = now</c>) ⇒ more than one bake.
