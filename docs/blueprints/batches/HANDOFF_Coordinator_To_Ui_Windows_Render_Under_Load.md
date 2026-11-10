@@ -7,7 +7,7 @@ current-answer: the whole file
 # HANDOFF — coordinator → ui (Windows, hidden): RENDERING the large terrain UNDER LOAD — 1 000 men moving and fighting
 
 **For:** ui, on the user's Windows machine, **every run hidden** (`HROT_HIDDEN_WINDOW=1`, L-0 of the running batch — ⛔ no window may appear;
-the user works on this machine). **From:** coordinator. **Dispatched at `<STAMP>`**, scope frozen there. ⭐ **Start it when
+the user works on this machine). **From:** coordinator. **Dispatched at `bdccd3d86`**, scope frozen there. ⭐ **Start it when
 [HANDOFF_Coordinator_To_Ui_Windows_Live_Terrain](HANDOFF_Coordinator_To_Ui_Windows_Live_Terrain.md) is done** (it needs L-0 and L-3's empty-terrain
 numbers as the baseline). Push `chore: started HANDOFF_Coordinator_To_Ui_Windows_Render_Under_Load at <sha>`; status file
 `STATUS_Ui_Windows_Render_Under_Load.md`. Same [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md). ⛔⛔ **Never stop for a question** (R-4156).
