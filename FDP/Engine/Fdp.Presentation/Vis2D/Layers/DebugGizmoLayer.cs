@@ -170,7 +170,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public bool Has3D => true;
 
         /// <summary>⭐ CE-4388 — the last 3-D pass in this process: primitives triaged, labels offered, labels drawn (read by the frame-stats log).</summary>
-        public static int LastPrimitives3D, LastLabels3D, LastLabelsDrawn3D;
+        public static int LastPrimitives3D, LastLabels3D, LastLabelsDrawn3D, LastCardsDrawn;
 
         public void Draw3D(RenderContext ctx)
         {
@@ -213,11 +213,17 @@ namespace Fdp.Toolkit.Vis2D.Layers
             {
                 LabelsDrawn3D = Fdp.Toolkit.Vis3D.LabelOverlay3D.Draw(Renderer3D.Labels, camera, LabelLift);
                 LastLabels3D = Renderer3D.Labels.Count; LastLabelsDrawn3D = LabelsDrawn3D;   // ⭐ CE-4388
+                long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone (does decluttering pay?)
                 Cards.Draw(Renderer3D.Cards, CardAnchor3D(camera));
+                Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
+                LastCardsDrawn = Cards.CardsDrawn;
             }
             else if (live != null)
             {
+                long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone
                 Cards.Draw(_renderer.CardPrimitives, CardAnchor2D(live, _buffer.GetFrame()));
+                Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
+                LastCardsDrawn = Cards.CardsDrawn;
             }
         }
 
