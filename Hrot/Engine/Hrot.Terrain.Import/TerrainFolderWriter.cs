@@ -68,14 +68,12 @@ internal static class TerrainFolderWriter
                 Feature(() => { w.WriteString("kind", "building"); w.WriteNumber("height", b.SolidHeight); w.WriteNumber("baseZ", b.BaseZ); w.WriteNumber("floors", b.Floors);
                                 w.WriteString("material", b.Material); w.WriteString("label", b.Id); }, "Polygon", () => Ring(b.Ring));
             else
-            {
                 Feature(() => { w.WriteString("kind", "building"); w.WriteString("template", b.TemplateName); w.WriteString("label", b.Id);
                                 w.WriteNumber("rotation", 0); w.WriteNumber("baseZ", b.BaseZ); }, "Point",
                         () => { w.WriteStartArray("coordinates"); w.WriteNumberValue(b.Origin.X); w.WriteNumberValue(b.Origin.Y); w.WriteEndArray(); });
-                if (b.CapHeight > 0)   // I-h: a pitched roof = a flat roof + a SOLID cap from the eaves to the ridge
-                    Feature(() => { w.WriteString("kind", "building"); w.WriteNumber("height", b.CapHeight); w.WriteNumber("baseZ", b.CapBaseZ); w.WriteNumber("floors", 0);
-                                    w.WriteString("material", b.Material); w.WriteString("label", b.Id + "-roof"); }, "Polygon", () => Ring(b.Ring));
-            }
+            if (b.CapHeight > 0)   // I-h: a pitched roof = a flat roof + a SOLID cap from the eaves to the ridge — a template's and (ui, 2026-11-10) a solid building's alike
+                Feature(() => { w.WriteString("kind", "building"); w.WriteNumber("height", b.CapHeight); w.WriteNumber("baseZ", b.CapBaseZ); w.WriteNumber("floors", 0);
+                                w.WriteString("material", b.Material); w.WriteString("label", b.Id + "-roof"); }, "Polygon", () => Ring(b.Ring));
         }
         foreach (var wl in walls)
             Feature(() => { w.WriteString("kind", wl.Kind); w.WriteNumber("height", wl.Height); w.WriteNumber("thickness", wl.Thickness); w.WriteString("material", wl.Material); },

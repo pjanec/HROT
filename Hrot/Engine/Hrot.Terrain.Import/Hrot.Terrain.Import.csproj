@@ -12,6 +12,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- ⭐ CE-4393 — the navmesh prefill bakes through the SAME baker a node's load uses (UTM §12.1 N-2) -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Navigation.Recast\Fdp.Toolkits.Navigation.Recast.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Terrain.Import.Tests" />

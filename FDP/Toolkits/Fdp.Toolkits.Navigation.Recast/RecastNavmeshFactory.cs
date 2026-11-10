@@ -69,6 +69,12 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
     /// </summary>
     public NavTileCache? TileCache { get; init; } = NavTileCache.Default;
 
+    /// <summary>⭐ CE-4393 (N-3) — tiles done / total as the bake goes (the importer's "navmesh" stage); called from worker threads.</summary>
+    public Action<int, int>? Progress { get; init; }
+
+    /// <summary>⭐ CE-4393 (N-3) — cancels the bake between tiles.</summary>
+    public System.Threading.CancellationToken Cancel { get; init; }
+
     /// <summary>What the last bake did (tiles, fine tiles, baked, from the cache, ms).</summary>
     public RecastNavmeshBaker.BakeStats LastStats { get; private set; }
 
@@ -104,7 +110,15 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
         Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — between the bake's stages (docs/DESIGN_Cluster_Load_Phase.md §12)
         doorways = NavDoorways.For(world);
         Fdp.Core.LoadProgress.Report();
-        var baker = new RecastNavmeshBaker { TileMetres = TileMetres, Cache = TileCache };
+        // ⭐ CE-4393 (UTM §12.1 N-1) — the tiles the importer baked into the terrain folder, read only, before this machine's own folder
+        NavTileCache? seed = null;
+        if (TileCache != null && world.SourceFolder is { } folder)
+        {
+            var navtiles = System.IO.Path.Combine(folder, NavTileCache.TerrainFolderName);
+            if (System.IO.Directory.Exists(navtiles) && !ReferenceEquals(TileCache.Folder, navtiles) && TileCache.Mode != NavTileCacheMode.Prefill)
+                seed = NavTileCache.ForSeed(navtiles);
+        }
+        var baker = new RecastNavmeshBaker { TileMetres = TileMetres, Cache = TileCache, Seed = seed, Progress = Progress, Cancel = Cancel };
         // ⭐ CE-4369 (L-7) — the woods first, the doorways after (a doorway's area wins where both overlap); the provider gets the doorways only
         var woods = NavDoorways.Woods(world);
         IReadOnlyList<NavDoorways.Volume> volumes = doorways;

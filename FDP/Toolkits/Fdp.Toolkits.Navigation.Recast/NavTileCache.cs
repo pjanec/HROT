@@ -32,6 +32,18 @@ public readonly record struct NavTileKey(NavLayerMask Layer, int TileX, int Tile
 /// <para>⚠ Thread-safe: the baker reads and writes it from its parallel tile loop. A disk write goes through a temp file and a
 /// rename, so two processes baking the same tile never leave a torn file; an unreadable file is a miss (the tile re-bakes).</para>
 /// </summary>
+/// <summary>⭐ CE-4393 (docs/DESIGN_Terrain_Import_UTM.md §12.1) — what a <see cref="NavTileCache"/> does with its folder.</summary>
+public enum NavTileCacheMode
+{
+    /// <summary>The per-machine cache: memory + its folder; a hit refreshes the file's time, a write prunes the square.</summary>
+    Normal = 0,
+    /// <summary>A terrain folder's <c>navtiles/</c> the importer baked: READ ONLY — no memory of its own, no time touched, nothing written or
+    /// pruned (the folder is staged content).</summary>
+    Seed = 1,
+    /// <summary>The importer's bake INTO a terrain folder: writes only — no memory part (a whole terrain would fill it), no prune.</summary>
+    Prefill = 2,
+}
+
 public sealed class NavTileCache
 {
     /// <summary>Environment variable naming the disk folder; <c>off</c> keeps the cache in memory only.</summary>
@@ -55,11 +67,26 @@ public sealed class NavTileCache
     /// <summary>⭐ <c>CE-3114</c> — this cache's prune age (<see cref="DefaultPruneAfter"/> unless a test sets it).</summary>
     public TimeSpan PruneAfter { get; }
 
-    public NavTileCache(string? folder = null, TimeSpan? pruneAfter = null)
+    /// <summary>⭐ CE-4393 — what this cache does with its folder (<see cref="NavTileCacheMode.Normal"/> unless built as a seed or a prefill).</summary>
+    public NavTileCacheMode Mode { get; }
+
+    public NavTileCache(string? folder = null, TimeSpan? pruneAfter = null) : this(folder, pruneAfter, NavTileCacheMode.Normal) { }
+
+    private NavTileCache(string? folder, TimeSpan? pruneAfter, NavTileCacheMode mode)
     {
         Folder = string.IsNullOrWhiteSpace(folder) ? null : folder;
         PruneAfter = pruneAfter ?? DefaultPruneAfter;
+        Mode = mode;
     }
+
+    /// <summary>⭐ CE-4393 — a terrain folder's prefilled tiles (<c>&lt;terrain&gt;/navtiles</c>), read only.</summary>
+    public static NavTileCache ForSeed(string folder) => new(folder, null, NavTileCacheMode.Seed);
+
+    /// <summary>⭐ CE-4393 — the importer's bake target (<c>&lt;terrain&gt;/navtiles</c>): written, never pruned, nothing kept in memory.</summary>
+    public static NavTileCache ForPrefill(string folder) => new(folder, null, NavTileCacheMode.Prefill);
+
+    /// <summary>The folder name a terrain's prefilled tiles live in, beside its <c>terrain.json</c>.</summary>
+    public const string TerrainFolderName = "navtiles";
 
     /// <summary>
     /// The process-wide cache every <see cref="RecastNavmeshFactory"/> uses unless told otherwise: memory + the folder in
@@ -82,12 +109,19 @@ public sealed class NavTileCache
     /// but no walkable polygon: a roof, a cliff — measured: 102 of basic-desert's 1352 tiles re-baked on every load before empties
     /// were cached). False = a miss.
     /// </summary>
-    public bool TryGet(in NavTileKey key, out DtMeshData? data)
+    public bool TryGet(in NavTileKey key, out DtMeshData? data) => TryGet(key, seed: null, out data);
+
+    /// <summary>
+    /// ⭐ CE-4393 (UTM §12.1 N-1) — as <see cref="TryGet(in NavTileKey, out DtMeshData?)"/>, consulting <paramref name="seed"/> (a terrain's
+    /// prefilled tiles, read only) between this cache's memory and its own folder. A seed hit is remembered in memory, ⛔ never copied to the
+    /// own folder. The key is the tile's CONTENT hash, so a seed can only ever answer the right bytes: a stale one is simply a miss.
+    /// </summary>
+    public bool TryGet(in NavTileKey key, NavTileCache? seed, out DtMeshData? data)
     {
         data = null;
-        if (!_memory.TryGetValue(key, out var bytes))
+        if (Mode != NavTileCacheMode.Normal || !_memory.TryGetValue(key, out var bytes))
         {
-            bytes = ReadDisk(key);
+            bytes = seed?.ReadDisk(key) ?? ReadDisk(key);
             if (bytes == null) return false;
             Remember(key, bytes);
         }
@@ -116,6 +150,7 @@ public sealed class NavTileCache
                 new DtMeshDataWriter().Write(w, data, RcByteOrder.LITTLE_ENDIAN, false);
             bytes = ms.ToArray();
         }
+        if (Mode == NavTileCacheMode.Seed) return;   // ⭐ CE-4393 — a seed is staged content: never written
         Remember(key, bytes);
         WriteDisk(key, bytes);
     }
@@ -132,6 +167,7 @@ public sealed class NavTileCache
 
     private void Remember(in NavTileKey key, byte[] bytes)
     {
+        if (Mode != NavTileCacheMode.Normal) return;   // ⭐ CE-4393 — a seed or a prefill keeps no memory of its own
         if (Interlocked.Add(ref _memoryBytes, bytes.Length) > MaxMemoryBytes) ClearMemory();
         _memory[key] = bytes;
     }
@@ -150,7 +186,8 @@ public sealed class NavTileCache
             if (!File.Exists(path)) return null;
             var bytes = File.ReadAllBytes(path);
             // ⭐ CE-3114 — a tile still in use stays young: two terrains sharing a square keep both while both are loaded
-            try { File.SetLastWriteTimeUtc(path, DateTime.UtcNow); } catch (Exception) { }
+            //   (⭐ CE-4393 — only in the per-machine cache: a seed is staged content, its files are never touched)
+            if (Mode == NavTileCacheMode.Normal) try { File.SetLastWriteTimeUtc(path, DateTime.UtcNow); } catch (Exception) { }
             return bytes;
         }
         catch (Exception) { return null; }
@@ -186,7 +223,7 @@ public sealed class NavTileCache
             var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             File.WriteAllBytes(temp, bytes);
             File.Move(temp, path, overwrite: true);
-            PruneSquare(key, path);
+            if (Mode == NavTileCacheMode.Normal) PruneSquare(key, path);   // ⭐ CE-4393 — a prefill bakes a fresh folder: nothing to prune
         }
         catch (Exception e)
         {

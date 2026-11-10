@@ -1,0 +1,558 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: destructible buildings (CE-4391 S-5), three acts on bt-range, staggered. (a) 'Charge Man' walks to House A's west wall (x = 100) and sets off his 8 kg demolition charge: a PASSAGE in the wall (the front, back and hall doors are Locked, so the west room is sealed); the squad 'Breach 1' / 'Breach 2' waits 14 s, then walks in to (103, 104) through the gap, which the navmesh follows after the bake. (b) 'Tank' (M1, 192, 106) engages 'Decoy' standing against House B's east wall: its HE-FRAG round bursts at the wall and makes a HOLE; 'Observer' (178, 106) then has a line of sight to 'Inside Man' behind the wall. (c) An A-10 drops one Mk-82 on the CQB House (40..54, 100..110): the building collapses to rubble and 'Occupant' inside dies. Judge: see checks.json (the three outcomes). Not expressible in the checks grammar: see docs/DESIGN_Scenario_Regression.md section 9 (a breach or a collapse cue)."
+  },
+  "entities": {
+    "2a9b0000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          96,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Charge Man",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "2a9b0000-0000-4000-8000-000000000110",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 1.5,
+                "arrivalRadius": 0.3,
+                "target": [
+                  99.45,
+                  104,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "2a9b0000-0000-4000-8000-000000000111",
+              "executingEngine": "",
+              "behaviorName": "DetonateCharge",
+              "behaviorParams": {
+                "Seconds": 1
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "2a9b0000-0000-4000-8000-000000000112",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "2a9b0000-0000-4000-8000-000000000002"
+        ],
+        "Seats": [
+          3
+        ]
+      }
+    },
+    "2a9b0000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          96,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 618
+      },
+      "EntityInfo": {
+        "Name": "Demolition Charge",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "2a9b0000-0000-4000-8000-000000000001",
+        "Seat": 3
+      }
+    },
+    "2a9b0000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          88,
+          103,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Breach 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "2a9b0000-0000-4000-8000-000000000130",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "14"
+                }
+              ]
+            },
+            {
+              "taskId": "2a9b0000-0000-4000-8000-000000000131",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 2,
+                "arrivalRadius": 1,
+                "target": [
+                  103,
+                  104,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "2a9b0000-0000-4000-8000-000000000132",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2a9b0000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          88,
+          105,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Breach 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "2a9b0000-0000-4000-8000-000000000140",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "14"
+                }
+              ]
+            },
+            {
+              "taskId": "2a9b0000-0000-4000-8000-000000000141",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 2,
+                "arrivalRadius": 1,
+                "target": [
+                  103,
+                  104,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "2a9b0000-0000-4000-8000-000000000142",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2a9b0000-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          192,
+          106,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2a9b0000-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          160.8,
+          106,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Decoy",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2a9b0000-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          156,
+          106,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Inside Man",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2a9b0000-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          178,
+          106,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "2a9b0000-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          -3000,
+          105,
+          300
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 405
+      },
+      "EntityInfo": {
+        "Name": "A-10",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "AirPlatformStrike",
+        "Params": {
+          "Location": [
+            47,
+            105,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    },
+    "2a9b0000-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          47,
+          105,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Occupant",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  },
+  "TerrainObjects": {
+    "bt-range/House A/front": {
+      "door": "Locked"
+    },
+    "bt-range/House A/back": {
+      "door": "Locked"
+    },
+    "bt-range/House A/hall": {
+      "door": "Locked"
+    }
+  }
+}

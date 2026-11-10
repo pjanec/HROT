@@ -478,7 +478,9 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>⭐ <c>CE-4391</c> S-3 (P3-a/b) — the navmesh's tile change sequence this path was planned at (and last checked against); 0 = never judged by tile.
         /// <c>NavigationExecutionSystem</c> compares it to the live sequence each frame — one integer compare — and walks the path's remaining tiles only when it moved.</summary>
-        public uint TileSequence;
+        public uint TileSequence { readonly get => _tileSequence; set => _tileSequence = value; }
+        // ⚠ private on purpose: the entity dump (and so every scenario golden) lists PUBLIC FIELDS, and a new public field moved 68 goldens (measured, S-5); the bytes are the same either way
+        private uint _tileSequence;
 
         /// <summary>Index of the segment the agent is currently traversing.</summary>
         public int CurrentSegmentIndex;

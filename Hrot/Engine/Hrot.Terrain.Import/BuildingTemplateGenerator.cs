@@ -14,11 +14,11 @@ internal sealed class BuiltBuilding
     public required IReadOnlyList<(double X, double Y)> Ring { get; init; }
     public (double X, double Y) Origin { get; init; }
     public double BaseZ { get; init; }
-    /// <summary>A solid prism's height (to the ridge when pitched).</summary>
+    /// <summary>A solid prism's height (to the eaves; a pitched roof is its cap, below).</summary>
     public double SolidHeight { get; init; }
     public int Floors { get; init; }
     public string Material { get; init; } = "brick";
-    /// <summary>The cap prism of a pitched roof over a template: eaves z and the height up to the ridge; 0 = none.</summary>
+    /// <summary>The cap prism of a pitched roof (over a template or a solid prism): eaves z and the height up to the ridge; 0 = none.</summary>
     public double CapBaseZ { get; init; }
     public double CapHeight { get; init; }
     public bool Solid => TemplateName == null;
@@ -70,7 +70,7 @@ internal static class BuildingTemplateGenerator
         foreach (var d in drafts)
         {
             ct.ThrowIfCancellationRequested();
-            if (!d.Templated) { result.Add(Solid(d)); rep.BuildingsSolid++; continue; }
+            if (!d.Templated) { result.Add(Solid(d, rep)); rep.BuildingsSolid++; continue; }
             d.Name = Unique(Sanitize(d.B.Id), names);
             result.Add(Template(d, party, rep));
             rep.BuildingsEnterable++;
@@ -116,14 +116,20 @@ internal static class BuildingTemplateGenerator
         _ => "brick",   // the default of the input set (Terrain Import UTM §10, Q-X6)
     };
 
-    private static BuiltBuilding Solid(Draft d)
+    /// <summary>
+    /// A solid building: one prism to the eaves — ⭐ and, when pitched, the SAME cap a template gets (I-h: a solid prism from the eaves to the ridge, labelled <c>&lt;id&gt;-roof</c>),
+    /// so the maps draw its roof (a gable, DESIGN_Map_3D_Mode §6ai R-1) instead of a box as tall as the ridge. The two prisms fill exactly the old one's volume: sight and fire
+    /// are unchanged. (ui, `2026-11-10`, at the user's ask — it was one prism to the ridge.)
+    /// </summary>
+    private static BuiltBuilding Solid(Draft d, ImportReport rep)
     {
         var b = d.B;
-        double top = b.Roof == "pitched" && b.RidgeZ is double r && r > b.BaseZ + b.Height ? r : b.BaseZ + b.Height;
+        double eaves = b.BaseZ + b.Height, capH = 0;
+        if (b.Roof == "pitched" && b.RidgeZ is double ridge && ridge > eaves + 0.05) { capH = Math.Round(ridge - eaves, 3); rep.RoofCaps++; }
         return new BuiltBuilding
         {
-            Id = b.Id, Ring = d.Ring, Origin = d.Ring[0], BaseZ = b.BaseZ, SolidHeight = Math.Round(top - b.BaseZ, 3),
-            Floors = b.StoreyZ.Count, Material = MaterialOf(b.Material),
+            Id = b.Id, Ring = d.Ring, Origin = d.Ring[0], BaseZ = b.BaseZ, SolidHeight = Math.Round(b.Height, 3),
+            Floors = b.StoreyZ.Count, Material = MaterialOf(b.Material), CapBaseZ = Math.Round(eaves, 3), CapHeight = capH,
         };
     }
 
@@ -136,7 +142,7 @@ internal static class BuildingTemplateGenerator
         var (placed, counts) = OpeningPlacer.Place(d.Ring, b.Id, d.Openings, storeys, party);
         rep.OpeningsPlaced += counts.Placed; rep.OpeningsDroppedOffWall += counts.OffWall; rep.OpeningsDroppedOnPartyWall += counts.OnParty;
         rep.OpeningsDroppedOverlap += counts.Overlap; rep.OpeningsDroppedOther += counts.Other;
-        rep.Stairs += d.Plan!.Stairs.Count;
+        rep.Stairs += d.Plan!.Stairs.Sum(s => s.Runs.Count); rep.StairsSwitchBack += d.Plan.Stairs.Count(s => s.SwitchBack);
 
         string material = MaterialOf(b.Material);
         using var ms = new MemoryStream();
@@ -199,12 +205,30 @@ internal static class BuildingTemplateGenerator
                 {
                     w.WriteStartArray("stairs");
                     foreach (var s in stairs)
+                        foreach (var run in s.Runs)
+                        {
+                            w.WriteStartObject();
+                            w.WritePropertyName("from"); Pt(L(run.From));
+                            w.WritePropertyName("to"); Pt(L(run.To));
+                            w.WriteNumber("width", StairPlanner.Width);
+                            w.WriteNumber("toStorey", k + 1);
+                            if (run.FromRise is double fr) w.WriteNumber("fromRise", Math.Round(fr, 3));   // ⭐ CE-4379: a switch-back's runs end at its landing
+                            if (run.ToRise is double tr) w.WriteNumber("toRise", Math.Round(tr, 3));
+                            w.WriteEndObject();
+                        }
+                    w.WriteEndArray();
+                }
+                var landings = stairs.Where(s => s.SwitchBack).ToList();
+                if (landings.Count > 0)
+                {
+                    w.WriteStartArray("landings");
+                    foreach (var s in landings)
                     {
                         w.WriteStartObject();
-                        w.WritePropertyName("from"); Pt(L(s.From));
-                        w.WritePropertyName("to"); Pt(L(s.To));
-                        w.WriteNumber("width", StairPlanner.Width);
-                        w.WriteNumber("toStorey", k + 1);
+                        w.WriteNumber("rise", Math.Round(s.LandingRise, 3));
+                        w.WriteStartArray("ring");
+                        foreach (var p in s.Landing!) Pt(L(p));
+                        w.WriteEndArray();
                         w.WriteEndObject();
                     }
                     w.WriteEndArray();

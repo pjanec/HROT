@@ -1,5 +1,7 @@
 using System.Numerics;
 using System.Text.Json;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.Recast;
 using Fdp.Toolkit.Terrain;
 using Hrot.Terrain.InputSet;
 using Hrot.Terrain.Osm.Tests;
@@ -264,13 +266,150 @@ public class ImporterTests : IDisposable
     public async Task ATooSmallFootprint_BecomesSolid_AndIsCounted()
     {
         var mini = new MiniSet();
-        mini.Buildings.Add(MiniSet.Rect("tiny", 0, 0, 3, 5.5, storeys: 2, openings: new[] { Door(1.5, 0) }));   // 2 storeys need a 5.1 m run + margins
+        mini.Buildings.Add(MiniSet.Rect("tiny", 0, 0, 3, 4, storeys: 2, openings: new[] { Door(1.5, 0) }));   // 2 storeys: the straight flight needs 6.1 m of wall, the switch-back (CE-4379) 4.55 m
         var (folder, world, rep) = await Import(mini);
         Assert.Equal(1, rep.SolidBecauseNoStair); Assert.Equal(0, rep.BuildingsEnterable); Assert.Equal(1, rep.BuildingsSolid);
         Assert.Empty(world.Buildings.Where(b => !b.Solid));
         Assert.Contains(world.Prisms, p => p.Kind == TerrainPrismKind.Building && p.Label == "tiny");
         Assert.False(File.Exists(Path.Combine(folder, "buildings", "tiny.building.json")));
         Assert.Equal(0, rep.OpeningsPlaced);
+    }
+
+
+    // ---- ⭐ CE-4379: the switch-back stair, tried when no wall takes the straight flight
+    private static double Dist2(double ax, double ay, double bx, double by) => Math.Sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
+
+    [Fact]
+    public async Task AFootprintTooShortForAStraightFlight_GetsASwitchBack_AndStaysEnterable()
+    {
+        var mini = SmallHouse();
+        var (folder, world, rep) = await Import(mini);
+        Assert.Equal(0, rep.SolidBecauseNoStair); Assert.Equal(1, rep.BuildingsEnterable); Assert.Equal(0, rep.BuildingsSolid);
+        Assert.Equal(1, rep.StairsSwitchBack); Assert.Equal(2, rep.Stairs);
+        Assert.False(world.Buildings.Single().Solid);
+        Assert.Equal(2, world.Walkables.Count(w => w.Kind == TerrainWalkableKind.Ramp));
+        using var t = Template(folder, "small");
+        var st = t.RootElement.GetProperty("storeys")[0];
+        Assert.Equal(2, st.GetProperty("stairs").GetArrayLength());
+        Assert.Equal(1, st.GetProperty("landings").GetArrayLength());
+        // the floor above: ONE ring, the well open
+        var rings = t.RootElement.GetProperty("storeys")[1].GetProperty("floor");
+        Assert.Equal(1, rings.GetArrayLength());
+    }
+
+    private static MiniSet SmallHouse()
+    {
+        var mini = new MiniSet { MinX = -20, MinY = -20, MaxX = 30, MaxY = 30 };
+        mini.Buildings.Add(MiniSet.Rect("small", 0, 0, 5, 5, storeys: 2, openings: new[] { Door(2.5, 5) }));   // north door: opens onto the free floor, not into the well
+        return mini;
+    }
+
+    [Fact]
+    public async Task AFootprintThatFitsAStraightFlight_StillGetsTheStraightOne()
+    {
+        var mini = new MiniSet();
+        mini.Buildings.Add(MiniSet.Rect("roomy", 0, 0, 7, 7, storeys: 2));   // 7 m wall >= 5.1 + 1.0
+        var (folder, world, rep) = await Import(mini);
+        Assert.Equal(0, rep.StairsSwitchBack); Assert.Equal(1, rep.Stairs); Assert.Equal(0, rep.SolidBecauseNoStair);
+        using var t = Template(folder, "roomy");
+        Assert.False(t.RootElement.GetProperty("storeys")[0].TryGetProperty("landings", out _));
+        Assert.False(t.RootElement.GetProperty("storeys")[0].GetProperty("stairs")[0].TryGetProperty("toRise", out _));
+    }
+
+    [Fact]
+    public async Task TwoStoreysOfSwitchBack_TakeWellsThatDoNotOverlap()
+    {
+        var mini = new MiniSet();
+        mini.Buildings.Add(MiniSet.Rect("tri", 0, 0, 6, 6, storeys: 3));
+        var (folder, _, rep) = await Import(mini);
+        Assert.Equal(0, rep.SolidBecauseNoStair); Assert.Equal(2, rep.StairsSwitchBack);
+        using var t = Template(folder, "tri");
+        var storeys = t.RootElement.GetProperty("storeys");
+        (double x0, double y0, double x1, double y1) Well(int k)
+        {
+            var pts = new List<(double X, double Y)>();
+            foreach (var p in storeys[k].GetProperty("landings")[0].GetProperty("ring").EnumerateArray()) pts.Add((p[0].GetDouble(), p[1].GetDouble()));
+            foreach (var r in storeys[k].GetProperty("stairs").EnumerateArray())
+            { pts.Add((r.GetProperty("from")[0].GetDouble(), r.GetProperty("from")[1].GetDouble())); pts.Add((r.GetProperty("to")[0].GetDouble(), r.GetProperty("to")[1].GetDouble())); }
+            return (pts.Min(p => p.X) - 0.5, pts.Min(p => p.Y) - 0.5, pts.Max(p => p.X) + 0.5, pts.Max(p => p.Y) + 0.5);   // the lanes are 1 m wide
+        }
+        var a = Well(0); var b = Well(1);
+        bool disjoint = a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0;
+        Assert.True(disjoint, $"wells overlap: {a} vs {b}");
+        // the 2nd stair starts on the 1st one's upper floor, not in its well
+        var ring1 = storeys[1].GetProperty("floor")[0].EnumerateArray().Select(p => new Vector2(p[0].GetSingle(), p[1].GetSingle())).ToArray();
+        var s2 = storeys[1].GetProperty("stairs")[0].GetProperty("from");
+        Assert.True(PolygonMath.Contains(ring1, new Vector2(s2[0].GetSingle(), s2[1].GetSingle())));
+    }
+
+    [Fact]
+    public async Task TheSwitchBack_LoadsThroughTheRealParser_RampsConnectTheSlabs_AndNoRunIsSteeperThanTheStraightRamp()
+    {
+        var (_, world, _) = await Import(SmallHouse());
+        var b = world.Buildings.Single();
+        float floor0 = b.StoreyZ[0], floor1 = b.StoreyZ[1], landingZ = floor0 + (floor1 - floor0) / 2;
+        var ramps = world.Walkables.Where(w => w.Kind == TerrainWalkableKind.Ramp).OrderBy(w => w.MinZ).ToList();
+        Assert.Equal(2, ramps.Count);
+        Assert.Equal(floor0, ramps[0].MinZ, 2); Assert.Equal(landingZ, ramps[0].MaxZ, 2);   // run A: the floor -> the landing
+        Assert.Equal(landingZ, ramps[1].MinZ, 2); Assert.Equal(floor1, ramps[1].MaxZ, 2);   // run B: the landing -> the floor above
+        var landing = world.Walkables.Single(w => w.Kind == TerrainWalkableKind.Slab && Math.Abs(w.MinZ - landingZ) < 0.01f && Math.Abs(w.MaxZ - landingZ) < 0.01f);
+        // run A's head and run B's foot lie on the landing slab's edge; run B's head meets the floor slab above
+        Vector2 Plan(Vector3 v) => new(v.X, v.Y);
+        foreach (var (ramp, z) in new[] { (ramps[0], landingZ), (ramps[1], landingZ) })
+            foreach (var v in ramp.Vertices.Where(v => Math.Abs(v.Z - z) < 0.01f))
+                Assert.True(PolygonOnEdge(landing.Vertices.Select(Plan).ToArray(), Plan(v)) || PolygonMath.Contains(landing.Vertices.Select(Plan).ToArray(), Plan(v)), $"{v} is off the landing");
+        var floorAbove = world.Walkables.Where(w => w.Kind == TerrainWalkableKind.Slab && Math.Abs(w.MinZ - floor1) < 0.01f && Math.Abs(w.MaxZ - floor1) < 0.01f).ToList();
+        Assert.NotEmpty(floorAbove);
+        foreach (var v in ramps[1].Vertices.Where(v => Math.Abs(v.Z - floor1) < 0.01f))
+            Assert.True(floorAbove.Any(f => f.Vertices.Any(fv => Vector2.Distance(Plan(fv), Plan(v)) < 0.01f) || PolygonMath.Contains(f.Vertices.Select(Plan).ToArray(), Plan(v))
+                                              || PolygonOnEdge(f.Vertices.Select(Plan).ToArray(), Plan(v))), $"{v} does not meet the floor above");
+        // slope: the straight ramp rises 1 / 1.7
+        foreach (var r in ramps)
+        {
+            var lo = r.Vertices.Where(v => Math.Abs(v.Z - r.MinZ) < 0.01f).ToArray(); var hi = r.Vertices.Where(v => Math.Abs(v.Z - r.MaxZ) < 0.01f).ToArray();
+            double run = Dist2((lo[0].X + lo[1].X) / 2, (lo[0].Y + lo[1].Y) / 2, (hi[0].X + hi[1].X) / 2, (hi[0].Y + hi[1].Y) / 2);
+            Assert.True((r.MaxZ - r.MinZ) / run <= 1 / StairPlanner.RunPerHeight + 1e-3, $"run steeper than the straight ramp: {(r.MaxZ - r.MinZ) / run}");
+        }
+    }
+
+    private static bool PolygonOnEdge(Vector2[] ring, Vector2 p)
+    {
+        for (int i = 0; i < ring.Length; i++)
+        {
+            var a = ring[i]; var b = ring[(i + 1) % ring.Length]; var ab = b - a;
+            float t = Math.Clamp(Vector2.Dot(p - a, ab) / ab.LengthSquared(), 0f, 1f);
+            if (Vector2.Distance(a + ab * t, p) < 0.02f) return true;
+        }
+        return false;
+    }
+
+    [Fact]
+    public async Task TheSwitchBack_IsWalkable_ANavmeshPathReachesTheUpperStorey_ThroughTheWell()
+    {
+        var (_, world, _) = await Import(SmallHouse());
+        AssertPathReachesUpstairs(world);
+    }
+
+    private static void AssertPathReachesUpstairs(TerrainWorld world)
+    {
+        var nav = new RecastNavmeshFactory { Layers = NavLayerMask.Infantry, TileCache = null }.Build(world)!;
+        float floor1 = world.Buildings.Single().StoreyZ[1];
+        var fp = world.Buildings.Single().Footprint; var o = new Vector2(fp.Min(p => p.X), fp.Min(p => p.Y));   // the house's south-west corner in the world
+        var goal = new Vector3(o.X + 2.5f, o.Y + 4.0f, floor1);   // upstairs, on the free floor beside the well
+        var start = new Vector3(o.X + 2.5f, o.Y + 7.0f, world.GroundHeightAt(o.X + 2.5f, o.Y + 7.0f));
+        Span<NavWaypoint> wps = stackalloc NavWaypoint[128];
+        int n = nav.PlanPath(start, goal, wps, (uint)NavLayerMask.Infantry);
+        Assert.True(n >= 2, $"no path to the upper storey ({n} waypoints)");
+        Assert.True(nav.PathExists(start, goal, (uint)NavLayerMask.Infantry), "the path to the upper storey is partial");
+        Assert.InRange(wps[n - 1].Position.Z, floor1 - 0.4f, floor1 + 0.4f);
+        float f0 = world.Buildings.Single().StoreyZ[0];
+        bool between = false;
+        for (int i = 0; i < n; i++)
+        {
+            var p = wps[i].Position;
+            if (p.Z > f0 + 0.5f && p.Z < floor1 - 0.5f) { between = true; Assert.True(p.X > o.X && p.X < o.X + 4.2f && p.Y > o.Y && p.Y < o.Y + 2.6f, $"waypoint {i} {p} is between floors outside the well"); }
+        }
+        Assert.True(between, "the path never climbed through the well");
     }
 
     // ---- roofs and solids
@@ -298,7 +437,16 @@ public class ImporterTests : IDisposable
         Assert.Equal(2, rep.BuildingsSolid); Assert.Equal(0, rep.BuildingsEnterable);
         var g = world.Prisms.Single(p => p.Label == "garage");
         Assert.Equal(12f, g.BaseZ); Assert.Equal(15f, g.TopZ);
-        Assert.Equal(12f + 3f + 1.5f, world.Prisms.Single(p => p.Label == "shed").TopZ, 3);   // a pitched solid reaches its ridge
+        // ⭐ (ui, 2026-11-10, at the user's ask) a pitched solid gets the same roof cap as a template: its body to the eaves + a "-roof" cap to the ridge — the shape the 3-D map
+        //   draws as a gable — not one box as tall as the ridge (it was). The two fill the old box exactly. 🔴 Red-proof: the solid branch writing no cap ⇒ no "shed-roof".
+        var shed = world.Prisms.Single(p => p.Label == "shed");
+        var cap = world.Prisms.Single(p => p.Label == "shed-roof");
+        Assert.Equal(12f + 3f, shed.TopZ, 3);                    // the body to the eaves
+        Assert.Equal(shed.TopZ, cap.BaseZ, 3);
+        Assert.Equal(12f + 3f + 1.5f, cap.TopZ, 3);              // the cap to the ridge
+        Assert.True(Fdp.Toolkit.Terrain.TerrainWorldMesh.IsRoofCap(cap), "the 3-D map draws it as a gable");
+        Assert.Equal(1, rep.RoofCaps);
+        Assert.DoesNotContain(world.Prisms, p => p.Label == "garage-roof");   // a flat solid stays one prism
         Assert.False(Directory.Exists(Path.Combine(folder, "buildings")));
     }
 
@@ -427,10 +575,4 @@ public class ImporterTests : IDisposable
         Assert.Contains("pc-defend-dry", used);
     }
 
-    private sealed class SyncProgress : IProgress<ImportProgress>
-    {
-        private readonly Action<ImportProgress> _f;
-        public SyncProgress(Action<ImportProgress> f) => _f = f;
-        public void Report(ImportProgress v) => _f(v);
-    }
 }
