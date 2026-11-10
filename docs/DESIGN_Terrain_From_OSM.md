@@ -257,6 +257,29 @@ scenario map will.*
 - host: an ImGui modal via `WindowManager.RegisterFrameOverlay` (as the existing modals), opened from the New menu next to New Scenario.
 - the frame never blocks: fetch, parse, stages and preview run on a worker; only texture / mesh uploads on the frame thread.
 
+### 6a. ✅ APPROVED `2026-11-10` (R-4194) — the layout, and the wizard's OWN map
+
+🔒 User, `2026-11-10`: *"Layout approved, 2-D only, colour by height, rectangle. … The wizard will show [the map] rendered inside the wizard's
+ImGui window … this is not the 2D map the HROT is using, correct? It's something that the wizard operates itself in its own context."*
+
+| | |
+|---|---|
+| layout | ✅ one map canvas through every step, the right panel changes per step (the mockup above) |
+| preview | ✅ **2-D only** (no 3-D block view: heights are not fetched until Import) · buildings **coloured by height** (`TerrainPlan2D.HeightColor`), solid ones grey · the area is a **rectangle** |
+| the map | ✅ **the wizard's own small map, drawn INSIDE its ImGui window** — not HROT's scenario 2-D map |
+
+📐 **Why not the scenario map** (measured): `MapCanvas` (`Fdp.Presentation/Vis2D/MapCanvas.cs`) is the editor's scene canvas — a `MapCamera` in the
+terrain's LOCAL metres, scene layers, its own input map, drawn into the main viewport. The wizard needs a map of the WHOLE EARTH in
+web-Mercator tiles, inside a modal, before any terrain exists. ⇒ a different job; ⛔ forcing it through `MapCanvas` would bend the scene
+canvas for one dialog.
+
+| the wizard map — ⭐ what it REUSES (no second copy) | where |
+|---|---|
+| PNG bytes → raylib texture → drawn in ImGui | `Raylib.LoadImageFromMemory` + `LoadTextureFromImage` (`EmbeddedAtlasResources.cs:21`), `drawList.AddImage` (`IconWidgets.cs:41`) |
+| the preview's colours | `TerrainPlan2D.HeightColor`, its forest / water / wall fills (public statics — read, never copied) |
+| concave footprints and woods filled | `PolygonMath.Triangulate` (ImGui fills only convex polygons) |
+| ⭐ NEW, small | an ImGui child region: XYZ tiles from `ITileSource` laid out by zoom / pan (web-Mercator maths), an LRU of tile textures, the drag box with 8 handles, and the preview's geometry (local metres → lat/lon through the frame → screen) drawn with the draw list |
+
 ## 7. Failure and limits
 | case | behaviour |
 |---|---|
