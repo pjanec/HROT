@@ -65,6 +65,15 @@ separates it. ⭐ The networked viewer is R-4's Player.
 
 Empty-terrain baseline (L-3): [Map 3D §6ah "Measured on Windows"](../../DESIGN_Map_3D_Mode.md).
 
+## R-3 — the 2-D map under load (CE-4389), scale-1 + 1 000 men, preview, PAUSED, Release, hidden
+
+| view | before | after (far out a building is its fill — Terrain World §10a 2D-5) |
+|---|---|---|
+| whole terrain (≈ 2.5 m/px) | frame **46.7 ms** · world draw 21.3 · `Terrain (2-D)` **17.5** (strokes 14.7 + cull 2.7; **61 492 strokes, all buildings'**) | frame **30.6 ms** · world draw **4.9** · `Terrain (2-D)` **0.6** (0 strokes) |
+| 600 m across | frame 23.4 ms · `Terrain (2-D)` 0.5 (835 strokes) | 24.0 ms · 0.6 — unchanged (closer than 1 m/px) |
+
+⭐ What is left of the 2-D frame at the whole zoom: update 19 ms (`StatelessGizmoSystem` 8.2 ms, styling 1.8 ms + 290 KB) · UI 6 ms · Debug Gizmos 3.7 ms.
+
 ## R-4 — the Player on real-1 under load (CE-4390) — ⏳ PARTIAL
 
 `--mode server --headless` (no console window) + `--mode player` HIDDEN, the rig scenario (1 000 men, 50 vehicles, 10 aircraft) on real-1 loaded live in **24 s**.
@@ -76,6 +85,12 @@ Empty-terrain baseline (L-3): [Map 3D §6ah "Measured on Windows"](../../DESIGN_
 | first person | ⛔ **not reached** | `POST /entities/6737/possess` was accepted (the sim side), but the player's window did not switch: `/view` = 2-D, `possessed: null` — the windowed station is not driven over HTTP (the open ui row `CE-1464`, "HTTP control frames lose to the windowed editor's own station") | |
 
 ⇒ in the player the gizmo pipeline is nearly the whole cost — the view filter's target. ⛔ First person needs the station switch drivable over HTTP first.
+
+## For the destruction session (another machine) — two of its tests red in the FULL hidden suite
+
+📐 Measured `2026-11-10` on clean `origin/ui` @ `9f5d30820` (a worktree, full `Hrot.Presentation.Tests`, hidden): 26 failed / 2 020 passed —
+`TheBuildingDamagePlanTests.TheProductionMap_DrawsTheBreachAndTheRubble_OnADisplayNode` (*InRange 108–148, actual 6*; ⚠ green ALONE — order-dependent) and
+`TheTerrainChunksLookTests.DemoCity_BeforeAndAfter_NearTheCameraTheSamePicture` (*"98,0 % the same"*). Neither touched by this batch's uncommitted work.
 
 ## Findings
 - ⛔ **the player's `GET /diagnostics/render` is STALE** — the same 909.57 ms, mode 2D, 0 triangles on every read: the player's map does not feed `RenderTelemetry` (the editor's `MapStatsOverlay` does). → to file.

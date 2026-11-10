@@ -107,7 +107,12 @@ namespace Hrot.ScenarioEditor.Map
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DebugPrimitiveBuffer, MapViewSnapshot> ViewsOf = new();
 
         /// <summary>The view snapshot of the map drawing <paramref name="buffer"/> (made on first ask).</summary>
-        public static MapViewSnapshot ViewOf(DebugPrimitiveBuffer buffer) => ViewsOf.GetValue(buffer, static _ => new MapViewSnapshot());
+        public static MapViewSnapshot ViewOf(DebugPrimitiveBuffer buffer) => ViewsOf.GetValue(buffer, static b =>
+        {
+            var view = new MapViewSnapshot();
+            Fdp.Toolkit.Diagnostics.Gizmos.GizmoViews.Register(b, view);   // ⭐ CE-4388 — and for gizmos outside this assembly (the SUMO roads)
+            return view;
+        });
 
         public static MapInteraction Build(MapInteractionContext ctx)
         {

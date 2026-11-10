@@ -403,6 +403,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             public float MetresPerPixel { get; set; }
             public int Tests;
             public bool InView(ISimulationView view, Entity entity) { Tests++; return Visible.Contains(entity.Index); }
+            public bool Is3D => false;
+            public bool Overlaps(System.Numerics.Vector2 min, System.Numerics.Vector2 max) => true;
         }
 
         [GizmoProjector(typeof(GizmoTestCompA))]

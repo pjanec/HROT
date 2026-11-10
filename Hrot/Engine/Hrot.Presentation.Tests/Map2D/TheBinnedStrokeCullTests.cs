@@ -38,6 +38,7 @@ public sealed class TheBinnedStrokeCullTests
             {
                 var a = new Vector2(p.LineStart.X, p.LineStart.Y); var b = new Vector2(p.LineEnd.X, p.LineEnd.Y);
                 if (Vector2.DistanceSquared(a, b) < minLength * minLength) continue;
+                if (1f / zoom > TerrainLayer2D.BuildingStrokesMaxMetresPerPixel && plan.StrokeBuilding[i] >= 0) continue;   // CE-4389
                 if (Math.Max(a.X, b.X) < min.X || Math.Min(a.X, b.X) > max.X || Math.Max(a.Y, b.Y) < min.Y || Math.Min(a.Y, b.Y) > max.Y) continue;
             }
             else if (p.Shape == DebugPrimitiveShape.Text)
@@ -71,6 +72,26 @@ public sealed class TheBinnedStrokeCullTests
         int n = TerrainLayer2D.Cull(plan, view, 100f, into);
         Assert.Equal(Linear(plan, view, 100f).Count, n);
         Assert.Contains(into.Take(n), p => p.LineStart.X == 100f);
+    }
+
+    /// <summary>⭐ CE-4389 — coarser than <see cref="TerrainLayer2D.BuildingStrokesMaxMetresPerPixel"/> a building is its fill only: none of its strokes drawn, every
+    /// other stroke as before; at the limit and closer, its strokes again. 🔴 Red-proof (compiles): the limit raised to 100 m/px ⇒ the far frame draws them.</summary>
+    [Fact]
+    public void FarOut_ABuildingIsItsFillOnly_CloseIn_ItsOutlinesToo()
+    {
+        var t = Load("demo-city");
+        var plan = TerrainLayer2D.PlanOf(t);
+        int inBuildings = plan.StrokeBuilding.Count(b => b >= 0);
+        Assert.True(inBuildings > 0, "demo-city's plan has building strokes");
+        Assert.NotEmpty(plan.FillColors);
+        var view = (t.BoundsMin, t.BoundsMax);
+        var into = new DebugPrimitive[plan.Strokes.Length];
+        var far = into.Take(TerrainLayer2D.Cull(plan, view, 1f / (TerrainLayer2D.BuildingStrokesMaxMetresPerPixel * 2f), into)).Select(Key).ToHashSet();
+        int buildingsFar = Enumerable.Range(0, plan.Strokes.Length).Count(i => plan.StrokeBuilding[i] >= 0 && far.Contains(Key(plan.Strokes[i])));
+        Assert.Equal(0, buildingsFar);
+        var close = into.Take(TerrainLayer2D.Cull(plan, view, 1f / TerrainLayer2D.BuildingStrokesMaxMetresPerPixel, into)).Select(Key).ToHashSet();
+        int buildingsClose = Enumerable.Range(0, plan.Strokes.Length).Count(i => plan.StrokeBuilding[i] >= 0 && close.Contains(Key(plan.Strokes[i])));
+        Assert.True(buildingsClose > 0, "at the limit the building outlines are drawn");
     }
 
     [Theory]

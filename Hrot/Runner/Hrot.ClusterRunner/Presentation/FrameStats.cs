@@ -73,7 +73,7 @@ internal sealed class FrameStats
         // ⭐ CE-2401 (R-2084) — the garbage per window: what kills smoothness is the GC, not only the time
         var heavy = all.Where(w => w.Bytes / n >= 1024).OrderByDescending(w => w.Bytes).Take(8).ToList();
         if (heavy.Count > 0) Console.WriteLine("[FrameStats]   per window garbage (KB/frame): " + string.Join(" · ", heavy.Select(w => $"{w.Name} {w.Bytes / n / 1024}")));
-        Console.WriteLine($"[FrameStats]   gizmo 3-D pass: {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastPrimitives3D} primitives · labels {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabelsDrawn3D} drawn of {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabels3D} · cards drawn {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastCardsDrawn} · drape samples {Fdp.Toolkit.Vis3D.GizmoRenderer3D.LastDrapeSamples} in {Fdp.Toolkit.Vis3D.GizmoRenderer3D.LastDrapeMs:0.0} ms");
+        Console.WriteLine($"[FrameStats]   gizmo 3-D pass: {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastPrimitives3D} primitives · labels {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabelsDrawn3D} drawn of {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastLabels3D} · cards drawn {Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.LastCardsDrawn} · drape samples {Fdp.Toolkit.Vis3D.GizmoRenderer3D.LastDrapeSamples} in {Fdp.Toolkit.Vis3D.GizmoRenderer3D.LastDrapeMs:0.0} ms · 2-D plan strokes {Hrot.UI.Common.Map2D.TerrainLayer2D.LastStrokesDrawn}");
         {   // ⭐ CE-4388 — the 3-D gizmo renderer by shape
             var parts = new System.Collections.Generic.List<string>();
             var ticks = Fdp.Toolkit.Vis3D.GizmoRenderer3D.ShapeTicks; var counts = Fdp.Toolkit.Vis3D.GizmoRenderer3D.ShapeCounts;

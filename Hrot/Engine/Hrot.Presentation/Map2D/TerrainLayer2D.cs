@@ -98,6 +98,10 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
     public Entity? PickEntity(Vector2 worldPos) => null;
 
+    /// <summary>⭐ CE-4389 — the strokes the last 2-D plan pass drew (the frame-stats log).</summary>
+    public static int LastStrokesDrawn { get; private set; }
+
+
     public void Draw(RenderContext ctx)
     {
         StrokesDrawn = 0;
@@ -109,14 +113,21 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         var damage = terrain.Buildings.Count > 0 ? BuildingDamageTable.Of(repo!, terrain) : null;
         if (!ReferenceEquals(damage, _drawnDamage)) ApplyDamage(terrain, damage);
 
+        long tf = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4389 — the 2-D plan by stage (HROT_FRAME_STATS; no-op when off)
         if (_plan.FillTriangles > 0) DrawFills();
+        Fdp.Presentation.WindowManager.WindowTimings.Record("plan2D fills", tf);
         if (_overlay.FillTriangles > 0) DrawOverlayFills();
 
         var camera = _camera();
+        long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();
         int n = camera != null ? Cull(_plan, ViewOf(camera, ctx.TargetSize), camera.Zoom, _inView, _anyHidden ? _hidden : null) : CopyAll(_plan, _inView, _anyHidden ? _hidden : null);
+        Fdp.Presentation.WindowManager.WindowTimings.Record("plan2D cull", tc);
         StrokesDrawn = n;
+        LastStrokesDrawn = n;
         _renderer.Camera = camera;
+        long tr = Fdp.Presentation.WindowManager.WindowTimings.Start();
         if (n > 0) _renderer.Render(new ReadOnlySpan<DebugPrimitive>(_inView, 0, n), ctx);
+        Fdp.Presentation.WindowManager.WindowTimings.Record("plan2D strokes", tr);
         if (_overlayStrokes.Length > 0) { _renderer.Render(_overlayStrokes, ctx); StrokesDrawn += _overlayStrokes.Length; }
     }
 
@@ -380,6 +391,14 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     /// <see cref="LabelMinZoom"/>. Emission order is kept. Returns how many.</summary>
     public static int Cull(Plan plan, (Vector2 Min, Vector2 Max) view, float zoom, DebugPrimitive[] into) => Cull(plan, view, zoom, into, null);
 
+    /// <summary>
+    /// ⭐ CE-4389 (render under load R-3) — coarser than this map scale (m per pixel) a BUILDING is drawn by its fill alone: its wall pieces' and floor slabs'
+    /// outlines are skipped. 📐 Measured on Windows (scale-1, the whole terrain at ≈ 2.5 m/px): 61 492 strokes a frame, every one a building's, 14.7 ms to draw —
+    /// where a house is 4–6 px wide. 🔒 User, 2026-11-10: <i>"Whatever is better for the performance"</i> (fills only, over one outline per building). Closer in,
+    /// every stroke as before; strokes of no building (a garden wall, a fence) keep their own rules.
+    /// </summary>
+    public const float BuildingStrokesMaxMetresPerPixel = 1f;
+
     /// <summary>⭐ CE-4392 — <see cref="Cull(Plan, ValueTuple{Vector2, Vector2}, float, DebugPrimitive[])"/>, skipping the strokes of the <paramref name="hidden"/> buildings (drawn by the damage overlay).</summary>
     public static int Cull(Plan plan, (Vector2 Min, Vector2 Max) view, float zoom, DebugPrimitive[] into, bool[]? hidden)
     {
@@ -389,6 +408,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         var max = view.Max + pad;
         float minLength = MinStrokePixels / zoom, min2 = minLength * minLength;
         bool labels = zoom >= LabelMinZoom;
+        bool buildings = 1f / zoom <= BuildingStrokesMaxMetresPerPixel;   // ⭐ CE-4389 — coarser: a building is its fill only
         var strokes = plan.Strokes;
         var ix = plan.Index;
         int n = 0;
@@ -403,6 +423,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
                 {
                     int s = ix.Lines[q];
                     if (ix.Length2(s) < min2) break;   // longest first: the rest are shorter still
+                    if (!buildings && plan.StrokeBuilding[s] >= 0) continue;
                     if (hidden != null && Hidden(plan, s, hidden)) continue;
                     if (LineInView(strokes[s], min, max)) into[n++] = strokes[s];
                 }
@@ -418,7 +439,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         for (int q = 0; q < ix.Long.Length; q++)
         {
             int s = ix.Long[q];
-            if (ix.Length2(s) >= min2 && LineInView(strokes[s], min, max) && !(hidden != null && Hidden(plan, s, hidden))) into[n++] = strokes[s];
+            if (ix.Length2(s) >= min2 && (buildings || plan.StrokeBuilding[s] < 0) && LineInView(strokes[s], min, max) && !(hidden != null && Hidden(plan, s, hidden))) into[n++] = strokes[s];
         }
         for (int q = 0; q < ix.Other.Length; q++) if (!(hidden != null && Hidden(plan, ix.Other[q], hidden))) into[n++] = strokes[ix.Other[q]];
         return n;
