@@ -50,10 +50,12 @@ namespace Fdp.Toolkit.Vis3D
         private TerrainChunks3D? ChunksFor(ITerrainRenderGeometry? geometry)
         {
             if (geometry is not ITerrainChunkedGeometry chunked) { if (_chunks != null) { _chunks.Dispose(); _chunks = null; } return null; }
-            if (_chunks != null && Equals(_chunks.Identity, chunked.Identity)) return _chunks;
+            if (_chunks != null && Equals(_chunks.Identity, chunked.Identity)) { _chunks.SetDamage(chunked); return _chunks; }   // ⭐ CE-4392 — the damage of this frame's view
             _chunks?.Dispose();
             Release(); _build.Reset();
-            return _chunks = new TerrainChunks3D(chunked);
+            _chunks = new TerrainChunks3D(chunked);
+            _chunks.SetDamage(chunked);
+            return _chunks;
         }
 
         // ⭐ R-1046 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
@@ -215,11 +217,12 @@ namespace Fdp.Toolkit.Vis3D
                 "tree-crown" => new Color(62, 104, 48, 255),
                 "tree-crown-dark" => new Color(50, 88, 40, 255),
                 "canopy" => new Color(56, 96, 44, 255),
+                "rubble" => new Color(128, 118, 104, 255),   // ⭐ CE-4392 X-2 — a collapsed building's heap: dusty grey-brown (the earth pattern)
                 "roof-pitched" => new Color(118, 58, 46, 255),   // ⭐ CE-4377 R-2 — a drawn pitched roof: dark weathered clay tiles, darker than the brick walls so the roof reads apart (a slope is never a floor, CE-1341's worry)
                 _ => null,   // concrete and unknown: the kind's colour
             };
             if (kind == TerrainSurfaceKind.Roof)
-                return material is null or "concrete" or "brick" ? RoofColor : material == "roof-pitched" ? own!.Value : Shade(own ?? RoofColor, 0.85f);
+                return material is null or "concrete" or "brick" ? RoofColor : material is "roof-pitched" or "rubble" ? own!.Value : Shade(own ?? RoofColor, 0.85f);
             return own ?? WallColor;
         }
 
@@ -242,7 +245,7 @@ namespace Fdp.Toolkit.Vis3D
             "sandbags" => 246,
             "fence-wood" or "door-wood" or "tree-trunk" => 244,
             "tree-crown" or "tree-crown-dark" or "canopy" => 242,   // ⭐ CE-4377 — the leaf pattern (the hedge's)
-            "earth-berm" => 243,
+            "earth-berm" or "rubble" => 243,   // ⭐ CE-4392 — rubble: the mottled earth
             "hedge" => 242,
             _ => 255,
         };

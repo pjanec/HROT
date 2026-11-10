@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace Fdp.Toolkit.World
@@ -68,5 +69,18 @@ namespace Fdp.Toolkit.World
 
         /// <summary>The triangles outside the chunk grid (the apron round the terrain).</summary>
         void BuildOutside(out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials);
+
+        /// <summary>
+        /// ⭐ CE-4392 (DESIGN_Map_3D_Mode §6aj X-4) — what this view's damage draws, OPAQUE to the map (R-250/252): a new object only when the drawn damage changed, null when none.
+        /// The map compares references and hands it back to <see cref="BuildChunk(int, int, int, TerrainChunkPart, object?, out Vector3[], out int[], out TerrainSurfaceKind[], out string?[])"/>.
+        /// </summary>
+        object? Damage => null;
+
+        /// <summary>⭐ CE-4392 — the chunk as <paramref name="damage"/> (a <see cref="Damage"/> value) leaves it; a geometry with no damage builds the plain chunk.</summary>
+        void BuildChunk(int cx, int cy, int level, TerrainChunkPart part, object? damage, out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials)
+            => BuildChunk(cx, cy, level, part, out vertices, out indices, out kinds, out materials);
+
+        /// <summary>⭐ CE-4392 X-3 — the chunks (<c>cy · Nx + cx</c>) whose objects differ between two <see cref="Damage"/> values (a superset is fine). Allocates — on a change only.</summary>
+        void ChunksTouchedBy(object? before, object? after, List<int> into) { }
     }
 }
