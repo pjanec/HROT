@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.World
         /// <summary>⭐ CE-1033 S1 (WQ-G) — the terrain's drawable triangles for <paramref name="view"/>, or null when it has no world.</summary>
         public static ITerrainRenderGeometry? RenderGeometryOf(ISimulationView view)
             => view is EntityRepository repo && repo.HasSingletonManaged<TerrainWorld>() && repo.GetSingletonManaged<TerrainWorld>() is { } w
-                ? TerrainWorldQuery.For(w)
+                ? TerrainWorldQuery.ForView(repo, w)   // ⭐ CE-4392 — the view's doors and building damage ride along (the layer draws the damage; Identity stays the world)
                 : null;
     }
 }

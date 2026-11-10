@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="270" viewBox="0 0 900 270" font-family="Inter, Arial, sans-serif" font-size="12">
+  <title>Building destruction drawn on the maps — a breach is a gap, a collapse is a heap (DESIGN_Map_3D_Mode §6aj, CE-4392)</title>
+  <rect width="900" height="270" fill="#7896C0"/>
+  <rect y="220" width="900" height="50" fill="#708E56"/>
+  <line x1="300" y1="0" x2="300" y2="270" stroke="#1D2F48" stroke-width="2"/>
+  <line x1="600" y1="0" x2="600" y2="270" stroke="#1D2F48" stroke-width="2"/>
+
+  <!-- ① the house, undamaged -->
+  <text x="20" y="22" fill="#FFFFFF" font-weight="bold">① the house (unchanged look)</text>
+  <polygon points="60,110 200,110 240,90 100,90" fill="#8A8C90"/>
+  <rect x="60" y="110" width="140" height="110" fill="#A0563E"/>
+  <polygon points="200,110 240,90 240,200 200,220" fill="#7E4430"/>
+  <g fill="#2C3E55"><rect x="78" y="135" width="16" height="20"/><rect x="112" y="135" width="16" height="20"/><rect x="146" y="135" width="16" height="20"/><rect x="112" y="180" width="18" height="40"/></g>
+
+  <!-- ② a breach: a gap in the wall, seen through -->
+  <text x="320" y="22" fill="#FFFFFF" font-weight="bold">② a breach (D-1) — a gap in its wall</text>
+  <text x="320" y="40" fill="#E8EEF6">re-cut like a doorway: the room behind shows</text>
+  <polygon points="360,110 500,110 540,90 400,90" fill="#8A8C90"/>
+  <rect x="360" y="110" width="140" height="110" fill="#A0563E"/>
+  <polygon points="500,110 540,90 540,200 500,220" fill="#7E4430"/>
+  <polygon points="402,150 446,150 446,220 402,220" fill="#3A3330"/>
+  <polygon points="402,150 446,150 470,140 426,140" fill="#4C443F"/>
+  <g fill="#2C3E55"><rect x="378" y="125" width="16" height="18"/><rect x="460" y="125" width="16" height="18"/></g>
+  <text x="320" y="256" fill="#FFFFFF">only that building's chunk is rebuilt</text>
+
+  <!-- ③ a collapse: the house gone, a heap of rubble -->
+  <text x="620" y="22" fill="#FFFFFF" font-weight="bold">③ a collapse (D-2) — a heap of rubble</text>
+  <text x="620" y="40" fill="#E8EEF6">⅓ of its height; the top narrower than the base</text>
+  <polygon points="650,220 790,220 830,200 690,200" fill="#6E665B"/>
+  <polygon points="650,220 690,200 720,168 690,176" fill="#7A7164"/>
+  <polygon points="690,176 720,168 790,168 760,176" fill="#8A8072"/>
+  <polygon points="650,220 690,176 760,176 790,220" fill="#807668"/>
+  <polygon points="790,220 760,176 790,168 830,200" fill="#6A6256"/>
+  <g fill="#5E574D"><circle cx="700" cy="205" r="3"/><circle cx="735" cy="195" r="2.5"/><circle cx="765" cy="208" r="3.5"/><circle cx="720" cy="185" r="2"/></g>
+  <text x="620" y="256" fill="#FFFFFF">dusty grey-brown, the earth pattern (code 243)</text>
+</svg>

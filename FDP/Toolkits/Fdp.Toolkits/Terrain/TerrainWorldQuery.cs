@@ -196,15 +196,33 @@ namespace Fdp.Toolkit.Terrain
         /// <inheritdoc/>
         public TerrainChunkLayout Chunks => TerrainWorldMesh.ChunkLayout(World);
 
+        /// <summary>⭐ CE-4392 — this view's building damage (the table on its doors), opaque to the map.</summary>
+        object? ITerrainChunkedGeometry.Damage => Doors?.Damage;
+
+        /// <inheritdoc/>
+        void ITerrainChunkedGeometry.ChunksTouchedBy(object? before, object? after, List<int> into)
+        {
+            var buildings = new HashSet<int>();
+            DamagedBuildings.Touched(World, before as BuildingDamageTable, after as BuildingDamageTable, buildings);
+            var seen = new HashSet<int>();
+            foreach (int b in buildings)
+                foreach (int k in TerrainWorldMesh.ChunksOfBuilding(World, b))
+                    if (seen.Add(k)) into.Add(k);
+        }
+
         /// <inheritdoc/>
         public void BuildChunk(int cx, int cy, int level, TerrainChunkPart part, out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials)
+            => BuildChunk(cx, cy, level, part, null, out vertices, out indices, out kinds, out materials);
+
+        /// <summary>⭐ CE-4392 — the chunk under <paramref name="damage"/> (a <see cref="BuildingDamageTable"/>, or null): only the objects part differs.</summary>
+        public void BuildChunk(int cx, int cy, int level, TerrainChunkPart part, object? damage, out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials)
         {
             var v = new List<Vector3>(); var t = new List<int>(); var g = new List<TerrainTriangleTag>();
             int water = 0;
             bool trees = part is TerrainChunkPart.ChunkTrees or TerrainChunkPart.ChunkCanopy;
             if (part == TerrainChunkPart.ChunkGround) TerrainWorldMesh.BuildChunkGround(World, cx, cy, level, v, t, g);
             else if (trees) TerrainWorldMesh.BuildChunkTrees(World, cx, cy, part == TerrainChunkPart.ChunkTrees, v, t, g);   // ⭐ CE-4377 §6ai
-            else TerrainWorldMesh.BuildChunkObjects(World, cx, cy, v, t, g, out water);
+            else TerrainWorldMesh.BuildChunkObjects(World, cx, cy, damage as BuildingDamageTable, v, t, g, out water);
             vertices = v.ToArray(); indices = t.ToArray();
             int n = indices.Length / 3, solid = n - water;
             kinds = new TerrainSurfaceKind[n]; materials = new string?[n];
