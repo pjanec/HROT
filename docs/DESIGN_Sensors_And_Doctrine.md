@@ -9,7 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
-  - docs/DESIGN_Egress_Change_Detection.md — §7 the state egress off the main thread SHARES §5.8's worker pool (EqsSolveWorkers moves to FDP)
+  - docs/DESIGN_Egress_Change_Detection.md — §7 the state egress off the main thread SHARES §5.8's worker pool (as built: `EqsSolveWorkers` → `Fdp.ModuleHost.Threading.WorkerPool`, CE-3427 N-1)
   - DESIGN_Readable_Scenario_Json.md — the brain snapshot's Params written as a JSON object on disk (the C# string unchanged)
   - docs/DESIGN_Evaluation_Cost_And_Cadence.md — makes the SOP slot's cadence (G5, R-195) a GENERIC brain mechanism (Cadence / BrainCadence / CadenceGate, §3.0) that the SOP slot and rule entities share (D7)
   - docs/DESIGN_Scenario_Rules.md — §8 SR-27 / SR-30 reuse the per-TKB-type child-entity pattern for objective blocks and per-member evaluators
@@ -547,11 +547,11 @@ classDiagram
   class EqsSolverSystem { <<existing, reworked>> +Workers +BudgetUnits -Solve(slot) pure -Commit(slot) in order }
   class SolveSlot { <<NEW, one per window place, reused>> +Entity Sensor +SensorEvalState Eval +EqsResult[] Buffer +int Count +int Cost +SlotOutcome Outcome }
   class SlotOutcome { <<NEW enum>> NotKeyed NotEvaluable Empty Ranked AwaitingRays }
-  class EqsSolveWorkers { <<NEW>> N persistent threads +Run(slots, count) blocks until done, no allocation }
+  class WorkerPool { <<NEW, was EqsSolveWorkers; Fdp.ModuleHost.Threading since N-1>> N persistent threads +Run(slots, count) blocks until done, no allocation }
   class EqsSchedule { <<existing, unchanged>> +Ordered() +ShouldStart() }
   class SensorMemoryStage { <<existing>> Observe at COMMIT only }
   class EqsResultPool { <<existing>> WriteAndWrap at COMMIT only }
-  EqsSolverSystem --> EqsSolveWorkers : one window at a time
+  EqsSolverSystem --> WorkerPool : one window at a time
   EqsSolverSystem "1" o-- "W" SolveSlot
   SolveSlot ..> SlotOutcome
   EqsSolverSystem ..> EqsSchedule
@@ -566,7 +566,7 @@ the serial path is `Solve` then `Commit` inline, so one implementation serves bo
 sequenceDiagram
   participant S as EqsSolverSystem (EqsModule's thread)
   participant O as EqsSchedule
-  participant W as EqsSolveWorkers (N threads)
+  participant W as WorkerPool (N threads)
   S->>O: Ordered() — unchanged
   loop windows of W places, in schedule order
     S->>S: PREDICT with estimates (LastCost) the places ShouldStart would admit, PURE kinds only
@@ -595,7 +595,7 @@ graph TD
   K["ModuleHostKernel: live every 0.1 s wall clock (C-1), stepped each 0.1 s sim slot"] --> M["EqsModule.Tick (SlowBackground task, snapshot view)"]
   M --> G["LocalGridBuilderSystem.Execute first; the grid is read-only after"]
   M --> S["EqsSolverSystem.Execute"]
-  S --> W["EqsSolveWorkers: only inside Execute, idle otherwise"]
+  S --> W["WorkerPool: only inside Execute, idle otherwise"]
   S --> C["its own thread's command buffer: the ONLY writer"]
   W -.->|never| C
 ```

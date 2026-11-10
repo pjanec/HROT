@@ -449,3 +449,5 @@ mechanism is reused (`DoubleBufferProvider`) but not its frame-locked dispatch, 
 | — | ⭐ a scan that throws puts the pipeline back ON the frame (logged once) | the switch must be safe to leave on |
 | the runtime switch | ⭐ `GET` / `POST /diagnostics/egress {"mode":"offframe"\|"onframe"}`; `FDP_EGRESS_OFFFRAME=1` the start-up default | |
 | a world with no launch system | ⭐ has no pipeline ⇒ never off the frame, whatever the switch | otherwise an egress system would skip what nothing scans |
+| `WorldPos`'s first-sight attach "queued" | ⭐ the queued attach ALSO grants authority when the shadow is already there at the join | 📐 found by `TheEgressShadowExistsAtBirthTests.TheOwnerHasAuthorityOverItsOwnShadow` with `FDP_EGRESS_OFFFRAME=1`: off the frame the first sample leaves a frame late and this node's own ingress can upsert the shadow (without authority) before the join (AX-011) |
+| the mode changes at a join | ⭐ ONCE per Export — the first join after a launch takes the requested mode | 📐 found by its rail: the launch re-taking the mode let a mid-Export switch lose a frame (a system skipped its translators, the launch then did not scan them) |

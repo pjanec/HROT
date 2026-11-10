@@ -85,13 +85,17 @@ public sealed class TheOffFrameEgressTests
         public readonly StateTranslator State;
         public EventTranslator Events = null!;
         public readonly SystemScheduler Scheduler = new();
-        public readonly EgressPipelineLaunchSystem Launch = new(workers: 1);
+        public readonly EgressPipelineLaunchSystem Launch;
         public readonly List<Entity> Units = new();
         private const int LocalNode = 1;
 
-        public Rig(int units, bool cleanupFirst = false)
+        public readonly List<StateTranslator> Extra = new();
+
+        public Rig(int units, bool cleanupFirst = false, int workers = 1, int extraStates = 0)
         {
+            Launch = new EgressPipelineLaunchSystem(workers);
             State = new StateTranslator(Wire);
+            for (int i = 0; i < extraStates; i++) Extra.Add(new StateTranslator(new Wire()));
             World.RegisterComponent<OffFramePos>();
             World.RegisterComponent<NetworkIdentity>();
             World.RegisterComponent<NetworkAuthority>();
@@ -109,7 +113,9 @@ public sealed class TheOffFrameEgressTests
             Events = new EventTranslator(Wire);
             // ⭐ TWO egress systems, as production has six: the events' and the state's — a switch can land between them
             var egressEvents = new CycloneEgressSystem(new INetworkTranslator[] { Events });
-            var egressState = new CycloneEgressSystem(new INetworkTranslator[] { State });
+            var states = new List<INetworkTranslator> { State };
+            states.AddRange(Extra);
+            var egressState = new CycloneEgressSystem(states.ToArray());
             var cleanup = new CycloneNetworkCleanupSystem(new IDescriptorTranslator[] { State });
             if (cleanupFirst) Scheduler.RegisterSystem(cleanup);
             Scheduler.RegisterSystem(egressEvents);
@@ -278,6 +284,31 @@ public sealed class TheOffFrameEgressTests
         for (int tick = 2; tick <= 14; tick++)
             Assert.Single(states, $"state 100@{tick}={tick * 10}");
         Assert.True(rig.State.OffFrameScans >= 5);
+    }
+
+    /// <summary>⭐ Stress: 2 000 frames, the switch flipping at random moments (between frames and mid-Export), six state translators fanned over
+    /// two pool workers — no fault, no deadlock, and every frame's state exactly once.</summary>
+    [Fact]
+    public void Stress_two_thousand_frames_of_random_switching_over_the_worker_pool_lose_and_repeat_nothing()
+    {
+        using var rig = new Rig(units: 4, workers: 2, extraStates: 5);
+        var random = new Random(3427);
+        rig.Frame();
+        rig.Events.DuringExport = () => { if (random.Next(7) == 0) rig.Pipeline.RequestedMode = random.Next(2) == 0 ? EgressMode.OnFrame : EgressMode.OffFrame; };
+        for (int f = 0; f < 2000; f++)
+        {
+            if (random.Next(5) == 0) rig.Pipeline.RequestedMode = random.Next(2) == 0 ? EgressMode.OnFrame : EgressMode.OffFrame;
+            rig.Frame();
+        }
+        rig.Pipeline.Join();
+        Assert.Equal(0, rig.Pipeline.Faults);
+        var counts = new Dictionary<string, int>();
+        foreach (var l in States(rig.Wire.Lines)) counts[l] = counts.TryGetValue(l, out int n) ? n + 1 : 1;
+        for (int tick = 2; tick <= 2001; tick++)
+            for (int u = 0; u < 4; u++)
+                Assert.Equal(1, counts.TryGetValue($"state {100 + u}@{tick}={tick * 10 + u}", out int c) ? c : 0);
+        Assert.True(rig.State.OffFrameScans > 300, $"off-frame scans: {rig.State.OffFrameScans}");
+        foreach (var x in rig.Extra) Assert.Equal(rig.State.OffFrameScans, x.OffFrameScans);   // every translator of every off-frame scan
     }
 
     [Fact]
