@@ -658,7 +658,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             int checkedEntities = 0;
             foreach (var name in new[] { "ua-air-strike", "ua-fire-distribution", "ua-weapon-choice" })
             {
-                var file = System.IO.Path.Combine(TestRepo.Root, "scenarios", name, "scenario.json");
+                var file = TestRepo.ScenarioFile(name);
                 using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(file));
                 if (!doc.RootElement.TryGetProperty("header", out var h) || !h.TryGetProperty("terrainName", out var t) || t.GetString() != "basic-desert") continue;
                 foreach (var e in doc.RootElement.GetProperty("entities").EnumerateObject())

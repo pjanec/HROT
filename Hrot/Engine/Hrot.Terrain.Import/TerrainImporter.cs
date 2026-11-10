@@ -173,8 +173,10 @@ public sealed partial class TerrainImporter : ITerrainImporter
     {
         var list = new List<string>();
         if (!Directory.Exists(ScenariosRoot)) return list;
-        foreach (var dir in Directory.EnumerateDirectories(ScenariosRoot).OrderBy(d => d, StringComparer.Ordinal))
+        // ⭐ CE-4360 (Q-S2) — every scenario folder at any depth, named by its leaf; ordinal by name (as the top-level listing was)
+        foreach (var folder in Fdp.Toolkit.Orchestration.ScenarioFolderIndex.Enumerate(ScenariosRoot).OrderBy(f => f.Name, StringComparer.Ordinal))
         {
+            var dir = folder.Directory;
             string file = Path.Combine(dir, "scenario.json");
             if (!File.Exists(file)) continue;
             var buf = new char[65536];

@@ -514,11 +514,9 @@ namespace Hrot.Editor.DebugApi
             if (body?["scenario"]?.ToString() is { Length: > 0 } one) names.Add(one);
             if (body?["scenarios"] is JsonArray many) names.AddRange(many.Select(x => x?.ToString()).OfType<string>().Where(x => x.Length > 0));
             if (body?["all"] is JsonValue av && av.TryGetValue<bool>(out var all) && all)
-                names.AddRange(System.IO.Directory.Exists(store.ScenariosRoot)
-                    ? System.IO.Directory.EnumerateDirectories(store.ScenariosRoot)
-                        .Where(d => System.IO.File.Exists(System.IO.Path.Combine(d, ChecksJson.FileName)))
-                        .Select(d => System.IO.Path.GetFileName(d)).OrderBy(n => n, StringComparer.Ordinal)
-                    : Enumerable.Empty<string>());
+                names.AddRange(Fdp.Toolkit.Orchestration.ScenarioFolderIndex.Enumerate(store.ScenariosRoot)   // ⭐ CE-4360 — any depth, named by the leaf
+                    .Where(f => System.IO.File.Exists(System.IO.Path.Combine(f.Directory, ChecksJson.FileName)))
+                    .Select(f => f.Name).OrderBy(n => n, StringComparer.Ordinal));
             names = names.Distinct(StringComparer.Ordinal).ToList();
             if (names.Count == 0) return Fail(400, "name what to verify: {scenario} or {scenarios:[…]} or {all:true}");
             bool capture = body?["capture"] is JsonValue cv && cv.TryGetValue<bool>(out var c) && c;

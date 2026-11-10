@@ -27,8 +27,15 @@ internal static class VerifyCommand
             return arg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.Ordinal).ToList();
         var root = Hrot.ScenarioEditor.Services.CuratedScenarios.TryFindSourceScenariosDirectory();
         if (root == null) return Array.Empty<string>();
-        return Directory.EnumerateDirectories(root).Where(d => File.Exists(Path.Combine(d, ChecksJson.FileName)))
-            .Select(Path.GetFileName).OfType<string>().OrderBy(n => n, StringComparer.Ordinal).ToList();
+        return WithChecks(root);
+    }
+
+    /// <summary>⭐ CE-4360 — the scenarios under <paramref name="root"/> that carry a <c>checks.json</c>, at any depth (filed into sub-folders), each named by its LEAF (Q-S2).</summary>
+    internal static IReadOnlyList<string> WithChecks(string root)
+    {
+        // ⭐ CE-4360 — every scenario folder at any depth (filed into sub-folders), named by its leaf (Q-S2)
+        return Fdp.Toolkit.Orchestration.ScenarioFolderIndex.Enumerate(root).Where(f => File.Exists(Path.Combine(f.Directory, ChecksJson.FileName)))
+            .Select(f => f.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
     /// <summary>This process verifies <paramref name="scenario"/>: the editor reads the request, and a debug port is set when none is (the

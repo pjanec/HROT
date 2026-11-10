@@ -24,6 +24,15 @@ namespace Fdp.Testing
         /// <summary>The repository root, or <c>null</c> when there is none — for the few callers that have a fallback (never for a rail that scans sources: use <see cref="Root"/>).</summary>
         public static string? TryFind() => Resolved.Value;
 
+        /// <summary>⭐ CE-4360 — the folder of the committed scenario <paramref name="name"/> (its leaf name, Q-S2): <c>scenarios/&lt;name&gt;</c> or, once filed, the one under a sub-folder.
+        /// ⛔ A test never composes <c>Path.Combine(Root, "scenarios", name)</c> by hand — that breaks the day the scenario is filed (CE-4361).</summary>
+        public static string ScenarioDirectory(string name)
+            => ContentLayout.ResolveScenarioDirectory(Root, name);
+
+        /// <summary>⭐ CE-4360 — the <c>scenario.json</c> of the committed scenario <paramref name="name"/> (see <see cref="ScenarioDirectory"/>).</summary>
+        public static string ScenarioFile(string name)
+            => System.IO.Path.Combine(ScenarioDirectory(name), ContentLayout.ScenarioFileName);
+
         private static InvalidOperationException NotFound() =>
             new InvalidOperationException(
                 "The repository root was not found above the test binary (" + AppContext.BaseDirectory + "): no folder holds " +

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Fdp.Core;
+using Fdp.Testing;
 using Fdp.Core.FlightRecorder;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
@@ -32,13 +33,12 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
     /// <summary>The scenario's files, copied under a unique name into the shared scenarios root the editor loads from.</summary>
     private static string CopyScenario(string source, out string dir)
     {
-        string repoRoot = AppContext.BaseDirectory;
-        while (repoRoot != null && !Directory.Exists(Path.Combine(repoRoot, "scenarios", source))) repoRoot = Path.GetDirectoryName(repoRoot)!;
-        if (repoRoot == null) throw new DirectoryNotFoundException("scenarios/" + source);
+        string sourceDir = TestRepo.ScenarioDirectory(source);   // ⭐ CE-4360 — by name, wherever it is filed
+        if (!Directory.Exists(sourceDir)) throw new DirectoryNotFoundException("scenarios/**/" + source);
         string name = "ce4093_" + Guid.NewGuid().ToString("N");
         dir = Path.Combine(EditorBootstrap.ScenariosRoot, name);
         Directory.CreateDirectory(dir);
-        foreach (var f in Directory.GetFiles(Path.Combine(repoRoot, "scenarios", source)))
+        foreach (var f in Directory.GetFiles(sourceDir))
             File.Copy(f, Path.Combine(dir, Path.GetFileName(f)));
         return name;
     }

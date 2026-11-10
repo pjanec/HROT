@@ -195,6 +195,17 @@ public sealed class AssetPickerLauncher
         return true;
     }
 
+    /// <summary>⭐ CE-4360 (docs/DESIGN_Content_Layout.md §6, Q-S3) — the label of the scenario picker's tick; the picker appends the count of what it hides (<i>Show tests (N)</i>).</summary>
+    public const string HideTestsLabel = "Show tests";
+
+    /// <summary>The sub-folder scenarios filed as fixtures, perf and regression live under (Q-S3) — hidden by <see cref="HideTestsLabel"/>.</summary>
+    public const string TestsFolder = "tests";
+
+    /// <summary><c>true</c> when the entry is a scenario filed under <c>tests/</c> (its category — the sub-folder path — is <c>tests</c> or starts with <c>tests/</c>).</summary>
+    public static bool IsTestScenario(PickerEntry entry)
+        => entry.Tag is Hrot.Editor.AiShared.Catalog.ICategorizedAsset { Category: { Length: > 0 } c } a && ((IEditableAsset)a).Kind == AssetKind.Scenario
+           && (string.Equals(c, TestsFolder, StringComparison.Ordinal) || c.StartsWith(TestsFolder + "/", StringComparison.Ordinal));
+
     private PickerRequest ScenarioPane(PickerRequest basis, AssetKindFilter kinds, AssetPickerSource source) => new()
     {
         ContextKey = basis.ContextKey,
@@ -202,6 +213,7 @@ public sealed class AssetPickerLauncher
         Layout = basis.Layout,
         SelectionMode = basis.SelectionMode,
         ItemsProvider = basis.ItemsProvider,
+        HideToggle = new PickerHideToggle(HideTestsLabel, e => IsTestScenario(e)),   // ⭐ CE-4360 (Q-S3, §6) — the SAME tick the task picker uses (CE-4359): scenarios filed under tests/ are behind it, off
         ShowSidePane = true,
         DefaultSize = new System.Numerics.Vector2(ScenarioPickerWidth, ScenarioPickerHeight),   // ⭐ D25 "the wide picker": big enough to read the preview
         SidePaneWidth = ScenarioPaneWidth,

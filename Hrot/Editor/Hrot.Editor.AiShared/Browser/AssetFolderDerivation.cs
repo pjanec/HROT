@@ -59,6 +59,7 @@ public static class AssetFolderDerivation
             // Mirrors AssetPickerSource.ToEntry (lines 138–142).
             int lastSlash = rel.LastIndexOf('/');
             string dir = lastSlash >= 0 ? rel.Substring(0, lastSlash) : "";
+            if (asset is Hrot.Editor.AiShared.Catalog.ICategorizedAsset { Category: { Length: > 0 } own }) dir = own;   // ⭐ CE-4360 — the same rule as AssetPickerSource.ToEntry
 
             distinct.Add(dir);
         }

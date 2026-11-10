@@ -53,7 +53,7 @@ public sealed class TheCgfPickerIsNotEmptyTests : IDisposable
     {
         var catalog = new AssetCatalog();
         catalog.AddContributor(new ScenarioCatalogContributor(
-            () => ScenarioEnumeration.EnumerateRelPaths(_root)));
+            () => ScenarioEnumeration.EnumerateNames(_root)));
 
         var scenarios = catalog.All.Where(a => a.Kind == AssetKind.Scenario).ToList();
         Assert.Equal(2, scenarios.Count);
@@ -78,21 +78,21 @@ public sealed class TheCgfPickerIsNotEmptyTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐ <b>Nested scenario paths survive to the picker</b> — `Combat/Ambush`, not just `alpha`.
-    /// ⚠ Worth pinning: the contributor uses the relative path verbatim as the asset NAME, and the
-    /// scenario session then loads by that name, so a flattened name would load the wrong scenario.
+    /// ⭐⭐ <b>A nested scenario reaches the picker by its LEAF name</b> — `Ambush` (filed in `Combat/`), not `Combat/Ambush` (CE-4360, Q-S2: the name is the leaf folder).
+    /// ⚠ Worth pinning: the contributor uses the name verbatim as the asset NAME, and the scenario session then loads by that name, which the resolver
+    /// finds under its sub-folder (`ContentLayoutTests.CE4360_*`, `EditorScenarioSessionLoadTests`).
     /// </summary>
     [Fact]
     public void NestedScenarioPathsReachThePickerVerbatim()
     {
         var catalog = new AssetCatalog();
         catalog.AddContributor(new ScenarioCatalogContributor(
-            () => ScenarioEnumeration.EnumerateRelPaths(_root)));
+            () => ScenarioEnumeration.EnumerateNames(_root)));
 
         var names = catalog.All.Where(a => a.Kind == AssetKind.Scenario)
                                .Select(a => a.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
 
-        Assert.Equal(new[] { "Combat/Ambush", "alpha" }, names);
+        Assert.Equal(new[] { "Ambush", "alpha" }, names);
     }
 
     /// <summary>
@@ -115,7 +115,7 @@ public sealed class TheCgfPickerIsNotEmptyTests : IDisposable
     {
         var catalog = new AssetCatalog();
         catalog.AddContributor(new ScenarioCatalogContributor(
-            () => ScenarioEnumeration.EnumerateRelPaths(_root),
+            () => ScenarioEnumeration.EnumerateNames(_root),
             scenariosRoot: () => _root));
 
         var scenarios = catalog.All.Where(a => a.Kind == AssetKind.Scenario).ToList();

@@ -165,7 +165,18 @@ namespace Fdp.Toolkit.Orchestration
                 return Path.Combine(Opened(root), name.Substring(OpenedNamePrefix.Length));
             if (name.StartsWith(MacroNamePrefix, StringComparison.Ordinal))
                 return Path.Combine(Macros(root), name.Substring(MacroNamePrefix.Length));
-            return Path.Combine(Scenarios(root), name);
+            return ResolveSaved(Scenarios(root), name);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4360 (Q-S2) — a SAVED scenario's folder under <paramref name="scenariosRoot"/>. A name WITH segments (<c>Combat/Ambush</c>) is exactly
+        /// <c>{root}/{name}</c>; a PLAIN name is <c>{root}/{name}</c> when that exists, else the folder <see cref="ScenarioFolderIndex"/> finds under a
+        /// sub-folder (<c>demos/air/{name}</c>), else <c>{root}/{name}</c> — a scenario that does not exist yet saves at the top level (Q-S3).
+        /// </summary>
+        private static string ResolveSaved(string scenariosRoot, string name)
+        {
+            if (name.IndexOf('/') < 0 && ScenarioFolderIndex.Find(scenariosRoot, name) is { } found) return found;
+            return Path.Combine(scenariosRoot, name);
         }
 
         /// <summary>
@@ -176,7 +187,8 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public static string ResolveUnderScenariosRoot(string scenariosRoot, string scenarioName)
         {
-            if (!IsScenarioRecipeName(scenarioName) && !IsOpenedCopyName(scenarioName) && !IsMacroName(scenarioName)) return Path.Combine(scenariosRoot, scenarioName);
+            if (!IsScenarioRecipeName(scenarioName) && !IsOpenedCopyName(scenarioName) && !IsMacroName(scenarioName))
+                return string.IsNullOrWhiteSpace(scenarioName) ? Path.Combine(scenariosRoot, scenarioName) : ResolveSaved(scenariosRoot, Normalise(scenarioName));
             var contentRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(scenariosRoot)))
                               ?? throw new ArgumentException("The scenarios root has no parent content root.", nameof(scenariosRoot));
             return ResolveScenarioDirectory(contentRoot, scenarioName);
@@ -192,6 +204,14 @@ namespace Fdp.Toolkit.Orchestration
             string virtualRoot = Path.Combine(Path.GetTempPath(), "content-root");
             return Path.GetRelativePath(virtualRoot, ResolveScenarioDirectory(virtualRoot, scenarioName));
         }
+
+        /// <summary>
+        /// ⭐ CE-4360 — the same, against the REAL content root: a scenario that lives in a sub-folder (<c>scenarios/demos/air/x</c>) is found by
+        /// <see cref="ScenarioFolderIndex"/>, which <see cref="ScenarioRelativeFolder(string)"/> (a virtual root) cannot do. ⭐ A writer that names a path
+        /// relative to the NAS (a node's slice) passes the NAS root it shares with the master.
+        /// </summary>
+        public static string ScenarioRelativeFolder(string root, string scenarioName)
+            => Path.GetRelativePath(root, ResolveScenarioDirectory(root, scenarioName));
 
         private static string Normalise(string? name) => (name ?? string.Empty).Replace('\\', '/');
 

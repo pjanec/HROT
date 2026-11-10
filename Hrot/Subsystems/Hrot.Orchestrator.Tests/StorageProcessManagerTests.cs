@@ -174,4 +174,35 @@ public sealed class StorageProcessManagerTests
                 Directory.Delete(tempNasDir, recursive: true);
         }
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-4360 (the SAVE half of "done when") — the merge of a scenario FILED in a sub-folder writes its <c>scenario.json</c> where it lives (<c>scenarios/demos/air/x</c>), cleans THAT
+    /// <c>.slices</c>, and creates nothing at <c>scenarios/x</c>. 🔴 Mutation: the merge composing <c>scenarios/&lt;name&gt;</c> by hand ⇒ the filed file is untouched and a top-level copy appears.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4360_AFiledScenariosSlices_AreMerged_WhereItLives()
+    {
+        string nas = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            string filed = Path.Combine(nas, "scenarios", "demos", "air", "x");
+            Directory.CreateDirectory(Path.Combine(filed, ".slices"));
+            File.WriteAllText(Path.Combine(filed, "scenario.json"), "{\"Header\":{},\"Entities\":{}}");
+            var dom = new System.Text.Json.Nodes.JsonObject { ["Header"] = new System.Text.Json.Nodes.JsonObject(), ["Entities"] = new System.Text.Json.Nodes.JsonObject() };
+            Fdp.Core.Serialization.Migrations.JsonEnvelope.Write(dom, new Fdp.Core.Serialization.Migrations.DocumentMeta("Hrot.Scenario", 2));
+            File.WriteAllText(Path.Combine(filed, ".slices", "node_1.json"), dom.ToJsonString());
+
+            var manager = new StorageProcessManager(new FdpEventBus(), new StorageGatewayModule(), nas);
+            manager.MergeScenarioSlices("x", new List<FileManifestEntry>   // the slice's RelativeDest as the node composes it: the real folder under the shared NAS
+            {
+                new() { RelativeDest = Path.Combine(ContentLayout.ScenarioRelativeFolder(nas, "x"), ".slices", "node_1.json"), DocType = "Hrot.Scenario" },
+            });
+
+            Assert.Equal(Path.Combine("scenarios", "demos", "air", "x"), ContentLayout.ScenarioRelativeFolder(nas, "x"));
+            Assert.False(Directory.Exists(Path.Combine(filed, ".slices")), "the staging slices beside the filed scenario are cleaned up");
+            Assert.False(Directory.Exists(Path.Combine(nas, "scenarios", "x")), "nothing at the top level");
+            Assert.Contains("Entities", File.ReadAllText(Path.Combine(filed, "scenario.json")));
+        }
+        finally { if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true); }
+    }
 }

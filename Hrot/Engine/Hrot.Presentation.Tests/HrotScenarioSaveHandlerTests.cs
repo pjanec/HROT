@@ -442,4 +442,26 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
         Assert.Throws<Hrot.Map.Common.Scenario.ScenarioAutosaveCore.RacedHotReloadException>(
             () => Hrot.Map.Common.Scenario.ScenarioAutosaveCore.ToJson(serializer, capture, registry));
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-4360 (the SAVE half of "done when") — a node's slice of a scenario FILED in a sub-folder goes where the merge reads it: <c>scenarios/&lt;sub-folders&gt;/&lt;name&gt;/.slices/node_N.json</c>
+    /// (the folder the ONE resolver finds under the NAS root the node shares with the master), the autosave slice likewise; a name that is not filed stays <c>scenarios/&lt;name&gt;</c>.
+    /// 🔴 Mutation: <c>SliceRelativePath</c> using the virtual-root <c>ScenarioRelativeFolder(name)</c> ⇒ the filed scenario's slice lands in <c>scenarios/&lt;name&gt;</c>, a folder the merge never reads.
+    /// </summary>
+    [Fact]
+    public void CE4360_ASliceOfAFiledScenario_GoesBesideItsRealFolder()
+    {
+        string name = "ce4360-" + Guid.NewGuid().ToString("N");
+        string category = "demos-" + Guid.NewGuid().ToString("N");
+        string filed = Path.Combine(ContentLayout.Scenarios(OrchestrationConstants.GetSharedRoot()), category, name);
+        try
+        {
+            Directory.CreateDirectory(filed);
+            File.WriteAllText(Path.Combine(filed, ContentLayout.ScenarioFileName), "{}");
+            Assert.Equal(Path.Combine("scenarios", category, name, ".slices", $"node_{NodeId}.json"), HrotScenarioSaveHandler.SliceRelativePath(name, (NodeId)NodeId));
+            Assert.Equal(Path.Combine("scenarios", category, name, ".autosave", ".slices", $"node_{NodeId}.json"), HrotScenarioSaveHandler.AutosaveSliceRelativePath(name, (NodeId)NodeId));
+            Assert.Equal(Path.Combine("scenarios", "not-filed", ".slices", $"node_{NodeId}.json"), HrotScenarioSaveHandler.SliceRelativePath("not-filed", (NodeId)NodeId));
+        }
+        finally { try { Directory.Delete(Path.Combine(ContentLayout.Scenarios(OrchestrationConstants.GetSharedRoot()), category), true); } catch { } }
+    }
 }

@@ -360,7 +360,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
         try
         {
             var src = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(_scenariosRoot(), from), "takes");   // ⭐ L6 — "new from a recipe": `from` is the recipe's own name
-            var dst = Path.Combine(_scenariosRoot(), to, "takes");
+            var dst = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(_scenariosRoot(), to), "takes");   // ⭐ CE-4360 — an existing scenario in a sub-folder keeps its takes where it lives
             if (!Directory.Exists(src) || (Directory.Exists(dst) && Directory.EnumerateFiles(dst).Any())) return;
             Directory.CreateDirectory(dst);
             foreach (var file in Directory.EnumerateFiles(src, "*.take.json"))
@@ -443,7 +443,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
 
     private void WriteScenarioDirectory(string scenarioName)
     {
-        var dir = Path.Combine(_scenariosRoot(), scenarioName);
+        var dir = Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(_scenariosRoot(), scenarioName);   // ⭐ CE-4360 — an EXISTING scenario saves where it lives (any sub-folder); a new one at the top level (Q-S3)
         Directory.CreateDirectory(dir);
         SaveTo(Path.Combine(dir, ScenarioFileName));
     }

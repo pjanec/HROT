@@ -1579,7 +1579,7 @@ namespace Hrot.Editor
             //    `recipes/scenarios/<seed>` (ContentLayout.ScenarioRecipeName), which the master resolves against the NAS recipes root
             //    (ContentLayout.ResolveScenarioDirectory). The old H2/U9 staging into `scenarios/Recipes/` is gone.
 
-            app.SetAvailableScenariosSource(() => ScenarioEnumeration.EnumerateRelPaths(EditorBootstrap.ScenariosRoot));
+            app.SetAvailableScenariosSource(() => ScenarioEnumeration.EnumerateNames(EditorBootstrap.ScenariosRoot));   // ⭐ CE-4360 — the LEAF names (Q-S2)
 
             // ?? 7. Map canvas + camera (skipped in headless) ??????????????????
             if (!_headless)

@@ -2,6 +2,13 @@ using System.Security.Cryptography;
 using System.Text;
 namespace Hrot.Editor.AiShared.Catalog;
 
+/// <summary>⭐ CE-4360 — an asset that names its own picker category (a scenario's sub-folder path), where the tree would otherwise derive it from the relative path.</summary>
+public interface ICategorizedAsset
+{
+    /// <summary>The sub-folder path (forward slashes) the picker files the asset under; <c>null</c> ⇒ derive it from the relative path as before.</summary>
+    string? Category { get; }
+}
+
 /// <summary>
 /// Projects the editor-side scenario list into the asset catalog as
 /// <see cref="AssetKind.Scenario"/> entries.
@@ -132,7 +139,7 @@ public sealed class ScenarioCatalogContributor : IAssetCatalogContributor
     /// <summary>⭐ CE-3414 — a scenario's asset id from its name (the nested asset's own derivation, reachable): what the Recent lists remember it by.</summary>
     internal static Guid DeriveAssetId(string relPath) => ScenarioEditableAsset.DeriveAssetId(relPath);
 
-    private sealed class ScenarioEditableAsset : IEditableAsset
+    private sealed class ScenarioEditableAsset : IEditableAsset, ICategorizedAsset
     {
         public ScenarioEditableAsset(string name, string? scenariosRoot)
         {
@@ -141,10 +148,15 @@ public sealed class ScenarioCatalogContributor : IAssetCatalogContributor
             // ⭐ CE-064 — `{root}/{relPath}/scenario.json`, the layout EditorScenarioSession WRITES
             //   (its WriteScenarioDirectory does Path.Combine(root, name) then ScenarioFileName).
             //   ⇒ the address the catalog advertises is the file the session round-trips.
+            //   ⭐ CE-4360 — a name resolves through the ONE resolver (it may be filed in a sub-folder), and the folder path above it is the picker's category.
             SourceFilePath = scenariosRoot == null
                 ? ""
-                : Path.Combine(scenariosRoot, name, Scenarios.EditorScenarioSession.ScenarioFileName);
+                : Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(scenariosRoot, name), Scenarios.EditorScenarioSession.ScenarioFileName);
+            Category = scenariosRoot == null ? null : Fdp.Toolkit.Orchestration.ScenarioFolderIndex.CategoryOf(scenariosRoot, name);
         }
+
+        /// <inheritdoc />
+        public string? Category { get; }
 
         public Guid AssetId { get; }
         public string Name { get; }

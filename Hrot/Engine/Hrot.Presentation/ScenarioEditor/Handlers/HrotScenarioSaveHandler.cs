@@ -150,12 +150,12 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
     /// <summary>⭐ CE-4099 — the NAS-relative path of this node's AUTOSAVE slice: <c>&lt;scenario folder&gt;/.autosave/.slices/node_N.json</c> (never the real
     /// save's <c>.slices</c>, so an autosave and a save never share staging).</summary>
     public static string AutosaveSliceRelativePath(string scenarioName, NodeId nodeId)
-        => Path.Combine(ContentLayout.ScenarioRelativeFolder(scenarioName), AutosaveFolder, ".slices", $"node_{nodeId}.json");
+        => Path.Combine(ContentLayout.ScenarioRelativeFolder(OrchestrationConstants.GetSharedRoot(), scenarioName), AutosaveFolder, ".slices", $"node_{nodeId}.json");
 
     /// <summary>⭐ CE-4210 MA-4 — the NAS-relative path of this node's slice: <c>&lt;scenario folder&gt;/.slices/node_N.json</c>, the folder resolved by
     /// <see cref="ContentLayout.ResolveScenarioDirectory"/> (<c>scenarios/x</c>, or <c>macros/x</c>) — the SAME resolver the merge reads.</summary>
     public static string SliceRelativePath(string scenarioName, NodeId nodeId)
-        => Path.Combine(ContentLayout.ScenarioRelativeFolder(scenarioName), ".slices", $"node_{nodeId}.json");
+        => Path.Combine(ContentLayout.ScenarioRelativeFolder(OrchestrationConstants.GetSharedRoot(), scenarioName), ".slices", $"node_{nodeId}.json");
 
     /// <inheritdoc />
     public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) { }

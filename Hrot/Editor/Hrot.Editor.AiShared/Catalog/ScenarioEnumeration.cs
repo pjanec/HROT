@@ -40,6 +40,14 @@ public static class ScenarioEnumeration
         return results;
     }
 
+    /// <summary>
+    /// ⭐ CE-4360 (docs/DESIGN_Content_Layout.md §6, Q-S2) — the scenario NAMES under <paramref name="scenariosRoot"/>: each scenario's LEAF folder name, whatever
+    /// sub-folder it is filed in (<c>scenarios/demos/air/ua-air-assault</c> is <c>ua-air-assault</c>); a leaf shared by two scenarios is offered by its relative
+    /// path. ⭐ What the editor's and CGF's scenario lists use; <see cref="EnumerateRelPaths"/> stays for a reader that wants the folder paths.
+    /// </summary>
+    public static IReadOnlyList<string> EnumerateNames(string scenariosRoot)
+        => string.IsNullOrWhiteSpace(scenariosRoot) ? Array.Empty<string>() : Fdp.Toolkit.Orchestration.ScenarioFolderIndex.Names(scenariosRoot);
+
     private static void EnumerateRecursive(
         string currentDir,
         string relativePath,

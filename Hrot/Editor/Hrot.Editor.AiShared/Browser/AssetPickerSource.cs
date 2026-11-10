@@ -140,6 +140,7 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
         int lastSlash = relPath.LastIndexOf('/');
         if (lastSlash >= 0)
             subfolder = relPath.Substring(0, lastSlash);
+        if (asset is ICategorizedAsset { Category: { Length: > 0 } own }) subfolder = own;   // ⭐ CE-4360 (Q-S1) — a scenario's category is its sub-folder path
 
         string? category;
         if (_isSingleKind)

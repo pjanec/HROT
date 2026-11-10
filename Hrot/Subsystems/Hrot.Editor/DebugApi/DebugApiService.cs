@@ -1281,7 +1281,7 @@ namespace Hrot.Editor.DebugApi
         }
 
         private static string ScenarioJsonPath(string name)
-            => System.IO.Path.Combine(Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedScenariosRoot(), name, Fdp.Toolkit.Orchestration.ContentLayout.ScenarioFileName);
+            => System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedScenariosRoot(), name), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioFileName);   // ⭐ CE-4360
 
         /// <summary>
         /// <c>POST /scenario/load {name, waitForReady?}</c>. Initiates the load. When

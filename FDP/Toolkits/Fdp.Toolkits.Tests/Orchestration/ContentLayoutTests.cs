@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Assets;
 using Xunit;
@@ -185,6 +186,114 @@ namespace Fdp.Toolkit.Tests.Orchestration
                 Path.GetFullPath(ContentLayout.ResolveUnderScenariosRoot(scenarios, "opened/recorded/abc")));
             Assert.Equal(Path.GetFullPath(Path.Combine(nas, "macros", "test", "fire-team")),
                 Path.GetFullPath(ContentLayout.ResolveUnderScenariosRoot(scenarios, "macros/test/fire-team")));
+        }
+
+        // ═══ CE-4360 — scenarios in SUB-FOLDERS (docs/DESIGN_Content_Layout.md §6, Q-S1…Q-S4); done by the behaviors lane ═══════════════════════════
+
+        private static string Scenario(string scenariosRoot, string relative)
+        {
+            var dir = Path.Combine(scenariosRoot, relative);
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, ContentLayout.ScenarioFileName), "{}");
+            return dir;
+        }
+
+        /// <summary>
+        /// ⭐⭐ Q-S2 — a PLAIN name resolves to the top-level folder when it exists, else to the ONE folder under a sub-folder whose leaf is the name; a name WITH
+        /// segments resolves exactly as before; a name that exists nowhere resolves to the top level (a new scenario saves there, Q-S3). 🔴 Mutation: the index
+        /// arm removed from <c>ResolveSaved</c> ⇒ the sub-folder asserts fail.
+        /// </summary>
+        [Fact]
+        public void CE4360_APlainName_FindsItsFolder_UnderAnySubFolder_AndASegmentedNameStaysExact()
+        {
+            var nas = NewTempDir();
+            var scenarios = ContentLayout.Scenarios(nas);
+            var top = Scenario(scenarios, "alpha");
+            var deep = Scenario(scenarios, Path.Combine("demos", "air", "ua-air-assault"));
+            var legacy = Scenario(scenarios, Path.Combine("Combat", "Ambush"));
+
+            Assert.Equal(top, ContentLayout.ResolveScenarioDirectory(nas, "alpha"));
+            Assert.Equal(deep, ContentLayout.ResolveScenarioDirectory(nas, "ua-air-assault"));
+            Assert.Equal(deep, ContentLayout.ResolveUnderScenariosRoot(scenarios, "ua-air-assault"));
+            Assert.Equal(Path.Combine("scenarios", "demos", "air", "ua-air-assault"), ContentLayout.ScenarioRelativeFolder(nas, "ua-air-assault"));
+            Assert.Equal(legacy, ContentLayout.ResolveScenarioDirectory(nas, "Combat/Ambush"));          // a segmented name is exact, as today
+            Assert.Equal(Path.Combine(scenarios, "brand-new"), ContentLayout.ResolveScenarioDirectory(nas, "brand-new"));   // not there yet ⇒ the top level
+        }
+
+        /// <summary>
+        /// ⭐ The index REBUILDS on a miss and drops a stale hit: a scenario filed into a sub-folder AFTER a first lookup is found by its unchanged name, and a
+        /// top-level folder wins over an index entry. 🔴 Mutation: no rebuild on a miss ⇒ the moved name still resolves to its old top-level path.
+        /// </summary>
+        [Fact]
+        public void CE4360_TheIndexRebuildsWhenAScenarioMoves()
+        {
+            var nas = NewTempDir();
+            var scenarios = ContentLayout.Scenarios(nas);
+            var before = Scenario(scenarios, Path.Combine("demos", "a", "mover"));
+            Assert.Equal(before, ContentLayout.ResolveScenarioDirectory(nas, "mover"));        // indexed
+            Directory.CreateDirectory(Path.Combine(scenarios, "demos", "b"));
+            var after = Path.Combine(scenarios, "demos", "b", "mover");
+            Directory.Move(before, after);                                            // re-filed, the name unchanged — the cached hit is stale
+            Assert.Equal(after, ContentLayout.ResolveScenarioDirectory(nas, "mover"));
+            var created = Scenario(scenarios, Path.Combine("demos", "c", "newcomer"));   // a miss after the index was built
+            Assert.Equal(created, ContentLayout.ResolveScenarioDirectory(nas, "newcomer"));
+            var top = Path.Combine(scenarios, "mover");
+            Directory.Move(after, top);                                               // …and back to the top level, which wins
+            Assert.Equal(top, ContentLayout.ResolveScenarioDirectory(nas, "mover"));
+        }
+
+        /// <summary>⭐ The enumerator names a scenario by its LEAF and its category by its sub-folder path; dot-folders and a scenario's own sub-folders are not scenarios.</summary>
+        [Fact]
+        public void CE4360_TheEnumerator_NamesByLeaf_AndCategorisesBySubFolder()
+        {
+            var nas = NewTempDir();
+            var scenarios = ContentLayout.Scenarios(nas);
+            var mine = Scenario(scenarios, "mine");
+            Scenario(scenarios, Path.Combine("demos", "air", "a-1"));
+            Scenario(scenarios, Path.Combine("tests", "t-1"));
+            Scenario(scenarios, ".autosave-x");                                       // a dot-folder is never walked
+            Scenario(mine, "takes");                                                  // …nor is a folder inside one (the walk does not enter a scenario)
+
+            var all = ScenarioFolderIndex.Enumerate(scenarios);
+            Assert.Equal(new[] { "mine", "a-1", "t-1" }, all.Select(f => f.Name).ToArray());
+            Assert.Equal("", all.Single(f => f.Name == "mine").Category);
+            Assert.Equal("demos/air", all.Single(f => f.Name == "a-1").Category);
+            Assert.Equal("tests", all.Single(f => f.Name == "t-1").Category);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ Q-S2's rail, over the REAL repository tree — every leaf name under <c>scenarios/</c> is UNIQUE, because the leaf IS the name (recordings, recent picks, HTTP and docs
+        /// name a scenario by it). A duplicate fails with BOTH paths. 🔴 Mutation: copy any scenario folder into another sub-folder ⇒ this fails naming both.
+        /// </summary>
+        [Fact]
+        public void CE4360_EveryLeafNameUnderTheRealScenariosTree_IsUnique()
+        {
+            var all = ScenarioFolderIndex.Enumerate(ContentLayout.Scenarios(Fdp.Testing.TestRepo.Root));
+            Assert.NotEmpty(all);
+            var duplicates = all.GroupBy(f => f.Name, StringComparer.Ordinal).Where(g => g.Count() > 1)
+                .Select(g => g.Key + " -> " + string.Join(" AND ", g.Select(f => f.Directory))).ToList();
+            Assert.True(duplicates.Count == 0, "Scenario names are their leaf folder (Q-S2) and must be unique: " + string.Join("; ", duplicates));
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4360 (b) — after a scenario is FILED in git (CE-4361) the NAS still holds its old top-level copy; the seed moves that copy ASIDE so the filed one is
+        /// what the name resolves to, and never touches a top-level scenario the source does not file. 🔴 Mutation: <c>MoveAsideStaleTopLevelCopy</c> not called ⇒ the name still resolves to the stale top-level copy.
+        /// </summary>
+        [Fact]
+        public void CE4360_TheSeedMovesAStaleTopLevelCopyAside_ButNeverUserMadeContent()
+        {
+            var source = NewTempDir();
+            var nas = NewTempDir();
+            Scenario(ContentLayout.Scenarios(source), Path.Combine("demos", "mover"));
+            var stale = Scenario(ContentLayout.Scenarios(nas), "mover");                 // the pre-move NAS copy
+            var mine = Scenario(ContentLayout.Scenarios(nas), "user-made");              // not in the source tree
+
+            ContentSeed.SeedTreeFrom(source, nas);
+
+            Assert.False(Directory.Exists(stale));
+            Assert.True(File.Exists(Path.Combine(nas, ContentSeed.SupersededDirectoryName, "mover", ContentLayout.ScenarioFileName)));   // moved aside, not deleted
+            Assert.Equal(Path.Combine(ContentLayout.Scenarios(nas), "demos", "mover"), ContentLayout.ResolveScenarioDirectory(nas, "mover"));
+            Assert.True(Directory.Exists(mine));
         }
     }
 }

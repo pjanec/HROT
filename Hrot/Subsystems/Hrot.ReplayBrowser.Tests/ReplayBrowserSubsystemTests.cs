@@ -3606,7 +3606,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
             // TE-1 — the scenario's seeded take, beside the recording, keyed by the scenario the recording names
             string root = TestRepo.Root;
-            string seeded = Path.Combine(root, "scenarios", scenario, "takes", takeName + ".take.json");
+            string seeded = Path.Combine(TestRepo.ScenarioDirectory(scenario), "takes", takeName + ".take.json");
             string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
             Directory.CreateDirectory(Path.GetDirectoryName(beside)!);
             File.Copy(seeded, beside, overwrite: true);
@@ -3734,7 +3734,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             string root = TestRepo.Root;
             string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
             Directory.CreateDirectory(Path.GetDirectoryName(beside)!);
-            File.Copy(Path.Combine(root, "scenarios", scenario, "takes", takeName + ".take.json"), beside, overwrite: true);
+            File.Copy(Path.Combine(TestRepo.ScenarioDirectory(scenario), "takes", takeName + ".take.json"), beside, overwrite: true);
             _subsystem.MoveDirectorPlayhead(t);
             for (int i = 0; i < 10; i++) Frame();
 

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED by the user 2026-10-28 (R-4097)
-updated: 2026-10-29 (L6, the opened-copies home, the ONE host-start seed and the shared behaviour names built — §5b)
-build-state: §6 READY-TO-BUILD (CE-4360 → CE-4361); the rest BUILT — CE-4089 (2026-10-28) + part two (2026-10-29: L6, CE-3340 ①③④); it landed BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
+updated: 2026-11-10 (§6 AS-BUILT CE-4360; 2026-10-29: L6, the opened-copies home, the ONE host-start seed and the shared behaviour names built — §5b)
+build-state: §6 CE-4360 BUILT (2026-11-10, behaviors lane — see §6 AS-BUILT) → CE-4361 READY-TO-BUILD (the move itself); the rest BUILT — CE-4089 (2026-10-28) + part two (2026-10-29: L6, CE-3340 ①③④); it landed BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
 current-answer: ⭐ §6 scenario categories = sub-folders (APPROVED R-4185, CE-4360, CE-4361) · §1 the tree · §5b AS BUILT, part two (the NEWEST: names, the opened area, the seed's one call site, the shared names) · §5 AS BUILT, part one (the classes; where §5b says SUPERSEDED, §5b wins) · §3 decisions · §4 the move list (done, except its step 5 — CE-4082)
 stale-below: §5's D-7 and D-10, the "TWO call sites" line under §5's module graph, and its `CuratedScenarios` row (SUPERSEDED by §5b) · §2's CLASS NAMES (`ContentRoots`, `ContentSeed`) are the design-time names — SUPERSEDED by §5 (`ContentLayout` in Fdp.Toolkits, `AssetRoots` delegating, `CuratedScenarios` generalised in place). §2's sequence and module pictures still hold, with §5's two start points.
 known-rot: §0's inventory table describes the layout BEFORE CE-4089 (it is the "from" state)
@@ -283,3 +283,106 @@ natural way how to organize scenarios. So the folder might be the primary groupi
 | **Q-S3** | the folders, in this order | **Recent** (the picker's) · **My scenarios** (`scenarios/` top level — where *Save as* puts a new one) · **showcases/** · **demos/** with **air/ · infantry-and-squads/ · platoons-and-vehicles/ · weapons-and-fires/ · buildings-and-doors/ · civilians-and-crowd/ · sensing-and-weather/ · rules-objectives-directors/ · navigation-and-terrain/ · players-and-possession/** · **tests/** (fixtures, perf, regression — hidden behind an off *Show tests (N)* tick) | by prefix: `ua-` holds every area |
 | **Q-S4** | who does it | **backend first** (the content-path owner): the resolver finds a leaf name under sub-folders + the leaf-uniqueness rail + the 41 hand-built paths go through the resolver; **then behaviors** moves and files the 127 (they wrote most demos; the list in their report) | moving first: 41 hand-built paths break at once |
 
+### ⭐ AS-BUILT — CE-4360 (done by the behaviors lane; R-4185 named backend, which was busy on nav tiles) — `2026-11-10`
+
+> ⛔ **No real scenario was moved** (that is CE-4361). Everything below is proven on temp-dir fixtures and over the real flat tree.
+
+```mermaid
+classDiagram
+    class ContentLayout {
+        <<existing, Fdp.Toolkits>>
+        +ResolveScenarioDirectory(root, name)
+        +ResolveUnderScenariosRoot(scenariosRoot, name)
+        +ScenarioRelativeFolder(root, name)  NEW overload, real root
+        -ResolveSaved(scenariosRoot, name)  NEW
+    }
+    class ScenarioFolderIndex {
+        <<NEW, Fdp.Toolkits/Orchestration>>
+        +Find(root, name) string
+        +Enumerate(root) ScenarioFolder[]
+        +Names(root) string[]
+        +CategoryOf(root, name) string
+        +Invalidate(root)
+    }
+    class ContentSeed {
+        <<existing>>
+        +SeedTreeFrom(source, nas)
+        -MoveAsideStaleTopLevelCopy()  NEW
+    }
+    class AssetPickerSource {
+        <<existing>>
+    }
+    class ICategorizedAsset {
+        <<NEW>>
+        +Category string
+    }
+    class ScenarioCatalogContributor {
+        <<existing>>
+    }
+    class TakeStore {
+        <<existing>>
+    }
+    class VerifyCommand {
+        <<existing>>
+    }
+    ContentLayout --> ScenarioFolderIndex : plain name
+    ScenarioFolderIndex ..> ContentLayout : CategoryOf resolves via
+    ContentSeed ..> ContentLayout : same tree
+    ScenarioCatalogContributor ..> ICategorizedAsset : asset implements
+    AssetPickerSource --> ICategorizedAsset : sub-category
+    ScenarioCatalogContributor --> ScenarioFolderIndex : names via ScenarioEnumeration.EnumerateNames
+    TakeStore --> ContentLayout
+    TakeStore --> ScenarioFolderIndex : lists
+    VerifyCommand --> ScenarioFolderIndex : WithChecks
+```
+
+*Caption — what the picture shows that prose hides:* the index is reached ONLY through `ContentLayout` for a load/save path, and directly by the
+LISTERS (picker, verify, takes, storage gateway) which need the whole set; the seed never calls the index (it moves the stale copy by a plain file test).
+
+```mermaid
+sequenceDiagram
+    participant C as caller (load / save / verify / takes)
+    participant L as ContentLayout.ResolveSaved
+    participant I as ScenarioFolderIndex
+    participant FS as scenarios/ tree
+    C->>L: name "ua-air-assault" (no slash)
+    L->>I: Find(root, name)
+    I->>FS: Directory.Exists(root/name)?
+    alt top level exists
+        I-->>L: root/name
+    else cached hit and folder still there
+        I-->>L: cached folder
+    else miss or stale
+        I->>FS: walk once (skip dot-folders, do not enter a scenario)
+        I-->>L: found folder, or null
+    end
+    L-->>C: found folder, else root/name (a NEW scenario saves at the top level, Q-S3)
+```
+
+| what was built | where |
+|---|---|
+| the index + enumerator (`Find`, `Enumerate`, `Names`, `CategoryOf`) | `FDP/Toolkits/Fdp.Toolkits/Orchestration/ScenarioFolderIndex.cs` |
+| plain name → index; a name with segments exactly as before | `ContentLayout.ResolveSaved` (`ResolveScenarioDirectory`, `ResolveUnderScenariosRoot`); `ScenarioRelativeFolder(root, name)` for the real root |
+| editor + CGF scenario lists offer LEAF names | `ScenarioEnumeration.EnumerateNames` ← `EditorSubsystem`, `CgfSubsystem` |
+| picker sub-category = sub-folder path; `tests/` hidden behind a "Show tests" tick (CE-4359's `PickerHideToggle`, reused) | `ICategorizedAsset`, `AssetPickerSource.ToEntry`, `AssetFolderDerivation`, `AssetPickerLauncher` |
+| production sites routed: slice save, session write, takes, verify (`all`), debug API, terrain importer, storage gateway scan | `HrotScenarioSaveHandler`, `EditorScenarioSession`, `TakeStore`, `VerifyCommand.WithChecks`, `DebugApiHost.Director`, `DebugApiService`, `TerrainImporter`, `StorageGatewayModule` |
+| tests that read real repo scenarios | `TestRepo.ScenarioFile` / `ScenarioDirectory` (`FDP/TestShared/TestRepo.cs`) |
+
+**The 41 hand-built sites — as measured, not as listed above.** The design's own list could not be reproduced exactly (`VerifyCommand`,
+`HrotRunnerConfiguration` and the SumoSharp ones are not hand-built scenario NAMES: the SumoSharp `scenarios/_bench` / `_ped` address benchmark datasets that do not exist in the
+repo, `HrotRunnerConfiguration.cs:203` is help text). The grep found 41 `"scenarios"` literals: real-repo readers routed through `TestRepo`
+(`TerrainHeightTests`, `ScenarioWorldSectionTests`, `PostureScenarioTests`, `TheEditorsRecording…`, `ScenarioTwin`, `TheWorldChangeCheckOnTheEditorTests`,
+`ReplayBrowserSubsystemTests`); `FilmDirectorTests` roots routed by construction through `TakeStore`; `ScenarioEntityKeySweepTests` and `ReadableScenarioJsonTests` already recursive;
+temp-tree fixture builders left alone (they create at the top level, which is where a new scenario goes).
+
+**Deviations and decisions**
+
+| # | what | why |
+|---|---|---|
+| 1 | ⭐ **stale top-level copy (CE-4361's hazard)** — `ContentSeed` never deletes, so after a scenario is filed in git its old `scenarios/<leaf>` in the NAS would win the lookup (the top level wins). **Settled by construction in the seed:** `SeedTreeFrom` MOVES a top-level folder aside (to `<nas>/.superseded-scenarios/<leaf>`, outside `scenarios/` so no lister or Save-to-Git sees it) when the SOURCE files that leaf in a sub-folder. Never a delete; never touches a top-level scenario the source does not file (user-made). | the alternative (lookup prefers the filed copy) cannot tell a stale copy from a user's deliberate top-level one and would make a save write to the filed copy while the user edited the other |
+| 2 | the editor / CGF lists return LEAF names; a leaf shared by two scenarios falls back to its relative path (still loadable). `EnumerateRelPaths` stays for readers of folder paths; the nested-name rails (`ScenarioNestedNameTests`) still test it, and `TheCgfPickerIsNotEmptyTests` now asserts the leaf (`Ambush`, not `Combat/Ambush`) | Q-S2 |
+| 3 | the Q-S3 folder ORDER and the "My scenarios" label are not built — top-level scenarios have a null category | left to CE-4361 with the move |
+| 4 | the index is cached per scenarios root and rebuilt on a miss or a stale hit; no FileSystemWatcher | brief; a steady lookup is a dictionary read + `Directory.Exists` |
+
+Rails: `ContentLayoutTests.CE4360_*` (resolver, index rebuild, enumerator, real-tree leaf uniqueness, seed moves a stale copy aside), `StorageProcessManagerTests`, `ClusterMasterNewScenarioTests`,
+`HrotScenarioSaveHandlerTests`, `EditorScenarioSessionLoadTests`, `AssetPickerLauncherTests`, `VerifyCommandScenariosTests` (each red-proved by a compiling mutation).
