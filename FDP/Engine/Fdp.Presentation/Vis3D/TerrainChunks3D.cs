@@ -49,6 +49,8 @@ namespace Fdp.Toolkit.Vis3D
         private readonly int _n, _levels;
         private readonly Slot[] _ground;      // [chunk * levels + level]
         private readonly Slot[] _objects;     // [chunk]
+        private readonly Slot[] _canopy;      // [chunk] ⭐ CE-4377 — the trees FAR (part of the coarse picture)
+        private readonly Slot[] _trees;       // [chunk] ⭐ CE-4377 — the trees NEAR (built when the chunk wants level ≤ 1)
         private readonly Slot _outside = new();
         private readonly int[] _drawnLevel;  // per chunk, last frame (−1: culled or nothing built)
         private readonly int[] _flight;       // slot ids in flight: ground k*levels+l, objects N*levels + k, outside -1
@@ -70,6 +72,8 @@ namespace Fdp.Toolkit.Vis3D
             for (int i = 0; i < _ground.Length; i++) _ground[i] = new Slot { Fine = i % _levels != _levels - 1 };
             _objects = new Slot[_n];
             for (int i = 0; i < _n; i++) _objects[i] = new Slot();
+            _canopy = new Slot[_n]; _trees = new Slot[_n];
+            for (int i = 0; i < _n; i++) { _canopy[i] = new Slot(); _trees[i] = new Slot { Fine = true }; }
             _flight = new int[Math.Max(1, MaxInFlight)];
             _drawnLevel = new int[_n];
             Array.Fill(_drawnLevel, -1);
@@ -102,6 +106,7 @@ namespace Fdp.Toolkit.Vis3D
                 {
                     if (!Done(_ground[(k * _levels) + coarse])) return false;
                     if (!Done(_objects[k])) return false;
+                    if (!Done(_canopy[k])) return false;
                 }
                 return true;
             }
@@ -145,7 +150,14 @@ namespace Fdp.Toolkit.Vis3D
         private Action<Streams>? _uploadDelegate;
         private Action<Streams> _upload => _uploadDelegate ??= st => _uploadedBytes = Upload(_uploading!, st);
 
-        private Slot SlotOf(int id) => id < 0 ? _outside : id < _ground.Length ? _ground[id] : _objects[id - _ground.Length];
+        /// <summary>Slot ids: ground [0, G) · objects [G, G+n) · canopy [G+n, G+2n) · trees [G+2n, G+3n) · the outside −1.</summary>
+        private Slot SlotOf(int id)
+        {
+            if (id < 0) return _outside;
+            if (id < _ground.Length) return _ground[id];
+            int r = id - _ground.Length;
+            return r < _n ? _objects[r] : r < 2 * _n ? _canopy[r - _n] : _trees[r - (2 * _n)];
+        }
 
         private bool Idle(Slot s) => s.Build.State == MeshBuildState.Idle;
 
@@ -166,6 +178,7 @@ namespace Fdp.Toolkit.Vis3D
                         int g = (k * _levels) + coarse;
                         if (Idle(_ground[g]) && d < best) { best = d; pick = g; }
                         if (Idle(_objects[k]) && d < best) { best = d; pick = _ground.Length + k; }
+                        if (Idle(_canopy[k]) && d < best) { best = d; pick = _ground.Length + _n + k; }
                     }
                     if (pick == int.MinValue && _hasEye)
                     {
@@ -174,9 +187,9 @@ namespace Fdp.Toolkit.Vis3D
                         {
                             int want = LevelFor(_layout, k % _layout.Nx, k / _layout.Nx, _eye);
                             int g = (k * _levels) + want;
-                            if (!Idle(_ground[g])) continue;
                             float d = Distance(k);
-                            if (d < best) { best = d; pick = g; }
+                            if (Idle(_ground[g])) { if (d < best) { best = d; pick = g; } }
+                            else if (want <= 1 && Idle(_trees[k]) && d < best) { best = d; pick = _ground.Length + (2 * _n) + k; }   // T-2: the near trees after the ground
                         }
                     }
                 }
@@ -197,16 +210,17 @@ namespace Fdp.Toolkit.Vis3D
         {
             var slot = SlotOf(id);
             var g = _geometry;
-            int k = id < 0 ? -1 : id < _ground.Length ? id / _levels : id - _ground.Length;
+            int r = id - _ground.Length;
+            int k = id < 0 ? -1 : id < _ground.Length ? id / _levels : r % _n;
             int level = id >= 0 && id < _ground.Length ? id % _levels : 0;
-            bool objects = id >= _ground.Length;
+            var part = id < _ground.Length ? TerrainChunkPart.ChunkGround : r < _n ? TerrainChunkPart.ChunkObjects : r < 2 * _n ? TerrainChunkPart.ChunkCanopy : TerrainChunkPart.ChunkTrees;
             int cx = k < 0 ? 0 : k % _layout.Nx, cy = k < 0 ? 0 : k / _layout.Nx;
             _flight[_inFlight++] = id;
             slot.Build.Request(_identity, () =>
             {
                 Vector3[] v; int[] i; TerrainSurfaceKind[] kinds; string?[] mats;
                 if (k < 0) g.BuildOutside(out v, out i, out kinds, out mats);
-                else g.BuildChunk(cx, cy, level, objects ? TerrainChunkPart.ChunkObjects : TerrainChunkPart.ChunkGround, out v, out i, out kinds, out mats);
+                else g.BuildChunk(cx, cy, level, part, out v, out i, out kinds, out mats);
                 TerrainLayer3D.BuildVertexData(v, i, kinds, mats, out var positions, out var normals, out var colors);
                 float lo = float.MaxValue, hi = float.MinValue;
                 for (int j = 0; j < v.Length; j++) { lo = MathF.Min(lo, v[j].Z); hi = MathF.Max(hi, v[j].Z); }
@@ -250,8 +264,13 @@ namespace Fdp.Toolkit.Vis3D
                 var s = _ground[i];
                 if (s.Has && s.LastDrawn < when && s.LastDrawn < _frame) { when = s.LastDrawn; oldest = i; }
             }
-            if (oldest < 0) return;
-            var slot = _ground[oldest];
+            Slot? slot = oldest >= 0 ? _ground[oldest] : null;
+            for (int k = 0; k < _n; k++)   // the near trees are fine too
+            {
+                var s = _trees[k];
+                if (s.Has && s.LastDrawn < when && s.LastDrawn < _frame) { when = s.LastDrawn; slot = s; }
+            }
+            if (slot == null) return;
             ResidentBytes -= slot.Bytes; _fineBytes -= slot.Bytes;
             slot.Release();
             slot.Build.Reset();
@@ -279,6 +298,9 @@ namespace Fdp.Toolkit.Vis3D
                 for (int l = want - 1; l >= 0 && g == null; l--) if (_ground[(k * _levels) + l].Has) g = _ground[(k * _levels) + l];  // else a finer one still resident
                 if (g != null) { _drawnLevel[k] = Array.IndexOf(_ground, g, k * _levels, _levels) - (k * _levels); g.LastDrawn = _frame; Raylib.DrawMesh(g.Mesh, material, Matrix4x4.Identity); tris += g.Triangles; meshes++; }
                 if (obj.Has) { obj.LastDrawn = _frame; Raylib.DrawMesh(obj.Mesh, material, Matrix4x4.Identity); tris += obj.Triangles; meshes++; }
+                // ⭐ CE-4377 §6ai — the trees: near where the chunk wants level ≤ 1 and they are built, else the far canopy
+                var veg = want <= 1 && _trees[k].Has ? _trees[k] : _canopy[k].Has ? _canopy[k] : null;
+                if (veg != null) { veg.LastDrawn = _frame; Raylib.DrawMesh(veg.Mesh, material, Matrix4x4.Identity); tris += veg.Triangles; meshes++; }
             }
             TrianglesDrawn = tris; MeshesDrawn = meshes;
         }
@@ -311,6 +333,8 @@ namespace Fdp.Toolkit.Vis3D
             _outside.Release();
             foreach (var s in _ground) s.Release();
             foreach (var s in _objects) s.Release();
+            foreach (var s in _canopy) s.Release();
+            foreach (var s in _trees) s.Release();
             ResidentBytes = 0; _fineBytes = 0;
         }
     }

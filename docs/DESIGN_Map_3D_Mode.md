@@ -3589,7 +3589,7 @@ against it.*
 
 Numbers and frames: [STATUS_Ui_Large_Terrain_Drawing.md](blueprints/batches/STATUS_Ui_Large_Terrain_Drawing.md) §2–§3 (scale-1: the load's 3-D picture 0.8 s / 640 MB peak, where the whole soup needed 9.4 s / 7.0 GB and is killed at 6 GB on this VM).
 
-### 6ai. CE-4377 — buildings and trees at scale: the trees' 3-D look, by distance *(ui, `2026-11-10`; build-state: READY-TO-BUILD — trees; pitched roofs and imported facades wait for the importer)*
+### 6ai. CE-4377 — buildings and trees at scale: the trees' 3-D look, by distance *(ui, `2026-11-10`; build-state: trees BUILT (as-built below the table); pitched roofs and imported facades NEXT — the importer landed during the build)*
 
 🔒 R-4195 (user): *"if there is new stuff like trees or different roofs the ui lane is free to design their 3d look with respect to performance"*. Handoff D-3.
 📐 **Measured first:** a LONE tree is already a world prism (an octagon trunk, material `tree-trunk`, 0.3 m × 10 m — `TerrainWorldParser.cs:195`), so §6ah's objects
@@ -3636,6 +3636,11 @@ sequenceDiagram
 | T-3 | a wood FAR (levels 2–3): a sheet at ground + canopy over each wood cell (corners from the ground at the corner, so it follows the hill) + walls down to the crown base where the neighbour cell is not wood | ≈ 2 triangles a cell; the wood's mass and edge read from a kilometre |
 | T-4 | colours: bark (96, 72, 52) with the wood pattern; crowns and canopy in two forest greens with the leaf pattern (242) — `TerrainLayer3D.ColourOf` | the house's one colour language (R-4139): the ground's forest green family |
 | T-5 | ⛔ presentation only — no prism, no sight or fire change; the woods grid stays the simulation's wood | R-4195: the look must not change the simulation |
+
+**As-built (trees, `2026-11-10`)** — as designed: `TerrainChunkPart.ChunkTrees` / `ChunkCanopy`, `TerrainWorldMesh.Trees.cs` (`BuildChunkTrees`), two slots per chunk in
+`TerrainChunks3D` (the canopy is part of the coarse picture; the near trees are built when the chunk wants level ≤ 1 and count against the finer-level budget). `TerrainWoods`
+gained `Origin` and `CellAt` (read-only). Rails `TerrainChunkTreesTests` (counts, determinism, edges only, not in the ground or objects). scale-1 with trees: 2.0–2.6 M
+triangles drawn a frame, 517–534 MB resident.
 
 ## 7. NOT VERIFIED — say so before it is built on
 

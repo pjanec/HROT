@@ -51,8 +51,9 @@ namespace Fdp.Toolkit.World
         public Vector2 ChunkMax(int cx, int cy) => ChunkMin(cx, cy) + new Vector2(ChunkSize, ChunkSize);
     }
 
-    /// <summary>⭐ CE-3423 — the two meshes of a chunk: its ground (one per level) and what stands on it (prisms, slabs, water — one, any level).</summary>
-    public enum TerrainChunkPart : byte { ChunkGround = 0, ChunkObjects = 1 }
+    /// <summary>⭐ CE-3423 — the meshes of a chunk: its ground (one per level), what stands on it (prisms, slabs, water — one, any level), and ⭐ CE-4377 (§6ai)
+    /// its trees drawn NEAR (one tree per wood cell's density, the lone trees' crowns) or FAR (the wood as a canopy sheet, the lone crowns) — presentation only.</summary>
+    public enum TerrainChunkPart : byte { ChunkGround = 0, ChunkObjects = 1, ChunkTrees = 2, ChunkCanopy = 3 }
 
     /// <summary>
     /// ⭐ CE-3423 (docs/DESIGN_Map_3D_Mode.md §6ah) — a terrain that can hand out its triangles BY CHUNK and level of detail, so the 3-D map and its picker never build the

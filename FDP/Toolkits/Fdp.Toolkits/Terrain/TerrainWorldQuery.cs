@@ -201,7 +201,9 @@ namespace Fdp.Toolkit.Terrain
         {
             var v = new List<Vector3>(); var t = new List<int>(); var g = new List<TerrainTriangleTag>();
             int water = 0;
+            bool trees = part is TerrainChunkPart.ChunkTrees or TerrainChunkPart.ChunkCanopy;
             if (part == TerrainChunkPart.ChunkGround) TerrainWorldMesh.BuildChunkGround(World, cx, cy, level, v, t, g);
+            else if (trees) TerrainWorldMesh.BuildChunkTrees(World, cx, cy, part == TerrainChunkPart.ChunkTrees, v, t, g);   // ⭐ CE-4377 §6ai
             else TerrainWorldMesh.BuildChunkObjects(World, cx, cy, v, t, g, out water);
             vertices = v.ToArray(); indices = t.ToArray();
             int n = indices.Length / 3, solid = n - water;
@@ -211,6 +213,7 @@ namespace Fdp.Toolkit.Terrain
                 if (k >= solid) { kinds[k] = TerrainSurfaceKind.Water; materials[k] = "water"; continue; }
                 var tag = g[k];
                 if (tag.Material == TerrainWorldMesh.SkirtMaterial) { kinds[k] = TerrainSurfaceKind.Ground; continue; }   // L-4: a skirt is ground, never a wall
+                if (trees) { kinds[k] = TerrainSurfaceKind.Wall; materials[k] = tag.Material; continue; }                // T-4: a tree's colour is its material's
                 kinds[k] = Classify(vertices[indices[3 * k]], vertices[indices[3 * k + 1]], vertices[indices[3 * k + 2]]);
                 materials[k] = tag.Material;
             }

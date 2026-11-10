@@ -210,6 +210,11 @@ namespace Fdp.Toolkit.Vis3D
                 "sandbags" => new Color(182, 162, 112, 255),
                 "earth-berm" => new Color(128, 108, 78, 255),
                 "car-body" => new Color(92, 98, 112, 255),
+                // ⭐ CE-4377 (§6ai T-4) — the drawn trees: bark, two crown greens, the far canopy
+                "tree-trunk" => new Color(96, 72, 52, 255),
+                "tree-crown" => new Color(62, 104, 48, 255),
+                "tree-crown-dark" => new Color(50, 88, 40, 255),
+                "canopy" => new Color(56, 96, 44, 255),
                 _ => null,   // concrete and unknown: the kind's colour
             };
             if (kind == TerrainSurfaceKind.Roof)
@@ -234,7 +239,8 @@ namespace Fdp.Toolkit.Vis3D
             null or "concrete" => 247,
             "brick" => 248,
             "sandbags" => 246,
-            "fence-wood" or "door-wood" => 244,
+            "fence-wood" or "door-wood" or "tree-trunk" => 244,
+            "tree-crown" or "tree-crown-dark" or "canopy" => 242,   // ⭐ CE-4377 — the leaf pattern (the hedge's)
             "earth-berm" => 243,
             "hedge" => 242,
             _ => 255,

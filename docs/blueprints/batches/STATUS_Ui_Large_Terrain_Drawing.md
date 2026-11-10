@@ -18,7 +18,7 @@ Handoff: [HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing.md](HANDOFF_Coordinato
 | item | state |
 |---|---|
 | **D-1** CE-3423 the 3-D ground by level of detail | ✅ DONE — design [§6ah](../../DESIGN_Map_3D_Mode.md) · built: `ITerrainChunkedGeometry` (`TerrainWorldQuery`), `TerrainWorldMesh.Chunks.cs`, `TerrainChunks3D`, `ChunkPickGrids` |
-| **D-3** CE-4377 buildings and trees at scale | ⏳ next |
+| **D-3** CE-4377 buildings and trees at scale | 🟡 TREES DONE ([§6ai](../../DESIGN_Map_3D_Mode.md), mockup `docs/UX/terrain-trees-3d.svg`): lone crowns over the trunks, woods near as trees (one per density cell), far as a canopy sheet; scale-1 with trees 2.0–2.6 M triangles a frame, 517–534 MB resident. The 85 000 template prisms are batched per chunk (1.1 M triangles). ⏳ pitched roofs + imported facades next (the importer landed at the D-1 merge) |
 | **D-2** CE-4376 the 2-D map at 5.5 km | ⏳ |
 | **D-4** CE-4378 the importer in the wizard | ⛔ BLOCKED — `Hrot.Terrain.Import` (`TerrainImporter`, CE-4368) is not on `origin/coordinator` (checked at `3db0cef53` and again at each merge) |
 
