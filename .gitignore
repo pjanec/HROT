@@ -76,3 +76,6 @@ scenarios/scale-rig-*/
 
 # SUMO installed by scripts/install-sumo.* (Terrain From OSM §9.1) — never committed
 .local/
+
+# hrot-terrain-osm's default --out: OSM-derived input sets (ODbL) - regenerated, never committed
+terrain-input/

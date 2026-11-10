@@ -70,7 +70,7 @@ def terrain_info(name):
                 if lane.get("allow") == "pedestrian":
                     continue
                 for q in lane.get("shape").split():
-                    x, y = (float(v) for v in q.split(","))
+                    x, y = (float(v) for v in q.split(",")[:2])
                     x, y = x - ax, y - ay
                     if bounds[0] + 20 <= x <= bounds[2] - 20 and bounds[1] + 20 <= y <= bounds[3] - 20:
                         road.append((round(x, 1), round(y, 1)))

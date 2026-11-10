@@ -151,6 +151,34 @@ public class ImporterTests : IDisposable
     }
 
     [Fact]
+    public async Task ADoor_WinsOverAnOverlappingWindow_ListedBeforeIt()
+    {
+        // real sets list windows before doors; the door is the gameplay-critical opening, so it keeps its place
+        var mini = new MiniSet();
+        mini.Buildings.Add(MiniSet.Rect("b", 0, 0, 10, 8, openings: new[] { Window(5.2, 0.0), Door(5, 0.0) }));
+        var (_, world, rep) = await Import(mini);
+        Assert.Equal(1, rep.OpeningsPlaced); Assert.Equal(1, rep.OpeningsDroppedOverlap);
+        Assert.Single(world.Doors);
+    }
+
+    [Fact]
+    public async Task ARecessedGroundDoor_UpTo15mInside_SnapsToItsWall_ACourtyardDoorDeeperIn_IsDropped()
+    {
+        // real sets put a recessed entrance's door point up to ≈ 1.5 m inside the outline; courtyard doors lie deeper, with no outline wall
+        var mini = new MiniSet();
+        mini.Buildings.Add(MiniSet.Rect("b", 0, 0, 20, 16, storeys: 2, openings: new[]
+        {
+            Door(5, 1.2),          // ground, 1.2 m in: placed
+            Door(10, 8),           // ground, 8 m in (courtyard): dropped
+            Door(15, 1.2, s: 1),   // upper storey, 1.2 m in: dropped (the door reach is for the ground floor only)
+            Window(12, 1.2),       // a window 1.2 m in: dropped (windows keep 0.6 m)
+        }));
+        var (_, world, rep) = await Import(mini);
+        Assert.Equal(1, rep.OpeningsPlaced); Assert.Equal(3, rep.OpeningsDroppedOffWall);
+        Assert.Single(world.Doors);
+    }
+
+    [Fact]
     public async Task OpeningsAreMappedPerStorey_OnTheirOwnFloor()
     {
         var mini = new MiniSet();

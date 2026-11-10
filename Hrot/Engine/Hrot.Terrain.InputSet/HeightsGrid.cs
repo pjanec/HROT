@@ -11,8 +11,17 @@ public static class HeightsGrid
         using var doc = JsonDocument.Parse(File.ReadAllBytes(path));
         var r = doc.RootElement;
         var info = new HeightsInfo(r.GetProperty("originX").GetDouble(), r.GetProperty("originY").GetDouble(), r.GetProperty("cellSize").GetDouble(),
-                                   r.GetProperty("cols").GetInt32(), r.GetProperty("rows").GetInt32(), InputSetReader.ReadFrame(r, path));
+                                   r.GetProperty("cols").GetInt32(), r.GetProperty("rows").GetInt32(), FrameOf(r, path, setFolder));
         return r.TryGetProperty("sourceResolution", out var sr) ? info with { SourceResolution = sr.GetDouble() } : info;
+    }
+
+    // §10 does not list a frame in heights.json: when it carries no frame OBJECT (absent, or a producer's text note) the manifest's frame is the grid's
+    private static UtmFrame FrameOf(JsonElement r, string path, string setFolder)
+    {
+        if (r.TryGetProperty("frame", out var f) && f.ValueKind == JsonValueKind.Object) return InputSetReader.ReadFrame(r, path);
+        string manifest = Path.Combine(setFolder, InputSetLayout.Manifest);
+        using var doc = JsonDocument.Parse(File.ReadAllBytes(manifest));
+        return InputSetReader.ReadFrame(doc.RootElement, manifest);
     }
 
     /// <summary>Calls <paramref name="row"/> for every row, NORTH first (file order), with a reused buffer — for any size of grid.</summary>

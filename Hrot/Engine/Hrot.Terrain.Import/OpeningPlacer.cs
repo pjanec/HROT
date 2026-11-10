@@ -4,13 +4,13 @@ namespace Hrot.Terrain.Import;
 internal sealed record PlacedOpening(string Kind, int Edge, int Storey, double At, double Width, string? DoorId);
 
 /// <summary>
-/// ⭐ I-e: each input point → the nearest footprint edge within <see cref="Reach"/> (0.6 m — the real noise is ≤ 0.3 m off-wall; the heading is
-/// NOT trusted, 3 % are flipped); <c>at</c> = the projection along the wall; door 0.9 m, window 1.2 m; an opening overlapping one already on
-/// that wall and storey is dropped; one beyond reach, on a party wall, or on a wall too short is dropped and counted.
+/// ⭐ I-e: each input point → the nearest footprint edge within <see cref="Reach"/> (ground-floor doors <see cref="GroundDoorReach"/>, recessed entrances) (0.6 m — the real noise is ≤ 0.3 m off-wall; the heading is
+/// NOT trusted, 3 % are flipped); <c>at</c> = the projection along the wall; door 0.9 m, window 1.2 m; doors are placed before windows, and an
+/// opening overlapping one already on that wall and storey is dropped; one beyond reach, on a party wall, or on a wall too short is dropped and counted.
 /// </summary>
 internal static class OpeningPlacer
 {
-    public const double Reach = 0.6, DoorWidth = 0.9, WindowWidth = 1.2;
+    public const double Reach = 0.6, GroundDoorReach = 1.5, DoorWidth = 0.9, WindowWidth = 1.2;
 
     public readonly record struct Counts(int Placed, int OffWall, int OnParty, int Overlap, int Other);
 
@@ -20,10 +20,12 @@ internal static class OpeningPlacer
         var placed = new List<PlacedOpening>();
         int off = 0, onParty = 0, overlap = 0, other = 0, doors = 0;
         int n = ring.Count;
-        foreach (var o in openings)
+        // doors first (stable otherwise): a window listed before an overlapping door must not take the door's place
+        foreach (var o in openings.OrderBy(o => o.Type == "door" ? 0 : 1))
         {
             if (o.Storey < 0 || o.Storey >= storeys || (o.Type != "door" && o.Type != "window")) { other++; continue; }
-            int best = -1; double bestD = Reach + 1e-9, bestT = 0;
+            double reach = o.Type == "door" && o.Storey == 0 ? GroundDoorReach : Reach;   // a recessed entrance sits up to 1.5 m inside
+            int best = -1; double bestD = reach + 1e-9, bestT = 0;
             for (int e = 0; e < n; e++)
             {
                 var a = ring[e]; var b = ring[(e + 1) % n];

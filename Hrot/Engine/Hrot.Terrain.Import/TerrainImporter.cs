@@ -119,12 +119,26 @@ public sealed partial class TerrainImporter : ITerrainImporter
 
     private static void Swap(string tmp, string target)
     {
-        if (!Directory.Exists(target)) { Directory.Move(tmp, target); return; }
+        if (!Directory.Exists(target)) { Move(tmp, target); return; }
         string old = target + ".old-" + Guid.NewGuid().ToString("N")[..8];
-        Directory.Move(target, old);
-        try { Directory.Move(tmp, target); }
-        catch { Directory.Move(old, target); throw; }
+        Move(target, old);
+        try { Move(tmp, target); }
+        catch { Move(old, target); throw; }
         try { Directory.Delete(old, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+    }
+
+    // Windows: a folder whose files were JUST written (or are open in a viewer) is briefly held by the virus scanner / indexer, and renaming it
+    // fails with "access denied" — measured as a flaky import on the user's machine; a few short retries ride it out
+    private static void Move(string from, string to)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            try { Directory.Move(from, to); return; }
+            catch (Exception e) when ((e is IOException || e is UnauthorizedAccessException) && attempt < 20 && Directory.Exists(from) && !Directory.Exists(to))
+            {
+                Thread.Sleep(50 * (attempt + 1));
+            }
+        }
     }
 
     /// <summary>Wall kinds of the input set (stone / mud / fence / hedge, and the OSM names) → the material library's names.</summary>
