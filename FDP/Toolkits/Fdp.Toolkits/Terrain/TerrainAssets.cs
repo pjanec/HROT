@@ -34,6 +34,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ CE-1034 H1 — reads a side file of the terrain folder by bare name (the height grid), or null when it is not there.</summary>
         public Func<string, string?>? ReadFile { get; init; }
 
+        /// <summary>⭐ CE-4365 — opens a BINARY side file of the terrain folder by bare name (the height store, <c>.heights</c>), or null.</summary>
+        public Func<string, Stream?>? OpenFile { get; init; }
+
         /// <summary>The assets of the terrain folder <paramref name="terrainFolder"/>.</summary>
         public static TerrainAssets ForFolder(string terrainFolder, string? sharedBuildingsRoot = null)
         {
@@ -51,6 +54,13 @@ namespace Fdp.Toolkit.Terrain
                         throw new ArgumentException($"Terrain side file name '{name}' may not contain a path.");
                     var path = Path.Combine(terrainFolder, name);
                     return File.Exists(path) ? File.ReadAllText(path) : null;
+                },
+                OpenFile = name =>
+                {
+                    if (name.IndexOfAny(new[] { '/', '\\' }) >= 0 || name.Contains(".."))
+                        throw new ArgumentException($"Terrain side file name '{name}' may not contain a path.");
+                    var path = Path.Combine(terrainFolder, name);
+                    return File.Exists(path) ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20) : null;
                 },
                 Templates = name =>
                 {

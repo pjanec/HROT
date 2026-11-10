@@ -322,6 +322,9 @@ namespace Hrot.Editor.DebugApi
                         ["recentAvgMs"] = Math.Round(sys.Profile?.GetRecentAverageMs() ?? 0.0, 4),
                         ["maxMs"]       = Math.Round(sys.Profile?.MaxMs ?? 0.0, 4),
                         ["errors"]      = sys.Profile?.ErrorCount ?? 0,
+                        // ⭐ CE-4364 — the garbage it makes (bytes per execution, its thread): the scale rig's 0 B / frame budget
+                        ["recentAvgBytes"] = Math.Round(sys.Profile?.GetRecentAverageBytes() ?? 0.0, 1),
+                        ["avgBytes"]       = Math.Round(sys.Profile?.AverageBytes ?? 0.0, 1),
                     }).ToArray()),
                     ["translators"] = new JsonArray(snapshot.Translators.Select(t => (JsonNode)new JsonObject
                     {
@@ -347,10 +350,29 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject
             {
                 ["subsystems"] = subsystems,
+                ["process"]    = ProcessNumbers(),
                 ["note"]       = "one entry per SUBSYSTEM on this node — a --mode all node runs several, "
                                + "each with its own ModuleHostKernel. Other nodes host their own MCP "
                                + "endpoint; ask each one for its own architecture.",
             }, null, null);
+        }
+
+        /// <summary>⭐ CE-4364 (the scale rig, docs/DESIGN_Scale_Rig.md) — this node's process: memory (now and peak) and the GC's own counters.</summary>
+        private static JsonObject ProcessNumbers()
+        {
+            using var p = System.Diagnostics.Process.GetCurrentProcess();
+            var gc = GC.GetGCMemoryInfo();
+            return new JsonObject
+            {
+                ["workingSetBytes"]     = p.WorkingSet64,
+                ["peakWorkingSetBytes"] = p.PeakWorkingSet64,
+                ["managedHeapBytes"]    = GC.GetTotalMemory(false),
+                ["allocatedBytes"]      = GC.GetTotalAllocatedBytes(false),
+                ["gen0"]                = GC.CollectionCount(0),
+                ["gen1"]                = GC.CollectionCount(1),
+                ["gen2"]                = GC.CollectionCount(2),
+                ["pauseTimePercent"]    = Math.Round(gc.PauseTimePercentage, 2),
+            };
         }
     }
 }

@@ -76,9 +76,19 @@ namespace Fdp.Toolkit.Terrain
             if (meta?["heightGrid"] is JsonNode hg)
             {
                 string file = (string?)hg ?? throw new ArgumentException("Terrain world hrot.heightGrid must be a file name.", nameof(geojson));
-                string text = assets.ReadFile?.Invoke(file)
-                    ?? throw new ArgumentException($"Terrain world hrot.heightGrid: '{file}' was not found beside the world file.", nameof(geojson));
-                grid = TerrainHeightGrid.ParseAsciiGrid(text, file, groundZ);
+                if (file.EndsWith(TerrainHeightGrid.StoreSuffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    // ⭐ CE-4365 (L-3) — the binary height store (a large terrain at 1 m); the .asc stays for small terrains
+                    using var store = assets.OpenFile?.Invoke(file)
+                        ?? throw new ArgumentException($"Terrain world hrot.heightGrid: '{file}' was not found beside the world file.", nameof(geojson));
+                    grid = TerrainHeightGrid.ReadStore(store, file);
+                }
+                else
+                {
+                    string text = assets.ReadFile?.Invoke(file)
+                        ?? throw new ArgumentException($"Terrain world hrot.heightGrid: '{file}' was not found beside the world file.", nameof(geojson));
+                    grid = TerrainHeightGrid.ParseAsciiGrid(text, file, groundZ);
+                }
             }
             // ⭐ TH-C — a piece with no explicit baseZ stands on the LOWEST ground under it (no gap on the downhill side)
             float GroundUnder(IReadOnlyList<Vector2> polygon) => grid?.LowestUnder(polygon) ?? groundZ;

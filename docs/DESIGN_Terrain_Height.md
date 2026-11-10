@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge and wadi as a grid) BUILT 2026-10-15 (§5d, CE-3086); H3b + H5a–H5d BUILT 2026-10-11 (§5c: bridges, road heights, the highway-rest terrain, CE-1048); H4 and H6 to come. Leans TH-A..TH-H APPROVED (R-249); the library
+build-state: BUILDING — §9 the large height store BUILT 2026-11-10 (L-3, CE-4365) · H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge and wadi as a grid) BUILT 2026-10-15 (§5d, CE-3086); H3b + H5a–H5d BUILT 2026-10-11 (§5c: bridges, road heights, the highway-rest terrain, CE-1048); H4 and H6 to come. Leans TH-A..TH-H APPROVED (R-249); the library
   question settled by the Q0 spike (DESIGN_World_Query_Seam.md §5a: Bepu for objects, the height stays a grid).
 updated: 2026-10-10 (rev 5 — §5b H2 + H3 as built. Rev 4 — §5a H1 as built, with its deviations argued. Rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
   (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
@@ -463,3 +463,88 @@ what things land on; nothing changes inside our terrain.
 | **A2** movement off-road | units outside move on **straight legs over open ground**: `RoutePlanner` returns a direct leg when the start or the goal lies outside the navmesh footprint (there are no buildings or obstacles out there), Z from A1; inside, the navmesh as today | baking a navmesh over the whole net: cost grows with the net (a 350 km net) for terrain with nothing on it · our own road graph out there: R-4026 keeps it separate from SUMO |
 | **A3** fidelity | outside the terrain is outside every zone ⇒ low fidelity (R-4042): coarse 40 m ground, no buildings, no cover; sensors may see nothing there | — |
 | **A4** what it does NOT give | no physics surfaces, buildings, water or materials outside — just a height; R-252 still holds (the brain may not assume this coarse ground) | — |
+
+## 9. ⭐ THE LARGE HEIGHT STORE — a 5.5 km terrain at 1 m *(L-3, `CE-4365`, backend `2026-11-10`; PLAN_Large_Terrain P-1; build-state: BUILT)*
+
+**What changed for callers: nothing.** `TerrainHeightGrid` keeps its surface (`Sample`, `this[c, r]`, `Crosses`, `LowestUnder`, `MinZ`/`MaxZ`);
+its samples now live in `TerrainHeightTiles` — 256² tiles behind a tile index — whether they came from an `.asc` (one tile) or the new binary
+store (`<name>.heights`, 22 × 22 tiles at 1 m over 5.5 km).
+
+```mermaid
+classDiagram
+  class TerrainHeightGrid {
+    existing surface unchanged
+    +Sample(x, y)
+    +Crosses(a, b)
+    +Tiles TerrainHeightTiles
+    +ReadStore(stream) static
+    +WriteStore(stream)
+    +Resample(src raster, bounds, spacing) static
+    +WriteAsciiGrid(writer)
+    -float[] blockMax  L-5
+  }
+  class TerrainHeightTiles {
+    NEW
+    +this[c, r]  shifts and masks
+    +FromRows(z, cols, rows) static
+    +Read(stream) static
+    +Write(stream)
+    -float[] data  tile-major
+    -int[] slot  the tile index
+  }
+  class TerrainWorldParser {
+    existing
+    hrot.heightGrid .asc or .heights
+  }
+  class TerrainAssets {
+    +ReadFile  text side file
+    +OpenFile  binary side file  NEW
+  }
+  class hrot_heights {
+    NEW tool
+    input set heights.f32 to .heights or .asc
+  }
+  TerrainHeightGrid *-- TerrainHeightTiles
+  TerrainWorldParser ..> TerrainAssets
+  TerrainWorldParser ..> TerrainHeightGrid : ParseAsciiGrid or ReadStore
+  hrot_heights ..> TerrainHeightGrid : Resample, WriteStore
+```
+
+```mermaid
+sequenceDiagram
+  participant S as terrain-scale.py (or the importer, L-6)
+  participant H as hrot-heights
+  participant P as TerrainWorldParser (terrain load)
+  participant G as TerrainHeightGrid
+  S->>H: --set full-1 --spacing 1 --out scale-1.heights
+  H->>G: Resample(heights.f32) then WriteStore
+  Note over P: at load, once
+  P->>G: ReadStore(OpenFile("scale-1.heights"))
+  G->>G: block maxima (L-5)
+```
+
+**Who calls it each frame:** nobody new — sight / fire / `GroundHeightAt` call `TerrainHeightGrid` as before; the indexer is now two shifts,
+a mask and one index read more (§9.2).
+
+**INVENTORY** (graph `search_graph TerrainHeightGrid` + grep): the class is used by `TerrainWorld` (`GroundHeightAt`, `SegmentBlocked`,
+`QuerySight`, `QueryFire`), `TerrainWorldParser` (the reader) and `TerrainWorldMesh` (`GroundLayout`, ground corners); tests `TerrainHeightTests`.
+No caller touches the sample array ⇒ the storage swap is local.
+
+### 9.1 The file — `<name>.heights`
+
+`"HRTH"` · u32 version 1 · u32 cols · u32 rows · f64 origin x · f64 origin y · f64 cell size · u32 tile size (256) · u32 tiles x · u32 tiles y ·
+then every tile (the south row of tiles first, west first), 256² little-endian f32, row 0 = south. A tile past the grid's east / north edge
+repeats the edge post. Written by `hrot-heights` (the one resampler: bilinear; a post with no valid corner takes its row's nearest valid post).
+
+### 9.2 Decisions — by measurement *(Release, this cloud VM, 4 cores)*
+
+| # | options | measured | chosen |
+|---|---|---|---|
+| H-1 | sample format: **16-bit + per-tile offset/scale** (the lean) · float | 5 501² posts at 1 m, 20 M samples, two runs: random access 45–58 vs 41–53 ns; ALONG LINES (a sight trace's access) **13–15 vs 24 ns**; memory **63 vs 127 MB**; 16-bit max error 0.16 cm | ⭐ **float** — the lean was overturned by the next measurement: with L-5's skipping trace a 3 km sight line costs 3.8 µs, so the per-sample gain is a fraction of a µs; float keeps EVERY shipped terrain exact (`TerrainHeightTests` asserts exact posts; behaviors' replay goldens read heights) — 16-bit would change them by up to range/65 535. 127 MB per node is 3 % of the 4 GB budget |
+| H-2 | tile size | 256² (the lean) — not re-measured: a tile index of 22 × 22 for 5.5 km; a partial inset fills only its tiles | 256² |
+| H-3 | the whole store loaded at start · memory-mapped | **load 0.31 s** for 127 MB (`ReadStore`) vs the same heights as a 1 m `.asc`: **5.9 s, 813 MB managed** at the peak of the parse | loaded at start — far inside the 30 s budget; mapping not needed |
+| H-4 | one flat `float[]` · tiles + index | `Sample` 34–38 ns flat vs 41–53 ns tiled (random); along lines 16–23 vs 24 ns | tiles + index — the sparse-inset requirement (CE-4012); the cost is invisible behind L-5 |
+| H-5 | the resampler: Python (terrain-scale.py) · C# | the C# one (`TerrainHeightGrid.Resample`, tool `hrot-heights`) writes 5 501² posts in 1.3 s; its 2 m `.asc` equals the Python one's to the last printed digit (≤ 0.01 m) | ⭐ C# — ONE resampler, the importer (L-6) reuses it; the Python copy deleted |
+
+**Rails:** `HeightStoreTests` — every post across partial tiles, the store bit for bit, a truncated / foreign file refused by name, basic-desert from
+its `.heights` answers `GroundHeightAt` and the ground trace exactly as from its `.asc`, the resampler's plane + NODATA fill.

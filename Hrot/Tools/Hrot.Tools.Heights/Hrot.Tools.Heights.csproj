@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- CE-4365 (L-3): an input set's heights (heights.f32 + .hdr) resampled into a terrain's height grid — the binary store (.heights) or an
+       ESRI ASCII grid (.asc). docs/DESIGN_Terrain_Height.md §9. Used by scripts/terrain-scale.py; the importer (L-6) uses the same resampler. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>hrot-heights</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+  </ItemGroup>
+</Project>

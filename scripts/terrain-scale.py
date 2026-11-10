@@ -2,13 +2,13 @@
 """terrain-scale.py — the SCALE terrain (CE-4363, PLAN_Large_Terrain §7.1): the synthetic 5.5 km set filled with the existing templates.
 
   scripts/terrain-scale.py                       # seed 1 -> assets/terrain/scale-1/
-  scripts/terrain-scale.py --seed 2 --spacing 2  # another seed; height posts every 2 m (the .asc TerrainHeightGrid reads)
+  scripts/terrain-scale.py --seed 2 --heights asc --spacing 2   # another seed; an .asc at 2 m instead of the 1 m store
   scripts/terrain-scale.py --synth DIR           # use an already generated input set instead of running hrot-terrain-synth
 
 Steps:
   1. hrot-terrain-synth --preset full --seed N  ->  artifacts/terrain-synth/full-N  (skipped when the set is already there)
-  2. heights/heights.f32 (north row first) resampled to an ESRI ASCII grid at --spacing metres, in terrain-local metres; the
-     synthetic NODATA cells take their row's nearest valid height (no 500 m cliff down to groundZ)
+  2. heights/heights.f32 resampled by hrot-heights (C#, CE-4365) to the binary height store at 1 m (--heights store, the default) or
+     an ESRI ASCII grid (--heights asc, 2 m), in terrain-local metres; NODATA posts take their row's nearest valid height
   3. on every synthetic building site, one of the 7 templates in assets/buildings/: the largest whose footprint fits the site's
      rectangle (its longest wall = the template's x), else the smallest; the front (local y = 0) turned to the nearer lane; kept only
      when it stands clear of every lane and junction (the fence demo-city-quarters.py uses — scripts/terrain_placement.py) and of
@@ -19,7 +19,6 @@ The output folder is gitignored (assets/terrain/scale-*/) — regenerated, never
 byte-identical files. Pure stdlib.
 """
 import argparse
-import array
 import json
 import math
 import os
@@ -51,81 +50,11 @@ def run_synth(seed, out, extras):
 
 # ── heights ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-def read_heights_meta(synth):
-    hj = json.load(open(os.path.join(synth, "heights", "heights.json"), encoding="utf-8"))
-    hdr = {}
-    for line in open(os.path.join(synth, "heights", "heights.hdr"), encoding="utf-8"):
-        parts = line.split()
-        if len(parts) >= 2:
-            hdr[parts[0].lower()] = parts[1]
-    return hj, hdr
-
-
-def resample_heights(synth, bounds, spacing, out_path):
-    """heights.f32 -> an .asc at `spacing` m covering `bounds` (input-set frame), written in terrain-local metres (minus bounds' min)."""
-    _, hdr = read_heights_meta(synth)
-    ncols, nrows = int(hdr["ncols"]), int(hdr["nrows"])
-    # BIL: ulxmap / ulymap = the centre of the NORTH-WEST post; xdim / ydim = the spacing
-    ulx, uly = float(hdr["ulxmap"]), float(hdr["ulymap"])
-    dx, dy = float(hdr["xdim"]), float(hdr["ydim"])
-    nodata = float(hdr.get("nodata", "-9999"))
-    minx, miny, maxx, maxy = bounds
-    cols = int(round((maxx - minx) / spacing)) + 1
-    rows = int(round((maxy - miny) / spacing)) + 1
-    f = open(os.path.join(synth, "heights", "heights.f32"), "rb")
-    rowbytes = ncols * 4
-
-    def src_row(r):
-        f.seek(r * rowbytes)
-        a = array.array("f")
-        a.frombytes(f.read(rowbytes))
-        if sys.byteorder != "little":
-            a.byteswap()
-        return a
-
-    lo, hi, filled = float("inf"), float("-inf"), 0
-    with open(out_path, "w", encoding="utf-8", newline="\n") as o:
-        o.write(f"ncols {cols}\nnrows {rows}\nxllcenter 0\nyllcenter 0\ncellsize {spacing:g}\n")
-        for k in range(rows):                      # the file's first row is the NORTH edge
-            y = maxy - k * spacing
-            fr = (uly - y) / dy
-            r0 = min(max(int(math.floor(fr)), 0), nrows - 1); r1 = min(r0 + 1, nrows - 1); v = min(max(fr - r0, 0.0), 1.0)
-            A, B = src_row(r0), src_row(r1)
-            vals = []
-            for c in range(cols):
-                x = minx + c * spacing
-                fc = (x - ulx) / dx
-                c0 = min(max(int(math.floor(fc)), 0), ncols - 1); c1 = min(c0 + 1, ncols - 1); u = min(max(fc - c0, 0.0), 1.0)
-                q = (A[c0], A[c1], B[c0], B[c1])
-                good = [z for z in q if z != nodata]
-                if len(good) == 4:
-                    z = (q[0] * (1 - u) + q[1] * u) * (1 - v) + (q[2] * (1 - u) + q[3] * u) * v
-                elif good:
-                    z = sum(good) / len(good)
-                else:
-                    z = None
-                vals.append(z)
-            # NODATA: the nearest valid post in this row (the synthetic gaps are cells at the east edge)
-            last = None
-            for c in range(cols):
-                if vals[c] is None:
-                    filled += 1
-                else:
-                    last = vals[c]
-                    continue
-                vals[c] = last
-            nxt = None
-            for c in range(cols - 1, -1, -1):
-                if vals[c] is None:
-                    vals[c] = nxt
-                else:
-                    nxt = vals[c]
-            for z in vals:
-                lo, hi = min(lo, z), max(hi, z)
-            o.write(" ".join(f"{z:.2f}" for z in vals))
-            o.write("\n")
-    f.close()
-    return cols, rows, lo, hi, filled
+def write_heights(synth, spacing, out_path):
+    """the set's heights -> the terrain's grid (a .heights store or an .asc) through hrot-heights (CE-4365: ONE resampler, C#)."""
+    r = subprocess.run(["dotnet", "run", "-c", "Release", "--project", os.path.join(ROOT, "Hrot", "Tools", "Hrot.Tools.Heights"), "--",
+                        "--set", synth, "--spacing", f"{spacing:g}", "--out", out_path], check=True, capture_output=True, text=True)
+    return r.stdout.strip()
 
 
 # ── buildings ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -269,7 +198,9 @@ def place_houses(synth, anchor, net_path, t0):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--spacing", type=float, default=2.0, help="height post spacing of the .asc (m); 1 m is the height store's (L-3)")
+    ap.add_argument("--heights", choices=("store", "asc"), default="store",
+                    help="store: the binary height store (.heights, CE-4365) · asc: an ESRI ASCII grid (the small-terrain format)")
+    ap.add_argument("--spacing", type=float, default=None, help="height post spacing (m); default 1 for the store, 2 for an .asc")
     ap.add_argument("--synth", default=None, help="an existing input set (default: artifacts/terrain-synth/full-<seed>, generated when absent)")
     ap.add_argument("--extras", action="store_true", help="generate the input set with --extras (woods, water, scrub)")
     ap.add_argument("--name", default=None, help="default: scale-<seed>")
@@ -296,9 +227,12 @@ def main():
 
     out = a.out or os.path.join(ROOT, "assets", "terrain", name)
     os.makedirs(out, exist_ok=True)
-    asc = f"{name}.height.asc"
-    cols, rows, lo, hi, filled = resample_heights(synth, bounds, a.spacing, os.path.join(out, asc))
-    log(f"heights: {cols} x {rows} posts at {a.spacing:g} m, z {lo:.1f}..{hi:.1f}, {filled} NODATA posts filled", t0)
+    spacing = a.spacing or (1.0 if a.heights == "store" else 2.0)
+    asc = f"{name}.heights" if a.heights == "store" else f"{name}.height.asc"
+    for old in (f"{name}.heights", f"{name}.height.asc"):
+        if old != asc and os.path.exists(os.path.join(out, old)):
+            os.remove(os.path.join(out, old))
+    log(write_heights(synth, spacing, os.path.join(out, asc)), t0)
 
     houses, st = place_houses(synth, anchor, net_src, t0)
     by_t = {}

@@ -102,6 +102,35 @@ namespace Fdp.ModuleHost.Tests
             Assert.NotNull(profile);
             Assert.Equal(1, profile.ExecutionCount);
         }
+
+        /// <summary>⭐ CE-4364 (docs/DESIGN_Scale_Rig.md) — the profiler records each system's garbage beside its time: a system that
+        /// allocates 64 KB per frame reads ≥ 64 KB, one that allocates nothing reads 0 (the 0 B / steady frame budget is read from this).</summary>
+        [Fact]
+        public void CE4364_Profiling_TracksTheBytesEachSystemAllocates()
+        {
+            var scheduler = new SystemScheduler();
+            var clean = new TestSystemA();
+            var dirty = new AllocatingSystem();
+            scheduler.RegisterSystem(clean);
+            scheduler.RegisterSystem(dirty);
+            scheduler.BuildExecutionOrders();
+
+            var mockView = new MockSimulationView();
+            for (int i = 0; i < 3; i++) scheduler.ExecutePhase(SystemPhase.Simulation, mockView, 0.016f);
+
+            var d = scheduler.GetProfileData(dirty)!;
+            Assert.True(d.GetRecentAverageBytes() >= 64 * 1024, $"the allocating system read {d.GetRecentAverageBytes()} B");
+            Assert.True(d.TotalBytes >= 3 * 64 * 1024);
+            Assert.Equal(0, scheduler.GetProfileData(clean)!.GetRecentAverageBytes());
+        }
+    }
+
+    [UpdateInPhaseAttribute(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.EveryFrame)]
+    class AllocatingSystem : IEcsModuleSystem
+    {
+        public byte[]? Last;
+        public void Execute(ISimulationView view, float deltaTime) { Last = new byte[64 * 1024]; }
     }
 
     // Mock ISimulationView for tests
