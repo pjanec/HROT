@@ -28,15 +28,26 @@ public static class ImportCli
 
     public const string Usage = "usage: hrot-terrain-import --set DIR --name NAME [--replace] [--terrains DIR] [--scenarios DIR] [--verify] [--no-navmesh]";
 
-    /// <summary>--verify: parses the written terrain with the real terrain loader (definition + world + templates + height store) and says how long it took.</summary>
+    /// <summary>
+    /// --verify: reads the written terrain through the ONE folder → world step a node's load uses (definition + world + templates + height
+    /// store) and says how long it took; ⭐ CE-4393 — then bakes its navmesh the way a first load does (the prefilled <c>navtiles/</c> as the
+    /// seed, a memory-only cache: nothing written) and says how many tiles came from the seed.
+    /// </summary>
     private static void Verify(string folder, string name, TextWriter output)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var def = Fdp.Toolkit.Terrain.TerrainDefinitionParser.Parse(File.ReadAllText(Path.Combine(folder, "terrain.json")));
-        var assets = Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder, Path.Combine(Path.GetTempPath(), "no-shared-buildings"));
-        var world = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, def.World)), name, assets);
+        string definitionPath = Path.Combine(folder, "terrain.json");
+        var def = Fdp.Toolkit.Terrain.TerrainFolderWorld.ReadDefinition(definitionPath);
+        var world = Fdp.Toolkit.Terrain.TerrainFolderWorld.ReadWorld(definitionPath, def, name);
+        if (world == null) { output.WriteLine("verify: the terrain declares no world"); return; }
         output.WriteLine(System.FormattableString.Invariant(
             $"verify: the terrain loader parsed it in {sw.Elapsed.TotalSeconds:0.0} s — {world.Buildings.Count} buildings ({world.Buildings.Count(b => b.Solid)} solid), {world.Prisms.Count} prisms, {world.Panels.Count} wall panels, {world.Doors.Count} doors, {world.Walkables.Count} slabs/ramps, {world.Surfaces.Count} surfaces"));
+        sw.Restart();
+        var factory = new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory { TileCache = new Fdp.Toolkit.Navigation.Recast.NavTileCache(folder: null) };
+        factory.Build(world);
+        var st = factory.LastStats;
+        output.WriteLine(System.FormattableString.Invariant(
+            $"verify: the first load's navmesh in {sw.Elapsed.TotalSeconds:0.0} s — {st.Tiles} tiles, {st.FromCache} from navtiles/, {st.Baked} baked"));
     }
 
     public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, CancellationToken ct)
