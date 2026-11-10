@@ -74,6 +74,7 @@ def start(mode, port, base=0, domain=0):
     args = ["--mode", mode, "--no-wait"] + ([] if str(base) == "auto" else ["-n", str(base)]) + ["-d", str(domain)]
     args += os.environ.get("HROT_NODE_ARGS", "").split()
     env = dict(os.environ, HROT_DEBUG_API_PORT=str(port))
+    env.setdefault("HROT_HIDDEN_WINDOW", "1")   # CE-4386 — a windowed node (--windowed) never pops up on the operator's desktop; =0 shows it
     dll = runner_dll()
     log = open(log_path(mode, port), "wb")
     flags = (subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW) if WINDOWS else 0
