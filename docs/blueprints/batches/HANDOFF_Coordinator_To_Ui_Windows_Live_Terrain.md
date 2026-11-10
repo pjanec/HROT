@@ -7,7 +7,7 @@ current-answer: the whole file
 # HANDOFF — coordinator → ui (on the user's WINDOWS machine): the OSM wizard LIVE end to end, and the first real frame rates
 
 **For:** ui, **run on the user's Windows machine** (many cores, a real GPU, open internet — what the cloud VM cannot give: Overpass is blocked
-there and its GL is software). **From:** coordinator. **Dispatched at `<STAMP>`**, scope frozen there. Merge the other lanes first; push
+there and its GL is software). **From:** coordinator. **Dispatched at `6b8e18423`**, scope frozen there. Merge the other lanes first; push
 `chore: started HANDOFF_Coordinator_To_Ui_Windows_Live_Terrain at <sha>`; status file `STATUS_Ui_Windows_Live_Terrain.md`. Same
 [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md). ⛔⛔ **Never stop for a question** (R-4156); a premise that fails stops THAT item only (R-106).
 
