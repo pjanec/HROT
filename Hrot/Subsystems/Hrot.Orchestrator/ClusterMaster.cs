@@ -2546,7 +2546,7 @@ public sealed partial class ClusterMaster : IDisposable
     {
         _pendingTransactions.Remove(txId);
         // ⭐ AQ107 C — a load's parked origin is published on success only; a failed round drops it (the nodes never adopted it).
-        (TerrainGeoOrigin Origin, string TerrainName)? parkedGeo =
+        (TerrainGeoFrame.Wire Frame, string TerrainName)? parkedGeo =
             _pendingGeoReferences.Remove(txId, out var parked) ? parked : null;
         // ⚠ BEFORE the outcome: a phased round (zone, terrain asset) re-uses this id for its commit phase, and
         //   OnPhaseSuccess below records that phase's owed ACKs under the SAME id.

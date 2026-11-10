@@ -66,39 +66,27 @@ public sealed class UtmTransformTests
         // real-1 lies west of zone 32's meridian (9° E): γ negative, about −1.6 … −1.7° (UTM §2)
         double g = new UtmTransform(Zone, false, E0, N0).GridConvergenceDeg(new Vector3(2750f, 2750f, 0f));
         Assert.InRange(g, -1.75, -1.55);
-        // the tangent plane (and every double) has none: its +Y is true north
-        Assert.Equal(0.0, ((IGeographicTransform)new WGS84Transform(54.5, 7.0, 0)).GridConvergenceDeg(new Vector3(2750f, 2750f, 0f)));
+        // a local-only frame has none (and every test double)
+        Assert.Equal(0.0, ((IGeographicTransform)new LocalOnlyFrame()).GridConvergenceDeg(new Vector3(2750f, 2750f, 0f)));
     }
 
     [Fact]
-    public void A_tangent_plane_terrain_reads_exactly_as_before_through_the_switchable_transform()
-    {
-        var before = new WGS84Transform();
-        before.SetOrigin(52.52, 13.405, 34.0);
-        var now = new SwitchableGeoTransform();
-        now.UseTangentPlane(52.52, 13.405, 34.0);
-        for (float x = -3000f; x <= 3000f; x += 750f)
-            for (float y = -3000f; y <= 3000f; y += 750f)
-            {
-                var p = new Vector3(x, y, 12.25f);
-                Assert.Equal(before.ToGeodetic(p), now.ToGeodetic(p));                       // byte-for-byte
-                Assert.Equal(before.ToCartesian(52.5 + x * 1e-5, 13.4 + y * 1e-5, 40), now.ToCartesian(52.5 + x * 1e-5, 13.4 + y * 1e-5, 40));
-            }
-        Assert.Equal(before.Origin, now.Origin);
-    }
-
-    [Fact]
-    public void The_one_instance_switches_its_frame_and_back_and_holders_follow()
+    public void The_one_instance_switches_between_utm_and_local_only_and_holders_follow()
     {
         var geo = new SwitchableGeoTransform();
         IGeographicTransform holder = geo;                     // what a translator, a module, the debug API keep
+        Assert.False(holder.HasFrame);                         // before any terrain: local-only
         geo.UseUtm(Zone, false, E0, N0);
+        Assert.True(holder.HasFrame);
         var (lat, lon, _) = holder.ToGeodetic(Vector3.Zero);
         var expected = Utm.ToGeodetic(E0, N0, Zone, false);
         Assert.True(MetresBetween((lat, lon), (expected.LatDeg, expected.LonDeg)) < 0.01);
-        geo.UseTangentPlane(52.52, 13.405, 0);
-        Assert.IsType<WGS84Transform>(geo.Inner);
-        Assert.Equal(52.52, holder.Origin.lat, 9);
+        geo.UseOrigin(52.52, 13.405, 0);                       // the rule: zone 33 N at that point
+        Assert.Equal(33, Assert.IsType<UtmTransform>(geo.Inner).Zone);
+        Assert.Equal(52.52, holder.Origin.lat, 8);
+        geo.UseLocalOnly();
+        Assert.False(holder.HasFrame);
+        Assert.Throws<NoGeoFrameException>(() => holder.ToGeodetic(Vector3.Zero));
     }
 
     [Fact]

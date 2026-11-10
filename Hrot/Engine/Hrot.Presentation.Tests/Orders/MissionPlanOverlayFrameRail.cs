@@ -61,7 +61,7 @@ public sealed class MissionPlanOverlayFrameRail
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
         var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new FdpEventBus(), camera: camera);
         canvas.AddLayer(gizmos);
-        new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0)).Draw(w, unit, buffer);
+        new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0)).Draw(w, unit, buffer);
         gizmos.Update(0.016f);
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
@@ -91,7 +91,7 @@ public sealed class MissionPlanOverlayFrameRail
         edit.OnInteractionStarted(new Fdp.Toolkit.Diagnostics.Gizmos.GizmoPickToken { SubElementId = 3 }, new Vector3(80, 90, 0));
         edit.OnDragUpdate(new Vector3(110, 20, 0));
         buffer.Clear();
-        new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0)).Draw(w, unit, buffer);
+        new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0)).Draw(w, unit, buffer);
         edit.UpdateAndDraw(w, 0.016f, buffer);
         gizmos.Update(0.016f);
         frame.Step(canvas.Draw);

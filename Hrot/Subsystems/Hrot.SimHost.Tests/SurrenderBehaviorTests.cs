@@ -53,8 +53,7 @@ namespace Hrot.SimHost.Tests
                     () => { if (!Repo.IsComponentTypeRegistered<LaidDownWeapons>()) Repo.RegisterComponent<LaidDownWeapons>(); },
                     () => { if (!Repo.IsComponentTypeRegistered<Gesture>()) Repo.RegisterComponent<Gesture>(); },
                 }) reg();
-                var geo = new WGS84Transform();
-                geo.SetOrigin(0.0, 0.0, 0.0);
+                var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);

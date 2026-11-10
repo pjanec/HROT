@@ -204,7 +204,7 @@ namespace Hrot.ScenarioEditor.Tools
         /// </summary>
         private Vector3 ComputeAnchor(Vector2[] points, out List<Vector2> relative)
         {
-            if (_geo == null)
+            if (_geo == null || !_geo.HasFrame)
             {
                 double sx = 0.0, sy = 0.0;
                 for (int i = 0; i < points.Length; i++) { sx += points[i].X; sy += points[i].Y; }

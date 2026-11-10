@@ -45,8 +45,7 @@ namespace Hrot.SimHost.Tests
                 SimHostComponentRegistry.RegisterAll(Repo);
                 CognitiveComponentRegistry.RegisterAll(Repo);
                 BlueprintTierTable.RegisterAll(Repo);
-                var geo = new WGS84Transform();
-                geo.SetOrigin(0.0, 0.0, 0.0);
+                var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 Fdp.Toolkit.Utility.StandardInputs.RegisterAll();   // ⭐ CE-2073 — as CgfLogicPack's input scan does in production

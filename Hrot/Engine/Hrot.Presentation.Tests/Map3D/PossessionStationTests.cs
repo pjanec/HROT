@@ -822,7 +822,7 @@ public sealed partial class PossessionStationTests
         {
             w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
             w.AddComponent(leader, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
-            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();   // every live host has one: a point order goes geodetic
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0);   // every live host has one: a point order goes geodetic
             geo.SetOrigin(52.520, 13.405, 0.0);
             w.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             var soldier = new Fdp.Core.DISEntityType { Value = (3UL << 56) | (1UL << 48) | (225UL << 32) | (1UL << 24) };

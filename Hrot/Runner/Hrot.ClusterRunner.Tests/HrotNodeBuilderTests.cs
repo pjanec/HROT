@@ -264,7 +264,7 @@ public sealed class HrotNodeBuilderTests
     [Fact]
     public void CE3126_Build_UsesTheSuppliedGeoTransform_AndPublishesItOnTheWorld()
     {
-        var supplied = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+        var supplied = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0);
         var config = HeadlessConfig();
         config.ExternalGeoTransform = supplied;
         var ctx = new HrotNodeBuilder(config).WithRole("Test", Fdp.Core.NodeRole.MuscleGround).Build();

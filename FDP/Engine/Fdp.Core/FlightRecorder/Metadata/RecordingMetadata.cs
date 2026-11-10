@@ -194,5 +194,13 @@ namespace Fdp.Core.FlightRecorder.Metadata
         public double Lat { get; set; }
         public double Lon { get; set; }
         public double Alt { get; set; }
+
+        /// <summary>
+        /// ⭐ CE-4396 (docs/DESIGN_Geo_Origin.md §6.1a, R-4197) — the UTM frame IS this origin (zone = its longitude band, hemisphere = its latitude's
+        /// sign, E0 / N0 = it projected there). These two say a zone OTHER than that one — written only when the terrain used another; null in
+        /// every old recording and in nearly every new one.
+        /// </summary>
+        public int? UtmZoneOverride { get; set; }
+        public bool? UtmSouthOverride { get; set; }
     }
 }

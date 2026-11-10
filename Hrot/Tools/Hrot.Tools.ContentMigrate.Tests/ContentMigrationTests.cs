@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Tools.ContentMigrate;
@@ -19,7 +20,7 @@ public sealed class ContentMigrationTests
     private static readonly ParamsMigrator Migrator = ParamsMigrator.ForRepository(Repo);
 
     // every terrain in assets/terrain declares this origin
-    private static readonly WGS84Transform Berlin = new(52.52, 13.405, 0);
+    private static readonly IGeographicTransform Berlin = UtmTransform.AtOrigin(52.52, 13.405, 0);
 
     private static JsonObject Migrate(string behavior, string json)
     {

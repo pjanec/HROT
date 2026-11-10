@@ -38,8 +38,7 @@ public sealed class EntityAiSectionTests
             SimHostComponentRegistry.RegisterAll(World);
             CognitiveComponentRegistry.RegisterAll(World);
             BlueprintTierTable.RegisterAll(World);
-            var geo = new WGS84Transform();
-            geo.SetOrigin(0.0, 0.0, 0.0);
+            var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
             World.SetSingletonManaged<IGeographicTransform>(geo);
             CgfBehaviorSetup.LoadFromAiAssembly(Registry);
             Model = new EntityAiEditModel(() => World, () => Registry, null, history);

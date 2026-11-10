@@ -1221,7 +1221,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1) };
         using (var repo = new EntityRepository())
         {
-            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform(48.1, 11.5, 500.0);
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(48.1, 11.5, 500.0);
             repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
             repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { ResolvedName = "test-town" });
@@ -1243,6 +1243,87 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(48.1, lat, 9);
         Assert.Equal(11.5, lon, 9);
         Assert.Equal(500.0, alt, 9);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4396 UE-d (R-4197) — an OLD recording (lat / lon / alt only, no override) is read as the UTM frame at that origin: its local positions
+    /// are kept, only the geodetic read-outs are on the grid; local (0, 0) is the origin exactly.
+    /// </summary>
+    [Fact]
+    public void CE4396_AnOldRecording_ReplaysOnTheUtmFrameOfItsOrigin()
+    {
+        string path = Path.Combine(_tempDir, "old.fdp");
+        WriteRecordingWithOrigin(path, new Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord { Lat = 48.1, Lon = 11.5, Alt = 500.0 });
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        var geo = _subsystem.GeoTransform;
+        Assert.True(geo.HasFrame);
+        Assert.Equal((32, false), geo.UtmZone);   // 11.5° E is zone 32 N
+        var (lat, lon, alt) = geo.ToGeodetic(System.Numerics.Vector3.Zero);
+        Assert.Equal(48.1, lat, 7); Assert.Equal(11.5, lon, 7); Assert.Equal(500.0, alt, 6);
+        var (eLat, eLon) = Fdp.Modules.Geographic.Transforms.Utm.ToGeodetic(
+            Fdp.Modules.Geographic.Transforms.Utm.FromGeodetic(48.1, 11.5, 32, false).Easting + 1000,
+            Fdp.Modules.Geographic.Transforms.Utm.FromGeodetic(48.1, 11.5, 32, false).Northing, 32, false);
+        var (kLat, kLon, _) = geo.ToGeodetic(new System.Numerics.Vector3(1000, 0, 0));
+        Assert.Equal(eLat, kLat, 8); Assert.Equal(eLon, kLon, 8);   // a point 1 km east is where the grid says
+    }
+
+    /// <summary>⭐ CE-4396 UE-d — a new recording round-trips the optional zone override (written only when the frame's zone is not the origin's natural one).</summary>
+    [Fact]
+    public void CE4396_ANewRecording_RoundTripsTheZoneOverride()
+    {
+        // a frame that keeps zone 34 N at an origin whose natural zone is 33 (17.9° E): the recorder writes the override, the browser reads it back
+        var frame = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(49.0, 17.9, 0.0, zoneOverride: 34);
+        string path = Path.Combine(_tempDir, "zone.fdp");
+        var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1) };
+        using (var repo = new EntityRepository())
+        {
+            repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(frame);
+            using var rec = new AsyncRecorder(path, meta);
+            Fdp.Toolkit.Replay.RecorderTickSystem.StampWorld(repo, rec.Metadata);
+            rec.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
+        }
+        var written = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(path + ".meta.json"));
+        Assert.Equal(34, written.GeoOrigin!.UtmZoneOverride); Assert.False(written.GeoOrigin.UtmSouthOverride);
+
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        Assert.Equal((34, false), _subsystem.GeoTransform.UtmZone);
+        var (lat, lon, _) = _subsystem.GeoTransform.ToGeodetic(System.Numerics.Vector3.Zero);
+        Assert.Equal(49.0, lat, 7); Assert.Equal(17.9, lon, 7);
+
+        // a frame in its natural zone writes NO override
+        string natural = Path.Combine(_tempDir, "natural.fdp");
+        WriteRecordingWithOrigin(natural, null, Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(48.1, 11.5, 500.0));
+        var w2 = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(natural + ".meta.json"));
+        Assert.Null(w2.GeoOrigin!.UtmZoneOverride); Assert.Null(w2.GeoOrigin.UtmSouthOverride);
+    }
+
+    /// <summary>⭐ CE-4396 UE-d — a recording made on a terrain with NO origin carries none: the replay is local-only (geodetic read-outs refused).</summary>
+    [Fact]
+    public void CE4396_ARecordingWithoutAnOrigin_IsLocalOnly()
+    {
+        string path = Path.Combine(_tempDir, "none.fdp");
+        WriteRecordingWithOrigin(path, null, new Fdp.Modules.Geographic.Transforms.LocalOnlyFrame());
+        var written = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(path + ".meta.json"));
+        Assert.Null(written.GeoOrigin);
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        Assert.False(_subsystem.GeoTransform.HasFrame);
+        Assert.Throws<Fdp.Modules.Geographic.Transforms.NoGeoFrameException>(() => _subsystem.GeoTransform.ToGeodetic(System.Numerics.Vector3.Zero));
+    }
+
+    /// <summary>A one-keyframe recording whose metadata carries <paramref name="origin"/> (an OLD recording: lat / lon only) or the stamp of <paramref name="frame"/>.</summary>
+    private static void WriteRecordingWithOrigin(string path, Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? origin,
+                                                 Fdp.Modules.Geographic.IGeographicTransform? frame = null)
+    {
+        var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1) };
+        using var repo = new EntityRepository();
+        if (frame != null) repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(frame);
+        using var rec = new AsyncRecorder(path, meta);
+        if (frame != null) Fdp.Toolkit.Replay.RecorderTickSystem.StampWorld(repo, rec.Metadata);
+        if (origin != null) rec.Metadata.GeoOrigin = origin;
+        rec.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
     }
 
     /// <summary>

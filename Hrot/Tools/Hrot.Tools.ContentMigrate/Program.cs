@@ -24,7 +24,7 @@ namespace Hrot.Tools.ContentMigrate;
 /// <c>[x, y, z]</c> a <see cref="PointLink"/>, a number a <see cref="Fdp.Core.Bearing"/>):</para>
 /// <list type="bullet">
 /// <item>a <see cref="PointLink"/> leaf holding the retired <c>PickableGeoPoint</c> form <c>[lat, lon]</c> → <c>[x, y, 0]</c> local metres through
-///   the scenario terrain's geo origin (<see cref="WGS84Transform"/>, as <c>OrderGeo.ToLocal</c> did); a pair that is not a valid latitude /
+///   the scenario terrain's geo origin (the node's rule — UTM at that origin, CE-4396 / R-4197 — as <c>OrderGeo.ToLocal</c> did through the node's transform); a pair that is not a valid latitude /
 ///   longitude is the old no-transform fallback (<c>x = second, y = first</c>), also as <c>OrderGeo.ToLocal</c> did;</item>
 /// <item><c>MoveToLocation</c>: <c>targetLat</c> / <c>targetLon</c> (or the local <c>x</c> / <c>y</c> fallback) → <c>target</c>;</item>
 /// <item><c>DefendArea</c>: <c>CenterLat</c> / <c>CenterLon</c> → <c>Center</c>.</item>
@@ -109,7 +109,7 @@ public sealed class ParamsMigrator
         var ids = NetworkIdsToKeys(bytes);   // S9': this file's entity network id -> its file key (the GUID)
         var holds = ids.Count == 0 ? new List<(int Start, int Length, long Value)>() : HoldUnitSites(bytes);
 
-        WGS84Transform? geo = null;
+        IGeographicTransform? geo = null;
         string? terrain = TerrainName(bytes);
         var edits = new List<(int Start, int Length, byte[] Text)>();
         foreach (var site in sites)
@@ -237,12 +237,12 @@ public sealed class ParamsMigrator
 
     private static JsonArray Point((double X, double Y) p) => new(JsonValue.Create(Math.Round(p.X, 2)), JsonValue.Create(Math.Round(p.Y, 2)), JsonValue.Create(0));
 
-    private WGS84Transform GeoFor(string? terrain, string path)
+    private IGeographicTransform GeoFor(string? terrain, string path)
     {
-        var origin = terrain != null ? _terrains.ReadDefinition(terrain)?.Origin : null;
-        if (origin is not { } o)
+        var def = terrain != null ? _terrains.ReadDefinition(terrain) : null;
+        if (def?.Origin == null && def?.Utm == null)
             throw new InvalidOperationException($"{path}: a [lat, lon] value needs the terrain's geo origin, and terrain '{terrain ?? "(none)"}' declares none.");
-        return new WGS84Transform(o.Lat, o.Lon, o.Alt);
+        return TerrainGeoFrame.Of(def!.Origin, def.Utm);
     }
 
     private static string At(string path) => path.Length == 0 ? "" : path + ".";

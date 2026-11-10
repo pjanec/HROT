@@ -946,9 +946,9 @@ public sealed class ClusterMasterSeekTests
     }
 
     /// <summary>⭐ AQ107 C — the origin is the ANCHOR node's (the earliest first frame), never the first node listed; and a recording that carries no
-    /// origin (it pre-dates CE-3126) publishes 0,0,0 (R-229).</summary>
+    /// origin (it pre-dates CE-3126, or its terrain had none) says NO GEO FRAME (CE-4396 UE-e: <c>NoGeoFrame</c> ⇒ <c>Frame = none</c>).</summary>
     [Fact]
-    public void AQ107C_TheAggregateTakesTheAnchorNodesOrigin_AndZerosWhenNoRecordingHasOne()
+    public void AQ107C_TheAggregateTakesTheAnchorNodesOrigin_AndSaysNoFrameWhenNoRecordingHasOne()
     {
         static string Wire(Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult r)
             => JsonSerializer.Serialize(r, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
@@ -968,7 +968,7 @@ public sealed class ClusterMasterSeekTests
             [1] = new() { [FdpNodeOpType.PrepareReplay] = Wire(new(5, 4f, 100_000_000, 140_000_000)) },
         };
         var zero = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(new ReplayConsensusAggregator().Aggregate(bare));
-        Assert.Equal((0.0, 0.0, 0.0), (zero.GeoOrigin!.Lat, zero.GeoOrigin.Lon, zero.GeoOrigin.Alt));
+        Assert.Null(zero.GeoOrigin); Assert.True(zero.NoGeoFrame);   // CE-4396 UE-e: no origin anywhere ⇒ the master publishes Frame = none
 
         // a REVIEW's aggregate names no origin: the run's was published at its load
         var review = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(

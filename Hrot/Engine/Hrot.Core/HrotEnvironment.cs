@@ -59,7 +59,7 @@ namespace Hrot.Map.Common
         }
 
         /// <summary>
-        /// A node's geo transform, at origin 0,0,0 until a terrain commit sets the terrain's own origin
+        /// A node's geo transform: LOCAL-ONLY (no frame) until a terrain commit sets the terrain's frame (UTM by its origin, CE-4396)
         /// (<c>TerrainResidency.ApplyGeoOrigin</c>). ⛔ <c>CE-3126</c> (R-229) — this used to set a hard-coded Berlin origin;
         /// 🔒 user, <c>2026-10-08</c>: <i>"No default berlin. Missing geo = zeros."</i> The shipped terrains carry Berlin as their
         /// own data. ⚠ Call it ONCE per node — the node builder adopts the network factory's instance; a second one would not

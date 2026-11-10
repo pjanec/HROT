@@ -192,7 +192,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
 
     /// <summary>
     /// The scenarios (folder names under the scenarios root) whose <c>scenario.json</c> header names this terrain — <c>header.terrainName</c>,
-    /// which the scenario serializer writes first (<c>ScenarioHeaderDto.TerrainName</c>), so the first 64 KB are enough.
+    /// which the scenario serializer writes first; any depth under the scenarios root (<c>ScenarioHeaderDto.TerrainName</c>), so the first 64 KB are enough.
     /// </summary>
     public IReadOnlyList<string> ScenariosUsing(string terrainName)
     {

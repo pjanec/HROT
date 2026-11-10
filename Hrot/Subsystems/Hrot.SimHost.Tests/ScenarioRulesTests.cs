@@ -55,8 +55,7 @@ namespace Hrot.SimHost.Tests
             SimHostComponentRegistry.RegisterAll(repo);
             CognitiveComponentRegistry.RegisterAll(repo);
             BlueprintTierTable.RegisterAll(repo);
-            var geo = new WGS84Transform();
-            geo.SetOrigin(0.0, 0.0, 0.0);
+            var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
             repo.SetSingletonManaged<IGeographicTransform>(geo);
             if (!repo.IsComponentTypeRegistered<StanceIntent>()) repo.RegisterComponent<StanceIntent>();   // the probe: HoldStance writes it when present
 
@@ -137,8 +136,7 @@ namespace Hrot.SimHost.Tests
                 BlueprintTierTable.RegisterAll(Repo);
                 if (!Repo.IsComponentTypeRegistered<NetworkIdentity>()) Repo.RegisterComponent<NetworkIdentity>();
                 if (!Repo.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>()) Repo.Bus.Register<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
-                var geo = new WGS84Transform();
-                geo.SetOrigin(0.0, 0.0, 0.0);
+                var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);

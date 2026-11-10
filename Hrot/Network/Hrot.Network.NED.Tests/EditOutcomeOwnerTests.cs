@@ -45,8 +45,7 @@ public sealed class EditOutcomeOwnerTests
         public Node(bool owns, int localNode)
         {
             Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(World);
-            var geo = new WGS84Transform();
-            geo.SetOrigin(52.52, 13.405, 0.0);
+            var geo = UtmTransform.AtOrigin(52.52, 13.405, 0.0);
             World.SetSingletonManaged<IGeographicTransform>(geo);
 
             Entity = World.CreateEntity();

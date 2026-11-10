@@ -320,7 +320,7 @@ public class PlayerApplication : IDisposable
 
     // -- Task 5: IG-to-ExCon event translator state ----------------------------------------------
 
-    private Fdp.Modules.Geographic.IGeographicTransform? _geoTransform;   // ⭐ CE-4394 — the interface: a UTM terrain's transform is not a WGS84Transform (was a cast ⇒ null ⇒ ghosts at 0,0)
+    private Fdp.Modules.Geographic.IGeographicTransform? _geoTransform;   // ⭐ CE-4394 — the interface: every terrain's transform is UTM or local-only (was a cast ⇒ null ⇒ ghosts at 0,0)
 
     // Protocol-neutral adapter wrapping all IG DDS writers and readers (Task 18).
     private Hrot.Core.Network.IIgNetworkAdapter? _networkAdapter;
@@ -1698,7 +1698,7 @@ public class PlayerApplication : IDisposable
             entity = _ghostCreationSystem.CreateGhost(_world, entityId);
 
         Vector3 position;
-        if (_geoTransform != null)
+        if (_geoTransform != null && _geoTransform.HasFrame)
         {
             var cartesian = _geoTransform.ToCartesian(lat, lon, alt);
             position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);

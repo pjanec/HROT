@@ -339,7 +339,7 @@ namespace Fdp.Toolkit.Weather
 
             // the sun, from the point's latitude / longitude
             double lat = 0, lon = 0;
-            if (world.HasSingletonManaged<IGeographicTransform>() && world.GetSingletonManaged<IGeographicTransform>() is { } geo)
+            if (world.HasSingletonManaged<IGeographicTransform>() && world.GetSingletonManaged<IGeographicTransform>() is { HasFrame: true } geo)
                 (lat, lon, _) = geo.ToGeodetic(point);
             var sun = SolarPosition.Of(utc, lat, lon);
 

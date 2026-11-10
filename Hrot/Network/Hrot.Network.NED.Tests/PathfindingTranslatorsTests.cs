@@ -4,6 +4,7 @@ using CarKinem.Trajectory;
 using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Services;
@@ -20,7 +21,7 @@ namespace Hrot.Network.NED.Tests
     {
         private const int BrainNode = 7;
 
-        private static WGS84Transform Geo() => new(52.52, 13.405, 0.0);
+        private static IGeographicTransform Geo() => UtmTransform.AtOrigin(52.52, 13.405, 0.0);
 
         /// <summary>
         /// The actor's order — forced backend, navmesh layer and road use — crosses the wire. 🔴 Before: the request carried

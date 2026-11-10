@@ -30,6 +30,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             _repo.RegisterComponent<PositionGeodetic>();
             
             _mockGeo = new Mock<IGeographicTransform>();
+            _mockGeo.SetupGet(g => g.HasFrame).Returns(true);   // CE-4396: a Moq mock does not run the interface default
             _system = new GeodeticSmoothingSystem(_mockGeo.Object);
         }
         

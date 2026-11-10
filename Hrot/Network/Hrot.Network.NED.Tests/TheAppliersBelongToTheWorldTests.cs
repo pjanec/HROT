@@ -34,8 +34,7 @@ public class TheAppliersBelongToTheWorldTests
         var repo = new EntityRepository();
         Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(repo);
 
-        var geo = new WGS84Transform();
-        geo.SetOrigin(52.52, 13.405, 0.0);
+        var geo = UtmTransform.AtOrigin(52.52, 13.405, 0.0);
         repo.SetSingletonManaged<IGeographicTransform>(geo);
         return repo;
     }

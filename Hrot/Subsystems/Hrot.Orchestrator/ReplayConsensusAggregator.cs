@@ -89,14 +89,15 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
         //   origin was published at its load and a review changes nothing.
         Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? aggregatedOrigin = null;
         string? aggregatedTerrain = null;
+        bool noGeoFrame = false;
         if (_target == NodeOpType.PrepareReplay && maxDuration > 0f)
         {
             if (geo is { } anchor) { aggregatedOrigin = anchor.Origin; aggregatedTerrain = anchor.Terrain; }
             else
             {
-                aggregatedOrigin = new Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord();   // 0, 0, 0
+                noGeoFrame = true;   // CE-4396 UE-e: the replay has no geo frame — the master publishes Frame = none
                 Fdp.Core.Logging.FdpLog<ReplayConsensusAggregator>.Warn(
-                    "[Orchestrator] AQ107 C: no node's recording carries a geo origin (it pre-dates CE-3126) — the replay's GeoReference is 0,0,0.");
+                    "[Orchestrator] AQ107 C: no node's recording carries a geo origin — the replay's GeoReference says Frame = none.");
             }
         }
 
@@ -106,7 +107,7 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
                                       TimeMap: maps.Count == 0 ? null
                                           : Fdp.Core.FlightRecorder.ReplayTimeMap.Intersect(maps.OrderBy(m => m.First).Select(m => m.Map)),
                                       Checkpoints: marks.Values.OrderBy(m => m.WallTicks).ToArray(),
-                                      GeoOrigin: aggregatedOrigin, TerrainName: aggregatedTerrain)
+                                      GeoOrigin: aggregatedOrigin, TerrainName: aggregatedTerrain, NoGeoFrame: noGeoFrame)
             : null;
     }
 }

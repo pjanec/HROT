@@ -417,7 +417,7 @@ public sealed class TerrainResidency
         _navmesh?.Publish(null);
         if (world != null)
             foreach (var loader in _contentLoaders) loader.Unload(world);   // AQ93 R-4021 — the content goes with its terrain
-        ApplyGeoOrigin(world, TerrainGeoOrigin.Zero, terrainName: null);   // CE-3126 — no terrain: origin 0,0,0
+        ApplyGeoOrigin(world, null, terrainName: null);   // CE-3126 / CE-4396 — no terrain: no geo frame (local-only)
 
         _lastLoadedTerrainName = null;
         _lastLoadedTimestamp   = default;
@@ -558,40 +558,53 @@ public sealed class TerrainResidency
         if (world == null || !world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()) return;
         var geo = world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>();
         if (geo == null) return;
-        // ⭐ CE-4394 (docs/DESIGN_Terrain_Import_UTM.md §12.2 U-2) — the node's ONE transform is switchable: a terrain that declares its
-        //   exact UTM frame selects the UTM implementation, every other the tangent plane at its origin (exactly today's SetOrigin). A
-        //   world whose transform is not switchable (a test double) keeps SetOrigin.
+        // ⭐ CE-4396 (docs/DESIGN_Geo_Origin.md §6.1a, R-4197) — the node's ONE transform is switchable and its only frames are UTM and "none": the
+        //   stored lat / lon origin IS the frame (zone = its longitude band, hemisphere = its latitude's sign, E0 / N0 = it projected there); a terrain
+        //   that declares its exact `frame.utm` (an imported one, or a zone override) uses that; no origin ⇒ LOCAL-ONLY (geodetic conversions refused).
+        //   A world whose transform is not switchable (a test double) keeps SetOrigin.
         if (geo is Fdp.Modules.Geographic.Transforms.SwitchableGeoTransform switchable)
         {
+            string who = terrainName != null ? $"terrain '{terrainName}'" : "no terrain";
             if (utm != null)
             {
+                if (origin is { } og)
+                {
+                    var (pe, pn) = Fdp.Modules.Geographic.Transforms.Utm.FromGeodetic(og.Lat, og.Lon, utm.Zone, utm.South);
+                    if (Math.Abs(pe - utm.Easting) > 0.01 || Math.Abs(pn - utm.Northing) > 0.01)
+                        FdpLog<TerrainResidency>.Warn(
+                            $"[Terrain] {who}: frame.utm (E {utm.Easting}, N {utm.Northing}) and the origin projected into zone {utm.Zone} (E {pe:F3}, N {pn:F3}) differ by {pe - utm.Easting:F3} m, {pn - utm.Northing:F3} m — the frame is used.");
+                }
                 if (switchable.Inner is Fdp.Modules.Geographic.Transforms.UtmTransform u && u.Zone == utm.Zone && u.South == utm.South
-                    && u.E0 == utm.Easting && u.N0 == utm.Northing) return;
+                    && u.E0 == utm.Easting && u.N0 == utm.Northing && u.H0 == (origin?.Alt ?? 0.0)) return;
                 switchable.UseUtm(utm.Zone, utm.South, utm.Easting, utm.Northing, origin?.Alt ?? 0.0);
-                FdpLog<TerrainResidency>.Info(
-                    $"[Terrain] geo frame set to UTM zone {utm.Zone}{(utm.South ? "S" : "N")} at E {utm.Easting}, N {utm.Northing} (terrain '{terrainName}').");
+                FdpLog<TerrainResidency>.Info($"[Terrain] geo frame set to UTM zone {utm.Zone}{(utm.South ? "S" : "N")} at E {utm.Easting}, N {utm.Northing} ({who}).");
                 return;
             }
-            if (switchable.Inner is not Fdp.Modules.Geographic.Transforms.WGS84Transform)
+            if (origin is { } o)
             {
-                var z = origin ?? TerrainGeoOrigin.Zero;
-                switchable.UseTangentPlane(z.Lat, z.Lon, z.Alt);
-                FdpLog<TerrainResidency>.Info(
-                    $"[Terrain] geo frame back to the tangent plane at {z.Lat}, {z.Lon}, {z.Alt} ({(terrainName != null ? $"terrain '{terrainName}'" : "no terrain")}).");
+                var want = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(o.Lat, o.Lon, o.Alt);
+                if (switchable.Inner is Fdp.Modules.Geographic.Transforms.UtmTransform cur && cur.Zone == want.Zone && cur.South == want.South
+                    && cur.E0 == want.E0 && cur.N0 == want.N0 && cur.H0 == want.H0) return;
+                switchable.UseOrigin(o.Lat, o.Lon, o.Alt);
+                FdpLog<TerrainResidency>.Info($"[Terrain] geo frame set to UTM zone {want.Zone}{(want.South ? "S" : "N")} at the origin {o.Lat}, {o.Lon}, {o.Alt} ({who}).");
                 return;
             }
+            if (terrainName != null)
+                FdpLog<TerrainResidency>.Warn($"[Terrain] '{terrainName}' declares no 'origin' — its local metres have no geo frame (geodetic conversions are refused).");
+            if (switchable.Inner.HasFrame)
+            {
+                switchable.UseLocalOnly();
+                FdpLog<TerrainResidency>.Info($"[Terrain] geo frame cleared — local-only ({who}).");
+            }
+            return;
         }
-        else if (utm != null && terrainName != null)
-            FdpLog<TerrainResidency>.Warn($"[Terrain] '{terrainName}' declares a UTM frame, but this node's geo transform cannot switch — the tangent plane at its origin is used.");
-        var o = origin ?? TerrainGeoOrigin.Zero;
-        if (origin == null && terrainName != null)
-            FdpLog<TerrainResidency>.Warn(
-                $"[Terrain] '{terrainName}' declares no 'origin' — its local metres are placed at 0,0,0 (lat, lon, alt).");
+        if (utm != null && terrainName != null)
+            FdpLog<TerrainResidency>.Warn($"[Terrain] '{terrainName}' declares a UTM frame, but this node's geo transform cannot switch — SetOrigin at its origin is used.");
+        var oo = origin ?? TerrainGeoOrigin.Zero;
         var current = geo.Origin;
-        if (current.lat == o.Lat && current.lon == o.Lon && current.alt == o.Alt) return;
-        geo.SetOrigin(o.Lat, o.Lon, o.Alt);
-        FdpLog<TerrainResidency>.Info(
-            $"[Terrain] geo origin set to {o.Lat}, {o.Lon}, {o.Alt} ({(terrainName != null ? $"terrain '{terrainName}'" : "no terrain")}).");
+        if (current.lat == oo.Lat && current.lon == oo.Lon && current.alt == oo.Alt) return;
+        geo.SetOrigin(oo.Lat, oo.Lon, oo.Alt);
+        FdpLog<TerrainResidency>.Info($"[Terrain] geo origin set to {oo.Lat}, {oo.Lon}, {oo.Alt} ({(terrainName != null ? $"terrain '{terrainName}'" : "no terrain")}).");
     }
 
     /// <summary>
@@ -606,7 +619,7 @@ public sealed class TerrainResidency
     {
         if (string.IsNullOrWhiteSpace(terrainName))
         {
-            ApplyGeoOrigin(world, TerrainGeoOrigin.Zero, terrainName: null);
+            ApplyGeoOrigin(world, null, terrainName: null);
             return;
         }
         var definition = _catalog.ReadDefinition(terrainName);   // ⭐ AQ107 C — the catalog's one locate-and-parse (the master reads it the same way)

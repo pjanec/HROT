@@ -822,14 +822,15 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     /// recording metadata in case terrain with remembered name no longer exists"</i>. Held by the map's projectors
     /// (MapServices) and published on every bound repo. 📄 docs/DESIGN_Geo_Origin.md §2 F.
     /// </summary>
-    private readonly Fdp.Modules.Geographic.Transforms.WGS84Transform _geoTransform = new();
+    private readonly Fdp.Modules.Geographic.Transforms.SwitchableGeoTransform _geoTransform = new();   // ⭐ CE-4396 (UE-d): UTM by the recording's origin, or local-only
 
     /// <summary>The replay's geo transform (test seam).</summary>
     internal Fdp.Modules.Geographic.IGeographicTransform GeoTransform => _geoTransform;
 
     /// <summary>
     /// ⭐ <c>CE-3126</c> — sets the replay's origin from the loaded recording's metadata (the local-entities provider node's,
-    /// else any node's that has one). A recording that pre-dates the field keeps 0,0,0 and says so.
+    /// else any node's that has one). ⭐ CE-4396 (UE-d, R-4197): the recorded lat / lon IS the UTM frame (an OLD recording is read the same way — its local positions are kept, only
+    /// the geodetic read-outs are on the grid), with the optional zone override the recording carries; a recording with NO origin is local-only.
     /// </summary>
     private void ApplyRecordingGeoOrigin()
     {
@@ -843,11 +844,11 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         if (origin == null)
         {
             Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Warn(
-                "[ReplayBrowser] the recording carries no geo origin (it pre-dates CE-3126) — lat/lon shown at origin 0,0,0.");
-            _geoTransform.SetOrigin(0.0, 0.0, 0.0);
+                "[ReplayBrowser] the recording carries no geo origin — the replay has no geo frame (local-only).");
+            _geoTransform.UseLocalOnly();
             return;
         }
-        _geoTransform.SetOrigin(origin.Lat, origin.Lon, origin.Alt);
+        _geoTransform.UseOrigin(origin.Lat, origin.Lon, origin.Alt, origin.UtmZoneOverride, origin.UtmSouthOverride);
     }
 
     /// <summary>

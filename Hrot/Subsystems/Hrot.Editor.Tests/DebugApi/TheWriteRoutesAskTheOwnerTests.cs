@@ -46,8 +46,7 @@ public sealed class TheWriteRoutesAskTheOwnerTests
         public Node(bool ownsSimTransform, bool simTransformIsNetworked)
         {
             Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(World);
-            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
-            geo.SetOrigin(52.52, 13.405, 0.0);
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(52.52, 13.405, 0.0);
             World.SetSingletonManaged<IGeographicTransform>(geo);
 
             Entity = World.CreateEntity();

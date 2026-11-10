@@ -207,25 +207,22 @@ public sealed class TerrainDefinitionTests
     }
 
     /// <summary>
-    /// ⭐ A transform starts at 0,0,0 with VALID matrices (before CE-3126 a bare instance mapped everything to the origin), and
-    /// switching the origin moves the same local point to a different lat/lon while the round trip stays exact.
+    /// ⭐ CE-4396 — the node's transform starts LOCAL-ONLY (no default place) and a set origin gives the UTM frame at that point;
+    /// the round trip stays exact.
     /// </summary>
     [Fact]
-    public void CE3126_WGS84Transform_StartsAtZero_AndSwitchesOrigin()
+    public void CE4396_TheSwitchableTransform_StartsLocalOnly_AndAnOriginGivesUtm()
     {
-        var t = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
-        Assert.Equal((0.0, 0.0, 0.0), t.Origin);
+        var t = new Fdp.Modules.Geographic.Transforms.SwitchableGeoTransform();
+        Assert.False(t.HasFrame);
         var local = new System.Numerics.Vector3(489f, 296f, 0f);
-        var (lat0, lon0, _) = t.ToGeodetic(local);
-        Assert.InRange(lat0, 0.0026, 0.0028);
-        Assert.InRange(lon0, 0.0043, 0.0045);
-
         t.SetOrigin(52.52, 13.405, 0.0);
+        Assert.True(t.HasFrame);
         var (lat, lon, alt) = t.ToGeodetic(local);
         Assert.InRange(lat, 52.522, 52.523);
         var back = t.ToCartesian(lat, lon, alt);
         Assert.True(System.Numerics.Vector3.Distance(back, local) < 0.05f, $"{back}");
-        Assert.Equal(52.52, t.Origin.lat, 9);
+        Assert.Equal(52.52, t.Origin.lat, 8);
     }
 
     /// <summary>

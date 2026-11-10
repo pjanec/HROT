@@ -21,6 +21,7 @@ namespace Fdp.Modules.Geographic.Systems
         
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (!_geo.HasFrame) return;   // CE-4396: a local-only terrain has no geodetic ghosts to place
             if (Fdp.Toolkit.Replay.ReplayState.IsRestoring(view)) return;   // ⭐ CE-3329 P2 — restoring this node's recording: it owns every pose; a LISTENING replay's ghosts are still smoothed (§12l)
             // Inbound: Geodetic → Physics (for ghost / remote entities only).
             // .WithoutOwned<Position>() replaces the legacy manual

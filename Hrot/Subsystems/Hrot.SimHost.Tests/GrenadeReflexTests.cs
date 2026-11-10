@@ -67,8 +67,7 @@ namespace Hrot.SimHost.Tests
                 if (!Repo.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SensorChangedEvent>()) Repo.Bus.Register<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
                 if (!Repo.Bus.IsRegistered<PickUpRoundEvent>()) Repo.Bus.Register<PickUpRoundEvent>();
                 if (!Repo.Bus.IsRegistered<PickUpGrantEvent>()) Repo.Bus.Register<PickUpGrantEvent>();
-                var geo = new WGS84Transform();
-                geo.SetOrigin(0.0, 0.0, 0.0);
+                var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 var db = new Fdp.Toolkit.Tkb.TkbDatabase();
                 _soldier = new Fdp.Interfaces.TkbTemplate("Soldier", SoldierType);

@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// when the recording pre-dates the field, and on a REVIEW's result (the run's origin is already published). Aggregated by a replay's
     /// aggregator: the anchor node's, else zeros (R-229) — the master publishes it as the NED wire's frame origin.</param>
     /// <param name="TerrainName">⭐ AQ107 C — the terrain resident while this node's recording was made (its metadata), with <paramref name="GeoOrigin"/>.</param>
+    /// <param name="NoGeoFrame">⭐ CE-4396 UE-e — set by a REPLAY's aggregator when no node's recording carries an origin: the replay has no geo frame, and the master publishes <c>Frame = none</c>.</param>
     /// <param name="RetractionAckTimeout">⭐⭐ <c>CE-4079</c> ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — <see langword="null"/> when this node's
     /// retraction disposes were acknowledged before it reported prepared; otherwise the text of the bounded wait that timed out (reported, never fatal).</param>
     public record struct ReplayPrepareResult(int MaxNetworkId, float DurationSeconds,
@@ -36,5 +37,6 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                                              Fdp.Core.FlightRecorder.Metadata.CheckpointMark[]? Checkpoints = null,
                                              Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord? GeoOrigin = null,
                                              string? TerrainName = null,
-                                             string? RetractionAckTimeout = null);
+                                             string? RetractionAckTimeout = null,
+                                             bool NoGeoFrame = false);
 }

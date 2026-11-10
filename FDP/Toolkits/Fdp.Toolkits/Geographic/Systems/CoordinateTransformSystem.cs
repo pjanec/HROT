@@ -21,6 +21,7 @@ namespace Fdp.Modules.Geographic.Systems
         
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (!_geo.HasFrame) return;   // CE-4396: a local-only terrain has no geodetic position to publish
             var cmd = view.GetCommandBuffer();
             
             // Outbound: Physics → Geodetic (for locally-owned entities only).

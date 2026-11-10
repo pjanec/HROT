@@ -166,7 +166,8 @@ namespace Hrot.AI.Behaviors.StandardLibrary
 
         private static IGeographicTransform? Transform(ISimulationView view)
             => view is EntityRepository world && world.HasSingletonManaged<IGeographicTransform>()
-                ? world.GetSingletonManaged<IGeographicTransform>()
+                && world.GetSingletonManaged<IGeographicTransform>() is { HasFrame: true } geo   // CE-4396: a local-only frame answers as no transform
+                ? geo
                 : null;
     }
 }

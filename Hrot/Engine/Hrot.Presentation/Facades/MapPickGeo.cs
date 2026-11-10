@@ -18,7 +18,7 @@ public static class MapPickGeo
     /// <summary>The local position (east <paramref name="x"/>, north <paramref name="y"/>, up <paramref name="z"/> metres) as a geodetic point.</summary>
     public static GeoPoint ToGeoPoint(Fdp.Modules.Geographic.IGeographicTransform? geo, double x, double y, double z = 0.0)
     {
-        if (geo is null) return new GeoPoint(x, y, 0);
+        if (geo is null || !geo.HasFrame) return new GeoPoint(x, y, 0);
         var (lat, lon, alt) = geo.ToGeodetic(new System.Numerics.Vector3((float)x, (float)y, (float)z));
         return new GeoPoint(lat, lon, alt);
     }

@@ -57,8 +57,7 @@ namespace Hrot.SimHost.Tests
         {
             using var repo = CreateTestWorld();
             repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
-            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
-            geo.SetOrigin(50.0, 14.0, 0.0);
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(50.0, 14.0, 0.0);
             repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             var centre = geo.ToCartesian(50.001, 14.001, 0.0);
             var commander = repo.CreateEntity();
@@ -86,8 +85,7 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateTestWorld();
             repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
             repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
-            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
-            geo.SetOrigin(50.0, 14.0, 0.0);
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(50.0, 14.0, 0.0);
             repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             var centre = geo.ToCartesian(50.001, 14.001, 0.0);
             var platoon = repo.CreateEntity();
@@ -118,8 +116,7 @@ namespace Hrot.SimHost.Tests
         public void TryMap_Infantry_DefendsWithCombatPosture_AtTheAreaCentre(long tkbType)
         {
             using var repo = CreateTestWorld();
-            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
-            geo.SetOrigin(50.0, 14.0, 0.0);
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(50.0, 14.0, 0.0);
             repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             var centre = geo.ToCartesian(50.001, 14.001, 0.0);
             var entity = repo.CreateEntity();

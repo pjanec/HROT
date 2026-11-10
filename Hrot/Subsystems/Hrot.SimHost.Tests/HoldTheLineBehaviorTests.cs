@@ -64,8 +64,7 @@ namespace Hrot.SimHost.Tests
                     () => { if (!Repo.IsComponentTypeRegistered<Gesture>()) Repo.RegisterComponent<Gesture>(); },
                     () => { if (!Repo.Bus.IsRegistered<DamageAssessedEvent>()) Repo.Bus.Register<DamageAssessedEvent>(); },
                 }) reg();
-                var geo = new WGS84Transform();
-                geo.SetOrigin(0.0, 0.0, 0.0);
+                var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);

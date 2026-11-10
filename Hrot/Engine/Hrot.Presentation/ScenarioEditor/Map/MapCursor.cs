@@ -105,7 +105,7 @@ namespace Hrot.ScenarioEditor.Map
             var p = local.Value;
             var geo = _world() is { } w && w.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 ? w.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() : null;
-            if (geo is null) { _readout.Set(new MapCursorSample(p, false, 0, 0, 0)); return; }
+            if (geo is null || !geo.HasFrame) { _readout.Set(new MapCursorSample(p, false, 0, 0, 0)); return; }
             var (lat, lon, alt) = geo.ToGeodetic(p);
             _readout.Set(new MapCursorSample(p, true, lat, lon, alt));
         }

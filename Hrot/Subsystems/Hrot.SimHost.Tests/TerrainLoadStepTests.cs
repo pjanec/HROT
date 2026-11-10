@@ -835,7 +835,7 @@ public sealed class TerrainLoadStepTests : IDisposable
 
         using var holder = new RoadNetworkHolder();
         using var world = NewWorld();
-        var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+        var geo = Hrot.Map.Common.HrotEnvironment.CreateGeoTransform();
         world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
         var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
 
@@ -843,18 +843,20 @@ public sealed class TerrainLoadStepTests : IDisposable
         Assert.Equal(48.1, geo.Origin.lat, 9);
         Assert.Equal(11.5, geo.Origin.lon, 9);
         Assert.Equal(500.0, geo.Origin.alt, 9);
+        Assert.Equal(32, Assert.IsType<Fdp.Modules.Geographic.Transforms.UtmTransform>(geo.Inner).Zone);   // ⭐ CE-4396: the origin IS the UTM frame
 
         residency.Commit(world, residency.Prepare("unplaced"));
-        Assert.Equal((0.0, 0.0, 0.0), geo.Origin);   // ⛔ no default: missing geo = zeros
+        Assert.False(geo.HasFrame);   // ⛔ no default place: a terrain without an origin is LOCAL-ONLY, geodetic calls refused
+        Assert.Throws<Fdp.Modules.Geographic.Transforms.NoGeoFrameException>(() => geo.ToGeodetic(System.Numerics.Vector3.Zero));
 
         residency.Commit(world, residency.Prepare("placed"));
         residency.Unload(world);
-        Assert.Equal((0.0, 0.0, 0.0), geo.Origin);
+        Assert.False(geo.HasFrame);
     }
 
     /// <summary>
     /// ⭐ CE-4394 (UTM §12.2 U-2) — a terrain that declares its exact UTM frame switches the node's ONE transform to it (the object every
-    /// holder keeps is the same; its inside changes), and the next tangent-plane terrain switches it back. ✅ Red-proof: Commit not passing
+    /// holder keeps is the same; its inside changes), and the next origin-only terrain switches it to the UTM frame its origin gives. ✅ Red-proof: Commit not passing
     /// the definition's frame ⇒ the transform stays a tangent plane ⇒ red.
     /// </summary>
     [Fact]
@@ -888,7 +890,8 @@ public sealed class TerrainLoadStepTests : IDisposable
         Assert.Equal(exact.LonDeg, lon, 9);
 
         residency.Commit(world, residency.Prepare("placed"));
-        Assert.IsType<Fdp.Modules.Geographic.Transforms.WGS84Transform>(geo.Inner);
+        var byRule = Assert.IsType<Fdp.Modules.Geographic.Transforms.UtmTransform>(geo.Inner);   // ⭐ CE-4396: an origin-only terrain is UTM by the rule
+        Assert.Equal(32, byRule.Zone);
         Assert.Equal(48.1, kept.Origin.lat, 9);
     }
 
@@ -953,7 +956,7 @@ public sealed class TerrainLoadStepTests : IDisposable
 
             using var holder = new RoadNetworkHolder();
             using var world  = NewWorld();
-            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            var geo = Hrot.Map.Common.HrotEnvironment.CreateGeoTransform();
             world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
             var bake = new GatedNavmeshFactory();

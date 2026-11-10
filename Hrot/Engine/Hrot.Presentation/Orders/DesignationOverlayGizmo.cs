@@ -91,7 +91,7 @@ public sealed class DesignationOverlayGizmo : IEntityStatefulGizmo
     {
         if (value is not JsonArray { Count: >= 2 } a) return null;
         double p0 = a[0]!.GetValue<double>(), p1 = a[1]!.GetValue<double>();
-        return geo != null ? geo.ToCartesian(p0, p1, 0) : new Vector3((float)p1, (float)p0, 0f);
+        return geo is { HasFrame: true } ? geo.ToCartesian(p0, p1, 0) : new Vector3((float)p1, (float)p0, 0f);
     }
 
     public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }

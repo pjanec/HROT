@@ -803,7 +803,7 @@ public sealed class MenuOrdersTests : IDisposable
         _w.SetManagedComponent(_unit, new ActiveMissionPlan { Plan = plan });
         _w.AddComponent(_unit, new MissionPlanQueue { CurrentTask = 1, TaskCount = 3 });
 
-        var gizmo = new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0));
+        var gizmo = new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0));
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 64);
         gizmo.Draw(_w, _unit, buffer);
         var frame = buffer.GetFrame().ToArray();

@@ -82,7 +82,7 @@ namespace Fdp.ModuleHost.Tests
         public void CE3216_ASnapshot_BorrowsTheGeoTransform()
         {
             using var live = LiveAt(1.0);
-            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0);
             live.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             var mask = new BitMask512();
             for (int i = 0; i < 256; i++) mask.SetBit(i);

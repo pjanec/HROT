@@ -118,7 +118,7 @@ public sealed class HostOnlyWiringTests : IDisposable
         {
             World = other,
             ReportUnserviceableTool = reports.Add,
-            Services = MapServices.Of(new Fdp.Modules.Geographic.Transforms.WGS84Transform()),
+            Services = MapServices.Of(Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0)),
         });
         Assert.DoesNotContain(reports, r => r.Contains("MissionPresentationGizmo"));
     }

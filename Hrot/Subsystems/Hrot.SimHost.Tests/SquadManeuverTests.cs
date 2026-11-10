@@ -64,8 +64,7 @@ namespace Hrot.SimHost.Tests
                 BlueprintTierTable.RegisterAll(Repo);
                 if (!Repo.Bus.IsRegistered<Fdp.Toolkit.Perception.Events.SensorChangedEvent>())
                     Repo.Bus.Register<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
-                var geo = new WGS84Transform();
-                geo.SetOrigin(0.0, 0.0, 0.0);
+                var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 if (!Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
                 if (!Repo.IsComponentTypeRegistered<UnitEntity>()) Repo.RegisterComponent<UnitEntity>();

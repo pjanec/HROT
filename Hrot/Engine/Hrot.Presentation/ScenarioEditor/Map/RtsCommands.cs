@@ -130,7 +130,7 @@ namespace Hrot.ScenarioEditor.Map
         public static JsonArray OrderPoint(EntityRepository world, Vector2 at)
         {
             var geo = world.HasSingletonManaged<IGeographicTransform>() ? world.GetSingletonManaged<IGeographicTransform>() : null;
-            if (geo == null) return new JsonArray((double)at.Y, (double)at.X);
+            if (geo == null || !geo.HasFrame) return new JsonArray((double)at.Y, (double)at.X);
             var (lat, lon, _) = geo.ToGeodetic(new Vector3(at.X, at.Y, 0f));
             return new JsonArray(lat, lon);
         }

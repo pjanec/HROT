@@ -42,8 +42,7 @@ public sealed class MapCursorTests
     private static EntityRepository WorldWithGeo(double lat, double lon, double alt)
     {
         var world = new EntityRepository();
-        var geo = new WGS84Transform();
-        geo.SetOrigin(lat, lon, alt);
+        var geo = UtmTransform.AtOrigin(lat, lon, alt);
         world.SetSingletonManaged<IGeographicTransform>(geo);
         return world;
     }
@@ -172,7 +171,7 @@ public sealed class MapCursorTests
         var east = readout.Latest!.Value;
         Assert.Equal(new Vector3(1000, 0, 12), east.Local);
         Assert.True(east.Longitude > origin.Longitude + 0.005, $"longitude {east.Longitude} did not move east");
-        Assert.Equal(origin.Latitude, east.Latitude, 4);
+        Assert.Equal(origin.Latitude, east.Latitude, 3);   // CE-4396: grid east is not a parallel — the UTM convergence moves the latitude ≈ 0.0001° per km at 14° E (zone 33's meridian is 15°)
 
         input.Captured = true;                        // the cursor is over a panel (or the status bar)
         input.MousePosition = new Vector2(5000, 5000);

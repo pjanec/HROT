@@ -200,7 +200,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         private readonly EntityRepository _world;
 
         // â”€â”€ Infrastructure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        private readonly WGS84Transform   _wgs84;
+        private readonly UtmTransform   _wgs84;
         private readonly NetworkEntityMap _entityMap;
         private readonly TkbDatabase      _tkbDb;
         private readonly BehaviorRegistry _behaviorRegistry;
@@ -305,8 +305,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _world = BuildWorld();
 
             // 2. Infrastructure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            _wgs84 = new WGS84Transform();
-            _wgs84.SetOrigin(32.0853, 34.7818, 10.0);   // Tel-Aviv origin (same as config.json)
+            _wgs84 = UtmTransform.AtOrigin(32.0853, 34.7818, 10.0);   // Tel-Aviv origin (same as config.json) — its UTM zone by the rule (CE-4396)
 
             // 🔴🔴 PUBLISH IT AS THE WORLD SINGLETON — the harness HELD this transform and did not
             //   pass it, which is the SILENT-DEFAULT shape in its purest form.

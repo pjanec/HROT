@@ -258,8 +258,7 @@ namespace Hrot.SimHost.Tests
                 BlueprintTierTable.RegisterAll(w);
                 if (!w.IsComponentTypeRegistered<UnitSubordinate>()) w.RegisterComponent<UnitSubordinate>();
                 if (!w.Bus.IsRegistered<SensorChangedEvent>()) w.Bus.Register<SensorChangedEvent>();
-                var geo = new WGS84Transform();
-                geo.SetOrigin(0.0, 0.0, 0.0);
+                var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 w.SetSingletonManaged<IGeographicTransform>(geo);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);

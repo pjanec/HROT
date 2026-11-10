@@ -506,7 +506,7 @@ class Program
                 var behaviorRegistryGetter = ClusterDebugApiComposition.BehaviorRegistry(subsystems);
 
                 // ⭐⭐ CE-236 — geoTransform is PASSED, not defaulted. Before this the service fell back
-                //    to `new WGS84Transform()`, whose origin fields default to 0, so GET /world/info and
+                //    to `a private origin-less transform`, whose origin fields default to 0, so GET /world/info and
                 //    POST /world/geo-to-local answered against 0°N 0°E while every node's simulation ran
                 //    on the Berlin origin HrotEnvironment.CreateGeoTransform() sets. 🔒 User ruling
                 //    2026-09-08: one GeographicTransform, shared by the debug API, the scenario loader

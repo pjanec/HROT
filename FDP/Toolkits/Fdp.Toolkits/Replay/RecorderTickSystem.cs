@@ -252,9 +252,14 @@ namespace Fdp.Toolkit.Replay
             if (repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 && repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() is { } geo)
             {
+                if (!geo.HasFrame) { metadata.GeoOrigin = null; return; }   // CE-4396 — a terrain with no origin: the recording carries none
                 var (lat, lon, alt) = geo.Origin;
                 var o = metadata.GeoOrigin ??= new Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord();
                 o.Lat = lat; o.Lon = lon; o.Alt = alt;
+                // §6.1a: the zone override only when the frame's zone is not the origin's natural one
+                o.UtmZoneOverride = null; o.UtmSouthOverride = null;
+                if (geo.UtmZone is { } z && (z.Zone != Fdp.Modules.Geographic.Transforms.UtmTransform.ZoneOf(lon) || z.South != (lat < 0)))
+                { o.UtmZoneOverride = z.Zone; o.UtmSouthOverride = z.South; }
             }
         }
     }

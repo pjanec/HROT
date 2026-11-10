@@ -55,8 +55,7 @@ namespace Hrot.SimHost.Tests
                 CognitiveComponentRegistry.RegisterAll(Repo);
                 Repo.RegisterComponent<NetworkIdentity>();
                 BlueprintTierTable.RegisterAll(Repo);
-                var geo = new WGS84Transform();
-                geo.SetOrigin(0.0, 0.0, 0.0);
+                var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);

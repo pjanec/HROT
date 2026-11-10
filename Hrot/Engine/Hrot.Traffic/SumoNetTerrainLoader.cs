@@ -31,11 +31,11 @@ public sealed class SumoNetTerrainLoader : ITerrainContentLoader
         NetworkModel model;
         model = NetworkParser.ParseXml(System.Text.Encoding.UTF8.GetString(bytes));
         Fdp.Core.LoadProgress.Report();
-        var placement = SumoNetPlacement.For(model, declared, definition.Origin);
+        var placement = SumoNetPlacement.For(model, declared, TerrainGeoFrame.Of(definition.Origin, definition.Utm));
         FdpLog<SumoNetTerrainLoader>.Info(
             $"[Traffic] '{terrainName}': SUMO net '{declared.File}' parsed in {sw.ElapsedMilliseconds} ms — {model.Edges.Count} edges, "
           + $"{model.Junctions.Count} junctions, {model.TlLogicsById.Count} traffic lights, hash {hash}, placed "
-          + (placement.IsGeoreferenced ? "through its UTM projection and the terrain origin." : $"by the anchor ({declared.AnchorX}, {declared.AnchorY})."));
+          + (placement.IsGeoreferenced ? "through its UTM projection and the terrain's geo frame." : $"by the anchor ({declared.AnchorX}, {declared.AnchorY})."));
         sw.Restart();
         var roads = TrafficRoadScene.Build(model, placement, world.BoundsMin, world.BoundsMax);
         FdpLog<SumoNetTerrainLoader>.Info($"[Traffic] '{terrainName}': road scene built in {sw.ElapsedMilliseconds} ms — {roads.TriangleCount} triangles, "

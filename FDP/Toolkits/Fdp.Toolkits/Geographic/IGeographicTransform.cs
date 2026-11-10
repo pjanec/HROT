@@ -28,5 +28,18 @@ namespace Fdp.Modules.Geographic
         /// geodetic ghost) — every heading inside the engine is local.
         /// </summary>
         double GridConvergenceDeg(Vector3 localPos) => 0.0;
+
+        /// <summary>
+        /// ⭐ CE-4396 (docs/DESIGN_Geo_Origin.md §6, UE-a, R-4197) — whether the local frame has a place on the Earth. False only for
+        /// <c>LocalOnlyFrame</c> (a terrain that declares no origin): its geodetic conversions are REFUSED. True for every other
+        /// implementation and every test double.
+        /// </summary>
+        bool HasFrame => true;
+
+        /// <summary>
+        /// ⭐ CE-4396 — the UTM zone and hemisphere of this frame, or null when it is not a UTM frame (local-only, a test double). The recorder and the
+        /// wire use it to write the optional zone override (§6.1a) when it differs from the origin's natural zone.
+        /// </summary>
+        (int Zone, bool South)? UtmZone => null;
     }
 }

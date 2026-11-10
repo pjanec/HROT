@@ -44,8 +44,7 @@ namespace Hrot.SimHost.Tests
                 //   (3272 vs 3028): a reader comparing LastSeenTick with SimulationTick reads every sighting as stale ⇒ red.
                 for (int i = 0; i < 5000; i++) Repo.Tick();
                 if (!Repo.Bus.IsRegistered<SensorChangedEvent>()) Repo.Bus.Register<SensorChangedEvent>();
-                var geo = new WGS84Transform();
-                geo.SetOrigin(0.0, 0.0, 0.0);
+                var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);

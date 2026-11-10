@@ -92,7 +92,7 @@ namespace Hrot.Common.Orders
             if (lat is double la && lon is double lo) location = new JsonArray(la, lo);
             else if (x is float px && y is float py)
             {
-                if (_geo != null)
+                if (_geo != null && _geo.HasFrame)   // CE-4396: a local-only frame falls back like no transform
                 {
                     var (gLat, gLon, _) = _geo.ToGeodetic(new System.Numerics.Vector3(px, py, 0f));
                     location = new JsonArray(gLat, gLon);

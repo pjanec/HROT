@@ -597,7 +597,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             behaviorRegistry: () => null,
             // ⭐ CE-515 — create-request through this node's pack, as on every cluster node.
             entityCreation: _ => _bootstrapper.EntityCreation,
-            // ⭐⭐ CE-236 — PASSED, never defaulted. A defaulted WGS84Transform origin is 0N 0E while
+            // ⭐⭐ CE-236 — PASSED, never defaulted. A defaulted geo transform has no origin (0N 0E, or — since CE-4396 — NO FRAME) while
             //    every node simulates on the Berlin origin HrotEnvironment.CreateGeoTransform() sets,
             //    so geo routes would answer against the wrong planet.
             // ⭐ CE-257 — the NODE'S transform, not a third fresh one. 🔒 CE-236's ruling is "one

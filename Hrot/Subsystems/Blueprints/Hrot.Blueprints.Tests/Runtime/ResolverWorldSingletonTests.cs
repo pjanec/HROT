@@ -82,7 +82,7 @@ public sealed class ResolverWorldSingletonTests
     public void AResolver_TakesLocalPointsAsTheyAre_EvenWhenTheWorldPublishesAGeoTransform()
     {
         var world = new EntityRepository();
-        world.SetSingletonManaged<IGeographicTransform>(new Fdp.Modules.Geographic.Transforms.WGS84Transform());
+        world.SetSingletonManaged<IGeographicTransform>(Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0));
 
         var result = Resolve(world);
 
@@ -103,7 +103,7 @@ public sealed class ResolverWorldSingletonTests
     public void BothResolverWorldServicesUseTheSameSingletonMechanism()
     {
         var world = new EntityRepository();
-        world.SetSingletonManaged<IGeographicTransform>(new Fdp.Modules.Geographic.Transforms.WGS84Transform());
+        world.SetSingletonManaged<IGeographicTransform>(Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0));
         world.SetSingletonManaged(new NetworkEntityMap());
 
         Assert.True(world.HasSingletonManaged<IGeographicTransform>());

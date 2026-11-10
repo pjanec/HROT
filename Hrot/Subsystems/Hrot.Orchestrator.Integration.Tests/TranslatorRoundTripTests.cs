@@ -194,7 +194,7 @@ public sealed class TranslatorRoundTripTests : IDisposable
         Assert.Equal((54.3, 10.1, 3.0), (got!.Value.OriginLatitudeDeg, got.Value.OriginLongitudeDeg, got.Value.OriginAltitudeM));
         Assert.Equal("coast", got.Value.TerrainName);
         Assert.Equal(2, got.Value.Generation);
-        Assert.Equal(NedWire.FrameEnuTangentPlane, got.Value.Frame);
+        Assert.Equal(NedWire.FrameUtm, got.Value.Frame);
         Assert.Equal(NedWire.ProtocolVersion, got.Value.ProtocolVersion);
     }
 }

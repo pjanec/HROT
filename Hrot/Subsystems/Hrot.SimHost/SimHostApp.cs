@@ -811,7 +811,7 @@ namespace Hrot.SimHost
             int networkId = _idAllocator.AllocateId();
 
             var initialComponents = new List<object>();
-            if (_geoTransform != null)
+            if (_geoTransform != null && _geoTransform.HasFrame)
             {
                 var cart    = _geoTransform.ToCartesian(position.Latitude, position.Longitude, position.Altitude);
                 var cartPos = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);

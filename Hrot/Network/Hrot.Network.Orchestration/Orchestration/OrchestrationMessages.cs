@@ -270,7 +270,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// <summary>
     /// ⭐⭐ <c>AQ107 C</c> (R-4094) — THE ORIGIN OF THE NED WIRE'S LOCAL FRAME. Every position on the NED wire is local ENU metres (X east,
     /// Y north, Z up); this retained, keyless sample says WHERE on the Earth that frame's (0, 0, 0) is, so a gateway (DIS / HLA) can convert
-    /// to ECEF / geodetic: <c>ECEF = ecef(origin) + R(origin) · local</c>, the same exact transform every node uses (<c>WGS84Transform</c>).
+    /// to ECEF / geodetic: <c>local = UTM grid metres minus (E0, N0, H0)</c> since CE-4396 / R-4197 (protocol 2; the ENU tangent plane of protocol 1 is retired — see <see cref="Frame"/>).
     /// <para>⭐ Published by the CLUSTER MASTER only (one writer, not one per CGF): at a load it is the loaded terrain's declared origin
     /// (0, 0, 0 when the terrain declares none — R-229), at a replay entry the recording's own origin. TransientLocal + KeepLast 1 hands the
     /// newest to a late joiner. <see cref="Generation"/> goes up by 1 whenever a DIFFERENT origin is published; republishing the same origin
@@ -288,8 +288,13 @@ namespace Hrot.NED.Descriptors.Orchestration
         public double OriginLongitudeDeg;
         /// <summary>Altitude of the frame's origin above the WGS84 ellipsoid, metres.</summary>
         public double OriginAltitudeM;
-        /// <summary>The frame kind; <see cref="NedWire.FrameEnuTangentPlane"/> (0) = an ENU tangent plane at the origin — the only value so far.</summary>
+        /// <summary>The frame kind (⭐ CE-4396 UE-e, protocol 2): <see cref="NedWire.FrameUtm"/> (1) = UTM, <see cref="NedWire.FrameNone"/> (2) = no frame (local-only).
+        /// 0 (the retired ENU tangent plane of protocol 1) never appears.</summary>
         public byte Frame;
+        /// <summary>The UTM zone the frame uses when it is NOT the origin's natural one (its longitude band); 0 = none, use the natural zone.</summary>
+        public int UtmZoneOverride;
+        /// <summary>The hemisphere of the override zone (true = south); meaningful only when <see cref="UtmZoneOverride"/> is non-zero.</summary>
+        public bool UtmSouthOverride;
         /// <summary>The terrain the origin belongs to (the recording's terrain in a replay); empty when none.</summary>
         [DdsManaged] public string TerrainName;
         /// <summary>+1 every time a DIFFERENT origin is published; 0 never appears on the wire (the first publish is 1).</summary>

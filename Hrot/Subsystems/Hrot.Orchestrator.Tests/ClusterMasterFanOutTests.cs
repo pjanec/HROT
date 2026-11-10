@@ -370,6 +370,8 @@ public sealed class ClusterMasterFanOutTests
             Assert.Equal(47.25, geo.OriginLatitudeDeg);
             Assert.Equal(11.4, geo.OriginLongitudeDeg);
             Assert.Equal(612.5, geo.OriginAltitudeM);
+            Assert.Equal(Hrot.NED.Descriptors.Orchestration.NedWire.FrameUtm, geo.Frame);   // ⭐ CE-4396 UE-e: UTM, the zone derived from the origin
+            Assert.Equal(0, geo.UtmZoneOverride);
             Assert.Equal("alps", geo.TerrainName);
             Assert.Equal(1, geo.Generation);
             Assert.Equal(1, master.GeoReferenceGeneration);
@@ -416,9 +418,9 @@ public sealed class ClusterMasterFanOutTests
         System.IO.File.WriteAllText(System.IO.Path.Combine(terrainDir, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName), terrainJson);
     }
 
-    /// <summary>⭐ AQ107 C (c) — a terrain that declares no origin publishes 0,0,0 (R-229: "Missing geo = zeros"), still under its name.</summary>
+    /// <summary>⭐ AQ107 C (c) / CE-4396 UE-e — a terrain that declares no origin publishes <c>Frame = none</c> (origin 0, 0, 0 mean nothing), still under its name.</summary>
     [Fact(Timeout = 10_000)]
-    public void AQ107C_ATerrainWithoutAnOrigin_PublishesZeros()
+    public void AQ107C_ATerrainWithoutAnOrigin_PublishesFrameNone()
     {
         var nas = MakeNasWithTerrain("s1", "bare", "{\"schemaVersion\":2}");
         try
@@ -430,8 +432,54 @@ public sealed class ClusterMasterFanOutTests
             var geo = Assert.Single(CompleteTransition(bus, master, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, "s1"));
 
             Assert.Equal((0.0, 0.0, 0.0), (geo.OriginLatitudeDeg, geo.OriginLongitudeDeg, geo.OriginAltitudeM));
+            Assert.Equal(Hrot.NED.Descriptors.Orchestration.NedWire.FrameNone, geo.Frame);
             Assert.Equal("bare", geo.TerrainName);
             Assert.Equal(1, geo.Generation);
+        }
+        finally { System.IO.Directory.Delete(nas, recursive: true); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4396 UE-e (R-4197) — the published sample rebuilds the node's frame BY THE RULE: a gateway that reads origin + Frame + the optional zone
+    /// override derives the same UTM frame as the node and converts a local point to the SAME lat / lon. ✅ Red-proof: publishing the override
+    /// without applying it in the rebuilt frame ⇒ the zone-34 terrain converts into the wrong zone ⇒ red.
+    /// </summary>
+    [Theory(Timeout = 10_000)]
+    [InlineData("{\"schemaVersion\":2,\"origin\":{\"lat\":47.25,\"lon\":11.4,\"alt\":612.5}}", 0)]
+    [InlineData("{\"schemaVersion\":2,\"origin\":{\"lat\":49.0,\"lon\":17.9,\"alt\":0},\"frame\":{\"utm\":{\"zone\":34,\"hemisphere\":\"N\",\"e0\":0,\"n0\":0}}}", 34)]
+    public void UE_e_ThePublishedSample_RebuildsTheNodesFrame_AndConvertsAPointTheSame(string terrainJson, int expectedOverride)
+    {
+        // the second terrain keeps zone 34 N at an origin whose natural zone is 33; its frame.utm is the origin projected into 34
+        if (expectedOverride != 0)
+        {
+            var (e, n) = Fdp.Modules.Geographic.Transforms.Utm.FromGeodetic(49.0, 17.9, 34, false);
+            terrainJson = terrainJson.Replace("\"e0\":0,\"n0\":0", $"\"e0\":{e.ToString("R", System.Globalization.CultureInfo.InvariantCulture)},\"n0\":{n.ToString("R", System.Globalization.CultureInfo.InvariantCulture)}");
+        }
+        var nas = MakeNasWithTerrain("s1", "t", terrainJson);
+        try
+        {
+            var bus = new FdpEventBus();
+            using var master = new ClusterMaster(bus, ConfigOn(nas));
+            RegisterNode(bus, master);
+            var geo = Assert.Single(CompleteTransition(bus, master, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, "s1"));
+            Assert.Equal(expectedOverride, geo.UtmZoneOverride);
+            Assert.False(geo.UtmSouthOverride);
+
+            // the NODE: the terrain definition through TerrainResidency.ApplyGeoOrigin onto the node's one transform
+            var def = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, nas).ReadDefinition("t")!;
+            using var world = new Fdp.Core.EntityRepository();
+            var node = new Fdp.Modules.Geographic.Transforms.SwitchableGeoTransform();
+            world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(node);
+            Hrot.Map.Common.Services.TerrainResidency.ApplyGeoOrigin(world, def.Origin, "t", def.Utm);
+
+            // the GATEWAY: from the published sample only
+            var rebuilt = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(geo.OriginLatitudeDeg, geo.OriginLongitudeDeg, geo.OriginAltitudeM,
+                geo.UtmZoneOverride != 0 ? geo.UtmZoneOverride : (int?)null, geo.UtmZoneOverride != 0 ? geo.UtmSouthOverride : (bool?)null);
+            foreach (var p in new[] { new System.Numerics.Vector3(0, 0, 0), new System.Numerics.Vector3(123.4f, -456.7f, 8f), new System.Numerics.Vector3(2750f, 2750f, 0f) })
+            {
+                var a = node.ToGeodetic(p); var b = rebuilt.ToGeodetic(p);
+                Assert.Equal(a.lat, b.lat, 9); Assert.Equal(a.lon, b.lon, 9); Assert.Equal(a.alt, b.alt, 6);
+            }
         }
         finally { System.IO.Directory.Delete(nas, recursive: true); }
     }

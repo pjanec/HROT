@@ -71,7 +71,7 @@ public sealed class SumoNetPlacementTests
     public void E1b_ANonGeoreferencedNet_IsPlacedByTheAnchor()
     {
         var net = NetworkParser.Parse(DemoCityNet());
-        var place = SumoNetPlacement.For(net, new TerrainSumoNet("demo-city.net.xml", 2200, 2200), new TerrainGeoOrigin(52.52, 13.405, 0));
+        var place = SumoNetPlacement.For(net, new TerrainSumoNet("demo-city.net.xml", 2200, 2200), TerrainGeoFrame.Of(new TerrainGeoOrigin(52.52, 13.405, 0)));
 
         Assert.False(place.IsGeoreferenced);
         Assert.Equal((150.0, -50.0), place.ToLocal(2350.0, 2150.0));
@@ -85,7 +85,7 @@ public sealed class SumoNetPlacementTests
         var (e, n) = Utm.FromGeodetic(52.52, 13.405, 33, false);
         string xml = $"<net><location netOffset=\"{-e:R},{-n:R}\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone=33 +ellps=WGS84\"/></net>";
         var net = NetworkParser.ParseXml(xml);
-        var place = SumoNetPlacement.For(net, new TerrainSumoNet("x.net.xml", 0, 0), new TerrainGeoOrigin(52.52, 13.405, 0));
+        var place = SumoNetPlacement.For(net, new TerrainSumoNet("x.net.xml", 0, 0), TerrainGeoFrame.Of(new TerrainGeoOrigin(52.52, 13.405, 0)));
 
         Assert.True(place.IsGeoreferenced);
         var (x0, y0) = place.ToLocal(0, 0);
@@ -105,7 +105,7 @@ public sealed class SumoNetPlacementTests
         var (e, n) = Utm.FromGeodetic(52.52, 13.405, 33, false);
         var utm = SumoNetPlacement.For(NetworkParser.ParseXml(
                 $"<net><location netOffset=\"{-e:R},{-n:R}\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone=33 +ellps=WGS84\"/></net>"),
-            new TerrainSumoNet("x.net.xml", 0, 0), new TerrainGeoOrigin(52.52, 13.405, 0));
+            new TerrainSumoNet("x.net.xml", 0, 0), TerrainGeoFrame.Of(new TerrainGeoOrigin(52.52, 13.405, 0)));
 
         foreach (var place in new[] { anchored, utm })
             foreach (var (x, y) in new[] { (0.0, 0.0), (386.0, 386.0), (-1500.0, 720.0), (2400.0, -900.0) })
@@ -115,6 +115,38 @@ public sealed class SumoNetPlacementTests
                 Assert.Equal(x, lx, 1);   // float local frame: decimetre
                 Assert.Equal(y, ly, 1);
             }
+    }
+
+    /// <summary>⭐ CE-4396 UE-c (R-4197) — a net in the node frame's OWN UTM zone is placed by a pure translation (exactly net − netOffset − (E0, N0)),
+    /// a net in ANOTHER zone goes through geodetic and the node's transform, and a terrain with no geo frame refuses a georeferenced net.</summary>
+    [Fact]
+    public void UE_c_SameZone_IsATranslation_AnotherZone_GoesViaGeodetic_NoFrame_Refuses()
+    {
+        var node = UtmTransform.AtOrigin(52.52, 13.405, 0);   // zone 33 N
+        var (e33, n33) = Utm.FromGeodetic(52.52, 13.405, 33, false);   // the node's own frame origin
+        var same = SumoNetPlacement.For(NetworkParser.ParseXml(
+            "<net><location netOffset=\"-100,-200\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone=33 +ellps=WGS84\"/></net>"),
+            new TerrainSumoNet("x", 0, 0), node);
+        Assert.Equal((1000.0 + 100 - node.E0, 2000.0 + 200 - node.N0), same.ToLocal(1000, 2000));   // exact: no geodetic round trip
+        var (nx, ny) = same.ToNet(1100 - node.E0, 2200 - node.N0);
+        Assert.Equal(1000.0, nx, 6); Assert.Equal(2000.0, ny, 6);
+        _ = (e33, n33);
+
+        var (e32, n32) = Utm.FromGeodetic(52.52, 13.405, 32, false);
+        var other = SumoNetPlacement.For(NetworkParser.ParseXml(
+            $"<net><location netOffset=\"{-e32:R},{-n32:R}\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone=32 +ellps=WGS84\"/></net>"),
+            new TerrainSumoNet("x", 0, 0), node);
+        var (x0, y0) = other.ToLocal(0, 0);
+        Assert.True(Math.Abs(x0) < 0.01 && Math.Abs(y0) < 0.01, $"the net's origin is the terrain's origin: ({x0}, {y0})");
+        var (lat, lon) = Utm.ToGeodetic(e32 + 100, n32, 32, false);
+        var expected = node.ToCartesian(lat, lon, 0);
+        var (x1, y1) = other.ToLocal(100, 0);
+        Assert.Equal(expected.X, x1, 2); Assert.Equal(expected.Y, y1, 2);
+        Assert.InRange(y1, -9, -4);   // zone 32's grid is turned against zone 33's by the difference of their convergences
+
+        Assert.Throws<InvalidDataException>(() => SumoNetPlacement.For(NetworkParser.ParseXml(
+            "<net><location netOffset=\"0,0\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone=33 +ellps=WGS84\"/></net>"),
+            new TerrainSumoNet("x", 0, 0), new LocalOnlyFrame()));
     }
 
     [Fact]

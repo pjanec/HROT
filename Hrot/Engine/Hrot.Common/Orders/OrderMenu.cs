@@ -179,7 +179,7 @@ namespace Hrot.Common.Orders
 
         /// <summary>⭐ <c>CE-2176</c> — the map-point fields <paramref name="json"/> sets to something that is not a geodetic point:
         /// a <see cref="PickableGeoPoint"/> is <c>[lat, lon]</c> with |lat| ≤ 90 and |lon| ≤ 180. 📐 Measured live: a local <c>[y, x]</c>
-        /// (<c>[-195, 720]</c>) was accepted, then <c>WGS84Transform.ToCartesian</c> threw on the brain and the order vanished without a
+        /// (<c>[-195, 720]</c>) was accepted, then the geo transform's <c>ToCartesian</c> threw on the brain and the order vanished without a
         /// word — so the sender refuses it here, named, like a missing <c>[Required]</c> field.</summary>
         public static IReadOnlyList<(OrderField Field, string Why)> MalformedIn(OrderInfo order, JsonObject? json)
         {

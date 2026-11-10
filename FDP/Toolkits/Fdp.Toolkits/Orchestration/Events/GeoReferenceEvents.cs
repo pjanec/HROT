@@ -19,6 +19,11 @@ namespace Fdp.Toolkit.Orchestration
         public double OriginLongitudeDeg;
         /// <summary>Altitude of the local frame's origin above the WGS84 ellipsoid, metres.</summary>
         public double OriginAltitudeM;
+        /// <summary>⭐ CE-4396 UE-e — 1 = UTM, 2 = none (<c>NedWire.FrameUtm</c> / <c>FrameNone</c>).</summary>
+        public byte Frame;
+        /// <summary>The UTM zone when it is not the origin's natural one; 0 = none.</summary>
+        public int UtmZoneOverride;
+        public bool UtmSouthOverride;
         /// <summary>The terrain the origin belongs to; empty when none.</summary>
         public string TerrainName;
         /// <summary>+1 per different origin; the first publish is 1.</summary>

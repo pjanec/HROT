@@ -154,8 +154,8 @@ namespace Hrot.Editor.DebugApi
         /// </para>
         ///
         /// <para>
-        /// 🔴🔴 <b>This used to be <c>_geoTransform = geoTransform ?? new WGS84Transform()</c>.</b>
-        /// ⛔ <c>WGS84Transform</c> has NO default origin — <c>_originLat/_originLon/_originAlt</c> are
+        /// 🔴🔴 <b>This used to be <c>_geoTransform = geoTransform ?? a private origin-less transform</c>.</b>
+        /// ⛔ the retired tangent-plane transform had NO default origin — <c>_originLat/_originLon/_originAlt</c> are
         /// plain fields defaulting to <c>0</c> and only <c>SetOrigin</c> fills them, while every
         /// simulation node runs on the Berlin origin that <c>HrotEnvironment.CreateGeoTransform()</c>
         /// sets. 📐 Measured <c>2026-09-08</c>: <c>ClusterRunner/Program.cs:447</c> passed no
@@ -353,7 +353,7 @@ namespace Hrot.Editor.DebugApi
         private readonly Fdp.Interfaces.ITkbDatabase? _editorTkbDb;
         // ⭐ CE-236: NULLABLE on purpose — see the GeoTransform property. A composition root that has the
         //   node's transform passes it; one that does not falls through to the world singleton rather
-        //   than to a private, origin-less WGS84Transform.
+        //   than to a private, origin-less transform.
         private readonly IGeographicTransform? _geoTransform;
 
         // Group G — Breakpoints
@@ -433,7 +433,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>
         /// ⭐ <c>CE-236</c> — built LAZILY. It used to need <see cref="GeoTransform"/> (this service is constructed BEFORE the
         /// world exists on some hosts — the ordering that made <c>_behaviorRegistry</c> a <c>Func</c> in <c>CE-169</c>, and what
-        /// forced an old <c>?? new WGS84Transform()</c> default that answered against the wrong origin). ⭐ <c>CE-4073</c>: it needs
+        /// forced an old <c>?? a private origin-less transform</c> default that answered against the wrong origin). ⭐ <c>CE-4073</c>: it needs
         /// none now (the position attributes are local ENU metres), so laziness is only a startup saving.
         /// </summary>
         private JsonAttributeCompiler _attributeCompiler
@@ -693,8 +693,8 @@ namespace Hrot.Editor.DebugApi
             //    through to the ACTIVE PERSPECTIVE's real catalog (`_dispatcher.TkbDb`), and if a node
             //    genuinely has none the route says NOT_SUPPORTED_HERE instead of lying with an empty list.
             _editorTkbDb  = tkbDb;
-            // ⭐⭐⭐ CE-236 — ⛔⛔ NO `?? new WGS84Transform()` HERE, for exactly CE-110's reason one line
-            //    above. That default had NO ORIGIN (WGS84Transform's origin fields default to 0 and only
+            // ⭐⭐⭐ CE-236 — ⛔⛔ NO `?? a private origin-less transform` HERE, for exactly CE-110's reason one line
+            //    above. That default had NO ORIGIN (the old transform's origin fields defaulted to 0 and only
             //    SetOrigin fills them), so --mode all answered /world/geo-to-local against 0°N 0°E while
             //    every simulation node ran on Berlin. Left null, GeoTransform falls through to the world
             //    singleton — the one the simulation itself converts with.

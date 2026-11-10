@@ -415,7 +415,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
         var plan = new Fdp.Toolkit.Behavior.Components.ActiveMissionPlan();
         plan.Plan.Tasks.Add(new Fdp.Toolkit.Behavior.Components.DomainMissionTask { BehaviorParams = "{\"target\":[100,100,0]}" });
         _w.SetManagedComponent(unit, plan);
-        var gizmo = new MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0));
+        var gizmo = new MissionPresentationGizmo(Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0));
 
         Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(_w, unit, d), DebugTraceLayers.Paths);
     }
@@ -433,7 +433,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
         plan.Plan.Tasks.Add(new Fdp.Toolkit.Behavior.Components.DomainMissionTask { BehaviorParams = "{\"target\":[100,100,0]}" });
         plan.Plan.Tasks.Add(new Fdp.Toolkit.Behavior.Components.DomainMissionTask { BehaviorParams = "{\"target\":[200,50,0]}" });
         _w.SetManagedComponent(unit, plan);
-        var gizmo = new MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0));
+        var gizmo = new MissionPresentationGizmo(Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0));
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
         for (int k = 0; k < 3; k++) { buffer.Clear(); gizmo.Draw(_w, unit, buffer); }   // warm: the plan's caches, the buffer, the JIT
         Assert.True(buffer.GetFrame().Length > 0, "the route is drawn");

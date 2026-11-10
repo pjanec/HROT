@@ -21,10 +21,10 @@ namespace Hrot.Orchestrator;
 public sealed partial class ClusterMaster
 {
     /// <summary>A load's terrain origin, parked until its round completes — keyed by the transition's transaction id.</summary>
-    private readonly Dictionary<Guid, (TerrainGeoOrigin Origin, string TerrainName)> _pendingGeoReferences = new();
+    private readonly Dictionary<Guid, (TerrainGeoFrame.Wire Frame, string TerrainName)> _pendingGeoReferences = new();
 
     private bool _geoReferencePublished;
-    private TerrainGeoOrigin _lastGeoOrigin;
+    private TerrainGeoFrame.Wire _lastGeoFrame;
     private string _lastGeoTerrainName = string.Empty;
     private int _geoReferenceGeneration;
 
@@ -41,7 +41,7 @@ public sealed partial class ClusterMaster
     {
         if (string.IsNullOrWhiteSpace(terrainName))
         {
-            _pendingGeoReferences[transactionId] = (TerrainGeoOrigin.Zero, string.Empty);
+            _pendingGeoReferences[transactionId] = (TerrainGeoFrame.Wire.None, string.Empty);   // CE-4396: no terrain = no geo frame
             return;
         }
 
@@ -55,10 +55,10 @@ public sealed partial class ClusterMaster
                     terrainName, _config.NasBasePath);
                 return;
             }
-            if (definition.Origin is null)
+            if (definition.Origin is null && definition.Utm is null)
                 FdpLog<ClusterMaster>.Warn(
-                    "[Orchestrator] AQ107 C: terrain '{0}' declares no 'origin' — its GeoReference is 0,0,0 (lat, lon, alt).", terrainName);
-            _pendingGeoReferences[transactionId] = (definition.Origin ?? TerrainGeoOrigin.Zero, terrainName!);
+                    "[Orchestrator] AQ107 C: terrain '{0}' declares no 'origin' — its GeoReference says Frame = none (local-only).", terrainName);
+            _pendingGeoReferences[transactionId] = (TerrainGeoFrame.Describe(definition.Origin, definition.Utm), terrainName!);
         }
         catch (Exception ex)
         {
@@ -73,39 +73,45 @@ public sealed partial class ClusterMaster
     /// the aggregate carries. <paramref name="parked"/> is what <see cref="NoteLoadGeoReference"/> parked under this round, if anything.
     /// </summary>
     private void OnRoundSucceededForGeoReference(
-        (TerrainGeoOrigin Origin, string TerrainName)? parked, object? aggregated)
+        (TerrainGeoFrame.Wire Frame, string TerrainName)? parked, object? aggregated)
     {
         if (parked is { } load)
-            PublishGeoReference(load.Origin, load.TerrainName, "terrain load");
+            PublishGeoReference(load.Frame, load.TerrainName, "terrain load");
         else if (aggregated is ReplayPrepareResult { GeoOrigin: { } recorded } replay)
-            PublishGeoReference(new TerrainGeoOrigin(recorded.Lat, recorded.Lon, recorded.Alt), replay.TerrainName ?? string.Empty, "replay recording");
+            PublishGeoReference(TerrainGeoFrame.Describe(new TerrainGeoOrigin(recorded.Lat, recorded.Lon, recorded.Alt), null,
+                                                         recorded.UtmZoneOverride, recorded.UtmSouthOverride), replay.TerrainName ?? string.Empty, "replay recording");
+        else if (aggregated is ReplayPrepareResult { NoGeoFrame: true } none)
+            PublishGeoReference(TerrainGeoFrame.Wire.None, none.TerrainName ?? string.Empty, "replay recording (no origin)");
     }
 
     /// <summary>
     /// ⭐ THE one place a <c>GeoReference</c> is decided: unchanged ⇒ nothing; a different origin ⇒ <c>Generation</c> + 1; the same origin
     /// under another terrain name ⇒ republished with the SAME generation (a gateway re-bases on a generation change only).
     /// </summary>
-    private void PublishGeoReference(TerrainGeoOrigin origin, string terrainName, string source)
+    private void PublishGeoReference(TerrainGeoFrame.Wire frame, string terrainName, string source)
     {
         if (_eventBus == null) return;
-        bool sameOrigin = _geoReferencePublished && origin == _lastGeoOrigin;
+        bool sameOrigin = _geoReferencePublished && frame == _lastGeoFrame;
         if (sameOrigin && string.Equals(terrainName, _lastGeoTerrainName, StringComparison.Ordinal)) return;
 
         if (!sameOrigin) _geoReferenceGeneration++;
         _geoReferencePublished = true;
-        _lastGeoOrigin = origin;
+        _lastGeoFrame = frame;
         _lastGeoTerrainName = terrainName;
 
         _eventBus.PublishManaged(new GeoReferencePublishedEvent
         {
-            OriginLatitudeDeg  = origin.Lat,
-            OriginLongitudeDeg = origin.Lon,
-            OriginAltitudeM    = origin.Alt,
+            OriginLatitudeDeg  = frame.Origin.Lat,
+            OriginLongitudeDeg = frame.Origin.Lon,
+            OriginAltitudeM    = frame.Origin.Alt,
+            Frame              = frame.Frame,
+            UtmZoneOverride    = frame.ZoneOverride,
+            UtmSouthOverride   = frame.SouthOverride,
             TerrainName        = terrainName,
             Generation         = _geoReferenceGeneration,
         });
         FdpLog<ClusterMaster>.Info(
-            $"[Orchestrator] AQ107 C: GeoReference published — origin {origin.Lat}, {origin.Lon}, {origin.Alt} "
+            $"[Orchestrator] AQ107 C: GeoReference published — {(frame.Frame == TerrainGeoFrame.Wire.FrameNone ? "no frame" : $"UTM origin {frame.Origin.Lat}, {frame.Origin.Lon}, {frame.Origin.Alt}" + (frame.ZoneOverride != 0 ? $" zone {frame.ZoneOverride}{(frame.SouthOverride ? "S" : "N")}" : ""))} "
           + $"(terrain '{terrainName}', from the {source}), generation {_geoReferenceGeneration}.");
     }
 }

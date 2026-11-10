@@ -103,8 +103,7 @@ namespace Hrot.SimHost.Tests
         public void CE469_Geo_RoundTripsThroughTheWorldTransform()
         {
             using var repo = World();
-            var geo = new WGS84Transform();
-            geo.SetOrigin(50.0, 14.0, 200.0);
+            var geo = UtmTransform.AtOrigin(50.0, 14.0, 200.0);
             repo.SetSingletonManaged<IGeographicTransform>(geo);
 
             var p = new GeoPoint(50.001, 14.002, 210.0);
