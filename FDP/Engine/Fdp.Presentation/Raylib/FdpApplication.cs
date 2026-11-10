@@ -69,6 +69,7 @@ public abstract class FdpApplication : IDisposable
 
             // B. Rendering
             Raylib_cs.Raylib.BeginDrawing();
+            HiddenWindow.BeginFrame();
             Raylib_cs.Raylib.ClearBackground(Color.DarkGray);
 
             // B1. World Rendering (2D/3D)
@@ -79,7 +80,9 @@ public abstract class FdpApplication : IDisposable
             OnDrawUI();
             rlImGui.End();
 
+            HiddenWindow.EndFrame();
             Raylib_cs.Raylib.EndDrawing();
+            HiddenWindow.AfterFrame();
         }
 
         // 3. Cleanup
@@ -90,7 +93,9 @@ public abstract class FdpApplication : IDisposable
     private void InitializeWindow()
     {
         Raylib_cs.Raylib.SetConfigFlags(Config.Flags);
+        HiddenWindow.ApplyBeforeInit();   // ⭐ CE-4386 — the same switch as the editor shell
         Raylib_cs.Raylib.InitWindow(Config.Width, Config.Height, Config.WindowTitle);
+        HiddenWindow.AfterInit();
         Raylib_cs.Raylib.SetTargetFPS(Config.TargetFPS);
         
         rlImGui.Setup(true); // Enable Docking by default

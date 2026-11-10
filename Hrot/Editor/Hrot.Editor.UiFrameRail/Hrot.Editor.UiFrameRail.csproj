@@ -24,5 +24,9 @@
     <PackageReference Include="rlImgui-cs" Version="3.2.0" />
     <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- ⭐ CE-4386 — the ONE hidden-window switch (HiddenWindow), shared with the editor shell and the film pass: one implementation, one state -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+  </ItemGroup>
 
 </Project>

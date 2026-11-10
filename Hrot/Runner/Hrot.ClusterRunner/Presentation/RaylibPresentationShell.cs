@@ -31,12 +31,14 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         // readability from larger baked fonts + the UI-scale slider instead. Revisit if/when the
         // ImGui backend gains proper framebuffer-scale handling.
         Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow);
+        bool hidden = Fdp.Presentation.Raylib.HiddenWindow.ApplyBeforeInit();   // ⭐ CE-4386 — HROT_HIDDEN_WINDOW=1: no window appears, takes focus or shows in the taskbar
         Raylib_cs.Raylib.InitWindow(width, height, title);
+        Fdp.Presentation.Raylib.HiddenWindow.AfterInit();
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(targetFps);
         Hrot.UI.Common.RunMode.FramePacing.Register(Raylib_cs.Raylib.SetTargetFPS, targetFps);   // ⭐ CE-4316 — Run to … lifts the cap here
         TrySetWindowIcon();
-        TryApplyTaskbarIcons();
+        if (!hidden) TryApplyTaskbarIcons();
     }
 
     /// <inheritdoc/>
@@ -171,6 +173,7 @@ internal sealed class RaylibPresentationShell : IPresentationShell
             Raylib_cs.Raylib.UnloadTexture(_atlasTexture);
         if (_gizmoFont.Texture.Id != 0)
             Raylib_cs.Raylib.UnloadFont(_gizmoFont);
+        Fdp.Presentation.Raylib.HiddenWindow.Release();
         Raylib_cs.Raylib.CloseWindow();
     }
 

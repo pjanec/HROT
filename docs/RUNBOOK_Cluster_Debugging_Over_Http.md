@@ -45,6 +45,18 @@ Every node is a mode of its own; `all` and `server` only combine them.
 
 A single-node launch needs `--no-wait` (or `--wait-for simhost,ig|player,ios`); with no `-n` it asks the cluster master for its node id (`scripts/cluster-node.sh start player <port> auto`).
 
+### 1.0 ⭐ `HROT_HIDDEN_WINDOW=1` — no window appears *(CE-4386, `2026-11-10`)*
+
+🔒 User: *"I need to do other light work on that machine and do not want to be annoyed by popping windows."* ⇒ set `HROT_HIDDEN_WINDOW=1` for the editor, the player and
+every frame-rail test run: the window is created hidden and unfocused (no taskbar entry), each frame is drawn into an off-screen render target that `LoadImageFromScreen`
+reads (so screenshots and rails work unchanged), and on Windows a console window the process owns alone is hidden. One switch, one class:
+`FDP/Engine/Fdp.Presentation/Raylib/HiddenWindow.cs`. Rail: `TheHiddenWindowModeTests` (runs only with the switch). Default off.
+
+```bash
+HROT_HIDDEN_WINDOW=1 xvfb-run -a dotnet test Hrot/Engine/Hrot.Presentation.Tests --no-build          # Linux
+$env:HROT_HIDDEN_WINDOW=1; dotnet test Hrot/Engine/Hrot.Presentation.Tests --no-build                # Windows (PowerShell)
+```
+
 ### 1.1 One process, all subsystems
 
 ```bash
