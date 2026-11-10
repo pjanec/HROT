@@ -162,7 +162,8 @@ public class OverpassTests
     public async Task ThreeRetriesAreTheLimit_TheErrorNamesTheService()
     {
         using var tmp = new TempDir();
-        var (src, h, _) = Make(new FakeHandler().Always(HttpStatusCode.GatewayTimeout));
+        var h = new FakeHandler().Always(HttpStatusCode.GatewayTimeout);
+        var src = new OverpassSource(HttpRetry.CreateClient(handler: h), delay: (_, _) => Task.CompletedTask, maxSplitDepth: 0);   // CE-4384: no splitting — the retry limit alone
         var e = await Assert.ThrowsAsync<OsmServiceException>(() => src.FetchAsync(Fx.Box, tmp.Combine("a.osm"), null, default));
         Assert.Equal(4, h.Seen.Count);   // the call + 3 retries
         Assert.Contains("Overpass", e.Message); Assert.Contains("504", e.Message); Assert.Contains("Overpass", e.Service);

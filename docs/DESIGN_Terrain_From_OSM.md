@@ -419,7 +419,9 @@ once the index was up: `search_graph` `.*Mercator.*` (1 — ours) · `.*Tile(Sou
 |---|---|
 | no network / service down / rate-limited | clear error naming the service; a Retry button; nothing written |
 | box > 6 × 6 km | the wizard refuses before any download |
-| Overpass result too large (dense city) | split the box into 4 and fetch the parts (merge by OSM id) |
+| Overpass result too large (dense city) | split the box into 4 and fetch the parts (merge by OSM id) — ⭐ **BUILT `2026-11-10` (CE-4384):** a 200 whose `<remark>` says *out of memory* / *timed out*, or a 504 after the retries ⇒ four parts, each fetched the same way, at most twice (16 parts); `OsmXmlMerge` keeps every node / way / relation once, nodes first, the first part's `osm_base`. Still too large at the last split ⇒ *"… pick a smaller box"* |
+| a 200 carrying `<remark> runtime error …</remark>` (anything else) | ⭐ **BUILT (CE-4384):** a FAILURE naming the service and the remark — never an empty area |
+| the error's retry advice | ⭐ **BUILT (CE-4384):** the server's own `Retry-After` when it sent one (*"the service asks to wait 30 s"*), else *"try again in a minute or two"* (`HttpRetry.RetryHint`). Rails `OverpassRobustnessTests` (hand-written answers). ⏳ The live proof against a dense city waits for the Windows run (Overpass is unreachable from the cloud VM) |
 | a footprint the rules cannot make valid | dropped, counted in the preview warnings |
 | `netconvert` fails | the import fails with its stderr (roads are not optional) |
 | out of memory / crash in a stage | accepted risk (Q-O6); stages stream where they can (heights by band, as the synth tool does) |
