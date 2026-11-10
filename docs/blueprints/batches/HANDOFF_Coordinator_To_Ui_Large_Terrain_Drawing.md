@@ -6,7 +6,7 @@ current-answer: the whole file
 
 # HANDOFF — coordinator → ui: drawing the LARGE terrain (3-D and 2-D), and the importer in the wizard
 
-**For:** ui. **From:** coordinator. **Dispatched at `<STAMP>`**, scope frozen there. Merge the other lanes first (⭐ `coordinator` after every
+**For:** ui. **From:** coordinator. **Dispatched at `d34e3a3e4`**, scope frozen there. Merge the other lanes first (⭐ `coordinator` after every
 item — the importer lands there); push `chore: started HANDOFF_Coordinator_To_Ui_Large_Terrain_Drawing at <sha>`; status file
 `STATUS_Ui_Large_Terrain_Drawing.md`. Same [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md). ⛔⛔ **Never stop for a question** (R-4156):
 every decision is made below; a premise that fails stops THAT item only (R-106).
