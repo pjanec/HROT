@@ -263,7 +263,7 @@ sensors on every run.
 ```mermaid
 classDiagram
   direction LR
-  class EqsSolverSystem { <<BUILT, reworked>> +BudgetUnits=12000 +LastSchedule +LastSpentUnits ⛔ EqsBudgetMs ⛔ QueryTimeSliced }
+  class EqsSolverSystem { <<BUILT, reworked>> +BudgetUnits=150000 +LastSchedule +LastSpentUnits ⛔ EqsBudgetMs ⛔ QueryTimeSliced }
   class EqsSchedule { <<BUILT>> +Add() +Ordered() band, oldest, index +ShouldStart(bandSpent, estimate, bandBudget) +CumulativeShare(rank) }
   class EqsCost { <<BUILT static>> Sensor=100 Candidate=1 Cheap=1 Sight=4 Path=16 +WeightOf(test) }
   class IEqsCostWeight { <<NEW interface, optional>> +CostPerCandidate }

@@ -213,14 +213,24 @@ def census():
 
 
 def node_work(port):
-    """(sum of the systems' recent averages in ms, frames executed, top systems) — the node's own profiler."""
+    """(the FRAME's work in ms, frames executed, top systems, the BACKGROUND work in ms per run) — the node's own profiler.
+    ⭐ CE-3427 — a system of an Asynchronous module (EqsModule, the path solver: SlowBackground) runs on its own thread, OFF the frame:
+    its ms are per run, not per frame, and summing them into the frame made SimHost's "frame" 157 ms when its main thread did ≈ 35 ms.
+    Its rows are listed with a "[bg] " prefix."""
     d = get(port, "/diagnostics/architecture")
-    rows = [(sy.get("recentAvgMs") or 0.0, sy.get("executions") or 0, f"{s.get('subsystem')}/{sy.get('systemName')}")
-            for s in d.get("subsystems") or [] for sy in s.get("systems") or []]
+    rows = []
+    for s in d.get("subsystems") or []:
+        background = {m.get("name") for m in s.get("modules") or [] if m.get("runMode") == "Asynchronous"}
+        for sy in s.get("systems") or []:
+            bg = sy.get("module") in background
+            rows.append((sy.get("recentAvgMs") or 0.0, sy.get("executions") or 0,
+                         f"{'[bg] ' if bg else ''}{s.get('subsystem')}/{sy.get('systemName')}", bg))
     # a group's time already contains its members' — count only leaf systems (a group row has members listed under it by name)
     groups = ("Group", "TogglableSimulationGroup", "TogglableInputGroup", "TogglablePostSimulationGroup")
     leaf = [r for r in rows if not any(r[2].endswith(g) for g in groups)]
-    return sum(r[0] for r in leaf), max((r[1] for r in rows), default=0), sorted(leaf, reverse=True)
+    frame = sum(r[0] for r in leaf if not r[3])
+    background = sum(r[0] for r in leaf if r[3])
+    return frame, max((r[1] for r in rows), default=0), sorted((r[:3] for r in leaf), reverse=True), background
 
 
 def main():
@@ -293,7 +303,7 @@ def main():
         print(f"\n== {a.men} men, {a.cars} cars target — measured {s2 - s1:.1f} s of sim in {w2 - w1:.1f} s of wall (real-time factor {(s2 - s1) / max(1e-6, w2 - w1):.2f})")
         worst = 0.0
         for mode, port in NODES:
-            work, frames, top = node_work(port)
+            work, frames, top, _ = node_work(port)
             st = get(port, "/status")
             fps = (frames - f1[port]) / max(1e-6, w2 - w1)
             if mode != "orchestrator": worst = max(worst, work)

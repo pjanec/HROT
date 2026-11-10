@@ -118,6 +118,10 @@ namespace Hrot.SimHost.Systems
             //   DeterminismRails.A_reload_rebuilds_the_same_authored_world). Forget it with the world (CE-3294's rule).
             if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _surveys.Clear();
 
+            long tRun = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();   // ⭐ CE-3427 — the run's phases: where a run's time goes apart from the solves
+            if (_lastRunStart != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_RunInterval, _lastRunStart);   // start to start: the real run rate
+            if (_lastRunEnd != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_RunIdle, _lastRunEnd);           // end to start: what the host waits
+            _lastRunStart = tRun;
             _currentView = view;
             _currentCmd  = view.GetCommandBuffer();
             _currentTick = Fdp.Toolkit.Perception.PerceptionClock.Now(view);   // ⭐ CE-3292 — the sim step, not the frame
@@ -145,6 +149,8 @@ namespace Hrot.SimHost.Systems
                 _schedule.Add(entity, sensor.Priority, eval.LastSolvedTick, eval.LastCost);
             }
 
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_RunSchedule, tRun);
+            long tSolve = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
             // ── run them in order within the budget ──
             // ⭐ Each band gets its share (Critical 50 %, Normal 35 %, Low the rest), unused slack rolling down, and the
             //   oldest sensor of every band always starts — so a busy Critical band never starves Low.
@@ -164,8 +170,14 @@ namespace Hrot.SimHost.Systems
                 _lastSchedule.Add(item.Sensor);
             }
             LastSpentUnits = spent;
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_RunSolve, tSolve);
 
+            long tFlush = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
             _memory.Flush(view, _currentCmd);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_RunFlush, tFlush);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Run, tRun);
+            _lastRunEnd = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_RunSpent, spent);
         }
 
         // Evaluates one sensor and persists its state ONCE (schedule fields included). Returns the work units spent.
@@ -173,6 +185,14 @@ namespace Hrot.SimHost.Systems
         private static readonly int S_Sensor = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.sensor (all)");
         private static readonly int S_Danger = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.DangerArea");
         private static readonly int S_Survey = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.WorldSurvey");
+        private static readonly int S_Run         = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run (whole Execute)");
+        private static readonly int S_RunSchedule = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.schedule (order every sensor)");
+        private static readonly int S_RunSolve    = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.solve (the budgeted loop)");
+        private static readonly int S_RunFlush    = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.flush (memory stage)");
+        private static readonly int S_RunSpent    = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.units (count)");
+        private static readonly int S_RunInterval = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.interval (start to start)");
+        private static readonly int S_RunIdle     = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.idle (end to next start)");
+        private long _lastRunStart, _lastRunEnd;
         private int _templateSlot = -1;   // set by EvaluateSensor when it reaches a ranked template (single-threaded: the system's own state)
 
         private int RunSensor(Entity entity)
