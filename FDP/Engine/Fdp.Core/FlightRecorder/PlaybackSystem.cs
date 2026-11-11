@@ -41,6 +41,12 @@ namespace Fdp.Core.FlightRecorder
 
         /// <summary>Entities the last apply's repair passes looked at (entity-index pass + managed-mask pass; diagnostic — a full repair visits the whole index per pass).</summary>
         public long LastRepairEntitiesVisited { get; private set; }
+        /// <summary>Diagnostics of the last apply (HROT_REPLAY_STATS=1 prints them): repair time and what the frame touched.</summary>
+        public double LastRepairMilliseconds { get; private set; }
+        public int LastTouchedHot { get; private set; }
+        public int LastTouchedCold { get; private set; }
+        public int LastTouchedManaged { get; private set; }
+        public int LastDestroyed { get; private set; }
         /// <summary>Was the last apply's repair the full one?</summary>
         public bool LastRepairWasFull { get; private set; }
 
@@ -159,6 +165,7 @@ namespace Fdp.Core.FlightRecorder
 
             // ⭐ CE-1478 P2 — a keyframe (a whole new world), the first apply onto this world and an apply that registered a table repair EVERYTHING; a delta repairs
             //   only what it wrote (the entity-index chunks and managed chunks it restored, the entities it destroyed)
+            long repairStart = System.Diagnostics.Stopwatch.GetTimestamp();
             bool full = ForceFullRepair || frameType == 1 || !ReferenceEquals(_repairedRepo, repo) || repo.GetRegisteredComponentTypes().Count != tablesAtStart;
             LastRepairWasFull = full;
             LastRepairEntitiesVisited = 0;
@@ -180,6 +187,8 @@ namespace Fdp.Core.FlightRecorder
                 RepairEntityIndexPartial(repo);
                 RepairManagedComponentMasksPartial(repo);
             }
+            LastRepairMilliseconds = (System.Diagnostics.Stopwatch.GetTimestamp() - repairStart) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            LastTouchedHot = _touchedHotCount; LastTouchedCold = _touchedColdCount; LastTouchedManaged = _touchedManagedCount; LastDestroyed = _destroyedCount;
 
             // ⭐ CE-4118 — the unconsumed events: the trailing section, else (a pre-CE-4118 keyframe) the main block
             if (unconsumedEvents && eventBus != null && processEvents)
@@ -213,9 +222,26 @@ namespace Fdp.Core.FlightRecorder
             // Strictly guard against empty worlds. Do not clamp maxIndex to 0.
             if (maxIndex < 0 || entityIndex.ActiveCount == 0) return;
 
+            // ⭐ CE-1478 — the live entities are gathered ONCE (the index is mostly dead slots), then every managed table walks only those
+            if (_activeScratch.Length < maxIndex + 1) _activeScratch = new int[maxIndex + 1];
+            int n = 0;
+            for (int i = 0; i <= maxIndex; i++)
+                if (entityIndex.GetMetadataUnsafe(i).IsActive) _activeScratch[n++] = i;
             for (int s = 0; s < _managedTableCount; s++)
-                RepairMaskRange(entityIndex, _managedTables[s], 0, maxIndex);
+            {
+                var table = _managedTables[s];
+                int typeId = table.ComponentTypeId;
+                LastRepairEntitiesVisited += n;
+                for (int k = 0; k < n; k++)
+                {
+                    int i = _activeScratch[k];
+                    if (table.GetRawObject(i) != null) entityIndex.GetComponentMaskUnsafe(i).SetBit(typeId);
+                    else entityIndex.GetComponentMaskUnsafe(i).ClearBit(typeId);
+                }
+            }
         }
+
+        private int[] _activeScratch = Array.Empty<int>();
 
         // one managed table over the entity indexes [lo, hi] (hi clamped to what is issued): the mask bit follows the data (non-null = set, null = clear)
         private void RepairMaskRange(EntityIndex entityIndex, IComponentTable table, int lo, int hi)
@@ -234,9 +260,11 @@ namespace Fdp.Core.FlightRecorder
         }
 
         /// <summary>
-        /// ⭐ CE-1478 P2 — the mask repair of a DELTA: a managed table only over the chunks the apply restored (its data moved), and every managed table over the
-        /// entities of the entity-index (hot / mask) chunks it restored (their masks were rewritten). 📐 What it does NOT re-derive is a mask the recording ITSELF
-        /// carries inconsistent in a chunk this frame did not touch — the keyframe's full repair settled that, and the equivalence rail pins partial == full.
+        /// ⭐ CE-1478 P2 — the mask repair of a DELTA: a managed table only over the chunks the apply restored (its data moved — the drift this pass exists for, see
+        /// <see cref="RepairManagedComponentMasks"/>). 📐 MEASURED 2026-11-11 (1 000-man recording): also scanning every managed table over the entities of each restored
+        /// entity-index (hot / mask) chunk visited 500 000–800 000 entity-table pairs per frame and cost 50–90 ms — MORE than the whole-world pass (~34 ms) — so it is not done:
+        /// a restored mask chunk carries the masks the recorder saw next to the managed data it saw. ⛔ What this therefore does NOT re-derive is a mask the recording ITSELF
+        /// carries inconsistent; the keyframe's full repair settled that for the keyframe's state, and the equivalence rail pins partial == full over random structural deltas.
         /// </summary>
         private void RepairManagedComponentMasksPartial(EntityRepository repo)
         {
@@ -250,15 +278,6 @@ namespace Fdp.Core.FlightRecorder
                 int lo = _touchedManaged[k].Chunk * cap;
                 if (lo > maxIndex) continue;
                 RepairMaskRange(entityIndex, _managedTables[_touchedManaged[k].TableSlot], lo, lo + cap - 1);
-            }
-
-            int hotCap = entityIndex.GetChunkCapacity();
-            for (int k = 0; k < _touchedHotCount; k++)
-            {
-                int lo = _touchedHot[k] * hotCap;
-                if (lo > maxIndex) continue;
-                for (int s = 0; s < _managedTableCount; s++)
-                    RepairMaskRange(entityIndex, _managedTables[s], lo, lo + hotCap - 1);
             }
         }
 
@@ -665,7 +684,9 @@ namespace Fdp.Core.FlightRecorder
             {
                 LastRepairEntitiesVisited++;
                 ref readonly var metaREI  = ref entityIndex.GetMetadata(i);
+                if (metaREI.IsActive) continue;   // ⭐ CE-1478 — only a DEAD entity can be revived: a live one needs no look at its mask
                 ref var          compREI  = ref entityIndex.GetComponentMask(i);
+                if (compREI.IsEmpty()) continue;   // ⭐ CE-1478 — and an empty mask has nothing to revive (the index is mostly dead, empty slots: 5 647 live of ~500 000)
 
                 // Check if this entity has any components
                 // ⭐ CE-4407 (R-2084) — over a plain array of the type ids, built once per pass: this walked the interface dictionary (a boxed enumerator, and every registered
