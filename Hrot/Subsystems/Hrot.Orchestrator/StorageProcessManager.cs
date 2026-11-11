@@ -219,6 +219,28 @@ public sealed class StorageProcessManager
     }
 
     /// <summary>
+    /// ⭐ O-4 (CE-4415, DESIGN_Terrain_Authoring §18c) — right after the canonical scenario is written: compile its terrain blocks / features into
+    /// <c>&lt;scenario&gt;/terrain-overlay/</c> (the ONE <see cref="Fdp.Toolkit.Terrain.OverlayCompiler"/>; no blocks ⇒ a stale overlay is removed). ⚠ A failure is LOGGED, never thrown:
+    /// the scenario save itself succeeded (the merge returns no result to carry it); the next prefetch would then stage no overlay for a scenario that has blocks, which the node's load
+    /// reports as a missing overlay.
+    /// </summary>
+    private void CompileTerrainOverlay(JsonObject canonical, string scenarioDir, string scenarioName)
+    {
+        try
+        {
+            var terrains = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _nasBasePath);
+            var r = Fdp.Toolkit.Terrain.OverlayCompiler.Compile(canonical, scenarioDir, terrains.ResolveDefinition);
+            if (r.Wrote)
+                FdpLog<StorageProcessManager>.Info(
+                    $"[StorageProcessManager] compiled the terrain overlay of '{scenarioName}': {r.Blocks} block(s), {r.Houses} house(s), {r.Woods} wood(s), hash {r.ContentHash}.");
+        }
+        catch (Exception ex)
+        {
+            FdpLog<StorageProcessManager>.Error("[StorageProcessManager] could not compile the terrain overlay of '{0}' (the scenario itself was saved): {1}", scenarioName, ex.Message);
+        }
+    }
+
+    /// <summary>
     /// ⭐ New scenario N2 (📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §2.2, R-4135) — writes a BLANK scenario: a header naming
     /// <paramref name="terrainName"/>, no entities (the shape of the shipped <c>basic-desert</c> recipe), at the folder every load of
     /// <paramref name="scenarioName"/> resolves (<see cref="ContentLayout.ResolveScenarioDirectory"/> under this master's NAS — the same place a save
@@ -310,6 +332,7 @@ public sealed class StorageProcessManager
                 result.CanonicalDom.ToJsonString(FdpJsonOptionsRegistry.DefaultRelaxed));
             FdpLog<StorageProcessManager>.Info(
                 "[StorageProcessManager] merged {0} slice(s) → '{1}/scenario.json'.", slices.Count, scenarioName);
+            CompileTerrainOverlay(result.CanonicalDom, scenarioDir, scenarioName);
         }
 
         if (result.Foreign.Count > 0)

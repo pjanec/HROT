@@ -327,6 +327,15 @@ namespace Fdp.Toolkit.Terrain
             Triangles = p.Triangles, Min = p.Min, Max = p.Max, Material = material, Panel = panel, Building = building,
         };
 
+        /// <summary>⭐ O-4 — a template's footprint in its own local metres, read exactly as <see cref="ExpandCore"/> reads it (the explicit ring, else the box of the ground storey's walls).</summary>
+        internal static Vector2[] LocalFootprint(JsonObject template, string where)
+        {
+            if (template["footprint"] is JsonNode fpn) return ReadRing(fpn, where + ".footprint");
+            if (template["storeys"] is not JsonArray storeys || storeys.Count == 0)
+                throw new ArgumentException($"Terrain world {where}: a building template needs 'footprint' or 'storeys'.");
+            return WallBox((JsonObject)storeys[0]!, where);
+        }
+
         private static Vector2[] WallBox(JsonObject storey0, string where)
         {
             if (storey0["walls"] is not JsonArray walls || walls.Count == 0)

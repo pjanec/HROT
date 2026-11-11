@@ -508,6 +508,53 @@ public sealed class TerrainLoadStepTests : IDisposable
         Assert.Contains(a.Buildings, x => x.Label == "bridge-1");
     }
 
+    /// <summary>
+    /// ⭐ O-4 part 2 (CE-4415, DESIGN_Terrain_Authoring §18c) — compile, then load: a scenario with a block and a house over a base terrain compiles to <c>terrain-overlay/</c>; a FRESH
+    /// residency's <c>Prepare(name, folder)</c> accepts it (the hashes agree), the merged world holds the expanded houses labelled <c>&lt;guid&gt;/&lt;i&gt;</c> with their doors, and the base's own
+    /// parts keep their indices; changing a byte of the base afterwards makes the same overlay REFUSED. 🔴 Red-proof: have the compiler hash another base (or none) ⇒ the load refuses.
+    /// </summary>
+    [Fact]
+    public void ACompiledOverlay_LoadsInAFreshResidency_AndIsRefusedOnceTheBaseChanges_O4()
+    {
+        const string hut = """{"footprint":[[0,0],[10,0],[10,8],[0,8]],"storeys":[{"height":3,"walls":[{"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},{"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}""";
+        string assets = Path.Combine(_stagingRoot, "assets");
+        string terrains = Path.Combine(assets, "terrain"), folder = Path.Combine(terrains, "base-t");
+        Directory.CreateDirectory(folder); Directory.CreateDirectory(Path.Combine(assets, "buildings")); Directory.CreateDirectory(Path.Combine(assets, "terrain-recipes"));
+        File.WriteAllText(Path.Combine(folder, "terrain.json"), """{"schemaVersion":2,"world":"w.geojson"}""");
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,400,400],"groundZ":0},"features":[]}""");
+        File.WriteAllText(Path.Combine(assets, "buildings", "hut.building.json"), hut);
+        File.WriteAllText(Path.Combine(assets, "terrain-recipes", "village.recipe.json"), """{"id":"village","houses":{"templates":["hut"],"count":[6,6],"radius":50,"minSpacing":4},"woods":{"count":[1,1],"size":[8,12]}}""");
+        string scenarioDir = Path.Combine(_stagingRoot, "scn"); Directory.CreateDirectory(scenarioDir);
+        const string block = "b1000000-0000-4000-8000-000000000001", house = "c1000000-0000-4000-8000-000000000002";
+        var dom = System.Text.Json.Nodes.JsonNode.Parse("""
+            {"header":{"terrainName":"base-t"},"entities":{
+              "BLOCK":{"TerrainBlock":{"Recipe":"village","Seed":5,"HeadingDeg":0,"Fit":15},"SimTransform":{"Position":[200,200,0]}},
+              "HOUSE":{"TerrainFeature":{"Kind":1,"Template":"hut","HeadingDeg":90,"Pad":0},"SimTransform":{"Position":[350,350,0]}}}}
+            """.Replace("BLOCK", block).Replace("HOUSE", house))!.AsObject();
+        var catalog = new TerrainCatalog(new[] { terrains });
+        var r = OverlayCompiler.Compile(dom, scenarioDir, catalog.ResolveDefinition, bakeNavtiles: false);
+        Assert.True(r.Wrote);
+        string overlay = Path.Combine(scenarioDir, OverlayCompiler.FolderName);
+
+        TerrainWorld Load()
+        {
+            using var holder = new RoadNetworkHolder();
+            return new TerrainResidency(catalog, holder).Prepare("base-t", overlay).World!;
+        }
+        var w = Load();
+        var labels = w.Buildings.Select(b => b.Label).ToList();
+        Assert.Equal(7, labels.Count);
+        Assert.Contains(house + "/0", labels);
+        for (int i = 0; i < 6; i++) Assert.Contains($"{block}/{i}", labels);
+        Assert.Equal(7, w.Doors.Count);
+        Assert.Contains(w.Doors, d => d.Key == $"base-t/{block}/3/front");
+        Assert.Single(w.Surfaces);
+        Assert.Equal(labels, Load().Buildings.Select(b => b.Label).ToList());   // a second fresh residency: the same world
+
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,400,400],"groundZ":0},"features":[ ]}""");
+        Assert.Throws<InvalidOperationException>(() => Load());
+    }
+
     /// <summary>A content loader that counts its prepares.</summary>
     private sealed class CountingContentLoader : ITerrainContentLoader
     {

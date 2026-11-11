@@ -69,6 +69,10 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
     /// </summary>
     public NavTileCache? TileCache { get; init; } = NavTileCache.Default;
 
+    /// <summary>⭐ O-4 (CE-4415) — a PREFILL bake (<see cref="NavTileCacheMode.Prefill"/>) also reads the world's seed folders, so a tile a seed already has is a hit and is NOT written: the overlay compile writes only the tiles the base lacks.
+    /// ⛔ Off for the importer's prefill of a terrain's own folder (it is its own seed).</summary>
+    public bool SeedPrefill { get; init; }
+
     /// <summary>⭐ CE-4393 (N-3) — tiles done / total as the bake goes (the importer's "navmesh" stage); called from worker threads.</summary>
     public Action<int, int>? Progress { get; init; }
 
@@ -119,7 +123,7 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
             foreach (var folder in world.SeedFolders)
             {
                 var navtiles = System.IO.Path.Combine(folder, NavTileCache.TerrainFolderName);
-                if (System.IO.Directory.Exists(navtiles) && !ReferenceEquals(TileCache.Folder, navtiles) && TileCache.Mode != NavTileCacheMode.Prefill)
+                if (System.IO.Directory.Exists(navtiles) && !ReferenceEquals(TileCache.Folder, navtiles) && (TileCache.Mode != NavTileCacheMode.Prefill || SeedPrefill))
                     (seedFolders ??= new List<string>()).Add(navtiles);
             }
             if (seedFolders != null) seed = NavTileCache.ForSeeds(seedFolders);
