@@ -109,7 +109,7 @@ public sealed class ComponentDiffPanel
     /// <summary>
     /// Renders <paramref name="diffs"/> using the current filter settings.
     /// </summary>
-    private static readonly string[] DiffLabels = { "Ignore Epsilon (< 0.001)", "Hide Unchanged" };
+    private static readonly string[] DiffLabels = { "Ignore Epsilon (< 0.001)", "Hide Unchanged", "Compressed size", "Seek to change" };
 
     /// <summary>⭐ B-7 part 3 — whether a recording is loaded (the host binds the timeline panel's); drives the meta row below.</summary>
     public Func<bool>? HasRecording { get; set; }
@@ -121,26 +121,19 @@ public sealed class ComponentDiffPanel
     /// ⭐ B-7 part 3 (R-4155) — the per-frame debug row that used to sit empty in the retired Replay Timeline window (<c>Tick · SimFrame · SimTime · FrameType · CompressedSize</c>;
     /// still a placeholder: the values are not read from the recording yet). It belongs with the frame diff, which is per-frame debug.
     /// </summary>
-    private void DrawMetaRow()
+    private void DrawMetaRows()
     {
-        if (!(HasRecording?.Invoke() ?? false))
-            Gui.TextDisabled("Tick: - | SimFrame: - | SimTime: - | Type: - | Size: -");
-        else
-            Gui.TextDisabled("Tick: - | SimFrame: - | SimTime: - | FrameType: - | CompressedSize: -");
+        bool rec = HasRecording?.Invoke() ?? false;
+        FormGrid.Row("Tick");             Gui.TextDisabled("-");
+        FormGrid.Row("Sim frame");        Gui.TextDisabled("-");
+        FormGrid.Row("Sim time");         Gui.TextDisabled("-");
+        FormGrid.Row(rec ? "Frame type" : "Type"); Gui.TextDisabled("-");
+        FormGrid.Row(rec ? "Compressed size" : "Size"); Gui.TextDisabled("-");
     }
 
-    public void DrawContent(IReadOnlyList<DiffNode> diffs)
+    private void DrawTypeFilter()
     {
-        if (UnavailableReason?.Invoke() is { } unavailable) { Gui.TextDisabled(unavailable); return; }
-        DrawMetaRow();
-        if (FormGrid.Begin("diff.options", DiffLabels))
-        {
-            FormGrid.Row("Ignore Epsilon (< 0.001)"); Gui.Checkbox("##ignoreepsilon", ref _ignoreEpsilon);
-            FormGrid.Row("Hide Unchanged");           Gui.Checkbox("##hideunchanged", ref _hideUnchanged);
-            FormGrid.End();
-        }
-
-        if (Gui.Button("Filter"))
+        if (Gui.Button("Filter…"))
             Gui.OpenPopup("##diff_filter_popup");
 
         if (Gui.BeginPopup("##diff_filter_popup"))
@@ -182,10 +175,10 @@ public sealed class ComponentDiffPanel
         if (!Gui.IsPopupOpen("##diff_filter_popup"))
             _typeFilter = string.Empty;
 
-        bool isMerged = IsMergedViewQuery?.Invoke() ?? false;
-        bool prevNextEnabled = !IsSearching && !isMerged;
+    }
 
-        Gui.SameLine();
+    private void DrawSeekButtons(bool isMerged, bool prevNextEnabled)
+    {
         TransportIconRenderer.DrawButton("##prev_change", 20f, TransportShape.StepBack, prevNextEnabled, out _, out bool prevClicked);
         if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
         {
@@ -206,6 +199,26 @@ public sealed class ComponentDiffPanel
         }
         if (nextClicked && prevNextEnabled)
             OnSeekToChangeRequested?.Invoke(1);
+
+    }
+
+    public void DrawContent(IReadOnlyList<DiffNode> diffs)
+    {
+        if (UnavailableReason?.Invoke() is { } unavailable) { Gui.TextDisabled(unavailable); return; }
+        bool isMerged = IsMergedViewQuery?.Invoke() ?? false;
+        bool prevNextEnabled = !IsSearching && !isMerged;
+        // ⭐ CE-4289 ⑧ — label-first like every form (E17 §3): the per-frame meta, the options, the component filter and the seek-to-change buttons are ROWS of one grid (label | control)
+        if (FormGrid.Begin("diff.options", DiffLabels))
+        {
+            DrawMetaRows();
+            FormGrid.Row("Ignore Epsilon (< 0.001)"); Gui.Checkbox("##ignoreepsilon", ref _ignoreEpsilon);
+            FormGrid.Row("Hide Unchanged");           Gui.Checkbox("##hideunchanged", ref _hideUnchanged);
+            FormGrid.Row("Components");
+            DrawTypeFilter();
+            FormGrid.Row("Seek to change");
+            DrawSeekButtons(isMerged, prevNextEnabled);
+            FormGrid.End();
+        }
 
         Gui.Separator();
 

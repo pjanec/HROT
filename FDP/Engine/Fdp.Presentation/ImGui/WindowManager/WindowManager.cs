@@ -1094,6 +1094,30 @@ public class WindowManager
     public IReadOnlyList<string> HostMenuLabelsForRail()
         => new[] { PerspectiveMenuDto(), WindowsMenuDto(), HelpMenuDto() }.Select(m => m.Label ?? "").ToList();   // ⭐ CE-1243: the shell's own contributors
 
+    /// <summary>⭐ CE-4289 ④ — the toggles of one perspective's windows; the ones with a <see cref="ManagedWindow.MenuGroup"/> go under that submenu (listed after the plain ones).</summary>
+    private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto[] PerspectiveWindowItems(IEnumerable<ManagedWindow> windows)
+    {
+        var items = new List<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>();
+        var groups = new SortedDictionary<string, List<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>>(StringComparer.Ordinal);
+        foreach (var w in windows)
+        {
+            var item = new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = GetWindowActionId(w.Id), Label = w.Title, IsChecked = w.IsOpen };
+            if (w.MenuGroup == null) { items.Add(item); continue; }
+            if (!groups.TryGetValue(w.MenuGroup, out var list)) groups[w.MenuGroup] = list = new();
+            list.Add(item);
+        }
+        foreach (var g in groups)
+            items.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Label = g.Key, Children = g.Value.ToArray() });
+        return items.ToArray();
+    }
+
+    /// <summary>⭐ CE-4289 ④ — files the windows <paramref name="ids"/> under <i>View ▸ Windows ▸ &lt;perspective&gt; ▸ <paramref name="group"/></i>; an unknown id is skipped (a host without that window).</summary>
+    public void SetMenuGroup(string group, params string[] ids)
+    {
+        foreach (var id in ids)
+            if (_windows.TryGetValue(id, out var w)) w.MenuGroup = group;
+    }
+
     /// <summary>⭐ CE-1243 — the Windows menu: perspective-bound windows grouped by perspective, then the global ones (win-mgr-1 §4.4.2).</summary>
     private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto WindowsMenuDto()
     {
@@ -1107,10 +1131,7 @@ public class WindowManager
             winChildren.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
             {
                 Label = group.Key,
-                Children = group.Select(w => new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-                {
-                    Id = GetWindowActionId(w.Id), Label = w.Title, IsChecked = w.IsOpen
-                }).ToArray()
+                Children = PerspectiveWindowItems(group)
             });
         }
         var globalWindows = _windows.Values.Where(w => w.Scope == WindowScope.Global && w.ShowInMenu).ToList();

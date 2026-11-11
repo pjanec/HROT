@@ -123,6 +123,24 @@ public class TopLevelMenuOrderTests
         Assert.Equal("View/Windows", GlobalMenuRegistry.WindowsSubmenu);
     }
 
+    /// <summary>⭐ CE-4289 ④ — a window filed with <c>SetMenuGroup("Debug", …)</c> is listed under <c>View ▸ Windows ▸ &lt;perspective&gt; ▸ Debug</c>; the others stay directly in the perspective's list.
+    /// ✅ Red-proof: <c>PerspectiveWindowItems</c> ignoring <c>MenuGroup</c> ⇒ the Debug submenu is absent ⇒ red.</summary>
+    [Fact]
+    public void CE4289_DebugWindows_AreListedUnderADebugSubmenu()
+    {
+        var wm = WmWithPerspectives();
+        wm.RegisterWindow(new Blank("w-Insp", "Scenario"));
+        wm.SetMenuGroup("Debug", "w-Insp", "w-unknown");
+        var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective));
+        var windows = bar.Single(m => m.Name == "View").Parts.SelectMany(p => p.Item.Children ?? System.Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>())
+            .Single(c => c.Label == "Windows");
+        var scn = windows.Children!.Single(g => g.Label == "Scenario");
+        var debug = scn.Children!.Single(c => c.Label == "Debug");
+        Assert.Equal(new[] { "w-Insp" }, debug.Children!.Select(c => c.Label));
+        Assert.Contains(scn.Children!, c => c.Label == "w-Scn");
+        Assert.DoesNotContain(scn.Children!, c => c.Label == "w-Insp");
+    }
+
     /// <summary>⭐ CE-4114 — Help is ICON-ONLY: its draw label has no visible text, and a real frame asks the icon resolver for the question-mark key (and
     /// not for the old info badge). ✅ Red-proof: <c>BarMenu.IconOnly</c> returning false ⇒ the label is "Help" ⇒ red; <c>HelpIconKey</c> back to "status/info" ⇒ red.
     /// Display rail: needs the ImGui fixture (native cimgui); skipped-vs-run is reported by the runner.</summary>

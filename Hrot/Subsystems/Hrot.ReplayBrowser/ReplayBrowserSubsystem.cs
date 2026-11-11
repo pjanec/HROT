@@ -702,7 +702,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     {
         if (_federationPanel != null)
             _federationPanel.OnViewModeChanged -= SetViewMode;
-        _federationPanel = new FederationPanel(_manager!);
+        _federationPanel = new FederationPanel(_manager!) { NodeName = Hrot.Orchestrator.NodeIdRanges.NameOf };   // ⭐ CE-4289 Q-B6 — the offsets rows named by the node role (the id's range, as the editor's Review source), not "Node N"
         _federationPanel.OnViewModeChanged += SetViewMode;
 
         if (_windowManager != null)
@@ -1088,7 +1088,20 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         // ⭐ R-4 / V4 (docs/UX/DESIGN_Review_Perspective.md §3 D11) — the Replay Browser's default layout IS the Review layout: the SAME preset (Hrot.Editor.AiShared.Review.ReviewLayout) over this host's window ids,
         //   laid out by the host's dockspace frame unless a saved layout already places these windows. (No data-breakpoints window here — that role is simply absent.)
         windowManager.RequestDockPreset(ReviewLayoutIds(review, rules));
+
+        // ⭐ CE-4289 ④ (DESIGN_Replay_Browser_UX §2) — the debug windows are grouped under View ▸ Windows ▸ Replay ▸ Debug (the Details, Timeline, Marks and Rules windows stay in the main list)
+        windowManager.SetMenuGroup(DebugMenuGroup, DebugWindowIds(review));
     }
+
+    /// <summary>⭐ CE-4289 ④ — the submenu the replay browser's debug windows are listed under.</summary>
+    public const string DebugMenuGroup = "Debug";
+
+    /// <summary>⭐ CE-4289 ④ — Entity Inspector · Wire Entity Inspector · Event Browser · Frame Diff · Replay Search · Federation.</summary>
+    internal static string[] DebugWindowIds(Hrot.Editor.AiShared.Review.ReviewBundle review) => new[]
+    {
+        Hrot.Presentation.Windows.DiagnosticsWindowsBundle.InspectorId("rb_"), Hrot.Presentation.Windows.DiagnosticsWindowsBundle.WireEntitiesId("rb_"),
+        Hrot.Presentation.Windows.DiagnosticsWindowsBundle.EventsId("rb_"), review.FrameDiff.Id, review.ReplaySearch.Id, "rb_federation",
+    };
 
     /// <summary>⭐ R-4 / V4 — the Review layout over THIS host's window ids (a rail compares it with the editor's: one definition).</summary>
     internal static Fdp.Presentation.WindowManager.DockPreset ReviewLayoutIds(Hrot.Editor.AiShared.Review.ReviewBundle review, Hrot.Editor.AiShared.Rules.RulesBundle rules)
@@ -1105,8 +1118,11 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     /// registration, when a group happened to already be loaded) and <c>OnLoadGroup</c> (every
     /// subsequent group load, which replaces <see cref="_federationPanel"/>).</summary>
     private void RegisterFederationWindow(WindowManager windowManager, FederationPanel panel)
-        => windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FederationWindow(
+    {
+        windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FederationWindow(
             "rb_federation", "Federation", "ReplayBrowser", panel, TitleBarColor));
+        windowManager.SetMenuGroup(DebugMenuGroup, "rb_federation");   // ⭐ CE-4289 ④ — a debug window (Q-B6)
+    }
 
     // ── Delegate wiring ───────────────────────────────────────────────────
 

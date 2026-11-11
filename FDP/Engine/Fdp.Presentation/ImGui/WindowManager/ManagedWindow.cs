@@ -117,6 +117,10 @@ public abstract class ManagedWindow
     /// </summary>
     public bool ShowInMenu { get; protected set; } = true;
 
+    /// <summary>⭐ CE-4289 ④ — a submenu of the window's perspective group in <i>View ▸ Windows</i> the window is listed under (e.g. <c>"Debug"</c>); null = directly in the group.
+    /// Set by the HOST that composes the window (<see cref="WindowManager.SetMenuGroup"/>), so a shared window class stays neutral.</summary>
+    public string? MenuGroup { get; internal set; }
+
     // ── Internal test-support properties ──────────────────────────────────────
 
     /// <summary>

@@ -275,6 +275,10 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_game_summary", "rb_json_export", "rb_marks", "rb_mission_summary", "rb_recording_info", "rb_rules", "rb_search", "rb_trainee_debrief", "rb_wire_entities" },
                      windows.Keys.Where(k => k != "shell_keyboard_shortcuts").OrderBy(k => k, StringComparer.Ordinal).ToArray());   // the shell's own shortcuts window is the window manager's, not this host's
 
+        // ⭐ CE-4289 ④ — the debug windows are filed under View ▸ Windows ▸ ReplayBrowser ▸ Debug; Details / Timeline / Marks / Rules stay in the main list. ✅ Red-proof: the SetMenuGroup call removed ⇒ red.
+        Assert.Equal(new[] { "rb_diff", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_wire_entities" },
+                     windows.Where(kv => kv.Value.MenuGroup == "Debug").Select(kv => kv.Key).OrderBy(k => k, StringComparer.Ordinal).ToArray());
+
         foreach (var (_, win) in windows.Where(kv => kv.Key != "shell_keyboard_shortcuts"))
         {
             Assert.Equal(WindowScope.PerspectiveBound, win.Scope);
@@ -470,6 +474,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.IsType<Fdp.Presentation.Windows.ReplayBrowser.FederationWindow>(windows["rb_federation"]);
         Assert.Equal(WindowScope.PerspectiveBound, windows["rb_federation"].Scope);
         Assert.Equal("ReplayBrowser", windows["rb_federation"].OwningPerspective);
+        Assert.Equal("Debug", windows["rb_federation"].MenuGroup);   // ⭐ CE-4289 ④ — a debug window
     }
 
     /// <summary>Reloading a SECOND group replaces the window under the same id rather than leaving a
