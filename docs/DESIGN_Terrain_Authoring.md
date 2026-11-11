@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — R-4198…R-4201 ruled; ⭐ the S-0 MOCKUPS are drawn (§15) and wait for the user's approval; L-1…L-7 ✅ approved (R-4202, L-2 amended); §16 the wizard → editor step and cluster sync (leans)
+build-state: DESIGN — R-4198…R-4201 ruled; ⭐ the S-0 MOCKUPS ✅ approved (§15, R-4203); L-1…L-7 ✅ approved (R-4202, L-2 amended); §16 the wizard → editor step and cluster sync ✅ (R-4203)
 updated: 2026-11-11
 current-answer: ⭐ §16 wizard → editor, cluster sync (leans) · §15 the mockups (S-0) · §14 editing a baked terrain again, non-terrain entities in a source (leans E-1…E-6) · §13 the workflow (✅ R-4200) · §12 the random terrain = an empty surface + placed blocks (✅ R-4200) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
 stale-below: nothing
@@ -402,7 +402,7 @@ carries what is needed to edit it again; *Edit terrain* always reopens the whole
 | E-6 | ⛔ **damage is not baked**: a breach or collapse made while trying the source (a run) stays scenario state; *Save terrain* bakes the intact geometry and says so. A *pre-damaged town* ("a ruined village") is a later option — a block variant, or an explicit "bake damage" tick | a test shot should not quietly change the terrain |
 | E-Q | ⏭ **removing a baked house** (an imported one, to make room for a block) = a new "remove" feature saved in the source; designed now, built only if needed early | the user's call when it is needed |
 
-## 15. The mockups — S-0 *(drawn `2026-11-11`; ⏳ waiting for the user's approval; generator `scripts/gen-terrain-authoring-mockups.py` on the one kit, R-4143)*
+## 15. The mockups — S-0 *(drawn `2026-11-11`; ✅ approved the same day, R-4203; generator `scripts/gen-terrain-authoring-mockups.py` on the one kit, R-4143)*
 
 | page | shows | basis |
 |---|---|---|
@@ -414,7 +414,7 @@ carries what is needed to edit it again; *Edit terrain* always reopens the whole
 ⚠ Scope (R-4151): the editor, the menu bar and the picker's existing groups are drawn as dimmed or plain CONTEXT and are unchanged. Clutter tiles
 show glyphs where the real tiles will be model renders (the thumbnail atlas).
 
-## 16. From the wizard to the editor, and the same terrain on every node *(leans `2026-11-11`)*
+## 16. From the wizard to the editor, and the same terrain on every node *(✅ V-1…V-6 approved `2026-11-11`, R-4203)*
 
 🔒 User, `2026-11-11`: *"How will we get from the wizard to the editor? … In a cluster, when the scenario contains this terrain stuff, how will we
 make sure that the others will receive the same stuff so they can bake the terrain features into their own 3D map and terrain representations?"*
