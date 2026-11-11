@@ -60,8 +60,25 @@ namespace Fdp.Core.FlightRecorder
             return wallTicks >= FirstFrameWallTicks - CoverageGraceTicks && wallTicks <= LastFrameWallTicks + CoverageGraceTicks;
         }
         
-        public PlaybackController(string filePath)
+        /// <summary>⭐ CE-1478 P1 — frames the prefetcher keeps decoded ahead of the apply (Q3 of docs/DESIGN_Replay_Playback_Performance.md).</summary>
+        public const int DefaultPrefetchDepth = 3;
+
+        private readonly string _filePath;
+        private readonly int _prefetchDepth;
+        private FramePrefetcher? _prefetcher;
+
+        /// <summary>Frames applied from the prefetcher's decoded buffers (diagnostic; the rest were read inline).</summary>
+        public int PrefetchedApplies { get; private set; }
+        /// <summary>Frames applied by the inline read + decode (cold start, seek, prefetch off).</summary>
+        public int InlineApplies { get; private set; }
+
+        /// <param name="filePath">the recording</param>
+        /// <param name="prefetchDepth">⭐ CE-1478 P1 — frames read + decoded ahead on a background thread (started on the first apply, stopped by
+        /// <see cref="Dispose"/>); 0 = every frame is read inline on the caller's thread (the pre-P1 behaviour)</param>
+        public PlaybackController(string filePath, int prefetchDepth = DefaultPrefetchDepth)
         {
+            _filePath = filePath;
+            _prefetchDepth = Math.Max(0, prefetchDepth);
             // Step 1: Load and validate the schema manifest BEFORE opening the binary stream.
             // This prevents silent memory corruption when struct layouts have changed since recording.
             var metadataPath = filePath + ".meta.json";
@@ -387,8 +404,44 @@ namespace Fdp.Core.FlightRecorder
             return 0; // Should always find at least one keyframe
         }
         
+        /// <summary>Test hook: waits until the worker has frame <paramref name="frameIndex"/> decoded (false on timeout or with prefetch off).</summary>
+        internal bool WaitForPrefetch(int frameIndex, int timeoutMs = 10000)
+        {
+            if (_prefetcher == null) return false;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (!_prefetcher.IsReady(frameIndex))
+            {
+                if (sw.ElapsedMilliseconds > timeoutMs) return false;
+                System.Threading.Thread.Sleep(1);
+            }
+            return true;
+        }
+
+        /// <summary>Test hook: the worker, for reading its decoded frames.</summary>
+        internal FramePrefetcher? Prefetcher => _prefetcher;
+
         private void ApplyFrame(EntityRepository repo, int frameIndex)
         {
+            if (_prefetchDepth > 0)
+            {
+                // ⭐ CE-1478 P1 — the frame the worker already read + decoded is only applied here; not ready (cold start, a seek) ⇒ the inline path below.
+                _prefetcher ??= new FramePrefetcher(_filePath, _frameIndex.ToArray(), FormatVersion, _prefetchDepth);
+                if (_prefetcher.TryTake(frameIndex, out var prepared))
+                {
+                    try
+                    {
+                        using var pms = new MemoryStream(prepared.Raw, 0, prepared.RawSize, writable: false);
+                        using var preader = new BinaryReader(pms);
+                        _playback.ApplyFrame(repo, preader, EventBus);
+                    }
+                    finally { _prefetcher.Release(prepared); }
+                    PrefetchedApplies++;
+                    _prefetcher.Want(frameIndex + 1);
+                    return;
+                }
+                _prefetcher.Want(frameIndex + 1);   // aim the worker at what follows while this frame is read inline
+            }
+            InlineApplies++;
             var metadata = _frameIndex[frameIndex];
             
             // Seek to frame position
@@ -438,6 +491,7 @@ namespace Fdp.Core.FlightRecorder
         
         public void Dispose()
         {
+            _prefetcher?.Dispose();
             _reader?.Dispose();
             _fileStream?.Dispose();
         }
