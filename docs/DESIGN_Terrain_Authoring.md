@@ -1008,7 +1008,7 @@ sequenceDiagram
     L->>X: expand each CHANGED block (an unchanged one keeps its cached parts, by guid + params)
     L-->>S: the overlay parts, keyed guid/i
     S->>R: BakeObstacles(prisms, damage, overlay parts)
-    R->>R: world = With(Merge(base, overlay), prisms); dirty += bounds of the overlay parts that differ by key + geometry
+    R->>R: world = With(Merge(base, overlay), prisms), dirty adds the overlay parts that differ by key + geometry
   end
 ```
 *What it shows:* a block edit rides the bake every node already runs; the stable keys (`<guid>/<i>`) make "which parts changed" a key diff, so a moved
