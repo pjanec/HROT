@@ -47,7 +47,7 @@ public sealed class TerrainResidency
         internal bool               HasRoadNetwork;
         internal string?            TerrainName;
         internal DateTime           FileTimestamp;
-        internal string?            OverlayFolder;   // ⭐ O-2 — the overlay merged into World, if any
+        internal string?            OverlayFolder;   // ⭐ O-4 — the CONTENT HASH of the overlay merged into World, if any
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
         /// <summary>⭐ AQ93 R-4021 — what each attached <see cref="ITerrainContentLoader"/> prepared, committed in attach order.</summary>
@@ -81,7 +81,7 @@ public sealed class TerrainResidency
     // ⭐ The idempotency branch, and the only implementation of it: same name + same files ⇒ no work.
     private string?  _lastLoadedTerrainName;
     private DateTime _lastLoadedTimestamp;
-    private string?  _lastLoadedOverlay;   // ⭐ O-2 — a resident terrain is only 'unchanged' for the same overlay
+    private string?  _lastLoadedOverlay;   // ⭐ O-4 — a resident terrain is only 'unchanged' for the same overlay HASH
 
     /// <summary>
     /// The production constructor: resolves terrains through the standard node search list —
@@ -201,7 +201,7 @@ public sealed class TerrainResidency
 
         DateTime currentFileTime = LatestWriteTime(definitionPath);
 
-        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime && string.Equals(_lastLoadedOverlay, NormalizeOverlay(overlayFolder), StringComparison.Ordinal))
+        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime && string.Equals(_lastLoadedOverlay, OverlayHashOf(overlayFolder), StringComparison.Ordinal))
         {
             FdpLog<TerrainResidency>.Info(
                 "[Terrain] Terrain '{0}' already resident and unchanged — skipping re-ingestion.",
@@ -216,7 +216,7 @@ public sealed class TerrainResidency
             Definition    = definition,
             TerrainName   = terrainName,
             FileTimestamp = currentFileTime,
-            OverlayFolder = NormalizeOverlay(overlayFolder),
+            OverlayFolder = OverlayHashOf(overlayFolder),
         };
 
         // ⭐ Schema v2 — the terrain WORLD every derived query reads (docs/DESIGN_Terrain_World.md).
@@ -228,6 +228,17 @@ public sealed class TerrainResidency
             // ⭐ O-2 (CE-4416, §18a) — a scenario's terrain overlay: the base world plus the overlay's, merged into ONE world (the obstacle bake builds on it). The hash check is O-4.
             if (!string.IsNullOrEmpty(overlayFolder))
             {
+                // ⭐ O-4 (C-5) — an overlay is bound to the base it was compiled against, by CONTENT: a name stands for nothing
+                var header = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder);
+                string actualBase = TerrainContentHash.OfTerrain(definitionPath);
+                if (!string.Equals(actualBase, header.BaseHash, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"[Terrain] The overlay '{overlayFolder}' was compiled against terrain '{header.BaseName}' with content hash '{header.BaseHash}', but the resident terrain '{terrainName}' "
+                      + $"('{definitionPath}') has content hash '{actualBase}'. Refusing to merge: recompile the overlay (save the scenario) against this terrain.");
+                string actualOverlay = TerrainContentHash.OfOverlay(overlayFolder);
+                if (!string.Equals(actualOverlay, header.ContentHash, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"[Terrain] The overlay '{overlayFolder}' is torn: its header says content hash '{header.ContentHash}', its files hash to '{actualOverlay}' (terrain '{terrainName}').");
                 var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!));
                 baseWorld = TerrainWorldMerge.Merge(baseWorld, overlay.World);
             }
@@ -475,7 +486,15 @@ public sealed class TerrainResidency
     /// the main thread (Prepare and the obstacle bake both run there). ⛔ It was built and attached nowhere, so every live sight
     /// line and every EQS point placement scanned every piece.
     /// </summary>
-    private static string? NormalizeOverlay(string? overlayFolder) => string.IsNullOrEmpty(overlayFolder) ? null : Path.GetFullPath(overlayFolder);
+    private static string? OverlayHashOf(string? overlayFolder)
+    {
+        if (string.IsNullOrEmpty(overlayFolder)) return null;
+        var header = Path.Combine(overlayFolder, TerrainOverlayHeader.FileName);
+        return TerrainOverlayHeader.Parse(File.ReadAllText(header), header).ContentHash;
+    }
+
+    /// <summary>⭐ O-4 (CE-4415) — the folder of the overlay with this content hash, searched in the catalog's roots (the node's staging, then the NAS); null when none has it.</summary>
+    public string? ResolveOverlay(string contentHash) => _catalog.ResolveOverlay(contentHash);
 
     private static TerrainWorld Indexed(TerrainWorld world)
     {

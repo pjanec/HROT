@@ -83,7 +83,14 @@ public sealed class TerrainLoadStep : ILoadPartProvider
         // ⭐⭐⭐ L8 — the bounded wait that used to stand here is GONE: this step no longer runs until the
         //    distribution of the scenario has been acknowledged by every node, so the definition is either
         //    present or genuinely absent. 📄 docs/DESIGN_Cluster_Load_Phase.md §7.3 ④.
-        var staged = _residency.Prepare(requested);
+        // ⭐ O-4 (CE-4415) — the scenario's terrain overlay, staged beside the terrain by its content hash; a hash named but no folder found is a broken deployment, like a missing terrain
+        string? overlayFolder = null;
+        string? overlayHash = ScenarioTerrainName.ReadOverlayHash(_stagingRoot);
+        if (!string.IsNullOrWhiteSpace(requested) && !string.IsNullOrEmpty(overlayHash))
+            overlayFolder = _residency.ResolveOverlay(overlayHash)
+                ?? throw new System.IO.FileNotFoundException(
+                    $"[Terrain] The staged scenario names terrain overlay '{overlayHash}' for terrain '{requested}', but no overlays/{overlayHash}/overlay.json exists under any terrain root. Loading it is mandatory: a broken deployment.");
+        var staged = _residency.Prepare(requested, overlayFolder);
         if (staged.HasWork)
             lock (_stagedGate) _staged[context.TransactionId] = staged;
 

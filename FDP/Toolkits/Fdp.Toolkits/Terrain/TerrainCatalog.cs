@@ -80,6 +80,22 @@ namespace Fdp.Toolkit.Terrain
             return path == null ? null : TerrainDefinitionParser.Parse(File.ReadAllText(path));
         }
 
+        /// <summary>The sub-folder of a root an overlay lands in: <c>&lt;root&gt;/overlays/&lt;contentHash&gt;/</c> (O-4).</summary>
+        public const string OverlaysDirectoryName = "overlays";
+
+        /// <summary>⭐ O-4 (CE-4415) — the folder of the overlay with content hash <paramref name="contentHash"/> (it holds <c>overlay.json</c>), searched in the same roots as a terrain; null when none has it.</summary>
+        public string? ResolveOverlay(string contentHash)
+        {
+            if (string.IsNullOrWhiteSpace(contentHash)) return null;
+            if (contentHash.IndexOfAny(new[] { '/', '\\', '.' }) >= 0) throw new ArgumentException($"Overlay hash '{contentHash}' is not a hash.", nameof(contentHash));
+            foreach (var root in _roots)
+            {
+                var dir = Path.Combine(root, OverlaysDirectoryName, contentHash);
+                if (File.Exists(Path.Combine(dir, TerrainOverlayHeader.FileName))) return dir;
+            }
+            return null;
+        }
+
         /// <summary>The folder holding <paramref name="terrainName"/>, or <c>null</c>.</summary>
         public string? ResolveFolder(string terrainName)
         {

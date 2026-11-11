@@ -791,3 +791,14 @@ The screens are ui's; ⭐ the DATA each screen shows is this batch's, so ui can 
 | 4 | *Stays in the source only: 12 units and 2 areas — not terrain (E-4) · damage to 3 houses from a test run — not baked (E-6)* | the summary's `NotBaked` (units, areas, damaged houses) | O-5 |
 | 4 | *Pre-build the walkable mesh ≈ 2 min* | the summary's tile count + the estimate (the cold rate, §18b) | O-5 |
 | 4, overwrite | *Used by 3 scenarios: …* | `TerrainUsers.Of(terrainName)` — the scenarios naming it | O-5 |
+
+### 18a-4. Distribution and load — O-4 part 1 as built *(CE-4415, backend `2026-11-11`)*
+
+| as built | where |
+|---|---|
+| `TerrainContentHash.OfTerrain(definitionPath)` — SHA-256 over every file of the folder but `navtiles/`, `source/`, `terrain.hash` (ordinal path order); cached in `terrain.hash` by (length, mtime) — 📐 scale-1: **203 ms cold, 5 ms cached** | `TerrainContentHash.cs` |
+| `TerrainContentHash.OfOverlay(folder, baseHash)` — over the world file + `buildings/*` AND the base's hash: the same parts over another base are another overlay (different navtiles), and the staged folder is named by it — ⚠ found in review, added with a rail | `TerrainContentHash.cs` |
+| the prefetch mirrors `<scenario>/terrain-overlay/` to `{node}/Terrain/overlays/<contentHash>/` (`AssetTreeSync`, the terrain's nodeRoot) and writes `OverlayHash` into the staged header; no overlay ⇒ no field | `StorageGatewayModule.cs` |
+| `TerrainCatalog.ResolveOverlay(hash)` searches the terrain roots (staging, NAS); `TerrainLoadStep` reads `OverlayHash` and calls `Prepare(name, folder)`; a named hash with no folder THROWS | `TerrainCatalog.cs`, `TerrainLoadStep.cs`, `ScenarioTerrainName.cs` |
+| `Prepare` refuses a base mismatch (names both hashes, the terrain, the folder — C-5) and a torn overlay (its files ≠ its header's hash) | `TerrainResidency.cs` |
+| ⚠ not pruned: overlay folders are content-addressed and accumulate on a node — a row for the cache rule (the recording-archive cache rule is the model) | — |

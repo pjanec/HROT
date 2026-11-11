@@ -24,7 +24,12 @@ namespace Fdp.Toolkit.Terrain
         /// header is absent or names no terrain. ⭐ Null is LEGAL — a scenario with no terrain loads
         /// anyway, exactly like one with no TKB.
         /// </summary>
-        public static string? Read(string? localStagingRoot)
+        public static string? Read(string? localStagingRoot) => ReadField(localStagingRoot, "TerrainName");
+
+        /// <summary>⭐ O-4 (CE-4415) — the <c>OverlayHash</c> of the staged header (the scenario's terrain overlay, staged to <c>Terrain/overlays/&lt;hash&gt;/</c>), or null when it has none.</summary>
+        public static string? ReadOverlayHash(string? localStagingRoot) => ReadField(localStagingRoot, "OverlayHash");
+
+        private static string? ReadField(string? localStagingRoot, string field)
         {
             if (string.IsNullOrWhiteSpace(localStagingRoot)) return null;
 
@@ -40,7 +45,7 @@ namespace Fdp.Toolkit.Terrain
             while (reader.Read())
             {
                 if (reader.TokenType == JsonTokenType.PropertyName &&
-                    reader.ValueTextEquals("TerrainName"))
+                    reader.ValueTextEquals(field))
                 {
                     reader.Read();
                     return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
