@@ -358,6 +358,45 @@ public sealed class Map3DGizmoTests
         Assert.Equal((byte)0, c.LeaderColour.G);
     }
 
+    private static readonly Func<string, float, float> MeasureFn = Measure;
+    private static readonly Func<long, Vector2?> AnchorFn = static id => new Vector2(100f + id, 300f);
+
+    [Fact]
+    public void P4_Layout_OfAThousandCards_AllocatesNothingOnceWarm_AndKeepsTheRowOrder()
+    {
+        // ⭐ CE-1478 P4 — Layout was ~4 MB of garbage per frame of a 1 000-man scene (a dictionary + lists per entity, a sorted map per card, the card records, a string per text)
+        var prims = new List<DebugPrimitive>();
+        for (long n = 1; n <= 1000; n++)
+            prims.AddRange(CardFrame((int)n, d =>
+            {
+                var card = d.Card((int)n);
+                card.Row(20).Text("unit " + (n % 37), Blue);   // emitted first, still the LOWER row
+                card.Row(10).Bar(1f, Blue, Red, heightPx: 4f);
+                card.Row(0).Frame(Red);
+            }));
+        var r = new GizmoMap.Presentation.EntityCardRenderer();
+        for (int i = 0; i < 3; i++) r.Layout(prims, AnchorFn, MeasureFn);   // warm: pools, caches, JIT
+
+        long smallest = long.MaxValue;
+        for (int window = 0; window < 6; window++)   // the smallest of several windows: a tiering JIT may allocate inside one
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) r.Layout(prims, AnchorFn, MeasureFn);
+            smallest = Math.Min(smallest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+        Assert.Equal(0, smallest);
+
+        var cards = r.Layout(prims, AnchorFn, MeasureFn);
+        Assert.Equal(1000, cards.Count);
+        var c = cards[41];
+        Assert.Equal(42L, c.NetworkId);
+        var bar = c.Items.First(i => i.Primitive.ZIndex == 10);
+        var name = c.Items.First(i => i.Primitive.ZIndex == 20);
+        Assert.True(bar.RowOrigin.Y < name.RowOrigin.Y, "row 10 is above row 20 whatever the emit order");
+        Assert.True(c.Items.Count >= 3);
+        Assert.True(c.Items[0].CardWide);   // the card-wide frame first
+    }
+
     [Fact]
     public void S5b_Layout_AWorldShapeInACard_IsCounted_NotDrawn_AndAnEmptyCardIsAtLeastTheMinimumWidth()
     {
