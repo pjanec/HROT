@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD for phase 1 (P1–P5) · DESIGN for phase 2 (P6, a format change — the user's nod first)
-updated: 2026-11-11
-current-answer: §2 the picture · §3 the phases · §4 leans
+build-state: BUILT — P1, P2, P4, P5, P6 (2026-11-11, as-built in §3a) · P3 not built (measure-gated, see §3a)
+updated: 2026-11-11 (§3a as-built; Q1 decided)
+current-answer: §3a AS-BUILT (read it first) · §2 the picture · §3 the phases (the plan) · §4 leans
 stale-below: nothing
 known-rot: none
 known-conflict: FDP/Engine/docs/FDP-FlightRecorder.md DES-004 §5 says playback is "read, LZ4-decompress, ApplyFrame" synchronously — P1 SUPERSEDES that for playback
@@ -103,6 +103,26 @@ graph TD
 | **P4** | ui's own garbage: `EntityCardRenderer.Layout` 0 B steady | ui | the 0 B rail |
 | **P5** | measure the **Replay Browser** on a 1 000-man recording (the user's path) with the same split | — | a §8 in MEASURE |
 | **P6** ✅ approved (Q1) | **block-level deltas** (format): record per changed 64-byte block (or per changed row) instead of the chunk's used prefix — ~20× smaller frames, decode, apply and view copy | `RecorderSystem`, `PlaybackSystem`, the format version | kept only if correct (replay, seek, checkpoint restore rails) AND measured faster (§4 Q1) |
+
+## 3a. AS-BUILT `2026-11-11` (ui lane; supersedes the plan rows above where they differ)
+
+| # | state · sha | measured (1 000-man recording, 5 647 entities; Linux 4 cores; MEASURE §8–§9) | deviation from §3 |
+|---|---|---|---|
+| **P1** FramePrefetcher | ✅ `8f8ee8100` · `Fdp.Core/FlightRecorder/FramePrefetcher.cs`, `PlaybackController` (lazy start on the first apply, own `FileShare.ReadWrite` handle, depth 3, `prefetchDepth` ctor arg, `HROT_REPLAY_PREFETCH`) | read + LZ4 decode (12 ms median, 56 max) leave the applying thread: every frame after the cold start / a seek is `prefetched` in the `[ReplayApply]` log | none; ⚠ the first delta after a keyframe is still inline (the worker aims at k+1 only after the keyframe's apply) |
+| **P2** partial repair | ✅ `ab4ae2543`, fixed `ab540c431` | repair **74 → 7 ms** median in the Browser (apply 109 → 32 ms; the 91 frames play in 5.9 s instead of 11.7 s) | ⛔ **SUPERSEDES the plan's "walk the touched chunks" for the managed masks**: scanning every managed table over each restored MASK chunk cost 50–90 ms (500 000–800 000 pairs) — more than the whole pass — so only (managed table, chunk) the apply wrote are scanned; the rest of the win is skipping the ~500 000 DEAD index slots (`RepairEntityIndex`, the full mask pass gathers live entities once). The entity-index pass is partial over the restored hot / cold chunks + destroyed entities. A keyframe, the first apply onto a world and an apply that registered a table repair everything (`ForceFullRepair` forces it) |
+| **P3** | ⏸ not built | — | the view copy is per CHUNK version; P6 does not change which chunks are touched (every changed chunk still stamps), so P3 stays measure-gated |
+| **P4** | ✅ `44687dff3` · `EntityCardRenderer.Layout` | **0 B** once warm (was ~4.15 MB per frame): pooled `Card`s (now a class, valid until the next Layout), reused grouping arrays, cached strings / widths; `Draw(IReadOnlyList)` | `Card` is a pooled class, not a record |
+| **P5** | ✅ `3e9a63bd2` · MEASURE §8 | the Browser: see §3a-bis | filed CE-1479 |
+| **P6** block deltas | ✅ KEPT (format **v8**) · `ba74db0ae` + measuring switches | live recording of the same scenario: delta raw **55.6 MB → 8.1 MB** median (file 76 MB / 59 deltas → 44.6 MB / 73 deltas); recorder **main-thread cost 48 → 44 ms** median (no regression); replay apply **31 → 20 ms** median (prefetched, repair 7 both); worker decode of a frame ~7× fewer bytes | 64-byte blocks with run coalescing, not rows: the biggest type (a 4 096-byte row) moves ~1 % of its blocks (MEASURE §5), a row record would rewrite all of it. Entity-index chunks (3 % of a frame) and managed chunks stay whole. The first delta after a keyframe has no base ⇒ whole chunks (as before) |
+
+### 3a-bis — the Replay Browser
+Browser plays the 91 frames in **11.7 s → 5.9 s** (P1 + P2); apply 109 → 32 ms; the render frame that holds applies 1 615 → 682 ms. The remaining Browser-only cost is its pacing (CE-1479): one recorded frame per 1/60 s, up to 10 applies per render frame.
+
+### 3a-ter — P6 format and rails
+- **Format v8**: a component record inside a delta chunk entry may have type id `| RecorderSystem.BlockRecordFlag` (`0x40000000`; component ids are < 512, the entity-index ids −1/−2 are negative so a reader tests `typeId > 0`): payload `[totalBytes][runCount]{[firstBlock][blockCount][bytes]}`; the reader reads v6–v8 (`MIN_READABLE_FORMAT_VERSION` unchanged), a v7 build rejects v8 by version.
+- Recorder: `RecorderSystem.BlockDeltas` (default on; `HROT_RECORD_BLOCK_DELTAS=0` for measuring), diff against the `_lastChunkBytes` the recorder already keeps (CE-3332), blocks past the old used-prefix length count as moved, a payload not smaller than the prefix falls back to the whole record. Playback: `PlaybackSystem.ApplyBlockRuns` copies runs in place (`IUnmanagedComponentTable.RestoreChunkRangeFromBuffer`), reading the payload straight from the frame's `MemoryStream` buffer.
+- Rails: `BlockDeltaTests` (block recording == whole-prefix recording of the same seeded session at every frame and through 20 random seeks; smaller raw deltas, v8 header), `PartialRepairTests`, `FramePrefetcherTests`, `Map3DGizmoTests.P4_*`.
+- ⚠ **Not red-provable**: the entity-index partial revival path and the hot-chunk mask scan (dropped) — the recorder always rewrites a cold chunk with its hot chunk, so no recording reaches a state where they differ from the full repair; documented in `RepairManagedComponentMasksPartial`.
 
 ## 4. Leans (the user reviews)
 

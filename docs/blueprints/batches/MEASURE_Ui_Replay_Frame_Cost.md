@@ -147,6 +147,17 @@ Filed: **CE-1479** (pace the Browser's playback by recorded time, as the editor'
 
 Method: `HROT_REPLAY_STATS=1` prints one `[ReplayApply]` line per apply (stderr); `HROT_REPLAY_PREFETCH=<depth>` / `HROT_REPLAY_FULL_REPAIR=1` switch P1 / P2 off in the same build; the scripts were a seek → `/sim/play` → poll `/replay/status` loop over the debug API (port via `HROT_DEBUG_API_PORT`).
 
+## 9. P6 — block-run deltas (format v8), live recording and replay (`2026-11-11`)
+Same scenario recorded live twice in the editor host (`/scenario/load/live scale-rig-demo-city-1000-2s`, `startPaused:false`, ~85 s wall, `HROT_REPLAY_STATS=1`; "whole" = `HROT_RECORD_BLOCK_DELTAS=0`):
+| | whole-prefix deltas (v7 body) | block runs (v8) |
+|---|---|---|
+| delta raw size, median (max) | 55.6 MB (64.6) | **8.1 MB** (64.5 — the first delta after a keyframe has no base) |
+| recorder MAIN-thread cost per delta, median / p95 | 48.1 / 71.7 ms | **44.2 / 60.8 ms** (no regression) |
+| file for the run | 76 MB (59 deltas) | 44.6 MB (73 deltas) |
+| Browser replay: apply of a delta, median / p95 (prefetch + partial repair on) | 31 / 54 ms | **20 / 59 ms** |
+| garbage per apply | 10.6 MB | 8.3 MB (managed chunks unchanged) |
+The view copy after an apply is per-chunk-version and unchanged (every changed chunk still stamps) — P3. Recorded to `data/nodes/node-1/exercises/` (git-ignored).
+
 ## Method — re-run
 1. Build once: `dotnet restore` + `dotnet build Hrot/Runner/Hrot.ClusterRunner -v q --no-restore`. Temporary probe (env-gated, not committed): stopwatch + `GC.GetAllocatedBytesForCurrentThread()` brackets in `PlaybackController.ApplyFrame` (read / decode / apply) and `PlaybackSystem.ApplyFrame` (each section, each chunk by type; identity = compare the table's bytes with the blob before `RestoreChunkFromBuffer`, 64-byte block diff), a per-tick record in `PlaybackTickSystem`, and an `EventListener` on `Microsoft-Windows-DotNETRuntime` keyword `0x1` verbose.
 2. Launch (parts, never the literal): `M=editor; HROT_DEBUG_API_PORT=8131 HROT_HIDDEN_WINDOW=1 HROT_FRAME_STATS=1 setsid nohup xvfb-run -a dotnet …/Hrot.ClusterRunner.dll --mode $M --target-fps 0 &`; kill by recorded PID.
