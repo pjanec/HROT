@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-11
-current-answer: the tables below (§1 what was replayed, §2 the applied frame, §3 the render frame, §4 garbage, §5 how much of the apply rewrites unchanged bytes)
+current-answer: the tables below (§1 what was replayed, §2 the applied frame, §3 the render frame, §4 garbage, §5 how much of the apply rewrites unchanged bytes, §7 live vs replay side by side)
 stale-below: nothing
 known-rot: nothing known
 known-conflict: none. CE-1478's row quotes "raw 14-65 MB, apply 17-125 ms, ~1.5 MB garbage" — this file replaces those averages with distributions and sites.
@@ -92,6 +92,37 @@ Process total **8.5 MB / frame** (render telemetry 7.9; AllocationTick on the ma
 - ⚠ **Looping a replay** (`POST /replay/loop`) — after the first wrap the clock wrapped five times in the log but **no recorded frame was applied again** (probe silent, `PlaybackTickSystem` 0.01 ms); an explicit `/replay/seek` works. To confirm and file.
 - ⚠ `/sim/play` straight after `/replay` leaves the replay paused; seek, then play.
 - Probe cost: identity runs raise apply to ~85 ms (they read each chunk twice) — the §2 timings are from runs without them.
+
+## 7. Live vs replay — the same scenario in four states (`2026-11-11`)
+Same machine, same editor build, `HROT_FRAME_STATS=1`, `--target-fps 0`; live = `/scenario/load/edit scale-rig-demo-city-1000-2s` + `/sim/play` (5 647 entities, recording on), measured at ~56–115 s of sim time; replay paused = seek to 50 s, paused. Per-system ms are per tick (`/diagnostics/architecture`, interval means while paused; "traced" = from the sampling trace, ~7 % overhead).
+| | live running (~60 s) | live paused | replay playing | replay paused (50 s) |
+|---|---|---|---|---|
+| render frame | **2 000–2 190 ms (0.5 fps)** — 155 ms (13 fps) in the first 30 s | 214 ms (4.7 fps) | 212 ms (4.7 fps) | 194 ms (5.2 fps) |
+| update / draw / ui | **1 818–2 028** / 117–128 / 36 | 78 / 100 / 21 | 89 / 79 / 24 | 65 / 81 / 28 |
+| garbage per frame (update / draw / ui) | **28 / 7.5 / 0.8 MB** (telemetry 35) | 0.9 / 7.8 / 0.8 (9.7) | 1.8 / 5.9 / 0.4 (8.5) | 0.8 / 5.7 / 0.4 (7.1) |
+| GC per minute (gen 0 / 1 / 2) | 1.3 / 0 / 0 (2 s frames); 7.5 / 5 / 4.5 over the first 80 s incl. load | ~3 / 0 / 0 | 3.2 / 1.1 / 0.5 | not sampled |
+| `StatelessGizmoSystem` (gizmo module) | 28 (46 traced) | 38 (traced 40–45) | ~43 traced | 41 traced |
+| `OnDemandProvider.AcquireView` → `SyncFrom` | **36 traced** | **0** | **17 (~110 on the tick after an apply)** | **0** |
+| `MapLayerAssignmentSystem` | 5.3 | 5.1 | 4.2–4.5 | 4.5 |
+| `StyleResolutionSystem` (77 KB garbage live-paused/replay) | 3.6 | 3.7 | 3.0–3.1 | 3.4 |
+| `MapCullingSystem` | 3.5 | 3.4 | 2.2–2.3 | 2.5 |
+| `CycloneEgressSystem` | 4.3 | 4.1 | 3.6–3.9 | 4.0 |
+| `PlaybackTickSystem` | — | — | 4.4–5.9 (12.5 on apply ticks) | 0.01 |
+| simulation (live only) | `EqsSolverSystem` 937 · `WeaponDispatcherSystem` 497 · `BrainTickSystem` 262 · `FireProcessing` 96 · `Raycast` 71 · `Stress` 49 · `Callout` 34 · `SquadCoordination` 26 · `Ballistics` 14 · `EventHistoryCapture` 12 (**9 MB garbage per tick**) | `Embarked` 6.1 · `Genesis` 4.7 · `UnitCentroid` 3.8 · `MacroExpansion` 3.5 · `GroundClampWhilePaused` 3.0 · `MapSelfCheck` 2.6 (sim groups still tick paused) | sim + lifecycle disabled for a replay | same |
+
+**Top garbage sites (MB per frame, main thread, `AllocationTick` stacks):**
+| live running | live paused | replay paused | replay playing (§4) |
+|---|---|---|---|
+| **`DiagnosticEventHistoryService.GetGenericEventSummary`** + closure + `Capture` + `FormatLeaf` **~19** · `EntityCardRenderer.Layout` 4.0 · `DebugPrimitiveRenderer2D.Render` 2.7 · `SquadManeuverRunner.Hold` 1.8 · `InspectReadBuffer` 0.7 · `GizmoFramePanel.Describe` 0.6 · `VectorJsonFormat.F` 0.5 · `GrowOnlyBuffer<TimelineEvent>.Add` 0.5 · `EffectLayer.Resolve` 0.4 | `Layout` 4.2 · `DebugPrimitiveRenderer2D.Render` 2.8 · `Describe` 0.6 · `EffectLayer.Resolve` 0.55 · `FixedString32.ToString` 0.2 · `RepoReflector.HasComponent` 0.12 · `NLog GetMessages` 0.11 | `Layout` 4.2 · `DebugPrimitiveRenderer2D.Render` 0.9 · `Describe` 0.7 · `EffectLayer.Resolve` 0.24 · `FixedString32.ToString` 0.24 · `AuthoredRules.Prop` 0.17 | `Layout` 4.15 · `DebugPrimitiveRenderer2D.Render` 0.94 · serializer lambdas 0.75 · `Describe` 0.71 · `ChunkBuffer` 0.51 |
+
+**Why — what costs more in replay than in live**
+- ⭐ **View sync (`AcquireView` → `SyncFrom`): 0 when nothing changes (live paused, replay paused), 17 ms per frame while a replay plays.** It is change-driven (copies the chunks whose version moved); `RestoreChunkFromBuffer` / `SetChunk` bump the version of every chunk it writes, and an apply writes ~840 of them (§2) — of which 5 % of the bytes really differ (§5). So the tick after each apply copies the whole world (~110 ms), once per ~7 frames. Live running pays more (36 ms) because the sim dirties much of the world every tick. ⇒ fixed by the §5 row/block delta (write only what differs, so only that is dirty).
+- ⭐ **`PlaybackTickSystem` — replay only:** 4.4–5.9 ms average, 12.5 on apply ticks (and the 61 ms apply behind it, §2).
+- **Update when playing vs paused (+24–32 ms) is exactly those two** (traced: playing 103 = gizmos 43 + systems 34 [of which PlaybackTick 14.6] + sync 17 + misc; paused 71 = gizmos 41 + systems ~17 + misc). Draw and ui are the same playing or paused.
+- ❌ **Not more in replay:** `StatelessGizmoSystem` (~40 ms), `MapLayerAssignment` (4–5), `StyleResolution` (3–3.7), `MapCulling` (2–3.5), `CycloneEgress` (3.6–4.3) cost the SAME in all four states, including live paused where nothing changes — **they are not change-driven and not gated at all** (`StatelessGizmoSystem` evaluates every visible entity every tick: no version/dirty test in it). Their per-tick cost is a constant ~55 ms floor under every state; a replay is not worse, it just never pays for the simulation. Egress keeps running in replay (design) at its live-paused cost.
+- Live paused costs MORE than replay paused (update 78 vs 65) because the sim groups still tick; the replay disables them.
+- ⚠ A live run of this scenario is **not** a 1 000-man frame budget reference: at ~60 s the sim alone is 1.8–2.0 s per frame on these 4 cores (`EqsSolverSystem` + `WeaponDispatcherSystem` + `BrainTickSystem`), and the live-only garbage (`DiagnosticEventHistoryService`, ~19 MB per frame) dwarfs the replay's.
+- Caveats: the editor binary still carried the (env-off) probe from §Method; live recording was on; `/diagnostics/architecture` "recent" values of sim systems are stale while paused (hence interval means); GC/min over 20–46 s windows is coarse.
 
 ## Method — re-run
 1. Build once: `dotnet restore` + `dotnet build Hrot/Runner/Hrot.ClusterRunner -v q --no-restore`. Temporary probe (env-gated, not committed): stopwatch + `GC.GetAllocatedBytesForCurrentThread()` brackets in `PlaybackController.ApplyFrame` (read / decode / apply) and `PlaybackSystem.ApplyFrame` (each section, each chunk by type; identity = compare the table's bytes with the blob before `RestoreChunkFromBuffer`, 64-byte block diff), a per-tick record in `PlaybackTickSystem`, and an `EventListener` on `Microsoft-Windows-DotNETRuntime` keyword `0x1` verbose.
