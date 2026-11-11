@@ -1265,3 +1265,40 @@ one step; a farmstead placed near a track turns to face it (T-5).
 | **callers without roads** | `RandomTerrainPipeline`'s preview passes the generator's road edges (the preview shows what the compile will do) | — |
 
 Rails: `FeatureExpanderTests.T5_*` (3: turns to the track within 1° · the nearer of the two directions, ≤ 90° · no road in reach / bit off / empty net ⇒ the bytes of the plain block), `AlignRoadAgreementTests` (SimHost: the compiler's and the live overlay's parts, labels and boxes agree, every house on the track's direction), `BlockOperationsTests` (Presentation: unpack = same shape in the same order + the door follows its house · undo = one step, same block and key, redo = the same keys · re-roll one step, undo/redo/again the same seeds · change recipe keeps place and heading · a refusing gate changes nothing). Each red-proved by a compiling mutation (see the batch report).
+
+### 18j. The missions check for a re-saved terrain — T-8 *(CE-4424, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+
+📐 **INVENTORY** (graph `search_graph` `.*(Waypoint|Route|PatrolPath|Area)$` in `*Components*`, + reads): routes are `RoutePlan` (an immutable
+managed record of `RouteWaypoint`s, `Hrot.Core/Components/Map/RoutePlan.cs:70`); areas are `EditablePolyline`, readable from toolkit code through
+`IAreaOutline` (points relative to `SimTransform.Position`, `Fdp.Toolkits/Terrain/IAreaOutline.cs:13`); a unit is any entity with a `SimTransform`;
+door states are keyed `<terrain>/<label>/<door>` in the scenario's `TerrainObjects` section; who uses a terrain is `TerrainUsers.Of` (O-5).
+
+```mermaid
+sequenceDiagram
+  participant UI as ui overwrite dialog (W-4, mockup 4)
+  participant B as TerrainBake
+  participant C as TerrainChangeCheck (new, pure)
+  UI->>B: SaveAs over an existing terrain - first the check
+  B->>B: old world = the target as it is, new world = base + overlay (the merge SaveAs writes)
+  B->>C: Check(old, new, TerrainUsers.Of(name) scenario files)
+  C->>C: parts diff by key + geometry - added, removed, moved
+  C-->>UI: per scenario - a unit standing in a new part, a route leg crossing one, an area it overlaps, a key that no longer resolves
+```
+*What it shows:* the check reads the scenario FILES (JSON), so it needs no loaded world and runs before anything is overwritten; the part keys
+(O-3) make "what changed" a diff, not a geometric guess.
+
+| finding kind | rule |
+|---|---|
+| StandsIn | a `SimTransform` position inside an ADDED or MOVED blocking part (building footprint, wall / hedge / fence buffered by its thickness, prism, water) |
+| RouteCrosses | a `RoutePlan` leg (consecutive waypoints, from the entity's position) intersecting such a part |
+| AreaOverlaps | an `EditablePolyline` area intersecting an added, removed or moved part (informational) |
+| KeyLost | a door state or a behaviour parameter naming a part key (`TerrainObjects`, any string property shaped `<terrain>/<label>…`) that the new world does not resolve |
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| J-1 where | `TerrainChangeCheck` in `Fdp.Toolkits/Terrain` (pure: two worlds + scenario JSON → findings); `TerrainBake` gains `CheckOverwrite(...)` that builds the two worlds | loading each scenario into a world — seconds per scenario and a whole node's setup for a list |
+| J-2 diff | by part key; a part whose key is unchanged but whose geometry moved > 1 cm counts as moved | a geometric diff of whole worlds — no identity, every re-roll looks like "everything changed" |
+| J-3 output | a flat list (scenario, entity guid + name, kind, part key, the point or leg) the dialog groups | — |
+
+Acceptance (handoff T-8): a rail lists the squad a new house would stand on — and the route leg a new hedge cuts, and the door state whose house
+was removed.
