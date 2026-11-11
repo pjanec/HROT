@@ -1182,3 +1182,38 @@ parser's missing `prism` kind (then the overlay, *Save terrain as* and the live 
 
 Acceptance (handoff T-2): rails — a hedge blocks movement, a wood conceals, water is impassable, a unit crosses a bridge, a scatter of 140 items
 compiles deterministically; the compiler and the live overlay give the same parts for every kind.
+
+### 18h. Block operations and road alignment — T-4, T-5 *(CE-4431, CE-3431, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+
+📐 **INVENTORY** (graph `search_graph` `.*(Undo|EditCommand|CommandStack).*` Interface + `.*(UndoStack|UndoManager|EditTransaction).*` Class, and
+reads): the editor's ONE undo is `EditHistory` with `WorldUndoRecorder` (`Hrot.Presentation/Edits/WorldUndoRecorder.cs:8-16`): ⭐ **every accepted
+authoring edit submitted through `Edits.Submit` (`Fdp.Toolkits/Replication/Edits/Edits.cs:23`) is ONE step by construction** — the step snapshots the
+world before and after; `EditOp` has `Write` (attribute changes), `Create`, a `PatchJson`. `GizmoUndoStack` (Player) is a separate gizmo-only stack, not
+this. ⇒ a block operation needs no undo code of its own.
+
+```mermaid
+sequenceDiagram
+  actor U as Author
+  participant UI as ui (U-3 menu)
+  participant B as BlockOperations (new, engine)
+  participant E as Edits.Submit - one step
+  participant L as LiveOverlay (O-7 B)
+  U->>UI: Re-roll / Change recipe / Unpack
+  UI->>B: the operation on the block entity
+  B->>E: ONE EditOp bracket (Write Seed / Recipe, or destroy the block + create its features)
+  E-->>L: the world changed - the live bake re-expands only what changed
+  U->>UI: Undo
+  UI->>E: EditHistory.Undo - the snapshot restores the block
+```
+*What it shows:* the operations are ordinary authoring edits; undo, the live view and the save all follow from the paths that already exist.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| H-1 Re-roll | `Write(TerrainBlock.Seed = next)` — the next seed is derived from the current one (deterministic, so a redo is the same layout) | a random seed — redo would differ from the first do |
+| H-2 Change recipe | `Write(TerrainBlock.Recipe)`; place and heading kept | — |
+| H-3 Unpack | ONE bracket: create one `TerrainFeature` (+ `EditablePolyline` for line / area kinds, T-2) per expanded part, then destroy the block. ⭐ "same parts" = the same geometry, materials and order; the part KEYS change (`<feature guid>/0`), so the bracket also re-keys every door entity of the block's houses (`<terrain>/<block>/<i>/<door>` → the new key) | keeping the block's keys on the features — a guid plus `/i` overflows `FixedString32`, and a key override field is a second identity |
+| H-4 where | `BlockOperations` in `Hrot.Core` beside `LiveOverlay`, using the ONE `OverlayExpansion` for Unpack | ui building the features itself — a second expansion |
+| H-5 T-5 road alignment | `FeatureExpander` with `AlignRoad`: the block's heading turns to the nearest road edge's direction within its radius (the road net's lanes, `RoadNetworkHolder`); no road in reach ⇒ the heading as placed | snapping position too — moves a block the user placed |
+
+Acceptance: unpack → recompile gives the same geometry as before the unpack (keys aside), and the door states survive; undo restores the block in
+one step; a farmstead placed near a track turns to face it (T-5).
