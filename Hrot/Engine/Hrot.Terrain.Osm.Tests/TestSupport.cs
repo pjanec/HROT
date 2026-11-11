@@ -74,7 +74,7 @@ public static class Fx
     public static BuildingDraft B(string id) => Buildings.Value.Buildings.Single(b => b.Id == id);
     public static Building Finished(string id, Func<double, double, double>? ground = null) => BuildingRules.Finish(B(id), ground);
 
-    public static OsmTerrainPipeline Pipeline(FuncDem dem, TestRoads roads, DownloadCache cache, OsmBudget? budget = null, IOsmSource? source = null) =>
+    public static OsmTerrainPipeline Pipeline(FuncDem dem, IRoadBuilder roads, DownloadCache cache, OsmBudget? budget = null, IOsmSource? source = null) =>
         new(source ?? new FileOsmSource(FixturePath), dem, roads, cache, budget);
 }
 

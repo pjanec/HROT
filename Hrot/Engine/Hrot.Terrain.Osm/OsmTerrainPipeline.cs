@@ -102,7 +102,14 @@ public sealed class OsmTerrainPipeline : IOsmTerrainPipeline
         await Task.Run(() => hb.Write(Path.Combine(dir, "heights"), heightProgress, ct), ct).ConfigureAwait(false);
 
         progress?.Report(new OsmProgress(OsmStage.Roads, 0, "Building the road net…"));
-        await _roads.BuildAsync(a.OsmFile, bounds.Frame, Path.Combine(dir, "roads"), ct).ConfigureAwait(false);
+        // ⭐ CE-4409 — roads are OPTIONAL: a failing netconvert imports the terrain WITHOUT roads and says so (a warning, never a stop). 🔒 User, 2026-11-10: "if sumo roadnet fails, it shouldn't fail the whole import."
+        string roadsDir = Path.Combine(dir, "roads");
+        try { await _roads.BuildAsync(a.OsmFile, bounds.Frame, roadsDir, ct).ConfigureAwait(false); }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            try { if (Directory.Exists(roadsDir)) Directory.Delete(roadsDir, true); } catch (IOException) { /* best effort */ } catch (UnauthorizedAccessException) { }
+            progress?.Report(new OsmProgress(OsmStage.Roads, 1, "No roads — the road net could not be built") { Warning = "No roads were imported — " + e.Message });
+        }
 
         await Task.Run(() =>
         {

@@ -35,6 +35,9 @@ public sealed class NetconvertRoadBuilder : IRoadBuilder
         "-o", netFile,
     };
 
+    /// <summary>⭐ CE-4409 — the child's <c>SUMO_HOME</c>: the located install's home (a rail pins it).</summary>
+    public static string? SumoHome(string netconvertPath) => Netconvert.SumoHomeOf(netconvertPath);
+
     public Task BuildAsync(string osmFile, UtmFrame frame, string roadsFolder, CancellationToken cancellation)
     {
         var found = Netconvert.Locate();
@@ -42,10 +45,12 @@ public sealed class NetconvertRoadBuilder : IRoadBuilder
         Directory.CreateDirectory(roadsFolder);
         string net = Path.Combine(roadsFolder, "roads.net.xml");
         cancellation.ThrowIfCancellationRequested();
-        var (code, _, err) = Netconvert.Run(found.Path, Arguments(Path.GetFullPath(osmFile), frame, net), roadsFolder);
+        var (code, outText, err) = Netconvert.Run(found.Path, Arguments(Path.GetFullPath(osmFile), frame, net), roadsFolder, SumoHome(found.Path));
         if (code != 0 || !File.Exists(net))
-            throw new InvalidOperationException("netconvert failed (exit " + code.ToString(CultureInfo.InvariantCulture) + "): " +
-                                                err.Trim().Replace("\r", "").Replace("\n", " | "));
+        {
+            string said = (err.Trim().Length > 0 ? err : outText).Trim().Replace("\r", "").Replace("\n", " | ");   // ⭐ CE-4409 — what netconvert said, whichever stream it used
+            throw new InvalidOperationException("netconvert failed (exit " + code.ToString(CultureInfo.InvariantCulture) + "): " + said);
+        }
         Netconvert.StripGeneratedHeader(net);
         return Task.CompletedTask;
     }

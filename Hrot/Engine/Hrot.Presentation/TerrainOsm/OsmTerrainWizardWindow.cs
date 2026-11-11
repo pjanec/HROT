@@ -635,6 +635,13 @@ public sealed class OsmTerrainWizardWindow : IDisposable
             string facts = p == null ? "" : Num(p.Counts.Buildings) + " buildings · " + p.Counts.RoadKm.ToString("0", CultureInfo.InvariantCulture) + " km of roads · " + WebMercator.SizeText(m.BoxWidthM, m.BoxHeightM);
             TextAt(DX + 42, DY + 72, s, SUB, facts);
             TextAt(DX + 42, DY + 86, s, SUB, p?.Attribution ?? "");
+            if (m.Warnings.Count > 0)   // ⭐ CE-4409 — the import went on without something (no roads): a warning, the whole text on hover
+            {
+                Glyph("warn", INFO_G, AMBER, W(DX + 14, DY + 92, s));
+                string w = m.Warnings[0];
+                TextAt(DX + 42, DY + 100, s, AMBER, w.Length > 52 ? w.Substring(0, 51) + "…" : w);
+                if (ImGui.IsMouseHoveringRect(W(DX + 14, DY + 90, s), W(DX + 396, DY + 106, s))) ImGui.SetTooltip(string.Join("\n", m.Warnings));
+            }
             if (IconButton("open", DX + 42, DY + 112, 190, "Open in New Scenario", FILE, BLUE, BTNSEL, m.Services.OpenNewScenario == null, s))
             { m.Services.OpenNewScenario!(folder); ImGui.CloseCurrentPopup(); IsOpen = false; }
             if (IconButton("folder", DX + 240, DY + 112, 110, "Show folder", FOLDER_OPEN, AMBER, null, m.Services.ShowFolder == null, s)) m.Services.ShowFolder!(folder);

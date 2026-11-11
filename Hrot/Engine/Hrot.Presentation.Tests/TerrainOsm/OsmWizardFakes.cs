@@ -211,6 +211,8 @@ public sealed class FakeOsmPipeline : IOsmTerrainPipeline
     public int PreviewCalls, WriteCalls;
     /// <summary>⭐ CE-4378 — writes a real input set into the folder (and returns it) instead of the placeholder manifest.</summary>
     public Func<string, string>? WriteSet { get; set; }
+    /// <summary>⭐ CE-4409 — the roads stage reports this warning (the import went on without roads).</summary>
+    public string? WarnWith { get; set; }
     public CancellationToken LastToken;
     private TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -242,7 +244,7 @@ public sealed class FakeOsmPipeline : IOsmTerrainPipeline
         {
             if (Hold && st == HeldAt.Stage) { progress?.Report(HeldAt); await _release.Task.WaitAsync(cancellation).ConfigureAwait(false); }
             cancellation.ThrowIfCancellationRequested();
-            progress?.Report(new OsmProgress(st, 1.0, st.ToString()));
+            progress?.Report(new OsmProgress(st, 1.0, st.ToString()) { Warning = st == OsmStage.Roads ? WarnWith : null });
         }
         if (WriteSet is { } write) return write(outputFolder);   // ⭐ CE-4378 — a REAL input set (the importer's MiniSet)
         Directory.CreateDirectory(outputFolder);

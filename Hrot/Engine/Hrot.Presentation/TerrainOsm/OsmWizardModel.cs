@@ -311,6 +311,7 @@ public sealed class OsmWizardModel
         var importer = _services.Importer;
         string folder = Path.Combine(_services.InputSetRoot, name);
         foreach (var s in Stages) { s.State = OsmRunState.Idle; s.Fraction = 0; s.Produced = ""; }
+        lock (_stageLock) _warnings.Clear();
         Failure = null; TerrainFolder = null; InputSetFolder = null; ImportState = OsmRunState.Running;
         int run = ++_importRun;
         var osm = new SyncProgress<OsmProgress>(p => { if (run == _importRun) OnStage(p); });
@@ -336,8 +337,14 @@ public sealed class OsmWizardModel
             row.State = p.Fraction >= 1 ? OsmRunState.Done : OsmRunState.Running;
             row.Fraction = Math.Clamp(p.Fraction, 0, 1);
             if (!string.IsNullOrEmpty(p.Message)) row.Produced = p.Message;
+            if (!string.IsNullOrEmpty(p.Warning) && !_warnings.Contains(p.Warning)) _warnings.Add(p.Warning);   // ⭐ CE-4409 — a stage that went on without its part
         }
     }
+
+    private readonly List<string> _warnings = new();
+
+    /// <summary>⭐ CE-4409 — what the import went on without (e.g. <i>No roads were imported — netconvert failed (exit 1): …</i>); shown with the finished terrain. Cleared when an import starts.</summary>
+    public IReadOnlyList<string> Warnings { get { lock (_stageLock) return _warnings.ToArray(); } }
 
     private void OnImportStage(ImportProgress p)
     {

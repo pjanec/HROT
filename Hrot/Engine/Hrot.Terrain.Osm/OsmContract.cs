@@ -27,7 +27,11 @@ public sealed record OsmImportOptions
 public enum OsmStage { Fetch, Parse, Heights, Roads, Buildings, Vegetation, Write }
 
 /// <param name="Fraction">0…1 within <paramref name="Stage"/></param>
-public readonly record struct OsmProgress(OsmStage Stage, double Fraction, string Message);
+public readonly record struct OsmProgress(OsmStage Stage, double Fraction, string Message)
+{
+    /// <summary>⭐ CE-4409 — set when a stage could not do its part and the import went on without it (a road net that could not be built: the terrain is imported WITHOUT roads); the wizard shows it as a warning, not a stop.</summary>
+    public string? Warning { get; init; }
+}
 
 /// <summary>The content budget's verdict (OSM design §5.7): warn above 2×, refuse above 3× the tuned load.</summary>
 public enum BudgetVerdict { Ok, Heavy, Refused }

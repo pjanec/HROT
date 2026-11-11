@@ -227,6 +227,21 @@ public sealed class OsmWizardModelTests : IDisposable
         Assert.True(File.Exists(Path.Combine(m.InputSetFolder!, "manifest.json")));
     }
 
+    /// <summary>⭐ <c>CE-4409</c> — a stage that went on without its part (no roads) reports a WARNING: the import still ends Done, the terrain is made, and the model holds the warning to show with it
+    /// (🔒 user: <i>"if sumo roadnet fails, it shouldn't fail the whole import"</i>); a new import starts without the old warning. 🔴 Red-proof (compiles): <c>OnStage</c> ignoring <c>Warning</c> ⇒ red.</summary>
+    [Fact]
+    public void Import_WithARoadWarning_StillDone_AndKeepsTheWarning()
+    {
+        _pipeline.WarnWith = "No roads were imported — netconvert failed (exit 1): SUMO_HOME is not set properly";
+        var m = Model();
+        m.SetBox(OsmFakeWorld.Box); m.Primary(); m.Name = "kolin"; m.Primary();
+        PumpUntil(m, () => m.PreviewState == OsmRunState.Done);
+        m.Primary();
+        PumpUntil(m, () => m.ImportState == OsmRunState.Done);
+        Assert.Equal(Path.Combine(_root, "terrain", "kolin"), m.TerrainFolder);
+        Assert.Equal(new[] { _pipeline.WarnWith }, m.Warnings);
+    }
+
     /// <summary>W-3: the menu is greyed with what is missing — no pipeline, or no way to pick a place (neither tiles nor search).</summary>
     [Fact]
     public void WithoutAPipeline_TheMenuIsGreyedWithItsReason()

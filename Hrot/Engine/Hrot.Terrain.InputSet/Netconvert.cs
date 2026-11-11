@@ -90,13 +90,36 @@ public static class Netconvert
         return null;
     }
 
-    /// <summary>Runs a process; returns its exit code, stdout and stderr.</summary>
-    public static (int Code, string Stdout, string Stderr) Run(string exe, IEnumerable<string> args, string? workingDirectory)
+    /// <summary>
+    /// ⭐ CE-4409 — the SUMO home of the install <paramref name="exe"/> belongs to: the folder holding the install's <c>data</c> / <c>tools</c> (SUMO's own layout, <c>bin/</c> beside them),
+    /// found walking up from the executable, else the pip layout's <c>site-packages/sumo</c> under the venv the <c>.local/sumo/&lt;v&gt;</c> installer makes. <see langword="null"/> when none is found.
+    /// 🔒 Why it matters (user, 2026-11-10, Windows): netconvert printed <i>"environment variable SUMO_HOME is not set properly"</i> and exited 1 — the child inherited a parent environment without it.
+    /// </summary>
+    public static string? SumoHomeOf(string exe)
+    {
+        try
+        {
+            for (var d = new DirectoryInfo(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(exe)) ?? "."); d != null; d = d.Parent)
+            {
+                if (Directory.Exists(System.IO.Path.Combine(d.FullName, "data")) && Directory.Exists(System.IO.Path.Combine(d.FullName, "tools"))) return d.FullName;
+                // pip layout: <venv>/lib/pythonX/site-packages/sumo (Linux) · <venv>/Lib/site-packages/sumo (Windows)
+                foreach (var site in new[] { System.IO.Path.Combine(d.FullName, "Lib", "site-packages", "sumo") }.Concat(
+                             Directory.Exists(System.IO.Path.Combine(d.FullName, "lib")) ? Directory.EnumerateDirectories(System.IO.Path.Combine(d.FullName, "lib"), "python*") .Select(p => System.IO.Path.Combine(p, "site-packages", "sumo")) : Array.Empty<string>()))
+                    if (Directory.Exists(System.IO.Path.Combine(site, "data"))) return site;
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { }
+        return null;
+    }
+
+    /// <summary>Runs a process; returns its exit code, stdout and stderr. ⭐ CE-4409 — <paramref name="sumoHome"/>, when given, is the child's <c>SUMO_HOME</c>.</summary>
+    public static (int Code, string Stdout, string Stderr) Run(string exe, IEnumerable<string> args, string? workingDirectory, string? sumoHome = null)
     {
         var psi = new ProcessStartInfo(exe)
         {
             RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true,
         };
+        if (!string.IsNullOrEmpty(sumoHome)) psi.Environment["SUMO_HOME"] = sumoHome;
         if (workingDirectory != null) psi.WorkingDirectory = workingDirectory;
         foreach (var a in args) psi.ArgumentList.Add(a);
         using var proc = Process.Start(psi) ?? throw new InvalidOperationException($"{exe} could not be started");

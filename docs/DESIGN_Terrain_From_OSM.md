@@ -177,6 +177,7 @@ sequenceDiagram
   ⇒ net coordinates == local metres (manifest `sumoAnchor` = [0, 0]). A test asserts that a known OSM node lands at its local metres (as
   `SumoNetPlacement` does for the existing nets).
 - `netconvert` comes from the SUMO install script (§9.1).
+- ⭐ **AS-BUILT `2026-11-11` (`CE-4409`, 🔒 user: *"if sumo roadnet fails, it shouldn't fail the whole import"*):** roads are OPTIONAL. The child netconvert gets `SUMO_HOME` = the located install's home (`Netconvert.SumoHomeOf`; Windows: *"environment variable SUMO_HOME is not set properly"*, exit 1), and a road failure imports the terrain WITHOUT `roads/` — the pipeline reports `OsmProgress.Warning` (*No roads were imported — netconvert failed (exit N): …*), the wizard's finished box shows it as an amber line (full text on hover). Cancellation is still a cancel.
 
 ### 5.5 Buildings (Q-O4: every building enterable)
 | attribute | rule |

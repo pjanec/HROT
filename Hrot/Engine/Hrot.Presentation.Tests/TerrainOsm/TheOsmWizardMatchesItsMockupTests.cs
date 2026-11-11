@@ -352,5 +352,16 @@ public sealed class TheOsmWizardMatchesItsMockupTests : IDisposable
         Glyph(w3, "done", CIRCLE_CHECK, OK);
         Glyph(w3, "btn:open", FILE, BLUE);
         Glyph(w3, "btn:folder", FOLDER_OPEN, AMBER);
+
+        // ⭐ CE-4409 — finished WITHOUT roads ⇒ the same box with the warning line between the facts and the buttons (the buttons stay where they were)
+        _pipeline.WarnWith = "No roads were imported — netconvert failed (exit 1): SUMO_HOME is not set properly";
+        var m4 = Model();
+        m4.SetBox(OsmFakeWorld.Box); m4.Primary(); m4.Name = "kolin3"; m4.Primary();
+        PumpUntil(m4, () => m4.PreviewState == OsmRunState.Done);
+        m4.Primary();
+        PumpUntil(m4, () => m4.ImportState == OsmRunState.Done);
+        var (w4, s4) = Draw(frame, m4, "osm-wizard-4d-import-done-no-roads.png");
+        Glyph(w4, "warn", INFO_G, AMBER);
+        Near(R(w3, "btn:open", s).Min.Y, R(w4, "btn:open", s4).Min.Y, 1, "CE-4409 the buttons do not move");
     }
 }

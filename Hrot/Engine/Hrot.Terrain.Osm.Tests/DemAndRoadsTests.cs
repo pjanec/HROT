@@ -149,6 +149,26 @@ public sealed class DemAndRoadsTests : IDisposable
         Assert.Contains("--offset.disable-normalization", args);
     }
 
+    /// <summary>⭐ <c>CE-4409</c> — netconvert is started with <c>SUMO_HOME</c> set to the LOCATED install's home (🔒 user, 2026-11-10, Windows: <i>"environment variable SUMO_HOME is not set properly"</i>, exit 1):
+    /// the home of an install laid out as SUMO ships it (<c>bin/</c> beside <c>data/</c> and <c>tools/</c>) is found from the executable, and the child process sees it.
+    /// 🔴 Red-proof (compiles): <c>Run</c> not setting the variable ⇒ the child prints the parent's (empty) value ⇒ red.</summary>
+    [Fact]
+    public void TheChild_GetsSumoHome_OfTheLocatedInstall()
+    {
+        string home = Path.Combine(_dir, "sumo-install");
+        Directory.CreateDirectory(Path.Combine(home, "bin")); Directory.CreateDirectory(Path.Combine(home, "data")); Directory.CreateDirectory(Path.Combine(home, "tools"));
+        string exe = Path.Combine(home, "bin", OperatingSystem.IsWindows() ? "netconvert.exe" : "netconvert");
+        File.WriteAllText(exe, "");
+        Assert.Equal(home, NetconvertRoadBuilder.SumoHome(exe));
+
+        var (code, stdout, _) = OperatingSystem.IsWindows()
+            ? Netconvert.Run("cmd", new[] { "/c", "echo %SUMO_HOME%" }, null, home)
+            : Netconvert.Run("/bin/sh", new[] { "-c", "printf %s \"$SUMO_HOME\"" }, null, home);
+        Assert.Equal(0, code);
+        Assert.Equal(home, stdout.Trim());
+        Assert.Null(NetconvertRoadBuilder.SumoHome(Path.Combine(_dir, "nowhere", "netconvert")));   // no install layout ⇒ no override
+    }
+
     /// <summary>F-7 — a known OSM node lands at its local metres (needs netconvert 1.20.0: scripts/install-sumo.*; skipped, reported, without it).</summary>
     [Fact]
     public async Task AKnownNode_LandsAtItsLocalMetres()

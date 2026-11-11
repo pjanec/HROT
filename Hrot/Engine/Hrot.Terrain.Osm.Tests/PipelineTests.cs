@@ -99,6 +99,49 @@ public class WriteTests
         return (outDir, dem, roads, tmp);
     }
 
+    /// <summary>⭐ <c>CE-4409</c> — roads are OPTIONAL: a road builder that throws (netconvert's exit 1) still produces the terrain — buildings, trees, heights, a manifest that passes the format checks — WITHOUT a
+    /// roads folder, and the import reports a WARNING naming the failure. 🔒 User, 2026-11-10: <i>"if sumo roadnet fails, it shouldn't fail the whole import."</i>
+    /// 🔴 Red-proof (compiles): the roads call outside the <c>try</c> ⇒ the import throws ⇒ red.</summary>
+    [Fact]
+    public async Task ARoadFailure_ImportsTheTerrainWithoutRoads_AndWarns()
+    {
+        using var tmp = new TempDir();
+        var p = Fx.Pipeline(FuncDem.Flat(), new ThrowingRoads("netconvert failed (exit 1): Warning: environment variable SUMO_HOME is not set properly"), new DownloadCache(tmp.Combine("cache")));
+        var seen = new List<OsmProgress>();
+        string outDir = await p.WriteInputSetAsync(Fx.Box, Fx.Options, tmp.Combine("terrain-input/no-roads"), new SyncProgress<OsmProgress>(seen.Add), default);
+        Assert.Empty(InputSetChecks.Check(outDir));
+        Assert.False(Directory.Exists(Path.Combine(outDir, "roads")), "the half-written roads folder is gone");
+        Assert.Null(InputSetReader.Open(outDir).RoadsNet);
+        Assert.Equal(15, InputSetReader.Open(outDir).ReadBuildings().Count);
+        var warning = Assert.Single(seen, s => s.Warning != null).Warning!;
+        Assert.Contains("No roads were imported", warning);
+        Assert.Contains("SUMO_HOME is not set properly", warning);
+    }
+
+    /// <summary>⭐ CE-4409 — a cancelled import is still a cancel, never a "roads failed" warning.</summary>
+    [Fact]
+    public async Task ACancelledRoadBuild_IsStillACancel_NotAWarning()
+    {
+        using var tmp = new TempDir();
+        var p = Fx.Pipeline(FuncDem.Flat(), new ThrowingRoads(null), new DownloadCache(tmp.Combine("cache")));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => p.WriteInputSetAsync(Fx.Box, Fx.Options, tmp.Combine("terrain-input/cancelled"), null, default));
+    }
+
+    private sealed class SyncProgress<T> : IProgress<T> { private readonly Action<T> _a; public SyncProgress(Action<T> a) => _a = a; public void Report(T v) => _a(v); }
+
+    private sealed class ThrowingRoads : IRoadBuilder
+    {
+        private readonly string? _message;   // null = cancel
+        public ThrowingRoads(string? message) => _message = message;
+        public Task BuildAsync(string osmFile, UtmFrame frame, string roadsFolder, CancellationToken cancellation)
+        {
+            Directory.CreateDirectory(roadsFolder);
+            File.WriteAllText(Path.Combine(roadsFolder, "partial.txt"), "x");
+            if (_message == null) throw new OperationCanceledException();
+            throw new InvalidOperationException(_message);
+        }
+    }
+
     [Fact]
     public async Task TheWrittenFolder_PassesTheInputSetFormatChecks_WithZeroProblems()
     {
