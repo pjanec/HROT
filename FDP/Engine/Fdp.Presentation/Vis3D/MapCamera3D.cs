@@ -54,8 +54,11 @@ namespace Fdp.Toolkit.Vis3D
         /// over a few frames instead of a step. 0 = instant.</summary>
         public float FlyEaseSeconds { get; set; } = 0.08f;
 
-        /// <summary>⭐ CE-1138 — the share of the distance ONE lone wheel click travels (it was 12 %: a big jump far out).</summary>
-        public const float WheelBaseShare = 0.04f;
+        /// <summary>⭐ CE-4408 — ONE lone wheel click flies the eye along the view for this many seconds at the KEYS' speed (<see cref="FlyBasisSpeed"/>: it scales with the eye's
+        /// height above the GROUND, slower near it, x2 on the ground) — one speed rule for the wheel and W/S. 🔒 User, 2026-11-10: <i>"I would expect it will just move the camera forward in the
+        /// direction where the camera is looking … It works okay for the keyboard, that really moves slower close to the ground, but the wheel doesn't follow this convention."</i>
+        /// ⛔ SUPERSEDED (CE-1138): a share (4 %) of the DISTANCE to the pivot, which keys never changed — so it drifted from the real height.</summary>
+        public const float WheelStepSeconds = 0.1f;
 
         /// <summary>⭐ CE-1138 — clicks closer together than this (s) are one STREAK; each click in a streak travels further.</summary>
         public const float WheelStreakSeconds = 0.35f;
@@ -328,11 +331,7 @@ namespace Fdp.Toolkit.Vis3D
                 _wheelStreak = _wheelIdle <= WheelStreakSeconds && sign == _wheelSign ? _wheelStreak + 1 : 0;
                 _wheelIdle = 0f;
                 _wheelSign = sign;
-                float grow = WheelStepGrowth(_wheelStreak);
-                float heading = Distance - _wheelTravel;
-                _wheelTravel += heading > MinDistance * 1.01f
-                    ? heading * (1f - MathF.Pow(1f - MathF.Min(0.5f, WheelBaseShare * grow), wheel))
-                    : MathF.Max(0.5f, MinDistance) * wheel * grow;
+                _wheelTravel += WheelStep(EyeHeightAboveGround(), _wheelStreak) * wheel;   // ⭐ CE-4408 — metres along the view, the keys' speed rule
                 if (WheelGlideSeconds <= 0f) GlideWheel(float.PositiveInfinity);
                 used = true;
             }
@@ -397,6 +396,18 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>⭐ CE-1138 — how much a wheel click of a streak's <paramref name="streak"/>-th further click grows the base step.</summary>
         public static float WheelStepGrowth(int streak) => MathF.Min(WheelStreakMax, 1f + WheelStreakGrowth * streak);
 
+        /// <summary>⭐ CE-1142 — the fly speed basis (m/s): <see cref="FlySpeedPerHeight"/> × the eye's height above the ground, at least <see cref="FlyMinSpeed"/>, ×<see cref="FlyGroundBoost"/> near the ground.</summary>
+        public static float FlyBasisSpeed(float heightAboveGround)
+        {
+            float h = MathF.Max(0f, heightAboveGround);
+            float groundBoost = 1f + (FlyGroundBoost - 1f) * Math.Clamp((FlyGroundBoostUntil - h) / (FlyGroundBoostUntil - FlyGroundBoostFrom), 0f, 1f);
+            return MathF.Max(FlyMinSpeed, h * FlySpeedPerHeight * groundBoost);
+        }
+
+        /// <summary>⭐ CE-4408 — metres ONE wheel click flies the eye along the view: the keys' basis speed at the eye's height above the ground, for
+        /// <see cref="WheelStepSeconds"/>, grown by the click's place in a fast streak (<see cref="WheelStepGrowth"/>).</summary>
+        public static float WheelStep(float heightAboveGround, int streak) => FlyBasisSpeed(heightAboveGround) * WheelStepSeconds * WheelStepGrowth(streak);
+
         /// <summary>
         /// ⭐ CE-1142 — the fly speed (m/s): <see cref="FlySpeedPerHeight"/> × the eye's <paramref name="heightAboveGround"/> (at least
         /// <see cref="FlyMinSpeed"/>), ramped from <see cref="FlyStartShare"/> to full over <see cref="FlyRampSeconds"/> of
@@ -405,9 +416,7 @@ namespace Fdp.Toolkit.Vis3D
         /// </summary>
         public static float FlySpeed(float heightAboveGround, float heldSeconds, bool shift, bool ctrl)
         {
-            float h = MathF.Max(0f, heightAboveGround);
-            float groundBoost = 1f + (FlyGroundBoost - 1f) * Math.Clamp((FlyGroundBoostUntil - h) / (FlyGroundBoostUntil - FlyGroundBoostFrom), 0f, 1f);
-            float basis = MathF.Max(FlyMinSpeed, h * FlySpeedPerHeight * groundBoost);
+            float basis = FlyBasisSpeed(heightAboveGround);
             float ramp = heldSeconds < FlyRampSeconds
                 ? FlyStartShare + (1f - FlyStartShare) * (heldSeconds / FlyRampSeconds)
                 : 1f + (FlyMaxAcceleration - 1f) * MathF.Min(1f, (heldSeconds - FlyRampSeconds) / (FlyAccelerateSeconds - FlyRampSeconds));
@@ -423,9 +432,9 @@ namespace Fdp.Toolkit.Vis3D
         }
 
         /// <summary>
-        /// ⭐ CE-1072 — one frame of the wheel's glide: a share of the owed travel moves the eye along the view (the look-at point
-        /// stays); travel past <see cref="MinDistance"/> moves the look-at point forward too, so the wheel keeps flying instead of
-        /// stopping at the pivot.
+        /// ⭐ CE-1072 — one frame of the wheel's glide: a share of the owed travel moves the EYE along the view. ⭐ CE-4408 — the look-at point moves with it and
+        /// <see cref="Distance"/> is left alone, exactly as W / S fly: the wheel no longer changes a zoom-like value (the pivot's distance) that the keys never touch,
+        /// so the step is the keys' rule (<see cref="WheelStep"/>).
         /// </summary>
         private void GlideWheel(float dt)
         {
@@ -433,15 +442,34 @@ namespace Fdp.Toolkit.Vis3D
             float k = WheelGlideSeconds <= 0f || float.IsPositiveInfinity(dt) ? 1f : 1f - MathF.Exp(-dt / WheelGlideSeconds);
             float d = MathF.Abs(_wheelTravel) < 0.002f ? _wheelTravel : _wheelTravel * k;
             _wheelTravel -= d;
-            float next = Distance - d;                       // the eye moves along the view; the look-at point stays
-            if (next < MinDistance)
+            var eye = Eye + Forward * d;                     // the eye flies along the view (the keys' rule gave the distance)
+            // the pivot is re-anchored on the GROUND along the view (looking down), so Distance — which the pan scale, the fog and the clip planes read — stays the
+            // camera's real distance instead of drifting while the eye flies (⭐ CE-4408); looking level or up it is kept
+            float down = -MathF.Sin(Pitch);
+            if (down > 0.05f)
             {
-                LookAt += Forward * (MinDistance - next);    // past the pivot: the pivot flies forward with the eye
-                _followedXY = new Vector2(LookAt.X, LookAt.Y);   // a flight, not a pan: no relief snap
-                next = MinDistance;
+                float ground = GroundHeight != null ? GroundHeight(eye.X, eye.Y) : LookAt.Z;
+                Distance = Math.Clamp((eye.Z - ground) / down, MinDistance, MaxDistance);
             }
-            else if (next > MaxDistance) { next = MaxDistance; _wheelTravel = 0f; }
-            Distance = next;
+            LookAt = eye + Forward * Distance;
+            _followedXY = new Vector2(LookAt.X, LookAt.Y);   // a flight, not a pan: no relief snap
+        }
+
+        /// <summary>
+        /// ⭐ CE-4408 — the metres-per-pixel the LEVEL OF DETAIL reads (the entity cards' rows, the doors): the camera's REAL distance, never the pivot's alone. The pivot's
+        /// <see cref="Distance"/> stays whatever it was while the keys and the wheel fly the eye, so after flying out and back in towards an entity it said "far" for a camera
+        /// standing next to the ground and the card never returned. 🔒 User, 2026-11-10: <i>"the card collapses to its text and does not come back"</i>.
+        /// ⭐ The distance used is the nearer of the pivot's and the one to the GROUND along the view (<c>eye height / sin(−pitch)</c>, at most 20 × the height when looking level or up).
+        /// </summary>
+        public float LodMetresPerPixel
+        {
+            get
+            {
+                float h = MathF.Max(MinDistance, EyeHeightAboveGround());
+                float down = MathF.Max(0.05f, -MathF.Sin(Pitch));
+                float real = MathF.Min(Distance, h / down);
+                return 2f * MathF.Max(MinDistance, real) * TanHalfFov / MathF.Max(1f, Viewport.Y);
+            }
         }
 
         /// <summary>A drag of <paramref name="screenDelta"/> pixels as metres on the ground at the look-at point.</summary>

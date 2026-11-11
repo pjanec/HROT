@@ -202,20 +202,24 @@ public sealed class Map3DTests
     }
 
     /// <summary>
-    /// ⭐⭐ CE-1138 — a LONE wheel click is a small step (4 % of the distance, was 12 %); clicks in quick succession grow it, so a fast
-    /// spin travels far. 🔒 User, 2026-10-16: "the mouse scroll zoom in 3d map still seem to make a very big jump … multiple wheel
-    /// clicks needed to switch to faster mode for travelling long distances."
+    /// ⭐⭐ CE-1138 / CE-4408 — a LONE wheel click is a small step (the keys' speed at the eye's height for <c>WheelStepSeconds</c>); clicks in quick succession grow it, so a fast
+    /// spin travels far. 🔒 User, 2026-10-16: "multiple wheel clicks needed to switch to faster mode for travelling long distances."
     /// </summary>
     [Fact]
     public void CE1138_ALoneClickNudges_AFastSpinTravelsFar()
     {
         var lone = FlyCamera();
+        var start = lone.Eye;
         var input = new FakeInput { MousePosition = new Vector2(600, 400) };
+        float expected = 0f;
         for (int c = 0; c < 5; c++)                         // five clicks a second apart
         {
+            expected += MapCamera3D.WheelStep(lone.EyeHeightAboveGround(), 0);
             input.MouseWheelMove = 1f; Frame(lone, input, 0.016f);
             input.MouseWheelMove = 0f; for (int i = 0; i < 60; i++) Frame(lone, input, 0.016f);
         }
+        float loneTravel = Vector3.Distance(start, lone.Eye);
+        Assert.Equal(expected, loneTravel, 0);              // five lone nudges, each at the height it was made from
         var spin = FlyCamera();
         for (int c = 0; c < 5; c++)                         // the same five, 50 ms apart
         {
@@ -223,46 +227,46 @@ public sealed class Map3DTests
             input.MouseWheelMove = 0f; for (int i = 0; i < 3; i++) Frame(spin, input, 0.016f);
         }
         for (int i = 0; i < 120; i++) Frame(spin, input, 0.016f);
-        Assert.Equal(100f * MathF.Pow(0.96f, 5), lone.Distance, 1);   // five lone nudges: ~18 m
-        Assert.True(100f - spin.Distance >= 1.8f * (100f - lone.Distance),
-            $"the spin went to {spin.Distance:F1} m, the lone clicks to {lone.Distance:F1} m");   // the same clicks, fast: ~twice as far
+        float spinTravel = Vector3.Distance(start, spin.Eye);
+        Assert.True(spinTravel >= 1.8f * loneTravel, $"the spin flew {spinTravel:F1} m, the lone clicks {loneTravel:F1} m");
     }
 
     /// <summary>
-    /// ⭐⭐ CE-1072 (docs/DESIGN_Map_3D_Mode.md §6l) — a wheel click GLIDES (over a few frames) to its step instead of JUMPING
-    /// (⭐ CE-1138: a lone click's step is 4 % now, was 12 %).
-    /// 🔒 User, 2026-10-14: "the scroll button based camera moving forwards and backwards jumps with each click instead of being a
-    /// smooth flight".
+    /// ⭐⭐ CE-1072 (docs/DESIGN_Map_3D_Mode.md §6l) — a wheel click GLIDES (over a few frames) to its step instead of JUMPING; ⭐ CE-4408: the step is the eye flying ALONG THE VIEW by
+    /// the keys' rule, and <c>Distance</c> (the pivot's) is not what the wheel changes.
+    /// 🔒 User, 2026-10-14: "the scroll button based camera moving forwards and backwards jumps with each click instead of being a smooth flight".
     /// </summary>
     [Fact]
     public void CE1072_AWheelClick_GlidesToItsStep_OverSeveralFrames_InsteadOfJumping()
     {
-        var cam = FlyCamera();                              // distance 100
+        var cam = FlyCamera();
+        var start = cam.Eye; var forward = cam.Forward; float step = MapCamera3D.WheelStep(cam.EyeHeightAboveGround(), 0);
         var input = new FakeInput { MousePosition = new Vector2(600, 400), MouseWheelMove = 1f };
         Frame(cam, input);
         input.MouseWheelMove = 0f;
-        Assert.Equal(100f, cam.Distance, 3);                // the click frame: nothing jumped
+        Assert.Equal(0f, Vector3.Distance(start, cam.Eye), 3);   // the click frame: nothing jumped
         Frame(cam, input);
-        Assert.InRange(cam.Distance, 96.01f, 99.9f);        // the next frame: on the way, not there
-        float previous = cam.Distance;
+        float firstFrame = Vector3.Distance(start, cam.Eye);
+        Assert.InRange(firstFrame, 0.001f, step * 0.99f);        // the next frame: on the way, not there
         for (int i = 0; i < 60; i++) Frame(cam, input);
-        Assert.True(cam.Distance < previous);
-        Assert.Equal(96f, cam.Distance, 1);                 // a lone click's 4 % (CE-1138)
+        Assert.Equal(step, Vector3.Distance(start, cam.Eye), 2);
+        Assert.True(Vector3.Dot(Vector3.Normalize(cam.Eye - start), forward) > 0.9999f, "along the view");
+        Assert.Equal(0f, cam.LookAt.Z, 2);                       // ⭐ CE-4408 — the pivot stays on the ground along the view; Distance follows the height
+        Assert.Equal(cam.EyeHeightAboveGround() / MathF.Sin(0.5f), cam.Distance, 1);
 
-        input.MouseWheelMove = -1f;                         // and back out the same way
+        input.MouseWheelMove = -1f;                              // and back out the same way
         Frame(cam, input);
         input.MouseWheelMove = 0f;
         for (int i = 0; i < 60; i++) Frame(cam, input);
-        Assert.Equal(100f, cam.Distance, 0);
+        Assert.True(Vector3.Distance(start, cam.Eye) < step * 0.1f, "one click back flies (about) as far back");
     }
 
-    /// <summary>⭐ CE-1072 — at the pivot the wheel keeps FLYING forward (the look-at point travels with the eye), Unity-style,
-    /// instead of stopping at the closest distance.</summary>
+    /// <summary>⭐ CE-1072 / CE-4408 — the wheel never stops at a "closest distance": the eye keeps flying forward, through the pivot and past it.</summary>
     [Fact]
-    public void CE1072_AtThePivot_TheWheelKeepsFlyingForward()
+    public void CE1072_TheWheelKeepsFlyingForward_PastWherePivotWas()
     {
         var cam = FlyCamera();
-        cam.Pose = new CameraPose(Vector3.Zero, cam.MinDistance, MapCamera3D.NorthUpYaw, -0.3f);
+        cam.Pose = new CameraPose(new Vector3(0, 0, 0f), cam.MinDistance, MapCamera3D.NorthUpYaw, -0.3f);
         var eye = cam.Eye;
         var forward = cam.Forward;
         var input = new FakeInput { MousePosition = new Vector2(600, 400), MouseWheelMove = 1f };
@@ -270,9 +274,79 @@ public sealed class Map3DTests
         input.MouseWheelMove = 0f;
         for (int i = 0; i < 60; i++) Frame(cam, input);
         var flown = cam.Eye - eye;
-        Assert.Equal(cam.MinDistance, cam.Distance, 3);
-        Assert.True(flown.Length() > 3f, $"flew only {flown.Length():F2} m");
+        Assert.True(flown.Length() > 0.3f, $"flew only {flown.Length():F2} m");   // near the ground a click is small (the keys' rule)
         Assert.True(Vector3.Dot(Vector3.Normalize(flown), forward) > 0.999f, "along the view");
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4408 — 🔒 user, 2026-11-10: <i>"It works okay for the keyboard, that really moves slower close to the ground, but the wheel doesn't follow this convention."</i> ONE speed rule:
+    /// a click close to the GROUND flies less than a click high up, and equals the keys' basis speed × <c>WheelStepSeconds</c> at that height.
+    /// 🔴 Red-proof (compiles): the step a share of <c>Distance</c> again ⇒ both clicks travel the same (the same pivot distance) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4408_AClickNearTheGround_FliesLessThanOneHighUp_ByTheKeysRule()
+    {
+        float Click(float eyeHeight)
+        {
+            var cam = FlyCamera();                           // the pivot on the ground, 1 km along the view both times
+            cam.Pose = new CameraPose(new Vector3(0, 0, 0f), 1000f, MapCamera3D.NorthUpYaw, -MathF.Asin(eyeHeight / 1000f));
+            var start = cam.Eye;
+            Assert.Equal(eyeHeight, cam.EyeHeightAboveGround(), 1);
+            var input = new FakeInput { MousePosition = new Vector2(600, 400), MouseWheelMove = 1f };
+            Frame(cam, input);
+            input.MouseWheelMove = 0f;
+            for (int i = 0; i < 90; i++) Frame(cam, input);
+            return Vector3.Distance(start, cam.Eye);
+        }
+        float near = Click(4f), high = Click(400f);
+        Assert.True(near < high * 0.1f, $"a click at 4 m flew {near:F2} m, at 400 m {high:F2} m");
+        Assert.Equal(MapCamera3D.FlyBasisSpeed(4f) * MapCamera3D.WheelStepSeconds, near, 1);
+        Assert.Equal(MapCamera3D.FlyBasisSpeed(400f) * MapCamera3D.WheelStepSeconds, high, 0);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4408 — 🔒 user: <i>"the entity card collapses to its text and does not come back when the camera flies back in"</i>. The level of detail reads the camera's REAL distance:
+    /// scrolling out then in (and flying low with the keys while the pivot stays far) brings the card level back — the metres-per-pixel is the same on the way back as on the way out.
+    /// 🔴 Red-proof (compiles): <c>LodMetresPerPixel</c> returning <c>MetresPerPixel</c> ⇒ the low eye with the far pivot still reads "far" ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4408_ScrollingOutThenIn_BringsTheCardLevelBack_AndAFarPivotDoesNotHideItNearTheGround()
+    {
+        var cam = FlyCamera();
+        cam.Update(0.016f);
+        float start = cam.LodMetresPerPixel;
+        var input = new FakeInput { MousePosition = new Vector2(600, 400) };
+        for (int c = 0; c < 12; c++) { input.MouseWheelMove = -1f; Frame(cam, input); input.MouseWheelMove = 0f; for (int i = 0; i < 6; i++) Frame(cam, input); }
+        for (int i = 0; i < 60; i++) Frame(cam, input);
+        Assert.True(cam.LodMetresPerPixel > start * 1.5f, "out: the level coarsens");
+        for (int c = 0; c < 40; c++) { input.MouseWheelMove = 1f; Frame(cam, input); input.MouseWheelMove = 0f; for (int i = 0; i < 6; i++) Frame(cam, input); }
+        for (int i = 0; i < 60; i++) Frame(cam, input);
+        Assert.True(cam.LodMetresPerPixel < start, $"back in: {cam.LodMetresPerPixel:F3} m/px is finer than the start's {start:F3}");
+
+        // the pivot far away (the old drift), the eye 2 m above the ground looking ahead: the LOD must be near, not the pivot's
+        var low = FlyCamera();
+        low.Pose = new CameraPose(new Vector3(0, 400f, 2f), 400f, MapCamera3D.NorthUpYaw, 0.0f);   // the eye 2 m up looking level, the pivot 400 m ahead
+        low.Update(0.016f);
+        Assert.True(low.MetresPerPixel > 0.3f, "the pivot's own scale is coarse");
+        Assert.True(low.LodMetresPerPixel < low.MetresPerPixel * 0.2f, $"LOD {low.LodMetresPerPixel:F3} vs pivot {low.MetresPerPixel:F3}");
+    }
+
+    /// <summary>⭐ CE-4408 — hot path: a wheel flight allocates nothing in the steady state (R-2084).</summary>
+    [Fact]
+    public void CE4408_TheWheelFlight_AllocatesNothing_PerFrame()
+    {
+        var cam = FlyCamera();
+        var input = new FakeInput { MousePosition = new Vector2(600, 400) };
+        long Measure()
+        {
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 30; i++) { input.MouseWheelMove = (i % 5 == 0) ? 1f : 0f; Frame(cam, input); _ = cam.LodMetresPerPixel; }
+            return System.GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+        Measure(); Measure();                                // warm up (JIT)
+        long best = long.MaxValue;
+        for (int k = 0; k < 8; k++) best = System.Math.Min(best, Measure());   // the smallest window: JIT tiering can allocate inside one
+        Assert.Equal(0L, best);
     }
 
     /// <summary>⭐ CE-1072 — W eases in and out over a few frames: the first frame moves less than a settled frame, and letting go
@@ -3190,12 +3264,12 @@ public sealed class Map3DTests
         var input = new FakeInput { MousePosition = new Vector2(600, 400) };
         cam.Update(0.016f);
         var before = cam.ScreenToWorld(OffCentre);
-        float distance = cam.Distance;
+        var eyeBefore = cam.Eye;
 
         input.MouseWheelMove = 1f; Frame(cam, input);
         input.MouseWheelMove = 0f; for (int i = 0; i < 60; i++) Frame(cam, input);
 
-        Assert.True(cam.Distance < distance - 3f, "the wheel did not travel");
+        Assert.True(Vector3.Distance(eyeBefore, cam.Eye) > 0.5f, "the wheel did not travel");   // ⭐ CE-4408 — the eye flies; Distance is no longer what the wheel moves
         var after = cam.ScreenToWorld(OffCentre);
         Assert.InRange(Vector2.Distance(before, after), 0f, 0.1f);
     }

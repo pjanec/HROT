@@ -45,7 +45,7 @@ namespace Hrot.ScenarioEditor.Map
         public void Write3D(MapCamera3D camera)
         {
             _is3D = true;
-            MetresPerPixel = camera.MetresPerPixel;
+            MetresPerPixel = camera.LodMetresPerPixel;   // ⭐ CE-4408 — the level of detail reads the camera's REAL distance (the eye's height above the ground along the view), not the pivot's alone
             Active = camera.TryFrustumPlanes(_planes);
         }
 
