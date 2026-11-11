@@ -1,0 +1,1 @@
+{ "id": "hamlet", "houses": { "templates": ["house-2f", "cqb-house", "shop-2f"], "count": [5, 8], "radius": 70, "minSpacing": 8 }, "woods": { "count": [0, 1], "size": [15, 25] } }

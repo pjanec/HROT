@@ -205,4 +205,50 @@ public sealed class StorageProcessManagerTests
         }
         finally { if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true); }
     }
+
+    /// <summary>
+    /// ⭐ O-4 part 2 (CE-4415, §18c) — the master's merge compiles the scenario's terrain blocks: after the slices of a scenario holding a <c>TerrainBlock</c> are merged, <c>&lt;scenarioDir&gt;/terrain-overlay/overlay.json</c>
+    /// exists on the NAS with the block's key and houses; a scenario whose block names an unknown recipe still SAVES (scenario.json written) — the failure is logged, not thrown — and leaves no overlay.
+    /// 🔴 Red-proof: drop the <c>CompileTerrainOverlay</c> call ⇒ no overlay folder.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void O4_TheMerge_CompilesTheTerrainOverlay_AndAFailedCompileDoesNotFailTheSave()
+    {
+        const string hut = "{\"footprint\":[[0,0],[10,0],[10,8],[0,8]],\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[10,0],\"openings\":[{\"kind\":\"door\",\"at\":4.4,\"width\":1.2,\"doorId\":\"front\"}]},{\"from\":[10,0],\"to\":[10,8]},{\"from\":[10,8],\"to\":[0,8]},{\"from\":[0,8],\"to\":[0,0]}]}]}";
+        string nas = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            string terrain = Path.Combine(ContentLayout.TerrainAssets(nas), "base-t");
+            Directory.CreateDirectory(terrain); Directory.CreateDirectory(ContentLayout.BuildingAssets(nas)); Directory.CreateDirectory(ContentLayout.TerrainRecipeAssets(nas));
+            File.WriteAllText(Path.Combine(terrain, "terrain.json"), "{\"schemaVersion\":2,\"world\":\"w.geojson\"}");
+            File.WriteAllText(Path.Combine(terrain, "w.geojson"), "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,300,300],\"groundZ\":0},\"features\":[]}");
+            File.WriteAllText(Path.Combine(ContentLayout.BuildingAssets(nas), "hut.building.json"), hut);
+            File.WriteAllText(Path.Combine(ContentLayout.TerrainRecipeAssets(nas), "village.recipe.json"), "{\"id\":\"village\",\"houses\":{\"templates\":[\"hut\"],\"count\":[4,4],\"radius\":40,\"minSpacing\":4}}");
+
+            foreach (var (scenario, recipe) in new[] { ("x", "village"), ("y", "missing") })
+            {
+                string scenarioDir = Path.Combine(nas, "scenarios", scenario);
+                string slicesDir = Path.Combine(scenarioDir, ".slices");
+                Directory.CreateDirectory(slicesDir);
+                var dom = System.Text.Json.Nodes.JsonNode.Parse("{\"Header\":{\"TerrainName\":\"base-t\"},\"Entities\":{\"b1000000-0000-4000-8000-000000000001\":{\"TerrainBlock\":{\"Recipe\":\"" + recipe
+                    + "\",\"Seed\":3,\"HeadingDeg\":0,\"Fit\":15},\"SimTransform\":{\"Position\":[150,150,0]}}}}")!.AsObject();
+                Fdp.Core.Serialization.Migrations.JsonEnvelope.Write(dom, new Fdp.Core.Serialization.Migrations.DocumentMeta("Hrot.Scenario", 2));
+                File.WriteAllText(Path.Combine(slicesDir, "node_1.json"), dom.ToJsonString());
+
+                var manager = new StorageProcessManager(new FdpEventBus(), new StorageGatewayModule(), nas);
+                manager.MergeScenarioSlices(scenario, new List<FileManifestEntry>
+                {
+                    new() { RelativeDest = Path.Combine("scenarios", scenario, ".slices", "node_1.json"), DocType = "Hrot.Scenario" },
+                });
+                Assert.True(File.Exists(Path.Combine(scenarioDir, "scenario.json")), $"{scenario}: the scenario itself saved");
+            }
+
+            var header = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(nas, "scenarios", "x", "terrain-overlay", "overlay.json")))!;
+            Assert.Equal("base-t", header["base"]!["name"]!.GetValue<string>());
+            Assert.Equal(4, header["blocks"]![0]!["houses"]!.GetValue<int>());
+            Assert.True(File.Exists(Path.Combine(nas, "scenarios", "x", "terrain-overlay", "overlay.world.geojson")));
+            Assert.False(Directory.Exists(Path.Combine(nas, "scenarios", "y", "terrain-overlay")), "a failed compile leaves no overlay");
+        }
+        finally { if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true); }
+    }
 }

@@ -365,6 +365,196 @@ public sealed class TerrainLoadStepTests : IDisposable
         Assert.Equal(1, factory.Calls);
     }
 
+    private string WriteBaseAndOverlay(out string overlay)
+    {
+        string folder = Path.Combine(_terrainDir, "base-t");
+        Directory.CreateDirectory(folder);
+        string def = Path.Combine(folder, TerrainCatalog.DefinitionFileName);
+        File.WriteAllText(def, """{"schemaVersion":2,"world":"w.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","label":"B","height":10},
+               "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+            """, new UTF8Encoding(false));
+        string baseHash = TerrainContentHash.OfTerrain(def);
+        overlay = WriteOverlay("pending", baseHash);
+        return baseHash;
+    }
+
+    /// <summary>Writes an overlay of one building "O" compiled against <paramref name="baseHash"/> into <c>{staging}/Terrain/overlays/&lt;its hash&gt;/</c>; returns that folder.</summary>
+    private string WriteOverlay(string unused, string baseHash)
+    {
+        string tmp = Path.Combine(_stagingRoot, "ovl-build-" + Guid.NewGuid().ToString("N")[..6]);
+        Directory.CreateDirectory(tmp);
+        File.WriteAllText(Path.Combine(tmp, "overlay.world.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","label":"O","height":4},
+               "geometry":{"type":"Polygon","coordinates":[[[30,0],[40,0],[40,10],[30,10],[30,0]]]}}]}
+            """, new UTF8Encoding(false));
+        string hash = TerrainContentHash.OfOverlay(tmp, baseHash);
+        File.WriteAllText(Path.Combine(tmp, "overlay.json"),
+            $"{{\"format\":1,\"contentHash\":\"{hash}\",\"base\":{{\"name\":\"base-t\",\"contentHash\":\"{baseHash}\"}},\"scenario\":\"s\",\"world\":\"overlay.world.geojson\"}}", new UTF8Encoding(false));
+        string dest = Path.Combine(_terrainDir, TerrainCatalog.OverlaysDirectoryName, hash);
+        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+        if (Directory.Exists(dest)) Directory.Delete(dest, true);   // the same world under another base hash is the same folder name: the latest header wins
+        Directory.Move(tmp, dest);
+        return dest;
+    }
+
+    /// <summary>
+    /// ⭐ O-2/O-4 (CE-4416/4415, DESIGN_Terrain_Authoring §18a) — <c>Prepare(name, overlayFolder)</c> stages the MERGED world (base + overlay, overlay appended); a second Prepare with the same
+    /// overlay HASH is the idempotent no-op, no overlay is a real change. 🔴 Red-proof: ignore <c>overlayFolder</c> in <c>Prepare</c> ⇒ the staged world has one prism.
+    /// </summary>
+    [Fact]
+    public void Prepare_WithAnOverlayFolder_StagesTheMergedWorld_O2()
+    {
+        WriteBaseAndOverlay(out var overlay);
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+
+        var plain = residency.Prepare("base-t");
+        Assert.Single(plain.World!.Prisms);
+        var staged = residency.Prepare("base-t", overlay);
+        Assert.Equal(new[] { "B", "O" }, staged.World!.Prisms.Select(p => p.Label).ToArray());   // the overlay is appended: the base keeps index 0
+        residency.Commit(world, staged);
+        Assert.False(residency.Prepare("base-t", overlay).HasWork);   // same terrain, same overlay hash: already resident
+        Assert.True(residency.Prepare("base-t").HasWork);             // the overlay went away: a real change
+    }
+
+    /// <summary>
+    /// ⭐ O-4 — the node's terrain STEP reads <c>OverlayHash</c> from the staged header, resolves <c>Terrain/overlays/&lt;hash&gt;/</c> and commits the MERGED world; a hash with no folder throws.
+    /// 🔴 Red-proof: don't pass the folder from the step ⇒ one prism; drop the throw ⇒ the missing-folder case loads the bare terrain.
+    /// </summary>
+    [Fact]
+    public void TheStep_LoadsTheOverlayNamedByTheStagedHeader_O4()
+    {
+        WriteBaseAndOverlay(out var overlay);
+        string hash = Path.GetFileName(overlay);
+        File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), $"{{\"TerrainName\":\"base-t\",\"OverlayHash\":\"{hash}\"}}", new UTF8Encoding(false));
+        var (handler, holder) = NewHandler();
+        using (holder)
+        {
+            using var world = NewWorld();
+            var intent = Intent();
+            Prepare(handler, intent);
+            handler.Commit(intent, world);
+            var w = world.GetSingletonManaged<TerrainWorld>();
+            Assert.Equal(new[] { "B", "O" }, w.Prisms.Select(p => p.Label).ToArray());
+        }
+
+        File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), "{\"TerrainName\":\"base-t\",\"OverlayHash\":\"deadbeef\"}", new UTF8Encoding(false));
+        var (handler2, holder2) = NewHandler();
+        using (holder2) Assert.Throws<FileNotFoundException>(() => Prepare(handler2, Intent()));
+    }
+
+    /// <summary>
+    /// ⭐ O-4 (C-5) — an overlay compiled against ANOTHER base is refused, the message naming both hashes, the terrain and the overlay folder; so is a torn overlay (its files do not hash to its header).
+    /// 🔴 Red-proof: skip the BaseHash comparison ⇒ no throw.
+    /// </summary>
+    [Fact]
+    public void AnOverlayForAnotherBase_IsRefused_NamingBothHashes_O4()
+    {
+        string baseHash = WriteBaseAndOverlay(out _);
+        string other = new string('a', 64);
+        string wrong = WriteOverlay("x", other);
+        using var holder = new RoadNetworkHolder();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+        var e = Assert.Throws<InvalidOperationException>(() => residency.Prepare("base-t", wrong));
+        Assert.Contains(other, e.Message); Assert.Contains(baseHash, e.Message); Assert.Contains("base-t", e.Message); Assert.Contains(wrong, e.Message);
+
+        string torn = WriteOverlay("y", baseHash);
+        File.AppendAllText(Path.Combine(torn, "overlay.world.geojson"), " ");
+        var t = Assert.Throws<InvalidOperationException>(() => residency.Prepare("base-t", torn));
+        Assert.Contains("torn", t.Message);
+    }
+
+    /// <summary>
+    /// ⭐ O-4 — the same overlay loaded by two FRESH residencies (two nodes, two processes) gives merged worlds whose part lists are identical element for element: labels, counts, door keys, panel indices.
+    /// 🔴 Red-proof: have the merge (or the parse) order parts by a per-process value (a hash code / a dictionary order) ⇒ the lists differ between residencies.
+    /// </summary>
+    [Fact]
+    public void TwoFreshResidencies_LoadTheSameOverlayToIdenticalMergedWorlds_O4()
+    {
+        WriteBaseAndOverlay(out var overlay);
+        // a richer overlay: a house with a door, so panel indices and door keys are in play
+        string hs = Path.Combine(_stagingRoot, "ovl-rich"); Directory.CreateDirectory(hs);
+        File.WriteAllText(Path.Combine(hs, "overlay.world.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","label":"H1","doors":{"front":"open"},"building":{"footprint":[[0,0],[10,0],[10,8],[0,8]],
+                "storeys":[{"height":3,"walls":[{"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},{"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
+               "geometry":{"type":"Point","coordinates":[60,20]}},
+              {"type":"Feature","properties":{"kind":"slab","z":2.0,"structure":"bridge-1"},"geometry":{"type":"Polygon","coordinates":[[[70,10],[80,10],[80,14],[70,14],[70,10]]]}},
+              {"type":"Feature","properties":{"kind":"surface","surface":"forest"},"geometry":{"type":"Polygon","coordinates":[[[90,40],[100,40],[100,50],[90,50],[90,40]]]}}]}
+            """, new UTF8Encoding(false));
+        string baseHash = TerrainContentHash.OfTerrain(Path.Combine(_terrainDir, "base-t", TerrainCatalog.DefinitionFileName));
+        string hash = TerrainContentHash.OfOverlay(hs, baseHash);
+        File.WriteAllText(Path.Combine(hs, "overlay.json"), $"{{\"format\":1,\"contentHash\":\"{hash}\",\"base\":{{\"name\":\"base-t\",\"contentHash\":\"{baseHash}\"}},\"scenario\":\"s\",\"world\":\"overlay.world.geojson\"}}");
+
+        TerrainWorld Load()
+        {
+            using var holder = new RoadNetworkHolder();
+            return new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder).Prepare("base-t", hs).World!;
+        }
+        var a = Load(); var b = Load();
+        Assert.NotSame(a, b);
+        Assert.Equal(a.Prisms.Select(p => (p.Label, p.Panel, p.Building, p.Kind, p.Footprint.Length)), b.Prisms.Select(p => (p.Label, p.Panel, p.Building, p.Kind, p.Footprint.Length)));
+        Assert.Equal(a.Panels.Select(p => (p.A, p.B, p.Building, p.Storey)), b.Panels.Select(p => (p.A, p.B, p.Building, p.Storey)));
+        Assert.Equal(a.Buildings.Select(x => x.Label), b.Buildings.Select(x => x.Label));
+        Assert.Equal(a.Doors.Select(d => (d.Key, d.Panel, d.Opening)), b.Doors.Select(d => (d.Key, d.Panel, d.Opening)));
+        Assert.Equal(a.Walkables.Select(w => w.Building), b.Walkables.Select(w => w.Building));
+        Assert.Equal(a.Surfaces.Count, b.Surfaces.Count);
+        Assert.Contains(a.Doors, d => d.Key.EndsWith("/H1/front"));
+        Assert.Contains(a.Buildings, x => x.Label == "bridge-1");
+    }
+
+    /// <summary>
+    /// ⭐ O-4 part 2 (CE-4415, DESIGN_Terrain_Authoring §18c) — compile, then load: a scenario with a block and a house over a base terrain compiles to <c>terrain-overlay/</c>; a FRESH
+    /// residency's <c>Prepare(name, folder)</c> accepts it (the hashes agree), the merged world holds the expanded houses labelled <c>&lt;guid&gt;/&lt;i&gt;</c> with their doors, and the base's own
+    /// parts keep their indices; changing a byte of the base afterwards makes the same overlay REFUSED. 🔴 Red-proof: have the compiler hash another base (or none) ⇒ the load refuses.
+    /// </summary>
+    [Fact]
+    public void ACompiledOverlay_LoadsInAFreshResidency_AndIsRefusedOnceTheBaseChanges_O4()
+    {
+        const string hut = """{"footprint":[[0,0],[10,0],[10,8],[0,8]],"storeys":[{"height":3,"walls":[{"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},{"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}""";
+        string assets = Path.Combine(_stagingRoot, "assets");
+        string terrains = Path.Combine(assets, "terrain"), folder = Path.Combine(terrains, "base-t");
+        Directory.CreateDirectory(folder); Directory.CreateDirectory(Path.Combine(assets, "buildings")); Directory.CreateDirectory(Path.Combine(assets, "terrain-recipes"));
+        File.WriteAllText(Path.Combine(folder, "terrain.json"), """{"schemaVersion":2,"world":"w.geojson"}""");
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,400,400],"groundZ":0},"features":[]}""");
+        File.WriteAllText(Path.Combine(assets, "buildings", "hut.building.json"), hut);
+        File.WriteAllText(Path.Combine(assets, "terrain-recipes", "village.recipe.json"), """{"id":"village","houses":{"templates":["hut"],"count":[6,6],"radius":50,"minSpacing":4},"woods":{"count":[1,1],"size":[8,12]}}""");
+        string scenarioDir = Path.Combine(_stagingRoot, "scn"); Directory.CreateDirectory(scenarioDir);
+        const string block = "b1000000-0000-4000-8000-000000000001", house = "c1000000-0000-4000-8000-000000000002";
+        var dom = System.Text.Json.Nodes.JsonNode.Parse("""
+            {"header":{"terrainName":"base-t"},"entities":{
+              "BLOCK":{"TerrainBlock":{"Recipe":"village","Seed":5,"HeadingDeg":0,"Fit":15},"SimTransform":{"Position":[200,200,0]}},
+              "HOUSE":{"TerrainFeature":{"Kind":1,"Template":"hut","HeadingDeg":90,"Pad":0},"SimTransform":{"Position":[350,350,0]}}}}
+            """.Replace("BLOCK", block).Replace("HOUSE", house))!.AsObject();
+        var catalog = new TerrainCatalog(new[] { terrains });
+        var r = OverlayCompiler.Compile(dom, scenarioDir, catalog.ResolveDefinition, bakeNavtiles: false);
+        Assert.True(r.Wrote);
+        string overlay = Path.Combine(scenarioDir, OverlayCompiler.FolderName);
+
+        TerrainWorld Load()
+        {
+            using var holder = new RoadNetworkHolder();
+            return new TerrainResidency(catalog, holder).Prepare("base-t", overlay).World!;
+        }
+        var w = Load();
+        var labels = w.Buildings.Select(b => b.Label).ToList();
+        Assert.Equal(7, labels.Count);
+        Assert.Contains(house + "/0", labels);
+        for (int i = 0; i < 6; i++) Assert.Contains($"{block}/{i}", labels);
+        Assert.Equal(7, w.Doors.Count);
+        Assert.Contains(w.Doors, d => d.Key == $"base-t/{block}/3/front");
+        Assert.Single(w.Surfaces);
+        Assert.Equal(labels, Load().Buildings.Select(b => b.Label).ToList());   // a second fresh residency: the same world
+
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,400,400],"groundZ":0},"features":[ ]}""");
+        Assert.Throws<InvalidOperationException>(() => Load());
+    }
+
     /// <summary>A content loader that counts its prepares.</summary>
     private sealed class CountingContentLoader : ITerrainContentLoader
     {

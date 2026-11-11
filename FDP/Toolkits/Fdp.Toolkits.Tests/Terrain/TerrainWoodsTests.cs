@@ -27,6 +27,21 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.False(w.SegmentBlocked(Man(-300, 250), Man(-200, 250)), "100 m apart beside the wood: seen");
         }
 
+        /// <summary>
+        /// ⭐ O-2 (CE-4416) — a forest that arrives through a MERGED overlay conceals exactly as the base's woods do: the woods grid is built from the merged world's surfaces.
+        /// 🔴 Red-proof: drop the overlay's surfaces in <see cref="TerrainWorldMerge.Merge"/> ⇒ 100 m in the overlay's wood is seen.
+        /// </summary>
+        [Fact]
+        public void O2_AForestFromAnOverlay_ConcealsLikeTheBasesWoods()
+        {
+            var bare = TerrainWorldParser.Parse("""{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[-1500,-1500,1500,1500],"groundZ":0},"features":[]}""", "wood");
+            var merged = TerrainWorldMerge.Merge(bare, Wood());
+            Assert.False(bare.SegmentBlocked(Man(250, 250), Man(350, 250)), "no wood in the base: seen");
+            Assert.False(merged.SegmentBlocked(Man(250, 250), Man(270, 250)), "20 m apart in the overlay's wood: seen");
+            Assert.True(merged.SegmentBlocked(Man(250, 250), Man(350, 250)), "100 m apart in the overlay's wood: hidden");
+            Assert.False(merged.SegmentBlocked(Man(-300, 250), Man(-200, 250)), "100 m apart beside the wood: seen");
+        }
+
         [Fact]
         public void CE4369_FromTheAir_UnderTheTreesIsHidden_TheEdgeIsSeen()
         {

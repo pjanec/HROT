@@ -123,6 +123,47 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.False(derived.SegmentBlocked(new Vector3(15f, 24f, 1.6f), new Vector3(35f, 24f, 1.6f), DoorStates.Of(view, derived)));
         }
 
+        /// <summary>
+        /// ⭐ O-2 (CE-4416) — a "structure" bridge: slab features sharing <c>"structure": "bridge-1"</c> become ONE collapsible building (label = the key, no panels) in a MERGED world; the
+        /// deck carries a unit (<c>SurfaceZ</c> at deck height), and once that building collapses (<c>TerrainObstacles.With</c> + the damage table) the deck is gone — the unit no
+        /// longer stands at deck height. 🔴 Red-proof: have the parser leave <c>Building = -1</c> on the structure's walkables ⇒ the deck survives the collapse.
+        /// </summary>
+        [Fact]
+        public void O2_AStructureBridge_CarriesAUnit_AndStopsCarryingOnceItsBuildingCollapses()
+        {
+            var baseWorld = TerrainWorldParser.Parse(BreachFixtures.BrickHouse, "range");   // one building already: the bridge's index is offset
+            var overlay = TerrainWorldParser.Parse("""
+                {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,100,60],"groundZ":0},"features":[
+                  {"type":"Feature","properties":{"kind":"slab","z":2.0,"structure":"bridge-1"},"geometry":{"type":"Polygon","coordinates":[[[40,10],[50,10],[50,14],[40,14],[40,10]]]}},
+                  {"type":"Feature","properties":{"kind":"slab","z":2.0,"structure":"bridge-1"},"geometry":{"type":"Polygon","coordinates":[[[50,10],[60,10],[60,14],[50,14],[50,10]]]}},
+                  {"type":"Feature","properties":{"kind":"slab","z":1.0},"geometry":{"type":"Polygon","coordinates":[[[70,10],[80,10],[80,14],[70,14],[70,10]]]}}]}
+                """, "range");
+            var b = Assert.Single(overlay.Buildings);
+            Assert.Equal("bridge-1", b.Label);
+            Assert.Empty(overlay.Panels);
+            Assert.Equal(new[] { 0, 0, -1 }, overlay.Walkables.Select(w => w.Building).ToArray());   // two parts of the bridge, one free slab
+            var merged = TerrainWorldMerge.Merge(baseWorld, overlay);
+            int bridge = 1;
+            Assert.Equal("bridge-1", merged.Buildings[bridge].Label);
+            int w0 = baseWorld.Walkables.Count;   // the base house's own roof slab comes first
+            Assert.Equal(bridge, merged.Walkables[w0].Building);
+            Assert.Equal(bridge, merged.Walkables[w0 + 1].Building);
+            Assert.Equal(-1, merged.Walkables[w0 + 2].Building);
+
+            Assert.Equal(2.0f, merged.SurfaceZ(45f, 12f, 2.0f), 3);        // standing on the deck (either part)
+            Assert.Equal(2.0f, merged.SurfaceZ(55f, 12f, 2.0f), 3);
+
+            using var repo = BreachFixtures.World(merged);
+            BreachFixtures.Collapsed(repo, merged, bridge);
+            var table = DoorStates.Of(repo, merged).Damage!;
+            var derived = TerrainObstacles.With(merged, None, table);
+            Assert.Equal(new[] { bridge }, derived.BakedCollapsed.ToArray());
+            Assert.Equal(w0 + 1, derived.Walkables.Count);                // the base house's roof and the free slab are left; the bridge's two decks are gone
+            Assert.True(derived.SurfaceZ(45f, 12f, 2.0f) < 1.0f, "the collapsed bridge no longer carries: the unit falls to the ground / its rubble");
+            Assert.True(derived.SurfaceZ(55f, 12f, 2.0f) < 1.0f);
+            Assert.Equal(1.0f, derived.SurfaceZ(75f, 12f, 1.0f), 3);       // a slab that is not part of the structure is untouched
+        }
+
         /// <summary>An obstacle and the overlay compose: obstacles join the end of the list as before.</summary>
         [Fact]
         public void ObstaclesAndOverlay_Compose()

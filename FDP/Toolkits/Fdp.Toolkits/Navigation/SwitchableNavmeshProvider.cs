@@ -124,4 +124,16 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Bakes <paramref name="world"/>; null when it has nothing walkable. Throws on a bake failure.</summary>
         INavmeshProvider? Build(TerrainWorld world);
     }
+
+    /// <summary>
+    /// ⭐ O-7 A (docs/DESIGN_Terrain_Authoring.md §18e) — a factory that can take WHERE the world changed since its previous bake and skip the tiles outside it. <see cref="BakeSerial"/> counts its bakes, so a caller
+    /// that remembers the serial of the bake it committed knows the factory's "previous" still describes the world it is diffing against (an abandoned staged bake moves the serial ⇒ a full bake, never a wrong one).
+    /// </summary>
+    public interface IIncrementalNavmeshFactory : INavmeshFactory
+    {
+        long BakeSerial { get; }
+
+        /// <summary><paramref name="dirty"/>: engine XY rectangles that changed; null = unknown = a full bake.</summary>
+        INavmeshProvider? Build(TerrainWorld world, System.Collections.Generic.IReadOnlyList<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)>? dirty);
+    }
 }

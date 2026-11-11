@@ -1004,6 +1004,57 @@ public sealed class StorageGatewayTkbConsensusTests
     }
 
     /// <summary>
+    /// ⭐ O-4 (CE-4415, DESIGN_Terrain_Authoring §18a) — a scenario whose folder holds <c>terrain-overlay/</c> leaves the overlay on EVERY target at
+    /// <c>{node}/Terrain/overlays/&lt;contentHash&gt;/</c> (same files, nested ones too), and the staged header carries <c>OverlayHash</c>; a scenario WITHOUT one stages
+    /// no folder and writes no field — even after one that had it (the header is rewritten whole). 🔴 Red-proof: skip the overlay mirror ⇒ the folder is missing; drop the header field ⇒ the hash reads null.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_StagesTheTerrainOverlayByHash_AndNamesItInTheHeader_O4()
+    {
+        var nas  = MakeNas("with-overlay", null, "test-town", out var scenarioDir);
+        Directory.CreateDirectory(Path.Combine(nas, OrchestrationConstants.ScenariosDirectoryName, "plain"));
+        File.WriteAllText(Path.Combine(nas, OrchestrationConstants.ScenariosDirectoryName, "plain", "Hrot.SimHost.json"), "{\"header\":{\"terrainName\":\"test-town\"},\"entities\":[]}");
+        var ov = Path.Combine(scenarioDir, "terrain-overlay");
+        Directory.CreateDirectory(Path.Combine(ov, "buildings"));
+        File.WriteAllText(Path.Combine(ov, "overlay.json"), "{\"format\":1,\"contentHash\":\"abc123\",\"base\":{\"name\":\"test-town\",\"contentHash\":\"b\"},\"scenario\":\"with-overlay\",\"world\":\"overlay.world.geojson\"}");
+        File.WriteAllText(Path.Combine(ov, "overlay.world.geojson"), "{}");
+        File.WriteAllText(Path.Combine(ov, "buildings", "h.building.json"), "{}");
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, "with-overlay"), TargetIn(root, 2, "with-overlay") };
+            var gateway = new StorageGatewayModule();
+            var result = await gateway.PrefetchScenarioAsync("with-overlay", targets, nas);
+            Assert.Equal(0, result.FailureCount);
+            foreach (var t in targets)
+            {
+                var nodeRoot = Path.GetDirectoryName(t.TkbDestinationPath)!;
+                var dest = Path.Combine(nodeRoot, Fdp.Toolkit.Terrain.TerrainCatalog.StagingDirectoryName, "overlays", "abc123");
+                foreach (var rel in new[] { "overlay.json", "overlay.world.geojson", Path.Combine("buildings", "h.building.json") })
+                    Assert.Equal(File.ReadAllText(Path.Combine(ov, rel)), File.ReadAllText(Path.Combine(dest, rel)));
+                Assert.Equal("abc123", Fdp.Toolkit.Terrain.ScenarioTerrainName.ReadOverlayHash(nodeRoot));
+                Assert.Equal("test-town", Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(nodeRoot));
+                Assert.Equal(dest, new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { Path.Combine(nodeRoot, "Terrain") }).ResolveOverlay("abc123"));
+            }
+
+            // a scenario without an overlay, staged next on the same nodes: no field (a stale one must not survive); the earlier overlay folder is only content-addressed leftovers
+            var plain = new List<NodeDistributionTarget> { TargetIn(root, 1, "plain") };
+            await gateway.PrefetchScenarioAsync("plain", plain, nas);
+            Assert.Null(Fdp.Toolkit.Terrain.ScenarioTerrainName.ReadOverlayHash(OrchestrationConstants.GetNodeStagingRoot(root, 1)));
+            Assert.Equal("test-town", Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(OrchestrationConstants.GetNodeStagingRoot(root, 1)));
+            var nas2 = MakeNas("bare", null, "test-town", out _);
+            var root2 = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            try
+            {
+                await gateway.PrefetchScenarioAsync("bare", new List<NodeDistributionTarget> { TargetIn(root2, 1, "bare") }, nas2);
+                Assert.False(Directory.Exists(Path.Combine(OrchestrationConstants.GetNodeStagingRoot(root2, 1), "Terrain", "overlays")));
+            }
+            finally { Cleanup(nas2, root2); }
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-3075</c> — a scenario naming NO artifacts, staged after one that named some, must not leave the
     /// previous header behind: the node's terrain step falls back to it when the load message is silent.
     /// 📐 Measured live <c>2026-10-05</c>: <c>hill-attack-close</c> after <c>ua-posture</c> kept test-town on CGF.

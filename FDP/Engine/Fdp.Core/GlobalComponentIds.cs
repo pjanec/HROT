@@ -1284,5 +1284,12 @@ namespace Fdp.Core
         /// runtime entity its deciding node owns; replicated as <c>dtBuildingDamage</c> (183). NoScenario here (saved through the <c>terrainObjects</c> section, S-4).
         /// ⚠ 485 measured free in backend, ui, behaviors and coordinator 2026-11-10 (the highest in use was 484).</summary>
         public const int BuildingDamage = 485;
+
+        /// <summary><c>TerrainBlock</c> — ⭐ O-4 (CE-4415, docs/DESIGN_Terrain_Authoring.md §18c): a placed block of terrain features (recipe, seed, heading, fit flags), one saved entity per block;
+        /// the <c>OverlayCompiler</c> expands it at save. Unmanaged, authored, recorded and saved. ⚠ 494–495: the backend block (434–449) is full, so these are taken from the TOP of the coordinator / new-lane block (476–495), which allocates upward (highest in use 485, every lane, 2026-11-11) — NOTE_Backend_To_Coordinator_Component_Ids_494_495.md.</summary>
+        public const int TerrainBlock = 494;
+
+        /// <summary><c>TerrainFeature</c> — ⭐ O-4 (CE-4415, §18c): one placed terrain feature (a house in v1: template, heading, pad); its position is the entity's <c>SimTransform</c>. Authored, saved.</summary>
+        public const int TerrainFeature = 495;
     }
 }

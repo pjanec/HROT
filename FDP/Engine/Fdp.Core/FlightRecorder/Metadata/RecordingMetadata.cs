@@ -78,6 +78,13 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// </summary>
         public string TerrainName { get; set; } = "";
 
+        /// <summary>⭐ O-8 (CE-4420, docs/DESIGN_Terrain_Authoring.md §18) — the content hash of the terrain OVERLAY (the scenario's compiled blocks / features) resident while recording, so a replay loads the same
+        /// additions by hash. Empty when the terrain had none, and for recordings that pre-date the field.</summary>
+        public string OverlayHash { get; set; } = "";
+
+        /// <summary>⭐ O-8 — the content hash of the BASE terrain the overlay was merged over (set with <see cref="OverlayHash"/>; empty without an overlay and in older recordings).</summary>
+        public string TerrainHash { get; set; } = "";
+
         /// <summary>
         /// ⭐ <c>CE-4058</c> ② (Director Timeline TE-13) — the scenario this recording ran (its name/id) and its hash as loaded
         /// (<c>ScenarioDescription.HashOf</c>, the director's <c>TakeStore.ScenarioHash</c> rule), so a kept recording, its takes and a

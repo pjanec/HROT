@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-09
-current-answer: ⭐⭐⭐⭐ the LARGE-TERRAIN PERFORMANCE programme (2026-11-10, LATEST) has its OWN resume doc: docs/blueprints/RESUME_Backend_Large_Terrain_Perf.md — start there (a many-core Windows machine: measure, then optimise). Before it: §THE X QUEUE IS DONE (2026-11-09) below: X-3…X-6 + the run-mode fix built; NEXT = CE-3421 (editor memory per load). Before it: §RECORDING STORAGE + THE V / X QUEUE (2026-11-08 evening): W-1…W-4, V-1, V-2, X-1 built; X-2 filed on behaviors; NEXT = X-3…X-6, then W-3 ⑤'s lab measurement. Before it: §STRUCT EDITOR OVERNIGHT — DONE (2026-11-08) below: N-0…N-11 built and pushed; open = the pen QUESTION + the follow-ups listed there. Then §SCENARIO PRESETS (2026-11-07) — CE-3374 now BUILT. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+current-answer: ⭐⭐⭐⭐ §TERRAIN OVERLAY (2026-11-11, LATEST) below — HANDOFF_Coordinator_To_Backend_Terrain_Overlay: O-0…O-8 ALL DONE (O-5/O-7 engine side; dialog + Edit terrain are ui's); status file STATUS_Backend_Terrain_Overlay.md. Before it: ⭐⭐⭐⭐ the LARGE-TERRAIN PERFORMANCE programme (2026-11-10, LATEST) has its OWN resume doc: docs/blueprints/RESUME_Backend_Large_Terrain_Perf.md — start there (a many-core Windows machine: measure, then optimise). Before it: §THE X QUEUE IS DONE (2026-11-09) below: X-3…X-6 + the run-mode fix built; NEXT = CE-3421 (editor memory per load). Before it: §RECORDING STORAGE + THE V / X QUEUE (2026-11-08 evening): W-1…W-4, V-1, V-2, X-1 built; X-2 filed on behaviors; NEXT = X-3…X-6, then W-3 ⑤'s lab measurement. Before it: §STRUCT EDITOR OVERNIGHT — DONE (2026-11-08) below: N-0…N-11 built and pushed; open = the pen QUESTION + the follow-ups listed there. Then §SCENARIO PRESETS (2026-11-07) — CE-3374 now BUILT. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Struct_Editor.md — the one struct-editor library (✅ APPROVED 2026-11-07: S1–S12, §8 the ONE widget kit K1–K6, §9 the inspector)
@@ -19,6 +19,34 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
+
+## ⭐⭐⭐⭐ TERRAIN OVERLAY — compiled at save (`2026-11-11`, LATEST) — start here
+
+📄 [handoff](batches/HANDOFF_Coordinator_To_Backend_Terrain_Overlay.md) (frozen at `01a3c26cb`) · ⭐ per-item record + gates: [`batches/STATUS_Backend_Terrain_Overlay.md`](batches/STATUS_Backend_Terrain_Overlay.md) ·
+design + as-built: [`DESIGN_Terrain_Authoring.md`](../DESIGN_Terrain_Authoring.md) §18a (format, classes, load, module diagram) · §18a-2 merge · §18a-3 keys · §18a-4 distribution ·
+§18b numbers · §18c / §18c-1 / §18c-2 compile (+ the data the mockups need) · §18c-3 the visual check.
+
+| item | state | sha |
+|---|---|---|
+| O-0 CE-4419 slow bake keeps its entities | ✅ | `fa790d664` |
+| O-6 CE-4425 generated terrain / overlays / `terrain.hash` out of git | ✅ | `fa790d664`, `59af4b7fa` |
+| O-1 CE-4415 design + numbers (scale-1, 700-house overlay: 153 KB, read 0.63 s, merge 11 ms) | ✅ READY-TO-BUILD | `1b5d51a00`, `43688e23f` |
+| O-2 CE-4416 `TerrainWorldMerge` (houses + doors, woods, water, structure bridges) | ✅ | `43688e23f` |
+| O-3 CE-4417 a breach crosses the wire by key + panel-in-building | ✅ — ⚠ the terrain-NAME key prefix is kept; dropping it moves to O-5 (shipped scenarios + behaviour params name doors with it) | `43688e23f` |
+| O-4 CE-4415 distribution (prefetch mirrors `terrain-overlay/` → `{node}/Terrain/overlays/<hash>`) + load (hash check) + compiler (`TerrainBlock` 494 / `TerrainFeature` 495, recipes, `FeatureExpander`, `OverlayCompiler` on the master's merge) | ✅ | `545c51e16`, `98ee13cc5`, `420f7b74e` |
+| O-8 CE-4420 the Replay Browser loads the overlay by hash (+ static obstacles per seek, 0 B steady) | ✅ | `dd349c0f7` |
+| O-5 CE-4422 *Save terrain as* — `TerrainBake.SaveAs` (overlay features appended to the base world, navtiles copied, `source/` carried, new scenario with door keys re-prefixed; `TerrainSaveSummary`, `TerrainUsers.Of`) §18d | ✅ engine — the dialog + *Edit terrain* (E-2) are ui's (`NOTE_Backend_To_Ui_Save_Terrain_As.md`); the key-prefix drop was NOT needed (D-3) | `630340ad8`, `9fb73e7e3` |
+| O-7 CE-4418 the live incremental bake §18e: A — every node's obstacle rebake reuses unchanged tiles by key (scale-1 warm 28 s → ~4.3 s); B — the editor expands blocks live (`LiveOverlay`, shared `OverlayExpansion`) | ✅ | `1d250a7d9`, `3ae3886af`, `2e51cb382` |
+| CE-3436 the obstacle bake allocated every frame on every node | ✅ 0 B steady | `786913f1e` |
+
+**Findings filed (backend block):** CE-3431 AlignRoad ignored · CE-3432 staged overlays never pruned · CE-3433 the compile runs inside the save · CE-3434 a recorded obstacle born during 1× playback shows at the next seek · CE-3435 Save terrain as keeps stale base navtiles. ⏭ **Next candidates:** CE-3433 (measure the compile on scale-1, answer saved first) · CE-3434 (measure a per-frame obstacle check in the browser) · index / cover incremental if ~0.7 s per edit is too slow · W-3 ⑤ lab measurement (needs a lab cluster). **Notes:**
+`NOTE_Backend_To_Coordinator_Component_Ids_494_495.md` · `NOTE_Backend_To_Ui_Terrain_Overlay_Visuals.md` (template-house LOD, interior-label clutter, block
+outline / chip / menu / Details — data ready in `overlay.json` `blocks[]`).
+
+**Traps measured:** a merge adding a project (`Hrot.Terrain.Osm`, the Recast reference) needs `dotnet restore` of the test project first, or the build fails and
+the test RUNS A STALE BINARY · an async `[Fact(Timeout=…)]` prints "< 1 ms" — re-run with `--logger "console;verbosity=normal"` for the real time · the
+pre-existing reds `Map3DFrameRail.CE1227_V_DemoCity_*` and `FilmFrameRail.CE1380_*` (red at `d688c6cc2`, before this batch) · scale-1 is generated by
+`scripts/terrain-scale.py` (needs SUMO: `scripts/install-sumo.sh`); the O-1 split input by `scripts/terrain-overlay-measure.py`.
 
 ## ⭐⭐⭐⭐ LARGE-TERRAIN PERFORMANCE (`2026-11-10`, LATEST) — ⭐ its own resume doc
 

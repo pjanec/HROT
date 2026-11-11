@@ -216,6 +216,21 @@ namespace Fdp.Tests
             Assert.True(found, "AsyncRecorder must expose a public ctor(string, RecordingMetadata?)");
         }
 
+        /// <summary>⭐ O-8 (CE-4420) — <c>OverlayHash</c> / <c>TerrainHash</c> round-trip; a metadata file from before them reads both as empty (never null, never a throw). 🔴 Red-proof: drop either property ⇒ the round trip fails.</summary>
+        [Fact]
+        public void O8_OverlayHashAndTerrainHash_RoundTrip_AndOldMetadataReadsThemEmpty()
+        {
+            var meta = new RecordingMetadata { TerrainName = "t", OverlayHash = "aa11", TerrainHash = "bb22" };
+            var back = MetadataSerializer.Deserialize(MetadataSerializer.Serialize(meta));
+            Assert.Equal("aa11", back.OverlayHash);
+            Assert.Equal("bb22", back.TerrainHash);
+
+            var old = MetadataSerializer.Deserialize("{\"TerrainName\":\"t\"}");
+            Assert.Equal("t", old.TerrainName);
+            Assert.Equal("", old.OverlayHash);
+            Assert.Equal("", old.TerrainHash);
+        }
+
         // ── Helper ────────────────────────────────────────────────────────────────
 
         private sealed class CapturingRegistry : ISystemRegistry

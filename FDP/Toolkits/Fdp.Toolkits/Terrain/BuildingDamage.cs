@@ -113,6 +113,30 @@ namespace Fdp.Toolkit.Terrain
         public static string KeyOf(TerrainWorld world, int building)
             => string.IsNullOrEmpty(world.Name) ? world.Buildings[building].Label : world.Name + "/" + world.Buildings[building].Label;
 
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TerrainWorld, System.Collections.Generic.Dictionary<string, int>> s_byKey = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-4417</c> (Terrain Authoring §18 C-4, O-3) — the index of the building <paramref name="key"/> names in <paramref name="world"/>, or −1.
+        /// Accepts the full key (<see cref="KeyOf"/>, <c>"&lt;terrain&gt;/&lt;label&gt;"</c>) and the bare label, so a key written before or after a
+        /// terrain rename resolves the same house. Built once per world (a world is immutable), so a receiving node maps a replicated key to ITS
+        /// index — never trusting the sender's index, which differs when the two worlds were assembled differently.
+        /// </summary>
+        public static int IndexOfKey(TerrainWorld world, string? key)
+        {
+            if (world == null || string.IsNullOrEmpty(key)) return -1;
+            var map = s_byKey.GetValue(world, static w =>
+            {
+                var m = new System.Collections.Generic.Dictionary<string, int>(w.Buildings.Count * 2, StringComparer.Ordinal);
+                for (int i = 0; i < w.Buildings.Count; i++)
+                {
+                    m.TryAdd(KeyOf(w, i), i);
+                    if (!string.IsNullOrEmpty(w.Buildings[i].Label)) m.TryAdd(w.Buildings[i].Label, i);
+                }
+                return m;
+            });
+            return map.TryGetValue(key, out int b) ? b : -1;
+        }
+
         /// <summary>
         /// Adds <paramref name="b"/> to <paramref name="d"/>: every breach it overlaps on its panel is absorbed into the union rectangle (repeatedly, until
         /// nothing overlaps); the union's kind is re-decided from <paramref name="world"/> when it is given. ⭐ Atomic: on <see cref="BreachAdd.Full"/>

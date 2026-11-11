@@ -43,6 +43,8 @@ namespace Fdp.Toolkit.Orchestration
 
         public const string TerrainDirectoryName = "terrain";
         public const string BuildingsDirectoryName = "buildings";
+        /// <summary>⭐ O-4 — <c>terrain-recipes</c>: the recipes a <c>TerrainBlock</c> expands by.</summary>
+        public const string TerrainRecipesDirectoryName = "terrain-recipes";
         public const string IconsDirectoryName = "icons";
         public const string ThumbnailsDirectoryName = "thumbnails";
         public const string AudioDirectoryName = "audio";
@@ -109,6 +111,7 @@ namespace Fdp.Toolkit.Orchestration
 
         public static string TerrainAssets(string root) => Path.Combine(Assets(root), TerrainDirectoryName);
         public static string BuildingAssets(string root) => Path.Combine(Assets(root), BuildingsDirectoryName);
+        public static string TerrainRecipeAssets(string root) => Path.Combine(Assets(root), TerrainRecipesDirectoryName);
         public static string IconAssets(string root) => Path.Combine(Assets(root), IconsDirectoryName);
         /// <summary>⭐ CE-4142 — <c>{root}/assets/thumbnails</c>: the Add Entity gallery's <c>groups.json</c>, <c>map.json</c> and the thumbnail PNGs.</summary>
         public static string ThumbnailAssets(string root) => Path.Combine(Assets(root), ThumbnailsDirectoryName);

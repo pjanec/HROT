@@ -145,7 +145,7 @@ public sealed class TerrainPlan2D
                 FillPolygon(draw, r.Footprint, r.Triangles, RubbleFill);
                 Outline2(draw, r.Footprint, RubbleOutline, LineStyle.Dashed, 2f);
                 var c = Centroid(r.Footprint);
-                draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32($"{world.Buildings[b].Label} rubble"), LabelColor, layer: TerrainLayer);
+                if (!string.IsNullOrEmpty(world.Buildings[b].Name)) draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32($"{world.Buildings[b].Name} rubble"), LabelColor, layer: TerrainLayer);   // ⭐ O-4 — Name, not the stable-key Label; empty ⇒ no text
             }
         }
 
@@ -156,7 +156,7 @@ public sealed class TerrainPlan2D
             if (b.Solid || !Wanted(bi) || (damage != null && damage.Collapsed(bi))) continue;
             mark?.Invoke(bi);
             var c = Centroid(b.Footprint);
-            draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32($"{b.Label} {b.Storeys}F"), LabelColor, layer: TerrainLayer);
+            if (!string.IsNullOrEmpty(b.Name)) draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32($"{b.Name} {b.Storeys}F"), LabelColor, layer: TerrainLayer);   // ⭐ O-4 — Name, not the stable-key Label; empty ⇒ no text
         }
     }
 

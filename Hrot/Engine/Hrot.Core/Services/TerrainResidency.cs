@@ -47,6 +47,9 @@ public sealed class TerrainResidency
         internal bool               HasRoadNetwork;
         internal string?            TerrainName;
         internal DateTime           FileTimestamp;
+        internal long               BakeSerial = -1;
+        internal string?            BaseHash;        // ⭐ O-8 — the base terrain's content hash, known when an overlay is merged
+        internal string?            OverlayFolder;   // ⭐ O-4 — the CONTENT HASH of the overlay merged into World, if any
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
         /// <summary>⭐ AQ93 R-4021 — what each attached <see cref="ITerrainContentLoader"/> prepared, committed in attach order.</summary>
@@ -80,6 +83,7 @@ public sealed class TerrainResidency
     // ⭐ The idempotency branch, and the only implementation of it: same name + same files ⇒ no work.
     private string?  _lastLoadedTerrainName;
     private DateTime _lastLoadedTimestamp;
+    private string?  _lastLoadedOverlay;   // ⭐ O-4 — a resident terrain is only 'unchanged' for the same overlay HASH
 
     /// <summary>
     /// The production constructor: resolves terrains through the standard node search list —
@@ -114,6 +118,9 @@ public sealed class TerrainResidency
     public TerrainCatalog Catalog => _catalog;
 
     public string? ResidentTerrainName => _lastLoadedTerrainName;
+
+    /// <summary>⭐ O-8 (CE-4420) — the content hash of the overlay merged into the resident terrain, or null.</summary>
+    public string? ResidentOverlayHash => _lastLoadedOverlay;
 
     /// <summary>
     /// ⭐⭐ <b>W6 — make this node bake a navmesh from every terrain it loads</b> (docs/DESIGN_Terrain_World.md §4.1).
@@ -168,7 +175,7 @@ public sealed class TerrainResidency
     /// <para>⛔ <b>A named-but-missing definition THROWS.</b> Loading the terrain a scenario names is
     /// mandatory, so that is a broken deployment rather than a terrain-less scenario.</para>
     /// </summary>
-    public Staged Prepare(string? terrainName)
+    public Staged Prepare(string? terrainName, string? overlayFolder = null)
     {
         if (string.IsNullOrWhiteSpace(terrainName))
         {
@@ -199,7 +206,7 @@ public sealed class TerrainResidency
 
         DateTime currentFileTime = LatestWriteTime(definitionPath);
 
-        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime)
+        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime && string.Equals(_lastLoadedOverlay, OverlayHashOf(overlayFolder), StringComparison.Ordinal))
         {
             FdpLog<TerrainResidency>.Info(
                 "[Terrain] Terrain '{0}' already resident and unchanged — skipping re-ingestion.",
@@ -214,6 +221,7 @@ public sealed class TerrainResidency
             Definition    = definition,
             TerrainName   = terrainName,
             FileTimestamp = currentFileTime,
+            OverlayFolder = OverlayHashOf(overlayFolder),
         };
 
         // ⭐ Schema v2 — the terrain WORLD every derived query reads (docs/DESIGN_Terrain_World.md).
@@ -221,7 +229,26 @@ public sealed class TerrainResidency
         {
             // ⭐ Stage 1 — with the terrain folder's side files (building templates, material overrides). ⭐ CE-4393 — through the ONE
             //   folder → world step the importer's navmesh prefill uses too (UTM §12.1 N-2): the same world, the same tile keys.
-            staged.World = Indexed(TerrainFolderWorld.ReadWorld(definitionPath, definition, terrainName)!);
+            var baseWorld = TerrainFolderWorld.ReadWorld(definitionPath, definition, terrainName)!;
+            // ⭐ O-2 (CE-4416, §18a) — a scenario's terrain overlay: the base world plus the overlay's, merged into ONE world (the obstacle bake builds on it). The hash check is O-4.
+            if (!string.IsNullOrEmpty(overlayFolder))
+            {
+                // ⭐ O-4 (C-5) — an overlay is bound to the base it was compiled against, by CONTENT: a name stands for nothing
+                var header = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder);
+                string actualBase = TerrainContentHash.OfTerrain(definitionPath);
+                staged.BaseHash = actualBase;
+                if (!string.Equals(actualBase, header.BaseHash, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"[Terrain] The overlay '{overlayFolder}' was compiled against terrain '{header.BaseName}' with content hash '{header.BaseHash}', but the resident terrain '{terrainName}' "
+                      + $"('{definitionPath}') has content hash '{actualBase}'. Refusing to merge: recompile the overlay (save the scenario) against this terrain.");
+                string actualOverlay = TerrainContentHash.OfOverlay(overlayFolder);
+                if (!string.Equals(actualOverlay, header.ContentHash, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"[Terrain] The overlay '{overlayFolder}' is torn: its header says content hash '{header.ContentHash}', its files hash to '{actualOverlay}' (terrain '{terrainName}').");
+                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!));
+                baseWorld = TerrainWorldMerge.Merge(baseWorld, overlay.World);
+            }
+            staged.World = Indexed(baseWorld);
 
             Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the world is parsed (its features reported as they went)
 
@@ -230,6 +257,7 @@ public sealed class TerrainResidency
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 staged.Navmesh = _navmeshFactory.Build(staged.World);
+                staged.BakeSerial = (_navmeshFactory as Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory)?.BakeSerial ?? -1;   // ⭐ O-7 A — which bake the factory's key map describes
                 FdpLog<TerrainResidency>.Info(
                     $"[Terrain] Navmesh for '{terrainName}' baked in {sw.ElapsedMilliseconds} ms"
                   + (staged.Navmesh == null ? " — nothing walkable." : "."));
@@ -301,6 +329,8 @@ public sealed class TerrainResidency
         world.RegisterManagedComponent<TerrainDefinition>();
         // ⭐ CE-3015 — remember the name the scenario resolved it by, so a save writes it back.
         staged.Definition!.ResolvedName = staged.TerrainName ?? string.Empty;
+        staged.Definition.ResolvedOverlayHash = staged.OverlayFolder ?? string.Empty;   // ⭐ O-8 — stamped into a recording's metadata
+        staged.Definition.ResolvedBaseHash = staged.OverlayFolder != null ? staged.BaseHash ?? string.Empty : string.Empty;
         world.SetSingletonManaged(staged.Definition!);
         Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the commit's stages report (docs/DESIGN_Cluster_Load_Phase.md §12)
 
@@ -311,6 +341,8 @@ public sealed class TerrainResidency
         world.SetSingletonManaged(staged.World ?? staged.PreparedEmptyWorld ?? new TerrainWorld { Name = staged.TerrainName });   // CE-3028: named even when it has no world file
         _baseWorld = world.GetSingletonManaged<TerrainWorld>() ?? new TerrainWorld();   // ⭐ CE-3136 P-7a — the base the obstacle bake builds on
         BaseVersion++;
+        // ⭐ O-7 A — the load's bake is the baseline of the incremental obstacle bake: no obstacles, no damage, this base version
+        lock (_dirtyGate) { _lastPrisms = new List<TerrainPrism>(); _lastDamage = new Dictionary<int, ulong>(); _lastParts = System.Array.Empty<OverlayPart>(); _lastBakeBase = BaseVersion; _committedSerial = staged.Navmesh != null ? staged.BakeSerial : -1; }
         PublishBakery(world);
 
         // ⭐ W9 / CE-3018 — the spatial grids REBASE to this world on their own threads (SpatialHashSystem,
@@ -351,6 +383,7 @@ public sealed class TerrainResidency
 
         _lastLoadedTerrainName = staged.TerrainName;
         _lastLoadedTimestamp   = staged.FileTimestamp;
+        _lastLoadedOverlay     = staged.OverlayFolder;
 
         FdpLog<TerrainResidency>.Info(
             $"[Terrain] Terrain '{staged.TerrainName ?? "(unnamed)"}' committed "
@@ -421,6 +454,7 @@ public sealed class TerrainResidency
 
         _lastLoadedTerrainName = null;
         _lastLoadedTimestamp   = default;
+        _lastLoadedOverlay     = null;
 
         FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released — the world has no terrain (flat ground).");
     }
@@ -463,6 +497,16 @@ public sealed class TerrainResidency
     /// the main thread (Prepare and the obstacle bake both run there). ⛔ It was built and attached nowhere, so every live sight
     /// line and every EQS point placement scanned every piece.
     /// </summary>
+    private static string? OverlayHashOf(string? overlayFolder)
+    {
+        if (string.IsNullOrEmpty(overlayFolder)) return null;
+        var header = Path.Combine(overlayFolder, TerrainOverlayHeader.FileName);
+        return TerrainOverlayHeader.Parse(File.ReadAllText(header), header).ContentHash;
+    }
+
+    /// <summary>⭐ O-4 (CE-4415) — the folder of the overlay with this content hash, searched in the catalog's roots (the node's staging, then the NAS); null when none has it.</summary>
+    public string? ResolveOverlay(string contentHash) => _catalog.ResolveOverlay(contentHash);
+
     private static TerrainWorld Indexed(TerrainWorld world)
     {
         Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(world);
@@ -479,6 +523,15 @@ public sealed class TerrainResidency
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
         internal int BaseVersion;
+        internal long BakeSerial = -1;
+        internal List<TerrainPrism> Prisms = new();
+        internal Dictionary<int, ulong> Damage = new();
+        internal IReadOnlyList<OverlayPart> Parts = System.Array.Empty<OverlayPart>();
+        /// <summary>
+        /// ⭐ O-7 B (B-5) — where this bake differs from the last one committed on the same base (obstacle prisms, building damage, live-overlay parts): the rectangles a 3-D chunk rebuild must redo.
+        /// Null = unknown (the first bake after a base change, or another bake in between) = everything. Set on every bake, whether or not this node bakes a navmesh.
+        /// </summary>
+        public IReadOnlyList<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)>? Dirty { get; internal set; }
         /// <summary>Wall-clock duration of the bake (ms) — diagnostics only (R-143's exemptions).</summary>
         public long Milliseconds { get; internal set; }
         /// <summary>The obstacle prisms it holds.</summary>
@@ -502,18 +555,47 @@ public sealed class TerrainResidency
 
     /// <inheritdoc cref="BakeObstacles(IReadOnlyList{TerrainPrism})"/>
     /// <param name="damage">The live building damage to lay over the terrain (<see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?)"/>); ignored on a node that does not <see cref="BakesDamage"/>.</param>
-    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage)
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage) => BakeObstacles(obstacles, damage, null);
+
+    /// <summary>
+    /// ⭐ O-7 B (§18e-2 B-1) — an obstacle bake with the editor's LIVE overlay as a third input: the world is <c>With(Merge(base, overlay), obstacles, damage)</c>, and the dirty region also holds the bounds of every overlay part
+    /// that differs by key + geometry (old and new). The overlay is expanded against ONE base: when that is not the current one the bake is made over the base it was expanded for and carries ITS version, so the commit refuses it.
+    /// </summary>
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, LiveOverlayResult? overlay)
     {
         if (!BakesDamage) damage = null;
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var baseWorld = _baseWorld;
-        int baseVersion = BaseVersion;
+        var baseWorld = overlay?.Base ?? _baseWorld;
+        int baseVersion = overlay?.BaseVersion ?? BaseVersion;
         var bake = new ObstacleBake { BaseVersion = baseVersion, Obstacles = obstacles.Count };
-        bake.World = Indexed(TerrainObstacles.With(baseWorld, obstacles, damage));   // ⭐ CE-3279 (a) — a derived world gets its own index
-        if (_navmeshFactory != null) bake.Navmesh = _navmeshFactory.Build(bake.World);
+        var terrain = overlay != null ? TerrainWorldMerge.Merge(baseWorld, overlay.World) : baseWorld;   // base indices kept, overlay appended: every key and saved state keyed by a base index stays valid
+        var parts = overlay?.Parts ?? System.Array.Empty<OverlayPart>();
+        // ⭐ O-7 A (§18e A-2) — where this bake differs from the last one committed on this base: the factory reuses every tile outside it. null = unknown (first bake after a base change, another bake in between) = full.
+        var damageNow = DamageHashes(terrain, damage);
+        var dirty = DirtyRegions(obstacles, damageNow, terrain, baseVersion, parts, out bool diffed);
+        bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow; bake.Parts = parts;
+        bake.Dirty = diffed ? dirty : null;
+        bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage));   // ⭐ CE-3279 (a) — a derived world gets its own index
+        if (_navmeshFactory is Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory inc)
+        {
+            bool previousIsLastCommitted;
+            lock (_dirtyGate) previousIsLastCommitted = diffed && _committedSerial == inc.BakeSerial;
+            bake.Navmesh = inc.Build(bake.World, previousIsLastCommitted ? dirty : null);
+            bake.BakeSerial = inc.BakeSerial;
+        }
+        else if (_navmeshFactory != null) bake.Navmesh = _navmeshFactory.Build(bake.World);
         bake.Cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World);
         bake.Milliseconds = sw.ElapsedMilliseconds;
         return bake;
+    }
+
+    /// <summary>⭐ O-7 B — the base terrain and where it lives, for the live overlay's expansion: the resident base world, its version, and the terrain's folder (null when none is resident or its definition is not found).</summary>
+    public (TerrainWorld Base, int Version, string? Folder) ExpansionBase()
+    {
+        int version = BaseVersion;   // version first: a base committed in between makes the pair look OLDER than the world, and the commit refuses it
+        var world = _baseWorld;
+        string? name = _lastLoadedTerrainName;
+        return (world, version, string.IsNullOrEmpty(name) ? null : _catalog.ResolveFolder(name));
     }
 
     /// <summary>
@@ -523,12 +605,94 @@ public sealed class TerrainResidency
     public bool CommitObstacles(EntityRepository world, ObstacleBake bake)
     {
         if (bake.BaseVersion != BaseVersion) return false;
+        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
         world.RegisterManagedComponent<TerrainWorld>();
         world.SetSingletonManaged(bake.World);
         _navmesh?.Publish(bake.Navmesh);
         world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
             bake.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World));
         return true;
+    }
+
+    // ── ⭐ O-7 A (§18e A-2) — the dirty region of an obstacle bake ───────────────────────────────────────────────────────────────────
+
+    private readonly object _dirtyGate = new();
+    private List<TerrainPrism>? _lastPrisms;
+    private Dictionary<int, ulong> _lastDamage = new();
+    private IReadOnlyList<OverlayPart> _lastParts = System.Array.Empty<OverlayPart>();
+    private int _lastBakeBase = int.MinValue;
+    private long _committedSerial = -1;
+
+    /// <summary>A prism's identity for "did it change": its footprint and heights at 1 cm and its material (the quantisation of <see cref="StaticObstacleBakeSystem.SignatureOf"/>).</summary>
+    internal static ulong PrismKey(TerrainPrism p)
+    {
+        ulong h = 1469598103934665603UL;
+        void Mix(float f) { h ^= (ulong)(long)MathF.Round(f * 100f); h *= 1099511628211UL; }
+        foreach (var v in p.Footprint) { Mix(v.X); Mix(v.Y); }
+        Mix(p.BaseZ); Mix(p.TopZ);
+        h ^= p.Material?.Name is { } m ? Fdp.Core.StableHash.Fnv1a32(m) : 0u; h *= 1099511628211UL;
+        return h;
+    }
+
+    /// <summary>Per building, a hash of what its damage does to the navmesh (its passage breaches and whether it collapsed); empty when no damage is laid over the terrain.</summary>
+    private static Dictionary<int, ulong> DamageHashes(TerrainWorld world, BuildingDamageTable? damage)
+    {
+        var map = new Dictionary<int, ulong>();
+        if (damage == null || damage.NavHash == 0) return map;
+        foreach (var b in damage.Passages())
+        {
+            if ((uint)b.Panel >= (uint)world.Panels.Count) continue;
+            int building = world.Panels[b.Panel].Building;
+            if (building < 0) continue;
+            ulong h = map.TryGetValue(building, out var cur) ? cur : 1469598103934665603UL;
+            void Mix(long v) { h ^= (ulong)v; h *= 1099511628211UL; }
+            Mix(b.Panel); Mix((long)MathF.Round(b.From * 100f)); Mix((long)MathF.Round(b.To * 100f)); Mix((long)MathF.Round(b.Bottom * 100f)); Mix((long)MathF.Round(b.Top * 100f));
+            map[building] = h;
+        }
+        foreach (int c in damage.CollapsedBuildings) map[c] = (map.TryGetValue(c, out var cur) ? cur : 1469598103934665603UL) ^ (0xC011A95EUL + (ulong)c) * 1099511628211UL;
+        return map;
+    }
+
+    /// <summary>
+    /// The rectangles where <paramref name="obstacles"/> / <paramref name="damage"/> differ from the last committed bake on THIS base: the bounds of every prism added or removed (a moved one is both — its old and
+    /// its new place) and of every building whose damage changed. <paramref name="diffed"/> false (⇒ the caller bakes everything) on a base change or before any baseline.
+    /// </summary>
+    internal List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> DirtyRegions(IReadOnlyList<TerrainPrism> obstacles, Dictionary<int, ulong> damage, TerrainWorld baseWorld, int baseVersion, out bool diffed)
+        => DirtyRegions(obstacles, damage, baseWorld, baseVersion, System.Array.Empty<OverlayPart>(), out diffed);
+
+    /// <summary>⭐ O-7 B — also the bounds of every live-overlay part that was added, removed or changed (key + geometry hash): a moved block is its old and its new parts, woods included.</summary>
+    internal List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> DirtyRegions(IReadOnlyList<TerrainPrism> obstacles, Dictionary<int, ulong> damage, TerrainWorld baseWorld, int baseVersion, IReadOnlyList<OverlayPart> parts, out bool diffed)
+    {
+        var rects = new List<(System.Numerics.Vector2, System.Numerics.Vector2)>();
+        List<TerrainPrism>? last; Dictionary<int, ulong> lastDamage; IReadOnlyList<OverlayPart> lastParts;
+        lock (_dirtyGate) { last = _lastPrisms; lastDamage = _lastDamage; lastParts = _lastParts; diffed = last != null && _lastBakeBase == baseVersion; }
+        if (!diffed) return rects;
+        var oldParts = new Dictionary<string, OverlayPart>(lastParts.Count, StringComparer.Ordinal);
+        foreach (var p in lastParts) oldParts[p.Key] = p;
+        foreach (var p in parts)
+        {
+            if (oldParts.TryGetValue(p.Key, out var prev) && prev.Hash == p.Hash) { oldParts.Remove(p.Key); continue; }   // unchanged
+            rects.Add((p.Min, p.Max));                                                                                   // added / changed: where it is now
+        }
+        foreach (var p in oldParts.Values) rects.Add((p.Min, p.Max));                                                    // removed / changed: where it was
+        var before = new Dictionary<ulong, List<TerrainPrism>>();
+        foreach (var p in last!) { var k = PrismKey(p); if (!before.TryGetValue(k, out var l)) before[k] = l = new List<TerrainPrism>(1); l.Add(p); }
+        foreach (var p in obstacles)
+        {
+            var k = PrismKey(p);
+            if (before.TryGetValue(k, out var l) && l.Count > 0) l.RemoveAt(l.Count - 1);   // unchanged
+            else rects.Add((p.Min, p.Max));                                                   // added / moved there
+        }
+        foreach (var l in before.Values) foreach (var p in l) rects.Add((p.Min, p.Max));      // removed / moved from there
+        foreach (var b in new HashSet<int>(damage.Keys.Concat(lastDamage.Keys)))
+        {
+            damage.TryGetValue(b, out var now); lastDamage.TryGetValue(b, out var was);
+            if (now == was || (uint)b >= (uint)baseWorld.Buildings.Count || baseWorld.Buildings[b].Footprint.Length == 0) continue;
+            var lo = new System.Numerics.Vector2(float.MaxValue); var hi = new System.Numerics.Vector2(float.MinValue);
+            foreach (var v in baseWorld.Buildings[b].Footprint) { lo = System.Numerics.Vector2.Min(lo, v); hi = System.Numerics.Vector2.Max(hi, v); }
+            rects.Add((lo, hi));
+        }
+        return rects;
     }
 
     private void PublishBakery(EntityRepository? world)
