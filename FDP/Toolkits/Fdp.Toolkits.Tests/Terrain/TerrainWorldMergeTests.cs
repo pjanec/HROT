@@ -266,6 +266,11 @@ namespace Fdp.Toolkit.Terrain.Tests
             Row("A1 navmesh, warm cache ms", Ms(() => factory.Build(w2)).ToString());
             Row("A1 navmesh tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}"); Stages("A1");
             Row("A1 cover ms (median of 3)", Med(() => Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(w2)).ToString());
+            // O-7 A — the same edit with the DIRTY path: the wall moved 2 m again, told where it changed (its old and new box)
+            var w3 = TerrainObstacles.With(baseWorld, new[] { Wall(4f) });
+            Row("A2 (dirty) navmesh ms", Ms(() => factory.Build(w3, new[] { (w2.Prisms[^1].Min, w2.Prisms[^1].Max), (w3.Prisms[^1].Min, w3.Prisms[^1].Max) })).ToString());
+            Row("A2 (dirty) tiles / baked / from cache / reused", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache} / {factory.LastStats.Reused}"); Stages("A2 dirty");
+            w2 = w3;
             long floorMs = Ms(() => factory.Build(w2));
             Row("C  navmesh, EVERY tile a hit (no bake) ms", floorMs.ToString());
             Row("C  … tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}");
@@ -296,6 +301,14 @@ namespace Fdp.Toolkit.Terrain.Tests
             Row("B1 navmesh (old + new block tiles in the cache) ms", Ms(() => factory.Build(m2)).ToString());
             Row("B1 navmesh tiles / baked / from cache", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache}");
             Stages("B1"); int bakedByMove = factory.LastStats.Baked, tilesAll = factory.LastStats.Tiles;
+            // O-7 A — the block moved another 20 m, told where it changed (the old and new block's parts)
+            var (m3, o3) = Edit(40f, "B2 (moved 20 m more)", true);
+            var dirtyB = new System.Collections.Generic.List<(System.Numerics.Vector2, System.Numerics.Vector2)>();
+            foreach (var o in new[] { o2, o3 }) { foreach (var p in o.Prisms) dirtyB.Add((p.Min, p.Max)); foreach (var w in o.Walkables) dirtyB.Add((w.Min, w.Max)); foreach (var sf in o.Surfaces) dirtyB.Add((sf.Min, sf.Max)); }
+            Row("B2 (dirty) index ms", Ms(() => Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(m3)).ToString());
+            Row("B2 (dirty) navmesh ms", Ms(() => factory.Build(m3, dirtyB)).ToString());
+            Row("B2 (dirty) tiles / baked / from cache / reused", $"{factory.LastStats.Tiles} / {factory.LastStats.Baked} / {factory.LastStats.FromCache} / {factory.LastStats.Reused}"); Stages("B2 dirty");
+            Row("B2 (dirty) cover ms", Ms(() => Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(m3)).ToString());
             Row("B1 cover ms", Ms(() => Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(m2)).ToString());
 
             // ── C. tiles touched vs total; the cost of looking at every tile ───────────────────────────────────────────────────────────────

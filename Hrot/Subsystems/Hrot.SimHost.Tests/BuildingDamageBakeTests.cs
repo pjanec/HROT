@@ -113,6 +113,58 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(bakes, sys.Bakes);
         }
 
+        private static TerrainPrism Car(float x) => TerrainObstacles.PrismOf(new Vector3(x, 40f, 0f), 0f, new ObstacleShape { Length = 4.5f, Width = 1.8f, Height = 1.5f }, TerrainMaterialLibrary.Shared.Get("concrete", "t"), "obstacle:1");
+
+        /// <summary>A node whose residency committed the baseline load bake of the house terrain by the SAME factory (its serial recorded, as <c>Prepare</c> does).</summary>
+        private (TerrainResidency Residency, RecastNavmeshFactory Factory) IncrementalNode()
+        {
+            var residency = new TerrainResidency(_staging, new RoadNetworkHolder());
+            var factory = Recast();
+            var baseline = factory.Build(_house);
+            residency.AttachNavmesh(factory, _node);
+            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "range" }, World = _house, TerrainName = "range", Navmesh = baseline, BakeSerial = factory.BakeSerial });
+            return (residency, factory);
+        }
+
+        /// <summary>
+        /// ⭐ O-7 A (CE-4418, §18e A-2) — the residency's dirty region for a MOVED obstacle covers its OLD and its NEW place; the bake that uses it reuses tiles (and the result still has the new wall); a changed base
+        /// (a bake begun on the previous base version) and a node with no committed baseline give NO region (a full bake). 🔴 Red-proof: leave out the removed prisms' bounds ⇒ the old place is missing;
+        /// ignore the base version ⇒ the stale-base case returns a region.
+        /// </summary>
+        [Fact]
+        public void O7A_AMovedObstacle_DirtiesItsOldAndNewPlace_AndABaseChangeDirtiesNothingKnown()
+        {
+            var (residency, factory) = IncrementalNode();
+            var none = new System.Collections.Generic.Dictionary<int, ulong>();
+            var first = residency.BakeObstacles(new[] { Car(10f) });
+            Assert.True(residency.CommitObstacles(_world, first));
+
+            var moved = Car(12f);
+            var regions = residency.DirtyRegions(new[] { moved }, none, _house, residency.BaseVersion, out bool diffed);
+            Assert.True(diffed);
+            var old = Car(10f);
+            Assert.Contains(regions, r => r.Min == old.Min && r.Max == old.Max);       // where it was
+            Assert.Contains(regions, r => r.Min == moved.Min && r.Max == moved.Max);  // where it is
+            Assert.Equal(2, regions.Count);
+
+            var second = residency.BakeObstacles(new[] { moved });
+            Assert.True(factory.LastStats.Reused > 0, "tiles outside the two boxes were reused");
+            Assert.True(residency.CommitObstacles(_world, second));
+            Assert.Contains(_world.GetSingletonManaged<TerrainWorld>()!.Prisms, p => p.Min == moved.Min);
+
+            // an unchanged set: nothing is dirty (and every tile is reused)
+            Assert.Empty(residency.DirtyRegions(new[] { moved }, none, _house, residency.BaseVersion, out _));
+
+            // a base change: a bake begun on the old version has no region; neither has a residency with no baseline yet
+            int stale = residency.BaseVersion;
+            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "range" }, World = _house, TerrainName = "range" });
+            residency.DirtyRegions(new[] { moved }, none, _house, stale, out bool afterBase);
+            Assert.False(afterBase);
+            var fresh = new TerrainResidency(_staging, new RoadNetworkHolder());
+            fresh.DirtyRegions(new[] { moved }, none, _house, fresh.BaseVersion, out bool firstEver);
+            Assert.False(firstEver);
+        }
+
         private static readonly Vector3 Outside = new(25f, 10f, 0f), Inside = new(25f, 24f, 0f);
 
         /// <summary>

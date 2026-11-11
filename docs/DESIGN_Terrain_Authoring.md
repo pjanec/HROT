@@ -935,7 +935,7 @@ graph TD
 
 Rails (each red-proved, `TerrainBakeTests`): parse(saved) ≡ merge(base, overlay) · loading the saved terrain bakes 0 tiles · its hash differs from the base and `source/` does not move it · authored door states resolve through the new scenario · a re-save works, also with the base deleted · a failed save leaves the target and no `.part` / `.old` · the summary's counts and `TerrainUsers.Of`.
 
-### 18e. The live incremental bake — O-7 *(CE-4418, backend `2026-11-11`; build-state: part A READY-TO-BUILD, part B DESIGN)*
+### 18e. The live incremental bake — O-7 *(CE-4418, backend `2026-11-11`; build-state: part A BUILT, part B DESIGN)*
 
 📐 **Measured on scale-1** (105 800 tiles, 4 cores, Debug; `O7_Measure_ALiveEditOnScaleOne`, opt-in): a warm rebake after moving a hamlet 20 m bakes
 **24** tiles and still takes **≈ 26–28 s**, and an all-hit rebake takes the same. Split (`BakeStats` stage timers): **gather 77 % + hash 21 %** of
@@ -974,3 +974,22 @@ copy is not in the cache falls back to today's path, and `dirty = null` (unknown
 
 Acceptance A: a dirty bake's tile keys equal a full bake's for a moved wall and a moved block (rail); a too-small dirty rect is caught by that rail
 (red-proof); scale-1 warm move measured ≪ 26 s.
+
+#### 18e-1. Part A as built *(backend `2026-11-11`)*
+
+📐 **Scale-1, warm, navmesh wall time: a wall moved 2 m 27.9 s → 4.2 s; a hamlet moved 20 m 28.9 s → 4.4 s** (105 756 of 105 800 tiles reused by
+key). What remains: reading ~105 800 tiles back from the cache (fresh copies, A-1) and the serial assembly (~0.85 s); index + cover ~0.7 s ⇒ a warm block
+move ≈ 5 s end to end.
+
+| as built | why |
+|---|---|
+| `RecastNavmeshBaker.Previous` / `Dirty` / `LastKeys`, `BakeStats.Reused`; a tile is clear when its reach `max(margin + 3, FineMarginMetres)` meets no dirty rect | a little wider than the gather margin, so a doorway or fine area at the edge is covered |
+| `IIncrementalNavmeshFactory` (`Build(world, dirty)`, `BakeSerial`) in `Fdp.Toolkits/Navigation` | ⚠ deviation: `Hrot.Core` does not reference Recast, so the residency calls it through an interface |
+| the residency passes a region only when the factory's `BakeSerial` is the one it recorded at its last commit; the load's bake is the baseline (an empty obstacle set) | ⚠ deviation: an abandoned staged bake or another terrain's bake would leave the factory's key map describing a different world — any mismatch ⇒ full bake |
+| dirty = bounds of the prism symmetric difference (footprint + heights at 1 cm + material) + the footprint of every building whose damage changed; a base change ⇒ null | A-2 |
+| ⚠ woods are not dirty-tracked — only prisms and damage change without a base change | an overlay change is a base change (part B decides how it passes its bounds) |
+
+Rails (`DirtyRegionBakeTests`, `BuildingDamageBakeTests.O7A_*`; each red-proved): a dirty bake's keys equal a full bake's for a moved wall and a moved
+hamlet · a region missing the old place makes them differ · null = today's bake · changed bounds ignore a region · the residency's region covers old and new,
+is empty for an unchanged set, null on a stale base or a fresh residency.
+

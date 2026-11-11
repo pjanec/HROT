@@ -47,6 +47,7 @@ public sealed class TerrainResidency
         internal bool               HasRoadNetwork;
         internal string?            TerrainName;
         internal DateTime           FileTimestamp;
+        internal long               BakeSerial = -1;
         internal string?            BaseHash;        // ⭐ O-8 — the base terrain's content hash, known when an overlay is merged
         internal string?            OverlayFolder;   // ⭐ O-4 — the CONTENT HASH of the overlay merged into World, if any
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
@@ -256,6 +257,7 @@ public sealed class TerrainResidency
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 staged.Navmesh = _navmeshFactory.Build(staged.World);
+                staged.BakeSerial = (_navmeshFactory as Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory)?.BakeSerial ?? -1;   // ⭐ O-7 A — which bake the factory's key map describes
                 FdpLog<TerrainResidency>.Info(
                     $"[Terrain] Navmesh for '{terrainName}' baked in {sw.ElapsedMilliseconds} ms"
                   + (staged.Navmesh == null ? " — nothing walkable." : "."));
@@ -339,6 +341,8 @@ public sealed class TerrainResidency
         world.SetSingletonManaged(staged.World ?? staged.PreparedEmptyWorld ?? new TerrainWorld { Name = staged.TerrainName });   // CE-3028: named even when it has no world file
         _baseWorld = world.GetSingletonManaged<TerrainWorld>() ?? new TerrainWorld();   // ⭐ CE-3136 P-7a — the base the obstacle bake builds on
         BaseVersion++;
+        // ⭐ O-7 A — the load's bake is the baseline of the incremental obstacle bake: no obstacles, no damage, this base version
+        lock (_dirtyGate) { _lastPrisms = new List<TerrainPrism>(); _lastDamage = new Dictionary<int, ulong>(); _lastBakeBase = BaseVersion; _committedSerial = staged.Navmesh != null ? staged.BakeSerial : -1; }
         PublishBakery(world);
 
         // ⭐ W9 / CE-3018 — the spatial grids REBASE to this world on their own threads (SpatialHashSystem,
@@ -519,6 +523,9 @@ public sealed class TerrainResidency
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
         internal int BaseVersion;
+        internal long BakeSerial = -1;
+        internal List<TerrainPrism> Prisms = new();
+        internal Dictionary<int, ulong> Damage = new();
         /// <summary>Wall-clock duration of the bake (ms) — diagnostics only (R-143's exemptions).</summary>
         public long Milliseconds { get; internal set; }
         /// <summary>The obstacle prisms it holds.</summary>
@@ -549,8 +556,19 @@ public sealed class TerrainResidency
         var baseWorld = _baseWorld;
         int baseVersion = BaseVersion;
         var bake = new ObstacleBake { BaseVersion = baseVersion, Obstacles = obstacles.Count };
+        // ⭐ O-7 A (§18e A-2) — where this bake differs from the last one committed on this base: the factory reuses every tile outside it. null = unknown (first bake after a base change, another bake in between) = full.
+        var damageNow = DamageHashes(baseWorld, damage);
+        var dirty = DirtyRegions(obstacles, damageNow, baseWorld, baseVersion, out bool diffed);
+        bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow;
         bake.World = Indexed(TerrainObstacles.With(baseWorld, obstacles, damage));   // ⭐ CE-3279 (a) — a derived world gets its own index
-        if (_navmeshFactory != null) bake.Navmesh = _navmeshFactory.Build(bake.World);
+        if (_navmeshFactory is Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory inc)
+        {
+            bool previousIsLastCommitted;
+            lock (_dirtyGate) previousIsLastCommitted = diffed && _committedSerial == inc.BakeSerial;
+            bake.Navmesh = inc.Build(bake.World, previousIsLastCommitted ? dirty : null);
+            bake.BakeSerial = inc.BakeSerial;
+        }
+        else if (_navmeshFactory != null) bake.Navmesh = _navmeshFactory.Build(bake.World);
         bake.Cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World);
         bake.Milliseconds = sw.ElapsedMilliseconds;
         return bake;
@@ -563,12 +581,81 @@ public sealed class TerrainResidency
     public bool CommitObstacles(EntityRepository world, ObstacleBake bake)
     {
         if (bake.BaseVersion != BaseVersion) return false;
+        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
         world.RegisterManagedComponent<TerrainWorld>();
         world.SetSingletonManaged(bake.World);
         _navmesh?.Publish(bake.Navmesh);
         world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
             bake.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World));
         return true;
+    }
+
+    // ── ⭐ O-7 A (§18e A-2) — the dirty region of an obstacle bake ───────────────────────────────────────────────────────────────────
+
+    private readonly object _dirtyGate = new();
+    private List<TerrainPrism>? _lastPrisms;
+    private Dictionary<int, ulong> _lastDamage = new();
+    private int _lastBakeBase = int.MinValue;
+    private long _committedSerial = -1;
+
+    /// <summary>A prism's identity for "did it change": its footprint and heights at 1 cm and its material (the quantisation of <see cref="StaticObstacleBakeSystem.SignatureOf"/>).</summary>
+    internal static ulong PrismKey(TerrainPrism p)
+    {
+        ulong h = 1469598103934665603UL;
+        void Mix(float f) { h ^= (ulong)(long)MathF.Round(f * 100f); h *= 1099511628211UL; }
+        foreach (var v in p.Footprint) { Mix(v.X); Mix(v.Y); }
+        Mix(p.BaseZ); Mix(p.TopZ);
+        h ^= p.Material?.Name is { } m ? Fdp.Core.StableHash.Fnv1a32(m) : 0u; h *= 1099511628211UL;
+        return h;
+    }
+
+    /// <summary>Per building, a hash of what its damage does to the navmesh (its passage breaches and whether it collapsed); empty when no damage is laid over the terrain.</summary>
+    private static Dictionary<int, ulong> DamageHashes(TerrainWorld world, BuildingDamageTable? damage)
+    {
+        var map = new Dictionary<int, ulong>();
+        if (damage == null || damage.NavHash == 0) return map;
+        foreach (var b in damage.Passages())
+        {
+            if ((uint)b.Panel >= (uint)world.Panels.Count) continue;
+            int building = world.Panels[b.Panel].Building;
+            if (building < 0) continue;
+            ulong h = map.TryGetValue(building, out var cur) ? cur : 1469598103934665603UL;
+            void Mix(long v) { h ^= (ulong)v; h *= 1099511628211UL; }
+            Mix(b.Panel); Mix((long)MathF.Round(b.From * 100f)); Mix((long)MathF.Round(b.To * 100f)); Mix((long)MathF.Round(b.Bottom * 100f)); Mix((long)MathF.Round(b.Top * 100f));
+            map[building] = h;
+        }
+        foreach (int c in damage.CollapsedBuildings) map[c] = (map.TryGetValue(c, out var cur) ? cur : 1469598103934665603UL) ^ (0xC011A95EUL + (ulong)c) * 1099511628211UL;
+        return map;
+    }
+
+    /// <summary>
+    /// The rectangles where <paramref name="obstacles"/> / <paramref name="damage"/> differ from the last committed bake on THIS base: the bounds of every prism added or removed (a moved one is both — its old and
+    /// its new place) and of every building whose damage changed. <paramref name="diffed"/> false (⇒ the caller bakes everything) on a base change or before any baseline.
+    /// </summary>
+    internal List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> DirtyRegions(IReadOnlyList<TerrainPrism> obstacles, Dictionary<int, ulong> damage, TerrainWorld baseWorld, int baseVersion, out bool diffed)
+    {
+        var rects = new List<(System.Numerics.Vector2, System.Numerics.Vector2)>();
+        List<TerrainPrism>? last; Dictionary<int, ulong> lastDamage;
+        lock (_dirtyGate) { last = _lastPrisms; lastDamage = _lastDamage; diffed = last != null && _lastBakeBase == baseVersion; }
+        if (!diffed) return rects;
+        var before = new Dictionary<ulong, List<TerrainPrism>>();
+        foreach (var p in last!) { var k = PrismKey(p); if (!before.TryGetValue(k, out var l)) before[k] = l = new List<TerrainPrism>(1); l.Add(p); }
+        foreach (var p in obstacles)
+        {
+            var k = PrismKey(p);
+            if (before.TryGetValue(k, out var l) && l.Count > 0) l.RemoveAt(l.Count - 1);   // unchanged
+            else rects.Add((p.Min, p.Max));                                                   // added / moved there
+        }
+        foreach (var l in before.Values) foreach (var p in l) rects.Add((p.Min, p.Max));      // removed / moved from there
+        foreach (var b in new HashSet<int>(damage.Keys.Concat(lastDamage.Keys)))
+        {
+            damage.TryGetValue(b, out var now); lastDamage.TryGetValue(b, out var was);
+            if (now == was || (uint)b >= (uint)baseWorld.Buildings.Count || baseWorld.Buildings[b].Footprint.Length == 0) continue;
+            var lo = new System.Numerics.Vector2(float.MaxValue); var hi = new System.Numerics.Vector2(float.MinValue);
+            foreach (var v in baseWorld.Buildings[b].Footprint) { lo = System.Numerics.Vector2.Min(lo, v); hi = System.Numerics.Vector2.Max(hi, v); }
+            rects.Add((lo, hi));
+        }
+        return rects;
     }
 
     private void PublishBakery(EntityRepository? world)

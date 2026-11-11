@@ -55,7 +55,7 @@ public sealed class TerrainWorldGeometrySource : ISceneGeometrySource
 /// from <see cref="TileCache"/> when their inputs are unchanged — a second load bakes nothing, and <see cref="Rebake"/> after a
 /// geometry change bakes only the tiles it touched.</para>
 /// </summary>
-public sealed class RecastNavmeshFactory : INavmeshFactory
+public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
 {
     /// <summary>The movement layers baked (default: infantry + vehicles).</summary>
     public NavLayerMask Layers { get; init; } = NavLayerMask.Infantry | NavLayerMask.Vehicle;
@@ -82,9 +82,15 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
     /// <summary>What the last bake did (tiles, fine tiles, baked, from the cache, ms).</summary>
     public RecastNavmeshBaker.BakeStats LastStats { get; private set; }
 
-    public INavmeshProvider? Build(TerrainWorld world)
+    public INavmeshProvider? Build(TerrainWorld world) => Build(world, null);
+
+    /// <summary>
+    /// ⭐ O-7 A (§18e) — as <see cref="Build(TerrainWorld)"/>, told WHERE the world changed since this factory's previous bake (engine XY rectangles): the tiles outside them are taken by their previous key,
+    /// with no gather and no hash. <c>null</c> = unknown = the full bake. Ignored (a full bake) when the previous bake's world bounds, layers or tile size differ.
+    /// </summary>
+    public INavmeshProvider? Build(TerrainWorld world, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty)
     {
-        var meshes = BakeMeshes(world, out var doorways);
+        var meshes = BakeMeshes(world, out var doorways, dirty);
         return meshes == null || meshes.Count == 0 ? null
             : new DotRecastNavmeshProvider(meshes, world, doorways) { TileMetres = TileMetres, TileKeys = _lastTileKeys };
     }
@@ -94,9 +100,12 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
     /// changed are baked) and swaps the result into <paramref name="provider"/> as ONE new snapshot; queries in flight finish on the
     /// old one (P1). Off the main thread, like the load bake. Returns false (provider untouched) when nothing is walkable.
     /// </summary>
-    public bool Rebake(DotRecastNavmeshProvider provider, TerrainWorld world)
+    public bool Rebake(DotRecastNavmeshProvider provider, TerrainWorld world) => Rebake(provider, world, null);
+
+    /// <summary>⭐ O-7 A — <see cref="Rebake(DotRecastNavmeshProvider, TerrainWorld)"/> told where the world changed (see <see cref="Build(TerrainWorld, IReadOnlyList{ValueTuple{Vector2, Vector2}})"/>).</summary>
+    public bool Rebake(DotRecastNavmeshProvider provider, TerrainWorld world, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty)
     {
-        var meshes = BakeMeshes(world, out var doorways);
+        var meshes = BakeMeshes(world, out var doorways, dirty);
         if (meshes == null || meshes.Count == 0) return false;
         provider.Rebake(meshes, world, doorways);
         return true;
@@ -104,7 +113,17 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
 
     private IReadOnlyDictionary<long, ulong> _lastTileKeys = new Dictionary<long, ulong>();
 
-    private Dictionary<NavLayerMask, DotRecast.Detour.DtNavMesh>? BakeMeshes(TerrainWorld world, out IReadOnlyList<NavDoorways.Volume> doorways)
+    // ⭐ O-7 A — the previous bake's key map and what it was baked for: a dirty bake only trusts it for the same world bounds, layers and tile size
+    private IReadOnlyDictionary<(NavLayerMask Layer, int Ax, int Az), NavTileKey>? _previousKeys;
+    private (Vector2 Min, Vector2 Max, NavLayerMask Layers, float Tile) _previousFor;
+
+    /// <summary>⭐ O-7 A — counts this factory's bakes: a caller that keeps "the world this factory's last bake was of" compares serials to know the key map still describes it (an abandoned staged bake moves it).</summary>
+    public long BakeSerial { get; private set; }
+
+    /// <summary>⭐ O-7 A — the last bake's full tile-key map <c>(layer, ax, az) → key</c> (what a rail compares between a dirty and a full bake).</summary>
+    public IReadOnlyDictionary<(NavLayerMask Layer, int Ax, int Az), NavTileKey> LastKeys => _previousKeys ?? new Dictionary<(NavLayerMask, int, int), NavTileKey>();
+
+    private Dictionary<NavLayerMask, DotRecast.Detour.DtNavMesh>? BakeMeshes(TerrainWorld world, out IReadOnlyList<NavDoorways.Volume> doorways, IReadOnlyList<(Vector2 Min, Vector2 Max)>? dirty)
     {
         doorways = Array.Empty<NavDoorways.Volume>();
         // ⭐ CE-4366 (L-4) — per TILE from the terrain (TerrainTileTriangles): the whole soup is never built here (scale-1 at 1 m: 61 M
@@ -128,7 +147,12 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
             }
             if (seedFolders != null) seed = NavTileCache.ForSeeds(seedFolders);
         }
-        var baker = new RecastNavmeshBaker { TileMetres = TileMetres, Cache = TileCache, Seed = seed, Progress = Progress, Cancel = Cancel };
+        bool same = _previousKeys != null && _previousFor == (world.BoundsMin, world.BoundsMax, Layers, TileMetres);
+        var baker = new RecastNavmeshBaker
+        {
+            TileMetres = TileMetres, Cache = TileCache, Seed = seed, Progress = Progress, Cancel = Cancel,
+            Previous = same ? _previousKeys : null, Dirty = same ? dirty : null,
+        };
         // ⭐ CE-4369 (L-7) — the woods first, the doorways after (a doorway's area wins where both overlap); the provider gets the doorways only
         var woods = NavDoorways.Woods(world);
         IReadOnlyList<NavDoorways.Volume> volumes = doorways;
@@ -141,10 +165,11 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
         var meshes = baker.Bake(source, Layers, volumes, FineAreas(world));
         LastStats = baker.LastStats;
         _lastTileKeys = baker.LastTileKeys;   // ⭐ CE-4391 S-3 (P3-a)
+        _previousKeys = baker.LastKeys; _previousFor = (world.BoundsMin, world.BoundsMax, Layers, TileMetres); BakeSerial++;
         var st = LastStats;
         Fdp.Core.Logging.FdpLog<RecastNavmeshFactory>.Info(
             $"[Navmesh] '{world.Name}': {st.Tiles} tiles ({st.FineTiles} fine) — {st.Baked} baked, {st.FromCache} from the cache, {st.Milliseconds} ms "
-          + $"(parallel {st.ParallelMs} ms wall; thread-ms: gather {st.GatherMs}, hash {st.HashMs}, cache {st.CacheMs}, bake {st.BakeMs}; assemble {st.AssembleMs} ms wall).");
+          + $"(parallel {st.ParallelMs} ms wall; thread-ms: gather {st.GatherMs}, hash {st.HashMs}, cache {st.CacheMs}, bake {st.BakeMs}; assemble {st.AssembleMs} ms wall; {st.Reused} reused).");
         return meshes;
     }
 
