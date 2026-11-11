@@ -229,6 +229,26 @@ namespace Fdp.Toolkit.Terrain
                         });
                         break;
                     }
+                    case "prism":
+                    {
+                        // ⭐ T-2 (CE-4429 G-3) — a SOLID of a material: a Polygon footprint, `height` (above `baseZ`, default the ground under it), `material`, `label`. What a static obstacle is in the terrain
+                        //   (kind Wall, the sight / fire / navmesh solid), written into an overlay so baked CLUTTER (a car, sandbags, a crate) costs no entity. Not destructible (G-15).
+                        if (geomType != "Polygon")
+                            throw new ArgumentException($"Terrain world {where}: a prism must be a Polygon (got '{geomType}').");
+                        float prismHeight = RequireFloat(props, "height", where);
+                        var prismMaterial = materials.Get((string?)props["material"] ?? TerrainMaterialLibrary.DefaultMaterial, where);
+                        foreach (var ring in OuterRings(geometry, geomType, where))
+                        {
+                            var flat = Flatten(ring);
+                            float prismBase = props["baseZ"] is JsonNode pb ? ReadFloat(pb, where + ".baseZ") : GroundUnder(flat);
+                            var pr = MakePrism(TerrainPrismKind.Wall, flat, prismBase, prismBase + prismHeight, 0, label, where);
+                            prisms.Add(new TerrainPrism
+                            {
+                                Kind = pr.Kind, Footprint = pr.Footprint, BaseZ = pr.BaseZ, TopZ = pr.TopZ, Label = pr.Label, Triangles = pr.Triangles, Min = pr.Min, Max = pr.Max, Material = prismMaterial,
+                            });
+                        }
+                        break;
+                    }
                     case "slab":
                     case "ramp":
                     {
@@ -277,8 +297,9 @@ namespace Fdp.Toolkit.Terrain
                             "open" => TerrainSurfaceType.Open,
                             "forest" => TerrainSurfaceType.Forest,
                             "water" => TerrainSurfaceType.Water,
+                            "scrub" => TerrainSurfaceType.Scrub,   // ⭐ T-2 (CE-4429) — low brush: a surface that is drawn and walked on
                             _ => throw new ArgumentException(
-                                $"Terrain world {where}: unknown surface '{surface}' (open, forest, water)."),
+                                $"Terrain world {where}: unknown surface '{surface}' (open, forest, water, scrub)."),
                         };
                         foreach (var ring in OuterRings(geometry, geomType, where))
                         {
@@ -296,7 +317,7 @@ namespace Fdp.Toolkit.Terrain
                     }
                     default:
                         throw new ArgumentException(
-                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, tree, slab, ramp, surface).");
+                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, tree, prism, slab, ramp, surface).");
                 }
             }
 

@@ -26,6 +26,17 @@ namespace Fdp.Toolkit.Terrain
             return new BlockExpansion(x.Features, x.Houses, x.Woods, summary);
         }
 
+        /// <summary>
+        /// ⭐ T-2 (CE-4429) — ONE placed <see cref="TerrainFeature"/> as the expansion reads it: its key (the entity's guid), kind, the per-kind text / numbers (<see cref="TerrainFeature"/> says what each means), the entity's position and — for
+        /// the line and area kinds — the shape's points in WORLD coordinates (the entity's position plus the polyline's relative vertices). The compiler builds it from the scenario JSON and the live overlay from the ECS components:
+        /// both feed <see cref="Feature"/>, so a kind expands the same way in both.
+        /// </summary>
+        public sealed record FeatureSpec(string Key, byte Kind, string Template, float HeadingDeg, float Pad, uint Seed, Vector2 At, IReadOnlyList<Vector2> Points);
+
+        /// <summary>The parts of one feature (<c>&lt;key&gt;/&lt;i&gt;</c>) — a house, a wall, a wood, a bridge, a scatter's items … (<see cref="FeatureExpander.OfKind"/>).</summary>
+        public static IReadOnlyList<JsonObject> Feature(FeatureSpec s, TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots)
+            => FeatureExpander.OfKind(s.Kind, s.Key, s.Template, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points, baseWorld, assets, recipeRoots);
+
         /// <summary>One house feature (<c>&lt;key&gt;/0</c>).</summary>
         public static JsonObject House(string key, string template, float headingDeg, float pad, Vector2 at, TerrainWorld baseWorld, TerrainAssets assets)
             => FeatureExpander.House(baseWorld, assets, template, at, headingDeg, pad, key);

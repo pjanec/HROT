@@ -5,16 +5,18 @@ using System.Numerics;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.Logging;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Terrain;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.Map.Common.Services;
 
 /// <summary>One placed terrain block / feature as the live overlay reads it from the world (a snapshot, taken only when the set changed).</summary>
-public readonly record struct OverlaySource(string Key, byte Kind, string Name, uint Seed, float HeadingDeg, byte Fit, float Pad, Vector2 At)
+public readonly record struct OverlaySource(string Key, byte Kind, string Name, uint Seed, float HeadingDeg, byte Fit, float Pad, Vector2 At, Vector2[]? Points = null)
 {
-    /// <summary><see cref="Kind"/> of a block (a recipe expansion); a feature uses <see cref="TerrainFeature.House"/>.</summary>
+    /// <summary><see cref="Kind"/> of a block (a recipe expansion); a feature uses its <see cref="TerrainFeature"/> kind (1 and up). <see cref="Points"/> are a line / area feature's vertices in WORLD coordinates (T-2).</summary>
     public const byte BlockKind = 0;
 
     /// <summary>What the expansion depends on, at 1 cm — a source with the same hash expands to the same parts.</summary>
@@ -24,6 +26,7 @@ public readonly record struct OverlaySource(string Key, byte Kind, string Name, 
         void Mix(long v) { h ^= (ulong)v; h *= 1099511628211UL; }
         void MixF(float f) => Mix((long)MathF.Round(f * 100f));
         Mix(Kind); Mix(Fdp.Core.StableHash.Fnv1a32(Name)); Mix(Seed); MixF(HeadingDeg); Mix(Fit); MixF(Pad); MixF(At.X); MixF(At.Y);
+        if (Points != null) foreach (var p in Points) { MixF(p.X); MixF(p.Y); }
         return h;
     }
 }
@@ -115,6 +118,7 @@ public sealed class LiveOverlay
     public ulong SignatureOfWorld(EntityRepository world)
     {
         Bind(world);
+        ISimulationView view = world;
         ulong h = Empty;
         void Mix(long v) { h ^= (ulong)v; h *= 1099511628211UL; }
         void MixF(float f) => Mix((long)MathF.Round(f * 100f));
@@ -132,7 +136,13 @@ public sealed class LiveOverlay
                 if (!Live(world, e)) continue;
                 ref readonly var t = ref world.GetComponentRO<SimTransform>(e);
                 ref readonly var f = ref world.GetComponentRO<TerrainFeature>(e);
-                Mix(2); Mix(GuidHash(world, e)); Mix(f.Kind); Mix(f.Template.GetHashCode()); MixF(f.HeadingDeg); MixF(f.Pad); MixF(t.Position.X); MixF(t.Position.Y);
+                Mix(2); Mix(GuidHash(world, e)); Mix(f.Kind); Mix(f.Template.GetHashCode()); MixF(f.HeadingDeg); MixF(f.Pad); Mix(f.Seed); MixF(t.Position.X); MixF(t.Position.Y);
+                // ⭐ T-2 — a line / area feature's shape (a managed immutable record, read by index: no enumerator, no allocation)
+                if (world.HasManagedComponent<EditablePolyline>(e) && view.GetManagedComponentRO<EditablePolyline>(e) is { } poly)
+                {
+                    var pts = poly.Points;
+                    for (int i = 0; i < pts.Count; i++) { MixF(pts[i].X); MixF(pts[i].Y); }
+                }
             }
         if (_fileEpoch != 0 && h != Empty) Mix(_fileEpoch);   // ⭐ CE-4427 R-7
         return h;
@@ -182,8 +192,18 @@ public sealed class LiveOverlay
                 if (!Live(world, e)) continue;
                 ref readonly var t = ref world.GetComponentRO<SimTransform>(e);
                 ref readonly var f = ref world.GetComponentRO<TerrainFeature>(e);
-                if (f.Kind != TerrainFeature.House) continue;   // v1: houses only, as the compiler
-                list.Add(new OverlaySource(KeyOf(world, e), TerrainFeature.House, f.Template.ToString() ?? "", 0, f.HeadingDeg, 0, f.Pad, new Vector2(t.Position.X, t.Position.Y)));
+                if (!FeatureExpander.IsKnown(f.Kind)) continue;   // 0 and the unknown are ignored, as the compiler does
+                var at = new Vector2(t.Position.X, t.Position.Y);
+                Vector2[]? points = null;
+                if (FeatureExpander.NeedsShape(f.Kind))
+                {
+                    // the polyline is RELATIVE to the entity: world = position + vertex (the compiler adds it the same way)
+                    var poly = world.HasManagedComponent<EditablePolyline>(e) ? ((ISimulationView)world).GetManagedComponentRO<EditablePolyline>(e) : null;
+                    if (poly == null) { FdpLog<LiveOverlay>.Warn($"[LiveOverlay] Feature {KeyOf(world, e)} (kind {f.Kind}) has no EditablePolyline: left out of the live terrain."); continue; }
+                    points = new Vector2[poly.Points.Count];
+                    for (int i = 0; i < points.Length; i++) points[i] = at + poly.Points[i];
+                }
+                list.Add(new OverlaySource(KeyOf(world, e), f.Kind, f.Template.ToString() ?? "", f.Seed, f.HeadingDeg, 0, f.Pad, at, points));
             }
         return list;
     }
@@ -245,13 +265,15 @@ public sealed class LiveOverlay
                 files.Add(RecipePath(s.Name));
                 foreach (var t in TerrainRecipe.Find(s.Name, _roots!).Templates) if (_assets!.TemplatePath?.Invoke(t) is { } tp) files.Add(tp);
             }
-            else if (_assets!.TemplatePath?.Invoke(s.Name) is { } hp) files.Add(hp);
+            else if (s.Kind == TerrainFeature.House) { if (_assets!.TemplatePath?.Invoke(s.Name) is { } hp) files.Add(hp); }
+            else if (s.Kind == TerrainFeature.Scatter)   // a scatter reads its recipe
+                files.Add(RecipePath(s.Name));
             entry.Files = files.ToArray();
             entry.Stamp = StampOf(entry.Files);
             if (s.Kind == OverlaySource.BlockKind)
                 entry.Features.AddRange(OverlayExpansion.Block(s.Key, s.Name, s.Seed, s.HeadingDeg, s.Fit, s.At, baseWorld, _assets!, _roots!).Features);
             else
-                entry.Features.Add(OverlayExpansion.House(s.Key, s.Name, s.HeadingDeg, s.Pad, s.At, baseWorld, _assets!));
+                entry.Features.AddRange(OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(s.Key, s.Kind, s.Name, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points ?? Array.Empty<Vector2>()), baseWorld, _assets!, _roots!));
             foreach (var f in entry.Features)
             {
                 var (min, max) = OverlayExpansion.BoundsOf(f);

@@ -33,6 +33,7 @@ namespace Fdp.Toolkit.Terrain.Tests
                 """.Replace("HUT", Hut));
             File.WriteAllText(Path.Combine(Assets, "buildings", "hut.building.json"), Hut);
             File.WriteAllText(Path.Combine(Recipes, "village.recipe.json"), """{"id":"village","houses":{"templates":["hut"],"count":[10,10],"radius":60,"minSpacing":4},"woods":{"count":[2,2],"size":[8,12]}}""");
+            File.WriteAllText(Path.Combine(Recipes, "litter.recipe.json"), """{"id":"litter","scatter":{"density":2,"items":[{"kind":"clutter","type":"car","weight":1},{"kind":"clutter","type":"sandbag-wall","weight":2},{"kind":"tree","weight":5},{"kind":"bush","weight":4}]}}""");
             File.WriteAllText(Path.Combine(Recipes, "woodlot.recipe.json"), """{"id":"woodlot","woods":{"count":[3,3],"size":[8,12]}}""");
         }
 
@@ -51,6 +52,23 @@ namespace Fdp.Toolkit.Terrain.Tests
             ["TerrainFeature"] = new JsonObject { ["Kind"] = 1, ["Template"] = template, ["HeadingDeg"] = heading, ["Pad"] = 0 },
             ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, y, 0), ["Rotation"] = new JsonArray(0, 0, 0, 1) },
         };
+
+        /// <summary>⭐ T-2 (CE-4429) — a <c>TerrainFeature</c> entity of any kind; the line / area kinds carry an <c>EditablePolyline</c> (points RELATIVE to the entity's position, the translator's JSON shape).</summary>
+        public static JsonObject Feature(int kind, float x, float y, string template = "", float heading = 0f, float pad = 0f, uint seed = 0, params (float X, float Y)[] points)
+        {
+            var e = new JsonObject
+            {
+                ["TerrainFeature"] = new JsonObject { ["Kind"] = kind, ["Template"] = template, ["HeadingDeg"] = heading, ["Pad"] = pad, ["Seed"] = seed },
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, y, 0), ["Rotation"] = new JsonArray(0, 0, 0, 1) },
+            };
+            if (points.Length > 0)
+            {
+                var pts = new JsonArray();
+                foreach (var (px, py) in points) pts.Add(new JsonObject { ["X"] = px, ["Y"] = py });
+                e["EditablePolyline"] = new JsonObject { ["Points"] = pts, ["Version"] = 0 };
+            }
+            return e;
+        }
 
         public JsonObject Scenario(params (string Guid, JsonObject Entity)[] entities)
         {

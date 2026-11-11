@@ -1199,6 +1199,22 @@ parser's missing `prism` kind (then the overlay, *Save terrain as* and the live 
 Acceptance (handoff T-2): rails — a hedge blocks movement, a wood conceals, water is impassable, a unit crosses a bridge, a scatter of 140 items
 compiles deterministically; the compiler and the live overlay give the same parts for every kind.
 
+**As built (T-2, `2026-11-11`)** — what the build did against the kinds table and G-1…G-4:
+
+| as built | note |
+|---|---|
+| `TerrainFeature` (unmanaged, saved, recorded): `Kind` widened — House 1 · Wall 2 · Fence 3 · Hedge 4 · Wood 5 · Tree 6 · Scrub 7 · Clutter 8 · Water 9 · Bridge 10 · Scatter 11 — and `uint Seed`; `Template` / `Pad` mean what the kind needs (material, clutter type or recipe; height, width, density) | the component stays tiny (≈ 48 B ≪ 1 024); it round-trips through the scenario serializer with `EditablePolyline` (`EditablePolylineTranslatorTests.T2_*`). ⚠ `Seed` changes the layout of a recording made with the O-4 component |
+| **G-1 shape:** line and area kinds carry the managed `EditablePolyline` (points RELATIVE to the entity); the compiler reads it from the scenario JSON in the `EditablePolylineTranslator`'s shape, the live overlay from the component — both build an `OverlayExpansion.FeatureSpec` and call `OverlayExpansion.Feature` → `FeatureExpander.OfKind` (the ONE entry) | `FeatureExpander` is `partial`; the kinds live in `FeatureKinds.cs` |
+| **G-3 parser:** new `prism` kind (Polygon, `height`, `baseZ`, `material`, `label` → a `TerrainPrism` of kind `Wall`, what a static obstacle is) and new surface `scrub` (`TerrainSurfaceType.Scrub = 4`: drawn and walkable, no concealment yet) | `TerrainWorldMerge` already copied `Prisms` and offset `Panel` / `Building`; a prism has neither |
+| per kind: Wall / Fence → `wall` / `fence` (material from `Template`, default concrete / fence-wood; height from `Pad`) · **Hedge = a `wall` of the existing `hedge` material** (sight 0.3), 1.5 m, 0.8 m thick · Wood → `surface: forest` (density from `Pad`) · Tree → `tree` · Scrub → `surface: scrub` · Water → `surface: water` · Clutter → `prism` from `ClutterTypes` | |
+| **Bridge** = a deck `slab` 1.5 m above the ground under it + a `ramp` at each end (6 m, the foot buried) under ONE `"structure": "<guid>"` (a collapsible building, no panels; O-2); width from `Pad` (4 m) | measured: units cross it (navmesh) |
+| **G-3 clutter table** `ClutterTypes` (Fdp.Toolkits): Car 4.5 × 1.8 × 1.5 car-body · Sandbag wall · Concrete block · Crate (the four obstacle TKB types — `NedTkbCatalog.RegisterObstacles` now READS its sizes from the table: one table) + Barrel · Jersey barrier | baked clutter is not destructible (G-15); a live obstacle stays the entity path |
+| **G-4 scatter:** one entity (area + recipe id in `Template` + `Seed` + density in `Pad`) → `area / 100 · density` items (≤ 2 000), drawn by weight from the recipe's new `scatter` section (`{ "density": 2, "items": [ { "kind": "clutter", "type": "car", "weight": 1 }, { "kind": "tree" }, { "kind": "bush" } ] }`; a bush is a small scrub octagon) at deterministic places inside the area and out of the base's water | 140 items compile byte-identically |
+
+⚠ **Measured finding — a collapsed bridge still carries a unit on its rubble.** Collapse removes the deck and both ramps (`SurfaceZ` at deck height falls to the ground) but CE-4391 S-2's rubble mound — a 0.6 m solid over the structure's whole footprint — is a walkable roof to the navmesh, so the path from bank to bank across the river still exists (two waypoints, over the mound). The rail asserts what O-2 asserts (the deck is gone) and records this; a rule that leaves no mound where a structure stands over water is for the destruction design to decide.
+
+Rails (`FeatureKindsTests`, each red-proved): a hedge blocks movement (the path goes round) · a wood conceals · water is impassable · a unit crosses a bridge (deck) and the collapsed bridge no longer carries at deck height · a scatter of 140 compiles byte-identically · clutter round-trips through the overlay file; `LiveOverlayBakeTests.T2_TheCompilerAndTheLiveOverlay_GiveTheSamePartsForEveryKind`.
+
 ### 18h. Block operations and road alignment — T-4, T-5 *(CE-4431, CE-3431, backend `2026-11-11`; build-state: READY-TO-BUILD)*
 
 📐 **INVENTORY** (graph `search_graph` `.*(Undo|EditCommand|CommandStack).*` Interface + `.*(UndoStack|UndoManager|EditTransaction).*` Class, and

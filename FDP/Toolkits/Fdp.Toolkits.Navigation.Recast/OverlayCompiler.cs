@@ -76,13 +76,20 @@ public static class OverlayCompiler
         foreach (var (guid, e) in feats)
         {
             var tf = (JsonObject)e["TerrainFeature"]!;
-            int kind = tf["Kind"] is JsonNode kn ? kn.GetValue<int>() : 0;
-            if (kind != TerrainFeature.House) continue;   // v1: houses only
-            string template = (string?)tf["Template"] ?? throw new InvalidOperationException($"[Terrain] TerrainFeature {guid} has no Template.");
+            int kindValue = tf["Kind"] is JsonNode kn ? kn.GetValue<int>() : 0;
+            if (kindValue < 0 || kindValue > byte.MaxValue || !FeatureExpander.IsKnown((byte)kindValue)) continue;   // 0 and the unknown are ignored
+            byte kind = (byte)kindValue;
+            string template = (string?)tf["Template"] ?? "";
+            if (kind == TerrainFeature.House && template.Length == 0) throw new InvalidOperationException($"[Terrain] TerrainFeature {guid} has no Template.");
             float heading = tf["HeadingDeg"] is JsonNode hn ? (float)hn.GetValue<double>() : 0f;
             float pad = tf["Pad"] is JsonNode pn ? (float)pn.GetValue<double>() : 0f;
-            features.Add(OverlayExpansion.House(guid, template, heading, pad, PositionOf(e, guid), baseWorld, assets));
-            houses++;
+            uint seed = tf["Seed"] is JsonNode sn ? (uint)sn.GetValue<double>() : 0u;
+            var at = PositionOf(e, guid);
+            var points = FeatureExpander.NeedsShape(kind) ? PolylineOf(e, guid, at) : Array.Empty<Vector2>();
+            // ⭐ T-2 — ONE expansion entry for every kind, the live overlay's too (OverlayExpansion.Feature)
+            var parts = OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(guid, kind, template, heading, pad, seed, at, points), baseWorld, assets, roots);
+            features.AddRange(parts);
+            if (kind == TerrainFeature.House) houses += parts.Count;
         }
         OverlayExpansion.SortByLabel(features);
 
@@ -141,5 +148,19 @@ public static class OverlayCompiler
         if (entity["SimTransform"] is JsonObject t && t["Position"] is JsonArray p && p.Count >= 2)
             return new Vector2((float)p[0]!.GetValue<double>(), (float)p[1]!.GetValue<double>());
         throw new InvalidOperationException($"[Terrain] Entity {guid} carries a terrain block / feature but no SimTransform.Position.");
+    }
+
+    /// <summary>The shape of a line / area feature: the entity's <c>EditablePolyline.Points</c> (<c>{ "X", "Y" }</c>, RELATIVE to the entity's position — the <c>EditablePolylineTranslator</c>'s shape) as WORLD points.</summary>
+    private static Vector2[] PolylineOf(JsonObject entity, string guid, Vector2 origin)
+    {
+        if (Prop(entity, "EditablePolyline") is not JsonObject poly || poly["Points"] is not JsonArray pts)
+            throw new InvalidOperationException($"[Terrain] Entity {guid} is a line / area terrain feature but carries no EditablePolyline.");
+        var list = new List<Vector2>(pts.Count);
+        foreach (var node in pts)
+        {
+            if (node is not JsonObject p) continue;
+            list.Add(new Vector2(origin.X + (float)(p["X"]?.GetValue<double>() ?? 0.0), origin.Y + (float)(p["Y"]?.GetValue<double>() ?? 0.0)));
+        }
+        return list.ToArray();
     }
 }
