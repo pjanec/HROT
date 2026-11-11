@@ -8,6 +8,7 @@ known-conflict: none
 related-designs:
   - docs/DESIGN_Replay_Time_Axis_And_Review.md — OWNS §12q/§12s: a dirty chunk is written only when its sanitized bytes moved; the comparison resets at a keyframe
   - docs/DESIGN_Evaluation_Cost_And_Cadence.md — OWNS §5b C7 (CE-2392): the recorder's per-frame cost, the used-prefix delta and the cached recordable mask, measured
+  - docs/DESIGN_Replay_Playback_Performance.md — OWNS the playback side's cost (CE-1478): the frame prefetcher (P1 SUPERSEDES DES-004 §5's synchronous playback read), the partial repair (DES-006 §5.1 built), the block-delta question (P6)
 -->
 
 ﻿# **FDP \- Flight Recorder**
