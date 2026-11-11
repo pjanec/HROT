@@ -29,6 +29,10 @@ public sealed class SnapshotPort
     private int _created;
 
     private readonly EventAccumulator _events; private int _reader = -1;
+    private readonly List<Bounce> _pending = new(), _scratch = new();
+
+    /// <summary>MAIN: every event published since the last take, in order — exactly once, whichever snapshots were skipped.</summary>
+    public void TakeEvents(List<Bounce> into) { lock (_lock) { into.AddRange(_pending); _pending.Clear(); } }
     public SnapshotPort(WorkerStats stats, EventAccumulator events) { _stats = stats; _events = events; }
 
     public int SnapshotsCreated => _created;
@@ -55,12 +59,15 @@ public sealed class SnapshotPort
         target.Tick = _stats.Ticks;
         // the events since the last publish — read on the WORKER (the kernel's thread), copied into the snapshot
         if (_reader < 0) _reader = _events.RegisterReaderAtCurrentFrame();
-        target.Bounces.Clear();
-        if (!_events.WindowIsCurrentFrame(_reader)) foreach (var b in _events.ReadWindow<Bounce>(_reader)) target.Bounces.Add(b);
-        else foreach (var b in live.Bus.Read<Bounce>()) target.Bounces.Add(b);   // the window is just the current frame: the bus's read buffer
+        // ⭐ FINDING (PoC run 2): events must NOT ride on a snapshot — the main thread leases only the NEWEST, so a snapshot skipped between two
+        //   frames lost its events. They queue for the READER (under the lock) until it takes them.
+        _scratch.Clear();
+        if (!_events.WindowIsCurrentFrame(_reader)) foreach (var b in _events.ReadWindow<Bounce>(_reader)) _scratch.Add(b);
+        else foreach (var b in live.Bus.Read<Bounce>()) _scratch.Add(b);   // the window is just the current frame: the bus's read buffer
         _events.MarkRead(_reader);
         lock (_lock)
         {
+            _pending.AddRange(_scratch);
             var old = _latest;
             _latest = target;
             if (old != null && old.Leases == 0) _free.Push(old);

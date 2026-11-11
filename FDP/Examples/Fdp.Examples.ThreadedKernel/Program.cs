@@ -77,7 +77,7 @@ public static class Program
         var benchClock = Stopwatch.StartNew();
         double nextDrag = 1.0; int drags = 0; long dragSubmittedTick = -1; double visibleLatencySum = 0; int visibleLatencyN = 0; long dragSubmitAt = 0;
         long allocStart = 0; bool allocArmed = false; long allocFrames = 0, allocBytes = 0;
-        double snapshotAgeSum = 0; int snapshotAgeN = 0; long bouncesSeen = 0, lastConsumedTick = -1;
+        double snapshotAgeSum = 0; int snapshotAgeN = 0; long bouncesSeen = 0; var eventsIn = new List<Bounce>();
 
         while (!Raylib.WindowShouldClose())
         {
@@ -118,7 +118,7 @@ public static class Program
                 {
                     visibleLatencySum += Stopwatch.GetElapsedTime(dragSubmitAt).TotalMilliseconds; visibleLatencyN++; dragSubmittedTick = -1;
                 }
-                if (threaded && leased != null && leased.Tick != lastConsumedTick) { bouncesSeen += leased.Bounces.Count; lastConsumedTick = leased.Tick; }   // ⭐ ONCE per snapshot, however many frames re-run on it
+                if (threaded) { eventsIn.Clear(); port.TakeEvents(eventsIn); bouncesSeen += eventsIn.Count; }   // ⭐ exactly once, whichever snapshots were skipped
                 if (threaded && leased != null) { snapshotAgeSum += stats.Ticks - leased.Tick; snapshotAgeN++; }
             }
             DrawStatsWindow(threaded, settings, stats, port, ingress, presentation, frameMs, frames);
@@ -128,7 +128,8 @@ public static class Program
             if (leased != null) port.Release(leased);
             frameMs[frameIdx] = Stopwatch.GetElapsedTime(frameStart).TotalMilliseconds; frameIdx = (frameIdx + 1) % frameMs.Length; frames++;
 
-            if (bench > 0 && benchClock.Elapsed.TotalSeconds >= bench) break;
+            if (bench > 0 && benchClock.Elapsed.TotalSeconds >= bench) settings.Paused = true;   // stop producing events, then drain the tail
+            if (bench > 0 && benchClock.Elapsed.TotalSeconds >= bench + 1.5) break;
         }
 
         Volatile.Write(ref running, false);
@@ -168,7 +169,7 @@ public static class Program
         var dl = ImGui.GetWindowDrawList();
         dl.AddRectFilled(origin, origin + size, 0xFF202020);
         // the points prepared LAST frame (the prep system runs after this window is laid out — one frame of display lag, fine for a PoC)
-        int step = Math.Max(1, ui.Count / 12000);   // ⚠ PoC artifact: one ImGui draw list holds < 65 536 vertices — draw a sample; the prep still sees every entity
+        int step = Math.Max(1, (ui.Count + 11999) / 12000);   // ⚠ PoC artifact: one ImGui draw list holds < 65 536 vertices — draw a sample; the prep still sees every entity
         for (int i = 0; i < ui.Count; i += step)
         {
             var p = origin + new Vector2(ui.Xs[i], ui.Ys[i]) * ui.CanvasScale;
