@@ -179,8 +179,8 @@ public sealed class RandomTerrainWizardWindow
         Rects["seed"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         if (Button("dice", 850, 286, 40, "", IconsFontAwesome6.ArrowsRotate, AMBER, null, false, s)) m.Seed = (ulong)Random.Shared.Next(10000, 99999);
         Glyph("info", INFO_G, INFO, 630, 336, s);
-        TextAt(656, 352, s, SUB, "Everything the generator places - towns, villages,");
-        TextAt(656, 370, s, SUB, "farms, woods - is an ordinary block in a scenario:");
+        TextAt(656, 352, s, SUB, "Everything the generator places — towns, villages,");
+        TextAt(656, 370, s, SUB, "farms, woods — is an ordinary block in a scenario:");
         TextAt(656, 388, s, SUB, "move, re-roll or delete any of it later in the editor.");
         if (m.Error != null) TextAt(16, 520, s, ERR, m.Error);
     }
@@ -214,22 +214,24 @@ public sealed class RandomTerrainWizardWindow
         {
             var c = view.Preview.Counts;
             int y = 92;
-            Line("blocks", ref y, IconsFontAwesome6.House, ORANGE, $"{view.Blocks} blocks", $"{c.Buildings} houses", s);
+            Line("blocks", ref y, IconsFontAwesome6.City, ORANGE, $"{view.Blocks} blocks", $"{c.Buildings} houses", s);
             foreach (var (recipe, blocks, houses) in view.ByRecipe.Take(4)) Line("recipe:" + recipe, ref y, IconsFontAwesome6.House, ORANGE, $"{Hrot.UI.Common.AddEntity.TerrainPickCatalog.Title(recipe)} x{blocks}", houses > 0 ? $"{houses} houses" : "", s);
-            Line("woods", ref y, IconsFontAwesome6.Mountain, GREEN, "Woods", $"{c.WoodsAreaM2 / 10000.0:0} ha", s);
+            Line("woods", ref y, IconsFontAwesome6.Tree, GREEN, "Woods", $"{c.WoodsAreaM2 / 10000.0:0} ha", s);
             Line("roads", ref y, IconsFontAwesome6.Route, AMBER, "Roads", $"{c.RoadKm:0.#} km", s);
-            Line("water", ref y, IconsFontAwesome6.Route, BLUE, "Water", c.WaterAreas > 0 ? $"{c.WaterAreas} areas" : "none", s);
+            Line("water", ref y, IconsFontAwesome6.Water, BLUE, "Water", c.WaterAreas > 0 ? $"{c.WaterAreas} areas" : "none", s);
             var (fill, glyph, colour) = view.Preview.Verdict switch { BudgetVerdict.Ok => (OKBOX, CIRCLE_CHECK, OK), BudgetVerdict.Heavy => (PENDROW, WARNING, PEND), _ => (PENDROW, WARNING, ERR) };
             var box = (W(676, y + 6, s), W(984, y + 34, s));
             dl.AddRectFilled(box.Item1, box.Item2, ImGui.GetColorU32(fill));
             Rects["verdict"] = box;
             Glyph("verdict", glyph, colour, 686, y + 12, s);
-            TextAt(710, y + 28, s, TXT, view.Preview.Verdict == BudgetVerdict.Ok ? $"Within budget - {c.Buildings} houses" : view.Preview.VerdictReason ?? view.Preview.Verdict.ToString());
+            TextAt(710, y + 28, s, TXT, view.Preview.Verdict == BudgetVerdict.Ok ? $"Within budget — {c.Buildings} houses" : view.Preview.VerdictReason ?? view.Preview.Verdict.ToString());
         }
         Section(676, 340, 984, "Not happy?", s);
-        if (Button("shuffle-layout", 676, 372, 308, "Shuffle layout", IconsFontAwesome6.ArrowsRotate, AMBER, null, m.Busy, s)) m.ShuffleLayout();
+        if (Button("shuffle-layout", 676, 372, 308, "Shuffle layout", IconsFontAwesome6.Dice, AMBER, null, m.Busy, s)) m.ShuffleLayout();
+        TextAt(940, 392, s, NOTE, "≈ 2 s");
         TextAt(676, 414, s, NOTE, "new places for the blocks, same ground");
         if (Button("shuffle-ground", 676, 424, 308, "Shuffle ground", IconsFontAwesome6.Mountain, GREEN, null, m.Busy, s)) m.ShuffleGround();
+        TextAt(940, 444, s, NOTE, "≈ 40 s");
         TextAt(676, 466, s, NOTE, "new hills, roads and river, then a layout");
         if (m.Error != null) TextAt(16, 520, s, ERR, m.Error);
     }

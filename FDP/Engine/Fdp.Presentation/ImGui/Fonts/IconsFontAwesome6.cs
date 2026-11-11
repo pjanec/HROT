@@ -123,4 +123,20 @@ public static class IconsFontAwesome6
     public const string Memory              = "\uf538"; // U-5 section-header key glyph
     public const string Image               = "\uf03e"; // U-5 section-header key glyph
     public const string List                = "\uf03a"; // U-5 section-header key glyph
+    // ⭐ Terrain authoring U-1/U-3 (docs/UX/terrain-authoring-2-blocks.svg) — the coloured icons of the six terrain groups and of a block's menu rows
+    public const string City                = "\uf64f"; // a block (town block)
+    public const string HouseChimney        = "\ue3af"; // buildings
+    public const string Tree                = "\uf1bb"; // vegetation
+    public const string WallBrick           = "\uf7a4"; // walls and fences
+    public const string Dumpster            = "\uf793"; // clutter
+    public const string Water               = "\uf773"; // water and bridges
+    public const string Dice                = "\uf522"; // re-roll
+    public const string Rotate              = "\uf2f1"; // rotate a quarter turn
+    public const string UpDownLeftRight     = "\uf047"; // move
+    public const string BoxOpen             = "\uf49e"; // unpack
+    public const string Star                = "\uf005"; // recent and favourites
+    public const string PersonRifle         = "\ue54e"; // soldiers
+    public const string GroundVehicle       = "\uf5e4"; // ground vehicles
+    public const string Plane               = "\uf072"; // aircraft
+    public const string PenToSquare         = "\uf044"; // edit terrain
 }

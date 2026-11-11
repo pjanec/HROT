@@ -74,7 +74,7 @@ public static class TerrainPickCatalog
             F(Clutter, TerrainFeature.Scatter, "Street clutter", "", TerrainShape.Area, "cars, barrels and crates scattered in an area", "No scatter recipe is shipped yet (backend's T-3)."),
         };
         foreach (var t in Fdp.Toolkit.Terrain.ClutterTypes.All)
-            l.Add(F(Clutter, TerrainFeature.Clutter, t.Name, t.Id, TerrainShape.Point, $"{t.Length:0.#} x {t.Width:0.#} m, {t.Material}"));
+            l.Add(F(Clutter, TerrainFeature.Clutter, t.Name, t.Id, TerrainShape.Point, $"{t.Length:0.#} × {t.Width:0.#} m, {t.Material}"));
         return l;
     }
 

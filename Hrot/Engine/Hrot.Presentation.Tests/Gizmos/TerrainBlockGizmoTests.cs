@@ -146,6 +146,12 @@ public sealed class TerrainBlockGizmoTests : IDisposable
         foreach (var label in new[] { "Re-roll layout", "Rotate", "Unpack into houses and features", "Change recipe…", "Delete" }) Assert.Contains(label, flat);
         Assert.Contains(GlobalActionIds.TerrainReroll.ToString(), json);
         Assert.Contains("T-4", flat);   // Unpack is a greyed row naming why
+        // ⭐ the mockup's six rows, in its order, each with its icon key; the generic Select / Center View / Properties rows are not in the block's menu
+        var labels = rows.Select(r => r.GetProperty("label").GetString()).ToList();
+        Assert.Equal(new[] { "Re-roll layout", "Rotate", "Move", "Unpack into houses and features", "Change recipe…", "Delete" }, labels);
+        Assert.Equal(new[] { "terrain/reroll", "terrain/rotate", "terrain/move", "terrain/unpack", "terrain/block", "terrain/delete" },
+                     rows.Select(r => r.GetProperty("icon").GetString()).ToArray());
+        Assert.False(rows[2].GetProperty("enabled").GetBoolean());   // Move is the drag: an informational row
         // a unit's menu is not the block's
         Assert.DoesNotContain("Re-roll layout", MapMenuActions.JsonFor(_repo, Plain()));
     }

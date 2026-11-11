@@ -64,6 +64,9 @@ namespace Hrot.Common.Actions
         /// <summary>The row's style ("destructive"), or null.</summary>
         public string? Style { get; init; }
 
+        /// <summary>⭐ Terrain authoring — the row's icon key (a coloured glyph of <c>NodeEditor.Core.Widgets.Icons</c>, e.g. <c>"terrain/reroll"</c>), or null for none.</summary>
+        public string? Icon { get; init; }
+
         /// <summary>⭐ A7 — this action's <see cref="Modes"/> and <see cref="Level"/> as the ONE availability declaration a Details tab shares.</summary>
         public ActionAvailability Availability => new(Modes, 0, Level);
 
@@ -74,7 +77,7 @@ namespace Hrot.Common.Actions
         public Func<ActionContext, IEnumerable<ContextMenuItemDto>>? Expand { get; init; }
 
         /// <summary>The plain row: id, label, shortcut, style.</summary>
-        public ContextMenuItemDto Row() => new() { Id = Id, Label = Label, Shortcut = Shortcut, Style = Style };
+        public ContextMenuItemDto Row() => new() { Id = Id, Label = Label, Shortcut = Shortcut, Style = Style, Icon = Icon };
     }
 
     /// <summary>⭐ B-11 A1 — the facts about a unit that its menu depends on, read ONCE per menu (exactly what <c>MenuJsonFor</c> read).</summary>

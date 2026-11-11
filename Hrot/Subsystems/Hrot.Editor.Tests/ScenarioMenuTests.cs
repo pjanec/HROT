@@ -580,7 +580,7 @@ public sealed class ScenarioMenuTests
         foreach (var path in new[] { FileMenuLayout.NewAsset, FileMenuLayout.OpenAsset, FileMenuLayout.NewBehavior, FileMenuLayout.NewAction, FileMenuLayout.NewCondition, FileMenuLayout.Save, FileMenuLayout.SaveSelectionAsMacro })
             menu.RegisterItem(path, () => { });
         menu.RegisterItem(FileMenuLayout.NewMacro, () => { }, allowedInIdle: false);   // ⭐ CE-4255 / CE-4253 — the editor's own registration
-        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { }, documentToSave: () => true, openSaveTerrainAs: () => { });   // ⭐ U-5 — the editor passes the dialog, so its item is in the editing group
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { }, documentToSave: () => true, openSaveTerrainAs: () => { }, openSaveTerrain: () => { }, openEditTerrain: () => { });   // ⭐ U-5 / E-2 — the editor passes the dialogs, so their items are in the editing group
         // … and AFTER it (the editor's Save As / Save All, the window controller's Exit)
         menu.RegisterItem(FileMenuLayout.SaveAs, () => { });
         menu.RegisterItem(FileMenuLayout.SaveAsRecipe, () => { });

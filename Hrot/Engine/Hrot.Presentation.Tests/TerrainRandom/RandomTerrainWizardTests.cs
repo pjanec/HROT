@@ -104,6 +104,7 @@ public sealed class RandomTerrainWizardTests
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         using var frame = UiFrameHarness.Begin(1100, 640);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);   // the real editor fonts: the harness default is ASCII-only
         var fake = new Fake();
         var window = new RandomTerrainWizardWindow(() => fake);
         window.Open();

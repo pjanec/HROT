@@ -26,6 +26,9 @@ namespace Hrot.Editor.AiShared.Browser;
 /// Production seeds the dialog with a default name and confirms immediately.
 /// </para>
 /// </remarks>
+/// <summary>⭐ Terrain authoring E-2 (mockup 4) — what the terrain picker knows of one terrain's SOURCE: whether it keeps one (the green SOURCE chip), why <i>Edit terrain…</i> cannot run now (null = it can), and what it does.</summary>
+public sealed record TerrainSourceOffer(bool HasSource, string? EditDisabledReason, Action Edit);
+
 public sealed class NewAssetLauncher
 {
     private readonly Action<PickerRequest, Action<PickerResult>> _openPicker;
@@ -40,6 +43,7 @@ public sealed class NewAssetLauncher
     private readonly Func<IReadOnlyList<string>>? _terrains;
     private readonly Action<string>? _showNewBlankDialog;
     private readonly Func<string, string?>? _describeTerrain;
+    private readonly Func<string, TerrainSourceOffer?>? _terrainSource;   // ⭐ E-2 — the SOURCE chip and Edit terrain… of a terrain row (null ⇒ none)
     private readonly Func<string, string?>? _terrainDefinition;   // ⭐ B-9 N1 pane — terrain name → its terrain.json (the catalog that lists it): the pane's facts and still come from there
 
     /// <summary>The group names of the New Scenario picker (§2.5's mockup).</summary>
@@ -81,8 +85,10 @@ public sealed class NewAssetLauncher
         Func<IReadOnlyList<string>>? terrains = null,
         Action<string>? showNewBlankDialog = null,
         Func<string, string?>? describeTerrain = null,
-        Func<string, string?>? terrainDefinition = null)
+        Func<string, string?>? terrainDefinition = null,
+        Func<string, TerrainSourceOffer?>? terrainSource = null)
     {
+        _terrainSource = terrainSource;
         _terrainDefinition = terrainDefinition;
         _showNewMacroDialog = showNewMacroDialog;
         _openPicker = openPicker ?? throw new ArgumentNullException(nameof(openPicker));
@@ -222,6 +228,37 @@ public sealed class NewAssetLauncher
         }
     }
 
+    /// <summary>⭐ E-2 — the SOURCE chip (green) of a terrain that keeps its block scenario; none otherwise.</summary>
+    private IReadOnlyList<PickerChip>? TerrainChips(string terrain)
+        => _terrainSource?.Invoke(terrain) is { HasSource: true } ? new[] { new PickerChip("terrain/source", "SOURCE") } : null;
+
+    /// <summary>⭐ E-2 — the row's right-click menu: <i>Edit terrain…</i> (greyed with its reason when it cannot run). A terrain with no source is offered the entry too, greyed with why.</summary>
+    private IReadOnlyList<PickerRowAction>? TerrainActions(string terrain)
+        => _terrainSource?.Invoke(terrain) is { } o ? new[] { new PickerRowAction("terrain/edit", "Edit terrain…", o.Edit, o.EditDisabledReason) } : null;
+
+    /// <summary>⭐ E-2 — File ▸ Edit Terrain…: the terrains that keep a source, as the same rows (SOURCE chip, the same Edit action); a pick edits it.</summary>
+    public bool CanOpenEditTerrain => _terrains != null && _terrainSource != null;
+
+    public void OpenEditTerrain()
+    {
+        if (!CanOpenEditTerrain) return;
+        var request = new PickerRequest
+        {
+            ContextKey = "terrain/edit",
+            Title = "Edit Terrain",
+            Layout = PickerLayout.Tree,
+            SelectionMode = PickerSelectionMode.Single,
+            ItemsProvider = () => _terrains!().Select(t => (t, o: _terrainSource!(t))).Where(x => x.o is { HasSource: true })
+                .Select(x => new PickerEntry(Id: TerrainEntryId(x.t), Name: x.t, Description: x.o!.EditDisabledReason ?? _describeTerrain?.Invoke(x.t), Category: "Terrains with a source",
+                    Keywords: null, IconTextureId: null, Tag: new BlankTerrainChoice(x.t), IconKey: null, IsEnabled: x.o.EditDisabledReason == null,
+                    ImageKey: _terrainDefinition?.Invoke(x.t) is { } def ? ScenarioPaneFacts.TerrainPreviewOf(def) : null, Chips: TerrainChips(x.t))).ToArray(),
+        };
+        _openPicker(request, result =>
+        {
+            if (!result.Cancelled && result.First?.Tag is BlankTerrainChoice c && _terrainSource!(c.Terrain) is { EditDisabledReason: null } o) o.Edit();
+        });
+    }
+
     /// <summary>⭐ N1 — the New Scenario picker's TWO groups in ONE tree (Q2): every terrain (live), then the recipes.</summary>
     public IReadOnlyList<PickerEntry> ScenarioEntries(RecipePickerSource recipes)
     {
@@ -230,7 +267,8 @@ public sealed class NewAssetLauncher
             // ⭐ B-9 N1 pane — the terrain's still (preview.jpg beside its terrain.json) is the row's ImageKey, as a scenario row's is; the default text is drawn UNDER the facts (DrawTerrainFacts)
             list.Add(new PickerEntry(Id: TerrainEntryId(t), Name: t, Description: _describeTerrain?.Invoke(t), Category: BlankGroup,
                 Keywords: null, IconTextureId: null, Tag: new BlankTerrainChoice(t), IconKey: null,
-                ImageKey: _terrainDefinition?.Invoke(t) is { } def ? ScenarioPaneFacts.TerrainPreviewOf(def) : null));
+                ImageKey: _terrainDefinition?.Invoke(t) is { } def ? ScenarioPaneFacts.TerrainPreviewOf(def) : null,
+                Chips: TerrainChips(t), Actions: TerrainActions(t)));
         foreach (var e in recipes.BuildEntries("", null))
             list.Add(e with { Category = RecipeGroup });
         return list;

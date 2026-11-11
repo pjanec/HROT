@@ -47,4 +47,27 @@ public static class TerrainBlockOps
         finally { EditSteps.End(world); }
         return true;
     }
+
+    /// <summary>⭐ The Details form's Seed field — a typed seed (one edit step). A seed equal to the block's own changes nothing.</summary>
+    public static bool SetSeed(EntityRepository world, Entity e, uint seed)
+    {
+        if (!IsBlock(world, e) || world.GetComponentRO<TerrainBlock>(e).Seed == seed) return false;
+        EditSteps.Begin(world, "Set block seed");
+        try { ref var b = ref world.GetComponentRW<TerrainBlock>(e); b.Seed = seed; }
+        finally { EditSteps.End(world); }
+        return true;
+    }
+
+    /// <summary>⭐ The Details form's Fit to the site checkboxes — turns the <paramref name="bit"/> (<see cref="TerrainBlock.AlignRoad"/>…) on or off (one edit step); no change when it already is so.</summary>
+    public static bool SetFit(EntityRepository world, Entity e, byte bit, bool on)
+    {
+        if (!IsBlock(world, e)) return false;
+        byte fit = world.GetComponentRO<TerrainBlock>(e).Fit;
+        byte next = on ? (byte)(fit | bit) : (byte)(fit & ~bit);
+        if (next == fit) return false;
+        EditSteps.Begin(world, on ? "Fit block to the site" : "Do not fit block to the site");
+        try { ref var b = ref world.GetComponentRW<TerrainBlock>(e); b.Fit = next; }
+        finally { EditSteps.End(world); }
+        return true;
+    }
 }

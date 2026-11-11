@@ -91,7 +91,7 @@ internal static class CategorySidebar
         foreach (var (name, count) in GroupCounts(state, groups))
         {
             bool sel = state.SelectedCategory == name;
-            if (SelectableRow(name, count, sel, faded: count == 0, ctx, "##grp_" + name))
+            if (SelectableRow(name, count, sel, faded: count == 0, ctx, "##grp_" + name, IconOf(groups, name, out bool dim), dim))
             {
                 state.SelectedCategory = name;
                 state.SelectedChip = "";
@@ -99,14 +99,32 @@ internal static class CategorySidebar
         }
     }
 
-    private static bool SelectableRow(string name, int count, bool selected, bool faded, IPickerRenderContext ctx, string id)
+    private static NodeEditor.Core.Widgets.IconGlyph? IconOf(PickerGroupSidebar groups, string name, out bool dim)
+    {
+        dim = groups.DimmedIcons?.Contains(name) == true;
+        return groups.Icons is { } map && map.TryGetValue(name, out var g) ? g : null;
+    }
+
+    private static bool SelectableRow(string name, int count, bool selected, bool faded, IPickerRenderContext ctx, string id,
+                                      NodeEditor.Core.Widgets.IconGlyph? icon = null, bool dim = false)
     {
         var accent = ctx.Theme.SelectionAccent;
         var muted = ctx.Theme.TextMuted;
         ImGui.PushID(id);
         if (selected) ImGui.PushStyleColor(ImGuiCol.Text, accent);
         else if (faded) ImGui.PushStyleColor(ImGuiCol.Text, muted with { W = 0.45f });
-        bool clicked = ImGui.Selectable(PickerText.Drawable(name), selected);
+        // ⭐ a group with an icon: the glyph in its own colour at the row's left, the label after it
+        string label = PickerText.Drawable(name);
+        bool clicked = icon is null ? ImGui.Selectable(label, selected) : ImGui.Selectable("##row", selected);
+        if (icon is { } ic)
+        {
+            var rmin = ImGui.GetItemRectMin();
+            float lh = ImGui.GetTextLineHeight();
+            float y = rmin.Y + (ImGui.GetItemRectMax().Y - rmin.Y - lh) * 0.5f;
+            var dl = ImGui.GetWindowDrawList();
+            dl.AddText(new Vector2(rmin.X + 4f, y), ImGui.GetColorU32(ic.Color with { W = dim ? 0.5f : 1f }), ic.Glyph);
+            dl.AddText(new Vector2(rmin.X + 4f + lh * 1.5f, y), ImGui.GetColorU32(selected ? accent : faded ? muted with { W = 0.45f } : dim ? muted : ctx.Theme.TextDefault), label);
+        }
         if (selected || faded) ImGui.PopStyleColor();
 
         // The count sits at the row's right edge, muted.

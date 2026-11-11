@@ -85,6 +85,7 @@ public sealed class TerrainBlockFrameRail
     private static Image Render(EntityRepository world, Entity[] blocks, Vector2 centre, float zoom, string png, out TerrainLayer2D layer)
     {
         using var frame = UiFrameHarness.Begin(1280, 800);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
         LitShader.Reset();
         var canvas = new MapCanvas(input: null);
         var cam = new MapCamera();
@@ -120,6 +121,7 @@ public sealed class TerrainBlockFrameRail
         var (world, hamlet, copse) = Town();
         var centre = HamletAt + new Vector2(-35f, 0f);
 
+        Assert.False(new Hrot.UI.Common.Map2D.EmptyScenarioHintLayer(() => world).Shows(), "placed blocks are content: the Empty-scenario hint is not drawn over them");
         using var far = new ImageBox(Render(world, new[] { hamlet, copse }, centre, 3f, Path.Combine(shots, "u3-u4-blocks-overview.png"), out var farLayer));
         Assert.True(farLayer.HouseTopsDrawn > 0, "the layer drew template-house footprint tops at overview zoom");
         int tan = Count(far.Image, c => Near(c, 228, 196, 144, 6));

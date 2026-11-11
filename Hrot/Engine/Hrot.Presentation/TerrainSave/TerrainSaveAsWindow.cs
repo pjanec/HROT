@@ -44,6 +44,20 @@ public sealed class TerrainSaveAsWindow
         }
     }
 
+    /// <summary>⭐ E-2 — why File ▸ Save Terrain is greyed (null = it opens): it bakes a terrain SOURCE back over its terrain, so a scenario that is not one cannot.</summary>
+    public string? SaveDisabledReason
+    {
+        get
+        {
+            var sv = _service();
+            if (sv == null) return "this host cannot write terrains";
+            return TerrainSourceNames.TerrainOf(sv.SourceScenarioName) == null ? "this is not a terrain source (File ▸ Edit Terrain… opens one)" : null;
+        }
+    }
+
+    /// <summary>File ▸ Save Terrain: the same dialog, on the terrain this source came from — its name is the terrain's, so saving asks before it replaces it (W-4).</summary>
+    public void OpenSave() { if (SaveDisabledReason == null) Open(); }
+
     /// <summary>File ▸ Save Terrain As…: opens the dialog on a fresh model.</summary>
     public void Open()
     {
@@ -144,7 +158,7 @@ public sealed class TerrainSaveAsWindow
         Separator(16, 92, 544, "Baked into the terrain", s);
         if (m.Preview is { } p)
         {
-            Row("blocks", 0, IconsFontAwesome6.House, ORANGE, $"{p.Blocks} blocks -> {p.Houses} houses", s);
+            Row("blocks", 0, IconsFontAwesome6.House, ORANGE, $"{p.Blocks} blocks → {p.Houses} houses", s);
             Row("woods", 1, IconsFontAwesome6.Mountain, GREEN, $"{p.Woods} woods, {p.Trees} trees", s);
             Row("walls", 2, IconsFontAwesome6.Route, GREY, $"{p.WallKm:0.#} km of walls, fences and hedges", s);
             Row("bridges", 3, IconsFontAwesome6.Route, BLUE, $"{p.Bridges} bridges", s);
@@ -154,8 +168,8 @@ public sealed class TerrainSaveAsWindow
         Separator(16, 210, 544, "Stays in the source only", s);
         if (m.Preview is { } q)
         {
-            Glyph("units", IconsFontAwesome6.Users, BLUE, 20, 234, s); TextAt(42, 245, s, SUB, $"{q.UnitsNotBaked} units and {q.AreasNotBaked} areas - not terrain (E-4)");
-            Glyph("damage", IconsFontAwesome6.TriangleExclamation, RED, 20, 256, s); TextAt(42, 267, s, SUB, $"damage to {q.DamagedHousesNotBaked} houses from a test run - not baked (E-6)");
+            Glyph("units", IconsFontAwesome6.Users, BLUE, 20, 234, s); TextAt(42, 245, s, SUB, $"{q.UnitsNotBaked} units and {q.AreasNotBaked} areas — not terrain (E-4)");
+            Glyph("damage", IconsFontAwesome6.TriangleExclamation, RED, 20, 256, s); TextAt(42, 267, s, SUB, $"damage to {q.DamagedHousesNotBaked} houses from a test run — not baked (E-6)");
         }
 
         Separator(16, 296, 544, "Then", s);

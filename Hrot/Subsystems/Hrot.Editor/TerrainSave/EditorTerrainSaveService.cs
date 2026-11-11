@@ -30,7 +30,8 @@ public sealed class EditorTerrainSaveService : ITerrainSaveService
     private string TerrainRoot => ContentLayout.TerrainAssets(_nasRoot);
     private IEnumerable<string?> RecipeRoots => new[] { ContentLayout.TerrainRecipeAssets(_nasRoot) };
 
-    public string? SourceScenarioName => _loadedScenario() is { Length: > 0 } n && File.Exists(Path.Combine(ScenariosRoot, n, "scenario.json")) ? n : null;
+    /// <summary>The loaded scenario when its folder (through the ONE resolver — a saved scenario or a terrain's staged source, <c>opened/terrain/…</c>) holds a scenario.json.</summary>
+    public string? SourceScenarioName => _loadedScenario() is { Length: > 0 } n && File.Exists(Path.Combine(ContentLayout.ResolveScenarioDirectory(_nasRoot, n), ContentLayout.ScenarioFileName)) ? n : null;
 
     public string? SourceTerrainName
     {
@@ -39,7 +40,7 @@ public sealed class EditorTerrainSaveService : ITerrainSaveService
             if (SourceScenarioName is not { } n) return null;
             try
             {
-                using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(ScenariosRoot, n, "scenario.json")));
+                using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(ContentLayout.ResolveScenarioDirectory(_nasRoot, n), ContentLayout.ScenarioFileName)));
                 foreach (var p in doc.RootElement.EnumerateObject())
                     if (p.Name.Equals("header", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.Object)
                         foreach (var h in p.Value.EnumerateObject())
@@ -52,7 +53,7 @@ public sealed class EditorTerrainSaveService : ITerrainSaveService
 
     private string? Resolve(string terrainName) => new TerrainCatalog(new[] { TerrainRoot }).ResolveDefinition(terrainName);
 
-    private string SourceDir => Path.Combine(ScenariosRoot, SourceScenarioName ?? throw new InvalidOperationException("No scenario is loaded."));
+    private string SourceDir => ContentLayout.ResolveScenarioDirectory(_nasRoot, SourceScenarioName ?? throw new InvalidOperationException("No scenario is loaded."));
 
     public TerrainSavePreview Preview(string newName)
     {

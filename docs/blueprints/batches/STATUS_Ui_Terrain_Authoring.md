@@ -10,15 +10,15 @@ related-designs:
 
 # STATUS — ui: terrain authoring in the editor ([handoff](HANDOFF_Coordinator_To_Ui_Terrain_Authoring.md))
 
-Started at `c8dc93df4` (merged `coordinator` + `backend@80051b2f0`); `backend@dc680a442` (T-1, T-2) merged before U-7. Tracker ids from the ui block: CE-1481 … CE-1487. Frames: rendered by the rails to the session scratchpad (`HROT_RAIL_SHOTS`), ⛔ never committed.
+Started at `c8dc93df4` (merged `coordinator` + `backend@80051b2f0`); `backend@dc680a442` (T-1, T-2) merged before U-7. Tracker ids from the ui block: CE-1481 … CE-1490 (CE-1488 follow-up fonts/icons/hint · CE-1489 block Details form · CE-1490 Edit terrain…). Frames: rendered by the rails to the session scratchpad (`HROT_RAIL_SHOTS`), ⛔ never committed.
 
 | # | id | state | note |
 |---|---|---|---|
 | U-1 | CE-1481 | ✅ DONE | six terrain groups in Add Entity (`TerrainPickCatalog`, `GalleryGroups` always appends them), tiles with a generated picture of the recipe at its default seed; rails `TerrainAuthoringPickerTests.U1_*`, `TerrainAddEntityFrameRail` |
 | U-2 | CE-1481 | ✅ DONE | the fitted placing ghost (pure `FeatureExpander`, cached, 0 B steady), R rotates, one `TerrainBlock` / `TerrainFeature` per click; rails `U2_*` |
-| U-3 | CE-1482 | ✅ DONE (Details form not built) | outline + chip + selection + block menu (Re-roll · Rotate · Change recipe… one undo step each; **Unpack greyed**, T-4); `TerrainBlockGizmoTests`, `TerrainBlockFrameRail` |
+| U-3 | CE-1482, CE-1489 | ✅ DONE (follow-up 2026-11-11: Details form built, menu icons, hint fix) | outline + chip + selection + block menu (Re-roll · Rotate · Change recipe… one undo step each; **Unpack greyed**, T-4); `TerrainBlockGizmoTests`, `TerrainBlockFrameRail` |
 | U-4 | CE-1483 | ✅ DONE | template houses are tan footprints below 6 px/m, floor plan above; `TerrainBlockFrameRail` |
-| U-5 | CE-1484 | ◐ PART | Save terrain as… dialog + overwrite confirmation + editor service ✅; **terrain picker SOURCE badge, Edit terrain…, Save terrain, TERRAIN SOURCE title chip NOT built** (premise failed, below) |
+| U-5 | CE-1484, CE-1490 | ◐ PART | Save terrain as… ✅; **follow-up 2026-11-11: Edit terrain… ✅ (staged to `opened/terrain/<t>`), SOURCE chip + right-click ✅, File ▸ Edit Terrain… / Save Terrain ✅, `TERRAIN SOURCE ·` title ✅**; ⏭ greyed: a terrain whose ground left the catalogue ([NOTE](NOTE_Ui_To_Backend_Edit_Terrain.md)), a terrain with no source (E-3) |
 | U-6 | CE-1485 | ✅ DONE | 3-D chunks adopt a new world and rebuild only those under the dirty rectangles: demo-city 16 chunks, 48 builds at load, one moved rectangle ⇒ 3 builds |
 | U-7 | CE-1486 | ◐ PART | lines / areas / points through the existing tools on T-2; **the area scatter is greyed (no scatter recipe, T-3)**; no options panel |
 | U-8 | CE-1487 | ◐ PART | the three-step wizard over T-1 works; tile pictures are stand-ins, no relief shading |
@@ -35,8 +35,8 @@ Started at `c8dc93df4` (merged `coordinator` + `backend@80051b2f0`); `backend@dc
 
 | item part | premise | measured |
 |---|---|---|
-| U-5 *Edit terrain…* / SOURCE badge / *Save terrain* / TERRAIN SOURCE chip | "open `<terrain>/source/scenario`" is one call | the scenario door (`EditorScenarioSession.LoadScenario(name)`) loads by NAME from the catalogue, and the terrain catalogue does not resolve `<terrain>/source/base` — backend's own note lists *Edit terrain* as "not built, ui + backend" (E-2). Needs a load-by-folder door and a catalogue root; row CE-1484 stays open for it |
-| U-3 Details form (Recipe dropdown, Seed + dice, Fit checkboxes, Contents) | a form in the Details panel | not built: the generic component fields (Recipe, Seed, HeadingDeg, Fit) are shown by the ordinary Details panel; a custom form is its own slice |
+| ~~U-5 *Edit terrain…* / SOURCE badge / *Save terrain* / TERRAIN SOURCE chip~~ (**SUPERSEDED 2026-11-11 — built; the claim below was too strong: the door opens by name, and `opened/<area>/<key>` carries a staged copy**) | "open `<terrain>/source/scenario`" is one call | the scenario door (`EditorScenarioSession.LoadScenario(name)`) loads by NAME from the catalogue, and the terrain catalogue does not resolve `<terrain>/source/base` — backend's own note lists *Edit terrain* as "not built, ui + backend" (E-2). Needs a load-by-folder door and a catalogue root; row CE-1484 stays open for it |
+| ~~U-3 Details form (Recipe dropdown, Seed + dice, Fit checkboxes, Contents)~~ (**SUPERSEDED 2026-11-11 — built as the Block tab**) | a form in the Details panel | was not built: the generic component fields (Recipe, Seed, HeadingDeg, Fit) are shown by the ordinary Details panel; a custom form is its own slice |
 
 ## Claim table (decisions taken, with their basis)
 

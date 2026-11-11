@@ -127,6 +127,20 @@ public static class Icons
             case "node/ig": icon = new("\uf279", IconPalette.Teal); return true;   // Map
             case "node/player": icon = new("\uf11b", IconPalette.Green); return true;   // Gamepad
             case "node/other": icon = new("\uf233", IconPalette.Grey); return true;   // Server
+            // ⭐ Terrain authoring (docs/UX/terrain-authoring-2-blocks.svg) — the six terrain groups of the Add Entity gallery and the rows of a placed block's menu
+            case "terrain/block": icon = new("\uf64f", IconPalette.Orange); return true;   // City
+            case "terrain/buildings": icon = new("\ue3af", IconPalette.Orange); return true;   // HouseChimney
+            case "terrain/vegetation": icon = new("\uf1bb", IconPalette.Green); return true;   // Tree
+            case "terrain/walls": icon = new("\uf7a4", IconPalette.Grey); return true;   // WallBrick
+            case "terrain/clutter": icon = new("\uf793", IconPalette.Grey); return true;   // Dumpster
+            case "terrain/water": icon = new("\uf773", IconPalette.Blue); return true;   // Water
+            case "terrain/reroll": icon = new("\uf522", IconPalette.Amber); return true;   // Dice
+            case "terrain/rotate": icon = new("\uf2f1", IconPalette.Grey); return true;   // Rotate
+            case "terrain/move": icon = new("\uf047", IconPalette.Grey); return true;   // UpDownLeftRight
+            case "terrain/unpack": icon = new("\uf49e", IconPalette.Teal); return true;   // BoxOpen
+            case "terrain/source": icon = new("\uf6fc", IconPalette.Green); return true;   // Mountain — the SOURCE chip of a terrain that keeps its block scenario
+            case "terrain/edit": icon = new("\uf044", IconPalette.Blue); return true;   // PenToSquare — Edit terrain…
+            case "terrain/delete": icon = new("\uf1f8", IconPalette.Red); return true;   // Trash
             default: icon = Unknown; return false;
         }
     }
@@ -223,6 +237,19 @@ public static class Icons
         "node/simhost",
         "node/ig",
         "node/player",
-        "node/other"
+        "node/other",
+        "terrain/block",
+        "terrain/buildings",
+        "terrain/vegetation",
+        "terrain/walls",
+        "terrain/clutter",
+        "terrain/water",
+        "terrain/reroll",
+        "terrain/rotate",
+        "terrain/move",
+        "terrain/unpack",
+        "terrain/source",
+        "terrain/edit",
+        "terrain/delete"
     };
 }
