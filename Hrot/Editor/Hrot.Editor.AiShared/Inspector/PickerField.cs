@@ -80,12 +80,30 @@ public sealed class PickerField
             return value != current;
         }
         string shown = current.Length == 0 ? "(none)" : choices.FirstOrDefault(c => c.Value == current)?.Label ?? current;
-        if (ImGuiNET.ImGui.Button($"{shown}  ▾##{id}", new System.Numerics.Vector2(ImGuiNET.ImGui.CalcItemWidth(), 0f)))
+        float buttonWidth = ImGuiNET.ImGui.CalcItemWidth();
+        // ⭐ CE-4399 — a long choice (a method's full name) is ELIDED to the button ("Hrot.AI…Contact  ▾"), never clipped at both ends by the centred label
+        if (ImGuiNET.ImGui.Button($"{ElideToWidth(shown, buttonWidth - ImGuiNET.ImGui.GetStyle().FramePadding.X * 2f - ImGuiNET.ImGui.CalcTextSize("  ▾").X)}  ▾##{id}", new System.Numerics.Vector2(buttonWidth, 0f)))
             Open(id, node, current, choices, title);
         if (ImGuiNET.ImGui.IsItemHovered()) ImGuiNET.ImGui.SetTooltip(current.Length == 0 ? "click to choose (type to search)" : current);
         ContextMenu(id, context);
         if (VisibleLabel(id) is { Length: > 0 } text) { ImGuiNET.ImGui.SameLine(); ImGuiNET.ImGui.TextUnformatted(text); }   // as the combo labelled it
         return false;
+    }
+
+    /// <summary>⭐ CE-4399 — <paramref name="text"/> cut to <paramref name="width"/> px with a middle "…" (the head and the tail of a dotted name both stay readable); unchanged when it fits.</summary>
+    public static string ElideToWidth(string text, float width)
+    {
+        if (string.IsNullOrEmpty(text) || ImGuiNET.ImGui.CalcTextSize(text).X <= width) return text;
+        const string dots = "…";
+        int keep = text.Length;
+        while (keep > 2)
+        {
+            keep--;
+            int head = (keep + 1) / 2, tail = keep / 2;
+            string t = text.Substring(0, head) + dots + text.Substring(text.Length - tail);
+            if (ImGuiNET.ImGui.CalcTextSize(t).X <= width) return t;
+        }
+        return dots;
     }
 
     private static void ContextMenu(string id, Action? context)
