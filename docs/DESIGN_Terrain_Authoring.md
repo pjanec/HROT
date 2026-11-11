@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — R-4198…R-4201 ruled; ⭐ the S-0 MOCKUPS ✅ approved (§15, R-4203); L-1…L-7 ✅ approved (R-4202, L-2 amended); §16 the wizard → editor step and cluster sync ✅ (R-4203)
 updated: 2026-11-11
-current-answer: ⭐ §16 wizard → editor, cluster sync (leans) · §15 the mockups (S-0) · §14 editing a baked terrain again, non-terrain entities in a source (leans E-1…E-6) · §13 the workflow (✅ R-4200) · §12 the random terrain = an empty surface + placed blocks (✅ R-4200) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
+current-answer: ⭐⭐ §17 THE CRITICAL REVIEW — 15 gaps and one architectural fork (F-1) that must be decided before S-1 · §16 wizard → editor, cluster sync (leans) · §15 the mockups (S-0) · §14 editing a baked terrain again, non-terrain entities in a source (leans E-1…E-6) · §13 the workflow (✅ R-4200) · §12 the random terrain = an empty surface + placed blocks (✅ R-4200) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
 stale-below: nothing
 related-designs:
   - DESIGN_Peek_And_Fire.md — §9 P-7a OWNS the mechanism this extends: a scenario entity that IS terrain, baked on every node, lifecycle-gated (R-242, R-243, R-244)
@@ -452,3 +452,58 @@ a node does not promote the ghost before it arrives, R-136; the bake's lifecycle
 | V-4 | the expander is **pure and integer-seeded** (one RNG, no wall clock, no dictionary order) and has a rail that expands the same block twice in two processes and compares the result byte for byte | determinism stated as a test, not a hope |
 | V-5 | the external visual engine gets the **expanded** features (L-7, B-7) from the node that owns the entity | it cannot run our recipes |
 | V-6 | a replay records the **descriptor** (unmanaged, tiny) and expands it again on load | the recording stays small; the bake follows keyframes as today |
+
+## 17. ⛔ Critical review `2026-11-11` — what the design gets wrong or leaves out *(before S-1; three independent reviews + the coordinator, every load-bearing claim re-checked in code)*
+
+🔒 User, `2026-11-11`: *"take a new critical look on the whole terrain editing feature from different perspectives and find flaws and gaps"*.
+Reviews: simulation / cluster / replay · scale / data / content pipeline · the author's workflow. ✔ = re-verified by the coordinator.
+
+### 17.1 The gaps, most severe first
+
+| # | gap | evidence | consequence |
+|---|---|---|---|
+| G-1 | ⛔ **damage and door state are addressed by INDEX and by terrain NAME** | ✔ `WallBreach.Panel` is the GLOBAL panel index, `BuildingDamage.Building` an int (`BuildingDamage.cs:21,57`); keys `"<terrain>/<label>"` (`:113`), doors `DoorKey(terrain, label, id)` (`TerrainBuildingExpander.cs:299`), state keyed so (`TerrainObjectsSection.cs`) | houses appended in each node's query order get different indices ⇒ the Muscle breaches house N, another node draws the hole in a different house; re-roll / unpack / *Save terrain as* orphan every saved door and damage |
+| G-2 | ⛔ **the bake merges BOXES only** — L-1's "the bake learns the new kinds" is a rewrite | ✔ `BakeObstacles(IReadOnlyList<TerrainPrism>)` → `TerrainObstacles.With` appends prisms and SHARES the base's surfaces, panels, buildings, doors, walkables and heights (`TerrainResidency.cs:505-517`, `StaticObstacles.cs:~150-195`) | a house's floors and doors, a wood's concealment, water's cut, a bridge deck, a pad — none can be added; collapse works only on buildings, so a bridge cannot fall |
+| G-3 | ⛔ **added houses get no door entities** | ✔ door entities are created once, at scenario load, from the base world (`ScenarioLoadStep.cs:264`, `TerrainObjectRequests.ForDoors`); the navmesh's fine areas read `world.Buildings` / `world.Doors` (`RecastNavmeshFactory.cs:144-156`) | doors that cannot open, no building clearing, coarse navmesh inside, door state not saved |
+| G-4 | ⛔ **every change rebuilds the WHOLE terrain on every node** | ✔ new world + whole index + whole cover + every navmesh tile re-keyed (`TerrainResidency.cs:510-513`); ≈ 16 s navmesh + 1 s index/cover on scale-1 (`DESIGN_Scale_Rig.md:140-142`); re-fires 0.5 s after any change; the 3-D view rebuilds every chunk on a new world (`TerrainLayer3D.cs:48-57`) | moving one hedge in a town ≈ 17 s and a full 3-D rebuild; a generated town as blocks = a COLD navmesh bake on every node at first load (scale-1 cold 536 s) — far over R-4192's 30 s |
+| G-5 | ⛔ **a slow bake DESTROYS the entities** | ✔ construction timeout 18 000 FRAMES (`EntityCreationPack.cs:75`); a timeout destroys the entity (Peek and Fire §9 O2) | a big town on a fast headless node can exceed it ⇒ its blocks vanish on that node only |
+| G-6 | ⛔ **recipes and terrains are identified by NAME, and B-Q1 / V-3 / V-6 contradict** | B-Q1 "a changed recipe changes every scenario" vs V-3 "a hash mismatch refuses"; `RecordingMetadata.TerrainName` is a name (`RecordingMetadata.cs:79`); asset sync compares length + mtime (Asset Management) | after any recipe edit or terrain re-save, old scenarios refuse or change, and old RECORDINGS replay different houses (paths through walls) |
+| G-7 | **the Replay Browser does not bake** | ✔ no `StaticObstacleBakeSystem` in `ReplayBrowserSubsystem` (0 references); it mirrors the base world only | scenario houses, walls, woods — and today's obstacles — are invisible in replays there |
+| G-8 | **the external engine: the design contradicts itself, and a baked terrain is lost to it** | V-2 "never the houses" vs V-5 / B-7 "the expanded features"; one block = ~40 houses with panels in one descriptor (DIS / HLA has no building type); after *Save terrain* the houses live only in our files | the other engine draws nothing scenario-added, or nothing baked |
+| G-9 | **"Save terrain as" has no writer that can write it** | ✔ `TerrainFolderWriter` writes template houses with `rotation` 0 (`:70-71`), has no slab / ramp / obstacle prism, takes importer inputs, not a `TerrainWorld`; the parser has no clutter kind | rotated houses saved wrong, bridges and clutter dropped; E-3 (add to an imported terrain) has no write path; and §5 (re-point THIS scenario) contradicts W-3 / E-5 (a NEW scenario) |
+| G-10 | **saving to a new folder re-bakes every navmesh tile** | ✔ prefill reads only the new folder (`NavmeshPrefill.cs:22-28`), never the base's tiles | each *Save terrain as* ≈ 9 min cold at 5.5 km |
+| G-11 | **E-3 bakes twice** | a terrain with no source has no separate ground base | the second *Save terrain* stacks the additions onto a terrain that already holds them |
+| G-12 | **roads and traffic never change** | the bake never touches the road net (`RoadNetworkHolder`); no road feature kind in §2 | a placed bridge carries no vehicles; a destroyed bridge is still driven over by SUMO traffic |
+| G-13 | **re-saving a terrain breaks the missions on it** | W-4 only NAMES the users; scenarios name their terrain by string | a new house stands on a squad, a hedge cuts a route — found at run time |
+| G-14 | **storage** | ✔ only `assets/terrain/scale-*/` is gitignored — a generated `assets/terrain/<name>/` (heights, navtiles, source, base: hundreds of MB) is committable; the source + base inside the terrain double what every node downloads; publish never deletes stale navtiles | repo bloat; slow syncs |
+| G-15 | smaller | shapes: an unmanaged fixed list vs the 1 024-byte component cap (✔ `EntityCommandBuffer.cs:37`) vs the managed `EditablePolyline` the area tools already use · a big feature would get ONE movement collider of half its diagonal (`ObstacleTkbTranslator`) · clutter destructible (B-Q3) vs written into the terrain (L-6) · replica float noise (✔ the bake already rounds to 1 cm) and templates / materials not in the recipe hash · per-house edits inside a block (only Re-roll / Unpack) · multi-select · two authors on one source · a bake is not undoable · "terrain out of date" never shown · the Add Entity picker's groups are DIS masks and its pictures an atlas built into the executable — a recipe fits neither · blocks on dense OSM towns · water in the navmesh unverified · the per-frame collection allocates | each a row for S-1…S-4 |
+
+### 17.2 ⭐ The fork these point to — **F-1: expand at LOAD on every node, or COMPILE at SAVE?**
+
+G-1, G-4, G-6, G-7, G-8 and G-10 share one root: the approved model (R-4203 V-2…V-6) EXPANDS blocks on every node at every load and
+BAKES them into a world rebuilt from scratch. The alternative:
+
+```mermaid
+graph LR
+  ED[Editor - live edits] -->|small incremental bake, this node only| EV[the author's view]
+  ED -->|Save scenario| CO[Compile once - expand blocks, canonical order, stable keys]
+  CO --> OV[(terrain OVERLAY beside the scenario - world parts, stable keys, its navmesh tiles seeded from the base)]
+  OV --> N[every node loads base terrain + overlay - no expansion, no cold bake]
+  OV --> RB[Replay Browser and recordings - the overlay's hash]
+  OV --> EX[external engine - one file format]
+  OV -->|Save terrain as| T[(a terrain = base + overlay merged)]
+```
+
+| | expand at load (approved) | ⭐ compile at save (proposed) |
+|---|---|---|
+| identity (G-1) | per-node order, must be made canonical everywhere | fixed once in the file, stable keys |
+| load time (G-4, G-10) | cold navmesh for every block tile, every node | tiles baked at save, seeded from the base's |
+| determinism (G-6, V-4) | every node must expand byte-identically | expanded once; nodes load bytes |
+| recordings (G-6, G-7) | old replays re-expand from today's recipe | the recording names the overlay's hash |
+| external engine (G-8) | a descriptor per block it cannot expand | the same parts file |
+| save terrain (G-9) | a second writer | the overlay IS the terrain's own format; *Save terrain as* = base + overlay |
+| cost | — | an overlay file per scenario (binary — ⛔ not in git; NAS / content root, like real terrains); the editor still needs a small LIVE bake for edits; runtime-placed obstacles keep today's entity bake |
+
+**Lean F-1: compile at save.** It reverses part of R-4203 (V-2…V-6: "every node expands it itself") — ⇒ **the user decides**.
+Either way G-2, G-3, G-5, G-12, G-13, G-14 need their own fixes (a general world merge with doors; a wall-clock timeout; a road-net
+patch; a conflict check against the missions on a re-saved terrain; content outside git).
