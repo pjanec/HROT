@@ -46,8 +46,11 @@ namespace Fdp.Toolkit.Squad.Systems
                     live++;
                 }
                 if (live == 0) continue;
-                ref var tf = ref repo.GetComponentRW<SimTransform>(unit);
-                tf.Position = sum / live;
+                // ⭐ CE-1480 G4 — write only on change: GetComponentRW stamps the table's chunk version, and a paused world re-stamped every
+                //   unit's chunk every frame though no member moved (which kept every change gate downstream permanently "changed")
+                var centre = sum / live;
+                if (repo.GetComponentRO<SimTransform>(unit).Position != centre)
+                    repo.GetComponentRW<SimTransform>(unit).Position = centre;
             }
         }
     }

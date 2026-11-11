@@ -6,6 +6,7 @@ using Hrot.Map.Definitions.Tkb;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Player.Tests;
@@ -446,5 +447,86 @@ public class StyleResolutionSystemTests
         Assert.Equal(new string('é', (ResolvedStyleConstants.LabelTextMaxBytes - 1) / 2), style.GetLabelText());
         style.SetLabelText("short");
         Assert.Equal("short", style.GetLabelText());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CE-1480 G3 — the pass is gated (docs/DESIGN_Change_Gated_Systems.md §4 G3)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>One kernel frame: the clock ticks, then the system runs (the playback is a no-op on a repository view — the system writes directly).</summary>
+    private static void Frame(EntityRepository repo, StyleResolutionSystem system) { repo.Tick(); system.Execute(repo, 0f); }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1480 G3</c> — (1) an unchanged world is not walked and no <see cref="ResolvedStyle"/> chunk is stamped; (2) a pass that DOES run
+    /// (forced by an unrelated entity appearing) writes nothing when no style differs; (3) a Health / VisualData / network-override change restyles
+    /// THAT entity on the next frame; (4) the operator flags (an external version) restyle everything and back; (5) a seek (clock backwards) is a full pass.
+    /// </summary>
+    [Fact]
+    public void CE1480_G3_AnUnchangedWorld_IsNotWalked_AndEveryInputIsFollowedOnTheNextFrame()
+    {
+        var repo = CreateRepo();
+        repo.RegisterComponent<Health>();
+        var cfg = new MapUserConfig();
+        var system = new StyleResolutionSystem(cfg);
+        var ents = new System.Collections.Generic.List<Entity>();
+        for (int i = 0; i < 30; i++)
+        {
+            var e = CreateBaseEntity(repo);
+            repo.SetComponent(e, new NetworkIdentity(100 + i));
+            repo.AddComponent(e, new VisualData { SymbolCode = TestSymbolCode });
+            ents.Add(e);
+        }
+        for (int i = 0; i < 6; i++) Frame(repo, system);
+        Assert.Equal(ForceId.Neutral, repo.GetComponentRO<ResolvedStyle>(ents[0]).Affiliation);
+
+        // (1) nothing changed ⇒ the walk does not run; no ResolvedStyle chunk is stamped
+        uint v = repo.GlobalVersion; int passes = system.Passes;
+        for (int i = 0; i < 5; i++) Frame(repo, system);
+        Assert.Equal(passes, system.Passes);
+        Assert.False(repo.HasComponentChanged(typeof(ResolvedStyle), v));
+
+        // (2) a full pass that finds every style as it was writes nothing (an unrelated entity: a structural change ⇒ Full)
+        repo.CreateEntity();
+        Frame(repo, system);
+        Assert.Equal(passes + 1, system.Passes);
+        Assert.False(repo.HasComponentChanged(typeof(ResolvedStyle), v));
+
+        // (3a) Health: added (structural), then a VALUE change ⇒ that entity's damage follows the next frame
+        repo.AddComponent(ents[5], new Health { Current = 10f, Max = 10f });
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+        Assert.Equal(ResolvedStyleConstants.DamageMin, repo.GetComponentRO<ResolvedStyle>(ents[5]).DamageLevel);
+        repo.SetComponent(ents[5], new Health { Current = 5f, Max = 10f });
+        Frame(repo, system);
+        Assert.Equal(50f, repo.GetComponentRO<ResolvedStyle>(ents[5]).DamageLevel);
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+
+        // (3b) the network override: set (structural), then changed in place of the old one (SetManagedComponent)
+        repo.SetManagedComponent(ents[7], new MapSymbolOverride { LabelOverride = "A" });
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+        repo.SetManagedComponent(ents[7], new MapSymbolOverride { LabelOverride = "B" });
+        Frame(repo, system);
+        Assert.Equal("B", repo.GetComponentRO<ResolvedStyle>(ents[7]).GetLabelText());
+
+        // (3c) VisualData value change
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+        repo.SetComponent(ents[9], new VisualData { SymbolCode = "SHGPU----------" });
+        Frame(repo, system);
+        Assert.Equal("SHGPU----------", repo.GetComponentRO<ResolvedStyle>(ents[9]).GetTextureName());
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+
+        // (4) the operator flags: an external version ⇒ everything restyled, and back again
+        cfg.ForceHostile = true;
+        Frame(repo, system);
+        Assert.All(ents, e => Assert.Equal(ForceId.Hostile, repo.GetComponentRO<ResolvedStyle>(e).Affiliation));
+        cfg.ForceHostile = false;
+        Frame(repo, system);
+        Assert.All(ents, e => Assert.Equal(ForceId.Neutral, repo.GetComponentRO<ResolvedStyle>(e).Affiliation));
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+
+        // (5) a seek: the clock goes back ⇒ a full pass
+        int fulls = system.Gate.Fulls;
+        repo.ResetGlobalVersion(2);
+        system.Execute(repo, 0f);
+        Assert.Equal(fulls + 1, system.Gate.Fulls);
     }
 }

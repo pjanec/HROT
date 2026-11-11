@@ -1697,7 +1697,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         // ⭐ CE-3327 — the headless runner hands this host NO time (dt 0): it keeps its own clock, so play still moves (🔴 measured live: it did not)
         provider.Drive.TogglePlayPause();
         _subsystem.Update(0f);                                                // starts the host's own clock
-        System.Threading.Thread.Sleep(60);
+        System.Threading.Thread.Sleep(1100);                                  // ⭐ CE-1479 — play follows recorded TIME (the frames are 1 s apart), so the next frame is due after a second
         _subsystem.Update(0f);
         Assert.True(_subsystem.PrimaryNodeCurrentFrame() > 1, $"frame {_subsystem.PrimaryNodeCurrentFrame()}: play did not advance on dt 0");
         if (!provider.Drive.IsPaused) provider.Drive.TogglePlayPause();
@@ -2126,6 +2126,50 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         At(30);
         provider.Drive.Step();
         Assert.Equal(31, _subsystem.PrimaryNodeCurrentFrame());                 // the wall axis steps every recorded frame
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1479 — play follows the recording's TIME, by the editor's rule (<c>ReplayClockRule</c>): a recording with a frame per 1.4 s of sim time, played at 1× in
+    /// 0.2 s render frames, has applied EXACTLY the frames whose time is ≤ the clock after every render frame — never one per 1/60 s up to ten per render frame
+    /// (🔴 before: the first render frame applied up to 10 frames, 14 s of the recording).
+    /// </summary>
+    [Fact]
+    public void CE1479_Play_applies_the_frames_due_at_the_clock_and_no_more()
+    {
+        string dir = Path.Combine(_tempDir, "slow-frames");
+        Directory.CreateDirectory(dir);
+        string path = Path.Combine(dir, "node_1.fdp");
+        long t0 = TimeSpan.FromSeconds(1).Ticks;
+        using (var repo = new EntityRepository())
+        {
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1) });
+            repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0d });
+            rec.CaptureKeyframe(repo, t0, blocking: true, eventBus: repo.Bus);
+            for (int f = 1; f <= 30; f++)
+            {
+                repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = f * 1.4, DeltaTime = 1.4f, TimeScale = 1f });
+                rec.CaptureFrame(repo, (uint)(f - 1), t0 + (long)(f * 1.4 * TimeSpan.TicksPerSecond), blocking: true, eventBus: repo.Bus);
+            }
+        }
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var provider = _subsystem.CreateDebugProvider()!;
+        Assert.Null(provider.ReplayBrowser!.Open(new[] { path }, 0));
+        provider.Master!.SeekReplay(new Fdp.Toolkit.Orchestration.SeekReplayIntent { TargetWallTicks = 0 });   // relative to the replay's zero
+        Assert.Equal(0, _subsystem.PrimaryNodeCurrentFrame());
+
+        double clock = 0;
+        for (int tick = 1; tick <= 250; tick++)   // 0.2 s of recorded time per render frame
+        {
+            bool more = _subsystem.AdvancePlaybackClock(0.2);
+            clock += 0.2;
+            int expected = Math.Min(30, (int)Math.Floor((clock + 1e-9) / 1.4));
+            Assert.Equal(expected, _subsystem.PrimaryNodeCurrentFrame());   // the frames due at the clock, no more, none missed
+            if (!more) break;
+        }
+        Assert.Equal(30, _subsystem.PrimaryNodeCurrentFrame());              // and play stopped at the end
     }
 
     /// <summary>

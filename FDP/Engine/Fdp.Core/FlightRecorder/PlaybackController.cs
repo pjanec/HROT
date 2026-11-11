@@ -60,8 +60,27 @@ namespace Fdp.Core.FlightRecorder
             return wallTicks >= FirstFrameWallTicks - CoverageGraceTicks && wallTicks <= LastFrameWallTicks + CoverageGraceTicks;
         }
         
-        public PlaybackController(string filePath)
+        /// <summary>⭐ CE-1478 P1 — frames the prefetcher keeps decoded ahead of the apply (Q3 of docs/DESIGN_Replay_Playback_Performance.md).</summary>
+        public const int DefaultPrefetchDepth = 3;
+
+        private readonly string _filePath;
+        private readonly int _prefetchDepth;
+        private FramePrefetcher? _prefetcher;
+
+        /// <summary>Frames applied from the prefetcher's decoded buffers (diagnostic; the rest were read inline).</summary>
+        public int PrefetchedApplies { get; private set; }
+        /// <summary>Frames applied by the inline read + decode (cold start, seek, prefetch off).</summary>
+        public int InlineApplies { get; private set; }
+
+        /// <param name="filePath">the recording</param>
+        /// <param name="prefetchDepth">⭐ CE-1478 P1 — frames read + decoded ahead on a background thread (started on the first apply, stopped by
+        /// <see cref="Dispose"/>); 0 = every frame is read inline on the caller's thread (the pre-P1 behaviour)</param>
+        public PlaybackController(string filePath, int prefetchDepth = DefaultPrefetchDepth)
         {
+            _filePath = filePath;
+            // ⭐ CE-1478 — measuring switches (docs/blueprints/batches/MEASURE_Ui_Replay_Frame_Cost.md §8): HROT_REPLAY_PREFETCH=<depth> (0 = inline), HROT_REPLAY_FULL_REPAIR=1
+            if (int.TryParse(Environment.GetEnvironmentVariable("HROT_REPLAY_PREFETCH"), out int envDepth)) prefetchDepth = envDepth;
+            _prefetchDepth = Math.Max(0, prefetchDepth);
             // Step 1: Load and validate the schema manifest BEFORE opening the binary stream.
             // This prevents silent memory corruption when struct layouts have changed since recording.
             var metadataPath = filePath + ".meta.json";
@@ -78,6 +97,7 @@ namespace Fdp.Core.FlightRecorder
             _fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             _reader = new BinaryReader(_fileStream);
             _playback = new PlaybackSystem();
+            if (Environment.GetEnvironmentVariable("HROT_REPLAY_FULL_REPAIR") == "1") _playback.ForceFullRepair = true;
 
             // Pre-size the frame index based on the file length to avoid repeated List growth
             // on large recordings. Capacity is clamped to at least 128 slots.
@@ -387,8 +407,60 @@ namespace Fdp.Core.FlightRecorder
             return 0; // Should always find at least one keyframe
         }
         
+        /// <summary>Test hook: waits until the worker has frame <paramref name="frameIndex"/> decoded (false on timeout or with prefetch off).</summary>
+        internal bool WaitForPrefetch(int frameIndex, int timeoutMs = 10000)
+        {
+            if (_prefetcher == null) return false;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (!_prefetcher.IsReady(frameIndex))
+            {
+                if (sw.ElapsedMilliseconds > timeoutMs) return false;
+                System.Threading.Thread.Sleep(1);
+            }
+            return true;
+        }
+
+        /// <summary>The playback system that applies the frames (its repair statistics and <see cref="PlaybackSystem.ForceFullRepair"/>).</summary>
+        public PlaybackSystem Playback => _playback;
+
+        /// <summary>Test hook: the worker, for reading its decoded frames.</summary>
+        internal FramePrefetcher? Prefetcher => _prefetcher;
+
+        private static readonly bool StatsOn = Environment.GetEnvironmentVariable("HROT_REPLAY_STATS") == "1";
+
         private void ApplyFrame(EntityRepository repo, int frameIndex)
         {
+            if (!StatsOn) { ApplyFrameCore(repo, frameIndex); return; }
+            int pre = PrefetchedApplies;
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp(), a0 = GC.GetAllocatedBytesForCurrentThread();
+            ApplyFrameCore(repo, frameIndex);
+            double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            var pb = _playback;
+            Console.Error.WriteLine($"[ReplayApply] frame {frameIndex} {(PrefetchedApplies > pre ? "prefetched" : "inline")} total {ms:F1} ms, repair {pb.LastRepairMilliseconds:F1} ms ({(pb.LastRepairWasFull ? "full" : "partial")}, {pb.LastRepairEntitiesVisited} entities; hot {pb.LastTouchedHot} cold {pb.LastTouchedCold} managed {pb.LastTouchedManaged} destroyed {pb.LastDestroyed}), garbage {(GC.GetAllocatedBytesForCurrentThread() - a0) / 1024} KB");
+        }
+
+        private void ApplyFrameCore(EntityRepository repo, int frameIndex)
+        {
+            if (_prefetchDepth > 0)
+            {
+                // ⭐ CE-1478 P1 — the frame the worker already read + decoded is only applied here; not ready (cold start, a seek) ⇒ the inline path below.
+                _prefetcher ??= new FramePrefetcher(_filePath, _frameIndex.ToArray(), FormatVersion, _prefetchDepth);
+                if (_prefetcher.TryTake(frameIndex, out var prepared))
+                {
+                    try
+                    {
+                        using var pms = new MemoryStream(prepared.Raw, 0, prepared.RawSize, writable: false, publiclyVisible: true);
+                        using var preader = new BinaryReader(pms);
+                        _playback.ApplyFrame(repo, preader, EventBus);
+                    }
+                    finally { _prefetcher.Release(prepared); }
+                    PrefetchedApplies++;
+                    _prefetcher.Want(frameIndex + 1);
+                    return;
+                }
+                _prefetcher.Want(frameIndex + 1);   // aim the worker at what follows while this frame is read inline
+            }
+            InlineApplies++;
             var metadata = _frameIndex[frameIndex];
             
             // Seek to frame position
@@ -414,7 +486,7 @@ namespace Fdp.Core.FlightRecorder
             K4os.Compression.LZ4.LZ4Codec.Decode(_compressedBuffer, 0, compressedSize, _rawBuffer, 0, rawSize);
 
             // Apply frame
-            using (var ms = new MemoryStream(_rawBuffer, 0, rawSize, writable: false))
+            using (var ms = new MemoryStream(_rawBuffer, 0, rawSize, writable: false, publiclyVisible: true))
             using (var frameReader = new BinaryReader(ms))
             {
                 _playback.ApplyFrame(repo, frameReader, EventBus);
@@ -438,6 +510,7 @@ namespace Fdp.Core.FlightRecorder
         
         public void Dispose()
         {
+            _prefetcher?.Dispose();
             _reader?.Dispose();
             _fileStream?.Dispose();
         }

@@ -9,6 +9,9 @@ using Fdp.Core.Logging;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.World;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Hrot.Player.Systems;
 
@@ -48,23 +51,55 @@ public class StyleResolutionSystem : IEcsModuleSystem
     private readonly MapUserConfig _userConfig;
     private readonly NodeId _localNodeId;
 
+    // ⭐ CE-1480 G3 (docs/DESIGN_Change_Gated_Systems.md) — the ONE ChangeGate, with THIS system's inputs: what BuildStyle reads per entity
+    //   (VisualData, EntityInfo, MapSymbolOverride, Health, NetworkIdentity — plus ResolvedStyle itself, so a foreign write is still overwritten
+    //   as before) and the one global input, the operator's two flags (an external version: compare-with-last-seen). A pass is skipped when
+    //   none moved; a pass that runs writes a style only when it differs from the one the entity holds (no dirty ResolvedStyle chunk for the
+    //   recorder / the view copy). ⚠ SimTransform is a query requirement, not an input — the style does not read it.
+    private readonly ChangeGate _gate;
+    private EntityQuery? _query;
+    private ISimulationView? _queryView;
+
+    /// <summary>The gate (its counters) — for rails and diagnostics.</summary>
+    public ChangeGate Gate => _gate;
+
+    /// <summary>How many entity walks actually ran (the gate skipped the rest) — for rails and diagnostics.</summary>
+    public int Passes { get; private set; }
+
     public StyleResolutionSystem(MapUserConfig userConfig, int localNodeId = 0)
     {
         _userConfig = userConfig ?? throw new ArgumentNullException(nameof(userConfig));
         _localNodeId = (Fdp.Core.NodeId)(localNodeId);
+        _gate = new ChangeGate()
+            .Watch(typeof(NetworkIdentity), typeof(VisualData), typeof(FdpEntityInfo), typeof(MapSymbolOverride), typeof(Health), typeof(ResolvedStyle))
+            .WatchExternal(ConfigVersion);
     }
+
+    /// <summary>The operator flags as one number: any flip moves it (flip-and-back too — it is compared with the last value SEEN).</summary>
+    private long ConfigVersion() => (_userConfig.ForceHostile ? 1L : 0L) | (_userConfig.HideLabels ? 2L : 0L);
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
         var repo = view as EntityRepository;
+
+        // Unchanged ⇒ nothing BuildStyle reads moved ⇒ every style is as it was. Delta is a full pass: most inputs are OPTIONAL components of the
+        // query, which a delta over its required tables would not see (ChangeResult.Entities).
+        if (_gate.Next(view).Kind == ChangeKind.Unchanged) return;
+        Passes++;
+
         var cmd = repo == null ? view.GetCommandBuffer() : null;
 
-        var query = view.Query()
-            .With<NetworkIdentity>()
-            .With<SimTransform>()
-            .WithLifecycle(EntityLifecycle.All)
-            .Build();
+        if (_query == null || !ReferenceEquals(_queryView, view))
+        {
+            _query = view.Query()
+                .With<NetworkIdentity>()
+                .With<SimTransform>()
+                .WithLifecycle(EntityLifecycle.All)
+                .Build();
+            _queryView = view;
+        }
+        var query = _query;
 
         foreach (var entity in query)
         {
@@ -75,6 +110,8 @@ public class StyleResolutionSystem : IEcsModuleSystem
                 FdpLog<StyleResolutionSystem>.Debug(
                     "[Node-{0}] Style: Resolved Entity={1} Texture={2}", _localNodeId, entity.Index, style.GetTextureName());
             }
+            else if (SameStyle(in view.GetComponentRO<ResolvedStyle>(entity), in style))
+                continue;   // ⭐ write only on change
 
             if (repo != null)
                 repo.SetComponent(entity, style);
@@ -82,6 +119,11 @@ public class StyleResolutionSystem : IEcsModuleSystem
                 cmd!.SetComponent(entity, style);
         }
     }
+
+    /// <summary>Byte equality of two styles (a packed unmanaged struct: texture and label buffers, tint, flags, damage).</summary>
+    private static bool SameStyle(in ResolvedStyle a, in ResolvedStyle b)
+        => MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in a), 1))
+            .SequenceEqual(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in b), 1)));
 
     // ── Core resolution logic ─────────────────────────────────────────────────
 

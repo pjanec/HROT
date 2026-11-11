@@ -32,6 +32,31 @@ namespace Hrot.ScenarioEditor.Map
         public bool Active { get; private set; }
         public float MetresPerPixel { get; private set; }
 
+        /// <summary>⭐ CE-1480 G5 — moves whenever anything a view-dependent gizmo picture reads actually changes (the rectangle or the frustum, the scale, the
+        /// mode, active): writing the SAME view again does not move it, so a still camera leaves every held picture valid.</summary>
+        public long Version { get; private set; }
+
+        private readonly Vector4[] _seenPlanes = new Vector4[6];
+        private Vector2 _seenMin, _seenMax;
+        private float _seenMpp;
+        private bool _seenIs3D, _seenActive;
+
+        private void Touch()
+        {
+            bool same = _seenActive == Active && _seenIs3D == _is3D && _seenMpp == MetresPerPixel
+                        && (!Active || (_is3D ? SamePlanes() : _seenMin == _min && _seenMax == _max));
+            if (same) return;
+            Version++;
+            _seenActive = Active; _seenIs3D = _is3D; _seenMpp = MetresPerPixel; _seenMin = _min; _seenMax = _max;
+            System.Array.Copy(_planes, _seenPlanes, 6);
+        }
+
+        private bool SamePlanes()
+        {
+            for (int i = 0; i < 6; i++) if (_seenPlanes[i] != _planes[i]) return false;
+            return true;
+        }
+
         /// <summary>The 2-D map: its world rectangle and scale.</summary>
         public void Write2D(Vector2 min, Vector2 max, float metresPerPixel)
         {
@@ -39,6 +64,7 @@ namespace Hrot.ScenarioEditor.Map
             _min = Vector2.Min(min, max) - new Vector2(m); _max = Vector2.Max(min, max) + new Vector2(m);
             MetresPerPixel = metresPerPixel; _is3D = false;
             Active = float.IsFinite(_min.X) && float.IsFinite(_max.Y) && _max.X > _min.X && _max.Y > _min.Y;
+            Touch();
         }
 
         /// <summary>The 3-D map: its camera's frustum and scale at the look point.</summary>
@@ -47,6 +73,7 @@ namespace Hrot.ScenarioEditor.Map
             _is3D = true;
             MetresPerPixel = camera.LodMetresPerPixel;   // ⭐ CE-4408 — the level of detail reads the camera's REAL distance (the eye's height above the ground along the view), not the pivot's alone
             Active = camera.TryFrustumPlanes(_planes);
+            Touch();
         }
 
         /// <summary>The current camera of <paramref name="canvas"/>, whichever it is.</summary>
@@ -61,6 +88,7 @@ namespace Hrot.ScenarioEditor.Map
                 return;
             }
             Active = false;
+            Touch();
         }
 
         public bool Is3D => Active && _is3D;
@@ -73,7 +101,7 @@ namespace Hrot.ScenarioEditor.Map
         }
 
         /// <summary>Back to "everything in view".</summary>
-        public void Clear() => Active = false;
+        public void Clear() { Active = false; Touch(); }
 
         public bool InView(ISimulationView view, Entity entity)
         {

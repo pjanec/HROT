@@ -459,4 +459,66 @@ public class MapCullingSystemTests
 
         Assert.True(repo.GetComponentRO<CullingState>(entity).IsVisible);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CE-1480 G4 — the pass is gated (docs/DESIGN_Change_Gated_Systems.md §4 G4)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private static void Frame(EntityRepository repo, MapCullingSystem system) { repo.Tick(); RunSystem(repo, system); }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1480 G4</c> — a still camera and still positions ⇒ the walk does not run and no <see cref="CullingState"/> chunk is stamped; a moved
+    /// ENTITY is a Delta (re-tested, followed next frame); a panned / zoomed CAMERA is a full pass; a pass that finds every state right writes nothing;
+    /// a seek is a full pass.
+    /// </summary>
+    [Fact]
+    public void CE1480_G4_AStillCameraAndWorld_IsNotWalked_AndEveryInputIsFollowed()
+    {
+        var repo = CreateRepo();
+        var viewport = MakeViewport();
+        var system = new MapCullingSystem(viewport);
+        var ents = new System.Collections.Generic.List<Entity>();
+        for (int i = 0; i < 30; i++) ents.Add(CreateEntityAt(repo, 500f, 500f));
+        for (int i = 0; i < 6; i++) Frame(repo, system);
+        Assert.All(ents, e => Assert.True(repo.GetComponent<CullingState>(e).IsVisible));
+
+        uint v = repo.GlobalVersion; int passes = system.Passes;
+        for (int i = 0; i < 5; i++) Frame(repo, system);
+        Assert.Equal(passes, system.Passes);
+        Assert.False(repo.HasComponentChanged(typeof(CullingState), v));
+
+        // a full pass that finds every state right writes nothing (an unrelated entity: a structural change ⇒ Full)
+        repo.CreateEntity();
+        Frame(repo, system);
+        Assert.Equal(passes + 1, system.Passes);
+        Assert.False(repo.HasComponentChanged(typeof(CullingState), v));
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+
+        // an entity MOVES out of the view ⇒ a Delta pass, followed on the next frame; its neighbours keep their state
+        int deltas = system.Gate.Deltas;
+        repo.SetComponent(ents[3], new SimTransform { Position = new Vector3(5000f, 5000f, 0f), Rotation = Quaternion.Identity });
+        Frame(repo, system);
+        Assert.Equal(deltas + 1, system.Gate.Deltas);
+        Assert.False(repo.GetComponent<CullingState>(ents[3]).IsVisible);
+        Assert.True(repo.GetComponent<CullingState>(ents[4]).IsVisible);
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+
+        // the camera PANS ⇒ every entity re-tested
+        viewport.WorldMinX = 600f; viewport.WorldMaxX = 1600f;
+        Frame(repo, system);
+        Assert.All(ents, e => Assert.False(repo.GetComponent<CullingState>(e).IsVisible));
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+
+        // the camera ZOOMS ⇒ the LOD follows
+        viewport.Zoom = CullingStateConstants.LodIconOnlyZoomThreshold / 2f;
+        Frame(repo, system);
+        Assert.All(ents, e => Assert.Equal(CullingStateConstants.LodIconOnly, repo.GetComponent<CullingState>(e).LodLevel));
+        for (int i = 0; i < 4; i++) Frame(repo, system);
+
+        // a seek: the clock goes back ⇒ a full pass
+        int fulls = system.Gate.Fulls;
+        repo.ResetGlobalVersion(2);
+        RunSystem(repo, system);
+        Assert.Equal(fulls + 1, system.Gate.Fulls);
+    }
 }

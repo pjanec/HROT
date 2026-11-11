@@ -26,7 +26,7 @@ namespace Fdp.Tests
             }
         }
         
-        private void CreateTestRecording(int frameCount, int keyframeInterval, int extraEntities = 0)
+        private void CreateTestRecording(int frameCount, int keyframeInterval, int extraEntities = 0, bool blockDeltas = true)
         {
             using var repo = new EntityRepository();
             repo.RegisterComponent<Position>();
@@ -35,7 +35,7 @@ namespace Fdp.Tests
             repo.AddComponent(entity, new Position { X = 0, Y = 0, Z = 0 });
             for (int i = 0; i < extraEntities; i++) repo.AddComponent(repo.CreateEntity(), new Position { X = i, Y = 0, Z = 0 });   // ⭐ CE-4407 — a frame worth measuring
             
-            using var recorder = new AsyncRecorder(_testFilePath);
+            using var recorder = new AsyncRecorder(_testFilePath) { BlockDeltas = blockDeltas };
             uint prevTick = 0;
             
             for (int frame = 0; frame < frameCount; frame++)
@@ -151,7 +151,7 @@ namespace Fdp.Tests
         [Fact]
         public void CE4407_StepForward_ReusesItsFrameBuffers_NoFrameSizedGarbage()
         {
-            CreateTestRecording(frameCount: 40, keyframeInterval: 100, extraEntities: 30000);
+            CreateTestRecording(frameCount: 40, keyframeInterval: 100, extraEntities: 30000, blockDeltas: false);   // ⭐ CE-1478 P6 — this rail is about the WHOLE frame's buffers: a block-run delta of one moved row is tiny
             using var repo = new EntityRepository();
             repo.RegisterComponent<Position>();
             using var controller = new PlaybackController(_testFilePath);
@@ -654,7 +654,7 @@ namespace Fdp.Tests
 
             using var controller = new PlaybackController(_testFilePath);
             Assert.Equal(FdpConfig.FORMAT_VERSION, controller.FormatVersion);
-            Assert.Equal(7u, FdpConfig.FORMAT_VERSION);
+            Assert.Equal(8u, FdpConfig.FORMAT_VERSION);   // ⭐ CE-1478 P6 — v8: block-run deltas
 
             var sims  = new double[10];
             for (int i = 0; i < 10; i++) sims[i] = controller.GetFrameMetadata(i).SimTime;

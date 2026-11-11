@@ -20,8 +20,18 @@ namespace GizmoMap.Presentation
         /// <summary>One item placed in a card: the primitive and the top-left of its row (screen pixels) and the row's height.</summary>
         public readonly record struct Item(DebugPrimitive Primitive, Vector2 RowOrigin, float RowHeight, bool CardWide);
 
-        /// <summary>A laid-out card: where it is, where its entity is, what is in it.</summary>
-        public sealed record Card(long NetworkId, Rectangle Rect, Vector2 Anchor, List<Item> Items, Color LeaderColour);
+        /// <summary>
+        /// A laid-out card: where it is, where its entity is, what is in it. ⭐ CE-1478 P4 — POOLED by the renderer (reused every <see cref="Layout(IReadOnlyList{DebugPrimitive}, Func{long, Vector2?}, Func{string, float, float})"/>):
+        /// valid until the next Layout call; ⛔ never keep one across frames.
+        /// </summary>
+        public sealed class Card
+        {
+            public long NetworkId { get; internal set; }
+            public Rectangle Rect { get; internal set; }
+            public Vector2 Anchor { get; internal set; }
+            public List<Item> Items { get; } = new();
+            public Color LeaderColour { get; internal set; }
+        }
 
         /// <summary>Cards drawn in the last <see cref="Draw"/>.</summary>
         public int CardsDrawn { get; private set; }
@@ -29,89 +39,191 @@ namespace GizmoMap.Presentation
         /// <summary>Card primitives of shapes a card cannot hold (Sphere, Arrow, SemanticShape, …) — counted, not drawn.</summary>
         public ShapeCounters Skipped { get; } = new();
 
+        // ⭐ CE-1478 P4 — everything Layout needs lives in fields, grown and never shrunk: 4.15 MB of garbage per frame (a Dictionary + List per entity, a SortedDictionary
+        //   per card, an Item list, a card record, the text of every Text) became 0 B once warm. (docs/DESIGN_Replay_Playback_Performance.md §3 P4, MEASURE §4 row 1.)
+        private readonly List<Card> _cards = new();
+        private int _cardCount;
+        private readonly List<DebugPrimitive> _input = new();           // the IEnumerable overload's copy
+        private DebugPrimitive[] _prims = new DebugPrimitive[256];      // the card primitives of the frame, in arrival order
+        private int[] _primGroup = new int[256];
+        private int _primCount;
+        private readonly Dictionary<long, int> _groupOf = new();        // entity id → group, first-seen order
+        private long[] _groupId = new long[64];
+        private int[] _groupStart = new int[65];
+        private int[] _groupFill = new int[64];
+        private int _groupCount;
+        private int[] _order = new int[256];                            // primitive indexes, grouped, then z-sorted within a group
+        private float[] _rowHeight = new float[256];
+
+        /// <summary>
+        /// Lays out the cards of <paramref name="primitives"/> (only <see cref="CoordinateSpace.EntityCard"/> ones are read). A convenience for callers
+        /// that hold a sequence, not a list: it COPIES into a reusable list (the enumerator itself allocates) — a caller with a list uses the other overload.
+        /// </summary>
+        public List<Card> Layout(IEnumerable<DebugPrimitive> primitives, Func<long, Vector2?> anchorScreen, Func<string, float, float> measureText)
+        {
+            _input.Clear();
+            foreach (var p in primitives) _input.Add(p);
+            return Layout(_input, anchorScreen, measureText);
+        }
+
         /// <summary>
         /// Lays out the cards of <paramref name="primitives"/> (only <see cref="CoordinateSpace.EntityCard"/> ones are read).
         /// <paramref name="anchorScreen"/> answers an entity's screen point (null = not on screen / unknown ⇒ no card);
         /// <paramref name="measureText"/> the pixel width of a text at a size. Pure — railable without a window.
+        /// ⭐ CE-1478 P4 — allocates nothing once warm; the returned list and its cards are the renderer's own (valid until the next call).
         /// </summary>
-        public List<Card> Layout(IEnumerable<DebugPrimitive> primitives, Func<long, Vector2?> anchorScreen, Func<string, float, float> measureText)
+        public List<Card> Layout(IReadOnlyList<DebugPrimitive> primitives, Func<long, Vector2?> anchorScreen, Func<string, float, float> measureText)
         {
             Skipped.Reset();
-            var byEntity = new Dictionary<long, List<DebugPrimitive>>();
-            var order = new List<long>();
-            foreach (var p in primitives)
+            _primCount = 0; _groupCount = 0; _cardCount = 0;
+            _groupOf.Clear();
+            for (int i = 0; i < primitives.Count; i++)
             {
+                var p = primitives[i];
                 if (p.Space != CoordinateSpace.EntityCard) continue;
                 if (!Allowed(p.Shape)) { Skipped.Add(p.Shape); continue; }
                 long id = p.AnchorIndex;
-                if (!byEntity.TryGetValue(id, out var list)) { byEntity[id] = list = new List<DebugPrimitive>(); order.Add(id); }
-                list.Add(p);
+                if (!_groupOf.TryGetValue(id, out int g))
+                {
+                    g = _groupCount++;
+                    if (g == _groupId.Length) { Array.Resize(ref _groupId, g * 2); Array.Resize(ref _groupFill, g * 2); Array.Resize(ref _groupStart, g * 2 + 1); }
+                    _groupId[g] = id; _groupFill[g] = 0;
+                    _groupOf[id] = g;
+                }
+                if (_primCount == _prims.Length) { Array.Resize(ref _prims, _primCount * 2); Array.Resize(ref _primGroup, _primCount * 2); Array.Resize(ref _order, _primCount * 2); }
+                _prims[_primCount] = p; _primGroup[_primCount] = g; _groupFill[g]++;
+                _primCount++;
             }
 
-            var cards = new List<Card>();
-            foreach (long id in order)
+            // group the primitives (a counting sort: arrival order kept inside a group), then z-sort each group stably (insertion: a card holds a handful)
+            int start = 0;
+            for (int g = 0; g < _groupCount; g++) { _groupStart[g] = start; start += _groupFill[g]; _groupFill[g] = 0; }
+            _groupStart[_groupCount] = start;
+            for (int i = 0; i < _primCount; i++) { int g = _primGroup[i]; _order[_groupStart[g] + _groupFill[g]++] = i; }
+
+            for (int g = 0; g < _groupCount; g++)
             {
+                long id = _groupId[g];
                 if (anchorScreen(id) is not { } anchor) continue;
-                var prims = byEntity[id];
-                var rows = new SortedDictionary<byte, List<DebugPrimitive>>();
-                var wide = new List<DebugPrimitive>();
-                foreach (var p in prims)
+                int lo = _groupStart[g], hi = _groupStart[g + 1];
+                for (int i = lo + 1; i < hi; i++)   // stable by ZIndex: ZIndex 0 (card-wide) first, then the rows bottom-up
                 {
-                    if (p.ZIndex == 0) { wide.Add(p); continue; }
-                    if (!rows.TryGetValue(p.ZIndex, out var r)) rows[p.ZIndex] = r = new List<DebugPrimitive>();
-                    r.Add(p);
+                    int cur = _order[i]; byte z = _prims[cur].ZIndex; int j = i - 1;
+                    while (j >= lo && _prims[_order[j]].ZIndex > z) { _order[j + 1] = _order[j]; j--; }
+                    _order[j + 1] = cur;
                 }
 
+                // the rows: runs of one ZIndex after the card-wide ones
+                int rowsStart = lo;
+                while (rowsStart < hi && _prims[_order[rowsStart]].ZIndex == 0) rowsStart++;
                 float width = MinWidth - 2f * Padding, height = 0f;
-                var heights = new List<float>();
-                foreach (var r in rows.Values)
+                int rowCount = 0;
+                for (int i = rowsStart; i < hi;)
                 {
+                    byte z = _prims[_order[i]].ZIndex;
                     float h = 0f;
-                    foreach (var p in r)
+                    for (; i < hi && _prims[_order[i]].ZIndex == z; i++)
                     {
-                        h = MathF.Max(h, HeightOf(p));
-                        width = MathF.Max(width, WidthOf(p, measureText));
+                        h = MathF.Max(h, HeightOf(in _prims[_order[i]]));
+                        width = MathF.Max(width, WidthOf(in _prims[_order[i]], measureText));
                     }
-                    heights.Add(h);
+                    if (rowCount == _rowHeight.Length) Array.Resize(ref _rowHeight, rowCount * 2);
+                    _rowHeight[rowCount++] = h;
                     height += h;
                 }
-                height += Math.Max(0, heights.Count - 1) * RowGap;
+                height += Math.Max(0, rowCount - 1) * RowGap;
                 float cardW = width + 2f * Padding, cardH = MathF.Max(height + 2f * Padding, 2f * Padding + 4f);
                 var rect = new Rectangle(anchor.X - cardW / 2f, anchor.Y - Leader - cardH, cardW, cardH);
 
-                var items = new List<Item>();
-                foreach (var p in wide) items.Add(new Item(p, new Vector2(rect.X, rect.Y), cardH, true));
+                var card = NextCard();
+                var items = card.Items;
+                items.Clear();
+                for (int i = lo; i < rowsStart; i++) items.Add(new Item(_prims[_order[i]], new Vector2(rect.X, rect.Y), cardH, true));
                 float y = rect.Y + Padding;
                 int ri = 0;
-                foreach (var r in rows.Values)
+                for (int i = rowsStart; i < hi;)
                 {
-                    foreach (var p in r) items.Add(new Item(p, new Vector2(rect.X + Padding, y), heights[ri], false));
-                    y += heights[ri] + RowGap;
+                    byte z = _prims[_order[i]].ZIndex;
+                    for (; i < hi && _prims[_order[i]].ZIndex == z; i++)
+                        items.Add(new Item(_prims[_order[i]], new Vector2(rect.X + Padding, y), _rowHeight[ri], false));
+                    y += _rowHeight[ri] + RowGap;
                     ri++;
                 }
 
                 var leader = new Color((byte)170, (byte)170, (byte)170, (byte)220);
-                foreach (var p in wide)
+                for (int i = lo; i < rowsStart; i++)
+                {
+                    ref readonly var p = ref _prims[_order[i]];
                     if (p.Shape == DebugPrimitiveShape.Box2D && p.ThicknessU16 > 0 && p.Color.A > 0)
                         leader = new Color(p.Color.R, p.Color.G, p.Color.B, p.Color.A);
-                cards.Add(new Card(id, rect, anchor, items, leader));
+                }
+                card.NetworkId = id; card.Rect = rect; card.Anchor = anchor; card.LeaderColour = leader;
             }
-            return cards;
+            if (_cards.Count > _cardCount) _cards.RemoveRange(_cardCount, _cards.Count - _cardCount);   // a shrink keeps the pooled objects in _cardPool
+            return _cards;
+        }
+
+        private readonly List<Card> _cardPool = new();
+
+        private Card NextCard()
+        {
+            if (_cardCount == _cardPool.Count) _cardPool.Add(new Card());
+            var c = _cardPool[_cardCount];
+            if (_cardCount < _cards.Count) _cards[_cardCount] = c; else _cards.Add(c);
+            _cardCount++;
+            return c;
         }
 
         /// <summary>Lays out and draws the cards (screen space — call outside any camera mode).</summary>
         public void Draw(IEnumerable<DebugPrimitive> primitives, Func<long, Vector2?> anchorScreen)
         {
-            var cards = Layout(primitives, anchorScreen, (s, px) => Raylib.MeasureTextEx(GizmoTextDraw.Font, s, px, 1f).X);
-            foreach (var card in cards)
+            _input.Clear();
+            foreach (var p in primitives) _input.Add(p);
+            Draw(_input, anchorScreen);
+        }
+
+        /// <summary>⭐ CE-1478 P4 — the list overload: no enumerator, and the text widths come from a cache (a text is measured once per size, not once per frame).</summary>
+        public void Draw(IReadOnlyList<DebugPrimitive> primitives, Func<long, Vector2?> anchorScreen)
+        {
+            _measureCached ??= MeasureCached;
+            var cards = Layout(primitives, anchorScreen, _measureCached);
+            for (int c = 0; c < cards.Count; c++)
             {
+                var card = cards[c];
                 // row 0 backgrounds first, then the rows, then row 0's outlines — the frame is on top, the background behind
-                foreach (var it in card.Items) if (it.CardWide && IsFill(it.Primitive)) DrawItem(card, it);
-                foreach (var it in card.Items) if (!it.CardWide) DrawItem(card, it);
-                foreach (var it in card.Items) if (it.CardWide && !IsFill(it.Primitive)) DrawItem(card, it);
+                var items = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(card.Items);
+                for (int i = 0; i < items.Length; i++) if (items[i].CardWide && IsFill(items[i].Primitive)) DrawItem(card, in items[i]);
+                for (int i = 0; i < items.Length; i++) if (!items[i].CardWide) DrawItem(card, in items[i]);
+                for (int i = 0; i < items.Length; i++) if (items[i].CardWide && !IsFill(items[i].Primitive)) DrawItem(card, in items[i]);
                 Raylib.DrawLineEx(new Vector2(card.Anchor.X, card.Rect.Y + card.Rect.Height), card.Anchor, 1f, card.LeaderColour);
             }
             CardsDrawn = cards.Count;
+        }
+
+        private Func<string, float, float>? _measureCached;
+        private readonly Dictionary<(string, float), float> _widths = new();
+        private const int MaxCachedWidths = 8192;
+
+        private float MeasureCached(string s, float px)
+        {
+            if (_widths.TryGetValue((s, px), out float w)) return w;
+            if (_widths.Count >= MaxCachedWidths) _widths.Clear();
+            return _widths[(s, px)] = Raylib.MeasureTextEx(GizmoTextDraw.Font, s, px, 1f).X;
+        }
+
+        // ⭐ CE-1478 P4 — a card's text as a string WITHOUT building one per frame: the interned long text, else a canonical string per distinct 32 bytes (cached).
+        //   📐 The key is the raw bytes — FixedString32.Equals / GetHashCode build a string each (they would defeat the cache).
+        private readonly record struct TextKey(ulong A, ulong B, ulong C, ulong D);
+        private readonly Dictionary<TextKey, string> _texts = new();
+        private const int MaxCachedTexts = 8192;
+
+        private string TextOfCached(in DebugPrimitive p)
+        {
+            if (p.Space != CoordinateSpace.EntityLocal && p.StringHash != 0 && GizmoTextDraw.Strings?.TryResolve(p.StringHash) is { } full) return full;
+            var key = System.Runtime.CompilerServices.Unsafe.As<FixedString32, TextKey>(ref System.Runtime.CompilerServices.Unsafe.AsRef(in p.TextContent));
+            if (_texts.TryGetValue(key, out var cached)) return cached;
+            if (_texts.Count >= MaxCachedTexts) _texts.Clear();
+            return _texts[key] = p.TextContent.ToString();
         }
 
         private static bool IsFill(in DebugPrimitive p) => p.Shape == DebugPrimitiveShape.Box2D && p.FillColor.A > 0;
@@ -129,16 +241,25 @@ namespace GizmoMap.Presentation
             _ => 10f,
         };
 
-        private static float WidthOf(in DebugPrimitive p, Func<string, float, float> measure) => p.Shape switch
+        private float WidthOf(in DebugPrimitive p, Func<string, float, float> measure) => p.Shape switch
         {
-            DebugPrimitiveShape.Text => p.TextX + measure(GizmoTextDraw.TextOf(in p), HeightOf(p)),
+            DebugPrimitiveShape.Text => p.TextX + measure(TextOfCached(in p), HeightOf(p)),
             DebugPrimitiveShape.Box2D when p.SizeMode != SizeMode.ScreenPercent => p.BoxCenterX + p.BoxExtentX,
             DebugPrimitiveShape.Line => MathF.Max(p.LineStart.X, p.LineEnd.X),
-            DebugPrimitiveShape.EntityBadge => 8f * p.BadgeRichText.ToString().Length,
+            DebugPrimitiveShape.EntityBadge => 8f * CharCount(in p.TextContent),
             _ => 0f,
         };
 
-        private static void DrawItem(Card card, in Item it)
+        private static int CharCount(in FixedString32 s)
+        {
+            ref byte start = ref System.Runtime.CompilerServices.Unsafe.As<FixedString32, byte>(ref System.Runtime.CompilerServices.Unsafe.AsRef(in s));
+            var span = System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref start, 32);
+            int len = 0;
+            while (len < FixedString32.MaxLength && span[len] != 0) len++;
+            return len == 0 ? 0 : System.Text.Encoding.UTF8.GetCharCount(span.Slice(0, len));
+        }
+
+        private void DrawItem(Card card, in Item it)
         {
             var p = it.Primitive;
             var o = it.RowOrigin;
@@ -147,7 +268,10 @@ namespace GizmoMap.Presentation
             switch (p.Shape)
             {
                 case DebugPrimitiveShape.Text:
-                    GizmoTextDraw.DrawScreen(in p, o + new Vector2(p.TextX, p.TextY), colour);
+                {
+                    var at = o + new Vector2(p.TextX, p.TextY);
+                    GizmoTextDraw.DrawStyled(GizmoTextDraw.Font, TextOfCached(in p), new Vector2(at.X, at.Y + p.LineOffsetPx), GizmoTextDraw.PixelSize(p), 1f, 1f, p.TextStyle, colour);
+                }
                     break;
                 case DebugPrimitiveShape.Box2D:
                 {

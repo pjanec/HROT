@@ -53,6 +53,7 @@ namespace Fdp.Core.FlightRecorder
         
         // Stats
         public int DroppedFrames { get; private set; }
+        private static readonly bool StatsOn = Environment.GetEnvironmentVariable("HROT_REPLAY_STATS") == "1";
         public int RecordedFrames { get; private set; }
         
         // Error propagation for tests
@@ -66,6 +67,13 @@ namespace Fdp.Core.FlightRecorder
         { 
             get => _recorderSystem.MinRecordableId; 
             set => _recorderSystem.MinRecordableId = value; 
+        }
+
+        /// <summary>⭐ CE-1478 P6 — passthrough to <see cref="RecorderSystem.BlockDeltas"/> (format v8 block-run deltas; default on).</summary>
+        public bool BlockDeltas
+        {
+            get => _recorderSystem.BlockDeltas;
+            set => _recorderSystem.BlockDeltas = value;
         }
 
         /// <summary>
@@ -193,9 +201,12 @@ namespace Fdp.Core.FlightRecorder
             int bytesWritten = 0;
             
             _frontStream.Position = 0;
+            long statT0 = StatsOn ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
             // Use the logic from FDP-DES-002
             _recorderSystem.RecordDeltaFrame(repo, prevTick, _frontWriter, wallClockTicks, eventBus, serializeReadBuffer: readBuffer);
             _frontWriter.Flush();
+            if (StatsOn)   // ⭐ CE-1478 P6 — the recorder's MAIN-THREAD cost of a delta (HROT_REPLAY_STATS=1)
+                Console.Error.WriteLine($"[RecordFrame] delta main-thread {(System.Diagnostics.Stopwatch.GetTimestamp() - statT0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:F2} ms, raw {_frontStream.Position / 1024} KB, blocks {_recorderSystem.BlockDeltas}");
             StampIndex(repo);   // ⭐ CE-3329 P0 — SimTime + Flags for the v7 frame index
             bytesWritten = (int)_frontStream.Position;
             

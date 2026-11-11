@@ -200,6 +200,12 @@ namespace Fdp.Core
             _data.RestoreChunkFromBuffer(chunkIndex, source);
         }
         
+        /// <summary>⭐ CE-1478 P6 — restores a block run of a v8 delta.</summary>
+        public void RestoreChunkRangeFromBuffer(int chunkIndex, int byteOffset, ReadOnlySpan<byte> source)
+        {
+            _data.RestoreChunkRange(chunkIndex, byteOffset, source);
+        }
+
         public void Dispose()
         {
             _data?.Dispose();

@@ -98,15 +98,69 @@ namespace Fdp.Core.FlightRecorder
 
         /// <summary>⭐ CE-3332 — did this chunk's sanitized bytes (in the scratch buffer) differ from what it was last recorded with? Keeps the
         /// new bytes. Allocates only the first time a chunk is seen.</summary>
-        private bool ChunkBytesMoved(int typeId, int chunk, int bytes)
+
+        /// <summary>⭐ CE-1478 P6 — the component-type-id flag of a BLOCK-RUN record (format v8): the record holds only the 64-byte blocks that differ from the chunk's last recorded bytes. Component ids are &lt; 512, so bit 30 is free (⛔ the entity-index ids −1 / −2 are negative: a reader tests <c>typeId &gt; 0</c> first).</summary>
+        public const int BlockRecordFlag = 0x40000000;
+        /// <summary>⭐ CE-1478 P6 — the diff granularity (a cache line): 📐 on the 1 000-man recording 5.4 % of the changed chunks' 64-byte blocks differ (MEASURE §5), and the biggest type (a 4 096-byte row) changes ~1 % of its blocks — a block run beats a whole-row record there.</summary>
+        public const int BlockSize = 64;
+
+        /// <summary>⭐ CE-1478 P6 (format v8) — write a delta's unmanaged chunk as the 64-byte blocks that moved (default), not the chunk's whole used prefix. Off ⇒ the v7 body (an equivalence rail records both).</summary>
+        public bool BlockDeltas { get; set; } = Environment.GetEnvironmentVariable("HROT_RECORD_BLOCK_DELTAS") != "0";   // the env switch is for measuring (MEASURE §9)
+
+        private readonly byte[] _blockBuf = new byte[FdpConfig.CHUNK_SIZE_BYTES * 2 + 64];
+
+        /// <summary>
+        /// ⭐ CE-3332 — did this chunk's sanitized bytes (in the scratch buffer) differ from what it was last recorded with? Keeps the new bytes.
+        /// ⭐ CE-1478 P6 — <paramref name="blockPayload"/> &gt; 0: the diff against those last bytes as block runs (in <c>_blockBuf</c>) is SMALLER than the prefix; write it instead.
+        /// </summary>
+        private bool ChunkBytesMoved(int typeId, int chunk, int bytes, out int blockPayload)
         {
+            blockPayload = 0;
             long key = ((long)typeId << 32) | (uint)chunk;
             var now = new ReadOnlySpan<byte>(_scratchBuffer, 0, bytes);
             if (!_lastChunkBytes.TryGetValue(key, out var last)) _lastChunkBytes[key] = last = new LastChunk();
             else if (last.Length == bytes && now.SequenceEqual(new ReadOnlySpan<byte>(last.Bytes, 0, bytes))) return false;
+            else if (BlockDeltas && last.Length > 0 && last.Length <= bytes) blockPayload = BuildBlockRuns(now, last.Bytes, last.Length);
             now.CopyTo(last.Bytes);
             last.Length = bytes;
             return true;
+        }
+
+        // [totalBytes:int][runCount:int] then per run [firstBlock:int][blockCount:int][the blocks' bytes] — the last block of a chunk may be short.
+        // Returns the payload length, or 0 when it would not be smaller than the prefix. Blocks past the old length count as moved.
+        private int BuildBlockRuns(ReadOnlySpan<byte> now, byte[] lastBytes, int oldLen)
+        {
+            int n = now.Length;
+            var last = new ReadOnlySpan<byte>(lastBytes, 0, oldLen);
+            var buf = _blockBuf;
+            int w = 8, runs = 0, pos = 0;
+            while (pos < n)
+            {
+                if (pos < oldLen)
+                {
+                    pos += now.Slice(pos, oldLen - pos).CommonPrefixLength(last.Slice(pos, oldLen - pos));
+                    if (pos >= n) break;
+                }
+                int start = pos & ~(BlockSize - 1), end = start;
+                while (end < n)
+                {
+                    int blockEnd = Math.Min(end + BlockSize, n);
+                    bool moved = blockEnd > oldLen || !now.Slice(end, blockEnd - end).SequenceEqual(last.Slice(end, blockEnd - end));
+                    if (!moved) break;
+                    end = blockEnd;
+                }
+                if (end == start) { pos = start + BlockSize; continue; }   // cannot happen (pos sits in a moved block); never loop
+                if (w + 8 + (end - start) >= n) return 0;                  // not smaller than the prefix
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(w), start / BlockSize);
+                System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(w + 4), (end - start + BlockSize - 1) / BlockSize);
+                now.Slice(start, end - start).CopyTo(buf.AsSpan(w + 8));
+                w += 8 + (end - start);
+                runs++;
+                pos = end;
+            }
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(0), n);
+            System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(4), runs);
+            return w;
         }
 
         private EntityRepository? _destructionRepo;   // ⭐ CE-3335 — the world this recorder's destruction mark belongs to
@@ -382,14 +436,23 @@ namespace Fdp.Core.FlightRecorder
                         // ⭐ CE-4058 ⑤ (DAR §12s) — a chunk WRITTEN with the bytes it last went to this recording with is not written again:
                         //   the playback already holds exactly them (the stream it follows is this one), so a paused frame shrinks to its
                         //   header. 📐 Measured before: 14 268 frames / 75 MB for 41 s of sim on a stepped run, the pauses' frames full size.
-                        if (!ChunkBytesMoved(table.ComponentTypeId, c, bytes)) continue;
+                        if (!ChunkBytesMoved(table.ComponentTypeId, c, bytes, out int blockPayload)) continue;
                         actualChunkCount++;
                         movedChunkCount++;
                         writer.Write(c);            // Chunk ID (specific to this table)
                         writer.Write(1);            // Count (1 component type)
-                        writer.Write(table.ComponentTypeId); // Type ID
-                        writer.Write(bytes);        // Data Length
-                        writer.Write(_scratchBuffer, 0, bytes); // Data
+                        if (blockPayload > 0)       // ⭐ CE-1478 P6 (v8) — only the 64-byte blocks that moved
+                        {
+                            writer.Write(table.ComponentTypeId | BlockRecordFlag);
+                            writer.Write(blockPayload);
+                            writer.Write(_blockBuf, 0, blockPayload);
+                        }
+                        else
+                        {
+                            writer.Write(table.ComponentTypeId); // Type ID
+                            writer.Write(bytes);        // Data Length
+                            writer.Write(_scratchBuffer, 0, bytes); // Data
+                        }
                     }
                 }
             }
@@ -1105,5 +1168,7 @@ namespace Fdp.Core.FlightRecorder
         /// <summary>⭐ CE-2392 — the first <paramref name="maxBytes"/> bytes of the chunk only (may return more; the caller trims).</summary>
         int CopyChunkToBuffer(int chunkIndex, Span<byte> destination, int maxBytes) => CopyChunkToBuffer(chunkIndex, destination);
         void RestoreChunkFromBuffer(int chunkIndex, ReadOnlySpan<byte> source);
+        /// <summary>⭐ CE-1478 P6 — copies <paramref name="source"/> to <paramref name="byteOffset"/> bytes into the chunk (a block run of a v8 delta) and stamps the chunk changed.</summary>
+        void RestoreChunkRangeFromBuffer(int chunkIndex, int byteOffset, ReadOnlySpan<byte> source) => throw new NotSupportedException();
     }
 }

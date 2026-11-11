@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.ScenarioRules;
@@ -20,6 +21,19 @@ namespace Hrot.Common.Diagnostics.Gizmos
     /// </summary>
     public static class Seeable
     {
+        /// <summary>
+        /// ⭐ CE-1480 G5 — the <see cref="GizmoInputs"/> of a rule that asks <see cref="OnMap"/> and reads <paramref name="own"/> itself: the components whose VALUES the
+        /// presence answer reads (<c>TkbIdentity</c>'s type, a macro instance's expansion state and its members' <c>MacroOrigin</c>) added to the rule's own.
+        /// Presence / absence of any component is a structural change and always redraws. Not view-dependent, no setting.
+        /// </summary>
+        public static GizmoInputs Inputs(params System.Type[] own)
+        {
+            var all = new System.Type[own.Length + 3];
+            own.CopyTo(all, 0);
+            all[own.Length] = typeof(TkbIdentity); all[own.Length + 1] = typeof(MacroExpansionStatus); all[own.Length + 2] = typeof(MacroOrigin);
+            return new GizmoInputs(false, null, all);
+        }
+
         /// <summary>True when <paramref name="entity"/> has a physical presence on the map.</summary>
         public static bool OnMap(ISimulationView view, Entity entity)
         {

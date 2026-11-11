@@ -1,7 +1,9 @@
 using System;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.World;
 
 namespace Hrot.Player.Systems;
 
@@ -41,15 +43,42 @@ public class MapCullingSystem : IEcsModuleSystem
 {
     private readonly MapCameraViewport _viewport;
 
+    // ⭐ CE-1480 G4 (docs/DESIGN_Change_Gated_Systems.md) — the ONE ChangeGate, with this system's inputs: the entity's position (SimTransform, a
+    //   required component of the query ⇒ a Delta is exact: only the hot chunks are re-tested) and the camera (the viewport's Version — the
+    //   rectangle and the zoom ⇒ any move is a full pass). A state is written only when it differs from the one the entity holds.
+    //   ⚠ D-5 (docs/DESIGN_Map_View_Filter.md §6: "CullingState fed from MapViewSnapshot") is NOT built: this keeps the rectangle test where it is;
+    //   when D-5 lands it swaps the viewport's Version for the snapshot's — the gate does not change.
+    private readonly ChangeGate _gate;
+    private EntityQuery? _query;
+    private ISimulationView? _queryView;
+
+    // the pass's constants, read once (fields, not locals: the per-entity step is a method)
+    private bool _viewportIsSet;
+    private float _minX, _maxX, _minY, _maxY;
+    private byte _lod;
+
+    /// <summary>The gate (its counters) — for rails and diagnostics.</summary>
+    public ChangeGate Gate => _gate;
+
+    /// <summary>How many entity walks actually ran (the gate skipped the rest) — for rails and diagnostics.</summary>
+    public int Passes { get; private set; }
+
     /// <param name="viewport">
     /// Application-owned object updated each frame before the kernel ticks.
     /// </param>
     public MapCullingSystem(MapCameraViewport viewport)
-        => _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
+    {
+        _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
+        _gate = new ChangeGate().Watch(typeof(SimTransform)).WatchExternal(() => _viewport.Version);
+    }
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
+        var change = _gate.Next(view);
+        if (change.Kind == ChangeKind.Unchanged) return;   // neither a position nor the camera moved ⇒ every CullingState is as it was
+        Passes++;
+
         var cmd = view.GetCommandBuffer();
 
         // Capture viewport fields into locals — avoids repeated property reads in the hot loop.
@@ -83,20 +112,43 @@ public class MapCullingSystem : IEcsModuleSystem
                 ? CullingStateConstants.LodSimplified
                 : CullingStateConstants.LodFull;
 
-        var query = view.Query().With<SimTransform>().Build();
+        _viewportIsSet = viewportIsSet; _minX = minX; _maxX = maxX; _minY = minY; _maxY = maxY; _lod = lod;
 
-        foreach (var entity in query)
+        if (_query == null || !ReferenceEquals(_queryView, view))
         {
-            ref readonly var transform = ref view.GetComponentRO<SimTransform>(entity);
-            float x = transform.Position.X;
-            float y = transform.Position.Y;
-
-            bool inView = !viewportIsSet
-                       || (x >= minX && x <= maxX && y >= minY && y <= maxY);
-
-            var state = new CullingState { IsVisible = inView, LodLevel = lod };
-
-            cmd.SetComponent(entity, state);
+            _query = view.Query().With<SimTransform>().Build();
+            _queryView = view;
         }
+        var query = _query;
+
+        if (change.Kind == ChangeKind.Delta && view is EntityRepository repo)
+        {
+            foreach (var entity in change.Entities(repo, query))
+                Visit(view, cmd, entity);
+        }
+        else
+        {
+            foreach (var entity in query)
+                Visit(view, cmd, entity);
+        }
+    }
+
+    private void Visit(ISimulationView view, IEntityCommandBuffer cmd, Entity entity)
+    {
+        ref readonly var transform = ref view.GetComponentRO<SimTransform>(entity);
+        float x = transform.Position.X;
+        float y = transform.Position.Y;
+
+        bool inView = !_viewportIsSet
+                   || (x >= _minX && x <= _maxX && y >= _minY && y <= _maxY);
+
+        // ⭐ write only on change — a CullingState that is already right is left alone (its chunk stays clean)
+        if (view.HasComponent<CullingState>(entity))
+        {
+            ref readonly var current = ref view.GetComponentRO<CullingState>(entity);
+            if (current.IsVisible == inView && current.LodLevel == _lod) return;
+        }
+
+        cmd.SetComponent(entity, new CullingState { IsVisible = inView, LodLevel = _lod });
     }
 }

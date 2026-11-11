@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Replay
         /// Frame-gap threshold above which Strategy B (SeekToFrame) is used
         /// instead of iterative StepForward calls.
         /// </summary>
-        public const int StrategyBThreshold = 3;
+        public const int StrategyBThreshold = ReplayClockRule.SeekThreshold;
 
         private readonly PlaybackController? _playback;
         private readonly ITimeController _timeController;
@@ -135,17 +135,8 @@ namespace Fdp.Toolkit.Replay
 
             if (targetTicks <= currentTicks) return;
 
-            // Count consecutive upcoming frames with WallClockTicks <= targetTicks.
-            // Stop as soon as count exceeds StrategyBThreshold (O(threshold) check).
-            int count     = 0;
-            int nextFrame = _playback.CurrentFrame + 1;
-            for (int i = nextFrame; i < _playback.TotalFrames && count <= StrategyBThreshold; i++)
-            {
-                if (_playback.GetFrameMetadata(i).WallClockTicks <= targetTicks)
-                    count++;
-                else
-                    break;
-            }
+            // ⭐ CE-1479 — the frames due at this clock: ONE rule, shared with the Replay Browser (ReplayClockRule)
+            int count = ReplayClockRule.FramesDue(_playback, targetTicks, StrategyBThreshold + 1);
 
             if (count > StrategyBThreshold)
             {
