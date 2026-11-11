@@ -208,6 +208,14 @@ namespace Hrot.Editor
         /// </summary>
         public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency { get; private set; }
 
+        /// <summary>⭐ Terrain authoring U-2 — the base terrain and its folder the placing ghost fits a block to (none until a terrain is resident).</summary>
+        private (Fdp.Toolkit.Terrain.TerrainWorld? Base, string? Folder) GhostBase()
+        {
+            if (TerrainResidency is not { } r) return (null, null);
+            var b = r.ExpansionBase();
+            return (b.Base, b.Folder);
+        }
+
         /// <summary>Owns the editor's published road graph (the editor runs its kinematics locally).</summary>
         private readonly CarKinem.Road.RoadNetworkHolder _roadNetworkHolder = new();
 
@@ -2537,6 +2545,9 @@ namespace Hrot.Editor
                         HostPickers     = () => _shellPickers,
                         // ⭐ CE-4210 MA-7 — Add Entity ▸ Macros: the macro files on the NAS root the load resolves against (the same listing the scenario picker's Macros group uses)
                         Macros          = Hrot.Editor.AiShared.Browser.MacroPickerEntries.Paths,
+                        // ⭐ Terrain authoring U-1 / U-2 — Add Entity's terrain groups (the shipped recipes + building templates) and the ghost's ground (the live base terrain): the editor shows its blocks live (O-7 B), so it is the host that offers them
+                        Terrain         = Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped,
+                        TerrainContext  = new Hrot.UI.Common.AddEntity.TerrainGhostContextCache(GhostBase).Get,
                     },
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer

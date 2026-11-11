@@ -27,6 +27,8 @@ public static class AddEntityPane
     {
         var rows = new List<(string, string)>();
         if (entry.Tag is not EntityTypeEntry e) return rows;
+        // ⭐ Terrain authoring U-1 (B-5) — a recipe / template has NO side (the mockup greys the Side row): its pane is what it makes, never "Placed as"
+        if (e.Terrain is { } terrain) { rows.AddRange(terrain.Facts); return rows; }
         if (SideLabel(side) is { } s) rows.Add(("Placed as", s));
         if (e.DisabledReason is { } why) rows.Add(("Unavailable", why));
         if (tkb.TryGetByType((long)e.TkbType, out var t)) rows.AddRange(EntityRoleLine.Facts(t, e.DisText));

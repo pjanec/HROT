@@ -1,1 +1,1 @@
-{ "id": "farmstead", "houses": { "templates": ["house-2f", "courtyard-house"], "count": [2, 3], "radius": 45, "minSpacing": 12 }, "woods": { "count": [1, 2], "size": [10, 20] } }
+{ "id": "farmstead", "houses": { "templates": ["house-2f", "courtyard-house"], "count": [2, 3], "radius": 45, "minSpacing": 12 }, "woods": { "count": [1, 2], "size": [10, 20] }, "ui": { "chip": "Rural", "line": "house, barns, yard" } }

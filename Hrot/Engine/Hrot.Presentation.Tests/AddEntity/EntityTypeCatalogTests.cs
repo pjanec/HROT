@@ -688,6 +688,8 @@ public sealed class EntityTypeCatalogTests
         8814 Spawn Area | dis - | family Unknown | folder Other | icon -
         8815 Deploy Role | dis - | family Unknown | folder Other | icon -
         8816 Point | dis - | family Unknown | folder Other | icon -
+        8817 Terrain Block | dis - | family Unknown | folder Other | icon -
+        8818 Terrain Feature | dis - | family Unknown | folder Other | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         8860 Objective | dis - | family Unknown | folder Other | icon -

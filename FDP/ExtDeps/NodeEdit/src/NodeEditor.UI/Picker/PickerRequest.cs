@@ -111,6 +111,9 @@ public sealed class PickerRequest
     /// <summary>⭐ CE-4142 (GL3) — show the group sidebar (and chips, tile-size slider) in the Grid layout. Null ⇒ the classic Grid.</summary>
     public PickerGroupSidebar? GroupSidebar { get; init; }
 
+    /// <summary>The sidebar group the gallery opens on (a name in <see cref="PickerGroupSidebar.Order"/>); null or empty ⇒ <i>All</i>. ⭐ Terrain authoring U-1 — a rail (and a caller) can open the picker on one group.</summary>
+    public string? InitialGroup { get; init; }
+
     /// <summary>⭐ CE-4359 — Tree layout: the root folders in this order (a name not listed follows, alphabetical). Null ⇒ alphabetical.</summary>
     public IReadOnlyList<string>? FolderOrder { get; init; }
 

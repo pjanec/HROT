@@ -24,7 +24,7 @@ namespace Hrot.UI.Common.AddEntity;
 public sealed record EntityTypeEntry(
     TkbTypeId TkbType, string Name, string Category, string? DisText, string? IconName,
     PlacementToolKind Tool, bool HasSide, string? DisabledReason = null,
-    string? Thumbnail = null, string? RoleLine = null, string Group = "", string? Chip = null, string? MacroPath = null)
+    string? Thumbnail = null, string? RoleLine = null, string Group = "", string? Chip = null, string? MacroPath = null, TerrainPick? Terrain = null)
 {
     /// <summary>True when the entry can be picked.</summary>
     public bool IsEnabled => DisabledReason is null;
@@ -62,8 +62,10 @@ public static class EntityTypeCatalog
     /// <param name="gallery">⭐ CE-4142 — the gallery's groups and thumbnail map; null ⇒ entries carry no group and no thumbnail (the plain DIS tree).</param>
     /// <summary>⭐ CE-4210 MA-7 — the folder name macro entries are listed under when no gallery group names them.</summary>
     public const string MacrosFolder = "Macros";
+    /// <summary>⭐ Terrain authoring U-1 — the folder terrain picks are listed under in the plain tree (the gallery uses their group).</summary>
+    public const string TerrainFolder = "Terrain";
 
-    public static IReadOnlyList<EntityTypeEntry> Build(ITkbDatabase tkb, DisNameTable? names = null, GalleryData? gallery = null, IReadOnlyList<string>? macros = null)
+    public static IReadOnlyList<EntityTypeEntry> Build(ITkbDatabase tkb, DisNameTable? names = null, GalleryData? gallery = null, IReadOnlyList<string>? macros = null, IReadOnlyList<TerrainPick>? terrain = null)
     {
         ArgumentNullException.ThrowIfNull(tkb);
         names ??= DisNameTable.Default;
@@ -105,6 +107,13 @@ public static class EntityTypeCatalog
                                              RoleLine: "Macro · " + path, Group: group, Chip: group.Length == 0 || folder.Length == 0 ? null : folder, MacroPath: path));
             }
         }
+
+        // ⭐ Terrain authoring U-1 (B-5) — the recipes and building templates of the terrain groups: not TKB types (a recipe is not a DIS type), so listed from their own source; a pick places a TerrainBlock / TerrainFeature
+        if (terrain is { Count: > 0 })
+            foreach (var t in terrain)
+                list.Add(new EntityTypeEntry(t.Kind == TerrainPickKind.Block ? (Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.TerrainBlock : (Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.TerrainFeature,
+                                             t.Name, TerrainFolder + "/" + t.Group, null, t.Kind == TerrainPickKind.Block ? "_block" : "_house", PlacementToolKind.Point, HasSide: true,
+                                             RoleLine: t.Line, Group: gallery is null ? "" : t.Group, Chip: gallery is null ? null : t.Chip, Terrain: t, Thumbnail: gallery is null ? null : t.Picture));
 
         foreach (var g in PlacementToolRegistry.Graphics)
         {

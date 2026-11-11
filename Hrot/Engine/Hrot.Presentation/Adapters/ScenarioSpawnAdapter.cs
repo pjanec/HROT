@@ -146,6 +146,10 @@ namespace Hrot.UI.Common.Adapters
                 _ => ArmZoneAuthoring());
         }
 
+        /// <summary>⭐ Terrain authoring U-2 — the ground a block's ghost fits itself to (the editor's base terrain and its folder); null on a host with none (the ghost then draws nothing — the click still places).
+        /// Set by <c>EntityAuthoring</c> from its inputs.</summary>
+        public Func<Hrot.UI.Common.AddEntity.TerrainGhostContext?>? TerrainContext { get; set; }
+
         /// <inheritdoc/>
         /// <remarks>
         /// Creates an <see cref="EntityPlacementGizmo"/> registered with <see cref="GlobalGizmoManager"/>.
@@ -201,6 +205,10 @@ namespace Hrot.UI.Common.Adapters
             // ⭐⭐ CONSUMED, not merely read — the toolbar path must see null, exactly as it did before.
             // ⭐ CE-4210 MA-7 — a macro placement rides its path in the JSON; split it out here, in the ONE point commit every host passes
             var (initialPropertiesJson, macroPath) = Hrot.UI.Common.AddEntity.MacroBirth.Split(_pendingPropertiesJson);
+            // ⭐ Terrain authoring U-2 — a block / house placement rides its spec the same way; its placement state (the seed the next click uses, R's turn, the cached ghost) lives for this armed tool
+            (initialPropertiesJson, var terrainSpec) = Hrot.UI.Common.AddEntity.TerrainBirth.Split(initialPropertiesJson);
+            var terrainPick = Hrot.UI.Common.AddEntity.TerrainBirth.Parse(terrainSpec);
+            var terrainPlacement = terrainPick is { } tp ? new Hrot.UI.Common.AddEntity.TerrainPlacement(tp.Kind, tp.Id, TerrainContext) : null;
             _pendingPropertiesJson    = null;
 
             var id = GlobalGizmoManager.NewId();
@@ -211,6 +219,8 @@ namespace Hrot.UI.Common.Adapters
                     cmd.InitialComponents ??= new System.Collections.Generic.List<object>();
                     Hrot.UI.Common.AddEntity.MacroBirth.BornWith(cmd.TkbType, macroPath, cmd.InitialComponents);   // ⭐ CE-4210 MA-7 — the instance is born with its MacroInstance
                     Hrot.UI.Common.AddEntity.GameplayBirth.BornWith(cmd.TkbType, cmd.InitialComponents);          // ⭐ Player Join S2-a — a Deploy Role is born with its DeployRole
+                    if (terrainPlacement is not null)                                                              // ⭐ Terrain authoring U-2 — a block / house is born with its TerrainBlock / TerrainFeature: the seed its ghost showed, the heading the drag and R gave
+                        Hrot.UI.Common.AddEntity.TerrainBirth.BornWith(cmd.TkbType, terrainSpec, cmd.InitialTransform?.Rotation ?? Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo.FacingNorth, cmd.InitialComponents, terrainPlacement.Seed, terrainPlacement.RotationDeg);
 
                     // Seed a baseline EntityInfo so the entity is guaranteed to appear
                     // in the ORBAT tree even when no Name property is supplied in JSON.
@@ -262,7 +272,8 @@ namespace Hrot.UI.Common.Adapters
                 displayName:           _tkbDb != null && _tkbDb.TryGetByType(tkbType, out var shown)
                                             && !string.IsNullOrWhiteSpace(shown.Name) ? shown.Name : null,
                 // ⭐ CE-4244 (MA-10 MP-2 a) — a macro placement shows its ghosts at the cursor: expanded ONCE (at the origin), moved with the cursor
-                macroPreview:          macroPath is null ? null : (() => previewCache ??= PreviewOf(macroPath, "{}")));
+                macroPreview:          macroPath is null ? null : (() => previewCache ??= PreviewOf(macroPath, "{}")),
+                terrain:               terrainPlacement);
             _globalGizmoManager!.Register(id, gizmo);
             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
         }

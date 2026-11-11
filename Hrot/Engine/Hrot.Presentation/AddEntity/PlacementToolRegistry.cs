@@ -117,6 +117,18 @@ public static class PlacementToolRegistry
         return true;
     }
 
+    /// <summary>
+    /// ⭐ Terrain authoring U-2 — arms the ordinary point tool for a terrain block / house: the block (8817) or feature (8818) type with the pick's spec riding in the placement JSON
+    /// (<see cref="TerrainBirth"/> reads it at the tool's commit, in the ONE adapter every host's point commit passes, and gives the new entity its <c>TerrainBlock</c> / <c>TerrainFeature</c>).
+    /// </summary>
+    public static bool ArmTerrain(ISpawnController spawn, TerrainPick pick)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        ArgumentNullException.ThrowIfNull(pick);
+        spawn.StartPlacementMode(pick.Kind == TerrainPickKind.Block ? TkbEntityTypes.TerrainBlock : TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(pick));
+        return true;
+    }
+
     public static string AffiliationJson(eForceIdentifier side)
         => JsonSerializer.Serialize(new { Affiliation = side.ToString() }, FdpJsonOptionsRegistry.DefaultRelaxed);
 }

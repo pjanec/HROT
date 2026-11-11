@@ -145,6 +145,12 @@ namespace Hrot.Map.Common
         //   (LZ Alpha, a rally point): a map graphic with a name (EntityInfo), a position and a heading (SimTransform, from its request), no body.
         //   A point picker stores a PointLink to it (resolved once, SR-130). 8816 measured free on all four lanes 2026-11-07.
         public const long Point = 8816;
+
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ Terrain authoring U-2 (docs/DESIGN_Terrain_Authoring.md §11 B-2, §15.U-2) — a placed terrain BLOCK (8817: a recipe + seed, carrying TerrainBlock)
+        //   and a placed single terrain FEATURE (8818: today a house, carrying TerrainFeature). Bare authored entities with a position, no body, never in the palette's DIS tree
+        //   (Add Entity lists them in its terrain groups). 8817 / 8818 measured free on every lane 2026-11-11.
+        public const long TerrainBlock = 8817;
+        public const long TerrainFeature = 8818;
         // ⭐ AQ93 — the TRAFFIC block 8850–8859 (SUMO), kept clear of the sequential 88xx run so two lanes cannot collide again:
         //   8812 was allocated twice on 2026-10-17 (the backend's Stone Source kept it, the traffic types moved here).
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ AQ93 R-4021 — the scenario's TRAFFIC settings: positionless like the World Environment,

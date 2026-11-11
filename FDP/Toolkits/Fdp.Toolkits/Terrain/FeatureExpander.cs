@@ -6,7 +6,11 @@ using System.Text.Json.Nodes;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>What one <see cref="FeatureExpander.Expand"/> made: the world-file features, their counts, and the points the block's outline is the hull of (local metres).</summary>
-    public sealed record FeatureExpansion(IReadOnlyList<JsonObject> Features, int Houses, int Woods, IReadOnlyList<Vector2> Points);
+    public sealed record FeatureExpansion(IReadOnlyList<JsonObject> Features, int Houses, int Woods, IReadOnlyList<Vector2> Points, IReadOnlyList<Vector2[]>? Shapes = null)
+    {
+        /// <summary>⭐ Terrain authoring U-2 — the world polygon of each feature, in <see cref="Features"/> order (a house's footprint, a wood's ring): what the placing ghost draws without parsing the GeoJSON back.</summary>
+        public IReadOnlyList<Vector2[]> ShapesOrEmpty => Shapes ?? System.Array.Empty<Vector2[]>();
+    }
 
     /// <summary>
     /// ⭐ O-4 (CE-4415, DESIGN_Terrain_Authoring §18c) — a block recipe → GeoJSON-shaped world features. ⭐ PURE and DETERMINISTIC: its own xorshift generator (never <c>System.Random</c>),
@@ -27,6 +31,7 @@ namespace Fdp.Toolkit.Terrain
             float rad = headingDeg * MathF.PI / 180f, cos = MathF.Cos(rad), sin = MathF.Sin(rad);
             var features = new List<JsonObject>();
             var points = new List<Vector2>();
+            var shapes = new List<Vector2[]>();
 
             // the footprints this block must keep out of: the base's buildings (and solid building prisms), then what it has placed
             var avoid = new List<(Vector2 Min, Vector2 Max)>();
@@ -61,6 +66,7 @@ namespace Fdp.Toolkit.Terrain
                     if ((fit & TerrainBlock.LevelPads) != 0) props["pad"] = Round(baseWorld.GroundHeightAt(centre.X, centre.Y));
                     features.Add(Feature(props, new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(centre.X, centre.Y) }));
                     points.AddRange(world);
+                    shapes.Add(world);
                     houses++;
                     break;
                 }
@@ -88,10 +94,15 @@ namespace Fdp.Toolkit.Terrain
                 features.Add(Feature(new JsonObject { ["kind"] = "surface", ["surface"] = "forest", ["label"] = $"{keyPrefix}/w{woods}" },
                     new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(coords) }));
                 points.AddRange(ring);
+                shapes.Add(ring);
                 woods++;
             }
-            return new FeatureExpansion(features, houses, woods, points);
+            return new FeatureExpansion(features, houses, woods, points, shapes);
         }
+
+        /// <summary>⭐ Terrain authoring U-2 — the world footprint of ONE house of <paramref name="template"/> at <paramref name="at"/>, turned <paramref name="headingDeg"/> (what <see cref="House"/> places): the placing ghost's polygon.</summary>
+        public static Vector2[] HouseFootprint(TerrainAssets assets, string template, Vector2 at, float headingDeg)
+            => Place(TerrainBuildingExpander.LocalFootprint(assets.LoadTemplate(template, "house ghost"), $"template '{template}'"), at, headingDeg);
 
         /// <summary>The Point-building feature of ONE placed house (a <see cref="TerrainFeature"/>): label <c>&lt;keyPrefix&gt;/0</c>.</summary>
         public static JsonObject House(TerrainWorld baseWorld, TerrainAssets assets, string template, Vector2 at, float headingDeg, float pad, string keyPrefix)
