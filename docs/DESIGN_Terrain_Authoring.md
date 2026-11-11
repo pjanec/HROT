@@ -916,3 +916,21 @@ graph TD
 | D-6 the summary | from `overlay.json` `blocks[]` + the overlay world's parts + the source's non-terrain entities; estimate = tiles to bake × the cold rate (§18b) | — |
 
 ⏭ Not in O-5: *Edit terrain* resolving `source/base` (E-2, ui + backend), the ui dialog (mockup 4), an HTTP route — rows when they are picked up.
+
+#### 18d-1. As built *(CE-4422, backend `2026-11-11`)*
+
+`TerrainBake.SaveAs(sourceScenarioDir, target, newName, resolve, recipeRoots, bakeNavtiles)` → `TerrainSaveResult(Folder, ContentHash, Summary, Scenario)`
+(`FDP/Toolkits/Fdp.Toolkits.Navigation.Recast/TerrainBake.cs`); `TerrainUsers.Of(name, roots)`. Built to D-1…D-6, with these deviations:
+
+| as built | why |
+|---|---|
+| the world file is parsed and written back as JSON (features appended, `hrot.bounds` = the union) — the base's features are not re-modelled, only re-printed | the one parser reads it; rail (a) holds it element-wise to `TerrainWorldMerge` |
+| the templates the overlay places are copied into the saved folder's `buildings/` | the shared `assets/buildings` is found only from under an `assets/terrain/` tree — the saved terrain must be self-contained wherever it lands |
+| swap: target → `.old`, `.part` → target, delete `.old` (restored if the move fails) | a re-save (W-4) over a live target; a failure leaves it as it was |
+| W-4 with the base no longer resolvable: the target's own `source/base` stands in, read before the swap | the source carries its ground (E-1) |
+| the new scenario is RETURNED as a DOM (header on N, door states re-prefixed, no entities, no damage); the caller writes it | where it goes is the dialog's choice (mockup 4) |
+| *area* = an entity with a component named `*Area` / `Zone*`; every other non-terrain entity counts as a unit | the scenario format has no area marker |
+| not baked at save ⇒ `TilesTotal` is a bounds estimate, `TilesToBake` / `EstimateSeconds` null; baked ⇒ exact (0 to bake) | an exact count means baking every tile |
+| ⚠ a base tile the overlay re-baked stays in `navtiles/`, unused (its hash differs) | harmless; a cleanup row (CE-3435) |
+
+Rails (each red-proved, `TerrainBakeTests`): parse(saved) ≡ merge(base, overlay) · loading the saved terrain bakes 0 tiles · its hash differs from the base and `source/` does not move it · authored door states resolve through the new scenario · a re-save works, also with the base deleted · a failed save leaves the target and no `.part` / `.old` · the summary's counts and `TerrainUsers.Of`.
