@@ -744,3 +744,35 @@ Input: scale-1 (5.5 km, 1 651 houses) split by `scripts/terrain-overlay-measure.
 | ⚠ the overlay's `navtiles/` size | **not measured** — needs O-4's compile | |
 
 ⇒ **READY-TO-BUILD.** A node's load grows by ≈ 0.64 s for a 700-house overlay; the save carries the tile bake.
+
+### 18c. The compile — O-4 part 2 *(CE-4415, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+
+```mermaid
+sequenceDiagram
+  participant N as Nodes (their slices)
+  participant M as Master - StorageProcessManager
+  participant C as OverlayCompiler
+  participant X as FeatureExpander
+  participant NAS as NAS scenario folder
+  N->>M: scenario slices (save)
+  M->>M: ScenarioMergeCore.Merge -> canonical scenario.json
+  M->>C: Compile(canonical dom, scenario dir, base terrain definition)
+  C->>C: entities with TerrainBlock / TerrainFeature (guid = stable key prefix)
+  C->>X: Expand(recipe, seed, site, base world) per block - pure, seeded
+  X-->>C: features labelled guid/i
+  C->>C: canonical order, write overlay.world.geojson + overlay.json (hashes)
+  C->>C: bake the merged world's navmesh: write ONLY tiles the base's seed lacks
+  C->>NAS: scenario dir/terrain-overlay - already on the NAS: published by construction
+  Note over C: no TerrainBlock / TerrainFeature entity => no overlay folder (a stale one is deleted)
+```
+*What it shows:* the compile runs where the CANONICAL scenario is born — the master's merge writes it straight to the NAS — so "publish the overlay"
+is not a step. The editor's own save (`EditorScenarioSession.SaveTo`, one node, no cluster) calls the SAME `OverlayCompiler.Compile`.
+
+| element | decision | why |
+|---|---|---|
+| `TerrainBlock { FixedString32 Recipe; uint Seed; float HeadingDeg }` + `SimTransform` | an unmanaged, saved component — one entity per placed block (B-2); its guid prefixes every part's key | recorded ⇒ unmanaged (CLAUDE.md); one entity per block keeps the wire small |
+| `TerrainFeature { byte Kind; FixedString32 Template; float HeadingDeg; float Pad }` + `SimTransform` | a single placed house (Kind = House) in v1; `Pad` written, not yet used (L-5) | the smallest kind that proves the path; lines / areas need the shape capacity measurement (§10) |
+| recipe = `assets/terrain-recipes/<id>.recipe.json`: houses (templates, count range, radius, spacing) + woods (count, size) | shipped data (B-Q2); the content hash covers the EXPANDED world, so a recipe edit reaches a scenario only when it is compiled again (C-6) | B-1 |
+| `FeatureExpander.Expand` — pure; its own seeded generator (xorshift, never `System.Random`); keeps out of the base's building footprints and water surfaces (B-3 part) | identical bytes for the same input on every machine | ⚠ road alignment (B-3) needs the road net — a finding row, not v1 |
+| navtiles: the compile bakes the merged world in Prefill mode seeded from the base; a seed hit is NOT written | the overlay's `navtiles/` holds only the touched tiles (§18b: 3.8 %) | G-4, G-10 |
+| ⛔ the TKB type + the Add Entity groups for blocks / features | ui's (B-5), later; the engine reads the components from the scenario JSON whatever placed them | the handoff's "UI is ui's, later" |
