@@ -288,15 +288,15 @@ public sealed class FieldTable : IStructTableTarget
         if (live != null && (_liveDirty || live.Epoch != _liveEpoch)) RefreshLive(live);
         _liveDirty = false;
         bool ownWrite = false;
-        if (ImGuiApi.BeginTable("##fields", cols, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV))
+        if (ImGuiApi.BeginTable("##fields", cols, StructTable.Flags))   // ⭐ CE-4358 — the ONE struct-table flags: the name / type / value columns are resizable
         {
             ImGuiApi.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch, 0.30f);
             ImGuiApi.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthStretch, 0.18f);
             ImGuiApi.TableSetupColumn(_settings.ValueHeader, ImGuiTableColumnFlags.WidthStretch, 0.40f);
             if (_settings.ShowLive) ImGuiApi.TableSetupColumn("Live", ImGuiTableColumnFlags.WidthStretch, 0.22f);
-            if (_settings.UsedBy) ImGuiApi.TableSetupColumn("Used by", ImGuiTableColumnFlags.WidthFixed, 64f);
-            if (hasTail) ImGuiApi.TableSetupColumn("##tail", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHeaderLabel, _settings.RowTailWidth);
-            if (!_fill) ImGuiApi.TableSetupColumn("##menu", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHeaderLabel, menuW + 6f);
+            if (_settings.UsedBy) ImGuiApi.TableSetupColumn("Used by", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoResize, 64f);
+            if (hasTail) ImGuiApi.TableSetupColumn("##tail", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHeaderLabel | ImGuiTableColumnFlags.NoResize, _settings.RowTailWidth);
+            if (!_fill) ImGuiApi.TableSetupColumn("##menu", ImGuiTableColumnFlags.WidthFixed | ImGuiTableColumnFlags.NoHeaderLabel | ImGuiTableColumnFlags.NoResize, menuW + 6f);
             ImGuiApi.TableHeadersRow();
 
             uint owner = ImGuiApi.GetID("##fieldrows");

@@ -5,8 +5,8 @@
 |---|---|---|---|---|
 | C-0 | CE-4342 … CE-4352 | DONE | (this commit) | ticked 4342 4343 4346 4347 4348 4349 4351 4352 with their Next_2 shas (4344/4345/4350 were already closed by other lanes) |
 | C-1 | CE-4356 | DONE | (this commit) | `DeployScreen`: Observing + server ⇒ no centred dialog; the status-bar section draws an eye glyph + *Observing · Deploy…* (SmallButton) ⇒ `StopObserving` ⇒ Choosing ⇒ the dialog. Frame rail `CE4356_…` (dialog absent, entry drawn, click reopens, 0 B steady; the flow's Observing state set by reflection — the wire round trip is not the subject); red-proved (`Visible` for Observing+server restored ⇒ red). The no-server case unchanged. Inventory: search_code/find.sh DeployScreen (graph 5 files, grep 7) |
-| C-2 | CE-4357 | IN PROGRESS | — | |
-| C-3 | CE-4358 | QUEUED | — | |
+| C-2 | CE-4357 | DONE | (this commit) | measured trailing buttons; rail at UI scale 1 / 1.5, red-proved; the allocation assert dropped from the rail (CE-4285 / C-9 owns it) |
+| C-3 | CE-4358 | DONE | (this commit) | one `StructTable.Flags` with Resizable; rail drags the divider; red-proved |
 | C-4 | CE-4289 rest | QUEUED | — | |
 | C-5 | CE-4258 | QUEUED | — | |
 | C-6 | CE-4199 | QUEUED | — | |

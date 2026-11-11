@@ -172,6 +172,7 @@ public sealed class LeafCellsFrameRail
     private sealed class Spy : IMapPickContext
     {
         public int Shown;
+        public bool CanListEntities { get; init; }
         public bool IsPickPendingFor(string jsonPath) => false;
         public void RequestEntityPick(string jsonPath, string[]? filterPresets) { }
         public void RequestLocationPick(string jsonPath) { }
@@ -208,5 +209,23 @@ public sealed class LeafCellsFrameRail
             r.Click(C(KitProbe.ShowOnMap));
             Assert.True(spy.Shown >= 1, "show-on-map fires although the table is read-only");
         }
+    }
+
+    public sealed class PlaceDoc { public Fdp.Core.WorldPoint At; }
+
+    /// <summary>⭐ CE-4357 — a position row (x · y · z · Pick Map · List… · ⌖) measures its trailing buttons: at UI scale 1 and 1.5 every control, the ⌖ last, ends inside the value column
+    /// (the old row reserved a constant 150 / 90 px and clipped the ⌖). ✅ Red-proof: <c>LocationButtons</c> back to the constants ⇒ the scale-1.5 case is red.</summary>
+    [SkippableTheory]
+    [InlineData(1f, 560f)]
+    [InlineData(1.5f, 740f)]
+    public void CE4357_APositionRow_ReservesTheRealWidthOfItsButtons_NothingClipped(float scale, float width)
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var r = new ListFormsFrameRail.Rig(new PlaceDoc(), typeof(PlaceDoc), picks: new Spy { CanListEntities = true }, uiScale: scale, windowWidth: width);
+        r.Steady();
+        Assert.True(KitProbe.TryGet(KitProbe.ShowOnMap, out var a, out var b), "the ⌖ is drawn");
+        float right = 10f + width - ImGui.GetStyle().WindowPadding.X;   // the window's content edge: the value column ends here
+        Shot(r, $"position-row-{scale}.png");
+        Assert.True(b.X <= right, $"the ⌖ ends at {b.X}, inside the column edge {right} (scale {scale})");
     }
 }

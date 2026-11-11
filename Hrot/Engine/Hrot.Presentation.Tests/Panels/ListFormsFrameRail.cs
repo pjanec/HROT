@@ -82,16 +82,18 @@ public sealed class ListFormsFrameRail
         public readonly IEditSession Session;
         public readonly ComponentEditDrawer Drawer;
         public long Bytes = -1;
+        public readonly float WindowWidth;
         public float Pitch;
         public readonly Pressing Input = new();
         public readonly KeyRouter Router;
         public readonly Keyed Window = new();
         public bool Route;
 
-        public Rig(object doc, Type type, StructEdit.Core.Defaults.IFieldDefaults? defaults = null, bool readOnly = false, IMapPickContext? picks = null)
+        public Rig(object doc, Type type, StructEdit.Core.Defaults.IFieldDefaults? defaults = null, bool readOnly = false, IMapPickContext? picks = null, float uiScale = 1f, float windowWidth = 740f)
         {
             Frame = UiFrameHarness.Begin(760, 560);
-            new EditorFontService().Initialize(1f, 1f);
+            WindowWidth = windowWidth;
+            new EditorFontService().Initialize(1f, uiScale);
             Session = ComponentEditServices.CreateBuilder().Build().Open(doc, type);
             Drawer = new ComponentEditDrawer(Session, picks, defaults: defaults, readOnly: readOnly);
             Router = new KeyRouter(Input);
@@ -101,7 +103,7 @@ public sealed class ListFormsFrameRail
         public void Draw()
         {
             Sim.Feed();
-            ImGui.SetNextWindowPos(new Vector2(10, 10)); ImGui.SetNextWindowSize(new Vector2(740, 520));
+            ImGui.SetNextWindowPos(new Vector2(10, 10)); ImGui.SetNextWindowSize(new Vector2(WindowWidth, 520));
             ImGui.Begin("##forms", Bare);
             Pitch = ImGui.GetFrameHeight() + ImGui.GetStyle().ItemSpacing.Y;
             if (Session.RebuildState == EditRebuildState.RebuildRequired) Session.RebuildDocument();

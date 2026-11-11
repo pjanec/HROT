@@ -316,7 +316,7 @@ public sealed partial class ComponentEditDrawer
     /// <summary>An open item: its fields (or its one leaf cell) as a nested two-column table indented under its row.</summary>
     private void DrawItemBody(EditNode element)
     {
-        if (!ImGuiApi.BeginTable("##item", 2, ImGuiTableFlags.SizingStretchProp)) return;
+        if (!ImGuiApi.BeginTable("##item", 2, ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.Resizable)) return;   // ⭐ CE-4358
         ImGuiApi.TableSetupColumn("Field", ImGuiTableColumnFlags.WidthStretch, 0.4f);
         ImGuiApi.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch, 0.6f);
         if (element.Children.Count > 0 && element.Kind is EditNodeKind.Struct or EditNodeKind.Class or EditNodeKind.Record)

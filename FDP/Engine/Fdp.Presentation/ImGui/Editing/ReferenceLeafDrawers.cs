@@ -497,9 +497,9 @@ public static class ReferenceLeafDrawers
     private static bool DrawWorldPoint(EditNode node, float width, IMapPickContext? ctx)
     {
         bool changed = false;
-        ImGuiApi.SetNextItemWidth(Math.Max(width - LocationButtons(ctx), 60f));
+        ImGuiApi.SetNextItemWidth(Math.Max(width - LocationButtons(ctx, ShowsGlyph(node, ctx)), 60f));
         var local = node.Binding?.GetBoxed() is WorldPoint wp ? (Vector3)wp : default;
-        if (DrawXyz(ref local, Math.Max(width - LocationButtons(ctx), 60f)))
+        if (DrawXyz(ref local, Math.Max(width - LocationButtons(ctx, ShowsGlyph(node, ctx)), 60f)))
         {
             node.Binding?.SetBoxed((WorldPoint)local);
             changed = true;
@@ -510,6 +510,14 @@ public static class ReferenceLeafDrawers
             changed = true;
         }
         return changed;
+    }
+
+    /// <summary>⭐ CE-4357 — the PointLink row's two radio buttons (<i>Coordinates</i> · <i>Entity</i>), measured.</summary>
+    private static float PointRadios()
+    {
+        var style = ImGuiApi.GetStyle();
+        float box = ImGuiApi.GetFrameHeight() + style.ItemInnerSpacing.X, gap = style.ItemSpacing.X;
+        return box + ImGuiApi.CalcTextSize("Coordinates").X + 4f + box + ImGuiApi.CalcTextSize("Entity").X + gap * 2f;
     }
 
     private static bool DrawXyz(ref Vector3 local, float width)
@@ -529,7 +537,22 @@ public static class ReferenceLeafDrawers
 
     private static readonly string[] NamedPointPresets = { IMapPickContext.NamedPointsPreset };
 
-    private static float LocationButtons(IMapPickContext? ctx) => ctx == null ? 0f : ctx.CanListEntities ? 150f : 90f;
+    /// <summary>⭐ CE-4357 — what the row's trailing buttons NEED, measured from the font at the user's UI scale (never a constant): <i>Pick Map</i> and, when the context lists entities, <i>List…</i>
+    /// (text + frame padding + the gap before each), and the ⌖ glyph when <paramref name="showGlyph"/> (it is drawn by <see cref="DrawShowOnMap"/> after the row). No allocation.</summary>
+    private static float LocationButtons(IMapPickContext? ctx, bool showGlyph)
+    {
+        if (ctx == null) return 0f;
+        var style = ImGuiApi.GetStyle();
+        float gap = style.ItemSpacing.X, pad = style.FramePadding.X * 2f;
+        float w = gap + ImGuiApi.CalcTextSize("Pick Map").X + pad;
+        if (ctx.CanListEntities) w += gap + ImGuiApi.CalcTextSize("List…").X + pad;
+        if (showGlyph) w += 4f + NodeEditor.Core.Widgets.GlyphWidgets.WidthOf(ShowGlyph);
+        return w;
+    }
+
+    /// <summary>Whether <see cref="DrawShowOnMap"/> will draw a ⌖ after a row of this node (the same test).</summary>
+    private static bool ShowsGlyph(EditNode node, IMapPickContext? ctx)
+        => ctx != null && (ctx.Preview != null || ctx.CanShowOnMap) && MapPreviews.Has(node.ClrType);
 
     private static bool DrawLocationPickButton(EditNode node, IMapPickContext ctx, out PointLink location)
     {
@@ -702,7 +725,7 @@ public static class ReferenceLeafDrawers
         {
             // today's form: x, y, z + Pick Map — typed coordinates are a literal (no authored reference)
             var local = (Vector3)point.Local;
-            if (DrawXyz(ref local, Math.Max(width - LocationButtons(ctx) - 190f, 120f)))
+            if (DrawXyz(ref local, Math.Max(width - LocationButtons(ctx, ShowsGlyph(node, ctx)) - PointRadios(), 120f)))
             {
                 point = new PointLink(local);
                 changed = true;

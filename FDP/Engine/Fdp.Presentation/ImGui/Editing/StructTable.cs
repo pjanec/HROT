@@ -15,15 +15,21 @@ public static class StructTable
     /// <summary>The label column's share of the width.</summary>
     public const float LabelShare = 0.4f;
 
+    /// <summary>⭐ CE-4358 — the flags of EVERY struct-editor table (ONE place): stretch columns the user can drag (the divider), the widths kept by ImGui per table id — i.e. per window — while it lives.</summary>
+    public const ImGuiTableFlags Flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.Resizable;
+
     /// <summary>Opens the table; false when ImGui clipped it (nothing to draw, no <see cref="End"/>).</summary>
     public static bool Begin(string id, bool headers = false, string label = "Field", string value = "Value")
     {
-        if (!ImGuiApi.BeginTable(id, 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.SizingStretchProp)) return false;
+        if (!ImGuiApi.BeginTable(id, 2, Flags)) return false;
         ImGuiApi.TableSetupColumn(label, ImGuiTableColumnFlags.WidthStretch, LabelShare);
         ImGuiApi.TableSetupColumn(value, ImGuiTableColumnFlags.WidthStretch, 1f - LabelShare);
         if (headers) ImGuiApi.TableHeadersRow();
         return true;
     }
 
-    public static void End() => ImGuiApi.EndTable();
+    /// <summary>⭐ CE-4358 — the label column's width as of the last <see cref="End"/> (what a drag of the divider changed; the rails read it).</summary>
+    public static float LastLabelWidth { get; private set; }
+
+    public static void End() { if (ImGuiApi.TableGetRowIndex() >= 0) { ImGuiApi.TableSetColumnIndex(0); LastLabelWidth = ImGuiApi.GetContentRegionAvail().X; } ImGuiApi.EndTable(); }
 }
