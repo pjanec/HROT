@@ -161,13 +161,15 @@ public sealed class TerrainSaveAsWindow
         Separator(16, 296, 544, "Then", s);
         At(18, 318, s);
         bool mesh = m.PrebuildMesh;
-        if (ImGui.Checkbox("Pre-build the walkable mesh##ts_mesh", ref mesh)) m.PrebuildMesh = mesh;
+        if (ImGui.Checkbox("##ts_mesh", ref mesh)) m.PrebuildMesh = mesh;
         Rects["mesh"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        TextAt(42, 332, s, SUB, "Pre-build the walkable mesh");
         TextAt(250, 332, s, NOTE, m.MeshEstimate);
         At(18, 346, s);
         bool scen = m.CreateScenario;
-        if (ImGui.Checkbox("Create a scenario on it:##ts_scen", ref scen)) m.CreateScenario = scen;
+        if (ImGui.Checkbox("##ts_scen", ref scen)) m.CreateScenario = scen;
         Rects["scenario"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        TextAt(42, 360, s, SUB, "Create a scenario on it:");
         At(238, 346, s);
         ImGui.SetNextItemWidth(190 * s);
         string sn = m.ScenarioName;

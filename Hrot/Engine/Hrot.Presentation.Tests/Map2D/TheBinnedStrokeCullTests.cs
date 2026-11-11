@@ -39,11 +39,13 @@ public sealed class TheBinnedStrokeCullTests
                 var a = new Vector2(p.LineStart.X, p.LineStart.Y); var b = new Vector2(p.LineEnd.X, p.LineEnd.Y);
                 if (Vector2.DistanceSquared(a, b) < minLength * minLength) continue;
                 if (1f / zoom > TerrainLayer2D.BuildingStrokesMaxMetresPerPixel && plan.StrokeBuilding[i] >= 0) continue;   // CE-4389
+                if (zoom < TerrainLayer2D.InteriorMinZoom && plan.IsHouse(plan.StrokeBuilding[i])) continue;                   // U-4
                 if (Math.Max(a.X, b.X) < min.X || Math.Min(a.X, b.X) > max.X || Math.Max(a.Y, b.Y) < min.Y || Math.Min(a.Y, b.Y) > max.Y) continue;
             }
             else if (p.Shape == DebugPrimitiveShape.Text)
             {
                 if (zoom < TerrainLayer2D.LabelMinZoom) continue;
+                if (zoom < TerrainLayer2D.InteriorMinZoom && plan.IsHouse(plan.StrokeBuilding[i])) continue;
                 if (p.TextX < min.X || p.TextX > max.X || p.TextY < min.Y || p.TextY > max.Y) continue;
             }
             kept.Add(i);
@@ -89,7 +91,7 @@ public sealed class TheBinnedStrokeCullTests
         var far = into.Take(TerrainLayer2D.Cull(plan, view, 1f / (TerrainLayer2D.BuildingStrokesMaxMetresPerPixel * 2f), into)).Select(Key).ToHashSet();
         int buildingsFar = Enumerable.Range(0, plan.Strokes.Length).Count(i => plan.StrokeBuilding[i] >= 0 && far.Contains(Key(plan.Strokes[i])));
         Assert.Equal(0, buildingsFar);
-        var close = into.Take(TerrainLayer2D.Cull(plan, view, 1f / TerrainLayer2D.BuildingStrokesMaxMetresPerPixel, into)).Select(Key).ToHashSet();
+        var close = into.Take(TerrainLayer2D.Cull(plan, view, Math.Max(1f / TerrainLayer2D.BuildingStrokesMaxMetresPerPixel, TerrainLayer2D.InteriorMinZoom), into)).Select(Key).ToHashSet();
         int buildingsClose = Enumerable.Range(0, plan.Strokes.Length).Count(i => plan.StrokeBuilding[i] >= 0 && close.Contains(Key(plan.Strokes[i])));
         Assert.True(buildingsClose > 0, "at the limit the building outlines are drawn");
     }

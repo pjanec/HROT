@@ -56,6 +56,8 @@ public static class ScenarioMenuCommands
     public const string NewTerrainFromOsmId = "terrain.newFromOsm";
     /// <summary>⭐ Terrain authoring U-5 — Save Terrain As…: <c>"terrain.saveAs"</c>.</summary>
     public const string SaveTerrainAsId = "terrain.saveAs";
+    /// <summary>⭐ Terrain authoring U-8 — File › New › Random terrain…: <c>"terrain.newRandom"</c>.</summary>
+    public const string NewRandomTerrainId = "terrain.newRandom";
     /// <summary>⭐ CE-4375 — why Terrain from OpenStreetMap… is greyed on a host that composes no wizard.</summary>
     public const string NoTerrainFromOsmReason = "this host has no terrain wizard";
 
@@ -168,7 +170,9 @@ public static class ScenarioMenuCommands
         Action?                                                   openTerrainFromOsm   = null,
         Func<string?>?                                            terrainFromOsmDisabledReason = null,
         Action?                                                   openSaveTerrainAs    = null,
-        Func<string?>?                                            saveTerrainAsDisabledReason = null)
+        Func<string?>?                                            saveTerrainAsDisabledReason = null,
+        Action?                                                   openRandomTerrain    = null,
+        Func<string?>?                                            randomTerrainDisabledReason = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -215,6 +219,17 @@ public static class ScenarioMenuCommands
             dynamicDisplayName: () => (openTerrainFromOsm == null ? NoTerrainFromOsmReason : terrainFromOsmDisabledReason?.Invoke()) is { } why
                 ? $"Terrain from OpenStreetMap… (unavailable — {why})" : "Terrain from OpenStreetMap…",
             allowedInIdle: false);   // ⛔ not on the Start surface (it draws every Idle item as a button): the approved mockup scopes the File menu item only (R-4151)
+
+        // ⭐ Terrain authoring U-8 (mockup 1) — File › New › Random terrain…: the wizard over backend's generator. Registered only on a host that HAS it (the editor); greyed with its reason by the run gate like the item above.
+        if (openRandomTerrain != null)
+            RegisterCommand(
+                registerCommand, menu, commands, closedReason,
+                NewRandomTerrainId, "Random terrain…", FileMenuLayout.NewRandomTerrain,
+                "Generate a terrain: pick a kind of place, preview it, shuffle until it looks right, then open it in the editor as an ordinary scenario of blocks",
+                isEnabled: () => randomTerrainDisabledReason?.Invoke() == null,
+                handler: _ => openRandomTerrain(),
+                dynamicDisplayName: () => randomTerrainDisabledReason?.Invoke() is { } why ? $"Random terrain… (unavailable — {why})" : "Random terrain…",
+                allowedInIdle: false);
 
         // ⭐ Terrain authoring U-5 (mockup 4) — File › Save Terrain As…: the dialog that bakes this scenario's blocks and features into a NEW terrain. Registered only on a host that HAS the dialog (the editor);
         //   greyed with its reason (the label says why) while no scenario is loaded.

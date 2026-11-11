@@ -583,6 +583,7 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-4375 — the OSM terrain wizard (File › New › Terrain from OpenStreetMap…).</summary>
         private Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? _osmWizard;
         private Hrot.UI.Common.TerrainSave.TerrainSaveAsWindow? _terrainSaveAs;   // ⭐ Terrain authoring U-5
+        private Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow? _randomTerrain;   // ⭐ Terrain authoring U-8
         /// <summary>The OSM wizard the File ▸ New item opens (a rail reads its DisabledReason, CE-4381).</summary>
         internal Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? OsmWizard => _osmWizard;
         /// <summary>⭐ CE-4378 — the New-asset launcher, for the OSM wizard's "Open in New Scenario" (set where the launcher is built).</summary>
@@ -3680,6 +3681,11 @@ namespace Hrot.Editor
                 if (outcome.ScenarioName is { } name) _editorApp?.ScenarioSession.LoadScenario(name);
             };
             windowManager.RegisterFrameOverlay(_terrainSaveAs.Draw);
+            // ⭐ Terrain authoring U-8 — File ▸ New ▸ Random terrain…: the wizard over backend's RandomTerrainPipeline; the scenario it writes is opened through the scenario door
+            var randomTerrainService = new Hrot.Editor.TerrainRandom.EditorRandomTerrainService();
+            _randomTerrain = new Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow(() => randomTerrainService);
+            _randomTerrain.Opened += scenario => { _saveAllStatus = $"[OK] Generated terrain and scenario '{scenario}'."; _editorApp?.ScenarioSession.LoadScenario(scenario); };
+            windowManager.RegisterFrameOverlay(_randomTerrain.Draw);
 
             var assetRowCommands = new[]
             {
@@ -4427,7 +4433,9 @@ namespace Hrot.Editor
                 terrainFromOsmDisabledReason: () => _osmWizard?.DisabledReason,
                 // ⭐ Terrain authoring U-5 — File › Save Terrain As…: this host HAS the dialog
                 openSaveTerrainAs: _terrainSaveAs != null ? _terrainSaveAs.Open : null,
-                saveTerrainAsDisabledReason: () => _terrainSaveAs?.DisabledReason);
+                saveTerrainAsDisabledReason: () => _terrainSaveAs?.DisabledReason,
+                openRandomTerrain: _randomTerrain != null ? _randomTerrain.Open : null,
+                randomTerrainDisabledReason: () => _randomTerrain?.DisabledReason);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();

@@ -27,6 +27,8 @@ public static class FileMenuLayout
     public const string NewScenario = "File/New/Scenario…";
     /// <summary>⭐ CE-4375 (OSM §6) — Terrain from OpenStreetMap…: the wizard; greyed with its reason while the host has no pipeline.</summary>
     public const string NewTerrainFromOsm = "File/New/Terrain from OpenStreetMap…";
+    /// <summary>⭐ Terrain authoring U-8 (mockup 1) — Random terrain…: the wizard (a preset, a preview, shuffle, open in the editor); in the New submenu beside the OSM wizard.</summary>
+    public const string NewRandomTerrain = "File/New/Random terrain…";
     /// <summary>Load Checkpoint… — a live run, paused at the checkpoint.</summary>
     public const string LoadCheckpoint = "File/Load Checkpoint…";
     /// <summary>Open Exercise Recording… — review (AAR).</summary>
@@ -74,7 +76,7 @@ public static class FileMenuLayout
     {
         // ⭐ CE-4255 — the New submenu takes New Scenario…'s place, its children right after it in the order they are drawn (Scenario… · Asset… · Behavior… · Action… · Condition… · Macro…) — so this
         //   list IS the depth-first draw order. ⚠ NewMacro is not in EditingGroup: its visibility is today's (Idle-disallowed, drawn otherwise).
-        var l = new List<string> { LoadScenario, NewMenu, NewScenario, NewTerrainFromOsm, NewAsset, NewBehavior, NewAction, NewCondition, NewMacro, LoadCheckpoint, OpenExerciseRecording, SeparatorAfterLoads, SaveCheckpoint };
+        var l = new List<string> { LoadScenario, NewMenu, NewScenario, NewTerrainFromOsm, NewRandomTerrain, NewAsset, NewBehavior, NewAction, NewCondition, NewMacro, LoadCheckpoint, OpenExerciseRecording, SeparatorAfterLoads, SaveCheckpoint };
         foreach (var item in EditingGroup) if (!l.Contains(item)) l.Add(item);
         l.Add(SeparatorBeforeClose); l.Add(Close); l.Add(Exit);
         return l.ToArray();
