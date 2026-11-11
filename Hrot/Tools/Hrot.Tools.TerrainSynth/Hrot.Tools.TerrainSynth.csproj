@@ -9,7 +9,7 @@
     <AssemblyName>hrot-terrain-synth</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <!-- the input-set format code (writers, reader, checks, netconvert) is shared — CE-4371 -->
-    <ProjectReference Include="..\..\Engine\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />
+    <!-- the generators are the Hrot.Terrain.Synth LIBRARY (CE-4428 F-1); this is the CLI shell over it -->
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Synth\Hrot.Terrain.Synth.csproj" />
   </ItemGroup>
 </Project>

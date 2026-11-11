@@ -23,6 +23,11 @@ public static class ManifestWriter
             if (o.Noise != null || o.NoiseEnabled) w.WriteString("noise", o.NoiseEnabled ? "real" : "none");
             if (o.Terraces != null || o.TerracesEnabled) w.WriteString("terraces", o.TerracesEnabled ? "on" : "off");
             if (o.Extras) w.WriteBoolean("extras", true);
+            if (o.GroundOnly) w.WriteBoolean("groundOnly", true);
+            if (o.ZRange is double zRange) w.WriteNumber("zRange", zRange);
+            if (o.WaterMode != null) w.WriteString("water", o.WaterMode);
+            if (o.RoadScale is double roadScale) w.WriteNumber("roadScale", roadScale);
+            if (o.WoodsShare is double woodsShare) w.WriteNumber("woodsShare", woodsShare);
             if (o.Materials != null || o.MaterialsEnabled) w.WriteString("materials", o.MaterialsEnabled ? "on" : "off");
             w.WriteEndObject();
         });

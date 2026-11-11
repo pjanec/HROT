@@ -19,7 +19,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Tools\Hrot.Tools.TerrainSynth\Hrot.Tools.TerrainSynth.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Synth\Hrot.Terrain.Synth.csproj" />
     <ProjectReference Include="..\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />
   </ItemGroup>
 </Project>

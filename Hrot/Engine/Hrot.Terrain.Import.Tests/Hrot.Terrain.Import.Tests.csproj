@@ -24,7 +24,7 @@
     <!-- CE-4379: one generated house is baked to prove the switch-back stair is walkable -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Navigation.Recast\Fdp.Toolkits.Navigation.Recast.csproj" />
     <ProjectReference Include="..\Hrot.Terrain.InputSet\Hrot.Terrain.InputSet.csproj" />
-    <ProjectReference Include="..\..\Tools\Hrot.Tools.TerrainSynth\Hrot.Tools.TerrainSynth.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Synth\Hrot.Terrain.Synth.csproj" />
     <ProjectReference Include="..\..\Tools\Hrot.Tools.TerrainImport\Hrot.Tools.TerrainImport.csproj" />
     <ProjectReference Include="..\..\Tools\Hrot.Tools.TerrainOsm\Hrot.Tools.TerrainOsm.csproj" />
   </ItemGroup>
