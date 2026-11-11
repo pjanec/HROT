@@ -140,3 +140,6 @@ Browser plays the 91 frames in **11.7 s → 5.9 s** (P1 + P2); apply 109 → 32 
 `search_graph` Class `.*(Playback|Recorder|Prefetch|FrameCache|OnDemandProvider).*` — the replay core: `PlaybackController`, `PlaybackSystem`, `PlaybackTickSystem`
 (Hrot.Common), `RecorderSystem`, `AsyncRecorder` (the recorder's double buffer + LZ4 worker — the precedent P1 mirrors), `OnDemandProvider`. ⛔ No playback prefetch,
 decode-ahead or frame cache exists (also searched in `docs/`, `.dev/`, FDP docs: none — design sweep 2026-11-11). `WorldSnapshotRing` is the UNDO ring, not a replay buffer.
+
+
+⭐ Gate note (ui, 2026-11-11): `CgfRecordingIntegrationTests.BothNodes_LiveSimulation_BothRecordingFilesCreated` failed only in the main checkout — measured: RED with a stale `data/nodes/node-400/` (a 2-frame recording from an earlier run) present, GREEN with it moved aside, green at the base and at P6 in clean worktrees ⇒ not the v8 format; the test reads the shared git-ignored `data/` instead of an isolated folder (a test-isolation defect, backend's suite).
