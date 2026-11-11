@@ -1,7 +1,7 @@
 # PoC — the kernel on a worker thread, the presentation pulled on the main thread
 
-**Status:** proof of concept (coordinator, `2026-11-11`), branch `poc/threaded-kernel`. Not production code. Owning design:
-`docs/DESIGN_Evaluation_Cost_And_Cadence.md` §13 (the option), §13.3 (the shape), §13.4 (the numbers), §13.5 (pros and cons).
+**Status:** proof of concept (coordinator, `2026-11-11`), branch `poc/threaded-kernel`. Not production code. ⭐ Owning design: `docs/DESIGN_Threaded_Simulation_Presentation.md` (on `coordinator`; consolidates what was
+`docs/DESIGN_Evaluation_Cost_And_Cadence.md` §13).
 
 **The question it answers:** can the ECS kernel tick the simulation on a worker thread while the application thread draws the map and the
 UI at its own rate, from a snapshot — and what does that cost and break?
