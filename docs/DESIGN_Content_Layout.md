@@ -381,7 +381,7 @@ temp-tree fixture builders left alone (they create at the top level, which is wh
 |---|---|---|
 | 1 | ⭐ **stale top-level copy (CE-4361's hazard)** — `ContentSeed` never deletes, so after a scenario is filed in git its old `scenarios/<leaf>` in the NAS would win the lookup (the top level wins). **Settled by construction in the seed:** `SeedTreeFrom` MOVES a top-level folder aside (to `<nas>/.superseded-scenarios/<leaf>`, outside `scenarios/` so no lister or Save-to-Git sees it) when the SOURCE files that leaf in a sub-folder. Never a delete; never touches a top-level scenario the source does not file (user-made). | the alternative (lookup prefers the filed copy) cannot tell a stale copy from a user's deliberate top-level one and would make a save write to the filed copy while the user edited the other |
 | 2 | the editor / CGF lists return LEAF names; a leaf shared by two scenarios falls back to its relative path (still loadable). `EnumerateRelPaths` stays for readers of folder paths; the nested-name rails (`ScenarioNestedNameTests`) still test it, and `TheCgfPickerIsNotEmptyTests` now asserts the leaf (`Ambush`, not `Combat/Ambush`) | Q-S2 |
-| 3 | the Q-S3 folder ORDER and the "My scenarios" label are not built — top-level scenarios have a null category | left to CE-4361 with the move |
+| 3 | ~~the Q-S3 folder ORDER and the "My scenarios" label are not built~~ ⭐ BUILT 2026-11-10 (CE-4397) | — |
 | 4 | the index is cached per scenarios root and rebuilt on a miss or a stale hit; no FileSystemWatcher | brief; a steady lookup is a dictionary read + `Directory.Exists` |
 
 Rails: `ContentLayoutTests.CE4360_*` (resolver, index rebuild, enumerator, real-tree leaf uniqueness, seed moves a stale copy aside), `StorageProcessManagerTests`, `ClusterMasterNewScenarioTests`,
@@ -585,5 +585,5 @@ scenarios/
 | docs | `scenarios/<name>` → `scenarios/<folder>/<name>` in 60 files, 135 references (a script; `recipes/scenarios/…` and paths under another root untouched; `.dev/` history untouched) |
 | NOT touched (comments only) | `///` / `//` mentions of `scenarios/<name>` in test sources; `recipes/scenarios/*` (the seed recipes are a different tree) |
 
-**Still unbuilt (Q-S3):** the picker's folder ORDER (Recent · My scenarios · showcases · demos · tests) and the *My scenarios* label for the top level — the folders come in whatever order CE-4360 left them and a top-level scenario has a null category; *Show tests (N)* (CE-4360) already hides `tests/`.
+✅ **BUILT 2026-11-10 (ui, CE-4397 + CE-4398)** — the scenario picker's folders are in Q-S3's order (`AssetPickerLauncher.ScenarioFolderOrder`; the tree builder ranks by FULL path, so demos' categories are ordered too) and a top-level scenario is filed under **My scenarios** (`AssetPickerSource.MyScenarios`); a typed filter lists the hits FLAT with their folder greyed (a folder collapsed before typing hid nested hits) — mockup `UX/picker-filter-visual.svg`, rail `TheScenarioPickerTests`. ⛔ HISTORY: *'Still unbuilt (Q-S3): the picker's folder ORDER and the My scenarios label'*.
 
