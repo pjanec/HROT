@@ -449,7 +449,7 @@ namespace Fdp.Core.FlightRecorder
                 {
                     try
                     {
-                        using var pms = new MemoryStream(prepared.Raw, 0, prepared.RawSize, writable: false);
+                        using var pms = new MemoryStream(prepared.Raw, 0, prepared.RawSize, writable: false, publiclyVisible: true);
                         using var preader = new BinaryReader(pms);
                         _playback.ApplyFrame(repo, preader, EventBus);
                     }
@@ -486,7 +486,7 @@ namespace Fdp.Core.FlightRecorder
             K4os.Compression.LZ4.LZ4Codec.Decode(_compressedBuffer, 0, compressedSize, _rawBuffer, 0, rawSize);
 
             // Apply frame
-            using (var ms = new MemoryStream(_rawBuffer, 0, rawSize, writable: false))
+            using (var ms = new MemoryStream(_rawBuffer, 0, rawSize, writable: false, publiclyVisible: true))
             using (var frameReader = new BinaryReader(ms))
             {
                 _playback.ApplyFrame(repo, frameReader, EventBus);

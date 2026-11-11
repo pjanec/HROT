@@ -143,7 +143,12 @@ namespace Fdp.Core.FlightRecorder
                     int typeId = reader.ReadInt32();
                     int len = reader.ReadInt32();
                     
-                    if (len > 0)
+                    if (len > 0 && typeId > 0 && (typeId & RecorderSystem.BlockRecordFlag) != 0)
+                    {
+                        // ⭐ CE-1478 P6 (format v8) — a BLOCK-RUN record: only the 64-byte blocks that moved
+                        ApplyBlockRuns(repo, typeId & ~RecorderSystem.BlockRecordFlag, chunkId, reader, len);
+                    }
+                    else if (len > 0)
                     {
                         byte[] data = ChunkBuffer(reader, len);
                         
@@ -470,6 +475,68 @@ namespace Fdp.Core.FlightRecorder
             }
         }
 
+        /// <summary>⭐ CE-1478 P6 — applies a v8 block-run record: [totalBytes][runCount] then per run [firstBlock][blockCount][bytes]. Reads the payload in place when the frame is a
+        /// publicly-visible <see cref="MemoryStream"/> (the controller's), else through the pooled buffer.</summary>
+        private void ApplyBlockRuns(EntityRepository repo, int typeId, int chunkIndex, BinaryReader reader, int len)
+        {
+            ReadOnlySpan<byte> payload;
+            var stream = reader.BaseStream;
+            if (stream is MemoryStream ms && ms.TryGetBuffer(out var seg))
+            {
+                payload = new ReadOnlySpan<byte>(seg.Array!, seg.Offset + (int)ms.Position, len);
+                ms.Position += len;
+            }
+            else
+                payload = ChunkBuffer(reader, len);
+
+            var tables = repo.GetRegisteredComponentTypes();
+            var table = ResolveTable(repo, tables, typeId);
+            if (table is not IUnmanagedComponentTable unmanaged)
+                return;   // an unresolved type (CE-4050, said once) — or a table a block run cannot address: skipped
+
+            int runs = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(4));
+            int at = 8;
+            for (int r = 0; r < runs; r++)
+            {
+                int first = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(at));
+                int blocks = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(at + 4));
+                at += 8;
+                int byteOffset = first * RecorderSystem.BlockSize;
+                int total = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload);
+                int bytes = Math.Min(blocks * RecorderSystem.BlockSize, total - byteOffset);
+                unmanaged.RestoreChunkRangeFromBuffer(chunkIndex, byteOffset, payload.Slice(at, bytes));
+                at += bytes;
+            }
+        }
+
+        // the table of a type id, registering a type this process has not used yet (CE-3299 B5) and saying ONCE per type when no assembly declares it (CE-4050); null = skip
+        private IComponentTable? ResolveTable(EntityRepository repo, IReadOnlyDictionary<Type, IComponentTable> componentTables, int typeId)
+        {
+            IComponentTable? targetTable = TableOf(repo, componentTables, typeId);
+
+            
+            // ⭐ CE-3299 B5 (D10) — a type the recording's process registered on first use, which this world has not used yet: register it
+            //   now (its [ComponentId] names it), as a fresh process restoring a checkpoint or replaying a recording must
+            if (targetTable == null && ComponentTypeRegistry.FindType(typeId) is { } missing)
+            {
+                typeof(EntityRepository).GetMethod(nameof(EntityRepository.RegisterComponent))!.MakeGenericMethod(missing)
+                    .Invoke(repo, new object?[] { null });
+                repo.TryGetTable(missing, out targetTable!);
+            }
+
+            if (targetTable == null)
+            {
+                // ⭐ CE-4050 — a type no assembly here declares (a legacy recording that does not name its assembly, or an assembly this
+                //   install does not carry): its data is skipped, said once per type, and the rest of the world plays on.
+                //   ⛔ SUPERSEDED: an InvalidOperationException that stopped playback (the browser, the dumper, the index builder).
+                if (_unresolvedTypes.Add(typeId))
+                    Fdp.Core.Logging.FdpLog<PlaybackSystem>.Warn(
+                        "[Playback] CE-4050: component type id {0} is declared by no loaded assembly — its recorded data is skipped.", typeId);
+                return null;
+            }
+            return targetTable;
+        }
+
         private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, byte[] data)
         {
             
@@ -491,29 +558,9 @@ namespace Fdp.Core.FlightRecorder
 
             // Find the component table by type ID
             var componentTables = repo.GetRegisteredComponentTypes();
-            
-            IComponentTable? targetTable = TableOf(repo, componentTables, typeId);
-            
-            // ⭐ CE-3299 B5 (D10) — a type the recording's process registered on first use, which this world has not used yet: register it
-            //   now (its [ComponentId] names it), as a fresh process restoring a checkpoint or replaying a recording must
-            if (targetTable == null && ComponentTypeRegistry.FindType(typeId) is { } missing)
-            {
-                typeof(EntityRepository).GetMethod(nameof(EntityRepository.RegisterComponent))!.MakeGenericMethod(missing)
-                    .Invoke(repo, new object?[] { null });
-                repo.TryGetTable(missing, out targetTable!);
-            }
+            IComponentTable? targetTable = ResolveTable(repo, componentTables, typeId);
+            if (targetTable == null) return;
 
-            if (targetTable == null)
-            {
-                // ⭐ CE-4050 — a type no assembly here declares (a legacy recording that does not name its assembly, or an assembly this
-                //   install does not carry): its data is skipped, said once per type, and the rest of the world plays on.
-                //   ⛔ SUPERSEDED: an InvalidOperationException that stopped playback (the browser, the dumper, the index builder).
-                if (_unresolvedTypes.Add(typeId))
-                    Fdp.Core.Logging.FdpLog<PlaybackSystem>.Warn(
-                        "[Playback] CE-4050: component type id {0} is declared by no loaded assembly — its recorded data is skipped.", typeId);
-                return;
-            }
-            
             // For unmanaged tables, we can do raw memory copy
             if (targetTable is IUnmanagedComponentTable unmanagedTable)
             {

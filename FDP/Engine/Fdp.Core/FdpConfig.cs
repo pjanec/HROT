@@ -52,8 +52,12 @@ namespace Fdp.Core
         /// v7 (⭐ CE-3329 P0, R1): the frame's outer header grew <c>SimTime</c> + <c>Flags</c> (25 → 34 bytes,
         /// <c>FrameOuterHeader</c>); the frame BODY is unchanged, so a v6 recording is still read — its index carries no sim time
         /// (<see cref="MIN_READABLE_FORMAT_VERSION"/>).
+        ///
+        /// v8 (⭐ CE-1478 P6, DESIGN_Replay_Playback_Performance §3): a delta may carry an unmanaged chunk as BLOCK RUNS — a component record whose type id has
+        /// <c>RecorderSystem.BlockRecordFlag</c> set holds only the 64-byte blocks that differ from the chunk's last recorded bytes. A v8 reader reads v6–v8; a v7
+        /// build rejects a v8 file (version mismatch) rather than mis-applying a block run as a whole chunk.
         /// </summary>
-        public const uint FORMAT_VERSION = 7;
+        public const uint FORMAT_VERSION = 8;
 
         /// <summary>⭐ CE-3329 P0 — the oldest format a reader still opens: v6 differs from v7 only in the outer header.</summary>
         public const uint MIN_READABLE_FORMAT_VERSION = 6;

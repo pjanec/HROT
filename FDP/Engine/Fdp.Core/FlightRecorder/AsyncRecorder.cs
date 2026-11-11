@@ -68,6 +68,13 @@ namespace Fdp.Core.FlightRecorder
             set => _recorderSystem.MinRecordableId = value; 
         }
 
+        /// <summary>⭐ CE-1478 P6 — passthrough to <see cref="RecorderSystem.BlockDeltas"/> (format v8 block-run deltas; default on).</summary>
+        public bool BlockDeltas
+        {
+            get => _recorderSystem.BlockDeltas;
+            set => _recorderSystem.BlockDeltas = value;
+        }
+
         /// <summary>
         /// Optional entity filter predicate.  Passthrough to the underlying
         /// <see cref="RecorderSystem.EntityFilter"/>.  When <c>null</c> (default),

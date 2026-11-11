@@ -468,6 +468,19 @@ namespace Fdp.Core
             IncrementChunkVersion(chunkIndex);
         }
 
+        /// <summary>⭐ CE-1478 P6 — restores one block run: <paramref name="source"/> to <paramref name="byteOffset"/> bytes into the chunk; the chunk is stamped changed.</summary>
+        public void RestoreChunkRange(int chunkIndex, int byteOffset, ReadOnlySpan<byte> source)
+        {
+            EnsureChunkAllocated(chunkIndex);
+            int copySize = Math.Min(source.Length, FdpConfig.CHUNK_SIZE_BYTES - byteOffset);
+            if (copySize > 0)
+            {
+                byte* destPtr = (byte*)_basePtr + (chunkIndex * (long)FdpConfig.CHUNK_SIZE_BYTES) + byteOffset;
+                fixed (byte* srcPtr = source) Unsafe.CopyBlock(destPtr, srcPtr, (uint)copySize);
+            }
+            IncrementChunkVersion(chunkIndex);
+        }
+
         /// <summary>
         /// Synchronizes dirty chunks from a source table to this table.
         /// Uses version tracking to optimize transfer (only copies modified chunks).
