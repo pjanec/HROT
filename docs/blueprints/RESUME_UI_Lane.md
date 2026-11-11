@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-10
-current-answer: ⭐⭐⭐ 2026-11-10 (c) — START AT "SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3" directly below this STATUS block.
+current-answer: ⭐⭐⭐ 2026-11-11 (b) — replay speed + change gating: "SESSION 2026-11-11 (b)". The OSM wizard strand (other ui session): "SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-10 (b) — START AT "SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-10 — START AT "SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE".
@@ -254,6 +254,14 @@ A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the 
 ✅ **Checked, nothing to do:** backend's flag on `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_StartOffersOpenNewAndRecording_*` — it passes on a fresh build (it already reads the greyed *New Scenario…* by prefix + tooltip); the red backend saw was a stale `ClusterRunner.Tests` restore (`PlayerSubsystem` not found until `dotnet restore`).
 
 **Traps measured this session:** the frame harness's default font is ASCII-only (`—`, `·` draw as `?`) — a rail that cares initialises `EditorFontService` first (the transfers rails do) · editing a project while a background build of it runs gives phantom "no such member" errors — re-build before believing them · ClusterRunner needed `dotnet restore` after the backend merge (`DeployFlowSystem` / Hrot.Gameplay "not referenced").
+
+## ⭐⭐⭐ SESSION 2026-11-11 (b) — REPLAY SPEED (CE-1478/1479) + CHANGE GATING (CE-1480), DONE *(state at `ui` `38c90b52a`, pushed)*
+
+| item | state | where |
+|---|---|---|
+| replay playback P1/P2/P4/P5/P6 + `ReplayClockRule` | ✅ built; P3 measure-gated; Windows confirmation on the user's scale-1 recording open (CE-1478) | `docs/DESIGN_Replay_Playback_Performance.md` |
+| change gating G1–G5 — one `ChangeGate` (Fdp.Toolkits), layers / style / culling / gizmo pass | ✅ built; editor frame ~180 → ~141 ms on scale-rig-1000 paused | `docs/DESIGN_Change_Gated_Systems.md` §4a |
+| ⚠ open | D-5 (culling fed from `MapViewSnapshot`) not built — gate on viewport instead · only 3 gizmo rules declare `Inputs` (`EntityPresentationGizmo` and 6 others need their dependency set read; `HealthBarGizmo` needs a settings version) · G6 egress = backend's E1 | design §4a |
 
 ## ⭐⭐⭐ SESSION 2026-11-11 — OVERNIGHT: USER FINDINGS + NEXT_3 *(state at `ui` after `eb6b23ec2`, pushed, tree clean)*
 
