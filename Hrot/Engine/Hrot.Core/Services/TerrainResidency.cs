@@ -47,6 +47,7 @@ public sealed class TerrainResidency
         internal bool               HasRoadNetwork;
         internal string?            TerrainName;
         internal DateTime           FileTimestamp;
+        internal string?            OverlayFolder;   // ⭐ O-2 — the overlay merged into World, if any
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
         /// <summary>⭐ AQ93 R-4021 — what each attached <see cref="ITerrainContentLoader"/> prepared, committed in attach order.</summary>
@@ -80,6 +81,7 @@ public sealed class TerrainResidency
     // ⭐ The idempotency branch, and the only implementation of it: same name + same files ⇒ no work.
     private string?  _lastLoadedTerrainName;
     private DateTime _lastLoadedTimestamp;
+    private string?  _lastLoadedOverlay;   // ⭐ O-2 — a resident terrain is only 'unchanged' for the same overlay
 
     /// <summary>
     /// The production constructor: resolves terrains through the standard node search list —
@@ -168,7 +170,7 @@ public sealed class TerrainResidency
     /// <para>⛔ <b>A named-but-missing definition THROWS.</b> Loading the terrain a scenario names is
     /// mandatory, so that is a broken deployment rather than a terrain-less scenario.</para>
     /// </summary>
-    public Staged Prepare(string? terrainName)
+    public Staged Prepare(string? terrainName, string? overlayFolder = null)
     {
         if (string.IsNullOrWhiteSpace(terrainName))
         {
@@ -199,7 +201,7 @@ public sealed class TerrainResidency
 
         DateTime currentFileTime = LatestWriteTime(definitionPath);
 
-        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime)
+        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime && string.Equals(_lastLoadedOverlay, NormalizeOverlay(overlayFolder), StringComparison.Ordinal))
         {
             FdpLog<TerrainResidency>.Info(
                 "[Terrain] Terrain '{0}' already resident and unchanged — skipping re-ingestion.",
@@ -214,6 +216,7 @@ public sealed class TerrainResidency
             Definition    = definition,
             TerrainName   = terrainName,
             FileTimestamp = currentFileTime,
+            OverlayFolder = NormalizeOverlay(overlayFolder),
         };
 
         // ⭐ Schema v2 — the terrain WORLD every derived query reads (docs/DESIGN_Terrain_World.md).
@@ -221,7 +224,14 @@ public sealed class TerrainResidency
         {
             // ⭐ Stage 1 — with the terrain folder's side files (building templates, material overrides). ⭐ CE-4393 — through the ONE
             //   folder → world step the importer's navmesh prefill uses too (UTM §12.1 N-2): the same world, the same tile keys.
-            staged.World = Indexed(TerrainFolderWorld.ReadWorld(definitionPath, definition, terrainName)!);
+            var baseWorld = TerrainFolderWorld.ReadWorld(definitionPath, definition, terrainName)!;
+            // ⭐ O-2 (CE-4416, §18a) — a scenario's terrain overlay: the base world plus the overlay's, merged into ONE world (the obstacle bake builds on it). The hash check is O-4.
+            if (!string.IsNullOrEmpty(overlayFolder))
+            {
+                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!));
+                baseWorld = TerrainWorldMerge.Merge(baseWorld, overlay.World);
+            }
+            staged.World = Indexed(baseWorld);
 
             Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the world is parsed (its features reported as they went)
 
@@ -351,6 +361,7 @@ public sealed class TerrainResidency
 
         _lastLoadedTerrainName = staged.TerrainName;
         _lastLoadedTimestamp   = staged.FileTimestamp;
+        _lastLoadedOverlay     = staged.OverlayFolder;
 
         FdpLog<TerrainResidency>.Info(
             $"[Terrain] Terrain '{staged.TerrainName ?? "(unnamed)"}' committed "
@@ -421,6 +432,7 @@ public sealed class TerrainResidency
 
         _lastLoadedTerrainName = null;
         _lastLoadedTimestamp   = default;
+        _lastLoadedOverlay     = null;
 
         FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released — the world has no terrain (flat ground).");
     }
@@ -463,6 +475,8 @@ public sealed class TerrainResidency
     /// the main thread (Prepare and the obstacle bake both run there). ⛔ It was built and attached nowhere, so every live sight
     /// line and every EQS point placement scanned every piece.
     /// </summary>
+    private static string? NormalizeOverlay(string? overlayFolder) => string.IsNullOrEmpty(overlayFolder) ? null : Path.GetFullPath(overlayFolder);
+
     private static TerrainWorld Indexed(TerrainWorld world)
     {
         Fdp.Toolkit.Spatial.Bepu.BepuTerrainIndex.AttachTo(world);

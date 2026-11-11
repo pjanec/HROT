@@ -99,6 +99,21 @@ namespace Fdp.Toolkit.Terrain
             var prisms = sink.Prisms;
             var walkables = sink.Walkables;
             var surfaces = new List<TerrainSurface>();
+            // ⭐ O-2 (CE-4416) — "structure": "<key>" groups slab / ramp / polygon-building parts into ONE collapsible TerrainBuilding (no panels)
+            var structures = new Dictionary<string, StructureAcc>(StringComparer.Ordinal);
+            int StructureOf(JsonObject p, string where, IReadOnlyList<Vector2> plan, float minZ, float maxZ)
+            {
+                if (p["structure"] is not JsonNode sn) return -1;
+                string key = (string?)sn ?? throw new ArgumentException($"Terrain world {where}: 'structure' must be a string key.");
+                if (key.Length == 0) throw new ArgumentException($"Terrain world {where}: 'structure' must not be empty.");
+                if (!structures.TryGetValue(key, out var acc))
+                {
+                    structures[key] = acc = new StructureAcc { Index = sink.Buildings.Count };
+                    sink.Buildings.Add(new TerrainBuilding { Label = key, Solid = true });   // replaced with the grouped footprint once every part is read
+                }
+                acc.Add(plan, MathF.Min(minZ, GroundUnder(plan)), maxZ);   // the structure stands from the ground under it (the rubble mound's base)
+                return acc.Index;
+            }
 
             if (obj["features"] is not JsonArray features)
                 throw new ArgumentException("Terrain world has no 'features' array.", nameof(geojson));
@@ -163,6 +178,7 @@ namespace Fdp.Toolkit.Terrain
                             {
                                 Kind = pr.Kind, Footprint = pr.Footprint, BaseZ = pr.BaseZ, TopZ = pr.TopZ, Floors = pr.Floors,
                                 Label = pr.Label, Triangles = pr.Triangles, Min = pr.Min, Max = pr.Max, Material = material,
+                                Building = StructureOf(props, where, pr.Footprint, pr.BaseZ, pr.TopZ),
                             });
                         }
                         break;
@@ -240,6 +256,8 @@ namespace Fdp.Toolkit.Terrain
                             if (walkableKind == TerrainWalkableKind.Ramp && MaxSlopeDegrees(walkable) > VehicleRampMaxSlopeDegrees)
                                 (warnings ??= new List<string>()).Add(
                                     $"Terrain world {where}: ramp slope {MaxSlopeDegrees(walkable):F0}° is steeper than the vehicle navmesh's {VehicleRampMaxSlopeDegrees:F0}° — vehicles cannot use it.");
+                            int structure = StructureOf(props, where, PlanOf(walkable), walkable.MinZ, walkable.MaxZ);
+                            if (structure >= 0) walkable = WithBuilding(walkable, structure);
                             walkables.Add(walkable);
                         }
                         break;
@@ -280,6 +298,16 @@ namespace Fdp.Toolkit.Terrain
                         throw new ArgumentException(
                             $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, tree, slab, ramp, surface).");
                 }
+            }
+
+            foreach (var acc in structures.Values)
+            {
+                var old = sink.Buildings[acc.Index];
+                sink.Buildings[acc.Index] = new TerrainBuilding
+                {
+                    Label = old.Label, Solid = true, BaseZ = acc.MinZ, StoreyZ = new[] { acc.MinZ, acc.MaxZ },
+                    Footprint = acc.Footprint(), Position = acc.Centre(),
+                };
             }
 
             Vector2 bMin, bMax;
@@ -325,6 +353,43 @@ namespace Fdp.Toolkit.Terrain
         }
 
         // ── helpers ───────────────────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ O-2 — the parts of one "structure": a single part keeps its own outline as the building's footprint, several get their bounding box.</summary>
+        private sealed class StructureAcc
+        {
+            public int Index;
+            public float MinZ = float.MaxValue, MaxZ = float.MinValue;
+            private Vector2 _min = new(float.MaxValue), _max = new(float.MinValue);
+            private Vector2[]? _only; private int _parts;
+            public void Add(IReadOnlyList<Vector2> plan, float minZ, float maxZ)
+            {
+                _parts++;
+                _only = _parts == 1 ? Ccw(plan) : null;
+                foreach (var v in plan) { _min = Vector2.Min(_min, v); _max = Vector2.Max(_max, v); }
+                MinZ = MathF.Min(MinZ, minZ); MaxZ = MathF.Max(MaxZ, maxZ);
+            }
+            public Vector2[] Footprint() => _only ?? new[] { _min, new Vector2(_max.X, _min.Y), _max, new Vector2(_min.X, _max.Y) };
+            public Vector2 Centre() => (_min + _max) * 0.5f;
+            private static Vector2[] Ccw(IReadOnlyList<Vector2> plan)
+            {
+                var a = new Vector2[plan.Count];
+                for (int i = 0; i < a.Length; i++) a[i] = plan[i];
+                if (PolygonMath.SignedArea2(a) < 0f) Array.Reverse(a);
+                return a;
+            }
+        }
+
+        private static Vector2[] PlanOf(TerrainWalkable w)
+        {
+            var plan = new Vector2[w.Vertices.Length];
+            for (int i = 0; i < plan.Length; i++) plan[i] = new Vector2(w.Vertices[i].X, w.Vertices[i].Y);
+            return plan;
+        }
+
+        private static TerrainWalkable WithBuilding(TerrainWalkable w, int building) => new()
+        {
+            Kind = w.Kind, Vertices = w.Vertices, Triangles = w.Triangles, Min = w.Min, Max = w.Max, MinZ = w.MinZ, MaxZ = w.MaxZ, Building = building,
+        };
 
         /// <summary>⭐ CE-4369 — a lone tree's trunk: radius (m), height (m) and material when the world file names none.</summary>
         public const float TreeTrunkRadius = 0.3f, TreeTrunkHeight = 10f;

@@ -365,6 +365,44 @@ public sealed class TerrainLoadStepTests : IDisposable
         Assert.Equal(1, factory.Calls);
     }
 
+    /// <summary>
+    /// ⭐ O-2 (CE-4416, DESIGN_Terrain_Authoring §18a) — <c>Prepare(name, overlayFolder)</c> stages the MERGED world (base + overlay, overlay appended), a second Prepare with the same
+    /// overlay is the idempotent no-op, a different overlay (or none) is not. 🔴 Red-proof: ignore <c>overlayFolder</c> in <c>Prepare</c> ⇒ the staged world has one building.
+    /// </summary>
+    [Fact]
+    public void Prepare_WithAnOverlayFolder_StagesTheMergedWorld_O2()
+    {
+        string folder = Path.Combine(_terrainDir, "base-t");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName), """{"schemaVersion":2,"world":"w.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","label":"B","height":10},
+               "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+            """, new UTF8Encoding(false));
+        string overlay = Path.Combine(_terrainDir, "overlay-x");
+        Directory.CreateDirectory(overlay);
+        File.WriteAllText(Path.Combine(overlay, "overlay.json"), """{"format":1,"contentHash":"h","base":{"name":"base-t","contentHash":""},"scenario":"s","world":"overlay.world.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(overlay, "overlay.world.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","label":"O","height":4},
+               "geometry":{"type":"Polygon","coordinates":[[[30,0],[40,0],[40,10],[30,10],[30,0]]]}}]}
+            """, new UTF8Encoding(false));
+
+        using var holder = new RoadNetworkHolder();
+        using var world = NewWorld();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+
+        var plain = residency.Prepare("base-t");
+        Assert.Single(plain.World!.Prisms);
+        var staged = residency.Prepare("base-t", overlay);
+        Assert.Equal(2, staged.World!.Prisms.Count);
+        Assert.Equal(new[] { "B", "O" }, staged.World.Prisms.Select(p => p.Label).ToArray());   // the overlay is appended: the base keeps index 0
+        residency.Commit(world, staged);
+        Assert.False(residency.Prepare("base-t", overlay).HasWork);   // same terrain, same overlay: already resident
+        Assert.True(residency.Prepare("base-t").HasWork);             // the overlay went away: a real change
+    }
+
     /// <summary>A content loader that counts its prepares.</summary>
     private sealed class CountingContentLoader : ITerrainContentLoader
     {

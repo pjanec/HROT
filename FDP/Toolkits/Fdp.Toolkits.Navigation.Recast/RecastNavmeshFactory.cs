@@ -112,11 +112,17 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
         Fdp.Core.LoadProgress.Report();
         // ⭐ CE-4393 (UTM §12.1 N-1) — the tiles the importer baked into the terrain folder, read only, before this machine's own folder
         NavTileCache? seed = null;
-        if (TileCache != null && world.SourceFolder is { } folder)
+        if (TileCache != null)
         {
-            var navtiles = System.IO.Path.Combine(folder, NavTileCache.TerrainFolderName);
-            if (System.IO.Directory.Exists(navtiles) && !ReferenceEquals(TileCache.Folder, navtiles) && TileCache.Mode != NavTileCacheMode.Prefill)
-                seed = NavTileCache.ForSeed(navtiles);
+            // ⭐ O-2 (CE-4416) — every seed folder of the world: the terrain's, then an overlay's (TerrainWorld.SeedFolders)
+            List<string>? seedFolders = null;
+            foreach (var folder in world.SeedFolders)
+            {
+                var navtiles = System.IO.Path.Combine(folder, NavTileCache.TerrainFolderName);
+                if (System.IO.Directory.Exists(navtiles) && !ReferenceEquals(TileCache.Folder, navtiles) && TileCache.Mode != NavTileCacheMode.Prefill)
+                    (seedFolders ??= new List<string>()).Add(navtiles);
+            }
+            if (seedFolders != null) seed = NavTileCache.ForSeeds(seedFolders);
         }
         var baker = new RecastNavmeshBaker { TileMetres = TileMetres, Cache = TileCache, Seed = seed, Progress = Progress, Cancel = Cancel };
         // ⭐ CE-4369 (L-7) — the woods first, the doorways after (a doorway's area wins where both overlap); the provider gets the doorways only

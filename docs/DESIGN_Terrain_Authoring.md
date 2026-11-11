@@ -714,3 +714,33 @@ reaches neither the overlay nor obstacles — O-8's two edges.
 | ⭐ a replicated breach names the house by KEY and the wall by its index WITHIN the house; the receiver resolves both against ITS world (`BuildingDamages.IndexOfKey`, `BuildingPanelIndex.ToGlobal`) — the global indices never cross the wire | the sample carried the sender's global `Building` and `Panel` and the receiver applied them as they were (`EntityBuildingDamageTranslators.cs:77,179`) ⇒ two worlds assembled differently breach different houses (G-1). The SAVE already used key + panel-in-building (`BuildingDamageSave.cs:42-62,149`) — the wire now speaks the same language |
 | a key resolves with or without the terrain-name prefix (`"<terrain>/<label>"` and `"<label>"`) | after *Save terrain as* (a new name) an old key still finds its house |
 | ⚠ **DEVIATION from §18a's first table — the terrain-name PREFIX is NOT dropped from the keys written today; it moves to O-5** | 📐 measured: six shipped scenarios (`bt-doors`, `bd-destruction`, `bc-*`, `ua-civ-shelter`) save door state under `"<terrain>/<building>/<door>"`, AND behaviour params name doors that way (`DoorLocksmith`: `"door":"bt-range/House A/front"`), compared as strings in places not yet enumerated; recordings hold them in `TerrainObjectKey`. Dropping the prefix now touches all three; O-5 (*Save terrain as*) rewrites keys anyway, so it is done there, with the legacy read already in place here. Overlay labels are `<guid>/<i>` — stable across re-saves whatever the prefix |
+
+### 18a-2. The merge — O-2 as built *(CE-4416, backend `2026-11-11`)*
+
+| as built | where |
+|---|---|
+| `TerrainWorldMerge.Merge(base, overlay)` — appends; offsets `TerrainPrism.Panel/.Building`, `TerrainWalkable.Building`, `TerrainWallPanel.Building`, `TerrainDoorDef.Panel` (`Opening` panel-local, not offset), `BakedCollapsed`; every field of every part copied (checked against the types); a duplicate building label or door key THROWS naming both; bounds = union; Name, SourceFolder, Height, GroundZ, Materials, Breaches (a material rule set — no per-panel index), Beyond = the base's | `FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainWorldMerge.cs` |
+| `TerrainWorld.SeedFolders` (default `[SourceFolder]`); the merge lists base then overlay; `NavTileCache.ForSeeds(folders)` reads them in order; `TerrainObstacles.With` keeps them | `TerrainWorld.cs`, `NavTileCache.cs`, `RecastNavmeshFactory.cs`, `StaticObstacles.cs` |
+| `TerrainOverlay` + `TerrainOverlayHeader` (`overlay.json`, format 1); `TerrainFolderWorld.ReadOverlay(folder, terrainName, sharedBuildingsRoot)` — ⚠ DEVIATION: a third parameter, because an overlay beside a scenario cannot find the shared `assets/buildings` from its own folder; `TerrainResidency` passes `TerrainAssets.RecipesSibling(baseFolder)` | `TerrainOverlay.cs`, `TerrainFolderWorld.cs` |
+| `TerrainResidency.Prepare(terrainName, overlayFolder = null)` — the merged world is indexed and becomes `_baseWorld`; the "already resident" skip also compares the overlay (else a changed overlay was skipped) | `TerrainResidency.cs` |
+| a bridge: slab / ramp / polygon-building features with `"structure": "<key>"` form ONE `TerrainBuilding` (label = key, no panels, solid; footprint = the part, or the box of several; storey from the lowest ground under it to the deck) ⇒ the existing collapse path drops its deck (`TerrainObstacles.With` removes walkables of a collapsed building) | `TerrainWorldParser.cs` |
+| 📐 water is ALREADY impassable — the ground mesh cuts water polygons out (no fix; kept as a rail) | `RecastNavmeshFactoryTests.O2_WaterFromAMergedOverlay_IsImpassable…` |
+
+Rails (each red-proved by a compiling mutation): `TerrainWorldMergeTests` (indices, duplicate keys, seed folders, the merged bake seeds from both folders, `ReadOverlay` resolves shared templates) · `RecastNavmeshFactoryTests.O2_*` (an overlay house is enterable through its offset door, a locked door blocks; water impassable) · `TerrainWoodsTests.O2_AForestFromAnOverlay_ConcealsLikeTheBasesWoods` · `BuildingOverlayTests.O2_AStructureBridge_Carries…AndStopsCarrying…` · `TerrainLoadStepTests.Prepare_WithAnOverlayFolder_StagesTheMergedWorld_O2`.
+
+### 18b. The numbers — scale-1 with a 700-house overlay *(O-1, measured `2026-11-11`, this cloud VM: 4 cores, Debug build)*
+
+Input: scale-1 (5.5 km, 1 651 houses) split by `scripts/terrain-overlay-measure.py` into a 951-house BASE and an OVERLAY of 700 of its houses (labels
+`<guid>/<i>`) + 40 woods of 60 m, canonical order. Harness: `TerrainWorldMergeTests.O1_Measure_AScaleOneOverlay` (opt-in, `HROT_MEASURE_OVERLAY=1`).
+
+| measure | value | reads as |
+|---|---|---|
+| overlay folder size (no navtiles) | **153 KB** (one world file) | 0.2 KB per house — the parts are template placements, expanded by the parser |
+| overlay read + expand (700 houses → 36 001 prisms, 8 130 panels, 3 002 doors, 4 527 walkables) | **0.63 s** | the cost a node pays per load, beside the base read (951 houses: 1.66 s, with the 127 MB height store) |
+| the merge | **11 ms** | negligible |
+| ✅ merged prisms | **84 607 = the unsplit scale-1's** (`DESIGN_Scale_Rig.md` §5.1) | base + overlay rebuilds the original terrain exactly |
+| navmesh tiles the overlay touches | **2 006 of 52 900 per layer** (3.8 %; ×2 layers ≈ 4 012 tiles) | the tiles a COMPILE bakes; every other tile is the base's file |
+| ⚠ the compile's tile bake | **≈ 20 s estimated, not measured** — 4 012 tiles × 5.1 ms (the cold rate: 536 s / 105 800 tiles on 4 cores, §5.1) | once, at SAVE, on the authoring node; a loading node bakes NOTHING cold (it reads the overlay's tiles) |
+| ⚠ the overlay's `navtiles/` size | **not measured** — needs O-4's compile | |
+
+⇒ **READY-TO-BUILD.** A node's load grows by ≈ 0.64 s for a 700-house overlay; the save carries the tile bake.

@@ -16,12 +16,14 @@ Windows measurement (needs the user's machine) — see `STATUS_Backend_Brain_Cos
 |---|---|---|---|---|
 | O-0 | CE-4419 | ✅ DONE | this commit | `EntityLifecycleModule.WaitWithoutTimeout(moduleId)` — a construction waiting on such a module never times out; `EntityCreationPack` gives it the terrain module (was 18 000 FRAMES, `ObstacleConstructionTimeoutFrames`, removed). `CheckTimeouts` also reuses its two lists (it allocated two per frame). Rail `EntityLifecycleModuleTests.CE4419_ABakeSlowerThanAnyFrameBudget_KeepsItsEntity` (red with the skip removed: the sentinel then reads as int.MaxValue frames and frame 3e9 destroys it) |
 | O-6 | CE-4425 | ✅ DONE | this commit | `.gitignore`: `assets/terrain/*` except the eight committed demos (named), `assets/terrain/*/source/`, `**/terrain-overlay/` (the overlay folder's name — O-1 settles it as `terrain-overlay/` beside `scenario.json`). `git check-ignore`: a generated terrain, scale-1, a demo's `source/`, a scenario's overlay → ignored; a new file in a demo terrain → not |
-| O-1 | CE-4415 (design) | ⏭ next | | |
-| O-2 | CE-4416 | | | |
-| O-3 | CE-4417 | | | |
+| O-1 | CE-4415 (design) | ✅ DONE — READY-TO-BUILD | `1b5d51a00` + this commit | Terrain Authoring §18a (format, classes, load sequence, module diagram with the Replay Browser's dead edges, claim table) + §18b the numbers on scale-1 (951-house base + 700-house overlay): overlay 153 KB, read 0.63 s, merge 11 ms, merged prisms = unsplit scale-1's 84 607, 2 006 / 52 900 tiles per layer touched (compile bake ≈ 20 s ESTIMATED from the cold rate — measured with O-4) |
+| O-2 | CE-4416 | ✅ DONE | this commit | `TerrainWorldMerge` + `SeedFolders` + `ReadOverlay` + `Prepare(name, overlay)` + `"structure"` bridges (worker build, reviewed: every field of every part copied). Rails: merge indices / duplicate keys / seeds / shared templates; overlay house enterable + locked door; water impassable (📐 already true — the ground mesh cuts water out); overlay woods conceal; a structure bridge carries then stops when collapsed; residency stages the merged world. Each red-proved. §18a-2 |
+| O-3 | CE-4417 | ✅ DONE (wire + resolve) — prefix removal moved to O-5 | this commit | a breach crosses the wire as key + panel-WITHIN-building; the receiver resolves both against its world (`BuildingDamages.IndexOfKey`, prefix-tolerant). Rail `EntityBuildingDamageTranslatorTests.CE4417_ABreach_LandsOnTheSameHouseAndWall_WhenTheTwoWorldsIndexItDifferently` (red when the receiver keeps the sender's index). ⚠ claim table + the DEVIATION (the terrain-name prefix stays in written keys until O-5: six shipped scenarios + behaviour params name doors with it) — §18a-3 |
 | O-4 | CE-4415 (build) | | | |
 | O-5 | CE-4422 | | | |
 | O-7 | CE-4418 | | | |
 | O-8 | CE-4420 | | | |
 
 **Gates (O-0):** `Fdp.Toolkits.Tests` `--filter Lifecycle` 44/44 · `Hrot.SimHost.Tests` `StaticObstacleBakeTests` + `BuildingDamageBakeTests` + `ScenarioLoadStepTests` + `PeekAndFireNodesTests` 101/101 (each built as the test project, then `--no-build`; ⚠ the first SimHost build failed on `Hrot.Terrain.Osm` not restored — the coordinator merge added it — restored, rebuilt, rerun).
+
+**Gates (O-2 / O-3):** `Fdp.Toolkits.Tests --filter "Terrain|Recast"` 502/502 (worker, built as the test project) · `Hrot.SimHost.Tests --filter "StaticObstacleBakeTests|BuildingDamageBakeTests|TerrainLoadStepTests"` 40/40 (worker) · `Hrot.SimHost.Tests --filter "EntityBuildingDamageTranslatorTests|BuildingDamage"` 14/14 (rebuilt after the O-3 red-proof) · O-1 measurement 1/1 (opt-in).

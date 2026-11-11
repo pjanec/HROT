@@ -95,6 +95,43 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-4417</c> (Terrain Authoring §18 C-4, O-3) — the deciding node breaches house "H", which is building 1 in ITS world (another house
+        /// stands before it); on the receiver "H" is building 0. The sample names the house by KEY and the wall by its index WITHIN the house, so the
+        /// receiver breaches ITS "H"'s south wall — the same house, the same wall. 🔴 Mutation: <c>FromSample</c> keeps the sender's building index
+        /// (ignores the key) ⇒ the receiver's damage names building 1, which it does not have ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4417_ABreach_LandsOnTheSameHouseAndWall_WhenTheTwoWorldsIndexItDifferently()
+        {
+            const string Garage = """
+                { "type": "Feature", "properties": { "kind": "building", "label": "G",
+                    "building": { "footprint": [[0,0],[6,0],[6,6],[0,6]],
+                      "storeys": [ { "height": 3, "walls": [
+                        { "from": [0,0], "to": [6,0], "thickness": 0.3 }, { "from": [6,0], "to": [6,6], "thickness": 0.3 },
+                        { "from": [6,6], "to": [0,6], "thickness": 0.3 }, { "from": [0,6], "to": [0,0], "thickness": 0.3 } ] } ] } },
+                  "geometry": { "type": "Point", "coordinates": [-40, -40] } }
+                """;
+            var sender = TerrainWorldParser.Parse(BrickHouse.Replace("\"features\": [ ", "\"features\": [ " + Garage + ", "), "range");
+            int senderH = BuildingDamages.IndexOfKey(sender, "range/H");
+            Assert.Equal(1, senderH);   // the sender's house H is building 1
+            int senderSouth = SouthWall(sender);
+            var decided = new BuildingDamage { Building = senderH };
+            BuildingDamages.Add(ref decided, new WallBreach(senderSouth, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null);
+            var sample = EntityBuildingDamageEgressTranslator.ToSample(5203, decided, "range/H", sender);
+
+            using var replica = World(out var terrain);   // H is building 0 here
+            var map = new NetworkEntityMap();
+            var ingress = new EntityBuildingDamageIngressTranslator(participant: null, map, new GhostCreationSystem(map), localNodeId: 2);
+            using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, replica); cmd.Playback(replica); }
+            Assert.True(map.TryGetEntity(5203, out var ghost));
+            var got = replica.GetComponentRO<BuildingDamage>(ghost);
+            Assert.Equal(0, got.Building);
+            Assert.Equal(1, got.Count);
+            Assert.Equal(SouthWall(terrain), got.Get(0).Panel);
+            Assert.False(terrain.SegmentBlocked(new Vector3(25f, 15f, 1.5f), new Vector3(25f, 25f, 1.5f), DoorStates.Of(replica, terrain)));   // the passage is in THIS node's south wall
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-4391</c> S-2 — the COLLAPSE crosses the wire: <c>Collapsed</c> is copied by the egress and the ingress, and the other node's view then shows the mound.
         /// 🔴 Red-proof: drop <c>c.Collapsed = d.Collapsed</c> in <c>FromSample</c> ⇒ the replica's building stands.
         /// </summary>
