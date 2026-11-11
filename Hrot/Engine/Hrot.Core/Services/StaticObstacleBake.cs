@@ -54,6 +54,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     private readonly Func<double> _wallSeconds;
     private readonly List<TerrainPrism> _prisms = new();
     private readonly List<Entity> _pending = new();
+    private readonly ObstacleSignatureProbe _probe = new();   // ⭐ CE-3436 — the cached query the per-frame signature walks
 
     private Task<TerrainResidency.ObstacleBake>? _running;
     private TerrainResidency? _runningOn;
@@ -115,7 +116,11 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         if (!world.IsComponentTypeRegistered<StaticObstacle>()) return;
 
         var bakery = world.HasSingletonManaged<StaticObstacleBakery>() ? world.GetSingletonManaged<StaticObstacleBakery>() : null;
-        Collect(world);
+        // ⭐ CE-3436 (HOT PATH) — ONE allocation-free walk per frame over a cached query: the hash of the obstacle INPUTS (position, yaw, shape, material) and the Constructing ones into the reused
+        //   _pending list. The prisms (a query, a prism and a label each) are built only when a bake STARTS, below. ⭐ Change detection is now this world-signature, not SignatureOf(prisms):
+        //   both move exactly when an obstacle is added, removed, moved ≥ 1 cm, reshaped or re-materialled — debounce, base version and epoch are untouched.
+        ulong obstacleSig = SignatureOfWorld(world, _probe, _pending);
+        bool hasObstacles = obstacleSig != EmptySignature;
 
         if (bakery == null)
         {
@@ -134,13 +139,13 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         //   on a node that does world queries ONLY: a display node's terrain is never rewritten by damage.
         var damage = bakery.Residency.BakesDamage ? DamageOf(world) : null;
         ulong navHash = damage?.NavHash ?? 0UL;
-        ulong signature = Signature();
+        ulong signature = obstacleSig;
         if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
         // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
         ulong overlayHash = _liveOverlay?.SignatureOfWorld(world) ?? LiveOverlay.EmptySignature;
         bool hasOverlay = overlayHash != LiveOverlay.EmptySignature;
         if (hasOverlay) { signature ^= overlayHash; signature *= 1099511628211UL; }
-        bool changed = signature != _bakedSignature || ((_prisms.Count > 0 || navHash != 0 || hasOverlay) && bakery.BaseVersion != _bakedBase);
+        bool changed = signature != _bakedSignature || ((hasObstacles || navHash != 0 || hasOverlay) && bakery.BaseVersion != _bakedBase);
         if (!changed)
         {
             foreach (var e in _pending) Ack(world, e);   // already in the baked world (e.g. it arrived while that bake ran)
@@ -151,9 +156,17 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         if (signature != _seenSignature) { _seenSignature = signature; _seenAt = now; return; }
         if (now - _seenAt < DebounceSeconds) return;
 
-        // ⭐ ONE bake for everything that has gathered — a whole scenario's obstacles arrive within the quiet period.
+        StartBake(world, bakery.Residency, damage, signature, hasOverlay);
+    }
+
+    /// <summary>
+    /// ⭐ ONE bake for everything that has gathered — a whole scenario's obstacles arrive within the quiet period. ⚠ CE-3436: its OWN method on purpose — the task's lambda captures locals, and a lambda in
+    /// <c>Execute</c> made the compiler allocate its closure object at the top of EVERY frame (measured: 56 B per steady frame).
+    /// </summary>
+    private void StartBake(EntityRepository world, TerrainResidency residency, BuildingDamageTable? damage, ulong signature, bool hasOverlay)
+    {
+        CollectPrisms(world, _prisms);   // ⭐ CE-3436 — only now (a bake is starting), never per frame
         var prisms = new List<TerrainPrism>(_prisms);
-        var residency = bakery.Residency;
         _runningOn = residency;
         _runningBatch = new List<Entity>(_pending);
         _runningSignature = signature;
@@ -208,8 +221,6 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         foreach (var e in batch) Ack(world, e);
     }
 
-    private void Collect(EntityRepository world) => CollectPrisms(world, _prisms, _pending);
-
     /// <summary>
     /// The static obstacles of <paramref name="world"/> (Active, and still Constructing when <paramref name="pending"/> is given) as terrain prisms. ⭐ O-8 (CE-4420) — the ONE collector: the node's
     /// bake system and the Replay Browser (which bakes the recording's obstacles into its displayed terrain once per seek) both read the world through it.
@@ -244,8 +255,12 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     /// moved by ≥ a few cm, reshaped, re-materialled) and is stable otherwise; ⚠ it is NOT numerically equal to <see cref="SignatureOf"/> (it hashes the inputs, that hashes the derived footprint), and the node's own
     /// system keeps <see cref="SignatureOf"/>. Pass a <paramref name="probe"/> held across calls so the query is built once per world.
     /// </summary>
-    public static ulong SignatureOfWorld(EntityRepository world, ObstacleSignatureProbe? probe = null)
+    public static ulong SignatureOfWorld(EntityRepository world, ObstacleSignatureProbe? probe = null) => SignatureOfWorld(world, probe, null);
+
+    /// <summary>⭐ CE-3436 — as above, and the Constructing obstacles are added to <paramref name="constructing"/> (cleared first; a list the caller reuses, so no allocation once it has grown) in the SAME walk.</summary>
+    public static ulong SignatureOfWorld(EntityRepository world, ObstacleSignatureProbe? probe, List<Entity>? constructing)
     {
+        constructing?.Clear();
         ulong h = EmptySignature;
         if (!world.IsComponentTypeRegistered<StaticObstacle>() || !world.IsComponentTypeRegistered<ObstacleShape>()) return h;
         var query = (probe ??= new ObstacleSignatureProbe()).QueryOf(world);
@@ -255,6 +270,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         {
             var state = world.GetLifecycleState(e);
             if (state != EntityLifecycle.Active && state != EntityLifecycle.Constructing) continue;
+            if (state == EntityLifecycle.Constructing) constructing?.Add(e);
             ref readonly var t = ref world.GetComponentRO<SimTransform>(e);
             ref readonly var shape = ref world.GetComponentRO<ObstacleShape>(e);
             MixF(t.Position.X); MixF(t.Position.Y); MixF(t.Position.Z);
@@ -264,8 +280,6 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         }
         return h;
     }
-
-    private ulong Signature() => SignatureOf(_prisms);
 
     /// <summary>The hash of an obstacle set (FNV-1a over geometry and material, 1 cm quantised) — what "the set changed" means for the bake and for the Replay Browser.</summary>
     public static ulong SignatureOf(List<TerrainPrism> prisms)

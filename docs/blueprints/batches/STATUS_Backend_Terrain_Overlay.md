@@ -39,3 +39,5 @@ Windows measurement (needs the user's machine) — see `STATUS_Backend_Brain_Cos
 **Gates (O-7 part A):** `Fdp.Toolkits.Tests --filter "Recast|Terrain"` 529/529 · `Hrot.SimHost.Tests --filter "StaticObstacleBakeTests|BuildingDamageBakeTests|TerrainLoadStepTests"` 45/45 (worker; built as the test projects after the last restore, then `--no-build`).
 
 **Gates (O-7 part B):** `Hrot.SimHost.Tests --filter "StaticObstacleBakeTests|BuildingDamageBakeTests|TerrainLoadStepTests|LiveOverlayBakeTests|EntityCreationPackRails"` 100/100 · `Fdp.Toolkits.Tests --filter "Terrain|Recast"` 529/529 · `Hrot.Editor.Tests --filter TheEditorShowsItsTerrainBlocksLiveTests` 1/1 (worker; each test project built, then `--no-build`).
+
+**CE-3436 (found in O-7 B):** the obstacle bake allocated every frame on every node; now 0 B steady (signature first; the `Task.Run` closure was the hidden 56 B). `Hrot.SimHost.Tests --filter "StaticObstacleBakeTests|BuildingDamageBakeTests|LiveOverlayBakeTests|PeekAndFireNodesTests"` 81/81 (worker).

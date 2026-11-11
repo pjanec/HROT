@@ -192,6 +192,30 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-3436 (HOT PATH) — on a node that BAKES DAMAGE (the muscle's) a steady frame — an obstacle present, a passage breach laid, the bake committed, nothing changing — allocates NOTHING: neither the obstacle walk
+        /// nor <c>DoorStates.Of</c> / the damage hash. 🔴 Red-proof: restore the per-frame <c>CollectPrisms</c> in <c>StaticObstacleBakeSystem.Execute</c>.
+        /// </summary>
+        [Fact]
+        public void CE3436_ASteadyFrame_OnANodeThatBakesDamage_AllocatesNothing()
+        {
+            Node(muscle: true);
+            var sys = Sys();
+            var car = _world.CreateEntity();
+            _world.AddComponent(car, new SimTransform { Position = new Vector3(40f, 40f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(car, new StaticObstacle { Material = new FixedString32("car-body") });
+            _world.AddComponent(car, new ObstacleShape { Length = 4.5f, Width = 1.8f, Height = 1.5f });
+            Damage(new WallBreach(South(), 4f, 6.2f, 0f, 2.2f, BreachKind.Passage));
+            sys.Execute(_world, 0.016f);
+            _wall = 0.6; sys.Execute(_world, 0.016f);
+            RunUntilBaked(sys, 1);
+            for (int i = 0; i < 30; i++) sys.Execute(_world, 0.016f);   // warm: the caches and the buffers have grown
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) sys.Execute(_world, 0.016f);
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.Equal(1, sys.Bakes);   // and nothing re-baked
+        }
+
+        /// <summary>
         /// ⭐ CE-4391 S-4 (Q-D3) — a scenario that STARTS pre-breached: the saved damage (read from the scenario text, made into entities the way the load does) is in the world before the bake system's first
         /// tick, and the muscle's navmesh follows it with no further change — the inside is reachable after the first bake. 🔴 Red-proof: pass no damage to the bake (<c>damage = null</c>) in
         /// <c>StaticObstacleBakeSystem.Execute</c> ⇒ no bake runs for a loaded world.

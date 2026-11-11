@@ -147,6 +147,34 @@ namespace Hrot.SimHost.Tests
             Assert.Single(sys.LastDirty!);   // the car's box only: the parts are unchanged
         }
 
+        private long SteadyBytes(StaticObstacleBakeSystem sys, int frames = 50)
+        {
+            for (int i = 0; i < 30; i++) sys.Execute(_world, 0.016f);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < frames; i++) sys.Execute(_world, 0.016f);
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3436 (HOT PATH) — a steady <c>Execute</c> (obstacles present, nothing changing, past the debounce) allocates 0 B over 50 frames, on a PLAIN node and with a LiveOverlay and a block. The per-frame
+        /// <c>CollectPrisms</c> (a query, a prism and a label per obstacle) is gone: the prisms are built only when a bake starts. 🔴 Red-proof: call <c>CollectPrisms(world, _prisms)</c> every frame again.
+        /// </summary>
+        [Fact]
+        public void CE3436_ASteadyExecute_AllocatesNothing_OnAPlainNode_AndWithABlockAndALiveOverlay()
+        {
+            var plain = new StaticObstacleBakeSystem(() => _wall);
+            var car = Car(60f); _world.SetLifecycleState(car, EntityLifecycle.Active);
+            RunUntilBaked(plain, 1);
+            Assert.Equal(0L, SteadyBytes(plain));
+            Assert.Equal(1, plain.Bakes);
+
+            var editor = Editor();
+            Block(250f, 250f);
+            RunUntilBaked(editor, 1);
+            Assert.Equal(0L, SteadyBytes(editor));
+            Assert.Equal(1, editor.Bakes);
+        }
+
         /// <summary>
         /// ⭐⭐ (d) steady frames with no change allocate NOTHING more than a node without an overlay (CE-2394's pattern): the live overlay's signature is read from the components through a cached query. HOT PATH.
         /// 🔴 Red-proof: allocate in <c>SignatureOfWorld</c> (a <c>new List</c> / LINQ per call) ⇒ the delta is not 0.
