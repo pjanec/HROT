@@ -3,8 +3,8 @@
 
 | item | id | state | sha | notes |
 |---|---|---|---|---|
-| C-0 | CE-4342 … CE-4352 | IN PROGRESS | — | tick the rows Next_2 built |
-| C-1 | CE-4356 | QUEUED | — | |
+| C-0 | CE-4342 … CE-4352 | DONE | (this commit) | ticked 4342 4343 4346 4347 4348 4349 4351 4352 with their Next_2 shas (4344/4345/4350 were already closed by other lanes) |
+| C-1 | CE-4356 | IN PROGRESS | — | |
 | C-2 | CE-4357 | QUEUED | — | |
 | C-3 | CE-4358 | QUEUED | — | |
 | C-4 | CE-4289 rest | QUEUED | — | |
