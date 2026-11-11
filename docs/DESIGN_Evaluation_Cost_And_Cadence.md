@@ -1261,4 +1261,20 @@ we create snapshots. How could we align it with that?"*
 | readers never write: they emit COMMANDS, validated on World A before they apply (DES-012 §3.3, optimistic concurrency) | ⭐ the UI's writes become exactly that (§13's write table) — with preconditions (the dragged unit still alive, the edited component unchanged) |
 | a busy replica is NOT synced — "the Host SKIPS the sync" until the reader releases it (DES-012 §2, frames 2–4) | ⭐ for a reader that holds a view every frame, ONE buffer would never sync ⇒ the presentation needs a real double / triple buffer: the kernel syncs a free buffer and publishes it; the render thread always takes the newest complete one |
 
-**What the kernel does NOT have yet** (the actual work): ① a published-snapshot handoff for an EXTERNAL reader — ⚠ `DoubleBufferProvider` holds ONE replica synced in place at the sync point (`DoubleBufferProvider.cs:63-66`), safe only because FrameSynced readers are joined before the next sync; the guide's two-replica swap is not what the code does; ② a PRESENTATION kernel on the GL thread: the map-preparation systems (gizmos, styling, layer assignment) run today as Synchronous / Direct systems in the simulation's kernel — they move to a kernel of their own whose live world holds only UI state (selection, display, effects — §13's ~40 UI-only writes) and which reads the leased replica as its `ISimulationView`; ③ hardware input: systems that poll the window's input must stay on the GL thread (⛔ not yet measured which do); ④ command validation for the UI's queued edits.
+**What the kernel does NOT have yet** (the actual work): ① a published-snapshot handoff for an EXTERNAL reader — ⚠ `DoubleBufferProvider` holds ONE replica synced in place at the sync point (`DoubleBufferProvider.cs:63-66`), safe only because FrameSynced readers are joined before the next sync; the guide's two-replica swap is not what the code does; ② ~~a PRESENTATION kernel on the GL thread~~ ⛔ withdrawn the same day (13.2 — ONE kernel, no duplicated monitoring / diagnostics): the map-preparation systems (gizmos, styling, layer assignment) run today as Synchronous / Direct systems in the simulation's kernel — they move to a kernel of their own whose live world holds only UI state (selection, display, effects — §13's ~40 UI-only writes) and which reads the leased replica as its `ISimulationView`; ③ hardware input: systems that poll the window's input must stay on the GL thread (⛔ not yet measured which do); ④ command validation for the UI's queued edits.
+
+### 13.2 ONE kernel, not two *(coordinator, `2026-11-11`; replaces 13.1's ② — not ruled)*
+
+🔒 User, `2026-11-11`: *"having a second kernel would mean that everything there will be twice. The monitoring, diagnostics. It's not exactly what I
+would like to have. Is that necessary?"* — ⭐ **No.** The same split inside the ONE kernel:
+
+| piece | in the one kernel |
+|---|---|
+| the kernel's `Update` | stays on the window thread, every drawn frame — one scheduler, one profiler, one diagnostics surface |
+| the SIMULATION modules (brains, Muscle, recorder, network …) | dispatched by the kernel as ONE run on a worker — like today's asynchronous modules, but with EXCLUSIVE access to World A for the run (not a snapshot); the kernel never touches World A while the run is in flight |
+| the step boundary (when the run finishes) | on the kernel's frame: apply the queued UI commands (validated, DES-012 §3.3), publish the replica (double / triple buffer), start the next run |
+| the PRESENTATION modules (map preparation, interaction, input) | run every frame on the window thread against the latest published replica (`ISimulationView`) — a new role a module DECLARES, like `ExecutionPolicy` today |
+| UI-only state (selection, map display, effects, the drag ghost) | a presentation-side STORE (data only — no kernel, no modules, no diagnostics of its own), keyed by the simulation entity |
+
+⇒ the new thing is ONE kernel feature — "the simulation pipeline as an exclusive off-thread run, presentation modules on the replica" — not a second
+instance of anything. ⛔ Not designed in DES-012 (its World A is ticked on the kernel's own thread); it would be a new section there if (c) is chosen.
