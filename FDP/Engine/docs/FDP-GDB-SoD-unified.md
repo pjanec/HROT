@@ -1536,3 +1536,6 @@ void EngineLoop()
 2.  Refactor AI to use `ISimulationView` reading from World B (temporarily).
 3.  Implement **SoD (World C)** optimization later if memory bandwidth becomes a bottleneck.
 
+---
+
+**See also (`2026-11-11`):** `docs/DESIGN_Threaded_Simulation_Presentation.md` — extends this model with a SELF-PACED reader: the kernel ticked on a worker, the editor's presentation pulled on the main thread from a leased published snapshot, events queued per reader (a proof of concept, measured). Not ruled.
