@@ -11,6 +11,7 @@ related-designs:
   - DESIGN_Replay_Time_Axis_And_Review.md — §12q/§12s the changed-bytes rule and the paused frames; §12t the replay clock (PlaybackTickSystem)
   - designs/replay-and-modules/DESIGN.md — §2.1 which systems run in a replay (egress keeps running)
   - DESIGN_Checkpoint_And_Dry_Run_Restore.md — the running recording IS the checkpoint stream (R-3040): a format change (P6) touches restore
+  - DESIGN_Change_Gated_Systems.md — OWNS Q2 (the per-frame systems change-gated by ONE shared ChangeGate)
   - blueprints/batches/MEASURE_Ui_Replay_Frame_Cost.md — the measurements this design is built on (§1–§7)
 -->
 
