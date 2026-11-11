@@ -247,6 +247,11 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         Bakes++;
         LastBakeMilliseconds = bake.Milliseconds;
         BakedParts = bake.Parts; LastDirty = bake.Dirty;
+        if (_liveOverlay != null)   // ⭐ Terrain authoring U-3 / U-6 — the editor's views read the block bounds and the dirty rectangles of THIS bake (one publication, immutable)
+        {
+            world.RegisterManagedComponent<LiveTerrainBakeInfo>();
+            world.SetSingletonManaged(LiveTerrainBakeInfo.From(Bakes, bake.Parts, bake.Dirty));
+        }
         FdpLog<StaticObstacleBakeSystem>.Info(
             $"[Obstacles] Baked {bake.Obstacles} static obstacle(s) into the terrain in {bake.Milliseconds} ms; acking {batch.Count}.");
         foreach (var e in batch) Ack(world, e);

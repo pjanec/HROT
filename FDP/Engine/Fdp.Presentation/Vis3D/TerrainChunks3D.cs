@@ -45,8 +45,8 @@ namespace Fdp.Toolkit.Vis3D
 
         internal sealed record Streams(Vector3[] Positions, Vector3[] Normals, Color[] Colors, float MinZ, float MaxZ);
 
-        private readonly ITerrainChunkedGeometry _geometry;
-        private readonly object _identity;
+        private ITerrainChunkedGeometry _geometry;   // ⭐ U-6 — replaced by Adopt
+        private object _identity;
         private readonly TerrainChunkLayout _layout;
         private readonly int _n, _levels;
         private readonly Slot[] _ground;      // [chunk * levels + level]
@@ -82,6 +82,47 @@ namespace Fdp.Toolkit.Vis3D
         }
 
         public object Identity => _identity;
+
+        /// <summary>⭐ U-6 — slots (ground levels, objects, canopy, trees) the last <see cref="Adopt"/> marked for a rebuild; and the chunks it touched (rails).</summary>
+        public int AdoptedSlots { get; private set; }
+        public int AdoptedChunks { get; private set; }
+
+        /// <summary>⭐ U-6 — true when <paramref name="geometry"/> has the same chunk grid as this set: a new world over the same ground can then be ADOPTED (only what changed rebuilds).</summary>
+        public bool CanAdopt(ITerrainChunkedGeometry geometry) => geometry.Chunks.Equals(_layout);
+
+        /// <summary>
+        /// ⭐ U-6 (docs/DESIGN_Terrain_Authoring.md §15a, §18e-2 B-5) — the terrain was REPLACED by a world that differs from this one only inside <paramref name="dirty"/> (world metres; the editor's live bake: a block moved, a feature placed): keep every
+        /// chunk's meshes and mark ONLY the chunks those rectangles meet stale — all their slots (ground at every level, objects, canopy, trees) rebuild off the frame thread from <paramref name="geometry"/>, the old mesh drawn until the new one uploads.
+        /// ⛔ Never a rebuild of the whole terrain. Returns false (nothing changed) when the chunk grid differs — the caller then builds a fresh set.
+        /// </summary>
+        public bool Adopt(ITerrainChunkedGeometry geometry, System.Collections.Generic.IReadOnlyList<(Vector2 Min, Vector2 Max)> dirty)
+        {
+            if (!CanAdopt(geometry)) return false;
+            _geometry = geometry;
+            _identity = geometry.Identity;
+            AdoptedSlots = 0; AdoptedChunks = 0;
+            for (int k = 0; k < _n; k++)
+            {
+                var min = _layout.ChunkMin(k % _layout.Nx, k / _layout.Nx); var max = _layout.ChunkMax(k % _layout.Nx, k / _layout.Nx);
+                bool touched = false;
+                for (int d = 0; d < dirty.Count && !touched; d++)   // ⭐ a margin: a canopy overhangs and a fine level gathers a little past its edge
+                    touched = dirty[d].Max.X + DirtyMarginMetres >= min.X && dirty[d].Min.X - DirtyMarginMetres <= max.X && dirty[d].Max.Y + DirtyMarginMetres >= min.Y && dirty[d].Min.Y - DirtyMarginMetres <= max.Y;
+                if (!touched) continue;
+                AdoptedChunks++;
+                for (int l = 0; l < _levels; l++) MarkStale(_ground[(k * _levels) + l]);
+                MarkStale(_objects[k]); MarkStale(_canopy[k]); MarkStale(_trees[k]);
+            }
+            return true;
+        }
+
+        /// <summary>The margin (metres) added round a dirty rectangle when deciding which chunks it touches.</summary>
+        public const float DirtyMarginMetres = 8f;
+
+        private void MarkStale(Slot s)
+        {
+            if (s.Build.State == MeshBuildState.Idle && !s.Has) return;   // never built: its first build reads the new geometry
+            s.Stale = true; AdoptedSlots++;
+        }
 
         private object? _damage;
         private readonly List<int> _touched = new();
@@ -163,15 +204,22 @@ namespace Fdp.Toolkit.Vis3D
                 if (slot.Build.State == MeshBuildState.Failed) { Failure ??= slot.Build.Failure; done = true; }
                 if (done) { _flight[f] = _flight[--_inFlight]; f--; }
             }
-            for (int k = 0; k < _objects.Length; k++)   // ⭐ CE-4392 — a stale slot whose build is finished goes back to the schedule
-            {
-                var o = _objects[k];
-                if (!o.Stale) continue;
-                if (o.Build.State is MeshBuildState.Built or MeshBuildState.Failed) { o.Build.Reset(); o.Stale = false; }
-                else if (o.Build.State == MeshBuildState.Idle) o.Stale = false;   // not built yet: its first build reads this damage
-            }
+            RescheduleStale(_objects);   // ⭐ CE-4392 — a stale slot whose build is finished goes back to the schedule
+            if (AdoptedSlots > 0) { RescheduleStale(_ground); RescheduleStale(_canopy); RescheduleStale(_trees); }   // ⭐ U-6 — the same for what a live bake changed
+
             Schedule();
             Evict();
+        }
+
+        private static void RescheduleStale(Slot[] slots)
+        {
+            for (int k = 0; k < slots.Length; k++)
+            {
+                var o = slots[k];
+                if (!o.Stale) continue;
+                if (o.Build.State is MeshBuildState.Built or MeshBuildState.Failed) { o.Build.Reset(); o.Stale = false; }
+                else if (o.Build.State == MeshBuildState.Idle) o.Stale = false;   // not built yet: its first build reads the current geometry
+            }
         }
 
         private Slot? _uploading;

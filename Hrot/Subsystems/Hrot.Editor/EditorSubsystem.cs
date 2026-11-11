@@ -2629,6 +2629,8 @@ namespace Hrot.Editor
                 if (target == Entity.Null) return;
                 Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity(_world!, target);   // ⭐ CE-4410 — the Delete key's one path (CE-4276 F2)
             });
+            // ⭐ Terrain authoring U-3 — a placed block's menu: Re-roll, Rotate, Change recipe… (Unpack is greyed until backend's T-4); each ONE edit step
+            new Hrot.UI.Common.AddEntity.TerrainBlockActions(() => _world, () => _shellPickers?.OpenPicker, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped).RegisterOn(actionRegistry);
             // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
             //   host; the inspector menu below still publishes the same action ids.
 

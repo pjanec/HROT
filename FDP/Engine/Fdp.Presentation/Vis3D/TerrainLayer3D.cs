@@ -46,11 +46,22 @@ namespace Fdp.Toolkit.Vis3D
         private TerrainChunks3D? _chunks;
         internal TerrainChunks3D? Chunks => _chunks;
 
+        /// <summary>
+        /// ⭐ U-6 — asked ONLY when the chunked source's identity changed: given the identity of the world the chunks were built for, the rectangles (world metres) the new world differs in, or null when that is unknown (everything is rebuilt, as
+        /// before). The editor's map wires it to the live bake's <c>LiveTerrainBakeInfo</c> — the bake already knows where it changed.
+        /// </summary>
+        public Func<object, System.Collections.Generic.IReadOnlyList<(Vector2 Min, Vector2 Max)>?>? ChangedAreas { get; set; }
+
+        /// <summary>How many times the chunk set was ADOPTED by a new world (kept, only the changed chunks rebuilt) instead of rebuilt whole (a rail).</summary>
+        public int Adoptions { get; private set; }
+
         /// <summary>The chunk set for a chunked source, rebuilt when its identity changes; null for a plain source.</summary>
         private TerrainChunks3D? ChunksFor(ITerrainRenderGeometry? geometry)
         {
             if (geometry is not ITerrainChunkedGeometry chunked) { if (_chunks != null) { _chunks.Dispose(); _chunks = null; } return null; }
             if (_chunks != null && Equals(_chunks.Identity, chunked.Identity)) { _chunks.SetDamage(chunked); return _chunks; }   // ⭐ CE-4392 — the damage of this frame's view
+            // ⭐ U-6 — a NEW world over the same chunk grid whose change is known (the live bake's dirty rectangles): keep the meshes, rebuild only the chunks under them
+            if (_chunks != null && ChangedAreas?.Invoke(_chunks.Identity) is { } areas && _chunks.Adopt(chunked, areas)) { Adoptions++; _chunks.SetDamage(chunked); return _chunks; }
             _chunks?.Dispose();
             Release(); _build.Reset();
             _chunks = new TerrainChunks3D(chunked);

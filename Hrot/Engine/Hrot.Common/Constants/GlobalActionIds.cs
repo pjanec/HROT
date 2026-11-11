@@ -159,5 +159,11 @@ namespace Hrot.Common.Constants
         public const int RuleDelete      = 2421;
         public const int RuleShowOnMap   = 2422;
         public const int RuleShowHistory = 2423;
+
+        // --- ⭐ Terrain authoring U-3 (docs/DESIGN_Terrain_Authoring.md §15a) — a placed terrain block's menu. ⚠ 2430–2433 measured free on every lane 2026-11-11.
+        public const int TerrainReroll        = 2430;
+        public const int TerrainRotate        = 2431;
+        public const int TerrainUnpack        = 2432;
+        public const int TerrainChangeRecipe  = 2433;
     }
 }

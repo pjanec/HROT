@@ -11,6 +11,8 @@ namespace Hrot.Common.Actions
     {
         None = 0, Unit = 1, Area = 2, Zone = 4, Route = 8, Graphic = Area | Zone | Route,
         Event = 16, Moment = 32, Range = 64, Playhead = 128, Rule = 256,
-        Drawing = 512, ShapeEdit = 1024,   // ⭐ B-17 P2 — the armed drawing tool (Finish · Remove last point · Cancel) / the editor of a drawn shape or route (Finish · Cancel)
+        Drawing = 512, ShapeEdit = 1024,
+        /// <summary>⭐ Terrain authoring U-3 — a placed terrain BLOCK (<c>TerrainBlock</c>): Re-roll · Rotate · Unpack · Change recipe · Delete.</summary>
+        TerrainBlock = 2048,   // ⭐ B-17 P2 — the armed drawing tool (Finish · Remove last point · Cancel) / the editor of a drawn shape or route (Finish · Cancel)
     }
 }

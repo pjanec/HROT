@@ -584,7 +584,11 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ B-10 K3 (§6c) — one level out: while an armed tool holds Esc, a follow camera does not also hand the camera back
             viewSwitch.Camera3D.EscapeFree = () => !(HatArbiter.Of(worldProvider())?.ToolHoldsEscape ?? false);
             var terrain = new Fdp.Toolkit.Vis3D.TerrainLayer3D(() =>
-                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null);
+                worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null)
+            {
+                // ⭐ U-6 — the editor's live bake says where it changed: the 3-D chunks under those rectangles rebuild, not every chunk of a new world
+                ChangedAreas = new Hrot.UI.Common.Map3D.LiveTerrainChanges(worldProvider).Take,
+            };
             // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — articulated kits are posed by their turret part's TurretPose.
             var turretPoses = new Hrot.UI.Common.Map3D.TurretPoseSource();
             // ⭐ CE-4031 (AQ93 §15.8) — SUMO's far people and cars drawn as ours, through the same figures and kits
