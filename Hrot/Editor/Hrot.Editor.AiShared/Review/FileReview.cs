@@ -24,16 +24,33 @@ public sealed class RecordingFileReader : IDisposable
 {
     private (string Path, ReplayBrowserContext Context)? _held;
 
+    // ⭐ CE-4432 W-1 — the file that FAILED to load (and its write time): not retried until either changes. ⛔ It was re-opened every frame — a schema
+    //   check + a FATAL log line per frame, ~90 ms UI frames with nothing shown (measured on Windows, a recording older than a component's layout).
+    private string? _failedPath;
+    private DateTime _failedWrite;
+
+    /// <summary>Loads attempted (a rail reads it: a file that fails is tried once, not every frame).</summary>
+    public int LoadAttempts { get; private set; }
+
     /// <summary>The reader over <paramref name="path"/> (loaded on first use, re-loaded when the path changes); null when there is no such file or it holds no frames.</summary>
     public ReplayBrowserContext? Of(string? path)
     {
         if (path is null || !System.IO.File.Exists(path)) return null;
         if (_held is not { } held || held.Path != path)
         {
+            if (path == _failedPath && System.IO.File.GetLastWriteTimeUtc(path) == _failedWrite) return null;
             _held?.Context.Dispose();
+            _held = null;
+            LoadAttempts++;
             var ctx = new ReplayBrowserContext();
             ctx.LoadRecording(path);
-            if (ctx.Playback is null) { ctx.Dispose(); _held = null; return null; }
+            if (ctx.Playback is null)
+            {
+                ctx.Dispose();
+                _failedPath = path; _failedWrite = System.IO.File.GetLastWriteTimeUtc(path);
+                return null;
+            }
+            _failedPath = null;
             _held = (path, ctx);
         }
         return _held.Value.Context;

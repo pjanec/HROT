@@ -176,6 +176,9 @@ namespace Hrot.Editor
         Fdp.Presentation.WindowManager.IClusterRestSource,
         Hrot.UI.Common.RunMode.IProvidesRunControls
     {
+        /// <summary>⭐ CE-4432 — the editor's map-feed address (BP-485), built once; the publish reads it every frame.</summary>
+        private static readonly string GizmoFeedAddress = Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.AddressFor("editor");
+
         /// <summary>
         /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — what the start gate reads here: the editor HOSTS the (in-process) master, so it can always
         /// operate it, its master is never "gone", and the state is the one its own session announces (Idle until a scenario is opened).
@@ -1718,7 +1721,9 @@ namespace Hrot.Editor
                     // IS the "somebody wants dumps" signal, so it is turned on here and nowhere else:
                     // a normal run never sets HROT_DEBUG_API_PORT, so production stays off and pays
                     // one branch per panel per frame.
-                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
+                    // ⭐ CE-4432 — HROT_PANEL_CAPTURE=0 keeps the API but not the per-frame panel models: a measuring run then pays what a user's run pays
+                    //   (every panel building + registering its snapshot model each frame was part of every frame measured over the API before).
+                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = System.Environment.GetEnvironmentVariable("HROT_PANEL_CAPTURE") != "0";
 
                     _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
                     // POST /shutdown asks the HOST RUNNER to leave its frame loop, so the process
@@ -2780,7 +2785,7 @@ namespace Hrot.Editor
                     _gizmoBuffer,
                     // ⭐ BP-485 — the ADDRESS names the host; the KIND stays shared, so a
                     //   cross-host conformance diff can still group every host's map feed.
-                    Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.AddressFor("editor"));
+                    GizmoFeedAddress);   // ⭐ CE-4432 — built once (was a new string per frame)
 
             _gizmoBuffer?.EndFrame(deltaTime);
 

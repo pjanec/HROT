@@ -468,7 +468,9 @@ class Program
                 && !hasEditorSubsystem)
             {
                 // ① Capture must be ON before any panel draws, or every dump is empty.
-                Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
+                // ⭐ CE-4432 — HROT_PANEL_CAPTURE=0 keeps the API but not the per-frame panel models: a measuring run then pays what a user's run pays
+                //   (every panel building + registering its snapshot model each frame was part of every frame measured over the API before).
+                Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = System.Environment.GetEnvironmentVariable("HROT_PANEL_CAPTURE") != "0";
 
                 // ⭐⭐ The providers (Q54-2) and the cluster-wide ack-gate (HN-028), composed ONCE — the rails that boot a
                 //    real cluster use the same composition. ⚠ After orchestrator.Initialize(): a provider carries its

@@ -130,7 +130,10 @@ public static class GizmoFramePanel
     /// ⚠ <b>Call it BEFORE the buffer's <c>EndFrame</c>/<c>Clear</c></b>: those reset the transient
     /// write cursor, so a call afterwards would publish an empty frame every time.
     /// </summary>
-    public static GizmoFrameViewModel Publish(
+    /// <returns>The model when capture is on; <see langword="null"/> when off — ⭐ CE-4432: the model is NOT built then (PanelSnapshot's
+    /// own contract, "the argument is not even built when off"); building up to 500 projected primitives as JSON every frame and dropping
+    /// it was ~650 KB of garbage per frame in the editor (measured on Windows, a 1 000-man replay).</returns>
+    public static GizmoFrameViewModel? Publish(
         DebugPrimitiveBuffer buffer, string panelId, int max = DefaultMax)
     {
         if (string.IsNullOrWhiteSpace(panelId))
@@ -142,8 +145,9 @@ public static class GizmoFramePanel
         //   a feed nobody captured must stay distinguishable from a feed nobody instrumented.
         PanelSnapshot.DeclareInstrumented(panelId);
 
+        if (!PanelSnapshot.CaptureEnabled) return null;   // ⭐ CE-4432 — 0 B when nobody captures
         var vm = BuildViewModel(buffer, panelId, max);
-        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        PanelSnapshot.Register(vm);
         return vm;
     }
 

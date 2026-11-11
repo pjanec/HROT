@@ -73,8 +73,16 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     public List<Resolved> Resolve()
     {
         var list = new List<Resolved>();
+        ResolveInto(list);
+        return list;
+    }
+
+    /// <summary>⭐ CE-4432 (R-2084) — <see cref="Resolve"/> into the caller's list (cleared first): the draw passes reuse one, 0 B per frame.</summary>
+    public void ResolveInto(List<Resolved> list)
+    {
+        list.Clear();
         var world = _world();
-        if (world == null || !world.IsComponentTypeRegistered<Fdp.Toolkit.Time.Lifespan>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return list;
+        if (world == null || !world.IsComponentTypeRegistered<Fdp.Toolkit.Time.Lifespan>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return;
         if (!ReferenceEquals(world, _queryWorld))
         {
             _queryWorld = world;
@@ -124,9 +132,16 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                      });
         }
         // decals underneath, then bursts, then fire, then smoke over it, then flashes and tracers
-        list.Sort((x, y) => Order(x.Look.Kind).CompareTo(Order(y.Look.Kind)));
-        return list;
+        list.Sort(ByOrder);
     }
+
+    private static readonly Comparison<Resolved> ByOrder = (x, y) => Order(x.Look.Kind).CompareTo(Order(y.Look.Kind));
+    private static readonly Comparison<Resolved> FireLast = (x, y) => (x.Look.Kind == EffectKind.Fire).CompareTo(y.Look.Kind == EffectKind.Fire);
+
+    // ⭐ CE-4432 — the draw passes' buffers (grown, never shrunk)
+    private readonly List<Resolved> _effects = new();
+    private readonly List<CloudLook> _clouds = new();
+    private readonly List<Puff> _puffs = new();
 
     private static int Order(EffectKind k) => k switch
     {
@@ -146,8 +161,16 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     public List<CloudLook> ResolveClouds()
     {
         var list = new List<CloudLook>();
+        ResolveCloudsInto(list);
+        return list;
+    }
+
+    /// <summary>⭐ CE-4432 — <see cref="ResolveClouds"/> into the caller's list (cleared first).</summary>
+    public void ResolveCloudsInto(List<CloudLook> list)
+    {
+        list.Clear();
         var world = _world();
-        if (world == null || !world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.AreaEffectCloud>()) return list;
+        if (world == null || !world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.AreaEffectCloud>()) return;
         if (!ReferenceEquals(world, _cloudWorld))
         {
             _cloudWorld = world;
@@ -163,7 +186,6 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
             list.Add(new CloudLook(world.GetComponentRO<SimTransform>(e).Position, c.Radius, MathF.Max(c.Height, 0.5f), c.Kind, density,
                                    e.Index * 7919 + e.Generation, (float)Math.Max(0.0, now - c.BornAtSimSeconds)));
         }
-        return list;
     }
 
     /// <summary>⭐ CE-1165 (U4-e) — a cloud's colour: tear gas off-white with a yellow cast, smoke grey.</summary>
@@ -180,9 +202,17 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     /// </summary>
     public static List<Puff> CloudPuffs(in CloudLook c)
     {
+        var list = new List<Puff>();
+        CloudPuffsInto(c, list);
+        return list;
+    }
+
+    /// <summary>⭐ CE-4432 — <see cref="CloudPuffs"/> into the caller's list (cleared first).</summary>
+    public static void CloudPuffsInto(in CloudLook c, List<Puff> list)
+    {
+        list.Clear();
         int n = Math.Clamp((int)MathF.Round(c.Radius * c.Radius * 0.4f), 8, MaxCloudPuffs);
         var colour = CloudColour(c.Kind);
-        var list = new List<Puff>(n);
         float puff = MathF.Min(MathF.Max(c.Radius * 0.42f, 0.8f), c.Height * 0.5f);
         for (int i = 0; i < n; i++)
         {
@@ -194,7 +224,6 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
             var at = c.Centre + new Vector3(MathF.Cos(a) * r, MathF.Sin(a) * r, Math.Clamp(z, puff, MathF.Max(c.Height - puff, puff)));
             list.Add(new Puff(at, size, Fade(colour, 0.32f * c.Density)));
         }
-        return list;
     }
 
     /// <summary>The tank-sized footprint the Fire / Smoke sizes are written for (m, the longer side).</summary>
@@ -231,6 +260,14 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     public static List<Puff> Puffs(in Resolved r)
     {
         var list = new List<Puff>();
+        PuffsInto(r, list);
+        return list;
+    }
+
+    /// <summary>⭐ CE-4432 — <see cref="Puffs"/> into the caller's list (cleared first).</summary>
+    public static void PuffsInto(in Resolved r, List<Puff> list)
+    {
+        list.Clear();
         float size = r.Look.Size;
         if (r.Look.Kind == EffectKind.Fire)
         {
@@ -284,7 +321,6 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                 list.Add(new Puff(at, radius, Fade(r.Colour, (1f - t) * r.Opacity)));
             }
         }
-        return list;
     }
 
     private static float Frac(float x) => x - MathF.Floor(x);
@@ -383,7 +419,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
         float px = 1f / zoom;   // one screen pixel in metres
         // ⭐ CE-1165 (U4-e) — clouds first, under every other effect: a filled disc of their radius and a thin rim, as dense as they look
-        var clouds = ResolveClouds();
+        var clouds = _clouds; ResolveCloudsInto(clouds);   // ⭐ CE-4432 — reused
         foreach (var cl in clouds)
         {
             var colour = CloudColour(cl.Kind);
@@ -392,9 +428,9 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
             Raylib.DrawRing(p, MathF.Max(0f, cl.Radius - 1.5f * px), cl.Radius, 0f, 360f, 48, Fade(colour, 0.85f * cl.Density));
         }
         CloudsDrawn = clouds.Count;
-        var effects = Resolve();
+        var effects = _effects; ResolveInto(effects);
         // ⭐ W3 — seen from above the smoke would hide the flames, so in 2-D the flames are drawn LAST (on top).
-        effects.Sort((x, y) => (x.Look.Kind == EffectKind.Fire).CompareTo(y.Look.Kind == EffectKind.Fire));
+        effects.Sort(FireLast);
         foreach (var r in effects)
         {
             var c = Fade(r.Colour, r.Opacity);
@@ -437,7 +473,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                     break;
                 case EffectKind.Flare:
                     // ⭐ CE-1115 — a bright dot (a few pixels at least) with its trail
-                    foreach (var puff in Puffs(r))
+                    PuffsInto(r, _puffs); foreach (var puff in _puffs)
                         Raylib.DrawCircleV(new Vector2(puff.At.X, puff.At.Y), MathF.Max(puff.Radius, 1.5f * px), Fade(puff.Colour, 0.6f));
                     Raylib.DrawCircleV(p, MathF.Max(size / 2f, 3f * px), c);
                     break;
@@ -448,7 +484,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                 case EffectKind.Smoke:
                     // ⭐ W3 (VE-P) — seen from above: the smoke column drifts downwind as a trail of thinning puffs, the flames
                     //   flicker over the wreck; at least a few pixels each, so a far wreck still shows it is burning.
-                    foreach (var puff in Puffs(r))
+                    PuffsInto(r, _puffs); foreach (var puff in _puffs)
                         Raylib.DrawCircleV(new Vector2(puff.At.X, puff.At.Y),
                                            MathF.Max(puff.Radius, (r.Look.Kind == EffectKind.Fire ? 3f : 2f) * px),
                                            r.Look.Kind == EffectKind.Smoke ? Fade(puff.Colour, 0.6f) : puff.Colour);
@@ -463,12 +499,15 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     public void Draw3D(RenderContext ctx)
     {
         // ⭐ CE-1165 (U4-e) — each cloud as faint puffs filling its cylinder
-        var clouds = ResolveClouds();
+        var clouds = _clouds; ResolveCloudsInto(clouds);   // ⭐ CE-4432 — reused
         foreach (var cl in clouds)
-            foreach (var puff in CloudPuffs(cl))
+        {
+            CloudPuffsInto(cl, _puffs);
+            foreach (var puff in _puffs)
                 Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.1f, puff.Radius), 6, 10, puff.Colour);
+        }
         CloudsDrawn = clouds.Count;
-        var effects = Resolve();
+        var effects = _effects; ResolveInto(effects);
         foreach (var r in effects)
         {
             var c = Fade(r.Colour, r.Opacity);
@@ -506,18 +545,18 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                         Raylib.DrawCylinderEx(HrotToRaylib.Position(t0), HrotToRaylib.Position(t1), size / 2f, size / 2f, 4, c);
                     break;
                 case EffectKind.Fire:
-                    foreach (var puff in Puffs(r))
+                    PuffsInto(r, _puffs); foreach (var puff in _puffs)
                         Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
                     break;
                 case EffectKind.Smoke:
                 case EffectKind.Chaff:
-                    foreach (var puff in Puffs(r))
+                    PuffsInto(r, _puffs); foreach (var puff in _puffs)
                         Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 6, 10, puff.Colour);
                     break;
                 case EffectKind.Flare:
                 {
                     // ⭐ CE-1115 (§9 DV-4) — the trail first, then the burning star (additive, flickering), a hot core inside it
-                    foreach (var puff in Puffs(r))
+                    PuffsInto(r, _puffs); foreach (var puff in _puffs)
                         Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
                     float flicker = 0.85f + 0.15f * MathF.Sin(r.Age * 37f + r.Seed);
                     Raylib.BeginBlendMode(BlendMode.Additive);
@@ -604,7 +643,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     /// <summary><c>#RRGGBB</c> or <c>#RRGGBBAA</c> WITH its alpha (a decal is translucent); white for anything else.</summary>
     public static Color ParseRgba(string? hex)
     {
-        var s = (hex ?? "").Trim().TrimStart('#');
+        var s = (hex ?? "").AsSpan().Trim().TrimStart('#');   // ⭐ CE-4432 — a span: 0 B (it was a string per effect per frame)
         if ((s.Length != 6 && s.Length != 8)
             || !uint.TryParse(s, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var v))
             return Color.White;

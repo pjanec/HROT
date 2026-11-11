@@ -81,7 +81,8 @@ namespace GizmoMap.Presentation
             activeLayers.SetAll();
 
             // ---- Pass 1: build SpatialAnchor cache & extract global frame state ----
-            var anchors = new Dictionary<long, SpatialAnchorEntry>();
+            var anchors = _anchors;   // ⭐ CE-4432 (R-2084) — reused, cleared: this runs every frame (a new dictionary + list + index array + a
+            anchors.Clear();          //   capturing comparer per frame were ~25 MB/s of garbage at 8 000 units, measured on Windows)
             foreach (ref readonly var prim in primitives)
             {
                 if (prim.Shape == DebugPrimitiveShape.SpatialAnchor)
@@ -104,7 +105,8 @@ namespace GizmoMap.Presentation
             }
 
             // ---- Pass 2: resolve, filter, sort, dispatch -------------------
-            var sortBuffer = new List<DebugPrimitive>(primitives.Length);
+            var sortBuffer = _sortBuffer;
+            sortBuffer.Clear();
 
             foreach (ref readonly var prim in primitives)
             {
@@ -208,22 +210,39 @@ namespace GizmoMap.Presentation
             // ⛔ 2026-10-03: List.Sort is NOT stable (introsort), so equal-key primitives — most of them, at
             //   layer 0 / ZIndex 0 — could swap draw order frame to frame (a filled terrain footprint flickering
             //   over a unit). The emission index makes the order a total, stable one.
-            var order = new int[sortBuffer.Count];
-            for (int i = 0; i < order.Length; i++) order[i] = i;
-            Array.Sort(order, (x, y) =>
+            int n = sortBuffer.Count;
+            if (_order.Length < n) _order = new int[Math.Max(n, _order.Length * 2)];
+            var order = _order;
+            for (int i = 0; i < n; i++) order[i] = i;
+            order.AsSpan(0, n).Sort(_byLayerThenEmission);   // a span sort over ONE cached delegate (Array.Sort(…, IComparer) wraps the comparer in a new delegate per call)
+
+            for (int k = 0; k < n; k++)
             {
-                var a = sortBuffer[x];
-                var b = sortBuffer[y];
+                var prim = sortBuffer[order[k]];
+                DispatchShape(in prim, camera, zoom);
+            }
+        }
+
+        // ⭐ CE-4432 — Render's per-frame buffers (grown, never shrunk) and its comparer, built once over the sort buffer
+        private readonly Dictionary<long, SpatialAnchorEntry> _anchors = new();
+        private readonly List<DebugPrimitive> _sortBuffer = new();
+        private int[] _order = Array.Empty<int>();
+        private Comparison<int>? _byLayerThenEmissionField;
+        private Comparison<int> _byLayerThenEmission => _byLayerThenEmissionField ??= new ByLayerThenEmission(_sortBuffer).Compare;
+
+        /// <summary>DebugLayer ascending, ZIndex ascending, then emission order (a total, stable order — see Render).</summary>
+        private sealed class ByLayerThenEmission
+        {
+            private readonly List<DebugPrimitive> _buffer;
+            public ByLayerThenEmission(List<DebugPrimitive> buffer) => _buffer = buffer;
+            public int Compare(int x, int y)
+            {
+                var a = _buffer[x];
+                var b = _buffer[y];
                 int cmp = a.DebugLayer.CompareTo(b.DebugLayer);
                 if (cmp != 0) return cmp;
                 cmp = a.ZIndex.CompareTo(b.ZIndex);
                 return cmp != 0 ? cmp : x.CompareTo(y);
-            });
-
-            foreach (int i in order)
-            {
-                var prim = sortBuffer[i];
-                DispatchShape(in prim, camera, zoom);
             }
         }
 

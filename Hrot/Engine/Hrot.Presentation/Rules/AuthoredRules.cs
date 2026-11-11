@@ -31,6 +31,10 @@ public static class AuthoredRules
     public static Authored? Parse(EntityRepository world, Entity entity, int networkId, string kind, string json)
     {
         if (string.IsNullOrEmpty(kind) || string.IsNullOrWhiteSpace(json)) return null;
+        // ⭐ CE-4432 — a rule's params carry a root "common" block; text without the word cannot be one ⇒ null WITHOUT parsing (0 B). ⛔ The
+        //   rules / mission-summary windows call this for EVERY started behaviour each frame — a 1 000-man replay parsed ~1 000 unit behaviours'
+        //   JSON per frame (~10 MB/s of garbage, measured on Windows) only to find no "common".
+        if (!json.Contains("common", StringComparison.Ordinal)) return null;
         JsonDocument doc;
         try { doc = JsonDocument.Parse(json); } catch (JsonException) { return null; }
         using (doc)

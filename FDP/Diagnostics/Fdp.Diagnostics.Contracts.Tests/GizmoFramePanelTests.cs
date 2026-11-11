@@ -75,8 +75,23 @@ public sealed class GizmoFramePanelTests
 
         Assert.Contains(Editor, PanelSnapshot.RegisteredPanels);
         Assert.Empty(PanelSnapshot.CapturedPanels);
-        Assert.Equal(1, vm.Count);          // ⭐ the model is still BUILT and returned to the caller
+        Assert.Null(vm);                    // ⭐ CE-4432 — not even BUILT when nobody captures (SUPERSEDES "still built and returned")
 
+        Reset();
+    }
+
+    /// <summary>⭐ CE-4432 (R-2084) — the editor calls Publish every frame: with capture off a steady call costs 0 B.
+    /// 🔴 Red-proof: build the model before the capture check ⇒ hundreds of KB.</summary>
+    [Fact]
+    public void WithCaptureOff_ASteadyPublish_Allocates0B()
+    {
+        Reset();
+        var buffer = new DebugPrimitiveBuffer(capacity: 64);
+        for (int i = 0; i < 40; i++) buffer.DrawSphere(new System.Numerics.Vector3(i, 0f, 0f), 1f, new Rgba32(255, 255, 255, 255));
+        GizmoFramePanel.Publish(buffer, Editor);   // warm
+        long a0 = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 10; i++) GizmoFramePanel.Publish(buffer, Editor);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - a0);
         Reset();
     }
 
@@ -97,7 +112,7 @@ public sealed class GizmoFramePanelTests
 
         var vm = GizmoFramePanel.Publish(buffer, Editor, max: 2);
 
-        Assert.Equal(5, vm.Count);
+        Assert.Equal(5, vm!.Count);
         Assert.Equal(2, vm.Emitted);
         Assert.True(vm.Truncated);
         Assert.Equal(2, vm.Dump()["primitives"]!.AsArray().Count);
@@ -122,7 +137,7 @@ public sealed class GizmoFramePanelTests
 
         var vm = GizmoFramePanel.Publish(buffer, Editor);
 
-        Assert.Equal(0, vm.Count);
+        Assert.Equal(0, vm!.Count);
         Assert.Empty(vm.Dump()["primitives"]!.AsArray());
 
         Reset();

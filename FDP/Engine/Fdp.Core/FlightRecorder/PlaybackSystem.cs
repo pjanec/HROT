@@ -50,7 +50,7 @@ namespace Fdp.Core.FlightRecorder
         /// <summary>Was the last apply's repair the full one?</summary>
         public bool LastRepairWasFull { get; private set; }
 
-        private delegate void ManagedRestorerDelegate(object table, int chunkIndex, byte[] data, EntityRepository repo);
+        private delegate void ManagedRestorerDelegate(object table, int chunkIndex, ArraySegment<byte> data, EntityRepository repo);
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, ManagedRestorerDelegate> _managedRestorers = new();
         
         /// <summary>
@@ -150,7 +150,7 @@ namespace Fdp.Core.FlightRecorder
                     }
                     else if (len > 0)
                     {
-                        byte[] data = ChunkBuffer(reader, len);
+                        var data = ChunkView(reader, len);   // ⭐ CE-4432 — a view of the frame's own buffer (no copy, no array), else the pooled copy
                         
                         // LOGIC:
                         // 1. Find the component table for typeId
@@ -402,6 +402,21 @@ namespace Fdp.Core.FlightRecorder
         private readonly Dictionary<int, byte[]> _chunkBuffers = new();
         private const int MaxChunkBuffers = 64;
 
+        /// <summary>⭐ CE-4432 (R-2084) — the chunk's bytes as a VIEW of the frame's buffer when the reader is over one (the prefetched and the inline
+        /// paths both are), advancing the reader past them; else <see cref="ChunkBuffer"/>'s copy. ⛔ The copy fell back to <c>ReadBytes</c> once 64
+        /// distinct managed-blob lengths were pooled — ~3 MB/s of garbage while a 1 000-man replay played (measured on Windows).</summary>
+        private ArraySegment<byte> ChunkView(BinaryReader reader, int len)
+        {
+            if (reader.BaseStream is MemoryStream ms && ms.TryGetBuffer(out var seg))
+            {
+                long at = ms.Position;
+                if (at + len > ms.Length) throw new EndOfStreamException("The recording ended inside a chunk.");
+                ms.Position = at + len;
+                return new ArraySegment<byte>(seg.Array!, seg.Offset + (int)at, len);
+            }
+            return new ArraySegment<byte>(ChunkBuffer(reader, len), 0, len);
+        }
+
         private byte[] ChunkBuffer(BinaryReader reader, int len)
         {
             if (!_chunkBuffers.TryGetValue(len, out var buffer))
@@ -537,7 +552,7 @@ namespace Fdp.Core.FlightRecorder
             return targetTable;
         }
 
-        private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, byte[] data)
+        private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, ArraySegment<byte> data)
         {
             
             // Case 0: Special Entity Index hot (component-mask) chunk
@@ -596,15 +611,15 @@ namespace Fdp.Core.FlightRecorder
             }
         }
         
-        private static void RestoreManagedTableAdapter<T>(object tableObj, int chunkIndex, byte[] data, EntityRepository repo) where T : class
+        private static void RestoreManagedTableAdapter<T>(object tableObj, int chunkIndex, ArraySegment<byte> data, EntityRepository repo) where T : class
         {
              // Pass the repository to RestoreManagedTable so it can update component masks
              RestoreManagedTable((ManagedComponentTable<T>)tableObj, chunkIndex, data, repo);
         }
 
-        private static void RestoreManagedTable<T>(ManagedComponentTable<T> table, int chunkIndex, byte[] data, EntityRepository repo) where T : class
+        private static void RestoreManagedTable<T>(ManagedComponentTable<T> table, int chunkIndex, ArraySegment<byte> data, EntityRepository repo) where T : class
         {
-             using (var ms = new MemoryStream(data))
+             using (var ms = new MemoryStream(data.Array!, data.Offset, data.Count, writable: false))
              using (var reader = new BinaryReader(ms))
              {
                  T?[] chunkData = FdpAutoSerializer.Deserialize<T?[]>(reader);
@@ -678,7 +693,7 @@ namespace Fdp.Core.FlightRecorder
             }
         }
 
-        private void RestoreChunkData(IUnmanagedComponentTable table, int chunkIndex, byte[] data)
+        private void RestoreChunkData(IUnmanagedComponentTable table, int chunkIndex, ReadOnlySpan<byte> data)
         {
             // Copy data directly into the chunk
             table.RestoreChunkFromBuffer(chunkIndex, data);

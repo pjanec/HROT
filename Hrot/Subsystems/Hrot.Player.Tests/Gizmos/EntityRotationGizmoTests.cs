@@ -75,6 +75,22 @@ namespace Hrot.Player.Tests.Gizmos
             // The label must contain a degree value (non-empty text string).
             string label = draw.TextCalls[0].Text.ToString();
             Assert.False(string.IsNullOrWhiteSpace(label));
+            Assert.Equal("90*", label);   // ⭐ CE-4432 — facing east = compass 90, formatted on the stack (the value the old "{deg:F0}*" gave)
+        }
+
+        /// <summary>⭐ CE-4432 (R-2084) — the gizmo runs for every unit every frame: its label costs 0 B (it was an interpolated string per unit).
+        /// 🔴 Red-proof: <c>new FixedString32($"{compassDeg:F0}*")</c> back ⇒ red.</summary>
+        [Fact]
+        public void SC_GZ021_ROT_2b_Draw_Allocates0B()
+        {
+            var gizmo = new EntityRotationGizmo(_settings);
+            var draw  = new FullCapturingDrawBuilder();
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.7f) });
+            for (int i = 0; i < 40; i++) gizmo.Draw(_repo, entity, draw);   // warm (the double's lists grow to 64)
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) gizmo.Draw(_repo, entity, draw);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - a0);
         }
 
         [Fact]

@@ -173,6 +173,35 @@ public class StyleResolutionSystemTests
     /// When <c>VisualData.ColorHex</c> is the friend-blue hex code the system
     /// must decode and store the correct RGBA tint channels.
     /// </summary>
+    /// <summary>⭐ CE-4432 (R-2084) — a pass that re-resolves every entity (an input changed) costs 0 B: the texture name, the label (a network id)
+    /// and the colour are read into stack buffers, never strings. 🔴 Red-proof: <c>labelText = netId.Value.ToString(…)</c> back ⇒ red.</summary>
+    [Fact]
+    public void StyleResolutionSystem_AResolvingPass_Allocates0B()
+    {
+        var repo   = CreateRepo();
+        var system = new StyleResolutionSystem(new MapUserConfig());
+        var units = new Entity[50];
+        for (int i = 0; i < units.Length; i++)
+        {
+            units[i] = repo.CreateEntity();
+            repo.AddComponent(units[i], new NetworkIdentity(1000 + i));
+            repo.AddComponent(units[i], new SimTransform());
+            repo.AddComponent(units[i], new VisualData { SymbolCode = TestSymbolCode, ColorHex = TestColorHexBlue });
+        }
+        for (int k = 0; k < 3; k++) { repo.SetComponent(units[0], new VisualData { SymbolCode = TestSymbolCode, ColorHex = TestColorHexBlue }); system.Execute(repo, 0f); }   // warm
+        Assert.Equal("1007", repo.GetComponent<ResolvedStyle>(units[7]).GetLabelText());   // ⛔ anti-vacuity: the id label was resolved
+        int passes = system.Passes;
+        long a0 = System.GC.GetAllocatedBytesForCurrentThread();
+        for (int k = 0; k < 10; k++)
+        {
+            repo.SetComponent(units[0], new VisualData { SymbolCode = TestSymbolCode, ColorHex = TestColorHexBlue });   // an input moved ⇒ a full pass
+            system.Execute(repo, 0f);
+        }
+        long allocated = System.GC.GetAllocatedBytesForCurrentThread() - a0;
+        Assert.Equal(passes + 10, system.Passes);
+        Assert.Equal(0, allocated);
+    }
+
     [Fact]
     public void StyleResolutionSystem_TkbLayer_ParsesColorHexIntoTint()
     {

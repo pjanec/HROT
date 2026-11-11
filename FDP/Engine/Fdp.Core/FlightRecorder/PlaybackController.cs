@@ -472,8 +472,8 @@ namespace Fdp.Core.FlightRecorder
             // ⭐ CE-4407 (R-2084) — the two buffers are REUSED (grown, never shrunk): a frame of a 1 000-man recording is 15–65 MB uncompressed, and a fresh
             //   `new byte[]` for it every applied frame was 11–65 MB of large-object garbage per frame (gen-2 collections on a 1.2 GB heap).
             int compressedSize = metadata.CompressedSize, rawSize = metadata.UncompressedSize;
-            if (_compressedBuffer.Length < compressedSize) _compressedBuffer = new byte[compressedSize];
-            if (_rawBuffer.Length < rawSize) _rawBuffer = new byte[rawSize];
+            if (_compressedBuffer.Length < compressedSize) _compressedBuffer = new byte[FramePrefetcher.Grown(compressedSize)];   // ⭐ CE-4432 — with headroom
+            if (_rawBuffer.Length < rawSize) _rawBuffer = new byte[FramePrefetcher.Grown(rawSize)];
             int got = 0;
             while (got < compressedSize)
             {

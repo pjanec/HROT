@@ -87,7 +87,10 @@ public unsafe struct ResolvedStyle
     /// <paramref name="name"/> (UTF-8 encoded) into the fixed texture-name buffer.
     /// The buffer is always null-terminated.
     /// </summary>
-    public unsafe void SetTextureName(string? name)
+    public void SetTextureName(string? name) => SetTextureName(name.AsSpan());
+
+    /// <summary>⭐ CE-4432 — the same from a char span (0 B: the style pass fills it on the stack).</summary>
+    public unsafe void SetTextureName(ReadOnlySpan<char> name)
     {
         fixed (byte* buf = _textureName)
             WriteUtf8(buf, ResolvedStyleConstants.TextureNameMaxBytes, name);
@@ -105,7 +108,10 @@ public unsafe struct ResolvedStyle
     /// <paramref name="label"/> (UTF-8 encoded) into the fixed label-text buffer.
     /// The buffer is always null-terminated.
     /// </summary>
-    public unsafe void SetLabelText(string? label)
+    public void SetLabelText(string? label) => SetLabelText(label.AsSpan());
+
+    /// <summary>⭐ CE-4432 — the same from a char span.</summary>
+    public unsafe void SetLabelText(ReadOnlySpan<char> label)
     {
         fixed (byte* buf = _labelText)
             WriteUtf8(buf, ResolvedStyleConstants.LabelTextMaxBytes, label);
@@ -120,9 +126,9 @@ public unsafe struct ResolvedStyle
 
     // ── Private byte-buffer helpers ───────────────────────────────────────────
 
-    private static unsafe void WriteUtf8(byte* buf, int capacity, string? text)
+    private static unsafe void WriteUtf8(byte* buf, int capacity, ReadOnlySpan<char> text)
     {
-        if (string.IsNullOrEmpty(text))
+        if (text.IsEmpty)
         {
             buf[0] = 0;
             return;

@@ -231,28 +231,59 @@ namespace Fdp.Toolkit.Vis2D.Layers
             else if (live != null)
             {
                 long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone
-                Cards.Draw(_renderer.CardPrimitives, CardAnchor2D(live, _buffer.GetFrame()));
+                Cards.Draw(_renderer.CardPrimitives, CardAnchor2DReused(live, _buffer.GetFrame()));   // ⭐ CE-4432 — 0 B per frame
                 Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
                 LastCardsDrawn = Cards.CardsDrawn;
             }
         }
 
         /// <summary>⭐ S5b — an entity's card anchor in 3-D: its anchor, lifted to the top of its drawn body, projected.</summary>
-        public Func<long, Vector2?> CardAnchor3D(Fdp.Toolkit.Vis3D.MapCamera3D camera) => id =>
+        public Func<long, Vector2?> CardAnchor3D(Fdp.Toolkit.Vis3D.MapCamera3D camera)
+        {
+            _cardCamera3D = camera;   // ⭐ CE-4432 — ONE delegate over the latest camera (a closure per frame before)
+            return _cardAnchor3D ??= id => _cardCamera3D is { } c ? CardScreen3D(c, id) : null;
+        }
+
+        private Fdp.Toolkit.Vis3D.MapCamera3D? _cardCamera3D;
+        private Func<long, Vector2?>? _cardAnchor3D;
+
+        private Vector2? CardScreen3D(Fdp.Toolkit.Vis3D.MapCamera3D camera, long id)
         {
             if (!_triage3D.TryGetAnchor(id, out var at)) return null;
             at.Z += LabelLift?.Invoke(id) ?? Fdp.Toolkit.Vis3D.LabelOverlay3D.DefaultLift;
             var s = camera.WorldToScreen(at);
             return s.X < -1e5f ? null : s;
-        };
+        }
 
         /// <summary>⭐ S5b — an entity's card anchor in 2-D: its SpatialAnchor's ground point, through the (north-up) camera.</summary>
         public static Func<long, Vector2?> CardAnchor2D(MapCamera camera, ReadOnlySpan<DebugPrimitive> frame)
         {
             var anchors = new System.Collections.Generic.Dictionary<long, Vector2>();
+            FillAnchors2D(frame, anchors);
+            return id => CardScreen2D(camera, anchors, id);
+        }
+
+        private static void FillAnchors2D(ReadOnlySpan<DebugPrimitive> frame, System.Collections.Generic.Dictionary<long, Vector2> anchors)
+        {
+            anchors.Clear();
             foreach (ref readonly var p in frame)
                 if (p.Shape == DebugPrimitiveShape.SpatialAnchor) anchors[p.NetworkId] = new Vector2(p.AnchorWorldX, p.AnchorWorldY);
-            return id => anchors.TryGetValue(id, out var w) ? camera.WorldToScreen(w) - new Vector2(0f, 6f) : null;
+        }
+
+        private static Vector2? CardScreen2D(MapCamera camera, System.Collections.Generic.Dictionary<long, Vector2> anchors, long id)
+            => anchors.TryGetValue(id, out var w) ? camera.WorldToScreen(w) - new Vector2(0f, 6f) : null;
+
+        // ⭐ CE-4432 (R-2084) — the draw's own CardAnchor2D: the same answer from ONE dictionary and ONE delegate, refilled each frame (a new
+        //   dictionary + closure per frame were ~4 MB/s of garbage at 8 000 units, measured on Windows).
+        private readonly System.Collections.Generic.Dictionary<long, Vector2> _cardAnchors2D = new();
+        private MapCamera? _cardCamera2D;
+        private Func<long, Vector2?>? _cardAnchor2D;
+
+        private Func<long, Vector2?> CardAnchor2DReused(MapCamera camera, ReadOnlySpan<DebugPrimitive> frame)
+        {
+            FillAnchors2D(frame, _cardAnchors2D);
+            _cardCamera2D = camera;
+            return _cardAnchor2D ??= id => _cardCamera2D is { } c ? CardScreen2D(c, _cardAnchors2D, id) : null;
         }
 
         /// <summary>⭐ CE-1033 S2 — the canvas' CURRENT camera (the 3-D one while the map is in 3-D); set by

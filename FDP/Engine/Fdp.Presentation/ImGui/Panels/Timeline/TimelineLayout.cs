@@ -84,11 +84,15 @@ public static class TimelineLayout
         // event falls between two bins, and a lane's position at each edge is ONE binary search (bins + 1 per lane, not 2 × bins).
         int bins = Math.Max(1, (int)(width / binPx));
         var edges = EdgesFor(index, window, width, bins, f0, f1);
-        var counts = new int[bins];
-        var tops = new int[bins];
-        Array.Fill(tops, -1);
-        foreach (var lane in lanes)
+        // ⭐ CE-4432 (R-2084) — per-thread scratch (grown, never shrunk) and index loops: this runs for every row every frame; two arrays per row and
+        //   an interface enumerator per non-empty bin were ~5 MB/s of garbage in a 1 000-man replay (measured on Windows).
+        if (_counts == null || _counts.Length < bins) { _counts = new int[bins]; _tops = new int[bins]; }
+        var counts = _counts; var tops = _tops!;
+        Array.Clear(counts, 0, bins);
+        Array.Fill(tops, -1, 0, bins);
+        for (int li = 0; li < lanes.Count; li++)
         {
+            var lane = lanes[li];
             int p = priorityOf(lane);
             int prev = index.Before(lane, edges[0]);
             for (int b = 0; b < bins; b++)
@@ -102,17 +106,19 @@ public static class TimelineLayout
             }
         }
         int max = 0;
-        foreach (int c in counts) max = Math.Max(max, c);
+        for (int b = 0; b < bins; b++) max = Math.Max(max, counts[b]);
         double scale = Math.Log(1 + max);
         for (int b = 0; b < bins; b++)
         {
             if (counts[b] == 0) continue;
             var top = lanes[0];
-            foreach (var lane in lanes) if (priorityOf(lane) == tops[b]) { top = lane; break; }
+            for (int li = 0; li < lanes.Count; li++) if (priorityOf(lanes[li]) == tops[b]) { top = lanes[li]; break; }
             float intensity = scale <= 0 ? 1f : (float)(Math.Log(1 + counts[b]) / scale);
             marks.Add(new TimelineMark(TimelineMarkKind.Density, b * width / bins, (b + 1) * width / bins, counts[b], top, intensity, edges[b], edges[b + 1]));
         }
     }
+
+    [ThreadStatic] private static int[]? _counts, _tops;   // ⭐ CE-4432 — Density's scratch
 
     // The edges depend on the window, not the lane: every row of one draw shares them (one cached set per thread).
     [ThreadStatic] private static (TimelineIndex? Index, TimelineWindow Window, float Width, int Bins, int[]? Edges) _edgeCache;

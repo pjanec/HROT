@@ -344,6 +344,30 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             return p;
         }
 
+        /// <summary>⭐ CE-4432 (R-2084) — the anchor cache, the sort buffer, the order array and the comparer are reused: a steady frame of anchored
+        /// primitives costs 0 B in Render once warm (it was a new dictionary + list + index array + closure per frame, ~25 MB/s at 8 000 units).
+        /// 🔴 Red-proof: `new Dictionary&lt;long, SpatialAnchorEntry&gt;()` back in Render ⇒ red.</summary>
+        [Fact]
+        public void ASteadyFrame_OfAnchoredPrimitives_Allocates0B_InRender()
+        {
+            var renderer = new CapturingRenderer2D();
+            var frame = new DebugPrimitive[200];
+            for (int i = 0; i < 100; i++)
+            {
+                frame[2 * i] = Anchor(1000 + i, i, 2f * i, 15f * i);
+                var p = Local(DebugPrimitiveShape.Line, 1000 + i);
+                p.LineStart = new Vector3(1f, 0f, 0f); p.LineEnd = new Vector3(2f, 0f, 0f); p.ZIndex = (byte)(i % 3);
+                frame[2 * i + 1] = p;
+            }
+            var camera = new Camera2D { Zoom = 1f };
+            renderer.Render(frame, camera, 1f);   // warm
+            Assert.Equal(100, renderer.Dispatched.Count);   // ⛔ anti-vacuity: every line resolved and dispatched
+            long a0 = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int k = 0; k < 10; k++) { renderer.Dispatched.Clear(); renderer.Render(frame, camera, 1f); }
+            Assert.Equal(0, System.GC.GetAllocatedBytesForCurrentThread() - a0);
+            Assert.Equal(100, renderer.Dispatched.Count);
+        }
+
         // SC-GZ012-1: an EntityLocal Line resolves to anchor position + local offset.
         [Fact]
         public void SC_GZ012_1_EntityLocal_Line_TranslatesPosition()

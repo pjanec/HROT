@@ -310,7 +310,7 @@ namespace Fdp.Tests
             using var repo = new EntityRepository();
             var playback = new PlaybackSystem();
             var apply = typeof(PlaybackSystem).GetMethod("ApplyChunkData", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-            apply.Invoke(playback, new object[] { repo, 987_655, 0, new byte[16] });
+            apply.Invoke(playback, new object[] { repo, 987_655, 0, new ArraySegment<byte>(new byte[16]) });   // ⭐ CE-4432 — the chunk is a view now
             Assert.Contains(987_655, playback.UnresolvedTypes);
         }
 

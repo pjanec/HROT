@@ -129,23 +129,28 @@ public class StyleResolutionSystem : IEcsModuleSystem
 
     private ResolvedStyle BuildStyle(ISimulationView view, Entity entity)
     {
+        // ⭐ CE-4432 (R-2084) — the texture name and the label are built in STACK buffers (the fixed strings decode into them, CopyTo), never as
+        //   strings: a string per entity per changed frame was ~5 MB/s of garbage while a 1 000-man replay played (measured on Windows).
+        Span<char> texture = stackalloc char[ResolvedStyleConstants.TextureNameMaxBytes];
+        Span<char> label   = stackalloc char[ResolvedStyleConstants.LabelTextMaxBytes];
+        int    textureLen  = 0, labelLen = 0;
+
         // ── Layer 1: TKB defaults (VisualData applied at spawn) ──────────────
-        string textureName = string.Empty;
         byte   tintR       = ResolvedStyleConstants.UnknownTintR;
         byte   tintG       = ResolvedStyleConstants.UnknownTintG;
         byte   tintB       = ResolvedStyleConstants.UnknownTintB;
         byte   tintA       = ResolvedStyleConstants.UnknownTintA;
-        string labelText   = string.Empty;
         var    affiliation = ForceId.Neutral;
 
         if (view.HasComponent<VisualData>(entity))
         {
             ref readonly var visual = ref view.GetComponentRO<VisualData>(entity);
-            textureName = visual.SymbolCode;
+            textureLen = visual.SymbolCode.CopyTo(texture);
 
-            var colorHex = (string)visual.ColorHex;
-            if (!string.IsNullOrEmpty(colorHex))
-                ParseColorHex(colorHex, out tintR, out tintG, out tintB, out tintA);
+            Span<char> colorHex = stackalloc char[FixedString32.MaxLength];
+            int colorLen = visual.ColorHex.CopyTo(colorHex);
+            if (colorLen > 0)
+                ParseColorHex(colorHex[..colorLen], out tintR, out tintG, out tintB, out tintA);
             // Derive affiliation from TKB colour when no network override exists.
         }
 
@@ -157,7 +162,7 @@ public class StyleResolutionSystem : IEcsModuleSystem
             affiliation = entityData.ForceId;
 			ApplyAffiliationColor( affiliation, out tintR, out tintG, out tintB, out tintA);
             if (!entityData.Name.IsEmpty)
-                labelText = entityData.Name;
+                labelLen = entityData.Name.CopyTo(label);
         }
 
         // ── Layer 2: Network override (IgSymbolOverride) ──────────────────────
@@ -174,9 +179,9 @@ public class StyleResolutionSystem : IEcsModuleSystem
             }
 
             if (!string.IsNullOrEmpty(symbol.TextureOverride))
-                textureName = symbol.TextureOverride;
+                textureLen = Copy(symbol.TextureOverride, texture);
             if (!string.IsNullOrEmpty(symbol.LabelOverride))
-                labelText = symbol.LabelOverride;
+                labelLen = Copy(symbol.LabelOverride, label);
 
             showTrail = symbol.ShowHistory;
         }
@@ -185,10 +190,10 @@ public class StyleResolutionSystem : IEcsModuleSystem
         // Show the entity's network ID when no human-readable label was set, so every
         // entity always has a readable identifier on the map.  The DebugPanel "Hide Labels"
         // toggle (Layer 3) can suppress this.
-        if (string.IsNullOrEmpty(labelText) && view.HasComponent<NetworkIdentity>(entity))
+        if (labelLen == 0 && view.HasComponent<NetworkIdentity>(entity))
         {
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-            labelText = netId.Value.ToString(CultureInfo.InvariantCulture);
+            netId.Value.TryFormat(label, out labelLen, default, CultureInfo.InvariantCulture);
         }
 
         // ── Layer 3: User config overrides ────────────────────────────────────
@@ -201,7 +206,7 @@ public class StyleResolutionSystem : IEcsModuleSystem
             tintA       = ResolvedStyleConstants.HostileTintA;
         }
         if (_userConfig.HideLabels)
-            labelText = string.Empty;
+            labelLen = 0;
 
         // ⭐ DamageLevel stays a 0..100 percentage (ResolvedStyle's documented range), but it is now
         //   DERIVED from the authority's Health rather than read from a precomputed wire field.
@@ -230,10 +235,18 @@ public class StyleResolutionSystem : IEcsModuleSystem
         style.DamageLevel = damage;
         style.ShowTrail   = showTrail;
         style.ShowSensors = false;
-        style.SetTextureName(textureName);
-        style.SetLabelText(labelText);
+        style.SetTextureName(texture[..textureLen]);
+        style.SetLabelText(label[..labelLen]);
 
         return style;
+    }
+
+    /// <summary>A string into a stack buffer, cut to it (the style's own UTF-8 write cuts again at its byte capacity).</summary>
+    private static int Copy(string text, Span<char> into)
+    {
+        int n = Math.Min(text.Length, into.Length);
+        text.AsSpan(0, n).CopyTo(into);
+        return n;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -302,7 +315,7 @@ public class StyleResolutionSystem : IEcsModuleSystem
     /// Falls back to the Unknown (white) tint on any parse failure so rendering stays safe.
     /// </summary>
     private static void ParseColorHex(
-        string? hex,
+        ReadOnlySpan<char> hex,
         out byte r, out byte g, out byte b, out byte a)
     {
         r = ResolvedStyleConstants.UnknownTintR;
@@ -310,10 +323,10 @@ public class StyleResolutionSystem : IEcsModuleSystem
         b = ResolvedStyleConstants.UnknownTintB;
         a = ResolvedStyleConstants.UnknownTintA;
 
-        if (string.IsNullOrEmpty(hex) || hex[0] != '#')
+        if (hex.IsEmpty || hex[0] != '#')
             return;
 
-        var span = hex.AsSpan(1);
+        var span = hex[1..];
 
         if (span.Length == 6)
         {
