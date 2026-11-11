@@ -1248,3 +1248,17 @@ the map-preparation systems move from the simulation kernel into a drawing kerne
 
 ⇒ (c) is a moderate, mostly mechanical change on the UI side (three seams queued, ~24 sites converted, ~40 moved), plus the kernel split and the
 snapshot copy (CE-4433 P-2 measures it). ⛔ Decided only after CE-4433: (a) interleaving soldiers (§3 D6) and (b) cutting the named non-brain cost may be enough.
+
+### 13.1 Option (c) in the kernel's own terms *(coordinator, `2026-11-11`; read against FDP-DES-012 `FDP/Engine/docs/FDP-GDB-SoD-unified.md` §2–§7 and the ModuleHost user guide ch. 6)*
+
+🔒 User, `2026-11-11`: *"the worker thread, which is owning the main world, in my understanding doesn't fit to the kernel's idea of how we tick and how
+we create snapshots. How could we align it with that?"*
+
+| the kernel's model (DES-012) | what (c) does with it |
+|---|---|
+| World A (live) is owned by ONE thread — the one that ticks the kernel; synchronous modules read / write it directly ("Rendering preparation" is listed as a Direct user, guide ch. 6) | ⭐ unchanged — the whole kernel (World A, its synchronous modules, its providers, its harvest) runs on the simulation thread; "Main Thread" in the kernel's docs means *the kernel's thread*, which stops being the GL thread |
+| replicas: World B (GDB, synced every frame — recorder, network), World C (SoD / shared, on demand — AI) — DES-012 §2.3 already names **UI** a World C consumer | ⭐ the PRESENTATION becomes one more reader of a replica — but a SELF-PACED one: the render loop leases the latest published snapshot each frame and releases it, instead of the kernel dispatching it as a module |
+| readers never write: they emit COMMANDS, validated on World A before they apply (DES-012 §3.3, optimistic concurrency) | ⭐ the UI's writes become exactly that (§13's write table) — with preconditions (the dragged unit still alive, the edited component unchanged) |
+| a busy replica is NOT synced — "the Host SKIPS the sync" until the reader releases it (DES-012 §2, frames 2–4) | ⭐ for a reader that holds a view every frame, ONE buffer would never sync ⇒ the presentation needs a real double / triple buffer: the kernel syncs a free buffer and publishes it; the render thread always takes the newest complete one |
+
+**What the kernel does NOT have yet** (the actual work): ① a published-snapshot handoff for an EXTERNAL reader — ⚠ `DoubleBufferProvider` holds ONE replica synced in place at the sync point (`DoubleBufferProvider.cs:63-66`), safe only because FrameSynced readers are joined before the next sync; the guide's two-replica swap is not what the code does; ② a PRESENTATION kernel on the GL thread: the map-preparation systems (gizmos, styling, layer assignment) run today as Synchronous / Direct systems in the simulation's kernel — they move to a kernel of their own whose live world holds only UI state (selection, display, effects — §13's ~40 UI-only writes) and which reads the leased replica as its `ISimulationView`; ③ hardware input: systems that poll the window's input must stay on the GL thread (⛔ not yet measured which do); ④ command validation for the UI's queued edits.
