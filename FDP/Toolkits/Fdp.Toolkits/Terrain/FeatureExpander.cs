@@ -8,9 +8,9 @@ namespace Fdp.Toolkit.Terrain
     /// <summary>What one <see cref="FeatureExpander.Expand"/> made: the world-file features, their counts, and the points the block's outline is the hull of (local metres).</summary>
     public sealed record FeatureExpansion(IReadOnlyList<JsonObject> Features, int Houses, int Woods, IReadOnlyList<Vector2> Points, IReadOnlyList<Vector2[]>? Shapes = null)
     {
-        /// <summary>⭐ Terrain authoring U-2 — the world polygon of each feature, in <see cref="Features"/> order (a house's footprint, a wood's ring): what the placing ghost draws without parsing the GeoJSON back.</summary>
+        /// <summary>⭐ Terrain authoring U-2 — the world polygons the placing ghost and the tile picture draw: every house footprint first (<see cref="Houses"/> of them, the recipe's houses and the elements' alike), then every wood ring — without parsing the GeoJSON back.</summary>
         public IReadOnlyList<Vector2[]> ShapesOrEmpty => Shapes ?? System.Array.Empty<Vector2[]>();
-        /// <summary>⭐ T-3 part 2 — the templates the block's UNIQUE houses are (name → building-template JSON): the compiler writes them into the overlay's <c>buildings/</c>.</summary>
+        /// <summary>⭐ T-3 part 2 — the templates the block's UNIQUE houses are (name → building-template JSON): the compiler writes them into the overlay's <c>buildings/</c>, the live overlay resolves them in memory.</summary>
         public IReadOnlyDictionary<string, string> Templates { get; init; } = new Dictionary<string, string>();
     }
 
@@ -79,7 +79,7 @@ namespace Fdp.Toolkit.Terrain
                 st.Features.Add(Feature(new JsonObject { ["kind"] = "surface", ["surface"] = "forest", ["label"] = $"{keyPrefix}/w{woods}" },
                     new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(coords) }));
                 st.Points.AddRange(ring);
-                st.Shapes.Add(ring);
+                st.WoodShapes.Add(ring);
                 woods++;
             }
 
@@ -89,7 +89,9 @@ namespace Fdp.Toolkit.Terrain
                 st.Rng = rng;
                 foreach (var el in recipe.Elements) ExpandElement(st, el);
             }
-            return new FeatureExpansion(st.Features, st.Houses, woods, st.Points, st.Shapes) { Templates = st.Templates };
+            var shapes = new List<Vector2[]>(st.HouseShapes.Count + st.WoodShapes.Count);
+            shapes.AddRange(st.HouseShapes); shapes.AddRange(st.WoodShapes);
+            return new FeatureExpansion(st.Features, st.Houses, woods, st.Points, shapes) { Templates = st.Templates };
         }
 
         /// <summary>⭐ T-3 — what one block expansion shares between its houses and its elements: the stream, the frame (origin, heading), the fit, and what is placed so far.</summary>
@@ -104,8 +106,7 @@ namespace Fdp.Toolkit.Terrain
             public string Key = "";
             public readonly List<JsonObject> Features = new();
             public readonly List<Vector2> Points = new();
-            /// <summary>ui's placing ghost: every placed house footprint and wood ring (world).</summary>
-            public readonly List<Vector2[]> Shapes = new();
+            public readonly List<Vector2[]> HouseShapes = new(), WoodShapes = new();
             public readonly List<(Vector2 Min, Vector2 Max)> Avoid = new();
             private readonly Dictionary<string, Vector2[]> _footprints = new(StringComparer.Ordinal);
             public int Houses, Parts;
@@ -149,7 +150,7 @@ namespace Fdp.Toolkit.Terrain
                 if ((Fit & TerrainBlock.LevelPads) != 0) props["pad"] = Round(Base.GroundHeightAt(centre.X, centre.Y));
                 Features.Add(FeatureExpander.Feature(props, new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(centre.X, centre.Y) }));
                 Points.AddRange(world);
-                Shapes.Add(world);
+                HouseShapes.Add(world);
                 Houses++;
                 return true;
             }

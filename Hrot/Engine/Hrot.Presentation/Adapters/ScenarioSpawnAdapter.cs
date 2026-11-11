@@ -33,7 +33,7 @@ namespace Hrot.UI.Common.Adapters
     /// No DDS or CycloneDDS references; all dispatch is done through the in-process
     /// <see cref="FdpEventBus"/>.
     /// </summary>
-    public sealed class ScenarioSpawnAdapter : ISpawnController
+    public sealed class ScenarioSpawnAdapter : ISpawnController, Hrot.UI.Common.AddEntity.ITerrainDrawSource
     {
         private readonly EntityCreation     _creation;
         private readonly Func<string>?      _nameResolver;
@@ -44,6 +44,14 @@ namespace Hrot.UI.Common.Adapters
         private readonly GlobalGizmoManager? _globalGizmoManager;
         private readonly Hrot.ScenarioEditor.Tools.ToolController? _tools;
         private long?                        _activeSequenceId;
+        // ⭐ Terrain authoring follow-up 2 — what the user chose for the terrain feature being drawn (the drawing panel edits it, the commit reads it)
+        private Hrot.UI.Common.AddEntity.TerrainDrawOptions? _terrainDraw;
+        Hrot.UI.Common.AddEntity.TerrainDrawOptions? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Options => _terrainDraw;
+        IReadOnlyList<System.Numerics.Vector2> Hrot.UI.Common.AddEntity.ITerrainDrawSource.Points => (IReadOnlyList<System.Numerics.Vector2>?)_areaArm?.ActiveGizmo?.Session.Points ?? System.Array.Empty<System.Numerics.Vector2>();
+        void Hrot.UI.Common.AddEntity.ITerrainDrawSource.Finish() => _areaArm?.ActiveGizmo?.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
+        void Hrot.UI.Common.AddEntity.ITerrainDrawSource.Cancel() => _areaArm?.ActiveGizmo?.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Escape, true);
+        /// <summary>⭐ Terrain authoring follow-up 2 — the scatter recipes the drawing panel offers (the host sets them from the recipes that carry a <c>scatter</c> section); empty ⇒ none.</summary>
+        public System.Collections.Generic.IReadOnlyList<(string Id, string Name, float Density)> ScatterRecipes { get; set; } = System.Array.Empty<(string, string, float)>();
 
         /// <summary>
         /// ⭐ <c>E5</c> — the ONE area-authoring mechanism, shared with IG. Created lazily because it
@@ -398,23 +406,28 @@ namespace Hrot.UI.Common.Adapters
             // ⭐ Terrain authoring U-7 — a LINE / AREA terrain feature rides its spec in the style JSON: a line needs 2 points and is open, an area 3 and closed; the entity is born a TerrainFeature (and loses the area fill style)
             var (styleJson, terrainSpec) = Hrot.UI.Common.AddEntity.TerrainBirth.Split(_pendingStyleJson);
             var feature = tkbType == TkbEntityTypes.TerrainFeature ? Hrot.UI.Common.AddEntity.TerrainBirth.FeatureOf(terrainSpec) : null;
+            var drawOptions = feature is null ? null : Hrot.UI.Common.AddEntity.TerrainDrawOptions.From(terrainSpec);
+            if (drawOptions is not null)
+            {
+                drawOptions.ScatterRecipes = ScatterRecipes;
+                // a scatter with no recipe chosen takes the first one the host offers
+                if (drawOptions.IsScatter && drawOptions.Template.Length == 0 && ScatterRecipes.Count > 0) drawOptions.SetTemplate(ScatterRecipes[0].Id);
+            }
             var outcome = arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
                 TkbType:    (Fdp.Core.TkbTypeId)(tkbType),
                 StyleJson:  feature is null ? _pendingStyleJson : styleJson ?? "",
                 OnCommit:   Request,
                 MinPoints:  feature is { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line } ? 2 : 3,
                 Closed:     feature is not { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line },
-                Born:       feature is null ? null : comps =>
-                {
-                    comps.RemoveAll(c => c is Hrot.Map.Common.Components.MapOverlayStyle);   // a terrain feature is not a map-overlay fill
-                    Hrot.UI.Common.AddEntity.TerrainBirth.BornWith(TkbEntityTypes.TerrainFeature, terrainSpec, FacingNorth, comps);
-                },
+                // ⭐ the commit reads what the drawing panel holds (kind, height / width, recipe, density, seed): ONE object, so the panel and the entity cannot disagree
+                Born:       drawOptions is null ? null : drawOptions.Born,
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
                 //   prior inline `onRemove` did. ⛔ Dropping it would leave `_activeSequenceId` stale and
                 //   make the next arm unregister a gizmo that is already gone.
-                OnDisarmed: () => _activeSequenceId = null));
+                OnDisarmed: () => { _activeSequenceId = null; if (ReferenceEquals(_terrainDraw, drawOptions)) _terrainDraw = null; }));
 
             _activeSequenceId = arm.ActiveGizmoId;
+            _terrainDraw = drawOptions;   // ⭐ after the arm: arming first disarms the previous tool, whose OnDisarmed clears the field
             return outcome;
         }
 

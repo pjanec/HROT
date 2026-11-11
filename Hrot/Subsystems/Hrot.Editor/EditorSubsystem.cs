@@ -176,6 +176,9 @@ namespace Hrot.Editor
         Fdp.Presentation.WindowManager.IClusterRestSource,
         Hrot.UI.Common.RunMode.IProvidesRunControls
     {
+        /// <summary>⭐ CE-4432 — the editor's map-feed address (BP-485), built once; the publish reads it every frame.</summary>
+        private static readonly string GizmoFeedAddress = Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.AddressFor("editor");
+
         /// <summary>
         /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — what the start gate reads here: the editor HOSTS the (in-process) master, so it can always
         /// operate it, its master is never "gone", and the state is the one its own session announces (Idle until a scenario is opened).
@@ -1718,7 +1721,9 @@ namespace Hrot.Editor
                     // IS the "somebody wants dumps" signal, so it is turned on here and nowhere else:
                     // a normal run never sets HROT_DEBUG_API_PORT, so production stays off and pays
                     // one branch per panel per frame.
-                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
+                    // ⭐ CE-4432 — HROT_PANEL_CAPTURE=0 keeps the API but not the per-frame panel models: a measuring run then pays what a user's run pays
+                    //   (every panel building + registering its snapshot model each frame was part of every frame measured over the API before).
+                    Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = System.Environment.GetEnvironmentVariable("HROT_PANEL_CAPTURE") != "0";
 
                     _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
                     // POST /shutdown asks the HOST RUNNER to leave its frame loop, so the process
@@ -1877,6 +1882,9 @@ namespace Hrot.Editor
                 //   request queue, TKB and geo transform, with the tool arbiter PASSED (UXI-07 step 4a).
                 _spawnAdapter     = _editorMapInteraction.EntityAuthoring?.Spawn
                     ?? throw new InvalidOperationException("The map's entity-authoring surface has no spawn adapter (no creation request queue).");
+                // ⭐ Terrain authoring follow-up 2 — the recipes the area scatter can draw from (those with a `scatter` section; none ships until backend's T-3)
+                try { _spawnAdapter.ScatterRecipes = Hrot.UI.Common.AddEntity.TerrainPickCatalog.ScatterRecipes(new[] { Fdp.Toolkit.Orchestration.ContentLayout.TerrainRecipeAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot) }); }
+                catch (Exception e) when (e is InvalidOperationException or System.IO.IOException or UnauthorizedAccessException) { }
                 // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
                 //    active tool instead of quietly taking focus beside it (§4.8's inventory).
                 _zoneAdapter      = new EditorZoneAdapter(
@@ -2631,8 +2639,10 @@ namespace Hrot.Editor
                 if (target == Entity.Null) return;
                 Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity(_world!, target);   // ⭐ CE-4410 — the Delete key's one path (CE-4276 F2)
             });
-            // ⭐ Terrain authoring U-3 — a placed block's menu: Re-roll, Rotate, Change recipe… (Unpack is greyed until backend's T-4); each ONE edit step
-            new Hrot.UI.Common.AddEntity.TerrainBlockActions(() => _world, () => _shellPickers is { } sp ? sp.OpenPicker : null, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped).RegisterOn(actionRegistry);
+            // ⭐ Terrain authoring U-3 — a placed block's menu: Re-roll, Rotate, Unpack (T-4), Change recipe…; each ONE edit step
+            new Hrot.UI.Common.AddEntity.TerrainBlockActions(() => _world, () => _shellPickers is { } sp ? sp.OpenPicker : null, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped,
+                expansion: () => TerrainResidency is { } tr ? Hrot.Map.Common.Services.BlockExpansionContext.Of(tr) : null,
+                refused: m => Console.WriteLine($"[EditorSubsystem] WARNING: {m}")).RegisterOn(actionRegistry);
             // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
             //   host; the inspector menu below still publishes the same action ids.
 
@@ -2780,7 +2790,7 @@ namespace Hrot.Editor
                     _gizmoBuffer,
                     // ⭐ BP-485 — the ADDRESS names the host; the KIND stays shared, so a
                     //   cross-host conformance diff can still group every host's map feed.
-                    Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.AddressFor("editor"));
+                    GizmoFeedAddress);   // ⭐ CE-4432 — built once (was a new string per frame)
 
             _gizmoBuffer?.EndFrame(deltaTime);
 
@@ -3690,6 +3700,9 @@ namespace Hrot.Editor
             _randomTerrain = new Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow(() => randomTerrainService);
             _randomTerrain.Opened += scenario => { _saveAllStatus = $"[OK] Generated terrain and scenario '{scenario}'."; _editorApp?.ScenarioSession.LoadScenario(scenario); };
             windowManager.RegisterFrameOverlay(_randomTerrain.Draw);
+            // ⭐ Terrain authoring follow-up 2 — the panel beside the map while a wall / fence / hedge, a bridge or an area scatter is DRAWN (kind, height, recipe, density, seed)
+            var terrainDrawPanel = new Hrot.UI.Common.AddEntity.TerrainDrawPanel(() => _spawnAdapter);
+            windowManager.RegisterFrameOverlay(terrainDrawPanel.Draw);
 
             var assetRowCommands = new[]
             {

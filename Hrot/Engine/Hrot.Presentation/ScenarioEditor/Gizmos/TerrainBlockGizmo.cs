@@ -72,6 +72,10 @@ namespace Hrot.ScenarioEditor.Gizmos
         public static string ChipText(string recipe, uint seed, bool selected)
             => selected ? TerrainPickCatalog.Title(recipe) + " · seed " + seed : TerrainPickCatalog.Title(recipe);
 
+        /// <summary>⭐ Terrain authoring follow-up 2 — the chip of a GROUP of <paramref name="count"/> touching blocks of one recipe (the wizard's plan): <c>Town block ×4</c>; a single block is just its name.</summary>
+        public static string ChipText(string recipe, int count)
+            => count > 1 ? TerrainPickCatalog.Title(recipe) + " ×" + count : TerrainPickCatalog.Title(recipe);
+
         private static ulong Fnv(BlockBounds b, uint seed, int recipe)
         {
             ulong h = 1469598103934665603UL;

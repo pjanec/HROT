@@ -30,6 +30,16 @@ internal static class PickerPaneContent
             var size = PickerImageCache.FitToWidth(img.Width, img.Height, width - ImGui.GetStyle().WindowPadding.X);
             ImGui.Image(img.Texture, size, img.Uv0, img.Uv1);
         }
+        else if (entry.GlyphKey is { Length: > 0 } glyphKey)
+        {
+            // ⭐ Terrain authoring follow-up 2 — the entry's coloured glyph, large (a clutter item has no picture of its own)
+            var gl = NodeEditor.Core.Widgets.Icons.Get(glyphKey);
+            float px = IconSize.X * 0.75f;
+            var at = ImGui.GetCursorScreenPos();
+            ImGui.Dummy(IconSize);
+            var gs = ImGui.CalcTextSize(gl.Glyph) * (px / ImGui.GetFontSize());
+            ImGui.GetWindowDrawList().AddText(ImGui.GetFont(), px, at + (IconSize - gs) * 0.5f, ImGui.GetColorU32(gl.Color), gl.Glyph);
+        }
         else if (entry.IconKey is { Length: > 0 } iconKey && ctx.Icons.TryGet(iconKey, out var icon))
         {
             ImGui.Image(icon.TextureId, IconSize, icon.Uv0, icon.Uv1);

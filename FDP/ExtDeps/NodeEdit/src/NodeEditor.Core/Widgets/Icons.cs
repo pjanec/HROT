@@ -141,6 +141,22 @@ public static class Icons
             case "terrain/source": icon = new("\uf6fc", IconPalette.Green); return true;   // Mountain — the SOURCE chip of a terrain that keeps its block scenario
             case "terrain/edit": icon = new("\uf044", IconPalette.Blue); return true;   // PenToSquare — Edit terrain…
             case "terrain/delete": icon = new("\uf1f8", IconPalette.Red); return true;   // Trash
+            // ⭐ Terrain authoring follow-up 2 — one icon per recipe (the wizard's "what was generated" rows, mockup 1) and per clutter type (the Clutter tiles, mockup 3)
+            case "terrain/farm": icon = new("\uf722", IconPalette.Orange); return true;   // Tractor
+            case "terrain/trees": icon = new("\ue4e5", IconPalette.Green); return true;   // Trees
+            case "terrain/orchard": icon = new("\uf4d8", IconPalette.Green); return true;   // Seedling
+            case "terrain/checkpoint": icon = new("\uf3ed", IconPalette.Orange); return true;   // ShieldHalved
+            case "terrain/defence": icon = new("\uf132", IconPalette.Orange); return true;   // Shield
+            case "terrain/roadblock": icon = new("\ue562", IconPalette.Orange); return true;   // RoadBarrier
+            case "terrain/roads": icon = new("\uf018", IconPalette.Amber); return true;   // Road
+            case "terrain/bridge": icon = new("\ue4c8", IconPalette.Blue); return true;   // Bridge
+            case "clutter/car": icon = new("\uf1b9", IconPalette.Grey); return true;   // Car
+            case "clutter/barrel": icon = new("\uf613", IconPalette.Amber); return true;   // OilCan
+            case "clutter/crate": icon = new("\uf466", IconPalette.Orange); return true;   // Box
+            case "clutter/block": icon = new("\uf1b2", IconPalette.Grey); return true;   // Cube
+            case "clutter/barrier": icon = new("\ue562", IconPalette.Grey); return true;   // RoadBarrier
+            case "clutter/sandbags": icon = new("\ue52d", IconPalette.Amber); return true;   // Mound
+            case "clutter/booth": icon = new("\uf54e", IconPalette.Orange); return true;   // Store
             default: icon = Unknown; return false;
         }
     }
@@ -250,6 +266,21 @@ public static class Icons
         "terrain/unpack",
         "terrain/source",
         "terrain/edit",
-        "terrain/delete"
+        "terrain/delete",
+        "terrain/farm",
+        "terrain/trees",
+        "terrain/orchard",
+        "terrain/checkpoint",
+        "terrain/defence",
+        "terrain/roadblock",
+        "terrain/roads",
+        "terrain/bridge",
+        "clutter/car",
+        "clutter/barrel",
+        "clutter/crate",
+        "clutter/block",
+        "clutter/barrier",
+        "clutter/sandbags",
+        "clutter/booth"
     };
 }

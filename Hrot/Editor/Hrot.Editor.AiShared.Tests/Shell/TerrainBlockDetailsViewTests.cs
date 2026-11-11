@@ -26,7 +26,7 @@ namespace Hrot.Editor.AiShared.Tests.Shell;
 
 /// <summary>
 /// ⭐ Terrain authoring U-3 (mockup <c>terrain-authoring-2-blocks.svg</c>, the Details panel) — the <b>Block</b> tab of a placed block: Recipe (the block icon + the dropdown of the shipped recipes), Seed (typed + the dice), Fit to the site (four checkboxes
-/// on the <see cref="TerrainBlock.Fit"/> bits; <i>Align to the nearest road</i> and <i>Level houses on pads</i> greyed with their reasons), Contents. ONE undo step per write. The frame is read with the editor's real fonts (Xvfb; a skip is not a pass).
+/// on the <see cref="TerrainBlock.Fit"/> bits; <i>Align to the nearest road</i> live (T-5), <i>Level houses on pads</i> greyed with its reason), Contents. ONE undo step per write. The frame is read with the editor's real fonts (Xvfb; a skip is not a pass).
 /// 🔴 Red-proofs (compile): <c>TerrainBlockOps.SetFit</c> ignoring the bit ⇒ the fit rail red; the dice not calling <c>Reroll</c> ⇒ the form rail red.
 /// </summary>
 [Collection(Hrot.Editor.AiShared.Tests.PanelSnapshotTestCollection.Name)]
@@ -123,8 +123,8 @@ public sealed class TerrainBlockDetailsViewTests
     }
 
     /// <summary>
-    /// The form in a REAL frame: the Recipe row carries the orange city icon, the Seed row a field and an amber dice (a click on it re-rolls in one step), the four Fit checkboxes sit in ONE column, the two greyed ones are the disabled-frame
-    /// (their click changes nothing), and the Contents line reads "28 houses · 2 woods". Shot: <c>u3-block-details.png</c> under <c>HROT_RAIL_SHOTS</c> (never committed).
+    /// The form in a REAL frame: the Recipe row carries the orange city icon, the Seed row a field and an amber dice (a click on it re-rolls in one step), the four Fit checkboxes sit in ONE column, the pads one is the disabled-frame
+    /// (its click changes nothing), and the Contents line reads "28 houses · 2 woods". Shot: <c>u3-block-details.png</c> under <c>HROT_RAIL_SHOTS</c> (never committed).
     /// </summary>
     [SkippableFact]
     public void U3_TheForm_DrawsItsRows_TheIconsInColour_TheChecksInOneColumn_AndTheDiceRerollsInOneStep()
@@ -167,14 +167,23 @@ public sealed class TerrainBlockDetailsViewTests
         var dc = (rects["dice"].Min + rects["dice"].Max) * 0.5f;
         Click(frame, Draw, dc);
         Assert.NotEqual(before, w.GetComponentRO<TerrainBlock>(e).Seed);
+        Assert.Equal(BlockOperations.NextSeed(before), w.GetComponentRO<TerrainBlock>(e).Seed);   // ⭐ the dice lands in BlockOperations' ONE seed rule
         Assert.Equal(new[] { "begin Re-roll block", "end" }, rec.Log);
         rec.Log.Clear();
         byte fit = w.GetComponentRO<TerrainBlock>(e).Fit;
         Click(frame, Draw, (rects["pads"].Min + rects["pads"].Max) * 0.5f);
-        Click(frame, Draw, (rects["align"].Min + rects["align"].Max) * 0.5f);
-        Assert.Equal(fit, w.GetComponentRO<TerrainBlock>(e).Fit);   // the greyed ones
+        Assert.Equal(fit, w.GetComponentRO<TerrainBlock>(e).Fit);   // the greyed one (pads, S-5)
         Assert.Empty(rec.Log);
         Click(frame, Draw, (rects["water"].Min + rects["water"].Max) * 0.5f);
         Assert.Equal((byte)(fit & ~TerrainBlock.AvoidWater), w.GetComponentRO<TerrainBlock>(e).Fit);
+        // ⭐ T-5 — Align to the nearest road is LIVE: a click turns the AlignRoad bit off in ONE step, another turns it on. 🔴 Red-proof: that row drawn with enabled:false ⇒ the click changes nothing ⇒ red
+        rec.Log.Clear();
+        fit = w.GetComponentRO<TerrainBlock>(e).Fit;
+        Assert.NotEqual(0, fit & TerrainBlock.AlignRoad);
+        Click(frame, Draw, (rects["align"].Min + rects["align"].Max) * 0.5f);
+        Assert.Equal((byte)(fit & ~TerrainBlock.AlignRoad), w.GetComponentRO<TerrainBlock>(e).Fit);
+        Assert.Equal(new[] { "begin Do not fit block to the site", "end" }, rec.Log);
+        Click(frame, Draw, (rects["align"].Min + rects["align"].Max) * 0.5f);
+        Assert.Equal(fit, w.GetComponentRO<TerrainBlock>(e).Fit);
     }
 }

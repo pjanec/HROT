@@ -9,6 +9,11 @@ build-state: BUILT — U-obs-1, U-obs-2 and U-obs-5 (the full panel sweep) are C
   deleted, four given real hosts (BP-472..476), so 5 more panels publish; §"The invariant" gained a
   sub-section naming TWO CONCRETE FAILURE SHAPES (re-sample; nested Begin), neither rail-catchable, found
   reviewing BP-476.
+  ⭐⭐ 2026-11-11 (ui, CE-4432 — measured on Windows, a 1 000-man replay): GizmoFramePanel.Publish now returns NULL and builds
+  NOTHING when CaptureEnabled is off — it used to build the whole ≤500-primitive JSON model every frame and drop it (~650 KB of
+  garbage per frame), against §APIs' own "the argument is not even built when off". SUPERSEDES the old WithCaptureOff rail's "the model is
+  still BUILT and returned". And HROT_PANEL_CAPTURE=0 keeps the debug API but leaves CaptureEnabled off — a measuring run over the API
+  otherwise pays every panel's per-frame model (a cost the user's run never pays).
   ⭐⭐⭐ 2026-08-23 (UI lane, MX batch): U-obs-3 AND U-obs-4 ARE NOW BUILT — the programme is complete
   on the editor host. §UML's last unbuilt edge (DebugPrimitiveBuffer ..> PanelSnapshotService) is real:
   GizmoFramePanel.Publish registers the map feed under kind "_gizmo" from EditorSubsystem.Update, before

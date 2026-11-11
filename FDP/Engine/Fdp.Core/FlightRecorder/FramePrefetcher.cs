@@ -202,6 +202,9 @@ namespace Fdp.Core.FlightRecorder
             return null;
         }
 
+        /// <summary>⭐ CE-4432 — a buffer size with a quarter's headroom (the next frames are usually a little bigger).</summary>
+        internal static int Grown(int size) => (int)Math.Min((long)size + size / 4, Array.MaxLength);
+
         private bool Fill(PreparedFrame slot)
         {
             try
@@ -210,7 +213,9 @@ namespace Fdp.Core.FlightRecorder
                 int compressedSize = meta.CompressedSize, rawSize = meta.UncompressedSize;
                 var stream = _stream!;
                 stream.Position = meta.FilePosition + _headerSize;
-                if (_compressed.Length < compressedSize) _compressed = new byte[compressedSize];
+                // ⭐ CE-4432 — grown with a quarter's headroom, never shrunk: a fight's frames keep growing, and an exact-size growth re-allocated nearly
+                //   every fill (~12 MB/s of large-object garbage on the worker in a 1 000-man replay, measured on Windows)
+                if (_compressed.Length < compressedSize) _compressed = new byte[Grown(compressedSize)];
                 int got = 0;
                 while (got < compressedSize)
                 {
@@ -218,7 +223,7 @@ namespace Fdp.Core.FlightRecorder
                     if (n <= 0) return false;
                     got += n;
                 }
-                if (slot.Raw.Length < rawSize) slot.Raw = new byte[rawSize];
+                if (slot.Raw.Length < rawSize) slot.Raw = new byte[Grown(rawSize)];
                 K4os.Compression.LZ4.LZ4Codec.Decode(_compressed, 0, compressedSize, slot.Raw, 0, rawSize);
                 slot.RawSize = rawSize;
                 slot.Header = meta;

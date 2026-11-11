@@ -20,7 +20,7 @@ namespace Hrot.Presentation.Tests.Gizmos;
 
 /// <summary>
 /// ⭐ Terrain authoring U-3 (docs/DESIGN_Terrain_Authoring.md §15a; mockup 2) — a placed block on the map: the outline FOLLOWS what the live bake held (dashed, solid blue when selected), its chip, clickable on the outline; the block menu's
-/// writes (Re-roll · Rotate · Change recipe) are ONE edit step each and deterministic; the menu is the block's own (Unpack greyed). ✅ Red-proofs (compiling mutations, one command): <c>TerrainBlockOps.Reroll</c> not bracketing ⇒ the
+/// writes (Re-roll · Rotate · Change recipe) are ONE edit step each and deterministic; the menu is the block's own (Unpack live, T-4). ✅ Red-proofs (compiling mutations, one command): <c>TerrainBlockOps.Reroll</c> not bracketing ⇒ the
 /// one-step rail red; the gizmo ignoring the bake info's bounds ⇒ the follow rail red.
 /// </summary>
 public sealed class TerrainBlockGizmoTests : IDisposable
@@ -118,25 +118,27 @@ public sealed class TerrainBlockGizmoTests : IDisposable
         var rec = new Recorder();
         EditSteps.Install(_repo, rec);
         var e = Block(seed: 4471);
-        Assert.True(TerrainBlockOps.Reroll(_repo, e));
+        // ⭐ through the menu's own action (the registry the editor fills), not the operation directly
+        var actions = new Hrot.Common.Interactions.GlobalActionRegistry();
+        new TerrainBlockActions(() => _repo, () => null, () => Array.Empty<TerrainPick>()).RegisterOn(actions);
+        Assert.True(actions.TryGetHandler(GlobalActionIds.TerrainReroll, out var reroll));
+        reroll(_repo, e);
         uint next = _repo.GetComponentRO<TerrainBlock>(e).Seed;
-        Assert.Equal(TerrainBlockOps.NextSeed(4471), next);
+        Assert.Equal(BlockOperations.NextSeed(4471), next);   // ⭐ the ONE seed rule: the UI path lands in BlockOperations (🔴 red-proof: a seed rule of its own in the menu path)
         Assert.NotEqual(4471u, next);
-        Assert.InRange(next, 1000u, 9999u);
         Assert.Equal(new[] { "begin Re-roll block", "end" }, rec.Log);   // ONE step
 
-        Assert.Equal(TerrainBlockOps.NextSeed(4471), TerrainBlockOps.NextSeed(4471));
         Assert.True(TerrainBlockOps.Rotate(_repo, e));
         Assert.Equal(90f, _repo.GetComponentRO<TerrainBlock>(e).HeadingDeg);
-        Assert.True(TerrainBlockOps.ChangeRecipe(_repo, e, "farmstead"));
+        Assert.True(BlockOperations.ChangeRecipe(_repo, e, "farmstead").Done);
         Assert.Equal("farmstead", _repo.GetComponentRO<TerrainBlock>(e).Recipe.ToString());
         Assert.Equal(6, rec.Log.Count);
-        Assert.False(TerrainBlockOps.Reroll(_repo, _repo.CreateEntity()));   // not a block: nothing written, no step
+        Assert.False(BlockOperations.Reroll(_repo, _repo.CreateEntity()).Done);   // not a block: nothing written, no step
         Assert.Equal(6, rec.Log.Count);
     }
 
     [Fact]
-    public void U3_TheBlockHasItsOwnMenu_ReRollRotateUnpackGreyed_ChangeRecipe_AndDelete()
+    public void U3_TheBlockHasItsOwnMenu_ReRollRotateUnpack_ChangeRecipe_AndDelete()
     {
         var e = Block();
         string json = MapMenuActions.JsonFor(_repo, e);
@@ -145,7 +147,7 @@ public sealed class TerrainBlockGizmoTests : IDisposable
         string flat = string.Join("|", rows.Select(r => r.GetProperty("label").GetString())) + "|" + string.Join("|", rows.Where(r => r.TryGetProperty("tooltip", out _)).Select(r => r.GetProperty("tooltip").GetString()));
         foreach (var label in new[] { "Re-roll layout", "Rotate", "Unpack into houses and features", "Change recipe…", "Delete" }) Assert.Contains(label, flat);
         Assert.Contains(GlobalActionIds.TerrainReroll.ToString(), json);
-        Assert.Contains("T-4", flat);   // Unpack is a greyed row naming why
+        Assert.DoesNotContain("T-4", flat);   // Unpack is a live row now (backend's T-4 is wired): no "not built yet" tooltip
         // ⭐ the mockup's six rows, in its order, each with its icon key; the generic Select / Center View / Properties rows are not in the block's menu
         var labels = rows.Select(r => r.GetProperty("label").GetString()).ToList();
         Assert.Equal(new[] { "Re-roll layout", "Rotate", "Move", "Unpack into houses and features", "Change recipe…", "Delete" }, labels);

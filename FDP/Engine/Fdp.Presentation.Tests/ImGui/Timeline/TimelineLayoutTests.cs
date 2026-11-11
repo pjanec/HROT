@@ -76,6 +76,26 @@ public sealed class TimelineLayoutTests
         Assert.True(marks.Min(m => m.Intensity) > 0.3f, "log scale keeps a quiet bin visible");
     }
 
+    /// <summary>⭐ CE-4432 (R-2084) — a crowded row's density strip, built every frame into the caller's list: 0 B once warm (the event timeline's
+    /// rows, measured ~5 MB/s in a 1 000-man replay). 🔴 Red-proof: `new int[bins]` back in <c>Density</c> ⇒ ~1.6 KB per call.</summary>
+    [Fact]
+    public void ACrowdedRow_IntoTheCallersList_Allocates0B()
+    {
+        var events = new List<TimelineEvent>();
+        for (int f = 0; f < 3000; f++) events.Add(E(f, Shot));
+        for (int k = 0; k < 50; k++) events.Add(E(1500, Hit));
+        var index = Index(3000, events.ToArray());
+        string[] lanes = { Shot, Hit };
+        Func<string, int> priority = PriorityOf;
+        var into = new List<TimelineMark>();
+        var window = All(index);
+        TimelineLayout.Marks(index, lanes, window, 200f, priority, into: into);   // warm
+        Assert.Equal(TimelineMarkKind.Density, into[0].Kind);                      // ⛔ anti-vacuity: the density path
+        long a0 = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 10; i++) TimelineLayout.Marks(index, lanes, window, 200f, priority, into: into);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - a0);
+    }
+
     [Fact]
     public void CE1302_ZoomKeepsTheTickUnderTheCursor_AndPanStaysInside()
     {

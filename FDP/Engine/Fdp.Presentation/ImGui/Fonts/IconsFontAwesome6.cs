@@ -139,4 +139,24 @@ public static class IconsFontAwesome6
     public const string GroundVehicle       = "\uf5e4"; // ground vehicles
     public const string Plane               = "\uf072"; // aircraft
     public const string PenToSquare         = "\uf044"; // edit terrain
+    // ⭐ Terrain authoring follow-up 2 (docs/UX/terrain-authoring-1-wizard.svg, -3-features.svg) — one coloured icon per recipe and per clutter type
+    public const string Tractor             = "\uf722"; // a farmstead
+    public const string Trees               = "\ue4e5"; // a copse
+    public const string Seedling            = "\uf4d8"; // an orchard
+    public const string ShieldHalved        = "\uf3ed"; // a checkpoint
+    public const string Shield              = "\uf132"; // a defensive position
+    public const string RoadBarrier         = "\ue562"; // a roadblock, a jersey barrier
+    public const string Car                 = "\uf1b9"; // a parked car
+    public const string OilCan              = "\uf613"; // a barrel
+    public const string Box                 = "\uf466"; // a crate
+    public const string Bus                 = "\uf207"; // a bus shelter
+    public const string Lightbulb           = "\uf0eb"; // a lamp post
+    public const string Store               = "\uf54e"; // a market stall
+    public const string Fire                = "\uf06d"; // a burnt-out car
+    public const string WheatAwn            = "\ue2cd"; // hay bales, hedgerow fields
+    public const string Mound               = "\ue52d"; // sandbags
+    public const string Road                = "\uf018"; // roads
+    public const string Bridge              = "\ue4c8"; // a bridge
+    public const string ChevronLeft         = "\uf053"; // back
+    public const string ChevronRight        = "\uf054"; // next
 }

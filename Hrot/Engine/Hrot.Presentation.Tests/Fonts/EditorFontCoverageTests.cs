@@ -158,7 +158,7 @@ public sealed class EditorFontCoverageTests
                         if (canvas.FindGlyphNoFallback(c).NativePtr == null) missing.Add($"canvas face: U+{(int)c:X4} '{c}'");
                     foreach (var icon in new[] { IconsFontAwesome6.Bolt, IconsFontAwesome6.Link, IconsFontAwesome6.SatelliteDish, IconsFontAwesome6.ChartBar })
                         if (canvas.FindGlyphNoFallback(icon[0]).NativePtr == null) missing.Add($"canvas face: icon U+{(int)icon[0]:X4}");
-                    if (canvas.FindGlyphNoFallback('\uf1b9').NativePtr != null) missing.Add("canvas face: an UNNAMED icon (car) — the whole PUA was merged");
+                    if (canvas.FindGlyphNoFallback('\uf1ba').NativePtr != null) missing.Add("canvas face: an UNNAMED icon (taxi) — the whole PUA was merged");
                 }
                 ImGui.End();
             });

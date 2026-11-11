@@ -188,6 +188,16 @@ internal static class GridLayout
             var p0 = tMin + (tSize - d) * 0.5f;
             dl.AddImage(img.Texture, p0, p0 + d, img.Uv0, img.Uv1, ImGui.GetColorU32(new Vector4(1f, 1f, 1f, alpha)));
         }
+        else if (entry.GlyphKey is { Length: > 0 } glyphKey)
+        {
+            // ⭐ Terrain authoring follow-up 2 (mockup 3) — a glyph tile: the item's coloured icon on a dark square, no dashed border
+            dl.AddRectFilled(tMin, tMax, ImGui.GetColorU32(new Vector4(0.15f, 0.15f, 0.18f, alpha)), 3f);
+            var gl = Core.Widgets.Icons.Get(glyphKey);
+            float px = Math.Min(40f, Math.Min(tSize.X, tSize.Y) * 0.5f);
+            var font = ImGui.GetFont();
+            var gs = ImGui.CalcTextSize(gl.Glyph) * (px / ImGui.GetFontSize());
+            dl.AddText(font, px, tMin + (tSize - gs) * 0.5f, ImGui.GetColorU32(gl.Color with { W = alpha }), gl.Glyph);
+        }
         else
         {
             dl.AddRectFilled(tMin, tMax, ImGui.GetColorU32(new Vector4(0.2f, 0.24f, 0.3f, 0.5f * alpha)), 3f);

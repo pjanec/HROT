@@ -542,6 +542,13 @@ namespace Fdp.ModuleHost
         
         private void UpdateInternal(float deltaTime, GlobalTime globalTime)
         {
+            long whole = KernelFrameTimings.Start();   // ⭐ CE-4433
+            try { UpdateInternalCore(deltaTime, globalTime); }
+            finally { KernelFrameTimings.Stop("(kernel Update, whole)", whole); }
+        }
+
+        private void UpdateInternalCore(float deltaTime, GlobalTime globalTime)
+        {
             if (!_initialized)
                 throw new InvalidOperationException("Must call Initialize() before Update()");
             
@@ -600,10 +607,14 @@ namespace Fdp.ModuleHost
             // Runs before Input, and after the GlobalTime singleton above — so a system here sees
             // this frame's delta and a world nothing has mutated yet. That is what the staged-write
             // drain needs: apply the designer's edit, then let Input run against the edited state.
+            long kt = KernelFrameTimings.Start(), kb = KernelFrameTimings.StartBytes();   // ⭐ CE-4433 — the kernel's frame by part (HROT_FRAME_STATS)
             topology.Scheduler.ExecutePhase(SystemPhase.PreFrame, _liveWorld, deltaTime);
+            KernelFrameTimings.Stop("phase PreFrame", kt, kb);
 
             // ═══════════ PHASE: Input ═══════════
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             topology.Scheduler.ExecutePhase(SystemPhase.Input, _liveWorld, deltaTime);
+            KernelFrameTimings.Stop("phase Input", kt, kb);
             
             // ═══════════════════════════════════════════════════════════
             // RCU TOPOLOGY SWAP — O(1) atomic pointer swap
@@ -642,9 +653,12 @@ namespace Fdp.ModuleHost
             }
 
             // ═══════════ PHASE: BeforeSync ═══════════
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             topology.Scheduler.ExecutePhase(SystemPhase.BeforeSync, _liveWorld, deltaTime);
-            
+            KernelFrameTimings.Stop("phase BeforeSync", kt, kb);
+
             // FLUSH LIVE WORLD BUFFERS
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             if (_liveWorld._perThreadCommandBuffer != null)
             {
                 foreach (var cmdBuffer in _liveWorld._perThreadCommandBuffer.Values)
@@ -656,19 +670,28 @@ namespace Fdp.ModuleHost
                 }
             }
             
+            KernelFrameTimings.Stop("live command buffers playback", kt, kb);
+
             // 3. EVENT SWAP (Critical: Make Input events visible)
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             _liveWorld.Bus.SwapBuffers();
-            
+            KernelFrameTimings.Stop("event bus swap", kt, kb);
+
             // 4. SYNC & CAPTURE
             // Capture event history
             // Use GlobalVersion to align with SnapshotProvider logic which tracks GlobalVersion
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             _eventAccumulator.CaptureFrame(_liveWorld.Bus, _liveWorld.GlobalVersion);
-            
+            KernelFrameTimings.Stop("event history capture", kt, kb);
+
             // Update Sync-Point Providers
             foreach (var entry in topology.Modules)
             {
                 // Only update provider if it exists (Direct strategy has null)
-                entry.Provider?.Update();
+                if (entry.Provider == null) continue;
+                kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
+                entry.Provider.Update();
+                if (kt != 0) KernelFrameTimings.Stop(entry.TimingSyncPoint ??= "sync point " + entry.Module.Name + " (" + entry.Provider.GetType().Name + ")", kt, kb);
             }
             
             // ═══════════ HARVEST PHASE (active modules) ═══════════
@@ -684,7 +707,9 @@ namespace Fdp.ModuleHost
                 // Harvest completed async tasks
                 if (entry.CurrentTask.IsCompleted)
                 {
+                    kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
                     HarvestEntry(entry);
+                    if (kt != 0) KernelFrameTimings.Stop(entry.TimingHarvest ??= "harvest " + entry.Module.Name, kt, kb);
                 }
             }
 
@@ -802,7 +827,9 @@ namespace Fdp.ModuleHost
                         // By capturing here we guarantee that LeasedProvider always matches the
                         // provider that actually created the view, regardless of any concurrent write.
                         var acquireProvider = entry.Provider;
+                        kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
                         view = acquireProvider.AcquireView();
+                        if (kt != 0) KernelFrameTimings.Stop(entry.TimingAcquire ??= "acquire view " + entry.Module.Name, kt, kb);
                         entry.LeasedProvider = acquireProvider;
                     }
                     
@@ -817,6 +844,7 @@ namespace Fdp.ModuleHost
                     if (entry.Module.Policy.Mode == RunMode.Synchronous)
                     {
                         // Synchronous run (main thread)
+                        kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
                         try
                         {
                             // Auto-execute and profile the module's simulation systems
@@ -846,11 +874,14 @@ namespace Fdp.ModuleHost
                         entry.LeasedView     = null;
                         entry.LeasedProvider = null;
                         entry.CurrentTask = null; // No task
+                        if (kt != 0) KernelFrameTimings.Stop(entry.TimingRun ??= "run " + entry.Module.Name + " (synchronous: systems + Tick + playback)", kt, kb);
                     }
                     else
                     {
                         // Safe Execution (Async/FrameSynced)
+                        kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
                         entry.CurrentTask = ExecuteModuleSafe(entry, view, moduleDelta, topology);
+                        if (kt != 0) KernelFrameTimings.Stop("dispatch background runs", kt, kb);
                     }
                     
                     entry.FramesSinceLastRun = 0;
@@ -875,7 +906,9 @@ namespace Fdp.ModuleHost
             // ═══════════ SYNC WAIT (Fast Modules) ═══════════
             if (tasksToWait.Count > 0)
             {
+                kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
                 Task.WaitAll(tasksToWait.ToArray());
+                KernelFrameTimings.Stop("frame-synced wait", kt, kb);
                 
                 // Harvest immediately
                 foreach (var entry in topology.Modules)
@@ -888,10 +921,14 @@ namespace Fdp.ModuleHost
             }
             
             // ═══════════ PHASE: PostSimulation ═══════════
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             topology.Scheduler.ExecutePhase(SystemPhase.PostSimulation, _liveWorld, deltaTime);
-            
+            KernelFrameTimings.Stop("phase PostSimulation", kt, kb);
+
             // ═══════════ PHASE: Export ═══════════
+            kt = KernelFrameTimings.Start(); kb = KernelFrameTimings.StartBytes();
             topology.Scheduler.ExecutePhase(SystemPhase.Export, _liveWorld, deltaTime);
+            KernelFrameTimings.Stop("phase Export", kt, kb);
             
             _currentFrame++;
         }
@@ -2130,6 +2167,8 @@ namespace Fdp.ModuleHost
         internal class ModuleEntry
         {
             public IEcsModule Module { get; set; } = null!;
+            /// <summary>⭐ CE-4433 — this module's part labels for <see cref="KernelFrameTimings"/>, built once.</summary>
+            internal string? TimingSyncPoint, TimingHarvest, TimingAcquire, TimingRun;
             /// <summary>⭐ CE-3293 (R-3036) — when the module's own Tick runs (and, for a background module, its dispatch). Read at
             /// registration; gated from S5 on.</summary>
             public TickPolicy TickPolicy { get; set; }

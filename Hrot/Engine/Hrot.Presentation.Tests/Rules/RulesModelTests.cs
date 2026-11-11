@@ -342,6 +342,20 @@ public sealed class RulesModelTests : IDisposable
         return e;
     }
 
+    /// <summary>⭐ CE-4432 — a unit's behaviour params (no <c>common</c> block) are no rule, decided WITHOUT parsing: 0 B (the rules windows ask for every
+    /// started behaviour each frame). 🔴 Red-proof: drop the text check in <c>AuthoredRules.Parse</c> ⇒ a JsonDocument per call.</summary>
+    [Fact]
+    public void AUnitsBehaviourParams_AreNoRule_DecidedWithoutParsing_0B()
+    {
+        var e = Authored(20, "Rifleman", """{"route":{"points":[[1,2],[3,4]]},"speed":3.5,"stance":"crouch","targets":[{"NetworkId":7}]}""");
+        string json = """{"route":{"points":[[1,2],[3,4]]},"speed":3.5,"stance":"crouch","targets":[{"NetworkId":7}]}""";
+        Assert.Null(AuthoredRules.Parse(_world, e, 20, "Rifleman", json));   // warm
+        long a0 = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 10; i++) Assert.Null(AuthoredRules.Parse(_world, e, 20, "Rifleman", json));
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - a0);
+        Assert.NotNull(AuthoredRules.Parse(_world, e, 20, "Count", """{"common":{"title":"x"}}"""));   // ⛔ anti-vacuity: a rule still parses
+    }
+
     private void Unit(int id, ForceId side, string name)
     {
         var e = _world.CreateEntity();

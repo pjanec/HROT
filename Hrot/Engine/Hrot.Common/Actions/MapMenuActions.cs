@@ -123,7 +123,7 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditPlan, "Edit plan on the map", ActionGroup.Edit, First + 1, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
                 Offer = ctx => ctx.Unit.Plan ? new ContextMenuItemDto { Id = GlobalActionIds.EditPlan, Label = "Edit plan on the map" } : null });
 
-            // ── Terrain block (U-3): the block menu of mockup 2 — Re-roll, Rotate, Unpack (greyed until backend's T-4), Change recipe… (+ Select / Properties… / Delete above). Authoring only.
+            // ── Terrain block (U-3): the block menu of mockup 2 — Re-roll, Rotate, Unpack (T-4), Change recipe… (+ Select / Properties… / Delete above). Authoring only.
             catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainReroll, "Re-roll layout", ActionGroup.Edit, First, Block) { Icon = "terrain/reroll", Modes = ActionModes.InEdit });
             catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainRotate, "Rotate", ActionGroup.Edit, First + 1, Block) { Icon = "terrain/rotate", Modes = ActionModes.InEdit });
             catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainMove, "Move", ActionGroup.Edit, First + 2, Block)
@@ -131,11 +131,7 @@ namespace Hrot.Common.Actions
                 Modes = ActionModes.InEdit,
                 Offer = _ => new ContextMenuItemDto { Id = GlobalActionIds.TerrainMove, Label = "Move", Icon = "terrain/move", Shortcut = "drag", Enabled = false, Tooltip = "Drag the block on the map." },
             });
-            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainUnpack, "Unpack into houses and features", ActionGroup.Edit, First + 3, Block)
-            {
-                Modes = ActionModes.InEdit,
-                Offer = _ => new ContextMenuItemDto { Id = GlobalActionIds.TerrainUnpack, Label = "Unpack into houses and features", Icon = "terrain/unpack", Enabled = false, Tooltip = "Needs the block operations of backend's T-4 (CE-4431) — not built yet." },
-            });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainUnpack, "Unpack into houses and features", ActionGroup.Edit, First + 3, Block) { Icon = "terrain/unpack", Modes = ActionModes.InEdit });   // ⭐ T-4 (BlockOperations.Unpack): ONE undo step
             catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainChangeRecipe, "Change recipe…", ActionGroup.Edit, First + 4, Block) { Icon = "terrain/block", Modes = ActionModes.InEdit });
 
             // ── Debug (a unit) ────────────────────────────────────────────────────────────────────────────────────────────────────────

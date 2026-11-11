@@ -8,6 +8,10 @@ using Fdp.Toolkit.Replay;
 using Fdp.Toolkit.Replication.Edits;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Terrain;
+using Hrot.Common.Actions;
+using Hrot.Common.Constants;
+using Hrot.Common.Interactions;
+using Hrot.UI.Common.AddEntity;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Services;
@@ -182,6 +186,48 @@ public sealed class BlockOperationsTests : IDisposable
         Assert.Equal(Entity.Null, FindBlock());
         Assert.Equal($"base-t/{BlockOperations.PartGuid(BlockGuid, 5):D}/0/front", _world.GetComponent<TerrainObjectKey>(door).Key);   // (the part label order is ordinal: G/0 G/1 G/10 G/11 G/2 G/3 → "G/3" is the 6th) redo: the door is on its house's new key again
         Assert.Equal(TerrainDoorState.Locked, _world.GetComponentRO<DoorState>(door).State);
+    }
+
+    /// <summary>
+    /// ⭐ U-3 (terrain authoring, the block menu's <i>Unpack into houses and features</i>) — the menu row is ENABLED, and the action id the menu sends, run through the host's <see cref="GlobalActionRegistry"/> exactly as the editor registers
+    /// it (<see cref="TerrainBlockActions"/>), unpacks the block into its separate features in ONE <see cref="EditHistory"/> step; one Undo restores the block (same recipe, seed, heading and key). A world with no resident terrain refuses and says why.
+    /// 🔴 Red-proof: the Unpack handler not registered (or calling <c>Reroll</c>) ⇒ no features ⇒ red.
+    /// </summary>
+    [Fact]
+    public void U3_TheMenusUnpackAction_IsEnabled_UnpacksInOneStep_AndOneUndoRestoresTheBlock()
+    {
+        var block = Block();
+        var row = System.Text.Json.JsonDocument.Parse(MapMenuActions.JsonFor(_world, block)).RootElement.EnumerateArray()
+            .First(r => r.TryGetProperty("id", out var id) && id.GetInt32() == GlobalActionIds.TerrainUnpack);
+        Assert.False(row.TryGetProperty("enabled", out var en) && !en.GetBoolean());   // not greyed (an enabled row omits or sets true)
+        Assert.Equal("terrain/unpack", row.GetProperty("icon").GetString());
+
+        var told = new List<string>();
+        var actions = new GlobalActionRegistry();
+        new TerrainBlockActions(() => _world, () => null, () => Array.Empty<TerrainPick>(), () => _ctx, told.Add).RegisterOn(actions);
+        Tick();
+        Assert.True(actions.TryGetHandler(GlobalActionIds.TerrainUnpack, out var handler));
+        handler(_world, block);
+
+        Assert.Empty(told);
+        Assert.Equal(1, _history.Count);
+        Assert.Equal(BlockOperations.UnpackLabel, _history.UndoLabel);
+        Assert.Equal(14, Features());
+        Assert.Equal(Entity.Null, FindBlock());
+        Assert.True(_history.Undo());
+        var back = FindBlock();
+        Assert.NotEqual(Entity.Null, back);
+        Assert.Equal(0, Features());
+        var tb = _world.GetComponentRO<TerrainBlock>(back);
+        Assert.Equal(("village", 7u, 20f), (tb.Recipe.ToString(), tb.Seed, tb.HeadingDeg));
+        Assert.Equal(BlockGuid, _world.GetComponentRO<EntityGuid>(back).Value);
+
+        // no resident terrain ⇒ nothing changes, and the author is told
+        var none = new List<string>();
+        var bare = new TerrainBlockActions(() => _world, () => null, () => Array.Empty<TerrainPick>(), () => null, none.Add);
+        Assert.False(bare.Unpack(back).Done);
+        Assert.Single(none); Assert.Contains("no terrain is resident", none[0]);
+        Assert.Equal(0, Features());
     }
 
     private void AssertAt(Entity e) { var p = _world.GetComponentRO<SimTransform>(e).Position; Assert.Equal(250f, (float)p.X); Assert.Equal(250f, (float)p.Y); }

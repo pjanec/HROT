@@ -23,6 +23,23 @@ public enum TerrainShape { Point, Line, Area }
 public sealed record TerrainPick(TerrainPickKind Kind, string Id, string Name, string Group, string? Chip, string Line, IReadOnlyList<(string Label, string Value)> Facts, string? Picture = null,
     byte FeatureKind = 0, string Template = "", TerrainShape Shape = TerrainShape.Point, string? Disabled = null)
 {
+    /// <summary>
+    /// ⭐ Terrain authoring follow-up 2 (mockup 3, the Clutter and single-feature tiles) — the shared icon key (<see cref="NodeEditor.Core.Widgets.Icons"/>) of a single-feature pick's tile: a clutter type its own coloured glyph (a car, a barrel, a crate…), a wall / fence / hedge the walls
+    /// glyph, a wood the trees… ; null for a block or a house, whose tile is a picture of the thing itself.
+    /// </summary>
+    public string? GlyphKey => Kind != TerrainPickKind.Feature ? null : FeatureKind switch
+    {
+        Fdp.Toolkit.Terrain.TerrainFeature.Clutter => TerrainPickCatalog.ClutterIconKey(Template),
+        Fdp.Toolkit.Terrain.TerrainFeature.Wall or Fdp.Toolkit.Terrain.TerrainFeature.Fence or Fdp.Toolkit.Terrain.TerrainFeature.Hedge => "terrain/walls",
+        Fdp.Toolkit.Terrain.TerrainFeature.Wood => "terrain/trees",
+        Fdp.Toolkit.Terrain.TerrainFeature.Scrub => "terrain/orchard",
+        Fdp.Toolkit.Terrain.TerrainFeature.Tree => "terrain/vegetation",
+        Fdp.Toolkit.Terrain.TerrainFeature.Water => "terrain/water",
+        Fdp.Toolkit.Terrain.TerrainFeature.Bridge => "terrain/bridge",
+        Fdp.Toolkit.Terrain.TerrainFeature.Scatter => "terrain/clutter",
+        _ => null,
+    };
+
     /// <summary>The placement spec the arm carries (<c>block:hamlet</c> / <c>house:house-2f</c> / <c>feature:2:brick:Line</c>) — what <see cref="TerrainBirth"/> reads.</summary>
     public string Spec => Kind switch
     {
@@ -78,6 +95,20 @@ public static class TerrainPickCatalog
         return l;
     }
 
+    /// <summary>⭐ The recipes that can be SCATTERED (they carry a <c>scatter</c> section) — (id, name, items per 100 m²): what the drawing panel's <i>What</i> lists. Empty until backend ships one (T-3).</summary>
+    public static IReadOnlyList<(string Id, string Name, float Density)> ScatterRecipes(IEnumerable<string?> recipeRoots)
+    {
+        var l = new List<(string, string, float)>();
+        foreach (var root in recipeRoots)
+        {
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
+            foreach (var file in Directory.EnumerateFiles(root, "*" + TerrainRecipe.Suffix))
+                try { var r = TerrainRecipe.Parse(File.ReadAllText(file), file); if (r.Scatter.Count > 0 && !l.Exists(x => x.Item1 == r.Id)) l.Add((r.Id, Title(r.Id), r.ScatterDensity)); }
+                catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }
+        }
+        return l;
+    }
+
     /// <summary>The terrain group a name belongs to; false for any other group.</summary>
     public static bool IsTerrainGroup(string group) { foreach (var g in Groups) if (g == group) return true; return false; }
 
@@ -89,6 +120,7 @@ public static class TerrainPickCatalog
     {
         var recipeRootList = recipeRoots.ToList(); var buildingRootList = buildingRoots.ToList();
         var list = new List<TerrainPick>();
+        var scatter = new List<(string Id, string Name, float Density)>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var root in recipeRootList)
         {
@@ -101,6 +133,7 @@ public static class TerrainPickCatalog
                     var recipe = TerrainRecipe.Parse(json, file);
                     if (!seen.Add("r:" + recipe.Id)) continue;
                     list.Add(OfRecipe(recipe, json));
+                    if (recipe.Scatter.Count > 0) scatter.Add((recipe.Id, Title(recipe.Id), recipe.ScatterDensity));
                 }
                 catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }
             }
@@ -117,6 +150,10 @@ public static class TerrainPickCatalog
             }
         }
         list.AddRange(FeaturePicks());
+        // ⭐ the area scatter is placeable as soon as ONE shipped recipe carries a `scatter` section (backend's T-3): its pick is then lit and starts on that recipe; until then it stays greyed with its reason
+        if (scatter.Count > 0)
+            for (int i = 0; i < list.Count; i++)
+                if (list[i].FeatureKind == TerrainFeature.Scatter) list[i] = list[i] with { Disabled = null, Template = scatter[0].Id };
         if (pictureDir is not null)
             for (int i = 0; i < list.Count; i++)
                 if (list[i].Kind != TerrainPickKind.Feature) list[i] = list[i] with { Picture = TerrainThumbnails.EnsureFor(list[i], recipeRootList, buildingRootList, pictureDir) };
@@ -141,17 +178,37 @@ public static class TerrainPickCatalog
         catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException) { return Array.Empty<TerrainPick>(); }
     }
 
+    /// <summary>
+    /// ⭐ Terrain authoring follow-up 2 — how many houses a recipe makes and from which templates: its classic <c>houses</c> section, else the sum of its <c>elements</c> that place buildings (a <c>row</c>, a <c>cluster</c>, a <c>grid</c>: their <c>count</c>, or <c>cols × rows</c>)
+    /// — backend's T-3 recipes carry no <c>houses</c> section any more, and the tile line, the pane and the ghost's "does it fit" all asked <see cref="TerrainRecipe.HousesMax"/>.
+    /// </summary>
+    public static (int Min, int Max, IReadOnlyList<string> Templates) HouseRange(TerrainRecipe r)
+    {
+        if (r.HousesMax > 0) return (r.HousesMin, r.HousesMax, r.Templates);
+        int min = 0, max = 0; var templates = new List<string>();
+        static (int, int) Range(JsonNode? n) => n switch { JsonArray { Count: 2 } a => (a[0]!.GetValue<int>(), a[1]!.GetValue<int>()), JsonValue v when v.TryGetValue<int>(out var i) => (i, i), _ => (0, 0) };
+        foreach (var el in r.Elements)
+        {
+            if (el["templates"] is not JsonArray ts || ts.Count == 0) continue;
+            var (a, b) = el["type"]?.GetValue<string>() == "grid" ? (Range(el["cols"]).Item1 * Range(el["rows"]).Item1, Range(el["cols"]).Item2 * Range(el["rows"]).Item2) : Range(el["count"]);
+            min += a; max += b;
+            foreach (var t in ts) if (t?.GetValue<string>() is { } name && !templates.Contains(name)) templates.Add(name);
+        }
+        return (min, max, templates);
+    }
+
     private static TerrainPick OfRecipe(TerrainRecipe r, string json)
     {
         var ui = (JsonNode.Parse(json) as JsonObject)?["ui"] as JsonObject;
         string group = (string?)ui?["group"] is { Length: > 0 } g && IsTerrainGroup(g) ? g : Blocks;
         string name = (string?)ui?["name"] is { Length: > 0 } n ? n : Title(r.Id);
-        string? chip = (string?)ui?["chip"] is { Length: > 0 } c ? c : r.HousesMax > 0 ? "Rural" : "Nature";
-        string houses = r.HousesMax == 0 ? "" : r.HousesMin == r.HousesMax ? $"{r.HousesMax} houses" : $"{r.HousesMin}-{r.HousesMax} houses";
+        var (hMin, hMax, hTemplates) = HouseRange(r);
+        string? chip = (string?)ui?["chip"] is { Length: > 0 } c ? c : hMax > 0 ? "Rural" : "Nature";
+        string houses = hMax == 0 ? "" : hMin == hMax ? $"{hMax} houses" : $"{hMin}-{hMax} houses";
         string woods = r.WoodsMax == 0 ? "" : r.WoodsMin == r.WoodsMax ? $"{r.WoodsMax} woods" : $"{r.WoodsMin}-{r.WoodsMax} woods";
         string line = (string?)ui?["line"] is { Length: > 0 } l ? l : string.Join(", ", new[] { houses, woods }.Where(s => s.Length > 0));
         var facts = new List<(string, string)>();
-        if (houses.Length > 0) facts.Add(("Houses", houses + " from " + string.Join(", ", r.Templates)));
+        if (houses.Length > 0) facts.Add(("Houses", houses + " from " + string.Join(", ", hTemplates)));
         if (woods.Length > 0) facts.Add(("Woods", woods));
         facts.Add(("Reach", $"about {Math.Round(r.Radius * 2)} m across"));
         facts.Add(("Layout", "a new one each time — Re-roll changes it"));
@@ -178,6 +235,39 @@ public static class TerrainPickCatalog
         facts.Add(("Placed as", "one house, fitted to the ground"));
         return new TerrainPick(TerrainPickKind.House, id, Title(id), Buildings, null, line, facts);
     }
+
+    /// <summary>
+    /// ⭐ Terrain authoring follow-up 2 — the shared icon key (<see cref="NodeEditor.Core.Widgets.Icons"/>) of a recipe, the one table every surface reads (the wizard's rows, a chip, a tile): a town block the city, a hamlet and a village the house, a farmstead the tractor, a copse the trees…
+    /// A recipe the table does not know gets the Blocks group's own icon, never a blank.
+    /// </summary>
+    public static string IconKey(string recipeId) => recipeId switch
+    {
+        "town-block" => "terrain/block",
+        "village-street" or "hamlet" => "terrain/buildings",
+        "farmstead" => "terrain/farm",
+        "copse" => "terrain/trees",
+        "orchard" => "terrain/orchard",
+        "hedgerow-fields" => "terrain/walls",
+        "checkpoint" => "terrain/checkpoint",
+        "roadblock" => "terrain/roadblock",
+        "defensive-position" => "terrain/defence",
+        _ => "terrain/block",
+    };
+
+    /// <summary>The icon key of a clutter type (<c>ClutterTypes</c> id); any type the table does not list gets the Clutter group's icon.</summary>
+    public static string ClutterIconKey(string typeId) => typeId switch
+    {
+        "car" => "clutter/car", "barrel" => "clutter/barrel", "crate" => "clutter/crate", "concrete-block" => "clutter/block",
+        "jersey-barrier" => "clutter/barrier", "sandbag-wall" => "clutter/sandbags", "guard-booth" => "clutter/booth",
+        _ => "terrain/clutter",
+    };
+
+    /// <summary>The plural a count reads as (<c>Town blocks</c>, <c>Hamlets</c>, <c>Woods and copses</c>): the shipped recipes by name, any other <see cref="Title"/> + <c>s</c>.</summary>
+    public static string Plural(string recipeId) => recipeId switch
+    {
+        "village-street" => "Village streets", "copse" => "Woods and copses", "hedgerow-fields" => "Hedgerow fields", "defensive-position" => "Defensive positions",
+        _ => Title(recipeId) + "s",
+    };
 
     /// <summary><c>village-street</c> → <c>Village street</c>.</summary>
     public static string Title(string id)

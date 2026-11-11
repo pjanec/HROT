@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-10 (§11g — the brain at 1 000 / 3 000 men, CE-4395; §10 Part D 2026-11-04)
+updated: 2026-11-11 (§11h — the editor's preview at 1 000 men measured on Windows, CE-4433; §11g — the brain at 1 000 / 3 000 men, CE-4395; §10 Part D 2026-11-04)
 build-state: BUILDING — D1–D8 APPROVED 2026-11-04 (R-2083); tasks T1–T10 = CE-2382…CE-2391 (§7c); T1–T10 BUILT (§3.0a, §0a)
-current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions), §0e (garbage, per frame), §10 (D — map gizmos held in slices), §11g (the brain at 1 000 / 3 000 men — attribution, the parts fix, the 0.2 s decision cadence R-3085 as built §11g-3)
+current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions), §0e (garbage, per frame), §10 (D — map gizmos held in slices), §11h (the editor's preview frame, measured on Windows), §11g (the brain at 1 000 / 3 000 men — attribution, the parts fix, the 0.2 s decision cadence R-3085 as built §11g-3)
 stale-below: none
 known-rot: none
 known-conflict: none
@@ -1218,6 +1218,26 @@ Rail: `PersonHandsTests.CE4395_LethalInHand_AllocatesNothing_AndAnswersAsBefore`
 (27 orders over 60 walking ticks, 25 KB; 0 B on a tick that issues none). An order is a managed `AssignTacticalIntentEvent` with JSON parameters
 — allocation on a CHANGE, by that event's design, frequent only because 125 squads march at once. ⇒ zero needs an unmanaged order event:
 behaviors' contract, not done here (noted to behaviors).
+
+### 11h. 📐 MEASURED ON WINDOWS — the EDITOR'S PREVIEW at 1 000 men *(CE-4433, ui, `2026-11-11`; [status](blueprints/batches/STATUS_Ui_Windows_Preview_Frame.md))*
+
+⭐ The user's machine, Release, hidden, uncapped; the scale rig (1 000 men, 50 vehicles, 10 aircraft) played in the editor's **preview** (continuous clock). The kernel's frame
+by part is a new opt-in instrument, `KernelFrameTimings` (`HROT_FRAME_STATS=1`, 0 B warm).
+
+| 3-D mid | playing | paused | the sim on the drawing thread |
+|---|---|---|---|
+| frame | **98.8 ms (10 fps)** | 32.4 ms (31 fps) | — |
+| synchronous sim (EditorSim: systems + Tick + playback) | 38.7 | 0.9 | **37.8** — brains **9.8**, weapons 7.3, stress 5.7, callouts 3.7, threat 2.0, squads 1.7, ~25 small ≈ 12 |
+| PostSimulation phase | 10.3 | 0.8 | **9.5** — drone impacts 2.0, car kinematics 1.7, fire 1.4, map layers 1.1 |
+| snapshot copies for the background EQS + navigation (`OnDemandProvider.cs:67` `SyncFrom`) | 8.3 | — | **8.3** (~6.5 ms per copy) |
+| Input phase · gizmos · traffic copy · harvests | — | — | 3.6 · 2.1 · 0.8 · 0.8 |
+| **total** | kernel 74.6 | 11.6 | **63.0** |
+
+⭐ **D6 measured:** soldiers and vehicles `Periodic` (experimental switch `HROT_SOLDIER_CADENCE`, default off; woken by `SensorChangedEvent`): the brain tick falls
+**9.8 → 5.4 ms at 0.2 s** (2.5 ms at 0.1 s) and the frame 98.8 → 91.8 ms. ⇒ **at 1 000 men in the editor the brains are a sixth of the sim's drawing-thread cost;
+the other CGF systems are ~3× the brains.** ⚠ A cadenced tick receives ONE frame's dt (`BrainTickSystem` → `Run(…, deltaTime)`): BTree Wait / Cooldown measure sim time
+and stay right, an HSM timer (`HsmRunner.cs:217`) runs slow — D6, when built, must pass the time since the slot's last tick.
+⭐ The lean handed to the coordinator: the synchronous sim off the drawing thread (the UI then runs at the paused ~30 fps), meanwhile the named non-brain costs.
 
 ## 13. ⏳ The editor's preview frame at 1 000 men — option (c): the simulation on a worker, the drawing from a snapshot *(coordinator, `2026-11-11`; decision input for CE-4433 — NOT ruled)*
 

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT — P1, P2, P4, P5, P6 (2026-11-11, as-built in §3a) · P3 not built (measure-gated, see §3a)
-updated: 2026-11-11 (§3a as-built; Q1 decided)
+updated: 2026-11-11 (§3a as-built; Q1 decided; §3a-win measured on Windows, CE-4432)
 current-answer: §3a AS-BUILT (read it first) · §2 the picture · §3 the phases (the plan) · §4 leans
 stale-below: nothing
 known-rot: none
@@ -115,6 +115,24 @@ graph TD
 | **P4** | ✅ `44687dff3` · `EntityCardRenderer.Layout` | **0 B** once warm (was ~4.15 MB per frame): pooled `Card`s (now a class, valid until the next Layout), reused grouping arrays, cached strings / widths; `Draw(IReadOnlyList)` | `Card` is a pooled class, not a record |
 | **P5** | ✅ `3e9a63bd2` · MEASURE §8 | the Browser: see §3a-bis | filed CE-1479 |
 | **P6** block deltas | ✅ KEPT (format **v8**) · `ba74db0ae` + measuring switches | live recording of the same scenario: delta raw **55.6 MB → 8.1 MB** median (file 76 MB / 59 deltas → 44.6 MB / 73 deltas); recorder **main-thread cost 48 → 44 ms** median (no regression); replay apply **31 → 20 ms** median (prefetched, repair 7 both); worker decode of a frame ~7× fewer bytes | 64-byte blocks with run coalescing, not rows: the biggest type (a 4 096-byte row) moves ~1 % of its blocks (MEASURE §5), a row record would rewrite all of it. Entity-index chunks (3 % of a frame) and managed chunks stay whole. The first delta after a keyframe has no base ⇒ whole chunks (as before) |
+
+### 3a-win — MEASURED ON WINDOWS `2026-11-11` (the user's machine, real GPU, hidden window; CE-4432 — full tables: [STATUS_Ui_Windows_Replay_Speed](blueprints/batches/STATUS_Ui_Windows_Replay_Speed.md))
+
+Beside the Linux rows above (4 cores, software GL): a fresh v8 recording of the 1 000-man scale-1 rig (~8 900 entities, 182 s), Release, uncapped.
+
+| | editor | Replay Browser |
+|---|---|---|
+| open → replaying | 1.6–2.0 s | 4.6 s |
+| 1× keeps pace | ✅ (30.8 s recorded in 31.1 s) | ✅ |
+| apply (prefetched ≈ 100 %) · repair | 2.5–2.8 ms · 0.8 ms | 3.0 ms · 0.9 ms |
+| seek 25 / 75 / 99.9 % | 1.2–1.5 s | 1.3–1.7 s |
+| frame playing, 3-D near · mid · far · 2-D whole (ms) | 30 · 29 · 55–64 · 31–33 | 26 · 24–26 · 63–66 · 23–26 |
+| garbage per apply | 2.0 → **1.7 MB** (CE-1952: managed chunks restored whole) | 2.1 → 1.8 MB |
+| steady garbage per frame | 1.4–2.0 MB → **90–113 KB** (W-3 fixes) | ~450 KB (its inspector panel) |
+
+⇒ On real hardware the replay-specific costs P1–P6 targeted are small (apply ~3 ms, off-thread decode); the frame is the draw — and at 3-D far
+(~6 000 visible units) it is the SAME paused as playing (bodies, effects, gizmos): render-under-load's (CE-4389/4390), not this design's.
+⚠ Every measurement driven over the debug API also had `PanelSnapshot.CaptureEnabled` on (the API turns it on) — `HROT_PANEL_CAPTURE=0` now separates it.
 
 ### 3a-bis — the Replay Browser
 **CE-1479 DONE `989f52e75`:** the Browser's play is driven by a clock (its own, advanced by dt × rate on its axis through the recording's wall ↔ sim map) and the frames due are applied by `Fdp.Toolkit.Replay.ReplayClockRule` — the SAME rule the editor's `PlaybackTickSystem` now calls (frames with wall ticks ≤ clock, in order, never more than due; more than 3 due ⇒ one seek). 1× now takes the recording's 91 s (was 5.9 s), ≤ 1 apply per render frame, render frame 130–280 ms while playing (MEASURE §8a). Rails: `ReplayClockRuleTests`, `ReplayBrowserSubsystemTests.CE1479_*`.

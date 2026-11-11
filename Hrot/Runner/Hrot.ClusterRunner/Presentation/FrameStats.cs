@@ -27,6 +27,7 @@ internal sealed class FrameStats
         if (Environment.GetEnvironmentVariable("HROT_FRAME_STATS") != "1") return null;
         Fdp.Presentation.WindowManager.WindowTimings.Enabled = true;   // ⭐ W-P1 — and the per-window CPU timing
         Fdp.Toolkit.Diagnostics.Gizmos.GizmoRuleTimings.Enabled = true;   // ⭐ CE-4385 — and the per-gizmo-rule timing
+        Fdp.ModuleHost.KernelFrameTimings.Enabled = true;   // ⭐ CE-4433 — and the kernel's frame by part
         return new FrameStats();
     }
 
@@ -88,6 +89,11 @@ internal sealed class FrameStats
         // ⭐ CE-4388 — who fills the gizmo buffer: primitives per frame, per gizmo (the buffer holds 16 384)
         var byPrims = rulesAll.Where(r => r.Primitives > 0).OrderByDescending(r => r.Primitives).Take(10).ToList();
         if (byPrims.Count > 0) Console.WriteLine("[FrameStats]   gizmo primitives per frame: " + string.Join(" · ", byPrims.Select(r => $"{r.Rule} {r.Primitives / n}")));
+        {   // ⭐ CE-4433 — the kernel's frame by part (sync points, harvests, synchronous modules, phases): what lies between the systems
+            var parts = Fdp.ModuleHost.KernelFrameTimings.Drain();
+            var shown = parts.Where(k => k.Ms / n >= 0.05).Take(40).ToList();
+            if (shown.Count > 0) Console.WriteLine("[FrameStats]   kernel (ms · calls · KB per frame): " + string.Join(" · ", shown.Select(k => $"{k.Name} {k.Ms / n:0.00} · {(double)k.Calls / n:0.##} · {k.Bytes / n / 1024}")));
+        }
         _frames.Clear();
         Console.WriteLine($"[FrameStats]   garbage (KB/frame): update {_updateBytes / n / 1024}  draw {_drawBytes / n / 1024}  ui {_uiBytes / n / 1024}" +
                           $"  | gc0 {GC.CollectionCount(0)} gc1 {GC.CollectionCount(1)} gc2 {GC.CollectionCount(2)} (since start)");

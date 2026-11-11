@@ -79,6 +79,26 @@ public sealed class TheFileReviewTests : IDisposable
             Serializer: new ScenarioSerializerBuilder("test").Build(), Behaviors: null, Blueprints: null, Reader: reader));
     }
 
+    /// <summary>⭐ CE-4432 W-1 — a file that fails to load (here: not a recording) is tried ONCE, not every frame; a rewrite of it is tried again.
+    /// 🔴 Red-proof: drop the failed-path check in <c>RecordingFileReader.Of</c> ⇒ 10 attempts.</summary>
+    [Fact]
+    public void AFileThatFailsToLoad_IsTriedOnce_NotEveryFrame_UntilItIsRewritten()
+    {
+        string path = Path.Combine(_dir, "broken.fdp");
+        File.WriteAllBytes(path, new byte[] { 1, 2, 3, 4 });
+        for (int i = 0; i < 10; i++) Assert.Null(_reader.Of(path));
+        Assert.Equal(1, _reader.LoadAttempts);
+
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));   // the file changed ⇒ worth one more try
+        Assert.Null(_reader.Of(path));
+        Assert.Equal(2, _reader.LoadAttempts);
+
+        string good = Record();                                            // another path is loaded as before
+        Assert.NotNull(_reader.Of(good));
+        Assert.Same(_reader.Of(good), _reader.Of(good));
+        Assert.Equal(3, _reader.LoadAttempts);
+    }
+
     [Fact]
     public void V2_OutsideAAR_TheTwoAnalysisWindowsSayTheyNeedARecording()
     {

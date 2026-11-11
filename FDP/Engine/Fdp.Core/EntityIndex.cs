@@ -559,7 +559,7 @@ namespace Fdp.Core
         /// <summary>
         /// Restores a hot (component-mask) chunk from a byte buffer.
         /// </summary>
-        public void RestoreHotChunkFromBuffer(int chunkIndex, byte[] data)
+        public void RestoreHotChunkFromBuffer(int chunkIndex, ReadOnlySpan<byte> data)   // ⭐ CE-4432 — a span (playback passes a view of the frame)
         {
             MaskEpoch++;   // ⭐ CE-2418 — the masks were rewritten wholesale
             _hotMasks.RestoreChunkFromBuffer(chunkIndex, data);
@@ -568,7 +568,7 @@ namespace Fdp.Core
         /// <summary>
         /// Restores a cold (metadata) chunk from a byte buffer.
         /// </summary>
-        public void RestoreColdChunkFromBuffer(int chunkIndex, byte[] data)
+        public void RestoreColdChunkFromBuffer(int chunkIndex, ReadOnlySpan<byte> data)
         {
             _coldMeta.RestoreChunkFromBuffer(chunkIndex, data);
         }

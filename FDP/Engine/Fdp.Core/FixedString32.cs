@@ -46,6 +46,18 @@ namespace Fdp.Core
             buffer[bytesUsed] = 0;
         }
         
+        /// <summary>⭐ CE-4432 (R-2084) — decodes into <paramref name="destination"/> and returns the chars written: the 0 B
+        /// <see cref="ToString"/> for a per-frame reader (a string per entity per frame was the style pass's garbage).</summary>
+        public readonly int CopyTo(Span<char> destination)
+        {
+            ref byte start = ref Unsafe.As<FixedString32, byte>(ref Unsafe.AsRef(in this));
+            ReadOnlySpan<byte> span = MemoryMarshal.CreateReadOnlySpan(ref start, 32);
+            int len = 0;
+            while (len < MaxLength && span[len] != 0) len++;
+            System.Text.Unicode.Utf8.ToUtf16(span.Slice(0, len), destination, out _, out int written, replaceInvalidSequences: true, isFinalBlock: true);
+            return written;
+        }
+
         /// <summary>
         /// Converts to a regular string.
         /// </summary>

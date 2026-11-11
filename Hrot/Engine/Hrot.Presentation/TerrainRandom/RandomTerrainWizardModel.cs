@@ -29,6 +29,20 @@ public sealed class RandomTerrainWizardModel
     public ulong Seed { get; set; }
     public string Name { get; set; }
 
+    /// <summary>The six presets' tile pictures, filled one by one by <see cref="LoadPictures"/> (null until each arrives, or when the host cannot make it).</summary>
+    public RandomTerrainView?[] Pictures { get; } = new RandomTerrainView?[RandomTerrainChoices.Presets.Length];
+
+    /// <summary>Makes the preset tiles' pictures on one worker, in order, so the first step shows its stand-ins at once and the real pictures as they land. A failed picture stays a stand-in.</summary>
+    public void LoadPictures()
+    {
+        var ct = _cancel.Token;
+        _ = Task.Run(() =>
+        {
+            for (int i = 0; i < Pictures.Length && !ct.IsCancellationRequested; i++)
+                try { Volatile.Write(ref Pictures[i], _service.PresetPicture(i)); } catch (Exception) { /* the tile keeps its stand-in */ }
+        }, ct);
+    }
+
     public RandomTerrainView? View { get; private set; }
     public string? Error { get; private set; }
     public bool Busy => _running is { IsCompleted: false } || _opening is { IsCompleted: false };

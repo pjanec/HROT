@@ -110,6 +110,16 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private readonly bool _gateOnAuthority;
 
+        /// <summary>
+        /// ⚠⚠ CE-4433 P-4 — a MEASUREMENT EXPERIMENT, never shipped on: <c>HROT_SOLDIER_CADENCE=&lt;seconds&gt;</c> gives every brain no cadence POLICY owns
+        /// (soldiers, vehicles — the rules have theirs) the <see cref="CadenceMode.Periodic"/> cadence at that period, staggered, woken by a
+        /// <c>SensorChangedEvent</c> (the SOP slot's wake). ⚠ Its tick still receives ONE frame's dt (<c>Run</c> passes the frame's), so a
+        /// dt-integrating timer inside a brain runs slow — measured, not fixed (docs/DESIGN_Evaluation_Cost_And_Cadence.md §3 D6). 0 = off.
+        /// </summary>
+        public static float ExperimentalSoldierCadence =
+            float.TryParse(Environment.GetEnvironmentVariable("HROT_SOLDIER_CADENCE"), System.Globalization.NumberStyles.Float,
+                           System.Globalization.CultureInfo.InvariantCulture, out var cadenceSeconds) && cadenceSeconds > 0f ? cadenceSeconds : 0f;
+
         public BrainTickSystem(BehaviorRegistry registry, bool gateOnAuthority = false,
             Fdp.Toolkit.Blueprints.Systems.IReloadLogSink? reloadLog = null)
         {
@@ -180,6 +190,14 @@ namespace Fdp.Toolkit.Behavior.Systems
             _history = repo.EventHistory;
             if (++_cadenceSweep >= 300) { _cadenceSweep = 0; SweepStaleCadenceReaders(repo); }
             bool drain = CadenceDrain.TakeRequest(repo);   // ⭐ CE-2385 (D8) — a checkpoint is due: every cadenced slot ticks this frame
+            // ⚠ CE-4433 P-4 — EXPERIMENT ONLY (HROT_SOLDIER_CADENCE, default off): a brain no policy cadences is woken by its senses (the SOP's wake)
+            if (ExperimentalSoldierCadence > 0f && _history != null)
+                foreach (var evt in repo.ReadEvents<Fdp.Toolkit.Perception.Events.SensorChangedEvent>())
+                    if (repo.IsAlive(evt.Unit) && repo.HasComponent<BehaviorState>(evt.Unit))
+                    {
+                        ref readonly var b = ref repo.GetComponentRO<BehaviorState>(evt.Unit);
+                        if (b.CadencePolicy == 0 && b.Cadence == CadenceMode.Periodic && b.CadenceWake == 0) repo.GetComponentRW<BehaviorState>(evt.Unit).CadenceWake = 1;
+                    }
 
             // ⭐ S4 — the MobilityLost interrupt (CE-324) moved into HsmRunner with the rest of the HSM tier's quirks.
 
@@ -196,6 +214,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                     if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.IsFirstVisit(repo, entity, t)) continue;
 
                     var behavior = repo.GetComponent<BehaviorState>(entity);
+                    // ⚠ CE-4433 P-4 — EXPERIMENT ONLY: every brain no policy owns (soldiers, vehicles) becomes Periodic at the switch's period, due now
+                    if (ExperimentalSoldierCadence > 0f && _history != null && behavior.CadencePolicy == 0 && behavior.Cadence == CadenceMode.EveryFrame)
+                    {
+                        ref var w = ref repo.GetComponentRW<BehaviorState>(entity);
+                        w.Cadence = CadenceMode.Periodic; w.CadencePeriod = ExperimentalSoldierCadence; w.CadenceNextTick = now;
+                        behavior = w;
+                    }
 
                     // ⭐⭐ CE-2382 — THE CADENCE GATE (generic: a POLICY sets BehaviorState.Cadence; nothing set ⇒ EveryFrame = every frame, as before).
                     //   ⚠ Only where the world keeps an event history: a cadenced slot reads its events through its own window, and without one
