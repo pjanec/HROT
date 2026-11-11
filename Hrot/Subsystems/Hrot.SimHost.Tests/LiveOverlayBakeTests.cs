@@ -328,6 +328,23 @@ namespace Hrot.SimHost.Tests
             return GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
+        /// <summary>⭐ T-6 (CE-3434) — MEASUREMENT (<c>HROT_MEASURE_SIGNATURE=1</c>): what one <c>StaticObstacleBakeSystem.SignatureOfWorld</c> walk costs per frame at a town's obstacle count (2 000), warm.</summary>
+        [Fact]
+        public void T6_Measure_SignatureOfWorld_At2000Obstacles()
+        {
+            if (Environment.GetEnvironmentVariable("HROT_MEASURE_SIGNATURE") != "1") return;
+            for (int i = 0; i < 2000; i++) Car(5f + (i % 100) * 3.5f);
+            var probe = new ObstacleSignatureProbe();
+            for (int i = 0; i < 200; i++) StaticObstacleBakeSystem.SignatureOfWorld(_world, probe);   // warm
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            const int runs = 2000;
+            for (int i = 0; i < runs; i++) StaticObstacleBakeSystem.SignatureOfWorld(_world, probe);
+            sw.Stop();
+            long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            System.IO.File.WriteAllText("/tmp/claude-0/signature.out", $"SignatureOfWorld at 2000 obstacles: {sw.Elapsed.TotalMilliseconds / runs:0.0000} ms per call, {bytes} B over {runs} calls\n");
+        }
+
         /// <summary>
         /// ⭐⭐ CE-3436 (HOT PATH) — a steady <c>Execute</c> (obstacles present, nothing changing, past the debounce) allocates 0 B over 50 frames, on a PLAIN node and with a LiveOverlay and a block. The per-frame
         /// <c>CollectPrisms</c> (a query, a prism and a label per obstacle) is gone: the prisms are built only when a bake starts. 🔴 Red-proof: call <c>CollectPrisms(world, _prisms)</c> every frame again.

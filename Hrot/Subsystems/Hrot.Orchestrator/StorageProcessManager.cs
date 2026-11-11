@@ -40,6 +40,9 @@ public sealed class StorageProcessManager
     private readonly HashSet<Guid> _pendingAutosaves = new();
 
 
+    /// <summary>⭐ T-6 (CE-3433) — true while a Live runs (the host sets it from the master's state): an overlay compile does not start then. Null = never.</summary>
+    public Func<bool>? IsLive { get; set; }
+
     /// <summary>The wall clock an autosave's meta stamps (<c>at</c>); a rail sets it.</summary>
     internal Func<DateTime> UtcNow { get; set; } = () => DateTime.UtcNow;
 
@@ -352,7 +355,10 @@ public sealed class StorageProcessManager
                 result.CanonicalDom.ToJsonString(FdpJsonOptionsRegistry.DefaultRelaxed));
             FdpLog<StorageProcessManager>.Info(
                 "[StorageProcessManager] merged {0} slice(s) → '{1}/scenario.json'.", slices.Count, scenarioName);
-            CompileTerrainOverlay(result.CanonicalDom, scenarioDir, scenarioName);
+            // ⭐ T-6 (CE-3433) — the save answers NOW; the overlay compile (≈ 1.5 s with its navtile bake on test-town, minutes cold on scale-1) runs after, on a low-priority thread, and a load of this scenario waits for it
+            //   (StorageGatewayModule.PrefetchScenarioAsync); it does not start while a Live runs
+            var canonical = result.CanonicalDom;
+            OverlayCompileTracker.Start(scenarioName, () => CompileTerrainOverlay(canonical, scenarioDir, scenarioName), IsLive);
         }
 
         if (result.Foreign.Count > 0)

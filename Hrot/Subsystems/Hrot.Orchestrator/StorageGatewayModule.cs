@@ -406,6 +406,9 @@ public sealed class StorageGatewayModule
         if (targets == null)                        throw new ArgumentNullException(nameof(targets));
         if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
 
+        // ⭐ T-6 (CE-3433) — the overlay must exist before a load needs it: a save answered "saved" before its overlay compile finished, so wait for that compile
+        await OverlayCompileTracker.WaitAsync(scenarioId).ConfigureAwait(false);
+
         var sourceDir = ContentLayout.ResolveScenarioDirectory(nasBasePath, scenarioId);   // ⭐ L6 — a saved scenario, a recipe or an opened copy
         if (!Directory.Exists(sourceDir))
             throw new DirectoryNotFoundException(
@@ -584,6 +587,10 @@ public sealed class StorageGatewayModule
                         Fdp.Toolkit.Terrain.TerrainCatalog.OverlaysDirectoryName, names.OverlayHash);
                     var r = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(names.OverlaySource, overlayDest);   // ⭐ O-4 — same mirror as the terrain, same node root
                     Interlocked.Add(ref success, Math.Max(1, r.Writes));
+                    // ⭐ T-6 (CE-3432) — the overlay is used now; the node keeps it plus the N most recently used others (the NAS by-hash copies stay: recordings name them)
+                    Fdp.Toolkit.Terrain.OverlayStaging.Touch(overlayDest);
+                    Fdp.Toolkit.Terrain.OverlayStaging.Prune(Path.GetDirectoryName(overlayDest)!, names.OverlayHash, Fdp.Toolkit.Terrain.OverlayStaging.ResolveKeep(),
+                        msg => FdpLog<StorageGatewayModule>.Info(msg));
                 }
 
                 Directory.CreateDirectory(target.TkbDestinationPath);

@@ -1004,6 +1004,42 @@ public sealed class StorageGatewayTkbConsensusTests
     }
 
     /// <summary>
+    /// ⭐ T-6 (CE-3432) — a prefetch prunes the node's staged overlays: with 12 staged and the default N = 8, the current one (even if it is the OLDEST by use) plus the 8 most recently used others stay, the other 3 go, and the NAS copy is untouched.
+    /// 🔴 Red-proof: drop the <c>OverlayStaging.Prune</c> call ⇒ all 13 stay ⇒ red; prune by name instead of use ⇒ the wrong 3 go ⇒ red; let it delete the current one ⇒ red.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_PrunesTheNodesStagedOverlays_KeepingTheCurrentAndTheNewestUsed_T6()
+    {
+        var nas = MakeNas("with-overlay", null, "test-town", out var scenarioDir);
+        var ov = Path.Combine(scenarioDir, "terrain-overlay");
+        Directory.CreateDirectory(ov);
+        File.WriteAllText(Path.Combine(ov, "overlay.json"), "{\"format\":1,\"contentHash\":\"current\",\"base\":{\"name\":\"test-town\",\"contentHash\":\"b\"},\"scenario\":\"with-overlay\",\"world\":\"overlay.world.geojson\"}");
+        File.WriteAllText(Path.Combine(ov, "overlay.world.geojson"), "{}");
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, "with-overlay") };
+            var overlays = Path.Combine(Path.GetDirectoryName(targets[0].TkbDestinationPath)!, Fdp.Toolkit.Terrain.TerrainCatalog.StagingDirectoryName, "overlays");
+            var now = DateTime.UtcNow;
+            for (int i = 0; i < 12; i++)   // o00 is the oldest used, o11 the newest
+            {
+                var d = Path.Combine(overlays, $"o{i:00}"); Directory.CreateDirectory(d); File.WriteAllText(Path.Combine(d, "overlay.json"), "{}");
+                Directory.SetLastWriteTimeUtc(d, now.AddHours(-100)); Directory.SetLastAccessTimeUtc(d, now.AddHours(-(50 - i)));
+            }
+            var current = Path.Combine(overlays, "current"); Directory.CreateDirectory(current); File.WriteAllText(Path.Combine(current, "overlay.json"), "{}");
+            Directory.SetLastWriteTimeUtc(current, now.AddHours(-200)); Directory.SetLastAccessTimeUtc(current, now.AddHours(-200));   // the oldest of all — and in use
+
+            var result = await new StorageGatewayModule().PrefetchScenarioAsync("with-overlay", targets, nas);
+            Assert.Equal(0, result.FailureCount);
+
+            var left = Directory.GetDirectories(overlays).Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal).ToList();
+            Assert.Equal(new[] { "current", "o04", "o05", "o06", "o07", "o08", "o09", "o10", "o11" }, left);   // the current one + the 8 newest used; o00…o03 gone
+            Assert.True(File.Exists(Path.Combine(scenarioDir, "terrain-overlay", "overlay.json")), "the source (NAS) copy is untouched");
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
     /// ⭐ O-4 (CE-4415, DESIGN_Terrain_Authoring §18a) — a scenario whose folder holds <c>terrain-overlay/</c> leaves the overlay on EVERY target at
     /// <c>{node}/Terrain/overlays/&lt;contentHash&gt;/</c> (same files, nested ones too), and the staged header carries <c>OverlayHash</c>; a scenario WITHOUT one stages
     /// no folder and writes no field — even after one that had it (the header is rewritten whole). 🔴 Red-proof: skip the overlay mirror ⇒ the folder is missing; drop the header field ⇒ the hash reads null.

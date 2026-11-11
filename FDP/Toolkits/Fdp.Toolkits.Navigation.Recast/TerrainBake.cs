@@ -182,7 +182,18 @@ public static class TerrainBake
 
                 // ④ navtiles: the base's (copied above) + the overlay's
                 string overlayTiles = Path.Combine(overlayFolder, NavTileCache.TerrainFolderName);
-                if (Directory.Exists(overlayTiles)) CopyTree(overlayTiles, Path.Combine(part, NavTileCache.TerrainFolderName), _ => false);
+                if (Directory.Exists(overlayTiles))
+                {
+                    // ⭐ T-6 (CE-3435) — a tile is <navtiles>/<layer>/<x>_<z>/<x>_<z>_<hash>.navtile: where the overlay re-baked a square (it holds a tile at that layer + x + z) the BASE's tile of the same square is stale (its hash can no longer match) — dropped, not copied beside it
+                    foreach (var layerDir in Directory.GetDirectories(overlayTiles))
+                        foreach (var squareDir in Directory.GetDirectories(layerDir))
+                        {
+                            if (Directory.GetFiles(squareDir, "*.navtile").Length == 0) continue;
+                            string stale = Path.Combine(part, NavTileCache.TerrainFolderName, Path.GetFileName(layerDir), Path.GetFileName(squareDir));
+                            if (Directory.Exists(stale)) Directory.Delete(stale, true);
+                        }
+                    CopyTree(overlayTiles, Path.Combine(part, NavTileCache.TerrainFolderName), _ => false);
+                }
                 summaryParts.Read(overlayJson, JsonNode.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)))!.AsObject());
             }
 

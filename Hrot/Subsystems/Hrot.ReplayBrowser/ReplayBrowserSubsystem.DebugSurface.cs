@@ -246,6 +246,10 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
 
     private (int Node, int Frame)? _eventsCapturedAt;
 
+    /// <summary>⭐ T-6 (CE-3434) — how many shown frames of plain forward playback pass between two looks at the replayed world's obstacles.</summary>
+    internal const int ObstacleCheckEveryFrames = 10;
+    private int _framesSinceObstacleCheck;
+
     /// <summary>
     /// ⭐ RB-5 — the primary node's event history follows the shown frame, as <see cref="ReplayBrowserContext"/>'s own seek and step
     /// keep it: a step forward adds the frame's events, a step back rewinds, a jump starts over. 🔴 Before: the federation seeks and steps
@@ -261,6 +265,9 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         var history = ctx.HistoryService;
         if (_eventsCapturedAt is not { } last || last.Node != node || frame > last.Frame + 1) { history.ClearHistory(); BakeRecordedObstacles(); }   // ⭐ O-8 — a load / a jump: the obstacle set may have changed
         else if (frame < last.Frame) { history.RewindHistory((uint)frame); BakeRecordedObstacles(); }
+        // ⭐ T-6 (CE-3434) — uninterrupted playback: an obstacle born mid-recording must not wait for the next seek. The signature walk costs 1.56 ms at 2 000 obstacles (Debug; measured, too much for EVERY frame), so it runs every
+        //   ObstacleCheckEveryFrames shown frames: a born obstacle shows within that many frames, a steady frame costs nothing (the counter) and allocates nothing
+        else if (++_framesSinceObstacleCheck >= ObstacleCheckEveryFrames) BakeRecordedObstacles();
         history.Capture("Replay", ctx.SandboxBus, (uint)frame);
         _eventsCapturedAt = (node, frame);
     }

@@ -234,6 +234,7 @@ public sealed class TerrainResidency
             if (!string.IsNullOrEmpty(overlayFolder))
             {
                 // ⭐ O-4 (C-5) — an overlay is bound to the base it was compiled against, by CONTENT: a name stands for nothing
+                OverlayStaging.Touch(overlayFolder);   // ⭐ T-6 (CE-3432) — a use: the node's overlay cache keeps the recently used
                 var header = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder);
                 string actualBase = TerrainContentHash.OfTerrain(definitionPath);
                 staged.BaseHash = actualBase;

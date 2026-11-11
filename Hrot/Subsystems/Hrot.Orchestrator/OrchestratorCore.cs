@@ -159,6 +159,7 @@ public sealed class OrchestratorCore : IDisposable
                     _master.ActiveNodeCapabilitySnapshot().TryGetValue(nodeId, out var tokens) ? tokens : null));
         var storageGateway = new StorageGatewayModule(transfer);
         _storage   = new StorageProcessManager(bus, storageGateway, nas);                         // TASK-S002
+        _storage.IsLive = () => _master.CurrentClusterState is Hrot.NED.Descriptors.Orchestration.ClusterState.OperatingLive or Hrot.NED.Descriptors.Orchestration.ClusterState.LoadingLive;   // ⭐ T-6 (CE-3433) — an overlay compile gives way while a Live runs
         _inventory = new AssetInventoryProcessManager(                                            // CGF1-S0506
             bus, storageGateway, nas, OrchestrationConstants.ResolveStagingRoot(), o.StagingNodeId);
         _episodes  = new EpisodeProcessManager(bus);                                              // TASK-S003

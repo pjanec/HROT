@@ -787,11 +787,12 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     /// <summary>
     /// ⭐ O-8 (CE-4420, §17 G-7) — lays the static obstacles the replayed world holds over the displayed terrain: <c>TerrainObstacles.With(base, prisms)</c> through the node's own collector
     /// (<see cref="Hrot.Map.Common.Services.StaticObstacleBakeSystem.CollectPrisms"/>). Called when the shown frame JUMPS (a load, a seek: the world is swapped), so a steady frame does nothing and
-    /// allocates nothing; a set that did not change (same obstacles, same base, same repo) rebuilds nothing. ⚠ Obstacles that appear during uninterrupted playback join at the next seek.
+    /// allocates nothing; a set that did not change (same obstacles, same base, same repo) rebuilds nothing. ⭐ T-6 (CE-3434): obstacles that appear during uninterrupted playback join within <see cref="ObstacleCheckEveryFrames"/> shown frames (the check is throttled — the signature walk is 1.56 ms at 2 000 obstacles).
     /// The bake is the cheap world-only half (no navmesh, no cover): the browser only draws.
     /// </summary>
     internal void BakeRecordedObstacles()
     {
+        _framesSinceObstacleCheck = 0;
         var repo = _activeRepo;
         if (repo == null || !_terrainCarrier.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()) return;
         var baseWorld = _terrainCarrier.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();

@@ -85,6 +85,27 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(factory.LastStats.Tiles, factory.LastStats.FromCache);
         }
 
+        /// <summary>
+        /// ⭐ T-6 (CE-3435) — the saved terrain's <c>navtiles/</c> holds NO two tiles at one layer + x + z: where the overlay re-baked a square, the base's tile of that square is dropped (its hash no longer matches); and loading it still bakes 0 tiles.
+        /// 🔴 Red-proof: skip the stale-square deletion in <c>SaveAs</c> ⇒ a square holds the base's tile AND the overlay's ⇒ red.
+        /// </summary>
+        [Fact]
+        public void T6_TheSavedTerrainsNavtiles_HoldNoTwoTilesAtOneLayerAndSquare_AndStillBakeNothing()
+        {
+            using var c = new Case(prefillBase: true);
+            c.Save();
+            string tiles = Path.Combine(c.Target, NavTileCache.TerrainFolderName);
+            var perSquare = Directory.EnumerateFiles(tiles, "*.navtile", SearchOption.AllDirectories)
+                .GroupBy(f => Path.GetRelativePath(tiles, Path.GetDirectoryName(f)!)).ToList();   // <layer>/<x>_<z>
+            Assert.True(perSquare.Count > 10, $"{perSquare.Count} squares");
+            Assert.All(perSquare, g => Assert.True(g.Count() == 1, $"square {g.Key} holds {g.Count()} tiles: {string.Join(", ", g.Select(Path.GetFileName))}"));
+            // the overlay DID re-bake squares of the base (so the rail is not vacuous): its own tiles exist beside the source's overlay folder
+            Assert.True(Directory.EnumerateFiles(Path.Combine(c.F.ScenarioDir, "terrain-overlay", NavTileCache.TerrainFolderName), "*.navtile", SearchOption.AllDirectories).Any());
+            var factory = new RecastNavmeshFactory { TileCache = new NavTileCache() };
+            factory.Build(c.Saved());
+            Assert.Equal(0, factory.LastStats.Baked);
+        }
+
         /// <summary>(c) The saved terrain's content hash differs from the base's, and the <c>source/</c> folder does not move it. 🔴 Red-proof: hash <c>source/</c> too ⇒ the second assertion fails.</summary>
         [Fact]
         public void TheSavedTerrainsHash_DiffersFromTheBases_AndIgnoresTheSourceFolder()
