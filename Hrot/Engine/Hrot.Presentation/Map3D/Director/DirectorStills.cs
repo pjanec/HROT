@@ -41,6 +41,8 @@ namespace Hrot.UI.Common.Map3D.Director
         public const int SettleFrames = 3;
         /// <summary>Frames a still may wait for the runner to reach Playing, and for the map to serve its capture.</summary>
         public const int WaitFrames = 600;
+        /// <summary>⭐ CE-4130 — frames a still may wait, after its settle frames, for the shown 3-D scene to be ready (<see cref="SceneReady"/>) before it captures what is there.</summary>
+        public const int SceneFrames = 180;
         public const int MaxStills = 64;
         public const string NoRenderer = "stills need a renderer: this host is headless (no map is drawn, so there is no frame to capture) — run the Replay Browser with a window (on a server: Xvfb, DISPLAY=:99)";
         /// <summary>⭐ <c>CE-1305</c> — an anchor not found while the open recording's index is still being read (ask again; a render job waits for it).</summary>
@@ -65,6 +67,10 @@ namespace Hrot.UI.Common.Map3D.Director
         private readonly List<JsonObject> _done = new();
         private readonly List<string> _problems = new();
         private string? _sheet;
+
+        /// <summary>⭐ CE-4130 — whether the shown map is a built 3-D scene (not still building after a jump, not in 2-D): a still after a far seek waits for it, so the contact sheet is not the 2-D grid.
+        /// Null / absent: nothing to wait for (a headless host, the rails).</summary>
+        public Func<bool>? SceneReady { get; set; }
 
         public DirectorStills(DirectorRunner runner, IFrameSink? sink, Func<bool> canSeek)
         {
@@ -255,6 +261,7 @@ namespace Hrot.UI.Common.Map3D.Director
                     return;
                 case Step.Settle:
                     if (++_frames < SettleFrames) return;
+                    if (SceneReady is { } ready && !ready() && _frames < SettleFrames + SceneFrames) return;   // ⭐ CE-4130 — the 3-D scene after the jump is not built yet
                     _path = Path.Combine(_dir, _plan[_i].Name + ".png");
                     _shownSim = _runner.Status()["simTime"]?.GetValue<double>() ?? double.NaN;
                     _capture = _sink!.Frame(_path, _width, _height, 1, _runner.OverlayNow(_captions));   // ⭐ CE-1305 — and the film graphics, as a movie frame

@@ -32,6 +32,15 @@ public sealed class FilmDirectorTests
         public int? Resolve(string who) => int.TryParse(who, out var id) ? id : Ids.TryGetValue(who, out id) ? id : null;
         public Vector3? PositionOf(int id) => At.TryGetValue(id, out var p) ? p : null;
         public IReadOnlyCollection<string> Names => Ids.Keys;
+        /// <summary>⭐ CE-4138 — more units that share a name already in <see cref="Ids"/> (the first of them).</summary>
+        public readonly Dictionary<string, List<int>> Twins = new();
+        public IReadOnlyList<int> ResolveAll(string who)
+        {
+            var all = new List<int>();
+            if (Resolve(who) is { } one) all.Add(one);
+            if (Twins.TryGetValue(who, out var more)) all.AddRange(more);
+            return all;
+        }
     }
 
     private static ShotSpec Shot(string json)
@@ -1727,6 +1736,28 @@ public sealed class FilmDirectorTests
         Assert.Null(moved.TimeOf("near:A"));                                         // changed (a wider radius): not carried
         var w = Assert.Single(moved.NearWindows(world));
         Assert.Equal((100 - 30) / 15d, w.Estimate, 3);                               // it gets the coarse estimate of the NEW spec
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4138</c> — an anchor that names a unit FOUND TWICE reads the events of BOTH: the shot by the second unit of the name resolves (it resolved to nothing when only the first was read), and when
+    /// nothing fired the reason names the duplicate. 🔴 Mutation: <c>AnchorBook.IsUnit</c> back to <c>units.Resolve(who) == networkId</c> ⇒ the first assertion is red.
+    /// </summary>
+    [Fact]
+    public void CE4138_AnAnchorNamingTwoUnitsOfOneName_ReadsBoth_AndTheReasonNamesTheDuplicate()
+    {
+        var index = LaneIndex(20, Ev("combat.shot", 2, 7));                                  // only the SECOND minigun (#7) fired
+        var units = new Units(); units.Ids["M134 minigun"] = 5; units.Twins["M134 minigun"] = new List<int> { 7 };
+        var specs = new Dictionary<string, AnchorSpec>
+        {
+            ["fired"] = new() { On = "shot", By = "M134 minigun" },
+            ["third"] = new() { On = "shot", By = "M134 minigun", N = 3 },
+        };
+        var book = new AnchorBook(specs, null, null, () => index, 0d, indexIsTheRun: false);
+        book.ObserveEvents(units);
+        Assert.NotNull(book.TimeOf("fired"));
+        var why = book.WhyUnseen("third", units);
+        Assert.Contains("2 units are called 'M134 minigun' (#5, #7)", why);
+        Assert.Contains("has 1 shots", why);
     }
 
     /// <summary>

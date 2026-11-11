@@ -203,10 +203,11 @@ public sealed class AnchorBook
     /// <summary>⭐ CE-4117 — the network ids of the units <paramref name="who"/> names (an exact name, or <c>"*part"</c>: every name containing it), as <see cref="IsUnit"/> reads them.</summary>
     private static IEnumerable<int> UnitIdsNamed(string who, IShotWorld units)
     {
-        if (!who.StartsWith('*')) { if (units.Resolve(who) is { } id && id != 0) yield return id; yield break; }
+        // ⭐ CE-4138 — every unit of a name counts (two units may be called alike): the anchor reads ALL their events, not the one the name index happened to keep
+        if (!who.StartsWith('*')) { foreach (var id in units.ResolveAll(who)) if (id != 0) yield return id; yield break; }
         var part = who[1..];
         foreach (var n in units.Names.Where(n => n.Contains(part, StringComparison.Ordinal)).ToList())
-            if (units.Resolve(n) is { } id && id != 0) yield return id;
+            foreach (var id in units.ResolveAll(n)) if (id != 0) yield return id;
     }
 
     /// <summary>
@@ -215,6 +216,26 @@ public sealed class AnchorBook
     /// closest approach) · awaits play (a state cue the index cannot answer ahead). Null when the anchor HAS a time.
     /// </summary>
     public string? WhyUnseen(string anchor, IShotWorld units)
+    {
+        var why = WhyUnseenCore(anchor, units);
+        return why is null ? null : why + DuplicateNote(anchor, units);
+    }
+
+    /// <summary>⭐ CE-4138 — <c>"; two units are called 'X' (#1010, #1012) — all are read"</c> for every name of the anchor shared by several units, so a duplicate name is never mistaken for a unit that never fired.</summary>
+    private string DuplicateNote(string anchor, IShotWorld units)
+    {
+        if (!_specs.TryGetValue(anchor, out var a)) return "";
+        var sb = new System.Text.StringBuilder();
+        foreach (var who in a.Names())
+        {
+            if (who.StartsWith('*')) continue;
+            var ids = units.ResolveAll(who);
+            if (ids.Count > 1) sb.Append($"; {ids.Count} units are called '{who}' (#{string.Join(", #", ids)}) — all are read");
+        }
+        return sb.ToString();
+    }
+
+    private string? WhyUnseenCore(string anchor, IShotWorld units)
     {
         if (TimeOf(anchor) is not null) return null;
         if (!_specs.TryGetValue(anchor, out var a)) return "the take defines no such anchor";
@@ -297,10 +318,16 @@ public sealed class AnchorBook
     private static bool IsUnit(string who, int networkId, IShotWorld units)
     {
         if (networkId == 0) return false;
-        if (!who.StartsWith('*')) return units.Resolve(who) == networkId;
+        if (!who.StartsWith('*')) return Contains(units.ResolveAll(who), networkId);   // ⭐ CE-4138 — any unit of that name
         var part = who[1..];
         foreach (var n in units.Names)
-            if (n.Contains(part, StringComparison.Ordinal) && units.Resolve(n) == networkId) return true;
+            if (n.Contains(part, StringComparison.Ordinal) && Contains(units.ResolveAll(n), networkId)) return true;
+        return false;
+    }
+
+    private static bool Contains(IReadOnlyList<int> ids, int id)
+    {
+        for (int i = 0; i < ids.Count; i++) if (ids[i] == id) return true;
         return false;
     }
 

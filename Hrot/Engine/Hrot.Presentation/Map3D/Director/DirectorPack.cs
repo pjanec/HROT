@@ -126,7 +126,11 @@ namespace Hrot.UI.Common.Map3D.Director
             // ⭐ CE-1304 P4 (§11s) — promote, wired ONCE: from this host's takes to the scenario's (none on the editor)
             var promotion = new TakePromotion(() => h.Host.Takes, h.ScenarioTakes, h.Scenario, session);
             // ⭐ CE-4059 P3 (§11r) — stills: the runner's play-from and the SAME sink (one capture path), on a host that seeks
-            var stills = new DirectorStills(runner, sink, () => h.Host.CanSeek);
+            var stills = new DirectorStills(runner, sink, () => h.Host.CanSeek)
+            {
+                // ⭐ CE-4130 — a still waits for the shown map's 3-D scene (built after a far jump): ViewTelemetry's last drawn frame says it is 3-D, not waiting on the build and built
+                SceneReady = () => h.Host.World is not { } w || ViewTelemetry.Of(w) is not { } v || (v.Mode != "2D" && !v.Pending3D && v.MapBuilt != false),
+            };
             // ⭐ CE-1306 R4 (§11u D3) — the render queue over the SAME runner and stills (one at a time), and the reel composer (the one reel model)
             var renders = new DirectorRenders(runner, stills, sink, () => h.Host.CanSeek, () => h.Host.Takes, h.Scenario ?? (() => null));
             // ⭐⭐ CE-1391 (§11u "as built: CE-1391") — the host's ONE recording opener, wired ONCE: the queue opens a job's recording, the runner a reel item's

@@ -1694,6 +1694,34 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.NotEqual(RenderState.Opening, job.State);                  // read: it plans (and goes on)
     }
 
+    /// <summary>⭐ CE-4130 — a still waits for the shown 3-D scene: with <c>SceneReady</c> false the capture is held for <see cref="DirectorStills.SceneFrames"/> frames after the settle, then taken anyway
+    /// (never a stuck job); ready ⇒ it is taken at once. ✅ Red-proof: the <c>SceneReady</c> test removed from <c>DirectorStills.Tick</c> ⇒ both runs capture at the same frame ⇒ red.</summary>
+    [Fact]
+    public void CE4130_AStill_WaitsForTheSceneToBeBuilt_BeforeItCaptures()
+    {
+        int FirstCapture(bool ready)
+        {
+            var store = Store();
+            var host = new FakeEditor(store);
+            var sink = new Sink();
+            var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+            var stills = new DirectorStills(runner, sink, () => true) { SceneReady = () => ready };
+            var renders = new DirectorRenders(runner, stills, sink, () => true, () => store, () => "s-a");
+            var (job, why) = renders.Enqueue(new RenderRequest { Kind = RenderKind.Stills, Scenario = "s-a", Take = "main", Times = new[] { 1d }, Width = 320, Height = 180 });
+            Assert.True(job != null, why);
+            for (int f = 0; f < 2000; f++)
+            {
+                runner.Tick(); stills.Tick(); renders.Tick(); host.EndFrame();
+                if (sink.Frames.Count > 0) return f;
+            }
+            Assert.Fail("no still was captured");
+            return -1;
+        }
+        int now = FirstCapture(ready: true), waited = FirstCapture(ready: false);
+        Assert.True(waited - now >= DirectorStills.SceneFrames - 2, $"ready: frame {now}, not ready: frame {waited}");
+        Assert.True(waited - now <= DirectorStills.SceneFrames + 5, $"a not-ready scene only delays the capture ({now} -> {waited})");
+    }
+
     /// <summary>CE-1391's one opener seam, faked: every open succeeds (this rail is about the index wait, not the open).</summary>
     private sealed class OpensAnyRecording : Hrot.Presentation.DebugApi.IRecordingOpener
     {

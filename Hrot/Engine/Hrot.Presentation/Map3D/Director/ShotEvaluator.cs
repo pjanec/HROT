@@ -15,6 +15,10 @@ public interface IShotWorld
     /// <summary>The network id of <paramref name="who"/> (a name, or a network id as text); null when no such unit is here.</summary>
     int? Resolve(string who);
 
+    /// <summary>⭐ CE-4138 — EVERY unit named <paramref name="who"/> (two units may share a name: <see cref="Resolve"/> answers one of them); a network id as text is that one unit. Empty when none is here.
+    /// The default is <see cref="Resolve"/>'s one.</summary>
+    IReadOnlyList<int> ResolveAll(string who) => Resolve(who) is { } id ? new[] { id } : Array.Empty<int>();
+
     /// <summary>Where the unit stands; null when it is not here.</summary>
     Vector3? PositionOf(int networkId);
 
@@ -30,6 +34,7 @@ public sealed class WorldUnits : IShotWorld
 {
     private readonly Func<EntityRepository?> _world;
     private Dictionary<string, int> _byName = new(StringComparer.Ordinal);
+    private Dictionary<string, List<int>> _allByName = new(StringComparer.Ordinal);   // ⭐ CE-4138 — every unit of a name (the first of them is _byName's)
     private EntityRepository? _indexed;
 
     public WorldUnits(Func<EntityRepository?> world) => _world = world ?? throw new ArgumentNullException(nameof(world));
@@ -46,6 +51,16 @@ public sealed class WorldUnits : IShotWorld
         return _byName.TryGetValue(who, out id) ? id : null;
     }
 
+    public IReadOnlyList<int> ResolveAll(string who)
+    {
+        if (string.IsNullOrWhiteSpace(who)) return Array.Empty<int>();
+        if (int.TryParse(who, out var id)) return new[] { id };
+        Index(force: false);
+        if (_allByName.TryGetValue(who, out var all)) return all;
+        Index(force: true);
+        return _allByName.TryGetValue(who, out all) ? all : Array.Empty<int>();
+    }
+
     public Vector3? PositionOf(int networkId)
     {
         var world = _world();
@@ -54,20 +69,26 @@ public sealed class WorldUnits : IShotWorld
     }
 
     /// <summary>Forgets the index (a new scenario was loaded).</summary>
-    public void Reset() { _byName = new(StringComparer.Ordinal); _indexed = null; }
+    public void Reset() { _byName = new(StringComparer.Ordinal); _allByName = new(StringComparer.Ordinal); _indexed = null; }
 
     private void Index(bool force)
     {
         var world = _world();
-        if (world == null) { _byName.Clear(); _indexed = null; return; }
+        if (world == null) { _byName.Clear(); _allByName.Clear(); _indexed = null; return; }
         if (!force && ReferenceEquals(world, _indexed) && _byName.Count > 0) return;
         var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        var all = new Dictionary<string, List<int>>(StringComparer.Ordinal);
         foreach (var e in world.Query().With<EntityInfo>().With<NetworkIdentity>().Build())
         {
             var name = world.GetComponentRO<EntityInfo>(e).Name.ToString();
-            if (name.Length > 0) map.TryAdd(name, world.GetComponentRO<NetworkIdentity>(e).Value);
+            if (name.Length == 0) continue;
+            int net = world.GetComponentRO<NetworkIdentity>(e).Value;
+            map.TryAdd(name, net);
+            if (!all.TryGetValue(name, out var list)) all[name] = list = new List<int>(1);
+            list.Add(net);
         }
         _byName = map;
+        _allByName = all;
         _indexed = world;
     }
 }
