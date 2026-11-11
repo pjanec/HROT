@@ -1035,3 +1035,90 @@ block dirties only its old and new place — woods included.
 
 Rails: `LiveOverlayBakeTests` (a block in the baked world · a moved block dirties exactly its old and new parts, an unchanged block is not re-expanded · steady frames allocate nothing beyond a plain system),
 `EntityCreationPackRails.OnlyTheEditorRoot_GivesTheObstacleBakeALiveOverlay` / `APackBuiltObstacleBake_HasNoLiveOverlayByDefault`, `TheEditorShowsItsTerrainBlocksLiveTests` (B-4).
+
+### 18f. The generator library and the random-terrain wizard's engine — T-1 *(CE-4428, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+
+📐 **INVENTORY** (grep + reads, ⚠ graph not ready this session — re-run before the as-built): the synth lives in a CONSOLE tool,
+`Hrot/Tools/Hrot.Tools.TerrainSynth` (≈ 3 000 lines: `HeightField`, `RoadNetwork` with `Villages`, `ExtrasGenerator` water / scrub / woods, `TreeGenerator`,
+`BuildingGenerator`, `SumoWriter` + netconvert, `ManifestWriter`; 87 tests) writing the §10 input set; ⭐ the importer is a library
+(`Hrot.Terrain.Import.TerrainImporter : ITerrainImporter`, navmesh prefill via `ITerrainNavmeshPrefill`); ⭐ **the OSM wizard is the precedent to
+mirror**: an engine pipeline `Hrot.Terrain.Osm.IOsmTerrainPipeline` (`PreviewAsync` → `OsmPreview` with `PreviewRoad / PreviewArea / PreviewLine`,
+`OsmCounts`, `OsmBudget.Evaluate` → `BudgetVerdict`; `WriteInputSetAsync`) composed in `EditorSubsystem.cs:3632-3660` with the importer.
+
+```mermaid
+classDiagram
+  class HrotTerrainSynth {
+    <<new library - the synth's code MOVED, namespace kept>>
+    HeightField, RoadNetwork, ExtrasGenerator, TreeGenerator, BuildingGenerator, SumoWriter
+    TerrainSynthesizer.Run(options)
+  }
+  class hrot_terrain_synth {
+    <<existing CLI - now a thin shell: Program + SynthOptions.Parse>>
+  }
+  class RandomTerrainPipeline {
+    <<new - mirrors OsmTerrainPipeline>>
+    Preview(options) RandomTerrainPreview
+    ShuffleLayout(preview, seed) RandomTerrainPreview
+    OpenInEditor(preview, name) terrain + scenario
+  }
+  class RandomTerrainOptions {
+    <<new record>>
+    Preset, Size, Relief, Vegetation, Water, GroundSeed, LayoutSeed
+  }
+  class BlockLayout {
+    <<new, pure>>
+    Place(preset, villages, roads, water, seed) TerrainBlock entities
+  }
+  class OsmPreview {
+    <<existing - the SAME preview records, so the one wizard frame draws both>>
+  }
+  class OsmBudget {
+    <<existing - the same verdict>>
+  }
+  class TerrainImporter {
+    <<existing - ground input set to terrain folder + prefill>>
+  }
+  class FeatureExpander {
+    <<existing - counts and outlines for the preview>>
+  }
+  hrot_terrain_synth --> HrotTerrainSynth
+  RandomTerrainPipeline --> HrotTerrainSynth : ground only - no buildings
+  RandomTerrainPipeline --> BlockLayout
+  RandomTerrainPipeline --> FeatureExpander
+  RandomTerrainPipeline --> OsmPreview
+  RandomTerrainPipeline --> OsmBudget
+  RandomTerrainPipeline --> TerrainImporter
+```
+*What it shows:* nothing is written twice — the ground is the synth (moved into a library), the import is the importer, the houses are the recipe
+blocks a user also places (R-1 of §12), and the preview / budget are the OSM wizard's records, so ui's U-8 reuses its OSM frame.
+
+```mermaid
+sequenceDiagram
+  participant W as ui wizard (U-8)
+  participant P as RandomTerrainPipeline
+  participant S as Synth library
+  participant L as BlockLayout
+  participant I as TerrainImporter
+  W->>P: Preview(preset, size, relief, vegetation, water, seeds)
+  P->>S: heights, roads (+ netconvert), water, woods, scrub - NO buildings, NO village houses
+  P->>L: blocks at the villages along the roads (preset density), each a seed
+  P-->>W: OsmPreview (relief, roads, water, woods, block outlines) + counts + verdict
+  W->>P: ShuffleLayout(new layout seed) - the ground is kept in memory, seconds
+  W->>P: OpenInEditor(name)
+  P->>I: the ground input set to assets/terrain/name, prefill included
+  P-->>W: terrain folder + scenario folder (header on name, the TerrainBlock entities) - V-1
+```
+*What it shows:* *Shuffle layout* re-runs only the pure layout over the ground already in memory; *Shuffle ground* is a new `Preview`.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| F-1 library | a new `Hrot/Engine/Hrot.Terrain.Synth` library holding the moved files (namespace kept — no rename blast radius); the CLI keeps `Program` + option parsing; the tests point at the library | a reference from the editor to the CLI exe — a tool is not a library · copying the generators — R-4202 "moved, not copied" |
+| F-2 the ground | the synth with buildings and village houses OFF; woods / scrub / water ON per Vegetation / Water; Relief scales the height range | a separate surface generator — a second heights / roads path |
+| F-3 the layout | `BlockLayout`: at each synth `Village`, N blocks from the preset's recipe mix, placed along the nearest roads, kept off roads, water and each other; guids derived from the layout seed (deterministic) | the synth's `BuildingGenerator` houses — a second house path (§12 R-1) |
+| F-4 presets | Plain terrain (no layout) · Open countryside (farmsteads, copses) · Villages (hamlets) · Small town · Town with suburbs · Mixed — recipes as they exist; T-3's richer recipes join by name | — |
+| F-5 preview | `OsmPreview` records + `OsmCounts` (houses from the blocks' expansion counts) + `OsmBudget.Evaluate` | new preview records — the one frame would need two drawers |
+| F-6 Open in editor | import the ground (`TerrainImporter`, prefill), write the scenario (`scenario.json` with `TerrainBlock` + `SimTransform` entities); the editor opens it and its live overlay expands the blocks (O-7 B) | baking houses into the terrain here — *Save terrain as* does that (§13 W-3) |
+
+⚠ The netconvert dependency stays the synth's (a warning and plain files without SUMO; the importer then has no road net) — the wizard shows it as
+a note. ⏭ Acceptance (handoff T-1): same inputs → byte-identical ground files and layout DOM; *Shuffle layout* keeps the ground byte-identical; a
+3 km *Town with suburbs* generates, imports and loads within R-4192's 30 s warm.
