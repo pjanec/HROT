@@ -134,7 +134,6 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private int _lastDiffFrame = -1;
     private Entity? _lastDiffEntity = null;
     private JsonNode? _lastDiffEntityJson = null;
-    private float _playbackAccumulator = 0f;
     private Task? _seekToChangeTask;
     private volatile int _pendingChangeSeekFrame = -1;
     // â”€â”€ Gizmo debug overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -445,22 +444,10 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         // ⭐ RB-1 — playback runs on a headless host too (POST /sim/play): the one play state, the panel's or the headless host's.
         if (IsPlaying)
         {
-            _playbackAccumulator += deltaTime * PlaybackRate;
-            float frameTime = 1.0f / 60.0f;
-
-            if (_playbackAccumulator > frameTime * 10f)
-                _playbackAccumulator = frameTime * 10f;
-
-            while (_playbackAccumulator >= frameTime)
-            {
-                _playbackAccumulator -= frameTime;
-                if (!TryStepForwardViaManager())
-                {
-                    IsPlaying = false;
-                    _playbackAccumulator = 0f;
-                    break;
-                }
-            }
+            // ⭐⭐ CE-1479 — play follows the recording's TIME: a clock (this viewer's own, advanced by the frame time × the rate on its axis) names the moment, and
+            //   the recorded frames DUE at it are applied in order — the editor's rule (ReplayClockRule), never one frame per 1/60 s whatever the recording holds.
+            if (!AdvancePlaybackClock(deltaTime * PlaybackRate))
+                IsPlaying = false;
             TickLocalLoop();   // ⭐ CE-3329 §12n — the viewer's own loop wraps its playback
         }
 
@@ -1329,6 +1316,43 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         if (_manager == null || _manager.Contexts.Count == 0) return null;
         return _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx)
             ? ctx.CurrentFdpPath : null;
+    }
+
+    // ⭐ CE-1479 — the playback clock: wall ticks of the moment play has reached. Kept apart from the manager's BaseWallTicks (the last APPLIED frame's) because a
+    //   recording whose frames are seconds apart needs the clock's progress BETWEEN frames; it follows BaseWallTicks again whenever something else moved it (a seek, a step, a load).
+    private long _playClockWall;
+    private long _playClockBase = long.MinValue;
+
+    /// <summary>
+    /// ⭐ CE-1479 — advances the clock by <paramref name="seconds"/> of this viewer's axis (sim: through the recording's wall ↔ sim map, so a paused stretch costs no time — CE-4064;
+    /// wall: as it is) and applies the frames due, in order: <see cref="Fdp.Toolkit.Replay.ReplayClockRule"/>, the editor's rule. A gap of more than
+    /// <see cref="Fdp.Toolkit.Replay.ReplayClockRule.SeekThreshold"/> frames is one seek to the clock. Returns false when play has nothing left (the end).
+    /// </summary>
+    internal bool AdvancePlaybackClock(double seconds)
+    {
+        if (_manager == null) return false;
+        if (!_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) || ctx.Playback == null) return false;
+        var playback = ctx.Playback;
+        if (_playClockBase != _manager.BaseWallTicks) _playClockWall = _manager.BaseWallTicks;
+
+        var map = CachedTimeMap;
+        if (Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim && map.HasSimTime)
+            _playClockWall = Math.Max(_playClockWall, map.WallAt(map.SimAt(_playClockWall) + seconds));
+        else
+            _playClockWall += (long)Math.Round(seconds * TimeSpan.TicksPerSecond);
+        if (ReplayEndTicks is { } end && _playClockWall > end) _playClockWall = end;
+
+        int due = Fdp.Toolkit.Replay.ReplayClockRule.FramesDue(playback, _playClockWall);
+        if (Fdp.Toolkit.Replay.ReplayClockRule.IsSeekGap(due))
+            _manager.SetBaseWallTicks(_playClockWall);   // a seek delivers no events (many frames) — as the editor's Strategy B
+        else
+            for (int i = 0; i < due && !playback.IsAtEnd; i++)
+            {
+                _manager.StepForwardAll();
+                DeliverTheSteppedFrameEvents();
+            }
+        _playClockBase = _manager.BaseWallTicks;
+        return !(playback.IsAtEnd && _playClockWall >= playback.LastFrameWallTicks);
     }
 
     private bool TryStepForwardViaManager()
