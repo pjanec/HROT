@@ -29,10 +29,19 @@ public sealed class EditorRandomTerrainService : IRandomTerrainService
         Vegetation = (VegetationLevel)Math.Clamp(s.Vegetation, 0, 2), Water = (WaterLevel)Math.Clamp(s.Water, 0, 2), GroundSeed = s.GroundSeed, LayoutSeed = s.LayoutSeed,
     };
 
-    private static RandomTerrainView ViewOf(RandomTerrainPreview p)
+    /// <summary>The preset tile's picture: the preset at 1 km, a fixed seed, a river (the mockup's tiles all show one) and a coarse relief grid — the SAME pipeline the wizard's Generate runs, so a tile shows what the preset really makes.</summary>
+    public RandomTerrainView? PresetPicture(int preset)
+        => ViewOf(_pipeline.Preview(Options(new RandomTerrainSettings(preset, 1000, Relief: 1, Vegetation: 1, Water: 2, GroundSeed: 7, LayoutSeed: 7))), 12);
+
+    private static RandomTerrainView ViewOf(RandomTerrainPreview p, int reliefN = 48)
     {
-        var by = p.Layout.GroupBy(b => b.Recipe).Select(g => (g.Key, g.Count(), 0)).ToList();
-        return new RandomTerrainView(p.Preview, p.Layout.Count, by, p.Timings.GroundSeconds + p.Timings.LayoutSeconds + p.Timings.PreviewSeconds);
+        var marks = p.Blocks.Select(b => new PlanBlock(b.Recipe, b.Seed, b.Min, b.Max, b.Houses)).ToList();
+        var by = marks.GroupBy(b => b.Recipe).Select(g => (g.Key, g.Count(), g.Sum(b => b.Houses))).ToList();
+        // ⭐ the ground's own height function, sampled for the plan's shading (T-1's ReliefGrid exists for exactly this)
+        int n = reliefN;
+        var heights = p.ReliefGrid(n);
+        var (lo, hi) = p.ReliefRange;
+        return new RandomTerrainView(p.Preview, p.Layout.Count, by, p.Timings.GroundSeconds + p.Timings.LayoutSeconds + p.Timings.PreviewSeconds, marks, new PlanRelief(n, heights, (float)lo, (float)hi));
     }
 
     public RandomTerrainView Generate(RandomTerrainSettings settings)

@@ -54,12 +54,13 @@ public static class TerrainGhost
             var houses = new List<Vector2[]>(x.Houses);
             var woods = new List<Vector2[]>(x.Woods);
             for (int i = 0; i < shapes.Count; i++) (i < x.Houses ? houses : woods).Add(shapes[i]);
-            bool fits = x.Houses >= recipe.HousesMin;
+            var (wantMin, wantMax, _) = TerrainPickCatalog.HouseRange(recipe);
+            bool fits = x.Houses >= wantMin;
             return new TerrainGhostShape
             {
                 Outline = Hull(x.Points), Houses = houses.ToArray(), Woods = woods.ToArray(), HousesPlaced = x.Houses, Fits = fits,
                 Line1 = heading,
-                Line2 = fits ? "clear of water and buildings" : $"only {x.Houses} of {recipe.HousesMin}-{recipe.HousesMax} houses fit here",
+                Line2 = fits ? "clear of water and buildings" : $"only {x.Houses} of {wantMin}-{wantMax} houses fit here",
             };
         }
         catch (Exception e) when (e is ArgumentException or IOException or System.IO.FileNotFoundException)

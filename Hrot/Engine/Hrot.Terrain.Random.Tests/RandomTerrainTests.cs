@@ -159,6 +159,10 @@ public sealed class RandomTerrainTests : IDisposable
         Assert.All(o.Buildings, b => Assert.All(b.Footprint, v => Assert.InRange(v.X, -50f, 1550f)));   // inside the terrain's local metres
         Assert.Equal(40.0, p.ReliefRange.Max - p.ReliefRange.Min, 3);
         Assert.Equal(16 * 16, p.ReliefGrid(16).Length);
+        // ui's plan labels each block: one entry per drawn block outline, in layout order, with the houses the expansion made
+        Assert.Equal(o.Areas.Count(a => a.Kind == "block"), p.Blocks.Count);
+        Assert.Equal(o.Counts.Buildings, p.Blocks.Sum(b => b.Houses));
+        Assert.All(p.Blocks, b => { Assert.True(b.Max.X > b.Min.X && b.Max.Y > b.Min.Y); Assert.Contains(b.Recipe, p.Layout.Select(l => l.Recipe)); });
     }
 
     /// <summary>The ground option mapping: no vegetation = no trees, woods or scrub; relief scales the height range; the water modes differ.</summary>

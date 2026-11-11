@@ -58,5 +58,9 @@
     }
    ]
   }
- ]
+ ],
+ "ui": {
+  "chip": "Military",
+  "line": "cars, blocks across a road"
+ }
 }

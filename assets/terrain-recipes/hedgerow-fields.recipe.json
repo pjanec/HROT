@@ -22,5 +22,9 @@
    ],
    "gate": 0.35
   }
- ]
+ ],
+ "ui": {
+  "chip": "Rural",
+  "line": "fields lined by hedges"
+ }
 }
