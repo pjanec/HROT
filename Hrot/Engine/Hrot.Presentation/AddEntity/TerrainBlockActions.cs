@@ -35,11 +35,13 @@ public sealed class TerrainBlockActions
     public void RegisterOn(GlobalActionRegistry actions)
     {
         ArgumentNullException.ThrowIfNull(actions);
-        actions.Register(GlobalActionIds.TerrainReroll, (_, target) => { if (_world() is { } w) TerrainBlockOps.Reroll(w, target); });
+        actions.Register(GlobalActionIds.TerrainReroll, (_, target) => { if (_world() is { } w) Report(BlockOperations.Reroll(w, target)); });
         actions.Register(GlobalActionIds.TerrainRotate, (_, target) => { if (_world() is { } w) TerrainBlockOps.Rotate(w, target); });
         actions.Register(GlobalActionIds.TerrainUnpack, (_, target) => Unpack(target));
         actions.Register(GlobalActionIds.TerrainChangeRecipe, (_, target) => ChangeRecipe(target));
     }
+
+    private void Report(BlockOpResult r) { if (!r.Done) _refused?.Invoke(r.Why ?? "refused"); }
 
     /// <summary>⭐ T-4 — the block becomes its separate <c>TerrainFeature</c> entities in ONE undo step (B-6). Returns what was done; a refusal changed nothing and is reported through the <c>refused</c> callback.</summary>
     public BlockOpResult Unpack(Entity target)
@@ -69,7 +71,7 @@ public sealed class TerrainBlockActions
         string? current = world.GetComponentRO<Fdp.Toolkit.Terrain.TerrainBlock>(target).Recipe.ToString();
         open(RecipeRequest(current), result =>
         {
-            if (result.First is { } pick && world.IsAlive(target)) TerrainBlockOps.ChangeRecipe(world, target, pick.Id);
+            if (result.First is { } pick && world.IsAlive(target)) Report(BlockOperations.ChangeRecipe(world, target, pick.Id));
         });
     }
 }

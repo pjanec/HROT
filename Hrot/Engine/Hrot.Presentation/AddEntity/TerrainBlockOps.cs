@@ -5,45 +5,18 @@ using Fdp.Toolkit.Terrain;
 namespace Hrot.UI.Common.AddEntity;
 
 /// <summary>
-/// ⭐⭐ Terrain authoring U-3 (docs/DESIGN_Terrain_Authoring.md §15a; §18h H-1/H-2) — the block menu's WRITES: <i>Re-roll</i> (a new seed, derived from the current one so a redo is the same layout), <i>Rotate</i> (a quarter turn),
-/// <i>Change recipe</i>. Each is ONE edit step (<see cref="EditSteps"/>: the editor's history snapshots the world around the bracket, so Undo restores the block — B-6), and the live bake re-expands only that block (O-7 B), so the outline follows.
-/// ⚠ Backend's <c>BlockOperations</c> (T-4, CE-4431) is not built yet; when it is, these three are replaced by it (it owns Unpack too — greyed until then). Until then the SAME seed rule (H-1) lives here, once.
+/// ⭐⭐ Terrain authoring U-3 (docs/DESIGN_Terrain_Authoring.md §15a; §18h H-1/H-2) — the block menu's WRITES: <i>Rotate</i> (a quarter turn), the typed Seed and the Fit bits. Each is ONE edit step (<see cref="EditSteps"/>: the editor's history snapshots the world around the bracket, so Undo restores the block — B-6), and the live bake re-expands only that block (O-7 B), so the outline follows.
+/// ⭐ Re-roll, Change recipe and Unpack are backend's <c>BlockOperations</c> (T-4, CE-4431) — ONE implementation, ONE seed rule (H-1); what stays here has no backend equivalent: Rotate, the typed seed, the Fit bits.
 /// </summary>
 public static class TerrainBlockOps
 {
-    /// <summary>H-1 — the seed after <paramref name="seed"/>: deterministic (splitmix64 of it), four digits like a fresh one.</summary>
-    public static uint NextSeed(uint seed)
-    {
-        ulong z = seed + 0x9E3779B97F4A7C15UL;
-        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL; z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL; z ^= z >> 31;
-        return 1000u + (uint)(z % 9000UL);
-    }
-
     private static bool IsBlock(EntityRepository world, Entity e) => world.IsAlive(e) && world.IsComponentTypeRegistered<TerrainBlock>() && world.HasComponent<TerrainBlock>(e);
-
-    public static bool Reroll(EntityRepository world, Entity e)
-    {
-        if (!IsBlock(world, e)) return false;
-        EditSteps.Begin(world, "Re-roll block");
-        try { ref var b = ref world.GetComponentRW<TerrainBlock>(e); b.Seed = NextSeed(b.Seed); }
-        finally { EditSteps.End(world); }
-        return true;
-    }
 
     public static bool Rotate(EntityRepository world, Entity e)
     {
         if (!IsBlock(world, e)) return false;
         EditSteps.Begin(world, "Rotate block");
         try { ref var b = ref world.GetComponentRW<TerrainBlock>(e); b.HeadingDeg = (b.HeadingDeg + 90f) % 360f; }
-        finally { EditSteps.End(world); }
-        return true;
-    }
-
-    public static bool ChangeRecipe(EntityRepository world, Entity e, string recipeId)
-    {
-        if (!IsBlock(world, e) || string.IsNullOrWhiteSpace(recipeId)) return false;
-        EditSteps.Begin(world, "Change block recipe");
-        try { ref var b = ref world.GetComponentRW<TerrainBlock>(e); b.Recipe = new FixedString32(recipeId); }
         finally { EditSteps.End(world); }
         return true;
     }

@@ -39,7 +39,7 @@ Started at `c8dc93df4` (merged `coordinator` + `backend@80051b2f0`); `backend@dc
 | Align to the nearest road (Details) | ✅ | `TerrainBlockDetailsViewTests.U3_TheForm_…` (row drawn disabled ⇒ the click changes nothing ⇒ red) | the checkbox toggles the `AlignRoad` bit, one undo step. Frame `u3-block-details.png` |
 | ghost previews the alignment | ✅ | `TerrainAuthoringPickerTests.U2_TheGhostAlignsToTheRoadLive_…` (+ **0 B** steady cursor beside the road) · `TerrainBlockFrameRail.TheGhostAtTheTrack_…` (no road net to the expander ⇒ both red) | `TerrainGhostContext.Roads` → `Expand(…, roads)`; hint *aligned to the track (R to rotate)* when `TryAlign` turns it. Frame `t5-ghost-at-the-track.png` |
 
-⚠ **Deviation from mockup 2:** the ghost's hint is the shared two-line backdrop text (white line, green verdict) — the mockup's warning / tick glyphs and the blue bordered panel are not drawn (as before; U-2). ⚠ **Finding, not fixed:** `TerrainBlockOps.Reroll` / `ChangeRecipe` duplicate backend's `BlockOperations` with a different seed rule — see the CE-1482 note; unify once the Details seed field can hold a full `uint`.
+⚠ **Deviation from mockup 2:** the ghost's hint is the shared two-line backdrop text (white line, green verdict) — the mockup's warning / tick glyphs and the blue bordered panel are not drawn (as before; U-2). ✅ **Duplicate unified:** Re-roll, the dice and Change recipe go through `BlockOperations` (one seed rule); `TerrainBlockOps`' copies deleted; the Details seed is a `uint` text field (see the CE-1482 note).
 
 ## Follow-up 2 (2026-11-11) — gaps measured against mockups 1 and 3
 

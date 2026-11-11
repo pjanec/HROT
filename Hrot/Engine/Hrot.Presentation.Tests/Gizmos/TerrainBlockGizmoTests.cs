@@ -118,20 +118,22 @@ public sealed class TerrainBlockGizmoTests : IDisposable
         var rec = new Recorder();
         EditSteps.Install(_repo, rec);
         var e = Block(seed: 4471);
-        Assert.True(TerrainBlockOps.Reroll(_repo, e));
+        // ⭐ through the menu's own action (the registry the editor fills), not the operation directly
+        var actions = new Hrot.Common.Interactions.GlobalActionRegistry();
+        new TerrainBlockActions(() => _repo, () => null, () => Array.Empty<TerrainPick>()).RegisterOn(actions);
+        Assert.True(actions.TryGetHandler(GlobalActionIds.TerrainReroll, out var reroll));
+        reroll(_repo, e);
         uint next = _repo.GetComponentRO<TerrainBlock>(e).Seed;
-        Assert.Equal(TerrainBlockOps.NextSeed(4471), next);
+        Assert.Equal(BlockOperations.NextSeed(4471), next);   // ⭐ the ONE seed rule: the UI path lands in BlockOperations (🔴 red-proof: a seed rule of its own in the menu path)
         Assert.NotEqual(4471u, next);
-        Assert.InRange(next, 1000u, 9999u);
         Assert.Equal(new[] { "begin Re-roll block", "end" }, rec.Log);   // ONE step
 
-        Assert.Equal(TerrainBlockOps.NextSeed(4471), TerrainBlockOps.NextSeed(4471));
         Assert.True(TerrainBlockOps.Rotate(_repo, e));
         Assert.Equal(90f, _repo.GetComponentRO<TerrainBlock>(e).HeadingDeg);
-        Assert.True(TerrainBlockOps.ChangeRecipe(_repo, e, "farmstead"));
+        Assert.True(BlockOperations.ChangeRecipe(_repo, e, "farmstead").Done);
         Assert.Equal("farmstead", _repo.GetComponentRO<TerrainBlock>(e).Recipe.ToString());
         Assert.Equal(6, rec.Log.Count);
-        Assert.False(TerrainBlockOps.Reroll(_repo, _repo.CreateEntity()));   // not a block: nothing written, no step
+        Assert.False(BlockOperations.Reroll(_repo, _repo.CreateEntity()).Done);   // not a block: nothing written, no step
         Assert.Equal(6, rec.Log.Count);
     }
 

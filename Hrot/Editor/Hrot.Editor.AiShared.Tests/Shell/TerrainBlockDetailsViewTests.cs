@@ -167,6 +167,7 @@ public sealed class TerrainBlockDetailsViewTests
         var dc = (rects["dice"].Min + rects["dice"].Max) * 0.5f;
         Click(frame, Draw, dc);
         Assert.NotEqual(before, w.GetComponentRO<TerrainBlock>(e).Seed);
+        Assert.Equal(BlockOperations.NextSeed(before), w.GetComponentRO<TerrainBlock>(e).Seed);   // ⭐ the dice lands in BlockOperations' ONE seed rule
         Assert.Equal(new[] { "begin Re-roll block", "end" }, rec.Log);
         rec.Log.Clear();
         byte fit = w.GetComponentRO<TerrainBlock>(e).Fit;

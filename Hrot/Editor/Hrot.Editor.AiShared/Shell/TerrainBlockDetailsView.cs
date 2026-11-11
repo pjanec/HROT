@@ -25,7 +25,7 @@ public sealed class TerrainBlockDetailsView : IDetailsViewInstance
     private readonly Func<EntityRepository?> _world;
     private readonly Func<IReadOnlyList<TerrainPick>> _recipes;
     private Entity _entity = Entity.Null;
-    private int _seed;
+    private string _seed = "";
 
     /// <summary>The screen rectangles of what the last <see cref="Draw"/> placed, by name — the frame rail's measure (<c>recipe</c>, <c>seed</c>, <c>dice</c>, <c>align</c>, <c>water</c>, <c>buildings</c>, <c>pads</c>).</summary>
     public Dictionary<string, (Vector2 Min, Vector2 Max)> Rects { get; } = new();
@@ -52,7 +52,7 @@ public sealed class TerrainBlockDetailsView : IDetailsViewInstance
         if (context.Entities is not { Count: 1 } || _world() is not { } world) return;
         var e = context.Entities[0];
         if (!world.IsAlive(e) || !world.IsComponentTypeRegistered<TerrainBlock>() || !world.HasComponent<TerrainBlock>(e)) { ImGui.TextDisabled("Select one terrain block."); return; }
-        if (e != _entity) { _entity = e; _seed = (int)world.GetComponentRO<TerrainBlock>(e).Seed; }
+        if (e != _entity) { _entity = e; _seed = world.GetComponentRO<TerrainBlock>(e).Seed.ToString(); }
         var block = world.GetComponentRO<TerrainBlock>(e);
         Rects.Clear();
         ImGui.PushID(idScope + "/block");
@@ -72,7 +72,7 @@ public sealed class TerrainBlockDetailsView : IDetailsViewInstance
                 foreach (var pick in recipes)
                 {
                     if (pick.Kind != TerrainPickKind.Block) continue;
-                    if (ImGui.Selectable(pick.Name + "##r_" + pick.Id, pick.Id == current)) TerrainBlockOps.ChangeRecipe(world, e, pick.Id);
+                    if (ImGui.Selectable(pick.Name + "##r_" + pick.Id, pick.Id == current)) BlockOperations.ChangeRecipe(world, e, pick.Id);
                 }
                 ImGui.EndCombo();
             }
@@ -83,12 +83,12 @@ public sealed class TerrainBlockDetailsView : IDetailsViewInstance
             FormGrid.BeginField(Form, "Seed");
             var dice = Icons.Get("terrain/reroll");
             ImGui.SetNextItemWidth(-(GlyphWidgets.WidthOf(dice) + ImGui.GetStyle().ItemSpacing.X));
-            if (!ImGui.IsAnyItemActive()) _seed = (int)block.Seed;
-            ImGui.InputInt("##seed", ref _seed, 0, 0);
-            if (ImGui.IsItemDeactivatedAfterEdit()) TerrainBlockOps.SetSeed(world, e, (uint)Math.Max(0, _seed));
+            if (!ImGui.IsAnyItemActive()) _seed = block.Seed.ToString();   // ⭐ a full uint (BlockOperations' seed rule is any uint), so a text field, not InputInt
+            ImGui.InputText("##seed", ref _seed, 10, ImGuiInputTextFlags.CharsDecimal);
+            if (ImGui.IsItemDeactivatedAfterEdit() && uint.TryParse(_seed, out uint typed)) TerrainBlockOps.SetSeed(world, e, typed);
             Rects["seed"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
             ImGui.SameLine();
-            if (GlyphWidgets.GlyphButton("##reroll", dice, "Re-roll the layout: a new seed, same place")) TerrainBlockOps.Reroll(world, e);
+            if (GlyphWidgets.GlyphButton("##reroll", dice, "Re-roll the layout: a new seed, same place")) BlockOperations.Reroll(world, e);
             Rects["dice"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
             FormGrid.EndField();
         }
