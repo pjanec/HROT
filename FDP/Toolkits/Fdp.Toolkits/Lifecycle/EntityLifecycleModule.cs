@@ -178,6 +178,17 @@ namespace Fdp.Toolkit.Lifecycle
             _moduleTimeoutFrames[moduleId] = timeoutFrames;
         }
 
+        /// <summary>The timeout <see cref="WaitWithoutTimeout"/> stores: a construction waiting on such a module never times out.</summary>
+        public const int Unbounded = int.MaxValue;
+
+        /// <summary>
+        /// ⭐ <c>CE-4419</c> (Terrain Authoring §18, O-0) — a construction still waiting for <paramref name="moduleId"/> NEVER times out. For a participant
+        /// that always acks in the end (the terrain bake acks on failure too), however long its work takes. 📐 Why not a bigger frame count: the
+        /// budget is FRAMES and a headless load runs frames unthrottled, so a slow bake (an overlay's houses, ≈ 17 s at scale-1) outlived 18 000 of them
+        /// and the timeout DESTROYED the entities it was baking.
+        /// </summary>
+        public void WaitWithoutTimeout(int moduleId) => _moduleTimeoutFrames[moduleId] = Unbounded;
+
         private int TimeoutFor(HashSet<int> remainingAcks)
         {
             int timeout = _timeoutFrames;
@@ -399,12 +410,19 @@ namespace Fdp.Toolkit.Lifecycle
             }
         }
 
+        // reused every frame (CheckTimeouts runs each tick — 0 B steady)
+        private readonly List<Entity> _timedOutConstruction = new();
+        private readonly List<Entity> _timedOutDestruction = new();
+
         public void CheckTimeouts(uint currentFrame, IEntityCommandBuffer cmd)
         {
-            var timedOutConstruction = new List<Entity>();
+            var timedOutConstruction = _timedOutConstruction;
+            timedOutConstruction.Clear();
             foreach (var kvp in _pendingConstruction)
             {
-                if (currentFrame - kvp.Value.StartFrame > TimeoutFor(kvp.Value.RemainingAcks))
+                int limit = TimeoutFor(kvp.Value.RemainingAcks);
+                if (limit == Unbounded) continue;   // ⭐ CE-4419 — waiting on a module that always acks
+                if (currentFrame - kvp.Value.StartFrame > (uint)limit)
                 {
                     timedOutConstruction.Add(kvp.Key);
                 }
@@ -422,7 +440,8 @@ namespace Fdp.Toolkit.Lifecycle
                 Constructed(pending, currentFrame, succeeded: false, ConstructionTimeout);
             }
             
-            var timedOutDestruction = new List<Entity>();
+            var timedOutDestruction = _timedOutDestruction;
+            timedOutDestruction.Clear();
             foreach (var kvp in _pendingDestruction)
             {
                 if (currentFrame - kvp.Value.StartFrame > _timeoutFrames)

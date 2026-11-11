@@ -72,6 +72,20 @@ scenarios/perf-civ-*/
 
 # CE-4363: the scale terrains (scripts/terrain-scale.py) — regenerated, never committed
 assets/terrain/scale-*/
+# ⭐ CE-4425 (Terrain Authoring §18 C-11, G-14): generated terrain content is NEVER in git — a terrain folder is git's only if it is one of the
+#   committed demos below; a new one (generated, imported, baked by "Save terrain as") lives on the NAS / content root. Add a new DEMO here on purpose.
+assets/terrain/*
+!assets/terrain/basic-desert/
+!assets/terrain/berlin/
+!assets/terrain/bt-range/
+!assets/terrain/cqb-village/
+!assets/terrain/demo-city/
+!assets/terrain/highway-rest/
+!assets/terrain/indirect-fire-range/
+!assets/terrain/test-town/
+# the authoring source kept inside a terrain (R-4201 — the source scenario + the ground base) and a scenario's compiled overlay (§18 C-1)
+assets/terrain/*/source/
+**/terrain-overlay/
 scenarios/scale-rig-*/
 
 # SUMO installed by scripts/install-sumo.* (Terrain From OSM §9.1) — never committed

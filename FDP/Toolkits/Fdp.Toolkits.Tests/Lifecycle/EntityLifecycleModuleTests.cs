@@ -124,6 +124,27 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             Assert.Equal(1, elm.GetStatistics().timeouts);
         }
 
+        /// <summary>⭐ CE-4419 — a construction waiting on a module that never times out (the terrain bake) survives any number of frames —
+        /// far past the old 18 000-frame budget — and completes when the module acks; once it has acked, the other modules' default applies
+        /// again. 🔴 Mutation: the Unbounded skip in CheckTimeouts removed (the sentinel then reads as int.MaxValue frames) ⇒ the frame 3e9 check
+        /// destroys the entity ⇒ red.</summary>
+        [Fact]
+        public void CE4419_ABakeSlowerThanAnyFrameBudget_KeepsItsEntity()
+        {
+            var elm = new EntityLifecycleModule(null, new[] { 2 }, timeoutFrames: 10);
+            elm.WaitWithoutTimeout(2);
+            var cmd = CreateCommandBuffer();
+            var entity = new Entity(100, 1);
+            elm.BeginConstruction(entity, 1, currentFrame: 0, cmd);
+
+            elm.CheckTimeouts(currentFrame: 18_001, cmd);        // past the old budget
+            elm.CheckTimeouts(currentFrame: 3_000_000_000u, cmd); // and past any frame count an int can hold
+            Assert.Equal(0, elm.GetStatistics().timeouts);
+
+            elm.ProcessConstructionAck(new ConstructionAck { Entity = entity, ModuleId = 2, Success = true }, 3_000_000_001u, cmd);
+            Assert.Equal(0, elm.GetStatistics().timeouts);
+        }
+
         [Fact]
         public void ELM_PartialAcks_RemainsPending()
         {
