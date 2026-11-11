@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — the user's answers are in (R-4198); the leans in §3 wait for a nod, the mockups (§9 S-0) come before any build
 updated: 2026-11-11
-current-answer: ⭐ §12 the random terrain = an empty surface + placed blocks (lean, under discussion) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
+current-answer: ⭐ §13 the workflow (✅ R-4200) · §12 the random terrain = an empty surface + placed blocks (✅ R-4200) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
 stale-below: nothing
 related-designs:
   - DESIGN_Peek_And_Fire.md — §9 P-7a OWNS the mechanism this extends: a scenario entity that IS terrain, baked on every node, lifecycle-gated (R-242, R-243, R-244)
@@ -309,7 +309,7 @@ blindly add features."*
 | B-Q2 | who authors recipes — the user in the editor, or we ship them as data? | ⭐ we ship them as data files in slice 1; a recipe editor only if users ask |
 | B-Q3 | can a scatter be destroyed / felled? | a scattered car or bin is an obstacle like today — yes; trees with CE-3426 (felling) |
 
-## 12. The random terrain IS an empty terrain plus placed blocks *(lean `2026-11-11`, under discussion)*
+## 12. The random terrain IS an empty terrain plus placed blocks *(✅ AGREED `2026-11-11`, R-4200)*
 
 🔒 User, `2026-11-11`: *"the random terrain creation tool might be basically the same like creating an empty scenario, having just these blocks in it
 with some kind of variant number per each … what we need to actually really generate at the very beginning is just the terrain surface, because
@@ -344,3 +344,32 @@ scenario entities** (B-2), editable, re-rollable and unpackable like any the use
 | R-1 ⭐ the wizard = **surface generator + an automatic layout of recipe blocks into a new scenario** | one house-making path (the recipes), shared by hand-placing and generating | the synth's own house code as a second path |
 | R-2 ⭐ **"Save terrain as" is the step that makes a large town FAST** — the blocks bake once into the terrain, with the navmesh prefilled | a 5.5 km town of ~1 800 houses re-expanded at every load would cost load time (§10, not yet measured); a baked terrain does not | always expanding at load |
 | R-3 the synth's house, tree and road code is not thrown away: its roads and heights become the **surface generator**; its villages become **recipes** | reuse | rewriting |
+
+## 13. The workflow — generate and shuffle, then edit, then bake *(✅ AGREED `2026-11-11`, R-4200; the leans W-1…W-4 wait for a nod)*
+
+🔒 User, `2026-11-11`: *"the generator will generate something initially, but stores it as a scenario, which is editable later. So the user is then
+able to move the stuff around and in the end save it as a terrain, which will trigger the normal terrain generation stuff, including the navmesh
+pre-generation."*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Wizard
+  Wizard --> Shuffling: Generate from a preset
+  Shuffling --> Shuffling: Shuffle layout or Shuffle ground
+  Shuffling --> Editing: Open in the scenario editor
+  Editing --> Editing: move, re-roll, unpack, add or delete blocks and features
+  Editing --> Baked: Save terrain as
+  Baked --> Editing: reopen the source scenario and save again
+  Editing --> [*]: Save the scenario only
+```
+
+*What the picture shows:* ONE path, not two modes — the wizard's result is already the editable scenario, so a user who is happy after
+shuffling just saves, and one who is not keeps editing the SAME thing. *Save terrain as* is the one exit into the normal terrain pipeline
+(the importer's folder writer, the navmesh prefill).
+
+| # | lean | why |
+|---|---|---|
+| W-1 | ⭐ **two shuffles**: *Shuffle layout* (new seeds for the blocks — seconds) and *Shuffle ground* (new heights, roads, rivers — slower: netconvert) | re-rolling the town should not wait on the roads; keeping the ground while trying layouts is the common case |
+| W-2 | the wizard's preview is the **2-D plan** (the OSM wizard's), with the blocks drawn as their footprints | the existing preview, and fast enough to shuffle |
+| W-3 | ⭐ **Save terrain as keeps the block scenario as the terrain's SOURCE**: it writes the new terrain AND a new scenario that uses it (empty of the baked blocks); the source scenario stays, so the terrain can be edited and saved again | a baked terrain is no longer editable as blocks; without the source the user's work would be one-way |
+| W-4 | the source scenario remembers which terrain it produced; saving again **overwrites that terrain** after a confirmation naming the scenarios that use it | the same "who uses this" check as a changed recipe (B-Q1) |
