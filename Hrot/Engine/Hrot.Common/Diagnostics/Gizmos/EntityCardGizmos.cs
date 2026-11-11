@@ -43,6 +43,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [GizmoProjector(typeof(NetworkIdentity), typeof(EntityInfo), MaxMetresPerPixel = CardZoom.FrameMaxMetresPerPixel)]
     public sealed class EntityCardFrameGizmo : IStatelessGizmo
     {
+        /// <summary>⭐ CE-1480 G5 — the picture is a function of the card's id and side, and of Seeable.OnMap: held while none moved.</summary>
+        public GizmoInputs? Inputs { get; } = Seeable.Inputs(typeof(NetworkIdentity), typeof(EntityInfo));
+
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
@@ -57,6 +60,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         public const byte Row = 20;
         private static readonly Rgba32 NameColour = new(240, 240, 240, 255);
+
+        /// <summary>⭐ CE-1480 G5 — the picture is a function of the card's id and name, and of Seeable.OnMap: held while none moved.</summary>
+        public GizmoInputs? Inputs { get; } = Seeable.Inputs(typeof(NetworkIdentity), typeof(EntityInfo));
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {

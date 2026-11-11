@@ -14,6 +14,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         private readonly GizmoSettingsRegistry _settings;
 
+        /// <summary>⭐ CE-1480 G5 — the picture is a function of the pose and the vehicle's length (and Seeable.OnMap): held while none moved.</summary>
+        public GizmoInputs? Inputs { get; } = Seeable.Inputs(typeof(SimTransform), typeof(CarKinem.Core.VehicleParams));
+
         public EntityRotationGizmo(GizmoSettingsRegistry settings)
         {
             _settings = settings;

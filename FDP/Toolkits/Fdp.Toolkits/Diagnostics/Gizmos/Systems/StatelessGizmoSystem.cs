@@ -1,6 +1,7 @@
 using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.World;
 
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 {
@@ -111,6 +112,75 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
         }
 
+        // ⭐ CE-1480 G5 (docs/DESIGN_Change_Gated_Systems.md §4 G5) — change gating, parametrised by what the rules declare.
+        //   ① the MATCH PASS (one walk over every entity slot collecting each rule's matches, 5–6 ms at 5 648 entities) is skipped while neither the
+        //     entity set (structural clock), the view, the active rule set nor — when a view filter is on — a position moved: last frame's lists stand.
+        //   ② a RULE that declares IStatelessGizmo.Inputs is drawn fresh only when an input moved; otherwise the primitives it drew are re-appended.
+        //   Rules that declare nothing: today's path, untouched. HROT_CHANGE_GATE=0 ⇒ every gate answers Full.
+        private readonly ChangeGate _matchGate = new();      // no position input (no view filter)
+        private readonly ChangeGate _matchGatePos = new();   // + SimTransform: the in-view test reads positions
+        private long _matchSig, _lastViewVersion;
+        private bool _matchValid;
+        private int _lastMaxIndex, _lastOutOfView;
+        private GizmoInputs?[] _ruleInputs = System.Array.Empty<GizmoInputs?>();
+        private int _ruleInputsFor;
+        private RulePicture?[] _pics = System.Array.Empty<RulePicture?>();
+
+        /// <summary>Frames on which the match pass was skipped (rails / diagnostics).</summary>
+        public int MatchPassesSkipped { get; private set; }
+        /// <summary>Rule pictures re-appended instead of drawn (rails / diagnostics).</summary>
+        public int RulePicturesReused { get; private set; }
+
+        /// <summary>
+        /// ⭐ CE-1480 G5 — one declared rule's last picture: its gate, the entities (index + generation) it was drawn for, and the primitives, back to back
+        /// (a lasting primitive — <c>LifetimeSeconds &gt; 0</c> — is left out: the buffer re-injects it itself). <c>Valid</c> only after a frame that
+        /// drew EVERY entity fresh with no input moving, so a held (older) picture can never be frozen into it.
+        /// </summary>
+        private sealed class RulePicture
+        {
+            public readonly ChangeGate Gate;
+            public DebugPrimitive[] Prims = new DebugPrimitive[64];
+            public int PrimCount;
+            public int[] Idx = new int[64], Gen = new int[64], NextIdx = new int[64], NextGen = new int[64];
+            public int Count, NextCount;
+            public bool Valid;
+
+            public RulePicture(GizmoInputs inputs, StatelessGizmoSystem owner)
+            {
+                Gate = new ChangeGate().Watch(inputs.Components);
+                if (inputs.DependsOnView) Gate.WatchExternal(() => owner.ViewFilter?.Version ?? -1L);
+                if (inputs.Version != null) Gate.WatchExternal(inputs.Version);
+            }
+
+            public void Add(int index, int gen)
+            {
+                if (NextCount == NextIdx.Length) { System.Array.Resize(ref NextIdx, NextCount * 2); System.Array.Resize(ref NextGen, NextCount * 2); }
+                NextIdx[NextCount] = index; NextGen[NextCount] = gen; NextCount++;
+            }
+
+            public bool SameAsNext()
+            {
+                if (Count != NextCount) return false;
+                for (int i = 0; i < Count; i++) if (Idx[i] != NextIdx[i] || Gen[i] != NextGen[i]) return false;
+                return true;
+            }
+
+            public void Capture(System.ReadOnlySpan<DebugPrimitive> picture)
+            {
+                if (picture.Length > Prims.Length) System.Array.Resize(ref Prims, System.Math.Max(picture.Length, Prims.Length * 2));
+                int n = 0;
+                for (int k = 0; k < picture.Length; k++)
+                {
+                    if (picture[k].LifetimeSeconds > 0f) continue;
+                    Prims[n++] = picture[k];
+                }
+                PrimCount = n;
+                (Idx, NextIdx) = (NextIdx, Idx); (Gen, NextGen) = (NextGen, Gen);
+                Count = NextCount;
+                Valid = true;
+            }
+        }
+
         /// <summary>
         /// Creates the system.
         /// </summary>
@@ -132,6 +202,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             _isSelectedPredicate        = isSelectedPredicate;
             _globalVisibilityCache      = new bool[registry.Rules.Count];
             _globalRulesVisibilityCache = new bool[registry.GlobalRules.Count];
+            _matchGate.WatchExternal(() => _matchSig);
+            _matchGatePos.Watch(typeof(SimTransform)).WatchExternal(() => _matchSig);
         }
 
         // ---- IEcsModuleSystem -------------------------------------------------------
@@ -158,6 +230,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             int globalRuleCount = _registry.GlobalRules.Count;
             if (_globalRulesVisibilityCache.Length < globalRuleCount)
                 Array.Resize(ref _globalRulesVisibilityCache, globalRuleCount);
+
+            // ⭐ CE-1480 G5 — each rule's declared inputs, read once per rule (the registry only ever appends)
+            if (_ruleInputsFor < ruleCount)
+            {
+                Array.Resize(ref _ruleInputs, ruleCount);
+                Array.Resize(ref _pics, ruleCount);
+                var rs = _registry.Rules;
+                for (int i = _ruleInputsFor; i < ruleCount; i++) _ruleInputs[i] = rs[i].Projector.Inputs;
+                _ruleInputsFor = ruleCount;
+            }
         }
 
         /// <summary>
@@ -230,7 +312,6 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             EnsureMatchLists(ruleCount);
             bool timedPass = GizmoRuleTimings.Enabled;   // ⭐ CE-4388 — HROT_FRAME_STATS: the match pass itself (the rules alone did not add up to the system's time)
             long passStart = timedPass ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
-            for (int r = 0; r < ruleCount; r++) _matchCount[r] = 0;
             // ⭐ CE-4388 — the rules this frame tests, copied ONCE into plain arrays: measured on Windows, the pass read rules[r] through
             //   IReadOnlyList<CompiledStatelessRule> (an interface call returning the whole rule — a 64-byte mask inside — by value) per entity
             //   per rule ≈ 250 000 times a frame, 12 ms on scale-1. A rule hidden for the frame (its policy, its zoom) is not in the list at all.
@@ -243,7 +324,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 _activeIndex[active] = r; _activeMask[active] = rule.RequiredMask; _activeOff[active] = rule.DrawsOffScreen;
                 active++;
             }
-            for (int i = 0; i <= maxIndex; i++)
+
+            // ⭐ CE-1480 G5 ① — the match pass is skipped when nothing it reads moved: the entity set (structural clock), the active rule set / filtering
+            //   mode (the signature), the view (a position, when a filter is on: the in-view test reads it). Last frame's lists and out-of-view count stand.
+            long sig = ruleCount;
+            for (int a = 0; a < active; a++) sig = sig * 31 + _activeIndex[a] + 1;
+            _matchSig = sig * 2 + (filtering ? 1 : 0);
+            bool skipPass = (filtering ? _matchGatePos : _matchGate).Next(view).Kind == ChangeKind.Unchanged
+                            && _matchValid && _lastMaxIndex == maxIndex
+                            && (!filtering || filter!.Version >= 0 && filter.Version == _lastViewVersion);
+            if (filtering) _lastViewVersion = filter!.Version;
+            if (skipPass) { MatchPassesSkipped++; outOfView = _lastOutOfView; }
+            else for (int r = 0; r < ruleCount; r++) _matchCount[r] = 0;
+            for (int i = 0; !skipPass && i <= maxIndex; i++)
             {
                 ref readonly var metaSG = ref entityIndex.GetMetadata(i);
                 if (!metaSG.IsActive) continue;
@@ -266,6 +359,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 }
             }
 
+            _matchValid = true; _lastMaxIndex = maxIndex; _lastOutOfView = outOfView;
             EntitiesOutOfView = outOfView;
             if (timedPass) GizmoRuleTimings.Record("(match pass)", passStart, maxIndex + 1, 0);
             long start = budget > 0f ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
@@ -306,7 +400,39 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 long ruleStart = timed ? System.Diagnostics.Stopwatch.GetTimestamp() : 0, ruleBytes = timed ? System.GC.GetAllocatedBytesForCurrentThread() : 0;
                 int rulePrims = timed && _buffer != null ? _buffer.Count : 0;   // ⭐ CE-4388 — and the primitives it emits
 
-                for (int m = 0; m < count; m++)
+                // ⭐ CE-1480 G5 ② — a rule that DECLARED its inputs: re-append its picture while none moved. Needs the whole frame's draw (no budget cut),
+                //   every entity (no selection predicate) and, for a view-dependent rule, a view that publishes a version.
+                RulePicture? pic = null; bool reuse = false, capture = false; int picMark = 0;
+                var inputs = _ruleInputs[r];
+                if (inputs != null && _buffer != null && alwaysDraw && budget <= 0f && ChangeGate.Enabled
+                    && (!inputs.DependsOnView || (filter != null && filter.Version >= 0)))
+                {
+                    pic = _pics[r] ??= new RulePicture(inputs, this);
+                    var kind = pic.Gate.Next(view).Kind;
+                    pic.NextCount = 0;
+                    for (int m = 0; m < count; m++)
+                    {
+                        int i = matched[m];
+                        var gi = entityIndex.GetMetadata(i).Generation;
+                        if (!ReferenceEquals(rule.VisibilityPolicy, AlwaysVisiblePolicy.Instance)
+                            && !rule.VisibilityPolicy.IsEntityVisible(view, new Entity(i, gi))) continue;
+                        pic.Add(i, gi);
+                    }
+                    if (kind == ChangeKind.Unchanged && pic.Valid && pic.SameAsNext())
+                    {
+                        for (int k = 0; k < pic.PrimCount; k++) _buffer.AppendRaw(in pic.Prims[k]);
+                        RulePicturesReused++;
+                        reuse = true;
+                    }
+                    else if (kind == ChangeKind.Unchanged)
+                    {
+                        // inputs are still: draw EVERY entity fresh (never a held, older picture) and keep what came out
+                        capture = true; hold = null; picMark = _buffer.Count;
+                    }
+                    else pic.Valid = false;   // something moved: today's path (the slice / hold when on)
+                }
+
+                for (int m = 0; !reuse && m < count; m++)
                 {
                     int i = matched[m];
                     var gen = entityIndex.GetMetadata(i).Generation;
@@ -362,6 +488,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     }
                 }
 
+                if (capture) pic!.Capture(_buffer!.GetFrame().Slice(picMark, _buffer.Count - picMark));
                 hold?.Swap(frame);
                 if (timed) GizmoRuleTimings.Record(rule.Projector.GetType().Name, ruleStart, count, System.GC.GetAllocatedBytesForCurrentThread() - ruleBytes, (_buffer?.Count ?? 0) - rulePrims);
             }

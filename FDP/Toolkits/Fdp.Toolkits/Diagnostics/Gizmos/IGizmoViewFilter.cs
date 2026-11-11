@@ -24,6 +24,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         /// <summary>⭐ CE-4388 — a ground box (HROT x / y, metres) overlaps the view (with the margin); true in 3-D and when not <see cref="Active"/>.</summary>
         bool Overlaps(System.Numerics.Vector2 min, System.Numerics.Vector2 max);
+
+        /// <summary>⭐ CE-1480 G5 — moves whenever anything a view-dependent picture reads changes (the rectangle / frustum, the scale, the mode, active).
+        /// A filter that does not publish one answers -1: a view-dependent rule is then never held.</summary>
+        long Version => -1;
     }
 
     /// <summary>
