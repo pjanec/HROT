@@ -111,6 +111,8 @@ namespace Hrot.ScenarioEditor.Tools
             var onCommit   = request.OnCommit;
             var onCancel   = request.OnCancelled;
             var onDisarmed = request.OnDisarmed;
+            var closedShape = request.Closed;
+            var born       = request.Born;
             var id         = GlobalGizmoManager.NewId();
 
             PointSequenceGizmo? gizmo = null;
@@ -134,12 +136,12 @@ namespace Hrot.ScenarioEditor.Tools
                         InitType          = ReliableInitType.AllPeers,
                         RequestId         = Guid.NewGuid(),
                         InitialTransform  = new SimTransform { Position = anchor },
-                        InitialComponents = BornWith(tkbType, polyline, style),
+                        InitialComponents = BornWithHook(BornWith(tkbType, polyline, style), born),
                     });
                 },
                 minPoints: minPoints,
-                closed: true,
-                noun: "an area",
+                closed: closedShape,
+                noun: closedShape ? "an area" : "a line",
                 onCancelled: onCancel,
                 onRemove: () =>
                 {
@@ -168,6 +170,9 @@ namespace Hrot.ScenarioEditor.Tools
             _gizmos?.Register(id, gizmo);
             return ToolActivationOutcome.Armed;
         }
+
+        /// <summary>⭐ Terrain authoring U-7 — the request's own birth hook (a terrain feature adds its <c>TerrainFeature</c> and drops the area style) runs after the type's.</summary>
+        private static List<object> BornWithHook(List<object> components, Action<List<object>>? born) { born?.Invoke(components); return components; }
 
         /// <summary>Drop whatever this arm holds. ⭐ Idempotent.</summary>
         public void Disarm()
@@ -279,5 +284,7 @@ namespace Hrot.ScenarioEditor.Tools
         Action<SpawnEntityCommand> OnCommit,
         Action? OnCancelled = null,
         int MinPoints = 3,
-        Action? OnDisarmed = null);
+        Action? OnDisarmed = null,
+        bool Closed = true,
+        Action<List<object>>? Born = null);
 }

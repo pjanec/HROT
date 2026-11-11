@@ -117,6 +117,25 @@ public static class PlacementToolRegistry
         return true;
     }
 
+    /// <summary>
+    /// ⭐ Terrain authoring U-2 — arms the ordinary point tool for a terrain block / house: the block (8817) or feature (8818) type with the pick's spec riding in the placement JSON
+    /// (<see cref="TerrainBirth"/> reads it at the tool's commit, in the ONE adapter every host's point commit passes, and gives the new entity its <c>TerrainBlock</c> / <c>TerrainFeature</c>).
+    /// </summary>
+    public static bool ArmTerrain(ISpawnController spawn, TerrainPick pick)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        ArgumentNullException.ThrowIfNull(pick);
+        if (pick.Disabled is not null) return false;   // ⛔ U-7 — a pick the engine cannot place yet arms nothing
+        // ⭐ U-7 — a LINE or AREA feature (a wall, a wood, a bridge) is DRAWN: the existing drawing tool (the area / route arm), its spec riding in the style JSON; a point feature, a block and a house are one click
+        if (pick.Kind == TerrainPickKind.Feature && pick.Shape != TerrainShape.Point)
+        {
+            spawn.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(pick));
+            return true;
+        }
+        spawn.StartPlacementMode(pick.Kind == TerrainPickKind.Block ? TkbEntityTypes.TerrainBlock : TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(pick));
+        return true;
+    }
+
     public static string AffiliationJson(eForceIdentifier side)
         => JsonSerializer.Serialize(new { Affiliation = side.ToString() }, FdpJsonOptionsRegistry.DefaultRelaxed);
 }

@@ -27,6 +27,8 @@ public static class FileMenuLayout
     public const string NewScenario = "File/New/Scenario…";
     /// <summary>⭐ CE-4375 (OSM §6) — Terrain from OpenStreetMap…: the wizard; greyed with its reason while the host has no pipeline.</summary>
     public const string NewTerrainFromOsm = "File/New/Terrain from OpenStreetMap…";
+    /// <summary>⭐ Terrain authoring U-8 (mockup 1) — Random terrain…: the wizard (a preset, a preview, shuffle, open in the editor); in the New submenu beside the OSM wizard.</summary>
+    public const string NewRandomTerrain = "File/New/Random terrain…";
     /// <summary>Load Checkpoint… — a live run, paused at the checkpoint.</summary>
     public const string LoadCheckpoint = "File/Load Checkpoint…";
     /// <summary>Open Exercise Recording… — review (AAR).</summary>
@@ -45,6 +47,10 @@ public static class FileMenuLayout
     public const string Save = "File/Save", SaveAs = "File/Save As…", SaveAll = "File/Save All";
     /// <summary>⭐ CE-1443 B2 — the recipe saves: the shell's (<c>shell.saveAsRecipe</c>, a document) and the scenario's (<c>scenario.saveAsRecipe</c>).</summary>
     public const string SaveAsRecipe = "File/Save as Recipe…", SaveScenarioAsRecipe = "File/Save Scenario as Recipe…";
+    /// <summary>⭐ Terrain authoring U-5 (mockup 4) — Save Terrain As…: bake the scenario's blocks and features into a NEW terrain (the editing group; greyed with its reason when no scenario is loaded).</summary>
+    public const string SaveTerrainAs = "File/Save Terrain As…";
+    /// <summary>⭐ Terrain authoring E-2 / W-4 (mockup 4) — Save Terrain (bake a terrain SOURCE back over the terrain it came from; greyed outside one) and Edit Terrain… (open a terrain's source scenario).</summary>
+    public const string SaveTerrain = "File/Save Terrain", EditTerrain = "File/Edit Terrain…";
     /// <summary>The scenario's own items (<c>scenario.save</c> / <c>scenario.saveAs</c> / migration history / the curated git copy).</summary>
     public const string SaveScenario = "File/Save Scenario", SaveScenarioAs = "File/Save Scenario As", MigrationHistory = "File/Migration History", SaveCuratedToGit = "File/Save Curated Scenarios to Git";
 
@@ -62,7 +68,7 @@ public static class FileMenuLayout
     /// <summary>The editing group's items, in order.</summary>
     public static readonly IReadOnlyList<string> EditingGroup = new[]
     {
-        OpenAsset, NewAsset, NewBehavior, NewAction, NewCondition, Save, SaveScenario, SaveAs, SaveScenarioAs, SaveSelectionAsMacro, SaveAsRecipe, SaveScenarioAsRecipe, SaveAll, MigrationHistory, SaveCuratedToGit,
+        OpenAsset, NewAsset, NewBehavior, NewAction, NewCondition, Save, SaveScenario, SaveAs, SaveScenarioAs, SaveTerrain, SaveTerrainAs, EditTerrain, SaveSelectionAsMacro, SaveAsRecipe, SaveScenarioAsRecipe, SaveAll, MigrationHistory, SaveCuratedToGit,
     };
 
     /// <summary>⭐ EVERY File path of this menu in DRAW order, separators included — the table a rail reads (what the menu is MEANT to be, not what a host happened to register).</summary>
@@ -72,7 +78,7 @@ public static class FileMenuLayout
     {
         // ⭐ CE-4255 — the New submenu takes New Scenario…'s place, its children right after it in the order they are drawn (Scenario… · Asset… · Behavior… · Action… · Condition… · Macro…) — so this
         //   list IS the depth-first draw order. ⚠ NewMacro is not in EditingGroup: its visibility is today's (Idle-disallowed, drawn otherwise).
-        var l = new List<string> { LoadScenario, NewMenu, NewScenario, NewTerrainFromOsm, NewAsset, NewBehavior, NewAction, NewCondition, NewMacro, LoadCheckpoint, OpenExerciseRecording, SeparatorAfterLoads, SaveCheckpoint };
+        var l = new List<string> { LoadScenario, NewMenu, NewScenario, NewTerrainFromOsm, NewRandomTerrain, NewAsset, NewBehavior, NewAction, NewCondition, NewMacro, LoadCheckpoint, OpenExerciseRecording, SeparatorAfterLoads, SaveCheckpoint };
         foreach (var item in EditingGroup) if (!l.Contains(item)) l.Add(item);
         l.Add(SeparatorBeforeClose); l.Add(Close); l.Add(Exit);
         return l.ToArray();

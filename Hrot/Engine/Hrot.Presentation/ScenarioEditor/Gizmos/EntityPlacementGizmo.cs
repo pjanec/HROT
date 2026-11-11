@@ -54,6 +54,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         private readonly Action                     _onRemove;
         private readonly string?                    _displayName;
         private readonly Func<Hrot.Common.Macros.MacroPreviewResult?>? _macroPreview;   // ⭐ CE-4244 (MA-10) — a MACRO placement draws its ghosts at the cursor
+        private readonly Hrot.UI.Common.AddEntity.TerrainPlacement? _terrain;            // ⭐ Terrain authoring U-2 — a block / house placement draws its fitted ghost; R turns it
 
         /// <summary>
         /// ⭐ CE-1017 S2 (D6b) — the entity faces NORTH: yaw +90° about Z. 📐 The transform's yaw 0 is EAST
@@ -64,6 +65,9 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         /// <summary>The hint shown under the ghost while the tool stays armed (always-multi, D5 rev 3).</summary>
         internal const string MultiPlacementHint = "click: place  ·  right-click/Esc: done";
+
+        /// <summary>The raylib key code of <c>R</c> (the map streams typed keys as raylib codes, like PgUp / PgDn).</summary>
+        internal const int KeyR = 82;
 
         private Vector3 _cursorWorld;
         private Fdp.Toolkit.World.IWorldQuery? _world;
@@ -93,6 +97,9 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// <inheritdoc/>
         public bool RequiresExclusiveFocus => true;
         public bool WantsRawInput => true;
+
+        /// <summary>⭐ Terrain authoring U-2 — the terrain placement this tool carries, or null (rails).</summary>
+        internal Hrot.UI.Common.AddEntity.TerrainPlacement? Terrain => _terrain;
 
         /// <inheritdoc/>
         public bool IsFocused { get; private set; }
@@ -133,8 +140,10 @@ namespace Hrot.ScenarioEditor.Gizmos
             Func<string>?              nameResolver          = null,
             Action?                    onRemove              = null,
             string?                    displayName           = null,
-            Func<Hrot.Common.Macros.MacroPreviewResult?>? macroPreview = null)
+            Func<Hrot.Common.Macros.MacroPreviewResult?>? macroPreview = null,
+            Hrot.UI.Common.AddEntity.TerrainPlacement? terrain = null)
         {
+            _terrain               = terrain;
             _macroPreview          = macroPreview;
             _displayName           = displayName;
             _onEntityCreated       = onEntityCreated ?? throw new ArgumentNullException(nameof(onEntityCreated));
@@ -165,6 +174,16 @@ namespace Hrot.ScenarioEditor.Gizmos
             // ⭐ B-17 P7 ① — NO ball any more (the 3 px sphere). The ghost is the entity's FOOTPRINT, as the 2-D map will draw it (EntityFootprint's one rule, read from the TKB template),
             //   turned to the pending heading with a notch at the front; an aircraft stands at its altitude over a drop line and a ground ring (its shadow).
             float lift = _session.AirborneHeight ?? 0f;
+            if (_terrain is not null)
+            {
+                // ⭐ Terrain authoring U-2 — no entity footprint: the block's own ghost, fitted to the site under the cursor (the pure expander), turned by the drag and by R
+                float baseHeading = dragYaw is { } yaw ? yaw * (180f / MathF.PI) - 90f : 0f;
+                if (_terrain.Preview(new Vector2(ghostAt.X, ghostAt.Y), baseHeading) is { } shape) TerrainGhostDraw.Draw(draw, shape, _cursorWorld, GhostLabelOffsetY);
+                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - GhostLabelOffsetY, _label ??= _terrain.Title, Rgba32.White, style: GizmoTextStyle.Backdrop);
+                Hrot.ScenarioEditor.Map.MapUiStates.ToolsOf(view as EntityRepository)?.ClaimCursorHint();
+                PlacementDirectionLine.Draw(draw, _session, _cursorWorld);
+                return;
+            }
             DrawFootprint(draw, ghostColor, ghostAt, dragYaw ?? (MathF.PI / 2f));   // north until a drag sets the heading (PlacementSession.FacingNorth)
             DrawGhostBox(view, draw, ghostColor, lift > 0f ? new Vector3(ghostAt.X, ghostAt.Y, ghostAt.Z + lift) : ghostAt, dragYaw ?? (MathF.PI / 2f));
             if (lift > 0f) DrawAircraftShadow(draw, ghostColor, ghostAt, lift);
@@ -300,6 +319,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (key == MapKeyboardKey.Escape && isPressed)
                 Remove();
+            else if (((int)key & 0xFFFF) == KeyR && isPressed && _terrain is not null) _terrain.Rotate();   // ⭐ Terrain authoring U-2 — a quarter turn
             else if (isPressed) _session.Key((int)key);   // ⭐ CE-4309 — PgUp / PgDn: the level under the cursor
         }
 
@@ -369,6 +389,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             _onEntityCreated(cmd);
             OnCommandPublished?.Invoke(cmd);
+            _terrain?.Renew();   // ⭐ Terrain authoring U-2 — always-multi: the next ghost is another layout
         }
 
         /// <summary>

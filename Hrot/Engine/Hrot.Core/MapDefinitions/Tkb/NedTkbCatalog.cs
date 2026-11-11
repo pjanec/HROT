@@ -1149,6 +1149,13 @@ namespace Hrot.Map.Definitions.Tkb
             var point = new TkbTemplate("Point", TkbEntityTypes.Point);
             point.AddDescriptor(new MapGraphicDef());
             tkbDb.Register(point);
+            // ⭐ Terrain authoring U-2 — a placed terrain block / feature: a map graphic (no body); TerrainBlock / TerrainFeature are added when it is placed (TerrainBirth).
+            var terrainBlock = new TkbTemplate("Terrain Block", TkbEntityTypes.TerrainBlock);
+            terrainBlock.AddDescriptor(new MapGraphicDef());
+            tkbDb.Register(terrainBlock);
+            var terrainFeature = new TkbTemplate("Terrain Feature", TkbEntityTypes.TerrainFeature);
+            terrainFeature.AddDescriptor(new MapGraphicDef());
+            tkbDb.Register(terrainFeature);
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.
             var traffic = new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand);

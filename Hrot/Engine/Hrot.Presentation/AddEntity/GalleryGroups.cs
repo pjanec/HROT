@@ -19,7 +19,7 @@ public enum ChipLevel
 /// <summary>One gallery group: a name, the DIS masks (side-bearing types) or placement tools (map graphics) it takes.</summary>
 /// <param name="IsRecent">True for the first, virtual group (Recent &amp; favourites): it owns no type, the picker fills it from its stores.</param>
 public sealed record GalleryGroup(string Name, IReadOnlyList<DisTypeMask> Masks, IReadOnlyList<PlacementToolKind> Tools,
-                                  ChipLevel Chips, bool IsRecent, bool IsMacros = false);
+                                  ChipLevel Chips, bool IsRecent, bool IsMacros = false, bool IsTerrain = false);
 
 /// <summary>
 /// ⭐ <c>CE-4142</c> GL1 (G1 + G2) — the Add Entity gallery's GROUPS, read from ONE data file, <c>assets/thumbnails/groups.json</c>.
@@ -39,7 +39,15 @@ public sealed class GalleryGroups
 
     private readonly List<GalleryGroup> _groups;
 
-    private GalleryGroups(List<GalleryGroup> groups) => _groups = groups;
+    private GalleryGroups(List<GalleryGroup> groups)
+    {
+        // ⭐ Terrain authoring U-1 (B-5) — the six terrain groups are ALWAYS offered, after the file's own: they are intrinsic to the editor (a recipe is not a DIS type, so no mask can list them) and an older
+        //   groups.json on the NAS must not hide them. A file that already names one keeps its position.
+        foreach (var name in TerrainPickCatalog.Groups)
+            if (!groups.Exists(g => g.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                groups.Add(new GalleryGroup(name, Array.Empty<DisTypeMask>(), Array.Empty<PlacementToolKind>(), ChipLevel.None, IsRecent: false, IsMacros: false, IsTerrain: true));
+        _groups = groups;
+    }
 
     /// <summary>The groups in sidebar order (the file's order).</summary>
     public IReadOnlyList<GalleryGroup> Groups => _groups;

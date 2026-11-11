@@ -19,5 +19,9 @@
    "spacing": 6.5,
    "jitter": 0.5
   }
- ]
+ ],
+ "ui": {
+  "chip": "Nature",
+  "line": "rows of fruit trees"
+ }
 }

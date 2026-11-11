@@ -18,6 +18,9 @@ namespace GizmoMap.Presentation
     /// </summary>
     public delegate bool MenuIconResolver(string key, out nint textureId, out Vector2 uv0, out Vector2 uv1);
 
+    /// <summary>⭐ Terrain authoring — resolves a menu item's icon key to a coloured FontAwesome GLYPH (the editor's one icon table, <c>NodeEditor.Core.Widgets.Icons</c>) instead of an atlas sprite; false = not a glyph key (the atlas resolver is tried).</summary>
+    public delegate bool MenuGlyphResolver(string key, out string glyph, out Vector4 colour);
+
     /// <summary>
     /// Shared helper for rendering a colored icon in a fixed left "gutter" of a menu row.
     /// The gutter is reserved by left-padding the label with spaces, so the native
@@ -26,6 +29,9 @@ namespace GizmoMap.Presentation
     /// </summary>
     public static class MenuIconRenderer
     {
+        /// <summary>⭐ Set once by the host that has the glyph table; consulted before the atlas resolver, and works with no atlas resolver at all.</summary>
+        public static MenuGlyphResolver? GlyphResolver { get; set; }
+
         /// <summary>
         /// Left-pad <paramref name="label"/> with spaces sized to clear one icon cell, and report
         /// the reserved gutter width in pixels. Draw the row with the returned label, then call
@@ -68,12 +74,20 @@ namespace GizmoMap.Presentation
         /// <summary>As <see cref="DrawIcon(MenuIconResolver?, string?, Vector2, float)"/>, onto <paramref name="target"/>.</summary>
         public static void DrawIcon(MenuIconResolver? resolver, string? key, Vector2 rowStart, float gutterPx, ImDrawListPtr target)
         {
-            if (resolver == null || string.IsNullOrEmpty(key) || gutterPx <= 0f)
+            if (string.IsNullOrEmpty(key) || gutterPx <= 0f)
                 return;
-            if (!resolver(key!, out var tex, out var uv0, out var uv1) || tex == 0)
-                return;
-
             float sz = ImGui.GetTextLineHeight();
+            if (GlyphResolver != null && GlyphResolver(key!, out var glyph, out var colour))
+            {
+                var gmin = ImGui.GetItemRectMin();
+                var gmax = ImGui.GetItemRectMax();
+                float gy = (gmin.Y + gmax.Y) * 0.5f - sz * 0.5f;
+                float gw = ImGui.CalcTextSize(glyph).X;
+                target.AddText(new Vector2(rowStart.X + (gutterPx - gw) * 0.5f, gy), ImGui.GetColorU32(colour), glyph);
+                return;
+            }
+            if (resolver == null || !resolver(key!, out var tex, out var uv0, out var uv1) || tex == 0)
+                return;
 
             // Vertically center in the ACTUAL item rect (valid immediately after the item was
             // drawn). The main menu bar is intentionally taller than a text line with the label

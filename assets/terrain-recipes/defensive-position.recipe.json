@@ -74,5 +74,9 @@
     }
    ]
   }
- ]
+ ],
+ "ui": {
+  "chip": "Military",
+  "line": "sandbag walls, a trench"
+ }
 }

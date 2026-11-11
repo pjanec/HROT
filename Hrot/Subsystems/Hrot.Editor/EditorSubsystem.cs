@@ -208,6 +208,14 @@ namespace Hrot.Editor
         /// </summary>
         public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency { get; private set; }
 
+        /// <summary>⭐ Terrain authoring U-2 — the base terrain and its folder the placing ghost fits a block to (none until a terrain is resident).</summary>
+        private (Fdp.Toolkit.Terrain.TerrainWorld? Base, string? Folder) GhostBase()
+        {
+            if (TerrainResidency is not { } r) return (null, null);
+            var b = r.ExpansionBase();
+            return (b.Base, b.Folder);
+        }
+
         /// <summary>Owns the editor's published road graph (the editor runs its kinematics locally).</summary>
         private readonly CarKinem.Road.RoadNetworkHolder _roadNetworkHolder = new();
 
@@ -574,6 +582,8 @@ namespace Hrot.Editor
         private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
         /// <summary>⭐ CE-4375 — the OSM terrain wizard (File › New › Terrain from OpenStreetMap…).</summary>
         private Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? _osmWizard;
+        private Hrot.UI.Common.TerrainSave.TerrainSaveAsWindow? _terrainSaveAs;   // ⭐ Terrain authoring U-5
+        private Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow? _randomTerrain;   // ⭐ Terrain authoring U-8
         /// <summary>The OSM wizard the File ▸ New item opens (a rail reads its DisabledReason, CE-4381).</summary>
         internal Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? OsmWizard => _osmWizard;
         /// <summary>⭐ CE-4378 — the New-asset launcher, for the OSM wizard's "Open in New Scenario" (set where the launcher is built).</summary>
@@ -2537,6 +2547,9 @@ namespace Hrot.Editor
                         HostPickers     = () => _shellPickers,
                         // ⭐ CE-4210 MA-7 — Add Entity ▸ Macros: the macro files on the NAS root the load resolves against (the same listing the scenario picker's Macros group uses)
                         Macros          = Hrot.Editor.AiShared.Browser.MacroPickerEntries.Paths,
+                        // ⭐ Terrain authoring U-1 / U-2 — Add Entity's terrain groups (the shipped recipes + building templates) and the ghost's ground (the live base terrain): the editor shows its blocks live (O-7 B), so it is the host that offers them
+                        Terrain         = Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped,
+                        TerrainContext  = new Hrot.UI.Common.AddEntity.TerrainGhostContextCache(GhostBase).Get,
                     },
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
@@ -2618,6 +2631,8 @@ namespace Hrot.Editor
                 if (target == Entity.Null) return;
                 Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity(_world!, target);   // ⭐ CE-4410 — the Delete key's one path (CE-4276 F2)
             });
+            // ⭐ Terrain authoring U-3 — a placed block's menu: Re-roll, Rotate, Change recipe… (Unpack is greyed until backend's T-4); each ONE edit step
+            new Hrot.UI.Common.AddEntity.TerrainBlockActions(() => _world, () => _shellPickers is { } sp ? sp.OpenPicker : null, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped).RegisterOn(actionRegistry);
             // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
             //   host; the inspector menu below still publishes the same action ids.
 
@@ -2994,6 +3009,8 @@ namespace Hrot.Editor
             windowManager.MenuIcons = Hrot.Editor.AiShared.Adapters.SilkMenuIconResolver.Create(windowManager.Atlas);
             if (_gizmoLayer != null)
                 _gizmoLayer.ContextMenuIconResolver = windowManager.MenuIcons; // gizmo right-click menus
+            // ⭐ Terrain authoring — a menu row whose icon key is one of the icon table's (terrain/reroll …) draws that coloured FontAwesome glyph
+            GizmoMap.Presentation.MenuIconRenderer.GlyphResolver = Hrot.UI.Common.Menus.MenuGlyphs.Resolve;
 
 
             // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
@@ -3381,6 +3398,8 @@ namespace Hrot.Editor
 
             // ⭐ Player Join D-9 — the PLAYABLE section: a toggle + side + slot name that adds / removes `Playable` on the selected unit (authored, recorded, saved).
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.EntityPlayableViewDescriptor.For(() => _world));
+            // ⭐ Terrain authoring U-3 — the BLOCK tab of Details for a placed terrain block (recipe, seed, fit to the site, contents)
+            _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.TerrainBlockDetailsViewDescriptor.For(() => _world, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped));
 
             // ⭐⭐ CE-4210 MA-8 (SR-39a) — the MACRO section of Details for a macro instance: status, the macro (the same picker's Macros group), the args form.
             //   ⚠ Its own StructEdit service (the facet service is built later); picks resolved at call time like the AI section's.
@@ -3658,6 +3677,19 @@ namespace Hrot.Editor
             };
             _osmWizard = new Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow(() => osmServices);
             windowManager.RegisterFrameOverlay(_osmWizard.Draw);
+            // ⭐ Terrain authoring U-5 — File ▸ Save Terrain As…: the dialog over backend's TerrainBake.SaveAs; the new scenario (when asked for) is loaded through the scenario door once the terrain is written
+            _terrainSaveAs = new Hrot.UI.Common.TerrainSave.TerrainSaveAsWindow(() => new Hrot.Editor.TerrainSave.EditorTerrainSaveService(() => _editorLogic?.LoadedScenarioName));
+            _terrainSaveAs.Saved += outcome =>
+            {
+                _saveAllStatus = $"[OK] Saved terrain '{System.IO.Path.GetFileName(outcome.TerrainFolder)}'" + (outcome.ScenarioName is { } sn ? $" and scenario '{sn}'." : ".");
+                if (outcome.ScenarioName is { } name) _editorApp?.ScenarioSession.LoadScenario(name);
+            };
+            windowManager.RegisterFrameOverlay(_terrainSaveAs.Draw);
+            // ⭐ Terrain authoring U-8 — File ▸ New ▸ Random terrain…: the wizard over backend's RandomTerrainPipeline; the scenario it writes is opened through the scenario door
+            var randomTerrainService = new Hrot.Editor.TerrainRandom.EditorRandomTerrainService();
+            _randomTerrain = new Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow(() => randomTerrainService);
+            _randomTerrain.Opened += scenario => { _saveAllStatus = $"[OK] Generated terrain and scenario '{scenario}'."; _editorApp?.ScenarioSession.LoadScenario(scenario); };
+            windowManager.RegisterFrameOverlay(_randomTerrain.Draw);
 
             var assetRowCommands = new[]
             {
@@ -4308,6 +4340,9 @@ namespace Hrot.Editor
             // ⚠ MA-020 — the two describe seams were OPTIONAL and NOBODY PASSED THEM, so every recipe in
             //   the New-Asset tree rendered with a null description while `EditorMetadata.Recipe` carried
             //   one. 📌 The silent-default shape: the caller HAD the value and did not pass it.
+            var terrainSources = new Hrot.Editor.TerrainSave.EditorTerrainSourceService(
+                catalog: () => NewScenarioTerrains(),
+                open:    name => _editorApp?.ScenarioSession.LoadScenario(name));
             var newAssetLauncher = _newAssetServices != null
                 ? new Hrot.Editor.AiShared.Browser.NewAssetLauncher(
                     openPicker:         _shellPickers.OpenPicker,
@@ -4321,7 +4356,9 @@ namespace Hrot.Editor
                     terrains:           () => NewScenarioTerrains().List(),
                     // ⭐ B-9 N1 pane — the same catalog locates the terrain's terrain.json (facts) and preview.jpg (still)
                     terrainDefinition:  name => NewScenarioTerrains().ResolveDefinition(name),
-                    showNewBlankDialog: ShowNewBlankDialog)
+                    showNewBlankDialog: ShowNewBlankDialog,
+                    // ⭐ Terrain authoring E-2 — the SOURCE chip and Edit terrain… of a terrain row (the staged copy opens through the scenario door, by name)
+                    terrainSource:      terrain => terrainSources.Offer(terrain))
                 : null;
             _newAssetLauncherForOsm = newAssetLauncher;   // ⭐ CE-4378 — the OSM wizard's "Open in New Scenario" (the wizard is built earlier)
 
@@ -4402,7 +4439,16 @@ namespace Hrot.Editor
                     : null,
                 // ⭐ CE-4375 — File › New › Terrain from OpenStreetMap…: this host HAS the wizard, so it passes it; the wizard says why it is greyed (no pipeline yet)
                 openTerrainFromOsm: _osmWizard != null ? _osmWizard.Open : null,
-                terrainFromOsmDisabledReason: () => _osmWizard?.DisabledReason);
+                terrainFromOsmDisabledReason: () => _osmWizard?.DisabledReason,
+                // ⭐ Terrain authoring U-5 — File › Save Terrain As…: this host HAS the dialog
+                openSaveTerrainAs: _terrainSaveAs != null ? _terrainSaveAs.Open : null,
+                saveTerrainAsDisabledReason: () => _terrainSaveAs?.DisabledReason,
+                openSaveTerrain: _terrainSaveAs != null ? _terrainSaveAs.OpenSave : null,
+                saveTerrainDisabledReason: () => _terrainSaveAs?.SaveDisabledReason,
+                openEditTerrain: newAssetLauncher is { CanOpenEditTerrain: true } ? newAssetLauncher.OpenEditTerrain : null,
+                editTerrainDisabledReason: () => null,
+                openRandomTerrain: _randomTerrain != null ? _randomTerrain.Open : null,
+                randomTerrainDisabledReason: () => _randomTerrain?.DisabledReason);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();

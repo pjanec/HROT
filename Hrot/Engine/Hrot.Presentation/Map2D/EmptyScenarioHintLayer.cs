@@ -22,7 +22,7 @@ public sealed class EmptyScenarioHintLayer : IMapLayer
     private const int FontSize = 20;
     private readonly Func<EntityRepository?> _world;
     private EntityRepository? _queried;
-    private EntityQuery? _entities;
+    private EntityQuery? _entities, _blocks, _features;
 
     public EmptyScenarioHintLayer(Func<EntityRepository?> world) => _world = world ?? throw new ArgumentNullException(nameof(world));
 
@@ -48,9 +48,15 @@ public sealed class EmptyScenarioHintLayer : IMapLayer
         var w = _world();
         if (w is null || TerrainFramingLayer.BoundsOf(w) is null) return false;
         if (Hrot.Common.Editing.StationMode.Of(w) != mode) return false;
-        if (!w.IsComponentTypeRegistered<EntityInfo>()) return true;
-        if (!ReferenceEquals(w, _queried)) { _queried = w; _entities = w.Query().With<EntityInfo>().Build(); }
-        return _entities!.IsEmpty;
+        if (!ReferenceEquals(w, _queried))
+        {
+            _queried = w;
+            _entities = w.IsComponentTypeRegistered<EntityInfo>() ? w.Query().With<EntityInfo>().Build() : null;
+            // ⭐ a placed terrain block / feature is content too (it is a scenario entity — and one with no EntityInfo, from an older file, must not read as nothing)
+            _blocks = w.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.TerrainBlock>() ? w.Query().With<Fdp.Toolkit.Terrain.TerrainBlock>().Build() : null;
+            _features = w.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.TerrainFeature>() ? w.Query().With<Fdp.Toolkit.Terrain.TerrainFeature>().Build() : null;
+        }
+        return (_entities?.IsEmpty ?? true) && (_blocks?.IsEmpty ?? true) && (_features?.IsEmpty ?? true);
     }
 
     public void Update(float dt) { }

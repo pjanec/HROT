@@ -54,6 +54,12 @@ public static class ScenarioMenuCommands
     public const string NewId = "scenario.new";
     /// <summary>⭐ CE-4375 — File › New › Terrain from OpenStreetMap… (the wizard).</summary>
     public const string NewTerrainFromOsmId = "terrain.newFromOsm";
+    /// <summary>⭐ Terrain authoring U-5 — Save Terrain As…: <c>"terrain.saveAs"</c>.</summary>
+    public const string SaveTerrainAsId = "terrain.saveAs";
+    /// <summary>⭐ Terrain authoring E-2 — Save Terrain (<c>"terrain.save"</c>) and Edit Terrain… (<c>"terrain.edit"</c>).</summary>
+    public const string SaveTerrainId = "terrain.save", EditTerrainId = "terrain.edit";
+    /// <summary>⭐ Terrain authoring U-8 — File › New › Random terrain…: <c>"terrain.newRandom"</c>.</summary>
+    public const string NewRandomTerrainId = "terrain.newRandom";
     /// <summary>⭐ CE-4375 — why Terrain from OpenStreetMap… is greyed on a host that composes no wizard.</summary>
     public const string NoTerrainFromOsmReason = "this host has no terrain wizard";
 
@@ -164,7 +170,15 @@ public static class ScenarioMenuCommands
         Action?                                                   openNewScenario      = null,
         Action<Action<string>>?                                    openSaveAsRecipeDialog = null,
         Action?                                                   openTerrainFromOsm   = null,
-        Func<string?>?                                            terrainFromOsmDisabledReason = null)
+        Func<string?>?                                            terrainFromOsmDisabledReason = null,
+        Action?                                                   openSaveTerrainAs    = null,
+        Func<string?>?                                            saveTerrainAsDisabledReason = null,
+        Action?                                                   openSaveTerrain      = null,
+        Func<string?>?                                            saveTerrainDisabledReason = null,
+        Action?                                                   openEditTerrain      = null,
+        Func<string?>?                                            editTerrainDisabledReason = null,
+        Action?                                                   openRandomTerrain    = null,
+        Func<string?>?                                            randomTerrainDisabledReason = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -211,6 +225,49 @@ public static class ScenarioMenuCommands
             dynamicDisplayName: () => (openTerrainFromOsm == null ? NoTerrainFromOsmReason : terrainFromOsmDisabledReason?.Invoke()) is { } why
                 ? $"Terrain from OpenStreetMap… (unavailable — {why})" : "Terrain from OpenStreetMap…",
             allowedInIdle: false);   // ⛔ not on the Start surface (it draws every Idle item as a button): the approved mockup scopes the File menu item only (R-4151)
+
+        // ⭐ Terrain authoring U-8 (mockup 1) — File › New › Random terrain…: the wizard over backend's generator. Registered only on a host that HAS it (the editor); greyed with its reason by the run gate like the item above.
+        if (openRandomTerrain != null)
+            RegisterCommand(
+                registerCommand, menu, commands, closedReason,
+                NewRandomTerrainId, "Random terrain…", FileMenuLayout.NewRandomTerrain,
+                "Generate a terrain: pick a kind of place, preview it, shuffle until it looks right, then open it in the editor as an ordinary scenario of blocks",
+                isEnabled: () => randomTerrainDisabledReason?.Invoke() == null,
+                handler: _ => openRandomTerrain(),
+                dynamicDisplayName: () => randomTerrainDisabledReason?.Invoke() is { } why ? $"Random terrain… (unavailable — {why})" : "Random terrain…",
+                allowedInIdle: false);
+
+        // ⭐ Terrain authoring U-5 (mockup 4) — File › Save Terrain As…: the dialog that bakes this scenario's blocks and features into a NEW terrain. Registered only on a host that HAS the dialog (the editor);
+        //   greyed with its reason (the label says why) while no scenario is loaded.
+        if (openSaveTerrainAs != null)
+            RegisterCommand(
+                registerCommand, menu, commands, closedReason,
+                SaveTerrainAsId, "Save Terrain As…", FileMenuLayout.SaveTerrainAs,
+                "Bake this scenario's terrain blocks and features into a new terrain (the scenario stays as its editable source)",
+                isEnabled: () => saveTerrainAsDisabledReason?.Invoke() == null,
+                handler: _ => openSaveTerrainAs(),
+                dynamicDisplayName: () => saveTerrainAsDisabledReason?.Invoke() is { } why ? $"Save Terrain As… (unavailable — {why})" : "Save Terrain As…",
+                allowedInIdle: false);
+
+        // ⭐ Terrain authoring E-2 / W-4 (mockup 4) — File › Save Terrain (a terrain SOURCE bakes back over its terrain; greyed elsewhere, the label says why) and File › Edit Terrain… (a terrain's source scenario opens).
+        if (openSaveTerrain != null)
+            RegisterCommand(
+                registerCommand, menu, commands, closedReason,
+                SaveTerrainId, "Save Terrain", FileMenuLayout.SaveTerrain,
+                "Bake this terrain source back over the terrain it came from (names the scenarios that use it first)",
+                isEnabled: () => saveTerrainDisabledReason?.Invoke() == null,
+                handler: _ => openSaveTerrain(),
+                dynamicDisplayName: () => saveTerrainDisabledReason?.Invoke() is { } why ? $"Save Terrain (unavailable — {why})" : "Save Terrain",
+                allowedInIdle: false);
+        if (openEditTerrain != null)
+            RegisterCommand(
+                registerCommand, menu, commands, closedReason,
+                EditTerrainId, "Edit Terrain…", FileMenuLayout.EditTerrain,
+                "Reopen the block scenario a terrain was made from, to move, re-roll or add blocks and save the terrain again",
+                isEnabled: () => editTerrainDisabledReason?.Invoke() == null,
+                handler: _ => openEditTerrain(),
+                dynamicDisplayName: () => editTerrainDisabledReason?.Invoke() is { } why ? $"Edit Terrain… (unavailable — {why})" : "Edit Terrain…",
+                allowedInIdle: false);
 
         // ⭐ LOAD CHECKPOINT — a live run, paused at the checkpoint: the existing restore (the session's RestoreCheckpoint = RestoreCheckpointIntent). ⚠ The host supplies the picker of the labels it can list; none does yet (the live run's
         //   marks are not on the cluster view — only a replay session carries them), so the item says so rather than doing nothing (ruling 49).

@@ -52,5 +52,9 @@
     }
    ]
   }
- ]
+ ],
+ "ui": {
+  "chip": "Urban",
+  "line": "3–6 storeys, a street grid"
+ }
 }

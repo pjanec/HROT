@@ -133,6 +133,7 @@ public sealed class PickerWindow
         _hostSearch = false;
         _state.Reset(request.ContextKey, request.InitialQuery, request.SelectionMode);
         _state.Groups = request.GroupSidebar;
+        if (!string.IsNullOrEmpty(request.InitialGroup)) _state.SelectedCategory = request.InitialGroup;
         _state.TileWidth = Math.Clamp(View.GetTileWidth(request.ContextKey) ?? PickerState.DefaultTileWidth,
                                       PickerState.MinTileWidth, PickerState.MaxTileWidth);
         _state.AllEntries = _requestEntries;

@@ -10,5 +10,9 @@
    8,
    18
   ]
+ },
+ "ui": {
+  "chip": "Nature",
+  "line": "a small wood"
  }
 }

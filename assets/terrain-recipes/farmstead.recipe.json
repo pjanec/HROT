@@ -114,5 +114,9 @@
     }
    ]
   }
- ]
+ ],
+ "ui": {
+  "chip": "Rural",
+  "line": "house, barns, yard"
+ }
 }

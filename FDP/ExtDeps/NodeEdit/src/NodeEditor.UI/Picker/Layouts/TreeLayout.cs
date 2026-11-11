@@ -422,6 +422,22 @@ internal static class TreeLayout
             dl.AddText(new Vector2(endX + 14f, textY), ImGui.GetColorU32(ctx.Theme.TextMuted), label);
         }
 
+        // ⭐ Terrain authoring E-2 (mockup 4) — the chips after the name and the hint right-aligned, as the flat list draws them (CE-4330 ⑤); nothing is drawn, and nothing allocated, for an entry with neither
+        if (re.Entry.Chips is { Count: > 0 } || re.Entry.Hint is { Length: > 0 })
+        {
+            float nameEnd = re.MatchPositions.Count == 0 ? textX + ImGui.CalcTextSize(re.Entry.Name).X : textX;
+            if (re.Entry.Chips is { Count: > 0 } chips)
+            {
+                nameEnd += 8f;
+                for (int c = 0; c < chips.Count; c++) nameEnd += PickerItemListHelper.DrawChip(dl, chips[c], new Vector2(nameEnd, pos.Y + 1f), size.Y - 2f) + 4f;
+            }
+            if (re.Entry.Hint is { Length: > 0 } hint)
+            {
+                float hx = pos.X + size.X - ImGui.CalcTextSize(hint).X - 6f;
+                if (hx > nameEnd + 8f) dl.AddText(new Vector2(hx, textY), ImGui.GetColorU32(ctx.Theme.TextMuted), hint);
+            }
+        }
+
         // Handle mouse click for selection (A17/A18: also move TreeFocusRow).
         if (actualMouseClicked)
         {
@@ -439,6 +455,21 @@ internal static class TreeLayout
         if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
         {
             state.Confirmed = true;
+        }
+
+        // ⭐ Terrain authoring E-2 — the entry's own actions in its right-click menu (CE-4330 ⑦, as the flat list offers them): an entry with none gets no menu here, as before
+        if (re.Entry.Actions is { Count: > 0 } rowActions && ImGui.BeginPopupContextItem("##row_ctx"))
+        {
+            for (int a = 0; a < rowActions.Count; a++)
+            {
+                var act = rowActions[a];
+                var glyph = Core.Widgets.Icons.Get(act.IconKey);
+                ImGui.TextColored(glyph.Color, glyph.Glyph);
+                ImGui.SameLine();
+                if (ImGui.MenuItem(act.Label, null, false, act.DisabledReason is null)) act.Run();
+                if (act.DisabledReason is { } actWhy && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(actWhy);
+            }
+            ImGui.EndPopup();
         }
 
         // Scroll focused leaf into view (one-shot, gated on keyboard-nav flag — BATCH-52).

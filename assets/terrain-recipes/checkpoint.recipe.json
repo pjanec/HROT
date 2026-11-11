@@ -83,5 +83,9 @@
     }
    ]
   }
- ]
+ ],
+ "ui": {
+  "chip": "Military",
+  "line": "booth, barrier, sandbags"
+ }
 }

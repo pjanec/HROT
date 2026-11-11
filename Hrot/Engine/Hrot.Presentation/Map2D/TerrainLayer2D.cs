@@ -28,6 +28,16 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     /// only smear the map.</summary>
     public const float LabelMinZoom = 1.5f;
 
+    /// <summary>
+    /// ⭐ Terrain authoring U-4 (docs/DESIGN_Terrain_Authoring.md §15a; backend's visuals note) — a TEMPLATE house (a building you can enter: floors, doors, walls) is drawn as its FLOOR PLAN only from this zoom up (screen pixels per metre;
+    /// a 10 m house is then 60 px across); below it as ONE filled tan footprint — the way a solid building is — and its interior strokes and labels (<i>"deck 3m"</i>, <i>"ramp 0-3m"</i>, its wall pieces) are not drawn, so a town at
+    /// overview zoom is a map of roofs, not a pile of text. Applies to EVERY template house (demo-city's too).
+    /// </summary>
+    public const float InteriorMinZoom = 6f;
+
+    /// <summary>The tan of a template house seen from far (the mockup's roof) and its edge.</summary>
+    public static readonly Rgba32 HouseTopFill = new(228, 196, 144, 255), HouseTopEdge = new(150, 112, 78, 255);
+
     /// <summary>An outline shorter than this on screen (pixels) is not drawn — a wall piece's end seen from far away.</summary>
     public const float MinStrokePixels = 0.75f;
 
@@ -45,6 +55,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     private TerrainWorld? _built;
     private Plan _plan = Plan.Empty;
     private DebugPrimitive[] _inView = Array.Empty<DebugPrimitive>();
+    private DebugPrimitive[] _topsInView = Array.Empty<DebugPrimitive>();   // ⭐ U-4 — the template houses' footprint primitives in view (reused)
     private bool _meshDirty;
     private Mesh _mesh;
     private bool _hasMesh;
@@ -63,6 +74,9 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
 
     /// <summary>How many times the damage overlay was rebuilt (a rail: an unchanged damage table rebuilds nothing).</summary>
     public int DamageBuilds { get; private set; }
+
+    /// <summary>⭐ U-4 — primitives of template-house footprint tops handed to the renderer in the last frame (0 at or above <see cref="InteriorMinZoom"/>).</summary>
+    public int HouseTopsDrawn { get; private set; }
 
     /// <summary>The buildings the plan currently draws from the overlay (damaged).</summary>
     public int DamagedBuildingsDrawn { get; private set; }
@@ -128,6 +142,15 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         long tr = Fdp.Presentation.WindowManager.WindowTimings.Start();
         if (n > 0) _renderer.Render(new ReadOnlySpan<DebugPrimitive>(_inView, 0, n), ctx);
         Fdp.Presentation.WindowManager.WindowTimings.Record("plan2D strokes", tr);
+        // ⭐ U-4 — far out, the template houses as tan footprints, over their (skipped) floor plan; the damage overlay below still draws a damaged house on top
+        if (camera != null && camera.Zoom < InteriorMinZoom && _plan.Tops.Count > 0)
+        {
+            if (_topsInView.Length < _plan.Tops.Prims.Length) _topsInView = new DebugPrimitive[_plan.Tops.Prims.Length];
+            int tn = _plan.Tops.Cull(ViewOf(camera, ctx.TargetSize), _anyHidden ? _hidden : null, _topsInView);
+            if (tn > 0) _renderer.Render(new ReadOnlySpan<DebugPrimitive>(_topsInView, 0, tn), ctx);
+            HouseTopsDrawn = tn;
+        }
+        else HouseTopsDrawn = 0;
         if (_overlayStrokes.Length > 0) { _renderer.Render(_overlayStrokes, ctx); StrokesDrawn += _overlayStrokes.Length; }
     }
 
@@ -257,8 +280,9 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
 
         /// <param name="fillBuilding">⭐ CE-4392 — the building of each fill triangle (−1 none); null = none</param>
         /// <param name="strokeBuilding">⭐ CE-4392 — the building of each stroke (−1 none); null = none</param>
-        public Plan(Vector2[] fillVertices, Rgba32[] fillColors, DebugPrimitive[] strokes, int[]? fillBuilding, int[]? strokeBuilding)
+        public Plan(Vector2[] fillVertices, Rgba32[] fillColors, DebugPrimitive[] strokes, int[]? fillBuilding, int[]? strokeBuilding, HouseTops? tops = null)
         {
+            Tops = tops ?? HouseTops.None;
             FillVertices = fillVertices;
             FillColors = fillColors;
             Strokes = strokes;
@@ -268,6 +292,12 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         }
 
         private static int[] Filled(int n) { var a = new int[n]; Array.Fill(a, -1); return a; }
+
+        /// <summary>⭐ U-4 — the template houses' overview footprints (empty when the plan is a damage overlay or the terrain has none).</summary>
+        public HouseTops Tops { get; }
+
+        /// <summary>⭐ U-4 — true when building <paramref name="building"/> is a template house (its interior is hidden below <see cref="InteriorMinZoom"/>).</summary>
+        public bool IsHouse(int building) => Tops.IsHouse != null && (uint)building < (uint)Tops.IsHouse.Length && Tops.IsHouse[building];
 
         /// <summary>⭐ CE-4392 — which building each fill triangle belongs to (−1 = none).</summary>
         public int[] FillBuilding { get; }
@@ -282,6 +312,73 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         public Rgba32[] FillColors { get; }
         public DebugPrimitive[] Strokes { get; }
         public int FillTriangles => FillColors.Length;
+    }
+
+    /// <summary>
+    /// ⭐ U-4 — the overview look of the template houses, built ONCE with the plan: per house a filled footprint (a triangle fan) and its outline as ready primitives (<see cref="Prims"/> in <see cref="Start"/> ranges), its building
+    /// index and its ground rectangle for the view cull. A building with no footprint, or a solid one, has no top (a solid building is already drawn as a fill).
+    /// </summary>
+    public sealed class HouseTops
+    {
+        public static readonly HouseTops None = new(Array.Empty<DebugPrimitive>(), Array.Empty<int>(), Array.Empty<int>(), Array.Empty<Vector2>(), Array.Empty<Vector2>(), null);
+
+        public HouseTops(DebugPrimitive[] prims, int[] start, int[] building, Vector2[] min, Vector2[] max, bool[]? isHouse)
+        { Prims = prims; Start = start; Building = building; Min = min; Max = max; IsHouse = isHouse; }
+
+        public DebugPrimitive[] Prims { get; }
+        /// <summary>Per house, the index of its first primitive in <see cref="Prims"/>; one more entry at the end.</summary>
+        public int[] Start { get; }
+        public int[] Building { get; }
+        public Vector2[] Min { get; }
+        public Vector2[] Max { get; }
+        /// <summary>Per building of the terrain: is it a template house.</summary>
+        public bool[]? IsHouse { get; }
+        public int Count => Building.Length;
+
+        public static HouseTops Of(TerrainWorld terrain)
+        {
+            var isHouse = new bool[terrain.Buildings.Count];
+            var prims = new List<DebugPrimitive>(); var start = new List<int>(); var building = new List<int>(); var min = new List<Vector2>(); var max = new List<Vector2>();
+            var buffer = new DebugPrimitiveBuffer(64);
+            for (int bi = 0; bi < terrain.Buildings.Count; bi++)
+            {
+                var b = terrain.Buildings[bi];
+                if (b.Solid || b.Footprint.Length < 3) continue;
+                isHouse[bi] = true;
+                buffer.Clear();
+                var fp = b.Footprint;
+                for (int i = 1; i + 1 < fp.Length; i++) buffer.DrawFilledTriangle(fp[0], fp[i], fp[i + 1], HouseTopFill, layer: TerrainPlan2D.TerrainLayer);
+                for (int i = 0; i < fp.Length; i++)
+                {
+                    var a = fp[i]; var c = fp[(i + 1) % fp.Length];
+                    buffer.DrawLine(new Vector3(a.X, a.Y, 0f), new Vector3(c.X, c.Y, 0f), HouseTopEdge, 1.2f, layer: TerrainPlan2D.TerrainLayer);
+                }
+                start.Add(prims.Count);
+                foreach (ref readonly var p in buffer.GetFrame()) prims.Add(p);
+                building.Add(bi);
+                var lo = new Vector2(float.MaxValue); var hi = new Vector2(float.MinValue);
+                foreach (var v in fp) { lo = Vector2.Min(lo, v); hi = Vector2.Max(hi, v); }
+                min.Add(lo); max.Add(hi);
+            }
+            start.Add(prims.Count);
+            return new HouseTops(prims.ToArray(), start.ToArray(), building.ToArray(), min.ToArray(), max.ToArray(), isHouse);
+        }
+
+        /// <summary>
+        /// Copies into <paramref name="into"/> the primitives of the houses whose rectangle meets <paramref name="view"/> and that are not <paramref name="hidden"/> (drawn by the damage overlay); returns how many. ⭐ No allocation:
+        /// <paramref name="into"/> is the caller's reused array (as long as <see cref="Prims"/>).
+        /// </summary>
+        public int Cull((Vector2 Min, Vector2 Max) view, bool[]? hidden, DebugPrimitive[] into)
+        {
+            int n = 0;
+            for (int h = 0; h < Building.Length; h++)
+            {
+                if (Max[h].X < view.Min.X || Min[h].X > view.Max.X || Max[h].Y < view.Min.Y || Min[h].Y > view.Max.Y) continue;
+                if (hidden != null && (uint)Building[h] < (uint)hidden.Length && hidden[Building[h]]) continue;
+                for (int i = Start[h]; i < Start[h + 1]; i++) into[n++] = Prims[i];
+            }
+            return n;
+        }
     }
 
     /// <summary>Emits <paramref name="terrain"/>'s plan (<see cref="TerrainPlan2D.Emit"/>) and splits it.</summary>
@@ -314,7 +411,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
                 }
                 else { strokes.Add(p); strokeB.Add(current); }
             }
-            return new Plan(vertices.ToArray(), colors.ToArray(), strokes.ToArray(), fillB.ToArray(), strokeB.ToArray());
+            return new Plan(vertices.ToArray(), colors.ToArray(), strokes.ToArray(), fillB.ToArray(), strokeB.ToArray(), only == null ? HouseTops.Of(terrain) : null);
         }
     }
 
@@ -409,6 +506,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         float minLength = MinStrokePixels / zoom, min2 = minLength * minLength;
         bool labels = zoom >= LabelMinZoom;
         bool buildings = 1f / zoom <= BuildingStrokesMaxMetresPerPixel;   // ⭐ CE-4389 — coarser: a building is its fill only
+        bool interior = zoom >= InteriorMinZoom;                          // ⭐ U-4 — a template house shows its floor plan only this close; farther, its footprint top (HouseTops)
         var strokes = plan.Strokes;
         var ix = plan.Index;
         int n = 0;
@@ -424,12 +522,14 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
                     int s = ix.Lines[q];
                     if (ix.Length2(s) < min2) break;   // longest first: the rest are shorter still
                     if (!buildings && plan.StrokeBuilding[s] >= 0) continue;
+                    if (!interior && plan.IsHouse(plan.StrokeBuilding[s])) continue;
                     if (hidden != null && Hidden(plan, s, hidden)) continue;
                     if (LineInView(strokes[s], min, max)) into[n++] = strokes[s];
                 }
                 if (!labels) continue;
                 for (int q = ix.LabelStart[k]; q < ix.LabelStart[k + 1]; q++)
                 {
+                    if (!interior && plan.IsHouse(plan.StrokeBuilding[ix.Labels[q]])) continue;
                     if (hidden != null && Hidden(plan, ix.Labels[q], hidden)) continue;
                     ref readonly var p = ref strokes[ix.Labels[q]];
                     if (p.TextX < min.X || p.TextX > max.X || p.TextY < min.Y || p.TextY > max.Y) continue;
@@ -439,9 +539,9 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         for (int q = 0; q < ix.Long.Length; q++)
         {
             int s = ix.Long[q];
-            if (ix.Length2(s) >= min2 && (buildings || plan.StrokeBuilding[s] < 0) && LineInView(strokes[s], min, max) && !(hidden != null && Hidden(plan, s, hidden))) into[n++] = strokes[s];
+            if (ix.Length2(s) >= min2 && (buildings || plan.StrokeBuilding[s] < 0) && (interior || !plan.IsHouse(plan.StrokeBuilding[s])) && LineInView(strokes[s], min, max) && !(hidden != null && Hidden(plan, s, hidden))) into[n++] = strokes[s];
         }
-        for (int q = 0; q < ix.Other.Length; q++) if (!(hidden != null && Hidden(plan, ix.Other[q], hidden))) into[n++] = strokes[ix.Other[q]];
+        for (int q = 0; q < ix.Other.Length; q++) if (!(hidden != null && Hidden(plan, ix.Other[q], hidden)) && (interior || !plan.IsHouse(plan.StrokeBuilding[ix.Other[q]]))) into[n++] = strokes[ix.Other[q]];
         return n;
     }
 

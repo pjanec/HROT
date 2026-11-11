@@ -67,5 +67,9 @@
     }
    ]
   }
- ]
+ ],
+ "ui": {
+  "chip": "Rural",
+  "line": "12 houses, gardens"
+ }
 }

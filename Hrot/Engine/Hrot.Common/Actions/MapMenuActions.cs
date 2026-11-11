@@ -24,7 +24,7 @@ namespace Hrot.Common.Actions
         /// <summary>Declares today's map menu actions into <paramref name="catalogue"/>.</summary>
         public static void DeclareInto(ActionCatalogue catalogue)
         {
-            const ActionTarget Unit = ActionTarget.Unit, Graphic = ActionTarget.Graphic, Everything = Unit | Graphic;
+            const ActionTarget Unit = ActionTarget.Unit, Graphic = ActionTarget.Graphic, Everything = Unit | Graphic, Block = ActionTarget.TerrainBlock;
 
             // ── Orders (a unit, while the map offers orders) ────────────────────────────────────────────────────────────────────────────
             // ⭐⭐ CE-2143 (D4-D) — the orders THIS entity's class fulfils (the receiver's own answer), as data: one declaration, many rows.
@@ -123,6 +123,21 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditPlan, "Edit plan on the map", ActionGroup.Edit, First + 1, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
                 Offer = ctx => ctx.Unit.Plan ? new ContextMenuItemDto { Id = GlobalActionIds.EditPlan, Label = "Edit plan on the map" } : null });
 
+            // ── Terrain block (U-3): the block menu of mockup 2 — Re-roll, Rotate, Unpack (greyed until backend's T-4), Change recipe… (+ Select / Properties… / Delete above). Authoring only.
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainReroll, "Re-roll layout", ActionGroup.Edit, First, Block) { Icon = "terrain/reroll", Modes = ActionModes.InEdit });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainRotate, "Rotate", ActionGroup.Edit, First + 1, Block) { Icon = "terrain/rotate", Modes = ActionModes.InEdit });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainMove, "Move", ActionGroup.Edit, First + 2, Block)
+            {
+                Modes = ActionModes.InEdit,
+                Offer = _ => new ContextMenuItemDto { Id = GlobalActionIds.TerrainMove, Label = "Move", Icon = "terrain/move", Shortcut = "drag", Enabled = false, Tooltip = "Drag the block on the map." },
+            });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainUnpack, "Unpack into houses and features", ActionGroup.Edit, First + 3, Block)
+            {
+                Modes = ActionModes.InEdit,
+                Offer = _ => new ContextMenuItemDto { Id = GlobalActionIds.TerrainUnpack, Label = "Unpack into houses and features", Icon = "terrain/unpack", Enabled = false, Tooltip = "Needs the block operations of backend's T-4 (CE-4431) — not built yet." },
+            });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainChangeRecipe, "Change recipe…", ActionGroup.Edit, First + 4, Block) { Icon = "terrain/block", Modes = ActionModes.InEdit });
+
             // ── Debug (a unit) ────────────────────────────────────────────────────────────────────────────────────────────────────────
             catalogue.Declare(new ActionDecl(0, "Pin gizmos", ActionGroup.Debug, First, Unit)
             {
@@ -134,7 +149,8 @@ namespace Hrot.Common.Actions
             });
 
             // ── Destructive (a graphic) ───────────────────────────────────────────────────────────────────────────────────────────────
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Everything) { Shortcut = "Delete", Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive, Execution = ActionExecution.PerEntity });   // ⭐ A4 — every selected one · ⭐ CE-4410 — a UNIT too (it was offered on a graphic only, so a right-click on an entity had no Delete); the handler is the Delete key's: Edits.Submit(EditOp.Delete)
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Everything | Block) { Shortcut = "Delete", Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive, Execution = ActionExecution.PerEntity,
+                Offer = ctx => new ContextMenuItemDto { Id = GlobalActionIds.Delete, Label = "Delete", Shortcut = "Delete", Style = "destructive", Icon = ctx.Target == Block ? "terrain/delete" : null } });   // ⭐ A4 — every selected one · ⭐ CE-4410 — a UNIT too (it was offered on a graphic only, so a right-click on an entity had no Delete); the handler is the Delete key's: Edits.Submit(EditOp.Delete)
         }
 
         private static IEnumerable<ContextMenuItemDto> OrderRows(ActionContext ctx)
@@ -249,6 +265,10 @@ namespace Hrot.Common.Actions
             var level = StationMode.LevelOf(view);   // ⭐ Seats H2 — and the ONE seat: its level and side bound what the menu offers
             var side = StationMode.SideOf(view);
             var seat = StationMode.SeatOf(view);   // ⭐ Seats H6
+
+            // ⭐ Terrain authoring U-3 — a placed block has its own menu (the TerrainBlock component decides, not the TKB type: a block is one on every host that loads the scenario)
+            if (repo != null && repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.TerrainBlock>() && view.HasComponent<Fdp.Toolkit.Terrain.TerrainBlock>(entity))
+                return new ActionContext(view, entity, ActionTarget.TerrainBlock, mode, default) { Level = level, Side = side, Seat = seat };
 
             if (view.HasManagedComponent<EditablePolyline>(entity))
             {

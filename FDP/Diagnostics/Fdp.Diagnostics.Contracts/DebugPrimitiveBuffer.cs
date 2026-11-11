@@ -45,9 +45,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>⭐ CE-1071 — primitives refused this frame because their layer is hidden (not an overflow).</summary>
         public int SuppressedCount => _suppressedCount;
 
+        /// <summary>⭐ CE-1480 G5 — moves when the set of active layers changes (what <see cref="IsLayerActive"/> answers).</summary>
+        public long LayersVersion { get; private set; }
+
         /// <inheritdoc/>
         public void SetActiveLayers(in LayerMask256 activeLayers)
         {
+            // ⭐ CE-1480 G5 — LayersVersion moves only when the mask (or "known") actually changes, so a rule that skips drawing on a hidden layer can be held
+            if (!_layersKnown || !System.Runtime.InteropServices.MemoryMarshal.AsBytes(System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref System.Runtime.CompilerServices.Unsafe.AsRef(in _activeLayers), 1))
+                    .SequenceEqual(System.Runtime.InteropServices.MemoryMarshal.AsBytes(System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref System.Runtime.CompilerServices.Unsafe.AsRef(in activeLayers), 1))))
+                LayersVersion++;
             _activeLayers = activeLayers;
             _layersKnown = true;
         }

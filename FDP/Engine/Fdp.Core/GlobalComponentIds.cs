@@ -1291,5 +1291,9 @@ namespace Fdp.Core
 
         /// <summary><c>TerrainFeature</c> — ⭐ O-4 (CE-4415, §18c): one placed terrain feature (a house in v1: template, heading, pad); its position is the entity's <c>SimTransform</c>. Authored, saved.</summary>
         public const int TerrainFeature = 495;
+
+        /// <summary><c>LiveTerrainBakeInfo</c> — ⭐ terrain authoring U-3 / U-6 (docs/DESIGN_Terrain_Authoring.md §15a): the editor's live bake published to its views (the block outlines, the dirty rectangles). A node-local managed
+        /// singleton, never saved, recorded or sent. ⚠ 496 measured free in backend, ui, behaviors and coordinator 2026-11-11 (the highest in use was 495).</summary>
+        public const int LiveTerrainBakeInfo = 496;
     }
 }

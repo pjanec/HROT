@@ -53,5 +53,9 @@
     "width": 12
    }
   }
- ]
+ ],
+ "ui": {
+  "chip": "Rural",
+  "line": "6 houses on a lane"
+ }
 }

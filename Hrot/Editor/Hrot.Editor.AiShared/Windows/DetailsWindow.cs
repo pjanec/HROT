@@ -790,6 +790,7 @@ public sealed class DetailsWindow
         "Scenario"   => NodeEditor.Core.Widgets.Icons.Get("tab/scenario"),
         "Event"      => NodeEditor.Core.Widgets.Icons.Get("tab/event"),
         "Components" => NodeEditor.Core.Widgets.Icons.Get("tab/components"),
+        "Block"      => NodeEditor.Core.Widgets.Icons.Get("terrain/block"),   // ⭐ terrain authoring (mockup 2): the placed block's tab
         _ => null,
     };
 

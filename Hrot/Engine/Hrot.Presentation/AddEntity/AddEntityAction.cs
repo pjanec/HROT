@@ -29,7 +29,11 @@ public sealed class AddEntityAction
     private readonly Func<ISpawnController?> _spawn;
     private readonly Func<string?> _suspendedReason;
     private readonly Func<GalleryData?> _gallery;
+    private readonly Func<IReadOnlyList<TerrainPick>>? _terrain;   // ⭐ Terrain authoring U-1 — the recipes / templates of the terrain groups (null ⇒ this host offers none)
     private readonly Func<IReadOnlyList<string>>? _macros;   // ⭐ CE-4210 MA-7 — the macro files offered beside the types (null ⇒ this host offers none)
+
+    /// <summary>⭐ Terrain authoring U-1 — the group the gallery opens on (null ⇒ <i>All</i>); a rail opens it on <i>Blocks</i>.</summary>
+    public string? InitialGroup { get; set; }
 
     /// <summary>⭐ CE-4142 — the id of the footer action that arms the tool (the gallery's default, <i>Place on map</i>).</summary>
     public const string PlaceActionId = "place";
@@ -38,8 +42,9 @@ public sealed class AddEntityAction
     /// (e.g. <c>"Authoring is suspended in Preview."</c>), or null when it is not.</summary>
     public AddEntityAction(Func<ITkbDatabase?> tkb, Func<Action<PickerRequest, Action<PickerResult>>?> openPicker,
                            Func<ISpawnController?> spawn, Func<string?>? suspendedReason = null, Func<GalleryData?>? gallery = null,
-                           Func<IReadOnlyList<string>>? macros = null)
+                           Func<IReadOnlyList<string>>? macros = null, Func<IReadOnlyList<TerrainPick>>? terrain = null)
     {
+        _terrain = terrain;
         _macros = macros;
         _gallery = gallery ?? (static () => null);
         _tkb = tkb ?? throw new ArgumentNullException(nameof(tkb));
@@ -95,7 +100,8 @@ public sealed class AddEntityAction
         if (result.ActionId is not null && result.ActionId != PlaceActionId) return;
         if (result.First?.Tag is EntityTypeEntry e)
         {
-            if (e.MacroPath is { } macro) PlacementToolRegistry.ArmMacro(spawn, macro, side ?? eForceIdentifier.FORCE_NEUTRAL);   // ⭐ CE-4210 MA-7
+            if (e.Terrain is { } terrain) PlacementToolRegistry.ArmTerrain(spawn, terrain);   // ⭐ Terrain authoring U-2 — a block / house: no side
+            else if (e.MacroPath is { } macro) PlacementToolRegistry.ArmMacro(spawn, macro, side ?? eForceIdentifier.FORCE_NEUTRAL);   // ⭐ CE-4210 MA-7
             else PlacementToolRegistry.Arm(spawn, e.TkbType, side ?? eForceIdentifier.FORCE_NEUTRAL);
         }
     }
@@ -121,7 +127,7 @@ public sealed class AddEntityAction
         => _tkb() is { } tkb ? RequestFor(tkb, actionId, anchorScreen) : null;
 
     private PickerRequest RequestFor(ITkbDatabase tkb, int actionId, System.Numerics.Vector2? anchorScreen)
-        => BuildRequest(tkb, SideOf(actionId), anchorScreen, rootFolder: null, _gallery(), _macros?.Invoke());
+        => BuildRequest(tkb, SideOf(actionId), anchorScreen, rootFolder: null, _gallery(), _macros?.Invoke(), terrain: _terrain?.Invoke(), initialGroup: InitialGroup);
 
     /// <summary>The picker request for a side (or the map graphics when <paramref name="side"/> is null).</summary>
     public static PickerRequest BuildRequest(ITkbDatabase tkb, eForceIdentifier? side, System.Numerics.Vector2? anchorScreen = null)
@@ -140,11 +146,11 @@ public sealed class AddEntityAction
     /// search over all groups (G7) and Recent &amp; favourites as the first group (G10). The side is chosen by the menu item that opened it (G5).
     /// 📄 docs/DESIGN_Add_Entity_Picker.md §2h. A null gallery, or a rooted request (the ExCon ORBAT's <i>New Unit</i>), is the DIS tree as before.
     /// </summary>
-    public static PickerRequest BuildRequest(ITkbDatabase tkb, eForceIdentifier? side, System.Numerics.Vector2? anchorScreen, string? rootFolder, GalleryData? gallery, IReadOnlyList<string>? macros = null, string? title = null)
+    public static PickerRequest BuildRequest(ITkbDatabase tkb, eForceIdentifier? side, System.Numerics.Vector2? anchorScreen, string? rootFolder, GalleryData? gallery, IReadOnlyList<string>? macros = null, string? title = null, IReadOnlyList<TerrainPick>? terrain = null, string? initialGroup = null)
     {
         if (gallery is not null && rootFolder is not { Length: > 0 })
-            return BuildGalleryRequest(tkb, side, anchorScreen, gallery, macros);
-        var catalog = EntityTypeCatalog.Build(tkb, macros: macros);
+            return BuildGalleryRequest(tkb, side, anchorScreen, gallery, macros, terrain, initialGroup);
+        var catalog = EntityTypeCatalog.Build(tkb, macros: macros, terrain: terrain);
         if (rootFolder is { Length: > 0 })
             catalog = catalog.Where(e => e.Category == rootFolder || e.Category.StartsWith(rootFolder + "/", StringComparison.Ordinal)).ToList();
         return new PickerRequest
@@ -159,9 +165,9 @@ public sealed class AddEntityAction
         };
     }
 
-    private static PickerRequest BuildGalleryRequest(ITkbDatabase tkb, eForceIdentifier? side, System.Numerics.Vector2? anchorScreen, GalleryData gallery, IReadOnlyList<string>? macros = null)
+    private static PickerRequest BuildGalleryRequest(ITkbDatabase tkb, eForceIdentifier? side, System.Numerics.Vector2? anchorScreen, GalleryData gallery, IReadOnlyList<string>? macros = null, IReadOnlyList<TerrainPick>? terrain = null, string? initialGroup = null)
     {
-        var catalog = EntityTypeCatalog.Build(tkb, gallery: gallery, macros: macros);
+        var catalog = EntityTypeCatalog.Build(tkb, gallery: gallery, macros: macros, terrain: terrain);
         return new PickerRequest
         {
             ContextKey             = side is null ? "add-entity/gallery-graphics" : "add-entity/gallery-types",   // its own remembered layout and tile size
@@ -172,7 +178,8 @@ public sealed class AddEntityAction
             AnchorScreen           = anchorScreen,
             FoldSingleChildFolders = true,
             DefaultSize            = new System.Numerics.Vector2(1100f, 700f),
-            GroupSidebar           = new PickerGroupSidebar(gallery.Groups.SidebarOrder, gallery.Groups.RecentName),
+            GroupSidebar           = new PickerGroupSidebar(gallery.Groups.SidebarOrder, gallery.Groups.RecentName) { Icons = GroupIcons, DimmedIcons = DimmedGroups },
+            InitialGroup           = initialGroup,
             ShowSidePane           = true,
             SidePaneWidth          = 300f,
             DrawPaneAfterDefault   = true,
@@ -215,4 +222,30 @@ public sealed class AddEntityAction
 
     /// <summary>Serializes a menu item list for <c>CanvasContextMenuState.MenuJson</c>.</summary>
     public static string ToJson(IEnumerable<object> items) => JsonSerializer.Serialize(items, FdpJsonOptionsRegistry.DefaultRelaxed);
+
+    /// <summary>⭐ Terrain authoring (mockup 2) — the coloured icon of each gallery group: the six terrain groups from the one icon table, the existing groups as the mockup draws them (their own hue, at half strength).</summary>
+    public static readonly IReadOnlyDictionary<string, NodeEditor.Core.Widgets.IconGlyph> GroupIcons = new Dictionary<string, NodeEditor.Core.Widgets.IconGlyph>(StringComparer.Ordinal)
+    {
+        [TerrainPickCatalog.Blocks] = NodeEditor.Core.Widgets.Icons.Get("terrain/block"),
+        [TerrainPickCatalog.Buildings] = NodeEditor.Core.Widgets.Icons.Get("terrain/buildings"),
+        [TerrainPickCatalog.Vegetation] = NodeEditor.Core.Widgets.Icons.Get("terrain/vegetation"),
+        [TerrainPickCatalog.Walls] = NodeEditor.Core.Widgets.Icons.Get("terrain/walls"),
+        [TerrainPickCatalog.Clutter] = NodeEditor.Core.Widgets.Icons.Get("terrain/clutter"),
+        [TerrainPickCatalog.Water] = NodeEditor.Core.Widgets.Icons.Get("terrain/water"),
+        ["Recent & favourites"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Star, NodeEditor.Core.Widgets.IconPalette.Amber),
+        ["Soldiers"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.PersonRifle, NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Ground vehicles"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.GroundVehicle, NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Aircraft"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Plane, NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Weapon systems"] = new("\uf05b", NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Units"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Users, NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Civilians"] = new("\uf007", NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Tactical symbols"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Flag, NodeEditor.Core.Widgets.IconPalette.Teal),
+        ["Areas & routes"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon, NodeEditor.Core.Widgets.IconPalette.Teal),
+        ["Props"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Cubes, NodeEditor.Core.Widgets.IconPalette.Grey),
+        ["Macros"] = NodeEditor.Core.Widgets.Icons.Get("orbat/scenario"),
+        ["Other"] = new("\uf128", NodeEditor.Core.Widgets.IconPalette.Grey),
+    };
+
+    /// <summary>The groups whose icons draw at half strength — everything but the six terrain groups (the mockup's "unchanged context").</summary>
+    public static readonly IReadOnlySet<string> DimmedGroups = new HashSet<string>(GroupIcons.Keys.Where(k => !TerrainPickCatalog.Groups.Contains(k)), StringComparer.Ordinal);
 }

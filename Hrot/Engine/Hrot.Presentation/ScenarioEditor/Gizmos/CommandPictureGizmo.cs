@@ -31,6 +31,11 @@ public sealed class CommandPictureAbsentGizmo : IStatelessGizmo
     public const string Text = "no picture on this node yet";   // ≤ 31 bytes (FixedString32)
     public static readonly Rgba32 Colour = new(200, 200, 200, 220);
 
+    /// <summary>⭐ CE-1480 G5 — the picture reads: the layer's on/off state (<c>IsLayerActive</c>), the entity's position (<c>SimTransform</c>), and — across ALL
+    /// entities — <c>UnitSubordinate.Commander</c> (<c>IsCommander</c>; the gate watches the whole table); <c>CommandPicture</c> is read for presence only
+    /// (structural). Nothing time-varying, not view-dependent. Held while none moved.</summary>
+    public GizmoInputs? Inputs { get; } = new GizmoInputs(false, null, typeof(SimTransform), typeof(UnitSubordinate)) { ReadsLayerState = true };
+
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
         if (!draw.IsLayerActive(DebugTraceLayers.SquadCommand)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work

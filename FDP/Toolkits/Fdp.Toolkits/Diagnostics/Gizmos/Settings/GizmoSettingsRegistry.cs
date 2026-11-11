@@ -24,6 +24,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
 
         public bool IsDirty => _isDirty;
 
+        /// <summary>⭐ CE-1480 G5 — moves on EVERY change of an active value (a write, a reset, a load, a registration): a gizmo whose picture reads a setting
+        /// declares it as its <c>GizmoInputs.Version</c> and is held until it moves.</summary>
+        public long Version { get; private set; }
+
         /// <summary>Optional cold-path notification; NOT called on the hot execute path.</summary>
         public event Action<uint>? OnSettingChanged;
 
@@ -38,7 +42,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
             _keyNames[hash] = keyName;
             if (!_active.ContainsKey(hash))
             {
-                _active[hash]   = defaultValue;
+                _active[hash]   = defaultValue; Version++;
                 _defaults[hash] = defaultValue;
             }
             else if (_defaults.TryGetValue(hash, out var existing) && existing != defaultValue)
@@ -57,7 +61,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         /// </summary>
         public void Write(uint keyHash, GizmoSettingValue value, IEntityCommandBuffer? cmd = null, SettingScope scope = SettingScope.Global)
         {
-            _active[keyHash] = value;
+            _active[keyHash] = value; Version++;
             _scopes[keyHash] = scope;
             _isDirty = true;
             cmd?.PublishEvent(new GizmoSettingChangedEvent { KeyHash = keyHash });
@@ -72,7 +76,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         public void ResetToDefault(uint keyHash)
         {
             if (_defaults.TryGetValue(keyHash, out var def))
-                _active[keyHash] = def;
+                _active[keyHash] = def; Version++;
             _isDirty = false;
         }
 

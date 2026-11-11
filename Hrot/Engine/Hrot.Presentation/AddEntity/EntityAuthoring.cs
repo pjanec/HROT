@@ -33,6 +33,12 @@ public sealed record EntityAuthoringInputs(
 
     /// <summary>⭐ CE-4210 MA-7 — the macro files (paths under <c>macros/</c>) Add Entity offers in its Macros group, read from the NAS root the load resolves against. ⛔ A host that expands macros (the editor) passes it; null ⇒ no Macros group.</summary>
     public Func<IReadOnlyList<string>>? Macros { get; init; }
+
+    /// <summary>⭐ Terrain authoring U-1 — the recipes and building templates Add Entity offers in its terrain groups (Blocks, Buildings…). ⛔ A host that shows blocks live (the editor) passes it; null ⇒ no terrain groups are LISTED with entries (the groups stay, empty).</summary>
+    public Func<IReadOnlyList<TerrainPick>>? Terrain { get; init; }
+
+    /// <summary>⭐ Terrain authoring U-2 — the ground a block's placing ghost fits itself to (the base terrain + its folder); null ⇒ the ghost draws nothing.</summary>
+    public Func<TerrainGhostContext?>? TerrainContext { get; init; }
 }
 
 /// <summary>
@@ -63,7 +69,7 @@ public sealed class EntityAuthoring
         _tools = tools;
         if (inputs.HostPickers is null) _ownPickers = CreatePickers();
         AddEntity = new AddEntityAction(_in.Tkb, () => Pickers is { } p ? p.OpenPicker : null, () => Spawn, _in.SuspendedReason,
-                                    gallery: _in.Gallery ?? GalleryData.Shipped, macros: _in.Macros);   // ⭐ CE-4142 — every host opens the gallery; a host with none of the data files gets the tree
+                                    gallery: _in.Gallery ?? GalleryData.Shipped, macros: _in.Macros, terrain: _in.Terrain);   // ⭐ CE-4142 — every host opens the gallery; a host with none of the data files gets the tree
         CanvasMenu = new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(AddEntity);
     }
 
@@ -78,7 +84,7 @@ public sealed class EntityAuthoring
             // ⭐ CE-4073 — the attribute compiler needs no geographic transform (local ENU metres), so it is built on every host:
             //   `geo is null ? null : …` used to leave a host with no terrain without one, silently dropping every request's attributes.
             var json = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build();
-            _spawn = new ScenarioSpawnAdapter(creation, json, _in.Tkb(), _gizmos, _tools);
+            _spawn = new ScenarioSpawnAdapter(creation, json, _in.Tkb(), _gizmos, _tools) { TerrainContext = _in.TerrainContext };   // ⭐ Terrain authoring U-2 — forwarded (rail: the constructed adapter has it)
             return _spawn;
         }
     }

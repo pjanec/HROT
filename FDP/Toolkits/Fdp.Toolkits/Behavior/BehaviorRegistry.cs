@@ -1011,6 +1011,9 @@ namespace Fdp.Toolkit.Behavior
         /// Used by egress translators to emit the human-readable <c>BehaviorId</c>
         /// string rather than the raw numeric behavior ID.
         /// </summary>
+        /// <summary>⭐ CE-1480 G5 — moves when a behaviour is registered (a gizmo that prints names holds its picture until it does).</summary>
+        public int DefinitionCount => _definitions.Count;
+
         public bool TryGetName(int behaviorId, [MaybeNullWhen(false)] out string name)
         {
             if (_definitions.TryGetValue(behaviorId, out var def))
