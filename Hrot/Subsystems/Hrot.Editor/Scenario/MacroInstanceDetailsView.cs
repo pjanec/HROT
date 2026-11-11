@@ -36,6 +36,8 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
     public string StatusText { get; private set; } = "";
     public int RowsDrawn => _table.RowsDrawn;
     public int ResetButtons => _table.ResetButtons;
+    /// <summary>The screen centre of the last ↺ drawn (the frame rails click it); null when none.</summary>
+    public System.Numerics.Vector2? ResetCenter => _table.LastResetButtonCenter;
     public bool ReadOnly { get; private set; }
 
     /// <param name="pickMacro">Opens the scenario picker's Macros group and calls back with the chosen path (null ⇒ no Change… button). ⛔ A host that edits macros passes it.</param>

@@ -36,6 +36,17 @@ public sealed class TheMacroSectionDrawsTests : IDisposable
         var h = new JsonObject();
         ScenarioHeaderJson.Write(h, header);
         File.WriteAllText(Path.Combine(dir, "scenario.json"), new JsonObject { ["Header"] = h }.ToJsonString());
+        // ⭐ CE-4258 — a macro with TWO params of the SAME type (the score macro's two entity links clashed in ImGui ids)
+        var two = new ScenarioHeader("Hrot.Scenario")
+        {
+            Kind = ScenarioHeader.MacroKind,
+            Params = new[] { new ScenarioParamDecl("a", "ForceId", JsonValue.Create("Hostile")), new ScenarioParamDecl("b", "ForceId", JsonValue.Create("Hostile")) },
+        };
+        var dir2 = Path.Combine(_root, "test", "two-sides");
+        Directory.CreateDirectory(dir2);
+        var h2 = new JsonObject();
+        ScenarioHeaderJson.Write(h2, two);
+        File.WriteAllText(Path.Combine(dir2, "scenario.json"), new JsonObject { ["Header"] = h2 }.ToJsonString());
     }
 
     public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
@@ -84,6 +95,46 @@ public sealed class TheMacroSectionDrawsTests : IDisposable
         Assert.Equal(2, view.RowsDrawn);
         Assert.Equal(0, view.ResetButtons);
         Assert.False(view.ReadOnly);
+    }
+
+    /// <summary>⭐ CE-4258 — two rows of the SAME type each own their ids and reset: both ↺ are drawn, a real click on the second resets ONLY it (clashing ids would hit the other), the table stays open and the next frames draw.
+    /// ✅ Red-proof: the row's <c>PushID</c> scope removed from the shared table ⇒ the click resets the wrong row ⇒ red.</summary>
+    [SkippableFact]
+    public void CE4258_TwoSameTypeRows_ResetOnlyTheClickedOne_AndTheTableStaysOpen()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var repo = new EntityRepository();
+        repo.RegisterManagedComponent<MacroInstance>();
+        repo.RegisterComponent<MacroExpansionStatus>();
+        var e = repo.CreateEntity();
+        repo.SetManagedComponent(e, new MacroInstance { Macro = "test/two-sides", ArgsJson = "{\"a\":\"Friend\",\"b\":\"Friend\"}" });
+        repo.SetComponent(e, new MacroExpansionStatus { State = MacroExpansionState.Done });
+        repo.SetAuthority(e, ComponentTypeRegistry.GetId(typeof(MacroInstance)), true);
+        using var _r = repo;
+        var view = new MacroInstanceDetailsView(() => repo, () => new RepositoryAdapter(repo), () => _root,
+            () => Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build(), pickMacro: _ => { });
+        var ctx = new DetailsContext(SelectionOrigin.Unknown, Array.Empty<IAssetSubSelection>(), new[] { e }, null, "Scenario", VariableRunState.Planning);
+        using var frame = UiFrameHarness.Begin();
+        void Draw()
+        {
+            ImGuiNET.ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
+            ImGuiNET.ImGui.SetNextWindowSize(new Vector2(620, 320), ImGuiNET.ImGuiCond.Always);
+            ImGuiNET.ImGui.Begin("Macro (CE-4258)");
+            view.Draw(ctx, "t");
+            ImGuiNET.ImGui.End();
+        }
+        frame.StepN(4, Draw);
+        Assert.Equal(2, view.ResetButtons);
+        var at = view.ResetCenter!.Value;   // the SECOND row's ↺ (the last drawn)
+        void Pos(ImGuiNET.ImGuiIOPtr io) { io.AddMousePosEvent(at.X, at.Y); Raylib_cs.Raylib.SetMousePosition((int)Math.Round(at.X), (int)Math.Round(at.Y)); }
+        frame.Step(() => { Pos(ImGuiNET.ImGui.GetIO()); Draw(); });
+        frame.Step(() => { Pos(ImGuiNET.ImGui.GetIO()); ImGuiNET.ImGui.GetIO().AddMouseButtonEvent(0, true); Draw(); });
+        frame.Step(() => { Pos(ImGuiNET.ImGui.GetIO()); ImGuiNET.ImGui.GetIO().AddMouseButtonEvent(0, false); Draw(); });
+        frame.StepN(4, Draw);
+        var args = ((Fdp.ModuleHost.Abstractions.ISimulationView)repo).GetManagedComponentRO<MacroInstance>(e).ArgsJson;
+        Assert.Contains("\"a\"", args);
+        Assert.DoesNotContain("\"b\"", args);
+        Assert.Equal(1, view.ResetButtons);
     }
 
     [SkippableFact]
