@@ -993,3 +993,31 @@ Rails (`DirtyRegionBakeTests`, `BuildingDamageBakeTests.O7A_*`; each red-proved)
 hamlet · a region missing the old place makes them differ · null = today's bake · changed bounds ignore a region · the residency's region covers old and new,
 is empty for an unchanged set, null on a stale base or a fresh residency.
 
+
+#### 18e-2. Part B — the editor's live block expansion *(design `2026-11-11`)*
+
+```mermaid
+sequenceDiagram
+  participant S as StaticObstacleBakeSystem (editor)
+  participant L as LiveOverlay (editor only, new)
+  participant X as FeatureExpander (pure)
+  participant R as TerrainResidency.BakeObstacles (off-thread)
+  S->>L: signature of TerrainBlock + TerrainFeature entities (allocation-free)
+  alt changed and quiet for the debounce
+    S->>L: snapshot the changed entities
+    L->>X: expand each CHANGED block (an unchanged one keeps its cached parts, by guid + params)
+    L-->>S: the overlay parts, keyed guid/i
+    S->>R: BakeObstacles(prisms, damage, overlay parts)
+    R->>R: world = With(Merge(base, overlay), prisms); dirty += bounds of the overlay parts that differ by key + geometry
+  end
+```
+*What it shows:* a block edit rides the bake every node already runs; the stable keys (`<guid>/<i>`) make "which parts changed" a key diff, so a moved
+block dirties only its old and new place — woods included.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| B-1 where | the obstacle bake gains the overlay parts as a third input; the editor's `StaticObstacleBakeSystem` is given a `LiveOverlay` (null on every other host — blocks are inert data there, C-6) | an overlay as a BASE change — a base change is a full 28 s bake (A-2) · a second bake system — two bakes over one world (ruling 9) |
+| B-2 expansion | per entity, cached by guid + (recipe, seed, heading, fit, position); only changed entities re-expand | expanding everything each time — fine at 23 blocks, wasteful at hundreds |
+| B-3 the editor's load | the editor must NOT also merge the compiled overlay at load, or each house appears twice — ⚠ to be measured first (STOP if it does) | — |
+| B-4 forwarding | a rail on the CONSTRUCTED editor system that its `LiveOverlay` is set (the silent-default rule) | — |
+| B-5 3-D chunks | the dirty rects of each committed bake are exposed (`ObstacleBake.Dirty`) for ui's chunk rebuild | ui deriving them again — a second diff |
