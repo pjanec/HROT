@@ -64,13 +64,7 @@ public static class TerrainBake
         if (!File.Exists(scenarioFile)) throw new FileNotFoundException($"[Terrain] The source scenario '{sourceScenarioDir}' has no scenario.json.", scenarioFile);
         var dom = JsonNode.Parse(File.ReadAllText(scenarioFile)) as JsonObject ?? throw new InvalidOperationException($"[Terrain] '{scenarioFile}' is not a scenario object.");
         string baseName = (string?)Prop(Prop(dom, "header") as JsonObject, "terrainName") ?? throw new InvalidOperationException($"[Terrain] The source scenario '{sourceScenarioDir}' names no terrain.");
-        string? Resolve(string name)
-        {
-            var d = resolveTerrainDefinition(name);
-            if (d != null) return d;
-            var kept = Path.Combine(target, "source", "base", "terrain.json");
-            return File.Exists(kept) && SourceBaseNameOf(target) == name ? kept : null;
-        }
+        string? Resolve(string name) => ResolveBase(name, target, resolveTerrainDefinition);
         string baseDef = Resolve(baseName) ?? throw new FileNotFoundException($"[Terrain] Base terrain '{baseName}' (named by '{sourceScenarioDir}') was not found.");
         string baseFolder = Path.GetDirectoryName(Path.GetFullPath(baseDef))!;
         var definition = TerrainFolderWorld.ReadDefinition(baseDef);
@@ -125,13 +119,7 @@ public static class TerrainBake
         var dom = JsonNode.Parse(File.ReadAllText(scenarioFile)) as JsonObject ?? throw new InvalidOperationException($"[Terrain] '{scenarioFile}' is not a scenario object.");
         string baseName = (string?)Prop(Prop(dom, "header") as JsonObject, "terrainName") ?? throw new InvalidOperationException($"[Terrain] The source scenario '{sourceScenarioDir}' names no terrain.");
 
-        string? Resolve(string name)
-        {
-            var d = resolveTerrainDefinition(name);
-            if (d != null) return d;
-            var kept = Path.Combine(target, "source", "base", "terrain.json");
-            return File.Exists(kept) && SourceBaseNameOf(target) == name ? kept : null;
-        }
+        string? Resolve(string name) => ResolveBase(name, target, resolveTerrainDefinition);
         string baseDef = Resolve(baseName) ?? throw new FileNotFoundException($"[Terrain] Base terrain '{baseName}' (named by '{sourceScenarioDir}') was not found.");
         string baseFolder = Path.GetDirectoryName(Path.GetFullPath(baseDef))!;
 
@@ -144,6 +132,14 @@ public static class TerrainBake
         {
             Directory.CreateDirectory(part);
             string baseHash = TerrainContentHash.OfTerrain(baseDef);
+            // ⭐ E-3 (T-8 follow-up) — a source saved over its OWN base: the ground it keeps gets a name of its own, so reopening the source loads the bare ground (the catalogue resolves the new name through the kept-ground fallback) and the
+            //   live overlay adds the blocks once, instead of the saved terrain (blocks and all) under the same name
+            bool selfSave = string.Equals(baseFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), target, StringComparison.OrdinalIgnoreCase);
+            string? keptName = selfSave ? KeptGroundName(baseName, target, resolveTerrainDefinition) : null;
+            // a re-save from the ORIGINAL source (it still names T) once the ground was renamed: the base resolved to the kept copy under its OLD name — the rename is re-applied under the kept name it already has
+            if (!selfSave && string.Equals(baseFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), Path.Combine(target, "source", "base"), StringComparison.OrdinalIgnoreCase)
+                && ((string?)((JsonObject)JsonNode.Parse(File.ReadAllText(baseDef))!)["name"]) is { } currentKept && TerrainCatalog.SourceBaseOfOf(target) != null)
+                keptName = currentKept;   // also from the kept source itself (it names the ground): the `of` it recorded is kept, so the same inputs are the same terrain
             var definition = TerrainFolderWorld.ReadDefinition(baseDef);
             var baseWorld = TerrainFolderWorld.ReadWorld(baseDef, definition, baseName)
                 ?? throw new InvalidOperationException($"[Terrain] Base terrain '{baseName}' declares no world.");
@@ -212,6 +208,7 @@ public static class TerrainBake
             CopyTree(sourceScenarioDir, Path.Combine(part, "source", "scenario"), rel => TopFolder(rel) is OverlayCompiler.FolderName or OverlayCompiler.FolderName + ".part" or ".autosave" or ".slices");
             CopyTree(baseFolder, Path.Combine(part, "source", "base"), rel => rel == "source" || rel.StartsWith("source/", StringComparison.Ordinal) || rel == TerrainContentHash.CacheFileName);
 
+            if (keptName != null) RenameKeptGround(part, defPath, baseName, keptName, selfSave ? baseName : TerrainCatalog.SourceBaseOfOf(target) ?? baseName);
             string hash = TerrainContentHash.OfTerrain(defPath);
             var scenario = NewScenario(dom, baseName, newName);
             var summary = summaryParts.Finish(dom, scenario, compiled, baseWorld, overlayWorld);
@@ -232,6 +229,52 @@ public static class TerrainBake
             try { if (Directory.Exists(part)) Directory.Delete(part, true); } catch (IOException) { }
             throw;
         }
+    }
+
+    /// <summary>⭐ E-3 — the name of the ground a self-save keeps: <c>&lt;T&gt;-ground</c>, else <c>&lt;T&gt;-ground-2</c>, <c>-3</c> … — the first no terrain of the catalogue (real or kept) and no kept ground of the target already has. Deterministic.</summary>
+    internal static string KeptGroundName(string terrainName, string target, Func<string, string?> resolve)
+    {
+        for (int n = 1; ; n++)
+        {
+            string candidate = n == 1 ? terrainName + "-ground" : terrainName + "-ground-" + n;
+            if (resolve(candidate) == null && TerrainCatalog.KeptGroundOf(target, candidate) == null) return candidate;
+        }
+    }
+
+    /// <summary>
+    /// ⭐ E-3 — writes <paramref name="keptName"/> into the part's kept ground (<c>source/base/terrain.json</c> <c>name</c>), into <c>terrain.json</c>'s <c>source.base</c> (<c>name</c>; <c>of</c> = the old name; <c>contentHash</c> = the RENAMED copy's — a rename
+    /// moves <see cref="TerrainContentHash.OfTerrain"/>, which hashes <c>terrain.json</c>) and into the copied source scenario (header <c>terrainName</c>; the <c>TerrainObjects</c> keys <c>&lt;old&gt;/…</c> → <c>&lt;kept&gt;/…</c>).
+    /// </summary>
+    private static void RenameKeptGround(string part, string defPath, string oldName, string keptName, string of)
+    {
+        string keptDef = Path.Combine(part, "source", "base", TerrainCatalog.DefinitionFileName);
+        var kept = (JsonObject)JsonNode.Parse(File.ReadAllText(keptDef))!;
+        kept["name"] = keptName;
+        File.WriteAllText(keptDef, kept.ToJsonString());
+
+        var def = (JsonObject)JsonNode.Parse(File.ReadAllText(defPath))!;
+        def["source"] = new JsonObject
+        {
+            ["scenario"] = "source/scenario",
+            ["base"] = new JsonObject { ["name"] = keptName, ["of"] = of, ["contentHash"] = TerrainContentHash.OfTerrain(keptDef) },
+        };
+        File.WriteAllText(defPath, def.ToJsonString());
+
+        string scenarioFile = Path.Combine(part, "source", "scenario", "scenario.json");
+        var dom = (JsonObject)JsonNode.Parse(File.ReadAllText(scenarioFile))!;
+        if (Prop(dom, "header") is JsonObject header)
+        {
+            string tnKey = header.Select(kv => kv.Key).First(k => k.Equals("terrainName", StringComparison.OrdinalIgnoreCase));
+            header[tnKey] = keptName;
+        }
+        if (TerrainObjectsSection.Of(dom) is { } section)
+        {
+            var entries = section.Select(kv => (kv.Key, kv.Value)).ToList();
+            section.Clear();
+            foreach (var (key, node) in entries)
+                section[key.StartsWith(oldName + "/", StringComparison.Ordinal) ? keptName + "/" + key.Substring(oldName.Length + 1) : key] = node;
+        }
+        File.WriteAllText(scenarioFile, dom.ToJsonString());
     }
 
     /// <summary>
@@ -322,10 +365,20 @@ public static class TerrainBake
         }
     }
 
-    private static string? SourceBaseNameOf(string targetFolder)
+    /// <summary>
+    /// ⭐ THE base resolver of a save (CheckOverwrite and SaveAs): the catalogue's answer (<paramref name="resolve"/> — which already falls back to a kept ground, <see cref="TerrainCatalog.KeptGroundOf"/>), except that when that answer IS the
+    /// terrain being overwritten and the target keeps its own ground under that name, the KEPT ground is the base — a re-save of a source that was saved over its own base (E-3) must never stack its blocks on the result of the
+    /// last save. A name the catalogue does not know falls back to the target's kept ground (a target outside the catalogue's roots).
+    /// </summary>
+    private static string? ResolveBase(string name, string target, Func<string, string?> resolve)
     {
-        try { return (string?)((JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(targetFolder, TerrainCatalog.DefinitionFileName)))!)["source"]?["base"]?["name"]; }
-        catch (Exception e) when (e is IOException or JsonException) { return null; }
+        string? d = resolve(name);
+        if (d != null)
+        {
+            string folder = Path.GetFullPath(Path.GetDirectoryName(Path.GetFullPath(d))!).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return string.Equals(folder, target, StringComparison.OrdinalIgnoreCase) && TerrainCatalog.KeptGroundOf(target, name) is { } kept ? kept : d;
+        }
+        return TerrainCatalog.KeptGroundOf(target, name);
     }
 
     private static string TopFolder(string rel) { int i = rel.IndexOf('/'); return i < 0 ? rel : rel.Substring(0, i); }

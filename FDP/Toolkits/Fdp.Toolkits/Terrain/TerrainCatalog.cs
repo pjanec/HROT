@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Nodes;
 using Fdp.Toolkit.Orchestration;
 
 namespace Fdp.Toolkit.Terrain
@@ -65,6 +66,56 @@ namespace Fdp.Toolkit.Terrain
                 var path = Path.Combine(root, relative, DefinitionFileName);
                 if (File.Exists(path)) return path;
             }
+            return ResolveKeptGround(relative);
+        }
+
+        /// <summary>The folder inside a terrain that keeps the ground it was built on (E-1): <c>&lt;terrain&gt;/source/base</c>.</summary>
+        public const string KeptGroundPath = "source/base";
+
+        /// <summary>
+        /// ⭐ T-8 follow-up (ui NOTE_Ui_To_Backend_Edit_Terrain) — THE ONE rule for a ground that is no longer a terrain of its own: <paramref name="terrainFolder"/>'s kept copy (<c>source/base/terrain.json</c>) when the folder's definition says its
+        /// <c>source.base.name</c> is <paramref name="name"/>, or the kept copy's own <c>name</c> is. The kept <c>terrain.json</c>, or null. Both <see cref="ResolveDefinition"/> (its fallback) and <c>TerrainBake.SaveAs</c> (the target's own) call it.
+        /// </summary>
+        public static string? KeptGroundOf(string terrainFolder, string name)
+        {
+            string kept = Path.Combine(terrainFolder, "source", "base", DefinitionFileName);
+            if (!File.Exists(kept)) return null;
+            if (string.Equals(SourceBaseNameOf(terrainFolder), name, StringComparison.Ordinal)) return kept;
+            if (string.Equals(SourceBaseOfOf(terrainFolder), name, StringComparison.Ordinal)) return kept;   // ⭐ E-3: the ground was renamed on a self-save; the name it had is still its name
+            try { return string.Equals((string?)((JsonObject)JsonNode.Parse(File.ReadAllText(kept))!)["name"], name, StringComparison.Ordinal) ? kept : null; }
+            catch (Exception e) when (e is System.Text.Json.JsonException or IOException or InvalidCastException) { return null; }
+        }
+
+        /// <summary>⭐ E-3 — <c>source.base.of</c>: the name the kept ground had before a self-save renamed it (<c>&lt;T&gt;-ground</c>), or null.</summary>
+        public static string? SourceBaseOfOf(string terrainFolder)
+        {
+            try { return (string?)((JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(terrainFolder, DefinitionFileName)))!)["source"]?["base"]?["of"]; }
+            catch (Exception e) when (e is System.Text.Json.JsonException or IOException or InvalidCastException) { return null; }
+        }
+
+        /// <summary>The <c>source.base.name</c> a terrain's definition records (the ground its source scenario was built on), or null.</summary>
+        public static string? SourceBaseNameOf(string terrainFolder)
+        {
+            try { return (string?)((JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(terrainFolder, DefinitionFileName)))!)["source"]?["base"]?["name"]; }
+            catch (Exception e) when (e is System.Text.Json.JsonException or IOException or InvalidCastException) { return null; }
+        }
+
+        // a name with no terrain folder of its own: some terrain's kept ground — roots in order, folders in ordinal order (deterministic); only on a miss
+        private string? ResolveKeptGround(string name)
+        {
+            foreach (var root in _roots)
+            {
+                if (!Directory.Exists(root)) continue;
+                var holders = new List<string>();
+                foreach (var def in Directory.EnumerateFiles(root, DefinitionFileName, SearchOption.AllDirectories))
+                {
+                    string rel = Path.GetRelativePath(root, Path.GetDirectoryName(def)!).Replace('\\', '/');
+                    if (rel.EndsWith("/" + KeptGroundPath, StringComparison.Ordinal)) holders.Add(Path.GetFullPath(Path.Combine(root, rel, "..", "..")));
+                }
+                holders.Sort(StringComparer.Ordinal);
+                foreach (var holder in holders)
+                    if (KeptGroundOf(holder, name) is { } kept) return kept;
+            }
             return null;
         }
 
@@ -117,6 +168,7 @@ namespace Fdp.Toolkit.Terrain
                 {
                     var folder = Path.GetDirectoryName(def)!;
                     var rel = Path.GetRelativePath(root, folder).Replace('\\', '/');
+                    if (rel.EndsWith("/" + KeptGroundPath, StringComparison.Ordinal)) continue;   // a kept ground is not a terrain of its own: ⭐ resolved by name (ResolveDefinition), never listed
                     if (rel != ".") names.Add(rel);
                 }
             }
