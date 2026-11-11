@@ -1380,3 +1380,34 @@ run inline.
 
 ⏭ Not covered by the PoC: the ~40 HROT UI-state writes and ~24 direct simulation writes (§13), stepped / deterministic mode on the worker, the time
 controller's ACK path, the profiler fed from the main thread, managed (Tier 2) components (immutability is already the rule).
+
+### 13.5 ⭐ Pros and cons — option (c), the kernel on a worker *(coordinator, `2026-11-11`; from the PoC §13.4 and ui's Windows measurement §11h — not ruled)*
+
+🔒 User, `2026-11-11`: *"document how it works … and what are the pros and cons of this approach"*. How it works: §13.3 (the shape) and the PoC's
+README (`FDP/Examples/Fdp.Examples.ThreadedKernel/README.md`, branch `poc/threaded-kernel`).
+
+| ✅ pros | evidence |
+|---|---|
+| ⭐ **the UI and the camera stop depending on the simulation** — today every input waits a 100 ms frame, often two (§11h P-3: 98.8 ms playing vs 32.4 ms paused, 63 ms of it simulation) | PoC: a 408 ms tick leaves the UI at 93 fps (today's shape 2.5 fps) |
+| ⭐ **it scales with the scenario, not against it** — 5 000 or 10 000 entities slow the SIMULATION, not the editor | PoC 1 000 → 50 000 entities: UI 218 → 69 fps (that fall is the drawing of every point), today's shape 128 → 4.9 fps |
+| **the simulation gets the cores the UI used to steal** — the drawing no longer interleaves with the tick | the worker's tick ran at the same cost in both modes (PoC) |
+| **the kernel needs no change to be ticked off the main thread** | PoC T-1: no thread-affinity checks in Fdp.Core / ModuleHost |
+| **one code path, two schedulings** — inline (tests, rails, headless, CI) or threaded (the windowed editor / player); tests keep their determinism | PoC `--mode single` vs `threaded` run the same modules |
+| it follows the kernel's OWN model (DES-012): World A on one thread, readers on replicas, writes as commands | §13.1 |
+
+| ⛔ cons and costs | evidence / size |
+|---|---|
+| ⭐ **an edit lands one simulation tick later** — at a 400 ms tick a drag is visible ~0.5 s after the release; the UI must show a pending / ghost state | PoC drag → visible ≈ 1–1.5 ticks (14 ms at 1 000, 528 ms at a 408 ms tick) |
+| ⭐ **the UI's writes must all become commands** — 3 shared seams queued, ~24 direct simulation writes converted, ~40 UI-state writes moved to a presentation store | §13's write table |
+| **a full-world snapshot per tick, on the worker** — cheap in the PoC (1 ms at 10 000 entities), but a REAL HROT copy is heavier: ui measured ~6.5 ms per background module's mask at 1 000 men; the drawn world's mask is larger ⇒ likely ~10 ms added to each tick (to measure) | §11h P-2; PoC §13.4 |
+| **2–3 copies of the world in memory** (latest, leased, free) | PoC T-7 |
+| **new kernel pieces**: a published leased snapshot (the double buffer overwrites in place), a per-reader event queue (events lost when riding on a snapshot — PoC T-2), queries re-bound per snapshot, command validation, the profiler fed from the main thread | PoC T-2…T-6 |
+| **the HTTP debug API splits** — 77 routes labelled sim-side or UI-side; sim-side answers at the tick's rate | §13.4 |
+| **what the UI shows is one tick old** — a selected unit's values, a hover readout; fine for a 30 Hz sim, visible at 2 Hz | inherent |
+| not yet proven: stepped / deterministic mode and the time controller's ACKs on the worker; the real presentation's ~40 UI-state writes; Windows numbers for the threaded mode | §13.4 ⏭ |
+
+**Alternatives, one line each (from §11h):** (a) interleaving soldiers' brains — ~4 ms of 63, and the dt fault (HSM timers run slow) first;
+(b) cutting the named non-brain costs — a long tail (~25 systems of 0.4–7 ms; the 8.3 ms of snapshot copies cannot convoy as built), 30–40 % for weeks
+of work, and it does not change the shape: a bigger scenario brings the freeze back.
+⇒ **Lean (coordinator and ui agree): (c)**, with (b)'s cheap items meanwhile. ⏳ For the user to rule; then an architect-question document and a
+kernel design section in FDP-DES-012 before any build.
