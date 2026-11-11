@@ -11,11 +11,14 @@ public sealed class TerrainGhostContext
         Base = baseWorld ?? throw new ArgumentNullException(nameof(baseWorld));
         Assets = TerrainAssets.ForFolder(terrainFolder);
         RecipeRoots = new List<string?>(TerrainRecipe.RootsFor(terrainFolder));
+        Roads = TerrainRoads.ForFolder(terrainFolder);   // ⭐ T-5 — the SAME reader the compile and the live overlay use (once per base / folder change: the context is cached); null = the terrain has no road net
     }
 
     public TerrainWorld Base { get; }
     public TerrainAssets Assets { get; }
     public IEnumerable<string?> RecipeRoots { get; }
+    /// <summary>The terrain's road net as straight edges (backend's T-5), what <see cref="TerrainBlock.AlignRoad"/> turns a block to; null when it has none.</summary>
+    public TerrainRoads? Roads { get; }
 }
 
 /// <summary>What one ghost frame shows (computed only when the cursor, the heading or the seed moved): the block's outline, its houses and woods, and the two hint lines.</summary>
@@ -40,7 +43,7 @@ public static class TerrainGhost
 {
     public static TerrainGhostShape Compute(TerrainPickKind kind, string id, TerrainGhostContext ctx, Vector2 at, float headingDeg, uint seed, byte fit = TerrainBlock.FitAll)
     {
-        string heading = $"heading {System.Math.Round(headingDeg)}° · R to rotate · road alignment later (CE-3431)";
+        string heading = $"heading {System.Math.Round(headingDeg)}° · R to rotate";
         try
         {
             if (kind == TerrainPickKind.House)
@@ -49,7 +52,9 @@ public static class TerrainGhost
                 return new TerrainGhostShape { Outline = Hull(foot), Houses = new[] { foot }, HousesPlaced = 1, Line1 = heading, Line2 = "one house, set on the ground here" };
             }
             var recipe = TerrainRecipe.Find(id, ctx.RecipeRoots);
-            var x = FeatureExpander.Expand(recipe, seed, at, headingDeg, fit, ctx.Base, "ghost", ctx.Assets);
+            // ⭐ T-5 — the ghost previews the alignment through the expander itself (AlignRoad + the road net), so what it shows is what the compile will make; TryAlign only tells the hint whether the block turned
+            if ((fit & TerrainBlock.AlignRoad) != 0 && ctx.Roads is { } roads && roads.TryAlign(at, recipe.Radius, headingDeg, out _)) heading = "aligned to the track (R to rotate)";
+            var x = FeatureExpander.Expand(recipe, seed, at, headingDeg, fit, ctx.Base, "ghost", ctx.Assets, ctx.Roads);
             var shapes = x.ShapesOrEmpty;
             var houses = new List<Vector2[]>(x.Houses);
             var woods = new List<Vector2[]>(x.Woods);

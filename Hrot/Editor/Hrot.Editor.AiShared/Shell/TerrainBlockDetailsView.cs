@@ -20,7 +20,6 @@ namespace Hrot.Editor.AiShared.Shell;
 /// </summary>
 public sealed class TerrainBlockDetailsView : IDetailsViewInstance
 {
-    public const string RoadReason = "Aligning a block to the nearest road waits on the road hint (CE-3431).";
     public const string PadsNote = "flattening comes later (S-5)";
 
     private readonly Func<EntityRepository?> _world;
@@ -95,7 +94,7 @@ public sealed class TerrainBlockDetailsView : IDetailsViewInstance
         }
 
         ImGui.SeparatorText("Fit to the site");
-        Fit(world, e, block.Fit, "Align to the nearest road", "align", TerrainBlock.AlignRoad, enabled: false, RoadReason);
+        Fit(world, e, block.Fit, "Align to the nearest road", "align", TerrainBlock.AlignRoad, true, null);
         Fit(world, e, block.Fit, "Keep out of water", "water", TerrainBlock.AvoidWater, true, null);
         Fit(world, e, block.Fit, "Keep out of buildings", "buildings", TerrainBlock.AvoidBuildings, true, null);
         Fit(world, e, block.Fit, "Level houses on pads", "pads", TerrainBlock.LevelPads, enabled: false, PadsNote);

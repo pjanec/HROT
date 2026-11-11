@@ -13,6 +13,7 @@ using Hrot.UI.Common.Map3D;
 using Hrot.Editor.UiFrameRail;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Services;
+using Hrot.UI.Common.AddEntity;
 using Hrot.ScenarioEditor.Gizmos;
 using Hrot.UI.Common.Map2D;
 using Raylib_cs;
@@ -135,6 +136,52 @@ public sealed class TerrainBlockFrameRail
         Assert.Equal(0, nearLayer.HouseTopsDrawn);
         int tanNear = Count(near.Image, c => Near(c, 228, 196, 144, 6));
         Assert.True(tanNear < tan / 4, $"close in the floor plan replaces the footprint tops ({tanNear} tan px vs {tan} far out)");
+    }
+
+    /// <summary>
+    /// ⭐ Terrain authoring T-5 (mockup <c>terrain-authoring-2-blocks.svg</c>, the ghost at the track, <i>aligned to the track (R to rotate)</i>) in a REAL frame (Xvfb; a skip is not a pass): a hamlet ghost placed at 30° beside test-town's east-west road
+    /// is drawn by <see cref="TerrainGhostDraw"/> over the terrain layers — the dashed blue outline, tan houses, the white first hint line (it SAYS aligned) and the green verdict line — and the road's turn is measured: the ghost's houses stand at the
+    /// ALIGNED heading (the expander's answer with the road net), not the placed 30°. Shot: <c>t5-ghost-at-the-track.png</c> under <c>HROT_RAIL_SHOTS</c> (never committed).
+    /// 🔴 Red-proof (compile): <c>TerrainGhost.Compute</c> passing no road net to the expander ⇒ the houses stay at 30° ⇒ the heading measure reds.
+    /// </summary>
+    [SkippableFact]
+    public void TheGhostAtTheTrack_IsDrawnAlignedToTheRoad_WithTheHintThatSaysSo()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Shots();
+        var (world, _, _) = Town();
+        string folder = Path.Combine(ContentLayout.TerrainAssets(ContentLayout.TryFindSourceTree()!), "test-town"), def = Path.Combine(folder, "terrain.json");
+        var ctx = new TerrainGhostContext(TerrainFolderWorld.ReadWorld(def, TerrainFolderWorld.ReadDefinition(def), "test-town")!, folder);
+        Assert.NotNull(ctx.Roads);
+        var at = new Vector2(110f, 188f);
+        var shape = new TerrainPlacement(TerrainPickKind.Block, "hamlet", () => ctx, seed: 21).Preview(at, 30f)!;
+        Assert.Equal("aligned to the track (R to rotate)", shape.Line1);
+        Assert.NotEmpty(shape.Houses);
+        // the road turned the block: its first house's long edge runs along the road (y = 200 east-west), not along the placed 30°
+        Assert.True(ctx.Roads!.TryAlign(at, TerrainRecipe.Find("hamlet", ctx.RecipeRoots).Radius, 30f, out float aligned));
+        var edge = shape.Houses[0][1] - shape.Houses[0][0];
+        float deg = MathF.Atan2(edge.Y, edge.X) * 180f / MathF.PI, rel = ((deg - aligned) % 90f + 90f) % 90f;
+        Assert.True(rel < 1f || rel > 89f, $"the house edge ({deg}°) is square to the aligned heading ({aligned}°), not to the placed 30°");
+
+        float zoom = 4f;
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var cam = new MapCamera();
+        canvas.Camera = cam;
+        var target = at + new Vector2(-1280f / 2f / zoom, 800f / 2f / zoom);
+        cam.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(Hrot.ScenarioEditor.Map.MapInteractionContext.DefaultBufferCapacity);
+        buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Map = { Grid = false } }.ToMask());
+        Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, buffer, new FdpEventBus(), () => world);
+        frame.StepN(4, () => { buffer.Clear(); TerrainGhostDraw.Draw(buffer, shape, new Vector3(at.X, at.Y, 0f), 12f / zoom); canvas.Draw(); });
+        frame.Screenshot(Path.Combine(shots, "t5-ghost-at-the-track.png"));
+        using var img = new ImageBox(Raylib.LoadImageFromScreen());
+        int outline = Count(img.Image, c => Near(c, 120, 190, 255, 40)), text = Count(img.Image, c => c.R > 245 && c.G > 245 && c.B > 245), verdict = Count(img.Image, c => Near(c, 110, 210, 130, 12));
+        Assert.True(outline > 200, $"the dashed ghost outline is on screen ({outline} px)");
+        Assert.True(text > 60, $"the white hint line is on screen ({text} px)");
+        Assert.True(verdict > 40, $"the green verdict line is on screen ({verdict} px)");
     }
 
     private sealed class ImageBox : IDisposable { public readonly Image Image; public ImageBox(Image i) => Image = i; public void Dispose() => Raylib.UnloadImage(Image); }

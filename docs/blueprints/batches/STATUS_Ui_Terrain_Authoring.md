@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-11 (follow-up 2: gaps A, B, C against mockups 1 and 3)
-current-answer: the table, then 'Follow-up 2'
+updated: 2026-11-11 (follow-up 3: Unpack and road alignment wired to backend's T-4 / T-5)
+current-answer: the table, then 'Follow-up 3' (newest), 'Follow-up 2'
 related-designs:
   - HANDOFF_Coordinator_To_Ui_Terrain_Authoring.md — the frame (dispatched at 2235ff0c2; scope frozen there)
   - ../../DESIGN_Terrain_Authoring.md — the owning design; §15a holds the as-built of each item
@@ -16,7 +16,7 @@ Started at `c8dc93df4` (merged `coordinator` + `backend@80051b2f0`); `backend@dc
 |---|---|---|---|
 | U-1 | CE-1481 | ✅ DONE | six terrain groups in Add Entity (`TerrainPickCatalog`, `GalleryGroups` always appends them), tiles with a generated picture of the recipe at its default seed; rails `TerrainAuthoringPickerTests.U1_*`, `TerrainAddEntityFrameRail` |
 | U-2 | CE-1481 | ✅ DONE | the fitted placing ghost (pure `FeatureExpander`, cached, 0 B steady), R rotates, one `TerrainBlock` / `TerrainFeature` per click; rails `U2_*` |
-| U-3 | CE-1482, CE-1489 | ✅ DONE (follow-up 2026-11-11: Details form built, menu icons, hint fix) | outline + chip + selection + block menu (Re-roll · Rotate · Change recipe… one undo step each; **Unpack greyed**, T-4); `TerrainBlockGizmoTests`, `TerrainBlockFrameRail` |
+| U-3 | CE-1482, CE-1489 | ✅ DONE (follow-up 2026-11-11: Details form built, menu icons, hint fix) | outline + chip + selection + block menu (Re-roll · Rotate · Change recipe… one undo step each; **Unpack live since follow-up 3**); `TerrainBlockGizmoTests`, `TerrainBlockFrameRail` |
 | U-4 | CE-1483 | ✅ DONE | template houses are tan footprints below 6 px/m, floor plan above; `TerrainBlockFrameRail` |
 | U-5 | CE-1484, CE-1490 | ◐ PART | Save terrain as… ✅; **follow-up 2026-11-11: Edit terrain… ✅ (staged to `opened/terrain/<t>`), SOURCE chip + right-click ✅, File ▸ Edit Terrain… / Save Terrain ✅, `TERRAIN SOURCE ·` title ✅**; ⏭ greyed: a terrain whose ground left the catalogue ([NOTE](NOTE_Ui_To_Backend_Edit_Terrain.md)), a terrain with no source (E-3) |
 | U-6 | CE-1485 | ✅ DONE | 3-D chunks adopt a new world and rebuild only those under the dirty rectangles: demo-city 16 chunks, 48 builds at load, one moved rectangle ⇒ 3 builds |
@@ -27,10 +27,19 @@ Started at `c8dc93df4` (merged `coordinator` + `backend@80051b2f0`); `backend@dc
 
 | surface | reason |
 |---|---|
-| block menu ▸ *Unpack into houses and features* | ⚠ backend's T-4 (`BlockOperations`) IS merged now; wiring the menu to it was not in follow-up 2's three gaps — still greyed, **resume here** |
-| the placing hint's road alignment | ⚠ backend's T-5 (CE-3431, `AlignRoad`) IS merged; the ghost still says *road alignment later (CE-3431)* — to be rewired (the ghost's expander call needs the road net) |
+| ~~block menu ▸ *Unpack*~~ · ~~the placing hint's road alignment~~ · ~~Align to the nearest road (Details)~~ | ✅ **all three live since follow-up 3** (below) |
 | *Street clutter* (the area scatter) in Clutter | backend's T-3 part 1 shipped the recipe vocabulary but no recipe with a `scatter` section; the tile stays greyed — it lights by itself when one lands |
 | the bridge panel's *road edge at save* | backend's T-7 (CE-4423); the panel says so |
+
+## Follow-up 3 (2026-11-11) — Unpack and road alignment wired (CE-1482)
+
+| item | state | rail (red-proved by a compiling mutation) | note |
+|---|---|---|---|
+| Unpack | ✅ | `BlockOperationsTests.U3_TheMenusUnpackAction_IsEnabled_UnpacksInOneStep_AndOneUndoRestoresTheBlock` (handler calling Re-roll) · `TerrainBlockGizmoTests.U3_TheBlockHasItsOwnMenu_…` (no greyed tooltip) · `TerrainBlockMenuFrameRail` | `TerrainBlockActions.Unpack` → `BlockOperations.Unpack` (its own bracket ⇒ ONE step; undo restores the block, same key); the editor passes `BlockExpansionContext.Of(TerrainResidency)`; a refusal is logged and changes nothing. Frame `u3-block-menu.png`: the row is teal and enabled |
+| Align to the nearest road (Details) | ✅ | `TerrainBlockDetailsViewTests.U3_TheForm_…` (row drawn disabled ⇒ the click changes nothing ⇒ red) | the checkbox toggles the `AlignRoad` bit, one undo step. Frame `u3-block-details.png` |
+| ghost previews the alignment | ✅ | `TerrainAuthoringPickerTests.U2_TheGhostAlignsToTheRoadLive_…` (+ **0 B** steady cursor beside the road) · `TerrainBlockFrameRail.TheGhostAtTheTrack_…` (no road net to the expander ⇒ both red) | `TerrainGhostContext.Roads` → `Expand(…, roads)`; hint *aligned to the track (R to rotate)* when `TryAlign` turns it. Frame `t5-ghost-at-the-track.png` |
+
+⚠ **Deviation from mockup 2:** the ghost's hint is the shared two-line backdrop text (white line, green verdict) — the mockup's warning / tick glyphs and the blue bordered panel are not drawn (as before; U-2). ⚠ **Finding, not fixed:** `TerrainBlockOps.Reroll` / `ChangeRecipe` duplicate backend's `BlockOperations` with a different seed rule — see the CE-1482 note; unify once the Details seed field can hold a full `uint`.
 
 ## Follow-up 2 (2026-11-11) — gaps measured against mockups 1 and 3
 
@@ -44,7 +53,7 @@ Merged `backend@78eb37d3d` (T-3 part 1, T-4, T-5) into `ui` first (`f011b98ea`);
 
 Ids: CE-1491 (A + B), CE-1492 (C). Frames this run (⛔ not in git): `u8-wizard-1-preset.png`, `u8-wizard-2-preview.png`, `u8-wizard-2b-zoom.png`, `u7-draw-panel-{hedge,bridge,scatter}.png`, `u7-add-entity-clutter.png` under the session scratchpad `terrain-shots/`.
 
-**Not done, honestly:** the placed wall / bridge on the map was not rendered beside the mockup's (only the panel and the tiles were): the in-progress line is the shared drawing look and was not changed; *Unpack* and the ghost's road alignment (T-4 / T-5 merged) are not rewired; the gallery has no *Scatter in an area…* header button; no 3-D look at any of it.
+**Not done, honestly:** the placed wall / bridge on the map was not rendered beside the mockup's (only the panel and the tiles were): the in-progress line is the shared drawing look and was not changed; *Unpack* and the ghost's road alignment were not rewired then — done in follow-up 3; the gallery has no *Scatter in an area…* header button; no 3-D look at any of it.
 
 ## Premises that failed (R-106 — that item only, the rest continued)
 
