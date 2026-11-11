@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- PROOF OF CONCEPT (coordinator, 2026-11-11, DESIGN_Evaluation_Cost_And_Cadence §13.3): the kernel ticked on a WORKER thread,
+       the presentation a module PULLED by the render loop on the main thread, on a LEASED published snapshot. Not production code. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />
+    <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
+  </ItemGroup>
+</Project>
