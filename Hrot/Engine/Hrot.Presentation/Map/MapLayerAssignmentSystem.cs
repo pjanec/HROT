@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.World;
+using Fdp.Toolkit.Replication.Components;
+using Hrot.Map.Common.Components;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Hrot.Presentation.Map;
@@ -30,6 +33,18 @@ public class MapLayerAssignmentSystem : IEcsModuleSystem
     private readonly IReadOnlyList<MapLayerDefinition> _layers;
     private EntityQuery? _query;
 
+    // ⭐ CE-1480 G2 (docs/DESIGN_Change_Gated_Systems.md) — the ONE ChangeGate, parametrised with this system's inputs: the DEFAULT layer
+    //   registry reads the DIS type (metadata — a SetDisType is a structural change ⇒ Full), SimTransform (the query), MapOverlayStyle and
+    //   TkbIdentity (presence = structural ⇒ Full; the route TKB type = a value ⇒ chunk version) and the mask it writes. ⛔ A CUSTOM registry
+    //   (tests) may read anything ⇒ it declares nothing ⇒ the gate answers Full every frame ⇒ today's behaviour.
+    private readonly ChangeGate _gate = new();
+
+    /// <summary>The gate (its counters: how many passes were full / skipped) — for rails and diagnostics.</summary>
+    public ChangeGate Gate => _gate;
+
+    /// <summary>How many times the entity walk actually ran (the gate skipped the rest) — for rails and diagnostics.</summary>
+    public int Passes { get; private set; }
+
     /// <summary>
     /// Constructs the system with an optional custom layer registry.
     /// </summary>
@@ -38,12 +53,20 @@ public class MapLayerAssignmentSystem : IEcsModuleSystem
     /// <see langword="null"/>, allowing tests to inject a minimal custom set.
     /// </param>
     public MapLayerAssignmentSystem(IReadOnlyList<MapLayerDefinition>? layers = null)
-        => _layers = layers ?? MapLayerRegistry.All;
+    {
+        _layers = layers ?? MapLayerRegistry.All;
+        if (layers == null)
+            _gate.Watch(typeof(SimTransform), typeof(MapOverlayStyle), typeof(TkbIdentity), typeof(MapDisplayComponent));
+    }
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
         var repo = (EntityRepository)view;
+        // Unchanged ⇒ no layer input moved since the last pass ⇒ every mask is as it was. Delta is treated as Full: TkbIdentity / MapOverlayStyle
+        // are optional inputs, which a delta over the SimTransform query would not see (ChangeResult.Entities).
+        if (_gate.Next(view).Kind == ChangeKind.Unchanged) return;
+        Passes++;
         _query ??= view
             .Query()
             .With<SimTransform>()

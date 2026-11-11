@@ -209,6 +209,92 @@ namespace Hrot.SimHost.Tests
             Assert.All(entities, e => Assert.Equal(1u << 3, world.GetComponentRO<MapDisplayComponent>(e).LayerMask));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1480 G2</c> — the DEFAULT registry runs on the shared <c>ChangeGate</c>: an unchanged world is not walked (no
+        /// <c>MapDisplayComponent</c> chunk moves, the gate skips), and every input change is followed on the very next frame —
+        /// a DIS type set, a <c>MapOverlayStyle</c> added, a seek (clock backwards). The masks equal those of the UNGATED system
+        /// (the same registry passed explicitly = no declaration = today's every-frame walk) over the whole sequence.
+        /// 📄 docs/DESIGN_Change_Gated_Systems.md §4 G2.
+        /// </summary>
+        [Fact]
+        public void MapLayerAssignmentSystem_DefaultRegistry_SkipsAnUnchangedWorld_AndFollowsEveryInput()
+        {
+            using var gatedWorld = new EntityRepository();
+            using var plainWorld = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(gatedWorld);
+            SimHostComponentRegistry.RegisterAll(plainWorld);
+            var gated = new MapLayerAssignmentSystem();
+            var plain = new MapLayerAssignmentSystem(MapLayerRegistry.All);   // explicit layers ⇒ undeclared ⇒ ungated
+
+            var ge = new List<Entity>(); var pe = new List<Entity>();
+            for (int i = 0; i < 40; i++)
+            {
+                foreach (var (w, l) in new[] { (gatedWorld, ge), (plainWorld, pe) })
+                {
+                    var e = w.CreateEntity();
+                    w.AddComponent(e, new SimTransform());
+                    w.SetDisType(e, new DISEntityType { Kind = 1, Domain = 1 });
+                    l.Add(e);
+                }
+            }
+
+            void Frame() { gatedWorld.Tick(); plainWorld.Tick(); gated.Execute(gatedWorld, 0.016f); plain.Execute(plainWorld, 0.016f); }
+            void SameMasks()
+            {
+                for (int i = 0; i < ge.Count; i++)
+                    Assert.Equal(plainWorld.GetComponentRO<MapDisplayComponent>(pe[i]).LayerMask,
+                                 gatedWorld.GetComponentRO<MapDisplayComponent>(ge[i]).LayerMask);
+            }
+
+            for (int i = 0; i < 6; i++) Frame();
+            SameMasks();
+            Assert.Equal(MapLayerRegistry.GroundUnitsBit | MapLayerRegistry.VehiclesBit,
+                         gatedWorld.GetComponentRO<MapDisplayComponent>(ge[0]).LayerMask);
+
+            // ⭐ nothing changed ⇒ the pass is skipped: no MapDisplayComponent chunk is stamped, the gate counts Unchanged
+            uint before = gatedWorld.GlobalVersion;
+            int skippedBefore = gated.Gate.Unchangeds, passesBefore = gated.Passes;
+            for (int i = 0; i < 5; i++) Frame();
+            Assert.Equal(skippedBefore + 5, gated.Gate.Unchangeds);
+            Assert.Equal(passesBefore, gated.Passes);              // ⭐ the walk did not run at all
+            Assert.False(gatedWorld.HasComponentChanged(typeof(MapDisplayComponent), before));
+            SameMasks();
+
+            // a DIS type set on one entity (metadata) ⇒ followed next frame
+            foreach (var (w, l) in new[] { (gatedWorld, ge), (plainWorld, pe) })
+                w.SetDisType(l[3], new DISEntityType { Kind = 1, Domain = 2 });
+            Frame();
+            SameMasks();
+            Assert.Equal(MapLayerRegistry.AirUnitsBit | MapLayerRegistry.VehiclesBit,
+                         gatedWorld.GetComponentRO<MapDisplayComponent>(ge[3]).LayerMask);
+
+            // a component the registry reads is ADDED ⇒ followed next frame
+            foreach (var (w, l) in new[] { (gatedWorld, ge), (plainWorld, pe) })
+                w.AddComponent(l[7], new Hrot.Map.Common.Components.MapOverlayStyle());
+            Frame();
+            SameMasks();
+            Assert.NotEqual(0u, gatedWorld.GetComponentRO<MapDisplayComponent>(ge[7]).LayerMask & MapLayerRegistry.TacticalGraphicsBit);
+
+            // a VALUE the registry reads changes on an entity that already carries the component (no structural change: a chunk version only)
+            foreach (var (w, l) in new[] { (gatedWorld, ge), (plainWorld, pe) })
+                w.AddComponent(l[9], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = new TkbTypeId(1) });
+            for (int i = 0; i < 4; i++) Frame();
+            SameMasks();
+            foreach (var (w, l) in new[] { (gatedWorld, ge), (plainWorld, pe) })
+                w.SetComponent(l[9], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = new TkbTypeId(TkbEntityTypes.TacGraphic_Route) });
+            Frame();
+            SameMasks();
+            Assert.NotEqual(0u, gatedWorld.GetComponentRO<MapDisplayComponent>(ge[9]).LayerMask & MapLayerRegistry.RoadGraphsBit);
+
+            // a seek: the clock goes back ⇒ a full pass (the masks are still the same as the ungated system's)
+            for (int i = 0; i < 4; i++) Frame();
+            gatedWorld.ResetGlobalVersion(2); plainWorld.ResetGlobalVersion(2);
+            int fulls = gated.Gate.Fulls;
+            gated.Execute(gatedWorld, 0.016f); plain.Execute(plainWorld, 0.016f);
+            Assert.Equal(fulls + 1, gated.Gate.Fulls);
+            SameMasks();
+        }
+
         // ── ④ the bit constants are one declaration, not two hand-synced copies ───
 
         /// <summary>
