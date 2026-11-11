@@ -1302,3 +1302,35 @@ sequenceDiagram
 
 Acceptance (handoff T-8): a rail lists the squad a new house would stand on — and the route leg a new hedge cuts, and the door state whose house
 was removed.
+
+### 18k. Roads and bridges in the road net — T-7 *(CE-4423 + CE-3438, backend `2026-11-11`; build-state: DESIGN — step 1 measures)*
+
+📐 **INVENTORY** (graph `search_graph` `.*(RoadNetwork|LaneClos|EdgeClos|RoadBlock|Closure).*` Class + `search_code` for closure calls, + reads):
+**TWO road systems** run off one terrain — ① the vehicle kinematics' `RoadNetworkBlob` (from the terrain's `roadNetworks[0]` JSON,
+`TerrainResidency.cs:276-289`), held by `RoadNetworkHolder` with generation-safe `Publish` (`CarKinem/Road/RoadNetworkHolder.cs:109`) — a swap at run
+time is already supported; ② SUMO traffic (`Hrot.Traffic`, the terrain's `sumoNet` `.net.xml`, stepped off-thread by `TrafficSteppingModule`), whose engine
+has reroute (`SumoSharp Sim.Core/Engine.cs:75-102`) but ⚠ **no edge-closure call found** (search_code: none). ⇒ a bridge must reach BOTH, and so must its fall.
+
+```mermaid
+graph TD
+  BF[Bridge feature - T-2] -->|compile at save| OC[OverlayCompiler]
+  OC --> RJ[overlay roads - the bridge edges joined to the nearest road ends]
+  OC -->|netconvert -s base.net.xml + the bridge edg / nod| SN[overlay net.xml]
+  RJ --> RES[TerrainResidency - roads = base + overlay roads]
+  SN --> TR[Hrot.Traffic - the overlay net when present]
+  COL[structure collapsed - O-2] -->|close the bridge edges| RES
+  COL -->|close + reroute - a closure call to add| TR
+```
+*What it shows:* the bridge becomes road at SAVE (one netconvert, the handoff's "netconvert on Save terrain"), and its fall closes the same edges in
+both systems at run time — the vehicles' net by a republish the holder already supports, SUMO by a closure the engine still lacks.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| K-1 where the bridge's road is made | the compile: a Bridge feature's two ends snap to the nearest road nodes within 25 m; the edges go into the overlay's roads JSON and, via `netconvert -s <base net> -e/-n <bridge plain files>`, an overlay `.net.xml` | a live netconvert per edit — seconds per change; the editor shows the deck, traffic follows at save |
+| K-2 the fall, vehicles | collapse ⇒ republish the `RoadNetworkBlob` without the bridge edges (`RoadNetworkHolder.Publish`) | a cost penalty — a vehicle would still drive into the river |
+| K-3 the fall, SUMO | add an edge-closure command to SumoSharp (disallow all vClasses on the edge's lanes + reroute the vehicles whose route crosses it) — ⚠ an ExtDeps change, measured first | despawning traffic on the bridge — the cars behind it would still route over |
+| K-4 CE-3438 | no rubble mound over a water surface (clip it to land) | — |
+
+⏭ **Step 1 (measure before building):** does `netconvert -s` + extra edges keep every base edge id (traffic routes and recordings name them); how
+the SUMO engine stores lane permissions (is a closure a lane flag or a route cost); how a structure collapse is observed today (the event the
+closure would hang on). Acceptance (handoff T-7): a vehicle routes over a new bridge and around a fallen one.
