@@ -23,9 +23,12 @@ namespace CarKinem.Systems
             foreach (var e in CarKinematicsSystem.MovedBodies(repo))   // built per run, as the movement model does (tables come late)
             {
                 if (!CarKinematicsSystem.IsClamped(repo, e, clampFlags)) continue;
-                ref var tf = ref repo.GetComponentRW<SimTransform>(e);
-                float z = terrain.SurfaceZ(tf.Position.X, tf.Position.Y, tf.Position.Z);
-                if (z != tf.Position.Z) tf.Position.Z = z;
+                // ⭐ CE-1480 G4 — READ first, take the write reference only when the height differs: GetComponentRW stamps the table's chunk
+                //   version, and a paused world re-stamped every clamped body's chunk every frame though nothing moved — which kept every
+                //   change gate downstream (map culling, the recorder, the view copy) permanently "changed".
+                ref readonly var at = ref repo.GetComponentRO<SimTransform>(e);
+                float z = terrain.SurfaceZ(at.Position.X, at.Position.Y, at.Position.Z);
+                if (z != at.Position.Z) repo.GetComponentRW<SimTransform>(e).Position.Z = z;
             }
         }
     }

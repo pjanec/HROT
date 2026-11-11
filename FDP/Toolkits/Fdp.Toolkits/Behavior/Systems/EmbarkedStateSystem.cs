@@ -125,18 +125,28 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (transforms && repo.HasComponent<SimTransform>(vehicle) && repo.HasComponent<SimTransform>(p) && Embarkation.OwnsPosition(repo, p))
                 {
                     ref readonly var v = ref repo.GetComponentRO<SimTransform>(vehicle);
-                    ref var t = ref repo.GetComponentRW<SimTransform>(p);
+                    // ⭐ CE-1480 G4 — the carried transform is computed first and written only when it differs: GetComponentRW stamps the table's
+                    //   chunk version, and a paused world re-stamped every passenger's chunk every frame though the vehicle had not moved
+                    Vector3 newPos; Quaternion newRot;
                     if (StationOf(repo, vehicle, tag.Seat) is { } station)
                     {
                         // ⭐⭐ Weapon systems WS-2 (R-2016, DESIGN_Weapon_Systems §6) — a weapon in a STATION stands at the seat's place and
                         //   faces its way, in the host's frame (sim, not only drawn): its muzzle and its arc are where the station is.
-                        t.Position = v.Position + Vector3.Transform(new Vector3(station.X, station.Y, station.Z), v.Rotation);
-                        t.Rotation = v.Rotation * Quaternion.CreateFromAxisAngle(Vector3.UnitZ, station.Facing);
+                        newPos = v.Position + Vector3.Transform(new Vector3(station.X, station.Y, station.Z), v.Rotation);
+                        newRot = v.Rotation * Quaternion.CreateFromAxisAngle(Vector3.UnitZ, station.Facing);
                     }
                     else
                     {
-                        t.Position = v.Position - Forward(v.Rotation) * (person ? Behind(repo, vehicle, tag.Mode) : 0f);   // ⭐ CE-2152 C10
-                        t.Rotation = v.Rotation;
+                        newPos = v.Position - Forward(v.Rotation) * (person ? Behind(repo, vehicle, tag.Mode) : 0f);   // ⭐ CE-2152 C10
+                        newRot = v.Rotation;
+                    }
+                    ref readonly var at = ref repo.GetComponentRO<SimTransform>(p);
+                    Quaternion atRot = at.Rotation;
+                    if (at.Position != newPos || atRot != newRot)
+                    {
+                        ref var t = ref repo.GetComponentRW<SimTransform>(p);
+                        t.Position = newPos;
+                        t.Rotation = newRot;
                     }
                     if (velocities && repo.HasComponent<SimVelocity>(vehicle) && repo.HasComponent<SimVelocity>(p))
                         repo.GetComponentRW<SimVelocity>(p) = repo.GetComponentRO<SimVelocity>(vehicle);   // dead reckoning elsewhere

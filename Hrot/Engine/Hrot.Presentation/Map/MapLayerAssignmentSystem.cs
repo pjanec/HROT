@@ -34,8 +34,9 @@ public class MapLayerAssignmentSystem : IEcsModuleSystem
     private EntityQuery? _query;
 
     // ⭐ CE-1480 G2 (docs/DESIGN_Change_Gated_Systems.md) — the ONE ChangeGate, parametrised with this system's inputs: the DEFAULT layer
-    //   registry reads the DIS type (metadata — a SetDisType is a structural change ⇒ Full), SimTransform (the query), MapOverlayStyle and
-    //   TkbIdentity (presence = structural ⇒ Full; the route TKB type = a value ⇒ chunk version) and the mask it writes. ⛔ A CUSTOM registry
+    //   registry reads the DIS type (metadata — a SetDisType is a structural change ⇒ Full), MapOverlayStyle and
+    //   TkbIdentity (presence = structural ⇒ Full; the route TKB type = a value ⇒ chunk version) and the mask it writes. ⚠ NOT SimTransform: it is only the query's "is a map entity" filter (its presence is structural), the predicates never read the
+    //   position — 📐 measured: watching it kept the gate open, a paused world's ground clamp re-stamps it every frame. ⛔ A CUSTOM registry
     //   (tests) may read anything ⇒ it declares nothing ⇒ the gate answers Full every frame ⇒ today's behaviour.
     private readonly ChangeGate _gate = new();
 
@@ -56,7 +57,7 @@ public class MapLayerAssignmentSystem : IEcsModuleSystem
     {
         _layers = layers ?? MapLayerRegistry.All;
         if (layers == null)
-            _gate.Watch(typeof(SimTransform), typeof(MapOverlayStyle), typeof(TkbIdentity), typeof(MapDisplayComponent));
+            _gate.Watch(typeof(MapOverlayStyle), typeof(TkbIdentity), typeof(MapDisplayComponent));
     }
 
     /// <inheritdoc/>
