@@ -1122,3 +1122,63 @@ sequenceDiagram
 ⚠ The netconvert dependency stays the synth's (a warning and plain files without SUMO; the importer then has no road net) — the wizard shows it as
 a note. ⏭ Acceptance (handoff T-1): same inputs → byte-identical ground files and layout DOM; *Shuffle layout* keeps the ground byte-identical; a
 3 km *Town with suburbs* generates, imports and loads within R-4192's 30 s warm.
+
+### 18g. More feature kinds and the area scatter — T-2 *(CE-4429, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+
+📐 **INVENTORY** (grep + reads; ⚠ graph not ready — re-run before the as-built): `TerrainFeature { byte Kind; FixedString32 Template; float HeadingDeg;
+float Pad }` with one kind (`House = 1`, `TerrainBlock.cs:35`); the world parser knows `building`, `wall` / `fence`, `tree`, `slab` / `ramp`,
+`surface` (`TerrainWorldParser.cs:141-265`) — ⚠ **no `prism` kind** (G-9), so clutter cannot be written into an overlay today; the shape store the
+area tools already use is the managed immutable `EditablePolyline` (`Hrot.Core/Components/Map/EditablePolyline.cs:20`, an `IAreaOutline`, with its
+scenario translator `EditablePolylineTranslator`); `FeatureExpander` already writes woods (`surface: forest` + trees) and houses; bridges come from O-2's
+`"structure"` grouping.
+
+```mermaid
+classDiagram
+  class TerrainFeature {
+    <<existing unmanaged, saved - Kind widened>>
+    byte Kind
+    FixedString32 Template - house template, clutter type, recipe, material
+    float HeadingDeg
+    float Pad - density, width or height by kind
+    uint Seed - new, for wood, scrub, scatter
+  }
+  class EditablePolyline {
+    <<existing managed immutable record - the shape of line and area kinds>>
+  }
+  class OverlayExpansion {
+    <<existing - ONE expansion, compiler and live overlay>>
+    Feature(kind, shape, params) parts
+  }
+  class FeatureExpander {
+    <<existing - gains Line, Area, Point, Scatter>>
+  }
+  class TerrainWorldParser {
+    <<existing - gains the prism kind>>
+  }
+  TerrainFeature "1" --> "0..1" EditablePolyline : line and area kinds
+  OverlayExpansion --> FeatureExpander
+  FeatureExpander ..> TerrainWorldParser : writes features it reads
+```
+*What it shows:* every kind is ONE more case in the one expander, written as a part the one parser already reads — except clutter, which needs the
+parser's missing `prism` kind (then the overlay, *Save terrain as* and the live overlay all carry it for free).
+
+| kind | shape | becomes | destructible |
+|---|---|---|---|
+| Wall · Fence · Hedge | polyline | `wall` / `fence` features, material from `Template` (brick, steel mesh, hedge) | as today's walls (breach by material) |
+| Wood | polygon + density + seed | `surface: forest` + trees (the expander's woods) | no |
+| Tree | point | `tree` | no |
+| Scrub | polygon | `surface: scrub` | no |
+| Clutter | point + heading | `prism` (new parser kind): size and material from the §7 table, reusing the obstacle TKB type's shape where one exists (`Car`) | ⛔ baked clutter is not (G-15) — a live obstacle stays the entity path |
+| Water | polygon | `surface: water` (cuts the ground — O-2 measured impassable) | no |
+| Bridge | polyline (two ends) + width | a deck `slab` + two `ramp`s grouped by `"structure"` (O-2) | collapses as a structure (O-2) |
+| Scatter | polygon + recipe + seed + density | ONE entity (R-4199 B-2): the expander places the recipe's items (clutter, trees, bushes) inside, deterministic | per item kind |
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| G-1 shape store | `EditablePolyline` beside `TerrainFeature` (a rarely changed managed record — the CLAUDE.md exception) | a fixed point list in the unmanaged component — the 1 024-byte cap (G-15) |
+| G-2 seed | `TerrainFeature` gains `uint Seed` (wood, scrub, scatter) | reusing `Pad` bits — unreadable |
+| G-3 clutter | a `prism` parser kind (footprint, baseZ, topZ, material, label) | clutter as live obstacle entities — thousands of entities per town, the bake per item |
+| G-4 scatter | an area + recipe + seed + density expands to items like a block; capacity measured (§7 warns of thousands) | one entity per item — the B-2 ruling |
+
+Acceptance (handoff T-2): rails — a hedge blocks movement, a wood conceals, water is impassable, a unit crosses a bridge, a scatter of 140 items
+compiles deterministically; the compiler and the live overlay give the same parts for every kind.
