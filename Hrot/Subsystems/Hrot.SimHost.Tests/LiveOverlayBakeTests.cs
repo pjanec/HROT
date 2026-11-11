@@ -184,6 +184,42 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-3439 — UNPACKING a block whose house is damaged keeps the damage on that house: Unpack re-keys the house (<c>&lt;guid&gt;/&lt;i&gt;</c> → <c>&lt;feature guid&gt;/0</c>) and the <c>BuildingDamage</c> entity with it; the committed bake re-points the entity by its OWN
+        /// key (<c>BuildingDamages.Remap</c>), the old numbering's label no longer naming the house. 🔴 Red-proof: drop the damage-key rewrite in <c>BlockOperations.Unpack</c> ⇒ the key finds no house ⇒ the damage is gone ⇒ red; ignore the key in <c>RemapDamageEntities</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3439_AnUnpackedBlocksDamagedHouse_KeepsItsDamage()
+        {
+            var sys = Editor();
+            var block = Block(250f, 250f, Guid.Parse("aaaaaaaa-0000-4000-8000-000000000001"));
+            RunUntilBaked(sys, 1);
+            var w1 = _world.GetSingletonManaged<TerrainWorld>()!;
+            int house = Array.FindIndex(w1.Buildings.ToArray(), b => b.Label.StartsWith("aaaaaaaa-", StringComparison.Ordinal));
+            string key = BuildingDamages.KeyOf(w1, house);
+            int local = 1, panel = BuildingPanelIndex.ToGlobal(w1, house, local);
+            var e = _world.CreateEntity();
+            var d = new BuildingDamage { Building = house };
+            BuildingDamages.Add(ref d, new WallBreach(panel, 3f, 5f, 0f, 2.2f, BreachKind.Passage), w1);
+            _world.AddComponent(e, d);
+            _world.SetManagedComponent(e, new TerrainObjectKey { Key = key });
+
+            var ctx = BlockExpansionContext.Of(_residency)!;
+            Assert.True(BlockOperations.Unpack(_world, block, ctx).Done);
+            string newKey = _world.GetComponent<TerrainObjectKey>(e).Key;
+            Assert.NotEqual(key, newKey);
+            RunUntilBaked(sys, 2);
+
+            var w2 = _world.GetSingletonManaged<TerrainWorld>()!;
+            int now = BuildingDamages.IndexOfKey(w2, newKey);
+            Assert.True(now >= 0, "the unpacked house is in the new world under its new key");
+            var got = _world.GetComponentRO<BuildingDamage>(e);
+            Assert.Equal(now, got.Building);
+            Assert.Equal(1, got.Count);
+            Assert.Equal(now, w2.Panels[got.Get(0).Panel].Building);
+            Assert.Equal(local, BuildingPanelIndex.ToLocal(w2, got.Get(0).Panel));
+        }
+
+        /// <summary>
         /// ⭐ CE-4427 R-7 — editing the RECIPE (or a template) file re-expands the block that read it: the cache key holds the files' (length, mtime) as well as the entity's parameters, and a once-a-second poll (no per-frame IO) moves
         /// the signature so the bake runs. 🔴 Red-proof: ignore the stamp in the cache lookup (<c>StampOf(entry.Files) != entry.Stamp</c> removed) ⇒ the block keeps its old houses and <c>Expansions</c> stays 1.
         /// </summary>

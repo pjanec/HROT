@@ -632,7 +632,8 @@ public sealed class TerrainResidency
         foreach (var e in world.Query().With<BuildingDamage>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build())
         {
             var d = world.GetComponentRO<BuildingDamage>(e);
-            if (BuildingDamages.Remap(ref d, from, to)) world.SetComponent(e, d);
+            string? key = world.HasManagedComponent<TerrainObjectKey>(e) ? world.GetComponent<TerrainObjectKey>(e).Key : null;   // ⭐ CE-3439 — by the entity's own key (an Unpack re-keys it)
+            if (BuildingDamages.Remap(ref d, from, to, key)) world.SetComponent(e, d);
         }
     }
 

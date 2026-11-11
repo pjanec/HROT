@@ -45,6 +45,69 @@ public static class TerrainBake
     /// <summary>The cold navmesh-bake rate (DESIGN §18b: 536 s / 105 800 tiles, 4 cores).</summary>
     public const double ColdSecondsPerTile = 0.0051;
 
+    /// <summary>
+    /// ⭐ T-8 (CE-4424, docs/DESIGN_Terrain_Authoring.md §18j) — what saving <paramref name="sourceScenarioDir"/> over <paramref name="targetFolder"/> would do to the scenarios that use the terrain <paramref name="newName"/>: the OLD world is the target as it is, the NEW world is the same
+    /// merge <see cref="SaveAs"/> writes (the base's world file plus the compiled overlay's features, parsed under the new name) built IN MEMORY — ⭐ nothing of the target is written (the source scenario's own derived <c>terrain-overlay/</c> is compiled first, as SaveAs does) —
+    /// and <see cref="TerrainChangeCheck"/> runs over every scenario <see cref="TerrainUsers.Of"/> finds under <paramref name="scenarioRoots"/>. A target that does not exist yet has no users: nothing to find.
+    /// </summary>
+    public static IReadOnlyList<TerrainFinding> CheckOverwrite(string sourceScenarioDir, string targetFolder, string newName, Func<string, string?> resolveTerrainDefinition, IEnumerable<string> scenarioRoots,
+        IEnumerable<string?>? recipeRoots = null, IUniqueBuildings? unique = null)
+    {
+        string target = Path.GetFullPath(targetFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string oldDef = Path.Combine(target, TerrainCatalog.DefinitionFileName);
+        if (!File.Exists(oldDef)) return Array.Empty<TerrainFinding>();
+        var users = TerrainUsers.Of(newName, scenarioRoots).Where(d => !string.Equals(Path.GetFullPath(d), Path.GetFullPath(sourceScenarioDir), StringComparison.OrdinalIgnoreCase)).ToList();
+        if (users.Count == 0) return Array.Empty<TerrainFinding>();
+
+        var oldWorld = TerrainFolderWorld.ReadWorld(oldDef, TerrainFolderWorld.ReadDefinition(oldDef), newName);
+        string scenarioFile = Path.Combine(sourceScenarioDir, "scenario.json");
+        if (!File.Exists(scenarioFile)) throw new FileNotFoundException($"[Terrain] The source scenario '{sourceScenarioDir}' has no scenario.json.", scenarioFile);
+        var dom = JsonNode.Parse(File.ReadAllText(scenarioFile)) as JsonObject ?? throw new InvalidOperationException($"[Terrain] '{scenarioFile}' is not a scenario object.");
+        string baseName = (string?)Prop(Prop(dom, "header") as JsonObject, "terrainName") ?? throw new InvalidOperationException($"[Terrain] The source scenario '{sourceScenarioDir}' names no terrain.");
+        string? Resolve(string name)
+        {
+            var d = resolveTerrainDefinition(name);
+            if (d != null) return d;
+            var kept = Path.Combine(target, "source", "base", "terrain.json");
+            return File.Exists(kept) && SourceBaseNameOf(target) == name ? kept : null;
+        }
+        string baseDef = Resolve(baseName) ?? throw new FileNotFoundException($"[Terrain] Base terrain '{baseName}' (named by '{sourceScenarioDir}') was not found.");
+        string baseFolder = Path.GetDirectoryName(Path.GetFullPath(baseDef))!;
+        var definition = TerrainFolderWorld.ReadDefinition(baseDef);
+        if (oldWorld == null || string.IsNullOrEmpty(definition.World)) return Array.Empty<TerrainFinding>();
+
+        var compiled = OverlayCompiler.Compile(dom, sourceScenarioDir, Resolve, bakeNavtiles: false, recipeRoots, unique);
+        string worldPath = Path.IsPathRooted(definition.World) ? definition.World : Path.GetFullPath(Path.Combine(baseFolder, definition.World));
+        var worldJson = JsonNode.Parse(File.ReadAllText(worldPath)) as JsonObject ?? throw new InvalidOperationException($"[Terrain] World file '{worldPath}' is not a GeoJSON object.");
+        var assets = TerrainAssets.ForFolder(baseFolder);
+        if (compiled.Wrote)
+        {
+            string overlayFolder = Path.Combine(sourceScenarioDir, OverlayCompiler.FolderName);
+            var header = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder);
+            var overlayJson = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(overlayFolder, header.World)))!;
+            var features = worldJson["features"] as JsonArray ?? throw new InvalidOperationException($"[Terrain] World file '{worldPath}' has no features array.");
+            foreach (var f in (JsonArray)overlayJson["features"]!) features.Add(f!.DeepClone());
+            var overlayBase = TerrainFolderWorld.ReadWorld(baseDef, definition, baseName)!;
+            var merged = TerrainWorldMerge.Merge(overlayBase, TerrainFolderWorld.ReadOverlay(overlayFolder, baseName, TerrainAssets.RecipesSibling(baseFolder)).World);
+            var hrot = worldJson["hrot"] as JsonObject ?? (JsonObject)(worldJson["hrot"] = new JsonObject { ["schemaVersion"] = 1 });
+            hrot["bounds"] = new JsonArray(merged.BoundsMin.X, merged.BoundsMin.Y, merged.BoundsMax.X, merged.BoundsMax.Y);
+            // the overlay's own templates (a block's generated houses) resolve in memory, as they will from the saved folder's buildings/
+            string overlayBuildings = Path.Combine(overlayFolder, TerrainAssets.BuildingsFolderName);
+            if (Directory.Exists(overlayBuildings))
+            {
+                var inline = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var file in Directory.EnumerateFiles(overlayBuildings, "*" + TerrainAssets.TemplateSuffix)) inline[Path.GetFileName(file)[..^TerrainAssets.TemplateSuffix.Length]] = File.ReadAllText(file);
+                assets = assets.WithInlineTemplates(inline);
+            }
+        }
+        var newWorld = TerrainWorldParser.Parse(worldJson.ToJsonString(), newName, assets);
+
+        var scenarios = new List<(string, JsonObject)>();
+        foreach (var d in users)
+            if (JsonNode.Parse(File.ReadAllText(Path.Combine(d, "scenario.json"))) is JsonObject sd) scenarios.Add((d, sd));
+        return TerrainChangeCheck.Check(oldWorld, newWorld, scenarios);
+    }
+
     /// <param name="sourceScenarioDir">the scenario folder (its <c>scenario.json</c> holds the blocks; its overlay is compiled first)</param>
     /// <param name="targetFolder">the new terrain's folder; an existing one is replaced (W-4 re-save)</param>
     /// <param name="newName">the new terrain's name (terrain.json <c>name</c>, door-key prefix)</param>
