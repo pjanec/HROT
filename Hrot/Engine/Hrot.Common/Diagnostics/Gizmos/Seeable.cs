@@ -29,12 +29,17 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public static GizmoInputs Inputs(params System.Type[] own) => Inputs(null, own);
 
         /// <summary>The same with an extra external version (a setting, a name table).</summary>
-        public static GizmoInputs Inputs(System.Func<long>? version, params System.Type[] own)
+        public static GizmoInputs Inputs(System.Func<long>? version, params System.Type[] own) => Build(false, version, own);
+
+        /// <summary>The same for a rule that also depends on the map view (zoom / what is in view).</summary>
+        public static GizmoInputs InputsWithView(System.Func<long>? version, params System.Type[] own) => Build(true, version, own);
+
+        private static GizmoInputs Build(bool dependsOnView, System.Func<long>? version, System.Type[] own)
         {
             var all = new System.Type[own.Length + 3];
             own.CopyTo(all, 0);
             all[own.Length] = typeof(TkbIdentity); all[own.Length + 1] = typeof(MacroExpansionStatus); all[own.Length + 2] = typeof(MacroOrigin);
-            return new GizmoInputs(false, version, all);
+            return new GizmoInputs(dependsOnView, version, all);
         }
 
         /// <summary>True when <paramref name="entity"/> has a physical presence on the map.</summary>

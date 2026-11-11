@@ -45,6 +45,9 @@ namespace Hrot.ScenarioEditor.Gizmos
         private const uint ConditionTransient = 1u << 3;
 
         private readonly GizmoSettingsRegistry? _settings;
+
+        /// <summary>⭐ CE-1480 G5 — what the picture is a function of (see the constructor). Held while none moved.</summary>
+        public GizmoInputs? Inputs { get; }
         private readonly uint _damagedKey;
         private readonly uint _immobileKey;
         private readonly uint _dimTransientKey;
@@ -63,6 +66,16 @@ namespace Hrot.ScenarioEditor.Gizmos
         public EntityPresentationGizmo(GizmoSettingsRegistry? settings)
         {
             _settings = settings;
+            // ⭐ CE-1480 G5 — read end to end (Draw + ResolveProfileId · TryGetVehicleDimensions · EntityFootprint · ChargeMarker · CombatLife ·
+            //   AffiliationColors · Seeable · PhysicalPresence · TooFarForDoors): the VALUES of NetworkIdentity (the id), SimTransform (the pose), Health
+            //   (condition, destroyed), VehicleParams / ObstacleShape (the footprint), ResolvedStyle / EntityInfo (the side colour), IsEmbarkedTag (enclosed
+            //   passenger, carried charge), TkbIdentity + the macro / expansion types (via Seeable); the DIS type (entity metadata — a SetDisType is a structural
+            //   change); presence of ScenarioIgnoreTag / MacroInstance / TerrainObjectKey (structural); the three settings (the registry's Version); and the
+            //   map VIEW (a door's pick box follows the zoom: TooFarForDoors). No clock, no animation. ⚠ One input NOT watched: the TKB database singleton
+            //   (the DIS-type fallback when the header is unset) — constant for a loaded scenario.
+            Inputs = Hrot.Common.Diagnostics.Gizmos.Seeable.InputsWithView(settings == null ? null : () => settings.Version,
+                typeof(SimTransform), typeof(NetworkIdentity), typeof(Health), typeof(global::CarKinem.Core.VehicleParams), typeof(Fdp.Toolkit.Terrain.ObstacleShape),
+                typeof(ResolvedStyle), typeof(EntityInfo), typeof(Fdp.Toolkit.Behavior.Components.IsEmbarkedTag));
             EntityPresentationGizmoSettings.Register(settings!);
 
             _damagedKey  = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.DamagedThreshold);

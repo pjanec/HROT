@@ -80,5 +80,61 @@ namespace Hrot.Presentation.Tests.Gizmos
                 },
                 g => g.Repo.SetComponent(g.Ents[4], new SimTransform { Position = new Vector3(5f, 5f, 0), Rotation = Quaternion.Identity }));   // a position
         }
+    
+        [Fact]
+        public void EntityPresentationGizmo_GatedPictureEqualsTheUngatedOne()
+        {
+            var settings = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
+            var rig = new GatedRuleRig(new EntityPresentationGizmo(settings),
+                r =>
+                {
+                    Common(r); r.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>(); r.RegisterComponent<CarKinem.Core.VehicleParams>();
+                    r.RegisterComponent<EntityInfo>(); r.RegisterComponent<Hrot.Map.Common.Components.ResolvedStyle>();
+                },
+                (r, i) =>
+                {
+                    var e = Basic(r, i);
+                    r.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 10, Max = 10 });
+                    r.AddComponent(e, new CarKinem.Core.VehicleParams { Length = 4f, Width = 2f });
+                    r.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
+                    return e;
+                });
+            rig.Standard(
+                g => g.Repo.SetComponent(g.Ents[2], new Fdp.Toolkit.Combat.Components.Health { Current = 2, Max = 10 }),        // condition (damaged)
+                g => g.Repo.SetComponent(g.Ents[3], new CarKinem.Core.VehicleParams { Length = 9f, Width = 3f }),                 // footprint
+                g => g.Repo.SetComponent(g.Ents[4], new EntityInfo { ForceId = ForceId.Hostile }),                                // the side colour
+                g => g.Repo.SetComponent(g.Ents[5], new SimTransform { Position = new Vector3(3f, 4f, 0), Rotation = Quaternion.Identity }), // the pose
+                g => settings.Write(Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.DamagedThreshold),
+                                    Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingValue.From(5f)));                          // a setting
+        }
+    
+        private static GatedRuleRig CardRig(Fdp.Toolkit.Diagnostics.Gizmos.IStatelessGizmo rule, bool health = false)
+            => new GatedRuleRig(rule,
+                r => { Common(r); r.RegisterComponent<EntityInfo>(); r.RegisterComponent<CarKinem.Core.VehicleParams>(); },
+                (r, i) =>
+                {
+                    var e = Basic(r, i);
+                    r.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
+                    r.AddComponent(e, new CarKinem.Core.VehicleParams { Length = 4f, Width = 2f });
+                    return e;
+                });
+
+        [Fact]
+        public void EntityCardFrameGizmo_GatedPictureEqualsTheUngatedOne()
+            => CardRig(new Hrot.Common.Diagnostics.Gizmos.EntityCardFrameGizmo()).Standard(
+                g => g.Repo.SetComponent(g.Ents[2], new EntityInfo { ForceId = ForceId.Hostile }),
+                g => g.Repo.SetComponent(g.Ents[3], new NetworkIdentity(5555)));
+
+        [Fact]
+        public void EntityNameGizmo_GatedPictureEqualsTheUngatedOne()
+            => CardRig(new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo()).Standard(
+                g => g.Repo.SetComponent(g.Ents[2], new EntityInfo { ForceId = ForceId.Hostile, Name = new FixedString64("Alpha") }),
+                g => g.Repo.SetComponent(g.Ents[3], new NetworkIdentity(5555)));
+
+        [Fact]
+        public void EntityRotationGizmo_GatedPictureEqualsTheUngatedOne()
+            => CardRig(new Hrot.Common.Diagnostics.Gizmos.EntityRotationGizmo(new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry())).Standard(
+                g => g.Repo.SetComponent(g.Ents[2], new SimTransform { Position = new Vector3(20f, 3f, 0), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1f) }),
+                g => g.Repo.SetComponent(g.Ents[3], new CarKinem.Core.VehicleParams { Length = 9f, Width = 3f }));
     }
 }
