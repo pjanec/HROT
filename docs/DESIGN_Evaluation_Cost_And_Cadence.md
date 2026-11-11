@@ -1342,7 +1342,7 @@ grows with the entity count on the main thread is the DRAWING of every point (so
 | # | finding | consequence for the real thing |
 |---|---|---|
 | T-1 | ✅ the kernel runs on a non-main thread with NO change — no thread-affinity checks anywhere in Fdp.Core / ModuleHost | the move itself is free |
-| T-2 | ⛔ **events must NOT ride on a snapshot** — run 2 lost 8–45 of ~5 000 events: when two publishes fall between two main frames, only the newest is leased and the skipped one's events vanish. ✅ Fixed: events queue for the READER and are taken once per frame (5 432 / 5 432, 6 199 / 6 199, 6 432 / 6 432) | the port keeps a per-reader event queue; "one snapshot = its events" is wrong |
+| T-2 | ⛔ **events must NOT ride on a snapshot** — run 2 lost 8–45 of ~5 000 events: when two publishes fall between two main frames, only the newest is leased and the skipped one's events vanish. ✅ Fixed: events queue for the READER and are taken once per frame (6 432 / 6 432 at 5 000, 6 199 / 6 199 at 20 000, 5 417 / 5 417 at 50 000) | the port keeps a per-reader event queue; "one snapshot = its events" is wrong |
 | T-3 | ⛔ the accumulator's read API (`ReadWindow` — a reused buffer "valid until the next capture", `EventAccumulator.cs:396-412`) is kernel-thread-only | events are copied on the WORKER at publish; the main thread never touches the accumulator |
 | T-4 | ⚠ an `EntityQuery` is bound to ONE repository — the presentation rebuilds its queries per new snapshot (an allocation per publish, not per frame) | a query cache per pooled snapshot, or a re-bindable query |
 | T-5 | ⚠ `DoubleBufferProvider` syncs one replica in place — unusable for a self-paced reader; the PoC needed its own pool + leases | the kernel feature: a published, leased snapshot (2–3 pooled) |
