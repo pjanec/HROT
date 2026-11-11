@@ -126,6 +126,45 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(3, _world.GetSingletonManaged<TerrainWorld>()!.Prisms.Count);
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-4427 R-5 — a construction that waits for the terrain module ALONE but can never be baked is ACKED by the bake system (with a Warn) instead of hanging for ever (the wait is unbounded): an obstacle missing its
+        /// <c>ObstacleShape</c>, or a world where <c>StaticObstacle</c> is not even registered. A bakeable one is left to the normal path. 🔴 Red-proof: drop <c>AckTheUnbakeable(world)</c> from <c>Execute</c> ⇒ neither is acked.
+        /// </summary>
+        [Fact]
+        public void CE4427_R5_AnObstacleTheBakeCanNeverServe_IsAckedInsteadOfHanging()
+        {
+            Terrain();
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(null, new[] { TerrainObstacles.LifecycleModuleId }, timeoutFrames: 10);
+            elm.WaitWithoutTimeout(TerrainObstacles.LifecycleModuleId);
+            var sys = new StaticObstacleBakeSystem(() => _wall) { Lifecycle = elm };
+            using var cmd = new Fdp.Core.EntityCommandBuffer();
+
+            var noShape = _world.CreateEntity();   // a StaticObstacle with no shape: the bake's query never sees it
+            _world.AddComponent(noShape, new SimTransform { Position = new Vector3(5, 0, 0), Rotation = Quaternion.Identity });
+            _world.AddComponent(noShape, new StaticObstacle { Material = new FixedString32("car-body") });
+            _world.SetLifecycleState(noShape, EntityLifecycle.Constructing);
+            elm.BeginConstruction(noShape, 1, 0, cmd);
+
+            var ok = Obstacle(10f);                // a whole one: left to the normal, baked path
+            elm.BeginConstruction(ok, 1, 0, cmd);
+
+            sys.Execute(_world, 0.016f);
+            var acked = Acked();
+            Assert.Contains(noShape.Index, acked);
+            Assert.DoesNotContain(ok.Index, acked);
+
+            // a world with no StaticObstacle type at all
+            using var bare = new EntityRepository();
+            bare.RegisterComponent<SimTransform>(); bare.RegisterEvent<ConstructionAck>();
+            var e = bare.CreateEntity();
+            var elm2 = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(null, new[] { TerrainObstacles.LifecycleModuleId }, timeoutFrames: 10);
+            elm2.WaitWithoutTimeout(TerrainObstacles.LifecycleModuleId);
+            elm2.BeginConstruction(e, 1, 0, cmd);
+            new StaticObstacleBakeSystem(() => _wall) { Lifecycle = elm2 }.Execute(bare, 0.016f);
+            bare.Bus.SwapBuffers();
+            Assert.Contains(bare.Bus.Read<ConstructionAck>().ToArray(), a => a.Entity == e && a.ModuleId == TerrainObstacles.LifecycleModuleId);
+        }
+
         /// <summary>⭐ <c>P7a_B3</c> — a node holding no terrain (no bakery) has nothing to bake: the obstacle is acked at once.</summary>
         [Fact]
         public void P7a_B3_ANodeWithNoTerrain_AcksAtOnce()

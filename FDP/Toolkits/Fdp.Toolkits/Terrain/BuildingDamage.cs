@@ -116,6 +116,38 @@ namespace Fdp.Toolkit.Terrain
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TerrainWorld, System.Collections.Generic.Dictionary<string, int>> s_byKey = new();
 
         /// <summary>
+        /// ⭐ CE-4427 R-4 — re-keys <paramref name="d"/> from the world <paramref name="from"/> it was written against to the world <paramref name="to"/> that replaces it: the building by its stable KEY
+        /// (<see cref="KeyOf"/> → <see cref="IndexOfKey"/>), each breach's panel by its within-building rank (<see cref="BuildingPanelIndex"/>). The live overlay re-sorts its parts when a block changes, so a house's index
+        /// and its panels' indices MOVE; a damage entity that kept the old numbers would breach another house. A building the new world no longer has loses its damage (Building −1, no breaches). Returns true when
+        /// <paramref name="d"/> changed; allocation-free.
+        /// </summary>
+        public static bool Remap(ref BuildingDamage d, TerrainWorld from, TerrainWorld to)
+        {
+            if (ReferenceEquals(from, to)) return false;
+            int nb = -1;
+            if ((uint)d.Building < (uint)from.Buildings.Count) nb = IndexOfKey(to, KeyOf(from, d.Building));
+            var n = default(BuildingDamage);
+            n.Building = nb;
+            if (nb >= 0)
+            {
+                n.Collapsed = d.Collapsed;
+                int k = 0;
+                for (int i = 0; i < d.Count; i++)
+                {
+                    var b = d.Get(i);
+                    int local = BuildingPanelIndex.ToLocal(from, b.Panel);
+                    int panel = local >= 0 ? BuildingPanelIndex.ToGlobal(to, nb, local) : -1;
+                    if (panel >= 0) n.Set(k++, b with { Panel = panel });
+                }
+                n.Count = (byte)k;
+            }
+            bool changed = n.Building != d.Building || n.Collapsed != d.Collapsed || n.Count != d.Count;
+            for (int i = 0; !changed && i < n.Count; i++) changed = n.Get(i) != d.Get(i);
+            if (changed) d = n;
+            return changed;
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-4417</c> (Terrain Authoring §18 C-4, O-3) — the index of the building <paramref name="key"/> names in <paramref name="world"/>, or −1.
         /// Accepts the full key (<see cref="KeyOf"/>, <c>"&lt;terrain&gt;/&lt;label&gt;"</c>) and the bare label, so a key written before or after a
         /// terrain rename resolves the same house. Built once per world (a world is immutable), so a receiving node maps a replicated key to ITS

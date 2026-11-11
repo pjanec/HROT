@@ -135,5 +135,12 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary><paramref name="dirty"/>: engine XY rectangles that changed; null = unknown = a full bake.</summary>
         INavmeshProvider? Build(TerrainWorld world, System.Collections.Generic.IReadOnlyList<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)>? dirty);
+
+        /// <summary>
+        /// ⭐ CE-4427 R-6 — the guarded form: <paramref name="dirty"/> is used ONLY when this factory's last bake is still serial <paramref name="previousSerial"/> (the one the caller committed), checked UNDER the factory's
+        /// bake lock — so a staged load that slipped in between never lets a dirty bake trust a key map of another world; otherwise a full bake. The serial of THIS bake comes back with the result
+        /// (<paramref name="bakeSerial"/>): ⛔ never read <see cref="BakeSerial"/> afterwards (two bakes can overlap; it is the LAST one's). Bakes on one factory are serialised.
+        /// </summary>
+        INavmeshProvider? Build(TerrainWorld world, System.Collections.Generic.IReadOnlyList<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)>? dirty, long previousSerial, out long bakeSerial);
     }
 }

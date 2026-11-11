@@ -1122,3 +1122,98 @@ sequenceDiagram
 ⚠ The netconvert dependency stays the synth's (a warning and plain files without SUMO; the importer then has no road net) — the wizard shows it as
 a note. ⏭ Acceptance (handoff T-1): same inputs → byte-identical ground files and layout DOM; *Shuffle layout* keeps the ground byte-identical; a
 3 km *Town with suburbs* generates, imports and loads within R-4192's 30 s warm.
+
+### 18g. More feature kinds and the area scatter — T-2 *(CE-4429, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+
+📐 **INVENTORY** (grep + reads; ⚠ graph not ready — re-run before the as-built): `TerrainFeature { byte Kind; FixedString32 Template; float HeadingDeg;
+float Pad }` with one kind (`House = 1`, `TerrainBlock.cs:35`); the world parser knows `building`, `wall` / `fence`, `tree`, `slab` / `ramp`,
+`surface` (`TerrainWorldParser.cs:141-265`) — ⚠ **no `prism` kind** (G-9), so clutter cannot be written into an overlay today; the shape store the
+area tools already use is the managed immutable `EditablePolyline` (`Hrot.Core/Components/Map/EditablePolyline.cs:20`, an `IAreaOutline`, with its
+scenario translator `EditablePolylineTranslator`); `FeatureExpander` already writes woods (`surface: forest` + trees) and houses; bridges come from O-2's
+`"structure"` grouping.
+
+```mermaid
+classDiagram
+  class TerrainFeature {
+    <<existing unmanaged, saved - Kind widened>>
+    byte Kind
+    FixedString32 Template - house template, clutter type, recipe, material
+    float HeadingDeg
+    float Pad - density, width or height by kind
+    uint Seed - new, for wood, scrub, scatter
+  }
+  class EditablePolyline {
+    <<existing managed immutable record - the shape of line and area kinds>>
+  }
+  class OverlayExpansion {
+    <<existing - ONE expansion, compiler and live overlay>>
+    Feature(kind, shape, params) parts
+  }
+  class FeatureExpander {
+    <<existing - gains Line, Area, Point, Scatter>>
+  }
+  class TerrainWorldParser {
+    <<existing - gains the prism kind>>
+  }
+  TerrainFeature "1" --> "0..1" EditablePolyline : line and area kinds
+  OverlayExpansion --> FeatureExpander
+  FeatureExpander ..> TerrainWorldParser : writes features it reads
+```
+*What it shows:* every kind is ONE more case in the one expander, written as a part the one parser already reads — except clutter, which needs the
+parser's missing `prism` kind (then the overlay, *Save terrain as* and the live overlay all carry it for free).
+
+| kind | shape | becomes | destructible |
+|---|---|---|---|
+| Wall · Fence · Hedge | polyline | `wall` / `fence` features, material from `Template` (brick, steel mesh, hedge) | as today's walls (breach by material) |
+| Wood | polygon + density + seed | `surface: forest` + trees (the expander's woods) | no |
+| Tree | point | `tree` | no |
+| Scrub | polygon | `surface: scrub` | no |
+| Clutter | point + heading | `prism` (new parser kind): size and material from the §7 table, reusing the obstacle TKB type's shape where one exists (`Car`) | ⛔ baked clutter is not (G-15) — a live obstacle stays the entity path |
+| Water | polygon | `surface: water` (cuts the ground — O-2 measured impassable) | no |
+| Bridge | polyline (two ends) + width | a deck `slab` + two `ramp`s grouped by `"structure"` (O-2) | collapses as a structure (O-2) |
+| Scatter | polygon + recipe + seed + density | ONE entity (R-4199 B-2): the expander places the recipe's items (clutter, trees, bushes) inside, deterministic | per item kind |
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| G-1 shape store | `EditablePolyline` beside `TerrainFeature` (a rarely changed managed record — the CLAUDE.md exception) | a fixed point list in the unmanaged component — the 1 024-byte cap (G-15) |
+| G-2 seed | `TerrainFeature` gains `uint Seed` (wood, scrub, scatter) | reusing `Pad` bits — unreadable |
+| G-3 clutter | a `prism` parser kind (footprint, baseZ, topZ, material, label) | clutter as live obstacle entities — thousands of entities per town, the bake per item |
+| G-4 scatter | an area + recipe + seed + density expands to items like a block; capacity measured (§7 warns of thousands) | one entity per item — the B-2 ruling |
+
+Acceptance (handoff T-2): rails — a hedge blocks movement, a wood conceals, water is impassable, a unit crosses a bridge, a scatter of 140 items
+compiles deterministically; the compiler and the live overlay give the same parts for every kind.
+
+### 18h. Block operations and road alignment — T-4, T-5 *(CE-4431, CE-3431, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+
+📐 **INVENTORY** (graph `search_graph` `.*(Undo|EditCommand|CommandStack).*` Interface + `.*(UndoStack|UndoManager|EditTransaction).*` Class, and
+reads): the editor's ONE undo is `EditHistory` with `WorldUndoRecorder` (`Hrot.Presentation/Edits/WorldUndoRecorder.cs:8-16`): ⭐ **every accepted
+authoring edit submitted through `Edits.Submit` (`Fdp.Toolkits/Replication/Edits/Edits.cs:23`) is ONE step by construction** — the step snapshots the
+world before and after; `EditOp` has `Write` (attribute changes), `Create`, a `PatchJson`. `GizmoUndoStack` (Player) is a separate gizmo-only stack, not
+this. ⇒ a block operation needs no undo code of its own.
+
+```mermaid
+sequenceDiagram
+  actor U as Author
+  participant UI as ui (U-3 menu)
+  participant B as BlockOperations (new, engine)
+  participant E as Edits.Submit - one step
+  participant L as LiveOverlay (O-7 B)
+  U->>UI: Re-roll / Change recipe / Unpack
+  UI->>B: the operation on the block entity
+  B->>E: ONE EditOp bracket (Write Seed / Recipe, or destroy the block + create its features)
+  E-->>L: the world changed - the live bake re-expands only what changed
+  U->>UI: Undo
+  UI->>E: EditHistory.Undo - the snapshot restores the block
+```
+*What it shows:* the operations are ordinary authoring edits; undo, the live view and the save all follow from the paths that already exist.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| H-1 Re-roll | `Write(TerrainBlock.Seed = next)` — the next seed is derived from the current one (deterministic, so a redo is the same layout) | a random seed — redo would differ from the first do |
+| H-2 Change recipe | `Write(TerrainBlock.Recipe)`; place and heading kept | — |
+| H-3 Unpack | ONE bracket: create one `TerrainFeature` (+ `EditablePolyline` for line / area kinds, T-2) per expanded part, then destroy the block. ⭐ "same parts" = the same geometry, materials and order; the part KEYS change (`<feature guid>/0`), so the bracket also re-keys every door entity of the block's houses (`<terrain>/<block>/<i>/<door>` → the new key) | keeping the block's keys on the features — a guid plus `/i` overflows `FixedString32`, and a key override field is a second identity |
+| H-4 where | `BlockOperations` in `Hrot.Core` beside `LiveOverlay`, using the ONE `OverlayExpansion` for Unpack | ui building the features itself — a second expansion |
+| H-5 T-5 road alignment | `FeatureExpander` with `AlignRoad`: the block's heading turns to the nearest road edge's direction within its radius (the road net's lanes, `RoadNetworkHolder`); no road in reach ⇒ the heading as placed | snapping position too — moves a block the user placed |
+
+Acceptance: unpack → recompile gives the same geometry as before the unpack (keys aside), and the door states survive; undo restores the block in
+one step; a farmstead placed near a track turns to face it (T-5).

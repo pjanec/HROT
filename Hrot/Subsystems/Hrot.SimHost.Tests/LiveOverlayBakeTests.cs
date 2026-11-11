@@ -147,6 +147,64 @@ namespace Hrot.SimHost.Tests
             Assert.Single(sys.LastDirty!);   // the car's box only: the parts are unchanged
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-4427 R-4 — damage on an overlay house STAYS on that house when a block elsewhere re-sorts the overlay's parts: block X's guid sorts before block A's, so A's houses move to higher indices in the new
+        /// merged world; the committed bake re-keys the <see cref="BuildingDamage"/> entity (by key and within-building panel). 🔴 Red-proof: drop <c>RemapDamageEntities</c> from <c>CommitObstacles</c> ⇒ the entity
+        /// still points at the old index — another house.
+        /// </summary>
+        [Fact]
+        public void CE4427_R4_DamageOnAnOverlayHouse_StaysOnItWhenABlockElsewhereReSortsTheParts()
+        {
+            var sys = Editor();
+            Block(250f, 250f, Guid.Parse("aaaaaaaa-0000-4000-8000-000000000001"));
+            RunUntilBaked(sys, 1);
+            var w1 = _world.GetSingletonManaged<TerrainWorld>()!;
+            int house = Array.FindIndex(w1.Buildings.ToArray(), b => b.Label.StartsWith("aaaaaaaa-", StringComparison.Ordinal));
+            Assert.True(house > 0);
+            string key = BuildingDamages.KeyOf(w1, house);
+            int local = 1, panel = BuildingPanelIndex.ToGlobal(w1, house, local);
+            var e = _world.CreateEntity();
+            var d = new BuildingDamage { Building = house };
+            BuildingDamages.Add(ref d, new WallBreach(panel, 3f, 5f, 0f, 2.2f, BreachKind.Passage), w1);
+            _world.AddComponent(e, d);
+            _world.SetManagedComponent(e, new TerrainObjectKey { Key = key });
+
+            Block(100f, 100f, Guid.Parse("00000000-0000-4000-8000-000000000002"));   // sorts BEFORE aaaa…: every house of A moves up
+            RunUntilBaked(sys, 2);
+            var w2 = _world.GetSingletonManaged<TerrainWorld>()!;
+            int now = BuildingDamages.IndexOfKey(w2, key);
+            Assert.True(now > house, "the house moved to a higher index in the new world");
+
+            var got = _world.GetComponentRO<BuildingDamage>(e);
+            Assert.Equal(now, got.Building);                                          // the entity followed its house
+            Assert.Equal(1, got.Count);
+            Assert.Equal(now, w2.Panels[got.Get(0).Panel].Building);                  // its breach is on THAT house's panel…
+            Assert.Equal(local, BuildingPanelIndex.ToLocal(w2, got.Get(0).Panel));    // …the same wall
+        }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-7 — editing the RECIPE (or a template) file re-expands the block that read it: the cache key holds the files' (length, mtime) as well as the entity's parameters, and a once-a-second poll (no per-frame IO) moves
+        /// the signature so the bake runs. 🔴 Red-proof: ignore the stamp in the cache lookup (<c>StampOf(entry.Files) != entry.Stamp</c> removed) ⇒ the block keeps its old houses and <c>Expansions</c> stays 1.
+        /// </summary>
+        [Fact]
+        public void CE4427_R7_EditingTheRecipeFile_ReExpandsTheBlock()
+        {
+            var sys = Editor();
+            var live = sys.LiveOverlay!;
+            Block(250f, 250f);
+            RunUntilBaked(sys, 1);
+            int before = _world.GetSingletonManaged<TerrainWorld>()!.Buildings.Count;
+            Assert.Equal(1, live.Expansions);
+
+            string recipe = Path.Combine(_staging, "terrain-recipes", "village.recipe.json");
+            File.WriteAllText(recipe, """{"id":"village","houses":{"templates":["hut"],"count":[2,2],"radius":50,"minSpacing":4}}""");
+            File.SetLastWriteTimeUtc(recipe, DateTime.UtcNow.AddMinutes(5));
+            RunUntilBaked(sys, 2);
+
+            Assert.Equal(2, live.Expansions);                                                        // the block read the edited file again
+            Assert.True(_world.GetSingletonManaged<TerrainWorld>()!.Buildings.Count < before, "fewer houses: the new recipe is in the baked world");
+        }
+
         private long SteadyBytes(StaticObstacleBakeSystem sys, int frames = 50)
         {
             for (int i = 0; i < 30; i++) sys.Execute(_world, 0.016f);

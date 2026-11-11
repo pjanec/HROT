@@ -116,7 +116,7 @@ namespace Hrot.Common.EntityCreation
             // ⭐ CE-3304 — the bake (wall-clock quiet period + an off-thread build) can outlive 300 frames where frames run unthrottled
             //   (a headless load), and a timeout DESTROYS the obstacle. The bake always acks in the end, even when it fails.
             ctx.Elm.WaitWithoutTimeout(Fdp.Toolkit.Terrain.TerrainObstacles.LifecycleModuleId);   // ⭐ CE-4419 — the bake always acks; a frame budget (18 000, CE-3304) was outlived by a slow bake and destroyed its entities
-            var obstacleBake = new Hrot.Map.Common.Services.StaticObstacleBakeSystem();
+            var obstacleBake = new Hrot.Map.Common.Services.StaticObstacleBakeSystem { Lifecycle = ctx.Elm };   // ⭐ CE-4427 R-5 — it acks what it can never bake
 
             // ⭐⭐ The LOCAL request source. This is what makes path 2 (a node creating an entity it
             //   OWNS) possible without a DDS round trip: an author PUBLISHES a request on this world's FDP bus and the

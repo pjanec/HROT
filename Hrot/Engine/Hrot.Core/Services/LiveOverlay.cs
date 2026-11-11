@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Fdp.Core;
@@ -61,6 +62,8 @@ public sealed class LiveOverlay
     private sealed class Entry
     {
         public ulong Params;
+        public string[] Files = Array.Empty<string>();   // ⭐ CE-4427 R-7 — the recipe / template files the expansion read…
+        public ulong Stamp;                              // …and their (length, mtime) when it did
         public readonly List<JsonObject> Features = new();
         public readonly List<OverlayPart> Parts = new();
     }
@@ -71,6 +74,12 @@ public sealed class LiveOverlay
     private string? _cacheFolder;
     private TerrainAssets? _assets;
     private IEnumerable<string?>? _roots;
+
+    // ⭐ CE-4427 R-7 — the files of the live cache, polled ONCE A SECOND by wall time (a stat each, no per-frame IO): an edit moves the epoch, which joins the signature, which re-bakes; the re-expansion then finds the stamp changed
+    private string[] _watchPaths = Array.Empty<string>();
+    private DateTime[] _watchTimes = Array.Empty<DateTime>();
+    private double _polledAt = double.MinValue;
+    private long _fileEpoch;
 
     private EntityRepository? _for;
     private EntityQuery? _blocks, _features;
@@ -125,7 +134,24 @@ public sealed class LiveOverlay
                 ref readonly var f = ref world.GetComponentRO<TerrainFeature>(e);
                 Mix(2); Mix(GuidHash(world, e)); Mix(f.Kind); Mix(f.Template.GetHashCode()); MixF(f.HeadingDeg); MixF(f.Pad); MixF(t.Position.X); MixF(t.Position.Y);
             }
+        if (_fileEpoch != 0 && h != Empty) Mix(_fileEpoch);   // ⭐ CE-4427 R-7
         return h;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4427 R-7 — called every frame with the wall clock; does anything only once a second: a recipe or template file the cache read was edited ⇒ the file epoch moves (and the next bake re-expands what read it).
+    /// No IO on the other frames.
+    /// </summary>
+    public void PollFiles(double wallSeconds)
+    {
+        if (wallSeconds - _polledAt < 1.0) return;
+        _polledAt = wallSeconds;
+        var paths = _watchPaths; var times = _watchTimes;
+        for (int i = 0; i < paths.Length; i++)
+        {
+            var t = File.GetLastWriteTimeUtc(paths[i]);
+            if (t != times[i]) { times[i] = t; _fileEpoch++; }
+        }
     }
 
     /// <summary>The signature of a world with no block and no feature.</summary>
@@ -185,7 +211,7 @@ public sealed class LiveOverlay
             {
                 live.Add(s.Key);
                 ulong p = s.ParamsHash();
-                if (!_cache.TryGetValue(s.Key, out var entry) || entry.Params != p)
+                if (!_cache.TryGetValue(s.Key, out var entry) || entry.Params != p || StampOf(entry.Files) != entry.Stamp)
                 {
                     entry = Make(s, p, baseWorld);
                     if (entry == null) { _cache.Remove(s.Key); continue; }
@@ -197,6 +223,7 @@ public sealed class LiveOverlay
                 parts.AddRange(entry.Parts);
             }
             foreach (var key in new List<string>(_cache.Keys)) if (!live.Contains(key)) _cache.Remove(key);
+            RefreshWatch();
             if (features.Count == 0) return null;
 
             OverlayExpansion.SortByLabel(features);
@@ -212,6 +239,15 @@ public sealed class LiveOverlay
         try
         {
             var entry = new Entry { Params = paramsHash };
+            var files = new List<string>();
+            if (s.Kind == OverlaySource.BlockKind)
+            {
+                files.Add(RecipePath(s.Name));
+                foreach (var t in TerrainRecipe.Find(s.Name, _roots!).Templates) if (_assets!.TemplatePath?.Invoke(t) is { } tp) files.Add(tp);
+            }
+            else if (_assets!.TemplatePath?.Invoke(s.Name) is { } hp) files.Add(hp);
+            entry.Files = files.ToArray();
+            entry.Stamp = StampOf(entry.Files);
             if (s.Kind == OverlaySource.BlockKind)
                 entry.Features.AddRange(OverlayExpansion.Block(s.Key, s.Name, s.Seed, s.HeadingDeg, s.Fit, s.At, baseWorld, _assets!, _roots!).Features);
             else
@@ -231,5 +267,42 @@ public sealed class LiveOverlay
             FdpLog<LiveOverlay>.Error($"[LiveOverlay] Block / feature {s.Key} ('{s.Name}') could not be expanded and is left out of the live terrain: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>The path of recipe <paramref name="id"/> in the first root that holds it (the one <see cref="TerrainRecipe.Find"/> reads).</summary>
+    private string RecipePath(string id)
+    {
+        foreach (var root in _roots!)
+        {
+            if (string.IsNullOrWhiteSpace(root)) continue;
+            var path = Path.Combine(root, id + TerrainRecipe.Suffix);
+            if (File.Exists(path)) return path;
+        }
+        return id + TerrainRecipe.Suffix;
+    }
+
+    /// <summary>A hash of (path, length, mtime) of each file — what "the file was edited" means for the cache. Background thread only.</summary>
+    private static ulong StampOf(string[] files)
+    {
+        ulong h = Empty;
+        void Mix(long v) { h ^= (ulong)v; h *= 1099511628211UL; }
+        foreach (var f in files)
+        {
+            foreach (char c in f) Mix(c);
+            var i = new FileInfo(f);
+            if (i.Exists) { Mix(i.Length); Mix(i.LastWriteTimeUtc.Ticks); } else Mix(-1);
+        }
+        return h;
+    }
+
+    /// <summary>After an expansion: the distinct files the cache read become the polled set (their mtimes as of now).</summary>
+    private void RefreshWatch()
+    {
+        var set = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var e in _cache.Values) foreach (var f in e.Files) set.Add(f);
+        var paths = new string[set.Count]; set.CopyTo(paths);
+        var times = new DateTime[paths.Length];
+        for (int i = 0; i < paths.Length; i++) times[i] = File.GetLastWriteTimeUtc(paths[i]);
+        _watchTimes = times; _watchPaths = paths;
     }
 }

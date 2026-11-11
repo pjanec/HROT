@@ -87,6 +87,14 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     public LiveOverlay? LiveOverlay { get => _liveOverlay; set => _liveOverlay = value; }
     private LiveOverlay? _liveOverlay;
 
+    /// <summary>
+    /// ⭐ CE-4427 R-5 — the node's lifecycle module (set by the pack): the bake asks it which constructions wait for the terrain module ALONE. One of those with no obstacle components (the template translator
+    /// failed, <c>SimTransform</c> or <c>ObstacleShape</c> is missing) could never be baked and, the wait being unbounded, would hang for ever — it is acked here, loudly.
+    /// </summary>
+    public Fdp.Toolkit.Lifecycle.EntityLifecycleModule? Lifecycle { get; set; }
+    private readonly List<Entity> _soleWaiters = new();
+    private readonly HashSet<Entity> _unbakeableAcked = new();
+
     /// <summary>The overlay parts of the last committed bake (diagnostics / rails) — empty when none.</summary>
     public IReadOnlyList<OverlayPart> BakedParts { get; private set; } = Array.Empty<OverlayPart>();
 
@@ -113,6 +121,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             _bakedSignature = EmptySignature; _bakedBase = int.MinValue; _seenSignature = EmptySignature; _seenAt = 0;
             _runningBatch = new List<Entity>();
         }
+        AckTheUnbakeable(world);   // ⭐ CE-4427 R-5 — before any early return: a world without the obstacle types hangs nothing either
         if (!world.IsComponentTypeRegistered<StaticObstacle>()) return;
 
         var bakery = world.HasSingletonManaged<StaticObstacleBakery>() ? world.GetSingletonManaged<StaticObstacleBakery>() : null;
@@ -142,6 +151,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         ulong signature = obstacleSig;
         if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
         // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
+        _liveOverlay?.PollFiles(_wallSeconds());   // ⭐ CE-4427 R-7 — a recipe / template edit (a stat per file, once a second)
         ulong overlayHash = _liveOverlay?.SignatureOfWorld(world) ?? LiveOverlay.EmptySignature;
         bool hasOverlay = overlayHash != LiveOverlay.EmptySignature;
         if (hasOverlay) { signature ^= overlayHash; signature *= 1099511628211UL; }
@@ -183,6 +193,27 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             }
             return residency.BakeObstacles(prisms, damage, expanded);
         });
+    }
+
+    /// <summary>
+    /// ⭐ CE-4427 R-5 — acks, with a Warn, every construction that waits for THIS module alone and that the bake can never serve: its world has no <see cref="StaticObstacle"/> / <see cref="ObstacleShape"/> type, or
+    /// the entity lacks one of those or its <see cref="SimTransform"/> (the query below never sees it). Allocation-free while nothing waits.
+    /// </summary>
+    private void AckTheUnbakeable(EntityRepository world)
+    {
+        var elm = Lifecycle;
+        if (elm == null) return;
+        elm.CollectSoleWaiters(TerrainObstacles.LifecycleModuleId, _soleWaiters);
+        if (_soleWaiters.Count == 0) { if (_unbakeableAcked.Count > 0) _unbakeableAcked.Clear(); return; }
+        bool typesRegistered = world.IsComponentTypeRegistered<StaticObstacle>() && world.IsComponentTypeRegistered<ObstacleShape>() && world.IsComponentTypeRegistered<SimTransform>();
+        foreach (var e in _soleWaiters)
+        {
+            if (typesRegistered && world.HasComponent<StaticObstacle>(e) && world.HasComponent<ObstacleShape>(e) && world.HasComponent<SimTransform>(e)) continue;   // bakeable: the normal path acks it
+            if (!_unbakeableAcked.Add(e)) continue;   // acked already; the lifecycle module takes the ack on its next tick
+            FdpLog<StaticObstacleBakeSystem>.Warn(
+                $"[Obstacles] {e}: waits for the terrain bake but cannot be baked (no StaticObstacle / ObstacleShape / SimTransform here): acked without a bake, so it does not hang.");
+            Ack(world, e);
+        }
     }
 
     /// <summary>The building damage this node's world holds (the view's <see cref="DoorStates.Damage"/>), or null.</summary>

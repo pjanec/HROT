@@ -251,4 +251,51 @@ public sealed class StorageProcessManagerTests
         }
         finally { if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true); }
     }
+
+    /// <summary>
+    /// ⭐ CE-4427 R-1 — a scenario whose recipe BREAKS after a good compile is left with NO overlay folder (and no <c>.part</c>): the old overlay describes blocks the edited scenario no longer has, and the next prefetch
+    /// would distribute it. 🔴 Red-proof: drop <c>DeleteOverlayFolders</c> from the catch of <c>CompileTerrainOverlay</c> ⇒ the first compile's folder is still there.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4427_R1_ACompileThatFailsAfterAGoodOne_LeavesNoStaleOverlay()
+    {
+        const string hut = "{\"footprint\":[[0,0],[10,0],[10,8],[0,8]],\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[10,0]},{\"from\":[10,0],\"to\":[10,8]},{\"from\":[10,8],\"to\":[0,8]},{\"from\":[0,8],\"to\":[0,0]}]}]}";
+        string nas = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            string terrain = Path.Combine(ContentLayout.TerrainAssets(nas), "base-t");
+            Directory.CreateDirectory(terrain); Directory.CreateDirectory(ContentLayout.BuildingAssets(nas)); Directory.CreateDirectory(ContentLayout.TerrainRecipeAssets(nas));
+            File.WriteAllText(Path.Combine(terrain, "terrain.json"), "{\"schemaVersion\":2,\"world\":\"w.geojson\"}");
+            File.WriteAllText(Path.Combine(terrain, "w.geojson"), "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,300,300],\"groundZ\":0},\"features\":[]}");
+            File.WriteAllText(Path.Combine(ContentLayout.BuildingAssets(nas), "hut.building.json"), hut);
+            string recipeFile = Path.Combine(ContentLayout.TerrainRecipeAssets(nas), "village.recipe.json");
+            File.WriteAllText(recipeFile, "{\"id\":\"village\",\"houses\":{\"templates\":[\"hut\"],\"count\":[4,4],\"radius\":40,\"minSpacing\":4}}");
+
+            string scenarioDir = Path.Combine(nas, "scenarios", "x");
+            void Save()
+            {
+                string slicesDir = Path.Combine(scenarioDir, ".slices");
+                Directory.CreateDirectory(slicesDir);
+                var dom = System.Text.Json.Nodes.JsonNode.Parse("{\"Header\":{\"TerrainName\":\"base-t\"},\"Entities\":{\"b1000000-0000-4000-8000-000000000001\":{\"TerrainBlock\":{\"Recipe\":\"village\","
+                    + "\"Seed\":3,\"HeadingDeg\":0,\"Fit\":15},\"SimTransform\":{\"Position\":[150,150,0]}}}}")!.AsObject();
+                Fdp.Core.Serialization.Migrations.JsonEnvelope.Write(dom, new Fdp.Core.Serialization.Migrations.DocumentMeta("Hrot.Scenario", 2));
+                File.WriteAllText(Path.Combine(slicesDir, "node_1.json"), dom.ToJsonString());
+                new StorageProcessManager(new FdpEventBus(), new StorageGatewayModule(), nas).MergeScenarioSlices("x", new List<FileManifestEntry>
+                {
+                    new() { RelativeDest = Path.Combine("scenarios", "x", ".slices", "node_1.json"), DocType = "Hrot.Scenario" },
+                });
+            }
+
+            Save();
+            string overlay = Path.Combine(scenarioDir, "terrain-overlay");
+            Assert.True(File.Exists(Path.Combine(overlay, "overlay.json")), "the first compile is good");
+
+            File.WriteAllText(recipeFile, "{ this is not json");   // the recipe breaks
+            Save();
+            Assert.True(File.Exists(Path.Combine(scenarioDir, "scenario.json")), "the scenario itself still saved");
+            Assert.False(Directory.Exists(overlay), "no stale overlay is left to be distributed");
+            Assert.False(Directory.Exists(overlay + ".part"));
+        }
+        finally { if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true); }
+    }
 }

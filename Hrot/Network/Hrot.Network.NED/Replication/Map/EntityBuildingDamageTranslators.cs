@@ -37,6 +37,9 @@ namespace Hrot.Map.Common.Replication.Egress
             _instances = new(new DdsWriter<EntityBuildingDamage>(participant), static key => new EntityBuildingDamage { EntityId = (int)key });
         }
 
+        private EntityQuery? _query;
+        private ISimulationView? _queryView;
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
@@ -44,12 +47,18 @@ namespace Hrot.Map.Common.Replication.Egress
             _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<BuildingDamage>()) return;
 
-            var query = view.Query()
-                .With<BuildingDamage>()
-                .WithManaged<TerrainObjectKey>()
-                .DefaultRoutePublishable()
-                .WithLifecycle(EntityLifecycle.AllButTearDown)
-                .Build();
+            // ⭐ CE-4427 R-3 (HOT PATH) — the query is built once per view, not per tick
+            if (!ReferenceEquals(view, _queryView) || _query == null)
+            {
+                _query = view.Query()
+                    .With<BuildingDamage>()
+                    .WithManaged<TerrainObjectKey>()
+                    .DefaultRoutePublishable()
+                    .WithLifecycle(EntityLifecycle.AllButTearDown)
+                    .Build();
+                _queryView = view;
+            }
+            var query = _query;
 
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             var terrain = view is EntityRepository tr && tr.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? tr.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
@@ -59,8 +68,11 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasComponent<NetworkAuthority>(entity) && view.HasComponent<GhostStateTracker>(entity)) continue;   // a ghost is never the owner (CE-2335)
 
                 int netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
-                var sample = ToSample(netId, view.GetComponentRO<BuildingDamage>(entity), view.GetManagedComponentRO<TerrainObjectKey>(entity).Key, terrain);
-                if (_instances.TryGetLast(netId, out var prev) && Same(in prev, in sample)) continue;
+                ref readonly var damage = ref view.GetComponentRO<BuildingDamage>(entity);
+                string key = view.GetManagedComponentRO<TerrainObjectKey>(entity).Key;
+                // ⭐ CE-4427 R-3 — compare BEFORE converting: an unchanged component builds no sample (no list, no panel conversion) on a steady tick
+                if (_instances.TryGetLast(netId, out var prev) && Matches(in prev, in damage, key, terrain)) continue;
+                var sample = ToSample(netId, damage, key, terrain);
                 _instances.Write(netId, sample);
                 SentSampleCount++;
             }
@@ -81,6 +93,21 @@ namespace Hrot.Map.Common.Replication.Egress
                 list.Add(new DdsWallBreach { Panel = panel, From = b.From, To = b.To, Bottom = b.Bottom, Top = b.Top, Kind = (byte)b.Kind });
             }
             return new EntityBuildingDamage { EntityId = netId, Building = c.Building, Collapsed = c.Collapsed, Key = key, Breaches = list };
+        }
+
+        /// <summary>⭐ CE-4427 R-3 — true when <paramref name="prev"/> is exactly what <see cref="ToSample"/> would build for <paramref name="c"/> now. Allocation-free (the panel conversion is the world's cached table).</summary>
+        internal static bool Matches(in EntityBuildingDamage prev, in BuildingDamage c, string key, Fdp.Toolkit.Terrain.TerrainWorld? terrain)
+        {
+            if (prev.Building != c.Building || prev.Collapsed != c.Collapsed || prev.Key != key) return false;
+            int n = Math.Min((int)c.Count, BuildingDamage.Capacity);
+            if ((prev.Breaches?.Count ?? 0) != n) return false;
+            for (int i = 0; i < n; i++)
+            {
+                var b = c.Get(i); var y = prev.Breaches![i];
+                int panel = terrain != null ? BuildingPanelIndex.ToLocal(terrain, b.Panel) : b.Panel;
+                if (y.Panel != panel || y.From != b.From || y.To != b.To || y.Bottom != b.Bottom || y.Top != b.Top || y.Kind != (byte)b.Kind) return false;
+            }
+            return true;
         }
 
         internal static bool Same(in EntityBuildingDamage a, in EntityBuildingDamage b)
@@ -143,6 +170,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            RetryDeferred(cmd, view);
             if (_reader is null) return;
             using var loan = _reader.Take();
             foreach (var sample in loan)
@@ -172,35 +200,82 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             if (view is EntityRepository ownerCheck && Owns(ownerCheck, entity)) return;
 
-            cmd.SetComponent(entity, FromSample(in data, TerrainOf(view)));
+            // ⭐ CE-4427 R-2 — resolve in THIS node's world, or not at all: never the sender's index. A world that is still loading (no terrain, or one with no buildings yet) DEFERS the sample and retries it on
+            //   the next poll; a resident world that does not know the key DROPS it (a breach must never land on another house).
+            var terrain = TerrainOf(view);
+            if (terrain == null || terrain.Buildings.Count == 0) { _deferred[netId] = data; return; }
+            _deferred.Remove(netId);
+            if (!TryFromSample(in data, terrain, out var component))
+            {
+                if (_unresolved.Add(netId))
+                    FdpLog<EntityBuildingDamageIngressTranslator>.Warn("[Node-{0}] Building damage for NetID {1} names '{2}', which this node's terrain does not have: dropped (never applied to another building).", _localNodeId, netId, data.Key);
+                return;
+            }
+            cmd.SetComponent(entity, component);
             if (!string.IsNullOrEmpty(data.Key)
                 && !(view is EntityRepository r && r.HasComponent<TerrainObjectKey>(entity) && r.GetComponent<TerrainObjectKey>(entity).Key == data.Key))
                 cmd.SetManagedComponent(entity, new TerrainObjectKey { Key = data.Key });
         }
 
-        /// <summary>The component a sample carries (the test seam).</summary>
+        // ⭐ CE-4427 R-2 — samples that arrived before this node's terrain (the latest per instance), retried by PollIngress
+        private readonly Dictionary<int, EntityBuildingDamage> _deferred = new();
+        private readonly HashSet<int> _unresolved = new();
+        private readonly List<int> _retry = new();
+
+        /// <summary>The samples waiting for this node's terrain (the test seam).</summary>
+        internal int DeferredCount => _deferred.Count;
+
+        private void RetryDeferred(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_deferred.Count == 0) return;
+            var terrain = TerrainOf(view);
+            if (terrain == null || terrain.Buildings.Count == 0) return;   // still loading
+            _retry.Clear();
+            foreach (var id in _deferred.Keys) _retry.Add(id);
+            foreach (var id in _retry)
+                if (_deferred.TryGetValue(id, out var d)) Apply(in d, cmd, view);
+        }
+
+        /// <summary>The component a sample carries (the test seam); a sample this world cannot resolve is an EMPTY component with Building −1.</summary>
         internal static BuildingDamage FromSample(in EntityBuildingDamage d, Fdp.Toolkit.Terrain.TerrainWorld? terrain = null)
         {
-            var c = default(BuildingDamage);
-            // ⭐ CE-4417 (O-3) — THIS node's index of the building the key names; the sender's int only when the key resolves nothing here
-            int building = terrain != null ? BuildingDamages.IndexOfKey(terrain, d.Key) : -1;
-            c.Building = building >= 0 ? building : d.Building;
+            if (terrain == null)
+            {
+                // the no-terrain seam (a test with no world): the sender's indices as they are — production never gets here (Apply defers until a world is resident)
+                var raw = default(BuildingDamage);
+                raw.Building = d.Building; raw.Collapsed = d.Collapsed;
+                int rn = Math.Min(d.Breaches?.Count ?? 0, BuildingDamage.Capacity);
+                for (int i = 0; i < rn; i++) { var b = d.Breaches![i]; raw.Set(i, new WallBreach(b.Panel, b.From, b.To, b.Bottom, b.Top, (BreachKind)b.Kind)); }
+                raw.Count = (byte)rn;
+                return raw;
+            }
+            if (TryFromSample(in d, terrain, out var c)) return c;
+            var none = default(BuildingDamage); none.Building = -1;
+            return none;
+        }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-2 — the component in THIS world: the building the key names HERE and each breach's panel mapped from its within-building rank to this world's global index. False when the key names no building here
+        /// (⛔ never the sender's raw index — it is a within-building rank, not a global one, and would breach another house).
+        /// </summary>
+        internal static bool TryFromSample(in EntityBuildingDamage d, Fdp.Toolkit.Terrain.TerrainWorld terrain, out BuildingDamage c)
+        {
+            c = default;
+            int building = BuildingDamages.IndexOfKey(terrain, d.Key);
+            if (building < 0) return false;
+            c.Building = building;
             c.Collapsed = d.Collapsed;
             int n = Math.Min(d.Breaches?.Count ?? 0, BuildingDamage.Capacity);
             int k = 0;
             for (int i = 0; i < n; i++)
             {
                 var b = d.Breaches![i];
-                int panel = b.Panel;
-                if (building >= 0)
-                {
-                    panel = BuildingPanelIndex.ToGlobal(terrain!, building, b.Panel);   // the wire's panel is within the building
-                    if (panel < 0) continue;                                            // no such wall here: never breach another
-                }
+                int panel = BuildingPanelIndex.ToGlobal(terrain, building, b.Panel);   // the wire's panel is within the building
+                if (panel < 0) continue;                                              // no such wall here: never breach another
                 c.Set(k++, new WallBreach(panel, b.From, b.To, b.Bottom, b.Top, (BreachKind)b.Kind));
             }
             c.Count = (byte)k;
-            return c;
+            return true;
         }
 
         private static Fdp.Toolkit.Terrain.TerrainWorld? TerrainOf(ISimulationView view)
@@ -211,11 +286,14 @@ namespace Hrot.Map.Common.Replication.Ingress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo)
         {
             if (data is not EntityBuildingDamage d || Owns(repo, entity)) return;
-            repo.SetComponent(entity, FromSample(in d, TerrainOf(repo)));
+            var terrain = TerrainOf(repo);
+            if (terrain == null || terrain.Buildings.Count == 0) { _deferred[d.EntityId] = d; return; }   // ⭐ CE-4427 R-2 — as Apply: wait for the world
+            if (!TryFromSample(in d, terrain, out var component)) return;                                    // resident and unknown: dropped
+            repo.SetComponent(entity, component);
             if (!string.IsNullOrEmpty(d.Key)) repo.SetManagedComponent(entity, new TerrainObjectKey { Key = d.Key });
         }
 
-        public void Dispose(int networkEntityId) { }
+        public void Dispose(int networkEntityId) { _deferred.Remove(networkEntityId); _unresolved.Remove(networkEntityId); }
 
         private static bool Owns(EntityRepository repo, Entity entity)
             => AuthorityExtensions.IsRecordedOwner(repo, entity, OwnershipExtensions.PackKey(OrdinalValue, 0));

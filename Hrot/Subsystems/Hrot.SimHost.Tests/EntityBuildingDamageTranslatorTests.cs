@@ -132,6 +132,89 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-4427 R-2 — a breach whose KEY the receiver cannot resolve NEVER breaches another house: the sample names panel 2 of a building this node does not have; the old fallback stored 2 as a GLOBAL index (a wall of
+        /// house "H"). Dropped, once the world is resident. 🔴 Red-proof: in <c>TryFromSample</c> fall back to the sender's building and raw panel when the key resolves nothing ⇒ H's wall 2 is breached.
+        /// </summary>
+        [Fact]
+        public void CE4427_R2_ABreachWhoseKeyTheReceiverCannotResolve_NeverBreachesAnotherHouse()
+        {
+            using var replica = World(out var terrain);
+            var from = new BuildingDamage { Building = 0 };
+            BuildingDamages.Add(ref from, new WallBreach(2, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null);
+            var sample = EntityBuildingDamageEgressTranslator.ToSample(5210, from, "range/NoSuchHouse");   // no terrain: the panel travels as 2
+            var map = new NetworkEntityMap();
+            var ingress = new EntityBuildingDamageIngressTranslator(participant: null, map, new GhostCreationSystem(map), localNodeId: 2);
+            using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, replica); cmd.Playback(replica); }
+
+            Assert.Equal(0, ingress.DeferredCount);   // the world is resident: dropped, not waiting
+            if (map.TryGetEntity(5210, out var ghost) && replica.HasComponent<BuildingDamage>(ghost))
+                Assert.Equal(0, replica.GetComponentRO<BuildingDamage>(ghost).Count);
+            Assert.Equal(0, DoorStates.Of(replica, terrain).Damage?.Passages().Count ?? 0);
+            Assert.True(terrain.SegmentBlocked(new Vector3(25f, 15f, 1.5f), new Vector3(25f, 25f, 1.5f), DoorStates.Of(replica, terrain)));   // H's south wall still stands
+        }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-2 — a sample that arrives BEFORE the receiver's terrain waits (deferred, not applied raw) and lands on the right house and wall when the world arrives. 🔴 Red-proof: make
+        /// <c>RetryDeferred</c> return at once ⇒ the breach never lands.
+        /// </summary>
+        [Fact]
+        public void CE4427_R2_ASampleThatArrivesBeforeTheTerrain_IsDeferred_AndLandsWhenTheWorldIsResident()
+        {
+            using var replica = new EntityRepository();
+            replica.RegisterComponent<NetworkIdentity>(); replica.RegisterComponent<NetworkAuthority>(); replica.RegisterComponent<GhostStateTracker>();
+            replica.RegisterComponent<BuildingDamage>(); replica.RegisterManagedComponent<TerrainObjectKey>(); replica.RegisterManagedComponent<TerrainWorld>();
+            var terrain = TerrainWorldParser.Parse(BrickHouse, "range");
+            int south = SouthWall(terrain);
+            var from = new BuildingDamage { Building = 0 };
+            BuildingDamages.Add(ref from, new WallBreach(south, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null);
+            var sample = EntityBuildingDamageEgressTranslator.ToSample(5211, from, "range/H", terrain);
+            var map = new NetworkEntityMap();
+            var ingress = new EntityBuildingDamageIngressTranslator(participant: null, map, new GhostCreationSystem(map), localNodeId: 2);
+
+            using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, replica); cmd.Playback(replica); }
+            Assert.Equal(1, ingress.DeferredCount);
+            if (map.TryGetEntity(5211, out var early) && replica.HasComponent<BuildingDamage>(early))
+                Assert.Equal(0, replica.GetComponentRO<BuildingDamage>(early).Count);   // nothing applied raw
+
+            replica.SetSingletonManaged(terrain);   // the world arrives
+            using (var cmd = new EntityCommandBuffer()) { ingress.PollIngress(cmd, replica); cmd.Playback(replica); }
+            Assert.Equal(0, ingress.DeferredCount);
+            Assert.True(map.TryGetEntity(5211, out var ghost));
+            var got = replica.GetComponentRO<BuildingDamage>(ghost);
+            Assert.Equal(0, got.Building);
+            Assert.Equal(1, got.Count);
+            Assert.Equal(south, got.Get(0).Panel);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-3 (HOT PATH) — a STEADY egress tick (an owned damaged building, nothing changed) allocates nothing and rescans no panels: the query is built once, the unchanged component is compared with the last sample
+        /// BEFORE any sample is built, and the within-building panel comes from the world's cached table. 🔴 Red-proof: replace <c>Matches</c> by <c>ToSample</c> + <c>Same</c> in <c>ScanAndPublish</c> ⇒ bytes > 0.
+        /// </summary>
+        [Fact]
+        public void CE4427_R3_ASteadyEgressTick_AllocatesNothing_AndRescansNoPanels()
+        {
+            using var participant = new DdsParticipant(228u);
+            using var owner = World(out var terrain);
+            var entity = owner.CreateEntity();
+            owner.AddComponent(entity, new NetworkIdentity(5320));
+            owner.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            owner.AddComponent(entity, Damage(SouthWall(terrain)));
+            owner.SetManagedComponent(entity, new TerrainObjectKey { Key = "range/H" });
+            var egress = new EntityBuildingDamageEgressTranslator(participant);
+
+            egress.ScanAndPublish(owner);
+            Assert.Equal(1, egress.SentSampleCount);
+            for (int i = 0; i < 30; i++) egress.ScanAndPublish(owner);   // warm
+            int tables = BuildingPanelIndex.TablesBuilt;
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) egress.ScanAndPublish(owner);
+            long bytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(1, egress.SentSampleCount);              // nothing re-sent
+            Assert.Equal(tables, BuildingPanelIndex.TablesBuilt); // no table (re)built
+            Assert.Equal(0L, bytes);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-4391</c> S-2 — the COLLAPSE crosses the wire: <c>Collapsed</c> is copied by the egress and the ingress, and the other node's view then shows the mound.
         /// 🔴 Red-proof: drop <c>c.Collapsed = d.Collapsed</c> in <c>FromSample</c> ⇒ the replica's building stands.
         /// </summary>

@@ -195,5 +195,95 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(-1, BuildingPanelIndex.ToLocal(w, w.Panels.Count));
             Assert.Equal(-1, BuildingPanelIndex.ToGlobal(w, 0, 999));
         }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-3 — the panel index is built ONCE per world: 1 000 conversions both ways build the rank table once (no scan of the panels per breach), and a second world builds its own.
+        /// 🔴 Red-proof: make <c>TableOf</c> build a fresh table on every call (no cache) ⇒ <c>TablesBuilt</c> grows with the calls.
+        /// </summary>
+        [Fact]
+        public void CE4427_R3_PanelIndex_IsBuiltOncePerWorld()
+        {
+            var w = BreachFixtures.House();
+            int before = BuildingPanelIndex.TablesBuilt;
+            for (int i = 0; i < 1000; i++)
+            {
+                int p = i % w.Panels.Count;
+                int local = BuildingPanelIndex.ToLocal(w, p);
+                Assert.Equal(p, BuildingPanelIndex.ToGlobal(w, w.Panels[p].Building, local));
+            }
+            Assert.Equal(before + 1, BuildingPanelIndex.TablesBuilt);
+            BuildingPanelIndex.ToLocal(BreachFixtures.House(), 0);
+            Assert.Equal(before + 2, BuildingPanelIndex.TablesBuilt);
+        }
+
+        private const string TwoHouses = """
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "building", "label": "FIRST", "building": HOUSE }, "geometry": { "type": "Point", "coordinates": [20, 20] } },
+              { "type": "Feature", "properties": { "kind": "building", "label": "SECOND", "building": HOUSE }, "geometry": { "type": "Point", "coordinates": [60, 20] } } ] }
+            """;
+        private const string HouseBody = """{ "footprint": [[0,0],[10,0],[10,8],[0,8]], "storeys": [ { "height": 3, "walls": [ { "from": [0,0], "to": [10,0], "thickness": 0.3 }, { "from": [10,0], "to": [10,8], "thickness": 0.3 }, { "from": [10,8], "to": [0,8], "thickness": 0.3 }, { "from": [0,8], "to": [0,0], "thickness": 0.3 } ] } ] }""";
+
+        /// <summary>The two houses in either order: "FIRST" then "SECOND", or the reverse (a re-sorted overlay).</summary>
+        private static TerrainWorld Two(bool swapped)
+        {
+            string json = TwoHouses.Replace("HOUSE", HouseBody);
+            if (swapped) json = json.Replace("FIRST", "TMP").Replace("SECOND", "FIRST").Replace("TMP", "SECOND");   // labels swap places: the SAME key now names the other index
+            return TerrainWorldParser.Parse(json, "range");
+        }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-4 — a damage component re-keys to the world that replaces its own: the building by stable KEY and each breach's panel by its within-building rank, so damage on "range/SECOND" stays on SECOND when
+        /// the world is re-sorted. 🔴 Red-proof: make <c>Remap</c> return false at once (or keep the old numbers) ⇒ the damage sits on the other house.
+        /// </summary>
+        [Fact]
+        public void CE4427_R4_ADamageComponent_FollowsItsHouseByKey_WhenTheWorldIsReSorted()
+        {
+            var a = Two(swapped: false);                                    // FIRST = 0, SECOND = 1
+            var b = Two(swapped: true);                                     // the labels trade places: ONE key, two numberings
+            int sa = Array.FindIndex(a.Buildings.ToArray(), x => x.Label == "SECOND");
+            int sb = Array.FindIndex(b.Buildings.ToArray(), x => x.Label == "SECOND");
+            Assert.NotEqual(sa, sb);
+            int panelA = BuildingPanelIndex.ToGlobal(a, sa, 2);
+            var d = new BuildingDamage { Building = sa };
+            BuildingDamages.Add(ref d, new WallBreach(panelA, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null);
+
+            Assert.True(BuildingDamages.Remap(ref d, a, b));
+            Assert.Equal(sb, d.Building);
+            Assert.Equal(1, d.Count);
+            Assert.Equal(sb, b.Panels[d.Get(0).Panel].Building);                       // the breach is on SECOND's panel in the NEW world
+            Assert.Equal(2, BuildingPanelIndex.ToLocal(b, d.Get(0).Panel));            // the same wall of it
+            Assert.False(BuildingDamages.Remap(ref d, b, b));                          // same world: nothing to do
+
+            var gone = TerrainWorldParser.Parse(TwoHouses.Replace("HOUSE", HouseBody).Replace("SECOND", "OTHER"), "range");
+            var d2 = new BuildingDamage { Building = sa };
+            BuildingDamages.Add(ref d2, new WallBreach(panelA, 4f, 6f, 0f, 2.2f, BreachKind.Passage), null);
+            Assert.True(BuildingDamages.Remap(ref d2, a, gone));                       // the house is gone from the new world
+            Assert.Equal(-1, d2.Building);
+            Assert.Equal(0, d2.Count);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4427 R-4 — the damage TABLE of one world laid over a re-sorted one breaches the same house: <c>RemapTo</c> keys by house and wall. 🔴 Red-proof: return <c>this</c> from <c>RemapTo</c> ⇒ the breach
+        /// stays on the old index (the other house's panel).
+        /// </summary>
+        [Fact]
+        public void CE4427_R4_ADamageTable_RemapsToAReSortedWorld_ByKey()
+        {
+            var a = Two(false); var b = Two(true);
+            int sa = Array.FindIndex(a.Buildings.ToArray(), x => x.Label == "SECOND");
+            int sb = Array.FindIndex(b.Buildings.ToArray(), x => x.Label == "SECOND");
+            int panelA = BuildingPanelIndex.ToGlobal(a, sa, 1);
+            using var repo = BreachFixtures.World(a);
+            BreachFixtures.Damage(repo, a, sa, new WallBreach(panelA, 4f, 6f, 0f, 2.2f, BreachKind.Passage));
+            var table = BuildingDamageTable.Of(repo, a)!;
+            Assert.True(table.HasBreaches(panelA));
+
+            var re = table.RemapTo(b);
+            int panelB = BuildingPanelIndex.ToGlobal(b, sb, 1);
+            Assert.True(re.HasBreaches(panelB));
+            Assert.Equal(1, re.PassageCount);
+            Assert.False(re.HasBreaches(BuildingPanelIndex.ToGlobal(b, 1 - sb, 1)));   // the other house is untouched
+            Assert.Same(table, table.RemapTo(a));                                      // built for that world: itself
+        }
     }
 }
