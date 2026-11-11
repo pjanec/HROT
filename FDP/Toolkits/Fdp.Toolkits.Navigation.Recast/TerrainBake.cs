@@ -50,9 +50,10 @@ public static class TerrainBake
     /// <param name="newName">the new terrain's name (terrain.json <c>name</c>, door-key prefix)</param>
     /// <param name="resolveTerrainDefinition">terrain name → its <c>terrain.json</c>; when it finds none and <c>&lt;target&gt;/source/base</c> is that terrain's kept ground (a re-save after the original is gone), that copy is the base</param>
     /// <param name="bakeNavtiles">bake the overlay's tiles at save (the base's are copied either way)</param>
+    /// <param name="unique">⭐ T-3 part 2 — the host's generator of unique houses (null ⇒ the shipped templates), the same the editor's live overlay uses</param>
     /// <param name="afterPartWritten">test seam: called with the <c>.part</c> folder once it is complete, before the swap (a throw there is a failed save)</param>
     public static TerrainSaveResult SaveAs(string sourceScenarioDir, string targetFolder, string newName, Func<string, string?> resolveTerrainDefinition,
-        IEnumerable<string?>? recipeRoots = null, bool bakeNavtiles = true, Action<string>? afterPartWritten = null)
+        IEnumerable<string?>? recipeRoots = null, bool bakeNavtiles = true, Action<string>? afterPartWritten = null, IUniqueBuildings? unique = null)
     {
         if (string.IsNullOrWhiteSpace(newName) || newName.IndexOfAny(new[] { '/', '\\' }) >= 0 || newName.Contains("..")) throw new ArgumentException($"'{newName}' is not a terrain name.", nameof(newName));
         string target = Path.GetFullPath(targetFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), part = target + ".part";
@@ -72,7 +73,7 @@ public static class TerrainBake
         string baseFolder = Path.GetDirectoryName(Path.GetFullPath(baseDef))!;
 
         // ① the source compiled first: its overlay is current
-        var compiled = OverlayCompiler.Compile(dom, sourceScenarioDir, Resolve, bakeNavtiles, recipeRoots);
+        var compiled = OverlayCompiler.Compile(dom, sourceScenarioDir, Resolve, bakeNavtiles, recipeRoots, unique);
         string overlayFolder = Path.Combine(sourceScenarioDir, OverlayCompiler.FolderName);
 
         if (Directory.Exists(part)) Directory.Delete(part, true);

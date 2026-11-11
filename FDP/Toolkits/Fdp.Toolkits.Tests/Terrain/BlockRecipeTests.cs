@@ -119,5 +119,52 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Throws<ArgumentException>(() => TerrainRecipe.Parse("""{"id":"x","elements":[{"type":"group","items":[{"type":"unicorn","at":[[0,0]]}]}]}"""));
             Assert.Equal("x", TerrainRecipe.Parse("""{"id":"x","elements":[{"type":"lane","from":[0,0],"to":[10,0]}]}""").Id);
         }
+    
+        private static float SegDist(Vector2 p, Vector2 a, Vector2 b) { var ab = b - a; float l2 = ab.LengthSquared(); float t = l2 <= 0 ? 0 : Math.Clamp(Vector2.Dot(p - a, ab) / l2, 0, 1); return Vector2.Distance(p, a + ab * t); }
+        private static bool Cross(Vector2 a, Vector2 b, Vector2 c, Vector2 d) { static float O(Vector2 p, Vector2 q, Vector2 r) => (q.X - p.X) * (r.Y - p.Y) - (q.Y - p.Y) * (r.X - p.X); return O(a, b, c) * O(a, b, d) < 0 && O(c, d, a) * O(c, d, b) < 0; }
+        private static bool Inside(Vector2[] poly, Vector2 p) { bool r = false; for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++) if ((poly[i].Y > p.Y) != (poly[j].Y > p.Y) && p.X < (poly[j].X - poly[i].X) * (p.Y - poly[i].Y) / (poly[j].Y - poly[i].Y) + poly[i].X) r = !r; return r; }
+
+        /// <summary>The distance between two polygons (0 when they cross or one holds the other).</summary>
+        private static float Gap(Vector2[] a, Vector2[] b)
+        {
+            if (Inside(a, b[0]) || Inside(b, a[0])) return 0f;
+            float best = float.MaxValue;
+            for (int i = 0; i < a.Length; i++)
+                for (int j = 0; j < b.Length; j++)
+                {
+                    var a0 = a[i]; var a1 = a[(i + 1) % a.Length]; var b0 = b[j]; var b1 = b[(j + 1) % b.Length];
+                    if (Cross(a0, a1, b0, b1)) return 0f;
+                    best = MathF.Min(best, MathF.Min(MathF.Min(SegDist(a0, b0, b1), SegDist(a1, b0, b1)), MathF.Min(SegDist(b0, a0, a1), SegDist(b1, a0, a1))));
+                }
+            return best;
+        }
+
+        /// <summary>
+        /// ⭐ T-3 part 2 — NO house footprint intersects a lane strip of its own block, with a ≥ 1 m gap, for every shipped recipe over 8 seeds, fitted and unfitted (the check is the block's, not the fit's).
+        /// 🔴 Red-proof: drop the <c>Lanes</c> check in <c>ElementState.TryPlaceHouse</c> ⇒ the town block's houses cross its streets ⇒ red.
+        /// </summary>
+        [Fact]
+        public void NoHouseTouchesALaneStrip_ForEveryShippedRecipe_Over8Seeds()
+        {
+            var (root, world, assets, _) = Site();
+            int checkedHouses = 0, strips = 0;
+            foreach (var id in Ten)
+                foreach (uint seed in Enumerable.Range(1, 8).Select(i => (uint)i * 7))
+                    foreach (byte fit in new byte[] { TerrainBlock.FitAll, 0 })
+                    {
+                        var recipe = TerrainRecipe.Find(id, new[] { ContentLayout.TerrainRecipeAssets(root) });
+                        var x = FeatureExpander.Expand(recipe, seed, At, 0f, fit, world, "g1", assets);
+                        var parsed = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(world, x.Features).ToJsonString(), "test-town", assets);
+                        var lanes = parsed.Surfaces.Where(sf => sf.Type == TerrainSurfaceType.Open).Select(sf => sf.Polygon).ToList();
+                        strips += lanes.Count;
+                        foreach (var b in parsed.Buildings.Where(bd => bd.Label.StartsWith("g1/", StringComparison.Ordinal)))
+                        {
+                            checkedHouses++;
+                            foreach (var lane in lanes)
+                                Assert.True(Gap(b.Footprint, lane) >= 0.75f, $"{id} seed {seed} fit {fit}: house {b.Label} is {Gap(b.Footprint, lane):0.00} m from a lane");
+                        }
+                    }
+            Assert.True(checkedHouses > 500 && strips > 100, $"the rail looked at {checkedHouses} houses and {strips} strips");
+        }
     }
 }

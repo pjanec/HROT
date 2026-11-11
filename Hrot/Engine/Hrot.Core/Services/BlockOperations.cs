@@ -12,14 +12,14 @@ using Hrot.Map.Common.Components;
 namespace Hrot.Map.Common.Services;
 
 /// <summary>What <see cref="BlockOperations.Unpack"/> expands a block over: the resident base terrain and the folder's side files (the same the live overlay reads).</summary>
-public sealed record BlockExpansionContext(TerrainWorld Base, TerrainAssets Assets, IReadOnlyList<string?> Roots, TerrainRoads? Roads)
+public sealed record BlockExpansionContext(TerrainWorld Base, TerrainAssets Assets, IReadOnlyList<string?> Roots, TerrainRoads? Roads, IUniqueBuildings? Unique = null)
 {
     /// <summary>The context of <paramref name="residency"/>'s resident terrain (its base world and terrain folder); null when none is resident or its folder is not found.</summary>
-    public static BlockExpansionContext? Of(TerrainResidency residency)
+    public static BlockExpansionContext? Of(TerrainResidency residency, IUniqueBuildings? unique = null)
     {
         var (world, _, folder) = residency.ExpansionBase();
         if (world == null || string.IsNullOrEmpty(folder)) return null;
-        return new BlockExpansionContext(world, TerrainAssets.ForFolder(folder), new List<string?>(TerrainRecipe.RootsFor(folder)), TerrainRoads.ForFolder(folder));
+        return new BlockExpansionContext(world, TerrainAssets.ForFolder(folder), new List<string?>(TerrainRecipe.RootsFor(folder)), TerrainRoads.ForFolder(folder), unique);
     }
 }
 
@@ -86,7 +86,8 @@ public static class BlockOperations
         List<JsonObject> parts;
         try
         {
-            var x = OverlayExpansion.Block(guid.ToString("D"), b.Recipe.ToString() ?? "", b.Seed, b.HeadingDeg, b.Fit, new Vector2(at.Position.X, at.Position.Y), ctx.Base, ctx.Assets, ctx.Roots, ctx.Roads);
+            var x = OverlayExpansion.Block(guid.ToString("D"), b.Recipe.ToString() ?? "", b.Seed, b.HeadingDeg, b.Fit, new Vector2(at.Position.X, at.Position.Y), ctx.Base, ctx.Assets, ctx.Roots, ctx.Roads, ctx.Unique);
+            if (x.Templates.Count > 0) return BlockOpResult.Refused("the block's unique houses are generated templates that exist only in its overlay: they cannot be unpacked to features");
             parts = new List<JsonObject>(x.Features);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException) { return BlockOpResult.Refused($"the block does not expand: {ex.Message}"); }

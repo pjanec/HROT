@@ -74,7 +74,7 @@ public sealed class TerrainOverlayFrameRail
         string scenarioDir = Path.Combine(Path.GetTempPath(), "t3-" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(scenarioDir);
         var dom = new JsonObject { ["header"] = new JsonObject { ["terrainName"] = "test-town" }, ["entities"] = new JsonObject { [HamletKey] = Block(recipe, seed, at) } };
-        var r = OverlayCompiler.Compile(dom, scenarioDir, catalog.ResolveDefinition, bakeNavtiles: false);
+        var r = OverlayCompiler.Compile(dom, scenarioDir, catalog.ResolveDefinition, bakeNavtiles: false, unique: new Hrot.Terrain.Random.SynthUniqueBuildings());
         Assert.True(r.Wrote);
         var world = new EntityRepository();
         var residency = new TerrainResidency(catalog, new CarKinem.Road.RoadNetworkHolder());
@@ -98,6 +98,9 @@ public sealed class TerrainOverlayFrameRail
 
     private static void Render2D(EntityRepository world, Vector2 centre, float zoom, string png)
     {
+        // ⭐ T-3 part 2 — the "Empty scenario" hint has no off switch; it goes once the world holds an entity (an EntityInfo with no transform draws nothing), so the frame shows only the terrain
+        if (!world.IsComponentTypeRegistered<EntityInfo>()) world.RegisterComponent<EntityInfo>();
+        if (world.Query().With<EntityInfo>().Build().IsEmpty) { var marker = world.CreateEntity(); world.AddComponent(marker, new EntityInfo()); world.Tick(); }
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();
         var canvas = new MapCanvas(input: null);

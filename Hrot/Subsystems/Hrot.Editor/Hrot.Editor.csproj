@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Hrot.Terrain.Random\Hrot.Terrain.Random.csproj" />   <!-- ⭐ T-3 part 2 (CE-4430) — SynthUniqueBuildings: unique houses for a block's grid -->
     <ProjectReference Include="..\..\Diagnostics\Hrot.Diagnostics.Breakpoints\Hrot.Diagnostics.Breakpoints.csproj" />
     <ProjectReference Include="..\Blueprints\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />
     <ProjectReference Include="..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />

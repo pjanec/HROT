@@ -25,7 +25,7 @@ public static class OverlayCompiler
     /// <param name="resolveTerrainDefinition">terrain name → the path of its <c>terrain.json</c>, or null</param>
     /// <param name="bakeNavtiles">false skips the navmesh bake (a terrain with no navmesh to speak of): the overlay then has no <c>navtiles/</c> and a node bakes its tiles at load</param>
     /// <param name="recipeRoots">where <c>&lt;id&gt;.recipe.json</c> is looked up; null = beside the terrain's assets tree, then the NAS</param>
-    public static OverlayCompileResult Compile(JsonObject scenarioDom, string scenarioDir, Func<string, string?> resolveTerrainDefinition, bool bakeNavtiles = true, IEnumerable<string?>? recipeRoots = null)
+    public static OverlayCompileResult Compile(JsonObject scenarioDom, string scenarioDir, Func<string, string?> resolveTerrainDefinition, bool bakeNavtiles = true, IEnumerable<string?>? recipeRoots = null, IUniqueBuildings? unique = null)
     {
         string finalDir = Path.Combine(scenarioDir, FolderName), partDir = finalDir + ".part";
         if (Directory.Exists(partDir)) Directory.Delete(partDir, true);
@@ -59,6 +59,7 @@ public static class OverlayCompiler
         var roads = TerrainRoads.Load(definitionPath, definition);   // ⭐ T-5 — the SAME roads the live overlay reads (AlignRoad)
 
         var features = new List<JsonObject>();
+        var generated = new SortedDictionary<string, string>(StringComparer.Ordinal);   // ⭐ T-3 part 2 — the blocks' generated templates
         var blockSummaries = new JsonArray();
         int houses = 0, woods = 0;
         foreach (var (guid, e) in blocks)
@@ -69,8 +70,9 @@ public static class OverlayCompiler
             float heading = tb["HeadingDeg"] is JsonNode hn ? (float)hn.GetValue<double>() : 0f;
             byte fit = tb["Fit"] is JsonNode fn ? (byte)fn.GetValue<int>() : TerrainBlock.FitAll;
             // ⭐ O-7 B — the per-block expansion is shared with the editor's live overlay (OverlayExpansion): ONE code path, two callers
-            var x = OverlayExpansion.Block(guid, recipeId, seed, heading, fit, PositionOf(e, guid), baseWorld, assets, roots, roads);
+            var x = OverlayExpansion.Block(guid, recipeId, seed, heading, fit, PositionOf(e, guid), baseWorld, assets, roots, roads, unique);
             features.AddRange(x.Features);
+            foreach (var (tn, tj) in x.Templates) generated[tn] = tj;
             houses += x.Houses; woods += x.Woods;
             blockSummaries.Add(x.Summary);
         }
@@ -100,6 +102,12 @@ public static class OverlayCompiler
             var world = OverlayExpansion.WorldDocument(baseWorld, features);
             string worldName = TerrainOverlayHeader.DefaultWorldFileName;
             File.WriteAllText(Path.Combine(partDir, worldName), world.ToJsonString());
+            if (generated.Count > 0)
+            {
+                // ⭐ T-3 part 2 — written into the overlay's own buildings/: OfOverlay hashes buildings/*, and ReadOverlay resolves a template there before the shared ones
+                string bdir = Path.Combine(partDir, TerrainAssets.BuildingsFolderName); Directory.CreateDirectory(bdir);
+                foreach (var (tn, tj) in generated) File.WriteAllText(Path.Combine(bdir, tn + TerrainAssets.TemplateSuffix), tj);
+            }
 
             string baseHash = TerrainContentHash.OfTerrain(definitionPath);
             string contentHash = TerrainContentHash.OfOverlay(partDir, baseHash);

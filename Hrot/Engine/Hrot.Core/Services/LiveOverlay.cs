@@ -69,6 +69,7 @@ public sealed class LiveOverlay
         public ulong Stamp;                              // …and their (length, mtime) when it did
         public readonly List<JsonObject> Features = new();
         public readonly List<OverlayPart> Parts = new();
+        public readonly Dictionary<string, string> Templates = new(StringComparer.Ordinal);   // ⭐ T-3 part 2 — a block's generated (unique-house) templates
     }
 
     private readonly object _gate = new();
@@ -76,6 +77,9 @@ public sealed class LiveOverlay
     private TerrainWorld? _cacheBase;
     private string? _cacheFolder;
     private TerrainAssets? _assets;
+    /// <summary>⭐ T-3 part 2 (CE-4430) — the host's generator of UNIQUE houses (a grid with <c>"unique": true</c>): the SAME implementation the compiler is given; the editor's root assigns it. Null ⇒ those grids use the shipped templates (logged once). Set before the first expansion.</summary>
+    public IUniqueBuildings? Unique { get; set; }
+
     private TerrainRoads? _roads;   // ⭐ T-5 — the terrain folder's roads (AlignRoad), the same reader the compiler uses
     private IEnumerable<string?>? _roots;
 
@@ -229,6 +233,7 @@ public sealed class LiveOverlay
             var features = new List<JsonObject>();
             var parts = new List<OverlayPart>();
             var live = new HashSet<string>(StringComparer.Ordinal);
+            var inline = new Dictionary<string, string>(StringComparer.Ordinal);   // ⭐ T-3 part 2 — the generated templates of this expansion's blocks
             foreach (var s in sources)
             {
                 live.Add(s.Key);
@@ -243,6 +248,7 @@ public sealed class LiveOverlay
                 else CacheHits++;
                 features.AddRange(entry.Features);
                 parts.AddRange(entry.Parts);
+                foreach (var (tn, tj) in entry.Templates) inline[tn] = tj;
             }
             foreach (var key in new List<string>(_cache.Keys)) if (!live.Contains(key)) _cache.Remove(key);
             RefreshWatch();
@@ -251,7 +257,7 @@ public sealed class LiveOverlay
             OverlayExpansion.SortByLabel(features);
             parts.Sort((a, b) => string.CompareOrdinal(a.Key, b.Key));
             string json = OverlayExpansion.WorldDocument(baseWorld, features).ToJsonString();
-            var world = TerrainWorldParser.Parse(json, baseWorld.Name, _assets);
+            var world = TerrainWorldParser.Parse(json, baseWorld.Name, _assets!.WithInlineTemplates(inline));
             return new LiveOverlayResult(world, parts, baseWorld, baseVersion);
         }
     }
@@ -265,7 +271,10 @@ public sealed class LiveOverlay
             if (s.Kind == OverlaySource.BlockKind)
             {
                 files.Add(RecipePath(s.Name));
-                foreach (var t in TerrainRecipe.Find(s.Name, _roots!).Templates) if (_assets!.TemplatePath?.Invoke(t) is { } tp) files.Add(tp);
+                var recipe = TerrainRecipe.Find(s.Name, _roots!);
+                var used = new List<string>(recipe.Templates);
+                foreach (var el in recipe.Elements) if (el["templates"] is System.Text.Json.Nodes.JsonArray ta) foreach (var tn in ta) used.Add((string)tn!);   // ⭐ T-3 — the elements' templates too
+                foreach (var t in used) if (_assets!.TemplatePath?.Invoke(t) is { } tp) files.Add(tp);
             }
             else if (s.Kind == TerrainFeature.House) { if (_assets!.TemplatePath?.Invoke(s.Name) is { } hp) files.Add(hp); }
             else if (s.Kind == TerrainFeature.Scatter)   // a scatter reads its recipe
@@ -273,7 +282,11 @@ public sealed class LiveOverlay
             entry.Files = files.ToArray();
             entry.Stamp = StampOf(entry.Files);
             if (s.Kind == OverlaySource.BlockKind)
-                entry.Features.AddRange(OverlayExpansion.Block(s.Key, s.Name, s.Seed, s.HeadingDeg, s.Fit, s.At, baseWorld, _assets!, _roots!, _roads).Features);
+            {
+                var bx = OverlayExpansion.Block(s.Key, s.Name, s.Seed, s.HeadingDeg, s.Fit, s.At, baseWorld, _assets!, _roots!, _roads, Unique);
+                entry.Features.AddRange(bx.Features);
+                foreach (var (tn, tj) in bx.Templates) entry.Templates[tn] = tj;
+            }
             else
                 entry.Features.AddRange(OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(s.Key, s.Kind, s.Name, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points ?? Array.Empty<Vector2>()), baseWorld, _assets!, _roots!));
             foreach (var f in entry.Features)
