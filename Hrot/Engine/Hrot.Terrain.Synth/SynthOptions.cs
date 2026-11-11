@@ -6,8 +6,13 @@ namespace Hrot.Tools.TerrainSynth;
 public sealed record SynthOptions(
     string Preset, ulong Seed, string OutDir,
     double? Size, double? HeightSpacing, int? Buildings, int? Trees,
-    string? Noise = null, string? Terraces = null, string? Materials = null, bool Extras = false)
+    string? Noise = null, string? Terraces = null, string? Materials = null, bool Extras = false,
+    bool GroundOnly = false, double? ZRange = null, string? WaterMode = null, double? RoadScale = null, double? WoodsShare = null)
 {
+    // ⭐ CE-4428 F-2 (docs/DESIGN_Terrain_Authoring.md §18f) — the random-terrain wizard's GROUND: GroundOnly writes NO buildings (the houses are recipe blocks a layout places; Buildings then only sets how
+    //   many villages there are — BuildingCount / 60), ZRange is the height range in metres (ZMax = ZMin + ZRange: Relief), WaterMode "none" | "ponds" | "river" (null = both, as before) and RoadScale
+    //   multiplies the road km, WoodsShare is the share of the area the woods cover (the profile's 0.45 when null; ⚠ 0 would mean woods EVERYWHERE — the calibration reads it as "no target"). All default off: a default-options run is byte-for-byte what it was (CleanPinTests).
+
     /// <summary>Opening noise on or off: real for the full preset and none for tiny unless given.</summary>
     /// <summary>Terraced rows on or off: on for the full preset and off for tiny unless given.</summary>
     public bool TerracesEnabled => (Terraces ?? (Preset == "full" ? "on" : "off")) == "on";
@@ -88,6 +93,10 @@ public sealed record SynthOptions(
                 RoadKm = p.RoadKm.ToDictionary(e => e.Key, e => e.Value * area),
             };
         }
+        if (GroundOnly) p = p with { NodataRects = Array.Empty<Rect>() };   // a generated terrain has no hole in its heights
+        if (RoadScale is double rs) p = p with { RoadKm = p.RoadKm.ToDictionary(e => e.Key, e => e.Value * rs) };
+        if (WoodsShare is double ws) p = p with { WoodsShare = ws };
+        if (ZRange is double zr) p = p with { ZMax = p.ZMin + zr };
         if (HeightSpacing is double s) p = p with { HeightSpacing = s };
         if (Buildings is int b) p = p with { BuildingCount = b };
         if (Trees is int t) p = p with { TreeCount = t };

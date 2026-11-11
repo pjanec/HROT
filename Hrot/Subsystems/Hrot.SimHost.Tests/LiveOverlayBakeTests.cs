@@ -39,6 +39,7 @@ namespace Hrot.SimHost.Tests
                   {"type":"Feature","properties":{"kind":"building","label":"B","building":HUT},"geometry":{"type":"Point","coordinates":[100,100]}}]}
                 """.Replace("HUT", Hut));
             File.WriteAllText(Path.Combine(terrain, "buildings", "hut.building.json"), Hut);
+            File.WriteAllText(Path.Combine(_staging, "terrain-recipes", "litter.recipe.json"), """{"id":"litter","scatter":{"density":2,"items":[{"kind":"clutter","type":"car","weight":1},{"kind":"tree","weight":5},{"kind":"bush","weight":4}]}}""");
             File.WriteAllText(Path.Combine(_staging, "terrain-recipes", "village.recipe.json"), """{"id":"village","houses":{"templates":["hut"],"count":[6,6],"radius":50,"minSpacing":4},"woods":{"count":[2,2],"size":[8,12]}}""");
             _residency = new TerrainResidency(_staging, new RoadNetworkHolder());
             _residency.Commit(_world, _residency.Prepare("base-t"));
@@ -203,6 +204,84 @@ namespace Hrot.SimHost.Tests
 
             Assert.Equal(2, live.Expansions);                                                        // the block read the edited file again
             Assert.True(_world.GetSingletonManaged<TerrainWorld>()!.Buildings.Count < before, "fewer houses: the new recipe is in the baked world");
+        }
+
+        /// <summary>
+        /// ⭐⭐ T-2 (CE-4429) — the compiler (the scenario JSON) and the live overlay (the ECS components) give the SAME parts for EVERY kind: the same labels and the same bounds, the shape read as a position plus relative vertices
+        /// by both. 🔴 Red-proof: have <c>LiveOverlay.Snapshot</c> use the polyline's vertices as WORLD points (drop the <c>at +</c>) ⇒ the line and area kinds sit elsewhere.
+        /// </summary>
+        [Fact]
+        public void T2_TheCompilerAndTheLiveOverlay_GiveTheSamePartsForEveryKind()
+        {
+            var specs = new (byte Kind, float X, float Y, string Template, float Heading, float Pad, uint Seed, (float, float)[] Points)[]
+            {
+                (TerrainFeature.House, 300, 300, "hut", 90f, 0f, 0, Array.Empty<(float, float)>()),
+                (TerrainFeature.Wall, 100, 300, "brick", 0f, 2.5f, 0, new[] { (0f, 0f), (20f, 0f) }),
+                (TerrainFeature.Fence, 100, 320, "", 0f, 0f, 0, new[] { (0f, 0f), (20f, 5f) }),
+                (TerrainFeature.Hedge, 100, 340, "", 0f, 0f, 0, new[] { (0f, 0f), (20f, 0f), (20f, 10f) }),
+                (TerrainFeature.Wood, 250, 100, "", 0f, 80f, 0, new[] { (-30f, -20f), (30f, -20f), (30f, 20f), (-30f, 20f) }),
+                (TerrainFeature.Tree, 360, 100, "", 0f, 0f, 0, Array.Empty<(float, float)>()),
+                (TerrainFeature.Scrub, 350, 350, "", 0f, 0f, 0, new[] { (0f, 0f), (20f, 0f), (20f, 20f), (0f, 20f) }),
+                (TerrainFeature.Clutter, 200, 200, "sandbag-wall", 30f, 0f, 0, Array.Empty<(float, float)>()),
+                (TerrainFeature.Water, 200, 60, "", 0f, 0f, 0, new[] { (-15f, -20f), (15f, -20f), (15f, 20f), (-15f, 20f) }),
+                (TerrainFeature.Bridge, 20, 200, "", 0f, 4f, 0, new[] { (0f, 0f), (34f, 0f) }),
+                (TerrainFeature.Scatter, 300, 60, "litter", 0f, 3.9f, 7, new[] { (-30f, -30f), (30f, -30f), (30f, 30f), (-30f, 30f) }),
+            };
+            var dom = new System.Text.Json.Nodes.JsonObject();
+            var entities = new System.Text.Json.Nodes.JsonObject();
+            for (int i = 0; i < specs.Length; i++)
+            {
+                var sp = specs[i];
+                var guid = Guid.Parse($"d{i:x7}-0000-4000-8000-000000000001");
+                var e = _world.CreateEntity();
+                _world.AddComponent(e, new SimTransform { Position = new Vector3(sp.X, sp.Y, 0), Rotation = Quaternion.Identity });
+                _world.AddComponent(e, new TerrainFeature { Kind = sp.Kind, Template = new FixedString32(sp.Template), HeadingDeg = sp.Heading, Pad = sp.Pad, Seed = sp.Seed });
+                _world.AddComponent(e, new EntityGuid(guid));
+                var node = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["TerrainFeature"] = new System.Text.Json.Nodes.JsonObject { ["Kind"] = sp.Kind, ["Template"] = sp.Template, ["HeadingDeg"] = sp.Heading, ["Pad"] = sp.Pad, ["Seed"] = sp.Seed },
+                    ["SimTransform"] = new System.Text.Json.Nodes.JsonObject { ["Position"] = new System.Text.Json.Nodes.JsonArray(sp.X, sp.Y, 0), ["Rotation"] = new System.Text.Json.Nodes.JsonArray(0, 0, 0, 1) },
+                };
+                if (sp.Points.Length > 0)
+                {
+                    _world.SetManagedComponent(e, new Hrot.Map.Common.Components.EditablePolyline { Points = sp.Points.Select(p => new Vector2(p.Item1, p.Item2)).ToList() });
+                    var pts = new System.Text.Json.Nodes.JsonArray();
+                    foreach (var (px, py) in sp.Points) pts.Add(new System.Text.Json.Nodes.JsonObject { ["X"] = px, ["Y"] = py });
+                    node["EditablePolyline"] = new System.Text.Json.Nodes.JsonObject { ["Points"] = pts, ["Version"] = 0 };
+                }
+                entities[guid.ToString("D")] = node;
+            }
+            dom["header"] = new System.Text.Json.Nodes.JsonObject { ["terrainName"] = "base-t" };
+            dom["entities"] = entities;
+
+            // the compiler's parts: label → bounds
+            string scenarioDir = Path.Combine(_staging, "scenario-x");
+            Directory.CreateDirectory(scenarioDir);
+            string definition = Path.Combine(_staging, "Terrain", "base-t", "terrain.json");
+            var compiled = Fdp.Toolkit.Terrain.OverlayCompiler.Compile(dom, scenarioDir, name => name == "base-t" ? definition : null, bakeNavtiles: false, recipeRoots: new[] { Path.Combine(_staging, "terrain-recipes") });
+            Assert.True(compiled.Wrote);
+            var file = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(compiled.Folder!, "overlay.world.geojson")))!["features"]!.AsArray();
+            var fromCompiler = file.Select(f => (Label: Fdp.Toolkit.Terrain.OverlayExpansion.Label((System.Text.Json.Nodes.JsonObject)f!), Box: Fdp.Toolkit.Terrain.OverlayExpansion.BoundsOf((System.Text.Json.Nodes.JsonObject)f!))).OrderBy(t => t.Label, StringComparer.Ordinal).ToList();
+
+            // the live overlay's parts, from the components
+            var live = new LiveOverlay();
+            var (@base, version, folder) = _residency.ExpansionBase();
+            var result = live.Expand(live.Snapshot(_world), @base, version, folder)!;
+            var fromLive = result.Parts.OrderBy(p => p.Key, StringComparer.Ordinal).ToList();
+
+            Assert.True(fromCompiler.Count > 50, $"{fromCompiler.Count} parts: every kind produced some (a scatter alone makes ≈ 140)");
+            Assert.Equal(fromCompiler.Select(t => t.Label), fromLive.Select(p => p.Key));
+            for (int i = 0; i < fromLive.Count; i++)
+            {
+                Assert.Equal(fromCompiler[i].Box.Min.X, fromLive[i].Min.X, 2); Assert.Equal(fromCompiler[i].Box.Min.Y, fromLive[i].Min.Y, 2);
+                Assert.Equal(fromCompiler[i].Box.Max.X, fromLive[i].Max.X, 2); Assert.Equal(fromCompiler[i].Box.Max.Y, fromLive[i].Max.Y, 2);
+            }
+            // …and the live overlay's world parses with every kind in it
+            Assert.Contains(result.World.Surfaces, s => s.Type == TerrainSurfaceType.Water);
+            Assert.Contains(result.World.Surfaces, s => s.Type == TerrainSurfaceType.Forest);
+            Assert.Contains(result.World.Surfaces, s => s.Type == TerrainSurfaceType.Scrub);
+            Assert.NotEmpty(result.World.Walkables);   // the bridge
+            Assert.Contains(result.World.Panels, p => p.Material?.Name == "hedge");
         }
 
         private long SteadyBytes(StaticObstacleBakeSystem sys, int frames = 50)

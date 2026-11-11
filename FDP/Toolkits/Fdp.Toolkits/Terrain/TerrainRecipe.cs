@@ -15,6 +15,15 @@ namespace Fdp.Toolkit.Terrain
     {
         public const string Suffix = ".recipe.json";
 
+        /// <summary>⭐ T-2 (CE-4429 G-4) — one kind of item a SCATTER places: <c>"clutter"</c> (<see cref="Type"/> a <see cref="ClutterTypes"/> id), <c>"tree"</c> or <c>"bush"</c> (a small scrub patch), with its draw weight.</summary>
+        public sealed record ScatterItem(string Kind, string? Type, float Weight);
+
+        /// <summary>The items a scatter of this recipe draws from (empty ⇒ the recipe cannot be scattered). <c>"scatter": { "density": 3, "items": [ { "kind": "clutter", "type": "car", "weight": 1 }, { "kind": "tree", "weight": 4 } ] }</c>.</summary>
+        public IReadOnlyList<ScatterItem> Scatter { get; init; } = Array.Empty<ScatterItem>();
+
+        /// <summary>Items per 100 m² of the scattered area when the feature gives none.</summary>
+        public float ScatterDensity { get; init; } = 1f;
+
         public static TerrainRecipe Parse(string json, string where = "recipe")
         {
             JsonObject obj;
@@ -44,7 +53,26 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
             if (radius <= 0f) throw new ArgumentException($"[Terrain] {where}: houses.radius must be positive.");
-            return new TerrainRecipe(id, templates, hMin, hMax, radius, spacing, wMin, wMax, sMin, sMax);
+            var items = new List<ScatterItem>();
+            float density = 1f;
+            if (obj["scatter"] is JsonObject sc)
+            {
+                if (sc["density"] is JsonNode dn) density = (float)dn.GetValue<double>();
+                if (density <= 0f) throw new ArgumentException($"[Terrain] {where}: scatter.density must be positive.");
+                if (sc["items"] is not JsonArray arr || arr.Count == 0) throw new ArgumentException($"[Terrain] {where}: scatter needs a non-empty 'items' array.");
+                foreach (var node in arr)
+                {
+                    if (node is not JsonObject it) throw new ArgumentException($"[Terrain] {where}: a scatter item must be an object.");
+                    string kind = (string?)it["kind"] ?? throw new ArgumentException($"[Terrain] {where}: a scatter item has no 'kind'.");
+                    if (kind != "clutter" && kind != "tree" && kind != "bush") throw new ArgumentException($"[Terrain] {where}: scatter item kind '{kind}' is not clutter, tree or bush.");
+                    string? type = (string?)it["type"];
+                    if (kind == "clutter") ClutterTypes.Get(type, where + ".scatter");
+                    float weight = it["weight"] is JsonNode wn ? (float)wn.GetValue<double>() : 1f;
+                    if (weight <= 0f) throw new ArgumentException($"[Terrain] {where}: a scatter item's weight must be positive.");
+                    items.Add(new ScatterItem(kind, type, weight));
+                }
+            }
+            return new TerrainRecipe(id, templates, hMin, hMax, radius, spacing, wMin, wMax, sMin, sMax) { Scatter = items, ScatterDensity = density };
         }
 
         private static (int, int) Range(JsonNode? n, string where)

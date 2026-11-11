@@ -24,21 +24,30 @@ namespace Fdp.Toolkit.Terrain
     }
 
     /// <summary>
-    /// ⭐ O-4 (CE-4415, §18c) — ONE placed terrain feature; <see cref="Kind"/> 1 = a house (a building template). Its position is the entity's <c>SimTransform</c>. Authored, saved;
-    /// expanded by the <c>OverlayCompiler</c> at save (the part is labelled <c>&lt;entity guid&gt;/0</c>).
+    /// ⭐ O-4 (CE-4415, §18c) → T-2 (CE-4429, §18g) — ONE placed terrain feature. <see cref="Kind"/> says which; its position is the entity's <c>SimTransform</c>. LINE kinds (wall, fence, hedge, bridge) and AREA kinds
+    /// (wood, scrub, water, scatter) carry their shape in an <c>EditablePolyline</c> beside this component (points RELATIVE to the entity's position — a managed, rarely changed, immutable record: the unmanaged
+    /// component's 1 024-byte cap rules out a fixed vertex list, G-1). Authored and saved; expanded by <see cref="OverlayExpansion"/> (the compiler at save, the editor's live overlay while it is open); a part's label is
+    /// <c>&lt;entity guid&gt;/&lt;i&gt;</c>. Unmanaged (recorded as bytes). ⚠ <see cref="Seed"/> was added in T-2: a recording made with the O-4 layout has no such field.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.TerrainFeature)]
     [DataPolicy(DataPolicy.Default)]
     public struct TerrainFeature
     {
-        public const byte House = 1;
+        public const byte House = 1, Wall = 2, Fence = 3, Hedge = 4, Wood = 5, Tree = 6, Scrub = 7, Clutter = 8, Water = 9, Bridge = 10, Scatter = 11;
 
+        /// <summary>One of the kind constants above; 0 and anything unknown are ignored.</summary>
         public byte Kind;
-        /// <summary>The building template (<c>assets/buildings/&lt;name&gt;.building.json</c>).</summary>
+        /// <summary>By kind — house: the building template · wall / fence / hedge: the material (empty = the kind's default) · clutter: the type (<see cref="ClutterTypes"/>) · scatter: the recipe id.</summary>
         public FixedString32 Template;
+        /// <summary>The heading of a house, a clutter item or a tree.</summary>
         public float HeadingDeg;
-        /// <summary>Written as the feature's <c>pad</c> property when non-zero (a level pad's height; flattening is later work).</summary>
+        /// <summary>
+        /// By kind — house: a level pad's height (written as the feature's <c>pad</c> when non-zero) · wall / fence / hedge: the height in metres (0 = the kind's default) · bridge: the deck's width (0 = 4 m) ·
+        /// wood: trees per hectare (0 = the default) · scatter: items per 100 m² (0 = the recipe's density).
+        /// </summary>
         public float Pad;
+        /// <summary>The seed of a wood, a scrub patch or a scatter (it draws from it, deterministically).</summary>
+        public uint Seed;
     }
 }

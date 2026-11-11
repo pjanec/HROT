@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Terrain
     /// <see cref="TerrainBlock.AvoidWater"/> rejects a house with a corner or centre in a base water surface and a wood centred in water; <see cref="TerrainBlock.LevelPads"/> writes
     /// <c>"pad"</c> = the base's ground height at the house centre. ⚠ <see cref="TerrainBlock.AlignRoad"/> is NOT implemented (it needs the road network): the bit is ignored.</para>
     /// </summary>
-    public static class FeatureExpander
+    public static partial class FeatureExpander
     {
         private const int Attempts = 40;
 

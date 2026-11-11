@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Terrain
 
     /// <summary>The ground cover of a flat surface area.</summary>
     /// <summary>A ground surface's type. ⛔ <c>Road = 1</c> retired with CE-3128 (R-231): roads are the terrain's road graph.</summary>
-    public enum TerrainSurfaceType : byte { Open = 0, Forest = 2, Water = 3 }
+    public enum TerrainSurfaceType : byte { Open = 0, Forest = 2, Water = 3, /* ⭐ T-2 (CE-4429) — low brush: drawn, walkable, no concealment (yet) */ Scrub = 4 }
 
     /// <summary>
     /// A SOLID extruded polygon — a building or a wall: blocks movement and sight from <see cref="BaseZ"/>

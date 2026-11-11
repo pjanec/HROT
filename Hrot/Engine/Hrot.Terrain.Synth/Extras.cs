@@ -109,10 +109,14 @@ public static class ExtrasGenerator
         return ring;
     }
 
-    public static WaterField Water(SynthProfile p, Rng rng, RoadNetwork r)
+    public static WaterField Water(SynthProfile p, Rng rng, RoadNetwork r) => Water(p, rng, r, null);
+
+    /// <summary>⭐ CE-4428 F-2 — <paramref name="mode"/> "none" (an empty field), "ponds" (the pond only), "river" (the river only) or null (both, as always).</summary>
+    public static WaterField Water(SynthProfile p, Rng rng, RoadNetwork r, string? mode)
     {
-        var river = MakeRiver(p, rng.Fork("extras.river"));
-        var pond = MakePond(p, rng.Fork("extras.pond"), r, river);
+        if (mode == "none") return new WaterField(p, new List<AreaFeature>());
+        var river = mode == "ponds" ? null : MakeRiver(p, rng.Fork("extras.river"));
+        var pond = mode == "river" ? null : MakePond(p, rng.Fork("extras.pond"), r, river);
         var features = new List<AreaFeature>();
         if (pond != null) features.Add(new AreaFeature(AreaRings.Close(pond), "pond"));
         if (river != null) features.Add(new AreaFeature(AreaRings.Close(river), "river"));

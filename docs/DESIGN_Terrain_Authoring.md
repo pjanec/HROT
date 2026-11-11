@@ -1136,6 +1136,22 @@ sequenceDiagram
 a note. ⏭ Acceptance (handoff T-1): same inputs → byte-identical ground files and layout DOM; *Shuffle layout* keeps the ground byte-identical; a
 3 km *Town with suburbs* generates, imports and loads within R-4192's 30 s warm.
 
+**As built (T-1, `2026-11-11`)** — what the build did against the table above:
+
+| as built | note |
+|---|---|
+| **F-1** `Hrot/Engine/Hrot.Terrain.Synth` (net8.0, warnings as errors, refs `Hrot.Terrain.InputSet`): the generators `git mv`-ed, namespace `Hrot.Tools.TerrainSynth` kept; the CLI (`Hrot.Tools.TerrainSynth`) is `Program.cs` over it; the tool's 87 tests, `Import.Tests` (47) and `InputSet.Tests` (13) point at the library, unchanged and green (`CleanPinTests` byte-identical); both in `HROT.sln` | `SynthOptions` (record + `Parse`) moved with the library: `Import.Tests` / `InputSet.Tests` call `SynthOptions.Parse` |
+| `TerrainSynthesizer.Generate(options)` → `SynthGround` (in memory) and `Write(ground, options, log)`; `Run` = both | the generation order is unchanged (the random streams are forked by name); the log still has one line per stage |
+| **F-2** options, all default-off so a default run is byte-for-byte what it was: `GroundOnly` (no buildings, no nodata holes; `Buildings` then only sets how many villages — `BuildingCount / 60`) · `ZRange` · `WaterMode` none / ponds / river · `RoadScale` · `WoodsShare` | ⚠ the synth reads a woods share of 0 as "woods everywhere", so *Vegetation: none* strips the woods, lone trees and scrub from the ground in the pipeline instead |
+| 📐 **measured: trees outside woods** (1 500 m, seed 11): light 300, heavy 858 against ≈ 100 ha of woods — **7 %** of the trees (the profile's `LoneShare`) | ⇒ they stay (field trees and rows along minor roads); *none* has none |
+| ⚠ **deviation — where the pipeline went:** a small project **`Hrot/Engine/Hrot.Terrain.Random`** (+ `.Tests`), not the synth library | it needs the importer (and so Recast), the OSM contract records and Fdp.Toolkits' expander; the 87 generator tests should not drag those in. No cycle: nothing below references it |
+| **F-3** `BlockLayout.Place` (pure) + `ToScenarioDom` | per village N blocks from the preset's mix (Open countryside, Mixed also place some along any road); each along one of the 8 nearest roads, centre `Clearance(radius) = 0.3·radius + 3 m` off every road's edge, off water (centre + 8 points at 0.6·radius), blocks ≥ 0.8·(r₁ + r₂) apart; guids from `Rng(layoutSeed)`; positions in the terrain's local metres (SW corner = 0,0). ⚠ the expander has no road input (`AlignRoad` unbuilt): the disc's centre keeps off roads, a house inside it may still meet a village's own street |
+| **F-4** presets: villages per km² and road scale per preset (`RandomTerrainOptions.GroundOf`), blocks per village and recipe mix per preset (`BlockLayout.MixOf`): Open countryside 1–3 farmstead / copse + 2 per km² along roads · Villages 2–4 hamlet / copse · Small town 4–7 hamlet · Town with suburbs 7–11 hamlet + farmstead · Mixed 3–6 + 1 per km² | T-3's richer recipes join by name |
+| **F-5** `RandomTerrainPipeline`: `Preview` → `RandomTerrainPreview` (the OSM `OsmPreview`: roads, water / woods / scrub / **block outline** areas, the blocks' houses as `PreviewBuilding`, `OsmCounts` from the blocks' expansion — doors and windows from the profile's per-house means —, `OsmBudget.Evaluate`; plus `ReliefRange` / `ReliefGrid(n)` and the layout), `ShuffleLayout(preview, seed)` (the ground stays in memory), `WriteGroundInputSet`, `OpenInEditorAsync(preview, name, scenariosRoot, terrainsRoot, navmeshPrefill)` | a netconvert that is missing is a Warning note in the preview, as in the OSM wizard |
+| **F-6** `OpenInEditorAsync`: input set → temp folder → `TerrainImporter` (prefill from the caller) → `scenarios/<name>/scenario.json` (`$meta`, `header.terrainName`, the `TerrainBlock` entities); refuses an existing scenario or terrain | |
+
+📐 **Measured, 3 km *Town with suburbs*, warm** (`TownBudgetTests`, opt-in `HROT_RUN_TOWN_BUDGET=1`; 133 blocks, 756 houses, 179 road edges, verdict Ok): preview 2.1 s (ground 1.0 · layout 0.1 · records 1.0) · write the ground 2.0 s · import 85.8 s, of which the **navmesh prefill 85.0 s** (heights 0.5 · roads, buildings, vegetation, write ≈ 0) · **load (Prepare 8.1 s + Commit 0.04 s) = 8.2 s**. R-4192's budget is *load ≤ 30 s warm, navmesh from the cache*: **met, 8.2 s**; generate + import is 90 s and is dominated by the one-time prefill, which a cold import pays once.
+
 ### 18g. More feature kinds and the area scatter — T-2 *(CE-4429, backend `2026-11-11`; build-state: READY-TO-BUILD)*
 
 📐 **INVENTORY** (grep + reads; ⚠ graph not ready — re-run before the as-built): `TerrainFeature { byte Kind; FixedString32 Template; float HeadingDeg;
@@ -1195,6 +1211,22 @@ parser's missing `prism` kind (then the overlay, *Save terrain as* and the live 
 
 Acceptance (handoff T-2): rails — a hedge blocks movement, a wood conceals, water is impassable, a unit crosses a bridge, a scatter of 140 items
 compiles deterministically; the compiler and the live overlay give the same parts for every kind.
+
+**As built (T-2, `2026-11-11`)** — what the build did against the kinds table and G-1…G-4:
+
+| as built | note |
+|---|---|
+| `TerrainFeature` (unmanaged, saved, recorded): `Kind` widened — House 1 · Wall 2 · Fence 3 · Hedge 4 · Wood 5 · Tree 6 · Scrub 7 · Clutter 8 · Water 9 · Bridge 10 · Scatter 11 — and `uint Seed`; `Template` / `Pad` mean what the kind needs (material, clutter type or recipe; height, width, density) | the component stays tiny (≈ 48 B ≪ 1 024); it round-trips through the scenario serializer with `EditablePolyline` (`EditablePolylineTranslatorTests.T2_*`). ⚠ `Seed` changes the layout of a recording made with the O-4 component |
+| **G-1 shape:** line and area kinds carry the managed `EditablePolyline` (points RELATIVE to the entity); the compiler reads it from the scenario JSON in the `EditablePolylineTranslator`'s shape, the live overlay from the component — both build an `OverlayExpansion.FeatureSpec` and call `OverlayExpansion.Feature` → `FeatureExpander.OfKind` (the ONE entry) | `FeatureExpander` is `partial`; the kinds live in `FeatureKinds.cs` |
+| **G-3 parser:** new `prism` kind (Polygon, `height`, `baseZ`, `material`, `label` → a `TerrainPrism` of kind `Wall`, what a static obstacle is) and new surface `scrub` (`TerrainSurfaceType.Scrub = 4`: drawn and walkable, no concealment yet) | `TerrainWorldMerge` already copied `Prisms` and offset `Panel` / `Building`; a prism has neither |
+| per kind: Wall / Fence → `wall` / `fence` (material from `Template`, default concrete / fence-wood; height from `Pad`) · **Hedge = a `wall` of the existing `hedge` material** (sight 0.3), 1.5 m, 0.8 m thick · Wood → `surface: forest` (density from `Pad`) · Tree → `tree` · Scrub → `surface: scrub` · Water → `surface: water` · Clutter → `prism` from `ClutterTypes` | |
+| **Bridge** = a deck `slab` 1.5 m above the ground under it + a `ramp` at each end (6 m, the foot buried) under ONE `"structure": "<guid>"` (a collapsible building, no panels; O-2); width from `Pad` (4 m) | measured: units cross it (navmesh) |
+| **G-3 clutter table** `ClutterTypes` (Fdp.Toolkits): Car 4.5 × 1.8 × 1.5 car-body · Sandbag wall · Concrete block · Crate (the four obstacle TKB types — `NedTkbCatalog.RegisterObstacles` now READS its sizes from the table: one table) + Barrel · Jersey barrier | baked clutter is not destructible (G-15); a live obstacle stays the entity path |
+| **G-4 scatter:** one entity (area + recipe id in `Template` + `Seed` + density in `Pad`) → `area / 100 · density` items (≤ 2 000), drawn by weight from the recipe's new `scatter` section (`{ "density": 2, "items": [ { "kind": "clutter", "type": "car", "weight": 1 }, { "kind": "tree" }, { "kind": "bush" } ] }`; a bush is a small scrub octagon) at deterministic places inside the area and out of the base's water | 140 items compile byte-identically |
+
+⚠ **Measured finding — a collapsed bridge still carries a unit on its rubble.** Collapse removes the deck and both ramps (`SurfaceZ` at deck height falls to the ground) but CE-4391 S-2's rubble mound — a 0.6 m solid over the structure's whole footprint — is a walkable roof to the navmesh, so the path from bank to bank across the river still exists (two waypoints, over the mound). The rail asserts what O-2 asserts (the deck is gone) and records this; a rule that leaves no mound where a structure stands over water is for the destruction design to decide.
+
+Rails (`FeatureKindsTests`, each red-proved): a hedge blocks movement (the path goes round) · a wood conceals · water is impassable · a unit crosses a bridge (deck) and the collapsed bridge no longer carries at deck height · a scatter of 140 compiles byte-identically · clutter round-trips through the overlay file; `LiveOverlayBakeTests.T2_TheCompilerAndTheLiveOverlay_GiveTheSamePartsForEveryKind`.
 
 ### 18h. Block operations and road alignment — T-4, T-5 *(CE-4431, CE-3431, backend `2026-11-11`; build-state: READY-TO-BUILD)*
 
