@@ -27,44 +27,27 @@ namespace Fdp.Toolkit.Terrain
             // ⭐ T-5 — AlignRoad: the block turns to the nearest road edge within its radius (none in reach, or no road net ⇒ the heading as placed)
             if ((fit & TerrainBlock.AlignRoad) != 0 && roads != null && roads.TryAlign(origin, recipe.Radius, headingDeg, out float aligned)) headingDeg = aligned;
             float rad = headingDeg * MathF.PI / 180f, cos = MathF.Cos(rad), sin = MathF.Sin(rad);
-            var features = new List<JsonObject>();
-            var points = new List<Vector2>();
+            var st = new ElementState { Recipe = recipe, Origin = origin, Heading = headingDeg, Cos = cos, Sin = sin, Fit = fit, Base = baseWorld, Assets = assets, Key = keyPrefix };
 
             // the footprints this block must keep out of: the base's buildings (and solid building prisms), then what it has placed
-            var avoid = new List<(Vector2 Min, Vector2 Max)>();
             if ((fit & TerrainBlock.AvoidBuildings) != 0)
             {
-                foreach (var b in baseWorld.Buildings) if (b.Footprint.Length > 0) avoid.Add(Box(b.Footprint));
-                foreach (var p in baseWorld.Prisms) if (p.Kind == TerrainPrismKind.Building && p.Panel < 0 && p.Building < 0) avoid.Add((p.Min, p.Max));
+                foreach (var b in baseWorld.Buildings) if (b.Footprint.Length > 0) st.Avoid.Add(Box(b.Footprint));
+                foreach (var p in baseWorld.Prisms) if (p.Kind == TerrainPrismKind.Building && p.Panel < 0 && p.Building < 0) st.Avoid.Add((p.Min, p.Max));
             }
-            var footprints = new Dictionary<string, Vector2[]>(StringComparer.Ordinal);
 
-            int houses = 0;
             int want = recipe.HousesMax == 0 ? 0 : recipe.HousesMin + rng.Next(recipe.HousesMax - recipe.HousesMin + 1);
             for (int n = 0; n < want; n++)
             {
                 string template = recipe.Templates[rng.Next(recipe.Templates.Count)];
-                if (!footprints.TryGetValue(template, out var local))
-                    footprints[template] = local = TerrainBuildingExpander.LocalFootprint(assets.LoadTemplate(template, $"recipe '{recipe.Id}'"), $"template '{template}'");
+                var local = st.LocalOf(template);
                 for (int a = 0; a < Attempts; a++)
                 {
                     float ang = rng.NextFloat() * MathF.Tau, dist = MathF.Sqrt(rng.NextFloat()) * recipe.Radius;
                     float rot = Round(headingDeg + 90f * rng.Next(4));
                     var offset = new Vector2(MathF.Cos(ang) * dist, MathF.Sin(ang) * dist);
                     var centre = new Vector2(Round(origin.X + offset.X * cos - offset.Y * sin), Round(origin.Y + offset.X * sin + offset.Y * cos));
-                    var world = Place(local, centre, rot);
-                    var box = Box(world);
-                    var padded = (new Vector2(box.Min.X - recipe.MinSpacing * 0.5f, box.Min.Y - recipe.MinSpacing * 0.5f), new Vector2(box.Max.X + recipe.MinSpacing * 0.5f, box.Max.Y + recipe.MinSpacing * 0.5f));
-                    if ((fit & TerrainBlock.AvoidWater) != 0 && InWater(baseWorld, centre, world)) continue;
-                    if ((fit & TerrainBlock.AvoidBuildings) != 0 && Overlaps(avoid, padded)) continue;
-                    // placed: later houses keep out of this one too (its own box, unpadded — the later house pads itself)
-                    avoid.Add(box);
-                    var props = new JsonObject { ["kind"] = "building", ["template"] = template, ["rotation"] = rot, ["label"] = $"{keyPrefix}/{houses}", ["name"] = "", ["baseZ"] = BaseZ(baseWorld, world) };
-                    if ((fit & TerrainBlock.LevelPads) != 0) props["pad"] = Round(baseWorld.GroundHeightAt(centre.X, centre.Y));
-                    features.Add(Feature(props, new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(centre.X, centre.Y) }));
-                    points.AddRange(world);
-                    houses++;
-                    break;
+                    if (st.TryPlaceHouse(local, template, centre, rot, recipe.MinSpacing)) break;
                 }
             }
 
@@ -87,12 +70,73 @@ namespace Fdp.Toolkit.Terrain
                 var coords = new JsonArray();
                 foreach (var p in ring) coords.Add(new JsonArray(p.X, p.Y));
                 coords.Add(new JsonArray(ring[0].X, ring[0].Y));
-                features.Add(Feature(new JsonObject { ["kind"] = "surface", ["surface"] = "forest", ["label"] = $"{keyPrefix}/w{woods}" },
+                st.Features.Add(Feature(new JsonObject { ["kind"] = "surface", ["surface"] = "forest", ["label"] = $"{keyPrefix}/w{woods}" },
                     new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(coords) }));
-                points.AddRange(ring);
+                st.Points.AddRange(ring);
                 woods++;
             }
-            return new FeatureExpansion(features, houses, woods, points);
+
+            // ⭐ T-3 — the recipe's elements, in order, from the stream the houses and woods left (a recipe without any draws exactly as before)
+            if (recipe.Elements.Count > 0)
+            {
+                st.Rng = rng;
+                foreach (var el in recipe.Elements) ExpandElement(st, el);
+            }
+            return new FeatureExpansion(st.Features, st.Houses, woods, st.Points);
+        }
+
+        /// <summary>⭐ T-3 — what one block expansion shares between its houses and its elements: the stream, the frame (origin, heading), the fit, and what is placed so far.</summary>
+        internal sealed class ElementState
+        {
+            public Rng Rng;
+            public TerrainRecipe Recipe = null!;
+            public Vector2 Origin; public float Heading, Cos, Sin;
+            public byte Fit;
+            public TerrainWorld Base = null!;
+            public TerrainAssets Assets = null!;
+            public string Key = "";
+            public readonly List<JsonObject> Features = new();
+            public readonly List<Vector2> Points = new();
+            public readonly List<(Vector2 Min, Vector2 Max)> Avoid = new();
+            private readonly Dictionary<string, Vector2[]> _footprints = new(StringComparer.Ordinal);
+            public int Houses, Parts;
+
+            public Vector2[] LocalOf(string template)
+            {
+                if (!_footprints.TryGetValue(template, out var local))
+                    _footprints[template] = local = TerrainBuildingExpander.LocalFootprint(Assets.LoadTemplate(template, $"recipe '{Recipe.Id}'"), $"template '{template}'");
+                return local;
+            }
+
+            /// <summary>Block-local metres → world (the block's origin and heading).</summary>
+            public Vector2 W(float x, float y) => new(Round(Origin.X + x * Cos - y * Sin), Round(Origin.Y + x * Sin + y * Cos));
+
+            public string NextLabel() => $"{Key}/e{Parts++}";
+
+            /// <summary>Places a house at <paramref name="centre"/> (its origin corner, or its middle with <paramref name="byCentre"/>) turned <paramref name="rot"/> when the fit allows (water, buildings, <paramref name="spacing"/> to the others): its feature is added and true returned.</summary>
+            public bool TryPlaceHouse(Vector2[] local, string template, Vector2 centre, float rot, float spacing, bool byCentre = false)
+            {
+                if (byCentre)   // a template's origin is its SW corner: put the footprint's MIDDLE at centre
+                {
+                    var mn = new Vector2(float.MaxValue); var mx = new Vector2(float.MinValue);
+                    foreach (var q in local) { mn = Vector2.Min(mn, q); mx = Vector2.Max(mx, q); }
+                    var mid = (mn + mx) / 2f; float rr = rot * MathF.PI / 180f, cr = MathF.Cos(rr), sr = MathF.Sin(rr);
+                    centre = new Vector2(Round(centre.X - (mid.X * cr - mid.Y * sr)), Round(centre.Y - (mid.X * sr + mid.Y * cr)));
+                }
+                var world = Place(local, centre, rot);
+                var box = Box(world);
+                var padded = (new Vector2(box.Min.X - spacing * 0.5f, box.Min.Y - spacing * 0.5f), new Vector2(box.Max.X + spacing * 0.5f, box.Max.Y + spacing * 0.5f));
+                if ((Fit & TerrainBlock.AvoidWater) != 0 && InWater(Base, centre, world)) return false;
+                if ((Fit & TerrainBlock.AvoidBuildings) != 0 && Overlaps(Avoid, padded)) return false;
+                // placed: later houses keep out of this one too (its own box, unpadded — the later house pads itself)
+                Avoid.Add(box);
+                var props = new JsonObject { ["kind"] = "building", ["template"] = template, ["rotation"] = rot, ["label"] = $"{Key}/{Houses}", ["name"] = "", ["baseZ"] = BaseZ(Base, world) };
+                if ((Fit & TerrainBlock.LevelPads) != 0) props["pad"] = Round(Base.GroundHeightAt(centre.X, centre.Y));
+                Features.Add(FeatureExpander.Feature(props, new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(centre.X, centre.Y) }));
+                Points.AddRange(world);
+                Houses++;
+                return true;
+            }
         }
 
         /// <summary>The Point-building feature of ONE placed house (a <see cref="TerrainFeature"/>): label <c>&lt;keyPrefix&gt;/0</c>.</summary>
@@ -147,7 +191,7 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>xorshift64* seeded through splitmix64 — the one generator of the expander (⛔ never <c>System.Random</c>: its sequence is not a contract).</summary>
-        private struct Rng
+        internal struct Rng
         {
             private ulong _s;
             public Rng(uint seed)

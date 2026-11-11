@@ -1,1 +1,57 @@
-{ "id": "hamlet", "houses": { "templates": ["house-2f", "cqb-house", "shop-2f"], "count": [5, 8], "radius": 70, "minSpacing": 8 }, "woods": { "count": [0, 1], "size": [15, 25] } }
+{
+ "id": "hamlet",
+ "radius": 70,
+ "woods": {
+  "count": [
+   0,
+   1
+  ],
+  "size": [
+   15,
+   25
+  ]
+ },
+ "elements": [
+  {
+   "type": "lane",
+   "from": [
+    -62,
+    0
+   ],
+   "to": [
+    62,
+    0
+   ],
+   "width": 4,
+   "bend": 5
+  },
+  {
+   "type": "row",
+   "from": [
+    -55,
+    0
+   ],
+   "to": [
+    55,
+    0
+   ],
+   "templates": [
+    "house-2f",
+    "cqb-house",
+    "shop-2f"
+   ],
+   "count": [
+    5,
+    8
+   ],
+   "offset": 12,
+   "jitter": 2,
+   "minSpacing": 4,
+   "garden": {
+    "material": "hedge",
+    "depth": 10,
+    "width": 12
+   }
+  }
+ ]
+}

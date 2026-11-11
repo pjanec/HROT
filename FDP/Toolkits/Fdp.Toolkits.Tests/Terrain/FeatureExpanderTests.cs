@@ -164,7 +164,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         public void TheShippedRecipes_Parse_AndTheirTemplatesExist()
         {
             string root = ContentLayout.TryFindSourceTree()!;
-            foreach (var id in new[] { "hamlet", "farmstead", "copse" })
+            foreach (var id in new[] { "hamlet", "farmstead", "copse" })   // the ten (templates in the elements too): BlockRecipeTests
             {
                 var r = TerrainRecipe.Find(id, new[] { ContentLayout.TerrainRecipeAssets(root) });
                 Assert.Equal(id, r.Id);

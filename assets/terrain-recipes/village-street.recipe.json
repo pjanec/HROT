@@ -1,0 +1,71 @@
+{
+ "id": "village-street",
+ "radius": 62,
+ "elements": [
+  {
+   "type": "lane",
+   "from": [
+    -58,
+    0
+   ],
+   "to": [
+    58,
+    0
+   ],
+   "width": 4.5,
+   "bend": 6
+  },
+  {
+   "type": "row",
+   "from": [
+    -52,
+    0
+   ],
+   "to": [
+    52,
+    0
+   ],
+   "templates": [
+    "house-2f",
+    "house-3f",
+    "shop-2f",
+    "cqb-house"
+   ],
+   "count": [
+    10,
+    12
+   ],
+   "offset": 11,
+   "jitter": 1.5,
+   "minSpacing": 3,
+   "garden": {
+    "material": "hedge",
+    "depth": 9,
+    "width": 11
+   }
+  },
+  {
+   "type": "group",
+   "items": [
+    {
+     "type": "car",
+     "area": {
+      "center": [
+       0,
+       0
+      ],
+      "size": [
+       90,
+       2
+      ],
+      "count": [
+       1,
+       3
+      ]
+     },
+     "facing": "along"
+    }
+   ]
+  }
+ ]
+}

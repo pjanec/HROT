@@ -1,1 +1,118 @@
-{ "id": "farmstead", "houses": { "templates": ["house-2f", "courtyard-house"], "count": [2, 3], "radius": 45, "minSpacing": 12 }, "woods": { "count": [1, 2], "size": [10, 20] } }
+{
+ "id": "farmstead",
+ "radius": 45,
+ "woods": {
+  "count": [
+   0,
+   1
+  ],
+  "size": [
+   10,
+   20
+  ]
+ },
+ "elements": [
+  {
+   "type": "lane",
+   "from": [
+    -45,
+    -24
+   ],
+   "to": [
+    0,
+    -18
+   ],
+   "width": 3,
+   "bend": 2
+  },
+  {
+   "type": "cluster",
+   "templates": [
+    "house-2f",
+    "courtyard-house"
+   ],
+   "count": [
+    1,
+    2
+   ],
+   "center": [
+    0,
+    7
+   ],
+   "radius": 10,
+   "minSpacing": 8
+  },
+  {
+   "type": "cluster",
+   "templates": [
+    "barn",
+    "shed"
+   ],
+   "count": [
+    2,
+    3
+   ],
+   "center": [
+    0,
+    2
+   ],
+   "radius": 18,
+   "minSpacing": 6
+  },
+  {
+   "type": "enclosure",
+   "center": [
+    0,
+    0
+   ],
+   "size": [
+    48,
+    36
+   ],
+   "material": "hedge",
+   "gap": 6,
+   "jitter": 1
+  },
+  {
+   "type": "group",
+   "items": [
+    {
+     "type": "crate",
+     "area": {
+      "center": [
+       0,
+       -8
+      ],
+      "size": [
+       20,
+       6
+      ],
+      "count": [
+       3,
+       5
+      ]
+     },
+     "facing": "random"
+    },
+    {
+     "type": "barrel",
+     "area": {
+      "center": [
+       -10,
+       4
+      ],
+      "size": [
+       6,
+       6
+      ],
+      "count": [
+       2,
+       3
+      ]
+     },
+     "facing": "random"
+    }
+   ]
+  }
+ ]
+}

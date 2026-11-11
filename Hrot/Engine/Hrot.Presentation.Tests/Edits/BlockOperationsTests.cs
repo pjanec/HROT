@@ -42,6 +42,17 @@ public sealed class BlockOperationsTests : IDisposable
         File.WriteAllText(Path.Combine(_folder, "buildings", "hut.building.json"), Hut);
         File.WriteAllText(Path.Combine(_staging, "terrain-recipes", "village.recipe.json"), """{"id":"village","houses":{"templates":["hut"],"count":[12,12],"radius":60,"minSpacing":4},"woods":{"count":[2,2],"size":[8,12]}}""");
         File.WriteAllText(Path.Combine(_staging, "terrain-recipes", "woodlot.recipe.json"), """{"id":"woodlot","woods":{"count":[3,3],"size":[8,12]}}""");
+        File.WriteAllText(Path.Combine(_staging, "terrain-recipes", "mixed.recipe.json"), """
+            {"id":"mixed","radius":60,"woods":{"count":[1,1],"size":[8,10]},"elements":[
+              {"type":"lane","from":[-40,0],"to":[40,0],"width":4,"bend":3},
+              {"type":"row","from":[-35,0],"to":[35,0],"templates":["hut"],"count":[6,6],"offset":10,"garden":{"material":"hedge"}},
+              {"type":"cluster","templates":["hut"],"count":[2,2],"center":[0,30],"radius":8},
+              {"type":"enclosure","center":[0,30],"size":[30,20],"material":"fence","gap":4},
+              {"type":"enclosure","center":[0,-30],"size":[20,10],"material":"wall"},
+              {"type":"group","items":[{"type":"car","at":[[10,-6,20]]},{"type":"sandbag-wall","line":{"from":[0,6],"to":[12,6],"count":[3,3]}}]},
+              {"type":"orchard","center":[0,-20],"rows":2,"cols":3,"spacing":5},
+              {"type":"fields","center":[0,50],"size":[40,20],"cols":2,"rows":2,"gate":0.5}]}
+            """);
         string def = Path.Combine(_folder, "terrain.json");
         var baseWorld = TerrainFolderWorld.ReadWorld(def, TerrainFolderWorld.ReadDefinition(def), "base-t")!;
         _ctx = new BlockExpansionContext(baseWorld, TerrainAssets.ForFolder(_folder), new List<string?>(TerrainRecipe.RootsFor(_folder)), null);
@@ -242,5 +253,20 @@ public sealed class BlockOperationsTests : IDisposable
 
         var notABlock = _world.CreateEntity();
         Assert.False(BlockOperations.Reroll(_world, notABlock).Done);
+    }
+
+    /// <summary>
+    /// ⭐ T-3 — a block of EVERY element kind (lane, row with gardens, cluster, fence and wall enclosures, clutter, orchard trees, hedgerow fields, a wood) unpacks to the same shape in the same order: each part kind has a feature kind
+    /// (Lane, Hedge / Fence / Wall, Tree, Clutter, Wood, House). 🔴 Red-proof: drop the hedge case in <c>TryRead</c> ⇒ the unpack is refused ⇒ red.
+    /// </summary>
+    [Fact]
+    public void T3_ABlockOfEveryElementKind_UnpacksToTheSameShape()
+    {
+        var block = Block("mixed", 5, 15f);
+        string before = Shape(Expand());
+        Assert.Contains("S Open", before); Assert.Contains("P hedge", before);
+        var r = BlockOperations.Unpack(_world, block, _ctx);
+        Assert.True(r.Done, r.Why);
+        Assert.Equal(before, Shape(Expand()));
     }
 }

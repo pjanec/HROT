@@ -11,8 +11,7 @@ public sealed record LayoutBlock(Guid Guid, string Recipe, uint Seed, float Head
 /// ⭐ CE-4428 F-3 (docs/DESIGN_Terrain_Authoring.md §18f) — PURE: where the recipe blocks of a preset go over a generated ground. At each synth <see cref="Village"/> it places N blocks from the preset's recipe mix,
 /// each ALONG one of the nearest roads (its centre a block radius off the road's edge, its heading along the road), off roads, water and the other blocks. Everything comes from the layout seed — guids included, never
 /// <see cref="Guid.NewGuid"/> — so the same inputs are the same layout, byte for byte. Plain terrain places nothing.
-/// ⚠ The houses of a block are placed by the expander, which knows base buildings and water but NOT roads (<c>AlignRoad</c> is unbuilt): the block's CENTRE and disc keep off the roads, a house inside the disc may still
-/// meet a street where a village's own grid runs through it.
+/// ⚠ The block's CENTRE and disc keep off the roads; a house inside the disc may still meet a street where a village's own grid runs through it (T-5's AlignRoad turns the block along the road in reach).
 /// </summary>
 public static class BlockLayout
 {
@@ -21,11 +20,12 @@ public static class BlockLayout
     private static Mix MixOf(TerrainPreset p) => p switch
     {
         TerrainPreset.Plain => new Mix(0, 0, 0, Array.Empty<(string, double)>()),
-        TerrainPreset.OpenCountryside => new Mix(1, 3, 2.0, new[] { ("farmstead", 0.6), ("copse", 0.4) }),
-        TerrainPreset.Villages => new Mix(2, 4, 0, new[] { ("hamlet", 0.8), ("copse", 0.2) }),
-        TerrainPreset.SmallTown => new Mix(4, 7, 0, new[] { ("hamlet", 0.9), ("farmstead", 0.1) }),
-        TerrainPreset.TownWithSuburbs => new Mix(7, 11, 0, new[] { ("hamlet", 0.85), ("farmstead", 0.15) }),
-        _ => new Mix(3, 6, 1.0, new[] { ("hamlet", 0.5), ("farmstead", 0.3), ("copse", 0.2) }),
+        // ⭐ T-3 (CE-4430, §18i) — the ten shipped recipes: the countryside is farms, hedgerow fields, orchards and copses; a village a hamlet or a village street; a town block only where a town is
+        TerrainPreset.OpenCountryside => new Mix(1, 3, 2.0, new[] { ("farmstead", 0.35), ("hedgerow-fields", 0.25), ("orchard", 0.1), ("copse", 0.3) }),
+        TerrainPreset.Villages => new Mix(2, 4, 0, new[] { ("hamlet", 0.5), ("village-street", 0.4), ("copse", 0.1) }),
+        TerrainPreset.SmallTown => new Mix(4, 7, 0, new[] { ("village-street", 0.5), ("hamlet", 0.3), ("town-block", 0.15), ("farmstead", 0.05) }),
+        TerrainPreset.TownWithSuburbs => new Mix(7, 11, 0, new[] { ("town-block", 0.4), ("village-street", 0.3), ("hamlet", 0.15), ("farmstead", 0.15) }),
+        _ => new Mix(3, 6, 1.0, new[] { ("hamlet", 0.25), ("farmstead", 0.2), ("village-street", 0.2), ("hedgerow-fields", 0.1), ("copse", 0.15), ("town-block", 0.1) }),
     };
 
     private const int AttemptsPerBlock = 60;

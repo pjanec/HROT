@@ -70,7 +70,7 @@ public static class BlockOperations
     }
 
     /// <summary>
-    /// H-3 — the block becomes its parts: ONE <see cref="TerrainFeature"/> per part the ONE <see cref="OverlayExpansion"/> makes (a house → House with template, position and heading; a wood → Wood with an <see cref="EditablePolyline"/>), then
+    /// H-3 — the block becomes its parts: ONE <see cref="TerrainFeature"/> per part the ONE <see cref="OverlayExpansion"/> makes (a house → House with template, position and heading; a tree, a clutter prism with its type; a wall / fence / hedge line, a wood / scrub / water area, a lane → the kind with an <see cref="EditablePolyline"/>), then
     /// the block is destroyed — all in ONE bracket. ⭐ Same parts: the same geometry, materials and ORDER (the new guids rise in the order of the block's part labels, and a part label is <c>&lt;guid&gt;/0</c>); only the KEYS change,
     /// so every door entity of the block's houses is re-keyed to its house's new key in the same step, and keeps its state. ⚠ A damaged house's <c>BuildingDamage</c> entity is not re-keyed (it follows its building by the key the OLD world gave its index).
     /// </summary>
@@ -150,30 +150,75 @@ public static class BlockOperations
         m = default; why = null;
         var props = (JsonObject)part["properties"]!; var geo = (JsonObject)part["geometry"]!;
         string label = OverlayExpansion.Label(part), kind = (string?)props["kind"] ?? "";
+        var coords = geo["coordinates"]!;
+        Vector2 P(JsonNode n) => new(n[0]!.GetValue<float>(), n[1]!.GetValue<float>());
+
+        // a point part: a house, a tree
         if (kind == "building")
         {
             string template = (string?)props["template"] ?? "";
             if (System.Text.Encoding.UTF8.GetByteCount(template) > FixedString32.MaxLength) { why = $"the house template '{template}' is longer than {FixedString32.MaxLength} bytes"; return false; }
-            var c = (JsonArray)geo["coordinates"]!;
-            m = (label, newGuid, TerrainFeature.House, template, props["rotation"]?.GetValue<float>() ?? 0f, props["pad"]?.GetValue<float>() ?? 0f, new Vector2(c[0]!.GetValue<float>(), c[1]!.GetValue<float>()), null);
+            m = (label, newGuid, TerrainFeature.House, template, props["rotation"]?.GetValue<float>() ?? 0f, props["pad"]?.GetValue<float>() ?? 0f, P(coords), null);
             return true;
         }
-        if (kind == "surface" && (string?)props["surface"] == "forest")
+        if (kind == "tree") { m = (label, newGuid, TerrainFeature.Tree, "", 0f, 0f, P(coords), null); return true; }
+
+        // a clutter prism (T-3 hints: its type and turn ride in the part): its middle is the feature's place
+        if (kind == "prism" && props["clutter"] != null)
         {
-            var ring = (JsonArray)((JsonArray)geo["coordinates"]!)[0]!;
-            var pts = new List<Vector2>(ring.Count);
-            for (int i = 0; i < ring.Count - 1; i++) pts.Add(new Vector2(ring[i]![0]!.GetValue<float>(), ring[i]![1]!.GetValue<float>()));   // the closing point repeats the first
-            var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
-            foreach (var p in pts) { min = Vector2.Min(min, p); max = Vector2.Max(max, p); }
-            var centre = new Vector2(MathF.Round((min.X + max.X) * 500f) / 1000f, MathF.Round((min.Y + max.Y) * 500f) / 1000f);
-            var rel = new Vector2[pts.Count];
-            for (int i = 0; i < rel.Length; i++) rel[i] = pts[i] - centre;
-            m = (label, newGuid, TerrainFeature.Wood, "", 0f, props["density"]?.GetValue<float>() ?? 0f, centre, rel);
+            var ring0 = Ring((JsonArray)((JsonArray)coords)[0]!, P);
+            m = (label, newGuid, TerrainFeature.Clutter, (string)props["clutter"]!, props["heading"]?.GetValue<float>() ?? 0f, 0f, Middle(ring0), null);
+            return true;
+        }
+
+        // a line part: a wall, a fence, a hedge (a wall of the hedge material)
+        if (kind is "wall" or "fence")
+        {
+            var pts = new List<Vector2>(); foreach (var n in (JsonArray)coords) pts.Add(P(n!));
+            string material = (string?)props["material"] ?? "";
+            byte fk = kind == "fence" ? TerrainFeature.Fence : material == "hedge" ? TerrainFeature.Hedge : TerrainFeature.Wall;
+            bool isDefault = fk == TerrainFeature.Fence ? material == TerrainMaterialLibrary.DefaultFenceMaterial : fk == TerrainFeature.Hedge || material == TerrainMaterialLibrary.DefaultMaterial;
+            string tpl = isDefault ? "" : material;
+            if (System.Text.Encoding.UTF8.GetByteCount(tpl) > FixedString32.MaxLength) { why = $"the material '{tpl}' is longer than {FixedString32.MaxLength} bytes"; return false; }
+            var c0 = pts[0];
+            var rel = new Vector2[pts.Count]; for (int i = 0; i < rel.Length; i++) rel[i] = pts[i] - c0;
+            float dflt = fk == TerrainFeature.Fence ? FeatureExpander.DefaultFenceHeight : fk == TerrainFeature.Hedge ? FeatureExpander.DefaultHedgeHeight : FeatureExpander.DefaultWallHeight;
+            float h = props["height"]?.GetValue<float>() ?? dflt;
+            m = (label, newGuid, fk, tpl, 0f, MathF.Abs(h - dflt) < 0.0005f ? 0f : h, c0, rel);
+            return true;
+        }
+
+        // an area part: a wood, scrub, water, a lane (an open surface)
+        if (kind == "surface")
+        {
+            byte ak = (string?)props["surface"] switch { "forest" => TerrainFeature.Wood, "scrub" => TerrainFeature.Scrub, "water" => TerrainFeature.Water, "open" => TerrainFeature.Lane, _ => (byte)0 };
+            if (ak == 0) { why = $"a surface part of type '{props["surface"]}' has no feature kind to unpack to"; return false; }
+            var pts = Ring((JsonArray)((JsonArray)coords)[0]!, P);
+            var centre = BoxMiddle(pts);
+            var rel = new Vector2[pts.Count]; for (int i = 0; i < rel.Length; i++) rel[i] = pts[i] - centre;
+            m = (label, newGuid, ak, "", 0f, ak == TerrainFeature.Wood ? props["density"]?.GetValue<float>() ?? 0f : 0f, centre, rel);
             return true;
         }
         why = $"a block part of kind '{kind}' has no feature kind to unpack to";
         return false;
     }
+
+    /// <summary>A GeoJSON ring without its closing point.</summary>
+    private static List<Vector2> Ring(JsonArray ring, Func<JsonNode, Vector2> p)
+    {
+        var pts = new List<Vector2>(ring.Count);
+        for (int i = 0; i < ring.Count - 1; i++) pts.Add(p(ring[i]!));   // the closing point repeats the first
+        return pts;
+    }
+
+    private static Vector2 BoxMiddle(List<Vector2> pts)
+    {
+        var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
+        foreach (var q in pts) { min = Vector2.Min(min, q); max = Vector2.Max(max, q); }
+        return new Vector2(MathF.Round((min.X + max.X) * 500f) / 1000f, MathF.Round((min.Y + max.Y) * 500f) / 1000f);
+    }
+
+    private static Vector2 Middle(List<Vector2> pts) => BoxMiddle(pts);
 
     /// <summary>The ONE place a feature entity is made (⭐ switch it to the TKB creation path when the placing UI has a type for it): its position, <see cref="TerrainFeature"/>, scenario guid and — for a shape — the relative <see cref="EditablePolyline"/>.</summary>
     private static void CreateFeature(EntityRepository world, Guid guid, byte kind, string template, float heading, float pad, Vector2 at, float z, Vector2[]? shape)
