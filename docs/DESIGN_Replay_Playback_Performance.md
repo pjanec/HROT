@@ -102,16 +102,16 @@ graph TD
 | **P3** | restore stamps a chunk's version only when its bytes differ (memcmp vs the table) — the view copy then copies only moved chunks | `PlaybackSystem` / the table's `RestoreChunk` | ⚠ only 3 % of chunks are identical ⇒ small win alone; ships with P6 or skipped (measure) |
 | **P4** | ui's own garbage: `EntityCardRenderer.Layout` 0 B steady | ui | the 0 B rail |
 | **P5** | measure the **Replay Browser** on a 1 000-man recording (the user's path) with the same split | — | a §8 in MEASURE |
-| **P6** ⏸ | **block-level deltas** (format): record per changed 64-byte block (or per changed row) instead of the chunk's used prefix — ~20× smaller frames, decode, apply and view copy | `RecorderSystem`, `PlaybackSystem`, the format version | ⛔ needs the user's nod (§4 Q1) |
+| **P6** ✅ approved (Q1) | **block-level deltas** (format): record per changed 64-byte block (or per changed row) instead of the chunk's used prefix — ~20× smaller frames, decode, apply and view copy | `RecorderSystem`, `PlaybackSystem`, the format version | kept only if correct (replay, seek, checkpoint restore rails) AND measured faster (§4 Q1) |
 
 ## 4. Leans (the user reviews)
 
 | | question | lean | why / blast radius |
 |---|---|---|---|
-| **Q1** | P6 block-level deltas? | **yes, after P1–P2 are measured** | the biggest structural win (5.4 % of bytes change), but: the format is strict (DES-008 exact match) ⇒ older recordings need a reader for the old format or become unreadable; the running recording is the checkpoint stream (R-3040) ⇒ checkpoint / dry-run restore move with it; the recorder's main-thread cost rises (a block diff per chunk) — measure on live |
+| **Q1** ✅ | P6 block-level deltas? | **APPROVED as an experiment** (user `2026-11-11`: *"File format change is no issue. feel free to try the approach. Just the final decision is about if it still works and if it works faster."*) — kept only if replay, seek and checkpoint restore stay correct AND it measures faster; built after P1–P2 | the biggest structural win (5.4 % of bytes change), but: the format is strict (DES-008 exact match) ⇒ older recordings need a reader for the old format or become unreadable; the running recording is the checkpoint stream (R-3040) ⇒ checkpoint / dry-run restore move with it; the recorder's main-thread cost rises (a block diff per chunk) — measure on live |
 | **Q2** | the generic per-tick costs (gizmo pass 40 ms, layer / style / culling / egress 15 ms) — change-gate them? | **yes, as their own item (not replay's)** | they cost the same in live paused; gating on chunk versions helps live and replay alike — a separate design (owners: ui gizmos, the map layers) |
-| **Q3** | prefetch depth | **3 frames** | 3 × ~60 MB raw = bounded; a keyframe (≤ 112 MB) may grow one buffer — pooled, never shrunk |
-| **Q4** | does a replay start playing by itself? | **no** (CE-4407's lean) | the user starts it |
+| **Q3** ✅ accepted | prefetch depth | **3 frames** | 3 × ~60 MB raw = bounded; a keyframe (≤ 112 MB) may grow one buffer — pooled, never shrunk |
+| **Q4** ✅ accepted | does a replay start playing by itself? | **no** (CE-4407's lean) | the user starts it |
 
 ## 5. INVENTORY *(2026-11-11)*
 
