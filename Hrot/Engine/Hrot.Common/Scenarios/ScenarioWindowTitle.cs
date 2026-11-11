@@ -14,6 +14,20 @@ public static class ScenarioWindowTitle
     /// <summary>⭐ B-14 / Edit-mode undo U5 (LC-12, supersedes AQ108 D20) — what leads the title while there are unsaved changes.</summary>
     public const string DirtyMark = "\u25CF ";
 
+    /// <summary>⭐ Terrain authoring E-2 — what leads the title of a terrain's SOURCE scenario (mockup 2's green chip): the editor has no custom title bar, so it is text.</summary>
+    public const string TerrainSourceMark = "TERRAIN SOURCE · ";
+
+    private const string TerrainSourcePrefix = Fdp.Toolkit.Orchestration.ContentLayout.OpenedNamePrefix + "terrain/";
+
+    /// <summary>The terrain whose source <paramref name="loadedName"/> is (<c>opened/terrain/&lt;terrain&gt;</c>), or null. ⚠ The same rule as <c>Hrot.UI.Common.TerrainSave.TerrainSourceNames</c> (Hrot.Common cannot reference the presentation).</summary>
+    public static string? TerrainSourceOf(string loadedName)
+    {
+        string n = loadedName.Replace('\\', '/');
+        if (!n.StartsWith(TerrainSourcePrefix, StringComparison.Ordinal)) return null;
+        string rest = n.Substring(TerrainSourcePrefix.Length);
+        return rest.Length > 0 && rest.IndexOf('/') < 0 ? rest : null;
+    }
+
     /// <summary>The title detail for <paramref name="loadedName"/> on <paramref name="terrain"/> (either may be null; no name ⇒ null); <paramref name="dirty"/> ⇒ the dot first.</summary>
     public static string? Detail(string? loadedName, string? terrain, bool dirty = false)
     {
@@ -22,6 +36,7 @@ public static class ScenarioWindowTitle
         _name = loadedName; _terrain = terrain; _dirty = dirty;
         string detail = Fdp.Toolkit.Orchestration.ContentLayout.IsMacroName(loadedName)
             ? "Macro: " + loadedName.Replace('\\', '/').Substring(Fdp.Toolkit.Orchestration.ContentLayout.MacroNamePrefix.Length)
+            : TerrainSourceOf(loadedName) is { } source ? TerrainSourceMark + source   // ⭐ terrain authoring E-2 — a terrain's staged source says so (the mockup's TERRAIN SOURCE chip)
             : loadedName;
         if (dirty) detail = DirtyMark + detail;
         return _detail = string.IsNullOrWhiteSpace(terrain) ? detail : detail + " · on " + terrain;

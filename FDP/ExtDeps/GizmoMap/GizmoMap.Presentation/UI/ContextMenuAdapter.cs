@@ -99,7 +99,7 @@ namespace GizmoMap.Presentation
 
             using (doc)
             {
-                bool reserve = IconResolver != null && LevelHasIcon(doc.RootElement);
+                bool reserve = (IconResolver != null || MenuIconRenderer.GlyphResolver != null) && LevelHasIcon(doc.RootElement);
                 foreach (var item in doc.RootElement.EnumerateArray())
                     DrawItem(item, anchorId, onAction, reserve);
             }
@@ -144,7 +144,7 @@ namespace GizmoMap.Presentation
                 bool open = MenuIconRenderer.BeginMenu(label, enabled, IconResolver, iconKey, p0, gutter);   // ⭐ CE-1027
                 if (open)
                 {
-                    bool childReserve = IconResolver != null && LevelHasIcon(children);
+                    bool childReserve = (IconResolver != null || MenuIconRenderer.GlyphResolver != null) && LevelHasIcon(children);
                     foreach (var child in children.EnumerateArray())
                         DrawItem(child, anchorId, onAction, childReserve);
                     ImGui.EndMenu();

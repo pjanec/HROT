@@ -46,7 +46,7 @@ namespace GizmoMap.Presentation
             {
                 if (Submenu(item.Label!, item.Icon, enabled, icons, reserve))
                 {
-                    bool childReserve = icons != null && MenuIconRenderer.AnyHasIcon(children);
+                    bool childReserve = (icons != null || MenuIconRenderer.GlyphResolver != null) && MenuIconRenderer.AnyHasIcon(children);
                     foreach (var child in children) Dto(child, onAction, icons, childReserve);
                     ImGui.EndMenu();
                 }
@@ -59,7 +59,7 @@ namespace GizmoMap.Presentation
         /// <summary>A level of DTO items, sharing one icon gutter.</summary>
         public static void Dtos(IReadOnlyList<ContextMenuItemDto> items, Action<int>? onAction, MenuIconResolver? icons)
         {
-            bool reserve = icons != null && MenuIconRenderer.AnyHasIcon(items);
+            bool reserve = (icons != null || MenuIconRenderer.GlyphResolver != null) && MenuIconRenderer.AnyHasIcon(items);
             foreach (var item in items) Dto(item, onAction, icons, reserve);
         }
     }

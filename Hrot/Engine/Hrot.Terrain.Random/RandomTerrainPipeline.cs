@@ -15,8 +15,11 @@ namespace Hrot.Terrain.Random;
 /// </summary>
 public sealed class RandomTerrainPreview
 {
-    internal RandomTerrainPreview(RandomTerrainOptions options, SynthGround ground, IReadOnlyList<LayoutBlock> layout, OsmPreview preview, RandomTerrainTimings timings)
-    { Options = options; Ground = ground; Layout = layout; Preview = preview; Timings = timings; }
+    internal RandomTerrainPreview(RandomTerrainOptions options, SynthGround ground, IReadOnlyList<LayoutBlock> layout, OsmPreview preview, RandomTerrainTimings timings, IReadOnlyList<RandomTerrainBlockInfo>? blocks = null)
+    { Options = options; Ground = ground; Layout = layout; Preview = preview; Timings = timings; Blocks = blocks ?? Array.Empty<RandomTerrainBlockInfo>(); }
+
+    /// <summary>⭐ Terrain authoring U-8 (ui, additive) — what the wizard's plan labels per block: its recipe, seed, extent (the expanded outline's box, terrain-local metres) and how many houses it made, in <see cref="Layout"/> order (a block that expanded to nothing is left out).</summary>
+    public IReadOnlyList<RandomTerrainBlockInfo> Blocks { get; }
 
     public RandomTerrainOptions Options { get; }
     /// <summary>The records the wizard's frame draws: roads, water / woods / scrub / block outlines as areas, the houses as buildings, the counts, the budget verdict.</summary>
@@ -42,6 +45,9 @@ public sealed class RandomTerrainPreview
     /// <summary>The layout as a scenario DOM for the terrain called <paramref name="terrainName"/> (the positions are the terrain's local metres).</summary>
     public JsonObject ScenarioDom(string terrainName) => BlockLayout.ToScenarioDom(Layout, terrainName, Ground.Profile.MinX, Ground.Profile.MinY);
 }
+
+/// <summary>⭐ Terrain authoring U-8 (ui, additive) — one laid-out block as the preview's plan labels it (<see cref="RandomTerrainPreview.Blocks"/>).</summary>
+public sealed record RandomTerrainBlockInfo(string Recipe, uint Seed, Vector2 Min, Vector2 Max, int Houses);
 
 /// <summary>Seconds each engine stage took (diagnostics, the wizard's "Generating…" text, the budget rail).</summary>
 public sealed record RandomTerrainTimings(double GroundSeconds, double LayoutSeconds, double PreviewSeconds);
@@ -107,14 +113,15 @@ public sealed class RandomTerrainPipeline
         double layoutSeconds = sw.Elapsed.TotalSeconds;
 
         sw.Restart();
-        var preview = BuildPreview(options, ground, layout);
-        return new RandomTerrainPreview(options, ground, layout, preview, new RandomTerrainTimings(groundSeconds, layoutSeconds, sw.Elapsed.TotalSeconds));
+        var preview = BuildPreview(options, ground, layout, out var blocks);
+        return new RandomTerrainPreview(options, ground, layout, preview, new RandomTerrainTimings(groundSeconds, layoutSeconds, sw.Elapsed.TotalSeconds), blocks);
     }
 
     // ── the preview: the OSM wizard's records ─────────────────────────────────────────────────────────────────────
 
-    private OsmPreview BuildPreview(RandomTerrainOptions options, SynthGround g, IReadOnlyList<LayoutBlock> layout)
+    private OsmPreview BuildPreview(RandomTerrainOptions options, SynthGround g, IReadOnlyList<LayoutBlock> layout, out List<RandomTerrainBlockInfo> blockInfos)
     {
+        blockInfos = new List<RandomTerrainBlockInfo>();
         var p = g.Profile;
         double cx = p.MinX, cy = p.MinY;   // the terrain's local metres: the south-west corner is 0,0 (what the importer makes)
         Vector2 Local(double x, double y) => new((float)(x - cx), (float)(y - cy));
@@ -134,14 +141,22 @@ public sealed class RandomTerrainPipeline
         var assets = TerrainAssets.ForFolder(Path.Combine(_terrainsRoot, "_preview"));
         var features = new List<JsonObject>();
         int houses = 0, woods = 0;
+        // ⭐ T-5 — the generator's roads, so the preview aligns a block as the compile / import will (AlignRoad)
+        var blockRoads = TerrainRoads.FromEdges(roads.SelectMany(r => Enumerable.Range(0, Math.Max(0, r.Points.Length - 1)).Select(i => (r.Points[i], r.Points[i + 1]))));
         foreach (var b in layout)
         {
-            var x = OverlayExpansion.Block(b.Guid.ToString("D"), b.Recipe, b.Seed, b.HeadingDeg, TerrainBlock.FitAll, new Vector2((float)(b.X - cx), (float)(b.Y - cy)), world, assets, _recipeRoots);
+            var x = OverlayExpansion.Block(b.Guid.ToString("D"), b.Recipe, b.Seed, b.HeadingDeg, TerrainBlock.FitAll, new Vector2((float)(b.X - cx), (float)(b.Y - cy)), world, assets, _recipeRoots, blockRoads);
             features.AddRange(x.Features);
             houses += x.Houses; woods += x.Woods;
             var outline = (JsonArray)x.Summary["outline"]!;
             if (outline.Count >= 3)
-                areas.Add(new PreviewArea("block", outline.Select(pt => new Vector2((float)pt![0]!.GetValue<float>(), (float)pt[1]!.GetValue<float>())).ToArray()));
+            {
+                var ring = outline.Select(pt => new Vector2((float)pt![0]!.GetValue<float>(), (float)pt[1]!.GetValue<float>())).ToArray();
+                areas.Add(new PreviewArea("block", ring));
+                var mn = new Vector2(float.MaxValue); var mx = new Vector2(float.MinValue);
+                foreach (var q in ring) { mn = Vector2.Min(mn, q); mx = Vector2.Max(mx, q); }
+                blockInfos.Add(new RandomTerrainBlockInfo(b.Recipe, b.Seed, mn, mx, x.Houses));
+            }
         }
         var buildings = new List<PreviewBuilding>();
         double blockWoodsM2 = 0;

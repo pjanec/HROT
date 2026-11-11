@@ -62,13 +62,14 @@ namespace Fdp.Toolkit.Replay
         /// <summary>⭐ Undo U1 — one undo step's before-state: the authored types, no singletons (the header's edits are document steps, §1.1 A).</summary>
         public static readonly CaptureOptions Undo = new(KeyframeTypes.Authored, Singletons: false);
 
-        /// <summary>⭐ CE-4411 — the components that make an entity a REPLICATED one (its network id, its authority, its route).
+        /// <summary>⭐ CE-4411 — the components that make an entity a REPLICATED one (its network id, its authority, its route; ⭐ T-4: and its scenario key).
         /// All three are <c>NoScenario</c> (a file never carries them), so "what an author edits" left them out and an UNDONE DELETE brought the entity back
         /// without them: <c>Edits.Delete</c> then refused it ("not replicated — delete it locally") and the entity was no longer one the edit path knew. An undo step
         /// carries them, so a restored entity is exactly the one that was deleted.</summary>
         private static bool IsReplicationIdentity(int id)
             => id == ComponentType<NetworkIdentity>.ID || id == ComponentType<NetworkAuthority>.ID
-            || id == ComponentType<ReplicationRoute>.ID;
+            || id == ComponentType<ReplicationRoute>.ID
+            || id == ComponentType<Fdp.Toolkit.Scenario.EntityGuid>.ID;   // ⭐ T-4 (CE-4431) — the scenario KEY is the entity's identity too: a block restored by an undone unpack without it would be a block with another key (its parts' keys, doors and saved damage hang on it)
 
         internal Func<int, bool>? Filter => Types switch
         {

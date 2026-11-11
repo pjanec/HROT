@@ -51,7 +51,7 @@ public sealed class TerrainSaveAsTests
         m.Refresh(); m.Refresh();
         Assert.Single(fake.Previews);                          // the summary is read again only when the name changed
         Assert.Equal(23, m.Preview!.Blocks);
-        Assert.Equal("~2 min; loads fast after", m.MeshEstimate);
+        Assert.Equal("≈ 2 min; loads fast after", m.MeshEstimate);
         Assert.True(m.CanSave);
 
         m.Name = "bad name!";
@@ -117,6 +117,7 @@ public sealed class TerrainSaveAsTests
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         using var frame = UiFrameHarness.Begin(900, 640);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);   // the real editor fonts: the harness default is ASCII-only
         var window = new TerrainSaveAsWindow(() => new Fake());
         window.Open();
         for (int i = 0; i < 8; i++) frame.Step(window.Draw);

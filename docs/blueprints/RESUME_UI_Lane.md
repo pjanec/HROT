@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-10
-current-answer: ⭐⭐⭐ 2026-11-11 (b) — replay speed + change gating: "SESSION 2026-11-11 (b)". The OSM wizard strand (other ui session): "SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3".
+current-answer: ⭐⭐⭐ 2026-11-11 (c) — gizmo inputs + terrain authoring: "SESSION 2026-11-11 (c)"; before it "SESSION 2026-11-11 (b)". The OSM wizard strand (other ui session): "SESSION 2026-11-10 (c) — THE OSM WIZARD LIVE, E-1…E-3".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-10 (b) — START AT "SESSION 2026-11-10 (b) — DRAWING THE LARGE TERRAIN, D-1…D-4 DONE".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-10 — START AT "SESSION 2026-11-10 — THE OSM TERRAIN WIZARD (CE-4375), BUILT AGAINST THE FAKES".
   ⛔ OLDER: ⭐⭐⭐ 2026-11-09 (b) — START AT "SESSION 2026-11-09 (b) — NEXT_2 A-1…A-10, DONE".
@@ -254,6 +254,14 @@ A-6 RTS checkmark (CE-4347) · A-7 the wheel past the eyes (CE-4348) · A-8 the 
 ✅ **Checked, nothing to do:** backend's flag on `TheStartGateIsComposedOnceTests.AnOrchestratorOnlyProcess_StartOffersOpenNewAndRecording_*` — it passes on a fresh build (it already reads the greyed *New Scenario…* by prefix + tooltip); the red backend saw was a stale `ClusterRunner.Tests` restore (`PlayerSubsystem` not found until `dotnet restore`).
 
 **Traps measured this session:** the frame harness's default font is ASCII-only (`—`, `·` draw as `?`) — a rail that cares initialises `EditorFontService` first (the transfers rails do) · editing a project while a background build of it runs gives phantom "no such member" errors — re-build before believing them · ClusterRunner needed `dotnet restore` after the backend merge (`DeployFlowSystem` / Hrot.Gameplay "not referenced").
+
+## ⭐⭐⭐ SESSION 2026-11-11 (c) — GIZMO INPUTS (G5b) + TERRAIN AUTHORING U-1…U-8, DONE *(state at `ui` `c0271f657`, pushed)*
+
+| item | state | where |
+|---|---|---|
+| G5b — 4 more gizmo rules declare Inputs (presentation, editor label, health bar, command picture); gizmo system 21.1 → 11.3 ms | ✅ — animated / unversioned rules skipped with reasons; `CommandPictureAbsentGizmo` still 0.6 ms gated (an input moves every frame, not chased); `AuthoredRouteGizmo` not read yet | `docs/DESIGN_Change_Gated_Systems.md` §4a |
+| HANDOFF_Coordinator_To_Ui_Terrain_Authoring U-1…U-8 + two fidelity rounds + Unpack / road align (backend T-4/T-5) + Reroll/ChangeRecipe unified onto backend's `BlockOperations` | ✅ CE-1481…1492 | `batches/STATUS_Ui_Terrain_Authoring.md`, `docs/DESIGN_Terrain_Authoring.md` §15a/§15a-2 |
+| ⚠ open | street-clutter scatter waits on a scatter recipe (backend T-3) · edit a terrain whose base left the catalogue (NOTE_Ui_To_Backend_Edit_Terrain) · placed wall / bridge on the map not compared with mockup 3 · TERRAIN SOURCE is title text, not a chip · `SaveSlotTests.R8` expects "Close the live session?" (stale since CE-4330) | status file |
 
 ## ⭐⭐⭐ SESSION 2026-11-11 (b) — REPLAY SPEED (CE-1478/1479) + CHANGE GATING (CE-1480), DONE *(state at `ui` `38c90b52a`, pushed)*
 

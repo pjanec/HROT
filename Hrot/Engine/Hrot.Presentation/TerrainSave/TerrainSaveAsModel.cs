@@ -17,7 +17,7 @@ public sealed class TerrainSaveAsModel
     public TerrainSaveAsModel(ITerrainSaveService service)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
-        string stem = _service.SourceScenarioName ?? _service.SourceTerrainName ?? "terrain";
+        string stem = TerrainSourceNames.TerrainOf(_service.SourceScenarioName) ?? _service.SourceScenarioName ?? _service.SourceTerrainName ?? "terrain";   // a terrain's staged source saves back over that terrain
         Name = stem;
         ScenarioName = stem + "-mission";
     }
@@ -78,7 +78,7 @@ public sealed class TerrainSaveAsModel
         get
         {
             if (Preview?.EstimateSeconds is not { } s || s <= 0.5) return "loads fast after";
-            return (s >= 90 ? $"~{Math.Round(s / 60)} min" : $"~{Math.Round(s)} s") + "; loads fast after";
+            return (s >= 90 ? $"≈ {Math.Round(s / 60)} min" : $"≈ {Math.Round(s)} s") + "; loads fast after";
         }
     }
 

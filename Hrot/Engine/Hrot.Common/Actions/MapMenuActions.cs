@@ -104,10 +104,10 @@ namespace Hrot.Common.Actions
             });
 
             // ── View ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-            catalogue.Declare(new ActionDecl(GlobalActionIds.CenterOnEntity, "Center View", ActionGroup.View, First, Everything | Block) { Shortcut = "C" });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.CenterOnEntity, "Center View", ActionGroup.View, First, Everything) { Shortcut = "C" });
             catalogue.Declare(new ActionDecl(GlobalActionIds.FollowUnit, "Follow with the camera", ActionGroup.View, First + 1, Unit));   // ⭐ CE-1293 (UC-2)
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Select, "Select", ActionGroup.View, First + 2, Everything | Block) { Shortcut = "Space" });
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Properties, "Properties…", ActionGroup.View, First + 3, Everything | Block));   // ⭐ CE-1135
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Select, "Select", ActionGroup.View, First + 2, Everything) { Shortcut = "Space" });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Properties, "Properties…", ActionGroup.View, First + 3, Everything));   // ⭐ CE-1135
             catalogue.Declare(new ActionDecl(GlobalActionIds.SaveSelectionAsMacro, "Save selection as macro…", ActionGroup.View, First + 4, Unit) { Level = EditingLevel.Full, Modes = ActionModes.InEdit });   // ⭐ CE-4210 MA-9 · R-4162: authoring only
 
             // ── Edit ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -123,15 +123,16 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditPlan, "Edit plan on the map", ActionGroup.Edit, First + 1, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
                 Offer = ctx => ctx.Unit.Plan ? new ContextMenuItemDto { Id = GlobalActionIds.EditPlan, Label = "Edit plan on the map" } : null });
 
-            // ── Terrain block (U-3): the block menu of mockup 2 — Re-roll, Rotate, Unpack (greyed until backend's T-4), Change recipe… (+ Select / Properties… / Delete above). Authoring only.
-            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainReroll, "Re-roll layout", ActionGroup.Edit, First, Block) { Modes = ActionModes.InEdit });
-            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainRotate, "Rotate", ActionGroup.Edit, First + 1, Block) { Modes = ActionModes.InEdit });
-            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainUnpack, "Unpack into houses and features", ActionGroup.Edit, First + 2, Block)
+            // ── Terrain block (U-3): the block menu of mockup 2 — Re-roll, Rotate, Unpack (T-4), Change recipe… (+ Select / Properties… / Delete above). Authoring only.
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainReroll, "Re-roll layout", ActionGroup.Edit, First, Block) { Icon = "terrain/reroll", Modes = ActionModes.InEdit });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainRotate, "Rotate", ActionGroup.Edit, First + 1, Block) { Icon = "terrain/rotate", Modes = ActionModes.InEdit });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainMove, "Move", ActionGroup.Edit, First + 2, Block)
             {
                 Modes = ActionModes.InEdit,
-                Offer = _ => new ContextMenuItemDto { Id = GlobalActionIds.TerrainUnpack, Label = "Unpack into houses and features", Enabled = false, Tooltip = "Needs the block operations of backend's T-4 (CE-4431) — not built yet." },
+                Offer = _ => new ContextMenuItemDto { Id = GlobalActionIds.TerrainMove, Label = "Move", Icon = "terrain/move", Shortcut = "drag", Enabled = false, Tooltip = "Drag the block on the map." },
             });
-            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainChangeRecipe, "Change recipe…", ActionGroup.Edit, First + 3, Block) { Modes = ActionModes.InEdit });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainUnpack, "Unpack into houses and features", ActionGroup.Edit, First + 3, Block) { Icon = "terrain/unpack", Modes = ActionModes.InEdit });   // ⭐ T-4 (BlockOperations.Unpack): ONE undo step
+            catalogue.Declare(new ActionDecl(GlobalActionIds.TerrainChangeRecipe, "Change recipe…", ActionGroup.Edit, First + 4, Block) { Icon = "terrain/block", Modes = ActionModes.InEdit });
 
             // ── Debug (a unit) ────────────────────────────────────────────────────────────────────────────────────────────────────────
             catalogue.Declare(new ActionDecl(0, "Pin gizmos", ActionGroup.Debug, First, Unit)
@@ -144,7 +145,8 @@ namespace Hrot.Common.Actions
             });
 
             // ── Destructive (a graphic) ───────────────────────────────────────────────────────────────────────────────────────────────
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Everything | Block) { Shortcut = "Delete", Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive, Execution = ActionExecution.PerEntity });   // ⭐ A4 — every selected one · ⭐ CE-4410 — a UNIT too (it was offered on a graphic only, so a right-click on an entity had no Delete); the handler is the Delete key's: Edits.Submit(EditOp.Delete)
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Everything | Block) { Shortcut = "Delete", Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive, Execution = ActionExecution.PerEntity,
+                Offer = ctx => new ContextMenuItemDto { Id = GlobalActionIds.Delete, Label = "Delete", Shortcut = "Delete", Style = "destructive", Icon = ctx.Target == Block ? "terrain/delete" : null } });   // ⭐ A4 — every selected one · ⭐ CE-4410 — a UNIT too (it was offered on a graphic only, so a right-click on an entity had no Delete); the handler is the Delete key's: Edits.Submit(EditOp.Delete)
         }
 
         private static IEnumerable<ContextMenuItemDto> OrderRows(ActionContext ctx)

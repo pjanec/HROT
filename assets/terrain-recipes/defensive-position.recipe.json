@@ -1,0 +1,82 @@
+{
+ "id": "defensive-position",
+ "radius": 24,
+ "elements": [
+  {
+   "type": "lane",
+   "from": [
+    -12,
+    0
+   ],
+   "to": [
+    12,
+    0
+   ],
+   "width": 1.4,
+   "bend": 0.8
+  },
+  {
+   "type": "group",
+   "items": [
+    {
+     "type": "sandbag-wall",
+     "line": {
+      "from": [
+       -12,
+       -3
+      ],
+      "to": [
+       12,
+       -3
+      ],
+      "count": [
+       6,
+       7
+      ]
+     },
+     "facing": "along"
+    },
+    {
+     "type": "sandbag-wall",
+     "line": {
+      "from": [
+       -12,
+       3
+      ],
+      "to": [
+       2,
+       3
+      ],
+      "count": [
+       3,
+       4
+      ]
+     },
+     "facing": "along"
+    },
+    {
+     "type": "crate",
+     "area": {
+      "center": [
+       8,
+       5
+      ],
+      "size": [
+       6,
+       3
+      ],
+      "count": [
+       2,
+       3
+      ]
+     },
+     "facing": "random"
+    }
+   ]
+  }
+ ],
+ "ui": {
+  "chip": "Military",
+  "line": "sandbag walls, a trench"
+ }
+}

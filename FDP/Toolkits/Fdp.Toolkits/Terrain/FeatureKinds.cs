@@ -39,6 +39,8 @@ namespace Fdp.Toolkit.Terrain
                     return new[] { Area("forest", key + "/0", points, pad > 0 ? pad : (float?)null, where) };
                 case TerrainFeature.Scrub:
                     return new[] { Area("scrub", key + "/0", points, null, where) };
+                case TerrainFeature.Lane:
+                    return new[] { Area("open", key + "/0", points, null, where) };
                 case TerrainFeature.Water:
                     return new[] { Area("water", key + "/0", points, null, where) };
                 case TerrainFeature.Tree:
@@ -55,18 +57,21 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>True for the kinds that carry a shape (a polyline beside the component): they are the line and area kinds.</summary>
-        public static bool NeedsShape(byte kind) => kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge or TerrainFeature.Wood or TerrainFeature.Scrub or TerrainFeature.Water
+        public static bool NeedsShape(byte kind) => kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge or TerrainFeature.Wood or TerrainFeature.Scrub or TerrainFeature.Water or TerrainFeature.Lane
                                                        or TerrainFeature.Bridge or TerrainFeature.Scatter;
 
         /// <summary>True when <paramref name="kind"/> is one this expander knows (the others are ignored by a caller, as before).</summary>
-        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Scatter;
+        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Lane;
 
         // ── lines ─────────────────────────────────────────────────────────────────────────────────────────────────
 
         private static JsonObject Line(string partKind, string key, string material, float height, float thickness, IReadOnlyList<Vector2> points, string where)
+            => LineLabelled(partKind, key + "/0", material, height, thickness, points, where);
+
+        private static JsonObject LineLabelled(string partKind, string label, string material, float height, float thickness, IReadOnlyList<Vector2> points, string where)
         {
             if (points.Count < 2) throw new ArgumentException($"[Terrain] {where}: a line feature needs at least two points (got {points.Count}).");
-            var props = new JsonObject { ["kind"] = partKind, ["material"] = material, ["height"] = Round(height), ["label"] = key + "/0" };
+            var props = new JsonObject { ["kind"] = partKind, ["material"] = material, ["height"] = Round(height), ["label"] = label };
             if (thickness > 0f) props["thickness"] = Round(thickness);
             var coords = new JsonArray();
             foreach (var p in points) coords.Add(new JsonArray(Round(p.X), Round(p.Y)));
@@ -105,7 +110,8 @@ namespace Fdp.Toolkit.Terrain
             float rad = headingDeg * MathF.PI / 180f, c = MathF.Cos(rad), s = MathF.Sin(rad), hl = type.Length / 2f, hw = type.Width / 2f;
             Vector2 P(float lx, float ly) => new(at.X + lx * c - ly * s, at.Y + lx * s + ly * c);
             var ring = new[] { P(-hl, -hw), P(hl, -hw), P(hl, hw), P(-hl, hw) };
-            var props = new JsonObject { ["kind"] = "prism", ["material"] = type.Material, ["height"] = Round(type.Height), ["label"] = label };
+            // ⭐ T-3 — the type and the turn ride along (the parser ignores them): an Unpack of a block makes a Clutter feature of the same type from them
+            var props = new JsonObject { ["kind"] = "prism", ["material"] = type.Material, ["height"] = Round(type.Height), ["label"] = label, ["clutter"] = type.Id, ["heading"] = Round(headingDeg) };
             return Feature(props, new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(Ring(ring)) });
         }
 

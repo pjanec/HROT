@@ -156,16 +156,18 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         Assert.Equal(("{\"x\":1}", (string?)null), TerrainBirth.Split("{\"x\":1}"));
     }
 
-    private (TerrainGhostContext Ctx, string Folder) GhostGround(bool allWater = false)
+    private (TerrainGhostContext Ctx, string Folder) GhostGround(bool allWater = false, bool roads = false)
     {
         string assets = Path.Combine(_tmp, "assets"), terrain = Path.Combine(assets, "terrain", "g");
         Directory.CreateDirectory(terrain);
         foreach (var kind in new[] { "terrain-recipes", "buildings" })
         {
             Directory.CreateDirectory(Path.Combine(assets, kind));
-            foreach (var f in Directory.EnumerateFiles(Path.Combine(_src, "assets", kind))) File.Copy(f, Path.Combine(assets, kind, Path.GetFileName(f)));
+            foreach (var f in Directory.EnumerateFiles(Path.Combine(_src, "assets", kind))) File.Copy(f, Path.Combine(assets, kind, Path.GetFileName(f)), overwrite: true);
         }
-        File.WriteAllText(Path.Combine(terrain, "terrain.json"), """{"schemaVersion":2,"name":"g","world":"w.geojson"}""");
+        // ⭐ T-5 — roads: test-town's own net (a cross at (200, 200), the east-west road along y = 200) when asked
+        File.WriteAllText(Path.Combine(terrain, "terrain.json"), roads ? """{"schemaVersion":2,"name":"g","world":"w.geojson","roadNetworks":["roads.json"]}""" : """{"schemaVersion":2,"name":"g","world":"w.geojson"}""");
+        if (roads) File.Copy(Path.Combine(_src, "assets", "terrain", "test-town", "roads.json"), Path.Combine(terrain, "roads.json"));
         // a 600 m ground with a lake in the middle (x 280…320): a block placed on it must keep its houses out of the water
         File.WriteAllText(Path.Combine(terrain, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,600,600],"groundZ":0},"features":[{"type":"Feature","properties":{"kind":"surface","surface":"water"},"geometry":{"type":"Polygon","coordinates":[[[LO,0],[HI,0],[HI,600],[LO,600],[LO,0]]]""".Replace("LO", allWater ? "0" : "280").Replace("HI", allWater ? "600" : "320") + """}}]}""");
         var def = Path.Combine(terrain, "terrain.json");
@@ -195,6 +197,53 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         // a single house previews its own footprint
         var house = new TerrainPlacement(TerrainPickKind.House, "house-2f", () => ctx).Preview(new Vector2(50f, 50f))!;
         Assert.Single(house.Houses);
+    }
+
+    /// <summary>
+    /// ⭐ T-5 (CE-3431, backend's <c>AlignRoad</c>; mockup 2's hint <i>aligned to the track (R to rotate)</i>) — the ghost previews the alignment LIVE: dropped within reach of a road, a block placed at 30° turns to the road (its houses are the
+    /// expander's answer at the ALIGNED heading, not at 30°) and the first hint line says so; out of reach, or with the Align bit off, the heading stays as placed and the line is the plain one. A steady cursor next to the road still costs 0 B.
+    /// 🔴 Red-proofs (compile): <c>TerrainGhost.Compute</c> passing no road net to the expander ⇒ the houses stay at 30° ⇒ red; the hint never saying <i>aligned</i> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void U2_TheGhostAlignsToTheRoadLive_TheHintSaysSo_AndASteadyCursorAtTheRoadAllocatesNothing()
+    {
+        var (ctx, folder) = GhostGround(roads: true);
+        Assert.NotNull(ctx.Roads);
+        var at = new Vector2(100f, 195f);
+        var recipe = TerrainRecipe.Find("hamlet", ctx.RecipeRoots);
+        Assert.True(ctx.Roads!.TryAlign(at, recipe.Radius, 30f, out float aligned));
+        Assert.NotEqual(30f, aligned);   // the case discriminates: the road really turns this block
+
+        var ghost = TerrainGhost.Compute(TerrainPickKind.Block, "hamlet", ctx, at, 30f, 7);
+        Assert.Equal("aligned to the track (R to rotate)", ghost.Line1);
+        var want = FeatureExpander.Expand(recipe, 7, at, aligned, TerrainBlock.FitAll, ctx.Base, "ghost", ctx.Assets, ctx.Roads);
+        var plain = FeatureExpander.Expand(recipe, 7, at, 30f, TerrainBlock.FitAll, ctx.Base, "ghost", ctx.Assets);
+        Assert.NotEqual(plain.Points.ToArray(), want.Points.ToArray());   // aligned ≠ as placed
+        Assert.Equal(want.ShapesOrEmpty.Take(want.Houses).Select(h => h[0]).ToArray(), ghost.Houses.Take(want.Houses).Select(h => h[0]).ToArray());
+
+        // the Align bit off, or out of the road's reach: the heading is as placed and the line is the plain one
+        var off = TerrainGhost.Compute(TerrainPickKind.Block, "hamlet", ctx, at, 30f, 7, (byte)(TerrainBlock.FitAll & ~TerrainBlock.AlignRoad));
+        Assert.Equal("heading 30° · R to rotate", off.Line1);
+        Assert.Equal(plain.ShapesOrEmpty.Take(plain.Houses).Select(h => h[0]).ToArray(), off.Houses.Take(plain.Houses).Select(h => h[0]).ToArray());
+        var far = TerrainGhost.Compute(TerrainPickKind.Block, "hamlet", ctx, new Vector2(500f, 560f), 30f, 7);
+        Assert.Equal("heading 30° · R to rotate", far.Line1);
+        // a terrain without a road net never aligns
+        var (noRoads, _) = GhostGround();
+        Assert.Null(noRoads.Roads);
+        Assert.Equal("heading 30° · R to rotate", TerrainGhost.Compute(TerrainPickKind.Block, "hamlet", noRoads, at, 30f, 7).Line1);
+
+        // the placement carries it, and a steady cursor beside the road is the cached shape — 0 B per frame
+        var pl = new TerrainPlacement(TerrainPickKind.Block, "hamlet", () => ctx, seed: 7);
+        var first = pl.Preview(at, 30f)!;
+        Assert.Equal("aligned to the track (R to rotate)", first.Line1);
+        for (int i = 0; i < 300; i++) pl.Preview(new Vector2(100.1f, 195.1f), 30f);   // warm: the JIT allocates on its first calls (tiering)
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        int same = 0;
+        for (int i = 0; i < 200; i++) if (ReferenceEquals(first, pl.Preview(new Vector2(100.1f, 195.1f), 30f))) same++;
+        long after = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Equal(200, same);
+        Assert.Equal(0, after - before);   // 0 B per steady frame
+        _ = folder;
     }
 
     [Fact]
@@ -322,5 +371,77 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         Assert.Equal(2, cmd.InitialComponents!.OfType<Hrot.Map.Common.Components.EditablePolyline>().Single().Points.Count);
         Assert.DoesNotContain(cmd.InitialComponents!, c => c is Hrot.Map.Common.Components.MapOverlayStyle);
         Assert.Equal("Wall", cmd.InitialComponents!.OfType<EntityInfo>().Single().Name.ToString());
+    }
+
+    // ── follow-up 2: the drawing panel's choices are what the commit reads; the clutter glyphs; the scatter lights with its recipe ───────────────
+
+    /// <summary>
+    /// ⭐ Gap C (mockup 3 ① ③) — a wall drawn after the panel switched it to a Wall of 3 m is BORN a Wall of 3 m (not the hedge the pick said), named Wall; a scatter's density row and seed are what the entity carries.
+    /// 🔴 Mutation: <c>TerrainDrawOptions.Born</c> not writing the panel's kind (<c>f.Kind = Kind</c> removed) ⇒ the kind assertion red.
+    /// </summary>
+    [Fact]
+    public void U7_TheDrawingPanelsChoices_AreWhatTheCommitReads_KindHeightDensitySeed()
+    {
+        var o = TerrainDrawOptions.From("feature:4::Line")!;   // the Hedge pick
+        Assert.True(o.IsLine); Assert.Equal("Hedge", o.KindName); Assert.Equal(1.5f, o.HeightShown);
+        o.SetKind(TerrainFeature.Wall); o.Height = 3f;
+        var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer());
+        var arm = new Hrot.ScenarioEditor.Tools.AreaAuthoringArm(manager);
+        var made = new List<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>();
+        arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest((TkbTypeId)TkbEntityTypes.TerrainFeature, "", made.Add, MinPoints: 2, Closed: false, Born: o.Born));
+        var gizmo = arm.ActiveGizmo!;
+        foreach (var p in new[] { new Vector2(100f, 100f), new Vector2(140f, 100f) }) { gizmo.OnDragUpdate(new Vector3(p.X, p.Y, 0f)); gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(p.X, p.Y, 0f)); }
+        gizmo.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
+        var cmd = Assert.Single(made);
+        var f = cmd.InitialComponents!.OfType<TerrainFeature>().Single();
+        Assert.Equal((TerrainFeature.Wall, 3f), (f.Kind, f.Pad));
+        Assert.Equal("Wall", cmd.InitialComponents!.OfType<EntityInfo>().Single().Name.ToString());
+        Assert.Equal(40f, TerrainDrawOptions.Length(new[] { new Vector2(100f, 100f), new Vector2(140f, 100f) }));
+
+        // a bridge's width, a scatter's recipe · density · seed
+        var b = TerrainDrawOptions.From("feature:10::Line")!; Assert.True(b.IsBridge); Assert.Equal(4f, b.HeightShown);
+        var sc = TerrainDrawOptions.From("feature:11:street-clutter:Area")!;
+        sc.ScatterRecipes = new[] { ("street-clutter", "Street clutter", 3f) }; sc.Density = 2;   // High
+        Assert.Equal(6f, sc.ItemsPer100m2);
+        var square = new[] { new Vector2(0, 0), new Vector2(100, 0), new Vector2(100, 100), new Vector2(0, 100) };
+        Assert.Equal(600f, sc.ItemsOf(square), 3);   // 10 000 m² = 100 units of 100 m², × 6 each
+        var born = new List<object>(); sc.Born(born);
+        var sf = born.OfType<TerrainFeature>().Single();
+        Assert.Equal((TerrainFeature.Scatter, "street-clutter", sc.Seed, 6f), (sf.Kind, sf.Template.ToString(), sf.Seed, sf.Pad));
+    }
+
+    /// <summary>
+    /// ⭐ Gap C (mockup 3, the Clutter tiles) — every clutter type has its OWN glyph key from the shared icon table (a car, a barrel, a crate, a block, a barrier, sandbags, a booth), none the generic one; walls, woods, bridges and water have theirs; blocks and houses (pictures) have none.
+    /// 🔴 Mutation: <c>TerrainPick.GlyphKey</c> returning null ⇒ red.
+    /// </summary>
+    [Fact]
+    public void U7_EveryClutterTypeHasItsOwnGlyph_FromTheSharedIconTable()
+    {
+        var picks = TerrainPickCatalog.FeaturePicks();
+        var clutter = picks.Where(p => p.FeatureKind == TerrainFeature.Clutter).ToList();
+        Assert.Equal(clutter.Count, clutter.Select(p => p.GlyphKey).Distinct().Count());
+        Assert.All(clutter, p => { Assert.NotNull(p.GlyphKey); Assert.NotEqual("terrain/clutter", p.GlyphKey); Assert.True(NodeEditor.Core.Widgets.Icons.TryGet(p.GlyphKey!, out _), p.GlyphKey); });
+        Assert.Equal("clutter/car", clutter.Single(p => p.Template == "car").GlyphKey);
+        Assert.Equal("terrain/walls", picks.Single(p => p.FeatureKind == TerrainFeature.Hedge).GlyphKey);
+        Assert.Equal("terrain/bridge", picks.Single(p => p.FeatureKind == TerrainFeature.Bridge).GlyphKey);
+        Assert.All(Shipped().Where(p => p.Kind != TerrainPickKind.Feature), p => Assert.Null(p.GlyphKey));
+        // the colours differ: a car is grey, a barrel amber, a crate orange
+        Assert.NotEqual(NodeEditor.Core.Widgets.Icons.Get("clutter/car").Color, NodeEditor.Core.Widgets.Icons.Get("clutter/barrel").Color);
+        Assert.NotEqual(NodeEditor.Core.Widgets.Icons.Get("clutter/barrel").Color, NodeEditor.Core.Widgets.Icons.Get("clutter/crate").Color);
+    }
+
+    /// <summary>⭐ Gap C — the greyed scatter lights the moment ONE shipped recipe carries a <c>scatter</c> section (backend's T-3), starts on that recipe, and the panel's <i>What</i> lists it; until then it stays greyed.</summary>
+    [Fact]
+    public void U7_TheScatterPickLights_WhenARecipeCarriesAScatterSection()
+    {
+        Assert.Contains("T-3", Shipped().Single(p => p.FeatureKind == TerrainFeature.Scatter).Disabled);
+        Directory.CreateDirectory(_tmp);
+        File.WriteAllText(Path.Combine(_tmp, "street-clutter.recipe.json"), """{ "id": "street-clutter", "radius": 40, "scatter": { "density": 3, "items": [ { "kind": "clutter", "type": "car", "weight": 1 }, { "kind": "tree", "weight": 2 } ] } }""");
+        var picks = TerrainPickCatalog.Build(new[] { _tmp, ContentLayout.TerrainRecipeAssets(_src) }, new[] { ContentLayout.BuildingAssets(_src) });
+        var scatter = picks.Single(p => p.FeatureKind == TerrainFeature.Scatter);
+        Assert.Null(scatter.Disabled);
+        Assert.Equal("feature:11:street-clutter:Area", scatter.Spec);
+        Assert.Equal(("street-clutter", 3f), (TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Id, TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Density));
+        Assert.Empty(TerrainPickCatalog.ScatterRecipes(new[] { ContentLayout.TerrainRecipeAssets(_src) }));
     }
 }

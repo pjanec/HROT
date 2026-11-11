@@ -56,6 +56,7 @@ public static class OverlayCompiler
             ?? throw new InvalidOperationException($"[Terrain] Terrain '{terrainName}' declares no world: blocks cannot be placed on it.");
         var assets = TerrainAssets.ForFolder(terrainFolder);
         var roots = recipeRoots ?? TerrainRecipe.RootsFor(terrainFolder);
+        var roads = TerrainRoads.Load(definitionPath, definition);   // ⭐ T-5 — the SAME roads the live overlay reads (AlignRoad)
 
         var features = new List<JsonObject>();
         var blockSummaries = new JsonArray();
@@ -68,7 +69,7 @@ public static class OverlayCompiler
             float heading = tb["HeadingDeg"] is JsonNode hn ? (float)hn.GetValue<double>() : 0f;
             byte fit = tb["Fit"] is JsonNode fn ? (byte)fn.GetValue<int>() : TerrainBlock.FitAll;
             // ⭐ O-7 B — the per-block expansion is shared with the editor's live overlay (OverlayExpansion): ONE code path, two callers
-            var x = OverlayExpansion.Block(guid, recipeId, seed, heading, fit, PositionOf(e, guid), baseWorld, assets, roots);
+            var x = OverlayExpansion.Block(guid, recipeId, seed, heading, fit, PositionOf(e, guid), baseWorld, assets, roots, roads);
             features.AddRange(x.Features);
             houses += x.Houses; woods += x.Woods;
             blockSummaries.Add(x.Summary);

@@ -63,6 +63,27 @@ public sealed class EmptyScenarioHintLayerTests
         Assert.False(new EmptyScenarioHintLayer(() => noTerrain).ShowsRunNotice());
     }
 
+    /// <summary>⭐ Terrain authoring U-3 (the coordinator's finding on the overview frame) — placed terrain blocks and features ARE content: the "Empty scenario" hint must not draw over them, even for one that carries no
+    /// <c>EntityInfo</c> (a file from before the picks added it). 🔴 Red-proof (compiles): the emptiness test back on <c>EntityInfo</c> alone ⇒ red.</summary>
+    [Fact]
+    public void U3_APlacedTerrainBlock_OrFeature_IsContent_TheHintGoes()
+    {
+        var w = WithTerrain();
+        w.RegisterComponent<Fdp.Toolkit.Terrain.TerrainBlock>();
+        w.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
+        var layer = new EmptyScenarioHintLayer(() => w);
+        Assert.True(layer.Shows());
+        var b = w.CreateEntity(); w.AddComponent(b, new Fdp.Toolkit.Terrain.TerrainBlock { Seed = 1 });
+        Assert.False(layer.Shows());                                           // a block with no EntityInfo at all
+
+        var w2 = WithTerrain();
+        w2.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
+        var layer2 = new EmptyScenarioHintLayer(() => w2);
+        Assert.True(layer2.Shows());
+        var f = w2.CreateEntity(); w2.AddComponent(f, new Fdp.Toolkit.Terrain.TerrainFeature { Seed = 1 });
+        Assert.False(layer2.Shows());
+    }
+
     [Fact]
     public void L12_ASteadyCheckAllocatesNothing()
     {

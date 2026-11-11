@@ -20,7 +20,14 @@ public sealed record CategoryNode(string Name, IReadOnlyList<CategoryNode> Child
 /// <param name="Order">Group names, top to bottom.</param>
 /// <param name="RecentGroup">The name of the VIRTUAL first group that holds no category: it lists the entries that are recent or starred
 /// (G10); null ⇒ no such group.</param>
-public sealed record PickerGroupSidebar(IReadOnlyList<string> Order, string? RecentGroup = null);
+public sealed record PickerGroupSidebar(IReadOnlyList<string> Order, string? RecentGroup = null)
+{
+    /// <summary>⭐ Terrain authoring (mockup 2) — an optional coloured icon per group name (key of <see cref="NodeEditor.Core.Widgets.Icons"/> or a literal glyph); a group without one draws as before. <see cref="DimmedIcons"/> draws them at half strength (the mockup's unchanged context groups).</summary>
+    public IReadOnlyDictionary<string, NodeEditor.Core.Widgets.IconGlyph>? Icons { get; init; }
+
+    /// <summary>Group names whose icon draws at half strength (the groups this feature did not touch, as the mockup draws them).</summary>
+    public IReadOnlySet<string>? DimmedIcons { get; init; }
+}
 
 /// <summary>
 /// ⭐ Task picker (CE-4359) — a tick that reveals entries the picker hides by default (the task picker's <i>Show tests and demos (43)</i>): <paramref name="Hides"/> says which

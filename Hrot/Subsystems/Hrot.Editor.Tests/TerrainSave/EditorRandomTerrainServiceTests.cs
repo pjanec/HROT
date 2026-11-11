@@ -39,6 +39,18 @@ public sealed class EditorRandomTerrainServiceTests : IDisposable
         var first = svc.Generate(settings);
         Assert.True(first.Blocks > 0, "the villages preset places blocks");
         Assert.NotEmpty(first.Preview.Roads);
+        // the plan's inputs: a mark per drawn block (the recipe, the seed, the houses), the rows' houses from them, the ground's heights for the shading
+        Assert.Equal(first.Blocks, first.Marks!.Count);
+        Assert.Equal(first.Preview.Counts.Buildings, first.Marks.Sum(m => m.Houses));
+        Assert.Equal(first.Preview.Counts.Buildings, first.ByRecipe.Sum(r => r.Houses));
+        Assert.Equal(48 * 48, first.Relief!.Heights.Length);
+        Assert.True(first.Relief.Max > first.Relief.Min);
+
+        // the preset tiles' pictures: each preset generated small by the SAME pipeline (a coarse relief); the villages tile has blocks, the plain tile has none
+        var tile = svc.PresetPicture(2)!;
+        Assert.Equal(12 * 12, tile.Relief!.Heights.Length);
+        Assert.NotEmpty(tile.Preview.Roads);
+        Assert.Equal(0, svc.PresetPicture(0)!.Blocks);
 
         var shuffled = svc.ShuffleLayout(77)!;
         Assert.Equal(first.Preview.Bounds, shuffled.Preview.Bounds);                                                   // the ground is kept

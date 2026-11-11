@@ -162,7 +162,8 @@ public static class EntityTypeCatalog
                 Tag: e,
                 IconKey: IconKeyOf(e),
                 IsEnabled: e.IsEnabled,
-                ImageKey: gallery ? e.Thumbnail : null);
+                ImageKey: gallery ? e.Thumbnail : null,
+                GlyphKey: gallery ? e.Terrain?.GlyphKey : null);
         }
     }
 

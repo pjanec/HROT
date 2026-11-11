@@ -123,4 +123,40 @@ public static class IconsFontAwesome6
     public const string Memory              = "\uf538"; // U-5 section-header key glyph
     public const string Image               = "\uf03e"; // U-5 section-header key glyph
     public const string List                = "\uf03a"; // U-5 section-header key glyph
+    // ⭐ Terrain authoring U-1/U-3 (docs/UX/terrain-authoring-2-blocks.svg) — the coloured icons of the six terrain groups and of a block's menu rows
+    public const string City                = "\uf64f"; // a block (town block)
+    public const string HouseChimney        = "\ue3af"; // buildings
+    public const string Tree                = "\uf1bb"; // vegetation
+    public const string WallBrick           = "\uf7a4"; // walls and fences
+    public const string Dumpster            = "\uf793"; // clutter
+    public const string Water               = "\uf773"; // water and bridges
+    public const string Dice                = "\uf522"; // re-roll
+    public const string Rotate              = "\uf2f1"; // rotate a quarter turn
+    public const string UpDownLeftRight     = "\uf047"; // move
+    public const string BoxOpen             = "\uf49e"; // unpack
+    public const string Star                = "\uf005"; // recent and favourites
+    public const string PersonRifle         = "\ue54e"; // soldiers
+    public const string GroundVehicle       = "\uf5e4"; // ground vehicles
+    public const string Plane               = "\uf072"; // aircraft
+    public const string PenToSquare         = "\uf044"; // edit terrain
+    // ⭐ Terrain authoring follow-up 2 (docs/UX/terrain-authoring-1-wizard.svg, -3-features.svg) — one coloured icon per recipe and per clutter type
+    public const string Tractor             = "\uf722"; // a farmstead
+    public const string Trees               = "\ue4e5"; // a copse
+    public const string Seedling            = "\uf4d8"; // an orchard
+    public const string ShieldHalved        = "\uf3ed"; // a checkpoint
+    public const string Shield              = "\uf132"; // a defensive position
+    public const string RoadBarrier         = "\ue562"; // a roadblock, a jersey barrier
+    public const string Car                 = "\uf1b9"; // a parked car
+    public const string OilCan              = "\uf613"; // a barrel
+    public const string Box                 = "\uf466"; // a crate
+    public const string Bus                 = "\uf207"; // a bus shelter
+    public const string Lightbulb           = "\uf0eb"; // a lamp post
+    public const string Store               = "\uf54e"; // a market stall
+    public const string Fire                = "\uf06d"; // a burnt-out car
+    public const string WheatAwn            = "\ue2cd"; // hay bales, hedgerow fields
+    public const string Mound               = "\ue52d"; // sandbags
+    public const string Road                = "\uf018"; // roads
+    public const string Bridge              = "\ue4c8"; // a bridge
+    public const string ChevronLeft         = "\uf053"; // back
+    public const string ChevronRight        = "\uf054"; // next
 }

@@ -66,6 +66,22 @@ public sealed class TerrainOverlayFrameRail
         return (world, folder);
     }
 
+    /// <summary>⭐ T-3 — test-town with ONE block of <paramref name="recipe"/> compiled in and loaded through the real load; the compiled house / part count comes back.</summary>
+    private static (EntityRepository World, OverlayCompileResult Result) TownWithBlock(string recipe, uint seed, Vector2 at)
+    {
+        string root = ContentLayout.TerrainAssets(ContentLayout.TryFindSourceTree()!);
+        var catalog = new TerrainCatalog(new[] { root });
+        string scenarioDir = Path.Combine(Path.GetTempPath(), "t3-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(scenarioDir);
+        var dom = new JsonObject { ["header"] = new JsonObject { ["terrainName"] = "test-town" }, ["entities"] = new JsonObject { [HamletKey] = Block(recipe, seed, at) } };
+        var r = OverlayCompiler.Compile(dom, scenarioDir, catalog.ResolveDefinition, bakeNavtiles: false);
+        Assert.True(r.Wrote);
+        var world = new EntityRepository();
+        var residency = new TerrainResidency(catalog, new CarKinem.Road.RoadNetworkHolder());
+        residency.Commit(world, residency.Prepare("test-town", r.Folder));
+        return (world, r);
+    }
+
     private static (int Dx, int Dy) At(Vector2 centre, float zoom, Vector2 p) => ((int)(640f + (p.X - centre.X) * zoom), (int)(400f - (p.Y - centre.Y) * zoom));
 
     private static int Delta(Image a, Image b, int x, int y, int r = 3)
@@ -196,5 +212,38 @@ public sealed class TerrainOverlayFrameRail
         frame.Step(canvas.Draw); frame.Step(canvas.Draw);
         frame.Screenshot(png);
         foreach (var p in points) into.Add(sw.Camera3D.WorldToScreen(p));
+    }
+
+    /// <summary>
+    /// ⭐ T-3 (CE-4430, §18i) — the TEN shipped blocks drawn in 2-D over test-town (the real compile + load + the production terrain layer), one PNG each — <c>t3-&lt;recipe&gt;.png</c> in <c>HROT_RAIL_SHOTS</c> — to compare with the tiles of
+    /// <c>docs/UX/terrain-authoring-2-blocks.svg</c>. The assertion: each block changes the frame (its parts are drawn over the bare ground) and its compile made parts.
+    /// <c>HROT_RAIL_SHOTS=… xvfb-run -a dotnet test … --filter FullyQualifiedName~TheTenBlocks</c>
+    /// </summary>
+    [SkippableFact]
+    public void T3_TheTenBlocks_AreDrawnIn2D()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Shots();
+        var radii = new Dictionary<string, float>
+        {
+            ["farmstead"] = 45, ["hamlet"] = 70, ["village-street"] = 62, ["town-block"] = 66, ["checkpoint"] = 25, ["roadblock"] = 20,
+            ["defensive-position"] = 24, ["copse"] = 40, ["orchard"] = 36, ["hedgerow-fields"] = 72,
+        };
+        var (bare, _) = Town(overlay: false);
+        foreach (var (id, radius) in radii)
+        {
+            var (world, result) = TownWithBlock(id, 21, HamletAt);
+            float zoom = MathF.Min(10f, 330f / radius);
+            string png = Path.Combine(shots, $"t3-{id}.png"), pngBare = Path.Combine(shots, $"t3-bare-{id}.png");
+            Render2D(world, HamletAt, zoom, png); Render2D(bare, HamletAt, zoom, pngBare);
+            var a = Raylib.LoadImage(png); var b = Raylib.LoadImage(pngBare);
+            try
+            {
+                int changed = 0;
+                for (int y = 0; y < 800; y += 4) for (int x = 0; x < 1280; x += 4) if (Delta(a, b, x, y, 0) > 30) changed++;
+                Assert.True(changed > 100, $"{id}: the block changes {changed} of the frame's sampled pixels");
+            }
+            finally { Raylib.UnloadImage(a); Raylib.UnloadImage(b); }
+        }
     }
 }

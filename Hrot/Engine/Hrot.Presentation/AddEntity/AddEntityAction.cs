@@ -178,7 +178,7 @@ public sealed class AddEntityAction
             AnchorScreen           = anchorScreen,
             FoldSingleChildFolders = true,
             DefaultSize            = new System.Numerics.Vector2(1100f, 700f),
-            GroupSidebar           = new PickerGroupSidebar(gallery.Groups.SidebarOrder, gallery.Groups.RecentName),
+            GroupSidebar           = new PickerGroupSidebar(gallery.Groups.SidebarOrder, gallery.Groups.RecentName) { Icons = GroupIcons, DimmedIcons = DimmedGroups },
             InitialGroup           = initialGroup,
             ShowSidePane           = true,
             SidePaneWidth          = 300f,
@@ -222,4 +222,30 @@ public sealed class AddEntityAction
 
     /// <summary>Serializes a menu item list for <c>CanvasContextMenuState.MenuJson</c>.</summary>
     public static string ToJson(IEnumerable<object> items) => JsonSerializer.Serialize(items, FdpJsonOptionsRegistry.DefaultRelaxed);
+
+    /// <summary>⭐ Terrain authoring (mockup 2) — the coloured icon of each gallery group: the six terrain groups from the one icon table, the existing groups as the mockup draws them (their own hue, at half strength).</summary>
+    public static readonly IReadOnlyDictionary<string, NodeEditor.Core.Widgets.IconGlyph> GroupIcons = new Dictionary<string, NodeEditor.Core.Widgets.IconGlyph>(StringComparer.Ordinal)
+    {
+        [TerrainPickCatalog.Blocks] = NodeEditor.Core.Widgets.Icons.Get("terrain/block"),
+        [TerrainPickCatalog.Buildings] = NodeEditor.Core.Widgets.Icons.Get("terrain/buildings"),
+        [TerrainPickCatalog.Vegetation] = NodeEditor.Core.Widgets.Icons.Get("terrain/vegetation"),
+        [TerrainPickCatalog.Walls] = NodeEditor.Core.Widgets.Icons.Get("terrain/walls"),
+        [TerrainPickCatalog.Clutter] = NodeEditor.Core.Widgets.Icons.Get("terrain/clutter"),
+        [TerrainPickCatalog.Water] = NodeEditor.Core.Widgets.Icons.Get("terrain/water"),
+        ["Recent & favourites"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Star, NodeEditor.Core.Widgets.IconPalette.Amber),
+        ["Soldiers"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.PersonRifle, NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Ground vehicles"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.GroundVehicle, NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Aircraft"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Plane, NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Weapon systems"] = new("\uf05b", NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Units"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Users, NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Civilians"] = new("\uf007", NodeEditor.Core.Widgets.IconPalette.Blue),
+        ["Tactical symbols"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Flag, NodeEditor.Core.Widgets.IconPalette.Teal),
+        ["Areas & routes"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon, NodeEditor.Core.Widgets.IconPalette.Teal),
+        ["Props"] = new(Fdp.Presentation.Fonts.IconsFontAwesome6.Cubes, NodeEditor.Core.Widgets.IconPalette.Grey),
+        ["Macros"] = NodeEditor.Core.Widgets.Icons.Get("orbat/scenario"),
+        ["Other"] = new("\uf128", NodeEditor.Core.Widgets.IconPalette.Grey),
+    };
+
+    /// <summary>The groups whose icons draw at half strength — everything but the six terrain groups (the mockup's "unchanged context").</summary>
+    public static readonly IReadOnlySet<string> DimmedGroups = new HashSet<string>(GroupIcons.Keys.Where(k => !TerrainPickCatalog.Groups.Contains(k)), StringComparer.Ordinal);
 }

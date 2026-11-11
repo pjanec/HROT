@@ -113,6 +113,8 @@ public sealed class RandomTerrainTests : IDisposable
         {
             var p = pipe.Preview(Villages() with { Preset = preset, SizeMetres = 1500 });
             Assert.True(p.Layout.Count > 0, $"{preset} placed no block");
+            Assert.All(p.Layout, b => Assert.Contains(b.Recipe, new[] { "farmstead", "hamlet", "village-street", "town-block", "orchard", "hedgerow-fields", "copse" }));   // T-3: the mixes lay out the shipped recipes (and each expanded: the preview made its buildings)
+            if (preset is TerrainPreset.Villages or TerrainPreset.SmallTown or TerrainPreset.TownWithSuburbs) Assert.True(p.Preview.Counts.Buildings > 0, $"{preset} made no houses");
         }
     }
 
@@ -128,7 +130,7 @@ public sealed class RandomTerrainTests : IDisposable
         {
             Assert.True(g.Roads.DistanceToRoad(b.X, b.Y) >= BlockLayout.Clearance(b.Radius), $"block {b.Guid} sits on a road");
             Assert.False(g.Water!.Near(b.X, b.Y), $"block {b.Guid} sits in water");
-            Assert.Contains(b.Recipe, new[] { "hamlet", "farmstead", "copse" });
+            Assert.Contains(b.Recipe, new[] { "hamlet", "farmstead", "copse", "village-street", "town-block", "orchard", "hedgerow-fields" });   // T-3: the preset mixes use the shipped recipes
             Assert.Equal(BlockLayout.GuidOf(p.Options.LayoutSeed, p.Layout.ToList().IndexOf(b)), b.Guid);
         }
         for (int i = 0; i < p.Layout.Count; i++)
@@ -157,6 +159,10 @@ public sealed class RandomTerrainTests : IDisposable
         Assert.All(o.Buildings, b => Assert.All(b.Footprint, v => Assert.InRange(v.X, -50f, 1550f)));   // inside the terrain's local metres
         Assert.Equal(40.0, p.ReliefRange.Max - p.ReliefRange.Min, 3);
         Assert.Equal(16 * 16, p.ReliefGrid(16).Length);
+        // ui's plan labels each block: one entry per drawn block outline, in layout order, with the houses the expansion made
+        Assert.Equal(o.Areas.Count(a => a.Kind == "block"), p.Blocks.Count);
+        Assert.Equal(o.Counts.Buildings, p.Blocks.Sum(b => b.Houses));
+        Assert.All(p.Blocks, b => { Assert.True(b.Max.X > b.Min.X && b.Max.Y > b.Min.Y); Assert.Contains(b.Recipe, p.Layout.Select(l => l.Recipe)); });
     }
 
     /// <summary>The ground option mapping: no vegetation = no trees, woods or scrub; relief scales the height range; the water modes differ.</summary>

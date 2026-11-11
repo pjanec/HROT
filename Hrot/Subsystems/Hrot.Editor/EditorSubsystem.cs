@@ -1882,6 +1882,9 @@ namespace Hrot.Editor
                 //   request queue, TKB and geo transform, with the tool arbiter PASSED (UXI-07 step 4a).
                 _spawnAdapter     = _editorMapInteraction.EntityAuthoring?.Spawn
                     ?? throw new InvalidOperationException("The map's entity-authoring surface has no spawn adapter (no creation request queue).");
+                // ⭐ Terrain authoring follow-up 2 — the recipes the area scatter can draw from (those with a `scatter` section; none ships until backend's T-3)
+                try { _spawnAdapter.ScatterRecipes = Hrot.UI.Common.AddEntity.TerrainPickCatalog.ScatterRecipes(new[] { Fdp.Toolkit.Orchestration.ContentLayout.TerrainRecipeAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot) }); }
+                catch (Exception e) when (e is InvalidOperationException or System.IO.IOException or UnauthorizedAccessException) { }
                 // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
                 //    active tool instead of quietly taking focus beside it (§4.8's inventory).
                 _zoneAdapter      = new EditorZoneAdapter(
@@ -2636,8 +2639,10 @@ namespace Hrot.Editor
                 if (target == Entity.Null) return;
                 Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity(_world!, target);   // ⭐ CE-4410 — the Delete key's one path (CE-4276 F2)
             });
-            // ⭐ Terrain authoring U-3 — a placed block's menu: Re-roll, Rotate, Change recipe… (Unpack is greyed until backend's T-4); each ONE edit step
-            new Hrot.UI.Common.AddEntity.TerrainBlockActions(() => _world, () => _shellPickers is { } sp ? sp.OpenPicker : null, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped).RegisterOn(actionRegistry);
+            // ⭐ Terrain authoring U-3 — a placed block's menu: Re-roll, Rotate, Unpack (T-4), Change recipe…; each ONE edit step
+            new Hrot.UI.Common.AddEntity.TerrainBlockActions(() => _world, () => _shellPickers is { } sp ? sp.OpenPicker : null, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped,
+                expansion: () => TerrainResidency is { } tr ? Hrot.Map.Common.Services.BlockExpansionContext.Of(tr) : null,
+                refused: m => Console.WriteLine($"[EditorSubsystem] WARNING: {m}")).RegisterOn(actionRegistry);
             // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
             //   host; the inspector menu below still publishes the same action ids.
 
@@ -3014,6 +3019,8 @@ namespace Hrot.Editor
             windowManager.MenuIcons = Hrot.Editor.AiShared.Adapters.SilkMenuIconResolver.Create(windowManager.Atlas);
             if (_gizmoLayer != null)
                 _gizmoLayer.ContextMenuIconResolver = windowManager.MenuIcons; // gizmo right-click menus
+            // ⭐ Terrain authoring — a menu row whose icon key is one of the icon table's (terrain/reroll …) draws that coloured FontAwesome glyph
+            GizmoMap.Presentation.MenuIconRenderer.GlyphResolver = Hrot.UI.Common.Menus.MenuGlyphs.Resolve;
 
 
             // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
@@ -3401,6 +3408,8 @@ namespace Hrot.Editor
 
             // ⭐ Player Join D-9 — the PLAYABLE section: a toggle + side + slot name that adds / removes `Playable` on the selected unit (authored, recorded, saved).
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.EntityPlayableViewDescriptor.For(() => _world));
+            // ⭐ Terrain authoring U-3 — the BLOCK tab of Details for a placed terrain block (recipe, seed, fit to the site, contents)
+            _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.TerrainBlockDetailsViewDescriptor.For(() => _world, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped));
 
             // ⭐⭐ CE-4210 MA-8 (SR-39a) — the MACRO section of Details for a macro instance: status, the macro (the same picker's Macros group), the args form.
             //   ⚠ Its own StructEdit service (the facet service is built later); picks resolved at call time like the AI section's.
@@ -3691,6 +3700,9 @@ namespace Hrot.Editor
             _randomTerrain = new Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow(() => randomTerrainService);
             _randomTerrain.Opened += scenario => { _saveAllStatus = $"[OK] Generated terrain and scenario '{scenario}'."; _editorApp?.ScenarioSession.LoadScenario(scenario); };
             windowManager.RegisterFrameOverlay(_randomTerrain.Draw);
+            // ⭐ Terrain authoring follow-up 2 — the panel beside the map while a wall / fence / hedge, a bridge or an area scatter is DRAWN (kind, height, recipe, density, seed)
+            var terrainDrawPanel = new Hrot.UI.Common.AddEntity.TerrainDrawPanel(() => _spawnAdapter);
+            windowManager.RegisterFrameOverlay(terrainDrawPanel.Draw);
 
             var assetRowCommands = new[]
             {
@@ -4341,6 +4353,9 @@ namespace Hrot.Editor
             // ⚠ MA-020 — the two describe seams were OPTIONAL and NOBODY PASSED THEM, so every recipe in
             //   the New-Asset tree rendered with a null description while `EditorMetadata.Recipe` carried
             //   one. 📌 The silent-default shape: the caller HAD the value and did not pass it.
+            var terrainSources = new Hrot.Editor.TerrainSave.EditorTerrainSourceService(
+                catalog: () => NewScenarioTerrains(),
+                open:    name => _editorApp?.ScenarioSession.LoadScenario(name));
             var newAssetLauncher = _newAssetServices != null
                 ? new Hrot.Editor.AiShared.Browser.NewAssetLauncher(
                     openPicker:         _shellPickers.OpenPicker,
@@ -4354,7 +4369,9 @@ namespace Hrot.Editor
                     terrains:           () => NewScenarioTerrains().List(),
                     // ⭐ B-9 N1 pane — the same catalog locates the terrain's terrain.json (facts) and preview.jpg (still)
                     terrainDefinition:  name => NewScenarioTerrains().ResolveDefinition(name),
-                    showNewBlankDialog: ShowNewBlankDialog)
+                    showNewBlankDialog: ShowNewBlankDialog,
+                    // ⭐ Terrain authoring E-2 — the SOURCE chip and Edit terrain… of a terrain row (the staged copy opens through the scenario door, by name)
+                    terrainSource:      terrain => terrainSources.Offer(terrain))
                 : null;
             _newAssetLauncherForOsm = newAssetLauncher;   // ⭐ CE-4378 — the OSM wizard's "Open in New Scenario" (the wizard is built earlier)
 
@@ -4439,6 +4456,10 @@ namespace Hrot.Editor
                 // ⭐ Terrain authoring U-5 — File › Save Terrain As…: this host HAS the dialog
                 openSaveTerrainAs: _terrainSaveAs != null ? _terrainSaveAs.Open : null,
                 saveTerrainAsDisabledReason: () => _terrainSaveAs?.DisabledReason,
+                openSaveTerrain: _terrainSaveAs != null ? _terrainSaveAs.OpenSave : null,
+                saveTerrainDisabledReason: () => _terrainSaveAs?.SaveDisabledReason,
+                openEditTerrain: newAssetLauncher is { CanOpenEditTerrain: true } ? newAssetLauncher.OpenEditTerrain : null,
+                editTerrainDisabledReason: () => null,
                 openRandomTerrain: _randomTerrain != null ? _randomTerrain.Open : null,
                 randomTerrainDisabledReason: () => _randomTerrain?.DisabledReason);
 
