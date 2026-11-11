@@ -76,6 +76,10 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ O-8 — the content hash of the BASE terrain under that overlay (empty when no overlay is resident).</summary>
         public string ResolvedBaseHash { get; set; } = string.Empty;
 
+        /// <summary>⭐ T-7b (CE-4423) — the resident overlay's bridges (<c>overlay.json</c> <c>bridges[]</c>), stamped by <c>TerrainResidency.Commit</c> with the other <c>Resolved*</c> facts (no new component: this singleton already travels the world). Read by the <c>BridgeClosureSystem</c>; never persisted.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public TerrainBridges ResolvedBridges { get; set; } = TerrainBridges.None;
+
         /// <summary>
         /// The terrain name resident in <paramref name="world"/> — the scenario's <c>TerrainName</c> to save —
         /// or <c>null</c> when no terrain is loaded.

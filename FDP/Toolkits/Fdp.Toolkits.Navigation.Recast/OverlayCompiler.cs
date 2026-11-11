@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Text.Json.Nodes;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Navigation.Recast;
 
 namespace Fdp.Toolkit.Terrain;
 
 /// <summary>What one <see cref="OverlayCompiler.Compile"/> did.</summary>
-public sealed record OverlayCompileResult(bool Wrote, string? Folder, string? ContentHash, string? BaseHash, int Blocks, int Houses, int Woods, int NavTiles, int NavtilesWritten, int NavtilesSeedHits);
+public sealed record OverlayCompileResult(bool Wrote, string? Folder, string? ContentHash, string? BaseHash, int Blocks, int Houses, int Woods, int NavTiles, int NavtilesWritten, int NavtilesSeedHits, int Bridges = 0, int BridgeRoads = 0);
 
 /// <summary>
 /// ⭐ O-4 (CE-4415, docs/DESIGN_Terrain_Authoring.md §18c) — compiles the scenario's authored terrain blocks and features into its terrain OVERLAY folder
@@ -25,7 +26,7 @@ public static class OverlayCompiler
     /// <param name="resolveTerrainDefinition">terrain name → the path of its <c>terrain.json</c>, or null</param>
     /// <param name="bakeNavtiles">false skips the navmesh bake (a terrain with no navmesh to speak of): the overlay then has no <c>navtiles/</c> and a node bakes its tiles at load</param>
     /// <param name="recipeRoots">where <c>&lt;id&gt;.recipe.json</c> is looked up; null = beside the terrain's assets tree, then the NAS</param>
-    public static OverlayCompileResult Compile(JsonObject scenarioDom, string scenarioDir, Func<string, string?> resolveTerrainDefinition, bool bakeNavtiles = true, IEnumerable<string?>? recipeRoots = null)
+    public static OverlayCompileResult Compile(JsonObject scenarioDom, string scenarioDir, Func<string, string?> resolveTerrainDefinition, bool bakeNavtiles = true, IEnumerable<string?>? recipeRoots = null, IUniqueBuildings? unique = null, IBridgeNet? bridgeNet = null)
     {
         string finalDir = Path.Combine(scenarioDir, FolderName), partDir = finalDir + ".part";
         if (Directory.Exists(partDir)) Directory.Delete(partDir, true);
@@ -59,6 +60,8 @@ public static class OverlayCompiler
         var roads = TerrainRoads.Load(definitionPath, definition);   // ⭐ T-5 — the SAME roads the live overlay reads (AlignRoad)
 
         var features = new List<JsonObject>();
+        var bridgeEnds = new List<(string Key, Vector2 A, Vector2 B)>();   // ⭐ T-7a — each Bridge feature's two banks
+        var generated = new SortedDictionary<string, string>(StringComparer.Ordinal);   // ⭐ T-3 part 2 — the blocks' generated templates
         var blockSummaries = new JsonArray();
         int houses = 0, woods = 0;
         foreach (var (guid, e) in blocks)
@@ -69,8 +72,9 @@ public static class OverlayCompiler
             float heading = tb["HeadingDeg"] is JsonNode hn ? (float)hn.GetValue<double>() : 0f;
             byte fit = tb["Fit"] is JsonNode fn ? (byte)fn.GetValue<int>() : TerrainBlock.FitAll;
             // ⭐ O-7 B — the per-block expansion is shared with the editor's live overlay (OverlayExpansion): ONE code path, two callers
-            var x = OverlayExpansion.Block(guid, recipeId, seed, heading, fit, PositionOf(e, guid), baseWorld, assets, roots, roads);
+            var x = OverlayExpansion.Block(guid, recipeId, seed, heading, fit, PositionOf(e, guid), baseWorld, assets, roots, roads, unique);
             features.AddRange(x.Features);
+            foreach (var (tn, tj) in x.Templates) generated[tn] = tj;
             houses += x.Houses; woods += x.Woods;
             blockSummaries.Add(x.Summary);
         }
@@ -91,6 +95,7 @@ public static class OverlayCompiler
             var parts = OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(guid, kind, template, heading, pad, seed, at, points), baseWorld, assets, roots);
             features.AddRange(parts);
             if (kind == TerrainFeature.House) houses += parts.Count;
+            if (kind == TerrainFeature.Bridge && points.Length >= 2) bridgeEnds.Add((guid, points[0], points[^1]));
         }
         OverlayExpansion.SortByLabel(features);
 
@@ -100,6 +105,52 @@ public static class OverlayCompiler
             var world = OverlayExpansion.WorldDocument(baseWorld, features);
             string worldName = TerrainOverlayHeader.DefaultWorldFileName;
             File.WriteAllText(Path.Combine(partDir, worldName), world.ToJsonString());
+            if (generated.Count > 0)
+            {
+                // ⭐ T-3 part 2 — written into the overlay's own buildings/: OfOverlay hashes buildings/*, and ReadOverlay resolves a template there before the shared ones
+                string bdir = Path.Combine(partDir, TerrainAssets.BuildingsFolderName); Directory.CreateDirectory(bdir);
+                foreach (var (tn, tj) in generated) File.WriteAllText(Path.Combine(bdir, tn + TerrainAssets.TemplateSuffix), tj);
+            }
+
+            // ⭐ T-7a (CE-4423, §18k) — the bridges' ROAD: ends snapped to the base's road nodes; the segments go into the overlay's roads file, the edges into an overlay SUMO net
+            var plans = BridgeRoads.Plan(bridgeEnds, roads);
+            var bridgeRows = new JsonArray();
+            string? sumoNetName = null; int snapped = 0;
+            foreach (var p in plans) if (p.Snapped) snapped++;
+            if (plans.Count > 0 && snapped < plans.Count)
+                FdpLog<TerrainRoads>.Warn("[Terrain] {0} of {1} bridge(s) have no road node of '{2}' within {3} m of both ends: a deck, not road.", plans.Count - snapped, plans.Count, terrainName, BridgeRoads.SnapMetres);
+            IReadOnlyList<IReadOnlyList<string>>? netEdges = null;
+            if (snapped > 0)
+            {
+                File.WriteAllText(Path.Combine(partDir, TerrainOverlayHeader.RoadsFileName), BridgeRoads.RoadsJson(plans));
+                if (definition.SumoNet is { } declared)
+                {
+                    if (bridgeNet == null) FdpLog<TerrainRoads>.Warn("[Terrain] '{0}' has a SUMO net but no netconvert was given: the overlay's bridges are road for the vehicles' net only.", terrainName);
+                    else
+                    {
+                        string netName = Path.GetFileName(declared.File);
+                        var reqs = new List<BridgeNetRequest>();
+                        foreach (var p in plans) if (p.Snapped) reqs.Add(new BridgeNetRequest(p.Key, p.PosA, p.PosB));
+                        netEdges = bridgeNet.Build(definition, terrainFolder, reqs, Path.Combine(partDir, netName), out var warning);
+                        if (netEdges == null) FdpLog<TerrainRoads>.Warn("[Terrain] No SUMO net for the overlay's bridges (the vehicles' net still has them): {0}", warning ?? "netconvert failed");
+                        else sumoNetName = netName;
+                    }
+                }
+                int k = 0;
+                foreach (var p in plans)
+                {
+                    var row = new JsonObject { ["key"] = p.Key, ["snapped"] = p.Snapped };
+                    if (p.Snapped)
+                    {
+                        row["segments"] = new JsonArray(p.Segment);
+                        var ids = new JsonArray();
+                        if (netEdges != null) foreach (var id in netEdges[k]) ids.Add(id);
+                        row["sumoEdges"] = ids; k++;
+                    }
+                    bridgeRows.Add(row);
+                }
+            }
+            else foreach (var p in plans) bridgeRows.Add(new JsonObject { ["key"] = p.Key, ["snapped"] = false });
 
             string baseHash = TerrainContentHash.OfTerrain(definitionPath);
             string contentHash = TerrainContentHash.OfOverlay(partDir, baseHash);
@@ -109,6 +160,9 @@ public static class OverlayCompiler
                 ["base"] = new JsonObject { ["name"] = terrainName, ["contentHash"] = baseHash },
                 ["scenario"] = Path.GetFileName(Path.TrimEndingDirectorySeparator(scenarioDir)), ["world"] = worldName, ["blocks"] = blockSummaries,
             };
+            if (bridgeRows.Count > 0) header["bridges"] = bridgeRows;
+            if (snapped > 0) header["hasRoads"] = true;
+            if (sumoNetName != null) header["sumoNet"] = sumoNetName;
             File.WriteAllText(Path.Combine(partDir, TerrainOverlayHeader.FileName), header.ToJsonString());
 
             int tiles = 0, written = 0, hits = 0;
@@ -125,7 +179,7 @@ public static class OverlayCompiler
 
             if (Directory.Exists(finalDir)) Directory.Delete(finalDir, true);
             Directory.Move(partDir, finalDir);
-            return new OverlayCompileResult(true, finalDir, contentHash, baseHash, blocks.Count, houses, woods, tiles, written, hits);
+            return new OverlayCompileResult(true, finalDir, contentHash, baseHash, blocks.Count, houses, woods, tiles, written, hits, plans.Count, snapped);
         }
         catch
         {

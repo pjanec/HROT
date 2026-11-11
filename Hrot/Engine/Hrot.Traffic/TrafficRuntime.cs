@@ -86,6 +86,13 @@ public sealed class TrafficRuntime : IDisposable
     public void SetHandovers(TrafficHandover[] handovers) => Volatile.Write(ref _handovers, handovers ?? Array.Empty<TrafficHandover>());
     private TrafficHandover[] _handovers = Array.Empty<TrafficHandover>();
 
+    /// <summary>⭐ T-7b (CE-4423) — the SUMO edges closed as of this frame (a fallen bridge's); the stepping thread tells the session. One volatile write of an array nobody mutates afterwards. ⛔ Main thread only.</summary>
+    public void SetClosedEdges(string[] edges) => Volatile.Write(ref _closedEdges, edges ?? Array.Empty<string>());
+
+    /// <summary>The edges the stepping thread will tell SUMO are closed (rails, diagnostics).</summary>
+    public IReadOnlyList<string> ClosedEdges => Volatile.Read(ref _closedEdges);
+    private string[] _closedEdges = Array.Empty<string>();
+
     private readonly System.Collections.Concurrent.ConcurrentQueue<TrafficIncident> _incidents = new();
     private readonly System.Collections.Concurrent.ConcurrentQueue<TrafficConversion> _converted = new();
     private readonly List<TrafficConversion> _convertScratch = new();
@@ -147,6 +154,7 @@ public sealed class TrafficRuntime : IDisposable
         }
         have.SetBodies(Volatile.Read(ref _bodies));
         have.SetHandovers(Volatile.Read(ref _handovers));
+        have.SetClosedEdges(Volatile.Read(ref _closedEdges));   // ⭐ T-7b — a session built after a closure (a rewind, a reload) starts with it
         while (_incidents.TryDequeue(out var incident))   // ⭐ §15 K4/K5 — between steps, so even a paused cluster converts
         {
             _convertScratch.Clear();

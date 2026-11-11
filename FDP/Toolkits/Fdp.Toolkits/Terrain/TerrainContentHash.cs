@@ -50,6 +50,11 @@ namespace Fdp.Toolkit.Terrain
             var files = new List<(string Rel, FileInfo Info)>();
             var world = new FileInfo(Path.Combine(folder, worldName));
             if (world.Exists) files.Add((worldName, world));
+            // ⭐ T-7a (CE-4423) — the bridges' roads and the overlay's own SUMO net: parts of the overlay's identity (a node loads them)
+            var roads = new FileInfo(Path.Combine(folder, TerrainOverlayHeader.RoadsFileName));
+            if (roads.Exists) files.Add((TerrainOverlayHeader.RoadsFileName, roads));
+            foreach (var net in Directory.EnumerateFiles(folder, "*.net.xml", SearchOption.TopDirectoryOnly))
+                files.Add((Path.GetFileName(net), new FileInfo(net)));
             string buildings = Path.Combine(folder, TerrainAssets.BuildingsFolderName);
             if (Directory.Exists(buildings))
                 foreach (var path in Directory.EnumerateFiles(buildings, "*", SearchOption.AllDirectories))

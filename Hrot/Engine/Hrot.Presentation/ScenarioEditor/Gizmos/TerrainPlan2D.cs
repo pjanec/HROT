@@ -153,12 +153,14 @@ public sealed class TerrainPlan2D
             foreach (int b in damage.CollapsedBuildings)
             {
                 if ((uint)b >= (uint)world.Buildings.Count || !Wanted(b)) continue;
-                var r = damage.RubbleOf(world, b);
                 mark?.Invoke(b);
+                foreach (var r in BuildingDamageTable.PiecesOf(world, b))   // ⭐ CE-3438 — the mound clipped to land
+                {
                 FillPolygon(draw, r.Footprint, r.Triangles, RubbleFill);
                 Outline2(draw, r.Footprint, RubbleOutline, LineStyle.Dashed, 2f);
                 var c = Centroid(r.Footprint);
                 if (!string.IsNullOrEmpty(world.Buildings[b].Name)) draw.DrawText(c.X, c.Y, new Fdp.Core.FixedString32($"{world.Buildings[b].Name} rubble"), LabelColor, layer: TerrainLayer);   // ⭐ O-4 — Name, not the stable-key Label; empty ⇒ no text
+                }
             }
         }
 

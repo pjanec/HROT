@@ -17,6 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Terrain.Import.Tests" />
+    <InternalsVisibleTo Include="Hrot.Terrain.Random" />   <!-- ⭐ T-3 part 2 (CE-4430) — SynthUniqueBuildings turns a site's generated buildings into templates through BuildingTemplateGenerator -->
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Clipper2" Version="1.5.4" />

@@ -27,7 +27,17 @@
    "offset": 10,
    "jitter": 1,
    "minSpacing": 2,
-   "streetJitter": 1.5
+   "streetJitter": 1.5,
+   "unique": true,
+   "storeys": [
+    3,
+    6
+   ],
+   "areas": [
+    70,
+    130,
+    260
+   ]
   },
   {
    "type": "group",

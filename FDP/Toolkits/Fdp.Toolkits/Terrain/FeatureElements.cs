@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Terrain
     /// <list type="bullet">
     ///   <item><c>lane</c> <c>{from,to,width,bend}</c> — a street / lane / trench strip: an <c>open</c> surface (there is no road surface — <c>surface: road</c> is retired, R-231; the road is the road GRAPH). The plan draws it grey.</item>
     ///   <item><c>row</c> <c>{from,to,templates,count,offset,sides,jitter,minSpacing,garden{material,depth,width}}</c> — houses along a line, both sides (alternating) or one, their fronts to the line, each with an optional hedge behind it.</item>
-    ///   <item><c>grid</c> <c>{center,size,cols,rows,lane,templates,spacing,offset,jitter,garden}</c> — a street grid: lanes each way with a row of houses along each side of every street.</item>
+    ///   <item><c>grid</c> <c>{center,size,cols,rows,lane,templates,spacing,offset,jitter,garden,unique,storeys,areas}</c> — a street grid: lanes each way with a row of houses along each side of every street; <c>"unique": true</c> asks the host's <see cref="IUniqueBuildings"/> for generated 3–6-storey houses instead (the <c>templates</c> pool when none was passed).</item>
     ///   <item><c>cluster</c> <c>{templates,count,center,radius,minSpacing}</c> — houses (barns, sheds) scattered in a small disc — the recipe's own <c>houses</c> block, anywhere in the block.</item>
     ///   <item><c>enclosure</c> <c>{center,size,material,height,gap,jitter}</c> — a hedge / fence / wall rectangle with an optional gate gap in its south side.</item>
     ///   <item><c>group</c> <c>{items:[{type,at|line|area,facing}]}</c> — clutter prisms (sandbags, barriers, cars, a booth): at explicit places, evenly along a line, or scattered in a rectangle.</item>
@@ -99,6 +99,7 @@ namespace Fdp.Toolkit.Terrain
                 left.Add(st.W((path[i] + nn * half).X, (path[i] + nn * half).Y));
                 right.Add(st.W((path[i] - nn * half).X, (path[i] - nn * half).Y));
             }
+            for (int i = 0; i + 1 < path.Count; i++) st.Lanes.Add((st.W(path[i].X, path[i].Y), st.W(path[i + 1].X, path[i + 1].Y), half));
             right.Reverse();
             var ring = left.Concat(right).ToList();
             st.Features.Add(Area("open", st.NextLabel(), ring, null, where));
@@ -155,13 +156,54 @@ namespace Fdp.Toolkit.Terrain
             for (int i = 0; i < cols; i++) xs.Add(centre.X - size.X / 2f + size.X * (i + 1) / (cols + 1) + (st.Rng.NextFloat() * 2f - 1f) * jitter);
             for (int j = 0; j < rows; j++) ys.Add(centre.Y - size.Y / 2f + size.Y * (j + 1) / (rows + 1) + (st.Rng.NextFloat() * 2f - 1f) * jitter);
             float keep = lane / 2f + 6f;
+            bool unique = el["unique"] is JsonNode un && un.GetValue<bool>();
             foreach (float x in xs) Lane(st, new Vector2(x, centre.Y - size.Y / 2f), new Vector2(x, centre.Y + size.Y / 2f), lane, 0f, where);
             foreach (float y in ys) Lane(st, new Vector2(centre.X - size.X / 2f, y), new Vector2(centre.X + size.X / 2f, y), lane, 0f, where);
+            if (unique)
+            {
+                if (st.Unique != null)
+                {
+                    UniqueHouses(st, el, xs, ys, centre, size, lane, spacing, where);
+                    return;
+                }
+                if (!s_warnedNoUnique) { s_warnedNoUnique = true; Fdp.Core.Logging.FdpLog<TerrainRecipe>.Warn($"[Terrain] recipe '{st.Recipe.Id}': a grid asks for UNIQUE houses but this host passed no IUniqueBuildings — the shipped templates are used instead (logged once)."); }
+            }
             foreach (float x in xs)
                 Row(st, el, new Vector2(x, centre.Y - size.Y / 2f), new Vector2(x, centre.Y + size.Y / 2f), 2 * (int)(size.Y / spacing), c => ys.Any(y => MathF.Abs(c.Y - y) < keep) || xs.Any(x2 => x2 != x && MathF.Abs(c.X - x2) < keep));
             foreach (float y in ys)
                 Row(st, el, new Vector2(centre.X - size.X / 2f, y), new Vector2(centre.X + size.X / 2f, y), 2 * (int)(size.X / spacing), c => xs.Any(x => MathF.Abs(c.X - x) < keep) || ys.Any(y2 => y2 != y && MathF.Abs(c.Y - y2) < keep));
         }
+
+        private static bool s_warnedNoUnique;
+
+        /// <summary>
+        /// ⭐ T-3 part 2 — the grid's houses from the host's <see cref="IUniqueBuildings"/>: ONE request over the grid's streets (block-local), each answer a generated template named <c>u&lt;key&gt;-&lt;i&gt;</c> (unique to this block) placed at its own origin turned with the block; the fit
+        /// and the lane gap still apply. The templates ride out in <see cref="FeatureExpansion.Templates"/>.
+        /// </summary>
+        private static void UniqueHouses(ElementState st, JsonObject el, List<float> xs, List<float> ys, Vector2 centre, Vector2 size, float lane, float spacing, string where)
+        {
+            var streets = new List<UniqueStreet>();
+            foreach (float x in xs) streets.Add(new UniqueStreet(new Vector2(x, centre.Y - size.Y / 2f), new Vector2(x, centre.Y + size.Y / 2f), lane));
+            foreach (float y in ys) streets.Add(new UniqueStreet(new Vector2(centre.X - size.X / 2f, y), new Vector2(centre.X + size.X / 2f, y), lane));
+            float total = streets.Sum(s => Vector2.Distance(s.A, s.B));
+            var storeys = el["storeys"] is JsonArray sa && sa.Count == 2 ? (sa[0]!.GetValue<int>(), sa[1]!.GetValue<int>()) : (3, 6);
+            var areas = el["areas"] is JsonArray aa && aa.Count == 3 ? (EN2(aa[0]), EN2(aa[1]), EN2(aa[2])) : (120f, 240f, 450f);
+            ulong seed = ((ulong)(uint)st.Rng.Next(int.MaxValue) << 32) | (uint)st.Rng.Next(int.MaxValue);
+            var made = st.Unique!.Make(new UniqueRequest(streets, Math.Max(1, (int)(2 * total / spacing)), storeys.Item1, storeys.Item2, areas.Item1, areas.Item2, areas.Item3, seed));
+            string hex = new string(st.Key.Where(Uri.IsHexDigit).ToArray());
+            if (hex.Length > 12) hex = hex.Substring(0, 12);
+            for (int i = 0; i < made.Count; i++)
+            {
+                string name = $"u{hex}-{i}";
+                var json = (JsonObject)JsonNode.Parse(made[i].TemplateJson)!;
+                json["name"] = name;
+                var local = TerrainBuildingExpander.LocalFootprint(json, $"{where} unique house {i}");
+                var o = made[i].Origin;
+                if (st.TryPlaceHouse(local, name, st.W(o.X, o.Y), Round(st.Heading), 2f)) st.Templates[name] = json.ToJsonString();
+            }
+        }
+
+        private static float EN2(JsonNode? n) => (float)n!.GetValue<double>();
 
         private static void Cluster(ElementState st, JsonObject el)
         {
