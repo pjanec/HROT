@@ -147,6 +147,15 @@ Filed: **CE-1479** (pace the Browser's playback by recorded time, as the editor'
 
 Method: `HROT_REPLAY_STATS=1` prints one `[ReplayApply]` line per apply (stderr); `HROT_REPLAY_PREFETCH=<depth>` / `HROT_REPLAY_FULL_REPAIR=1` switch P1 / P2 off in the same build; the scripts were a seek → `/sim/play` → poll `/replay/status` loop over the debug API (port via `HROT_DEBUG_API_PORT`).
 
+## 8a. CE-1479 — the Browser plays by recorded time (`2026-11-11`)
+Same recording, Replay Browser, 1× from frame 0 to 90 (the clock drives it; `HROT_FRAME_STATS=1`, 2 s windows of render frames):
+| | before (frame-count pacing, P1+P2 built) | after (the shared clock → frame rule) |
+|---|---|---|
+| time to play the recording at 1× | 5.9 s (≈ 16× real time: one frame per 1/60 s) | **91.4 s** (the recording's 94 s — real time) |
+| applies per render frame | up to 10 (10 × 32 ms ≈ 320 ms) | **≤ 1** (66 applies over ~480 render frames; 0.14 per frame) |
+| render frame while playing | 682 ms mean in the windows holding applies (1.6 s before P1/P2) | **130–280 ms** (≈ 4–8 fps; median window ≈ 190 ms; no window above 280 ms) |
+The 130–280 ms floor is the generic per-tick cost every state pays (§7: gizmo pass ~40 ms, layers/style/culling/egress ~15 ms, software-GL draw ~80–100 ms), not replay.
+
 ## 9. P6 — block-run deltas (format v8), live recording and replay (`2026-11-11`)
 Same scenario recorded live twice in the editor host (`/scenario/load/live scale-rig-demo-city-1000-2s`, `startPaused:false`, ~85 s wall, `HROT_REPLAY_STATS=1`; "whole" = `HROT_RECORD_BLOCK_DELTAS=0`):
 | | whole-prefix deltas (v7 body) | block runs (v8) |

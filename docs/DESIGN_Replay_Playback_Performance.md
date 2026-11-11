@@ -116,6 +116,8 @@ graph TD
 | **P6** block deltas | ✅ KEPT (format **v8**) · `ba74db0ae` + measuring switches | live recording of the same scenario: delta raw **55.6 MB → 8.1 MB** median (file 76 MB / 59 deltas → 44.6 MB / 73 deltas); recorder **main-thread cost 48 → 44 ms** median (no regression); replay apply **31 → 20 ms** median (prefetched, repair 7 both); worker decode of a frame ~7× fewer bytes | 64-byte blocks with run coalescing, not rows: the biggest type (a 4 096-byte row) moves ~1 % of its blocks (MEASURE §5), a row record would rewrite all of it. Entity-index chunks (3 % of a frame) and managed chunks stay whole. The first delta after a keyframe has no base ⇒ whole chunks (as before) |
 
 ### 3a-bis — the Replay Browser
+**CE-1479 DONE `989f52e75`:** the Browser's play is driven by a clock (its own, advanced by dt × rate on its axis through the recording's wall ↔ sim map) and the frames due are applied by `Fdp.Toolkit.Replay.ReplayClockRule` — the SAME rule the editor's `PlaybackTickSystem` now calls (frames with wall ticks ≤ clock, in order, never more than due; more than 3 due ⇒ one seek). 1× now takes the recording's 91 s (was 5.9 s), ≤ 1 apply per render frame, render frame 130–280 ms while playing (MEASURE §8a). Rails: `ReplayClockRuleTests`, `ReplayBrowserSubsystemTests.CE1479_*`.
+
 Browser plays the 91 frames in **11.7 s → 5.9 s** (P1 + P2); apply 109 → 32 ms; the render frame that holds applies 1 615 → 682 ms. The remaining Browser-only cost is its pacing (CE-1479): one recorded frame per 1/60 s, up to 10 applies per render frame.
 
 ### 3a-ter — P6 format and rails
