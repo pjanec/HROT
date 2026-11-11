@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: an OVERNIGHT EXPERIMENT — make the threaded kernel work in the real editor, deciding by your own judgement
 
-**For:** backend. **From:** coordinator. **Dispatched at `<sha>`**, scope frozen there. ⭐ **This is an EXPERIMENT** — 🔒 user, `2026-11-11`:
+**For:** backend. **From:** coordinator. **Dispatched at `74456b8c9`**, scope frozen there. ⭐ **This is an EXPERIMENT** — 🔒 user, `2026-11-11`:
 *"explain them the situation including all the weak problems and ask them to try to find a solution autonomously overnight, taking decisions using
 their best judgement, as an experiment. we will see what comes out of that."*
 
