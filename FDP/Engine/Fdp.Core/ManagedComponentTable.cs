@@ -3,12 +3,19 @@ using Fdp.Core.FlightRecorder;
 
 namespace Fdp.Core
 {
+    /// <summary>⭐ CE-1478 P2 — what a restore needs of a managed table without naming its element type: the entities one chunk covers.</summary>
+    public interface IManagedChunkedTable
+    {
+        /// <summary>Entities per chunk — chunk <c>c</c> covers entity indexes <c>[c * ChunkCapacity, (c + 1) * ChunkCapacity)</c>.</summary>
+        int ChunkCapacity { get; }
+    }
+
     /// <summary>
     /// Stores managed components (classes, strings, etc.) in GC-managed arrays.
     /// Tier 2 storage for "cold" data that doesn't need the performance of native memory.
     /// Uses standard .NET arrays, so GC manages all memory.
     /// </summary>
-    public sealed class ManagedComponentTable<T> : IComponentTable where T : class
+    public sealed class ManagedComponentTable<T> : IComponentTable, IManagedChunkedTable where T : class
     {
         private T?[][] _chunks;
         private readonly int _chunkSize;

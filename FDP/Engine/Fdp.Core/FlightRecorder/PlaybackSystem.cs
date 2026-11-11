@@ -14,6 +14,36 @@ namespace Fdp.Core.FlightRecorder
     {
         private readonly byte[] _scratchBuffer = new byte[FdpConfig.CHUNK_SIZE_BYTES];
 
+        // ⭐ CE-1478 P2 (DES-006 §5.1 "touchedChunkIds → partial repair") — what ONE apply wrote, so the two repair passes walk only that instead of
+        //   every entity of the world (RepairManagedComponentMasks was 34 of 61 ms of a 1 000-man apply, 15 ms even for a frame with NO chunks).
+        //   Reused arrays, grown never shrunk: no allocation in the steady state.
+        private struct TouchedManagedChunk { public int TableSlot; public int Chunk; }
+        private TouchedManagedChunk[] _touchedManaged = new TouchedManagedChunk[64];
+        private int _touchedManagedCount;
+        private int[] _touchedHot = new int[64];
+        private int _touchedHotCount;
+        private int[] _touchedCold = new int[64];
+        private int _touchedColdCount;
+        private int[] _destroyed = new int[64];
+        private int _destroyedCount;
+        private EntityRepository? _repairedRepo;   // the world the last FULL repair left consistent: a partial repair is only sound on top of one
+
+        // the managed tables, by slot (rebuilt with _tablesByTypeId)
+        private IComponentTable[] _managedTables = Array.Empty<IComponentTable>();
+        private int[] _managedCapacity = Array.Empty<int>();
+        private int _managedTableCount;
+
+        /// <summary>
+        /// ⭐ CE-1478 P2 — repair the WHOLE world after every frame, as before P2. A keyframe, the first apply onto a world, and an apply that registered a
+        /// component table always do; set this for the equivalence rail (partial == full) or as a safety valve.
+        /// </summary>
+        public bool ForceFullRepair { get; set; }
+
+        /// <summary>Entities the last apply's repair passes looked at (entity-index pass + managed-mask pass; diagnostic — a full repair visits the whole index per pass).</summary>
+        public long LastRepairEntitiesVisited { get; private set; }
+        /// <summary>Was the last apply's repair the full one?</summary>
+        public bool LastRepairWasFull { get; private set; }
+
         private delegate void ManagedRestorerDelegate(object table, int chunkIndex, byte[] data, EntityRepository repo);
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, ManagedRestorerDelegate> _managedRestorers = new();
         
@@ -35,6 +65,11 @@ namespace Fdp.Core.FlightRecorder
             repo.SetGlobalVersion((uint)tick);
             byte frameType = reader.ReadByte();
             reader.ReadInt64(); // Skip WallClockTicks (FORMAT_VERSION 3+, 8 bytes)
+
+            // ⭐ CE-1478 P2 — the tables as they are NOW (a type registered during this apply changes the count ⇒ a full repair), and an empty touched list
+            EnsureTables(repo, repo.GetRegisteredComponentTypes());
+            int tablesAtStart = repo.GetRegisteredComponentTypes().Count;
+            _touchedManagedCount = _touchedHotCount = _touchedColdCount = _destroyedCount = 0;
             
             // 1. APPLY DESTRUCTIONS (Delta Only)
             if (frameType == 0)
@@ -45,6 +80,7 @@ namespace Fdp.Core.FlightRecorder
                 {
                     int idx = reader.ReadInt32();
                     ushort gen = reader.ReadUInt16();
+                    Touch(ref _destroyed, ref _destroyedCount, idx);
                     
                     // Logic: If entity exists and matches gen, kill it.
                     var e = new Entity(idx, gen);
@@ -120,15 +156,30 @@ namespace Fdp.Core.FlightRecorder
             // After applying all chunk data, we need to synchronize the EntityIndex
             // Metadata (ActiveCount, MaxIssuedIndex, etc.) needs to be rebuilt from the restored headers
             repo.GetEntityIndex().RebuildMetadata();
-            RepairEntityIndex(repo);
-            
-            // 5. MANAGED COMPONENT MASK REPAIR (defensive)
-            // In the normal case, EntityIndex chunks are written first by the recorder,
-            // so masks are already correct after restoration in step 4 above.
-            // However, SetChunk() does NOT update EntityHeader.ComponentMask, so if a
-            // delta frame contains a managed chunk update without a corresponding
-            // EntityIndex update, masks could drift. This scan ensures correctness.
-            RepairManagedComponentMasks(repo);
+
+            // ⭐ CE-1478 P2 — a keyframe (a whole new world), the first apply onto this world and an apply that registered a table repair EVERYTHING; a delta repairs
+            //   only what it wrote (the entity-index chunks and managed chunks it restored, the entities it destroyed)
+            bool full = ForceFullRepair || frameType == 1 || !ReferenceEquals(_repairedRepo, repo) || repo.GetRegisteredComponentTypes().Count != tablesAtStart;
+            LastRepairWasFull = full;
+            LastRepairEntitiesVisited = 0;
+            if (full)
+            {
+                RepairEntityIndex(repo);
+
+                // 5. MANAGED COMPONENT MASK REPAIR (defensive)
+                // In the normal case, EntityIndex chunks are written first by the recorder,
+                // so masks are already correct after restoration in step 4 above.
+                // However, SetChunk() does NOT update EntityHeader.ComponentMask, so if a
+                // delta frame contains a managed chunk update without a corresponding
+                // EntityIndex update, masks could drift. This scan ensures correctness.
+                RepairManagedComponentMasks(repo);
+                _repairedRepo = repo;
+            }
+            else
+            {
+                RepairEntityIndexPartial(repo);
+                RepairManagedComponentMasksPartial(repo);
+            }
 
             // ⭐ CE-4118 — the unconsumed events: the trailing section, else (a pre-CE-4118 keyframe) the main block
             if (unconsumedEvents && eventBus != null && processEvents)
@@ -156,48 +207,58 @@ namespace Fdp.Core.FlightRecorder
         /// </summary>
         private void RepairManagedComponentMasks(EntityRepository repo)
         {
-            var componentTables = repo.GetRegisteredComponentTypes();
             var entityIndex = repo.GetEntityIndex();
             int maxIndex = entityIndex.MaxIssuedIndex;
 
             // Strictly guard against empty worlds. Do not clamp maxIndex to 0.
             if (maxIndex < 0 || entityIndex.ActiveCount == 0) return;
 
-            foreach (var kvp in componentTables)
+            for (int s = 0; s < _managedTableCount; s++)
+                RepairMaskRange(entityIndex, _managedTables[s], 0, maxIndex);
+        }
+
+        // one managed table over the entity indexes [lo, hi] (hi clamped to what is issued): the mask bit follows the data (non-null = set, null = clear)
+        private void RepairMaskRange(EntityIndex entityIndex, IComponentTable table, int lo, int hi)
+        {
+            int typeId = table.ComponentTypeId;
+            if (hi > entityIndex.MaxIssuedIndex) hi = entityIndex.MaxIssuedIndex;
+            for (int i = lo; i <= hi; i++)
             {
-                var table = kvp.Value;
+                LastRepairEntitiesVisited++;
+                ref readonly var metaRMCM = ref entityIndex.GetMetadataUnsafe(i);
+                if (!metaRMCM.IsActive) continue;
 
-                // Only process managed component tables
-                if (!table.GetType().IsGenericType ||
-                    table.GetType().GetGenericTypeDefinition() != typeof(ManagedComponentTable<>))
-                    continue;
+                if (table.GetRawObject(i) != null) entityIndex.GetComponentMaskUnsafe(i).SetBit(typeId);   // data exists -- the bit is set
+                else entityIndex.GetComponentMaskUnsafe(i).ClearBit(typeId);                               // no data -- the bit is clear
+            }
+        }
 
-                int typeId = table.ComponentTypeId;
+        /// <summary>
+        /// ⭐ CE-1478 P2 — the mask repair of a DELTA: a managed table only over the chunks the apply restored (its data moved), and every managed table over the
+        /// entities of the entity-index (hot / mask) chunks it restored (their masks were rewritten). 📐 What it does NOT re-derive is a mask the recording ITSELF
+        /// carries inconsistent in a chunk this frame did not touch — the keyframe's full repair settled that, and the equivalence rail pins partial == full.
+        /// </summary>
+        private void RepairManagedComponentMasksPartial(EntityRepository repo)
+        {
+            var entityIndex = repo.GetEntityIndex();
+            int maxIndex = entityIndex.MaxIssuedIndex;
+            if (maxIndex < 0 || entityIndex.ActiveCount == 0) return;
 
-                for (int i = 0; i <= maxIndex; i++)
-                {
-                    // Double-check bounds to prevent state-drift crashes
-                    if (i > entityIndex.MaxIssuedIndex) break;
+            for (int k = 0; k < _touchedManagedCount; k++)
+            {
+                int cap = _managedCapacity[_touchedManaged[k].TableSlot];
+                int lo = _touchedManaged[k].Chunk * cap;
+                if (lo > maxIndex) continue;
+                RepairMaskRange(entityIndex, _managedTables[_touchedManaged[k].TableSlot], lo, lo + cap - 1);
+            }
 
-                    // Safe to bypass standard bounds check since we manually validated
-                    ref readonly var metaRMCM = ref entityIndex.GetMetadataUnsafe(i);
-
-                    if (!metaRMCM.IsActive) continue;
-
-                    // Check if the managed table has non-null data for this entity
-                    object rawObj = table.GetRawObject(i);
-
-                    if (rawObj != null)
-                    {
-                        // Data exists -- ensure mask bit is set
-                        entityIndex.GetComponentMaskUnsafe(i).SetBit(typeId);
-                    }
-                    else
-                    {
-                        // No data -- ensure mask bit is clear
-                        entityIndex.GetComponentMaskUnsafe(i).ClearBit(typeId);
-                    }
-                }
+            int hotCap = entityIndex.GetChunkCapacity();
+            for (int k = 0; k < _touchedHotCount; k++)
+            {
+                int lo = _touchedHot[k] * hotCap;
+                if (lo > maxIndex) continue;
+                for (int s = 0; s < _managedTableCount; s++)
+                    RepairMaskRange(entityIndex, _managedTables[s], lo, lo + hotCap - 1);
             }
         }
 
@@ -347,8 +408,47 @@ namespace Fdp.Core.FlightRecorder
                 _tablesByTypeId.Clear();
                 foreach (var kvp in tables) _tablesByTypeId.TryAdd(kvp.Value.ComponentTypeId, kvp.Value);   // the first of a type id wins, as the walk did
                 _tablesRepo = repo; _tablesCount = tables.Count;
+                RebuildManagedList(tables);
             }
             return _tablesByTypeId.TryGetValue(typeId, out var table) ? table : null;
+        }
+
+        private void EnsureTables(EntityRepository repo, IReadOnlyDictionary<Type, IComponentTable> tables)
+        {
+            if (!ReferenceEquals(_tablesRepo, repo) || _tablesCount != tables.Count) TableOf(repo, tables, int.MinValue);
+        }
+
+        private void RebuildManagedList(IReadOnlyDictionary<Type, IComponentTable> tables)
+        {
+            if (_managedTables.Length < tables.Count) { _managedTables = new IComponentTable[tables.Count]; _managedCapacity = new int[tables.Count]; }
+            int n = 0;
+            foreach (var kvp in tables)
+            {
+                if (kvp.Value is IManagedChunkedTable managed)
+                {
+                    _managedTables[n] = kvp.Value;
+                    _managedCapacity[n] = managed.ChunkCapacity;
+                    n++;
+                }
+            }
+            _managedTableCount = n;
+        }
+
+        private static void Touch(ref int[] list, ref int count, int value)
+        {
+            if (count == list.Length) Array.Resize(ref list, list.Length * 2);
+            list[count++] = value;
+        }
+
+        private void NoteManagedChunk(IComponentTable table, int chunkIndex)
+        {
+            for (int s = 0; s < _managedTableCount; s++)
+            {
+                if (!ReferenceEquals(_managedTables[s], table)) continue;
+                if (_touchedManagedCount == _touchedManaged.Length) Array.Resize(ref _touchedManaged, _touchedManaged.Length * 2);
+                _touchedManaged[_touchedManagedCount++] = new TouchedManagedChunk { TableSlot = s, Chunk = chunkIndex };
+                return;
+            }
         }
 
         private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, byte[] data)
@@ -357,6 +457,7 @@ namespace Fdp.Core.FlightRecorder
             // Case 0: Special Entity Index hot (component-mask) chunk
             if (typeId == -1)
             {
+                Touch(ref _touchedHot, ref _touchedHotCount, chunkIndex);
                 repo.GetEntityIndex().RestoreHotChunkFromBuffer(chunkIndex, data);
                 return;
             }
@@ -364,6 +465,7 @@ namespace Fdp.Core.FlightRecorder
             // Case 0b: Special Entity Index cold (metadata) chunk
             if (typeId == -2)
             {
+                Touch(ref _touchedCold, ref _touchedColdCount, chunkIndex);
                 repo.GetEntityIndex().RestoreColdChunkFromBuffer(chunkIndex, data);
                 return;
             }
@@ -419,6 +521,7 @@ namespace Fdp.Core.FlightRecorder
                     }
                     
                     restorer(targetTable, chunkIndex, data, repo);
+                    NoteManagedChunk(targetTable, chunkIndex);
                 }
                 else
                 {
@@ -524,21 +627,46 @@ namespace Fdp.Core.FlightRecorder
         private void RepairEntityIndex(EntityRepository repo)
         {
             var entityIndex = repo.GetEntityIndex();
+            var ids = PrepareComponentIds(repo, out int idCount);
+            RepairEntityRange(repo, entityIndex, ids, idCount, 0, entityIndex.MaxIssuedIndex);
+        }
+
+        private int[] PrepareComponentIds(EntityRepository repo, out int idCount)
+        {
             var componentTables = repo.GetRegisteredComponentTypes();
-            
-            int maxIndex = entityIndex.MaxIssuedIndex;
-            int chunkCapacity = entityIndex.GetChunkCapacity();
-            int idCount = 0;
+            idCount = 0;
             if (_componentIds.Length < componentTables.Count) _componentIds = new int[componentTables.Count];
             var ids = _componentIds;
             foreach (var kvp in componentTables) ids[idCount++] = kvp.Value.ComponentTypeId;
-            
-            // Iterate all entities and check if they have components
-            for (int i = 0; i <= maxIndex; i++)
+            return ids;
+        }
+
+        /// <summary>⭐ CE-1478 P2 — the entity-index repair of a DELTA: the entities of the hot / cold index chunks it restored and the ones it destroyed.</summary>
+        private void RepairEntityIndexPartial(EntityRepository repo)
+        {
+            var entityIndex = repo.GetEntityIndex();
+            int maxIndex = entityIndex.MaxIssuedIndex;
+            var ids = PrepareComponentIds(repo, out int idCount);
+
+            int hotCap = entityIndex.GetChunkCapacity();
+            for (int k = 0; k < _touchedHotCount; k++)
+                RepairEntityRange(repo, entityIndex, ids, idCount, _touchedHot[k] * hotCap, Math.Min(_touchedHot[k] * hotCap + hotCap - 1, maxIndex));
+            int coldCap = entityIndex.GetColdChunkCapacity();
+            for (int k = 0; k < _touchedColdCount; k++)
+                RepairEntityRange(repo, entityIndex, ids, idCount, _touchedCold[k] * coldCap, Math.Min(_touchedCold[k] * coldCap + coldCap - 1, maxIndex));
+            for (int k = 0; k < _destroyedCount; k++)
+                RepairEntityRange(repo, entityIndex, ids, idCount, _destroyed[k], Math.Min(_destroyed[k], maxIndex));
+        }
+
+        private void RepairEntityRange(EntityRepository repo, EntityIndex entityIndex, int[] ids, int idCount, int lo, int hi)
+        {
+            // Iterate the entities and check if they have components
+            for (int i = lo < 0 ? 0 : lo; i <= hi; i++)
             {
+                LastRepairEntitiesVisited++;
                 ref readonly var metaREI  = ref entityIndex.GetMetadata(i);
                 ref var          compREI  = ref entityIndex.GetComponentMask(i);
-                
+
                 // Check if this entity has any components
                 // ⭐ CE-4407 (R-2084) — over a plain array of the type ids, built once per pass: this walked the interface dictionary (a boxed enumerator, and every registered
                 //   table) for EVERY entity of EVERY applied frame
@@ -551,7 +679,7 @@ namespace Fdp.Core.FlightRecorder
                         break;
                     }
                 }
-                
+
                 // If entity has components but is marked dead, revive it
                 if (hasComponents && !metaREI.IsActive)
                 {

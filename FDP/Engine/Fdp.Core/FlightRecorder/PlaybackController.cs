@@ -417,6 +417,9 @@ namespace Fdp.Core.FlightRecorder
             return true;
         }
 
+        /// <summary>The playback system that applies the frames (its repair statistics and <see cref="PlaybackSystem.ForceFullRepair"/>).</summary>
+        public PlaybackSystem Playback => _playback;
+
         /// <summary>Test hook: the worker, for reading its decoded frames.</summary>
         internal FramePrefetcher? Prefetcher => _prefetcher;
 
