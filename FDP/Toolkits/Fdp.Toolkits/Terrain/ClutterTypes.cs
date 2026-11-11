@@ -23,8 +23,10 @@ namespace Fdp.Toolkit.Terrain
         public static readonly Type Crate = new("Crate", 1.2f, 1.0f, 1.0f, "fence-wood");
         public static readonly Type Barrel = new("Barrel", 0.6f, 0.6f, 0.9f, "steel-plate");
         public static readonly Type JerseyBarrier = new("Jersey barrier", 3.0f, 0.6f, 0.8f, "concrete");
+        /// <summary>⭐ T-3 (CE-4430) — a checkpoint's guard booth (a small wooden box).</summary>
+        public static readonly Type GuardBooth = new("Guard booth", 2.4f, 2.4f, 2.6f, "fence-wood");
 
-        public static IReadOnlyList<Type> All { get; } = new[] { Car, SandbagWall, ConcreteBlock, Crate, Barrel, JerseyBarrier };
+        public static IReadOnlyList<Type> All { get; } = new[] { Car, SandbagWall, ConcreteBlock, Crate, Barrel, JerseyBarrier, GuardBooth };
 
         /// <summary>The type called <paramref name="idOrName"/> (a display name or its dashed id, any case).</summary>
         public static bool TryGet(string? idOrName, out Type type)

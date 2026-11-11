@@ -829,13 +829,13 @@ The screens are ui's; ⭐ the DATA each screen shows is this batch's, so ui can 
 |---|---|---|
 | `TerrainBlock` (494) / `TerrainFeature` (495) — unmanaged, saved, registered in `HrotSharedComponentRegistry` | `TerrainBlock.cs`, `GlobalComponentIds.cs` | ⚠ ids from the TOP of the coordinator block (backend's 434–449 is full) — `NOTE_Backend_To_Coordinator_Component_Ids_494_495.md` |
 | `TerrainRecipe` + three shipped recipes (`hamlet`, `farmstead`, `copse`) in `assets/terrain-recipes/` | `TerrainRecipe.cs` | — |
-| `FeatureExpander.Expand(...)` → `FeatureExpansion` (features, house / wood counts, outline); own xorshift64*, coordinates rounded to mm; AvoidBuildings + AvoidWater honoured; LevelPads writes `pad`; ⚠ AlignRoad IGNORED (CE-3431); every house carries an explicit `baseZ` (the overlay world has no height grid — without it a house on a hill sits at 0) | `FeatureExpander.cs` | returns a record, not a bare list; takes `TerrainAssets` (template footprints) |
+| `FeatureExpander.Expand(...)` → `FeatureExpansion` (features, house / wood counts, outline); own xorshift64*, coordinates rounded to mm; AvoidBuildings + AvoidWater honoured; LevelPads writes `pad`; AlignRoad turns the block to the nearest road edge in reach (T-5, §18h); every house carries an explicit `baseZ` (the overlay world has no height grid — without it a house on a hill sits at 0) | `FeatureExpander.cs` | returns a record, not a bare list; takes `TerrainAssets` (template footprints) |
 | `OverlayCompiler.Compile(dom, scenarioDir, resolveDef, bakeNavtiles, recipeRoots)` — reads `header`/`Header` and `entities`/`Entities` (the master's canonical file is PascalCase); sorted by label; written into `terrain-overlay.part/` then swapped; `overlay.json` with `blocks[]` (key, recipe, seed, houses, woods, clutter 0, outline hull); no blocks ⇒ the stale folder deleted | `OverlayCompiler.cs` (in the Recast project — it bakes navtiles) | lives in Recast, not FDP Terrain |
 | navtiles: `RecastNavmeshFactory.SeedPrefill` — a prefill bake also reads the base's seeds and writes only the misses. 📐 test base: 576 tiles, 542 seed hits, **34 written**; two compiles byte-identical INCLUDING navtiles (578 files) | `RecastNavmeshFactory.cs` | ⭐ found while building: the overlay world must declare the BASE's bounds (grown only for a feature outside them) — the features' own margin re-keyed every tile (0 of 610 seed hits) |
 | the master's hook: `StorageProcessManager.CompileTerrainOverlay` right after the canonical `scenario.json` is written (a thread-pool continuation, not the frame thread); a failure is LOGGED, the save stands | `StorageProcessManager.cs`; `Hrot.Orchestrator` → Recast reference | ⚠ the compile delays the "saved" answer and bakes on every core (CE-3433) |
 | ⛔ the editor's own `EditorScenarioSession.SaveTo` hook NOT built | — | 📐 it has no production caller (its own remarks) and throws on a world-less host; every real save goes to the master ⇒ the master hook covers them |
 
-Rails (each red-proved): `FeatureExpanderTests` (determinism, fit vs buildings + water over 8 seeds, the unfitted control, pads, AlignRoad ignored, shipped recipes parse) · `OverlayCompilerTests` (hashes, `blocks[]`, outline, canonical order, byte-identical recompile, stale folder deleted, failure leaves no `.part`, navtiles only the seed's misses) · `TerrainLoadStepTests` (compile → fresh residency loads; a changed base refused) · `StorageProcessManagerTests` (the merge writes `overlay.json`; a bad recipe still saves) · `TerrainOverlayClusterLoadTests` (the real in-process cluster loads it: SimHost's resident world holds the house and its door — ⚠ the harness's nodes share ONE staging root, so distribution itself is covered by `StorageGatewayTests`; CGF keeps no resident world in that harness).
+Rails (each red-proved): `FeatureExpanderTests` (determinism, fit vs buildings + water over 8 seeds, the unfitted control, pads, AlignRoad without a road net changes nothing, T-5 alignment, shipped recipes parse) · `OverlayCompilerTests` (hashes, `blocks[]`, outline, canonical order, byte-identical recompile, stale folder deleted, failure leaves no `.part`, navtiles only the seed's misses) · `TerrainLoadStepTests` (compile → fresh residency loads; a changed base refused) · `StorageProcessManagerTests` (the merge writes `overlay.json`; a bad recipe still saves) · `TerrainOverlayClusterLoadTests` (the real in-process cluster loads it: SimHost's resident world holds the house and its door — ⚠ the harness's nodes share ONE staging root, so distribution itself is covered by `StorageGatewayTests`; CGF keeps no resident world in that harness).
 
 #### 18c-3. Visual check against mockup page 2 *(user `2026-11-11`: "make sure the visuals reasonably match the mockup design")*
 
@@ -1147,7 +1147,7 @@ a note. ⏭ Acceptance (handoff T-1): same inputs → byte-identical ground file
 | **F-2** options, all default-off so a default run is byte-for-byte what it was: `GroundOnly` (no buildings, no nodata holes; `Buildings` then only sets how many villages — `BuildingCount / 60`) · `ZRange` · `WaterMode` none / ponds / river · `RoadScale` · `WoodsShare` | ⚠ the synth reads a woods share of 0 as "woods everywhere", so *Vegetation: none* strips the woods, lone trees and scrub from the ground in the pipeline instead |
 | 📐 **measured: trees outside woods** (1 500 m, seed 11): light 300, heavy 858 against ≈ 100 ha of woods — **7 %** of the trees (the profile's `LoneShare`) | ⇒ they stay (field trees and rows along minor roads); *none* has none |
 | ⚠ **deviation — where the pipeline went:** a small project **`Hrot/Engine/Hrot.Terrain.Random`** (+ `.Tests`), not the synth library | it needs the importer (and so Recast), the OSM contract records and Fdp.Toolkits' expander; the 87 generator tests should not drag those in. No cycle: nothing below references it |
-| **F-3** `BlockLayout.Place` (pure) + `ToScenarioDom` | per village N blocks from the preset's mix (Open countryside, Mixed also place some along any road); each along one of the 8 nearest roads, centre `Clearance(radius) = 0.3·radius + 3 m` off every road's edge, off water (centre + 8 points at 0.6·radius), blocks ≥ 0.8·(r₁ + r₂) apart; guids from `Rng(layoutSeed)`; positions in the terrain's local metres (SW corner = 0,0). ⚠ the expander has no road input (`AlignRoad` unbuilt): the disc's centre keeps off roads, a house inside it may still meet a village's own street |
+| **F-3** `BlockLayout.Place` (pure) + `ToScenarioDom` | per village N blocks from the preset's mix (Open countryside, Mixed also place some along any road); each along one of the 8 nearest roads, centre `Clearance(radius) = 0.3·radius + 3 m` off every road's edge, off water (centre + 8 points at 0.6·radius), blocks ≥ 0.8·(r₁ + r₂) apart; guids from `Rng(layoutSeed)`; positions in the terrain's local metres (SW corner = 0,0). ⚠ the disc's centre keeps off roads, a house inside it may still meet a village's own street (T-5 `AlignRoad` now turns the block along the nearest road in reach; the preview passes the generator's roads) |
 | **F-4** presets: villages per km² and road scale per preset (`RandomTerrainOptions.GroundOf`), blocks per village and recipe mix per preset (`BlockLayout.MixOf`): Open countryside 1–3 farmstead / copse + 2 per km² along roads · Villages 2–4 hamlet / copse · Small town 4–7 hamlet · Town with suburbs 7–11 hamlet + farmstead · Mixed 3–6 + 1 per km² | T-3's richer recipes join by name |
 | **F-5** `RandomTerrainPipeline`: `Preview` → `RandomTerrainPreview` (the OSM `OsmPreview`: roads, water / woods / scrub / **block outline** areas, the blocks' houses as `PreviewBuilding`, `OsmCounts` from the blocks' expansion — doors and windows from the profile's per-house means —, `OsmBudget.Evaluate`; plus `ReliefRange` / `ReliefGrid(n)` and the layout), `ShuffleLayout(preview, seed)` (the ground stays in memory), `WriteGroundInputSet`, `OpenInEditorAsync(preview, name, scenariosRoot, terrainsRoot, navmeshPrefill)` | a netconvert that is missing is a Warning note in the preview, as in the OSM wizard |
 | **F-6** `OpenInEditorAsync`: input set → temp folder → `TerrainImporter` (prefill from the caller) → `scenarios/<name>/scenario.json` (`$meta`, `header.terrainName`, the `TerrainBlock` entities); refuses an existing scenario or terrain | |
@@ -1230,7 +1230,7 @@ compiles deterministically; the compiler and the live overlay give the same part
 
 Rails (`FeatureKindsTests`, each red-proved): a hedge blocks movement (the path goes round) · a wood conceals · water is impassable · a unit crosses a bridge (deck) and the collapsed bridge no longer carries at deck height · a scatter of 140 compiles byte-identically · clutter round-trips through the overlay file; `LiveOverlayBakeTests.T2_TheCompilerAndTheLiveOverlay_GiveTheSamePartsForEveryKind`.
 
-### 18h. Block operations and road alignment — T-4, T-5 *(CE-4431, CE-3431, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+### 18h. Block operations and road alignment — T-4, T-5 *(CE-4431, CE-3431, backend `2026-11-11`; build-state: BUILT — see "As built" at the end of this section)*
 
 📐 **INVENTORY** (graph `search_graph` `.*(Undo|EditCommand|CommandStack).*` Interface + `.*(UndoStack|UndoManager|EditTransaction).*` Class, and
 reads): the editor's ONE undo is `EditHistory` with `WorldUndoRecorder` (`Hrot.Presentation/Edits/WorldUndoRecorder.cs:8-16`): ⭐ **every accepted
@@ -1264,3 +1264,122 @@ sequenceDiagram
 
 Acceptance: unpack → recompile gives the same geometry as before the unpack (keys aside), and the door states survive; undo restores the block in
 one step; a farmstead placed near a track turns to face it (T-5).
+
+#### As built (backend `2026-11-11`) — what differs from the lean above, and why
+
+| | as built | prior state |
+|---|---|---|
+| **one bracket** | `EditSteps.Begin/End` (`EditOp.cs:141`) — the OUTER pair `Edits.Submit` nests into. `BlockOperations` (`Hrot.Core/Services/BlockOperations.cs`, `Hrot.Map.Common.Services`) brackets its own change, so Re-roll / Change recipe / Unpack are each one `EditHistory` step by construction. Refused (nothing changed) while a recording replays or when the station's `IEditGate` says no — the two checks `Submit` makes | H-1…H-4: "`Edits.Submit` with a `Write`" — a `TerrainBlock` field is not an attribute-shaped write; `SetComponent` inside the bracket is what `MacroArgs.Write` does for the same reason |
+| **entities** | written DIRECTLY and synchronously (`CreateFeature`, the one place): the creation-request path completes after the bracket closed and would not be part of the step. ⚠ no network identity — when the placing UI gives `TerrainFeature` a TKB type (U-2 / B-5) switch `CreateFeature` | — |
+| **keys** | the new feature's guid = the block's guid with its last 32 bits `= index + 1`, the index in the SORTED part-label order ⇒ the overlay's order is the block's (a part label is `<guid>/0`, the guids rise), and an unpack undone and done again makes the same keys (`PartGuid`). Doors: every entity whose `TerrainObjectKey` starts `<terrain>/<old part label>/` is re-keyed to `<terrain>/<new guid>/0/…` in the bracket, its `DoorState` untouched | H-3 "re-keys the door entities" — kept. ⚠ a damaged house's `BuildingDamage` entity is NOT re-keyed (it follows its building by the key the OLD world gave its index, `BuildingDamages.Remap`): damage on an unpacked house is lost |
+| **seed** | `NextSeed` = a PCG step (`seed·747796405 + 2891336453`, full period, never the same seed back) | H-1 |
+| **undo's restore** | ⭐ the undo keyframe (`CaptureOptions.Undo`, "authored types") now carries `EntityGuid` beside the replication identity (`IsReplicationIdentity`, CE-4411): an undone unpack restored the block WITHOUT its scenario key (`NoScenario`), i.e. another block (new part keys, door and damage keys hanging on the old one). One line in `WorldKeyframes.cs`, railed | not in H-3 — found by the undo rail |
+| **⚠ finding, not fixed** | ANY undo strips `DoorState` + `TerrainObjectKey` from door entities (both `NoScenario`, so the authored-only restore removes them) — measured with a plain re-roll. After an undone unpack the doors are gone until the scenario is reloaded | → tracker |
+| **T-5 roads (H-5)** | `TerrainRoads` (`Fdp.Toolkits/Terrain`): the terrain folder's FIRST declared road network — the file `TerrainResidency.Prepare` publishes — read from the JSON and cut into straight edges (8 per Hermite segment). ⭐ ONE reader for both callers: `OverlayCompiler` (`TerrainRoads.Load(definitionPath, definition)`) and `LiveOverlay` (`TerrainRoads.ForFolder(folder)`, once per base/folder change) ⇒ the same roads by construction; `OverlayExpansion.Block` / `FeatureExpander.Expand` take it as an optional last argument | H-5 said "`RoadNetworkHolder`" for the live overlay: the holder's blob is native memory held under leases for the main thread's readers, and a second reader of the same file is the only way the two callers see IDENTICAL geometry |
+| **direction** | the nearest edge within the recipe's radius (centre to edge); ⭐ of its two directions (it and its opposite) the one nearer the PLACED heading, so a block turns ≤ 90°; the result is rounded to 1 mm of a degree. No edge in reach, the bit off, or no road net ⇒ the heading as placed. Ties between equally near edges: the last in the file | "the direction of the nearest edge" — which of the two was open |
+| **callers without roads** | `RandomTerrainPipeline`'s preview passes the generator's road edges (the preview shows what the compile will do) | — |
+
+Rails: `FeatureExpanderTests.T5_*` (3: turns to the track within 1° · the nearer of the two directions, ≤ 90° · no road in reach / bit off / empty net ⇒ the bytes of the plain block), `AlignRoadAgreementTests` (SimHost: the compiler's and the live overlay's parts, labels and boxes agree, every house on the track's direction), `BlockOperationsTests` (Presentation: unpack = same shape in the same order + the door follows its house · undo = one step, same block and key, redo = the same keys · re-roll one step, undo/redo/again the same seeds · change recipe keeps place and heading · a refusing gate changes nothing). Each red-proved by a compiling mutation (see the batch report).
+
+### 18i. The recipe vocabulary — the ten blocks of the mockup — T-3 *(CE-4430, backend `2026-11-11`; build-state: BUILT)*
+
+📐 **INVENTORY** (graph `search_graph` `.*(Recipe|Expander|Element|BuildingGenerator|BuildingTemplate).*` Class; reads): the one expander `FeatureExpander` (`Fdp.Toolkits/Terrain`, houses + woods + T-2's kinds), the recipe `TerrainRecipe` (`houses`, `woods`, `scatter`),
+the synth's `BuildingGenerator` (`Hrot.Terrain.Synth`, needs `SynthProfile` + `HeightField` + `RoadNetwork`) and the importer's `BuildingTemplateGenerator` (`Hrot.Terrain.Import`, writes template FILES into a terrain folder). Nothing else makes block contents.
+
+```mermaid
+flowchart LR
+  R["recipe.json<br/>houses · woods · scatter<br/>+ elements[ ]"] --> P[TerrainRecipe.Parse<br/>validates each element]
+  P --> E[FeatureExpander.Expand<br/>ONE seeded stream]
+  E -->|houses, woods| H[building point · forest area]
+  E -->|ExpandElement| L["lane → open surface<br/>row / grid / cluster → building points<br/>enclosure / fields / garden → wall · hedge · fence lines<br/>group → clutter prisms<br/>orchard → trees"]
+  H --> O[OverlayExpansion → compiler + live overlay]
+  L --> O
+  O -->|Unpack, T-4| F["TerrainFeature kinds<br/>House · Tree · Clutter · Wall / Fence / Hedge · Wood / Scrub / Water / Lane"]
+```
+*What it shows:* a new element is a new producer of the same part kinds T-2 already writes — the compiler, the live overlay and Unpack need no new path, only the part-to-feature map (`BlockOperations.TryRead`).
+
+| decision | as built | rejected |
+|---|---|---|
+| I-1 format | `recipe.elements[]`, additive: a recipe without it expands exactly as before; each element draws from the stream the houses and woods left, in order; coordinates are block-LOCAL metres (x along the heading — the road side once AlignRoad faces it, y to the left); `radius` at the top level is the block's own (road reach, layout clearance). A bad element (unknown type, missing field, unknown clutter) is a parse error | a second recipe file per kind · world coordinates (a block turns) |
+| I-2 elements | `lane` (strip) · `row` (houses along a line, both sides or one, fronts to the line, optional hedge garden) · `grid` (lanes each way + a `row` along every side, off the cross streets) · `cluster` (houses / barns in a disc) · `enclosure` (hedge / fence / wall rectangle, gate gap) · `group` (clutter prisms at explicit places, along a line or scattered in a rectangle) · `orchard` (trees on a grid) · `fields` (hedge edges of field polygons, gates by chance) | one element per tile (ten special cases) |
+| I-3 lanes | ⭐ **no road surface exists** — `surface: road` is retired (R-231: the road is the road graph) — so a lane / street / trench is an **`open` surface** strip: a new feature kind `TerrainFeature.Lane` (12), drawn grey by the 2-D plan (`TerrainPlan2D`: open surfaces were skipped, scrub fell into the water colour — both drawn now). It carries no gameplay (open ground is the default) | a thin walkable slab (it would change the navmesh) · a road in the graph (a block is not a terrain edit) |
+| I-4 prisms | the T-2 clutter table gains `Guard booth` (checkpoint); a clutter part now carries its type and turn (`clutter`, `heading` properties the parser ignores) so Unpack makes a `Clutter` feature of the same type. A "trench" is a narrow lane between two sandbag lines | prism groups as scatter (placement is designed, not random) |
+| I-5 ⛔ unique houses | **STOPPED.** The street grid uses the shipped templates (`house-3f`, `office-4f`: 3 and 5 storeys incl. the roof), not unique generated ones. `BuildingGenerator` is in `Hrot.Terrain.Synth` and `BuildingTemplateGenerator` in `Hrot.Terrain.Import`; `FeatureExpander` lives in `Fdp.Toolkits`, which neither may be referenced from (FDP is below Hrot), and both are tied to a whole generated ground (`SynthProfile`, `HeightField`, `RoadNetwork`) and write template FILES | calling them from the expander (a reference cycle) · a second building generator (ruling 9) |
+| I-6 seam proposed for I-5 | `IUniqueBuildings` **in `Fdp.Toolkits`**: `Make(rect in block-local metres, storeys range, seed) → (template JSON by name, placements)`; `Hrot.Terrain.Random` implements it with `BuildingGenerator` + `BuildingTemplateGenerator` (that is where the dependencies already are) and passes it to `OverlayExpansion.Block`; the generated templates are written to the overlay folder's `buildings/` (O-2 already resolves a template from there). A `grid` element with `"unique": true` calls it; without an implementation it falls back to the pool. Needs a user decision (it makes the compile depend on the generator's output) | |
+| I-7 presets | `BlockLayout` mixes use the ten: countryside = farmstead · hedgerow-fields · orchard · copse; villages = hamlet · village-street · copse; small town = village-street · hamlet · town-block · farmstead; town with suburbs = town-block · village-street · hamlet · farmstead; mixed = all but the military three | — |
+| I-8 Unpack | covers every part kind the elements make (house, tree, clutter, wall / fence / hedge, wood / scrub / water / lane) — a block of every element kind unpacks to the same shape in the same order | refusing a block of new parts |
+
+**The ten** (`assets/terrain-recipes/`, new templates `barn`, `shed`): farmstead (cluster of house + 2–3 barns / sheds, hedge yard with a gate, track in, crates and barrels) · hamlet (a bent lane, 5–8 houses both sides with hedge gardens, a copse) · village street (a bent lane, 10–12 houses, gardens, cars) · town block (2–3 × 2 streets, 3–5-storey houses both sides, cars) · checkpoint (staggered jersey barriers, a booth, sandbags, a car — across the road its heading faces) · roadblock (cars and concrete blocks across the road, two angled barriers) · defensive position (two sandbag lines, a trench, crates) · copse (3–5 woods) · orchard (5–6 × 6–8 trees) · hedgerow fields (hedge-edged fields in 2–3 × 2–3, gates).
+
+**Rails:** `BlockRecipeTests` (Toolkits: each recipe byte-identical twice, another seed another layout, the tile's kinds and counts, a turned block keeps its part counts, every recipe parses into a world and names real templates, a bad element is a parse error) · `BlockOperationsTests.T3_ABlockOfEveryElementKind_UnpacksToTheSameShape` · `RandomTerrainTests` (every preset lays out the shipped recipes and makes houses) · `TerrainOverlayFrameRail.T3_TheTenBlocks_AreDrawnIn2D` (opt-in, `HROT_RAIL_SHOTS`; ten PNGs).
+
+**Frames vs the mockup tiles** (read by the builder, R-4146): farmstead — match (house + barns, hedge yard with a gate, track) · hamlet — match (6 houses on a bent lane, gardens) · village street — match (houses both sides, gardens) · town block — match (a street grid, houses along it; the 3-D interiors' labels crowd the plan, not this change's) · checkpoint — match in contents, deviation: no road drawn (the block sits on the road graph, which this frame's layer does not draw) · roadblock — match (cars and blocks across, barriers) · defensive position — deviation: the trench is a thin grey strip, the mockup's is a dashed brown line · copse — match (a wood of several blobs) · orchard — match after a fix (a lone tree is now drawn as its canopy disc in the 2-D plan, as the mockup; it was a 2-px trunk) · hedgerow fields — match (hedge-edged fields with gates).
+
+### 18j. The missions check for a re-saved terrain — T-8 *(CE-4424, backend `2026-11-11`; build-state: READY-TO-BUILD)*
+
+📐 **INVENTORY** (graph `search_graph` `.*(Waypoint|Route|PatrolPath|Area)$` in `*Components*`, + reads): routes are `RoutePlan` (an immutable
+managed record of `RouteWaypoint`s, `Hrot.Core/Components/Map/RoutePlan.cs:70`); areas are `EditablePolyline`, readable from toolkit code through
+`IAreaOutline` (points relative to `SimTransform.Position`, `Fdp.Toolkits/Terrain/IAreaOutline.cs:13`); a unit is any entity with a `SimTransform`;
+door states are keyed `<terrain>/<label>/<door>` in the scenario's `TerrainObjects` section; who uses a terrain is `TerrainUsers.Of` (O-5).
+
+```mermaid
+sequenceDiagram
+  participant UI as ui overwrite dialog (W-4, mockup 4)
+  participant B as TerrainBake
+  participant C as TerrainChangeCheck (new, pure)
+  UI->>B: SaveAs over an existing terrain - first the check
+  B->>B: old world = the target as it is, new world = base + overlay (the merge SaveAs writes)
+  B->>C: Check(old, new, TerrainUsers.Of(name) scenario files)
+  C->>C: parts diff by key + geometry - added, removed, moved
+  C-->>UI: per scenario - a unit standing in a new part, a route leg crossing one, an area it overlaps, a key that no longer resolves
+```
+*What it shows:* the check reads the scenario FILES (JSON), so it needs no loaded world and runs before anything is overwritten; the part keys
+(O-3) make "what changed" a diff, not a geometric guess.
+
+| finding kind | rule |
+|---|---|
+| StandsIn | a `SimTransform` position inside an ADDED or MOVED blocking part (building footprint, wall / hedge / fence buffered by its thickness, prism, water) |
+| RouteCrosses | a `RoutePlan` leg (consecutive waypoints, from the entity's position) intersecting such a part |
+| AreaOverlaps | an `EditablePolyline` area intersecting an added, removed or moved part (informational) |
+| KeyLost | a door state or a behaviour parameter naming a part key (`TerrainObjects`, any string property shaped `<terrain>/<label>…`) that the new world does not resolve |
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| J-1 where | `TerrainChangeCheck` in `Fdp.Toolkits/Terrain` (pure: two worlds + scenario JSON → findings); `TerrainBake` gains `CheckOverwrite(...)` that builds the two worlds | loading each scenario into a world — seconds per scenario and a whole node's setup for a list |
+| J-2 diff | by part key; a part whose key is unchanged but whose geometry moved > 1 cm counts as moved | a geometric diff of whole worlds — no identity, every re-roll looks like "everything changed" |
+| J-3 output | a flat list (scenario, entity guid + name, kind, part key, the point or leg) the dialog groups | — |
+
+Acceptance (handoff T-8): a rail lists the squad a new house would stand on — and the route leg a new hedge cuts, and the door state whose house
+was removed.
+
+### 18k. Roads and bridges in the road net — T-7 *(CE-4423 + CE-3438, backend `2026-11-11`; build-state: DESIGN — step 1 measures)*
+
+📐 **INVENTORY** (graph `search_graph` `.*(RoadNetwork|LaneClos|EdgeClos|RoadBlock|Closure).*` Class + `search_code` for closure calls, + reads):
+**TWO road systems** run off one terrain — ① the vehicle kinematics' `RoadNetworkBlob` (from the terrain's `roadNetworks[0]` JSON,
+`TerrainResidency.cs:276-289`), held by `RoadNetworkHolder` with generation-safe `Publish` (`CarKinem/Road/RoadNetworkHolder.cs:109`) — a swap at run
+time is already supported; ② SUMO traffic (`Hrot.Traffic`, the terrain's `sumoNet` `.net.xml`, stepped off-thread by `TrafficSteppingModule`), whose engine
+has reroute (`SumoSharp Sim.Core/Engine.cs:75-102`) but ⚠ **no edge-closure call found** (search_code: none). ⇒ a bridge must reach BOTH, and so must its fall.
+
+```mermaid
+graph TD
+  BF[Bridge feature - T-2] -->|compile at save| OC[OverlayCompiler]
+  OC --> RJ[overlay roads - the bridge edges joined to the nearest road ends]
+  OC -->|netconvert -s base.net.xml + the bridge edg / nod| SN[overlay net.xml]
+  RJ --> RES[TerrainResidency - roads = base + overlay roads]
+  SN --> TR[Hrot.Traffic - the overlay net when present]
+  COL[structure collapsed - O-2] -->|close the bridge edges| RES
+  COL -->|close + reroute - a closure call to add| TR
+```
+*What it shows:* the bridge becomes road at SAVE (one netconvert, the handoff's "netconvert on Save terrain"), and its fall closes the same edges in
+both systems at run time — the vehicles' net by a republish the holder already supports, SUMO by a closure the engine still lacks.
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| K-1 where the bridge's road is made | the compile: a Bridge feature's two ends snap to the nearest road nodes within 25 m; the edges go into the overlay's roads JSON and, via `netconvert -s <base net> -e/-n <bridge plain files>`, an overlay `.net.xml` | a live netconvert per edit — seconds per change; the editor shows the deck, traffic follows at save |
+| K-2 the fall, vehicles | collapse ⇒ republish the `RoadNetworkBlob` without the bridge edges (`RoadNetworkHolder.Publish`) | a cost penalty — a vehicle would still drive into the river |
+| K-3 the fall, SUMO | add an edge-closure command to SumoSharp (disallow all vClasses on the edge's lanes + reroute the vehicles whose route crosses it) — ⚠ an ExtDeps change, measured first | despawning traffic on the bridge — the cars behind it would still route over |
+| K-4 CE-3438 | no rubble mound over a water surface (clip it to land) | — |
+
+⏭ **Step 1 (measure before building):** does `netconvert -s` + extra edges keep every base edge id (traffic routes and recordings name them); how
+the SUMO engine stores lane permissions (is a closure a lane flag or a route cost); how a structure collapse is observed today (the event the
+closure would hang on). Acceptance (handoff T-7): a vehicle routes over a new bridge and around a fallen one.

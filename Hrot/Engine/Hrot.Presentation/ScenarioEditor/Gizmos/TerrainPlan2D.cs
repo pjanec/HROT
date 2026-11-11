@@ -52,6 +52,18 @@ public sealed class TerrainPlan2D
     public static readonly Rgba32 ScorchFill = new(30, 27, 24, 150);
     private static readonly int[] QuadTriangles = { 0, 1, 2, 0, 2, 3 };
 
+    private const int CanopySides = 12;
+    private const float CanopyRadius = 2.4f;
+    /// <summary>⭐ T-3 — a lone tree's canopy from above.</summary>
+    public static readonly Rgba32 CanopyFill = new(52, 128, 60, 200);
+    private static readonly int[] CanopyTriangles = BuildFan(CanopySides);
+    private static int[] BuildFan(int n) { var t = new int[(n - 2) * 3]; for (int i = 0; i < n - 2; i++) { t[i * 3] = 0; t[i * 3 + 1] = i + 1; t[i * 3 + 2] = i + 2; } return t; }
+
+    /// <summary>⭐ T-3 (CE-4430) — a block's open strip (a lane, a street, a trench): a neutral road grey.</summary>
+    public static readonly Rgba32 LaneFill = new(112, 112, 120, 235);
+    /// <summary>⭐ T-3 — low scrub: a darker olive than the forest.</summary>
+    public static readonly Rgba32 ScrubFill = new(112, 140, 78, 220);
+
     /// <summary>⭐ CE-4392 X-2 — a collapsed building's rubble on the plan: a dusty grey-brown fill, a dashed outline.</summary>
     public static readonly Rgba32 RubbleFill = new(128, 118, 104, 235);
     private static readonly Rgba32 RubbleOutline = new(90, 82, 70, 230);
@@ -70,10 +82,11 @@ public sealed class TerrainPlan2D
             mark?.Invoke(-1);
             foreach (var s in world.Surfaces)
             {
-                if (s.Type == TerrainSurfaceType.Open) continue;
                 var fill = s.Type switch
                 {
                     TerrainSurfaceType.Forest => ForestFill,
+                    TerrainSurfaceType.Scrub  => ScrubFill,   // ⭐ T-3 — scrub (a bush, a patch) and an open strip (a block's lane / street / trench) are drawn; plain open ground is not a surface the base writes
+                    TerrainSurfaceType.Open   => LaneFill,
                     _                         => WaterFill,
                 };
                 FillPolygon(draw, s.Polygon, s.Triangles, fill);
@@ -163,6 +176,14 @@ public sealed class TerrainPlan2D
     private static void EmitPrism(IDebugDrawBuilder draw, TerrainPrism p)
     {
         if (Fdp.Toolkit.Terrain.TerrainWorldMesh.IsVolumeEffect(p)) return;   // ⭐ CE-1165 — a gas / smoke cloud is drawn by its own layer
+        if (p.Kind == TerrainPrismKind.Tree)
+        {
+            // ⭐ T-3 (CE-4430) — a lone tree is its CANOPY seen from above (a green disc, ~2.4 m), under the trunk's own dot — the mockup's orchard / hedgerow-tree look; a 0.3 m trunk alone was a 2-px speck at plan scales
+            var c = Centroid(p.Footprint);
+            var disc = new Vector2[CanopySides];
+            for (int k = 0; k < disc.Length; k++) disc[k] = c + new Vector2(MathF.Cos(k * MathF.Tau / CanopySides), MathF.Sin(k * MathF.Tau / CanopySides)) * CanopyRadius;
+            FillPolygon(draw, disc, CanopyTriangles, CanopyFill);
+        }
         // ⭐ Stage 1 — a wall/fence piece is coloured by its MATERIAL (the "materials" layer of
         //   DESIGN_Terrain_Combat_Tuning.md §5); fences are dashed. Openings are gaps because a panel's pieces leave them.
         var fill = p.Kind == TerrainPrismKind.Wall ? MaterialColor(p.Material?.Name) : HeightColor(p.Height);

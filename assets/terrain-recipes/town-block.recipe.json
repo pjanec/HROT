@@ -1,0 +1,56 @@
+{
+ "id": "town-block",
+ "radius": 66,
+ "elements": [
+  {
+   "type": "grid",
+   "center": [
+    0,
+    0
+   ],
+   "size": [
+    110,
+    84
+   ],
+   "cols": [
+    2,
+    3
+   ],
+   "rows": 2,
+   "lane": 5,
+   "templates": [
+    "house-3f",
+    "office-4f",
+    "house-3f"
+   ],
+   "spacing": 15,
+   "offset": 10,
+   "jitter": 1,
+   "minSpacing": 2,
+   "streetJitter": 1.5
+  },
+  {
+   "type": "group",
+   "items": [
+    {
+     "type": "car",
+     "area": {
+      "center": [
+       0,
+       0
+      ],
+      "size": [
+       100,
+       70
+      ],
+      "count": [
+       3,
+       6
+      ]
+     },
+     "facing": "random"
+    }
+   ]
+  }
+ ]
+}

@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Terrain
     [DataPolicy(DataPolicy.Default)]
     public struct TerrainFeature
     {
-        public const byte House = 1, Wall = 2, Fence = 3, Hedge = 4, Wood = 5, Tree = 6, Scrub = 7, Clutter = 8, Water = 9, Bridge = 10, Scatter = 11;
+        public const byte House = 1, Wall = 2, Fence = 3, Hedge = 4, Wood = 5, Tree = 6, Scrub = 7, Clutter = 8, Water = 9, Bridge = 10, Scatter = 11, Lane = 12;
 
         /// <summary>One of the kind constants above; 0 and anything unknown are ignored.</summary>
         public byte Kind;
@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Terrain
         public float HeadingDeg;
         /// <summary>
         /// By kind — house: a level pad's height (written as the feature's <c>pad</c> when non-zero) · wall / fence / hedge: the height in metres (0 = the kind's default) · bridge: the deck's width (0 = 4 m) ·
-        /// wood: trees per hectare (0 = the default) · scatter: items per 100 m² (0 = the recipe's density).
+        /// wood: trees per hectare (0 = the default) · lane (T-3): unused · scatter: items per 100 m² (0 = the recipe's density).
         /// </summary>
         public float Pad;
         /// <summary>The seed of a wood, a scrub patch or a scatter (it draws from it, deterministically).</summary>

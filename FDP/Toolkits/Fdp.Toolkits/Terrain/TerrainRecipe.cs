@@ -21,6 +21,12 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The items a scatter of this recipe draws from (empty ⇒ the recipe cannot be scattered). <c>"scatter": { "density": 3, "items": [ { "kind": "clutter", "type": "car", "weight": 1 }, { "kind": "tree", "weight": 4 } ] }</c>.</summary>
         public IReadOnlyList<ScatterItem> Scatter { get; init; } = Array.Empty<ScatterItem>();
 
+        /// <summary>
+        /// ⭐ T-3 (CE-4430, docs/DESIGN_Terrain_Authoring.md §18i) — the block's ELEMENTS beyond houses and woods, expanded in order after them from the same seed (<see cref="FeatureExpander"/> (FeatureElements.cs) documents each):
+        /// <c>lane</c> · <c>row</c> · <c>grid</c> · <c>cluster</c> · <c>enclosure</c> · <c>group</c> · <c>orchard</c> · <c>fields</c>. Coordinates are LOCAL metres (x along the block's heading, y to its left).
+        /// </summary>
+        public IReadOnlyList<JsonObject> Elements { get; init; } = Array.Empty<JsonObject>();
+
         /// <summary>Items per 100 m² of the scattered area when the feature gives none.</summary>
         public float ScatterDensity { get; init; } = 1f;
 
@@ -52,7 +58,18 @@ namespace Fdp.Toolkit.Terrain
                     sMin = a; sMax = b;
                 }
             }
+            if (obj["radius"] is JsonNode br) radius = (float)br.GetValue<double>();   // ⭐ T-3 — a block's own radius (the road reach, the layout's clearance), when it has no houses block
             if (radius <= 0f) throw new ArgumentException($"[Terrain] {where}: houses.radius must be positive.");
+            var elements = new List<JsonObject>();
+            if (obj["elements"] is JsonArray el)
+                foreach (var node in el)
+                {
+                    if (node is not JsonObject eo) throw new ArgumentException($"[Terrain] {where}: an element must be an object.");
+                    string type = (string?)eo["type"] ?? throw new ArgumentException($"[Terrain] {where}: an element has no 'type'.");
+                    if (!FeatureExpander.ElementIsKnown(type)) throw new ArgumentException($"[Terrain] {where}: unknown element type '{type}' (known: {FeatureExpander.KnownElements}).");
+                    FeatureExpander.ValidateElement(eo, type, where);
+                    elements.Add((JsonObject)eo.DeepClone());
+                }
             var items = new List<ScatterItem>();
             float density = 1f;
             if (obj["scatter"] is JsonObject sc)
@@ -72,17 +89,17 @@ namespace Fdp.Toolkit.Terrain
                     items.Add(new ScatterItem(kind, type, weight));
                 }
             }
-            return new TerrainRecipe(id, templates, hMin, hMax, radius, spacing, wMin, wMax, sMin, sMax) { Scatter = items, ScatterDensity = density };
+            return new TerrainRecipe(id, templates, hMin, hMax, radius, spacing, wMin, wMax, sMin, sMax) { Scatter = items, ScatterDensity = density, Elements = elements };
         }
 
-        private static (int, int) Range(JsonNode? n, string where)
+        internal static (int, int) Range(JsonNode? n, string where)
         {
             if (n is JsonValue v) { int c = v.GetValue<int>(); return (c, c); }
             if (n is JsonArray a && a.Count == 2) { int lo = a[0]!.GetValue<int>(), hi = a[1]!.GetValue<int>(); if (lo < 0 || hi < lo) throw new ArgumentException($"[Terrain] {where}: bad range."); return (lo, hi); }
             throw new ArgumentException($"[Terrain] {where}: expected a count or [min, max].");
         }
 
-        private static (float, float) RangeF(JsonNode? n, string where)
+        internal static (float, float) RangeF(JsonNode? n, string where)
         {
             if (n is JsonValue v) { float c = (float)v.GetValue<double>(); return (c, c); }
             if (n is JsonArray a && a.Count == 2) { float lo = (float)a[0]!.GetValue<double>(), hi = (float)a[1]!.GetValue<double>(); if (lo <= 0 || hi < lo) throw new ArgumentException($"[Terrain] {where}: bad range."); return (lo, hi); }

@@ -76,14 +76,87 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(bad);
         }
 
-        /// <summary>LevelPads writes <c>pad</c> (the base ground at the centre), the bit off writes none; AlignRoad is NOT implemented: that bit changes nothing.</summary>
+        /// <summary>LevelPads writes <c>pad</c> (the base ground at the centre), the bit off writes none; with no road net (T-5) the AlignRoad bit changes nothing.</summary>
         [Fact]
-        public void LevelPads_WritesAPad_AndAlignRoadIsIgnored()
+        public void LevelPads_WritesAPad_AndAlignRoadWithoutARoadNetChangesNothing()
         {
             using var f = new OverlayFixture();
             Assert.All(Feats(Run(f, 3)).Where(x => ((JsonObject)x["properties"]!)["kind"]!.GetValue<string>() == "building"), x => Assert.NotNull(((JsonObject)x["properties"]!)["pad"]));
             Assert.All(Feats(Run(f, 3, TerrainBlock.AvoidWater | TerrainBlock.AvoidBuildings)).Where(x => ((JsonObject)x["properties"]!)["kind"]!.GetValue<string>() == "building"), x => Assert.Null(((JsonObject)x["properties"]!)["pad"]));
-            Assert.Equal(Json(Run(f, 3, 15)), Json(Run(f, 3, 14)));   // bit 1 (AlignRoad) changes nothing
+            Assert.Equal(Json(Run(f, 3, 15)), Json(Run(f, 3, 14)));   // bit 1 (AlignRoad) changes nothing: no road net was passed
+        }
+
+        // ── ⭐ T-5 (CE-3431, §18h H-5) — AlignRoad ───────────────────────────────────────────────────────────────────
+
+        private const float TrackDeg = 30f;   // the track's direction: not a multiple of 90, so an aligned house is told from an unaligned one
+
+        /// <summary>A track 8.7 m from the block's centre (300, 300), running at <see cref="TrackDeg"/>.</summary>
+        private static TerrainRoads Track(float deg = TrackDeg, float offsetFromCentre = 10f)
+        {
+            float r = deg * MathF.PI / 180f; var d = new Vector2(MathF.Cos(r), MathF.Sin(r));
+            var through = new Vector2(300f, 300f + offsetFromCentre);
+            return TerrainRoads.FromEdges(new[] { (through - d * 120f, through + d * 120f) });
+        }
+
+        private static FeatureExpansion Farmstead(OverlayFixture f, TerrainRoads? roads, byte fit = TerrainBlock.FitAll, float heading = 0f)
+        {
+            File.WriteAllText(Path.Combine(f.Recipes, "farmstead.recipe.json"), """{"id":"farmstead","houses":{"templates":["hut"],"count":[3,3],"radius":45,"minSpacing":12},"woods":{"count":[1,1],"size":[10,14]}}""");
+            return FeatureExpander.Expand(f.Recipe("farmstead"), 5, new Vector2(300, 300), heading, fit, f.BaseWorld(), "g1", TerrainAssets.ForFolder(f.TerrainFolder), roads);
+        }
+
+        private static float[] Rotations(FeatureExpansion x)
+            => Feats(x).Where(b => ((JsonObject)b["properties"]!)["kind"]!.GetValue<string>() == "building").Select(b => (float)((JsonObject)b["properties"]!)["rotation"]!.GetValue<double>()).ToArray();
+
+        private static float OffAxis(float rotation, float axis) { float d = (((rotation - axis) % 90f) + 90f) % 90f; return MathF.Min(d, 90f - d); }
+
+        /// <summary>
+        /// ⭐ a farmstead placed near a track turns to face it: every house's rotation is the track's direction (or its opposite — and the quarter turns of the recipe) to within 1°. Not vacuous: with no road the same block's
+        /// houses stand at the quarter turns of the PLACED heading. 🔴 Red-proof: drop the <c>AlignRoad</c> branch in <c>FeatureExpander.Expand</c> ⇒ the houses keep the placed heading ⇒ red.
+        /// </summary>
+        [Fact]
+        public void T5_AFarmsteadNearATrack_TurnsToFaceIt()
+        {
+            using var f = new OverlayFixture();
+            var turned = Rotations(Farmstead(f, Track()));
+            Assert.Equal(3, turned.Length);
+            Assert.All(turned, r => Assert.True(OffAxis(r, TrackDeg) < 1f, $"rotation {r} is not the track's {TrackDeg}° (or its opposite / a quarter turn)"));
+            Assert.All(Rotations(Farmstead(f, null)), r => Assert.True(OffAxis(r, 0f) < 1f && OffAxis(r, TrackDeg) > 20f));
+        }
+
+        /// <summary>
+        /// ⭐ the direction picked: of the edge's two directions (it and its opposite) the one nearer the PLACED heading, so a block turns at most 90°. A track at 150° with the block placed at 0° turns it to −30° (330°), not 150°; placed at 180°
+        /// it turns to 150°. 🔴 Red-proof: drop the <c>Abs(diff) &gt; 90</c> flip in <c>TerrainRoads.TryAlign</c> ⇒ the first case is 150° ⇒ red.
+        /// </summary>
+        [Fact]
+        public void T5_TheBlockTurnsToTheNearerOfTheTracksTwoDirections_NeverMoreThanAQuarter()
+        {
+            var roads = Track(150f);
+            Assert.True(roads.TryAlign(new Vector2(300, 300), 45f, 0f, out float a0));
+            Assert.Equal(330f, ((a0 % 360f) + 360f) % 360f, 1);
+            Assert.True(roads.TryAlign(new Vector2(300, 300), 45f, 180f, out float a180));
+            Assert.Equal(150f, ((a180 % 360f) + 360f) % 360f, 1);
+            foreach (float placed in new[] { 0f, 40f, 100f, 179f, 250f, 359f })
+            {
+                Assert.True(roads.TryAlign(new Vector2(300, 300), 45f, placed, out float a));
+                float turn = MathF.Abs((((a - placed) % 360f) + 540f) % 360f - 180f);
+                Assert.True(turn <= 90.01f, $"placed {placed}° turned {turn}°");
+            }
+        }
+
+        /// <summary>
+        /// ⭐ no road in reach ⇒ the heading as placed: a track farther than the recipe's radius (45 m), the AlignRoad bit off, and no road net at all each give the BYTES of the plain block.
+        /// 🔴 Red-proof: ignore the radius in <c>TryAlign</c> (<c>best = float.MaxValue</c>) ⇒ the far track turns the block ⇒ red; ignore the bit ⇒ the second case reds.
+        /// </summary>
+        [Fact]
+        public void T5_WithNoRoadInReach_TheHeadingIsAsPlaced()
+        {
+            using var f = new OverlayFixture();
+            string plain = Json(Farmstead(f, null));
+            Assert.Equal(plain, Json(Farmstead(f, Track(offsetFromCentre: 80f))));                                    // 70 m away: out of reach
+            Assert.Equal(Json(Farmstead(f, null, TerrainBlock.AvoidWater | TerrainBlock.AvoidBuildings | TerrainBlock.LevelPads)),
+                         Json(Farmstead(f, Track(), TerrainBlock.AvoidWater | TerrainBlock.AvoidBuildings | TerrainBlock.LevelPads)));   // the bit off
+            Assert.Equal(plain, Json(Farmstead(f, TerrainRoads.FromEdges(Array.Empty<(Vector2, Vector2)>()))));        // a net with no road
+            Assert.NotEqual(plain, Json(Farmstead(f, Track())));                                                        // …and the track in reach does turn it
         }
 
         /// <summary>The three shipped recipes parse and name existing templates.</summary>
@@ -91,7 +164,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         public void TheShippedRecipes_Parse_AndTheirTemplatesExist()
         {
             string root = ContentLayout.TryFindSourceTree()!;
-            foreach (var id in new[] { "hamlet", "farmstead", "copse" })
+            foreach (var id in new[] { "hamlet", "farmstead", "copse" })   // the ten (templates in the elements too): BlockRecipeTests
             {
                 var r = TerrainRecipe.Find(id, new[] { ContentLayout.TerrainRecipeAssets(root) });
                 Assert.Equal(id, r.Id);
