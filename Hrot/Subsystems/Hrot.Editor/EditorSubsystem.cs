@@ -1877,6 +1877,9 @@ namespace Hrot.Editor
                 //   request queue, TKB and geo transform, with the tool arbiter PASSED (UXI-07 step 4a).
                 _spawnAdapter     = _editorMapInteraction.EntityAuthoring?.Spawn
                     ?? throw new InvalidOperationException("The map's entity-authoring surface has no spawn adapter (no creation request queue).");
+                // ⭐ Terrain authoring follow-up 2 — the recipes the area scatter can draw from (those with a `scatter` section; none ships until backend's T-3)
+                try { _spawnAdapter.ScatterRecipes = Hrot.UI.Common.AddEntity.TerrainPickCatalog.ScatterRecipes(new[] { Fdp.Toolkit.Orchestration.ContentLayout.TerrainRecipeAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot) }); }
+                catch (Exception e) when (e is InvalidOperationException or System.IO.IOException or UnauthorizedAccessException) { }
                 // 🔒 UXI-07 step 4a — the arbiter is PASSED, so obstacle placement displaces the
                 //    active tool instead of quietly taking focus beside it (§4.8's inventory).
                 _zoneAdapter      = new EditorZoneAdapter(
@@ -3690,6 +3693,9 @@ namespace Hrot.Editor
             _randomTerrain = new Hrot.UI.Common.TerrainRandom.RandomTerrainWizardWindow(() => randomTerrainService);
             _randomTerrain.Opened += scenario => { _saveAllStatus = $"[OK] Generated terrain and scenario '{scenario}'."; _editorApp?.ScenarioSession.LoadScenario(scenario); };
             windowManager.RegisterFrameOverlay(_randomTerrain.Draw);
+            // ⭐ Terrain authoring follow-up 2 — the panel beside the map while a wall / fence / hedge, a bridge or an area scatter is DRAWN (kind, height, recipe, density, seed)
+            var terrainDrawPanel = new Hrot.UI.Common.AddEntity.TerrainDrawPanel(() => _spawnAdapter);
+            windowManager.RegisterFrameOverlay(terrainDrawPanel.Draw);
 
             var assetRowCommands = new[]
             {

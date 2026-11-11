@@ -323,4 +323,76 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         Assert.DoesNotContain(cmd.InitialComponents!, c => c is Hrot.Map.Common.Components.MapOverlayStyle);
         Assert.Equal("Wall", cmd.InitialComponents!.OfType<EntityInfo>().Single().Name.ToString());
     }
+
+    // ── follow-up 2: the drawing panel's choices are what the commit reads; the clutter glyphs; the scatter lights with its recipe ───────────────
+
+    /// <summary>
+    /// ⭐ Gap C (mockup 3 ① ③) — a wall drawn after the panel switched it to a Wall of 3 m is BORN a Wall of 3 m (not the hedge the pick said), named Wall; a scatter's density row and seed are what the entity carries.
+    /// 🔴 Mutation: <c>TerrainDrawOptions.Born</c> not writing the panel's kind (<c>f.Kind = Kind</c> removed) ⇒ the kind assertion red.
+    /// </summary>
+    [Fact]
+    public void U7_TheDrawingPanelsChoices_AreWhatTheCommitReads_KindHeightDensitySeed()
+    {
+        var o = TerrainDrawOptions.From("feature:4::Line")!;   // the Hedge pick
+        Assert.True(o.IsLine); Assert.Equal("Hedge", o.KindName); Assert.Equal(1.5f, o.HeightShown);
+        o.SetKind(TerrainFeature.Wall); o.Height = 3f;
+        var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer());
+        var arm = new Hrot.ScenarioEditor.Tools.AreaAuthoringArm(manager);
+        var made = new List<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>();
+        arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest((TkbTypeId)TkbEntityTypes.TerrainFeature, "", made.Add, MinPoints: 2, Closed: false, Born: o.Born));
+        var gizmo = arm.ActiveGizmo!;
+        foreach (var p in new[] { new Vector2(100f, 100f), new Vector2(140f, 100f) }) { gizmo.OnDragUpdate(new Vector3(p.X, p.Y, 0f)); gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(p.X, p.Y, 0f)); }
+        gizmo.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
+        var cmd = Assert.Single(made);
+        var f = cmd.InitialComponents!.OfType<TerrainFeature>().Single();
+        Assert.Equal((TerrainFeature.Wall, 3f), (f.Kind, f.Pad));
+        Assert.Equal("Wall", cmd.InitialComponents!.OfType<EntityInfo>().Single().Name.ToString());
+        Assert.Equal(40f, TerrainDrawOptions.Length(new[] { new Vector2(100f, 100f), new Vector2(140f, 100f) }));
+
+        // a bridge's width, a scatter's recipe · density · seed
+        var b = TerrainDrawOptions.From("feature:10::Line")!; Assert.True(b.IsBridge); Assert.Equal(4f, b.HeightShown);
+        var sc = TerrainDrawOptions.From("feature:11:street-clutter:Area")!;
+        sc.ScatterRecipes = new[] { ("street-clutter", "Street clutter", 3f) }; sc.Density = 2;   // High
+        Assert.Equal(6f, sc.ItemsPer100m2);
+        var square = new[] { new Vector2(0, 0), new Vector2(100, 0), new Vector2(100, 100), new Vector2(0, 100) };
+        Assert.Equal(600f, sc.ItemsOf(square), 3);   // 10 000 m² = 100 units of 100 m², × 6 each
+        var born = new List<object>(); sc.Born(born);
+        var sf = born.OfType<TerrainFeature>().Single();
+        Assert.Equal((TerrainFeature.Scatter, "street-clutter", sc.Seed, 6f), (sf.Kind, sf.Template.ToString(), sf.Seed, sf.Pad));
+    }
+
+    /// <summary>
+    /// ⭐ Gap C (mockup 3, the Clutter tiles) — every clutter type has its OWN glyph key from the shared icon table (a car, a barrel, a crate, a block, a barrier, sandbags, a booth), none the generic one; walls, woods, bridges and water have theirs; blocks and houses (pictures) have none.
+    /// 🔴 Mutation: <c>TerrainPick.GlyphKey</c> returning null ⇒ red.
+    /// </summary>
+    [Fact]
+    public void U7_EveryClutterTypeHasItsOwnGlyph_FromTheSharedIconTable()
+    {
+        var picks = TerrainPickCatalog.FeaturePicks();
+        var clutter = picks.Where(p => p.FeatureKind == TerrainFeature.Clutter).ToList();
+        Assert.Equal(clutter.Count, clutter.Select(p => p.GlyphKey).Distinct().Count());
+        Assert.All(clutter, p => { Assert.NotNull(p.GlyphKey); Assert.NotEqual("terrain/clutter", p.GlyphKey); Assert.True(NodeEditor.Core.Widgets.Icons.TryGet(p.GlyphKey!, out _), p.GlyphKey); });
+        Assert.Equal("clutter/car", clutter.Single(p => p.Template == "car").GlyphKey);
+        Assert.Equal("terrain/walls", picks.Single(p => p.FeatureKind == TerrainFeature.Hedge).GlyphKey);
+        Assert.Equal("terrain/bridge", picks.Single(p => p.FeatureKind == TerrainFeature.Bridge).GlyphKey);
+        Assert.All(Shipped().Where(p => p.Kind != TerrainPickKind.Feature), p => Assert.Null(p.GlyphKey));
+        // the colours differ: a car is grey, a barrel amber, a crate orange
+        Assert.NotEqual(NodeEditor.Core.Widgets.Icons.Get("clutter/car").Color, NodeEditor.Core.Widgets.Icons.Get("clutter/barrel").Color);
+        Assert.NotEqual(NodeEditor.Core.Widgets.Icons.Get("clutter/barrel").Color, NodeEditor.Core.Widgets.Icons.Get("clutter/crate").Color);
+    }
+
+    /// <summary>⭐ Gap C — the greyed scatter lights the moment ONE shipped recipe carries a <c>scatter</c> section (backend's T-3), starts on that recipe, and the panel's <i>What</i> lists it; until then it stays greyed.</summary>
+    [Fact]
+    public void U7_TheScatterPickLights_WhenARecipeCarriesAScatterSection()
+    {
+        Assert.Contains("T-3", Shipped().Single(p => p.FeatureKind == TerrainFeature.Scatter).Disabled);
+        Directory.CreateDirectory(_tmp);
+        File.WriteAllText(Path.Combine(_tmp, "street-clutter.recipe.json"), """{ "id": "street-clutter", "radius": 40, "scatter": { "density": 3, "items": [ { "kind": "clutter", "type": "car", "weight": 1 }, { "kind": "tree", "weight": 2 } ] } }""");
+        var picks = TerrainPickCatalog.Build(new[] { _tmp, ContentLayout.TerrainRecipeAssets(_src) }, new[] { ContentLayout.BuildingAssets(_src) });
+        var scatter = picks.Single(p => p.FeatureKind == TerrainFeature.Scatter);
+        Assert.Null(scatter.Disabled);
+        Assert.Equal("feature:11:street-clutter:Area", scatter.Spec);
+        Assert.Equal(("street-clutter", 3f), (TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Id, TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Density));
+        Assert.Empty(TerrainPickCatalog.ScatterRecipes(new[] { ContentLayout.TerrainRecipeAssets(_src) }));
+    }
 }

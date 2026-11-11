@@ -40,6 +40,7 @@ namespace NodeEditor.UI.Picker;
 /// label, each keyed by a <see cref="Core.Widgets.Icons"/> key so the colour belongs to the key (R-174), never to the call site. <see langword="null"/> ⇒ none.
 /// </param>
 /// <param name="Hint">⭐ CE-4330 — a muted note drawn right-aligned on the row (what choosing it does: <i>"opens at once"</i>, <i>"imports first"</i>).</param>
+/// <param name="GlyphKey">⭐ Terrain authoring follow-up 2 — a <see cref="Core.Widgets.Icons"/> key whose coloured glyph is the entry's PICTURE when it has no image (a clutter item's tile, mockup 3): drawn large on the tile and in the side pane. <see langword="null"/> ⇒ the entry's icon.</param>
 /// <param name="Actions">⭐ CE-4330 ⑦ — what else can be done to this entry, offered in its row's right-click menu after a separator (<i>Delete from archive…</i>). <see langword="null"/> ⇒ none.</param>
 public sealed record PickerEntry(
     string Id,
@@ -55,7 +56,8 @@ public sealed record PickerEntry(
     string? ImageKey = null,
     IReadOnlyList<PickerChip>? Chips = null,
     string? Hint = null,
-    IReadOnlyList<PickerRowAction>? Actions = null);
+    IReadOnlyList<PickerRowAction>? Actions = null,
+    string? GlyphKey = null);
 
 /// <summary>⭐ CE-4330 — one chip of a <see cref="PickerEntry"/>: a <see cref="Core.Widgets.Icons"/> key (glyph + colour) and its label.</summary>
 public readonly record struct PickerChip(string IconKey, string Label);

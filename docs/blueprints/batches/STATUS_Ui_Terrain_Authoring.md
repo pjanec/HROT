@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-11
-current-answer: the table
+updated: 2026-11-11 (follow-up 2: gaps A, B, C against mockups 1 and 3)
+current-answer: the table, then 'Follow-up 2'
 related-designs:
   - HANDOFF_Coordinator_To_Ui_Terrain_Authoring.md — the frame (dispatched at 2235ff0c2; scope frozen there)
   - ../../DESIGN_Terrain_Authoring.md — the owning design; §15a holds the as-built of each item
@@ -20,16 +20,31 @@ Started at `c8dc93df4` (merged `coordinator` + `backend@80051b2f0`); `backend@dc
 | U-4 | CE-1483 | ✅ DONE | template houses are tan footprints below 6 px/m, floor plan above; `TerrainBlockFrameRail` |
 | U-5 | CE-1484, CE-1490 | ◐ PART | Save terrain as… ✅; **follow-up 2026-11-11: Edit terrain… ✅ (staged to `opened/terrain/<t>`), SOURCE chip + right-click ✅, File ▸ Edit Terrain… / Save Terrain ✅, `TERRAIN SOURCE ·` title ✅**; ⏭ greyed: a terrain whose ground left the catalogue ([NOTE](NOTE_Ui_To_Backend_Edit_Terrain.md)), a terrain with no source (E-3) |
 | U-6 | CE-1485 | ✅ DONE | 3-D chunks adopt a new world and rebuild only those under the dirty rectangles: demo-city 16 chunks, 48 builds at load, one moved rectangle ⇒ 3 builds |
-| U-7 | CE-1486 | ◐ PART | lines / areas / points through the existing tools on T-2; **the area scatter is greyed (no scatter recipe, T-3)**; no options panel |
-| U-8 | CE-1487 | ◐ PART | the three-step wizard over T-1 works; tile pictures are stand-ins, no relief shading |
+| U-7 | CE-1486, CE-1492 | ◐ PART | lines / areas / points through the existing tools on T-2; **follow-up 2: the options panel (kind · height · bridge span · scatter recipe / density / seed), per-type coloured clutter glyphs**; **the area scatter is greyed (no recipe carries a `scatter` section yet)** |
+| U-8 | CE-1487, CE-1491 | ✅ DONE (follow-up 2: the plan with relief, chips, tooltip, zoom; the preset tiles generated; the mockup's rows) | the three-step wizard over T-1; deviations in §15a-2 (the engine's option labels, no clutter / bridge rows) |
 
 ## What is greyed, and why
 
 | surface | reason |
 |---|---|
-| block menu ▸ *Unpack into houses and features* | backend's T-4 (CE-4431) is not built; the row names it |
-| the placing hint's road alignment | engine ignores `AlignRoad` until backend's CE-3431 — the ghost's hint line says *road alignment later (CE-3431)* |
-| *Street clutter* (the area scatter) in Clutter | backend ships no recipe with a `scatter` section yet (T-3); the tile is greyed with that reason |
+| block menu ▸ *Unpack into houses and features* | ⚠ backend's T-4 (`BlockOperations`) IS merged now; wiring the menu to it was not in follow-up 2's three gaps — still greyed, **resume here** |
+| the placing hint's road alignment | ⚠ backend's T-5 (CE-3431, `AlignRoad`) IS merged; the ghost still says *road alignment later (CE-3431)* — to be rewired (the ghost's expander call needs the road net) |
+| *Street clutter* (the area scatter) in Clutter | backend's T-3 part 1 shipped the recipe vocabulary but no recipe with a `scatter` section; the tile stays greyed — it lights by itself when one lands |
+| the bridge panel's *road edge at save* | backend's T-7 (CE-4423); the panel says so |
+
+## Follow-up 2 (2026-11-11) — gaps measured against mockups 1 and 3
+
+Merged `backend@78eb37d3d` (T-3 part 1, T-4, T-5) into `ui` first (`f011b98ea`); the one real conflict was `FeatureExpander` (my `Shapes` for the ghost on top of backend's `ElementState` refactor — folded in) and three recipe files (my `"ui"` object re-added).
+
+| gap | state | rail (red-proved) | note |
+|---|---|---|---|
+| A the preview plan | ✅ | `RandomTerrainWizardTests.U8_ThePlanGroupsTouchingBlocksIntoOneChip_…` (GroupGap mutation), `…U8_ThePlanFrame_…` (relief mutation) | the "one strip" was the rail's fake service, not a drawing defect; real blocks were drawn unlabelled. Per-block labels, relief shading, caption, tooltip, zoom, rows, Back to the preset built. |
+| B step ① | ✅ | `U8_TheWizardsFrames_…` (picture mutation) | pills + dashes + generated preset pictures; the workflow strip is a grey annotation (not drawn by the app) |
+| C page 3 | ◐ | `TerrainDrawPanelFrameRail` (kind-click mutation), `U7_TheDrawingPanelsChoices_…` (Born mutation), `TheGalleryOpenedOnClutter_…` (glyph-feed mutation), `U7_EveryClutterTypeHasItsOwnGlyph_…` (key mutation) | panel for hedge / bridge / scatter, per-type glyph tiles, scatter pick lights with a recipe. ⏭ greyed: Street clutter (no scatter recipe), the bridge's road edge (T-7) |
+
+Ids: CE-1491 (A + B), CE-1492 (C). Frames this run (⛔ not in git): `u8-wizard-1-preset.png`, `u8-wizard-2-preview.png`, `u8-wizard-2b-zoom.png`, `u7-draw-panel-{hedge,bridge,scatter}.png`, `u7-add-entity-clutter.png` under the session scratchpad `terrain-shots/`.
+
+**Not done, honestly:** the placed wall / bridge on the map was not rendered beside the mockup's (only the panel and the tiles were): the in-progress line is the shared drawing look and was not changed; *Unpack* and the ghost's road alignment (T-4 / T-5 merged) are not rewired; the gallery has no *Scatter in an area…* header button; no 3-D look at any of it.
 
 ## Premises that failed (R-106 — that item only, the rest continued)
 

@@ -116,6 +116,16 @@ public sealed class TerrainAddEntityFrameRail : IDisposable
         registry.OpenPicker(req!, _ => { });
         for (int i = 0; i < 10; i++) frame.Step(registry.DrawFrame);
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) { Directory.CreateDirectory(dir); frame.Screenshot(Path.Combine(dir, "u7-add-entity-clutter.png")); }
+
+        // gap C (mockup 3): each clutter tile carries ITS OWN coloured glyph — a barrel and sandbags amber, a crate and a booth orange, a car grey — not the generic map pin on every tile
+        var shot = Raylib.LoadImageFromScreen();
+        try
+        {
+            int Count(NodeEditor.Core.Widgets.IconGlyph g) { var c0 = g.Color; int n = 0; for (int y = 0; y < shot.Height; y++) for (int x = 0; x < shot.Width; x++) { var c = Raylib.GetImageColor(shot, x, y); if (Math.Abs(c.R - c0.X * 255) < 6 && Math.Abs(c.G - c0.Y * 255) < 6 && Math.Abs(c.B - c0.Z * 255) < 6) n++; } return n; }
+            Assert.True(Count(NodeEditor.Core.Widgets.Icons.Get("clutter/barrel")) > 150, "the barrel's and the sandbags' amber glyphs are on the tiles");
+            Assert.True(Count(NodeEditor.Core.Widgets.Icons.Get("clutter/crate")) > 150, "the crate's and the booth's orange glyphs are on the tiles");
+        }
+        finally { Raylib.UnloadImage(shot); }
     }
 
     private sealed class NoSpawn : Hrot.UI.Common.Facades.ISpawnController
