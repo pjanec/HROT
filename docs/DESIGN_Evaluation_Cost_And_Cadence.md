@@ -1218,3 +1218,33 @@ Rail: `PersonHandsTests.CE4395_LethalInHand_AllocatesNothing_AndAnswersAsBefore`
 (27 orders over 60 walking ticks, 25 KB; 0 B on a tick that issues none). An order is a managed `AssignTacticalIntentEvent` with JSON parameters
 — allocation on a CHANGE, by that event's design, frequent only because 125 squads march at once. ⇒ zero needs an unmanaged order event:
 behaviors' contract, not done here (noted to behaviors).
+
+## 13. ⏳ The editor's preview frame at 1 000 men — option (c): the simulation on a worker, the drawing from a snapshot *(coordinator, `2026-11-11`; decision input for CE-4433 — NOT ruled)*
+
+🔒 User, `2026-11-11`: *"a big 3d map frame rate drop when i unpaused"* · *"Same with the UI. Unresponsive when complex sim running."* · *"can we actually
+render the 3D in different thread than the one which is calculating the main tick"* · *"the IMGUI needs to write back … then we would have to switch
+into command buffers. Correct?"*. The measurement is CE-4433 (Windows, hidden); this section holds what was measured in CODE (grep counts, not the graph) so
+the decision has its cost table when the numbers land.
+
+| fact | where |
+|---|---|
+| ONE loop on the main thread: `orchestrator.Update` (simulation AND map preparation) → `DrawWorldAll` → `rlImGui` panels | `Program.cs:703-722` |
+| the window, its GL context and ImGui live on the main thread ⇒ the 3-D draw and ImGui STAY together; the SIMULATION is what can move | `RaylibPresentationShell.cs:35, :139` |
+| preview Play is CONTINUOUS — no wait on background jobs (stepped mode's wait, Time Architecture §17, is not the cause) | `MasterSyncController.cs:189-192`; `ModuleHostKernel.cs:678-683` |
+| the brain writes the live world in place (~100 `GetComponentRW` sites) and refuses a snapshot ⇒ it stays on the simulation side, untouched by (c) | `BrainTickSystem.cs:146-149` |
+
+**The write side of (c) — how the UI writes the world today:**
+
+| kind | count | under (c) |
+|---|---|---|
+| bus events (orders, delete, assign …) | ~96 | unchanged (already commands; whether the bus delivers at once or next frame — ⛔ not verified) |
+| ONE routed path: `Edits.Submit`, `IEntityComponentWriter`, `RequestEntityCreation`, JSON patch | ~69 calls | creation is already a request; the paths' DIRECT branch (this node owns it) is queued — one change per path |
+| the Details forms: `IInspectableSession.SetComponent` → `RepositoryAdapter` (reflection write) | 1 seam | queued at the seam — every form edit follows |
+| direct writes to SIMULATION state bypassing the paths | ~24 sites / ~15 files — drag / rotate / group previews of `SimTransform` + `VehicleState` (6), `TerrainBlockOps` (5), route / polyline gizmos (2), `ParamUsage` / `MacroArgs` / `WeatherEdit` (4), `BrainSettings` / `PlayableOps` / `OccurrenceSlotWriter` (5), `SelectionInteractionSystem` destroy (1), debug API / verifier (2) | each a queued edit; the previews become a drawn ghost, only the commit queued |
+| direct writes to UI-ONLY state — selection (6), map display (2), menu / form / browser singletons (~10), visual-effect entities (~22) | ~40 | moved to the drawing side (a presentation world / store), no command |
+
+**The read side:** hit-testing, selection, gizmos and panels read an `ISimulationView` already — they read the published snapshot (one step old), and
+the map-preparation systems move from the simulation kernel into a drawing kernel.
+
+⇒ (c) is a moderate, mostly mechanical change on the UI side (three seams queued, ~24 sites converted, ~40 moved), plus the kernel split and the
+snapshot copy (CE-4433 P-2 measures it). ⛔ Decided only after CE-4433: (a) interleaving soldiers (§3 D6) and (b) cutting the named non-brain cost may be enough.
