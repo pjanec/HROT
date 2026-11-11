@@ -1263,7 +1263,7 @@ we create snapshots. How could we align it with that?"*
 
 **What the kernel does NOT have yet** (the actual work): ① a published-snapshot handoff for an EXTERNAL reader — ⚠ `DoubleBufferProvider` holds ONE replica synced in place at the sync point (`DoubleBufferProvider.cs:63-66`), safe only because FrameSynced readers are joined before the next sync; the guide's two-replica swap is not what the code does; ② ~~a PRESENTATION kernel on the GL thread~~ ⛔ withdrawn the same day (13.2 — ONE kernel, no duplicated monitoring / diagnostics): the map-preparation systems (gizmos, styling, layer assignment) run today as Synchronous / Direct systems in the simulation's kernel — they move to a kernel of their own whose live world holds only UI state (selection, display, effects — §13's ~40 UI-only writes) and which reads the leased replica as its `ISimulationView`; ③ hardware input: systems that poll the window's input must stay on the GL thread (⛔ not yet measured which do); ④ command validation for the UI's queued edits.
 
-### 13.2 ONE kernel, not two *(coordinator, `2026-11-11`; replaces 13.1's ② — not ruled)*
+### 13.2 ONE kernel, not two *(coordinator, `2026-11-11`; ⛔ SUPERSEDED by 13.3 the same day — the user's shape puts the kernel on the worker)*
 
 🔒 User, `2026-11-11`: *"having a second kernel would mean that everything there will be twice. The monitoring, diagnostics. It's not exactly what I
 would like to have. Is that necessary?"* — ⭐ **No.** The same split inside the ONE kernel:
@@ -1278,3 +1278,36 @@ would like to have. Is that necessary?"* — ⭐ **No.** The same split inside t
 
 ⇒ the new thing is ONE kernel feature — "the simulation pipeline as an exclusive off-thread run, presentation modules on the replica" — not a second
 instance of anything. ⛔ Not designed in DES-012 (its World A is ticked on the kernel's own thread); it would be a new section there if (c) is chosen.
+
+### 13.3 ⭐ The user's shape — the kernel on a worker, the presentation as a PULLED module on a leased snapshot *(user, `2026-11-11`; supersedes 13.2 — not ruled)*
+
+🔒 User, `2026-11-11`: *"There is a worker thread that ticks the kernel. The kernel owns the world A … it can take a snapshot at the synchronization point.
+This snapshot is used by the presentation thread, which is the main application thread. The systems that prepare the gizmo stuff are running on an
+asynchronous module of the kernel looping at … different frequency than the kernel's main tick … if there is no new snapshot, it runs again with the
+old one … This might be a new Kernel strategy."*
+
+```mermaid
+sequenceDiagram
+  participant W as Worker thread - the kernel
+  participant P as Snapshot pool
+  participant M as Main thread - render loop
+  W->>W: tick World A - simulation modules
+  W->>P: sync point - fill a FREE pooled snapshot, publish it as latest
+  W->>W: harvest - apply the presentation's queued commands, validated
+  loop every drawn frame
+    M->>P: lease the latest snapshot - the old one if none newer
+    M->>M: run the presentation module's systems on it - gizmos, interaction, input, panels
+    M->>W: hand over this frame's commands - thread-safe queue
+    M->>P: release the lease - the kernel may now reuse that snapshot
+  end
+```
+
+| piece | today | new |
+|---|---|---|
+| the kernel ticked by ONE thread that owns World A | ✅ any thread | the worker's loop, paced by the clock |
+| a snapshot at the sync point | ✅ providers + `SnapshotPool` | ⚠ never overwritten while leased — `DoubleBufferProvider` overwrites its one replica in place (`:63-66`); use pooled snapshots with a lease |
+| an async module on a snapshot, writing commands | ✅ DES-012 §3.3, harvested by the kernel | ⭐ **the new strategy: THREAD-AFFINE, PULLED** — run on the main thread by the render loop, at its rate, not dispatched to the pool by the kernel |
+| re-run on the same snapshot | ✅ by the lease | the snapshot's accumulated events consumed once (a first-run flag) |
+| one registry, one profiler, one diagnostics | ✅ one kernel | timings accepted from the main thread |
+| UI-only state (selection, display, effects, ghost) | written on World A today (~40 sites, §13) | a presentation-owned data store keyed by entity — no kernel |
+| ImGui panels (read World A directly, 12 files) | — | read the leased snapshot |
