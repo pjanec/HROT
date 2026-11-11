@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-11
-current-answer: §2 — nine sub-questions, each with a recommended answer for the user to approve or change
+current-answer: §2 — nine sub-questions, ✅ all approved as recommended (R-4206, `2026-11-11`)
 stale-below: nothing
 related-designs:
   - ../DESIGN_Threaded_Simulation_Presentation.md — OWNS the concept (R-4205); this question settles its open details (its §10) before S-1
@@ -39,4 +39,4 @@ the time controller `MasterSyncController` (`Fdp.Toolkits/Time/Controllers/`). �
 
 ## 3. Answers
 
-⏳ For the user. Approved sub-questions become rulings in `RULINGS.md` and fold into the design's §4 / §9.
+✅ **All nine approved** — 🔒 user, `2026-11-11`: *"Approved."* ⇒ R-4206. The design's §4 / §9 follow them.
