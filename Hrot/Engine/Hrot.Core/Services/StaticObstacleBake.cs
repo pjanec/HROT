@@ -79,6 +79,19 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         }
     }
 
+    /// <summary>
+    /// ⭐ O-7 B (CE-4418, docs/DESIGN_Terrain_Authoring.md §18e-2 B-1) — the editor's live block expansion; null on every other host (a block is inert data there: the compiled overlay reaches them at load).
+    /// Set by the host that owns it, right after <c>EntityCreationPack.Build</c>; ⚠ a forwarding rail asserts it on the editor's constructed system (B-4).
+    /// </summary>
+    public LiveOverlay? LiveOverlay { get => _liveOverlay; set => _liveOverlay = value; }
+    private LiveOverlay? _liveOverlay;
+
+    /// <summary>The overlay parts of the last committed bake (diagnostics / rails) — empty when none.</summary>
+    public IReadOnlyList<OverlayPart> BakedParts { get; private set; } = Array.Empty<OverlayPart>();
+
+    /// <summary>The last committed bake's dirty rectangles (null = unknown / everything) — what ui's 3-D chunk rebuild redoes (B-5).</summary>
+    public IReadOnlyList<(Vector2 Min, Vector2 Max)>? LastDirty { get; private set; }
+
     /// <summary>Bakes committed (diagnostics / rails).</summary>
     public int Bakes { get; private set; }
 
@@ -123,7 +136,11 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         ulong navHash = damage?.NavHash ?? 0UL;
         ulong signature = Signature();
         if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
-        bool changed = signature != _bakedSignature || ((_prisms.Count > 0 || navHash != 0) && bakery.BaseVersion != _bakedBase);
+        // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
+        ulong overlayHash = _liveOverlay?.SignatureOfWorld(world) ?? LiveOverlay.EmptySignature;
+        bool hasOverlay = overlayHash != LiveOverlay.EmptySignature;
+        if (hasOverlay) { signature ^= overlayHash; signature *= 1099511628211UL; }
+        bool changed = signature != _bakedSignature || ((_prisms.Count > 0 || navHash != 0 || hasOverlay) && bakery.BaseVersion != _bakedBase);
         if (!changed)
         {
             foreach (var e in _pending) Ack(world, e);   // already in the baked world (e.g. it arrived while that bake ran)
@@ -140,7 +157,19 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         _runningOn = residency;
         _runningBatch = new List<Entity>(_pending);
         _runningSignature = signature;
-        _running = Task.Run(() => residency.BakeObstacles(prisms, damage));
+        // ⭐ O-7 B — the blocks are read here, on the frame thread; their EXPANSION runs on the bake's task (B-2: only a changed entity re-expands)
+        var overlay = _liveOverlay;
+        var sources = hasOverlay && overlay != null ? overlay.Snapshot(world) : null;
+        _running = Task.Run(() =>
+        {
+            LiveOverlayResult? expanded = null;
+            if (overlay != null && sources != null)
+            {
+                var (@base, version, folder) = residency.ExpansionBase();
+                expanded = overlay.Expand(sources, @base, version, folder);
+            }
+            return residency.BakeObstacles(prisms, damage, expanded);
+        });
     }
 
     /// <summary>The building damage this node's world holds (the view's <see cref="DoorStates.Damage"/>), or null.</summary>
@@ -173,6 +202,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         _bakedBase = residency.BaseVersion;
         Bakes++;
         LastBakeMilliseconds = bake.Milliseconds;
+        BakedParts = bake.Parts; LastDirty = bake.Dirty;
         FdpLog<StaticObstacleBakeSystem>.Info(
             $"[Obstacles] Baked {bake.Obstacles} static obstacle(s) into the terrain in {bake.Milliseconds} ms; acking {batch.Count}.");
         foreach (var e in batch) Ack(world, e);

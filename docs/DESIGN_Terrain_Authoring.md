@@ -1021,3 +1021,17 @@ block dirties only its old and new place — woods included.
 | B-3 the editor's load | the editor must NOT also merge the compiled overlay at load, or each house appears twice — ⚠ to be measured first (STOP if it does) | — |
 | B-4 forwarding | a rail on the CONSTRUCTED editor system that its `LiveOverlay` is set (the silent-default rule) | — |
 | B-5 3-D chunks | the dirty rects of each committed bake are exposed (`ObstacleBake.Dirty`) for ui's chunk rebuild | ui deriving them again — a second diff |
+
+**As built (O-7 B, `2026-11-11`)** — what the build did against the table above:
+
+| as built | note |
+|---|---|
+| B-3 measured first: the editor loads BASE ONLY | its staging root has no gateway-written `ScenarioHeader.json`, so `TerrainLoadStep` reads no `OverlayHash` (`ScenarioTerrainName.ReadOverlayHash`, `TerrainLoadStep.cs:87`); the only writer of that field is `StorageGatewayModule` (orchestrator). A block is therefore never drawn twice |
+| the per-entity expansion is `OverlayExpansion` (`Fdp.Toolkits/Terrain`) — `Block`, `House`, `WorldDocument`, `SortByLabel`, `Hull` — called by `OverlayCompiler.Compile` AND `LiveOverlay` | ⚠ deviation: factored out into `Fdp.Toolkits`, not left in the Recast project, because `Hrot.Core` does not reference Recast; the compiler's JSON reading stays in the compiler |
+| `LiveOverlay` (`Hrot.Core/Services/LiveOverlay.cs`): `SignatureOfWorld` (allocation-free, cached queries) · `Snapshot` (frame thread, only on change) · `Expand` (bake task; cache by key + params at 1 cm, dropped on a new base; a source that fails is logged and skipped) | parts = `OverlayPart(Key, GeometryHash, Min, Max)` |
+| `StaticObstacleBakeSystem.LiveOverlay` (settable, null by default); its signature gains the overlay hash; the expansion runs inside the bake task | ⚠ deviation: wired by ASSIGNMENT on the constructed system in `EditorNodeBootstrapper.RegisterSpawningPipeline`, not a pack parameter — no other host can get one by forgetting a field |
+| `TerrainResidency.BakeObstacles(prisms, damage, overlay)`: `With(Merge(base, overlay), …)`; the overlay carries the base it was expanded for (and that base's version), so a base that moved meanwhile makes the commit refuse the bake; `ExpansionBase()` = (base, version, terrain folder) | dirty = prism diff + damage diff + the parts that differ by key + geometry hash (old and new) |
+| `ObstacleBake.Dirty` (null = unknown = everything), mirrored by `StaticObstacleBakeSystem.LastDirty` and `BakedParts` | B-5; set on every bake, navmesh or not |
+
+Rails: `LiveOverlayBakeTests` (a block in the baked world · a moved block dirties exactly its old and new parts, an unchanged block is not re-expanded · steady frames allocate nothing beyond a plain system),
+`EntityCreationPackRails.OnlyTheEditorRoot_GivesTheObstacleBakeALiveOverlay` / `APackBuiltObstacleBake_HasNoLiveOverlayByDefault`, `TheEditorShowsItsTerrainBlocksLiveTests` (B-4).

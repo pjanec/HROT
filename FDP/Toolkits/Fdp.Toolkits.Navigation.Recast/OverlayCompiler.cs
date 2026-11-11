@@ -64,17 +64,14 @@ public static class OverlayCompiler
         {
             var tb = (JsonObject)e["TerrainBlock"]!;
             string recipeId = (string?)tb["Recipe"] ?? throw new InvalidOperationException($"[Terrain] TerrainBlock {guid} has no Recipe.");
-            var recipe = TerrainRecipe.Find(recipeId, roots);
             uint seed = tb["Seed"] is JsonNode sn ? (uint)sn.GetValue<double>() : 0u;
             float heading = tb["HeadingDeg"] is JsonNode hn ? (float)hn.GetValue<double>() : 0f;
             byte fit = tb["Fit"] is JsonNode fn ? (byte)fn.GetValue<int>() : TerrainBlock.FitAll;
-            var at = PositionOf(e, guid);
-            var x = FeatureExpander.Expand(recipe, seed, at, heading, fit, baseWorld, guid, assets);
+            // ⭐ O-7 B — the per-block expansion is shared with the editor's live overlay (OverlayExpansion): ONE code path, two callers
+            var x = OverlayExpansion.Block(guid, recipeId, seed, heading, fit, PositionOf(e, guid), baseWorld, assets, roots);
             features.AddRange(x.Features);
             houses += x.Houses; woods += x.Woods;
-            var outline = new JsonArray();
-            foreach (var p in Hull(x.Points)) outline.Add(new JsonArray(MathF.Round(p.X * 100f) / 100f, MathF.Round(p.Y * 100f) / 100f));
-            blockSummaries.Add(new JsonObject { ["key"] = guid, ["recipe"] = recipeId, ["seed"] = seed, ["houses"] = x.Houses, ["woods"] = x.Woods, ["clutter"] = 0, ["outline"] = outline });
+            blockSummaries.Add(x.Summary);
         }
         foreach (var (guid, e) in feats)
         {
@@ -84,25 +81,15 @@ public static class OverlayCompiler
             string template = (string?)tf["Template"] ?? throw new InvalidOperationException($"[Terrain] TerrainFeature {guid} has no Template.");
             float heading = tf["HeadingDeg"] is JsonNode hn ? (float)hn.GetValue<double>() : 0f;
             float pad = tf["Pad"] is JsonNode pn ? (float)pn.GetValue<double>() : 0f;
-            features.Add(FeatureExpander.House(baseWorld, assets, template, PositionOf(e, guid), heading, pad, guid));
+            features.Add(OverlayExpansion.House(guid, template, heading, pad, PositionOf(e, guid), baseWorld, assets));
             houses++;
         }
-        features.Sort((a, b) => string.CompareOrdinal(Label(a), Label(b)));
+        OverlayExpansion.SortByLabel(features);
 
         Directory.CreateDirectory(partDir);
         try
         {
-            // ⭐ the overlay world declares the BASE's bounds (grown only to hold a feature outside them): the merged bounds are the union, and a tile's navmesh key covers the ground rectangle,
-            //   so bounds that moved would give every base tile another key and the base's navtiles would never hit (measured: 0 of 610 with the features' own ±50 m margin)
-            var bmin = baseWorld.BoundsMin; var bmax = baseWorld.BoundsMax;
-            foreach (var feat in features) GrowBounds(((JsonObject)feat["geometry"]!)["coordinates"], ref bmin, ref bmax);
-            var world = new JsonObject
-            {
-                ["type"] = "FeatureCollection",
-                ["hrot"] = new JsonObject { ["schemaVersion"] = 1, ["groundZ"] = baseWorld.GroundZ, ["bounds"] = new JsonArray(bmin.X, bmin.Y, bmax.X, bmax.Y) },
-            };
-            var arr = new JsonArray(); foreach (var f in features) arr.Add(f);
-            world["features"] = arr;
+            var world = OverlayExpansion.WorldDocument(baseWorld, features);
             string worldName = TerrainOverlayHeader.DefaultWorldFileName;
             File.WriteAllText(Path.Combine(partDir, worldName), world.ToJsonString());
 
@@ -139,18 +126,6 @@ public static class OverlayCompiler
         }
     }
 
-    private static void GrowBounds(JsonNode? coords, ref Vector2 min, ref Vector2 max)
-    {
-        if (coords is not JsonArray a || a.Count == 0) return;
-        if (a[0] is JsonValue)
-        {
-            float x = (float)a[0]!.GetValue<float>(), y = (float)a[1]!.GetValue<float>();
-            min = Vector2.Min(min, new Vector2(x, y)); max = Vector2.Max(max, new Vector2(x, y));
-            return;
-        }
-        foreach (var c in a) GrowBounds(c, ref min, ref max);
-    }
-
     /// <summary>A property by name, either casing (the writer's scenario files are camelCase, an older slice was PascalCase).</summary>
     private static JsonNode? Prop(JsonObject? o, string name)
     {
@@ -161,27 +136,10 @@ public static class OverlayCompiler
 
     private static JsonObject Normalised(JsonObject entity) => (JsonObject)JsonNode.Parse(entity.ToJsonString())!;
 
-    private static string Label(JsonObject f) => (string)((JsonObject)f["properties"]!)["label"]!;
-
     private static Vector2 PositionOf(JsonObject entity, string guid)
     {
         if (entity["SimTransform"] is JsonObject t && t["Position"] is JsonArray p && p.Count >= 2)
             return new Vector2((float)p[0]!.GetValue<double>(), (float)p[1]!.GetValue<double>());
         throw new InvalidOperationException($"[Terrain] Entity {guid} carries a terrain block / feature but no SimTransform.Position.");
-    }
-
-    /// <summary>The convex hull (Andrew's monotone chain), counter-clockwise, no repeated closing point.</summary>
-    internal static List<Vector2> Hull(IReadOnlyList<Vector2> pts)
-    {
-        var p = new List<Vector2>(pts);
-        p.Sort((a, b) => a.X != b.X ? a.X.CompareTo(b.X) : a.Y.CompareTo(b.Y));
-        if (p.Count < 3) return p;
-        static float Cross(Vector2 o, Vector2 a, Vector2 b) => (a.X - o.X) * (b.Y - o.Y) - (a.Y - o.Y) * (b.X - o.X);
-        var h = new List<Vector2>();
-        foreach (var q in p) { while (h.Count >= 2 && Cross(h[^2], h[^1], q) <= 0) h.RemoveAt(h.Count - 1); h.Add(q); }
-        int lower = h.Count + 1;
-        for (int i = p.Count - 2; i >= 0; i--) { while (h.Count >= lower && Cross(h[^2], h[^1], p[i]) <= 0) h.RemoveAt(h.Count - 1); h.Add(p[i]); }
-        h.RemoveAt(h.Count - 1);
-        return h;
     }
 }
