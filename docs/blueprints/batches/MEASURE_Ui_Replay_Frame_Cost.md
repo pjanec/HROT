@@ -124,6 +124,29 @@ Same machine, same editor build, `HROT_FRAME_STATS=1`, `--target-fps 0`; live = 
 - ⚠ A live run of this scenario is **not** a 1 000-man frame budget reference: at ~60 s the sim alone is 1.8–2.0 s per frame on these 4 cores (`EqsSolverSystem` + `WeaponDispatcherSystem` + `BrainTickSystem`), and the live-only garbage (`DiagnosticEventHistoryService`, ~19 MB per frame) dwarfs the replay's.
 - Caveats: the editor binary still carried the (env-off) probe from §Method; live recording was on; `/diagnostics/architecture` "recent" values of sim systems are stale while paused (hence interval means); GC/min over 20–46 s windows is coarse.
 
+## 8. The Replay Browser, before and after P1 + P2 (`2026-11-11`, the user's actual path)
+Same recording (1 000-man, 91 frames, 5 647 entities), the **Replay Browser** host (`-m replaybrowser`, `xvfb`, `--target-fps 0`, `HROT_FRAME_STATS=1`, `POST /replay {path}` → `POST /sim/play` from 0 to frame 90, two passes); "before" = `HROT_REPLAY_PREFETCH=0 HROT_REPLAY_FULL_REPAIR=1` (the pre-P1/P2 path, same build); per-apply numbers from `HROT_REPLAY_STATS=1` (`[ReplayApply]` lines, active frames ≥ 25).
+| | before | P1 + P2 (first cut) | P1 + P2 (final) |
+|---|---|---|---|
+| **ApplyFrame, median / p95 / max** (active deltas, n 132) | **109 / 160 / 215 ms** | 63 / 145 / 602 | **32 / 47 / 87 ms** |
+| of which repair (entity index + managed masks) | 74 ms (whole index: 1 005 364 entity visits) | 34 ms (partial, but 110 000–800 000 visits) | **7 ms** (110 000 visits, dead slots skipped) |
+| read + LZ4 decode on the applying thread | 12 ms median | 0 (worker) | **0** (frame 61, the first inline one after a keyframe, is the only exception) |
+| browser plays the 91 frames in | 11.7 s | 11.3 s | **5.9 s** |
+| render frame while playing (the windows that hold applies) / update | 1 615 / 1 488 ms | 1 624 / 1 426 | **682 / 554 ms** |
+| garbage per apply | 10.9 MB | 10.8 MB | 10.8 MB |
+
+📐 **The first P2 cut was slower than the whole-world pass** (measured, kept in the record): it also scanned every managed table over the entities of every restored mask chunk — 500 000–800 000 entity-table pairs per frame, 50–90 ms. The restored mask chunk already carries the masks next to the data the recorder saw, so that scan was dropped (`PlaybackSystem.RepairManagedComponentMasksPartial`); the other half of the win is that `RepairEntityIndex` / the full mask pass no longer visit the ~500 000 DEAD slots of the index (5 647 live).
+
+**What the Browser pays that the editor does not (replay-only):**
+| cost | where | size |
+|---|---|---|
+| ⭐ **one recorded frame is applied per 1/60 s of playback, up to 10 per render frame** — playback is paced by FRAME COUNT, not recorded time | `ReplayBrowserSubsystem.cs:445-464` (`frameTime = 1/60`, accumulator clamp `frameTime * 10`) → `TryStepForwardViaManager` → `FederatedReplayManager.StepForwardAll` | the editor's replay clock applies ~0.15 frames per render frame (§3); the Browser applies up to **10** — at 5 fps that is 10 × 32 ms ≈ 320 ms of the render frame's 550 (before: 10 × 109 ms = 1.1 s of 1.5 s — the user's < 1 fps). A recording whose frames are 1.4 s apart plays at ~84× |
+| the sequential step per frame: `ClearCurrentBuffers` → apply → `OnTimeChanged` (view rebind) → `DeliverTheSteppedFrameEvents` | `ReplayBrowserContext.StepForward` · `ReplayBrowserSubsystem.cs:1355-1358` | measured inside the 32 ms apply + ~20 ms/render frame of the rest of update |
+| garbage per apply ~10.8 MB (managed-chunk deserialisers + `ChunkBuffer`), 11 MB × up to 10 per render frame | `PlaybackSystem.RestoreManagedTable`, `ChunkBuffer` | ~110 MB per Browser render frame while playing |
+Filed: **CE-1479** (pace the Browser's playback by recorded time, as the editor's replay clock does).
+
+Method: `HROT_REPLAY_STATS=1` prints one `[ReplayApply]` line per apply (stderr); `HROT_REPLAY_PREFETCH=<depth>` / `HROT_REPLAY_FULL_REPAIR=1` switch P1 / P2 off in the same build; the scripts were a seek → `/sim/play` → poll `/replay/status` loop over the debug API (port via `HROT_DEBUG_API_PORT`).
+
 ## Method — re-run
 1. Build once: `dotnet restore` + `dotnet build Hrot/Runner/Hrot.ClusterRunner -v q --no-restore`. Temporary probe (env-gated, not committed): stopwatch + `GC.GetAllocatedBytesForCurrentThread()` brackets in `PlaybackController.ApplyFrame` (read / decode / apply) and `PlaybackSystem.ApplyFrame` (each section, each chunk by type; identity = compare the table's bytes with the blob before `RestoreChunkFromBuffer`, 64-byte block diff), a per-tick record in `PlaybackTickSystem`, and an `EventListener` on `Microsoft-Windows-DotNETRuntime` keyword `0x1` verbose.
 2. Launch (parts, never the literal): `M=editor; HROT_DEBUG_API_PORT=8131 HROT_HIDDEN_WINDOW=1 HROT_FRAME_STATS=1 setsid nohup xvfb-run -a dotnet …/Hrot.ClusterRunner.dll --mode $M --target-fps 0 &`; kill by recorded PID.
