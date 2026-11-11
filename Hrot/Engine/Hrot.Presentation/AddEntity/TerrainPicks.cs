@@ -5,7 +5,10 @@ using Fdp.Toolkit.Terrain;
 namespace Hrot.UI.Common.AddEntity;
 
 /// <summary>What a terrain pick places: a <see cref="Fdp.Toolkit.Terrain.TerrainBlock"/> (a recipe) or one <see cref="Fdp.Toolkit.Terrain.TerrainFeature"/> (a house).</summary>
-public enum TerrainPickKind { Block, House }
+public enum TerrainPickKind { Block, House, Feature }
+
+/// <summary>How a feature is drawn: one click (a tree, a clutter item), a line (a wall, a bridge: ≥ 2 points), or an area (a wood, a lake: ≥ 3).</summary>
+public enum TerrainShape { Point, Line, Area }
 
 /// <summary>
 /// ⭐ Terrain authoring U-1 (docs/DESIGN_Terrain_Authoring.md §11 B-5, §15.U-1) — ONE entry of Add Entity's terrain groups: a RECIPE (a <see cref="TerrainRecipe"/>, not a DIS type) or a building TEMPLATE.
@@ -15,11 +18,18 @@ public enum TerrainPickKind { Block, House }
 /// <param name="Chip">The chip under the group (Rural, Urban, Military, Nature…), or null.</param>
 /// <param name="Line">The one line under the tile ("house, barns, yard").</param>
 /// <param name="Facts">The side pane's rows (label, value).</param>
+/// <param name="FeatureKind">⭐ U-7 — the <see cref="Fdp.Toolkit.Terrain.TerrainFeature"/> kind a <see cref="TerrainPickKind.Feature"/> places; <paramref name="Template"/> its material / clutter type / recipe; <paramref name="Shape"/> how it is drawn; <paramref name="Disabled"/> why it cannot be placed yet (null = it can).</param>
 /// <param name="Picture">The tile's PNG (the recipe at its default seed, <see cref="TerrainThumbnails"/>), or null when none was asked for.</param>
-public sealed record TerrainPick(TerrainPickKind Kind, string Id, string Name, string Group, string? Chip, string Line, IReadOnlyList<(string Label, string Value)> Facts, string? Picture = null)
+public sealed record TerrainPick(TerrainPickKind Kind, string Id, string Name, string Group, string? Chip, string Line, IReadOnlyList<(string Label, string Value)> Facts, string? Picture = null,
+    byte FeatureKind = 0, string Template = "", TerrainShape Shape = TerrainShape.Point, string? Disabled = null)
 {
-    /// <summary>The placement spec the arm carries (<c>block:hamlet</c> / <c>house:house-2f</c>) — what <see cref="TerrainBirth"/> reads.</summary>
-    public string Spec => (Kind == TerrainPickKind.Block ? "block:" : "house:") + Id;
+    /// <summary>The placement spec the arm carries (<c>block:hamlet</c> / <c>house:house-2f</c> / <c>feature:2:brick:Line</c>) — what <see cref="TerrainBirth"/> reads.</summary>
+    public string Spec => Kind switch
+    {
+        TerrainPickKind.Block => "block:" + Id,
+        TerrainPickKind.House => "house:" + Id,
+        _ => $"feature:{FeatureKind}:{Template}:{Shape}",
+    };
 }
 
 /// <summary>
@@ -38,12 +48,35 @@ public static class TerrainPickCatalog
     /// <summary>The chips of the Blocks group, in the mockup's order.</summary>
     public static readonly IReadOnlyList<string> BlockChips = new[] { "Rural", "Urban", "Military", "Nature" };
 
-    /// <summary>Why a group lists nothing yet, or null for one that lists entries.</summary>
-    public static string? PendingReason(string group) => group switch
+    /// <summary>Why a group lists nothing yet, or null for one that lists entries (every group lists since backend's T-2).</summary>
+    public static string? PendingReason(string group) => null;
+
+    /// <summary>
+    /// ⭐ Terrain authoring U-7 (backend's T-2, CE-4429; mockup 3) — the SINGLE-FEATURE picks, not files: trees, scrub and woods (Vegetation), walls · fences · hedges (a line), the clutter types of <c>ClutterTypes</c>, water and a bridge. A pick arms the point tool or the
+    /// line / area drawing tool; the entity it makes is a <c>TerrainFeature</c> of that kind (+ an <c>EditablePolyline</c> for a line / area). ⛔ The area SCATTER is listed greyed with its reason: backend shipped no scatter recipe yet (T-3).
+    /// </summary>
+    public static IReadOnlyList<TerrainPick> FeaturePicks()
     {
-        Vegetation or Walls or Clutter or Water => "Needs the single-feature kinds of backend's T-2 (CE-4429) — not built yet.",
-        _ => null,
-    };
+        TerrainPick F(string group, byte kind, string name, string template, TerrainShape shape, string line, string? disabled = null)
+            => new(TerrainPickKind.Feature, name.ToLowerInvariant().Replace(' ', '-'), name, group, null, line,
+                   new[] { ("Drawn as", shape switch { TerrainShape.Point => "one click", TerrainShape.Line => "a line: click the points, right-click or Enter finishes", _ => "an area: click the corners, right-click or Enter finishes" }) },
+                   null, kind, template, shape, disabled);
+        var l = new List<TerrainPick>
+        {
+            F(Vegetation, TerrainFeature.Wood, "Wood", "", TerrainShape.Area, "an area of trees"),
+            F(Vegetation, TerrainFeature.Scrub, "Scrub", "", TerrainShape.Area, "an area of bushes"),
+            F(Vegetation, TerrainFeature.Tree, "Tree", "", TerrainShape.Point, "one tree"),
+            F(Walls, TerrainFeature.Wall, "Wall", "", TerrainShape.Line, "a brick or concrete wall, 2 m"),
+            F(Walls, TerrainFeature.Fence, "Fence", "", TerrainShape.Line, "a wooden fence, 1.6 m"),
+            F(Walls, TerrainFeature.Hedge, "Hedge", "", TerrainShape.Line, "a hedge, 1.5 m"),
+            F(Water, TerrainFeature.Water, "Water", "", TerrainShape.Area, "a lake or pond; impassable"),
+            F(Water, TerrainFeature.Bridge, "Bridge", "", TerrainShape.Line, "a deck over the river between two points, joins the banks"),
+            F(Clutter, TerrainFeature.Scatter, "Street clutter", "", TerrainShape.Area, "cars, barrels and crates scattered in an area", "No scatter recipe is shipped yet (backend's T-3)."),
+        };
+        foreach (var t in Fdp.Toolkit.Terrain.ClutterTypes.All)
+            l.Add(F(Clutter, TerrainFeature.Clutter, t.Name, t.Id, TerrainShape.Point, $"{t.Length:0.#} x {t.Width:0.#} m, {t.Material}"));
+        return l;
+    }
 
     /// <summary>The terrain group a name belongs to; false for any other group.</summary>
     public static bool IsTerrainGroup(string group) { foreach (var g in Groups) if (g == group) return true; return false; }
@@ -83,9 +116,10 @@ public static class TerrainPickCatalog
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }
             }
         }
+        list.AddRange(FeaturePicks());
         if (pictureDir is not null)
             for (int i = 0; i < list.Count; i++)
-                list[i] = list[i] with { Picture = TerrainThumbnails.EnsureFor(list[i], recipeRootList, buildingRootList, pictureDir) };
+                if (list[i].Kind != TerrainPickKind.Feature) list[i] = list[i] with { Picture = TerrainThumbnails.EnsureFor(list[i], recipeRootList, buildingRootList, pictureDir) };
         list.Sort((a, b) =>
         {
             int c = Rank(a.Group).CompareTo(Rank(b.Group));

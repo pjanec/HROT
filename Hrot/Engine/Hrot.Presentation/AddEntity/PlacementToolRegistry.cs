@@ -125,6 +125,13 @@ public static class PlacementToolRegistry
     {
         ArgumentNullException.ThrowIfNull(spawn);
         ArgumentNullException.ThrowIfNull(pick);
+        if (pick.Disabled is not null) return false;   // ⛔ U-7 — a pick the engine cannot place yet arms nothing
+        // ⭐ U-7 — a LINE or AREA feature (a wall, a wood, a bridge) is DRAWN: the existing drawing tool (the area / route arm), its spec riding in the style JSON; a point feature, a block and a house are one click
+        if (pick.Kind == TerrainPickKind.Feature && pick.Shape != TerrainShape.Point)
+        {
+            spawn.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(pick));
+            return true;
+        }
         spawn.StartPlacementMode(pick.Kind == TerrainPickKind.Block ? TkbEntityTypes.TerrainBlock : TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(pick));
         return true;
     }

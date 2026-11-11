@@ -112,7 +112,7 @@ public static class EntityTypeCatalog
         if (terrain is { Count: > 0 })
             foreach (var t in terrain)
                 list.Add(new EntityTypeEntry(t.Kind == TerrainPickKind.Block ? (Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.TerrainBlock : (Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.TerrainFeature,
-                                             t.Name, TerrainFolder + "/" + t.Group, null, t.Kind == TerrainPickKind.Block ? "_block" : "_house", PlacementToolKind.Point, HasSide: true,
+                                             t.Name, TerrainFolder + "/" + t.Group, null, t.Kind == TerrainPickKind.Block ? "_block" : "_house", t.Shape == TerrainShape.Point ? PlacementToolKind.Point : t.Shape == TerrainShape.Line ? PlacementToolKind.Route : PlacementToolKind.Area, HasSide: true, DisabledReason: t.Disabled,
                                              RoleLine: t.Line, Group: gallery is null ? "" : t.Group, Chip: gallery is null ? null : t.Chip, Terrain: t, Thumbnail: gallery is null ? null : t.Picture));
 
         foreach (var g in PlacementToolRegistry.Graphics)

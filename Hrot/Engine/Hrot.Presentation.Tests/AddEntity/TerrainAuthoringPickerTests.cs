@@ -5,6 +5,7 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Terrain;
@@ -55,7 +56,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         public readonly List<string> Calls = new();
         public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null) => Calls.Add($"point {tkbType} {initialPropertiesJson}");
         public void StartAreaAuthoringMode(string styleOverrideJson = "") => Calls.Add("area");
-        public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "") => Calls.Add($"area:{tkbType}");
+        public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "") => Calls.Add($"area-{tkbType}-{styleOverrideJson}");
         public void StartRouteAuthoringMode() => Calls.Add("route");
         public void StartZoneAuthoringMode(string styleOverrideJson = "") => Calls.Add("zone");
     }
@@ -88,7 +89,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         foreach (var recipe in Shipped().Where(p => p.Kind == TerrainPickKind.Block))
             Assert.Contains(rows, e => e.Name == recipe.Name && e.Category!.StartsWith(TerrainPickCatalog.Blocks + "/") && e.Tag is EntityTypeEntry { Terrain: { } });
         Assert.Contains(rows, e => e.Category!.StartsWith(TerrainPickCatalog.Buildings));
-        Assert.DoesNotContain(rows, e => e.Category!.StartsWith(TerrainPickCatalog.Clutter));   // T-2's kinds are not built: the group is listed, empty
+        Assert.Contains(rows, e => e.Category!.StartsWith(TerrainPickCatalog.Clutter));   // backend's T-2 kinds are built: every group lists
 
         Assert.Empty(spawn.Calls);   // 🔒 D4: nothing is armed before the pick
         var hamlet = rows.Single(e => e.Name == "Hamlet");
@@ -265,5 +266,61 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         var block = cmd.InitialComponents!.OfType<TerrainBlock>().Single();
         Assert.Equal((ghostSeed, 90f), (block.Seed, block.HeadingDeg));   // the layout the ghost showed, turned as R said
         Assert.NotEqual(ghostSeed, pl.Seed);                               // the next ghost is another layout
+    }
+
+    // ── U-7: the single-feature tools (backend's T-2) ───────────────────────────
+
+    [Fact]
+    public void U7_TheFeaturePicks_FillTheFourGroups_ClutterIsEveryClutterType_AndTheScatterIsGreyedWithItsReason()
+    {
+        var picks = TerrainPickCatalog.FeaturePicks();
+        Assert.Contains(picks, p => p.Group == TerrainPickCatalog.Vegetation && p.FeatureKind == TerrainFeature.Wood && p.Shape == TerrainShape.Area);
+        Assert.Contains(picks, p => p.Group == TerrainPickCatalog.Walls && p.FeatureKind == TerrainFeature.Hedge && p.Shape == TerrainShape.Line);
+        Assert.Contains(picks, p => p.Group == TerrainPickCatalog.Water && p.FeatureKind == TerrainFeature.Bridge && p.Shape == TerrainShape.Line);
+        Assert.Equal(ClutterTypes.All.Count, picks.Count(p => p.FeatureKind == TerrainFeature.Clutter));
+        Assert.All(picks.Where(p => p.FeatureKind == TerrainFeature.Clutter), p => Assert.Equal(TerrainShape.Point, p.Shape));
+        var scatter = picks.Single(p => p.FeatureKind == TerrainFeature.Scatter);
+        Assert.Contains("T-3", scatter.Disabled);
+        Assert.All(picks.Where(p => p.FeatureKind != TerrainFeature.Scatter), p => Assert.Null(p.Disabled));
+        // every group of the six now lists something
+        var all = Shipped();
+        foreach (var g in TerrainPickCatalog.Groups) Assert.Contains(all, p => p.Group == g);
+    }
+
+    [Fact]
+    public void U7_ALinePickArmsTheDrawingTool_APointPickTheClickTool_AndAGreyedPickArmsNothing()
+    {
+        var spawn = new RecordingSpawn();
+        var picks = TerrainPickCatalog.FeaturePicks();
+        Assert.True(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Wall)));
+        Assert.True(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Tree)));
+        Assert.False(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Scatter)));
+        Assert.Equal($"area-{TkbEntityTypes.TerrainFeature}-{{\"$terrain\":\"feature:2::Line\"}}", spawn.Calls[0]);
+        Assert.Equal($"point {TkbEntityTypes.TerrainFeature} {{\"$terrain\":\"feature:6::Point\"}}", spawn.Calls[1]);
+        Assert.Equal(2, spawn.Calls.Count);
+    }
+
+    [Fact]
+    public void U7_ADrawnWall_IsBornATerrainFeatureWithItsPolyline_NoAreaStyle_AndNeedsTwoPoints()
+    {
+        var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer());
+        var arm = new Hrot.ScenarioEditor.Tools.AreaAuthoringArm(manager);
+        var made = new List<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>();
+        string spec = "feature:2:brick:Line";
+        arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest((TkbTypeId)TkbEntityTypes.TerrainFeature, "", made.Add, MinPoints: 2, Closed: false,
+            Born: comps => { comps.RemoveAll(c => c is Hrot.Map.Common.Components.MapOverlayStyle); TerrainBirth.BornWith(TkbEntityTypes.TerrainFeature, spec, Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo.FacingNorth, comps, 5); }));
+        var gizmo = arm.ActiveGizmo!;
+        foreach (var p in new[] { new Vector2(100f, 100f), new Vector2(140f, 100f) })
+        {
+            gizmo.OnDragUpdate(new Vector3(p.X, p.Y, 0f));
+            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(p.X, p.Y, 0f));
+        }
+        gizmo.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
+        var cmd = Assert.Single(made);   // two points finish a LINE (an area needs three)
+        var f = cmd.InitialComponents!.OfType<TerrainFeature>().Single();
+        Assert.Equal((TerrainFeature.Wall, "brick", 5u), (f.Kind, f.Template.ToString(), f.Seed));
+        Assert.Equal(2, cmd.InitialComponents!.OfType<Hrot.Map.Common.Components.EditablePolyline>().Single().Points.Count);
+        Assert.DoesNotContain(cmd.InitialComponents!, c => c is Hrot.Map.Common.Components.MapOverlayStyle);
+        Assert.Equal("Wall", cmd.InitialComponents!.OfType<EntityInfo>().Single().Name.ToString());
     }
 }

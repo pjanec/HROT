@@ -69,6 +69,28 @@ public sealed class TerrainAddEntityFrameRail : IDisposable
         finally { Raylib.UnloadImage(shot); }
     }
 
+    /// <summary>
+    /// ⭐ U-7 (mockup 3, the Clutter tiles) — the gallery opened on <i>Clutter</i> lists every clutter type as a tile (the glyph tile where a model render will be, as the mockup notes) plus the greyed <i>Street clutter</i> scatter, with its reason.
+    /// </summary>
+    [SkippableFact]
+    public void TheGalleryOpenedOnClutter_ListsEveryClutterType_AndTheGreyedScatter()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin(1220, 640);
+        var tkb = new TkbDatabase(); NedTkbCatalog.RegisterAll(tkb);
+        var terrain = TerrainPickCatalog.Build(new[] { ContentLayout.TerrainRecipeAssets(_src) }, new[] { ContentLayout.BuildingAssets(_src) }, _pics);
+        PickerRequest? req = null;
+        var action = new AddEntityAction(() => tkb, () => (r, _) => req = r, () => new NoSpawn(), gallery: () => EntityTypeCatalogTests.ShippedGallery(), terrain: () => terrain) { InitialGroup = TerrainPickCatalog.Clutter };
+        Assert.True(action.Open(GlobalActionIds.AddEntityFriendly));
+        var rows = req!.ItemsProvider().Where(e => e.Category == TerrainPickCatalog.Clutter || e.Category!.StartsWith(TerrainPickCatalog.Clutter + "/")).ToList();
+        Assert.Equal(Fdp.Toolkit.Terrain.ClutterTypes.All.Count + 1, rows.Count);
+        Assert.Single(rows, e => !e.IsEnabled);   // the scatter, greyed
+        var registry = EntityAuthoring.CreatePickers();
+        registry.OpenPicker(req!, _ => { });
+        for (int i = 0; i < 10; i++) frame.Step(registry.DrawFrame);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) { Directory.CreateDirectory(dir); frame.Screenshot(Path.Combine(dir, "u7-add-entity-clutter.png")); }
+    }
+
     private sealed class NoSpawn : Hrot.UI.Common.Facades.ISpawnController
     {
         public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null) { }

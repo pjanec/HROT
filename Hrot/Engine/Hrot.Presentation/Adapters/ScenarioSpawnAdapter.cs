@@ -372,6 +372,8 @@ namespace Hrot.UI.Common.Adapters
         /// (IG's rails need that), so returning <c>Unserviceable</c> is a CALLER rule this host keeps.
         /// </para>
         /// </summary>
+        private static readonly System.Numerics.Quaternion FacingNorth = Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo.FacingNorth;
+
         public Hrot.ScenarioEditor.Tools.ToolActivationOutcome ArmAreaAuthoring()
             => ArmAreaAuthoring(TkbEntityTypes.TacGraphic_Area);
 
@@ -393,10 +395,20 @@ namespace Hrot.UI.Common.Adapters
                 _activeSequenceId = null;
             }
 
+            // ⭐ Terrain authoring U-7 — a LINE / AREA terrain feature rides its spec in the style JSON: a line needs 2 points and is open, an area 3 and closed; the entity is born a TerrainFeature (and loses the area fill style)
+            var (styleJson, terrainSpec) = Hrot.UI.Common.AddEntity.TerrainBirth.Split(_pendingStyleJson);
+            var feature = tkbType == TkbEntityTypes.TerrainFeature ? Hrot.UI.Common.AddEntity.TerrainBirth.FeatureOf(terrainSpec) : null;
             var outcome = arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
                 TkbType:    (Fdp.Core.TkbTypeId)(tkbType),
-                StyleJson:  _pendingStyleJson,
+                StyleJson:  feature is null ? _pendingStyleJson : styleJson ?? "",
                 OnCommit:   Request,
+                MinPoints:  feature is { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line } ? 2 : 3,
+                Closed:     feature is not { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line },
+                Born:       feature is null ? null : comps =>
+                {
+                    comps.RemoveAll(c => c is Hrot.Map.Common.Components.MapOverlayStyle);   // a terrain feature is not a map-overlay fill
+                    Hrot.UI.Common.AddEntity.TerrainBirth.BornWith(TkbEntityTypes.TerrainFeature, terrainSpec, FacingNorth, comps);
+                },
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
                 //   prior inline `onRemove` did. ⛔ Dropping it would leave `_activeSequenceId` stale and
                 //   make the next arm unregister a gizmo that is already gone.
