@@ -776,3 +776,18 @@ is not a step. The editor's own save (`EditorScenarioSession.SaveTo`, one node, 
 | `FeatureExpander.Expand` — pure; its own seeded generator (xorshift, never `System.Random`); keeps out of the base's building footprints and water surfaces (B-3 part) | identical bytes for the same input on every machine | ⚠ road alignment (B-3) needs the road net — a finding row, not v1 |
 | navtiles: the compile bakes the merged world in Prefill mode seeded from the base; a seed hit is NOT written | the overlay's `navtiles/` holds only the touched tiles (§18b: 3.8 %) | G-4, G-10 |
 | ⛔ the TKB type + the Add Entity groups for blocks / features | ui's (B-5), later; the engine reads the components from the scenario JSON whatever placed them | the handoff's "UI is ui's, later" |
+
+#### 18c-1. What the approved mockups need from the engine *(user `2026-11-11`: "make sure the visuals reasonably match the mockup design")*
+
+The screens are ui's; ⭐ the DATA each screen shows is this batch's, so ui can draw the mockup as drawn — nothing invented, nothing missing:
+
+| mockup | it shows | the engine provides | item |
+|---|---|---|---|
+| [2 — blocks](UX/terrain-authoring-2-blocks.svg), Details | *Fit to the site*: Align to the nearest road · Keep out of water · Keep out of buildings · Level houses on pads | `TerrainBlock.Fit` flags (four bits, all on by default), honoured by `FeatureExpander` (road alignment ⚠ needs the road net — a row; pads written, flattening later S-5) | O-4 |
+| 2, Details | *Contents: 28 houses · 64 clutter items* | `overlay.json` `blocks[]`: per block key, recipe, seed, house / clutter / wood counts | O-4 |
+| 2, the canvas | the block OUTLINE and the placing ghost | `blocks[].outline` (the expanded parts' hull, local metres); `FeatureExpander` is pure, so the ghost is the same call on the editor | O-4 (ghost: ui) |
+| 2, the canvas | the houses drawn like the terrain's own | the merged world is the terrain world ⇒ the 2-D / 3-D terrain layers draw overlay houses with no change — ⭐ VERIFIED by rendering a frame (O-4 gate) | O-2 / O-4 |
+| [4 — save](UX/terrain-authoring-4-save.svg), *Save terrain as* | *Baked: 23 blocks → 684 houses, 41 farm buildings · 14 woods, 3 scatters, 220 trees · 6.1 km of walls, fences and hedges · 3 bridges* | `TerrainSaveSummary` — counts per kind + wall length (km) + bridges | O-5 |
+| 4 | *Stays in the source only: 12 units and 2 areas — not terrain (E-4) · damage to 3 houses from a test run — not baked (E-6)* | the summary's `NotBaked` (units, areas, damaged houses) | O-5 |
+| 4 | *Pre-build the walkable mesh ≈ 2 min* | the summary's tile count + the estimate (the cold rate, §18b) | O-5 |
+| 4, overwrite | *Used by 3 scenarios: …* | `TerrainUsers.Of(terrainName)` — the scenarios naming it | O-5 |
