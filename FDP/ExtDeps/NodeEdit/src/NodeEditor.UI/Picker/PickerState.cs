@@ -24,6 +24,8 @@ internal sealed class PickerState
     public int FilteredVersion;
     /// <summary>⭐ CE-4359 — the request's root-folder order, entry-order flag and hide tick (see <see cref="PickerRequest"/>).</summary>
     public IReadOnlyList<string>? FolderOrder;
+    /// <summary>⭐ CE-4398 — the display text of a category path in the flat search list ("a/b" → "a › b"), made once per path.</summary>
+    public readonly Dictionary<string, string> FolderLabels = new(StringComparer.Ordinal);
     public bool KeepEntryOrder;
     public PickerHideToggle? HideToggle;
     public bool ShowHidden;

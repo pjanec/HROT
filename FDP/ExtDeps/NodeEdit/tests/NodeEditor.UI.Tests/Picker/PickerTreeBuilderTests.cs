@@ -362,4 +362,17 @@ public sealed class PickerTreeBuilderTests
         root.Folders.Single().Name.Should().Be("A");
         root.Folders.Single().Folders.Single().Name.Should().Be("B");
     }
+
+    /// <summary>⭐ CE-4397 — a folder order names root folders AND full paths: "demos/air" ranks inside demos; unlisted folders follow alphabetically.</summary>
+    [Fact]
+    public void Build_FolderOrder_RanksSubFolders_ByFullPath()
+    {
+        var items = new List<(int, string?, string)>
+        {
+            (0, "demos/buildings", "a"), (1, "demos/air", "b"), (2, "demos/zeta", "c"), (3, "demos/alpha", "d"), (4, "tests", "e"), (5, "mine", "f"),
+        };
+        var root = PickerTreeBuilder.Build(items, false, new[] { "mine", "demos", "demos/air", "demos/buildings", "tests" });
+        root.Folders.Select(f => f.Name).Should().Equal("mine", "demos", "tests");
+        root.Folders[1].Folders.Select(f => f.Name).Should().Equal("air", "buildings", "alpha", "zeta");
+    }
 }

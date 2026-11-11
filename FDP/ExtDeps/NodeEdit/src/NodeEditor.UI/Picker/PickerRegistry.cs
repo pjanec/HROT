@@ -87,6 +87,9 @@ public sealed class PickerRegistry : IPickerRegistry
     /// <summary>⭐ CE-4359 (rails) — opens a Tree folder of the open picker.</summary>
     public void ExpandFolder(string path) => _window.ExpandFolder(path);
 
+    /// <summary>⭐ CE-4398 — types into the open picker's search box (a rail's stand-in).</summary>
+    public void SetSearch(string text) => _window.SetSearch(text);
+
     /// <summary>⭐ CE-4359 (rails) — the open picker's hide tick (<see cref="PickerHideToggle"/>) and its listed entry count.</summary>
     public bool ShowHidden { get => _window.ShowHidden; set => _window.ShowHidden = value; }
     public int ListedCount => _window.ListedCount;

@@ -89,13 +89,8 @@ internal static class PickerTreeBuilder
 
         // Sort folders at every level (OrdinalIgnoreCase).
         SortFoldersRecursive(root);
-        if (folderOrder is { Count: > 0 })   // ⭐ CE-4359 — the listed root folders first, in that order; the rest keep their alphabetical order after them
-        {
-            int Rank(Node n) { for (int i = 0; i < folderOrder.Count; i++) if (string.Equals(folderOrder[i], n.Name, StringComparison.OrdinalIgnoreCase)) return i; return int.MaxValue; }
-            var ranked = new List<Node>(root.Folders);
-            ranked.Sort((a, b) => { int c = Rank(a).CompareTo(Rank(b)); return c != 0 ? c : root.Folders.IndexOf(a).CompareTo(root.Folders.IndexOf(b)); });
-            root.Folders = ranked;
-        }
+        if (folderOrder is { Count: > 0 })   // ⭐ CE-4359 — the listed folders first, in that order; the rest keep their alphabetical order after them
+            RankRecursive(root, folderOrder);   // ⭐ CE-4397 — an entry is a root folder's name ("demos") or a full path ("demos/air"), so a SUB-folder order is expressible too
 
         if (foldSingleChildFolders)
             FoldRecursive(root);
@@ -124,6 +119,18 @@ internal static class PickerTreeBuilder
             node.Folders[i] = folder;
             FoldRecursive(folder);
         }
+    }
+
+    /// <summary>⭐ CE-4397 — at every level the folders named in <paramref name="order"/> (by full category path, case-insensitive) come first, in that order;
+    /// the others keep their alphabetical order after them. A root folder's full path is its name, so CE-4359's root-only lists behave as before.</summary>
+    private static void RankRecursive(Node node, IReadOnlyList<string> order)
+    {
+        int Rank(Node n) { for (int i = 0; i < order.Count; i++) if (string.Equals(order[i], n.FullPath, StringComparison.OrdinalIgnoreCase)) return i; return int.MaxValue; }
+        var alphabetical = new List<Node>(node.Folders);
+        var ranked = new List<Node>(node.Folders);
+        ranked.Sort((a, b) => { int c = Rank(a).CompareTo(Rank(b)); return c != 0 ? c : alphabetical.IndexOf(a).CompareTo(alphabetical.IndexOf(b)); });
+        node.Folders = ranked;
+        foreach (var folder in node.Folders) RankRecursive(folder, order);
     }
 
     private static void SortFoldersRecursive(Node node)

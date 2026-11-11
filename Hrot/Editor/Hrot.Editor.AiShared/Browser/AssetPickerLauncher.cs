@@ -206,6 +206,16 @@ public sealed class AssetPickerLauncher
         => entry.Tag is Hrot.Editor.AiShared.Catalog.ICategorizedAsset { Category: { Length: > 0 } c } a && ((IEditableAsset)a).Kind == AssetKind.Scenario
            && (string.Equals(c, TestsFolder, StringComparison.Ordinal) || c.StartsWith(TestsFolder + "/", StringComparison.Ordinal));
 
+    /// <summary>⭐ CE-4397 (docs/DESIGN_Content_Layout.md §6, Q-S3 / R-4185) — the scenario picker's folders in a FIXED order after the picker's own Recent: <i>My scenarios</i> (the
+    /// top level, where Save as puts a new one) · showcases · demos (its categories in the order of the design) · tests (behind the tick). Full category paths: the builder ranks every level.</summary>
+    public static readonly IReadOnlyList<string> ScenarioFolderOrder = new[]
+    {
+        AssetPickerSource.MyScenarios, "showcases", "demos",
+        "demos/air", "demos/infantry-and-squads", "demos/platoons-and-vehicles", "demos/weapons-and-fires", "demos/buildings-and-doors",
+        "demos/civilians-and-crowd", "demos/sensing-and-weather", "demos/rules-objectives-directors", "demos/navigation-and-terrain", "demos/players-and-possession",
+        TestsFolder,
+    };
+
     private PickerRequest ScenarioPane(PickerRequest basis, AssetKindFilter kinds, AssetPickerSource source) => new()
     {
         ContextKey = basis.ContextKey,
@@ -213,6 +223,7 @@ public sealed class AssetPickerLauncher
         Layout = basis.Layout,
         SelectionMode = basis.SelectionMode,
         ItemsProvider = basis.ItemsProvider,
+        FolderOrder = ScenarioFolderOrder,   // ⭐ CE-4397
         HideToggle = new PickerHideToggle(HideTestsLabel, e => IsTestScenario(e)),   // ⭐ CE-4360 (Q-S3, §6) — the SAME tick the task picker uses (CE-4359): scenarios filed under tests/ are behind it, off
         ShowSidePane = true,
         DefaultSize = new System.Numerics.Vector2(ScenarioPickerWidth, ScenarioPickerHeight),   // ⭐ D25 "the wide picker": big enough to read the preview

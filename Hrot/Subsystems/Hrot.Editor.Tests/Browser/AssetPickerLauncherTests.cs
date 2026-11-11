@@ -793,7 +793,7 @@ public sealed class AssetPickerLauncherTests
         var request = fakePicker.CapturedRequest!;
         var entries = request.ItemsProvider().ToDictionary(e => e.Name);
         Assert.Equal(new[] { "mine", "perf-1", "ua-air-assault" }, entries.Keys.OrderBy(n => n, StringComparer.Ordinal).ToArray());   // the LEAF names
-        Assert.Null(entries["mine"].Category);                                   // top level: no folder
+        Assert.Equal(AssetPickerSource.MyScenarios, entries["mine"].Category);   // ⭐ CE-4397 — the top level is the folder "My scenarios" (it was null: loose at the root)
         Assert.Equal("demos/air", entries["ua-air-assault"].Category);
         Assert.Equal("tests/perf", entries["perf-1"].Category);
         Assert.Equal(Path.Combine(scenarios, "demos", "air", "ua-air-assault", "scenario.json"), ((IEditableAsset)entries["ua-air-assault"].Tag!).SourceFilePath);

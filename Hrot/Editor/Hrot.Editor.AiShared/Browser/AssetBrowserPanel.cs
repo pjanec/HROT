@@ -780,12 +780,40 @@ public sealed class AssetBrowserPanel
             return;
         }
 
+        // ⭐ CE-4398 — a non-empty filter lists the hits FLAT, each with its folder greyed after the name (a folder the user had collapsed hid its hits);
+        //   an empty filter brings the tree back.
+        if (!string.IsNullOrEmpty(_filter))
+        {
+            foreach (var (asset, folder) in FilterHits(kind))
+                DrawFlatRow(asset, folder);
+            return;
+        }
+
         var expandedSet = _expandedFolders.TryGetValue(kind, out var set) ? set : null;
         if (!_folderOpen.TryGetValue(kind, out var openFor)) _folderOpen[kind] = openFor = new Dictionary<string, bool>(StringComparer.Ordinal);
         foreach (var child in tree.Children)
         {
             DrawTreeNode(kind, child, expandedSet, openFor, 0);
         }
+    }
+
+    /// <summary>⭐ CE-4398 — the hits of the current <see cref="Filter"/> in <paramref name="kind"/>'s tab as a flat list: the asset and the folder it sits in (empty at the root).</summary>
+    public IReadOnlyList<(IEditableAsset Asset, string Folder)> FilterHits(AssetKind kind)
+    {
+        var hits = new List<(IEditableAsset, string)>();
+        void Walk(FolderTreeNode node)
+        {
+            foreach (var child in node.Children)
+            {
+                if (!child.IsLeaf) { Walk(child); continue; }
+                var asset = AssetForLeaf(kind, child);
+                if (asset == null) continue;
+                int slash = child.FullPath.LastIndexOf('/');
+                hits.Add((asset, slash > 0 ? child.FullPath.Substring(0, slash) : ""));
+            }
+        }
+        Walk(FilteredTreeFor(kind));
+        return hits;
     }
 
     private void DrawTreeNode(AssetKind kind, FolderTreeNode node, HashSet<string>? expandedSet, Dictionary<string, bool> openFor, int depth)
@@ -877,7 +905,7 @@ public sealed class AssetBrowserPanel
         ImGui.EndPopup();
     }
 
-    private void DrawFlatRow(IEditableAsset asset)
+    private void DrawFlatRow(IEditableAsset asset, string folder = "")
     {
         var iconKey = RowIconKey(asset);
         var hasIcon = _icons.TryGet(iconKey, out var icon);
@@ -903,7 +931,6 @@ public sealed class AssetBrowserPanel
         {
             ImGui.Text("   " + asset.Name);
         }
-
         // Click handling
         if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
         {
@@ -914,6 +941,11 @@ public sealed class AssetBrowserPanel
             ActivateAsset(asset);
         }
         DrawRowContextMenu(asset);
+        if (folder.Length > 0)   // ⭐ CE-4398 — the folder, greyed, after the name
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled(folder.Replace("/", " › "));
+        }
     }
 
     // ── Internals ──────────────────────────────────────────────────────

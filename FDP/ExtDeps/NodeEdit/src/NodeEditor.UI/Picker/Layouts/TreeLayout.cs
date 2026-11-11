@@ -165,6 +165,15 @@ internal static class TreeLayout
         // For non-search, ImGui remembers each folder's native open/closed state.
         var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
 
+        // ⭐ CE-4398 — a non-empty search lists every hit FLAT, each with its folder path greyed after the name: the tree's folders kept their
+        //   remembered (closed) state while typing, so a nested hit was invisible. An empty search brings the tree back.
+        if (isSearching)
+        {
+            for (int i = 0; i < state.Filtered.Count; i++)
+                DrawLeafItem(state, ctx, i, state.Filtered[i], 0, showFolder: true);
+            return;
+        }
+
         // Render folders.
         foreach (var folder in root.Folders)
             DrawImplicitFolderNode(state, ctx, folder, "", 0, flags, isSearching);
@@ -301,7 +310,7 @@ internal static class TreeLayout
     // ── leaf item ─────────────────────────────────────────────────────────────
 
     private static void DrawLeafItem(PickerState state, IPickerRenderContext ctx,
-                                     int filteredIdx, RankedEntry re, int depth = 0)
+                                     int filteredIdx, RankedEntry re, int depth = 0, bool showFolder = false)
     {
         bool sel    = state.SelectedFilteredIndices.Contains(filteredIdx);
         bool focus  = state.KeyboardFocusIndex == filteredIdx;
@@ -401,6 +410,16 @@ internal static class TreeLayout
                 dl.AddText(new Vector2(textX, textY), color, run.Text);
                 textX += ImGui.CalcTextSize(run.Text).X;
             }
+        }
+
+        // ⭐ CE-4398 — the flat search list: the folder, greyed, after the name (cached label: 0 B in a steady frame)
+        if (showFolder && re.Entry.Category is { Length: > 0 } folderPath)
+        {
+            if (!state.FolderLabels.TryGetValue(folderPath, out var label))
+                state.FolderLabels[folderPath] = label = folderPath.Replace("/", PickerTreeBuilder.FoldSeparator);
+            float endX = textX + (re.MatchPositions.Count == 0 ? ImGui.CalcTextSize(re.Entry.Name).X : 0f);
+            if (re.MatchPositions.Count != 0) endX = textX;   // textX already advanced past the highlighted runs
+            dl.AddText(new Vector2(endX + 14f, textY), ImGui.GetColorU32(ctx.Theme.TextMuted), label);
         }
 
         // Handle mouse click for selection (A17/A18: also move TreeFocusRow).

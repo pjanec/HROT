@@ -13,8 +13,8 @@ that needs Windows (U-12's netconvert exit 1) is marked so. Display rails under 
 | U-5 | CE-4404 | Units ▸ Labels checkbox | QUEUED | — | |
 | U-6 | CE-4408 | 3-D mouse wheel | QUEUED | — | |
 | U-7 | CE-4405 | ORBAT combat: 16 squads per force | ✅ DONE | see git log | cause: engine `UnitRoster.Capacity`=16 + `GenesisMaterializationSystem.cs:200-208` drops the 17th subordinate; `scale-rig.py` attached all squads to the force ⇒ generator fixed (platoons/companies), `scripts/test_scale_rig_roster.py` |
-| U-8 | CE-4398 | Open Asset filter shows nested hits | QUEUED | — | |
-| U-9 | CE-4397 | scenario picker folder order | QUEUED | — | |
+| U-8 | CE-4398 | Open Asset filter shows nested hits | ✅ DONE | see git log | cause `TreeLayout.cs` `state.FolderOpen[fullPath] = open` per frame ⇒ closed folders never opened by a search; flat hit list + greyed folder; mockup `docs/UX/picker-filter-visual.svg` matched on a real xvfb frame; rail red-proved |
+| U-9 | CE-4397 | scenario picker folder order | ✅ DONE | see git log | FolderOrder by full path + "My scenarios"; rails green |
 | U-10 | CE-4399 | details panel clips its right column | QUEUED | — | |
 | U-11 | CE-4400 + CE-4406 | one loading message box | QUEUED | — | |
 | U-12 | CE-4409 | netconvert failure fails the OSM import | QUEUED | — | Windows reproduces it; code half here |

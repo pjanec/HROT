@@ -114,6 +114,9 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
         CancellationToken ct)
         => Task.FromResult(Query(text, context));
 
+    /// <summary>⭐ CE-4397 — the picker folder of a scenario filed at the top level of <c>scenarios/</c> (where Save as puts a new one).</summary>
+    public const string MyScenarios = "My scenarios";
+
     // ── Projection (public seam for T3) ────────────────────────────────
 
     /// <summary>
@@ -146,7 +149,9 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
         if (_isSingleKind)
         {
             // Single-kind: no kind prefix; null when at root level.
-            category = subfolder is { Length: > 0 } ? subfolder : null;
+            category = subfolder is { Length: > 0 } ? subfolder
+                : asset.Kind == AssetKind.Scenario ? MyScenarios   // ⭐ CE-4397 — a top-level scenario is in the folder "My scenarios", not loose at the root
+                : null;
         }
         else
         {

@@ -130,6 +130,7 @@ public sealed class PickerWindow
         _onPickRaw      = null;
         _onCancel       = null;
 
+        _hostSearch = false;
         _state.Reset(request.ContextKey, request.InitialQuery, request.SelectionMode);
         _state.Groups = request.GroupSidebar;
         _state.TileWidth = Math.Clamp(View.GetTileWidth(request.ContextKey) ?? PickerState.DefaultTileWidth,
@@ -185,6 +186,7 @@ public sealed class PickerWindow
         _onPickResult   = null;
         _onCancel       = onCancel;
 
+        _hostSearch = false;
         _state.Reset(contextKey, "", adapter.SelectionMode);
 
         // For cheap/sync sources, pre-load items immediately.
@@ -276,7 +278,13 @@ public sealed class PickerWindow
         float tickW = _state.HideToggle is null ? 0f : ImGui.CalcTextSize(_state.HideToggleText).X + ImGui.GetFrameHeight() + ImGui.GetStyle().ItemInnerSpacing.X + ImGui.GetStyle().ItemSpacing.X;
         if (tickW > 0f) ImGui.SetNextItemWidth(-(toggleW > 0f ? toggleW + ImGui.GetStyle().ItemSpacing.X : 0f) - tickW);
         string buf = _state.SearchText;
-        if (ImGui.InputText("##picker_search", ref buf, 256))
+        if (_hostSearch)   // ⭐ CE-4398 — a host's SetSearch (a rail's typing): the box shows it, disabled, until the picker is reopened — a focused box would hand back its own stale text
+        {
+            ImGui.BeginDisabled();
+            ImGui.InputText("##picker_search", ref buf, 256);
+            ImGui.EndDisabled();
+        }
+        else if (ImGui.InputText("##picker_search", ref buf, 256))
             _state.SearchText = buf;
         if (_state.HideToggle is not null)
         {
@@ -791,6 +799,10 @@ public sealed class PickerWindow
         _state.ApplyInitialSelection(id);   // the same path the request's InitialSelectionId takes: its folders open, its row focused
         return true;
     }
+
+    /// <summary>⭐ CE-4398 — types <paramref name="text"/> into the search box (a rail's stand-in); the next drawn frame refilters.</summary>
+    internal void SetSearch(string text) { _state.SearchText = text; _hostSearch = true; }
+    private bool _hostSearch;
 
     /// <summary>⭐ CE-4359 — opens the Tree folder at <paramref name="path"/> (a rail's stand-in for the click on its chevron).</summary>
     internal void ExpandFolder(string path) => _state.FolderOpen[path] = true;
