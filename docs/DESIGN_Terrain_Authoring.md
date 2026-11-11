@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — the user's answers are in (R-4198); the leans in §3 wait for a nod, the mockups (§9 S-0) come before any build
 updated: 2026-11-11
-current-answer: ⭐ §11 the user's view (blocks as RECIPE assets placed through Add Entity — under discussion) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
+current-answer: ⭐ §12 the random terrain = an empty surface + placed blocks (lean, under discussion) · §11 the user's view (blocks as RECIPE assets through Add Entity — ✅ APPROVED R-4199) · §2 the model (one feature vocabulary, three uses) · §3 decisions · §4–§6 diagrams · §7 street clutter · §8 rivers and bridges · §9 slices · §10 not yet measured
 stale-below: nothing
 related-designs:
   - DESIGN_Peek_And_Fire.md — §9 P-7a OWNS the mechanism this extends: a scenario entity that IS terrain, baked on every node, lifecycle-gated (R-242, R-243, R-244)
@@ -272,7 +272,7 @@ open field none). Lean: these, and nothing that needs its own model in slice 1:
 | the external gateway: what it needs to draw a scenario feature | L-7 |
 | how many clutter boxes a town holds, and their cost in the draw and the terrain index | §7 |
 
-## 11. The user's view — what makes it practical *(proposal `2026-11-11`, under discussion — not yet ruled)*
+## 11. The user's view — what makes it practical *(✅ APPROVED `2026-11-11`, R-4199 — B-1…B-8 and the leans of B-Q1…B-Q3)*
 
 🔒 User, `2026-11-11`: *"the blocks that we are able to put into the scenario, that needs to be kind of an asset, and it needs to be addable by the same
 mechanism like the entities. Add entity, and it will open the picker dialog with nice thumbnails"* · *"this could be also some kind of a random asset
@@ -308,3 +308,39 @@ blindly add features."*
 | B-Q1 | a recipe is edited later — do scenarios that placed it change? | ⭐ yes, like a building template today (a recipe is content); the editor shows which scenarios use it before saving the recipe; Unpack freezes an instance for good |
 | B-Q2 | who authors recipes — the user in the editor, or we ship them as data? | ⭐ we ship them as data files in slice 1; a recipe editor only if users ask |
 | B-Q3 | can a scatter be destroyed / felled? | a scattered car or bin is an obstacle like today — yes; trees with CE-3426 (felling) |
+
+## 12. The random terrain IS an empty terrain plus placed blocks *(lean `2026-11-11`, under discussion)*
+
+🔒 User, `2026-11-11`: *"the random terrain creation tool might be basically the same like creating an empty scenario, having just these blocks in it
+with some kind of variant number per each … what we need to actually really generate at the very beginning is just the terrain surface, because
+everything else can be added later by editing. Am I right? And terrain surface is basically a height map."*
+
+⭐ **Right, with one correction: the surface is MORE than the height map — it is everything a block FITS ITSELF TO** (B-3), which is the part a
+block cannot add later:
+
+| generated with the SURFACE (once) | why it cannot be a block |
+|---|---|
+| ⭐ **the height map** (relief preset) | everything stands on it |
+| ⭐ **the road network** (a SUMO net) | blocks align to roads (B-3); traffic and vehicle routes need ONE connected net, built by netconvert; a road is drawn later as a feature only for small additions |
+| ⭐ **rivers and lakes** | they follow the low ground of the height map and cut it; bridges sit where roads meet them |
+| ground cover (fields, meadow, bare) | a surface colour / class under everything — cheap, terrain-wide |
+
+```mermaid
+graph LR
+  W[Random terrain wizard] --> SF[Surface generator - heights, roads, rivers, ground cover]
+  SF --> T[(new terrain - the surface only)]
+  W --> LY[Layout - which recipes where, each with a seed]
+  LY --> SC[(new scenario - one entity per block)]
+  T --> SC
+  SC -->|optional Save terrain as| T2[(a terrain with the blocks baked in)]
+```
+
+*What the picture shows:* the wizard makes **two** things — a surface terrain and a scenario of placed blocks — and the blocks are **ordinary
+scenario entities** (B-2), editable, re-rollable and unpackable like any the user places by hand. ⇒ the generator writes **no houses at all**;
+"plain terrain" (TA-2) is simply the layout step skipped.
+
+| lean | why | rejected |
+|---|---|---|
+| R-1 ⭐ the wizard = **surface generator + an automatic layout of recipe blocks into a new scenario** | one house-making path (the recipes), shared by hand-placing and generating | the synth's own house code as a second path |
+| R-2 ⭐ **"Save terrain as" is the step that makes a large town FAST** — the blocks bake once into the terrain, with the navmesh prefilled | a 5.5 km town of ~1 800 houses re-expanded at every load would cost load time (§10, not yet measured); a baked terrain does not | always expanding at load |
+| R-3 the synth's house, tree and road code is not thrown away: its roads and heights become the **surface generator**; its villages become **recipes** | reuse | rewriting |
