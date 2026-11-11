@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Terrain
 
         internal readonly record struct Placement(
             Vector2 Position, float RotationDegrees, float? BaseZ, string Label, string? TemplateName,
-            IReadOnlyDictionary<string, TerrainDoorState> DoorOverrides);
+            IReadOnlyDictionary<string, TerrainDoorState> DoorOverrides, string? Name = null);
 
         /// <summary>Default sill/head (m above the storey floor) per opening kind; a gap is full height.</summary>
         public const float DoorHead = 2.1f, WindowSill = 0.9f, WindowHead = 2.1f;
@@ -71,7 +71,7 @@ namespace Fdp.Toolkit.Terrain
                 sink.Prisms.Add(Clone(prism, materials.Get(defaultMaterial, where), -1));
                 sink.Buildings.Add(new TerrainBuilding
                 {
-                    Label = at.Label, Template = at.TemplateName, Position = at.Position, RotationDegrees = at.RotationDegrees,
+                    Label = at.Label, Name = at.Name, Template = at.TemplateName, Position = at.Position, RotationDegrees = at.RotationDegrees,
                     BaseZ = solidBase, StoreyZ = new[] { solidBase, solidBase + height }, Footprint = fp, Solid = true,
                 });
                 return;
@@ -194,7 +194,7 @@ namespace Fdp.Toolkit.Terrain
 
             sink.Buildings.Add(new TerrainBuilding
             {
-                Label = at.Label, Template = at.TemplateName, Position = at.Position, RotationDegrees = at.RotationDegrees,
+                Label = at.Label, Name = at.Name, Template = at.TemplateName, Position = at.Position, RotationDegrees = at.RotationDegrees,
                 BaseZ = baseZ, StoreyZ = storeyZ, Footprint = footprint, Solid = false,
             });
         }
@@ -326,6 +326,15 @@ namespace Fdp.Toolkit.Terrain
             Kind = p.Kind, Footprint = p.Footprint, BaseZ = p.BaseZ, TopZ = p.TopZ, Floors = p.Floors, Label = p.Label,
             Triangles = p.Triangles, Min = p.Min, Max = p.Max, Material = material, Panel = panel, Building = building,
         };
+
+        /// <summary>⭐ O-4 — a template's footprint in its own local metres, read exactly as <see cref="ExpandCore"/> reads it (the explicit ring, else the box of the ground storey's walls).</summary>
+        internal static Vector2[] LocalFootprint(JsonObject template, string where)
+        {
+            if (template["footprint"] is JsonNode fpn) return ReadRing(fpn, where + ".footprint");
+            if (template["storeys"] is not JsonArray storeys || storeys.Count == 0)
+                throw new ArgumentException($"Terrain world {where}: a building template needs 'footprint' or 'storeys'.");
+            return WallBox((JsonObject)storeys[0]!, where);
+        }
 
         private static Vector2[] WallBox(JsonObject storey0, string where)
         {

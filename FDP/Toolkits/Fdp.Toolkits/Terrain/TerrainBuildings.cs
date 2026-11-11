@@ -73,6 +73,10 @@ namespace Fdp.Toolkit.Terrain
     public sealed class TerrainBuilding
     {
         public string Label { get; init; } = "";
+        /// <summary>⭐ O-4 — the DISPLAY name (the map's text): the feature's <c>"name"</c> property; absent ⇒ the <see cref="Label"/> (so every existing terrain draws as before); <c>""</c> ⇒ no text.
+        /// ⛔ <see cref="Label"/> is an identity (an overlay building's stable key <c>&lt;guid&gt;/&lt;i&gt;</c>), never display text.</summary>
+        public string? Name { get => _name ?? Label; init => _name = value; }
+        private readonly string? _name;
         /// <summary>The template's name, or null for an inline building.</summary>
         public string? Template { get; init; }
         public Vector2 Position { get; init; }

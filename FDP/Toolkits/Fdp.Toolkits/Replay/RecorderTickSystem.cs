@@ -245,6 +245,9 @@ namespace Fdp.Toolkit.Replay
         public static void StampWorld(EntityRepository repo, Fdp.Core.FlightRecorder.Metadata.RecordingMetadata metadata)
         {
             metadata.TerrainName = Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(repo) ?? "";
+            var resident = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainDefinition>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainDefinition>() : null;
+            metadata.OverlayHash = resident?.ResolvedOverlayHash ?? "";   // ⭐ O-8 (CE-4420) — the terrain additions, by content
+            metadata.TerrainHash = resident?.ResolvedBaseHash ?? "";
             var (scenario, hash) = Fdp.Toolkit.Scenario.ScenarioDescription.IdentityOf(repo);   // ⭐ CE-4058 ② — the scenario it ran
             metadata.ScenarioName = scenario ?? "";
             metadata.ScenarioHash = hash ?? "";

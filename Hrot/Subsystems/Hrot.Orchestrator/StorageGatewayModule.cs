@@ -79,7 +79,7 @@ public sealed record AssetSyncTarget(string Kind, string DestinationRoot, Fdp.To
 /// whatever the scenario says. An older file's <c>Header.TkbName</c> is never read.
 /// 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0.</para>
 /// </summary>
-public readonly record struct StagedArtifactNames(string? TerrainName)
+public readonly record struct StagedArtifactNames(string? TerrainName, string? OverlayHash = null, string? OverlaySource = null)
 {
     /// <summary>True when the scenario names at least one artifact worth staging.</summary>
     public bool Any => !string.IsNullOrEmpty(TerrainName);
@@ -425,6 +425,16 @@ public sealed class StorageGatewayModule
         // Sanity gate -- TerrainName must agree across all scenario files. ⛔ R-4018: no TKB name is read from them.
         // ⭐ S2a — it RETURNS what it computed, instead of discarding it.
         var artifactNames = CheckTerrainNameConsensus(files);
+        // ⭐ O-4 (CE-4415) — the scenario's terrain overlay folder, if it has one: it travels beside the terrain, keyed by its content hash
+        var overlayDir = Path.Combine(sourceDir, OverlayFolderName);
+        var overlayHeader = Path.Combine(overlayDir, Fdp.Toolkit.Terrain.TerrainOverlayHeader.FileName);
+        if (artifactNames.Any && File.Exists(overlayHeader))
+        {
+            var hash = Fdp.Toolkit.Terrain.TerrainOverlayHeader.Parse(File.ReadAllText(overlayHeader), overlayHeader).ContentHash;
+            if (string.IsNullOrEmpty(hash))
+                throw new InvalidOperationException($"[Gateway] PrefetchScenario: '{overlayHeader}' carries no contentHash.");
+            artifactNames = artifactNames with { OverlayHash = hash, OverlaySource = overlayDir };
+        }
 
         int success = 0, failure = 0;
 
@@ -564,6 +574,15 @@ public sealed class StorageGatewayModule
                         names.TerrainName!);
                     // ⭐ D2 — the terrain folder travels by the asset sync (mirror), not a second copier.
                     var r = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(terrainSource, terrainDest);
+                    Interlocked.Add(ref success, Math.Max(1, r.Writes));
+                }
+
+                if (names.OverlaySource != null && !string.IsNullOrEmpty(names.OverlayHash))
+                {
+                    var nodeRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.TkbDestinationPath))!;
+                    var overlayDest = Path.Combine(nodeRoot, Fdp.Toolkit.Terrain.TerrainCatalog.StagingDirectoryName,
+                        Fdp.Toolkit.Terrain.TerrainCatalog.OverlaysDirectoryName, names.OverlayHash);
+                    var r = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(names.OverlaySource, overlayDest);   // ⭐ O-4 — same mirror as the terrain, same node root
                     Interlocked.Add(ref success, Math.Max(1, r.Writes));
                 }
 
@@ -727,6 +746,9 @@ public sealed class StorageGatewayModule
         }
     }
 
+    /// <summary>⭐ O-4 — the folder beside a scenario's files holding its compiled terrain overlay.</summary>
+    public const string OverlayFolderName = "terrain-overlay";
+
     /// <summary>The header file the node-side terrain reader opens. ⛔ One definition of the name.</summary>
     public const string StagedScenarioHeaderFileName = "ScenarioHeader.json";
 
@@ -737,9 +759,11 @@ public sealed class StorageGatewayModule
     /// </summary>
     public static string BuildStagedHeaderJson(StagedArtifactNames names)
     {
-        var fields = new List<string>(1);
+        var fields = new List<string>(2);
         if (!string.IsNullOrEmpty(names.TerrainName))
             fields.Add($"\"TerrainName\":{JsonSerializer.Serialize(names.TerrainName, FdpJsonOptionsRegistry.DefaultRelaxed)}");
+        if (!string.IsNullOrEmpty(names.OverlayHash))   // ⭐ O-4 — the scenario's terrain overlay (Terrain/overlays/<hash>/); absent ⇒ no field, the header is rewritten whole
+            fields.Add($"\"OverlayHash\":{JsonSerializer.Serialize(names.OverlayHash, FdpJsonOptionsRegistry.DefaultRelaxed)}");
         return "{" + string.Join(",", fields) + "}";
     }
 

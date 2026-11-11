@@ -85,6 +85,7 @@ namespace Fdp.Toolkit.Replay
                 var parent = MetadataSerializer.Deserialize(System.IO.File.ReadAllText(parentMeta));
                 metadata.Checkpoints = parent.Checkpoints.FindAll(m => m.Frame < branch.FrameCount);
                 metadata.TerrainName = parent.TerrainName;
+                metadata.OverlayHash = parent.OverlayHash; metadata.TerrainHash = parent.TerrainHash;   // ⭐ O-8
                 metadata.GeoOrigin   = parent.GeoOrigin;
                 metadata.MaxNetworkId = parent.MaxNetworkId;
                 metadata.CheckpointingSeconds = parent.CheckpointingSeconds;   // D17 — one session, one mode

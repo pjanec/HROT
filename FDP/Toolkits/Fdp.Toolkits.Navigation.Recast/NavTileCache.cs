@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using DotRecast.Core;
@@ -82,6 +83,21 @@ public sealed class NavTileCache
     /// <summary>⭐ CE-4393 — a terrain folder's prefilled tiles (<c>&lt;terrain&gt;/navtiles</c>), read only.</summary>
     public static NavTileCache ForSeed(string folder) => new(folder, null, NavTileCacheMode.Seed);
 
+    /// <summary>⭐ O-2 (CE-4416) — several seed folders read as ONE seed, in order (a terrain's tiles, then its overlay's): a tile is looked up in each until found.</summary>
+    public static NavTileCache ForSeeds(IReadOnlyList<string> folders)
+    {
+        if (folders.Count == 0) throw new ArgumentException("At least one seed folder is required.", nameof(folders));
+        var first = new NavTileCache(folders[0], null, NavTileCacheMode.Seed);
+        if (folders.Count > 1)
+        {
+            first._moreSeeds = new NavTileCache[folders.Count - 1];
+            for (int i = 1; i < folders.Count; i++) first._moreSeeds[i - 1] = ForSeed(folders[i]);
+        }
+        return first;
+    }
+
+    private NavTileCache[]? _moreSeeds;   // a multi-folder seed's later folders
+
     /// <summary>⭐ CE-4393 — the importer's bake target (<c>&lt;terrain&gt;/navtiles</c>): written, never pruned, nothing kept in memory.</summary>
     public static NavTileCache ForPrefill(string folder) => new(folder, null, NavTileCacheMode.Prefill);
 
@@ -121,7 +137,7 @@ public sealed class NavTileCache
         data = null;
         if (Mode != NavTileCacheMode.Normal || !_memory.TryGetValue(key, out var bytes))
         {
-            bytes = seed?.ReadDisk(key) ?? ReadDisk(key);
+            bytes = seed?.ReadSeed(key) ?? ReadDisk(key);
             if (bytes == null) return false;
             Remember(key, bytes);
         }
@@ -176,6 +192,14 @@ public sealed class NavTileCache
     //   with every tile of a layer in one folder (115 033 files) each write listed the whole folder, and a cold re-bake (the woods changed
     //   every key) ran > 10 min at 360 % CPU inside PruneSquare. Tiles in the old flat layout are simply not found (a re-bake).
     private string PathOf(in NavTileKey key) => Path.Combine(Folder!, key.Layer.ToString(), $"{key.TileX}_{key.TileZ}", key.FileName);
+
+    private byte[]? ReadSeed(in NavTileKey key)
+    {
+        var bytes = ReadDisk(key);
+        if (bytes != null || _moreSeeds == null) return bytes;
+        foreach (var more in _moreSeeds) if ((bytes = more.ReadDisk(key)) != null) return bytes;
+        return null;
+    }
 
     private byte[]? ReadDisk(in NavTileKey key)
     {

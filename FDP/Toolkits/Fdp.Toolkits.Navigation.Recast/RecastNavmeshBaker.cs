@@ -137,7 +137,15 @@ public sealed class RecastNavmeshBaker
     public readonly record struct Area(float MinX, float MinZ, float MaxX, float MaxZ);
 
     /// <summary>What the last <see cref="Bake"/> did (a rail and the load log read it).</summary>
-    public readonly record struct BakeStats(int Tiles, int FineTiles, int Baked, int FromCache, long Milliseconds);
+    /// <param name="GatherMs">⭐ O-7 — THREAD time (summed over the worker threads) spent gathering and binning each tile's triangles (<c>TileTriangles</c>).</param>
+    /// <param name="HashMs">THREAD time hashing tiles (<c>HashTile</c>; only with a <see cref="Cache"/>).</param>
+    /// <param name="CacheMs">THREAD time in <c>Cache.TryGet</c> (memory lookup, seed/disk read, deserialise).</param>
+    /// <param name="BakeMs">THREAD time baking the tiles that missed (Recast + <c>Cache.Put</c>).</param>
+    /// <param name="ParallelMs">WALL time of the parallel tile section.</param>
+    /// <param name="AssembleMs">WALL time of the serial assembly (the <c>AddTile</c> loop) over every layer.</param>
+    /// <param name="Reused">⭐ O-7 A — layer-tiles taken from <see cref="Previous"/>'s key outside every <see cref="Dirty"/> rectangle: no gather, no hash (not counted in <c>FromCache</c>).</param>
+    public readonly record struct BakeStats(int Tiles, int FineTiles, int Baked, int FromCache, long Milliseconds,
+        long GatherMs = 0, long HashMs = 0, long CacheMs = 0, long BakeMs = 0, long ParallelMs = 0, long AssembleMs = 0, int Reused = 0);
 
     /// <summary>The tile edge (m); must be a multiple of both cell sizes.</summary>
     public float TileMetres { get; init; } = DefaultTileMetres;
@@ -159,6 +167,18 @@ public sealed class RecastNavmeshBaker
     /// cache's own hash, so two bakes agree on a tile exactly when its inputs are equal. Empty when <see cref="Cache"/> is null (no key is computed then).
     /// </summary>
     public IReadOnlyDictionary<long, ulong> LastTileKeys { get; private set; } = new Dictionary<long, ulong>();
+
+    /// <summary>
+    /// ⭐ O-7 A (DESIGN_Terrain_Authoring §18e A-1) — the previous bake's FULL key map <c>(layer, ax, az) → key</c> (its <see cref="LastKeys"/>). With <see cref="Dirty"/> it lets a tile OUTSIDE every dirty
+    /// rectangle be fetched from the <see cref="Cache"/> by its previous key — a fresh copy of its bytes, no gather and no hash. A key whose bytes are gone falls back to the normal path.
+    /// </summary>
+    public IReadOnlyDictionary<(NavLayerMask Layer, int Ax, int Az), NavTileKey>? Previous { get; init; }
+
+    /// <summary>⭐ O-7 A — where the world changed since <see cref="Previous"/> was baked, engine XY rectangles (RECAST x/z): a tile whose gather rectangle meets none of them is reused. Null = unknown ⇒ the full bake, exactly as before.</summary>
+    public IReadOnlyList<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)>? Dirty { get; init; }
+
+    /// <summary>⭐ O-7 A — this bake's full key map (empty without a <see cref="Cache"/>): hand it to the next bake as <see cref="Previous"/>.</summary>
+    public IReadOnlyDictionary<(NavLayerMask Layer, int Ax, int Az), NavTileKey> LastKeys { get; private set; } = new Dictionary<(NavLayerMask, int, int), NavTileKey>();
 
     /// <summary>The stats of the last <see cref="Bake"/>.</summary>
     public BakeStats LastStats { get; private set; }
@@ -257,7 +277,7 @@ public sealed class RecastNavmeshBaker
         foreach (NavLayerMask layer in LayerBits)
             if ((layerMask & layer) != 0) layers.Add(layer);
         var result = new Dictionary<NavLayerMask, DtNavMesh>();
-        if (!source.TryGetBounds(out var rawMin, out var rawMax) || layers.Count == 0) { LastStats = default; return result; }
+        if (!source.TryGetBounds(out var rawMin, out var rawMax) || layers.Count == 0) { LastStats = default; LastKeys = new Dictionary<(NavLayerMask, int, int), NavTileKey>(); return result; }
 
         // ⭐ The grid: anchored at the world origin, so tile (x, z) is the same square in every bake (Q71 R7 — the cache key).
         int firstX = (int)MathF.Floor(rawMin.X / TileMetres), firstZ = (int)MathF.Floor(rawMin.Z / TileMetres);
@@ -302,8 +322,16 @@ public sealed class RecastNavmeshBaker
         var fineOf = new bool[tilesX * tilesZ, layers.Count];
         int nBaked = 0, fromCache = 0;
         var tileKeys = new System.Collections.Concurrent.ConcurrentDictionary<long, ulong>();
+        var allKeys = new System.Collections.Concurrent.ConcurrentDictionary<(NavLayerMask, int, int), NavTileKey>();
+        int reused = 0;
+        // ⭐ O-7 A — a tile is "clean" when its widest reach (the gather margin, the doorway/hash margin, the fine-area margin) meets no dirty rectangle
+        float reach = Math.Max(margin + 3f, FineMarginMetres);
+        bool useDirty = Dirty != null && Previous != null && Cache != null;
         int tileCount = tilesX * tilesZ, tilesDone = 0;
         var parallel = new ParallelOptions { CancellationToken = Cancel };
+        // ⭐ O-7 — where the time of a bake goes: thread-time per stage (Stopwatch ticks, Interlocked), the parallel section's and the assembly's wall time. Allocation-free.
+        long tGather = 0, tHash = 0, tCache = 0, tBake = 0;
+        long parallelStart = System.Diagnostics.Stopwatch.GetTimestamp();
         Parallel.For(0, tileCount, parallel, ti =>
         {
             try { BakeOneTile(ti); }
@@ -314,12 +342,50 @@ public sealed class RecastNavmeshBaker
             }
         });
 
+        bool MeetsDirty(int ax, int az, float r)
+        {
+            float x0 = ax * TileMetres - r, z0 = az * TileMetres - r, x1 = (ax + 1) * TileMetres + r, z1 = (az + 1) * TileMetres + r;
+            foreach (var (mn, mx) in Dirty!)
+                if (mn.X <= x1 && mx.X >= x0 && mn.Y <= z1 && mx.Y >= z0) return true;
+            return false;
+        }
+
+        // the tile as it was: every layer's previous key through the cache (a fresh copy of the bytes); false (nothing recorded) when a key is missing or its bytes are gone
+        bool TryReuse(int ti, int ax, int az)
+        {
+            var keys = new NavTileKey[layers.Count]; var data = new DtMeshData?[layers.Count];
+            for (int li = 0; li < layers.Count; li++)
+            {
+                if (!Previous!.TryGetValue((layers[li], ax, az), out keys[li])) return false;
+                long c0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                bool hit = Cache!.TryGet(keys[li], Seed, out data[li]);
+                Interlocked.Add(ref tCache, System.Diagnostics.Stopwatch.GetTimestamp() - c0);
+                if (!hit) return false;
+            }
+            present[ti] = true;
+            for (int li = 0; li < layers.Count; li++)
+            {
+                baked[ti, li] = data[li];
+                fineOf[ti, li] = layers[li] == NavLayerMask.Infantry && fineAreas != null && TouchesAny(fineAreas, ax, az);
+                allKeys[(layers[li], ax, az)] = keys[li];
+                ulong kh = 1469598103934665603UL ^ (ulong)(int)layers[li];
+                foreach (char ch in keys[li].Hash) { kh ^= ch; kh *= 1099511628211UL; }
+                tileKeys.AddOrUpdate(((long)ax << 32) | (uint)az, kh, (_, old) => old ^ kh);
+                Interlocked.Increment(ref reused);
+            }
+            return true;
+        }
+
         void BakeOneTile(int ti)
         {
             int tx = ti % tilesX, tz = ti / tilesX;
             int ax = firstX + tx, az = firstZ + tz;
             Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
-            if (!TileTriangles(source, ax, az, firstX, firstZ, tilesX, tilesZ, margin, out var tv, out var tidx)) return;
+            if (useDirty && !MeetsDirty(ax, az, reach) && TryReuse(ti, ax, az)) return;
+            long g0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            bool anyTriangles = TileTriangles(source, ax, az, firstX, firstZ, tilesX, tilesZ, margin, out var tv, out var tidx);
+            Interlocked.Add(ref tGather, System.Diagnostics.Stopwatch.GetTimestamp() - g0);
+            if (!anyTriangles) return;
             present[ti] = true;
             // ⭐ CE-4366 — the Recast input (its chunky index) only when a layer must really bake: a warm load hashes and hits
             var tileVolumes = new List<NavDoorways.Volume>();
@@ -346,12 +412,19 @@ public sealed class RecastNavmeshBaker
                 NavTileKey key = default;
                 if (Cache != null)
                 {
+                    long h0 = System.Diagnostics.Stopwatch.GetTimestamp();
                     key = new NavTileKey(layer, ax, az, HashTile(tv, tidx, tileVolumes, layer, p, cs, ax, az, yMin, yMax));
+                    Interlocked.Add(ref tHash, System.Diagnostics.Stopwatch.GetTimestamp() - h0);
                     ulong kh = 1469598103934665603UL ^ (ulong)(int)layer;   // ⭐ CE-4391 — the tile's identity for P3-a, folded over its layers (xor: order-free)
                     foreach (char ch in key.Hash) { kh ^= ch; kh *= 1099511628211UL; }
                     tileKeys.AddOrUpdate(((long)ax << 32) | (uint)az, kh, (_, old) => old ^ kh);
-                    if (Cache.TryGet(key, Seed, out var hit)) { baked[ti, li] = hit; Interlocked.Increment(ref fromCache); continue; }
+                    allKeys[(layer, ax, az)] = key;
+                    long c0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                    bool cached = Cache.TryGet(key, Seed, out var hit);
+                    Interlocked.Add(ref tCache, System.Diagnostics.Stopwatch.GetTimestamp() - c0);
+                    if (cached) { baked[ti, li] = hit; Interlocked.Increment(ref fromCache); continue; }
                 }
+                long b0 = System.Diagnostics.Stopwatch.GetTimestamp();
                 if (geom == null)
                 {
                     geom = new RcSampleInputGeomProvider(tv, tidx);
@@ -361,9 +434,11 @@ public sealed class RecastNavmeshBaker
                 baked[ti, li] = data;
                 Interlocked.Increment(ref nBaked);
                 if (Cache != null) Cache.Put(key, data);   // an EMPTY tile is cached too (null)
+                Interlocked.Add(ref tBake, System.Diagnostics.Stopwatch.GetTimestamp() - b0);
             }
         }
 
+        long parallelTicks = System.Diagnostics.Stopwatch.GetTimestamp() - parallelStart;
         // the work in the old order (layer, then row-major tiles) for Assemble
         var work = new List<(NavLayerMask Layer, int Tx, int Tz, bool Fine)>();
         var tiles = new List<DtMeshData?>();
@@ -377,6 +452,7 @@ public sealed class RecastNavmeshBaker
                 if (fineOf[ti, li]) fineCount++;
             }
         var tileArray = tiles.ToArray();
+        long assembleStart = System.Diagnostics.Stopwatch.GetTimestamp();
         foreach (var layer in layers)
         {
             var p = GetParams(layer);
@@ -387,8 +463,11 @@ public sealed class RecastNavmeshBaker
                 _bakedParams[layer] = p;
             }
         }
-        LastStats = new BakeStats(work.Count, fineCount, nBaked, fromCache, sw.ElapsedMilliseconds);
+        static long Ms(long ticks) => ticks * 1000L / System.Diagnostics.Stopwatch.Frequency;
+        LastStats = new BakeStats(work.Count, fineCount, nBaked, fromCache, sw.ElapsedMilliseconds,
+            Ms(tGather), Ms(tHash), Ms(tCache), Ms(tBake), Ms(parallelTicks), Ms(System.Diagnostics.Stopwatch.GetTimestamp() - assembleStart), reused);
         LastTileKeys = tileKeys;
+        LastKeys = allKeys;
         return result;
     }
 

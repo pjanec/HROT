@@ -381,6 +381,12 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
             },
             () => RegisterCapabilities(context));
 
+        // ⭐⭐ O-7 B (CE-4418, docs/DESIGN_Terrain_Authoring.md §18e-2 B-1/B-4) — the editor shows its terrain blocks and features LIVE: its obstacle bake (the pack's one StaticObstacleBakeSystem) is handed the live overlay.
+        //   ⭐ Set here, on the constructed system, rather than through the shared pack: every other host keeps null (a block is inert data there; the compiled overlay reaches them at load) and no host can get one by
+        //   forgetting a parameter. The editor's own load merges NO compiled overlay (its staging root has no gateway-written header ⇒ no OverlayHash), so a block is never drawn twice.
+        //   📌 Rail: TheEditorShowsItsTerrainBlocksLiveTests (the editor's system has it, a SimHost's does not).
+        if (EntityCreation != null) EntityCreation.ObstacleBakeSystem.LiveOverlay = new Hrot.Map.Common.Services.LiveOverlay();
+
         // BSA-WIRE: the blueprint genesis + event-ingress systems, so InitialBlueprintsIntent (written on scenario load) is consumed in the offline editor as on a CGF node.
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(context.Kernel, _blueprintRegistry);
         // ⛔ MX2 — the ingress system CONSUMES these two events, but nothing declared them on this world's strict bus: declared HERE, beside the systems that drain them (MX-008).

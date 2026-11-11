@@ -671,6 +671,29 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ O-7 B (CE-4418, §18e-2 B-1/B-4) — ONLY the editor's root hands the obstacle bake a <c>LiveOverlay</c>: on every other host a terrain block is inert data (the compiled overlay reaches it at load), and a second host
+        /// with one would draw every block twice. 🔴 Red-proof: set <c>ObstacleBakeSystem.LiveOverlay</c> in another root, or drop the editor's assignment.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(RootsThatBuildThePack))]
+        public void OnlyTheEditorRoot_GivesTheObstacleBakeALiveOverlay(string rootPath)
+        {
+            var src = CompositionRootSource.ReadEffectiveRoot(rootPath);
+            Assert.True(src.Contains("EntityCreationPack.Build"), $"{rootPath} no longer builds the pack, so this row cannot assert anything.");
+            bool gives = src.Contains("ObstacleBakeSystem.LiveOverlay =");
+            Assert.Equal(rootPath.Contains("Hrot.Editor/"), gives);
+        }
+
+        /// <summary>⭐ O-7 B — a pack-built obstacle bake has NO live overlay by default (the SimHost, CGF, IG and Stride get exactly this one).</summary>
+        [Fact]
+        public void APackBuiltObstacleBake_HasNoLiveOverlayByDefault()
+        {
+            using var world = new EntityRepository();
+            var creation = Hrot.TestShared.TestEntityCreation.For(world, Hrot.Map.Common.HrotEnvironment.CreateTkb());
+            Assert.Null(creation.ObstacleBakeSystem.LiveOverlay);
+        }
+
+        /// <summary>
         /// ⭐ Weapon systems WS-4 (W-I) — every production root that builds the pack SCHEDULES the seat-preset boarder: a host with presets
         /// (a technical) gets its gun and gunner created beside it, and only this system boards them. 🔴 Red-proof: delete the
         /// <c>creation.SeatPresetSystem</c> registration from any one root.

@@ -72,6 +72,28 @@ public sealed class TerrainLayer2DTests
         Assert.DoesNotContain(plan.Strokes, p => p.Shape == DebugPrimitiveShape.FilledTriangle);
     }
 
+    /// <summary>
+    /// ⭐ O-4 (CE-4415) — the plan's building text is the DISPLAY name, never the stable key: an overlay house (label <c>&lt;key&gt;/&lt;i&gt;</c> — short here: a 32-byte text field would cut a guid-long one, <c>"name": ""</c>) draws NO text, a base house still
+    /// draws "&lt;name&gt; &lt;n&gt;F" (a building with no <c>name</c> falls back to its label). 🔴 Red-proof: print <c>Label</c> again in <c>TerrainPlan2D</c> ⇒ the '/' text appears.
+    /// </summary>
+    [Fact]
+    public void O4_AnOverlayHouse_DrawsNoText_ABaseHouseStillDrawsItsNameAndStoreys()
+    {
+        const string Hut = """{"footprint":[[0,0],[10,0],[10,8],[0,8]],"storeys":[{"height":3,"walls":[{"from":[0,0],"to":[10,0]},{"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}""";
+        var w = TerrainWorldParser.Parse("""
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,200,100],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"Block D","building":HUT},"geometry":{"type":"Point","coordinates":[20,20]}},
+              {"type":"Feature","properties":{"kind":"building","label":"k1/3","name":"","building":HUT},"geometry":{"type":"Point","coordinates":[100,20]}}]}
+            """.Replace("HUT", Hut), "t");
+        Assert.Equal("Block D", w.Buildings[0].Name);   // no "name": the label
+        Assert.Equal("", w.Buildings[1].Name);
+        Assert.Equal("k1/3", w.Buildings[1].Label);   // the identity is untouched
+        var texts = TerrainLayer2D.PlanOf(w).Strokes.Where(p => p.Shape == DebugPrimitiveShape.Text).Select(p => p.TextContent.ToString()).ToList();
+        Assert.Contains("Block D 1F", texts);
+        Assert.DoesNotContain(texts, t => t.Contains('/'));
+        Assert.Single(texts.Where(t => t.EndsWith("F")));   // the overlay house prints nothing at all — not even its storeys
+    }
+
     /// <summary>⭐ Culling: what the view shows, in emission order; an outline shorter than a pixel and labels below
     /// <see cref="TerrainLayer2D.LabelMinZoom"/> are left out.</summary>
     [Fact]

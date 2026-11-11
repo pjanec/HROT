@@ -259,8 +259,8 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         int node = _manager.LocalEntitiesProviderNodeId, frame = ctx.CurrentFrame;
         if (frame < 0 || _eventsCapturedAt == (node, frame)) return;
         var history = ctx.HistoryService;
-        if (_eventsCapturedAt is not { } last || last.Node != node || frame > last.Frame + 1) history.ClearHistory();
-        else if (frame < last.Frame) history.RewindHistory((uint)frame);
+        if (_eventsCapturedAt is not { } last || last.Node != node || frame > last.Frame + 1) { history.ClearHistory(); BakeRecordedObstacles(); }   // ⭐ O-8 — a load / a jump: the obstacle set may have changed
+        else if (frame < last.Frame) { history.RewindHistory((uint)frame); BakeRecordedObstacles(); }
         history.Capture("Replay", ctx.SandboxBus, (uint)frame);
         _eventsCapturedAt = (node, frame);
     }

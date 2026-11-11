@@ -104,6 +104,15 @@ namespace Fdp.Toolkit.Terrain
         /// (obstacles, damage) keeps it. The navmesh bake reads the tiles the importer baked into <c>&lt;SourceFolder&gt;/navtiles</c>.</summary>
         public string? SourceFolder { get; init; }
 
+        /// <summary>⭐ O-2 (CE-4416, DESIGN_Terrain_Authoring §18a) — every folder whose prefilled <c>navtiles/</c> seed this world's navmesh bake, in order
+        /// (the base terrain's, then an overlay's): defaults to <see cref="SourceFolder"/> alone; <see cref="TerrainWorldMerge.Merge"/> sets the list.</summary>
+        public IReadOnlyList<string> SeedFolders
+        {
+            get => _seedFolders ?? (SourceFolder is { } f ? new[] { f } : Array.Empty<string>());
+            init => _seedFolders = value;
+        }
+        private readonly IReadOnlyList<string>? _seedFolders;
+
         public Vector2 BoundsMin { get; init; }
         public Vector2 BoundsMax { get; init; }
         public float GroundZ { get; init; }

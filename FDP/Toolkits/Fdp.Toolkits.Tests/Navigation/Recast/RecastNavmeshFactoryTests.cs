@@ -152,6 +152,66 @@ public sealed class RecastNavmeshFactoryTests
         Assert.True(door, "a corner in the doorway must be a Door waypoint (N4)");
     }
 
+    /// <summary>
+    /// ⭐ O-2 (CE-4416) — a house that arrives through a MERGED overlay is enterable: its door is in <c>world.Doors</c> with the offset panel index, <c>NavDoorways.For</c> puts the
+    /// doorway at the overlay house's wall, a baked path leads from outside to a point inside it, and the door's live state (a locked door) closes it.
+    /// 🔴 Red-proof: drop the door's <c>Panel</c> offset in <c>TerrainWorldMerge.Merge</c> ⇒ the doorway sits on the base house's wall and the locked door no longer blocks.
+    /// </summary>
+    [Fact]
+    public void O2_AHouseFromAMergedOverlay_IsEnterable_ThroughItsOwnDoorway()
+    {
+        var baseWorld = TerrainWorldParser.Parse("""
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,120,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"B","doors":{"front":"open"},"building":{
+                 "footprint":[[0,0],[10,0],[10,8],[0,8]],
+                 "storeys":[{"height":3,"walls":[
+                      {"from":[0,0],"to":[10,0],"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},
+                      {"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
+               "geometry":{"type":"Point","coordinates":[90,20]}}]}
+            """, "range");
+        var overlay = TerrainWorldParser.Parse(OneDoorRoom.Replace("\"label\":\"R\"", "\"label\":\"O\""), "range");   // the room at (20, 20), door "front" in its south wall
+        var world = TerrainWorldMerge.Merge(baseWorld, overlay);
+        Assert.Equal(2, world.Doors.Count);
+        string key = "range/O/front";
+        int door = world.DoorIndexOf(key);
+        Assert.Equal(1, door);
+        Assert.Equal(baseWorld.Panels.Count, world.Doors[door].Panel - overlay.Doors[0].Panel);   // the panel index is offset
+
+        var volumes = NavDoorways.For(world);
+        var v = Assert.Single(volumes, x => x.Door == door);
+        Assert.InRange(v.Verts[0], 22f, 29f); Assert.InRange(v.Verts[2], 18f, 22f);              // RECAST x/z = engine x/y: the doorway is in the overlay house's south wall, not the base house's (x 90)
+
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry, TileCache = new NavTileCache() }.Build(world)!;
+        var outside = new Vector3(25, 10, 0); var inside = new Vector3(25, 25, 0);
+        const uint Inf = (uint)NavLayerMask.Infantry;
+        Assert.True(nav.DoorPolyCount(NavLayerMask.Infantry) > 0);
+        Assert.True(nav.PathExists(outside, inside, Inf, Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world, (key, TerrainDoorState.Open))));
+        Assert.False(nav.PathExists(outside, inside, Inf, Fdp.Toolkit.Terrain.Tests.DoorFixtures.States(world, (key, TerrainDoorState.Locked))));
+    }
+
+    /// <summary>
+    /// ⭐ O-2 (CE-4416) — WATER from a merged overlay is impassable on foot and by vehicle (measured: the ground mesh cuts the water polygons out, so nothing is baked there — no new rule
+    /// needed); an "open" surface of the same shape is walkable (the control). 🔴 Red-proof: drop the overlay's surfaces in <c>TerrainWorldMerge.Merge</c> ⇒ the path across exists.
+    /// </summary>
+    [Fact]
+    public void O2_WaterFromAMergedOverlay_IsImpassable_OpenGroundIsNot()
+    {
+        const string Strip = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+             {"type":"Feature","properties":{"kind":"surface","surface":"SURF"},"geometry":{"type":"Polygon","coordinates":[[[0,20],[60,20],[60,40],[0,40],[0,20]]]}}]}
+            """;
+        var bare = TerrainWorldParser.Parse("""{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[]}""", "w");
+        var layers = NavLayerMask.Infantry | NavLayerMask.Vehicle;
+        var from = new Vector3(30, 10, 0); var to = new Vector3(30, 50, 0); var mid = new Vector3(30, 30, 0);
+        var water = new RecastNavmeshFactory { Layers = layers, TileCache = new NavTileCache() }.Build(TerrainWorldMerge.Merge(bare, TerrainWorldParser.Parse(Strip.Replace("SURF", "water"), "w")))!;
+        var open = new RecastNavmeshFactory { Layers = layers, TileCache = new NavTileCache() }.Build(TerrainWorldMerge.Merge(bare, TerrainWorldParser.Parse(Strip.Replace("SURF", "open"), "w")))!;
+        foreach (var layer in new[] { NavLayerMask.Infantry, NavLayerMask.Vehicle })
+        {
+            Assert.False(water.IsWalkable(mid, (uint)layer)); Assert.False(water.PathExists(from, to, (uint)layer));
+            Assert.True(open.IsWalkable(mid, (uint)layer)); Assert.True(open.PathExists(from, to, (uint)layer));
+        }
+    }
+
     // ── ⭐ CE-3133 — the navmesh's polygons for the map's Navmesh layer (docs/DESIGN_Terrain_Combat_Tuning.md §5c) ──────────
 
     [Fact]
