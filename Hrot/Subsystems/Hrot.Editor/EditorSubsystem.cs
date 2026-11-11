@@ -582,6 +582,7 @@ namespace Hrot.Editor
         private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
         /// <summary>⭐ CE-4375 — the OSM terrain wizard (File › New › Terrain from OpenStreetMap…).</summary>
         private Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? _osmWizard;
+        private Hrot.UI.Common.TerrainSave.TerrainSaveAsWindow? _terrainSaveAs;   // ⭐ Terrain authoring U-5
         /// <summary>The OSM wizard the File ▸ New item opens (a rail reads its DisabledReason, CE-4381).</summary>
         internal Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow? OsmWizard => _osmWizard;
         /// <summary>⭐ CE-4378 — the New-asset launcher, for the OSM wizard's "Open in New Scenario" (set where the launcher is built).</summary>
@@ -2630,7 +2631,7 @@ namespace Hrot.Editor
                 Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity(_world!, target);   // ⭐ CE-4410 — the Delete key's one path (CE-4276 F2)
             });
             // ⭐ Terrain authoring U-3 — a placed block's menu: Re-roll, Rotate, Change recipe… (Unpack is greyed until backend's T-4); each ONE edit step
-            new Hrot.UI.Common.AddEntity.TerrainBlockActions(() => _world, () => _shellPickers?.OpenPicker, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped).RegisterOn(actionRegistry);
+            new Hrot.UI.Common.AddEntity.TerrainBlockActions(() => _world, () => _shellPickers is { } sp ? sp.OpenPicker : null, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped).RegisterOn(actionRegistry);
             // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
             //   host; the inspector menu below still publishes the same action ids.
 
@@ -3671,6 +3672,14 @@ namespace Hrot.Editor
             };
             _osmWizard = new Hrot.UI.Common.TerrainOsm.OsmTerrainWizardWindow(() => osmServices);
             windowManager.RegisterFrameOverlay(_osmWizard.Draw);
+            // ⭐ Terrain authoring U-5 — File ▸ Save Terrain As…: the dialog over backend's TerrainBake.SaveAs; the new scenario (when asked for) is loaded through the scenario door once the terrain is written
+            _terrainSaveAs = new Hrot.UI.Common.TerrainSave.TerrainSaveAsWindow(() => new Hrot.Editor.TerrainSave.EditorTerrainSaveService(() => _editorLogic?.LoadedScenarioName));
+            _terrainSaveAs.Saved += outcome =>
+            {
+                _saveAllStatus = $"[OK] Saved terrain '{System.IO.Path.GetFileName(outcome.TerrainFolder)}'" + (outcome.ScenarioName is { } sn ? $" and scenario '{sn}'." : ".");
+                if (outcome.ScenarioName is { } name) _editorApp?.ScenarioSession.LoadScenario(name);
+            };
+            windowManager.RegisterFrameOverlay(_terrainSaveAs.Draw);
 
             var assetRowCommands = new[]
             {
@@ -4415,7 +4424,10 @@ namespace Hrot.Editor
                     : null,
                 // ⭐ CE-4375 — File › New › Terrain from OpenStreetMap…: this host HAS the wizard, so it passes it; the wizard says why it is greyed (no pipeline yet)
                 openTerrainFromOsm: _osmWizard != null ? _osmWizard.Open : null,
-                terrainFromOsmDisabledReason: () => _osmWizard?.DisabledReason);
+                terrainFromOsmDisabledReason: () => _osmWizard?.DisabledReason,
+                // ⭐ Terrain authoring U-5 — File › Save Terrain As…: this host HAS the dialog
+                openSaveTerrainAs: _terrainSaveAs != null ? _terrainSaveAs.Open : null,
+                saveTerrainAsDisabledReason: () => _terrainSaveAs?.DisabledReason);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();

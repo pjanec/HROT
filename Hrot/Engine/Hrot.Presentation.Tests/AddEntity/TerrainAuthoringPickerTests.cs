@@ -214,11 +214,14 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         var first = pl.Preview(new Vector2(100f, 300f));
         Assert.Equal(1, pl.Computations);
 
+        for (int i = 0; i < 300; i++) pl.Preview(new Vector2(100.1f, 300.1f));   // warm: the JIT allocates on its first calls (tiering)
+        int same = 0;
         long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 200; i++) Assert.Same(first, pl.Preview(new Vector2(100.1f, 300.1f)));   // under half a metre: the cached shape
+        for (int i = 0; i < 200; i++) if (ReferenceEquals(first, pl.Preview(new Vector2(100.1f, 300.1f)))) same++;   // under half a metre: the cached shape
         long after = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Equal(200, same);
         Assert.Equal(1, pl.Computations);
-        Assert.True(after - before <= 256, $"a steady ghost allocated {after - before} B");   // 0 B steady (the Assert.Same boxing aside)
+        Assert.Equal(0, after - before);   // 0 B per steady frame
 
         pl.Rotate();
         Assert.Equal(90f, pl.RotationDeg);

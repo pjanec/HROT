@@ -45,6 +45,8 @@ public static class FileMenuLayout
     public const string Save = "File/Save", SaveAs = "File/Save As…", SaveAll = "File/Save All";
     /// <summary>⭐ CE-1443 B2 — the recipe saves: the shell's (<c>shell.saveAsRecipe</c>, a document) and the scenario's (<c>scenario.saveAsRecipe</c>).</summary>
     public const string SaveAsRecipe = "File/Save as Recipe…", SaveScenarioAsRecipe = "File/Save Scenario as Recipe…";
+    /// <summary>⭐ Terrain authoring U-5 (mockup 4) — Save Terrain As…: bake the scenario's blocks and features into a NEW terrain (the editing group; greyed with its reason when no scenario is loaded).</summary>
+    public const string SaveTerrainAs = "File/Save Terrain As…";
     /// <summary>The scenario's own items (<c>scenario.save</c> / <c>scenario.saveAs</c> / migration history / the curated git copy).</summary>
     public const string SaveScenario = "File/Save Scenario", SaveScenarioAs = "File/Save Scenario As", MigrationHistory = "File/Migration History", SaveCuratedToGit = "File/Save Curated Scenarios to Git";
 
@@ -62,7 +64,7 @@ public static class FileMenuLayout
     /// <summary>The editing group's items, in order.</summary>
     public static readonly IReadOnlyList<string> EditingGroup = new[]
     {
-        OpenAsset, NewAsset, NewBehavior, NewAction, NewCondition, Save, SaveScenario, SaveAs, SaveScenarioAs, SaveSelectionAsMacro, SaveAsRecipe, SaveScenarioAsRecipe, SaveAll, MigrationHistory, SaveCuratedToGit,
+        OpenAsset, NewAsset, NewBehavior, NewAction, NewCondition, Save, SaveScenario, SaveAs, SaveScenarioAs, SaveTerrainAs, SaveSelectionAsMacro, SaveAsRecipe, SaveScenarioAsRecipe, SaveAll, MigrationHistory, SaveCuratedToGit,
     };
 
     /// <summary>⭐ EVERY File path of this menu in DRAW order, separators included — the table a rail reads (what the menu is MEANT to be, not what a host happened to register).</summary>
