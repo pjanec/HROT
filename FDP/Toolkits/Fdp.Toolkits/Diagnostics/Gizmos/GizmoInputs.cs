@@ -22,6 +22,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>Any other input as a number that changes whenever it does (a setting): compared with the value seen last frame. Null = none.</summary>
         public Func<long>? Version { get; }
 
+        /// <summary>The rule asks <c>IDebugDrawBuilder.IsLayerActive</c> (draws nothing on a hidden layer): toggling a layer redraws it. Needs a
+        /// <see cref="DebugPrimitiveBuffer"/>; the buffer's <c>LayersVersion</c> is the input.</summary>
+        public bool ReadsLayerState { get; init; }
+
         public GizmoInputs(bool dependsOnView, Func<long>? version, params Type[] components)
         {
             Components = components ?? Array.Empty<Type>();

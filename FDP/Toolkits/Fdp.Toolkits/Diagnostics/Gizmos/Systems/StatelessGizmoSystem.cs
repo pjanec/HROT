@@ -126,6 +126,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private int _ruleInputsFor;
         private RulePicture?[] _pics = System.Array.Empty<RulePicture?>();
 
+        /// <summary>⭐ CE-1480 G5 — false ⇒ every rule is drawn every frame whatever it declares (the ungated reference of the equivalence rails; same as <c>HROT_CHANGE_GATE=0</c> for the rules, per system).</summary>
+        public bool HonourDeclaredInputs { get; set; } = true;
+
         /// <summary>Frames on which the match pass was skipped (rails / diagnostics).</summary>
         public int MatchPassesSkipped { get; private set; }
         /// <summary>Rule pictures re-appended instead of drawn (rails / diagnostics).</summary>
@@ -150,6 +153,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 Gate = new ChangeGate().Watch(inputs.Components);
                 if (inputs.DependsOnView) Gate.WatchExternal(() => owner.ViewFilter?.Version ?? -1L);
                 if (inputs.Version != null) Gate.WatchExternal(inputs.Version);
+                if (inputs.ReadsLayerState) Gate.WatchExternal(() => owner._buffer?.LayersVersion ?? -1L);
             }
 
             public void Add(int index, int gen)
@@ -404,7 +408,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 //   every entity (no selection predicate) and, for a view-dependent rule, a view that publishes a version.
                 RulePicture? pic = null; bool reuse = false, capture = false; int picMark = 0;
                 var inputs = _ruleInputs[r];
-                if (inputs != null && _buffer != null && alwaysDraw && budget <= 0f && ChangeGate.Enabled
+                if (inputs != null && HonourDeclaredInputs && _buffer != null && alwaysDraw && budget <= 0f && ChangeGate.Enabled
                     && (!inputs.DependsOnView || (filter != null && filter.Version >= 0)))
                 {
                     pic = _pics[r] ??= new RulePicture(inputs, this);

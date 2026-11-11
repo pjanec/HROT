@@ -18,13 +18,6 @@ namespace Hrot.Presentation.Tests.Gizmos
     /// </summary>
     internal sealed class GatedRuleRig
     {
-        private sealed class Hide : IStatelessGizmo
-        {
-            private readonly IStatelessGizmo _inner;
-            public Hide(IStatelessGizmo inner) => _inner = inner;
-            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder b) => _inner.Draw(view, entity, b);
-        }
-
         public sealed class Rect : IGizmoViewFilter
         {
             public float MaxX = 1_000_000; public long Ver = 1;
@@ -40,6 +33,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         public readonly StatelessGizmoSystem Gated, Plain;
         public readonly Rect View = new();
         public readonly IStatelessGizmo Rule;
+        public string Phase = "start";
 
         public GatedRuleRig(IStatelessGizmo rule, Action<EntityRepository> register, Func<EntityRepository, int, Entity> spawn, int count = 24)
         {
@@ -49,9 +43,9 @@ namespace Hrot.Presentation.Tests.Gizmos
             register(Repo);
             var types = rule.GetType().GetCustomAttribute<GizmoProjectorAttribute>()!.RequiredComponents;
             var rg = new StatelessGizmoRegistry(); rg.Register(rule, types);
-            var rp = new StatelessGizmoRegistry(); rp.Register(new Hide(rule), types);
+            var rp = new StatelessGizmoRegistry(); rp.Register(rule, types);
             Gated = new StatelessGizmoSystem(rg, GatedBuf) { ViewFilter = View };
-            Plain = new StatelessGizmoSystem(rp, PlainBuf) { ViewFilter = View };
+            Plain = new StatelessGizmoSystem(rp, PlainBuf) { ViewFilter = View, HonourDeclaredInputs = false };
             for (int i = 0; i < count; i++) Ents.Add(spawn(Repo, i));
         }
 
@@ -60,7 +54,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             Repo.Tick(); GatedBuf.EndFrame(0f); PlainBuf.EndFrame(0f);
             Gated.Execute(Repo, 0f); Plain.Execute(Repo, 0f);
             var g = MemoryMarshal.AsBytes(GatedBuf.GetFrame()); var p = MemoryMarshal.AsBytes(PlainBuf.GetFrame());
-            Assert.True(g.SequenceEqual(p), $"the gated picture differs from the ungated one ({GatedBuf.GetFrame().Length} vs {PlainBuf.GetFrame().Length} primitives)");
+            Assert.True(g.SequenceEqual(p), $"[{Phase}] the gated picture differs from the ungated one ({GatedBuf.GetFrame().Length} vs {PlainBuf.GetFrame().Length} primitives)");
         }
 
         public void Frames(int n) { for (int i = 0; i < n; i++) Frame(); }
@@ -73,9 +67,9 @@ namespace Hrot.Presentation.Tests.Gizmos
             int reused = Gated.RulePicturesReused;
             Frames(4);
             Assert.True(Gated.RulePicturesReused > reused, "a still world must re-append the declared rule's picture");
-            View.Set(10f); Frames(6); View.Set(1_000_000f); Frames(6);
-            foreach (var change in changes) { change(this); Frames(8); }
-            Repo.ResetGlobalVersion(2); Frames(60);
+            Phase = "pan"; View.Set(10f); Frames(6); View.Set(1_000_000f); Frames(6);
+            int k = 0; foreach (var change in changes) { Phase = "change " + (k++); change(this); Frames(8); }
+            Phase = "seek"; Repo.ResetGlobalVersion(2); Frames(60);
         }
     }
 }

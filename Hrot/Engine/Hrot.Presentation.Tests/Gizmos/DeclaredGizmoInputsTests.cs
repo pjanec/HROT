@@ -54,5 +54,31 @@ namespace Hrot.Presentation.Tests.Gizmos
                 g => settings.Write(Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry.ComputeHash(Hrot.Common.Diagnostics.Gizmos.HealthBarGizmoSettings.BarHeightKey),
                                     Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingValue.From(9f)));                      // the setting
         }
+    
+        [Fact]
+        public void CommandPictureAbsentGizmo_GatedPictureEqualsTheUngatedOne()
+        {
+            var made = new System.Collections.Generic.List<Entity>();
+            var rig = new GatedRuleRig(new CommandPictureAbsentGizmo(),
+                r => { Common(r); r.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(); },
+                (r, i) =>
+                {
+                    var e = Basic(r, i);
+                    r.AddComponent(e, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = i % 3 == 0 ? Entity.Null : made[i - 1] });
+                    made.Add(e);
+                    return e;
+                });
+            rig.Standard(
+                g => g.Repo.SetComponent(g.Ents[7], new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = g.Ents[8] }),   // another entity becomes a commander
+                g =>                                                                                                           // the Squad-command layer is switched off, then on
+                {
+                    var off = default(Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256); off.SetBit(1);
+                    g.GatedBuf.SetActiveLayers(off); g.PlainBuf.SetActiveLayers(off); g.Frames(8);
+                    g.Repo.SetComponent(g.Ents[1], new SimTransform { Position = new Vector3(15f, 1f, 0), Rotation = Quaternion.Identity }); g.Frames(8);   // a redraw WHILE hidden: the held picture is the empty one
+                    var on = default(Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256); on.SetAll();
+                    g.GatedBuf.SetActiveLayers(on); g.PlainBuf.SetActiveLayers(on);
+                },
+                g => g.Repo.SetComponent(g.Ents[4], new SimTransform { Position = new Vector3(5f, 5f, 0), Rotation = Quaternion.Identity }));   // a position
+        }
     }
 }
