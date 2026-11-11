@@ -132,6 +132,9 @@ public sealed class TheBuildingDamageDrawsTests
         Assert.Equal(0L, a1 - a0);
 
         Receive(repo, w, false, new WallBreach(SouthWall(w), 3.5f, 6.5f, 0.3f, 2.6f, BreachKind.Hole));
+        var rebuildClock = Stopwatch.StartNew();   // ⭐ CE-4392: the cost of ONE building's breach, from the entity arriving to the chunk's objects drawn again
+        do { Pass(frame, layer, outside); } while ((layer.Chunks!.DamageRebuilds == rebuilds || layer.Chunks.Pending > 0) && rebuildClock.Elapsed < TimeSpan.FromSeconds(30));
+        _out.WriteLine($"one breach: rebuilt in {rebuildClock.Elapsed.TotalMilliseconds:F0} ms (receive → chunk objects drawn again, passes included)");
         Settle(frame, layer, outside);
         var holeOut = Centre(frame, "damage-3-breach-outside.png");
         Assert.True(layer.Chunks.DamageRebuilds > rebuilds, "the breach rebuilt the house's chunk");
