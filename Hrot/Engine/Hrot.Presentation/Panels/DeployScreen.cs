@@ -62,12 +62,21 @@ public sealed class DeployScreen
             {
                 DeployFlowState.Playing => false,
                 DeployFlowState.Waiting => f.Reason.Length > 0,
-                DeployFlowState.Observing => !_keepObserving || f.ServerExists,
+                DeployFlowState.Observing => !_keepObserving && !f.ServerExists,   // ⭐ CE-4356 — with a server the centre stays clear: the status-bar entry offers the dialog
                 DeployFlowState.Dead => f.RespawnAtSim > 0.0 || !_keepObserving,   // a countdown always shows; "killed — observing" until the Player keeps observing
                 _ => true,
             };
         }
     }
+
+    /// <summary>⭐ CE-4356 — the status-bar entry's text: <i>Observing · Deploy…</i>, an eye glyph before it.</summary>
+    public const string ObserveEntryText = "Observing · Deploy…";
+
+    /// <summary>⭐ CE-4356 — whether the status bar carries the entry: the Player observes and a server could take it (D-13); the loading screen speaks first.</summary>
+    public bool ObserveEntryVisible => _flow() is { State: DeployFlowState.Observing, ServerExists: true } && !_loadingVisible();
+
+    /// <summary>⭐ CE-4356 — a click on the entry: back to Choosing, where the dialog is drawn again.</summary>
+    public bool ReopenFromObserving() => _flow() is { } f && f.StopObserving();
 
     /// <summary>The headline the screen says for the flow's state.</summary>
     public string Headline => _flow() is not { } f ? "" : f.State switch
@@ -141,6 +150,8 @@ public sealed class DeployScreen
     /// <summary>Called each frame inside an active ImGui frame.</summary>
     public void Render()
     {
+        if (ObserveEntryVisible) DrawObserveEntry();
+        DialogDrawn = false;
         if (!Visible) return;
         var f = _flow()!;
         var vp = ImGui.GetMainViewport();
@@ -149,14 +160,12 @@ public sealed class DeployScreen
         if (!ImGui.Begin("Deploy###mt_deploy_screen", ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
         { ImGui.End(); return; }
 
+        DialogDrawn = true;
         ImGui.TextUnformatted(Headline);
         switch (f.State)
         {
             case DeployFlowState.Observing when !f.ServerExists:
                 if (ImGui.Button("Keep observing")) _keepObserving = true;
-                break;
-            case DeployFlowState.Observing:
-                if (ImGui.Button("Choose a unit")) f.StopObserving();
                 break;
             case DeployFlowState.Choosing:
                 DrawChoosing(f);
@@ -170,6 +179,22 @@ public sealed class DeployScreen
                 break;
         }
         ImGui.End();
+    }
+
+    /// <summary>⭐ CE-4356 — whether the centred dialog was drawn on the last Render (the rails read it).</summary>
+    public bool DialogDrawn { get; private set; }
+
+    /// <summary>The rect of the entry on the last frame it was drawn (the rail clicks it).</summary>
+    public (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max) ObserveEntryRect { get; private set; }
+
+    private void DrawObserveEntry()
+    {
+        var g = NodeEditor.Core.Widgets.Icons.Get("mode/preview");
+        ImGui.TextColored(g.Color, g.Glyph);
+        ImGui.SameLine(0, 4);
+        if (ImGui.SmallButton(ObserveEntryText + "##deploy_observe_entry")) ReopenFromObserving();
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("You are observing — click to choose a unit to play");
+        ObserveEntryRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
     }
 
     private void DrawChoosing(DeployFlowSystem f)

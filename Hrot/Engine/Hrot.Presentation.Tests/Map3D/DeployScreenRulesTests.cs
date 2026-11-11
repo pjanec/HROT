@@ -3,6 +3,10 @@ using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Gameplay;
 using Hrot.UI.Common.Panels;
+using System;
+using System.Numerics;
+using Hrot.Editor.UiFrameRail;
+using ImGuiNET;
 using Xunit;
 
 namespace Hrot.Presentation.Tests.Map3D;
@@ -80,4 +84,49 @@ public sealed class DeployScreenRulesTests
         Assert.Equal(new[] { ForceId.Friend }, DeployScreen.SidesOf(offers));
         Assert.Equal(0, new DeployScreen(() => null, () => false).AreaNetId);
     }
+
+    /// <summary>⭐ CE-4356 — while OBSERVING with a server the centred dialog is gone and the status bar carries <i>Observing · Deploy…</i>; a click reopens the dialog at Choosing.
+    /// Frame rail on the real ImGui frame: the dialog window is absent while observing, the entry is drawn, a click brings the dialog back; a steady frame allocates 0 B.
+    /// ✅ Red-proof: <c>Visible</c> true again for Observing + server ⇒ the first assert is red.</summary>
+    [SkippableFact]
+    public void CE4356_WhileObserving_TheCentreIsClear_AndTheStatusEntryReopensTheDialogAtChoosing()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (flow, _) = Flow(open: true, live: true, server: true);
+        Assert.Equal(DeployFlowState.Choosing, flow.State);
+        // the flow reaches Observing through the server's answer to an Observe request (a wire round trip); the rail takes the state directly — the DRAW is what is under test
+        typeof(DeployFlowSystem).GetProperty(nameof(DeployFlowSystem.State))!.SetValue(flow, DeployFlowState.Observing);
+        var screen = new DeployScreen(() => flow, () => false);
+        Assert.False(screen.Visible, "no centred dialog while observing with a server");
+        Assert.True(screen.ObserveEntryVisible);
+
+        using var frame = UiFrameHarness.Begin(900, 500);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        var sim = new Hrot.Presentation.Tests.Panels.WidgetKitFrameRail.Sim();
+        long bytes = -1;
+        void Draw()
+        {
+            sim.Feed();
+            ImGui.SetNextWindowPos(new Vector2(0, 470)); ImGui.SetNextWindowSize(new Vector2(900, 30));
+            ImGui.Begin("##bar", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            screen.Render();
+            bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            ImGui.End();
+        }
+        for (int k = 0; k < 3; k++) { frame.StepN(15, Draw); System.Threading.Thread.Sleep(150); }
+        frame.StepN(5, Draw);
+        var (a, b) = screen.ObserveEntryRect;
+        Assert.True(b.X > a.X && a.Y > 400, "the entry is drawn in the bar");
+        Assert.False(screen.DialogDrawn, "the dialog window is absent while observing");
+        Assert.True(bytes == 0, $"a steady frame allocates nothing ({bytes} B)");
+
+        sim.Click(frame, Draw, (a + b) / 2f);
+        frame.StepN(3, Draw);
+        Assert.Equal(DeployFlowState.Choosing, flow.State);
+        Assert.True(screen.Visible);
+        Assert.True(screen.DialogDrawn, "the click brought the dialog back");
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d) frame.Screenshot(System.IO.Path.Combine(d, "deploy-observing-entry.png"));
+    }
+
 }
