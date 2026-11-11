@@ -1424,3 +1424,30 @@ graph TD
 
 **Measured / stated:** netconvert output for a small net DIFFERED between runs without a seed (scale-1's did not) — the builder passes `--seed 42` and strips the generated-on comment, so two compiles are byte-identical (rail). ⚠ **Not done in T-7a:** the SUMO edge is flat (no deck height; SUMO edges carry no z without node z); `TerrainBake.SaveAs` (bake an overlay into a new terrain) does not carry the bridge roads or net; the editor's live overlay shows the deck, the road appears at save; a bridge between a base node and a node of ANOTHER bridge is not snapped (base nodes only).
 **Rails:** `BridgeRoadsTests` (Fdp.Toolkits.Tests: route over the bridge, indices, unsnapped, byte-identical + hash), `BridgeNetTests` (Hrot.Traffic.Tests: SUMO route, base edge+lane ids kept, byte-identical net, no-netconvert), `BridgeLoadTests` (Hrot.SimHost.Tests: the residency).
+
+#### 18k-3. T-7b as built — a fallen bridge stops being road *(backend `2026-11-11`; build-state: T-7a + T-7b BUILT)*
+
+```mermaid
+graph TD
+  C[BuildingDamage.Collapsed - the damage system] --> T[BuildingDamageTable.Of - cached per frame stamp]
+  T -->|CollapsedBuildings diff, label = overlay bridges key| S[BridgeClosureSystem - Simulation phase, every node that composes TrafficPack]
+  S -->|segments removed: RoadNetworkEdit.Without| H[RoadNetworkHolder.Publish + ZoneEnvironmentData]
+  S -->|crossing vehicles| R[NavigationExecutionSystem.RequestReplan - the one replan]
+  S -->|only where TrafficRuntime serves| RT[TrafficRuntime.SetClosedEdges] --> SE[TrafficSession.SetClosedEdges on the stepping thread] --> EN[Engine.CloseEdge: avoid set + reroute]
+  T --> M[RubbleMound.Pieces: mound clipped to land - collision, 3-D heap, 2-D plan, derived world]
+```
+*What it shows:* ONE system per node closes the bridge in the vehicles' net, in SUMO's and for the vehicles already on their way; the rubble clip is the one function every reader of the mound shares.
+
+| as built | where |
+|---|---|
+| `Engine.CloseEdge` / `OpenEdge` (HROT additions, commented): the closed set lives on `NetworkRouter.ClosedEdges` (one point read by every route the engine plans: spawn, `SetDestination`, `Reroute`, the obstacle reroute, the periodic reroute) and `CloseEdge` re-routes every active vehicle whose remaining edges cross it; a vehicle ON the edge or mid-junction is left (call again). ⚠ **SumoSharp has no test project in this repo** — the rail is `BridgeClosureSumoTests` in `Hrot.Traffic.Tests` | `Sim.Ingest/NetworkRouter.cs`, `Sim.Core/Engine.cs`, `Sim.LiveCity/LiveCitySim.cs` |
+| the closed set rides the session like bodies and hand-overs: `TrafficRuntime.SetClosedEdges` (main thread, one volatile array) → `TrafficSession.SetClosedEdges` on the stepping thread (a session built later starts with it) | `TrafficRuntime.cs`, `TrafficSession.cs` |
+| **`BridgeClosureSystem` lives in `Hrot.Traffic`**, composed by `TrafficPack.PopulateSystems` — every node composes the pack (serving or mirroring), so every node that holds the roads holds it; the SUMO half acts only where `Runtime != null` (the nodes that run `TrafficSteppingModule`: the traffic node, the editor, a CGF with a Muscle), the vehicle re-plan only where `RoleCapabilityTable.Plan` gave the pack the node's trajectory pool (`inputs.Muscle != null`) | `BridgeClosureSystem.cs`, `TrafficPack.cs`, `RoleCapabilityTable.cs` |
+| the residency carries `bridges[]`: `TerrainDefinition.ResolvedBridges` (stamped at commit with the other `Resolved*` facts — no new component id: the backend block is full) | `TerrainResidency.cs`, `TerrainOverlay.cs` |
+| the vehicles' net: `RoadNetworkEdit.Without` (copy minus segments; nodes and the other segments keep their order — a segment AFTER a dropped one moves down, tracked as original → current); published to the holder AND the `ZoneEnvironmentData` singleton | `CarKinem/Road/RoadNetworkEdit.cs` |
+| a vehicle is re-planned when its baked trajectory's remaining polyline runs within the segment's half-width + 1.5 m of the MIDDLE of a bridge segment (the outer 15 % at each end is the junction with the base road), or it is a `RoadGraph` vehicle on a segment at or past the first dropped one. ⚠ **replicas on a node with no Muscle are not touched** (no pool); the request goes through `RequestReplan`, so it answers like a tile replan (`ReplanCount++`, `PathReplannedEvent`) | `BridgeClosureSystem.cs` |
+| **steady frame: one reference compare** (`BuildingDamageTable.Of` is cached per frame stamp) — 0 B rail | `BridgeClosureTests` |
+| **CE-3438** — `RubbleMound.Pieces`: a footprint no water reaches is its one prism as before; else the long axis is walked on its centre line at 0.5 m, each dry run ≥ 1 m is a piece (the footprint cut by two cross-lines). ⚠ **deviation from the brief** ("drop the footprint triangles whose centroid is in water"): a bridge footprint is a rectangle = TWO triangles, so a centroid test cannot cut it. `BuildingDamageTable.RubbleOf` became `PiecesOf` (collision `_rubble`, 3-D heap, 2-D plan, derived world all read it) | `RubbleMound.cs`, `BuildingDamageTable.cs`, `TerrainWorldMesh.Chunks.cs`, `StaticObstacles.cs`, `TerrainPlan2D.cs` |
+
+**Rails:** (a) `BridgeClosureTests.AFallenBridge_…` (route over the bridge ≈ 130 m, after the fall the detour > 150 m, the vehicle on the bridge re-planned, the west-road one not) · (b) `BridgeClosureSumoTests` (a SUMO car re-routed to the detour) · (b′) `WhereSumoRuns_…` (the runtime's closed set) · (c) `FeatureKindsTests.ABridge_CarriesAUnitAcross_…` now asserts two mounds, none in the river, and NO bank-to-bank navmesh path (the T-2 finding closed) · (d) `ASteadyFrame_AllocatesNothing`.
+**Not done:** a vehicle ON the bridge when it falls is left to the casualty path (SUMO's too); a vehicle mid-junction at the closure is re-routed only if `CloseEdge` is called again; un-collapse (an undo) does not re-open the bridge until the terrain reloads; `TerrainBake.SaveAs` still carries no bridge roads (T-7a).

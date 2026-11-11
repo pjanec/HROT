@@ -101,6 +101,7 @@ public static class RoleCapabilityTable
         // ⭐ CE-2121: the character body (stance) for the table's own muscle. A supplied tier brings its own.
         if (inputs.Muscle != null) plan = plan.Capability(NodeRole.MuscleGround, new AnimationMuscleCapability());
         // ⭐ AQ93 R-4047 / R-4056 and CE-4270 D3: the node's traffic. It serves the cars where this world simulates them and mirrors them where it does not.
+        if (inputs.Traffic is Hrot.Traffic.TrafficPack trafficPack && inputs.Muscle != null) trafficPack.TrajectoryPool = inputs.TrajectoryPool?.Pool;   // ⭐ T-7b — where there are vehicles, the closure re-plans the ones on a fallen bridge
         if (inputs.Traffic != null) plan = plan.Capability(live, inputs.Traffic);
         // ⭐ Player Join D-2 / §7c (R-4115): the gameplay deploy server.
         if (inputs.GameplayServer != null) plan = plan.Capability(NodeRole.Brain, inputs.GameplayServer);

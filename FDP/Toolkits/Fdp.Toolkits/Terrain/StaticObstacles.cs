@@ -138,12 +138,12 @@ namespace Fdp.Toolkit.Terrain
                     TerrainBuildingExpander.ExpandPanelPieces(terrain.Panels[pi], pi, WithGaps(terrain.Panels[pi], passages), prisms, "damage overlay");
                 foreach (int c in collapsed)
                 {
-                    var r = damage.RubbleOf(terrain, c);
-                    prisms.Add(new TerrainPrism
-                    {
-                        Kind = r.Kind, Footprint = r.Footprint, BaseZ = r.BaseZ, TopZ = r.TopZ, Label = r.Label, Triangles = r.Triangles, Min = r.Min, Max = r.Max,
-                        Material = r.Material, Building = -1,
-                    });
+                    foreach (var r in BuildingDamageTable.PiecesOf(terrain, c))   // ⭐ CE-3438 — the mound clipped to land
+                        prisms.Add(new TerrainPrism
+                        {
+                            Kind = r.Kind, Footprint = r.Footprint, BaseZ = r.BaseZ, TopZ = r.TopZ, Label = r.Label, Triangles = r.Triangles, Min = r.Min, Max = r.Max,
+                            Material = r.Material, Building = -1,
+                        });
                 }
                 if (collapsed.Count > 0)
                 {

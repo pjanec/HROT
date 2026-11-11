@@ -178,6 +178,30 @@ public sealed class TrafficSession : IDisposable
     /// <summary>What SUMO made of our bodies (SumoSharp H12): lane obstacles and crowd discs. Null until bodies were first told.</summary>
     public Sim.Core.Bridge.ExternalBodyFeed? Feed => _sim.ExternalBodies;
 
+    /// <summary>
+    /// ⭐ T-7b (CE-4423, docs/DESIGN_Terrain_Authoring.md §18k) — the SUMO edges that are CLOSED (a fallen bridge's), as of this frame. Told to SUMO at once (stepping thread, between steps): an edge newly in the set is closed
+    /// (<c>Engine.CloseEdge</c> — every car whose route crosses it is re-routed), one no longer in it re-opened. The same array again changes nothing.
+    /// </summary>
+    public void SetClosedEdges(string[] edges)
+    {
+        edges ??= Array.Empty<string>();
+        lock (_gate)
+        {
+            if (_disposed || ReferenceEquals(edges, _closedTold)) return;
+            _closedTold = edges;
+            foreach (var old in _closed.ToArray()) if (Array.IndexOf(edges, old) < 0) { _sim.OpenEdge(old); _closed.Remove(old); }
+            foreach (var e in edges) if (_closed.Add(e)) Rerouted += _sim.CloseEdge(e);
+        }
+    }
+    private string[]? _closedTold;
+    private readonly HashSet<string> _closed = new(StringComparer.Ordinal);
+
+    /// <summary>The edges SUMO is told are closed.</summary>
+    public IReadOnlyCollection<string> ClosedEdges => _closed;
+
+    /// <summary>How many cars the closures re-routed (rails / diagnostics).</summary>
+    public int Rerouted { get; private set; }
+
     /// <summary>⭐ AQ93 §14 G3 — the vehicles handed to SUMO, for the next step (stepping thread).</summary>
     public void SetHandovers(TrafficHandover[] handovers) => _handovers = handovers ?? Array.Empty<TrafficHandover>();
     private TrafficHandover[] _handovers = Array.Empty<TrafficHandover>();

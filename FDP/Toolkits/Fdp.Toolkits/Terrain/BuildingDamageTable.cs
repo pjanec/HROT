@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Terrain
                     if (Collapsed(world.Panels[world.Doors[d].Panel].Building)) _doorBits[d >> 6] |= 1UL << (d & 63);
             // a collapse already baked into THIS world's geometry (a derived world) carries its own rubble prism: not crossed twice
             var rubble = new List<TerrainPrism>(collapsed.Length);
-            foreach (int b in collapsed) if (!System.Linq.Enumerable.Contains(world.BakedCollapsed, b)) rubble.Add(MakeRubble(world, b));
+            foreach (int b in collapsed) if (!System.Linq.Enumerable.Contains(world.BakedCollapsed, b)) rubble.AddRange(PiecesOf(world, b));
             _rubble = rubble.ToArray();
             NavHash = ComputeNavHash(sorted, collapsed);
             _panelBits = new ulong[(panelCount + 63) >> 6];
@@ -153,8 +153,11 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The rubble of a building: its footprint, a third of its height, in the rubble material.</summary>
         public const float RubbleHeightShare = 1f / 3f;
 
-        /// <summary>The rubble prism of collapsed building <paramref name="building"/> (the overlay's copy source; built fresh).</summary>
-        public TerrainPrism RubbleOf(TerrainWorld world, int building) => MakeRubble(world, building);
+        /// <summary>
+        /// ⭐ CE-3438 — the rubble prisms of collapsed building <paramref name="building"/> (the overlay's copy source; built fresh): its mound CLIPPED TO LAND (<see cref="RubbleMound"/>) — one piece for a building no water
+        /// reaches, one per bank for a bridge, none for one standing in the water. The one list the collision, the 3-D heap, the 2-D plan and the derived world all read.
+        /// </summary>
+        public static List<TerrainPrism> PiecesOf(TerrainWorld world, int building) => RubbleMound.Pieces(world, building, MakeRubble(world, building));
 
         private static TerrainPrism MakeRubble(TerrainWorld world, int building)
         {

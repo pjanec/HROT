@@ -12,8 +12,8 @@
     "translators": 6,
     "capabilities": 0,
     "providers": 0,
-    "singletons": 4,
-    "componentTypes": 166
+    "singletons": 5,
+    "componentTypes": 170
   },
   "modules": [
     "EntityLifecycleModule | name=EntityLifecycleManager | run=Synchronous | data=Direct | hz=60",
@@ -56,7 +56,7 @@
     "Export 001 Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem | module=Global",
     "Export 002 Fdp.Toolkit.Replication.Systems.SmartEgressSystem | module=NedReplication",
     "Export 003 Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem | module=NedReplication",
-    "Manual 000 Hrot.Network.Systems.DeferredTakeoverSystem | module=Unknown"
+    "Manual 000 Hrot.Network.Systems.DeferredTakeoverSystem | module=NedReplication"
   ],
   "translators": [
     "CycloneNetworkIngressSystem | Bidirectional | Fdp_Toolkit_Time_Messages_SwitchTimeModeWireDto | ordinal=201",
@@ -72,7 +72,8 @@
     "Fdp.Interfaces.ITkbDatabase",
     "Fdp.Modules.Geographic.IGeographicTransform",
     "Fdp.Toolkit.Replay.ReplayState",
-    "Fdp.Toolkit.Replication.Services.NetworkEntityMap"
+    "Fdp.Toolkit.Replication.Services.NetworkEntityMap",
+    "Hrot.Common.Editing.StationMode"
   ],
   "componentTypes": [
     "CarKinem.Core.DoorPassage",
@@ -194,6 +195,7 @@
     "Fdp.Toolkit.Scenario.RefKey",
     "Fdp.Toolkit.Scenario.ScenarioDescriptionResident",
     "Fdp.Toolkit.Scenario.ScenarioIgnoreTag",
+    "Fdp.Toolkit.Scenario.VariantForms",
     "Fdp.Toolkit.ScenarioRules.Actions.ActionArgs",
     "Fdp.Toolkit.ScenarioRules.Actions.ActionFailure",
     "Fdp.Toolkit.ScenarioRules.ExerciseResult",
@@ -206,11 +208,14 @@
     "Fdp.Toolkit.Squad.SquadLeadership",
     "Fdp.Toolkit.Squad.SquadMemberSense",
     "Fdp.Toolkit.Squad.SquadUnitSense",
+    "Fdp.Toolkit.Terrain.BuildingDamage",
     "Fdp.Toolkit.Terrain.DoorState",
     "Fdp.Toolkit.Terrain.ObstacleShape",
     "Fdp.Toolkit.Terrain.StaticObstacle",
     "Fdp.Toolkit.Terrain.TerrainAssetLoadState",
+    "Fdp.Toolkit.Terrain.TerrainBlock",
     "Fdp.Toolkit.Terrain.TerrainDefinition",
+    "Fdp.Toolkit.Terrain.TerrainFeature",
     "Fdp.Toolkit.Terrain.TerrainObjectKey",
     "Fdp.Toolkit.Time.Lifespan",
     "Fdp.Toolkit.Traffic.TrafficDemand",

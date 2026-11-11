@@ -17,6 +17,23 @@ namespace Fdp.Toolkit.Terrain
         public string? SumoNet { get; init; }
         /// <summary>⭐ T-7a — whether the overlay carries <see cref="RoadsFileName"/>.</summary>
         public bool HasRoads { get; init; }
+        /// <summary>⭐ T-7b — the overlay's bridges (<c>bridges[]</c>): which structure each is, its road segments and its SUMO edges.</summary>
+        public System.Collections.Generic.IReadOnlyList<OverlayBridge> Bridges { get; init; } = Array.Empty<OverlayBridge>();
+
+        private static OverlayBridge[] ParseBridges(JsonArray? rows)
+        {
+            if (rows == null) return Array.Empty<OverlayBridge>();
+            var list = new System.Collections.Generic.List<OverlayBridge>(rows.Count);
+            foreach (var n in rows)
+            {
+                if (n is not JsonObject r || (string?)r["key"] is not { } key) continue;
+                var segs = new System.Collections.Generic.List<int>(); var edges = new System.Collections.Generic.List<string>();
+                if (r["segments"] is JsonArray sa) foreach (var x in sa) segs.Add(x!.GetValue<int>());
+                if (r["sumoEdges"] is JsonArray ea) foreach (var x in ea) edges.Add((string)x!);
+                list.Add(new OverlayBridge(key, (bool?)r["snapped"] ?? false, segs.ToArray(), edges.ToArray()));
+            }
+            return list.ToArray();
+        }
 
         public static TerrainOverlayHeader Parse(string json, string where)
         {
@@ -34,8 +51,19 @@ namespace Fdp.Toolkit.Terrain
                 (string?)baseNode?["contentHash"] ?? "",
                 (string?)obj["scenario"] ?? "",
                 (string?)obj["world"] ?? DefaultWorldFileName)
-            { SumoNet = (string?)obj["sumoNet"], HasRoads = (bool?)obj["hasRoads"] ?? false };
+            { SumoNet = (string?)obj["sumoNet"], HasRoads = (bool?)obj["hasRoads"] ?? false, Bridges = ParseBridges(obj["bridges"] as JsonArray) };
         }
+    }
+
+    /// <summary>⭐ T-7b (CE-4423) — one row of <c>overlay.json</c> <c>bridges[]</c>: the Bridge feature's key (= its structure building's label), whether it is road, and the road-net segment indices and SUMO edge ids it added.</summary>
+    public sealed record OverlayBridge(string Key, bool Snapped, int[] Segments, string[] SumoEdges);
+
+    /// <summary>⭐ T-7b — the resident overlay's bridges, published by <c>TerrainResidency</c> as a managed singleton on its commit (empty when the terrain has no overlay or the overlay no bridge) for the <c>BridgeClosureSystem</c>.</summary>
+    public sealed class TerrainBridges
+    {
+        public static readonly TerrainBridges None = new(Array.Empty<OverlayBridge>());
+        public TerrainBridges(System.Collections.Generic.IReadOnlyList<OverlayBridge> items) => Items = items;
+        public System.Collections.Generic.IReadOnlyList<OverlayBridge> Items { get; }
     }
 
     /// <summary>⭐ O-2 — a terrain overlay read from its folder: the header, the overlay's own world (indices from 0, <see cref="TerrainWorld.SourceFolder"/> = <see cref="Folder"/>).</summary>

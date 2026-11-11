@@ -106,9 +106,12 @@ namespace Fdp.Toolkit.Terrain.Tests
             // the deck and both ramps are gone (the base's own roof slab is the one walkable left) and a unit at deck height has nothing under it (O-2's own criterion)
             Assert.Equal(_f.BaseWorld().Walkables.Count, derived.Walkables.Count);
             Assert.True(derived.SurfaceZ(215f, 200f, 1.5f) < 1.0f, "the collapsed bridge no longer carries a unit at deck height");
-            // 📌 MEASURED (T-2): what a collapse leaves — the 0.6 m RUBBLE MOUND over the bridge's whole footprint (CE-4391 S-2's rule for any structure) — is itself walkable by the navmesh, a low causeway across the
-            //   river: the path from bank to bank still exists (two waypoints). ⚠ filed as a finding, not asserted either way here.
-            Assert.Single(derived.Prisms.Where(p => p.Label != null && p.Label.EndsWith("(rubble)", StringComparison.Ordinal)));
+            // ⭐ CE-3438 (T-7b) — what a collapse leaves is the rubble mound CLIPPED TO LAND: one mound on each bank, none in the water. 📌 (T-2 measured the unclipped 0.6 m mound over the whole footprint as a walkable causeway:
+            //   a path from bank to bank still existed.) 🔴 Red-proof: skip the clip (return the whole prism) ⇒ the path exists again.
+            var mounds = derived.Prisms.Where(p => p.Label != null && p.Label.EndsWith("(rubble)", StringComparison.Ordinal)).ToList();
+            Assert.Equal(2, mounds.Count);
+            Assert.All(mounds, m => Assert.False(m.Min.X < 230f && m.Max.X > 200f, "no mound reaches into the river (x 200..230)"));
+            Assert.False(Nav(derived).PathExists(from, to, (uint)NavLayerMask.Infantry), "after the collapse nothing carries a unit across the river");
         }
 
         // ── a scatter is deterministic ────────────────────────────────────────────────────────────────────────────

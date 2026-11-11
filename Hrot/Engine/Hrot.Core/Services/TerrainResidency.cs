@@ -49,6 +49,7 @@ public sealed class TerrainResidency
         internal DateTime           FileTimestamp;
         internal long               BakeSerial = -1;
         internal string?            BaseHash;        // ⭐ O-8 — the base terrain's content hash, known when an overlay is merged
+        internal TerrainBridges     Bridges = TerrainBridges.None;   // ⭐ T-7b (CE-4423) — the overlay's bridges (overlay.json bridges[]), for the BridgeClosureSystem
         internal string?            OverlayFolder;   // ⭐ O-4 — the CONTENT HASH of the overlay merged into World, if any
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
@@ -248,6 +249,7 @@ public sealed class TerrainResidency
                         $"[Terrain] The overlay '{overlayFolder}' is torn: its header says content hash '{header.ContentHash}', its files hash to '{actualOverlay}' (terrain '{terrainName}').");
                 var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!));
                 baseWorld = TerrainWorldMerge.Merge(baseWorld, overlay.World);
+                if (header.Bridges.Count > 0) staged.Bridges = new TerrainBridges(header.Bridges);
             }
             staged.World = Indexed(baseWorld);
 
@@ -338,6 +340,7 @@ public sealed class TerrainResidency
         staged.Definition!.ResolvedName = staged.TerrainName ?? string.Empty;
         staged.Definition.ResolvedOverlayHash = staged.OverlayFolder ?? string.Empty;   // ⭐ O-8 — stamped into a recording's metadata
         staged.Definition.ResolvedBaseHash = staged.OverlayFolder != null ? staged.BaseHash ?? string.Empty : string.Empty;
+        staged.Definition.ResolvedBridges = staged.Bridges;   // ⭐ T-7b (CE-4423) — always set, so a re-load never keeps the previous terrain's bridges
         world.SetSingletonManaged(staged.Definition!);
         Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the commit's stages report (docs/DESIGN_Cluster_Load_Phase.md §12)
 

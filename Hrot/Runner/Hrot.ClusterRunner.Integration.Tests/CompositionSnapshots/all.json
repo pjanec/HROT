@@ -10,39 +10,39 @@
   "nodeCounts": {
     "simhost": {
       "modules": 11,
-      "systems": 141,
-      "translators": 151,
+      "systems": 145,
+      "translators": 153,
       "capabilities": 10,
       "providers": 1,
-      "singletons": 13,
-      "componentTypes": 191
+      "singletons": 14,
+      "componentTypes": 195
     },
     "player": {
       "modules": 10,
-      "systems": 93,
-      "translators": 138,
+      "systems": 96,
+      "translators": 140,
       "capabilities": 7,
       "providers": 0,
-      "singletons": 5,
-      "componentTypes": 145
+      "singletons": 6,
+      "componentTypes": 149
     },
     "cgf": {
       "modules": 9,
-      "systems": 149,
-      "translators": 158,
+      "systems": 152,
+      "translators": 160,
       "capabilities": 7,
       "providers": 0,
-      "singletons": 8,
-      "componentTypes": 224
+      "singletons": 9,
+      "componentTypes": 228
     },
     "traffic": {
       "modules": 6,
-      "systems": 50,
-      "translators": 130,
+      "systems": 52,
+      "translators": 132,
       "capabilities": 2,
       "providers": 0,
-      "singletons": 4,
-      "componentTypes": 122
+      "singletons": 5,
+      "componentTypes": 126
     }
   }
 }
